@@ -243,7 +243,7 @@ export class MealTextComponent {
       // cannot answer falls through to the next candidate instead of settling
       // for a guess. Lazy: it stops at the first confident resolution.
       let resolved: ResolvedMealItem | null = null;
-      for (const hit of rankResolutionHits(hits).slice(0, 3)) {
+      for (const hit of rankResolutionHits(hits, { unit: item.unit, raw: item.raw }).slice(0, 3)) {
         const detail = await this.foodSearch.getDetail(hit.source, hit.id);
         const candidate = resolveMealItem(item, detail.servings);
         if (candidate && candidate.calories > 0 && !candidate.assumed) {

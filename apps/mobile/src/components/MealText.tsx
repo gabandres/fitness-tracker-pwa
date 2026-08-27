@@ -101,7 +101,7 @@ export function MealText({ forDate, onAddMany, onCancel, seedText }: Props) {
       // for a guess. Lazy on purpose: the loop stops at the first confident
       // resolution, so the common case is still one lookup.
       let r: ResolvedMealItem | null = null;
-      for (const hit of rankResolutionHits(hits).slice(0, 3)) {
+      for (const hit of rankResolutionHits(hits, { unit: item.unit, raw: item.raw }).slice(0, 3)) {
         const detail = await getFoodDetail(hit.source, hit.id);
         const candidate = resolveMealItem(item, detail.servings);
         if (candidate && candidate.calories > 0 && !candidate.assumed) {

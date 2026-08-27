@@ -351,7 +351,7 @@ export const ptBR = {
   'mealText.resolving': 'Procurando os alimentos…',
   'mealText.reviewHint': 'Os números vêm do banco de alimentos. Edite o que quiser e adicione.',
   'mealText.read': 'Lemos: {text}',
-  'mealText.assumed': 'Porção presumida — confira',
+  'mealText.assumed': 'Essa porção não está no banco de dados — a quantidade acima é uma estimativa. Edite.',
   'mealText.noMatch': 'Sem resultado — informe os valores',
   'mealText.addAll': 'Adicionar tudo ao diário',
   'mealText.startOver': 'Começar de novo',

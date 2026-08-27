@@ -358,7 +358,7 @@ export const esPR: Record<I18nKey, string> = {
   'mealText.resolving': 'Buscando alimentos…',
   'mealText.reviewHint': 'Los números vienen de la base de datos. Edita lo que quieras y añade.',
   'mealText.read': 'Leímos: {text}',
-  'mealText.assumed': 'Porción supuesta — verifica',
+  'mealText.assumed': 'Esa porción no está en la base de datos — la cantidad de arriba es un estimado. Edítala.',
   'mealText.noMatch': 'Sin resultado — escribe los valores',
   'mealText.addAll': 'Añadir todo al diario',
   'mealText.startOver': 'Empezar de nuevo',

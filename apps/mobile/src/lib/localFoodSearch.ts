@@ -1,4 +1,5 @@
 import {
+  translateFoodTerm,
   buildFoodDetail,
   findFoodById,
   loadFoodIndex,
@@ -104,9 +105,23 @@ export function isFoodIndexWarm(): boolean {
   return index !== null;
 }
 
-/** Text search, entirely on device. Never touches the network. */
+/**
+ * Text search, entirely on device. Never touches the network.
+ *
+ * Spanish and Portuguese food names are rewritten to the English term the
+ * index actually holds before searching (issue #106). The parser has spoken
+ * those languages since ADR-0013 while the corpus never has, so
+ * "mantequilla de mani" parsed perfectly and then matched nothing.
+ *
+ * The rewrite lives HERE and not in `searchFoodIndex` on purpose: the ranker is
+ * mirrored byte-for-byte in `functions/src/usda-db.ts` and pinned by the golden
+ * fixture, and this is a client affordance rather than a ranking rule. It is
+ * also mobile-only by ADR-0022 — the web logging app is frozen for features.
+ * `translateFoodTerm` returns its input untouched when nothing matches, so
+ * every English query is byte-identical to before.
+ */
 export function localSearch(query: string, pageSize = 20): FoodSearchHit[] {
-  return searchFoodIndex(getIndex(), query, pageSize);
+  return searchFoodIndex(getIndex(), translateFoodTerm(query), pageSize);
 }
 
 /**

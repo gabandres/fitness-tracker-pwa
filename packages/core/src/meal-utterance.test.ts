@@ -394,3 +394,91 @@ describe('rankResolutionHits', () => {
     expect(rankResolutionHits(hits)[0]).toBe(pickResolutionHit(hits));
   });
 });
+
+// ─── Portuguese, the third shipped locale (#106) ─────────────────────────
+// pt-BR shipped 2026-08-23 with none of this lexicon, so a Portuguese
+// utterance lost its unit in silence and resolved as a bare count.
+
+describe('parseMealUtterance — Portuguese', () => {
+  it('colher de sopa is a tablespoon', () => {
+    expect(item('2 colheres de sopa de pasta de amendoim')).toEqual([
+      { quantity: 2, unit: 'tbsp', food: 'pasta de amendoim' },
+    ]);
+  });
+
+  it('colher de chá is a teaspoon — a factor of three apart', () => {
+    expect(item('1 colher de chá de mel')).toEqual([
+      { quantity: 1, unit: 'tsp', food: 'mel' },
+    ]);
+  });
+
+  it('xícara, fatia and grama', () => {
+    expect(item('1 xícara de arroz branco')).toEqual([
+      { quantity: 1, unit: 'cup', food: 'arroz branco' },
+    ]);
+    expect(item('duas fatias de pão integral')).toEqual([
+      { quantity: 2, unit: 'slice', food: 'pão integral' },
+    ]);
+    expect(item('200 gramas de frango')).toEqual([
+      { quantity: 200, unit: 'g', food: 'frango' },
+    ]);
+  });
+
+  it('meia is a half', () => {
+    expect(item('meia xícara de feijão preto')).toEqual([
+      { quantity: 0.5, unit: 'cup', food: 'feijão preto' },
+    ]);
+  });
+
+  it('a bare "colher" stays unmapped — it is genuinely ambiguous', () => {
+    // Guessing between sopa and chá mis-sizes by 3x in silence. No unit is the
+    // honest answer; the row is then flagged as assumed.
+    expect(item('1 colher de mel')[0].unit).toBeNull();
+  });
+});
+
+// ─── Raw vs cooked (#104) ────────────────────────────────────────────────
+
+describe('rankResolutionHits — preparation state', () => {
+  const h = (id: string, description: string, dataType: string) => ({ id, description, dataType });
+  const RICE = [
+    h('raw', 'Rice, white, long grain, raw', 'Foundation'),
+    h('cooked', 'Rice, white, cooked, no added fat', 'Survey (FNDDS)'),
+  ];
+
+  it('an eating unit prefers the prepared entry over the higher tier', () => {
+    // Foundation outranks FNDDS on tier, and is where the raw reference data
+    // lives — so tier-first sends "a cup of rice" to a cup of dry grains.
+    const [top] = rankResolutionHits(RICE, { unit: 'cup', raw: '1 cup white rice' });
+    expect(top.id).toBe('cooked');
+  });
+
+  it('a mass unit does NOT — a scale reading is plausibly the raw ingredient', () => {
+    const [top] = rankResolutionHits(RICE, { unit: 'g', raw: '100 g white rice' });
+    expect(top.id).toBe('raw');
+  });
+
+  it('a bare count does not either', () => {
+    const [top] = rankResolutionHits(RICE, { unit: null, raw: '2 rice' });
+    expect(top.id).toBe('raw');
+  });
+
+  it('a preparation the user STATED wins outright', () => {
+    for (const said of ['1 cup raw white rice', '1 taza de arroz crudo', '1 xícara de arroz cru']) {
+      expect(rankResolutionHits(RICE, { unit: 'cup', raw: said })[0].id).toBe('raw');
+    }
+  });
+
+  it('leaves the order alone when nothing prepared exists', () => {
+    const onlyRaw = [
+      h('a', 'Almonds, raw', 'Survey (FNDDS)'),
+      h('b', 'Almonds, dry roasted', 'Foundation'),
+    ];
+    // Both carry a raw/dry marker, so the tier order is untouched.
+    expect(rankResolutionHits(onlyRaw, { unit: 'cup', raw: '1 cup almonds' })[0].id).toBe('b');
+  });
+
+  it('with no context at all, behaves exactly as before', () => {
+    expect(rankResolutionHits(RICE)[0].id).toBe('raw');
+  });
+});

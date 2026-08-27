@@ -76,14 +76,24 @@ const WORD_NUMBERS: Record<string, number> = {
   // Spanish
   uno: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8,
   nueve: 9, diez: 10, media: 0.5, medio: 0.5, cuarto: 0.25,
+  // Portuguese. Overlaps Spanish deliberately — one combined lexicon, so a
+  // mixed utterance still parses and no locale flag is needed.
+  // (quatro, cinco and seis are spelled the same in both and are already above)
+  dois: 2, duas: 2, 'três': 3, sete: 7, oito: 8, nove: 9, dez: 10,
+  meia: 0.5, meio: 0.5,
 };
 
 /** Words that mean "one" AND act as an article — quantity 1, but a following
  *  fractional word ("a half") replaces rather than adds to them. */
-const ARTICLE_ONES = new Set(['a', 'an', 'un', 'una']);
+const ARTICLE_ONES = new Set(['a', 'an', 'un', 'una', 'um', 'uma']);
 
 /** Grammatical filler skipped between quantity, unit and food. */
-const FILLER = new Set(['of', 'de', 'the', 'el', 'la', 'los', 'las']);
+const FILLER = new Set([
+  'of', 'the',
+  'de', 'el', 'la', 'los', 'las',
+  // Portuguese contractions of "de" + article. "de" itself is already above.
+  'da', 'do', 'das', 'dos',
+]);
 
 /** Unit surface forms → canonical unit. Includes plurals, abbreviations and
  *  Spanish equivalents. Mass units align with {@link MASS_UNIT_GRAMS}. */
@@ -116,6 +126,24 @@ const UNIT_MAP: Record<string, string> = {
   bowl: 'bowl', bowls: 'bowl', plato: 'bowl', platos: 'bowl',
   clove: 'clove', cloves: 'clove', diente: 'clove', dientes: 'clove',
   stick: 'stick', sticks: 'stick',
+  // ── Portuguese ──
+  // pt-BR shipped as a third locale on 2026-08-23 with NONE of this, so a
+  // Portuguese utterance lost its unit silently and resolved as a bare count.
+  // Accented and unaccented forms are both listed: the tokenizer does not fold
+  // diacritics, and people type both.
+  grama: 'g', gramas: 'g',
+  quilo: 'kg', quilos: 'kg', quilograma: 'kg', quilogramas: 'kg',
+  mililitro: 'ml', mililitros: 'ml',
+  onca: 'oz', oncas: 'oz', 'onça': 'oz', 'onças': 'oz',
+  xicara: 'cup', xicaras: 'cup', 'xícara': 'cup', 'xícaras': 'cup',
+  fatia: 'slice', fatias: 'slice',
+  pedaco: 'piece', pedacos: 'piece', 'pedaço': 'piece', 'pedaços': 'piece',
+  punhado: 'handful', punhados: 'handful',
+  copo: 'glass', copos: 'glass',
+  tigela: 'bowl', tigelas: 'bowl',
+  garrafa: 'bottle', garrafas: 'bottle',
+  dente: 'clove', dentes: 'clove',
+  'porcao': 'serving', 'porcoes': 'serving', 'porção': 'serving', 'porções': 'serving',
 };
 
 interface TokenNumber {
@@ -171,6 +199,14 @@ function unglue(s: string): string {
  *  glued to the front of the food and lose the unit entirely. */
 function foldUnitPhrases(s: string): string {
   return s
+    // Portuguese spoons are PHRASES, and the difference between them is a
+    // factor of three: "colher de sopa" is a tablespoon, "colher de chá" a
+    // teaspoon. A bare "colher" is deliberately NOT mapped — it is genuinely
+    // ambiguous in Portuguese, and guessing wrong mis-sizes by 3x in silence.
+    .replace(/\bcolher(?:es)?\s+de\s+sopa\b/g, 'tbsp')
+    // NB: no trailing \b after á — JS word boundaries are ASCII, so "chá" ends
+    // on a non-word character and \b can never match there.
+    .replace(/\bcolher(?:es)?\s+de\s+ch(?:a|á)(?![a-zà-ÿ])/g, 'tsp')
     .replace(/\bfl\.?\s*oz\.?\b/g, 'floz')
     .replace(/\bfluid\s+ounces?\b/g, 'floz')
     .replace(/\bonzas?\s+l[ií]quidas?\b/g, 'floz');
@@ -309,18 +345,72 @@ export function pickResolutionHit<T extends { dataType?: string }>(
  * guess. Trying the next-ranked food costs one local lookup and is only ever
  * reached when the first one came back `assumed`.
  */
-export function rankResolutionHits<T extends { dataType?: string }>(
+/**
+ * Words that mean "as bought / not yet cooked". A USDA description carrying one
+ * of these is measuring the INGREDIENT, and its cup is a cup of dry grains.
+ */
+const RAW_MARKER = /\b(raw|dried|dry|uncooked)\b/;
+
+/**
+ * Preparation words in the USER's own words, in all three shipped languages.
+ * When someone says which state they mean, they get it — the preference below
+ * exists only to break a tie the utterance left open.
+ */
+const STATED_PREPARATION =
+  /\b(raw|fresh|uncooked|dry|dried|cooked|boiled|steamed|grilled|roasted|baked|fried|canned|crud[oa]|cru|crua|fresc[oa]|sec[oa]|cocid[oa]|cozid[oa]|hervid[oa]|frit[oa]|asad[oa]|assad[oa]|hornead[oa])\b/;
+
+/** Context for {@link rankResolutionHits}: what the utterance actually said. */
+export interface ResolutionContext {
+  /** The parsed unit, or null for a bare count. */
+  unit?: string | null;
+  /** The utterance's original text, so a stated preparation wins outright. */
+  raw?: string;
+}
+
+/**
+ * Should a raw/dry entry be pushed below a prepared one for this utterance?
+ *
+ * Only when BOTH hold:
+ *
+ * - the utterance measured in an EATING unit — a cup, a slice, a bowl. Someone
+ *   who says "100 g of rice" is plausibly reading a scale before cooking, and a
+ *   raw entry is the right answer there; someone who says "a cup of rice" is
+ *   describing a plate. The unit is the only preparation signal a typed
+ *   utterance carries, which is why the photo path's `stateBonus` has nothing
+ *   to transplant here — it knows the food was photographed on a plate.
+ * - the utterance named no preparation itself. "1 cup fresh spinach" must keep
+ *   its raw leaves.
+ */
+function prefersPrepared(ctx: ResolutionContext | undefined): boolean {
+  if (!ctx?.unit) return false;
+  if (MASS_UNIT_GRAMS[ctx.unit]) return false;
+  return !STATED_PREPARATION.test((ctx.raw ?? '').toLowerCase());
+}
+
+export function rankResolutionHits<T extends { dataType?: string; description?: string }>(
   hits: readonly T[],
+  ctx?: ResolutionContext,
 ): T[] {
-  return hits
-    .map((hit, i) => ({
-      hit,
-      i,
-      rank: hit.dataType != null && hit.dataType in GENERIC_USDA_RANK
-        ? GENERIC_USDA_RANK[hit.dataType]
-        : Infinity,
-    }))
-    .sort((a, b) => a.rank - b.rank || a.i - b.i)
+  const demoteRaw = prefersPrepared(ctx);
+  const scored = hits.map((hit, i) => ({
+    hit,
+    i,
+    // A raw entry sorts AFTER every prepared one, ahead of the data-type tier.
+    // That ordering is the point: Foundation is the most trustworthy tier and
+    // is overwhelmingly raw reference data, so tier-first sends "a cup of rice"
+    // to a cup of dry grains — 702 kcal against about 205.
+    raw: demoteRaw && RAW_MARKER.test((hit.description ?? '').toLowerCase()) ? 1 : 0,
+    rank: hit.dataType != null && hit.dataType in GENERIC_USDA_RANK
+      ? GENERIC_USDA_RANK[hit.dataType]
+      : Infinity,
+  }));
+  // Only reorder when a prepared alternative actually exists — otherwise a food
+  // that is only ever sold raw (an apple, an almond) would be reshuffled for
+  // nothing.
+  const anyPrepared = scored.some((x) => x.raw === 0);
+  return scored
+    .sort((a, b) =>
+      (anyPrepared ? a.raw - b.raw : 0) || a.rank - b.rank || a.i - b.i)
     .map((r) => r.hit);
 }
 

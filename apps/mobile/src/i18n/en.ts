@@ -374,7 +374,7 @@ export const en = {
   'mealText.resolving': 'Matching foods…',
   'mealText.reviewHint': 'Numbers come from the food database. Edit anything, then add.',
   'mealText.read': 'We read: {text}',
-  'mealText.assumed': 'Assumed portion — double-check',
+  'mealText.assumed': 'That portion isn’t in the food database — the amount above is our guess. Edit it.',
   'mealText.noMatch': 'No match — enter values',
   'mealText.addAll': 'Add all to diary',
   'mealText.startOver': 'Start over',
