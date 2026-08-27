@@ -185,11 +185,9 @@ export function scoreFood(
 ): number | null {
   let score = 0;
   for (const t of tokens) {
-    const s = stem(t);
-    if (food.wordStems.includes(s)) score += 30;
-    else if (food.wordStems.some((w) => w.startsWith(s))) score += 20;
-    else if (food.norm.includes(t)) score += 5;
-    else return null;
+    const s = tokenScore(food, t);
+    if (s === null) return null;
+    score += s;
   }
 
   score += headMatchBonus(food, tokens, query);
@@ -249,11 +247,76 @@ function leadingSegmentsCover(food: IndexedFood, tokens: string[]): boolean {
  * Ties break on description length then id so the ordering is total and stable
  * — which is what makes the golden fixture meaningful at all.
  */
+/** How well one query token matches one food, or null for not at all.
+ *  Extracted so the strict AND above and {@link headAnchoredTokens} below
+ *  cannot drift apart — the fallback has to ask exactly the question the
+ *  scorer asks, or it will discard a word the scorer would have accepted. */
+function tokenScore(food: IndexedFood, t: string): number | null {
+  const s = stem(t);
+  if (food.wordStems.includes(s)) return 30;
+  if (food.wordStems.some((w) => w.startsWith(s))) return 20;
+  if (food.norm.includes(t)) return 5;
+  return null;
+}
+
+/**
+ * The longest run of query words, anchored on the last one, that some single
+ * food actually satisfies.
+ *
+ * {@link scoreFood} is an AND, so ONE word the database never writes empties an
+ * otherwise good query: "pure honey" and "natural peanut butter" both returned
+ * NOTHING from an index holding Honey and Peanut butter. ("plain greek yogurt"
+ * and "grilled chicken breast" work only because USDA happens to use those
+ * adjectives — a user cannot know which of their words is which.)
+ *
+ * Walks RIGHT TO LEFT because the head noun of an English noun phrase is its
+ * last word: "pure HONEY", "natural peanut BUTTER". Anchoring there keeps the
+ * thing being named and discards only the modifiers the database cannot honour.
+ * Left to right instead would keep "pure" and answer with tomato puree, which
+ * contains "pure" as a substring — that is not a hypothetical, it is what the
+ * first version of this did.
+ *
+ * Dropping words rather than scoring them as absent is deliberate: a partial
+ * score has to compete with `headMatchBonus`, which is worth hundreds, so
+ * "Butter, tub" outranked "Peanut butter" for "natural peanut butter" on a
+ * gap penalty of any sane size. Here the survivors are ranked by the untouched
+ * scorer, exactly as if the user had typed only those words.
+ */
+function headAnchoredTokens(foods: IndexedFood[], tokens: string[]): string[] {
+  const keep: string[] = [];
+  let candidates = foods;
+  for (let i = tokens.length - 1; i >= 0; i -= 1) {
+    const next = candidates.filter((f) => tokenScore(f, tokens[i]) !== null);
+    if (next.length > 0) {
+      keep.unshift(tokens[i]);
+      candidates = next;
+    }
+  }
+  return keep;
+}
+
 export function searchFoodIndex(foods: IndexedFood[], rawQuery: string, size: number): FoodSearchHit[] {
   const query = normalizeQuery(rawQuery);
   const tokens = words(query);
   if (tokens.length === 0) return [];
 
+  const strict = collect(foods, tokens, query, size);
+  if (strict.length > 0 || tokens.length < 2) return strict;
+  // Nothing matched every word. Retry with only the words the database can
+  // honour, rather than showing the user an empty result. Fallback ONLY: a
+  // query that found anything keeps its exact ranking, and the extra pass is
+  // paid where the alternative was nothing at all.
+  const kept = headAnchoredTokens(foods, tokens);
+  if (kept.length === 0 || kept.length === tokens.length) return strict;
+  return collect(foods, kept, kept.join(' '), size);
+}
+
+function collect(
+  foods: IndexedFood[],
+  tokens: string[],
+  query: string,
+  size: number,
+): FoodSearchHit[] {
   const scored: { food: IndexedFood; score: number }[] = [];
   for (const food of foods) {
     const score = scoreFood(food, tokens, query);

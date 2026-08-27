@@ -263,3 +263,55 @@ describe('tokenizer', () => {
     expect(normalizeQuery('  Chicken   Breast ')).toBe('chicken breast');
   });
 });
+
+// ─── One unknown word must not empty the result set ──────────────────────
+// `scoreFood` is an AND across query tokens, so a modifier USDA never writes
+// disqualified every food in the index. Reported from a real phone: someone
+// typed "1 teaspoon of pure honey" and got "No match - enter values" from a
+// database that contains Honey.
+
+describe('searchFoodIndex - words the database has never written', () => {
+  const foods = idx([
+    { id: 'honey', desc: 'Honey' },
+    { id: 'puree', desc: 'Tomato puree, canned' },
+    { id: 'pb', desc: 'Peanut butter' },
+    { id: 'butter', desc: 'Butter, tub' },
+    { id: 'milk', desc: 'Milk, whole' },
+    { id: 'yog', desc: 'Yogurt, Greek, plain, nonfat' },
+  ]);
+  const top = (q: string) => searchFoodIndex(foods, q, 3).map((h) => h.description);
+
+  it('"pure honey" finds honey', () => {
+    expect(top('pure honey')[0]).toBe('Honey');
+  });
+
+  it('anchors on the head noun, not the leading modifier', () => {
+    // "pure" IS in the index - as a substring of "puree" - so a fallback that
+    // kept the first word would answer a honey query with tomato puree. That
+    // is not hypothetical; it is what the first version of this did.
+    expect(top('pure honey')).not.toContain('Tomato puree, canned');
+  });
+
+  it('"natural peanut butter" finds peanut butter, not butter', () => {
+    expect(top('natural peanut butter')[0]).toBe('Peanut butter');
+  });
+
+  it('"organic whole milk" finds whole milk', () => {
+    expect(top('organic whole milk')[0]).toBe('Milk, whole');
+  });
+
+  it('leaves a query that already matched completely alone', () => {
+    // The fallback runs only on an EMPTY strict result, which is what keeps
+    // every ranking pinned by the golden fixture unchanged.
+    expect(top('greek yogurt')[0]).toBe('Yogurt, Greek, plain, nonfat');
+    expect(top('honey')[0]).toBe('Honey');
+  });
+
+  it('still returns nothing when no word is known at all', () => {
+    expect(top('zzzz qqqq')).toEqual([]);
+  });
+
+  it('does not fire for a single unknown word', () => {
+    expect(top('zzzz')).toEqual([]);
+  });
+});
