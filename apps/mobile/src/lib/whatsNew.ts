@@ -9,6 +9,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // Android at the time. Anyone who already saw and dismissed that one needs to
 // see the corrected copy, and equality against the stored value is the only
 // thing that decides it — so the string just has to differ, not parse as a date.
+// NOT re-bumped for the mobility ship (2026-08-27). Same-day precedent, from
+// the third meal-text OTA earlier today: extending the copy tells anyone who
+// has not yet seen today's banner about both changes, while re-bumping would
+// re-fire the banner at everyone who dismissed it hours ago. Equality against
+// the stored value is the only thing that decides it, so unchanged = no nag.
 export const WHATS_NEW_VERSION = '2026-08-27-your-words';
 
 const KEY = 'whatsNew.seen';
