@@ -314,4 +314,19 @@ describe('searchFoodIndex - words the database has never written', () => {
   it('does not fire for a single unknown word', () => {
     expect(top('zzzz')).toEqual([]);
   });
+
+  it('refuses to relax a query that names a restaurant chain', () => {
+    // Dropping "starbucks" from "starbucks latte" does not loosen a qualifier,
+    // it answers about a different product — and a generic latte's macros
+    // presented as a Starbucks answer is fabricated health data. Chain queries
+    // belong to the MenuStat corpus (ADR-0027), which this index is not.
+    // Locked on the server side too, in functions/test/usda-db.spec.ts.
+    const withLatte = idx([
+      { id: 'honey', desc: 'Honey' },
+      { id: 'latte', desc: 'Coffee, Latte' },
+    ]);
+    expect(searchFoodIndex(withLatte, 'starbucks latte', 3)).toEqual([]);
+    // …while a plain modifier on the same index still relaxes.
+    expect(searchFoodIndex(withLatte, 'pure honey', 3)[0]?.description).toBe('Honey');
+  });
 });

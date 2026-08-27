@@ -42,6 +42,7 @@
  * is then pure arithmetic over that.
  */
 import type { FoodDetail, FoodSearchHit, ServingOption } from './food-search';
+import { queryNamesRestaurantChain } from './restaurant-chains';
 
 /** The compact on-disk/bundle format. Positional by design — see the generator. */
 export interface CompactFoodIndex {
@@ -306,6 +307,13 @@ export function searchFoodIndex(foods: IndexedFood[], rawQuery: string, size: nu
   // honour, rather than showing the user an empty result. Fallback ONLY: a
   // query that found anything keeps its exact ranking, and the extra pass is
   // paid where the alternative was nothing at all.
+  // A query that names a restaurant chain is NOT relaxed. Dropping "starbucks"
+  // from "starbucks latte" does not loosen a qualifier — it answers about a
+  // different product, and presenting a generic latte's macros as the answer to
+  // a Starbucks question is fabricating health data. That is a standing rule
+  // here, locked by the absence test in functions/test/usda-db.spec.ts; chain
+  // queries are served by the MenuStat corpus (ADR-0027), not by this index.
+  if (queryNamesRestaurantChain(query)) return strict;
   const kept = headAnchoredTokens(foods, tokens);
   if (kept.length === 0 || kept.length === tokens.length) return strict;
   return collect(foods, kept, kept.join(' '), size);

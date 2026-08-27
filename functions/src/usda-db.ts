@@ -16,6 +16,12 @@
  * defined in `./food-search.ts`, which mirrors `packages/core/src/food-search.ts`
  * by hand. This module produces those shapes and must not diverge from them.
  */
+// NOTE: this is a CYCLE — `menustat-db` imports `stem`/`words` from here. It
+// resolves because both directions are used only inside function bodies, never
+// at module scope, so neither module needs the other to be initialised while
+// it is itself initialising. Keep it that way: a top-level use of either
+// import would turn this into an undefined-at-load crash.
+import { loadRestaurantFoods, matchChain } from "./menustat-db";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -378,6 +384,16 @@ export function searchUsda(foods: IndexedFood[], rawQuery: string, size: number)
   // honour, rather than showing the user an empty result. Fallback ONLY: a
   // query that found anything keeps its exact ranking, and the extra pass is
   // paid where the alternative was nothing at all.
+  // A query that names a restaurant chain is NOT relaxed. Dropping "starbucks"
+  // from "starbucks latte" does not loosen a qualifier — it answers about a
+  // different product, and presenting a generic latte's macros as the answer to
+  // a Starbucks question is fabricating health data. That is a standing rule
+  // here, locked by the absence test in functions/test/usda-db.spec.ts; chain
+  // queries are served by the MenuStat corpus (ADR-0027), not by this index.
+  // `loadRestaurantFoods` memoizes and is itself lazy, and this line is only
+  // reached when the strict pass found nothing, so the 4.3 MB menu corpus is
+  // never read just to answer a query that already matched.
+  if (matchChain(loadRestaurantFoods(), tokens)) return strict;
   const kept = headAnchoredTokens(foods, tokens);
   if (kept.length === 0 || kept.length === tokens.length) return strict;
   return collect(foods, kept, kept.join(" "), size);
