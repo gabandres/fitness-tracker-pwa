@@ -16,6 +16,9 @@ import { font, radius, space } from '@/theme';
  *  input binds cleanly (the decimal-input gotcha); parsed only on add. */
 interface DraftRow {
   food: string;
+  /** What the parser understood, in the user's own words. Empty when echoing
+   *  it would only repeat the food name. */
+  read: string;
   servingLabel: string;
   calories: string;
   protein: string;
@@ -112,6 +115,7 @@ export function MealText({ forDate, onAddMany, onCancel, seedText }: Props) {
       if (!r || r.calories <= 0) return blankRow(item);
       return {
         food: item.food,
+        read: readingOf(item),
         servingLabel: gramsLabel(r.grams, r.servingLabel),
         calories: String(r.calories),
         protein: r.protein != null ? String(r.protein) : '',
@@ -126,7 +130,23 @@ export function MealText({ forDate, onAddMany, onCancel, seedText }: Props) {
   }
 
   function blankRow(item: ParsedFoodItem): DraftRow {
-    return { food: item.food, servingLabel: '', calories: '', protein: '', carbs: '', fat: '', assumed: false, matched: false };
+    return { food: item.food, read: readingOf(item), servingLabel: '', calories: '', protein: '', carbs: '', fat: '', assumed: false, matched: false };
+  }
+
+  /**
+   * Echo back what the parser understood, before anything is written — the
+   * step that makes the photo-scan flow feel trustworthy, and what
+   * `ParsedFoodItem.raw` was put there for.
+   *
+   * It deliberately shows the user's OWN words rather than a rendering of
+   * `{quantity, unit}`: a canonical unit would need a translated name for all
+   * 20 of them in three locales to say something the user already typed. When
+   * the utterance carried no quantity or unit, `raw` is just the food name
+   * again — say nothing rather than repeat the title.
+   */
+  function readingOf(item: ParsedFoodItem): string {
+    const raw = item.raw.trim();
+    return raw.toLowerCase() === item.food ? '' : raw;
   }
 
   function gramsLabel(grams: number | null, servingLabel: string): string {
@@ -189,6 +209,9 @@ export function MealText({ forDate, onAddMany, onCancel, seedText }: Props) {
               <View style={styles.cardHead}>
                 <View style={styles.cardTitleWrap}>
                   <Text style={styles.cardTitle} numberOfLines={1}>{row.food}</Text>
+                  {row.read ? (
+                    <Text style={styles.read} numberOfLines={1}>{t('mealText.read', { text: row.read })}</Text>
+                  ) : null}
                   {row.servingLabel ? <Text style={styles.cardSub}>{row.servingLabel}</Text> : null}
                 </View>
                 <TouchableOpacity onPress={() => removeRow(i)} hitSlop={8}>
@@ -302,6 +325,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   cardHead: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
   cardTitleWrap: { flex: 1, marginRight: space.md },
   cardTitle: { fontSize: font.body, color: colors.ink, fontWeight: '700', textTransform: 'capitalize' },
+  read: { fontSize: font.tiny, color: colors.muted, fontStyle: 'italic', marginTop: 2 },
   cardSub: { fontSize: font.tiny, color: colors.muted, marginTop: 2 },
   remove: { fontSize: font.body, color: colors.muted, fontWeight: '700' },
   warn: { fontSize: font.tiny, color: colors.danger, fontWeight: '600' },

@@ -373,6 +373,7 @@ export const en = {
   'mealText.parse': 'Look up foods',
   'mealText.resolving': 'Matching foods…',
   'mealText.reviewHint': 'Numbers come from the food database. Edit anything, then add.',
+  'mealText.read': 'We read: {text}',
   'mealText.assumed': 'Assumed portion — double-check',
   'mealText.noMatch': 'No match — enter values',
   'mealText.addAll': 'Add all to diary',
