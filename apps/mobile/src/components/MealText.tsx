@@ -3,7 +3,8 @@ import {
   ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import {
-  type LogEntry, type ParsedFoodItem, parseMealDraft, parseMealUtterance, pickResolutionHit, resolveMealItem,
+  type LogEntry, type ParsedFoodItem, type ResolvedMealItem,
+  parseMealDraft, parseMealUtterance, rankResolutionHits, resolveMealItem,
 } from '@macrolog/core';
 import { getFoodDetail, searchFoods } from '@/lib/foodSearch';
 import { useT } from '@/i18n';
@@ -91,10 +92,21 @@ export function MealText({ forDate, onAddMany, onCancel, seedText }: Props) {
       // Search wider than shown, then auto-pick a USDA generic so bare terms
       // ("eggs") don't resolve to a branded/high-fat product (see core).
       const hits = await searchFoods(item.food, 10);
-      const hit = pickResolutionHit(hits);
-      if (!hit) return blankRow(item);
-      const detail = await getFoodDetail(hit.source, hit.id);
-      const r = resolveMealItem(item, detail.servings);
+      // The best-ranked generic is often the one WITHOUT a portion table — only
+      // 37% of Foundation foods carry one — so an utterance whose unit it
+      // cannot answer falls through to the next candidate instead of settling
+      // for a guess. Lazy on purpose: the loop stops at the first confident
+      // resolution, so the common case is still one lookup.
+      let r: ResolvedMealItem | null = null;
+      for (const hit of rankResolutionHits(hits).slice(0, 3)) {
+        const detail = await getFoodDetail(hit.source, hit.id);
+        const candidate = resolveMealItem(item, detail.servings);
+        if (candidate && candidate.calories > 0 && !candidate.assumed) {
+          r = candidate;
+          break;
+        }
+        r ??= candidate;
+      }
       // 0-calorie resolution = degenerate DB entry (e.g. a milligram serving);
       // show an honest "enter values" row, not a fake-precise zero.
       if (!r || r.calories <= 0) return blankRow(item);
@@ -120,7 +132,9 @@ export function MealText({ forDate, onAddMany, onCancel, seedText }: Props) {
   function gramsLabel(grams: number | null, servingLabel: string): string {
     const parts: string[] = [];
     if (grams != null) parts.push(`≈${grams} g`);
-    if (servingLabel) parts.push(servingLabel);
+    // The per-100 g row is the scaling BASIS, not a serving anyone picked —
+    // printing it renders "≈7.1 g · 100 g", which reads like a contradiction.
+    if (servingLabel && !/^100\s*g$/i.test(servingLabel)) parts.push(servingLabel);
     return parts.join(' · ');
   }
 

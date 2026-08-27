@@ -44,6 +44,24 @@ export const MASS_UNIT_GRAMS: Record<string, number> = {
   lb: 453.592,
 };
 
+/** Millilitres per canonical volume unit (US customary).
+ *
+ *  This does NOT contradict the rule above. Volume→volume is exact and
+ *  food-independent — a teaspoon is a third of a tablespoon whatever is in it —
+ *  whereas volume→MASS is food-specific, which is why cup/tbsp/tsp are still
+ *  absent from {@link MASS_UNIT_GRAMS}. The resolver uses this table only to
+ *  restate the user's unit in terms of a volumetric serving the food itself
+ *  carries; the grams always come from that serving. Without it, 97% of the
+ *  index's foods that have a volume portion cannot answer a teaspoon. */
+export const VOLUME_UNIT_ML: Record<string, number> = {
+  ml: 1,
+  l: 1000,
+  tsp: 4.92892159375,
+  tbsp: 14.78676478125,
+  floz: 29.5735295625,
+  cup: 236.5882365,
+};
+
 const UNICODE_FRACTIONS: Record<string, number> = {
   '½': 0.5, '⅓': 1 / 3, '⅔': 2 / 3, '¼': 0.25, '¾': 0.75,
   '⅕': 0.2, '⅖': 0.4, '⅗': 0.6, '⅘': 0.8,
@@ -148,6 +166,16 @@ function unglue(s: string): string {
     .replace(/([½⅓⅔¼¾⅕⅖⅗⅘⅙⅛⅜⅝⅞])([a-zA-Z])/g, '$1 $2');
 }
 
+/** Fold multi-word unit spellings onto their single-token canonical surface.
+ *  UNIT_MAP is keyed by one token, so "8 fl oz" would otherwise leave "fl"
+ *  glued to the front of the food and lose the unit entirely. */
+function foldUnitPhrases(s: string): string {
+  return s
+    .replace(/\bfl\.?\s*oz\.?\b/g, 'floz')
+    .replace(/\bfluid\s+ounces?\b/g, 'floz')
+    .replace(/\bonzas?\s+l[ií]quidas?\b/g, 'floz');
+}
+
 function canonicalUnit(t: string): string | null {
   return UNIT_MAP[t] ?? null;
 }
@@ -164,7 +192,7 @@ function cleanFood(tokens: string[]): string {
 /** Parse one segment into a food item, or null when it holds no food. */
 function parseSegment(rawSegment: string): ParsedFoodItem | null {
   const raw = rawSegment.trim();
-  const tokens = unglue(raw.toLowerCase()).split(/\s+/).filter(Boolean);
+  const tokens = unglue(foldUnitPhrases(raw.toLowerCase())).split(/\s+/).filter(Boolean);
   if (tokens.length === 0) return null;
 
   // ── Leading quantity: a run of numeric tokens (word/digit/fraction). ──
@@ -265,18 +293,35 @@ const GENERIC_USDA_RANK: Record<string, number> = {
 export function pickResolutionHit<T extends { dataType?: string }>(
   hits: readonly T[],
 ): T | undefined {
-  let best: T | undefined;
-  let bestRank = Infinity;
-  for (const h of hits) {
-    const rank = h.dataType != null && h.dataType in GENERIC_USDA_RANK
-      ? GENERIC_USDA_RANK[h.dataType]
-      : Infinity;
-    if (rank < bestRank) {
-      bestRank = rank;
-      best = h;
-    }
-  }
-  return best ?? hits[0];
+  return rankResolutionHits(hits)[0];
+}
+
+/**
+ * The same preference as {@link pickResolutionHit}, but as an ordered list so a
+ * caller can fall through to the next candidate when the best-ranked food
+ * cannot answer the utterance's unit.
+ *
+ * A list is necessary because the two things we want pull against each other.
+ * Foundation is the most trustworthy tier AND the least likely to carry any
+ * portion row — 37% of Foundation foods have one, against 99% of FNDDS — so
+ * "1 cup of white rice" ranks its way to the single entry in the index that
+ * cannot say what a cup of rice weighs, and the answer degrades to a density
+ * guess. Trying the next-ranked food costs one local lookup and is only ever
+ * reached when the first one came back `assumed`.
+ */
+export function rankResolutionHits<T extends { dataType?: string }>(
+  hits: readonly T[],
+): T[] {
+  return hits
+    .map((hit, i) => ({
+      hit,
+      i,
+      rank: hit.dataType != null && hit.dataType in GENERIC_USDA_RANK
+        ? GENERIC_USDA_RANK[hit.dataType]
+        : Infinity,
+    }))
+    .sort((a, b) => a.rank - b.rank || a.i - b.i)
+    .map((r) => r.hit);
 }
 
 // ─── Resolving a parsed item against a food's servings ─────────────
@@ -329,13 +374,102 @@ function labelMentions(label: string, unit: string): boolean {
   return false;
 }
 
+/** USDA rows that are conversion notes rather than servings somebody eats.
+ *  "Guideline amount per fl oz of beverage (3 g)" names a unit and carries a
+ *  weight, so it matches like a serving and then resolves to a tenth of the
+ *  real answer. */
+const NOT_A_SERVING = /\b(guideline amount|yields)\b/;
+
+/** Size words that mark a label as a deliberate non-default. */
+const SIZE_QUALIFIER =
+  /\b(snack|mini|miniature|small|thin|large|thick|jumbo|giant|bite|baby|king|cubic inch)\b/;
+
+/** USDA's own words for "the ordinary one" — including NFS, "not further
+ *  specified", which is precisely the unqualified case. */
+const DEFAULT_MARKER = /\b(medium|regular|nfs)\b/;
+
+/**
+ * How many `unit`s the label itself states: "3 scoop (86 g)" → 3, "0.5 cup" →
+ * 0.5, "4 tbsp (1/4 cup)" → 4 for tbsp and 0.25 for cup, "1 tbsp (21 g)" → 1.
+ *
+ * The count sits immediately before the unit word, so a number anywhere else
+ * in the label — the "(86 g)" weight above all — must not be read as one. 646
+ * of the index's 3,255 labels lead with a count that is not 1; treating them
+ * all as one serving is a silent multiple-fold error.
+ */
+function labelQuantityFor(label: string, unit: string): number {
+  const l = label.toLowerCase();
+  for (const [surface, canon] of Object.entries(UNIT_MAP)) {
+    if (canon !== unit) continue;
+    const m = new RegExp(
+      `(?:^|[^\\d.])(\\d+(?:\\.\\d+)?(?:\\s*/\\s*\\d+)?)\\s*${surface}\\b`,
+    ).exec(l);
+    if (!m) continue;
+    const [a, b] = m[1].split('/').map((n) => parseFloat(n));
+    const value = b ? a / b : a;
+    if (value > 0) return value;
+  }
+  return 1;
+}
+
+/** Rank a candidate serving for a bare "2 slices": the explicitly-regular row
+ *  beats an unqualified one, which beats a size-qualified one, and a label
+ *  that states one unit beats one that states several. */
+function portionScore(s: ServingLike, unit: string): number {
+  const l = s.label.toLowerCase();
+  let score = 0;
+  if (DEFAULT_MARKER.test(l)) score += 2;
+  if (SIZE_QUALIFIER.test(l)) score -= 2;
+  if (labelQuantityFor(s.label, unit) === 1) score += 1;
+  return score;
+}
+
+/** The serving that best represents one `unit` of this food, or undefined. */
+function pickPortion(portions: ServingLike[], unit: string): ServingLike | undefined {
+  let best: ServingLike | undefined;
+  let bestScore = -Infinity;
+  for (const s of portions) {
+    if (!labelMentions(s.label, unit)) continue;
+    const score = portionScore(s, unit);
+    if (score > bestScore) {
+      bestScore = score;
+      best = s;
+    }
+  }
+  return best;
+}
+
+/**
+ * The food's own volume↔mass anchor: a serving whose label names a volume, so
+ * `grams / ml` is this food's measured density rather than a guess.
+ *
+ * Picks the LARGEST volume available on purpose. Portion weights are stored
+ * rounded, and a "1 tsp (5 g)" row carries up to 8% of rounding error into
+ * every derived answer where a cup row carries well under 1%.
+ */
+function volumeAnchor(portions: ServingLike[]): { grams: number; ml: number } | undefined {
+  let best: { grams: number; ml: number } | undefined;
+  for (const s of portions) {
+    if (!(s.grams > 0) || NOT_A_SERVING.test(s.label.toLowerCase())) continue;
+    for (const unit of Object.keys(VOLUME_UNIT_ML)) {
+      if (!labelMentions(s.label, unit)) continue;
+      const ml = labelQuantityFor(s.label, unit) * VOLUME_UNIT_ML[unit];
+      if (ml > 0 && (!best || ml > best.ml)) best = { grams: s.grams, ml };
+    }
+  }
+  return best;
+}
+
 /**
  * Resolve one {@link ParsedFoodItem} against a food's servings into a scaled,
  * editable draft row. Returns null when the food has no servings.
  *
  * - Mass unit (g/kg/oz/lb/mg): exact grams → scale the per-100g row.
- * - Portion word (cup/slice/tbsp…): match a serving whose label names it and
- *   multiply by the quantity; unmatched → fall back and flag `assumed`.
+ * - Portion word (cup/slice/tbsp…): take the serving that best represents ONE
+ *   of that unit and scale by quantity ÷ the count that label states.
+ * - Volume unit with no row of its own: restate it in millilitres and convert
+ *   through a volumetric serving the food does carry. Exact, and the grams
+ *   still come from the database.
  * - Bare count: multiply the food's default portion serving; only per-100g
  *   available → use it but flag `assumed` (the one-unit weight is unknown).
  */
@@ -346,6 +480,7 @@ export function resolveMealItem(
   if (servings.length === 0) return null;
   const per100 = servings.find((s) => s.kind === 'per100g' || s.grams === 100);
   const portions = servings.filter((s) => s.kind !== 'per100g' && s.grams !== 100);
+  const real = portions.filter((s) => !NOT_A_SERVING.test(s.label.toLowerCase()));
 
   const build = (
     base: ServingLike,
@@ -365,22 +500,44 @@ export function resolveMealItem(
     assumed,
   });
 
+  /** Scale the food to a known gram weight, from the per-100g row when there
+   *  is one. Every branch that ends up knowing the grams goes through here. */
+  const atGrams = (grams: number, assumed: boolean): ResolvedMealItem => {
+    const base = per100 ?? servings[0];
+    return build(base, base.grams ? grams / base.grams : 0, grams, assumed);
+  };
+
   // Mass unit → exact grams, scaled from the per-100g row (or any serving).
   if (item.unit && MASS_UNIT_GRAMS[item.unit]) {
-    const grams = item.quantity * MASS_UNIT_GRAMS[item.unit];
-    const base = per100 ?? servings[0];
-    return build(base, base.grams ? grams / base.grams : 0, grams, false);
+    return atGrams(item.quantity * MASS_UNIT_GRAMS[item.unit], false);
   }
 
-  // Portion word → a serving whose label names that unit, scaled by quantity.
+  // Portion word → the serving that best represents ONE of that unit, divided
+  // by the count its own label states ("3 scoop (86 g)" is not one scoop).
   if (item.unit) {
-    const match = portions.find((s) => labelMentions(s.label, item.unit!));
-    if (match) return build(match, item.quantity, match.grams * item.quantity, false);
+    const match = pickPortion(real, item.unit);
+    if (match) {
+      const each = item.quantity / labelQuantityFor(match.label, item.unit);
+      return build(match, each, match.grams * each, false);
+    }
+  }
+
+  // Volume unit the food has no row for → convert through one it does have.
+  // 97% of the foods carrying a volume portion have no teaspoon row, so
+  // without this a teaspoon of honey resolves to 100 g of honey.
+  if (item.unit && VOLUME_UNIT_ML[item.unit]) {
+    const ml = item.quantity * VOLUME_UNIT_ML[item.unit];
+    const anchor = volumeAnchor(real);
+    if (anchor) return atGrams(ml * (anchor.grams / anchor.ml), false);
+    // Nothing volumetric to anchor on. Water density is a guess, so it is
+    // flagged as one — but it is the right ORDER OF MAGNITUDE, which the
+    // per-100g fallback below is not: it would read "250 ml" as 250 servings.
+    return atGrams(ml, true);
   }
 
   // Bare count against a real portion serving → confident. Otherwise fall back
   // to per-100g (or the first serving) and flag the assumption.
-  const portion = portions[0];
+  const portion = real[0] ?? portions[0];
   if (item.unit === null && portion) {
     return build(portion, item.quantity, portion.grams * item.quantity, false);
   }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseMealUtterance, resolveMealItem, pickResolutionHit, type ServingLike } from './meal-utterance';
+import { parseMealUtterance, rankResolutionHits, resolveMealItem, pickResolutionHit, type ServingLike } from './meal-utterance';
 
 /** Terse helper: assert one parsed item's fields (ignores `raw`). */
 function item(text: string) {
@@ -264,5 +264,133 @@ describe('pickResolutionHit', () => {
 
   it('empty list → undefined', () => {
     expect(pickResolutionHit([])).toBeUndefined();
+  });
+});
+
+// ─── Volume family, label quantities and portion choice ──────────────────
+// Each case below is a real defect measured against the shipped 13,272-food
+// index, not a hypothetical: the numbers in the "was" comments are what the
+// resolver actually returned before this block existed.
+
+describe('resolveMealItem — volume units anchor on the food, not on a guess', () => {
+  /** Milk carries a cup row, so its density is knowable: 244/236.588 g/ml. */
+  const milk: ServingLike[] = [
+    { label: '100 g', grams: 100, kcal: 61, protein: 3.2, carbs: 4.8, fat: 3.3, kind: 'per100g' },
+    { label: '1 cup (244 g)', grams: 244, kcal: 149, protein: 7.8, carbs: 11.7, fat: 8, kind: 'portion' },
+  ];
+  /** Honey has a tbsp row but NO tsp row — 97% of the index looks like this. */
+  const honey: ServingLike[] = [
+    { label: '100 g', grams: 100, kcal: 304, protein: 0.3, carbs: 82, fat: 0, kind: 'per100g' },
+    { label: '1 tbsp (21 g)', grams: 21, kcal: 64, protein: 0.1, carbs: 17, fat: 0, kind: 'portion' },
+  ];
+  const chicken: ServingLike[] = [
+    { label: '100 g', grams: 100, kcal: 165, protein: 31, carbs: 0, fat: 3.6, kind: 'per100g' },
+  ];
+
+  it('ml resolves through the food\u2019s own cup row (was 25,000 g for 250 ml)', () => {
+    const [it0] = parseMealUtterance('250 ml milk');
+    const r = resolveMealItem(it0, milk)!;
+    expect(r.grams).toBeCloseTo(257.8, 0);
+    expect(r.assumed).toBe(false);
+  });
+
+  it('litres scale the same way', () => {
+    const [it0] = parseMealUtterance('1 l milk');
+    expect(resolveMealItem(it0, milk)!.grams).toBeCloseTo(1031.3, 0);
+  });
+
+  it('tsp derives from a tbsp row \u2014 exact, 1 tbsp = 3 tsp (was 100 g)', () => {
+    const [it0] = parseMealUtterance('1 tsp honey');
+    const r = resolveMealItem(it0, honey)!;
+    expect(r.grams).toBeCloseTo(7, 1);
+    expect(r.calories).toBe(21);
+    expect(r.assumed).toBe(false);
+  });
+
+  it('a direct label match still wins over derivation', () => {
+    const [it0] = parseMealUtterance('2 tbsp honey');
+    expect(resolveMealItem(it0, honey)).toMatchObject({
+      grams: 42, assumed: false, servingLabel: '1 tbsp (21 g)',
+    });
+  });
+
+  it('a volume unit with no volumetric row never multiplies 100 g by the volume', () => {
+    const [it0] = parseMealUtterance('250 ml chicken');
+    const r = resolveMealItem(it0, chicken)!;
+    expect(r.grams).toBeLessThan(400); // was 25,000
+    expect(r.assumed).toBe(true);
+  });
+});
+
+describe('resolveMealItem — a label\u2019s own quantity is not 1', () => {
+  const whey: ServingLike[] = [
+    { label: '100 g', grams: 100, kcal: 359, protein: 78, carbs: 8, fat: 1, kind: 'per100g' },
+    { label: '3 scoop (86 g)', grams: 86, kcal: 309, protein: 67, carbs: 6.9, fat: 0.9, kind: 'portion' },
+  ];
+
+  it('divides by the count the label states (was 86 g for one scoop)', () => {
+    const [it0] = parseMealUtterance('1 scoop whey protein');
+    const r = resolveMealItem(it0, whey)!;
+    expect(r.grams).toBeCloseTo(28.7, 1);
+    expect(r.calories).toBe(103);
+  });
+
+  it('a half-cup label yields a full cup at quantity 1', () => {
+    const beans: ServingLike[] = [
+      { label: '100 g', grams: 100, kcal: 132, protein: 8.9, carbs: 24, fat: 0.5, kind: 'per100g' },
+      { label: '0.5 cup (86 g)', grams: 86, kcal: 114, protein: 7.6, carbs: 20, fat: 0.4, kind: 'portion' },
+    ];
+    const [it0] = parseMealUtterance('1 cup black beans');
+    expect(resolveMealItem(it0, beans)!.grams).toBeCloseTo(172, 0);
+  });
+});
+
+describe('resolveMealItem — picks the representative portion, not the first', () => {
+  const bread: ServingLike[] = [
+    { label: '100 g', grams: 100, kcal: 265, protein: 9, carbs: 49, fat: 3.2, kind: 'per100g' },
+    { label: '1 slice, snack-size (10 g)', grams: 10, kcal: 27, protein: 0.9, carbs: 4.9, fat: 0.3, kind: 'portion' },
+    { label: '1 small or thin/very thin slice (24 g)', grams: 24, kcal: 64, protein: 2.2, carbs: 12, fat: 0.8, kind: 'portion' },
+    { label: '1 medium or regular slice (36 g)', grams: 36, kcal: 95, protein: 3.2, carbs: 18, fat: 1.2, kind: 'portion' },
+    { label: '1 large or thick slice (43 g)', grams: 43, kcal: 114, protein: 3.9, carbs: 21, fat: 1.4, kind: 'portion' },
+  ];
+
+  it('two slices means two regular slices (was the snack-size row, 20 g)', () => {
+    const [it0] = parseMealUtterance('2 slices whole wheat bread');
+    const r = resolveMealItem(it0, bread)!;
+    expect(r.grams).toBeCloseTo(72, 0);
+    expect(r.servingLabel).toBe('1 medium or regular slice (36 g)');
+  });
+});
+
+describe('parseMealUtterance — fluid ounces', () => {
+  it('"fl oz" written with a space is one unit', () => {
+    expect(item('8 fl oz orange juice')).toEqual([
+      { quantity: 8, unit: 'floz', food: 'orange juice' },
+    ]);
+  });
+
+  it('"fluid ounces" spelled out', () => {
+    expect(item('12 fluid ounces of milk')).toEqual([
+      { quantity: 12, unit: 'floz', food: 'milk' },
+    ]);
+  });
+});
+
+describe('rankResolutionHits', () => {
+  const h = (id: string, dataType: string) => ({ id, dataType });
+
+  it('orders by generic tier, then by relevance', () => {
+    const hits = [h('a', 'Branded'), h('b', 'Survey (FNDDS)'), h('c', 'Foundation'), h('d', 'SR Legacy')];
+    expect(rankResolutionHits(hits).map((x) => x.id)).toEqual(['c', 'd', 'b', 'a']);
+  });
+
+  it('is stable within a tier', () => {
+    const hits = [h('a', 'SR Legacy'), h('b', 'SR Legacy')];
+    expect(rankResolutionHits(hits).map((x) => x.id)).toEqual(['a', 'b']);
+  });
+
+  it('still leads with what pickResolutionHit would have chosen', () => {
+    const hits = [h('a', 'Branded'), h('b', 'Survey (FNDDS)'), h('c', 'Foundation')];
+    expect(rankResolutionHits(hits)[0]).toBe(pickResolutionHit(hits));
   });
 });

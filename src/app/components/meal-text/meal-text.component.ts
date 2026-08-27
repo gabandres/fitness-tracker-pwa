@@ -3,7 +3,7 @@ import {
 } from '@angular/core';
 import { LucideAngularModule } from 'lucide-angular';
 import { TranslocoDirective } from '@jsverse/transloco';
-import { parseMealUtterance, resolveMealItem, pickResolutionHit, type ParsedFoodItem } from '@macrolog/core';
+import { parseMealUtterance, resolveMealItem, rankResolutionHits, type ParsedFoodItem, type ResolvedMealItem } from '@macrolog/core';
 import { UiButton } from '../ui/button.component';
 import { FoodSearchService } from '../../services/food-search.service';
 import { EntryFormManager } from '../../services/entry-form-manager.service';
@@ -238,10 +238,20 @@ export class MealTextComponent {
       // then auto-pick the best one — bare terms like "eggs" otherwise resolve
       // to a branded/high-fat product that scales into nonsense.
       const hits = await this.foodSearch.search(item.food, 10);
-      const hit = pickResolutionHit(hits);
-      if (!hit) return this.blankRow(item);
-      const detail = await this.foodSearch.getDetail(hit.source, hit.id);
-      const resolved = resolveMealItem(item, detail.servings);
+      // The best-ranked generic is often the one WITHOUT a portion table — only
+      // 37% of Foundation foods carry one — so an utterance whose unit it
+      // cannot answer falls through to the next candidate instead of settling
+      // for a guess. Lazy: it stops at the first confident resolution.
+      let resolved: ResolvedMealItem | null = null;
+      for (const hit of rankResolutionHits(hits).slice(0, 3)) {
+        const detail = await this.foodSearch.getDetail(hit.source, hit.id);
+        const candidate = resolveMealItem(item, detail.servings);
+        if (candidate && candidate.calories > 0 && !candidate.assumed) {
+          resolved = candidate;
+          break;
+        }
+        resolved ??= candidate;
+      }
       // A 0-calorie resolution means a degenerate DB entry (e.g. a milligram
       // "serving" with no macros) — show an honest "enter values" row instead
       // of a fake-precise zero, per the ADR trust rule.
@@ -282,7 +292,9 @@ export class MealTextComponent {
   private gramsLabel(grams: number | null, servingLabel: string): string {
     const parts: string[] = [];
     if (grams != null) parts.push(`≈${grams} g`);
-    if (servingLabel) parts.push(servingLabel);
+    // The per-100 g row is the scaling BASIS, not a serving anyone picked —
+    // printing it renders "≈7.1 g · 100 g", which reads like a contradiction.
+    if (servingLabel && !/^100\s*g$/i.test(servingLabel)) parts.push(servingLabel);
     return parts.join(' · ');
   }
 
