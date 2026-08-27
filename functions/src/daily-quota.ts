@@ -116,13 +116,23 @@ export class DailyQuota {
   }
 
   /**
-   * Refund one previously-reserved slot. Will not go below zero — a bad
-   * client can't build up credit by spam-calling release. Returns false
-   * when there was nothing to refund.
+   * Refund previously-reserved slots. Will not go below zero — a bad client
+   * can't build up credit by spam-calling release. Returns false when there
+   * was nothing to refund.
    *
    * Pass the `day` from the matching {@link reserve} call. It defaults to
    * today only for callers that cannot have crossed a UTC midnight; anything
    * that awaits a model between reserve and release should pass it explicitly.
+   *
+   * **`units` used to be accepted and then ignored — the body always refunded
+   * exactly 1.** That was harmless while every caller reserved one slot, and it
+   * stopped being harmless on 2026-08-26 when `analyzePhoto` briefly reserved
+   * one per image: a failed 3-image scan charged three and refunded one,
+   * permanently overcharging the user by two, silently, on the path that only
+   * runs when something has already gone wrong. `analyzePhoto` reserves 1 again
+   * so nothing is currently exposed to it — this is fixed because a parameter
+   * that lies is a trap set for the next caller, not because anything is broken
+   * today.
    */
   async release(uid: string, kind: QuotaKind, day: string = utcDayKey(), units = 1): Promise<boolean> {
     const ref = this.ref(kind, uid, day);
@@ -132,7 +142,9 @@ export class DailyQuota {
       if (!doc.exists) return;
       const used: number = doc.data()!.count as number;
       if (used <= 0) return;
-      tx.set(ref, { count: used - 1 }, { merge: true });
+      // Clamped at zero rather than trusting the caller: an over-large refund
+      // is how a client mints credit.
+      tx.set(ref, { count: Math.max(0, used - Math.max(1, units)) }, { merge: true });
       released = true;
     });
     return released;

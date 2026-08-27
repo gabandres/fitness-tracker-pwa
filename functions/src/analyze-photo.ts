@@ -20,10 +20,17 @@ const PHOTO_MIN_INTERVAL_MS = 3_000;
  * Images per scan (ADR-0029 item 5).
  *
  * Three, because the owner's own workflow is 2–3 photos of one meal and past
- * that the marginal angle stops telling the model anything new. It is a
- * *bound*, not a target: every image is charged against the daily quota
- * separately, so a 3-image scan costs a free user all three of their daily
- * scans.
+ * that the marginal angle stops telling the model anything new.
+ *
+ * It is a *bound*, and what it bounds is the SPEND CEILING, which counts images
+ * — not the user's daily quota, which counts scans. Those were briefly the same
+ * thing on 2026-08-26 and it made the feature discourage its own headline use:
+ * three photos of one meal spent a free user's entire day. See the reserve call
+ * for the measurement that settled it.
+ *
+ * Raising this is a spend decision, not a UX one: a 1-image scan is ~1,989
+ * input tokens and a 3-image scan ~4,254, so each extra angle is roughly 1,150
+ * tokens against a ceiling denominated in images.
  */
 const MAX_PHOTOS = 3;
 
@@ -652,10 +659,33 @@ export const analyzePhoto = onCall(
     // that the failure path below has to hand back. Capturing the DAY, not
     // just a boolean, is what makes the refund target the doc that was
     // actually charged across a UTC midnight.
+    // **One slot per SCAN, not per image — and the asymmetry with the ceiling
+    // below is the point, not an oversight.**
+    //
+    // This counted images between 2026-08-26 morning and evening, and the
+    // consequence was only obvious once the owner used the feature for real: a
+    // free user who takes three photos of one meal — the exact workflow
+    // multi-image was built for — spent their entire daily allowance on that
+    // one meal. The feature discouraged its own headline use.
+    //
+    // The numbers say the same thing. Measured off production traffic:
+    // a 1-image scan is 1,989 input tokens (~$0.0015) and a 3-image scan is
+    // 4,254 (~$0.0025) — **1.6x, not 3x**, because the static prompt is paid
+    // once either way. Charging three slots for it overcharged by roughly
+    // double. Counting scans costs about $0.08 per user per month more at the
+    // absolute worst, and only for someone who maxes out with three photos
+    // every single day.
+    //
+    // The two guards answer different questions, which is why only one of them
+    // changed: the quota is a FAIRNESS mechanism and should count what a person
+    // perceives doing, which is meals; the ceiling below is a SOLVENCY one and
+    // must keep counting images, because that is what bounds the worst possible
+    // day. `MAX_PHOTOS` is what bounds the variance either way — that is the
+    // cap's whole job.
     let photosRemaining = dailyQuota.limitFor("photo", true);
     let reservedDay: string | null = null;
     if (!caller.quotaExempt) {
-      const reserved = await dailyQuota.reserve(uid, "photo", caller.tier === "paid", photos.length);
+      const reserved = await dailyQuota.reserve(uid, "photo", caller.tier === "paid", 1);
       photosRemaining = reserved.remaining;
       reservedDay = reserved.day;
     }

@@ -199,3 +199,71 @@ describe("reserve(units) — charging per image", () => {
     await expectQuotaExceeded(quota.reserve(uid, "photo", false, 4), "PHOTO_QUOTA_EXCEEDED", 3);
   });
 });
+
+describe("release(units) — the parameter used to be ignored", () => {
+  /**
+   * `release` accepted `units` and always refunded exactly 1. Harmless while
+   * every caller reserved one slot; not harmless on 2026-08-26, when
+   * `analyzePhoto` briefly reserved one per image and a failed 3-image scan
+   * charged three and refunded one — a silent, permanent overcharge on the path
+   * that only runs after something has already gone wrong.
+   *
+   * `analyzePhoto` reserves 1 again, so nothing is exposed to this today. It is
+   * pinned because a parameter that lies is a trap for the next caller.
+   */
+  it("refunds the number of slots it was given", async () => {
+    const uid = freshUid();
+    await quota.reserve(uid, "photo", false, 3);
+    expect(await quota.peek(uid, "photo")).toBe(3);
+
+    await quota.release(uid, "photo", undefined, 3);
+    expect(await quota.peek(uid, "photo")).toBe(0);
+  });
+
+  it("still defaults to one", async () => {
+    const uid = freshUid();
+    await quota.reserve(uid, "photo", false, 2);
+    await quota.release(uid, "photo");
+    expect(await quota.peek(uid, "photo")).toBe(1);
+  });
+
+  it("cannot mint credit with an over-large refund", async () => {
+    const uid = freshUid();
+    await quota.reserve(uid, "photo", false, 1);
+    await quota.release(uid, "photo", undefined, 99);
+    expect(await quota.peek(uid, "photo")).toBe(0);
+  });
+
+  it("treats a zero or negative refund as one, never as a top-up", async () => {
+    const uid = freshUid();
+    await quota.reserve(uid, "photo", false, 2);
+    await quota.release(uid, "photo", undefined, 0);
+    expect(await quota.peek(uid, "photo")).toBe(1);
+    await quota.release(uid, "photo", undefined, -5);
+    expect(await quota.peek(uid, "photo")).toBe(0);
+  });
+});
+
+describe("a photo scan costs ONE slot however many images it carries", () => {
+  /**
+   * The product rule, pinned where it can be read: the daily quota is a
+   * FAIRNESS mechanism and counts what a person perceives doing, which is
+   * meals. `spendCeiling` is the solvency mechanism and keeps counting images.
+   *
+   * Measured off production traffic: a 1-image scan is 1,989 input tokens and a
+   * 3-image scan 4,254 — 1.6x, not 3x, because the static prompt is paid once
+   * either way. Charging three slots overcharged by roughly double, and it did
+   * it to the exact workflow multi-image exists for.
+   */
+  it("lets a free user log three separate meals, photos notwithstanding", async () => {
+    // Three scans of one meal each, three photos apiece, is what the cap
+    // invites. It must not lock the day after the first one.
+    const uid = freshUid();
+    for (let scan = 0; scan < 3; scan++) {
+      const r = await quota.reserve(uid, "photo", false, 1);
+      expect(r.remaining).toBe(2 - scan);
+    }
+    expect(await quota.peek(uid, "photo")).toBe(3);
+    await expectQuotaExceeded(quota.reserve(uid, "photo", false, 1), "PHOTO_QUOTA_EXCEEDED", 3);
+  });
+});
