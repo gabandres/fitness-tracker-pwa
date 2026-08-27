@@ -195,7 +195,7 @@ export const en = {
   'link.failedBody': 'Your device blocked it. Open this in your browser instead:\n\n{url}',
   'whatsNew.title': "What's new",
   'whatsNew.body':
-    'Typing or speaking a meal understands measurements properly now. A teaspoon, a tablespoon, a cup, millilitres, fluid ounces — Ignia works out what that weighs from the food itself instead of guessing, so a teaspoon of honey is seven grams and not a hundred, and 250 ml of milk is a glass and not twenty-five kilos. Two slices of bread means two ordinary slices. It also shows you what it read before it writes anything, the way the photo scan does, so you can see that the amount registered. The numbers still come from the food database — Ignia only decides which serving your words point at.',
+    'Typing or speaking a meal understands measurements properly now. A teaspoon, a tablespoon, a cup, millilitres, fluid ounces — Ignia works out what that weighs from the food itself instead of guessing, so a teaspoon of honey is seven grams and not a hundred, and 250 ml of milk is a glass and not twenty-five kilos. Two slices of bread means two ordinary slices. It also shows you what it read before it writes anything, the way the photo scan does, so you can see that the amount registered. The numbers still come from the food database — Ignia only decides which serving your words point at. It also understands food named in Spanish and Portuguese now, and a cup of rice means cooked rice rather than dry.',
 
   // ── app updates ──
   'update.ota.title': 'Update ready',

@@ -188,7 +188,7 @@ export const esPR: Record<I18nKey, string> = {
   'link.failedBody': 'Tu dispositivo lo bloqueó. Abre esto en tu navegador:\n\n{url}',
   'whatsNew.title': 'Novedades',
   'whatsNew.body':
-    'Escribir o dictar una comida ahora entiende bien las medidas. Una cucharadita, una cucharada, una taza, mililitros, onzas líquidas — Ignia calcula lo que eso pesa a partir del propio alimento en vez de adivinar, así que una cucharadita de miel son siete gramos y no cien, y 250 ml de leche son un vaso y no veinticinco kilos. Dos rebanadas de pan son dos rebanadas normales. Además te muestra lo que leyó antes de escribir nada, igual que el escaneo de fotos, para que veas que la cantidad quedó registrada. Los números siguen viniendo de la base de datos — Ignia solo decide a qué porción apuntan tus palabras.',
+    'Escribir o dictar una comida ahora entiende bien las medidas. Una cucharadita, una cucharada, una taza, mililitros, onzas líquidas — Ignia calcula lo que eso pesa a partir del propio alimento en vez de adivinar, así que una cucharadita de miel son siete gramos y no cien, y 250 ml de leche son un vaso y no veinticinco kilos. Dos rebanadas de pan son dos rebanadas normales. Además te muestra lo que leyó antes de escribir nada, igual que el escaneo de fotos, para que veas que la cantidad quedó registrada. Los números siguen viniendo de la base de datos — Ignia solo decide a qué porción apuntan tus palabras. Además ya entiende alimentos en español y portugués, y una taza de arroz significa arroz cocido, no crudo.',
 
   // ── app updates ──
   'update.ota.title': 'Actualización lista',
