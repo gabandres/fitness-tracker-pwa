@@ -38,6 +38,7 @@ import {
   type ExerciseDraft,
   type LogStyle,
   type SessionExercise,
+  type SetKind,
   type TemplateDraft,
   type TemplateExercise,
   type WorkoutSession,
@@ -100,7 +101,9 @@ export interface TrainState {
    *  if `exerciseId` is null (free-typed name). Not a `SessionAction` because
    *  it resolves against the catalog with a ledger WRITE before the pure
    *  append; it dispatches `addExercise` once it has an id. */
-  addExerciseToActive: (name: string, logStyle: LogStyle, exerciseId?: string) => Promise<void>;
+  addExerciseToActive: (
+    name: string, logStyle: LogStyle, exerciseId?: string, kind?: SetKind,
+  ) => Promise<void>;
   /**
    * Apply one structural edit to the active session and persist it.
    *
@@ -463,7 +466,7 @@ export function useTrain(): TrainState {
   );
 
   const addExerciseToActive = useCallback(
-    async (name: string, logStyle: LogStyle, exerciseId?: string) => {
+    async (name: string, logStyle: LogStyle, exerciseId?: string, kind: SetKind = 'working') => {
       // The ref, not a closed-over `active` — this callback's deps no longer
       // track the session, so a captured value would be pinned at null forever.
       if (!uid || !activeRef.current) return;
@@ -493,7 +496,10 @@ export function useTrain(): TrainState {
         name: canonical,
         cues: [],
         logStyle,
-        sets: [newWorkoutSet()],
+        // `kind` so a stretch added mid-session is a mobility set, not a
+        // working one that can take a duration PR (ADR-0028). The template
+        // editor's creation chip fixed the same defect on the other door.
+        sets: [newWorkoutSet(kind)],
       };
       await dispatch({ type: 'addExercise', exercise });
     },

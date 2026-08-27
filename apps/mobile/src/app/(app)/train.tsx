@@ -33,6 +33,7 @@ import {
   bodyWeightUnit,
   parseWeightToLb,
   type SeedTemplate,
+  MOBILITY_SEED_KEYS,
   RIR_MAX,
   RIR_MIN,
   STARTER_TEMPLATES,
@@ -77,7 +78,10 @@ import { HeaderAvatar } from '@/components/HeaderAvatar';
 // this file passed 2,300 lines — three times the size of any other screen, and
 // against a web Train tab that has been split since it was written.
 import { TemplateEditorModal } from '@/components/train/TemplateEditorModal';
-import { LOG_STYLES, SET_KINDS, logStyleKey, numOrUndef } from '@/components/train/train-shared';
+import {
+  CREATION_STYLES, LOG_STYLES, SET_KINDS, type CreationStyle,
+  logStyleFor, logStyleKey, numOrUndef, setKindFor,
+} from '@/components/train/train-shared';
 import { BottomSheet } from '@/components/BottomSheet';
 import { CardioBlockCard } from '@/components/train/CardioBlockCard';
 import { useUnitSystem } from '@/lib/use-unit-system';
@@ -1414,7 +1418,12 @@ function AddExerciseModal({
   const { colors } = useTheme();
   const addExerciseInputRef = useDeferredFocus(visible);
   const [name, setName] = useState('');
-  const [logStyle, setLogStyle] = useState<LogStyle>('weight-reps');
+  // A CreationStyle, not a LogStyle: the fourth option is `mobility`, which
+  // means a timed exercise WHOSE SETS are mobility. Same seam as the template
+  // editor's chip row — this is the other door onto the same defect, and
+  // fixing only one leaves a stretch added mid-session able to take a
+  // duration PR (ADR-0028).
+  const [logStyle, setLogStyle] = useState<CreationStyle>('weight-reps');
 
   useEffect(() => {
     if (visible) {
@@ -1428,9 +1437,9 @@ function AddExerciseModal({
     ? train.catalog.filter((e) => e.name.toLowerCase().includes(trimmed.toLowerCase())).slice(0, 6)
     : train.catalog.slice(0, 8);
 
-  async function add(exName: string, exLogStyle: LogStyle, exerciseId?: string) {
+  async function add(exName: string, style: CreationStyle, exerciseId?: string) {
     haptics.tap();
-    await train.addExerciseToActive(exName, exLogStyle, exerciseId);
+    await train.addExerciseToActive(exName, logStyleFor(style), exerciseId, setKindFor(style));
     onClose();
   }
 
@@ -1448,13 +1457,13 @@ function AddExerciseModal({
             testID="exercise-name"
           />
 
-          <View style={styles.styleRow}>
-            {LOG_STYLES.map((ls) => {
+          <View style={[styles.styleRow, styles.styleRowWrap]}>
+            {CREATION_STYLES.map((ls) => {
               const on = logStyle === ls.value;
               return (
                 <TouchableOpacity
                   key={ls.value}
-                  style={[styles.styleChip, on && styles.styleChipOn]}
+                  style={[styles.styleChip, styles.styleChipHalf, on && styles.styleChipOn]}
                   onPress={() => setLogStyle(ls.value)}
                   testID={`logstyle-${ls.value}`}
                 >
@@ -1475,7 +1484,15 @@ function AddExerciseModal({
               <TouchableOpacity
                 key={e.id}
                 style={styles.catalogRow}
-                onPress={() => add(e.name, e.logStyle ?? 'weight-reps', e.id)}
+                // A seeded mobility movement stays mobility when re-added from
+                // the catalog, whatever the chips happen to be showing.
+                onPress={() => add(
+                  e.name,
+                  e.seedKey != null && MOBILITY_SEED_KEYS.has(e.seedKey)
+                    ? 'mobility'
+                    : (e.logStyle ?? 'weight-reps'),
+                  e.id,
+                )}
               >
                 <Text style={styles.catalogName}>{e.name}</Text>
                 <Text style={styles.catalogStyle}>{t(logStyleKey(e.logStyle))}</Text>

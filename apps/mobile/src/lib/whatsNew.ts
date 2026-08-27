@@ -9,12 +9,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // Android at the time. Anyone who already saw and dismissed that one needs to
 // see the corrected copy, and equality against the stored value is the only
 // thing that decides it — so the string just has to differ, not parse as a date.
-// NOT re-bumped for the mobility ship (2026-08-27). Same-day precedent, from
-// the third meal-text OTA earlier today: extending the copy tells anyone who
-// has not yet seen today's banner about both changes, while re-bumping would
-// re-fire the banner at everyone who dismissed it hours ago. Equality against
-// the stored value is the only thing that decides it, so unchanged = no nag.
-export const WHATS_NEW_VERSION = '2026-08-27-your-words';
+// Bumped for the mobility ship. The first mobility OTA deliberately did NOT
+// bump — it only extended the meal-text copy, on the same-day precedent that a
+// re-bump nags whoever dismissed the banner hours earlier. This one is a
+// judgement the owner made explicitly: a new way to log a whole category of
+// work is worth re-firing for, where a bug fix was not. The body leads with
+// mobility and keeps a condensed meal-text paragraph, because anyone who
+// dismissed the earlier banner never read that part either.
+export const WHATS_NEW_VERSION = '2026-08-27-mobility';
 
 const KEY = 'whatsNew.seen';
 

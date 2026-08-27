@@ -48,8 +48,8 @@ export type SessionAction =
   | { type: 'removeCardio'; blockIndex: number };
 
 /** One empty working set — the row every "add set" produces. */
-export function newWorkoutSet(): WorkoutSet {
-  return { kind: 'working', done: false };
+export function newWorkoutSet(kind: SetKind = 'working'): WorkoutSet {
+  return { kind, done: false };
 }
 
 /**

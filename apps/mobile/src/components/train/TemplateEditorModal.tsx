@@ -13,6 +13,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Sortable from 'react-native-sortables';
 import {
   type UnitSystem,
+  MOBILITY_SEED_KEYS,
   defaultIncrement as defaultIncrementLb,
   loadUnit,
   normalizeClusterGroups,
@@ -42,7 +43,10 @@ import { smoothLayout } from '@/lib/motion';
 import { useDeferredFocus } from '@/lib/use-deferred-focus';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { space } from '@/theme';
-import { LOG_STYLES, SET_KINDS, kindLabelKey, logStyleKey, numOrUndef } from './train-shared';
+import {
+  CREATION_STYLES, SET_KINDS, type CreationStyle,
+  kindLabelKey, logStyleFor, logStyleKey, numOrUndef, setKindFor,
+} from './train-shared';
 import { mobilityDoseWarnings } from '@macrolog/core';
 import { BottomSheet } from '@/components/BottomSheet';
 import { useUnitSystem } from '@/lib/use-unit-system';
@@ -219,7 +223,7 @@ export function TemplateEditorModal({
   const [cardioBlocks, setCardioBlocks] = useState<DraftCardio[]>([]);
   const [cardioPick, setCardioPick] = useState(false);
   const [exName, setExName] = useState('');
-  const [exStyle, setExStyle] = useState<LogStyle>('weight-reps');
+  const [exStyle, setExStyle] = useState<CreationStyle>('weight-reps');
   const [kindOpen, setKindOpen] = useState<string | null>(null); // `${exIdx}:${setIdx}`
   /** Accordion: at most ONE exercise expanded, so the sheet stays a list you
    *  can scan. A freshly added exercise opens itself — you added it to edit it. */
@@ -311,6 +315,9 @@ export function TemplateEditorModal({
 
   function appendEx(
     exercise: Pick<DraftEx, 'exerciseId' | 'name' | 'logStyle'> & { cuesText?: string },
+    // The scaffolded sets' kind. Defaulted rather than required so the catalog
+    // and cardio paths read unchanged; only mobility ever passes anything.
+    kind: SetKind = 'working',
   ) {
     setExercises((prev) => [
       ...prev,
@@ -322,7 +329,7 @@ export function TemplateEditorModal({
         targetReps: '',
         holdSessions: '',
         incrementLb: '',
-        sets: [newDraftSet('working'), newDraftSet('working'), newDraftSet('working')],
+        sets: [newDraftSet(kind), newDraftSet(kind), newDraftSet(kind)],
       },
     ]);
     setOpenEx(exercises.length); // the index the new card lands on
@@ -332,12 +339,20 @@ export function TemplateEditorModal({
 
   function addFromCatalog(c: Exercise) {
     haptics.tap();
+    // A seeded mobility movement stays mobility when re-added from the catalog,
+    // whatever the chip above happens to be showing — otherwise typing "couch"
+    // to get Couch Stretch back quietly produces `working` sets, which is the
+    // same defect the chip exists to fix, one door over. MOBILITY_SEED_KEYS
+    // classifies SEEDED movements only; a user-created stretch is classified by
+    // the chip they picked and never by a guess about its name.
+    const mobility = exStyle === 'mobility'
+      || (c.seedKey != null && MOBILITY_SEED_KEYS.has(c.seedKey));
     appendEx({
       exerciseId: c.id!,
       name: c.name,
       logStyle: c.logStyle ?? 'weight-reps',
       cuesText: (c.defaultCues ?? []).join('\n'),
-    });
+    }, mobility ? 'mobility' : 'working');
   }
 
   async function addFreeType() {
@@ -345,8 +360,9 @@ export function TemplateEditorModal({
     haptics.tap();
     setBusy(true);
     try {
-      const id = await train.addCatalogExercise(trimmedEx, exStyle);
-      appendEx({ exerciseId: id, name: trimmedEx, logStyle: exStyle });
+      const style = logStyleFor(exStyle);
+      const id = await train.addCatalogExercise(trimmedEx, style);
+      appendEx({ exerciseId: id, name: trimmedEx, logStyle: style }, setKindFor(exStyle));
     } finally {
       setBusy(false);
     }
@@ -690,13 +706,13 @@ export function TemplateEditorModal({
             />
             {trimmedEx ? (
               <>
-                <View style={styles.styleRow}>
-                  {LOG_STYLES.map((ls) => {
+                <View style={[styles.styleRow, styles.styleRowWrap]}>
+                  {CREATION_STYLES.map((ls) => {
                     const on = exStyle === ls.value;
                     return (
                       <TouchableOpacity
                         key={ls.value}
-                        style={[styles.styleChip, on && styles.styleChipOn]}
+                        style={[styles.styleChip, styles.styleChipHalf, on && styles.styleChipOn]}
                         onPress={() => setExStyle(ls.value)}
                       >
                         <Text style={[styles.styleChipText, on && styles.styleChipTextOn]}>{t(ls.labelKey)}</Text>

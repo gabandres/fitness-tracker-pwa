@@ -164,6 +164,24 @@ export const EXERCISE_LIBRARY: readonly SeedExercise[] = [
   { key: 'ankle-rock', name: 'Ankle Rock', muscles: ['calves'], defaultCues: ['Knee travels over the toes', 'Heel stays down'], logStyle: 'time' },
 ] as const;
 
+/**
+ * The seed keys that are mobility movements (ADR-0028), derived from the
+ * library rather than listed again — a second list is a second thing to forget.
+ *
+ * Exists so a client can re-add a seeded stretch FROM THE CATALOG and still get
+ * `mobility` sets. Without it the creation chip fixes only the new-exercise
+ * path, and typing "couch" to re-add Couch Stretch quietly produces `working`
+ * sets again — the same defect, one door over.
+ *
+ * It classifies seeded movements ONLY, on purpose. A user-created stretch is
+ * classified by the chip they picked, never by a guess about its name, which is
+ * the same line ADR-0028 amendment 1A drew when it refused to put a
+ * static/dynamic field on `Exercise`.
+ */
+export const MOBILITY_SEED_KEYS: ReadonlySet<string> = new Set(
+  EXERCISE_LIBRARY.filter((e) => e.logStyle === 'time').map((e) => e.key),
+);
+
 /** Lookup a seed exercise by key. */
 export function findSeedExercise(key: string): SeedExercise | undefined {
   return EXERCISE_LIBRARY.find((e) => e.key === key);

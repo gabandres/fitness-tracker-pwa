@@ -269,3 +269,17 @@ describe('cardio actions', () => {
     expect(next.exercises).toBe(s.exercises);
   });
 });
+
+describe('newWorkoutSet', () => {
+  it('defaults to a working set', () => {
+    expect(newWorkoutSet()).toEqual({ kind: 'working', done: false });
+  });
+
+  it('takes a kind, so a stretch added mid-session is a mobility set', () => {
+    // The second door onto ADR-0028's defect. The template editor's creation
+    // chip fixed the first; this signature is what lets the add-exercise sheet
+    // fix the other. Without it a stretch added to a live session is a
+    // `working` set and can take a `maxDurationSec` PR.
+    expect(newWorkoutSet('mobility')).toEqual({ kind: 'mobility', done: false });
+  });
+});

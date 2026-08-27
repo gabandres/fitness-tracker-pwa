@@ -264,6 +264,14 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
     alignItems: 'center',
     backgroundColor: colors.inputBg,
   },
+  // Four chips will not fit one row at 360 dp: the label "Weight x reps" alone
+  // is wider than the ~76 dp each would get, so it wraps mid-label and the row
+  // reads as broken rather than dense. These two turn the FOUR-chip rows into a
+  // 2x2 grid with every label on one line. Applied only where four render —
+  // the three-chip rows keep the single row, because 47% basis would break
+  // them into an ugly 2+1.
+  styleRowWrap: { flexWrap: 'wrap' },
+  styleChipHalf: { flexBasis: '47%' },
   styleChipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
   styleChipText: { fontSize: font.tiny, color: colors.muted, fontWeight: '600' },
   styleChipTextOn: { color: colors.onInk },
