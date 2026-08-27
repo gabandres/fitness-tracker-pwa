@@ -6,6 +6,55 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-27 — typing a meal now understands measurements
+
+**"1 teaspoon of honey" used to log 100 grams of honey.** Typed and spoken meals
+were being sized by a rule that only worked when the food database happened to
+list your exact unit — and most of the time it does not. 97% of the foods that
+have any volume measurement have no teaspoon. So a teaspoon fell through to a
+flat 100 g, a tablespoon of peanut butter guessed, and "250 ml of milk" logged
+**twenty-five kilograms** of it, at 15,250 calories, without a warning.
+
+Ignia now works out what your unit weighs from the food itself. If the database
+knows a tablespoon of honey is 21 g, it knows a teaspoon is 7 — that conversion
+is exact, and the grams still come from the database rather than an assumption.
+
+| you type | before | now |
+|---|---|---|
+| 1 tsp honey | 304 kcal | **21 kcal** |
+| 250 ml milk | 15,250 kcal | **157 kcal** |
+| 2 slices whole wheat bread | 50 kcal | **182 kcal** |
+| 1 scoop whey protein | 309 kcal | **103 kcal** |
+| 8 fl oz orange juice | didn't work at all | **112 kcal** |
+
+**A cup of rice is cooked rice.** It used to resolve to a cup of dry grains —
+702 calories against about 205 — because the most trustworthy entries in the
+database are raw reference data. If you measure in cups or slices, Ignia now
+assumes you mean the food as you eat it. Say "raw" or "dry" and it listens.
+
+**It shows you what it read.** Every row now echoes back the words it
+understood, before anything is written — the same step that makes the photo
+scan feel trustworthy.
+
+**One unfamiliar word no longer breaks the search.** "Pure honey" and "natural
+peanut butter" used to find nothing at all, from a database containing both
+honey and peanut butter, because a single adjective it had never seen
+disqualified every food. Chain restaurants are deliberately excluded from that
+leniency: a generic latte is not a Starbucks latte, and Ignia would rather say
+nothing than put someone else's numbers under that name.
+
+**Spanish and Portuguese food names work.** The parser has understood both
+languages for a long time; the food database only speaks English, so
+"mantequilla de maní" was read perfectly and then matched nothing. Common foods
+in both languages now resolve. Portuguese measurements work too — including
+*colher de sopa* and *colher de chá*, which are three times apart and were
+previously both ignored.
+
+**And when it genuinely cannot size something** — a handful, a bowl — it now
+says so plainly and tells you to edit the number, instead of "assumed portion".
+
+---
+
 ## 2026-08-26 — ending a fast used to delete it
 
 **Every fast you ever finished was thrown away at the moment it finished.** The
