@@ -73,7 +73,11 @@ const RATE_LIMIT_PAUSE_MS = 4_000;
  * prompt clause actually stops the model enumerating each photo separately,
  * which is the failure that would make multi-image worse than single-image.
  *
- * It costs one quota slot PER IMAGE, which is the point of the change it tests.
+ * It costs ONE quota slot for the whole scan, however many images it carries.
+ * That was briefly one slot per image (2026-08-26) and the consequence was
+ * that a free user's three photos of one meal spent their entire day — see
+ * `analyze-photo.ts`'s reserve call. The `N scans left` this script prints is
+ * the cheapest way to check that from outside.
  */
 const argv = process.argv.slice(2);
 const multi = argv.includes('--multi');

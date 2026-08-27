@@ -308,3 +308,50 @@ killed the feature was wrong.
 **Caveat, stated because n matters:** the paired A/B is a single pair, and all
 nine calls are the owner's own smoke runs rather than organic traffic. The
 conclusion is not close enough to any threshold for that to change it.
+
+## Amendment 3 — the quota unit, corrected the same day it shipped (2026-08-26)
+
+Item 5 moved `dailyQuota` to count IMAGES before it moved the feature, on the
+reasoning quoted in the correction above: a 3-image scan costs more than a
+1-image scan against the same allowance.
+
+**That was right about the ceiling and wrong about the user.** Within hours of
+the owner using multi-photo on a real meal, the consequence was plain: a free
+user who takes three photos of one meal — the exact workflow this ADR exists to
+support — spent their entire daily allowance on that meal. **The feature
+discouraged its own headline use.**
+
+The measurement that settles it, off production traffic rather than modelled:
+
+| | input tokens | cost |
+|---|---|---|
+| 1 image | 1,989 | $0.0015 |
+| 3 images | 4,254 | $0.0025 |
+
+**1.6×, not 3×**, because the static prompt is paid once either way. Charging
+three slots overcharged by roughly double, and it did so precisely to the
+workflow the feature was built for.
+
+**Only one of the two guards changed, and the asymmetry is the decision.**
+`spendCeiling` still counts images — it is the SOLVENCY mechanism and images are
+what bound the worst possible day. `dailyQuota` counts scans — it is the
+FAIRNESS mechanism and should count what a person perceives doing, which is
+meals. That is `CLAUDE.md`'s own split, and `MAX_PHOTOS` is what bounds the
+variance either way. Cost of the change: about **$0.08 per user per month** at
+the absolute worst, for someone who maxes out with three photos every day.
+
+Verified in PROD with a real 3-image scan: **"2 scans left"**, where the
+previous behaviour would have printed 0.
+
+**The cap stays at 3.** Nothing in the category offers multi-photo at all —
+SnapCalorie, the closest comparable, allows 3 *scans* a day of one photo each —
+so there is no external pressure to raise it, the owner's own workflow is 2–3,
+and the marginal angle stops informing the model past that.
+
+**One honest observation from that verification run**, because it bears on
+de-duplication and was not the point of the test: the same image sent three
+times produced *two* hamburger patties. Sending one photo three times is a
+pathological input rather than a realistic one — real multi-photo is different
+angles — but it is another instance of the model enumerating where it should
+merge, and it is consistent with the "improved, not solved" verdict this ADR
+already carries.
