@@ -257,6 +257,24 @@ committed-then-deleted `node_modules` binaries. **Editing that file is
 dangerous:** once it exists, EAS stops reading `.gitignore`, so every pattern
 must be repeated there or the directory starts uploading.
 
+### `ignia-mac` disk is the recurring constraint
+
+**19.18 GiB free, measured
+2026-08-25** on `/System/Volumes/Data`, against an iOS build's ~17 GB floor —
+over the line, but a build consumes space as it runs. A second cleanup pass
+returned only 646 MiB, so there is no easy headroom left; the one remaining
+lever is the **8.1 GB watchOS simulator runtime**, and dropping it is the
+OWNER'S CALL — it ends watch-target simulator testing there. Do NOT delete
+`apps/mobile/ios/Pods` (forces a `pod install`) or
+`~/Library/Developer/CoreSimulator` (live runtimes, and it is someone else's
+laptop). **`df -h /` reads the sealed System snapshot and lies** — ask for
+`/System/Volumes/Data`, and check the number before believing a build is blocked
+on disk: this file once carried "~600 Mi free / 100% full" when the volume had
+7.7 GiB, and clearing DerivedData alone returned 10.3 GiB.
+
+(Moved here from `STATUS.md` §1 on 2026-08-27 — that file's own header says it
+does not own build tooling, and it was against its size budget.)
+
 ### `autoIncrement` burns a version number per *attempt*
 
 Gaps in the build/versionCode sequence are normal and are not missing artifacts.
