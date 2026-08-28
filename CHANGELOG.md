@@ -6,6 +6,36 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-27 — stretching belongs in a workout, so Train now knows what one is
+
+**You could always log a stretch. The app just could not tell it apart from a
+working set.** A 60-second hold typed into a template came out looking like
+effort, which had a concrete cost: hold a stretch a few seconds longer than last
+time and Ignia congratulated you on a personal record for it.
+
+Mobility is now one of the choices when you add an exercise — a fourth chip
+beside the three ways of logging. Pick it and the sets are mobility sets: they
+do not chase a PR, and they do not count toward the session's tonnage. Pick
+"Time" for a plank or a dead hang and nothing changes, because those really are
+working sets. Ignia does not guess which one you meant.
+
+**It works from both places you can add an exercise** — building a template, and
+adding something mid-workout — and re-adding one of the built-in stretches from
+your exercise list keeps the tag.
+
+**A starter template, `Mobility Reset`**, with eight movements in English,
+Spanish and Portuguese, sitting alongside the other starters.
+
+**And one note, only where the evidence supports it.** If a template prescribes
+more than a minute of mobility *before* the first lifting exercise, Ignia
+mentions that long static holds before lifting have been measured to reduce
+strength for that session, and leaves your number exactly as you wrote it. It is
+a note, not a cap. There is no note for a mobility-only session — with no lift
+to follow, there is nothing to affect. Ignia claims nothing about soreness,
+recovery or injury, because the research does not support those claims.
+
+---
+
 ## 2026-08-27 — typing a meal now understands measurements
 
 **"1 teaspoon of honey" used to log 100 grams of honey.** Typed and spoken meals
@@ -52,6 +82,18 @@ previously both ignored.
 
 **And when it genuinely cannot size something** — a handful, a bowl — it now
 says so plainly and tells you to edit the number, instead of "assumed portion".
+
+**Naming a variety no longer costs you the portion.** "1/2 avocado" logged 120
+calories off the database's own *1 fruit* row; "1/2 hass avocado" logged 103,
+flagged as an assumed portion, because the Hass entry carries no portion row at
+all and half of it fell back to half of 100 grams. Ignia will now fall back from
+a variety to its parent food when that is the only way to size what you typed —
+but only ever by dropping a word, never by picking up one you did not say. That
+restraint is the whole feature: relaxing without it swapped Greek yogurt for
+whole milk yogurt, a red bell pepper for a hot pepper, and a raw chicken thigh
+for a fried breaded one, each time to produce a confident-looking number for the
+wrong food. Chain restaurants are excluded from it outright, as they are
+everywhere else.
 
 ---
 
