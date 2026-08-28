@@ -163,8 +163,25 @@ is real, expensive, and aimed at the wrong bottleneck.**
 
 ### The measurement that decides it
 
-`node scripts/gsc.mjs inspect`, run today, 29 days after the content half
-shipped and was verified live:
+Two readings, and the second is the one that reframes everything.
+
+**The sitemap has still never been downloaded.** Re-submitted 2026-08-27:
+
+```
+✓ submitted https://ignia.fit/sitemap.xml
+  last downloaded: not yet
+  warnings: 0 · errors: 0
+```
+
+That is the **third** submission (2026-07-29, 08-17, 08-27) Google has not
+fetched, each time with a clean bill of health. So it is not a sitemap-quality
+problem and never was — 118 valid URLs, correct content type, allowed by
+robots.txt, reciprocal hreflang, zero errors. Google is simply not spending
+crawl budget here, which is what a new domain with almost no inbound links and
+a 100-orphan internal graph looks like.
+
+**And nothing is indexed.** `node scripts/gsc.mjs inspect`, run the same day,
+29 days after the content half shipped and was verified live:
 
 | URL | Verdict | Coverage |
 |---|---|---|
@@ -236,12 +253,18 @@ itself an open question awaiting `node scripts/usage-report.mjs --days 30`.
 
 **Do the anchors, not the router.** In cost order:
 
-1. **Get the sitemap fetched.** Discovery is blocked at the front door and
-   everything else is downstream of it. Re-check `lastDownloaded` — it was
-   `never` on 2026-08-17.
-2. **Link the 100 orphans.** A hub page (or footer index) with real `<a href>`s
-   to the macro brackets, the calculator variants and the `/es` half. No router,
-   no SSR, no fingerprint of any kind — the mechanism already ships.
+1. **Link the 100 orphans.** This is now first, because step "get the sitemap
+   fetched" was tried on 2026-08-27 and is not something a resubmit achieves —
+   three clean submissions have gone unfetched. Crawl budget follows links, and
+   the site gives Google almost none to follow. A hub page or footer index with
+   real `<a href>`s to the macro brackets, the calculator variants and the `/es`
+   half. No router, no SSR, no fingerprint — the mechanism already ships, and
+   20 anchors prove it. **It is a design call on the public marketing page,
+   which is why it is a recommendation and not a commit.**
+2. **Consider the off-site half.** Three unfetched sitemaps says crawl demand,
+   not crawl mechanics. Nothing on this list creates an inbound link, and that
+   may be the actual constraint — worth naming rather than discovering after a
+   router migration.
 3. **Re-measure.** If Google then crawls and still ranks nothing because the
    body arrives via hydration, the router migration has an evidence base. Today
    it does not.
