@@ -6,6 +6,52 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-28 — a photo of butter said "pretzels", and said it confidently
+
+**The food database has 13,272 rows, so there is always something that matches
+every word you said.** That turned out to be the problem, not the solution.
+Scan unsalted butter and Ignia returned *Pretzels, soft, ready-to-eat, unsalted,
+buttered* — every word present, and a pretzel. Skim milk returned a yogurt made
+with skim milk. Yogurt with granola returned a Kellogg's cereal bar.
+
+None of those were near-misses a slightly better guess would fix. They were a
+different food, presented with exactly the same confidence as a correct one,
+and nothing on the review screen could tell you which you were looking at.
+
+**Ignia now checks that the thing you named is what the food IS**, rather than
+something the food merely mentions. Butter has to be the butter, not a pretzel
+that has been buttered. Where it cannot satisfy that, it stops guessing and
+says the numbers came from the photo rather than the database — a distinction
+the app already showed you, and now actually uses.
+
+| you scan | before | now |
+|---|---|---|
+| unsalted butter | Pretzels, soft, unsalted, buttered | **Butter** |
+| skim milk | Yogurt, plain, skim milk | **Milk, fat free (skim)** |
+| yogurt with granola | a Kellogg's cereal bar | **Yogurt parfait with granola** |
+
+**It is deliberately careful about what it refuses.** An earlier attempt at this
+idea was strict enough to reject the word "salmon", because the database files
+salmon under *Fish*; a later one rejected "bacon strips", because "strips" names
+a cut and not a food. Both were caught before shipping, and the rule now looks
+past cuts to the food underneath. Measured across 80 phrases: three
+corrections, and **nothing that worked before stopped working.**
+
+**Still imperfect, and worth naming:** Ignia can still pick a food that is right
+in kind but carries a detail you never said — black coffee resolving to a Cuban
+coffee, plain bacon to turkey bacon. That is separate work and this change does
+not claim it.
+
+**Also fixed: the update button that did nothing.** When Ignia told you a new
+version was available and you tapped through, the button could fail silently on
+devices that restrict opening links — Screen Time, a managed work profile, no
+browser able to claim the link. No error, no store page. It now falls back to a
+message you can read and act on. That mattered more than it sounds: everyone
+seeing that banner is by definition on an old version, and for some of them the
+button was the only way forward.
+
+---
+
 ## 2026-08-27 — stretching belongs in a workout, so Train now knows what one is
 
 **You could always log a stretch. The app just could not tell it apart from a
