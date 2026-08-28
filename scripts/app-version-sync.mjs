@@ -26,14 +26,42 @@ const MANIFEST = resolve(root, 'public/app-version.json');
 const KEY_PATH = resolve(root, 'apps/mobile/credentials/play-service-account.json');
 const PACKAGE = 'fit.ignia.app';
 
-/**
- * The highest versionCode rolled out on ANY track.
+/** Tracks that can actually put a build on a stranger's phone.
  *
- * Any track, not just alpha: a tester on the closed track and a user on
- * production are both "someone running an old build", and the banner exists for
- * both. Draft releases are excluded — a draft is uploaded but not distributed,
- * so telling anyone to go install it would send them to a store page that
- * offers nothing.
+ * `internal` is deliberately absent, and that is not a simplification.
+ * Publishing to internal testing is used HERE as a MECHANISM, not as a
+ * distribution channel: it is the only way to make Play re-scan a bundle and
+ * detect a new `android.permission.health.*` so the Health-apps declaration
+ * becomes fillable (a `draft` commits but is never scanned; the same call as
+ * `completed` returns 403). vc 39 went to internal on 2026-08-27 for exactly
+ * that reason, with an empty audience, reaching nobody.
+ *
+ * Revisit this the day internal testing gains real testers.
+ */
+const DISTRIBUTING_TRACKS = new Set(['production', 'beta', 'alpha']);
+
+/**
+ * The highest versionCode rolled out on a track that has a real audience.
+ *
+ * Not just alpha: a tester on the closed track and a user on production are
+ * both "someone running an old build", and the banner exists for both.
+ *
+ * TWO exclusions, and they are the same rule reached by different doors —
+ * never point the banner at a build the user cannot install:
+ *
+ *   1. `draft` releases. Uploaded but not distributed.
+ *   2. Any track outside {@link DISTRIBUTING_TRACKS}. A `completed` release on
+ *      a track with no audience is just as unreachable as a draft, and it
+ *      reads as distributed to every API field there is.
+ *
+ * Exclusion 2 was added 2026-08-27 after `npm run doctor` FAILED demanding a
+ * sync from 37 to 39 — which would have told all 15 alpha testers, on vc 37,
+ * that an update existed, sent them to a store page offering nothing, and
+ * burned the banner's credibility. The deployed file was right and the check
+ * was wrong. **The audience cannot be read from the API**: `edits.testers`
+ * returns `googleGroups: null, googleEmails: null` for alpha AND internal
+ * alike, because this app's testers come from a Play *email list*, which that
+ * endpoint does not report. So the track name is the only signal available.
  *
  * @returns {Promise<{ versionCode: number, tracks: string[] }>}
  */
@@ -62,6 +90,7 @@ export async function readLivePlayVersionCode() {
   let best = 0;
   const where = [];
   for (const t of tracks) {
+    if (!DISTRIBUTING_TRACKS.has(t.track)) continue;
     for (const r of t.releases ?? []) {
       if (r.status === 'draft') continue;
       for (const vc of r.versionCodes ?? []) {

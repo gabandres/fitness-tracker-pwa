@@ -366,6 +366,45 @@ describe("resolvePhrase does not return a food the phrase never asked for", () =
     expect(m!.desc.toLowerCase()).toContain("apple");
   });
 
+  // ── The head noun must name the food, not merely appear in it ────────────
+  //
+  // `scoreFood` matches substrings and `matchesAsWord` forgives a
+  // two-character suffix, both on purpose, so in a 13k-row index there is
+  // always SOMETHING that carries every word the user said. Before the
+  // identity guard these three were the answer, and each one is a different
+  // food from the one asked for.
+  it("refuses a food whose identity is not what the phrase named", () => {
+    const butter = resolvePhrase(foods, "unsalted butter");
+    expect(butter).not.toBeNull();
+    // Was: "Pretzels, soft, ready-to-eat, unsalted, buttered" — every token
+    // present, and a pretzel.
+    expect(butter!.desc.toLowerCase()).not.toContain("pretzel");
+    expect(butter!.desc.toLowerCase()).toContain("butter");
+
+    const milk = resolvePhrase(foods, "skim milk");
+    expect(milk).not.toBeNull();
+    // Was: "Yogurt, plain, skim milk" — "milk" is present, as a modifier of
+    // the yogurt it is made from.
+    expect(milk!.desc.toLowerCase()).not.toContain("yogurt");
+
+    // Parentheticals are stripped before the identity segments are read, or a
+    // brand name inside one ("Kellogg's Nutri-Grain YOGURT Bar") counts as the
+    // food's identity.
+    const parfait = resolvePhrase(foods, "yogurt with granola");
+    expect(parfait).not.toBeNull();
+    expect(parfait!.desc.toLowerCase()).toContain("yogurt");
+  });
+
+  // The guard is anchored PAST cut words, and this is the half that a naive
+  // version gets wrong: anchoring on the literal last token made "bacon
+  // strips" abstain outright and sent a cooked chicken breast to a raw row.
+  // Both are asserted elsewhere in this file; these pin the anchoring itself.
+  it("anchors the identity guard on the food, not on the cut", () => {
+    for (const phrase of ["bacon strips", "salmon fillet", "chicken breast"]) {
+      expect(resolvePhrase(foods, phrase, "cooked"), phrase).not.toBeNull();
+    }
+  });
+
   // "Bacon strip, meatless" is the ONLY row carrying both "bacon" and "strip",
   // so no ranking penalty could ever beat it — a demotion needs something to
   // reorder against. An analogue the query did not ask for is disqualified.

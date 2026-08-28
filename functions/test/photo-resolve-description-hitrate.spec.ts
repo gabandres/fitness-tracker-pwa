@@ -28,13 +28,27 @@ import { resolvePhrase } from "../src/photo-resolve";
  * shortening pass having no abstain path: it keeps dropping tokens until
  * something scores, and "something" is always available in a 13k-row index.
  *
- * PARTIALLY ADDRESSED 2026-08-26. Two of the classes above are now fixed and
- * pinned in `photo-resolve.spec.ts`: substring matches ("green apple" ->
- * SNAPPLE) and meat analogues ("bacon" -> meatless). The pretzel above is NOT
- * fixed — "unsalted" and "buttered" are both genuinely present as words, so
- * only head-noun awareness would catch it, and that means changing a ranker
- * tuned against the real dataset. Left deliberately, and measured, rather than
- * chased in the same sitting that fixed the other two.
+ * PARTIALLY ADDRESSED 2026-08-26, and the pretzel CLOSED 2026-08-27. Three of
+ * the classes above are now fixed and pinned in `photo-resolve.spec.ts`:
+ * substring matches ("green apple" -> SNAPPLE), meat analogues ("bacon" ->
+ * meatless), and the pretzel — `unsalted butter` now returns `Butter, tub`.
+ *
+ * **This comment's own diagnosis of the pretzel was WRONG, and the correction
+ * is worth keeping.** It said the cause was "the relaxed shortening pass having
+ * no abstain path". Measured, the pretzel is an EXACT-pass hit: `matchesAsWord`
+ * accepts `buttered` for `butter` under its two-character suffix tolerance, so
+ * the phrase never reaches relaxation at all. A guard bolted onto the
+ * shortening loop would have changed nothing. What fixed it is `headIsIdentity`
+ * in `photo-resolve.ts` — the head noun must appear in the first two comma
+ * segments of the USDA description, the ones that say what the food IS —
+ * applied to every pass. Measured over an 80-phrase corpus: 4 changes, 0
+ * regressions.
+ *
+ * What is still NOT fixed is the other family, and it is the one that needs the
+ * ranker retuned rather than filtered: a correct genus that acquires a
+ * qualifier nobody asked for. `black coffee` -> `Coffee, CUBAN`, `greek yogurt`
+ * -> `Yogurt, Greek, plain, WHOLE MILK`, `bacon` -> `Bacon, TURKEY`,
+ * `grilled chicken breast` -> `Chicken breast, rotisserie, SKIN EATEN`.
  *
  * Consequence for #76: a description field must NOT auto-apply macros from
  * this resolver. Either give the resolver an abstain result, or keep the

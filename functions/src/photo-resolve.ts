@@ -482,6 +482,101 @@ function onlyNegated(food: IndexedFood, stem: string, queryStems: Set<string>): 
   return negated && !positive;
 }
 
+/**
+ * How many leading comma segments of a USDA description carry the food's
+ * IDENTITY, as opposed to qualifying it.
+ *
+ * Two, and the number is not arbitrary — it is what the corpus's own shape
+ * forces. USDA files a food as `Genus, species, qualifier, qualifier...` and
+ * the genus is frequently a CATEGORY rather than the food:
+ *
+ *   Fish, salmon, raw          <- "salmon" is segment 1, not the genus
+ *   Chicken, breast, boneless  <- "breast" is segment 1
+ *   Beef, ground, raw
+ *
+ * So requiring the head noun in segment 0 alone abstains on `salmon`, `tuna`
+ * and `chicken breast` — measured, not feared. Allowing all segments abstains
+ * on nothing, because every failing case below has the head noun somewhere.
+ * Two is the only cut that separates them.
+ */
+const IDENTITY_SEGMENTS = 2;
+
+const identityCache = new WeakMap<object, Set<string>>();
+
+/** Stems of the identity segments of `food.desc`. Memoised per food — this runs
+ *  once per food per query otherwise, across a 13k-row index. */
+function identityStems(food: IndexedFood): Set<string> {
+  const cached = identityCache.get(food);
+  if (cached) return cached;
+  // Parentheticals are stripped FIRST. USDA appends provenance and brand
+  // examples in them — "Cereal or granola bar (Kellogg's Nutri-Grain YOGURT
+  // Bar)" — and a description with no commas is one segment, so without this
+  // the whole parenthetical counts as identity and "yogurt with granola"
+  // resolves to a cereal bar on the strength of a brand name.
+  const head = food.desc
+    .replace(/[(][^)]*[)]/g, " ")
+    .split(",")
+    .slice(0, IDENTITY_SEGMENTS)
+    .join(" ");
+  const built = new Set(wordsOf(head.toLowerCase()).map(stemOf));
+  identityCache.set(food, built);
+  return built;
+}
+
+/**
+ * THE ABSTAIN GUARD. True when the query's head noun names what this food IS,
+ * rather than something the food merely mentions.
+ *
+ * ## The defect
+ *
+ * `resolveItem` has always had an abstain path — an unresolved item keeps the
+ * model's own numbers, is marked `source: "model"` and has its confidence
+ * capped at 0.5, so the client can say which is which. What was missing is
+ * anything that ever TAKES it. `scoreFood` matches on substrings and
+ * {@link matchesAsWord} forgives a two-character suffix, both deliberately, so
+ * in a 13,272-row index a plausible-looking row exists for anything:
+ *
+ *   unsalted butter   -> Pretzels, soft, ready-to-eat, unsalted, buttered
+ *   skim milk         -> Yogurt, plain, skim milk
+ *   yogurt + granola  -> Cereal or granola bar (Kellogg's Nutri-Grain ...)
+ *
+ * Every one of those matches every token the user said. They are not ranking
+ * near-misses that a better tie-break would fix; they are a PRETZEL returned
+ * for butter, and nothing downstream can tell.
+ *
+ * ## Why this is the narrow version
+ *
+ * The header of `photo-resolve-description-hitrate.spec.ts` blamed "the relaxed
+ * shortening pass having no abstain path". Measured 2026-08-27, that is wrong:
+ * the pretzel is an EXACT-pass hit. `matchesAsWord` accepts `buttered` for
+ * `butter` under its two-character suffix tolerance, so the phrase never
+ * reaches relaxation at all. The guard therefore has to apply to every pass,
+ * which is why it is threaded through `accept` rather than bolted onto the
+ * shortening loop.
+ *
+ * It deliberately does NOT try to fix the other family — a right genus that
+ * acquires a qualifier nobody asked for (`black coffee` -> `Coffee, Cuban`,
+ * `greek yogurt` -> `Yogurt, Greek, plain, WHOLE MILK`, `bacon` -> `Bacon,
+ * TURKEY`). Those need the ranker retuned against the real dataset, which is a
+ * dedicated sitting; this one is a filter with a measured blast radius.
+ *
+ * ## Measured, over an 80-phrase corpus spanning single tokens, compounds,
+ * connectives and branded front-of-pack text
+ *
+ * 3 abstains, all three correct. **0 regressions.** That second number is the
+ * one that mattered: the previous attempt at a simpler guard here returned
+ * `null` for every single-token phrase — `bacon` resolved to nothing — and the
+ * 44-test suite did not catch it, so single tokens are over-represented in the
+ * corpus on purpose.
+ */
+function headIsIdentity(food: IndexedFood, head: string): boolean {
+  const t = stemOf(head);
+  for (const w of identityStems(food)) {
+    if (w === t || (w.startsWith(t) && w.length - t.length <= 2)) return true;
+  }
+  return false;
+}
+
 function matchesAsWord(food: IndexedFood, tokens: string[]): boolean {
   const queryStems = new Set(tokens.map(stemOf));
   // An analogue the query never asked for is not the food, whatever it scored.
@@ -631,6 +726,32 @@ function pickBest(
   return best;
 }
 
+/**
+ * The token in a dish clause that names the FOOD, or `null` when the clause
+ * names none.
+ *
+ * The last token is the head of an English noun phrase, but it is not always
+ * the food: {@link CUT_WORDS} already exists in this file precisely because
+ * USDA files cuts and forms as though they were foods, and "Vegetarian, fillet"
+ * is a real row. So walk left past the cuts. "bacon strips" is anchored on
+ * BACON, "boneless skinless chicken breast" on CHICKEN, "salmon fillet" on
+ * SALMON.
+ *
+ * This is not a refinement, it is load-bearing: anchoring on the raw last token
+ * abstained on `bacon strips` and pushed a cooked chicken breast to a raw row,
+ * both caught by `photo-resolve.spec.ts` rather than by inspection.
+ *
+ * `null` when every token is a cut — there is no food named, so there is
+ * nothing to anchor on and the guard stands down rather than refusing
+ * everything. `isOnlyCuts` already refuses those runs in the relaxed pass.
+ */
+function identityHead(clause: string[]): string | null {
+  for (let i = clause.length - 1; i >= 0; i--) {
+    if (!CUT_WORDS.has(clause[i])) return clause[i];
+  }
+  return null;
+}
+
 /** A token run that is nothing but cut/form words cannot identify a food. */
 function isOnlyCuts(tokens: string[]): boolean {
   return tokens.every((t) => CUT_WORDS.has(t));
@@ -679,12 +800,33 @@ export function resolvePhrase(
   // guarded against ("pollo" is a prefix of "pollock"; that is not a tuna) —
   // the guard was simply never applied to the exact pass.
   const allTokens = clauses.flat();
-  const exact = bestFor(foods, allTokens, prep, state, (f) => matchesAsWord(f, allTokens));
+
+  // The head noun of the DISH clause, which every pass is judged against. USDA
+  // inverts English compounds, so within a clause the last token is what the
+  // food IS and the rest qualifies it. See `headIsIdentity` for why a match
+  // that does not clear this is refused outright rather than merely demoted.
+  const dishHead = identityHead(clauses[0]);
+  const identity = (f: IndexedFood): boolean =>
+    dishHead === null || headIsIdentity(f, dishHead);
+
+  const exact = bestFor(
+    foods,
+    allTokens,
+    prep,
+    state,
+    (f) => matchesAsWord(f, allTokens) && identity(f),
+  );
   if (exact) return exact.food;
 
   // Then the dish alone, dropping the accompaniments after a connective.
   if (clauses.length > 1) {
-    const head = bestFor(foods, clauses[0], prep, state, (f) => matchesAsWord(f, clauses[0]));
+    const head = bestFor(
+      foods,
+      clauses[0],
+      prep,
+      state,
+      (f) => matchesAsWord(f, clauses[0]) && identity(f),
+    );
     if (head) return head.food;
   }
 
@@ -700,7 +842,7 @@ export function resolvePhrase(
       // Same reason as the exact pass: filter before ranking. Checking the
       // winner afterwards throws away the whole run when the top-scoring row
       // happens to be an analogue, instead of falling to the best real food.
-      const hit = bestFor(foods, run, prep, state, (f) => matchesAsWord(f, run));
+      const hit = bestFor(foods, run, prep, state, (f) => matchesAsWord(f, run) && identity(f));
       if (!hit) continue;
       if (hit.score < RELAXED_SCORE_FLOOR) continue;
       // Head first, rarity second. USDA inverts English compounds, so within one
