@@ -41,6 +41,7 @@ import {
   subscribeRecentLogs,
   type DailyActivity,
 } from '@/lib/ledger';
+import { isTodayLoading } from '@/lib/today-gate';
 
 
 
@@ -93,7 +94,11 @@ export function useToday(): TodayState {
   // called — the write-through is invisible from here.
   const [liveLogs, setLogs, logsFromCache] = useCachedState<DailyLog[]>(uid, 'logs', []);
   const [weights, setWeights] = useCachedState<Record<string, number>>(uid, 'weights', {});
-  const [profile, setProfile] = useCachedState<Profile | null>(uid, 'profile', null);
+  const [profile, setProfile, profileFromCache] = useCachedState<Profile | null>(
+    uid,
+    'profile',
+    null,
+  );
   const [presets, setPresets] = useCachedState<MealPreset[]>(uid, 'presets', []);
   const [customFoods, setCustomFoods] = useCachedState<CustomFood[]>(uid, 'customFoods', []);
   const [water, setWaterMap] = useCachedState<Record<string, number>>(uid, 'water', {});
@@ -104,6 +109,11 @@ export function useToday(): TodayState {
     {},
   );
   const [snapshotArrived, setSnapshotArrived] = useState(false);
+  /**
+   * The profile listener has answered AT ALL — server or cache, present or
+   * genuinely absent. Not "authoritative", deliberately: see {@link loading}.
+   */
+  const [profileSettled, setProfileSettled] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [failed, setFailed] = useState(false);
   /** Record the error AND release the spinner, so a failure is not a hang. */
@@ -114,16 +124,14 @@ export function useToday(): TodayState {
   /** Rows parked on disk by an offline add, not yet in Firestore. */
   const [pending, setPending] = useState<DailyLog[]>([]);
 
-  // The spinner ends at whichever comes first: a real snapshot, a cache hit, or
-  // a failure. Without the second clause a cold start offline would spin forever
-  // — the listener never answers, and the whole point of the cache is that it
-  // does not have to.
-  //
-  // The THIRD clause is load-bearing now that `snapshotArrived` waits for a
-  // SERVER answer. Before that, an offline listener's empty cache hit latched it
-  // and the spinner cleared by accident; making it honest would have traded an
-  // empty screen for a permanent one on a cold cache. `failed` is the exit.
-  const loading = !snapshotArrived && !logsFromCache && !failed;
+  // The rule lives in `today-gate.ts` — pure, dependency-free and tested there,
+  // because it decides whether a user is shown someone else's calorie target.
+  // Every clause is a bug that has actually happened; `isTodayLoading`'s doc
+  // comment carries which, including why the profile half deliberately accepts a
+  // cache-only answer where the logs half does not.
+  const logsReady = snapshotArrived || logsFromCache;
+  const profileReady = profileSettled || profileFromCache;
+  const loading = isTodayLoading({ logsReady, profileReady, failed });
 
   // Re-read the parked queue when it changes (a park, or a flush that emptied
   // it) and whenever the account does. Cheap: one AsyncStorage read of a list
@@ -196,9 +204,12 @@ export function useToday(): TodayState {
         subscribeDailyWeights(uid, (w, meta) =>
           setWeights(w, { authoritative: !meta?.fromCache }),
         ),
-        subscribeProfile(uid, (p, meta) =>
-          setProfile(p, { authoritative: !meta.fromCache }),
-        ),
+        subscribeProfile(uid, (p, meta) => {
+          setProfile(p, { authoritative: !meta.fromCache });
+          // Any answer settles it — see the `loading` note. Requiring a server
+          // answer here would hang a cold-cache offline start.
+          setProfileSettled(true);
+        }),
         subscribePresets(uid, (rows, meta) =>
           setPresets(rows, { authoritative: !meta?.fromCache }),
         ),
