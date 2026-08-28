@@ -155,6 +155,100 @@ rewrite answers 200 for everything else. Both were inspected: unknown to
 Google. If it is a URL that should not exist, a 404 is the correct answer and
 there is nothing to fix; the GSC UI drill-down names it in one click.
 
+## Costing the router migration, 2026-08-27 — and why it is not the next thing
+
+`STATUS.md` carried "real prerendering is blocked on a router migration" as the
+open SEO item. This is that costing, and it changes the order: **the migration
+is real, expensive, and aimed at the wrong bottleneck.**
+
+### The measurement that decides it
+
+`node scripts/gsc.mjs inspect`, run today, 29 days after the content half
+shipped and was verified live:
+
+| URL | Verdict | Coverage |
+|---|---|---|
+| `/cutting-calculator` | NEUTRAL | URL is unknown to Google |
+| `/protein-calculator` | NEUTRAL | URL is unknown to Google |
+| `/tdee-calculator-women` | NEUTRAL | URL is unknown to Google |
+| `/weight-loss-calculator` | NEUTRAL | URL is unknown to Google |
+| `/transformations` | NEUTRAL | URL is unknown to Google |
+| `/es/calculator` | NEUTRAL | URL is unknown to Google |
+| `/es/vs/macrofactor` | NEUTRAL | URL is unknown to Google |
+
+**7 of 7 unchanged from the 2026-07-29 baseline.** Shipping real body copy on
+2026-08-23 moved none of them, because Google has not fetched them at all.
+Server-rendering the body of a URL Google never requests changes nothing.
+
+### The link graph, re-measured — improved, and still the binding constraint
+
+The 2026-08-17 finding said each page carried exactly one internal link. That
+has been partly fixed: the app now has **20 distinct internal `<a href>`s**,
+and `routerLink` still appears in **zero** files, so those are plain anchors and
+they are genuinely crawlable.
+
+Diffed against the built sitemap, though:
+
+| Measure | Value |
+|---|---|
+| Sitemap URLs | **118** |
+| Reachable by a real `<a href>` | **18** |
+| **Orphans** | **100** |
+| Links to any `/es/` URL | **0** — the entire Spanish half is unreachable |
+| Links to a calculator VARIANT | **0** — only bare `/calculator` |
+
+The 36 macro brackets, the 8 programmatic calculator variants and all 57
+Spanish URLs are discoverable only through a sitemap that has never been
+downloaded. **That is fixable with anchors, and anchors need no router** — the
+20 that exist prove the pattern works today.
+
+### What the migration would actually cost, measured
+
+Not a guess; counted:
+
+| Piece | Size |
+|---|---|
+| Route branches in `detectRoute()` (`src/app/app.ts`) | **21**, incl. 3 regex routes and 8 aliased calculator variants |
+| SEO components to make SSR-safe | **12** |
+| Browser-global references inside those 12 | **~14 total** — genuinely small |
+| Browser-global references in the shell `app.ts` | **28** |
+| Services reaching browser globals, pulled in by the shell | **8** (`fitness-store` 11, `translation` 6, `subscription` 5, `admin` 5, `push-notification` 4, `milestone-tracker` 4, `analytics` 4, `entry-form-manager` 2) |
+| Utils likewise | **7** (`referral` 8, `calc-prefill` 6, `share` 5, `csv-export` 3, `theme` 2, `share-card` 2, `media` 1) |
+
+**The leaf pages are the cheap half; the shell is the expensive one.** The
+blocker is concrete and singular in shape: `app.ts:503` is
+
+```ts
+protected readonly offline = signal(!navigator.onLine);
+```
+
+a FIELD INITIALISER, so it runs at construction and throws on the server before
+a single route renders. Every prerendered page instantiates `App`, so every one
+of the 28 shell references and both dependency lists above are on the
+server-render path — not just the 14 in the leaves.
+
+And this is a **frozen frontend** (ADR-0022). A router migration plus an
+SSR-safety pass across 15 services and utils is the largest change anyone would
+make to the web app since the freeze, spent on a surface whose retirement is
+itself an open question awaiting `node scripts/usage-report.mjs --days 30`.
+
+### Recommendation
+
+**Do the anchors, not the router.** In cost order:
+
+1. **Get the sitemap fetched.** Discovery is blocked at the front door and
+   everything else is downstream of it. Re-check `lastDownloaded` — it was
+   `never` on 2026-08-17.
+2. **Link the 100 orphans.** A hub page (or footer index) with real `<a href>`s
+   to the macro brackets, the calculator variants and the `/es` half. No router,
+   no SSR, no fingerprint of any kind — the mechanism already ships.
+3. **Re-measure.** If Google then crawls and still ranks nothing because the
+   body arrives via hydration, the router migration has an evidence base. Today
+   it does not.
+
+The migration is not rejected — it is **deferred behind a measurement**, the
+same discipline ADR-0022 applies to retiring the site at all.
+
 ## The floor, shipped 2026-08-17
 
 Chosen against two alternatives — do nothing, or real prerendering
