@@ -82,7 +82,36 @@ const ASC_ALPHA3_TO_PLAY_ALPHA2 = {
  *  implied by absence — and so anyone flipping DSA trader status later knows
  *  exactly which rows to move. */
 const DELIBERATELY_EXCLUDED_NOTE =
-  'EU 27 + GBR, ISL, NOR — DSA trader declaration publishes name/address/phone/email on the EU product page';
+  "EU 27 + GBR, ISL, NOR — pending a PLAY-SIDE DSA trader declaration (Apple does not carry over)";
+
+/**
+ * The 30 territories iOS opened on 2026-08-28 and Play deliberately has NOT.
+ *
+ * ## Why this list exists, and why syncing it away would be the bug
+ *
+ * The table above is a MIRROR of App Store Connect, and until 2026-08-28 the
+ * two agreed at 145. That day the DSA trader declaration was filed on the
+ * Bermudez Systems LLC entity in ASC and all 30 held-back territories were
+ * opened, so iOS now ships to 175 of 175.
+ *
+ * **Apple's declaration does nothing for Google.** Play has its own DSA trader
+ * declaration, in Play Console, and it had not been filed when this was
+ * written. Expanding the table to 175 on the strength of the ASC read would
+ * ship the first-ever Android production release into the EU 27 with no
+ * Google-side trader declaration — which removes the app from all 27.
+ *
+ * So `--check-source` no longer treats these 30 as drift. It still fails on
+ * any OTHER divergence, which is the mirror's actual job.
+ *
+ * **To retire this list:** file the Play Console DSA trader declaration, then
+ * move these rows into `ASC_ALPHA3_TO_PLAY_ALPHA2` and delete the set. Do not
+ * do it in the other order.
+ */
+const EU_PENDING_PLAY_DSA = new Set([
+  'AUT', 'BEL', 'BGR', 'HRV', 'CYP', 'CZE', 'DNK', 'EST', 'FIN', 'FRA',
+  'DEU', 'GRC', 'HUN', 'IRL', 'ITA', 'LVA', 'LTU', 'LUX', 'MLT', 'NLD',
+  'POL', 'PRT', 'ROU', 'SVK', 'SVN', 'ESP', 'SWE', 'GBR', 'ISL', 'NOR',
+]);
 
 const countries = Object.values(ASC_ALPHA3_TO_PLAY_ALPHA2);
 
@@ -141,15 +170,24 @@ async function checkSource() {
     .filter(Boolean)
     .sort();
   const mine = Object.keys(ASC_ALPHA3_TO_PLAY_ALPHA2).sort();
-  const missing = live.filter((t) => !mine.includes(t));
+  const missingAll = live.filter((t) => !mine.includes(t));
+  const expected = missingAll.filter((t) => EU_PENDING_PLAY_DSA.has(t));
+  const missing = missingAll.filter((t) => !EU_PENDING_PLAY_DSA.has(t));
   const extra = mine.filter((t) => !live.includes(t));
   console.log(`ASC available: ${live.length} · table: ${mine.length}`);
+  if (expected.length) {
+    console.log(
+      `held back on Play ON PURPOSE (${expected.length}): ${expected.join(' ')}`,
+    );
+    console.log("  reason: Play needs its OWN DSA trader declaration; the Apple one does not carry over.");
+    console.log('  opening these without it removes the app from all 27 EU territories.');
+  }
   if (!missing.length && !extra.length) {
-    console.log('IN SYNC — the table matches what iOS ships to.');
+    console.log('IN SYNC — the table matches iOS apart from the deliberate hold-back above.');
     return true;
   }
-  if (missing.length) console.error('on iOS but NOT in the table:', missing.join(' '));
-  if (extra.length) console.error('in the table but NOT on iOS:', extra.join(' '));
+  if (missing.length) console.error('DRIFT — on iOS but NOT in the table:', missing.join(' '));
+  if (extra.length) console.error('DRIFT — in the table but NOT on iOS:', extra.join(' '));
   return false;
 }
 
