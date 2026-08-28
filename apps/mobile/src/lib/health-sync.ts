@@ -31,6 +31,7 @@ import {
   updateSession,
 } from './ledger';
 import type { WorkoutSession } from './workout';
+import { isExpectedHealthState } from './health-errors';
 import { health, type NutritionExport, type ReadableKind, type WorkoutExport } from './health';
 
 /**
@@ -509,18 +510,13 @@ export function useHealthSync(uid: string | undefined) {
  * So this swallows the locked-device case by name and lets anything else
  * through to Sentry, where a real HealthKit fault still belongs.
  */
-function isLockedDeviceError(err: unknown): boolean {
-  const msg = err instanceof Error ? err.message : String(err ?? '');
-  return msg.includes('Protected health data is inaccessible')
-    || msg.includes('com.apple.healthkit Code=6');
-}
 
 export function useHealthAutoImport(uid: string | undefined): void {
   useEffect(() => {
     if (!uid) return;
     const run = (): void => {
       importAll(uid).catch((err: unknown) => {
-        if (isLockedDeviceError(err)) return;
+        if (isExpectedHealthState(err)) return;
         throw err;
       });
     };

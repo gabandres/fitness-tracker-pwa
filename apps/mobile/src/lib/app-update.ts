@@ -3,6 +3,7 @@ import { AppState, Linking, Platform, type AppStateStatus } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Application from 'expo-application';
 import * as Updates from 'expo-updates';
+import { openExternal } from '@/lib/open-external';
 import { useTheme } from '@/lib/theme-context';
 import type { ColorTokens } from '@/theme';
 
@@ -287,8 +288,26 @@ export function useStoreUpdate(): StoreUpdateState {
     };
   }, []);
 
+  // Both legs go through `openExternal`, and the SECOND one is the point. The
+  // bare `.catch(() => Linking.openURL(FALLBACK))` left the fallback's own
+  // rejection unhandled, which Sentry reports exactly like a crash and which
+  // leaves the user with a button that does nothing — the defect `openExternal`
+  // was written for (IGNIA-MOBILE-8, ten silent taps over ten days).
+  //
+  // It matters MORE here than on a Settings link. This is the "update
+  // available" prompt, so the person seeing it is by definition on an old
+  // build; on Android that is often an ORPHAN RUNTIME no OTA can reach, making
+  // this button the only route they have. The IGNIA-MOBILE-8 event still
+  // arriving on 2026-08-25 came from release 1.2.0 / build 49 — exactly such a
+  // user, on exactly such a build.
   const open = useCallback(() => {
-    void Linking.openURL(STORE_URL).catch(() => Linking.openURL(STORE_URL_FALLBACK));
+    void (async () => {
+      try {
+        await Linking.openURL(STORE_URL);
+      } catch {
+        await openExternal(STORE_URL_FALLBACK);
+      }
+    })();
   }, []);
 
   const dismiss = useCallback(() => {
