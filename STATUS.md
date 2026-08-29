@@ -82,7 +82,9 @@ remaining lever are in `docs/build-infrastructure.md`.
 
 ## 2. Merged, on `main`, and not delivered anywhere
 
-**Nothing — but iOS is UNDER TEST, not confirmed.** `2f2777dc` (the Today ring
+**vc 40 — Zero-Tap Sign-In (#107) — is BUILT, DEVICE-VERIFIED, and on NO track.** Merged `fa19916f`, runtime `d7ea3629…` read from the `.aab`. Held back on purpose: vc 37 is in production review and any `eas submit` would cancel it (`CANCEL_IN_REVIEW_AND_SUBMIT` is the `edits.commit` default). Submit once the store URL returns 200. **The Android OTA channel is SHUT** until vc 40 reaches a track; iOS is unaffected at `7b347b0f…`. Device QA proved the native path reaches Play Services and stores under Folsom (E2EE); retrieve-with-data and the restore leg still need two devices. Two defects were found and fixed today — a branch that never compiled, and a stale-fingerprint artifact — both in `apps/mobile/AGENTS.md`.
+
+**Otherwise nothing — but iOS is UNDER TEST, not confirmed.** `2f2777dc` (the Today ring
 could clip a digit) and `86f72754` (Today drew a hero from seed targets before
 the profile landed) are live on both platforms: Android OTA 82, device-verified
 on the LG G6, and **iOS OTA 49 (`01a04ad6…`), re-shipped on the owner's call**
