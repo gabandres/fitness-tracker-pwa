@@ -6,6 +6,7 @@ jest.mock('@/lib/auth', () => ({
 }));
 
 import React from 'react';
+import { Alert } from 'react-native';
 import { fireEvent, renderWithProviders as render, waitFor } from '@/test-utils';
 import { FastSheet, localeUses12Hour } from '@/components/FastSheet';
 import type { Fast } from '@macrolog/core';
@@ -161,6 +162,23 @@ describe('FastSheet — you type the time', () => {
     expect(screen.getByTestId('fast-duration')).toHaveTextContent('16h 0m');
   });
 
+  it('REFUSES an out-of-range hour rather than displaying one', async () => {
+    // Found on a device: the field accepted `50` and simply declined to commit
+    // it, so the box read 50 while the row above still read 5:10 PM — the
+    // field and the value disagreeing, with nothing to say which was real.
+    const { ui } = addSheet();
+    const screen = await render(ui);
+
+    await type(screen, 'fast-start-hour', '7');
+    expect(screen.getByTestId('fast-start-hour').props.value).toBe('7');
+    await type(screen, 'fast-start-hour', '70');
+    expect(screen.getByTestId('fast-start-hour').props.value).toBe('7');
+    // 12 is in range at both one digit and two, so it still types normally.
+    await type(screen, 'fast-start-hour', '1');
+    await type(screen, 'fast-start-hour', '12');
+    expect(screen.getByTestId('fast-start-hour').props.value).toBe('12');
+  });
+
   it('steps the day without disturbing the time of day', async () => {
     const { onSave, ui } = addSheet();
     const screen = await render(ui);
@@ -268,19 +286,35 @@ describe('FastSheet — correcting a stored fast', () => {
     expect(add.queryByTestId('fast-delete')).toBeNull();
   });
 
-  it('stays open when the write fails, so the user does not lose what they set', async () => {
-    // Closing here would show a list that does not contain the fast they just
-    // saved, which reads as silent data loss rather than as a failed write.
-    const onSave = jest.fn().mockRejectedValue(new Error('permission-denied'));
+  it('closes on the LOCAL write rather than waiting for the server', async () => {
+    // A device pass on the LG G6 is why. Firestore is local-first, so the
+    // corrected fast is already on the row behind the sheet; when that radio
+    // dropped the Write stream the awaited promise settled late and the sheet
+    // sat open over a change the user could already see. This pins that a
+    // still-pending write does not hold the sheet.
+    let settle: () => void = () => {};
+    const onSave = jest.fn().mockReturnValue(new Promise<void>((r) => { settle = r; }));
     const onClose = jest.fn();
     const screen = await render(editSheet({ onSave, onClose }).ui);
 
     await tap(screen, 'fast-save');
-    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
-    // A second flush: the rejection's own `setSaving(false)` lands a microtask
-    // after the assertion above, and without this it commits outside act().
+    expect(onSave).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
+    settle();
     await waitFor(() => {});
-    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('says so when a write that already applied is rolled back', async () => {
+    // The local cache reverts on a rules rejection, so the fast would silently
+    // go back to what it was — the exact data-loss shape this feature exists
+    // to end. Swallowing it would also put it on the unhandled-rejection path,
+    // which has reported as a crash in this app before.
+    jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    const onSave = jest.fn().mockRejectedValue(new Error('permission-denied'));
+    const screen = await render(editSheet({ onSave }).ui);
+
+    await tap(screen, 'fast-save');
+    await waitFor(() => expect(Alert.alert).toHaveBeenCalledTimes(1));
   });
 });
 

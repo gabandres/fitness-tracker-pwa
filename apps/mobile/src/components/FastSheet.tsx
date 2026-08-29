@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
 import {
   MAX_FAST_MS,
   type Fast,
@@ -278,19 +278,48 @@ export function FastSheet({
     };
   }
 
+  /**
+   * Commit, and close on the LOCAL write rather than the server's answer.
+   *
+   * This awaited the round trip until a device pass on the LG G6 showed what
+   * that costs. Firestore is local-first: by the time `onSave` returns its
+   * promise the value is already in the cache and every listener on the device
+   * has it, so the corrected fast is visible on the row BEHIND the sheet. The
+   * radio then dropped the Write stream (`RPC 'Write' stream transport
+   * errored`, once a minute), the promise settled late, and the sheet sat open
+   * over a change the user could already see — saying nothing, with Save live
+   * again as though the tap had missed.
+   *
+   * Waiting on the server also cannot buy what it looks like it buys. The one
+   * failure the user can act on — an impossible interval — is checked by
+   * `valid` before this runs, so it can never reach the write. What is left is
+   * a rules rejection or a dead network, and neither is fixed by staring at a
+   * sheet.
+   *
+   * The rejection is still SURFACED rather than swallowed: a write that truly
+   * fails rolls the local cache back, so the fast would quietly revert, and a
+   * silent revert is exactly the data-loss shape this feature exists to end.
+   * Handling it here also keeps it off the unhandled-rejection path, which has
+   * reported as a crash in this app before (OTA 80).
+   */
   async function save() {
     if (!valid) return;
     setSaving(true);
+    let written: Promise<void>;
     try {
-      await onSave(start, effectiveEnd);
-      haptics.success();
-      onClose();
+      written = Promise.resolve(onSave(start, effectiveEnd));
     } catch {
-      // The write failed — rules rejected it, or the device is offline past
-      // the SDK's own queue. Staying open with the values intact is the only
-      // useful outcome: closing would discard what the user set and show them
-      // a list that does not contain it, which reads as silent data loss.
+      // A synchronous throw — the ledger refusing an interval `valid` should
+      // already have caught. Keep the sheet open; nothing was written.
       setSaving(false);
+      return;
+    }
+    haptics.success();
+    onClose();
+    try {
+      await written;
+    } catch {
+      Alert.alert(t('fast.errSaveTitle'), t('fast.errSaveBody'));
     }
   }
 
@@ -435,18 +464,30 @@ function TimeField({
     String(value.getMinutes()).padStart(2, '0'),
   );
 
+  /**
+   * An out-of-range hour is REFUSED, not displayed.
+   *
+   * The first cut accepted the text and simply declined to commit it, so a
+   * stray keystroke could leave `50` sitting in the hour box while the row
+   * above still read 5:10 PM — the field and the value disagreeing, with
+   * nothing to say which one was real. Seen on a device within minutes.
+   *
+   * Dropping the keystroke instead is what every clamped numeric field does,
+   * and it costs nothing: `12` still types fine, because it is in range at
+   * both one digit and two.
+   */
   function commitHour(raw: string) {
     const digits = raw.replace(/[^0-9]/g, '').slice(0, 2);
-    setHourText(digits);
-    if (digits === '') return; // mid-edit; the stored value is left alone
-    const n = Number(digits);
-    if (hour12) {
-      if (n < 1 || n > 12) return;
-      onChange(withTime(value, (n % 12) + (isPm ? 12 : 0), value.getMinutes()));
-    } else {
-      if (n > 23) return;
-      onChange(withTime(value, n, value.getMinutes()));
+    if (digits === '') {
+      // Clearing is allowed — it is mid-edit, not a wrong value. The stored
+      // time is left alone until a real one is typed.
+      setHourText('');
+      return;
     }
+    const n = Number(digits);
+    if (hour12 ? n < 1 || n > 12 : n > 23) return;
+    setHourText(digits);
+    onChange(withTime(value, hour12 ? (n % 12) + (isPm ? 12 : 0) : n, value.getMinutes()));
     // Two digits means the hour is finished — move on, so setting a time is
     // one continuous type rather than type-tap-type.
     if (digits.length === 2) minuteRef.current?.focus();
@@ -454,10 +495,13 @@ function TimeField({
 
   function commitMinute(raw: string) {
     const digits = raw.replace(/[^0-9]/g, '').slice(0, 2);
-    setMinuteText(digits);
-    if (digits === '') return;
+    if (digits === '') {
+      setMinuteText('');
+      return;
+    }
     const n = Number(digits);
     if (n > 59) return;
+    setMinuteText(digits);
     onChange(withTime(value, value.getHours(), n));
   }
 

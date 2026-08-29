@@ -559,6 +559,11 @@ export const en = {
   'fast.noteOverlap': 'Heads up: this runs over your fast on {when}.',
   'fast.noteOverlapMany': 'Heads up: this runs over {n} of your other fasts.',
   'fast.delete': 'Delete this fast',
+  // Shown only when a write that already applied on screen is rolled back
+  // by the server. A silent revert is the data-loss shape this feature
+  // exists to end, so it gets said out loud.
+  'fast.errSaveTitle': "Couldn't save that fast",
+  'fast.errSaveBody': 'Your change was undone. Check your connection and try again.',
   'fast.deleteTitle': 'Delete this fast?',
   'fast.deleteBody': "It's removed from your history and your averages.",
   // The History day section.

@@ -504,6 +504,8 @@ export const ptBR = {
   'fast.noteOverlap': 'Atenção: isto passa por cima do seu jejum de {when}.',
   'fast.noteOverlapMany': 'Atenção: isto passa por cima de {n} dos seus outros jejuns.',
   'fast.delete': 'Excluir este jejum',
+  'fast.errSaveTitle': 'Não deu para salvar esse jejum',
+  'fast.errSaveBody': 'Sua alteração foi desfeita. Verifique a conexão e tente de novo.',
   'fast.deleteTitle': 'Excluir este jejum?',
   'fast.deleteBody': 'Ele sai do seu histórico e das suas médias.',
   'fast.sectionTitle': 'Jejum',

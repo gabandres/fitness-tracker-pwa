@@ -514,6 +514,8 @@ export const esPR: Record<I18nKey, string> = {
   'fast.noteOverlap': 'Ojo: esto pasa por encima de tu ayuno del {when}.',
   'fast.noteOverlapMany': 'Ojo: esto pasa por encima de {n} de tus otros ayunos.',
   'fast.delete': 'Borrar este ayuno',
+  'fast.errSaveTitle': 'No se pudo guardar ese ayuno',
+  'fast.errSaveBody': 'Tu cambio se deshizo. Revisa tu conexión y trata otra vez.',
   'fast.deleteTitle': '¿Borrar este ayuno?',
   'fast.deleteBody': 'Se quita de tu historial y de tus promedios.',
   'fast.sectionTitle': 'Ayuno',
