@@ -72,6 +72,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // USAGE
 //
+//   node scripts/play-production-release.mjs --in-review-probe # is anything in review?
 //   node scripts/play-production-release.mjs --availability   # START HERE: read the track
 //   node scripts/play-production-release.mjs                  # preview, changes nothing
 //   node scripts/play-production-release.mjs --complete --commit   # 100%, gated on the read
@@ -387,6 +388,77 @@ async function main() {
   const base = `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${PKG}`;
 
   const edit = (await client.request({ url: `${base}/edits`, method: 'POST', data: {} })).data;
+
+  if (args.includes('--in-review-probe')) {
+    /**
+     * Ask Play whether anything is currently IN REVIEW.
+     *
+     * ## Why this exists
+     *
+     * The androidpublisher v3 API exposes **no review status** — checked
+     * against the full resource list on 2026-08-29, and the one candidate by
+     * name (`appstoreappsreview`) is for app-store-hosted apps and holds no
+     * persistent data. So "did it publish yet" normally means driving the
+     * Console, which wedges, or polling the public store URL.
+     *
+     * `edits.commit` leaks the answer. Its `changesInReviewBehavior` parameter
+     * takes `ERROR_IF_IN_REVIEW`, documented as: "If there are changes in
+     * review, then this will return an error... If there aren't any changes in
+     * review, then this will continue and send the new changes for publishing."
+     *
+     * An error therefore MEANS "something is in review". That is the read.
+     *
+     * ## Why it is safe in both directions
+     *
+     * The edit committed here is **empty** — created and never modified — so
+     * "send the new changes for publishing" has no changes to send.
+     *
+     *   - something in review -> the call ERRORS, the edit is never committed,
+     *     and we delete it. Nothing changed.
+     *   - nothing in review    -> an empty edit commits, which is a no-op.
+     *
+     * The one thing this must never do is run WITHOUT `ERROR_IF_IN_REVIEW`,
+     * because the default is `CANCEL_IN_REVIEW_AND_SUBMIT` — that would cancel
+     * a live review and resubmit, restarting the clock on a release in flight.
+     * That is the whole hazard this probe is built to avoid, so the parameter
+     * is hard-coded rather than taken from a flag.
+     *
+     * **UNPROVEN until it has been run once against a known-live app.** Written
+     * 2026-08-29 while vc 37 was in review; deliberately not tested then,
+     * because the informative branch is the error and the untested branch is
+     * the one that writes. Treat a `NOT IN REVIEW` result as unconfirmed until
+     * it has agreed with the store URL at least once.
+     */
+    const probe = `${base}/edits/${edit.id}:commit?changesInReviewBehavior=ERROR_IF_IN_REVIEW`;
+    if (!commit) {
+      console.log('\nDRY RUN — this probe COMMITS AN EMPTY EDIT, so it needs --commit.');
+      console.log('It would POST:');
+      console.log(`  ${probe}`);
+      console.log('An error means something is in review; success means nothing is.');
+      await client.request({ url: `${base}/edits/${edit.id}`, method: 'DELETE' }).catch(() => {});
+      return;
+    }
+    try {
+      await client.request({ url: probe, method: 'POST' });
+      console.log('\nNOT IN REVIEW — Play accepted the empty commit.');
+      console.log('If a release was expected to be in flight, confirm against the store URL:');
+      console.log('  curl -s -o /dev/null -w "%{http_code}\\n" \\');
+      console.log('    "https://play.google.com/store/apps/details?id=fit.ignia.app&gl=US"');
+      process.exit(0);
+    } catch (e) {
+      const msg = e?.cause?.message ?? e?.message ?? String(e);
+      await client.request({ url: `${base}/edits/${edit.id}`, method: 'DELETE' }).catch(() => {});
+      if (/in review/i.test(msg)) {
+        console.log(`\nIN REVIEW — Play refused the commit: "${msg}"`);
+        console.log('Nothing was changed. Do not submit to any track until this clears.');
+        process.exit(2);
+      }
+      console.error(`\nUNKNOWN — the probe failed for some OTHER reason: "${msg}"`);
+      console.error('Do NOT read this as "not in review". Check the Console or the store URL.');
+      process.exit(1);
+    }
+  }
+
   if (args.includes('--availability')) {
     const a = await readAvailability(client, base, edit.id);
     console.log(`\nproduction track availability: ${a.live.length} countries, restOfWorld=${a.restOfWorld}`);
