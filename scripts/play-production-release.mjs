@@ -28,11 +28,91 @@
 // the carve-out quietly defeats itself.
 //
 // ─────────────────────────────────────────────────────────────────────────────
+// WHAT PLAY ACTUALLY ENFORCES — measured 2026-08-29, not assumed
+//
+// This script was written to create a `completed` (100%) release carrying
+// `countryTargeting`. **Play rejects that combination outright:**
+//
+//   400 INVALID_ARGUMENT: Country targeting is only supported for staged releases.
+//
+// So a country-pinned release MUST be `inProgress` with a `userFraction`. That
+// is not a caution anyone chose; it is the only door the API opens. The two
+// facts that follow from it:
+//
+// A staged release was then tried, and Play refused that too:
+//
+//   400 INVALID_ARGUMENT: The first release on a track cannot be staged.
+//
+// **Those two errors together close the loop, and the conclusion is not
+// negotiable by any argument to this script:**
+//
+//   first production release MUST be `completed`
+//     -> `completed` MUST NOT carry `countryTargeting`
+//       -> so it inherits the PRODUCTION TRACK's country availability
+//         -> and `edits.countryavailability` is READ-ONLY (`get`, nothing else)
+//
+// **Therefore the 145 territories have to be set by hand in Play Console ->
+// Production -> Countries/regions BEFORE the first release exists.** No flag
+// here can substitute for that, and the header of this file claimed otherwise
+// until 2026-08-29. `STATUS.md` said "the release is ONE command"; it was two
+// commands and a Console page.
+//
+// What this script still owns, and it is the load-bearing half: `--complete`
+// REFUSES to publish until it has re-read `countryAvailability/production` and
+// seen exactly this table with `restOfWorld: false`. Completing against an
+// unchecked track is what ships the app into the EU 27.
+//
+// Once a first release exists, later releases MAY be staged, and then
+// `countryTargeting` is available again — that is what `--fraction` is for.
+//
+// Verified in an uncommitted edit before any of this shipped: Play accepts all
+// 145 codes, `XK` included, and echoes them back on a staged release. So the
+// table is expressible; only the ORDER of operations was wrong.
+//
+// ─────────────────────────────────────────────────────────────────────────────
 // USAGE
 //
-//   node scripts/play-production-release.mjs                 # preview, changes nothing
-//   node scripts/play-production-release.mjs --commit        # actually release
-//   node scripts/play-production-release.mjs --commit --vc 39
+//   node scripts/play-production-release.mjs --availability   # START HERE: read the track
+//   node scripts/play-production-release.mjs                  # preview, changes nothing
+//   node scripts/play-production-release.mjs --complete --commit   # 100%, gated on the read
+//   node scripts/play-production-release.mjs --commit         # staged; NOT legal as a first release
+//   node scripts/play-production-release.mjs --commit --fraction 0.5
+//   node scripts/play-production-release.mjs --complete --commit --vc 40
+//
+// FIRST-EVER production release, in order:
+//   1. `--availability`  -> expect 0 countries. That is "available nowhere".
+//   2. Play Console -> Production -> Countries/regions -> add exactly the 145.
+//   3. `--availability`  -> must now report 145, restOfWorld=false, no diff.
+//   4. `--complete --commit`.
+//
+// ─────────────────────────────────────────────────────────────────────────────
+// DRIVING STEP 2 BY HAND — and why "select all, then remove the EU" is WRONG
+//
+// It is the obvious shortcut and it ships the app to four places Apple
+// deliberately refuses and one the DSA covers. Three lists, against the 176
+// Play enumerated on the alpha track:
+//
+// (a) REMOVE — EU/EEA/UK, the DSA-critical 30. These are the ones whose absence
+//     the whole `countryTargeting` apparatus exists to guarantee:
+//       AT BE BG HR CY CZ DK EE FI FR DE GR HU IS IE IT LV LT LU MT
+//       NL NO PL PT RO SK SI ES SE GB
+//
+// (b) REMOVE — 18 more that Play offers and the iOS mirror does not. Skipping
+//     this list is the actual trap, because two of them defeat (a):
+//       AW BD KM CU DJ ER GI GN HT IR LI MC WS SM SO SD TG VA
+//     - **LI (Liechtenstein) is EEA, so the DSA applies to it** and it is NOT
+//       in list (a). "Select all minus the EU 27" leaves it in.
+//     - **GI (Gibraltar)** is UK-adjacent and equally not in (a).
+//     - **CU, IR, SD, SO** are US-sanctioned. Apple does not offer them; a
+//       Wyoming LLC distributing there is an OFAC question nobody has asked.
+//
+// (c) ADD — 17 that ARE in the mirror but were absent from the alpha snapshot,
+//     so a "start from the alpha list" approach silently drops them. Play's API
+//     accepted all 17 on 2026-08-29, `XK` included, so they exist:
+//       AF AI BB BT BN SZ GY XK MG MW MR ME MS NR PW ST VC
+//
+// 176 - 30 - 18 + 17 = 145. Do not trust that arithmetic over `--availability`,
+// which reads the answer back from Play and names every discrepancy.
 //
 // Defaults to whatever versionCode is live on `alpha`, because promoting the
 // binary testers have been running is the whole point.
@@ -191,10 +271,37 @@ async function checkSource() {
   return false;
 }
 
+/**
+ * Read the PRODUCTION track's own country availability and compare it to the
+ * table. This is the gate on `--complete`.
+ *
+ * `edits.countryavailability` is read-only, so this is the only way to know
+ * what a `completed` release with no targeting would inherit — and inheriting
+ * the wrong thing is a 27-country removal, not a cosmetic error.
+ */
+async function readAvailability(client, base, editId) {
+  const r = (await client.request({ url: `${base}/edits/${editId}/countryAvailability/production` })).data;
+  const live = (r.countries ?? []).map((c) => c.countryCode).sort();
+  const want = [...countries].sort();
+  const missing = want.filter((c) => !live.includes(c));
+  const extra = live.filter((c) => !want.includes(c));
+  return { live, restOfWorld: r.restOfWorld === true, missing, extra };
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const commit = args.includes('--commit');
+  const complete = args.includes('--complete');
   const vcArg = args.includes('--vc') ? args[args.indexOf('--vc') + 1] : null;
+  const fraction = args.includes('--fraction')
+    ? Number(args[args.indexOf('--fraction') + 1])
+    : 0.99;
+
+  if (!(fraction > 0 && fraction < 1)) {
+    console.error(`--fraction must be strictly between 0 and 1 (got ${fraction}).`);
+    console.error('Play has no "inProgress at 100%"; 100% is --complete, a separate gated step.');
+    process.exit(1);
+  }
 
   if (args.includes('--check-source')) {
     process.exit((await checkSource()) ? 0 : 1);
@@ -218,6 +325,14 @@ async function main() {
   const base = `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${PKG}`;
 
   const edit = (await client.request({ url: `${base}/edits`, method: 'POST', data: {} })).data;
+  if (args.includes('--availability')) {
+    const a = await readAvailability(client, base, edit.id);
+    console.log(`\nproduction track availability: ${a.live.length} countries, restOfWorld=${a.restOfWorld}`);
+    if (a.missing.length) console.log(`missing vs table (${a.missing.length}): ${a.missing.join(' ')}`);
+    if (a.extra.length) console.log(`extra vs table (${a.extra.length}): ${a.extra.join(' ')}`);
+    await client.request({ url: `${base}/edits/${edit.id}`, method: 'DELETE' }).catch(() => {});
+    return;
+  }
   try {
     const tracks = (await client.request({ url: `${base}/edits/${edit.id}/tracks` })).data;
     const alpha = (tracks.tracks ?? []).find((t) => t.track === 'alpha');
@@ -225,16 +340,49 @@ async function main() {
     const versionCode = vcArg ?? liveAlphaVc;
     if (!versionCode) throw new Error('no versionCode on alpha and none given with --vc');
 
-    const release = {
-      name: alpha?.releases?.[0]?.name ?? String(versionCode),
-      versionCodes: [String(versionCode)],
-      status: 'completed',
-      countryTargeting: { countries, includeRestOfWorld: false },
-    };
+    // --complete is 100%, and it may NOT carry countryTargeting (Play rejects
+    // that combination). So it inherits the TRACK, and the only safe version of
+    // this step is one that refuses to run until the track has been read.
+    const avail = await readAvailability(client, base, edit.id);
+    if (complete) {
+      console.log(`\nproduction track availability: ${avail.live.length} countries, restOfWorld=${avail.restOfWorld}`);
+      const blockers = [];
+      if (avail.missing.length) blockers.push(`track is MISSING ${avail.missing.length}: ${avail.missing.join(' ')}`);
+      if (avail.extra.length) blockers.push(`track carries ${avail.extra.length} NOT in the table: ${avail.extra.join(' ')}`);
+      if (avail.restOfWorld) blockers.push('restOfWorld is TRUE — every country Play adds later is opted in silently');
+      if (blockers.length) {
+        console.error('\nREFUSING to complete the rollout. A completed release inherits the TRACK,');
+        console.error('and the track does not match the table:');
+        for (const b of blockers) console.error('  -', b);
+        console.error('\nFix it in Play Console -> Production -> Countries/regions (the API is read-only),');
+        console.error('then re-run. Completing on this state is what removes the app from the EU 27.');
+        process.exit(1);
+      }
+      console.log('track matches the table — safe to complete.');
+    }
+
+    const name = alpha?.releases?.[0]?.name ?? String(versionCode);
+    const release = complete
+      ? { name, versionCodes: [String(versionCode)], status: 'completed' }
+      : {
+          name,
+          versionCodes: [String(versionCode)],
+          status: 'inProgress',
+          userFraction: fraction,
+          countryTargeting: { countries, includeRestOfWorld: false },
+        };
 
     console.log(`\nversionCode: ${versionCode}${vcArg ? ' (from --vc)' : ' (live on alpha)'}`);
-    console.log('countryTargeting.includeRestOfWorld:', release.countryTargeting.includeRestOfWorld);
-    console.log('countries:', countries.length);
+    console.log('release status:', release.status, complete ? '(100%)' : `(userFraction ${fraction})`);
+    if (release.countryTargeting) {
+      console.log('countryTargeting.includeRestOfWorld:', release.countryTargeting.includeRestOfWorld);
+      console.log('countries:', countries.length);
+    } else {
+      console.log('countryTargeting: none — INHERITS the track, which was checked above');
+    }
+    if (!complete) {
+      console.log(`track availability right now: ${avail.live.length} countries, restOfWorld=${avail.restOfWorld}`);
+    }
 
     if (!commit) {
       console.log('\nDRY RUN — nothing was changed. Re-run with --commit to release.');
@@ -248,8 +396,21 @@ async function main() {
     });
     await client.request({ url: `${base}/edits/${edit.id}:commit`, method: 'POST' });
     console.log('\nCOMMITTED to production.');
-    console.log('Verify from the API, never the console page:');
-    console.log('  node scripts/play-production-release.mjs   # re-read the track');
+
+    // Re-read from a FRESH edit. An in-edit read reflects committed state only,
+    // so this is the first honest answer to "did the track learn the countries".
+    const e2 = (await client.request({ url: `${base}/edits`, method: 'POST', data: {} })).data;
+    const after = await readAvailability(client, base, e2.id);
+    await client.request({ url: `${base}/edits/${e2.id}`, method: 'DELETE' }).catch(() => {});
+    console.log(`\nproduction track availability now: ${after.live.length} countries, restOfWorld=${after.restOfWorld}`);
+    if (after.missing.length) console.log(`  missing vs table (${after.missing.length}): ${after.missing.join(' ')}`);
+    if (after.extra.length) console.log(`  extra vs table (${after.extra.length}): ${after.extra.join(' ')}`);
+    if (!after.missing.length && !after.extra.length && !after.restOfWorld) {
+      console.log('  MATCHES the table — `--complete --commit` is now safe.');
+    } else {
+      console.log('  does NOT match the table — set it in Play Console -> Production -> Countries/regions');
+      console.log('  before running --complete. Do not complete on this state.');
+    }
   } finally {
     if (!commit) {
       await client.request({ url: `${base}/edits/${edit.id}`, method: 'DELETE' }).catch(() => {});
