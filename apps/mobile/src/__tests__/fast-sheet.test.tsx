@@ -361,7 +361,16 @@ describe('FastSheet — the fast running right now', () => {
   });
 
   it('saves the start the user typed, measured against now', async () => {
-    const startedAt = new Date(Date.now() - 3 * HOUR);
+    // **20 hours, not 3, and the number is load-bearing.** This types an
+    // ABSOLUTE time — 4:00 PM — while a running fast is measured against the
+    // real `Date.now()`. Seeded 3 hours back the sheet's day is today, so
+    // before 16:00 local "4:00 PM" is a start in the FUTURE, `isStorableFast`
+    // returns false, Save is correctly disabled and this test fails — every
+    // morning, and only in the morning. It was found failing at 10:00.
+    // Seeding 20 hours back puts 4:00 PM on that day between 4 and 28 hours
+    // in the past for every possible wall clock, well inside `MAX_FAST_MS`
+    // (14 days). Do not "simplify" this back to a few hours.
+    const startedAt = new Date(Date.now() - 20 * HOUR);
     const { onSave, ui } = runningSheet(startedAt);
     const screen = await render(ui);
 
