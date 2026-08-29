@@ -53,6 +53,59 @@ reached zero devices.
 
 ---
 
+## A FAILED build leaves a stale fingerprint that the NEXT build reuses
+
+**Measured 2026-08-29, on vc 40.** This is the worst shape a build bug can take:
+every check passes and the artifact is silently unshippable.
+
+What happened, in order:
+
+1. Merged the Block Store module. Tree fingerprint `5facf778…`.
+2. `bundleRelease` → **FAILED** at `:block-store:compileReleaseKotlin`. It had
+   already written `base/assets/fingerprint` before dying.
+3. Fixed the Kotlin (one line).
+4. `bundleRelease` → **BUILD SUCCESSFUL**, 14m 13s, 59.7 MB `.aab`.
+5. `verify-mobile-artifact.mjs` → **all structural checks passed**, and printed
+   the artifact fingerprint `5facf778…`.
+6. Recomputed the tree: **`d7ea3629…`**. They do not match.
+
+The fingerprint task was `UP-TO-DATE` from the failed run, so the successful
+`.aab` advertises a runtime belonging to the **pre-fix tree — the one that does
+not compile**. Nothing can ever OTA to that binary: `eas update` computes
+`d7ea3629…` from source, the binary asks for `5facf778…`, and the publish
+succeeds and reaches nobody. That is the exact failure the Step 1 gate exists to
+prevent, arriving through a door the gate does not watch.
+
+**Two things this also settles:**
+
+- **A local module's Kotlin source IS a fingerprint input.** The one-line fix
+  moved `5facf778…` → `d7ea3629…`. (`targets/` Swift famously does not — do not
+  generalise from that to `modules/`.)
+- **`expo prebuild` and `patch-android-release.mjs` do NOT move it.** Both ran
+  between steps 1 and 2, and the value at step 2 was still `5facf778…`. This
+  agrees with `dir:android` having been investigated and disproven.
+
+**The rule: after ANY build that follows a failed one, compare the artifact's
+fingerprint to the tree's before trusting the artifact.**
+
+```sh
+# what the artifact advertises
+unzip -p apps/mobile/android/app/build/outputs/bundle/release/app-release.aab \
+  base/assets/fingerprint
+# what the tree hashes now — on the host that BUILDS this platform
+cd apps/mobile && npx expo-updates fingerprint:generate --platform android
+```
+
+Differ → `./gradlew clean` and rebuild. There is no cheaper fix: the stale asset
+is `UP-TO-DATE` by Gradle's own accounting, so an ordinary re-run will not
+regenerate it.
+
+**Why `verify-mobile-artifact.mjs` did not catch it:** it prints the artifact's
+fingerprint but has nothing to compare it against, by design — it is a
+single-artifact checker. Its own closing line is the right instinct applied to
+the wrong axis: *"This proves nothing about BEHAVIOUR."* It also proves nothing
+about **freshness**.
+
 ## Build traps
 
 **`SENTRY_AUTH_TOKEN` fails the build at the very end.** `@sentry/react-native`
