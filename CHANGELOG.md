@@ -28,6 +28,11 @@ you fasted through yesterday and never opened the app.
 **Fix a running fast's start.** Today's fasting row is now tappable. If you
 started at eight and remembered at nine, you say so; the clock catches up.
 
+**Today shows what you logged.** The fasting row used to say only "Not fasting"
+when no timer was running, so a fast you logged left no trace on the screen you
+logged it from. It now reads your fasting for the day, and tapping it edits or
+deletes that fast.
+
 **You type the time.** Hour, minute, and the day it fell on — the same way you
 set an alarm. The first version of this shipped with plus/minus buttons and was
 replaced within hours: they moved a time *relative* to where it already was, so
