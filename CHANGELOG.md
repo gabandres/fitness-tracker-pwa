@@ -6,13 +6,24 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
-## 2026-08-29 — Ignia is on Google Play
+## 2026-08-29 — Ignia is submitted to Google Play production
 
 Production access was granted this morning. Ignia 1.2.1 (versionCode 37) is now
 on the Google Play **production** track at 100%, in **128 countries** — the
 first Android production release the app has ever had. It is the same binary
-testers have been running, so it carries runtime `ae526937…` and every
-over-the-air update already published reaches production users immediately.
+testers have been running, so it carries runtime `ae526937…`, and every
+over-the-air update already published will reach production users the moment it
+publishes.
+
+**It is in review, not live.** Play Console reads "Changes in review", and the
+public listing still returns 404 — checked against a known-live app returning
+200 from the same client, so the 404 is real and not a blocked fetcher. There is
+no API for review status: the v3 resource list has nothing that reports it, and
+the `appstoreappsreview` resource is about app-store-hosted apps and holds no
+persistent data. The Console and the store URL are the only two reads, which is
+the same gap the Play app transfer had. The submission itself is not in doubt —
+`edits.commit` submits by default unless `changesNotSentForReview` is set, and
+it was not.
 
 **The release was supposed to be one command and it was not.** The documented
 path — a `completed` release carrying an explicit 145-country `countryTargeting`
