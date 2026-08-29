@@ -129,6 +129,36 @@ means the production track specifically. Ignia has never shipped there. Worth
 asking Play support directly rather than inferring — the answer decides between
 sprinting at this and planning the WebAuthn build for April 2027.
 
+> **AMENDMENT 2026-08-29 — two of the three blockers are gone, and the open
+> question was answered the pessimistic way.**
+>
+> - **Play production access: GRANTED 2026-08-29.** vc 37 was promoted to the
+>   production track the same day (submitted, in review). Ignia has now shipped
+>   there, so "never shipped to production" no longer holds.
+> - **The Health-apps declaration deadlock: CLEARED 2026-08-29.** The route was
+>   publishing **vc 39 to internal testing** (no testers, so it reached nobody),
+>   which is what made Play *detect* `READ_EXERCISE` — the declaration is derived
+>   from an uploaded bundle, so the permission must exist in a binary Play has
+>   scanned before it can be declared. Step 2 now carries its justification and
+>   Policy status reads "No issues found". alpha stayed at vc 37 throughout, so
+>   production access was never disturbed.
+> - **The open question is CLOSED, and not in our favour.** Play Developer
+>   Support answered in writing on 2026-08-28: the exemption "specifically
+>   requires the Block Store integration to be on the **Production track**.
+>   Testing tracks (Internal, Closed, or Open testing) do not qualify", and an
+>   app whose production access is granted after 30 September will not qualify
+>   "even if the integration was live on a testing track before that date". The
+>   good half is real: clearing the date makes the integration valid
+>   **indefinitely**.
+>
+> **What is still open is exactly what this ADR said was the risk:** delivery.
+> Merge the branch, build **vc 40**, alpha, then promote to production before
+> 30 Sept. The two physical devices for the restore test remain unavailable, so
+> that leg stays unverified — 13 tests pin the guards, which is a different
+> claim. Sequencing note from `STATUS.md` §3: vc 37 was deliberately made the
+> first-ever production release so vc 40 is a routine second one rather than a
+> first release under deadline pressure.
+
 **The restore leg is unverified and cannot be verified here.** It only fires on
 a genuine Android-to-Android migration. Every failure path is written to degrade
 to the existing sign-in, and 13 tests pin the guards — no storage without E2EE,

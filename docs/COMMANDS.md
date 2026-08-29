@@ -95,13 +95,51 @@ which shows the key that will sign the *next* release:
 # GET androidpublisher/v3/applications/fit.ignia.app/generatedApks/<versionCode>
 # → generatedApks[].certificateSha256Hash
 npx firebase apps:android:sha:list 1:647810616435:android:a6f4c5f9e200b3332c2e06 \
-  --project fitness-tracker-gb-1775407101      # expect 5 hashes
+  --project fitness-tracker-gb-1775407101      # expect 8 hashes
 ```
 
-Fewer than 5 means someone rotated a key or the list was never re-read. Google
-Sign-In authorizes by *package name + signing-certificate SHA-1*, and the failure
-is structurally invisible on a locally-built install. Full key table and the two
-bugs it caused: `CLAUDE.local.md`.
+**Eight, not five** — re-counted against the API on 2026-08-29, and this line
+said five until then. Five SHA-1 (upload key, previous Play signing key, Play
+classical, Play post-quantum, a stray EAS keystore) plus three SHA-256 (the three
+Play signing certs; the upload key has none). Fewer than 8 means someone rotated
+a key or the list was never re-read. Google Sign-In authorizes by *package name +
+signing-certificate SHA-1*, and the failure is structurally invisible on a
+locally-built install. Full key table and the two bugs it caused:
+`CLAUDE.local.md`.
+
+### Is the app actually LIVE on Play?
+
+The production track holding a release is **not** the same as the app being
+installable, and there is **no API for review status** — checked against the
+whole `androidpublisher` v3 resource list on 2026-08-29. The only honest reads
+are the Play Console and the public store URL, and the URL is the one that
+matches what a user sees:
+
+```sh
+curl -s -o /dev/null -w "%{http_code}\n" \
+  "https://play.google.com/store/apps/details?id=fit.ignia.app&gl=US"
+# 404 = not published (in review, or not released)   200 = live
+```
+
+Compare against a known-live app from the same client before believing a 404 —
+`com.spotify.music` returns 200. **Do not build a probe on
+`changesInReviewBehavior=ERROR_IF_IN_REVIEW`**: one was written and disproved the
+same day, because an empty edit has nothing to reconcile so the check never fires
+and it reports NOT IN REVIEW while the app is in review. The reasoning is in the
+header of `scripts/play-production-release.mjs`.
+
+### Where does the app ship, and is it still pinned?
+
+```sh
+node scripts/play-production-release.mjs --availability   # read the track's countries
+node scripts/play-production-release.mjs --check-source   # diff against App Store Connect
+```
+
+`--availability` names every missing/extra territory. The target is **128**, not
+the 145 the ASC mirror holds: Play's picker offers 176 territories and does not
+offer 17 that iOS ships to, and the EU 27 + GB/IS/NO are held back deliberately
+until Play's own DSA trader declaration is filed. Country availability is
+**Console-only** — `edits.countryavailability` has `get` and nothing else.
 
 ## OTA — the fingerprint gate
 

@@ -56,6 +56,20 @@ launched. Play production access is gated on 12 testers × 14 continuous days
 user can use Ignia at all.** Retiring it first closes the only door for half
 the addressable market, weeks before the other door opens.
 
+> **AMENDMENT 2026-08-29 — this timing constraint has EXPIRED. The decision has
+> not.** Play production access was granted on 2026-08-29 and vc 37 was submitted
+> to the production track, so the paragraph above is now history: the tester gate
+> cleared and Android has its own door. **Do not read that as licence to retire
+> the web PWA.** The argument above was only ever the *urgent* reason; the
+> standing reasons are untouched and are not about timing at all — Apple requires
+> a live privacy URL and Play requires a live delete-account URL, both on
+> `ignia.fit`, and the retirement question is still gated on a MEASUREMENT
+> (`node scripts/usage-report.mjs --days 30`, reading `platforms`) that has not
+> been taken. What actually changes is that the measurement finally becomes
+> meaningful: while the web was the only Android door, the platform split was an
+> artefact of that constraint rather than a preference. Wait for real Android
+> production installs before reading it.
+
 ## Decision
 
 **Freeze the web logging app. Keep shipping the web shell. Decide the endgame
