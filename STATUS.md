@@ -43,7 +43,7 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 | **Cloud Functions / rules** | Deployed, project `fitness-tracker-gb-1775407101` |
 | **Photo-scan** | **ON and free to everyone, both platforms** (ADR-0017), resolving macros against the bundled USDA database (ADR-0019). Tiering is server-side only: `dailyQuota` 3/day free · 30/day paid, plus the `photo` `spendCeiling` |
 | **Food search** | Bundled USDA DB, 13,272 foods, plus the restaurant corpus (25,126 items / 91 chains, ADR-0027). **Text search makes NO network call at all as of 2026-08-19** — Open Food Facts was removed from it and now serves **barcode only**: OFF caps search at 10 req/min against 100/min for barcode GETs, and typeahead behind one shared egress IP could not live in that. Servings ship with each hit, so tapping a result makes no `getFoodDetail` call. Branded **text** results are the cost; `docs/research/off-branded-ingest.md` scopes getting them back |
-| **OTA (EAS Update)** | Live. `runtimeVersion: {"policy":"fingerprint"}`, channels match build profiles. Free tier 1,000 MAU. **Both channels OPEN.** Latest: **Android OTA 82 on vc 37 (`ae526937…`); iOS ROLLED BACK 2026-08-28 to OTA 46's JS (`01a04a4a…`) after a crash on reload — iOS OTA 47/48 are no longer served**. Both reach real users — build 60 is the public App Store binary. **This row is a POINTER, not a log: `apps/mobile/AGENTS.md` is the per-publish record and it wins.** It is deliberately kept to two facts (newest number per platform, and who receives it) — the version that listed a dozen historical publishes went stale twice, once reading "Android 7 / iOS 5" against `AGENTS.md`'s Android 27 / iOS 12. Re-check with `npx eas update:list --branch production --limit 3`, which prints the runtime each went out under |
+| **OTA (EAS Update)** | Live. `runtimeVersion: {"policy":"fingerprint"}`, channels match build profiles. Free tier 1,000 MAU. **Both channels OPEN.** Latest: **Android OTA 82 on vc 37 (`ae526937…`), iOS OTA 49 on build 60 (`7b347b0f…`) — iOS re-shipped after a rollback and is UNDER TEST (§2)**. Both reach real users — build 60 is the public App Store binary. **This row is a POINTER, not a log: `apps/mobile/AGENTS.md` is the per-publish record and it wins.** It is deliberately kept to two facts (newest number per platform, and who receives it) — the version that listed a dozen historical publishes went stale twice, once reading "Android 7 / iOS 5" against `AGENTS.md`'s Android 27 / iOS 12. Re-check with `npx eas update:list --branch production --limit 3`, which prints the runtime each went out under |
 | **`app-version.json`** | android **37**, ios **60** — deployed and verified live at `https://ignia.fit/app-version.json`. **Both numbers are DERIVED** by `scripts/app-version-sync.mjs` (android from androidpublisher tracks, ios from the `READY_FOR_SALE` version) — never hand-edit them, and a change reaches nobody until `npm run build && firebase deploy --only hosting`. It drifted silently the moment 1.2.1 released (still said ios 55, so every build-55 user was told they were up to date); `npm run doctor` is what caught it |
 
 **The runtime fingerprints, and the three traps around them.**
@@ -82,23 +82,21 @@ remaining lever are in `docs/build-infrastructure.md`.
 
 ## 2. Merged, on `main`, and not delivered anywhere
 
-**TWO fixes are merged and live on ANDROID ONLY.** `2f2777dc` (the Today ring
+**Nothing — but iOS is UNDER TEST, not confirmed.** `2f2777dc` (the Today ring
 could clip a digit) and `86f72754` (Today drew a hero from seed targets before
-the profile landed) both went out as Android OTA 82 and are device-verified on
-the LG G6 — **and both were pulled from iOS the same day.** The owner tapped
-Restart on an iOS OTA and the app crashed natively; iOS is now served OTA 46's
-JS via republish `01a04a4a…`.
+the profile landed) are live on both platforms: Android OTA 82, device-verified
+on the LG G6, and **iOS OTA 49 (`01a04ad6…`), re-shipped on the owner's call**
+after a native crash on reload forced a rollback earlier the same day.
 
-**The cause is UNKNOWN and must not be guessed at.** Nothing in Sentry, and ASC
-had 0 `diagnosticSignatures` for build 60 when asked (Apple aggregates late).
-`textAlignVertical` is ruled OUT. OTA 82's diff cannot crash natively, so the
-frame is `motion.tsx`, the reload path, or something unrelated. Full write-up
-on the rollback row in `apps/mobile/AGENTS.md`.
-
-**Next step is evidence, not a re-publish:** re-read build 60's
-`diagnosticSignatures`, or read the `bundle` id off the owner's Settings screen
-to learn which update was being applied. Re-shipping blind puts a possible
-crasher back in front of every public iOS user for one data point.
+**The crash is unexplained and the re-ship is an experiment, not a fix.** It was
+one event on one device with no telemetry — nothing in Sentry, 0
+`diagnosticSignatures` on build 60 when asked. `textAlignVertical` is ruled OUT.
+OTA 82's diff cannot crash natively, so the frame is `motion.tsx`, the reload
+path, or something unrelated. **What the re-ship buys is a decision tree** —
+crash on Restart then fine = the reload path, not the ring; crash every time
+Today opens = `motion.tsx`; no crash = the first event was transient. Do not
+record any of those as the answer until one is observed. Rollback is one
+command: republish group `2318d259`. Full write-up: `apps/mobile/AGENTS.md`.
 
 Everything else merged has shipped. Re-derive the live numbers with
 `node scripts/app-version-sync.mjs --check` before trusting either platform's.
