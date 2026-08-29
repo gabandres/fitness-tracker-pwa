@@ -65,7 +65,9 @@ import { registerAppleRefreshToken } from './appleSignin';
 import { addBreadcrumb, captureError, setSentryUser } from './sentry';
 import { clearQuickAdd } from './quick-add';
 import { clearOfflineCache, readCache, writeCache } from './offline-cache';
+import * as Updates from 'expo-updates';
 import { type PersistedSession, readPersistedSession } from './persisted-session';
+import { clearStoredSession, restoreSessionIfNeeded, saveSessionForRestore } from './session-restore';
 import { flush as flushAnalytics, setAnalyticsUser, track } from './analytics';
 import { resetConnectivity } from './connectivity';
 import { clearWidget } from './widget';
@@ -671,8 +673,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (u) {
         // NOT awaited, deliberately — see below.
         void bootstrapUser(u);
+        // Mirror the session into Block Store so it survives onto the user's
+        // next Android device (Play Zero-Tap Sign-In, #107). Fire-and-forget and
+        // failure-tolerant: it never affects this sign-in, only the next
+        // device's. Runs on every auth event so the stored refresh token stays
+        // current rather than ageing out between migrations.
+        void saveSessionForRestore();
       } else {
         setIsPro(false);
+        // Signed out with nothing on disk: this may be a fresh install on a
+        // NEW device with a session waiting in Block Store. Only ever reached
+        // when Firebase itself says there is no session, so it cannot disturb a
+        // working one, and it is one-shot guarded internally.
+        void restoreSessionIfNeeded()
+          .then((outcome) => {
+            // `reloadAsync` throws in Expo Go and in a dev client with no
+            // update loaded. A restore that cannot reload is a no-op, not an
+            // error — the next launch reads the blob Firebase now has on disk.
+            if (outcome === 'restored') return Updates.reloadAsync();
+            return undefined;
+          })
+          .catch(() => {});
       }
       // `initializing` gates a full-screen, tap-eating splash (`_layout.tsx`),
       // so it must flip the moment auth state is KNOWN and not one millisecond
@@ -1089,6 +1110,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await flushAnalytics();
         setAnalyticsUser(null);
         await clearOfflineCache(user?.uid);
+        // The Block Store copy of the session is a REFRESH TOKEN in Google's
+        // backup. Signing out has to take it with everything else, or a sold or
+        // shared phone would carry this account onto its next owner's device
+        // (#107). Cleared before `fbSignOut`, while there is still a session to
+        // reason about.
+        await clearStoredSession();
         resetConnectivity();
         await fbSignOut(auth);
       },

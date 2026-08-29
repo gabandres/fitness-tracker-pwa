@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { firebaseConfig } from './firebase-config';
 import { getApps, initializeApp } from 'firebase/app';
 import {
   type Auth,
@@ -13,16 +14,9 @@ import { type Functions, connectFunctionsEmulator, getFunctions } from 'firebase
 import { type FirebaseStorage, connectStorageEmulator, getStorage } from 'firebase/storage';
 import { connectAuthEmulator, onIdTokenChanged } from 'firebase/auth';
 
-// Same Firebase project as the PWA (see src/environments/environment.ts).
-// This is public client config, not a secret (ADR-0002).
-const firebaseConfig = {
-  projectId: 'fitness-tracker-gb-1775407101',
-  appId: '1:647810616435:web:b0d7e4c6484c972a2c2e06',
-  storageBucket: 'fitness-tracker-gb-1775407101.firebasestorage.app',
-  apiKey: 'AIzaSyB6oYsAEinJ_-TQcMkKIIRuW5yqql8RxUs',
-  authDomain: 'fitness-tracker-gb-1775407101.firebaseapp.com',
-  messagingSenderId: '647810616435',
-};
+// Config lives in `firebase-config.ts` so `session-restore.ts` can read the
+// auth storage key without importing this file — importing it initialises
+// Firebase Auth, which is the very thing the restore has to precede.
 
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 
