@@ -65,6 +65,42 @@
 // Once a first release exists, later releases MAY be staged, and then
 // `countryTargeting` is available again — that is what `--fraction` is for.
 //
+// ─────────────────────────────────────────────────────────────────────────────
+// THERE IS NO WAY TO ASK THIS API "IS IT STILL IN REVIEW". DO NOT REBUILD ONE.
+//
+// The v3 API exposes no review status — checked against the full resource list
+// on 2026-08-29; the one candidate by name, `appstoreappsreview`, is for
+// app-store-hosted apps and holds no persistent data.
+//
+// An `--in-review-probe` was built that day and **DELETED THE SAME DAY, after
+// being tested and found wrong.** The idea looked sound: `edits.commit` takes
+// `changesInReviewBehavior=ERROR_IF_IN_REVIEW`, documented as returning an
+// error when changes are in review, so committing an EMPTY edit carrying that
+// flag should error iff a review is in flight.
+//
+// **Measured, with vc 37 demonstrably in review:** the empty commit SUCCEEDED
+// and the probe reported `NOT IN REVIEW`, while Play Console read "Changes in
+// review" and the store URL still returned 404.
+//
+// The reason is the same property that made it look safe. An empty edit has no
+// changes to reconcile against the running review, so the check never fires and
+// the commit is a no-op that returns success whatever the review state.
+// Emptiness is what made it harmless AND what made it uninformative. An edit
+// carrying real changes would answer honestly — and committing real changes
+// while a release is in flight is exactly what must never happen.
+//
+// So its failure mode is a FALSE "nothing is in review", the dangerous
+// direction: it green-lights an `eas submit` whose default
+// `CANCEL_IN_REVIEW_AND_SUBMIT` then cancels the live review and restarts it.
+//
+// **The only honest reads are the Play Console and the public store URL:**
+//
+//   curl -s -o /dev/null -w "%{http_code}\n" \
+//     "https://play.google.com/store/apps/details?id=fit.ignia.app&gl=US"
+//
+// 404 = not published. 200 = live. The experiment harmed nothing — the review
+// survived it, confirmed in the Console immediately afterwards.
+//
 // Verified in an uncommitted edit before any of this shipped: Play accepts all
 // 145 codes, `XK` included, and echoes them back on a staged release. So the
 // table is expressible; only the ORDER of operations was wrong.
@@ -72,7 +108,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // USAGE
 //
-//   node scripts/play-production-release.mjs --in-review-probe # is anything in review?
 //   node scripts/play-production-release.mjs --availability   # START HERE: read the track
 //   node scripts/play-production-release.mjs                  # preview, changes nothing
 //   node scripts/play-production-release.mjs --complete --commit   # 100%, gated on the read
@@ -366,6 +401,31 @@ async function main() {
     process.exit(1);
   }
 
+  /**
+   * Reject anything not on this list.
+   *
+   * Unknown flags used to fall through and be ignored, which was harmless only
+   * while a staged release was illegal. It is not any more: vc 37 exists, so a
+   * bare `--commit` now creates a REAL staged production release. A stale
+   * command line — notably the deleted `--in-review-probe --commit`, which was
+   * documented in this file for part of 2026-08-29 — would silently publish
+   * instead of erroring. Typos must fail loudly here.
+   */
+  const KNOWN = new Set([
+    '--commit', '--complete', '--vc', '--fraction',
+    '--check-source', '--availability',
+  ]);
+  const unknown = args.filter((a, i) => {
+    if (!a.startsWith('--')) return args[i - 1] !== '--vc' && args[i - 1] !== '--fraction';
+    return !KNOWN.has(a);
+  });
+  if (unknown.length) {
+    console.error(`Unknown argument(s): ${unknown.join(' ')}`);
+    console.error(`Known: ${[...KNOWN].join(' ')}`);
+    console.error('Refusing to run — an ignored flag here can publish a release by accident.');
+    process.exit(1);
+  }
+
   if (args.includes('--check-source')) {
     process.exit((await checkSource()) ? 0 : 1);
   }
@@ -388,77 +448,6 @@ async function main() {
   const base = `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${PKG}`;
 
   const edit = (await client.request({ url: `${base}/edits`, method: 'POST', data: {} })).data;
-
-  if (args.includes('--in-review-probe')) {
-    /**
-     * Ask Play whether anything is currently IN REVIEW.
-     *
-     * ## Why this exists
-     *
-     * The androidpublisher v3 API exposes **no review status** — checked
-     * against the full resource list on 2026-08-29, and the one candidate by
-     * name (`appstoreappsreview`) is for app-store-hosted apps and holds no
-     * persistent data. So "did it publish yet" normally means driving the
-     * Console, which wedges, or polling the public store URL.
-     *
-     * `edits.commit` leaks the answer. Its `changesInReviewBehavior` parameter
-     * takes `ERROR_IF_IN_REVIEW`, documented as: "If there are changes in
-     * review, then this will return an error... If there aren't any changes in
-     * review, then this will continue and send the new changes for publishing."
-     *
-     * An error therefore MEANS "something is in review". That is the read.
-     *
-     * ## Why it is safe in both directions
-     *
-     * The edit committed here is **empty** — created and never modified — so
-     * "send the new changes for publishing" has no changes to send.
-     *
-     *   - something in review -> the call ERRORS, the edit is never committed,
-     *     and we delete it. Nothing changed.
-     *   - nothing in review    -> an empty edit commits, which is a no-op.
-     *
-     * The one thing this must never do is run WITHOUT `ERROR_IF_IN_REVIEW`,
-     * because the default is `CANCEL_IN_REVIEW_AND_SUBMIT` — that would cancel
-     * a live review and resubmit, restarting the clock on a release in flight.
-     * That is the whole hazard this probe is built to avoid, so the parameter
-     * is hard-coded rather than taken from a flag.
-     *
-     * **UNPROVEN until it has been run once against a known-live app.** Written
-     * 2026-08-29 while vc 37 was in review; deliberately not tested then,
-     * because the informative branch is the error and the untested branch is
-     * the one that writes. Treat a `NOT IN REVIEW` result as unconfirmed until
-     * it has agreed with the store URL at least once.
-     */
-    const probe = `${base}/edits/${edit.id}:commit?changesInReviewBehavior=ERROR_IF_IN_REVIEW`;
-    if (!commit) {
-      console.log('\nDRY RUN — this probe COMMITS AN EMPTY EDIT, so it needs --commit.');
-      console.log('It would POST:');
-      console.log(`  ${probe}`);
-      console.log('An error means something is in review; success means nothing is.');
-      await client.request({ url: `${base}/edits/${edit.id}`, method: 'DELETE' }).catch(() => {});
-      return;
-    }
-    try {
-      await client.request({ url: probe, method: 'POST' });
-      console.log('\nNOT IN REVIEW — Play accepted the empty commit.');
-      console.log('If a release was expected to be in flight, confirm against the store URL:');
-      console.log('  curl -s -o /dev/null -w "%{http_code}\\n" \\');
-      console.log('    "https://play.google.com/store/apps/details?id=fit.ignia.app&gl=US"');
-      process.exit(0);
-    } catch (e) {
-      const msg = e?.cause?.message ?? e?.message ?? String(e);
-      await client.request({ url: `${base}/edits/${edit.id}`, method: 'DELETE' }).catch(() => {});
-      if (/in review/i.test(msg)) {
-        console.log(`\nIN REVIEW — Play refused the commit: "${msg}"`);
-        console.log('Nothing was changed. Do not submit to any track until this clears.');
-        process.exit(2);
-      }
-      console.error(`\nUNKNOWN — the probe failed for some OTHER reason: "${msg}"`);
-      console.error('Do NOT read this as "not in review". Check the Console or the store URL.');
-      process.exit(1);
-    }
-  }
-
   if (args.includes('--availability')) {
     const a = await readAvailability(client, base, edit.id);
     console.log(`\nproduction track availability: ${a.live.length} countries, restOfWorld=${a.restOfWorld}`);
