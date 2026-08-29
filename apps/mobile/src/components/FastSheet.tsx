@@ -191,6 +191,33 @@ export function FastSheet({
     return () => clearInterval(id);
   }, [visible, mode]);
 
+  /**
+   * **The seed effect depends on INSTANTS, never on the props' identity, and
+   * that is the whole reason this feature reached a user broken.**
+   *
+   * It used to list `editing` and `anchorEnd` — a `Date` and an object — in its
+   * dependencies. Both call sites build those inline (`editing={fastStartedAt
+   * ? { startedAt, endedAt } : null}`, `anchorEnd={noonOfDay()}`), so every
+   * parent render produced a NEW reference, the effect re-ran, and it reset
+   * `start` and `end` to the stored values — **silently discarding whatever the
+   * user had just typed.**
+   *
+   * That is not a rare race. Today's own `useDayFasts` subscribes when this
+   * sheet opens, so its first snapshot lands a beat later and re-renders the
+   * parent while the sheet is on screen: the user types a time, the listener
+   * answers, the field snaps back, Save writes the value that was already
+   * there. Reported as *"it didn't save"*, which is exactly what it looks like
+   * from outside — the write succeeded, of the wrong number.
+   *
+   * Comparing milliseconds makes identity irrelevant, so a parent that
+   * re-renders a hundred times cannot touch the fields. The reset still fires
+   * when the underlying instant genuinely changes, which is the only time it
+   * should.
+   */
+  const startedMs = editing?.startedAt instanceof Date ? editing.startedAt.getTime() : null;
+  const endedMs = editing?.endedAt instanceof Date ? editing.endedAt.getTime() : null;
+  const anchorMs = anchorEnd instanceof Date ? anchorEnd.getTime() : null;
+
   useEffect(() => {
     if (!visible) return;
     setSaving(false);
@@ -199,15 +226,15 @@ export function FastSheet({
     // fast is "I started at eight", and a running one has nothing else to
     // edit — so it opens expanded and the common case needs no aiming tap.
     setField('start');
-    if (editing && (mode === 'edit' || mode === 'running')) {
-      setStart(editing.startedAt);
-      if (mode === 'edit') setEnd(editing.endedAt);
+    if (startedMs != null && (mode === 'edit' || mode === 'running')) {
+      setStart(new Date(startedMs));
+      if (mode === 'edit' && endedMs != null) setEnd(new Date(endedMs));
       return;
     }
-    const anchor = floorTo5(anchorEnd ?? new Date());
+    const anchor = floorTo5(anchorMs != null ? new Date(anchorMs) : new Date());
     setEnd(anchor);
     setStart(new Date(anchor.getTime() - PREFILL_MS));
-  }, [visible, mode, editing, anchorEnd]);
+  }, [visible, mode, startedMs, endedMs, anchorMs]);
 
   const effectiveEnd = mode === 'running' ? new Date(now) : end;
   const storable = isStorableFast(start, effectiveEnd);

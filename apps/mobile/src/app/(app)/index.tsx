@@ -1,12 +1,12 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { captureAndShare } from '@/lib/shareCapture';
 import type { DailyLog, LogEntry } from '@macrolog/core';
-import { maintenanceView } from '@macrolog/core';
+import { fastLengthHours, maintenanceView } from '@macrolog/core';
 import { DailyMetrics } from '@/components/DailyMetrics';
 import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { NumbersGlossary } from '@/components/NumbersGlossary';
@@ -92,11 +92,41 @@ export default function Today() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [glossaryOpen, setGlossaryOpen] = useState(false);
   const [fastSheetOpen, setFastSheetOpen] = useState(false);
-  // Gated on the sheet: Today needs neighbouring fasts ONLY while somebody is
-  // editing an interval, and a permanent extra listener on the app's most
-  // visited tab — for a guard that fires almost never — is the "one more small
-  // listener" ADR-0033 §9 says to refuse.
-  const { fasts: nearbyFasts, addFast } = useDayFasts(todayKey, boundary, fastSheetOpen);
+  /**
+   * **Always subscribed, reversing the gating this shipped with.**
+   *
+   * It was gated on the sheet being open, to keep one more listener off the
+   * app's most visited tab for a guard that fires almost never. That reasoning
+   * was sound about COST and wrong about the product: with no fasts on Today,
+   * the row could only ever say "Not fasting", so a user who logged a completed
+   * fast from this very row saw no acknowledgement, decided it had not saved,
+   * and logged it again — straight into an overlap warning against their own
+   * record. Reported from a device with a screenshot.
+   *
+   * The listener is bounded on `endedAt` to a few days either side of today, so
+   * this is a handful of documents per focus, not an open read. That is the
+   * price of the row telling the truth.
+   */
+  const {
+    dayFasts: todayFasts,
+    fasts: nearbyFasts,
+    addFast,
+    updateFast,
+    deleteFast,
+  } = useDayFasts(todayKey, boundary);
+  /** The fast the row is describing, and therefore the one a tap edits. */
+  const editableFast = todayFasts[0] ?? null;
+  const fastedTodayHours = useMemo(
+    () => todayFasts.reduce((sum, f) => sum + fastLengthHours(f), 0),
+    [todayFasts],
+  );
+  // Memoised so its identity cannot churn: `FastSheet` seeds its fields from
+  // this, and an inline object rebuilt every render is what silently discarded
+  // a typed correction before the seed effect was keyed on instants instead.
+  const runningFast = useMemo(
+    () => (fastStartedAt ? { startedAt: fastStartedAt, endedAt: fastStartedAt } : null),
+    [fastStartedAt],
+  );
   const [repeating, setRepeating] = useState(false);
   const shareRef = useRef<View>(null);
 
@@ -290,23 +320,45 @@ export default function Today() {
 
       <NumbersGlossary visible={glossaryOpen} onClose={() => setGlossaryOpen(false)} />
 
-      {/* One sheet, two jobs, chosen by whether a fast is running — which is
-          the only question that has a different answer. Running: correct the
-          start, because there is nothing else about a fast in progress that
-          can be wrong yet. Not running: log one the timer never saw, which is
-          the case the user cannot otherwise reach from this screen at all. */}
+      {/* One sheet, three jobs, and the row's own value picks which — tapping
+          a number edits the thing that number describes.
+
+          Running: correct the start, the only part of a fast in progress that
+          can be wrong yet. A fast that ended today: edit or delete THAT, which
+          is the case a user reaches by logging it slightly wrong. Neither:
+          log one the timer never saw. Before this, a tap always meant "add",
+          so the only way to fix a fast logged from Today was to find it in
+          History — and the row gave no sign it existed to be fixed. */}
       <FastSheet
         visible={fastSheetOpen}
-        mode={fastStartedAt ? 'running' : 'add'}
-        editing={fastStartedAt ? { startedAt: fastStartedAt, endedAt: fastStartedAt } : null}
+        mode={fastStartedAt ? 'running' : editableFast ? 'edit' : 'add'}
+        editing={fastStartedAt ? runningFast : editableFast}
         fasts={nearbyFasts}
         onSave={async (startedAt, endedAt) => {
           // `startFast` REWRITES `fastStartedAt`, which is what correcting a
           // running fast is — the live fast is a scalar on the profile, not a
           // document, so there is nothing else to update.
           if (fastStartedAt) await startFast(startedAt);
+          else if (editableFast?.id) await updateFast(editableFast.id, startedAt, endedAt);
           else await addFast(startedAt, endedAt);
         }}
+        onDelete={
+          !fastStartedAt && editableFast?.id
+            ? () => {
+                Alert.alert(t('fast.deleteTitle'), t('fast.deleteBody'), [
+                  { text: t('common.cancel'), style: 'cancel' },
+                  {
+                    text: t('common.remove'),
+                    style: 'destructive',
+                    onPress: () => {
+                      void deleteFast(editableFast.id as string);
+                      setFastSheetOpen(false);
+                    },
+                  },
+                ]);
+              }
+            : undefined
+        }
         onClose={() => setFastSheetOpen(false)}
       />
 
@@ -357,6 +409,7 @@ export default function Today() {
               activity={activity}
               fastStartedAt={fastStartedAt}
               onEditFast={() => setFastSheetOpen(true)}
+              fastedTodayHours={fastedTodayHours}
               onAddWater={setWater}
               onSetSleep={setSleep}
               onStartFast={startFast}

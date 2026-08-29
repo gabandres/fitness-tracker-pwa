@@ -387,6 +387,51 @@ describe('FastSheet — the fast running right now', () => {
   });
 });
 
+describe('FastSheet — a re-rendering parent must not discard a typed time', () => {
+  it('keeps what the user typed when the parent hands it a new prop object', async () => {
+    // THE BUG THAT MADE THIS READ AS "it didn't save". Both call sites build
+    // `editing` / `anchorEnd` inline, so every parent render produces a new
+    // reference. While those were in the seed effect's dependency array, any
+    // parent re-render — Today's own fasts listener answering, a snapshot
+    // landing — reset the fields to the stored values, and Save then wrote the
+    // number that was already there.
+    const onSave = jest.fn().mockResolvedValue(undefined);
+    const sheet = (anchor: Date) => (
+      <FastSheet visible mode="add" anchorEnd={anchor} onSave={onSave} onClose={jest.fn()} />
+    );
+    const screen = await render(sheet(ANCHOR));
+
+    await type(screen, 'fast-start-hour', '4');
+    await type(screen, 'fast-start-minute', '00');
+    await tap(screen, 'fast-start-pm');
+    expect(screen.getByTestId('fast-duration')).toHaveTextContent('20h 0m');
+
+    // A new Date carrying the SAME instant — exactly what `noonOfDay()` and
+    // the inline `{ startedAt, endedAt }` produce on every render.
+    await screen.rerender(sheet(new Date(ANCHOR.getTime())));
+    await waitFor(() => {});
+
+    expect(screen.getByTestId('fast-duration')).toHaveTextContent('20h 0m');
+    await tap(screen, 'fast-save');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(onSave.mock.calls[0][0].getHours()).toBe(16);
+  });
+
+  it('DOES re-seed when the underlying instant genuinely changes', async () => {
+    const sheet = (anchor: Date) => (
+      <FastSheet visible mode="add" anchorEnd={anchor} onSave={jest.fn()} onClose={jest.fn()} />
+    );
+    const screen = await render(sheet(ANCHOR));
+    await type(screen, 'fast-start-hour', '4');
+    expect(screen.getByTestId('fast-duration')).toHaveTextContent('20h 0m');
+
+    await screen.rerender(sheet(new Date(ANCHOR.getTime() + 2 * HOUR)));
+    await waitFor(() => {});
+    // Re-seeded from the new anchor: 16h again, not the edited 20h.
+    expect(screen.getByTestId('fast-duration')).toHaveTextContent('16h 0m');
+  });
+});
+
 describe('localeUses12Hour', () => {
   it('separates the 12-hour locales from the 24-hour one', () => {
     // Decides whether the AM/PM control renders at all. Getting it wrong for

@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { WATER_MAX_FLOZ, clampWaterFlOz } from '@macrolog/core';
+import { WATER_MAX_FLOZ, clampWaterFlOz, fastHoursParts } from '@macrolog/core';
 import { BottomSheet } from '@/components/BottomSheet';
 import { type TFn, useLocale, useT } from '@/i18n';
 import { formatNumber } from '@/lib/date-format';
@@ -28,9 +28,21 @@ interface Props {
   onSetSleep: (hours: number) => void;
   onStartFast: () => void;
   onBreakFast: () => void;
-  /** Open the fasting editor: correct a running fast's start, or log one
-   *  nobody timed. Optional so a caller that has no editor still renders. */
+  /** Open the fasting editor: correct a running fast's start, edit the one
+   *  that ended today, or log one nobody timed. Optional so a caller that has
+   *  no editor still renders. */
   onEditFast?: () => void;
+  /**
+   * Total hours of the fasts that ENDED today, or null when none did.
+   *
+   * Today used to say only "Not fasting", which is true and was still the
+   * wrong thing to show: a user who logged a completed fast from this very row
+   * got no acknowledgement anywhere on the screen, concluded it had not saved,
+   * and logged it again — landing on an overlap warning against their own
+   * record. Reported from a device with a screenshot. A row that reports one
+   * state of a two-state thing is a row that lies by omission.
+   */
+  fastedTodayHours?: number | null;
 }
 
 /**
@@ -58,10 +70,28 @@ function elapsedLabel(since: Date, now: number, t: TFn): string {
   return `${Math.floor(mins / 60)}h ${String(mins % 60).padStart(2, '0')}m`;
 }
 
+/**
+ * What the fasting row says, in the three states it actually has.
+ *
+ * The third one — not fasting now, but a fast ended today — was missing, and
+ * that omission is what made the feature read as broken: "Not fasting" is a
+ * true sentence that erases a record the user just created. Today's total is
+ * `completedFastHours`, so it follows the same end-day attribution as History
+ * and Trends and cannot disagree with them.
+ */
+function fastingValue(since: Date | null, todayHours: number | null | undefined, t: TFn): string {
+  if (since) return elapsedLabel(since, Date.now(), t);
+  if (todayHours != null && todayHours > 0) {
+    const parts = fastHoursParts(todayHours);
+    return t('metrics.fastedToday', { h: String(parts.hours), m: String(parts.minutes) });
+  }
+  return t('metrics.notFasting');
+}
+
 /** Today's daily-metric strip: fasting timer, water quick-add, sleep. The
  *  fasting row re-renders every 30s while a fast is running so the elapsed
  *  clock stays live without a global timer. */
-export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater, onSetSleep, onStartFast, onBreakFast, onEditFast }: Props) {
+export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater, onSetSleep, onStartFast, onBreakFast, onEditFast, fastedTodayHours }: Props) {
   const t = useT();
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
@@ -97,9 +127,7 @@ export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater
         >
           <Text style={styles.label}>{t('metrics.fasting')}</Text>
           <View style={styles.waterValueRow}>
-            <Text style={styles.value}>
-              {fastStartedAt ? elapsedLabel(fastStartedAt, Date.now(), t) : t('metrics.notFasting')}
-            </Text>
+            <Text style={styles.value}>{fastingValue(fastStartedAt, fastedTodayHours, t)}</Text>
             {onEditFast ? <Ionicons name="pencil" size={12} color={colors.faint} /> : null}
           </View>
         </PressScale>

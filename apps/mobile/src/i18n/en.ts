@@ -234,6 +234,10 @@ export const en = {
   // ── daily metrics ──
   'metrics.fasting': 'Fasting',
   'metrics.notFasting': 'Not fasting',
+  // Today's completed fasting, shown when no fast is running. Without it
+  // the row could only say "Not fasting", which erases a fast the user
+  // just logged from that very row.
+  'metrics.fastedToday': '{h}h {m}m today',
   'metrics.fastJustStarted': 'Just started',
   'metrics.fastMinutes': '{m}m',
   'metrics.startFast': 'Start fast',

@@ -223,6 +223,7 @@ export const ptBR = {
   // ── daily metrics ──
   'metrics.fasting': 'Em jejum',
   'metrics.notFasting': 'Sem jejum',
+  'metrics.fastedToday': '{h}h {m}m hoje',
   'metrics.fastJustStarted': 'Recém-começado',
   'metrics.fastMinutes': '{m}min',
   'metrics.startFast': 'Iniciar jejum',
