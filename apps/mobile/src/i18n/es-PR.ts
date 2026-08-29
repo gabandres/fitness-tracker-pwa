@@ -870,7 +870,7 @@ export const esPR: Record<I18nKey, string> = {
     'Esta es tu única manera de entrar, así que no se puede desconectar. Conecta otro método primero.',
   'signInMethods.errTitle': 'No se pudo conectar',
   'signInMethods.errInUse':
-    'Esa cuenta ya es una cuenta de Ignia aparte, así que no se puede unir a esta. Cierra sesión y entra con ella directamente, o elimina esa cuenta primero.',
+    'Esa cuenta ya es una cuenta de Ignia aparte, así que no se puede unir a esta. Cierra sesión y entra con ella para usar esa. Para conectarla aquí, entra con ella y elimínala primero — una cuenta solo se puede eliminar desde adentro.',
   'signInMethods.errAlready': 'Ese método ya está conectado a esta cuenta.',
   'signInMethods.errStale':
     'Por seguridad, cierra sesión y vuelve a entrar, y después intenta conectarlo otra vez.',

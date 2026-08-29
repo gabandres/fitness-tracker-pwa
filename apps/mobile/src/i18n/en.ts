@@ -939,8 +939,12 @@ export const en = {
   'signInMethods.lastNote':
     'This is your only way in, so it cannot be disconnected. Connect another method first.',
   'signInMethods.errTitle': "Couldn't connect that",
+  // The second sentence pair exists because the old copy said "or delete that
+  // account first" without saying WHERE. An account can only be deleted from
+  // inside itself, so a reader looks for a delete control in the account they
+  // are already in, does not find one, and the advice reads as impossible.
   'signInMethods.errInUse':
-    'That account is already its own separate Ignia account, so it cannot be attached to this one. Sign out and sign in with it directly, or delete that account first.',
+    'That account is already its own separate Ignia account, so it cannot be attached to this one. Sign out and sign in with it to use that one instead. To connect it here, sign in with it and delete it first — an account can only be deleted from inside it.',
   'signInMethods.errAlready': 'That method is already connected to this account.',
   'signInMethods.errStale': 'For your security, sign out and back in, then try connecting again.',
   'signInMethods.errLast':

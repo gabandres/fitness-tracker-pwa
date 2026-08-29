@@ -89,6 +89,12 @@ describe('SignInMethodsCard', () => {
     const [, body] = (Alert.alert as jest.Mock).mock.calls[0];
     expect(body).toMatch(/already its own separate/i);
     expect(body).not.toMatch(/try again/i);
+    // **Where** the deletion happens is the load-bearing half. The first copy
+    // said "or delete that account first" and stopped there; an account can
+    // only be deleted from inside itself, so the reader hunts for a delete
+    // control in the account they are already in, finds none, and concludes
+    // the advice is impossible. Reported off a device 2026-08-29.
+    expect(body).toMatch(/from inside it/i);
   });
 
   it('stays silent when the user cancels the provider picker', async () => {
