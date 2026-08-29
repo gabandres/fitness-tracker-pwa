@@ -1,18 +1,30 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { type DailyLog, type LogEntry, formatBodyWeight, dayKeyAt, parseYmd, summarizeDay } from '@macrolog/core';
+import {
+  type DailyLog,
+  type Fast,
+  type LogEntry,
+  fastHoursParts,
+  fastLengthHours,
+  formatBodyWeight,
+  dayKeyAt,
+  parseYmd,
+  summarizeDay,
+} from '@macrolog/core';
 import { EntrySheet } from '@/components/EntrySheet';
+import { FastSheet, type FastSheetMode } from '@/components/FastSheet';
 import { MealEntries } from '@/components/MealEntries';
+import { useDayFasts } from '@/hooks/useDayFasts';
 import { useHistory } from '@/hooks/useHistory';
 import { useUnitSystem } from '@/lib/use-unit-system';
 import { useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
-import { formatDate, formatNumber } from '@/lib/date-format';
+import { formatDate, formatNumber, formatTime } from '@/lib/date-format';
 
 export default function DayDetail() {
   const t = useT();
@@ -26,6 +38,18 @@ export default function DayDetail() {
   const unitSystem = useUnitSystem();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<DailyLog | null>(null);
+  // Fasting is its own listener rather than a widening of `useHistory`
+  // (ADR-0016): the day list needs a few days EITHER SIDE of this one so the
+  // editor can see the neighbours a proposed interval might collide with, and
+  // `useHistory`'s window is a different shape entirely.
+  const {
+    dayFasts,
+    fasts,
+    addFast,
+    updateFast,
+    deleteFast,
+  } = useDayFasts(dateKey, boundary);
+  const [fastSheet, setFastSheet] = useState<{ mode: FastSheetMode; fast: Fast | null } | null>(null);
 
   const summary = summarizeDay(dateKey, logs, weights, boundary);
   const dayLogs = logs
@@ -51,6 +75,30 @@ export default function DayDetail() {
     if (editing?.id) await deleteEntry(editing.id);
     haptics.success();
     setSheetOpen(false);
+  }
+
+  /** Where a hand-logged fast is anchored when there is nothing to copy.
+   *  Local noon on the day being viewed: a fast that ends around midday and
+   *  started the evening before is the ordinary shape, so the prefill lands one
+   *  nudge away from what most people mean instead of at a day boundary. */
+  function noonOfDay(): Date {
+    const d = parseYmd(dateKey);
+    d.setHours(12, 0, 0, 0);
+    return d;
+  }
+
+  function confirmDeleteFast(fast: Fast) {
+    Alert.alert(t('fast.deleteTitle'), t('fast.deleteBody'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      {
+        text: t('common.remove'),
+        style: 'destructive',
+        onPress: () => {
+          if (fast.id) void deleteFast(fast.id);
+          setFastSheet(null);
+        },
+      },
+    ]);
   }
 
   const title = formatDate(parseYmd(dateKey), locale, {
@@ -96,6 +144,66 @@ export default function DayDetail() {
           ) : (
             <MealEntries logs={dayLogs} onPress={openEdit} />
           )}
+
+          {/* Fasting. Below the meals because meals are what this screen is
+              for, and a fast is the thing you come back to CORRECT — the case
+              ADR-0032 decision 3 exists for. The rows are the fasts that ENDED
+              on this day, which is the same attribution the headline number
+              uses; an overnight fast therefore appears on the day it was
+              broken and on no other, so editing it is unambiguous. */}
+          <View style={styles.fastHead}>
+            <Text style={styles.sectionTitle}>{t('fast.sectionTitle')}</Text>
+            <TouchableOpacity
+              onPress={() => {
+                haptics.tap();
+                setFastSheet({ mode: 'add', fast: null });
+              }}
+              hitSlop={10}
+              accessibilityRole="button"
+              testID="fast-add"
+            >
+              <Text style={styles.fastAdd}>{t('fast.add')}</Text>
+            </TouchableOpacity>
+          </View>
+          {dayFasts.length === 0 ? (
+            <Text style={styles.empty}>{t('fast.none')}</Text>
+          ) : (
+            <View style={styles.list}>
+              {dayFasts.map((f) => (
+                <TouchableOpacity
+                  key={f.id}
+                  style={styles.entry}
+                  onPress={() => {
+                    haptics.tap();
+                    setFastSheet({ mode: 'edit', fast: f });
+                  }}
+                  accessibilityRole="button"
+                  accessibilityHint={t('fast.editHint')}
+                  testID={`fast-row-${f.id}`}
+                >
+                  <View style={styles.entryMain}>
+                    <Text style={styles.entryLabel}>
+                      {t('fast.length', {
+                        h: formatNumber(fastHoursParts(fastLengthHours(f)).hours, locale),
+                        m: formatNumber(fastHoursParts(fastLengthHours(f)).minutes, locale),
+                      })}
+                    </Text>
+                    <Text style={styles.entryMacros}>
+                      {t('fast.range', {
+                        from: formatTime(f.startedAt, locale),
+                        to: formatTime(f.endedAt, locale),
+                      })}
+                      {/* The source is shown only when it is `manual`. A timer
+                          fast needs no label — it is the default story — and
+                          tagging both would be noise on every row. */}
+                      {f.source === 'manual' ? ` · ${t('fast.byHand')}` : ''}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={colors.faint} />
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
         </ScrollView>
       )}
 
@@ -125,6 +233,29 @@ export default function DayDetail() {
         customFoods={customFoods}
         onSaveCustomFood={addCustomFood}
         onDeleteCustomFood={deleteCustomFood}
+      />
+
+      <FastSheet
+        visible={fastSheet != null}
+        mode={fastSheet?.mode ?? 'add'}
+        editing={fastSheet?.fast ?? null}
+        // The WHOLE window, not `dayFasts` — the neighbour a new interval is
+        // most likely to collide with is the fast that ended yesterday.
+        fasts={fasts}
+        anchorEnd={noonOfDay()}
+        onSave={async (startedAt, endedAt) => {
+          if (fastSheet?.mode === 'edit' && fastSheet.fast?.id) {
+            await updateFast(fastSheet.fast.id, startedAt, endedAt);
+          } else {
+            await addFast(startedAt, endedAt);
+          }
+        }}
+        onDelete={
+          fastSheet?.mode === 'edit' && fastSheet.fast
+            ? () => confirmDeleteFast(fastSheet.fast as Fast)
+            : undefined
+        }
+        onClose={() => setFastSheet(null)}
       />
     </SafeAreaView>
   );
@@ -167,6 +298,8 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   totalLabel: { fontSize: font.tiny, color: colors.muted, marginTop: 2 },
   weight: { fontSize: font.body, color: colors.muted },
   sectionTitle: { fontSize: font.h3, fontWeight: '700', color: colors.ink },
+  fastHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
+  fastAdd: { fontSize: font.small, color: colors.accent, fontWeight: '700' },
   empty: { fontSize: font.body, color: colors.muted },
   list: { gap: space.sm },
   entry: {

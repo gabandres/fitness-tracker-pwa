@@ -1,11 +1,42 @@
 # ADR-0032: Fasting has no history — a completed fast has to be written down before it can be shown
 
 - **Status:** **accepted** 2026-08-26 — decisions 1, 2, 5 and 6 shipped as #97
-  (Android OTA 64 / iOS OTA 35). **Decisions 3 and 4 are NOT built**: editing a
-  completed fast, setting a start time, overlap rejection, and the 36-hour
-  stale-fast prompt are all still open, and the rules already admit the
-  `manual` source they will write. Do not read this status as "all of it
-  exists".
+  (Android OTA 64 / iOS OTA 35). **Decision 3 shipped 2026-08-28**: a completed
+  fast can be corrected or deleted from the History day detail, a fast nobody
+  timed can be logged there, a running fast's start can be corrected from
+  Today, and every one of those writes `source: 'manual'`. **Overlap is
+  rejected but NOT the way this document specifies** — see the amendment below.
+  **Decision 4 is still NOT built**: the 36-hour stale-fast prompt is open.
+  **One claim above is also wrong and is left standing so the correction is
+  legible: decision 2 shipped only in part.** `completedFastHours` and
+  `fastingOverlapHours` exist in `packages/core` and the Trends card reads
+  them, but `DaySummary` never gained its `completedFastHours` field and no
+  History row or month-grid dot shows a fasting number. That half is open.
+
+### Amendment 1 (2026-08-28) — overlap is refused, not greyed out
+
+Decision 3 says to follow Fastic: *"grey out time already covered by another
+fast rather than validating after the fact."* What shipped states the conflict
+live — the warning and the disabled Save update on every nudge, before any
+write is attempted — but it does not paint occupied time as unavailable.
+
+**The reason is the same one that decided the whole control.** Greying out
+occupied ranges needs a calendar or wheel that can render a disabled span, and
+this app has no date picker: `@react-native-community/datetimepicker` is a
+native module, so adopting one moves the Expo fingerprint and no fix to this
+screen could ever reach a user by OTA. The editor is built from nudge buttons
+for that reason (`FastSheet.tsx` carries the argument), and a nudge row has no
+surface on which to grey anything out.
+
+What is preserved is the property that mattered: a colliding interval cannot be
+saved, and the message names the fast it hit so the user can go and fix that one
+instead. `overlappingFasts` in `packages/core` is the shared, tested rule —
+half-open, so back-to-back fasts stay legal — and it is a UX guard rather than
+a security one, because `firestore.rules` sees one document and cannot query its
+siblings. Detection is also **best-effort by window**: the History day listener
+reads three days either side, which covers every fast a person logs and misses a
+conflicting one longer than that. A missed collision writes a document the rules
+accept and the user can still see and delete.
 - **Date:** 2026-08-25
 - **Touches:** `Profile.fastStartedAt`, a new `users/{uid}/fasts` collection, `firestore.rules`, `packages/core` (a new pure module + `DaySummary`), the mobile History tab and Today's `DailyMetrics`, `buildCsv`, and [ADR-0030](0030-configurable-day-boundary.md)'s `dayKeyAt` / `dayRange`
 

@@ -12,6 +12,7 @@ import {
   fastingOverlapHours,
   fastsEndingOn,
   isStorableFast,
+  overlappingFasts,
   sortFastsByEndDesc,
   type Fast,
 } from './fasting-history';
@@ -347,5 +348,64 @@ describe('fastHoursParts', () => {
     expect(fastHoursParts(0)).toEqual({ hours: 0, minutes: 0 });
     expect(fastHoursParts(-1)).toEqual({ hours: 0, minutes: 0 });
     expect(fastHoursParts(NaN)).toEqual({ hours: 0, minutes: 0 });
+  });
+});
+
+describe('overlappingFasts — the guard firestore.rules structurally cannot be', () => {
+  const withId = (id: string, startedAt: Date, endedAt: Date): Fast => ({ id, startedAt, endedAt });
+
+  // 8pm Mon → 12pm Tue, the same overnight shape the rest of this file uses.
+  const overnight = withId('a', at(2026, 8, 24, 20), at(2026, 8, 25, 12));
+
+  it('finds a fast that covers part of the proposed interval', () => {
+    // 6am → 2pm Tuesday: starts inside the overnight fast, ends after it.
+    const hits = overlappingFasts([overnight], at(2026, 8, 25, 6), at(2026, 8, 25, 14));
+    expect(hits.map((f) => f.id)).toEqual(['a']);
+  });
+
+  it('finds a fast entirely swallowed by the proposed interval, and vice versa', () => {
+    const swallowed = overlappingFasts([overnight], at(2026, 8, 24, 18), at(2026, 8, 25, 18));
+    expect(swallowed.map((f) => f.id)).toEqual(['a']);
+    const inside = overlappingFasts([overnight], at(2026, 8, 25, 2), at(2026, 8, 25, 4));
+    expect(inside.map((f) => f.id)).toEqual(['a']);
+  });
+
+  it('treats back-to-back fasts as legal, because they are', () => {
+    // Ends exactly when the stored one starts, and starts exactly when it ends.
+    // Break a fast, eat, start again — a closed comparison would reject this,
+    // and a warning that fires on a normal day is a warning people learn to
+    // ignore.
+    expect(overlappingFasts([overnight], at(2026, 8, 24, 8), at(2026, 8, 24, 20))).toEqual([]);
+    expect(overlappingFasts([overnight], at(2026, 8, 25, 12), at(2026, 8, 25, 20))).toEqual([]);
+  });
+
+  it('does not report a fast as colliding with itself', () => {
+    // The edit case: reopening a stored fast and saving it unchanged must not
+    // accuse it of conflicting with the row it IS.
+    expect(overlappingFasts([overnight], overnight.startedAt, overnight.endedAt, 'a')).toEqual([]);
+    // …but a sibling at the same hours still collides.
+    const twin = withId('b', overnight.startedAt, overnight.endedAt);
+    expect(overlappingFasts([overnight, twin], overnight.startedAt, overnight.endedAt, 'a').map((f) => f.id)).toEqual(['b']);
+  });
+
+  it('ignores a corrupt stored row rather than blocking every edit behind it', () => {
+    const inverted = withId('bad', at(2026, 8, 25, 12), at(2026, 8, 25, 4));
+    const zero = withId('zero', at(2026, 8, 25, 6), at(2026, 8, 25, 6));
+    expect(overlappingFasts([inverted, zero], at(2026, 8, 25, 0), at(2026, 8, 25, 23))).toEqual([]);
+  });
+
+  it('reports nothing for an interval that is itself not storable', () => {
+    // Inverted, zero-length and non-finite proposals are rejected by
+    // isStorableFast; this returning [] keeps the two guards from
+    // contradicting each other on the same input.
+    expect(overlappingFasts([overnight], at(2026, 8, 25, 12), at(2026, 8, 25, 4))).toEqual([]);
+    expect(overlappingFasts([overnight], at(2026, 8, 25, 4), at(2026, 8, 25, 4))).toEqual([]);
+    expect(overlappingFasts([overnight], new Date(NaN), at(2026, 8, 25, 4))).toEqual([]);
+  });
+
+  it('returns every colliding fast, not just the first', () => {
+    const later = withId('c', at(2026, 8, 25, 13), at(2026, 8, 25, 20));
+    const hits = overlappingFasts([overnight, later], at(2026, 8, 25, 6), at(2026, 8, 25, 15));
+    expect(hits.map((f) => f.id)).toEqual(['a', 'c']);
   });
 });

@@ -143,6 +143,60 @@ export function isStorableFast(startedAt: Date, endedAt: Date): boolean {
   return b > a && b - a <= MAX_FAST_MS;
 }
 
+/**
+ * The fasts that collide with the interval `[startedAt, endedAt)`.
+ *
+ * The guard behind ADR-0032 decision 3's "reject overlap". A person editing a
+ * fast by hand can put it anywhere, and two fasts covering the same hours is
+ * not a small cosmetic problem: every average, median and range in
+ * `fastingWindow` counts both, so one mis-typed date permanently inflates a
+ * number the user reads as measured. `completedFastHours` even sums two fasts
+ * ending on one day into a single column, which is correct for two real fasts
+ * and silently doubles a duplicated one.
+ *
+ * **Half-open, so back-to-back fasts are legal.** A fast that ends at 12:00 and
+ * another that starts at 12:00 do not overlap. That is a real pattern — break a
+ * fast, eat, start again — and a closed comparison would reject it as a
+ * conflict, which is the kind of false alarm that teaches people to ignore the
+ * warning.
+ *
+ * **It returns the colliding fasts rather than a boolean**, because the UI has
+ * to say WHICH fast is in the way. "That overlaps an existing fast" with no
+ * referent leaves the user hunting; naming the one it hit gives them somewhere
+ * to go, and they can edit or delete it from the same screen.
+ *
+ * **This cannot live in `firestore.rules`.** A rule sees one document and
+ * cannot query its siblings, so overlap is unenforceable there by
+ * construction — unlike the interval bounds in {@link isStorableFast}, which
+ * the rules do check. The consequence is that this is a UX guard, not a
+ * security one: a caller that skips it writes a document the rules accept. That
+ * asymmetry is deliberate, and is why the check sits in shared pure code where
+ * both frontends can reach it rather than inside one screen's component.
+ *
+ * Corrupt rows on either side are skipped rather than reported as conflicts —
+ * an inverted stored interval is already broken, and blocking a good edit
+ * behind it would leave the user unable to fix anything.
+ *
+ * @param excludeId the fast being edited, which must not collide with itself.
+ */
+export function overlappingFasts(
+  fasts: readonly Fast[],
+  startedAt: Date,
+  endedAt: Date,
+  excludeId?: string,
+): readonly Fast[] {
+  const a = ms(startedAt);
+  const b = ms(endedAt);
+  if (!Number.isFinite(a) || !Number.isFinite(b) || b <= a) return [];
+  return fasts.filter((f) => {
+    if (excludeId != null && f.id === excludeId) return false;
+    const s = ms(f.startedAt);
+    const e = ms(f.endedAt);
+    if (!Number.isFinite(s) || !Number.isFinite(e) || e <= s) return false;
+    return s < b && a < e;
+  });
+}
+
 /** Length of one fast in hours, unrounded. Negative and non-finite intervals
  *  read as 0 so a corrupt row can never subtract from a total. */
 export function fastLengthHours(fast: Fast): number {

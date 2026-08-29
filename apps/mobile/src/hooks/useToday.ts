@@ -17,6 +17,8 @@ import {
   computeStreak,
   currentWeight as coreCurrentWeight,
   dailyTargets,
+  type DayBoundary,
+  type DateKey,
   dayBoundaryOf,
   dayKeyAt,
   LOG_WINDOW_ROWS,
@@ -52,6 +54,11 @@ export interface TodayState extends LogWrites {
   error: Error | null;
   summary: DaySummary;
   targets: DailyTargets;
+  /** The user's day boundary and today's key under it (ADR-0030). Exposed so
+   *  a second surface on this screen cannot derive "which day is it" a second
+   *  way — Trends keyed two cards to two calendars once by doing exactly that. */
+  boundary: DayBoundary;
+  todayKey: DateKey;
   /** Today's food rows (calories > 0), newest first for the list. */
   todayLogs: DailyLog[];
   /** User-saved quick-add templates. */
@@ -73,7 +80,8 @@ export interface TodayState extends LogWrites {
   setSleep: (hours: number) => Promise<void>;
   /** Fast start time (Date) or null when not fasting. */
   fastStartedAt: Date | null;
-  startFast: () => Promise<void>;
+  /** Omit `startedAt` to begin now; pass one to correct a running fast. */
+  startFast: (startedAt?: Date) => Promise<void>;
   breakFast: () => Promise<void>;
   /** Consecutive logged-day streak ending today (or yesterday). */
   streak: number;
@@ -359,8 +367,17 @@ export function useToday(): TodayState {
     },
     [uid, todayKey],
   );
-  const startFast = useCallback(async () => {
-    if (uid) await startFastDoc(uid);
+  /**
+   * Start a fast, or CORRECT the start of the one already running.
+   *
+   * `startedAt` is the whole of ADR-0032 decision 3's first item: the adapters
+   * have always accepted it and no UI ever passed one, so a fast begun an hour
+   * late could never be fixed. Writing the same field again is what a
+   * correction IS — the running fast is one scalar on the profile, not a
+   * document — so there is no separate update path and no second verb.
+   */
+  const startFast = useCallback(async (startedAt?: Date) => {
+    if (uid) await startFastDoc(uid, startedAt);
   }, [uid]);
   const breakFast = useCallback(async () => {
     if (uid) await breakFastDoc(uid);
@@ -371,6 +388,11 @@ export function useToday(): TodayState {
     error,
     summary,
     targets,
+    // Exposed so Today can open a day-scoped fasting editor without deriving
+    // the boundary a second time — two derivations of "which day is it" on one
+    // screen is how Trends ended up keying two cards to two calendars.
+    boundary,
+    todayKey,
     todayLogs,
     presets,
     recentEntries,

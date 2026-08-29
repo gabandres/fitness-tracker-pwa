@@ -28,6 +28,9 @@ interface Props {
   onSetSleep: (hours: number) => void;
   onStartFast: () => void;
   onBreakFast: () => void;
+  /** Open the fasting editor: correct a running fast's start, or log one
+   *  nobody timed. Optional so a caller that has no editor still renders. */
+  onEditFast?: () => void;
 }
 
 /**
@@ -58,7 +61,7 @@ function elapsedLabel(since: Date, now: number, t: TFn): string {
 /** Today's daily-metric strip: fasting timer, water quick-add, sleep. The
  *  fasting row re-renders every 30s while a fast is running so the elapsed
  *  clock stays live without a global timer. */
-export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater, onSetSleep, onStartFast, onBreakFast }: Props) {
+export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater, onSetSleep, onStartFast, onBreakFast, onEditFast }: Props) {
   const t = useT();
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
@@ -75,14 +78,31 @@ export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater
 
   return (
     <View style={styles.card}>
-      {/* Fasting */}
+      {/* Fasting. The VALUE is the way in to the editor and the button stays
+          the timer — the same split the Water row below uses, and for the same
+          reason: starting and ending a fast is the daily action, correcting one
+          is a rare repair, and a repair that shares a control with the common
+          action gets hit by accident. The pencil is what says the number is
+          touchable at all; without it this row looks inert. */}
       <View style={styles.row}>
-        <View style={styles.left}>
+        <PressScale
+          scaleTo={onEditFast ? 0.96 : 1}
+          style={styles.left}
+          onPress={onEditFast ? () => { haptics.tap(); onEditFast(); } : undefined}
+          disabled={!onEditFast}
+          accessibilityRole={onEditFast ? 'button' : undefined}
+          accessibilityLabel={t('metrics.fasting')}
+          accessibilityHint={t('fast.editHint')}
+          testID="fast-open"
+        >
           <Text style={styles.label}>{t('metrics.fasting')}</Text>
-          <Text style={styles.value}>
-            {fastStartedAt ? elapsedLabel(fastStartedAt, Date.now(), t) : t('metrics.notFasting')}
-          </Text>
-        </View>
+          <View style={styles.waterValueRow}>
+            <Text style={styles.value}>
+              {fastStartedAt ? elapsedLabel(fastStartedAt, Date.now(), t) : t('metrics.notFasting')}
+            </Text>
+            {onEditFast ? <Ionicons name="pencil" size={12} color={colors.faint} /> : null}
+          </View>
+        </PressScale>
         <PressScale
           scaleTo={0.92}
           style={[styles.action, fastStartedAt ? styles.actionStop : null]}

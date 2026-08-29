@@ -804,6 +804,134 @@ export function subscribeFastsSince(
   );
 }
 
+/**
+ * The days of slack either side of a day's own range that {@link
+ * subscribeFastsAround} reads, so the editor has neighbours to check overlap
+ * against (ADR-0032 decision 3).
+ *
+ * **Three, and it is a budget rather than a proof.** The exact query for "every
+ * fast that could overlap this one" is `endedAt > ourStart AND endedAt <
+ * ourEnd + 14d`, because a colliding fast can start just before ours and run
+ * the full `MAX_FAST_MS` ceiling. Subscribing to a fortnight either side of
+ * every day a user opens would be an unbounded-ish read on a metered
+ * connection for a guard that fires almost never — the exact cost ADR-0033 §9
+ * warns about, and ADR-0032 commits to this feature costing "effectively zero".
+ *
+ * So the window is three days, which covers every fast a person actually logs
+ * (the longest plausible is a multi-day water fast of 48–72h) and misses only a
+ * conflicting fast longer than that. The consequence is stated plainly because
+ * it must not be discovered later: overlap detection is **best-effort**. It has
+ * no false positives — a fast this window returns really does collide — only
+ * false negatives beyond three days, and a missed collision writes a document
+ * the rules accept and the user can still see and fix. The real interval
+ * guarantee is `isStorableFast`, which is checked on every write regardless.
+ */
+const FAST_OVERLAP_WINDOW_DAYS = 3;
+
+/**
+ * Completed fasts in a window around one day — the editor's read.
+ *
+ * Separate from {@link subscribeFastsSince} rather than a widening of it, per
+ * ADR-0016: Trends reads a trailing fortnight and the History day detail reads
+ * a few days around one date, and collapsing them would make one screen pay for
+ * the other's window. Both are range-bounded on `endedAt`, so both are
+ * single-field queries needing no composite index.
+ *
+ * **It is bounded on `endedAt` while the caller filters on attribution**, and
+ * those are not the same thing. A fast that ENDED on Tuesday can have started
+ * on Monday, so a query bounded to Tuesday's own `dayRange` would silently drop
+ * exactly the overnight fasts this feature exists to edit — the single most
+ * likely implementation bug in ADR-0032, called out in its consequences. The
+ * window here is deliberately wider than the day, and `fastsEndingOn` does the
+ * attribution in pure code where it is tested.
+ */
+export function subscribeFastsAround(
+  uid: string,
+  dayStart: Date,
+  dayEnd: Date,
+  cb: (fasts: Fast[], meta?: SnapshotMeta) => void,
+  onError?: (e: Error) => void,
+): Unsub {
+  const pad = FAST_OVERLAP_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+  return onSnapshot(
+    query(
+      fastsCol(uid),
+      where('endedAt', '>=', Timestamp.fromDate(new Date(dayStart.getTime() - pad))),
+      where('endedAt', '<=', Timestamp.fromDate(new Date(dayEnd.getTime() + pad))),
+      orderBy('endedAt', 'desc'),
+    ),
+    (snap) => cb(snap.docs.map((d) => toFast(d.id, d.data())), metaOf(snap)),
+    onError,
+  );
+}
+
+/**
+ * Write a fast the user asserted by hand — the retroactive "I fasted 18 hours
+ * yesterday" that no timer measured.
+ *
+ * `source: 'manual'` is not decoration. It is the same distinction
+ * `dailySleep.source` draws, it is enumerated in `firestore.rules` rather than
+ * trusted, and it is what stops a hand-entered interval from later being read
+ * as something the app measured. Every write on this path sets it; nothing here
+ * may write `'timer'`.
+ *
+ * Validated with `isStorableFast` before the write for the reason that function
+ * documents — the rules reject an inverted, zero-length or >14-day interval,
+ * and a caller that discovers this at commit time has already shown the user a
+ * success. Throws rather than silently dropping, because unlike `breakFast`
+ * there is no running timer to rescue: refusing an impossible interval loudly
+ * is the correct outcome when a person typed it.
+ */
+export async function addFast(uid: string, startedAt: Date, endedAt: Date): Promise<void> {
+  if (!isStorableFast(startedAt, endedAt)) throw new Error('fast/invalid-interval');
+  await setDoc(doc(fastsCol(uid)), {
+    startedAt: Timestamp.fromDate(startedAt),
+    endedAt: Timestamp.fromDate(endedAt),
+    source: 'manual',
+  });
+}
+
+/**
+ * Correct a stored fast's interval.
+ *
+ * **`setDoc`, not `updateDoc`, and that is load-bearing.** `isValidFast` is
+ * written with `hasOnly` over the three fields, and rules validate the
+ * POST-merge document — but a partial update of a legacy row that carries no
+ * `source` would leave it absent, while a merge that kept an old `'timer'`
+ * source would let a hand-edited fast keep claiming the timer measured it.
+ * Replacing the document outright makes the stored shape exactly the three
+ * fields the rules describe, every time, with the source telling the truth.
+ *
+ * A corrected fast is `'manual'` whatever it was before: once a human moved the
+ * hands, the record is an assertion and no longer a measurement.
+ */
+export async function updateFast(
+  uid: string,
+  fastId: string,
+  startedAt: Date,
+  endedAt: Date,
+): Promise<void> {
+  if (!isStorableFast(startedAt, endedAt)) throw new Error('fast/invalid-interval');
+  await setDoc(doc(fastsCol(uid), fastId), {
+    startedAt: Timestamp.fromDate(startedAt),
+    endedAt: Timestamp.fromDate(endedAt),
+    source: 'manual',
+  });
+}
+
+/**
+ * Delete a stored fast.
+ *
+ * Hard delete, no tombstone. ADR-0032 keeps every fast the user ends and makes
+ * no product judgement about length — but a fast the user says never happened
+ * is not data to preserve, it is a mistake to remove, and a soft-deleted row
+ * would have to be filtered out of `fastingWindow`, `completedFastHours` and
+ * the CSV, which is three places for it to leak back into an average.
+ */
+export async function deleteFast(uid: string, fastId: string): Promise<void> {
+  await deleteDoc(doc(fastsCol(uid), fastId));
+}
+
 function toFast(id: string, data: Record<string, unknown>): Fast {
   const startedAt = data.startedAt as Timestamp | undefined;
   const endedAt = data.endedAt as Timestamp | undefined;

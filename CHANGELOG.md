@@ -6,6 +6,44 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-28 — a fast you logged wrong was a fast you were stuck with
+
+Ending a fast wrote it down. Nothing let you change it afterwards.
+
+That is a narrow-sounding gap and it was not one. The timer is started by hand,
+which means it is started late, forgotten, or started twice — and the fast that
+comes out the other end is a number you can see, cannot touch, and which quietly
+enters every median, range and typical-length figure on Trends. The only
+remedies were to leave it wrong or to have never logged it.
+
+Three things now exist.
+
+**Correct a finished fast.** A History day lists the fasts that ended on it.
+Tap one and you can move its start, its end, or both, with the length updating
+as you go. Delete is there too, for the fast that never happened.
+
+**Log one nobody timed.** Same screen, same sheet — for the morning you realise
+you fasted through yesterday and never opened the app.
+
+**Fix a running fast's start.** Today's fasting row is now tappable. If you
+started at eight and remembered at nine, you say so; the clock catches up.
+
+**Every hand-entered or hand-corrected fast is marked as such.** The record
+keeps whether a number was measured or asserted, and a corrected fast stops
+claiming the timer produced it. Hand-entered ones carry a small *by hand* note
+in the list.
+
+**Two fasts cannot cover the same hours.** Overlapping a fast you already have
+is refused, and the message names the one it collided with rather than leaving
+you to hunt. Ending one fast exactly as another begins is still allowed — that
+is a real pattern, not a mistake.
+
+There is no goal here, no protocol, no streak, and no metabolic-stage timeline.
+Ignia still records what you did and declines to tell you what it should have
+been.
+
+---
+
 ## 2026-08-28 — a photo of butter said "pretzels", and said it confidently
 
 **The food database has 13,272 rows, so there is always something that matches

@@ -16,7 +16,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // work is worth re-firing for, where a bug fix was not. The body leads with
 // mobility and keeps a condensed meal-text paragraph, because anyone who
 // dismissed the earlier banner never read that part either.
-export const WHATS_NEW_VERSION = '2026-08-27-mobility';
+export const WHATS_NEW_VERSION = '2026-08-28-fix-a-fast';
 
 const KEY = 'whatsNew.seen';
 

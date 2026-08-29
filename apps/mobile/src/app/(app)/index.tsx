@@ -11,6 +11,7 @@ import { DailyMetrics } from '@/components/DailyMetrics';
 import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { NumbersGlossary } from '@/components/NumbersGlossary';
 import { EntrySheet } from '@/components/EntrySheet';
+import { FastSheet } from '@/components/FastSheet';
 import { HeroRings } from '@/components/HeroRings';
 import { MealEntries } from '@/components/MealEntries';
 import { OfflineBanner } from '@/components/OfflineBanner';
@@ -21,6 +22,7 @@ import { UpdateBanner } from '@/components/UpdateBanner';
 import { WhatsNewBanner } from '@/components/WhatsNewBanner';
 import { type Locale, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
+import { useDayFasts } from '@/hooks/useDayFasts';
 import { useFastActivity } from '@/hooks/useFastActivity';
 import { useReminderSync } from '@/hooks/useReminderSync';
 import { performQuickAdd } from '@/lib/quick-add';
@@ -79,6 +81,8 @@ export default function Today() {
     fastStartedAt,
     startFast,
     breakFast,
+    boundary,
+    todayKey,
     streak,
     repeatYesterday,
     shareStats,
@@ -87,6 +91,12 @@ export default function Today() {
   const nudge = useTodayNudge();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [glossaryOpen, setGlossaryOpen] = useState(false);
+  const [fastSheetOpen, setFastSheetOpen] = useState(false);
+  // Gated on the sheet: Today needs neighbouring fasts ONLY while somebody is
+  // editing an interval, and a permanent extra listener on the app's most
+  // visited tab — for a guard that fires almost never — is the "one more small
+  // listener" ADR-0033 §9 says to refuse.
+  const { fasts: nearbyFasts, addFast } = useDayFasts(todayKey, boundary, fastSheetOpen);
   const [repeating, setRepeating] = useState(false);
   const shareRef = useRef<View>(null);
 
@@ -280,6 +290,26 @@ export default function Today() {
 
       <NumbersGlossary visible={glossaryOpen} onClose={() => setGlossaryOpen(false)} />
 
+      {/* One sheet, two jobs, chosen by whether a fast is running — which is
+          the only question that has a different answer. Running: correct the
+          start, because there is nothing else about a fast in progress that
+          can be wrong yet. Not running: log one the timer never saw, which is
+          the case the user cannot otherwise reach from this screen at all. */}
+      <FastSheet
+        visible={fastSheetOpen}
+        mode={fastStartedAt ? 'running' : 'add'}
+        editing={fastStartedAt ? { startedAt: fastStartedAt, endedAt: fastStartedAt } : null}
+        fasts={nearbyFasts}
+        onSave={async (startedAt, endedAt) => {
+          // `startFast` REWRITES `fastStartedAt`, which is what correcting a
+          // running fast is — the live fast is a scalar on the profile, not a
+          // document, so there is nothing else to update.
+          if (fastStartedAt) await startFast(startedAt);
+          else await addFast(startedAt, endedAt);
+        }}
+        onClose={() => setFastSheetOpen(false)}
+      />
+
       {/* Off-screen capture target for the share card (native share only). */}
       <View style={[styles.shareCapture, { pointerEvents: 'none' }]}>
         <View ref={shareRef} collapsable={false}>
@@ -326,6 +356,7 @@ export default function Today() {
               sleep={sleep}
               activity={activity}
               fastStartedAt={fastStartedAt}
+              onEditFast={() => setFastSheetOpen(true)}
               onAddWater={setWater}
               onSetSleep={setSleep}
               onStartFast={startFast}

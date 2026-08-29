@@ -195,7 +195,7 @@ export const en = {
   'link.failedBody': 'Your device blocked it. Open this in your browser instead:\n\n{url}',
   'whatsNew.title': "What's new",
   'whatsNew.body':
-    "Train understands a stretch now. Pick Mobility when you add an exercise and it logs in seconds, sits at either end of a template, and never counts toward a record or a progression — so a warm-up hold cannot quietly turn into a personal best. There is a Mobility Reset routine in the starter templates, and if you prescribe a long hold before lifting, Ignia tells you what the research found and leaves your number alone. Typing or speaking a meal understands measurements properly now too: a teaspoon of honey is seven grams and not a hundred, 250 ml of milk is a glass and not twenty-five kilos, food named in Spanish and Portuguese works, and a cup of rice means cooked rice rather than dry.",
+    "You can fix a fast now. Tap a fast in a day's History to change when it started or ended, or delete it — and if you fasted and never opened the app, you can log it after the fact from the same place. Today's fasting row is tappable too, so a fast you started at eight and remembered at nine can be set straight while it is still running. Fasts you enter or correct by hand are marked as such, so a number you asserted never claims the timer measured it, and two fasts can no longer cover the same hours.",
 
   // ── app updates ──
   'update.ota.title': 'Update ready',
@@ -528,6 +528,43 @@ export const en = {
   // shipped has no history, and without that phrasing an empty card reads as
   // data loss rather than as a feature that just started.
   'trends.fastingEmpty': 'Fasting · Ignia keeps your fasts from now on — start one on Today',
+  // ─── Editing a fast (ADR-0032 decision 3, #97) ───
+  // The sheet is three modes over one interaction, so the strings are grouped
+  // by what they name rather than by mode: two titles, two field labels, one
+  // duration line each for a finished and a running fast, and the errors.
+  'fast.editTitle': 'Edit fast',
+  'fast.addTitle': 'Add a fast',
+  'fast.runningTitle': 'Fast start time',
+  'fast.length': '{h}h {m}m',
+  'fast.runningFor': 'fasting {h}h {m}m',
+  'fast.started': 'Started',
+  'fast.ended': 'Ended',
+  // Says why there is no end row, rather than leaving a one-field sheet
+  // looking like a two-field sheet that failed to load.
+  'fast.runningNote': 'Still going — end it on Today when you break it.',
+  'fast.adjustStart': 'Adjust start',
+  'fast.adjustEnd': 'Adjust end',
+  'fast.errOrder': 'The end has to come after the start.',
+  'fast.errFuture': "That's in the future.",
+  'fast.errTooLong': 'Longer than {n} days is a timer left running, not a fast.',
+  // Names the fast in the way, because "that overlaps an existing fast" with
+  // no referent leaves the user hunting for which one.
+  'fast.errOverlap': 'Overlaps your fast on {when}.',
+  'fast.errOverlapMany': 'Overlaps {n} of your other fasts.',
+  'fast.delete': 'Delete this fast',
+  'fast.deleteTitle': 'Delete this fast?',
+  'fast.deleteBody': "It's removed from your history and your averages.",
+  // The History day section.
+  'fast.sectionTitle': 'Fasting',
+  'fast.add': 'Add a fast',
+  'fast.none': 'No fast ended on this day.',
+  // Marks a hand-entered fast as asserted rather than measured — the same
+  // distinction the stored `source` field makes, surfaced so the user can see
+  // which of their own numbers the timer produced.
+  'fast.byHand': 'by hand',
+  'fast.range': '{from} – {to}',
+  'fast.editHint': 'Edit this fast',
+
   'trends.stubDismiss': 'Hide this row',
   'trends.sleepTitle': 'Sleep',
   'trends.sleepHeadline': '{h}h {m}m',
