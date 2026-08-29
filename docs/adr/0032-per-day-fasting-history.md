@@ -17,16 +17,14 @@
 
 Decision 3 says to follow Fastic: *"grey out time already covered by another
 fast rather than validating after the fact."* What shipped states the conflict
-live — the warning and the disabled Save update on every nudge, before any
+live — the message and the disabled Save update on every keystroke, before any
 write is attempted — but it does not paint occupied time as unavailable.
 
-**The reason is the same one that decided the whole control.** Greying out
-occupied ranges needs a calendar or wheel that can render a disabled span, and
-this app has no date picker: `@react-native-community/datetimepicker` is a
+Greying out a range needs a calendar or wheel that can render a disabled span,
+and this app has no date picker: `@react-native-community/datetimepicker` is a
 native module, so adopting one moves the Expo fingerprint and no fix to this
-screen could ever reach a user by OTA. The editor is built from nudge buttons
-for that reason (`FastSheet.tsx` carries the argument), and a nudge row has no
-surface on which to grey anything out.
+screen could ever reach a user by OTA. The editor is two number fields and a
+day stepper instead, which have nowhere to grey.
 
 What is preserved is the property that mattered: a colliding interval cannot be
 saved, and the message names the fast it hit so the user can go and fix that one
@@ -37,6 +35,40 @@ siblings. Detection is also **best-effort by window**: the History day listener
 reads three days either side, which covers every fast a person logs and misses a
 conflicting one longer than that. A missed collision writes a document the rules
 accept and the user can still see and delete.
+
+### Amendment 2 (2026-08-28) — the two things the first build got wrong
+
+Both were reported off a device within hours of the OTA, with a screenshot, and
+both are recorded here because the reasoning that produced them was plausible.
+
+**1. The editor could not express a round time.** It adjusted a time with
+±15m / ±1h / ±1d buttons. Nudges are RELATIVE, so they preserve whatever odd
+minute the timer recorded: a fast started at 4:01 PM could be moved to 4:16, to
+3:01, to 5:01 — and never to 4:00. *"If a user was fasting at 6:00pm but
+mistakenly meant 4:00pm, I can't do that."* The likeliest correction anybody
+makes was unreachable at any number of taps.
+
+The mistake was reasoning from the SIZE of a typical correction ("an hour
+earlier", "half an hour later") to a relative control, when the thing being set
+is an absolute instant. A clock is not a dial you turn; it is a number you say.
+The fix is direct entry — hour, minute, day — which is also what every alarm on
+the phone already does, and what every other entry sheet in this app already
+does with a typed number.
+
+**2. Overlap blocked the RUNNING fast, which made the sheet a dead end.** The
+guard was applied in all three modes. But a running fast is one scalar on the
+profile, not a document: correcting its start writes `fastStartedAt` and cannot
+create an overlapping row whatever time is chosen. The reporter's own state hit
+it immediately — fasting since 4:01 PM with a completed 9:17–10:46 PM fast
+sitting inside that interval — leaving Save permanently disabled, with the
+offending fast not even visible on that screen.
+
+**The general rule this yields: a guard belongs on the write that would create
+the bad state, not on every screen that can see it.** The conflict is still
+reported in running mode, because ending the fast really will record an
+overlapping row — but as a muted note, not a refusal. Colouring a note the same
+red as a refusal had also taught the reader that red meant nothing in
+particular.
 - **Date:** 2026-08-25
 - **Touches:** `Profile.fastStartedAt`, a new `users/{uid}/fasts` collection, `firestore.rules`, `packages/core` (a new pure module + `DaySummary`), the mobile History tab and Today's `DailyMetrics`, `buildCsv`, and [ADR-0030](0030-configurable-day-boundary.md)'s `dayKeyAt` / `dayRange`
 

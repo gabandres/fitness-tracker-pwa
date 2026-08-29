@@ -7,196 +7,264 @@ jest.mock('@/lib/auth', () => ({
 
 import React from 'react';
 import { fireEvent, renderWithProviders as render, waitFor } from '@/test-utils';
-import { FastSheet } from '@/components/FastSheet';
+import { FastSheet, localeUses12Hour } from '@/components/FastSheet';
 import type { Fast } from '@macrolog/core';
 
 /**
  * The fasting editor (ADR-0032 decision 3, issue #97).
  *
- * What is worth pinning here is the GATE, not the layout — RNTL runs no Yoga
- * pass, which this project has been bitten by often enough to write down, so a
- * test asserting anything about position would be asserting nothing.
+ * Two cases below are REGRESSIONS from the first build, both reported off a
+ * device with a screenshot within hours of it shipping, and both invisible to
+ * the twelve tests that replaced them:
  *
- * The gate matters because overlap is a rule `firestore.rules` structurally
- * cannot enforce: a rule sees one document and cannot query its siblings. So
- * this component is the only thing standing between a mis-typed date and two
- * fasts covering the same hours — which `fastingWindow` would then count twice,
- * permanently inflating a median the user reads as measured. If the Save button
- * stops respecting `overlappingFasts`, nothing downstream will catch it.
+ * 1. **A round time was unreachable.** The editor adjusted a time by ±15m /
+ *    ±1h, which is RELATIVE, so a fast the timer started at 4:01 PM could
+ *    become 4:16 or 3:01 and never 4:00. "I actually started at four" — the
+ *    likeliest correction there is — could not be expressed at all. The time
+ *    is typed now, and `sets a round time the old nudges could never reach`
+ *    fails if anyone reintroduces an offset-preserving step.
+ * 2. **Overlap blocked the RUNNING fast, which made the sheet a dead end.** A
+ *    running fast writes no document — correcting its start rewrites one field
+ *    on the profile — so it cannot create a collision and must never be
+ *    refused for one. The reporter's own state hit it: fasting since 4:01 PM
+ *    with a completed 9:17–10:46 PM fast inside it, Save permanently disabled,
+ *    and the offending fast not even visible on that screen.
  *
- * The three modes are covered for what differs between them and nothing else:
- * which fields exist, and what Save means.
+ * What is NOT pinned here is layout. RNTL runs no Yoga pass, so an assertion
+ * about position would be asserting nothing — that belongs on a device.
  */
 
-/** A clean 15-minute boundary, so the prefill is exact rather than floored. */
-const ANCHOR = new Date('2026-08-25T12:00:00.000Z');
+/** Local-time constructors throughout: the component reads `getHours()` and
+ *  formats through the locale, so a UTC fixture would test a different
+ *  function than the one that ships. */
+const at = (y: number, m: number, d: number, h: number, min = 0): Date =>
+  new Date(y, m - 1, d, h, min, 0, 0);
+
+/** Noon on Aug 28 2026, local. The prefill therefore starts 8:00 PM Aug 27. */
+const ANCHOR = at(2026, 8, 28, 12);
 const HOUR = 60 * 60 * 1000;
 
 const fastAt = (id: string, startedAt: Date, endedAt: Date): Fast => ({ id, startedAt, endedAt });
 
 /**
- * Press a control and WAIT for the commit before reading anything.
+ * Fire an event and WAIT for the commit before reading anything.
  *
- * Not ceremony. Under React 19 the state update a press schedules is not
- * committed by the time `fireEvent.press` returns, so a synchronous assertion
- * — or a second press whose handler closes over the old state — sees the
- * previous render. Measured while writing this file: the same nudge asserted
- * synchronously reads the old duration and asserted after a flush reads the new
- * one. Every press below goes through here for that reason.
+ * Not ceremony. Under React 19 the state update an event schedules is not
+ * committed by the time `fireEvent` returns, so a synchronous assertion — or a
+ * second event whose handler closes over the old state — sees the previous
+ * render. Measured while writing this file.
  */
-async function press(screen: { getByTestId: (id: string) => unknown }, testID: string) {
-  fireEvent.press(screen.getByTestId(testID) as Parameters<typeof fireEvent.press>[0]);
+type Screen = Awaited<ReturnType<typeof render>>;
+
+async function tap(screen: Screen, testID: string) {
+  fireEvent.press(screen.getByTestId(testID));
   await waitFor(() => {});
 }
 
-describe('FastSheet — logging a fast nobody timed', () => {
-  it('opens on a 16-hour prefill and saves exactly what it shows', async () => {
-    const onSave = jest.fn().mockResolvedValue(undefined);
-    const screen = await render(
-      <FastSheet visible mode="add" anchorEnd={ANCHOR} onSave={onSave} onClose={jest.fn()} />,
-    );
+async function type(screen: Screen, testID: string, text: string) {
+  fireEvent.changeText(screen.getByTestId(testID), text);
+  await waitFor(() => {});
+}
 
-    expect(screen.getByTestId('fast-duration')).toHaveTextContent('16h 0m');
-
-    await press(screen, 'fast-save');
-    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
-    const [startedAt, endedAt] = onSave.mock.calls[0];
-    expect(endedAt.getTime() - startedAt.getTime()).toBe(16 * HOUR);
-    expect(endedAt).toEqual(ANCHOR);
-  });
-
-  it('nudges the START by default, because that is the field a correction lands on', async () => {
-    const onSave = jest.fn().mockResolvedValue(undefined);
-    const screen = await render(
-      <FastSheet visible mode="add" anchorEnd={ANCHOR} onSave={onSave} onClose={jest.fn()} />,
-    );
-
-    await press(screen, 'fast-step-minus-1h');
-    expect(screen.getByTestId('fast-duration')).toHaveTextContent('17h 0m');
-
-    await press(screen, 'fast-save');
-    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
-    const [startedAt, endedAt] = onSave.mock.calls[0];
-    // The END must not have moved — nudging start is what changes the length.
-    expect(endedAt).toEqual(ANCHOR);
-    expect(endedAt.getTime() - startedAt.getTime()).toBe(17 * HOUR);
-  });
-
-  it('moves the END once that row is selected, and leaves the start alone', async () => {
-    const onSave = jest.fn().mockResolvedValue(undefined);
-    const screen = await render(
-      <FastSheet visible mode="add" anchorEnd={ANCHOR} onSave={onSave} onClose={jest.fn()} />,
-    );
-
-    await press(screen, 'fast-end-row');
-    await press(screen, 'fast-step-plus-1h');
-    expect(screen.getByTestId('fast-duration')).toHaveTextContent('17h 0m');
-
-    await press(screen, 'fast-save');
-    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
-    const [startedAt, endedAt] = onSave.mock.calls[0];
-    expect(startedAt.getTime()).toBe(ANCHOR.getTime() - 16 * HOUR);
-    expect(endedAt.getTime()).toBe(ANCHOR.getTime() + HOUR);
-  });
-
-  it('REFUSES to save an interval that overlaps a stored fast, and says which one', async () => {
-    // Overlaps the 16-hour prefill by four hours.
-    const neighbour = fastAt('a', new Date(ANCHOR.getTime() - 20 * HOUR), new Date(ANCHOR.getTime() - 12 * HOUR));
-    const onSave = jest.fn().mockResolvedValue(undefined);
-    const screen = await render(
+function addSheet(props: Partial<React.ComponentProps<typeof FastSheet>> = {}) {
+  const onSave = jest.fn().mockResolvedValue(undefined);
+  const onClose = jest.fn();
+  return {
+    onSave,
+    onClose,
+    ui: (
       <FastSheet
         visible
         mode="add"
         anchorEnd={ANCHOR}
-        fasts={[neighbour]}
         onSave={onSave}
-        onClose={jest.fn()}
-      />,
-    );
+        onClose={onClose}
+        {...props}
+      />
+    ),
+  };
+}
+
+describe('FastSheet — you type the time', () => {
+  it('opens on a 16-hour prefill and saves exactly what it shows', async () => {
+    const { onSave, ui } = addSheet();
+    const screen = await render(ui);
+
+    expect(screen.getByTestId('fast-duration')).toHaveTextContent('16h 0m');
+
+    await tap(screen, 'fast-save');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const [startedAt, endedAt] = onSave.mock.calls[0];
+    expect(endedAt.getTime() - startedAt.getTime()).toBe(16 * HOUR);
+  });
+
+  it('sets a round time the old nudges could never reach', async () => {
+    // THE REPORTED BUG. Prefill start is 8:00 PM Aug 27; the user means 4:00 PM.
+    // Under ±15m steps from an odd minute this was unreachable at any number of
+    // taps. Typed, it is three interactions.
+    const { onSave, ui } = addSheet();
+    const screen = await render(ui);
+
+    await type(screen, 'fast-start-hour', '4');
+    await type(screen, 'fast-start-minute', '00');
+    await tap(screen, 'fast-start-pm');
+
+    await tap(screen, 'fast-save');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const [startedAt] = onSave.mock.calls[0];
+    expect(startedAt.getHours()).toBe(16);
+    expect(startedAt.getMinutes()).toBe(0);
+    expect(startedAt.getSeconds()).toBe(0);
+    expect(startedAt.getDate()).toBe(27);
+    // 4:00 PM Aug 27 → noon Aug 28 is twenty hours.
+    expect(screen.getByTestId('fast-duration')).toHaveTextContent('20h 0m');
+  });
+
+  it('reaches a time in the morning through the AM control', async () => {
+    const { onSave, ui } = addSheet();
+    const screen = await render(ui);
+
+    await type(screen, 'fast-start-hour', '9');
+    await type(screen, 'fast-start-minute', '30');
+    await tap(screen, 'fast-start-am');
+
+    await tap(screen, 'fast-save');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const [startedAt] = onSave.mock.calls[0];
+    expect(startedAt.getHours()).toBe(9);
+    expect(startedAt.getMinutes()).toBe(30);
+  });
+
+  it('treats 12 as noon and midnight the way a clock does, not as hour twelve', async () => {
+    const { onSave, ui } = addSheet();
+    const screen = await render(ui);
+
+    await type(screen, 'fast-start-hour', '12');
+    await type(screen, 'fast-start-minute', '00');
+    await tap(screen, 'fast-start-am');
+    await tap(screen, 'fast-save');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(onSave.mock.calls[0][0].getHours()).toBe(0);
+  });
+
+  it('ignores a half-typed or impossible hour instead of jumping somewhere else', async () => {
+    // Clearing the field mid-edit must not move the stored value, or the
+    // duration lurches while the user is still typing.
+    const { ui } = addSheet();
+    const screen = await render(ui);
+
+    await type(screen, 'fast-start-hour', '');
+    expect(screen.getByTestId('fast-duration')).toHaveTextContent('16h 0m');
+    await type(screen, 'fast-start-hour', '99');
+    expect(screen.getByTestId('fast-duration')).toHaveTextContent('16h 0m');
+    await type(screen, 'fast-start-minute', '77');
+    expect(screen.getByTestId('fast-duration')).toHaveTextContent('16h 0m');
+  });
+
+  it('steps the day without disturbing the time of day', async () => {
+    const { onSave, ui } = addSheet();
+    const screen = await render(ui);
+
+    await tap(screen, 'fast-start-day-prev');
+    await tap(screen, 'fast-save');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const [startedAt] = onSave.mock.calls[0];
+    expect(startedAt.getDate()).toBe(26);
+    expect(startedAt.getHours()).toBe(20);
+    expect(startedAt.getMinutes()).toBe(0);
+  });
+
+  it('edits the END once that row is selected, and leaves the start alone', async () => {
+    const { onSave, ui } = addSheet();
+    const screen = await render(ui);
+
+    await tap(screen, 'fast-end-row');
+    await type(screen, 'fast-end-hour', '2');
+    await type(screen, 'fast-end-minute', '00');
+    await tap(screen, 'fast-end-pm');
+
+    await tap(screen, 'fast-save');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const [startedAt, endedAt] = onSave.mock.calls[0];
+    expect(startedAt.getHours()).toBe(20);
+    expect(endedAt.getHours()).toBe(14);
+    expect(endedAt.getDate()).toBe(28);
+  });
+});
+
+describe('FastSheet — the overlap guard', () => {
+  it('REFUSES to save a new fast that overlaps a stored one, and says which', async () => {
+    const neighbour = fastAt('a', at(2026, 8, 27, 16), at(2026, 8, 28, 2));
+    const { onSave, ui } = addSheet({ fasts: [neighbour] });
+    const screen = await render(ui);
 
     expect(screen.getByTestId('fast-warning')).toBeTruthy();
-    await press(screen, 'fast-save');
+    await tap(screen, 'fast-save');
     expect(onSave).not.toHaveBeenCalled();
   });
 
   it('lets a back-to-back fast through — ending when another starts is not a collision', async () => {
     // Ends exactly when the prefill starts. A closed comparison would reject
     // this, and a warning that fires on an ordinary day gets ignored.
-    const neighbour = fastAt(
-      'a',
-      new Date(ANCHOR.getTime() - 24 * HOUR),
-      new Date(ANCHOR.getTime() - 16 * HOUR),
-    );
-    const onSave = jest.fn().mockResolvedValue(undefined);
-    const screen = await render(
-      <FastSheet
-        visible
-        mode="add"
-        anchorEnd={ANCHOR}
-        fasts={[neighbour]}
-        onSave={onSave}
-        onClose={jest.fn()}
-      />,
-    );
+    const neighbour = fastAt('a', at(2026, 8, 27, 8), at(2026, 8, 27, 20));
+    const { onSave, ui } = addSheet({ fasts: [neighbour] });
+    const screen = await render(ui);
 
     expect(screen.queryByTestId('fast-warning')).toBeNull();
-    await press(screen, 'fast-save');
+    await tap(screen, 'fast-save');
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
   });
 
-  it('refuses an interval dragged inside out', async () => {
-    const onSave = jest.fn().mockResolvedValue(undefined);
-    const screen = await render(
-      <FastSheet visible mode="add" anchorEnd={ANCHOR} onSave={onSave} onClose={jest.fn()} />,
-    );
+  it('refuses an interval whose end is before its start', async () => {
+    const { onSave, ui } = addSheet();
+    const screen = await render(ui);
 
-    // Push the start a full day past the end.
-    await press(screen, 'fast-step-plus-1d');
+    await tap(screen, 'fast-start-day-next');
+    await tap(screen, 'fast-start-day-next');
     expect(screen.getByTestId('fast-warning')).toBeTruthy();
-    await press(screen, 'fast-save');
+    await tap(screen, 'fast-save');
     expect(onSave).not.toHaveBeenCalled();
   });
 });
 
 describe('FastSheet — correcting a stored fast', () => {
-  const stored = fastAt('mine', new Date(ANCHOR.getTime() - 16 * HOUR), ANCHOR);
+  const stored = fastAt('mine', at(2026, 8, 27, 20), ANCHOR);
+
+  const editSheet = (props: Partial<React.ComponentProps<typeof FastSheet>> = {}) => {
+    const onSave = jest.fn().mockResolvedValue(undefined);
+    const onClose = jest.fn();
+    return {
+      onSave,
+      onClose,
+      ui: (
+        <FastSheet
+          visible
+          mode="edit"
+          editing={stored}
+          onSave={onSave}
+          onClose={onClose}
+          {...props}
+        />
+      ),
+    };
+  };
 
   it('never reports the fast being edited as conflicting with itself', async () => {
-    const onSave = jest.fn().mockResolvedValue(undefined);
-    const screen = await render(
-      <FastSheet
-        visible
-        mode="edit"
-        editing={stored}
-        fasts={[stored]}
-        onSave={onSave}
-        onClose={jest.fn()}
-      />,
-    );
+    const { onSave, ui } = editSheet({ fasts: [stored] });
+    const screen = await render(ui);
 
     expect(screen.queryByTestId('fast-warning')).toBeNull();
-    await press(screen, 'fast-save');
+    await tap(screen, 'fast-save');
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
   });
 
   it('offers delete only when there is a stored fast to delete', async () => {
     const onDelete = jest.fn();
-    const edit = await render(
-      <FastSheet
-        visible
-        mode="edit"
-        editing={stored}
-        onSave={jest.fn()}
-        onDelete={onDelete}
-        onClose={jest.fn()}
-      />,
-    );
-    await press(edit, 'fast-delete');
+    const edit = await render(editSheet({ onDelete }).ui);
+    await tap(edit, 'fast-delete');
     expect(onDelete).toHaveBeenCalledTimes(1);
 
-    const add = await render(
-      <FastSheet visible mode="add" anchorEnd={ANCHOR} onSave={jest.fn()} onClose={jest.fn()} />,
-    );
+    const add = await render(addSheet().ui);
     expect(add.queryByTestId('fast-delete')).toBeNull();
   });
 
@@ -205,11 +273,9 @@ describe('FastSheet — correcting a stored fast', () => {
     // saved, which reads as silent data loss rather than as a failed write.
     const onSave = jest.fn().mockRejectedValue(new Error('permission-denied'));
     const onClose = jest.fn();
-    const screen = await render(
-      <FastSheet visible mode="edit" editing={stored} onSave={onSave} onClose={onClose} />,
-    );
+    const screen = await render(editSheet({ onSave, onClose }).ui);
 
-    await press(screen, 'fast-save');
+    await tap(screen, 'fast-save');
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
     // A second flush: the rejection's own `setSaving(false)` lands a microtask
     // after the assertion above, and without this it commits outside act().
@@ -219,50 +285,85 @@ describe('FastSheet — correcting a stored fast', () => {
 });
 
 describe('FastSheet — the fast running right now', () => {
-  it('has no end to edit, because the end has not happened', async () => {
-    const running = { startedAt: new Date(Date.now() - 3 * HOUR), endedAt: new Date() };
-    const screen = await render(
-      <FastSheet visible mode="running" editing={running} onSave={jest.fn()} onClose={jest.fn()} />,
-    );
+  const runningSheet = (startedAt: Date, fasts: readonly Fast[] = []) => {
+    const onSave = jest.fn().mockResolvedValue(undefined);
+    return {
+      onSave,
+      ui: (
+        <FastSheet
+          visible
+          mode="running"
+          editing={{ startedAt, endedAt: startedAt }}
+          fasts={fasts}
+          onSave={onSave}
+          onClose={jest.fn()}
+        />
+      ),
+    };
+  };
 
+  it('has no end to edit, because the end has not happened', async () => {
+    const screen = await render(runningSheet(new Date(Date.now() - 3 * HOUR)).ui);
     expect(screen.getByTestId('fast-start-row')).toBeTruthy();
     expect(screen.queryByTestId('fast-end-row')).toBeNull();
   });
 
-  it('saves the corrected START and measures the fast against now', async () => {
-    const startedAt = new Date(Date.now() - 3 * HOUR);
-    const onSave = jest.fn().mockResolvedValue(undefined);
-    const screen = await render(
-      <FastSheet
-        visible
-        mode="running"
-        editing={{ startedAt, endedAt: startedAt }}
-        onSave={onSave}
-        onClose={jest.fn()}
-      />,
-    );
+  it('SAVES a corrected start even when the running fast overlaps a stored one', async () => {
+    // THE REPORTED DEAD END, reproduced from the screenshot: fasting since
+    // 4:01 PM with a completed 9:17–10:46 PM fast sitting inside it. A running
+    // fast writes no document, so it cannot create a collision — refusing to
+    // save left the user with no way out of a state they reached by accident.
+    const now = Date.now();
+    const startedAt = new Date(now - 6 * HOUR - 46 * 60 * 1000);
+    const swallowed = fastAt('other', new Date(now - 90 * 60 * 1000), new Date(now - 60 * 1000));
+    const { onSave, ui } = runningSheet(startedAt, [swallowed]);
+    const screen = await render(ui);
 
-    await press(screen, 'fast-step-minus-1h');
-    await press(screen, 'fast-save');
+    // Said out loud — ending this fast really will record an overlapping row —
+    // but as a note, and the button still works.
+    expect(screen.getByTestId('fast-warning')).toBeTruthy();
+    await tap(screen, 'fast-save');
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
-    expect(onSave.mock.calls[0][0].getTime()).toBe(startedAt.getTime() - HOUR);
+  });
+
+  it('saves the start the user typed, measured against now', async () => {
+    const startedAt = new Date(Date.now() - 3 * HOUR);
+    const { onSave, ui } = runningSheet(startedAt);
+    const screen = await render(ui);
+
+    await type(screen, 'fast-start-hour', '4');
+    await type(screen, 'fast-start-minute', '00');
+    await tap(screen, 'fast-start-pm');
+    await tap(screen, 'fast-save');
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const [saved] = onSave.mock.calls[0];
+    expect(saved.getHours()).toBe(16);
+    expect(saved.getMinutes()).toBe(0);
   });
 
   it('refuses a start pushed into the future', async () => {
-    const onSave = jest.fn().mockResolvedValue(undefined);
-    const screen = await render(
-      <FastSheet
-        visible
-        mode="running"
-        editing={{ startedAt: new Date(), endedAt: new Date() }}
-        onSave={onSave}
-        onClose={jest.fn()}
-      />,
-    );
+    const { onSave, ui } = runningSheet(new Date(Date.now() - HOUR));
+    const screen = await render(ui);
 
-    await press(screen, 'fast-step-plus-1d');
+    await tap(screen, 'fast-start-day-next');
     expect(screen.getByTestId('fast-warning')).toBeTruthy();
-    await press(screen, 'fast-save');
+    await tap(screen, 'fast-save');
     expect(onSave).not.toHaveBeenCalled();
+  });
+});
+
+describe('localeUses12Hour', () => {
+  it('separates the 12-hour locales from the 24-hour one', () => {
+    // Decides whether the AM/PM control renders at all. Getting it wrong for
+    // pt-BR hands a Brazilian user an hour field that takes 20 next to a PM
+    // toggle, with no way to know which one wins.
+    expect(localeUses12Hour('en-US')).toBe(true);
+    expect(localeUses12Hour('es-PR')).toBe(true);
+    expect(localeUses12Hour('pt-BR')).toBe(false);
+  });
+
+  it('falls back to a 12-hour dial rather than throwing on a bad tag', () => {
+    expect(localeUses12Hour('not-a-locale!!')).toBe(true);
   });
 });

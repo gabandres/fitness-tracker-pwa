@@ -28,6 +28,12 @@ you fasted through yesterday and never opened the app.
 **Fix a running fast's start.** Today's fasting row is now tappable. If you
 started at eight and remembered at nine, you say so; the clock catches up.
 
+**You type the time.** Hour, minute, and the day it fell on — the same way you
+set an alarm. The first version of this shipped with plus/minus buttons and was
+replaced within hours: they moved a time *relative* to where it already was, so
+a fast the timer started at 4:01 PM could be nudged to 4:16 or 3:01 and never to
+4:00. The one correction everybody wants to make was the one it could not.
+
 **Every hand-entered or hand-corrected fast is marked as such.** The record
 keeps whether a number was measured or asserted, and a corrected fast stops
 claiming the timer produced it. Hand-entered ones carry a small *by hand* note

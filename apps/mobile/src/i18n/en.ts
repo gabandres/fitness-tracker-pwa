@@ -542,8 +542,10 @@ export const en = {
   // Says why there is no end row, rather than leaving a one-field sheet
   // looking like a two-field sheet that failed to load.
   'fast.runningNote': 'Still going — end it on Today when you break it.',
-  'fast.adjustStart': 'Adjust start',
-  'fast.adjustEnd': 'Adjust end',
+  'fast.hour': 'Hour',
+  'fast.minute': 'Minute',
+  'fast.dayEarlier': 'Previous day',
+  'fast.dayLater': 'Next day',
   'fast.errOrder': 'The end has to come after the start.',
   'fast.errFuture': "That's in the future.",
   'fast.errTooLong': 'Longer than {n} days is a timer left running, not a fast.',
@@ -551,6 +553,11 @@ export const en = {
   // no referent leaves the user hunting for which one.
   'fast.errOverlap': 'Overlaps your fast on {when}.',
   'fast.errOverlapMany': 'Overlaps {n} of your other fasts.',
+  // The same collision stated as information rather than as a refusal. A
+  // running fast writes no document, so it cannot create an overlap and
+  // must never be blocked — it just says what ending it will record.
+  'fast.noteOverlap': 'Heads up: this runs over your fast on {when}.',
+  'fast.noteOverlapMany': 'Heads up: this runs over {n} of your other fasts.',
   'fast.delete': 'Delete this fast',
   'fast.deleteTitle': 'Delete this fast?',
   'fast.deleteBody': "It's removed from your history and your averages.",

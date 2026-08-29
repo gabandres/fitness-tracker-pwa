@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { useEffect, useRef, useState } from 'react';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
 import {
   MAX_FAST_MS,
   type Fast,
@@ -8,52 +9,15 @@ import {
   overlappingFasts,
 } from '@macrolog/core';
 import { BottomSheet } from '@/components/BottomSheet';
-import { useLocale, useT } from '@/i18n';
-import { formatDate, formatNumber, formatTime } from '@/lib/date-format';
+import { type Locale, useLocale, useT } from '@/i18n';
+import { formatDate, formatNumber, formatTime, localeTag } from '@/lib/date-format';
 import * as haptics from '@/lib/haptics';
 import { PressScale } from '@/lib/motion';
-import { useThemedStyles, type Theme } from '@/lib/theme-context';
+import { useThemedStyles, useTheme, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
 
-const MIN_MS = 60 * 1000;
-const HOUR_MS = 60 * MIN_MS;
+const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
-
-/**
- * The adjust row (ADR-0032 decision 3).
- *
- * ## Why nudges and not a date picker
- *
- * There is no date picker in this app, and adding one is not free:
- * `@react-native-community/datetimepicker` is a NATIVE module, so it moves the
- * Expo fingerprint and no fix to this screen could ever reach anyone by OTA —
- * a correction to a feature people are already using would wait on two store
- * binaries. A pure-JS wheel is the other option, and it is a gesture surface
- * with momentum, snapping and initial-offset bugs, shipped straight to
- * production on a control nobody here can test on both platforms first.
- *
- * Nudges have neither problem, and they suit the actual task better than either
- * one. Corrections to a fast are relative and small — "I started an hour
- * earlier", "I broke it at noon, not one" — so the common edit is one or two
- * taps where a picker is open-scroll-confirm. The day steps are what keep the
- * uncommon case (logging a fast from last Tuesday) from being twenty taps.
- *
- * ## Six, in one row, in this order
- *
- * Symmetric around the middle so the two most-used steps sit under the thumb,
- * and small-to-large outwards so the row reads as a scale rather than a menu.
- * Fifteen minutes is the finest step on purpose: a fast is not a stopwatch, and
- * a minute-level nudge would make the common correction take four taps to do
- * what one should.
- */
-const STEPS: readonly { id: string; label: string; ms: number }[] = [
-  { id: 'minus-1d', label: '−1d', ms: -DAY_MS },
-  { id: 'minus-1h', label: '−1h', ms: -HOUR_MS },
-  { id: 'minus-15m', label: '−15m', ms: -15 * MIN_MS },
-  { id: 'plus-15m', label: '+15m', ms: 15 * MIN_MS },
-  { id: 'plus-1h', label: '+1h', ms: HOUR_MS },
-  { id: 'plus-1d', label: '+1d', ms: DAY_MS },
-];
 
 export type FastSheetMode =
   /** A fast that is over — correct its interval, or delete it. */
@@ -92,29 +56,111 @@ interface Props {
  * Sixteen hours because it is the most common fast there is, and it is a
  * PREFILL rather than a target: ADR-0032 refuses to ship a goal, a protocol or
  * a streak, and nothing here is stored, scored or compared against it. It
- * exists so the usual case is "check it and save" instead of twelve taps up
- * from a zero-length interval, and every part of it is adjustable first.
+ * exists so the usual case is "check it and save" instead of typing a whole
+ * interval from scratch, and every part of it is editable first.
  */
 const PREFILL_MS = 16 * HOUR_MS;
 
+/** Round a PREFILL to a clean five minutes. Never applied to a stored fast —
+ *  rounding a fast the timer measured would quietly rewrite a real
+ *  measurement the moment somebody opened it to look at it. */
+function floorTo5(d: Date): Date {
+  const out = new Date(d);
+  out.setMinutes(Math.floor(out.getMinutes() / 5) * 5, 0, 0);
+  return out;
+}
+
+/** Same calendar day as `base`, at this hour and minute. Seconds are dropped:
+ *  a time somebody typed is asserted to the minute, and carrying a stray 41
+ *  seconds forward would make the duration disagree with what they entered. */
+function withTime(base: Date, hours: number, minutes: number): Date {
+  const d = new Date(base);
+  d.setHours(hours, minutes, 0, 0);
+  return d;
+}
+
+/** `setDate` rather than ±86,400,000 ms: across a DST boundary a day is not
+ *  24 hours, and adding the constant would shift the CLOCK time by an hour —
+ *  the user would step from 4:00 PM Saturday to 3:00 PM Sunday. */
+function addDays(base: Date, delta: number): Date {
+  const d = new Date(base);
+  d.setDate(d.getDate() + delta);
+  return d;
+}
+
 /**
- * Floor to a 15-minute boundary so the nudges land on clean times.
+ * Does this locale write clock times on a 12-hour dial?
  *
- * Applied to a PREFILL only, never to a stored fast: rounding a fast the timer
- * measured would quietly rewrite a real measurement the moment somebody opened
- * it to look at it.
+ * Probed by formatting 13:00 rather than read from
+ * `resolvedOptions().hour12`, which Hermes has not always populated: a
+ * 12-hour locale renders "1 PM" and a 24-hour one contains "13". en and es-PR
+ * are 12-hour, pt-BR is 24-hour, and the AM/PM control must not appear in the
+ * third — a Brazilian user typing 20 into an hour field beside a PM toggle has
+ * been handed two ways to say the same thing and no way to know which wins.
  */
-function floorTo15(d: Date): Date {
-  return new Date(Math.floor(d.getTime() / (15 * MIN_MS)) * 15 * MIN_MS);
+export function localeUses12Hour(tag: string): boolean {
+  try {
+    return !new Date(2020, 0, 1, 13).toLocaleTimeString(tag, { hour: 'numeric' }).includes('13');
+  } catch {
+    return true;
+  }
+}
+
+/** The locale's own word for the half of the day — "AM"/"PM" in en, "a. m."
+ *  in es-PR. Hardcoding the English pair would put it on a Spanish screen. */
+function dayPeriodLabel(tag: string, hour: number): string {
+  try {
+    const parts = new Intl.DateTimeFormat(tag, { hour: 'numeric', hour12: true }).formatToParts(
+      new Date(2020, 0, 1, hour),
+    );
+    const found = parts.find((p) => p.type === 'dayPeriod')?.value;
+    if (found) return found;
+  } catch {
+    /* fall through to the literal below */
+  }
+  return hour < 12 ? 'AM' : 'PM';
 }
 
 /**
  * Correct, log or delete one fast.
  *
- * The three modes are one component because they are one interaction — pick a
- * field, nudge it, watch the duration — and splitting them would give the same
- * gesture three implementations to drift apart. What differs between them is
- * only which rows exist and what Save means, and that is one line each.
+ * ## You type the time. You do not nudge it.
+ *
+ * The first build of this sheet adjusted a time with ±15m / ±1h / ±1d buttons,
+ * and it was wrong in a way that only showed up on a real fast. Nudges are
+ * RELATIVE, so they preserve whatever odd minute the timer happened to record:
+ * a fast started at 4:01 PM can be moved to 4:16 or 3:01 or 5:01, and **never
+ * to 4:00**. "I actually started at four" — the single most likely correction
+ * anybody makes — was unreachable, and no amount of tapping got there.
+ *
+ * Reported from a device the day it shipped, with a screenshot: *"If a user
+ * was fasting at 6:00pm but mistakenly meant 4:00pm, I can't do that."*
+ * Followed by the design verdict, which is the part worth keeping: *"It's
+ * weird and I don't want to subtract or add."*
+ *
+ * So the time is entered directly — hour, minute, and the day it fell on. That
+ * is also what people already expect, because it is what every clock and alarm
+ * on the phone does.
+ *
+ * ## Still no native date picker, and the reason has not changed
+ *
+ * `@react-native-community/datetimepicker` is a NATIVE module: adopting one
+ * moves the Expo fingerprint, so no later fix to this screen could reach a user
+ * over the air — a correction to a feature people are already using would wait
+ * on two store binaries. A pure-JS wheel is the other option and it is a
+ * gesture surface with momentum, snapping and initial-offset bugs, shipped to
+ * production on a control nobody here can test on both platforms first.
+ *
+ * Two number fields and a day stepper need neither. They are ordinary
+ * `TextInput`s, which is what every other entry sheet in this app already uses
+ * — water, sleep and the weigh-in are all a typed number — so this is the
+ * interaction the user has already learned, not a new one.
+ *
+ * ## The three modes are one component
+ *
+ * They are one interaction — set a time, watch the duration — and splitting
+ * them would give the same editor three implementations to drift apart. What
+ * differs is only which fields exist and what Save means.
  */
 export function FastSheet({
   visible,
@@ -151,14 +197,14 @@ export function FastSheet({
     setNow(Date.now());
     // Start is the field a correction almost always lands on — a forgotten
     // fast is "I started at eight", and a running one has nothing else to
-    // edit — so it opens selected and the common case needs no aiming tap.
+    // edit — so it opens expanded and the common case needs no aiming tap.
     setField('start');
     if (editing && (mode === 'edit' || mode === 'running')) {
       setStart(editing.startedAt);
       if (mode === 'edit') setEnd(editing.endedAt);
       return;
     }
-    const anchor = floorTo15(anchorEnd ?? new Date());
+    const anchor = floorTo5(anchorEnd ?? new Date());
     setEnd(anchor);
     setStart(new Date(anchor.getTime() - PREFILL_MS));
   }, [visible, mode, editing, anchorEnd]);
@@ -166,19 +212,27 @@ export function FastSheet({
   const effectiveEnd = mode === 'running' ? new Date(now) : end;
   const storable = isStorableFast(start, effectiveEnd);
   const conflicts = storable ? overlappingFasts(fasts, start, effectiveEnd, editing?.id) : [];
-  const valid = storable && conflicts.length === 0 && !saving;
+
+  /**
+   * **A collision only blocks a write that would CREATE one.**
+   *
+   * A running fast is one scalar on the profile, not a document — correcting
+   * its start writes `fastStartedAt` and nothing else, so it cannot produce an
+   * overlapping row no matter what time is chosen. Blocking it was a shipped
+   * bug and a bad one: a user whose running fast already overlapped a stored
+   * one found Save permanently disabled, with the offending fast not even
+   * visible on that screen. The sheet was a dead end reached by an ordinary
+   * mistake, which is the worst shape a guard can take.
+   *
+   * The conflict is still worth SAYING in that mode — ending the fast will
+   * write the overlapping row — so it is reported as a note rather than
+   * swallowed. It just does not hold the door shut.
+   */
+  const blocking = mode === 'running' ? [] : conflicts;
+  const valid = storable && blocking.length === 0 && !saving;
   const parts = fastHoursParts(
     Math.max(0, effectiveEnd.getTime() - start.getTime()) / HOUR_MS,
   );
-
-  function bump(deltaMs: number) {
-    haptics.tap();
-    if (mode === 'running' || field === 'start') {
-      setStart((s) => new Date(s.getTime() + deltaMs));
-    } else {
-      setEnd((e) => new Date(e.getTime() + deltaMs));
-    }
-  }
 
   function stamp(d: Date): string {
     const day = formatDate(d, locale, { weekday: 'short', month: 'short', day: 'numeric' });
@@ -186,28 +240,42 @@ export function FastSheet({
   }
 
   /**
-   * The warning line, in priority order: an impossible interval first, because
-   * a user who has pushed the start past the end needs to be told THAT rather
-   * than which other fast it now happens to touch.
+   * The line under the fields, in priority order: an impossible interval first,
+   * because a user who has put the start after the end needs to be told THAT
+   * rather than which other fast it now happens to touch.
+   *
+   * `tone` separates "this cannot be saved" from "you should know this" — they
+   * are different claims and colouring both red taught the reader nothing.
    */
-  function warning(): string | null {
+  function notice(): { text: string; tone: 'error' | 'note' } | null {
     if (effectiveEnd.getTime() <= start.getTime()) {
-      return mode === 'running' ? t('fast.errFuture') : t('fast.errOrder');
+      return {
+        text: mode === 'running' ? t('fast.errFuture') : t('fast.errOrder'),
+        tone: 'error',
+      };
     }
     if (effectiveEnd.getTime() - start.getTime() > MAX_FAST_MS) {
-      return t('fast.errTooLong', { n: formatNumber(MAX_FAST_MS / DAY_MS, locale) });
+      return {
+        text: t('fast.errTooLong', { n: formatNumber(MAX_FAST_MS / DAY_MS, locale) }),
+        tone: 'error',
+      };
     }
+    if (!conflicts.length) return null;
+    const tone = mode === 'running' ? 'note' : 'error';
     if (conflicts.length === 1) {
       const c = conflicts[0];
       const day = formatDate(c.endedAt, locale, { month: 'short', day: 'numeric' });
-      const from = formatTime(c.startedAt, locale);
-      const to = formatTime(c.endedAt, locale);
-      return t('fast.errOverlap', { when: `${day} · ${from}–${to}` });
+      const when = `${day} · ${formatTime(c.startedAt, locale)}–${formatTime(c.endedAt, locale)}`;
+      return {
+        text: tone === 'note' ? t('fast.noteOverlap', { when }) : t('fast.errOverlap', { when }),
+        tone,
+      };
     }
-    if (conflicts.length > 1) {
-      return t('fast.errOverlapMany', { n: formatNumber(conflicts.length, locale) });
-    }
-    return null;
+    const n = formatNumber(conflicts.length, locale);
+    return {
+      text: tone === 'note' ? t('fast.noteOverlapMany', { n }) : t('fast.errOverlapMany', { n }),
+      tone,
+    };
   }
 
   async function save() {
@@ -226,7 +294,8 @@ export function FastSheet({
     }
   }
 
-  const note = warning();
+  const note = notice();
+  const editingStart = mode === 'running' || field === 'start';
 
   return (
     <BottomSheet visible={visible} onClose={onClose}>
@@ -240,9 +309,9 @@ export function FastSheet({
         )}
       </Text>
 
-      {/* The duration is the number the user came here for — every other
-          control on this sheet exists to move it — so it is the biggest thing
-          on the panel and it updates on every nudge. */}
+      {/* The duration is the number the user came here for — every field on
+          this sheet exists to move it — so it is the biggest thing on the
+          panel and it updates on every keystroke. */}
       <Text style={styles.duration} testID="fast-duration">
         {t(mode === 'running' ? 'fast.runningFor' : 'fast.length', {
           h: formatNumber(parts.hours, locale),
@@ -254,46 +323,55 @@ export function FastSheet({
         <FieldRow
           label={t('fast.started')}
           value={stamp(start)}
-          selected={mode === 'running' || field === 'start'}
+          selected={editingStart}
           // A single-field sheet has nothing to select BETWEEN, so the row is
-          // inert rather than a button that looks tappable and does nothing.
+          // inert rather than a header that looks tappable and does nothing.
           onPress={mode === 'running' ? undefined : () => { haptics.tap(); setField('start'); }}
           testID="fast-start-row"
         />
+        {editingStart ? (
+          // Keyed by field so switching rows REMOUNTS the editor: its text
+          // state is seeded from the value once, at mount, which is what keeps
+          // a half-typed hour from being overwritten on every keystroke.
+          <TimeField
+            key="start"
+            value={start}
+            onChange={setStart}
+            locale={locale}
+            testIDPrefix="fast-start"
+          />
+        ) : null}
+
         {mode === 'running' ? (
           <Text style={styles.runningNote}>{t('fast.runningNote')}</Text>
         ) : (
-          <FieldRow
-            label={t('fast.ended')}
-            value={stamp(end)}
-            selected={field === 'end'}
-            onPress={() => { haptics.tap(); setField('end'); }}
-            testID="fast-end-row"
-          />
+          <>
+            <FieldRow
+              label={t('fast.ended')}
+              value={stamp(end)}
+              selected={field === 'end'}
+              onPress={() => { haptics.tap(); setField('end'); }}
+              testID="fast-end-row"
+            />
+            {field === 'end' ? (
+              <TimeField
+                key="end"
+                value={end}
+                onChange={setEnd}
+                locale={locale}
+                testIDPrefix="fast-end"
+              />
+            ) : null}
+          </>
         )}
       </View>
 
-      <Text style={styles.adjustLabel}>
-        {t(mode === 'running' || field === 'start' ? 'fast.adjustStart' : 'fast.adjustEnd')}
-      </Text>
-      <View style={styles.steps}>
-        {STEPS.map((s) => (
-          <PressScale
-            key={s.id}
-            scaleTo={0.88}
-            style={styles.step}
-            onPress={() => bump(s.ms)}
-            accessibilityRole="button"
-            testID={`fast-step-${s.id}`}
-          >
-            <Text style={styles.stepText}>{s.label}</Text>
-          </PressScale>
-        ))}
-      </View>
-
       {note ? (
-        <Text style={styles.warn} testID="fast-warning">
-          {note}
+        <Text
+          style={[styles.notice, note.tone === 'error' ? styles.noticeError : styles.noticeNote]}
+          testID="fast-warning"
+        >
+          {note.text}
         </Text>
       ) : null}
 
@@ -320,6 +398,158 @@ export function FastSheet({
         </PressScale>
       ) : null}
     </BottomSheet>
+  );
+}
+
+/**
+ * Set one instant: the day it fell on, and the time on that day.
+ *
+ * The day is stepped and the time is typed, which is not an inconsistency —
+ * it is the shape of the two questions. "Which day" has three plausible
+ * answers (today, yesterday, the day before) and a stepper answers it in one
+ * tap; "what time" has 1,440 and only typing answers it.
+ */
+function TimeField({
+  value,
+  onChange,
+  locale,
+  testIDPrefix,
+}: {
+  value: Date;
+  onChange: (next: Date) => void;
+  locale: Locale;
+  testIDPrefix: string;
+}) {
+  const t = useT();
+  const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
+  const tag = localeTag(locale);
+  const hour12 = localeUses12Hour(tag);
+  const minuteRef = useRef<TextInput>(null);
+
+  const isPm = value.getHours() >= 12;
+  const [hourText, setHourText] = useState(() =>
+    hour12 ? String(((value.getHours() + 11) % 12) + 1) : String(value.getHours()),
+  );
+  const [minuteText, setMinuteText] = useState(() =>
+    String(value.getMinutes()).padStart(2, '0'),
+  );
+
+  function commitHour(raw: string) {
+    const digits = raw.replace(/[^0-9]/g, '').slice(0, 2);
+    setHourText(digits);
+    if (digits === '') return; // mid-edit; the stored value is left alone
+    const n = Number(digits);
+    if (hour12) {
+      if (n < 1 || n > 12) return;
+      onChange(withTime(value, (n % 12) + (isPm ? 12 : 0), value.getMinutes()));
+    } else {
+      if (n > 23) return;
+      onChange(withTime(value, n, value.getMinutes()));
+    }
+    // Two digits means the hour is finished — move on, so setting a time is
+    // one continuous type rather than type-tap-type.
+    if (digits.length === 2) minuteRef.current?.focus();
+  }
+
+  function commitMinute(raw: string) {
+    const digits = raw.replace(/[^0-9]/g, '').slice(0, 2);
+    setMinuteText(digits);
+    if (digits === '') return;
+    const n = Number(digits);
+    if (n > 59) return;
+    onChange(withTime(value, value.getHours(), n));
+  }
+
+  function setPeriod(nextPm: boolean) {
+    if (nextPm === isPm) return;
+    haptics.tap();
+    onChange(withTime(value, value.getHours() + (nextPm ? 12 : -12), value.getMinutes()));
+  }
+
+  function stepDay(delta: number) {
+    haptics.tap();
+    onChange(addDays(value, delta));
+  }
+
+  return (
+    <View style={styles.editor}>
+      <View style={styles.dayRow}>
+        <PressScale
+          scaleTo={0.9}
+          style={styles.dayBtn}
+          onPress={() => stepDay(-1)}
+          accessibilityRole="button"
+          accessibilityLabel={t('fast.dayEarlier')}
+          testID={`${testIDPrefix}-day-prev`}
+        >
+          <Ionicons name="chevron-back" size={18} color={colors.ink} />
+        </PressScale>
+        <Text style={styles.dayText} testID={`${testIDPrefix}-day`}>
+          {formatDate(value, locale, { weekday: 'short', month: 'short', day: 'numeric' })}
+        </Text>
+        <PressScale
+          scaleTo={0.9}
+          style={styles.dayBtn}
+          onPress={() => stepDay(1)}
+          accessibilityRole="button"
+          accessibilityLabel={t('fast.dayLater')}
+          testID={`${testIDPrefix}-day-next`}
+        >
+          <Ionicons name="chevron-forward" size={18} color={colors.ink} />
+        </PressScale>
+      </View>
+
+      <View style={styles.timeRow}>
+        <TextInput
+          style={styles.timeInput}
+          value={hourText}
+          onChangeText={commitHour}
+          keyboardType="number-pad"
+          maxLength={2}
+          selectTextOnFocus
+          returnKeyType="next"
+          placeholder={hour12 ? '12' : '00'}
+          placeholderTextColor={colors.faint}
+          accessibilityLabel={t('fast.hour')}
+          testID={`${testIDPrefix}-hour`}
+        />
+        <Text style={styles.colon}>:</Text>
+        <TextInput
+          ref={minuteRef}
+          style={styles.timeInput}
+          value={minuteText}
+          onChangeText={commitMinute}
+          keyboardType="number-pad"
+          maxLength={2}
+          selectTextOnFocus
+          returnKeyType="done"
+          placeholder="00"
+          placeholderTextColor={colors.faint}
+          accessibilityLabel={t('fast.minute')}
+          testID={`${testIDPrefix}-minute`}
+        />
+        {hour12 ? (
+          <View style={styles.periods}>
+            {[false, true].map((pm) => (
+              <PressScale
+                key={pm ? 'pm' : 'am'}
+                scaleTo={0.92}
+                style={[styles.period, isPm === pm && styles.periodOn]}
+                onPress={() => setPeriod(pm)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: isPm === pm }}
+                testID={`${testIDPrefix}-${pm ? 'pm' : 'am'}`}
+              >
+                <Text style={[styles.periodText, isPm === pm && styles.periodTextOn]}>
+                  {dayPeriodLabel(tag, pm ? 13 : 9)}
+                </Text>
+              </PressScale>
+            ))}
+          </View>
+        ) : null}
+      </View>
+    </View>
   );
 }
 
@@ -361,7 +591,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
     fontWeight: '800',
     color: colors.ink,
     textAlign: 'center',
-    marginTop: space.md,
+    marginTop: space.sm,
   },
   rows: { gap: space.sm, marginTop: space.lg },
   row: {
@@ -373,7 +603,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
     borderWidth: 1,
     // The unselected border is the hairline every other field in the app uses;
     // selection thickens and inks it rather than tinting the fill, so both rows
-    // keep the same weight and only one of them reads as armed.
+    // keep the same weight and only one of them reads as open.
     borderColor: colors.line,
     paddingHorizontal: space.lg,
     paddingVertical: space.md,
@@ -389,27 +619,46 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   rowLabelSelected: { color: colors.ink },
   rowValue: { fontSize: font.body, color: colors.ink, fontWeight: '700' },
   runningNote: { fontSize: font.small, color: colors.muted, paddingHorizontal: space.xs },
-  adjustLabel: {
-    fontSize: font.tiny,
-    color: colors.muted,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginTop: space.lg,
-    marginBottom: space.xs,
-  },
-  steps: { flexDirection: 'row', justifyContent: 'space-between', gap: space.xs },
-  step: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: space.sm,
+  editor: { gap: space.sm, paddingHorizontal: space.xs },
+  dayRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  dayBtn: {
+    paddingHorizontal: space.md,
+    paddingVertical: space.xs,
     borderRadius: radius.pill,
     borderWidth: 1,
     borderColor: colors.line,
-    backgroundColor: colors.inputBg,
   },
-  stepText: { fontSize: font.small, color: colors.ink, fontWeight: '700' },
-  warn: { fontSize: font.small, color: colors.danger, marginTop: space.md, textAlign: 'center' },
+  dayText: { fontSize: font.body, color: colors.ink, fontWeight: '700' },
+  timeRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
+  timeInput: {
+    flex: 1,
+    textAlign: 'center',
+    backgroundColor: colors.inputBg,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.md,
+    paddingVertical: space.md,
+    fontSize: font.h2,
+    fontWeight: '700',
+    color: colors.ink,
+  },
+  colon: { fontSize: font.h2, fontWeight: '800', color: colors.ink },
+  periods: { flexDirection: 'row', gap: space.xs, marginLeft: space.xs },
+  period: {
+    paddingHorizontal: space.md,
+    paddingVertical: space.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+  },
+  periodOn: { backgroundColor: colors.ink, borderColor: colors.ink },
+  periodText: { fontSize: font.small, color: colors.muted, fontWeight: '700' },
+  periodTextOn: { color: colors.onInk },
+  notice: { fontSize: font.small, marginTop: space.md, textAlign: 'center' },
+  noticeError: { color: colors.danger },
+  // A note is something to know, not something blocking the button. Colouring
+  // it like an error taught the reader that red means nothing in particular.
+  noticeNote: { color: colors.muted },
   save: {
     backgroundColor: colors.ink,
     borderRadius: radius.md,
