@@ -6,6 +6,48 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-29 — Ignia is on Google Play
+
+Production access was granted this morning. Ignia 1.2.1 (versionCode 37) is now
+on the Google Play **production** track at 100%, in **128 countries** — the
+first Android production release the app has ever had. It is the same binary
+testers have been running, so it carries runtime `ae526937…` and every
+over-the-air update already published reaches production users immediately.
+
+**The release was supposed to be one command and it was not.** The documented
+path — a `completed` release carrying an explicit 145-country `countryTargeting`
+— is a combination Google rejects, twice over:
+
+    Country targeting is only supported for staged releases
+    The first release on a track cannot be staged
+
+Those two close a loop with no way through: a first release must be `completed`,
+a `completed` release may not carry country targeting, so it inherits the
+**track's** availability — and that field is read-only in the API. The 128
+territories had to be picked by hand in Play Console before any release could
+exist. Nothing published while this was being worked out; the track read
+"available nowhere", which is the safe direction to fail.
+
+**Why 128 and not the 145 iOS ships to.** Play's picker offers 176 territories
+and simply does not offer 17 of ours — Afghanistan, Anguilla, Barbados, Brunei,
+Bhutan, Guyana, Madagascar, Montenegro, Mauritania, Montserrat, Malawi, Nauru,
+Palau, São Tomé & Príncipe, Eswatini, St. Vincent & Grenadines and Kosovo. The
+API accepts those codes and echoes them back, which makes an API-only check say
+the mirror is reproducible; the Console says otherwise and the Console is right.
+The remaining 30 — the EU 27 plus the UK, Iceland and Norway — are held back on
+purpose until Google's own Digital Services Act trader declaration is filed.
+Apple's does not carry over, and distributing in the EU without one removes the
+app from all 27 territories.
+
+Everything above now lives in the header of `scripts/play-production-release.mjs`,
+along with the traps the Console run turned up: "Rest of World" is a row in the
+country table rather than a separate switch, so selecting all silently opts you
+into every territory Google adds later; and mapping country names to codes by
+scanning two-letter pairs resolves *deprecated* codes too, which would have
+quietly dropped Benin, Burkina Faso, Russia and Serbia from the list.
+
+---
+
 ## 2026-08-28 — a fast you logged wrong was a fast you were stuck with
 
 Ending a fast wrote it down. Nothing let you change it afterwards.

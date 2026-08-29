@@ -111,8 +111,39 @@
 //     accepted all 17 on 2026-08-29, `XK` included, so they exist:
 //       AF AI BB BT BN SZ GY XK MG MW MR ME MS NR PW ST VC
 //
-// 176 - 30 - 18 + 17 = 145. Do not trust that arithmetic over `--availability`,
-// which reads the answer back from Play and names every discrepancy.
+// 176 - 30 - 18 = 128. The +17 is NOT available (see `NOT_OFFERED_BY_PLAY`).
+// Do not trust that arithmetic over `--availability`, which reads the answer
+// back from Play and names every discrepancy.
+//
+// ─────────────────────────────────────────────────────────────────────────────
+// STEP 2 WAS DONE ON 2026-08-29. What worked, for whoever repeats it:
+//
+// - The picker renders ALL 177 rows in the DOM (176 countries + "Rest of
+//   World"). It LOOKS virtualised because `read_page` defaults to depth 15 and
+//   the rows sit deeper; pass depth 40 and every row has a ref.
+// - **"Rest of World" is a ROW IN THE TABLE, not a separate toggle.** Select-all
+//   ticks it. Leaving it ticked is exactly the `includeRestOfWorld: true` this
+//   whole script exists to prevent. Untick it explicitly.
+// - **Scripted `.click()` does nothing.** Angular Material ignores untrusted
+//   events: 49 JS clicks reported success and changed zero checkboxes. Only
+//   real extension clicks register. Verify with `aria-checked`, never with the
+//   click call's own return.
+// - **Do not map country NAMES to codes by scanning all AA-ZZ pairs.**
+//   `Intl.DisplayNames` resolves DEPRECATED codes too, and they overwrite the
+//   live ones: DY->Benin, HV->Burkina Faso, SU->Russia, YU->Serbia, FX->France.
+//   That mapping would have unticked Benin, Burkina Faso, Russia and Serbia.
+//   Map FORWARD only (code -> name, from the keep list outward).
+// - Seven page labels differ from CLDR and need aliasing: Congo - Kinshasa,
+//   Congo - Brazzaville, Cape Verde, Macao, Hong Kong, South Korea,
+//   Myanmar (Burma).
+// - Save puts the change in **Publishing overview** as "not yet submitted for
+//   review". It carries an "Affects other tracks" badge; expanded, the only
+//   affected track was **Open testing** (alpha, which holds the 15 testers, was
+//   NOT affected). The availability applied and `--availability` read 128 back
+//   without waiting for a review to clear.
+// - The Console renderer wedges hard on this page — 30s CDP screenshot timeouts
+//   and "script injection timed out" that a wait does not always clear. Verify
+//   from the API, never from the page.
 //
 // Defaults to whatever versionCode is live on `alpha`, because promoting the
 // binary testers have been running is the whole point.
@@ -193,7 +224,35 @@ const EU_PENDING_PLAY_DSA = new Set([
   'POL', 'PRT', 'ROU', 'SVK', 'SVN', 'ESP', 'SWE', 'GBR', 'ISL', 'NOR',
 ]);
 
+/**
+ * The 17 territories that are in the ASC mirror but that PLAY DOES NOT OFFER.
+ *
+ * ## This is a platform limit, not drift, and not a mistake to fix
+ *
+ * Read off the live Console picker on 2026-08-29: Play's production
+ * Countries/regions list contains exactly **176** territories, and these 17 are
+ * not among them. There is no checkbox to tick.
+ *
+ * The confusing part, and the reason this needs writing down: the
+ * androidpublisher API **accepts all 17** in a release's `countryTargeting` and
+ * echoes them back. Accepting a code is not the same as offering a storefront.
+ * So an API-only check says the mirror is reproducible on Play and the Console
+ * says it is not — the Console is right.
+ *
+ * Consequence: Android's achievable maximum is **128**, not 145 (145 - 17). iOS
+ * stays at 175. That gap is permanent until Google adds these storefronts, and
+ * it is NOT the EU hold-back, which is a deliberate choice and lives in
+ * `EU_PENDING_PLAY_DSA` above.
+ */
+const NOT_OFFERED_BY_PLAY = new Set([
+  'AF', 'AI', 'BB', 'BN', 'BT', 'GY', 'ME', 'MG', 'MR', 'MS',
+  'MW', 'NR', 'PW', 'ST', 'SZ', 'VC', 'XK',
+]);
+
 const countries = Object.values(ASC_ALPHA3_TO_PLAY_ALPHA2);
+
+/** What Play can actually be set to: the mirror minus what Play does not sell in. */
+const attainable = countries.filter((c) => !NOT_OFFERED_BY_PLAY.has(c));
 
 /**
  * Validate the table before it can reach Play.
@@ -282,10 +341,13 @@ async function checkSource() {
 async function readAvailability(client, base, editId) {
   const r = (await client.request({ url: `${base}/edits/${editId}/countryAvailability/production` })).data;
   const live = (r.countries ?? []).map((c) => c.countryCode).sort();
-  const want = [...countries].sort();
+  const want = [...attainable].sort();
+  // `missing` is only ever a REAL gap. A territory Play does not offer cannot be
+  // set and must not read as drift, or the gate below never opens.
   const missing = want.filter((c) => !live.includes(c));
   const extra = live.filter((c) => !want.includes(c));
-  return { live, restOfWorld: r.restOfWorld === true, missing, extra };
+  const unobtainable = countries.filter((c) => NOT_OFFERED_BY_PLAY.has(c) && !live.includes(c));
+  return { live, restOfWorld: r.restOfWorld === true, missing, extra, unobtainable };
 }
 
 async function main() {
@@ -328,8 +390,11 @@ async function main() {
   if (args.includes('--availability')) {
     const a = await readAvailability(client, base, edit.id);
     console.log(`\nproduction track availability: ${a.live.length} countries, restOfWorld=${a.restOfWorld}`);
-    if (a.missing.length) console.log(`missing vs table (${a.missing.length}): ${a.missing.join(' ')}`);
-    if (a.extra.length) console.log(`extra vs table (${a.extra.length}): ${a.extra.join(' ')}`);
+    console.log(`target: ${attainable.length} attainable of ${countries.length} in the mirror`);
+    if (a.unobtainable.length) console.log(`not offered by Play, expected absent (${a.unobtainable.length}): ${a.unobtainable.join(' ')}`);
+    if (a.missing.length) console.log(`MISSING and settable (${a.missing.length}): ${a.missing.join(' ')}`);
+    if (a.extra.length) console.log(`EXTRA, not in the mirror (${a.extra.length}): ${a.extra.join(' ')}`);
+    if (!a.missing.length && !a.extra.length && !a.restOfWorld) console.log('track MATCHES the attainable target.');
     await client.request({ url: `${base}/edits/${edit.id}`, method: 'DELETE' }).catch(() => {});
     return;
   }
@@ -346,6 +411,7 @@ async function main() {
     const avail = await readAvailability(client, base, edit.id);
     if (complete) {
       console.log(`\nproduction track availability: ${avail.live.length} countries, restOfWorld=${avail.restOfWorld}`);
+      console.log(`target is ${attainable.length} (the ${countries.length}-territory mirror minus ${NOT_OFFERED_BY_PLAY.size} Play does not offer)`);
       const blockers = [];
       if (avail.missing.length) blockers.push(`track is MISSING ${avail.missing.length}: ${avail.missing.join(' ')}`);
       if (avail.extra.length) blockers.push(`track carries ${avail.extra.length} NOT in the table: ${avail.extra.join(' ')}`);
