@@ -17,6 +17,7 @@ import {
   setDoc,
   Timestamp,
   updateDoc,
+  deleteField,
 } from 'firebase/firestore';
 
 // Exercises the highest-risk invariants in firestore.rules. Each spec covers a
@@ -548,6 +549,7 @@ describe('firestore.rules', () => {
     firstEntryAt: Timestamp.now(),
     ageConfirmedAt: Timestamp.now(),
     welcomeEmailSentAt: Timestamp.now(),
+    day1NudgeSentAt: Timestamp.now(),
     reminderHour: 19,
     timezoneOffsetMin: 240,
     fcmToken: 'f'.repeat(160),
@@ -763,6 +765,17 @@ describe('firestore.rules', () => {
         lastSeenAt: Timestamp.now(),
       }),
     );
+  });
+
+  it('pins the day-1 nudge latch to the server — the owner cannot move or clear it', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users', 'alice'), fullProfile());
+    });
+    const db = authed('alice');
+    await assertFails(updateDoc(doc(db, 'users', 'alice'), { day1NudgeSentAt: Timestamp.fromMillis(0), lastSeenAt: Timestamp.now() }));
+    await assertFails(updateDoc(doc(db, 'users', 'alice'), { day1NudgeSentAt: deleteField(), lastSeenAt: Timestamp.now() }));
+    // Leaving it alone is fine.
+    await assertSucceeds(updateDoc(doc(db, 'users', 'alice'), { calorieFloor: 1950, lastSeenAt: Timestamp.now() }));
   });
 
   it('lets a real-shaped profile save the Refine-targets sheet', async () => {

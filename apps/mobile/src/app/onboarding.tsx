@@ -22,6 +22,8 @@ import {
 import { BrandMark } from '@/components/BrandMark';
 import { useAuth } from '@/lib/auth';
 import { saveOnboardingV2 } from '@/lib/ledger';
+import { setRemindersEnabled } from '@/lib/reminders';
+import { DEFAULT_MEAL_REMINDERS, STREAK_RISK_HOUR, STREAK_RISK_MINUTE } from '@macrolog/core';
 import { track } from '@/lib/analytics';
 import { type I18nKey, useLocale, useT } from '@/i18n';
 import { formatNumber } from '@/lib/date-format';
@@ -31,7 +33,7 @@ import { useUnitSystem } from '@/lib/use-unit-system';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, motion, radius, space, type } from '@/theme';
 
-type StepId = 'welcome' | 'goal' | 'weight' | 'goalWeight' | 'body' | 'activity' | 'plan';
+type StepId = 'welcome' | 'goal' | 'weight' | 'goalWeight' | 'body' | 'activity' | 'plan' | 'reminders';
 const ORDER: StepId[] = ['welcome', 'goal', 'weight', 'goalWeight', 'body', 'activity', 'plan'];
 /** Steps that get a progress dot (welcome is a greeting, not a form step). */
 const DOT_STEPS: StepId[] = ['goal', 'weight', 'goalWeight', 'body', 'activity', 'plan'];
@@ -207,7 +209,8 @@ export default function Onboarding() {
     // A typed calorie number has to clear the floor before it can be saved —
     // otherwise `dailyTargets` clamps it on the way out and hands the user a
     // number they did not choose, which is the exact defect being fixed.
-    (step === 'plan' && (!edited || kcalCheck.ok));
+    (step === 'plan' && (!edited || kcalCheck.ok)) ||
+    step === 'reminders';
 
   function go(delta: 1 | -1) {
     haptics.tap();
@@ -264,7 +267,19 @@ export default function Onboarding() {
       // and counting it would inflate the one funnel step this exists to answer.
       if (!isRedo) track('onboarding_complete');
       haptics.success();
-      router.replace(isRedo ? '/settings' : '/(app)');
+      if (isRedo) {
+        router.replace('/settings');
+        return;
+      }
+      // First run only: the plan is saved; the one thing left to ask is
+      // whether Ignia may nudge at meal times. Measured 2026-08-30: two of
+      // the four organic installs that week logged 10 and 22 meals on day 0
+      // and never came back on day 1 — and nobody had reminders on, because
+      // the switch lived in Settings. This is the day-1 lever, asked once,
+      // with the OS permission prompt only after a yes.
+      setBusy(false);
+      setDir(1);
+      setStep('reminders');
     } catch (e) {
       // A permission-denied here means the email isn't verified (the rules
       // block the write) — surface that instead of blaming the connection.
@@ -276,8 +291,35 @@ export default function Onboarding() {
     }
   }
 
+  /** Locale-formatted wall-clock time for the reminder preview rows. */
+  function clock(hour: number, minute: number): string {
+    const d = new Date();
+    d.setHours(hour, minute, 0, 0);
+    return d.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' });
+  }
+
+  function leaveOnboarding(): void {
+    router.replace('/(app)');
+  }
+
+  /** Yes to reminders: ask the OS, and whatever it says, go to Today. A denied
+   *  permission leaves the switch off (setRemindersEnabled handles that) and
+   *  the user lands where they were going anyway. */
+  async function onEnableReminders(): Promise<void> {
+    setBusy(true);
+    try {
+      const granted = await setRemindersEnabled(true);
+      if (granted) haptics.success();
+    } catch {
+      // Permission prompt failing must never trap someone in onboarding.
+    } finally {
+      setBusy(false);
+      leaveOnboarding();
+    }
+  }
+
   const entering = (dir === 1 ? FadeInRight : FadeInLeft).duration(motion.dur.base).reduceMotion(ReduceMotion.System);
-  const showBack = step !== 'welcome' && !(isRedo && step === 'goal');
+  const showBack = step !== 'welcome' && step !== 'reminders' && !(isRedo && step === 'goal');
   const dots = DOT_STEPS.filter((s) => !isSkipped(s));
   const dotIndex = dots.indexOf(step);
   const dotTotal = dots.length;
@@ -585,17 +627,35 @@ export default function Onboarding() {
             </View>
           ) : null}
 
+          {step === 'reminders' ? (
+            <View style={styles.step} testID="onboarding-reminders">
+              <Text style={styles.question}>{t('onboarding.remindersQ')}</Text>
+              <Text style={styles.planSub}>{t('onboarding.remindersBody')}</Text>
+              <View style={styles.planPanel}>
+                <Text style={styles.reminderRow}>{t('onboarding.remindersLunch', { t: clock(DEFAULT_MEAL_REMINDERS.lunch.hour, DEFAULT_MEAL_REMINDERS.lunch.minute) })}</Text>
+                <Text style={styles.reminderRow}>{t('onboarding.remindersDinner', { t: clock(DEFAULT_MEAL_REMINDERS.dinner.hour, DEFAULT_MEAL_REMINDERS.dinner.minute) })}</Text>
+                <Text style={styles.reminderRow}>{t('onboarding.remindersStreak', { t: clock(STREAK_RISK_HOUR, STREAK_RISK_MINUTE) })}</Text>
+              </View>
+              <Text style={styles.planSub}>{t('onboarding.remindersNote')}</Text>
+            </View>
+          ) : null}
+
           {error ? <Text style={styles.error}>{error}</Text> : null}
         </Animated.View>
         </ScrollView>
 
         <View style={styles.footer}>
+          {step === 'reminders' ? (
+            <PressScale style={styles.ctaGhost} scaleTo={0.98} disabled={busy} onPress={leaveOnboarding} testID="onboarding-reminders-skip">
+              <Text style={styles.ctaGhostText}>{t('onboarding.remindersNotNow')}</Text>
+            </PressScale>
+          ) : null}
           <PressScale
             style={[styles.cta, !canAdvance && styles.ctaDisabled]}
             scaleTo={0.98}
             disabled={!canAdvance || busy}
-            onPress={step === 'plan' ? onFinish : () => go(1)}
-            testID={step === 'plan' ? 'onboarding-save' : 'onboarding-next'}
+            onPress={step === 'reminders' ? onEnableReminders : step === 'plan' ? onFinish : () => go(1)}
+            testID={step === 'reminders' ? 'onboarding-reminders-on' : step === 'plan' ? 'onboarding-save' : 'onboarding-next'}
           >
             {busy ? (
               <ActivityIndicator color={colors.onInk} />
@@ -603,6 +663,8 @@ export default function Onboarding() {
               <Text style={styles.ctaText}>
                 {step === 'welcome'
                   ? t('onboarding.welcomeCta')
+                  : step === 'reminders'
+                    ? t('onboarding.remindersOn')
                   : step === 'plan'
                     ? isRedo
                       ? t('onboarding.saveEdit')
@@ -871,4 +933,7 @@ const createStyles = ({ colors, shadow }: Theme) =>
     cta: { backgroundColor: colors.ink, borderRadius: radius.md, paddingVertical: space.lg, alignItems: 'center' },
     ctaDisabled: { opacity: 0.4 },
     ctaText: { color: colors.onInk, fontSize: font.h3, fontWeight: '700' },
+    ctaGhost: { paddingVertical: space.md, alignItems: 'center', marginBottom: space.xs },
+    ctaGhostText: { color: colors.muted, fontSize: font.body, fontWeight: '600' },
+    reminderRow: { fontSize: font.body, color: colors.ink, paddingVertical: space.xs, textAlign: 'center' },
   });

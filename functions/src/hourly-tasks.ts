@@ -1,6 +1,7 @@
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { resendApiKey } from "./resend-client";
 import { runWeeklyDigest } from "./weekly-digest";
+import { runDay1Nudge } from "./day1-nudge";
 import { runPublishUserCount } from "./ops";
 import { runRetentionCohorts } from "./retention";
 import { runSpendCeilingWatch } from "./spend-ceiling";
@@ -38,6 +39,8 @@ export const hourlyTasks = onSchedule(
     const tasks: Array<[string, () => Promise<void>]> = [
       ["publishUserCount", runPublishUserCount],
       ["sendWeeklyDigest", runWeeklyDigest],
+      // One email ~24 h after onboarding; latched per user (day1-nudge.ts).
+      ["day1Nudge", runDay1Nudge],
       // Self-gating: returns immediately except on its one UTC hour a day.
       ["retentionCohorts", () => runRetentionCohorts(db)],
       // A kill-switch with no alarm is a trap: without this, the first sign

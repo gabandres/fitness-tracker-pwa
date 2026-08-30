@@ -129,6 +129,8 @@ service cloud.firestore {
               // Weekly digest opt-in (client-writable) + server stamp
               // (server-only, listed for round-trip parity).
               'weeklyDigestOptIn', 'lastWeeklyDigestSentAt',
+              // Day-1 nudge latch (server-only, day1-nudge.ts).
+              'day1NudgeSentAt',
               // Unit system (food-search portion picker default).
               'unitSystem',
               // Per-user suppress list for the entry-sheet recents row.
@@ -463,6 +465,9 @@ service cloud.firestore {
               // server-stamped by sendWeeklyDigest; the rule below
               // pins it immutable to clients.
               'weeklyDigestOptIn', 'lastWeeklyDigestSentAt',
+              // Day-1 nudge latch — server-stamped by runDay1Nudge; the
+              // update rule pins it immutable to clients.
+              'day1NudgeSentAt',
               // Unit system: 'us' (cup/tbsp default) | 'metric' (grams default).
               'unitSystem',
               // Per-user suppress list for the entry-sheet recents row.
@@ -576,6 +581,8 @@ service cloud.firestore {
               data.weeklyDigestOptIn is bool)
           && (!('lastWeeklyDigestSentAt' in keys) ||
               data.lastWeeklyDigestSentAt is timestamp)
+          && (!('day1NudgeSentAt' in keys) ||
+              data.day1NudgeSentAt is timestamp)
           && (!('unitSystem' in keys) ||
               data.unitSystem == 'us' || data.unitSystem == 'metric')
           && (!('hiddenRecentLabels' in keys) ||
@@ -643,6 +650,9 @@ service cloud.firestore {
                        // it (which would cause duplicate sends).
                        && (resource.data.get('lastWeeklyDigestSentAt', null) ==
                            request.resource.data.get('lastWeeklyDigestSentAt', null))
+                       // day1NudgeSentAt is server-stamped by runDay1Nudge.
+                       && (resource.data.get('day1NudgeSentAt', null) ==
+                           request.resource.data.get('day1NudgeSentAt', null))
                        // Server-only notification/lifecycle latches (all
                        // written by admin-SDK CFs: dayThreeCoachPushSent by
                        // sendDayThreeCoachPush, welcomeEmailSentAt by

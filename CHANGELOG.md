@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026-08-30 — Two day-1 retention levers: reminders asked at onboarding, and a day-1 email
+
+Measured first: of the week's four organic iOS installs, two logged 10 and 22
+meals on day 0 and never opened the app on day 1, two never logged at all, and
+none had reminders on — the switch lived in Settings, and after the welcome
+email the product never touched a new user again.
+
+**Onboarding now ends by asking about reminders** (mobile; first run only,
+after the plan is saved so the OS permission prompt never stands between a
+person and their plan). Yes → `setRemindersEnabled(true)` and the existing
+smart plan (lunch 13:30, dinner 20:00, streak-at-risk) schedules on Today
+focus; No → nothing, changeable in Settings as before. Three locales, four
+jest tests. Delivered to iOS by OTA; Android sits on vc 40 until it reaches a
+track (#107).
+
+**A day-1 email** (`functions/src/day1-nudge.ts`, in the hourly dispatcher —
+no new scheduler job): sent once, 20–48 h after onboarding, skipped entirely
+if the person logged in the last 20 h. Two shapes — never-logged gets the
+first-meal pitch, day-0 loggers get the day-two one. Same consent model and
+unsubscribe link as the welcome mail; `day1NudgeSentAt` is latched in a
+transaction before sending and pinned server-only in `firestore.rules`
+(rules + latch case deployed). Copy in en / es-PR / pt-BR, no shame words —
+a template test bans streak/missed language outright.
+
 Significant ships to [ignia.fit](https://ignia.fit) and the Ignia iOS app, newest first.
 
 Small copy tweaks, internal refactors, test additions, and bug fixes aren't listed here — see `git log` for the full record, and `UX_AUDIT.md` for the living UX backlog.

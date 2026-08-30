@@ -1035,3 +1035,134 @@ export function weeklyDigestEmail(params: WeeklyDigestParams): RenderedEmail {
     footerLifecycle(params.locale, params.unsubscribeUrl),
   );
 }
+
+// ─── Day-1 nudge (lifecycle) ─────────────────────────────────────────
+//
+// Sent by `day1-nudge.ts` roughly a day after onboarding, in one of two
+// shapes: the person never logged (`firstLog`), or logged on day 0 and has
+// not been back (`keepGoing`). Same calm register as the welcome mail — no
+// streak shaming, no countdown, one concrete next step. Consent and the
+// unsubscribe link are the welcome email's.
+
+export type Day1Variant = "firstLog" | "keepGoing";
+
+export interface Day1NudgeParams {
+  locale: EmailLocale;
+  variant: Day1Variant;
+  displayName?: string | null;
+  unsubscribeUrl?: string;
+}
+
+interface Day1Copy {
+  subject: string;
+  preheader: string;
+  heading: string;
+  lead: (first: string | null) => string;
+  body: string;
+  steps: string[];
+  button: string;
+  note: string;
+}
+
+const DAY1: Record<EmailLocale, Record<Day1Variant, Day1Copy>> = {
+  "en": {
+    firstLog: {
+      subject: "Your first log takes about twenty seconds",
+      preheader: "Snap a photo of the next thing you eat — Ignia does the rest.",
+      heading: "Nothing on the record yet — that's fine.",
+      lead: (first) => (first ? `${first}, your plan is set up and waiting.` : "Your plan is set up and waiting."),
+      body: "The only thing Ignia needs from you is one meal. Not a perfect day — one entry, so the ring has something to work with.",
+      steps: [
+        "<strong>Photo.</strong> Point the camera at the plate; the macros come back in a few seconds.",
+        "<strong>Or type it.</strong> “two eggs and toast” is enough.",
+        "<strong>Or a barcode.</strong> Anything packaged.",
+      ],
+      button: "Log one meal",
+      note: "If Ignia isn't for you, no hard feelings — the link at the bottom stops these.",
+    },
+    keepGoing: {
+      subject: "Yesterday is on the record",
+      preheader: "Today's ring is empty. One entry keeps the estimate honest.",
+      heading: "Day two is the one that counts.",
+      lead: (first) => (first ? `${first}, yesterday's meals are in.` : "Yesterday's meals are in."),
+      body: "Ignia's calorie estimate gets real after about two weeks of ordinary days — not perfect days, ordinary ones. Today's ring is empty; whatever you eat next is a good place to start.",
+      steps: [
+        "<strong>Repeat yesterday</strong> is one tap on Today if it was a typical day.",
+        "<strong>Turn on meal reminders</strong> in Settings and you won't have to remember.",
+      ],
+      button: "Open today's ring",
+      note: "Reply to this email if anything felt off yesterday — it reaches a person.",
+    },
+  },
+  "es-PR": {
+    firstLog: {
+      subject: "Tu primer registro toma unos veinte segundos",
+      preheader: "Tómale una foto a lo próximo que comas — Ignia hace el resto.",
+      heading: "Todavía no hay nada anotado — está bien.",
+      lead: (first) => (first ? `${first}, tu plan está listo y esperando.` : "Tu plan está listo y esperando."),
+      body: "Lo único que Ignia necesita de ti es una comida. No un día perfecto — una entrada, para que el anillo tenga con qué trabajar.",
+      steps: [
+        "<strong>Foto.</strong> Apunta la cámara al plato; los macros llegan en segundos.",
+        "<strong>O escríbelo.</strong> “dos huevos y tostada” es suficiente.",
+        "<strong>O un código de barras.</strong> Cualquier cosa empacada.",
+      ],
+      button: "Registrar una comida",
+      note: "Si Ignia no es para ti, sin problema — el enlace de abajo detiene estos correos.",
+    },
+    keepGoing: {
+      subject: "Lo de ayer ya quedó anotado",
+      preheader: "El anillo de hoy está vacío. Una entrada mantiene el estimado honesto.",
+      heading: "El día dos es el que cuenta.",
+      lead: (first) => (first ? `${first}, las comidas de ayer ya están.` : "Las comidas de ayer ya están."),
+      body: "El estimado de calorías de Ignia se vuelve real después de unas dos semanas de días normales — no perfectos, normales. El anillo de hoy está vacío; lo próximo que comas es un buen punto de partida.",
+      steps: [
+        "<strong>Repetir ayer</strong> es un toque en Hoy si fue un día típico.",
+        "<strong>Activa los recordatorios de comidas</strong> en Ajustes y no tendrás que acordarte.",
+      ],
+      button: "Abrir el anillo de hoy",
+      note: "Responde a este correo si algo no cuadró ayer — le llega a una persona.",
+    },
+  },
+  "pt-BR": {
+    firstLog: {
+      subject: "Seu primeiro registro leva uns vinte segundos",
+      preheader: "Tire uma foto da próxima coisa que comer — o Ignia faz o resto.",
+      heading: "Nada anotado ainda — tudo bem.",
+      lead: (first) => (first ? `${first}, seu plano está pronto e esperando.` : "Seu plano está pronto e esperando."),
+      body: "A única coisa que o Ignia precisa de você é uma refeição. Não um dia perfeito — um registro, para o anel ter com o que trabalhar.",
+      steps: [
+        "<strong>Foto.</strong> Aponte a câmera para o prato; os macros voltam em segundos.",
+        "<strong>Ou digite.</strong> “dois ovos e torrada” já basta.",
+        "<strong>Ou um código de barras.</strong> Qualquer coisa embalada.",
+      ],
+      button: "Registrar uma refeição",
+      note: "Se o Ignia não for para você, sem problema — o link no rodapé interrompe estes e-mails.",
+    },
+    keepGoing: {
+      subject: "Ontem já está registrado",
+      preheader: "O anel de hoje está vazio. Um registro mantém a estimativa honesta.",
+      heading: "O dia dois é o que conta.",
+      lead: (first) => (first ? `${first}, as refeições de ontem já estão lá.` : "As refeições de ontem já estão lá."),
+      body: "A estimativa de calorias do Ignia fica real depois de umas duas semanas de dias comuns — não perfeitos, comuns. O anel de hoje está vazio; o que você comer a seguir é um bom começo.",
+      steps: [
+        "<strong>Repetir ontem</strong> é um toque em Hoje se foi um dia típico.",
+        "<strong>Ative os lembretes de refeição</strong> em Ajustes e não vai precisar lembrar.",
+      ],
+      button: "Abrir o anel de hoje",
+      note: "Responda a este e-mail se algo pareceu errado ontem — chega a uma pessoa.",
+    },
+  },
+};
+
+export function day1NudgeEmail(params: Day1NudgeParams): RenderedEmail {
+  const c = DAY1[params.locale][params.variant];
+  const first = firstNameOf(params.displayName);
+  const blocks: Block[] = [
+    { kind: "lead", text: c.lead(first) },
+    { kind: "para", text: c.body },
+    { kind: "list", items: c.steps },
+    { kind: "button", label: c.button, href: APP_LINK },
+    { kind: "note", text: c.note },
+  ];
+  return build(params.locale, c.subject, c.preheader, c.heading, blocks, footerLifecycle(params.locale, params.unsubscribeUrl));
+}

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  day1NudgeEmail,
   passwordResetEmail,
   verifyEmailEmail,
   welcomeEmail,
@@ -571,5 +572,45 @@ describe("locale parity", () => {
       const { html } = welcomeEmail({ locale, displayName: null });
       expect(html).toContain(`lang="${expected[locale]}"`);
     }
+  });
+});
+
+describe("day-1 nudge email", () => {
+  const VARIANTS = ["firstLog", "keepGoing"] as const;
+
+  it("renders both variants in every shipped language with a text part and the /open CTA", () => {
+    for (const locale of LOCALES) {
+      for (const variant of VARIANTS) {
+        const mail: RenderedEmail = day1NudgeEmail({ locale, variant, displayName: "Ana Lucía", unsubscribeUrl: UNSUB });
+        expect(mail.subject.length).toBeGreaterThan(8);
+        expect(mail.text.length).toBeGreaterThan(200);
+        expect(hasHtmlTags(mail.text)).toBe(false);
+        expect(mail.html).toContain("https://ignia.fit/open");
+        expect(mail.html).toContain(UNSUB);
+        expect(flat(mail.text)).toContain("Ana");
+      }
+    }
+  });
+
+  it("the two variants say different things — never-logged gets the first-meal pitch, day-0 loggers get the day-two one", () => {
+    const a = day1NudgeEmail({ locale: "en", variant: "firstLog", displayName: null });
+    const b = day1NudgeEmail({ locale: "en", variant: "keepGoing", displayName: null });
+    expect(a.subject).not.toBe(b.subject);
+    expect(flat(a.text)).toMatch(/one meal|first log/i);
+    expect(flat(b.text)).toMatch(/day two|yesterday/i);
+  });
+
+  it("never shames — no streak counters, no 'you missed', no red/green scoreboard language", () => {
+    for (const locale of LOCALES) {
+      for (const variant of VARIANTS) {
+        const t = flat(day1NudgeEmail({ locale, variant, displayName: null }).text).toLowerCase();
+        expect(t).not.toMatch(/you missed|fallaste|você perdeu|streak of|racha de|sequência de|days? in a row/);
+      }
+    }
+  });
+
+  it("escapes a hostile display name in the HTML part", () => {
+    const mail = day1NudgeEmail({ locale: "en", variant: "firstLog", displayName: "<img src=x onerror=alert(1)> Bob" });
+    expect(mail.html).not.toContain("<img src=x");
   });
 });
