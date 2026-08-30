@@ -13,6 +13,7 @@ import { useT, useLocale } from '@/i18n';
 import { formatNumber } from '@/lib/date-format';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { useDismissedStub } from '@/hooks/useDismissedStub';
+import { StubLabel } from '@/components/StubLabel';
 import { font, radius, space, type } from '@/theme';
 import { PressScale } from '@/lib/motion';
 import * as haptics from '@/lib/haptics';
@@ -100,16 +101,16 @@ export function FastingTrendsCard({
             router.replace('/(app)');
           }}
         >
-          <Text style={styles.linkLabel}>
-            {fasting.fastRunning
+          <StubLabel text={
+            fasting.fastRunning
               ? t('trends.fastingEmptyRunning')
               : fasting.recorded > 0
                 ? t('trends.fastingEmptyProgress', {
                     n: formatNumber(fasting.recorded, locale),
                     need: formatNumber(FASTING_CARD_MIN_FASTS, locale),
                   })
-                : t('trends.fastingEmpty')}
-          </Text>
+                : t('trends.fastingEmpty')
+          } />
           <Ionicons name="chevron-forward" size={16} color={colors.faint} />
         </PressScale>
         {/* Dismiss sits OUTSIDE the navigating pressable rather than inside
@@ -330,7 +331,9 @@ const createStyles = ({ colors }: Theme) =>
       gap: space.sm,
       paddingVertical: space.md,
     },
-    linkLabel: { flex: 1, fontSize: font.small, color: colors.muted },
+    // The stub row's label lives in `StubLabel` now — both this card and the
+    // sleep card render the identical shape, which is the "two want it, extract
+    // it" threshold rather than one.
     stubRow: { flexDirection: 'row', alignItems: 'center' },
     // Generous padding, small glyph: the target is 40dp tall against a
     // 16dp icon, because this is a one-way action sitting a few pixels
