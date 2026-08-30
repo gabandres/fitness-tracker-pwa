@@ -71,6 +71,39 @@ describe('milestone copy is retrospective in every locale', () => {
     }
   });
 
+  // ── The #110 guardrail, as a test ────────────────────────────────────
+  //
+  // `goal-reached` is the one milestone about an outcome rather than a
+  // behaviour, in a calorie tracker, on a weight number. #110 dropped
+  // `first-5-lb` and `four-weeks-on-target` precisely to avoid weight-magnitude
+  // praise; the prompt is where it would creep back in, one well-meaning copy
+  // edit at a time.
+  describe('the goal prompt asks, and does not congratulate', () => {
+    const GOAL_KEYS = ['milestones.goalAsk', 'milestones.goalAdd', 'milestones.goalDecline'];
+
+    it.each(LOCALES)('%s names no weight and no magnitude', (locale) => {
+      const dict = LOCALE_DEFS[locale as keyof typeof LOCALE_DEFS].dict;
+      for (const key of GOAL_KEYS) {
+        const v = dict[key as keyof typeof dict];
+        // No digits at all: a number here would be a weight, and the whole
+        // point is that this surface never quotes one.
+        expect(v).not.toMatch(/\d/);
+        expect(v).not.toMatch(/\b(lb|lbs|kg|kilo|libra)\b/i);
+      }
+    });
+
+    it.each(LOCALES)('%s congratulates nobody before they answer', (locale) => {
+      const dict = LOCALE_DEFS[locale as keyof typeof LOCALE_DEFS].dict;
+      const ask = dict['milestones.goalAsk' as keyof typeof dict];
+      expect(ask).not.toMatch(
+        /congrat|well done|amazing|proud|felicidades|enhorabuena|parabéns|incrível|orgulh/i,
+      );
+      // It is a question. If it stops ending in one, it has become a statement
+      // about the user's body rather than a request to record a fact.
+      expect(ask.trim().endsWith('?')).toBe(true);
+    });
+  });
+
   it('says "recorded", not "achieved" — the date is when Ignia noticed', () => {
     // For a derived milestone (a streak length is not an event) `earnedAt` is
     // when the app evaluated, not when the act happened. The copy must not

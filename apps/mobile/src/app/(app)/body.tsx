@@ -26,9 +26,13 @@ import {
   weightBoundsFor,
 } from '@macrolog/core';
 import { BottomSheet } from '@/components/BottomSheet';
+import { GoalMilestonePrompt } from '@/components/GoalMilestonePrompt';
 import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { Sparkline } from '@/components/Sparkline';
 import { useBody } from '@/hooks/useBody';
+import { useMilestoneRecord } from '@/hooks/useMilestones';
+import { useAuth } from '@/lib/auth';
+import { recordMilestone } from '@/lib/ledger';
 import { type I18nKey, type Locale, type TFn, useLocale, useT } from '@/i18n';
 import type { BodyFatInput } from '@macrolog/core';
 import * as haptics from '@/lib/haptics';
@@ -92,7 +96,10 @@ export default function Body() {
     weightSeries,
     projectedSeries,
     goalProgress,
+    goalCrossed,
   } = useBody();
+  const { user } = useAuth();
+  const milestones = useMilestoneRecord(user?.uid);
   const t = useT();
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
@@ -230,6 +237,18 @@ export default function Body() {
             ) : null}
           </Animated.View>
           </Animated.View>
+
+          {/* The `goal-reached` milestone needs a human, because the schema
+              cannot supply one: `dailyWeights` carries no `source`, so a typed
+              weigh-in and an auto-import are the same document (#110). It sits
+              here rather than on Today because this is where the goal and the
+              trend it is measured against already live. */}
+          <GoalMilestonePrompt
+            visible={goalCrossed && !milestones.earned['goal-reached']}
+            onConfirm={() => {
+              if (user?.uid) void recordMilestone(user.uid, 'goal-reached');
+            }}
+          />
 
           <Animated.View entering={enterUp(1)}>
             <TouchableOpacity style={styles.logBtn} onPress={() => setOpen(true)} testID="log-weight">

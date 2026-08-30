@@ -4,6 +4,7 @@ import {
   GOAL_MIN_READINGS,
   MILESTONE_ORDER,
   goalReached,
+  goalTrendCrossed,
   newlyEarned,
   sortMilestones,
   streakMilestonesReached,
@@ -94,6 +95,42 @@ describe('goalReached', () => {
 
   it('will not record on a trend the user never contributed to', () => {
     expect(goalReached({ ...sound, manualReadingCount: 0 })).toBe(false);
+  });
+
+  // ── The split, and why it must not collapse ──────────────────────────
+  //
+  // `goalTrendCrossed` is the objective fact a UI may ASK a question about.
+  // `goalReached` additionally demands that the person put the numbers there,
+  // which today's schema cannot show — `dailyWeights` carries no `source`. The
+  // confirmation prompt on Body supplies the human instead. If these two ever
+  // collapse into one, an automatic writer inherits the loose test.
+
+  it('goalTrendCrossed ignores provenance — it is the objective fact', () => {
+    expect(goalTrendCrossed({ ...sound, manualReadingCount: 0 })).toBe(true);
+  });
+
+  it('goalTrendCrossed still refuses everything else goalReached refuses', () => {
+    expect(goalTrendCrossed({ ...sound, goalDirection: 'maintain' })).toBe(false);
+    expect(goalTrendCrossed({ ...sound, goalDirection: 'gain' })).toBe(false);
+    expect(goalTrendCrossed({ ...sound, readingCount: GOAL_MIN_READINGS - 1 })).toBe(false);
+    expect(goalTrendCrossed({ ...sound, targetWeightLbs: null })).toBe(false);
+    expect(goalTrendCrossed({ ...sound, trendWeightLb: null })).toBe(false);
+  });
+
+  it('goalReached is strictly stronger than goalTrendCrossed', () => {
+    // Anything goalReached accepts, goalTrendCrossed must accept too. A future
+    // edit that made the strict one pass where the loose one fails would mean
+    // the provenance guard had stopped guarding anything.
+    const cases: GoalEvidence[] = [
+      sound,
+      { ...sound, goalDirection: 'gain', trendWeightLb: 181 },
+      { ...sound, trendWeightLb: 180 },
+      { ...sound, manualReadingCount: 0 },
+      { ...sound, goalDirection: 'maintain' },
+    ];
+    for (const c of cases) {
+      if (goalReached(c)) expect(goalTrendCrossed(c)).toBe(true);
+    }
   });
 
   it('refuses absent numbers rather than coercing them', () => {

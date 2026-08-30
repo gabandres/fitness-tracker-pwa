@@ -17,6 +17,7 @@ import {
   dayKeyAt,
   latestNavyBodyFat,
   missingBodyFatInputs,
+  goalTrendCrossed,
   projectWeight,
   weightPointsForDays,
   weightSeriesForDays,
@@ -66,6 +67,11 @@ export interface BodyState {
   /** Linear-fit weight trend + projected goal date, or null when there
    *  aren't enough weigh-ins to fit a line. */
   projection: WeightProjection | null;
+  /** Whether the fitted trend has crossed the user's own goal weight — the
+   *  OBJECTIVE half only (`goalTrendCrossed`, never `goalReached`). What the
+   *  `goal-reached` milestone prompt asks a question with; the person answering
+   *  supplies the provenance the schema cannot (#110). */
+  goalCrossed: boolean;
   /** Last 14 days of daily weights (oldest → newest) for the sparkline. */
   weightSeries: number[];
   /** 7-day dashed forecast stepping from the last weight along the fitted
@@ -144,6 +150,27 @@ export function useBody(): BodyState {
     return projectWeight(points, profile?.targetWeightLbs ?? profile?.goalWeightLbs ?? null);
   }, [weights, profile]);
 
+  /**
+   * Has the weight TREND crossed the goal the user set for themselves?
+   *
+   * Only the objective half (`goalTrendCrossed`, not `goalReached`). It is what
+   * the Body prompt asks a question with — `dailyWeights` carries no `source`,
+   * so nothing here can tell a hand-typed weigh-in from an auto-imported one,
+   * and the person answering the prompt IS the provenance (#110).
+   *
+   * Reads the same fitted trend the Body hero already shows, over the same
+   * 28-day window, so the prompt cannot disagree with the number above it.
+   */
+  const goalCrossed = useMemo<boolean>(() => {
+    const points = weightPointsForDays(weights, PROJECTION_WINDOW_DAYS, new Date());
+    return goalTrendCrossed({
+      goalDirection: profile?.goalDirection,
+      targetWeightLbs: profile?.targetWeightLbs ?? profile?.goalWeightLbs ?? null,
+      trendWeightLb: projection?.currentFittedLb ?? null,
+      readingCount: points.length,
+    });
+  }, [weights, profile, projection]);
+
   // 14-day weight line (oldest → newest), missed days dropped.
   const weightSeries = useMemo<number[]>(
     () => weightSeriesForDays(weights, SPARK_DAYS, new Date()),
@@ -218,6 +245,7 @@ export function useBody(): BodyState {
     updateMeasurement,
     deleteMeasurement,
     projection,
+    goalCrossed,
     weightSeries,
     projectedSeries,
     goalProgress: computeGoalProgress(logs, weights, profile?.targetWeightLbs ?? profile?.goalWeightLbs ?? null),

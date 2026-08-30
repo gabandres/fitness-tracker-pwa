@@ -1,3 +1,10 @@
+// ody.tsx now reaches milestones, which import @/lib/ledger -> firebase's
+// untranspiled ESM. Mocked for the same reason @/lib/auth already is here.
+jest.mock('@/lib/ledger', () => ({
+  recordMilestone: jest.fn(),
+  subscribeMilestones: () => () => {},
+}));
+
 import { fireEvent, renderWithProviders as render } from '@/test-utils';
 
 /**

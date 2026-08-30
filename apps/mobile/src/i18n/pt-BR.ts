@@ -1212,4 +1212,9 @@ export const ptBR = {
   'milestones.first-weigh-in': 'Primeira pesagem',
   'milestones.first-fast': 'Primeiro jejum registrado',
   'milestones.first-workout': 'Primeiro treino concluído',
+  'milestones.goal-reached': 'Chegou ao seu peso meta',
+  'milestones.more': '+{n} mais',
+  'milestones.goalAsk': 'Sua tendência de peso chegou à meta que você definiu. Adicionar aos seus marcos?',
+  'milestones.goalAdd': 'Adicionar',
+  'milestones.goalDecline': 'Agora não',
 } as const;

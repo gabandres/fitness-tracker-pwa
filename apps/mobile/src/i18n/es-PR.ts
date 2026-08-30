@@ -1232,4 +1232,9 @@ export const esPR: Record<I18nKey, string> = {
   'milestones.first-weigh-in': 'Primer pesaje',
   'milestones.first-fast': 'Primer ayuno registrado',
   'milestones.first-workout': 'Primer entrenamiento completado',
+  'milestones.goal-reached': 'Llegaste a tu peso meta',
+  'milestones.more': '+{n} más',
+  'milestones.goalAsk': 'Tu tendencia de peso llegó a la meta que pusiste. ¿La añades a tus hitos?',
+  'milestones.goalAdd': 'Añadir',
+  'milestones.goalDecline': 'Ahora no',
 };
