@@ -1195,4 +1195,21 @@ export const ptBR = {
   'oura.declined': '{n} encontrados que não são cardio — o treino de força fica no Train.',
   'oura.truncated': 'Mostrando apenas os treinos mais recentes.',
   'oura.energyNote': 'As calorias do seu anel aparecem como referência e nunca mudam a sua meta diária.',
+
+  // Milestones — see the copy rule on the en block. **"Marcos", never
+  // "Conquistas"**: *conquista* is the gamified achievement word, and this
+  // feature exists precisely because it is not one.
+  'milestones.title': 'Marcos',
+  'milestones.settingsSub': 'O que você registrou até agora',
+  'milestones.recorded': 'Registrado em {date}',
+  'milestones.today': 'Registrado hoje',
+  'milestones.empty': 'Nada ainda. Os marcos aparecem conforme você registra.',
+  'milestones.streak-7': 'Uma semana registrando',
+  'milestones.streak-14': 'Duas semanas registrando',
+  'milestones.streak-30': 'Trinta dias registrando',
+  'milestones.streak-60': 'Sessenta dias registrando',
+  'milestones.streak-100': 'Cem dias registrando',
+  'milestones.first-weigh-in': 'Primeira pesagem',
+  'milestones.first-fast': 'Primeiro jejum registrado',
+  'milestones.first-workout': 'Primeiro treino concluído',
 } as const;

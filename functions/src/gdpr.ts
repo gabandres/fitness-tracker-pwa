@@ -46,6 +46,11 @@ export const USER_SUBCOLLECTIONS = [
   // workout trio was erasable for months before anyone made it portable,
   // because the two lists were maintained by hand and drifted.
   "fasts",
+  // The retrospective milestone record (#108/#109/#110). Added in the same
+  // change that created the collection — and it was `gdpr-collection-parity`
+  // that made that happen rather than diligence: the rules block was written
+  // first and this list was forgotten, exactly the drift the spec exists for.
+  "milestones",
   // ── Added 2026-08-26 (#99). These three existed in `firestore.rules` and in
   // neither obligation, which is the exact failure this constant was created
   // to end — it ended it for the collections that were in the list, and nobody

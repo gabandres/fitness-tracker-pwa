@@ -55,7 +55,18 @@ class BlockStoreModule : Module() {
       try {
         val request = StoreBytesData.Builder()
           .setBytes(value.toByteArray(Charsets.UTF_8))
-          .setKeys(listOf(key))
+          // `setKey`, SINGULAR — and the asymmetry is the API's, not a typo.
+          // Verified against the compiled jar (play-services-auth-blockstore
+          // 16.4.0) rather than the docs, which do not render the signatures:
+          //   StoreBytesData.Builder     setKey(String)
+          //   RetrieveBytesRequest.Bldr  setKeys(List<String>)
+          //   DeleteBytesRequest.Bldr    setKeys(List<String>)
+          // Storing writes one key at a time; only reading and deleting take a
+          // list. This line said `.setKeys(listOf(key))` and was the single
+          // reason vc 40 would not compile — a native module cannot be type-
+          // checked by tsc or exercised by the 581 jest tests, so nothing
+          // caught it until the first real Gradle run.
+          .setKey(key)
           // Ask for end-to-end encryption where the device supports it (Android
           // 9+ with a screen lock). This is a REQUEST, not a guarantee — Play
           // Services falls back to its normal backup encryption otherwise, which

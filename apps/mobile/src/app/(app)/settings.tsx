@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useRouter } from 'expo-router';
+import { type Href, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Platform, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -403,6 +403,30 @@ export default function Settings() {
             (UX_AUDIT, Abdiel Medina), so position is the feature here. */}
         {/* Help sits directly ABOVE feedback on purpose: someone who came to
             Settings confused should meet the tour before the report box. */}
+        {/* Milestones — the retrospective record (#108/#109).
+            Its OWN card with a `soloRow`, not a second row inside Help: a row
+            style carrying a top divider, reused as the only row in a card,
+            draws a rule across the top of it. That shipped once and needed
+            OTA 16 to undo, so a one-row card takes `soloRow` here too. */}
+        <Text style={styles.section}>{t('milestones.title')}</Text>
+        <View style={styles.card}>
+          <TouchableOpacity
+            style={styles.soloRow}
+            // `as Href` because `typedRoutes` regenerates its declaration from
+            // a running dev server, not from `expo export` — a route added
+            // without one being started is invisible to tsc until then. Same
+            // cast `trends.tsx` uses for `/coach`.
+            onPress={() => router.push('/milestones' as Href)}
+            testID="settings-milestones"
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowLabel}>{t('milestones.title')}</Text>
+              <Text style={styles.rowValue}>{t('milestones.settingsSub')}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.faint} />
+          </TouchableOpacity>
+        </View>
+
         <Text style={styles.section}>{t('settings.help')}</Text>
         <View style={styles.card}>
           <TouchableOpacity

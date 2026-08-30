@@ -61,6 +61,12 @@ export * from './weekly-insights';
 export * from './weekly-summary';
 export * from './weekly-budget';
 export * from './streak';
+// The retrospective record (#108/#109/#110). A NARROWING of `UX_AUDIT.md` §S12's
+// rejection of gamification, not a reversal of it: a record of what already
+// happened is permitted, a mechanism applying forward pressure is not. The
+// module cannot express "distance to the next one" — there is no such export and
+// `milestones.test.ts` fails the build if one appears.
+export * from './milestones';
 export * from './share-card';
 
 // ─────────────────── Targets + derivations ───────────────────
