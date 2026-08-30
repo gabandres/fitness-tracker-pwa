@@ -1,6 +1,5 @@
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { resendApiKey } from "./resend-client";
-import { runDailyReminders, runDayThreeCoachPush } from "./push-reminders";
 import { runWeeklyDigest } from "./weekly-digest";
 import { runPublishUserCount } from "./ops";
 import { runRetentionCohorts } from "./retention";
@@ -9,11 +8,18 @@ import { db } from "./init";
 
 // ─── Hourly dispatcher ──────────────────────────────────────────────
 //
-// Consolidates what used to be four separate hourly scheduled
-// functions (sendDailyReminders, sendDayThreeCoachPush,
-// sendWeeklyDigest, publishUserCount) into ONE Cloud Scheduler job.
-// Cloud Scheduler's free tier is 3 jobs/project; folding these four
-// into one keeps us within it (this + statusPulse + weeklyFirestoreBackup).
+// Consolidates what used to be separate hourly scheduled functions
+// (sendWeeklyDigest, publishUserCount, and until 2026-08-30 the two web
+// push reminders) into ONE Cloud Scheduler job. Cloud Scheduler's free
+// tier is 3 jobs/project; folding them into one keeps us within it
+// (this + statusPulse + weeklyFirestoreBackup).
+//
+// The web push tasks (`sendDailyReminders`, `sendDayThreeCoachPush`,
+// `push-reminders.ts`) were DELETED with the web logging app (ADR-0036,
+// #112): the only client that ever wrote `fcmToken` was the PWA, 0 of 43
+// accounts held one, and the send path had never delivered a push. Mobile
+// push, when it comes, gets its own field (`expoPushToken`) and its own
+// sender — do not resurrect the web-shaped one.
 //
 // Each task runs independently via allSettled so a failure in one does
 // not block the others — same isolation the standalone functions had.
@@ -31,8 +37,6 @@ export const hourlyTasks = onSchedule(
   async () => {
     const tasks: Array<[string, () => Promise<void>]> = [
       ["publishUserCount", runPublishUserCount],
-      ["sendDailyReminders", runDailyReminders],
-      ["sendDayThreeCoachPush", runDayThreeCoachPush],
       ["sendWeeklyDigest", runWeeklyDigest],
       // Self-gating: returns immediately except on its one UTC hour a day.
       ["retentionCohorts", () => runRetentionCohorts(db)],

@@ -20,11 +20,11 @@ import {
 // actually asked for: a ping, not a digest. At alpha volume this is a handful
 // of invocations a week.
 //
-// **Why email and not push.** The push path in this project is web FCM
-// (`push-reminders.ts` reads `fcmToken` off the user profile and sets
-// `fcmOptions.link` to ignia.fit), i.e. the PWA's web-push. The owner's phone
-// runs the native app, which has no such path — building one for an audience
-// of one is not worth it, and email arrives on whatever device is in hand.
+// **Why email and not push.** There is no push path in this project any more:
+// the only one that existed was the PWA's web FCM (`push-reminders.ts`, deleted
+// with the web logging app, ADR-0036 / #112), and the native app has none yet.
+// Building one for an audience of one is not worth it, and email arrives on
+// whatever device is in hand.
 //
 // Resend is already wired with a verified sender and a bound
 // `RESEND_API_KEY`, so this costs no new Secret Manager version — the free

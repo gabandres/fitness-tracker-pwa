@@ -125,9 +125,14 @@ close a door. If the owner wants them gone, that is a route removal plus a
 this change.** The candidates — `runDailyReminders` / `runDayThreeCoachPush`
 in `hourly-tasks.ts` (web-push only, by their own header comment) — keep
 running against a set of `fcmToken`s that will now only shrink. Removing them
-is a saving and a separate deploy; unbinding a function has its own ordering
-rules (`CLAUDE.md`, cost bullet). The two defaults that pointed at `/app`
+is a saving and a separate deploy. The two defaults that pointed at `/app`
 (`password-reset.ts`, `verify-email.ts`) move to `/`.
+
+> **Done the same day.** The owner took the first option in #112: both tasks
+> and `push-reminders.ts` were deleted and `hourlyTasks` redeployed on
+> 2026-08-30. They had never delivered a push (0 of 43 accounts held an
+> `fcmToken`) and the only writer of that field was the web client this ADR
+> removed. Mobile push, when built, gets its own field and its own sender.
 
 ## Consequences
 
