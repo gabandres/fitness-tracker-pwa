@@ -195,7 +195,7 @@ export const en = {
   'link.failedBody': 'Your device blocked it. Open this in your browser instead:\n\n{url}',
   'whatsNew.title': "What's new",
   'whatsNew.body':
-    "You can fix a fast now. Tap a fast in a day's History to change when it started or ended, or delete it — and if you fasted and never opened the app, you can log it after the fact from the same place. Today's fasting row is tappable too, so a fast you started at eight and remembered at nine can be set straight while it is still running. Fasts you enter or correct by hand are marked as such, so a number you asserted never claims the timer measured it, and two fasts can no longer cover the same hours.",
+    "Water has a chart now. Open Trends and there is a Water tab next to Sleep and Fasting: your last fourteen days, how much you typically drink, and the range your logged days ran across. Days you skipped show as gaps rather than zeros, so a missed entry never drags the number down. Log water on Today for three days and the chart appears; until then the row tells you how far along you are.",
 
   // ── app updates ──
   'update.ota.title': 'Update ready',

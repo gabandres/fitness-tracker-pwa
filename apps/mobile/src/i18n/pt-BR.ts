@@ -184,7 +184,7 @@ export const ptBR = {
   'link.failedBody': 'O seu aparelho bloqueou. Abra isto no seu navegador:\n\n{url}',
   'whatsNew.title': 'Novidades',
   'whatsNew.body':
-    "Agora dá para consertar um jejum. Toque em um jejum no Histórico de um dia para mudar quando começou ou terminou, ou exclua-o — e se você jejuou e nunca abriu o app, pode registrá-lo depois pelo mesmo lugar. A linha de jejum em Hoje também é tocável, então um jejum que você começou às oito e lembrou às nove dá para acertar enquanto ainda está correndo. Jejuns que você registra ou corrige à mão ficam marcados, para que um número que você afirmou nunca diga que o cronômetro mediu, e dois jejuns não podem mais cobrir as mesmas horas.",
+    "A água agora tem gráfico. Abra Tendências e há uma aba de Água ao lado de Sono e Jejum: seus últimos catorze dias, quanto você costuma beber e a faixa em que ficaram seus dias registrados. Dias que você pulou aparecem como lacunas, não como zeros, então um registro que faltou nunca puxa o número para baixo. Registre água em Hoje por três dias e o gráfico aparece; até lá, a linha diz o quanto falta.",
 
   // ── app updates ──
   'update.ota.title': 'Atualização pronta',

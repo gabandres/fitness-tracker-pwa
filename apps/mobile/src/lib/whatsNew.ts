@@ -16,7 +16,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // work is worth re-firing for, where a bug fix was not. The body leads with
 // mobility and keeps a condensed meal-text paragraph, because anyone who
 // dismissed the earlier banner never read that part either.
-export const WHATS_NEW_VERSION = '2026-08-28-fix-a-fast';
+// Bumped for the Trends water card (#115 §3, 2026-08-30). Milestones shipped
+// two days earlier and deliberately did NOT bump — a banner announcing a record
+// is the forward pressure that feature is built to avoid — so the copy leads
+// with water and says nothing about them.
+export const WHATS_NEW_VERSION = '2026-08-30-water-trends';
 
 const KEY = 'whatsNew.seen';
 

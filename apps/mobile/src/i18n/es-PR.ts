@@ -188,7 +188,7 @@ export const esPR: Record<I18nKey, string> = {
   'link.failedBody': 'Tu dispositivo lo bloqueó. Abre esto en tu navegador:\n\n{url}',
   'whatsNew.title': 'Novedades',
   'whatsNew.body':
-    "Ahora puedes arreglar un ayuno. Toca un ayuno en el Historial de un día para cambiar cuándo empezó o terminó, o bórralo — y si ayunaste y nunca abriste la app, lo puedes anotar después desde el mismo sitio. La fila de ayuno en Hoy también se toca, así que un ayuno que empezaste a las ocho y recordaste a las nueve se arregla mientras todavía corre. Los ayunos que anotas o corriges a mano quedan marcados, para que un número que tú afirmaste nunca diga que lo midió el cronómetro, y ya dos ayunos no pueden cubrir las mismas horas.",
+    "El agua ya tiene gráfica. Abre Tendencias y hay una pestaña de Agua junto a Sueño y Ayuno: tus últimos catorce días, lo que sueles tomar y el rango en que anduvieron tus días anotados. Los días que no anotaste salen como huecos, no como ceros, así que una entrada que faltó nunca te baja el número. Anota agua en Hoy por tres días y aparece la gráfica; mientras tanto, la fila te dice cuánto te falta.",
 
   // ── app updates ──
   'update.ota.title': 'Actualización lista',
