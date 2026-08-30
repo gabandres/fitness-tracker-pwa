@@ -4,7 +4,7 @@ import { AuthService } from '../../services/auth.service';
 import { AdminService, AdminUserRow, AuditLog, FeedbackRow, PlatformStats, ActivityItem } from '../../services/admin.service';
 
 type AdminTab =
-  | 'stats' | 'activity' | 'users' | 'admins' | 'subscriptions'
+  | 'stats' | 'activity' | 'users' | 'subscriptions'
   | 'comped' | 'audit' | 'support' | 'feedback' | 'export';
 
 interface TabDef { readonly id: AdminTab; readonly label: string; }
@@ -168,11 +168,11 @@ interface TabDef { readonly id: AdminTab; readonly label: string; }
             }
           </div>
         } @else {
+          <!-- Signed in, not the admin. There is exactly one admin (ADR-0036
+               decision 3) and no way to become one from here, so say nothing
+               a stranger could act on. -->
           <div class="admin-card mt-8">
-            <p class="admin-caption">Access denied. This surface is gated on the <code class="admin-mono">admin</code> custom claim.</p>
-            <div class="mt-3">
-              <button type="button" (click)="refreshClaim()" class="admin-btn admin-btn--sm">refresh claim</button>
-            </div>
+            <p class="admin-caption">Not an admin.</p>
           </div>
         }
       } @else {
@@ -371,74 +371,6 @@ interface TabDef { readonly id: AdminTab; readonly label: string; }
           </div>
         }
 
-        <!-- ADMINS TAB -->
-        @if (activeTab() === 'admins') {
-          <div class="mt-6 space-y-4 max-w-[640px]">
-            <h2 class="admin-h2">Admin users</h2>
-            <p class="admin-caption">
-              Manage who holds the <code class="admin-mono">admin</code> custom claim. Claim changes
-              revoke the target's refresh token — they'll have to sign in again to pick up the new state.
-            </p>
-            <div class="flex gap-2 items-center">
-              <input type="email" [ngModel]="newAdminEmail()" (ngModelChange)="newAdminEmail.set($event)"
-                placeholder="email@example.com"
-                class="flex-1 text-sm"
-                style="padding: 0.5rem 0.75rem; background: var(--v2-paper-2); border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-md, 8px); color: var(--v2-ink);" />
-              <button type="button" (click)="addAdmin()"
-                [disabled]="busy() || !newAdminEmail().trim()" class="admin-btn admin-btn--primary">
-                {{ busy() ? 'working…' : 'grant admin' }}
-              </button>
-            </div>
-
-            <ul class="space-y-2">
-              @for (email of admin.adminEmails(); track email) {
-                <li class="flex items-center justify-between admin-card" style="padding: 0.5rem 1rem;">
-                                    <span class="admin-mono text-xs">{{ email }}</span>
-                  <button type="button" (click)="removeAdmin(email)"
-                    [disabled]="busy() || admin.adminEmails().length <= 1"
-                    class="admin-btn admin-btn--sm" style="color: var(--v2-accent); border-color: var(--v2-accent);">
-                    revoke
-                  </button>
-                </li>
-              } @empty {
-                <li class="admin-caption">no admins configured.</li>
-              }
-            </ul>
-          </div>
-        }
-
-        <!-- COMPED TAB -->
-        @if (activeTab() === 'comped') {
-          <div class="mt-6 space-y-4 max-w-[640px]">
-            <h2 class="admin-h2">Comped friends</h2>
-            <p class="admin-caption">
-              Emails here bypass all per-user quotas (photos, consultations) and are treated as paid server-side.
-              Propagation takes up to 60 seconds due to an in-memory cache on the CF side.
-            </p>
-            <div class="flex gap-2 items-center">
-              <input type="email" [ngModel]="newCompedEmail()" (ngModelChange)="newCompedEmail.set($event)"
-                placeholder="friend@example.com"
-                class="flex-1 text-sm"
-                style="padding: 0.5rem 0.75rem; background: var(--v2-paper-2); border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-md, 8px); color: var(--v2-ink);" />
-              <button type="button" (click)="addComped()"
-                [disabled]="busy() || !newCompedEmail().trim()" class="admin-btn admin-btn--primary">
-                {{ busy() ? 'working…' : 'add' }}
-              </button>
-            </div>
-            <ul class="space-y-2">
-              @for (email of admin.compedEmails(); track email) {
-                <li class="flex items-center justify-between admin-card" style="padding: 0.5rem 1rem;">
-                                    <span class="admin-mono text-xs">{{ email }}</span>
-                  <button type="button" (click)="removeComped(email)" [disabled]="busy()"
-                    class="admin-btn admin-btn--sm" style="color: var(--v2-accent); border-color: var(--v2-accent);">remove</button>
-                </li>
-              } @empty {
-                <li class="admin-caption">nobody comped.</li>
-              }
-            </ul>
-          </div>
-        }
-
         <!-- SUBSCRIPTIONS TAB -->
         @if (activeTab() === 'subscriptions') {
           <div class="mt-6 space-y-4">
@@ -622,7 +554,6 @@ export class AdminComponent {
     { id: 'stats',         label: 'Stats' },
     { id: 'activity',      label: 'Activity' },
     { id: 'users',         label: 'Users' },
-    { id: 'admins',        label: 'Admins' },
     { id: 'subscriptions', label: 'Subscriptions' },
     { id: 'comped',        label: 'Comped' },
     { id: 'audit',         label: 'Audit log' },
@@ -644,7 +575,6 @@ export class AdminComponent {
   readonly lookupResult = signal<AdminUserRow | null>(null);
 
   readonly userSearch = signal('');
-  newAdminEmail = signal('');
   newCompedEmail = signal('');
   supportLookup = '';
 
@@ -738,24 +668,6 @@ export class AdminComponent {
     await this.run('loading activity', async () => {
       const { items } = await this.admin.getRecentActivity();
       this.activityItems.set(items);
-    });
-  }
-
-  async addAdmin(): Promise<void> {
-    const email = this.newAdminEmail().trim().toLowerCase();
-    if (!email) return;
-    await this.run('granting admin', async () => {
-      await this.admin.setAdmin(email, true);
-      this.newAdminEmail.set('');
-      this.notice.set(`${email} is now an admin`);
-    });
-  }
-
-  async removeAdmin(email: string): Promise<void> {
-    if (!confirm(`Revoke admin from ${email}?`)) return;
-    await this.run('revoking admin', async () => {
-      await this.admin.setAdmin(email, false);
-      this.notice.set(`${email} revoked`);
     });
   }
 

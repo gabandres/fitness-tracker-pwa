@@ -91,6 +91,16 @@ gains no second entry. The sign-in card drops its *Sign up* tab: an account
 created on the web would have nothing to open. Sign-in, password reset and
 the three OAuth providers stay, because the admin uses them.
 
+> **Tightened the same day, on the owner's instruction ("make sure I'm the
+> only one … nothing else").** The sign-in card is gone entirely; `/admin`
+> renders the word *Admin* and one *Sign in with Google* button, and
+> `AuthService` offers only that provider. `setAdminClaims` — the
+> grant/revoke callable — is deleted, and the Admins tab with it, so there is
+> **no code path that can mint a second `admin` claim**; `bootstrapAdmin`
+> survives as SEED_ADMINS-gated disaster recovery only. Verified before the
+> change: `config/admins` held one email and one of 52 users carried the
+> claim.
+
 **4. Retired routes land on a "moved to the apps" page, not a 404.** `/app`
 is the installed PWA's `start_url` and the target of every "Open your log"
 button in every recap email ever sent. `/app`, `/app/**`, `/history/**`,

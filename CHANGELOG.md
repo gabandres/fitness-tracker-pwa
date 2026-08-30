@@ -38,6 +38,16 @@ Two things are the owner's call and are recorded OPEN in the ADR with the
 reversible default taken: the SEO/marketing pages and the public profiles are
 **kept**.
 
+**Same day, tightened on the owner's instruction:** `/admin` now renders the
+word *Admin* and one *Sign in with Google* button — no email/password form, no
+sign-up, no reset, no other providers — and `AuthService` offers only that.
+`setAdminClaims` (the grant/revoke callable) and the panel's Admins tab are
+deleted, so **no code path can mint a second `admin` claim**; `bootstrapAdmin`
+stays as SEED_ADMINS-gated disaster recovery. Read before the change:
+`config/admins` held one email and one of 52 users carried the claim. The two
+web-push hourly tasks (`runDailyReminders`, `runDayThreeCoachPush`) went the
+same day: 0 of 43 accounts held an `fcmToken` and nothing writes one any more.
+
 ## 2026-08-29 — Ignia is submitted to Google Play production
 
 Production access was granted this morning. Ignia 1.2.1 (versionCode 37) is now

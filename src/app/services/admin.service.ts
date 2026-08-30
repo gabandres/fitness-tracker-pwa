@@ -126,7 +126,6 @@ export class AdminService {
   /** True when the current Firebase user holds the `admin` custom claim. */
   readonly isAdmin = signal(false);
   /** Emails currently present in config/admins. Updated via snapshot. */
-  readonly adminEmails = signal<string[]>([]);
   /** Emails currently present in config/accessList.compedEmails. */
   readonly compedEmails = signal<string[]>([]);
 
@@ -145,7 +144,6 @@ export class AdminService {
   );
   readonly impersonating = computed(() => this.originalAdminUid() !== null);
 
-  private unsubAdmins: (() => void) | null = null;
   private unsubComped: (() => void) | null = null;
   private adminCheckPromise: Promise<void> | null = null;
 
@@ -167,15 +165,6 @@ export class AdminService {
   }
 
   private subscribeConfigDocs(): void {
-    const adminsRef = doc(this.firestore, 'config', 'admins');
-    this.unsubAdmins = onSnapshot(
-      adminsRef,
-      (snap) => runInInjectionContext(this.injector, () => {
-        this.adminEmails.set(snap.exists() ? (snap.data()?.['emails'] as string[] || []) : []);
-      }),
-      () => runInInjectionContext(this.injector, () => this.adminEmails.set([])),
-    );
-
     const compedRef = doc(this.firestore, 'config', 'accessList');
     this.unsubComped = onSnapshot(
       compedRef,
@@ -236,10 +225,6 @@ export class AdminService {
 
   async bootstrap(): Promise<{ seeded: string[] }> {
     return this.callables.call<unknown, { seeded: string[] }>('bootstrapAdmin', {});
-  }
-
-  async setAdmin(email: string, grant: boolean): Promise<void> {
-    await this.callables.call('setAdminClaims', { email, grant });
   }
 
   async listUsers(): Promise<{ users: AdminUserRow[] }> {
@@ -364,7 +349,6 @@ export class AdminService {
   }
 
   cleanup(): void {
-    this.unsubAdmins?.();
     this.unsubComped?.();
   }
 }

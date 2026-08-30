@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, effect, inject, signal } from '@ang
 import { TranslocoDirective } from '@jsverse/transloco';
 import { TranslationService } from './services/translation.service';
 import { stripLangPrefix } from './i18n/locale-path';
-import { SignInComponent } from './components/sign-in/sign-in.component';
+import { AdminGateComponent } from './components/admin-gate/admin-gate.component';
 import { CalculatorComponent } from './components/calculator/calculator.component';
 import { MacrosPageComponent } from './components/macros-page/macros-page.component';
 import { FaqComponent } from './components/faq/faq.component';
@@ -46,7 +46,7 @@ type Route =
   standalone: true,
   imports: [
     DeferErrorComponent,
-    SignInComponent,
+    AdminGateComponent,
     CalculatorComponent,
     MacrosPageComponent,
     FaqComponent,
@@ -114,18 +114,14 @@ type Route =
                  narrow viewport say so instead of rendering the shell's
                  landing page, which is what used to happen. -->
             <div class="max-w-[480px] mx-auto px-5 py-16 text-center">
-              <h1 class="v2-h2">Admin</h1>
-              <p class="v2-body-soft mt-2">Open this page on a desktop-width window.</p>
+              <h1 class="v2-h1">Admin</h1>
             </div>
           } @else if (!auth.ready()) {
             <div class="py-20 text-center caption">…</div>
           } @else if (!auth.isSignedIn()) {
-            <!-- The only sign-in surface left on the web. The admin guard
-                 inside AdminComponent handles the signed-in-but-not-admin
-                 case. -->
-            <div class="ink-in delay-3 mt-10">
-              <app-sign-in />
-            </div>
+            <!-- The only sign-in surface left on the web: "Admin" and one
+                 Google button. AdminComponent handles signed-in-but-not-admin. -->
+            <app-admin-gate />
           } @else {
             <!-- Impersonation banner. When an admin is signed in as another
                  user the admin claim is on their own account, not the

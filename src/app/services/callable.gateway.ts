@@ -35,7 +35,6 @@ export type CallableName =
   | 'releasePublicSlug'
   // admin console
   | 'bootstrapAdmin'
-  | 'setAdminClaims'
   | 'listUsers'
   | 'getPlatformStats'
   | 'getRecentActivity'

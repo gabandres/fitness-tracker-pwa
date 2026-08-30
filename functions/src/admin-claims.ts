@@ -1,7 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
-import { getAuth, UserRecord } from "firebase-admin/auth";
-import { writeAuditLog } from "./audit-log";
+import { getAuth } from "firebase-admin/auth";
 import { requireAdmin } from "./admin-guard";
 
 const ADMINS_DOC = "config/admins";
@@ -67,62 +66,10 @@ export const bootstrapAdmin = onCall(async (request) => {
   return { seeded };
 });
 
-/**
- * Grant or revoke admin access for a user by email. Caller must already
- * have the admin custom claim. Keeps config/admins and the target user's
- * custom claims in sync.
- */
-export const setAdminClaims = onCall(async (request) => {
-  const admin = requireAdmin(request, "Only admins can manage admin access.");
-
-  const { email, grant } = request.data as { email?: string; grant?: boolean };
-  if (!email || typeof grant !== "boolean") {
-    throw new HttpsError("invalid-argument", "email (string) and grant (boolean) are required.");
-  }
-  const normalized = email.toLowerCase().trim();
-
-  const auth = getAuth();
-  let target: UserRecord;
-  try {
-    target = await auth.getUserByEmail(normalized);
-  } catch {
-    throw new HttpsError("not-found", `No Firebase Auth user found with email: ${normalized}`);
-  }
-
-  const db = getFirestore();
-  const snap = await db.doc(ADMINS_DOC).get();
-  const currentEmails: string[] = snap.exists ? (snap.data()?.["emails"] as string[] || []) : [];
-
-  if (!grant) {
-    const remaining = currentEmails.filter((e) => e !== normalized);
-    if (remaining.length === 0) {
-      throw new HttpsError("failed-precondition", "Cannot remove the last admin.");
-    }
-  }
-
-  const existingClaims = (target.customClaims as Record<string, unknown>) || {};
-  if (grant) {
-    await auth.setCustomUserClaims(target.uid, { ...existingClaims, admin: true });
-  } else {
-    const rest = Object.fromEntries(
-      Object.entries(existingClaims).filter(([k]) => k !== "admin"),
-    );
-    await auth.setCustomUserClaims(target.uid, rest);
-  }
-  await auth.revokeRefreshTokens(target.uid);
-
-  const updated = grant
-    ? (currentEmails.includes(normalized) ? currentEmails : [...currentEmails, normalized])
-    : currentEmails.filter((e) => e !== normalized);
-
-  await db.doc(ADMINS_DOC).set({ emails: updated }, { merge: true });
-
-  await writeAuditLog({
-    action: grant ? "admin_grant" : "admin_revoke",
-    admin,
-    targetEmail: normalized,
-    details: { totalAdmins: updated.length },
-  });
-
-  return { email: normalized, admin: grant, totalAdmins: updated.length };
-});
+// `setAdminClaims` — the grant/revoke callable — was DELETED on 2026-08-30
+// (ADR-0036 decision 3, owner's instruction). There is exactly one admin, and
+// the way to keep that true is to have no code path that can mint a second
+// claim. `bootstrapAdmin` above survives only as disaster recovery: it is
+// gated on SEED_ADMINS + a verified email and self-disables once
+// `config/admins` exists. Changing the admin means changing SEED_ADMINS,
+// deploying, and re-running the bootstrap — a code change, on purpose.

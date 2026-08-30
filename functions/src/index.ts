@@ -35,7 +35,7 @@ export {
 export { searchFoods, getFoodDetail } from "./food-search";
 export { importRecipe } from "./import-recipe";
 export { ogImagePublicProfile, servePublicProfilePage } from "./og-image";
-export { bootstrapAdmin, setAdminClaims } from "./admin-claims";
+export { bootstrapAdmin } from "./admin-claims";
 export { startImpersonation, stopImpersonation } from "./impersonation";
 export {
   listUsers,
