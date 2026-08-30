@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { router, useLocalSearchParams } from 'expo-router';
+import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated from 'react-native-reanimated';
@@ -420,7 +420,11 @@ export default function Today() {
               banner without ever having been ranked against one — the exact
               outcome `useTodayNudge`'s ordering exists to prevent. Here it
               reads as what it is: your numbers, then what they added up to. */}
-          <MilestoneNote keys={todaysMilestones} />
+          <MilestoneNote
+            keys={todaysMilestones}
+            dayKey={todayKey}
+            onOpen={() => router.push('/milestones' as Href)}
+          />
 
           <RecalibrationCard suppressed={nudge !== 'recalibration'} />
 

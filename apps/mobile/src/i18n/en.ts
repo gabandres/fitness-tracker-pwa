@@ -1328,6 +1328,14 @@ export const en = {
   'milestones.first-weigh-in': 'First weigh-in',
   'milestones.first-fast': 'First fast recorded',
   'milestones.first-workout': 'First workout finished',
+  'milestones.goal-reached': 'Reached your goal weight',
+  // The #110 confirmation. A QUESTION, never a celebration — it names no
+  // number and congratulates nothing until the user answers. Weight-magnitude
+  // praise is the half #110 dropped `first-5-lb` to avoid.
+  'milestones.more': '+{n} more',
+  'milestones.goalAsk': 'Your weight trend has reached the goal you set. Add it to your milestones?',
+  'milestones.goalAdd': 'Add it',
+  'milestones.goalDecline': 'Not now',
 } as const;
 
 export type I18nKey = keyof typeof en;

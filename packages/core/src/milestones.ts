@@ -144,7 +144,7 @@ export interface GoalEvidence {
  * directions are asserted in the tests, because a mis-fire here is silent in
  * BOTH — a wrongly-withheld award looks identical to a user who has not arrived.
  */
-export function goalReached(ev: GoalEvidence): boolean {
+export function goalTrendCrossed(ev: GoalEvidence): boolean {
   const { goalDirection, targetWeightLbs, trendWeightLb } = ev;
 
   // Maintain has no line to cross, and an absent direction is not a licence to
@@ -156,12 +156,31 @@ export function goalReached(ev: GoalEvidence): boolean {
   const readings = ev.readingCount ?? 0;
   if (readings < GOAL_MIN_READINGS) return false;
 
-  const manual = ev.manualReadingCount ?? 0;
-  if (manual < 1) return false;
-
   return goalDirection === 'lose'
     ? trendWeightLb <= targetWeightLbs
     : trendWeightLb >= targetWeightLbs;
+}
+
+/**
+ * The same fact, plus evidence that the person put the numbers there.
+ *
+ * ## Why this is separate from {@link goalTrendCrossed}, and must stay separate
+ *
+ * `users/{uid}/dailyWeights/{dateKey}` is `{ weight }` with **no `source`** — a
+ * hand-typed weigh-in and one auto-imported from Apple Health or Health Connect
+ * are byte-identical documents. So on today's schema this predicate cannot be
+ * satisfied by an app that imports weight, and that is the correct outcome
+ * rather than a bug to route around: `useHealthAutoImport` re-imports on every
+ * foreground, and one stray 158 lb reading has already moved this project's
+ * measured maintenance from 2,741 to 1,619 kcal.
+ *
+ * **`goalTrendCrossed` is therefore what a UI asks a question with, and this is
+ * what an automatic writer would have to satisfy.** The split exists so that a
+ * later automatic path cannot quietly acquire the loose test: anything awarding
+ * `goal-reached` without a human in the loop must call THIS one.
+ */
+export function goalReached(ev: GoalEvidence): boolean {
+  return goalTrendCrossed(ev) && (ev.manualReadingCount ?? 0) >= 1;
 }
 
 /**
