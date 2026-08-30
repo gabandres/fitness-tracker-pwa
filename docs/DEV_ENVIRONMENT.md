@@ -1194,7 +1194,15 @@ versions drop from ~7 account-wide to 2 (Ignia's 8 minus its own 6 free) plus
 1. In the GCP console **as gabriel@bermudezsystems.com** (after 5.0):
    Billing -> **Create account** -> use the LLC payments profile
    (`7360-3490-9173`, the one that paid the Play $25) -> payment method:
-   the **Relay** card/bank.
+   the **Chase Ink Business card** (owner's standing expense card — rewards,
+   dispute protection, one statement; Relay autopays the card). Add **Relay**
+   as the BACKUP payment method so a card reissue cannot lapse the account.
+
+   While the Ink is out, swap the other recurring charges onto it too:
+   **Northwest RA** (the critical one — a failed card there lapses
+   `bermudezsystems.com`, which is the org Play login), the **Apple Developer
+   membership** ($99/yr, LLC entity), and the Cloudflare/ignia.fit renewal
+   during step 5.1. EAS is free-tier; nothing to move.
 2. Billing -> Account management -> move project
    `fitness-tracker-gb-1775407101` to the new billing account (needs
    Project Owner + Billing Admin on the target — which 5.0 provides). The
