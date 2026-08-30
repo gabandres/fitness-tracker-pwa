@@ -250,9 +250,16 @@ const DELIBERATELY_EXCLUDED_NOTE =
  * So `--check-source` no longer treats these 30 as drift. It still fails on
  * any OTHER divergence, which is the mirror's actual job.
  *
- * **To retire this list:** file the Play Console DSA trader declaration, then
- * move these rows into `ASC_ALPHA3_TO_PLAY_ALPHA2` and delete the set. Do not
- * do it in the other order.
+ * **To retire this list** (updated 2026-08-30 — the filing turned out not to
+ * exist): the org account needs NO separate trader declaration — Google folded
+ * the DSA trader requirements into organization verification, which account
+ * 6598754086801415923 completed 2026-08-20 (verified name/address + developer
+ * email/phone shown on Google Play; Policy status clean; no trader form
+ * anywhere in the console — measured, not assumed). What still gates these 30
+ * rows is SEQUENCING: a countries change goes through the same review pipeline,
+ * so do not touch availability while a production release is in review.
+ * Once vc 37 is live and vc 40 is submitted (#107), move these rows into
+ * `ASC_ALPHA3_TO_PLAY_ALPHA2` and delete the set.
  */
 const EU_PENDING_PLAY_DSA = new Set([
   'AUT', 'BEL', 'BGR', 'HRV', 'CYP', 'CZE', 'DNK', 'EST', 'FIN', 'FRA',
