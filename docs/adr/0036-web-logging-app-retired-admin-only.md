@@ -123,8 +123,9 @@ not an app open, and the admin's own visits must not count as users. From
 this ADR on, `platforms.web` reads 0 and that is the correct reading, not a
 bug in the instrument.
 
-**7. Two decisions are the owner's and are recorded as OPEN, with the
-reversible default taken.** The marketing pages (landing, `/vs`,
+**7. ~~Two decisions are the owner's and are recorded as OPEN~~ — DECIDED
+2026-08-30: the owner ratified the default. Both are KEPT.** (Original text
+kept below for the reasoning.) The marketing pages (landing, `/vs`,
 `/calculator`, `/faq`, the prerendered set) and the public profile pages are
 **kept**. Deleting either is cheap later and expensive to undo — de-indexing
 is not reversed by a redeploy — so the default is the one that does not
@@ -168,5 +169,6 @@ is a saving and a separate deploy. The two defaults that pointed at `/app`
   and where their data can be exported.
 - **The web build gets smaller and the Angular upgrade tax drops** to what a
   static-ish shell plus one admin table costs. That was the point.
-- **This ADR may be re-opened on exactly one thing:** the two OPEN items in
-  decision 7. Everything else is decided.
+- ~~This ADR may be re-opened on exactly one thing: the two OPEN items in
+  decision 7.~~ **Decision 7 was closed 2026-08-30 (owner: keep both). Nothing
+  in this ADR remains open.**
