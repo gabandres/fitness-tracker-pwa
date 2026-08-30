@@ -59,6 +59,42 @@ quietly dropped Benin, Burkina Faso, Russia and Serbia from the list.
 
 ---
 
+## 2026-08-28 — the iOS app opens in the EU, and Ignia is now in every territory Apple has
+
+The 30 territories held back on 2026-08-26 — the EU 27 plus the UK, Iceland and
+Norway — are open. **iOS is available in 175 of 175.**
+
+What unblocked them was the disclosure itself, made rather than dodged. The
+Digital Services Act trader declaration on the Bermudez Systems LLC entity was
+flipped from Apple's default *"I'm not a trader"* to **"I'm a trader under the
+DSA"**, publishing the company's Sheridan address, `+1 307 201 8420` and
+`gabriel@bermudezsystems.com` on every EU product page — the LLC's details
+throughout, never the owner's personal number or email. That was always the
+point of holding the territories back: it is a disclosure somebody makes on
+purpose, not one to stumble into by ticking a box.
+
+**A blank *Last Updated* is Apple's default; a date means somebody filed it.**
+That field reading **Aug 28, 2026** is the only reliable confirmation the
+declaration is real, and it is worth knowing because the "not a trader" state
+looks identical to a filed one otherwise. The flow also demands a **six-digit
+code emailed to the contact address**, so it cannot be completed without access
+to that mailbox — and the forward to Gmail has never been configured, so the
+code lands in Outlook.
+
+`availableInNewTerritories` was re-read **false** afterwards, so the carve-out
+against territories Apple adds later still holds and did not quietly defeat
+itself in the process.
+
+**Android is not covered by any of this.** Google keeps its own DSA trader
+declaration and Apple's does not carry over, so the Play track stays at 128
+until that one is filed too. Distributing into the EU without it removes the app
+from all 27 territories, which is why the order is: file Google's declaration
+first, open the rows second.
+
+The app itself is unchanged: same binary, same build, no update to install.
+
+---
+
 ## 2026-08-28 — a fast you logged wrong was a fast you were stuck with
 
 Ending a fast wrote it down. Nothing let you change it afterwards.
