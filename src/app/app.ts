@@ -19,7 +19,6 @@ import { NotFoundComponent } from './components/not-found/not-found.component';
 import { RetiredComponent } from './components/retired/retired.component';
 import { AuthService } from './services/auth.service';
 import { applyThemeChoice, readStoredTheme } from './utils/theme';
-import { mediaSignal } from './utils/media';
 import { AnalyticsService } from './services/analytics.service';
 import { AdminService } from './services/admin.service';
 import { DeferErrorComponent } from './components/ui/defer-error.component';
@@ -110,13 +109,7 @@ type Route =
           @defer { <app-retired /> }
           @placeholder { <div class="py-20 text-center caption">…</div> } @error { <app-defer-error /> }
         } @else if (route() === 'admin') {
-          @if (!isDesktop()) {
-            <!-- The admin console is desktop-only by design: dense tables and
-                 a sidebar that do not pack onto a phone. -->
-            <div class="max-w-[480px] mx-auto px-5 py-16 text-center">
-              <h1 class="v2-h1">Admin</h1>
-            </div>
-          } @else if (!adminPreview && !auth.ready()) {
+          @if (!adminPreview && !auth.ready()) {
             <div class="py-20 text-center caption">…</div>
           } @else if (!adminPreview && !auth.isSignedIn()) {
             <!-- The only sign-in surface left on the web: "Admin" and one
@@ -154,7 +147,7 @@ type Route =
       </div>
     </main>
 
-    @if (route() === 'admin' && isDesktop() && (adminPreview || (auth.ready() && auth.isSignedIn()))) {
+    @if (consoleOpen()) {
       @if (admin.impersonating()) {
         <!-- Impersonation banner: while an admin is signed in as another user
              the admin claim is on their own account, so the console is
@@ -182,14 +175,12 @@ export class App {
   private readonly analytics = inject(AnalyticsService);
   private readonly translation = inject(TranslationService); // resolves locale on boot, updates <title>
 
-  /** `/admin` renders only at desktop width — see the template. */
-  protected readonly isDesktop = mediaSignal('(min-width: 768px)');
   protected readonly route = signal<Route>(this.detectRoute());
   protected readonly exitingImpersonation = signal(false);
   /** Dev-only: `ng serve` + /admin?preview=1 renders the console on fixtures. */
   protected readonly adminPreview = adminPreviewEnabled();
   /** True while the admin console owns the viewport (the shell's <main> and footer hide). */
-  protected readonly consoleOpen = computed(() => this.route() === 'admin' && this.isDesktop() && (this.adminPreview || (this.auth.ready() && this.auth.isSignedIn())));
+  protected readonly consoleOpen = computed(() => this.route() === 'admin' && (this.adminPreview || (this.auth.ready() && this.auth.isSignedIn())));
 
   private detectRoute(): Route {
     // The `/es` prefix on the indexed Spanish URLs is a locale marker, not

@@ -94,8 +94,9 @@ const ICONS: Record<string, string> = {
         <header class="adm-top">
           <span class="adm-top-crumb">Admin /</span>
           <span class="adm-top-title">{{ current().label }}</span>
-          <button type="button" class="adm-search" (click)="shell.paletteOpen.set(true)">
-            <span>Search users, jump anywhere…</span><kbd>⌘K</kbd>
+          <button type="button" class="adm-search" (click)="shell.paletteOpen.set(true)" aria-label="Search users, jump anywhere">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width:15px;height:15px;flex:none;"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <span class="adm-search-text">Search users, jump anywhere…</span><kbd>⌘K</kbd>
           </button>
           <button type="button" class="adm-iconbtn" (click)="toggleTheme()" [title]="'Switch to ' + (dark() ? 'light' : 'dark')">
             @if (dark()) { <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg> }
@@ -121,6 +122,17 @@ const ICONS: Record<string, string> = {
           }
         </main>
 
+        <nav class="adm-bottom" aria-label="Sections">
+          @for (s of sections; track s.id) {
+            <button type="button" class="adm-bottom-item" [class.active]="shell.section() === s.id" (click)="shell.go(s.id); shell.selectedUid.set(null)">
+              <span class="adm-nav-icon" [innerHTML]="icon(s.id)"></span>
+              <span class="adm-bottom-label">{{ s.label }}</span>
+              @if (s.id === 'feedback' && data.unreadFeedback() > 0) { <span class="adm-bottom-dot"></span> }
+              @if (s.id === 'overview' && attention() > 0) { <span class="adm-bottom-dot" style="background: var(--adm-warn);"></span> }
+            </button>
+          }
+        </nav>
+
         <adm-palette />
         <div class="adm-toasts" aria-live="polite">
           @for (t of shell.toasts(); track t.id) { <div class="adm-toast" [class]="'adm-toast ' + t.kind">{{ t.text }}</div> }
@@ -144,6 +156,7 @@ export class AdminComponent {
   readonly collapsed = signal(localStorage.getItem('ignia.admin.collapsed') === '1');
   readonly dark = signal(currentEffectiveTheme() === 'dark');
   readonly groups = ['Monitor', 'Operate', 'Govern'] as const;
+  readonly sections = ADMIN_SECTIONS;
 
   readonly current = computed(() => ADMIN_SECTIONS.find((s) => s.id === this.shell.section()) ?? ADMIN_SECTIONS[0]);
   readonly attention = computed(() => this.data.insights().filter((i) => i.level === 'bad').length);

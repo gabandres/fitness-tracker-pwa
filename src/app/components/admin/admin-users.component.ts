@@ -48,7 +48,7 @@ type FlagFilter = 'all' | 'unverified' | 'disabled' | 'noProfile';
     </div>
 
     <div class="adm-table-wrap">
-      <table class="adm-table">
+      <table class="adm-table adm-table--cards">
         <thead>
           <tr>
             <th (click)="sortBy('email')" [class.sorted]="sort() === 'email'">Account {{ arrow('email') }}</th>
@@ -62,7 +62,7 @@ type FlagFilter = 'all' | 'unverified' | 'disabled' | 'noProfile';
         <tbody>
           @for (u of filtered(); track u.uid) {
             <tr (click)="shell.openUser(u.uid)" [class.selected]="shell.selectedUid() === u.uid">
-              <td>
+              <td data-label="Account">
                 <div style="display:flex; align-items:center; gap:10px;">
                   <span class="adm-avatar" style="width:26px;height:26px;font-size:10px;background:var(--adm-surface-2);color:var(--adm-ink-soft);">{{ initials(u.email) }}</span>
                   <div>
@@ -71,13 +71,13 @@ type FlagFilter = 'all' | 'unverified' | 'disabled' | 'noProfile';
                   </div>
                 </div>
               </td>
-              <td>
+              <td data-label="Tier">
                 @if (u.admin) { <span class="adm-chip accent">admin</span> }
                 @else if (isComped(u)) { <span class="adm-chip teal">comped</span> }
                 @else if (u.stripeRole === 'paid') { <span class="adm-chip good">paid</span> }
                 @else { <span class="adm-chip muted">free</span> }
               </td>
-              <td>
+              <td data-label="Status">
                 <div style="display:flex; gap:4px; flex-wrap:wrap;">
                   @if (u.disabled) { <span class="adm-chip danger">suspended</span> }
                   @if (!u.emailVerified) { <span class="adm-chip warn">unverified</span> }
@@ -85,9 +85,9 @@ type FlagFilter = 'all' | 'unverified' | 'disabled' | 'noProfile';
                   @if (u.emailVerified && u.profileCompleted && !u.disabled) { <span class="adm-chip good">active</span> }
                 </div>
               </td>
-              <td class="adm-muted" style="font-size:12px;">{{ u.providers.map(shortProvider).join(' · ') || '—' }}</td>
-              <td class="adm-mono" style="font-size:12px;">{{ fmtDate(u.createdAt) }}</td>
-              <td class="adm-mono" style="font-size:12px;" [title]="fmtDateTime(u.lastSignInAt)">{{ relTime(u.lastSignInAt) }}</td>
+              <td data-label="Providers" class="adm-muted" style="font-size:12px;">{{ u.providers.map(shortProvider).join(' · ') || '—' }}</td>
+              <td data-label="Joined" class="adm-mono" style="font-size:12px;">{{ fmtDate(u.createdAt) }}</td>
+              <td data-label="Last sign-in" class="adm-mono" style="font-size:12px;" [title]="fmtDateTime(u.lastSignInAt)">{{ relTime(u.lastSignInAt) }}</td>
             </tr>
           } @empty {
             <tr><td colspan="6"><div class="adm-empty">{{ data.isLoading('users') ? 'Loading accounts…' : 'No accounts match.' }}</div></td></tr>
