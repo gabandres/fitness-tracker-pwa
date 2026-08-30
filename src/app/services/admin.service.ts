@@ -1,6 +1,7 @@
 import { Injectable, Injector, computed, effect, inject, runInInjectionContext, signal } from '@angular/core';
 import { Auth, authState, signInWithCustomToken } from '@angular/fire/auth';
-import { Firestore, collectionGroup, doc, getDocs, limit, onSnapshot, orderBy, query } from '@angular/fire/firestore';
+import { Firestore, collectionGroup, doc, getDoc, getDocs, limit, onSnapshot, orderBy, query } from '@angular/fire/firestore';
+import type { CeilingStatus, RetentionSummary, UsageSeries } from '../components/admin/admin-insights';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { CallableGateway } from './callable.gateway';
 
@@ -85,6 +86,22 @@ export interface PlatformStats {
   currentlyCompedCount?: number;
   firstEntryWithin24hCount?: number;
   firstEntryWithin72hCount?: number;
+}
+
+export interface AdminUserDetails {
+  user: AdminUserRow;
+  profile: Record<string, unknown> | null;
+  counts: { dailyLogs: number; presets: number; reports: number; measurements: number };
+  subscriptions: Array<{ id: string; status: string; current_period_end: string | null; cancel_at_period_end: boolean }>;
+}
+
+export interface RetentionHistoryRow {
+  date: string;
+  activatedTotal: number;
+  logsPerActivatedUserPerDay: number;
+  d1: number | null;
+  d7: number | null;
+  d30: number | null;
 }
 
 export type ActivityItemType = 'signup' | 'entry';
@@ -315,8 +332,51 @@ export class AdminService {
     return csv;
   }
 
-  async getUserDetails(targetUid: string): Promise<unknown> {
-    return this.callables.call<{ targetUid: string }, unknown>('adminGetUserDetails', { targetUid });
+  async getUserDetails(targetUid: string): Promise<AdminUserDetails> {
+    return this.callables.call<{ targetUid: string }, AdminUserDetails>('adminGetUserDetails', { targetUid });
+  }
+
+  // ─── Product-health reads (ADR-0036 admin revamp) ──────────────
+
+  /** DAU/WAU/MAU and per-day platform + event totals, aggregated server-side
+   *  because `usageEvents` is owner-read only in the rules. Cached 5 min. */
+  async getUsageSeries(days = 30, refresh = false): Promise<UsageSeries> {
+    return this.callables.call<{ days: number; refresh: boolean }, UsageSeries>('adminGetUsageSeries', { days, refresh });
+  }
+
+  /** `config/retention`, written daily by the hourly dispatcher. Admin-read
+   *  under the `config/{doc}` rule, so no callable is needed. */
+  async getRetention(): Promise<RetentionSummary | null> {
+    const snap = await getDoc(doc(this.firestore, 'config', 'retention'));
+    return snap.exists() ? (snap.data() as RetentionSummary) : null;
+  }
+
+  async getRetentionHistory(): Promise<RetentionHistoryRow[]> {
+    const snap = await getDoc(doc(this.firestore, 'config', 'retentionHistory'));
+    const days = snap.exists() ? (snap.data()?.['days'] as RetentionHistoryRow[] | undefined) : undefined;
+    return Array.isArray(days) ? days : [];
+  }
+
+  /** Age of the last `statusPulse` write, in minutes. Null when unreadable. */
+  async getHeartbeatAgeMin(): Promise<number | null> {
+    try {
+      const snap = await getDoc(doc(this.firestore, 'status', 'heartbeat'));
+      const ts = snap.data()?.['lastPulseAt'] as { toMillis?: () => number } | undefined;
+      const ms = ts?.toMillis?.();
+      return typeof ms === 'number' ? (Date.now() - ms) / 60_000 : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async getSpendCeilings(): Promise<CeilingStatus[]> {
+    const { ceilings } = await this.callables.call<unknown, { ceilings: CeilingStatus[] }>('adminGetSpendCeilings', {});
+    return ceilings;
+  }
+
+  async setSpendCeiling(input: { kind: string; limit?: number; killed?: boolean; reason?: string }): Promise<CeilingStatus> {
+    const { ceiling } = await this.callables.call<typeof input, { ceiling: CeilingStatus }>('adminSetSpendCeiling', input);
+    return ceiling;
   }
 
   // ─── Impersonation ────────────────────────────────────────────

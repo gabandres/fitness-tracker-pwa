@@ -848,3 +848,126 @@ export const adminGetUserDetails = onCall(async (request) => {
     subscriptions,
   };
 });
+
+// ─── Usage series (product health) ─────────────────────────────────
+// `usageEvents/{uid}_{day}` is owner-read only in firestore.rules, so the
+// admin panel's DAU/WAU/MAU, stickiness and platform split come from here:
+// one range query over the last N days, aggregated server-side, cached for
+// five minutes in `config/usageSeries` exactly like `getPlatformStats`.
+// Read-only; no PII leaves — per-day totals and distinct-user counts only.
+
+const USAGE_SERIES_TTL_MS = 5 * 60 * 1000;
+const USAGE_SERIES_MAX_DAYS = 90;
+
+function localDayKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+export const adminGetUsageSeries = onCall({ timeoutSeconds: 60 }, async (request) => {
+  requireAdmin(request);
+  const { days: rawDays, refresh } = (request.data || {}) as { days?: number; refresh?: boolean };
+  const days = Math.min(USAGE_SERIES_MAX_DAYS, Math.max(7, Math.floor(rawDays ?? 30)));
+  const db = getFirestore();
+  const cacheRef = db.doc("config/usageSeries");
+
+  if (!refresh) {
+    const cached = await cacheRef.get();
+    if (cached.exists) {
+      const updatedAt = (cached.data()?.["updatedAt"] as Timestamp | undefined)?.toMillis() ?? 0;
+      const cachedDays = cached.data()?.["days"] as number | undefined;
+      if (Date.now() - updatedAt < USAGE_SERIES_TTL_MS && cachedDays === days) {
+        return cached.data()?.["series"];
+      }
+    }
+  }
+
+  const keys: string[] = [];
+  const now = new Date();
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(now.getDate() - i);
+    keys.push(localDayKey(d));
+  }
+  const from = keys[0];
+  const to = keys[keys.length - 1];
+
+  const snap = await db.collection("usageEvents").where("day", ">=", from).where("day", "<=", to).get();
+
+  const usersByDay = new Map<string, Set<string>>();
+  const platformByDay = new Map<string, Record<string, number>>();
+  const eventsByDay = new Map<string, Record<string, number>>();
+  const eventTotals: Record<string, number> = {};
+  const platformTotals: Record<string, number> = {};
+  const userDays = new Map<string, Set<string>>();
+  for (const k of keys) {
+    usersByDay.set(k, new Set());
+    platformByDay.set(k, {});
+    eventsByDay.set(k, {});
+  }
+  const NON_EVENT = new Set(["uid", "day", "platform", "updatedAt", "createdAt"]);
+  for (const docSnap of snap.docs) {
+    const d = docSnap.data();
+    const uid = String(d["uid"] ?? "");
+    const day = String(d["day"] ?? "");
+    if (!uid || !usersByDay.has(day)) continue;
+    usersByDay.get(day)!.add(uid);
+    if (!userDays.has(uid)) userDays.set(uid, new Set());
+    userDays.get(uid)!.add(day);
+    const platform = typeof d["platform"] === "string" ? (d["platform"] as string) : "unknown";
+    const pb = platformByDay.get(day)!;
+    pb[platform] = (pb[platform] ?? 0) + 1;
+    platformTotals[platform] = (platformTotals[platform] ?? 0) + 1;
+    const eb = eventsByDay.get(day)!;
+    for (const [field, value] of Object.entries(d)) {
+      if (NON_EVENT.has(field) || typeof value !== "number") continue;
+      eb[field] = (eb[field] ?? 0) + value;
+      eventTotals[field] = (eventTotals[field] ?? 0) + value;
+    }
+  }
+
+  const distinctInWindow = (n: number): number => {
+    const window = new Set(keys.slice(-n));
+    let count = 0;
+    for (const set of userDays.values()) {
+      for (const day of set) {
+        if (window.has(day)) { count++; break; }
+      }
+    }
+    return count;
+  };
+  const distinctInRange = (fromIdx: number, toIdx: number): number => {
+    const window = new Set(keys.slice(fromIdx, toIdx));
+    let count = 0;
+    for (const set of userDays.values()) {
+      for (const day of set) {
+        if (window.has(day)) { count++; break; }
+      }
+    }
+    return count;
+  };
+
+  const series = {
+    from,
+    to,
+    days,
+    computedAt: new Date().toISOString(),
+    daily: keys.map((day) => ({
+      day,
+      activeUsers: usersByDay.get(day)!.size,
+      platforms: platformByDay.get(day)!,
+      events: eventsByDay.get(day)!,
+    })),
+    dau: usersByDay.get(to)!.size,
+    wau: distinctInWindow(7),
+    mau: distinctInWindow(30),
+    /** WAU for the seven days before the current seven — the comparison the
+     *  KPI card shows. */
+    wauPrior: keys.length >= 14 ? distinctInRange(keys.length - 14, keys.length - 7) : null,
+    usersInWindow: userDays.size,
+    eventTotals,
+    platformTotals,
+  };
+
+  await cacheRef.set({ series, days, updatedAt: Timestamp.now() });
+  return series;
+});

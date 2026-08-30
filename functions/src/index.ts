@@ -50,6 +50,7 @@ export {
   adminListCompedEmails,
   adminResetQuotas,
   adminGetSpendCeilings,
+  adminGetUsageSeries,
   adminSetSpendCeiling,
   adminExportData,
   adminGetUserDetails,

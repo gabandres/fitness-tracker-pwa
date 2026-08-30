@@ -20,8 +20,14 @@ retired-routes page, the sign-in card on `/admin`, and the admin panel itself.
 | `npm start` | `ng serve` → **PROD Firebase** | `/admin` as the owner, read-only visual checks |
 | `npm run dev` | emulators + `ng serve` | only if a change touches the emulator-seeded flows (`e2e@test.com` / `UserTest123`) |
 
-`/admin` against emulators is empty and meaningless; check it on `npm start`
-signed in as the owner. **Never sign in as `review@ignia.fit`** (Apple App
+`/admin` against emulators is empty and meaningless. **For layout work use the
+preview seam: `npm start` then `http://localhost:4200/admin?preview=1`** — a
+dev-build-only mode (`admin-preview.ts`) that renders the whole console on
+fixture data with no sign-in and no Cloud Function calls; every section,
+the drawer, the palette and both themes are drivable there. The Firestore
+`ERR_CONNECTION_REFUSED` noise in the console is the dev environment pointing
+at emulators that are not running — not a panel bug. Real data needs `npm
+start` signed in as the owner. **Never sign in as `review@ignia.fit`** (Apple App
 Review's account) or `demo@ignia.fit` (screenshot captures).
 
 ## Drive it

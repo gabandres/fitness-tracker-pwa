@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { TranslationService } from './services/translation.service';
 import { stripLangPrefix } from './i18n/locale-path';
@@ -18,11 +18,12 @@ import { AdminComponent } from './components/admin/admin.component';
 import { NotFoundComponent } from './components/not-found/not-found.component';
 import { RetiredComponent } from './components/retired/retired.component';
 import { AuthService } from './services/auth.service';
-import { ThemeChoice, readStoredTheme } from './utils/theme';
+import { applyThemeChoice, readStoredTheme } from './utils/theme';
 import { mediaSignal } from './utils/media';
 import { AnalyticsService } from './services/analytics.service';
 import { AdminService } from './services/admin.service';
 import { DeferErrorComponent } from './components/ui/defer-error.component';
+import { adminPreviewEnabled } from './components/admin/admin-preview';
 
 /**
  * Every URL the shell answers. The logging app's routes (`/app`, `/history`,
@@ -68,7 +69,8 @@ type Route =
     <ng-container *transloco="let t">
     <a href="#main" class="skip-link">{{ t('app.skipToMain') }}</a>
 
-    <main id="main" class="min-h-screen px-5 sm:px-8 md:px-12 pt-[max(0.5rem,env(safe-area-inset-top))] sm:pt-5 pb-12">
+    <main id="main" class="px-5 sm:px-8 md:px-12 pt-[max(0.5rem,env(safe-area-inset-top))] sm:pt-5 pb-12"
+      [class.min-h-screen]="!consoleOpen()" [hidden]="consoleOpen()">
       <div class="max-w-[560px] md:max-w-[1100px] mx-auto">
 
         @if (route() === 'landing') {
@@ -109,43 +111,20 @@ type Route =
           @placeholder { <div class="py-20 text-center caption">…</div> } @error { <app-defer-error /> }
         } @else if (route() === 'admin') {
           @if (!isDesktop()) {
-            <!-- The admin panel is desktop-only by design: dense tables and
-                 a multi-tab layout that do not pack onto a phone. On a
-                 narrow viewport say so instead of rendering the shell's
-                 landing page, which is what used to happen. -->
+            <!-- The admin console is desktop-only by design: dense tables and
+                 a sidebar that do not pack onto a phone. -->
             <div class="max-w-[480px] mx-auto px-5 py-16 text-center">
               <h1 class="v2-h1">Admin</h1>
             </div>
-          } @else if (!auth.ready()) {
+          } @else if (!adminPreview && !auth.ready()) {
             <div class="py-20 text-center caption">…</div>
-          } @else if (!auth.isSignedIn()) {
+          } @else if (!adminPreview && !auth.isSignedIn()) {
             <!-- The only sign-in surface left on the web: "Admin" and one
                  Google button. AdminComponent handles signed-in-but-not-admin. -->
             <app-admin-gate />
-          } @else {
-            <!-- Impersonation banner. When an admin is signed in as another
-                 user the admin claim is on their own account, not the
-                 target's, so the panel is unreachable — this is the only
-                 way back. -->
-            @if (admin.impersonating()) {
-              <div class="mb-4 specimen px-4 py-2.5 flex items-center justify-between gap-3 ink-in"
-                role="status" aria-live="polite"
-                style="border-color: var(--color-gold); background: color-mix(in srgb, var(--color-gold) 8%, transparent)">
-                <span class="crop-bl" style="border-color: var(--color-gold)"></span>
-                <span class="crop-br" style="border-color: var(--color-gold)"></span>
-                <div class="flex items-center gap-2 min-w-0">
-                  <span class="stamp-mark" style="border-color: var(--color-gold); color: var(--color-gold)">IMPERSONATING</span>
-                  <span class="caption text-xs truncate">signed in as {{ auth.user()?.email }}</span>
-                </div>
-                <button type="button" (click)="exitImpersonation()"
-                  [disabled]="exitingImpersonation()" class="tag-btn text-[11px] shrink-0">
-                  {{ exitingImpersonation() ? 'returning…' : 'exit impersonation' }}
-                </button>
-              </div>
-            }
-            @defer (on immediate) { <app-admin /> }
-            @placeholder { <div class="py-20 text-center caption">…</div> } @error { <app-defer-error /> }
           }
+          <!-- Signed in (or dev preview): the console renders full-bleed
+               below, outside this max-width column. -->
         } @else {
           @defer { <app-not-found /> }
           @placeholder { <div class="py-20 text-center caption">…</div> } @error { <app-defer-error /> }
@@ -174,6 +153,26 @@ type Route =
         </footer>
       </div>
     </main>
+
+    @if (route() === 'admin' && isDesktop() && (adminPreview || (auth.ready() && auth.isSignedIn()))) {
+      @if (admin.impersonating()) {
+        <!-- Impersonation banner: while an admin is signed in as another user
+             the admin claim is on their own account, so the console is
+             unreachable — this is the only way back. -->
+        <div class="specimen px-4 py-2.5 flex items-center justify-between gap-3" role="status" aria-live="polite"
+          style="border-color: var(--color-gold); background: color-mix(in srgb, var(--color-gold) 8%, transparent)">
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="stamp-mark" style="border-color: var(--color-gold); color: var(--color-gold)">IMPERSONATING</span>
+            <span class="caption text-xs truncate">signed in as {{ auth.user()?.email }}</span>
+          </div>
+          <button type="button" (click)="exitImpersonation()" [disabled]="exitingImpersonation()" class="tag-btn text-[11px] shrink-0">
+            {{ exitingImpersonation() ? 'returning…' : 'exit impersonation' }}
+          </button>
+        </div>
+      }
+      @defer (on immediate) { <app-admin /> }
+      @placeholder { <div class="py-20 text-center caption">…</div> } @error { <app-defer-error /> }
+    }
     </ng-container>
   `,
 })
@@ -187,6 +186,10 @@ export class App {
   protected readonly isDesktop = mediaSignal('(min-width: 768px)');
   protected readonly route = signal<Route>(this.detectRoute());
   protected readonly exitingImpersonation = signal(false);
+  /** Dev-only: `ng serve` + /admin?preview=1 renders the console on fixtures. */
+  protected readonly adminPreview = adminPreviewEnabled();
+  /** True while the admin console owns the viewport (the shell's <main> and footer hide). */
+  protected readonly consoleOpen = computed(() => this.route() === 'admin' && this.isDesktop() && (this.adminPreview || (this.auth.ready() && this.auth.isSignedIn())));
 
   private detectRoute(): Route {
     // The `/es` prefix on the indexed Spanish URLs is a locale marker, not
@@ -253,11 +256,10 @@ export class App {
     // Theme: the stored choice survives from the logging app, and every
     // palette is free (v1 has no Pro tier), so apply whatever is there and
     // follow the system while it is 'auto'.
-    const choice = readStoredTheme();
-    this.applyThemeChoice(choice);
+    applyThemeChoice(readStoredTheme());
     window.matchMedia('(prefers-color-scheme: dark)')
       .addEventListener('change', () => {
-        if (readStoredTheme() === 'auto') this.applyThemeChoice('auto');
+        if (readStoredTheme() === 'auto') applyThemeChoice('auto');
       });
 
     // Per-route document.title. /changelog and /status set their own
@@ -276,36 +278,5 @@ export class App {
       this.translation.setTitleKey(key);
       if (r === 'admin') document.title = 'Admin — Ignia';
     });
-  }
-
-  /** Resolve a ThemeChoice against `prefers-color-scheme` and apply it to
-      the document root, keeping `<meta name="theme-color">` in step so the
-      browser chrome matches. */
-  private applyThemeChoice(choice: ThemeChoice): void {
-    const el = document.documentElement;
-    let effective: Exclude<ThemeChoice, 'auto'>;
-    if (choice === 'auto') {
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      effective = prefersDark ? 'dark' : 'light';
-    } else {
-      effective = choice;
-    }
-
-    if (effective === 'light') {
-      el.removeAttribute('data-theme');
-    } else {
-      el.setAttribute('data-theme', effective);
-    }
-
-    // Kept in sync with the --color-paper values in styles.css.
-    const chromeColor: Record<Exclude<ThemeChoice, 'auto'>, string> = {
-      light: '#f2ead7',
-      dark: '#1c1915',
-      sepia: '#efe6d2',
-      graphite: '#e8e6e2',
-      'oxblood-dark': '#1a1010',
-    };
-    document.querySelector('meta[name="theme-color"]')
-      ?.setAttribute('content', chromeColor[effective]);
   }
 }

@@ -47,6 +47,10 @@ export type CallableName =
   | 'adminResetQuotas'
   | 'adminExportData'
   | 'adminGetUserDetails'
+  | 'adminGetUsageSeries'
+  | 'adminGetSpendCeilings'
+  | 'adminSetSpendCeiling'
+  | 'adminListCompedEmails'
   | 'startImpersonation'
   | 'stopImpersonation';
 

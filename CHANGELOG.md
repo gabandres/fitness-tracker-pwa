@@ -38,6 +38,24 @@ Two things are the owner's call and are recorded OPEN in the ADR with the
 reversible default taken: the SEO/marketing pages and the public profiles are
 **kept**.
 
+**Same day, the console behind it was rebuilt.** `ignia.fit/admin` is now a
+sidebar shell in the app's own palette (dark leads, ADR-0014 tokens; light
+toggle) with a ⌘K command palette and eight sections — Overview, Activity,
+Feedback, Users, AI & spend, Exports, Access, Audit log. Overview carries the
+product-health set the analytics literature asks for — DAU / WAU / MAU with
+sparklines, stickiness, activation funnel, pooled D1/D7/D30 cohort retention
+from `config/retention`, platform and provider splits, feature usage, AI spend
+against each ceiling, status-pulse age — and an **insights list** derived from
+those numbers by `admin-insights.ts` (pure, unit-tested, thresholds stated in
+code: stickiness 20 %/10 %, D7 40 %/25 %, first-log-within-24h 50 %, ceiling
+80 %). Users is a filterable, sortable table with a detail drawer holding every
+action (plan, comped, quotas, password link, suspend, typed-DELETE removal).
+Access shows exactly who the admin is, why nobody else can become one, the
+comped list, and a capability matrix per tier. One new callable,
+`adminGetUsageSeries` (server-side aggregate of `usageEvents`, cached 5 min),
+because that collection is owner-read only. A dev-only `?preview=1` mode
+renders the console on fixtures for layout work.
+
 **Same day, tightened on the owner's instruction:** `/admin` now renders the
 word *Admin* and one *Sign in with Google* button — no email/password form, no
 sign-up, no reset, no other providers — and `AuthService` offers only that.
