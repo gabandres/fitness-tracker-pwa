@@ -3,22 +3,25 @@
 
 Two documented failures, both silent:
 
-  1. A DEV build skips `ngsw.json`, which leaves the service-worker update banner
-     firing for every returning user. CLAUDE.md: "Always run a PROD build before
-     firebase deploy."
-  2. `npm run build` is more than `ng build` -- scripts/sentry-release.mjs
-     mutates dist AFTER Angular hashed it (sourcemap debug IDs, map strip), and
-     ngsw.json is regenerated as the final step. Shipping a dist whose ngsw.json
-     disagrees with its own files gives returning users a service worker whose
-     hashes do not match what the server serves.
+  1. A DEV build is unoptimised, skips the prerendered SEO pages and the
+     release stamp, and (until ADR-0036 retired the service worker) left the
+     update banner firing for every returning user. CLAUDE.md: "Always run a
+     PROD build before firebase deploy."
+  2. `npm run build` is more than `ng build` -- scripts/prerender-seo.mjs writes
+     the content pages and sitemap, and scripts/sentry-release.mjs mutates dist
+     AFTER Angular hashed it (sourcemap debug IDs, map strip, the safety worker
+     that unregisters old PWA installs) and writes `build-info.json` LAST.
+     Shipping a dist without that file means one of those steps did not run.
 
-So the check is not "did you build" but "does this dist verify" -- the same SHA1
-sweep documented in docs/COMMANDS.md, plus a staleness check against src/.
+So the check is not "did you build" but "does this dist carry the stamp the
+prod build writes last", plus a staleness check against src/. Before
+2026-08-30 the stamp was `ngsw.json` and the check was a SHA1 sweep of its
+hashTable; the service worker went with the web logging app (ADR-0036), so the
+stamp is now `build-info.json` -- docs/COMMANDS.md has the verifier.
 
 Only fires for deploys that actually include hosting. `--only functions`,
 `--only firestore:rules`, etc. pass straight through.
 """
-import hashlib
 import json
 import os
 import re
@@ -44,10 +47,10 @@ except Exception:
 # the session cwd is `apps/mobile` for most of a mobile release: the Metro gate
 # and both `eas update` publishes all start with `cd apps/mobile`, and it
 # persists. So `npm run build && firebase deploy --only hosting` -- run from the
-# repo root, against a dist with a perfectly good ngsw.json -- resolved DIST to
+# repo root, against a perfectly good dist -- resolved DIST to
 # `apps/mobile/dist/...`, found nothing, and blocked with "this dist was not
 # produced by a prod build". Measured 2026-08-19: two identical refusals with
-# the file sitting on disk at 16 KB, and the fix was to `cd` the session back.
+# the file sitting on disk, and the fix was to `cd` the session back.
 #
 # That is the exact failure mode the header warns about one level up. A guard
 # that blocks the correct command is worse than no guard, because the way past
@@ -57,7 +60,7 @@ DIST = os.environ.get(
     "GUARD_DIST_ROOT",
     os.path.join(_PROJECT_DIR, "dist", "fitness-tracker-pwa", "browser"),
 )
-NGSW = os.path.join(DIST, "ngsw.json")
+STAMP = os.path.join(DIST, "build-info.json")
 
 
 def strip_heredocs(cmd):
@@ -143,44 +146,35 @@ def block(msg):
     print(
         "BLOCKED: " + msg + "\n"
         "Run `npm run build` (a PROD build -- it also runs prerender-seo.mjs and "
-        "sentry-release.mjs, and regenerates ngsw.json last) before deploying "
-        "hosting. A dev build skips ngsw.json and leaves the update banner "
-        "firing for every returning user.\n"
+        "sentry-release.mjs, which writes build-info.json last) before deploying "
+        "hosting. A dev build ships no prerendered pages, no release stamp and "
+        "no safety worker.\n"
         "Verifier: docs/COMMANDS.md -> 'Web build + deploy'.",
         file=sys.stderr,
     )
     sys.exit(2)
 
 
-if not os.path.isfile(NGSW):
-    block(NGSW + " is missing -- this dist was not produced by a prod build.")
+if not os.path.isfile(STAMP):
+    block(STAMP + " is missing -- this dist was not produced by a prod build.")
 
 try:
-    table = json.load(open(NGSW, encoding="utf-8"))["hashTable"]
+    stamp = json.load(open(STAMP, encoding="utf-8"))
 except Exception as e:
-    block("%s is unreadable (%s)." % (NGSW, e))
+    block("%s is unreadable (%s)." % (STAMP, e))
 
-bad = []
-for url, want in table.items():
-    f = os.path.join(DIST, url.lstrip("/").replace("/", os.sep))
-    try:
-        got = hashlib.sha1(open(f, "rb").read()).hexdigest()
-    except Exception:
-        bad.append(url)
-        continue
-    if got != want:
-        bad.append(url)
+if not stamp.get("production"):
+    block(STAMP + " says production=false -- this is a dev build.")
 
-if bad:
-    block(
-        "ngsw.json disagrees with its own dist -- %d file(s) bad, e.g. %s."
-        % (len(bad), ", ".join(bad[:3]))
-    )
+# The last two steps of the prod build each leave a file; both must be there.
+for rel, step in (("sitemap.xml", "prerender-seo.mjs"), ("ngsw-worker.js", "sentry-release.mjs (safety worker)")):
+    if not os.path.isfile(os.path.join(DIST, rel)):
+        block("%s is missing from dist -- %s did not run." % (rel, step))
 
-# Stale check: any source newer than the manifest means this dist predates the
+# Stale check: any source newer than the stamp means this dist predates the
 # code being deployed.
 newest, newest_f = 0.0, None
-for root, dirs, files in os.walk("src"):
+for root, dirs, files in os.walk(os.path.join(_PROJECT_DIR, "src")):
     dirs[:] = [d for d in dirs if d not in (".git", "node_modules")]
     for fn in files:
         if not fn.endswith((".ts", ".html", ".scss", ".css", ".json")):
@@ -193,12 +187,12 @@ for root, dirs, files in os.walk("src"):
         if m > newest:
             newest, newest_f = m, p
 
-built = os.path.getmtime(NGSW)
+built = os.path.getmtime(STAMP)
 if newest > built:
     age = int((newest - built) / 60)
     block(
         "dist is STALE -- %s is %d min newer than %s. "
-        "The build predates the code you are deploying." % (newest_f, age, NGSW)
+        "The build predates the code you are deploying." % (newest_f, age, STAMP)
     )
 
 sys.exit(0)

@@ -175,14 +175,9 @@ function readFlag(file, pattern) {
 
 function collectFlags() {
   const flags = {};
-  flags.webPro = readFlag(
-    'src/app/services/subscription.service.ts',
-    /export const PRO_ENABLED\s*=\s*(true|false)/,
-  );
-  flags.webPhotoScan = readFlag(
-    'src/app/utils/features.ts',
-    /photoScan:\s*(true|false)/,
-  );
+  // The web flags (`subscription.service.ts` PRO_ENABLED, `features.ts`
+  // photoScan) went with the web logging app — ADR-0036. Mobile's are the
+  // only client flags left.
   flags.mobilePro = readFlag(
     'apps/mobile/src/lib/subscription.ts',
     /export const PRO_ENABLED\s*=\s*(true|false)/,
@@ -438,8 +433,8 @@ function checkCopyVsFlags() {
     return;
   }
 
-  const proOff = flags.webPro.value === false || flags.mobilePro.value === false;
-  const photoOff = flags.webPhotoScan.value === false || flags.mobilePhotoScan.value === false;
+  const proOff = flags.mobilePro.value === false;
+  const photoOff = flags.mobilePhotoScan.value === false;
 
   for (const [key, on, label] of [
     ['pro', !proOff, 'Pro / paid tier'],

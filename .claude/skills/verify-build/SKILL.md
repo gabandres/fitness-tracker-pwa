@@ -11,7 +11,7 @@ runs **in a subagent** and returns a verdict, not a log.
 
 | Unit | Command | When it matters |
 |---|---|---|
-| Angular PWA (root) | `npm run build` | any `src/**` change; **required before every `firebase deploy`** |
+| Angular web shell (root) | `npm run build` | any `src/**` change; **required before every `firebase deploy`** |
 | `@macrolog/core` | `npm --prefix packages/core run typecheck` | any `packages/core/**` change |
 | Cloud Functions | `npm --prefix functions run build` | any `functions/src/**` change |
 | Expo app | `npx tsc --noEmit -p apps/mobile/tsconfig.json` | any `apps/mobile/**` change |
@@ -45,8 +45,9 @@ It is **not** `ng build`. It is `ng build` → `scripts/prerender-seo.mjs` →
 - A green `ng build` with a failing prerender step is still a failed build.
 - `sentry-release.mjs` no-ops with a log line when the `SENTRY_*` vars are absent.
   That is normal locally and is **not** a failure.
-- The prod build is what emits `ngsw.json`. Deploying a dev build leaves the
-  update banner firing for every user — never deploy from `npm run watch` output.
+- The prod build is what writes `build-info.json` (last) and the prerendered
+  pages. The deploy guard refuses a dist without it — never deploy from
+  `npm run watch` output.
 
 ## Typecheck-only, when you just need speed
 
@@ -60,11 +61,10 @@ typecheck script — `npm run build` is the check. Do not add one without asking
 
   | Suite | Command | Needs |
   |---|---|---|
-  | Web app (196) | `npm test` | — |
+  | Web shell (23) | `npm test` | — |
   | `packages/core` (648) | `npm --prefix packages/core test` | — |
   | **Expo app (129)** | `npm --prefix apps/mobile test` | — |
   | Functions + `firestore.rules` (260) | `npm run test:rules` | **JDK 21** |
-  | Ledger core (29) | `npm run test:ledger` | **JDK 21** |
 
   `test:rules` runs **every** functions spec, not only `firestore-rules.spec.ts`
   (which is 47 of the 260) — a distinction that produced a wrong baseline once.

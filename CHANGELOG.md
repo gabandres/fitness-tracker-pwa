@@ -6,6 +6,38 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-30 — The web logging app is retired; `ignia.fit` is a shell plus `/admin`
+
+The measurement ADR-0022 asked for came back: over 2026-08-01 → 08-30,
+`usageEvents` counted **104 active day-documents, of which 3 were web (2.9%)** —
+under the 5% line 0022 itself set for "stop building them." The owner called
+it, and [ADR-0036](docs/adr/0036-web-logging-app-retired-admin-only.md)
+records the decision, including the one 0022 condition it does not meet
+(Android production was still in review that day).
+
+What went: Today / History / Trends / Body / Train, onboarding, the entry and
+settings sheets, the `LEDGER_PORT` data layer and `FitnessStore`, the service
+worker and PWA manifest, web push, the photo-scan / barcode / AI-coach web
+clients, the web What's-new banner, the web `PRO_ENABLED` / `FEATURES` flags,
+`npm run test:ledger`, and the web's `usageEvents` writes. The sign-in card on
+`/admin` no longer offers *Sign up*. Initial bundle: 1.6 MB → 981 kB.
+
+What stayed, and why: the landing page and every content/SEO route, `/privacy`
+(export + delete-account, Play requires it), `/terms`, `/support`, `/status`,
+`/changelog`, `/u/**` public profiles and their OG images, `app-version.json`,
+the `/oura/callback`, `/unsubscribe` and `/open` handlers, and **`/admin`**, the
+owner's single-admin panel. `/app` and the old tab routes render a "moved to
+the apps" page with both store links rather than a 404 — it is the installed
+PWA's `start_url` and the target of every recap email ever sent. A safety
+worker at `/ngsw-worker.js` unregisters every existing PWA install on its next
+load. The hosting-deploy guard now checks `build-info.json` (written last by
+the prod build) instead of the `ngsw.json` hash sweep. Password-reset and
+verify-email continue URLs moved from `/app` to `/`.
+
+Two things are the owner's call and are recorded OPEN in the ADR with the
+reversible default taken: the SEO/marketing pages and the public profiles are
+**kept**.
+
 ## 2026-08-29 — Ignia is submitted to Google Play production
 
 Production access was granted this morning. Ignia 1.2.1 (versionCode 37) is now

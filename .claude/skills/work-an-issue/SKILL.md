@@ -47,8 +47,8 @@ No code changes until you have watched the reported behavior fail.
 4. Only then find the root cause.
 
 Traps that produce false results here:
-- **Service worker staleness.** An "it's still broken" on ignia.fit is a stale
-  `ngsw` bundle until proven otherwise. Hard-reload first.
+- **Cached-shell staleness.** An "it's still broken" on ignia.fit can be a
+  browser still carrying the pre-ADR-0036 service worker. Hard-reload first.
 - **`permission-denied` after a rules edit** usually means rules are not deployed
   yet, not that the code is wrong.
 - **Web-only repro on a shared-logic bug.** If the logic lives in `packages/core`,
@@ -62,15 +62,15 @@ evidence" is a valid outcome and gets commented on the issue.
 
 Branch off `main` with the repo's existing naming — `feat/`, `fix/`, `refactor/`,
 `chore/` + a short topic (`fix/history-window-off-by-one`). Follow the repo's
-architectural seams: `LEDGER_PORT` and all adapters (not just Firebase), store
-facets over direct Firestore reads, shared math into `packages/core`, both
+architectural seams: mobile's `lib/ledger.ts` for Firestore I/O, per-hook
+subscriptions (ADR-0016), shared math into `packages/core`, both
 locales in that platform's key shape, both feature-flag platforms when a gate
 changes.
 
 ## 4. Verify before you claim anything
 
 - `verify-build` skill for the units the change touched.
-- Layer tests: `npm test`, `npm run test:ledger`, `npm run test:rules`,
+- Layer tests: `npm test`, `npm run test:rules`,
   `npm --prefix packages/core test`.
 - `test-web-ui` skill for any visible surface.
 - `npm run doctor` (full, with cloud checks) — CI only runs `--no-cloud`, so the

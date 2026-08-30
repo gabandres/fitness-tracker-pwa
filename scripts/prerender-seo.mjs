@@ -85,7 +85,7 @@ const LOCALES = [
  */
 const COPY = {
   en: {
-    home: 'A quiet, private calorie + protein log with AI coaching and a real lifting log. Measured TDEE from your own data. Free on iPhone and in any browser.',
+    home: 'A quiet, private calorie + protein log with AI coaching and a real lifting log. Measured TDEE from your own data. Free on iPhone and Android.',
     calculator:
       'Free macro calculator: enter your weight, pick lose / maintain / gain, get a daily calorie + protein target you can act on today. No sign-up required.',
     vs: (name) =>
@@ -110,7 +110,6 @@ const COPY = {
     navLegal: 'Legal',
     navSiteMap: 'Site map',
     navHome: 'Home',
-    navApp: 'Open the app',
     navDownload: 'Get the iPhone app',
     navSupport: 'Support',
     navAllWeights: 'All weights',
@@ -118,7 +117,7 @@ const COPY = {
     otherLang: 'English',
   },
   es: {
-    home: 'Un registro de calorías y proteína privado y sin ruido, con entrenador de IA y registro de pesas de verdad. TDEE medido con tus propios datos. Gratis en iPhone y en cualquier navegador.',
+    home: 'Un registro de calorías y proteína privado y sin ruido, con entrenador de IA y registro de pesas de verdad. TDEE medido con tus propios datos. Gratis en iPhone y Android.',
     calculator:
       'Calculadora de macros gratis: pon tu peso, elige bajar / mantener / subir y recibe una meta diaria de calorías y proteína que puedes usar hoy. Sin registro.',
     vs: (name) =>
@@ -143,7 +142,6 @@ const COPY = {
     navLegal: 'Legal',
     navSiteMap: 'Mapa del sitio',
     navHome: 'Inicio',
-    navApp: 'Abrir la app',
     navDownload: 'Consigue la app de iPhone',
     navSupport: 'Soporte',
     navAllWeights: 'Todos los pesos',
@@ -677,7 +675,6 @@ function footerGroups(route, locale) {
     li(p('/support'), copy.navSupport),
     li(p('/changelog'), stripBrand(i18n.changelog.pageTitle)),
     li(p('/status'), stripBrand(i18n.status.pageTitle)),
-    li('/app', copy.navApp),
   ];
 
   const legal = [

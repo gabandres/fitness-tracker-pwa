@@ -1,6 +1,6 @@
 # Ignia
 
-A free, private macro tracker for lifters and people in a cut. **Live at <https://ignia.fit>**.
+A free, private macro tracker for lifters and people in a cut. **On the App Store and Google Play; the website is <https://ignia.fit>**.
 
 > Try it without an account → **<https://ignia.fit/calculator>**
 
@@ -17,7 +17,9 @@ Two numbers move the needle for fat loss and lean recomp: **calories** and **pro
 - AI coach that reads your real history
 - Fasting timer + body-weight log + measurements
 - Full Spanish (es-PR) localization
-- PWA — installs to home screen, works offline once cached
+- Home-screen widget, Apple Watch complication, Siri quick-add
+
+**The browser version is retired (ADR-0036, 2026-08-30).** `ignia.fit` is the marketing/compliance site plus the owner's `/admin` page; the old `/app` routes tell you where the apps are.
 
 **Pricing: free. All of it.** There is no Pro tier, no subscription, no trial
 and nothing to buy — `PRO_ENABLED` is `false` on both platforms. **Donation
@@ -34,7 +36,7 @@ page on GitHub.)*
 
 ## Tech
 
-An **npm-workspaces monorepo**, not a single app: the root is the Angular 21 PWA, `apps/mobile/` is the Expo app that is live on the iOS App Store and is the long-term product (ADR-0015; the web logging surfaces are frozen per ADR-0022), and `packages/core` is the framework-free brain both share. Backed by Firebase (Firestore, Auth, Cloud Functions gen2, Hosting). Gemini for photo→macros and the AI coach. The `firestore-stripe-payments` extension is installed but **dormant** — nothing is purchasable.
+An **npm-workspaces monorepo**, not a single app: the root is the Angular 21 web shell (marketing pages + `/admin`), `apps/mobile/` is the Expo app on the App Store and Google Play and is the product (ADR-0015; the web logging app was retired per ADR-0036), and `packages/core` is the framework-free brain the app and the Cloud Functions share. Backed by Firebase (Firestore, Auth, Cloud Functions gen2, Hosting). Gemini for photo→macros and the AI coach. The `firestore-stripe-payments` extension is installed but **dormant** — nothing is purchasable.
 
 ## Positioning
 
@@ -44,8 +46,8 @@ Uniquely, ships both photo-AI logging (like Cal AI) *and* adaptive TDEE coaching
 
 ## Project map
 
-- `src/` — the Angular PWA (the repo root *is* the default `ng` project). `services/fitness-store.service.ts` is the single reactive data layer; components inject it and read signals.
-- `apps/mobile/` — the Expo SDK 57 React Native app, live on the iOS App Store, Android in closed alpha. Has its own `AGENTS.md`; read it before working there.
+- `src/` — the Angular web shell (the repo root *is* the default `ng` project): landing, calculators, comparisons, FAQ, legal, status, public profiles, and `/admin`. No data layer — the logging app is gone (ADR-0036).
+- `apps/mobile/` — the Expo SDK 57 React Native app, live on the iOS App Store and submitted to Google Play production (`STATUS.md` has where that stands). Has its own `AGENTS.md`; read it before working there.
 - `packages/core/` (`@macrolog/core`) — pure shared domain types + math (TDEE, targets, dates, units), imported by both apps. Keep it dependency-free.
 - `functions/` — Cloud Functions (gen2, Node 22), read from `functions/src/index.ts` on 2026-08-15: `logWebhook`, `analyzePhoto`, `consultationStream` (SSE AI coach, server-held Gemini key), `checkAccessStatus`, `exportUserData`, `deleteAccount`, `registerAppleRefreshToken`, `generateWeeklyReport`, `statusPulse`, `weeklyFirestoreBackup`, `hourlyTasks`, `sendWelcomeEmail`, `onDailyLogCreated`, `onSubscriptionWritten`, `sendPasswordReset`, `sendVerificationEmail`, `searchFoods`, `getFoodDetail`, `importRecipe`, `ogImagePublicProfile`, `servePublicProfilePage`, `bootstrapAdmin`, `setAdminClaims`, `startImpersonation`, `stopImpersonation`.
   *(The old list named `sendDailyReminders`, `sendDayThreeCoachPush` and `publishUserCount` as separate functions. They are not: Cloud Scheduler's free tier is 3 jobs and all 3 are spent, so recurring work folds into the `hourlyTasks` dispatcher — see `CLAUDE.md`. Regenerate this list from `index.ts` rather than editing it by hand.)*

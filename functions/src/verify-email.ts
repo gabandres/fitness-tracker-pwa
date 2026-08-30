@@ -58,7 +58,7 @@ import { verifyEmailEmail } from "./email-templates";
 export const MAX_PER_USER = 5;
 
 /** Where the user lands after Firebase's handler accepts the code. */
-const CONTINUE_URL = process.env.MACROLOG_VERIFY_CONTINUE_URL || "https://ignia.fit/app";
+const CONTINUE_URL = process.env.MACROLOG_VERIFY_CONTINUE_URL || "https://ignia.fit/";
 
 export interface SendVerificationEmailRequest {
   locale?: string;

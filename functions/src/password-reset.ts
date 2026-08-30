@@ -59,7 +59,7 @@ export const MAX_PER_EMAIL = 3;
 export const MAX_PER_IP = 10;
 
 /** Where the user lands after Firebase's handler accepts the new password. */
-const CONTINUE_URL = process.env.MACROLOG_RESET_CONTINUE_URL || "https://ignia.fit/app";
+const CONTINUE_URL = process.env.MACROLOG_RESET_CONTINUE_URL || "https://ignia.fit/";
 
 const RATE_LIMIT_COLLECTION = "emailRateLimits";
 

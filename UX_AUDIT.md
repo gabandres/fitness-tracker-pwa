@@ -38,6 +38,11 @@ Weeks 1–3 (conversion path, first-session retention, daily-use polish) are com
 
 ## 🚀 S13 — Public-launch readiness (2026-04-18)
 
+> **2026-08-30 — the web logging app is retired (ADR-0036).** Items below that
+> name the PWA, `ngsw`, web push, the web install prompt or web onboarding are
+> history; the launch surface is the two store apps plus the `ignia.fit` shell
+> (legal pages, `/support`, `/status`) and `/admin`.
+
 What's between "deployed" and "safe to share with strangers." Grouped by severity, not by effort. Everything in this section is gating wider distribution.
 
 ### 🚨 Hard blockers — must-have before any public share

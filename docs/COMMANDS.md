@@ -10,8 +10,8 @@ written down here or in `STATUS.md` is a cache, and caches go stale.
 ## Everyday
 
 ```sh
-npm start                  # web dev (emulators: npm run dev)
-npm test                   # web unit tests
+npm start                  # web shell dev (emulators: npm run dev)
+npm test                   # web shell unit tests
 npm run build              # prod build — the last step is load-bearing, see below
 npm run doctor             # config-drift + copy guard + secret-version audit
 npm --prefix packages/core test
@@ -27,8 +27,7 @@ that reads like a broken test, and was twice written down as one.
 
 `scripts/require-java21.mjs` is a **launcher**, not a warning: it locates a
 JDK 21+, puts it first on PATH with a matching `JAVA_HOME`, and runs the command.
-`npm run test:rules` and `npm run test:ledger` both go through it, so **no PATH
-export is needed**. It prints which JDK it picked.
+`npm run test:rules` goes through it, so **no PATH export is needed**. It prints which JDK it picked.
 
 Nothing in its candidate list is trusted: each path is a place to *look*, and a
 JDK is used only after `<candidate>/bin/java -version` reports 21+. That is what
@@ -41,7 +40,6 @@ printed the correct fix for four days while the suites kept not running.
 
 ```sh
 npm run test:rules         # ALL functions specs incl. firestore.rules
-npm run test:ledger        # FirestoreLedgerCore against the emulator
 ```
 
 **Run them separately, never back to back** — the second inherits the first's
@@ -197,17 +195,19 @@ output, not a faster build.
 ## Web build + deploy
 
 **The last step of `npm run build` is load-bearing — do not reorder or drop it.**
-`scripts/sentry-release.mjs` mutates `dist` *after* `ng build` has hashed it:
-`sentry-cli sourcemaps inject` rewrites every minified `.js` to embed a debug ID,
-and the map-strip deletes files. `ngsw.json` pins a SHA1 per file, so it is
-regenerated as the final step; shipping the stale one gives every returning user
-a service worker whose hashes do not match what the server serves.
+`scripts/sentry-release.mjs` mutates `dist` *after* `ng build` has hashed it
+(sourcemap debug IDs, map strip), checks that `public/ngsw-worker.js` — the
+safety worker that unregisters every old PWA install (ADR-0036) — reached dist,
+and writes **`build-info.json` last**. That file is what
+`.claude/hooks/guard_firebase_deploy.py` checks before a hosting deploy: it must
+exist, say `production: true`, and be newer than every file under `src/`.
 
 ```sh
-# verify ngsw.json against the dist it describes
-node -e "const{createHash}=require('crypto'),{readFileSync,existsSync}=require('fs'),{join}=require('path');const D='dist/fitness-tracker-pwa/browser',t=JSON.parse(readFileSync(join(D,'ngsw.json'),'utf8')).hashTable;let b=0;for(const[u,h]of Object.entries(t)){const f=join(D,u.slice(1));if(!existsSync(f)||createHash('sha1').update(readFileSync(f)).digest('hex')!==h){console.log('BAD',u);b++}}console.log(b?b+' BAD':Object.keys(t).length+' ok')"
+# what the deploy guard checks, by hand
+node -e "const{readFileSync,existsSync}=require('fs');const D='dist/fitness-tracker-pwa/browser';const b=JSON.parse(readFileSync(D+'/build-info.json','utf8'));console.log(b, 'sitemap', existsSync(D+'/sitemap.xml'), 'safety worker', existsSync(D+'/ngsw-worker.js'))"
 
 curl -s https://ignia.fit/index.html | grep -o '__MACROLOG_RELEASE__[^;]*'   # which commit is live
+curl -s -o /dev/null -w '%{http_code}\n' https://ignia.fit/app             # 200, and the body is the "moved" page, not a log
 ```
 
 **Read the deployed artifact back, don't infer from the deploy exit.** Several
@@ -233,7 +233,7 @@ cd functions && node -e "const{loadFoods}=require('./lib/usda-db.js');const{reso
 ## Product measurement
 
 ```sh
-node scripts/usage-report.mjs --days 30      # `platforms` decides the web-retirement question (ADR-0022)
+node scripts/usage-report.mjs --days 30      # `platforms.web` reads 0 from 2026-08-30 on — the web writes no usageEvents (ADR-0036)
 node scratchpad/tester-engagement.mjs        # Firebase Auth × per-user Firestore count()
 ```
 

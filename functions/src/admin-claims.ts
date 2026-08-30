@@ -8,11 +8,11 @@ const ADMINS_DOC = "config/admins";
 
 /**
  * Seed emails used only to bootstrap the admin system on first boot.
- * Keep in sync with ADMIN_EMAILS in src/app/services/subscription.service.ts
- * and the legacy ADMIN_EMAILS constant in this file's index.ts — the
- * client list shapes UI, this list gates bootstrap, and the index.ts
- * copy is a defense-in-depth fallback that stays paid even if claims
- * haven't propagated yet. All three point at the owner's email.
+ * Keep in sync with ADMIN_EMAILS in caller-access.ts (the server-side quota
+ * bypass) and SEED_ADMIN_EMAILS in src/app/services/admin.service.ts (shows
+ * the bootstrap CTA). The web `subscription.service.ts` copy is gone with
+ * the logging app (ADR-0036). There is ONE admin — the owner — and this
+ * list gains no second entry.
  */
 const SEED_ADMINS = ["gabrielandresbermudez@gmail.com"];
 

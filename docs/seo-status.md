@@ -244,10 +244,12 @@ a single route renders. Every prerendered page instantiates `App`, so every one
 of the 28 shell references and both dependency lists above are on the
 server-render path — not just the 14 in the leaves.
 
-And this is a **frozen frontend** (ADR-0022). A router migration plus an
-SSR-safety pass across 15 services and utils is the largest change anyone would
-make to the web app since the freeze, spent on a surface whose retirement is
-itself an open question awaiting `node scripts/usage-report.mjs --days 30`.
+And this is a **shell, not an app** (ADR-0036 — the logging app is gone;
+the question is no longer whether the site is retired but whether the SEO pages
+are kept, which ADR-0036 leaves to the owner). A router migration plus an
+SSR-safety pass is still the largest change anyone would make to it, and the
+surface it would serve is now much smaller: no auth gate, no Firestore data
+layer, no service worker. That removes two of the three blockers named below.
 
 ### Recommendation
 
@@ -270,7 +272,8 @@ itself an open question awaiting `node scripts/usage-report.mjs --days 30`.
    it does not.
 
 The migration is not rejected — it is **deferred behind a measurement**, the
-same discipline ADR-0022 applies to retiring the site at all.
+same discipline ADR-0022 applied to retiring the logging app (and which ADR-0036
+then acted on).
 
 ## The floor, shipped 2026-08-17
 
@@ -366,10 +369,11 @@ not `window`/`navigator`), and the auth/Firestore providers would have to be
 deferred or the render would never reach stability.
 
 **So "real prerendering" is not a build-config change; it is a router migration
-of the flagship app plus an SSR-safety pass.** That is a large change to a
-frontend ADR-0022 froze. It is not refused here — it is *scoped*, which is what
-the 2026-08-17 entry said had never been done. Anyone re-opening it should cost
-the router migration first, because everything else depends on it.
+plus an SSR-safety pass.** Written when this was the flagship app; since
+ADR-0036 (2026-08-30) the shell has no auth gate, no data layer and no service
+worker, so the SSR-safety half is far smaller than the 15 files counted above.
+It is not refused here — it is *scoped*. Anyone re-opening it should re-count
+the router migration against the surviving components first.
 
 ### What shipped instead: the pages now carry their own copy
 

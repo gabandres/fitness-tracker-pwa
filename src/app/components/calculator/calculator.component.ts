@@ -178,7 +178,7 @@ function detectGoalFromPath(): GoalDirection {
               {{ t('calculator.ctaBody') }}
             </p>
             <div class="mt-5 flex flex-col items-center gap-3">
-              <a href="/app" class="v2-btn v2-btn--primary v2-btn--lg" (click)="trackCtaClick()">
+              <a [href]="APP_STORE_URL" rel="noopener" class="v2-btn v2-btn--primary v2-btn--lg" (click)="trackCtaClick()">
                 {{ t('calculator.ctaButton') }}
               </a>
               <button

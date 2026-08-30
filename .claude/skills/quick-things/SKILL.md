@@ -41,10 +41,11 @@ Compiling is not shipped. Committed is not shipped. Per item:
    npm run build && firebase deploy --only hosting
    firebase deploy --only functions            # if functions changed
    ```
-   `npm run build` must be the **prod** build; a dev build skips `ngsw.json` and
-   leaves the update banner firing for every user.
+   `npm run build` must be the **prod** build; a dev build has no
+   `build-info.json` and the deploy guard refuses it.
 5. **Verify it deployed** — hit the real surface on `https://ignia.fit`, not
-   localhost. A hard reload; the service worker will otherwise serve the old bundle.
+   localhost. A hard reload, in case a pre-ADR-0036 service worker is still
+   holding the old bundle (the safety worker evicts it on first load).
 6. **Then it is shipped.** Say in one line what shipped and where to look at it.
 
 The owner may say "deploy once at the end" — then steps 1–3 run per item and 4–6

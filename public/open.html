@@ -86,7 +86,7 @@
 
   <a class="btn" id="app" href="ignia://">Open Ignia</a>
   <a class="btn secondary" id="store" href="https://apps.apple.com/app/id6788589414">Get Ignia for iPhone</a>
-  <a class="btn secondary" href="https://ignia.fit/app">Continue in the browser</a>
+  <a class="btn secondary" href="https://play.google.com/store/apps/details?id=fit.ignia.app">Get Ignia for Android</a>
 
   <footer>
     <a href="https://ignia.fit">ignia.fit</a> ·
@@ -98,13 +98,11 @@
 <script>
 (function () {
   var APP_STORE = 'https://apps.apple.com/app/id6788589414';
-  // Android is not on Play yet (STATUS.md §3 — production access is gated on
-  // Google's 14-day closed-test clock). Until it launches, an Android device
-  // without the app is sent to the PWA, which is the only thing it can
-  // actually run. SWAP THIS for the Play listing on launch day; it is both
-  // the button href and the `S.browser_fallback_url` below.
-  var ANDROID_FALLBACK = 'https://ignia.fit/app';
-  var WEB_APP = 'https://ignia.fit/app';
+  // An Android device without the app goes to the Play listing — both the
+  // button href and the `S.browser_fallback_url` below. Anything that is
+  // neither phone goes to the site: the browser app is retired (ADR-0036).
+  var ANDROID_FALLBACK = 'https://play.google.com/store/apps/details?id=fit.ignia.app';
+  var WEB_APP = 'https://ignia.fit/';
   var SCHEME = 'ignia://';
 
   /**

@@ -24,6 +24,10 @@ const LISTING = 'https://apps.apple.com/app/id6788589414';
 /** The plain listing — the default for any surface without a matching page. */
 export const APP_STORE_URL = LISTING;
 
+/** Google Play listing. Same package as `android.package` in apps/mobile/app.json
+ *  and the `android` entry of `STORE_URLS` in apps/mobile/src/lib/app-update.ts. */
+export const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=fit.ignia.app';
+
 /**
  * Custom Product Pages, keyed by the intent they serve.
  *

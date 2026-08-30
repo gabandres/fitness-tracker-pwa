@@ -77,16 +77,6 @@ const CALENDAR_OK = {
   // bookkeeping — never shown to a user, never fed to the estimator — and
   // moving it would only change which UTC-ish bucket a batch flushes in.
   'apps/mobile/src/lib/analytics.ts': ['new Date()'],
-  'src/app/services/analytics.service.ts': ['new Date()'],
-  // A "don't show this again today" latch in localStorage. Cosmetic: at worst
-  // a returning user sees one dismissed banner once more at the boundary.
-  'src/app/app.ts': ['now', 'new Date()'],
-  // The in-memory port adapter — a test double, with no profile to read.
-  'src/app/ledger/infrastructure/in-memory-ledger.adapter.ts': ['new Date()'],
-  // Both step off an anchor that `dayKeyAt` already settled — the correct and
-  // intended use of the calendar date. See the rule on `calendarDateKey`.
-  'src/app/services/body-metric-store.service.ts': ['addDays(today, -i)'],
-  'src/app/services/fitness-store.service.ts': ['d', 'yesterday'],
 };
 
 function git(...args) {

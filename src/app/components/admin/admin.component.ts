@@ -114,8 +114,8 @@ interface TabDef { readonly id: AdminTab; readonly label: string; }
   `],
   template: `
     <section class="max-w-[1200px] mx-auto">
-      <a href="/app" class="admin-caption underline decoration-dotted">
-        ← back to app
+      <a href="/" class="admin-caption underline decoration-dotted">
+        ← ignia.fit
       </a>
 
       <header class="mt-6 flex items-start justify-between gap-4 flex-wrap">

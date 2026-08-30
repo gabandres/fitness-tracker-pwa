@@ -2,6 +2,14 @@
 
 ## Status
 
+**superseded in part by [ADR-0036](0036-web-logging-app-retired-admin-only.md)
+(2026-08-30)** — decision 5 (the measured endgame) has been taken: the
+measurement it named came back at 2.9% web, and the logging app is retired.
+Decisions 1–4 (mobile-first, correctness-only maintenance while it existed,
+the shell keeps shipping, `packages/core` for shared math) stand. 0036 also
+records the one condition of decision 5 that was *not* met when the call was
+made.
+
 accepted (2026-08-12) — amends
 [ADR-0015](0015-macronaut-photo-first-freemium-pivot.md), which made the Expo
 app the long-term product and left the PWA's lifespan an open question. This

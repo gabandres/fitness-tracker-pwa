@@ -4,15 +4,11 @@
 // sourcemaps to end users. No-op (with a log line) when SENTRY_AUTH_TOKEN
 // isn't set — keeps local prod builds and fork CI runs working.
 //
-// NOTE: this script does NOT inject `__MACROLOG_RELEASE__`, despite what
-// src/app/components/settings-sheet/settings-about-section.component.ts:122
-// claims. Nothing does. Until that is wired, the app reports its release as
-// 'dev' at runtime while maps upload under the commit SHA, so uploaded maps
-// cannot resolve. The stamp cannot simply be written into dist/index.html
-// here: index.html is in ngsw.json's hashTable, and rewriting it post-build
-// desynchronises the service worker (the same reason prerender-seo.mjs
-// refuses to touch it). The fix belongs at build time — a generated
-// src/build-info.ts, or angular.json's `define` — not in this file.
+// It also stamps `__MACROLOG_RELEASE__` into every HTML page, checks the
+// safety worker reached /ngsw-worker.js (ADR-0036 — the PWA is retired, and
+// the safety worker is what makes every existing install unregister itself),
+// and writes `build-info.json` LAST. That file is the prod-build stamp
+// `.claude/hooks/guard_firebase_deploy.py` checks before a hosting deploy.
 
 import { execSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
@@ -78,9 +74,9 @@ const haveToken = Boolean(process.env.SENTRY_AUTH_TOKEN);
  * on this (debug IDs handle that), but issue grouping, per-deploy dashboards
  * and the build id in feedback emails all do.
  *
- * Safe to do post-build ONLY because ngsw.json is regenerated afterwards — a
- * stamp without that regeneration would desync the service worker. Runs over
- * the prerendered SEO pages too, since any of them can be a user's entry point.
+ * Runs over the prerendered SEO pages too, since any of them can be a user's
+ * entry point. (Until ADR-0036 this had to be followed by an ngsw.json
+ * regeneration; there is no service worker to keep in step any more.)
  */
 function stampRelease(dir) {
   let count = 0;
@@ -150,23 +146,22 @@ function stripMaps(dir) {
 const removed = stripMaps(DIST_ROOT);
 console.log(`[sentry-release] Removed ${removed} .map file(s) from ${DIST_ROOT}.`);
 
-// Rebuild the service-worker manifest LAST, because everything above mutates
-// dist after `ng build` already hashed it:
-//   - `sourcemaps inject` rewrites every minified .js to embed a debug ID,
-//   - stripMaps deletes files ngsw.json may reference.
-// ngsw.json pins a SHA1 per file, so shipping a stale one gives every returning
-// user a service worker whose hashes do not match what the server serves. That
-// is a sticky, client-side failure — exactly the class of bug the deploy notes
-// warn about. Regenerating is idempotent and cheap, so it runs unconditionally.
-try {
-  execSync(`npx --yes ngsw-config ${DIST_ROOT} ngsw-config.json`, { stdio: 'inherit' });
-  console.log('[sentry-release] Regenerated ngsw.json against the final dist.');
-} catch (err) {
-  // Fatal only when we actually mutated the bundles — otherwise ng build's own
-  // manifest is still accurate and the build can proceed.
-  console.error('[sentry-release] ngsw.json regeneration failed:', err.message);
-  if (haveToken) {
-    console.error('[sentry-release] Bundles were debug-ID injected, so the existing ngsw.json is STALE. Refusing to leave a poisoned dist.');
-    process.exit(1);
-  }
+// ─── The safety worker ──────────────────────────────────────────────────
+// `public/ngsw-worker.js` is Angular's safety-worker recipe, shipped at the
+// retired PWA's worker URL so every existing install unregisters itself
+// (ADR-0036). It reaches dist as a plain asset; this only proves it did.
+if (!existsSync(join(DIST_ROOT, 'ngsw-worker.js'))) {
+  console.error('[sentry-release] public/ngsw-worker.js did not reach dist — old PWA installs would keep serving a cached app.');
+  process.exit(1);
 }
+
+// ─── The prod-build stamp, written LAST ─────────────────────────────────
+// `guard_firebase_deploy.py` refuses a hosting deploy unless this file exists,
+// says production=true, and is newer than every file under src/. Anything
+// above that fails must exit non-zero BEFORE this line, or the stamp lies.
+writeFileSync(
+  join(DIST_ROOT, 'build-info.json'),
+  JSON.stringify({ release: RELEASE, builtAt: new Date().toISOString(), production: true }, null, 2) + '\n',
+  'utf8',
+);
+console.log(`[sentry-release] Wrote build-info.json (release ${RELEASE}).`);

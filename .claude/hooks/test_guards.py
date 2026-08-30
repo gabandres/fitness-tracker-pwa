@@ -70,7 +70,7 @@ case(D, cmd("npm run build && firebase deploy --only hosting"), "build && deploy
 # These two cases used to assert the opposite and therefore passed only when
 # dist was stale or absent; they went red after any build, which is a red matrix
 # that means nothing. GUARD_DIST_ROOT points the guard at a directory that
-# provably has no ngsw.json, so the outcome no longer depends on the machine.
+# provably has no build-info.json, so the outcome no longer depends on the machine.
 MISSING_DIST = {"GUARD_DIST_ROOT": os.path.join(ROOT, ".claude", "hooks", "no-such-dist")}
 case(D, cmd("firebase deploy && npm run build"), "deploy with NO dist (unbuilt)", "BLOCK", MISSING_DIST)
 case(D, cmd("firebase deploy --only hosting"), "deploy hosting with NO dist", "BLOCK", MISSING_DIST)

@@ -56,12 +56,6 @@
           "source": "/tip",
           "destination": "/support",
           "type": 302
-        },
-        {
-          "_comment": "Every weekly-recap email ever sent links its 'Open your log' button here (APP_LINK in functions/src/email-templates.ts). The redirector it describes was never built: hosting served index.html via the ** rewrite, detectRoute() in src/app/app.ts had no /open case, and the SPA rendered its branded 404 — a 200 that looks like a 404 to the reader. Fixing the template alone would only help FUTURE mail, so the URL itself has to resolve. /app is the real entry point; the auth gate decides log vs sign-in from there.",
-          "source": "/open",
-          "destination": "/app",
-          "type": 302
         }
       ],
       "rewrites": [
@@ -133,33 +127,6 @@
             {
               "key": "Referrer-Policy",
               "value": "no-referrer"
-            }
-          ]
-        },
-        {
-          "source": "/ngsw-worker.js",
-          "headers": [
-            {
-              "key": "Cache-Control",
-              "value": "no-cache"
-            }
-          ]
-        },
-        {
-          "source": "/ngsw.json",
-          "headers": [
-            {
-              "key": "Cache-Control",
-              "value": "no-cache"
-            }
-          ]
-        },
-        {
-          "source": "/manifest.webmanifest",
-          "headers": [
-            {
-              "key": "Cache-Control",
-              "value": "no-cache"
             }
           ]
         },

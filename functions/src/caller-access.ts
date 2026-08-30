@@ -5,8 +5,8 @@ import { ErrorCode } from "./error-codes";
 // ─── Admin bypass list ────────────────────────────────────────────
 // Emails listed here skip all per-user quotas (consultations, photos)
 // and behave like paid subscribers server-side. Keep this in sync
-// with ADMIN_EMAILS in src/app/services/subscription.service.ts —
-// the two projects can't share code, so it's a deliberate duplicate.
+// with SEED_ADMINS in admin-claims.ts — a deliberate duplicate; the
+// web copy in subscription.service.ts went with the logging app (ADR-0036).
 const ADMIN_EMAILS = new Set([
   "gabrielandresbermudez@gmail.com",
 ]);

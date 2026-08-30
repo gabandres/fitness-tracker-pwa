@@ -1,19 +1,12 @@
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { vi } from 'vitest';
-import { SwUpdate } from '@angular/service-worker';
 import { App } from './app';
 import { AuthService } from './services/auth.service';
-import { LEDGER_PORT } from './ledger/ports/ledger.port';
-import { FitnessStore } from './services/fitness-store.service';
-import { WeeklyReportStore } from './services/weekly-report-store.service';
-import { PushNotificationService } from './services/push-notification.service';
-import { Messaging } from '@angular/fire/messaging';
-import { SubscriptionService } from './services/subscription.service';
 import { TranslationService } from './services/translation.service';
 import { AdminService } from './services/admin.service';
+import { AnalyticsService } from './services/analytics.service';
 import { provideTranslocoConfig } from './i18n/transloco.providers';
-import { MIDNIGHT } from '@macrolog/core';
 
 describe('App', () => {
   beforeEach(async () => {
@@ -40,140 +33,32 @@ describe('App', () => {
             user: signal(null),
             ready: signal(true),
             isSignedIn: signal(false),
-            signInWithGoogle: async () => {},
-            signOut: async () => {},
+            emailVerified: signal(false),
+            signOut: vi.fn(),
           },
         },
         {
-          provide: LEDGER_PORT,
+          provide: TranslationService,
           useValue: {
-            profile: signal(null),
-            profileCompleted: signal(false),
-            ensureUserProfile: async () => {},
-            clearProfile: () => {},
-            getRecentLogs: async () => [],
-            getPresets: async () => [],
-            addLog: async () => {},
-          },
-        },
-        {
-          provide: FitnessStore,
-          useValue: {
-            logs: signal([]),
-            presets: signal([]),
-            profile: signal(null),
-            // ADR-0030. Empty ⇒ calendar days, the behaviour these specs assert.
-            dayBoundary: signal(MIDNIGHT),
-            status: signal('idle'),
-            error: signal(null),
-            tdee: signal({ trueTdee: 2450, newDailyTarget: 1800, weightChangeTrend: 0, source: 'seed' }),
-            targetCalories: signal(1800),
-            currentWeight: signal(null),
-            streak: signal(0),
-            weekly: signal(null),
-            ema: signal([]),
-            goalProgress: signal(null),
-            todaySummary: signal(null),
-            hasLoggedToday: signal(false),
-            undoEntry: signal(null),
-            webhookApiKey: signal(null),
-            refresh: async () => {},
-            undoDelete: async () => {},
-            generateWebhookApiKey: async () => 'test',
-            revokeWebhookApiKey: async () => {},
-            travelMode: signal(false),
-            measurements: signal([]),
-            latestMeasurement: signal(null),
-            previousMeasurement: signal(null),
-            measurementDeltas: signal(null),
-            addMeasurement: async () => {},
-            deleteMeasurement: async () => {},
-            _registerWeeklyReportHooks: () => {},
-          },
-        },
-        {
-          // App eagerly injects WeeklyReportStore so its constructor wires
-          // hooks into FitnessStore — stub it so the spec doesn't need to
-          // pull in the real Gemini/subscription chains.
-          provide: WeeklyReportStore,
-          useValue: {
-            weeklyReport: signal(null),
-            reportLoading: signal(false),
-            reportError: signal(null),
-            generateWeeklyReport: async () => {},
-            clearReportError: () => {},
-            checkWeeklyReport: async () => {},
-            clear: () => {},
-          },
-        },
-        {
-          provide: SwUpdate,
-          useValue: { isEnabled: false, versionUpdates: { pipe: () => ({ subscribe: () => {} }) } },
-        },
-        {
-          provide: PushNotificationService,
-          useValue: {
-            permission: signal('default'),
-            fcmToken: signal(null),
-            requestPermissionAndGetToken: async () => null,
-            onForegroundMessage: () => {},
-          },
-        },
-        {
-          provide: Messaging,
-          useValue: {},
-        },
-        // SubscriptionService injects Firestore via field initializer; stub
-        // out the whole service so the DI chain doesn't require AngularFire.
-        {
-          provide: SubscriptionService,
-          useValue: {
-            isPaid: signal(false),
-            isAdmin: signal(false),
-            isComped: signal(false),
-            isTrialing: signal(false),
-            subscriptionStatus: signal(null),
-            currentSubscriptionPriceId: signal(null),
-            photosRemaining: signal(null),
-            consultationsRemaining: signal(null),
-            photoLimit: signal(3),
-            consultationLimit: signal(3),
-            decrementPhotosRemaining: () => {},
-            decrementConsultationsRemaining: () => {},
-            refreshAccessStatus: async () => {},
-            openPortal: async () => {},
-            subscribe: async () => {},
+            language: signal('en'),
+            setTitleKey: vi.fn(),
+            t: (k: string) => k,
           },
         },
         // AdminService eagerly injects Auth/Firestore/Functions at field-init
-        // time, so the real service can't load under JSDOM. The App template
-        // reads admin.isAdmin/canBootstrap/impersonating — a minimal signal
-        // stub covers every binding.
+        // time; stub it so the spec needs no Firebase.
         {
           provide: AdminService,
           useValue: {
-            ready: signal(true),
-            isAdmin: signal(false),
-            adminEmails: signal([]),
-            compedEmails: signal([]),
-            canBootstrap: signal(false),
-            originalAdminUid: signal(null),
             impersonating: signal(false),
-            bootstrap: async () => {},
-            grantAdmin: async () => {},
-            revokeAdmin: async () => {},
-            addCompedEmail: async () => {},
-            removeCompedEmail: async () => {},
-            impersonate: async () => {},
-            stopImpersonating: async () => {},
-            refreshClaims: async () => {},
+            stopImpersonating: vi.fn(),
           },
         },
-        // Use the real transloco config + TranslationService so the
-        // *transloco directive inside App's template can resolve
-        // TRANSLOCO_TRANSPILER. This matches the onboarding spec pattern.
+        {
+          provide: AnalyticsService,
+          useValue: { pageview: vi.fn(), track: vi.fn() },
+        },
         provideTranslocoConfig(),
-        TranslationService,
       ],
     }).compileComponents();
   });
@@ -183,29 +68,18 @@ describe('App', () => {
     expect(fixture.componentInstance).toBeTruthy();
   });
 
-  // TODO(#app-spec): these two DOM assertions depend on the full transloco
-  // dictionary being loaded AND on @defer blocks resolving synchronously in
-  // JSDOM. The current stack (Angular 21 vitest runner + deferred blocks)
-  // does neither reliably in a unit test. Skipping until we either preload
-  // the translation JSON at setup time or switch these to a Playwright
-  // smoke test. The "should create the app" case still exercises DI and
-  // catches the regressions we care about.
-  it.skip('should render the Ignia heading', async () => {
-    window.history.replaceState({}, '', '/app');
+  it('renders the landing page at /', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
-    await fixture.whenStable();
-    const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('h1')?.textContent).toContain('Macro');
-    expect(compiled.querySelector('h1')?.textContent).toContain('Log');
+    expect((fixture.componentInstance as any).route()).toBe('landing');
   });
 
-  it.skip('should show sign-in when not authenticated', async () => {
-    window.history.replaceState({}, '', '/app');
-    const fixture = TestBed.createComponent(App);
-    fixture.detectChanges();
-    await fixture.whenStable();
-    const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('app-sign-in')).toBeTruthy();
+  it('sends the retired logging routes to the moved page', () => {
+    for (const path of ['/app', '/app/', '/history/2026-08-01', '/trends', '/body', '/train', '/onboarding']) {
+      window.history.replaceState({}, '', path);
+      const fixture = TestBed.createComponent(App);
+      expect((fixture.componentInstance as any).route(), path).toBe('retired');
+    }
+    window.history.replaceState({}, '', '/');
   });
 });

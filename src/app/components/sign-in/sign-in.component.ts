@@ -6,7 +6,7 @@ import { TranslationService } from '../../services/translation.service';
 import { UiButton } from '../ui/button.component';
 
 type Status = 'idle' | 'signing' | 'error' | 'reset-sent';
-type Mode = 'signin' | 'signup' | 'reset';
+type Mode = 'signin' | 'reset';
 type Method = 'google' | 'microsoft' | 'apple' | 'email';
 
 @Component({
@@ -38,7 +38,7 @@ type Method = 'google' | 'microsoft' | 'apple' | 'email';
           </g>
         </svg>
         <h1 class="mt-4" style="font-family: var(--v2-font-display); font-size: 34px; line-height: 1; color: var(--v2-ink);">Ignia</h1>
-        <p class="v2-body-soft mt-2">{{ t(mode() === 'signup' ? 'signin.taglineSignup' : 'signin.tagline') }}</p>
+        <p class="v2-body-soft mt-2">{{ t('signin.tagline') }}</p>
       </div>
 
       @if (auth.pendingLink(); as link) {
@@ -70,30 +70,7 @@ type Method = 'google' | 'microsoft' | 'apple' | 'email';
       }
 
       <div class="mt-6">
-        <!-- Segmented Sign in / Sign up switch -->
-        @if (mode() !== 'reset') {
-          <div class="flex rounded-full p-1 mb-4" style="background: var(--v2-paper-2); border: 1px solid var(--v2-rule);">
-            <button type="button" (click)="setMode('signin')" class="flex-1 py-2 rounded-full text-sm font-bold transition-colors"
-              [style.background]="mode() === 'signin' ? 'var(--v2-ink)' : 'transparent'"
-              [style.color]="mode() === 'signin' ? 'var(--v2-paper)' : 'var(--v2-ink-soft)'">
-              {{ t('signin.tabSignIn') }}
-            </button>
-            <button type="button" (click)="setMode('signup')" class="flex-1 py-2 rounded-full text-sm font-bold transition-colors"
-              [style.background]="mode() === 'signup' ? 'var(--v2-ink)' : 'transparent'"
-              [style.color]="mode() === 'signup' ? 'var(--v2-paper)' : 'var(--v2-ink-soft)'">
-              {{ t('signin.tabSignUp') }}
-            </button>
-          </div>
-        }
-
         <form (submit)="submitEmail($event)" class="space-y-3">
-          @if (mode() === 'signup') {
-            <div class="flex gap-3">
-              <input name="firstName" autocomplete="given-name" [placeholder]="t('signin.firstName')" [(ngModel)]="firstNameValue" class="v2-field flex-1" />
-              <input name="lastName" autocomplete="family-name" [placeholder]="t('signin.lastName')" [(ngModel)]="lastNameValue" class="v2-field flex-1" />
-            </div>
-          }
-
           <input id="signin-email" type="email" name="email" autocomplete="email" required
             [placeholder]="t('signin.emailPh')" [(ngModel)]="emailValue" class="v2-field" />
 
@@ -102,7 +79,7 @@ type Method = 'google' | 'microsoft' | 'apple' | 'email';
               <input id="signin-password" name="password" required
                 [type]="showPassword() ? 'text' : 'password'"
                 [placeholder]="t('signin.passwordPh')"
-                [autocomplete]="mode() === 'signup' ? 'new-password' : 'current-password'"
+                autocomplete="current-password"
                 [(ngModel)]="passwordValue" class="v2-field" style="padding-right: 46px;" />
               <button type="button" (click)="showPassword.set(!showPassword())"
                 [attr.aria-label]="t(showPassword() ? 'signin.hidePassword' : 'signin.showPassword')"
@@ -114,23 +91,6 @@ type Method = 'google' | 'microsoft' | 'apple' | 'email';
                 }
               </button>
             </div>
-
-            @if (mode() === 'signup') {
-              <div class="space-y-1 px-0.5">
-                <div class="flex items-center gap-2 v2-caption" [style.color]="reqLen ? 'var(--v2-sage)' : 'var(--v2-ink-soft)'">
-                  <span [style.color]="reqLen ? 'var(--v2-sage)' : 'var(--v2-rule)'">{{ reqLen ? '●' : '○' }}</span> {{ t('signin.reqLen') }}
-                </div>
-                <div class="flex items-center gap-2 v2-caption" [style.color]="reqUpper ? 'var(--v2-sage)' : 'var(--v2-ink-soft)'">
-                  <span [style.color]="reqUpper ? 'var(--v2-sage)' : 'var(--v2-rule)'">{{ reqUpper ? '●' : '○' }}</span> {{ t('signin.reqUpper') }}
-                </div>
-                <div class="flex items-center gap-2 v2-caption" [style.color]="reqLower ? 'var(--v2-sage)' : 'var(--v2-ink-soft)'">
-                  <span [style.color]="reqLower ? 'var(--v2-sage)' : 'var(--v2-rule)'">{{ reqLower ? '●' : '○' }}</span> {{ t('signin.reqLower') }}
-                </div>
-                <div class="flex items-center gap-2 v2-caption" [style.color]="reqNum ? 'var(--v2-sage)' : 'var(--v2-ink-soft)'">
-                  <span [style.color]="reqNum ? 'var(--v2-sage)' : 'var(--v2-rule)'">{{ reqNum ? '●' : '○' }}</span> {{ t('signin.reqNum') }}
-                </div>
-              </div>
-            }
           }
 
           @if (status() === 'error') {
@@ -144,8 +104,6 @@ type Method = 'google' | 'microsoft' | 'apple' | 'email';
             style="justify-content: center; background: var(--v2-ink); color: var(--v2-paper); border: 1px solid var(--v2-ink); font-weight: 700;">
             @if (status() === 'signing' && lastMethod() === 'email') {
               {{ t('signin.signingIn') }}
-            } @else if (mode() === 'signup') {
-              {{ t('signin.createAccount') }}
             } @else if (mode() === 'reset') {
               {{ t('signin.sendResetLink') }}
             } @else {
@@ -248,19 +206,7 @@ export class SignInComponent {
   protected readonly lastMethod = signal<Method | null>(null);
   protected readonly showPassword = signal(false);
   protected emailValue = '';
-  protected firstNameValue = '';
-  protected lastNameValue = '';
   passwordValue = '';
-
-  // Live password rules — MUST mirror the Identity Platform policy exactly
-  // (ENFORCE, min 10, upper + lower + numeric). Checking only "a letter" let
-  // `password12` show all-green and then fail server-side. Getters recompute on
-  // each keystroke because ngModel marks the OnPush view for check.
-  protected get reqLen(): boolean { return this.passwordValue.length >= 10; }
-  protected get reqUpper(): boolean { return /[A-Z]/.test(this.passwordValue); }
-  protected get reqLower(): boolean { return /[a-z]/.test(this.passwordValue); }
-  protected get reqNum(): boolean { return /\d/.test(this.passwordValue); }
-  protected get strongPassword(): boolean { return this.reqLen && this.reqUpper && this.reqLower && this.reqNum; }
 
   protected async signInGoogle(): Promise<void> {
     await this.runPopup('google', () => this.auth.signInWithGoogle());
@@ -275,9 +221,8 @@ export class SignInComponent {
   }
 
   // Apple-on-web needs an Apple Services ID + private key configured in the
-  // Firebase Apple provider (see APPLE_WEB_SIGNIN.md). Until that's done,
-  // signInWithPopup('apple.com') errors — so the button stays hidden. Flip to
-  // true once the Services ID is wired to reach full web/app provider parity.
+  // Firebase Apple provider (see APPLE_WEB_SIGNIN.md). Wired, so the button
+  // shows — the admin signs in with whichever provider the account has.
   protected readonly appleWebEnabled = true;
 
   private async runPopup(method: Method, fn: () => Promise<void>): Promise<void> {
@@ -303,23 +248,15 @@ export class SignInComponent {
     this.lastMethod.set('email');
     const email = this.emailValue.trim();
     const password = this.passwordValue;
-    if (!email || (this.mode() !== 'reset' && !password) || (this.mode() === 'signup' && !this.firstNameValue.trim())) {
+    if (!email || (this.mode() !== 'reset' && !password)) {
       this.status.set('error');
       this.errorMsg.set(this.translation.t('signin.errorMissingFields'));
-      return;
-    }
-    if (this.mode() === 'signup' && !this.strongPassword) {
-      this.status.set('error');
-      this.errorMsg.set(this.translation.t('signin.passwordHint'));
       return;
     }
     this.status.set('signing');
     this.errorMsg.set('');
     try {
-      if (this.mode() === 'signup') {
-        const name = `${this.firstNameValue.trim()} ${this.lastNameValue.trim()}`.trim();
-        await this.auth.signUpWithEmailPassword(email, password, name);
-      } else if (this.mode() === 'reset') {
+      if (this.mode() === 'reset') {
         await this.auth.sendPasswordReset(email);
         this.status.set('reset-sent');
         this.passwordValue = '';

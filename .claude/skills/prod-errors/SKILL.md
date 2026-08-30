@@ -15,7 +15,7 @@ slice of the product, and none of them talks to the others:
 
 | Surface | Covers | Where | Auth |
 |---|---|---|---|
-| **Sentry `ignia-web`** | Angular PWA — uncaught exceptions + breadcrumbs | `@sentry/angular`, DSN in `src/environments/environment.ts` | `SENTRY_AUTH_TOKEN` only |
+| **Sentry `ignia-web`** | the web shell + `/admin` — uncaught exceptions + breadcrumbs (the logging app is retired, ADR-0036; anything from a `/app`-era route is a cached shell) | `@sentry/angular`, DSN in `src/environments/environment.ts` | `SENTRY_AUTH_TOKEN` only |
 | **Sentry `ignia-mobile`** | Expo app JS errors (project id `4511848397996032`) | `apps/mobile/app.json` DSN | `SENTRY_AUTH_TOKEN` only |
 | **Cloud Functions logs** | all ~30 gen2 functions in `functions/src/` | Firebase MCP `functions_get_logs`, or `firebase functions:log` | already logged in |
 | **App Store Connect** | iOS native crashes (Expo app) | ASC API via `scripts/asc-client.mjs` | ASC API key — see `CLAUDE.local.md` |
@@ -114,10 +114,10 @@ local env file on import — no shell setup).
 1. **Reproduce locally before theorizing.** Use the emulator loop
    (`npm run dev`, seeded user `e2e@test.com` / `UserTest123`) so a repro attempt
    cannot corrupt real user data. See the `test-web-ui` skill.
-2. **Map the frame to the layer.** Web data bugs are almost always in the ledger
-   seam (`src/app/ledger/`, `FirestoreLedgerCore`) or `FitnessStore` facets —
-   components do not touch Firestore. Mobile data bugs are in
-   `apps/mobile/src/lib/ledger.ts`.
+2. **Map the frame to the layer.** There is no web data layer any more
+   (ADR-0036): a web frame is the shell, `/admin` (`AdminService` →
+   `CallableGateway` → an `admin*` callable), or a stale cached bundle. Data bugs
+   are in `apps/mobile/src/lib/ledger.ts` or in `functions/src/`.
 3. **Check the four repeat offenders first** — in this repo these cause more prod
    errors than anything else:
    - A **second Firebase SDK copy** (`import ... from 'firebase/firestore'` in
@@ -128,8 +128,8 @@ local env file on import — no shell setup).
      `firebase deploy --only firestore:rules` runs. Rules ship *before* clients.
    - **Log-window mixing** (ADR-0004 / `CONTEXT.md` "Time windows over logs") —
      wrong-but-plausible history and aggregation numbers.
-   - **A dev build deployed to hosting** — skips `ngsw.json` and leaves the update
-     banner firing for everyone. Symptom is "users stuck on old version".
+   - **A dev build deployed to hosting** — ships no prerendered pages and no
+     release stamp; the deploy guard blocks it on the missing `build-info.json`.
    - **`NG0750` — a `@defer` chunk that no longer exists.** Every route is lazy,
      so a returning user on a service-worker-cached shell can request a chunk hash
      that a later deploy rotated away. The `@error` blocks added 2026-08-05 now
@@ -153,7 +153,7 @@ Report before touching code. One block per distinct signature:
 > **Ships how** — hosting deploy / functions deploy / rules deploy / EAS build (mobile fixes do NOT reach users until a new binary ships — say this out loud)
 
 Then apply the fix only after the owner picks. Cover it with a test where one
-exists for that layer (`npm test`, `npm run test:ledger`, `npm run test:rules`,
+exists for that layer (`npm test`, `npm run test:rules`,
 `npm --prefix packages/core test`), and update `STATUS.md` if the bug or the fix
 changes what is true right now.
 

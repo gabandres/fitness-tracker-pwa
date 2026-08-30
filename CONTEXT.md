@@ -1,6 +1,6 @@
 # Ignia — Domain Glossary
 
-This file is the canonical name list for the Ignia PWA. One concept,
+This file is the canonical name list for Ignia. One concept,
 one term. When the codebase still has legacy synonyms, the canonical name
 is in **bold** and the synonyms are called out so you know what to grep
 for. Architecture decisions live in [`docs/adr/`](docs/adr/README.md).
@@ -99,9 +99,9 @@ add a term when a real ambiguity exists, not preemptively.
   conversion (via a structural `TimestampLike { toDate(): Date }` — no `firebase`
   import, ADR-0012), the `oldestFirst` reverse (see *Log array order*), and the
   per-collection mappers `toDailyLog` / `toMeasurement` / `toCustomFood` /
-  `toWeeklyReport` / `toDomainProfile`(+`Patch`). Both frontends' adapters map
-  here (web `FirestoreLedgerCore` + `profile-mapper.ts`; mobile `lib/ledger.ts`),
-  keeping their own `onSnapshot`/`getDocs` I/O and the `Timestamp` import. The
+  `toWeeklyReport` / `toDomainProfile`(+`Patch`). Mobile's `lib/ledger.ts` maps
+  here (the web `FirestoreLedgerCore` did too until ADR-0036 retired it),
+  keeping its own `onSnapshot`/`getDocs` I/O and the `Timestamp` import. The
   three **workout** mappers (`toWorkoutExercise` / `toWorkoutTemplate` /
   `toWorkoutSession`) are also shared, in the sibling
   `packages/core/src/workout-mappers.ts` (arch review E) — they return the
@@ -154,20 +154,16 @@ add a term when a real ambiguity exists, not preemptively.
 These three windows look similar and are NOT interchangeable. See
 [ADR-0004](docs/adr/0004-log-window-typed-queries.md).
 
-- **RecentLogs** — `FitnessStore.logs()` / `_logs()`. A **14-ROW rolling
-  cache** populated by `LEDGER_PORT.getRecentLogs(14)`. A heavy logger
+- **RecentLogs** — A **14-ROW rolling cache** (mobile `useToday`'s recent
+  rows; the web's `FitnessStore.logs()` until ADR-0036). A heavy logger
   (7 meals/day) sees ~2 days; a sparse logger sees weeks. Use it for the
   "recent entries" row, today's totals, the budget-crossed signal — any
   consumer that wants "the latest N rows", not "the last N days".
-- **AllTimeLogs** — `FitnessStore.allTimeLogs()` (UI-facing, tier-gated)
-  / `_allTimeLogs` (internal, uncapped) / `rawAllTimeLogs()` (uncapped,
-  used by milestone math). Lazily hydrated by `_loadAllTimeLogs()`;
-  may be empty until then — gate computeds on
-  `FitnessStore.isHistoryHydrated()`. Source of truth for any
-  calendar-day window.
-- **LogWindow** — `FitnessStore.logsForLastDays(n)` (async, awaits
-  hydration) and `logsForLastDaysState(n)` (computed-safe). The canonical
-  "last N calendar days" query. Always prefer this over slicing `_logs`
+- **AllTimeLogs** — every `DailyLog` the user owns (mobile `useHistory`).
+  Lazily hydrated; may be empty until then — gate derived values on the
+  hydration flag. Source of truth for any calendar-day window.
+- **LogWindow** — `logWindow(...)` in `packages/core/log-window.ts`. The
+  canonical "last N calendar days" query. Always prefer this over slicing `_logs`
   or doing millisecond arithmetic (which drifts across DST).
 - **HistoryWindow** — The discriminated `{ loaded: false } | { loaded:
   true; logs }` returned by `logsForLastDaysState(n)` and
@@ -252,7 +248,7 @@ These three windows look similar and are NOT interchangeable. See
   TDEE → calorie-target → protein-target → current-weight chain, plus the
   `mergeDailyWeights` overlay, `currentWeight` resolution, `toProfileFields`
   gate, and `computeGoalProgress`. **Both** frontends derive targets from it
-  (mobile `useDailyTargets`; web `FitnessStore._targets` since arch review B)
+  (mobile `useDailyTargets`)
   — the web store no longer re-implements the precedence inline, it only
   assembles the snapshot (it alone picks the source-log window). Change the
   target math here, not per-frontend.
@@ -504,7 +500,7 @@ collections + a `WorkoutStore` facet back the Train tab.
 ## Profile
 
 - **Profile** — The **domain** shape of the user doc, exposed by
-  `LEDGER_PORT.profile` and consumed by every store/component. All date
+  mobile's `subscribeProfile` in `lib/ledger.ts` (the web `LEDGER_PORT.profile` until ADR-0036). All date
   fields are JS `Date | null` (`createdAt`, `lastSeenAt`,
   `ageConfirmedAt`, `onboardingV2CompletedAt`, `targetsRefinedAt`,
   `compedUntil`, `welcomeEmailSentAt`, `lastWeeklyDigestSentAt`,
@@ -515,43 +511,22 @@ collections + a `WorkoutStore` facet back the Train tab.
   the ledger seam. The adapter's `toDomainProfile` / `toProfileDoc`
   mapper is the single conversion point — see the *Date type at the
   seam* convention below.
-- **FirestoreLedgerCore** — `ledger/infrastructure/firestore-ledger.core.ts`.
-  Framework-free Firestore I/O core behind `FirebaseService` (issue #6
-  phase 3): `new`-able without Angular DI, imports only
-  `firebase/firestore`. Owns EVERY collection verb — profile-doc
-  primitives, dailyLogs, dailyWeights, dailyWater, presets, reports,
-  measurements, and the three workout collections (query shapes,
-  Timestamp ↔ Date workout mappers, oldest-first reversal,
-  `deleteField` semantics, `mergeExercises` batch chunking,
-  `pruneUndefined`). Emulator-tested with prod rules via
-  `npm run test:ledger` (`firestore-ledger-core.emulator.test.ts`).
-  `FirebaseService` keeps the profile signal, optimistic updates, auth
-  wiring, and the callable-backed GDPR verbs — add new persistence
-  verbs to the core, not the service.
+- **FirestoreLedgerCore** / **LEDGER_PORT** / **FirebaseService** — RETIRED
+  2026-08-30 with the web logging app (ADR-0036). They were the web's
+  Firestore adapter behind a hexagonal port (ADR-0009). Mobile's
+  `apps/mobile/src/lib/ledger.ts` is now the only client implementation
+  of every collection verb; `firestore.rules` is the contract.
 
-## Stores (post-#3 split — see [ADR-0005](docs/adr/0005-store-facets-split.md))
+## Stores — RETIRED (ADR-0036)
 
-- **FitnessStore** (`fitness-store.service.ts`) — The hub. Owns logs +
-  presets caches and **all derivations** (TDEE, targets, streak, weekly,
-  envelope, EMA, goal progress, today summary, monthly, budget-crossed).
-  Coordinates the load lifecycle — its sign-in effect calls into the
-  facet stores' `hydrate(...)` / `clear()`.
-- **FastingStore** (`fasting-store.service.ts`) — Fasting start/end +
-  `isFasting`. Reads profile through `LEDGER_PORT`; no internal state.
-- **BodyMetricStore** (`body-metric-store.service.ts`) — Daily weights,
-  daily water, measurements. `FitnessStore.goalProgress` still reads
-  `dailyWeights()` from here.
-- **WorkoutStore** (`workout-store.service.ts`) — Exercise catalog,
-  workout templates, recent sessions, the single active session. CRUD +
-  `cloneStarterTemplate`; `hydrate(...)`/`clear()` driven by
-  `FitnessStore._load()`. No cross-store writes (finish is on the hub).
-- **WeeklyReportStore** (`weekly-report-store.service.ts`) — AI-report
-  state + Gemini generation flow + 7-day staleness check. Registers
-  lifecycle hooks with `FitnessStore._registerWeeklyReportHooks(...)` to
-  avoid a circular dep.
-- **MilestoneTracker** (`milestone-tracker.service.ts`) — First-meal
-  analytics latch (`localStorage` key `macrolog.first-meal-tracked`) and
-  `MilestoneContext` for the weekly-report prompt.
+`FitnessStore` and its facets (`FastingStore`, `BodyMetricStore`,
+`WorkoutStore`, `WeeklyReportStore`, `MilestoneTracker` — ADR-0005) were the
+web logging app's reactive layer and went with it on 2026-08-30. The
+derivations they owned (TDEE, targets, streak, weekly, envelope, EMA, goal
+progress, summaries) live in `packages/core` and are consumed by mobile's
+per-tab hooks (`useToday`, `useHistory`, `useBody`, `useTrain` — ADR-0016).
+When a doc still names a `FitnessStore.*` accessor, read it as "the mobile
+hook that owns that slice".
 
 ## External systems
 
@@ -704,16 +679,16 @@ the same name under `src/app/components/`.
 Two frontends over one Firebase backend. Both are Firestore-direct clients
 under the same security rules (ADR-0002 unchanged).
 
-- **PWA** / **web app** — The Angular app at the repo root. The canonical
-  web product, SEO surfaces, and Stripe checkout. Untouched by the native
-  effort.
+- **Web shell** (legacy names: **PWA**, **web app**) — The Angular app at the
+  repo root. Since ADR-0036 (2026-08-30) it is the marketing/SEO/legal pages
+  plus `/admin`; the logging product it used to carry is retired and its old
+  routes render a "moved to the apps" page.
 - **Mobile app** / **Expo app** — The React Native (Expo) app under
-  `apps/mobile/`. Native iOS UI for **native feel** (the sole reason it
-  exists, ADR-0012). Ships only the logged-in *product* surfaces, never
-  the marketing/SEO ones.
+  `apps/mobile/`. **The product** (ADR-0015, ADR-0036). Ships only the
+  logged-in *product* surfaces, never the marketing/SEO ones.
 - **Shared core** — `packages/core/`: the framework-free brain (pure
-  `utils`, `models`, domain types, the Firestore ledger core) imported by
-  *both* frontends. New product logic lands here first. "The math" lives
+  `utils`, `models`, domain types) imported by the mobile app and the
+  Cloud Functions. New product logic lands here first. "The math" lives
   here; "the skin" is per-frontend.
 
 ## Conventions

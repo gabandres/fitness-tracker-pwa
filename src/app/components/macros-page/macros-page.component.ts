@@ -21,6 +21,7 @@ import {
 } from '@macrolog/core';
 import { setCalcPrefill } from '../../utils/calc-prefill';
 import { share } from '../../utils/share';
+import { APP_STORE_URL } from '../../utils/app-store';
 
 /**
  * Programmatic SEO landing for `/macros/<goal>/<weight>-lb`. Each URL
@@ -78,7 +79,7 @@ import { share } from '../../utils/share';
           <h3 class="v2-h3">{{ t('macrosPage.ctaTitle') }}</h3>
           <p class="v2-body-soft mt-2">{{ t('macrosPage.ctaBody') }}</p>
           <div class="mt-5 flex flex-wrap justify-center gap-3">
-            <a href="/app" class="v2-btn v2-btn--primary v2-btn--lg" (click)="onSignupClick()">
+            <a [href]="APP_STORE_URL" rel="noopener" class="v2-btn v2-btn--primary v2-btn--lg" (click)="onSignupClick()">
               {{ t('macrosPage.ctaSignup') }}
             </a>
             <a href="/calculator" class="v2-btn v2-btn--ghost">
@@ -205,6 +206,8 @@ export class MacrosPageComponent {
     }
     return out;
   });
+
+  protected readonly APP_STORE_URL = APP_STORE_URL;
 
   protected onSignupClick(): void {
     const p = this.parsed();

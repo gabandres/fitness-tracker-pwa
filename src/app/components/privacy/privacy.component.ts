@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { AuthService } from '../../services/auth.service';
-import { LEDGER_PORT } from '../../ledger/ports/ledger.port';
+import { CallableGateway } from '../../services/callable.gateway';
 import { TranslationService } from '../../services/translation.service';
 import { extractErrorCode } from '../../models/error-codes';
 import { UiCard } from '../ui/card.component';
@@ -177,7 +177,7 @@ type DeleteStatus = 'idle' | 'confirming' | 'deleting' | 'error';
 })
 export class PrivacyComponent {
   protected readonly auth = inject(AuthService);
-  private readonly firebase = inject(LEDGER_PORT);
+  private readonly callables = inject(CallableGateway);
   private readonly translation = inject(TranslationService);
 
   protected readonly deleteStatus = signal<DeleteStatus>('idle');
@@ -194,7 +194,7 @@ export class PrivacyComponent {
     this.exportStatus.set('running');
     this.exportError.set('');
     try {
-      const data = await this.firebase.exportMyData();
+      const data = await this.callables.call<void, unknown>('exportUserData');
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -230,7 +230,7 @@ export class PrivacyComponent {
     this.errorMsg.set('');
 
     try {
-      await this.firebase.deleteMyAccount();
+      await this.callables.call<void, { success: boolean }>('deleteAccount');
       // Cloud Function deletes Firestore + Auth user. Sign-out is automatic
       // once the auth user is gone, but we force it to unblock the UI.
       await this.auth.signOut();

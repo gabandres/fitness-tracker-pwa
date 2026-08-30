@@ -1,128 +1,34 @@
-import { ApplicationConfig, EnvironmentProviders, ErrorHandler, provideBrowserGlobalErrorListeners, isDevMode } from '@angular/core';
+import { ApplicationConfig, ErrorHandler, provideBrowserGlobalErrorListeners } from '@angular/core';
 import * as Sentry from '@sentry/angular';
 import { provideRouter } from '@angular/router';
 import { provideFirebaseApp, initializeApp, getApp } from '@angular/fire/app';
 import {
   provideFirestore,
   initializeFirestore,
-  persistentLocalCache,
-  persistentMultipleTabManager,
   connectFirestoreEmulator,
 } from '@angular/fire/firestore';
 import { provideAuth, getAuth, connectAuthEmulator } from '@angular/fire/auth';
-import { provideStorage, getStorage, connectStorageEmulator } from '@angular/fire/storage';
 import { provideFunctions, getFunctions, connectFunctionsEmulator } from '@angular/fire/functions';
-import { provideMessaging, getMessaging } from '@angular/fire/messaging';
-import {
-  LucideAngularModule,
-  Plus,
-  X,
-  Calendar,
-  Settings,
-  Moon,
-  Sun,
-  Trash2,
-  CircleDot,
-  TrendingUp,
-  Activity,
-  Camera,
-  ScanLine,
-  Flame,
-  ChevronLeft,
-  ChevronRight,
-  Check,
-  HelpCircle,
-  ArrowLeft,
-  Pencil,
-  Sparkles,
-  Bookmark,
-  Droplets,
-  Footprints,
-  Image as LucideImage,
-  Type as LucideType,
-  Home,
-  User,
-  Timer,
-  Scale,
-  Ruler,
-  ChevronDown,
-  ChevronUp,
-  Share2,
-  Download,
-  Upload,
-  ChefHat,
-  Link,
-  Shield,
-  Search,
-  Loader,
-  Dumbbell,
-  StickyNote,
-  CheckCircle2,
-  Circle,
-  GitMerge,
-  ArrowRight,
-  Mic,
-  MicOff,
-  AlertTriangle,
-} from 'lucide-angular';
+import { LucideAngularModule, Check } from 'lucide-angular';
 
 import { routes } from './app.routes';
-import { provideServiceWorker } from '@angular/service-worker';
 import { environment } from '../environments/environment';
 import { provideTranslocoConfig } from './i18n/transloco.providers';
-import { LEDGER_PORT } from './ledger/ports/ledger.port';
-import { FirebaseService } from './services/firebase.service';
 
 /**
- * Only provide Firebase Messaging when the browser supports the required APIs.
- * This avoids the "messaging/unsupported-browser" FirebaseError in browsers
- * like older Safari, Firefox private browsing, or SSR environments.
- *
- * **This can never be complete, and it is worth knowing why.** `getMessaging()`
- * runs the SDK's `isWindowSupported()` as a FIRE-AND-FORGET promise and throws
- * from the `.then` — so the failure is an async unhandled rejection that no
- * synchronous guard can intercept. All we can do is avoid *calling*
- * `getMessaging()` when we can cheaply tell it would fail. And we cannot always
- * tell: `isWindowSupported()` begins with `await validateIndexedDBOpenable()`,
- * which actually opens a database, so Firefox private browsing (indexedDB
- * present, `open()` rejected) is out of reach by construction.
- *
- * The checks below are therefore a best-effort subset, ordered so `&&`
- * short-circuits before touching a global the browser may lack. They cover the
- * conditions the SDK checks synchronously, `navigator.cookieEnabled` included —
- * that one was missing until 2026-08-07 and is why Sentry IGNIA-WEB-H kept
- * firing after the first fix: every one of its 26 events came from bots
- * crawling `/` and `/privacy` with cookies disabled, 0 real users affected.
- *
- * The complete fix is to stop providing Messaging eagerly and instead `await
- * isSupported()` where it is consumed. That is a real refactor of
- * `PushNotificationService`, and has not been done because the residue is
- * crawler noise with no user impact.
+ * The web shell's providers (ADR-0036). What is NOT here is the point:
+ * no service worker (the PWA is retired and `safety-worker.js` is what ships
+ * at `/ngsw-worker.js` now), no Messaging (web push went with it), no
+ * Storage (nothing on the shell uploads), no persistent Firestore cache
+ * (the admin panel reads live data and the public pages read one doc each).
  */
-function provideMessagingIfSupported(): EnvironmentProviders[] {
-  if (typeof window !== 'undefined'
-    && typeof navigator !== 'undefined'
-    && typeof indexedDB !== 'undefined'
-    && navigator.cookieEnabled
-    && 'Notification' in window
-    && 'serviceWorker' in navigator
-    && 'PushManager' in window
-    && 'fetch' in window
-    && 'showNotification' in ServiceWorkerRegistration.prototype
-    && 'getKey' in PushSubscription.prototype) {
-    return [provideMessaging(() => getMessaging())];
-  }
-  return [];
-}
-
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
     provideRouter(routes),
     provideFirebaseApp(() => initializeApp(environment.firebase)),
     // In dev (environment.useEmulators), point every Firebase service at the
-    // local Emulator Suite (`npm run dev`) so nothing touches prod data. The
-    // connect* calls run once, right after each service is created.
+    // local Emulator Suite (`npm run dev`) so nothing touches prod data.
     provideAuth(() => {
       const auth = getAuth();
       if (environment.useEmulators) {
@@ -130,54 +36,23 @@ export const appConfig: ApplicationConfig = {
       }
       return auth;
     }),
-    provideStorage(() => {
-      const storage = getStorage();
-      if (environment.useEmulators) connectStorageEmulator(storage, 'localhost', 9199);
-      return storage;
-    }),
     provideFunctions(() => {
       const functions = getFunctions();
       if (environment.useEmulators) connectFunctionsEmulator(functions, 'localhost', 5001);
       return functions;
     }),
-    ...provideMessagingIfSupported(),
-    // Enable Firestore offline persistence so writes queue locally
-    // when the user is offline and sync when the connection returns.
     provideFirestore(() => {
-      const fs = initializeFirestore(getApp(), {
-        localCache: persistentLocalCache({
-          tabManager: persistentMultipleTabManager(),
-        }),
-      });
+      const fs = initializeFirestore(getApp(), {});
       if (environment.useEmulators) connectFirestoreEmulator(fs, 'localhost', 8080);
       return fs;
-    }),
-    provideServiceWorker('ngsw-worker.js', {
-      enabled: !isDevMode(),
-      registrationStrategy: 'registerWhenStable:30000',
     }),
     provideTranslocoConfig(),
     // Sentry error handler: reports uncaught exceptions to Sentry when a
     // DSN is configured. When no DSN is set, Sentry.init() in main.ts is
-    // skipped and this handler silently passes through — no user-visible
-    // difference from the default Angular handler.
+    // skipped and this handler silently passes through.
     { provide: ErrorHandler, useValue: Sentry.createErrorHandler() },
-    // LedgerStore seam (#6): the app depends on LEDGER_PORT; FirebaseService is one impl.
-    { provide: LEDGER_PORT, useExisting: FirebaseService },
-    // Lucide icons used by v2 primitives. Each icon must be registered
-    // here (or in the consuming component) so the LucideAngularComponent
-    // can resolve <lucide-icon name="…"> at runtime. Tree-shakes per
-    // import so unused icons are never bundled.
-    LucideAngularModule.pick({
-      Plus, X, Calendar, Settings, Moon, Sun, Trash2,
-      CircleDot, TrendingUp, Activity, Camera, ScanLine,
-      Flame, ChevronLeft, ChevronRight, Check, HelpCircle,
-      ArrowLeft, Pencil, Sparkles, Bookmark, Droplets, Footprints,
-      Image: LucideImage, Type: LucideType,
-      Home, User, Timer, Scale, Ruler, ChevronDown, ChevronUp, Share2, Download, Upload, ChefHat, Link, Shield,
-      Search, Loader,
-      Dumbbell, StickyNote, CheckCircle2, Circle, GitMerge, ArrowRight,
-      Mic, MicOff, AlertTriangle,
-    }).providers!,
+    // Lucide icons used by the surviving components. Each icon must be
+    // registered here so `<lucide-icon name="…">` resolves at runtime.
+    LucideAngularModule.pick({ Check }).providers!,
   ],
 };

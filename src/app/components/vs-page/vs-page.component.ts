@@ -92,7 +92,7 @@ import { VS_PROFILES, VsProfile, vsProfileFor } from './vs-data';
             <a href="/calculator" class="v2-btn v2-btn--primary v2-btn--lg" (click)="trackCtaClick('calculator')">
               {{ t('vs.ctaCalculator') }}
             </a>
-            <a href="/app" class="v2-btn v2-btn--ghost" (click)="trackCtaClick('signup')">
+            <a [href]="APP_STORE_URL" rel="noopener" class="v2-btn v2-btn--ghost" (click)="trackCtaClick('signup')">
               {{ t('vs.ctaSignup') }}
             </a>
           </div>

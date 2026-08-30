@@ -62,7 +62,6 @@ in-app banner is the **only** user-facing channel:
 |---|---|
 | Version constant (bumping it is what makes the banner fire) | `apps/mobile/src/lib/whatsNew.ts` → `WHATS_NEW_VERSION` |
 | Copy, both locales, flat keys | `apps/mobile/src/i18n/{en,es-PR}.ts` → `whatsNew.*` |
-| Web equivalent, nested keys | `src/app/components/whats-new-banner/whats-new-banner.component.ts` |
 
 Run the Metro gate — `tsc` and `jest` both pass while bundling is broken:
 
@@ -237,7 +236,7 @@ npm run build && firebase deploy --only hosting
 `UpdateBanner` reads `app-version.json` to tell older installs a binary exists.
 **Skip the deploy and it silently never fires.** Never hand-edit the number;
 `npm run doctor` fails on the drift. A **prod** build is required — a dev build
-skips `ngsw.json`.
+has no `build-info.json` and the deploy guard refuses it.
 
 Then update the fingerprint table in `apps/mobile/AGENTS.md` (value read from the
 artifact) and `STATUS.md`. **A merged fix reaches nobody until it is in a binary

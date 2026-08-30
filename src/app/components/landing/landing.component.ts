@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { Firestore, doc, getDoc } from '@angular/fire/firestore';
-import { APP_STORE_URL } from '../../utils/app-store';
+import { APP_STORE_URL, PLAY_STORE_URL } from '../../utils/app-store';
 import { TranslationService } from '../../services/translation.service';
 import { localizedPath } from '../../i18n/locale-path';
 
@@ -147,7 +147,7 @@ import { localizedPath } from '../../i18n/locale-path';
             </p>
 
             <div class="mt-8 flex flex-wrap items-center gap-4">
-              <a href="/app" class="v2-btn v2-btn--primary v2-btn--lg" style="box-shadow: 0 8px 16px color-mix(in srgb, var(--v2-accent) 40%, transparent);">
+              <a [href]="APP_STORE_URL" rel="noopener" class="v2-btn v2-btn--primary v2-btn--lg" style="box-shadow: 0 8px 16px color-mix(in srgb, var(--v2-accent) 40%, transparent);">
                 {{ t('landing.startLogging') }}
               </a>
               <a href="/calculator" class="v2-btn v2-btn--ghost" style="color: var(--v2-hero-text, #f3f1ec);">
@@ -155,12 +155,11 @@ import { localizedPath } from '../../i18n/locale-path';
               </a>
             </div>
 
-            <!-- App Store badge sits below the primary CTA, not beside it:
-                 the web loop stays the fastest path to value (no install),
-                 while iOS visitors still get a one-tap route to the listing.
-                 It appears here and once more in the closing section, and
-                 nowhere in between — a badge repeated at every scroll stop
-                 stops reading as an offer. -->
+            <!-- App Store badge sits below the primary CTA. It appears here
+                 and once more in the closing section, and nowhere in
+                 between — a badge repeated at every scroll stop stops
+                 reading as an offer. There is no browser version to point
+                 at any more (ADR-0036). -->
             <div class="mt-6 flex flex-wrap items-center gap-4">
               <a [href]="APP_STORE_URL" rel="noopener" [attr.aria-label]="t('landing.appStoreAlt')">
                 <img src="/appstore-badge.svg" alt="{{ t('landing.appStoreAlt') }}"
@@ -289,7 +288,7 @@ import { localizedPath } from '../../i18n/locale-path';
         <h2 class="landing-h2">{{ t('landing.downloadHeadline') }}</h2>
         <p class="v2-body-soft mt-5 max-w-xl mx-auto">{{ t('landing.downloadBody') }}</p>
         <div class="mt-8 flex flex-wrap items-center justify-center gap-4">
-          <a href="/app" class="v2-btn v2-btn--primary v2-btn--lg">{{ t('landing.freeCta') }}</a>
+          <a [href]="PLAY_STORE_URL" rel="noopener" class="v2-btn v2-btn--primary v2-btn--lg">{{ t('landing.freeCta') }}</a>
           <a [href]="APP_STORE_URL" rel="noopener" [attr.aria-label]="t('landing.appStoreAlt')">
             <img src="/appstore-badge.svg" alt="{{ t('landing.appStoreAlt') }}"
               width="180" height="60" loading="lazy" decoding="async"
@@ -344,6 +343,7 @@ export class LandingComponent {
    *  `submit.production.ios.ascAppId` in apps/mobile/eas.json and the
    *  `apple-itunes-app` smart-banner meta in src/index.html. */
   protected readonly APP_STORE_URL = APP_STORE_URL;
+  protected readonly PLAY_STORE_URL = PLAY_STORE_URL;
 
   /** Social-proof count from `public/stats.totalUsers`. Intentionally
       gated at 100 — below that we'd be doing anti-social-proof ("join

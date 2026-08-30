@@ -18,7 +18,7 @@ Error: firebase-tools no longer supports Java version before 21.
 
 **Both JDKs are already installed** — `C:\Program Files\Microsoft\jdk-17.0.20.8-hotspot`
 and `jdk-21.0.11.10-hotspot`. `java` on `PATH` resolves to **17**, so every
-emulator-backed suite (`npm run test:rules`, `npm run test:ledger`, `npm run dev`,
+emulator-backed suite (`npm run test:rules`, `npm run dev`,
 `npm run seed`) fails until 21 is put in front of it, per shell:
 
 ```sh
@@ -26,7 +26,7 @@ export JAVA_HOME="/c/Program Files/Microsoft/jdk-21.0.11.10-hotspot"
 export PATH="$JAVA_HOME/bin:$PATH"
 ```
 
-**`scripts/require-java21.mjs` now runs ahead of `test:rules` and `test:ledger`
+**`scripts/require-java21.mjs` now runs ahead of `test:rules`
 and prints exactly that**, because this section was still missed on 2026-08-09
 and the miss produced a written claim that the rules suite "cannot run on this
 machine" plus a wrong test count. It only warns — it never picks a JDK or edits
@@ -129,7 +129,7 @@ Remaining steps that genuinely can't be scripted here:
    verify ownership, then the A/AAAA records or CNAME it provides).
 3. Wait for Firebase to verify + provision the SSL cert (minutes–24h).
 4. Keep `macrolog.web.app` serving — **no root 301 yet** (avoids breaking
-   installed PWAs + existing links). Promote to a 301 later once traffic there
+   existing links; the installed-PWA concern went with ADR-0036). Promote to a 301 later once traffic there
    is negligible. `macronautapp.web.app` already 302s to `ignia.fit`.
 5. **Rename the project display name** → "Ignia" (Project settings → general).
    The project *ID* stays `fitness-tracker-gb-1775407101` forever — it's

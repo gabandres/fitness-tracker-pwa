@@ -1,15 +1,6 @@
 export { UiButton } from './button.component';
 export type { UiButtonVariant, UiButtonSize } from './button.component';
-export { UiIconButton } from './icon-button.component';
 export { UiCard } from './card.component';
 export type { UiCardVariant } from './card.component';
-export { UiSheet } from './sheet.component';
-export { UiRing } from './ring.component';
-export type { UiRingTone } from './ring.component';
-export { UiTabBar } from './tab-bar.component';
-export type { UiTab } from './tab-bar.component';
-export { UiFab } from './fab.component';
-export { UiSparkline } from './sparkline.component';
-export type { UiSparklineTone } from './sparkline.component';
-export { UiFastingPill } from './fasting-pill.component';
-export { UiWeightSheet } from './weight-sheet.component';
+export { UiBrandLoader } from './brand-loader.component';
+export { DeferErrorComponent } from './defer-error.component';

@@ -6,7 +6,7 @@ import { CallableGateway } from './callable.gateway';
 
 /**
  * Seed admin emails — kept in sync with SEED_ADMINS in
- * functions/src/admin-claims.ts and ADMIN_EMAILS in subscription.service.ts.
+ * functions/src/admin-claims.ts and ADMIN_EMAILS in functions/src/caller-access.ts.
  * Used only to show the "Bootstrap Admin" CTA before any admin custom
  * claim has been minted. Post-bootstrap, access is gated purely on the
  * custom claim.

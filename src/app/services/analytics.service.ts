@@ -1,12 +1,4 @@
 import { Injectable, inject } from '@angular/core';
-import {
-  type UsageCounts,
-  type UsageEvent,
-  addUsageCount,
-  hasUsageCounts,
-  calendarDateKey,
-} from '@macrolog/core';
-import { LEDGER_PORT } from '../ledger/ports/ledger.port';
 import * as Sentry from '@sentry/angular';
 import { environment } from '../../environments/environment';
 
@@ -129,74 +121,8 @@ export class AnalyticsService {
     this.track('paywall_click', { source });
   }
 
-  // ─── Usage counters (the half that survives a session) ─────────
-  //
-  // Everything above is a breadcrumb: it reaches a console, a Sentry event, and
-  // Plausible if it is ever turned on. None of it answers "did this person come
-  // back on day 3", because none of it is stored anywhere we can query.
-  //
-  // `count()` does. It buffers into the same per-user-per-day document the Expo
-  // app writes (`@macrolog/core/usage-events`), so retention and the signup
-  // funnel are one Firestore query across both platforms rather than two
-  // analytics products. Deliberately NOT merged with `track()` above: that one
-  // takes free-form names and props, and this one must stay a closed catalogue
-  // of counters — the rules enforce the difference.
-
-  private readonly ledger = inject(LEDGER_PORT);
-  private buffer: UsageCounts = {};
-  private bufferDay = calendarDateKey(new Date());
-  private flushTimer: ReturnType<typeof setInterval> | null = null;
-
-  /**
-   * Record one usage event. Cheap and synchronous — it touches an object.
-   *
-   * Buffered rather than written per event, for the same two reasons as mobile:
-   * a write per tap is a network call on the hot path, and it is a billable
-   * write per tap. See `analytics.ts` in the Expo app.
-   */
-  count(event: UsageEvent, n = 1): void {
-    const today = calendarDateKey(new Date());
-    if (today !== this.bufferDay) {
-      void this.flushCounts();
-      this.bufferDay = today;
-    }
-    this.buffer = addUsageCount(this.buffer, event, n);
-    this.startFlushTimer();
-  }
-
-  /**
-   * Write the buffer out. Never throws, never rejects.
-   *
-   * `pagehide` is the important caller — it is the only event that reliably
-   * fires on a mobile browser tab being closed or backgrounded, which is where
-   * most sessions actually end. `visibilitychange` alone misses a straight
-   * close, and `beforeunload` is unreliable on iOS Safari.
-   */
-  async flushCounts(): Promise<void> {
-    if (!hasUsageCounts(this.buffer)) return;
-    const sending = this.buffer;
-    const day = this.bufferDay;
-    this.buffer = {};
-    try {
-      await this.ledger.recordUsage(day, sending);
-    } catch {
-      // Restore, unless the day has rolled — stale counts do not belong in
-      // today's document.
-      if (day === this.bufferDay) {
-        for (const [event, n] of Object.entries(sending)) {
-          this.buffer = addUsageCount(this.buffer, event as UsageEvent, n as number);
-        }
-      }
-    }
-  }
-
-  private startFlushTimer(): void {
-    if (this.flushTimer != null) return;
-    this.flushTimer = setInterval(() => void this.flushCounts(), USAGE_FLUSH_INTERVAL_MS);
-    window.addEventListener('pagehide', () => void this.flushCounts());
-  }
+  // The `count()` / `usageEvents` half that used to live here is gone with
+  // the logging app (ADR-0036 decision 6): a shell visit is not an app open,
+  // and the admin's own visits must not count as users. Mobile still writes
+  // `usageEvents`; `scripts/usage-report.mjs` reads `platforms.web` as 0.
 }
-
-/** Matches the Expo app's cadence — one or two writes an hour on an active
- *  session, and a crash costs at most this much. */
-const USAGE_FLUSH_INTERVAL_MS = 5 * 60 * 1000;
