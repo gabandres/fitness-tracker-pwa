@@ -10,6 +10,53 @@ Update this file in the same commit as any flow change. If a surface ships
 that has no row here, the suite's "100%" claim is false until the row exists —
 add it as ✗ first, cover it second.
 
+## Android run 2026-08-30 — 16 of 20, and all four failures are the SAME known defect
+
+Run on the **LG VS988** (Android 9 / API 28) against the **published** bundle —
+Android OTA 91 on **vc 40** (`d7ea3629…`), device confirmed on it by
+`CheckCompleteUnavailable` before the run. First sweep covering the Milestones
+work (#108/#109/#110) and the Trends stub labels (#115).
+
+**Failures: `07-coach`, `12-e2e-edit`, `13-e2e-delete`, `18-train-template`.**
+Every one is the `scrollUntilVisible` / element-not-found family this file
+already documents from 2026-08-23, and `07-coach` was checked rather than
+assumed: the hierarchy captured at the moment of failure has `coach-entry`
+**present, clickable, bounds `[96,1881][1344,2068]`** — valid and on screen —
+and the run's own `03-trends-bottom.png` shows the **Ask the Coach** button
+rendered. The app is fine; the command is not making progress.
+
+`17-coach-ask` was **excluded**: it spends real Gemini money per run, the same
+call the 2026-08-23 sweep left out.
+
+**Three things this run establishes about the host, none of them about the app:**
+
+- **The suite requires the app in ENGLISH.** The device was signed into an
+  account whose `preferredLocale` is `pt-BR`, so flow 01 failed instantly on
+  `assertVisible: 'Today'` against a screen reading *Hoje*. That reads exactly
+  like a broken Today.
+- **CHECK WHICH ACCOUNT IS SIGNED IN BEFORE RUNNING.** It was a **real,
+  non-synthetic account**, not `qa-test@ignia.fit` — and this suite writes:
+  11–13 log/edit/delete a row, 14 moves water, 09 changes the account locale.
+  Signing out is `Settings → CONTA → Sair`, below *Limites mínimos* and above
+  *Métodos de login*.
+- **`maestro test <dir>` still runs one flow.** Driven as an explicit per-flow
+  loop keyed on exit code. Note the runner must also stay under the harness's
+  own 10-minute cap: a 21-flow loop was killed at exactly 10:00 **mid-flow 09**,
+  which is the locale flow — the documented way to strand the account in
+  Spanish. It did not this time (checked: `preferredLocale` still `en`), but
+  batch the loop rather than relying on that.
+
+**The `QA Tpl Check` residue in `STATUS.md` §3 is explained, and cleared.**
+`13-e2e-delete` IS the teardown, and it fails on this device every run, so each
+run leaks. Cleanup removed **7** accumulated `QA E2E Sandwich` presets and **4**
+`QA` exercise/template rows. Baseline verified clean afterwards — locale `en`,
+units `us` (so `20-units-metric` restores correctly), zero QA presets left.
+
+**Corroborates #115 §0 directly:** this account is one of the two in the
+population with BOTH Habits cards, and `03-trends-bottom.png` shows the tab
+strip **opening on Sleep** with Fasting behind the tab — the mechanism that
+ticket describes, photographed.
+
 ## Run log — 2026-08-24 — iOS 19 of 21, Android partial
 
 **The "21 of 21" this section originally claimed was never measured, and is

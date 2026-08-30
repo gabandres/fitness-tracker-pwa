@@ -109,9 +109,28 @@ issues"). The emulator is the part that cannot run, measured 2026-08-18:
 The one Android host this box could offer is a **physical device over adb**,
 which Maestro drives natively — and which would also cover the single check no
 emulator can reach: Google Sign-In on a **Play-signed** install, broken twice
-historically and structurally invisible on a local build. Until that exists,
-every Android row in `coverage.md` is frozen at its 2026-08-09 date and
-describes an app no tester is running.
+historically and structurally invisible on a local build.
+
+**THAT HOST NOW EXISTS — the heading above is stale from 2026-08-19.** The
+**LG VS988** (Android 9 / API 28) is driven over adb from this workstation and
+Maestro 2.8.0 runs the suite against it natively. Only the *emulator* half of
+this section still holds. Three things learned running it there on 2026-08-29:
+
+- **The suite requires the app in ENGLISH.** Flow 01 asserts `"Today"`; an
+  account whose `preferredLocale` is `pt-BR` renders `"Hoje"` and the first
+  flow fails instantly, which reads like a broken Today screen. Set the account
+  to `en` first — `scripts/qa-regression-verify.mjs set-locale` does it.
+- **Sign in through `android-signin.yaml`, and check WHICH account is signed
+  in first.** The device was found signed into a real personal account, not the
+  synthetic QA one, and this suite writes: flows 11–13 log/edit/delete a row, 14
+  moves water, 09 changes the account locale. Running it against a real account
+  mutates real data.
+- **This device's accessibility tree reports INVERTED bounds** (`y2 < y1`, e.g.
+  `[268,321][390,248]`), so Maestro computes a negative height and
+  `scrollUntilVisible` on a *text* selector can never match — at any
+  `visibilityPercentage`. Selecting by `id` works fine, which is why
+  `android-signin.yaml` passes. Prefer ids on this host; for anything text-only,
+  scroll with `adb input swipe` and tap by pixel.
 
 **Screenshots do NOT land beside the flows — collect them, or the audit has no
 evidence.** Maestro 2.x ignores the path in `takeScreenshot:` as a repo
