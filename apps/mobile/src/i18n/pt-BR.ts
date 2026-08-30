@@ -484,6 +484,18 @@ export const ptBR = {
   'trends.fastingEmptyRunning': 'Jejum · seu jejum está em andamento — ele aparece aqui quando você encerrar',
   'trends.fastingEmptyProgress': 'Jejum · {n} de {need} jejuns — o Ignia monta o gráfico a partir de {need}',
   'trends.fastingEmpty': 'Jejum · o Ignia guarda seus jejuns de agora em diante — comece um em Hoje',
+  // ─── Água em Tendências (#115 §3) ───
+  // Não existe meta diária de água em nenhum lugar do Ignia: nenhuma string aqui
+  // pode nomear uma quantidade que o usuário deva atingir. A unidade vem
+  // interpolada de `water.unit`.
+  'trends.waterTitle': 'Água',
+  'trends.waterHeadline': '{n} {u} típico',
+  'trends.waterCaption': 'em {n} de {total} dias',
+  'trends.waterLegend': 'sua mediana, {n} {u} · as lacunas são dias sem água registrada',
+  'trends.waterRange': 'Seus {n} dias registrados variaram de {low} a {high} {u}.',
+  'trends.waterCoverage': 'você registrou água em {n} de {total} dias',
+  'trends.waterEmptyProgress': 'Água · {n} de {need} dias — o Ignia monta o gráfico a partir de {need}',
+  'trends.waterEmpty': 'Água · registre água em Hoje e seus dias aparecem aqui',
   // ─── Editar um jejum (ADR-0032 decisão 3, #97) ───
   'fast.editTitle': 'Editar jejum',
   'fast.addTitle': 'Adicionar um jejum',

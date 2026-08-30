@@ -494,6 +494,18 @@ export const esPR: Record<I18nKey, string> = {
   'trends.fastingEmptyRunning': 'Ayuno · tu ayuno está corriendo — aparece aquí cuando lo termines',
   'trends.fastingEmptyProgress': 'Ayuno · {n} de {need} ayunos — Ignia los grafica a los {need}',
   'trends.fastingEmpty': 'Ayuno · Ignia guarda tus ayunos de ahora en adelante — empieza uno en Hoy',
+  // ─── Agua en Tendencias (#115 §3) ───
+  // Sin meta diaria de agua en ninguna parte de Ignia: ninguna cadena aquí puede
+  // nombrar una cantidad que el usuario deba alcanzar. La unidad se interpola
+  // desde `water.unit` — aquí es `oz`, no `fl oz`.
+  'trends.waterTitle': 'Agua',
+  'trends.waterHeadline': '{n} {u} típico',
+  'trends.waterCaption': 'en {n} de {total} días',
+  'trends.waterLegend': 'tu mediana, {n} {u} · los huecos son días sin agua registrada',
+  'trends.waterRange': 'Tus {n} días registrados fueron de {low} a {high} {u}.',
+  'trends.waterCoverage': 'registraste agua en {n} de {total} días',
+  'trends.waterEmptyProgress': 'Agua · {n} de {need} días — Ignia los grafica a los {need}',
+  'trends.waterEmpty': 'Agua · registra agua en Hoy y tus días se grafican aquí',
   // ─── Editar un ayuno (ADR-0032 decisión 3, #97) ───
   'fast.editTitle': 'Editar ayuno',
   'fast.addTitle': 'Añadir un ayuno',

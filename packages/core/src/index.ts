@@ -31,6 +31,10 @@ export * from './tier-limits';
 // day), `fastingOverlapHours` intersects it with the day (the calendar, an
 // overnight fast marks both). Neither is called "fasting hours" on purpose.
 export * from './fasting-history';
+// The fourteen-day water window (#115 §3). Sits beside `fasting-history` rather
+// than under Logging because it is the same kind of thing: a per-day scalar
+// read back as a window, owning no goal and asserting no target.
+export * from './water-history';
 
 
 // ──────────────────────────── Logging ────────────────────────────

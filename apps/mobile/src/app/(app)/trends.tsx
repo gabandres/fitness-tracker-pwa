@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { type Href, useRouter } from 'expo-router';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated from 'react-native-reanimated';
@@ -15,6 +15,7 @@ import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { NumbersGlossary } from '@/components/NumbersGlossary';
 import { SleepTrendsCard } from '@/components/SleepTrendsCard';
 import { FastingTrendsCard } from '@/components/FastingTrendsCard';
+import { WaterTrendsCard } from '@/components/WaterTrendsCard';
 import { WeeklyReportCard } from '@/components/WeeklyReportCard';
 import { useTrends } from '@/hooks/useTrends';
 import { usePersistedTab } from '@/hooks/usePersistedTab';
@@ -57,7 +58,7 @@ export default function Trends() {
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const router = useRouter();
-  const { loading, error, insights, loggedThisWeek, proteinTarget, tdee, targetCalories, budget, basalKcal, activityLevel, sleep, fasting } = useTrends();
+  const { loading, error, insights, loggedThisWeek, proteinTarget, tdee, targetCalories, budget, basalKcal, activityLevel, sleep, fasting, water } = useTrends();
   // Remembered per device, in AsyncStorage — a cache, not a setting.
   //
   // No profile field and therefore no `firestore.rules` change, which is the
@@ -67,7 +68,28 @@ export default function Trends() {
   // Remembering which tab you were on costs none of that, and losing it on
   // reinstall costs one tap.
   const [weeklyTab, setWeeklyTab] = usePersistedTab('trends.tab.weekly', WEEKLY_TABS, 'week');
+  // `HABIT_TABS` — the full list, not the faces present right now — is what the
+  // stored value is validated against, deliberately. A tab you were on last week
+  // whose card has since gone quiet is still a *valid preference*; forgetting it
+  // because today's data is thin would silently move you every time a card came
+  // and went. Presence is handled at the render site instead, by `activeHabit`.
   const [habitTab, setHabitTab] = usePersistedTab('trends.tab.habits', HABIT_TABS, 'sleep');
+  // Which habit faces actually have a card right now, in a fixed order so the
+  // strip does not reshuffle under the user's thumb as data arrives.
+  const habitFaces = useMemo(
+    () =>
+      HABIT_TABS.filter((k) =>
+        (k === 'sleep' ? sleep.kind : k === 'fasting' ? fasting.kind : water.kind) === 'card',
+      ),
+    [sleep.kind, fasting.kind, water.kind],
+  );
+  // The stored tab may name a face that has no card today — and `usePersistedTab`
+  // keeps a module-level memo, so it cannot re-validate on its own once seeded.
+  // Falling back to the first present face is what stops the panel rendering an
+  // empty body under a strip that does not contain the active key.
+  const activeHabit = habitFaces.includes(habitTab as (typeof HABIT_TABS)[number])
+    ? habitTab
+    : habitFaces[0];
   const { isPro } = useSubscription();
   const { user } = useAuth();
   const mode = TDEE_MODE[tdee.source];
@@ -280,34 +302,58 @@ export default function Trends() {
             )}
           </Animated.View>
 
-          {/* 3. HABITS PANEL — Sleep ⇄ Fasting.
-              These two were the strongest case for consolidating anything on
-              this screen: both draw a fourteen-column strip with a median line
-              and a headline duration, so stacked they read as one chart
-              rendered twice.
+          {/* 3. HABITS PANEL — Sleep ⇄ Fasting ⇄ Water.
+              These were the strongest case for consolidating anything on this
+              screen: each draws a fourteen-column strip with a median line and a
+              headline number, so stacked they read as one chart rendered three
+              times.
 
-              **The strip only appears when BOTH have a card**, and that is the
-              three-state contract being respected rather than worked around: a
-              tab that leads to a stub row is a tab that promises something it
-              cannot show. With one card it renders alone, with its own header;
-              with none, the stub rows render exactly as they did before. */}
-          {sleep.kind === 'card' && fasting.kind === 'card' ? (
-            <Animated.View entering={enterUp(2)}>
-              <PanelTabs
-                tabs={[
-                  { key: 'sleep', label: t('trends.sleepTitle') },
-                  { key: 'fasting', label: t('trends.fastingTitle') },
-                ]}
-                active={habitTab}
-                onSelect={setHabitTab}
-                styles={styles}
-              />
-              {habitTab === 'sleep' ? (
-                <SleepTrendsCard sleep={sleep} hideHeader />
-              ) : (
-                <FastingTrendsCard fasting={fasting} hideHeader />
-              )}
-            </Animated.View>
+              **The strip carries exactly the faces that HAVE a card**, which is
+              the three-state contract respected rather than worked around: a tab
+              leading to a stub row is a tab promising something it cannot show.
+              With one card it renders alone with its own header; with none, the
+              stub rows render exactly as they did before.
+
+              That rule is a GENERALISATION of the two-face version, not a change
+              of policy — and generalising it is what made a third face safe to
+              add. #115 warned that a third tab would bury two faces instead of
+              one, and it would have, under the old all-or-nothing condition:
+              only 4 of 43 accounts have a water card and 2 have a fasting one,
+              so demanding all three would have shut the strip for everybody and
+              a face short of its bar would have taken the other two down with
+              it. Selecting on presence means the strip only ever holds tabs that
+              lead somewhere, and a user sees two tabs, or three, or none.
+
+              Faces WITHOUT a card still render below the panel — their stub rows
+              are how you learn the feature exists at all, and #115 §0 measured
+              that those rows are what ~90% of accounts actually meet. */}
+          {habitFaces.length >= 2 ? (
+            <>
+              <Animated.View entering={enterUp(2)}>
+                <PanelTabs
+                  tabs={habitFaces.map((key) => ({ key, label: t(HABIT_TAB_LABEL[key]) }))}
+                  active={activeHabit}
+                  onSelect={setHabitTab}
+                  styles={styles}
+                />
+                {activeHabit === 'sleep' ? (
+                  <SleepTrendsCard sleep={sleep} hideHeader />
+                ) : activeHabit === 'fasting' ? (
+                  <FastingTrendsCard fasting={fasting} hideHeader />
+                ) : (
+                  <WaterTrendsCard water={water} hideHeader />
+                )}
+              </Animated.View>
+              {/* Each card self-gates, so these render a stub row or nothing.
+                  Guarded on `kind` anyway rather than relying on that: a face
+                  already drawn inside the panel above must not also appear
+                  below it, and `hideHeader` is not what decides that. */}
+              <Animated.View entering={enterUp(3)}>
+                {sleep.kind !== 'card' ? <SleepTrendsCard sleep={sleep} /> : null}
+                {fasting.kind !== 'card' ? <FastingTrendsCard fasting={fasting} /> : null}
+                {water.kind !== 'card' ? <WaterTrendsCard water={water} /> : null}
+              </Animated.View>
+            </>
           ) : (
             <>
               <Animated.View entering={enterUp(2)}>
@@ -315,6 +361,9 @@ export default function Trends() {
               </Animated.View>
               <Animated.View entering={enterUp(3)}>
                 <FastingTrendsCard fasting={fasting} />
+              </Animated.View>
+              <Animated.View entering={enterUp(4)}>
+                <WaterTrendsCard water={water} />
               </Animated.View>
             </>
           )}
@@ -378,7 +427,17 @@ export default function Trends() {
  *  validates a stored value against, so a renamed tab falls back instead of
  *  selecting a face that no longer exists. */
 const WEEKLY_TABS = ['week', 'budget'] as const;
-const HABIT_TABS = ['sleep', 'fasting'] as const;
+const HABIT_TABS = ['sleep', 'fasting', 'water'] as const;
+
+/** The strip's label per face. A map rather than a ternary chain because the
+ *  tabs are now built from a filtered list, and a chain that has to stay in
+ *  step with `HABIT_TABS` is the thing that goes stale when a fourth face
+ *  arrives. */
+const HABIT_TAB_LABEL: Record<(typeof HABIT_TABS)[number], I18nKey> = {
+  sleep: 'trends.sleepTitle',
+  fasting: 'trends.fastingTitle',
+  water: 'trends.waterTitle',
+};
 
 function PanelTabs({
   tabs,

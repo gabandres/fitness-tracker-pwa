@@ -422,6 +422,51 @@ export function subscribeDailyWater(
   );
 }
 
+/**
+ * A bounded window of days — the Trends water card's reader (#115 §3).
+ *
+ * Separate from {@link subscribeDailyWater} for the same two reasons
+ * {@link subscribeDailySleepSince} is separate from its sibling, and they are
+ * worth restating because the unbounded form is right where it is used and
+ * wrong to copy:
+ *
+ * - **It is range-bounded and the other one is not.** `subscribeDailyWater`
+ *   subscribes the WHOLE collection, which is fine for `useToday`'s single
+ *   listener and is not what a second consumer should inherit — this collection
+ *   gains a document every day someone drinks anything, so a long-lived account
+ *   has hundreds and the card reads fourteen of them.
+ * - **ADR-0016 says the second consumer opens its own listener** rather than
+ *   widening `useCoreSnapshot`; the duplication is the model and focus-gating is
+ *   what bounds it.
+ *
+ * `dateKey` IS the doc id, so the range is a `documentId()` query and needs no
+ * index. Inclusive at `since`.
+ *
+ * Unlike the unbounded reader this does **not** coerce a missing value to `0`.
+ * The card must be able to tell a day with no record from a day with none
+ * drunk — a zero-filled gap would drag the median down and draw a bar claiming
+ * the user drank nothing.
+ */
+export function subscribeDailyWaterSince(
+  uid: string,
+  since: string,
+  cb: (water: Record<string, number>, meta?: SnapshotMeta) => void,
+  onError?: (e: Error) => void,
+): Unsub {
+  return onSnapshot(
+    query(waterCol(uid), where(documentId(), '>=', since)),
+    (snap) => {
+      const water: Record<string, number> = {};
+      for (const d of snap.docs) {
+        const flOz = readWaterFlOz(d.data());
+        if (flOz != null) water[d.id] = flOz;
+      }
+      cb(water, metaOf(snap));
+    },
+    onError,
+  );
+}
+
 export async function setDailyWater(uid: string, dateKey: string, flOz: number): Promise<void> {
   await setDoc(waterDoc(uid, dateKey), { flOz: clampWaterFlOz(flOz) });
 }

@@ -532,6 +532,35 @@ export const en = {
   // shipped has no history, and without that phrasing an empty card reads as
   // data loss rather than as a feature that just started.
   'trends.fastingEmpty': 'Fasting · Ignia keeps your fasts from now on — start one on Today',
+  // ─── Water on Trends (#115 §3) ───
+  // Same rules as fasting, and one extra that is specific to this metric: there
+  // is NO daily water target anywhere in Ignia, so no string here may name an
+  // amount the user should reach. The axis tops out at 100 rather than at a
+  // gallon for exactly that reason (`water-history.ts`).
+  //
+  // The unit is interpolated from `water.unit` rather than written inline —
+  // es-PR says `oz` where en and pt-BR say `fl oz`, and a second copy of that
+  // per string is a drift waiting to happen.
+  'trends.waterTitle': 'Water',
+  'trends.waterHeadline': '{n} {u} typical',
+  'trends.waterCaption': 'on {n} of {total} days',
+  // The median is NAMED, not just drawn — a line across the strip with no value
+  // beside it is a decoration. And the gap wording matters: a day with no record
+  // is not a day nobody drank, and the card may not claim it was.
+  'trends.waterLegend': 'your median, {n} {u} · gaps are days with no water logged',
+  // The sentence the chart cannot say on its own. A consistent drinker's
+  // fourteen bars are near-identical by definition, which is the exact failure
+  // the fasting card had to be rebuilt to fix. Pure description — a range, with
+  // no opinion about which end of it is the better place to be.
+  'trends.waterRange': 'Your {n} logged days ran between {low} and {high} {u}.',
+  'trends.waterCoverage': 'you logged water on {n} of {total} days',
+  // Two stub sentences, not three: water has no running state the way a fast
+  // does. The progress row names the bar; the zero row deliberately does NOT —
+  // telling someone who has logged nothing that they need three days is naming
+  // an unearned target, which is the fix that was proposed for #115 §0 and
+  // rightly killed.
+  'trends.waterEmptyProgress': 'Water · {n} of {need} days — Ignia charts them at {need}',
+  'trends.waterEmpty': 'Water · log water on Today and your days chart here',
   // ─── Editing a fast (ADR-0032 decision 3, #97) ───
   // The sheet is three modes over one interaction, so the strings are grouped
   // by what they name rather than by mode: two titles, two field labels, one
