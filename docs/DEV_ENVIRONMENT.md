@@ -1119,3 +1119,106 @@ rm -rf /tmp/wdd ~/Library/Developer/Xcode/DerivedData/Ignia-*
 watcher processes from earlier sessions were found still running. Their own
 command line contains `xcodebuild`, so their `pgrep` matches themselves and they
 can never exit. Four of them had accumulated.
+
+## 5. Owner runbook — move `ignia.fit` + GCP billing under Bermudez Systems LLC (written 2026-08-30)
+
+The stores are already the LLC's (Apple entity migrated 08-25, Play app
+transferred 08-29). What is still personal: the GCP/Firebase project's only
+Owner, the billing account that pays for it, and the `ignia.fit` domain. None
+of this is urgent; all of it is what survives a lost phone or a locked personal
+account. Do the steps in order — each is independent, so stopping midway leaves
+nothing broken.
+
+### 5.0 Give the org account Owner on the Firebase project (~2 min, do first)
+
+The API refuses this (`SOLO_MUST_INVITE_OWNERS` — a project with no
+organization only accepts INVITED owners), so it is console-only:
+
+1. As **gabrielandresbermudez@gmail.com**:
+   <https://console.cloud.google.com/iam-admin/iam?project=fitness-tracker-gb-1775407101>
+   -> **Grant access** -> principal `gabriel@bermudezsystems.com` -> role
+   **Basic -> Owner** -> Save. It will say an invitation was sent.
+2. In the **org mailbox** (Outlook — remember `bermudezsystems.com` MX is
+   Microsoft 365 now): open the "Invitation to own" email and accept **while
+   signed in as gabriel@bermudezsystems.com**.
+3. Verify: the IAM page lists both users as Owner. Firebase console access
+   follows automatically.
+
+Why: today the personal Gmail is the single key to prod Firestore, Auth, every
+secret, and the deploy path. This is the recovery path, and it costs nothing.
+
+### 5.1 `ignia.fit` domain -> LLC (Cloudflare)
+
+Measured 2026-08-30: `ignia.fit` runs on **Cloudflare** (NS dilbert/sunny),
+**proxied** in front of Firebase Hosting (`hosting-site=macrolog` TXT), with
+**Cloudflare Email Routing** MX handling inbound `@ignia.fit` mail. So "move
+the domain" means moving/relabeling a Cloudflare account, and the DNS zone is
+the crown jewels — the records must survive byte-for-byte.
+
+1. **Find the registrar first**: Cloudflare dashboard -> the ignia.fit zone ->
+   Overview -> Registrar. If it says Cloudflare Registrar, the whole move is
+   inside Cloudflare. If not, note where the registration actually lives.
+2. **Export the zone** (dashboard -> DNS -> Export) and save the file in
+   OneDrive under the LLC records. Do this BEFORE touching anything.
+3. Two acceptable end states — pick one:
+   - **Cheapest**: keep the existing Cloudflare account, change its email to
+     `gabriel@bermudezsystems.com` and the billing/WHOIS org to Bermudez
+     Systems LLC (the registrant org on .fit is editable; a registrant
+     email/org change may trigger a 60-day transfer lock — fine, you are not
+     moving registrars).
+   - **Cleanest**: create a Cloudflare account under
+     `gabriel@bermudezsystems.com`, move the zone to it (Cloudflare supports
+     zone moves between accounts without NS changes), then transfer the
+     registration into that account.
+4. **Do not lose on the way** (all verified in public DNS 2026-08-30):
+   - the two proxied A records + `hosting-site=macrolog` TXT (the website),
+   - the MX trio `route{1,2,3}.mx.cloudflare.net` + SPF include (inbound
+     mail — Email Routing rules live in the Cloudflare account; re-check the
+     forward destinations after any account move),
+   - any Firebase Hosting verification TXTs the Hosting console shows.
+5. After: `nslookup -type=TXT ignia.fit 1.1.1.1` matches the export, the site
+   loads, and a test mail to the support address arrives.
+
+Note: GSC property `sc-domain:ignia.fit` is still unverified
+(`docs/seo-status.md`) — while in the DNS panel anyway, adding that TXT is a
+free two-birds move.
+
+### 5.2 Billing -> LLC (recommended: a NEW billing account, Ignia only)
+
+Free tiers are **per billing account** (CLAUDE.md, cost discipline). Today
+account `010F4E-5E97BC-6B83D0` carries four projects; Ignia moving to its own
+account under the LLC actually *improves* the math: Secret Manager billable
+versions drop from ~7 account-wide to 2 (Ignia's 8 minus its own 6 free) plus
+0 on the old account (5 remaining <= 6 free) — cheaper AND separated.
+
+1. In the GCP console **as gabriel@bermudezsystems.com** (after 5.0):
+   Billing -> **Create account** -> use the LLC payments profile
+   (`7360-3490-9173`, the one that paid the Play $25) -> payment method:
+   the **Relay** card/bank.
+2. Billing -> Account management -> move project
+   `fitness-tracker-gb-1775407101` to the new billing account (needs
+   Project Owner + Billing Admin on the target — which 5.0 provides). The
+   switch is instant; nothing restarts.
+3. **Re-enable the BigQuery billing export on the NEW account** — the export
+   enabled 2026-08-30 is a property of the OLD billing account and does not
+   follow the project. Same steps: Billing -> Billing export -> Standard usage
+   cost -> project `fitness-tracker-gb-1775407101`, dataset `billing`. The
+   admin Cost & AI page reads whatever export lands in that dataset, so it
+   keeps working across the move (the query matches `gcp_billing_export_v1_*`).
+4. Watch the first invoice on the new account (~$0.20/mo expected: 2 secret
+   versions + dust). The old account keeps the other three projects and
+   stays as-is.
+5. Cloud Scheduler note: the 3-job free tier is also per billing account —
+   after the split, Ignia's 3 jobs fit its own free tier exactly. No change
+   needed, but any NEW recurring work still folds into `hourlyTasks`.
+
+### 5.3 Explicitly NOT part of this move
+
+- The Firebase **project** itself — there is no clean transfer; 5.0 IS the
+  ownership fix. Migrating projects means new API keys, SHA re-registration
+  and OAuth clients: all risk, no benefit.
+- Apple / Play — already the LLC's.
+- `bermudezsystems.com` — section 4 above and `STATUS.md` section 3 own that
+  (RA-subscription coupling, transfer eligible ~2026-09-04).
+- Stripe / Ko-fi / RevenueCat — dormant; route them to Relay the day tips
+  re-enable, not before.
