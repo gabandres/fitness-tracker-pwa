@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { Firestore, doc, getDoc } from '@angular/fire/firestore';
-import { APP_STORE_URL, PLAY_STORE_URL } from '../../utils/app-store';
+import { APP_STORE_URL, PLAY_STORE_URL, PLAY_STORE_LIVE } from '../../utils/app-store';
 import { TranslationService } from '../../services/translation.service';
 import { localizedPath } from '../../i18n/locale-path';
 
@@ -12,7 +12,8 @@ import { localizedPath } from '../../i18n/locale-path';
  *
  * Structure (scroll top → bottom):
  *   1. Hero — the one question the app answers (primary "start logging" CTA)
- *   2. Product proof — three capture paths, measured TDEE, AI coach
+ *   2. Product proof — six feature cards (photo scan, capture, measured
+ *      TDEE, trends, health-store imports, AI coach)
  *   3. Privacy pledge — the "no ads / no selling" promise
  *   4. Free — Ignia is free (donations model, no paid tier)
  *
@@ -129,6 +130,34 @@ import { localizedPath } from '../../i18n/locale-path';
         border-color: var(--v2-accent);
         transform: scale(1.02);
       }
+      /* Android-pending state. Dashed border on purpose — it reads as
+         "reserved", not "broken". Colored via currentColor so the same
+         class works on the dark hero panel and on paper. Swapped for a
+         live Play link by PLAY_STORE_LIVE (utils/app-store.ts). */
+      .play-soon {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 40px;
+        padding: 0 16px;
+        border-radius: var(--v2-radius-full);
+        border: 1px dashed color-mix(in srgb, currentColor 40%, transparent);
+        font-family: var(--v2-font-mono);
+        font-size: 0.6875rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+      .play-soon::before {
+        content: '';
+        width: 6px;
+        height: 6px;
+        border-radius: 999px;
+        background: currentColor;
+        opacity: 0.55;
+        flex: none;
+      }
     </style>
     <article class="pb-16 px-4 max-w-6xl mx-auto space-y-16">
       <!-- ── 1. Hero ──────────────────────────────────────────────── -->
@@ -166,6 +195,17 @@ import { localizedPath } from '../../i18n/locale-path';
                   width="180" height="60" loading="lazy" decoding="async"
                   class="h-[52px] w-auto transition-transform duration-200 hover:scale-105" />
               </a>
+              <!-- Android state. The listing is submitted and in review, so
+                   until PLAY_STORE_LIVE flips (utils/app-store.ts, one line)
+                   this renders a quiet "coming soon" pill instead of linking
+                   visitors to a 404. -->
+              @if (PLAY_STORE_LIVE) {
+                <a [href]="PLAY_STORE_URL" rel="noopener" class="v2-btn v2-btn--ghost" style="color: var(--v2-hero-text, #f3f1ec);">
+                  {{ t('landing.freeCta') }}
+                </a>
+              } @else {
+                <span class="play-soon" style="color: var(--v2-hero-muted, #a39c91);">{{ t('landing.playSoon') }}</span>
+              }
             </div>
 
             <!-- This used to sit behind three empty grey circles standing in for
@@ -219,9 +259,19 @@ import { localizedPath } from '../../i18n/locale-path';
              whitespace, where nobody read it. The generic outline glyphs it
              replaces (a plus, a trend line, a tick) said nothing the heading
              underneath did not already say. -->
-        <div class="grid gap-5 sm:grid-cols-3">
+        <!-- Six cards, not three, since the app grew past the copy: photo
+             scan (free — ADR-0017), the Trends surfaces (sleep/fasting/
+             water) and the health-store imports (Apple Health / Health
+             Connect / Oura) all shipped and none were mentioned here. Two
+             columns at tablet, three at desktop, one at phone width. -->
+        <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           <div class="proof-card" style="border-top-color: var(--v2-accent);">
-            <p class="landing-rule">{{ t('landing.proofCaptureStamp') }}</p>
+            <p class="landing-rule">{{ t('landing.proofPhotoStamp') }}</p>
+            <h3 class="v2-h3">{{ t('landing.proofPhotoTitle') }}</h3>
+            <p class="v2-body-soft">{{ t('landing.proofPhotoBody') }}</p>
+          </div>
+          <div class="proof-card" style="border-top-color: var(--v2-teal);">
+            <p class="landing-rule" style="color: var(--v2-teal);">{{ t('landing.proofCaptureStamp') }}</p>
             <h3 class="v2-h3">{{ t('landing.proofCaptureTitle') }}</h3>
             <p class="v2-body-soft">{{ t('landing.proofCaptureBody') }}</p>
           </div>
@@ -231,7 +281,17 @@ import { localizedPath } from '../../i18n/locale-path';
             <p class="v2-body-soft">{{ t('landing.proofTdeeBody') }}</p>
           </div>
           <div class="proof-card" style="border-top-color: var(--v2-ink-muted);">
-            <p class="landing-rule" style="color: var(--v2-ink-muted);">{{ t('landing.proofCoachStamp') }}</p>
+            <p class="landing-rule" style="color: var(--v2-ink-muted);">{{ t('landing.proofTrendsStamp') }}</p>
+            <h3 class="v2-h3">{{ t('landing.proofTrendsTitle') }}</h3>
+            <p class="v2-body-soft">{{ t('landing.proofTrendsBody') }}</p>
+          </div>
+          <div class="proof-card" style="border-top-color: var(--v2-teal);">
+            <p class="landing-rule" style="color: var(--v2-teal);">{{ t('landing.proofSyncStamp') }}</p>
+            <h3 class="v2-h3">{{ t('landing.proofSyncTitle') }}</h3>
+            <p class="v2-body-soft">{{ t('landing.proofSyncBody') }}</p>
+          </div>
+          <div class="proof-card" style="border-top-color: var(--v2-accent);">
+            <p class="landing-rule">{{ t('landing.proofCoachStamp') }}</p>
             <h3 class="v2-h3">{{ t('landing.proofCoachTitle') }}</h3>
             <p class="v2-body-soft">{{ t('landing.proofCoachBody') }}</p>
           </div>
@@ -288,14 +348,20 @@ import { localizedPath } from '../../i18n/locale-path';
         <h2 class="landing-h2">{{ t('landing.downloadHeadline') }}</h2>
         <p class="v2-body-soft mt-5 max-w-xl mx-auto">{{ t('landing.downloadBody') }}</p>
         <div class="mt-8 flex flex-wrap items-center justify-center gap-4">
-          <a [href]="PLAY_STORE_URL" rel="noopener" class="v2-btn v2-btn--primary v2-btn--lg">{{ t('landing.freeCta') }}</a>
           <a [href]="APP_STORE_URL" rel="noopener" [attr.aria-label]="t('landing.appStoreAlt')">
             <img src="/appstore-badge.svg" alt="{{ t('landing.appStoreAlt') }}"
               width="180" height="60" loading="lazy" decoding="async"
               class="h-[52px] w-auto transition-transform duration-200 hover:scale-105" />
           </a>
+          <!-- Same swap as the hero: flip PLAY_STORE_LIVE in
+               utils/app-store.ts when the Play listing returns 200. -->
+          @if (PLAY_STORE_LIVE) {
+            <a [href]="PLAY_STORE_URL" rel="noopener" class="v2-btn v2-btn--primary v2-btn--lg">{{ t('landing.freeCta') }}</a>
+          } @else {
+            <span class="play-soon" style="color: var(--v2-ink-muted);">{{ t('landing.playSoon') }}</span>
+          }
         </div>
-        <p class="v2-caption mt-6">{{ t('landing.downloadAndroid') }}</p>
+        <p class="v2-caption mt-6">{{ PLAY_STORE_LIVE ? t('landing.downloadAndroidLive') : t('landing.downloadAndroidSoon') }}</p>
         <p class="v2-caption mt-2"><a [href]="downloadPath()" class="v2-link">{{ t('landing.downloadMore') }}</a></p>
       </section>
 
@@ -315,12 +381,15 @@ import { localizedPath } from '../../i18n/locale-path';
           <a [href]="downloadPath()" class="v2-link font-medium text-lg">{{ t('landing.getOnIphone') }}</a>
           <a href="/faq" class="v2-link font-medium text-lg mt-1">{{ t('landing.faqLink') }}</a>
           <a [href]="supportPath()" class="v2-link font-medium text-lg mt-1" style="color: var(--v2-accent);">{{ t('landing.supportLink') }} ♥</a>
-          <!-- Names the operating company, and deliberately stops there. The
-               App Store listing is still on an individual Apple account and
-               the Play transfer to the org account is in progress, so any
-               claim about who PUBLISHES the apps would contradict what the
-               two stores currently show. -->
-          <p class="v2-caption mt-2">&copy; {{ _getYear() }} Bermudez Systems LLC</p>
+          <!-- The publisher claim is safe to make (and link) now: the Apple
+               membership migrated to the LLC on 2026-08-25 and the Play app
+               transfer landed 2026-08-29, so both stores show the same name
+               this line does. -->
+          <p class="v2-caption mt-2">
+            {{ t('landing.madeBy') }}
+            <a href="https://bermudezsystems.com/" target="_blank" rel="noopener" class="v2-link">Bermudez Systems LLC</a>
+            &nbsp;·&nbsp;&copy; {{ _getYear() }}
+          </p>
         </div>
       </footer>
     </article>
@@ -344,6 +413,7 @@ export class LandingComponent {
    *  `apple-itunes-app` smart-banner meta in src/index.html. */
   protected readonly APP_STORE_URL = APP_STORE_URL;
   protected readonly PLAY_STORE_URL = PLAY_STORE_URL;
+  protected readonly PLAY_STORE_LIVE = PLAY_STORE_LIVE;
 
   /** Social-proof count from `public/stats.totalUsers`. Intentionally
       gated at 100 — below that we'd be doing anti-social-proof ("join

@@ -29,6 +29,15 @@ export const APP_STORE_URL = LISTING;
 export const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=fit.ignia.app';
 
 /**
+ * ONE-LINE FLIP: set to `true` the day the Play listing goes public — i.e.
+ * when `PLAY_STORE_URL` returns 200 instead of 404 (`STATUS.md` owns that
+ * fact; the first production release is submitted and in review as of
+ * 2026-08-29). While `false`, the landing page shows a quiet "coming soon
+ * to Google Play" state instead of linking visitors to a 404.
+ */
+export const PLAY_STORE_LIVE = false;
+
+/**
  * Custom Product Pages, keyed by the intent they serve.
  *
  * `switchers` — leads with the adaptive target, then the no-subscription
