@@ -10,7 +10,7 @@ import { useAuth } from '@/lib/auth';
 import { formatDate } from '@/lib/date-format';
 import { enterUp } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space, type } from '@/theme';
+import { FAB_BAND, font, radius, space, type } from '@/theme';
 
 /**
  * The milestone archive — everything this account has on record.
@@ -129,7 +129,12 @@ const makeStyles = ({ colors }: Theme) =>
       color: colors.ink,
     },
     headerSpacer: { width: 26 },
-    body: { paddingHorizontal: space.xl, paddingBottom: space.xl, gap: space.md },
+    // `FAB_BAND`, not `space.xl`: this route lives inside `(app)`, so the tab
+    // bar AND the floating + button render over it. Caught on the device with
+    // one row — with a full archive the last entry would sit under the button,
+    // which is the failure that has now hit Today (UX_AUDIT F5), the Trends
+    // Coach row (#96) and the fasting card footer.
+    body: { paddingHorizontal: space.xl, paddingBottom: FAB_BAND, gap: space.md },
     subtitle: { fontSize: font.body, color: colors.muted, marginBottom: space.sm },
     empty: { fontSize: font.body, color: colors.muted, lineHeight: 24 },
     row: {
