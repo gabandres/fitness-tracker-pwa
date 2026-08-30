@@ -165,6 +165,10 @@ export class AdminComponent {
 
   constructor() {
     if (this.preview) seedPreview(this.data);
+    // One audit row per browser session, once the claim is confirmed.
+    effect(() => {
+      if (!this.preview && this.admin.ready() && this.admin.isAdmin()) this.admin.noteSession();
+    });
     // Dark leads (ADR-0014). Only an explicit stored choice overrides it.
     if (readStoredTheme() === 'auto') {
       this.dark.set(applyThemeChoice('dark') === 'dark');

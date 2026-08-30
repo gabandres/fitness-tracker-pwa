@@ -103,8 +103,21 @@ const ACTION_TONE: Record<string, string> = {
   plan_override: 'good', quota_reset: 'teal', password_reset_link: 'warn',
   impersonation_start: 'warn', impersonation_stop: 'muted', data_export: 'info',
   spend_kill_engaged: 'danger', spend_kill_cleared: 'good', spend_limit_set: 'warn',
-  comped_grant: 'teal', comped_revoke: 'muted',
+  comped_grant: 'teal', comped_revoke: 'muted', cost_ledger_set: 'info', admin_session: 'muted',
 };
+
+const AUDITED: ReadonlyArray<[string, string]> = [
+  ['admin_session', 'the console was opened'],
+  ['plan_override', 'grant / revoke paid'],
+  ['user_suspend · user_unsuspend', 'suspend / unsuspend'],
+  ['user_delete', 'delete an account'],
+  ['quota_reset', "reset a user's AI quota"],
+  ['password_reset_link', 'generate a reset link'],
+  ['comped_grant · comped_revoke', 'comped list'],
+  ['spend_limit_set · spend_kill_engaged · spend_kill_cleared', 'AI ceilings and kill-switch'],
+  ['cost_ledger_set', 'fixed-cost ledger'],
+  ['data_export', 'CSV export'],
+];
 
 @Component({
   selector: 'adm-audit',
@@ -113,7 +126,7 @@ const ACTION_TONE: Record<string, string> = {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="adm-page-head">
-      <div><h1 class="adm-h1">Audit log</h1><p class="adm-sub">Every mutating admin call writes here from the server. Append-only; no client can write it.</p></div>
+      <div><h1 class="adm-h1">Audit log</h1><p class="adm-sub">{{ data.audit().length }} entr{{ data.audit().length === 1 ? 'y' : 'ies' }} · every mutating admin call and every console session, written server-side. Append-only; no client can write it.</p></div>
       <button type="button" class="adm-btn" (click)="data.loadAudit(true)" [disabled]="data.isLoading('audit')">Refresh</button>
     </div>
     <div class="adm-toolbar">
@@ -136,12 +149,28 @@ const ACTION_TONE: Record<string, string> = {
               <span class="details">{{ details(l.details) }}</span>
             </span>
           </li>
-        } @empty { <li><span class="adm-empty">{{ data.isLoading('audit') ? 'Loading…' : 'No entries.' }}</span></li> }
+        } @empty {
+          <li style="grid-template-columns:1fr;">
+            @if (data.isLoading('audit')) { <span class="adm-empty">Loading…</span> }
+            @else if (data.audit().length === 0) {
+              <div class="adm-empty" style="text-align:left;">
+                <strong style="color:var(--adm-ink);">Nothing has been audited yet.</strong> The log fills as admin actions happen — it is not a mirror of user activity (that is the Activity page). What writes here:
+                <ul class="adm-timeline" style="margin-top:10px;">
+                  @for (a of audited; track a[0]) { <li style="grid-template-columns:1fr; padding:6px 0;"><span class="adm-mono" style="font-size:12px;">{{ a[0] }}</span><span class="adm-muted" style="font-size:12px;">{{ a[1] }}</span></li> }
+                </ul>
+              </div>
+            } @else { <span class="adm-empty">No entries match the filter.</span> }
+          </li>
+        }
       </ul>
+      @if (data.auditHasMore()) {
+        <div style="margin-top:12px;"><button type="button" class="adm-btn sm" (click)="data.loadMoreAudit()" [disabled]="data.isLoading('audit')">Load older entries</button></div>
+      }
     </section>
   `,
 })
 export class AdminAuditComponent {
+  readonly audited = AUDITED;
   readonly data = inject(AdminDataService);
   readonly shell = inject(AdminShellState);
   readonly fmt = fmtDateTime;

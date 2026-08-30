@@ -397,6 +397,19 @@ export class AdminService {
     return ceilings;
   }
 
+  /** Audit "the console was opened" once per browser session. Fire-and-forget. */
+  noteSession(): void {
+    try {
+      if (sessionStorage.getItem('ignia.admin.sessionNoted') === '1') return;
+      sessionStorage.setItem('ignia.admin.sessionNoted', '1');
+    } catch { /* private mode — note it anyway */ }
+    void this.callables.call('adminNoteSession', {
+      userAgent: navigator.userAgent,
+      release: String((globalThis as { __MACROLOG_RELEASE__?: string }).__MACROLOG_RELEASE__ ?? 'dev').slice(0, 8),
+      viewport: `${window.innerWidth}x${window.innerHeight}`,
+    }).catch(() => undefined);
+  }
+
   // ─── Cost page ─────────────────────────────────────────────────
 
   async getCostModel(): Promise<CostModel> {

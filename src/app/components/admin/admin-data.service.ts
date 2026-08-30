@@ -40,6 +40,7 @@ export class AdminDataService {
   readonly users = signal<AdminUserRow[]>([]);
   readonly activity = signal<ActivityItem[]>([]);
   readonly audit = signal<AuditLog[]>([]);
+  readonly auditHasMore = signal(false);
   readonly feedback = signal<FeedbackRow[]>([]);
   readonly costModel = signal<CostModel | null>(null);
   readonly billing = signal<BillingReport | null>(null);
@@ -100,7 +101,27 @@ export class AdminDataService {
   loadCeilings(force = false) { return this.guard('ceilings', force, this.ceilings, () => this.api.getSpendCeilings(), []); }
   loadActivity(force = false) { return this.guard('activity', force, this.activity, async () => (await this.api.getRecentActivity()).items, []); }
   loadFeedback(force = false) { return this.guard('feedback', force, this.feedback, () => this.api.getFeedback(), []); }
-  loadAudit(force = false) { return this.guard('audit', force, this.audit, async () => (await this.api.getAuditLogs({ limit: 200 })).logs, []); }
+  loadAudit(force = false) {
+    return this.guard('audit', force, this.audit, async () => {
+      const { logs, hasMore } = await this.api.getAuditLogs({ limit: 100 });
+      this.auditHasMore.set(hasMore);
+      return logs;
+    }, []);
+  }
+  async loadMoreAudit(): Promise<void> {
+    const last = this.audit().at(-1);
+    if (!last?.timestamp || this.loading()['audit']) return;
+    this.loading.update((l) => ({ ...l, audit: true }));
+    try {
+      const { logs, hasMore } = await this.api.getAuditLogs({ limit: 100, startAfterTimestamp: last.timestamp });
+      this.audit.update((a) => [...a, ...logs]);
+      this.auditHasMore.set(hasMore);
+    } catch (err) {
+      this.error.set(`audit: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      this.loading.update((l) => ({ ...l, audit: false }));
+    }
+  }
   loadUsers(force = false) {
     return this.guard('users', force, this.users, async () => {
       const { users } = await this.api.listUsers();

@@ -52,6 +52,7 @@ export type CallableName =
   | 'adminSetSpendCeiling'
   | 'adminListCompedEmails'
   | 'adminGetCostModel'
+  | 'adminNoteSession'
   | 'adminGetBilling'
   | 'adminSetCostLedger'
   | 'startImpersonation'

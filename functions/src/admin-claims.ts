@@ -2,6 +2,7 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 import { requireAdmin } from "./admin-guard";
+import { writeAuditLog } from "./audit-log";
 
 const ADMINS_DOC = "config/admins";
 
@@ -64,6 +65,28 @@ export const bootstrapAdmin = onCall(async (request) => {
 
   await db.doc(ADMINS_DOC).set({ emails: seeded });
   return { seeded };
+});
+
+/**
+ * The console calls this once per browser session when it renders with the
+ * claim, so the audit log has a row for every time the admin surface was
+ * opened — not only for the mutations. Without it the log reads as broken
+ * for as long as nobody suspends anyone (2026-08-30: zero rows after weeks
+ * of use, because every audited action is a mutation and none had happened).
+ */
+export const adminNoteSession = onCall(async (request) => {
+  const admin = requireAdmin(request);
+  const { userAgent, release, viewport } = (request.data || {}) as { userAgent?: string; release?: string; viewport?: string };
+  const id = await writeAuditLog({
+    action: "admin_session",
+    admin,
+    details: {
+      userAgent: typeof userAgent === "string" ? userAgent.slice(0, 200) : undefined,
+      release: typeof release === "string" ? release.slice(0, 40) : undefined,
+      viewport: typeof viewport === "string" ? viewport.slice(0, 20) : undefined,
+    },
+  });
+  return { id };
 });
 
 // `setAdminClaims` — the grant/revoke callable — was DELETED on 2026-08-30
