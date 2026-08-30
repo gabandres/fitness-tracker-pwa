@@ -7,7 +7,7 @@ import { AdminShellState } from './admin-shell.state';
 import { fmtDate, fmtDateTime, initials, relTime } from './admin-format';
 import { adminPreviewEnabled } from './admin-preview';
 
-type SortKey = 'email' | 'createdAt' | 'lastSignInAt' | 'plan';
+type SortKey = 'email' | 'createdAt' | 'lastSignInAt' | 'lastActiveDay' | 'plan';
 type PlanFilter = 'all' | 'free' | 'paid' | 'comped' | 'admin';
 type FlagFilter = 'all' | 'unverified' | 'disabled' | 'noProfile';
 
@@ -41,6 +41,12 @@ type FlagFilter = 'all' | 'unverified' | 'disabled' | 'noProfile';
         <option value="disabled">suspended</option>
         <option value="noProfile">no profile</option>
       </select>
+      <select class="adm-field adm-select" [ngModel]="platform()" (ngModelChange)="platform.set($event)">
+        <option value="all">any app</option>
+        <option value="ios">iOS</option>
+        <option value="android">Android</option>
+        <option value="none">never opened</option>
+      </select>
       <select class="adm-field adm-select" [ngModel]="provider()" (ngModelChange)="provider.set($event)">
         <option value="all">any provider</option>
         @for (p of providers(); track p) { <option [value]="p">{{ p }}</option> }
@@ -54,6 +60,7 @@ type FlagFilter = 'all' | 'unverified' | 'disabled' | 'noProfile';
             <th (click)="sortBy('email')" [class.sorted]="sort() === 'email'">Account {{ arrow('email') }}</th>
             <th (click)="sortBy('plan')" [class.sorted]="sort() === 'plan'">Tier {{ arrow('plan') }}</th>
             <th>Status</th>
+            <th (click)="sortBy('lastActiveDay')" [class.sorted]="sort() === 'lastActiveDay'">App {{ arrow('lastActiveDay') }}</th>
             <th>Providers</th>
             <th (click)="sortBy('createdAt')" [class.sorted]="sort() === 'createdAt'">Joined {{ arrow('createdAt') }}</th>
             <th (click)="sortBy('lastSignInAt')" [class.sorted]="sort() === 'lastSignInAt'">Last sign-in {{ arrow('lastSignInAt') }}</th>
@@ -85,12 +92,19 @@ type FlagFilter = 'all' | 'unverified' | 'disabled' | 'noProfile';
                   @if (u.emailVerified && u.profileCompleted && !u.disabled) { <span class="adm-chip good">active</span> }
                 </div>
               </td>
+              <td data-label="App">
+                <div style="display:flex; gap:4px; flex-wrap:wrap; align-items:center;">
+                  @for (pl of platformChips(u); track pl.id) { <span class="adm-chip" [class]="'adm-chip ' + pl.tone">{{ pl.label }} · {{ pl.days }}d</span> }
+                  @empty { <span class="adm-muted" style="font-size:12px;">never opened</span> }
+                  @if (u.lastActiveDay) { <span class="adm-muted" style="font-size:11.5px;">{{ u.lastActiveDay }}</span> }
+                </div>
+              </td>
               <td data-label="Providers" class="adm-muted" style="font-size:12px;">{{ u.providers.map(shortProvider).join(' · ') || '—' }}</td>
               <td data-label="Joined" class="adm-mono" style="font-size:12px;">{{ fmtDate(u.createdAt) }}</td>
               <td data-label="Last sign-in" class="adm-mono" style="font-size:12px;" [title]="fmtDateTime(u.lastSignInAt)">{{ relTime(u.lastSignInAt) }}</td>
             </tr>
           } @empty {
-            <tr><td colspan="6"><div class="adm-empty">{{ data.isLoading('users') ? 'Loading accounts…' : 'No accounts match.' }}</div></td></tr>
+            <tr><td colspan="7"><div class="adm-empty">{{ data.isLoading('users') ? 'Loading accounts…' : 'No accounts match.' }}</div></td></tr>
           }
         </tbody>
       </table>
@@ -129,6 +143,11 @@ type FlagFilter = 'all' | 'unverified' | 'disabled' | 'noProfile';
               <dt>uid</dt><dd>{{ u.uid }}</dd>
               <dt>Joined</dt><dd>{{ fmtDateTime(u.createdAt) }}</dd>
               <dt>Last sign-in</dt><dd>{{ fmtDateTime(u.lastSignInAt) }} <span class="adm-muted">({{ relTime(u.lastSignInAt) }})</span></dd>
+              <dt>App</dt><dd style="font-family:inherit;">
+                @for (pl of platformChips(u); track pl.id) { <span class="adm-chip" [class]="'adm-chip ' + pl.tone">{{ pl.label }} · {{ pl.days }} active day{{ pl.days === 1 ? '' : 's' }}</span> }
+                @empty { <span class="adm-muted">never opened an app (last 90 days)</span> }
+                @if (u.lastActiveDay) { <div class="adm-muted" style="font-size:12px; margin-top:4px;">last opened {{ u.lastActiveDay }} · {{ u.activeDays90 }} active day{{ u.activeDays90 === 1 ? '' : 's' }} in 90</div> }
+              </dd>
               <dt>Providers</dt><dd>{{ u.providers.join(', ') || '—' }}</dd>
               <dt>Locale</dt><dd>{{ u.preferredLocale || '—' }}</dd>
             </dl>
@@ -198,6 +217,7 @@ export class AdminUsersComponent {
   readonly plan = signal<PlanFilter>('all');
   readonly flag = signal<FlagFilter>('all');
   readonly provider = signal<string>('all');
+  readonly platform = signal<'all' | 'ios' | 'android' | 'none'>('all');
   readonly sort = signal<SortKey>('createdAt');
   readonly dir = signal<1 | -1>(-1);
   readonly busy = signal(false);
@@ -220,6 +240,7 @@ export class AdminUsersComponent {
     const plan = this.plan();
     const flag = this.flag();
     const prov = this.provider();
+    const plat = this.platform();
     const key = this.sort();
     const dir = this.dir();
     return this.data.users()
@@ -231,6 +252,7 @@ export class AdminUsersComponent {
         || (plan === 'free' && !u.admin && u.stripeRole !== 'paid' && !this.isComped(u)))
       .filter((u) => flag === 'all' || (flag === 'unverified' && !u.emailVerified) || (flag === 'disabled' && u.disabled) || (flag === 'noProfile' && !u.profileCompleted))
       .filter((u) => prov === 'all' || u.providers.includes(prov))
+      .filter((u) => plat === 'all' || (plat === 'none' ? !Object.keys(u.platforms ?? {}).length : (u.platforms?.[plat] ?? 0) > 0))
       .sort((a, b) => {
         const av = key === 'plan' ? this.tierRank(a) : (a[key] ?? '');
         const bv = key === 'plan' ? this.tierRank(b) : (b[key] ?? '');
@@ -264,6 +286,11 @@ export class AdminUsersComponent {
   isComped(u: AdminUserRow): boolean { return this.api.compedEmails().includes(u.email.toLowerCase()); }
   tierRank(u: AdminUserRow): number { return u.admin ? 3 : this.isComped(u) ? 2 : u.stripeRole === 'paid' ? 1 : 0; }
   shortProvider(p: string): string { return p.replace('.com', ''); }
+  platformChips(u: AdminUserRow): Array<{ id: string; label: string; days: number; tone: string }> {
+    const label: Record<string, string> = { ios: 'iOS', android: 'Android', web: 'Web' };
+    const tone: Record<string, string> = { ios: 'accent', android: 'good', web: 'muted' };
+    return Object.entries(u.platforms ?? {}).sort((a, b) => b[1] - a[1]).map(([id, days]) => ({ id, label: label[id] ?? id, days, tone: tone[id] ?? 'violet' }));
+  }
   sortBy(key: SortKey): void {
     if (this.sort() === key) this.dir.set(this.dir() === 1 ? -1 : 1);
     else { this.sort.set(key); this.dir.set(key === 'email' ? 1 : -1); }

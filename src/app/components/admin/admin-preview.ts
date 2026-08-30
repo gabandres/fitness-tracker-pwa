@@ -1,5 +1,6 @@
 import { isDevMode } from '@angular/core';
 import type { AdminDataService } from './admin-data.service';
+import type { AdminUserRow } from '../../services/admin.service';
 
 /**
  * Dev-only preview seam: `ng serve` + `/admin?preview=1` renders the console
@@ -98,11 +99,12 @@ export function seedPreview(data: AdminDataService): void {
     { id: 'apple-dev', label: 'Apple Developer Program', amountUsd: 99, cadence: 'yearly' },
     { id: 'play-dev', label: 'Google Play developer registration', amountUsd: 25, cadence: 'once' },
   ]);
-  const mk = (i: number) => ({
+  const mk = (i: number): AdminUserRow => ({
     uid: `uid${i.toString().padStart(4, '0')}abcdefghijklmnop`, email: `person${i}@example.com`, displayName: i % 3 ? `Person ${i}` : '',
     emailVerified: i % 7 !== 0, disabled: i === 5, createdAt: new Date(Date.now() - i * 86_400_000 * 2).toISOString(),
     lastSignInAt: new Date(Date.now() - i * 3_600_000 * 5).toISOString(), providers: i % 2 ? ['google.com'] : ['apple.com', 'password'],
     admin: i === 0, profileCompleted: i % 6 !== 0, stripeRole: i === 3 ? 'paid' : null, preferredLocale: i % 4 ? 'en' : 'es-PR',
+    platforms: (i % 5 === 0 ? {} : i % 2 ? { ios: 3 + i } : { android: 2 + i, ios: i % 3 }) as Record<string, number>, lastActiveDay: i % 5 === 0 ? null : keys[Math.max(0, 29 - i)], activeDays90: i % 5 === 0 ? 0 : 3 + i,
   });
   data.users.set(Array.from({ length: 24 }, (_, i) => mk(i)));
   data.activity.set(Array.from({ length: 12 }, (_, i) => ({

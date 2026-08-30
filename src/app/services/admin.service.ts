@@ -55,6 +55,10 @@ export interface AdminUserRow {
   profileCompleted: boolean;
   stripeRole: string | null;
   preferredLocale: string | null;
+  /** Active day-documents per platform, last 90 days (`usageEvents`). Empty = never opened an app since the counters shipped. */
+  platforms: Record<string, number>;
+  lastActiveDay: string | null;
+  activeDays90: number;
 }
 
 export interface PlatformStats {

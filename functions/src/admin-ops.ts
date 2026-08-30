@@ -36,6 +36,11 @@ export const listUsers = onCall({ timeoutSeconds: 60 }, async (request) => {
     profileCompleted: boolean;
     stripeRole: string | null;
     preferredLocale: string | null;
+    /** Active day-documents per platform over the last 90 days — which APP this person uses. */
+    platforms: Record<string, number>;
+    /** Newest `usageEvents` day, i.e. the last day the app was actually opened. */
+    lastActiveDay: string | null;
+    activeDays90: number;
   }> = [];
 
   let pageToken: string | undefined;
@@ -59,6 +64,9 @@ export const listUsers = onCall({ timeoutSeconds: 60 }, async (request) => {
         stripeRole: typeof claims["stripeRole"] === "string"
           ? claims["stripeRole"] as string : null,
         preferredLocale: null,
+        platforms: {},
+        lastActiveDay: null,
+        activeDays90: 0,
       });
     }
     pageToken = page.pageToken;
@@ -76,6 +84,35 @@ export const listUsers = onCall({ timeoutSeconds: 60 }, async (request) => {
     if (p) {
       u.profileCompleted = p.profileCompleted === true;
       u.preferredLocale = p.preferredLocale || null;
+    }
+  }
+
+  // Which app each person actually uses: usageEvents is one doc per user per
+  // day stamped with `platform`, so a 90-day range read answers it for
+  // everyone at once. Auth's lastSignInTime cannot — a phone stays signed in
+  // for months and never touches it.
+  const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+  const sinceKey = `${since.getFullYear()}-${String(since.getMonth() + 1).padStart(2, "0")}-${String(since.getDate()).padStart(2, "0")}`;
+  const usageSnap = await db.collection("usageEvents").where("day", ">=", sinceKey).get();
+  const byUid = new Map<string, { platforms: Record<string, number>; last: string; days: number }>();
+  for (const d of usageSnap.docs) {
+    const x = d.data();
+    const uid = String(x["uid"] ?? "");
+    const day = String(x["day"] ?? "");
+    const platform = typeof x["platform"] === "string" ? (x["platform"] as string) : "unknown";
+    if (!uid || !day) continue;
+    const e = byUid.get(uid) ?? { platforms: {}, last: "", days: 0 };
+    e.platforms[platform] = (e.platforms[platform] ?? 0) + 1;
+    if (day > e.last) e.last = day;
+    e.days += 1;
+    byUid.set(uid, e);
+  }
+  for (const u of users) {
+    const e = byUid.get(u.uid);
+    if (e) {
+      u.platforms = e.platforms;
+      u.lastActiveDay = e.last;
+      u.activeDays90 = e.days;
     }
   }
 
