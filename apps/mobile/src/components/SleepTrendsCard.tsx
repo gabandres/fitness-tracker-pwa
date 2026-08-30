@@ -13,6 +13,7 @@ import { formatNumber } from '@/lib/date-format';
 import { useLocale } from '@/i18n';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { useDismissedStub } from '@/hooks/useDismissedStub';
+import { StubLabel } from '@/components/StubLabel';
 import { font, radius, space, type } from '@/theme';
 import { PressScale } from '@/lib/motion';
 import * as haptics from '@/lib/haptics';
@@ -94,15 +95,15 @@ export function SleepTrendsCard({
             router.push('/connected-apps');
           }}
         >
-          <Text style={styles.linkLabel}>
-            {t(
+          <StubLabel
+            text={t(
               sleep.connectedTo === 'oura'
                 ? 'trends.sleepEmptyOura'
                 : sleep.connectedTo === 'health'
                   ? 'trends.sleepEmptyHealth'
                   : 'trends.sleepEmpty',
             )}
-          </Text>
+          />
           <Ionicons name="chevron-forward" size={16} color={colors.faint} />
         </PressScale>
         {/* Dismiss sits OUTSIDE the navigating pressable rather than inside
@@ -298,7 +299,8 @@ const createStyles = ({ colors }: Theme) =>
       gap: space.sm,
       paddingVertical: space.md,
     },
-    linkLabel: { flex: 1, fontSize: font.small, color: colors.muted },
+    // The stub row's label lives in `StubLabel` now — shared with the fasting
+    // card, which renders the identical shape.
     stubRow: { flexDirection: 'row', alignItems: 'center' },
     // Generous padding, small glyph: the target is 40dp tall against a
     // 16dp icon, because this is a one-way action sitting a few pixels

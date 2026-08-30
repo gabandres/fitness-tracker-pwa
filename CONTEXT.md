@@ -287,6 +287,19 @@ These three windows look similar and are NOT interchangeable. See
   one log. Pro users get `STREAK_FREEZE_MAX_GAP_PRO = 7` consecutive
   missed days tolerated mid-streak; `streakFreezeUsed()` is true when
   the active streak only spans because a gap was forgiven.
+- **Milestone** — A **record of something the user already did**, stored one
+  document per key at `users/{uid}/milestones/{key}` = `{ earnedAt }`
+  (`packages/core/src/milestones.ts`). Write-once: `firestore.rules` denies
+  `update`, so a broken **Streak** cannot remove one and `earnedAt` cannot move.
+  **The word "achievement" is deliberately not used, and neither is a badge.**
+  `UX_AUDIT.md` §S12 rejects shame-based gamification; Milestones are a
+  *narrowing* of that, permitted because a retrospective record applies no
+  forward pressure while a meter does. Nothing in the app may name an unearned
+  Milestone or the distance to one — the core module cannot express it and two
+  tests fail the build if that changes. Locale names are **Hitos** (es-PR) and
+  **Marcos** (pt-BR), never *Logros* / *Conquistas*. Distinct from **Streak**,
+  which is a live count that can fall to zero: a Milestone is what a Streak
+  *reached* once. Its Today surface is a **utility**, not a **Nudge**.
 - **GoalProgress** — `{ startWeight, currentWeight, goalWeight, pct,
   remaining }`. Driven by `currentWeight` (overlays `dailyWeights` then
   falls back to `log.weight`).
