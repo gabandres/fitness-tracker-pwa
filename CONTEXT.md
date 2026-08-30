@@ -570,7 +570,8 @@ hook that owns that slice".
   the `config/accessList` friends list AND a future referral
   `compedUntil` — both grant the same unlimited tier everywhere (see
   [ADR-0008](docs/adr/0008-cf-caller-access-daily-quota.md)). Admin
-  email list lives here (sync with `subscription.service.ts`).
+  email list lives here (sync with `SEED_ADMINS` in `admin-claims.ts`; the
+  web `subscription.service.ts` copy is gone, ADR-0036).
 - **AdminGuard** (`functions/src/admin-guard.ts`) — the claim-based admin
   gate: `requireAdmin(request, message?)` throws unless the caller carries
   the `admin` custom claim (set by `setAdminClaims`), then returns the
@@ -639,8 +640,8 @@ the same name under `src/app/components/`.
 
 - **Hero ring** — The mobile Today centerpiece: one concentric dual-ring
   element, calories outer / protein inner (the app icon's geometry), with
-  the remaining-kcal count-up in the center. NOT the same as the PWA's
-  `UiRing` primitive or the two side-by-side rings it replaced.
+  the remaining-kcal count-up in the center. (The web's `UiRing` primitive
+  and the two side-by-side rings it replaced are gone with ADR-0036.)
 - **Log button** — The center-docked "+" in the mobile tab bar (4 tabs +
   center slot). Opens the EntrySheet from any tab. Replaced the
   Today-only FAB; History left the tab bar for the calendar affordance in

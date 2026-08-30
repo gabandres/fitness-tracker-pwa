@@ -138,9 +138,10 @@ type Method = 'google' | 'microsoft' | 'apple' | 'email';
             {{ status() === 'signing' && lastMethod() === 'google' ? t('signin.signingIn') : t('signin.signInWithGoogle') }}
           </button>
 
-          <!-- Microsoft is intentionally removed on web for full web/app parity
-               (the app cannot offer Microsoft — Firebase RN limitation). Kept
-               here, commented, in case parity requirements change.
+          <!-- Microsoft button removed on web when the app could not offer it;
+               the app can now (`microsoftAvailable`), but this card is only the
+               owner's /admin sign-in since ADR-0036, so it stays out. Kept
+               here, commented, in case it is ever wanted back.
           <button type="button" (click)="signInMicrosoft()" [disabled]="status() === 'signing'"
             class="v2-btn v2-btn--secondary v2-btn--block" style="justify-content: center; gap: 10px;">
             <svg viewBox="0 0 23 23" class="shrink-0" style="width: 16px; height: 16px;" aria-hidden="true">

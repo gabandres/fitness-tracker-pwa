@@ -1,6 +1,6 @@
 ---
 name: prod-errors
-description: Triage, diagnose, and fix Ignia production errors across its five separate error surfaces — Sentry ignia-web (PWA), Sentry ignia-mobile (Expo, Android-only so far), Cloud Functions logs, App Store Connect crash reports (iOS), and cloud config drift that no dashboard shows at all (npm run doctor). Use for "any errors in prod?", "what's crashing?", "the app is broken for a user", "check the functions logs", "sign-in is failing", or when the owner pastes a stack trace or a user's bug report.
+description: Triage, diagnose, and fix Ignia production errors across its five separate error surfaces — Sentry ignia-web (the web shell + /admin), Sentry ignia-mobile (Expo, Android-only so far), Cloud Functions logs, App Store Connect crash reports (iOS), and cloud config drift that no dashboard shows at all (npm run doctor). Use for "any errors in prod?", "what's crashing?", "the app is broken for a user", "check the functions logs", "sign-in is failing", or when the owner pastes a stack trace or a user's bug report.
 ---
 
 # Production error triage

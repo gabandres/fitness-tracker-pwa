@@ -38,7 +38,7 @@ that owns the fact:
 | Live App Store version / build / review state | ASC API via `scripts/asc-client.mjs` |
 | Which Android versionCode ships, and its signing cert | `androidpublisher` API — never the Play console page |
 | Runtime fingerprint of a binary | the artifact itself (`.ipa`/`.aab`), never `fingerprint:generate` |
-| Feature flags | the source: `src/app/utils/features.ts`, `apps/mobile/src/lib/features.ts`, both `subscription` modules |
+| Feature flags | the source: `apps/mobile/src/lib/features.ts` and `apps/mobile/src/lib/subscription.ts` (the web copies were deleted with the web logging app, ADR-0036 — a doc citing `src/app/utils/features.ts` is stale) |
 | Deployed function env / secrets | `gcloud run services describe` |
 | Sending domain, DNS | Resend API, `nslookup` against `1.1.1.1` |
 | What is true right now, everything else | `STATUS.md` §1 |

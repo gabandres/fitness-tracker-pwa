@@ -69,7 +69,9 @@ npm run dev         # boots auth+firestore+storage emulators (imports the
                     # re-exported on Ctrl+C, so your data persists.
 ```
 - App: <http://localhost:4200>  ·  Emulator UI: <http://localhost:4000>
-- Sign in with the seeded account: **e2e@test.com / UserTest123**.
+- Sign in with the seeded account: **e2e@test.com / UserTest123** — note the
+  web has no logging surfaces since ADR-0036 (2026-08-30); the seeded logs are
+  for driving the **mobile** app or Cloud Functions against the emulators.
 - Working on a Cloud Function? Use `npm run dev:functions` (adds the Functions
   emulator — heavier, rebuilds functions each boot). Functions are opt-in on
   purpose; most UI work never needs them.
@@ -269,7 +271,7 @@ npm resolves the workspaces.
 ```sh
 git clone https://github.com/gabandres/fitness-tracker-pwa.git
 cd fitness-tracker-pwa
-npm ci                                 # root = the Angular PWA + npm workspaces
+npm ci                                 # root = the Angular web shell + npm workspaces
 ```
 
 `functions/` is **not** a workspace and installs independently (`npm --prefix functions ci`).

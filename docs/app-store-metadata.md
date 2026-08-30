@@ -16,8 +16,8 @@ valuable on its own merits, not because binaries are rationed.)*
 a build flag flips, this file is stale. Nothing here mentions Pro or trials —
 those stay off. **The rest of that old list has since SHIPPED and this copy
 still omits them deliberately**: photo-scan is on and free (ADR-0017), Health
-sync, the widget and the Watch app are in the binary, and Android is live on a
-closed alpha. Omission is a choice about App Store copy, not a statement that
+sync, the widget and the Watch app are in the binary, and Android is on the
+Play alpha track with production submitted (`STATUS.md`). Omission is a choice about App Store copy, not a statement that
 the features are unbuilt — check `STATUS.md` before repeating "unbuilt"
 anywhere.
 

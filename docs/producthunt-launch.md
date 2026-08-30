@@ -125,9 +125,9 @@ HN wants the engineering, and reacts badly to marketing copy. Lead technical:
 **Body outline:**
 - The math: least-squares fit over weight trend + intake to derive maintenance
   calories, and why a static Mifflin-St Jeor number drifts away from reality.
-- The architecture: Angular PWA + Expo React Native sharing a framework-free
-  `packages/core` for all domain math, so both frontends compute identical
-  numbers. Firebase with no app server — Firestore rules *are* the
+- The architecture: an Expo React Native app plus Cloud Functions sharing a
+  framework-free `packages/core` for all domain math (the Angular web app was
+  a second frontend on the same core until it was retired, ADR-0036). Firebase with no app server — Firestore rules *are* the
   authorization layer.
 - The cost story: what it actually costs to run a free app on Firebase, and
   the constraints that follow (≤3 scheduled functions to stay in Cloud

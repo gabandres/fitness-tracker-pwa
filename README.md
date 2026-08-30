@@ -102,7 +102,7 @@ Local-only overrides belong in `src/environments/environment.local.ts` (gitignor
 ## CI / CD
 
 - **There is no CI and no deploy workflow.** `.github/workflows/ci.yml` was deleted on 2026-08-23: it had failed on every run for days on a defect nobody was reading (`packages/core` typecheck), so its only live output was a failure email. A gate nobody reads is worse than no gate — it trains you to ignore red.
-- **Verification is a workstation step, before you ship.** `npm run doctor -- --no-cloud`, then the `verify-build` skill (all four buildable units: PWA, `packages/core`, `functions`, `apps/mobile`). Releases are pushed by hand — `npm run build && firebase deploy` — and the `PreToolUse` guards in `.claude/hooks/` block the deploys CI never caught anyway.
+- **Verification is a workstation step, before you ship.** `npm run doctor -- --no-cloud`, then the `verify-build` skill (all four buildable units: web shell, `packages/core`, `functions`, `apps/mobile`). Releases are pushed by hand — `npm run build && firebase deploy` — and the `PreToolUse` guards in `.claude/hooks/` block the deploys CI never caught anyway.
 
 ## Operator checklist (post-deploy)
 

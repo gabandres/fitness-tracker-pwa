@@ -1,5 +1,16 @@
 # Stripe setup — one-time install
 
+> **2026-08-30 — half of what this file describes no longer exists.** The
+> Firebase Extension, the `firestore-stripe-payments` webhooks and the server
+> tier logic (`caller-access.ts`) are still installed and dormant. The **web
+> client** — `SubscriptionService`, the Subscribe card, `environment.stripe.*`
+> consumers, the checkout + customer-portal UI — was deleted with the web
+> logging app (ADR-0036). Turning Pro on now means a purchase surface in the
+> **mobile** app (StoreKit / Play Billing via RevenueCat, `purchases.ts`), not
+> this Stripe web flow. Steps 1–5 (Stripe account, product, extension) are still
+> the right server-side setup; everything that says "in the app" below
+> describes code that is gone.
+
 This gets the Firebase Extension and your Stripe product ready so the
 Subscribe button in the app actually does something. Estimated time:
 **~20 minutes**, all via web UIs.

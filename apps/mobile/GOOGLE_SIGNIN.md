@@ -43,7 +43,7 @@ into `app.json`, and (2) a dev build. ~20 min, mostly waiting on the build.
 ## 1. Enable the provider (once)
 
 Firebase Console → Authentication → Sign-in method → **Google** → Enable.
-(Probably already on — the web PWA uses Google sign-in.)
+(Already on — the web `/admin` sign-in card uses it.)
 
 ## 2. Create the OAuth client IDs
 

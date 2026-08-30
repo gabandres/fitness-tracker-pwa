@@ -386,8 +386,10 @@ Only the starred row and the ceiling row need real time on a real device.
 - [ ] Set the app to es-PR → the card reads `Ayuno` / `desde las …`, following
       the **profile** locale, not the phone's. Changing the language while a
       fast runs must replace the card, because attributes are immutable.
-- [ ] Break the fast in the **web PWA** while the app is closed, then reopen the
-      app → the card ends. Same again for break-then-restart: the card must
+- [ ] Break the fast from **outside this install** while the app is closed —
+      a second device, or edit the profile's fasting fields in the Firestore
+      console (the web app that used to serve this step is retired, ADR-0036)
+      — then reopen the app → the card ends. Same again for break-then-restart: the card must
       re-arm to the *new* start time. Nothing but the reconciler catches this.
 - [ ] Swipe the card away, then foreground the app → it comes back.
 - [ ] Turn Live Activities **off for Ignia** in iOS Settings → starting a fast

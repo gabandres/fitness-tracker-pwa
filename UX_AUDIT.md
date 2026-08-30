@@ -98,7 +98,7 @@ domain" — `6cf63df3` rebuilt the templates and moved password reset onto our o
 sender, and the welcome email ships with it.
 
 **This section no longer gates distribution.** The app is live on the iOS App
-Store and in review for Play closed testing; what gates wider promotion now is in
+Store and on the Play alpha track, with production submitted (see `STATUS.md`); what gates wider promotion now is in
 `STATUS.md`, not here.
 
 ### Decided against (deliberately not shipping)
@@ -655,7 +655,8 @@ for.**
       step at maintenance + 250 (a 0.5 lb/wk lean bulk) so the first number is
       still honest. That is the closest the current model can express. A real
       fix is either a signed pace or a goal-direction-aware target, and it
-      touches `packages/core` shared with the frozen web app — so it wants its
+      touches `packages/core` (shared with the web app when this was written;
+      that app is retired since ADR-0036) — so it wants its
       own change, not a rider on this one.
 
 **Ranking, if the verbatim reports never arrive:** ~~F1 and F2 are the same fix

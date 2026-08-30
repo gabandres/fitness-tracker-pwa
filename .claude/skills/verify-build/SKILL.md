@@ -1,6 +1,6 @@
 ---
 name: verify-build
-description: Verify that the code still builds and typechecks across all four buildable units of this monorepo (Angular PWA, packages/core, functions, apps/mobile) without dumping thousands of log lines into context. Use before a deploy, before merging, after a dependency bump or a cross-cutting refactor, or whenever asked "does it still build?".
+description: Verify that the code still builds and typechecks across all four buildable units of this monorepo (Angular web shell, packages/core, functions, apps/mobile) without dumping thousands of log lines into context. Use before a deploy, before merging, after a dependency bump or a cross-cutting refactor, or whenever asked "does it still build?".
 ---
 
 # Verify the build

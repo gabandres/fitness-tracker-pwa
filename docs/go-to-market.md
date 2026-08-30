@@ -14,8 +14,9 @@ app went live on the App Store.
 > plus a 2.3.1 ("accurate metadata") review risk.
 >
 > **Rule for this file: never write a line the current build can't back.**
-> Before editing, re-check `src/app/utils/features.ts`,
-> `apps/mobile/src/lib/features.ts`, and both `subscription` modules.
+> Before editing, re-check `apps/mobile/src/lib/features.ts` and
+> `apps/mobile/src/lib/subscription.ts` (the web copies went with the web
+> logging app, ADR-0036).
 
 ---
 
@@ -25,8 +26,8 @@ app went live on the App Store.
 |---|---|
 | App Store ID | `6788589414` · bundle `fit.ignia.app` |
 | Listing URL | <https://apps.apple.com/app/id6788589414> |
-| Platforms | iPhone (iOS 16+, **not** iPad — `supportsTablet: false`) · web PWA at <https://ignia.fit> |
-| Android | **live on the Play ALPHA track** (vc **34**, v1.2.0 — this said vc 30 until 2026-08-19) — closed testing only, NOT public. Production access needs 12 testers × 14 consecutive days. **Do not compute or quote a date**: Google owns the clock and ticks the third box on the app Dashboard's *Apply for access to production* checklist itself; the 12-tester requirement is already met (2026-08-06). Do not market Android as available |
+| Platforms | iPhone (iOS 16+, **not** iPad — `supportsTablet: false`) · Android · **no browser version** — the web logging app was retired 2026-08-30 (ADR-0036); <https://ignia.fit> is the marketing site |
+| Android | On the Play **alpha** track and **submitted to production 2026-08-29, in review** — this row said "closed testing only, production access needs 12 testers × 14 days" until 2026-08-30; access was granted on 08-29. Whether the public listing is live is a `STATUS.md` §1 question (the store URL returning 200 is the only read). Do not quote a date. |
 | Price | **Free. No paywall, no subscription, no trial.** **The tip jar is OFF since 2026-08-19** — `FEATURES.tips = false` on both platforms, the three `fit.ignia.tip.*` consumables are `DEVELOPER_REMOVED_FROM_SALE`, `/tip` → `/support`. Do not market a way to pay the developer; there isn't one. Re-enables only when payouts land in the Bermudez Systems LLC bank account (`STATUS.md` §3) |
 | Languages | English + Spanish (Puerto Rico), fully translated |
 
@@ -38,7 +39,7 @@ generator, cluster sets) · barcode scanning (Open Food Facts) · food search
 presets, custom foods and recipes · AI coach grounded in the user's own logs ·
 weekly insights, calorie budget, weight-trend projection · fasting timer ·
 weight, measurements, Navy body-fat · CSV import (MyFitnessPal / Lose It! /
-Cronometer) and export · in-app account deletion · offline PWA · **AI meal
+Cronometer) and export · in-app account deletion · **AI meal
 photo → macros, free to everyone** (ADR-0017) · **Apple Watch app and
 complication** · **home-screen and Lock Screen widgets**, device-verified.
 
@@ -56,7 +57,7 @@ released. Re-read `STATUS.md` §2 for the current cutline.
 | Pro / premium / unlimited-anything | `PRO_ENABLED = false`; there is no paid tier to upsell |
 | Free trial, "upgrade", pricing anchors | nothing to buy |
 | Progress photos | uploading works, but it was cut from the v1 story — don't market it |
-| Android app | closed alpha only (vc **34**). Production access needs 12 testers × 14 consecutive days; **Google owns that clock and ticks the box itself** — read the *Apply for access to production* checklist on the app Dashboard rather than computing a date. Do not market Android as available |
+| Android app | On the Play alpha track, **production submitted 2026-08-29 and in review** — the public listing is not live until the store URL returns 200 (`STATUS.md` §1). This row said "closed alpha only, production access needs 12 testers × 14 days" until 2026-08-30; access was granted on 08-29. Do not market Android as available until the URL is live |
 | Voice dictation · the redesigned Add screen · the fasting Live Activity · the wide home-screen widget | all shipped and all **only on TestFlight** — they reach the public when 1.2.0 releases, not before |
 
 **Corrected 2026-08-15 — two rows in this table were badly wrong**, and both
@@ -64,8 +65,8 @@ would have suppressed a real headline feature during a launch push:
 
 - *"AI meal photo → macros — `photoScan: false` on both platforms (ADR-0015,
   deferred)"*. **False since 2026-08-07.** ADR-0017 amended 0015: photo scan is
-  **ON and free to everyone** on both platforms (`src/app/utils/features.ts`
-  and `apps/mobile/src/lib/features.ts` both read `photoScan: true`, verified in
+  **ON and free to everyone** (`apps/mobile/src/lib/features.ts` reads
+  `photoScan: true`; the web copy is gone with ADR-0036 — verified in
   code). Its tiering is server-side only. It is in the live 1.1.0 binary and is
   claimable today.
 - *"Apple Watch — not built"*. **False since 1.1.0.** The watch app and its

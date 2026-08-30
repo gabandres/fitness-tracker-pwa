@@ -314,12 +314,12 @@ footer — the page's actual content still requires JS. If the pages get crawled
 and dropped as thin, that is the remaining half, and the fix is real
 prerendering, not more of this.
 
-**When testing this by hand, kill the service worker first.** `navigationUrls`
-in `ngsw-config.json` excludes only `/support`, `/download` and `/tip`, so a
-returning visitor is served the **cached shell** for every other route and sees
-no footer and the homepage's `<head>`. That cost an hour of confusion here.
-Left as-is on purpose: excluding those routes would trade offline support for
-something no crawler can see, since a crawler never has a warm cache.
+**History (until 2026-08-30): testing this by hand meant killing the service
+worker first.** `navigationUrls` in `ngsw-config.json` excluded only `/support`,
+`/download` and `/tip`, so a returning visitor was served the cached shell for
+every other route. That worker is gone with ADR-0036 — a safety worker at
+`/ngsw-worker.js` evicts the old installs — so a returning visitor now gets the
+prerendered page like a crawler does.
 
 ## How to check
 

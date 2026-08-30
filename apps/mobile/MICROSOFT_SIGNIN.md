@@ -10,7 +10,7 @@ Azure AD v2.0 authorization-code + PKCE flow, we exchange the code for an
   `microsoftAvailable` — hidden in Expo Go, like Google/Apple).
 - `app.json` → `expo.extra.microsoftAuth.clientId` =
   `80eaaf29-9de3-4912-a08a-7f0c6009e310` (the **same** public Azure client the
-  PWA's Firebase Microsoft provider already uses — public, safe to commit,
+  Firebase Microsoft provider is configured with — public, safe to commit,
   ADR-0002). Reusing it means the mobile `id_token` audience matches Firebase's
   configured provider, so no new Firebase setup is needed.
 - Firebase Auth **Microsoft provider is already enabled** (verified via Identity
@@ -45,5 +45,8 @@ The app is already multi-tenant + personal accounts (tenant `common` in
 
 ## Notes
 - No new dependency — `expo-auth-session` was already used by Google.
-- Web parity: the PWA already offers Microsoft sign-in via Firebase
-  `signInWithPopup`; this brings the Expo app to parity (ADR-0012).
+- Web parity is no longer a goal: the web sign-in card dropped its Microsoft
+  button back when the app could not offer Microsoft, and since ADR-0036 that
+  card exists only for the owner's `/admin` sign-in. The provider stays
+  configured in Firebase; the app offers it (`microsoftAvailable` in
+  `lib/auth.tsx`), and linking to an existing Microsoft identity works.

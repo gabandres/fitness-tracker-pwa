@@ -1,6 +1,6 @@
 ---
 name: test-web-ui
-description: Launch the Angular PWA and drive it in a real browser with Playwright to verify a change, reproduce a bug, or smoke-test a signed-in session. Use whenever a change has a visible surface, after any Firebase/ledger/adapter change, or when asked to "check it works", "see the app", or "reproduce this".
+description: Serve the Angular web shell (marketing pages + /admin — the logging app is retired, ADR-0036) and drive it in a real browser with Playwright to verify a change or smoke-test the admin sign-in. Use whenever a web change has a visible surface, after any Firebase SDK change, or when asked to "check it works", "see the app", or "reproduce this".
 ---
 
 # Verify the web shell in a real browser
