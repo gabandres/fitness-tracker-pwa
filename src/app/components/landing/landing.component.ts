@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, afterNextRender, computed, inject, signal } from '@angular/core';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { Firestore, doc, getDoc } from '@angular/fire/firestore';
 import { APP_STORE_URL, PLAY_STORE_URL, PLAY_STORE_LIVE } from '../../utils/app-store';
@@ -6,20 +6,31 @@ import { TranslationService } from '../../services/translation.service';
 import { localizedPath } from '../../i18n/locale-path';
 
 /**
- * Public marketing surface at `/`. Shows when the user is not signed
- * in and the path is the site root — any other combination falls
- * through to the sign-in / onboarding / app flow in app.ts.
+ * Public marketing surface at `/` — redesigned 2026-08-30 (round two of the
+ * post-ADR-0036 revamp: same brand, new page).
  *
- * Structure (scroll top → bottom):
- *   1. Hero — the one question the app answers (primary "start logging" CTA)
- *   2. Product proof — six feature cards (photo scan, capture, measured
- *      TDEE, trends, health-store imports, AI coach)
- *   3. Privacy pledge — the "no ads / no selling" promise
- *   4. Free — Ignia is free (donations model, no paid tier)
+ * Scroll rhythm (top → bottom):
+ *   0. Sticky glass nav — brand wordmark, three anchors, one CTA
+ *   1. Full-bleed dark hero — display serif headline + a CSS-built phone
+ *      frame rendering the Today screen (ring, protein bar, entries)
+ *   2. Features — six numbered cells in one hairline grid
+ *   3. Quick targets — the /macros/* SEO links as a compact chip strip
+ *   4. Manifesto band — full-bleed dark, the privacy pledge at display size
+ *   5. Comparisons — the /vs/* links as chips
+ *   6. Closing CTA — ember-tinted panel with the store row (id="pricing")
+ *   7. Footer — made-by credit + secondary nav
  *
- * Aesthetic reuses the "Personal Calibration Log" primitives (specimen
- * frames, stamp marks, ruler edges, crop marks) so a first-time visitor
- * gets the product's voice before ever logging in.
+ * Layout note: app.ts wraps every page in a max-width column with side
+ * padding. This page escapes it with `.lp-bleed` (negative 50vw margins —
+ * safe because styles.css already clips body x-overflow) so the dark bands
+ * can run edge to edge; every band then carries its own `.lp-wrap` inner
+ * column, which is what keeps the whole page on one 1104px grid.
+ *
+ * Motion: sections tagged `.lp-reveal` fade/rise once via one
+ * IntersectionObserver armed in afterNextRender. The hidden initial state
+ * only exists under `prefers-reduced-motion: no-preference` AND after JS
+ * adds `.lp-motion` to the host — no JS (or reduced motion) means
+ * everything simply renders visible.
  */
 @Component({
   selector: 'app-landing',
@@ -28,368 +39,220 @@ import { localizedPath } from '../../i18n/locale-path';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
-    <style>
-      .landing-hero {
-        background: var(--v2-hero-panel, #161412);
-        color: var(--v2-hero-text, #f3f1ec);
-        border-radius: var(--v2-radius-xl);
-        padding: var(--v2-space-8) var(--v2-space-5);
-        position: relative;
-        overflow: hidden;
-        margin-top: var(--v2-space-4);
-        box-shadow: 0 24px 48px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.05);
-      }
-      .landing-hero::before {
-        content: '';
-        position: absolute;
-        top: -50%; left: -50%; width: 200%; height: 200%;
-        background: radial-gradient(circle at center, color-mix(in srgb, var(--v2-accent) 15%, transparent) 0%, transparent 60%);
-        pointer-events: none;
-      }
-      .landing-hero-content {
-        position: relative;
-        z-index: 10;
-      }
-      .glass-card {
-        background: color-mix(in srgb, var(--v2-paper-2) 60%, transparent);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
-        border: 1px solid color-mix(in srgb, var(--v2-rule) 50%, transparent);
-        border-radius: var(--v2-radius-xl);
-        padding: var(--v2-space-5);
-        transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
-      }
-      .glass-card:hover {
-        transform: translateY(-4px);
-        box-shadow: var(--v2-shadow-3);
-      }
-      .section-badge {
-        display: inline-flex;
-        align-items: center;
-        padding: 4px 12px;
-        background: var(--v2-accent-soft);
-        color: var(--v2-accent);
-        border-radius: 999px;
-        font-family: var(--v2-font-mono);
-        font-size: 0.75rem;
-        font-weight: 700;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        margin-bottom: var(--v2-space-4);
-      }
-      /* The hero sets the brand voice — Instrument Serif italic, lowercase —
-         and then the page abandoned it: every heading below the fold was
-         Manrope Title Case, so the site read as two sites stapled together
-         and lost all its energy the moment you scrolled. The .v2-display
-         class cannot
-         carry the serif itself; it is the shared marketing <h1> for the
-         calculator, /macros, /faq, /vs and the legal pages, and changing it
-         would restyle a dozen surfaces. So the treatment is scoped here. */
-      .landing-h2 {
-        font-family: "Instrument Serif", "Geist", system-ui, serif;
-        font-weight: 400;
-        font-style: italic;
-        letter-spacing: -0.015em;
-        line-height: 1.05;
-        font-size: clamp(2.25rem, 1.4rem + 3.4vw, 3.5rem);
-        color: var(--v2-ink);
-        /* Serif italic at display size strands single words badly — the
-           proof headline broke as "one honest number / out." Balance costs
-           nothing where unsupported. */
-        text-wrap: balance;
-      }
-      /* Section eyebrow, mono and quiet, so the serif underneath does the
-         talking. */
-      .landing-rule {
-        font-family: var(--v2-font-mono);
-        font-size: 0.6875rem;
-        letter-spacing: 0.22em;
-        text-transform: uppercase;
-        color: var(--v2-accent);
-        font-weight: 700;
-      }
-      .proof-card {
-        background: var(--v2-paper-2);
-        border: 1px solid var(--v2-rule);
-        border-top: 2px solid var(--v2-rule);
-        border-radius: var(--v2-radius-lg, 14px);
-        padding: var(--v2-space-5);
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-        transition: border-top-color 0.25s ease, transform 0.25s ease;
-      }
-      .proof-card:hover { transform: translateY(-3px); }
-      .hover-link-card {
-        text-decoration: none;
-        display: block;
-        transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
-      }
-      .hover-link-card:hover {
-        background: var(--v2-paper-3);
-        border-color: var(--v2-accent);
-        transform: scale(1.02);
-      }
-      /* Android-pending state. Dashed border on purpose — it reads as
-         "reserved", not "broken". Colored via currentColor so the same
-         class works on the dark hero panel and on paper. Swapped for a
-         live Play link by PLAY_STORE_LIVE (utils/app-store.ts). */
-      .play-soon {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        min-height: 40px;
-        padding: 0 16px;
-        border-radius: var(--v2-radius-full);
-        border: 1px dashed color-mix(in srgb, currentColor 40%, transparent);
-        font-family: var(--v2-font-mono);
-        font-size: 0.6875rem;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-        font-weight: 600;
-        white-space: nowrap;
-      }
-      .play-soon::before {
-        content: '';
-        width: 6px;
-        height: 6px;
-        border-radius: 999px;
-        background: currentColor;
-        opacity: 0.55;
-        flex: none;
-      }
-    </style>
-    <article class="pb-16 px-4 max-w-6xl mx-auto space-y-16">
-      <!-- ── 1. Hero ──────────────────────────────────────────────── -->
-      <section class="landing-hero">
-        <div class="landing-hero-content grid gap-10 lg:grid-cols-[1.1fr_1fr] lg:gap-12 lg:items-center">
-          <div>
-            <div class="section-badge" style="background: rgba(255,255,255,0.1); color: var(--v2-accent);">
-              {{ t('landing.calibrationLogNo') }}
-            </div>
-            <h1 class="v2-h1 v2-h1--hero" style="font-size: clamp(3rem, 6vw, 5rem); line-height: 1.05; letter-spacing: -0.03em; color: var(--v2-hero-text, #f3f1ec);">
-              {{ t('landing.heroLead') }}<br/>
-              <span style="color: var(--v2-accent);">{{ t('landing.heroEm') }}</span>
+
+    <article style="padding-bottom: clamp(48px, 7vw, 80px);">
+
+      <!-- ── 0. sticky glass nav ─────────────────────────────── -->
+      <div class="lp-navwrap lp-bleed" style="--lp-ember: #ff8a5c;">
+        <nav class="lp-nav" aria-label="Ignia">
+          <a href="/" class="lp-brand">ignia</a>
+          <div class="lp-navlinks">
+            <a href="#features">{{ t('landing.whatItDoesRule') }}</a>
+            <a href="/calculator">{{ t('landing.navCalculator') }}</a>
+            <a href="/faq">{{ t('landing.navFaq') }}</a>
+            <a [href]="supportPath()">{{ t('landing.navSupport') }}</a>
+          </div>
+          <a [href]="APP_STORE_URL" rel="noopener" class="lp-nav-cta">{{ t('landing.startLogging') }}</a>
+        </nav>
+      </div>
+
+      <!-- ── 1. hero ─────────────────────────────────────────── -->
+      <section class="lp-hero lp-bleed">
+        <div class="lp-wrap lp-hero-grid">
+          <div class="lp-hero-copy">
+            <p class="lp-kicker">{{ t('landing.calibrationLogNo') }}</p>
+            <h1 class="lp-display lp-hero-h1">
+              {{ t('landing.heroLead') }}<br />
+              <em>{{ t('landing.heroEm') }}</em>
             </h1>
-            <p class="mt-6 max-w-xl" style="font-size: 1.125rem; line-height: 1.6; color: var(--v2-hero-muted, #a39c91);">
-              {{ t('landing.heroSub') }}
-            </p>
-
-            <div class="mt-8 flex flex-wrap items-center gap-4">
-              <a [href]="APP_STORE_URL" rel="noopener" class="v2-btn v2-btn--primary v2-btn--lg" style="box-shadow: 0 8px 16px color-mix(in srgb, var(--v2-accent) 40%, transparent);">
-                {{ t('landing.startLogging') }}
-              </a>
-              <a href="/calculator" class="v2-btn v2-btn--ghost" style="color: var(--v2-hero-text, #f3f1ec);">
-                {{ t('landing.tryCalculator') }}
-              </a>
-            </div>
-
-            <!-- App Store badge sits below the primary CTA. It appears here
-                 and once more in the closing section, and nowhere in
-                 between — a badge repeated at every scroll stop stops
-                 reading as an offer. There is no browser version to point
-                 at any more (ADR-0036). -->
-            <div class="mt-6 flex flex-wrap items-center gap-4">
-              <a [href]="APP_STORE_URL" rel="noopener" [attr.aria-label]="t('landing.appStoreAlt')">
+            <p class="lp-hero-sub">{{ t('landing.heroSub') }}</p>
+            <div class="lp-cta-row">
+              <a [href]="APP_STORE_URL" rel="noopener" class="lp-badge" [attr.aria-label]="t('landing.appStoreAlt')">
                 <img src="/appstore-badge.svg" alt="{{ t('landing.appStoreAlt') }}"
-                  width="180" height="60" loading="lazy" decoding="async"
-                  class="h-[52px] w-auto transition-transform duration-200 hover:scale-105" />
+                  width="180" height="60" loading="eager" decoding="async" fetchpriority="high" />
               </a>
-              <!-- Android state. The listing is submitted and in review, so
-                   until PLAY_STORE_LIVE flips (utils/app-store.ts, one line)
-                   this renders a quiet "coming soon" pill instead of linking
-                   visitors to a 404. -->
+              <!-- Android state: flip PLAY_STORE_LIVE (utils/app-store.ts,
+                   one line) when the Play listing returns 200. -->
               @if (PLAY_STORE_LIVE) {
-                <a [href]="PLAY_STORE_URL" rel="noopener" class="v2-btn v2-btn--ghost" style="color: var(--v2-hero-text, #f3f1ec);">
-                  {{ t('landing.freeCta') }}
-                </a>
+                <a [href]="PLAY_STORE_URL" rel="noopener" class="lp-play-live">{{ t('landing.freeCta') }}</a>
               } @else {
-                <span class="play-soon" style="color: var(--v2-hero-muted, #a39c91);">{{ t('landing.playSoon') }}</span>
+                <span class="lp-soon">{{ t('landing.playSoon') }}</span>
               }
             </div>
+            <div class="lp-hero-links">
+              <a href="/calculator" class="v2-link">{{ t('landing.tryCalculator') }} →</a>
+              @if (socialProofCount(); as n) {
+                <p class="lp-proof" role="note">{{ t('landing.socialProof', { n }) }}</p>
+              }
+            </div>
+          </div>
 
-            <!-- This used to sit behind three empty grey circles standing in for
-                 faces. They represented nobody: there are no avatars in this
-                 product and never have been, so it was decoration pretending
-                 to be evidence — on the one page whose whole argument is that
-                 Ignia does not do that sort of thing. The count is real
-                 (public/stats.totalUsers, floored to a ten), so let it stand
-                 on its own. -->
-            @if (socialProofCount(); as n) {
-              <p class="mt-8 v2-caption" role="note"
-                style="font-size: 0.875rem; color: var(--v2-hero-muted, #a39c91); display: flex; align-items: center; gap: 10px;">
-                <span aria-hidden="true"
-                  style="display: inline-block; width: 6px; height: 6px; border-radius: 999px; background: var(--v2-accent); flex: none;"></span>
-                {{ t('landing.socialProof', { n }) }}
-              </p>
+          <div class="lp-hero-visual">
+            <div class="lp-glow" aria-hidden="true"></div>
+            <figure class="lp-phone" role="img" [attr.aria-label]="t('landing.heroMockupAlt')">
+              <div class="lp-screen" aria-hidden="true">
+                <div class="lp-island"></div>
+                <div class="lp-scr-head">
+                  <p class="lp-scr-title">{{ t('landing.mockToday') }}</p>
+                  <span class="lp-scr-streak">{{ t('landing.mockStreak') }}</span>
+                </div>
+                <div class="lp-ring-wrap">
+                  <svg viewBox="0 0 180 180" fill="none">
+                    <circle cx="90" cy="90" r="80" stroke="rgba(255,255,255,0.08)" stroke-width="12" />
+                    <circle cx="90" cy="90" r="80" stroke="#ff8a5c" stroke-width="12" stroke-linecap="round"
+                      stroke-dasharray="382 503" transform="rotate(-90 90 90)" />
+                  </svg>
+                  <div class="lp-ring-center">
+                    <p class="lp-ring-num">1,553</p>
+                    <p class="lp-ring-den">/ 2,040 kcal</p>
+                  </div>
+                </div>
+                <div>
+                  <div class="lp-macro-row">
+                    <span>{{ t('landing.mockProtein') }}</span>
+                    <span><strong>138g</strong> <em>/ 150g</em></span>
+                  </div>
+                  <div class="lp-bar"><i></i></div>
+                </div>
+                <div class="lp-chips">
+                  <span>{{ t('landing.mockCarbs') }} · 184g</span>
+                  <span>{{ t('landing.mockFat') }} · 62g</span>
+                </div>
+                <div class="lp-entries">
+                  <div class="lp-entry">
+                    <div>
+                      <p class="lp-entry-name">{{ t('landing.mockEntry1Name') }}</p>
+                      <p class="lp-entry-meta">{{ t('landing.mockEntry1Meta') }}</p>
+                    </div>
+                    <span class="lp-entry-kcal">540</span>
+                  </div>
+                  <div class="lp-entry">
+                    <div>
+                      <p class="lp-entry-name">{{ t('landing.mockEntry2Name') }}</p>
+                      <p class="lp-entry-meta">{{ t('landing.mockEntry2Meta') }}</p>
+                    </div>
+                    <span class="lp-entry-kcal">310</span>
+                  </div>
+                </div>
+              </div>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── 2. features — one hairline grid, six numbered cells ── -->
+      <section id="features" class="lp-bleed lp-sec">
+        <div class="lp-wrap">
+          <div class="lp-reveal">
+            <p class="lp-eyebrow">{{ t('landing.whatItDoesRule') }}</p>
+            <h2 class="lp-display lp-lead">{{ t('landing.proofHeadline') }}</h2>
+          </div>
+          <div class="lp-featgrid lp-reveal">
+            @for (f of FEATURES; track f.n) {
+              <article class="lp-feat">
+                <p class="lp-feat-n">{{ f.n }} — {{ t('landing.proof' + f.k + 'Stamp') }}</p>
+                <h3>{{ t('landing.proof' + f.k + 'Title') }}</h3>
+                <p>{{ t('landing.proof' + f.k + 'Body') }}</p>
+              </article>
             }
           </div>
+        </div>
+      </section>
 
-          <div class="relative flex justify-center">
-            <div class="absolute inset-0 bg-gradient-to-tr from-[var(--v2-accent)] to-[var(--v2-teal)] opacity-20 blur-3xl rounded-full" style="transform: scale(0.8);"></div>
-            <img src="/hero-mockup.svg"
-              alt="{{ t('landing.heroMockupAlt') }}"
-              width="600" height="600"
-              loading="eager"
-              decoding="async"
-              fetchpriority="high"
-              class="relative z-10 w-full h-auto max-w-lg mx-auto drop-shadow-2xl hover:scale-105 transition-transform duration-700 ease-out" />
+      <!-- ── 3. quick targets (the /macros/* SEO links) ──────── -->
+      <section class="lp-bleed" style="padding-bottom: clamp(48px, 7vw, 88px);">
+        <div class="lp-wrap lp-reveal">
+          <div class="lp-targets-head">
+            <div>
+              <h2>{{ t('landing.quickTargetsRule') }}</h2>
+              <p class="v2-caption" style="margin-top: 6px; max-width: 46ch;">{{ t('landing.quickTargetsLead') }}</p>
+            </div>
+            <a href="/calculator" class="v2-link" style="font-size: 0.875rem;">{{ t('landing.qtAllWeights') }}</a>
+          </div>
+          <div class="lp-target-chips">
+            <a href="/macros/lose/150-lb">{{ t('landing.qtLose150') }}</a>
+            <a href="/macros/lose/180-lb">{{ t('landing.qtLose180') }}</a>
+            <a href="/macros/lose/220-lb">{{ t('landing.qtLose220') }}</a>
+            <a href="/macros/maintain/150-lb">{{ t('landing.qtMaintain150') }}</a>
+            <a href="/macros/maintain/180-lb">{{ t('landing.qtMaintain180') }}</a>
+            <a href="/macros/gain/170-lb">{{ t('landing.qtGain170') }}</a>
           </div>
         </div>
       </section>
 
-      <!-- ── 2. Product proof — three capture paths + TDEE + AI ──── -->
-      <!-- Left-aligned on purpose. Every section on this page used to be
-           centred at the same width with the same badge-heading-paragraph
-           rhythm, seven times over, which is what made a short page feel
-           long. The privacy pledge keeps the centred treatment because it is
-           the one emotional beat; the rest now vary. -->
-      <section class="max-w-5xl mx-auto pt-8">
-        <div class="mb-10 max-w-3xl">
-          <p class="landing-rule mb-3">{{ t('landing.whatItDoesRule') }}</p>
-          <!-- Was the literal English string "Powerful, simple tracking." —
-               hardcoded in a fully translated template, so it was both the
-               only untranslated line on the page and the most generic one on
-               it. Every tracker claims to be powerful and simple. -->
-          <h2 class="landing-h2">{{ t('landing.proofHeadline') }}</h2>
+      <!-- ── 4. manifesto band ───────────────────────────────── -->
+      <section class="lp-manifesto lp-bleed">
+        <div class="lp-wrap lp-reveal">
+          <p class="lp-eyebrow">{{ t('landing.privacyLabel') }}</p>
+          <h2 class="lp-display lp-manifesto-h2">
+            {{ t('landing.privacyLead') }}
+            <em>{{ t('landing.privacyEm') }}</em>
+          </h2>
+          <p class="lp-manifesto-body">{{ t('landing.privacyBody') }}</p>
+          <p class="lp-manifesto-links">
+            <a href="/privacy">{{ t('landing.privacyLink') }}</a>
+            &nbsp;·&nbsp;
+            <a href="/terms">{{ t('landing.termsLink') }}</a>
+          </p>
         </div>
-        <!-- The stamp moved from the bottom of each card to the top and
-             became the card's index. It was already the most characterful
-             thing in the block and it was set at caption size under 60px of
-             whitespace, where nobody read it. The generic outline glyphs it
-             replaces (a plus, a trend line, a tick) said nothing the heading
-             underneath did not already say. -->
-        <!-- Six cards, not three, since the app grew past the copy: photo
-             scan (free — ADR-0017), the Trends surfaces (sleep/fasting/
-             water) and the health-store imports (Apple Health / Health
-             Connect / Oura) all shipped and none were mentioned here. Two
-             columns at tablet, three at desktop, one at phone width. -->
-        <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          <div class="proof-card" style="border-top-color: var(--v2-accent);">
-            <p class="landing-rule">{{ t('landing.proofPhotoStamp') }}</p>
-            <h3 class="v2-h3">{{ t('landing.proofPhotoTitle') }}</h3>
-            <p class="v2-body-soft">{{ t('landing.proofPhotoBody') }}</p>
-          </div>
-          <div class="proof-card" style="border-top-color: var(--v2-teal);">
-            <p class="landing-rule" style="color: var(--v2-teal);">{{ t('landing.proofCaptureStamp') }}</p>
-            <h3 class="v2-h3">{{ t('landing.proofCaptureTitle') }}</h3>
-            <p class="v2-body-soft">{{ t('landing.proofCaptureBody') }}</p>
-          </div>
-          <div class="proof-card" style="border-top-color: var(--v2-sage);">
-            <p class="landing-rule" style="color: var(--v2-sage);">{{ t('landing.proofTdeeStamp') }}</p>
-            <h3 class="v2-h3">{{ t('landing.proofTdeeTitle') }}</h3>
-            <p class="v2-body-soft">{{ t('landing.proofTdeeBody') }}</p>
-          </div>
-          <div class="proof-card" style="border-top-color: var(--v2-ink-muted);">
-            <p class="landing-rule" style="color: var(--v2-ink-muted);">{{ t('landing.proofTrendsStamp') }}</p>
-            <h3 class="v2-h3">{{ t('landing.proofTrendsTitle') }}</h3>
-            <p class="v2-body-soft">{{ t('landing.proofTrendsBody') }}</p>
-          </div>
-          <div class="proof-card" style="border-top-color: var(--v2-teal);">
-            <p class="landing-rule" style="color: var(--v2-teal);">{{ t('landing.proofSyncStamp') }}</p>
-            <h3 class="v2-h3">{{ t('landing.proofSyncTitle') }}</h3>
-            <p class="v2-body-soft">{{ t('landing.proofSyncBody') }}</p>
-          </div>
-          <div class="proof-card" style="border-top-color: var(--v2-accent);">
-            <p class="landing-rule">{{ t('landing.proofCoachStamp') }}</p>
-            <h3 class="v2-h3">{{ t('landing.proofCoachTitle') }}</h3>
-            <p class="v2-body-soft">{{ t('landing.proofCoachBody') }}</p>
+      </section>
+
+      <!-- ── 5. comparisons ──────────────────────────────────── -->
+      <section class="lp-bleed lp-sec" style="padding-bottom: clamp(40px, 5vw, 64px);">
+        <div class="lp-wrap lp-reveal">
+          <p class="lp-eyebrow">{{ t('landing.comparisonsRule') }}</p>
+          <div class="lp-vs-row">
+            <a href="/vs/myfitnesspal">vs MyFitnessPal</a>
+            <a href="/vs/loseit">vs Lose It!</a>
+            <a href="/vs/macrofactor">vs MacroFactor</a>
+            <a href="/vs/cronometer">vs Cronometer</a>
+            <a href="/vs/calai">vs Cal AI</a>
           </div>
         </div>
       </section>
 
-      <!-- ── 3. Privacy pledge ───────────────────────────────────── -->
-      <section class="max-w-3xl mx-auto text-center py-12">
-        <p class="landing-rule mb-4">{{ t('landing.privacyLabel') }}</p>
-        <h2 class="landing-h2 mb-6">
-          {{ t('landing.privacyLead') }}
-          <span style="color: var(--v2-accent);">{{ t('landing.privacyEm') }}</span>
-        </h2>
-        <p class="v2-body-soft text-lg max-w-2xl mx-auto">{{ t('landing.privacyBody') }}</p>
-        <p class="v2-caption mt-6">
-          <a href="/privacy" class="v2-link">{{ t('landing.privacyLink') }}</a>
-          &nbsp;·&nbsp;
-          <a href="/terms" class="v2-link">{{ t('landing.termsLink') }}</a>
-        </p>
-      </section>
-
-      <!-- ── 3.5 Quick targets ──────────────────────────────────── -->
-      <section class="max-w-5xl mx-auto">
-        <div class="flex items-end justify-between mb-6">
-          <div class="max-w-2xl">
-            <h2 class="landing-h2" style="font-size: clamp(1.75rem, 1.2rem + 2.2vw, 2.5rem);">{{ t('landing.quickTargetsRule') }}</h2>
-            <p class="v2-body-soft mt-3">{{ t('landing.quickTargetsLead') }}</p>
+      <!-- ── 6. closing CTA ──────────────────────────────────── -->
+      <section id="pricing" class="lp-bleed" style="padding-bottom: clamp(56px, 8vw, 96px);">
+        <div class="lp-wrap">
+          <div class="lp-cta-panel lp-reveal">
+            <p class="lp-eyebrow">{{ t('landing.downloadStamp') }}</p>
+            <h2 class="lp-display">{{ t('landing.downloadHeadline') }}</h2>
+            <p class="lp-cta-body">{{ t('landing.downloadBody') }}</p>
+            <div class="lp-cta-stores">
+              <a [href]="APP_STORE_URL" rel="noopener" class="lp-badge" [attr.aria-label]="t('landing.appStoreAlt')">
+                <img src="/appstore-badge.svg" alt="{{ t('landing.appStoreAlt') }}"
+                  width="180" height="60" loading="lazy" decoding="async" />
+              </a>
+              <!-- Same one-line flip as the hero (PLAY_STORE_LIVE). -->
+              @if (PLAY_STORE_LIVE) {
+                <a [href]="PLAY_STORE_URL" rel="noopener" class="v2-btn v2-btn--primary v2-btn--lg">{{ t('landing.freeCta') }}</a>
+              } @else {
+                <span class="lp-soon">{{ t('landing.playSoon') }}</span>
+              }
+            </div>
+            <p class="lp-cta-note">{{ PLAY_STORE_LIVE ? t('landing.downloadAndroidLive') : t('landing.downloadAndroidSoon') }}</p>
+            <p class="lp-cta-note"><a [href]="downloadPath()">{{ t('landing.downloadMore') }}</a></p>
           </div>
-          <a href="/calculator" class="v2-link hidden sm:inline-flex">{{ t('landing.qtAllWeights') }}</a>
-        </div>
-        <div class="grid gap-4 grid-cols-2 md:grid-cols-3">
-          <a href="/macros/lose/150-lb"     class="v2-card hover-link-card"><span class="v2-body" style="font-weight: 600;">{{ t('landing.qtLose150') }}</span><br/><span class="v2-caption">{{ t('landing.qtLose') }}</span></a>
-          <a href="/macros/lose/180-lb"     class="v2-card hover-link-card"><span class="v2-body" style="font-weight: 600;">{{ t('landing.qtLose180') }}</span><br/><span class="v2-caption">{{ t('landing.qtLose') }}</span></a>
-          <a href="/macros/lose/220-lb"     class="v2-card hover-link-card"><span class="v2-body" style="font-weight: 600;">{{ t('landing.qtLose220') }}</span><br/><span class="v2-caption">{{ t('landing.qtLose') }}</span></a>
-          <a href="/macros/maintain/150-lb" class="v2-card hover-link-card"><span class="v2-body" style="font-weight: 600;">{{ t('landing.qtMaintain150') }}</span><br/><span class="v2-caption">{{ t('landing.qtMaintain') }}</span></a>
-          <a href="/macros/maintain/180-lb" class="v2-card hover-link-card"><span class="v2-body" style="font-weight: 600;">{{ t('landing.qtMaintain180') }}</span><br/><span class="v2-caption">{{ t('landing.qtMaintain') }}</span></a>
-          <a href="/macros/gain/170-lb"     class="v2-card hover-link-card"><span class="v2-body" style="font-weight: 600;">{{ t('landing.qtGain170') }}</span><br/><span class="v2-caption">{{ t('landing.qtGain') }}</span></a>
         </div>
       </section>
 
-      <!-- ── 4. The close: it's free, and it's on your phone ──────── -->
-      <!-- This was TWO sections — a "download" block and a "free" block —
-           sitting one under the other, each with its own badge, its own
-           centred display heading, its own paragraph and its own CTA, and
-           between them they made four calls to action inside one screen
-           height while saying the same two facts. The store funnel still
-           matters (organic traffic from /calculator, /macros/* and /vs/*
-           only becomes an install if there is a visible store route, and
-           install velocity is what moves store ranking) — it just does not
-           need a section of its own to carry one badge.
-           The id="pricing" anchor is kept: /faq and the footer link to it. -->
-      <section id="pricing" class="max-w-3xl mx-auto text-center py-4">
-        <p class="landing-rule mb-4">{{ t('landing.downloadStamp') }}</p>
-        <h2 class="landing-h2">{{ t('landing.downloadHeadline') }}</h2>
-        <p class="v2-body-soft mt-5 max-w-xl mx-auto">{{ t('landing.downloadBody') }}</p>
-        <div class="mt-8 flex flex-wrap items-center justify-center gap-4">
-          <a [href]="APP_STORE_URL" rel="noopener" [attr.aria-label]="t('landing.appStoreAlt')">
-            <img src="/appstore-badge.svg" alt="{{ t('landing.appStoreAlt') }}"
-              width="180" height="60" loading="lazy" decoding="async"
-              class="h-[52px] w-auto transition-transform duration-200 hover:scale-105" />
-          </a>
-          <!-- Same swap as the hero: flip PLAY_STORE_LIVE in
-               utils/app-store.ts when the Play listing returns 200. -->
-          @if (PLAY_STORE_LIVE) {
-            <a [href]="PLAY_STORE_URL" rel="noopener" class="v2-btn v2-btn--primary v2-btn--lg">{{ t('landing.freeCta') }}</a>
-          } @else {
-            <span class="play-soon" style="color: var(--v2-ink-muted);">{{ t('landing.playSoon') }}</span>
-          }
-        </div>
-        <p class="v2-caption mt-6">{{ PLAY_STORE_LIVE ? t('landing.downloadAndroidLive') : t('landing.downloadAndroidSoon') }}</p>
-        <p class="v2-caption mt-2"><a [href]="downloadPath()" class="v2-link">{{ t('landing.downloadMore') }}</a></p>
-      </section>
-
-      <!-- ── 5. Comparisons + FAQ footer ─────────────────────────── -->
-      <footer class="mt-16 pt-12 max-w-5xl mx-auto flex flex-col md:flex-row justify-between gap-8 border-t" style="border-color: var(--v2-rule);">
+      <!-- ── 7. footer ───────────────────────────────────────── -->
+      <footer class="lp-footer">
         <div>
-          <h2 class="v2-h3 mb-3">{{ t('landing.comparisonsRule') }}</h2>
-          <div class="flex flex-wrap gap-2 mt-4">
-            <a href="/vs/myfitnesspal" class="v2-link" style="padding: 6px 12px; border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-full); text-decoration: none; font-size: 0.875rem;">vs MyFitnessPal</a>
-            <a href="/vs/loseit" class="v2-link" style="padding: 6px 12px; border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-full); text-decoration: none; font-size: 0.875rem;">vs Lose It!</a>
-            <a href="/vs/macrofactor" class="v2-link" style="padding: 6px 12px; border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-full); text-decoration: none; font-size: 0.875rem;">vs MacroFactor</a>
-            <a href="/vs/cronometer" class="v2-link" style="padding: 6px 12px; border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-full); text-decoration: none; font-size: 0.875rem;">vs Cronometer</a>
-            <a href="/vs/calai" class="v2-link" style="padding: 6px 12px; border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-full); text-decoration: none; font-size: 0.875rem;">vs Cal AI</a>
-          </div>
-        </div>
-        <div class="md:text-right flex flex-col md:items-end justify-center">
-          <a [href]="downloadPath()" class="v2-link font-medium text-lg">{{ t('landing.getOnIphone') }}</a>
-          <a href="/faq" class="v2-link font-medium text-lg mt-1">{{ t('landing.faqLink') }}</a>
-          <a [href]="supportPath()" class="v2-link font-medium text-lg mt-1" style="color: var(--v2-accent);">{{ t('landing.supportLink') }} ♥</a>
-          <!-- The publisher claim is safe to make (and link) now: the Apple
-               membership migrated to the LLC on 2026-08-25 and the Play app
-               transfer landed 2026-08-29, so both stores show the same name
-               this line does. -->
-          <p class="v2-caption mt-2">
+          <p class="lp-footer-brand">ignia</p>
+          <!-- The publisher claim is safe to make (and link): the Apple
+               membership migrated to the LLC on 2026-08-25 and the Play
+               app transfer landed 2026-08-29. -->
+          <p class="lp-footer-made">
             {{ t('landing.madeBy') }}
-            <a href="https://bermudezsystems.com/" target="_blank" rel="noopener" class="v2-link">Bermudez Systems LLC</a>
+            <a href="https://bermudezsystems.com/" target="_blank" rel="noopener">Bermudez Systems LLC</a>
             &nbsp;·&nbsp;&copy; {{ _getYear() }}
           </p>
+        </div>
+        <div class="lp-footer-nav">
+          <a [href]="downloadPath()" class="v2-link font-medium">{{ t('landing.getOnIphone') }}</a>
+          <a href="/faq" class="v2-link font-medium">{{ t('landing.faqLink') }}</a>
+          <a [href]="supportPath()" class="v2-link font-medium" style="color: var(--v2-accent);">{{ t('landing.supportLink') }} ♥</a>
         </div>
       </footer>
     </article>
@@ -399,6 +262,7 @@ import { localizedPath } from '../../i18n/locale-path';
 export class LandingComponent {
   private readonly firestore = inject(Firestore);
   private readonly i18n = inject(TranslationService);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   /** `/download` and `/support` are hand-written files in `public/`, not SPA
    *  routes, so they don't pick up the active language the way the rest of
@@ -415,6 +279,17 @@ export class LandingComponent {
   protected readonly PLAY_STORE_URL = PLAY_STORE_URL;
   protected readonly PLAY_STORE_LIVE = PLAY_STORE_LIVE;
 
+  /** The six feature cells — `k` indexes the `landing.proof{k}*` i18n
+   *  triads, `n` is the printed calibration-log numeral. */
+  protected readonly FEATURES = [
+    { n: '01', k: 'Photo' },
+    { n: '02', k: 'Capture' },
+    { n: '03', k: 'Tdee' },
+    { n: '04', k: 'Trends' },
+    { n: '05', k: 'Sync' },
+    { n: '06', k: 'Coach' },
+  ] as const;
+
   /** Social-proof count from `public/stats.totalUsers`. Intentionally
       gated at 100 — below that we'd be doing anti-social-proof ("join
       7+ quiet loggers" is worse than no signal at all). */
@@ -423,6 +298,28 @@ export class LandingComponent {
 
   constructor() {
     void this.loadSocialProof();
+    // Scroll-reveal: browser-only, additive, and inert both without JS
+    // (the hidden state exists only under `.lp-motion`) and under
+    // prefers-reduced-motion (the hidden state is media-gated in CSS).
+    afterNextRender(() => this.armReveal());
+  }
+
+  private armReveal(): void {
+    const root = this.host.nativeElement as HTMLElement;
+    if (typeof IntersectionObserver === 'undefined') return;
+    root.classList.add('lp-motion');
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting) {
+            (e.target as HTMLElement).classList.add('lp-in');
+            io.unobserve(e.target);
+          }
+        }
+      },
+      { threshold: 0.12, rootMargin: '0px 0px -48px 0px' },
+    );
+    root.querySelectorAll('.lp-reveal').forEach((el) => io.observe(el));
   }
 
   private async loadSocialProof(): Promise<void> {
