@@ -4,6 +4,9 @@ import {
   type ActivityItem,
   type AdminUserRow,
   type AuditLog,
+  type BillingReport,
+  type CostModel,
+  type LedgerItem,
   type FeedbackRow,
   type PlatformStats,
   type RetentionHistoryRow,
@@ -38,6 +41,9 @@ export class AdminDataService {
   readonly activity = signal<ActivityItem[]>([]);
   readonly audit = signal<AuditLog[]>([]);
   readonly feedback = signal<FeedbackRow[]>([]);
+  readonly costModel = signal<CostModel | null>(null);
+  readonly billing = signal<BillingReport | null>(null);
+  readonly costLedger = signal<LedgerItem[]>([]);
 
   private readonly loading = signal<Record<string, boolean>>({});
   readonly error = signal<string>('');
@@ -101,6 +107,9 @@ export class AdminDataService {
       return users.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
     }, []);
   }
+  loadCostModel(force = false) { return this.guard('costModel', force, this.costModel, () => this.api.getCostModel()); }
+  loadBilling(force = false) { return this.guard('billing', force, this.billing, () => this.api.getBilling()); }
+  loadCostLedger(force = false) { return this.guard('costLedger', force, this.costLedger, () => this.api.getCostLedger(), []); }
   async loadRetention(force = false): Promise<void> {
     await this.guard('retention', force, this.retention, () => this.api.getRetention());
     await this.guard('retentionHistory', force, this.retentionHistory, () => this.api.getRetentionHistory(), []);

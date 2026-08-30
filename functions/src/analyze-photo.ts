@@ -3,7 +3,7 @@ import { ErrorCode } from "./error-codes";
 // `geminiApiKey` is still imported for the `secrets: []` binding below — the
 // SDK itself moved to ./gemini-client, but the secret must stay declared here
 // or gen2 will not mount it into the instance.
-import { callerAccess, dailyQuota, geminiApiKey, spendCeiling } from "./init";
+import { callerAccess, dailyQuota, db, geminiApiKey, spendCeiling } from "./init";
 import { getGeminiClient } from "./gemini-client";
 import { loadFoods } from "./usda-db";
 import { resolveItems, totalsOf, type DraftItem, type ResolvedItem } from "./photo-resolve";
@@ -135,6 +135,7 @@ const PHOTO_PROVIDER = "gemini" as PhotoProvider;
  * scan, but it is why the `photo` ceiling in spend-ceiling.ts wants re-deriving
  * rather than assuming.
  */
+import { recordAiUsage, usageFromMetadata } from "./ai-usage";
 const GEMINI_MODEL = "gemini-3.5-flash-lite";
 
 /**
@@ -394,6 +395,8 @@ async function estimateWithGemini(photos: string[], prompt: string): Promise<Sca
         `in=${u.promptTokenCount ?? "?"} out=${u.candidatesTokenCount ?? "?"} ` +
         `thinking=${u.thoughtsTokenCount ?? 0} total=${u.totalTokenCount ?? "?"}`,
     );
+    // Kept, not just logged — the Cost page prices scans off this ledger.
+    void recordAiUsage(db, { kind: "photo", model: GEMINI_MODEL, images: photos.length, ...usageFromMetadata(u) });
   }
 
   // response.text is guaranteed valid JSON matching the schema.

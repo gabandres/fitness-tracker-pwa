@@ -2,6 +2,7 @@ import { Timestamp } from "firebase-admin/firestore";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { ErrorCode } from "./error-codes";
 import { callerAccess, db, geminiApiKey } from "./init";
+import { recordAiUsage, usageFromMetadata } from "./ai-usage";
 import { getGeminiClient } from "./gemini-client";
 
 // ─── Weekly AI report generation ────────────────────────────────────
@@ -74,6 +75,7 @@ export const generateWeeklyReport = onCall(
         contents: prompt,
         config: { systemInstruction, temperature: 0.3 },
       });
+      void recordAiUsage(db, { kind: "weeklyReport", model: "gemini-2.5-flash", ...usageFromMetadata(result.usageMetadata) });
       const markdown = (result.text ?? "").slice(0, REPORT_OUTPUT_MAX_CHARS);
       if (!markdown) {
         throw new HttpsError("internal", "Empty response from Gemini.", { code: ErrorCode.REPORT_GENERATE_FAILED });

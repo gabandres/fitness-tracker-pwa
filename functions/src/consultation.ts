@@ -2,7 +2,8 @@ import { getAuth } from "firebase-admin/auth";
 import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
 import type { Response } from "express";
 import { ErrorCode } from "./error-codes";
-import { callerAccess, dailyQuota, geminiApiKey, spendCeiling } from "./init";
+import { callerAccess, dailyQuota, db, geminiApiKey, spendCeiling } from "./init";
+import { recordAiUsage, usageFromMetadata } from "./ai-usage";
 import { getGeminiClient } from "./gemini-client";
 
 // ─── AI coach (Gemini consultation) ─────────────────────────────────
@@ -169,12 +170,16 @@ export const consultationStream = onRequest(
         contents: prompt,
         config: { systemInstruction, temperature: 0.4 },
       });
+      let usage: { promptTokenCount?: number; candidatesTokenCount?: number; thoughtsTokenCount?: number } | undefined;
       for await (const chunk of stream) {
+        // The final chunk carries the whole call's totals; keep the last seen.
+        if (chunk.usageMetadata) usage = chunk.usageMetadata;
         const text = chunk.text;
         if (text) res.write(`data: ${JSON.stringify({ text })}\n\n`);
       }
       res.write("event: done\ndata: {}\n\n");
       res.end();
+      void recordAiUsage(db, { kind: "consultation", model: CONSULT_MODEL, ...usageFromMetadata(usage) });
     } catch (err) {
       console.error("consultationStream Gemini error:", err);
       // We already consumed a slot; refund it server-side so a transient

@@ -95,6 +95,29 @@ export interface AdminUserDetails {
   subscriptions: Array<{ id: string; status: string; current_period_end: string | null; cancel_at_period_end: boolean }>;
 }
 
+export interface CostLine {
+  service: string; sku: string; usage: number; unit: string; freeAllowance: number; billableUsage: number;
+  unitPrice: number; perUnit: string; cost: number; note?: string;
+}
+export interface CostModel {
+  computedAt: string; pricesAsOf: string; month: string; daysElapsed: number; daysInMonth: number;
+  monthToDate: number; projectedMonth: number; byService: Record<string, number>; lines: CostLine[];
+  perFunction: Array<{ name: string; requests: number; instanceSeconds: number; vcpuSeconds: number; gibSeconds: number }>;
+  ai: {
+    kinds: Record<string, { calls: number; promptTokens: number; outputTokens: number; thoughtTokens: number; images: number }>;
+    models: Array<{ model: string; calls: number; inputTokens: number; outputTokens: number; cost: number; priceKnown: boolean }>;
+    byDay: Record<string, number>;
+  } | null;
+  firestoreByDay: { reads: Record<string, number>; writes: Record<string, number>; deletes: Record<string, number> };
+  warnings: string[];
+}
+export type BillingRow = Record<string, string | null>;
+export interface BillingReport {
+  enabled: boolean; reason?: string; table?: string; queriedAt?: string;
+  byMonth?: BillingRow[]; byProjectService?: BillingRow[]; bySku?: BillingRow[]; lifetime?: BillingRow[];
+}
+export interface LedgerItem { id: string; label: string; amountUsd: number; cadence: 'monthly' | 'yearly' | 'once'; note?: string; }
+
 export interface RetentionHistoryRow {
   date: string;
   activatedTotal: number;
@@ -372,6 +395,28 @@ export class AdminService {
   async getSpendCeilings(): Promise<CeilingStatus[]> {
     const { ceilings } = await this.callables.call<unknown, { ceilings: CeilingStatus[] }>('adminGetSpendCeilings', {});
     return ceilings;
+  }
+
+  // ─── Cost page ─────────────────────────────────────────────────
+
+  async getCostModel(): Promise<CostModel> {
+    return this.callables.call<unknown, CostModel>('adminGetCostModel', {});
+  }
+
+  async getBilling(): Promise<BillingReport> {
+    return this.callables.call<unknown, BillingReport>('adminGetBilling', {});
+  }
+
+  /** `config/costLedger` — admin-read under the config rule. */
+  async getCostLedger(): Promise<LedgerItem[]> {
+    const snap = await getDoc(doc(this.firestore, 'config', 'costLedger'));
+    const items = snap.exists() ? (snap.data()?.['items'] as LedgerItem[] | undefined) : undefined;
+    return Array.isArray(items) ? items : [];
+  }
+
+  async setCostLedger(items: LedgerItem[]): Promise<LedgerItem[]> {
+    const r = await this.callables.call<{ items: LedgerItem[] }, { items: LedgerItem[] }>('adminSetCostLedger', { items });
+    return r.items;
   }
 
   async setSpendCeiling(input: { kind: string; limit?: number; killed?: boolean; reason?: string }): Promise<CeilingStatus> {

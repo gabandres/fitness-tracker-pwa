@@ -14,7 +14,7 @@ export const ADMIN_SECTIONS: readonly AdminSectionDef[] = [
   { id: 'activity', label: 'Activity', group: 'Monitor', hint: 'Latest sign-ups and entries' },
   { id: 'feedback', label: 'Feedback', group: 'Monitor', hint: 'In-app reports from the mobile composer' },
   { id: 'users', label: 'Users', group: 'Operate', hint: 'Search, inspect, suspend, override plan' },
-  { id: 'ai', label: 'AI & spend', group: 'Operate', hint: 'Daily ceilings and the kill-switch' },
+  { id: 'ai', label: 'Cost & AI', group: 'Operate', hint: 'What the app costs: modelled, billed, fixed — plus the AI guards' },
   { id: 'exports', label: 'Exports', group: 'Operate', hint: 'CSV dumps' },
   { id: 'access', label: 'Access', group: 'Govern', hint: 'Who is admin, tiers, what each can do' },
   { id: 'audit', label: 'Audit log', group: 'Govern', hint: 'Every admin action, append-only' },

@@ -230,6 +230,20 @@ cd functions && node -e "const{loadFoods}=require('./lib/usda-db.js');const{reso
 # → {"calories":640,"protein":52.9,"carbs":66.2,"fat":16.9}
 ```
 
+## Cost
+
+```sh
+# what the Cost page models — same meters, by hand
+gcloud secrets list --project fitness-tracker-gb-1775407101 --format="value(name)" | wc -l   # secrets (free tier: 6 active VERSIONS per billing account)
+gcloud scheduler jobs list --location us-central1 --project fitness-tracker-gb-1775407101      # jobs (free tier: 3 per billing account)
+bq ls --project_id=fitness-tracker-gb-1775407101 billing                                        # billing export table appears here once enabled
+node scripts/usage-report.mjs --days 30 --json | node -e "process.stdin.on('data',d=>console.log(JSON.parse(d).totals))"
+```
+
+The list prices live in `functions/src/cost-model.ts` (`PRICES`). Re-read them off
+the Cloud Billing Catalog API (`GET https://cloudbilling.googleapis.com/v1/services/<id>/skus`)
+when `PRICES.asOf` is older than a quarter; the page prints the date.
+
 ## Product measurement
 
 ```sh

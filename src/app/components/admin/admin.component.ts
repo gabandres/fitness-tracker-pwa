@@ -7,7 +7,8 @@ import { AdminDataService } from './admin-data.service';
 import { ADMIN_SECTIONS, AdminShellState } from './admin-shell.state';
 import { AdminOverviewComponent } from './admin-overview.component';
 import { AdminUsersComponent } from './admin-users.component';
-import { AdminActivityComponent, AdminAiComponent, AdminAccessComponent, AdminAuditComponent, AdminExportsComponent, AdminFeedbackComponent } from './admin-sections.component';
+import { AdminActivityComponent, AdminAccessComponent, AdminAuditComponent, AdminExportsComponent, AdminFeedbackComponent } from './admin-sections.component';
+import { AdminCostComponent } from './admin-cost.component';
 import { AdminPaletteComponent } from './admin-palette.component';
 import { applyThemeChoice, currentEffectiveTheme, readStoredTheme, writeStoredTheme } from '../../utils/theme';
 import { adminPreviewEnabled, seedPreview } from './admin-preview';
@@ -35,7 +36,7 @@ const ICONS: Record<string, string> = {
 @Component({
   selector: 'app-admin',
   standalone: true,
-  imports: [NgTemplateOutlet, AdminOverviewComponent, AdminUsersComponent, AdminActivityComponent, AdminFeedbackComponent, AdminAuditComponent, AdminAiComponent, AdminAccessComponent, AdminExportsComponent, AdminPaletteComponent],
+  imports: [NgTemplateOutlet, AdminOverviewComponent, AdminUsersComponent, AdminActivityComponent, AdminFeedbackComponent, AdminAuditComponent, AdminCostComponent, AdminAccessComponent, AdminExportsComponent, AdminPaletteComponent],
   // Styles are global (angular.json `styles`) — admin.css is shared by every section.
   encapsulation: ViewEncapsulation.None,
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -114,7 +115,7 @@ const ICONS: Record<string, string> = {
             @case ('activity') { <adm-activity /> }
             @case ('feedback') { <adm-feedback /> }
             @case ('audit') { <adm-audit /> }
-            @case ('ai') { <adm-ai /> }
+            @case ('ai') { <adm-cost /> }
             @case ('access') { <adm-access /> }
             @case ('exports') { <adm-exports /> }
           }

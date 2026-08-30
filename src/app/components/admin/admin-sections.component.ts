@@ -4,7 +4,6 @@ import { AdminService } from '../../services/admin.service';
 import { AuthService } from '../../services/auth.service';
 import { AdminDataService } from './admin-data.service';
 import { AdminShellState } from './admin-shell.state';
-import { AdmMeter } from './admin-ui';
 import { fmtDateTime, relTime } from './admin-format';
 
 // ─── Activity ──────────────────────────────────────────────────────
@@ -159,88 +158,6 @@ export class AdminAuditComponent {
   constructor() { void this.data.loadAudit(); }
   details(d: unknown): string { try { return d && typeof d === 'object' ? JSON.stringify(d) : ''; } catch { return ''; } }
   open(uid?: string): void { if (uid) { this.shell.openUser(uid); this.shell.go('users'); } }
-}
-
-// ─── AI & spend ────────────────────────────────────────────────────
-
-@Component({
-  selector: 'adm-ai',
-  standalone: true,
-  imports: [FormsModule, AdmMeter],
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div class="adm-page-head">
-      <div><h1 class="adm-h1">AI &amp; spend</h1><p class="adm-sub">Two guards on every AI call: a per-user daily quota (fairness) and this per-feature ceiling for everyone (solvency). The ceiling resets at UTC midnight; the kill-switch never does.</p></div>
-      <button type="button" class="adm-btn" (click)="data.loadCeilings(true)" [disabled]="data.isLoading('ceilings')">Refresh</button>
-    </div>
-    <div class="adm-grid adm-grid-2">
-      @for (c of data.ceilings(); track c.kind) {
-        <section class="adm-card">
-          <div class="adm-card-head">
-            <h2 class="adm-h2">{{ label(c.kind) }} @if (c.killed) { <span class="adm-chip danger">OFF</span> } @else { <span class="adm-chip good">on</span> }</h2>
-            <span class="adm-muted" style="font-size:12px;">{{ c.date }}</span>
-          </div>
-          <adm-meter [label]="'today'" [ratio]="c.ratio" [display]="c.used + ' / ' + c.limit" [tone]="c.killed ? 'danger' : c.ratio >= 0.8 ? 'warn' : 'teal'"
-            [hint]="c.kind === 'photo' ? 'counts images, not scans' : 'counts calls'" />
-          <div class="adm-section">
-            <span class="adm-label">Daily ceiling</span>
-            <div style="display:flex; gap:8px; align-items:center;">
-              <input type="number" class="adm-field" style="width:120px;" [ngModel]="limits()[c.kind] ?? c.limit" (ngModelChange)="setLimit(c.kind, $event)" min="0" />
-              <button type="button" class="adm-btn sm" (click)="saveLimit(c)" [disabled]="busy() || (limits()[c.kind] ?? c.limit) === c.limit">Save</button>
-              <span class="adm-muted" style="font-size:12px;">free tier: 3/day per user · paid: 30/day</span>
-            </div>
-          </div>
-          <div class="adm-section">
-            <span class="adm-label">Kill-switch</span>
-            @if (c.killed) {
-              <p class="adm-soft" style="font-size:12.5px; margin:0 0 8px;">Reason on file: “{{ c.killedReason || '—' }}”</p>
-              <button type="button" class="adm-btn sm" (click)="setKill(c, false)" [disabled]="busy()">Switch {{ label(c.kind) }} back on</button>
-            } @else {
-              <div style="display:flex; gap:8px; align-items:center;">
-                <input class="adm-field grow" [ngModel]="reasons()[c.kind] ?? ''" (ngModelChange)="setReason(c.kind, $event)" placeholder="Reason (required — it goes in the audit log)" />
-                <button type="button" class="adm-btn sm danger" (click)="setKill(c, true)" [disabled]="busy() || !(reasons()[c.kind] ?? '').trim()">Switch off</button>
-              </div>
-            }
-          </div>
-        </section>
-      } @empty { <div class="adm-card"><div class="adm-empty">{{ data.isLoading('ceilings') ? 'Loading…' : 'No ceilings configured.' }}</div></div> }
-    </div>
-    <section class="adm-card" style="margin-top:14px;">
-      <div class="adm-card-head"><h2 class="adm-h2">How the guards fit together</h2></div>
-      <dl class="adm-kv">
-        <dt>Per-user quota</dt><dd style="font-family:inherit;">3 photo scans + 3 coach calls a day free, 30 each paid. Comped and admin are unlimited. Reset per user from the Users drawer.</dd>
-        <dt>Ceiling</dt><dd style="font-family:inherit;">Everyone together, per feature, per UTC day. Checked before the per-user reserve; recorded after the call is authorised.</dd>
-        <dt>Kill-switch</dt><dd style="font-family:inherit;">Stops a feature for everyone and stays off until a human clears it. A switch that re-arms itself at midnight is a delay, not a kill.</dd>
-        <dt>Watcher</dt><dd style="font-family:inherit;">The hourly dispatcher's <span class="adm-mono">spendCeilingWatch</span> logs when a feature is serving nobody, so a tripped guard is noticed before a support email.</dd>
-      </dl>
-    </section>
-  `,
-})
-export class AdminAiComponent {
-  readonly data = inject(AdminDataService);
-  readonly shell = inject(AdminShellState);
-  private readonly api = inject(AdminService);
-  readonly busy = signal(false);
-  readonly limits = signal<Record<string, number>>({});
-  readonly reasons = signal<Record<string, string>>({});
-  constructor() { void this.data.loadCeilings(); }
-  label(kind: string): string { return kind === 'photo' ? 'Photo scan' : kind === 'consultation' ? 'AI coach' : kind; }
-  setLimit(kind: string, v: number) { this.limits.update((l) => ({ ...l, [kind]: Number(v) })); }
-  setReason(kind: string, v: string) { this.reasons.update((r) => ({ ...r, [kind]: v })); }
-  private async run(label: string, op: () => Promise<unknown>) {
-    this.busy.set(true);
-    try { await op(); await this.data.loadCeilings(true); this.shell.toast(label, 'ok'); }
-    catch (err) { this.shell.toast(err instanceof Error ? err.message : String(err), 'error'); }
-    finally { this.busy.set(false); }
-  }
-  saveLimit(c: { kind: string; limit: number }) {
-    const limit = this.limits()[c.kind] ?? c.limit;
-    return this.run(`${this.label(c.kind)} ceiling → ${limit}`, () => this.api.setSpendCeiling({ kind: c.kind, limit }));
-  }
-  setKill(c: { kind: string }, killed: boolean) {
-    const reason = (this.reasons()[c.kind] ?? '').trim();
-    return this.run(`${this.label(c.kind)} switched ${killed ? 'OFF' : 'on'}`, () => this.api.setSpendCeiling({ kind: c.kind, killed, reason }));
-  }
 }
 
 // ─── Access ────────────────────────────────────────────────────────

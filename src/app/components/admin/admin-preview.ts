@@ -63,6 +63,41 @@ export function seedPreview(data: AdminDataService): void {
     { kind: 'consultation', date: keys[29], used: 12, limit: 40, killed: false, killedReason: '', ratio: 0.3 },
   ]);
   data.heartbeatAgeMin.set(4);
+  data.costModel.set({
+    computedAt: new Date().toISOString(), pricesAsOf: '2026-08-30', month: keys[29].slice(0, 7), daysElapsed: 30, daysInMonth: 31,
+    monthToDate: 0.93, projectedMonth: 0.96,
+    byService: { 'Gemini API': 0.41, 'Secret Manager': 0.12, Firestore: 0.4, 'Cloud Run functions': 0, 'Cloud Scheduler': 0 },
+    lines: [
+      { service: 'Firestore', sku: 'Document reads', usage: 1_912_000, unit: 'reads', freeAllowance: 1_500_000, billableUsage: 640_000, unitPrice: 0.06, perUnit: '100k', cost: 0.384, note: 'free 50,000/day' },
+      { service: 'Firestore', sku: 'Document writes', usage: 210_000, unit: 'writes', freeAllowance: 600_000, billableUsage: 9_000, unitPrice: 0.18, perUnit: '100k', cost: 0.016, note: 'free 20,000/day' },
+      { service: 'Firestore', sku: 'Document deletes', usage: 3_100, unit: 'deletes', freeAllowance: 600_000, billableUsage: 0, unitPrice: 0.02, perUnit: '100k', cost: 0 },
+      { service: 'Cloud Run functions', sku: 'Requests', usage: 41_200, unit: 'requests', freeAllowance: 2_000_000, billableUsage: 0, unitPrice: 0.4, perUnit: '1M', cost: 0 },
+      { service: 'Cloud Run functions', sku: 'CPU time', usage: 22_400, unit: 'vCPU-s', freeAllowance: 180_000, billableUsage: 0, unitPrice: 0.000024, perUnit: 'vCPU-s', cost: 0 },
+      { service: 'Cloud Run functions', sku: 'Memory time', usage: 11_200, unit: 'GiB-s', freeAllowance: 360_000, billableUsage: 0, unitPrice: 0.0000025, perUnit: 'GiB-s', cost: 0 },
+      { service: 'Secret Manager', sku: 'Active secret versions', usage: 8, unit: 'versions', freeAllowance: 6, billableUsage: 2, unitPrice: 0.06, perUnit: 'version·month', cost: 0.12, note: 'free tier is per BILLING ACCOUNT — the other three projects share it' },
+      { service: 'Cloud Scheduler', sku: 'Jobs', usage: 3, unit: 'jobs', freeAllowance: 3, billableUsage: 0, unitPrice: 0.1, perUnit: 'job·month', cost: 0 },
+      { service: 'Gemini API', sku: 'gemini-3.5-flash-lite input', usage: 412_000, unit: 'tokens', freeAllowance: 0, billableUsage: 412_000, unitPrice: 0.3, perUnit: '1M', cost: 0.124 },
+      { service: 'Gemini API', sku: 'gemini-3.5-flash-lite output (incl. thinking)', usage: 114_000, unit: 'tokens', freeAllowance: 0, billableUsage: 114_000, unitPrice: 2.5, perUnit: '1M', cost: 0.285 },
+    ],
+    perFunction: [
+      { name: 'hourlytasks', requests: 720, instanceSeconds: 9_800, vcpuSeconds: 9_800, gibSeconds: 4_900 },
+      { name: 'analyzephoto', requests: 221, instanceSeconds: 6_100, vcpuSeconds: 6_100, gibSeconds: 3_050 },
+      { name: 'consultationstream', requests: 64, instanceSeconds: 2_400, vcpuSeconds: 2_400, gibSeconds: 600 },
+      { name: 'searchfoods', requests: 3_900, instanceSeconds: 1_900, vcpuSeconds: 1_900, gibSeconds: 475 },
+    ],
+    ai: {
+      kinds: { photo: { calls: 221, promptTokens: 380_000, outputTokens: 98_000, thoughtTokens: 0, images: 260 }, consultation: { calls: 64, promptTokens: 32_000, outputTokens: 16_000, thoughtTokens: 0, images: 0 } },
+      models: [{ model: 'gemini-3.5-flash-lite', calls: 285, inputTokens: 412_000, outputTokens: 114_000, cost: 0.409, priceKnown: true }],
+      byDay: Object.fromEntries(keys.map((k, i) => [k, 0.005 + (i % 5) * 0.004])),
+    },
+    firestoreByDay: { reads: {}, writes: {}, deletes: {} },
+    warnings: [],
+  });
+  data.billing.set({ enabled: false, reason: 'no gcp_billing_export_v1_* table in the dataset yet — enable the standard export in Billing → Billing export' });
+  data.costLedger.set([
+    { id: 'apple-dev', label: 'Apple Developer Program', amountUsd: 99, cadence: 'yearly' },
+    { id: 'play-dev', label: 'Google Play developer registration', amountUsd: 25, cadence: 'once' },
+  ]);
   const mk = (i: number) => ({
     uid: `uid${i.toString().padStart(4, '0')}abcdefghijklmnop`, email: `person${i}@example.com`, displayName: i % 3 ? `Person ${i}` : '',
     emailVerified: i % 7 !== 0, disabled: i === 5, createdAt: new Date(Date.now() - i * 86_400_000 * 2).toISOString(),

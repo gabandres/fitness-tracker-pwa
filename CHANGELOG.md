@@ -38,6 +38,22 @@ Two things are the owner's call and are recorded OPEN in the ADR with the
 reversible default taken: the SEO/marketing pages and the public profiles are
 **kept**.
 
+**Same day, the Cost & AI page.** Google has no cost API, so the page has
+two layers: a **modelled** month-to-date — Firestore reads/writes/deletes and
+Cloud Run request time from Cloud Monitoring, Secret Manager versions and
+Scheduler jobs from their APIs, Gemini tokens from a new per-day `aiUsage`
+ledger every Gemini caller now writes — priced at list (read off the Cloud
+Billing Catalog API 2026-08-30) minus the free tiers, line by line with usage,
+allowance and unit price shown; and the **actual bill** from the Cloud Billing
+→ BigQuery export across all four projects on the account, which needs one
+console switch from the owner (the `billing` dataset is created; the page
+shows the steps until the table exists). A fixed-cost ledger (store fees,
+domains, registered agent) turns that into an all-in run rate and a cost per
+monthly active user; the AI guards (ceilings, kill-switch) moved onto the same
+page with a per-scan / per-call cost beside them. Three new callables
+(`adminGetCostModel`, `adminGetBilling`, `adminSetCostLedger`); no new secret,
+no new scheduled job.
+
 **Same day, the console behind it was rebuilt.** `ignia.fit/admin` is now a
 sidebar shell in the app's own palette (dark leads, ADR-0014 tokens; light
 toggle) with a ⌘K command palette and eight sections — Overview, Activity,
