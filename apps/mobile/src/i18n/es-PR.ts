@@ -1215,4 +1215,21 @@ export const esPR: Record<I18nKey, string> = {
   'oura.declined': '{n} encontrados que no son cardio — el entrenamiento de fuerza se queda en Train.',
   'oura.truncated': 'Mostrando solo los entrenamientos más recientes.',
   'oura.energyNote': 'Las calorías de tu anillo se muestran como referencia y nunca cambian tu meta diaria.',
+
+  // Milestones — see the copy rule on the en block. **"Hitos", never "Logros"**:
+  // *logro* is the word every gamified tracker uses for an achievement, and
+  // this feature exists precisely because it is not one.
+  'milestones.title': 'Hitos',
+  'milestones.settingsSub': 'Lo que has registrado hasta ahora',
+  'milestones.recorded': 'Registrado el {date}',
+  'milestones.today': 'Registrado hoy',
+  'milestones.empty': 'Nada todavía. Los hitos aparecen según vas registrando.',
+  'milestones.streak-7': 'Una semana registrando',
+  'milestones.streak-14': 'Dos semanas registrando',
+  'milestones.streak-30': 'Treinta días registrando',
+  'milestones.streak-60': 'Sesenta días registrando',
+  'milestones.streak-100': 'Cien días registrando',
+  'milestones.first-weigh-in': 'Primer pesaje',
+  'milestones.first-fast': 'Primer ayuno registrado',
+  'milestones.first-workout': 'Primer entrenamiento completado',
 };

@@ -91,6 +91,10 @@ export interface TodayState extends LogWrites {
   /** Numbers-only progress stats for the share card (streak, logged days,
    *  weight change). */
   shareStats: ShareStats;
+  /** Whether a body weight has ever been recorded, from either source —
+   *  `dailyWeights` or a weight riding on a `DailyLog`. Evidence for the
+   *  `first-weigh-in` milestone; see the return site for why both count. */
+  hasWeighIn: boolean;
 }
 
 export function useToday(): TodayState {
@@ -411,5 +415,16 @@ export function useToday(): TodayState {
     streak,
     repeatYesterday,
     shareStats,
+    /**
+     * Whether this account has ever recorded a body weight — the evidence for
+     * the `first-weigh-in` milestone.
+     *
+     * Both sources count. `dailyWeights` is where the weigh-in sheet writes,
+     * but a weight can also ride on a `DailyLog` (the workout-finish mirror
+     * does exactly that), and a milestone that ignored the second would tell a
+     * lifter who has weighed in for months that they never have.
+     */
+    hasWeighIn:
+      Object.keys(weights).length > 0 || logs.some((l) => l.weight != null),
   };
 }

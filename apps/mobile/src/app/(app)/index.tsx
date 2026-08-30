@@ -14,8 +14,10 @@ import { EntrySheet } from '@/components/EntrySheet';
 import { FastSheet } from '@/components/FastSheet';
 import { HeroRings } from '@/components/HeroRings';
 import { MealEntries } from '@/components/MealEntries';
+import { MilestoneNote } from '@/components/MilestoneNote';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { track } from '@/lib/analytics';
+import { useAuth } from '@/lib/auth';
 import { RecalibrationCard } from '@/components/RecalibrationCard';
 import { ShareCard } from '@/components/ShareCard';
 import { UpdateBanner } from '@/components/UpdateBanner';
@@ -26,6 +28,7 @@ import { useDayFasts } from '@/hooks/useDayFasts';
 import { useFastActivity } from '@/hooks/useFastActivity';
 import { useReminderSync } from '@/hooks/useReminderSync';
 import { performQuickAdd } from '@/lib/quick-add';
+import { useMilestones } from '@/hooks/useMilestones';
 import { useToday } from '@/hooks/useToday';
 import { useTodayNudge } from '@/hooks/useTodayNudge';
 import { useWidgetSync } from '@/hooks/useWidgetSync';
@@ -55,6 +58,7 @@ export default function Today() {
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
+  const { user } = useAuth();
   const {
     loading,
     error,
@@ -86,9 +90,20 @@ export default function Today() {
     streak,
     repeatYesterday,
     shareStats,
+    hasWeighIn,
   } = useToday();
   // The single Nudge slot this screen is allowed to fill.
   const nudge = useTodayNudge();
+  // Milestones are evaluated here because this is where the streak already
+  // exists. Deliberately NOT part of `useTodayNudge`'s union — the note asks
+  // for nothing, so it is a state readout and does not compete for that slot.
+  // See MilestoneNote.tsx for why that classification is honest.
+  const { todays: todaysMilestones } = useMilestones({
+    uid: user?.uid,
+    streak,
+    hasWeighIn,
+    boundary,
+  });
   const [sheetOpen, setSheetOpen] = useState(false);
   const [glossaryOpen, setGlossaryOpen] = useState(false);
   const [fastSheetOpen, setFastSheetOpen] = useState(false);
@@ -399,6 +414,13 @@ export default function Today() {
               maintenance={maintenanceView(targets.tdee, summary.totalCalories)}
             />
           </Animated.View>
+
+          {/* Below the hero on purpose. It is not in the Nudge queue, so
+              placing it above would let a milestone visually outrank an update
+              banner without ever having been ranked against one — the exact
+              outcome `useTodayNudge`'s ordering exists to prevent. Here it
+              reads as what it is: your numbers, then what they added up to. */}
+          <MilestoneNote keys={todaysMilestones} />
 
           <RecalibrationCard suppressed={nudge !== 'recalibration'} />
 

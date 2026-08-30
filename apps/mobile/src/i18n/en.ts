@@ -1302,6 +1302,32 @@ export const en = {
   // A ring's calories are never spent — the same promise the Train glossary
   // makes, restated where a user turns the import on.
   'oura.energyNote': 'Calories from your ring are shown for reference and never change your daily target.',
+
+  // ─── Milestones (#108/#109) — the retrospective record ──────────────
+  //
+  // **Copy rule, and it is enforced rather than requested:** nothing in this
+  // block may look forward. No "next", no "keep it up", no "3 days to go", no
+  // count of what remains unearned. A milestone says what happened and stops.
+  // `milestones-copy.test.ts` scans these strings in all three locales and
+  // fails the build on a forward-looking word, because the whole reason this
+  // feature was permitted at all is that it applies no pressure
+  // (`UX_AUDIT.md` §S12 rejects shame-based gamification).
+  //
+  // "Recorded", never "Achieved on" — for a derived milestone the date is when
+  // Ignia noticed, not when it happened. See useMilestones.ts.
+  'milestones.title': 'Milestones',
+  'milestones.settingsSub': 'What you have logged so far',
+  'milestones.recorded': 'Recorded {date}',
+  'milestones.today': 'Recorded today',
+  'milestones.empty': 'Nothing here yet. Milestones appear as you log.',
+  'milestones.streak-7': 'A week of logging',
+  'milestones.streak-14': 'Two weeks of logging',
+  'milestones.streak-30': 'Thirty days of logging',
+  'milestones.streak-60': 'Sixty days of logging',
+  'milestones.streak-100': 'A hundred days of logging',
+  'milestones.first-weigh-in': 'First weigh-in',
+  'milestones.first-fast': 'First fast recorded',
+  'milestones.first-workout': 'First workout finished',
 } as const;
 
 export type I18nKey = keyof typeof en;

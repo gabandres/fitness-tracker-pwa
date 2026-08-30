@@ -1091,6 +1091,83 @@ export async function setPreferredLocale(uid: string, preferredLocale: string): 
  *  morning. Nothing else in this app wrote the field, so mobile opt-ins had
  *  never carried a timezone at all. Refreshed on each toggle so travel and DST
  *  correct themselves. */
+// ─── Milestones ─────────────────────────────────────────────────
+// users/{uid}/milestones/{key} = { earnedAt }
+//
+// The KEY IS THE DOCUMENT ID, which is what makes the write idempotent: a
+// repeat attempt addresses the same document rather than creating a second
+// entry. `firestore.rules` then denies the update outright (`allow update: if
+// false`), so the repeat FAILS — deliberately. That is the write-once
+// guarantee, and it is why `recordMilestone` swallows its own rejection: a
+// denial here is the normal outcome of a race, not an error worth surfacing.
+//
+// There is no `seenAt` field and no dismissal state. The Today row renders
+// while `earnedAt` falls inside the current day and expires by itself, so
+// "have we shown this yet" is answered by the clock instead of by a second
+// write. See packages/core/src/milestones.ts for why the surface is shaped
+// that way rather than as a badge wall.
+const milestonesCol = (uid: string) => collection(db, 'users', uid, 'milestones');
+
+export function subscribeMilestones(
+  uid: string,
+  cb: (earned: Record<string, Date>, meta?: SnapshotMeta) => void,
+  onError?: (e: Error) => void,
+): Unsub {
+  return onSnapshot(
+    milestonesCol(uid),
+    (snap) => {
+      const earned: Record<string, Date> = {};
+      for (const d of snap.docs) {
+        const at = d.data()?.earnedAt;
+        if (at instanceof Timestamp) earned[d.id] = at.toDate();
+      }
+      cb(earned, metaOf(snap));
+    },
+    onError,
+  );
+}
+
+/**
+ * Record a milestone. Idempotent, fire-and-forget, and **never batched with a
+ * domain write.**
+ *
+ * That last point is the one with teeth. `breakFast` is a batch, and #97's fix
+ * documents what a rejected member does to one: the whole commit fails. If a
+ * milestone write were batched with the meal, workout or fast that earned it, a
+ * rules rejection here would roll back the thing the user actually did. A
+ * missed milestone is a non-event; a lost meal is a bug report.
+ */
+export async function recordMilestone(uid: string, key: string): Promise<void> {
+  try {
+    await setDoc(doc(milestonesCol(uid), key), { earnedAt: Timestamp.now() });
+  } catch {
+    // Already recorded (rules deny the update), or offline. Both are fine.
+  }
+}
+
+/**
+ * Has this account ever completed a fast? One `limit(1)` read.
+ *
+ * Callers gate this behind "the milestone is not already recorded", so an
+ * account that has earned it never pays for the probe again.
+ */
+export async function hasAnyCompletedFast(uid: string): Promise<boolean> {
+  const snap = await getDocs(query(fastsCol(uid), limit(1)));
+  return !snap.empty;
+}
+
+/** Has this account ever finished a workout? Same gating rule as above. */
+export async function hasAnyCompletedWorkout(uid: string): Promise<boolean> {
+  const snap = await getDocs(
+    query(
+      collection(db, 'users', uid, 'workoutSessions'),
+      where('status', '==', 'completed'),
+      limit(1),
+    ),
+  );
+  return !snap.empty;
+}
+
 export async function setWeeklyDigestOptIn(uid: string, on: boolean): Promise<void> {
   await updateDoc(userDoc(uid), {
     weeklyDigestOptIn: on,

@@ -345,6 +345,30 @@ service cloud.firestore {
           && (!('source' in data.keys()) || data.source in ['timer', 'manual']);
     }
 
+    // A recorded milestone (#108/#109/#110). One document per key, the KEY IS
+    // THE DOCUMENT ID, and the body is a single timestamp.
+    //
+    // `earnedAt` may not be in the future. That is not pedantry: the Today row
+    // renders while `earnedAt` falls inside the current day and expires on its
+    // own at day end, so a future-dated document would pin a celebration on
+    // screen indefinitely with no control to dismiss it.
+    function isValidMilestone(data) {
+      return data.keys().hasOnly(['earnedAt'])
+          && data.earnedAt is timestamp
+          && data.earnedAt.toMillis() <= request.time.toMillis();
+    }
+
+    // The closed union from packages/core/src/milestones.ts. Enumerated rather
+    // than pattern-matched so a client bug cannot invent a key and pollute an
+    // archive the user cannot easily clean.
+    function isMilestoneKey(key) {
+      return key in [
+        'streak-7', 'streak-14', 'streak-30', 'streak-60', 'streak-100',
+        'first-scan', 'first-workout', 'first-fast', 'first-weigh-in',
+        'meals-100', 'goal-reached'
+      ];
+    }
+
     function isValidWorkoutSession(data) {
       return data.keys().hasOnly([
               'status', 'templateId', 'templateName', 'timestamp',
@@ -838,6 +862,27 @@ service cloud.firestore {
         allow read:   if isOwner(uid) || isAdmin();
         allow create: if isOwner(uid) && isValidFast(request.resource.data);
         allow update: if isOwner(uid) && isValidFast(request.resource.data);
+        allow delete: if isOwner(uid);
+      }
+
+      // Recorded milestones (#108/#109/#110) — the retrospective record.
+      //
+      // **WRITE-ONCE, enforced here rather than trusted.** There is no `update`
+      // rule, deliberately: `earnedAt` is a fact about a moment, and a milestone
+      // that can be rewritten is one whose date can move — which would re-fire
+      // the Today celebration for something that happened weeks ago. Clients
+      // attempt the write idempotently and swallow the rejection; the second
+      // attempt SHOULD fail.
+      //
+      // This is also why the record survives a broken streak: nothing here can
+      // take a milestone away, so there is no streak-break punishment to build.
+      // See the module header in packages/core/src/milestones.ts.
+      match /milestones/{milestoneKey} {
+        allow read:   if isOwner(uid) || isAdmin();
+        allow create: if isOwner(uid)
+                      && isMilestoneKey(milestoneKey)
+                      && isValidMilestone(request.resource.data);
+        allow update: if false;
         allow delete: if isOwner(uid);
       }
 

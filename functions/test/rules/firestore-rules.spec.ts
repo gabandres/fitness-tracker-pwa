@@ -1555,6 +1555,99 @@ describe('firestore.rules', () => {
       await assertFails(setDoc(doc(authed('mallory'), 'users/alice/fasts/f2'), validFast()));
     });
   });
+  // ── milestones (the retrospective record, #108/#109/#110) ──
+  //
+  // Written and deployed BEFORE the client writes the collection, for the same
+  // reason the fasts block above was: the dev app talks to PROD Firestore, so
+  // an un-deployed rule rejects the first write and reads like a broken feature.
+  //
+  // The write-once case is the one that carries product meaning rather than
+  // hygiene. `UX_AUDIT.md` §S12 rejects streak-break punishment; this record is
+  // permitted precisely because nothing can take an entry away. `allow update:
+  // if false` is what makes that true in the database rather than in a comment —
+  // and it also stops `earnedAt` moving, which would re-fire the Today
+  // celebration for something that happened weeks ago.
+
+  describe('milestones — the retrospective record', () => {
+    const earned = (at = '2026-08-20T10:00:00Z') => ({
+      earnedAt: Timestamp.fromMillis(Date.parse(at)),
+    });
+
+    const writeMilestone = (db: ReturnType<typeof authed>, key: string, data: object) =>
+      setDoc(doc(db, 'users', 'alice', 'milestones', key), data);
+
+    it('accepts a known milestone key', async () => {
+      const db = authed('alice');
+      await setDoc(doc(db, 'users', 'alice'), baseProfile());
+      await assertSucceeds(writeMilestone(db, 'streak-7', earned()));
+      await assertSucceeds(writeMilestone(db, 'goal-reached', earned()));
+    });
+
+    it('denies a key outside the closed union', async () => {
+      // A client bug must not be able to invent entries in an archive the user
+      // has no easy way to clean.
+      const db = authed('alice');
+      await setDoc(doc(db, 'users', 'alice'), baseProfile());
+      await assertFails(writeMilestone(db, 'streak-9999', earned()));
+      await assertFails(writeMilestone(db, 'lost-50-lbs', earned()));
+    });
+
+    it('denies extra fields', async () => {
+      const db = authed('alice');
+      await setDoc(doc(db, 'users', 'alice'), baseProfile());
+      await assertFails(
+        writeMilestone(db, 'streak-7', { ...earned(), note: 'nice work' }),
+      );
+    });
+
+    it('denies a non-timestamp earnedAt', async () => {
+      const db = authed('alice');
+      await setDoc(doc(db, 'users', 'alice'), baseProfile());
+      await assertFails(writeMilestone(db, 'streak-7', { earnedAt: '2026-08-20' }));
+    });
+
+    it('denies a FUTURE earnedAt', async () => {
+      // The Today row renders while `earnedAt` is inside the current day and
+      // expires by itself. A future date would pin the celebration on screen
+      // with no dismiss control to escape it.
+      const db = authed('alice');
+      await setDoc(doc(db, 'users', 'alice'), baseProfile());
+      await assertFails(
+        writeMilestone(db, 'streak-7', {
+          earnedAt: Timestamp.fromMillis(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        }),
+      );
+    });
+
+    it('is WRITE-ONCE — the second attempt is denied, not merged', async () => {
+      // Clients re-attempt idempotently and swallow the rejection. This test
+      // pins that the rejection is real: without it `earnedAt` could move.
+      const db = authed('alice');
+      await setDoc(doc(db, 'users', 'alice'), baseProfile());
+      await assertSucceeds(writeMilestone(db, 'streak-7', earned()));
+      await assertFails(writeMilestone(db, 'streak-7', earned('2026-08-28T10:00:00Z')));
+    });
+
+    it('lets the owner delete one', async () => {
+      const db = authed('alice');
+      await setDoc(doc(db, 'users', 'alice'), baseProfile());
+      await assertSucceeds(writeMilestone(db, 'first-scan', earned()));
+      await assertSucceeds(
+        deleteDoc(doc(db, 'users', 'alice', 'milestones', 'first-scan')),
+      );
+    });
+
+    it('denies another user reading or writing a milestone', async () => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'users/alice/milestones/streak-7'), earned());
+      });
+      await assertFails(getDoc(doc(authed('mallory'), 'users/alice/milestones/streak-7')));
+      await assertFails(
+        setDoc(doc(authed('mallory'), 'users/alice/milestones/streak-14'), earned()),
+      );
+    });
+  });
+
   // ── the profile validator's expression budget (#100) ──
   //
   // `isValidProfile` is `isValidProfileInitial(data) || isValidProfileCompleted(data)`.
