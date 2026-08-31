@@ -1,0 +1,71 @@
+# Last three screens: Milestones + Feedback (via Settings rows), Coach (via
+# the Trends "Ask the Coach" button). Read-only.
+appId: fit.ignia.app
+---
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    notVisible:
+      id: 'brand-loader'
+    timeout: 15000
+- assertVisible: 'Today'
+- repeat:
+    times: 8
+    while:
+      notVisible:
+        id: 'settings-back'
+    commands:
+      - tapOn:
+          id: 'settings-open'
+          optional: true
+- assertVisible:
+    id: 'settings-back'
+- scrollUntilVisible:
+    element:
+      id: 'settings-milestones'
+    direction: DOWN
+    timeout: 60000
+    centerElement: true
+- tapOn:
+    id: 'settings-milestones'
+- takeScreenshot: .maestro/capture/shots/h1-milestones
+- back
+# back may land on Settings or Today; re-enter through the same gate either way
+- repeat:
+    times: 8
+    while:
+      notVisible:
+        id: 'settings-back'
+    commands:
+      - tapOn:
+          id: 'settings-open'
+          optional: true
+- assertVisible:
+    id: 'settings-back'
+- scrollUntilVisible:
+    element:
+      id: 'settings-feedback'
+    direction: DOWN
+    timeout: 60000
+    centerElement: true
+- tapOn:
+    id: 'settings-feedback'
+- takeScreenshot: .maestro/capture/shots/h2-feedback
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    notVisible:
+      id: 'brand-loader'
+    timeout: 15000
+- tapOn: 'Trends'
+- scrollUntilVisible:
+    element:
+      text: 'Ask the Coach'
+    direction: DOWN
+    timeout: 30000
+    centerElement: true
+- tapOn: 'Ask the Coach'
+- takeScreenshot: .maestro/capture/shots/h3-coach
+- launchApp:
+    clearState: false
+- assertVisible: 'Today'

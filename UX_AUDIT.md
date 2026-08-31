@@ -692,6 +692,66 @@ F7 is a correctness defect like F1 was, but it affects only users whose goal is
 
 ---
 
+## 🎨 S16 — Full-app design audit, 2026-08-31 ("does this read as designed?")
+
+**Method:** 96 device screenshots (the 08-29/30 regression sweep + a purpose-built
+capture flow in `apps/mobile/.maestro/capture/`, LG VS988, both themes, en+es)
+reviewed screen by screen, plus code audits (hex-outside-theme, radii vs tokens,
+fontWeight×custom-family, dingbat glyphs, number formatting). **Verdict: the
+foundation is strong** — token discipline, dual theme, no ink-on-ink failures,
+circles everywhere radii looked off-token. What reads as un-designed is drift,
+and most of it is below.
+
+### Fixed 2026-08-31 (unambiguous, shipped with this commit)
+- [x] Recalibration card printed unformatted numbers ("2691 kcal/day") beside a
+      comma-formatted hero; onboarding floor error and Trends activity-evidence
+      kcal had the same bug. All through `formatNumber` now.
+- [x] Text dingbats replaced with Ionicons (+ a11y labels where the guard
+      demanded): `✕` (EntrySheet ×2, MealText, RecipeBuilder, train set-delete),
+      `⚠` (MealText warnings), `✓/✗` (WatchDiagnosticsCard, train done-check),
+      `★`/`＋` prefixes baked into `entry.savePreset`/`entry.saveMyFood` in all
+      three locales.
+- [x] Serving rows could read "126 g (126 g)" — `buildFoodDetail` now drops the
+      parenthetical when the portion label is itself a gram amount (core).
+
+### Judgment calls — owner to rule on each (none applied)
+- [ ] **S16-1 · Light theme: `accent` (#c62f27) and `danger` (#dc2626) are
+      nearly the same red.** Additive actions (+ Add set, + Add ingredient,
+      Save as preset) and destructive ones (REMOVE, Discard, delete ✕) are
+      visually one family; the Train live logger shows red doing five jobs at
+      once. Dark theme doesn't collide (orange vs red). Cheapest real fix:
+      move additive/utility text-actions to `teal` (the designated secondary
+      interactive) in light, keep coral for primary CTAs and destructive red.
+- [ ] **S16-2 · What's-new banner is a 13-line paragraph** on the app's front
+      door, every release. Cap the copy at 2–3 sentences (the changelog voice
+      belongs in a changelog). Both recent banners exceed it.
+- [ ] **S16-3 · History day detail renders two "+" FABs** — the black
+      add-to-this-day (bottom right) beside the coral global add-to-today
+      (bottom center). Suppress the global dial on that screen or merge them.
+- [ ] **S16-4 · History calendar dots (red/teal) have no legend.**
+- [ ] **S16-5 · Case drift in Train:** `+ Add set` (sentence) vs
+      `PLATES & WARM-UP` / `REMOVE` (caps) in one card; live logger columns
+      `LB REPS LEFT` vs template editor `lb reps`.
+- [ ] **S16-6 · Today→Trends habit shortcut lands at the TOP of Trends** —
+      the face is preselected but the Habits strip is below the fold, so the
+      user must scroll to see what they tapped for. Consider auto-scrolling.
+- [ ] **S16-7 · Sheet dismiss idiom varies:** manual entry = back chevron +
+      centered title; MealText = bold "Cancel" top-LEFT; recipe calculator /
+      import = "Cancel" top-RIGHT. Pick one.
+- [ ] **S16-8 · Body measurement rows say "W 33.3 · N 15.5 · Ch 41.2"** —
+      single-letter codes nothing on screen expands.
+- [ ] **S16-9 · Search results eyebrow "LAB TESTED"** is raw USDA dataType
+      speak; "USDA · lab" or plain "USDA" reads designed.
+- [ ] **S16-10 · Native Alert dialogs** (save-preset confirm, preset alerts)
+      break the brand mid-flow (system font, teal buttons). A branded confirm
+      sheet is the fix, but it's real scope — not a quick thing.
+- [ ] **S16-11 · es-PR names the same thing "preajuste" and "preset"** in
+      adjacent strings.
+- [ ] **S16-12 · Scan intro says "the AI estimates…"** — generic-AI wording in
+      an app fighting an AI-slop impression; "Ignia estimates…" is the brand.
+
+---
+
 ## 5. Notes for future additions
 
 - When adding a new surface, check it against: (a) does copy work for a first-time user; (b) is every icon-only button labelled; (c) does it announce state changes via `aria-live`.

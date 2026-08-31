@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
@@ -143,8 +144,8 @@ export function RecipeBuilder({ onApply, onCancel }: Props) {
               value={ing.protein}
               onChangeText={(v) => setIng(i, 'protein', v)}
             />
-            <TouchableOpacity style={styles.colDel} onPress={() => removeIng(i)} hitSlop={6}>
-              <Text style={styles.del}>✕</Text>
+            <TouchableOpacity style={styles.colDel} onPress={() => removeIng(i)} hitSlop={6} accessibilityLabel={t('common.remove')}>
+              <Ionicons name="close" size={font.small + 2} color={colors.danger} />
             </TouchableOpacity>
           </View>
         ))}

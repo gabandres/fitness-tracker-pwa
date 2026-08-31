@@ -621,7 +621,7 @@ export default function Onboarding() {
               </Text>
               {edited && !kcalCheck.ok && kcalCheck.issue?.kind === 'belowFloor' ? (
                 <Text style={styles.error} testID="onboarding-kcal-error">
-                  {t('targets.errBelowFloor', { n: kcalCheck.issue.floor })}
+                  {t('targets.errBelowFloor', { n: formatNumber(kcalCheck.issue.floor, locale) })}
                 </Text>
               ) : null}
             </View>

@@ -94,7 +94,7 @@ import { CountUpText, enterUp, smoothLayout, usePulse } from '@/lib/motion';
 import { recordPositiveMoment } from '@/lib/reviewPrompt';
 import { useDeferredFocus } from '@/lib/use-deferred-focus';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
-import { space } from '@/theme';
+import { font, space } from '@/theme';
 import { formatDate } from '@/lib/date-format';
 
 /** The 0–5 RIR scale, spelled out one option per value. Derived from the
@@ -1226,6 +1226,7 @@ function SetRow({
 
       <TouchableOpacity
         style={[styles.setDoneCell, styles.doneBox, set.done && styles.doneBoxOn]}
+        accessibilityLabel={t('common.done')}
         onPress={() => {
           haptics.tap();
           const nowDone = !set.done;
@@ -1255,11 +1256,16 @@ function SetRow({
         }}
         testID={`set-done-${exerciseIndex}-${setIndex}`}
       >
-        <Text style={[styles.doneCheck, set.done && styles.doneCheckOn]}>✓</Text>
+        <Ionicons name="checkmark" size={font.small + 2} style={[styles.doneCheck, set.done && styles.doneCheckOn]} />
       </TouchableOpacity>
 
-      <TouchableOpacity onPress={() => train.dispatch({ type: 'removeSet', exerciseIndex, setIndex })} hitSlop={6} style={styles.setDel}>
-        <Text style={styles.setDelText}>✕</Text>
+      <TouchableOpacity
+        onPress={() => train.dispatch({ type: 'removeSet', exerciseIndex, setIndex })}
+        hitSlop={6}
+        style={styles.setDel}
+        accessibilityLabel={t('train.removeSet')}
+      >
+        <Ionicons name="close" size={font.small + 2} style={styles.setDelText} />
       </TouchableOpacity>
     </View>
 

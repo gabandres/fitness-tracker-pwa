@@ -419,7 +419,11 @@ export function EntrySheet({
                 }
               >
                 <Text style={styles.presetName} numberOfLines={1}>{p.name}</Text>
-                <Text style={styles.presetKcal}>{manage ? '✕' : p.calories}</Text>
+                {manage ? (
+                  <Ionicons name="close" size={font.tiny + 2} color={colors.onInk} style={{ opacity: 0.7 }} />
+                ) : (
+                  <Text style={styles.presetKcal}>{p.calories}</Text>
+                )}
               </TouchableOpacity>
             ))}
           </View>
@@ -448,7 +452,11 @@ export function EntrySheet({
             >
               <Text style={styles.rowName} numberOfLines={1}>{row.name}</Text>
               {row.tag ? <Text style={styles.rowTag}>{row.tag}</Text> : null}
-              {manage && row.onRemove ? <Text style={styles.rowRemove}>✕</Text> : <Text style={styles.rowKcal}>{row.kcal}</Text>}
+              {manage && row.onRemove ? (
+                <Ionicons name="close" size={font.body} color={colors.danger} />
+              ) : (
+                <Text style={styles.rowKcal}>{row.kcal}</Text>
+              )}
             </TouchableOpacity>
           ))}
         </View>
@@ -657,12 +665,14 @@ export function EntrySheet({
 
                   {canSavePreset ? (
                     <TouchableOpacity style={styles.savePreset} onPress={saveAsPreset} testID="save-preset">
+                      <Ionicons name="star-outline" size={font.small} color={colors.accent} />
                       <Text style={styles.savePresetText}>{t('entry.savePreset')}</Text>
                     </TouchableOpacity>
                   ) : null}
 
                   {canSaveCustomFood ? (
                     <TouchableOpacity style={styles.savePreset} onPress={saveAsCustomFood} testID="save-customfood">
+                      <Ionicons name="add" size={font.small + 2} color={colors.accent} />
                       <Text style={styles.savePresetText}>{t('entry.saveMyFood')}</Text>
                     </TouchableOpacity>
                   ) : null}
@@ -843,7 +853,7 @@ const createStyles = ({ scheme, colors, shadow }: Theme) => StyleSheet.create({
   chipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
   chipText: { fontSize: font.small, color: colors.muted, textTransform: 'capitalize' },
   chipTextOn: { color: colors.onInk },
-  savePreset: { alignSelf: 'flex-start', paddingVertical: space.xs },
+  savePreset: { alignSelf: 'flex-start', paddingVertical: space.xs, flexDirection: 'row', alignItems: 'center', gap: space.xs },
   savePresetText: { fontSize: font.small, color: colors.accent, fontWeight: '700' },
   dateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.md },
   dateStep: { width: 40, height: 40, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },

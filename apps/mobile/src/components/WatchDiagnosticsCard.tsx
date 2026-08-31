@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Application from 'expo-application';
 import {
   isComplicationEnabled,
@@ -121,7 +122,11 @@ function Row({
   return (
     <View style={styles.rowBetween}>
       <Text style={styles.rowLabel}>{label}</Text>
-      <Text style={[styles.rowValue, ok ? styles.yes : styles.no]}>{ok ? '✓' : '✗'}</Text>
+      <Ionicons
+        name={ok ? 'checkmark' : 'close'}
+        size={font.small + 2}
+        color={ok ? styles.yes.color : styles.no.color}
+      />
     </View>
   );
 }

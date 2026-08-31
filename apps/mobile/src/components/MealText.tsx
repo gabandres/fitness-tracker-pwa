@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
   ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import {
   type LogEntry, type ParsedFoodItem,
   parseMealDraft, parseMealUtterance,
@@ -200,14 +201,15 @@ export function MealText({ forDate, onAddMany, onCancel, seedText }: Props) {
                   ) : null}
                   {row.servingLabel ? <Text style={styles.cardSub}>{row.servingLabel}</Text> : null}
                 </View>
-                <TouchableOpacity onPress={() => removeRow(i)} hitSlop={8}>
-                  <Text style={styles.remove}>✕</Text>
+                <TouchableOpacity onPress={() => removeRow(i)} hitSlop={8} accessibilityLabel={t('common.remove')}>
+                  <Ionicons name="close" size={font.body} color={colors.muted} />
                 </TouchableOpacity>
               </View>
-              {row.assumed ? (
-                <Text style={styles.warn}>⚠ {t('mealText.assumed')}</Text>
-              ) : !row.matched ? (
-                <Text style={styles.warn}>⚠ {t('mealText.noMatch')}</Text>
+              {row.assumed || !row.matched ? (
+                <View style={styles.warnRow}>
+                  <Ionicons name="alert-circle-outline" size={font.small} color={colors.danger} />
+                  <Text style={styles.warn}>{t(row.assumed ? 'mealText.assumed' : 'mealText.noMatch')}</Text>
+                </View>
               ) : null}
               <View style={styles.macroRow}>
                 <MacroField label="kcal" value={row.calories} onChange={(v) => editRow(i, 'calories', v)} />
@@ -313,7 +315,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   cardTitle: { fontSize: font.body, color: colors.ink, fontWeight: '700', textTransform: 'capitalize' },
   read: { fontSize: font.tiny, color: colors.muted, fontStyle: 'italic', marginTop: 2 },
   cardSub: { fontSize: font.tiny, color: colors.muted, marginTop: 2 },
-  remove: { fontSize: font.body, color: colors.muted, fontWeight: '700' },
+  warnRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   warn: { fontSize: font.tiny, color: colors.danger, fontWeight: '600' },
   macroRow: { flexDirection: 'row', gap: space.sm, marginTop: space.xs },
   macroField: { flex: 1, gap: 2 },

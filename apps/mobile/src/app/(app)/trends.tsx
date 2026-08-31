@@ -225,7 +225,7 @@ export default function Trends() {
                 {evidence ? (
                   <Text style={styles.correctionEvidence} testID="activity-correction-evidence">
                     {t('trends.activityCorrectionEvidence', {
-                      kcal: String(evidence.meanActiveKcal),
+                      kcal: formatNumber(evidence.meanActiveKcal, locale),
                       steps: formatNumber(evidence.meanSteps, locale),
                       days: String(evidence.usableDays),
                       window: String(evidence.windowDays),

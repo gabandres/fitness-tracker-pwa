@@ -1,6 +1,7 @@
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import type { RecalibrationTrend } from '@macrolog/core';
-import { type I18nKey, useT } from '@/i18n';
+import { type I18nKey, useLocale, useT } from '@/i18n';
+import { formatNumber } from '@/lib/date-format';
 import * as haptics from '@/lib/haptics';
 import { useRecalibration } from '@/hooks/useRecalibration';
 import { useThemedStyles, type Theme } from '@/lib/theme-context';
@@ -29,6 +30,7 @@ export function useRecalibrationVisible(): boolean {
 
 export function RecalibrationCard({ suppressed = false }: { suppressed?: boolean }) {
   const t = useT();
+  const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { digest, acknowledge } = useRecalibration();
 
@@ -38,7 +40,10 @@ export function RecalibrationCard({ suppressed = false }: { suppressed?: boolean
     <View style={styles.card} testID="recalibration-card">
       <Text style={styles.title}>{t('recalibration.cardTitle')}</Text>
       <Text style={styles.body}>
-        {t('recalibration.cardBody', { tdee: digest.trueTdee, target: digest.calorieTarget })}
+        {t('recalibration.cardBody', {
+          tdee: formatNumber(digest.trueTdee, locale),
+          target: formatNumber(digest.calorieTarget, locale),
+        })}
       </Text>
       <Text style={styles.trend}>{t(TREND_KEY[digest.trend])}</Text>
       <TouchableOpacity

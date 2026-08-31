@@ -1,0 +1,22 @@
+# Remainder of the audit capture — the four screens flow 1 didn't reach,
+# via route deep links (the ignia:// scheme resolves expo-router routes).
+appId: fit.ignia.app
+---
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    notVisible:
+      id: 'brand-loader'
+    timeout: 15000
+- assertVisible: 'Today'
+- openLink: 'ignia://milestones'
+- takeScreenshot: .maestro/capture/shots/g7-milestones
+- openLink: 'ignia://feedback'
+- takeScreenshot: .maestro/capture/shots/g8-feedback
+- openLink: 'ignia://connected-apps'
+- takeScreenshot: .maestro/capture/shots/g9-connected-apps
+- openLink: 'ignia://coach'
+- takeScreenshot: .maestro/capture/shots/g10-coach
+- launchApp:
+    clearState: false
+- assertVisible: 'Today'

@@ -475,9 +475,13 @@ export function buildFoodDetail(food: IndexedFood): FoodDetail {
 
   for (const p of food.portions) {
     if (!(p.grams > 0)) continue;
+    // A portion whose label is itself a gram amount ("126 g") would render as
+    // "126 g (126 g)" — drop the redundant parenthetical for those rows.
+    const gramsLabel = `${Math.round(p.grams)} g`;
+    const labelIsGrams = /^\s*\d+(\.\d+)?\s*g\s*$/i.test(p.label);
     servings.push({
       ...at(p.grams / 100),
-      label: `${p.label} (${Math.round(p.grams)} g)`.slice(0, 80),
+      label: (labelIsGrams ? gramsLabel : `${p.label} (${gramsLabel})`).slice(0, 80),
       grams: p.grams,
     });
   }

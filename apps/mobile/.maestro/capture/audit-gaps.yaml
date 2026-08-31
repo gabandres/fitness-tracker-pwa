@@ -1,0 +1,131 @@
+# One-off capture for the 2026-08-31 design audit — screens the regression
+# suite does not screenshot: the OTA 95 habit chips, the three Trends habit
+# faces, the FastSheet, and the five Settings-reached screens. Light theme, en.
+# Read-only: no writes, no theme/locale changes, no teardown needed.
+appId: fit.ignia.app
+---
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    notVisible:
+      id: 'brand-loader'
+    timeout: 15000
+- assertVisible: 'Today'
+# ── Today habit rows with the OTA 95 identity chips ──
+- scrollUntilVisible:
+    element:
+      id: 'metric-trends-sleep'
+    direction: DOWN
+    timeout: 20000
+    centerElement: true
+- takeScreenshot: .maestro/capture/shots/g1-today-habits
+# ── the three Trends habit faces, via the new chips ──
+- tapOn:
+    id: 'metric-trends-sleep'
+- takeScreenshot: .maestro/capture/shots/g2-trends-sleep
+- tapOn: 'Today'
+- scrollUntilVisible:
+    element:
+      id: 'metric-trends-fasting'
+    direction: DOWN
+    timeout: 20000
+    centerElement: true
+- tapOn:
+    id: 'metric-trends-fasting'
+- takeScreenshot: .maestro/capture/shots/g3-trends-fasting
+- tapOn: 'Today'
+- scrollUntilVisible:
+    element:
+      id: 'metric-trends-water'
+    direction: DOWN
+    timeout: 20000
+    centerElement: true
+- tapOn:
+    id: 'metric-trends-water'
+- takeScreenshot: .maestro/capture/shots/g4-trends-water
+- tapOn: 'Today'
+# ── FastSheet (tap the fasting row) ──
+- scrollUntilVisible:
+    element:
+      id: 'fast-open'
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: 'fast-open'
+- takeScreenshot: .maestro/capture/shots/g5-fast-sheet
+# reset cleanly rather than hunting a cancel control
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    notVisible:
+      id: 'brand-loader'
+    timeout: 15000
+- assertVisible: 'Today'
+# ── into Settings (splash-proof gate, same pattern as flow 10) ──
+- repeat:
+    times: 8
+    while:
+      notVisible:
+        id: 'settings-back'
+    commands:
+      - tapOn:
+          id: 'settings-open'
+          optional: true
+- assertVisible:
+    id: 'settings-back'
+# ── Daily targets ──
+- scrollUntilVisible:
+    element:
+      id: 'settings-daily-targets'
+    direction: DOWN
+    timeout: 60000
+    centerElement: true
+- tapOn:
+    id: 'settings-daily-targets'
+- takeScreenshot: .maestro/capture/shots/g6-daily-targets
+- back
+# ── Milestones ──
+- scrollUntilVisible:
+    element:
+      id: 'settings-milestones'
+    direction: DOWN
+    timeout: 60000
+    centerElement: true
+- tapOn:
+    id: 'settings-milestones'
+- takeScreenshot: .maestro/capture/shots/g7-milestones
+- back
+# ── Feedback ──
+- scrollUntilVisible:
+    element:
+      id: 'settings-feedback'
+    direction: DOWN
+    timeout: 60000
+    centerElement: true
+- tapOn:
+    id: 'settings-feedback'
+- takeScreenshot: .maestro/capture/shots/g8-feedback
+- back
+# ── Connected apps ──
+- scrollUntilVisible:
+    element:
+      id: 'settings-connected-apps'
+    direction: DOWN
+    timeout: 60000
+    centerElement: true
+- tapOn:
+    id: 'settings-connected-apps'
+- takeScreenshot: .maestro/capture/shots/g9-connected-apps
+- back
+- tapOn:
+    id: 'settings-back'
+# ── Coach, via its route deep link ──
+- openLink: 'ignia://coach'
+- extendedWaitUntil:
+    visible:
+      text: 'Coach'
+    timeout: 15000
+- takeScreenshot: .maestro/capture/shots/g10-coach
+- launchApp:
+    clearState: false
+- assertVisible: 'Today'
