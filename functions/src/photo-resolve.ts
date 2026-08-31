@@ -554,11 +554,16 @@ function identityStems(food: IndexedFood): Set<string> {
  * which is why it is threaded through `accept` rather than bolted onto the
  * shortening loop.
  *
- * It deliberately does NOT try to fix the other family — a right genus that
- * acquires a qualifier nobody asked for (`black coffee` -> `Coffee, Cuban`,
- * `greek yogurt` -> `Yogurt, Greek, plain, WHOLE MILK`, `bacon` -> `Bacon,
- * TURKEY`). Those need the ranker retuned against the real dataset, which is a
- * dedicated sitting; this one is a filter with a measured blast radius.
+ * It deliberately did NOT try to fix the other family — a right genus that
+ * acquires a qualifier nobody asked for. **That family is now CLOSED, and the
+ * diagnosis in this sentence was wrong twice over.** It said those cases "need
+ * the ranker retuned"; measured 2026-08-31, they needed no retuning at all.
+ * Every `Coffee, X` row clears {@link leadingSegmentsCover}, so the base score
+ * is SATURATED and the sole remaining term is `usda-db`'s brevity reward —
+ * `Coffee, Cuban` led `Coffee, brewed` by 0.333 points, one character of
+ * description length. No weight on that term orders them correctly. What was
+ * missing was a SIGNAL, not a weight. See {@link varietyPenalty},
+ * {@link unspecifiedBonus} and {@link skinPenalty} below.
  *
  * ## Measured, over an 80-phrase corpus spanning single tokens, compounds,
  * connectives and branded front-of-pack text
@@ -601,6 +606,134 @@ function runs(tokens: string[], len: number): string[][] {
   const out: string[][] = [];
   for (let i = 0; i + len <= tokens.length; i++) out.push(tokens.slice(i, i + len));
   return out;
+}
+
+/**
+ * A named VARIETY the query never asked for.
+ *
+ * ## Why brevity was making this decision, and why that is not a tuning problem
+ *
+ * Measured 2026-08-31 against the real dataset. Every `Coffee, X` row clears
+ * {@link leadingSegmentsCover} for the query `coffee`, so all of them take the
+ * same +200 and the same token scores — the base is **saturated**. The only
+ * term left that separates them is `usda-db`'s brevity reward,
+ * `max(0, 70 - desc.length) / 3`, and the ranking that falls out is:
+ *
+ *     Coffee, Cuban    251        <- winner, 13 characters
+ *     Coffee, Latte    251
+ *     Coffee, brewed   250.667    <- the right answer, 14 characters
+ *
+ * One character of description length is the entire decision. That is not a
+ * weight to retune: `Cuban` is genuinely shorter than `brewed`, so no setting
+ * of the brevity term orders these correctly. The ranker had **no signal at
+ * all** for "this row names a variety nobody asked for", and length was
+ * standing in for one.
+ *
+ * USDA's own capitalisation is that signal. A descriptor list is written in
+ * sentence case, so a capitalised word *after the first* is a proper noun — a
+ * nationality, a style, a cultivar: `Coffee, Cuban`, `Coffee, Turkish`,
+ * `Yogurt, Greek, ...`, `Cheese, Swiss`. Lower-case qualifiers describe the
+ * form the food is in (`brewed`, `plain`, `cooked`) and are left alone.
+ *
+ * Waived for anything the query itself said, exactly like the PROCESSED and
+ * PRODUCT penalties — `greek yogurt` must still reach the Greek row. That
+ * waiver is what makes the penalty safe to apply broadly: it can only ever fire
+ * on a word the user did not use.
+ *
+ * ALL-CAPS runs are not this. Those are brands and {@link looksBranded} already
+ * owns them at a heavier weight; `NOT_A_BRAND` exists because USDA's own
+ * boilerplate shouts. This is the Title-case case, which nothing covered.
+ *
+ * **A penalty, never a filter.** The first attempt at the analogue guard was a
+ * filter and made `bacon` resolve to nothing at all. A demotion cannot empty
+ * the candidate set, so the worst case here is the ordering it started with.
+ */
+/**
+ * Deliberately SMALL, and the size is the finding rather than a knob.
+ *
+ * This penalty exists to break ties that description length was deciding, and
+ * those ties are fractions of a point — `Coffee, Cuban` led `Coffee, brewed` by
+ * 0.333. So it only has to outweigh the brevity term's granularity, not the
+ * ranker's real signals: `stateBonus` is ±30, `productPenalty` 40 per hit,
+ * `VAGUE_MARKERS` 25.
+ *
+ * **Measured at 25 first, and it broke a food it had no business touching:**
+ * `walnuts` fell off `Nuts, walnuts, English, halves, raw` onto `Walnuts, honey
+ * roasted`. `English` is a cultivar name — the default walnut, not an unwanted
+ * variety — and at 25 the penalty overrode the raw-state preference and landed
+ * on a sugared row. At 5 the same corpus keeps every intended change and that
+ * regression is gone.
+ *
+ * The lesson generalises: a tie-breaker sized like a real signal stops being a
+ * tie-breaker and starts overruling evidence.
+ */
+const VARIETY_PENALTY = 5;
+
+const TITLECASE_VARIETY = /\b[A-Z][a-z]{2,}\b/g;
+
+function varietyPenalty(food: IndexedFood, said: Set<string>): number {
+  // Drop the leading word: sentence case capitalises it whatever it is, so it
+  // carries no signal — "Bacon, turkey" must not be read as a proper noun.
+  const space = food.desc.indexOf(" ");
+  if (space < 0) return 0;
+  let penalty = 0;
+  for (const hit of food.desc.slice(space + 1).match(TITLECASE_VARIETY) ?? []) {
+    if (!said.has(hit.toLowerCase())) penalty += VARIETY_PENALTY;
+  }
+  return penalty;
+}
+
+/**
+ * USDA's explicitly-unspecified rows are the RIGHT answer to a bare phrase, and
+ * `scoreFood` penalises them.
+ *
+ * `VAGUE_MARKERS` docks `ns as to`/`nfs` 25 points, which is correct for
+ * typeahead — someone typing "bacon" is choosing from a list and a row reading
+ * *NS as to type of meat* is a poor thing to offer them. In photo context the
+ * same row is exactly what is wanted: the model said `bacon` and named no
+ * animal, so the unspecified-type average is the honest match.
+ *
+ * Measured, this is a sub-point decision that the vague penalty loses outright:
+ *
+ *     Beef, bacon, cooked                     219.0    <- winner
+ *     Bacon, NS as to type of meat, cooked    218.333  <- the right answer
+ *
+ * The gap is 0.667. The row is dragged 25 points below where it would otherwise
+ * sit, and still comes within a point — so cancelling the penalty, rather than
+ * adding a bonus on top of it, is the whole correction.
+ *
+ * Deliberately does NOT cancel the `skin (not )?eaten` half of `VAGUE_MARKERS`.
+ * That clause is not vagueness about which food this is; it is a real fact
+ * about the row's fat content, and unasked-for skin is handled below.
+ */
+const UNSPECIFIED_MARKERS = /\b(nfs|ns as to|not further specified|not specified)\b/;
+
+function unspecifiedBonus(food: IndexedFood): number {
+  return UNSPECIFIED_MARKERS.test(food.norm) ? 25 : 0;
+}
+
+/**
+ * Skin nobody mentioned.
+ *
+ * USDA writes these rows as matched PAIRS — `Chicken breast, grilled without
+ * sauce, skin eaten` and `...skin not eaten` both exist, for every cooking
+ * method. `VAGUE_MARKERS` docks both 25 points equally, so the pair is separated
+ * only by the four characters of `not `, and brevity hands it to `skin eaten`
+ * every time. That is how `grilled chicken breast` resolved to the skin-on row.
+ *
+ * The cost is one-directional, which is why the correction is too: eating the
+ * skin roughly doubles the fat on a breast, and the phrase that reached here
+ * said nothing about skin. Waived when the query does mention it — "chicken
+ * with the skin on" should reach the row it describes.
+ *
+ * Sized like {@link VARIETY_PENALTY} and for the same reason: the gap being
+ * corrected is 1.33 points of description length, not a real signal.
+ */
+const SKIN_EATEN = /\bskin eaten\b/;
+
+function skinPenalty(food: IndexedFood, said: Set<string>): number {
+  if (said.has("skin")) return 0;
+  return SKIN_EATEN.test(food.norm) ? VARIETY_PENALTY : 0;
 }
 
 /** Demote convenience products and branded menu items. See PRODUCT_QUALIFIERS. */
@@ -711,7 +844,13 @@ function pickBest(
     });
     if (base === null) continue;
     const score =
-      base + prepBonus(food.norm, prep) + stateBonus(food.norm, state) - productPenalty(food, said);
+      base +
+      prepBonus(food.norm, prep) +
+      stateBonus(food.norm, state) +
+      unspecifiedBonus(food) -
+      productPenalty(food, said) -
+      varietyPenalty(food, said) -
+      skinPenalty(food, said);
     if (
       !best ||
       score > best.score ||

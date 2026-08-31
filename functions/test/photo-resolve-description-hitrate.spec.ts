@@ -44,11 +44,29 @@ import { resolvePhrase } from "../src/photo-resolve";
  * applied to every pass. Measured over an 80-phrase corpus: 4 changes, 0
  * regressions.
  *
- * What is still NOT fixed is the other family, and it is the one that needs the
- * ranker retuned rather than filtered: a correct genus that acquires a
- * qualifier nobody asked for. `black coffee` -> `Coffee, CUBAN`, `greek yogurt`
- * -> `Yogurt, Greek, plain, WHOLE MILK`, `bacon` -> `Bacon, TURKEY`,
- * `grilled chicken breast` -> `Chicken breast, rotisserie, SKIN EATEN`.
+ * **The other family is now FIXED TOO, 2026-08-31 — and this comment's second
+ * diagnosis was as wrong as its first.** It called for "the ranker retuned
+ * rather than filtered". Measured against the real dataset, nothing needed
+ * retuning: every `Coffee, X` row clears `leadingSegmentsCover`, so the base
+ * score is SATURATED and the only term still separating candidates is
+ * `usda-db`'s brevity reward. `Coffee, Cuban` (13 chars) led `Coffee, brewed`
+ * (14) by 0.333 points. No weight on that term fixes it, because `Cuban`
+ * genuinely is shorter — the ranker had no signal for "this row names a variety
+ * the query did not ask for", and length was standing in for one.
+ *
+ * Three signals now supply it, all in `photo-resolve.ts` and all penalties or
+ * bonuses rather than filters: an unasked-for Title-case qualifier (USDA's
+ * proper-noun marker) costs 5; the `nfs`/`ns as to` vagueness penalty is
+ * cancelled in photo context, where the unspecified-type average is the honest
+ * match; and `skin eaten` costs 5 when the phrase never mentioned skin.
+ * 117-phrase corpus: 21 changes, 0 regressions. `bacon` now returns `Bacon, NS
+ * as to type of meat, cooked` instead of `Beef, bacon, cooked`.
+ *
+ * One deliberate NON-change: `greek yogurt` still returns `...whole milk`. The
+ * nonfat row loses on `productPenalty`, which docks `nonfat` 40 — the same
+ * penalty that keeps `grilled chicken breast` off `oven-roasted, fat-free,
+ * sliced`. Whole milk errs high on calories and is defensible; reopening that
+ * penalty to change it is not.
  *
  * Consequence for #76: a description field must NOT auto-apply macros from
  * this resolver. Either give the resolver an abstain result, or keep the

@@ -1,5 +1,56 @@
 # Changelog
 
+## 2026-08-31 — The last photo-resolver mis-match family, and it was a missing signal rather than a mis-tuned one
+
+**`analyzePhoto`'s "right food, wrong variety" family is closed (#76).** A bare
+`bacon` returned `Beef, bacon, cooked`; `taco` returned `Taco, fish`;
+`cheeseburger` returned `Cheeseburger, from school cafeteria`; `steak` returned
+`Beef, steak, country fried`; `coffee` returned `Coffee, Cuban`; `grilled
+chicken breast` returned the `skin eaten` row, which roughly doubles the fat.
+
+**The diagnosis on record was wrong, twice, and the correction is the useful
+part.** Both the module header and the #76 spec header said these cases needed
+"the ranker retuned against the real dataset". Measured, nothing needed
+retuning. Every `Coffee, X` row clears `leadingSegmentsCover` for the query
+`coffee`, so the base score is *saturated* — identical token scores, identical
++200 — and the only term left separating candidates is `usda-db`'s brevity
+reward, `max(0, 70 - desc.length) / 3`. `Coffee, Cuban` (13 characters) led
+`Coffee, brewed` (14) by exactly 0.333 points. No weight on that term orders
+them correctly, because `Cuban` really is shorter. The ranker had **no signal at
+all** for "this row names a variety the query never asked for", and description
+length was standing in for one.
+
+Three signals now supply it, all in `photo-resolve.ts`, all **penalties or
+bonuses and never filters** — the first attempt at the analogue guard was a
+filter and made `bacon` resolve to nothing, so a demotion that cannot empty the
+candidate set is the shape this has to take. (1) A Title-case qualifier after
+the first word is USDA's proper-noun marker — a nationality, a style, a cultivar
+— and costs 5, waived for anything the query itself said. (2) `scoreFood` docks
+`nfs`/`ns as to` 25 for vagueness, which is right for a typeahead list and
+backwards for a photo: when the model named no variety, USDA's unspecified-type
+average is the honest match, so photo context cancels exactly that 25. (3) `skin
+eaten` costs 5 when the phrase never mentioned skin — USDA writes the pair
+`skin eaten`/`skin not eaten`, docks both 25, and separates them only by the
+four characters of `not `.
+
+**117-phrase corpus: 21 changes, 0 regressions.** `searchFoods` and
+`getFoodDetail` are untouched — `usda-db.ts` is unchanged and `analyzePhoto` is
+the only caller of this module, so the blast radius is one callable.
+
+**The sizing is the finding, and a regression proved it.** At 25 points the
+variety penalty overrode the raw-state preference and sent `walnuts` from `Nuts,
+walnuts, English, halves, raw` to `Walnuts, honey roasted` — `English` is the
+default cultivar, not an unwanted variety. At 5 every intended change survives
+and the regression is gone. A tie-breaker sized like a real signal stops being a
+tie-breaker and starts overruling evidence. Six tests pin the behaviour,
+walnuts included.
+
+**One deliberate non-change:** `greek yogurt` still returns `Yogurt, Greek,
+plain, whole milk`. The nonfat row outscores it and loses on `productPenalty`,
+which docks `nonfat` 40 — the same penalty that keeps `grilled chicken breast`
+off `oven-roasted, fat-free, sliced`. Whole milk errs high on calories and is
+defensible; reopening that penalty to change it is not.
+
 ## 2026-08-31 — An overnight batch: a user's idea shipped same-day, the push slice, screenshots, and the SEO graph
 
 **Habit identity colors + Today→Trends shortcuts (iOS OTA 59, live).** A user

@@ -416,6 +416,89 @@ describe("resolvePhrase does not return a food the phrase never asked for", () =
     }
   });
 
+  /**
+   * The LAST family in the #76 header: a correct genus that acquires a
+   * qualifier nobody asked for. Measured and fixed 2026-08-31.
+   *
+   * These were never ranking near-misses in the usual sense. Every `Coffee, X`
+   * row clears `leadingSegmentsCover` for `coffee`, so the base score is
+   * SATURATED and the only term left is `usda-db`'s brevity reward — which
+   * ordered `Coffee, Cuban` (13 chars) above `Coffee, brewed` (14) by exactly
+   * 0.333 points. No weight on that term fixes it, because `Cuban` really is
+   * shorter. What was missing was any signal for "this row names a variety the
+   * query did not ask for".
+   *
+   * Three signals now supply it, all in `photo-resolve.ts`, all PENALTIES OR
+   * BONUSES AND NEVER FILTERS — the first attempt at the analogue guard was a
+   * filter and made `bacon` resolve to nothing, so a demotion that cannot empty
+   * the candidate set is the shape this has to take.
+   */
+  it("prefers the plain form over an unasked-for named variety", () => {
+    // Title case after the first word is USDA's proper-noun marker: a
+    // nationality, a style, a cultivar. Lower-case qualifiers describe form.
+    for (const phrase of ["coffee", "black coffee"]) {
+      const m = resolvePhrase(foods, phrase);
+      expect(m, phrase).not.toBeNull();
+      expect(m!.desc, phrase).not.toMatch(/Cuban|Turkish|Latte/);
+    }
+  });
+
+  it("still reaches a named variety when the phrase names it", () => {
+    // The waiver is what makes the penalty safe to apply broadly.
+    expect(resolvePhrase(foods, "greek yogurt")?.desc).toMatch(/Greek/i);
+    expect(resolvePhrase(foods, "cuban coffee")?.desc).toMatch(/Cuban/i);
+  });
+
+  /**
+   * Sizing regression. At 25 points the variety penalty overrode the raw-state
+   * preference and sent `walnuts` from `Nuts, walnuts, English, halves, raw` to
+   * `Walnuts, honey roasted` — `English` is the default cultivar, not an
+   * unwanted variety. It is 5 points for this reason: a tie-breaker sized like
+   * a real signal stops being a tie-breaker and starts overruling evidence.
+   */
+  it("does not let the variety penalty override the state preference", () => {
+    const m = resolvePhrase(foods, "walnuts", "raw");
+    expect(m).not.toBeNull();
+    expect(m!.desc.toLowerCase()).not.toMatch(/honey roasted|candied/);
+  });
+
+  /**
+   * USDA's explicitly-unspecified rows are the RIGHT answer to a bare phrase,
+   * and `scoreFood` docks them 25 for vagueness — correct for a typeahead list,
+   * backwards for a photo. `Beef, bacon, cooked` (219) was beating `Bacon, NS as
+   * to type of meat, cooked` (218.333) on that penalty alone. The model said
+   * "bacon" and named no animal; the unspecified-type average is the honest
+   * match, and returning BEEF bacon for a photo of pork bacon is not.
+   */
+  it("prefers USDA's unspecified-type row over an arbitrary specific one", () => {
+    const bacon = resolvePhrase(foods, "bacon", "cooked");
+    expect(bacon).not.toBeNull();
+    expect(bacon!.desc.toLowerCase()).not.toMatch(/^beef/);
+
+    // Same mechanism, and these were the worst of the measured set: a bare
+    // "taco" returned `Taco, fish` and "cheeseburger" returned `Cheeseburger,
+    // from school cafeteria`.
+    expect(resolvePhrase(foods, "taco", "cooked")?.desc.toLowerCase()).not.toContain("fish");
+    expect(resolvePhrase(foods, "cheeseburger", "cooked")?.desc.toLowerCase()).not.toContain(
+      "cafeteria",
+    );
+  });
+
+  /**
+   * USDA writes `skin eaten` / `skin not eaten` as matched pairs and
+   * `VAGUE_MARKERS` docks both 25, so the pair was separated only by the four
+   * characters of `not ` — brevity handed it to the skin-on row every time.
+   * Eating the skin roughly doubles the fat on a breast, and the phrase said
+   * nothing about skin.
+   */
+  it("does not add skin the phrase never mentioned", () => {
+    for (const phrase of ["grilled chicken breast", "chicken thigh"]) {
+      const m = resolvePhrase(foods, phrase, "cooked");
+      expect(m, phrase).not.toBeNull();
+      expect(m!.desc.toLowerCase(), phrase).not.toMatch(/(?<!not )skin eaten/);
+    }
+  });
+
   // ...but a phrase that ASKS for the analogue must still find it.
   it("still resolves analogues when the phrase asks for one", () => {
     expect(resolvePhrase(foods, "veggie burger", "cooked")?.desc.toLowerCase()).toContain("veggie");
