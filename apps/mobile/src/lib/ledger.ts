@@ -1125,6 +1125,14 @@ export async function setPreferredLocale(uid: string, preferredLocale: string): 
   await updateDoc(userDoc(uid), { preferredLocale });
 }
 
+/** Expo push token for the silent OTA pre-download push (#114). Written by
+ *  `registerPushToken` once per session; pass null to clear it (the field is
+ *  deleted, matching the rules' "absent or string" shape). Client-writable in
+ *  `firestore.rules` — the device is the only party that knows its own token. */
+export async function setExpoPushToken(uid: string, token: string | null): Promise<void> {
+  await updateDoc(userDoc(uid), { expoPushToken: token == null ? deleteField() : token });
+}
+
 /** Opt in/out of the Sunday weekly recap email (sent server-side by a CF).
  *  Off by default; `lastWeeklyDigestSentAt` is server-stamped, never written
  *  by the client.

@@ -778,6 +778,63 @@ describe('firestore.rules', () => {
     await assertSucceeds(updateDoc(doc(db, 'users', 'alice'), { calorieFloor: 1950, lastSeenAt: Timestamp.now() }));
   });
 
+  // ─── expoPushToken (#114, silent OTA pre-download push) ─────────────────
+  // Unlike the latches above this one is CLIENT-writable: the device is the
+  // only party that knows its own Expo push token. It must also be clearable
+  // (null or delete) so disabling notifications can actually take effect.
+  it('lets the owner write, replace, and clear their expoPushToken', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users', 'alice'), fullProfile());
+    });
+    const db = authed('alice');
+    await assertSucceeds(
+      updateDoc(doc(db, 'users', 'alice'), {
+        expoPushToken: 'ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]',
+        lastSeenAt: Timestamp.now(),
+      }),
+    );
+    await assertSucceeds(
+      updateDoc(doc(db, 'users', 'alice'), {
+        expoPushToken: 'ExponentPushToken[yyyyyyyyyyyyyyyyyyyyyy]',
+        lastSeenAt: Timestamp.now(),
+      }),
+    );
+    await assertSucceeds(
+      updateDoc(doc(db, 'users', 'alice'), { expoPushToken: null, lastSeenAt: Timestamp.now() }),
+    );
+    await assertSucceeds(
+      updateDoc(doc(db, 'users', 'alice'), { expoPushToken: deleteField(), lastSeenAt: Timestamp.now() }),
+    );
+  });
+
+  it('accepts an expoPushToken on an INCOMPLETE profile too', async () => {
+    // Registration runs on auth-ready in the app shell, which can precede
+    // onboarding completing — so the initial-branch validator must list it.
+    const db = authed('alice');
+    await assertSucceeds(
+      setDoc(doc(db, 'users', 'alice'), {
+        ...baseProfile(),
+        expoPushToken: 'ExponentPushToken[zzzzzzzzzzzzzzzzzzzzzz]',
+      }),
+    );
+  });
+
+  it('rejects a malformed expoPushToken (wrong type, empty, oversized)', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users', 'alice'), fullProfile());
+    });
+    const db = authed('alice');
+    await assertFails(
+      updateDoc(doc(db, 'users', 'alice'), { expoPushToken: 12345, lastSeenAt: Timestamp.now() }),
+    );
+    await assertFails(
+      updateDoc(doc(db, 'users', 'alice'), { expoPushToken: '', lastSeenAt: Timestamp.now() }),
+    );
+    await assertFails(
+      updateDoc(doc(db, 'users', 'alice'), { expoPushToken: 'x'.repeat(301), lastSeenAt: Timestamp.now() }),
+    );
+  });
+
   it('lets a real-shaped profile save the Refine-targets sheet', async () => {
     // The heaviest legitimate profile write in the app: the Mifflin inputs,
     // the pace and the protein basis at once, on a fully populated account.

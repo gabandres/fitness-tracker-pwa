@@ -7,6 +7,7 @@ import { LogSpeedDial } from '@/components/LogSpeedDial';
 import { useT } from '@/i18n';
 import { useAuth } from '@/lib/auth';
 import { useAutoApplyOta } from '@/lib/app-update';
+import { useOtaPushListener, useRegisterPushToken } from '@/lib/push-token';
 import { loadTourSeen, shouldAutoOpenTour } from '@/lib/tour';
 import { useHealthAutoImport } from '@/lib/health-sync';
 import { useOuraAutoImport } from '@/lib/oura';
@@ -134,6 +135,11 @@ export default function AppTabsLayout() {
   // foreground for one that arrived mid-session. Mounted here rather than in
   // UpdateBanner so it does not depend on Today being the visible tab.
   useAutoApplyOta();
+  // Push-token registration + the silent OTA pre-download listener (#114).
+  // Both are inert on today's binaries (no FCM config / push entitlement /
+  // background modes) and silently no-op — see push-token.ts.
+  useRegisterPushToken(user?.uid);
+  useOtaPushListener();
   // One `app_open` per mount of the authed shell, which is once per cold start
   // — not per foreground. Counting foregrounds would make a user who checks
   // their rings at every red light look like ten users, and the question this

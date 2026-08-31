@@ -92,6 +92,30 @@ export function reloadScreenOptions(colors: ColorTokens): Updates.ReloadScreenOp
   };
 }
 
+/**
+ * Ask the update server whether a newer bundle exists and, if so, download it.
+ * Returns true when a bundle was fetched (a later reload will launch it).
+ *
+ * Swallows every failure — offline, or the update server unreachable. A failed
+ * check is not worth surfacing: the user did not ask for one, and the ON_LOAD
+ * check will try again on the next cold start.
+ *
+ * Shared by the foreground re-check in `useOtaUpdate` and by the silent
+ * OTA-push listener (`push-token.ts`, #114) so the fetch path exists exactly
+ * once.
+ */
+export async function checkAndFetchOta(): Promise<boolean> {
+  if (!canUpdate) return false;
+  try {
+    const result = await Updates.checkForUpdateAsync();
+    if (!result.isAvailable) return false;
+    await Updates.fetchUpdateAsync();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export interface OtaUpdateState {
   /** A new bundle is downloaded and waiting for a reload. */
   pending: boolean;
@@ -122,16 +146,8 @@ export function useOtaUpdate(): OtaUpdateState {
     let alive = true;
 
     const check = async () => {
-      try {
-        const result = await Updates.checkForUpdateAsync();
-        if (!result.isAvailable || !alive) return;
-        await Updates.fetchUpdateAsync();
-        if (alive) setForegroundPending(true);
-      } catch {
-        // Offline, or the update server is unreachable. A failed check is not
-        // worth surfacing — the user did not ask for one, and the ON_LOAD
-        // check will try again on the next cold start.
-      }
+      const fetched = await checkAndFetchOta();
+      if (fetched && alive) setForegroundPending(true);
     };
 
     const sub = AppState.addEventListener('change', (next: AppStateStatus) => {

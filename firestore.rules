@@ -147,12 +147,20 @@ service cloud.firestore {
               // full validator evaluations is what exceeded the
               // 1,000-expression budget. Listing it removes the fall-through
               // at its source rather than only making the fall-through cheaper.
-              'fastStartedAt'
+              'fastStartedAt',
+              // Expo push token for the silent OTA pre-download push (#114).
+              // CLIENT-writable — the device is the only thing that knows its
+              // own token — and clearable with null or a field delete.
+              'expoPushToken'
           ])
           && hasProfileBase(data)
           && data.profileCompleted == false
           && (!('fastStartedAt' in keys) ||
               data.fastStartedAt is timestamp || data.fastStartedAt == null)
+          && (!('expoPushToken' in keys) ||
+              data.expoPushToken == null ||
+              (data.expoPushToken is string && data.expoPushToken.size() > 0
+               && data.expoPushToken.size() <= 300))
           && (!('syntheticAccount' in keys) || data.syntheticAccount is bool)
           && (!('referredBy' in keys) ||
               (data.referredBy is string && data.referredBy.size() >= 20 && data.referredBy.size() <= 40))
@@ -429,6 +437,11 @@ service cloud.firestore {
               'targetPaceLbsPerWeek', 'goalWeightLbs',
               'travelMode', 'fastStartedAt', 'webhookApiKey',
               'fcmToken', 'reminderHour', 'timezoneOffsetMin',
+              // Expo push token (#114) — client-writable, unlike the latches
+              // below; cleared with null or a field delete. The server only
+              // ever reads it (adminAnnounceOta) or deletes it on a
+              // DeviceNotRegistered ticket.
+              'expoPushToken',
               'ageConfirmedAt', 'preferredLocale', 'welcomeEmailSentAt',
               // v2 2-question onboarding (Q10): heuristic targets +
               // goal direction + onboarding stamp.
@@ -556,6 +569,10 @@ service cloud.firestore {
               (data.webhookApiKey is string && data.webhookApiKey.size() == 36))
           && (!('fcmToken' in keys) ||
               (data.fcmToken is string && data.fcmToken.size() <= 300))
+          && (!('expoPushToken' in keys) ||
+              data.expoPushToken == null ||
+              (data.expoPushToken is string && data.expoPushToken.size() > 0
+               && data.expoPushToken.size() <= 300))
           && (!('reminderHour' in keys) ||
               (data.reminderHour is int && data.reminderHour >= 0 && data.reminderHour <= 23))
           && (!('timezoneOffsetMin' in keys) ||
