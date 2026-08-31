@@ -67,15 +67,29 @@ export default function Trends() {
   // changing value re-fires (the same contract as Today's `openAdd`).
   const scrollRef = useRef<ScrollView>(null);
   const habitsY = useRef(0);
+  const pendingHabitsScroll = useRef<string | null>(null);
   const { habits: habitsNonce } = useLocalSearchParams<{ habits?: string }>();
+  // Two-sided handshake, because the two arrival orders are both real
+  // (device-found 2026-08-31: a rAF-next-frame version scrolled to y=0 on a
+  // fresh mount — the param lands while `loading` still shows the spinner, so
+  // no ScrollView exists and no layout has happened):
+  //  - LIVE instance: the effect fires with the layout already measured → go.
+  //  - FRESH mount: park the nonce; the panel's onLayout completes it.
   useEffect(() => {
     if (!habitsNonce) return;
-    // Next frame: a fresh mount has not laid out yet when the param arrives.
-    const id = requestAnimationFrame(() => {
-      scrollRef.current?.scrollTo({ y: habitsY.current, animated: true });
-    });
-    return () => cancelAnimationFrame(id);
+    pendingHabitsScroll.current = habitsNonce;
+    if (habitsY.current > 0 && scrollRef.current) {
+      scrollRef.current.scrollTo({ y: habitsY.current, animated: true });
+      pendingHabitsScroll.current = null;
+    }
   }, [habitsNonce]);
+  function onHabitsLayout(y: number) {
+    habitsY.current = y;
+    if (pendingHabitsScroll.current && y > 0) {
+      scrollRef.current?.scrollTo({ y, animated: true });
+      pendingHabitsScroll.current = null;
+    }
+  }
   // Remembered per device, in AsyncStorage — a cache, not a setting.
   //
   // No profile field and therefore no `firestore.rules` change, which is the
@@ -350,7 +364,7 @@ export default function Trends() {
             <>
               <Animated.View
                 entering={enterUp(2)}
-                onLayout={(e) => { habitsY.current = e.nativeEvent.layout.y; }}
+                onLayout={(e) => onHabitsLayout(e.nativeEvent.layout.y)}
               >
                 <PanelTabs
                   // Each face carries its identity dot — the same hue that
@@ -388,7 +402,7 @@ export default function Trends() {
             <>
               <Animated.View
                 entering={enterUp(2)}
-                onLayout={(e) => { habitsY.current = e.nativeEvent.layout.y; }}
+                onLayout={(e) => onHabitsLayout(e.nativeEvent.layout.y)}
               >
                 <SleepTrendsCard sleep={sleep} />
               </Animated.View>

@@ -1,0 +1,174 @@
+# Device verification for the S16 design-audit OTA (2026-08-31).
+# Exercises every changed surface. Writes NOTHING permanent: the confirm sheet
+# is cancelled, the workout is discarded, the QA exercise deleted.
+appId: fit.ignia.app
+env:
+  NONCE: '0'
+---
+# ── apply the OTA: first launch downloads, relaunch runs it ──
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    notVisible:
+      id: 'brand-loader'
+    timeout: 15000
+- assertVisible: 'Today'
+- waitForAnimationToEnd:
+    timeout: 15000
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    notVisible:
+      id: 'brand-loader'
+    timeout: 15000
+- assertVisible: 'Today'
+# ── S16-4 calendar legend (also the new-bundle marker: 'weigh-in' exists only
+#    in the OTA just published — if the download did not apply, fail HERE) ──
+- tapOn:
+    id: 'open-history'
+- assertVisible: 'History'
+- assertVisible: 'weigh-in'
+- takeScreenshot: .maestro/capture/shots/v1-history-legend
+# ── S16-3 single FAB on the day detail ──
+- openLink: 'ignia:///history/2026-08-29'
+- tapOn:
+    text: 'Open'
+    optional: true
+- assertVisible: 'Entries'
+- assertVisible:
+    id: 'add-food-day'
+- takeScreenshot: .maestro/capture/shots/v2-dayfab
+- back
+- back
+- assertVisible: 'Today'
+# ── S16-6 the habit chip lands ON the strip ──
+- scrollUntilVisible:
+    element:
+      id: 'metric-trends-sleep'
+    direction: DOWN
+    timeout: 20000
+    centerElement: true
+- takeScreenshot: .maestro/capture/shots/v3-today-chips
+- tapOn:
+    id: 'metric-trends-sleep'
+# the landing scroll is ANIMATED and may wait on first layout — poll, don't
+# single-shot assert
+- extendedWaitUntil:
+    visible: '.*a night.*'
+    timeout: 10000
+- takeScreenshot: .maestro/capture/shots/v4-trends-landed
+# ── S16-8 measurement rows + S16-10 confirm sheet (cancelled, no write) ──
+- tapOn: 'Body'
+- scrollUntilVisible:
+    element:
+      text: '.*Waist.*'
+    direction: DOWN
+    timeout: 30000
+    centerElement: true
+- takeScreenshot: .maestro/capture/shots/v5-measure-words
+- tapOn:
+    id: 'measurement-delete-.*'
+- extendedWaitUntil:
+    visible:
+      id: 'confirm-cancel'
+    timeout: 15000
+- takeScreenshot: .maestro/capture/shots/v6-confirm-sheet
+- tapOn:
+    id: 'confirm-cancel'
+- tapOn: 'Today'
+# ── S16-7 MealText header · S16-9 trust badge ──
+- openLink: 'ignia://?openAdd=${NONCE}-verify'
+- tapOn:
+    text: 'Open'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'open-more'
+    timeout: 15000
+- tapOn:
+    id: 'open-more'
+- tapOn:
+    id: 'open-mealtext'
+- assertVisible: 'Describe a meal'
+- takeScreenshot: .maestro/capture/shots/v7-mealtext-header
+- tapOn: 'Cancel'
+- tapOn: 'Search foods…'
+- inputText: 'banana'
+- extendedWaitUntil:
+    visible: '.*Lab tested.*'
+    timeout: 20000
+- takeScreenshot: .maestro/capture/shots/v8-trust-badge
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    notVisible:
+      id: 'brand-loader'
+    timeout: 15000
+# ── S16-12 scan copy ──
+- tapOn:
+    id: 'log-button'
+- tapOn: 'Scan meal'
+- assertVisible: '.*Ignia estimates.*'
+- takeScreenshot: .maestro/capture/shots/v9-scan-copy
+- back
+- assertVisible: 'Today'
+# ── S16-1/S16-5 the live logger's action colors + case ──
+- tapOn: 'Train'
+- runFlow:
+    when:
+      visible:
+        id: 'discard-workout'
+    commands:
+      - tapOn:
+          id: 'discard-workout'
+      - extendedWaitUntil:
+          visible:
+            id: 'start-workout'
+          timeout: 15000
+- tapOn:
+    id: 'start-workout'
+- extendedWaitUntil:
+    visible:
+      id: 'add-exercise'
+    timeout: 15000
+- tapOn:
+    id: 'add-exercise'
+- tapOn:
+    id: 'exercise-name'
+- inputText: 'QA Design Check'
+- tapOn: 'Add exercise'
+- tapOn:
+    id: 'create-exercise'
+- extendedWaitUntil:
+    visible:
+      id: 'set-rir-0-0'
+    timeout: 15000
+- takeScreenshot: .maestro/capture/shots/v10-train-logger
+# teardown: discard the workout, delete the QA exercise
+- scrollUntilVisible:
+    element:
+      id: 'discard-workout'
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+- tapOn:
+    id: 'discard-workout'
+- extendedWaitUntil:
+    visible:
+      id: 'start-workout'
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      text: '.*QA Design Check.*'
+    direction: DOWN
+    timeout: 45000
+    centerElement: true
+- tapOn: '.*QA Design Check.*'
+- tapOn:
+    id: 'exercise-delete'
+- tapOn:
+    id: 'exercise-delete-confirm'
+- takeScreenshot: .maestro/capture/shots/v11-teardown
+- launchApp:
+    clearState: false
+- assertVisible: 'Today'
