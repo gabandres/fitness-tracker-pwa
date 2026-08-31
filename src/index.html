@@ -16,7 +16,7 @@
 
     <!-- Search + social preview. og:image lives at /og-image.png (1200×630).
          Generate via `sharp` at build time — see scripts/og-image.ts. -->
-    <meta name="description" content="A quiet, private calorie + protein log with AI coaching and a real lifting log. Measured TDEE from your own data. Free on iPhone and Android. No ads. No data selling." />
+    <meta name="description" content="A quiet, private log for the one question that matters — calories, protein, weight, fasting — with an AI coach that actually reads your data. Free on iPhone today; coming soon to Google Play. No ads. No selling. Ever." />
     <link rel="canonical" href="https://ignia.fit/" />
     <!-- Homepage language pair. Every other URL gets its own set written by
          scripts/prerender-seo.mjs, which strips these first — the shell is
@@ -33,7 +33,7 @@
          Every generated page gets its own value written over this one. -->
     <meta property="og:locale" content="en_US" />
     <meta property="og:title" content="Ignia — how many calories do I have left today?" />
-    <meta property="og:description" content="A quiet, private calorie + protein log with AI coaching. Measured TDEE from your own data." />
+    <meta property="og:description" content="The quiet, private calorie + protein log, with an AI coach that actually reads your data. Free on iPhone; coming soon to Google Play. No ads. No selling. Ever." />
     <meta property="og:url" content="https://ignia.fit/" />
     <meta property="og:image" content="https://ignia.fit/og-image.png" />
     <meta property="og:image:type" content="image/png" />
@@ -42,7 +42,7 @@
     <meta property="og:image:alt" content="Ignia — a calorie and protein ring with today's totals." />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Ignia" />
-    <meta name="twitter:description" content="A quiet, private calorie + protein log with AI coaching." />
+    <meta name="twitter:description" content="The quiet, private calorie + protein log. Free on iPhone; coming soon to Google Play." />
     <meta name="twitter:image" content="https://ignia.fit/og-image.png" />
     <script type="application/ld+json">
       {
@@ -50,7 +50,7 @@
         "@type": "SoftwareApplication",
         "name": "Ignia",
         "alternateName": "Macros",
-        "description": "A quiet, private calorie and protein log with AI coaching. Measured TDEE from your own data. No ads. No data selling.",
+        "description": "A quiet, private log for the one question that matters — calories, protein, weight, fasting — with an AI coach that actually reads your data. Free on iPhone today; coming soon to Google Play. No ads. No selling. Ever.",
         "applicationCategory": "HealthApplication",
         "applicationSubCategory": "Nutrition",
         "operatingSystem": "iOS, Android",
@@ -63,15 +63,14 @@
         "inLanguage": ["en", "es-PR"],
         "isAccessibleForFree": true,
         "featureList": [
-          "Daily calorie and protein log",
-          "Measured TDEE from 14+ days of real data",
+          "Meal photo scan that drafts foods, portions and macros — included free",
+          "One-tap logging: on-device food search, barcode scanning, saved meal presets",
+          "Measured TDEE calibrated from your own logs, not a Mifflin-St Jeor guess",
+          "Trends: weight with a smoothed trend line, sleep, fasting and water",
+          "Imports from Apple Health, Health Connect and Oura",
           "AI coach grounded in your own logs",
           "Strength-training log with progression, plate calculator and warm-ups",
-          "Barcode scanning and USDA + Open Food Facts search",
-          "Weight trend with 7-day EMA",
           "Fasting chronometer",
-          "Body measurements",
-          "Apple Shortcuts webhook",
           "Home-screen widget and Apple Watch complication"
         ],
         "offers": [
@@ -117,6 +116,12 @@
   </head>
   <body>
     <app-root></app-root>
-    <noscript>Please enable JavaScript to continue using this application. / Por favor habilita JavaScript para continuar usando esta aplicación.</noscript>
+    <noscript>
+      <h1>Ignia &mdash; how many calories do I have left today?</h1>
+      <p>A quiet, private log for the one question that matters. Calories, protein, weight, fasting &mdash; all in one place, with an AI coach that actually reads your data. Free, the whole app. No ads. No selling. Ever.</p>
+      <p><a href="https://apps.apple.com/app/id6788589414">Download on the App Store</a> &middot; coming soon to Google Play.</p>
+      <p lang="es">Una bit&aacute;cora tranquila y privada para la &uacute;nica pregunta que importa. Gratis en iPhone; pronto en Google Play. Sin anuncios. Sin vender datos.</p>
+      <p>This site works best with JavaScript enabled. / Este sitio funciona mejor con JavaScript habilitado.</p>
+    </noscript>
   </body>
 </html>
