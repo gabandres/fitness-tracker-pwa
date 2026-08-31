@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!--
+    Ignia app icon — "Ember on Ink", chosen 2026-08-31 (option A of the icon
+    redesign; the exploration lives in the "Ignia Install Flyer" canvas
+    artifact). One kinetic flame, three flat layers on near-black warm ink.
+
+    The three layers are deliberate ICON COMPOSER DEPTH GROUPS for the iOS 26
+    Liquid Glass icon: bottom = deep red outer, middle = coral, top = amber
+    core. The outer path alone is the mono/tinted-mode shape, and the same
+    silhouette serves Android's Material You monochrome adaptive-icon layer.
+
+    Ships with vc 41 + the next iOS build (an icon asset moves both
+    fingerprints). The in-app brand mark already uses this glyph
+    (apps/mobile/src/components/Flame.tsx, shipped by OTA).
+  -->
+  <rect width="512" height="512" fill="#161412"/>
+  <g transform="translate(256 256) scale(5.7344) translate(-50 -50)">
+    <path fill="#6e121a" d="M58 6 C 60 18 54 26 48 34 C 43 41 41 48 44 54 C 38 50 35 44 36 37 C 28 46 24 56 26 66 C 28 78 38 88 50 90 C 62 88 72 80 74 68 C 76 56 70 44 64 32 C 61 24 59 15 58 6 Z"/>
+    <path fill="#c0472f" d="M56 26 C 58 36 54 42 49 49 C 44 55 42 61 45 67 C 41 63 39 57 40 51 C 34 58 32 66 35 74 C 38 82 45 86 51 87 C 60 85 67 78 68 68 C 69 57 63 44 56 26 Z"/>
+    <path fill="#f2b24a" d="M54 48 C 58 56 60 63 57 70 C 55 77 50 81 46 82 C 41 80 38 74 39 67 C 40 59 46 53 54 48 Z"/>
+  </g>
+</svg>
