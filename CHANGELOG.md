@@ -1,5 +1,39 @@
 # Changelog
 
+## 2026-08-31 — An overnight batch: a user's idea shipped same-day, the push slice, screenshots, and the SEO graph
+
+**Habit identity colors + Today→Trends shortcuts (iOS OTA 59, live).** A user
+asked for both by name in in-app feedback and got them the same night: sleep
+is violet, fasting amber, water teal — on Today's rows, the Habits strip
+(identity dots), and the charts themselves, where fasting had been sharing
+sleep's blue; and each Today habit row gained a small colored glyph that
+jumps straight to that metric's Trends graph (existing taps untouched —
+the fasting row still opens the fast editor). The first Android publish
+shipped with a real bug the 656 green tests could not see: a mounted Trends
+screen never re-read the persisted face, so the shortcut landed on whatever
+face was last open. The device's Maestro screenshots caught it, the
+persisted-tab hook became a subscription source, and the failing sequence is
+pinned as a test. Device-verified end-to-end on the LG VS988 before iOS saw
+any of it.
+
+**The #114 push slice (fingerprint-safe half).** `expoPushToken` in the
+rules (deployed), silent-no-op client registration, the OTA pre-fetch
+listener, `adminAnnounceOta` (deployed, silent Expo pushes, no new secret),
+and `scripts/announce-ota.mjs`. The vc-41 remainder — background modes,
+APNs entitlement, google-services.json — is the fingerprint line and waits
+for #107.
+
+**App Store screenshots refreshed** from a driven iPhone 17 Pro Max
+simulator: 10/10 slots, en + es, exact 6.9" ASC resolution, composited and
+committed — including a Spanish slot 4 the old set never had. Not uploaded
+to ASC (owner's review first).
+
+**The SEO orphan graph went 117 → 0** (measured by BFS over real anchors in
+dist): the crawl root now links the whole localized page graph, the landing
+gained a footer directory, and Spanish visitors stopped being silently
+dropped into English pages. Deployed.
+
+
 ## 2026-08-31 — The Stripe extension is gone, and Secret Manager hits $0.00
 
 The `invertase/firestore-stripe-payments` extension had been dormant since
