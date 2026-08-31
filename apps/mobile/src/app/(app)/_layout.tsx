@@ -3,6 +3,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Tabs, useRouter, useSegments } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ConfirmHost } from '@/components/ConfirmSheet';
 import { LogSpeedDial } from '@/components/LogSpeedDial';
 import { useT } from '@/i18n';
 import { useAuth } from '@/lib/auth';
@@ -48,6 +49,11 @@ function AppTabBar({ state, descriptors, navigation }: AppTabBarProps) {
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  // The History day detail has its own add-to-this-day FAB; drawing the global
+  // add-to-TODAY dial beside it put two different "+" buttons on one screen
+  // (UX_AUDIT S16-3). A flex spacer keeps the four tabs in place.
+  const segments = useSegments();
+  const onDayDetail = segments[segments.length - 1] === '[date]';
 
   function tab(name: string) {
     const route = state.routes.find((r) => r.name === name);
@@ -80,7 +86,7 @@ function AppTabBar({ state, descriptors, navigation }: AppTabBarProps) {
   return (
     <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, space.sm) }]}>
       {LEFT_TABS.map(tab)}
-      <LogSpeedDial />
+      {onDayDetail ? <View style={{ flex: 1 }} /> : <LogSpeedDial />}
       {RIGHT_TABS.map(tab)}
     </View>
   );
@@ -151,6 +157,7 @@ export default function AppTabsLayout() {
     track('app_open');
   }, [user?.uid]);
   return (
+    <>
     <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <AppTabBar {...props} />}>
       <Tabs.Screen name="index" options={{ title: t('nav.today') }} />
       <Tabs.Screen name="train" options={{ title: t('nav.train') }} />
@@ -172,6 +179,10 @@ export default function AppTabsLayout() {
       {/* Reachable via Settings → Send feedback and the What's-new card. */}
       <Tabs.Screen name="feedback" options={{ href: null }} />
     </Tabs>
+    {/* Branded confirm dialogs (UX_AUDIT S16-10) — one host for every
+        `confirm()` call in the authed shell. */}
+    <ConfirmHost />
+    </>
   );
 }
 

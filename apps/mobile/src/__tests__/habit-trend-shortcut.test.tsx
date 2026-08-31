@@ -80,7 +80,12 @@ describe.each([
 
     await fireEvent.press(getByTestId(testID));
 
-    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/(app)/trends'));
+    // `?habits=<nonce>` rides along so a MOUNTED Trends scrolls its habit
+    // strip into view (UX_AUDIT S16-6) — a changing value per tap, because a
+    // static param would fire once and never again on a live instance.
+    await waitFor(() =>
+      expect(mockReplace).toHaveBeenCalledWith(expect.stringMatching(/^\/\(app\)\/trends\?habits=\d+$/)),
+    );
     expect(AsyncStorage.setItem).toHaveBeenCalledWith(TRENDS_HABIT_TAB_KEY, face);
     // The standing tab-switch rule: never push a tab route.
     expect(mockPush).not.toHaveBeenCalled();
@@ -163,7 +168,9 @@ describe('a LIVE Trends instance follows the shortcut', () => {
     // The mounted strip itself switches -- not merely the stored value.
     await waitFor(() => expect(getByTestId('mounted-strip-face').props.children).toBe('sleep'));
     expect(AsyncStorage.setItem).toHaveBeenCalledWith(TRENDS_HABIT_TAB_KEY, 'sleep');
-    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/(app)/trends'));
+    await waitFor(() =>
+      expect(mockReplace).toHaveBeenCalledWith(expect.stringMatching(/^\/\(app\)\/trends\?habits=\d+$/)),
+    );
   });
 
   it('a mounted strip re-validates an external write instead of trusting it', async () => {

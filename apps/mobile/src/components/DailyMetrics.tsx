@@ -144,7 +144,10 @@ function HabitShortcut({ metric }: { metric: HabitMetric }) {
       onPress={() => {
         haptics.tap();
         setPersistedTab(TRENDS_HABIT_TAB_KEY, metric);
-        router.replace('/(app)/trends');
+        // `habits` is a NONCE (same contract as Today's openAdd): Trends stays
+        // mounted across visits, so only a changing value re-fires its
+        // scroll-to-strip effect (UX_AUDIT S16-6).
+        router.replace(`/(app)/trends?habits=${Date.now()}`);
       }}
     >
       <Ionicons name="trending-up" size={16} color={habitColor(colors, metric)} />

@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -26,6 +25,7 @@ import {
   weightBoundsFor,
 } from '@macrolog/core';
 import { BottomSheet } from '@/components/BottomSheet';
+import { confirm } from '@/components/ConfirmSheet';
 import { GoalMilestonePrompt } from '@/components/GoalMilestonePrompt';
 import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { Sparkline } from '@/components/Sparkline';
@@ -121,14 +121,13 @@ export default function Body() {
   }
 
   function confirmDeleteMeasurement(id: string) {
-    Alert.alert(t('body.deleteMeasureTitle'), t('body.deleteMeasureBody'), [
-      { text: t('common.cancel'), style: 'cancel' },
-      {
-        text: t('common.remove'),
-        style: 'destructive',
-        onPress: () => void deleteMeasurement(id),
-      },
-    ]);
+    confirm({
+      title: t('body.deleteMeasureTitle'),
+      body: t('body.deleteMeasureBody'),
+      confirmText: t('common.remove'),
+      destructive: true,
+      onConfirm: () => void deleteMeasurement(id),
+    });
   }
   // Keep the measurements list short as history grows; the rest is one tap away.
   const [showAllMeasures, setShowAllMeasures] = useState(false);
@@ -316,7 +315,7 @@ export default function Body() {
                 >
                   <Text style={styles.rowDate}>{formatDate(m.date, locale, { month: 'short', day: 'numeric' })}</Text>
                   <View style={styles.rowRight}>
-                    <Text style={styles.rowMeasure}>{measureLine(m)}</Text>
+                    <Text style={styles.rowMeasure}>{measureLine(m, t)}</Text>
                     {/* Explicit pencil + trash, matching the PWA's row controls.
                         Editing was unreachable and deletion was a hidden
                         long-press, so neither was discoverable on mobile. */}
@@ -396,13 +395,13 @@ export default function Body() {
   );
 }
 
-function measureLine(m: Measurement): string {
-  const parts: string[] = [];
-  if (m.waist != null) parts.push(`W ${m.waist}`);
-  if (m.neck != null) parts.push(`N ${m.neck}`);
-  if (m.hip != null) parts.push(`H ${m.hip}`);
-  if (m.chest != null) parts.push(`Ch ${m.chest}`);
-  if (m.bicep != null) parts.push(`B ${m.bicep}`);
+/** Localized field names, not the "W 33.3 · N 15.5" letter codes nothing on
+ *  screen expanded (UX_AUDIT S16-8). Reuses the sheet's own field labels. */
+function measureLine(m: Measurement, t: ReturnType<typeof useT>): string {
+  const parts = MEASURE_FIELDS.flatMap((f) => {
+    const v = m[f.key];
+    return v != null ? [`${t(f.labelKey)} ${v}`] : [];
+  });
   return parts.join(' · ') || '—';
 }
 
@@ -749,7 +748,7 @@ const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.create({
   bfValue: { fontFamily: type.display, fontSize: font.h1, color: colors.ink, marginLeft: space.md },
   measureHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.md },
   addLink: { fontSize: font.small, color: colors.accent, fontWeight: '700' },
-  rowMeasure: { fontSize: font.small, fontWeight: '600', color: colors.ink },
+  rowMeasure: { fontSize: font.small, fontWeight: '600', color: colors.ink, flexShrink: 1, textAlign: 'right' },
   sheetHint: { fontSize: font.small, color: colors.muted, marginBottom: space.md },
   measureGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.md },
   measureField: { width: '47%', gap: space.xs },
@@ -779,7 +778,7 @@ const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.create({
   },
   howLine: { fontSize: font.small, color: colors.ink, lineHeight: font.small * 1.5 },
   howFoot: { fontSize: font.tiny, color: colors.muted, lineHeight: font.tiny * 1.5, marginTop: space.xs },
-  rowRight: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  rowRight: { flexDirection: 'row', alignItems: 'center', gap: space.md, flexShrink: 1 },
   list: { gap: space.sm },
   row: {
     flexDirection: 'row',

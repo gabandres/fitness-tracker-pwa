@@ -397,7 +397,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   hitDesc: { fontSize: font.body, color: colors.ink, fontWeight: '600' },
   hitBrand: { fontSize: font.tiny, color: colors.muted, marginTop: 2 },
   hitMeta: { flexDirection: 'row', alignItems: 'center', gap: space.sm, flexWrap: 'wrap' },
-  hitTrust: { fontSize: font.tiny, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4, marginTop: 2 },
+  hitTrust: { fontSize: font.tiny, fontWeight: '600', marginTop: 2 },
   hitTrustGood: { color: colors.muted },
   hitTrustCommunity: { color: colors.faint },
   // Not `danger`: a flagged number is worth a second look, not an alarm, and the

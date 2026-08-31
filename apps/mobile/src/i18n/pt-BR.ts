@@ -23,7 +23,7 @@ export const ptBR = {
   'nav.body': 'Corpo',
   'nav.settings': 'Ajustes',
   'scan.title': 'Escanear refeição',
-  'scan.hint': 'Aponte para o prato — a IA estima calorias e macros em um toque.',
+  'scan.hint': 'Aponte para o prato — o Ignia estima calorias e macros em um toque.',
   'scan.take': 'Tirar foto',
   'scan.choose': 'Escolher da galeria',
   'scan.manual': 'Digitar manualmente',
@@ -51,7 +51,7 @@ export const ptBR = {
   'scan.items': 'O que encontramos',
   'scan.sourceEstimate': 'Estimado — não está no banco de alimentos',
   'scan.estimateHint':
-    'Itens marcados como "estimado" não estavam no banco de alimentos, então esses números são um palpite da IA. Ajuste se você souber melhor.',
+    'Itens marcados como "estimado" não estavam no banco de alimentos, então esses números são uma estimativa do Ignia. Ajuste se você souber melhor.',
   'scan.portion': 'Porção',
   'scan.addToday': 'Adicionar a hoje',
   'scan.retake': 'Tirar de novo',
@@ -192,7 +192,7 @@ export const ptBR = {
   'link.failedBody': 'O seu aparelho bloqueou. Abra isto no seu navegador:\n\n{url}',
   'whatsNew.title': 'Novidades',
   'whatsNew.body':
-    "A água agora tem gráfico. Abra Tendências e há uma aba de Água ao lado de Sono e Jejum: seus últimos catorze dias, quanto você costuma beber e a faixa em que ficaram seus dias registrados. Dias que você pulou aparecem como lacunas, não como zeros, então um registro que faltou nunca puxa o número para baixo. Registre água em Hoje por três dias e o gráfico aparece; até lá, a linha diz o quanto falta.",
+    'A água agora tem gráfico — uma aba de Água ao lado de Sono e Jejum em Tendências, com seus últimos catorze dias. Dias sem registro aparecem como lacunas, nunca como zeros. Registre água por três dias e o gráfico aparece.',
 
   // ── app updates ──
   'update.ota.title': 'Atualização pronta',
@@ -310,6 +310,8 @@ export const ptBR = {
   'log.openHint': 'Abre o escaneamento e o registro manual',
   'history.prevMonthA11y': 'Mês anterior',
   'history.nextMonthA11y': 'Próximo mês',
+  'history.legendLogged': 'registrado',
+  'history.legendWeighed': 'pesagem',
   'common.back': 'Voltar',
   'today.savePresetTitle': 'Salvar como atalho de registro rápido?',
   'today.savePresetBody': '“{name}” vira um atalho de um toque. O espaço 1 é o que o botão do widget e o bloco de Configurações Rápidas registram.',
@@ -665,7 +667,7 @@ export const ptBR = {
   'train.weekVolume': 'Volume',
   'train.topSet': 'Melhor série',
   'train.weekEmpty': 'Nenhum treino nesta semana ainda — comece um abaixo.',
-  'train.newPr': 'Novo recorde pessoal! 🏆',
+  'train.newPr': 'Novo recorde pessoal!',
   'train.noExHistory': 'Sem histórico ainda. Registre este exercício para ver o progresso.',
   'train.prWeight': 'Maior carga',
   'train.prE1rm': 'Melhor e1RM',

@@ -665,14 +665,14 @@ export function EntrySheet({
 
                   {canSavePreset ? (
                     <TouchableOpacity style={styles.savePreset} onPress={saveAsPreset} testID="save-preset">
-                      <Ionicons name="star-outline" size={font.small} color={colors.accent} />
+                      <Ionicons name="star-outline" size={font.small} color={colors.teal} />
                       <Text style={styles.savePresetText}>{t('entry.savePreset')}</Text>
                     </TouchableOpacity>
                   ) : null}
 
                   {canSaveCustomFood ? (
                     <TouchableOpacity style={styles.savePreset} onPress={saveAsCustomFood} testID="save-customfood">
-                      <Ionicons name="add" size={font.small + 2} color={colors.accent} />
+                      <Ionicons name="add" size={font.small + 2} color={colors.teal} />
                       <Text style={styles.savePresetText}>{t('entry.saveMyFood')}</Text>
                     </TouchableOpacity>
                   ) : null}
@@ -854,7 +854,7 @@ const createStyles = ({ scheme, colors, shadow }: Theme) => StyleSheet.create({
   chipText: { fontSize: font.small, color: colors.muted, textTransform: 'capitalize' },
   chipTextOn: { color: colors.onInk },
   savePreset: { alignSelf: 'flex-start', paddingVertical: space.xs, flexDirection: 'row', alignItems: 'center', gap: space.xs },
-  savePresetText: { fontSize: font.small, color: colors.accent, fontWeight: '700' },
+  savePresetText: { fontSize: font.small, color: colors.teal, fontWeight: '700' },
   dateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.md },
   dateStep: { width: 40, height: 40, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
   dateStepDisabled: { opacity: 0.4 },

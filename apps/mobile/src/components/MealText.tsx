@@ -185,6 +185,7 @@ export function MealText({ forDate, onAddMany, onCancel, seedText }: Props) {
     return (
       <View style={styles.wrap}>
         <View style={styles.head}>
+          <Text style={styles.title}>{t('entry.describeMeal')}</Text>
           <TouchableOpacity onPress={() => { setRows([]); setPhase('input'); }} hitSlop={8}>
             <Text style={styles.back}>{t('mealText.startOver')}</Text>
           </TouchableOpacity>
@@ -235,7 +236,10 @@ export function MealText({ forDate, onAddMany, onCancel, seedText }: Props) {
   // ── Input ──
   return (
     <View style={styles.wrap}>
+      {/* Title left, Cancel right — the same header the recipe sheets use, so
+          every EntrySheet mode dismisses from one place (UX_AUDIT S16-7). */}
       <View style={styles.head}>
+        <Text style={styles.title}>{t('entry.describeMeal')}</Text>
         <TouchableOpacity onPress={onCancel} hitSlop={8}>
           <Text style={styles.back}>{t('common.cancel')}</Text>
         </TouchableOpacity>
@@ -288,6 +292,7 @@ function MacroField({ label, value, onChange }: { label: string; value: string; 
 const createStyles = ({ colors }: Theme) => StyleSheet.create({
   wrap: { minHeight: 320, gap: space.sm },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  title: { fontSize: font.h3, fontWeight: '800', color: colors.ink },
   back: { fontSize: font.small, color: colors.muted, fontWeight: '700' },
   hint: { fontSize: font.small, color: colors.muted },
   input: {

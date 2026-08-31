@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useMemo, useState } from 'react';
-import { type Href, useRouter } from 'expo-router';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { type Href, useLocalSearchParams, useRouter } from 'expo-router';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -60,6 +60,22 @@ export default function Trends() {
   const { colors } = useTheme();
   const router = useRouter();
   const { loading, error, insights, loggedThisWeek, proteinTarget, tdee, targetCalories, budget, basalKcal, activityLevel, sleep, fasting, water } = useTrends();
+  // A Today habit chip lands here with `?habits=<nonce>` — scroll the strip
+  // into view so the user sees what they tapped for instead of the hero
+  // (UX_AUDIT S16-6). A nonce, not a flag: expo-router keeps a visited Trends
+  // MOUNTED and `router.replace` re-focuses the live instance, so only a
+  // changing value re-fires (the same contract as Today's `openAdd`).
+  const scrollRef = useRef<ScrollView>(null);
+  const habitsY = useRef(0);
+  const { habits: habitsNonce } = useLocalSearchParams<{ habits?: string }>();
+  useEffect(() => {
+    if (!habitsNonce) return;
+    // Next frame: a fresh mount has not laid out yet when the param arrives.
+    const id = requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({ y: habitsY.current, animated: true });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [habitsNonce]);
   // Remembered per device, in AsyncStorage — a cache, not a setting.
   //
   // No profile field and therefore no `firestore.rules` change, which is the
@@ -163,7 +179,7 @@ export default function Trends() {
           <ActivityIndicator color={colors.accent} />
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.body}>
+        <ScrollView ref={scrollRef} contentContainerStyle={styles.body}>
           {error ? <Text style={styles.error}>{t('trends.loadErr')}</Text> : null}
 
           {/* 1. Maintenance hero — the anchor, always populated with at least
@@ -332,7 +348,10 @@ export default function Trends() {
               that those rows are what ~90% of accounts actually meet. */}
           {habitFaces.length >= 2 ? (
             <>
-              <Animated.View entering={enterUp(2)}>
+              <Animated.View
+                entering={enterUp(2)}
+                onLayout={(e) => { habitsY.current = e.nativeEvent.layout.y; }}
+              >
                 <PanelTabs
                   // Each face carries its identity dot — the same hue that
                   // tints the habit's shortcut chip on Today and its chart
@@ -367,7 +386,10 @@ export default function Trends() {
             </>
           ) : (
             <>
-              <Animated.View entering={enterUp(2)}>
+              <Animated.View
+                entering={enterUp(2)}
+                onLayout={(e) => { habitsY.current = e.nativeEvent.layout.y; }}
+              >
                 <SleepTrendsCard sleep={sleep} />
               </Animated.View>
               <Animated.View entering={enterUp(3)}>

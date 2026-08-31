@@ -1,12 +1,13 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { captureAndShare } from '@/lib/shareCapture';
 import type { DailyLog, LogEntry } from '@macrolog/core';
 import { fastLengthHours, maintenanceView } from '@macrolog/core';
+import { confirm } from '@/components/ConfirmSheet';
 import { DailyMetrics } from '@/components/DailyMetrics';
 import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { NumbersGlossary } from '@/components/NumbersGlossary';
@@ -172,22 +173,21 @@ export default function Today() {
       const name = log.mealLabel?.trim();
       if (!name) return;
       haptics.tap();
-      Alert.alert(t('today.savePresetTitle'), t('today.savePresetBody', { name }), [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('entry.savePresetShort'),
-          onPress: () => {
-            void addPreset({
-              name,
-              calories: log.calories,
-              protein: log.protein ?? 0,
-              carbs: log.carbs ?? 0,
-              fat: log.fat ?? 0,
-            });
-            haptics.success();
-          },
+      confirm({
+        title: t('today.savePresetTitle'),
+        body: t('today.savePresetBody', { name }),
+        confirmText: t('entry.savePresetShort'),
+        onConfirm: () => {
+          void addPreset({
+            name,
+            calories: log.calories,
+            protein: log.protein ?? 0,
+            carbs: log.carbs ?? 0,
+            fat: log.fat ?? 0,
+          });
+          haptics.success();
         },
-      ]);
+      });
     },
     [addPreset, t],
   );
@@ -360,17 +360,16 @@ export default function Today() {
         onDelete={
           !fastStartedAt && editableFast?.id
             ? () => {
-                Alert.alert(t('fast.deleteTitle'), t('fast.deleteBody'), [
-                  { text: t('common.cancel'), style: 'cancel' },
-                  {
-                    text: t('common.remove'),
-                    style: 'destructive',
-                    onPress: () => {
-                      void deleteFast(editableFast.id as string);
-                      setFastSheetOpen(false);
-                    },
+                confirm({
+                  title: t('fast.deleteTitle'),
+                  body: t('fast.deleteBody'),
+                  confirmText: t('common.remove'),
+                  destructive: true,
+                  onConfirm: () => {
+                    void deleteFast(editableFast.id as string);
+                    setFastSheetOpen(false);
                   },
-                ]);
+                });
               }
             : undefined
         }

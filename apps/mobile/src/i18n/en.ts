@@ -22,7 +22,7 @@ export const en = {
   'nav.body': 'Body',
   'nav.settings': 'Settings',
   'scan.title': 'Scan a meal',
-  'scan.hint': 'Point at your plate — the AI estimates calories and macros in a tap.',
+  'scan.hint': 'Point at your plate — Ignia estimates calories and macros in a tap.',
   'scan.take': 'Take photo',
   'scan.choose': 'Choose from library',
   'scan.manual': 'Enter it manually',
@@ -57,7 +57,7 @@ export const en = {
   'scan.items': 'What we found',
   'scan.sourceEstimate': 'Estimated — not in the food database',
   'scan.estimateHint':
-    'Items marked "estimated" were not in the food database, so those numbers are the AI\'s own guess. Adjust them if you know better.',
+    'Items marked "estimated" were not in the food database, so those numbers are Ignia\'s own estimate. Adjust them if you know better.',
   'scan.portion': 'Portion',
   'scan.addToday': 'Add to today',
   'scan.retake': 'Retake',
@@ -203,7 +203,7 @@ export const en = {
   'link.failedBody': 'Your device blocked it. Open this in your browser instead:\n\n{url}',
   'whatsNew.title': "What's new",
   'whatsNew.body':
-    "Water has a chart now. Open Trends and there is a Water tab next to Sleep and Fasting: your last fourteen days, how much you typically drink, and the range your logged days ran across. Days you skipped show as gaps rather than zeros, so a missed entry never drags the number down. Log water on Today for three days and the chart appears; until then the row tells you how far along you are.",
+    'Water has a chart now — a Water tab beside Sleep and Fasting on Trends, showing your last fourteen days. Skipped days show as gaps, never zeros. Log water for three days and the chart appears.',
 
   // ── app updates ──
   'update.ota.title': 'Update ready',
@@ -334,6 +334,8 @@ export const en = {
   'log.openHint': 'Opens scan and manual entry',
   'history.prevMonthA11y': 'Previous month',
   'history.nextMonthA11y': 'Next month',
+  'history.legendLogged': 'logged',
+  'history.legendWeighed': 'weigh-in',
   'common.back': 'Back',
   'today.savePresetTitle': 'Save as a quick-add preset?',
   'today.savePresetBody': '“{name}” becomes a one-tap preset. Slot 1 is what your widget button and Quick Settings tile log.',
@@ -756,7 +758,7 @@ export const en = {
   'train.weekVolume': 'Volume',
   'train.topSet': 'Top set',
   'train.weekEmpty': 'No workouts yet this week — start one below.',
-  'train.newPr': 'New personal record! 🏆',
+  'train.newPr': 'New personal record!',
   'train.noExHistory': 'No history yet. Log this exercise to see progress.',
   'train.prWeight': 'Top weight',
   'train.prE1rm': 'Best e1RM',

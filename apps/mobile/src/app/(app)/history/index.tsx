@@ -118,6 +118,19 @@ export default function HistoryCalendar() {
             })}
           </View>
 
+          {/* Names what the two dot colors mean — the encoding was unexplained
+              anywhere on screen (UX_AUDIT S16-4). */}
+          <View style={styles.legendRow}>
+            <View style={styles.legendItem}>
+              <View style={styles.dot} />
+              <Text style={styles.legendText}>{t('history.legendLogged')}</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={styles.dotWeight} />
+              <Text style={styles.legendText}>{t('history.legendWeighed')}</Text>
+            </View>
+          </View>
+
           {days.length === 0 ? (
             <View style={styles.empty}>
               <Text style={styles.emptyText}>{t('history.emptyTitle')}</Text>
@@ -176,6 +189,9 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   cellNumToday: { color: colors.accent, fontWeight: '800' },
   cellOut: { color: colors.faint }, // adjacent-month days: dimmer, still tappable
   dotRow: { flexDirection: 'row', gap: 3, height: 6, alignItems: 'center' },
+  legendRow: { flexDirection: 'row', justifyContent: 'center', gap: space.lg, marginTop: space.sm },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
+  legendText: { fontSize: font.tiny, color: colors.faint },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.accent },
   dotWeight: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.teal },
   empty: { alignItems: 'center', gap: space.xs, paddingVertical: space.xl },

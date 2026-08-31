@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   type DailyLog,
@@ -14,6 +14,7 @@ import {
   parseYmd,
   summarizeDay,
 } from '@macrolog/core';
+import { confirm } from '@/components/ConfirmSheet';
 import { EntrySheet } from '@/components/EntrySheet';
 import { FastSheet, type FastSheetMode } from '@/components/FastSheet';
 import { MealEntries } from '@/components/MealEntries';
@@ -88,17 +89,16 @@ export default function DayDetail() {
   }
 
   function confirmDeleteFast(fast: Fast) {
-    Alert.alert(t('fast.deleteTitle'), t('fast.deleteBody'), [
-      { text: t('common.cancel'), style: 'cancel' },
-      {
-        text: t('common.remove'),
-        style: 'destructive',
-        onPress: () => {
-          if (fast.id) void deleteFast(fast.id);
-          setFastSheet(null);
-        },
+    confirm({
+      title: t('fast.deleteTitle'),
+      body: t('fast.deleteBody'),
+      confirmText: t('common.remove'),
+      destructive: true,
+      onConfirm: () => {
+        if (fast.id) void deleteFast(fast.id);
+        setFastSheet(null);
       },
-    ]);
+    });
   }
 
   const title = formatDate(parseYmd(dateKey), locale, {
@@ -299,7 +299,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   weight: { fontSize: font.body, color: colors.muted },
   sectionTitle: { fontSize: font.h3, fontWeight: '700', color: colors.ink },
   fastHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
-  fastAdd: { fontSize: font.small, color: colors.accent, fontWeight: '700' },
+  fastAdd: { fontSize: font.small, color: colors.teal, fontWeight: '700' },
   empty: { fontSize: font.body, color: colors.muted },
   list: { gap: space.sm },
   entry: {

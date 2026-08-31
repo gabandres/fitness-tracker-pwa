@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { confirm } from '@/components/ConfirmSheet';
 import { useAuth } from '@/lib/auth';
 import { LinkError, type LinkableProvider } from '@/lib/link-error';
 import { type I18nKey, useT } from '@/i18n';
@@ -73,27 +74,24 @@ export function SignInMethodsCard() {
   }
 
   function confirmDisconnect(provider: LinkableProvider, label: string) {
-    Alert.alert(
-      t('signInMethods.disconnectTitle'),
-      t('signInMethods.disconnectBody', { provider: label }),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('signInMethods.disconnect'),
-          style: 'destructive',
-          onPress: async () => {
-            setBusy(provider);
-            try {
-              await unlinkProvider(provider);
-            } catch (e) {
-              reportLinkError(e);
-            } finally {
-              setBusy(null);
-            }
-          },
-        },
-      ],
-    );
+    confirm({
+      title: t('signInMethods.disconnectTitle'),
+      body: t('signInMethods.disconnectBody', { provider: label }),
+      confirmText: t('signInMethods.disconnect'),
+      destructive: true,
+      onConfirm: () => {
+        void (async () => {
+          setBusy(provider);
+          try {
+            await unlinkProvider(provider);
+          } catch (e) {
+            reportLinkError(e);
+          } finally {
+            setBusy(null);
+          }
+        })();
+      },
+    });
   }
 
   async function submitPassword() {

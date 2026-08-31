@@ -211,7 +211,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   },
   del: { color: colors.danger, fontSize: font.small, fontWeight: '700' },
   addIng: { paddingVertical: space.sm },
-  addIngText: { fontSize: font.small, color: colors.accent, fontWeight: '700' },
+  addIngText: { fontSize: font.small, color: colors.teal, fontWeight: '700' },
   footer: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: space.md, marginTop: space.xs },
   servingsBox: { gap: space.xs },
   fieldLabel: { fontSize: font.small, color: colors.muted, fontWeight: '600' },

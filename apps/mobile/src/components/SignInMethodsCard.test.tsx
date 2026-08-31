@@ -17,6 +17,13 @@ const mockLinkPassword = jest.fn().mockResolvedValue(undefined);
 const mockUnlinkProvider = jest.fn().mockResolvedValue(undefined);
 let mockLinked: LinkableProvider[] = ['password'];
 
+// Disconnect confirms through the branded ConfirmSheet (UX_AUDIT S16-10),
+// not Alert — capture the options so tests can invoke onConfirm.
+const mockConfirm = jest.fn();
+jest.mock('@/components/ConfirmSheet', () => ({
+  confirm: (o: unknown) => mockConfirm(o),
+}));
+
 jest.mock('@/lib/auth', () => ({
   useAuth: () => ({
       user: { uid: 'u1', email: 'a@b.co' },
@@ -35,6 +42,7 @@ beforeEach(() => {
   mockLinkPassword.mockClear().mockResolvedValue(undefined);
   mockUnlinkProvider.mockClear().mockResolvedValue(undefined);
   mockLinked = ['password'];
+  mockConfirm.mockClear();
   jest.spyOn(Alert, 'alert').mockImplementation(() => {});
 });
 
@@ -65,9 +73,10 @@ describe('SignInMethodsCard', () => {
 
     await fireEvent.press(screen.getByTestId('signin-methods-disconnect-google.com'));
 
-    // Confirmation is an Alert; invoke its destructive action.
-    const [, , buttons] = (Alert.alert as jest.Mock).mock.calls[0];
-    await buttons.find((b: { style?: string }) => b.style === 'destructive').onPress();
+    // Confirmation goes through the branded ConfirmSheet; invoke its action.
+    const opts = mockConfirm.mock.calls[0][0] as { destructive?: boolean; onConfirm: () => void };
+    expect(opts.destructive).toBe(true);
+    opts.onConfirm();
 
     await waitFor(() => expect(mockUnlinkProvider).toHaveBeenCalledWith('google.com'));
   });
