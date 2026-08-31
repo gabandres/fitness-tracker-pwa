@@ -1147,7 +1147,42 @@ organization only accepts INVITED owners), so it is console-only:
 Why: today the personal Gmail is the single key to prod Firestore, Auth, every
 secret, and the deploy path. This is the recovery path, and it costs nothing.
 
-### 5.1 `ignia.fit` domain -> LLC (Cloudflare)
+### 5.1 `ignia.fit` domain -> LLC — MOSTLY DONE 2026-08-30; one email to confirm
+
+Driven through the dashboard the same day, and the ground truth was better
+than assumed:
+
+- **The registrar IS Cloudflare Registrar.** ignia.fit: Active, expires
+  **July 5, 2027**, renewal $25.20/yr, **auto-renewal already scheduled**
+  (June 5, 2027). No registrar transfer exists to do.
+- **The Cloudflare account** is "Bermudez", login **gabriel@bermudezpr.com
+  via GitHub SSO**, and holds all three zones: ignia.fit,
+  bermudezsystems.com (so the "Northwest DNS" note above/in CLAUDE.local.md
+  is stale — the zone is Active on Cloudflare), and citafy.app. citafy.app
+  is also registered here (Mar 10, 2027).
+- **Registrant Organization set to "Bermudez Systems LLC"** — submitted, row
+  shows **"Changes pending"**. ***OWNER ACTION: a confirmation email went to
+  gabriel@bermudezpr.com (Outlook) — click it within 15 days or the change
+  lapses.*** The registrant email/phone/address were deliberately LEFT
+  personal for now: changing the registrant email starts an ICANN
+  change-of-registrant verification that can suspend the domain if
+  unconfirmed in 15 days — not a timer to start while AFK. Flip them in one
+  sitting (Contact tab, pencil icon) when you can watch both mailboxes:
+  email gabriel@bermudezsystems.com, phone +1 307 201 8420, 30 N Gould St,
+  Sheridan WY 82801.
+- WHOIS is redacted by Cloudflare regardless; the "display organization in
+  WHOIS" toggle was left off.
+- The Administrator/Technical/Billing contact rows are still personal —
+  cosmetic, same pencil when desired.
+
+What remains genuinely owner-only: relabeling the Cloudflare ACCOUNT itself
+(its login is GitHub SSO as gabriel@bermudezpr.com — changing account email
+needs your credentials), or moving the zone to a fresh LLC-owned account.
+Neither is urgent: registration + org attribution are the legal substance,
+and both are done/pending one click.
+
+The original checklist, kept for reference:
+
 
 Measured 2026-08-30: `ignia.fit` runs on **Cloudflare** (NS dilbert/sunny),
 **proxied** in front of Firebase Hosting (`hosting-site=macrolog` TXT), with
