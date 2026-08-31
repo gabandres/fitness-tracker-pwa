@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-08-31 — The Stripe extension is gone, and Secret Manager hits $0.00
+
+The `invertase/firestore-stripe-payments` extension had been dormant since
+v1 went free; it survived every audit because re-enabling Pro on the web was
+priced as "just turn it back on". ADR-0036 killed that premise (there is no
+web app to sell through) and the owner closed the question for good: **if
+subscriptions ever ship, they go through Apple/Google IAP, never Stripe.**
+
+So: extension uninstalled (manifest first, then `deploy --only extensions`),
+its two Secret Manager secrets deleted after a bindings scan confirmed
+nothing else read them, `STRIPE_SETUP.md` deleted per the housekeeping rule,
+and the doctor's secret floor lowered 8 → 6. Ignia now sits at **exactly the
+Secret Manager free tier on its own billing account — $0.00/mo**, and any
+growth past 6 fails `npm run doctor`.
+
+Kept on purpose: the `stripeRole` custom claim (the paid-tier marker the
+admin console sets manually and `caller-access.ts` reads for quota tiering —
+the name is historical), and the dormant referral CFs. The delete-account
+flows' subscription-cancel steps now scan empty collections and no-op.
+
+
 ## 2026-08-30 — Two day-1 retention levers: reminders asked at onboarding, and a day-1 email
 
 Measured first: of the week's four organic iOS installs, two logged 10 and 22

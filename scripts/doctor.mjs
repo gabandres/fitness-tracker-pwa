@@ -687,10 +687,11 @@ const MAX_SECRET_VERSIONS = 6;
  * `getFoodDetail`, and both booted fine without it). Every remaining secret
  * holds exactly one live version and each is bound to something real —
  * the Apple trio is required for Sign in with Apple account deletion, Gemini
- * backs photo-scan + coach, Resend sends mail, and the two
- * `ext-firestore-stripe-payments-*` secrets belong to an ACTIVE extension the
- * project keeps dormant on purpose for when Pro turns on. Going under 6 means
- * retiring that extension, which is a product decision, not a cleanup.
+ * backs photo-scan + coach, Resend sends mail, and Oura's OAuth needs its
+ * client secret. The two `ext-firestore-stripe-payments-*` secrets were
+ * RETIRED 2026-08-31 with the extension itself (owner's call: any future
+ * subscriptions go through Apple/Google IAP, so the Stripe path will never
+ * be re-enabled — see CHANGELOG). That put the count AT the free tier.
  *
  * So the check no longer fails on a state that has been reviewed and accepted
  * — a permanently-red check is one people learn to ignore, and this one was
@@ -711,10 +712,15 @@ const MAX_SECRET_VERSIONS = 6;
  * This also contradicts ADR-0026, which chose the OS health store precisely to
  * avoid this secret. That was an owner decision taken on 2026-08-24 after the
  * health path had still never imported a real record; the ADR carries an
- * amendment saying so. If the Cloud API is ever abandoned, retire this secret
- * and put the floor back to 7.
+ * amendment saying so.
+ *
+ * Lowered 8 -> 6 on 2026-08-31: the dormant Stripe extension and its two
+ * secrets were retired (owner's call — future subscriptions would be
+ * Apple/Google IAP, never Stripe), so the count sits exactly at the free
+ * tier and Secret Manager bills $0.00. Any growth past 6 is billable and
+ * fails this check until argued for here.
  */
-const ACCEPTED_SECRET_VERSIONS = 8;
+const ACCEPTED_SECRET_VERSIONS = 6;
 
 function checkSchedulerJobs() {
   const name = `Cloud Scheduler jobs <= ${MAX_SCHEDULER_JOBS}`;

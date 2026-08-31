@@ -12,9 +12,7 @@
       ]
     }
   ],
-  "extensions": {
-    "firestore-stripe-payments": "invertase/firestore-stripe-payments@0.3.11"
-  },
+  "extensions": {},
   "firestore": {
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"

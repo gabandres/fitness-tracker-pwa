@@ -36,7 +36,7 @@ page on GitHub.)*
 
 ## Tech
 
-An **npm-workspaces monorepo**, not a single app: the root is the Angular 21 web shell (marketing pages + `/admin`), `apps/mobile/` is the Expo app on the App Store and Google Play and is the product (ADR-0015; the web logging app was retired per ADR-0036), and `packages/core` is the framework-free brain the app and the Cloud Functions share. Backed by Firebase (Firestore, Auth, Cloud Functions gen2, Hosting). Gemini for photo→macros and the AI coach. The `firestore-stripe-payments` extension is installed but **dormant** — nothing is purchasable.
+An **npm-workspaces monorepo**, not a single app: the root is the Angular 21 web shell (marketing pages + `/admin`), `apps/mobile/` is the Expo app on the App Store and Google Play and is the product (ADR-0015; the web logging app was retired per ADR-0036), and `packages/core` is the framework-free brain the app and the Cloud Functions share. Backed by Firebase (Firestore, Auth, Cloud Functions gen2, Hosting). Gemini for photo→macros and the AI coach. Nothing is purchasable; the `firestore-stripe-payments` extension was removed 2026-08-31 (future subscriptions, if any, would use Apple/Google IAP).
 
 ## Positioning
 
@@ -60,7 +60,6 @@ Uniquely, ships both photo-AI logging (like Cal AI) *and* adaptive TDEE coaching
 
 - **`CHANGELOG.md`** — significant ships, newest first.
 - **`UX_AUDIT.md`** — living UX backlog. **§S13 is the launch-readiness checklist** — read it before any public distribution push (Stripe live verification, tax, password policy, backups, monitoring alerts, GDPR, custom domain, email deliverability, etc.).
-- **`STRIPE_SETUP.md`** — one-time Stripe + Firebase Extension wiring.
 
 ## Daily commands
 
@@ -94,7 +93,6 @@ Firebase project: `fitness-tracker-gb-1775407101`. Hosting site: `macrolog`.
 ### Must stay server-side (never in `src/`)
 
 - **`GEMINI_API_KEY`** used by `analyzePhoto` / `generateWeeklyReport` — stored in Firebase Functions Secret Manager (`firebase functions:secrets:set GEMINI_API_KEY`).
-- **Stripe secret key + webhook signing secret** — held by the `firestore-stripe-payments` extension in its own Secret Manager entries. See `STRIPE_SETUP.md`.
 - **`SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT`** (sourcemap upload at build time) — read from the git-ignored `.env.local` on the workstation that runs the build. `CLAUDE.local.md` owns the copies and the rotation order.
 
 Local-only overrides belong in `src/environments/environment.local.ts` (gitignored). If you need a per-developer Gemini key for testing, put it there and import explicitly.
