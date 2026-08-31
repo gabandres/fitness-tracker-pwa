@@ -1170,8 +1170,11 @@ than assumed:
   St, Sheridan, WY 82801, US with no pending state. Note the registrant
   email change may apply a standard 60-day registrar-transfer lock —
   irrelevant unless leaving Cloudflare.
-  Administrator/Technical/Billing contact rows are still personal —
-  cosmetic, same pencil when desired.
+  **Administrator/Technical/Billing contact rows: ALL moved to the LLC the
+  same day** (org, email, phone, Sheridan WY address on every row — saved
+  instantly; non-registrant contacts need no confirmation). The one
+  remaining personal artifact anywhere: the Cloudflare ACCOUNT login is
+  gabriel@bermudezpr.com via GitHub SSO — optional to change, owner-only.
 - WHOIS is redacted by Cloudflare regardless; the "display organization in
   WHOIS" toggle was left off.
 
