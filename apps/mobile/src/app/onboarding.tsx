@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, { FadeInLeft, FadeInRight, ReduceMotion } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -94,6 +94,23 @@ export default function Onboarding() {
 
   const [step, setStep] = useState<StepId>(isRedo ? 'goal' : 'welcome');
   const [dir, setDir] = useState<1 | -1>(1);
+
+  // ── Funnel instrumentation (`@macrolog/core/usage-events`) ───────────
+  // Half of the first fortnight's signups never fired `onboarding_complete`
+  // and nothing could say where they stopped. Three markers carve the run:
+  // start (also counts federated arrivals, which `signup` deliberately does
+  // not — see auth.tsx), reaching the body step (the sex/height/age asks),
+  // and reaching the plan. First arrival per run only, so Back/forward
+  // passes cannot double-count; a redo via Settings → Edit goals is not a
+  // funnel entry and counts nothing.
+  const trackedSteps = useRef<Set<StepId>>(new Set());
+  useEffect(() => {
+    if (isRedo || trackedSteps.current.has(step)) return;
+    trackedSteps.current.add(step);
+    if (step === 'welcome') track('onboarding_start');
+    else if (step === 'body') track('onboarding_step_body');
+    else if (step === 'plan') track('onboarding_step_plan');
+  }, [step, isRedo]);
   const [weight, setWeight] = useState('');
   const [goal, setGoal] = useState<GoalDirection | null>(profile?.goalDirection ?? null);
   const [targetWeight, setTargetWeight] = useState(() => {

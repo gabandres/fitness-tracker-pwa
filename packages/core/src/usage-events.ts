@@ -41,8 +41,14 @@
  * Chosen to answer exactly four questions and nothing else:
  *   - **Does anyone come back?** `app_open`, one per cold start, counted by
  *     distinct days.
- *   - **Do they get through the door?** `signup` → `onboarding_complete` →
- *     `log_added`, the funnel that N5 (guest mode) turns on.
+ *   - **Do they get through the door?** `signup` → `onboarding_start` →
+ *     `onboarding_step_body` → `onboarding_step_plan` → `onboarding_complete` →
+ *     `log_added`, the funnel that N5 (guest mode) turns on. The step events
+ *     exist because the first 14 days of data showed half of signups never
+ *     firing `onboarding_complete` and nothing could say WHERE they stopped;
+ *     `onboarding_start` also counts federated arrivals, which `signup`
+ *     deliberately does not (see `auth.tsx`). First arrival per run only, and
+ *     a redo via Settings → Edit goals counts nothing.
  *   - **Which logging paths carry the weight?** the `log_*` family plus
  *     `photo_scan`, `barcode_scan`, `voice_log`, `quick_add`, `repeat_yesterday`
  *     — this is what says whether a surface earns its maintenance.
@@ -52,6 +58,9 @@
 export const USAGE_EVENTS = [
   'app_open',
   'signup',
+  'onboarding_start',
+  'onboarding_step_body',
+  'onboarding_step_plan',
   'onboarding_complete',
   'log_added',
   'log_queued_offline',

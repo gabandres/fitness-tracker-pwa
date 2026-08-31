@@ -291,6 +291,20 @@ describe('firestore.rules', () => {
     );
   });
 
+  it('accepts the onboarding funnel step events (2026-08-31 additions)', async () => {
+    // These pin the rules half of the catalogue: the client fires them from
+    // onboarding.tsx, and because validUsageDoc is hasOnly over the whole doc,
+    // a missing field here rejects the entire day's flush, not just one count.
+    await assertSucceeds(
+      setDoc(doc(authed('alice'), 'usageEvents', 'alice_2026-08-12'), {
+        ...usageDoc(),
+        onboarding_start: 1,
+        onboarding_step_body: 1,
+        onboarding_step_plan: 1,
+      }),
+    );
+  });
+
   it('blocks an event name outside the catalogue', async () => {
     await assertFails(
       setDoc(doc(authed('alice'), 'usageEvents', 'alice_2026-08-12'), {

@@ -1072,7 +1072,8 @@ service cloud.firestore {
     // and immutability of the identity fields once written.
     function usageEventFields() {
       return [
-        'app_open', 'signup', 'onboarding_complete', 'log_added',
+        'app_open', 'signup', 'onboarding_start', 'onboarding_step_body',
+        'onboarding_step_plan', 'onboarding_complete', 'log_added',
         'log_queued_offline', 'repeat_yesterday', 'quick_add', 'photo_scan',
         'barcode_scan', 'voice_log', 'coach_ask', 'weight_logged',
         'workout_finished',
@@ -1097,6 +1098,9 @@ service cloud.firestore {
         && d.updatedAt == request.time
         && validUsageCount(d, 'app_open')
         && validUsageCount(d, 'signup')
+        && validUsageCount(d, 'onboarding_start')
+        && validUsageCount(d, 'onboarding_step_body')
+        && validUsageCount(d, 'onboarding_step_plan')
         && validUsageCount(d, 'onboarding_complete')
         && validUsageCount(d, 'log_added')
         && validUsageCount(d, 'log_queued_offline')

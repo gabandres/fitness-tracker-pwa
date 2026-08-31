@@ -121,6 +121,9 @@ const report = {
   totals,
   funnel: {
     signup: totals.signup ?? 0,
+    onboarding_start: totals.onboarding_start ?? 0,
+    onboarding_step_body: totals.onboarding_step_body ?? 0,
+    onboarding_step_plan: totals.onboarding_step_plan ?? 0,
     onboarding_complete: totals.onboarding_complete ?? 0,
     log_added: totals.log_added ?? 0,
   },
@@ -151,6 +154,9 @@ for (const [bucket, n] of Object.entries(report.activeDays)) {
 }
 console.log('\n  funnel');
 console.log(`    signup                ${report.funnel.signup}   (email/password only — see usage-events.ts)`);
+console.log(`    onboarding_start      ${report.funnel.onboarding_start}   (all providers; counters start 2026-08-31)`);
+console.log(`    onboarding_step_body  ${report.funnel.onboarding_step_body}`);
+console.log(`    onboarding_step_plan  ${report.funnel.onboarding_step_plan}`);
 console.log(`    onboarding_complete   ${report.funnel.onboarding_complete}`);
 console.log(`    log_added             ${report.funnel.log_added}`);
 console.log('\n  all counters');
