@@ -425,3 +425,39 @@ are generated at runtime and have no static copy to lift.
 whether any of it gets crawled. This changes what Google finds when it comes; it
 cannot make Google come. Re-measure with `node scripts/gsc.mjs inspect` before
 claiming any of it worked.
+
+## The orphans, closed in the repo — 2026-08-30
+
+The 2026-08-27 recommendation ("do the anchors, not the router") is done, and
+the measurement that mattered turned out starker than the 18/118 above: a BFS
+over real `<a href>`s in **dist**, starting from `index.html`, reached **1 of
+118** sitemap URLs. The prerendered pages already carried the 32-link footer —
+the graph existed — but the shell at `/` injected nothing, so nothing linked
+*into* it from the crawl root. The 18/118 figure was counted over app
+templates, not over what a crawler fetches.
+
+What shipped (no router, no SSR, no new route):
+
+- **`scripts/prerender-seo.mjs` now injects the shell too.** `index.html` gets
+  the same `<noscript>` link-graph block the `/es/` landing already had —
+  34 links including the Español link to `/es/`. Head untouched (the shell's
+  canonical/hreflang were already correct for `/`); invisible to JS visitors,
+  including `/admin`, which the catch-all also serves. The pre-ADR-0036 reason
+  not to touch the shell (a site map inside the logged-in app) is gone with
+  the logged-in app.
+- **`/transformations` joined the footer groups** — it was in the sitemap and
+  in no footer.
+- **The landing page renders a visible footer directory**
+  (`landing.component.ts`, `.lp-dir` in styles.css): all 9 calculators, the
+  5 comparisons, resources, legal, and the language switch. Anchors are
+  locale-aware (`localizedPath`), which also fixed the existing landing links
+  silently dropping /es visitors into the English half.
+
+Acceptance, measured on the 2026-08-30 build (BFS from dist `index.html`
+through dist files, cleanUrls semantics): **118 of 118 sitemap URLs reachable,
+0 orphans** (235 HTML pages crawled). Before the change, same script: 1 of 118.
+
+Not fixed by this, still true: the sitemap's `lastDownloaded: never`, inbound
+links, and whether Google crawls any of it. Deploy, wait, then re-measure with
+`node scripts/gsc.mjs inspect` — that reading, not this section, decides
+whether the router migration ever gets an evidence base.

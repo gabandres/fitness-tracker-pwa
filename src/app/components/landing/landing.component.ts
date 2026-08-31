@@ -18,7 +18,9 @@ import { localizedPath } from '../../i18n/locale-path';
  *   4. Manifesto band — full-bleed dark, the privacy pledge at display size
  *   5. Comparisons — the /vs/* links as chips
  *   6. Closing CTA — ember-tinted panel with the store row (id="pricing")
- *   7. Footer — made-by credit + secondary nav
+ *   7. Footer — site directory (the visible SEO link graph: every
+ *      calculator variant, comparison, resource + the /es language
+ *      switch) above the made-by credit + secondary nav
  *
  * Layout note: app.ts wraps every page in a max-width column with side
  * padding. This page escapes it with `.lp-bleed` (negative 50vw margins —
@@ -48,8 +50,8 @@ import { localizedPath } from '../../i18n/locale-path';
           <a href="/" class="lp-brand">ignia</a>
           <div class="lp-navlinks">
             <a href="#features">{{ t('landing.whatItDoesRule') }}</a>
-            <a href="/calculator">{{ t('landing.navCalculator') }}</a>
-            <a href="/faq">{{ t('landing.navFaq') }}</a>
+            <a [href]="lp('/calculator')">{{ t('landing.navCalculator') }}</a>
+            <a [href]="lp('/faq')">{{ t('landing.navFaq') }}</a>
             <a [href]="supportPath()">{{ t('landing.navSupport') }}</a>
           </div>
           <a [href]="APP_STORE_URL" rel="noopener" class="lp-nav-cta">{{ t('landing.startLogging') }}</a>
@@ -80,7 +82,7 @@ import { localizedPath } from '../../i18n/locale-path';
               }
             </div>
             <div class="lp-hero-links">
-              <a href="/calculator" class="v2-link">{{ t('landing.tryCalculator') }} →</a>
+              <a [href]="lp('/calculator')" class="v2-link">{{ t('landing.tryCalculator') }} →</a>
               @if (socialProofCount(); as n) {
                 <p class="lp-proof" role="note">{{ t('landing.socialProof', { n }) }}</p>
               }
@@ -167,15 +169,15 @@ import { localizedPath } from '../../i18n/locale-path';
               <h2>{{ t('landing.quickTargetsRule') }}</h2>
               <p class="v2-caption" style="margin-top: 6px; max-width: 46ch;">{{ t('landing.quickTargetsLead') }}</p>
             </div>
-            <a href="/calculator" class="v2-link" style="font-size: 0.875rem;">{{ t('landing.qtAllWeights') }}</a>
+            <a [href]="lp('/calculator')" class="v2-link" style="font-size: 0.875rem;">{{ t('landing.qtAllWeights') }}</a>
           </div>
           <div class="lp-target-chips">
-            <a href="/macros/lose/150-lb">{{ t('landing.qtLose150') }}</a>
-            <a href="/macros/lose/180-lb">{{ t('landing.qtLose180') }}</a>
-            <a href="/macros/lose/220-lb">{{ t('landing.qtLose220') }}</a>
-            <a href="/macros/maintain/150-lb">{{ t('landing.qtMaintain150') }}</a>
-            <a href="/macros/maintain/180-lb">{{ t('landing.qtMaintain180') }}</a>
-            <a href="/macros/gain/170-lb">{{ t('landing.qtGain170') }}</a>
+            <a [href]="lp('/macros/lose/150-lb')">{{ t('landing.qtLose150') }}</a>
+            <a [href]="lp('/macros/lose/180-lb')">{{ t('landing.qtLose180') }}</a>
+            <a [href]="lp('/macros/lose/220-lb')">{{ t('landing.qtLose220') }}</a>
+            <a [href]="lp('/macros/maintain/150-lb')">{{ t('landing.qtMaintain150') }}</a>
+            <a [href]="lp('/macros/maintain/180-lb')">{{ t('landing.qtMaintain180') }}</a>
+            <a [href]="lp('/macros/gain/170-lb')">{{ t('landing.qtGain170') }}</a>
           </div>
         </div>
       </section>
@@ -190,9 +192,9 @@ import { localizedPath } from '../../i18n/locale-path';
           </h2>
           <p class="lp-manifesto-body">{{ t('landing.privacyBody') }}</p>
           <p class="lp-manifesto-links">
-            <a href="/privacy">{{ t('landing.privacyLink') }}</a>
+            <a [href]="lp('/privacy')">{{ t('landing.privacyLink') }}</a>
             &nbsp;·&nbsp;
-            <a href="/terms">{{ t('landing.termsLink') }}</a>
+            <a [href]="lp('/terms')">{{ t('landing.termsLink') }}</a>
           </p>
         </div>
       </section>
@@ -202,11 +204,11 @@ import { localizedPath } from '../../i18n/locale-path';
         <div class="lp-wrap lp-reveal">
           <p class="lp-eyebrow">{{ t('landing.comparisonsRule') }}</p>
           <div class="lp-vs-row">
-            <a href="/vs/myfitnesspal">vs MyFitnessPal</a>
-            <a href="/vs/loseit">vs Lose It!</a>
-            <a href="/vs/macrofactor">vs MacroFactor</a>
-            <a href="/vs/cronometer">vs Cronometer</a>
-            <a href="/vs/calai">vs Cal AI</a>
+            <a [href]="lp('/vs/myfitnesspal')">vs MyFitnessPal</a>
+            <a [href]="lp('/vs/loseit')">vs Lose It!</a>
+            <a [href]="lp('/vs/macrofactor')">vs MacroFactor</a>
+            <a [href]="lp('/vs/cronometer')">vs Cronometer</a>
+            <a [href]="lp('/vs/calai')">vs Cal AI</a>
           </div>
         </div>
       </section>
@@ -236,7 +238,54 @@ import { localizedPath } from '../../i18n/locale-path';
         </div>
       </section>
 
-      <!-- ── 7. footer ───────────────────────────────────────── -->
+      <!-- ── 7. footer: site directory + credits ─────────────── -->
+      <!-- The directory is the human-visible half of the SEO link graph:
+           every calculator variant, comparison and resource page gets a
+           real <a href> from the landing page, plus the language switch
+           into the /es/ half. The crawlable copy for first-pass bots is
+           injected into the served HTML by scripts/prerender-seo.mjs
+           (inside <noscript> on the shell); this one is what people see. -->
+      <nav class="lp-dir" [attr.aria-label]="t('landing.dirLabel')">
+        <div>
+          <h2 class="lp-dir-h">{{ t('landing.dirCalculators') }}</h2>
+          <ul>
+            <li><a [href]="lp('/calculator')">{{ t('landing.navCalculator') }}</a></li>
+            @for (v of CALC_VARIANTS; track v.slug) {
+              <li><a [href]="lp('/' + v.slug)">{{ variantLabel(t('calcVariants.' + v.key + '.title')) }}</a></li>
+            }
+          </ul>
+        </div>
+        <div>
+          <h2 class="lp-dir-h">{{ t('landing.dirCompare') }}</h2>
+          <ul>
+            <li><a [href]="lp('/vs/myfitnesspal')">vs MyFitnessPal</a></li>
+            <li><a [href]="lp('/vs/loseit')">vs Lose It!</a></li>
+            <li><a [href]="lp('/vs/macrofactor')">vs MacroFactor</a></li>
+            <li><a [href]="lp('/vs/cronometer')">vs Cronometer</a></li>
+            <li><a [href]="lp('/vs/calai')">vs Cal AI</a></li>
+          </ul>
+        </div>
+        <div>
+          <h2 class="lp-dir-h">{{ t('landing.dirResources') }}</h2>
+          <ul>
+            <li><a [href]="downloadPath()">{{ t('landing.dirDownload') }}</a></li>
+            <li><a [href]="lp('/faq')">{{ t('landing.dirFaq') }}</a></li>
+            <li><a [href]="supportPath()">{{ t('landing.dirSupport') }}</a></li>
+            <li><a [href]="lp('/transformations')">{{ t('landing.dirTransformations') }}</a></li>
+            <li><a [href]="lp('/changelog')">{{ t('landing.dirChangelog') }}</a></li>
+            <li><a [href]="lp('/status')">{{ t('landing.dirStatus') }}</a></li>
+          </ul>
+        </div>
+        <div>
+          <h2 class="lp-dir-h">{{ t('landing.dirLegal') }}</h2>
+          <ul>
+            <li><a [href]="lp('/privacy')">{{ t('landing.dirPrivacy') }}</a></li>
+            <li><a [href]="lp('/terms')">{{ t('landing.dirTerms') }}</a></li>
+            <li><a [href]="otherLangPath()" [attr.hreflang]="otherLangCode()" [attr.lang]="otherLangCode()">{{ t('landing.otherLang') }}</a></li>
+          </ul>
+        </div>
+      </nav>
+
       <footer class="lp-footer">
         <div>
           <p class="lp-footer-brand">ignia</p>
@@ -271,6 +320,44 @@ export class LandingComponent {
    *  where they decide to install. */
   protected readonly downloadPath = computed(() => localizedPath('/download', this.i18n.language()));
   protected readonly supportPath = computed(() => localizedPath('/support', this.i18n.language()));
+
+  /** Locale-aware internal link: a Spanish visitor stays on `/es/...` URLs.
+   *  Navigation here is full page loads (plain anchors, no router — ADR-0036),
+   *  so an unprefixed href would silently drop an /es visitor back into the
+   *  English half. Same mechanism as downloadPath/supportPath above. */
+  protected lp(path: string): string {
+    return localizedPath(path, this.i18n.language());
+  }
+
+  /** The other locale's landing page — the visible half of the hreflang
+   *  pair (`/` ↔ `/es/`), and the only crawlable entry into the /es half
+   *  the client-rendered page carries. */
+  protected readonly otherLangPath = computed(() =>
+    this.i18n.language() === 'es-PR' ? '/' : '/es/');
+  protected readonly otherLangCode = computed(() =>
+    this.i18n.language() === 'es-PR' ? 'en' : 'es');
+
+  /** Footer-directory rows for the calculator variants. slug → i18n key —
+   *  must stay in sync with VARIANT_PATHS in calculator.component.ts and
+   *  CALC_VARIANTS in scripts/prerender-seo.mjs (same dual-maintenance rule
+   *  those two already declare for each other). */
+  protected readonly CALC_VARIANTS = [
+    { slug: 'tdee-calculator-women', key: 'tdeeWomen' },
+    { slug: 'tdee-calculator-men', key: 'tdeeMen' },
+    { slug: 'cutting-calculator', key: 'cutting' },
+    { slug: 'bulking-calculator', key: 'bulking' },
+    { slug: 'maintenance-calculator', key: 'maintenance' },
+    { slug: 'keto-macro-calculator', key: 'keto' },
+    { slug: 'weight-loss-calculator', key: 'weightLoss' },
+    { slug: 'protein-calculator', key: 'protein' },
+  ] as const;
+
+  /** "Cutting Calculator · Calorie Deficit & Protein · Ignia" → "Cutting
+   *  Calculator". The calcVariants titles are page titles; the first `·`
+   *  segment is the name, the rest is SEO qualifier + brand. */
+  protected variantLabel(title: string): string {
+    return title.split('·')[0].trim();
+  }
 
   /** App Store listing. The ID is the ASC app ID — same value as
    *  `submit.production.ios.ascAppId` in apps/mobile/eas.json and the

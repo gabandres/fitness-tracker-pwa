@@ -112,6 +112,7 @@ const COPY = {
     navHome: 'Home',
     navDownload: 'Get the iPhone app',
     navSupport: 'Support',
+    navTransformations: 'Transformations',
     navAllWeights: 'All weights',
     goalLabel: { lose: 'Lose', maintain: 'Maintain', gain: 'Gain' },
     otherLang: 'English',
@@ -144,6 +145,7 @@ const COPY = {
     navHome: 'Inicio',
     navDownload: 'Consigue la app de iPhone',
     navSupport: 'Soporte',
+    navTransformations: 'Transformaciones',
     navAllWeights: 'Todos los pesos',
     goalLabel: { lose: 'Bajar', maintain: 'Mantener', gain: 'Subir' },
     otherLang: 'Español',
@@ -411,9 +413,14 @@ function writeRoute(relPath, html) {
 //     improvement for a real reader. It is not hidden text — it renders for
 //     anyone who has JS off, and it says exactly what the page says.
 //
-// Nothing here is injected into the shell (`index.html`): that file also
-// serves `/app` and every SPA route through the hosting catch-all, so a
-// footer in it would appear inside the logged-in app.
+// The shell (`index.html`) takes the same link graph, but ONLY inside
+// <noscript> (see the injection after the route loop below). It also serves
+// `/admin` and the retired SPA routes through the hosting catch-all, so
+// nothing VISIBLE may be injected into it — but since ADR-0036 there is no
+// logged-in app behind that catch-all, and leaving `/` linkless meant the
+// crawl had no entry point at all: measured 2026-08-30, 117 of 118 sitemap
+// URLs were unreachable by <a href> from `/`, because every prerendered page
+// links out but nothing linked INTO the graph from the root.
 
 const FOOTER_STYLE = `<style>
   .ig-sm{border-top:1px solid #e7e5e2;background:#faf9f6;color:#57534e;
@@ -673,6 +680,7 @@ function footerGroups(route, locale) {
     li(p('/download'), copy.navDownload),
     li(p('/faq'), copy.crumbFaq),
     li(p('/support'), copy.navSupport),
+    li(p('/transformations'), copy.navTransformations),
     li(p('/changelog'), stripBrand(i18n.changelog.pageTitle)),
     li(p('/status'), stripBrand(i18n.status.pageTitle)),
   ];
@@ -989,14 +997,34 @@ for (const r of routes) {
   const alternates = alternatesByKey.get(r.key);
   let out = rewrite(shell, r, alternates);
   // Landing pages take the link graph inside <noscript>; every other page
-  // takes it visibly. The ENGLISH landing page is the shell itself and is
-  // deliberately not in `routes` at all (see buildRoutes), so it gets
-  // neither — the crawl entry points into this graph are /download
-  // (hand-written, already indexed, already links out) and any prerendered
-  // page Google reaches from the sitemap.
+  // takes it visibly.
   out = injectBody(out, r, alternates, { footer: r.key !== '/' });
   writeRoute(r.file, out);
   written++;
+}
+
+// The ENGLISH landing page is the shell itself and is deliberately not in
+// `routes` (see buildRoutes — rewriting its <head> would break the SPA
+// fallback, and it is already correct for `/`). But it IS the crawl root,
+// and until 2026-08-30 it got no body injection either, which orphaned
+// 117 of 118 sitemap URLs: every prerendered page links out, nothing linked
+// in from `/`. So the shell now takes the same <noscript> link-graph block
+// as the /es/ landing — head untouched, invisible to JS visitors (including
+// `/admin`, which the catch-all also serves), present for a first-pass
+// crawler. The visible counterpart for humans is the landing component's own
+// footer directory (src/app/components/landing/landing.component.ts).
+{
+  const en = LOCALES.find((l) => l.lang === 'en');
+  const homeRoute = {
+    key: '/',
+    locale: en,
+    title: COPY.en.home_title,
+    description: COPY.en.home,
+  };
+  writeRoute(
+    'index.html',
+    injectBody(shell, homeRoute, alternatesByKey.get('/'), { footer: false }),
+  );
 }
 
 // Sitemap, generated from the same table so it cannot drift from what
