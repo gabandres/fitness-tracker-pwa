@@ -34,7 +34,8 @@ import * as haptics from '@/lib/haptics';
  * ## Two details that carry the design
  *
  * **The highlighted bars ARE the sentence.** The short group's nights are drawn
- * in `colors.info` and every other night in `colors.faint`, over the same
+ * in `colors.habitSleep` (sleep's identity violet — it was `info` until the
+ * habit hues landed, 2026-08-30) and every other night in `colors.faint`, over the same
  * fourteen days the sentence is computed from — so the chart is the claim drawn
  * rather than decoration beside it. That property is why the window is 14 for
  * both (see `sleep-intake.ts`).
@@ -169,7 +170,7 @@ export function SleepTrendsCard({
                         styles.bar,
                         {
                           height: `${Math.max(4, fraction * 100)}%`,
-                          backgroundColor: short.has(night.dateKey) ? colors.info : colors.faint,
+                          backgroundColor: short.has(night.dateKey) ? colors.habitSleep : colors.faint,
                         },
                       ]}
                     />

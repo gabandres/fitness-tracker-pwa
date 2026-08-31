@@ -37,6 +37,17 @@ const light = {
   protein: '#0fa968', // green (macro data)
   carbs: '#f59e0b', // amber (macro data)
   fat: '#8b5cf6', // violet (macro data)
+  // Habit identity accents (user-requested, 2026-08-30): one hue per habit so
+  // the three metric rows on Today and their Trends faces read as the same
+  // thing across screens. Identity, never urgency — these are calm accents
+  // (icon tints, chart bars, tab dots), not repaints. Hues reuse families the
+  // palette already vetted: water keeps the teal it has always had, sleep
+  // takes the violet the fat macro uses (night), fasting takes the amber/ember
+  // family (amber-600 in light — carbs' #f59e0b is a large-fill hue and falls
+  // under 3:1 as a small glyph on white; warn's #ab6400 reads brown as a bar).
+  habitSleep: '#8b5cf6', // violet — shares `fat`'s vetted hue
+  habitFasting: '#d97706', // ember amber — between `carbs` and `warn`, ≥3:1 on canvas
+  habitWater: '#0f766e', // teal — same as `teal`, the row's existing colour
   good: '#208368', // success text (jade, AA)
   warn: '#ab6400', // warning text (amber, AA — bright amber fails on white)
   info: '#0d74ce', // info text (blue, AA)
@@ -70,6 +81,9 @@ const dark: ColorTokens = {
   protein: '#34d399', // green (macro data) — brightened for dark
   carbs: '#fbbf24', // amber (macro data)
   fat: '#a78bfa', // violet (macro data)
+  habitSleep: '#a78bfa', // violet — shares `fat`'s dark hue
+  habitFasting: '#fbbf24', // ember amber — shares `carbs`' dark hue (bright enough on near-black)
+  habitWater: '#3fd6c0', // teal — same as `teal`
   good: '#3dd68c', // success text
   warn: '#f0b100', // warning text
   info: '#70b8ff', // info text

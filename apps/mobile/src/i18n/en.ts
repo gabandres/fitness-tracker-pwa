@@ -258,6 +258,10 @@ export const en = {
   'metrics.log': 'Log',
   'metrics.edit': 'Edit',
   'metrics.hoursSlept': 'Hours slept',
+  'metrics.sleepTrend': 'Sleep trend',
+  'metrics.fastingTrend': 'Fasting trend',
+  'metrics.waterTrend': 'Water trend',
+  'metrics.trendHint': 'Opens Trends on this chart',
 
   // ── entry sheet ──
   'entry.addTitle': 'Add food',

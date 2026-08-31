@@ -292,7 +292,10 @@ const createStyles = ({ colors }: Theme) =>
       width: '100%',
       borderTopLeftRadius: 3,
       borderTopRightRadius: 3,
-      backgroundColor: colors.info,
+      // Fasting's identity amber (`lib/habit-identity`) — it used to share
+      // `info` with the sleep card, and the two fourteen-column strips were
+      // indistinguishable at a glance (in-app feedback, 2026-08-30).
+      backgroundColor: colors.habitFasting,
     },
     gap: { width: '100%', height: 1, backgroundColor: colors.line },
     medianLine: {

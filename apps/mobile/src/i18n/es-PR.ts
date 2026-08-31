@@ -248,6 +248,10 @@ export const esPR: Record<I18nKey, string> = {
   'metrics.log': 'Registrar',
   'metrics.edit': 'Editar',
   'metrics.hoursSlept': 'Horas dormidas',
+  'metrics.sleepTrend': 'Tendencia de sueño',
+  'metrics.fastingTrend': 'Tendencia de ayuno',
+  'metrics.waterTrend': 'Tendencia de agua',
+  'metrics.trendHint': 'Abre Tendencias en esta gráfica',
 
   // ── entry sheet ──
   'entry.addTitle': 'Añadir comida',

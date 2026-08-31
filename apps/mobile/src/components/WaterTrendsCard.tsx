@@ -258,9 +258,10 @@ const createStyles = ({ colors }: Theme) =>
       width: '100%',
       borderTopLeftRadius: 3,
       borderTopRightRadius: 3,
-      // `teal` is what the water row on Today already uses (`DailyMetrics`
+      // Water's identity teal (`lib/habit-identity`, same value as `teal`) —
+      // the water row on Today has always used this hue (`DailyMetrics`
       // `waterValue`), so the metric keeps one colour across two screens.
-      backgroundColor: colors.teal,
+      backgroundColor: colors.habitWater,
     },
     gap: { width: '100%', height: 1, backgroundColor: colors.line },
     medianLine: {

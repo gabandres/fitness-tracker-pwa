@@ -244,6 +244,10 @@ export const ptBR = {
   'metrics.log': 'Registrar',
   'metrics.edit': 'Editar',
   'metrics.hoursSlept': 'Horas dormidas',
+  'metrics.sleepTrend': 'Tendência de sono',
+  'metrics.fastingTrend': 'Tendência de jejum',
+  'metrics.waterTrend': 'Tendência de água',
+  'metrics.trendHint': 'Abre Tendências neste gráfico',
 
   // ── entry sheet ──
   'entry.addTitle': 'Adicionar alimento',

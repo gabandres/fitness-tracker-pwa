@@ -40,6 +40,24 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
  */
 const memo = new Map<string, string>();
 
+/**
+ * Pre-select a persisted tab from OUTSIDE the panel that renders it — the
+ * Today habit shortcut writes the face it is about to land on, then navigates.
+ *
+ * Writing the module memo (not just AsyncStorage) is the load-bearing half:
+ * Trends unmounts when the user leaves it, and on remount the hook seeds its
+ * state from the memo synchronously — so the target face paints on the first
+ * frame, with no flash through whatever face was stored before. The caller is
+ * trusted to pass a value the panel's `valid` list contains; a stale one costs
+ * nothing (the hook's render-site fallback handles absence, exactly as it does
+ * for a face whose card has gone quiet).
+ */
+export function setPersistedTab(key: string, value: string): void {
+  memo.set(key, value);
+  // Fire and forget, same contract as `select` below.
+  void AsyncStorage.setItem(key, value).catch(() => {});
+}
+
 export function usePersistedTab(
   key: string,
   valid: readonly string[],

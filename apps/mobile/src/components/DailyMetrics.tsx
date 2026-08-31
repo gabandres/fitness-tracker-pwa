@@ -1,5 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEffect, useState } from 'react';
+import { useRouter } from 'expo-router';
 import {
   StyleSheet,
   Text,
@@ -9,11 +10,13 @@ import {
 } from 'react-native';
 import { WATER_MAX_FLOZ, clampWaterFlOz, fastHoursParts } from '@macrolog/core';
 import { BottomSheet } from '@/components/BottomSheet';
-import { type TFn, useLocale, useT } from '@/i18n';
+import { type I18nKey, type TFn, useLocale, useT } from '@/i18n';
 import { formatNumber } from '@/lib/date-format';
+import { type HabitMetric, TRENDS_HABIT_TAB_KEY, habitColor } from '@/lib/habit-identity';
 import type { DailyActivity } from '@/lib/ledger';
 import * as haptics from '@/lib/haptics';
 import { PressScale } from '@/lib/motion';
+import { setPersistedTab } from '@/hooks/usePersistedTab';
 import { useDeferredFocus } from '@/lib/use-deferred-focus';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
@@ -88,6 +91,65 @@ function fastingValue(since: Date | null, todayHours: number | null | undefined,
   return t('metrics.notFasting');
 }
 
+/** What the shortcut's accessibility label says, per habit. Full phrases per
+ *  metric rather than one key with a `{metric}` var, because the three locales
+ *  do not agree on word order or gender for a composed phrase. */
+const HABIT_SHORTCUT_LABEL: Record<HabitMetric, I18nKey> = {
+  sleep: 'metrics.sleepTrend',
+  fasting: 'metrics.fastingTrend',
+  water: 'metrics.waterTrend',
+};
+
+/**
+ * The Today → Trends shortcut a user asked for in as many words: *"Instead of
+ * taping Trends > and scrolling … can we make somewhat a shortcut from
+ * 'Today', I tap the icon and quickly goes to Trends and the appropriate
+ * graph?"* (in-app feedback, 2026-08-30).
+ *
+ * A DEDICATED chip leading the row, not the row itself — every habit row's
+ * label/value area is already an edit affordance (fasting → the fast editor,
+ * water → the exact-amount sheet) and the right side holds the daily actions.
+ * A shortcut sharing either would get hit by accident, the same reasoning that
+ * split the fasting row's value from its timer button. The chip is the one
+ * element on the row drawn in the habit's identity colour, and the Trends
+ * Habits strip marks each face with a dot in the same colour — colour is the
+ * thread that says these are the same thing.
+ *
+ * Lands on the right face by writing the strip's persisted tab BEFORE
+ * navigating (`setPersistedTab` seeds the module memo, so the face paints on
+ * the first frame), then `router.replace` — a pushed tab route stacks a second
+ * screen over the tab bar, the same trap the Trends stub rows already avoid.
+ * If the face has no card yet the strip omits it and Trends falls back to the
+ * stub row, which explains itself — still the right landing.
+ *
+ * Touch target: 32dp chip + 6dp hitSlop = 44pt, and the 12dp `leadGroup` gap
+ * keeps the slop clear of the edit affordance beside it.
+ */
+function HabitShortcut({ metric }: { metric: HabitMetric }) {
+  const t = useT();
+  const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
+  const router = useRouter();
+  return (
+    <PressScale
+      scaleTo={0.88}
+      style={styles.habitChip}
+      hitSlop={6}
+      accessibilityRole="button"
+      accessibilityLabel={t(HABIT_SHORTCUT_LABEL[metric])}
+      accessibilityHint={t('metrics.trendHint')}
+      testID={`metric-trends-${metric}`}
+      onPress={() => {
+        haptics.tap();
+        setPersistedTab(TRENDS_HABIT_TAB_KEY, metric);
+        router.replace('/(app)/trends');
+      }}
+    >
+      <Ionicons name="trending-up" size={16} color={habitColor(colors, metric)} />
+    </PressScale>
+  );
+}
+
 /** Today's daily-metric strip: fasting timer, water quick-add, sleep. The
  *  fasting row re-renders every 30s while a fast is running so the elapsed
  *  clock stays live without a global timer. */
@@ -115,22 +177,25 @@ export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater
           action gets hit by accident. The pencil is what says the number is
           touchable at all; without it this row looks inert. */}
       <View style={styles.row}>
-        <PressScale
-          scaleTo={onEditFast ? 0.96 : 1}
-          style={styles.left}
-          onPress={onEditFast ? () => { haptics.tap(); onEditFast(); } : undefined}
-          disabled={!onEditFast}
-          accessibilityRole={onEditFast ? 'button' : undefined}
-          accessibilityLabel={t('metrics.fasting')}
-          accessibilityHint={t('fast.editHint')}
-          testID="fast-open"
-        >
-          <Text style={styles.label}>{t('metrics.fasting')}</Text>
-          <View style={styles.waterValueRow}>
-            <Text style={styles.value}>{fastingValue(fastStartedAt, fastedTodayHours, t)}</Text>
-            {onEditFast ? <Ionicons name="pencil" size={12} color={colors.faint} /> : null}
-          </View>
-        </PressScale>
+        <View style={styles.leadGroup}>
+          <HabitShortcut metric="fasting" />
+          <PressScale
+            scaleTo={onEditFast ? 0.96 : 1}
+            style={styles.left}
+            onPress={onEditFast ? () => { haptics.tap(); onEditFast(); } : undefined}
+            disabled={!onEditFast}
+            accessibilityRole={onEditFast ? 'button' : undefined}
+            accessibilityLabel={t('metrics.fasting')}
+            accessibilityHint={t('fast.editHint')}
+            testID="fast-open"
+          >
+            <Text style={styles.label}>{t('metrics.fasting')}</Text>
+            <View style={styles.waterValueRow}>
+              <Text style={styles.value}>{fastingValue(fastStartedAt, fastedTodayHours, t)}</Text>
+              {onEditFast ? <Ionicons name="pencil" size={12} color={colors.faint} /> : null}
+            </View>
+          </PressScale>
+        </View>
         <PressScale
           scaleTo={0.92}
           style={[styles.action, fastStartedAt ? styles.actionStop : null]}
@@ -156,21 +221,24 @@ export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater
           as the Sleep row directly below, so it is one interaction to learn
           rather than two. */}
       <View style={styles.row}>
-        <PressScale
-          scaleTo={0.96}
-          style={styles.left}
-          onPress={() => { haptics.tap(); setWaterOpen(true); }}
-          accessibilityRole="button"
-          accessibilityLabel={t('water.title')}
-          accessibilityHint={t('water.amount')}
-          testID="water-open"
-        >
-          <Text style={styles.label}>{t('metrics.water')}</Text>
-          <View style={styles.waterValueRow}>
-            <Text style={[styles.value, styles.waterValue]}>{water} fl oz</Text>
-            <Ionicons name="pencil" size={12} color={colors.faint} />
-          </View>
-        </PressScale>
+        <View style={styles.leadGroup}>
+          <HabitShortcut metric="water" />
+          <PressScale
+            scaleTo={0.96}
+            style={styles.left}
+            onPress={() => { haptics.tap(); setWaterOpen(true); }}
+            accessibilityRole="button"
+            accessibilityLabel={t('water.title')}
+            accessibilityHint={t('water.amount')}
+            testID="water-open"
+          >
+            <Text style={styles.label}>{t('metrics.water')}</Text>
+            <View style={styles.waterValueRow}>
+              <Text style={[styles.value, styles.waterValue]}>{water} fl oz</Text>
+              <Ionicons name="pencil" size={12} color={colors.faint} />
+            </View>
+          </PressScale>
+        </View>
         <View style={styles.waterBtns}>
           {water > 0 ? (
             <PressScale scaleTo={0.88} style={styles.pill} onPress={() => { haptics.tap(); onAddWater(Math.max(0, water - 8)); }} testID="water-minus">
@@ -193,9 +261,12 @@ export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater
 
       {/* Sleep */}
       <View style={styles.row}>
-        <View style={styles.left}>
-          <Text style={styles.label}>{t('metrics.sleep')}</Text>
-          <Text style={styles.value}>{sleep != null ? `${sleep}h` : '—'}</Text>
+        <View style={styles.leadGroup}>
+          <HabitShortcut metric="sleep" />
+          <View style={styles.left}>
+            <Text style={styles.label}>{t('metrics.sleep')}</Text>
+            <Text style={styles.value}>{sleep != null ? `${sleep}h` : '—'}</Text>
+          </View>
         </View>
         <PressScale scaleTo={0.92} style={styles.action} onPress={() => { haptics.tap(); setSleepOpen(true); }} testID="sleep-open">
           <Text style={styles.actionText}>{sleep != null ? t('metrics.edit') : t('metrics.log')}</Text>
@@ -447,6 +518,23 @@ const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: space.sm },
   left: { gap: 2 },
+  // The habit chip + the row's label/value, as one leading cluster. The 12dp
+  // gap is load-bearing: the chip carries 6dp of hitSlop on each side, so the
+  // gap keeps its 44pt target clear of the edit affordance beside it.
+  leadGroup: { flexDirection: 'row', alignItems: 'center', gap: space.md, flexShrink: 1 },
+  // The Trends shortcut. A bordered circle so it reads as a BUTTON, distinct
+  // from the pencil (which marks the value as editable); the identity-coloured
+  // glyph inside is the only colour the row adds — an accent, not a repaint.
+  habitChip: {
+    width: 32,
+    height: 32,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.inputBg,
+    borderWidth: 1,
+    borderColor: colors.line,
+  },
   label: { fontSize: font.tiny, color: colors.muted, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
   value: { fontSize: font.body, color: colors.ink, fontWeight: '700' },
   divider: { height: 1, backgroundColor: colors.line },

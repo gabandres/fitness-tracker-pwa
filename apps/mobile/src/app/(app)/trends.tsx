@@ -19,6 +19,7 @@ import { WaterTrendsCard } from '@/components/WaterTrendsCard';
 import { WeeklyReportCard } from '@/components/WeeklyReportCard';
 import { useTrends } from '@/hooks/useTrends';
 import { usePersistedTab } from '@/hooks/usePersistedTab';
+import { HABIT_TABS, TRENDS_HABIT_TAB_KEY, habitColor } from '@/lib/habit-identity';
 import { useActivitySuggestion } from '@/lib/activity-suggestion';
 import { useAuth } from '@/lib/auth';
 import { useSubscription, PRO_ENABLED } from '@/lib/subscription';
@@ -73,7 +74,9 @@ export default function Trends() {
   // whose card has since gone quiet is still a *valid preference*; forgetting it
   // because today's data is thin would silently move you every time a card came
   // and went. Presence is handled at the render site instead, by `activeHabit`.
-  const [habitTab, setHabitTab] = usePersistedTab('trends.tab.habits', HABIT_TABS, 'sleep');
+  // The key and tab list live in `lib/habit-identity` because the Today
+  // shortcut writes this same key (`setPersistedTab`) to land on a face.
+  const [habitTab, setHabitTab] = usePersistedTab(TRENDS_HABIT_TAB_KEY, HABIT_TABS, 'sleep');
   // Which habit faces actually have a card right now, in a fixed order so the
   // strip does not reshuffle under the user's thumb as data arrives.
   const habitFaces = useMemo(
@@ -331,7 +334,15 @@ export default function Trends() {
             <>
               <Animated.View entering={enterUp(2)}>
                 <PanelTabs
-                  tabs={habitFaces.map((key) => ({ key, label: t(HABIT_TAB_LABEL[key]) }))}
+                  // Each face carries its identity dot — the same hue that
+                  // tints the habit's shortcut chip on Today and its chart
+                  // bars below, so the colour follows the metric across
+                  // screens (user-requested, 2026-08-30).
+                  tabs={habitFaces.map((key) => ({
+                    key,
+                    label: t(HABIT_TAB_LABEL[key]),
+                    dot: habitColor(colors, key),
+                  }))}
                   active={activeHabit}
                   onSelect={setHabitTab}
                   styles={styles}
@@ -427,7 +438,8 @@ export default function Trends() {
  *  validates a stored value against, so a renamed tab falls back instead of
  *  selecting a face that no longer exists. */
 const WEEKLY_TABS = ['week', 'budget'] as const;
-const HABIT_TABS = ['sleep', 'fasting', 'water'] as const;
+// HABIT_TABS moved to `lib/habit-identity` — the Today shortcut needs the same
+// list and storage key, and two copies is how they drift.
 
 /** The strip's label per face. A map rather than a ternary chain because the
  *  tabs are now built from a filtered list, and a chain that has to stay in
@@ -445,7 +457,11 @@ function PanelTabs({
   onSelect,
   styles,
 }: {
-  tabs: readonly { key: string; label: string }[];
+  /** `dot` — an optional identity colour rendered as a small disc before the
+   *  label (the Habits strip passes it; Weekly has no identities). Colour is
+   *  identity here, never state: the dot keeps its hue whether or not the tab
+   *  is active, because it names the metric, not the selection. */
+  tabs: readonly { key: string; label: string; dot?: string }[];
   active: string;
   onSelect: (key: string) => void;
   styles: ReturnType<typeof createStyles>;
@@ -465,6 +481,7 @@ function PanelTabs({
               onSelect(tab.key);
             }}
           >
+            {tab.dot ? <View style={[styles.tabDot, { backgroundColor: tab.dot }]} /> : null}
             <Text style={[styles.tabText, on && styles.tabTextOn]}>{tab.label}</Text>
           </PressScale>
         );
@@ -724,8 +741,10 @@ const createStyles = ({ colors, shadow }: Theme) =>
       borderRadius: radius.md,
       backgroundColor: colors.inputBg,
     },
-    tab: { paddingHorizontal: space.md, paddingVertical: 6, borderRadius: radius.sm },
+    tab: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: space.md, paddingVertical: 6, borderRadius: radius.sm },
     tabOn: { backgroundColor: colors.card },
+    // Identity dot — sized to read as a mark beside the label, not a badge.
+    tabDot: { width: 7, height: 7, borderRadius: radius.pill },
     tabText: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
     tabTextOn: { color: colors.ink, fontWeight: '700' },
     // Stat tiles
