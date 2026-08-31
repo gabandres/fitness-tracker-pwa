@@ -1183,7 +1183,43 @@ Note: GSC property `sc-domain:ignia.fit` is still unverified
 (`docs/seo-status.md`) — while in the DNS panel anyway, adding that TXT is a
 free two-birds move.
 
-### 5.2 Billing -> LLC (recommended: a NEW billing account, Ignia only)
+### 5.2 Billing -> LLC — **DONE 2026-08-30, driven end to end in the console**
+
+What exists now, all verified from the pages rather than assumed:
+
+- **Billing account `01916B-2927E2-E01DC7`, named "Bermudez Systems LLC"** —
+  created under gabriel@bermudezsystems.com via the free-trial signup (the org
+  account had never had GCP billing, so that flow is mandatory), country
+  United States, LLC payments profile `7360-3490-9173`, payment method
+  **Visa ****5311** (owner's call to keep it; a company card swap is theirs to
+  make later in Payment settings). **$300 free-trial credit, expires
+  2026-11-29, and the account was UPGRADED to full pay-as-you-go immediately**
+  — an un-upgraded trial marks resources for deletion at trial end, which on a
+  prod project is an outage on a timer. Credits are kept and burn first.
+- **Ignia (`fitness-tracker-gb-1775407101`) moved onto it** — console toast
+  *"Project Ignia has been moved to a different billing account"*; the
+  projects table now reads My Billing Account -> Bermudez Systems LLC.
+  Nothing restarts on a billing move.
+- **Standard billing export re-enabled on the NEW account** -> project Ignia,
+  dataset `billing` (table `gcp_billing_export_v1_01916B_2927E2_E01DC7`,
+  first daily load within ~24 h; no backfill).
+- **The OLD account's standard export was DISABLED the same hour** — it was
+  created that morning for Ignia's sake, and left on it would write a SECOND
+  `gcp_billing_export_v1_*` table (the other three projects' charges) into
+  Ignia's dataset, where `cost-model.ts` picks the FIRST matching table it
+  finds. One dataset, one exporting account. The citafy `billing_export`
+  detailed export on the old account was left untouched.
+- Google auto-created an empty **"My First Project"** during signup — inert,
+  linked to the LLC account, delete or ignore at leisure.
+
+Still open, owner-only: **grant gabrielandresbermudez@gmail.com Billing
+Account Administrator on `01916B-2927E2-E01DC7`** (Billing -> Account
+management -> Add principal) — the mirror of step 5.0, so either account can
+manage billing if the other is locked out.
+
+The original plan, kept for the reasoning (free tiers are per billing
+account, so the split is also cheaper):
+
 
 Free tiers are **per billing account** (CLAUDE.md, cost discipline). Today
 account `010F4E-5E97BC-6B83D0` carries four projects; Ignia moving to its own
@@ -1191,7 +1227,7 @@ account under the LLC actually *improves* the math: Secret Manager billable
 versions drop from ~7 account-wide to 2 (Ignia's 8 minus its own 6 free) plus
 0 on the old account (5 remaining <= 6 free) — cheaper AND separated.
 
-1. In the GCP console **as gabriel@bermudezsystems.com** (after 5.0):
+1. ~~In the GCP console **as gabriel@bermudezsystems.com** (after 5.0):~~ (done, see above)
    Billing -> **Create account** -> use the LLC payments profile
    (`7360-3490-9173`, the one that paid the Play $25) -> payment method:
    the **Chase Ink Business card** (owner's standing expense card — rewards,
