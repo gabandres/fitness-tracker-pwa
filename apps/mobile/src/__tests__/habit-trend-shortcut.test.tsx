@@ -10,9 +10,11 @@ jest.mock('expo-router', () => ({
 }));
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Text } from 'react-native';
 import { fireEvent, renderWithProviders as render, waitFor } from '@/test-utils';
 import { DailyMetrics } from '@/components/DailyMetrics';
-import { TRENDS_HABIT_TAB_KEY } from '@/lib/habit-identity';
+import { setPersistedTab, usePersistedTab } from '@/hooks/usePersistedTab';
+import { HABIT_TABS, TRENDS_HABIT_TAB_KEY } from '@/lib/habit-identity';
 
 /**
  * The Today → Trends habit shortcut (in-app feedback, 2026-08-30): each habit
@@ -119,5 +121,61 @@ describe('the rows keep their edit and log controls', () => {
     await fireEvent.press(getByTestId('sleep-open'));
     await waitFor(() => expect(getByTestId('sleep-input')).toBeTruthy());
     expect(mockReplace).not.toHaveBeenCalled();
+  });
+});
+
+/** Stand-in for the Trends Habits strip: the same hook, the same key, the same
+ *  valid list — mounted, exactly as expo-router keeps a visited Trends. */
+function MountedStrip() {
+  const [tab] = usePersistedTab(TRENDS_HABIT_TAB_KEY, HABIT_TABS, 'sleep');
+  return <Text testID="mounted-strip-face">{tab}</Text>;
+}
+
+describe('a LIVE Trends instance follows the shortcut', () => {
+  it('switches a mounted strip from water to sleep when the sleep shortcut fires', async () => {
+    // The exact sequence the LG VS988 failed on (2026-08-30): Trends already
+    // visited and left on the Water face, then a shortcut fired from Today.
+    // Shipped with only the memo + AsyncStorage write, the mounted instance
+    // never re-read either, so it stayed on water while navigation succeeded
+    // -- which every fresh-render test read as a pass.
+    setPersistedTab(TRENDS_HABIT_TAB_KEY, 'water');
+
+    const view = render(
+      <>
+        <MountedStrip />
+        <DailyMetrics
+          water={16}
+          sleep={7}
+          activity={undefined}
+          fastStartedAt={null}
+          onAddWater={() => {}}
+          onSetSleep={() => {}}
+          onStartFast={() => {}}
+          onBreakFast={() => {}}
+        />
+      </>,
+    );
+    const { getByTestId } = await view;
+    expect(getByTestId('mounted-strip-face').props.children).toBe('water');
+
+    await fireEvent.press(getByTestId('metric-trends-sleep'));
+
+    // The mounted strip itself switches -- not merely the stored value.
+    await waitFor(() => expect(getByTestId('mounted-strip-face').props.children).toBe('sleep'));
+    expect(AsyncStorage.setItem).toHaveBeenCalledWith(TRENDS_HABIT_TAB_KEY, 'sleep');
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/(app)/trends'));
+  });
+
+  it('a mounted strip re-validates an external write instead of trusting it', async () => {
+    const view = render(<MountedStrip />);
+    const { getByTestId } = await view;
+
+    setPersistedTab(TRENDS_HABIT_TAB_KEY, 'sleep');
+    await waitFor(() => expect(getByTestId('mounted-strip-face').props.children).toBe('sleep'));
+
+    // A value outside the panel's valid list must not select anything.
+    setPersistedTab(TRENDS_HABIT_TAB_KEY, 'someRemovedTab');
+    await waitFor(() => expect(AsyncStorage.setItem).toHaveBeenCalledWith(TRENDS_HABIT_TAB_KEY, 'someRemovedTab'));
+    expect(getByTestId('mounted-strip-face').props.children).toBe('sleep');
   });
 });

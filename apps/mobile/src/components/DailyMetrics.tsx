@@ -116,9 +116,11 @@ const HABIT_SHORTCUT_LABEL: Record<HabitMetric, I18nKey> = {
  * thread that says these are the same thing.
  *
  * Lands on the right face by writing the strip's persisted tab BEFORE
- * navigating (`setPersistedTab` seeds the module memo, so the face paints on
- * the first frame), then `router.replace` — a pushed tab route stacks a second
- * screen over the tab bar, the same trap the Trends stub rows already avoid.
+ * navigating (`setPersistedTab` seeds the module memo for a fresh mount AND
+ * notifies a live instance — expo-router keeps a visited Trends mounted, so
+ * the memo alone was not enough; found on device 2026-08-30), then
+ * `router.replace` — a pushed tab route stacks a second screen over the tab
+ * bar, the same trap the Trends stub rows already avoid.
  * If the face has no card yet the strip omits it and Trends falls back to the
  * stub row, which explains itself — still the right landing.
  *

@@ -33,29 +33,48 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
  *
  * ## Why the module-level memo
  *
- * Trends unmounts every time the user visits another tab, so without it every
- * return to the screen would repaint the default face and then flip to the
+ * When Trends mounts fresh (cold start, or after the navigator drops it),
+ * without the memo it would repaint the default face and then flip to the
  * stored one a frame later. The memo makes that flip happen at most once per
  * app launch; `AsyncStorage` remains the source of truth across launches.
+ * (This header used to claim Trends unmounts on EVERY tab change — the LG
+ * VS988 disproved that on 2026-08-30: expo-router keeps a visited tab screen
+ * mounted, which is exactly why `setPersistedTab` also notifies live
+ * instances.)
  */
 const memo = new Map<string, string>();
+
+/** Live hook instances, by key, so an external write can reach a MOUNTED
+ *  panel — see `setPersistedTab` for why that case is real. */
+const listeners = new Map<string, Set<(value: string) => void>>();
 
 /**
  * Pre-select a persisted tab from OUTSIDE the panel that renders it — the
  * Today habit shortcut writes the face it is about to land on, then navigates.
  *
- * Writing the module memo (not just AsyncStorage) is the load-bearing half:
- * Trends unmounts when the user leaves it, and on remount the hook seeds its
- * state from the memo synchronously — so the target face paints on the first
- * frame, with no flash through whatever face was stored before. The caller is
- * trusted to pass a value the panel's `valid` list contains; a stale one costs
- * nothing (the hook's render-site fallback handles absence, exactly as it does
- * for a face whose card has gone quiet).
+ * It must reach BOTH a future instance and a live one:
+ *
+ * - The module memo covers the not-yet-mounted case: on first mount the hook
+ *   seeds its state from the memo synchronously, so the target face paints on
+ *   the first frame with no flash through whatever was stored before.
+ * - The listener set covers the ALREADY-mounted case, and it is not
+ *   hypothetical: expo-router keeps a visited tab screen mounted, so after the
+ *   first visit to Trends `router.replace` re-focuses the LIVE instance and
+ *   nothing re-reads the memo. Shipped without this notify, the shortcut
+ *   navigated correctly and silently left the strip on the old face — found on
+ *   the LG VS988 (2026-08-30), invisible to every unit test that renders the
+ *   panel fresh.
+ *
+ * The caller is trusted to pass a value the panel's `valid` list contains; a
+ * stale one costs nothing (each live instance re-validates before accepting,
+ * and the render-site fallback handles absence, exactly as it does for a face
+ * whose card has gone quiet).
  */
 export function setPersistedTab(key: string, value: string): void {
   memo.set(key, value);
   // Fire and forget, same contract as `select` below.
   void AsyncStorage.setItem(key, value).catch(() => {});
+  listeners.get(key)?.forEach((notify) => notify(value));
 }
 
 export function usePersistedTab(
@@ -81,6 +100,26 @@ export function usePersistedTab(
       .catch(() => {});
     return () => {
       alive = false;
+    };
+  }, [key, valid]);
+
+  // Subscribe this instance to external writes (`setPersistedTab`). Without
+  // it a mounted panel never sees the Today shortcut's write — `useState`
+  // initialised once, and neither the memo nor AsyncStorage is re-read.
+  // Re-validated on arrival, same rule as the hydration above: an external
+  // caller is trusted about intent, not about the value.
+  useEffect(() => {
+    let set = listeners.get(key);
+    if (!set) {
+      set = new Set();
+      listeners.set(key, set);
+    }
+    const notify = (value: string) => {
+      if (valid.includes(value)) setTab(value);
+    };
+    set.add(notify);
+    return () => {
+      set.delete(notify);
     };
   }, [key, valid]);
 
