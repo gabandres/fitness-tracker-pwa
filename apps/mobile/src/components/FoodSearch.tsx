@@ -388,7 +388,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
     marginTop: space.xs,
     maxWidth: '100%',
   },
-  createFromQueryText: { flexShrink: 1, fontSize: font.small, color: colors.accent, fontWeight: '700' },
+  createFromQueryText: { flexShrink: 1, fontSize: font.small, color: colors.teal, fontWeight: '700' },
   hit: {
     paddingVertical: space.md,
     borderBottomWidth: 1,
@@ -424,5 +424,5 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   servingMain: { flex: 1, gap: 2 },
   servingLabel: { fontSize: font.body, color: colors.ink, fontWeight: '600' },
   servingMacros: { fontSize: font.small, color: colors.muted },
-  servingPick: { fontSize: font.small, color: colors.accent, fontWeight: '700', marginLeft: space.md },
+  servingPick: { fontSize: font.small, color: colors.teal, fontWeight: '700', marginLeft: space.md },
 });

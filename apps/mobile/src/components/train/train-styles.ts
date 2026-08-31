@@ -98,7 +98,7 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
     padding: space.lg,
     gap: space.xs,
   },
-  exRemove: { fontSize: font.tiny, color: colors.danger, fontWeight: '700', textTransform: 'uppercase' },
+  exRemove: { fontSize: font.small, color: colors.danger, fontWeight: '700' },
 
   // ── cardio (ADR-0025) ──
   // Shares `exCard`'s frame on purpose: a cardio block and an exercise are

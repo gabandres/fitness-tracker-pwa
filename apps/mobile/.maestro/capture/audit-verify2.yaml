@@ -1,0 +1,85 @@
+# Continuation of audit-verify: the two checkpoints after the dial trap
+# (06-scan-intro documents it: satellites are invisible to uiautomator on the
+# LG VS988 — reach scan by route).
+appId: fit.ignia.app
+---
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    notVisible:
+      id: 'brand-loader'
+    timeout: 15000
+- assertVisible: 'Today'
+# ── S16-12 scan copy ──
+- openLink: 'ignia:///scan'
+- tapOn:
+    text: 'Open'
+    optional: true
+- extendedWaitUntil:
+    visible: 'Scan a meal'
+    timeout: 10000
+- assertVisible: '.*Ignia estimates.*'
+- takeScreenshot: .maestro/capture/shots/v9-scan-copy
+- tapOn:
+    id: 'scan-back'
+- assertVisible: 'Today'
+# ── S16-1/S16-5 the live logger's action colors + case ──
+- tapOn: 'Train'
+- runFlow:
+    when:
+      visible:
+        id: 'discard-workout'
+    commands:
+      - tapOn:
+          id: 'discard-workout'
+      - extendedWaitUntil:
+          visible:
+            id: 'start-workout'
+          timeout: 15000
+- tapOn:
+    id: 'start-workout'
+- extendedWaitUntil:
+    visible:
+      id: 'add-exercise'
+    timeout: 15000
+- tapOn:
+    id: 'add-exercise'
+- tapOn:
+    id: 'exercise-name'
+- inputText: 'QA Design Check'
+- tapOn: 'Add exercise'
+- tapOn:
+    id: 'create-exercise'
+- extendedWaitUntil:
+    visible:
+      id: 'set-rir-0-0'
+    timeout: 15000
+- takeScreenshot: .maestro/capture/shots/v10-train-logger
+# teardown: discard the workout, delete the QA exercise
+- scrollUntilVisible:
+    element:
+      id: 'discard-workout'
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+- tapOn:
+    id: 'discard-workout'
+- extendedWaitUntil:
+    visible:
+      id: 'start-workout'
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      text: '.*QA Design Check.*'
+    direction: DOWN
+    timeout: 45000
+    centerElement: true
+- tapOn: '.*QA Design Check.*'
+- tapOn:
+    id: 'exercise-delete'
+- tapOn:
+    id: 'exercise-delete-confirm'
+- takeScreenshot: .maestro/capture/shots/v11-teardown
+- launchApp:
+    clearState: false
+- assertVisible: 'Today'

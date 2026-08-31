@@ -747,7 +747,7 @@ const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.create({
   bfHint: { fontSize: font.tiny, color: colors.faint, marginTop: 2 },
   bfValue: { fontFamily: type.display, fontSize: font.h1, color: colors.ink, marginLeft: space.md },
   measureHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.md },
-  addLink: { fontSize: font.small, color: colors.accent, fontWeight: '700' },
+  addLink: { fontSize: font.small, color: colors.teal, fontWeight: '700' },
   rowMeasure: { fontSize: font.small, fontWeight: '600', color: colors.ink, flexShrink: 1, textAlign: 'right' },
   sheetHint: { fontSize: font.small, color: colors.muted, marginBottom: space.md },
   measureGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.md },

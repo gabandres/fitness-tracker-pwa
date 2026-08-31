@@ -786,7 +786,7 @@ const createStyles = ({ scheme, colors, shadow }: Theme) => StyleSheet.create({
   rowKcal: { fontSize: font.body, color: colors.muted, fontWeight: '700' },
   rowRemove: { fontSize: font.body, color: colors.danger, fontWeight: '700' },
   customLink: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingVertical: space.md },
-  customLinkText: { fontSize: font.body, color: colors.accent, fontWeight: '700' },
+  customLinkText: { fontSize: font.body, color: colors.teal, fontWeight: '700' },
   starterWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   starterChip: {
     flexDirection: 'row',
