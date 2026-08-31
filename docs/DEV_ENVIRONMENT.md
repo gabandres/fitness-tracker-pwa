@@ -1164,12 +1164,12 @@ than assumed:
   Round 1: Organization = "Bermudez Systems LLC" — owner clicked the
   confirmation email, verified applied in the edit form. Round 2 (owner
   present): email -> gabriel@bermudezsystems.com, phone -> +1 307 201 8420,
-  address -> 30 N Gould St, Sheridan WY 82801, US — submitted, row shows
-  "Changes pending". ***OWNER: ICANN change-of-registrant confirmations go
-  to BOTH mailboxes (bermudezpr + bermudezsystems, both in Outlook/M365) —
-  click them promptly; unconfirmed CoR can suspend the domain after 15
-  days.*** Note the registrant email change may also apply a standard
-  60-day registrar-transfer lock — irrelevant unless leaving Cloudflare.
+  address -> 30 N Gould St, Sheridan WY 82801, US — **CONFIRMED AND
+  APPLIED**: the owner clicked both verification emails and the Contact
+  table now reads gabriel@bermudezsystems.com / +1.3072018420 / 30 N Gould
+  St, Sheridan, WY 82801, US with no pending state. Note the registrant
+  email change may apply a standard 60-day registrar-transfer lock —
+  irrelevant unless leaving Cloudflare.
   Administrator/Technical/Billing contact rows are still personal —
   cosmetic, same pencil when desired.
 - WHOIS is redacted by Cloudflare regardless; the "display organization in
