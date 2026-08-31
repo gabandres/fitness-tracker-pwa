@@ -17,6 +17,7 @@ import { LandingComponent } from './components/landing/landing.component';
 import { AdminComponent } from './components/admin/admin.component';
 import { NotFoundComponent } from './components/not-found/not-found.component';
 import { RetiredComponent } from './components/retired/retired.component';
+import { AuthActionComponent } from './components/auth-action/auth-action.component';
 import { AuthService } from './services/auth.service';
 import { applyThemeChoice, readStoredTheme } from './utils/theme';
 import { AnalyticsService } from './services/analytics.service';
@@ -33,7 +34,7 @@ import { adminPreviewEnabled } from './components/admin/admin-preview';
 type Route =
   | 'privacy' | 'terms' | 'changelog' | 'status' | 'admin' | 'landing' | 'notFound'
   | 'calculator' | 'macros' | 'faq' | 'vs' | 'publicProfile' | 'transformations'
-  | 'retired';
+  | 'retired' | 'authAction';
 
 /**
  * The web shell (ADR-0036): the public marketing/compliance pages, and one
@@ -61,6 +62,7 @@ type Route =
     AdminComponent,
     NotFoundComponent,
     RetiredComponent,
+    AuthActionComponent,
     TranslocoDirective,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -107,6 +109,9 @@ type Route =
           @placeholder { <div class="py-20 text-center caption">…</div> } @error { <app-defer-error /> }
         } @else if (route() === 'retired') {
           @defer { <app-retired /> }
+          @placeholder { <div class="py-20 text-center caption">…</div> } @error { <app-defer-error /> }
+        } @else if (route() === 'authAction') {
+          @defer { <app-auth-action /> }
           @placeholder { <div class="py-20 text-center caption">…</div> } @error { <app-defer-error /> }
         } @else if (route() === 'admin') {
           @if (!adminPreview && !auth.ready()) {
@@ -207,6 +212,10 @@ export class App {
     // The retired logging app (ADR-0036). `/app` is the installed PWA's
     // start_url and the target of every recap email's "Open your log"
     // button; the rest are its tabs. All of them get the "moved" page.
+    // Firebase auth action links (verify email, password reset) — the
+    // functions rewrite their path here so the landing is branded rather
+    // than Firebase's stock OOB card (owner-flagged 2026-08-31).
+    if (path === '/auth/action') return 'authAction';
     if (path === '/app' || path.startsWith('/app/')) return 'retired';
     if (/^\/(history|trends|body|train|onboarding)(\/.*)?$/.test(path)) return 'retired';
     return 'notFound';

@@ -544,5 +544,25 @@
     "playStore": "Descárgala en Google Play",
     "exportLead": "¿Quieres una copia de tus datos, o borrar tu cuenta?",
     "exportLink": "Ambas cosas están en la página de privacidad."
+  },
+  "authAction": {
+    "workingTitle": "Un momento…",
+    "workingBody": "Verificando tu enlace.",
+    "section": "cuenta",
+    "verifiedTitle": "Tu correo está verificado.",
+    "verifiedBody": "Todo listo. Vuelve a Ignia para terminar de configurar tu cuenta — la app lo detecta sola en cuanto regreses.",
+    "openApp": "Abrir Ignia",
+    "openAppHint": "¿Estás leyendo esto en tu computadora? Solo abre Ignia en tu teléfono — no hay que hacer nada más.",
+    "resetTitle": "Elige una contraseña nueva.",
+    "resetBody": "Para {{email}}.",
+    "passwordLabel": "Contraseña nueva",
+    "passwordHint": "Mínimo 10 caracteres, con una mayúscula, una minúscula y un número.",
+    "passwordWeak": "Esa contraseña no cumple los requisitos de arriba.",
+    "resetSubmit": "Guardar contraseña",
+    "resetFailed": "No funcionó — puede que el enlace haya expirado. Pide uno nuevo desde la pantalla de inicio de sesión.",
+    "resetDoneTitle": "Contraseña actualizada.",
+    "resetDoneBody": "Inicia sesión con tu contraseña nueva donde uses Ignia.",
+    "errorTitle": "Este enlace expiró o ya se usó.",
+    "errorBody": "Si estabas verificando tu correo, abre Ignia — si ya está verificado, entrarás directo; si no, pide un correo nuevo desde la misma pantalla. Para restablecer la contraseña, usa \"¿Olvidaste tu contraseña?\" en la pantalla de inicio de sesión."
   }
 }

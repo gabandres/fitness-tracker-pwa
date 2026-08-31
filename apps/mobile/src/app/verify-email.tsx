@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, AppState, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated from 'react-native-reanimated';
 import { BrandMark } from '@/components/BrandMark';
@@ -26,6 +26,24 @@ export default function VerifyEmail() {
   const [resending, setResending] = useState(false);
   const [resent, setResent] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // The branded ignia.fit/auth/action page verifies the email in the browser
+  // and its "Open Ignia" deep-links back here — so re-check on foreground,
+  // making the return itself enough to resume onboarding. Quiet on failure:
+  // the manual button owns the error copy, and a network blip on foreground
+  // must not paint an error over a screen the user did nothing on.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') return;
+      reloadUser()
+        .then((verified) => {
+          // The AuthGate observes emailVerified flipping true and navigates.
+          if (verified) haptics.success();
+        })
+        .catch(() => {});
+    });
+    return () => sub.remove();
+  }, [reloadUser]);
 
   async function onCheck() {
     if (checking) return;

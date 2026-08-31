@@ -544,5 +544,25 @@
     "playStore": "Get it on Google Play",
     "exportLead": "Want a copy of your data, or to delete your account?",
     "exportLink": "Both are on the privacy page."
+  },
+  "authAction": {
+    "workingTitle": "One moment…",
+    "workingBody": "Checking your link.",
+    "section": "account",
+    "verifiedTitle": "Your email is verified.",
+    "verifiedBody": "You're all set. Head back to Ignia to finish setting up — the app notices on its own the moment you return.",
+    "openApp": "Open Ignia",
+    "openAppHint": "Reading this on your computer? Just open Ignia on your phone — nothing else to do.",
+    "resetTitle": "Choose a new password.",
+    "resetBody": "For {{email}}.",
+    "passwordLabel": "New password",
+    "passwordHint": "At least 10 characters, with an uppercase letter, a lowercase letter, and a number.",
+    "passwordWeak": "That password doesn't meet the requirements above.",
+    "resetSubmit": "Save new password",
+    "resetFailed": "That didn't work — the link may have expired. Request a fresh one from the sign-in screen.",
+    "resetDoneTitle": "Password updated.",
+    "resetDoneBody": "Sign in with your new password wherever you use Ignia.",
+    "errorTitle": "This link has expired or was already used.",
+    "errorBody": "If you were verifying your email, open Ignia — if it's already verified, you'll go straight through; otherwise request a fresh email from the same screen. For a password reset, use \"Forgot password?\" on the sign-in screen."
   }
 }
