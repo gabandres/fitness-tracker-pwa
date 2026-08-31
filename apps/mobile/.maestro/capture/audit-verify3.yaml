@@ -1,0 +1,103 @@
+# Spot-check for batch 2b: Body links, search serving Add, workout-card Remove.
+appId: fit.ignia.app
+---
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    notVisible:
+      id: 'brand-loader'
+    timeout: 15000
+- assertVisible: 'Today'
+# Body links (+ Add / How to measure → teal)
+- tapOn: 'Body'
+- scrollUntilVisible:
+    element:
+      text: '.*Waist.*'
+    direction: DOWN
+    timeout: 30000
+    centerElement: true
+- takeScreenshot: .maestro/capture/shots/w1-body-links
+- tapOn: 'Today'
+# Search detail: serving Add rows (→ teal)
+- openLink: 'ignia://?openAdd=verify3'
+- tapOn:
+    text: 'Open'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'open-more'
+    timeout: 15000
+- tapOn: 'Search foods…'
+- inputText: 'banana'
+- extendedWaitUntil:
+    visible: 'Banana, raw'
+    timeout: 20000
+- tapOn: 'Banana, raw'
+- extendedWaitUntil:
+    visible: 'Quantity'
+    timeout: 15000
+- takeScreenshot: .maestro/capture/shots/w2-serving-add
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    notVisible:
+      id: 'brand-loader'
+    timeout: 15000
+# Workout card: Remove in sentence case
+- tapOn: 'Train'
+- runFlow:
+    when:
+      visible:
+        id: 'discard-workout'
+    commands:
+      - tapOn:
+          id: 'discard-workout'
+      - extendedWaitUntil:
+          visible:
+            id: 'start-workout'
+          timeout: 15000
+- tapOn:
+    id: 'start-workout'
+- extendedWaitUntil:
+    visible:
+      id: 'add-exercise'
+    timeout: 15000
+- tapOn:
+    id: 'add-exercise'
+- tapOn:
+    id: 'exercise-name'
+- inputText: 'QA Design Check'
+- tapOn: 'Add exercise'
+- tapOn:
+    id: 'create-exercise'
+- extendedWaitUntil:
+    visible:
+      id: 'set-rir-0-0'
+    timeout: 15000
+- takeScreenshot: .maestro/capture/shots/w3-train-remove
+- scrollUntilVisible:
+    element:
+      id: 'discard-workout'
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+- tapOn:
+    id: 'discard-workout'
+- extendedWaitUntil:
+    visible:
+      id: 'start-workout'
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      text: '.*QA Design Check.*'
+    direction: DOWN
+    timeout: 45000
+    centerElement: true
+- tapOn: '.*QA Design Check.*'
+- tapOn:
+    id: 'exercise-delete'
+- tapOn:
+    id: 'exercise-delete-confirm'
+- launchApp:
+    clearState: false
+- assertVisible: 'Today'
