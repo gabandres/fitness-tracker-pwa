@@ -1160,20 +1160,20 @@ than assumed:
   bermudezsystems.com (so the "Northwest DNS" note above/in CLAUDE.local.md
   is stale — the zone is Active on Cloudflare), and citafy.app. citafy.app
   is also registered here (Mar 10, 2027).
-- **Registrant Organization set to "Bermudez Systems LLC"** — submitted, row
-  shows **"Changes pending"**. ***OWNER ACTION: a confirmation email went to
-  gabriel@bermudezpr.com (Outlook) — click it within 15 days or the change
-  lapses.*** The registrant email/phone/address were deliberately LEFT
-  personal for now: changing the registrant email starts an ICANN
-  change-of-registrant verification that can suspend the domain if
-  unconfirmed in 15 days — not a timer to start while AFK. Flip them in one
-  sitting (Contact tab, pencil icon) when you can watch both mailboxes:
-  email gabriel@bermudezsystems.com, phone +1 307 201 8420, 30 N Gould St,
-  Sheridan WY 82801.
+- **Registrant fully moved to the LLC, in two confirmed rounds (2026-08-30/31).**
+  Round 1: Organization = "Bermudez Systems LLC" — owner clicked the
+  confirmation email, verified applied in the edit form. Round 2 (owner
+  present): email -> gabriel@bermudezsystems.com, phone -> +1 307 201 8420,
+  address -> 30 N Gould St, Sheridan WY 82801, US — submitted, row shows
+  "Changes pending". ***OWNER: ICANN change-of-registrant confirmations go
+  to BOTH mailboxes (bermudezpr + bermudezsystems, both in Outlook/M365) —
+  click them promptly; unconfirmed CoR can suspend the domain after 15
+  days.*** Note the registrant email change may also apply a standard
+  60-day registrar-transfer lock — irrelevant unless leaving Cloudflare.
+  Administrator/Technical/Billing contact rows are still personal —
+  cosmetic, same pencil when desired.
 - WHOIS is redacted by Cloudflare regardless; the "display organization in
   WHOIS" toggle was left off.
-- The Administrator/Technical/Billing contact rows are still personal —
-  cosmetic, same pencil when desired.
 
 What remains genuinely owner-only: relabeling the Cloudflare ACCOUNT itself
 (its login is GitHub SSO as gabriel@bermudezpr.com — changing account email
