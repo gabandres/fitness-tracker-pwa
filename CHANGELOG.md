@@ -34,6 +34,17 @@ gained a footer directory, and Spanish visitors stopped being silently
 dropped into English pages. Deployed.
 
 
+## 2026-08-31 — The LLC migration is COMPLETE, end to end
+
+Every asset now belongs to Bermudez Systems LLC: Apple (08-25) and Play
+(08-26) developer accounts, GCP project ownership and billing (account
+`01916B-2927E2-E01DC7`, billing export re-pointed, the old account's export
+disabled), and finally the `ignia.fit` domain — Cloudflare Registrar
+registrant and all four contact rows (Registrant/Admin/Tech/Billing) read
+the LLC's org, email, phone and Sheridan address, verified 2026-08-31 with
+no pending state. Sole optional remainder: the Cloudflare account *login*
+is still gabriel@bermudezpr.com via GitHub SSO.
+
 ## 2026-08-31 — The Stripe extension is gone, and Secret Manager hits $0.00
 
 The `invertase/firestore-stripe-payments` extension had been dormant since
