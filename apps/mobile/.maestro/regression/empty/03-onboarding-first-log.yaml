@@ -1,0 +1,154 @@
+# Fresh-account arc, part 3: ONBOARDING → the FIRST LOG (retention lever 1).
+#
+# Same prereqs and account shape as 02 (a verified account with NO profile),
+# and mutually exclusive with it: both consume the one-shot onboarding, so run
+# `reset-empty` between them. Written 2026-09-02 for the step that ends
+# onboarding by offering the first log:
+#
+#   node scripts/qa-regression-verify.mjs create-empty --email <e> --password <p>
+#   maestro test .maestro/regression/empty/03-onboarding-first-log.yaml -e EMAIL=<e> -e PASSWORD=<p>
+#   node scripts/qa-regression-verify.mjs snapshot --email <e>     # expect one row: QA First Meal 300/20
+#   node scripts/qa-regression-verify.mjs reset-empty --email <e>
+#   maestro test .maestro/android-signin.yaml -e EMAIL=<qa email> -e PASSWORD=<qa pass>
+#
+# What it proves, in order: reminders step → first-log step → "Log my last
+# meal" lands on Today with the add sheet OPEN → a manual entry saves → the
+# row is in Entries → and only THEN does the guided tour offer itself (the
+# hold/release in `lib/tour.ts`). Ends SIGNED OUT, like 02.
+appId: fit.ignia.app
+tags:
+  - manual
+---
+- launchApp:
+    clearState: true
+    stopApp: true
+- extendedWaitUntil:
+    visible: 'Sign in to your account'
+    timeout: 30000
+- tapOn: 'Email'
+- inputText: ${EMAIL}
+- tapOn: 'Password'
+- inputText: ${PASSWORD}
+- tapOn: 'Sign in to your account'
+- tapOn:
+    text: 'Sign in'
+    index: 1
+- tapOn:
+    text: 'Not Now'
+    optional: true
+- runFlow:
+    when:
+      visible: 'Verify your email to continue.'
+    commands:
+      - tapOn: 'I verified — refresh'
+- extendedWaitUntil:
+    visible: 'Welcome to Ignia'
+    timeout: 30000
+- tapOn:
+    id: 'onboarding-next'
+- assertVisible: "What's your goal.*"
+- tapOn:
+    id: 'onboarding-goal-lose'
+- tapOn:
+    id: 'onboarding-next'
+- assertVisible: 'What do you weigh now.*'
+- tapOn:
+    id: 'onboarding-weight'
+- inputText: '180'
+- tapOn:
+    id: 'onboarding-next'
+- assertVisible: "What's your goal weight.*"
+- tapOn:
+    id: 'onboarding-target-weight'
+- inputText: '165'
+- tapOn:
+    id: 'onboarding-next'
+# Body step (F1/F2) is skippable and skipping jumps straight to the plan.
+- tapOn:
+    id: 'onboarding-skip-body'
+- assertVisible:
+    id: 'onboarding-preview'
+- tapOn:
+    id: 'onboarding-save'
+# ── reminders step (2026-08-30), then the first-log step (2026-09-02) ──
+- extendedWaitUntil:
+    visible:
+      id: 'onboarding-reminders'
+    timeout: 20000
+- takeScreenshot: .maestro/regression/shots/empty-03-reminders
+- tapOn:
+    id: 'onboarding-reminders-skip'
+- extendedWaitUntil:
+    visible:
+      id: 'onboarding-first-log'
+    timeout: 10000
+- takeScreenshot: .maestro/regression/shots/empty-03-first-log
+- tapOn:
+    id: 'onboarding-first-log-cta'
+# Today, with the add sheet already open — `open-more` is the sheet's own id
+# (flow 11 waits on the same one after `?openAdd=`).
+- extendedWaitUntil:
+    visible:
+      id: 'open-more'
+    timeout: 20000
+- takeScreenshot: .maestro/regression/shots/empty-03-sheet-open
+- tapOn:
+    id: 'open-manual'
+- tapOn:
+    id: 'entry-label'
+- inputText: 'QA First Meal'
+- tapOn:
+    id: 'entry-calories'
+- inputText: '300'
+- tapOn:
+    id: 'entry-protein'
+- inputText: '20'
+- tapOn: 'Add food'
+- tapOn:
+    id: 'entry-save'
+# The row lands in Entries.
+- extendedWaitUntil:
+    visible: 'Today'
+    timeout: 30000
+# The tour was HELD while the sheet was up and is released on save, so it may
+# now be covering Today. Skip it if so — that appearance is itself the
+# evidence the hold released — then look for the row.
+- extendedWaitUntil:
+    visible:
+      id: 'tour-skip'
+    timeout: 15000
+    optional: true
+- takeScreenshot: .maestro/regression/shots/empty-03-after-save
+- runFlow:
+    when:
+      visible:
+        id: 'tour-skip'
+    commands:
+      - tapOn:
+          id: 'tour-skip'
+- scrollUntilVisible:
+    element:
+      text: '.*QA First Meal.*'
+    direction: DOWN
+    timeout: 15000
+    visibilityPercentage: 60
+- takeScreenshot: .maestro/regression/shots/empty-03-logged
+# ── leave the sandbox signed out (same tail as 02) ──
+- tapOn:
+    id: 'settings-open'
+- scrollUntilVisible:
+    element:
+      id: 'settings-signout'
+    direction: DOWN
+    timeout: 25000
+    speed: 10
+    centerElement: true
+- extendedWaitUntil:
+    visible:
+      id: 'settings-signout'
+    timeout: 10000
+- tapOn:
+    id: 'settings-signout'
+- extendedWaitUntil:
+    visible: 'Sign in to your account'
+    timeout: 30000

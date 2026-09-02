@@ -38,6 +38,14 @@ describe('shouldAutoOpenTour', () => {
     },
   );
 
+  it('does not open while onboarding\'s first-log sheet holds it', () => {
+    // Retention lever 1: the first-log CTA lands on Today with the add sheet
+    // open, which is precisely "someone mid-task". The hold is released when
+    // that sheet closes, and the tour then offers itself as before.
+    expect(shouldAutoOpenTour({ ...base, held: true })).toBe(false);
+    expect(shouldAutoOpenTour({ ...base, held: false })).toBe(true);
+  });
+
   it('treats an absent second segment as the tab root', () => {
     // Inside the (app) layout the tab root has no second segment, so the
     // caller passes `segments[1] ?? 'index'`. Guard the contract from here

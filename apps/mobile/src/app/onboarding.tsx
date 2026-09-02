@@ -23,6 +23,7 @@ import { BrandMark } from '@/components/BrandMark';
 import { useAuth } from '@/lib/auth';
 import { saveOnboardingV2 } from '@/lib/ledger';
 import { setRemindersEnabled } from '@/lib/reminders';
+import { holdTour } from '@/lib/tour';
 import { DEFAULT_MEAL_REMINDERS, STREAK_RISK_HOUR, STREAK_RISK_MINUTE } from '@macrolog/core';
 import { track } from '@/lib/analytics';
 import { type I18nKey, useLocale, useT } from '@/i18n';
@@ -33,7 +34,7 @@ import { useUnitSystem } from '@/lib/use-unit-system';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, motion, radius, space, type } from '@/theme';
 
-type StepId = 'welcome' | 'goal' | 'weight' | 'goalWeight' | 'body' | 'activity' | 'plan' | 'reminders';
+type StepId = 'welcome' | 'goal' | 'weight' | 'goalWeight' | 'body' | 'activity' | 'plan' | 'reminders' | 'firstLog';
 const ORDER: StepId[] = ['welcome', 'goal', 'weight', 'goalWeight', 'body', 'activity', 'plan'];
 /** Steps that get a progress dot (welcome is a greeting, not a form step). */
 const DOT_STEPS: StepId[] = ['goal', 'weight', 'goalWeight', 'body', 'activity', 'plan'];
@@ -227,7 +228,8 @@ export default function Onboarding() {
     // otherwise `dailyTargets` clamps it on the way out and hands the user a
     // number they did not choose, which is the exact defect being fixed.
     (step === 'plan' && (!edited || kcalCheck.ok)) ||
-    step === 'reminders';
+    step === 'reminders' ||
+    step === 'firstLog';
 
   function go(delta: 1 | -1) {
     haptics.tap();
@@ -319,7 +321,17 @@ export default function Onboarding() {
     router.replace('/(app)');
   }
 
-  /** Yes to reminders: ask the OS, and whatever it says, go to Today. A denied
+  /** The last step (retention lever 1, `STATUS.md` §3): offer the first log
+   *  before Today is ever seen empty. Measured 2026-09-02: 19 of 30 signups
+   *  never reached three logs, and the research is one-sided — a meaningful
+   *  action in session one is worth 2–3× at D30. Reminders stay BEFORE this
+   *  step because the first-log CTA leaves onboarding for Today. */
+  function goFirstLog(): void {
+    setDir(1);
+    setStep('firstLog');
+  }
+
+  /** Yes to reminders: ask the OS, and whatever it says, move on. A denied
    *  permission leaves the switch off (setRemindersEnabled handles that) and
    *  the user lands where they were going anyway. */
   async function onEnableReminders(): Promise<void> {
@@ -331,12 +343,22 @@ export default function Onboarding() {
       // Permission prompt failing must never trap someone in onboarding.
     } finally {
       setBusy(false);
-      leaveOnboarding();
+      goFirstLog();
     }
   }
 
+  /** Land on Today with the add sheet already open (the `openAdd` nonce the
+   *  tab bar, the widget and the scan screen all use). The guided tour is
+   *  held until that sheet closes, so it offers itself after the first log
+   *  rather than on top of it. */
+  function onFirstLog(): void {
+    holdTour();
+    haptics.tap();
+    router.replace({ pathname: '/(app)', params: { openAdd: String(Date.now()) } });
+  }
+
   const entering = (dir === 1 ? FadeInRight : FadeInLeft).duration(motion.dur.base).reduceMotion(ReduceMotion.System);
-  const showBack = step !== 'welcome' && step !== 'reminders' && !(isRedo && step === 'goal');
+  const showBack = step !== 'welcome' && step !== 'reminders' && step !== 'firstLog' && !(isRedo && step === 'goal');
   const dots = DOT_STEPS.filter((s) => !isSkipped(s));
   const dotIndex = dots.indexOf(step);
   const dotTotal = dots.length;
@@ -657,22 +679,50 @@ export default function Onboarding() {
             </View>
           ) : null}
 
+          {step === 'firstLog' ? (
+            <View style={styles.step} testID="onboarding-first-log">
+              <Text style={styles.question}>{t('onboarding.firstLogQ')}</Text>
+              <Text style={styles.planSub}>{t('onboarding.firstLogBody')}</Text>
+              <View style={styles.planPanel}>
+                <Text style={styles.reminderRow}>{t('onboarding.firstLogSearch')}</Text>
+                <Text style={styles.reminderRow}>{t('onboarding.firstLogPhoto')}</Text>
+                <Text style={styles.reminderRow}>{t('onboarding.firstLogType')}</Text>
+              </View>
+              <Text style={styles.planSub}>{t('onboarding.firstLogNote')}</Text>
+            </View>
+          ) : null}
+
           {error ? <Text style={styles.error}>{error}</Text> : null}
         </Animated.View>
         </ScrollView>
 
         <View style={styles.footer}>
           {step === 'reminders' ? (
-            <PressScale style={styles.ctaGhost} scaleTo={0.98} disabled={busy} onPress={leaveOnboarding} testID="onboarding-reminders-skip">
+            <PressScale style={styles.ctaGhost} scaleTo={0.98} disabled={busy} onPress={goFirstLog} testID="onboarding-reminders-skip">
               <Text style={styles.ctaGhostText}>{t('onboarding.remindersNotNow')}</Text>
+            </PressScale>
+          ) : null}
+          {step === 'firstLog' ? (
+            <PressScale style={styles.ctaGhost} scaleTo={0.98} disabled={busy} onPress={leaveOnboarding} testID="onboarding-first-log-later">
+              <Text style={styles.ctaGhostText}>{t('onboarding.firstLogLater')}</Text>
             </PressScale>
           ) : null}
           <PressScale
             style={[styles.cta, !canAdvance && styles.ctaDisabled]}
             scaleTo={0.98}
             disabled={!canAdvance || busy}
-            onPress={step === 'reminders' ? onEnableReminders : step === 'plan' ? onFinish : () => go(1)}
-            testID={step === 'reminders' ? 'onboarding-reminders-on' : step === 'plan' ? 'onboarding-save' : 'onboarding-next'}
+            onPress={
+              step === 'firstLog' ? onFirstLog
+              : step === 'reminders' ? onEnableReminders
+              : step === 'plan' ? onFinish
+              : () => go(1)
+            }
+            testID={
+              step === 'firstLog' ? 'onboarding-first-log-cta'
+              : step === 'reminders' ? 'onboarding-reminders-on'
+              : step === 'plan' ? 'onboarding-save'
+              : 'onboarding-next'
+            }
           >
             {busy ? (
               <ActivityIndicator color={colors.onInk} />
@@ -680,6 +730,8 @@ export default function Onboarding() {
               <Text style={styles.ctaText}>
                 {step === 'welcome'
                   ? t('onboarding.welcomeCta')
+                  : step === 'firstLog'
+                    ? t('onboarding.firstLogCta')
                   : step === 'reminders'
                     ? t('onboarding.remindersOn')
                   : step === 'plan'

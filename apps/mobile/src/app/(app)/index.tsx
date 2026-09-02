@@ -25,6 +25,7 @@ import { UpdateBanner } from '@/components/UpdateBanner';
 import { WhatsNewBanner } from '@/components/WhatsNewBanner';
 import { type Locale, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
+import { releaseTour } from '@/lib/tour';
 import { useDayFasts } from '@/hooks/useDayFasts';
 import { useFastActivity } from '@/hooks/useFastActivity';
 import { useReminderSync } from '@/hooks/useReminderSync';
@@ -275,7 +276,13 @@ export default function Today() {
   async function onDelete() {
     if (editing?.id) await deleteEntry(editing.id);
     haptics.success();
+    closeSheet();
+  }
+  /** Every way the add sheet closes goes through here: the guided tour is
+   *  held while onboarding's first-log sheet is up, and this is its release. */
+  function closeSheet() {
     setSheetOpen(false);
+    releaseTour();
   }
 
   return (
@@ -475,7 +482,7 @@ export default function Today() {
         editing={editing}
         onSave={onSave}
         onDelete={editing ? onDelete : undefined}
-        onClose={() => setSheetOpen(false)}
+        onClose={closeSheet}
         presets={presets}
         recentEntries={recentEntries}
         onSavePreset={addPreset}

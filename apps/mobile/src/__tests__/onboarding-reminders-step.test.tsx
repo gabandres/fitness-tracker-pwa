@@ -74,27 +74,32 @@ describe('onboarding ends by asking about reminders', () => {
     expect(mockSetRemindersEnabled).not.toHaveBeenCalled();
   });
 
-  it('"Not now" lands on Today and schedules nothing', async () => {
+  // Since 2026-09-02 the reminders step is followed by the first-log step
+  // (retention lever 1), so "landing on Today" became "moving on"; the
+  // first-log step's own test covers the exit. What is pinned here is that
+  // the OS prompt still happens exactly when it did, and never traps anyone.
+  it('"Not now" moves on to the first-log step and schedules nothing', async () => {
     const screen = await render(<Onboarding />);
     await walkToSavedPlan(screen);
     await fireEvent.press(screen.getByTestId('onboarding-reminders-skip'));
     expect(mockSetRemindersEnabled).not.toHaveBeenCalled();
-    expect(mockReplace).toHaveBeenCalledWith('/(app)');
+    expect(mockReplace).not.toHaveBeenCalled();
+    expect(screen.getByTestId('onboarding-first-log')).toBeTruthy();
   });
 
-  it('"Turn on" asks the OS once and lands on Today', async () => {
+  it('"Turn on" asks the OS once and moves on', async () => {
     const screen = await render(<Onboarding />);
     await walkToSavedPlan(screen);
     await fireEvent.press(screen.getByTestId('onboarding-reminders-on'));
     expect(mockSetRemindersEnabled).toHaveBeenCalledWith(true);
-    expect(mockReplace).toHaveBeenCalledWith('/(app)');
+    expect(screen.getByTestId('onboarding-first-log')).toBeTruthy();
   });
 
-  it('a denied permission still lands on Today — the prompt never traps anyone', async () => {
+  it('a denied permission still moves on — the prompt never traps anyone', async () => {
     mockSetRemindersEnabled.mockResolvedValueOnce(false);
     const screen = await render(<Onboarding />);
     await walkToSavedPlan(screen);
     await fireEvent.press(screen.getByTestId('onboarding-reminders-on'));
-    expect(mockReplace).toHaveBeenCalledWith('/(app)');
+    expect(screen.getByTestId('onboarding-first-log')).toBeTruthy();
   });
 });

@@ -1,3 +1,4 @@
+import { useSyncExternalStore } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // The guided tour's "have they seen it" flag.
@@ -27,6 +28,43 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // tour, being offered again on a new phone is closer to right than wrong.
 
 const SEEN_KEY = 'tour.seen';
+
+// ## The hold (retention lever 1, 2026-09-02)
+//
+// Onboarding now ends by offering a first log, and its CTA lands on Today with
+// the add sheet already open. The tour's own first rule — never open on top of
+// someone mid-task — would be broken by its own auto-open there: profile just
+// completed, route is the tab root, seen is false, so it would push itself
+// over the sheet the person just asked for. `holdTour()` is set by that CTA
+// and `releaseTour()` by the sheet closing (logged or dismissed), so the tour
+// offers itself right after the first log instead of before it. In-memory on
+// purpose: a hold that outlived the process would silence the tour forever.
+
+let held = false;
+const listeners = new Set<() => void>();
+
+export function holdTour(): void {
+  held = true;
+  for (const l of listeners) l();
+}
+
+export function releaseTour(): void {
+  if (!held) return;
+  held = false;
+  for (const l of listeners) l();
+}
+
+/** For the layout's auto-open hook: re-renders on hold/release. */
+export function useTourHeld(): boolean {
+  return useSyncExternalStore(
+    (cb) => {
+      listeners.add(cb);
+      return () => listeners.delete(cb);
+    },
+    () => held,
+    () => held,
+  );
+}
 
 /** Has the user finished or skipped the tour on this device? `false` on any
  *  storage error — the tour is cheap to show and a lost flag must not become a
@@ -67,18 +105,22 @@ export async function markTourSeen(): Promise<void> {
  * @param profileCompleted onboarding is done — a half-onboarded user is
  *                    already in a guided flow and must not be interrupted
  * @param route       the current first-level route segment
+ * @param held        onboarding's first-log sheet is up (see `holdTour`);
+ *                    defaults to false so existing callers are unchanged
  */
 export function shouldAutoOpenTour(args: {
   seen: boolean | null;
   profileCompleted: boolean;
   route: string | undefined;
+  held?: boolean;
 }): boolean {
-  const { seen, profileCompleted, route } = args;
+  const { seen, profileCompleted, route, held = false } = args;
   // Still reading storage. Never guess: guessing false skips the tour for the
   // people it exists for, and guessing true flashes it at everyone else.
   if (seen === null) return false;
   if (seen) return false;
   if (!profileCompleted) return false;
+  if (held) return false;
   // Only from the tab root. Landing on Settings or the scan camera and being
   // yanked into a tour is the intrusive version of this feature.
   return route === 'index';

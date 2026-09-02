@@ -9,7 +9,7 @@ import { useT } from '@/i18n';
 import { useAuth } from '@/lib/auth';
 import { useAutoApplyOta } from '@/lib/app-update';
 import { useOtaPushListener, useRegisterPushToken } from '@/lib/push-token';
-import { loadTourSeen, shouldAutoOpenTour } from '@/lib/tour';
+import { loadTourSeen, shouldAutoOpenTour, useTourHeld } from '@/lib/tour';
 import { useHealthAutoImport } from '@/lib/health-sync';
 import { useOuraAutoImport } from '@/lib/oura';
 import { track } from '@/lib/analytics';
@@ -106,6 +106,7 @@ function useTourOnce() {
   const segments = useSegments();
   const router = useRouter();
   const [seen, setSeen] = useState<boolean | null>(null);
+  const held = useTourHeld();
   const navigated = useRef(false);
 
   useEffect(() => {
@@ -120,11 +121,12 @@ function useTourOnce() {
       // segments is ['(app)', <screen>] inside this layout; the tab root has
       // no second segment, so treat that as 'index'.
       route: segments[0] === '(app)' ? (segments[1] ?? 'index') : segments[0],
+      held,
     });
     if (!open) return;
     navigated.current = true;
     router.push('/tour');
-  }, [seen, profile?.profileCompleted, segments, router]);
+  }, [seen, profile?.profileCompleted, segments, router, held]);
 }
 
 export default function AppTabsLayout() {
