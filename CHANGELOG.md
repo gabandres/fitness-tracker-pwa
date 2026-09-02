@@ -120,10 +120,14 @@ baseline lever 1 is measured against; today's two throwaway onboarding runs
 did it in 1 m 44 s, and no real signup has yet gone through the new step. The
 method split is 7 `unknown` (activated before analytics existed, 2026-08-12),
 3 search, 1 photo — a comparison is months of signups away, as the plan
-already says. `secsPerLog` is `null` until the client half reaches a device:
-the stopwatch is on `main` and its OTA was not published this session (the
-publish invocation was denied by the session's permission classifier; the
-owner runs it — `STATUS.md` §3).
+already says. `secsPerLog` is `null` until the scheduled pass sees a timed log.
+
+**Delivered the same night: Android OTA 107 on vc 40, iOS OTA 69 on build 60**
+(both from `dfef5ff2`, ids in `apps/mobile/AGENTS.md`). The stopwatch is
+device-verified on the LG VS988: Maestro flow 11 logged a meal and the HOME
+flush wrote `log_added 1, log_secs 37` to the QA account's `usageEvents` row —
+the first timed log in PROD. Rules were deployed before any client could write
+the field, so no flush was ever rejected. `WHATS_NEW_VERSION` not bumped.
 
 ## 2026-09-01 — Three data-integrity fixes from the owner's audit: the HealthKit window that never applied, the session bodyweight nobody bounded, and a calorie figure its own macros disagree with
 
