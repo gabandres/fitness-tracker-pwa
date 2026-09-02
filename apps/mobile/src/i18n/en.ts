@@ -922,7 +922,7 @@ export const en = {
   'settings.themeDark': 'Dark',
   'settings.reminders': 'Reminders',
   'settings.dailyReminder': 'Smart reminders',
-  'settings.reminderSub': 'Meal nudges, streak saves & weigh-in reminders',
+  'settings.reminderSub': 'Meal nudges, streak saves, weigh-in & welcome-back reminders',
   'settings.time': 'Evening nudge',
   'settings.reminderTimeHint': 'Streak saves and weigh-in reminders adjust to your day on their own.',
   'settings.reminderBreakfast': 'Breakfast',

@@ -817,7 +817,7 @@ export const ptBR = {
   'settings.themeDark': 'Escuro',
   'settings.reminders': 'Lembretes',
   'settings.dailyReminder': 'Lembretes inteligentes',
-  'settings.reminderSub': 'Avisos de refeição, salvamento de sequência e lembretes de pesagem',
+  'settings.reminderSub': 'Avisos de refeição, sequência, pesagem e de retorno',
   'settings.time': 'Aviso da noite',
   'settings.reminderTimeHint': 'Os salvamentos de sequência e os lembretes de pesagem se ajustam ao seu dia sozinhos.',
   'settings.reminderBreakfast': 'Café da manhã',

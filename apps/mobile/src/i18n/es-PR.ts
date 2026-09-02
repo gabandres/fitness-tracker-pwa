@@ -834,7 +834,7 @@ export const esPR: Record<I18nKey, string> = {
   'settings.themeDark': 'Oscuro',
   'settings.reminders': 'Recordatorios',
   'settings.dailyReminder': 'Recordatorios inteligentes',
-  'settings.reminderSub': 'Avisos de comidas, racha y pesaje',
+  'settings.reminderSub': 'Avisos de comidas, racha, pesaje y de regreso',
   'settings.calorieFloorSection': 'Piso de calorías',
   'settings.calorieFloor': 'Mínimo diario',
   'settings.calorieFloorSub': 'Tu meta nunca baja de este valor, aunque una subida de peso por agua haga que tu gasto medido parezca bajo.',
