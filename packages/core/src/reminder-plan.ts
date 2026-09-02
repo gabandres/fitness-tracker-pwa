@@ -58,7 +58,51 @@ export const WEIGH_IN_MIN_DAYS = 7;
 export const WEIGH_IN_TITLE_KEY = 'reminder.weighInTitle';
 export const WEIGH_IN_BODY_KEY = 'reminder.weighInBody';
 
+/**
+ * Lapsed-user nudges (retention plan, `STATUS.md` §3, 2026-09-02). Two
+ * one-shots anchored on the LAST FOOD LOG — day +3 and day +7 — each omitted
+ * the moment a log lands, because the adapter re-plans on every log and
+ * cancels everything first. No server, no push token, no scheduler job: the
+ * lapsed nudge is the same "smart" kind as streak-at-risk.
+ *
+ * Why these two days: D1→D7 is where this product loses most signups
+ * (D1 20% → D7 8%, `config/retention` read 2026-09-02), and the day-1 email
+ * already covers the first 24 h. A nudge later than a week is spam to
+ * someone who has decided; the meal-window dailies keep running for them
+ * regardless and that is already the ceiling of what a lapsed user should
+ * hear from us.
+ *
+ * Anchor rule: a user who has been away ≥ {@link LAPSED_DAYS} days (or never
+ * logged, or whose last log is outside the recent-logs window) is re-anchored
+ * on *today* — they just opened the app, and a nudge relative to a log
+ * weeks ago would fire in the past and reach nobody.
+ *
+ * Copy is deliberately not a streak or a guilt line (`UX_AUDIT.md` §S12).
+ */
+export const LAPSED_HOUR = 18;
+export const LAPSED_MINUTE = 0;
+export const LAPSED_DAYS = [3, 7] as const;
+export type LapsedDay = (typeof LAPSED_DAYS)[number];
+export const LAPSED_TITLE_KEY: Record<LapsedDay, string> = {
+  3: 'reminder.lapsed3Title',
+  7: 'reminder.lapsed7Title',
+};
+export const LAPSED_BODY_KEY: Record<LapsedDay, string> = {
+  3: 'reminder.lapsed3Body',
+  7: 'reminder.lapsed7Body',
+};
+
 export type ReminderPlan =
+  | {
+      id: `lapsed-${LapsedDay}`;
+      kind: 'date';
+      /** Absolute local time to fire once. */
+      fireAt: Date;
+      titleKey: string;
+      bodyKey: string;
+      /** Days since the anchoring log at fire time (3 or 7). */
+      bodyParams: { n: number };
+    }
   | {
       id: `meal-${MealKey}`;
       kind: 'daily';
@@ -98,6 +142,9 @@ export interface ReminderInput {
   /** Whole days since the last recorded weigh-in, or null when never weighed /
    *  unknown. Drives the smart weigh-in nudge; omit to disable it. */
   daysSinceWeighIn?: number | null;
+  /** Whole days since the newest FOOD log (0 = today), or null when there is
+   *  none in the recent window. Drives the lapsed nudges; omit to disable. */
+  daysSinceLastLog?: number | null;
 }
 
 const MEAL_ORDER: MealKey[] = ['breakfast', 'lunch', 'dinner'];
@@ -108,7 +155,7 @@ const MEAL_ORDER: MealKey[] = ['breakfast', 'lunch', 'dinner'];
  * previously-scheduled nudges and (re)schedules exactly this list.
  */
 export function planReminders(
-  { now, meals, loggedToday, streak, daysSinceWeighIn }: ReminderInput,
+  { now, meals, loggedToday, streak, daysSinceWeighIn, daysSinceLastLog }: ReminderInput,
 ): ReminderPlan[] {
   const plans: ReminderPlan[] = [];
 
@@ -156,6 +203,31 @@ export function planReminders(
         bodyKey: WEIGH_IN_BODY_KEY,
         bodyParams: { n: daysSinceWeighIn },
       });
+    }
+  }
+
+  // Lapsed nudges: +3 and +7 days after the last food log, at 6pm local.
+  // `undefined` means the caller opted out (a frontend that does not track
+  // logs); `null` means "no log in the window", which is the re-anchor case.
+  if (daysSinceLastLog !== undefined) {
+    const longest = LAPSED_DAYS[LAPSED_DAYS.length - 1];
+    const anchorDaysAgo =
+      daysSinceLastLog == null || daysSinceLastLog >= longest || daysSinceLastLog < 0
+        ? 0
+        : Math.floor(daysSinceLastLog);
+    for (const n of LAPSED_DAYS) {
+      const fireAt = atToday(now, LAPSED_HOUR, LAPSED_MINUTE);
+      fireAt.setDate(fireAt.getDate() + (n - anchorDaysAgo));
+      if (fireAt.getTime() > now.getTime()) {
+        plans.push({
+          id: `lapsed-${n}`,
+          kind: 'date',
+          fireAt,
+          titleKey: LAPSED_TITLE_KEY[n],
+          bodyKey: LAPSED_BODY_KEY[n],
+          bodyParams: { n },
+        });
+      }
     }
   }
 

@@ -103,6 +103,65 @@ describe('planReminders — weigh-in nudge (smart)', () => {
   });
 });
 
+describe('planReminders — lapsed nudges (smart, anchored on the last food log)', () => {
+  const meals = DEFAULT_MEAL_REMINDERS;
+  const lapsed = (plans: ReminderPlan[]) =>
+    plans
+      .filter((p): p is Extract<ReminderPlan, { id: `lapsed-${3 | 7}` }> => p.id.startsWith('lapsed-'))
+      .sort((a, b) => a.fireAt.getTime() - b.fireAt.getTime());
+
+  it('is omitted entirely when the caller does not track logs (undefined)', () => {
+    expect(lapsed(planReminders({ now: noon(), meals, loggedToday: true, streak: 0 }))).toEqual([]);
+  });
+
+  it('schedules +3 and +7 days from today at 6pm when the user logged today', () => {
+    const plans = lapsed(planReminders({ now: noon(), meals, loggedToday: true, streak: 0, daysSinceLastLog: 0 }));
+    expect(plans.map((p) => p.id)).toEqual(['lapsed-3', 'lapsed-7']);
+    expect(plans[0].fireAt.getDate()).toBe(7);
+    expect(plans[0].fireAt.getHours()).toBe(18);
+    expect(plans[1].fireAt.getDate()).toBe(11);
+    expect(plans.map((p) => p.bodyParams.n)).toEqual([3, 7]);
+  });
+
+  it('counts from the LAST LOG, not from now — 2 days away means +3 fires tomorrow', () => {
+    const plans = lapsed(planReminders({ now: noon(), meals, loggedToday: false, streak: 0, daysSinceLastLog: 2 }));
+    expect(plans.map((p) => p.id)).toEqual(['lapsed-3', 'lapsed-7']);
+    expect(plans[0].fireAt.getDate()).toBe(5);
+    expect(plans[1].fireAt.getDate()).toBe(9);
+  });
+
+  it('drops a checkpoint already in the past — 5 days away leaves only +7', () => {
+    const plans = lapsed(planReminders({ now: noon(), meals, loggedToday: false, streak: 0, daysSinceLastLog: 5 }));
+    expect(plans.map((p) => p.id)).toEqual(['lapsed-7']);
+    expect(plans[0].fireAt.getDate()).toBe(6);
+  });
+
+  it('re-anchors on today once the user has been away ≥7 days (they just opened the app)', () => {
+    const plans = lapsed(planReminders({ now: noon(), meals, loggedToday: false, streak: 0, daysSinceLastLog: 12 }));
+    expect(plans.map((p) => p.fireAt.getDate())).toEqual([7, 11]);
+  });
+
+  it('re-anchors on today when there is no log in the window (null)', () => {
+    const plans = lapsed(planReminders({ now: noon(), meals, loggedToday: false, streak: 0, daysSinceLastLog: null }));
+    expect(plans.map((p) => p.fireAt.getDate())).toEqual([7, 11]);
+  });
+
+  it('does not schedule the 6pm slot in the past on the boundary day', () => {
+    // 3 days away, 7pm: today's 6pm +3 slot has passed, so only +7 remains.
+    const evening = new Date(2026, 6, 4, 19, 0, 0);
+    const plans = lapsed(planReminders({ now: evening, meals, loggedToday: false, streak: 0, daysSinceLastLog: 3 }));
+    expect(plans.map((p) => p.id)).toEqual(['lapsed-7']);
+  });
+
+  it('carries the two i18n keys the adapter resolves', () => {
+    const plans = lapsed(planReminders({ now: noon(), meals, loggedToday: true, streak: 0, daysSinceLastLog: 0 }));
+    expect(plans.map((p) => [p.titleKey, p.bodyKey])).toEqual([
+      ['reminder.lapsed3Title', 'reminder.lapsed3Body'],
+      ['reminder.lapsed7Title', 'reminder.lapsed7Body'],
+    ]);
+  });
+});
+
 describe('resolveMealReminders (1.0 → per-meal upgrade)', () => {
   it('reconstructs the exact schedule 1.0 was running, not the defaults', () => {
     // 1.0 pinned the stored hour to dinner and ran DEFAULT_MEAL_REMINDERS for

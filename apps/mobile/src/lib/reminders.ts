@@ -32,6 +32,8 @@ export interface ReminderLiveState {
   loggedToday: boolean;
   streak: number;
   daysSinceWeighIn: number | null;
+  /** Whole days since the newest food log; null when none in the window. */
+  daysSinceLastLog: number | null;
 }
 
 const isNative = Platform.OS !== 'web';
@@ -115,6 +117,7 @@ export async function syncReminders(state: ReminderLiveState, t: TFn): Promise<v
     loggedToday: state.loggedToday,
     streak: state.streak,
     daysSinceWeighIn: state.daysSinceWeighIn,
+    daysSinceLastLog: state.daysSinceLastLog,
   });
 
   await Promise.all(plans.map((plan) => scheduleOne(plan, t)));

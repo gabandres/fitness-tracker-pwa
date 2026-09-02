@@ -230,7 +230,10 @@ export default function Settings() {
   // Settings has no live streak/weigh-in state, so it schedules the baseline
   // (meal windows) immediately; the smart streak/weigh-in nudges fill in on the
   // next Today focus via useReminderSync.
-  const NEUTRAL_STATE = { loggedToday: false, streak: 0, daysSinceWeighIn: null };
+  // Settings has no log data; Today's `useReminderSync` re-plans with the
+  // real state on its next focus. `daysSinceLastLog: null` anchors the lapsed
+  // nudges on today meanwhile, which is the safe direction (never the past).
+  const NEUTRAL_STATE = { loggedToday: false, streak: 0, daysSinceWeighIn: null, daysSinceLastLog: null };
 
   async function toggleReminder(next: boolean) {
     haptics.tap();

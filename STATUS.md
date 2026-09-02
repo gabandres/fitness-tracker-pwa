@@ -108,6 +108,38 @@ test device on hand is Android — not a new problem.
 deleted and its outcome goes to `CHANGELOG.md` — see the budget note at the top
 of this file.
 
+### Retention — the standing focus (owner's call, 2026-09-02)
+
+**The numbers say activation and the daily habit are the problem, not late
+churn.** `config/retention` read 2026-09-02 (120-day window, synthetic
+excluded, `insufficientSample: true`): 30 signups → **11 activated (37%)**;
+D1 **20%** (6/30), D7 **8%** (2/25), D30 7% (1/15); **0.48 logs per activated
+user per day**. Benchmarks for the category: D1 30–35%, D7 15–18%, D30 8–12%.
+Most signups never reach three logs, and the ones who do log less than once a
+day — D7 and D30 fall out of those two. Research levers, in the order they
+attack that: logging speed is the strongest predictor of adherence (<30 s/meal
+78% at six months vs 23% over 2 min; photo loggers 42% D30 vs 17% search);
+a meaningful action in session one is worth 2–3× at D30; triggers only work
+when tied to something the user did. **Re-read `config/retention` before
+claiming any of this moved** — at ~30 signups per 120 days no A/B is readable,
+so retention work must be paired with acquisition to be measurable.
+
+| # | Lever | State |
+|---|---|---|
+| 1 | **First log inside onboarding** — after the plan step, "log what you last ate" with photo/presets as the default path; reminders step moves after it. Attacks the 37% activation directly. | **Next.** Needs a fresh-install account to device-verify (the OTA 97 precedent: throwaway signup, Maestro, purge). |
+| 2 | **Lapsed nudges by LOCAL notification** — +3 and +7 days after the last food log, 6pm, cancelled by any log; anchored on today for anyone ≥7 days away. No server, no FCM, no scheduler slot. | **BUILT 2026-09-02** in `reminder-plan.ts` + `useReminderSync.ts`, three locales, 8 tests. Delivery: see `apps/mobile/AGENTS.md` OTA table. |
+| 3 | **Instrument the two deciding numbers** — seconds-per-log by method, and D7 split by dominant logging method (photo / search / repeat / preset) in `retention.ts` + the admin Overview; `time_to_first_log` from `firstEntryAt − createdAt`. | Open. Server-side only for the split (events already exist); a `log_secs` counter needs rules + rules test + deploy. |
+| 4 | **Celebrate the first log and first week** — award `first-scan`, a first-log `MilestoneNote`, `recordPositiveMoment` there so the review prompt lands after a win. §S12 still bans shame mechanics. | Open. `first-scan` is blocked on `FoodSource` having no photo variant. |
+| 5 | **Verify the zero-friction triggers** — Android widget on a real home screen, watch/Siri (rows below). A widget is a log path under 10 s. | Open, owner with a device. |
+| 6 | **Guest mode (`UX_AUDIT.md` N5)** if lever 1 does not move D1 alone. | Deferred until 1 is measured. |
+| 7 | **Maintenance mode** after goal reached — looser logging, keeps the account alive through the week 8–12 fatigue. | Open, unscoped. |
+
+One option deliberately NOT taken with lever 2: the meal-window dailies are
+OS-repeating and keep firing forever for a user who never opens the app again.
+Replacing them with a bounded run of one-shots (silence after a week away)
+would be kinder, but it changes existing users' schedules and is a separate
+decision.
+
 | Work | Blocked on |
 |---|---|
 | **Play DSA trader status — RESOLVED 2026-08-30: there is NOTHING to file. What is left is opening the 30 territories, deliberately AFTER vc 37's review.** | **Sequencing, not a filing.** Driven through the org console and measured: no trader/DSA form exists anywhere on account `6598754086801415923` (account hub, Account details tabs, Settings, Policy center all checked), account-level Policy status reads *No issues found*, and the app's Publishing overview carries no trader task. Google folded the DSA trader requirements into ORGANIZATION verification — legal name/address, developer email and phone, all verified 2026-08-20 and labeled *shown on Google Play* — so the "unfiled declaration" premise dated from the personal-account era and died with the transfer. The standalone trader question exists for personal accounts, not verified orgs. **Do NOT open the EU 30 yet anyway:** a countries change submits through the same review pipeline, and vc 37's first-ever production review is in flight with #107's 30 Sept deadline chained behind it — resetting it buys nothing while the app is live nowhere. **Order: vc 37 goes live (store URL 200) → vc 40 submit/promote (#107) → move the 30 rows out of `EU_PENDING_PLAY_DSA` and re-run `--availability`.** The 17 `NOT_OFFERED_BY_PLAY` stay unopenable; Android's ceiling is 158. |

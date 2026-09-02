@@ -23,9 +23,25 @@ function daysSinceWeighIn(
     }
   }
   if (!latestKey) return null;
+  return daysSinceKey(latestKey);
+}
+
+/** Whole days since the newest FOOD log's day key, or null with no logs in
+ *  the window. Weigh-ins do not count: the lapsed nudge is about the food
+ *  habit, and a weight-only day is exactly the day it should still fire. */
+function daysSinceLastLog(logs: DailyLog[], boundary: DayBoundary): number | null {
+  let latestKey: string | null = null;
+  for (const l of logs) {
+    const k = dayKeyAt(l.date, boundary);
+    if (latestKey == null || k > latestKey) latestKey = k;
+  }
+  return latestKey ? daysSinceKey(latestKey) : null;
+}
+
+function daysSinceKey(key: string): number {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const then = parseYmd(latestKey);
+  const then = parseYmd(key);
   return Math.max(0, Math.floor((today.getTime() - then.getTime()) / 86_400_000));
 }
 
@@ -68,11 +84,15 @@ export function useReminderSync(): void {
           weights[todayKey] != null || logs.some((l) => dayKeyAt(l.date, boundary) === todayKey);
         const streak = computeStreak(logs, { freezeMaxGap: 0, boundary }).streak;
         const sinceWeigh = daysSinceWeighIn(logs, weights, boundary);
+        const sinceLog = daysSinceLastLog(logs, boundary);
 
-        const sig = `${loggedToday}|${streak}|${sinceWeigh}`;
+        const sig = `${loggedToday}|${streak}|${sinceWeigh}|${sinceLog}`;
         if (sig === lastSig.current) return;
         lastSig.current = sig;
-        void syncReminders({ loggedToday, streak, daysSinceWeighIn: sinceWeigh }, t);
+        void syncReminders(
+          { loggedToday, streak, daysSinceWeighIn: sinceWeigh, daysSinceLastLog: sinceLog },
+          t,
+        );
       };
 
       const unsubs = [
