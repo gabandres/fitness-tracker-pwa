@@ -104,8 +104,22 @@ export async function setRemindersEnabled(enabled: boolean): Promise<boolean> {
  * saved per-meal schedule — this adapter makes no scheduling decisions of its
  * own; that is entirely `planReminders`' job.
  */
-export async function syncReminders(state: ReminderLiveState, t: TFn): Promise<void> {
-  if (!isNative) return;
+export function syncReminders(state: ReminderLiveState, t: TFn): Promise<void> {
+  if (!isNative) return Promise.resolve();
+  // Serialised. `useReminderSync` recomputes once per snapshot, and on a
+  // cold start the logs and weights snapshots land a beat apart, so two syncs
+  // used to interleave: cancel, cancel, schedule, schedule — and every nudge
+  // fired TWICE. Measured on the LG VS988 (2026-09-02): four alarms for a
+  // two-item plan after one launch. A chain makes the last caller's plan the
+  // one that survives, and a failed sync never blocks the next.
+  const run = syncQueue.then(() => syncOnce(state, t)).catch(() => undefined);
+  syncQueue = run;
+  return run;
+}
+
+let syncQueue: Promise<void> = Promise.resolve();
+
+async function syncOnce(state: ReminderLiveState, t: TFn): Promise<void> {
   const { enabled, meals } = await getReminderSettings();
 
   await Notifications.cancelAllScheduledNotificationsAsync();
