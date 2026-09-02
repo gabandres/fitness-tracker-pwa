@@ -111,6 +111,21 @@ export interface HealthPort {
 const sinceDate = (days: number): Date => new Date(Date.now() - days * 86_400_000);
 
 /**
+ * The HealthKit sample filter for "the last `days` days", in the ONE shape
+ * `@kingstinct/react-native-healthkit` reads: `filter.date.{startDate,endDate}`
+ * (`FilterForSamples`). A flat `filter.{startDate,endDate}` type-checks behind
+ * the `as never` the calls carry and is silently ignored — and with `limit: 0`
+ * an ignored filter means EVERY sample the store holds. That was the shape
+ * until 2026-09-01, so the 400-day window never applied to weight, water or
+ * sleep and the owner's account gained weigh-ins from 2017 and 2022. Exported
+ * for the test that pins the shape; the dynamic-import seam above it cannot be
+ * exercised under jest.
+ */
+export function hkSampleFilter(days: number): { date: { startDate: Date; endDate: Date } } {
+  return { date: { startDate: sinceDate(days), endDate: new Date() } };
+}
+
+/**
  * Local midnight at the start of `d`'s day.
  *
  * Both platforms' aggregate APIs anchor their buckets on the *start of the
@@ -247,7 +262,9 @@ const healthKit: HealthPort = {
 
   async readSamples(kind, sinceDays, boundary) {
     const HK = await hkModule();
-    const filter = { startDate: sinceDate(sinceDays), endDate: new Date() };
+    // Nested `date` — see `hkSampleFilter`. The statistics path below builds
+    // the same shape inline.
+    const filter = hkSampleFilter(sinceDays);
     const mine = (s: HKQty) => s.sourceRevision?.source?.bundleIdentifier === APP_ID;
 
     if (kind === 'sleep') {

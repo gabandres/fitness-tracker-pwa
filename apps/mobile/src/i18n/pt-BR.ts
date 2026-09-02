@@ -330,6 +330,7 @@ export const ptBR = {
   'entry.proteinG': 'Proteína (g)',
   'entry.carbsG': 'Carboidratos (g)',
   'entry.fatG': 'Gorduras (g)',
+  'entry.macroMismatch': 'Esses macros somam cerca de {kcal} kcal, não {entered}. Você ainda pode salvar.',
   'entry.meal': 'Refeição (opcional)',
   'entry.date': 'Data',
   'entry.savePreset': 'Salvar como atalho',

@@ -20,6 +20,7 @@ import {
   type MealType,
   buildCustomFood,
   buildMealPreset,
+  macroEnergyMismatch,
   scaleCustomFood,
 } from '@macrolog/core';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
@@ -230,6 +231,14 @@ export function EntrySheet({
 
   const calNum = numOrUndef(calories);
   const canSave = calNum != null && calNum > 0;
+  // Calories vs macros, reconciled live. A note, never a gate: partial macro
+  // logging is legitimate, and a number typed on purpose must save.
+  const macroMiss = macroEnergyMismatch({
+    kcal: calNum,
+    protein: numOrUndef(protein),
+    carbs: numOrUndef(carbs),
+    fat: numOrUndef(fat),
+  });
   const canSavePreset = onSavePreset != null && label.trim().length > 0 && calNum != null;
   const canSaveCustomFood = onSaveCustomFood != null && label.trim().length > 0 && calNum != null;
 
@@ -628,6 +637,11 @@ export function EntrySheet({
                       <TextInputBase placeholder="0" keyboardType="numeric" value={fat} onChangeText={setFat} testID="entry-fat" />
                     </Field>
                   </View>
+                  {macroMiss ? (
+                    <Text style={styles.macroNote} testID="entry-macro-note">
+                      {t('entry.macroMismatch', { kcal: macroMiss.estimateKcal, entered: calNum ?? 0 })}
+                    </Text>
+                  ) : null}
 
                   <Field label={t('entry.meal')}>
                     <View style={styles.chips}>
@@ -825,6 +839,7 @@ const createStyles = ({ scheme, colors, shadow }: Theme) => StyleSheet.create({
   form: { gap: space.md, paddingBottom: space.md },
   row3: { flexDirection: 'row', gap: space.sm },
   third: { flex: 1 },
+  macroNote: { color: colors.danger, fontSize: font.small, marginTop: -space.xs, marginBottom: space.sm },
   fieldLabel: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
   input: {
     backgroundColor: colors.inputBg,

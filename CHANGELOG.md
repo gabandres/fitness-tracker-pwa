@@ -1,5 +1,45 @@
 # Changelog
 
+## 2026-09-01 — Three data-integrity fixes from the owner's audit: the HealthKit window that never applied, the session bodyweight nobody bounded, and a calorie figure its own macros disagree with
+
+**HealthKit imports read the entire store, not the last 400 days.**
+`readSamples` passed `filter: { startDate, endDate }` (flat) to
+`queryQuantitySamples`/`queryCategorySamples`, but
+`@kingstinct/react-native-healthkit` reads the window as
+`filter.date.{startDate,endDate}` (`FilterForSamples`). Unknown keys are
+ignored, `limit: 0` means all, so every weight, water and sleep import pulled
+the account's whole Health history — the `as never` on the call hid it from
+`tsc`, and the statistics path (steps, active energy) used the nested shape
+correctly, which is why only sample kinds leaked. Found because the owner's
+account carried weigh-ins dated 2017-06-22 (184.9998 lb, a 185 lb reading
+round-tripped through kilograms) and 2022-09-13, four years before the account
+existed, and `computeGoalProgress` takes the OLDEST `dailyWeights` key as the
+start weight, so the Body tab's goal bar started at 185. Fixed by one exported
+helper, `hkSampleFilter`, with a test pinning the shape; the pre-window rows
+are deleted separately (owner-run script — the agent's delete was denied by the
+session's permission classifier).
+
+**Session bodyweight had no bound.** `weight-bounds.ts` promised a backstop on
+"every write path" and the workout-finish sheet had none: it stored `11` on
+2026-06-26 and `1` on 2026-07-06 and mirrored the first into `dailyWeights`
+past a bare `> 0`. Now the finish sheet runs the Body tab's `checkWeightEntry`
+and shows `body.weightRange` instead of finishing, `toSessionDoc`/`toSessionPatch`
+drop a non-storable bodyweight (test), and `finishWorkout` mirrors only a
+storable one. `firestore.rules` (0–1000) is unchanged — tightening it is a
+separate rules deploy with emulator coverage this round did not take on.
+
+**Calories vs macros, reconciled live on the entry sheet.** New core
+`macroEnergyMismatch`: when all three macros are typed, the Atwater estimate is
+compared to the calorie figure and a miss beyond ±25% prints
+`entry.macroMismatch` under the macro row. A note, never a gate: partial macro
+logging is legitimate (protein-only is deliberately not flagged) and a number
+typed on purpose still saves. The lower edge is tighter than
+`food-plausibility.ts`'s 0.5, which exists to keep fibre/sugar-alcohol
+products searchable; a hand-typed entry 40% under its own macros is a slip
+worth a sentence. Tests: five in core, two on the sheet.
+
+Ships by OTA; the per-publish record is in `apps/mobile/AGENTS.md`.
+
 ## 2026-09-01 — The rest timer follows the set that is coming, and an exercise can carry its own mini-set rest
 
 **The between-sets countdown keyed on the set you had just finished, and that

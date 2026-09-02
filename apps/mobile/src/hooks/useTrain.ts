@@ -53,6 +53,7 @@ import {
   type SeedTemplate,
   fillMissingClusterLoads,
   findSeedExercise,
+  isStorableWeight,
   seedExerciseCues,
   seedExerciseName,
   seedTemplateExerciseCues,
@@ -528,7 +529,9 @@ export function useTrain(): TrainState {
           sleepHours: extras.sleepHours,
         });
         const dateKey = dayKeyAt(date, dayBoundaryOf(profile));
-        if (extras.bodyweight != null && extras.bodyweight > 0) {
+        // `> 0` let an 11 lb session bodyweight reach `dailyWeights`; the
+        // store backstop applies here like on every other weight write.
+        if (extras.bodyweight != null && isStorableWeight(extras.bodyweight)) {
           await setDailyWeight(uid, dateKey, extras.bodyweight);
           void exportDaily('weight', dateKey, extras.bodyweight);
         }

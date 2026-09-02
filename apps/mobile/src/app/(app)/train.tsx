@@ -38,8 +38,10 @@ import {
   RIR_MIN,
   STARTER_TEMPLATES,
   clampRir,
+  checkWeightEntry,
   clampSetLoad,
   restAfterSet,
+  weightBoundsFor,
   seedTemplateName,
   setRowLabels,
   // Cardio (ADR-0025 / ADR-0026): the modality list the picker renders, the
@@ -1542,21 +1544,33 @@ function FinishModal({
   const [bodyweight, setBodyweight] = useState('');
   const [sleep, setSleep] = useState('');
   const [busy, setBusy] = useState(false);
+  const [weightErr, setWeightErr] = useState('');
 
   useEffect(() => {
     if (visible) {
       setBodyweight('');
       setSleep('');
       setBusy(false);
+      setWeightErr('');
     }
   }, [visible]);
 
   async function finish() {
     if (busy) return;
+    // Same gate the Body tab applies (`checkWeightEntry`): this sheet mirrors
+    // its value into `dailyWeights`, and it accepted 11 lb once. A typo is
+    // rejected here, in the sheet, rather than silently dropped by the writer.
+    const lb = parseWeightToLb(bodyweight, unitSystem);
+    if (lb != null && !checkWeightEntry(lb).ok) {
+      const b = weightBoundsFor(unitSystem);
+      setWeightErr(t('body.weightRange', { min: b.min, max: b.max, unit: bodyWeightUnit(unitSystem) }));
+      return;
+    }
+    setWeightErr('');
     setBusy(true);
     try {
       await onFinish({
-        bodyweight: parseWeightToLb(bodyweight, unitSystem) ?? undefined,
+        bodyweight: lb ?? undefined,
         sleepHours: numOrUndef(sleep),
       });
     } finally {
@@ -1590,6 +1604,11 @@ function FinishModal({
                 onChangeText={setBodyweight}
                 testID="finish-bodyweight"
               />
+              {weightErr ? (
+                <Text style={[styles.sheetHint, { color: colors.danger }]} testID="finish-bodyweight-error">
+                  {weightErr}
+                </Text>
+              ) : null}
             </View>
             <View style={styles.finishField}>
               <Text style={styles.fieldLabel}>{t('train.sleepH')}</Text>

@@ -46,6 +46,7 @@ import type {
   TemplateExercise,
 } from './workout';
 import { sanitizeSessionExercises } from './set-load-bounds';
+import { isStorableWeight } from './weight-bounds';
 
 /**
  * The SDK values a doc needs that this module cannot construct. Each adapter
@@ -510,7 +511,12 @@ export function toSessionDoc<TS>(
     updatedAt: stamp,
     ...(draft.templateId !== undefined ? { templateId: draft.templateId } : {}),
     ...(draft.templateName !== undefined ? { templateName: draft.templateName } : {}),
-    ...(draft.bodyweight !== undefined ? { bodyweight: draft.bodyweight } : {}),
+    // The store backstop `weight-bounds.ts` promises for "every write path":
+    // the finish sheet rejects at the input, and this drops what still gets
+    // through (an 11 lb and a 1 lb session bodyweight did, 2026-06/07).
+    ...(draft.bodyweight !== undefined && isStorableWeight(draft.bodyweight)
+      ? { bodyweight: draft.bodyweight }
+      : {}),
     ...(draft.sleepHours !== undefined ? { sleepHours: draft.sleepHours } : {}),
     ...(draft.durationMin !== undefined ? { durationMin: draft.durationMin } : {}),
     // Absent stays absent — a strength-only session must not gain an empty
@@ -535,7 +541,7 @@ export function toSessionPatch<TS>(
   if (patch.templateId !== undefined) data['templateId'] = patch.templateId;
   if (patch.templateName !== undefined) data['templateName'] = patch.templateName;
   if (patch.date !== undefined) data['timestamp'] = codec.timestamp(patch.date);
-  if (patch.bodyweight !== undefined) data['bodyweight'] = patch.bodyweight;
+  if (patch.bodyweight !== undefined && isStorableWeight(patch.bodyweight)) data['bodyweight'] = patch.bodyweight;
   if (patch.sleepHours !== undefined) data['sleepHours'] = patch.sleepHours;
   if (patch.durationMin !== undefined) data['durationMin'] = patch.durationMin;
   if (patch.exercises !== undefined) data['exercises'] = sanitizeSessionExercises(patch.exercises);

@@ -354,6 +354,7 @@ export const en = {
   'entry.proteinG': 'Protein (g)',
   'entry.carbsG': 'Carbs (g)',
   'entry.fatG': 'Fat (g)',
+  'entry.macroMismatch': 'Those macros add up to about {kcal} kcal, not {entered}. You can still save.',
   'entry.meal': 'Meal (optional)',
   'entry.date': 'Date',
   'entry.savePreset': 'Save as preset',

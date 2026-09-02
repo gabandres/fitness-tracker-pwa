@@ -335,6 +335,7 @@ export const esPR: Record<I18nKey, string> = {
   'entry.proteinG': 'Proteína (g)',
   'entry.carbsG': 'Carbohidratos (g)',
   'entry.fatG': 'Grasa (g)',
+  'entry.macroMismatch': 'Esos macros suman unas {kcal} kcal, no {entered}. Puedes guardar igual.',
   'entry.meal': 'Comida (opcional)',
   'entry.date': 'Fecha',
   'entry.savePreset': 'Guardar como preajuste',

@@ -303,6 +303,15 @@ describe('sessions', () => {
     });
   });
 
+  it('drops a bodyweight outside the storable range on both write paths', () => {
+    // 11 lb and 1 lb were stored on real sessions; `weight-bounds.ts` promised
+    // a backstop on every path and this one had none.
+    const draft = { status: 'completed' as const, date: NOW, exercises: [], bodyweight: 11 };
+    expect('bodyweight' in toSessionDoc(draft, codec, NOW)).toBe(false);
+    expect('bodyweight' in toSessionPatch({ bodyweight: 1 }, codec, NOW)).toBe(false);
+    expect(toSessionDoc({ ...draft, bodyweight: 157.7 }, codec, NOW).bodyweight).toBe(157.7);
+  });
+
   it('distinguishes an absent field from a falsy one', () => {
     // The live logger writes one field at a time, so a key the caller did not
     // mention must survive the write — but 0 / '' are real values.
