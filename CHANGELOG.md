@@ -1,5 +1,47 @@
 # Changelog
 
+## 2026-09-02 — Retention becomes the standing focus: lapsed nudges by local notification, and the doubled-reminder race nobody had seen
+
+**Retention is now the owner's stated priority, and `STATUS.md` §3 carries the
+plan.** The baseline that shaped it, read from `config/retention` the same day
+(120-day window, synthetic excluded): 30 signups, 11 activated (37%), D1 20%,
+D7 8%, D30 7%, **0.48 logs per activated user per day**. The category runs D1
+30–35% and D7 15–18%. Activation and the daily habit are the problem; late
+churn is downstream of them. Seven levers, ordered by what attacks that;
+this entry ships lever 2.
+
+**Lapsed nudges, on-device (lever 2).** Two one-shot local notifications at
+6pm, **+3 and +7 days after the last food log**, each omitted the moment a log
+lands because `syncReminders` re-plans on every log and cancels everything
+first. A user away seven days or more, or with no log in the recent-logs
+window, is re-anchored on *today* so a nudge can never land in the past. No
+server, no push token, no scheduler slot — the same "smart" kind as
+streak-at-risk, in `packages/core/src/reminder-plan.ts` (8 tests), with
+`useReminderSync` supplying days-since-last-log (weigh-ins deliberately do not
+count). Copy in en, es-PR, pt-BR is a plan-is-still-here line, not a streak or
+a guilt line (`UX_AUDIT.md` §S12). The Settings row now names the
+welcome-back nudges among what the switch schedules.
+
+**DEVICE-VERIFIED on the LG VS988 in all three states, read from AlarmManager
+rather than off a screen.** With the QA account's newest log on 08-29: one
+`expo.modules.notifications` alarm at **09-05 18:00** (the +7) and the past +3
+correctly absent. After Maestro flow 11 logged a meal: **09-05 18:00 and
+09-09 18:00** (today +3 / +7). After flow 13 deleted it: back to 09-05 alone.
+Firestore confirmed no QA row left behind.
+
+**The device also found a pre-existing bug: every reminder could fire
+twice.** After a single launch AlarmManager held FOUR alarms for a two-item
+plan. `useReminderSync` recomputes once when the logs snapshot lands and again
+when the weights snapshot does, and the two syncs interleaved — cancel,
+cancel, schedule, schedule. Since the smart planner shipped, a user with
+reminders on could get two 1:30pm banners. `syncReminders` now chains on a
+module-level promise (last caller's plan survives, a failed sync never blocks
+the next), pinned by `reminders.test.ts`. 
+
+Delivery: Android OTA 102–104 on vc 40 (reaches the test device only while
+vc 40 is on no track); iOS OTA on build 60 reaches every App Store user. Row
+detail in `apps/mobile/AGENTS.md`.
+
 ## 2026-09-01 — Three data-integrity fixes from the owner's audit: the HealthKit window that never applied, the session bodyweight nobody bounded, and a calorie figure its own macros disagree with
 
 **HealthKit imports read the entire store, not the last 400 days.**

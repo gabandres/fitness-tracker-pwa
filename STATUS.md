@@ -113,32 +113,27 @@ of this file.
 **The numbers say activation and the daily habit are the problem, not late
 churn.** `config/retention` read 2026-09-02 (120-day window, synthetic
 excluded, `insufficientSample: true`): 30 signups → **11 activated (37%)**;
-D1 **20%** (6/30), D7 **8%** (2/25), D30 7% (1/15); **0.48 logs per activated
-user per day**. Benchmarks for the category: D1 30–35%, D7 15–18%, D30 8–12%.
-Most signups never reach three logs, and the ones who do log less than once a
-day — D7 and D30 fall out of those two. Research levers, in the order they
-attack that: logging speed is the strongest predictor of adherence (<30 s/meal
-78% at six months vs 23% over 2 min; photo loggers 42% D30 vs 17% search);
-a meaningful action in session one is worth 2–3× at D30; triggers only work
-when tied to something the user did. **Re-read `config/retention` before
-claiming any of this moved** — at ~30 signups per 120 days no A/B is readable,
-so retention work must be paired with acquisition to be measurable.
+D1 **20%**, D7 **8%**, D30 7%; **0.48 logs per activated user per day**
+(category: D1 30–35%, D7 15–18%, D30 8–12%). Research levers, in the order
+they attack that: logging speed (<30 s/meal retains 78% at six months vs 23%
+over 2 min; photo loggers 42% D30 vs 17% search), a meaningful action in
+session one (2–3× at D30), triggers tied to something the user did.
+**Re-read `config/retention` before claiming any of this moved** — at ~30
+signups per 120 days no A/B is readable; pair retention work with acquisition.
 
 | # | Lever | State |
 |---|---|---|
 | 1 | **First log inside onboarding** — after the plan step, "log what you last ate" with photo/presets as the default path; reminders step moves after it. Attacks the 37% activation directly. | **Next.** Needs a fresh-install account to device-verify (the OTA 97 precedent: throwaway signup, Maestro, purge). |
-| 2 | **Lapsed nudges by LOCAL notification** — +3 and +7 days after the last food log, 6pm, cancelled by any log; anchored on today for anyone ≥7 days away. No server, no FCM, no scheduler slot. | **BUILT 2026-09-02** in `reminder-plan.ts` + `useReminderSync.ts`, three locales, 8 tests. Delivery: see `apps/mobile/AGENTS.md` OTA table. |
+| 2 | **Lapsed nudges by LOCAL notification** — +3 and +7 days after the last food log, 6pm, cancelled by any log; anchored on today for anyone ≥7 days away. No server, no FCM, no scheduler slot. | **SHIPPED 2026-09-02 — Android OTA 102–104 on vc 40 (test device only while vc 40 is on no track), iOS OTA on build 60 (every App Store user).** Device-verified in all three states off AlarmManager, and it surfaced a pre-existing race that doubled every reminder — fixed in the same publish (`CHANGELOG.md`). First real observation: a lapsed user's 6pm banner, which no device here can produce before 09-05. |
 | 3 | **Instrument the two deciding numbers** — seconds-per-log by method, and D7 split by dominant logging method (photo / search / repeat / preset) in `retention.ts` + the admin Overview; `time_to_first_log` from `firstEntryAt − createdAt`. | Open. Server-side only for the split (events already exist); a `log_secs` counter needs rules + rules test + deploy. |
 | 4 | **Celebrate the first log and first week** — award `first-scan`, a first-log `MilestoneNote`, `recordPositiveMoment` there so the review prompt lands after a win. §S12 still bans shame mechanics. | Open. `first-scan` is blocked on `FoodSource` having no photo variant. |
 | 5 | **Verify the zero-friction triggers** — Android widget on a real home screen, watch/Siri (rows below). A widget is a log path under 10 s. | Open, owner with a device. |
 | 6 | **Guest mode (`UX_AUDIT.md` N5)** if lever 1 does not move D1 alone. | Deferred until 1 is measured. |
 | 7 | **Maintenance mode** after goal reached — looser logging, keeps the account alive through the week 8–12 fatigue. | Open, unscoped. |
 
-One option deliberately NOT taken with lever 2: the meal-window dailies are
-OS-repeating and keep firing forever for a user who never opens the app again.
-Replacing them with a bounded run of one-shots (silence after a week away)
-would be kinder, but it changes existing users' schedules and is a separate
-decision.
+Not taken with lever 2, deliberately: the meal-window dailies are OS-repeating
+and fire forever for a user who never returns. Bounding them (silence after a
+week away) would be kinder but changes existing schedules — a separate call.
 
 | Work | Blocked on |
 |---|---|
