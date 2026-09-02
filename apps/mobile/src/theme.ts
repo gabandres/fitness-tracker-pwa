@@ -219,10 +219,19 @@ export const motion = {
    * then the way in. `lead` is the pause after the splash lifts before the
    * first line arrives; ~100 ms between items is small enough that nobody
    * waits and large enough to read as a sequence rather than a slide.
+   *
+   * `lead` was 120 and is 300 because a 30 fps recording on the LG VS988
+   * (2026-09-02) showed the title drawn at its resting place while the
+   * flame was still travelling up through it — the mark's spring needs
+   * ~250 ms to clear that band, and the copy must not arrive before it has.
    */
-  hero: { dur: 520, stagger: 110, lead: 120 },
+  hero: { dur: 520, stagger: 110, lead: 300 },
   spring: {
     press: { damping: 18, stiffness: 350, mass: 0.6 },
     gentle: { damping: 18, stiffness: 120, mass: 1 },
+    /** The welcome mark's travel: `gentle`'s damping (one settle, no bounce)
+     *  with more stiffness, so it clears the copy's band before the copy
+     *  arrives — see `hero.lead`. */
+    hero: { damping: 18, stiffness: 190, mass: 1 },
   },
 } as const;

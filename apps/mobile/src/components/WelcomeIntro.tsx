@@ -113,8 +113,8 @@ export function WelcomeIntro({ onContinue }: { onContinue: (mode: 'signin' | 'si
       grow.value = HERO_SCALE;
       return;
     }
-    travel.value = withSpring(delta, motion.spring.gentle);
-    grow.value = withSpring(HERO_SCALE, motion.spring.gentle);
+    travel.value = withSpring(delta, motion.spring.hero);
+    grow.value = withSpring(HERO_SCALE, motion.spring.hero);
     bloom.value = withTiming(1, { duration: BLOOM_MS, easing: Easing.out(Easing.cubic) });
   }, [started, delta, reduce, travel, grow, bloom]);
 
