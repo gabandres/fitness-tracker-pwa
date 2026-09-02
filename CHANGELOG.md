@@ -1,5 +1,62 @@
 # Changelog
 
+## 2026-09-02 — The first-launch moment: a welcome intro the flame catches into, before the sign-in form
+
+**A brand-new install used to open on a sign-in form.** The owner's brief was
+Callbook's welcome (`Z:\tracker-app\app\welcome.tsx`) "with a nice touch using
+the icon animation": craft, not template. It now opens on a welcome intro —
+`apps/mobile/src/components/WelcomeIntro.tsx`, a STATE inside the sign-in
+screen (the handoff's option b: no persisted flag, no `AuthGate` change, and a
+signed-out returning user meeting it again is not a defect).
+
+**The moment.** The sign-in route mounts UNDER the boot splash holding the
+loader's own 104 dp flame and wordmark (`BrandWordmark`, `BRAND_LOADER_WRAP`
+and `BRAND_LOADER_SIZE` are now exported from `BrandLoader.tsx` so the two
+cannot drift) in the same centred column, so the instant the overlay lifts
+nothing changes — then the fire catches: the mark springs up and grows to 1.25×
+into its hero place, a one-shot coral bloom radiates off it, and the title,
+one sentence and the actions arrive ~110 ms apart beneath. A new
+`lib/splash-state.ts` store (set by `AuthGate`, read by the intro) is what lets
+the choreography start in front of the user rather than under the loader —
+Reanimated entrances run on mount, and the screen mounts covered. The mark's
+resting place is not assumed from a window height (Android has lied about the
+nav bar before): a transparent ghost in the real layout and the loader-twin
+column are both measured in window coordinates and the spring travels the
+difference. Callbook's rules kept: spring on ONE element, everything else
+eased (`heroEnter` in `motion.tsx` on new `motion.hero` tokens), nothing loops
+but the flame's own breathe, reduce-motion yields the complete still screen,
+no tour and no carousel. The CTA lands the form in sign-UP mode — the one case
+where that default is right — and "I already have an account" in sign-in mode.
+Copy in en / es-PR / pt-BR claims only what `docs/go-to-market.md` §1 backs:
+*A target that learns from you.*
+
+**DEVICE-VERIFIED on the LG VS988 against the published bundle, by screen
+recording rather than screenshot** — `pm clear`, two launches (the first
+downloads the OTA, the second runs it: `No update available`), 0 fatals. The
+tile of the second launch shows the native splash, the flame catching and
+rising with the bloom, and the copy settling; Maestro drove the CTA to the
+sign-up form (name row present) and the link to the sign-in form. **The
+recording found the one defect the 8 new jest tests could not:** at 30 fps the
+title was drawn at its resting place while the flame was still travelling up
+through that band — `hero.lead` (120 ms) was shorter than the gentle spring's
+travel. Fixed as tokens (`lead` 300, a stiffer `spring.hero`) in the second
+publish. Shipped as **Android OTA 108–109 on vc 40** (test device only while
+vc 40 is on no track) and **iOS OTA 70 on build 60**; the per-publish record is
+the row in `apps/mobile/AGENTS.md`.
+
+**Two seams, and only one of them is closed.** The seam this work makes
+invisible is loader → intro. The FIRST seam — native splash → live flame —
+cannot be: `splash-icon.png` is still the ring-and-teardrop glyph the icon
+redesign replaced, and there is no dark `expo-splash-screen` block, so a
+dark-theme user gets a `#faf9f6` flash. Both are native config that moves the
+fingerprint, so they wait for **vc 41 + the next iOS build**, and are recorded
+on that build's remainder list in `STATUS.md` §3. Also deliberately not here:
+a `usageEvents` counter (a rules deploy per key, and `timeToFirstLog` already
+measures the only thing this screen could cost) and a `WHATS_NEW_VERSION` bump
+(a first-run screen is invisible to every existing user). **Dark theme is
+UNVERIFIED on a device:** the LG runs Android 9, which has no system dark mode,
+and the intro follows the theme tokens like every other screen.
+
 ## 2026-09-02 — Retention becomes the standing focus: lapsed nudges by local notification, and the doubled-reminder race nobody had seen
 
 **Retention is now the owner's stated priority, and `STATUS.md` §3 carries the
