@@ -141,10 +141,16 @@ tags:
     visibilityPercentage: 60
 - takeScreenshot: .maestro/regression/shots/empty-03-logged
 # ── leave the sandbox signed out (same tail as 02) ──
-# Re-tap the Today tab first: the scroll above carried the header (and its
-# settings button) off screen, and `tapOn` does not scroll. Measured on the
-# first run, 2026-09-02 — everything before this line had passed.
-- tapOn: 'Today'
+# Scroll the header back into view: the Entries scroll above carried it (and
+# its settings button) off screen, `tapOn` does not scroll, and re-tapping the
+# already-selected Today tab does not reset the list either — measured on the
+# first TWO runs, 2026-09-02, everything before this line having passed both
+# times.
+- scrollUntilVisible:
+    element:
+      id: 'settings-open'
+    direction: UP
+    timeout: 15000
 - tapOn:
     id: 'settings-open'
 - scrollUntilVisible:

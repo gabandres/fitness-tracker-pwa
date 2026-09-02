@@ -39,8 +39,38 @@ module-level promise (last caller's plan survives, a failed sync never blocks
 the next), pinned by `reminders.test.ts`. 
 
 Delivery: Android OTA 102–104 on vc 40 (reaches the test device only while
-vc 40 is on no track); iOS OTA on build 60 reaches every App Store user. Row
-detail in `apps/mobile/AGENTS.md`.
+vc 40 is on no track); iOS OTA 66 on build 60 reaches every App Store user.
+Row detail in `apps/mobile/AGENTS.md`.
+
+**Lever 1, the same evening: onboarding ends by offering the first log.** A
+`firstLog` step now follows the reminders step (which stays before it,
+because this step's CTA leaves onboarding). "Log my last meal" lands on Today
+with the add sheet already open — the same `openAdd` nonce the tab bar, the
+widget and the scan screen use — and "I'll do it later" lands on plain Today.
+Never shown on a redo. The guided tour's own first rule (never open on top of
+someone mid-task) would have been broken by its own auto-open here, so
+`lib/tour.ts` gains an in-memory hold set by the CTA and released when the
+sheet closes; the tour then offers itself right after the first log. Copy in
+three locales; 4 new tests, the reminders-step test updated, the tour test
+pins the hold.
+
+**DEVICE-VERIFIED on the LG VS988 with a throwaway signup and a new Maestro
+arc** (`.maestro/regression/empty/03-onboarding-first-log.yaml`): sign-in →
+welcome → goal → weights → skip body → plan saved → reminders (Not now) →
+first-log step → CTA → Today with the sheet OPEN and the Suggested chips →
+manual entry → save → **the tour appeared only then** (the hold released) →
+"QA First Meal" in Entries. Read back from PROD: `profileCompleted` at
+15:29:34, the 300 kcal / 20 g row at 15:31:18, `firstEntryAt` 15:31:21 —
+**a first log 1 m 44 s after the plan was saved.** Account purged afterwards.
+
+**The device found a second pre-existing defect: the reminders step's rows
+were invisible.** Its panel is the hero panel, an ink surface, and
+`reminderRow` used `colors.ink` — ink-on-ink in light theme. It shipped that
+way to every new iOS user since OTA 58 (2026-08-30), unverifiable on Android
+until a fresh-install binary existed and never looked at on an iPhone. The
+first-log step inherited the style and the screenshot showed both. Now
+`onInk`, per the ADR-0014 rule. Delivery: Android OTA 105–106 on vc 40,
+iOS OTA 67–68 on build 60.
 
 ## 2026-09-01 — Three data-integrity fixes from the owner's audit: the HealthKit window that never applied, the session bodyweight nobody bounded, and a calorie figure its own macros disagree with
 
