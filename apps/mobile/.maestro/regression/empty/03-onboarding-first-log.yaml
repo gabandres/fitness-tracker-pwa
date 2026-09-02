@@ -19,8 +19,15 @@ appId: fit.ignia.app
 tags:
   - manual
 ---
+# `clearState: false`, unlike 02 — and clear the app BY HAND first
+# (`adb shell pm clear fit.ignia.app`, then launch it TWICE). Measured
+# 2026-09-02: `clearState: true` wipes expo-updates' downloaded bundle along
+# with the session, so the flow would then run onboarding on the EMBEDDED
+# JS — a binary that predates this step — and fail at the first-log assert
+# while looking like a regression. Two launches after the clear download and
+# apply the current OTA; the flow then starts on the sign-in screen anyway.
 - launchApp:
-    clearState: true
+    clearState: false
     stopApp: true
 - extendedWaitUntil:
     visible: 'Sign in to your account'
@@ -134,6 +141,10 @@ tags:
     visibilityPercentage: 60
 - takeScreenshot: .maestro/regression/shots/empty-03-logged
 # ── leave the sandbox signed out (same tail as 02) ──
+# Re-tap the Today tab first: the scroll above carried the header (and its
+# settings button) off screen, and `tapOn` does not scroll. Measured on the
+# first run, 2026-09-02 — everything before this line had passed.
+- tapOn: 'Today'
 - tapOn:
     id: 'settings-open'
 - scrollUntilVisible:

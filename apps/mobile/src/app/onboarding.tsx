@@ -1004,5 +1004,9 @@ const createStyles = ({ colors, shadow }: Theme) =>
     ctaText: { color: colors.onInk, fontSize: font.h3, fontWeight: '700' },
     ctaGhost: { paddingVertical: space.md, alignItems: 'center', marginBottom: space.xs },
     ctaGhostText: { color: colors.muted, fontSize: font.body, fontWeight: '600' },
-    reminderRow: { fontSize: font.body, color: colors.ink, paddingVertical: space.xs, textAlign: 'center' },
+    // On the hero panel (an ink surface), so `onInk` — `colors.ink` here was
+    // ink-on-ink and the rows were invisible in light theme. Found on the
+    // LG VS988 on 2026-09-02, the first time any device ran a fresh onboarding
+    // since the reminders step shipped (iOS OTA 58, unverified by design).
+    reminderRow: { fontSize: font.body, color: colors.onInk, paddingVertical: space.xs, textAlign: 'center' },
   });
