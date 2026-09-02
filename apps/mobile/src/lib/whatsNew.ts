@@ -20,7 +20,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // two days earlier and deliberately did NOT bump — a banner announcing a record
 // is the forward pressure that feature is built to avoid — so the copy leads
 // with water and says nothing about them.
-export const WHATS_NEW_VERSION = '2026-08-30-water-trends';
+// Bumped 2026-09-01 for the rest-timer change: the countdown now follows the
+// set that is COMING (short inside a cluster, long after its last mini), and an
+// exercise can carry its own mini-set rest. A behaviour every lifter feels on
+// the next session is worth one banner.
+export const WHATS_NEW_VERSION = '2026-09-01-rest-timer';
 
 const KEY = 'whatsNew.seen';
 

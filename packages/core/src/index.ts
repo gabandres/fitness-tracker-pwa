@@ -117,6 +117,7 @@ export * from './weight-projection';
 // mirror, store backstop). Distinct from ./macro-heuristic's CALC_WEIGHT_*
 // input range; see the header of ./weight-bounds.
 export * from './set-load-bounds';
+export * from './rest-after-set';
 export * from './weight-bounds';
 // Body weight in the unit the user reads and types, over a store that is always
 // POUNDS. Display/input seam only — see the header for why the model never

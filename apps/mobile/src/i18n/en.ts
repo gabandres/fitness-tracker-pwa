@@ -203,7 +203,7 @@ export const en = {
   'link.failedBody': 'Your device blocked it. Open this in your browser instead:\n\n{url}',
   'whatsNew.title': "What's new",
   'whatsNew.body':
-    'Water has a chart now — a Water tab beside Sleep and Fasting on Trends, showing your last fourteen days. Skipped days show as gaps, never zeros. Log water for three days and the chart appears.',
+    'The rest timer now follows the set that is coming: the short rest inside a cluster, the long one after its last mini-set. And any exercise can carry its own mini-set rest — open a template, expand an exercise, More options.',
 
   // ── app updates ──
   'update.ota.title': 'Update ready',
@@ -840,6 +840,7 @@ export const en = {
   // Template editor — parity with the PWA's template editor fields.
   'train.restMini': 'Rest: sets (s)',
   'train.restCluster': 'Rest: clusters (s)',
+  'train.exRestMini': 'Mini-set rest for this exercise (s)',
   'train.cues': 'Cues (one per line)',
   'train.progression': 'Auto-progression',
   'train.targetReps': 'Target reps',

@@ -196,7 +196,7 @@ export const esPR: Record<I18nKey, string> = {
   'link.failedBody': 'Tu dispositivo lo bloqueó. Abre esto en tu navegador:\n\n{url}',
   'whatsNew.title': 'Novedades',
   'whatsNew.body':
-    'El agua ya tiene gráfica — una pestaña de Agua junto a Sueño y Ayuno en Tendencias, con tus últimos catorce días. Los días sin anotar salen como huecos, nunca como ceros. Anota agua por tres días y aparece la gráfica.',
+    'El temporizador de descanso ahora sigue la serie que viene: el descanso corto dentro de un clúster, el largo después de su última mini-serie. Y cualquier ejercicio puede tener su propio descanso de mini-series — abre una plantilla, expande un ejercicio, Más opciones.',
 
   // ── app updates ──
   'update.ota.title': 'Actualización lista',
@@ -758,6 +758,7 @@ export const esPR: Record<I18nKey, string> = {
   // Editor de plantillas — paridad con el editor del PWA.
   'train.restMini': 'Descanso: series (s)',
   'train.restCluster': 'Descanso: clústers (s)',
+  'train.exRestMini': 'Descanso de mini-series para este ejercicio (s)',
   'train.cues': 'Claves (una por línea)',
   'train.progression': 'Auto-progresión',
   'train.targetReps': 'Reps objetivo',

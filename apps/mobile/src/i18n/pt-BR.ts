@@ -192,7 +192,7 @@ export const ptBR = {
   'link.failedBody': 'O seu aparelho bloqueou. Abra isto no seu navegador:\n\n{url}',
   'whatsNew.title': 'Novidades',
   'whatsNew.body':
-    'A água agora tem gráfico — uma aba de Água ao lado de Sono e Jejum em Tendências, com seus últimos catorze dias. Dias sem registro aparecem como lacunas, nunca como zeros. Registre água por três dias e o gráfico aparece.',
+    'O cronômetro de descanso agora segue a série que vem: o descanso curto dentro de um cluster, o longo depois da última mini-série. E qualquer exercício pode ter seu próprio descanso de mini-séries — abra um modelo, expanda um exercício, Mais opções.',
 
   // ── app updates ──
   'update.ota.title': 'Atualização pronta',
@@ -744,6 +744,7 @@ export const ptBR = {
   'train.addCluster': '+ Adicionar cluster',
   'train.restMini': 'Descanso: séries (s)',
   'train.restCluster': 'Descanso: clusters (s)',
+  'train.exRestMini': 'Descanso de mini-séries para este exercício (s)',
   'train.cues': 'Lembretes (um por linha)',
   'train.progression': 'Progressão automática',
   'train.targetReps': 'Repetições-alvo',

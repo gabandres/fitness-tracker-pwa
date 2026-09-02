@@ -30,6 +30,7 @@ const mockTemplate: WorkoutTemplate = {
       targetLoad: 25,
       cues: ['Elbows 45°', 'Full stretch'],
       progression: { targetReps: 12, holdSessions: 2, incrementLb: 2.5 },
+      restMiniSec: 45,
       plannedSets: [
         { kind: 'activation', group: 1 },
         { kind: 'mini', group: 1 },
@@ -113,6 +114,9 @@ it('round-trips clusters, cues and progression when saved unedited', async () =>
     { kind: 'mini', group: 1 },
     { kind: 'mini', group: 1 },
   ]);
+  // The per-exercise rest override is the newest field the editor must carry.
+  expect(draft.exercises[0].restMiniSec).toBe(45);
+  expect(draft.exercises[1].restMiniSec).toBeUndefined();
 });
 
 it('renumbers clusters when one is appended', async () => {

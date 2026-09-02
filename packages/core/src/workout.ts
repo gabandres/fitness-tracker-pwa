@@ -226,6 +226,13 @@ export interface TemplateExercise {
   logStyle?: LogStyle;
   progression?: ProgressionRule;
   plannedSets: PlannedSet[];
+  /** Rest before this exercise's mini-sets / straight sets, seconds — an
+   *  EXERCISE-level override of the template's `restMiniSec`. Exists because a
+   *  bodyweight cluster cannot shed load between efforts: 15–20 s of rest
+   *  yields 1-rep minis on a pull-up while it is right for every loaded lift on
+   *  the same day, so the template default must not move. Read through
+   *  `restAfterSet`'s callers; nothing else. Absent means "use the template's". */
+  restMiniSec?: number;
 }
 
 export interface WorkoutTemplate {

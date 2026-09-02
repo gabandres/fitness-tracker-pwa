@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-09-01 — The rest timer follows the set that is coming, and an exercise can carry its own mini-set rest
+
+**The between-sets countdown keyed on the set you had just finished, and that
+was inverted for a cluster.** `startRest(kind)` ran `restClusterSec` after any
+non-mini set and `restMiniSec` after a mini — so an activation → mini → mini
+cluster rested **150 s after the activation set and 20 s after its last mini**,
+the reverse of the protocol every cluster template's notes describe ("~20 s
+between mini-sets, 2–3 min between clusters"), and three straight working sets
+got the cluster rest, which is not what the field's own label ("Rest: sets")
+says. Nobody filed it; it surfaced while giving one exercise a different rest.
+
+**Now the set that is COMING decides**, in one pure core function,
+`restAfterSet`: the long rest before a new `activation` set or after an
+exercise's last set, the short one before everything else. Four tests pin the
+cluster, the back-to-back clusters, the straight sets and the override seam.
+
+**`TemplateExercise.restMiniSec` is new — an exercise-level override of the
+template's short rest.** The reason is a bodyweight cluster: a pull-up cannot
+shed load between efforts, so 15–20 s of rest yields 1-rep minis while that
+same rest is right for every loaded lift on the day. The template default must
+not move for one exercise. The template editor carries the field (blank = use
+the template's, the placeholder shows which) and the round-trip test asserts it
+survives a save, because the editor writes `exercises` as a full overwrite and a
+field it cannot see is a field the next save deletes. `firestore.rules` needs
+nothing — it validates `exercises` as a list and nothing inside it. Vocabulary
+in `CONTEXT.md` → RestTimer.
+
+`WHATS_NEW_VERSION` → `2026-09-01-rest-timer`. Ships by OTA on both platforms;
+the per-publish record is in `apps/mobile/AGENTS.md`.
+
 ## 2026-08-31 — The last photo-resolver mis-match family, and it was a missing signal rather than a mis-tuned one
 
 **`analyzePhoto`'s "right food, wrong variety" family is closed (#76).** A bare

@@ -39,6 +39,7 @@ import {
   STARTER_TEMPLATES,
   clampRir,
   clampSetLoad,
+  restAfterSet,
   seedTemplateName,
   setRowLabels,
   // Cardio (ADR-0025 / ADR-0026): the modality list the picker renders, the
@@ -726,7 +727,16 @@ function ActiveSession({ train }: { train: ReturnType<typeof useTrain> }) {
   const tpl = train.templates.find((tt) => tt.id === session.templateId);
   const restMini = tpl?.restMiniSec ?? 60;
   const restCluster = tpl?.restClusterSec ?? 120;
-  const startRest = (kind: WorkoutSet['kind']) => rest.start(kind === 'mini' ? restMini : restCluster);
+  // The rest that follows a set is decided by the set that comes NEXT (core
+  // `restAfterSet`), and an exercise may carry its own mini-set rest — a
+  // bodyweight cluster cannot shed load between efforts, so its intra-cluster
+  // rest is longer than a loaded lift's without moving the template default.
+  const startRest = (exerciseIndex: number, setIndex: number) => {
+    const ex = session.exercises[exerciseIndex];
+    if (!ex) return;
+    const override = tpl?.exercises.find((te) => te.exerciseId === ex.exerciseId)?.restMiniSec;
+    rest.start(restAfterSet(ex.sets, setIndex, { mini: override ?? restMini, cluster: restCluster }));
+  };
 
   return (
     <>
@@ -755,7 +765,7 @@ function ActiveSession({ train }: { train: ReturnType<typeof useTrain> }) {
                 haptics.tap();
                 setExpanded((cur) => (cur === exIdx ? null : exIdx));
               }}
-              onSetDone={startRest}
+              onSetDone={(setIdx) => startRest(exIdx, setIdx)}
             />
           ))
         )}
@@ -895,7 +905,7 @@ function ExerciseCard({
   exerciseIndex: number;
   collapsed: boolean;
   onToggle: () => void;
-  onSetDone?: (kind: WorkoutSet['kind']) => void;
+  onSetDone?: (setIndex: number) => void;
 }) {
   const t = useT();
   const styles = useThemedStyles(createStyles);
@@ -1104,7 +1114,7 @@ function SetRow({
   /** Row label from `setRowLabels` — "2" for a straight set, "2a/2b/2c"
    *  for a cluster. Derived by the parent, which holds the whole sequence. */
   label: string;
-  onDone?: (kind: WorkoutSet['kind']) => void;
+  onDone?: (setIndex: number) => void;
 }) {
   const unitSystem = useUnitSystem();
   // Local string buffers so partial decimal input binds cleanly; the parsed
@@ -1252,7 +1262,7 @@ function SetRow({
             );
           }
           train.dispatch({ type: 'patchSet', exerciseIndex, setIndex, patch: { done: nowDone } });
-          if (nowDone) onDone?.(set.kind); // start the rest countdown
+          if (nowDone) onDone?.(setIndex); // start the rest countdown
         }}
         testID={`set-done-${exerciseIndex}-${setIndex}`}
       >

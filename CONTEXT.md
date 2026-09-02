@@ -488,8 +488,14 @@ collections + a `WorkoutStore` facet back the Train tab.
   countdown, one instance per session sheet (plain class, not
   injectable). Interface: `start(s)` / `stop()` / `remaining` / `label`;
   the interval handle, tick, clamp, and `m:ss` formatting are internal.
-  Mini-sets get `restMiniSec`, everything else `restClusterSec` (both
-  off the template).
+  **Which rest runs is decided by the set that comes NEXT**, in core's
+  `restAfterSet`: the long `restClusterSec` before a new `activation` set or
+  after an exercise's last set, the short `restMiniSec` before everything
+  else (mini-sets AND straight sets). Until 2026-09-01 it keyed on the set
+  just finished, which ran the long rest after the activation set. An
+  exercise may override the short rest with its own
+  `TemplateExercise.restMiniSec` — a bodyweight cluster cannot shed load
+  between efforts, so its intra-cluster rest is longer than a loaded lift's.
 - **finishWorkout** — Hub orchestration on `FitnessStore`: flips the
   session to `completed`, mirrors session bodyweight into `dailyWeights`,
   and stamps the day's exercise marker via `markExercised`.

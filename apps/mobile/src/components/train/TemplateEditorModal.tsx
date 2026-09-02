@@ -183,6 +183,8 @@ interface DraftEx {
   targetReps: string;
   holdSessions: string;
   incrementLb: string;
+  /** Exercise-level mini-set rest override, seconds; '' = use the template's. */
+  restMiniSec: string;
   /** The real planned sets, not a count — a count cannot represent a cluster
    *  (activation/mini/mini) and rewriting one as N working sets destroys it. */
   sets: DraftSet[];
@@ -294,6 +296,7 @@ export function TemplateEditorModal({
         targetReps: ex.progression ? String(ex.progression.targetReps) : '',
         holdSessions: ex.progression ? String(ex.progression.holdSessions) : '',
         incrementLb: ex.progression ? String(toDisplayLoad(ex.progression.incrementLb, unitSystem)) : '',
+        restMiniSec: ex.restMiniSec != null ? String(ex.restMiniSec) : '',
         sets: ex.plannedSets.length
           ? ex.plannedSets.map((ps) => toDraftSet(ps, unitSystem))
           : [newDraftSet('working')],
@@ -329,6 +332,7 @@ export function TemplateEditorModal({
         targetReps: '',
         holdSessions: '',
         incrementLb: '',
+        restMiniSec: '',
         sets: [newDraftSet(kind), newDraftSet(kind), newDraftSet(kind)],
       },
     ]);
@@ -507,6 +511,7 @@ export function TemplateEditorModal({
                     parseLoadToLb(d.incrementLb, unitSystem) ?? defaultIncrementLb(unitSystem),
                 }
               : undefined,
+            restMiniSec: numOrUndef(d.restMiniSec),
             plannedSets: normalizeClusterGroups(
               d.sets.length ? d.sets : [newDraftSet('working')],
             ).map((d) => toPlannedSet(d, unitSystem)),
@@ -1007,6 +1012,20 @@ export function TemplateEditorModal({
                           <View style={{ flex: 1 }} />
                         )}
                       </View>
+
+                      {/* Per-exercise mini-set rest. Blank means the template's
+                          value applies; the placeholder shows which. */}
+                      <Text style={styles.fieldLabel}>{t('train.exRestMini')}</Text>
+                      <TextInput
+                        style={styles.tplLoadInput}
+                        keyboardType="numeric"
+                        placeholder={restMini || '—'}
+                        placeholderTextColor={colors.faint}
+                        value={d.restMiniSec}
+                        onChangeText={(v) => patchEx(i, { restMiniSec: v })}
+                        accessibilityLabel={t('train.exRestMini')}
+                        testID={`template-rest-mini-${i}`}
+                      />
 
                       <Text style={styles.fieldLabel}>{t('train.cues')}</Text>
                       <TextInput

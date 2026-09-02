@@ -135,6 +135,9 @@ export interface TemplateExercise {
   logStyle?: LogStyle;
   progression?: ProgressionRule;
   plannedSets: PlannedSet[];
+  /** Exercise-level override of the template's `restMiniSec` (seconds). Mirrors
+   *  `packages/core`; see the comment there for why it exists. */
+  restMiniSec?: number;
 }
 
 export interface WorkoutTemplate {
