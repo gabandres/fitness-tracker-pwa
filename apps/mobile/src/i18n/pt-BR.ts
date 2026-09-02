@@ -67,6 +67,11 @@ export const ptBR = {
   'scan.errAuth': 'Entre de novo para escanear.',
 
   // ── sign in ──
+  'welcome.title': 'Uma meta que\naprende com você.',
+  'welcome.body':
+    'Registre calorias e proteína. O Ignia mede sua manutenção real pela sua própria tendência de peso e ajusta conforme você avança. Grátis e sem anúncios.',
+  'welcome.cta': 'Crie a sua conta',
+  'welcome.haveAccount': 'Já tenho uma conta',
   'signIn.tagline': 'Entre na sua conta',
   'signIn.email': 'E-mail',
   'signIn.password': 'Senha',

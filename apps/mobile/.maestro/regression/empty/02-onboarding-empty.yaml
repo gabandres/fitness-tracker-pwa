@@ -32,6 +32,14 @@ tags:
 - launchApp:
     clearState: true
     stopApp: true
+# The welcome intro (2026-09-02) stands in front of the form on every
+# signed-out launch; its sign-in link is the way to the fields below.
+- extendedWaitUntil:
+    visible:
+      id: 'welcome-signin'
+    timeout: 30000
+- tapOn:
+    id: 'welcome-signin'
 - extendedWaitUntil:
     visible: 'Sign in to your account'
     timeout: 30000

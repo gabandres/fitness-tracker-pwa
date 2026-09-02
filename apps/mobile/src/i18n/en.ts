@@ -73,6 +73,15 @@ export const en = {
   'scan.errAuth': 'Please sign in again to scan.',
 
   // ── sign in ──
+  // The welcome intro — the first screen a fresh install shows, before the
+  // form. One promise the current build can back (docs/go-to-market.md §1:
+  // maintenance measured from the weight trend), one honest sentence, a CTA
+  // that names where it goes. No claims about photo, coach or training here.
+  'welcome.title': 'A target that\nlearns from you.',
+  'welcome.body':
+    'Log calories and protein. Ignia measures your real maintenance from your own weight trend and adjusts as you go. Free, no ads.',
+  'welcome.cta': 'Create your account',
+  'welcome.haveAccount': 'I already have an account',
   'signIn.tagline': 'Sign in to your account',
   'signIn.email': 'Email',
   'signIn.password': 'Password',

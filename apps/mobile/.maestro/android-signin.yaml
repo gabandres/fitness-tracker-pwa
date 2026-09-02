@@ -63,6 +63,29 @@ appId: fit.ignia.app
     timeout: 30000
     optional: true
 
+# ── The welcome intro (2026-09-02) ──
+# A signed-out screen now opens on the welcome intro, not the form: flame,
+# one sentence, "Create your account" and an "I already have an account"
+# link. The form — and every id below — is behind that link. Conditional, so
+# a device that is already signed in (no intro) and one that is signed out
+# (intro) both pass through here unchanged.
+- extendedWaitUntil:
+    visible:
+      id: 'welcome-signin'
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'welcome-signin'
+    commands:
+      - tapOn:
+          id: 'welcome-signin'
+      - extendedWaitUntil:
+          visible:
+            id: 'signin-submit'
+          timeout: 10000
+
 # Selected by testID, not by text — measured 2026-08-18 on the iOS simulator.
 # The signed-out screen's hierarchy there exposes **no `text` attribute on any
 # node**: a dump of a perfectly rendered sign-in screen listed the ids `email`,

@@ -15,12 +15,22 @@ import Animated, { FadeIn, useAnimatedStyle, useSharedValue, withTiming } from '
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BrandMark } from '@/components/BrandMark';
 import { GoogleIcon, MicrosoftIcon } from '@/components/BrandIcons';
+import { WelcomeIntro } from '@/components/WelcomeIntro';
 import { useAuth } from '@/lib/auth';
 import { type I18nKey, type TFn, useLocale, useT } from '@/i18n';
 import { enterUp } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space, type } from '@/theme';
 
+/**
+ * Two steps: the welcome intro, then the form.
+ *
+ * The intro is a STATE here rather than a route (Callbook's shape): it needs no
+ * persisted "seen" flag, no change to `AuthGate`'s routing, and a returning
+ * signed-out user meeting it again is not a defect. Its CTA lands the form in
+ * sign-UP mode — a brand-new install is the one case where that default is
+ * right — and the link under it lands in sign-in mode for everyone else.
+ */
 export default function SignIn() {
   const t = useT();
   const locale = useLocale();
@@ -38,6 +48,7 @@ export default function SignIn() {
     microsoftAvailable,
     pendingLink,
   } = useAuth();
+  const [step, setStep] = useState<'intro' | 'form'>('intro');
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -147,6 +158,17 @@ export default function SignIn() {
     } catch (e: unknown) {
       setError(errorMessage(e, t, 'federated'));
     }
+  }
+
+  if (step === 'intro') {
+    return (
+      <WelcomeIntro
+        onContinue={(next) => {
+          setMode(next);
+          setStep('form');
+        }}
+      />
+    );
   }
 
   return (

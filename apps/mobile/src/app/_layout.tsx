@@ -14,6 +14,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { useIsOffline } from '@/lib/connectivity';
 import { assessRoute, shouldShowSplash } from '@/lib/onboarding-gate';
+import { setSplashVisible } from '@/lib/splash-state';
 import { BrandLoader } from '@/components/BrandLoader';
 import { I18nProvider, useT } from '@/i18n';
 import { Sentry } from '@/lib/sentry';
@@ -184,6 +185,11 @@ function AuthGate({ fontsReady }: { fontsReady: boolean }) {
   const nextSettledUid = !uid ? null : gateSettled ? uid : settledUid;
   if (nextSettledUid !== settledUid) setSettledUid(nextSettledUid);
   const showSplash = shouldShowSplash({ gateSettled, uid, settledUid: nextSettledUid });
+  // Tell the welcome intro when the overlay lifts, so its choreography starts
+  // in front of the user rather than under the loader (`lib/splash-state.ts`).
+  useEffect(() => {
+    setSplashVisible(showSplash);
+  }, [showSplash]);
   return (
     <>
       <Slot />

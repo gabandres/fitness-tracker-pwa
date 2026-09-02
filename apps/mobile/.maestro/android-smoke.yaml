@@ -33,7 +33,18 @@ appId: fit.ignia.app
 
 # The app got past `index.js`'s widget-task registration, past the Expo Router
 # tree, and rendered. On a release build this is also the proof that Hermes
-# loaded the bundled JS.
+# loaded the bundled JS. Since 2026-09-02 the signed-out entry point is the
+# WELCOME INTRO (flame, one sentence, a CTA and a sign-in link); the form is
+# behind the link. The CTA mounts only after the boot splash lifts, so
+# waiting for it is also the proof that the splash gate released.
+- extendedWaitUntil:
+    visible:
+      id: 'welcome-cta'
+    timeout: 30000
+- assertVisible:
+    id: 'welcome-signin'
+- tapOn:
+    id: 'welcome-signin'
 - assertVisible: 'Sign in to your account'
 
 # The two fields a user must be able to see and type into. `Email` and

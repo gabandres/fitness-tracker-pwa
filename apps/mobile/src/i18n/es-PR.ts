@@ -69,6 +69,11 @@ export const esPR: Record<I18nKey, string> = {
   'scan.errAuth': 'Vuelve a iniciar sesión para escanear.',
 
   // ── sign in ──
+  'welcome.title': 'Una meta que\naprende de ti.',
+  'welcome.body':
+    'Registra calorías y proteína. Ignia mide tu mantenimiento real con tu propia tendencia de peso y lo ajusta sobre la marcha. Gratis y sin anuncios.',
+  'welcome.cta': 'Crea tu cuenta',
+  'welcome.haveAccount': 'Ya tengo una cuenta',
   'signIn.tagline': 'Inicia sesión en tu cuenta',
   'signIn.email': 'Correo electrónico',
   'signIn.password': 'Contraseña',

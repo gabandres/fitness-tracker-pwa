@@ -213,6 +213,14 @@ export const motion = {
   dur: { fast: 140, base: 240, slow: 450 },
   /** Per-item delay for staggered list/card entrances. */
   stagger: 55,
+  /**
+   * The hero moment (the welcome intro): slower and more spaced than a list
+   * entrance, because the eye is meant to be LED — mark, then what the app is,
+   * then the way in. `lead` is the pause after the splash lifts before the
+   * first line arrives; ~100 ms between items is small enough that nobody
+   * waits and large enough to read as a sequence rather than a slide.
+   */
+  hero: { dur: 520, stagger: 110, lead: 120 },
   spring: {
     press: { damping: 18, stiffness: 350, mass: 0.6 },
     gentle: { damping: 18, stiffness: 120, mass: 1 },

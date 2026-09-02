@@ -50,6 +50,19 @@ export function enterUp(index = 0) {
     .reduceMotion(ReduceMotion.System);
 }
 
+/**
+ * Entrance for the lines of a hero moment (the welcome intro). Same shape as
+ * {@link enterUp} on the `motion.hero` tokens: slower, ~100 ms apart, eased —
+ * never sprung. The one element with weight on that screen is the mark, and it
+ * springs on its own; four things with weight read as a toy.
+ */
+export function heroEnter(index = 0) {
+  return FadeInUp.duration(motion.hero.dur)
+    .delay(motion.hero.lead + index * motion.hero.stagger)
+    .easing(Easing.out(Easing.cubic))
+    .reduceMotion(ReduceMotion.System);
+}
+
 /** Spring layout transition for rows that move when siblings are added/removed. */
 export const springLayout = LinearTransition.springify()
   .damping(motion.spring.gentle.damping)

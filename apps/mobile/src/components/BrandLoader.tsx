@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, type ComponentProps } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, {
   Easing,
@@ -14,6 +14,10 @@ import { useTheme } from '@/lib/theme-context';
 import { font, space, type } from '@/theme';
 
 const SIZE = 104;
+/** The loader's flame size — the welcome intro starts its flame at exactly
+ *  this, in exactly this wrap, so the handoff from splash to intro is one
+ *  fire and not two. */
+export const BRAND_LOADER_SIZE = SIZE;
 // Ember spawn points around the flame base (x offset from center, start delay).
 const EMBERS = [
   { x: -18, delay: 0, drift: -10, dur: 1600 },
@@ -71,9 +75,20 @@ export function BrandLoader() {
           ))}
         <Flame size={SIZE} flicker />
       </View>
-      <Animated.Text style={[styles.word, { color: colors.ink }, wordStyle]}>Ignia</Animated.Text>
+      <BrandWordmark style={wordStyle} />
     </View>
   );
+}
+
+/**
+ * The "Ignia" wordmark exactly as the loader sets it. Shared with the welcome
+ * intro rather than copied there, so the two can never drift apart by a point
+ * of letter-spacing — the intro's whole trick is being pixel-identical to the
+ * loader at the instant the overlay lifts.
+ */
+export function BrandWordmark({ style }: { style?: ComponentProps<typeof Animated.Text>['style'] }) {
+  const { colors } = useTheme();
+  return <Animated.Text style={[styles.word, { color: colors.ink }, style]}>Ignia</Animated.Text>;
 }
 
 const styles = StyleSheet.create({
@@ -101,3 +116,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+
+/** The loader's column (flame over wordmark) — the geometry the intro mirrors. */
+export const BRAND_LOADER_WRAP = styles.wrap;
