@@ -145,8 +145,8 @@ round-tripped through kilograms) and 2022-09-13, four years before the account
 existed, and `computeGoalProgress` takes the OLDEST `dailyWeights` key as the
 start weight, so the Body tab's goal bar started at 185. Fixed by one exported
 helper, `hkSampleFilter`, with a test pinning the shape; the pre-window rows
-are deleted separately (owner-run script — the agent's delete was denied by the
-session's permission classifier).
+(2017-06-22, 2022-09-13) were deleted from PROD the same evening, once the
+owner granted the permission the session had first withheld.
 
 **Session bodyweight had no bound.** `weight-bounds.ts` promised a backstop on
 "every write path" and the workout-finish sheet had none: it stored `11` on

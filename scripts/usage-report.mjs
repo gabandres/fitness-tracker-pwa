@@ -161,6 +161,13 @@ console.log(`    onboarding_complete   ${report.funnel.onboarding_complete}`);
 console.log(`    log_added             ${report.funnel.log_added}`);
 console.log('\n  all counters');
 for (const [event, n] of Object.entries(totals).sort((a, b) => b[1] - a[1])) {
+  // `log_secs` is the catalogue's one DURATION (seconds spent inside the add
+  // sheet / scan screen, since Android OTA 107 / iOS OTA 69). Summed like an
+  // event it would top this list and read as a count; print it as time.
+  if (event === 'log_secs') {
+    console.log(`    ${event.padEnd(22)} ${n} s  (duration, not a count — secs/log lives in config/retention)`);
+    continue;
+  }
   console.log(`    ${event.padEnd(22)} ${n}`);
 }
 console.log(`\n  logs that had to be queued offline: ${report.offlineShare}%`);
