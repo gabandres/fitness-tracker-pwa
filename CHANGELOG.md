@@ -112,6 +112,19 @@ split reported as best-vs-worst D7 once two methods each have n≥3. Tests:
 core 1, rules 1, retention 5 (a photo, a search and a barcode user, with the
 untimed user proving the denominator), admin-insights 5, mobile timer 5.
 
+**First read from PROD, the same evening** (rules and `hourlyTasks` deployed,
+the pass run once by hand — the write the scheduler makes at 09:00 UTC): 33
+examined, 3 synthetic excluded, 11 activated. **Time to first log: median
+1 h 32 m, p75 4 h 49 m, 2 of 12 (17%) inside five minutes.** That is the
+baseline lever 1 is measured against; today's two throwaway onboarding runs
+did it in 1 m 44 s, and no real signup has yet gone through the new step. The
+method split is 7 `unknown` (activated before analytics existed, 2026-08-12),
+3 search, 1 photo — a comparison is months of signups away, as the plan
+already says. `secsPerLog` is `null` until the client half reaches a device:
+the stopwatch is on `main` and its OTA was not published this session (the
+publish invocation was denied by the session's permission classifier; the
+owner runs it — `STATUS.md` §3).
+
 ## 2026-09-01 — Three data-integrity fixes from the owner's audit: the HealthKit window that never applied, the session bodyweight nobody bounded, and a calorie figure its own macros disagree with
 
 **HealthKit imports read the entire store, not the last 400 days.**
