@@ -1,9 +1,14 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { Timestamp } from "firebase-admin/firestore";
-import { computeRetentionCohorts } from "../src/retention";
+import { computeRetentionCohorts, dominantMethod, type MethodCounts } from "../src/retention";
 import { freshUid, testDb } from "./helpers";
 
 const db = testDb();
+
+const zero: MethodCounts = {
+  photo_scan: 0, barcode_scan: 0, voice_log: 0, quick_add: 0, repeat_yesterday: 0,
+  log_added: 0, log_secs: 0, logsTimed: 0,
+};
 
 // Fixed clock so cohort weeks and eligibility windows are deterministic.
 // A Wednesday, so the Monday-anchored week key is a real shift, not a no-op.
@@ -21,17 +26,33 @@ const ago = (days: number, hours = 0) =>
 async function seedUser(
   signupDaysAgo: number,
   logDaysAgo: number[],
-  opts: { synthetic?: boolean } = {},
+  opts: {
+    synthetic?: boolean;
+    /** Minutes from signup to `firstEntryAt`; default is the first log day. */
+    firstLogAfterMin?: number;
+    /** Usage counters over the window, written as one `usageEvents` day doc. */
+    usage?: Record<string, number>;
+  } = {},
 ): Promise<string> {
   const uid = freshUid("ret");
   const createdAt = ago(signupDaysAgo);
+  const firstEntryAt =
+    opts.firstLogAfterMin != null
+      ? Timestamp.fromMillis(createdAt.toMillis() + opts.firstLogAfterMin * 60_000)
+      : logDaysAgo.length
+        ? ago(Math.max(...logDaysAgo))
+        : undefined;
   await db.doc(`users/${uid}`).set({
     createdAt,
     lastSeenAt: ago(0),
     profileCompleted: true,
     ...(opts.synthetic ? { syntheticAccount: true } : {}),
-    ...(logDaysAgo.length ? { firstEntryAt: ago(Math.max(...logDaysAgo)) } : {}),
+    ...(firstEntryAt ? { firstEntryAt } : {}),
   });
+  if (opts.usage) {
+    const day = new Date(NOW.getTime() - DAY_MS).toISOString().slice(0, 10);
+    await db.doc(`usageEvents/${uid}_${day}`).set({ uid, day, platform: "android", ...opts.usage });
+  }
   const batch = db.batch();
   for (const [i, d] of logDaysAgo.entries()) {
     batch.set(db.doc(`users/${uid}/dailyLogs/log-${i}`), {
@@ -67,17 +88,29 @@ describe("computeRetentionCohorts", () => {
 
   beforeAll(async () => {
     // 40 days ago — old enough to be eligible at every checkpoint.
-    // Retained at D30: last log is 35 days after signup.
-    await seedUser(40, [39, 38, 30, 5]);
+    // Retained at D30: last log is 35 days after signup. A PHOTO logger:
+    // three scans against four sheet saves, so the residual "search" is 1
+    // and photo wins outright. Timed: 90 s over the 4 logs on a day that
+    // carries the timer field.
+    await seedUser(40, [39, 38, 30, 5], {
+      firstLogAfterMin: 3,
+      usage: { photo_scan: 3, log_added: 4, log_secs: 90 },
+    });
     // Activated but churned: 3 logs in the first two days, nothing since.
-    await seedUser(40, [40, 39, 38]);
+    // Search-only, and from a build with no timer: `log_added` without a
+    // `log_secs` field, which must NOT count toward seconds-per-log.
+    await seedUser(40, [40, 39, 38], { firstLogAfterMin: 90, usage: { log_added: 3 } });
     // A tourist: one log, never reached the activation threshold.
-    await seedUser(40, [40]);
+    await seedUser(40, [40], { firstLogAfterMin: 2 * 24 * 60 });
     // Never logged at all.
     await seedUser(40, []);
 
     // 3 days ago — eligible for D1 only. Retained at D1 (logged on day 2).
-    await seedUser(3, [3, 2, 1]);
+    // A barcode logger, with a timer: 40 s across 2 timed logs.
+    await seedUser(3, [3, 2, 1], {
+      firstLogAfterMin: 1,
+      usage: { barcode_scan: 2, log_added: 2, log_secs: 40 },
+    });
 
     // The seeded App Store demo/review logins, which are what this exclusion
     // exists for. Both are flawless users by construction: activated, and
@@ -159,6 +192,60 @@ describe("computeRetentionCohorts", () => {
     // Logs in the last 7 days across activated users: the 40-day user has
     // one (day 5), the 3-day user has three. 4 / 3 activated / 7 days.
     expect(summary.logsPerActivatedUserPerDay).toBeCloseTo(4 / 3 / 7, 2);
+  });
+
+  // ── Retention lever 3: the two deciding numbers ─────────────────
+
+  it("classifies each activated user by dominant logging method", () => {
+    // Three activated users: photo (D30 retained), search (churned), barcode
+    // (3 days old). Tourists and never-logged users are not classified.
+    expect(summary.byMethod.photo.users).toBe(1);
+    expect(summary.byMethod.search.users).toBe(1);
+    expect(summary.byMethod.barcode.users).toBe(1);
+    expect(summary.byMethod.unknown.users).toBe(0);
+    expect(summary.byMethod.voice.users).toBe(0);
+  });
+
+  it("reports retention per method with the same eligibility rules", () => {
+    // Photo logger: eligible and retained at D30. Search logger: eligible,
+    // churned. Barcode logger: too young for D30, eligible at D1.
+    expect(summary.byMethod.photo.retainedActivated["d30"]).toEqual({ retained: 1, eligible: 1 });
+    expect(summary.byMethod.search.retainedActivated["d30"]).toEqual({ retained: 0, eligible: 1 });
+    expect(summary.byMethod.barcode.retainedActivated["d30"]).toEqual({ retained: 0, eligible: 0 });
+    expect(summary.byMethod.barcode.retainedActivated["d1"]).toEqual({ retained: 1, eligible: 1 });
+  });
+
+  it("divides seconds only by the logs a timer measured", () => {
+    // 90 s / 4 timed logs (photo) and 40 s / 2 (barcode); the search user's
+    // three untimed logs are not in the denominator, else 130 / 9.
+    expect(summary.byMethod.photo.secsPerLog).toBe(22.5);
+    expect(summary.byMethod.barcode.secsPerLog).toBe(20);
+    expect(summary.byMethod.search.secsPerLog).toBeNull();
+    expect(summary.byMethod.search.logsTimed).toBe(0);
+    expect(summary.secsPerLog).toBe(21.7); // 130 / 6, one decimal
+    expect(summary.logsTimed).toBe(6);
+  });
+
+  it("measures time to first log from the profile stamps, seeded accounts excluded", () => {
+    // Real users with a first log: 3 min, 90 min, 2 days, 1 min → sorted
+    // [60, 180, 5400, 172800] s. Two synthetic accounts also carry the stamp
+    // and must not appear (n would be 6).
+    expect(summary.timeToFirstLog.n).toBe(4);
+    expect(summary.timeToFirstLog.medianSec).toBe((180 + 5400) / 2);
+    expect(summary.timeToFirstLog.p75Sec).toBe(5400);
+    expect(summary.timeToFirstLog.under5MinShare).toBe(0.5);
+  });
+
+  it("classifies the tie and the empty case the way the doc says", () => {
+    expect(dominantMethod(undefined)).toBe("unknown");
+    expect(dominantMethod({ ...zero, log_added: 0 })).toBe("unknown");
+    // A scan explains its own sheet save, so 1 scan + 1 log is photo, not a tie.
+    expect(dominantMethod({ ...zero, photo_scan: 1, log_added: 1 })).toBe("photo");
+    // Residual search: 5 saves, 1 barcode → search 4 beats barcode 1.
+    expect(dominantMethod({ ...zero, barcode_scan: 1, log_added: 5 })).toBe("search");
+    // Quick-add and repeat never write log_added; compared as they are.
+    expect(dominantMethod({ ...zero, quick_add: 3, log_added: 2 })).toBe("quick");
+    expect(dominantMethod({ ...zero, repeat_yesterday: 2, log_added: 1 })).toBe("repeat");
   });
 
   it("persists the snapshot and a history row", async () => {

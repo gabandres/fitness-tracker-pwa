@@ -51,6 +51,34 @@ export interface RetentionCohort {
   readonly retained: Record<string, RetentionCheckpoint>;
   readonly retainedActivated: Record<string, RetentionCheckpoint>;
 }
+/** Logging paths an activated user can be dominated by — mirrors
+ *  `LOG_METHODS` in `functions/src/retention.ts`. */
+export const LOG_METHODS = ['photo', 'barcode', 'voice', 'quick', 'repeat', 'search', 'unknown'] as const;
+export type LogMethod = (typeof LOG_METHODS)[number];
+export const LOG_METHOD_LABELS: Record<LogMethod, string> = {
+  photo: 'Photo scan',
+  barcode: 'Barcode',
+  voice: 'Voice',
+  quick: 'Quick add',
+  repeat: 'Repeat yesterday',
+  search: 'Search / manual',
+  unknown: 'No usage data',
+};
+
+export interface RetentionMethodRow {
+  readonly users: number;
+  readonly retainedActivated: Record<string, RetentionCheckpoint>;
+  readonly secsPerLog: number | null;
+  readonly logsTimed: number;
+}
+
+export interface TimeToFirstLog {
+  readonly n: number;
+  readonly medianSec: number | null;
+  readonly p75Sec: number | null;
+  readonly under5MinShare: number | null;
+}
+
 export interface RetentionSummary {
   readonly computedAt?: unknown;
   readonly windowDays: number;
@@ -62,6 +90,12 @@ export interface RetentionSummary {
   readonly logsPerActivatedUserPerDay: number;
   readonly insufficientSample: boolean;
   readonly cohorts: readonly RetentionCohort[];
+  // Retention lever 3 fields — absent on a doc written before 2026-09-02.
+  readonly byMethod?: Partial<Record<LogMethod, RetentionMethodRow>>;
+  readonly usageTruncated?: boolean;
+  readonly timeToFirstLog?: TimeToFirstLog;
+  readonly secsPerLog?: number | null;
+  readonly logsTimed?: number;
 }
 
 export interface CeilingStatus {
@@ -112,6 +146,29 @@ export function pooledRetention(summary: RetentionSummary | null, checkpoint: 'd
     eligible += cp.eligible;
   }
   return { rate: pct(retained, eligible), retained, eligible };
+}
+
+/** Seconds as a short human duration: `45 s`, `1 m 44 s`, `2.3 h`. */
+export function fmtSecs(sec: number | null | undefined): string {
+  if (sec == null || !Number.isFinite(sec)) return '—';
+  if (sec < 60) return `${Math.round(sec)} s`;
+  if (sec < 3600) return `${Math.floor(sec / 60)} m ${Math.round(sec % 60)} s`;
+  if (sec < 86400) return `${(sec / 3600).toFixed(1)} h`;
+  return `${(sec / 86400).toFixed(1)} d`;
+}
+
+/** Method rows worth showing: at least one user, and never the empty
+ *  `unknown` bucket. Sorted by users, descending. */
+export function methodRows(summary: RetentionSummary | null): Array<{ method: LogMethod; row: RetentionMethodRow; d7: number | null }> {
+  if (!summary?.byMethod) return [];
+  const out: Array<{ method: LogMethod; row: RetentionMethodRow; d7: number | null }> = [];
+  for (const method of LOG_METHODS) {
+    const row = summary.byMethod[method];
+    if (!row || row.users === 0) continue;
+    const cp = row.retainedActivated?.['d7'];
+    out.push({ method, row, d7: cp ? pct(cp.retained, cp.eligible) : null });
+  }
+  return out.sort((a, b) => b.row.users - a.row.users);
 }
 
 /** Sum of a usage event over the last `n` days of the series. */
@@ -232,6 +289,50 @@ export function buildInsights(input: InsightInputs): Insight[] {
     }
     if (retention.activatedTotal > 0 && retention.logsPerActivatedUserPerDay < 1) {
       out.push({ level: 'watch', title: `Activated users log ${retention.logsPerActivatedUserPerDay.toFixed(2)}× per day`, detail: 'Under ~1 log a day an activated user has effectively churned even if they still open the app.', section: 'overview' });
+    }
+
+    // ── Retention lever 3: the two deciding numbers.
+    // Seconds per log. The literature's cliff: under 30 s a meal retains
+    // ~78% at six months, over two minutes ~23%. Needs 20 timed logs before
+    // it says anything — one person's slow evening is not a product fact.
+    const sp = retention.secsPerLog;
+    const timed = retention.logsTimed ?? 0;
+    if (sp != null && timed >= 20) {
+      const detail = `Mean of ${timed} timed logs, from opening a logging surface to the log landing.`;
+      out.push(sp <= 30
+        ? { level: 'good', title: `A log takes ${fmtSecs(sp)} on average`, detail: `${detail} Under 30 s is the bar where trackers keep people.`, section: 'overview' }
+        : sp <= 120
+          ? { level: 'watch', title: `A log takes ${fmtSecs(sp)} on average`, detail: `${detail} 30 s is the bar; over two minutes is where people stop.`, section: 'overview' }
+          : { level: 'bad', title: `A log takes ${fmtSecs(sp)} on average`, detail: `${detail} Over two minutes a meal is the strongest churn signal there is — logging speed, not features.`, section: 'overview' });
+    }
+
+    // Time to first log. Lever 1 (the first log inside onboarding) exists to
+    // move this; the honest read is the median and the inside-five-minutes
+    // share, not the mean, which one abandoned account drags for days.
+    const ttfl = retention.timeToFirstLog;
+    if (ttfl && ttfl.n >= 5 && ttfl.medianSec != null && ttfl.under5MinShare != null) {
+      const share = Math.round(ttfl.under5MinShare * 100);
+      const detail = `Median ${fmtSecs(ttfl.medianSec)}, p75 ${fmtSecs(ttfl.p75Sec)}, over ${ttfl.n} users with a first log.`;
+      out.push(share >= 50
+        ? { level: 'good', title: `${share}% log their first meal within 5 minutes of signing up`, detail: `${detail} The first log is landing in session one.`, section: 'overview' }
+        : { level: 'watch', title: `Only ${share}% log a first meal within 5 minutes`, detail: `${detail} A first log that waits for a later session usually never happens.`, section: 'overview' });
+    }
+
+    // D7 by dominant method — reported as a comparison only once two methods
+    // each have enough eligible users to compare at all.
+    const rows = methodRows(retention)
+      .map((r) => ({ ...r, eligible: r.row.retainedActivated?.['d7']?.eligible ?? 0 }))
+      .filter((r) => r.d7 != null && r.eligible >= 3)
+      .sort((a, b) => (b.d7 ?? 0) - (a.d7 ?? 0));
+    if (rows.length >= 2) {
+      const top = rows[0];
+      const low = rows[rows.length - 1];
+      out.push({
+        level: 'info',
+        title: `${LOG_METHOD_LABELS[top.method]} loggers retain ${top.d7}% at D7 vs ${low.d7}% for ${LOG_METHOD_LABELS[low.method].toLowerCase()}`,
+        detail: rows.map((r) => `${LOG_METHOD_LABELS[r.method]} ${r.d7}% (n=${r.eligible})`).join(' · ') + '. Dominant method over the window; the residual bucket counts search, manual, presets and recents together.',
+        section: 'overview',
+      });
     }
   }
 

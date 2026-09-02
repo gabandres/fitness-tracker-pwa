@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/c
 import { AdminDataService } from './admin-data.service';
 import { AdminShellState } from './admin-shell.state';
 import { AdmBars, AdmKpi, AdmMeter, AdmSpark } from './admin-ui';
-import { deltaPct, pct, pooledRetention, sumEvent } from './admin-insights';
+import { LOG_METHOD_LABELS, deltaPct, fmtSecs, methodRows, pct, pooledRetention, sumEvent, type LogMethod } from './admin-insights';
 import { fmtDateTime, relTime } from './admin-format';
 
 const EVENT_LABELS: Record<string, string> = {
@@ -146,6 +146,36 @@ const EVENT_LABELS: Record<string, string> = {
             <adm-spark [values]="d7History()" tone="good" />
             <p class="adm-kpi-hint">{{ r.activatedTotal }} activated of {{ r.usersExamined }} examined · {{ r.logsPerActivatedUserPerDay }} logs / activated user / day</p>
           </div>
+          <div class="adm-section">
+            <span class="adm-label">The two deciding numbers</span>
+            <dl class="adm-kv">
+              <dt>Seconds per log</dt>
+              <dd>{{ fmtSecs(r.secsPerLog) }} <span class="adm-soft">· {{ r.logsTimed ?? 0 }} timed</span></dd>
+              <dt>Time to first log</dt>
+              <dd>
+                @if (r.timeToFirstLog; as f) {
+                  median {{ fmtSecs(f.medianSec) }} · p75 {{ fmtSecs(f.p75Sec) }}
+                  <span class="adm-soft">· {{ f.under5MinShare === null ? '—' : round(f.under5MinShare * 100) + '% within 5 min' }} · n={{ f.n }}</span>
+                } @else { — }
+              </dd>
+            </dl>
+          </div>
+          @if (methods(); as ms) {
+            @if (ms.length > 0) {
+              <div class="adm-section">
+                <span class="adm-label">D7 by dominant logging method{{ r.usageTruncated ? ' · truncated read' : '' }}</span>
+                <dl class="adm-kv">
+                  @for (m of ms; track m.method) {
+                    <dt>{{ methodLabel(m.method) }}</dt>
+                    <dd>
+                      {{ m.d7 === null ? '—' : m.d7 + '%' }}
+                      <span class="adm-soft">· {{ m.row.retainedActivated['d7']?.retained ?? 0 }} of {{ m.row.retainedActivated['d7']?.eligible ?? 0 }} · {{ m.row.users }} users · {{ fmtSecs(m.row.secsPerLog) }}/log</span>
+                    </dd>
+                  }
+                </dl>
+              </div>
+            }
+          }
         } @else { <p class="adm-empty">No retention run yet — the hourly dispatcher writes it once a day.</p> }
       </section>
 
@@ -221,6 +251,9 @@ export class AdminOverviewComponent {
     return activeDays ? (this.logs7() / activeDays).toFixed(2) : '—';
   });
   readonly d7History = computed(() => this.data.retentionHistory().map((r) => Math.round((r.d7 ?? 0) * 100)));
+  readonly methods = computed(() => methodRows(this.data.retention()));
+  readonly fmtSecs = fmtSecs;
+  methodLabel(m: LogMethod): string { return LOG_METHOD_LABELS[m]; }
   readonly release = computed(() => String((globalThis as { __MACROLOG_RELEASE__?: string }).__MACROLOG_RELEASE__ ?? 'dev').slice(0, 8));
   readonly retentionComputedAt = computed(() => {
     const ts = this.data.retention()?.computedAt as { toDate?: () => Date } | undefined;

@@ -57,6 +57,17 @@ export function seedPreview(data: AdminDataService): void {
       { week: '2026-W31', size: 12, activated: 8, retained: {}, retainedActivated: { d1: { retained: 7, eligible: 8 }, d7: { retained: 4, eligible: 8 }, d30: { retained: 2, eligible: 5 } } },
       { week: '2026-W29', size: 10, activated: 7, retained: {}, retainedActivated: { d1: { retained: 6, eligible: 7 }, d7: { retained: 3, eligible: 7 }, d30: { retained: 2, eligible: 7 } } },
     ],
+    byMethod: {
+      photo: { users: 6, retainedActivated: { d1: { retained: 6, eligible: 6 }, d7: { retained: 4, eligible: 6 }, d30: { retained: 2, eligible: 4 } }, secsPerLog: 24, logsTimed: 61 },
+      search: { users: 14, retainedActivated: { d1: { retained: 10, eligible: 14 }, d7: { retained: 4, eligible: 14 }, d30: { retained: 2, eligible: 10 } }, secsPerLog: 58, logsTimed: 120 },
+      barcode: { users: 3, retainedActivated: { d1: { retained: 3, eligible: 3 }, d7: { retained: 1, eligible: 3 }, d30: { retained: 0, eligible: 2 } }, secsPerLog: 31, logsTimed: 18 },
+      repeat: { users: 2, retainedActivated: { d1: { retained: 2, eligible: 2 }, d7: { retained: 1, eligible: 2 }, d30: { retained: 0, eligible: 1 } }, secsPerLog: null, logsTimed: 0 },
+      unknown: { users: 2, retainedActivated: { d1: { retained: 1, eligible: 2 }, d7: { retained: 0, eligible: 2 }, d30: { retained: 0, eligible: 2 } }, secsPerLog: null, logsTimed: 0 },
+    },
+    usageTruncated: false,
+    timeToFirstLog: { n: 31, medianSec: 104, p75Sec: 1860, under5MinShare: 0.58 },
+    secsPerLog: 44.6,
+    logsTimed: 199,
   });
   data.retentionHistory.set(dayKeys(20).map((date, i) => ({ date, activatedTotal: 20 + i, logsPerActivatedUserPerDay: 1.2, d1: 0.8, d7: 0.35 + 0.01 * i, d30: 0.2 })));
   data.ceilings.set([

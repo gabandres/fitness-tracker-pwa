@@ -9,6 +9,7 @@ import { exportNutrition } from '@/lib/health-sync';
 import { useAuth } from '@/lib/auth';
 import { addLogDurably } from '@/lib/pending-logs';
 import { track } from '@/lib/analytics';
+import { takeLogTimerSecs } from '@/lib/log-timer';
 import {
   addCustomFood as addCustomFoodDoc,
   addPreset as addPresetDoc,
@@ -64,6 +65,12 @@ export function useLogWrites(): LogWrites {
       // zero the queue is insurance; if it is not, connectivity is a product
       // problem and the numbers say so.
       track(outcome === 'queued' ? 'log_queued_offline' : 'log_added');
+      // Seconds since the logging surface opened (`lib/log-timer.ts`), the
+      // numerator of seconds-per-log. Taken on every add so a multi-item scan
+      // restarts the clock per item; recorded only against a `log_added`, so
+      // the server's `log_secs / log_added` divides like with like.
+      const secs = takeLogTimerSecs();
+      if (outcome !== 'queued' && secs > 0) track('log_secs', secs);
       // Mirror the meal's macros to Health at the entry's own time (skip
       // weight-only / marker rows). A back-dated add therefore lands on the
       // day it is for, in Health as well as in the ledger. Runs for a queued

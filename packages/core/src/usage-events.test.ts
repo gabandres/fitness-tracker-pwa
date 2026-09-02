@@ -42,6 +42,13 @@ describe('clampUsageCounts', () => {
     expect(clampUsageCounts({ log_added: 999_999 })).toEqual({ log_added: USAGE_COUNT_MAX });
   });
 
+  it('lets log_secs run to a day — it sums seconds, not taps', () => {
+    // 2000 would be 34 minutes of logging; a heavy day passes that honestly,
+    // and a clamp below the rule's cap would reject the WHOLE flush.
+    expect(clampUsageCounts({ log_secs: 5_000 })).toEqual({ log_secs: 5_000 });
+    expect(clampUsageCounts({ log_secs: 999_999 })).toEqual({ log_secs: 86_400 });
+  });
+
   it('drops values that are never a measurement', () => {
     // increment(NaN) corrupts the stored total rather than failing loudly.
     expect(clampUsageCounts({ log_added: Number.NaN })).toEqual({});

@@ -72,6 +72,46 @@ first-log step inherited the style and the screenshot showed both. Now
 `onInk`, per the ADR-0014 rule. Delivery: Android OTA 105–106 on vc 40,
 iOS OTA 67–68 on build 60.
 
+**Lever 3, later the same day: the two deciding numbers are instrumented.**
+The plan names two measurements that decide what gets built after lever 1 —
+seconds per log by method, and D7 split by dominant logging method — plus
+time-to-first-log, which lever 1 exists to move. All three now land in
+`config/retention` from the daily pass in `functions/src/retention.ts`, and
+the admin Overview prints them (`admin-insights.ts`, pure and tested).
+
+- **D7 by dominant method.** ONE range read over `usageEvents` for the
+  window (the same read `adminGetUsageSeries` makes on demand; capped at
+  30,000 docs with a `usageTruncated` flag, never a per-user loop), folded
+  per uid, and each *activated* user is classed by `dominantMethod`: photo,
+  barcode, voice, quick add, repeat, or the residual `search` (sheet saves
+  the three scan/voice paths do not explain — search, manual, presets and
+  recents together; the catalogue has no finer event and none was invented).
+  `unknown` is an activated account with no usage doc at all. The estimate
+  leans toward `search` on purpose: the claim under test is "photo loggers
+  retain better", and an estimate biased toward that conclusion would be
+  worthless. Same checkpoints and eligibility rules as the cohort table.
+- **Time to first log** = `firstEntryAt − createdAt` per real profile
+  (synthetic excluded, negative intervals from back-dated seeds excluded,
+  only accounts after the 2026-04-30 latch): n, median, p75, and the share
+  inside five minutes — the "did it happen in session one" number.
+- **Seconds per log** needed a new counter, `log_secs`, the only DURATION in
+  the usage catalogue. A stopwatch (`apps/mobile/src/lib/log-timer.ts`)
+  starts when the entry sheet opens for an add or the scan screen mounts,
+  and every `addEntry` that lands takes the elapsed seconds (capped at 300 —
+  a sheet left open on a table measures a distraction) and restarts it, so a
+  three-item scan charges the wait once. Recorded only against a
+  `log_added`, and the server divides by `logsTimed` — `log_added` on days
+  that also carry `log_secs` — so builds without the timer cannot drag the
+  mean toward zero. `log_secs` carries its own rules cap of one day
+  (`validUsageSeconds`; 2,000 would be 34 minutes, and a rejected doc drops
+  the WHOLE flush). `firestore.rules` deployed BEFORE any client publish.
+
+Insights: seconds-per-log graded at 30 s / 2 min from 20 timed logs; the
+five-minute share of first logs graded at 50% from five users; the method
+split reported as best-vs-worst D7 once two methods each have n≥3. Tests:
+core 1, rules 1, retention 5 (a photo, a search and a barcode user, with the
+untimed user proving the denominator), admin-insights 5, mobile timer 5.
+
 ## 2026-09-01 — Three data-integrity fixes from the owner's audit: the HealthKit window that never applied, the session bodyweight nobody bounded, and a calorie figure its own macros disagree with
 
 **HealthKit imports read the entire store, not the last 400 days.**

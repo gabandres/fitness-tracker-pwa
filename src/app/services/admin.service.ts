@@ -129,6 +129,9 @@ export interface RetentionHistoryRow {
   d1: number | null;
   d7: number | null;
   d30: number | null;
+  /** Since 2026-09-02 (retention lever 3); absent on older rows. */
+  ttflMedianSec?: number | null;
+  secsPerLog?: number | null;
 }
 
 export type ActivityItemType = 'signup' | 'entry';

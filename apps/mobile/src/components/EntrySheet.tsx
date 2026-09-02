@@ -33,6 +33,7 @@ import { RecipeImport } from '@/components/RecipeImport';
 import { useLocale, useT } from '@/i18n';
 import { starterFoods } from '@/lib/starterFoods';
 import * as haptics from '@/lib/haptics';
+import { clearLogTimer, startLogTimer } from '@/lib/log-timer';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
 import { formatDate } from '@/lib/date-format';
@@ -182,6 +183,14 @@ export function EntrySheet({
     setPendingServing(null);
     setMode(editing ? 'custom' : 'browse');
   }, [visible, editing, dateKey]);
+
+  // Seconds-per-log stopwatch (`lib/log-timer.ts`): runs while the sheet is
+  // open for an ADD, read by `useLogWrites.addEntry`. An edit is not a log
+  // and must not leave a running clock for the next add to inherit.
+  useEffect(() => {
+    if (visible && !editing) startLogTimer();
+    else clearLogTimer();
+  }, [visible, editing]);
 
   /** Shift the editable entry date by whole days (move-to-date), keeping the
    *  time-of-day. Clamped so you can't push an entry into the future. */

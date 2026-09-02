@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -26,6 +26,7 @@ import {
 } from '@/lib/mealScan';
 import { quotaResetLabel } from '@/lib/date-format';
 import { track } from '@/lib/analytics';
+import { clearLogTimer, startLogTimer } from '@/lib/log-timer';
 import { CountUpText, enterUp, PressScale } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space, type } from '@/theme';
@@ -110,6 +111,14 @@ export default function Scan() {
   // `customFoods` is already on this hook, so repeat detection adds NO new
   // Firestore subscription (ADR-0016's per-hook model, unchanged).
   const { addEntry, customFoods } = useToday();
+
+  // Seconds-per-log stopwatch (`lib/log-timer.ts`): the scan screen is a
+  // logging surface, so the clock runs from the intro to the review's Add —
+  // the wait a person actually experiences, model round-trip included.
+  useEffect(() => {
+    startLogTimer();
+    return () => clearLogTimer();
+  }, []);
 
   const [phase, setPhase] = useState<Phase>('intro');
   const [error, setError] = useState<string | null>(null);

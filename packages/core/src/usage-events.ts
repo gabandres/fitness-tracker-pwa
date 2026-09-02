@@ -72,6 +72,15 @@ export const USAGE_EVENTS = [
   'coach_ask',
   'weight_logged',
   'workout_finished',
+  /**
+   * Seconds spent between opening a logging surface and the log landing —
+   * the one counter here that is a DURATION, not a tally. Incremented by the
+   * capped elapsed seconds on every `log_added` (`lib/log-timer.ts` on
+   * mobile), so `log_secs / log_added` server-side is mean seconds per log.
+   * Retention research puts the cliff at ~30 s a meal; this is what says
+   * where Ignia sits (`STATUS.md` §3, retention lever 3).
+   */
+  'log_secs',
 ] as const;
 
 export type UsageEvent = (typeof USAGE_EVENTS)[number];
@@ -90,6 +99,22 @@ export const USAGE_PLATFORMS: readonly UsagePlatform[] = ['web', 'ios', 'android
  * until it skews a chart. It is deliberately far above any honest usage.
  */
 export const USAGE_COUNT_MAX = 2000;
+
+/**
+ * Per-event ceilings that override {@link USAGE_COUNT_MAX}. `log_secs` sums
+ * seconds, not taps, so a day of it can legitimately pass 2000 (34 minutes);
+ * its cap is a whole day. Mirrored field-for-field in `firestore.rules`
+ * (`validUsageSeconds`) — a client clamp above the rule's cap would have the
+ * whole daily flush rejected, not just this counter.
+ */
+export const USAGE_EVENT_MAX: Partial<Record<UsageEvent, number>> = {
+  log_secs: 86_400,
+};
+
+/** The cap that applies to one event. */
+export function usageCountMax(event: UsageEvent): number {
+  return USAGE_EVENT_MAX[event] ?? USAGE_COUNT_MAX;
+}
 
 /** Doc id for one user's day. Matches the `<uid>_<YYYY-MM-DD>` convention the
  *  quota collections already use, so the uid prefix is the tenant key and the
@@ -131,7 +156,7 @@ export function clampUsageCounts(counts: UsageCounts): UsageCounts {
   for (const event of USAGE_EVENTS) {
     const n = counts[event];
     if (n == null || !Number.isFinite(n) || n <= 0) continue;
-    out[event] = Math.min(Math.round(n), USAGE_COUNT_MAX);
+    out[event] = Math.min(Math.round(n), usageCountMax(event));
   }
   return out;
 }

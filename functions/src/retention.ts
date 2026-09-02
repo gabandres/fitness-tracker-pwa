@@ -36,6 +36,16 @@ import { Firestore, Timestamp } from "firebase-admin/firestore";
 // reach. It is NOT a new Cloud Scheduler job: the free tier is 3 and
 // all 3 are spent, so this runs from the hourly dispatcher and
 // no-ops on 23 of every 24 invocations.
+//
+// Plus ONE range read over `usageEvents` for the window (retention lever
+// 3, 2026-09-02): one document per active user-day, the same read
+// `adminGetUsageSeries` already makes on demand. It is a single query,
+// never a per-user loop, and it is capped — see MAX_USAGE_DOCS_PER_RUN.
+// It answers the two numbers the retention plan says decide what to build
+// next: **D7 split by each activated user's dominant logging method**, and
+// **seconds per log** (`log_secs / log_added`, the client timer around the
+// add sheet). `time_to_first_log` costs nothing extra — both stamps are on
+// the profile doc this pass already reads.
 
 /** UTC hour the daily pass runs. Off-peak, and after the day has
  *  closed in the Americas so "yesterday" is settled. */
@@ -68,6 +78,137 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 /** When the `onDailyLogCreated` first-entry latch shipped (e2b8f6a2). Before
  *  this, a missing `firstEntryAt` proves nothing about whether a user logged. */
 const FIRST_ENTRY_TRIGGER_MS = Date.parse("2026-04-30T00:00:00Z");
+
+/** Hard cap on `usageEvents` docs read per run. 120 days × 3000 users could
+ *  be 360k documents; at that point the method split is reported from a
+ *  truncated read and says so (`usageTruncated`), rather than billing it. */
+const MAX_USAGE_DOCS_PER_RUN = 30_000;
+
+/** "Within five minutes" — the research threshold for a first log that
+ *  happened inside the first session rather than on a later return. */
+const FAST_FIRST_LOG_SEC = 5 * 60;
+
+/**
+ * Logging methods an activated user can be dominated by. The first five map
+ * one-to-one onto usage counters. `search` is the residual — sheet saves
+ * (`log_added`) not explained by a photo, barcode or voice path — so it
+ * covers search, manual entry, presets and recents together; the catalogue
+ * has no finer event and this pass does not invent one. `unknown` is an
+ * activated user with no usage document in the window at all: accounts
+ * that predate analytics, or a client whose flush never landed.
+ */
+export const LOG_METHODS = ["photo", "barcode", "voice", "quick", "repeat", "search", "unknown"] as const;
+export type LogMethod = (typeof LOG_METHODS)[number];
+
+/** One user's method counters over the window, plus the seconds ledger. */
+export interface MethodCounts {
+  photo_scan: number;
+  barcode_scan: number;
+  voice_log: number;
+  quick_add: number;
+  repeat_yesterday: number;
+  log_added: number;
+  log_secs: number;
+  /** `log_added` summed over only the days that ALSO carry `log_secs` — the
+   *  honest denominator for seconds-per-log while builds without the timer
+   *  are still writing untimed `log_added`s. */
+  logsTimed: number;
+}
+
+const USAGE_FIELDS = [
+  "photo_scan", "barcode_scan", "voice_log", "quick_add", "repeat_yesterday", "log_added", "log_secs",
+] as const;
+
+function emptyCounts(): MethodCounts {
+  return { photo_scan: 0, barcode_scan: 0, voice_log: 0, quick_add: 0, repeat_yesterday: 0, log_added: 0, log_secs: 0, logsTimed: 0 };
+}
+
+/**
+ * Which logging path carried most of a user's logs. Pure, so the
+ * classification can be argued with in a test rather than in production.
+ *
+ * `search` is estimated as `log_added` minus the three sheet-side paths
+ * that also produce a `log_added` (a photo scan lands each item through
+ * the same `addEntry`; barcode and voice prefill the sheet and save through
+ * it). `quick_add` and `repeat_yesterday` write directly and never count a
+ * `log_added`, so they are compared as they are. A photo scan that logs
+ * three items is still one scan, so the residual leans toward `search` —
+ * the estimate is conservative about photo, deliberately: the number this
+ * exists to test is "photo loggers retain better", and an estimate biased
+ * toward that conclusion would be worthless.
+ *
+ * Ties go to the earlier entry in LOG_METHODS; all zero is `unknown`.
+ */
+export function dominantMethod(c: MethodCounts | undefined): LogMethod {
+  if (!c) return "unknown";
+  const search = Math.max(0, c.log_added - c.photo_scan - c.barcode_scan - c.voice_log);
+  const scored: Array<[LogMethod, number]> = [
+    ["photo", c.photo_scan],
+    ["barcode", c.barcode_scan],
+    ["voice", c.voice_log],
+    ["quick", c.quick_add],
+    ["repeat", c.repeat_yesterday],
+    ["search", search],
+  ];
+  let best: [LogMethod, number] = ["unknown", 0];
+  for (const entry of scored) if (entry[1] > best[1]) best = entry;
+  return best[0];
+}
+
+/** Nearest-rank percentile over an ascending array; the median averages the
+ *  two middle values on an even count, the way a reader expects. */
+function percentile(sorted: number[], p: number): number | null {
+  if (sorted.length === 0) return null;
+  if (p === 0.5 && sorted.length % 2 === 0) {
+    const hi = sorted.length / 2;
+    return (sorted[hi - 1] + sorted[hi]) / 2;
+  }
+  const rank = Math.min(sorted.length, Math.max(1, Math.ceil(p * sorted.length)));
+  return sorted[rank - 1];
+}
+
+/** Read every usage doc in the window in ONE query and fold it per uid. */
+async function usageByUid(
+  db: Firestore,
+  fromDayKey: string,
+): Promise<{ byUid: Map<string, MethodCounts>; truncated: boolean }> {
+  const snap = await db
+    .collection("usageEvents")
+    .where("day", ">=", fromDayKey)
+    .select("uid", ...USAGE_FIELDS)
+    .limit(MAX_USAGE_DOCS_PER_RUN)
+    .get();
+  const byUid = new Map<string, MethodCounts>();
+  for (const d of snap.docs) {
+    const x = d.data();
+    const uid = typeof x["uid"] === "string" ? (x["uid"] as string) : "";
+    if (!uid) continue;
+    let c = byUid.get(uid);
+    if (!c) {
+      c = emptyCounts();
+      byUid.set(uid, c);
+    }
+    const num = (f: string): number => {
+      const v = x[f];
+      return typeof v === "number" && Number.isFinite(v) ? v : 0;
+    };
+    for (const f of USAGE_FIELDS) c[f] += num(f);
+    if (typeof x["log_secs"] === "number") c.logsTimed += num("log_added");
+  }
+  return { byUid, truncated: snap.size === MAX_USAGE_DOCS_PER_RUN };
+}
+
+interface MethodRow {
+  /** Activated users whose dominant path this is. */
+  users: number;
+  /** Same checkpoints as the cohort table, activated users only. */
+  retainedActivated: Record<string, { retained: number; eligible: number }>;
+  /** Mean seconds per `log_added` across these users; null until any of
+   *  them ran a build that writes `log_secs`. */
+  secsPerLog: number | null;
+  /** The denominator behind `secsPerLog`, so a reader can see how thin it is. */
+  logsTimed: number;
+}
 
 interface CohortRow {
   /** Monday of the signup week, YYYY-MM-DD (UTC). */
@@ -160,10 +301,27 @@ export async function computeRetentionCohorts(db: Firestore, now = new Date()) {
     );
   }
 
+  // One read for the whole window, before the per-user loop — never inside it.
+  const usage = await usageByUid(db, windowStart.toDate().toISOString().slice(0, 10));
+  if (usage.truncated) {
+    console.warn(
+      `runRetentionCohorts: hit the ${MAX_USAGE_DOCS_PER_RUN}-doc usageEvents cap — the ` +
+        "method split is computed from a TRUNCATED read.",
+    );
+  }
+
   const cohorts = new Map<string, CohortRow>();
   let activatedTotal = 0;
   let logsLast7dTotal = 0;
   let excludedSynthetic = 0;
+
+  const byMethod = {} as Record<LogMethod, MethodRow & { secs: number }>;
+  for (const m of LOG_METHODS) {
+    byMethod[m] = { users: 0, retainedActivated: {}, secsPerLog: null, logsTimed: 0, secs: 0 };
+    for (const n of CHECKPOINTS) byMethod[m].retainedActivated[`d${n}`] = { retained: 0, eligible: 0 };
+  }
+  /** Seconds from signup to the first log, one entry per real user who has one. */
+  const ttflSecs: number[] = [];
 
   // Sequential on purpose: three aggregations per user in parallel across
   // thousands of users would burst the Firestore client's connection pool
@@ -219,10 +377,29 @@ export async function computeRetentionCohorts(db: Firestore, now = new Date()) {
       : await logFacts(db, doc.id, sevenDaysAgo);
 
     const activated = facts.total >= ACTIVATION_LOGS;
+    // Only activated users are classified: a tourist's one log has no
+    // "dominant" path, and the verdict number is the activated one anyway.
+    const counts = usage.byUid.get(doc.id);
+    const method: LogMethod | null = activated ? dominantMethod(counts) : null;
     if (activated) {
       row.activated++;
       activatedTotal++;
       logsLast7dTotal += facts.last7d;
+      const m = byMethod[method!];
+      m.users++;
+      if (counts) {
+        m.secs += counts.log_secs;
+        m.logsTimed += counts.logsTimed;
+      }
+    }
+
+    // Time to first log. Only meaningful after the latch shipped, and only
+    // forwards — a back-dated `createdAt` (the seed script does this) would
+    // read as a negative interval, and those are excluded above anyway.
+    const firstEntryAt = doc.data()["firstEntryAt"] as Timestamp | undefined;
+    if (firstEntryAt && signupMs > FIRST_ENTRY_TRIGGER_MS) {
+      const delta = firstEntryAt.toMillis() - signupMs;
+      if (delta >= 0) ttflSecs.push(Math.round(delta / 1000));
     }
 
     for (const n of CHECKPOINTS) {
@@ -237,9 +414,39 @@ export async function computeRetentionCohorts(db: Firestore, now = new Date()) {
       if (activated) {
         row.retainedActivated[`d${n}`].eligible++;
         if (retained) row.retainedActivated[`d${n}`].retained++;
+        const cp = byMethod[method!].retainedActivated[`d${n}`];
+        cp.eligible++;
+        if (retained) cp.retained++;
       }
     }
   }
+
+  // Seconds per log, per method and overall. The denominator is `logsTimed`,
+  // not `log_added`: while binaries without the timer are still writing
+  // untimed logs, dividing by every log would report a speed nobody measured.
+  let secsTotal = 0;
+  let logsTimedTotal = 0;
+  const byMethodOut = {} as Record<LogMethod, MethodRow>;
+  for (const m of LOG_METHODS) {
+    const { secs, ...rest } = byMethod[m];
+    secsTotal += secs;
+    logsTimedTotal += rest.logsTimed;
+    byMethodOut[m] = { ...rest, secsPerLog: rest.logsTimed > 0 ? Number((secs / rest.logsTimed).toFixed(1)) : null };
+  }
+  const secsPerLog = logsTimedTotal > 0 ? Number((secsTotal / logsTimedTotal).toFixed(1)) : null;
+
+  ttflSecs.sort((a, b) => a - b);
+  const timeToFirstLog = {
+    n: ttflSecs.length,
+    medianSec: percentile(ttflSecs, 0.5),
+    p75Sec: percentile(ttflSecs, 0.75),
+    /** Share of first logs inside five minutes of signup — the "did it
+     *  happen in session one" number lever 1 exists to move. */
+    under5MinShare:
+      ttflSecs.length > 0
+        ? Number((ttflSecs.filter((s) => s <= FAST_FIRST_LOG_SEC).length / ttflSecs.length).toFixed(3))
+        : null,
+  };
 
   const rows = [...cohorts.values()].sort((a, b) => b.week.localeCompare(a.week));
 
@@ -261,6 +468,19 @@ export async function computeRetentionCohorts(db: Firestore, now = new Date()) {
     /** Read the curves as directional only while this is true. */
     insufficientSample: activatedTotal < MIN_ACTIVATED_FOR_CONFIDENCE,
     cohorts: rows,
+    // ── Retention lever 3 (STATUS.md §3): the two deciding numbers.
+    /** Activated users grouped by the logging path that carried most of
+     *  their logs, with the same checkpoints as the cohort table. */
+    byMethod: byMethodOut,
+    /** True when the usageEvents read hit its cap; `byMethod` then
+     *  under-attributes and leans toward `unknown`. */
+    usageTruncated: usage.truncated,
+    /** Signup → first log, seconds, over real users with both stamps. */
+    timeToFirstLog,
+    /** Mean seconds between opening a logging surface and the log landing,
+     *  over the logs a timer actually measured (`logsTimed`). */
+    secsPerLog,
+    logsTimed: logsTimedTotal,
   };
 
   await db.doc("config/retention").set(summary);
@@ -276,6 +496,8 @@ export async function computeRetentionCohorts(db: Firestore, now = new Date()) {
     date: today,
     activatedTotal,
     logsPerActivatedUserPerDay: summary.logsPerActivatedUserPerDay,
+    ttflMedianSec: timeToFirstLog.medianSec,
+    secsPerLog,
     // Whole-population rates across every eligible user, cohort-independent
     // — the single number to watch move.
     ...Object.fromEntries(

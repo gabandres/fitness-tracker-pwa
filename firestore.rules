@@ -1076,7 +1076,7 @@ service cloud.firestore {
         'onboarding_step_plan', 'onboarding_complete', 'log_added',
         'log_queued_offline', 'repeat_yesterday', 'quick_add', 'photo_scan',
         'barcode_scan', 'voice_log', 'coach_ask', 'weight_logged',
-        'workout_finished',
+        'workout_finished', 'log_secs',
       ];
     }
 
@@ -1084,6 +1084,15 @@ service cloud.firestore {
     // the client flushes a merge carrying only the events that happened.
     function validUsageCount(d, field) {
       return !(field in d) || (d[field] is int && d[field] >= 0 && d[field] <= 2000);
+    }
+
+    // `log_secs` sums SECONDS across the day's logs, not taps, so 2000 (34
+    // minutes) is a ceiling an honest heavy day can pass — and because the
+    // doc is validated as a whole, passing it would reject every other
+    // counter in the flush. Its cap is one day. Mirrors USAGE_EVENT_MAX in
+    // `@macrolog/core/usage-events`.
+    function validUsageSeconds(d, field) {
+      return !(field in d) || (d[field] is int && d[field] >= 0 && d[field] <= 86400);
     }
 
     function validUsageDoc(d, docId) {
@@ -1111,7 +1120,8 @@ service cloud.firestore {
         && validUsageCount(d, 'voice_log')
         && validUsageCount(d, 'coach_ask')
         && validUsageCount(d, 'weight_logged')
-        && validUsageCount(d, 'workout_finished');
+        && validUsageCount(d, 'workout_finished')
+        && validUsageSeconds(d, 'log_secs');
     }
 
     match /usageEvents/{eventId} {

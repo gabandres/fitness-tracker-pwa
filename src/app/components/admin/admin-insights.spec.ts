@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { buildInsights, deltaPct, pct, pooledRetention, sumEvent, type InsightInputs, type UsageSeries } from './admin-insights';
+import { buildInsights, deltaPct, fmtSecs, methodRows, pct, pooledRetention, sumEvent, type InsightInputs, type RetentionSummary, type UsageSeries } from './admin-insights';
+
+function retention(over: Partial<RetentionSummary> = {}): RetentionSummary {
+  return {
+    windowDays: 120, activationThreshold: 3, usersExamined: 10, excludedSynthetic: 0, truncated: false,
+    activatedTotal: 4, logsPerActivatedUserPerDay: 1.5, insufficientSample: true, cohorts: [],
+    ...over,
+  };
+}
 
 function usage(over: Partial<UsageSeries> = {}): UsageSeries {
   return {
@@ -56,6 +64,56 @@ describe('admin insights', () => {
   it('a stale heartbeat is bad, a fresh one says nothing', () => {
     expect(buildInsights({ ...empty, heartbeatAgeMin: 60 })[0].level).toBe('bad');
     expect(buildInsights({ ...empty, heartbeatAgeMin: 10 })).toEqual([]);
+  });
+
+  // ── Retention lever 3
+
+  it('fmtSecs reads like a stopwatch', () => {
+    expect(fmtSecs(null)).toBe('—');
+    expect(fmtSecs(45)).toBe('45 s');
+    expect(fmtSecs(104)).toBe('1 m 44 s');
+    expect(fmtSecs(8280)).toBe('2.3 h');
+    expect(fmtSecs(172800)).toBe('2.0 d');
+  });
+
+  it('seconds-per-log is graded at 30 s / 2 min and needs 20 timed logs', () => {
+    const at = (secsPerLog: number, logsTimed = 25) => buildInsights({ ...empty, retention: retention({ secsPerLog, logsTimed }) }).find((i) => i.title.startsWith('A log takes'));
+    expect(at(22)).toMatchObject({ level: 'good' });
+    expect(at(75)).toMatchObject({ level: 'watch' });
+    expect(at(150)).toMatchObject({ level: 'bad', title: 'A log takes 2 m 30 s on average' });
+    expect(at(150, 5)).toBeUndefined();
+  });
+
+  it('time to first log reads the inside-five-minutes share, from five users up', () => {
+    const at = (under5MinShare: number, n = 12) => buildInsights({
+      ...empty,
+      retention: retention({ timeToFirstLog: { n, medianSec: 104, p75Sec: 900, under5MinShare } }),
+    }).find((i) => /first meal within 5 minutes/.test(i.title));
+    expect(at(0.6)).toMatchObject({ level: 'good', title: '60% log their first meal within 5 minutes of signing up' });
+    expect(at(0.25)?.level).toBe('watch');
+    expect(at(0.25)?.detail).toContain('Median 1 m 44 s');
+    expect(at(0.6, 3)).toBeUndefined();
+  });
+
+  it('the method split compares the best and worst D7 once two methods have n≥3', () => {
+    const r = retention({
+      byMethod: {
+        photo: { users: 5, retainedActivated: { d7: { retained: 4, eligible: 5 } }, secsPerLog: 20, logsTimed: 30 },
+        search: { users: 8, retainedActivated: { d7: { retained: 2, eligible: 8 } }, secsPerLog: 70, logsTimed: 40 },
+        voice: { users: 1, retainedActivated: { d7: { retained: 1, eligible: 1 } }, secsPerLog: null, logsTimed: 0 },
+        unknown: { users: 0, retainedActivated: { d7: { retained: 0, eligible: 0 } }, secsPerLog: null, logsTimed: 0 },
+      },
+    });
+    // Rows: sorted by users, the empty bucket dropped.
+    expect(methodRows(r).map((x) => x.method)).toEqual(['search', 'photo', 'voice']);
+    const split = buildInsights({ ...empty, retention: r }).find((i) => i.level === 'info');
+    expect(split?.title).toBe('Photo scan loggers retain 80% at D7 vs 25% for search / manual');
+    // Voice (n=1) is in the rows but not in the comparison.
+    expect(split?.detail).not.toContain('Voice');
+  });
+
+  it('a retention doc from before lever 3 produces no lever-3 insight', () => {
+    expect(buildInsights({ ...empty, retention: retention() })).toEqual([]);
   });
 
   it('sumEvent windows the tail of the series', () => {

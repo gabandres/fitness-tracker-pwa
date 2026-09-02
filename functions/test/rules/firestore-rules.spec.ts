@@ -305,6 +305,18 @@ describe('firestore.rules', () => {
     );
   });
 
+  it('accepts log_secs up to a day, and no further (2026-09-02, retention lever 3)', async () => {
+    // Seconds, not taps: a heavy day passes the 2000 tally cap honestly, so
+    // this field carries its own ceiling. Both directions pinned, because a
+    // rejected doc drops the whole flush — every counter, not just this one.
+    const at = doc(authed('alice'), 'usageEvents', 'alice_2026-08-12');
+    await assertSucceeds(setDoc(at, { ...usageDoc(), log_secs: 5_000 }));
+    await assertSucceeds(setDoc(at, { ...usageDoc(), log_secs: 86_400 }));
+    await assertFails(setDoc(at, { ...usageDoc(), log_secs: 86_401 }));
+    await assertFails(setDoc(at, { ...usageDoc(), log_secs: -1 }));
+    await assertFails(setDoc(at, { ...usageDoc(), log_secs: 12.5 }));
+  });
+
   it('blocks an event name outside the catalogue', async () => {
     await assertFails(
       setDoc(doc(authed('alice'), 'usageEvents', 'alice_2026-08-12'), {
