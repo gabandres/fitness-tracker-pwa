@@ -1,0 +1,86 @@
+{
+  "project_info": {
+    "project_number": "647810616435",
+    "project_id": "fitness-tracker-gb-1775407101",
+    "storage_bucket": "fitness-tracker-gb-1775407101.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:647810616435:android:a6f4c5f9e200b3332c2e06",
+        "android_client_info": {
+          "package_name": "fit.ignia.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "647810616435-1a9nfbdi02gobevra682qtcpd3850tmf.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "fit.ignia.app",
+            "certificate_hash": "8261e9d8c06a85725d84a5f53e24326e81a83cd4"
+          }
+        },
+        {
+          "client_id": "647810616435-7o4tcm191hlcntv107lcnve2vhg4nmsr.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "fit.ignia.app",
+            "certificate_hash": "3ce15e38978841f23ae87e276cacfc5a5715e4d5"
+          }
+        },
+        {
+          "client_id": "647810616435-h4j12fvoic0d3ps0o43aro263pp9ut37.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "fit.ignia.app",
+            "certificate_hash": "1483ddc326f972896e03d8db45ba4edd1d621da4"
+          }
+        },
+        {
+          "client_id": "647810616435-pg0gel6i707c8md797jlrsnu9ojmib38.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "fit.ignia.app",
+            "certificate_hash": "5c85b71a879d80ae938e665b1b881fd8c7454dea"
+          }
+        },
+        {
+          "client_id": "647810616435-vearntjrg4dkj7vlh2j9j64069u0lhf8.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "fit.ignia.app",
+            "certificate_hash": "1106505210026f5c9c7fbba13c2b058375910ff4"
+          }
+        },
+        {
+          "client_id": "647810616435-jkiccn16plimkv9smp7ki8m90ghhocsh.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBZnoNqkNxZtFTSVfNxBdiuQpam1gbgk7s"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "647810616435-jkiccn16plimkv9smp7ki8m90ghhocsh.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "647810616435-66v806q2ptpso47ldcgq7h3bdq6h327j.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "fit.ignia.app"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

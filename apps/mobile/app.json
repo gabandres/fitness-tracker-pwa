@@ -19,7 +19,8 @@
         ],
         "keychain-access-groups": [
           "$(AppIdentifierPrefix)fit.ignia.app.quickAdd"
-        ]
+        ],
+        "aps-environment": "production"
       },
       "infoPlist": {
         "CFBundleURLTypes": [
@@ -32,7 +33,10 @@
         ],
         "ITSAppUsesNonExemptEncryption": false,
         "NSSupportsLiveActivities": true,
-        "NSMicrophoneUsageDescription": "Ignia uses the microphone only while you are dictating a meal, and only after you tap the mic."
+        "NSMicrophoneUsageDescription": "Ignia uses the microphone only while you are dictating a meal, and only after you tap the mic.",
+        "UIBackgroundModes": [
+          "remote-notification"
+        ]
       }
     },
     "android": {
@@ -58,7 +62,8 @@
         "android.permission.health.READ_STEPS",
         "android.permission.health.READ_ACTIVE_CALORIES_BURNED",
         "android.permission.RECORD_AUDIO"
-      ]
+      ],
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "output": "static",
@@ -75,7 +80,17 @@
           "resizeMode": "contain",
           "android": {
             "image": "./assets/images/splash-icon.png",
-            "imageWidth": 100
+            "imageWidth": 100,
+            "dark": {
+              "backgroundColor": "#161412",
+              "image": "./assets/images/splash-icon.png",
+              "imageWidth": 100
+            }
+          },
+          "dark": {
+            "backgroundColor": "#161412",
+            "image": "./assets/images/splash-icon.png",
+            "imageWidth": 120
           }
         }
       ],
