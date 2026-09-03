@@ -101,7 +101,7 @@ try {
   const current = (tracks.tracks ?? []).find((t) => t.track === track);
   const priorName = current?.releases?.[0]?.name;
   const release = {
-    name: `${up.versionCode} (1.2.1)`,
+    name: `${up.versionCode} (${JSON.parse(readFileSync('Z:/macro-app/apps/mobile/app.json','utf8')).expo.version})`,
     versionCodes: [String(up.versionCode)],
     status: 'completed',
   };
