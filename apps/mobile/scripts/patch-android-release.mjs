@@ -78,7 +78,7 @@
  *   channel defaults to "production" — it must match a channel that exists on
  *   EAS (`eas channel:list`), or the build calls a channel nothing publishes to.
  */
-import { readFileSync, writeFileSync, existsSync, appendFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, appendFileSync, readdirSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -358,4 +358,147 @@ if (missingPermissions.length === 0) {
   );
   writeFileSync(manifestPath, manifest);
   console.log(`AndroidManifest.xml: injected ${missingPermissions.join(', ')}`);
+}
+
+// --- 4c. AndroidManifest.xml: Health Connect permissions Play REJECTED ---
+// Google Play rejected vc 37 on 2026-09-03 ("Excessive data access for
+// declared feature"): under the Health Connect "Minimum Scope" policy,
+// `StepsCadence/Steps` "do not appear to be required for the features
+// currently offered in your app". Steps are display-only in the product
+// (`packages/core/src/activity-level.ts` — the TDEE correction runs on active
+// energy), so the permission is dropped rather than appealed.
+//
+// It is REMOVED here instead of from `app.json` for the same reason 4b ADDS
+// here: `app.json` is hashed whole, and deleting the line moves the iOS
+// runtime off build 60, the public App Store binary. Prebuild still writes the
+// permission from `app.json`; this step takes it back out of the gitignored
+// output. The JS side (`src/lib/health.ts` `HC_SKIPPED_KINDS`) stops asking
+// for and reading the kind, so nothing at runtime expects the grant.
+//
+// `scripts/native-expectations.json` `forbiddenPermissions` makes the artifact
+// verifier fail a build where this step did not run.
+const REJECTED_PERMISSIONS = ['android.permission.health.READ_STEPS'];
+{
+  let m = readFileSync(manifestPath, 'utf8');
+  const present = REJECTED_PERMISSIONS.filter((name) => m.includes(`android:name="${name}"`));
+  if (present.length === 0) {
+    console.log('AndroidManifest.xml: rejected permissions already absent');
+  } else {
+    for (const name of present) {
+      // String.raw: every shell/heredoc layer between an editor and this file
+      // eats one backslash (REFERENCE.md, the gradlew runner), and a template
+      // literal eats another. Raw keeps the regex source literal.
+      const re = new RegExp(
+        String.raw`[ \t]*<uses-permission\s+android:name="` +
+          name.replace(/\./g, String.raw`\.`) +
+          String.raw`"\s*/>\r?\n?`,
+        'g',
+      );
+      m = m.replace(re, '');
+      if (m.includes(`android:name="${name}"`)) {
+        console.error(`AndroidManifest.xml: could not remove ${name} — element shape is not what this expects.`);
+        process.exit(1);
+      }
+    }
+    writeFileSync(manifestPath, m);
+    console.log(`AndroidManifest.xml: removed ${present.join(', ')}`);
+  }
+}
+
+// --- 4d. AndroidManifest.xml: the Android 14 Health Connect privacy alias ---
+// From Android 14 Health Connect is part of the platform and it resolves the
+// app's privacy-policy screen through `android.intent.action.VIEW_PERMISSION_USAGE`
+// + category `HEALTH_PERMISSIONS` on an exported `activity-alias`
+// (developer.android.com → Health Connect → Get started → "Show a privacy
+// policy dialog"). The library's Expo plugin adds only the pre-14
+// `ACTION_SHOW_PERMISSIONS_RATIONALE` filter. Google Play's reviewer runs
+// Android 14 (SM-A235F, 2026-09-03). Same home and same reason as 4b/4c:
+// gitignored prebuild output, so neither runtime moves.
+{
+  let m = readFileSync(manifestPath, 'utf8');
+  if (m.includes('android.intent.action.VIEW_PERMISSION_USAGE')) {
+    console.log('AndroidManifest.xml: Health Connect privacy alias already present');
+  } else {
+    const alias =
+      '    <activity-alias android:name="ViewPermissionUsageActivity" android:exported="true" android:targetActivity=".MainActivity" android:permission="android.permission.START_VIEW_PERMISSION_USAGE">\n' +
+      '      <intent-filter>\n' +
+      '        <action android:name="android.intent.action.VIEW_PERMISSION_USAGE"/>\n' +
+      '        <category android:name="android.intent.category.HEALTH_PERMISSIONS"/>\n' +
+      '      </intent-filter>\n' +
+      '    </activity-alias>\n';
+    if (!m.includes('</application>')) {
+      console.error('No </application> in AndroidManifest.xml — prebuild output is not what this expects.');
+      process.exit(1);
+    }
+    m = m.replace('</application>', `${alias}  </application>`);
+    writeFileSync(manifestPath, m);
+    console.log('AndroidManifest.xml: Health Connect privacy alias (Android 14) injected');
+  }
+}
+
+// --- 5. MainActivity.kt: the Health Connect permission delegate ---
+// `react-native-health-connect` v3 keeps its permission launcher in a
+// `lateinit var` that is only assigned by
+// `HealthConnectPermissionDelegate.setPermissionDelegate(activity)`, which
+// MUST run in `MainActivity.onCreate` (it registers an ActivityResult
+// contract, which Android refuses after the activity has started). The
+// library's README says to add the call by hand; its Expo config plugin only
+// adds an intent filter. Nothing in this repo ever added it, so on every
+// Android binary through vc 40 the first tap on "Connect" in Connected apps
+// was a FATAL native crash on any device that has Health Connect:
+//
+//   UninitializedPropertyAccessException: lateinit property requestPermission
+//   has not been initialized — HealthConnectPermissionDelegate.launchPermissionsDialog:45
+//
+// It was never seen here because the LG VS988 test device has no Health
+// Connect installed (`initialize()` returns false and the path is skipped).
+// Google Play's reviewer hit it on a Samsung / Android 14 on 2026-09-03 at
+// 20:35 UTC (Sentry ignia-mobile issue 7710435112, user = review@ignia.fit),
+// and the "Steps" rejection above landed eleven minutes later.
+//
+// Done here rather than as a `withMainActivity` config plugin because a plugin
+// under `plugins/` is a hashed fingerprint source and moves the iOS runtime
+// (the `withGradleJvmArgs.js` incident, 2026-08-19). `MainActivity.kt` is
+// gitignored prebuild output, so this moves nothing.
+{
+  const javaRoot = resolve(mobileRoot, 'android/app/src/main/java');
+  const findMain = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const p = resolve(dir, entry.name);
+      if (entry.isDirectory()) {
+        const hit = findMain(p);
+        if (hit) return hit;
+      } else if (entry.name === 'MainActivity.kt') {
+        return p;
+      }
+    }
+    return null;
+  };
+  const mainActivityPath = findMain(javaRoot);
+  if (!mainActivityPath) {
+    console.error('MainActivity.kt not found under android/app/src/main/java — prebuild output is not what this expects.');
+    process.exit(1);
+  }
+  const IMPORT_LINE = 'import dev.matinzd.healthconnect.permissions.HealthConnectPermissionDelegate';
+  const CALL_LINE = '    HealthConnectPermissionDelegate.setPermissionDelegate(this)';
+  let kt = readFileSync(mainActivityPath, 'utf8');
+  if (kt.includes(CALL_LINE.trim())) {
+    console.log('MainActivity.kt: Health Connect permission delegate already wired');
+  } else {
+    // The call goes right after `super.onCreate(...)` inside `onCreate`. Expo's
+    // template passes `null` there (splash-screen reasons); match either form.
+    const superCall = /^([ \t]*)super\.onCreate\((?:savedInstanceState|null)\)[ \t]*\r?\n/m;
+    if (!superCall.test(kt) || !/^import com\.facebook\.react\.ReactActivity\b/m.test(kt)) {
+      console.error('MainActivity.kt: no `super.onCreate(...)` inside a ReactActivity — template changed; wire the delegate by hand.');
+      process.exit(1);
+    }
+    kt = kt.replace(superCall, (line) => `${line}${CALL_LINE}\n`);
+    kt = kt.replace(/^(import com\.facebook\.react\.ReactActivity\b[^\n]*\n)/m, `${IMPORT_LINE}\n$1`);
+    if (!kt.includes(IMPORT_LINE) || !kt.includes(CALL_LINE)) {
+      console.error('MainActivity.kt: patch did not apply cleanly.');
+      process.exit(1);
+    }
+    writeFileSync(mainActivityPath, kt);
+    console.log('MainActivity.kt: Health Connect permission delegate wired into onCreate');
+  }
 }

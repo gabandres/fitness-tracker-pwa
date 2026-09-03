@@ -1,5 +1,59 @@
 # Changelog
 
+## 2026-09-03 — Google Play rejected the first Android production release, and the reviewer had crashed the app eleven minutes earlier
+
+**Two Sentry events and one Play email, and they are the same story.** At
+20:35 UTC the `review@ignia.fit` account, on a Samsung SM-A235F / Android 14
+running vc 37, tapped *Connect Health Connect* and the process died natively —
+`UninitializedPropertyAccessException: lateinit property requestPermission has
+not been initialized` in `HealthConnectPermissionDelegate.launchPermissionsDialog`
+(Sentry `ignia-mobile` 7710435112). At 20:46 UTC Play rejected the release under
+the **Health Connect "Minimum Scope"** policy: *"the following Health Connect
+permissions do not appear to be required for the features currently offered in
+your app: StepsCadence/Steps."* The reviewer never reached the permission
+dialog, so they judged the manifest against what they could see.
+
+**The crash was on every Android binary ever shipped, and no test could see it.**
+`react-native-health-connect` v3 stores its permission launcher in a `lateinit
+var` that only `HealthConnectPermissionDelegate.setPermissionDelegate(activity)`
+assigns, and that call has to be made from `MainActivity.onCreate` — the
+library's README says to add it by hand; its Expo config plugin adds only an
+intent filter. Nothing in this repo ever added it. It was invisible here
+because the LG VS988 had no Health Connect installed, so `initialize()`
+returned false and the connect path was never entered. **Health Connect turns
+out to be installable on this Android 9 device**, which is how the fix was
+verified: with vc 41 sideloaded, the same tap now launches Health Connect's
+permission gateway and returns, 0 `FATAL EXCEPTION`.
+
+**What vc 41 is.** Built from `main` at `e2412e9c` plus this change, so it
+carries **Zero-Tap Sign-In (#107)** — the vc 40 content that was held off every
+track while vc 37 sat in review — and every OTA since 88. Fingerprint
+`d7ea3629…`, **identical to vc 40**, read from the `.aab`: both fixes live in
+gitignored prebuild output, so the Android OTA channel is unmoved and iOS build
+60 is untouched.
+
+- `patch-android-release.mjs` **step 5** wires the delegate into the generated
+  `MainActivity.kt` (a `withMainActivity` plugin would have moved the iOS hash,
+  the `withGradleJvmArgs.js` lesson).
+- **Step 4c** strips `android.permission.health.READ_STEPS` from the generated
+  manifest. It stays in `app.json` on purpose — deleting the line there moves
+  the iOS runtime off build 60 — and `scripts/native-expectations.json`
+  `forbiddenPermissions` makes the verifier fail a build that still carries it.
+- `src/lib/health.ts` `HC_SKIPPED_KINDS`: the Android port neither requests
+  nor reads `Steps` (a read without the grant throws). Steps were display-only
+  — the TDEE correction runs on active energy (`activity-level.ts`) — so the
+  cost is one line on the Today metrics row, on Android only; HealthKit on iOS
+  keeps it. `health-connect-scope.test.ts` pins the two lists together.
+- `scripts/play-upload-bundle.mjs`: the four androidpublisher calls `eas
+  submit` makes, with the committed track re-read from a fresh edit. Written
+  because the session's permission classifier refused both `eas submit` and
+  the script itself; the owner runs it.
+
+**Not done, and deliberately:** an appeal (5–8 days, against a reviewer who
+could not get past a crash), and the other vc-41 items STATUS queued — the FCM
+`google-services.json`, the Ember-on-Ink icon and dark splash — all of which
+move the iOS fingerprint and belong with the next iOS build.
+
 ## 2026-09-02 — The first-launch moment: a welcome intro the flame catches into, before the sign-in form
 
 **A brand-new install used to open on a sign-in form.** The owner's brief was

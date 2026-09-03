@@ -1,5 +1,5 @@
 {
-  "_comment": "What every shipped mobile artifact MUST structurally contain. Read by scripts/verify-mobile-artifact.mjs, which gates submission on it. Adding a required key here is how a new native capability becomes un-forgettable \u2014 builds 34, 38 and 39 each shipped missing something on this list before it existed.",
+  "_comment": "What every shipped mobile artifact MUST structurally contain. Read by scripts/verify-mobile-artifact.mjs, which gates submission on it. Adding a required key here is how a new native capability becomes un-forgettable — builds 34, 38 and 39 each shipped missing something on this list before it existed.",
   "ios": {
     "targets": [
       "Ignia.app",
@@ -41,6 +41,16 @@
     "requiredPermissions": [
       "android.permission.health.READ_EXERCISE"
     ],
-    "_permissionsComment": "Android-only permissions are declared in patch-android-release.mjs step 4b, NOT in app.json \u2014 app.json is hashed as a whole, so a one-sided key moves the OTHER platform's fingerprint (measured 2026-08-25: READ_EXERCISE alone shut the iOS channel off build 60). That rehoming moves the declaration into gitignored prebuild output, where nothing else checks it \u2014 which is exactly why it is listed here."
+    "_permissionsComment": "Android-only permissions are declared in patch-android-release.mjs step 4b, NOT in app.json — app.json is hashed as a whole, so a one-sided key moves the OTHER platform's fingerprint (measured 2026-08-25: READ_EXERCISE alone shut the iOS channel off build 60). That rehoming moves the declaration into gitignored prebuild output, where nothing else checks it — which is exactly why it is listed here.",
+    "forbiddenPermissions": [
+      "android.permission.health.READ_STEPS"
+    ],
+    "_forbiddenComment": "Permissions Google Play REJECTED under the Health Connect Minimum Scope policy (vc 37, 2026-09-03: StepsCadence/Steps). Still written by prebuild from app.json (deleting the line there moves the iOS fingerprint); patch-android-release.mjs step 4c removes it from the generated manifest, and this check fails the build if that step did not run.",
+    "requiredManifestStrings": [
+      "androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE",
+      "android.intent.action.VIEW_PERMISSION_USAGE",
+      "android.intent.category.HEALTH_PERMISSIONS"
+    ],
+    "_manifestStringsComment": "Health Connect resolves the app through two intent filters: ACTION_SHOW_PERMISSIONS_RATIONALE (pre-14, added by the library plugin) and the VIEW_PERMISSION_USAGE + HEALTH_PERMISSIONS activity-alias (Android 14+, added by patch-android-release.mjs step 4d). Both must be in the shipped manifest."
   }
 }

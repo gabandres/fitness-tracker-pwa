@@ -552,6 +552,51 @@ const HC_READ: Record<ReadableKind, string> = {
   activeEnergy: 'ActiveCaloriesBurned',
 };
 
+/**
+ * Kinds the Android port deliberately does NOT read, even though the shared
+ * `ReadableKind` union carries them for iOS.
+ *
+ * `steps` is here because Google Play REJECTED vc 37 on 2026-09-03 under the
+ * Health Connect "Minimum Scope" policy: "the following Health Connect
+ * permissions do not appear to be required for the features currently
+ * offered in your app: StepsCadence/Steps". In the product steps are
+ * display-only (`activity-level.ts` — the TDEE correction runs on active
+ * energy alone), so the permission bought one line on the Today metrics row.
+ * `READ_STEPS` is stripped from the shipped manifest by
+ * `patch-android-release.mjs` step 4c; asking Health Connect for a permission
+ * the manifest does not declare is not an error, but reading without it IS
+ * (`SecurityException`), so the read is skipped at the source. HealthKit on
+ * iOS is unaffected — Apple has no such rule and the row stays.
+ *
+ * `scripts/native-expectations.json` `forbiddenPermissions` is the other half:
+ * the artifact verifier fails a build whose manifest still carries it.
+ */
+export const HC_SKIPPED_KINDS: ReadonlySet<ReadableKind> = new Set<ReadableKind>(['steps']);
+
+/** What the Android connect prompt asks for. Exported so a test can pin that
+ *  nothing here re-requests a kind in {@link HC_SKIPPED_KINDS}. */
+export const HC_PERMISSIONS: ReadonlyArray<{ accessType: 'read' | 'write'; recordType: string }> = [
+  { accessType: 'read', recordType: 'Weight' },
+  { accessType: 'write', recordType: 'Weight' },
+  { accessType: 'read', recordType: 'SleepSession' },
+  { accessType: 'write', recordType: 'SleepSession' },
+  { accessType: 'read', recordType: 'Hydration' },
+  { accessType: 'write', recordType: 'Hydration' },
+  // Import-only — read, never write (see ReadableKind). `Steps` is
+  // deliberately ABSENT: see HC_SKIPPED_KINDS.
+  { accessType: 'read', recordType: 'ActiveCaloriesBurned' },
+  { accessType: 'write', recordType: 'BodyFat' },
+  { accessType: 'write', recordType: 'Nutrition' },
+  // Cardio import. `read` is USELESS without
+  // `android.permission.health.READ_EXERCISE` in the manifest, which is a
+  // NATIVE change -- so this pair only does anything from vc 38 on. Asking
+  // for a permission the manifest does not declare is not an error here;
+  // Health Connect simply never grants it, and `readWorkouts` returns
+  // empty (ADR-0026 amendment, decision 7).
+  { accessType: 'read', recordType: 'ExerciseSession' },
+  { accessType: 'write', recordType: 'ExerciseSession' },
+];
+
 const healthConnect: HealthPort = {
   async isAvailable() {
     try {
@@ -565,33 +610,21 @@ const healthConnect: HealthPort = {
   async requestPermissions() {
     const HC = await hcModule();
     await HC.initialize();
-    const perms = [
-      { accessType: 'read', recordType: 'Weight' },
-      { accessType: 'write', recordType: 'Weight' },
-      { accessType: 'read', recordType: 'SleepSession' },
-      { accessType: 'write', recordType: 'SleepSession' },
-      { accessType: 'read', recordType: 'Hydration' },
-      { accessType: 'write', recordType: 'Hydration' },
-      // Import-only — read, never write (see ReadableKind). The matching
-      // manifest permissions are already declared in app.json.
-      { accessType: 'read', recordType: 'Steps' },
-      { accessType: 'read', recordType: 'ActiveCaloriesBurned' },
-      { accessType: 'write', recordType: 'BodyFat' },
-      { accessType: 'write', recordType: 'Nutrition' },
-      // Cardio import. `read` is USELESS without
-      // `android.permission.health.READ_EXERCISE` in the manifest, which is a
-      // NATIVE change -- so this pair only does anything from vc 38 on. Asking
-      // for a permission the manifest does not declare is not an error here;
-      // Health Connect simply never grants it, and `readWorkouts` returns
-      // empty (ADR-0026 amendment, decision 7).
-      { accessType: 'read', recordType: 'ExerciseSession' },
-      { accessType: 'write', recordType: 'ExerciseSession' },
-    ];
-    const granted = await HC.requestPermission(perms as never);
+    // NOTE: `HC.requestPermission` is only safe on a binary whose
+    // `MainActivity.onCreate` calls `HealthConnectPermissionDelegate
+    // .setPermissionDelegate(this)`. The library's Expo plugin does NOT add
+    // that call; `patch-android-release.mjs` step 5 does, from vc 41 on. On
+    // vc ≤ 40 this line is a FATAL native crash (`lateinit property
+    // requestPermission has not been initialized`) on any device that has
+    // Health Connect — which is what Google Play's reviewer hit on 2026-09-03.
+    const granted = await HC.requestPermission(HC_PERMISSIONS as never);
     return Array.isArray(granted) ? granted.length > 0 : !!granted;
   },
 
   async readSamples(kind, sinceDays, boundary) {
+    // Not requested, not declared in the manifest, so not readable — and a
+    // read without the grant throws rather than returning empty.
+    if (HC_SKIPPED_KINDS.has(kind)) return [];
     const HC = await hcModule();
     await HC.initialize();
 

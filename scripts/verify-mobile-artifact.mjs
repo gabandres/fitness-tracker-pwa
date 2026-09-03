@@ -201,6 +201,18 @@ function verifyAab(path) {
       if (manifest.includes(perm)) ok(`permission ${perm.split('.').pop()}`);
       else bad(`permission ${perm}`, 'MISSING — patch-android-release.mjs step 4b did not run');
     }
+    // The inverse, for permissions Google Play has REJECTED (Health Connect
+    // "Minimum Scope", vc 37, 2026-09-03). Prebuild still writes them from
+    // `app.json`; step 4c of the patch script removes them, and a build that
+    // ships one is a build Play will reject again.
+    for (const str of EXPECT.android.requiredManifestStrings ?? []) {
+      if (manifest.includes(str)) ok(`manifest ${str.split('.').pop()}`);
+      else bad(`manifest ${str}`, 'MISSING — Health Connect will not resolve this app (patch step 4d / library plugin)');
+    }
+    for (const perm of EXPECT.android.forbiddenPermissions ?? []) {
+      if (manifest.includes(perm)) bad(`permission ${perm}`, 'PRESENT — Play rejected it; patch-android-release.mjs step 4c did not run');
+      else ok(`no ${perm.split('.').pop()}`);
+    }
   } catch (e) {
     bad('manifest', String(e.message).split('\n')[0]);
   }
