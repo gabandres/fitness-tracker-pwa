@@ -90,6 +90,20 @@ track):
   update" on binaries that already carry `READ_EXERCISE` (vc ≥ 38) — the line
   was unconditional and read as stale the first time a grant succeeded.
 
+**What actually went to the stores: vc 44 and build 63, version 1.2.2.** Two
+more iterations after vc 43: App Store 1.2.1 is released, so a new build has to
+carry a new marketing version (1.2.2 — and `version` is a hashed source, so
+Android rebuilt too); and the owner's iPhone showed the flame leaning, because
+the glyph had been placed by the SVG's transform rather than by its own bounds
+— every asset is now centred on the trimmed alpha box with more air around it.
+Android: all three Play tracks on vc 44, the Health apps declaration re-saved
+without Steps (Play derives that list from ACTIVE bundles, so `READ_STEPS`
+stayed detected until the internal track moved off vc 39 too), and the three
+changes sent for review. iOS: build 63 uploaded with `xcrun altool` after the
+EAS Submit free-tier queue sat idle for 20 minutes, attached to App Store
+1.2.2 with What's New in en-US and es-MX, submitted, release after approval.
+Both OTA channels now target the new runtimes (`68ea2dd3…` / `20a395de…`).
+
 ## 2026-09-02 — The first-launch moment: a welcome intro the flame catches into, before the sign-in form
 
 **A brand-new install used to open on a sign-in form.** The owner's brief was
