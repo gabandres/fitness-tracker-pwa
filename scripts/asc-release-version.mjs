@@ -36,7 +36,7 @@ const WHATS_NEW = {
     'A new app icon and a dark launch screen. Health Connect on Android connects again (a fix for a crash on the permission prompt). ' +
     'Plus everything that arrived over the air since the last release: a fast you logged wrong can be fixed, water on Trends, milestones, ' +
     'onboarding that ends with your first log, smarter reminders, and a proper welcome the first time you open the app.',
-  'es-PR':
+  'es-MX':
     'Nuevo ícono y pantalla de inicio en modo oscuro. Health Connect en Android vuelve a conectar (arreglo de un cierre inesperado al pedir permisos). ' +
     'Además, todo lo que llegó por actualización desde la última versión: corregir un ayuno mal registrado, agua en Tendencias, hitos, ' +
     'un onboarding que termina con tu primer registro, recordatorios más inteligentes y una bienvenida de verdad la primera vez que abres la app.',
