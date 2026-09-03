@@ -49,10 +49,46 @@ gitignored prebuild output, so the Android OTA channel is unmoved and iOS build
   because the session's permission classifier refused both `eas submit` and
   the script itself; the owner runs it.
 
-**Not done, and deliberately:** an appeal (5–8 days, against a reviewer who
+**Written before the owner overruled it, kept for the record:** an appeal (5–8 days, against a reviewer who
 could not get past a crash), and the other vc-41 items STATUS queued — the FCM
 `google-services.json`, the Ember-on-Ink icon and dark splash — all of which
 move the iOS fingerprint and belong with the next iOS build.
+
+**Then the owner said finish everything, and vc 43 is the result.** Built the
+same evening from `e0b56baf`, fingerprint `eb0e6212…` (read from the `.aab`) —
+it MOVES, because every one of these is a hashed source, and it replaces vc 41
+as the Play resubmission (vc 41 was uploaded to Play but never attached to a
+track):
+
+- **The Ember-on-Ink icon and the dark splash.** `icon.png`, the three
+  adaptive layers and `splash-icon.png` rendered from
+  `store-assets/icon-ember-on-ink.svg` with sharp (adaptive foreground at the
+  66 dp safe zone, monochrome = the outer path); `expo-splash-screen` gains a
+  `dark` block on both platforms (`#161412`). Device: the LG's splash now shows
+  the flame on paper.
+- **FCM on Android.** `android.googleServicesFile` → `google-services.json`
+  (committed: the Android key is package+cert restricted and public by design,
+  same posture as `src/environments`). **Verified end to end in PROD:**
+  `FirebaseApp initialization successful` in logcat, and the QA profile carries
+  `expoPushToken: ExponentPushToken[wJwx…]` written at 21:51 UTC — the first
+  token any Android install has ever registered. Sending still needs the FCM
+  V1 service-account key on EAS: the key exists
+  (`apps/mobile/credentials/fcm-v1-service-account.json`, git-ignored, minted
+  from `firebase-adminsdk-fbsvc@…`) and the expo.dev upload is a native file
+  picker an agent cannot drive, so `eas credentials -p android` is the owner's
+  one remaining step.
+- **iOS push entitlement + background mode** (`aps-environment`,
+  `UIBackgroundModes: remote-notification`) in `app.json`, for build 62.
+- **The Android 14 Health Connect alias turned out to matter on Android 9
+  too.** vc 41 (delegate wired, no alias) launched the gateway and got an
+  EMPTY grant in ~100 ms; vc 43 (alias added) shows the real *Allow Ignia to
+  access Health Connect?* dialog, the grant lands, and the row flips to
+  connected. So vc 41 would have survived the crash and still failed the
+  reviewer's connect. `verify-mobile-artifact.mjs` now requires all three
+  Health Connect manifest strings.
+- **Connected apps** stops saying cardio import "arrives with the next Android
+  update" on binaries that already carry `READ_EXERCISE` (vc ≥ 38) — the line
+  was unconditional and read as stale the first time a grant succeeded.
 
 ## 2026-09-02 — The first-launch moment: a welcome intro the flame catches into, before the sign-in form
 
