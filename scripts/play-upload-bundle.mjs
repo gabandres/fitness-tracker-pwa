@@ -57,6 +57,27 @@ async function small(opts, tries = 4) {
   throw last;
 }
 
+
+/**
+ * Commit, and if Play refuses to auto-submit for review (it does while the app
+ * carries a rejection — 2026-09-03: "Changes cannot be sent for review
+ * automatically. Please set the query parameter changesNotSentForReview to
+ * true"), commit WITHOUT sending for review and say so: the owner then presses
+ * "Send for review" on Publishing overview in the Console.
+ */
+async function commitEdit(editId) {
+  try {
+    await small({ url: `${base}/edits/${editId}:commit`, method: 'POST' });
+    console.log('COMMITTED (sent for review).');
+  } catch (e) {
+    const msg = JSON.stringify(e?.response?.data ?? '');
+    if (!msg.includes('changesNotSentForReview')) throw e;
+    await small({ url: `${base}/edits/${editId}:commit?changesNotSentForReview=true`, method: 'POST' });
+    console.log('COMMITTED, NOT sent for review — Play requires the Console for that while a rejection stands.');
+    console.log('→ Play Console → Publishing overview → "Send changes for review".');
+  }
+}
+
 const bytes = statSync(aabPath).size;
 console.log(`bundle: ${aabPath} (${(bytes / 1e6).toFixed(1)} MB) → track "${track}" ${commit ? 'COMMIT' : 'dry run'}`);
 
@@ -97,8 +118,7 @@ try {
     method: 'PUT',
     data: { track, releases: [release] },
   });
-  await small({ url: `${base}/edits/${edit.id}:commit`, method: 'POST' });
-  console.log('COMMITTED.');
+  await commitEdit(edit.id);
 
   // Re-read from a fresh edit — an in-edit read reflects committed state only.
   const e2 = await small({ url: `${base}/edits`, method: 'POST', data: {} });

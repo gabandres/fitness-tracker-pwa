@@ -528,8 +528,17 @@ async function main() {
       method: 'PUT',
       data: { track: 'production', releases: [release] },
     });
-    await client.request({ url: `${base}/edits/${edit.id}:commit`, method: 'POST' });
-    console.log('\nCOMMITTED to production.');
+    try {
+      await client.request({ url: `${base}/edits/${edit.id}:commit`, method: 'POST' });
+      console.log('\nCOMMITTED to production (sent for review).');
+    } catch (e) {
+      // While a rejection stands Play refuses to auto-submit (2026-09-03):
+      // commit without review and send it from Publishing overview by hand.
+      const msg = JSON.stringify(e?.response?.data ?? '');
+      if (!msg.includes('changesNotSentForReview')) throw e;
+      await client.request({ url: `${base}/edits/${edit.id}:commit?changesNotSentForReview=true`, method: 'POST' });
+      console.log('\nCOMMITTED to production, NOT sent for review — press "Send changes for review" on Publishing overview.');
+    }
 
     // Re-read from a FRESH edit. An in-edit read reflects committed state only,
     // so this is the first honest answer to "did the track learn the countries".
