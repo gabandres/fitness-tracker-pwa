@@ -24,7 +24,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // set that is COMING (short inside a cluster, long after its last mini), and an
 // exercise can carry its own mini-set rest. A behaviour every lifter feels on
 // the next session is worth one banner.
-export const WHATS_NEW_VERSION = '2026-09-01-rest-timer';
+// Bumped 2026-09-03 for 1.2.2 (vc 44 / build 63): the owner wants the banner
+// to announce the new icon, the dark launch screen and Health Connect on
+// Android to everyone automatically. Published as an OTA on the NEW runtimes
+// so it fires on the second launch after the store update.
+export const WHATS_NEW_VERSION = '2026-09-03-new-icon';
 
 const KEY = 'whatsNew.seen';
 

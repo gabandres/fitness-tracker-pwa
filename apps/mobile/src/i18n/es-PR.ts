@@ -209,7 +209,7 @@ export const esPR: Record<I18nKey, string> = {
   'link.failedBody': 'Tu dispositivo lo bloqueó. Abre esto en tu navegador:\n\n{url}',
   'whatsNew.title': 'Novedades',
   'whatsNew.body':
-    'El temporizador de descanso ahora sigue la serie que viene: el descanso corto dentro de un clúster, el largo después de su última mini-serie. Y cualquier ejercicio puede tener su propio descanso de mini-series — abre una plantilla, expande un ejercicio, Más opciones.',
+    'Nuevo ícono, pantalla de inicio en modo oscuro y, en Android, Health Connect vuelve a conectar y puede traer tus carreras, bicicleta y caminatas a Entrenar. También nuevo: corregir un ayuno mal registrado, agua en Tendencias, hitos y una bienvenida al abrir por primera vez.',
 
   // ── app updates ──
   'update.ota.title': 'Actualización lista',

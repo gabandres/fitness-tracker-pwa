@@ -205,7 +205,7 @@ export const ptBR = {
   'link.failedBody': 'O seu aparelho bloqueou. Abra isto no seu navegador:\n\n{url}',
   'whatsNew.title': 'Novidades',
   'whatsNew.body':
-    'O cronômetro de descanso agora segue a série que vem: o descanso curto dentro de um cluster, o longo depois da última mini-série. E qualquer exercício pode ter seu próprio descanso de mini-séries — abra um modelo, expanda um exercício, Mais opções.',
+    'Novo ícone, tela de abertura em modo escuro e, no Android, o Health Connect volta a conectar e pode trazer suas corridas, pedaladas e caminhadas para Treinar. Também novo: corrigir um jejum registrado errado, água em Tendências, marcos e uma boa-vinda na primeira abertura.',
 
   // ── app updates ──
   'update.ota.title': 'Atualização pronta',

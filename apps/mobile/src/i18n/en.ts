@@ -220,7 +220,7 @@ export const en = {
   'link.failedBody': 'Your device blocked it. Open this in your browser instead:\n\n{url}',
   'whatsNew.title': "What's new",
   'whatsNew.body':
-    'The rest timer now follows the set that is coming: the short rest inside a cluster, the long one after its last mini-set. And any exercise can carry its own mini-set rest — open a template, expand an exercise, More options.',
+    'A new icon, a dark launch screen, and — on Android — Health Connect connects again and can bring your runs, rides and walks into Train. Also new since last time: fix a fast you logged wrong, water on Trends, milestones, and a first-run welcome.',
 
   // ── app updates ──
   'update.ota.title': 'Update ready',
