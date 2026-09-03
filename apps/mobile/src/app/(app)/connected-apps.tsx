@@ -1,4 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import * as Application from 'expo-application';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -21,6 +22,15 @@ import { useOura } from '@/lib/oura';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
+
+/**
+ * `READ_EXERCISE` first shipped in an Android manifest at vc 38
+ * (`patch-android-release.mjs` step 4b), so the "cardio import arrives with
+ * the next update" line is true only on older binaries. It was unconditional
+ * until 2026-09-03 and read as stale on vc 42, the first binary a Health
+ * Connect grant actually succeeded on. Unknown build → assume old.
+ */
+const ANDROID_CARDIO_IN_BINARY = Number(Application.nativeBuildVersion ?? 0) >= 38;
 
 /**
  * Connected apps — third-party services that import into Ignia.
@@ -357,7 +367,7 @@ export default function ConnectedAppsScreen() {
                   <Text style={styles.evidenceLine}>
                     {healthSync.needsReauth
                       ? t('health.reconnectBody')
-                      : Platform.OS === 'android'
+                      : Platform.OS === 'android' && !ANDROID_CARDIO_IN_BINARY
                         ? t('health.androidPending')
                         : t('health.workoutsOn')}
                   </Text>

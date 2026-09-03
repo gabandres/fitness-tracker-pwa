@@ -14,7 +14,8 @@
       "NSCameraUsageDescription",
       "NSHealthShareUsageDescription",
       "NSHealthUpdateUsageDescription",
-      "CFBundleLocalizations"
+      "CFBundleLocalizations",
+      "UIBackgroundModes"
     ],
     "requiredLproj": [
       "en.lproj",
@@ -24,12 +25,16 @@
       "PlugIns/Today.appex": [
         "com.apple.security.application-groups",
         "keychain-access-groups"
+      ],
+      ".": [
+        "aps-environment"
       ]
     },
     "requiredUrlSchemes": [
       "ignia",
       "fit.ignia.app"
-    ]
+    ],
+    "_pushComment": "aps-environment on the app itself + UIBackgroundModes remote-notification: the silent-push OTA pre-download (#112/#114), added 2026-09-03 for the build after 60. A build without them registers no push token and the announce-ota push reaches nobody, silently."
   },
   "android": {
     "signerCN": "CN=Macro Log Dev",
