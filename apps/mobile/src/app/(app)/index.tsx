@@ -596,21 +596,23 @@ function createStyles({ colors }: Theme) {
     // So exactly one child may shrink and it is this one: a shortened date is
     // recoverable, a clipped tap target is not.
     //
-    // **No `minWidth: 0`, and that omission is the whole fix.** A flex item
-    // will not shrink below its min-content width — here the word "Today" —
-    // and that floor is exactly what protects the title. Adding `minWidth: 0`
-    // removes the floor, and it was tried: the block then took the DATE's
-    // width and the title rendered "Tod…", then, once the title's
-    // `numberOfLines` was removed to stop the ellipsis, hard-clipped to "Toda"
-    // with the descender cut off. Both on the LG at 360dp, where the same
-    // 81dp block fit "Today" on the OnePlus — the two render the face at
-    // slightly different widths, so a layout that only just fits on one device
-    // fails on the other.
+    // **`minWidth` is explicit and is the actual fix.** The tempting reasoning
+    // is that a flex item cannot shrink below its min-content width, so the
+    // word "Today" is its own floor. That is WEB flexbox (`min-width: auto`).
+    // **Yoga does not implement it** — a React Native flex item shrinks below
+    // its content freely — so relying on it produced three wrong fixes in a
+    // row: the block took the DATE's width and the title rendered "Tod…", then
+    // hard-clipped to "Toda" once the ellipsis was removed.
     //
-    // With the abbreviated date the row needs ~351dp of 360dp, so this shrink
-    // does not fire on either device at all. It is the safety net for a locale
-    // wider than the one this was tuned against, not the mechanism.
-    headerTitleBlock: { flexShrink: 1 },
+    // The number is measured, not guessed. Ink extents off a device screenshot
+    // where the title rendered intact: "Today" occupies **86.7dp**, and the
+    // block was handing it 80.7dp — the width of "Fri, Sep 4". 96dp clears the
+    // title with room for a heavier face, and the row still fits: 96 + 203
+    // (streak + 3 icons + avatar + gaps) + 48 (padding) = 347dp of 360dp.
+    //
+    // `flexShrink` stays as the safety net for a locale wider than this one,
+    // but it can no longer eat the title.
+    headerTitleBlock: { flexShrink: 1, minWidth: 96 },
     headerRight: { flexDirection: 'row', alignItems: 'center', gap: space.md, flexShrink: 0 },
     shareCapture: { position: 'absolute', left: -10000, top: 0, opacity: 0 },
     streakChip: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.pill, paddingHorizontal: space.sm, paddingVertical: 3 },
