@@ -2,6 +2,16 @@
 
 ## 2026-09-03 — Google Play rejected the first Android production release, and the reviewer had crashed the app eleven minutes earlier
 
+**Evening, same day — four loose ends closed.** `analyzePhoto` was deployed with
+the 08-31 resolver fix (it had sat on `main` for three days). The FCM V1 key
+went onto EAS through expo.dev, and the iOS push key turned out to have been
+there since Jul 7 (`G27PU9VMS9`) — the "eas build did not create one" line was
+wrong. Because vc 44 stores an `expoPushToken`, both store declarations were
+amended: Play Data safety now lists *Device or other IDs* (collected, not
+shared, optional, app functionality) — sending it **restarted the vc 44 review**
+on the owner's call, since a reviewer finding an undeclared identifier costs
+more than a re-queue — and ASC App Privacy now lists *Device ID*, published.
+
 **Two Sentry events and one Play email, and they are the same story.** At
 20:35 UTC the `review@ignia.fit` account, on a Samsung SM-A235F / Android 14
 running vc 37, tapped *Connect Health Connect* and the process died natively —
