@@ -45,11 +45,19 @@ export function HeaderAvatar() {
 }
 
 const SIZE = 34;
+// `flexShrink: 0` on both faces is load-bearing, not defensive tidiness. This
+// sits last in a `space-between` header row, so when that row overflows it is
+// the avatar that gets squeezed — and it is the ONLY entry point to Settings on
+// every primary screen. Measured on a OnePlus 8T (360dp) 2026-09-04: the Today
+// header needed 1,200px of a 1,080px screen and the avatar rendered 54px wide
+// against its declared 102px, clipped by the screen edge with the header's own
+// 24dp right padding consumed entirely. A control must never be what gives.
 const createStyles = ({ colors }: Theme) => StyleSheet.create({
-  img: { width: SIZE, height: SIZE, borderRadius: SIZE / 2, borderWidth: 1, borderColor: colors.line },
+  img: { width: SIZE, height: SIZE, borderRadius: SIZE / 2, borderWidth: 1, borderColor: colors.line, flexShrink: 0 },
   initials: {
     width: SIZE,
     height: SIZE,
+    flexShrink: 0,
     borderRadius: SIZE / 2,
     borderWidth: 1,
     borderColor: colors.line,

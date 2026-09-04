@@ -290,9 +290,12 @@ export default function Today() {
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.header}>
-        <View>
-          <Text style={styles.title}>{t('nav.today')}</Text>
-          <Text style={styles.date}>{todayLabel(locale)}</Text>
+        {/* Shrinkable, and the ONLY shrinkable thing in this row — see
+            `headerTitleBlock`. The date is what makes the block wide (448px of
+            a 1,080px screen on a OnePlus 8T), so it is what has to give. */}
+        <View style={styles.headerTitleBlock}>
+          <Text style={styles.title} numberOfLines={1}>{t('nav.today')}</Text>
+          <Text style={styles.date} numberOfLines={1}>{todayLabel(locale)}</Text>
         </View>
         <View style={styles.headerRight}>
           {streak > 0 ? (
@@ -560,7 +563,23 @@ function createStyles({ colors }: Theme) {
     },
     emptyText: { fontSize: font.body, color: colors.muted, fontWeight: '600' },
     emptyHint: { fontSize: font.small, color: colors.faint },
-    headerRight: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+    // The header row overflowed and the overflow fell off the right edge,
+    // taking most of the avatar with it (measured on a OnePlus 8T, 360dp:
+    // 1,200px of content in 1,080px). `space-between` distributes free space
+    // but does nothing when there is none — with no child allowed to shrink,
+    // the last one is simply clipped.
+    //
+    // So exactly one child shrinks and it is this one, because a truncated
+    // date is recoverable (the screen is titled "Today" and the date appears
+    // again in the diary) and a truncated tap target is not. `minWidth: 0` is
+    // required alongside `flexShrink`: without it a flex item will not shrink
+    // below its content's intrinsic width and the whole thing is a no-op.
+    //
+    // It is not a narrow-screen edge case — es-PR's "viernes, 4 de septiembre"
+    // is longer than "Friday, September 4", so the wider the locale the worse
+    // it gets. A fixed width here would only move the failure.
+    headerTitleBlock: { flexShrink: 1, minWidth: 0 },
+    headerRight: { flexDirection: 'row', alignItems: 'center', gap: space.md, flexShrink: 0 },
     shareCapture: { position: 'absolute', left: -10000, top: 0, opacity: 0 },
     streakChip: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.pill, paddingHorizontal: space.sm, paddingVertical: 3 },
     streakFlame: { fontSize: font.small },
