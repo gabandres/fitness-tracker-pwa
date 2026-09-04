@@ -1,5 +1,60 @@
 # Changelog
 
+## 2026-09-04 — a provider refusal stops blaming your photo, and Google Sign-In stops inheriting a stale session
+
+**Two user-facing failures, both of which had been misattributed to the user.**
+
+**The scan error.** For the five days of the Gemini outage the app said
+*"Couldn't read that photo. Try another angle."* — blaming the photograph for a
+billing problem and prescribing the one action that could not work. That is the
+same defect the 2026-08-23 rewrite fixed for quota, arriving through a door it
+did not cover: `scanErrorMessage` maps our own typed codes correctly, and an
+upstream provider 429 fell through to the default. New
+`ErrorCode.PHOTO_PROVIDER_UNAVAILABLE`, thrown when the outer catch sees a
+provider 429, mapped to a new `scan.errProvider` in all three locales. It
+promises **no** time, unlike `scan.errBusy`, whose "comes back at {time}" is
+true of the UTC-midnight org ceiling and a lie about a depleted balance. Plus a
+forward guard: an unknown code that still arrived as `resource-exhausted` reads
+as our fault rather than the photo's, so the next unnamed server code cannot
+repeat this. `PHOTO_ESTIMATE_FAILED` / `PHOTO_ANALYZE_FAILED` became explicit
+cases in the same change — they are the only two codes that genuinely mean the
+photograph was the problem, and the first draft of the new fallback could
+swallow them. The test caught that; tsc could not.
+
+**Google Sign-In `INTERNAL_ERROR`.** `IGNIA-MOBILE-C` had been written down as
+one phone's transient Play Services state. It is not: two events, **different
+devices, OS versions and builds, sixteen days apart** — LG VS988 / Android 9 /
+1.2.0+34 and OnePlus KB2005 / Android 14 / 1.2.2+44 — both native code 8 at
+`signInWithGoogle.picker`. The breadcrumbs date the failure precisely: Play
+Services reported OK, `SignInHubActivity` was created, started and resumed, then
+paused **66 ms later**. Nobody picks an account in 66 ms; the picker opened and
+dismissed itself, which is what Play Services does when it holds a cached
+account for the app that it cannot refresh.
+
+So the fix removes the state instead of reacting to it: `signOut()` before every
+`signIn()`. Nothing here wants that cache — Firebase owns the session and the
+flow only needs a fresh `id_token` — so clearing makes the call stateless. Its
+own failure is swallowed, because not being signed in is the state we are trying
+to reach. A bounded self-heal follows: **one** retry, only on code 8, never on a
+cancelled picker (the user meant it) and never on `DEVELOPER_ERROR` (it will
+fail identically forever, and that is the failure you want surfaced — it broke
+100% of Play installs twice in one week).
+
+**Verified end to end on the LG** against the published OTA: the picker opened
+and *stayed* open, an account was chosen, and Firebase rejected the link with
+*"That account is already its own separate Ignia account"* — a business rule it
+could only apply after accepting the credential, so the whole native path
+including token exchange is proven. **The INTERNAL_ERROR itself is not
+reproducible** (two events in sixteen days) and the OnePlus is PIN-locked, so
+this is reasoned from the trace. It is instrumented for the next occurrence: a
+`google: INTERNAL_ERROR, retrying once from a clean session` breadcrumb will say
+whether the clean retry succeeds.
+
+**And a What's new banner**, on the owner's instruction — the first bump that
+announces something *fixed* rather than gained. Anyone who tried to scan during
+those five days has a concrete memory of it failing and no other way to learn it
+works again; an OTA carries no store release notes.
+
 ## 2026-09-04 — photo scan had been dead for five days, and the cause was the billing split
 
 `analyzePhoto` returned Gemini `429 RESOURCE_EXHAUSTED` — *"Your prepayment
