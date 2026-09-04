@@ -14,8 +14,15 @@ Done on the strength of it: `app-version.json` android 37 → **44**
 install sees the update banner. The Android OTA channel is OPEN again on
 `68ea2dd3…`; iOS stays shut until 1.2.2 / build 63 clears Apple.
 
-Next, and now unblocked: the EU 30 on Play (Console work — the API's country
-availability is read-only). `--availability` read 128 before the change.
+Then the EU 30 on Play, the same hour: the 30 checkboxes ticked in Production →
+Countries/regions (the API's country availability is read-only), saved and sent
+for review alongside the Data safety amendment — that restarted the hour-old
+Data safety review, which cost nothing. `--availability` read **158**
+immediately (128 + 30), matching the attainable target: Play offers no
+storefront for 17 of iOS's 175, so 158 is Android's ceiling.
+`play-production-release.mjs` now carries the 30 in its country map, expects
+175, and keeps `EU_PENDING_PLAY_DSA` as an empty set. Both stores now ship to
+every territory they can.
 
 ## 2026-09-03 — Google Play rejected the first Android production release, and the reviewer had crashed the app eleven minutes earlier
 

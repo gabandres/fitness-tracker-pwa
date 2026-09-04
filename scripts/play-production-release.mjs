@@ -202,6 +202,13 @@ const KEY_PATH = 'Z:/macro-app/apps/mobile/credentials/play-service-account.json
  * `Intl.DisplayNames` will not validate.
  */
 const ASC_ALPHA3_TO_PLAY_ALPHA2 = {
+  // EU 27 + GBR, ISL, NOR — opened on Play 2026-09-03 evening, once vc 44 was live
+  // (they were `EU_PENDING_PLAY_DSA` from 08-29 until then; see that note below).
+  AUT: 'AT', BEL: 'BE', BGR: 'BG', HRV: 'HR', CYP: 'CY', CZE: 'CZ', DNK: 'DK',
+  EST: 'EE', FIN: 'FI', FRA: 'FR', DEU: 'DE', GRC: 'GR', HUN: 'HU', IRL: 'IE',
+  ITA: 'IT', LVA: 'LV', LTU: 'LT', LUX: 'LU', MLT: 'MT', NLD: 'NL', POL: 'PL',
+  PRT: 'PT', ROU: 'RO', SVK: 'SK', SVN: 'SI', ESP: 'ES', SWE: 'SE', GBR: 'GB',
+  ISL: 'IS', NOR: 'NO',
   AFG: 'AF', AGO: 'AO', AIA: 'AI', ALB: 'AL', ARE: 'AE', ARG: 'AR', ARM: 'AM',
   ATG: 'AG', AUS: 'AU', AZE: 'AZ', BEN: 'BJ', BFA: 'BF', BHR: 'BH', BHS: 'BS',
   BIH: 'BA', BLR: 'BY', BLZ: 'BZ', BMU: 'BM', BOL: 'BO', BRA: 'BR', BRB: 'BB',
@@ -229,7 +236,7 @@ const ASC_ALPHA3_TO_PLAY_ALPHA2 = {
  *  implied by absence — and so anyone flipping DSA trader status later knows
  *  exactly which rows to move. */
 const DELIBERATELY_EXCLUDED_NOTE =
-  "EU 27 + GBR, ISL, NOR — pending a PLAY-SIDE DSA trader declaration (Apple does not carry over)";
+  'nothing since 2026-09-03 — the EU 30 opened on Play once vc 44 was live; only the 17 storefronts Play does not offer remain absent';
 
 /**
  * The 30 territories iOS opened on 2026-08-28 and Play deliberately has NOT.
@@ -258,13 +265,13 @@ const DELIBERATELY_EXCLUDED_NOTE =
  * anywhere in the console — measured, not assumed). What still gates these 30
  * rows is SEQUENCING: a countries change goes through the same review pipeline,
  * so do not touch availability while a production release is in review.
- * Once vc 37 is live and vc 40 is submitted (#107), move these rows into
- * `ASC_ALPHA3_TO_PLAY_ALPHA2` and delete the set.
+ * DONE 2026-09-03: vc 44 went live, the 30 rows moved into
+ * `ASC_ALPHA3_TO_PLAY_ALPHA2`, and this set is now empty.
  */
 const EU_PENDING_PLAY_DSA = new Set([
-  'AUT', 'BEL', 'BGR', 'HRV', 'CYP', 'CZE', 'DNK', 'EST', 'FIN', 'FRA',
-  'DEU', 'GRC', 'HUN', 'IRL', 'ITA', 'LVA', 'LTU', 'LUX', 'MLT', 'NLD',
-  'POL', 'PRT', 'ROU', 'SVK', 'SVN', 'ESP', 'SWE', 'GBR', 'ISL', 'NOR',
+  // EMPTY since 2026-09-03: the 30 moved into ASC_ALPHA3_TO_PLAY_ALPHA2 above
+  // the evening vc 44 went live. Kept as a symbol so the source-check diff
+  // still has a "held back on purpose" bucket if a territory ever needs one.
 ]);
 
 /**
@@ -282,8 +289,8 @@ const EU_PENDING_PLAY_DSA = new Set([
  * So an API-only check says the mirror is reproducible on Play and the Console
  * says it is not — the Console is right.
  *
- * Consequence: Android's achievable maximum is **128**, not 145 (145 - 17). iOS
- * stays at 175. That gap is permanent until Google adds these storefronts, and
+ * Consequence: Android's achievable maximum is **158**, not 175 (175 - 17); it
+ * was 128 while the EU 30 were held back. iOS stays at 175. That gap is permanent until Google adds these storefronts, and
  * it is NOT the EU hold-back, which is a deliberate choice and lives in
  * `EU_PENDING_PLAY_DSA` above.
  */
@@ -307,7 +314,8 @@ const attainable = countries.filter((c) => !NOT_OFFERED_BY_PLAY.has(c));
  */
 function validate() {
   const problems = [];
-  if (countries.length !== 145) problems.push(`expected 145 countries, got ${countries.length}`);
+  // 145 until 2026-09-03; 175 once the EU 30 opened on Play (matches iOS's 175 of 175).
+  if (countries.length !== 175) problems.push(`expected 175 countries, got ${countries.length}`);
   const dupes = countries.filter((c, i) => countries.indexOf(c) !== i);
   if (dupes.length) problems.push(`duplicate codes: ${[...new Set(dupes)].join(', ')}`);
 
