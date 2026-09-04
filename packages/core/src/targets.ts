@@ -148,6 +148,9 @@ export function dailyTargets(
   profile: Profile | null,
   logs: DailyLog[],
   dailyWeights: Record<string, number>,
+  /** Passed to `calculateTdee`, which uses it to keep the day still in
+   *  progress out of the intake mean. Defaulted so no caller had to change. */
+  now: Date = new Date(),
 ): DailyTargets {
   const merged = mergeDailyWeights(logs, dailyWeights);
   const fields = toProfileFields(profile);
@@ -161,7 +164,7 @@ export function dailyTargets(
   // cut their daily target. The category treats a break as a temporary goal
   // change rather than a mode — see docs/research/tdee-logging-gaps.md §2.
   const adjusted = fields?.travelMode ? { ...fields, targetPaceLbsPerWeek: 0 } : fields;
-  const tdee = calculateTdee(merged, adjusted);
+  const tdee = calculateTdee(merged, adjusted, MIDNIGHT, now);
 
   // `targetMode: 'custom'` means the user typed these numbers and they win —
   // including over a measured estimate. Omitted (every account predating the

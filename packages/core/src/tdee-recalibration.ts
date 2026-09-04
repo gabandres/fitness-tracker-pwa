@@ -148,7 +148,10 @@ export function recalibrationDigest(
   // Read-only back-compat, and it has to mirror `dailyTargets` exactly — see
   // the note there. No client writes this field any more.
   const adjusted = fields?.travelMode ? { ...fields, targetPaceLbsPerWeek: 0 } : fields;
-  const tdee = calculateTdee(merged, adjusted);
+  // `opts.now` rather than the estimator's own default clock — this function's
+  // doc comment promises "no I/O, no clock", and `calculateTdee` now reads one
+  // to keep the in-progress day out of the intake mean.
+  const tdee = calculateTdee(merged, adjusted, boundary, new Date(opts.now));
 
   if (tdee.source !== 'measured' || !tdee.reliable) return { ...UNAVAILABLE };
 
@@ -182,7 +185,7 @@ export function recalibrationDigest(
   // profile is complete enough to produce one.
   let deltaVsFormula: number | null = null;
   if (fields) {
-    const formula = calculateTdee([], fields);
+    const formula = calculateTdee([], fields, boundary, new Date(opts.now));
     if (formula.source === 'formula') deltaVsFormula = trueTdee - formula.trueTdee;
   }
 

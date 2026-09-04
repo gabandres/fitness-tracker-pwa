@@ -1127,12 +1127,57 @@ export function paceOffsetKcal(
   return goalDirection === 'gain' ? -magnitude : magnitude;
 }
 
+/**
+ * Zero the calories on any day that has not finished yet, keeping the day.
+ *
+ * `aggregateByDay` hands the estimator whatever has been logged SO FAR today as
+ * if the day were over, so a partial intake enters the mean as a complete one.
+ * Measured on the owner's account 2026-09-04: 1,183 kcal logged by midday
+ * dragged maintenance down 47 kcal. It self-corrects each evening and re-opens
+ * every morning, so the number sits at its lowest exactly when a user is most
+ * likely to read it — and a suppressed maintenance is a LARGER deficit than
+ * intended, against a calorie floor that is a medical constraint for at least
+ * one user, not a preference.
+ *
+ * Zeroed rather than removed, and this is the whole subtlety. Only the intake
+ * mean is wrong; today's WEIGH-IN is a complete observation and belongs in the
+ * regression. Every intake path filters `c > 0` (`intakeCals` here,  `cals` in
+ * `measuredFromRuns`) while `loggingRuns` splits on dates and the slope fit
+ * reads `weight` — so setting the field to zero removes the day from exactly
+ * one of the two terms. Dropping the row instead would also cost the weigh-in,
+ * break run contiguity around it, and move `loggingCompletenessPct`.
+ *
+ * `>=` rather than `===`: a row dated after `now` — clock skew, a phone in a
+ * timezone ahead of this one — is even less of a finished day than today is.
+ * Day keys are `YYYY-MM-DD`, so the string compare is the date compare.
+ */
+function withoutInProgressIntake(
+  daily: DailyLog[],
+  boundary: DayBoundary,
+  now: Date,
+): DailyLog[] {
+  const todayKey = dayKeyAt(now, boundary);
+  let touched = false;
+  const out = daily.map((l) => {
+    if (dayKeyAt(l.date, boundary) < todayKey) return l;
+    touched = true;
+    return { ...l, calories: 0 };
+  });
+  return touched ? out : daily;
+}
+
 export function calculateTdee(
   logs: DailyLog[],
   profile?: ProfileFields | null,
   boundary: DayBoundary = MIDNIGHT,
+  now: Date = new Date(),
 ): TdeeResult {
-  const daily = aggregateByDay(logs ?? [], boundary);
+  // `now` is a parameter, not a `new Date()` call inside the estimator, for the
+  // reason `trainHeroStats(sessions, now)` takes one: a clock read inside a
+  // pure function makes its output untestable and makes every caller that
+  // claims purity a liar. `recalibrationDigest` says "no I/O, no clock" in its
+  // own doc comment and passes `opts.now` down for exactly that.
+  const daily = withoutInProgressIntake(aggregateByDay(logs ?? [], boundary), boundary, now);
 
   // ── Measured mode: ≥14 logged days ──
   if (daily.length >= MEASURED_MIN_DAYS) {

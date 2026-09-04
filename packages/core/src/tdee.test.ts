@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ACTIVITY_MULTIPLIERS, basalMifflinStJeor, calculateTdee } from './tdee';
+import { MIDNIGHT } from './day-boundary';
 import type { ActivityLevel, DailyLog, ProfileFields } from './types';
 import { asMeasured } from './tdee.test-utils';
 
@@ -376,5 +377,99 @@ describe('a short post-break segment cannot flip maintenance (2026-08-14)', () =
     const r = calculateTdee(withToday, profile);
     expect(r.newDailyTarget).toBeLessThan(2600); // was 3,146
     expect(r.newDailyTarget).toBeGreaterThanOrEqual(1850); // the floor still binds
+  });
+});
+
+/**
+ * The day in progress is not evidence about a whole day.
+ *
+ * `aggregateByDay` handed the estimator whatever had been logged so far today
+ * as if the day were over, so the intake mean fell every morning and recovered
+ * every evening — lowest exactly when a user is most likely to open the app.
+ * A suppressed maintenance is a LARGER deficit than intended.
+ *
+ * Measured on the owner's account 2026-09-04: a partial 1,183 kcal at midday
+ * pulled maintenance down 47 kcal.
+ */
+describe('the in-progress day', () => {
+  const NOON_TODAY = (() => {
+    const d = new Date();
+    d.setHours(12, 0, 0, 0);
+    return d;
+  })();
+
+  const profile: ProfileFields = { ...baseProfile, targetPaceLbsPerWeek: 1 };
+
+  /**
+   * 40 finished days: a clean 0.1 lb/day slide, 2,200 kcal, and one genuine low
+   * and high day. Those two exist so `trimmedMean` — which drops exactly one
+   * min and one max — already has victims. Without them a single partial day is
+   * always the minimum and is silently trimmed away, which makes a test of this
+   * behaviour pass whether the fix is present or not.
+   */
+  function history(): DailyLog[] {
+    const out: DailyLog[] = [];
+    for (let d = 40; d >= 1; d--) {
+      const cals = d === 40 ? 1500 : d === 39 ? 2900 : 2200;
+      out.push(log(d, cals, 190 - (40 - d) * 0.1));
+    }
+    return out;
+  }
+
+  const todayWeight = 190 - 39 * 0.1;
+
+  it("does not let today's calories move the estimate", () => {
+    const partial = asMeasured(
+      calculateTdee([...history(), log(0, 400, todayWeight)], profile, MIDNIGHT, NOON_TODAY),
+    );
+    const nearlyDone = asMeasured(
+      calculateTdee([...history(), log(0, 2100, todayWeight)], profile, MIDNIGHT, NOON_TODAY),
+    );
+    expect(partial.trueTdee).toBe(nearlyDone.trueTdee);
+    expect(partial.avgDailyIntake).toBe(nearlyDone.avgDailyIntake);
+  });
+
+  it('reads the same as if today had not been logged at all', () => {
+    const withPartial = asMeasured(
+      calculateTdee([...history(), log(0, 400, todayWeight)], profile, MIDNIGHT, NOON_TODAY),
+    );
+    const withOnlyAWeighIn = asMeasured(
+      calculateTdee([...history(), log(0, 0, todayWeight)], profile, MIDNIGHT, NOON_TODAY),
+    );
+    expect(withPartial.trueTdee).toBe(withOnlyAWeighIn.trueTdee);
+  });
+
+  it("keeps today's WEIGH-IN, which is a complete observation", () => {
+    // Only the intake mean is wrong about an unfinished day. The morning scale
+    // reading is as final as any other, so it must still reach the regression —
+    // which is why the row is zeroed rather than dropped.
+    const onTrend = asMeasured(
+      calculateTdee([...history(), log(0, 400, todayWeight)], profile, MIDNIGHT, NOON_TODAY),
+    );
+    const sharplyDown = asMeasured(
+      calculateTdee([...history(), log(0, 400, todayWeight - 3)], profile, MIDNIGHT, NOON_TODAY),
+    );
+    expect(sharplyDown.trueTdee).not.toBe(onTrend.trueTdee);
+  });
+
+  it('still counts the partial day once the day is over', () => {
+    // Same data, read tomorrow: yesterday's 400 kcal is now a finished day and
+    // belongs in the mean. Nothing is discarded permanently.
+    const logs = [...history(), log(0, 400, todayWeight)];
+    const tomorrow = new Date(NOON_TODAY);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const today = asMeasured(calculateTdee(logs, profile, MIDNIGHT, NOON_TODAY));
+    const seenTomorrow = asMeasured(calculateTdee(logs, profile, MIDNIGHT, tomorrow));
+    expect(seenTomorrow.avgDailyIntake).toBeLessThan(today.avgDailyIntake);
+  });
+
+  it('drops a row dated in the future too', () => {
+    // Clock skew, or a phone a timezone ahead. A day that has not started is
+    // even less of a finished day than the one in progress.
+    const base = asMeasured(calculateTdee(history(), profile, MIDNIGHT, NOON_TODAY));
+    const withFuture = asMeasured(
+      calculateTdee([...history(), log(-2, 500, todayWeight)], profile, MIDNIGHT, NOON_TODAY),
+    );
+    expect(withFuture.avgDailyIntake).toBe(base.avgDailyIntake);
   });
 });
