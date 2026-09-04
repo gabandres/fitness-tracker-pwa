@@ -102,20 +102,41 @@ Health Connect grant — where *Sync now* went from throwing at 13:39 UTC to
 *"Synced 0 day(s) from Health"* at 13:41. **The OnePlus KB2005 cannot verify
 it**: every `android.permission.health.*` there is `granted=false`.
 
-**LIVE OUTAGE — photo scan is dead in production, and it is not our code.**
-`analyzePhoto` returns Gemini `429 RESOURCE_EXHAUSTED`: *"Your prepayment
-credits are depleted."* The `aiUsage` ledger holds exactly one doc, `2026-08-30`
-— the last successful call, and the date Ignia moved to billing account
-`01916B-2927E2-E01DC7`. Every scan since has failed, and the user sees
-*"Couldn't read that photo. Try another angle."* — the app blames the
-photograph and prescribes the one action guaranteed not to work, which is the
-exact failure `mealScan.ts` was rewritten to prevent on 2026-08-23 (that
-mapping covers typed server codes; an upstream 429 falls to the default).
-**Owner action, console-only**: restore credit on the AI Studio project behind
-`GEMINI_API_KEY`. Two follow-ups worth filing: map a provider 429 to
-`scan.errBusy`, and have `/admin?tab=ai` surface provider-side depletion.
-It also blocks the last piece of #109 — a real scan cannot complete, so the
-"one milestone doc read back from PROD" evidence cannot be taken yet.
+**The photo-scan outage is RESOLVED, 2026-09-04 — and the cause was the billing
+split, not the code.** `analyzePhoto` had been returning Gemini `429
+RESOURCE_EXHAUSTED` (*"Your prepayment credits are depleted"*) since 2026-08-30,
+the day Ignia moved to billing account `01916B-2927E2-E01DC7`. That account is
+**"Paid 1 · $250 tier cap" and PREPAY-REQUIRED**, and it had **no credit
+balance** — AI Studio's own words: *"A credit balance above $0 is required to
+resume service."* The old Firebase Payment account was postpay, so the move
+silently took the Gemini API down with it. Usage over the prior 28 days peaked
+at 43 requests/day, so nothing was abused or drained; the balance was simply
+never funded. **Fixed by buying $5 of prepay credits on the LLC's Visa ••5311,
+with auto-reload ($5 when the balance falls below $2) and a $25/month cap**, and
+by importing the Ignia project into AI Studio (the account had shown *0
+Projects*). Verified: the raw API returned **HTTP 200**, and a real scan on the
+LG produced `analyzePhoto usage model=gemini-3.5-flash-lite images=1 in=2006
+out=77`.
+
+**#109 is CLOSED with PROD evidence, same session.** A real photo of chicken,
+rice and peas scanned to **441 kcal / P38 C39 F15**, two items; the log row at
+`2026-09-04T14:18:35.260Z` carries **`source: "photo"`** while every older row
+has the field absent, and `milestones/first-scan` is stamped
+`2026-09-04T14:18:35Z` — the same second as the write, which is the award
+happening at the write rather than on render. A relaunch afterwards ran the
+recovery path and left **exactly one** doc with an unchanged `earnedAt`.
+
+**Two follow-ups this turned up, neither blocking.** (1) The user-facing message
+for a provider 429 is *"Couldn't read that photo. Try another angle."* —
+`scanErrorMessage` maps our own typed codes properly but an upstream 429 falls
+to the default, so the app blamed the photograph for five days. Mapping it to
+`scan.errBusy` is worth doing. (2) **AI Studio flags "Fitness Tracker Gemini
+(client)" as a publicly exposed API key.** It is restricted to
+`generativelanguage.googleapis.com` and nothing in the app should need it (the
+app calls the `analyzePhoto` callable, never Gemini directly), so it is a
+delete-after-checking candidate. It matters more now that the account carries a
+card and auto-reload; the $25/month cap and the $250 tier cap bound the exposure
+deliberately.
 
 **Otherwise nothing — but one iOS question is still open.** `2f2777dc` (the Today ring could clip a digit) and `86f72754` (a hero drawn from seed targets before the profile landed) are live on both platforms — Android OTA 82, device-verified on the LG G6; **iOS OTA 49, re-shipped on the owner's call** after one native crash on reload forced a rollback the same day. **That crash is unexplained and the re-ship was an experiment, not a fix** — one event, one device, no telemetry (nothing in Sentry, 0 `diagnosticSignatures` on build 60); `textAlignVertical` ruled out, and OTA 82's diff cannot crash natively, so the frame is `motion.tsx`, the reload path, or something unrelated. The decision tree: crash on Restart then fine = the reload path; crash every time Today opens = `motion.tsx`; no crash = transient. **Record none of these until one is observed.** iOS has since taken OTA 54 and 55 on the same runtime with no report, which is absence of evidence, not the answer. Rollback is one command: republish group `2318d259`. Write-up: `apps/mobile/AGENTS.md`.
 
@@ -149,7 +170,7 @@ signups per 120 days no A/B is readable; pair retention work with acquisition.
 | # | Lever | State |
 |---|---|---|
 | 1–3 | First log inside onboarding · lapsed local nudges · the two deciding numbers instrumented | **SHIPPED 2026-09-02** — outcomes and device evidence in `CHANGELOG.md` 2026-09-02. Every real user gets them with vc 44 / build 63 (iOS build 60 already has them by OTA). Watch: `config/retention` `timeToFirstLog` (first read: median 1 h 32 m, p75 4 h 49 m, 17% inside five minutes, n=12 — the number lever 1 has to move), `secsPerLog` (null until a timed log reaches the 09:00 UTC pass), and the first lapsed 6pm banner, which no device here can produce before 09-05. |
-| 4 | **Celebrate the first log and first week** — award `first-scan`, a first-log `MilestoneNote`, `recordPositiveMoment` there so the review prompt lands after a win. §S12 still bans shame mechanics. | **Merged (#109, PR 120) and PUBLISHED by OTA on both platforms 2026-09-04 — Android reaches production users now, iOS reaches build-63 installs only (§2).** `LogSource` (`'photo'`) is written at the scan, the award is made at the write, the rules carry it and are deployed. Device evidence still owed and currently IMPOSSIBLE: a real scan producing exactly one milestone doc, read back out of PROD — blocked by the `analyzePhoto` Gemini credit outage in §2, which fails every scan before a log is ever written. `meals-100` stays parked — it needs a lifetime count no window answers honestly, and a profile counter is a separate call behind the `isValidProfile` expression ceiling (issue 100, closed). |
+| 4 | **Celebrate the first log and first week** — award `first-scan`, a first-log `MilestoneNote`, `recordPositiveMoment` there so the review prompt lands after a win. §S12 still bans shame mechanics. | **Merged (#109, PR 120) and PUBLISHED by OTA on both platforms 2026-09-04 — Android reaches production users now, iOS reaches build-63 installs only (§2).** `LogSource` (`'photo'`) is written at the scan, the award is made at the write, the rules carry it and are deployed. **Device-verified in PROD 2026-09-04** (§2): a real scan wrote `source: "photo"` and exactly one `milestones/first-scan`, both stamped `14:18:35`; a relaunch added no second doc. `meals-100` stays parked — it needs a lifetime count no window answers honestly, and a profile counter is a separate call behind the `isValidProfile` expression ceiling (issue 100, closed). |
 | 5 | **Verify the zero-friction triggers** — Android widget on a real home screen, watch/Siri (rows below). A widget is a log path under 10 s. | Open, owner with a device. |
 | 6 | **Guest mode (`UX_AUDIT.md` N5)** if lever 1 does not move D1 alone. | Deferred until 1 is measured. |
 | 7 | **Maintenance mode** after goal reached — looser logging, keeps the account alive through the week 8–12 fatigue. | Open, unscoped. |

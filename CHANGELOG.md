@@ -1,5 +1,42 @@
 # Changelog
 
+## 2026-09-04 — photo scan had been dead for five days, and the cause was the billing split
+
+`analyzePhoto` returned Gemini `429 RESOURCE_EXHAUSTED` — *"Your prepayment
+credits are depleted"* — on every call since **2026-08-30**, the day Ignia moved
+to billing account `01916B-2927E2-E01DC7`. That account is **Paid 1, prepay
+required**, and had never been funded; the old Firebase Payment account was
+postpay, so the move took the Gemini API down as a side effect nobody looked
+for. The `aiUsage` ledger held exactly one document — `2026-08-30` — which is
+what dated it.
+
+**It was not abuse and not a leaked key**, which was worth ruling out before
+spending anything: usage over the prior 28 days peaked at 43 requests/day and
+42.5k input tokens.
+
+Fixed by buying **$5** of prepay credits on the LLC's Visa ••5311, with
+**auto-reload ($5 when the balance drops below $2) and a $25/month cap**, and by
+importing the Ignia project into AI Studio — the billing account had listed *0
+Projects*. Verified three ways: the raw API returned HTTP 200; the function
+logged `analyzePhoto usage model=gemini-3.5-flash-lite images=1 in=2006 out=77`;
+and a real scan on the LG returned 441 kcal / P38 C39 F15 across two items.
+
+**The user-facing failure is the part worth remembering.** For five days the app
+said *"Couldn't read that photo. Try another angle."* — blaming the photograph
+and prescribing the one action guaranteed not to work. `scanErrorMessage` maps
+our own typed server codes correctly; an upstream provider 429 falls through to
+the default. That is the same class of defect the 2026-08-23 rewrite existed to
+fix, arriving through a door that fix did not cover. Mapping a provider 429 to
+`scan.errBusy` is open.
+
+Two other findings recorded rather than acted on: AI Studio flags **"Fitness
+Tracker Gemini (client)" as a publicly exposed API key** (restricted to
+`generativelanguage.googleapis.com`; nothing in the app should need it, since
+the app calls the callable) — which matters more now that the account carries a
+card, and is why the monthly cap was set; and the personal Gmail has **no edit
+access on the LLC payments profile**, so this work had to be done as
+`gabriel@bermudezsystems.com`.
+
 ## 2026-09-04 — `first-scan` is awardable at last, and Android active-energy import took TWO fixes to work
 
 **The Health Connect story below is only half right, and the correction is the
