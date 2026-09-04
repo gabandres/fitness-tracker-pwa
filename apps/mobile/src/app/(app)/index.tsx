@@ -51,8 +51,26 @@ import { formatDate } from '@/lib/date-format';
 
 const MIN_STREAK_FOR_REVIEW = 3;
 
+/**
+ * "Fri, Sep 4" — abbreviated on purpose.
+ *
+ * The long form ("Friday, September 4") measured **448px of a 1,080px screen**
+ * on a OnePlus 8T, which is what pushed the header over its width and clipped
+ * the avatar off the right edge. `flexShrink` on the title block stops the
+ * clipping, but with the long form still in place it simply moved the damage
+ * to the date, which rendered as "Friday, Septe…".
+ *
+ * So the shrink is the SAFETY NET and this is the actual fix: at ~190px the
+ * row has slack again and nothing truncates. `short` also degrades better
+ * across locales than `long` does — es-PR's "viernes, 4 de septiembre" is
+ * wider than the English it was tuned against, and Intl handles the
+ * abbreviation per locale rather than us guessing at one.
+ *
+ * Nothing is lost: the screen is titled "Today", so the year and the full
+ * weekday were never carrying information the user needed here.
+ */
 function todayLabel(locale: Locale): string {
-  return formatDate(new Date(), locale, { weekday: 'long', month: 'long', day: 'numeric' });
+  return formatDate(new Date(), locale, { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
 export default function Today() {
