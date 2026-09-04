@@ -10,6 +10,18 @@ export interface RestSeconds {
 }
 
 /**
+ * Rest before a `drop` set: only as long as it takes to change the weight.
+ *
+ * A drop set is not a new effort, it is the SAME effort continued at a lower
+ * load — the stimulus is the absence of recovery. Resting the intra-cluster
+ * 15-20 s into it makes it an ordinary back-off set, which is a different
+ * exercise wearing the same name. Deliberately not configurable: there is no
+ * training reason to want a long rest here, and a field for it would only be
+ * a way to get it wrong.
+ */
+export const REST_INTO_DROP_SEC = 10;
+
+/**
  * Which rest follows the set at `index`.
  *
  * The rest between two sets belongs to the set that is COMING, not the one just
@@ -24,6 +36,13 @@ export interface RestSeconds {
  *
  * So: the long rest when the next set opens a new cluster (`activation`) or
  * there is no next set in this exercise; the short rest otherwise.
+ *
+ * The one exception is a `drop` coming next, which takes
+ * {@link REST_INTO_DROP_SEC} regardless of either template value — see that
+ * constant for why. It is checked FIRST because a drop is the last set of its
+ * exercise in practice, and the `!next` branch would otherwise never be
+ * reached for it anyway; ordering it here makes the rule independent of where
+ * the drop happens to sit.
  */
 export function restAfterSet(
   sets: readonly { kind: SetKind }[],
@@ -31,6 +50,7 @@ export function restAfterSet(
   rest: RestSeconds,
 ): number {
   const next = sets[index + 1];
+  if (next?.kind === 'drop') return REST_INTO_DROP_SEC;
   if (!next || next.kind === 'activation') return rest.cluster;
   return rest.mini;
 }

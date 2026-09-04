@@ -458,6 +458,47 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
     paddingVertical: 2,
   },
   bumpText: { fontSize: font.tiny, color: colors.white, fontWeight: '800' },
+  // Why no load was recommended. Deliberately NOT a `bumpChip`: that is a
+  // filled coral pill you tap to accept a suggestion, and this is the absence
+  // of a suggestion — giving it a fill would make withheld advice look louder
+  // than the advice itself. Matches scan.tsx's `hintRow`, the app's existing
+  // inline-notice shape.
+  blockedRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: space.xs,
+    marginTop: space.xs,
+  },
+  // `font.small`, not `tiny` — theme.ts reserves tiny for uppercase eyebrow
+  // labels and this is a sentence a human reads.
+  blockedText: { flex: 1, fontSize: font.small, color: colors.muted, lineHeight: font.small * 1.4 },
+
+  // Session roll-up above the Complete button. Same shape as scan.tsx's
+  // `lowConf` notice, which does the identical job: a caution about the result
+  // you are accepting, sitting above the primary action. `inputBg` rather than
+  // `paper` because the sheet panel IS paper — a paper box on a paper sheet is
+  // an invisible box.
+  invalidBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: space.sm,
+    backgroundColor: colors.inputBg,
+    borderRadius: radius.md,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.md,
+    marginTop: space.xs,
+  },
+  invalidHeading: {
+    fontSize: font.tiny,
+    color: colors.muted,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: space.xs,
+  },
+  invalidRow: { fontSize: font.small, color: colors.ink, lineHeight: font.small * 1.4 },
+  invalidName: { fontWeight: '700' },
+  invalidHint: { fontSize: font.small, color: colors.muted, marginTop: space.xs },
   panelToggle: { paddingVertical: space.xs, alignSelf: 'flex-start' },
   panelToggleText: { fontSize: font.small, color: colors.teal, fontWeight: '700' },
   panel: {

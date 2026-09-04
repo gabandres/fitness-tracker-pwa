@@ -4,6 +4,7 @@
 
 import type { LogStyle, ProgressionRule, SessionExercise, WorkoutSet } from './workout';
 import { DEFAULT_LOG_STYLE } from './workout';
+import { activationIssue, blocksProgression, type ActivationIssue } from './activation-validity';
 
 /** Sets that count toward progression/PRs. Warmups are excluded; drops
  *  are back-off sets that shouldn't define a top-set PR either; mobility is a
@@ -32,7 +33,39 @@ export function keySet(
   exercise: SessionExercise,
   style: LogStyle = exercise.logStyle ?? DEFAULT_LOG_STYLE,
 ): WorkoutSet | null {
-  return exercise.sets.find((s) => isWorkingSet(s) && hasMetric(s, style)) ?? null;
+  return keySets(exercise, style)[0] ?? null;
+}
+
+/**
+ * EVERY set a progression rule must be satisfied by — all of the exercise's
+ * activation sets when it is clustered, otherwise the single first working set.
+ *
+ * ## The bug this exists to close
+ *
+ * A multi-cluster lift has one activation per cluster, and {@link keySet}
+ * returns the FIRST. So an exercise whose C1 hit the rep target and whose C2
+ * collapsed read as a clean hit, and the app recommended more load off half
+ * the evidence. Real instance on 2026-08-26: a shoulder press ran C1 at 11
+ * reps @ RIR 1 and C2 at 6 @ RIR 0 — a 45% drop-off — and the second cluster
+ * was invisible to this module.
+ *
+ * The fix is not a training opinion. Double progression's claim is "the
+ * threshold was held", and it cannot be held by a set nobody looked at.
+ *
+ * Single-cluster and straight-set exercises return exactly one set, so their
+ * behaviour is unchanged byte for byte — which is what keeps `keySet`, and
+ * every caller of it, honest.
+ */
+export function keySets(
+  exercise: SessionExercise,
+  style: LogStyle = exercise.logStyle ?? DEFAULT_LOG_STYLE,
+): WorkoutSet[] {
+  const activations = exercise.sets.filter(
+    (s) => s.kind === 'activation' && hasMetric(s, style),
+  );
+  if (activations.length > 0) return activations;
+  const first = exercise.sets.find((s) => isWorkingSet(s) && hasMetric(s, style));
+  return first ? [first] : [];
 }
 
 /** Epley estimated one-rep max. Returns 0 when inputs are missing. */
@@ -55,6 +88,15 @@ export interface ProgressionSuggestion {
   suggestedWeight?: number;
   /** True when the double-progression threshold was met this cycle. */
   bumped: boolean;
+  /**
+   * Why no load was recommended despite the numbers, when that is the reason.
+   *
+   * Set when the most recent activation set is not a valid read (see
+   * `activation-validity.ts`), so the UI can say *why* it is silent instead of
+   * silently being silent. `bumped` is forced `false` alongside it: the app
+   * must not recommend a load off a set that cannot support the claim.
+   */
+  blockedBy?: ActivationIssue;
 }
 
 /**
@@ -81,9 +123,28 @@ export function suggestProgression(
     return { lastWeight, lastReps, lastDurationSec, lastRir, suggestedWeight: lastWeight, bumped: false };
   }
 
-  const recent = history.slice(0, rule.holdSessions).map((h) => keySet(h, style));
+  // An out-of-band activation is not weak evidence for a load increase, it is
+  // no evidence: the rep count means something different at RIR 5 than at RIR
+  // 1, so it cannot be compared against the sessions the rule is counting.
+  // Reported rather than swallowed so the UI can explain the silence.
+  const blocked = history
+    .slice(0, rule.holdSessions)
+    .map((h) => activationIssue(h))
+    .find(blocksProgression);
+  if (blocked) {
+    return {
+      lastWeight, lastReps, lastDurationSec, lastRir,
+      suggestedWeight: lastWeight, bumped: false, blockedBy: blocked,
+    };
+  }
+
+  // EVERY key set in every counted session, not just the first — a cluster
+  // whose C2 collapsed has not held the threshold. See {@link keySets}.
+  const recent = history.slice(0, rule.holdSessions).map((h) => keySets(h, style));
   const heldThreshold = recent.every(
-    (k) => k != null && k.reps != null && k.reps >= rule.targetReps && (k.weight ?? 0) >= lastWeight,
+    (ks) =>
+      ks.length > 0 &&
+      ks.every((k) => k.reps != null && k.reps >= rule.targetReps && (k.weight ?? 0) >= lastWeight),
   );
 
   return {

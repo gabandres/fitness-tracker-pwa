@@ -60,6 +60,14 @@ import {
   isWorkingSet,
   suggestProgression,
 } from '@macrolog/core';
+// Why a load recommendation is being withheld, and the session-level roll-up
+// of the same check. The app must not suggest a load off an activation set it
+// cannot read — see `activation-validity.ts`.
+import {
+  type ActivationFinding,
+  type ActivationIssue,
+  sessionActivationIssues,
+} from '@macrolog/core';
 // Train derivations — shared with the Angular Train tab so the two cannot
 // disagree about the same numbers (`@macrolog/core/train-view`).
 import {
@@ -695,6 +703,20 @@ function ActiveSession({ train }: { train: ReturnType<typeof useTrain> }) {
   const [finishOpen, setFinishOpen] = useState(false);
   const rest = useRestTimer();
 
+  // Lifts whose activation set cannot be read as a progression input. Judged
+  // against the template the session was STARTED from, which is the only way
+  // "logged as straight sets where a cluster was prescribed" is detectable —
+  // the session alone carries no prescription. An ad-hoc session (no template)
+  // still gets the RIR checks, just not that one.
+  const invalidActivations = useMemo(
+    () =>
+      sessionActivationIssues(
+        session.exercises,
+        train.templates.find((tpl) => tpl.id === session.templateId) ?? null,
+      ),
+    [session.exercises, session.templateId, train.templates],
+  );
+
   /**
    * Indices of blocks that overlap another block on this session in time.
    *
@@ -871,6 +893,11 @@ function ActiveSession({ train }: { train: ReturnType<typeof useTrain> }) {
       <FinishModal
         visible={finishOpen}
         onClose={() => setFinishOpen(false)}
+        // Reported at the finish boundary, where the whole session is in view
+        // and a lift can still be repeated — not as a mid-set interruption.
+        // Never gates the save: an unreadable set is still training that
+        // happened, and refusing to store it would lose the evidence.
+        invalid={invalidActivations}
         onFinish={async (extras) => {
           await train.finishWorkout(extras);
           setFinishOpen(false);
@@ -884,6 +911,17 @@ function ActiveSession({ train }: { train: ReturnType<typeof useTrain> }) {
     </>
   );
 }
+
+/** One i18n key per reason a progression read was rejected. A `Record` rather
+ *  than a switch so adding an `ActivationIssue` without a string is a compile
+ *  error — the union is small and its members are user-facing. */
+const ACTIVATION_ISSUE_KEYS: Record<ActivationIssue, I18nKey> = {
+  'rir-to-failure': 'train.invalidRirFailure',
+  'rir-too-easy': 'train.invalidRirEasy',
+  'rir-missing': 'train.invalidRirMissing',
+  'not-clustered': 'train.invalidNotClustered',
+};
+const activationIssueKey = (issue: ActivationIssue): I18nKey => ACTIVATION_ISSUE_KEYS[issue];
 
 /** "Last: 135 × 8" — the ghost hint. Core picks which numbers matter for the
  *  log style; this renders them in the user's language. */
@@ -934,6 +972,10 @@ function ExerciseCard({
   const sug = suggestProgression(history, ex.progression, style);
   const ghost = lastHint(sug, style, t);
   const bumpTo = sug.bumped ? sug.suggestedWeight : undefined;
+  // When core withheld a recommendation because the last activation was
+  // unreadable, SAY so. Silence and "no bump today" look identical otherwise,
+  // and the second one is a claim about the training rather than about the data.
+  const blockedNote = sug.blockedBy ? t(activationIssueKey(sug.blockedBy)) : null;
 
   // Plate + warm-up math keys off the first loaded set's weight, else the
   // snapshotted target load. Barbell-only (weight-reps).
@@ -1003,6 +1045,11 @@ function ExerciseCard({
                 {t('train.bumpTo', { weight: formatLoad(bumpTo, unitSystem) })}
               </Text>
             </TouchableOpacity>
+          ) : blockedNote ? (
+            <View style={styles.blockedRow} testID={`progression-blocked-${exerciseIndex}`}>
+              <Ionicons name="information-circle-outline" size={16} color={colors.muted} />
+              <Text style={styles.blockedText}>{blockedNote}</Text>
+            </View>
           ) : null}
 
       {/* Row labels are derived from the whole sequence, not the index: a
@@ -1529,7 +1576,10 @@ function FinishModal({
   visible,
   onFinish,
   onClose,
+  invalid,
 }: {
+  /** Lifts whose activation could not be read. Reported, never blocking. */
+  invalid: ActivationFinding[];
   visible: boolean;
   onFinish: (extras: { bodyweight?: number; sleepHours?: number }) => Promise<void> | void;
   onClose: () => void;
@@ -1623,6 +1673,23 @@ function FinishModal({
               />
             </View>
           </View>
+
+          {invalid.length > 0 ? (
+            <View style={styles.invalidBox} testID="finish-invalid-activations">
+              <Ionicons name="information-circle-outline" size={18} color={colors.muted} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.invalidHeading}>{t('train.invalidHeading')}</Text>
+                {invalid.map((f) => (
+                  <Text key={f.exerciseId} style={styles.invalidRow}>
+                    <Text style={styles.invalidName}>{f.name}</Text>
+                    {' — '}
+                    {t(activationIssueKey(f.issue))}
+                  </Text>
+                ))}
+                <Text style={styles.invalidHint}>{t('train.invalidHint')}</Text>
+              </View>
+            </View>
+          ) : null}
 
           <TouchableOpacity style={styles.finishBtn} onPress={finish} disabled={busy} testID="finish-confirm">
             <Text style={styles.finishText}>{busy ? t('common.saving') : t('train.complete')}</Text>

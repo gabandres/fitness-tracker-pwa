@@ -33,3 +33,26 @@ describe('restAfterSet', () => {
     expect(restAfterSet(cluster, 2, { ...rest, mini: 50 })).toBe(150);
   });
 });
+
+describe('restAfterSet — into a drop set', () => {
+  it('rests only long enough to change the weight, whatever the template says', () => {
+    const withDrop = [...cluster, { kind: 'drop' as const }];
+    // After the final mini, the NEXT set is the drop: 10s, not the 20s mini
+    // rest and not the 150s cluster rest.
+    expect(restAfterSet(withDrop, 2, rest)).toBe(10);
+    // A template with a long mini rest cannot lengthen it either.
+    expect(restAfterSet(withDrop, 2, { mini: 90, cluster: 180 })).toBe(10);
+    // Nor can an exercise-level override.
+    expect(restAfterSet(withDrop, 2, { ...rest, mini: 50 })).toBe(10);
+  });
+
+  it('gives the long rest AFTER the drop, since the exercise is over', () => {
+    const withDrop = [...cluster, { kind: 'drop' as const }];
+    expect(restAfterSet(withDrop, 3, rest)).toBe(150);
+  });
+
+  it('does not disturb a sequence with no drop in it', () => {
+    expect(restAfterSet(cluster, 0, rest)).toBe(20);
+    expect(restAfterSet(cluster, 2, rest)).toBe(150);
+  });
+});

@@ -118,6 +118,7 @@ export * from './weight-projection';
 // input range; see the header of ./weight-bounds.
 export * from './set-load-bounds';
 export * from './rest-after-set';
+export * from './activation-validity';
 export * from './macro-energy-check';
 export * from './weight-bounds';
 // Body weight in the unit the user reads and types, over a store that is always

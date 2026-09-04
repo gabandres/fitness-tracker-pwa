@@ -753,6 +753,15 @@ export const en = {
   'train.last': 'Last',
   // The unit travels IN the value now — a metric lifter is told kg.
   'train.bumpTo': '↑ Try {weight}',
+  // An activation set outside RIR 1-3 is not a weak progression read, it is
+  // an unfounded one: the rep count means something different at RIR 5 than
+  // at RIR 1, so it cannot be compared against the sessions the rule counts.
+  'train.invalidRirEasy': 'Last activation was RIR 4+ — no load call.',
+  'train.invalidRirFailure': 'Last activation hit failure — no load call.',
+  'train.invalidRirMissing': 'No RIR on the activation — cannot judge this one.',
+  'train.invalidNotClustered': 'Logged as straight sets, not as a cluster.',
+  'train.invalidHeading': 'Unreadable this session',
+  'train.invalidHint': 'Saved either way — these just cannot drive a load change.',
   'train.setType': 'Set type',
   'train.kind.warmup': 'Warm-up',
   'train.kind.activation': 'Activation',
