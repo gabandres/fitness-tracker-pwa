@@ -63,6 +63,7 @@ const PRESUMED_SESSION_AFTER_MS = 1200;
 import { ensureProfile, subscribeProfile } from './ledger';
 import { registerAppleRefreshToken } from './appleSignin';
 import { addBreadcrumb, captureError, setSentryUser } from './sentry';
+import { isGoogleInternalError } from './google-signin-errors';
 import { clearQuickAdd } from './quick-add';
 import { clearOfflineCache, readCache, writeCache } from './offline-cache';
 import * as Updates from 'expo-updates';
@@ -243,6 +244,39 @@ async function acquireGoogleCredential(where: 'signInWithGoogle' | 'linkGoogle')
   if (isExpoGo || !hasRealClientId) throw new GoogleSignInError('expo-go');
   const { GoogleSignin, isSuccessResponse, isErrorWithCode, statusCodes } = loadGoogleSignin();
   let idToken: string | null;
+
+  /**
+   * One trip through the native picker, starting from NO cached GMS session.
+   *
+   * The `signOut()` is the fix for `INTERNAL_ERROR`, and it is a removal of
+   * state rather than a retry: Play Services caches the last signed-in account
+   * for this app, and when that cache cannot be refreshed the hub opens and
+   * closes itself in ~60ms and reports code 8 — which is exactly the shape
+   * `IGNIA-MOBILE-C` recorded twice (LG/Android 9/1.2.0+34 on 2026-08-19 and
+   * OnePlus/Android 14/1.2.2+44 on 2026-09-04; two devices, two OS versions,
+   * two builds, so it was never one phone's bad day).
+   *
+   * We have no use for that cache. Firebase owns the session; all this flow
+   * wants is a FRESH `id_token` to exchange, and it wants the user to be able
+   * to choose an account. Clearing first makes the call stateless, so there is
+   * nothing left that can go stale between attempts.
+   *
+   * Its own failure is swallowed on purpose: not being signed in is the state
+   * we are trying to reach, and letting `signOut` reject would turn a
+   * best-effort cleanup into the thing that blocks sign-in.
+   */
+  type PickerResponse = Awaited<ReturnType<typeof GoogleSignin.signIn>>;
+  async function runPicker(): Promise<PickerResponse> {
+    await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+    addBreadcrumb('google: play services ok');
+    try {
+      await GoogleSignin.signOut();
+    } catch {
+      /* already signed out, or GMS refused — either way, carry on. */
+    }
+    return GoogleSignin.signIn();
+  }
+
   try {
     // Breadcrumbs pin down WHICH step failed — "play services ok" present but
     // "picker returned" missing means the account picker itself blew up, which
@@ -251,9 +285,22 @@ async function acquireGoogleCredential(where: 'signInWithGoogle' | 'linkGoogle')
     // Native account picker: Play Services (Android) / Google SDK (iOS).
     // Returns the id_token in-process — no browser round-trip, so the old
     // redirect/custom-URI-scheme failures are structurally impossible.
-    await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-    addBreadcrumb('google: play services ok');
-    const response = await GoogleSignin.signIn();
+    let response: PickerResponse;
+    try {
+      response = await runPicker();
+    } catch (first) {
+      // Bounded self-heal, ONE attempt, and only for the signature above.
+      // Play Services can hold the stale account across the `signOut` we just
+      // did; a second pass from a now-genuinely-clean state is the difference
+      // between a user who signs in and a user who cannot. Deliberately not a
+      // loop and deliberately not applied to any other code — a cancelled
+      // picker or a DEVELOPER_ERROR must never be retried, the first because
+      // the user meant it and the second because it will fail identically
+      // forever.
+      if (!isGoogleInternalError(first)) throw first;
+      addBreadcrumb('google: INTERNAL_ERROR, retrying once from a clean session');
+      response = await runPicker();
+    }
     addBreadcrumb('google: picker returned', { success: isSuccessResponse(response) });
     // A non-success response means the user dismissed the picker.
     if (!isSuccessResponse(response)) throw new GoogleSignInError('cancelled');
