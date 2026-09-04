@@ -15,6 +15,9 @@ more than a re-queue — and ASC App Privacy now lists *Device ID*, published.
 `announce-ota.mjs --platform android` run: *recipients 6 · sent 6 · errors 0 ·
 tokens cleared 0*, 4.5 s. Six Android devices already held a token. #112 and
 #114 are closed on that evidence.
+`OURA_CLIENT_SECRET` was rotated — version 2 added, the four bound functions
+redeployed (Firebase pins the version, so the deploy is not optional), version 1
+destroyed; the count stays at the free-tier 6.
 
 **Two Sentry events and one Play email, and they are the same story.** At
 20:35 UTC the `review@ignia.fit` account, on a Samsung SM-A235F / Android 14
