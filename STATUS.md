@@ -43,7 +43,7 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 | **Cloud Functions / rules** | Deployed, project `fitness-tracker-gb-1775407101` |
 | **Photo-scan** | **ON and free to everyone, both platforms** (ADR-0017), resolving macros against the bundled USDA database (ADR-0019). Tiering is server-side only: `dailyQuota` 3/day free · 30/day paid, plus the `photo` `spendCeiling` |
 | **Food search** | Bundled USDA DB, 13,272 foods, plus the restaurant corpus (25,126 items / 91 chains, ADR-0027). **Text search makes NO network call at all as of 2026-08-19** — Open Food Facts was removed from it and now serves **barcode only**: OFF caps search at 10 req/min against 100/min for barcode GETs, and typeahead behind one shared egress IP could not live in that. Servings ship with each hit, so tapping a result makes no `getFoodDetail` call. Branded **text** results are the cost; `docs/research/off-branded-ingest.md` scopes getting them back |
-| **OTA (EAS Update)** | Live. `runtimeVersion: {"policy":"fingerprint"}`, channels match build profiles. Free tier 1,000 MAU. **Android channel OPEN on `68ea2dd3…` (vc 44, live on production since 09-03 evening). iOS channel SHUT until 1.2.2 / build 63 (`20a395de…`) is on the App Store** — build 60's `7b347b0f…` still carries every public iOS user, and OTA 70 is the last thing they received. The first OTA on both new runtimes is already published (the 1.2.2 What's new banner, `a7e2612a`). **"Published" is not "delivered" here.** The iOS crash re-ship is still UNDER TEST (§2). **This row is a POINTER, not a log: `apps/mobile/AGENTS.md` is the per-publish record and it wins.** Re-check with `npx eas update:list --branch production --limit 3`, which prints the runtime each went out under |
+| **OTA (EAS Update)** | Live. `runtimeVersion: {"policy":"fingerprint"}`, channels match build profiles. Free tier 1,000 MAU. **Android channel OPEN on `68ea2dd3…` (vc 44, live on production since 09-03 evening). iOS channel SHUT until 1.2.2 / build 63 (`20a395de…`) is on the App Store** — build 60's `7b347b0f…` still carries every public iOS user, and OTA 70 is the last thing they received. Android has had **eight** publishes on `68ea2dd3…` as of 2026-09-04 (the last is `0d591599`, the Today header fix); iOS has had two on `20a395de…`, both of which reach nobody until 1.2.2 is released. **"Published" is not "delivered" here.** The iOS crash re-ship is still UNDER TEST (§2). **This row is a POINTER, not a log: `apps/mobile/AGENTS.md` is the per-publish record and it wins.** Re-check with `npx eas update:list --branch production --limit 3`, which prints the runtime each went out under |
 | **`app-version.json`** | android **44**, ios **60** — synced and deployed 2026-09-03 evening, verified live at `https://ignia.fit/app-version.json`. **Both numbers are DERIVED** by `scripts/app-version-sync.mjs` — never hand-edit them, and a change reaches nobody until `npm run build && firebase deploy --only hosting`. It drifted silently the moment 1.2.1 released; `npm run doctor` is what catches it. ios moves to 63 the moment 1.2.2 is `READY_FOR_SALE` — re-run the sync then |
 
 **The runtime fingerprints, and the three traps around them.**
@@ -51,7 +51,7 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 | Platform | Tree now | Live binary | Channel |
 |---|---|---|---|
 | Android | `68ea2dd3…` | **vc 44** ships `68ea2dd3…` (read from the `.aab`), live on production | **OPEN** |
-| iOS | `20a395de…` | build 60 ships `7b347b0f…`; build 63 (`20a395de…`) is `WAITING_FOR_REVIEW` | **SHUT** until 1.2.2 is `READY_FOR_SALE` |
+| iOS | `20a395de…` | build 60 ships `7b347b0f…`; build 63 (`20a395de…`) is `IN_REVIEW` (read from the ASC API 2026-09-04; build 63 `VALID`) | **SHUT** until 1.2.2 is `READY_FOR_SALE` |
 
 Read them back with `npx eas update:list --branch production --limit 3` and the
 OTA row above; this table says which runtime the *tree* produces today.
@@ -85,12 +85,12 @@ remaining lever are in `docs/build-infrastructure.md`.
 
 ## 2. Merged, on `main`, and not delivered anywhere
 
-**Everything merged is in a binary — vc 44 (Android) and build 63 (iOS), both built 2026-09-03. Android is LIVE on Play production; iOS is with Apple.** 1.2.2 / build 63 is `WAITING_FOR_REVIEW`, release AFTER_APPROVAL. What rode in: Zero-Tap Sign-In (#107), Milestones (#108–#110), the Trends stub labels and water card (#115), the welcome intro, the onboarding reminders + first-log steps, the funnel events, the lapsed nudges, the log stopwatch, the rest-timer change — every Android OTA 88–109 that only ever reached the LG — plus the Ember-on-Ink icon, the dark splash, FCM (token registration verified in PROD), the iOS push entitlement, and the two Health Connect fixes. `CHANGELOG.md` 2026-09-03 has the evidence; the AGENTS.md rows for vc 44 and build 63 have the artifact reads (vc 41–43 and build 62 were the same evening's iterations: 41 lacked the Android 14 alias, 42 carried version 1.2.1, 43 had the off-centre icon).
+**Everything merged is in a binary — vc 44 (Android) and build 63 (iOS), both built 2026-09-03. Android is LIVE on Play production; iOS is with Apple.** 1.2.2 / build 63 is `IN_REVIEW` (read from the ASC API 2026-09-04; build 63 `VALID`), release AFTER_APPROVAL. What rode in: Zero-Tap Sign-In (#107), Milestones (#108–#110), the Trends stub labels and water card (#115), the welcome intro, the onboarding reminders + first-log steps, the funnel events, the lapsed nudges, the log stopwatch, the rest-timer change — every Android OTA 88–109 that only ever reached the LG — plus the Ember-on-Ink icon, the dark splash, FCM (token registration verified in PROD), the iOS push entitlement, and the two Health Connect fixes. `CHANGELOG.md` 2026-09-03 has the evidence; the AGENTS.md rows for vc 44 and build 63 have the artifact reads (vc 41–43 and build 62 were the same evening's iterations: 41 lacked the Android 14 alias, 42 carried version 1.2.1, 43 had the off-centre icon).
 
 **PR #120 and #121 shipped by OTA on both platforms, 2026-09-04** — `first-scan`
 (#109) and the Health Connect active-energy fix, on Android `68ea2dd3…` (vc 44)
 and iOS `20a395de…` (build 63). Android reaches Play production users on next
-launch. **iOS reaches nobody yet**: build 63 is `WAITING_FOR_REVIEW` and every
+launch. **iOS reaches nobody yet**: build 63 is `IN_REVIEW` (read from the ASC API 2026-09-04; build 63 `VALID`) and every
 public iOS user is still on build 60's `7b347b0f…`, which this tree can no
 longer produce — publishing now just means the fix is already in place when
 1.2.2 is approved. The Health Connect fix took two attempts and the first one
@@ -102,21 +102,7 @@ Health Connect grant — where *Sync now* went from throwing at 13:39 UTC to
 *"Synced 0 day(s) from Health"* at 13:41. **The OnePlus KB2005 cannot verify
 it**: every `android.permission.health.*` there is `granted=false`.
 
-**The photo-scan outage is RESOLVED, 2026-09-04 — and the cause was the billing
-split, not the code.** `analyzePhoto` had been returning Gemini `429
-RESOURCE_EXHAUSTED` (*"Your prepayment credits are depleted"*) since 2026-08-30,
-the day Ignia moved to billing account `01916B-2927E2-E01DC7`. That account is
-**"Paid 1 · $250 tier cap" and PREPAY-REQUIRED**, and it had **no credit
-balance** — AI Studio's own words: *"A credit balance above $0 is required to
-resume service."* The old Firebase Payment account was postpay, so the move
-silently took the Gemini API down with it. Usage over the prior 28 days peaked
-at 43 requests/day, so nothing was abused or drained; the balance was simply
-never funded. **Fixed by buying $5 of prepay credits on the LLC's Visa ••5311,
-with auto-reload ($5 when the balance falls below $2) and a $25/month cap**, and
-by importing the Ignia project into AI Studio (the account had shown *0
-Projects*). Verified: the raw API returned **HTTP 200**, and a real scan on the
-LG produced `analyzePhoto usage model=gemini-3.5-flash-lite images=1 in=2006
-out=77`.
+**The progression fixes shipped by OTA to Android ONLY, 2026-09-04** — `bf1385c7`, group `8f165a13`. The app no longer suggests a load off an activation set logged at RIR 0 or RIR 4+ (it says which of four reasons applied instead), and `keySets` now requires EVERY activation in a clustered lift to clear the threshold rather than just the first — the defect behind the 2026-08-26 shoulder-press call. Drop sets needed no code; `setKind: 'drop'` was already excluded from progression. **iOS is NOT published**: 1.2.2 / build 63 is `IN_REVIEW` (ASC API, `VALID`), and an OTA onto that runtime would change the binary a reviewer is testing. It goes out the day 1.2.2 is `READY_FOR_SALE`. **Five further Android publishes the same day fixed one Today-header bug** (the avatar was clipped off the right edge at 360dp); four of the five were wrong and reached production users before the sixth was device-verified on both phones. `apps/mobile/AGENTS.md` carries the full account and the cause — Yoga has no `min-width: auto`, so the min-content floor that three of those fixes assumed does not exist.
 
 **#109 is CLOSED with PROD evidence, same session.** A real photo of chicken,
 rice and peas scanned to **441 kcal / P38 C39 F15**, two items; the log row at
