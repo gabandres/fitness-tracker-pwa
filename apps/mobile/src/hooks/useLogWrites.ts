@@ -6,6 +6,7 @@ import {
   customFoodDocId,
 } from '@macrolog/core';
 import { exportNutrition } from '@/lib/health-sync';
+import { recordScanMilestone } from '@/lib/first-scan';
 import { useAuth } from '@/lib/auth';
 import { addLogDurably } from '@/lib/pending-logs';
 import { track } from '@/lib/analytics';
@@ -85,6 +86,12 @@ export function useLogWrites(): LogWrites {
           fat: entry.fat,
         });
       }
+      // `first-scan` (#109), at the write that earned it. Here rather than in
+      // `scan.tsx` for the reason the meal-slot default is one level lower
+      // still: this is the funnel every in-app add passes through, so a future
+      // photo-scan surface inherits the award instead of having to remember it.
+      // Not awaited, and it cannot throw — see `first-scan.ts`.
+      void recordScanMilestone(uid, entry.source);
     },
     [uid],
   );

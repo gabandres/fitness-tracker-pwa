@@ -108,7 +108,10 @@ export interface HealthPort {
   writeWorkout(w: WorkoutExport): Promise<void>;
 }
 
-const sinceDate = (days: number): Date => new Date(Date.now() - days * 86_400_000);
+/** `now` is injectable for the one caller a test drives ({@link hcPeriodFilter});
+ *  every other call site takes the default. */
+const sinceDate = (days: number, now: Date = new Date()): Date =>
+  new Date(now.getTime() - days * 86_400_000);
 
 /**
  * The HealthKit sample filter for "the last `days` days", in the ONE shape
@@ -138,14 +141,52 @@ function startOfLocalDay(d: Date): Date {
   return r;
 }
 
-const pad2 = (n: number): string => String(n).padStart(2, '0');
-
-/** Local-naive ISO (`2026-07-23T00:00:00` — no `Z`, no offset), the
- *  `LocalDateTime` shape Health Connect's **period** slicer expects.
- *  `toISOString()` would hand it a UTC instant and cut every bucket at the
- *  wrong hour for any user not on UTC. */
-function localIsoNaive(d: Date): string {
-  return `${calendarDateKey(d)}T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+/**
+ * The `timeRangeFilter` for Health Connect's **period** aggregation.
+ *
+ * ## It takes an INSTANT, and getting that wrong broke the whole Android import
+ *
+ * This used to emit a local-naive ISO string (`2026-07-23T00:00:00` — no `Z`),
+ * on the reasoning that a period slicer wants a `LocalDateTime` and that
+ * `toISOString()` would cut every bucket at the wrong hour for a user off UTC.
+ * **The premise was right and the conclusion was wrong**, because it stopped one
+ * step too early. `react-native-health-connect@3.5.3` builds the period request
+ * with `getTimeRangeFilterLocal`, which is
+ *
+ *     Instant.parse(startTime).atZone(zone).toLocalDateTime()
+ *
+ * — it wants an instant and does the local conversion itself, off the DEVICE's
+ * zone. So an offset-less string never reaches a `LocalDateTime` at all: it dies
+ * in `Instant.parse` with `Text '2025-07-30T00:00:00' could not be parsed at
+ * index 19`, index 19 being where the missing offset should have started.
+ *
+ * Local anchoring still comes from {@link startOfLocalDay} — the instant of
+ * local midnight, converted back by the library, IS local midnight — so the
+ * bucket alignment the old comment was protecting is unaffected.
+ *
+ * ## What it cost, so the shape stays pinned
+ *
+ * The rejection took `importScalars` down with it, and `activeEnergy` is the
+ * LAST of `IMPORT_KINDS` — so weight, sleep and water imported fine while
+ * active energy never landed once, and `importHealthWorkouts`, which runs after
+ * `importScalars` in `importAll`, never ran at all. That is the entire Android
+ * half of cardio import (ADR-0026), silent behind an error only Sentry saw
+ * (`IGNIA-MOBILE-S`, six events the evening vc 44 went to production, on the
+ * first device that ever had a working Health Connect grant).
+ *
+ * Exported so `health-hc-period-filter.test.ts` can pin the `Z`; the dynamic
+ * `import()` seam below it cannot be exercised under jest. Same reason
+ * {@link hkSampleFilter} is exported.
+ */
+export function hcPeriodFilter(
+  sinceDays: number,
+  now: Date = new Date(),
+): { operator: 'between'; startTime: string; endTime: string } {
+  return {
+    operator: 'between',
+    startTime: startOfLocalDay(sinceDate(sinceDays, now)).toISOString(),
+    endTime: now.toISOString(),
+  };
 }
 
 /** A concrete timestamp inside `dateKey`'s local day for a written sample:
@@ -635,14 +676,10 @@ const healthConnect: HealthPort = {
     // live in. `aggregateGroupByPeriod` gives one deduplicated total per
     // calendar day, which is why they fold as `preAggregated` in core.
     if (kind === 'steps' || kind === 'activeEnergy') {
-      const anchor = startOfLocalDay(sinceDate(sinceDays));
       const groups = (await HC.aggregateGroupByPeriod({
         recordType: HC_READ[kind],
-        timeRangeFilter: {
-          operator: 'between',
-          startTime: localIsoNaive(anchor),
-          endTime: localIsoNaive(new Date()),
-        },
+        // An ISO instant, NOT a local-naive string — see `hcPeriodFilter`.
+        timeRangeFilter: hcPeriodFilter(sinceDays),
         timeRangeSlicer: { period: 'DAYS', length: 1 },
       } as never)) as unknown as HCPeriodGroup[];
       return (groups ?? []).flatMap((g) => {

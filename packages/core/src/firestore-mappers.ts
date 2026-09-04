@@ -71,6 +71,7 @@ export function toDailyLog(id: string, data: Record<string, unknown>): DailyLog 
     cardioCompleted: data['cardioCompleted'] as boolean | undefined,
     mealLabel: data['mealLabel'] as string | undefined,
     mealType: data['mealType'] as DailyLog['mealType'],
+    source: data['source'] as DailyLog['source'],
   };
 }
 

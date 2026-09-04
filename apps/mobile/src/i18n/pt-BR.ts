@@ -1255,6 +1255,7 @@ export const ptBR = {
   'milestones.streak-60': 'Sessenta dias registrando',
   'milestones.streak-100': 'Cem dias registrando',
   'milestones.first-weigh-in': 'Primeira pesagem',
+  'milestones.first-scan': 'Primeira refeição escaneada',
   'milestones.first-fast': 'Primeiro jejum registrado',
   'milestones.first-workout': 'Primeiro treino concluído',
   'milestones.goal-reached': 'Chegou ao seu peso meta',

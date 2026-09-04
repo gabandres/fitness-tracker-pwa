@@ -93,6 +93,16 @@ describe('toDailyLog', () => {
     expect(log.protein).toBeUndefined();
   });
 
+  it('reads back the photo-scan marker, and leaves it undefined on every other row', () => {
+    // Read-path half of #109: the marker is written by the scan path and the
+    // milestone evidence is derived from it, so a mapper that dropped the field
+    // would make every scanned row look typed the moment it came back off the
+    // wire — silently, since nothing else renders it.
+    expect(toDailyLog('s', { timestamp: stamp(date), calories: 400, source: 'photo' }).source)
+      .toBe('photo');
+    expect(toDailyLog('t', { timestamp: stamp(date), calories: 400 }).source).toBeUndefined();
+  });
+
   it('used with oldestFirst yields oldest-first order (desc query reversed)', () => {
     const older = new Date('2026-01-01T00:00:00Z');
     const newer = new Date('2026-01-02T00:00:00Z');

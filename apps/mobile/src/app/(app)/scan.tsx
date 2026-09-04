@@ -322,6 +322,13 @@ export default function Scan() {
         carbs: Math.round(total.carbs),
         fat: Math.round(total.fat),
         mealLabel: mealName.trim() || t('scan.mealName'),
+        // The ONE place a photo-scanned row is distinguishable from a typed one
+        // (#109). It is what `first-scan` is awarded on, so it is set here and
+        // nowhere else — `logRepeat` above deliberately does NOT set it: that
+        // path makes no model call, spends no quota and reads no photograph,
+        // and marking it `photo` would award the milestone to somebody who
+        // never took one.
+        source: 'photo',
       });
       haptics.success();
       router.replace('/(app)'); // back to Today — rings re-sweep to the new total

@@ -93,6 +93,7 @@ export default function Today() {
     repeatYesterday,
     shareStats,
     hasWeighIn,
+    hasPhotoScan,
   } = useToday();
   // The single Nudge slot this screen is allowed to fill.
   const nudge = useTodayNudge();
@@ -104,6 +105,7 @@ export default function Today() {
     uid: user?.uid,
     streak,
     hasWeighIn,
+    hasPhotoScan,
     boundary,
   });
   const [sheetOpen, setSheetOpen] = useState(false);

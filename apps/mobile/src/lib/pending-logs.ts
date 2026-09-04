@@ -116,5 +116,11 @@ function toRow(p: PendingLog): DailyLog {
     ...(p.fat != null ? { fat: p.fat } : {}),
     ...(p.mealLabel ? { mealLabel: p.mealLabel } : {}),
     ...(p.mealType ? { mealType: p.mealType } : {}),
+    // Carried into the overlay row, not just onto the wire: Today reads the
+    // merged window for the `first-scan` evidence, and a parked scan that
+    // rendered without its provenance would be invisible to it for exactly as
+    // long as the device is offline — the one window where the award-at-write
+    // has already failed.
+    ...(p.source ? { source: p.source } : {}),
   };
 }

@@ -84,6 +84,19 @@ describe('toLogDoc', () => {
   it('stamps `now` only when the entry carries no timestamp', () => {
     expect(toLogDoc({ calories: 1 }, codec, NOW).timestamp).toEqual(stamp);
   });
+
+  // ── provenance (`source`), the `first-scan` evidence — #109 ──
+  it("writes source when the entry carries one", () => {
+    expect(toLogDoc({ calories: 500, source: 'photo' }, codec, NOW).source).toBe('photo');
+  });
+
+  it('omits source entirely on every other add', () => {
+    // Absence is the normal case and it must stay an ABSENT KEY, not a null:
+    // `isValidLog` allow-lists the value, and a typed meal has no provenance to
+    // claim. `useMilestones` reads presence, so a written falsy value would be
+    // a row asserting it was scanned.
+    expect('source' in toLogDoc({ calories: 500 }, codec, NOW)).toBe(false);
+  });
 });
 
 describe('toLogPatch', () => {
@@ -120,6 +133,15 @@ describe('toLogPatch', () => {
     const patch = toLogPatch({ calories: 300, weight: 179, timestamp: at }, codec);
     expect(patch['timestamp']).toEqual({ ts: at.getTime() });
     expect(patch['weight']).toBe(179);
+  });
+
+  it('NEVER names source, so an edit cannot strip a scanned row of its origin', () => {
+    // The third exception, alongside timestamp and weight, and the one with
+    // teeth: no edit surface passes `source`, so naming it here would delete
+    // the provenance of every photo-scanned meal the moment its owner
+    // corrected a gram. Provenance is a fact about CREATION.
+    const patch = toLogPatch({ calories: 300, source: 'photo' }, codec);
+    expect('source' in patch).toBe(false);
   });
 });
 

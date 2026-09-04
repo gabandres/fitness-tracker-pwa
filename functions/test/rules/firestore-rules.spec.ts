@@ -135,6 +135,53 @@ describe('firestore.rules', () => {
     );
   });
 
+  // ── log provenance (`source`, the `first-scan` evidence — #109) ──
+  //
+  // The whole point of the field is that the milestone is awarded off it, so
+  // the rules have to be the thing that keeps it honest: a value nothing
+  // produces must not be writable, and the key must be allowed at all (it was
+  // not until 2026-09-03, and an un-deployed rule rejects the write silently
+  // from the client's point of view — the dev app talks to PROD Firestore).
+  it("allows a dailyLog carrying source: 'photo'", async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertSucceeds(
+      addDoc(collection(db, 'users', 'alice', 'dailyLogs'), { ...validLog(), source: 'photo' }),
+    );
+  });
+
+  it('rejects a dailyLog with an unknown source value', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertFails(
+      addDoc(collection(db, 'users', 'alice', 'dailyLogs'), { ...validLog(), source: 'manual' }),
+    );
+    await assertFails(
+      addDoc(collection(db, 'users', 'alice', 'dailyLogs'), { ...validLog(), source: 1 }),
+    );
+  });
+
+  it('rejects a dailyLog carrying a key outside the allow-list', async () => {
+    // Pins the `hasOnly` list itself: adding `source` must not have opened the
+    // door to arbitrary keys.
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertFails(
+      addDoc(collection(db, 'users', 'alice', 'dailyLogs'), { ...validLog(), scanned: true }),
+    );
+  });
+
+  it('lets an edit keep the source it was created with', async () => {
+    // `toLogPatch` deliberately never names `source` — provenance is a fact
+    // about creation, so an edit leaves it in place. Assert the rules accept
+    // the resulting merged document.
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    const ref = doc(db, 'users', 'alice', 'dailyLogs', 'scanned-row');
+    await assertSucceeds(setDoc(ref, { ...validLog(), source: 'photo' }));
+    await assertSucceeds(updateDoc(ref, { calories: 620 }));
+  });
+
   it('rejects a dailyLog write from an unverified email', async () => {
     // The /dailyLogs rules gate on isOwner only, but the parent profile
     // write path is gated on isVerifiedUser, so an unverified user who
