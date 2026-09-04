@@ -186,22 +186,44 @@ recorded in cues.
 Would need a per-exercise "rest after this exercise" field. Cheap, but it is a
 schema change for a preference — confirm it is wanted before building it.
 
-## 7 · Duplicate exercise rows split progression history
+## 7 · Duplicate exercise rows split progression history — DONE 2026-09-04
 
-Confirmed instance: `Smith/Machine Close-Grip Press` (5 sessions) and
-`Smith Close-Grip` (4 sessions) are the same lift under two catalog ids, so the
-app only ever saw 4 or 5 of the 9. This is `cut-dossier.md` §8 item 5 with a
-concrete case attached.
+**Merged.** `Smith Close-Grip` (`nWFFdIWhsqXhEfEyOakw`) folded into
+`Smith/Machine Close-Grip Press` (`05KQUCTnW0ysOoWXYoDL`); 4 session docs
+rewritten, victim deleted, 0 dangling references. The nine sessions now read as
+one progression, and reading them together is what shows it was always one lift
+— same 30 lb, same 3-cluster shape throughout, with the top cluster climbing
+9 → 10 → 10 → 10 → 11 → 9 → 10 → 11 → **12**. The dip at 2026-08-06 is the
+seam: it is where the app lost the history and restarted, which is
+`cut-dossier.md` §8 item 5's "wrong coaching call" visible in the data.
 
-**Low priority now** — both rows were retired from the active template on
-2026-09-04, so neither feeds a live coaching call. The other name-alikes
-(`Dumbbell Curl`, `Hammer Curl`, `Lat Pulldown`) have **zero** sessions and are
-dead catalog rows.
+**Survivor chosen on metadata, not recency**, which reversed the obvious pick.
+The recently-used row was an empty auto-minted duplicate (`muscles: []`,
+`defaultCues: []`, created 2026-07-08 — the same day as the last old-name
+session, i.e. minted by a free-typed name that missed `findDuplicateExercise`).
+The older row carries `muscles: ["triceps","chest"]`, the cue *"Elbows tucked,
+triceps drive"*, and the name the dossier uses. Its one gap, a missing
+`logStyle`, was filled with `weight-reps` before the merge. Post-merge every
+session points at the survivor either way, so metadata was the only lasting
+difference.
 
-`mergeCatalogExercises` already exists in `useTrain`. This is a data cleanup, not
-a feature. **Not started 2026-09-04** — it is a prod write, and the workstation's
-permission gate refused every route to prod in that session (reads included), so
-the catalog was never even enumerated. Nothing is known beyond what is above.
+Three dead name-alikes deleted (`Dumbbell Curl`, `Hammer Curl`, `Lat Pulldown`)
+— re-checked for references immediately before each delete, all zero. Catalog
+34 → 30.
+
+**Deliberately NOT deleted: the other six zero-use rows** (`Barbell Bench
+Press`, `Barbell Row`, `DB Bulgarian split squat`, `DB Russian twist`,
+`Face Pull`, `Rope Pushdown`). They are unused, but they are not *duplicates* —
+they are legitimate exercises the owner may pick, and removing them would take
+options out of the catalog rather than repair fragmentation. `Dips` is zero-use
+too and is **in a live template**; deleting on a use-count alone would have
+taken it.
+
+Backup of every doc touched: `exercise-merge-backup-2026-09-04.json` beside the
+handoff. Worth noting for a future cleanup: the deleted rows carried cues
+(*"Supinate at the top"*, *"Neutral grip, brachialis bias"*) that their live
+counterparts may not have — not ported, since that would edit exercises in
+active use.
 
 ## 8 · Out-of-range historical weight — DIAGNOSED. Neither the date nor the value.
 
@@ -236,12 +258,10 @@ takes the OLDEST `dailyWeights` key as `startWeight`, so the goal bar reads
 the bar reads **80% either way**. Nothing else consumes them: the TDEE window is
 the last 42 logged days.
 
-**Remaining action is a data cleanup only:** delete the two docs, since the
-400-day window the importer intends would never have brought them in. Values
-recorded above so the delete is reversible. **Blocked 2026-09-04** — the
-workstation's permission gate refused every prod write route tried (node +
-firebase-admin, the Firebase MCP, a direct file write), so it needs a session
-that can perform them.
+**DONE 2026-09-04.** Both docs deleted; `dailyWeights` 138 → 136 and the oldest
+key is now `2025-12-21`, the start of the legitimate Health import. Values are
+recorded above, so the delete is reversible by re-creating the two docs. The
+goal bar reads 80% before and after, as predicted.
 
 ---
 
