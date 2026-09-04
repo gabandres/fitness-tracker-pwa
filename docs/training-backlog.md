@@ -29,6 +29,43 @@ This file is only the parts that are code.
 
 ---
 
+## 0 · The 70% reliability cliff, and what it let happen — HIGHEST PRIORITY
+
+`reliable = loggingCompletenessPct >= 70`. The owner's account sits at
+**42/63 = 67%**, just under the bar, so `reliable` is false and
+`dailyTargets` takes its third branch: `hasManualKcal ? manualKcal :
+tdee.newDailyTarget`.
+
+That branch is normally harmless because most accounts have no manual value.
+On 2026-09-04 an onboarding run wrote `manualCaloriesTarget: 2080` and
+`manualProteinTarget: 115` onto an account that had **neither**, and the
+displayed target silently moved **1,905 -> 2,080** (+175 kcal/day, roughly a
+third of a pound a week of progress). Nothing announced it. Both fields were
+deleted the same day and the target resolved back to **1,916**.
+
+Three separate problems live here, and the third is the dangerous one:
+
+1. **A 3-point miss on completeness changes which number governs the user's
+   day.** 67% vs 70% is not a meaningful difference in evidence, but it is the
+   difference between "the estimator decides" and "whatever is in
+   `manualCaloriesTarget` decides". A cliff that sharp wants a ramp.
+2. **`targetMode: 'auto'` + a manual value is a trap.** Under `auto` the manual
+   number is a SEED that is silently replaced the moment `reliable` flips true.
+   So had completeness reached 70%, the target would have dropped ~170 kcal
+   overnight with no explanation — which is verbatim the UX_AUDIT complaint
+   already quoted in `targets.ts`.
+3. **Onboarding wrote the protein FLOOR in as the protein TARGET.** The 115 is
+   `proteinMinTarget` (`computeProtein(w)` with no `perKg`). The owner's dossier
+   floor is 140 g. It did not apply — `proteinPerKg: 1.9` won and produced 135 —
+   but it was sitting there as the fallback, and if `proteinPerKg` ever went
+   absent it would have governed.
+
+**Also unexplained and worth finding: how onboarding was reached at all.**
+`profileCompleted` was `true` before the write, so `assessRoute` could only
+return `'app'`; the gate did not fail. `onboarding.tsx` has an `isRedo` branch,
+so a deliberate redo is supported — an accidental one is the bug. Until that is
+understood, any account can have its targets overwritten the same way.
+
 ## 1 · The in-progress day is in the TDEE intake mean — DECISION NEEDED
 
 **The one with a medical edge, so it goes first.**
