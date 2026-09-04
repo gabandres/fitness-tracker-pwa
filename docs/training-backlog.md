@@ -45,7 +45,7 @@ This file is only the parts that are code.
 
 ---
 
-## 0 · The 70% reliability cliff — the HAZARD is fixed, the cliff is not
+## 0 · The 70% reliability cliff — MEASURED 2026-09-04. Owner's call, two options costed.
 
 **Read this first: the dangerous half shipped on 2026-09-04.** The overwrite
 described below can no longer happen — an `'auto'` redo writes no manual target
@@ -55,6 +55,88 @@ threshold change moves every user's target, and the cliff was only sharp
 *because* a manual value could outrank the estimator. Re-evaluate now that it
 cannot. The account below is kept because it is still the argument for why the
 boundary wants a ramp.
+
+### The measurement — all 42 PROD accounts, 2026-09-04
+
+Replayed with a throwaway probe against every `users/*` doc, the way `cf0953d4`
+was replayed before publishing. **22 accounts carry logs; 21 carry a manual
+calorie value.** Nothing was written.
+
+**① The owner's account cannot demonstrate this one.** It reads `source:
+measured`, completeness **67%**, `reliable: false`, confidence **0.9571**,
+`trueTdee` 2,396, target **1,946** — and its cliff height is **0 kcal**, because
+the manual pair was deleted on 09-04, so the third branch already falls through
+to the estimator. It is the *argument* for a ramp and not a *test* of one. Same
+shape as the LG in `cf0953d4`: pick the demonstrating account deliberately.
+
+**② The cliff can reach exactly TWO accounts today** — the population is
+`source: 'measured'` **and** `reliable: false` **and** a manual seed present:
+
+| account | completeness | confidence | today | at the 70% crossing | move |
+|---|---|---|---|---|---|
+| `xFm6lDvP…` (`review@`) | 57% | 0.81 | 2,130 | 2,274 | **+144** |
+| `nyJRLyDJ…` | 29% | 0.41 | 1,640 | 1,500 | **−140** |
+
+For scale: the owner's own estimate carries `ci95Tdee` **±102 kcal**, so the
+cliff moves a user by about the width of the estimator's own error bar.
+
+**③ "18 accounts would move" is an ARTIFACT — do not quote it.** A first pass
+stripped the manual value from every account and reported deltas from −1,720 to
++1,493. Those are `source: 'seed'` and `'formula'` accounts with no measured
+estimate at all, falling back to `SEED_RESULT.newDailyTarget`, a hardcoded
+**1,800** (`targets.ts` says so in the `finalCalorieTarget` doc comment). That
+is not what happens at 70%; it is what happens if you delete the seed from an
+account that has no evidence. **Any change here must be scoped to
+`source === 'measured'`**, and both options below are.
+
+**④ `reliable` and `confidence` disagree in BOTH directions, on real accounts.**
+This is the finding that decides it:
+
+- owner — `reliable: false`, confidence **0.96** (67% complete)
+- `M80UF7Fg…` (`demo@`) — `reliable: true`, confidence **0.50** (100% complete)
+
+`reliable` is one ratio thresholded; `confidence` is `min(byCompleteness,
+byIntakeDays, byEvidence)` and is already continuous. So the boolean deciding
+*which number governs the user's day* is strictly worse information than the
+float sitting next to it, and the two disagree often enough to see in a
+22-account sample.
+
+### Two options, both costed. Not shipped — this moves targets, so it is a decision.
+
+**Option A — delete the seed preference when a measured estimate exists.** One
+branch: under `'auto'`, `source: 'measured'` always uses `tdee.newDailyTarget`.
+Defensible because that number is *already* damped toward the Mifflin anchor by
+`confidence`, so preferring a raw onboarding seed over it is preferring less
+information over more. Moves the two accounts above by **+144 / −140**, on the
+day it ships, and removes the discontinuity by removing the branch.
+
+**Option B — blend, don't switch.** `confidence * estimator + (1 − confidence) *
+seed`, only where `source === 'measured'`. Measured effect today: `xFm6lDvP…`
+2,130 → **2,247 (+117)**, `nyJRLyDJ…` 1,640 → **1,582 (−58)**. Every other
+account is byte-identical. This is the repo's own idiom — it is what
+`measuredConfidence` already does, and its doc comment names making a mode
+boundary "a ramp instead of a second cliff" as the goal.
+
+**B also closes the dossier's open item 1 for seeded accounts.** At the
+formula→measured crossing `byEvidence` is 0, so confidence is 0 and the blend
+returns the seed — the same number the day before. Continuous by construction,
+which is the argument that retired the −449 kcal day-14 cliff for accounts
+*without* a manual value; accounts *with* one never got that fix.
+
+**Recommendation: A, with B as the conservative variant.** A is simpler, deletes
+code rather than adding a formula, and stops a heuristic outranking a measured
+estimate. B is the smaller immediate move (+117/−58 vs +144/−140) and is
+continuous everywhere. **Either way it needs a `WHATS_NEW` decision and a
+device-verified OTA on an account that actually moves — not the owner's.**
+
+### Folded in: marker-only days (§3) are real and immaterial
+
+Measured on the same pass: **3 accounts, 3 days total, across all of PROD**; the
+owner has **0**. A day whose only row is the exercise-streak marker does inflate
+`loggingCompletenessPct` without adding intake evidence, exactly as §3 says —
+but at three days across the entire user base it cannot move anyone across the
+70% bar. It rides along with whichever option ships, or it is dropped; it does
+not justify a change of its own.
 
 `reliable = loggingCompletenessPct >= 70`. The owner's account sits at
 **42/63 = 67%**, just under the bar, so `reliable` is false and
@@ -154,6 +236,11 @@ owner's account (all ten markers landed on days that already had meals, so
 `window.length` is unchanged), and fixing it moves the 70% boundary for other
 users — which is exactly the change §0 says to hold until the cliff is
 re-evaluated. **Leave it; fold it into that re-evaluation.**
+
+**MEASURED 2026-09-04, and it is immaterial: 3 accounts, 3 marker-only days, in
+the whole of PROD.** The owner has none. So the inflation is real and cannot
+move anybody across the 70% bar. It is now folded into §0's options rather than
+standing as its own item — it does not justify a change of its own.
 
 Provenance note: pre-August markers look different — April/June rows carry
 `exerciseCompleted: true` on a REAL meal log, because the retired web store set
