@@ -11,6 +11,10 @@ amended: Play Data safety now lists *Device or other IDs* (collected, not
 shared, optional, app functionality) — sending it **restarted the vc 44 review**
 on the owner's call, since a reviewer finding an undeclared identifier costs
 more than a re-queue — and ASC App Privacy now lists *Device ID*, published.
+**The silent OTA push is proven end-to-end** — the owner's first real
+`announce-ota.mjs --platform android` run: *recipients 6 · sent 6 · errors 0 ·
+tokens cleared 0*, 4.5 s. Six Android devices already held a token. #112 and
+#114 are closed on that evidence.
 
 **Two Sentry events and one Play email, and they are the same story.** At
 20:35 UTC the `review@ignia.fit` account, on a Samsung SM-A235F / Android 14
