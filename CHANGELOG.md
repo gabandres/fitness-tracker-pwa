@@ -1,5 +1,38 @@
 # Changelog
 
+## 2026-09-04 — account deletion was leaving data behind, because the fix was merged and never deployed
+
+Found by accident, and the mechanism is worth more than the bug. A test account
+deleted from the app at 15:34 left two `milestones` docs behind. `milestones`
+has been in `USER_SUBCOLLECTIONS` since **2026-08-29** (`a15bc963`), the source
+was right, and `gdpr-collection-parity.spec.ts` — the spec written precisely to
+stop that list drifting — passed the whole time.
+
+The live `deleteAccount` revision was **built 2026-08-26, three days before the
+fix**. Production was running older code. Both erasure (Art. 17) and export
+(Art. 20) read that one constant, so a single stale deploy broke both
+obligations at once, silently and in the one direction nobody audits: data you
+keep forever.
+
+By then **24 files under `functions/src` had changed since the last broad
+deploy** and most of the 56 functions were still on 2026-08-26 code. All are now
+redeployed. The database was audited for the full extent rather than assumed —
+`users` has 43 records including "missing" docs that still hold subcollections,
+and exactly **one** orphaned uid existed. Its two docs are deleted.
+
+**The durable part is a new `npm run doctor` check.** There is no CI here, so
+"merged" and "deployed" are separate facts and nothing connected them. It
+compares the newest deploy against the last `functions/src` commit and fails
+when the code has moved and nothing has shipped.
+
+Its first version compared each function's own timestamp, which looks obvious
+and is wrong — deploying from a clean tree and committing a minute later leaves
+every function "older" than the commit, and it duly failed on a perfectly
+current deployment. The trade in the version that shipped is that a partial
+deploy still passes; catching that needs a per-function map of transitively
+imported sources, which is more machinery than this failure justifies. The
+oldest revision is printed even on a pass, so a lopsided spread stays visible.
+
 ## 2026-09-04 — a provider refusal stops blaming your photo, and Google Sign-In stops inheriting a stale session
 
 **Two user-facing failures, both of which had been misattributed to the user.**
