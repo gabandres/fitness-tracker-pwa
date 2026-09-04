@@ -1,28 +1,29 @@
 /**
- * Health Connect's period aggregation takes an INSTANT.
+ * Health Connect's daily aggregation of active energy, and the two ways it
+ * threw in production.
  *
- * `react-native-health-connect@3.5.3` builds the period request with
- * `getTimeRangeFilterLocal`, whose body is
- * `Instant.parse(startTime).atZone(zone).toLocalDateTime()` — it wants an ISO
- * instant and does the local conversion itself. We used to send a local-naive
- * string (`2025-07-30T00:00:00`), which never reaches a `LocalDateTime`: it dies
- * in `Instant.parse` with *could not be parsed at index 19*, index 19 being
- * where the missing offset should have started.
+ * On `react-native-health-connect@3.5.3` the PERIOD API cannot read
+ * `ActiveCaloriesBurned` at all: its request builder uses the instant filter
+ * helper while Health Connect's `AggregateGroupByPeriodRequest` demands a
+ * `LocalDateTime` one. A local-naive string dies in `Instant.parse`
+ * (`IGNIA-MOBILE-S`, "could not be parsed at index 19"); an instant gets past
+ * that and dies in Health Connect ("Either use TimeRangeFilter with
+ * LocalDateTime or AggregateGroupByDurationRequest", `IGNIA-MOBILE-T`). Both
+ * shipped. The fix is the DURATION API, whose builder and request agree.
  *
- * **What that cost is why this file exists.** The rejection took `importScalars`
- * down with it, and `activeEnergy` is the LAST of `IMPORT_KINDS` — so weight,
- * sleep and water imported fine while active energy never landed once, and
- * `importHealthWorkouts`, which runs after `importScalars`, never ran at all.
- * The whole Android half of cardio import (ADR-0026) was dead behind an error
- * no screen showed. Six Sentry events (`IGNIA-MOBILE-S`) on the evening vc 44
- * reached Play production, from the first device that ever held a working
- * Health Connect grant — which is also why four binaries shipped with it.
+ * **What that cost is why this file exists.** The rejection took
+ * `importScalars` down with it, and `activeEnergy` is the LAST of
+ * `IMPORT_KINDS` — so weight, sleep and water imported fine while active
+ * energy never landed once, and `importHealthWorkouts`, which runs after
+ * `importScalars`, never ran at all. The whole Android half of cardio import
+ * (ADR-0026) was dead behind an error no screen showed, from the first devices
+ * that ever held a working Health Connect grant.
  *
  * The dynamic `import()` of the native module cannot be exercised under jest,
- * so the filter builder is exported and pinned here — the same seam, and the
- * same reason, as `hkSampleFilter`.
+ * so the filter builder and the bucket-keying rule are exported and pinned
+ * here — the same seam, and the same reason, as `hkSampleFilter`.
  */
-import { hcPeriodFilter } from '@/lib/health';
+import { hcBucketDateKey, hcPeriodFilter } from '@/lib/health';
 
 /** Anything `Instant.parse` accepts ends in `Z` or a `±HH:MM` offset. An
  *  offset-less local date-time is exactly what threw. */
@@ -68,7 +69,52 @@ describe('hcPeriodFilter', () => {
     expect(days).toBeLessThan(401);
   });
 
-  it('is a between-filter, the operator the period request requires', () => {
+  it('is a between-filter, the operator the duration request requires', () => {
     expect(hcPeriodFilter(30, now).operator).toBe('between');
+  });
+});
+
+/**
+ * The bucket-keying rule, which is the half that carries the DST risk.
+ *
+ * Switching from `aggregateGroupByPeriod` to `aggregateGroupByDuration` traded
+ * a calendar-aware slicer for a fixed 24 h one. That is the only way to read
+ * active energy at all on `react-native-health-connect@3.5.3` (see
+ * `hcPeriodFilter`), and the price is that bucket boundaries drift by an hour
+ * across a DST transition. Keying by the MIDPOINT is what absorbs the drift;
+ * these cases exist so nobody "simplifies" it back to the start.
+ */
+describe('hcBucketDateKey', () => {
+  /** Local midnight on the given local date, as the instant the OS returns. */
+  const localMidnight = (y: number, m: number, d: number) => new Date(y, m - 1, d).toISOString();
+
+  it('keys an exactly-aligned bucket to its own day', () => {
+    expect(hcBucketDateKey(localMidnight(2026, 9, 3))).toBe('2026-09-03');
+  });
+
+  it('keys a bucket that starts an hour EARLY to the intended day', () => {
+    // Clocks went back: the fixed 24h boundary now lands at 23:00 the night
+    // before. Keying off the start would file this day's burn under yesterday
+    // — and would keep doing it for every remaining day of the import.
+    const anHourEarly = new Date(new Date(2026, 8, 3).getTime() - 60 * 60 * 1000);
+    expect(hcBucketDateKey(anHourEarly.toISOString())).toBe('2026-09-03');
+  });
+
+  it('keys a bucket that starts an hour LATE to the intended day', () => {
+    const anHourLate = new Date(new Date(2026, 8, 3).getTime() + 60 * 60 * 1000);
+    expect(hcBucketDateKey(anHourLate.toISOString())).toBe('2026-09-03');
+  });
+
+  it('reads the instant form the duration API returns, not a local-naive one', () => {
+    // Duration slicing hands back `Instant.toString()`, so the value always
+    // carries a `Z`. This pins that we parse it as a moment.
+    const key = hcBucketDateKey(new Date(2026, 0, 15, 0, 0, 0).toISOString());
+    expect(key).toBe('2026-01-15');
+  });
+
+  it('does not throw on a missing startTime', () => {
+    // The field is optional on the wire; a bad bucket must not take the whole
+    // import down, which is the failure class this whole file exists for.
+    expect(() => hcBucketDateKey(undefined)).not.toThrow();
   });
 });
