@@ -40,15 +40,22 @@ cancelled picker (the user meant it) and never on `DEVELOPER_ERROR` (it will
 fail identically forever, and that is the failure you want surfaced — it broke
 100% of Play installs twice in one week).
 
-**Verified end to end on the LG** against the published OTA: the picker opened
-and *stayed* open, an account was chosen, and Firebase rejected the link with
-*"That account is already its own separate Ignia account"* — a business rule it
-could only apply after accepting the credential, so the whole native path
-including token exchange is proven. **The INTERNAL_ERROR itself is not
-reproducible** (two events in sixteen days) and the OnePlus is PIN-locked, so
-this is reasoned from the trace. It is instrumented for the next occurrence: a
-`google: INTERNAL_ERROR, retrying once from a clean session` breadcrumb will say
-whether the clean retry succeeds.
+**Verified on BOTH devices, including the one that failed.** On the LG the
+picker opened and *stayed* open and Firebase rejected the link with *"That
+account is already its own separate Ignia account"* — a rule it could only apply
+after accepting the credential, so token exchange is proven. Then on the
+**OnePlus KB2005 itself**, once the owner unlocked it: the phone was found
+**signed out**, which is the exact state the failing event came from
+(`signInWithGoogle`, not `linkGoogle`) and is the state the 03:27 failure left it
+in. *Continue with Google* signed straight into `gabilon2011@gmail.com` at
+15:19:28 GMT with **no `ApiException` and no new Sentry event** — `IGNIA-MOBILE-C`
+still stands at 2, last seen 03:27.
+
+That is one clean pass on the failing device, not proof the race is gone: the
+bug fired twice in sixteen days, so a single success cannot distinguish "fixed"
+from "did not happen to fire". It stays instrumented — a
+`google: INTERNAL_ERROR, retrying once from a clean session` breadcrumb on any
+future event will say whether the clean retry rescues it.
 
 **And a What's new banner**, on the owner's instruction — the first bump that
 announces something *fixed* rather than gained. Anyone who tried to scan during
