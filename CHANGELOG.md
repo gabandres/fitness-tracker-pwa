@@ -102,7 +102,13 @@ stayed detected until the internal track moved off vc 39 too), and the three
 changes sent for review. iOS: build 63 uploaded with `xcrun altool` after the
 EAS Submit free-tier queue sat idle for 20 minutes, attached to App Store
 1.2.2 with What's New in en-US and es-MX, submitted, release after approval.
-Both OTA channels now target the new runtimes (`68ea2dd3…` / `20a395de…`).
+Both OTA channels now target the new runtimes (`68ea2dd3…` / `20a395de…`),
+and the first OTA on each is already published: the **1.2.2 What's new
+banner** (`a7e2612a`, `WHATS_NEW_VERSION` → `2026-09-03-new-icon`, en / es-PR /
+pt-BR), pre-staged so it downloads on the first launch after the store update
+and shows on the second. Device-verified on the LG — it queued behind the tour
+and the recalibration card first, which is the nudge precedence working, not
+the banner failing.
 
 ## 2026-09-02 — The first-launch moment: a welcome intro the flame catches into, before the sign-in form
 
