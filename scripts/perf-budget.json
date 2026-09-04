@@ -1,12 +1,12 @@
 {
   "platforms": {
     "android": {
-      "bundleRaw": 12859559,
-      "bundleGzip": 5220388,
+      "bundleRaw": 13343009,
+      "bundleGzip": 5429782,
       "assetBytes": 1569766,
       "headroomPct": 5,
-      "measuredAt": "2026-08-23",
-      "measuredAtCommit": "f7425686"
+      "measuredAt": "2026-09-04",
+      "measuredAtCommit": "cf0953d4"
     },
     "ios": {
       "bundleRaw": 12685099,
