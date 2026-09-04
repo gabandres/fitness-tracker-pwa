@@ -203,6 +203,42 @@ export const type = {
 } as const;
 
 /**
+ * The Today header title's two numbers, which have to agree.
+ *
+ * The title is `type.display` at `font.h1` inside a block with a fixed
+ * `minWidth` floor. The floor is in dp and does NOT scale; the text does, so
+ * past some font scale the title outgrows its own floor and — with no
+ * `numberOfLines` on it, deliberately — HARD-CLIPS rather than ellipsizing.
+ *
+ * Reproduced on the LG VS988 at `font_scale 1.15` on 2026-09-04: the block
+ * stayed pinned at 384px/density 4 = 96dp while "Today" needed ~100dp, and the
+ * header rendered **"Toda"** — the identical failure to publish 4 of the
+ * 2026-09-04 header thrash, arriving through a door that fix did not cover. It
+ * is reachable in two notches of iOS *Larger Text* (xxLarge ≈ 1.12), so it hits
+ * users who turned on an accessibility setting.
+ *
+ * `advanceHint` is MEASURED, not guessed: CoreText — the iOS text engine — on
+ * the bundled `Manrope_800ExtraBold` TTF gives "Today" an advance of 87.15pt at
+ * 30pt. The Android screenshot ink measurement that produced `minWidth` read
+ * 86.7dp, agreeing to 0.5%, which is expected and is the point: the face is
+ * bundled, so both platforms read advances from the same file. (es-PR "Hoy"
+ * 57.33, pt-BR "Hoje" 68.10 — no locale is near the limit.)
+ *
+ * So the cap is derived, not chosen: 96 / 87.15 = 1.1015. Capping at 1.1 makes
+ * "the title cannot outgrow its floor" true by construction.
+ * `header-title-fit.test.ts` fails if either number is changed without the
+ * other, so they cannot drift apart again.
+ */
+export const headerTitle = {
+  /** dp floor on the title block. */
+  minWidth: 96,
+  /** Ceiling on OS font scaling for the title only. */
+  maxFontScale: 1.1,
+  /** Measured advance of the widest title string, dp at `font.h1`. */
+  advanceHint: 87.15,
+} as const;
+
+/**
  * Motion tokens — every animation in the app draws from these so timing feels
  * like one system. `spring.*` are Reanimated `withSpring` configs; `press` is
  * tight (micro-interaction), `gentle` settles slower (rings, sheets, heroes).

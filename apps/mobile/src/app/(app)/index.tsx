@@ -37,7 +37,7 @@ import { useWidgetSync } from '@/hooks/useWidgetSync';
 import { enterUp, PressScale, usePulse } from '@/lib/motion';
 import { recordPositiveMoment } from '@/lib/reviewPrompt';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { FAB_BAND, font, radius, space, type } from '@/theme';
+import { FAB_BAND, font, headerTitle, radius, space, type } from '@/theme';
 import { formatDate } from '@/lib/date-format';
 
 /** Streak length below which a streak extension is too early to read as
@@ -318,7 +318,14 @@ export default function Today() {
               on the OnePlus, because the two render the face at slightly
               different widths. The screen's own name is the last thing that
               should be abbreviated; the date already has the constraint. */}
-          <Text style={styles.title}>{t('nav.today')}</Text>
+          {/* The cap is what keeps the block's `minWidth` floor honest — the
+              floor is fixed dp and the text scales, so without it the title
+              outgrows the floor and hard-clips. Both numbers live in
+              `theme.headerTitle` and are pinned together by
+              `header-title-fit.test.ts`. */}
+          <Text style={styles.title} maxFontSizeMultiplier={headerTitle.maxFontScale}>
+            {t('nav.today')}
+          </Text>
           <Text style={styles.date} numberOfLines={1}>{todayLabel(locale)}</Text>
         </View>
         <View style={styles.headerRight}>
@@ -612,7 +619,15 @@ function createStyles({ colors }: Theme) {
     //
     // `flexShrink` stays as the safety net for a locale wider than this one,
     // but it can no longer eat the title.
-    headerTitleBlock: { flexShrink: 1, minWidth: 96 },
+    // **The floor alone was not enough, and the gap was an accessibility one.**
+    // It is fixed dp; the text scales with the OS setting, so at
+    // `fontScale >= 96/87.15 = 1.102` the title outgrew the floor and — with no
+    // `numberOfLines`, deliberately — HARD-CLIPPED. Reproduced on the LG at
+    // `font_scale 1.15` on 2026-09-04: block pinned at 96dp, header read
+    // "Toda". Two notches of iOS *Larger Text* reaches it. The other half of
+    // the fix is `maxFontSizeMultiplier` on the title above; see
+    // `theme.headerTitle` for the measurement both numbers come from.
+    headerTitleBlock: { flexShrink: 1, minWidth: headerTitle.minWidth },
     headerRight: { flexDirection: 'row', alignItems: 'center', gap: space.md, flexShrink: 0 },
     shareCapture: { position: 'absolute', left: -10000, top: 0, opacity: 0 },
     streakChip: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.pill, paddingHorizontal: space.sm, paddingVertical: 3 },
