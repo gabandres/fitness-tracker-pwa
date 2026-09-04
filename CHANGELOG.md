@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-09-04 — the exposed Gemini client key is deleted, and it was already dead
+
+AI Studio flagged `Fitness Tracker Gemini (client)` as a publicly exposed API
+key. It was: it sat in `src/environments/environment.ts` in this PUBLIC repo
+until `15da1e2b` (2026-07-01), and the history was never rewritten, so it stayed
+readable there forever.
+
+Three checks before deleting, because a wrong call here stops a function booting
+— the `USDA_FDC_API_KEY` audit already proved a loop-based scan can silently fail
+every read and report "nothing binds it".
+
+  - Scanned in ONE call, never per-service: `analyzephoto`, `consultationstream`
+    and `generateweeklyreport` bind Secret Manager `GEMINI_API_KEY`, whose value
+    SHA-256-matches the *server* key (`79a1ffc3…`), not this one (`c8357f5f…`).
+  - Zero tracked files reference it.
+  - It was already dead. A live probe returned `403 "Your API key was reported as
+    leaked. Please use another API key."` — with AND without an allowed `Referer`,
+    so Google had disabled it independently of its browser restriction. Deletion
+    could not break anything that was not already broken.
+
+So the note that the card and auto-reload on the new billing account raised the
+stakes here was the opposite of true: there was no billing exposure through this
+key at all. Deleting it is hygiene, and it removes the exposure permanently. Four
+keys remain — the Gemini server key and the three Firebase auto-created ones.
+
+Recorded and deliberately NOT attributed: `generativelanguage.googleapis.com`
+took 241 HTTP 403s in 30 days, 4–23 every single day, against 121 successes and 9
+429s, and none of our functions log a `PERMISSION_DENIED`. `credential_id` is not
+a label on that metric, so it cannot be tied to this key either way.
+
 ## 2026-09-04 — the 70% reliability cliff is gone: a measured estimate now governs from day one of measured mode
 
 **Three points of logging completeness used to decide which number ran a user's
