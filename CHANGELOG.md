@@ -1,5 +1,79 @@
 # Changelog
 
+## 2026-09-04 — two TDEE correctness fixes: the redo that overwrote a measured target, and the half-eaten day in the intake mean
+
+Shipped by OTA to **both** platforms (Android group `4a56c514`, iOS group
+`11edfb2f`, both from `eb1e3c2c`) — the first publish of the project with
+neither channel shut, so both reach the public on next launch.
+
+**The onboarding redo was overwriting a measured target with a heuristic seed.**
+Settings' *Edit goals* was `router.push('/onboarding')` — the entire wizard —
+and finishing it wrote `manualCaloriesTarget`/`manualProteinTarget`
+unconditionally. Under `targetMode: 'auto'` a stored manual value outranks a
+measured estimate that is not `reliable` (the third branch of `dailyTargets`),
+so an established user who re-ran onboarding to change one thing had their
+measured target silently replaced by a number derived from a single weigh-in:
+**1,905 → 2,080** on the owner's account, with nothing on screen saying so.
+
+The write is *correct* for a new account — `calculateTdee` has nothing to
+measure under 14 logged days and the alternative is a hardcoded 2,450 — so the
+fix is conditional, not a removal. `OnboardingV2Submission.isRedo` suppresses
+the pair only on an `'auto'` redo. **A redo that EDITED either number is
+`'custom'` and still writes it**, because `dailyTargets` reads custom mode off
+that same pair; dropping it there would hand the target straight back to the
+estimator the user was overriding, which is the Abdiel Medina complaint in
+reverse. Omitted rather than deleted, so no profile that already carries a seed
+moves. Onboarding was also writing the protein FLOOR (115 g) into the protein
+TARGET; `proteinPerKg: 1.9` outranked it so it never applied, but it was the
+fallback and it sits below the owner's 140 g dossier floor.
+
+The label was the other half of the same bug: *Edit goals* promised a goal
+editor and delivered a full re-onboarding, while the real goal editor — the
+Daily targets row — sat directly above it. It now reads **"Redo setup"** with
+the caption *"Asks every setup question again"*, in all three locales. That also
+answers a question the backlog had left open: onboarding was not reached by a
+routing-gate failure (`profileCompleted` was `true` and `assessRoute` correctly
+returned `'app'`), it was reached deliberately through a mislabelled button.
+
+**The day still in progress was being counted as a whole day of intake.**
+`aggregateByDay` handed the estimator whatever had been logged so far today as
+if the day were over, so the intake mean fell every morning and recovered every
+evening — lowest exactly when someone is most likely to open the app — and a
+suppressed maintenance is a *larger* deficit than intended. `calculateTdee` now
+takes a `now` and zeroes the calories on any day keyed ≥ today's.
+
+Zeroed rather than dropped, and that is the whole subtlety: only the intake mean
+is wrong about an unfinished day, while today's **weigh-in** is as final as any
+other and belongs in the regression. Every intake path filters `c > 0` while
+`loggingRuns` splits on dates and the slope fit reads `weight`, so zeroing
+removes the day from exactly one of the two terms. The clock is a parameter for
+the reason `trainHeroStats(sessions, now)` takes one — `recalibrationDigest`
+promises "no I/O, no clock" in its own doc comment and passes `opts.now` down
+rather than letting the estimator read a clock underneath it.
+
+Measured on the owner's account before shipping, because this moves every user's
+displayed target: **+30 kcal** at 1,470 logged, **+48 kcal at 08:00** with one
+meal in. Always in the direction of a deeper deficit before the fix, always
+largest in the morning — which matters against an 1,850 floor that exists for a
+gallbladder rather than a preference.
+
+Device-verified on both phones against the published bundle. The OnePlus holds
+the owner's account and reads **maintenance 2,394 / target 1,944**, the post-fix
+values; the LG's QA account reads **2,241 / 2,641, unchanged — and that was
+predicted before publishing**, because `trimmedMean` drops exactly one minimum
+and that account's 441 kcal partial day *is* the minimum, so there was nothing
+for the fix to remove. Full readings in `apps/mobile/AGENTS.md`.
+
+**Two things this session did NOT do, both on evidence.** The ten
+`{calories: 0}` rows filed as "phantom meal rows written on workout save" are
+the exercise-day **streak marker** (`workoutMarkerEntry`, ADR-0026 decision 5,
+pinned by `cardio-energy-independence.test.ts`) — deleting them would have
+deleted ten exercise days, and the hazard claimed for them cannot occur because
+every intake path already filters `c > 0`. And the "out-of-range historical
+weight" is two rows, not one, both genuine Apple Health samples imported by a
+HealthKit filter bug that `5c4ae11f` had already fixed. Detail in
+`docs/training-backlog.md` §3 and §8.
+
 ## 2026-09-04 — account deletion was leaving data behind, because the fix was merged and never deployed
 
 Found by accident, and the mechanism is worth more than the bug. A test account

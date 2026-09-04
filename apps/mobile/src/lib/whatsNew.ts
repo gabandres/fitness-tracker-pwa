@@ -36,6 +36,19 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // time, so anyone who tried has a concrete memory of it failing and no way to
 // know it works again. A banner is the only channel that reaches them: an OTA
 // carries no store release notes.
+// NOT bumped 2026-09-04 (second OTA of the day: the onboarding-redo overwrite
+// and the in-progress-day TDEE fix). Recorded because a non-bump is a decision
+// here, and the owner asked for the banner "if needed". Three reasons it was
+// not: (1) `2026-09-04-scan-fixed` above shipped hours earlier and users see a
+// banner on their SECOND launch, so most have not reached it — a re-bump would
+// replace a message they never saw, and that message is the one the owner
+// explicitly asked for; (2) the same-day re-bump precedent already recorded
+// above (the first mobility OTA declined for exactly this reason: it nags
+// whoever dismissed the banner hours earlier); (3) what a user would notice is
+// their calorie target moving ~2%, UPWARD, and stopping its daily sag — the
+// benign direction. The onboarding half is invisible unless you re-run the
+// wizard. If the target move does draw questions, the banner is the channel —
+// bump then, with copy about the target, not about the bug.
 export const WHATS_NEW_VERSION = '2026-09-04-scan-fixed';
 
 const KEY = 'whatsNew.seen';
