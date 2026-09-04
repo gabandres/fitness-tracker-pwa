@@ -29,10 +29,32 @@ This file is only the parts that are code.
 - An activation at RIR 0 or RIR 4+ no longer produces a load recommendation, and
   the UI says which reason applied (`activation-validity.ts`).
 - The finish sheet lists unreadable lifts without blocking the save.
+- **The onboarding redo no longer overwrites a measured target** (was §0's
+  dangerous half). `toOnboardingV2Patch` omits `manualCaloriesTarget` /
+  `manualProteinTarget` on an `'auto'` redo; a redo that EDITED a number is
+  `'custom'` and still writes it. The first-run path is byte-identical.
+- **The day still in progress is out of the TDEE intake mean** (was §1).
+  `calculateTdee` takes a `now` and zeroes today's calories, keeping today's
+  weigh-in in the regression. Measured on the owner's account: +30 kcal at
+  1,470 logged, **+48 kcal at 08:00** with one meal in — always in the
+  direction of a deeper deficit before the fix.
+- **Settings' "Edit goals" is now "Redo setup"**, with a caption. It pushed the
+  whole wizard while the actual goal editor sat directly above it, which is the
+  answer to §0's "how was onboarding reached at all" — it was not an accidental
+  route, it was a mislabelled deliberate one.
 
 ---
 
-## 0 · The 70% reliability cliff, and what it let happen — HIGHEST PRIORITY
+## 0 · The 70% reliability cliff — the HAZARD is fixed, the cliff is not
+
+**Read this first: the dangerous half shipped on 2026-09-04.** The overwrite
+described below can no longer happen — an `'auto'` redo writes no manual target
+— so what is left here is an ordinary confidence boundary, not a data-loss
+route. The threshold was deliberately NOT changed in the same sitting: a
+threshold change moves every user's target, and the cliff was only sharp
+*because* a manual value could outrank the estimator. Re-evaluate now that it
+cannot. The account below is kept because it is still the argument for why the
+boundary wants a ramp.
 
 `reliable = loggingCompletenessPct >= 70`. The owner's account sits at
 **42/63 = 67%**, just under the bar, so `reliable` is false and
@@ -63,15 +85,25 @@ Three separate problems live here, and the third is the dangerous one:
    but it was sitting there as the fallback, and if `proteinPerKg` ever went
    absent it would have governed.
 
-**Also unexplained and worth finding: how onboarding was reached at all.**
-`profileCompleted` was `true` before the write, so `assessRoute` could only
-return `'app'`; the gate did not fail. `onboarding.tsx` has an `isRedo` branch,
-so a deliberate redo is supported — an accidental one is the bug. Until that is
-understood, any account can have its targets overwritten the same way.
+**ANSWERED 2026-09-04: onboarding was reached on purpose, through a button that
+lied about what it did.** Settings → "Edit goals" was
+`router.push('/onboarding')` — the entire wizard — while the actual goal editor,
+the Daily targets row, sat directly above it. The gate was never involved:
+`profileCompleted` was `true`, so `assessRoute` could only return `'app'`, and
+it did. Both halves are now fixed — the button reads "Redo setup" with a caption
+saying it asks every setup question again, and the write is conditional on
+`isRedo`.
 
-## 1 · The in-progress day is in the TDEE intake mean — DECISION NEEDED
+## 1 · The in-progress day in the TDEE intake mean — SHIPPED 2026-09-04
 
-**The one with a medical edge, so it goes first.**
+**Done, on `main`, not yet on a device.** `calculateTdee` takes a `now` and
+zeroes the calories on any day whose key is ≥ today's, keeping today's weigh-in
+in the weight regression. Measured on the owner's account: **+30 kcal** at 1,470
+logged, **+48 kcal at 08:00** with one meal in — always in the direction of a
+deeper deficit before the fix, always largest in the morning. Delete this
+section once it reaches users; the account below is why it was done.
+
+**The one with a medical edge, so it went first.**
 
 `aggregateByDay` sums whatever has been logged today and hands it to the estimator
 as if the day were over. Measured on the owner's account 2026-09-04: a partial
@@ -91,22 +123,41 @@ testability argument are both already in the codebase.
 
 **Evidence:** `scratchpad/workstream-c-evidence-{1,2}.txt` (day-by-day replay).
 
-## 3 · Phantom meal row written on workout save
+## 3 · The "phantom meal row on workout save" — NOT A BUG. Do not delete them.
 
-Ten rows on the owner's account, `{calories: 0}` with no label, no protein, no
-flags. Dates match the workout sessions exactly (8/04, 8/06, 8/12, 8/18, 8/24,
-8/26, 8/27, 8/31, 9/02, 9/03).
+**This item was wrong on both halves, and the rows were read to find out
+(2026-09-04). Nothing here should be fixed or cleaned up.**
 
-**Harmless to the TDEE** — every one landed on a day that already had meals, so
-they sum into an existing total; deleting all ten moves the estimate by 1 kcal.
-That is measured, and it is why this is not item 1.
+The ten rows are `{calories: 0, exerciseCompleted: true}`, **not** "no label, no
+protein, no flags". That flag is the whole point of them: they are the
+exercise-day streak marker that `markExercised` writes, from
+`workoutMarkerEntry()` in `packages/core/src/cardio.ts`, and the zero is
+deliberate — it is ADR-0026 decision 5, pinned by
+`cardio-energy-independence.test.ts`, so that an imported cardio calorie can
+never reach a target. `markExercised` writes one only when the day has no
+exercise-marked log already. **Deleting the ten would delete ten exercise days
+from the streak**, and stopping the writer would break the streak outright.
 
-Still worth fixing: they are junk rows in the user's own food log, and the
-*reason* they are harmless is luck about this account's logging habits, not
-design. A user who logs a workout on a day they ate nothing would get a real
-0-kcal day in the window.
+The stated hazard cannot happen either. "A user who logs a workout on a day
+they ate nothing would get a real 0-kcal day in the window" — no: every intake
+path filters `c > 0` (`intakeCals` in `calculateTdee`, `cals` in
+`measuredFromRuns`), so a zero never enters the mean, on any account. The
+measured "1 kcal impact" was right for the wrong reason: it is zero by
+construction, not by luck.
 
-Find the writer, stop it, then clean up the ten rows.
+**What IS real, and is small.** `loggingCompletenessPct` is
+`window.length / spanDays`, and a day whose ONLY row is the marker counts as a
+logged day while contributing no intake — so a workout-on-a-fast day inflates
+completeness without adding evidence. It pushes toward `reliable`, i.e. the
+opposite direction from the hazard this item claimed. It changed nothing on the
+owner's account (all ten markers landed on days that already had meals, so
+`window.length` is unchanged), and fixing it moves the 70% boundary for other
+users — which is exactly the change §0 says to hold until the cliff is
+re-evaluated. **Leave it; fold it into that re-evaluation.**
+
+Provenance note: pre-August markers look different — April/June rows carry
+`exerciseCompleted: true` on a REAL meal log, because the retired web store set
+the flag on an existing row instead of writing its own. Both shapes are valid.
 
 ## 4 · The split-cluster rule is enforced in code but not expressible in a template
 
@@ -148,14 +199,49 @@ concrete case attached.
 dead catalog rows.
 
 `mergeCatalogExercises` already exists in `useTrain`. This is a data cleanup, not
-a feature.
+a feature. **Not started 2026-09-04** — it is a prod write, and the workstation's
+permission gate refused every route to prod in that session (reads included), so
+the catalog was never even enumerated. Nothing is known beyond what is above.
 
-## 8 · Out-of-range historical weight
+## 8 · Out-of-range historical weight — DIAGNOSED. Neither the date nor the value.
 
-`dailyWeights` holds `184.9998490935815` under key **`2017-06-22`** — nine years
-before the account existed. `cut-dossier.md` §8 item 9 records this as
-*2026-06-22*; the stored key is 2017. Worth confirming which is wrong before
-touching it, since a date-derivation bug and a bad value need different fixes.
+**Confirmed 2026-09-04 by reading the rows, and it is a third possibility the
+item did not list: both are correct and the rows should not exist.**
+
+There are **two**, not one, and they were written in the same second:
+
+  `2017-06-22` = 184.9998490935815   created 2026-09-02T03:01:22.355Z
+  `2022-09-13` = 185                 created 2026-09-02T03:01:22.027Z
+
+Nothing else on the account was touched in that minute — no `dailyActivity`, no
+`dailySleep` — which is what a Health import looks like when only two values
+have changed. They are **genuine Apple Health BodyMass samples**: the fractional
+tail is a kg round-trip, the same signature the legitimate 2025-12 cluster
+carries.
+
+**Cause, and it is already fixed.** HealthKit `readSamples` passed a flat
+`{startDate, endDate}` filter that `@kingstinct/react-native-healthkit` ignores
+— it reads `filter.date` — so with `limit: 0` every weight/water/sleep import
+read the entire store and the 400-day `IMPORT_DAYS` window never applied.
+Commit `5c4ae11f` (2026-09-01) fixed it with `hkSampleFilter`; these two rows
+came from the last un-fixed run, ~20 minutes later on the device. So there is
+**no code left to fix here.**
+
+`cut-dossier.md` §8 item 9 records the key as *2026*-06-22. The dossier is
+wrong; the stored key is 2017 and it is the real date of a real weigh-in.
+
+**Impact is cosmetic, which is why this is not urgent.** `computeGoalProgress`
+takes the OLDEST `dailyWeights` key as `startWeight`, so the goal bar reads
+185.0 lb from 2017 — but removing both strays leaves 2025-12-21 at 184.5, and
+the bar reads **80% either way**. Nothing else consumes them: the TDEE window is
+the last 42 logged days.
+
+**Remaining action is a data cleanup only:** delete the two docs, since the
+400-day window the importer intends would never have brought them in. Values
+recorded above so the delete is reversible. **Blocked 2026-09-04** — the
+workstation's permission gate refused every prod write route tried (node +
+firebase-admin, the Firebase MCP, a direct file write), so it needs a session
+that can perform them.
 
 ---
 
