@@ -1,5 +1,67 @@
 # Changelog
 
+## 2026-09-04 — `first-scan` is awardable at last, and Sentry caught a parse that had silently killed Android activity + cardio import
+
+**The Health Connect bug is the one worth reading.** Six `IGNIA-MOBILE-S` events
+arrived on the evening vc 44 reached Play production —
+`java.time.format.DateTimeParseException: Text '2025-07-30T00:00:00' could not
+be parsed at index 19` — one per app foreground, and reproduced on demand on the
+LG VS988 (three launches, three events). `react-native-health-connect@3.5.3`
+builds its period-aggregate request with `getTimeRangeFilterLocal`, whose body
+is `Instant.parse(startTime).atZone(zone).toLocalDateTime()`: it wants an
+**instant** and does the local conversion itself. We sent a local-naive string,
+on the reasoning that a period slicer wants a `LocalDateTime` and that
+`toISOString()` would cut every bucket at the wrong hour off UTC. The premise
+was right and the conclusion stopped one step too early — an offset-less string
+never reaches a `LocalDateTime` at all. Read out of the library's source at the
+`v3.5.3` tag rather than inferred; the published docs show the offset-less
+shape, which is a later version.
+
+**What it cost, and why four binaries shipped with it.** `activeEnergy` is the
+LAST of `IMPORT_KINDS`, so weight, sleep and water imported fine while active
+energy never landed once — and `importHealthWorkouts`, which runs after
+`importScalars` in `importAll`, never ran at all. That is the whole Android half
+of cardio import (ADR-0026), the thing vc 44 shipped `READ_EXERCISE` for, dead
+behind an error no screen shows: `useHealthAutoImport` re-throws anything
+unexpected, so it surfaced only as an unhandled rejection in Sentry. It was
+unreachable until 2026-09-03 because no device here had ever held a working
+Health Connect grant. Local bucket anchoring is unaffected — `startOfLocalDay`
+still supplies the instant of local midnight and the library converts it back.
+iOS was never affected; its HealthKit branch has always sent `toISOString()`.
+
+**`first-scan` (#109).** The key had been in the core union, `MILESTONE_ORDER`
+and the deployed `isMilestoneKey` allow-list since 2026-08-29 and awarded to
+nobody, because nothing on a `DailyLog` said a photograph had been involved.
+Now `LogSource` (`'photo'`) is written by `scan.tsx`'s `onAdd` — and
+deliberately **not** by `logRepeat` on the same screen, which makes no model
+call, spends no quota and reads no photograph. Carried through `toLogDoc`,
+`toDailyLog` and `PendingLog` (an offline scan flushing hours later would
+otherwise land indistinguishable from a typed meal — the exact gap this closes,
+reintroduced on the one path nobody would check), and deliberately **not**
+through `toLogPatch`: provenance is a fact about creation, so correcting a gram
+must not strip it.
+
+`firestore.rules` deployed **before** any client could write it, with `source`
+validated against a one-value enum rather than `is string` — a milestone is
+awarded on this field, so a free-text value would let a client bug write
+provenance nothing produced. Confirmed live by reading the deployed ruleset back
+out of the service, not off the deploy log.
+
+The award is made at the write (`useLogWrites.addEntry`, the funnel every in-app
+add passes through), fire-and-forget and never batched with the meal — #97's
+fix documents that a rejected member fails the WHOLE commit, so an award the
+rules refuse would roll back the meal that earned it. `recordMilestone` now
+reports whether it CREATED the document, which is sound only because the
+collection has no `update` rule; that is what fires `recordPositiveMoment`
+exactly once, at a moment the user is present for. `useToday.hasPhotoScan` adds
+a recovery path that costs no read — a field on rows Today already holds — and
+is sufficient-only, since the window is bounded (ADR-0004). The celebration
+needed no new component: the milestone lands in the existing `MilestoneNote`.
+
+`WHATS_NEW_VERSION` NOT bumped, on the standing milestone precedent — a banner
+announcing a record is the forward pressure the feature exists to avoid.
+`meals-100` stays parked. Suites: mobile 707, core 1462, functions+rules 610.
+
 ## 2026-09-03 (late) — Ignia is live on Google Play: vc 44 / 1.2.2 approved the same evening it was submitted
 
 The store URL turned 200 a little after 22:30 local; Play Console reads *Last
