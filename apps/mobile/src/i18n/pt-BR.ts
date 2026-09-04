@@ -184,7 +184,8 @@ export const ptBR = {
   'today.maintenanceRough': '{logged} dos últimos {span} dias registrados — as lacunas deixam isto menos preciso',
   'today.maintenanceHolding':
     'Estável — as pesagens recentes estão espalhadas demais para atualizar isso. Pese-se na maioria dos dias e o número volta a se mover.',
-  'today.maintenanceProvisional': 'Sua meta fica estável enquanto o histórico se completa',
+  'today.maintenanceProvisional':
+    'Por enquanto é em parte a fórmula — vai se aproximando dos seus dados conforme você registra',
   'today.maintenanceOutlier': '1 pesagem ignorada — um salto real de peso pode parecer leitura errada',
   'today.maintenanceOutliers':
     '{n} pesagens ignoradas — um salto real de peso pode parecer leitura errada',

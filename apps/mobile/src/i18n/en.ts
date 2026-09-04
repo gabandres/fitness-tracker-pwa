@@ -199,7 +199,8 @@ export const en = {
   'today.maintenanceRough': '{logged} of the last {span} days logged — gaps make this less certain',
   'today.maintenanceHolding':
     'Holding steady — recent weigh-ins are too scattered to update this. Weigh in most days and it will start moving again.',
-  'today.maintenanceProvisional': 'Your target is held steady while the record fills in',
+  'today.maintenanceProvisional':
+    'Part formula estimate for now — it shifts toward your own data as you log',
   'today.maintenanceOutlier': '1 weigh-in ignored — a real jump in weight can look like a bad reading',
   'today.maintenanceOutliers':
     '{n} weigh-ins ignored — a real jump in weight can look like bad readings',

@@ -187,7 +187,8 @@ export const esPR: Record<I18nKey, string> = {
   'today.maintenanceRough': '{logged} de los últimos {span} días anotados — los huecos lo hacen menos preciso',
   'today.maintenanceHolding':
     'Se mantiene igual — los pesajes recientes están muy regados para actualizarlo. Pésate casi todos los días y vuelve a moverse.',
-  'today.maintenanceProvisional': 'Tu meta se mantiene estable mientras se completa el registro',
+  'today.maintenanceProvisional':
+    'Por ahora es en parte la fórmula — se acerca a tus datos según vas anotando',
   'today.maintenanceOutlier':
     '1 pesaje ignorado — un cambio real de peso puede parecer una lectura mala',
   'today.maintenanceOutliers':

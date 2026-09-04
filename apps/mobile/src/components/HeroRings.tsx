@@ -254,7 +254,23 @@ export function HeroRings({ calConsumed, calTarget, protConsumed, protTarget, ca
           {/* Says what the app DID about a patchy record, not just that it
               noticed one. The caveat above has always said the number is
               rough; until 2026-08-19 the rough number was still shipped as the
-              day's target at full strength. This line is the other half. */}
+              day's target at full strength. This line is the other half.
+
+              Reworded 2026-09-04, and the reason is the line's neighbours. It
+              read "Your target is held steady while the record fills in",
+              which (a) said "steady" while `today.maintenanceHolding` directly
+              above owns that word for a different condition, and (b) started
+              appearing next to "Your target just recalibrated" the moment
+              `tdee-recalibration.ts` stopped gating on `reliable` — so one
+              account could be told its target was frozen and had just moved,
+              in the same card. Seen on a real device the hour it shipped.
+
+              `provisional` itself did not change meaning: it is still
+              `confidence < 1`, still "part of this is the formula anchor
+              rather than your own measurement". Only the copy was wrong, and
+              only about stasis — so the new string states the blend and the
+              direction it moves, and claims nothing about the target holding
+              still. */}
           {maintenance.provisional && !maintenance.holding ? (
             <Text style={styles.maintenanceCaveat} testID="maintenance-provisional">
               {t('today.maintenanceProvisional')}
