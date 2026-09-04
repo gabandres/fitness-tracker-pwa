@@ -1,6 +1,48 @@
 # Changelog
 
-## 2026-09-04 — `first-scan` is awardable at last, and Sentry caught a parse that had silently killed Android activity + cardio import
+## 2026-09-04 — `first-scan` is awardable at last, and Android active-energy import took TWO fixes to work
+
+**The Health Connect story below is only half right, and the correction is the
+lesson.** The `Instant.parse` reading was accurate and the fix built on it was
+still wrong, because it was read from the library's CURRENT source instead of
+the version in `package.json`. On `react-native-health-connect@3.5.3` —
+what we ship — `ReactActiveCaloriesBurnedRecord.getAggregateGroupByPeriodRequest`
+builds its filter with `getTimeRangeFilter`, the **instant** helper, while
+Health Connect's `AggregateGroupByPeriodRequest` requires a `LocalDateTime` one.
+So the period API cannot read active energy on ANY input:
+
+| Sent | Died at |
+|---|---|
+| `2025-07-30T00:00:00` (local-naive) | `Instant.parse` — `DateTimeParseException ... index 19` (`IGNIA-MOBILE-S`, 9 events) |
+| `2025-07-30T04:00:00.000Z` (instant) | Health Connect — `IllegalArgumentException: Either use TimeRangeFilter with LocalDateTime or AggregateGroupByDurationRequest` (`IGNIA-MOBILE-T`, 3 events) |
+
+Both shipped; the second was published as the fix for the first and reached
+production for about an hour. It is a narrow library bug — **22 record types use
+`getTimeRangeFilterLocal` and `ActiveCaloriesBurned` is not one of them**, and
+upstream `main` has since fixed exactly that line. `Steps` was always correct,
+which is why nobody hits it until they aggregate active energy, and why we do:
+Play's Minimum Scope policy stripped `READ_STEPS` from our manifest, leaving
+active energy as the only kind on that path.
+
+**The fix is `aggregateGroupByDuration`**, the alternative Health Connect's own
+exception names: its builder uses the instant helper and its request wants an
+instant filter, so the two agree. Upgrading the library would be a native bump,
+a moved fingerprint and a store release — for a feature that was dead in
+production at that moment. The duration slicer is a fixed 24 h, so boundaries
+drift an hour across DST; `hcBucketDateKey` keys each bucket by its **midpoint**,
+which lands at ~noon of the intended day whichever way the boundary moved.
+Without it, a fall-back transition would file every remaining day of a ~400-day
+import under yesterday.
+
+**Verified on the LG VS988**, the device that produced every one of these
+events: the same *Sync now* button that threw `IllegalArgumentException` at
+13:39 UTC completed at 13:41 reporting *"Synced 0 day(s) from Health"* — zero
+days because that phone holds no `ActiveCaloriesBurned` data, not because the
+call failed. The OnePlus KB2005 cannot verify this at all: every
+`android.permission.health.*` there reads `granted=false`.
+
+**The history below is kept because the first diagnosis was right about
+`Instant.parse` and is still the reason the local-naive form can never work.**
 
 **The Health Connect bug is the one worth reading.** Six `IGNIA-MOBILE-S` events
 arrived on the evening vc 44 reached Play production —
