@@ -45,7 +45,26 @@ This file is only the parts that are code.
 
 ---
 
-## 0 · The 70% reliability cliff — MEASURED 2026-09-04. Owner's call, two options costed.
+## 0 · The 70% reliability cliff — RESOLVED 2026-09-04. Option A shipped.
+
+**Decided and implemented: Option A.** Under `'auto'`, a measured estimate now
+governs regardless of `reliable`; the ramp stays where it already was, in
+`measuredConfidence`. The measurement that produced the decision is kept below
+because it is the only record of what moved and why.
+
+**The accepted cost, chosen with the number in hand.** One real account moves
+silently: `nyJRLyDJ…` drops **1,640 → 1,500** and `recalibrationDigest` returns
+`available: false` for it, because its `ci95Tdee` is **null** on the thin-window
+fallback path and an absent interval fails the precision gate. That gate is
+right to refuse — an estimate that cannot state its own error bar cannot support
+a claim about someone's metabolism. The alternative (require a usable interval
+before the estimator supersedes the seed, making "the target can move" and "we
+can explain the move" the same condition) was costed and **declined by the
+owner**; it would have kept a boundary. `review@` (+144) does get the notice.
+
+`tdee-recalibration.ts` dropped `reliable` from its own gate in the same commit,
+so the two stay in step — the digest now covers every measured account whose
+estimate is precise enough to describe, which is strictly more than before.
 
 **Read this first: the dangerous half shipped on 2026-09-04.** The overwrite
 described below can no longer happen — an `'auto'` redo writes no manual target
@@ -101,7 +120,7 @@ byIntakeDays, byEvidence)` and is already continuous. So the boolean deciding
 float sitting next to it, and the two disagree often enough to see in a
 22-account sample.
 
-### Two options, both costed. Not shipped — this moves targets, so it is a decision.
+### The two options as costed. A was taken.
 
 **Option A — delete the seed preference when a measured estimate exists.** One
 branch: under `'auto'`, `source: 'measured'` always uses `tdee.newDailyTarget`.
@@ -123,11 +142,15 @@ returns the seed — the same number the day before. Continuous by construction,
 which is the argument that retired the −449 kcal day-14 cliff for accounts
 *without* a manual value; accounts *with* one never got that fix.
 
-**Recommendation: A, with B as the conservative variant.** A is simpler, deletes
-code rather than adding a formula, and stops a heuristic outranking a measured
-estimate. B is the smaller immediate move (+117/−58 vs +144/−140) and is
-continuous everywhere. **Either way it needs a `WHATS_NEW` decision and a
-device-verified OTA on an account that actually moves — not the owner's.**
+**A was chosen.** It is simpler, deletes code rather than adding a formula, and
+stops a heuristic outranking a measured estimate. B was rejected because
+`trueTdee` is *already* a confidence blend, so B would damp twice with the same
+coefficient toward two overlapping anchors — the seed is itself Mifflin-derived.
+One ramp, in `measuredConfidence`, is the design.
+
+**Still outstanding on the ship:** a `WHATS_NEW` decision, and device
+verification on an account that actually moves — **not the owner's**, whose cliff
+height is 0. `review@` (`xFm6lDvP…`, +144) is the account that demonstrates it.
 
 ### Folded in: marker-only days (§3) are real and immaterial
 

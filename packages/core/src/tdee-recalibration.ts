@@ -70,7 +70,9 @@ export interface RecalibrationOptions {
 }
 
 export interface RecalibrationDigest {
-  /** Measured mode is active AND reliable — a trustworthy data-driven TDEE. */
+  /** Measured mode is active AND the estimate is precise enough to talk about
+   *  (`ci95Tdee` within the ceiling). No longer requires `reliable` — that
+   *  gate moved out on 2026-09-04 to stay in step with `dailyTargets`. */
   available: boolean;
   /** The data-driven maintenance TDEE (kcal). 0 when unavailable. */
   trueTdee: number;
@@ -153,7 +155,22 @@ export function recalibrationDigest(
   // to keep the in-progress day out of the intake mean.
   const tdee = calculateTdee(merged, adjusted, boundary, new Date(opts.now));
 
-  if (tdee.source !== 'measured' || !tdee.reliable) return { ...UNAVAILABLE };
+  // ── Deliberately NOT `|| !tdee.reliable`, since 2026-09-04 ──
+  //
+  // This gate has to track `dailyTargets`, because this module is what TELLS a
+  // user their target moved. `dailyTargets` stopped gating on `reliable` the
+  // same day (see the long note there): a measured estimate now governs from
+  // the moment measured mode opens, damped by `confidence`. Leaving `reliable`
+  // here would have re-created the original defect in a worse place — the
+  // target would move for accounts below 70% completeness while the only thing
+  // that explains a move stayed silent, which is verbatim the complaint that
+  // motivated `targetMode` (UX_AUDIT, Abdiel Medina, 2026-08-21: a number
+  // changed with nothing saying why).
+  //
+  // Dropping it costs nothing in rigour because `reliable` was never the check
+  // doing the work here — the interval gate below is, and it is strictly
+  // stronger. The comment under it already argued exactly this.
+  if (tdee.source !== 'measured') return { ...UNAVAILABLE };
 
   // ── Precision gate ──
   // `reliable` asks whether enough days were LOGGED. It cannot ask whether the

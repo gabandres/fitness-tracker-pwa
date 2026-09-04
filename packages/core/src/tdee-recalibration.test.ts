@@ -44,13 +44,44 @@ describe('recalibrationDigest', () => {
     expect(d.trueTdee).toBe(0);
   });
 
-  it('is unavailable when measured but not reliable (gappy window)', () => {
-    // 14 weigh-ins every other day → ~50% completeness → not reliable.
+  it('IS available when measured but not reliable — the target moves there too', () => {
+    // 14 weigh-ins every other day → ~50% completeness → `reliable: false`.
+    //
+    // This asserted `available: false` until 2026-09-04, and it had to flip in
+    // the same commit that stopped `dailyTargets` gating on `reliable`. Those
+    // two gates must agree: below 70% completeness the target now follows the
+    // (confidence-damped) estimator, so if this module stayed silent there, a
+    // user's target would move with nothing able to explain it — the exact
+    // complaint that motivated `targetMode`. Precision is still gated, by
+    // `ci95Tdee`; see the case below, which is what actually protects the user
+    // from an announcement the data cannot support.
     const logs: DailyLog[] = [];
     for (let i = 0; i < 14; i++) logs.push(log(27 - i * 2, 2000, 185 - i * 0.1));
     const d = recalibrationDigest(profile, logs, {}, { now: NOW });
-    expect(d.available).toBe(false);
-    expect(d.shouldSurface).toBe(false);
+    expect(d.available).toBe(true);
+    expect(d.trueTdee).toBeGreaterThan(0);
+  });
+
+  it('the interval gate, not `reliable`, is what rejects an imprecise estimate', () => {
+    // The gappy window again, but with a ±0.8 lb zigzag on the weights so the
+    // trend fit has real residuals. The other fixtures here are noiseless —
+    // exactly 2000 kcal against an exactly linear weight series — which fits
+    // with ~zero residual and so reports `ci95Tdee` ≈ 0 and clears any ceiling.
+    // A test about the precision gate needs data that is actually imprecise.
+    //
+    // Asserted as a pair against two ceilings rather than one absolute number,
+    // so it pins WHICH gate decides without pinning an interval width that the
+    // estimator is free to change.
+    const logs: DailyLog[] = [];
+    for (let i = 0; i < 14; i++) {
+      logs.push(log(27 - i * 2, 2000, 185 - i * 0.1 + (i % 2 ? 0.8 : -0.8)));
+    }
+    expect(recalibrationDigest(profile, logs, {}, { now: NOW, ci95CeilingKcal: 100_000 }).available)
+      .toBe(true);
+
+    const tight = recalibrationDigest(profile, logs, {}, { now: NOW, ci95CeilingKcal: 1 });
+    expect(tight.available).toBe(false);
+    expect(tight.shouldSurface).toBe(false);
   });
 
   it('surfaces the first reliable reading when never acknowledged', () => {

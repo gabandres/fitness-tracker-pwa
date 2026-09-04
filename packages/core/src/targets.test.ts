@@ -153,10 +153,15 @@ describe('dailyTargets — calorie floor covers every branch', () => {
     expect(t.calorieTarget).toBe(1850);
   });
 
-  it('clamps a measured-but-unreliable target that falls back to manual', () => {
+  it('a measured-but-unreliable target comes from the ESTIMATOR, not the seed', () => {
     // 14 logged days spread over 40 calendar days: past MEASURED_MIN_DAYS, so
-    // source is 'measured', but completeness is under RELIABLE_MIN_PCT — which
-    // routes the target through the unclamped manual branch.
+    // source is 'measured', but completeness is under RELIABLE_MIN_PCT.
+    //
+    // This used to route through the manual branch and assert 1850 (the floor
+    // clamping a 1760 seed). That routing WAS the 70% cliff: three points of
+    // completeness decided whether a stored onboarding seed or the estimator
+    // governed the day. Since 2026-09-04 a measured estimate always governs
+    // under 'auto', already damped toward the Mifflin anchor by `confidence`.
     const gappy = [
       ...[39, 38, 37, 36, 35, 34, 33, 32, 31, 30].map((d) => log(d, 2000, 200)),
       ...[3, 2, 1, 0].map((d) => log(d, 2000, 197)),
@@ -168,7 +173,26 @@ describe('dailyTargets — calorie floor covers every branch', () => {
     );
     expect(t.tdee.source).toBe('measured');
     expect(asMeasured(t.tdee).reliable).toBe(false);
-    expect(t.calorieTarget).toBe(1850);
+    expect(t.calorieTarget).toBe(t.tdee.newDailyTarget);
+    // The seed is ignored, not deleted — it survives on the profile, unused.
+    expect(t.calorieTarget).not.toBe(1760);
+  });
+
+  it('still clamps that estimator target up to the floor', () => {
+    // The floor has to cover the branch the line above newly routes through —
+    // otherwise this change would have moved accounts onto an unclamped path.
+    const gappy = [
+      ...[39, 38, 37, 36, 35, 34, 33, 32, 31, 30].map((d) => log(d, 2000, 200)),
+      ...[3, 2, 1, 0].map((d) => log(d, 2000, 197)),
+    ];
+    const t = dailyTargets(
+      fullProfile({ manualCaloriesTarget: 1760, calorieFloor: 2500 }),
+      gappy,
+      {},
+    );
+    expect(t.tdee.source).toBe('measured');
+    expect(asMeasured(t.tdee).reliable).toBe(false);
+    expect(t.calorieTarget).toBe(2500);
   });
 
   it('applies MIN_DAILY_TARGET to a sub-1500 manual target when no floor is set', () => {
@@ -272,6 +296,59 @@ describe('dailyTargets — targetMode', () => {
       {},
     );
     expect(t.calorieTarget).toBe(1850);
+  });
+});
+
+/**
+ * The 70% cliff, and the invariant that keeps it gone.
+ *
+ * `reliable = loggingCompletenessPct >= 70` used to decide whether the
+ * estimator or a stored onboarding seed governed the day, so three points of
+ * completeness could move a real user's target by ~140 kcal in one step. The
+ * ramp that boundary wanted already lives in `measuredConfidence`; this pins
+ * that nothing re-introduces a second one here.
+ *
+ * Stated as an invariant rather than a fixture on purpose: a fixture pins one
+ * account, and the defect was structural.
+ */
+describe('dailyTargets — the seed cannot govern a measured account under auto', () => {
+  /** 14 logged days over a 40-day span: measured, and firmly under 70%. */
+  const gappy = [
+    ...[39, 38, 37, 36, 35, 34, 33, 32, 31, 30].map((d) => log(d, 2000, 200)),
+    ...[3, 2, 1, 0].map((d) => log(d, 2000, 197)),
+  ];
+
+  it('an unreliable measured account ignores the seed entirely', () => {
+    const withSeed = dailyTargets(fullProfile({ manualCaloriesTarget: 1760 }), gappy, {});
+    const without = dailyTargets(fullProfile(), gappy, {});
+
+    expect(withSeed.tdee.source).toBe('measured');
+    expect(asMeasured(withSeed.tdee).reliable).toBe(false);
+    // The invariant: carrying a seed changes nothing once a measured estimate
+    // exists. Restore `&& tdee.reliable` in targets.ts and this fails.
+    expect(withSeed.calorieTarget).toBe(without.calorieTarget);
+  });
+
+  it('a reliable measured account ignores it too — same rule either side of 70%', () => {
+    const logs = series(20, 2000, 200);
+    const withSeed = dailyTargets(fullProfile({ manualCaloriesTarget: 1760 }), logs, {});
+    const without = dailyTargets(fullProfile(), logs, {});
+
+    expect(asMeasured(withSeed.tdee).reliable).toBe(true);
+    expect(withSeed.calorieTarget).toBe(without.calorieTarget);
+  });
+
+  it('formula and seed modes still honour the seed — the branch is scoped', () => {
+    // The half that must NOT change. Stripping the seed here drops the account
+    // to SEED_RESULT.newDailyTarget (a hardcoded 1800), which on a 22-account
+    // PROD replay moved 20 accounts by up to 1,720 kcal.
+    const formula = dailyTargets(fullProfile({ manualCaloriesTarget: 1760 }), [log(0, 2000, 200)], {});
+    expect(formula.tdee.source).toBe('formula');
+    expect(formula.calorieTarget).toBe(1760);
+
+    const seed = dailyTargets(profile({ manualCaloriesTarget: 1760 }), [], {});
+    expect(seed.tdee.source).toBe('seed');
+    expect(seed.calorieTarget).toBe(1760);
   });
 });
 

@@ -1,5 +1,58 @@
 # Changelog
 
+## 2026-09-04 — the 70% reliability cliff is gone: a measured estimate now governs from day one of measured mode
+
+**Three points of logging completeness used to decide which number ran a user's
+day.** `dailyTargets` gated on `tdee.reliable` — `loggingCompletenessPct >= 70` —
+and below that bar it handed the day to `manualCaloriesTarget`, the seed
+onboarding computes. Above it, the estimator. Nothing about the evidence changes
+between 67% and 70%; the number in charge did, in one step.
+
+**The ramp that boundary wanted already existed one layer down**, which is what
+made the fix a deletion rather than a formula. `trueTdee` is
+`confidence * measured + (1 - confidence) * MifflinAnchor`, so a thin measured
+estimate is already damped toward the formula — at the moment measured mode opens
+on day 14, `byEvidence` is 0, confidence is 0, and the estimator returns the
+anchor: the same number formula mode returned the day before. Preferring a raw
+onboarding seed over that is preferring less information over more. So the fix is
+`&& tdee.reliable` removed, and nothing added.
+
+**Blending seed → estimator by `confidence` was the other candidate and was
+rejected on the arithmetic.** `trueTdee` is *already* a confidence blend, so
+blending again with the same coefficient damps twice toward two overlapping
+anchors — the seed is itself Mifflin-derived. One ramp, in `measuredConfidence`,
+is the design.
+
+**Measured against all 42 PROD accounts before shipping, and the owner's account
+cannot demonstrate it.** Its cliff height is 0 — the manual pair was deleted
+earlier the same day, so it already fell through to the estimator. The change
+reaches exactly two accounts: `review@` **2,130 → 2,274 (+144)** and one real
+user **1,640 → 1,500 (−140)**. Everything else is byte-identical, because the
+rest are custom mode, carry no seed, or have no measured estimate at all. A first
+pass that reported "18 accounts move, up to 1,720 kcal" was an artifact — those
+are seed/formula accounts falling back to `SEED_RESULT.newDailyTarget`, a
+hardcoded 1,800 — which is why the change is scoped to `source === 'measured'`
+and why a test now pins that formula and seed modes still honour the seed.
+
+**`reliable` and `confidence` disagree in both directions, and that is the
+finding that decided it.** The owner reads `reliable: false` at confidence 0.96;
+`demo@` reads `reliable: true` at confidence 0.50. A boolean from one thresholded
+ratio was outranking a continuous float built from three.
+
+**`tdee-recalibration.ts` dropped `reliable` from its own gate in the same
+commit**, so the thing that explains a target move stays in step with the thing
+that moves it. Its interval gate (`ci95Tdee` within 250) is unchanged and is what
+was doing the real work — the comment under it already argued exactly that.
+
+**The accepted cost, measured rather than discovered later: one account moves
+silently.** The real user above has `ci95Tdee: null` on the thin-window fallback
+path, so the digest returns `available: false` and nothing explains the −140. The
+precision gate is right to refuse — an estimate that cannot state its own error
+bar cannot support a claim about someone's metabolism. Requiring a usable
+interval before the estimator supersedes the seed would have closed that, at the
+cost of keeping a boundary; it was costed and declined. `review@` does get the
+notice.
+
 ## 2026-09-04 — two TDEE correctness fixes: the redo that overwrote a measured target, and the half-eaten day in the intake mean
 
 Shipped by OTA to **both** platforms (Android group `4a56c514`, iOS group

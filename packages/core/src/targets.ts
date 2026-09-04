@@ -184,9 +184,62 @@ export function dailyTargets(
   const hasManualKcal = manualKcal != null && manualKcal > 0;
   if (custom && hasManualKcal) {
     calorieTarget = manualKcal;
-  } else if (tdee.source === 'measured' && tdee.reliable) {
+  } else if (tdee.source === 'measured') {
+    // ── Deliberately NOT `&& tdee.reliable`, since 2026-09-04 ──
+    //
+    // `reliable` used to gate this, and that made 70% logging completeness a
+    // CLIFF: three points either side of the bar decided whether the estimator
+    // or a stored onboarding seed governed the user's day. Nothing about the
+    // evidence changes at 67% vs 70%; the number in charge did.
+    //
+    // The ramp it wanted already exists one layer down. `trueTdee` is
+    // `confidence * measured + (1 - confidence) * MifflinAnchor`, so a thin
+    // measured estimate is ALREADY damped toward the formula — at the moment
+    // measured mode opens (day 14) `byEvidence` is 0, confidence is 0, and this
+    // returns the anchor, i.e. the same number formula mode returned yesterday.
+    // Preferring a raw onboarding seed over that is preferring less information
+    // over more, and it is what produced the cliff.
+    //
+    // Blending seed -> estimator by `confidence` was the other candidate and was
+    // rejected: `trueTdee` is already a confidence blend, so it would damp twice
+    // with the same coefficient toward two overlapping anchors (the seed is
+    // itself Mifflin-derived). One ramp, in `measuredConfidence`, is the design.
+    //
+    // Measured across all 42 PROD accounts before shipping: this reaches exactly
+    // two, because the rest are custom mode, carry no seed, or have no measured
+    // estimate at all. See docs/training-backlog.md §0 for the numbers, and note
+    // the owner's own account cannot demonstrate it (its seed was deleted).
+    //
+    // `reliable` is still computed and still shown — it says the record behind
+    // the number is patchy, which is true and worth surfacing. It just no longer
+    // decides WHICH number the user lives by.
+    //
+    // ── The known cost, accepted by the owner on 2026-09-04 ──
+    //
+    // One real account moves silently, and it was measured before shipping, not
+    // discovered after. `nyJRLyDJ…` (29% completeness) drops 1,640 -> 1,500, and
+    // `recalibrationDigest` — the thing that exists to explain a move like this —
+    // returns `available: false` for it, because its `ci95Tdee` is null on the
+    // thin-window fallback path and an absent interval fails the precision gate.
+    // That gate is right to refuse: you cannot claim someone's metabolism changed
+    // off an estimate that cannot state its own error bar.
+    //
+    // So this ships knowing it reproduces, for exactly one user, the shape of the
+    // UX_AUDIT complaint quoted above — a target moving with nothing saying why.
+    // The alternative considered and declined was to require a usable interval
+    // before the estimator supersedes the seed, which would have made "the target
+    // can move" and "we can explain the move" the same condition at the cost of
+    // keeping a boundary. Owner's call, made with these numbers in hand.
+    //
+    // If that trade is ever revisited, revisit it HERE and not by restoring
+    // `reliable`, which fixes nothing about the silence and brings the cliff back.
     calorieTarget = tdee.newDailyTarget;
   } else {
+    // Formula and seed modes, where there is no measured estimate to prefer.
+    // Unchanged on purpose: stripping the seed here drops the account to
+    // `SEED_RESULT.newDailyTarget`, a hardcoded 1800 — which is not "what
+    // happens at 70%", and on a 22-account replay it moved 20 accounts by up to
+    // 1,720 kcal. That is the artifact this branch exists to avoid.
     calorieTarget = hasManualKcal ? manualKcal : tdee.newDailyTarget;
   }
 
