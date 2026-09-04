@@ -48,4 +48,24 @@ export const enum ErrorCode {
   FEATURE_DISABLED = "FEATURE_DISABLED",
   /** Today's org-wide ceiling is spent. Clears at UTC midnight. */
   SERVICE_CEILING_REACHED = "SERVICE_CEILING_REACHED",
+  /**
+   * The AI provider refused us, not the user — a 429 from Gemini itself.
+   *
+   * Distinct from every code above, and the distinction is the whole point.
+   * `PHOTO_QUOTA_EXCEEDED` means "you used your allowance",
+   * `SERVICE_CEILING_REACHED` means "we spent today's budget, back at UTC
+   * midnight", and `PHOTO_ANALYZE_FAILED` means "the photograph was the
+   * problem". This one means none of those: the request never reached a model,
+   * and there is no time we can honestly promise it back.
+   *
+   * It exists because of a five-day outage. From 2026-08-30 the project's new
+   * billing account had an unfunded Gemini prepay balance, so every call
+   * returned `429 RESOURCE_EXHAUSTED` / "Your prepayment credits are
+   * depleted". That fell to `PHOTO_ANALYZE_FAILED`, so the app told users
+   * "Couldn't read that photo. Try another angle." for five days — blaming the
+   * photograph and prescribing the one action guaranteed not to work. That is
+   * the same defect the 2026-08-23 rewrite fixed for quota, arriving through a
+   * door that fix did not cover.
+   */
+  PHOTO_PROVIDER_UNAVAILABLE = "PHOTO_PROVIDER_UNAVAILABLE",
 }

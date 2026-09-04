@@ -62,6 +62,8 @@ export const ptBR = {
   'scan.errQuota': 'Você já usou seus {n} escaneamentos grátis por enquanto. Voltam às {time}.',
   'scan.errRateLimited': 'Rápido demais — espere um instante e tente de novo.',
   'scan.errTooLarge': 'Essa foto é grande demais para enviar. Tire uma nova.',
+  'scan.errProvider':
+    'O escaneamento está indisponível agora — o problema é nosso, não da sua foto. Tente de novo mais tarde.',
   'scan.errBusy': 'O escaneamento atingiu o limite de hoje para todo mundo. Volta às {time}.',
   'scan.errOff': 'O escaneamento de fotos está desligado no momento. Todo o resto continua funcionando.',
   'scan.errAuth': 'Entre de novo para escanear.',
@@ -205,7 +207,7 @@ export const ptBR = {
   'link.failedBody': 'O seu aparelho bloqueou. Abra isto no seu navegador:\n\n{url}',
   'whatsNew.title': 'Novidades',
   'whatsNew.body':
-    'Novo ícone, tela de abertura em modo escuro e, no Android, o Health Connect volta a conectar e pode trazer suas corridas, pedaladas e caminhadas para Treinar. Também novo: corrigir um jejum registrado errado, água em Tendências, marcos e uma boa-vinda na primeira abertura.',
+    'O escaneamento de fotos voltou a funcionar. Ele falhava desde 30 de agosto — e culpava a sua foto, quando o problema era nosso. Isso está corrigido, e se o escaneamento cair de novo o app vai avisar em vez de pedir outra foto. No Android, o Health Connect agora traz sua energia ativa e seus treinos direito.',
 
   // ── app updates ──
   'update.ota.title': 'Atualização pronta',

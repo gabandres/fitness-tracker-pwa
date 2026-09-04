@@ -68,6 +68,8 @@ export const en = {
   'scan.errQuota': "You've used your {n} free scans for now. More at {time}.",
   'scan.errRateLimited': 'A bit too fast — wait a moment and try again.',
   'scan.errTooLarge': 'That photo is too large to send. Try taking a new one.',
+  'scan.errProvider':
+    "Scanning is unavailable right now — it's us, not your photo. Try again a bit later.",
   'scan.errBusy': 'Scanning is at its limit for today across everyone. It comes back at {time}.',
   'scan.errOff': 'Photo scanning is switched off right now. Everything else still works.',
   'scan.errAuth': 'Please sign in again to scan.',
@@ -220,7 +222,7 @@ export const en = {
   'link.failedBody': 'Your device blocked it. Open this in your browser instead:\n\n{url}',
   'whatsNew.title': "What's new",
   'whatsNew.body':
-    'A new icon, a dark launch screen, and — on Android — Health Connect connects again and can bring your runs, rides and walks into Train. Also new since last time: fix a fast you logged wrong, water on Trends, milestones, and a first-run welcome.',
+    'Photo scan works again. It had been failing since August 30 — and it wrongly blamed your photo, when the problem was on our side. That is fixed, and if scanning ever goes down again the app will say so instead of asking you to retake the picture. On Android, Health Connect now brings your active energy and workouts across properly too.',
 
   // ── app updates ──
   'update.ota.title': 'Update ready',

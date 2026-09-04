@@ -28,7 +28,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // to announce the new icon, the dark launch screen and Health Connect on
 // Android to everyone automatically. Published as an OTA on the NEW runtimes
 // so it fires on the second launch after the store update.
-export const WHATS_NEW_VERSION = '2026-09-03-new-icon';
+// Bumped 2026-09-04, on the owner's explicit instruction, for the photo-scan
+// outage. This one is unlike every bump above it: the others announced
+// something gained, this one tells people something they already noticed is
+// fixed. Scanning returned `429` from the AI provider on every call from
+// 2026-08-30 — five days — and the app blamed the user's photograph the whole
+// time, so anyone who tried has a concrete memory of it failing and no way to
+// know it works again. A banner is the only channel that reaches them: an OTA
+// carries no store release notes.
+export const WHATS_NEW_VERSION = '2026-09-04-scan-fixed';
 
 const KEY = 'whatsNew.seen';
 

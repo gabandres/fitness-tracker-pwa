@@ -216,14 +216,22 @@ export interface ScanErrorMessage {
   params?: Record<string, string | number>;
 }
 
-/** The shape `httpsCallable` rejects with — `details` carries our own code. */
+/** The shape `httpsCallable` rejects with — `details` carries our own code,
+ *  `code` the callable's own `functions/<status>` string. */
 interface CallableError {
+  code?: string;
   details?: { code?: string; limit?: number };
 }
 
 export function scanErrorMessage(e: unknown): ScanErrorMessage {
-  const details = (e as CallableError | null)?.details;
+  const err = e as CallableError | null;
+  const details = err?.details;
   switch (details?.code) {
+    case 'PHOTO_PROVIDER_UNAVAILABLE':
+      // The provider refused us, not the photo. No time is promised because
+      // none can be: unlike the org ceiling, this does not clear at UTC
+      // midnight. See the server-side code of the same name.
+      return { key: 'scan.errProvider' };
     case 'PHOTO_QUOTA_EXCEEDED':
       // The one that matters: it is not the photo, and tomorrow it works.
       return { key: 'scan.errQuota', params: { n: details.limit ?? 3 } };
@@ -240,7 +248,24 @@ export function scanErrorMessage(e: unknown): ScanErrorMessage {
       return { key: 'scan.errOff' };
     case 'UNAUTHENTICATED':
       return { key: 'scan.errAuth' };
+    case 'PHOTO_ESTIMATE_FAILED':
+    case 'PHOTO_ANALYZE_FAILED':
+      // Named explicitly rather than left to `default`, because these two are
+      // the ONLY codes that genuinely mean the photograph was the problem, and
+      // the fallback below must never be able to reinterpret them. Leaving
+      // them implicit is what let the first draft of that fallback swallow
+      // them — caught by `scan-error-message.test.ts`, not by tsc.
+      return { key: 'scan.failed' };
     default:
+      // An UNKNOWN code that still arrived as `resource-exhausted` is a limit
+      // of some kind, and a limit is never the photograph's fault. Without
+      // this, any future server code lands on "try another angle" — which is
+      // exactly how a five-day provider outage came to blame users' photos.
+      // Deliberately checked last, so every code named above keeps its own
+      // more precise message.
+      if (err?.code === 'functions/resource-exhausted' || err?.code === 'resource-exhausted') {
+        return { key: 'scan.errProvider' };
+      }
       // PHOTO_ESTIMATE_FAILED / PHOTO_ANALYZE_FAILED / a local encode failure
       // / no network. Here the photo genuinely may be the problem.
       return { key: 'scan.failed' };

@@ -323,6 +323,30 @@ interface ScanDraft {
   confidence?: string;
 }
 
+/**
+ * Did the AI provider refuse us, rather than the photo being unreadable?
+ *
+ * Covers BOTH shapes of a Gemini 429 because they mean the same thing to a
+ * user: a depleted prepay balance (the 2026-08-30 outage) and ordinary rate
+ * limiting are equally "not your photo, and not something retaking it fixes".
+ *
+ * Matched structurally, never on the message text: Google's wording here is
+ * marketing copy pointing at AI Studio, and it is not ours to depend on. The
+ * SDK surfaces `status` as a number on the thrown `ApiError`, and also carries
+ * the original JSON body, so both are checked.
+ *
+ * Exported for `analyze-photo-provider-error.spec.ts` — the handler around it
+ * needs auth, a quota reserve and a live model call, so the classifier is the
+ * only part a unit test can reach.
+ */
+export function isProviderExhausted(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const e = err as { status?: unknown; code?: unknown; error?: { code?: unknown; status?: unknown } };
+  if (e.status === 429 || e.code === 429) return true;
+  if (e.error?.code === 429) return true;
+  return e.status === "RESOURCE_EXHAUSTED" || e.error?.status === "RESOURCE_EXHAUSTED";
+}
+
 /** Gemini path — the free-tier default. */
 async function estimateWithGemini(photos: string[], prompt: string): Promise<ScanDraft> {
   const client = getGeminiClient();
@@ -878,6 +902,15 @@ USER_NOTE`
 
       if (err instanceof HttpsError) throw err;
       console.error("analyzePhoto error:", err);
+      // A refusal from the PROVIDER is not a bad photograph, and saying so is
+      // the difference between a user waiting and a user retaking the same
+      // plate five times. See ErrorCode.PHOTO_PROVIDER_UNAVAILABLE for the
+      // outage that made this its own code.
+      if (isProviderExhausted(err)) {
+        throw new HttpsError("unavailable", "AI provider refused the request.", {
+          code: ErrorCode.PHOTO_PROVIDER_UNAVAILABLE,
+        });
+      }
       throw new HttpsError("internal", "Photo analysis failed.", { code: ErrorCode.PHOTO_ANALYZE_FAILED });
     }
   },
