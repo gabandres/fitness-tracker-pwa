@@ -9,6 +9,7 @@ import {
   kgToLb,
   litersToFlOz,
   type DayBoundary,
+  type DateKey,
   calendarDateKey,
   dayKeyAt,
   parseYmd,
@@ -142,27 +143,53 @@ function startOfLocalDay(d: Date): Date {
 }
 
 /**
- * The `timeRangeFilter` for Health Connect's **period** aggregation.
+ * The `timeRangeFilter` for Health Connect's daily aggregation of active energy.
  *
- * ## It takes an INSTANT, and getting that wrong broke the whole Android import
+ * ## It takes an INSTANT — and on our pinned library the PERIOD API is unusable
  *
- * This used to emit a local-naive ISO string (`2026-07-23T00:00:00` — no `Z`),
- * on the reasoning that a period slicer wants a `LocalDateTime` and that
- * `toISOString()` would cut every bucket at the wrong hour for a user off UTC.
- * **The premise was right and the conclusion was wrong**, because it stopped one
- * step too early. `react-native-health-connect@3.5.3` builds the period request
- * with `getTimeRangeFilterLocal`, which is
+ * This first emitted a local-naive ISO string (`2026-07-23T00:00:00` — no `Z`),
+ * on the reasoning that a period slicer wants a `LocalDateTime`. Then it emitted
+ * an instant, on the reasoning that the library converts to local itself. Both
+ * threw, and the second one is why this comment is long: the two failures look
+ * like opposite mistakes and are actually the same one — reading the library's
+ * CURRENT source instead of the version in `package.json`.
  *
- *     Instant.parse(startTime).atZone(zone).toLocalDateTime()
+ * On `react-native-health-connect@3.5.3`, which is what we ship,
+ * `ReactActiveCaloriesBurnedRecord.getAggregateGroupByPeriodRequest` builds its
+ * filter with `getTimeRangeFilter` — the INSTANT helper — while Health
+ * Connect's `AggregateGroupByPeriodRequest` requires a `LocalDateTime` one. So
+ * the period API cannot succeed for this record type on ANY input:
  *
- * — it wants an instant and does the local conversion itself, off the DEVICE's
- * zone. So an offset-less string never reaches a `LocalDateTime` at all: it dies
- * in `Instant.parse` with `Text '2025-07-30T00:00:00' could not be parsed at
- * index 19`, index 19 being where the missing offset should have started.
+ * | We send | Where it dies |
+ * |---|---|
+ * | `2025-07-30T00:00:00` (local-naive) | `Instant.parse` → `DateTimeParseException ... at index 19` (`IGNIA-MOBILE-S`) |
+ * | `2025-07-30T04:00:00.000Z` (instant) | Health Connect → `IllegalArgumentException: Either use TimeRangeFilter with LocalDateTime or AggregateGroupByDurationRequest` (`IGNIA-MOBILE-T`) |
  *
- * Local anchoring still comes from {@link startOfLocalDay} — the instant of
- * local midnight, converted back by the library, IS local midnight — so the
- * bucket alignment the old comment was protecting is unaffected.
+ * It is a library bug, and an oddly narrow one: **22 record types use
+ * `getTimeRangeFilterLocal` and `ActiveCaloriesBurned` is not one of them**.
+ * Upstream `main` has since fixed exactly this line. `Steps` was always
+ * correct — which is why nobody hits this until they aggregate active energy,
+ * and why we do: Play's Minimum Scope policy stripped `READ_STEPS` from our
+ * manifest (see {@link HC_SKIPPED_KINDS}), leaving active energy as the only
+ * kind on this path.
+ *
+ * **So we use the duration API instead, which is what the exception itself
+ * recommends.** `getAggregateGroupByDurationRequest` uses the instant helper
+ * and `AggregateGroupByDurationRequest` wants an instant filter — those two
+ * agree, so the pair works today, over the air, with no new binary. Taking the
+ * upstream fix instead would mean a native dependency bump, a moved
+ * fingerprint and a store release, for a feature that is dead in production
+ * right now.
+ *
+ * ## The one thing the duration API gives up: DST
+ *
+ * A `Period` of one day is calendar-aware; a `Duration` of one day is a fixed
+ * 24 h and, in the library's own words, "daylight savings are ignored for
+ * DAYS". Anchoring at local midnight therefore keeps buckets on local days
+ * until a DST transition, after which a boundary sits at 23:00 or 01:00 local.
+ * That is handled where the bucket is KEYED, not here — see the midpoint rule
+ * in `readSamples`. Zones without DST (the owner's, PR) are unaffected either
+ * way.
  *
  * ## What it cost, so the shape stays pinned
  *
@@ -170,9 +197,8 @@ function startOfLocalDay(d: Date): Date {
  * LAST of `IMPORT_KINDS` — so weight, sleep and water imported fine while
  * active energy never landed once, and `importHealthWorkouts`, which runs after
  * `importScalars` in `importAll`, never ran at all. That is the entire Android
- * half of cardio import (ADR-0026), silent behind an error only Sentry saw
- * (`IGNIA-MOBILE-S`, six events the evening vc 44 went to production, on the
- * first device that ever had a working Health Connect grant).
+ * half of cardio import (ADR-0026), silent behind an error only Sentry saw, on
+ * the first devices that ever held a working Health Connect grant.
  *
  * Exported so `health-hc-period-filter.test.ts` can pin the `Z`; the dynamic
  * `import()` seam below it cannot be exercised under jest. Same reason
@@ -187,6 +213,31 @@ export function hcPeriodFilter(
     startTime: startOfLocalDay(sinceDate(sinceDays, now)).toISOString(),
     endTime: now.toISOString(),
   };
+}
+
+/** Half of a 24 h bucket, in ms. */
+const HC_BUCKET_MIDPOINT_MS = 12 * 60 * 60 * 1000;
+
+/**
+ * Which local day a duration-sliced bucket belongs to.
+ *
+ * Keyed by the bucket's MIDPOINT rather than its start, and that is the whole
+ * point of the function. A `Duration` of one day is a fixed 24 h — the library
+ * says "daylight savings are ignored for DAYS" — so a range anchored at local
+ * midnight drifts by an hour the moment the clocks change: after a fall-back
+ * transition every subsequent bucket STARTS at 23:00 of the previous day, and
+ * keying off the start would file each day's burn under yesterday for the rest
+ * of a ~400-day import. Half a day in lands at ~noon of the intended day
+ * whether the boundary drifted early or late.
+ *
+ * In a zone without DST this is exactly the start-based key it replaces.
+ *
+ * Exported for the same reason as {@link hcPeriodFilter}: the native seam it
+ * lives behind cannot be exercised under jest, and this rule is too easy to
+ * "simplify" back into a bug.
+ */
+export function hcBucketDateKey(startIso: string | undefined): DateKey {
+  return calendarDateKey(new Date(new Date(startIso ?? 0).getTime() + HC_BUCKET_MIDPOINT_MS));
 }
 
 /** A concrete timestamp inside `dateKey`'s local day for a written sample:
@@ -481,10 +532,15 @@ interface HCRecord {
   volume?: { inLiters?: number };
 }
 
-/** One period-sliced bucket from `aggregateGroupByPeriod`. `startTime` /
- *  `endTime` come back as local-naive strings (period slicing is
- *  `LocalDateTime`-based), so `new Date()` parses them in the device's zone —
- *  which is exactly the day bucket we want. */
+/**
+ * One duration-sliced bucket from `aggregateGroupByDuration`.
+ *
+ * `startTime` / `endTime` are `Instant.toString()` — ISO with a `Z` — because
+ * duration slicing is instant-based. That is a CHANGE from the period API,
+ * whose bucket times came back local-naive; `new Date()` reads both, but only
+ * one of them is an unambiguous moment, and this one is. See
+ * {@link hcPeriodFilter} for why we are on the duration API at all.
+ */
 interface HCPeriodGroup {
   startTime?: string;
   endTime?: string;
@@ -673,14 +729,19 @@ const healthConnect: HealthPort = {
     // Connect documents that for cumulative types you use `aggregate` instead
     // of `readRecords` precisely "to avoid double counting from multiple
     // sources" — and its dedup covers the Activity category both our kinds
-    // live in. `aggregateGroupByPeriod` gives one deduplicated total per
-    // calendar day, which is why they fold as `preAggregated` in core.
+    // live in. One deduplicated total per day is why they fold as
+    // `preAggregated` in core.
     if (kind === 'steps' || kind === 'activeEnergy') {
-      const groups = (await HC.aggregateGroupByPeriod({
+      // DURATION, not period. `aggregateGroupByPeriod` is unusable for
+      // `ActiveCaloriesBurned` on `react-native-health-connect@3.5.3` — it
+      // throws whatever we pass it — and this is the alternative Health
+      // Connect's own exception names. {@link hcPeriodFilter} has the full
+      // account; do not "restore" the period call without reading it.
+      const groups = (await HC.aggregateGroupByDuration({
         recordType: HC_READ[kind],
         // An ISO instant, NOT a local-naive string — see `hcPeriodFilter`.
         timeRangeFilter: hcPeriodFilter(sinceDays),
-        timeRangeSlicer: { period: 'DAYS', length: 1 },
+        timeRangeSlicer: { duration: 'DAYS', length: 1 },
       } as never)) as unknown as HCPeriodGroup[];
       return (groups ?? []).flatMap((g) => {
         const value =
@@ -698,10 +759,19 @@ const healthConnect: HealthPort = {
         const start = new Date(g.startTime ?? 0);
         return [
           {
-            // Key the day the bucket STARTS, and keep the CALENDAR date — see
-            // the iOS branch for both halves. An OS-bucketed daily total keeps
-            // its source's day (ADR-0030 Q5).
-            dateKey: calendarDateKey(start),
+            // Key by the bucket's MIDPOINT, not its start, and keep the
+            // CALENDAR date — see the iOS branch for the calendar half. An
+            // OS-bucketed daily total keeps its source's day (ADR-0030 Q5).
+            //
+            // The midpoint is what makes the duration API safe across DST. A
+            // 24 h bucket anchored at local midnight sits at 23:00 of the day
+            // BEFORE once the clocks go back, and `calendarDateKey` of that
+            // start would file a whole day's burn under yesterday — for every
+            // remaining day of a ~400-day import. Twelve hours in lands at
+            // ~noon of the intended day whether the boundary drifted an hour
+            // early or an hour late, so the key is right in both directions
+            // and identical to the start-based key in a zone without DST.
+            dateKey: hcBucketDateKey(g.startTime),
             kind,
             value,
             endMs: new Date(g.endTime ?? g.startTime ?? 0).getTime(),
