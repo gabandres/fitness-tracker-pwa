@@ -516,6 +516,75 @@ async function checkRulesMatchReleased() {
   }
 }
 
+/**
+ * Has anything been deployed since `functions/src` last changed?
+ *
+ * `checkDeployedFunctions` below asks whether the right functions EXIST. This
+ * asks whether a deploy has happened since the code changed, which is a
+ * different question and the one that bit.
+ *
+ * On 2026-09-04 the live `deleteAccount` revision dated from 2026-08-26 while
+ * `milestones` had been added to `USER_SUBCOLLECTIONS` on 2026-08-29. The
+ * source was right, the fix was merged, the GDPR parity spec passed — and
+ * production still orphaned every deleted account's milestone docs, because
+ * nothing had run `firebase deploy --only functions` in between. Both erasure
+ * (Art. 17) and export (Art. 20) read that constant, so one stale deploy broke
+ * both obligations at once, and 24 source files were adrift by the time anyone
+ * looked. There is no CI here (README §CI/CD), so "merged" and "deployed" are
+ * two separate facts and only this connects them.
+ *
+ * **It compares the NEWEST deploy, not each function's own.** Per-function
+ * timestamps look obvious and are wrong: deploying from a clean working tree
+ * and committing a minute later leaves every function "older" than the commit,
+ * which fails on a perfectly current deployment — it did, on the first run of
+ * this check. What that costs is a partial deploy: if one function is pushed
+ * after a change that affected several, this still passes. Catching that needs
+ * a per-function map of transitively imported source files, which is more
+ * machinery than the failure justifies. The oldest revision is printed either
+ * way, so a lopsided spread is visible even when the check passes.
+ */
+function checkFunctionsFreshness() {
+  const name = 'deployed functions are newer than functions/src';
+  const commitRes = sh('git', ['log', '-1', '--format=%cI', '--', 'functions/src']);
+  if (!commitRes.ok || !commitRes.stdout.trim()) {
+    return skip(G2, name, 'could not read the last functions/src commit');
+  }
+  const lastCommit = new Date(commitRes.stdout.trim());
+  const res = sh('gcloud', [
+    'run', 'services', 'list',
+    '--region', 'us-central1', '--project', PROJECT,
+    '--format=value(metadata.name,status.conditions[0].lastTransitionTime)',
+  ], { timeout: 120_000 });
+  const out = useOutput(G2, name, res, { skipHint: 'gcloud is not installed' });
+  if (out === null) return;
+  const deploys = [];
+  for (const line of out.split('\n')) {
+    const [fn, ts] = line.trim().split(/\s+/);
+    if (fn && ts) deploys.push({ fn, at: new Date(ts) });
+  }
+  if (!deploys.length) return skip(G2, name, 'no Cloud Run services returned');
+  const newest = deploys.reduce((a, b) => (b.at > a.at ? b : a));
+  const oldest = deploys.reduce((a, b) => (b.at < a.at ? b : a));
+  const day = (d) => d.toISOString().slice(0, 10);
+  if (newest.at >= lastCommit) {
+    pass(
+      G2,
+      name,
+      `${deploys.length} functions; newest deploy ${day(newest.at)} >= last functions/src commit ` +
+        `${day(lastCommit)} (oldest revision: ${oldest.fn} ${day(oldest.at)})`,
+    );
+  } else {
+    const days = Math.floor((lastCommit - newest.at) / 86_400_000);
+    fail(
+      G2,
+      name,
+      `functions/src changed ${day(lastCommit)} but nothing has been deployed since ` +
+        `${day(newest.at)}${days ? ` (${days} day${days === 1 ? '' : 's'} behind)` : ''}. ` +
+        'Merged is not deployed — run: firebase deploy --only functions',
+    );
+  }
+}
+
 /** Exported callables/triggers, parsed statically. functions/lib may not be
  *  built, and importing index.ts would need the whole firebase-functions
  *  runtime — so the source is read as text. */
@@ -1474,12 +1543,14 @@ if (NO_CLOUD) {
   skip(G3, `${QUOTA_DOC} matches the EAS iOS quota`, '--no-cloud');
   skip(G3, 'SENTRY_AUTH_TOKEN authenticates', '--no-cloud');
   skip(G3, 'app-version.json matches what Play ships', '--no-cloud');
+  skip(G2, 'deployed functions are newer than functions/src', '--no-cloud');
   skip(G5, 'STATUS.md §3 matches open issues', '--no-cloud');
 } else {
   await checkRulesMatchReleased().catch((e) =>
     fail(G2, 'firestore.rules matches the released ruleset', `check threw: ${e.message}`),
   );
   guard(G2, 'deployed functions match functions/src exports', checkDeployedFunctions);
+  guard(G2, 'deployed functions are newer than functions/src', checkFunctionsFreshness);
   guard(G2, 'generated food artifacts', checkGeneratedFoodArtifacts);
   await checkStatusVsAsc().catch((e) =>
     fail(G2, 'STATUS.md §1 matches App Store Connect', `check threw: ${e.message}`),
