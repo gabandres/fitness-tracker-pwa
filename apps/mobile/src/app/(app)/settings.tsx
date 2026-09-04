@@ -378,12 +378,21 @@ export default function Settings() {
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.faint} />
           </TouchableOpacity>
+          {/* This pushes the WHOLE onboarding wizard, not a goal editor — the
+              goal editor is the Daily targets row above. It was labelled "Edit
+              goals" until 2026-09-04, which is how an established user ended up
+              re-answering every setup question to change one number and had
+              their measured target overwritten by the wizard's heuristic seed
+              on the way out (the write itself is fixed in
+              `toOnboardingV2Patch`; this is the label half). The name and the
+              caption both say what it actually does. */}
           <TouchableOpacity
             style={styles.editBtn}
             onPress={() => router.push('/onboarding')}
-            testID="settings-edit-goals"
+            testID="settings-redo-setup"
           >
-            <Text style={styles.editBtnText}>{t('settings.editGoals')}</Text>
+            <Text style={styles.editBtnText}>{t('settings.redoSetup')}</Text>
+            <Text style={styles.editBtnSub}>{t('settings.redoSetupSub')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.refineRow}
@@ -1063,6 +1072,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
     alignItems: 'center',
   },
   editBtnText: { color: colors.ink, fontWeight: '700', fontSize: font.body },
+  editBtnSub: { color: colors.faint, fontSize: font.small, marginTop: 2 },
   exportBtn: {
     flexDirection: 'row',
     alignItems: 'center',

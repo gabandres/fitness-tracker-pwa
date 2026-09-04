@@ -202,6 +202,26 @@ export interface OnboardingV2Submission {
    *  direction and any stored value — see `onboardingPace`. Required for the
    *  four above to be written. */
   targetPaceLbsPerWeek?: CutPace;
+  /**
+   * True when an already-completed profile is re-running the wizard —
+   * Settings → "Edit goals" pushes `/onboarding`, so this is a target EDIT by
+   * an established user, not a first run.
+   *
+   * It exists because the two cases need different writes. For a new account
+   * the computed `manualCaloriesTarget`/`manualProteinTarget` are a good SEED:
+   * `calculateTdee` has nothing to measure yet and the alternative is a
+   * hardcoded 2,450. For an established account they are a heuristic derived
+   * from one weigh-in, and under `targetMode: 'auto'` a stored manual value
+   * OUTRANKS the measured estimator whenever it is not `reliable` (the third
+   * branch of `dailyTargets`) — so re-running onboarding silently replaced a
+   * measured target with a worse guess. Observed 2026-09-04 on the owner's
+   * account: 1,905 → 2,080 kcal, with no screen ever saying so.
+   *
+   * {@link toOnboardingV2Patch} is what acts on it, and only for an `'auto'`
+   * redo — a redo that EDITED either number is `'custom'` and those digits are
+   * the user's own, so they are still written.
+   */
+  isRedo?: boolean;
 }
 
 /** Payload from the Day-3 "Refine targets" sheet. Promotes a 2-Q-onboarded

@@ -281,6 +281,11 @@ export default function Onboarding() {
         // and the estimator should take over once it has data. Only a number
         // the user actually typed becomes theirs to keep.
         targetMode: edited ? 'custom' : 'auto',
+        // Settings → "Edit goals" pushes this screen, so a redo is an existing
+        // user editing targets. `toOnboardingV2Patch` uses it to stop an
+        // accepted (unedited) plan writing a heuristic seed over a measured
+        // estimate — see OnboardingV2Submission.isRedo.
+        isRedo,
       });
       // Only on a first run: a redo is a target change by an existing user,
       // and counting it would inflate the one funnel step this exists to answer.

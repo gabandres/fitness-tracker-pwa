@@ -411,6 +411,65 @@ describe('toOnboardingV2Patch', () => {
   });
 
   /**
+   * Settings → "Edit goals" pushes the whole wizard, so an established user
+   * finishing it lands here with `isRedo`. Measured 2026-09-04 on the owner's
+   * account: the unconditional manual write moved a measured 1,905 kcal target
+   * to a heuristic 2,080 with nothing on screen saying so, because under
+   * `targetMode: 'auto'` a stored manual value outranks an unreliable measured
+   * estimate (third branch of `dailyTargets`).
+   */
+  describe('a redo by an already-onboarded profile', () => {
+    const redo = { ...submission, isRedo: true };
+
+    it('does NOT write the heuristic targets when the plan was accepted', () => {
+      const patch = toOnboardingV2Patch(redo, codec, NOW);
+      expect('manualCaloriesTarget' in patch).toBe(false);
+      expect('manualProteinTarget' in patch).toBe(false);
+    });
+
+    it('omits them rather than deleting them', () => {
+      // Deleting would move the target of every established user who carries a
+      // seed from their first run — a change nobody asked for. Omitting makes
+      // this byte-identical to "did nothing" for those profiles.
+      const patch = toOnboardingV2Patch(redo, codec, NOW);
+      expect(patch['manualCaloriesTarget']).not.toBe(REMOVE);
+      expect(patch['manualProteinTarget']).not.toBe(REMOVE);
+    });
+
+    it('still writes them when the user EDITED a number (custom)', () => {
+      // Those digits are the user's own, and `dailyTargets` reads custom mode
+      // off the manual pair — dropping it would hand the target straight back
+      // to the estimator the user was overriding.
+      const patch = toOnboardingV2Patch({ ...redo, targetMode: 'custom' }, codec, NOW);
+      expect(patch['manualCaloriesTarget']).toBe(1760);
+      expect(patch['manualProteinTarget']).toBe(115);
+      expect(patch['targetMode']).toBe('custom');
+    });
+
+    it('leaves every other field of the patch alone', () => {
+      const patch = toOnboardingV2Patch(redo, codec, NOW);
+      expect(patch).toEqual({
+        goalDirection: 'lose',
+        onboardingV2CompletedAt: stamp,
+        profileCompleted: true,
+        lastSeenAt: stamp,
+        targetWeightLbs: 150,
+        goalWeightLbs: 150,
+        targetsRefinedAt: REMOVE,
+        targetMode: 'auto',
+      });
+    });
+  });
+
+  it('keeps the first-run path byte-identical', () => {
+    // The seed is RIGHT for a new account: `calculateTdee` has nothing to
+    // measure under 14 logged days and the alternative is a hardcoded 2,450.
+    expect(toOnboardingV2Patch({ ...submission, isRedo: false }, codec, NOW)).toEqual(
+      toOnboardingV2Patch(submission, codec, NOW),
+    );
+  });
+
+  /**
    * UX_AUDIT F1/F2: onboarding now collects the four Mifflin-St Jeor inputs
    * itself. They are written as a GROUP or not at all — `firestore.rules`
    * fires its strict branch the moment `heightIn` appears and then demands

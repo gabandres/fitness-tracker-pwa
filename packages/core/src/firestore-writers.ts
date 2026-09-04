@@ -194,16 +194,34 @@ export function toOnboardingV2Patch<TS>(
           targetPaceLbsPerWeek: clampCutPace(submission.targetPaceLbsPerWeek),
         }
       : null;
+  const targetMode = submission.targetMode ?? 'auto';
+  // The manual pair is a SEED for a new account and an OVERWRITE for an
+  // established one — see OnboardingV2Submission.isRedo for the measured case
+  // that cost the owner 175 kcal/day. So it is written unless this is an
+  // 'auto' redo: a first run always writes it (the seed beats the hardcoded
+  // 2,450 fallback), and a redo that EDITED either number is 'custom', where
+  // the digits are the user's own and dropping them would send the target
+  // back to the estimator the user was overriding.
+  //
+  // OMITTED, not deleted. An 'auto' redo leaves any pre-existing manual value
+  // in place, which keeps this change byte-identical to "did nothing" for
+  // every profile that already carries one; removing it would move targets
+  // for users who never asked for anything.
+  const writeManualTargets = !submission.isRedo || targetMode === 'custom';
   return {
     ...(refined ?? {}),
     goalDirection: submission.goalDirection,
-    manualCaloriesTarget: submission.manualCaloriesTarget,
-    manualProteinTarget: submission.manualProteinTarget,
+    ...(writeManualTargets
+      ? {
+          manualCaloriesTarget: submission.manualCaloriesTarget,
+          manualProteinTarget: submission.manualProteinTarget,
+        }
+      : {}),
     // Written on EVERY onboarding save, including the default 'auto', so a
     // user who re-runs onboarding and accepts the computed numbers is put
     // back on automatic rather than inheriting a stale 'custom' from a
     // previous run. An omitted mode would leave the old value in place.
-    targetMode: submission.targetMode ?? 'auto',
+    targetMode,
     onboardingV2CompletedAt: stamp,
     // Mark the profile complete so the v1 gate doesn't re-trigger v1
     // onboarding for users who came in through the v2 path.
