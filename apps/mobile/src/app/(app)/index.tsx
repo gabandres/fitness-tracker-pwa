@@ -593,16 +593,24 @@ function createStyles({ colors }: Theme) {
     // but does nothing when there is none — with no child allowed to shrink,
     // the last one is simply clipped.
     //
-    // So exactly one child shrinks and it is this one, because a truncated
-    // date is recoverable (the screen is titled "Today" and the date appears
-    // again in the diary) and a truncated tap target is not. `minWidth: 0` is
-    // required alongside `flexShrink`: without it a flex item will not shrink
-    // below its content's intrinsic width and the whole thing is a no-op.
+    // So exactly one child may shrink and it is this one: a shortened date is
+    // recoverable, a clipped tap target is not.
     //
-    // It is not a narrow-screen edge case — es-PR's "viernes, 4 de septiembre"
-    // is longer than "Friday, September 4", so the wider the locale the worse
-    // it gets. A fixed width here would only move the failure.
-    headerTitleBlock: { flexShrink: 1, minWidth: 0 },
+    // **No `minWidth: 0`, and that omission is the whole fix.** A flex item
+    // will not shrink below its min-content width — here the word "Today" —
+    // and that floor is exactly what protects the title. Adding `minWidth: 0`
+    // removes the floor, and it was tried: the block then took the DATE's
+    // width and the title rendered "Tod…", then, once the title's
+    // `numberOfLines` was removed to stop the ellipsis, hard-clipped to "Toda"
+    // with the descender cut off. Both on the LG at 360dp, where the same
+    // 81dp block fit "Today" on the OnePlus — the two render the face at
+    // slightly different widths, so a layout that only just fits on one device
+    // fails on the other.
+    //
+    // With the abbreviated date the row needs ~351dp of 360dp, so this shrink
+    // does not fire on either device at all. It is the safety net for a locale
+    // wider than the one this was tuned against, not the mechanism.
+    headerTitleBlock: { flexShrink: 1 },
     headerRight: { flexDirection: 'row', alignItems: 'center', gap: space.md, flexShrink: 0 },
     shareCapture: { position: 'absolute', left: -10000, top: 0, opacity: 0 },
     streakChip: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.pill, paddingHorizontal: space.sm, paddingVertical: 3 },
