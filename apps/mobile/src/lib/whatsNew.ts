@@ -49,6 +49,29 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // benign direction. The onboarding half is invisible unless you re-run the
 // wizard. If the target move does draw questions, the banner is the channel —
 // bump then, with copy about the target, not about the bug.
+// NOT bumped 2026-09-04 (third OTA of the day: the 70% reliability cliff — a
+// measured estimate now governs from the moment measured mode opens, instead of
+// waiting for 70% logging completeness). The note directly above says "if the
+// target move does draw questions, the banner is the channel — bump then". It
+// has not, and this change is a weaker case for a banner than that one was, on
+// a fact measured before publishing: it moves EXACTLY TWO of 22 accounts with
+// logs (`review@` +144, one real user −140). The other twenty see byte-identical
+// numbers, because they are custom mode, carry no seed, or have no measured
+// estimate at all.
+//
+// So a bump would fire a banner at twenty people about something that changed
+// nothing for them, and — the deciding half, same as the second OTA above —
+// `2026-09-04-scan-fixed` went out hours earlier and users see a banner on their
+// SECOND launch, so most have not reached it yet. Re-bumping would REPLACE a
+// message they never saw, and that message is the one the owner explicitly
+// asked for.
+//
+// It does not help the one user it could help, either. A global banner saying
+// targets adapt sooner cannot explain a specific −140 on a specific account;
+// that is `recalibrationDigest`'s job, and it declines here because that
+// account's `ci95Tdee` is null. That silence is a known, accepted cost recorded
+// in `targets.ts` — a banner is not the fix for it, and pretending otherwise
+// would be worse than leaving it visible.
 export const WHATS_NEW_VERSION = '2026-09-04-scan-fixed';
 
 const KEY = 'whatsNew.seen';
