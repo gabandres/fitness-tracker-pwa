@@ -312,7 +312,13 @@ export default function Today() {
             `headerTitleBlock`. The date is what makes the block wide (448px of
             a 1,080px screen on a OnePlus 8T), so it is what has to give. */}
         <View style={styles.headerTitleBlock}>
-          <Text style={styles.title} numberOfLines={1}>{t('nav.today')}</Text>
+          {/* The title deliberately carries NO `numberOfLines`. With it, Yoga
+              sized this block to the date and ellipsized the title inside it —
+              "Tod…" on the LG at 360dp, while the same 81dp block fit "Today"
+              on the OnePlus, because the two render the face at slightly
+              different widths. The screen's own name is the last thing that
+              should be abbreviated; the date already has the constraint. */}
+          <Text style={styles.title}>{t('nav.today')}</Text>
           <Text style={styles.date} numberOfLines={1}>{todayLabel(locale)}</Text>
         </View>
         <View style={styles.headerRight}>
