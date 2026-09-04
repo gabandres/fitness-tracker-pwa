@@ -36,11 +36,33 @@ export function RecalibrationCard({ suppressed = false }: { suppressed?: boolean
 
   if (!digest.shouldSurface || suppressed) return null;
 
+  // A first disclosure is not a recalibration, and until 2026-09-04 it could
+  // not tell them apart because the two always coincided: the card was gated on
+  // `reliable`, and crossing into `reliable` was the same moment `dailyTargets`
+  // switched the day's target to the estimator. So "Your target just
+  // recalibrated" described a real event, every time it fired.
+  //
+  // `c93a740c` decoupled them. The target now follows the estimator from the
+  // moment measured mode opens, and this card lost its `reliable` gate in the
+  // same commit so that a move is never unexplained — which means it can now
+  // reach an account whose target did not move at all. Seen the hour it
+  // shipped, on the owner's own phone: the card announced a recalibration and
+  // "set" a target that had read 1,944 before and after.
+  //
+  // `deltaSinceAck` is the honest discriminator and needs no new state: it is
+  // null exactly when nothing has been acknowledged yet, i.e. this is the first
+  // time the app has shown this number rather than a drift away from one the
+  // user already saw. First show states what the number IS; the drift path
+  // keeps the event wording, because there the event happened.
+  const firstDisclosure = digest.deltaSinceAck == null;
+
   return (
     <View style={styles.card} testID="recalibration-card">
-      <Text style={styles.title}>{t('recalibration.cardTitle')}</Text>
+      <Text style={styles.title}>
+        {t(firstDisclosure ? 'recalibration.firstTitle' : 'recalibration.cardTitle')}
+      </Text>
       <Text style={styles.body}>
-        {t('recalibration.cardBody', {
+        {t(firstDisclosure ? 'recalibration.firstBody' : 'recalibration.cardBody', {
           tdee: formatNumber(digest.trueTdee, locale),
           target: formatNumber(digest.calorieTarget, locale),
         })}

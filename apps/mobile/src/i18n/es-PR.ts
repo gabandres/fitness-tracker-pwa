@@ -223,6 +223,9 @@ export const esPR: Record<I18nKey, string> = {
 
   // ── adaptive-TDEE recalibration ──
   'recalibration.cardTitle': 'Tu meta se recalibró',
+  'recalibration.firstTitle': 'Ya tenemos tu gasto medido',
+  'recalibration.firstBody':
+    'Tus últimas semanas de datos ponen tu gasto real en unas {tdee} kcal/día. Tu meta diaria es {target} kcal.',
   'recalibration.cardBody':
     'Tus últimas semanas de datos ponen tu gasto real en unas {tdee} kcal/día. Ajustamos tu meta diaria a {target} kcal.',
   'recalibration.cardCta': 'Entendido',

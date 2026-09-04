@@ -219,6 +219,9 @@ export const ptBR = {
 
   // ── adaptive-TDEE recalibration ──
   'recalibration.cardTitle': 'Sua meta acabou de ser recalibrada',
+  'recalibration.firstTitle': 'Seu gasto medido está pronto',
+  'recalibration.firstBody':
+    'Suas últimas semanas de dados colocam seu gasto real em cerca de {tdee} kcal/dia. Sua meta diária é {target} kcal.',
   'recalibration.cardBody':
     'Suas últimas semanas de dados colocam o seu gasto real em cerca de {tdee} kcal/dia. Ajustamos a sua meta diária para {target} kcal.',
   'recalibration.cardCta': 'Entendi',

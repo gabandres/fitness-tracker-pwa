@@ -234,6 +234,10 @@ export const en = {
 
   // ── adaptive-TDEE recalibration ──
   'recalibration.cardTitle': 'Your target just recalibrated',
+  // First disclosure, not an event. See RecalibrationCard for why these exist.
+  'recalibration.firstTitle': 'Your measured burn is ready',
+  'recalibration.firstBody':
+    'Your last few weeks of data put your real burn at about {tdee} kcal/day. Your daily target is {target} kcal.',
   'recalibration.cardBody':
     'Your last few weeks of data put your real burn at about {tdee} kcal/day. We’ve set your daily target to {target} kcal.',
   'recalibration.cardCta': 'Got it',
