@@ -172,6 +172,21 @@ describe('buildPendingLog / pendingLogEntry', () => {
     expect(p.mealType).toBe('breakfast');
     expect(pendingLogEntry(p).mealType).toBe('breakfast');
   });
+
+  it('carries source through the queue, so a parked scan flushes as a scan (#109)', () => {
+    // Without this the row that eventually lands is byte-identical to a typed
+    // meal — the exact gap `first-scan` was blocked on, reintroduced on the
+    // offline path only, where nobody would go looking for it.
+    const p = buildPendingLog('abc', 'u1', { calories: 100, source: 'photo' }, 0);
+    expect(p.source).toBe('photo');
+    expect(pendingLogEntry(p).source).toBe('photo');
+  });
+
+  it('omits source entirely for every other tap — the native case', () => {
+    const p = buildPendingLog('abc', 'u1', { calories: 100 }, 0);
+    expect('source' in p).toBe(false);
+    expect('source' in pendingLogEntry(p)).toBe(false);
+  });
 });
 
 describe('parsePendingLogs', () => {
@@ -207,6 +222,19 @@ describe('parsePendingLogs', () => {
 
   it('accepts a row with no mealType at all — Swift omits the key', () => {
     expect(parsePendingLogs(JSON.stringify([good]))).toEqual([good]);
+  });
+
+  it('rejects an unknown source — the rules would refuse it on every flush', () => {
+    // Same reasoning as the mealType case above: `isValidLog` allow-lists the
+    // value, so a corrupted row would fail forever and sit in the queue until
+    // the TTL dropped it, taking a retry slot on every flush.
+    expect(parsePendingLogs(JSON.stringify([{ ...good, source: 'manual' }]))).toEqual([]);
+    expect(parsePendingLogs(JSON.stringify([{ ...good, source: 1 }]))).toEqual([]);
+  });
+
+  it('reads back a photo-scanned row unchanged', () => {
+    const scanned = buildPendingLog('def', 'u1', { calories: 400, source: 'photo' }, 1000);
+    expect(parsePendingLogs(serializePendingLogs([scanned]))).toEqual([scanned]);
   });
 });
 

@@ -25,6 +25,28 @@ import type { UnitSystem } from './unit-system';
 export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 export const MEAL_TYPES: readonly MealType[] = ['breakfast', 'lunch', 'dinner', 'snack'];
 
+/**
+ * How a log row got its numbers — provenance, written once at creation.
+ *
+ * ## Why absence is the normal case, and means nothing
+ *
+ * Only the photo-scan path writes this. A typed meal, a barcode capture, a
+ * preset, a quick-add and every row written before 2026-09-03 carry no `source`
+ * at all — so this field answers "was this photo-scanned?" and nothing else.
+ * Reading absence as "hand-typed" would be wrong for every historic row.
+ *
+ * ## The naming footgun (`CONTEXT.md` records it too)
+ *
+ * There are now three `source` fields in this codebase and they are three
+ * different unions: {@link FoodSource} on a `CustomFood` is how a *food* was
+ * captured (`barcode | label | text | manual`); `CardioBlock.source` is
+ * `manual | health`; this one is on a `DailyLog` and is `'photo'`. One member
+ * today, deliberately — a value nothing writes is speculative, and adding one
+ * later is a `firestore.rules` deploy that must land before any client writes
+ * it.
+ */
+export type LogSource = 'photo';
+
 export interface DailyLog {
   id?: string;
   weight?: number;
@@ -38,6 +60,8 @@ export interface DailyLog {
   cardioCompleted?: boolean;
   mealLabel?: string;
   mealType?: MealType;
+  /** Provenance, when there is any. See {@link LogSource}. */
+  source?: LogSource;
 }
 
 /** Shape passed to addLog / updateLog — the fields the user submits. */
@@ -51,6 +75,8 @@ export interface LogEntry {
   mealLabel?: string;
   mealType?: MealType;
   timestamp?: Date; // for undo-restore at original time
+  /** Set only by the photo-scan path. See {@link LogSource}. */
+  source?: LogSource;
 }
 
 // ─── Measurement types ──────────────────────────────────────────

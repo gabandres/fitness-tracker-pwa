@@ -27,7 +27,8 @@ service cloud.firestore {
 
     // ─── Log schema ─────────────────────────────────────────────
     // Required: calories, timestamp
-    // Optional: weight, protein, carbs, fat, exerciseCompleted, mealLabel, mealType
+    // Optional: weight, protein, carbs, fat, exerciseCompleted, mealLabel,
+    //           mealType, source
     // Legacy (read-only, may exist on historic docs): liftCompleted, cardioCompleted
     function isValidLog(data) {
       return data.keys().hasAll(['calories', 'timestamp'])
@@ -35,7 +36,7 @@ service cloud.firestore {
               'weight', 'calories', 'timestamp',
               'protein', 'carbs', 'fat', 'exerciseCompleted',
               'liftCompleted', 'cardioCompleted',
-              'mealLabel', 'mealType'
+              'mealLabel', 'mealType', 'source'
           ])
           && (!('weight' in data.keys()) ||
               (data.weight is number && data.weight > 0 && data.weight < 1000))
@@ -59,7 +60,14 @@ service cloud.firestore {
           && (!('mealLabel' in data.keys()) ||
               (data.mealLabel is string && data.mealLabel.size() <= 100))
           && (!('mealType' in data.keys()) ||
-              data.mealType in ['breakfast', 'lunch', 'dinner', 'snack']);
+              data.mealType in ['breakfast', 'lunch', 'dinner', 'snack'])
+          // Creation provenance (`LogSource` in packages/core/src/types.ts).
+          // Enumerated rather than "is string" for the same reason
+          // `isMilestoneKey` is: this field is the evidence the `first-scan`
+          // milestone is awarded on, and a free-text value would let a client
+          // bug write provenance nothing produced. Absent is the normal case —
+          // every typed meal, every preset, every row older than 2026-09-03.
+          && (!('source' in data.keys()) || data.source in ['photo']);
     }
 
     // ─── Profile schema ─────────────────────────────────────────

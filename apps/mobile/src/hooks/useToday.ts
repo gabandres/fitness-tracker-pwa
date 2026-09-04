@@ -95,6 +95,10 @@ export interface TodayState extends LogWrites {
    *  `dailyWeights` or a weight riding on a `DailyLog`. Evidence for the
    *  `first-weigh-in` milestone; see the return site for why both count. */
   hasWeighIn: boolean;
+  /** Whether a photo-scanned row is visible in the window this hook already
+   *  holds. Evidence for `first-scan`, and SUFFICIENT ONLY — see the return
+   *  site. */
+  hasPhotoScan: boolean;
 }
 
 export function useToday(): TodayState {
@@ -426,5 +430,26 @@ export function useToday(): TodayState {
      */
     hasWeighIn:
       Object.keys(weights).length > 0 || logs.some((l) => l.weight != null),
+    /**
+     * A photo-scanned row inside the window this hook already subscribes — the
+     * RECOVERY half of the `first-scan` award (#109).
+     *
+     * The primary award happens at the write (`lib/first-scan.ts`), which is
+     * where `earnedAt` can be honest. This exists for the one case that cannot
+     * reach: the milestone write failing after the meal succeeded — the signal
+     * dropping in the seconds between the two. It costs **nothing**: `logs` is
+     * already here, and the pending overlay is already merged into it, so a
+     * scan parked offline counts before it has reached Firestore.
+     *
+     * **Sufficient, never necessary, and that asymmetry is deliberate.**
+     * `subscribeRecentLogs` is a bounded rolling window (ADR-0004 — the three
+     * windows are typed and mixing them is a documented footgun), so `false`
+     * means "no scan in the last `LOG_WINDOW_ROWS` rows", NOT "never scanned".
+     * Reading it as a lifetime answer is exactly the mistake `meals-100` is
+     * still parked on. It only ever ADDS a candidate; `newlyEarned` and the
+     * write-once rule decide whether anything is recorded, and nothing here can
+     * take a milestone away.
+     */
+    hasPhotoScan: logs.some((l) => l.source === 'photo'),
   };
 }

@@ -1189,12 +1189,27 @@ export function subscribeMilestones(
  * milestone write were batched with the meal, workout or fast that earned it, a
  * rules rejection here would roll back the thing the user actually did. A
  * missed milestone is a non-event; a lost meal is a bug report.
+ *
+ * ## The return value, and why it is trustworthy
+ *
+ * `true` means this call is what created the document — a NEWLY earned
+ * milestone — and that is sound only because `firestore.rules` has no `update`
+ * rule for this collection: the key is the doc id and a second `setDoc` is
+ * denied, not merged. So success cannot mean "overwrote the one from last
+ * week". Callers use it to fire a one-time celebration (`recordPositiveMoment`)
+ * without first reading the record back.
+ *
+ * `false` covers both "already on file" and "offline"; neither is an error and
+ * neither is worth distinguishing here — the caller's fallback is to try again
+ * next time, which every call site already does by construction.
  */
-export async function recordMilestone(uid: string, key: string): Promise<void> {
+export async function recordMilestone(uid: string, key: string): Promise<boolean> {
   try {
     await setDoc(doc(milestonesCol(uid), key), { earnedAt: Timestamp.now() });
+    return true;
   } catch {
     // Already recorded (rules deny the update), or offline. Both are fine.
+    return false;
   }
 }
 

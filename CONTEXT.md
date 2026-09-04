@@ -15,7 +15,7 @@ add a term when a real ambiguity exists, not preemptively.
 - **DailyLog** — One row of intake. Fields: `id`, `calories`, `protein?`,
   `carbs?`, `fat?` (grams, added 2026-06 — older rows lack them; treat
   absent as unknown, not zero), `weight?`, `mealLabel?`, `mealType?`,
-  `exerciseCompleted?`, and a `date` (a JS `Date`
+  `exerciseCompleted?`, `source?` (see **LogSource**), and a `date` (a JS `Date`
   derived from a Firestore `Timestamp`). Stored at
   `users/{uid}/dailyLogs/{id}`. Despite the name, a `DailyLog` is a single
   meal/entry — a day usually has several. Arrays of `DailyLog` are
@@ -25,6 +25,18 @@ add a term when a real ambiguity exists, not preemptively.
   code. The canonical type is `DailyLog`. Prefer "log" or "entry" in new
   code; "meal" is fine when the row actually represents food (weight-only
   rows are still `DailyLog`s).
+- **LogSource** — Creation provenance on a `DailyLog` (`'photo'`, 2026-09-03,
+  #109). Written **only** by the photo-scan path and only at creation:
+  `toLogPatch` never names it, so editing a scanned meal cannot strip its
+  origin. **Absence means nothing** — a typed meal, a barcode capture, a preset,
+  a quick-add and every row older than 2026-09-03 carry no `source` at all — so
+  it answers "was this photo-scanned?" and no other question. It is the evidence
+  the `first-scan` **Milestone** is awarded on.
+  - **The three-`source` footgun.** Three unrelated unions now share the name:
+    this one on a `DailyLog`; **FoodSource** (`barcode | label | text | manual`)
+    on a `CustomFood`, which is how a *food* was captured; and
+    `CardioBlock.source` (`manual | health`). One careless autocomplete apart —
+    all three declarations carry a doc comment saying so.
 - **MealLabel** — Optional free-text name on a `DailyLog`
   (`log.mealLabel`). Powers the recent-entries one-tap-relog row and
   recipe deduplication. Empty for weight-only or 0-cal training-marker

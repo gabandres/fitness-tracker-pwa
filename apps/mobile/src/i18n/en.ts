@@ -1392,6 +1392,7 @@ export const en = {
   'milestones.streak-60': 'Sixty days of logging',
   'milestones.streak-100': 'A hundred days of logging',
   'milestones.first-weigh-in': 'First weigh-in',
+  'milestones.first-scan': 'First meal scanned',
   'milestones.first-fast': 'First fast recorded',
   'milestones.first-workout': 'First workout finished',
   'milestones.goal-reached': 'Reached your goal weight',

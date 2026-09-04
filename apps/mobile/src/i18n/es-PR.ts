@@ -1275,6 +1275,7 @@ export const esPR: Record<I18nKey, string> = {
   'milestones.streak-60': 'Sesenta días registrando',
   'milestones.streak-100': 'Cien días registrando',
   'milestones.first-weigh-in': 'Primer pesaje',
+  'milestones.first-scan': 'Primera comida escaneada',
   'milestones.first-fast': 'Primer ayuno registrado',
   'milestones.first-workout': 'Primer entrenamiento completado',
   'milestones.goal-reached': 'Llegaste a tu peso meta',

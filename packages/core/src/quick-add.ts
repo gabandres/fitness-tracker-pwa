@@ -34,7 +34,7 @@
  * The caller injects `nowMs`, `at` and `rand`.
  */
 
-import { MEAL_TYPES, type LogEntry, type MealPreset, type MealType } from './types';
+import { MEAL_TYPES, type LogEntry, type LogSource, type MealPreset, type MealType } from './types';
 
 /** How many quick-add slots a user can designate. Slot 1 is the one a blind
  *  single-tap surface (the Quick Settings tile) uses; the interactive widget
@@ -178,6 +178,17 @@ export interface PendingLog {
    * infers from the flush time, which can be hours later and a different meal.
    */
   mealType?: MealType;
+  /**
+   * Creation provenance, carried so a parked write flushes as what it was.
+   *
+   * Absent on every native tap (a widget button is not a photo scan, and
+   * Swift's `JSONEncoder` omits the key) and on every typed meal. It is here
+   * for one case: a photo scan logged with no signal. Drop it and the row that
+   * eventually lands is indistinguishable from a typed one — which is the exact
+   * gap `first-scan` was blocked on, reintroduced on the offline path only,
+   * where nobody would look for it.
+   */
+  source?: LogSource;
   /** Tap time, epoch ms. Becomes the log's timestamp on flush. */
   atMs: number;
 }
@@ -196,6 +207,7 @@ export function buildPendingLog(id: string, uid: string, entry: LogEntry, atMs: 
     ...(num(entry.fat) != null ? { fat: num(entry.fat) as number } : {}),
     ...(entry.mealLabel ? { mealLabel: entry.mealLabel } : {}),
     ...(entry.mealType ? { mealType: entry.mealType } : {}),
+    ...(entry.source ? { source: entry.source } : {}),
     atMs: Number.isFinite(at) ? Math.round(at) : atMs,
   };
 }
@@ -209,6 +221,7 @@ export function pendingLogEntry(p: PendingLog): LogEntry {
     ...(p.fat != null ? { fat: p.fat } : {}),
     ...(p.mealLabel ? { mealLabel: p.mealLabel } : {}),
     ...(p.mealType ? { mealType: p.mealType } : {}),
+    ...(p.source ? { source: p.source } : {}),
     timestamp: new Date(p.atMs),
   };
 }
@@ -227,6 +240,10 @@ function isPendingLog(x: unknown): x is PendingLog {
   // dropped it. Reject it here instead, where one bad row does not take the
   // good ones with it.
   if (o['mealType'] !== undefined && !MEAL_TYPES.includes(o['mealType'] as MealType)) return false;
+  // Same rule as the slot above, same reason: `isValidLog` allow-lists the
+  // value, so a corrupted `source` would fail its flush forever and sit in the
+  // queue until the TTL. Reject the row here, not on the wire.
+  if (o['source'] !== undefined && o['source'] !== 'photo') return false;
   return true;
 }
 

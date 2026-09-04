@@ -38,12 +38,10 @@ import {
  *
  * ## Not evaluated here, deliberately
  *
- * `first-scan`, `meals-100` and `goal-reached` are declared in the core union
- * and in `firestore.rules` — so shipping them later needs no rules deploy — but
- * are NOT awarded. Each is blocked on data this app does not have:
+ * `meals-100` and `goal-reached` are declared in the core union and in
+ * `firestore.rules` — so shipping them later needs no rules deploy — but are
+ * NOT awarded. Each is blocked on data this app does not have:
  *
- * - **`first-scan`** — `FoodSource` is `barcode | label | text | manual`. A
- *   photo-scanned log is indistinguishable from a typed one after the fact.
  * - **`meals-100`** — needs a lifetime count. `subscribeRecentLogs` is a bounded
  *   rolling window (ADR-0004), and reading it as a lifetime total is precisely
  *   the footgun `CONTEXT.md` "Time windows over logs" warns about.
@@ -54,6 +52,13 @@ import {
  *   2,741 to 1,619 kcal — and awarding off a purely imported trend is the exact
  *   failure the guard exists to prevent. The fix is a confirmation step, not a
  *   weaker predicate.
+ *
+ * **`first-scan` was in that list until 2026-09-03** and is not any more: the
+ * log doc carries a `source` (`LogSource`, `'photo'`) written only by the scan
+ * path, so a photo-scanned row is no longer indistinguishable from a typed one.
+ * It is awarded at the WRITE (`lib/first-scan.ts`) because a scan is an event
+ * and events can be caught where they happen. What this hook contributes is the
+ * recovery half — see `hasPhotoScan` below.
  */
 export interface MilestonesState {
   /** Everything on file, key → when it was recorded. */
@@ -70,6 +75,19 @@ export interface MilestoneEvidence {
   streak: number;
   /** Whether any weigh-in exists at all. */
   hasWeighIn: boolean;
+  /**
+   * Whether a photo-scanned row is visible in Today's already-subscribed
+   * window (`useToday.hasPhotoScan`).
+   *
+   * **The recovery half of `first-scan`, not the primary.** The award is made
+   * at the write, where `earnedAt` is the moment of the scan; this catches the
+   * narrow case that cannot — the milestone write failing in the seconds after
+   * the meal succeeded — and it costs no read, because Today holds the rows
+   * already. It is SUFFICIENT ONLY: the window is bounded (ADR-0004), so
+   * `false` never means "never scanned". Optional so an older caller compiles
+   * as it did.
+   */
+  hasPhotoScan?: boolean;
   boundary: DayBoundary;
 }
 
@@ -110,7 +128,7 @@ export function useMilestoneRecord(uid: string | null | undefined): {
 }
 
 export function useMilestones(ev: MilestoneEvidence): MilestonesState {
-  const { uid, streak, hasWeighIn, boundary } = ev;
+  const { uid, streak, hasWeighIn, hasPhotoScan, boundary } = ev;
 
   const [earned, setEarned] = useState<Record<string, Date>>({});
   const [ready, setReady] = useState(false);
@@ -152,6 +170,10 @@ export function useMilestones(ev: MilestoneEvidence): MilestonesState {
     void (async () => {
       const candidates: MilestoneKey[] = [...streakMilestonesReached(streak)];
       if (hasWeighIn) candidates.push('first-weigh-in');
+      // Costs no read — the evidence is a field on rows Today already holds.
+      // Deliberately does NOT call `recordPositiveMoment`: the write path does
+      // that, at a moment the user is present for. See `lib/first-scan.ts`.
+      if (hasPhotoScan) candidates.push('first-scan');
 
       // Probes, each gated on the milestone being unrecorded. `newlyEarned`
       // filters again below, so a probe answering true is not itself a write.
@@ -187,7 +209,7 @@ export function useMilestones(ev: MilestoneEvidence): MilestonesState {
     return () => {
       alive = false;
     };
-  }, [uid, ready, streak, hasWeighIn, earned]);
+  }, [uid, ready, streak, hasWeighIn, hasPhotoScan, earned]);
 
   const todays = useMemo(() => {
     const today = dayKeyAt(new Date(), boundary);

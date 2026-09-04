@@ -31,6 +31,7 @@ import { hasFormulaInputs } from './onboarding-seed';
 import {
   type CustomFood,
   type LogEntry,
+  type LogSource,
   type MealPreset,
   type MealType,
   type Measurement,
@@ -83,6 +84,10 @@ export interface LogDoc<TS> {
   exerciseCompleted?: true;
   mealLabel?: string;
   mealType?: MealType;
+  /** Creation provenance — only the photo-scan path writes it, and only ever
+   *  `'photo'`. Validated by `isValidLog`'s allow-list; a rules deploy has to
+   *  land before any client writes it. */
+  source?: LogSource;
 }
 
 /** Serialize a log for creation (`addLog`, and each row of `importLogs`).
@@ -103,6 +108,7 @@ export function toLogDoc<TS>(
     ...(entry.exerciseCompleted ? { exerciseCompleted: true as const } : {}),
     ...(entry.mealLabel ? { mealLabel: entry.mealLabel } : {}),
     ...(entry.mealType ? { mealType: entry.mealType } : {}),
+    ...(entry.source ? { source: entry.source } : {}),
   };
 }
 
@@ -114,6 +120,12 @@ export function toLogDoc<TS>(
  *
  * `weight` is the exception: absent means "leave whatever is stored", because
  * the weight is owned by the `dailyWeights` collection, not by this row.
+ *
+ * `source` is the second exception, and for a different reason: it is a fact
+ * about how the row was CREATED. Correcting the grams of a photo-scanned meal
+ * does not turn it into a typed one, and no edit surface passes the field — so
+ * naming it here would silently strip provenance from every scanned row the
+ * moment its owner touched it. Absent means "leave it", permanently.
  */
 export function toLogPatch<TS>(entry: LogEntry, codec: DocCodec<TS>): Record<string, unknown> {
   const patch: Record<string, unknown> = {
