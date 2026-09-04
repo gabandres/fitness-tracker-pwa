@@ -196,7 +196,7 @@ export const en = {
   'today.maintenance': 'maintenance',
   'today.underMaintenance': '{n} under your burn',
   'today.overMaintenance': '{n} over your burn',
-  'today.maintenanceRough': '{logged} of {span} days logged — unlogged days pull this down',
+  'today.maintenanceRough': '{logged} of the last {span} days logged — gaps make this less certain',
   'today.maintenanceHolding':
     'Holding steady — recent weigh-ins are too scattered to update this. Weigh in most days and it will start moving again.',
   'today.maintenanceProvisional': 'Your target is held steady while the record fills in',

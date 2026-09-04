@@ -181,7 +181,7 @@ export const ptBR = {
   'today.maintenance': 'manutenção',
   'today.underMaintenance': '{n} abaixo do seu gasto',
   'today.overMaintenance': '{n} acima do seu gasto',
-  'today.maintenanceRough': '{logged} de {span} dias registrados — dias sem registro puxam isso para baixo',
+  'today.maintenanceRough': '{logged} dos últimos {span} dias registrados — as lacunas deixam isto menos preciso',
   'today.maintenanceHolding':
     'Estável — as pesagens recentes estão espalhadas demais para atualizar isso. Pese-se na maioria dos dias e o número volta a se mover.',
   'today.maintenanceProvisional': 'Sua meta fica estável enquanto o histórico se completa',

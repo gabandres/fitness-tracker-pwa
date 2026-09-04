@@ -52,10 +52,19 @@ export interface TdeeBase {
 export interface MeasuredTdee extends TdeeBase {
   source: 'measured';
   loggingCompletenessPct: number;
-  /** Logged days the measured estimate was built from (≤ MEASURED_WINDOW_DAYS),
-   *  and the calendar span they were spread across. A UI can say "28 of 49 days"
-   *  rather than "57%" — the counts are what tell a user that three weeks of
-   *  eating are missing from the number. */
+  /** Logged days the measured estimate was built from (**capped at
+   *  MEASURED_WINDOW_DAYS**), and the calendar span they were spread across. A
+   *  UI can say "28 of 49 days" rather than "57%".
+   *
+   *  Two things a caller must not infer from the gap, both of which this
+   *  comment previously implied and one of which reached users as copy:
+   *
+   *  1. It does NOT mean the estimate is dragged down. Gaps lower `confidence`,
+   *     which blends the figure toward the Mifflin anchor — up for a user above
+   *     that anchor, down for one below it. There is no direction to state.
+   *  2. The numerator does NOT grow past the cap. Once past 42 logged days it
+   *     is pinned there for good, so a thin record improves by `spanDays`
+   *     falling, never by `windowDays` rising. */
   windowDays: number;
   spanDays: number;
   reliable: boolean;

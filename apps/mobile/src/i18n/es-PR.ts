@@ -184,7 +184,7 @@ export const esPR: Record<I18nKey, string> = {
   'today.maintenance': 'mantenimiento',
   'today.underMaintenance': '{n} bajo lo que quemas',
   'today.overMaintenance': '{n} sobre lo que quemas',
-  'today.maintenanceRough': '{logged} de {span} días registrados — los días sin registrar lo bajan',
+  'today.maintenanceRough': '{logged} de los últimos {span} días anotados — los huecos lo hacen menos preciso',
   'today.maintenanceHolding':
     'Se mantiene igual — los pesajes recientes están muy regados para actualizarlo. Pésate casi todos los días y vuelve a moverse.',
   'today.maintenanceProvisional': 'Tu meta se mantiene estable mientras se completa el registro',

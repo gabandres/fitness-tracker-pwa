@@ -125,9 +125,21 @@ export function maintenanceView(tdee: TdeeResult, consumedKcal: number): Mainten
     // defences against a shape that can no longer exist — a formula or seed
     // result reaching this line — and the compiler now rules that out instead.
     reliable: tdee.reliable,
-    // The counts, not the percentage: "28 of 49 days" tells a user that three
-    // weeks of eating are missing from the number and that every missing day
-    // drags it DOWN. "57%" tells them nothing they can act on.
+    // The counts, not the percentage: "28 of 49 days" is something a user can
+    // act on where "57%" is not.
+    //
+    // **What the gap does NOT do is drag the number down**, and this comment
+    // used to say it did — which is where the Today card's copy came from.
+    // Gaps lower `confidence`, and confidence blends the measured estimate
+    // TOWARD the Mifflin anchor: `confidence * measured + (1 - confidence) *
+    // anchor`. Whether that raises or lowers the figure depends entirely on
+    // which side of the anchor the user sits. Measured on the owner's account
+    // 2026-09-04: measured 2,350 -> trueTdee 2,358, so the damping pushed it
+    // UP. The old copy was not merely vague, it was backwards for him.
+    //
+    // Note also that `windowDays` is CAPPED at MEASURED_WINDOW_DAYS, so the
+    // numerator cannot grow past 42. A patchy record improves by the SPAN
+    // shrinking, not by the count rising — "42 of 63" becomes "42 of 42".
     loggedDays: tdee.windowDays,
     spanDays: tdee.spanDays,
     weighInsDropped: tdee.outliersDropped,
