@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-09-03 (late) — Ignia is live on Google Play: vc 44 / 1.2.2 approved the same evening it was submitted
+
+The store URL turned 200 a little after 22:30 local; Play Console reads *Last
+published on September 3, 2026* and the tracks API reports vc 44 on production,
+alpha and internal. That is the first Android production release, ~3.5 hours
+after the resubmission and ~12 hours after the morning's rejection. It also
+clears the #107 Block Store deadline (30 Sept). Only the Data safety amendment
+(Device or other IDs, sent an hour earlier) is still in review, on its own.
+
+Done on the strength of it: `app-version.json` android 37 → **44**
+(`app-version-sync`, prod build, hosting deploy, verified live) so every vc 37
+install sees the update banner. The Android OTA channel is OPEN again on
+`68ea2dd3…`; iOS stays shut until 1.2.2 / build 63 clears Apple.
+
+Next, and now unblocked: the EU 30 on Play (Console work — the API's country
+availability is read-only). `--availability` read 128 before the change.
+
 ## 2026-09-03 — Google Play rejected the first Android production release, and the reviewer had crashed the app eleven minutes earlier
 
 **Evening, same day — four loose ends closed.** `analyzePhoto` was deployed with

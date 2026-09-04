@@ -103,8 +103,10 @@ There are **two** ceilings, not one: a **30/month account total** and a
 **15/month per-platform** sub-cap. The account total runs out first if the two
 platforms are used unevenly.
 
-**iOS 13/15, Android 6/15 for the 2026-08-01 → 2026-09-01 period** (19/30 on the
-account total), read from the API on 2026-08-25 — 7 days left in the period.
+**iOS 0/15 for the 2026-09-01 → 2026-10-01 period**, read from the API on
+2026-09-03 by `npm run doctor` (the August period closed at iOS 13/15,
+Android 6/15, 19/30 on the account total; every September binary so far —
+vc 41–44, builds 62–63 — was built locally, so the new period is untouched).
 **No build of either platform has been created since 2026-08-10**, so the local
 hosts are doing exactly what they were adopted for; the 87% on iOS is spend from
 the first ten days of the month, not ongoing consumption. Two caveats worth
