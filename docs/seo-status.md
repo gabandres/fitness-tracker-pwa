@@ -11,6 +11,30 @@ Re-check any time with `node scripts/gsc.mjs inspect`.
 
 ---
 
+## 2026-09-03 — it moved: 6 of 7 indexed, and the sitemap still never fetched
+
+`node scripts/gsc.mjs inspect`, same seven URLs as every earlier read:
+
+| URL | 07-29 · 08-17 · 08-27 | 2026-09-03 |
+|---|---|---|
+| `/cutting-calculator` | unknown | **Submitted and indexed** |
+| `/protein-calculator` | unknown | **Submitted and indexed** |
+| `/tdee-calculator-women` | unknown | **Submitted and indexed** |
+| `/weight-loss-calculator` | unknown | **Submitted and indexed** |
+| `/transformations` | unknown | unknown |
+| `/es/calculator` | unknown | **Submitted and indexed** |
+| `/es/vs/macrofactor` | unknown | **Submitted and indexed** |
+
+Sitemap re-submitted the same day: `lastDownloaded: not yet`, 0 warnings,
+0 errors — the fourth clean submission Google has not fetched. So the crawl
+came **by links**, which dates it to the orphan-graph fix live since 08-31
+(1 → 118 of 118 sitemap URLs reachable from `/`). The router/SSR migration
+costed below rested on "Google never requests these pages"; that premise is
+now false, and the migration stays deferred. Next reads: GSC Performance
+impressions in ~2 weeks, and whether `/transformations` follows.
+
+---
+
 ## What was wrong
 
 Three problems, discovered in this order, each hiding the next.
