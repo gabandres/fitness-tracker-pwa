@@ -17,6 +17,9 @@ This file is only the parts that are code.
 
 ## Shipped 2026-09-04 (listed so nobody re-opens them)
 
+- The maintenance caveat no longer claims unlogged days pull the estimate
+  down. They affect certainty, not direction — and `windowDays` is capped,
+  so the count cannot rise past 42 however much is logged.
 - Drop sets: `setKind: 'drop'` already existed and is already excluded from
   progression by `isWorkingSet`. **No code was needed** — verified, not assumed.
 - `restAfterSet` now returns `REST_INTO_DROP_SEC` (10s) before a `drop`.
@@ -87,22 +90,6 @@ already takes a clock parameter for exactly this reason, so the precedent and th
 testability argument are both already in the codebase.
 
 **Evidence:** `scratchpad/workstream-c-evidence-{1,2}.txt` (day-by-day replay).
-
-## 2 · "42 of 63 days logged" reads as a shortfall when 42 is a hard cap
-
-`maintenance-view.ts:131` surfaces `tdee.windowDays`, which is a genuine
-logged-day count — but it is capped at `MEASURED_WINDOW_DAYS` (42), so past 42
-logged days it is pinned there permanently whatever the user does.
-
-The card's own comment says it is going for *"three weeks of eating are missing
-from the number, and every missing day drags it DOWN."* That is not what the
-number means. It means *"we look at your last 42 logged days, which happen to span
-63 calendar days"* — which is not alarming and requires no action. Copy fix, not
-a maths fix.
-
-**Not to be confused with** the handoff's guess that a window length was being
-surfaced as a logged-day count. That was checked and is wrong; the value is
-correct and the label is what misleads.
 
 ## 3 · Phantom meal row written on workout save
 
