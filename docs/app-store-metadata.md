@@ -236,6 +236,35 @@ Ignia is not a medical device and does not provide medical advice.
 > page written to convert a store visitor, and it carries the browser fallback
 > for anyone who bounces off the install.
 
+### What's New — 1.2.3 · submitted 2026-09-05 (the re-shot screenshots ship with it)
+
+Written against App Store 1.2.2 / build 63. Everything listed already reached
+1.2.2 users over the air (`apps/mobile/AGENTS.md` rows 2026-09-04/05); the
+binary bakes it in for fresh installs and carries the new screenshots. The
+machine-readable copy is `WHATS_NEW` in `scripts/asc-release-version.mjs`,
+which uploads it; this block is the source of truth for wording. `usesIdfa` is
+set to `false` explicitly on this version (see the note above).
+
+**en-US**
+```
+• Reached your goal? One tap on Body switches Ignia to maintenance: your target moves to the calories you have been measured to burn, and the streak nudges go quiet.
+• Your calorie target now follows Ignia's measured estimate from the first day of measured mode, instead of waiting behind a confidence bar.
+• Fixed: the sign-in screen could flash once after an update, even though you were still signed in.
+• Fixed: the day still in progress no longer counts as evidence in your maintenance estimate.
+• Fixed: redoing onboarding no longer overwrites a measured target.
+• Fixed: the Today header could clip at larger text sizes, and a column header in Train wrapped in Spanish.
+```
+
+**es-MX**
+```
+• ¿Llegaste a tu meta? Un toque en Cuerpo cambia Ignia a mantenimiento: tu objetivo pasa a las calorías que se ha medido que quemas, y los recordatorios de racha se callan.
+• Tu objetivo de calorías ahora sigue la estimación medida de Ignia desde el primer día del modo medido, en vez de esperar detrás de una barra de confianza.
+• Arreglado: la pantalla de inicio de sesión podía aparecer un momento después de una actualización, aunque seguías con la sesión iniciada.
+• Arreglado: el día en curso ya no cuenta como evidencia en tu estimación de mantenimiento.
+• Arreglado: repetir el onboarding ya no sobrescribe un objetivo medido.
+• Arreglado: el encabezado de Hoy podía recortarse con texto grande, y un encabezado de columna en Entrenar se partía en dos líneas en español.
+```
+
 ### What's New — 1.2.0 · SHIPPED 2026-08-19 as build **55** (submitted 08-15 with build 54)
 
 **This is the live release copy.** Written against App Store 1.1.0 / build 24

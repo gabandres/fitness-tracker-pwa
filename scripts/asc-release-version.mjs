@@ -31,15 +31,23 @@ if (!versionString || !buildNumber) {
   process.exit(2);
 }
 
+// 1.2.3 — the wording lives in docs/app-store-metadata.md ("What's New — 1.2.3");
+// this copy must match it. 1.2.2's text is in git history (48ab27cc..).
 const WHATS_NEW = {
   'en-US':
-    'A new app icon and a dark launch screen. Health Connect on Android connects again (a fix for a crash on the permission prompt). ' +
-    'Plus everything that arrived over the air since the last release: a fast you logged wrong can be fixed, water on Trends, milestones, ' +
-    'onboarding that ends with your first log, smarter reminders, and a proper welcome the first time you open the app.',
+    '• Reached your goal? One tap on Body switches Ignia to maintenance: your target moves to the calories you have been measured to burn, and the streak nudges go quiet.\n' +
+    '• Your calorie target now follows Ignia\'s measured estimate from the first day of measured mode, instead of waiting behind a confidence bar.\n' +
+    '• Fixed: the sign-in screen could flash once after an update, even though you were still signed in.\n' +
+    '• Fixed: the day still in progress no longer counts as evidence in your maintenance estimate.\n' +
+    '• Fixed: redoing onboarding no longer overwrites a measured target.\n' +
+    '• Fixed: the Today header could clip at larger text sizes, and a column header in Train wrapped in Spanish.',
   'es-MX':
-    'Nuevo ícono y pantalla de inicio en modo oscuro. Health Connect en Android vuelve a conectar (arreglo de un cierre inesperado al pedir permisos). ' +
-    'Además, todo lo que llegó por actualización desde la última versión: corregir un ayuno mal registrado, agua en Tendencias, hitos, ' +
-    'un onboarding que termina con tu primer registro, recordatorios más inteligentes y una bienvenida de verdad la primera vez que abres la app.',
+    '• ¿Llegaste a tu meta? Un toque en Cuerpo cambia Ignia a mantenimiento: tu objetivo pasa a las calorías que se ha medido que quemas, y los recordatorios de racha se callan.\n' +
+    '• Tu objetivo de calorías ahora sigue la estimación medida de Ignia desde el primer día del modo medido, en vez de esperar detrás de una barra de confianza.\n' +
+    '• Arreglado: la pantalla de inicio de sesión podía aparecer un momento después de una actualización, aunque seguías con la sesión iniciada.\n' +
+    '• Arreglado: el día en curso ya no cuenta como evidencia en tu estimación de mantenimiento.\n' +
+    '• Arreglado: repetir el onboarding ya no sobrescribe un objetivo medido.\n' +
+    '• Arreglado: el encabezado de Hoy podía recortarse con texto grande, y un encabezado de columna en Entrenar se partía en dos líneas en español.',
 };
 
 const OPEN = ['READY_FOR_REVIEW', 'WAITING_FOR_REVIEW', 'IN_REVIEW', 'UNRESOLVED_ISSUES'];
@@ -88,9 +96,13 @@ if (!version) {
   });
   version = created.data;
   console.log(`created version ${version.id}`);
-} else if (version.attributes.releaseType !== releaseType) {
-  await api('PATCH', `/v1/appStoreVersions/${version.id}`, { data: { type: 'appStoreVersions', id: version.id, attributes: { releaseType } } });
 }
+// releaseType, and `usesIdfa: false` set explicitly — 1.2.0 shipped with it
+// `null` and ASC did not gate on it (app-store-metadata.md §usesIdfa asked for
+// this on the next version). The app has no ad identifier use.
+await api('PATCH', `/v1/appStoreVersions/${version.id}`, {
+  data: { type: 'appStoreVersions', id: version.id, attributes: { releaseType, usesIdfa: false } },
+});
 
 await api('PATCH', `/v1/appStoreVersions/${version.id}/relationships/build`, { data: { type: 'builds', id: build.id } });
 console.log('build attached');
