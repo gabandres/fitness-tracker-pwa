@@ -10,6 +10,7 @@ import {
   type FeedbackRow,
   type PlatformStats,
   type RetentionHistoryRow,
+  type StoreVersionDoc,
 } from '../../services/admin.service';
 import { adminPreviewEnabled } from './admin-preview';
 import {
@@ -45,6 +46,10 @@ export class AdminDataService {
   readonly costModel = signal<CostModel | null>(null);
   readonly billing = signal<BillingReport | null>(null);
   readonly costLedger = signal<LedgerItem[]>([]);
+  /** What the mobile update banner is being told (the public JSON). */
+  readonly storeVersions = signal<StoreVersionDoc | null>(null);
+  /** Per-side reasons the last manual sync left a value alone. */
+  readonly storeSyncNotes = signal<string[]>([]);
 
   private readonly loading = signal<Record<string, boolean>>({});
   readonly error = signal<string>('');
@@ -90,6 +95,7 @@ export class AdminDataService {
       this.loadRetention(force),
       this.loadCeilings(force),
       this.loadHeartbeat(),
+      this.loadStoreVersions(force),
       this.loadFeedback(force),
       this.loadActivity(force),
     ]);
@@ -99,6 +105,21 @@ export class AdminDataService {
   loadStats(force = false) { return this.guard('stats', force, this.stats, () => this.api.getPlatformStats(force)); }
   loadUsage(force = false) { return this.guard('usage', force, this.usage, () => this.api.getUsageSeries(30, force)); }
   loadCeilings(force = false) { return this.guard('ceilings', force, this.ceilings, () => this.api.getSpendCeilings(), []); }
+  loadStoreVersions(force = false) { return this.guard('storeVersions', force, this.storeVersions, () => this.api.getStoreVersions()); }
+  /** The "Sync now" button: re-read both stores, then show what was written. */
+  async syncStoreVersions(): Promise<void> {
+    if (adminPreviewEnabled() || this.loading()['storeVersions']) return;
+    this.loading.update((l) => ({ ...l, storeVersions: true }));
+    try {
+      const r = await this.api.syncStoreVersions();
+      this.storeVersions.set(r.doc);
+      this.storeSyncNotes.set(r.notes);
+    } catch (err) {
+      this.error.set(`storeVersions: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      this.loading.update((l) => ({ ...l, storeVersions: false }));
+    }
+  }
   loadActivity(force = false) { return this.guard('activity', force, this.activity, async () => (await this.api.getRecentActivity()).items, []); }
   loadFeedback(force = false) { return this.guard('feedback', force, this.feedback, () => this.api.getFeedback(), []); }
   loadAudit(force = false) {

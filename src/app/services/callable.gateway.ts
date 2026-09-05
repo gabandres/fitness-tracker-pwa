@@ -55,6 +55,7 @@ export type CallableName =
   | 'adminNoteSession'
   | 'adminGetBilling'
   | 'adminSetCostLedger'
+  | 'adminSyncAppVersion'
   | 'startImpersonation'
   | 'stopImpersonation';
 

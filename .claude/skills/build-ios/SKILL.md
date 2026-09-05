@@ -180,7 +180,9 @@ position once.
 ## After shipping
 
 Update the fingerprint table in `apps/mobile/AGENTS.md` (value read from the
-artifact), then `STATUS.md`. `ios.latestBuild` in `public/app-version.json` is
-derived from the **App Store** version in `READY_FOR_SALE`, never a TestFlight
-build. **A mobile fix reaches nobody until a binary ships** — name the cohort out
-loud when reporting.
+artifact), then `STATUS.md`. `app-version.json` needs no deploy: it is served
+from Firestore, iOS derived hourly from Apple's public lookup (marketing
+version), and `asc-release-version.mjs` records the version→build map for the
+pre-2026-09-05 binaries at submission (`functions/src/app-version.ts`). **A
+mobile fix reaches nobody until a binary ships** — name the cohort out loud
+when reporting.

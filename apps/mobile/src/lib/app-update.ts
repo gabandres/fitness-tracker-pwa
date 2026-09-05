@@ -209,18 +209,74 @@ const STORE_URL_FALLBACK = Platform.select({
   default: 'https://ignia.fit',
 });
 
-interface VersionManifest {
+/** What `/app-version.json` serves (`functions/src/app-version.ts`). Since
+ *  2026-09-05 it is derived in the cloud with no store credential: Android
+ *  from the Play tracks API, iOS from Apple's public lookup, which yields the
+ *  MARKETING version ("1.2.3") and not the build number. `ios.latestBuild` is
+ *  still served for the binaries that predate this file's `latestVersion`
+ *  branch, promoted from a version→build map the release script records. */
+export interface VersionManifest {
   android?: { latestVersionCode?: number };
-  ios?: { latestBuild?: number };
+  ios?: { latestBuild?: number; latestVersion?: string };
 }
 
-/** The build number of the running binary. Android reports versionCode, iOS
- *  CFBundleVersion. Null in Expo Go and on web, which disables the check. */
-function installedBuild(): number | null {
-  const raw = Application.nativeBuildVersion;
-  if (!raw) return null;
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : null;
+/** The numbers the running binary reports. Android: versionCode; iOS:
+ *  CFBundleVersion and CFBundleShortVersionString. Null in Expo Go / web. */
+interface InstalledIdentity {
+  build: string | null | undefined;
+  version: string | null | undefined;
+}
+
+/**
+ * "1.2.3" → 1_002_003: a marketing version as one comparable integer, so the
+ * pure decision below stays a plain `<`. Three dotted components, each under
+ * 1000, which every Ignia version has been. Null for anything else — a value
+ * we cannot order must read as unknown, never as "older".
+ */
+export function versionKey(v: string | null | undefined): number | null {
+  if (!v) return null;
+  const m = /^(\d{1,3})\.(\d{1,3})(?:\.(\d{1,3}))?$/.exec(v.trim());
+  if (!m) return null;
+  return Number(m[1]) * 1_000_000 + Number(m[2]) * 1_000 + Number(m[3] ?? 0);
+}
+
+/**
+ * Which pair of numbers to compare. Pure, because the platform split is
+ * where a wrong banner would come from:
+ *
+ *  - Android compares versionCode to `android.latestVersionCode`, as always.
+ *  - iOS prefers the marketing version (`ios.latestVersion` vs the running
+ *    CFBundleShortVersionString): the store has exactly one live build per
+ *    version, so the version IS the release identity, and it is the one
+ *    value the cloud can read without an App Store Connect key.
+ *  - iOS falls back to the build-number pair when the manifest carries no
+ *    `latestVersion` (an older server, or a sync that has not run yet).
+ *
+ * Both sides of a pair come from the same key space, so a dismissal stored
+ * under one space can at most re-prompt once when the space changes.
+ */
+export function pickStoreTarget(
+  manifest: VersionManifest | null,
+  os: string,
+  installed: InstalledIdentity,
+): { current: number | null; latest: number | null } {
+  const num = (raw: string | number | null | undefined): number | null => {
+    if (raw == null || raw === '') return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  };
+  if (os === 'android') {
+    return { current: num(installed.build), latest: num(manifest?.android?.latestVersionCode) };
+  }
+  const latestVersion = versionKey(manifest?.ios?.latestVersion);
+  if (latestVersion != null) {
+    return { current: versionKey(installed.version), latest: latestVersion };
+  }
+  return { current: num(installed.build), latest: num(manifest?.ios?.latestBuild) };
+}
+
+function installedIdentity(): InstalledIdentity {
+  return { build: Application.nativeBuildVersion, version: Application.nativeApplicationVersion };
 }
 
 /**
@@ -267,6 +323,9 @@ export interface StoreUpdateState {
  */
 export function useStoreUpdate(): StoreUpdateState {
   const [latest, setLatest] = useState<number | null>(null);
+  // Set together with `latest`, from the same key space (build number or
+  // version key) — see `pickStoreTarget`.
+  const [current, setCurrent] = useState<number | null>(null);
   const [dismissed, setDismissed] = useState<number | null>(null);
   const [ready, setReady] = useState(false);
 
@@ -284,11 +343,11 @@ export function useStoreUpdate(): StoreUpdateState {
         const res = await fetch(VERSION_URL, { signal: controller.signal });
         if (!res.ok) return;
         const manifest = (await res.json()) as VersionManifest;
-        const value =
-          Platform.OS === 'android'
-            ? manifest.android?.latestVersionCode
-            : manifest.ios?.latestBuild;
-        if (alive && typeof value === 'number') setLatest(value);
+        const { current, latest: value } = pickStoreTarget(manifest, Platform.OS, installedIdentity());
+        if (alive && value != null) {
+          setCurrent(current);
+          setLatest(value);
+        }
       } catch {
         // Offline, timed out, or the file is missing/malformed. Staying silent
         // is the correct failure mode: a version check that cannot reach the
@@ -332,7 +391,7 @@ export function useStoreUpdate(): StoreUpdateState {
     void AsyncStorage.setItem(DISMISSED_KEY, String(latest));
   }, [latest]);
 
-  const available = ready && shouldPromptStoreUpdate(installedBuild(), latest, dismissed);
+  const available = ready && shouldPromptStoreUpdate(current, latest, dismissed);
 
   return { available, open, dismiss };
 }

@@ -932,26 +932,23 @@ async function checkPlaySigningCerts() {
 }
 
 /**
- * `public/app-version.json` is what tells an installed Android app that a newer
- * binary exists. Nothing in the app derives it — it is a number written into a
- * file and deployed to hosting — so the moment it lags what Play ships, every
- * older install is told it is up to date and the update banner never fires.
+ * `https://ignia.fit/app-version.json` is what tells an installed app that a
+ * newer binary exists. Since 2026-09-05 it is derived in the cloud (Firestore
+ * `public/appVersion`, refreshed hourly and from /admin — `functions/src/
+ * app-version.ts`), so this check no longer reads a local file: it reads the
+ * LIVE URL and compares it with the stores, which is the only way to know the
+ * automation is telling installs the truth. If it lags, something upstream is
+ * broken (the Play Console grant, the lookup, the hourly task) — the fix is to
+ * open /admin → System → "Sync now" and read the notes it prints.
  *
- * That failure is invisible from inside the app: no error, no warning, and a
- * screen that looks exactly like a user who genuinely is current. This check is
- * the only thing standing between "we shipped vc N" and "nobody was told", which
- * is why it FAILS rather than warns.
- *
- * It compares against the live androidpublisher tracks, the same authority the
- * signing-cert check above uses.
+ * The failure is invisible from inside the app: no error, no warning, and a
+ * screen that looks exactly like a user who genuinely is current. That is why
+ * it FAILS rather than warns.
  */
 async function checkAppVersionManifest() {
   const name = 'app-version.json matches what Play ships';
   const keyPath = 'apps/mobile/credentials/play-service-account.json';
   if (!has(keyPath)) return skip(G3, name, `${keyPath} not found (see CLAUDE.local.md)`);
-  if (!has('public/app-version.json')) {
-    return fail(G3, name, 'public/app-version.json is missing — the update banner has nothing to read');
-  }
 
   let sync;
   try {
@@ -960,7 +957,13 @@ async function checkAppVersionManifest() {
     return skip(G3, name, `could not load app-version-sync.mjs: ${e.message}`);
   }
 
-  const declared = sync.readManifest().android?.latestVersionCode ?? 0;
+  let manifest;
+  try {
+    manifest = await sync.readLiveManifest();
+  } catch (e) {
+    return fail(G3, name, `${sync.MANIFEST_URL} unreachable (${e.message}) — the update banner has nothing to read`);
+  }
+  const declared = manifest.android?.latestVersionCode ?? 0;
 
   let live;
   try {
@@ -986,9 +989,10 @@ async function checkAppVersionManifest() {
   fail(
     G3,
     name,
-    `app-version.json says ${declared}, Play is shipping ${live.versionCode} (${live.tracks.join(', ')}). ` +
+    `app-version.json serves ${declared}, Play is shipping ${live.versionCode} (${live.tracks.join(', ')}). ` +
       `Every install below ${live.versionCode} is being told it is up to date and will never see the ` +
-      'update banner. Fix: node scripts/app-version-sync.mjs && firebase deploy --only hosting',
+      'update banner. Fix: /admin → System → "Sync now" and read its notes (the Play Console grant for the ' +
+      "function's service account is the usual cause — DEV_ENVIRONMENT.md)",
   );
 }
 
@@ -1005,9 +1009,6 @@ async function checkAppVersionManifest() {
  */
 async function checkAppVersionManifestIos() {
   const name = 'app-version.json matches what the App Store ships';
-  if (!has('public/app-version.json')) {
-    return fail(G3, name, 'public/app-version.json is missing');
-  }
 
   let sync;
   try {
@@ -1016,7 +1017,14 @@ async function checkAppVersionManifestIos() {
     return skip(G3, name, `could not load app-version-sync.mjs: ${e.message}`);
   }
 
-  const declared = sync.readManifest().ios?.latestBuild ?? 0;
+  let manifest;
+  try {
+    manifest = await sync.readLiveManifest();
+  } catch (e) {
+    return fail(G3, name, `${sync.MANIFEST_URL} unreachable (${e.message})`);
+  }
+  const declaredBuild = manifest.ios?.latestBuild ?? 0;
+  const declaredVersion = manifest.ios?.latestVersion ?? null;
 
   let live;
   try {
@@ -1026,17 +1034,28 @@ async function checkAppVersionManifestIos() {
   }
   if (!live) return skip(G3, name, 'no READY_FOR_SALE version on the App Store');
 
-  if (declared === 0) {
-    return pass(G3, name, `ios prompt is disabled on purpose (live is ${live.version} build ${live.build})`);
-  }
-  if (declared === live.build) {
-    return pass(G3, name, `ios.latestBuild = ${declared} (${live.version} build ${live.build})`);
-  }
-  if (declared > live.build) {
+  // Two fields, two client generations: `latestVersion` is what the
+  // 2026-09-05+ JS compares on (from Apple's public lookup, which can lag a
+  // release by a few hours); `latestBuild` is what every earlier binary
+  // compares on, promoted from the version→build map the release script
+  // records. Both must agree with ASC.
+  if (declaredVersion !== live.version) {
     return fail(
       G3,
       name,
-      `app-version.json claims build ${declared} but the App Store is serving ${live.version} build ${live.build}. ` +
+      `app-version.json serves ios.latestVersion ${declaredVersion}, the App Store is serving ${live.version}. ` +
+        'If the release is under a few hours old, Apple\'s lookup has not caught up yet — /admin → System → "Sync now" later. ' +
+        'Older than that, the hourly sync is not running: read its notes on /admin.',
+    );
+  }
+  if (declaredBuild === live.build) {
+    return pass(G3, name, `ios ${declaredVersion} build ${declaredBuild} (App Store: ${live.version} build ${live.build})`);
+  }
+  if (declaredBuild > live.build) {
+    return fail(
+      G3,
+      name,
+      `app-version.json serves build ${declaredBuild} but the App Store is serving ${live.version} build ${live.build}. ` +
         'That is almost certainly a TestFlight build number — anyone who taps the banner lands on a store ' +
         'page with nothing newer to install.',
     );
@@ -1044,9 +1063,10 @@ async function checkAppVersionManifestIos() {
   fail(
     G3,
     name,
-    `app-version.json says build ${declared}, the App Store is serving ${live.version} build ${live.build}. ` +
-      'Every install below that is being told it is up to date. ' +
-      'Fix: node scripts/app-version-sync.mjs && npm run build && firebase deploy --only hosting',
+    `app-version.json serves build ${declaredBuild}, the App Store is serving ${live.version} build ${live.build}. ` +
+      'Every pre-2026-09-05 iOS install below that is being told it is up to date. The version→build map is ' +
+      `missing this release — fix: node scripts/app-version-sync.mjs --record-ios-build ${live.version} ${live.build}, ` +
+      'then /admin → System → "Sync now".',
   );
 }
 

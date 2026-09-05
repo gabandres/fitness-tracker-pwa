@@ -107,6 +107,20 @@ await api('PATCH', `/v1/appStoreVersions/${version.id}`, {
 await api('PATCH', `/v1/appStoreVersions/${version.id}/relationships/build`, { data: { type: 'builds', id: build.id } });
 console.log('build attached');
 
+// The cloud derives the live iOS version from Apple's public lookup, which has
+// no build number; binaries before 2026-09-05 compare on the build number. This
+// is the one moment a machine with the ASC key knows both, so record the
+// mapping now (`public/appVersion.iosBuilds`) and the hourly sync promotes it
+// when the version goes live. Best-effort: a missing ADC login must not stop a
+// submission — the fix is one command, printed below.
+try {
+  const { recordIosBuild } = await import('./app-version-sync.mjs');
+  const r = await recordIosBuild(versionString, buildNumber);
+  console.log(`recorded iosBuilds["${r.version}"] = ${r.build}`);
+} catch (e) {
+  console.warn(`could not record the version→build map (${e.message}); run later:\n  node scripts/app-version-sync.mjs --record-ios-build ${versionString} ${buildNumber}`);
+}
+
 // What's New — ASC copies the description etc. from the previous version but
 // leaves whatsNew empty, and an empty What's New fails submission.
 const locs = await api('GET', `/v1/appStoreVersions/${version.id}/appStoreVersionLocalizations?limit=10`);

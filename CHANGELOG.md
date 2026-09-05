@@ -1,5 +1,36 @@
 # Changelog
 
+## 2026-09-05 (evening) — `app-version.json` drives itself: store versions read in the cloud with no key, an admin "Sync now", no more build + deploy per release
+
+The mobile update banner's source of truth was a static file the workstation
+derived and a hosting deploy shipped, and it drifted on every release because
+that was a step a person had to remember while shipping. Now Firestore
+`public/appVersion` holds the numbers, `hourlyTasks` refreshes them, `/admin` →
+System → **Sync now** refreshes them on demand (audited, and prints why a side
+was left alone), and `/app-version.json` is a hosting rewrite to
+`appVersionJson` with an hour of CDN cache. **Zero added cost:** no new secret
+(Secret Manager stays at 6), no new scheduler job (it folds into the hourly
+dispatcher), and the function runs once per CDN edge per hour, not per launch.
+
+  - **Android** reads the Play tracks API as the function's own service
+    account (`647810616435-compute@…`), which the owner invites to Play
+    Console read-only — `docs/DEV_ENVIRONMENT.md` §6, the one step still
+    open. Same track rules as before (`draft` and `internal` never count).
+  - **iOS** reads Apple's public iTunes lookup: no credential, but it yields
+    the marketing version and not the build number. The 2026-09-05 client
+    (`pickStoreTarget`, `versionKey`) compares marketing versions on iOS, and
+    for every earlier binary `asc-release-version.mjs` records `version →
+    build` in `iosBuilds` at submission, which the sync promotes the hour the
+    version goes live. Seeded `{1.2.2: 63, 1.2.3: 64}`, so 1.2.3 needs no
+    hand-off when it is approved.
+  - **`scripts/app-version-sync.mjs`** no longer writes anything: `--check`
+    compares the LIVE URL with Play and ASC (what `npm run doctor` runs),
+    `--record-ios-build` writes the map. `public/app-version.json` is deleted —
+    a static file would win over the rewrite.
+  - Unit-tested pure halves on both sides (`functions/test/app-version.spec.ts`,
+    `apps/mobile/src/__tests__/app-update.test.ts`); the client change is JS
+    only and rides the next OTA.
+
 ## 2026-09-05 (later) — 1.2.3 / build 64 is in App Store review with the re-shot screenshots; build 64 is with external TestFlight; the version bump shut the Android OTA channel
 
 A new marketing version was the only way to ship the re-shot frames (ASC

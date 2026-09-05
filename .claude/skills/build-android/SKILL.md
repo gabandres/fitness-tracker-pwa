@@ -228,15 +228,12 @@ tester list, not a draft. No build quota. The Mac must never submit: it lacks
 
 ## After shipping
 
-```sh
-node scripts/app-version-sync.mjs        # derive from the live Play tracks
-npm run build && firebase deploy --only hosting
-```
-
-`UpdateBanner` reads `app-version.json` to tell older installs a binary exists.
-**Skip the deploy and it silently never fires.** Never hand-edit the number;
-`npm run doctor` fails on the drift. A **prod** build is required — a dev build
-has no `build-info.json` and the deploy guard refuses it.
+Nothing to deploy for the update banner any more. `app-version.json` is served
+from Firestore `public/appVersion`, which the hourly dispatcher refreshes from
+the Play tracks API (and `/admin` → System → **Sync now** refreshes on demand);
+`npm run doctor` compares the live URL with Play and fails on drift
+(`functions/src/app-version.ts`, since 2026-09-05). The static file is gone —
+do not recreate `public/app-version.json`, a static file wins over the rewrite.
 
 Then update the fingerprint table in `apps/mobile/AGENTS.md` (value read from the
 artifact) and `STATUS.md`. **A merged fix reaches nobody until it is in a binary

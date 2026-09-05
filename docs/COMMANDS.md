@@ -86,14 +86,20 @@ Read the versionCode from **Play**, never from the build log — the log describ
 the remote counter advancing for the *next* build.
 
 ```sh
-node scripts/app-version-sync.mjs --check     # report drift, write nothing (what doctor runs)
-node scripts/app-version-sync.mjs             # rewrite both numbers from the APIs
+node scripts/app-version-sync.mjs --check                        # LIVE app-version.json vs Play + ASC (what doctor runs)
+node scripts/app-version-sync.mjs --record-ios-build 1.2.3 64    # version → build map, for pre-2026-09-05 iOS binaries
+curl -s "https://ignia.fit/app-version.json?t=$(date +%s)"       # what installs are being told right now
 ```
 
-**Both platforms are derived** (since 2026-08-15) — android from the
-androidpublisher tracks API, ios from the ASC version in `READY_FOR_SALE`. Never
-hand-edit either number. A change reaches nobody until
-`npm run build && firebase deploy --only hosting`.
+**`app-version.json` is self-driving since 2026-09-05** — served from Firestore
+`public/appVersion` by the `appVersionJson` rewrite, refreshed by `hourlyTasks`
+(Android from the androidpublisher tracks API as the function's own service
+account, iOS from Apple's public iTunes lookup) and on demand from `/admin` →
+System → **Sync now**, which also prints why a side was left alone. Nothing to
+write, build or deploy; `--check` only compares. The lookup returns the
+marketing version, not the build number, so `asc-release-version.mjs` records
+`version → build` at submission and the sync promotes it when the version goes
+live (`functions/src/app-version.ts`). The CDN holds the URL for an hour.
 
 **Which cert signs a given release** — never read this off the App signing page,
 which shows the key that will sign the *next* release:

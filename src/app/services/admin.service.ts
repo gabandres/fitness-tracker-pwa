@@ -116,6 +116,21 @@ export interface CostModel {
   warnings: string[];
 }
 export type BillingRow = Record<string, string | null>;
+/** What `/app-version.json` serves (`functions/src/app-version.ts` `serialize`). */
+export interface StoreVersionDoc {
+  android?: { latestVersionCode: number };
+  ios?: { latestBuild?: number; latestVersion?: string };
+  updatedAt?: string;
+}
+
+/** `adminSyncAppVersion`'s answer: what each store said, and why a side was left alone. */
+export interface StoreVersionSync {
+  android: { latestVersionCode: number; where: string[] } | null;
+  ios: { latestVersion: string; latestBuild: number | null; releaseDate: string | null } | null;
+  notes: string[];
+  doc: StoreVersionDoc;
+}
+
 export interface BillingReport {
   enabled: boolean; reason?: string; table?: string; queriedAt?: string;
   byMonth?: BillingRow[]; byProjectService?: BillingRow[]; bySku?: BillingRow[]; lifetime?: BillingRow[];
@@ -402,6 +417,21 @@ export class AdminService {
   async getSpendCeilings(): Promise<CeilingStatus[]> {
     const { ceilings } = await this.callables.call<unknown, { ceilings: CeilingStatus[] }>('adminGetSpendCeilings', {});
     return ceilings;
+  }
+
+  /** What the mobile app's update banner is being told right now — the same
+   *  public URL the app reads, served from Firestore `public/appVersion`
+   *  (`functions/src/app-version.ts`). No callable, no auth. */
+  async getStoreVersions(): Promise<StoreVersionDoc> {
+    const res = await fetch('https://ignia.fit/app-version.json', { cache: 'no-store' });
+    if (!res.ok) throw new Error(`app-version.json HTTP ${res.status}`);
+    return (await res.json()) as StoreVersionDoc;
+  }
+
+  /** Re-read Play and the App Store now instead of waiting for the hourly
+   *  pass. Audited server-side. */
+  async syncStoreVersions(): Promise<StoreVersionSync> {
+    return this.callables.call<unknown, StoreVersionSync>('adminSyncAppVersion', {});
   }
 
   /** Audit "the console was opened" once per browser session. Fire-and-forget. */

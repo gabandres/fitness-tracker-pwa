@@ -1,4 +1,10 @@
-import { reloadScreenOptions, shouldAutoApplyOta, shouldPromptStoreUpdate } from '@/lib/app-update';
+import {
+  pickStoreTarget,
+  reloadScreenOptions,
+  shouldAutoApplyOta,
+  shouldPromptStoreUpdate,
+  versionKey,
+} from '@/lib/app-update';
 import { palettes } from '@/theme';
 
 // The store-update banner is the half that cannot resolve itself: it sends the
@@ -44,6 +50,61 @@ describe('shouldPromptStoreUpdate', () => {
 
   it('ignores a stale dismissal older than the current build', () => {
     expect(shouldPromptStoreUpdate(11, 12, 9)).toBe(true);
+  });
+});
+
+// Since 2026-09-05 the manifest is derived in the cloud with no App Store
+// Connect key, so iOS carries the MARKETING version. The platform split below
+// is where a wrong banner would come from, hence pure and pinned.
+
+describe('versionKey', () => {
+  it('orders dotted versions as integers', () => {
+    expect(versionKey('1.2.3')).toBe(1_002_003);
+    expect(versionKey('1.2')).toBe(1_002_000);
+    expect(versionKey('1.10.0')!).toBeGreaterThan(versionKey('1.9.9')!);
+  });
+
+  it('refuses what it cannot order — unknown, never "older"', () => {
+    expect(versionKey(null)).toBeNull();
+    expect(versionKey('')).toBeNull();
+    expect(versionKey('1.2.3-beta')).toBeNull();
+    expect(versionKey('build 64')).toBeNull();
+  });
+});
+
+describe('pickStoreTarget', () => {
+  const installed = { build: '64', version: '1.2.3' };
+
+  it('Android compares versionCode to latestVersionCode', () => {
+    expect(pickStoreTarget({ android: { latestVersionCode: 45 } }, 'android', { build: '44', version: '1.2.2' }))
+      .toEqual({ current: 44, latest: 45 });
+  });
+
+  it('iOS prefers the marketing version when the manifest carries one', () => {
+    expect(pickStoreTarget({ ios: { latestBuild: 63, latestVersion: '1.2.4' } }, 'ios', installed))
+      .toEqual({ current: 1_002_003, latest: 1_002_004 });
+  });
+
+  it('iOS falls back to build numbers when latestVersion is absent', () => {
+    // An older server shape, or a sync that has not run yet.
+    expect(pickStoreTarget({ ios: { latestBuild: 65 } }, 'ios', installed)).toEqual({ current: 64, latest: 65 });
+  });
+
+  it('a build 63 install on the old key space still learns 1.2.3 exists', () => {
+    // The public App Store binary that can never take this JS over the air:
+    // the served `latestBuild` (promoted from the version→build map) is what
+    // reaches it, and this is the pair the OLD client code computes.
+    const target = pickStoreTarget({ ios: { latestBuild: 64, latestVersion: '1.2.3' } }, 'ios', { build: '63', version: '1.2.2' });
+    expect(shouldPromptStoreUpdate(target.current, target.latest, null)).toBe(true);
+  });
+
+  it('never invents a side it does not have', () => {
+    // No manifest: `latest` is null and the pure decision stays silent
+    // whatever `current` is.
+    expect(pickStoreTarget(null, 'ios', installed).latest).toBeNull();
+    expect(pickStoreTarget({}, 'android', { build: null, version: null })).toEqual({ current: null, latest: null });
+    // An unparseable version falls back to the build pair, which has no latest.
+    expect(pickStoreTarget({ ios: { latestVersion: 'soon' } }, 'ios', installed).latest).toBeNull();
   });
 });
 

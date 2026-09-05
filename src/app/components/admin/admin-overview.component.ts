@@ -105,6 +105,17 @@ const EVENT_LABELS: Record<string, string> = {
           <dt>Web release</dt><dd>{{ release() }}</dd>
           <dt>Retention run</dt><dd>{{ retentionComputedAt() }}</dd>
           <dt>Usage series</dt><dd>{{ u() ? u()!.from + ' → ' + u()!.to : '—' }}</dd>
+          <dt>Store binaries</dt>
+          <dd>
+            @if (data.storeVersions(); as v) {
+              Android vc {{ v.android?.latestVersionCode ?? '—' }} · iOS {{ v.ios?.latestVersion ?? '—' }}{{ v.ios?.latestBuild ? ' (build ' + v.ios!.latestBuild + ')' : '' }}
+              <span class="adm-soft">· {{ v.updatedAt ? 'synced ' + relTime(v.updatedAt) : 'never synced' }}</span>
+            } @else { <span class="adm-chip muted">unknown</span> }
+            <button type="button" class="adm-btn sm ghost" style="margin-left: 8px;" (click)="data.syncStoreVersions()" [disabled]="data.isLoading('storeVersions')">
+              {{ data.isLoading('storeVersions') ? 'Syncing…' : 'Sync now' }}
+            </button>
+            @for (n of data.storeSyncNotes(); track n) { <div class="adm-kpi-hint">{{ n }}</div> }
+          </dd>
         </dl>
         <div class="adm-section">
           <span class="adm-label">AI spend today</span>

@@ -87,6 +87,14 @@
           }
         },
         {
+          "_comment": "The mobile app's update banner reads this on launch. Since 2026-09-05 it is served from Firestore public/appVersion (refreshed hourly + from /admin), not a static file — there must be NO public/app-version.json, because a static file wins over a rewrite. functions/src/app-version.ts.",
+          "source": "/app-version.json",
+          "function": {
+            "functionId": "appVersionJson",
+            "region": "us-central1"
+          }
+        },
+        {
           "source": "**",
           "destination": "/index.html"
         }
@@ -102,6 +110,16 @@
             {
               "key": "Cross-Origin-Opener-Policy",
               "value": "same-origin-allow-popups"
+            }
+          ]
+        },
+        {
+          "_comment": "A hosting header rule overrides the rewritten function's own Cache-Control (see /oura/callback). This one lets the CDN hold the answer for an hour so the function runs once per edge per hour, not once per app launch; a device sees a new store version within an hour of the sync, which is the sync's own cadence.",
+          "source": "/app-version.json",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "public, max-age=300, s-maxage=3600"
             }
           ]
         },

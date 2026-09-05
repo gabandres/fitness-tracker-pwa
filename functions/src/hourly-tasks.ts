@@ -5,6 +5,7 @@ import { runDay1Nudge } from "./day1-nudge";
 import { runPublishUserCount } from "./ops";
 import { runRetentionCohorts } from "./retention";
 import { runSpendCeilingWatch } from "./spend-ceiling";
+import { runSyncAppVersion } from "./app-version";
 import { db } from "./init";
 
 // ─── Hourly dispatcher ──────────────────────────────────────────────
@@ -48,6 +49,10 @@ export const hourlyTasks = onSchedule(
       // daily ceiling silently re-opens at UTC midnight, so the evidence
       // rolls over before anyone looks. Two Firestore reads an hour.
       ["spendCeilingWatch", () => runSpendCeilingWatch(db)],
+      // What the newest store binary is, so the app's update banner never
+      // waits on a person remembering to sync a file (app-version.ts). Two
+      // outbound reads an hour, no secret.
+      ["syncAppVersion", async () => { await runSyncAppVersion(db, "hourly"); }],
     ];
 
     const results = await Promise.allSettled(tasks.map(([, fn]) => fn()));

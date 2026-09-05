@@ -1304,3 +1304,41 @@ versions drop from ~7 account-wide to 2 (Ignia's 8 minus its own 6 free) plus
   (RA-subscription coupling, transfer eligible ~2026-09-04).
 - Stripe / Ko-fi / RevenueCat — dormant; route them to Relay the day tips
   re-enable, not before.
+
+## 6. Owner runbook — let Cloud Functions read Play with no key (written 2026-09-05)
+
+`app-version.json` is derived in the cloud since 2026-09-05
+(`functions/src/app-version.ts`): the hourly dispatcher reads the Play tracks
+API **as the function's own service account**, so no JSON key lives in Secret
+Manager and the free-tier floor stays at 6. That works only once Play Console
+knows the account. Until then the hourly pass leaves the Android number at
+its seed (vc 44) and says so in the notes `/admin` → System → **Sync now**
+prints — nothing breaks, the Android banner just never learns about vc 45+.
+
+**The account:** `647810616435-compute@developer.gserviceaccount.com` — the
+gen2 default runtime identity, read with
+`gcloud functions describe hourlyTasks --region us-central1 --gen2 --format="value(serviceConfig.serviceAccountEmail)"`.
+
+Play Console (the **org** account, Bermudez Systems LLC — land on
+`https://play.google.com/console` and pick it; never hardcode `/u/<n>`) →
+**Users and permissions** → **Invite new users**:
+
+| Field | Value |
+|---|---|
+| Email address | `647810616435-compute@developer.gserviceaccount.com` |
+| Access expiry | never |
+| App permissions | **Ignia only** (Add app → Ignia) |
+| Permissions | **View app information and download bulk reports (read-only)** — nothing else. Reading `edits/tracks` needs no release permission |
+
+Google accepts a service-account address here exactly as it accepted
+`play-publisher@…` on 2026-08-03 (`CLAUDE.local.md`); no linking of a GCP
+project is required. The grant is live within minutes.
+
+**Verify:** `/admin` → System → **Sync now** — the notes line about Play
+disappears and *Store binaries* reads `Android vc 44`. Or wait for the next
+hourly pass and `curl "https://ignia.fit/app-version.json?t=$(date +%s)"`.
+
+**Why read-only is enough, and why not more.** The sync opens an edit, lists
+the tracks, and deletes the edit. Release permissions would let the same
+identity publish, and this identity is shared by every gen2 function in the
+project — the narrowest grant that works is the right one.

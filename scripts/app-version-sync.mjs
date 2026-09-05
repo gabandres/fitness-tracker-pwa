@@ -1,30 +1,37 @@
 #!/usr/bin/env node
-// Keep public/app-version.json in step with what Play actually ships.
+// Check that what `https://ignia.fit/app-version.json` tells installed apps
+// matches what the stores actually ship — and record the one value the cloud
+// cannot derive on its own.
 //
-// That file is what tells an installed Android app that a newer binary
-// exists — `UpdateBanner` on Today fetches it and compares it to the running
-// versionCode. It started life as a number a human bumped after every release,
-// which is a step that fails silently: forget it and there is no error and no
-// warning, every install simply goes on believing it is current, and the
-// feature is indistinguishable from one that was never built.
+// HISTORY. Until 2026-09-05 this script WROTE `public/app-version.json`, a
+// static file that then needed `npm run build && firebase deploy`. It drifted
+// on every release (1.2.1, 1.2.2) because the sync was a step a person had to
+// remember while shipping. The numbers now live in Firestore
+// `public/appVersion`, refreshed hourly by `hourlyTasks` and on demand from
+// `/admin` → System → "Sync now" (`functions/src/app-version.ts`), and the URL
+// is a hosting rewrite. Nothing here deploys anything any more.
 //
-// So the number is DERIVED here instead, from the androidpublisher tracks API —
-// the same authority `doctor.mjs` uses to check signing certs, and the same one
-// STATUS.md cites for "what is live on alpha".
+//   node scripts/app-version-sync.mjs --check                       # live URL vs Play + ASC (doctor runs this)
+//   node scripts/app-version-sync.mjs --record-ios-build 1.2.3 64   # version → build, for legacy clients
 //
-//   node scripts/app-version-sync.mjs          # write the file
-//   node scripts/app-version-sync.mjs --check   # report drift, write nothing (exit 1)
-//
-// `--check` is what `npm run doctor` runs, so drift is loud rather than silent.
+// WHY --record-ios-build EXISTS. The cloud reads iOS from Apple's public
+// lookup, which returns the marketing version but not the build number, and
+// every iOS binary before 2026-09-05 compares on the build number. The
+// workstation holds the ASC key, so the release script records the mapping at
+// submission time (`asc-release-version.mjs` calls `recordIosBuild`), and the
+// hourly sync promotes the build the hour the version goes live. Run it by
+// hand only when a version was submitted some other way.
 
-import { readFileSync, writeFileSync } from 'fs';
+import { readFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const MANIFEST = resolve(root, 'public/app-version.json');
 const KEY_PATH = resolve(root, 'apps/mobile/credentials/play-service-account.json');
 const PACKAGE = 'fit.ignia.app';
+export const MANIFEST_URL = 'https://ignia.fit/app-version.json';
+const PROJECT_ID = 'fitness-tracker-gb-1775407101';
+const DOC_PATH = 'public/appVersion';
 
 /** Tracks that can actually put a build on a stranger's phone.
  *
@@ -36,7 +43,8 @@ const PACKAGE = 'fit.ignia.app';
  * `completed` returns 403). vc 39 went to internal on 2026-08-27 for exactly
  * that reason, with an empty audience, reaching nobody.
  *
- * Revisit this the day internal testing gains real testers.
+ * Mirrored in `functions/src/app-version.ts` (`DISTRIBUTING_TRACKS`); keep
+ * the two in step. Revisit the day internal testing gains real testers.
  */
 const DISTRIBUTING_TRACKS = new Set(['production', 'beta', 'alpha']);
 
@@ -107,20 +115,13 @@ export async function readLivePlayVersionCode() {
 /**
  * The build attached to the version that is LIVE on the App Store.
  *
- * iOS used to be hand-held here, with a comment in the manifest explaining that
- * it "must name the live APP STORE build, never a TestFlight one". That is a
- * rule a human has to remember at exactly the moment they are busy shipping,
- * and it points the wrong way by default: TestFlight always runs ahead, so the
- * newest build number anyone can see is nearly always the wrong answer.
- *
- * Deriving it removes the choice. `READY_FOR_SALE` is by definition what the
- * public can download, so its attached build cannot be a TestFlight-only one —
- * the structural property the comment was asking a person to enforce.
+ * `READY_FOR_SALE` is by definition what the public can download, so its
+ * attached build cannot be a TestFlight-only one — TestFlight always runs
+ * ahead, which is why "the newest build number anyone can see" is nearly
+ * always the wrong answer for a store banner.
  *
  * Returns null when no version is live (a brand-new app, or credentials that
- * cannot reach ASC). Null means "leave iOS alone", never "write 0" — 0 disables
- * the update prompt entirely, and silently disabling a shipped feature because
- * an API call failed is the same class of bug this script exists to prevent.
+ * cannot reach ASC). Null means "unknown", never "0" — 0 disables the prompt.
  *
  * @returns {Promise<{ build: number, version: string } | null>}
  */
@@ -152,37 +153,59 @@ export async function readLiveAppStoreBuild() {
   return best;
 }
 
-export function readManifest() {
-  return JSON.parse(readFileSync(MANIFEST, 'utf8'));
+/** What installed apps are being told right now — the live URL, bypassing
+ *  the CDN's hour of cache so the check reads the current Firestore value. */
+export async function readLiveManifest() {
+  const res = await fetch(`${MANIFEST_URL}?t=${Date.now()}`, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`${MANIFEST_URL} → HTTP ${res.status}`);
+  return res.json();
 }
 
-function writeManifest(manifest, { versionCode, iosBuild }) {
-  const next = { ...manifest };
-  if (versionCode != null) {
-    next.android = { ...manifest.android, latestVersionCode: versionCode };
+/**
+ * Record `version → build` in `public/appVersion.iosBuilds` through the Admin
+ * SDK (ADC, `gcloud auth application-default login` — see CLAUDE.local.md).
+ * Idempotent. The hourly sync promotes it once the lookup reports the version.
+ */
+export async function recordIosBuild(version, build) {
+  const n = Number(build);
+  if (!/^\d+\.\d+(\.\d+)?$/.test(String(version)) || !Number.isFinite(n) || n <= 0) {
+    throw new Error(`recordIosBuild: refusing "${version}" → "${build}"`);
   }
-  if (iosBuild != null) {
-    next.ios = { ...manifest.ios, latestBuild: iosBuild };
-  }
-  writeFileSync(MANIFEST, `${JSON.stringify(next, null, 2)}\n`);
+  const { initializeApp, applicationDefault, getApps } = await import('firebase-admin/app');
+  const { getFirestore, FieldValue } = await import('firebase-admin/firestore');
+  if (!getApps().length) initializeApp({ credential: applicationDefault(), projectId: PROJECT_ID });
+  await getFirestore().doc(DOC_PATH).set(
+    { iosBuilds: { [version]: n }, iosBuildsUpdatedAt: FieldValue.serverTimestamp() },
+    { merge: true },
+  );
+  return { version, build: n };
 }
 
 // ─── CLI ───────────────────────────────────────────────────────────────
-// Only when run directly; `doctor.mjs` imports readLivePlayVersionCode instead.
 if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {
-  const checkOnly = process.argv.includes('--check');
-  const manifest = readManifest();
-  const curAndroid = manifest.android?.latestVersionCode ?? 0;
-  const curIos = manifest.ios?.latestBuild ?? 0;
+  const argv = process.argv.slice(2);
+  const rec = argv.indexOf('--record-ios-build');
+  if (rec >= 0) {
+    const r = await recordIosBuild(argv[rec + 1], argv[rec + 2]);
+    console.log(`recorded iosBuilds["${r.version}"] = ${r.build} — the hourly sync (or /admin → Sync now) promotes it once ${r.version} is live`);
+    process.exit(0);
+  }
+  if (!argv.includes('--check')) {
+    console.error('usage: node scripts/app-version-sync.mjs --check | --record-ios-build <version> <build>');
+    process.exit(2);
+  }
+
+  const manifest = await readLiveManifest();
+  const curAndroid = manifest.android?.latestVersionCode ?? null;
+  const curIosBuild = manifest.ios?.latestBuild ?? null;
+  const curIosVersion = manifest.ios?.latestVersion ?? null;
 
   const { versionCode, tracks } = await readLivePlayVersionCode();
   if (!versionCode) {
-    console.error('No rolled-out release on any Play track — nothing to sync.');
+    console.error('No rolled-out release on any Play track — nothing to compare.');
     process.exit(1);
   }
 
-  // iOS is best-effort: a machine without the ASC key still syncs Android
-  // rather than failing the whole run.
   let ios = null;
   let iosWhy = '';
   try {
@@ -194,37 +217,30 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
 
   const drift = [];
   if (versionCode !== curAndroid) {
-    drift.push(
-      `android.latestVersionCode says ${curAndroid}, Play is shipping ${versionCode} (${tracks.join(', ')})`,
-    );
+    drift.push(`android.latestVersionCode serves ${curAndroid}, Play is shipping ${versionCode} (${tracks.join(', ')})`);
   }
-  if (ios && ios.build !== curIos) {
+  if (ios && ios.version !== curIosVersion) {
+    drift.push(`ios.latestVersion serves ${curIosVersion}, the App Store is serving ${ios.version} (build ${ios.build})`);
+  }
+  if (ios && ios.build !== curIosBuild) {
     drift.push(
-      `ios.latestBuild says ${curIos}, the App Store is serving ${ios.version} build ${ios.build}`,
+      `ios.latestBuild serves ${curIosBuild}, the App Store is serving build ${ios.build} — ` +
+        `if the version matches, the version→build map is missing it: node scripts/app-version-sync.mjs --record-ios-build ${ios.version} ${ios.build}`,
     );
   }
 
   if (!drift.length) {
     console.log(
       `app-version.json is current: android ${curAndroid} (${tracks.join(', ')})` +
-        (ios ? `, ios ${curIos} (${ios.version} build ${ios.build})` : `, ios unchecked — ${iosWhy}`),
+        (ios ? `, ios ${curIosVersion} build ${curIosBuild}` : `, ios unchecked — ${iosWhy}`) +
+        (manifest.updatedAt ? `, synced ${manifest.updatedAt}` : ''),
     );
     process.exit(0);
   }
-
-  if (checkOnly) {
-    console.error(
-      `DRIFT:\n  ${drift.join('\n  ')}\n` +
-        'Anyone below those numbers is being told they are up to date.\n' +
-        'Fix: node scripts/app-version-sync.mjs && npm run build && firebase deploy --only hosting',
-    );
-    process.exit(1);
-  }
-
-  writeManifest(manifest, { versionCode, iosBuild: ios?.build });
-  console.log(
-    `app-version.json updated:\n  ${drift.join('\n  ')}\n` +
-      (iosWhy ? `  ios left at ${curIos} — ${iosWhy}\n` : '') +
-      'Deploy it or the change reaches nobody: npm run build && firebase deploy --only hosting',
+  console.error(
+    `DRIFT:\n  ${drift.join('\n  ')}\n` +
+      'Anyone below those numbers is being told they are up to date.\n' +
+      'Fix: /admin → System → "Sync now" (or wait for the hourly pass); the URL updates within the hour of CDN cache.',
   );
+  process.exit(1);
 }

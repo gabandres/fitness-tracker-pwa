@@ -117,11 +117,12 @@ overwrites (measured 2026-08-17 on Android; same tooling).
 
 ## After shipping
 
-`ios.latestBuild` in `public/app-version.json` stays `0` **on purpose** — it must
-name the live **App Store** build, never a TestFlight one, since pointing a store
-user at a build they cannot install is worse than saying nothing. It is now
-derived from the ASC version in `READY_FOR_SALE`, which enforces that
-structurally.
+`app-version.json` must name the live **App Store** release, never a TestFlight
+build, since pointing a store user at a build they cannot install is worse than
+saying nothing. Since 2026-09-05 that is enforced in the cloud: iOS is read from
+Apple's public lookup (only a released version appears there), and the build
+number legacy clients compare on comes from the version→build map the release
+script records (`functions/src/app-version.ts`). There is no static file.
 
 **A mobile fix reaches nobody until a binary ships.** Merging is not shipping —
 name the cohort out loud when reporting.
