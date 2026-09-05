@@ -1,5 +1,49 @@
 # Changelog
 
+## 2026-09-05 — the store screenshots are re-shot from the iOS simulator, and the shoot found a Spanish layout bug
+
+Both locales, all five frames (`docs/app-store-metadata.md` §3), captured by
+Maestro on an iPhone 16 Pro Max simulator (1320 × 2868 native — the 6.9" slot,
+no scaling) on `ignia-mac`, signed in as `demo@ignia.fit`, composited with
+`scripts/store-screenshots.mjs` into `store-assets/out/{en,es}/`. Not yet
+uploaded to App Store Connect.
+
+  - **Flow:** `apps/mobile/.maestro/capture/store-shots.yaml`. Three Maestro
+    2.8 facts it had to learn, recorded in its header: a value in the flow's
+    `env:` block WINS over `-e` (so there are no defaults); `takeScreenshot`
+    rejects an absolute path and writes under the run's debug folder; iOS
+    exposes the tab bar by label, not by `tab-*` id.
+  - **Status bar** is `simctl status_bar override` (9:41, full battery, four
+    bars). The update card and the recalibration card are dismissed before the
+    Today frame — one-time notices with buttons are not the pitch.
+  - **Found and fixed (`d1d83efd`):** the set table's RIR column header wrapped
+    in es-PR — "FALTAN" broke to "FALTA / N" at 6.9" width. One line,
+    shrink-to-fit now. Rides the next OTA.
+  - The demo account's password was rotated by the Admin SDK for the shoot and
+    handed over in the session; the owner's password manager copy is stale.
+    `demo@` is back on `en`; the in-progress "Upper A" workout it holds is the
+    deliberate Train frame and `--reset` clears it.
+
+## 2026-09-05 — maintenance mode verified end to end on a device
+
+On the OnePlus 8T, against the published bundle, on a synthetic account
+(`demo-goal@ignia.fit`, seeded with the demo persona and pushed past its goal
+by an admin write; `review@` deliberately untouched — its password belongs to
+App Review): Body showed the goal-reached prompt → *Add it* → the maintenance
+card took its slot → *Switch* → the card left → Settings read *Goal: Maintain*
+at 2,731 kcal. Firestore read back `goalDirection: maintain`, pace 0,
+`targetMode: auto`, both goal-weight fields cleared, and the onboarding seed
+rewritten 2,180 → 2,740 for maintenance at the current weight. Flow:
+`.maestro/capture/maintenance-verify.yaml`.
+
+Two side effects, both reversed: the device had to be signed out of the
+owner's main account and was restored to it by the Google picker
+(`.maestro/capture/google-restore.yaml`, lastSignIn confirmed); the first
+restore attempt named the phone's OTHER Google account, whose Ignia account no
+longer existed, and so created a fresh empty one — deleted the same minute
+(Auth user + empty profile doc, nothing else ever written).
+
+
 ## 2026-09-05 — maintenance mode: one tap after the goal, and the reminders go quiet (ADR-0037)
 
 Retention lever 7, scoped and built. Reaching the goal weight used to change
