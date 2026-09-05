@@ -1,0 +1,73 @@
+# Maintenance mode, end to end on a device (ADR-0037).
+#
+# Precondition: the device is signed in as a SYNTHETIC account whose weight
+# trend has crossed its own goal and that has NO `goal-reached` milestone on
+# record (scripts/_tmp-goal-cross.mjs, or by hand). Sign in with
+# .maestro/android-signin.yaml first.
+#
+#   maestro test .maestro/capture/maintenance-verify.yaml -e OUT=~/mm-shots
+#
+# What it asserts, in order: the goal-reached prompt renders on Body; answering
+# it puts the milestone on record and the maintenance card takes its slot; the
+# switch hides the card; Settings now labels the goal "Maintain".
+appId: fit.ignia.app
+env:
+  OUT: mm-shots
+---
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible:
+      id: 'tab-body'
+    timeout: 60000
+- tapOn:
+    id: 'tab-body'
+- extendedWaitUntil:
+    visible:
+      id: 'goal-card'
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      id: 'goal-milestone-prompt'
+    direction: DOWN
+    timeout: 30000
+    centerElement: true
+- takeScreenshot: ${OUT}/1-goal-prompt
+- tapOn:
+    id: 'goal-milestone-add'
+# The milestone write lands, the listener re-renders, and the card takes the
+# prompt's slot.
+- extendedWaitUntil:
+    visible:
+      id: 'maintenance-switch-card'
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      id: 'maintenance-switch-card'
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+    optional: true
+- takeScreenshot: ${OUT}/2-maintenance-card
+- tapOn:
+    id: 'maintenance-switch-yes'
+- extendedWaitUntil:
+    notVisible:
+      id: 'maintenance-switch-card'
+    timeout: 30000
+- takeScreenshot: ${OUT}/3-after-switch
+- tapOn:
+    id: 'tab-index'
+- extendedWaitUntil:
+    visible:
+      id: 'settings-open'
+    timeout: 30000
+- tapOn:
+    id: 'settings-open'
+# Substring on purpose: the row reads "Goal: Maintain" (one Text node), and
+# Maestro's text selector is a whole-string regex. Measured 2026-09-05 on the
+# OnePlus: 'Maintain' alone failed the assert on a screen that showed it.
+- extendedWaitUntil:
+    visible: '.*Maintain.*'
+    timeout: 30000
+- takeScreenshot: ${OUT}/4-settings-maintain

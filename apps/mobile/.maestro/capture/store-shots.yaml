@@ -1,0 +1,153 @@
+# App Store screenshot capture — the five frames of docs/app-store-metadata.md §3,
+# taken on the iOS simulator (iPhone 16 Pro Max, 1320 × 2868 native, which is
+# exactly the 6.9" slot Apple wants — no scaling afterwards).
+#
+# Run once per locale, signed in as demo@ignia.fit (store-assets/README.md: the
+# demo account owns the screenshots; never review@). Flip the locale between
+# runs with an admin write, not the Settings toggle:
+#
+#   node scripts/qa-regression-verify.mjs set-locale --email demo@ignia.fit --locale es-PR
+#
+#   maestro test .maestro/capture/store-shots.yaml -e OUT=~/store-shots/en
+#   maestro test .maestro/capture/store-shots.yaml -e OUT=~/store-shots/es \
+#     -e TAB_TODAY=Hoy -e TAB_TRAIN=Entrenar -e TAB_TRENDS=Tendencias
+#
+# Tabs are matched by their LABEL, not `tab-*` ids: measured 2026-09-05 on the
+# iOS simulator, the tab bar exposes `accessibilityText` "Today"/"Train"/… and
+# no resource-id, so `id: tab-index` never resolves there (it does on Android).
+#
+# Frame 2 STARTS a workout from the seeded "Upper A" template and leaves it in
+# progress on purpose — the other locale's run then finds the session already
+# open on the Train tab and shoots that. `scripts/seed-demo-account.mjs
+# --reset` is the teardown.
+# NO `env:` defaults here, on purpose. Measured 2026-09-05 with Maestro 2.8.0:
+# a value declared in the flow's `env:` block WINS over the same name passed
+# with `-e` — the es-PR run kept asserting "Today" with `-e TAB_TODAY=Hoy` on
+# the command line, and OUT stayed at its file default too. Pass all four:
+#
+#   -e OUT=<dir> -e TAB_TODAY=Today -e TAB_TRAIN=Train -e TAB_TRENDS=Trends
+#
+# OUT must be RELATIVE: 2.8 rejects an absolute path ("resolves outside this
+# run's takeScreenshot output folder") and writes every frame under
+# ~/.maestro/tests/<run>/<flow>/takeScreenshot/<OUT>/ — collect them there.
+appId: fit.ignia.app
+---
+- launchApp:
+    clearState: false
+# The guided tour auto-opens once per device for a completed profile and
+# covers Today entirely (DEV_ENVIRONMENT §3.12). A fresh simulator hits it on
+# the first signed-in launch — which is exactly this run.
+- extendedWaitUntil:
+    visible:
+      id: 'tour-skip'
+    timeout: 20000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'tour-skip'
+    commands:
+      - tapOn:
+          id: 'tour-skip'
+- extendedWaitUntil:
+    visible:
+      id: 'settings-open'
+    timeout: 60000
+# A simulator build carries a lower build number than the store, so the
+# "New version available" card shows over the hero. Dismiss it; the flag is
+# device-local and the store is not something a screenshot should advertise.
+- tapOn:
+    id: 'store-update-dismiss'
+    optional: true
+# The "your measured burn is ready" card, likewise: a one-time notice with a
+# button, not the surface the frame is selling. Acknowledging it is what a
+# user does once; the rings, fasting, water and entries are the pitch.
+- tapOn:
+    id: 'recalibration-ack'
+    optional: true
+# And the What's New banner, which fires on the SECOND launch after install —
+# i.e. the second locale's run, never the first.
+- tapOn:
+    id: 'whats-new-dismiss'
+    optional: true
+# Wait for the LOCALE, not just the rings: the profile snapshot that carries
+# `preferredLocale` lands a beat after first paint, and on the es-PR run the
+# first frame came out in English with "Entrenar" not yet on screen to tap.
+# The tab label is the cheapest thing that only exists in the right language.
+- extendedWaitUntil:
+    visible: ${TAB_TODAY}
+    timeout: 30000
+- extendedWaitUntil:
+    visible: '.*kcal.*'
+    timeout: 30000
+- takeScreenshot: ${OUT}/01-today
+
+# ── 2. Train — a session in progress ──
+- tapOn: ${TAB_TRAIN}
+# Optional: with a workout already in progress the tab opens straight on the
+# session, and the hero is not on screen at all.
+- extendedWaitUntil:
+    visible:
+      id: 'train-hero'
+    timeout: 30000
+    optional: true
+# Already in progress from a previous locale's run? Then the template button
+# is not on screen and the session is; either way the next wait resolves.
+- runFlow:
+    when:
+      visible:
+        id: 'start-template-demo-template-upper'
+    commands:
+      - tapOn:
+          id: 'start-template-demo-template-upper'
+# Regex, not the bare name: iOS folds the exercise row into one accessibility
+# string — "Bench Press, Last: 170 × 8, 0/3, " — so an exact match never hits.
+- extendedWaitUntil:
+    visible: '.*Bench Press.*'
+    timeout: 30000
+- takeScreenshot: ${OUT}/02-train
+
+# ── 3. Food search results ──
+- openLink: 'ignia://?openAdd=store-1'
+- tapOn:
+    text: 'Open'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'food-search-input'
+    timeout: 20000
+- tapOn:
+    id: 'food-search-input'
+- inputText: 'ribs'
+- extendedWaitUntil:
+    visible: '.*[Rr]ibs.*'
+    timeout: 45000
+- takeScreenshot: ${OUT}/03-search
+
+# ── 4. Trends ──
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible:
+      id: 'settings-open'
+    timeout: 30000
+- tapOn: ${TAB_TRENDS}
+- extendedWaitUntil:
+    visible: '.*kcal.*'
+    timeout: 30000
+- takeScreenshot: ${OUT}/04-trends
+
+# ── 5. Settings — the "no paywall" surface ──
+- tapOn: ${TAB_TODAY}
+- extendedWaitUntil:
+    visible:
+      id: 'settings-open'
+    timeout: 30000
+- tapOn:
+    id: 'settings-open'
+# The first rows, not the sign-out button — that one is below the fold.
+- extendedWaitUntil:
+    visible:
+      id: 'settings-refine'
+    timeout: 30000
+- takeScreenshot: ${OUT}/05-free

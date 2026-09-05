@@ -1,0 +1,37 @@
+# Sign the device out through Settings, so another account can sign in.
+# Pairs with .maestro/android-signin.yaml. Same end-anchored scroll as
+# 09-locale-es (swipe the left gutter to the bottom, then search UP), because
+# a DOWN scrollUntilVisible stalls on the Settings sheet.
+appId: fit.ignia.app
+---
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible:
+      id: 'settings-open'
+    timeout: 60000
+- tapOn:
+    id: 'settings-open'
+- extendedWaitUntil:
+    visible:
+      id: 'settings-signout'
+    timeout: 30000
+    optional: true
+- repeat:
+    times: 10
+    commands:
+      - swipe:
+          start: 10%, 85%
+          end: 10%, 25%
+- scrollUntilVisible:
+    element:
+      id: 'settings-signout'
+    direction: UP
+    timeout: 60000
+    centerElement: true
+- tapOn:
+    id: 'settings-signout'
+- extendedWaitUntil:
+    visible:
+      id: 'welcome-signin'
+    timeout: 30000
