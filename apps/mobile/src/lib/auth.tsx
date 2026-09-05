@@ -67,7 +67,12 @@ import { isGoogleInternalError } from './google-signin-errors';
 import { clearQuickAdd } from './quick-add';
 import { clearOfflineCache, readCache, writeCache } from './offline-cache';
 import * as Updates from 'expo-updates';
-import { type PersistedSession, readPersistedSession } from './persisted-session';
+import {
+  type PersistedSession,
+  clearRehydrateRetry,
+  readPersistedSession,
+  reconcileNullVerdict,
+} from './persisted-session';
 import { clearStoredSession, restoreSessionIfNeeded, saveSessionForRestore } from './session-restore';
 import { flush as flushAnalytics, setAnalyticsUser, track } from './analytics';
 import { resetConnectivity } from './connectivity';
@@ -702,11 +707,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    return onAuthStateChanged(auth, (u) => {
+    // Ordinal of the latest auth event. `settleSignedOut` is async, and a null
+    // verdict must not be applied on top of a user that arrived while it was
+    // still reading the disk.
+    let seq = 0;
+
+    const applyAuthState = (u: User | null) => {
       // The real answer has landed; the presumed session is now worthless
       // whatever it said, including when `u` is null (a revoked or signed-out
       // session must not keep routing as signed in).
-      authAnswered.current = true;
       setPresumed(null);
       setUser(u);
       setEmailVerified(u?.emailVerified ?? false);
@@ -726,6 +735,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // device's. Runs on every auth event so the stored refresh token stays
         // current rather than ageing out between migrations.
         void saveSessionForRestore();
+        // Firebase read its session fine this launch, so the next null-verdict
+        // contradiction (see `settleSignedOut`) is entitled to its own retry.
+        void clearRehydrateRetry();
       } else {
         setIsPro(false);
         // Signed out with nothing on disk: this may be a fresh install on a
@@ -760,6 +772,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // backend, the splash covered a fully-rendered screen for 30+ seconds and
       // swallowed every tap, with no feedback of any kind.
       setInitializing(false);
+    };
+
+    // A null verdict is applied only once the disk agrees with it. Firebase
+    // removes its persisted session BEFORE it announces a sign-out, so a null
+    // that arrives with the blob still on disk is a session it failed to read,
+    // not one it rejected — seen on the owner's iPhone straight after an OTA
+    // apply, where reopening the app restored the session untouched. The app
+    // now does that reopening itself: one guarded reload, then Firebase is
+    // asked again and its second answer is applied like any other
+    // (`persisted-session.ts` has the argument). The disk read is single-digit
+    // milliseconds, so a genuine sign-out reaches the sign-in screen as fast as
+    // it ever did.
+    const settleSignedOut = async (mySeq: number) => {
+      const action = await reconcileNullVerdict();
+      if (mySeq !== seq) return; // a newer event already applied itself
+      if (action === 'reload') {
+        // Reported, not just logged: this path had no telemetry the one time
+        // it was seen, and one event per occurrence is what makes the next one
+        // diagnosable.
+        captureError(new Error('auth: null verdict with a session on disk — reloading once'), {
+          where: 'auth.rehydrate',
+        });
+        try {
+          await Updates.reloadAsync();
+          return;
+        } catch {
+          // Expo Go / dev client: cannot reload, so behave as before.
+        }
+        if (mySeq !== seq) return;
+      }
+      applyAuthState(null);
+    };
+
+    return onAuthStateChanged(auth, (u) => {
+      // Stops the presumed-session timer from firing on top of the real answer.
+      authAnswered.current = true;
+      seq += 1;
+      if (u) applyAuthState(u);
+      else void settleSignedOut(seq);
     });
   }, []);
 
