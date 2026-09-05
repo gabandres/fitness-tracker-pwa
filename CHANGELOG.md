@@ -25,7 +25,7 @@ onboarding wizard — which Settings → Edit goals reruns in full.
   - **The streak needed no loosening** — `STREAK_FREEZE_MAX_GAP_PRO` (7 days)
     is already in force for everyone while `PRO_ENABLED` is false.
 
-Pure JS on both platforms; rides an OTA. Not yet published or device-verified.
+Pure JS on both platforms. **Published by OTA the same day** — Android group `21647238-…` / iOS group `58216f58-…`, both from `295a2bee`, both public on next launch. Not device-verified: no account here has crossed its goal.
 
 ## 2026-09-05 — the post-OTA sign-in flash: a null auth verdict the disk contradicts now reloads once
 
@@ -39,8 +39,9 @@ disk agrees with it; when the disk still holds a session, it reloads once
 Firebase is asked again. A persistent failure degrades to the old sign-in
 screen, never a loop, and a genuine sign-out reaches it as fast as before (one
 AsyncStorage read). The path reports to Sentry at `where: auth.rehydrate`,
-because the one sighting had no telemetry. Unverified on a device — nothing here
-reproduces it; the next publish is the test.
+because the one sighting had no telemetry. **Published by OTA the same day** (the
+same groups as the entry above). Unverified on a device — nothing here reproduces
+it; a Sentry event at that tag on a later publish is the evidence.
 
 ## 2026-09-04 — two questions closed: the iOS header floor was never at risk, and the reload crash has nothing left to reproduce on
 
