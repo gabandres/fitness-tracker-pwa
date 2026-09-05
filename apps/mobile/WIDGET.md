@@ -200,7 +200,7 @@ binary yet**, so every box below stays unticked until a build carrying it is
 installed and watched.
 
 - [x] **iOS** — widget appears in the gallery and renders kcal left + protein left.
-- [ ] **Android** — widget appears in the picker.
+- [x] **Android** — widget appears in the picker. *(Owner-reported 2026-09-05, OnePlus 8T: placed on the home screen, renders, "looks good".)*
 - [ ] Add it with the app **never opened on that device** → "Open Ignia to start"
       (not "0 left").
 - [x] **iOS** — log a meal → the numbers move within seconds (this proves the App

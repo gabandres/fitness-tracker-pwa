@@ -1,5 +1,71 @@
 # Changelog
 
+## 2026-09-05 — maintenance mode: one tap after the goal, and the reminders go quiet (ADR-0037)
+
+Retention lever 7, scoped and built. Reaching the goal weight used to change
+nothing: `goal-reached` went on record and the target chain kept prescribing
+the deficit, because the direction and the pace are only ever written by the
+onboarding wizard — which Settings → Edit goals reruns in full.
+
+  - **Maintenance mode is `goalDirection === 'maintain'`.** No new field, no
+    rules change. `isMaintaining()` in core is the one predicate.
+  - **Entry is one tap on Body**, `MaintenanceSwitchCard`, in the slot the
+    goal-reached prompt vacates and only once the milestone is on record — so a
+    passive Health import cannot walk anyone onto maintenance. A question, not a
+    celebration; no number named. Declining is remembered per device.
+  - **`toMaintenanceSwitchPatch`** writes maintain / pace 0 / `targetMode:
+    'auto'`, clears both legacy goal-weight fields, and rewrites the onboarding
+    seed for maintenance at the current weight — but only when the profile
+    carries one, because in auto mode a stored seed outranks formula mode and a
+    formula-mode user must not be handed a heuristic. Tested on both bases.
+  - **Reminders get quieter, never silent.** `planReminders` takes
+    `maintaining`: no streak-at-risk nudge, only the day-7 lapsed nudge; meal
+    windows and the weigh-in nudge are untouched. Omitting the flag is the full
+    plan, so every existing caller is byte-identical.
+  - **The streak needed no loosening** — `STREAK_FREEZE_MAX_GAP_PRO` (7 days)
+    is already in force for everyone while `PRO_ENABLED` is false.
+
+Pure JS on both platforms; rides an OTA. Not yet published or device-verified.
+
+## 2026-09-05 — the post-OTA sign-in flash: a null auth verdict the disk contradicts now reloads once
+
+The owner's iPhone landed on the sign-in screen after taking an OTA, and
+reopening restored the session. That pair is the signature: Firebase removes
+its persisted session BEFORE it announces a sign-out, so `onAuthStateChanged(null)`
+arriving with the blob still in AsyncStorage is a session the SDK failed to
+read — not one it rejected. `auth.tsx` now applies a null verdict only once the
+disk agrees with it; when the disk still holds a session, it reloads once
+(`reconcileNullVerdict`, one-shot guarded, cleared on the next real user) and
+Firebase is asked again. A persistent failure degrades to the old sign-in
+screen, never a loop, and a genuine sign-out reaches it as fast as before (one
+AsyncStorage read). The path reports to Sentry at `where: auth.rehydrate`,
+because the one sighting had no telemetry. Unverified on a device — nothing here
+reproduces it; the next publish is the test.
+
+## 2026-09-04 — two questions closed: the iOS header floor was never at risk, and the reload crash has nothing left to reproduce on
+
+Moved out of `STATUS.md` on 2026-09-05 for its size budget; the detail rows are
+in `apps/mobile/AGENTS.md`.
+
+  - **The iOS Today-header question is CLOSED.** `minWidth: 96` was measured
+    from Android glyph ink and the worry was that iOS metrics differ. They do
+    not: the title is `Manrope_800ExtraBold`, a *bundled* face, so both
+    platforms read advances from the same TTF. CoreText on that file at
+    `font.h1`: Today 87.15pt, Hoy 57.33, Hoje 68.10 against a 96 floor (10.2%
+    headroom); the Android number that set the floor read 86.7dp, agreeing to
+    0.5%.
+  - **That check found a real accessibility bug on BOTH platforms, fixed and
+    shipped** (`37fd4462`; Android group `a4e958a0`, iOS group `ed0b17a8`).
+    The floor is fixed dp while the text scales, so at `fontScale >= 1.102` the
+    title outgrew it and hard-clipped ("Toda" on the LG at 1.15). Fixed with
+    `maxFontSizeMultiplier` capped at the derived 1.1; `header-title-fit.test.ts`
+    pins the two numbers together. Device-verified at 1.15 and 1.3.
+  - **The unexplained iOS reload crash is CLOSED as moot.** One event, one
+    device, no telemetry, on build 60's runtime `7b347b0f…`, which this tree can
+    no longer produce. Build 63 carries 0 `diagnosticSignatures` (ASC,
+    2026-09-04) and iOS has since taken six OTAs on `20a395de…` with no report.
+
+
 ## 2026-09-04 — the exposed Gemini client key is deleted, and it was already dead
 
 AI Studio flagged `Fitness Tracker Gemini (client)` as a publicly exposed API
