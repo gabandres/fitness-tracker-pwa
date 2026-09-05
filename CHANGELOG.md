@@ -43,9 +43,10 @@ milestone list were snapshotted first and restored byte-for-byte afterwards —
 App Review sees exactly what it saw before. **Finding:** review@'s weigh-ins are
 stale — newest 2026-08-18, only two inside the 28-day trend window, and a stray
 **90 lb** reading on 2026-08-08 — so the goal prompt could not render until five
-temporary weigh-ins were added (and removed again). A `--reset --force` re-seed
-is the documented fix and was NOT run; it is the owner's call because it changes
-what App Review sees.
+temporary weigh-ins were added (and removed again). The owner ran the documented
+fix the same afternoon — `seed-demo-account.mjs --email review@ignia.fit --reset
+--force`: 102 logs, 31 weights, 26 sleep, 30 water and 1 measurement replaced by
+171 fresh docs, dated relative to today.
 
 Two side effects, both reversed: the device had to be signed out of the
 owner's main account and was restored to it by the Google picker
