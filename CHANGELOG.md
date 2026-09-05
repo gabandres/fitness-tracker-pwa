@@ -1,5 +1,36 @@
 # Changelog
 
+## 2026-09-05 (later) — 1.2.3 / build 64 is in App Store review with the re-shot screenshots; build 64 is with external TestFlight; the version bump shut the Android OTA channel
+
+A new marketing version was the only way to ship the re-shot frames (ASC
+refuses screenshot edits on the released 1.2.2), so `app.json` went to
+**1.2.3** (`437a90ce`) and **build 64** was cut locally on `ignia-mac` (19:03 →
+19:19 UTC, verifier green, fingerprint `52802bba…` read from the `.ipa`), sent
+by `eas submit` (delivered in ~4 min this time), attached to the 1.2.3 draft
+with its What's New (`docs/app-store-metadata.md`) and `usesIdfa: false`, and
+**submitted — `WAITING_FOR_REVIEW`, AFTER_APPROVAL**, submission `abfdb41d…`.
+No native change: the binary bakes in what 1.2.2 users already got over the
+air (maintenance mode, the sign-in flash fix, the reliability cliff, the
+header clip, the RIR header).
+
+  - **TestFlight:** build 64 was added to the external *Public Beta Testers*
+    group and is `WAITING_FOR_BETA_REVIEW`. **Build 63 was added too, on the
+    owner's ask, and Apple refused its beta review** — *"This version and prior
+    versions are closed for beta review submission"*, because 1.2.2 is
+    released. It stays in the group at `READY_FOR_BETA_SUBMISSION`, installable
+    by no external tester; the store has 1.2.2 for them. Recorded on the build
+    64 row in `apps/mobile/AGENTS.md` as an ASC fact.
+  - **The version bump moved BOTH runtime fingerprints** (`app.json` is hashed
+    whole): Android tree `68ea2dd3…` → `15c1cfc8…`, reproduced by restoring
+    `1.2.2`. **The Android OTA channel is SHUT until a vc 45 ships**; iOS is
+    shut to the public until 1.2.3 is live and open to build 64's testers.
+    With 1.2.2 the same move was masked by vc 44 being built the same day.
+  - **Mac disk:** 3.2 GiB free at preflight; 14 GiB after clearing
+    `DerivedData/Ignia-sim` (7.1 GB), Archives, old `.ipa`s and the root-owned
+    simulator dyld cache (5.6 GB, `sudo -n` works). No foreign data touched.
+  - `scripts/asc-testflight-external.mjs` is new: add a build to the external
+    group and open its beta review, reading state before and after.
+
 ## 2026-09-05 — the store screenshots are re-shot from the iOS simulator, and the shoot found a Spanish layout bug
 
 Both locales, all five frames (`docs/app-store-metadata.md` §3), captured by

@@ -242,8 +242,9 @@ Written against App Store 1.2.2 / build 63. Everything listed already reached
 1.2.2 users over the air (`apps/mobile/AGENTS.md` rows 2026-09-04/05); the
 binary bakes it in for fresh installs and carries the new screenshots. The
 machine-readable copy is `WHATS_NEW` in `scripts/asc-release-version.mjs`,
-which uploads it; this block is the source of truth for wording. `usesIdfa` is
-set to `false` explicitly on this version (see the note above).
+which uploads it; this block is the source of truth for wording. The script now
+PATCHes `usesIdfa: false` on every version it submits (read back on 1.2.3), so
+the per-version reminder below is closed for good.
 
 **en-US**
 ```
@@ -399,7 +400,7 @@ for 1.0 users, so it is not app release news.
 | Field | Value | Why |
 |---|---|---|
 | Attached build | **54** | a version with no build attached cannot be submitted; 1.1.0 had none for two weeks |
-| `usesIdfa` | **`null`** — see the note below | no ads and no attribution SDK, so the honest answer is false |
+| `usesIdfa` | **`false`** — set by `scripts/asc-release-version.mjs` on every version since 1.2.3; see the note below | no ads and no attribution SDK, so the honest answer is false |
 | Export compliance | declared on the build: `usesNonExemptEncryption=false` | set per-build, not per-version — a new build re-asks |
 | Demo account | `review@ignia.fit`, required | ASC carries it forward; never point Review at `demo@ignia.fit`. Re-confirmed verified, enabled and seeded before submitting 1.2.0 |
 | Release type | **`MANUAL`** | changed for 1.2.0. 1.1.0 used `AFTER_APPROVAL`, which publishes the instant Review passes; manual keeps the public moment a human decision, which matters when a promotion is being timed around it |

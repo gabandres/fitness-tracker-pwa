@@ -63,7 +63,16 @@ features read as "unverified" when they were in fact undeliverable:
 ```sh
 # externalBuildState per build
 node -e "import('./scripts/asc-client.mjs').then(async({api})=>{const r=await api('GET','/v1/builds/<id>/buildBetaDetail');console.log(r.data.attributes)})"
+
+# put a build in front of external testers: group add + beta review, state before/after
+node scripts/asc-testflight-external.mjs --build 64            # dry run
+node scripts/asc-testflight-external.mjs --build 64 --commit
 ```
+
+**Only the newest UNRELEASED version's build can go external.** A build of a
+version already `READY_FOR_SALE` is refused with *"This version and prior
+versions are closed for beta review submission"* (build 63, 2026-09-05) and
+sits in the group at `READY_FOR_BETA_SUBMISSION` forever.
 
 **Trust ASC, not the CLI exit.** `eas submit` has printed *"Something went wrong
 when submitting"* for an upload that had in fact succeeded; the re-run then
