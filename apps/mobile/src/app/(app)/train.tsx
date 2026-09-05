@@ -1063,7 +1063,12 @@ function ExerciseCard({
         ) : (
           <Text style={[styles.setHeadCell, styles.setInputCell]}>{t('train.reps')}</Text>
         )}
-        <Text style={[styles.setHeadCell, styles.setRirCell]}>{t('train.rirShort')}</Text>
+        {/* One line, shrink-to-fit: the RIR column is the narrowest in the row
+            and es-PR's "FALTAN" wrapped to "FALTA / N" at 6.9" width
+            (seen in the 2026-09-05 store captures). */}
+        <Text style={[styles.setHeadCell, styles.setRirCell]} numberOfLines={1} adjustsFontSizeToFit>
+          {t('train.rirShort')}
+        </Text>
         <View style={styles.setDoneCell} />
       </View>
 
