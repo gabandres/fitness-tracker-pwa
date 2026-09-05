@@ -13,9 +13,14 @@ was left alone), and `/app-version.json` is a hosting rewrite to
 dispatcher), and the function runs once per CDN edge per hour, not per launch.
 
   - **Android** reads the Play tracks API as the function's own service
-    account (`647810616435-compute@…`), which the owner invites to Play
-    Console read-only — `docs/DEV_ENVIRONMENT.md` §6, the one step still
-    open. Same track rules as before (`draft` and `internal` never count).
+    account (`647810616435-compute@…`), invited to the org Play Console the
+    same evening — Ignia only, *View app information (read-only)*, driven in
+    Edge (`docs/DEV_ENVIRONMENT.md` §6). **Verified end to end at 20:38 UTC:**
+    the admin *Sync now* read the tracks API as that identity and rewrote
+    the doc. Same track rules as before (`draft` and `internal` never count).
+    One Play Console trap worth the line: *Invite user* opens a **"Send
+    invite?" confirmation**, and the renderer wedged on it the first time,
+    so the invite silently never went — read the user count, not the click.
   - **iOS** reads Apple's public iTunes lookup: no credential, but it yields
     the marketing version and not the build number. The 2026-09-05 client
     (`pickStoreTarget`, `versionKey`) compares marketing versions on iOS, and

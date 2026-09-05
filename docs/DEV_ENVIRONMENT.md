@@ -1307,6 +1307,12 @@ versions drop from ~7 account-wide to 2 (Ignia's 8 minus its own 6 free) plus
 
 ## 6. Owner runbook — let Cloud Functions read Play with no key (written 2026-09-05)
 
+**DONE 2026-09-05 20:37 UTC** — invited from the org account in Edge; the
+first admin *Sync now* a minute later read Play as this identity. Kept as the
+runbook for the day the runtime identity changes. One trap: *Invite user*
+opens a **"Send invite?"** confirmation and the Play renderer wedged on it the
+first time, so the invite silently never went — verify by the user count.
+
 `app-version.json` is derived in the cloud since 2026-09-05
 (`functions/src/app-version.ts`): the hourly dispatcher reads the Play tracks
 API **as the function's own service account**, so no JSON key lives in Secret
