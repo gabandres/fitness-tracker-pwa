@@ -72,6 +72,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // account's `ci95Tdee` is null. That silence is a known, accepted cost recorded
 // in `targets.ts` — a banner is not the fix for it, and pretending otherwise
 // would be worse than leaving it visible.
+// NOT bumped 2026-09-05 (maintenance mode + the post-OTA sign-in flash fix).
+// The flash fix is a bug fix with no user-visible surface on a healthy launch.
+// Maintenance mode reaches only an account whose weight trend has crossed its
+// own goal, and it announces itself IN PLACE — the card on Body, in the slot
+// the goal-reached prompt vacates. A banner to everyone would read "when you
+// reach your goal you can…", which is exactly the forward-looking pressure
+// `milestones.ts` and UX_AUDIT §S12 keep out of this app. Same precedent as
+// the milestones non-bump above.
 export const WHATS_NEW_VERSION = '2026-09-04-scan-fixed';
 
 const KEY = 'whatsNew.seen';
