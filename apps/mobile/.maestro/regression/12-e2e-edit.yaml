@@ -11,6 +11,27 @@
 # landed.
 appId: fit.ignia.app
 ---
+# ── `scrollUntilVisible` has a documented failure on this suite's Android host,
+# and every fallback below exists for it. ──
+#
+# Measured 2026-08-30 on the LG VS988: the command times out while the target is
+# ALREADY ON SCREEN. `07-coach`'s hierarchy at the moment of failure had
+# `coach-entry` present, clickable and bounded [96,1881][1344,2068], and that
+# run's own screenshot shows the button rendered. It is not making progress, and
+# relaxing `visibilityPercentage` does not help — coverage.md records both.
+#
+# So each call gains `optional: true` plus a bounded swipe loop, which is
+# Maestro's own "universal adapter" idiom (docs: recipes/choose-images, and
+# recipes/custom-scrolling-for-screen-fragments). The shape is deliberate:
+#
+#   * It is ADDITIVE. These flows are shared with iOS, where `scrollUntilVisible`
+#     works (19 of 21 on 2026-08-24) and where there is no device here to
+#     re-validate. If the original command succeeds the loop's `while` is false
+#     immediately and it costs nothing, so iOS behaviour cannot change.
+#   * `while: notVisible` no-ops when the target is already on screen, which is
+#     precisely the Android failure.
+#   * `times:` bounds it, so a genuinely missing element still fails the flow —
+#     later, on the command that needed it — rather than hanging.
 - launchApp:
     clearState: false
 - assertVisible: 'Today'
@@ -51,6 +72,16 @@ appId: fit.ignia.app
     direction: DOWN
     timeout: 15000
     visibilityPercentage: 60
+    optional: true
+- repeat:
+    times: 10
+    while:
+      notVisible:
+        text: '.*QA E2E Sandwich.*'
+    commands:
+      - swipe:
+          start: 10%, 80%
+          end: 10%, 45%
 # Scroll to the END before touching the row. scrollUntilVisible stops the
 # moment the row enters the viewport, which is often UNDER the FAB — and
 # Maestro taps layout bounds, so the touch goes to the FAB on top and opens the
@@ -100,4 +131,14 @@ appId: fit.ignia.app
     direction: DOWN
     timeout: 15000
     visibilityPercentage: 60
+    optional: true
+- repeat:
+    times: 10
+    while:
+      notVisible:
+        text: '.*QA E2E Sandwich.*'
+    commands:
+      - swipe:
+          start: 10%, 80%
+          end: 10%, 45%
 - takeScreenshot: .maestro/regression/shots/12-e2e-edited

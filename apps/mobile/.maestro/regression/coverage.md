@@ -10,6 +10,70 @@ Update this file in the same commit as any flow change. If a surface ships
 that has no row here, the suite's "100%" claim is false until the row exists —
 add it as ✗ first, cover it second.
 
+## Android run 2026-09-04 — 20 of 20, and the four known failures are FIXED
+
+Run on the **LG VS988** (Android 9 / API 28) against the **published** bundle —
+the header-fix OTA on **vc 44** (`68ea2dd3…`), update id `01a06e70…` confirmed in
+logcat before the sweep. Three full runs, and reporting all three, because the
+middle one is the useful one.
+
+| Run | Result | What it proves |
+|---|---|---|
+| 1 | **19 of 20** — only `18-train-template` | The 2026-08-30 `scrollUntilVisible` family is fixed: `07-coach`, `12-e2e-edit` and `13-e2e-delete` all passed |
+| 2 | 15 of 20 — a **different**, scattered set | `18` PASSED, proving its own fix. The five failures were **environmental** (below) |
+| 3 | **20 of 20** | Clean sweep with that environment cause removed |
+
+### The `scrollUntilVisible` fix — additive, because these flows are shared with iOS
+
+Each call in the four failing flows gained `optional: true` plus a bounded
+`repeat` / `while: notVisible` swipe loop — Maestro's own "universal adapter"
+idiom. The shape is deliberate and the reason matters more than the change:
+
+- **It cannot regress iOS.** `scrollUntilVisible` WORKS there (19 of 21 on
+  2026-08-24) and there is no iOS device here to re-validate. When the original
+  command succeeds the loop's `while` is false immediately and it costs nothing.
+  The logs show exactly that — `SKIPPED`, twelve times in flow 18 alone.
+- **`while: notVisible` no-ops when the target is already on screen**, which IS
+  the Android failure: 2026-08-30 captured `coach-entry` present, clickable and
+  bounded while the command timed out hunting it.
+- **`times:` bounds it**, so a genuinely absent element still fails the flow, on
+  the command that needed it, rather than hanging.
+
+**The swipes are at x=10%, not centre, and that is load-bearing.** The first
+pass put all 19 loops at 50% — dead over the multiline cues `TextInput`, which
+flow 18's own comment warns scrolls *itself* rather than the sheet. That is why
+the first re-run still died at step 58; at 10% the flow completes 79 steps.
+
+### Two real defects this turned up in flow 18, neither of them the scroll
+
+1. **A second `tapOn: template-more-0` had no scroll in front of it.** Reaching
+   the cues box moves the toggle off screen. Standalone reproduction, fixed with
+   a scroll-back before the tap.
+2. **Three `start-workout` waits were 15s.** This file already documents that the
+   Train tab re-subscribes to templates, history, exercises and the week summary
+   and has taken ~2 minutes on this device — which is why its `new-template`
+   scroll is 60s. The three teardown waits were missed. **15s survived a
+   STANDALONE run and died in the SUITE**, 4m30s in with the device warm. A
+   timeout tuned on an isolated run is not tuned for the run that matters. Now
+   60s; flow 18 passes at ~4m50s.
+
+### Run 2's five failures were a SYSTEM DIALOG, and the screenshot is how it was found
+
+`01-today` failed on `assertVisible: 'Today'`, `07-coach` on the Firestore-backed
+`coach-remaining`, `09-locale-es` on `Ajustes`, `12`/`13` on the synced diary
+row. Scattered, and easy to file as flaky flows. The failure capture shows an LG
+system modal over the app: **"Select a network if you would like to connect to
+Wi-Fi"**. A modal blocks every hierarchy read, and the dropped link behind it
+breaks precisely the Firestore-backed assertions that failed.
+
+The device sits at **−77 dBm**, so it drops intermittently.
+**`settings put global wifi_networks_available_notification_on 0` is now a host
+prerequisite for a sweep** — set it before running, or budget for this class of
+failure. Run 3 was clean with it off.
+
+This is the ledger's own standing lesson holding again: *every failure ever found
+on this device has been the harness, not the build.* It nearly got mis-filed.
+
 ## Android run 2026-08-30 — 16 of 20, and all four failures are the SAME known defect
 
 Run on the **LG VS988** (Android 9 / API 28) against the **published** bundle —

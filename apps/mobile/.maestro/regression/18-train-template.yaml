@@ -21,6 +21,27 @@
 # Templates) — delete it by hand. The exercise is seeded and untouched.
 appId: fit.ignia.app
 ---
+# ── `scrollUntilVisible` has a documented failure on this suite's Android host,
+# and every fallback below exists for it. ──
+#
+# Measured 2026-08-30 on the LG VS988: the command times out while the target is
+# ALREADY ON SCREEN. `07-coach`'s hierarchy at the moment of failure had
+# `coach-entry` present, clickable and bounded [96,1881][1344,2068], and that
+# run's own screenshot shows the button rendered. It is not making progress, and
+# relaxing `visibilityPercentage` does not help — coverage.md records both.
+#
+# So each call gains `optional: true` plus a bounded swipe loop, which is
+# Maestro's own "universal adapter" idiom (docs: recipes/choose-images, and
+# recipes/custom-scrolling-for-screen-fragments). The shape is deliberate:
+#
+#   * It is ADDITIVE. These flows are shared with iOS, where `scrollUntilVisible`
+#     works (19 of 21 on 2026-08-24) and where there is no device here to
+#     re-validate. If the original command succeeds the loop's `while` is false
+#     immediately and it costs nothing, so iOS behaviour cannot change.
+#   * `while: notVisible` no-ops when the target is already on screen, which is
+#     precisely the Android failure.
+#   * `times:` bounds it, so a genuinely missing element still fails the flow —
+#     later, on the command that needed it — rather than hanging.
 - launchApp:
     clearState: false
 - assertVisible: 'Today'
@@ -39,7 +60,8 @@ appId: fit.ignia.app
       - extendedWaitUntil:
           visible:
             id: 'start-workout'
-          timeout: 15000
+          # 60s for the same Train-tab subscription cost noted below.
+          timeout: 60000
 
 # ── 1. A new template, named ──────────────────────────────────────
 # 60s, not 15s. The Train tab subscribes to templates, history, exercises and
@@ -54,6 +76,16 @@ appId: fit.ignia.app
     direction: DOWN
     timeout: 60000
     centerElement: true
+    optional: true
+- repeat:
+    times: 10
+    while:
+      notVisible:
+        id: 'new-template'
+    commands:
+      - swipe:
+          start: 10%, 80%
+          end: 10%, 45%
 - tapOn:
     id: 'new-template'
 - assertVisible: 'New template'
@@ -116,6 +148,16 @@ appId: fit.ignia.app
       id: 'template-set-weight-0-0'
     timeout: 15000
     visibilityPercentage: 20
+    optional: true
+- repeat:
+    times: 10
+    while:
+      notVisible:
+        id: 'template-set-weight-0-0'
+    commands:
+      - swipe:
+          start: 10%, 80%
+          end: 10%, 45%
 # The column headers are the whole point of the table — they are what makes a
 # row readable without a legend. Regex, not bare strings: iOS merges sibling
 # Texts inside one row into a single label (flow 16 measured this three times),
@@ -134,6 +176,16 @@ appId: fit.ignia.app
       id: 'template-set-kind-0-0'
     direction: DOWN
     timeout: 20000
+    optional: true
+- repeat:
+    times: 10
+    while:
+      notVisible:
+        id: 'template-set-kind-0-0'
+    commands:
+      - swipe:
+          start: 10%, 80%
+          end: 10%, 45%
 - assertVisible:
     id: 'template-set-kind-0-0'
 - takeScreenshot: .maestro/regression/shots/18-set-table
@@ -148,6 +200,16 @@ appId: fit.ignia.app
     direction: DOWN
     timeout: 15000
     centerElement: true
+    optional: true
+- repeat:
+    times: 10
+    while:
+      notVisible:
+        id: 'template-set-weight-0-0'
+    commands:
+      - swipe:
+          start: 10%, 80%
+          end: 10%, 45%
 - tapOn:
     id: 'template-set-weight-0-0'
 - inputText: '20'
@@ -157,6 +219,16 @@ appId: fit.ignia.app
     direction: DOWN
     timeout: 15000
     centerElement: true
+    optional: true
+- repeat:
+    times: 10
+    while:
+      notVisible:
+        id: 'template-set-reps-0-0'
+    commands:
+      - swipe:
+          start: 10%, 80%
+          end: 10%, 45%
 - tapOn:
     id: 'template-set-reps-0-0'
 - inputText: '8'
@@ -166,6 +238,16 @@ appId: fit.ignia.app
     direction: DOWN
     timeout: 15000
     centerElement: true
+    optional: true
+- repeat:
+    times: 10
+    while:
+      notVisible:
+        id: 'template-set-weight-0-1'
+    commands:
+      - swipe:
+          start: 10%, 80%
+          end: 10%, 45%
 - tapOn:
     id: 'template-set-weight-0-1'
 - inputText: '20'
@@ -175,6 +257,16 @@ appId: fit.ignia.app
     direction: DOWN
     timeout: 15000
     centerElement: true
+    optional: true
+- repeat:
+    times: 10
+    while:
+      notVisible:
+        id: 'template-set-reps-0-1'
+    commands:
+      - swipe:
+          start: 10%, 80%
+          end: 10%, 45%
 - tapOn:
     id: 'template-set-reps-0-1'
 - inputText: '8'
@@ -184,6 +276,16 @@ appId: fit.ignia.app
     direction: DOWN
     timeout: 15000
     centerElement: true
+    optional: true
+- repeat:
+    times: 10
+    while:
+      notVisible:
+        id: 'template-set-weight-0-2'
+    commands:
+      - swipe:
+          start: 10%, 80%
+          end: 10%, 45%
 - tapOn:
     id: 'template-set-weight-0-2'
 - inputText: '20'
@@ -193,6 +295,16 @@ appId: fit.ignia.app
     direction: DOWN
     timeout: 15000
     centerElement: true
+    optional: true
+- repeat:
+    times: 10
+    while:
+      notVisible:
+        id: 'template-set-reps-0-2'
+    commands:
+      - swipe:
+          start: 10%, 80%
+          end: 10%, 45%
 - tapOn:
     id: 'template-set-reps-0-2'
 - inputText: '8'
@@ -206,6 +318,16 @@ appId: fit.ignia.app
       text: 'Sets'
     direction: UP
     timeout: 10000
+    optional: true
+- repeat:
+    times: 10
+    while:
+      notVisible:
+        text: 'Sets'
+    commands:
+      - swipe:
+          start: 10%, 45%
+          end: 10%, 80%
 - tapOn: 'Sets'
 - waitForAnimationToEnd:
     timeout: 5000
@@ -222,6 +344,16 @@ appId: fit.ignia.app
     direction: DOWN
     timeout: 15000
     centerElement: true
+    optional: true
+- repeat:
+    times: 10
+    while:
+      notVisible:
+        id: 'template-more-0'
+    commands:
+      - swipe:
+          start: 10%, 80%
+          end: 10%, 45%
 - tapOn:
     id: 'template-more-0'
 # Same 360x720dp problem as the set-kind control above: tapping "More options"
@@ -263,6 +395,16 @@ appId: fit.ignia.app
     # Measured on Android 2026-08-19 — the capture shows "More options" open
     # with "Cues (one per line)" half-drawn at the bottom edge.
     visibilityPercentage: 20
+    optional: true
+- repeat:
+    times: 10
+    while:
+      notVisible:
+        id: 'template-cues-0'
+    commands:
+      - swipe:
+          start: 10%, 45%
+          end: 10%, 80%
 - assertVisible:
     id: 'template-cues-0'
 - takeScreenshot: .maestro/regression/shots/18-more-options
@@ -280,6 +422,28 @@ appId: fit.ignia.app
 # Close it again before moving on, for the SAME reason: while the cues field
 # is on screen every later swipe risks landing on it, and a scroll that
 # silently moves nothing reads as a missing element.
+#
+# Scroll BACK to the toggle before tapping it. Reaching the cues box moved it
+# off screen, and this tap had no scroll in front of it — measured 2026-09-04,
+# it is where the flow died with *element not found* while every earlier step
+# passed. The x=10% swipe is the same precaution as above: dead centre lands on
+# the cues TextInput, which scrolls itself and not the sheet.
+- scrollUntilVisible:
+    element:
+      id: 'template-more-0'
+    direction: UP
+    timeout: 15000
+    centerElement: true
+    optional: true
+- repeat:
+    times: 10
+    while:
+      notVisible:
+        id: 'template-more-0'
+    commands:
+      - swipe:
+          start: 10%, 45%
+          end: 10%, 80%
 - tapOn:
     id: 'template-more-0'
 - waitForAnimationToEnd:
@@ -293,12 +457,29 @@ appId: fit.ignia.app
     timeout: 15000
     visibilityPercentage: 60
     centerElement: true
+    optional: true
+- repeat:
+    times: 10
+    while:
+      notVisible:
+        id: 'save-template'
+    commands:
+      - swipe:
+          start: 10%, 80%
+          end: 10%, 45%
 - tapOn:
     id: 'save-template'
+# 60s, not 15s, for the reason this file already gives at the `new-template`
+# scroll: the Train tab re-subscribes to templates, history, exercises and the
+# week summary, and on the LG G6 (API 28) that has taken ~2 minutes. 15s
+# survived a STANDALONE run and died in the SUITE — measured 2026-09-04, flow 18
+# reached its teardown and then timed out here, 4m30s into a 20-flow sweep with
+# the device warm. A timeout tuned on an isolated run is not tuned for the run
+# that actually matters.
 - extendedWaitUntil:
     visible:
       id: 'start-workout'
-    timeout: 15000
+    timeout: 60000
 # The saved template's own row, back on the Train tab.
 - scrollUntilVisible:
     element:
@@ -306,6 +487,16 @@ appId: fit.ignia.app
     direction: DOWN
     timeout: 15000
     centerElement: true
+    optional: true
+- repeat:
+    times: 10
+    while:
+      notVisible:
+        text: '.*QA Tpl Check.*'
+    commands:
+      - swipe:
+          start: 10%, 80%
+          end: 10%, 45%
 - takeScreenshot: .maestro/regression/shots/18-template-saved
 
 # Re-open it: the per-set targets must come back off the doc. This is the
@@ -339,6 +530,16 @@ appId: fit.ignia.app
     direction: DOWN
     timeout: 15000
     visibilityPercentage: 20
+    optional: true
+- repeat:
+    times: 10
+    while:
+      notVisible:
+        id: 'template-set-weight-0-0'
+    commands:
+      - swipe:
+          start: 10%, 80%
+          end: 10%, 45%
 - takeScreenshot: .maestro/regression/shots/18-reopened-table
 
 # ── 8. Teardown: leave the account as we found it ─────────────────
@@ -360,10 +561,17 @@ appId: fit.ignia.app
 # is a no-op that Maestro reports as "no visible element found".
 - tapOn:
     id: 'delete-template'
+# 60s, not 15s, for the reason this file already gives at the `new-template`
+# scroll: the Train tab re-subscribes to templates, history, exercises and the
+# week summary, and on the LG G6 (API 28) that has taken ~2 minutes. 15s
+# survived a STANDALONE run and died in the SUITE — measured 2026-09-04, flow 18
+# reached its teardown and then timed out here, 4m30s into a 20-flow sweep with
+# the device warm. A timeout tuned on an isolated run is not tuned for the run
+# that actually matters.
 - extendedWaitUntil:
     visible:
       id: 'start-workout'
-    timeout: 15000
+    timeout: 60000
 # Nothing else to clean: the exercise came from the seeded catalog, so the
 # template was the only thing this flow ever created.
 - takeScreenshot: .maestro/regression/shots/18-teardown
