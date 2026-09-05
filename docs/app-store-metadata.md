@@ -390,7 +390,16 @@ waiting for review, and editing a waiting submission risks more than a cosmetic
 field is worth. Set it to `false` explicitly on the *next* version, before
 submitting, and delete this note once that is confirmed to work.
 
-### Screenshots on file — carried forward to 1.2.0 (re-read from ASC 2026-08-15: en-US 5 + 2, es-MX 4 + 2 — unchanged since 1.1.0)
+### Screenshots on file — RE-SHOT 2026-09-05, uploaded to the 1.2.3 draft (en-US 5, es-MX 5, both `--replace`d; watch slots untouched)
+
+> **1.2.3 exists only as a *Prepare for Submission* draft** (id `e6f6ce2c…`), created
+> 2026-09-05 because ASC refuses screenshot edits on a `READY_FOR_SALE` version.
+> The new frames go public when 1.2.3 ships with a build; 1.2.2's listing keeps
+> the Aug 30 set until then. Source: `store-assets/out/{en,es}/`, captured on the
+> iPhone 16 Pro Max simulator (`.maestro/capture/store-shots.yaml`).
+
+The table below is the 1.2.0–1.2.2 record, kept for the watch slots:
+
 
 | Locale | `APP_IPHONE_67` | `APP_WATCH_SERIES_10` |
 |---|---|---|

@@ -5,8 +5,9 @@
 Both locales, all five frames (`docs/app-store-metadata.md` §3), captured by
 Maestro on an iPhone 16 Pro Max simulator (1320 × 2868 native — the 6.9" slot,
 no scaling) on `ignia-mac`, signed in as `demo@ignia.fit`, composited with
-`scripts/store-screenshots.mjs` into `store-assets/out/{en,es}/`. Not yet
-uploaded to App Store Connect.
+`scripts/store-screenshots.mjs` into `store-assets/out/{en,es}/`. **Uploaded to App Store Connect the same
+day** into a new 1.2.3 draft (`PREPARE_FOR_SUBMISSION`), both locales replaced,
+because ASC refuses screenshot edits on the live 1.2.2. Public when 1.2.3 ships.
 
   - **Flow:** `apps/mobile/.maestro/capture/store-shots.yaml`. Three Maestro
     2.8 facts it had to learn, recorded in its header: a value in the flow's
