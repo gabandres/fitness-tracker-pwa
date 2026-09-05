@@ -36,6 +36,16 @@ at 2,731 kcal. Firestore read back `goalDirection: maintain`, pace 0,
 rewritten 2,180 → 2,740 for maintenance at the current weight. Flow:
 `.maestro/capture/maintenance-verify.yaml`.
 
+**Repeated on `review@ignia.fit` the same afternoon, on the owner's instruction,
+with the same result** (seed rewritten 2,130 → 2,480 there). Its goal fields and
+milestone list were snapshotted first and restored byte-for-byte afterwards —
+App Review sees exactly what it saw before. **Finding:** review@'s weigh-ins are
+stale — newest 2026-08-18, only two inside the 28-day trend window, and a stray
+**90 lb** reading on 2026-08-08 — so the goal prompt could not render until five
+temporary weigh-ins were added (and removed again). A `--reset --force` re-seed
+is the documented fix and was NOT run; it is the owner's call because it changes
+what App Review sees.
+
 Two side effects, both reversed: the device had to be signed out of the
 owner's main account and was restored to it by the Google picker
 (`.maestro/capture/google-restore.yaml`, lastSignIn confirmed); the first
