@@ -27,14 +27,15 @@ import {
 import { BottomSheet } from '@/components/BottomSheet';
 import { confirm } from '@/components/ConfirmSheet';
 import { GoalMilestonePrompt } from '@/components/GoalMilestonePrompt';
+import { MaintenanceSwitchCard } from '@/components/MaintenanceSwitchCard';
 import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { Sparkline } from '@/components/Sparkline';
 import { useBody } from '@/hooks/useBody';
 import { useMilestoneRecord } from '@/hooks/useMilestones';
 import { useAuth } from '@/lib/auth';
-import { recordMilestone } from '@/lib/ledger';
+import { recordMilestone, switchToMaintenance } from '@/lib/ledger';
 import { type I18nKey, type Locale, type TFn, useLocale, useT } from '@/i18n';
-import type { BodyFatInput } from '@macrolog/core';
+import { type BodyFatInput, isMaintaining } from '@macrolog/core';
 import * as haptics from '@/lib/haptics';
 import { useDeferredFocus } from '@/lib/use-deferred-focus';
 import { useUnitSystem } from '@/lib/use-unit-system';
@@ -98,7 +99,7 @@ export default function Body() {
     goalProgress,
     goalCrossed,
   } = useBody();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const milestones = useMilestoneRecord(user?.uid);
   const t = useT();
   const locale = useLocale();
@@ -246,6 +247,24 @@ export default function Body() {
             visible={goalCrossed && !milestones.earned['goal-reached']}
             onConfirm={() => {
               if (user?.uid) void recordMilestone(user.uid, 'goal-reached');
+            }}
+          />
+
+          {/* Only once the milestone is on record: the person has said the
+              crossing is theirs, so a passive import cannot walk them onto
+              maintenance. Hidden again the moment the profile says
+              'maintain' — the switch writes it and the listener re-renders
+              (retention lever 7, `maintenance-mode.ts`). */}
+          <MaintenanceSwitchCard
+            visible={
+              goalCrossed &&
+              !!milestones.earned['goal-reached'] &&
+              !isMaintaining(profile) &&
+              goalProgress != null
+            }
+            onSwitch={async () => {
+              if (!user?.uid || !profile || !goalProgress) return;
+              await switchToMaintenance(user.uid, profile, goalProgress.currentWeight);
             }}
           />
 

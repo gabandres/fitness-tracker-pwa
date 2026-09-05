@@ -1276,4 +1276,9 @@ export const ptBR = {
   'milestones.goalAsk': 'Sua tendência de peso chegou à meta que você definiu. Adicionar aos seus marcos?',
   'milestones.goalAdd': 'Adicionar',
   'milestones.goalDecline': 'Agora não',
+  'maintenance.switchAsk': 'Mudar para manutenção?',
+  'maintenance.switchBody':
+    'Sua meta passa a ser sua estimativa de manutenção. Mude quando quiser em Ajustes.',
+  'maintenance.switchYes': 'Mudar',
+  'maintenance.switchNo': 'Manter minha meta',
 } as const;

@@ -219,3 +219,33 @@ describe('resolveMealReminders (1.0 → per-meal upgrade)', () => {
     expect(resolveMealReminders(raw, null)).toEqual(DEFAULT_MEAL_REMINDERS);
   });
 });
+
+describe('planReminders — maintenance mode (quieter, never silent)', () => {
+  const meals = DEFAULT_MEAL_REMINDERS;
+  const base = { now: noon(), meals, loggedToday: false, streak: 6, daysSinceWeighIn: 9, daysSinceLastLog: 0 };
+
+  it('drops the streak-at-risk nudge — a streak is deficit-era pressure', () => {
+    expect(planReminders({ ...base, maintaining: false }).find((p) => p.id === 'streak-risk')).toBeDefined();
+    expect(planReminders({ ...base, maintaining: true }).find((p) => p.id === 'streak-risk')).toBeUndefined();
+  });
+
+  it('keeps only the day-7 lapsed nudge', () => {
+    const lapsedIds = (maintaining: boolean) =>
+      planReminders({ ...base, maintaining }).map((p) => p.id).filter((id) => id.startsWith('lapsed-'));
+    expect(lapsedIds(false)).toEqual(['lapsed-3', 'lapsed-7']);
+    expect(lapsedIds(true)).toEqual(['lapsed-7']);
+  });
+
+  it('leaves meal windows and the weigh-in nudge exactly as they were', () => {
+    // Before the 8am weigh-in slot, so the nudge is actually in the plan.
+    const dawn = { ...base, now: new Date(2026, 6, 4, 7, 0, 0) };
+    const keep = (plans: ReminderPlan[]) =>
+      plans.filter((p) => p.id.startsWith('meal-') || p.id === 'weigh-in').map((p) => p.id).sort();
+    expect(keep(planReminders({ ...dawn, maintaining: true }))).toEqual(keep(planReminders({ ...dawn, maintaining: false })));
+    expect(keep(planReminders({ ...dawn, maintaining: true }))).toContain('weigh-in');
+  });
+
+  it('omitted means the full plan — every existing caller is unchanged', () => {
+    expect(ids(planReminders(base))).toEqual(ids(planReminders({ ...base, maintaining: false })));
+  });
+});

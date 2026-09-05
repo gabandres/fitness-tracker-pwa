@@ -34,6 +34,10 @@ export interface ReminderLiveState {
   daysSinceWeighIn: number | null;
   /** Whole days since the newest food log; null when none in the window. */
   daysSinceLastLog: number | null;
+  /** Holding weight rather than moving it — the quieter plan (core
+   *  `planReminders`, `maintaining`). Optional: the Settings permission probe
+   *  passes a stub state and has no profile to read it from. */
+  maintaining?: boolean;
 }
 
 const isNative = Platform.OS !== 'web';
@@ -132,6 +136,7 @@ async function syncOnce(state: ReminderLiveState, t: TFn): Promise<void> {
     streak: state.streak,
     daysSinceWeighIn: state.daysSinceWeighIn,
     daysSinceLastLog: state.daysSinceLastLog,
+    maintaining: state.maintaining,
   });
 
   await Promise.all(plans.map((plan) => scheduleOne(plan, t)));

@@ -74,6 +74,7 @@ import {
   toMeasurement,
   toMeasurementDoc,
   toMeasurementPatch,
+  toMaintenanceSwitchPatch,
   toOnboardingV2Patch,
   toPresetDoc,
   toSessionDoc,
@@ -1070,6 +1071,18 @@ export async function ensureProfile(uid: string): Promise<void> {
  *  already exists (created at sign-up), so this is an update. */
 export async function saveOnboardingV2(uid: string, s: OnboardingV2Submission): Promise<void> {
   await updateDoc(userDoc(uid), toOnboardingV2Patch(s, CODEC));
+}
+
+/** Move the profile onto maintenance in one write — the "and now hold it"
+ *  the wizard otherwise makes a whole rerun of. Patch shape is single-sourced
+ *  in `@macrolog/core` (`toMaintenanceSwitchPatch`), which also says why the
+ *  seed is rewritten from `currentWeightLb`. */
+export async function switchToMaintenance(
+  uid: string,
+  profile: Profile,
+  currentWeightLb: number,
+): Promise<void> {
+  await updateDoc(userDoc(uid), toMaintenanceSwitchPatch(profile, currentWeightLb, CODEC));
 }
 
 /** Portion-display unit system (`us` | `metric`). */

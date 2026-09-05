@@ -145,7 +145,18 @@ export interface ReminderInput {
   /** Whole days since the newest FOOD log (0 = today), or null when there is
    *  none in the recent window. Drives the lapsed nudges; omit to disable. */
   daysSinceLastLog?: number | null;
+  /**
+   * The user is holding weight rather than moving it (`isMaintaining` in
+   * ./maintenance-mode). Quieter plan: no streak-at-risk nudge — a streak is
+   * deficit-era pressure — and only the day-7 lapsed nudge, never the day-3.
+   * Meal windows and the weigh-in nudge are unchanged; the trend is the one
+   * number that still matters. Omitted means the full plan, as before.
+   */
+  maintaining?: boolean;
 }
+
+/** The lapsed nudges a maintaining user gets: the week mark only. */
+export const MAINTENANCE_LAPSED_DAYS: readonly LapsedDay[] = [7];
 
 const MEAL_ORDER: MealKey[] = ['breakfast', 'lunch', 'dinner'];
 
@@ -155,7 +166,7 @@ const MEAL_ORDER: MealKey[] = ['breakfast', 'lunch', 'dinner'];
  * previously-scheduled nudges and (re)schedules exactly this list.
  */
 export function planReminders(
-  { now, meals, loggedToday, streak, daysSinceWeighIn, daysSinceLastLog }: ReminderInput,
+  { now, meals, loggedToday, streak, daysSinceWeighIn, daysSinceLastLog, maintaining }: ReminderInput,
 ): ReminderPlan[] {
   const plans: ReminderPlan[] = [];
 
@@ -176,7 +187,7 @@ export function planReminders(
   // Streak-at-risk: only when there's a streak worth protecting, today is still
   // unlogged, and tonight's fire time hasn't already passed (can't schedule the
   // past — tomorrow's app-open will re-arm it).
-  if (streak >= STREAK_RISK_MIN_STREAK && !loggedToday) {
+  if (!maintaining && streak >= STREAK_RISK_MIN_STREAK && !loggedToday) {
     const fireAt = atToday(now, STREAK_RISK_HOUR, STREAK_RISK_MINUTE);
     if (fireAt.getTime() > now.getTime()) {
       plans.push({
@@ -215,7 +226,7 @@ export function planReminders(
       daysSinceLastLog == null || daysSinceLastLog >= longest || daysSinceLastLog < 0
         ? 0
         : Math.floor(daysSinceLastLog);
-    for (const n of LAPSED_DAYS) {
+    for (const n of maintaining ? MAINTENANCE_LAPSED_DAYS : LAPSED_DAYS) {
       const fireAt = atToday(now, LAPSED_HOUR, LAPSED_MINUTE);
       fireAt.setDate(fireAt.getDate() + (n - anchorDaysAgo));
       if (fireAt.getTime() > now.getTime()) {

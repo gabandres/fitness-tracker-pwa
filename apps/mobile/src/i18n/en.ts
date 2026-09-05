@@ -1420,6 +1420,13 @@ export const en = {
   'milestones.goalAsk': 'Your weight trend has reached the goal you set. Add it to your milestones?',
   'milestones.goalAdd': 'Add it',
   'milestones.goalDecline': 'Not now',
+  // Maintenance mode (retention lever 7). A question, never a celebration —
+  // no number, no "you did it" — asked once the milestone is on record.
+  'maintenance.switchAsk': 'Switch to maintenance?',
+  'maintenance.switchBody':
+    'Your target becomes your maintenance estimate. Change it any time in Settings.',
+  'maintenance.switchYes': 'Switch',
+  'maintenance.switchNo': 'Keep my goal',
 } as const;
 
 export type I18nKey = keyof typeof en;

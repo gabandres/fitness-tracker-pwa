@@ -1,6 +1,15 @@
 import { useCallback, useRef } from 'react';
 import { useFocusEffect } from 'expo-router';
-import { type DailyLog, LOG_WINDOW_ROWS, computeStreak, dayBoundaryOf, dayKeyAt, parseYmd, type DayBoundary } from '@macrolog/core';
+import {
+  type DailyLog,
+  LOG_WINDOW_ROWS,
+  computeStreak,
+  dayBoundaryOf,
+  dayKeyAt,
+  isMaintaining,
+  parseYmd,
+  type DayBoundary,
+} from '@macrolog/core';
 import { useAuth } from '@/lib/auth';
 import { useT } from '@/i18n';
 import { subscribeDailyWeights, subscribeRecentLogs } from '@/lib/ledger';
@@ -85,12 +94,15 @@ export function useReminderSync(): void {
         const streak = computeStreak(logs, { freezeMaxGap: 0, boundary }).streak;
         const sinceWeigh = daysSinceWeighIn(logs, weights, boundary);
         const sinceLog = daysSinceLastLog(logs, boundary);
+        // Read here, off the ref, like the boundary: a goal change re-plans on
+        // the next snapshot rather than re-rendering Today.
+        const maintaining = isMaintaining(profileRef.current);
 
-        const sig = `${loggedToday}|${streak}|${sinceWeigh}|${sinceLog}`;
+        const sig = `${loggedToday}|${streak}|${sinceWeigh}|${sinceLog}|${maintaining}`;
         if (sig === lastSig.current) return;
         lastSig.current = sig;
         void syncReminders(
-          { loggedToday, streak, daysSinceWeighIn: sinceWeigh, daysSinceLastLog: sinceLog },
+          { loggedToday, streak, daysSinceWeighIn: sinceWeigh, daysSinceLastLog: sinceLog, maintaining },
           t,
         );
       };

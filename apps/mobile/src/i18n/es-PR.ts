@@ -1296,4 +1296,9 @@ export const esPR: Record<I18nKey, string> = {
   'milestones.goalAsk': 'Tu tendencia de peso llegó a la meta que pusiste. ¿La añades a tus hitos?',
   'milestones.goalAdd': 'Añadir',
   'milestones.goalDecline': 'Ahora no',
+  'maintenance.switchAsk': '¿Cambiar a mantenimiento?',
+  'maintenance.switchBody':
+    'Tu meta pasa a ser tu estimado de mantenimiento. Cámbiala cuando quieras en Ajustes.',
+  'maintenance.switchYes': 'Cambiar',
+  'maintenance.switchNo': 'Seguir con mi meta',
 };
