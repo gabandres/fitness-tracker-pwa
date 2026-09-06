@@ -108,6 +108,19 @@ test device on hand is Android — not a new problem.
 deleted and its outcome goes to `CHANGELOG.md` — see the budget note at the top
 of this file.
 
+**Play listing icon — NEW ART SAVED, NOT SUBMITTED (2026-09-05).** The Default
+store listing still showed the Aug 1 orange-ring icon. The 512 px icon and the
+1024×500 feature graphic were regenerated from the Ember-on-Ink art
+(`node scripts/play-store-assets.mjs`), swapped in on the listing and **saved**;
+Publishing overview lists exactly two pending changes, *Change app icon* and
+*Change Feature graphic*. **Not sent for review on purpose**: Play warned that
+submitting would cancel and restart the 30-country EU expansion review in
+progress since 2026-09-03, and the owner chose to wait. **Next step: once that
+review lands, Publishing overview → *Submit 2 changes for review*.** The
+regenerated phone screenshots in `store-assets/play/` (from the 09-05 re-shot
+captures) are ready to upload too if the listing screenshots are to be
+refreshed in the same pass.
+
 ### Retention — the standing focus (owner's call, 2026-09-02)
 
 **The numbers say activation and the daily habit are the problem, not late
