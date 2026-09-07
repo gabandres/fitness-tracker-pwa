@@ -556,8 +556,19 @@ export function useTrain(): TrainState {
   const discardWorkout = useCallback(async () => {
     const active = activeRef.current;
     if (!uid || !active?.id) return;
-    await deleteSessionDoc(uid, active.id);
+    // Clear the ref BEFORE the delete round-trip, not after. Discard has no
+    // confirmation, so the tap can land while a set input still has focus;
+    // its blur-commit (and any deferred dispatch) reads `activeRef` and would
+    // write to the doc the delete is in the middle of removing. With the ref
+    // already null, `dispatch`/`commitActive` see no session and write nothing.
     setActive(null);
+    try {
+      await deleteSessionDoc(uid, active.id);
+    } catch (e) {
+      // Same reasoning as the starters: an uncaught reject here reaches Sentry
+      // with no stack and no screen. Surface it on the tab instead.
+      setError(e instanceof Error ? e : new Error('Discard failed'));
+    }
   }, [uid, setActive]);
 
   const deleteSession = useCallback(

@@ -1,5 +1,47 @@
 # Changelog
 
+## 2026-09-07 — a session deleted mid-import was re-created as a broken doc, and the reviewer saw the rejection
+
+Sentry `IGNIA-MOBILE-V`: `FirebaseError: users/…/workoutSessions/…: Missing or
+insufficient permissions`, one event, on `review@ignia.fit` — a fresh sign-in
+five minutes earlier on a Samsung SM-A235F in Switzerland, Play production
+vc 44. That is the Play reviewer, mid-way through the Data safety amendment
+review, and the error reached them as an unhandled rejection.
+
+**The document did not exist.** The health import (`useHealthAutoImport`, which
+runs on every foreground and had a Health Connect grant on that device) read
+the day's session, then wrote a cardio block into it after the user had
+discarded it. `updateSession` was a `setDoc(…, { merge: true })`, and a
+merge-set UPSERTS — so the sparse patch became a *create* of
+`{ updatedAt, cardio }`, which `isValidWorkoutSession` rejects. The rejection
+propagated out of `writeImportedBlocks` and `useHealthAutoImport` re-throws
+anything that is not a health-store state, so it surfaced as a crash-shaped
+event with no stack.
+
+Three changes, all JS:
+
+- `updateSession` uses `updateDoc`. A vanished target now fails as
+  `not-found`, which says what happened, instead of a malformed create that
+  reads as a permissions bug (`apps/mobile/src/lib/ledger.ts`).
+- `writeImportedBlocks` skips a `not-found` update and moves on — the user
+  deleting their own session is their call, not an import failure. Every other
+  rejection still propagates (`health-import-vanished-session.test.ts` pins
+  both directions).
+- `discardWorkout` nulls the active ref BEFORE the delete round-trip, so a
+  set input's blur-commit landing during it writes nothing, and a failed
+  delete lands on the tab's error line rather than rejecting unhandled
+  (`train.dispatch.test.ts`, two new cases).
+
+**Delivery caveat, said out loud:** both OTA channels are shut by the 1.2.3
+bump (`STATUS.md` §1). An Android publish from this tree targets `15c1cfc8…`,
+which no binary ships, so the reviewer on vc 44 does not get this until vc 45
+is built and on Play. Pre-staged on both platforms regardless, the 09-03
+precedent.
+
+Also closed in Sentry: `IGNIA-MOBILE-S` and `-T`, the Health Connect
+`aggregateGroupByPeriod` failures already fixed by OTA on 2026-09-04 — no
+event since the fix; they had simply never been resolved.
+
 ## 2026-09-05 (evening) — `app-version.json` drives itself: store versions read in the cloud with no key, an admin "Sync now", no more build + deploy per release
 
 The mobile update banner's source of truth was a static file the workstation

@@ -1588,7 +1588,13 @@ export async function updateSession(
   patch: Partial<SessionDraft>,
 ): Promise<void> {
   const data = pruneUndefined(toSessionPatch(patch, CODEC));
-  await setDoc(sessionDoc(uid, id), data, { merge: true });
+  // `updateDoc`, not `setDoc(merge)`: a merge-set UPSERTS, so a sparse patch
+  // aimed at a session that was deleted in the meantime becomes a create of
+  // `{ updatedAt, cardio }` — which `isValidWorkoutSession` rejects, and the
+  // caller sees an opaque "Missing or insufficient permissions"
+  // (IGNIA-MOBILE-V, the Play reviewer, 2026-09-07). A failed update on a
+  // missing doc is `not-found`, which says what happened and is skippable.
+  await updateDoc(sessionDoc(uid, id), data);
 }
 
 export async function deleteSession(uid: string, id: string): Promise<void> {

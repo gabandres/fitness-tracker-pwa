@@ -59,6 +59,7 @@ jest.mock('@/lib/ledger', () => ({
 }));
 
 import { useTrain } from '@/hooks/useTrain';
+import { deleteSession } from '@/lib/ledger';
 
 beforeEach(() => {
   mockUpdateSession.mockClear();
@@ -151,6 +152,48 @@ describe('useTrain.dispatch — write policy', () => {
     expect(mockUpdateSession).toHaveBeenCalledTimes(1);
     const [, , patch] = mockUpdateSession.mock.calls[0];
     expect(patch.exercises[0].sets[0]).toMatchObject({ reps: 10, done: true });
+  });
+
+  it('discard clears the session BEFORE the delete round-trip, so a late commit writes nothing', async () => {
+    // IGNIA-MOBILE-V: Discard has no confirmation, so the tap lands while a set
+    // input still has focus. Its blur-commit ran while `deleteSession` was in
+    // flight, found the session still in the ref, and wrote to the doc being
+    // deleted — an upsert the rules reject. Hold the delete open and commit
+    // during it.
+    const { result } = await withActiveSession();
+    let finishDelete!: () => void;
+    jest.mocked(deleteSession).mockImplementationOnce(
+      () => new Promise<void>((resolve) => (finishDelete = resolve)),
+    );
+
+    let discard!: Promise<void>;
+    await act(async () => {
+      discard = result.current.discardWorkout();
+      await result.current.dispatch({ type: 'addSet', exerciseIndex: 0 });
+      await result.current.commitActive();
+    });
+
+    expect(result.current.active).toBeNull();
+    expect(mockUpdateSession).not.toHaveBeenCalled();
+
+    await act(async () => {
+      finishDelete();
+      await discard;
+    });
+    expect(deleteSession).toHaveBeenCalledWith('u1', 'sess-1');
+    expect(result.current.error).toBeNull();
+  });
+
+  it('a failed discard surfaces on the tab instead of rejecting unhandled', async () => {
+    const { result } = await withActiveSession();
+    jest.mocked(deleteSession).mockRejectedValueOnce(new Error('offline'));
+
+    await act(async () => {
+      await result.current.discardWorkout();
+    });
+
+    expect(result.current.active).toBeNull();
+    expect(result.current.error?.message).toBe('offline');
   });
 
   it('an out-of-range action changes nothing and writes nothing', async () => {

@@ -330,6 +330,11 @@ export function partitionImportable(raw: readonly HealthWorkout[]): {
  * where a person can answer. Collapsing them here would be the silent merge
  * ADR-0026 decision 4 refuses.
  */
+/** Firestore's rejection for an `updateDoc` whose target no longer exists. */
+function isNotFound(err: unknown): boolean {
+  return (err as { code?: unknown } | null)?.code === 'not-found';
+}
+
 export async function writeImportedBlocks(uid: string, blocks: CardioBlock[]): Promise<number> {
   if (!blocks.length) return 0;
 
@@ -363,7 +368,16 @@ export async function writeImportedBlocks(uid: string, blocks: CardioBlock[]): P
     if (existing?.id) {
       const { blocks: merged, changed } = mergeImportedBlocks(existing.cardio ?? [], incoming);
       if (!changed) continue;
-      await updateSession(uid, existing.id, { cardio: merged });
+      try {
+        await updateSession(uid, existing.id, { cardio: merged });
+      } catch (err) {
+        // The session was read a moment ago and is gone now — the user
+        // discarded or deleted it while the (slow, on Android) health read
+        // was in flight. That is their call, not a failure; the import runs
+        // again on the next foreground. Anything else still propagates.
+        if (isNotFound(err)) continue;
+        throw err;
+      }
       written++;
       continue;
     }
