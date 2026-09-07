@@ -1120,6 +1120,82 @@ watcher processes from earlier sessions were found still running. Their own
 command line contains `xcodebuild`, so their `pgrep` matches themselves and they
 can never exit. Four of them had accumulated.
 
+### 3.15 Rebuilding `ignia-mac` from zero — the M1 becomes a dedicated box (decided 2026-09-05)
+
+**Decision (owner, 2026-09-05):** Stephanie gets the new MacBook Air; the M1 Air
+(`MacBookAir10,1`, 16 GB, 228 GB, Xcode 26.6) is **wiped and becomes Ignia's
+dedicated iOS build/upload/simulator box** — one local admin user, no Apple
+Account or iCloud, FileVault on, Wi-Fi only, reached over Tailscale. The disk
+pressure, the DisplayLink dock, other projects' Maestro runs and four secrets
+under someone else's account all go away with the wipe. `STATUS.md` §3 owns
+where this stands; `scripts/mac-bootstrap.sh` does everything that is not
+physical.
+
+**Two facts fix the order.** (1) Build 64 carries iOS fingerprint
+`52802bba…`, produced on the old install; until a host reproduces that hash,
+only the old install can OTA build-64 users. The Windows/Mac divergence is an
+OS walk difference (`apps/mobile/AGENTS.md`), so the same hardware after a wipe
+with the same lockfile *should* match — verify, never assume. (2) Migration
+Assistant copies the whole home directory, secrets included, so the cleanup
+below runs **before** Stephanie migrates to the new Air.
+
+**A. Before the new Air is opened (Windows):** back up `dev.keystore` +
+`credentials.json` offline (password-manager attachment). The Mac copy is the
+only backup today and step C destroys it.
+
+**B. Old install, over SSH, before Migration Assistant — this closes the iOS
+OTA channel until step D verifies the rebuilt host, so do B→C→D in one sitting:**
+
+```sh
+ssh ignia-mac "cd ~/fitness-tracker-pwa/apps/mobile && npx eas logout"     # invalidates the session server-side
+ssh ignia-mac "rm -rf ~/fitness-tracker-pwa ~/.expo ~/.ssh/authorized_keys"
+ssh ignia-mac "sudo launchctl bootout system/fit.ignia.nosleep; sudo rm /Library/LaunchDaemons/fit.ignia.nosleep.plist"
+```
+
+Then Tailscale admin console → Machines → remove `stephanies-macbook-air-3`.
+The Sentry token is **not** rotated (owner's standing instruction); FileVault is
+on, so the erase is cryptographic. No Time Machine destination exists, so no
+backup copy survives anywhere. `tracker-app` and the `agenda-*` files in that
+home directory belong to other projects — Stephanie's call.
+
+**C. Physical, needs Stephanie:** System Settings → General → Transfer or Reset
+→ *Erase All Content and Settings*. The assistant signs out iCloud and turns off
+Find My / Activation Lock, which is why it needs **her** Apple Account password.
+Verify afterwards at icloud.com/find that the Mac is gone from her devices.
+
+**Then, physical, owner:** Setup Assistant as a fresh local admin (skip Apple
+Account, keep FileVault on), install Xcode 26.6 — App Store or a
+developer.apple.com `.xip`; it is the one install the script cannot do —
+enable *Remote Login*, paste the Windows public key into
+`~/.ssh/authorized_keys`, and plug in the **Apple charger**, not a dock (the
+2026-08-06 outage was a dock PD drop). Optional but what makes later runs
+unattended: `echo "$USER ALL=(ALL) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/ignia`
+— on a box holding no personal data whose SSH key already equals login, that
+is an acceptable trade.
+
+**D. Everything else, from Windows** (Homebrew, fnm/Node 24.12.0, CocoaPods,
+fastlane, Maestro, Tailscale, pmset + LaunchDaemon, both Xcode platforms,
+clone + `npm ci`, `.env.local`, `eas login`, the fingerprint gate):
+
+```sh
+ssh -t <name>.local 'SENTRY_AUTH_TOKEN=<tok> bash -s' < scripts/mac-bootstrap.sh   # LAN name until Tailscale is up
+```
+
+The script ends by printing the iOS fingerprint against `52802bba…`. Equal:
+OTAs carry over. Different: cut the next iOS binary from this host before any
+iOS OTA. Either way run one full `eas build --local` (`build-ios` skill) — the
+four-command check proves prebuild, not an archive (§3.9). Then repoint
+`~/.ssh/config` on Windows (`HostName ignia-mac` MagicDNS, `User <new user>`),
+keeping the alias `ignia-mac` so the guard hook and both build skills stay
+untouched; and correct §3.8/§3.9, `docs/build-infrastructure.md`,
+`CLAUDE.local.md` (disposal list) and the `apps/mobile/AGENTS.md` host table.
+
+**Wi-Fi-only consequences:** a sleeping Mac is unreachable and nothing can wake
+it (Wake-on-LAN needs Ethernet), so `pmset -c disablesleep 1` (AC only) keeps a
+closed lid from sleeping it; a FileVault reboot still needs the password typed
+at the boot screen, so a reboot stays a physical trip; keep it on the 5/6 GHz
+band. Ethernet, if a cable appears, changes nothing in the config.
+
 ## 5. Owner runbook — move `ignia.fit` + GCP billing under Bermudez Systems LLC (written 2026-08-30)
 
 The stores are already the LLC's (Apple entity migrated 08-25, Play app
