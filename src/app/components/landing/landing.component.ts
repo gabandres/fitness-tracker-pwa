@@ -73,12 +73,8 @@ import { localizedPath } from '../../i18n/locale-path';
                 <img src="/appstore-badge.svg" alt="{{ t('landing.appStoreAlt') }}"
                   width="180" height="60" loading="eager" decoding="async" fetchpriority="high" />
               </a>
-              <!-- Android state: flip PLAY_STORE_LIVE (utils/app-store.ts,
-                   one line) when the Play listing returns 200. -->
               @if (PLAY_STORE_LIVE) {
                 <a [href]="PLAY_STORE_URL" rel="noopener" class="lp-play-live">{{ t('landing.freeCta') }}</a>
-              } @else {
-                <span class="lp-soon">{{ t('landing.playSoon') }}</span>
               }
             </div>
             <div class="lp-hero-links">
@@ -225,11 +221,8 @@ import { localizedPath } from '../../i18n/locale-path';
                 <img src="/appstore-badge.svg" alt="{{ t('landing.appStoreAlt') }}"
                   width="180" height="60" loading="lazy" decoding="async" />
               </a>
-              <!-- Same one-line flip as the hero (PLAY_STORE_LIVE). -->
               @if (PLAY_STORE_LIVE) {
                 <a [href]="PLAY_STORE_URL" rel="noopener" class="v2-btn v2-btn--primary v2-btn--lg">{{ t('landing.freeCta') }}</a>
-              } @else {
-                <span class="lp-soon">{{ t('landing.playSoon') }}</span>
               }
             </div>
             <p class="lp-cta-note">{{ PLAY_STORE_LIVE ? t('landing.downloadAndroidLive') : t('landing.downloadAndroidSoon') }}</p>

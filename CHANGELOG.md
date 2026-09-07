@@ -1,5 +1,33 @@
 # Changelog
 
+## 2026-09-07 (later) — the Play listing is on the new art with the re-shot screenshots; the vc 45 review restarted to carry them
+
+The Ember-on-Ink icon and feature graphic saved on 2026-09-05 had already been
+swept into the vc 45 production submission — Play bundles every pending listing
+change into the next release review, so there was nothing left to "submit".
+The five re-shot phone screenshots (`store-assets/play/phone-01..05.png`,
+1080×1920, the 09-05 simulator captures) replaced the 1 Aug set on the default
+en-US listing (the only listing — no es locale exists on Play) and were sent for
+review at ~15:05 UTC. **Play warned that sending them would cancel and restart
+the review in progress since ~14:30 UTC, and that trade was taken** — one
+review carrying vc 45 + icon + feature graphic + screenshots, instead of two.
+Consequence: vc 45 (the IGNIA-MOBILE-V fix) reaches the store later than it
+would have; `IGNIA-MOBILE-V` stays open and the Android OTA channel stays shut
+until it lands. The rule is now in `STATUS.md` §5: on Play, a listing change
+sent mid-review restarts that review.
+
+How the upload worked, for next time: the Console's *Add assets* opens an asset
+library with a hidden `<input type=file multiple>`; the browser extension's
+`file_upload` drives it (no native picker), then each library row's arrow →
+*Add* places one screenshot, in click order. `scripts/play-upload-bundle.mjs`
+still has no `edits.images` path — the Console took ~25 round trips of a
+renderer that wedges every other click, so a script is worth writing the
+second time this is needed.
+
+Also today: the dead `landing.playSoon` key, its two `@else` branches and the
+`.lp-soon` styles are deleted from the web shell — `PLAY_STORE_LIVE` has been
+`true` since the morning, so the branches were unreachable.
+
 ## 2026-09-07 — a session deleted mid-import was re-created as a broken doc, and the reviewer saw the rejection
 
 Sentry `IGNIA-MOBILE-V`: `FirebaseError: users/…/workoutSessions/…: Missing or

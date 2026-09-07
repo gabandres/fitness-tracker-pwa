@@ -1,6 +1,6 @@
 # STATUS — what is true right now
 
-**Updated:** 2026-09-05 · **Owns:** current state only. Not history
+**Updated:** 2026-09-07 · **Owns:** current state only. Not history
 (`CHANGELOG.md`), not rationale (`docs/adr/`), not vocabulary (`CONTEXT.md`),
 not commands (`docs/COMMANDS.md`), not build tooling
 (`docs/build-infrastructure.md`).
@@ -10,21 +10,11 @@ wins** — or the other file is stale and should be deleted. Three separate time
 this project scoped already-shipped features as new work because a plan doc was
 read as a status doc.
 
-**This file is a status doc, not a changelog. It has a size budget: ~200 lines.**
-When something ships, the entry does not get an update — it gets *deleted*, and
-its outcome goes to `CHANGELOG.md`. On 2026-08-15 this file had grown to 941
-lines and ~42k tokens, most of it superseded build rows already recorded in
-`CHANGELOG.md`, and it carried four self-contradictions: two rows disagreeing on
-which iOS build was in review, and two disagreeing on whether photo-scan resolved
-against USDA. A status file nobody can hold in their head stops being read, and a
-stale line here outranks the file that was right.
-
-**Count characters, not lines.** On 2026-08-26 this file was 293 lines and
-**65 KB** — inside the line budget on paper while single table cells ran to
-4,500 characters each, which is the same failure wearing a smaller number. It
-came back to ~30 KB by deleting ten rows whose work had shipped, not by
-rewording. `wc -c STATUS.md` is the check that would have caught it: **keep it
-under ~35 KB.**
+**This file is a status doc, not a changelog. Budget: ~200 lines AND ~35 KB
+(`wc -l STATUS.md; wc -c STATUS.md`).** When something ships, its entry is
+*deleted* and the outcome goes to `CHANGELOG.md`. It reached 941 lines once
+(2026-08-15, four self-contradictions) and 293 lines / 65 KB once (2026-08-26,
+4,500-character cells); a status file nobody can hold in their head stops being read.
 
 ---
 
@@ -35,91 +25,61 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 
 | Surface | State |
 |---|---|
-| **Public App Store (iOS)** | **1.2.3 / build 64, `READY_FOR_SALE`, released 2026-09-06 00:01 UTC** — read from the iTunes lookup and the ASC API 2026-09-07 (`app-version-sync --check` already reports it). Runtime `52802bba…`, which IS what this tree produces, so **the iOS OTA channel is OPEN to the public again**; the first publish on it is the 2026-09-07 IGNIA-MOBILE-V fix (`apps/mobile/AGENTS.md`). This row said 1.2.2 / build 63 until 2026-09-07 — the release email was never noticed. (1.2.1 / build 60 and its `7b347b0f…` are superseded; this tree can no longer produce that runtime.) **Available in 175 of 175 territories** as of 2026-08-28 — the last 30 (EU 27 + GBR, ISL, NOR) opened once the DSA trader declaration was filed. Play matched on 2026-09-03 evening: 158 of Play's attainable 158 (175 minus the 17 storefronts Play does not offer) |
-| **ASC 1.2.3** | **`READY_FOR_SALE` since 2026-09-06** (was `WAITING_FOR_REVIEW` from 2026-09-05, review submission `abfdb41d…`; this row lagged a day). Carries the re-shot screenshots (en-US 5, es-MX 5; `docs/app-store-metadata.md` §Screenshots), the 1.2.3 What's New (same file), and `usesIdfa: false` set explicitly (read back). Runtime `52802bba…`, read from the `.ipa`. **Do not touch it while it is in review** (§5). When it goes `READY_FOR_SALE`: nothing to run — the hourly sync promotes 1.2.3 / build 64 to `app-version.json` on its own (`iosBuilds` already maps it), and the iOS OTA channel reopens on `52802bba…`. |
-| **TestFlight** | **build 64 / 1.2.3 (runtime `52802bba…`) is in the EXTERNAL *Public Beta Testers* group, `WAITING_FOR_BETA_REVIEW` since 2026-09-05** — the group holds `64,63,60,58,57,53,49,47,45,7,4`. **Build 63 is in the group but can never reach an external tester:** ASC refused its beta review with *"This version and prior versions are closed for beta review submission"* — 1.2.2 is released, and a build of a released version stays `READY_FOR_BETA_SUBMISSION` forever; external testers get 1.2.2 from the App Store. **Read the group's builds AND each build's `externalBuildState`, never assume:** `VALID` + in the group ≠ installable |
-| **Play alpha** | **vc 44** (1.2.2), same bundle as production, runtime `68ea2dd3…`. Behaviourally identical to production; the track exists so the 15-address tester list gets builds before the public. **`eas submit` has failed and exited 0 twice** (`This Edit has been deleted`; a missing health declaration) — always confirm a submit against the tracks API |
-| **Play production** | **LIVE — vc 44 / 1.2.2, the first Android production release, published 2026-09-03 evening.** The store URL returns 200; Play Console *Last published on September 3, 2026*; the androidpublisher tracks API reports production vc 44, alpha vc 44, internal vc 44. What is still in review is only the **Data safety** amendment (Device or other IDs, sent the same evening). Landing cleared the Block Store deadline (30 Sept) — issue 107 closed; the WebAuthn relying party is never needed. Runtime `68ea2dd3…`. History: vc 37 was rejected that morning (Health Connect *Steps* minimum-scope) after the reviewer crashed the app on *Connect Health Connect*; vc 44 fixed both (`CHANGELOG.md` 2026-09-03) |
-| **Web `ignia.fit`** | **Shell + `/admin` — the web logging app was RETIRED 2026-08-30 (ADR-0036).** 113 prerendered pages, EN + es-PR. `/app` and the old tabs render a "moved to the apps" page; a safety worker evicts old PWA installs. ADR-0036 §7 CLOSED 2026-08-30: SEO pages and `/u/**` are KEPT, owner-ratified |
+| **Public App Store (iOS)** | **1.2.3 / build 64, `READY_FOR_SALE`, released 2026-09-06 00:01 UTC** (iTunes lookup + ASC API, read 2026-09-07). Runtime `52802bba…`, which IS what this tree produces, so **the iOS OTA channel is OPEN to the public**; the first publish on it is the 2026-09-07 IGNIA-MOBILE-V fix (`apps/mobile/AGENTS.md`). Carries the re-shot screenshots (en-US 5, es-MX 5) and `usesIdfa: false`. **Available in 175 of 175 territories** since 2026-08-28 (DSA trader declaration filed). Play matched on 2026-09-03: 158 of Play's attainable 158 |
+| **TestFlight** | **build 64 / 1.2.3 (runtime `52802bba…`) is in the EXTERNAL *Public Beta Testers* group, `WAITING_FOR_BETA_REVIEW` since 2026-09-05.** Build 63 is in the group but can never reach an external tester — a build of an already-released version stays `READY_FOR_BETA_SUBMISSION` forever. **Read the group's builds AND each build's `externalBuildState`, never assume:** `VALID` + in the group ≠ installable |
+| **Play production + alpha** | **LIVE — vc 44 / 1.2.2 (runtime `68ea2dd3…`), the first Android production release, published 2026-09-03.** **vc 45 / 1.2.3 (runtime `15c1cfc8…`, the IGNIA-MOBILE-V fix) is committed to production at 100% AND on alpha, IN REVIEW.** First sent 2026-09-07 ~14:30 UTC via `play-upload-bundle.mjs` → `play-production-release.mjs`; **the review was RESTARTED 2026-09-07 ~15:05 UTC** when the listing changes (Ember-on-Ink icon, feature graphic, five re-shot phone screenshots) were sent for review from the same submission — Play warned it would restart, and that was the accepted trade. **The tracks API cannot tell "in review" from "live"** — `app-version-sync --check` already reports production 45 / alpha 45; the Console app row (*In review*) or the store page is the read. **Knock-on:** `hourlyTasks` reads the same tracks API, so `app-version.json` will advertise 45 while the store still serves 44 until the review lands — self-healing, noted, not fixed. The Data safety amendment (09-03) is also still open. `eas submit` has failed and exited 0 three times (lost Play edit on bundles > 60 MB; a missing health declaration) — **`play-upload-bundle.mjs` is the upload path; confirm every submit against the tracks API** |
+| **Web `ignia.fit`** | **Shell + `/admin` — the web logging app was RETIRED 2026-08-30 (ADR-0036).** 113 prerendered pages, EN + es-PR. Landing links BOTH stores since 2026-09-07 (`PLAY_STORE_LIVE = true`); no "coming soon" copy or i18n key remains. `/app` and the old tabs render a "moved to the apps" page; a safety worker evicts old PWA installs. SEO pages and `/u/**` are KEPT, owner-ratified |
 | **Cloud Functions / rules** | Deployed, project `fitness-tracker-gb-1775407101` |
 | **Photo-scan** | **ON and free to everyone, both platforms** (ADR-0017), resolving macros against the bundled USDA database (ADR-0019). Tiering is server-side only: `dailyQuota` 3/day free · 30/day paid, plus the `photo` `spendCeiling` |
-| **Food search** | Bundled USDA DB, 13,272 foods, plus the restaurant corpus (25,126 items / 91 chains, ADR-0027). **Text search makes NO network call at all as of 2026-08-19** — Open Food Facts was removed from it and now serves **barcode only**: OFF caps search at 10 req/min against 100/min for barcode GETs, and typeahead behind one shared egress IP could not live in that. Servings ship with each hit, so tapping a result makes no `getFoodDetail` call. Branded **text** results are the cost; `docs/research/off-branded-ingest.md` scopes getting them back |
-| **OTA (EAS Update)** | Live. `runtimeVersion: {"policy":"fingerprint"}`, channels match build profiles. Free tier 1,000 MAU. **BOTH channels SHUT as of 2026-09-05 19:00 UTC — the 1.2.3 version bump did it.** `app.json` is hashed whole, so `"version": "1.2.3"` (`437a90ce`) moved BOTH fingerprints: the tree now produces Android **`15c1cfc8…`** (no binary ships it — vc 44 is `68ea2dd3…`; reproduced by restoring `1.2.2`, which returns `68ea2dd3…` exactly) and iOS **`52802bba…`** (build 64, in review). **iOS REOPENED 2026-09-06 when 1.2.3 / build 64 went `READY_FOR_SALE`** — a publish from this tree reaches every public iOS user. Android still reaches **nobody** until vc 45 is on Play (`build-android`; vc 45 was cut 2026-09-07, see §2). Historical: iOS was to reopen when 1.2.3 goes `READY_FOR_SALE`. Everything published through 09-05 morning (§2) went out under the old runtimes and still reaches the public on next launch. The same thing happened with 1.2.2 on 09-03; it was invisible then only because vc 44 was built the same day. **"Published" is still not "delivered":** a user gets it on the launch AFTER the download. The iOS crash re-ship is still UNDER TEST (§2). **This row is a POINTER, not a log: `apps/mobile/AGENTS.md` is the per-publish record and it wins.** Re-check with `npx eas update:list --branch production --limit 3`, which prints the runtime each went out under |
-| **`app-version.json`** | **Self-driving since 2026-09-05** — served from Firestore `public/appVersion` by the `appVersionJson` rewrite, refreshed by `hourlyTasks` (Android from the Play tracks API as the function's own service account, iOS from Apple's public lookup) and on demand from `/admin` → System → **Sync now**. Seeded android **44** · ios **1.2.2 (build 63)** · `iosBuilds {1.2.2: 63, 1.2.3: 64}`. **Fully self-driving as of 2026-09-05 20:38 UTC:** `647810616435-compute@developer.gserviceaccount.com` is invited to Play Console (org account, Ignia only, *View app information (read-only)*), and the first admin **Sync now** read Play as that identity and rewrote the doc (`lastSource: admin`, android `where` from the tracks API). No static file, no deploy, no secret: `npm run doctor` compares the LIVE URL with both stores. When 1.2.3 goes live, the hourly pass promotes it on its own. |
+| **Food search** | Bundled USDA DB, 13,272 foods, plus the restaurant corpus (25,126 items / 91 chains, ADR-0027). **Text search makes NO network call** (since 2026-08-19; Open Food Facts serves **barcode only** — its 10 req/min search cap cannot host typeahead behind one egress IP). Servings ship with each hit. `docs/research/off-branded-ingest.md` scopes getting branded text results back |
+| **OTA (EAS Update)** | Live. `runtimeVersion: {"policy":"fingerprint"}`, channels match build profiles. Free tier 1,000 MAU. **iOS OPEN** on `52802bba…` since 2026-09-06. **Android SHUT** — the tree produces `15c1cfc8…`, which only vc 45 ships, and vc 45 is in review; reopens the moment it is live. Cause: the 1.2.3 bump (`437a90ce`) — `app.json` is hashed whole, so a version string moves BOTH fingerprints. **"Published" is not "delivered":** a user gets it on the launch AFTER the download. **This row is a POINTER: `apps/mobile/AGENTS.md` is the per-publish record and it wins.** Re-check with `npx eas update:list --branch production --limit 3` |
+| **`app-version.json`** | **Self-driving since 2026-09-05** — served from Firestore `public/appVersion` by the `appVersionJson` rewrite, refreshed hourly by `hourlyTasks` (Android from the Play tracks API as `647810616435-compute@…`, invited read-only to the org Play Console; iOS from Apple's public lookup) and on demand from `/admin` → System → **Sync now**. No static file, no deploy, no secret; `npm run doctor` compares the LIVE URL with both stores. See the Play row for the in-review wrinkle |
 
 **The runtime fingerprints, and the three traps around them.**
 
 | Platform | Tree now | Live binary | Channel |
 |---|---|---|---|
-| Android | `15c1cfc8…` (since `437a90ce`, the 1.2.3 bump) | **vc 44** ships `68ea2dd3…` (read from the `.aab`), live on production. **vc 45 is on alpha AND committed to production at 100%, IN REVIEW since 2026-09-07 ~14:30 UTC** (`15c1cfc8…` read from the `.aab`; uploaded via `play-upload-bundle.mjs` after `eas submit` lost its edit mid-upload again) | **SHUT** until Play finishes reviewing vc 45; reopens on `15c1cfc8…` the moment it is live |
-| iOS | `52802bba…` | **build 64 ships `52802bba…`, `READY_FOR_SALE` as 1.2.3 since 2026-09-06** (read from the `.ipa`); build 63 (`20a395de…`) is superseded | **OPEN** to the public |
+| Android | `15c1cfc8…` (since `437a90ce`, the 1.2.3 bump) | **vc 44** ships `68ea2dd3…` (read from the `.aab`), live on production. **vc 45** ships `15c1cfc8…` (read from the `.aab`), in review | **SHUT** until vc 45 is live |
+| iOS | `52802bba…` | **build 64 ships `52802bba…`, `READY_FOR_SALE` as 1.2.3 since 2026-09-06** (read from the `.ipa`) | **OPEN** to the public |
 
-Read them back with `npx eas update:list --branch production --limit 3` and the
-OTA row above; this table says which runtime the *tree* produces today.
-
-- **The fingerprint is machine-dependent — publish from whichever machine BUILDS
-  that platform.** Since 2026-08-17 that is two machines: **Android from
-  Windows, iOS from `ignia-mac`.** Bare `eas update` publishes both and is
-  correct on neither — always `--platform`-scope it.
-  `.claude/hooks/guard_eas_update.py` enforces the full table, and the
-  `--environment` flag eas-cli requires from SDK 55 on. Three OTAs once
-  published under the wrong machine's numbers and reached **nobody**,
-  indistinguishable from a working update. **Why the hosts disagree is settled
-  and is not worth another session:** it is `@expo/fingerprint` behaving
-  differently per OS (CRLF-vs-LF in two files); `dir:android` and divergent
-  `node_modules` were both investigated and disproven. They cannot be made to
-  agree and do not need to.
-- **`app.json` and `eas.json` are hashed as WHOLES**, so a key for one platform
-  moves the other's runtime — a submit profile alone is enough. This has shut
-  both channels twice, once silently off build 60, the public App Store binary.
-  Android-only permissions and Gradle properties belong in
-  `patch-android-release.mjs` (steps 1b and 4b), which writes **gitignored**
-  prebuild output. Full write-up in `apps/mobile/AGENTS.md`.
+- **The fingerprint is machine-dependent — publish from the machine that BUILDS
+  that platform: Android from Windows, iOS from `ignia-mac`.** Bare `eas update`
+  publishes both and is correct on neither — always `--platform`-scope it
+  (`.claude/hooks/guard_eas_update.py` enforces it). Three OTAs once reached
+  **nobody** this way. Why the hosts disagree is settled (`@expo/fingerprint`
+  is CRLF-vs-LF sensitive) and is not worth another session.
+- **`app.json` and `eas.json` are hashed as WHOLES** — a submit profile or a
+  version bump alone moves both runtimes; it has shut both channels three
+  times. Android-only manifest/Gradle changes belong in
+  `patch-android-release.mjs` (gitignored prebuild output). `apps/mobile/AGENTS.md`.
 - **`plugins/withGradleJvmArgs.js` is FROZEN** — any byte, *including a
-  comment*, moves both platforms and shuts both channels. Its docstring is
-  knowingly stale and is left that way on purpose; correcting the prose would
-  strand every shipped binary. Full box in `build-android/REFERENCE.md`.
+  comment*, moves both platforms. Its docstring is stale on purpose.
 
 **`ignia-mac` disk is a recurring build constraint** — 19.18 GiB free against
-an iOS build's ~17 GB floor, and `df -h /` lies. Numbers, the traps and the one
-remaining lever are in `docs/build-infrastructure.md`.
+an iOS build's ~17 GB floor, and `df -h /` lies (`docs/build-infrastructure.md`).
 
 ## 2. Merged, on `main`, and not delivered anywhere
 
-**Delivered and device-verified, so deleted from here 2026-09-05:** the 70% reliability cliff removal (`c93a740c`) and the two copy defects it caused — `CHANGELOG.md` 2026-09-04 and the AGENTS.md rows hold the evidence. Both reach the public on next launch under the OLD runtimes; the 1.2.3 bump (§1 OTA row) does not strand them.
+**The IGNIA-MOBILE-V fix (`2d89e26c`, 2026-09-07)** — a workout session
+deleted mid-import is skipped rather than re-created as a malformed doc. On
+iOS by OTA (public, on the open channel). **On Android it reaches nobody until
+vc 45 is live** — the reviewer who hit it is on vc 44. Behaviour is
+unit-tested only; device-verify on the OnePlus 8T once vc 45 installs from
+Play: discard a workout with a set input focused, confirm no Sentry event, then
+resolve `IGNIA-MOBILE-V` (`prod-errors`).
 
-**The sign-in flash on an OTA apply — FIXED AND PUBLISHED BY OTA TO BOTH PLATFORMS 2026-09-05** (`295a2bee`; Android group `21647238`, iOS group `58216f58`; both reach the public on next launch). Reading the code closed the mechanism: Firebase removes its persisted session BEFORE it announces a sign-out, so `onAuthStateChanged(null)` arriving with the blob still in AsyncStorage is a session the SDK failed to read, not one it rejected — exactly what the iPhone showed (sign-in screen; reopen restores the session untouched). The app now does the reopening itself: a null verdict is applied only once the disk agrees; when it does not, one guarded `reloadAsync` (`persisted-session.ts`, `reconcileNullVerdict`) re-asks Firebase, the guard clears on the next real user, and a persistent failure degrades to today's sign-in screen rather than a loop. **It also reports** — `captureError` at `auth.rehydrate` — because the one sighting had no telemetry. **Unverified on a device**: no device here has reproduced the flash, so the OTA is the verification, read at the next publish for a Sentry event at that tag.
-
-**Maintenance mode (retention lever 7) — SHIPPED BY OTA TO BOTH PLATFORMS 2026-09-05 (ADR-0037)** (same groups as the line above). Maintenance mode is `goalDirection === 'maintain'`, no second flag. Entry is one tap on Body, in the slot the goal-reached prompt vacates, only after the milestone is on record: `toMaintenanceSwitchPatch` writes maintain / pace 0 / `targetMode: 'auto'`, clears both goal-weight fields, and rewrites the onboarding seed for maintenance at the current weight when the profile carries one (a seed outranks formula mode in auto). `planReminders` takes `maintaining`: no streak-at-risk nudge, only the day-7 lapsed one; meal windows and the weigh-in nudge unchanged. **DEVICE-VERIFIED END TO END on the OnePlus 2026-09-05** against the published bundle, on a synthetic account (`demo-goal@ignia.fit`, seeded and pushed past its goal; `review@` was deliberately NOT touched — its password is App Review's): the goal prompt → *Add it* → the maintenance card in its slot → *Switch* → card gone → Settings reads *Goal: Maintain* at 2,731 kcal; Firestore read back `maintain` / pace 0 / `auto` / both goal-weight fields cleared / seed 2,180 → 2,740. Repeated on `review@` (goal fields + milestones snapshotted and restored exactly) with the same result. review@'s weigh-ins had gone stale (newest 08-18, a stray 90 lb on 08-08); **the owner re-seeded it with `--reset --force` the same day** — 171 fresh docs, 28 daily weights, goal 172 not yet reached, so App Review sees a live cut with no goal prompt. Detail: `apps/mobile/AGENTS.md` top row.
-
-**Everything else merged is in a binary — vc 44 (Android) and build 63 (iOS), both built 2026-09-03, and BOTH ARE NOW LIVE:** Android on Play production, iOS 1.2.2 `READY_FOR_SALE` 2026-09-04. What rode in: Zero-Tap Sign-In (#107), Milestones (#108–#110), the Trends stub labels and water card (#115), the welcome intro, the onboarding reminders + first-log steps, the funnel events, the lapsed nudges, the log stopwatch, the rest-timer change — every Android OTA 88–109 that only ever reached the LG — plus the Ember-on-Ink icon, the dark splash, FCM (token registration verified in PROD), the iOS push entitlement, and the two Health Connect fixes. `CHANGELOG.md` 2026-09-03 has the evidence; the AGENTS.md rows for vc 44 and build 63 have the artifact reads.
-
-Everything else merged has shipped. Re-derive the live numbers with
-`node scripts/app-version-sync.mjs --check` before trusting either platform's.
+Everything else merged has shipped (`node scripts/app-version-sync.mjs --check`
+re-derives the live numbers).
 
 **iOS behaviour is UNVERIFIED for most of it.** The identical JS is
 device-verified on Android in detail (`AGENTS.md`); no iOS device runs the
 regression suite here. That is the standing shape of this project — the only
-test device on hand is Android — not a new problem.
+test devices on hand are Android — not a new problem.
 
 ## 3. Open work, and what each is blocked on
 
 **Only genuinely open work belongs here.** A row whose work has shipped gets
-deleted and its outcome goes to `CHANGELOG.md` — see the budget note at the top
-of this file.
-
-**Play listing icon — NEW ART SAVED, NOT SUBMITTED (2026-09-05).** The Default
-store listing still showed the Aug 1 orange-ring icon. The 512 px icon and the
-1024×500 feature graphic were regenerated from the Ember-on-Ink art
-(`node scripts/play-store-assets.mjs`), swapped in on the listing and **saved**;
-Publishing overview lists exactly two pending changes, *Change app icon* and
-*Change Feature graphic*. **Not sent for review on purpose**: Play warned that
-submitting would cancel and restart the 30-country EU expansion review in
-progress since 2026-09-03, and the owner chose to wait. **Next step: once that
-review lands, Publishing overview → *Submit 2 changes for review*.** The
-regenerated phone screenshots in `store-assets/play/` (from the 09-05 re-shot
-captures) are ready to upload too if the listing screenshots are to be
-refreshed in the same pass.
+deleted and its outcome goes to `CHANGELOG.md`.
 
 ### Retention — the standing focus (owner's call, 2026-09-02)
 
@@ -136,26 +96,23 @@ signups per 120 days no A/B is readable; pair retention work with acquisition.
 
 | # | Lever | State |
 |---|---|---|
-| 1–3 | First log inside onboarding · lapsed local nudges · the two deciding numbers instrumented | **SHIPPED 2026-09-02** — outcomes and device evidence in `CHANGELOG.md` 2026-09-02. Every real user gets them with vc 44 / build 63 (iOS build 60 already has them by OTA). Watch: `config/retention` `timeToFirstLog` (first read: median 1 h 32 m, p75 4 h 49 m, 17% inside five minutes, n=12 — the number lever 1 has to move), `secsPerLog` (null until a timed log reaches the 09:00 UTC pass), and the first lapsed 6pm banner, which no device here can produce before 09-05. |
-| 4 | **Celebrate the first log and first week** — award `first-scan` (issue 109, closed), a first-log `MilestoneNote`, `recordPositiveMoment` there so the review prompt lands after a win. §S12 still bans shame mechanics. | **Merged (issue 109 closed, PR 120) and PUBLISHED by OTA on both platforms 2026-09-04 — Android reaches production users now, iOS reaches build-63 installs only (§2).** `LogSource` (`'photo'`) is written at the scan, the award is made at the write, the rules carry it and are deployed. **Device-verified in PROD 2026-09-04** (`CHANGELOG.md`): a real scan wrote `source: "photo"` and exactly one `milestones/first-scan`, both stamped `14:18:35`; a relaunch added no second doc. `meals-100` stays parked — it needs a lifetime count no window answers honestly, and a profile counter is a separate call behind the `isValidProfile` expression ceiling (issue 100, closed). |
+| 1–4, 7 | First log inside onboarding · lapsed local nudges · the two deciding numbers instrumented · first-scan celebration · maintenance mode (ADR-0037) | **SHIPPED** (2026-09-02, 09-04, 09-05 — `CHANGELOG.md` has the device evidence). Watch: `config/retention` `timeToFirstLog` (first read: median 1 h 32 m, p75 4 h 49 m, 17% inside five minutes, n=12 — the number lever 1 has to move) and `secsPerLog`. `meals-100` stays parked — it needs a lifetime count no window answers honestly. |
 | 5 | **Verify the zero-friction triggers** — Android widget on a real home screen, watch/Siri (rows below). A widget is a log path under 10 s. | Widget placed on the OnePlus 2026-09-05 (owner-reported; renders). Its log path and the watch/Siri rows stay open, owner with a device. |
 | 6 | **Guest mode (`UX_AUDIT.md` N5)** if lever 1 does not move D1 alone. | Deferred until 1 is measured. |
-| 7 | **Maintenance mode** after goal reached — looser logging, keeps the account alive through the week 8–12 fatigue. | **SHIPPED 2026-09-05 (ADR-0037)** — see §2. The streak needed no loosening (everyone already has the 7-day freeze); what changed is the target and the reminders. |
 
-Not taken with lever 2, deliberately: the meal-window dailies are OS-repeating
-and fire forever for a user who never returns. Bounding them (silence after a
-week away) would be kinder but changes existing schedules — a separate call.
+Not taken with lever 2, deliberately: bounding the OS-repeating meal-window
+dailies (silence after a week away) changes existing schedules — a separate call.
 
 | Work | Blocked on |
 |---|---|
-| **Photo scan — two things have still never been seen on a device** | **Owner, with a phone.** Multi-photo capture is closed and was confirmed on a real meal (2026-08-26); ADR-0029 is `accepted`. **The asymmetry that must survive:** `spendCeiling` counts IMAGES (solvency), `dailyQuota` counts SCANS (fairness). Never observed: **repeat detection has never fired** (needs a My Foods entry matching a typed note; it is deliberately quiet, so "never suggested anything" and "broken" look identical) and **`measured` has never appeared** (needs a legible scale AND unit in one photo). **Seam not to break:** `measured` drops if `clampGrams` altered the number, so a badge never names a weight the scale did not show. De-duplication is improved, not solved — one run returned two hamburger patties from the same photo sent three times. **Owner-only call:** whether a matched repeat should land on an editable draft rather than logging straight to Today. |
-| **Cardio + Oura — shipped; the Android binary (`READ_EXERCISE`) is vc 44; Health Connect grant proven on the LG 2026-09-03** | **Nothing blocking on code.** Merged and delivered by OTA on both platforms (`CHANGELOG.md`). **(1) ~~No Oura record has ever been read~~ — VERIFIED WITH REAL DATA 2026-08-31, read from PROD.** The ring account's `integrations/oura` doc: connected 2026-08-24, scope `workout daily`, **`lastSyncedAt` 2026-08-30, `lastRecordCount: 2`** — OAuth, token exchange and the Cloud fetch all work against the one real ring. The two records produced **no cardio block in her sessions, and that is the importer's designed behavior (issue 102, closed)**, not a failure: Oura classifies her dumbbell sessions as `strengthTraining`, which the importer deliberately DECLINES (importing them as cardio would duplicate hand-logged Train sessions). One session (08-26) carries `cardio: []`, the import's empty write. **What remains genuinely unobserved is narrow: a cardio-classified record (walk/run/cycle) landing as a via-Oura block** — needs the ring's owner to record one. The `skipped` count is client-screen-only (not persisted), so wire-shape confirmation to zero also rides on that first cardio record. **(2) Android's health-store read is now blocked on an OTA, not on a binary — and the reason is new.** The `READ_EXERCISE` binary shipped as vc 44, and the very first device to hold a working Health Connect grant showed that the import never ran at all: `aggregateGroupByPeriod` cannot read `ActiveCaloriesBurned` on `react-native-health-connect@3.5.3` at all (both the local-naive and the instant form throw, for different reasons), and the rejection took `importScalars` down with it — so `importHealthWorkouts`, which runs after it, never executed. **Fixed and SHIPPED by OTA on both platforms 2026-09-04** (PR 120 then 121 — the first fix shipped the second failure; `CHANGELOG.md` 2026-09-04), using `aggregateGroupByDuration`. Android production users get it on next launch; iOS on 1.2.2's approval. The paragraph below is the history that led to vc 44 and is still accurate about the manifest. **(2, history) Android's health-store workout read needs a binary.** `READ_EXERCISE` is declared (step 4b of `patch-android-release.mjs`) and `ExerciseSession` requested, but a manifest permission exists only in a binary, so through vc 37 Health Connect refuses the read and `readWorkouts` returns empty. The Health-apps declaration that gated it is **CLEARED — verified in the Console 2026-08-29** (*Need attention* empty, Health apps under *Actioned*, step 1 detects `READ_EXERCISE`, Policy status *No issues found*), so **vc 40 is unblocked on this axis**; alpha stayed at vc 37 throughout, so production access was never disturbed. How it cleared (a `draft` never re-scans, `completed` 403s, INTERNAL via the Console is what makes Play detect the permission — vc 39, no testers) is on the vc 39 row in `apps/mobile/AGENTS.md`. **The seam not to break:** an imported `kcal` is display provenance and never reaches a target (ADR-0024 decision 4, pinned by `cardio-energy-independence.test.ts`). |
-| **Android widget on a real home screen — PLACED, owner-reported 2026-09-05** | The owner added it on the OnePlus 8T and it renders ("looks good"); `WIDGET.md` ticks the picker box on that word. **Still unverified on Android:** the numbers moving after a log (the `index.js` task handler, the path no device had exercised), the tap-to-log button, midnight blanking, sign-out blanking — the rest of `WIDGET.md` §Device QA. **Maestro cannot close these** (no `adb` command places a widget; the Quick Settings tile IS drivable via `adb shell cmd statusbar click-tile`). The iOS half is done and verified on a physical iPhone. |
-| **Watch complication + Siri quick-add behaviour** | **UNVERIFIED on hardware.** ADR-0023 established that `transferCurrentComplicationUserInfo` cannot wake a **WidgetKit** complication (Apple FB12926788, open since 2023) — real-time delivery to the wrist is not achievable on this surface, and that is a requirement change, not a bug. What ships instead is an hourly pull. Nobody has watched a face move after a meal logged outside the app. Read *Settings → Apple Watch* on a device before writing any more code here. |
-| **The website — Google started indexing it; re-measured 2026-09-04, unchanged. The sitemap is still never fetched** | **Nothing to do but wait and re-measure.** `node scripts/gsc.mjs inspect`, re-run 2026-09-04 and identical to 09-03: **6 of 7 sampled URLs are *Submitted and indexed*** (`/cutting-calculator`, `/protein-calculator`, `/tdee-calculator-women`, `/weight-loss-calculator`, `/es/calculator`, `/es/vs/macrofactor`); only `/transformations` is still *unknown*. That is against **0 of 7** on 07-29, 08-17 and 08-27, so the thing that moved is the **orphan-graph fix live since 08-31** (1 → 118 of 118 sitemap URLs reachable from `/`), not the sitemap — `lastDownloaded` is **still `not yet`** after a fourth submit today (0 warnings, 0 errors), so Google is crawling by links and ignoring the file. **The router/SSR migration stays DEFERRED** — the premise it rested on (Google never requests the pages) is now false. Next read: impressions/clicks in GSC Performance in ~2 weeks, and `/transformations`. Costing and both tables: `docs/seo-status.md`. |
-| **Android device QA — the four known failures are FIXED; sweep is clean** | **Nothing blocking.** Host is the **LG VS988 (LG G6), Android 9 / API 28** over adb — two levels above `minSdk` 26, so a pass does NOT prove the floor. **2026-09-04, against the published vc 44 bundle (update id `01a06e70…` confirmed in logcat): a clean full sweep**, after 19/20 and 15/20 runs that are worth reading together — `apps/mobile/.maestro/regression/coverage.md` has all three. The 2026-08-30 `scrollUntilVisible` family is fixed with `optional: true` plus a bounded `repeat`/`while: notVisible` loop (Maestro's own adapter idiom), **additive on purpose** so iOS — where the command works and no device here can re-validate — cannot regress; the logs show it `SKIPPED` when the original succeeds. Flow 18 also needed two fixes that were NOT the scroll: a second `template-more-0` tap with no scroll in front of it, and three `start-workout` waits left at 15s when this file already documents the Train tab taking ~2 minutes on this device (**15s survived standalone and died in the suite**). **Swipe loops are at x=10%, not centre** — dead centre lands on the multiline cues `TextInput`, which scrolls itself rather than the sheet. **New host prerequisite: `settings put global wifi_networks_available_notification_on 0`.** At −77 dBm this device drops Wi-Fi and pops a system modal over the app; that, not the flows, caused the 15/20 run, and the failure SCREENSHOT is what showed it. `17-coach-ask` stays excluded (real Gemini money). **The suite WRITES** (11–13 log/edit/delete, 14 moves water, 09 changes locale) — check which account the device holds first; it is on `qa-test@ignia.fit`. Flow 12 creates a preset BY DESIGN and `node scripts/qa-regression-verify.mjs cleanup --email qa-test@ignia.fit` is the documented out-of-band teardown — run it after a sweep. Regaining adb after a reboot is PHYSICAL. |
+| **Photo scan — two things have still never been seen on a device** | **Owner, with a phone.** Multi-photo capture is closed and was confirmed on a real meal (2026-08-26); ADR-0029 is `accepted`. **The asymmetry that must survive:** `spendCeiling` counts IMAGES (solvency), `dailyQuota` counts SCANS (fairness). Never observed: **repeat detection has never fired** (needs a My Foods entry matching a typed note; it is deliberately quiet, so "never suggested anything" and "broken" look identical) and **`measured` has never appeared** (needs a legible scale AND unit in one photo). **Seam not to break:** `measured` drops if `clampGrams` altered the number. De-duplication is improved, not solved. **Owner-only call:** whether a matched repeat should land on an editable draft rather than logging straight to Today. |
+| **Cardio + Oura — shipped on both platforms; what remains unobserved is narrow** | **Nothing blocking on code.** Oura OAuth, token exchange and the Cloud fetch are VERIFIED with real data (`integrations/oura` on the ring account: `lastSyncedAt` 2026-08-30, `lastRecordCount: 2`); the two records were `strengthTraining`, which the importer deliberately DECLINES (issue 102). **Still unobserved: a cardio-classified record (walk/run/cycle) landing as a via-Oura block** — needs the ring's owner to record one; the `skipped` count is client-screen-only, so wire-shape confirmation rides on that too. Android's Health Connect read works since the 2026-09-04 OTA (`aggregateGroupByDuration`; the grant proven on the LG 2026-09-03). **The seam not to break:** an imported `kcal` is display provenance and never reaches a target (ADR-0024 decision 4, pinned by `cardio-energy-independence.test.ts`). |
+| **Android widget on a real home screen — PLACED, owner-reported 2026-09-05** | Renders on the OnePlus 8T. **Still unverified on Android:** the numbers moving after a log (the `index.js` task handler), the tap-to-log button, midnight blanking, sign-out blanking — the rest of `WIDGET.md` §Device QA. **Maestro cannot close these** (no `adb` command places a widget; the Quick Settings tile IS drivable via `adb shell cmd statusbar click-tile`). The iOS half is done and verified on a physical iPhone. |
+| **Watch complication + Siri quick-add behaviour** | **UNVERIFIED on hardware.** ADR-0023: `transferCurrentComplicationUserInfo` cannot wake a **WidgetKit** complication (Apple FB12926788) — what ships is an hourly pull. Nobody has watched a face move after a meal logged outside the app. Read *Settings → Apple Watch* on a device before writing any more code here. |
+| **The website — Google started indexing it (6 of 7 sampled URLs *Submitted and indexed* since 2026-09-03); the sitemap is still never fetched** | **Nothing to do but wait and re-measure** with `node scripts/gsc.mjs inspect`. What moved it was the orphan-graph fix live since 08-31 (118 of 118 sitemap URLs reachable from `/`), not the sitemap (`lastDownloaded` still `not yet` after four submits). **The router/SSR migration stays DEFERRED** — its premise (Google never requests the pages) is now false. Next read: GSC Performance in ~2 weeks, and `/transformations`. Tables: `docs/seo-status.md`. |
+| **Android device QA host** | **LG VS988 (Android 9 / API 28)** and the **OnePlus 8T (Android 14)** over adb; neither is the API 26 floor. The Maestro regression suite is clean against vc 44 (`apps/mobile/.maestro/regression/coverage.md` has the runs and the host prerequisites). **The suite WRITES** — it runs on `qa-test@ignia.fit`; `node scripts/qa-regression-verify.mjs cleanup --email qa-test@ignia.fit` after a sweep. Regaining adb after an LG reboot is PHYSICAL. |
 | **Photo-scan validation gate** | 30–50 real photos, judging the **item list and portions** — never the macros. Harness: `scripts/validate-photo-itemiser.mjs` (ADR-0015 §2). |
-| **MenuStat permission email — sent, no reply** | **Owner, awaiting NYC DOHMH.** The restaurant corpus is live on all three surfaces (`CHANGELOG.md`). The open risk is the **licence**: menustat.org published through 2022 under an all-rights-reserved notice and the site is now GONE (SERVFAIL, last Archive 200 is 2026-06-12), while the only copy carrying a written grant — Harvard Dataverse, CC0 1.0 — stops at 2018. The request was sent 2026-08-24 to `info@menustat.org` Cc `MenuStat@health.nyc.gov`; **the Cc is what carried it** (Delivered), the first address will NDR because that domain has no resolvable MX. Replies land in the `bermudezpr.com` Microsoft 365 tenant, not Gmail. The CC0 2018 file is the priced fallback (it loses The Cheesecake Factory, 399 items). Two smaller follow-ups: Pollo Tropical (major in PR, publishes official nutrition, absent from MenuStat's 91) and the mobile provenance chip — the wire already carries the year as `dataType: restaurant_menu_2022`. |
+| **MenuStat permission email — sent, no reply** | **Owner, awaiting NYC DOHMH.** The restaurant corpus is live on all three surfaces. The open risk is the **licence**: menustat.org published through 2022 all-rights-reserved and the site is now GONE; the only copy with a written grant (Harvard Dataverse, CC0 1.0) stops at 2018 and loses The Cheesecake Factory (399 items). Sent 2026-08-24 to `info@menustat.org` Cc `MenuStat@health.nyc.gov` (the Cc is what carried it); replies land in the `bermudezpr.com` Microsoft 365 tenant. Follow-ups: Pollo Tropical (absent from MenuStat's 91) and the mobile provenance chip (`dataType: restaurant_menu_2022`). |
 
 ## 4. Decided and deliberately not happening
 
@@ -172,82 +129,52 @@ or research note.
   intentional. (ADR-0016)
 - **A 4th scheduled Cloud Function** — Cloud Scheduler's free 3 jobs are spent;
   fold into `hourly-tasks.ts`.
-- **A Strava integration** — rejected on **licence, not preference**: its June
-  2026 API Agreement forbids using API data for AI/ML, and Ignia has a coach and
-  photo scan. Cronometer, a nutrition tracker, dropped its own Strava
-  integration for the same reason.
-  (`docs/research/connected-apps-candidates.md`)
-- **A fourth connected-apps provider** — none is scheduled. Withings is the only
-  candidate with real marginal value (body weight, the input TDEE rides on) and
-  even that is largely redundant on iOS, where Apple Health already aggregates
-  Withings/Fitbit/Whoop/Garmin. **The cheapest large win adds no provider at
-  all:** give the Apple Health path the same evidence surface Oura now has.
-- **A Google Group for the Play tester list** — cannot be maintained by an
-  agent: consumer Google Groups gates every member-add behind a reCAPTCHA and
-  `@googlegroups.com` has no public API. One was created and deleted the same
-  day. The Play email list is the working mechanism. (`CLAUDE.local.md`)
-- **Deleting the website** — Apple requires the live privacy URL and Play the
-  delete-account URL, both on `ignia.fit`; the Oura redirect, `app-version.json`
-  and `/admin` live there too. The web *logging app* is already gone. (ADR-0036)
-- **A web logging surface** — retired on ADR-0022's own measurement (web 2.9%
-  of active days). (ADR-0036)
+- **A Strava integration** — rejected on **licence**: its June 2026 API
+  Agreement forbids AI/ML use of API data. (`docs/research/connected-apps-candidates.md`)
+- **A fourth connected-apps provider** — Withings is the only candidate with
+  marginal value and iOS already aggregates it. The cheaper win: give Apple
+  Health the evidence surface Oura has.
+- **A Google Group for the Play tester list** — reCAPTCHA on every member-add,
+  no public API. The Play email list is the mechanism. (`CLAUDE.local.md`)
+- **Deleting the website** — Apple needs the privacy URL, Play the
+  delete-account URL, plus the Oura redirect, `app-version.json`, `/admin`. (ADR-0036)
+- **A web logging surface** — retired on ADR-0022's own measurement (2.9% of
+  active days). (ADR-0036)
 - **Transferring `bermudezsystems.com` off Northwest** — owner's call
-  2026-09-05. It renews free for as long as the Registered Agent service does
-  (Northwest, in writing, 2026-08-26), and a registrar transfer is never free:
-  Cloudflare priced it at $10.46 (ICANN's mandatory one-year extension, at
-  cost). The coupling — cancel the RA service and the org Play login's domain
-  goes with it — is accepted for now. **Revisit the day Bermudez Systems LLC
-  has income to justify it.** DNS is already on Cloudflare, the registrar is
-  not; the transfer page is Cloudflare → Domain Registration → Transfer, and
-  the domain is already unlocked at Northwest (RDAP `status: active`).
+  2026-09-05; it renews free with the Registered Agent service (Northwest, in
+  writing). The coupling to the org Play login is accepted. **Revisit when the LLC has income.**
 
 ## 5. App Store submission — standing rules
 
 Carried over from the two 1.0 rejections. Permanent, not a checklist to do once.
 
-- **Both accounts are now the LLC, and that closed a standing risk.** This bullet
-  said "Accounts are Individual, not an entity" until 2026-08-26; it stopped
-  being true on 08-25 (Apple) and 08-26 (Play). Apple Developer and App Store
-  Connect are **Bermudez Systems LLC**; the Play app was transferred to org
-  account `6598754086801415923`. Guideline 5.1.1(ix) prefers a legal entity for
-  health apps that touch HealthKit, and that accepted risk is now retired. The
-  App Store seller name may lag until Apple propagates the entity — see §3.
+- **Both accounts are the LLC** (Apple since 08-25, Play org account
+  `6598754086801415923` since 08-26). Guideline 5.1.1(ix) prefers a legal
+  entity for health apps that touch HealthKit; that accepted risk is retired.
 - **Always hand Apple `review@ignia.fit`** in the Demo Account fields — it is
   pre-verified and seeded. A fresh account is walled out by the
-  email-verification gate, and 2.1 demo-account failures are Apple's largest
-  rejection bucket. Never point them at `demo@ignia.fit` (screenshots only).
-  Confirm it can still write before submitting.
+  email-verification gate. Never point them at `demo@ignia.fit` (screenshots
+  only). Confirm it can still write before submitting.
 - **Notes for Review must name the specific changes.** Generic text gets rejected
   under 2.3.1.
 - **Do not advertise a feature that is `BEHAVIOUR UNVERIFIED`.** The watch
   complication and Siri quick-add are deliberately claimed to no reviewer.
-- **`supportsTablet` stays `false`.** Apple reviews on iPad anyway, but flipping
-  it true obliges an iPad design pass *and* iPad screenshots — more rejection
-  surface, not less.
+- **`supportsTablet` stays `false`.** Flipping it obliges an iPad design pass
+  *and* iPad screenshots — more rejection surface, not less.
 - **Keep `NSPhotoLibraryUsageDescription`.** A *missing* purpose string is an
   automated ITMS-90683 rejection; an extra one is never punished.
 - **Privacy labels must match reality** — health data + email, no Photos.
 - **A submitted version's build is frozen.** Swapping it is cancel → re-point →
   resubmit (`scripts/asc-swap-review-build.mjs`), the cancel is irreversible, and
   it has cost ~19h of queue position once and ~4h once.
+- **On Play, sending ANY listing change while a release is in review restarts
+  that review** (measured 2026-09-07). Bundle listing changes with the release
+  submit, or hold them until the release lands.
 
-## 6. Where things live (and what gets deleted)
+## 6. What gets deleted
 
-| Question | File |
-|---|---|
-| What is this repo, how do I work in it | `CLAUDE.md` |
-| What does this word mean | `CONTEXT.md` |
-| **What is true right now** | **this file** |
-| How do I check that claim | `docs/COMMANDS.md` |
-| Why is it built this way | `docs/adr/` |
-| What shipped, when | `CHANGELOG.md` (+ `CHANGELOG-archive.md`) |
-| Which binary carries what | `apps/mobile/AGENTS.md` (read from the artifact) |
-| Build ceilings, credentials, traps | `docs/build-infrastructure.md` |
-| Dev loop + owner runbook | `docs/DEV_ENVIRONMENT.md` |
-| What did we research | `docs/research/` — each file opens with its verdict |
-| What's still wrong in the UX | `UX_AUDIT.md` (§S13 = launch readiness) |
-| Store listing field values | `docs/app-store-metadata.md` |
-| Machine-local credential paths | `CLAUDE.local.md` (git-ignored) |
+`CLAUDE.md` §"Where to look" is the one-file-per-question map; it is not
+repeated here.
 
 **A plan document is deleted the day its work ships.** Its outcome belongs in
 `CHANGELOG.md`, its reasoning in an ADR, its current state here. Git keeps the

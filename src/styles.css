@@ -846,33 +846,6 @@ body {
   flex: none;
 }
 
-/* Android-pending pill. Dashed on purpose — reads "reserved",
-   not "broken". Swapped for a live Play link by PLAY_STORE_LIVE
-   (utils/app-store.ts, one line). */
-.lp-soon {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 44px;
-  padding: 0 18px;
-  border-radius: 999px;
-  border: 1px dashed color-mix(in srgb, currentColor 40%, transparent);
-  font-family: var(--v2-font-mono);
-  font-size: 0.6875rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  font-weight: 600;
-  color: #8f887d;
-}
-.lp-soon::before {
-  content: '';
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  background: currentColor;
-  opacity: 0.55;
-  flex: none;
-}
 .lp-play-live {
   display: inline-flex;
   align-items: center;
@@ -1154,7 +1127,6 @@ body {
   padding: clamp(48px, 7vw, 88px) clamp(20px, 5vw, 64px);
 }
 .lp-cta-panel .lp-display { font-size: clamp(2.25rem, 1.5rem + 3.4vw, 3.75rem); color: var(--v2-ink); }
-.lp-cta-panel .lp-soon { color: var(--v2-ink-muted); }
 .lp-cta-body { margin: 20px auto 0; max-width: 36rem; color: var(--v2-ink-soft, #57534e); line-height: 1.65; }
 .lp-cta-stores {
   margin-top: 34px;
