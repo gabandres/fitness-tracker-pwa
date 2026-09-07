@@ -87,13 +87,15 @@ Stephanie moves to the new Air. Runbook and ordering in `docs/DEV_ENVIRONMENT.md
 §3.15; `scripts/mac-bootstrap.sh` does every non-physical step. **Blocked on:**
 the new Air arriving (this week); Stephanie's Apple Account password for the
 erase (Activation Lock); an Xcode 26.6 install on the fresh account (App Store
-or `.xip`, GUI). **Owner step first:** back up `dev.keystore` +
-`credentials.json` offline — the Mac copy is the only backup and it dies with
-the wipe. **Gate before wiping counts as done:** the rebuilt host must print iOS
+or `.xip`, GUI). **Backup DONE 2026-09-07** (LLC OneDrive, `CLAUDE.local.md` has the path) — the wipe no longer
+risks the keystore. **Gate before wiping counts as done:** the rebuilt host must print iOS
 fingerprint `52802bba…` (build 64's), or the next iOS binary is cut from it
 before any iOS OTA. The old install's cleanup (B in §3.15) must run **before**
 any Migration Assistant to the new Air, and it closes the iOS OTA channel until
 the rebuilt host passes that gate — so B→C→D happen in one sitting.
+**Amended 2026-09-07:** the target state is closed-lid, USB-C Ethernet first, FileVault
+OFF + auto-login, updates manual — so any reboot comes back on its own; §3.15
+has the table and the why. Shopping list before D: a USB-C Ethernet adapter.
 
 ### Retention — the standing focus (owner's call, 2026-09-02)
 

@@ -1125,11 +1125,29 @@ can never exit. Four of them had accumulated.
 **Decision (owner, 2026-09-05):** Stephanie gets the new MacBook Air; the M1 Air
 (`MacBookAir10,1`, 16 GB, 228 GB, Xcode 26.6) is **wiped and becomes Ignia's
 dedicated iOS build/upload/simulator box** — one local admin user, no Apple
-Account or iCloud, FileVault on, Wi-Fi only, reached over Tailscale. The disk
-pressure, the DisplayLink dock, other projects' Maestro runs and four secrets
-under someone else's account all go away with the wipe. `STATUS.md` §3 owns
-where this stands; `scripts/mac-bootstrap.sh` does everything that is not
-physical.
+Account or iCloud, reached over Tailscale. The disk pressure, the DisplayLink
+dock, other projects' Maestro runs and four secrets under someone else's
+account all go away with the wipe. `STATUS.md` §3 owns where this stands;
+`scripts/mac-bootstrap.sh` does everything that is not physical.
+
+**Amended 2026-09-07 — it runs closed, on Ethernet, with FileVault OFF.** The
+owner's requirement is a box that never drops: lid shut (no room to open it),
+no display, always reachable, and back on its own after any reboot. Three
+changes to the 09-05 plan follow from that, and the reasoning is recorded
+because each one reads like a mistake on its own:
+
+| Was | Now | Why |
+|---|---|---|
+| FileVault on | **FileVault OFF, auto-login on** | FileVault demands a typed password at every boot and refuses auto-login, so any reboot — a panic, a drained battery, an update — is a physical trip to a laptop you cannot open. After the wipe the disk holds a Sentry token and an EAS session, both revocable in minutes, and no keystore; encryption buys little there. `fdesetup authrestart` covers only *planned* reboots and only once per token. |
+| Wi-Fi only | **USB-C Ethernet adapter first, Wi-Fi kept as fallback** | Not for Wake-on-LAN — Apple silicon wakes from sleep only, never from shutdown, and it never sleeps anyway. Ethernet is a link that does not roam bands or drop after a wake, which the Wi-Fi setup did. The adapter goes on its own port; power stays on the Apple brick (the 2026-08-06 outage was a dock's PD dropping). |
+| stock updates | **automatic macOS *and* App Store updates OFF** | Software Update's auto-install reboots without asking; the App Store's auto-update would move Xcode to 27 on its own. Both are applied by hand over SSH, on the owner's schedule. |
+
+`pmset` stays `-c` (charger only), never `-a`: if the charger drops, a clean
+sleep that resumes on power beats a drained battery and a forced shutdown.
+Sources for the closed-lid recipe and the FileVault trade are the headless
+Mac-mini guides (Astropad, BlitzMetrics 2026-03) and Apple's own
+`fdesetup`/`sysadminctl` behaviour; macOS 27 and Xcode 27 both keep the M1, so
+the hardware is a valid submission box through at least April 2028.
 
 **Two facts fix the order.** (1) Build 64 carries iOS fingerprint
 `52802bba…`, produced on the old install; until a host reproduces that hash,
@@ -1139,9 +1157,9 @@ with the same lockfile *should* match — verify, never assume. (2) Migration
 Assistant copies the whole home directory, secrets included, so the cleanup
 below runs **before** Stephanie migrates to the new Air.
 
-**A. Before the new Air is opened (Windows):** back up `dev.keystore` +
-`credentials.json` offline (password-manager attachment). The Mac copy is the
-only backup today and step C destroys it.
+**A. Before the new Air is opened (Windows) — DONE 2026-09-07:** `dev.keystore` +
+`credentials.json` are backed up to the LLC OneDrive (path in `CLAUDE.local.md`,
+hashes verified). Step C may destroy the Mac copy freely.
 
 **B. Old install, over SSH, before Migration Assistant — this closes the iOS
 OTA channel until step D verifies the rebuilt host, so do B→C→D in one sitting:**
@@ -1164,18 +1182,25 @@ Find My / Activation Lock, which is why it needs **her** Apple Account password.
 Verify afterwards at icloud.com/find that the Mac is gone from her devices.
 
 **Then, physical, owner:** Setup Assistant as a fresh local admin (skip Apple
-Account, keep FileVault on), install Xcode 26.6 — App Store or a
-developer.apple.com `.xip`; it is the one install the script cannot do —
-enable *Remote Login*, paste the Windows public key into
-`~/.ssh/authorized_keys`, and plug in the **Apple charger**, not a dock (the
-2026-08-06 outage was a dock PD drop). Optional but what makes later runs
-unattended: `echo "$USER ALL=(ALL) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/ignia`
-— on a box holding no personal data whose SSH key already equals login, that
-is an acceptable trade.
+Account, **leave FileVault OFF** — the script can decrypt a disk that was
+encrypted, but that costs a second run and a wait), install Xcode 26.6 — App
+Store or a developer.apple.com `.xip`; it is the one install the script cannot
+do — enable *Remote Login*, paste the Windows public key into
+`~/.ssh/authorized_keys`, plug in the **Apple charger**, not a dock (the
+2026-08-06 outage was a dock PD drop), and plug the **USB-C Ethernet adapter**
+into the other port. Give the adapter's MAC a DHCP reservation on the router so
+the LAN address never moves (Tailscale does not care, but the first `ssh
+<name>.local` does). Stand the Air on edge or on a stand with air around it: it
+is fanless and sheds heat through the keyboard deck, which a closed lid covers.
+Optional but what makes later runs unattended: `echo "$USER ALL=(ALL) NOPASSWD:
+ALL" | sudo tee /etc/sudoers.d/ignia` — on a box holding no personal data whose
+SSH key already equals login, that is an acceptable trade.
 
 **D. Everything else, from Windows** (Homebrew, fnm/Node 24.12.0, CocoaPods,
-fastlane, Maestro, Tailscale, pmset + LaunchDaemon, both Xcode platforms,
-clone + `npm ci`, `.env.local`, `eas login`, the fingerprint gate):
+fastlane, Maestro, Tailscale, pmset + keepalives + LaunchDaemon, Ethernet-first
+service order, updates off, FileVault off + auto-login — it prompts once for
+the login password, which macOS stores and the script does not — both Xcode
+platforms, clone + `npm ci`, `.env.local`, `eas login`, the fingerprint gate):
 
 ```sh
 ssh -t <name>.local 'SENTRY_AUTH_TOKEN=<tok> bash -s' < scripts/mac-bootstrap.sh   # LAN name until Tailscale is up
@@ -1190,11 +1215,24 @@ keeping the alias `ignia-mac` so the guard hook and both build skills stay
 untouched; and correct §3.8/§3.9, `docs/build-infrastructure.md`,
 `CLAUDE.local.md` (disposal list) and the `apps/mobile/AGENTS.md` host table.
 
-**Wi-Fi-only consequences:** a sleeping Mac is unreachable and nothing can wake
-it (Wake-on-LAN needs Ethernet), so `pmset -c disablesleep 1` (AC only) keeps a
-closed lid from sleeping it; a FileVault reboot still needs the password typed
-at the boot screen, so a reboot stays a physical trip; keep it on the 5/6 GHz
-band. Ethernet, if a cable appears, changes nothing in the config.
+**What still needs a physical trip, and what does not.** With FileVault off,
+auto-login on and updates manual, a reboot of any kind — `sudo reboot`, a
+kernel panic, a battery that ran flat during an outage and charged back — comes
+back logged in with SSH and Tailscale up, no hands. The charger dropping puts it
+to sleep cleanly (it is `-c`, not `-a`) and it resumes when power returns. The
+one thing left is a **hard hang**: a laptop has a battery, so a smart plug
+cannot power-cycle it the way it would a Mac mini, and only the power button
+recovers it. That is rare, and it is the single thing a mini genuinely does
+better as a server. Planned reboots over SSH are just `sudo reboot`; if
+FileVault is ever turned back on, they become `sudo fdesetup authrestart`
+(one-time Secure Enclave token, works on Apple silicon) and every *unplanned*
+reboot is a trip again.
+
+**Reading the state back**, all over SSH: `pmset -g` (want `disablesleep 1`,
+`sleep 0`, `womp 1`), `fdesetup status` (want `Off`), `sysadminctl -autologin
+status`, `networksetup -listnetworkserviceorder | head -4` (wired first),
+`softwareupdate --schedule` (want `off`). The script prints all five at the end
+of step 10.
 
 ## 5. Owner runbook — move `ignia.fit` + GCP billing under Bermudez Systems LLC (written 2026-08-30)
 

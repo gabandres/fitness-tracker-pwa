@@ -8,7 +8,10 @@
 #   ssh -t ignia-mac 'SENTRY_AUTH_TOKEN=<tok> bash -s' < scripts/mac-bootstrap.sh
 #
 # `-t` matters: Homebrew, pmset, the LaunchDaemon, Xcode's first launch and the
-# platform downloads all go through sudo, and `eas login` is interactive.
+# platform downloads all go through sudo; `eas login`, `fdesetup disable` and the
+# auto-login password prompt are interactive.
+# Closed-lid, no-display, Ethernet-first, never-sleeps, comes-back-from-any-reboot
+# is the target state (steps 5–5d); the reasoning is in §3.15.
 # Xcode itself is NOT installed here — it comes from the App Store (Apple ID,
 # GUI) or a developer.apple.com .xip; the script refuses to continue without it.
 set -euo pipefail
@@ -61,12 +64,16 @@ EOF
 step "4. Maestro"
 [ -x "$HOME/.maestro/bin/maestro" ] || curl -fsSL https://get.maestro.mobile.dev | bash
 
-step "5. SSH key + never sleep on AC (Wi-Fi-only box: a sleeping Mac is unreachable)"
+step "5. SSH key + never sleep on AC (closed lid, no display: a sleeping Mac is unreachable)"
 mkdir -p "$HOME/.ssh" && chmod 700 "$HOME/.ssh"
 grep -qF "$WINDOWS_KEY" "$HOME/.ssh/authorized_keys" 2>/dev/null || echo "$WINDOWS_KEY" >> "$HOME/.ssh/authorized_keys"
 chmod 600 "$HOME/.ssh/authorized_keys"
 sudo pmset -c sleep 0 disksleep 0 displaysleep 0
 sudo pmset -c disablesleep 1                 # AC only — lid-close must not sleep it; battery keeps stock
+# -c, never -a: if the charger drops, a clean sleep that resumes on power beats a drained battery
+# and a forced shutdown on a box nobody can see. womp = wake on network access (Ethernet only,
+# and moot while it never sleeps); the two keepalives stop idle SSH/tmux sessions being reaped.
+sudo pmset -c womp 1 tcpkeepalive 1 ttyskeepawake 1
 sudo tee /Library/LaunchDaemons/fit.ignia.nosleep.plist >/dev/null <<'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -85,6 +92,65 @@ sudo tee /Library/LaunchDaemons/fit.ignia.nosleep.plist >/dev/null <<'EOF'
 EOF
 sudo launchctl bootout system/fit.ignia.nosleep 2>/dev/null || true
 sudo launchctl bootstrap system /Library/LaunchDaemons/fit.ignia.nosleep.plist
+
+step "5b. Ethernet first, Wi-Fi as fallback (a USB-C adapter on its own port; power stays on the Apple brick)"
+# Service names are adapter-specific ("USB 10/100/1000 LAN", "Thunderbolt Ethernet", "AX88179A"…),
+# so match by kind rather than name. No adapter plugged in: nothing changes, Wi-Fi keeps working.
+WIRED=(); REST=()
+while IFS= read -r svc; do
+  svc="${svc#\*}"                                   # a leading * marks a disabled service
+  [ -z "$svc" ] && continue
+  if echo "$svc" | grep -qiE 'ethernet|lan|usb' && ! echo "$svc" | grep -qiE 'wi-?fi|bluetooth|bridge|vpn|tailscale'; then
+    WIRED+=("$svc")
+  elif [ "$svc" != "Wi-Fi" ]; then
+    REST+=("$svc")
+  fi
+done < <(networksetup -listallnetworkservices | tail -n +2)
+if [ "${#WIRED[@]}" -gt 0 ]; then
+  networksetup -ordernetworkservices "${WIRED[@]}" "Wi-Fi" "${REST[@]}" 2>/dev/null \
+    || echo "!! could not reorder services; do it in System Settings → Network → ⋯ → Set Service Order"
+  echo "service order:"; networksetup -listnetworkserviceorder | grep -E '^\(' | head -4
+else
+  echo "no wired adapter detected — Wi-Fi only until one is plugged in (rerun afterwards)"
+fi
+
+step "5c. No unattended reboots: macOS updates and App Store auto-update OFF (Xcode would move to 27 on its own)"
+sudo softwareupdate --schedule off
+sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticallyInstallMacOSUpdates -bool false
+sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticDownload -bool false
+sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticCheckEnabled -bool true   # still SEE them
+sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate ConfigDataInstall -bool true       # XProtect etc., no reboot
+sudo defaults write /Library/Preferences/com.apple.commerce AutoUpdate -bool false
+# Apply updates yourself, over SSH, on your schedule: softwareupdate -l; sudo softwareupdate -i -a -R
+
+step "5d. FileVault OFF + auto-login, so ANY reboot comes back on its own (the only physical trip left is a hard hang)"
+# The box holds a Sentry token and an EAS session after the wipe — both revocable in minutes, no
+# keystore — so encryption buys little and costs a typed password at every boot. Auto-login refuses
+# to enable while FileVault is on, and decryption after `fdesetup disable` runs in the background,
+# so this step is two runs apart on a disk that was encrypted: disable, wait, rerun.
+if fdesetup status | grep -q 'FileVault is On'; then
+  if [ -t 0 ]; then
+    echo "FileVault is ON — disabling (asks for your login password; decryption continues in the background)."
+    sudo fdesetup disable
+    echo "!! Rerun this script once 'fdesetup status' says Off — auto-login cannot be set until then."
+  else
+    echo "!! FileVault is ON and there is no tty to disable it. Rerun over 'ssh -t'."
+  fi
+elif fdesetup status | grep -q 'Decryption in progress'; then
+  echo "!! FileVault still decrypting; rerun later to set auto-login."
+else
+  if sysadminctl -autologin status 2>&1 | grep -qi "$USER"; then
+    echo "auto-login already set for $USER"
+  elif [ -t 0 ]; then
+    echo "Enabling auto-login for $USER (needs the login password once; it is stored by macOS, not by this script):"
+    read -rs -p "login password for $USER: " AUTOLOGIN_PW; echo
+    sudo sysadminctl -autologin set -userName "$USER" -password "$AUTOLOGIN_PW"
+    unset AUTOLOGIN_PW
+    sysadminctl -autologin status 2>&1 | tail -1
+  else
+    echo "!! no tty — set auto-login later: sudo sysadminctl -autologin set -userName $USER -password <pw>"
+  fi
+fi
 
 step "6. Tailscale — same tailnet as Windows (gabandres@), or neither side sees the other"
 sudo brew services start tailscale || true
@@ -116,6 +182,9 @@ npx eas whoami || true
 
 step "10. Verify — the four-command check proves prebuild; fastlane + destinations prove an archive can run"
 node -v; npm -v; pod --version; fastlane --version 2>/dev/null | tail -1; xcodebuild -version | head -1
+echo "power:    $(pmset -g | grep -E '^\s*(disablesleep|sleep|womp|tcpkeepalive)\b' | tr -s ' ' | tr '\n' ' ')"
+echo "filevault: $(fdesetup status | head -1)   autologin: $(sysadminctl -autologin status 2>&1 | tail -1)"
+echo "updates:  schedule $(softwareupdate --schedule | awk '{print $NF}')"
 FP=$(npx expo-updates fingerprint:generate --platform ios | jq -r .hash)
 echo "ios fingerprint: $FP"
 if [ "$FP" = "$EXPECTED_IOS_FINGERPRINT" ]; then
