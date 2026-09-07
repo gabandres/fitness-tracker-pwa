@@ -35,7 +35,7 @@ export const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=fit
  * 2026-08-29). While `false`, the landing page shows a quiet "coming soon
  * to Google Play" state instead of linking visitors to a 404.
  */
-export const PLAY_STORE_LIVE = false;
+export const PLAY_STORE_LIVE = true; // flipped 2026-09-07: Play production vc 44 public since 2026-09-03, store URL 200
 
 /**
  * Custom Product Pages, keyed by the intent they serve.

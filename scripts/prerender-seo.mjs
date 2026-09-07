@@ -85,7 +85,7 @@ const LOCALES = [
  */
 const COPY = {
   en: {
-    home: 'A quiet, private log for the one question that matters — calories, protein, weight, fasting — with an AI coach that actually reads your data. Free on iPhone today; coming soon to Google Play. No ads. No selling. Ever.',
+    home: 'A quiet, private log for the one question that matters — calories, protein, weight, fasting — with an AI coach that actually reads your data. Free on iPhone and Android. No ads. No selling. Ever.',
     calculator:
       'Free macro calculator: enter your weight, pick lose / maintain / gain, get a daily calorie + protein target you can act on today. No sign-up required.',
     vs: (name) =>
@@ -118,7 +118,7 @@ const COPY = {
     otherLang: 'English',
   },
   es: {
-    home: 'Una bitácora tranquila y privada para la única pregunta que importa: calorías, proteína, peso y ayuno, con un coach de IA que de verdad lee tus datos. Gratis en iPhone hoy; pronto en Google Play. Sin anuncios. Sin vender datos. Nunca.',
+    home: 'Una bitácora tranquila y privada para la única pregunta que importa: calorías, proteína, peso y ayuno, con un coach de IA que de verdad lee tus datos. Gratis en iPhone y Android. Sin anuncios. Sin vender datos. Nunca.',
     calculator:
       'Calculadora de macros gratis: pon tu peso, elige bajar / mantener / subir y recibe una meta diaria de calorías y proteína que puedes usar hoy. Sin registro.',
     vs: (name) =>
