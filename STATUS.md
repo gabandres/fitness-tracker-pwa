@@ -51,7 +51,7 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 
 | Platform | Tree now | Live binary | Channel |
 |---|---|---|---|
-| Android | `15c1cfc8…` (since `437a90ce`, the 1.2.3 bump) | **vc 44** ships `68ea2dd3…` (read from the `.aab`), live on production. **vc 45 is BUILT and VERIFIED (2026-09-07, `15c1cfc8…` read from the `.aab`) and NOT submitted** — held so a track release does not bundle into the Data safety review still open on vc 44 | **SHUT** until vc 45 is on Play; reopens on submit |
+| Android | `15c1cfc8…` (since `437a90ce`, the 1.2.3 bump) | **vc 44** ships `68ea2dd3…` (read from the `.aab`), live on production. **vc 45 is on alpha AND committed to production at 100%, IN REVIEW since 2026-09-07 ~14:30 UTC** (`15c1cfc8…` read from the `.aab`; uploaded via `play-upload-bundle.mjs` after `eas submit` lost its edit mid-upload again) | **SHUT** until Play finishes reviewing vc 45; reopens on `15c1cfc8…` the moment it is live |
 | iOS | `52802bba…` | **build 64 ships `52802bba…`, `READY_FOR_SALE` as 1.2.3 since 2026-09-06** (read from the `.ipa`); build 63 (`20a395de…`) is superseded | **OPEN** to the public |
 
 Read them back with `npx eas update:list --branch production --limit 3` and the
