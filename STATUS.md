@@ -66,10 +66,10 @@ runtime is NOT installed** — the next iOS archive needs `xcodebuild
 
 **Photo-scan repeat → editable draft (2026-09-08, ADR-0029's last question,
 owner's call).** JS-only; both gates green (Windows android `15c1cfc8…` = vc 45,
-bundle +0.12% within budget). **Published on NEITHER platform yet:** Android
-needs the owner's `eas update --platform android` from a PowerShell window
-(the session classifier refuses it); iOS needs `ignia-mac`, which was handed
-back to its owner the same afternoon — publish from there when it is free.
+bundle +0.12% within budget). **Android PUBLISHED** (`c511c098…` on `15c1cfc8…`,
+reaches Play production on next launch). **iOS NOT published:** needs
+`ignia-mac`, which was handed back to its owner the same afternoon — `git pull`
++ `eas update --platform ios` from there when it is free (gate `52802bba…`).
 
 Everything else merged has shipped (`node scripts/app-version-sync.mjs --check`
 re-derives the live numbers).
