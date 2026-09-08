@@ -1,5 +1,28 @@
 # Changelog
 
+## 2026-09-08 — the Play badge, the /download page that still said "coming soon", and a truthful admin Activity line
+
+`3ebbbbc4`, deployed to `ignia.fit` (`build-info.json` release `3ebbbbc4…`) with
+`getRecentActivity` redeployed alongside.
+
+- **Google Play now gets Google's own badge** everywhere the App Store badge
+  appears — landing hero and download section, `/vs`, `/calculator`, the
+  retired page, the auth-action page — instead of a text link. The artwork is
+  Google's generic web badge (en, and es-419 for the Spanish half; Google's
+  brand rules forbid re-typesetting it), cropped of its transparent padding so
+  `height: 54px` renders it at the same visual height as the App Store badge.
+  `playBadgeSrc(lang)` in `src/app/utils/app-store.ts` picks the file.
+- **`public/download.html` and `/es/download.html` still offered "Android
+  coming soon — email me"** — a hand-written page outside `src/`, so the
+  09-07 sweep that removed every "coming soon" string missed it, and
+  `STATUS.md` asserted none remained. Both carry the badge now and the fine
+  print names Android 8+.
+- **Admin → Activity printed "Entry · 0 kcal"** for the exercise-toggle marker
+  row (`{ calories: 0, exerciseCompleted: true }`, no `mealLabel`), which the
+  owner read as a user submitting an empty meal. `functions/src/activity-detail.ts`
+  names it *"Marked exercise done · streak marker, not a meal"*; lift/cardio
+  and legacy weigh-in rows get their own lines. Pure, six specs.
+
 ## 2026-09-07 (night) — vc 45 / 1.2.3 is live on Play production; the Android OTA channel reopens
 
 Play approved the restarted review ~22:46 UTC, about 7.5 h after the 15:05
