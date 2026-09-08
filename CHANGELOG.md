@@ -1,5 +1,46 @@
 # Changelog
 
+## 2026-09-08 (afternoon) — the "owner with a device" list, run from the workstation: V verified, the Android widget verified, repeat detection seen, `measured` explained
+
+Both Android phones over adb plus Maestro; the iOS simulator half was cut short
+(below). Nothing here changes code; it closes rows that were open for lack of a
+device run.
+
+- **IGNIA-MOBILE-V verified and resolved.** vc 45 sideloaded onto the LG
+  (`bundletool build-apks --mode=universal` from the vc 45 `.aab`, upload key),
+  which then took today's OTA `cb330ecc…`. `.maestro/capture/discard-focused-verify.yaml`:
+  start a workout, type into a rep cell so it holds focus, tap Discard. Idle
+  Train view returned, the QA account holds only its five seeded sessions, no
+  malformed `{updatedAt, cardio}` doc, zero Sentry mobile events in the window.
+- **Android widget, WIDGET.md §Device QA:** the OnePlus 8T was updated to
+  vc 45 from Play. Post-update the face read *Open Ignia to start*; the app
+  opened → 1,418 kcal / 93 g; a 100 kcal test row → 1,318 / 88 g; deleted →
+  1,418 / 93; face tap → add sheet; sign-out → *Open Ignia to start*; Google
+  picker restore → numbers back, no stray account created (Auth listed 0 new
+  users). Midnight and es-PR rows stay open.
+- **Photo-scan repeat detection fired** on the LG under `qa-test@`: seeded
+  "Grilled chicken steak", note "grilled chicken steak" → *You have logged
+  this before* → *Use it* logged 330 kcal with no model call. It did NOT fire
+  on the app instance that predated the seed — `customFoods` is subscribed on
+  focus, so a fresh entry needs a cold start or a tab change to reach the
+  matcher. Worth knowing before calling it "broken" again.
+- **`measured` still unobserved, now for a stated reason.** A composited
+  "245 g" readout on a real plate photo came back with grams = 245 and
+  `measured: false`; `analyzePhoto`'s logged reasoning: *no visible weighing
+  scale, only a text overlay superimposed on the image*. The prompt is doing
+  its job; a real scale under the plate is the only test left.
+- **iOS simulator run, abandoned.** watchOS 26.5 runtime downloaded (4 GB),
+  sim build succeeded, iPhone 17 + Series 10 sims paired, the watch app showed
+  its *Waiting for iPhone* baseline — and the Mac's disk went to 100% (109 MiB)
+  mid sign-in, then the owner reclaimed the machine. Everything was torn down:
+  sims, pair, `DerivedData/Ignia-sim`, the watchOS runtime, temp logs; 21 GiB
+  free after. The watch/Siri row is unchanged: a simulator cannot prove the
+  background-refresh budget it is about.
+- **QA password rotated** (`qa-test@ignia.fit`, Admin SDK) into `~/qa-pass.txt`
+  on both machines: the Mac's copy was stale (sign-in rejected it), and the
+  live value had been printed by a process listing during the run. The
+  rotation revoked the LG's session; it was signed back in with the new one.
+
 ## 2026-09-08 — the Play badge, the /download page that still said "coming soon", and a truthful admin Activity line
 
 `3ebbbbc4`, deployed to `ignia.fit` (`build-info.json` release `3ebbbbc4…`) with

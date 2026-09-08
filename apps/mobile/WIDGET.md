@@ -201,12 +201,16 @@ installed and watched.
 
 - [x] **iOS** — widget appears in the gallery and renders kcal left + protein left.
 - [x] **Android** — widget appears in the picker. *(Owner-reported 2026-09-05, OnePlus 8T: placed on the home screen, renders, "looks good".)*
-- [ ] Add it with the app **never opened on that device** → "Open Ignia to start"
-      (not "0 left").
+- [x] **Android** — after a Play update (vc 44 → 45, app not yet opened) the
+      widget read "Open Ignia to start", not stale numbers (2026-09-08,
+      OnePlus 8T). The literal never-opened case is still unwatched.
 - [x] **iOS** — log a meal → the numbers move within seconds (this proves the App
       Group write + `reloadWidget`, the single riskiest seam). This is the one
       that mattered: it makes the whole chain proven, not just the render.
-- [ ] **Android** — same check, via the `index.js` task handler.
+- [x] **Android** — same check, via the `index.js` task handler. *(2026-09-08,
+      OnePlus 8T, vc 45: 1,418 / 93 g → a 100 kcal / 5 g row → 1,318 / 88 g →
+      row deleted → 1,418 / 93 g. `.maestro/capture/widget-log.yaml` +
+      `widget-delete.yaml`, widget read by `adb screencap`.)*
 - [!] **Tap it → the app opens with the add-entry sheet already up.** **BROKEN
       from build 29 through build 40 and fixed 2026-08-09**: the face tap is
       `ignia://?openAdd=1`, and build 29's "de-duplication" of the explicit
@@ -217,13 +221,15 @@ installed and watched.
       The verifier now requires both schemes with whole-line matching (its
       first version used `includes()` and passed, because `ignia` is a
       substring of `fit.ignia.app`). Re-verify this row on hardware on 41+.
-- [ ] Tap it → the app opens **with the add-entry sheet already up**.
+- [x] **Android** — tap it → the app opens **with the add-entry sheet already up**
+      (2026-09-08, OnePlus 8T, vc 45). iOS still to re-verify on 41+.
 - [ ] Cross midnight with the app closed → it blanks instead of showing
       yesterday's totals as today's.
 - [ ] Set the app to es-PR → the widget's words follow the *profile*, not the
       phone's language.
-- [ ] Sign out → the widget blanks (it must not keep the old account's numbers
-      on the home screen).
+- [x] **Android** — sign out → the widget blanks to "Open Ignia to start"
+      (2026-09-08, OnePlus 8T; `.maestro/capture/signout.yaml`, then
+      `google-restore.yaml` put the account back and the numbers returned).
 
 **Quick-add (ADR-0020) — Android, vc 18. Every box below is UNTICKED and none of
 it has been run on hardware.** The unit tests cover the decisions; what they

@@ -1,0 +1,36 @@
+# WIDGET.md §Device QA — the undo half of widget-log: delete the row so the
+# account is left as it was, and the widget must move BACK.
+appId: fit.ignia.app
+---
+- launchApp:
+    clearState: false
+- assertVisible: 'Today'
+- tapOn:
+    id: 'store-update-dismiss'
+    optional: true
+- scrollUntilVisible:
+    element:
+      text: '.*QA Widget Check.*'
+    direction: DOWN
+    timeout: 15000
+    visibilityPercentage: 60
+    optional: true
+- repeat:
+    times: 10
+    while:
+      notVisible:
+        text: '.*QA Widget Check.*'
+    commands:
+      - swipe:
+          start: 10%, 80%
+          end: 10%, 45%
+- tapOn:
+    text: '.*QA Widget Check.*'
+- extendedWaitUntil:
+    visible:
+      id: 'entry-delete'
+    timeout: 15000
+- tapOn:
+    id: 'entry-delete'
+- assertNotVisible: '.*QA Widget Check.*'
+- takeScreenshot: .maestro/capture/shots/widget-log-2-deleted

@@ -1,0 +1,42 @@
+# Photo-scan `measured` (ADR-0029 item 2/4) — the path STATUS.md records as
+# "never appeared on a device". Needs a photo with a LEGIBLE scale reading and
+# unit in frame; this run uses a composited "245 g" readout on a real plate
+# photo, pushed to the gallery as the newest image. One model call.
+appId: fit.ignia.app
+---
+- launchApp:
+    clearState: false
+- assertVisible: 'Today'
+- openLink: 'ignia://scan'
+- tapOn:
+    text: 'Open'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'scan-choose'
+    timeout: 15000
+- tapOn:
+    id: 'scan-choose'
+- extendedWaitUntil:
+    notVisible:
+      id: 'scan-choose'
+    timeout: 10000
+- takeScreenshot: .maestro/capture/shots/scan-measured-1-picker
+- tapOn:
+    point: '25%,32%'
+- extendedWaitUntil:
+    visible:
+      id: 'scan-analyze'
+    timeout: 20000
+- takeScreenshot: .maestro/capture/shots/scan-measured-2-describe
+- tapOn:
+    id: 'scan-analyze'
+- extendedWaitUntil:
+    visible:
+      id: 'scan-calories'
+    timeout: 90000
+- takeScreenshot: .maestro/capture/shots/scan-measured-3-review
+- swipe:
+    start: 50%, 80%
+    end: 50%, 40%
+- takeScreenshot: .maestro/capture/shots/scan-measured-4-review-items

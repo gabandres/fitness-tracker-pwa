@@ -55,21 +55,19 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 - **`plugins/withGradleJvmArgs.js` is FROZEN** — any byte, *including a
   comment*, moves both platforms. Its docstring is stale on purpose.
 
-**`ignia-mac` disk is a recurring build constraint** — 19.18 GiB free against
-an iOS build's ~17 GB floor, and `df -h /` lies (`docs/build-infrastructure.md`).
+**`ignia-mac` disk is a recurring build constraint** — 21 GiB free after the
+2026-09-08 teardown (a 4 GB watchOS runtime + a 5 GB sim build took it to
+**100% full**, 109 MiB, in one afternoon) against an iOS build's ~17 GB floor,
+and `df -h /` lies (`docs/build-infrastructure.md`). **The watchOS simulator
+runtime is NOT installed** — the next iOS archive needs `xcodebuild
+-downloadPlatform watchOS` (4 GB) first.
 
 ## 2. Merged, on `main`, and not delivered anywhere
 
-**The IGNIA-MOBILE-V fix (`2d89e26c`, 2026-09-07)** — a workout session
-deleted mid-import is skipped rather than re-created as a malformed doc. On
-iOS by OTA (public, on the open channel). **On Android it is in vc 45, live on
-Play since 2026-09-07** — so it is delivered on both platforms, and this entry
-stays only for the open verification. Behaviour is unit-tested only;
-device-verify on the OnePlus 8T once vc 45 installs from Play: discard a
-workout with a set input focused, confirm no Sentry event, then resolve
-`IGNIA-MOBILE-V` (`prod-errors`).
+Nothing. The IGNIA-MOBILE-V fix was device-verified on the LG (vc 45 + today's
+OTA) on 2026-09-08 and the issue is resolved — `CHANGELOG.md`.
 
-Everything else merged has shipped (`node scripts/app-version-sync.mjs --check`
+Everything merged has shipped (`node scripts/app-version-sync.mjs --check`
 re-derives the live numbers).
 
 **iOS behaviour is UNVERIFIED for most of it.** The identical JS is
@@ -114,7 +112,7 @@ signups per 120 days no A/B is readable; pair retention work with acquisition.
 | # | Lever | State |
 |---|---|---|
 | 1–4, 7 | First log inside onboarding · lapsed local nudges · the two deciding numbers instrumented · first-scan celebration · maintenance mode (ADR-0037) | **SHIPPED** (2026-09-02, 09-04, 09-05 — `CHANGELOG.md` has the device evidence). Watch: `config/retention` `timeToFirstLog` (first read: median 1 h 32 m, p75 4 h 49 m, 17% inside five minutes, n=12 — the number lever 1 has to move) and `secsPerLog`. `meals-100` stays parked — it needs a lifetime count no window answers honestly. |
-| 5 | **Verify the zero-friction triggers** — Android widget on a real home screen, watch/Siri (rows below). A widget is a log path under 10 s. | Widget placed on the OnePlus 2026-09-05 (owner-reported; renders). Its log path and the watch/Siri rows stay open, owner with a device. |
+| 5 | **Verify the zero-friction triggers** — Android widget on a real home screen, watch/Siri (rows below). A widget is a log path under 10 s. | **Android widget VERIFIED 2026-09-08** on the OnePlus (log → numbers move, tap → add sheet, sign-out → blank; row below). Watch/Siri stay open, owner with an iPhone. |
 | 6 | **Guest mode (`UX_AUDIT.md` N5)** if lever 1 does not move D1 alone. | Deferred until 1 is measured. |
 
 Not taken with lever 2, deliberately: bounding the OS-repeating meal-window
@@ -122,10 +120,10 @@ dailies (silence after a week away) changes existing schedules — a separate ca
 
 | Work | Blocked on |
 |---|---|
-| **Photo scan — two things have still never been seen on a device** | **Owner, with a phone.** Multi-photo capture is closed and was confirmed on a real meal (2026-08-26); ADR-0029 is `accepted`. **The asymmetry that must survive:** `spendCeiling` counts IMAGES (solvency), `dailyQuota` counts SCANS (fairness). Never observed: **repeat detection has never fired** (needs a My Foods entry matching a typed note; it is deliberately quiet, so "never suggested anything" and "broken" look identical) and **`measured` has never appeared** (needs a legible scale AND unit in one photo). **Seam not to break:** `measured` drops if `clampGrams` altered the number. De-duplication is improved, not solved. **Owner-only call:** whether a matched repeat should land on an editable draft rather than logging straight to Today. |
+| **Photo scan — two things have still never been seen on a device** | **Owner, with a phone.** Multi-photo capture is closed and was confirmed on a real meal (2026-08-26); ADR-0029 is `accepted`. **The asymmetry that must survive:** `spendCeiling` counts IMAGES (solvency), `dailyQuota` counts SCANS (fairness). **Repeat detection FIRED on a device 2026-09-08** (LG, `qa-test@`: a seeded My Foods "Grilled chicken steak" + the note "grilled chicken steak" → *You have logged this before* → *Use it* logged 330 kcal with no model call; a first attempt on an app instance that predated the seed showed nothing — the list is subscribed on focus, so a fresh entry needs a cold start or a tab change). **`measured` is still unobserved, and the reason is now known:** a plate photo with a composited "245 g" readout came back with grams = 245 but `measured: false`, and the model's logged reasoning says why — *no visible weighing scale in the photo, only a text overlay*, exactly what the prompt asks. So the path needs a photo of a real scale under the plate; nothing synthetic will do. **Seam not to break:** `measured` drops if `clampGrams` altered the number. De-duplication is improved, not solved. **Owner-only call:** whether a matched repeat should land on an editable draft rather than logging straight to Today. |
 | **Cardio + Oura — shipped on both platforms; what remains unobserved is narrow** | **Nothing blocking on code.** Oura OAuth, token exchange and the Cloud fetch are VERIFIED with real data (`integrations/oura` on the ring account: `lastSyncedAt` 2026-08-30, `lastRecordCount: 2`); the two records were `strengthTraining`, which the importer deliberately DECLINES (issue 102). **Still unobserved: a cardio-classified record (walk/run/cycle) landing as a via-Oura block** — needs the ring's owner to record one; the `skipped` count is client-screen-only, so wire-shape confirmation rides on that too. Android's Health Connect read works since the 2026-09-04 OTA (`aggregateGroupByDuration`; the grant proven on the LG 2026-09-03). **The seam not to break:** an imported `kcal` is display provenance and never reaches a target (ADR-0024 decision 4, pinned by `cardio-energy-independence.test.ts`). |
-| **Android widget on a real home screen — PLACED, owner-reported 2026-09-05** | Renders on the OnePlus 8T. **Still unverified on Android:** the numbers moving after a log (the `index.js` task handler), the tap-to-log button, midnight blanking, sign-out blanking — the rest of `WIDGET.md` §Device QA. **Maestro cannot close these** (no `adb` command places a widget; the Quick Settings tile IS drivable via `adb shell cmd statusbar click-tile`). The iOS half is done and verified on a physical iPhone. |
-| **Watch complication + Siri quick-add behaviour** | **UNVERIFIED on hardware.** ADR-0023: `transferCurrentComplicationUserInfo` cannot wake a **WidgetKit** complication (Apple FB12926788) — what ships is an hourly pull. Nobody has watched a face move after a meal logged outside the app. Read *Settings → Apple Watch* on a device before writing any more code here. |
+| **Android widget — VERIFIED on the OnePlus 8T 2026-09-08 (vc 45)** | Read off home-screen screencaps, not the app: after the Play update it read *Open Ignia to start*; opening the app → **1,418 kcal / 93 g**; a 100 kcal / 5 g test row logged in-app → **1,318 / 88 g** (the `index.js` task handler); the row deleted → back to 1,418 / 93; tapping the face → the app opens with the add sheet up; sign-out → *Open Ignia to start*; restore via the Google picker → numbers back. **Still open:** midnight blanking (needs the clock moved; ColorOS refuses `settings put` from adb) and the es-PR wording check. Flows: `.maestro/capture/widget-log.yaml` / `widget-delete.yaml`; the widget read is `adb screencap` + a crop at the `uiautomator` bounds. |
+| **Watch complication + Siri quick-add behaviour** | **UNVERIFIED on hardware.** ADR-0023: `transferCurrentComplicationUserInfo` cannot wake a **WidgetKit** complication (Apple FB12926788) — what ships is an hourly pull. Nobody has watched a face move after a meal logged outside the app. Read *Settings → Apple Watch* on a device before writing any more code here. **A simulator run was attempted 2026-09-08 and abandoned:** the sim build succeeded and the paired watch sim showed the *Waiting for iPhone* baseline, but the Mac's disk hit 100% mid sign-in and the owner reclaimed the machine; everything was torn down (§`ignia-mac`). A sim can only ever prove the pipeline, not the background-refresh budget the row is about. |
 | **The website — Google started indexing it (6 of 7 sampled URLs *Submitted and indexed* since 2026-09-03); the sitemap is still never fetched** | **Nothing to do but wait and re-measure** with `node scripts/gsc.mjs inspect`. What moved it was the orphan-graph fix live since 08-31 (118 of 118 sitemap URLs reachable from `/`), not the sitemap (`lastDownloaded` still `not yet` after four submits). **The router/SSR migration stays DEFERRED** — its premise (Google never requests the pages) is now false. Next read: GSC Performance in ~2 weeks, and `/transformations`. Tables: `docs/seo-status.md`. |
 | **Android device QA host** | **LG VS988 (Android 9 / API 28)** and the **OnePlus 8T (Android 14)** over adb; neither is the API 26 floor. The Maestro regression suite is clean against vc 44 (`apps/mobile/.maestro/regression/coverage.md` has the runs and the host prerequisites). **The suite WRITES** — it runs on `qa-test@ignia.fit`; `node scripts/qa-regression-verify.mjs cleanup --email qa-test@ignia.fit` after a sweep. Regaining adb after an LG reboot is PHYSICAL. |
 | **Photo-scan validation gate** | 30–50 real photos, judging the **item list and portions** — never the macros. Harness: `scripts/validate-photo-itemiser.mjs` (ADR-0015 §2). |

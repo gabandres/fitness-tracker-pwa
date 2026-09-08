@@ -1,0 +1,42 @@
+# WIDGET.md §Device QA, Android half — "log a meal → the numbers move".
+#
+# Starts from the add sheet the widget tap already opened (or opens it via the
+# same deep link the widget face fires), logs an unmistakable row, and returns
+# to Today. The widget read happens OUTSIDE Maestro (adb screencap of the home
+# screen), because Maestro cannot drive the launcher. Pair with widget-delete.
+appId: fit.ignia.app
+---
+- launchApp:
+    clearState: false
+- assertVisible: 'Today'
+- tapOn:
+    id: 'store-update-dismiss'
+    optional: true
+- openLink: 'ignia://?openAdd=widget-check'
+- tapOn:
+    text: 'Open'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'open-more'
+    timeout: 15000
+- tapOn:
+    id: 'open-manual'
+- tapOn:
+    id: 'entry-label'
+- inputText: 'QA Widget Check'
+- tapOn:
+    id: 'entry-calories'
+- inputText: '100'
+- tapOn:
+    id: 'entry-protein'
+- inputText: '5'
+- tapOn: 'Add food'
+- tapOn:
+    id: 'entry-save'
+- extendedWaitUntil:
+    visible:
+      text: '.*QA Widget Check.*'
+    timeout: 15000
+    optional: true
+- takeScreenshot: .maestro/capture/shots/widget-log-1-logged

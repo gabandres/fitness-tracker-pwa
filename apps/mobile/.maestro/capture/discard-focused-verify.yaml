@@ -1,0 +1,86 @@
+# IGNIA-MOBILE-V device verification (2026-09-08).
+#
+# The defect: discarding a workout while a set input still had focus let the
+# input's blur-commit write to the session doc the delete was removing, which
+# re-created it as a malformed `{ updatedAt, cardio }` doc and threw
+# `permission-denied` out of the health importer. The fix (`2d89e26c`) nulls the
+# active ref BEFORE the delete round-trip, so a blur-commit during it writes
+# nothing.
+#
+# What this flow does: start a workout, create a throwaway exercise, type into
+# its rep cell so the cell HOLDS FOCUS, then tap Discard without ever blurring.
+# What proves the fix: the idle Train view returns, no session doc survives for
+# the account (checked from Firestore afterwards), and Sentry gets no event.
+#
+# STATE: creates ONE catalog exercise ("QA V Check"); clean it up with
+# `node scripts/qa-regression-verify.mjs cleanup --email qa-test@ignia.fit`.
+appId: fit.ignia.app
+---
+- launchApp:
+    clearState: false
+- assertVisible: 'Today'
+- tapOn: 'Train'
+- runFlow:
+    when:
+      visible:
+        id: 'discard-workout'
+    commands:
+      - tapOn:
+          id: 'discard-workout'
+      - extendedWaitUntil:
+          visible:
+            id: 'start-workout'
+          timeout: 60000
+- extendedWaitUntil:
+    visible:
+      id: 'start-workout'
+    timeout: 60000
+- tapOn:
+    id: 'start-workout'
+- extendedWaitUntil:
+    visible:
+      id: 'add-exercise'
+    timeout: 15000
+- tapOn:
+    id: 'add-exercise'
+- tapOn:
+    id: 'exercise-name'
+- inputText: 'QA V Check'
+- tapOn: 'Add exercise'
+- tapOn:
+    id: 'create-exercise'
+- extendedWaitUntil:
+    visible:
+      id: 'set-count-0-0'
+    timeout: 15000
+# Focus the rep cell and type — the deferred dispatch is now pending and the
+# input keeps focus. Nothing below hides the keyboard on purpose.
+- tapOn:
+    id: 'set-count-0-0'
+- inputText: '8'
+- takeScreenshot: .maestro/capture/shots/discard-focused-1-focused
+# Discard with the input still focused. If the button sits under the keyboard
+# the swipe brings it up without blurring (a swipe is not a blur).
+- scrollUntilVisible:
+    element:
+      id: 'discard-workout'
+    direction: DOWN
+    timeout: 20000
+    centerElement: true
+    optional: true
+- repeat:
+    times: 6
+    while:
+      notVisible:
+        id: 'discard-workout'
+    commands:
+      - swipe:
+          start: 10%, 80%
+          end: 10%, 45%
+- tapOn:
+    id: 'discard-workout'
+- extendedWaitUntil:
+    visible:
+      id: 'start-workout'
+    timeout: 60000
+- takeScreenshot: .maestro/capture/shots/discard-focused-2-after-discard

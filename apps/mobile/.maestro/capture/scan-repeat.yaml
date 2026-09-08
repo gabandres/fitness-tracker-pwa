@@ -1,0 +1,46 @@
+# Photo-scan REPEAT DETECTION (ADR-0029 item 3) — the path STATUS.md records as
+# "never fired on a device". Runs BEFORE any model call: pick any photo, type a
+# note that names a My Foods entry, and the repeat box must appear. Tapping it
+# logs the stored food for $0.
+#
+# Precondition: a My Foods entry named "Grilled chicken steak" on the account,
+# and a photo in the device gallery (any image — the matcher reads the NOTE).
+appId: fit.ignia.app
+---
+- launchApp:
+    clearState: false
+- assertVisible: 'Today'
+- openLink: 'ignia://scan'
+- tapOn:
+    text: 'Open'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'scan-choose'
+    timeout: 15000
+- takeScreenshot: .maestro/capture/shots/scan-repeat-0-intro
+- tapOn:
+    id: 'scan-choose'
+# The system picker. Android 9's chooser lists recents newest-first, so the
+# pushed photo is the first tile; tapping it returns straight to the app.
+- extendedWaitUntil:
+    notVisible:
+      id: 'scan-choose'
+    timeout: 10000
+- takeScreenshot: .maestro/capture/shots/scan-repeat-1-picker
+- tapOn:
+    point: '25%,32%'
+- extendedWaitUntil:
+    visible:
+      id: 'scan-note'
+    timeout: 20000
+- takeScreenshot: .maestro/capture/shots/scan-repeat-2-describe
+- tapOn:
+    id: 'scan-note'
+- inputText: 'grilled chicken steak'
+- extendedWaitUntil:
+    visible:
+      text: '.*[Ll]ogged this before.*|.*before.*'
+    timeout: 10000
+    optional: true
+- takeScreenshot: .maestro/capture/shots/scan-repeat-3-suggestion
