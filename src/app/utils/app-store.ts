@@ -29,13 +29,24 @@ export const APP_STORE_URL = LISTING;
 export const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=fit.ignia.app';
 
 /**
- * ONE-LINE FLIP: set to `true` the day the Play listing goes public — i.e.
- * when `PLAY_STORE_URL` returns 200 instead of 404 (`STATUS.md` owns that
- * fact; the first production release is submitted and in review as of
- * 2026-08-29). While `false`, the landing page shows a quiet "coming soon
- * to Google Play" state instead of linking visitors to a 404.
+ * ONE-LINE FLIP: `true` while the Play listing is public — i.e. while
+ * `PLAY_STORE_URL` returns 200 (`STATUS.md` owns that fact). Set back to
+ * `false` only if the listing is ever pulled; the landing then shows a quiet
+ * "coming soon to Google Play" state instead of linking visitors to a 404.
  */
 export const PLAY_STORE_LIVE = true; // flipped 2026-09-07: Play production vc 44 public since 2026-09-03, store URL 200
+
+/**
+ * Google's official "Get it on Google Play" badge (play.google.com/intl/en_us/badges),
+ * cropped of its transparent padding so a `height: 54px` renders it at the same
+ * visual height as `/appstore-badge.svg` beside it. Two files because the badge
+ * is localized ARTWORK — Google's brand rules forbid re-typesetting it, so the
+ * Spanish half of the site gets Google's own es-419 badge, not a translated
+ * label. Sized 564×168 (en) and 646×192 (es); both are 3.36:1.
+ */
+export function playBadgeSrc(lang: string): string {
+  return lang.startsWith('es') ? '/playstore-badge-es.png' : '/playstore-badge-en.png';
+}
 
 /**
  * Custom Product Pages, keyed by the intent they serve.

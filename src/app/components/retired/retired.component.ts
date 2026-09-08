@@ -1,6 +1,7 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { TranslocoDirective } from '@jsverse/transloco';
-import { APP_STORE_URL, PLAY_STORE_URL } from '../../utils/app-store';
+import { TranslationService } from '../../services/translation.service';
+import { APP_STORE_URL, PLAY_STORE_URL, playBadgeSrc } from '../../utils/app-store';
 import { UiCard } from '../ui/card.component';
 
 /**
@@ -36,8 +37,9 @@ import { UiCard } from '../ui/card.component';
             <img src="/appstore-badge.svg" alt="{{ t('retired.appStoreAlt') }}"
               width="180" height="60" loading="lazy" decoding="async" class="h-[52px] w-auto" />
           </a>
-          <a [href]="PLAY_STORE_URL" rel="noopener" class="v2-btn v2-btn--secondary">
-            {{ t('retired.playStore') }}
+          <a [href]="PLAY_STORE_URL" rel="noopener" [attr.aria-label]="t('retired.playStoreAlt')">
+            <img [src]="playBadgeSrc()" alt="{{ t('retired.playStoreAlt') }}"
+              width="564" height="168" loading="lazy" decoding="async" class="h-[52px] w-auto" />
           </a>
         </div>
 
@@ -51,8 +53,10 @@ import { UiCard } from '../ui/card.component';
   `,
 })
 export class RetiredComponent {
+  private readonly i18n = inject(TranslationService);
   protected readonly APP_STORE_URL = APP_STORE_URL;
   protected readonly PLAY_STORE_URL = PLAY_STORE_URL;
+  protected readonly playBadgeSrc = computed(() => playBadgeSrc(this.i18n.language()));
 
   constructor() {
     // Belt and braces: the prerenderer never emits these URLs, but the SPA

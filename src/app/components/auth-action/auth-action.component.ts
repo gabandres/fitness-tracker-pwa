@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { TranslocoDirective } from '@jsverse/transloco';
 import {
   Auth,
@@ -6,7 +6,8 @@ import {
   confirmPasswordReset,
   verifyPasswordResetCode,
 } from '@angular/fire/auth';
-import { APP_STORE_URL, PLAY_STORE_URL } from '../../utils/app-store';
+import { TranslationService } from '../../services/translation.service';
+import { APP_STORE_URL, PLAY_STORE_URL, playBadgeSrc } from '../../utils/app-store';
 import { UiCard } from '../ui/card.component';
 
 /**
@@ -59,7 +60,10 @@ import { UiCard } from '../ui/card.component';
                 <img src="/appstore-badge.svg" alt="{{ t('retired.appStoreAlt') }}"
                   width="180" height="60" loading="lazy" decoding="async" class="h-[44px] w-auto" />
               </a>
-              <a [href]="PLAY_STORE_URL" rel="noopener" class="v2-link v2-caption">{{ t('retired.playStore') }}</a>
+              <a [href]="PLAY_STORE_URL" rel="noopener" [attr.aria-label]="t('retired.playStoreAlt')">
+                <img [src]="playBadgeSrc()" alt="{{ t('retired.playStoreAlt') }}"
+                  width="564" height="168" loading="lazy" decoding="async" class="h-[44px] w-auto" />
+              </a>
             </div>
           }
           @case ('resetForm') {
@@ -106,9 +110,11 @@ import { UiCard } from '../ui/card.component';
 })
 export class AuthActionComponent {
   private readonly auth = inject(Auth);
+  private readonly i18n = inject(TranslationService);
 
   protected readonly APP_STORE_URL = APP_STORE_URL;
   protected readonly PLAY_STORE_URL = PLAY_STORE_URL;
+  protected readonly playBadgeSrc = computed(() => playBadgeSrc(this.i18n.language()));
 
   protected readonly state = signal<'working' | 'verified' | 'resetForm' | 'resetDone' | 'error'>('working');
   protected readonly resetEmail = signal('');

@@ -6,6 +6,7 @@ import { requireAdmin } from "./admin-guard";
 import { DailyQuota, type QuotaKind } from "./daily-quota";
 import { SpendCeiling } from "./spend-ceiling";
 import { redactProfileSecrets } from "./redact";
+import { describeLogRow, type LogRowFields } from "./activity-detail";
 
 const STATS_TTL_MS = 5 * 60 * 1000; // 5-min cache — cheap to refresh, expensive to run
 const ACTIVITY_TTL_MS = 30 * 1000;  // 30-sec cache — feed barely changes between rapid refreshes
@@ -389,14 +390,12 @@ export const getRecentActivity = onCall({ timeoutSeconds: 60 }, async (request) 
       const data = d.data();
       const ts = (data["timestamp"] as Timestamp | undefined)?.toDate();
       if (!ts) continue;
-      const kcal = (data["calories"] as number | undefined) ?? 0;
-      const label = (data["mealLabel"] as string | undefined) || "Entry";
       items.push({
         type: "entry",
         uid,
         email: emailByUid.get(uid) ?? null,
         timestamp: ts.toISOString(),
-        detail: `${label} · ${kcal} kcal`,
+        detail: describeLogRow(data as LogRowFields),
       });
     }
   } catch (err) {

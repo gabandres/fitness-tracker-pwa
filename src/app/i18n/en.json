@@ -132,7 +132,7 @@
     "privacyBody": "your body data stays yours. we don't sell it, don't serve ads, don't train AI on it. photos sent for analysis are processed ephemerally and not retained. export or delete everything at any time.",
     "privacyLink": "read the privacy policy",
     "termsLink": "read the terms",
-    "freeCta": "get it on Google Play",
+    "playStoreAlt": "Get Ignia on Google Play",
     "tryCalculator": "try the calculator",
     "quickTargetsRule": "start from a number",
     "quickTargetsLead": "common starting points by weight. each opens a public page with the real numbers — no sign-up, no email.",
@@ -540,7 +540,7 @@
     "body": "The web version you opened has been retired. The same Ignia — same account, same log — is on the App Store and Google Play.",
     "dataSafe": "Nothing you logged has been touched. Sign in on the app with the same account and it is all there.",
     "appStoreAlt": "Download Ignia on the App Store",
-    "playStore": "Get it on Google Play",
+    "playStoreAlt": "Get Ignia on Google Play",
     "exportLead": "Want a copy of your data, or to delete your account?",
     "exportLink": "Both are on the privacy page."
   },

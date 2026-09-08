@@ -11,7 +11,7 @@ import { LucideAngularModule } from 'lucide-angular';
 import { TranslationService } from '../../services/translation.service';
 import { AnalyticsService } from '../../services/analytics.service';
 import { stripLangPrefix } from '../../i18n/locale-path';
-import { APP_STORE_CPP } from '../../utils/app-store';
+import { APP_STORE_CPP, PLAY_STORE_URL, playBadgeSrc } from '../../utils/app-store';
 import { UiCard } from '../ui/card.component';
 import { VS_PROFILES, VsProfile, vsProfileFor } from './vs-data';
 
@@ -99,11 +99,17 @@ import { VS_PROFILES, VsProfile, vsProfileFor } from './vs-data';
           <!-- Comparison pages are the highest-intent traffic on the site
                ("MacroFactor alternative", "MyFitnessPal vs …"), so they get
                a direct route to the store, not just to the web app. -->
-          <div class="mt-5 flex justify-center">
+          <div class="mt-5 flex flex-wrap justify-center items-center gap-3">
             <a [href]="APP_STORE_URL" rel="noopener" (click)="trackCtaClick('appstore')"
               [attr.aria-label]="t('landing.appStoreAlt')">
               <img src="/appstore-badge.svg" alt="{{ t('landing.appStoreAlt') }}"
                 width="180" height="60" loading="lazy" decoding="async"
+                class="h-[48px] w-auto transition-transform duration-200 hover:scale-105" />
+            </a>
+            <a [href]="PLAY_STORE_URL" rel="noopener" (click)="trackCtaClick('play')"
+              [attr.aria-label]="t('landing.playStoreAlt')">
+              <img [src]="playBadgeSrc()" alt="{{ t('landing.playStoreAlt') }}"
+                width="564" height="168" loading="lazy" decoding="async"
                 class="h-[48px] w-auto transition-transform duration-200 hover:scale-105" />
             </a>
           </div>
@@ -162,7 +168,10 @@ export class VsPageComponent {
    */
   protected readonly APP_STORE_URL = APP_STORE_CPP.switchers;
 
-  protected trackCtaClick(target: 'calculator' | 'signup' | 'appstore'): void {
+  protected readonly PLAY_STORE_URL = PLAY_STORE_URL;
+  protected readonly playBadgeSrc = computed(() => playBadgeSrc(this.translation.language()));
+
+  protected trackCtaClick(target: 'calculator' | 'signup' | 'appstore' | 'play'): void {
     const p = this.profile();
     if (!p) return;
     this.analytics.track('vs_cta_click', { competitor: p.slug, target });

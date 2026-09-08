@@ -22,7 +22,7 @@ import {
 import { setCalcPrefill } from '../../utils/calc-prefill';
 import { share } from '../../utils/share';
 import { LucideAngularModule } from 'lucide-angular';
-import { APP_STORE_URL } from '../../utils/app-store';
+import { APP_STORE_URL, PLAY_STORE_URL, playBadgeSrc } from '../../utils/app-store';
 
 // ─── Programmatic SEO variants ──────────────────────────────────
 //
@@ -190,11 +190,17 @@ function detectGoalFromPath(): GoalDirection {
                 {{ shareLabel() }}
               </button>
             </div>
-            <div class="mt-5 flex justify-center">
+            <div class="mt-5 flex flex-wrap justify-center items-center gap-3">
               <a [href]="APP_STORE_URL" rel="noopener" (click)="trackAppStoreClick()"
                 [attr.aria-label]="t('landing.appStoreAlt')">
                 <img src="/appstore-badge.svg" alt="{{ t('landing.appStoreAlt') }}"
                   width="180" height="60" loading="lazy" decoding="async"
+                  class="h-[48px] w-auto transition-transform duration-200 hover:scale-105" />
+              </a>
+              <a [href]="PLAY_STORE_URL" rel="noopener" (click)="trackPlayClick()"
+                [attr.aria-label]="t('landing.playStoreAlt')">
+                <img [src]="playBadgeSrc()" alt="{{ t('landing.playStoreAlt') }}"
+                  width="564" height="168" loading="lazy" decoding="async"
                   class="h-[48px] w-auto transition-transform duration-200 hover:scale-105" />
               </a>
             </div>
@@ -299,11 +305,17 @@ export class CalculatorComponent {
   /** App Store listing — mirrors landing.component.ts and the
    *  `apple-itunes-app` meta in src/index.html. */
   protected readonly APP_STORE_URL = APP_STORE_URL;
+  protected readonly PLAY_STORE_URL = PLAY_STORE_URL;
+  protected readonly playBadgeSrc = computed(() => playBadgeSrc(this.translation.language()));
 
   /** Separate event from `calculator_cta_signup` so the store route and
    *  the web-signup route can be compared in the funnel. */
   protected trackAppStoreClick(): void {
     this.analytics.track('calculator_cta_appstore', { goal: this.goal() });
+  }
+
+  protected trackPlayClick(): void {
+    this.analytics.track('calculator_cta_play', { goal: this.goal() });
   }
 
   protected trackCtaClick(): void {

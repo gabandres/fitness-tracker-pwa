@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, ElementRef, afterNextRender, computed, inject, signal } from '@angular/core';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { Firestore, doc, getDoc } from '@angular/fire/firestore';
-import { APP_STORE_URL, PLAY_STORE_URL, PLAY_STORE_LIVE } from '../../utils/app-store';
+import { APP_STORE_URL, PLAY_STORE_URL, PLAY_STORE_LIVE, playBadgeSrc } from '../../utils/app-store';
 import { TranslationService } from '../../services/translation.service';
 import { localizedPath } from '../../i18n/locale-path';
 
@@ -74,7 +74,10 @@ import { localizedPath } from '../../i18n/locale-path';
                   width="180" height="60" loading="eager" decoding="async" fetchpriority="high" />
               </a>
               @if (PLAY_STORE_LIVE) {
-                <a [href]="PLAY_STORE_URL" rel="noopener" class="lp-play-live">{{ t('landing.freeCta') }}</a>
+                <a [href]="PLAY_STORE_URL" rel="noopener" class="lp-badge" [attr.aria-label]="t('landing.playStoreAlt')">
+                  <img [src]="playBadgeSrc()" alt="{{ t('landing.playStoreAlt') }}"
+                    width="564" height="168" loading="eager" decoding="async" />
+                </a>
               }
             </div>
             <div class="lp-hero-links">
@@ -222,7 +225,10 @@ import { localizedPath } from '../../i18n/locale-path';
                   width="180" height="60" loading="lazy" decoding="async" />
               </a>
               @if (PLAY_STORE_LIVE) {
-                <a [href]="PLAY_STORE_URL" rel="noopener" class="v2-btn v2-btn--primary v2-btn--lg">{{ t('landing.freeCta') }}</a>
+                <a [href]="PLAY_STORE_URL" rel="noopener" class="lp-badge" [attr.aria-label]="t('landing.playStoreAlt')">
+                  <img [src]="playBadgeSrc()" alt="{{ t('landing.playStoreAlt') }}"
+                    width="564" height="168" loading="lazy" decoding="async" />
+                </a>
               }
             </div>
             <p class="lp-cta-note">{{ PLAY_STORE_LIVE ? t('landing.downloadAndroidLive') : t('landing.downloadAndroidSoon') }}</p>
@@ -358,6 +364,8 @@ export class LandingComponent {
   protected readonly APP_STORE_URL = APP_STORE_URL;
   protected readonly PLAY_STORE_URL = PLAY_STORE_URL;
   protected readonly PLAY_STORE_LIVE = PLAY_STORE_LIVE;
+  /** Google's badge is localized artwork, so the Spanish half gets the es-419 file. */
+  protected readonly playBadgeSrc = computed(() => playBadgeSrc(this.i18n.language()));
 
   /** The six feature cells — `k` indexes the `landing.proof{k}*` i18n
    *  triads, `n` is the printed calibration-log numeral. */
