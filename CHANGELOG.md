@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-09-07 (night) — vc 45 / 1.2.3 is live on Play production; the Android OTA channel reopens
+
+Play approved the restarted review ~22:46 UTC, about 7.5 h after the 15:05
+restart. The public store page reads 1.2.3 / *Updated on Sep 7, 2026* (read
+2026-09-08). What shipped in one review: the IGNIA-MOBILE-V fix (`2d89e26c`),
+the Ember-on-Ink icon, the feature graphic and the five re-shot phone
+screenshots. Both Android tracks (production 100%, alpha) are on vc 45.
+
+Consequences: the Windows tree's fingerprint `15c1cfc8…` now matches the live
+binary, so **the Android OTA channel is OPEN** for the first time since the
+1.2.3 bump (`437a90ce`); `app-version.json` and the store now agree at 45; and
+the vc 44 reviewer who hit IGNIA-MOBILE-V gets the fix on their next Play
+update. Still open: device-verifying that fix on the OnePlus 8T, and the Data
+safety amendment from 09-03 (`STATUS.md` §1, §2).
+
 ## 2026-09-07 (later) — the Play listing is on the new art with the re-shot screenshots; the vc 45 review restarted to carry them
 
 The Ember-on-Ink icon and feature graphic saved on 2026-09-05 had already been

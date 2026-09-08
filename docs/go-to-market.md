@@ -27,7 +27,7 @@ app went live on the App Store.
 | App Store ID | `6788589414` · bundle `fit.ignia.app` |
 | Listing URL | <https://apps.apple.com/app/id6788589414> |
 | Platforms | iPhone (iOS 16+, **not** iPad — `supportsTablet: false`) · Android · **no browser version** — the web logging app was retired 2026-08-30 (ADR-0036); <https://ignia.fit> is the marketing site |
-| Android | On the Play **alpha** track and **submitted to production 2026-08-29, in review** — this row said "closed testing only, production access needs 12 testers × 14 days" until 2026-08-30; access was granted on 08-29. Whether the public listing is live is a `STATUS.md` §1 question (the store URL returning 200 is the only read). Do not quote a date. |
+| Android | **LIVE on Play production since 2026-09-03** (first release vc 44; vc 45 / 1.2.3 followed 2026-09-07). Listing URL <https://play.google.com/store/apps/details?id=fit.ignia.app>. Which version is live is a `STATUS.md` §1 question. |
 | Price | **Free. No paywall, no subscription, no trial.** **The tip jar is OFF since 2026-08-19** — `FEATURES.tips = false` on both platforms, the three `fit.ignia.tip.*` consumables are `DEVELOPER_REMOVED_FROM_SALE`, `/tip` → `/support`. Do not market a way to pay the developer; there isn't one. Re-enables only when payouts land in the Bermudez Systems LLC bank account (`STATUS.md` §3) |
 | Languages | English + Spanish (Puerto Rico), fully translated |
 
@@ -57,7 +57,7 @@ released. Re-read `STATUS.md` §2 for the current cutline.
 | Pro / premium / unlimited-anything | `PRO_ENABLED = false`; there is no paid tier to upsell |
 | Free trial, "upgrade", pricing anchors | nothing to buy |
 | Progress photos | uploading works, but it was cut from the v1 story — don't market it |
-| Android app | On the Play alpha track, **production submitted 2026-08-29 and in review** — the public listing is not live until the store URL returns 200 (`STATUS.md` §1). This row said "closed alpha only, production access needs 12 testers × 14 days" until 2026-08-30; access was granted on 08-29. Do not market Android as available until the URL is live |
+| Android app | **Live on Google Play** since 2026-09-03 — <https://play.google.com/store/apps/details?id=fit.ignia.app> returns 200. Market it as available |
 | Voice dictation · the redesigned Add screen · the fasting Live Activity · the wide home-screen widget | all shipped and all **only on TestFlight** — they reach the public when 1.2.0 releases, not before |
 
 **Corrected 2026-08-15 — two rows in this table were badly wrong**, and both

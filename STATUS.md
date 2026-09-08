@@ -27,19 +27,19 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 |---|---|
 | **Public App Store (iOS)** | **1.2.3 / build 64, `READY_FOR_SALE`, released 2026-09-06 00:01 UTC** (iTunes lookup + ASC API, read 2026-09-07). Runtime `52802bba…`, which IS what this tree produces, so **the iOS OTA channel is OPEN to the public**; the first publish on it is the 2026-09-07 IGNIA-MOBILE-V fix (`apps/mobile/AGENTS.md`). Carries the re-shot screenshots (en-US 5, es-MX 5) and `usesIdfa: false`. **Available in 175 of 175 territories** since 2026-08-28 (DSA trader declaration filed). Play matched on 2026-09-03: 158 of Play's attainable 158 |
 | **TestFlight** | **build 64 / 1.2.3 (runtime `52802bba…`) is in the EXTERNAL *Public Beta Testers* group, `WAITING_FOR_BETA_REVIEW` since 2026-09-05.** Build 63 is in the group but can never reach an external tester — a build of an already-released version stays `READY_FOR_BETA_SUBMISSION` forever. **Read the group's builds AND each build's `externalBuildState`, never assume:** `VALID` + in the group ≠ installable |
-| **Play production + alpha** | **LIVE — vc 44 / 1.2.2 (runtime `68ea2dd3…`), the first Android production release, published 2026-09-03.** **vc 45 / 1.2.3 (runtime `15c1cfc8…`, the IGNIA-MOBILE-V fix) is committed to production at 100% AND on alpha, IN REVIEW.** First sent 2026-09-07 ~14:30 UTC via `play-upload-bundle.mjs` → `play-production-release.mjs`; **the review was RESTARTED 2026-09-07 ~15:05 UTC** when the listing changes (Ember-on-Ink icon, feature graphic, five re-shot phone screenshots) were sent for review from the same submission — Play warned it would restart, and that was the accepted trade. **The tracks API cannot tell "in review" from "live"** — `app-version-sync --check` already reports production 45 / alpha 45; the Console app row (*In review*) or the store page is the read. **Knock-on:** `hourlyTasks` reads the same tracks API, so `app-version.json` will advertise 45 while the store still serves 44 until the review lands — self-healing, noted, not fixed. The Data safety amendment (09-03) is also still open. `eas submit` has failed and exited 0 three times (lost Play edit on bundles > 60 MB; a missing health declaration) — **`play-upload-bundle.mjs` is the upload path; confirm every submit against the tracks API** |
+| **Play production + alpha** | **LIVE — vc 45 / 1.2.3 (runtime `15c1cfc8…`, the IGNIA-MOBILE-V fix, plus the Ember-on-Ink icon, feature graphic and five re-shot screenshots), production 100% + alpha, released 2026-09-07 ~22:46 UTC** (store page reads 1.2.3 / *Updated on Sep 7, 2026*, read 2026-09-08). The review took ~7.5 h from the 15:05 UTC restart. **Nothing is in review; the next submit can go whenever there is a change to ship.** **The tracks API cannot tell "in review" from "live"** — the Console app row or the store page is the read. The Data safety amendment (09-03) is still open, submit-independent. `eas submit` has failed and exited 0 three times (lost Play edit on bundles > 60 MB; a missing health declaration) — **`play-upload-bundle.mjs` is the upload path; confirm every submit against the tracks API** |
 | **Web `ignia.fit`** | **Shell + `/admin` — the web logging app was RETIRED 2026-08-30 (ADR-0036).** 113 prerendered pages, EN + es-PR. Landing links BOTH stores since 2026-09-07 (`PLAY_STORE_LIVE = true`); no "coming soon" copy or i18n key remains. `/app` and the old tabs render a "moved to the apps" page; a safety worker evicts old PWA installs. SEO pages and `/u/**` are KEPT, owner-ratified |
 | **Cloud Functions / rules** | Deployed, project `fitness-tracker-gb-1775407101` |
 | **Photo-scan** | **ON and free to everyone, both platforms** (ADR-0017), resolving macros against the bundled USDA database (ADR-0019). Tiering is server-side only: `dailyQuota` 3/day free · 30/day paid, plus the `photo` `spendCeiling` |
 | **Food search** | Bundled USDA DB, 13,272 foods, plus the restaurant corpus (25,126 items / 91 chains, ADR-0027). **Text search makes NO network call** (since 2026-08-19; Open Food Facts serves **barcode only** — its 10 req/min search cap cannot host typeahead behind one egress IP). Servings ship with each hit. `docs/research/off-branded-ingest.md` scopes getting branded text results back |
-| **OTA (EAS Update)** | Live. `runtimeVersion: {"policy":"fingerprint"}`, channels match build profiles. Free tier 1,000 MAU. **iOS OPEN** on `52802bba…` since 2026-09-06. **Android SHUT** — the tree produces `15c1cfc8…`, which only vc 45 ships, and vc 45 is in review; reopens the moment it is live. Cause: the 1.2.3 bump (`437a90ce`) — `app.json` is hashed whole, so a version string moves BOTH fingerprints. **"Published" is not "delivered":** a user gets it on the launch AFTER the download. **This row is a POINTER: `apps/mobile/AGENTS.md` is the per-publish record and it wins.** Re-check with `npx eas update:list --branch production --limit 3` |
+| **OTA (EAS Update)** | Live. `runtimeVersion: {"policy":"fingerprint"}`, channels match build profiles. Free tier 1,000 MAU. **iOS OPEN** on `52802bba…` since 2026-09-06. **Android OPEN** on `15c1cfc8…` since vc 45 went live 2026-09-07 ~22:46 UTC — both channels open, no publish made on Android yet since the reopen. Reminder: `app.json` is hashed whole, so a version string bump moves BOTH fingerprints (`437a90ce` did). **"Published" is not "delivered":** a user gets it on the launch AFTER the download. **This row is a POINTER: `apps/mobile/AGENTS.md` is the per-publish record and it wins.** Re-check with `npx eas update:list --branch production --limit 3` |
 | **`app-version.json`** | **Self-driving since 2026-09-05** — served from Firestore `public/appVersion` by the `appVersionJson` rewrite, refreshed hourly by `hourlyTasks` (Android from the Play tracks API as `647810616435-compute@…`, invited read-only to the org Play Console; iOS from Apple's public lookup) and on demand from `/admin` → System → **Sync now**. No static file, no deploy, no secret; `npm run doctor` compares the LIVE URL with both stores. See the Play row for the in-review wrinkle |
 
 **The runtime fingerprints, and the three traps around them.**
 
 | Platform | Tree now | Live binary | Channel |
 |---|---|---|---|
-| Android | `15c1cfc8…` (since `437a90ce`, the 1.2.3 bump) | **vc 44** ships `68ea2dd3…` (read from the `.aab`), live on production. **vc 45** ships `15c1cfc8…` (read from the `.aab`), in review | **SHUT** until vc 45 is live |
+| Android | `15c1cfc8…` (since `437a90ce`, the 1.2.3 bump) | **vc 45 ships `15c1cfc8…`** (read from the `.aab`), live on production since 2026-09-07 ~22:46 UTC (vc 44 / `68ea2dd3…` is superseded) | **OPEN** to the public |
 | iOS | `52802bba…` | **build 64 ships `52802bba…`, `READY_FOR_SALE` as 1.2.3 since 2026-09-06** (read from the `.ipa`) | **OPEN** to the public |
 
 - **The fingerprint is machine-dependent — publish from the machine that BUILDS
@@ -62,11 +62,12 @@ an iOS build's ~17 GB floor, and `df -h /` lies (`docs/build-infrastructure.md`)
 
 **The IGNIA-MOBILE-V fix (`2d89e26c`, 2026-09-07)** — a workout session
 deleted mid-import is skipped rather than re-created as a malformed doc. On
-iOS by OTA (public, on the open channel). **On Android it reaches nobody until
-vc 45 is live** — the reviewer who hit it is on vc 44. Behaviour is
-unit-tested only; device-verify on the OnePlus 8T once vc 45 installs from
-Play: discard a workout with a set input focused, confirm no Sentry event, then
-resolve `IGNIA-MOBILE-V` (`prod-errors`).
+iOS by OTA (public, on the open channel). **On Android it is in vc 45, live on
+Play since 2026-09-07** — so it is delivered on both platforms, and this entry
+stays only for the open verification. Behaviour is unit-tested only;
+device-verify on the OnePlus 8T once vc 45 installs from Play: discard a
+workout with a set input focused, confirm no Sentry event, then resolve
+`IGNIA-MOBILE-V` (`prod-errors`).
 
 Everything else merged has shipped (`node scripts/app-version-sync.mjs --check`
 re-derives the live numbers).
