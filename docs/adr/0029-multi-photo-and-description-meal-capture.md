@@ -217,8 +217,14 @@ source of error in the current pipeline rather than adding a second one.
   **post-capture** (corrects the result). This ADR proposes pre-capture; the
   owner's workflow is actually post-capture, and that disagreement should be
   settled by trying it rather than by argument.
-- Whether a matched repeat (D) should log **silently** or land on the same
-  editable draft every other path lands on. The trust rule says editable draft.
+- ~~Whether a matched repeat (D) should log **silently** or land on the same
+  editable draft every other path lands on. The trust rule says editable draft.~~
+  **Settled 2026-09-08 by the owner: editable draft.** The first device run of
+  repeat detection (LG, same day) logged 330 kcal straight to Today from a
+  screen the user was not looking at as a diary; the owner chose review. The
+  scan screen now hands the food to Today's add sheet as a `prefill` param
+  beside the `openAdd` nonce (`lib/entry-prefill.ts`), the sheet opens on the
+  manual form with the numbers filled, and the row is written only by its Save.
 
 
 ## Amendment 1 — what building items 1-4 changed (2026-08-26)

@@ -34,6 +34,7 @@ import { useLocale, useT } from '@/i18n';
 import { starterFoods } from '@/lib/starterFoods';
 import * as haptics from '@/lib/haptics';
 import { clearLogTimer, startLogTimer } from '@/lib/log-timer';
+import type { EntryPrefill } from '@/lib/entry-prefill';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
 import { formatDate } from '@/lib/date-format';
@@ -60,6 +61,11 @@ interface Props {
    *  noon on this YYYY-MM-DD instead of "now" — for adding food to a past
    *  day from the day-detail screen. */
   dateKey?: string;
+  /** A draft to open ON, in the manual form, instead of the browse view —
+   *  the scan screen's repeat suggestion lands here (ADR-0029, settled
+   *  2026-09-08: a repeat is reviewed, never logged silently). Applied each
+   *  time the sheet opens for an ADD while set; the owner clears it on close. */
+  initialPrefill?: EntryPrefill | null;
 }
 
 /** Local noon on a YYYY-MM-DD. Noon (not midnight) so a backdated entry can't
@@ -120,6 +126,7 @@ export function EntrySheet({
   onDeleteCustomFood,
   unitSystem = 'us',
   dateKey,
+  initialPrefill,
 }: Props) {
   const t = useT();
   const locale = useLocale();
@@ -182,7 +189,16 @@ export function EntrySheet({
     setManage(false);
     setPendingServing(null);
     setMode(editing ? 'custom' : 'browse');
-  }, [visible, editing, dateKey]);
+    // A carried-in draft wins over the empty add form, never over an edit.
+    if (!editing && initialPrefill) {
+      setLabel(initialPrefill.mealLabel ?? '');
+      setCalories(String(initialPrefill.calories));
+      setProtein(initialPrefill.protein != null ? String(initialPrefill.protein) : '');
+      setCarbs(initialPrefill.carbs != null ? String(initialPrefill.carbs) : '');
+      setFat(initialPrefill.fat != null ? String(initialPrefill.fat) : '');
+      setMode('custom');
+    }
+  }, [visible, editing, dateKey, initialPrefill]);
 
   // Seconds-per-log stopwatch (`lib/log-timer.ts`): runs while the sheet is
   // open for an ADD, read by `useLogWrites.addEntry`. An edit is not a log

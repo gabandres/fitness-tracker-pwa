@@ -27,6 +27,7 @@ import {
 import { quotaResetLabel } from '@/lib/date-format';
 import { track } from '@/lib/analytics';
 import { clearLogTimer, startLogTimer } from '@/lib/log-timer';
+import { encodeEntryPrefill } from '@/lib/entry-prefill';
 import { CountUpText, enterUp, PressScale } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space, type } from '@/theme';
@@ -238,36 +239,41 @@ export default function Scan() {
   }
 
   /**
-   * Log a prior food straight from the describe step (ADR-0029 item 3).
+   * Take a prior food from the describe step to an EDITABLE DRAFT on Today's
+   * add sheet (ADR-0029 item 3; its open question settled by the owner on
+   * 2026-09-08: review, never log silently — the trust rule every other path
+   * already follows).
    *
    * **No model call, no quota slot, no spend.** The macros are ones this person
    * entered and kept, which is better evidence for their own food than anything
-   * a vision model produces from a photograph of it.
+   * a vision model produces from a photograph of it. Until 2026-09-08 this
+   * wrote the row directly; a device run that day showed the suggestion is
+   * offered at exactly the moment the user is least likely to check it, which
+   * is the argument `meal-repeat.ts` makes against itself.
    *
    * The stated quantity is applied only when the note actually stated one —
    * `findRepeatCandidates` returns `null` rather than 1 for an unstated amount,
-   * so "greek yogurt" logs one stored serving and "2 cups of greek yogurt" does
-   * not silently become one.
+   * so "greek yogurt" drafts one stored serving and "2 cups of greek yogurt"
+   * does not silently become one.
    */
-  async function logRepeat(c: RepeatCandidate<CustomFood>) {
+  function logRepeat(c: RepeatCandidate<CustomFood>) {
     if (saving) return;
     haptics.tap();
-    setSaving(true);
-    try {
-      const mult = c.quantity != null && c.quantity > 0 ? c.quantity : 1;
-      const f = c.food;
-      await addEntry({
-        calories: Math.round(f.calories * mult),
-        protein: Math.round((f.protein ?? 0) * mult),
-        carbs: Math.round((f.carbs ?? 0) * mult),
-        fat: Math.round((f.fat ?? 0) * mult),
-        mealLabel: f.name,
-      });
-      haptics.success();
-      router.replace('/(app)');
-    } finally {
-      setSaving(false);
-    }
+    const mult = c.quantity != null && c.quantity > 0 ? c.quantity : 1;
+    const f = c.food;
+    router.replace({
+      pathname: '/(app)',
+      params: {
+        openAdd: `repeat-${Date.now()}`,
+        prefill: encodeEntryPrefill({
+          calories: Math.round(f.calories * mult),
+          protein: Math.round((f.protein ?? 0) * mult),
+          carbs: Math.round((f.carbs ?? 0) * mult),
+          fat: Math.round((f.fat ?? 0) * mult),
+          mealLabel: f.name,
+        }),
+      },
+    });
   }
 
   /**

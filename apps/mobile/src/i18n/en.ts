@@ -50,7 +50,7 @@ export const en = {
   'scan.noteAnalyze': 'Analyze photo',
   'scan.noteSkip': 'Skip',
   'scan.repeatTitle': 'You have logged this before',
-  'scan.repeatUse': 'Use it',
+  'scan.repeatUse': 'Review',
   'scan.repeatBrand': 'your {brand} one',
   'scan.measured': 'Weighed — read from your scale',
   'scan.measuredHint': 'This weight came off the scale in your photo, so it is a measurement rather than an estimate.',

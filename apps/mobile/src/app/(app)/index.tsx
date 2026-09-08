@@ -26,6 +26,7 @@ import { WhatsNewBanner } from '@/components/WhatsNewBanner';
 import { type Locale, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { releaseTour } from '@/lib/tour';
+import { parseEntryPrefill, type EntryPrefill } from '@/lib/entry-prefill';
 import { useDayFasts } from '@/hooks/useDayFasts';
 import { useFastActivity } from '@/hooks/useFastActivity';
 import { useReminderSync } from '@/hooks/useReminderSync';
@@ -215,15 +216,21 @@ export default function Today() {
 
   // The tab bar's Log button navigates here with a fresh `openAdd` nonce —
   // each new value opens the add sheet (see AppTabBar in the tab layout).
-  const { openAdd: openAddParam, quickAddSlot: quickAddSlotParam } = useLocalSearchParams<{
+  const { openAdd: openAddParam, quickAddSlot: quickAddSlotParam, prefill: prefillParam } = useLocalSearchParams<{
     openAdd?: string;
     quickAddSlot?: string;
+    prefill?: string;
   }>();
+  // A draft carried in beside the nonce — the scan screen's repeat suggestion
+  // (ADR-0029, settled 2026-09-08). Parsed once per nonce; a bad param opens
+  // the sheet empty rather than not at all.
+  const [sheetPrefill, setSheetPrefill] = useState<EntryPrefill | null>(null);
   useEffect(() => {
     if (!openAddParam) return;
     setEditing(null);
+    setSheetPrefill(parseEntryPrefill(prefillParam));
     setSheetOpen(true);
-  }, [openAddParam]);
+  }, [openAddParam, prefillParam]);
 
   // The Quick Settings tile's FALLBACK path (ADR-0020). Its tap normally logs
   // without opening anything; when Android refuses the background service start
@@ -302,6 +309,7 @@ export default function Today() {
    *  held while onboarding's first-log sheet is up, and this is its release. */
   function closeSheet() {
     setSheetOpen(false);
+    setSheetPrefill(null);
     releaseTour();
   }
 
@@ -528,6 +536,7 @@ export default function Today() {
         onSaveCustomFood={addCustomFood}
         onDeleteCustomFood={deleteCustomFood}
         unitSystem={unitSystem}
+        initialPrefill={sheetPrefill}
       />
     </SafeAreaView>
   );

@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-09-08 (evening) — a photo-scan repeat now lands on an editable draft; the Play Data safety amendment is confirmed published
+
+- **ADR-0029's last open question, settled by the owner:** a matched repeat
+  on the scan screen no longer logs straight to Today. *Review* (was *Use it*)
+  hands the food to Today's add sheet as a `prefill` param beside the
+  `openAdd` nonce (`apps/mobile/src/lib/entry-prefill.ts`, strict parser,
+  4 tests); `EntrySheet` opens on the manual form with the numbers filled and
+  the row is written only by its Save. Same trust rule as every other path.
+  Both OTA gates are green; **not yet published on either platform** —
+  `STATUS.md` §2.
+- **Play Data safety amendment (sent 09-03) is published.** Publishing
+  overview: nothing in review, last published Sep 7 — it rode the vc 45
+  review. Read off the Console 2026-09-08.
+
 ## 2026-09-08 (afternoon) — the "owner with a device" list, run from the workstation: V verified, the Android widget verified, repeat detection seen, `measured` explained
 
 Both Android phones over adb plus Maestro; the iOS simulator half was cut short

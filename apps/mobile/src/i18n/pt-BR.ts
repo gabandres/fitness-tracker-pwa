@@ -44,7 +44,7 @@ export const ptBR = {
   'scan.noteAnalyze': 'Analisar foto',
   'scan.noteSkip': 'Pular',
   'scan.repeatTitle': 'Você já registrou isso antes',
-  'scan.repeatUse': 'Usar',
+  'scan.repeatUse': 'Revisar',
   'scan.repeatBrand': 'o seu da {brand}',
   'scan.measured': 'Pesado — lido da sua balança',
   'scan.measuredHint': 'Este peso veio da balança na sua foto, então é uma medição e não uma estimativa.',

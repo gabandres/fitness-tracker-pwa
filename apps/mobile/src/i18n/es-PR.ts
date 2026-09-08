@@ -46,7 +46,7 @@ export const esPR: Record<I18nKey, string> = {
   'scan.noteAnalyze': 'Analizar foto',
   'scan.noteSkip': 'Saltar',
   'scan.repeatTitle': 'Ya registraste esto antes',
-  'scan.repeatUse': 'Usarlo',
+  'scan.repeatUse': 'Revisar',
   'scan.repeatBrand': 'el tuyo de {brand}',
   'scan.measured': 'Pesado — leído de tu balanza',
   'scan.measuredHint': 'Este peso salió de la balanza en tu foto, así que es una medida y no un estimado.',
