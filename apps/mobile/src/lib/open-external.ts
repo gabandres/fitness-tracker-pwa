@@ -17,6 +17,16 @@ import type { TFn } from '@/i18n';
  * element as the last breadcrumb. Someone tapped *Help and support* ten times
  * across ten days and the app did nothing at all, ten times, in silence.
  *
+ * **Who it was (found 2026-09-08):** the Sentry user id on every one of the 13
+ * events is `xFm6lDvP…` — `review@ignia.fit`, the account only Apple App Review
+ * signs into — and the device hash matches the App Hanging event logged
+ * minutes earlier on the same iPhone SE. So the "user" was Apple's reviewer,
+ * across three review sessions (1.1.0, 1.2.0, 1.2.1), on a review device that
+ * refuses to hand `https` to anything. That changes nothing about the fix — a
+ * reviewer who taps *Rate the app* and sees nothing is a worse outcome than a
+ * user who does — but it does mean the events were never evidence of a
+ * broken link in the field.
+ *
  * `openURL` rejects when iOS declines to hand the URL anywhere — Screen Time
  * or MDM web restrictions, a managed-device profile, no browser able to claim
  * https. None of that is recoverable from inside the app, and none of it is a

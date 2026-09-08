@@ -95,6 +95,14 @@ export function initSentry(): void {
     // Native crashes (the Android widget process, HealthKit bridges) are the
     // other half of what we were blind to.
     enableNativeCrashHandling: true,
+    // iOS AppHang detection is only meaningful on hardware. On a simulator the
+    // main thread stalls for 2 s+ on every Metro reload and every screenshot
+    // shoot, and each stall became an "unresolved" production-looking issue —
+    // IGNIA-MOBILE-N/-M/-K (Aug 2026) were all `device.isDevice=false`. The
+    // `simulator` environment above already labels them; this stops them
+    // being sent at all. `Device.isDevice` is false on emulators too, which is
+    // fine — Android has no AppHang tracker, the flag is a no-op there.
+    enableAppHangTracking: Device.isDevice,
     // Expo Go can't load the native module; the JS layer still reports.
     enableNative: !inExpoGo,
   });
