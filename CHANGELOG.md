@@ -17,7 +17,7 @@
   09-07 sweep that removed every "coming soon" string missed it, and
   `STATUS.md` asserted none remained. Both carry the badge now and the fine
   print names Android 8+.
-- **Sentry mobile triage (`d21e49f7`, iOS OTA `8a132035…` on build 64).** The
+- **Sentry mobile triage (`d21e49f7`, iOS OTA `8a132035…` on build 64, Android OTA `cb330ecc…` on vc 45).** The
   four App Hanging issues and the write-review URL issue were read against
   their latest events. N, M, K: `device.isDevice=false`, simulator sessions
   from the screenshot shoots — noise. J and 8: the same iPhone SE device hash,
@@ -27,7 +27,9 @@
   pasteboard XPC. All five resolved. Code: `enableAppHangTracking:
   Device.isDevice` so simulator stalls are no longer sent, and the
   `open-external.ts` docstring now names the reviewer rather than "a user".
-  Android not published (classifier refusal, and the flag is iOS-only).
+  The Android half was published by the owner from a PowerShell window (the
+  session classifier refuses `eas update` on Windows); on Android it carries
+  only the docstring, since the flag is iOS-only.
 - **Admin → Activity printed "Entry · 0 kcal"** for the exercise-toggle marker
   row (`{ calories: 0, exerciseCompleted: true }`, no `mealLabel`), which the
   owner read as a user submitting an empty meal. `functions/src/activity-detail.ts`
