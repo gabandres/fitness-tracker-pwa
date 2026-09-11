@@ -18,10 +18,10 @@ Nothing measured taps on the number — the only Body counter was
     sheet was opened and abandoned.
   - Gates: rules 633/633, `body.test.tsx` 7/7 (+1), mobile `tsc` clean;
     Android export +0.17% raw / +0.15% gzipped, within budget.
-  - **iOS OTA `664856c5` on build 64** published from `ignia-mac`, announced to
-    23 devices. **Android publish pending** — the session classifier refused
-    `eas update` on Windows (precedent 09-07/09-08); the owner runs it.
-    `WHATS_NEW_VERSION` not bumped — a discoverability fix.
+  - **iOS OTA `664856c5` on build 64** from `ignia-mac` and **Android OTA
+    `fcd63ac6` on vc 45** from Windows, each announced to 23 devices. Both
+    reach the public on next launch. `WHATS_NEW_VERSION` not bumped — a
+    discoverability fix.
 
 ## 2026-09-10 (night) — Today tells a new user what 14 logged days buy them, and the reminders opt-in rate is finally counted
 
