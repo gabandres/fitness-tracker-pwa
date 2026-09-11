@@ -7,6 +7,15 @@ appId: fit.ignia.app
 ---
 - launchApp:
     clearState: false
+# The guided tour auto-opens once per device right after sign-in and covers
+# every tab (DEV_ENVIRONMENT.md §3.12 item 3); skip it if it is up.
+- runFlow:
+    when:
+      visible:
+        id: 'tour-skip'
+    commands:
+      - tapOn:
+          id: 'tour-skip'
 - tapOn: 'Body'
 - extendedWaitUntil:
     visible:
