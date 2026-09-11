@@ -237,8 +237,14 @@ export function CountUpText({ value, decimals = 0, suffix = '', style, testID }:
     const text = formatNumber(sv.value, decimals, group, decimal) + suffix;
     return { text, defaultValue: text };
   });
+  // `pointerEvents="none"` on the whole wrap: a TextInput — even
+  // `editable={false}` — is a first-class touch target on iOS and swallows the
+  // tap before any parent Touchable sees it. Measured 2026-09-11 on the
+  // simulator: the Body hero wrapped in a TouchableOpacity did nothing when the
+  // number itself was tapped, which is exactly where a thumb lands. The number
+  // is display-only, so nothing needs its touches.
   return (
-    <View style={styles.countUpWrap}>
+    <View style={styles.countUpWrap} pointerEvents="none">
       {/* Sizes the box and is never seen. `accessible={false}` keeps it out of
           the a11y tree, which would otherwise read every number twice. */}
       <Text
