@@ -7,7 +7,7 @@ const db = testDb();
 
 const zero: MethodCounts = {
   photo_scan: 0, barcode_scan: 0, voice_log: 0, quick_add: 0, repeat_yesterday: 0,
-  log_added: 0, log_secs: 0, logsTimed: 0,
+  log_added: 0, log_secs: 0, reminders_on: 0, logsTimed: 0,
 };
 
 // Fixed clock so cohort weeks and eligibility windows are deterministic.
@@ -94,7 +94,7 @@ describe("computeRetentionCohorts", () => {
     // carries the timer field.
     await seedUser(40, [39, 38, 30, 5], {
       firstLogAfterMin: 3,
-      usage: { photo_scan: 3, log_added: 4, log_secs: 90 },
+      usage: { photo_scan: 3, log_added: 4, log_secs: 90, reminders_on: 1 },
     });
     // Activated but churned: 3 logs in the first two days, nothing since.
     // Search-only, and from a build with no timer: `log_added` without a
@@ -224,6 +224,13 @@ describe("computeRetentionCohorts", () => {
     expect(summary.byMethod.search.logsTimed).toBe(0);
     expect(summary.secsPerLog).toBe(21.7); // 130 / 6, one decimal
     expect(summary.logsTimed).toBe(6);
+  });
+
+  it("counts the accounts that ever granted reminders, over real accounts and over the activated (lever 9)", () => {
+    // One grant on the photo user; the seeded pair never count in either
+    // denominator, so `of` is the five real signups and `ofActivated` the
+    // three activated ones.
+    expect(summary.remindersOptIn).toEqual({ users: 1, of: 5, activated: 1, ofActivated: 3 });
   });
 
   it("measures time to first log from the profile stamps, seeded accounts excluded", () => {

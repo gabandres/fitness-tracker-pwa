@@ -109,6 +109,10 @@ export interface MethodCounts {
   repeat_yesterday: number;
   log_added: number;
   log_secs: number;
+  /** Reminder grants in the window (`setRemindersEnabled` after the OS said
+   *  yes). Read as a boolean per user — "has this account ever turned
+   *  reminders on" — because that is the reach every notification lever has. */
+  reminders_on: number;
   /** `log_added` summed over only the days that ALSO carry `log_secs` — the
    *  honest denominator for seconds-per-log while builds without the timer
    *  are still writing untimed `log_added`s. */
@@ -117,10 +121,11 @@ export interface MethodCounts {
 
 const USAGE_FIELDS = [
   "photo_scan", "barcode_scan", "voice_log", "quick_add", "repeat_yesterday", "log_added", "log_secs",
+  "reminders_on",
 ] as const;
 
 function emptyCounts(): MethodCounts {
-  return { photo_scan: 0, barcode_scan: 0, voice_log: 0, quick_add: 0, repeat_yesterday: 0, log_added: 0, log_secs: 0, logsTimed: 0 };
+  return { photo_scan: 0, barcode_scan: 0, voice_log: 0, quick_add: 0, repeat_yesterday: 0, log_added: 0, log_secs: 0, reminders_on: 0, logsTimed: 0 };
 }
 
 /**
@@ -314,6 +319,12 @@ export async function computeRetentionCohorts(db: Firestore, now = new Date()) {
   let activatedTotal = 0;
   let logsLast7dTotal = 0;
   let excludedSynthetic = 0;
+  // Retention lever 9 (2026-09-10): how many real accounts have EVER granted
+  // reminders, overall and among the activated. The switch lived only in
+  // AsyncStorage before `reminders_on` existed, so accounts older than the
+  // counter read as "no" here — the number is a floor until the window rolls.
+  let remindersOnUsers = 0;
+  let remindersOnActivated = 0;
 
   const byMethod = {} as Record<LogMethod, MethodRow & { secs: number }>;
   for (const m of LOG_METHODS) {
@@ -381,6 +392,10 @@ export async function computeRetentionCohorts(db: Firestore, now = new Date()) {
     // "dominant" path, and the verdict number is the activated one anyway.
     const counts = usage.byUid.get(doc.id);
     const method: LogMethod | null = activated ? dominantMethod(counts) : null;
+    if ((counts?.reminders_on ?? 0) > 0) {
+      remindersOnUsers++;
+      if (activated) remindersOnActivated++;
+    }
     if (activated) {
       row.activated++;
       activatedTotal++;
@@ -481,6 +496,20 @@ export async function computeRetentionCohorts(db: Firestore, now = new Date()) {
      *  over the logs a timer actually measured (`logsTimed`). */
     secsPerLog,
     logsTimed: logsTimedTotal,
+    /**
+     * Real accounts in the window that ever granted reminders (`reminders_on`
+     * counter, 2026-09-10), overall and among the activated, each with its
+     * denominator. This is the reach of EVERY notification-shaped lever —
+     * meal windows, streak-at-risk, the +3/+7 lapsed nudges — and a low
+     * number here says the next lever is the permission ask itself, not
+     * another notification. Accounts older than the counter read as "no".
+     */
+    remindersOptIn: {
+      users: remindersOnUsers,
+      of: profiles.size - excludedSynthetic,
+      activated: remindersOnActivated,
+      ofActivated: activatedTotal,
+    },
   };
 
   await db.doc("config/retention").set(summary);
@@ -498,6 +527,7 @@ export async function computeRetentionCohorts(db: Firestore, now = new Date()) {
     logsPerActivatedUserPerDay: summary.logsPerActivatedUserPerDay,
     ttflMedianSec: timeToFirstLog.medianSec,
     secsPerLog,
+    remindersOptIn: remindersOnUsers,
     // Whole-population rates across every eligible user, cohort-independent
     // — the single number to watch move.
     ...Object.fromEntries(
