@@ -202,6 +202,9 @@ export const en = {
   'today.maintenanceProvisional':
     'Part formula estimate for now — it shifts toward your own data as you log',
   'today.maintenanceOutlier': '1 weigh-in ignored — a real jump in weight can look like a bad reading',
+  'today.measureProgress': '{n} of {needed} logged days toward your measured burn',
+  'today.measureNext': 'Log {n} more and Ignia measures what you actually burn — no formula',
+  'today.measureWeighIns': '{n} more weigh-in(s) and it unlocks — the trend needs two',
   'today.maintenanceOutliers':
     '{n} weigh-ins ignored — a real jump in weight can look like bad readings',
   'today.emptyTitle': 'No entries yet.',

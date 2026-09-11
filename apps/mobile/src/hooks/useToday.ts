@@ -23,6 +23,8 @@ import {
   dayKeyAt,
   LOG_WINDOW_ROWS,
   summarizeDay,
+  measurementProgress,
+  type MeasurementProgress,
 } from '@macrolog/core';
 import { useSubscription } from '@/lib/subscription';
 import { useAuth } from '@/lib/auth';
@@ -91,6 +93,9 @@ export interface TodayState extends LogWrites {
   /** Numbers-only progress stats for the share card (streak, logged days,
    *  weight change). */
   shareStats: ShareStats;
+  /** Days toward the first measured burn, or null once measured mode is
+   *  open (core `measurementProgress`). The hero footer before maintenance. */
+  measurement: MeasurementProgress | null;
   /** Whether a body weight has ever been recorded, from either source —
    *  `dailyWeights` or a weight riding on a `DailyLog`. Evidence for the
    *  `first-weigh-in` milestone; see the return site for why both count. */
@@ -258,6 +263,15 @@ export function useToday(): TodayState {
     [todayKey, logs, weights, boundary],
   );
   const targets = useMemo(() => dailyTargets(profile, logs, weights), [profile, logs, weights]);
+  // The hero footer before measured mode opens: how many of the 14 logged
+  // days the estimator needs are there. Null once `targets.tdee` is measured,
+  // so it hands the slot to `maintenanceView` on the same render. Counted
+  // over the same rows and weights the targets are — one derivation, one
+  // answer (2026-09-10, retention: the daily habit).
+  const measurement = useMemo(
+    () => measurementProgress(targets.tdee, logs, weights),
+    [targets.tdee, logs, weights],
+  );
   const todayLogs = useMemo(
     () =>
       logs
@@ -419,6 +433,7 @@ export function useToday(): TodayState {
     streak,
     repeatYesterday,
     shareStats,
+    measurement,
     /**
      * Whether this account has ever recorded a body weight — the evidence for
      * the `first-weigh-in` milestone.

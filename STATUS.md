@@ -81,21 +81,29 @@ deleted and its outcome goes to `CHANGELOG.md`.
 ### Retention — the standing focus (owner's call, 2026-09-02)
 
 **The numbers say activation and the daily habit are the problem, not late
-churn.** `config/retention` read 2026-09-02 (120-day window, synthetic
-excluded, `insufficientSample: true`): 30 signups → **11 activated (37%)**;
-D1 **20%**, D7 **8%**, D30 7%; **0.48 logs per activated user per day**
-(category: D1 30–35%, D7 15–18%, D30 8–12%). Research levers, in the order
-they attack that: logging speed (<30 s/meal retains 78% at six months vs 23%
-over 2 min; photo loggers 42% D30 vs 17% search), a meaningful action in
-session one (2–3× at D30), triggers tied to something the user did.
-**Re-read `config/retention` before claiming any of this moved** — at ~30
-signups per 120 days no A/B is readable; pair retention work with acquisition.
+churn.** `config/retention` **re-read 2026-09-10** (120-day window, synthetic
+excluded, `insufficientSample: true`): 34 signups → **12 activated (35%)**;
+activated D1 **42%**, D7 **18%**, D30 14%; **0.15 logs per activated user per
+day** (0.48 on 09-02 — flat at 0.08–0.15 since 09-04); `timeToFirstLog`
+median **1 h 32 m** / p75 10 h 23 m / **14% inside five minutes** (n=14);
+`secsPerLog` 27.3 s (n=12) — under the 30 s cliff. **Lever 1 is unreadable,
+not failed: 6 signups since it reached the public** (`CHANGELOG.md`
+2026-09-10 night has the per-user shape — day-0 bursts, then silence).
+Research levers, in the order they attack that: logging speed (<30 s/meal
+retains 78% at six months vs 23% over 2 min; photo loggers 42% D30 vs 17%
+search), a meaningful action in session one (2–3× at D30), triggers tied to
+something the user did. **Re-read `config/retention` before claiming any of
+this moved** — at ~30 signups per 120 days no A/B is readable; pair retention
+work with acquisition. **None of the 12 real signups since 08-20 has an Android usage document**
+despite Play production going live 09-03 — an acquisition fact, not a product one.
 
 | # | Lever | State |
 |---|---|---|
 | 1–4, 7 | First log inside onboarding · lapsed local nudges · the two deciding numbers instrumented · first-scan celebration · maintenance mode (ADR-0037) | **SHIPPED** (2026-09-02, 09-04, 09-05 — `CHANGELOG.md` has the device evidence). Watch: `config/retention` `timeToFirstLog` (first read: median 1 h 32 m, p75 4 h 49 m, 17% inside five minutes, n=12 — the number lever 1 has to move) and `secsPerLog`. `meals-100` stays parked — it needs a lifetime count no window answers honestly. |
 | 5 | **Verify the zero-friction triggers** — Android widget on a real home screen, watch/Siri (rows below). A widget is a log path under 10 s. | **Android widget VERIFIED 2026-09-08** on the OnePlus (log → numbers move, tap → add sheet, sign-out → blank; row below). Watch/Siri stay open, owner with an iPhone. |
 | 6 | **Guest mode (`UX_AUDIT.md` N5)** if lever 1 does not move D1 alone. | Deferred until 1 is measured. |
+| 8 | **Say what 14 logged days buy** — the Today hero counts toward the measured burn until measured mode opens (`measurementProgress` in core). | **SHIPPED 2026-09-10 by OTA, both platforms** (`CHANGELOG.md`). Watch `logsPerActivatedUserPerDay` and activated D1. |
+| 9 | **Count the reminders opt-in** (`reminders_on` usage event) — every notification lever reaches only these users, and nothing could say how many. | **SHIPPED 2026-09-10** (rules deployed first). First read: the 09-11 daily pass onward. If low, the next lever is asking for reminders AFTER the first log lands, not before it. |
 
 Not taken with lever 2, deliberately: bounding the OS-repeating meal-window
 dailies (silence after a week away) changes existing schedules — a separate call.

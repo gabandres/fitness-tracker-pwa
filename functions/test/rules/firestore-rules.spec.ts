@@ -364,6 +364,15 @@ describe('firestore.rules', () => {
     await assertFails(setDoc(at, { ...usageDoc(), log_secs: 12.5 }));
   });
 
+  it('accepts reminders_on — the opt-in counter (2026-09-10)', async () => {
+    // Added in three places (catalogue, rules, here) like every event; the
+    // rule is what makes the flush land, and a rejected doc drops the whole
+    // day's counters with it.
+    await assertSucceeds(
+      setDoc(doc(authed('alice'), 'usageEvents', 'alice_2026-08-12'), { ...usageDoc(), reminders_on: 1 }),
+    );
+  });
+
   it('blocks an event name outside the catalogue', async () => {
     await assertFails(
       setDoc(doc(authed('alice'), 'usageEvents', 'alice_2026-08-12'), {

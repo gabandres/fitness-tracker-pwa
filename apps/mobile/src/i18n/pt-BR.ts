@@ -187,6 +187,9 @@ export const ptBR = {
   'today.maintenanceProvisional':
     'Por enquanto é em parte a fórmula — vai se aproximando dos seus dados conforme você registra',
   'today.maintenanceOutlier': '1 pesagem ignorada — um salto real de peso pode parecer leitura errada',
+  'today.measureProgress': '{n} de {needed} dias registrados rumo ao seu gasto medido',
+  'today.measureNext': 'Registre mais {n} e o Ignia mede o que você realmente gasta — sem fórmula',
+  'today.measureWeighIns': 'Mais {n} pesagem(ns) e ele destrava — a tendência precisa de duas',
   'today.maintenanceOutliers':
     '{n} pesagens ignoradas — um salto real de peso pode parecer leitura errada',
   'today.emptyTitle': 'Nada registrado ainda.',

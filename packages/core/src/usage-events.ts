@@ -73,6 +73,20 @@ export const USAGE_EVENTS = [
   'weight_logged',
   'workout_finished',
   /**
+   * The reminders master switch flipped ON with the OS permission granted —
+   * from the onboarding step or from Settings. A tally of grants, not of
+   * users, but a user grants at most a few times ever, so counting docs that
+   * carry it is the opt-in rate.
+   *
+   * Exists because every retention lever that is a notification (meal
+   * windows, streak-at-risk, the +3/+7 lapsed nudges) reaches ONLY these
+   * users, and until 2026-09-10 the switch lived in AsyncStorage where no
+   * server-side number could see it. The 2026-08-30 measurement that
+   * motivated the day-1 email ("nobody had reminders on") was read off four
+   * accounts by hand; this is the same question, answered continuously.
+   */
+  'reminders_on',
+  /**
    * Seconds spent between opening a logging surface and the log landing —
    * the one counter here that is a DURATION, not a tally. Incremented by the
    * capped elapsed seconds on every `log_added` (`lib/log-timer.ts` on

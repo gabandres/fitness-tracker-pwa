@@ -1,5 +1,72 @@
 # Changelog
 
+## 2026-09-10 (night) — Today tells a new user what 14 logged days buy them, and the reminders opt-in rate is finally counted
+
+**The re-read that opened the session.** `config/retention`, computed 09-10
+09:17 UTC (120-day window, 4 synthetic excluded): 34 real signups → **12
+activated** (35%); whole-population activated **D1 42% · D7 18% · D30 14%**;
+**0.15 logs per activated user per day** (0.48 on 09-02 — it has sat at
+0.08–0.15 since 09-04); `timeToFirstLog` n=14, median **1 h 32 m** (unchanged),
+p75 **10 h 23 m** (was 4 h 49 m), **14% inside five minutes** (was 17%);
+`secsPerLog` **27.3 s** over 12 timed logs — under the 30 s research cliff.
+**Lever 1 is unreadable, not failed:** only 6 signups have landed since the
+first-log step reached the public (all iOS, 09-08 → 09-10). Of those, one
+logged 10 min after signup and is activated, one logged 10 h later and has
+logged three days running, one logged once 53 min in, and three never logged
+— one of whom completed onboarding (so met the first-log step) and one who
+stopped at the plan step. Per-user detail was read from `usageEvents` +
+profiles by a throwaway admin script, nothing written. Sentry `ignia-mobile`
+has no new issue since 09-07, so nothing confounds these numbers.
+
+**What the shape says.** Day-0 bursts (10, 12, 22 logs) followed by silence
+are the whole loss, and the product's one differentiator — a maintenance
+figure measured from the user's own data — needs **14 logged days** to exist,
+which nothing on Today disclosed. The only mention was a hint on Trends,
+"Default until you log ~14 days". So a day-0 user saw a ring, a formula
+target and an empty list, with no reason to come back on day 1.
+
+  - **The Today hero footer now counts toward the measured burn** —
+    "5 of 14 logged days toward your measured burn", a thin track, and
+    "Log 9 more and Ignia measures what you actually burn — no formula"; once
+    the days are in and the weigh-ins are not, "2 more weigh-in(s) and it
+    unlocks — the trend needs two". Core `measurementProgress` (pure, 6
+    tests) counts EXACTLY what `calculateTdee` counts — `aggregateByDay`
+    rows under `MIDNIGHT`, weights merged the way `dailyTargets` merges them
+    — and reads the thresholds from the estimator itself: `MEASURED_MIN_DAYS`
+    and the new `TREND_MIN_WEIGH_INS` are exported from `tdee.ts` and used by
+    `weightTrendLbsPerDay`, so the readout cannot say "14 of 14" on a day the
+    estimator still calls a seed; one test pins the flip against
+    `calculateTdee` on the same rows. Null the moment measured mode opens,
+    which is when `maintenanceView` takes the same slot — `HeroRings` renders
+    one or the other (4 jest cases). A state readout, not a Nudge: asks for
+    nothing, cannot be dismissed, stays out of `useTodayNudge`. Three locales.
+  - **`reminders_on` joins the usage catalogue.** Every notification-shaped
+    lever (meal windows, streak-at-risk, the +3/+7 lapsed nudges) reaches only
+    users who granted the switch, and the switch lived in AsyncStorage where
+    `config/retention` could not see it — the 2026-08-30 "nobody had reminders
+    on" was read off four accounts by hand. Counted in `setRemindersEnabled`
+    after the OS grant, the one line both the onboarding step and the Settings
+    switch pass through (3 jest cases: grant once, never on denial, never on
+    off). Catalogue + `firestore.rules` + rules test, and **the rules were
+    deployed BEFORE the client publish** (the standing order; a rejected doc
+    drops the whole day's flush).
+  - **Not done, on purpose:** guest mode (lever 6) stays deferred — the owner
+    gated it on lever 1 being measured, and six signups do not measure it.
+    Reordering onboarding to ask for reminders AFTER the first log (the
+    permission-after-value pattern) is the obvious next lever *if*
+    `reminders_on` comes back low; it now has the number it needs.
+    `WHATS_NEW_VERSION` NOT bumped — the readout explains itself, and a
+    banner is a Nudge competing on the screen the readout is trying to keep
+    quiet.
+
+Gates: core 1,514/1,514 (+6) and typecheck; mobile jest **767/767 (+7)**,
+`tsc` clean; rules + functions specs 632/632 (+1); Android export
+**+0.09% raw / +0.15% gzipped**, within budget; Windows android fingerprint
+`15c1cfc8…` = vc 45. **Not device-verified:** no Android host was attached
+overnight (`adb devices` empty) and there is no iOS device here; the flip and
+the slot discipline are pinned by tests. Delivery is the OTA row in
+`apps/mobile/AGENTS.md`.
+
 ## 2026-09-10 — `ignia-mac` rebuilt from zero as a dedicated, closed-lid iOS box
 
 - **iOS OTA published from the rebuilt box** — the iOS half of the 09-08

@@ -191,6 +191,9 @@ export const esPR: Record<I18nKey, string> = {
     'Por ahora es en parte la fórmula — se acerca a tus datos según vas anotando',
   'today.maintenanceOutlier':
     '1 pesaje ignorado — un cambio real de peso puede parecer una lectura mala',
+  'today.measureProgress': '{n} de {needed} días anotados para medir tu gasto real',
+  'today.measureNext': 'Anota {n} más y Ignia mide lo que quemas de verdad — sin fórmula',
+  'today.measureWeighIns': '{n} pesada(s) más y se activa — la tendencia necesita dos',
   'today.maintenanceOutliers':
     '{n} pesajes ignorados — un cambio real de peso puede parecer lecturas malas',
   'today.emptyTitle': 'Aún no hay registros.',

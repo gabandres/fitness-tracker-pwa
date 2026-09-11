@@ -10,7 +10,7 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
-import type { MaintenanceView } from '@macrolog/core';
+import type { MaintenanceView, MeasurementProgress } from '@macrolog/core';
 import { useLocale, useT } from '@/i18n';
 import { formatNumber } from '@/lib/date-format';
 import * as haptics from '@/lib/haptics';
@@ -106,6 +106,10 @@ interface Props {
   /** Today's intake against MEASURED burn, or null when there is nothing
    *  honest to show. Rendered as a footer inside this panel. */
   maintenance: MaintenanceView | null;
+  /** How far a NOT-yet-measured account is from its first measured burn, or
+   *  null once measured mode is open. Takes the same footer slot as
+   *  `maintenance`; the two are never both non-null (core guarantees it). */
+  progress?: MeasurementProgress | null;
 }
 
 /**
@@ -115,7 +119,7 @@ interface Props {
  * icon's sweep: outer first, inner ~180ms behind. Carbs/fat have no targets
  * in the domain, so they render as value chips, never progress.
  */
-export function HeroRings({ calConsumed, calTarget, protConsumed, protTarget, carbs, fat, maintenance }: Props) {
+export function HeroRings({ calConsumed, calTarget, protConsumed, protTarget, carbs, fat, maintenance, progress = null }: Props) {
   const t = useT();
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
@@ -206,6 +210,29 @@ export function HeroRings({ calConsumed, calTarget, protConsumed, protTarget, ca
           <Text style={{ color: colors.fat }}>●</Text> {t('today.fat')} {fat}g
         </Text>
       </View>
+
+      {/* Before measured mode opens there is no maintenance line, and until
+          2026-09-10 the footer was simply absent — so a day-0 user saw a ring
+          and a formula target with nothing saying that logging 14 days is what
+          turns the formula into THEIR number. This is that sentence, in the
+          slot the maintenance line will take over: a state readout (asks for
+          nothing, cannot be dismissed), never a Nudge. `progress` and
+          `maintenance` are mutually exclusive by construction in core. */}
+      {progress && !maintenance ? (
+        <View style={styles.maintenanceFooter} testID="measure-progress">
+          <Text style={styles.maintenanceLabel}>
+            {t('today.measureProgress', { n: progress.loggedDays, needed: progress.neededDays })}
+          </Text>
+          <View style={styles.progressTrack} accessibilityRole="progressbar">
+            <View style={[styles.progressFill, { width: `${Math.round(progress.fraction * 100)}%` }]} />
+          </View>
+          <Text style={styles.maintenanceCaveat} testID="measure-progress-next">
+            {progress.daysToGo > 0
+              ? t('today.measureNext', { n: progress.daysToGo })
+              : t('today.measureWeighIns', { n: progress.weighInsToGo })}
+          </Text>
+        </View>
+      ) : null}
 
       {/* Maintenance sits INSIDE the panel, under a hairline — it is a second
           reading of the same day, not a separate concern. As its own pale card
@@ -307,6 +334,19 @@ function createStyles({ colors, shadow }: Theme) {
     maintenanceValue: { color: colors.heroText, fontWeight: '800' },
     maintenanceDelta: { color: colors.heroText, fontWeight: '700' },
     maintenanceCaveat: { fontSize: font.tiny, color: colors.heroMuted, textAlign: 'center' },
+    // The measured-burn progress track: the ring's own track colour under a
+    // fill in the hero's text colour, so it reads as part of the panel rather
+    // than as a control. Width, not a percentage label — the label above
+    // already carries the count.
+    progressTrack: {
+      alignSelf: 'stretch',
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: colors.heroTrack,
+      marginVertical: space.xs,
+      overflow: 'hidden',
+    },
+    progressFill: { height: '100%', borderRadius: 2, backgroundColor: colors.heroText },
     panel: {
       backgroundColor: colors.heroPanel,
       borderRadius: radius.xl,

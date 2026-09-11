@@ -113,6 +113,7 @@ export default function Today() {
     shareStats,
     hasWeighIn,
     hasPhotoScan,
+    measurement,
   } = useToday();
   // The single Nudge slot this screen is allowed to fill.
   const nudge = useTodayNudge();
@@ -462,6 +463,7 @@ export default function Today() {
               carbs={summary.totalCarbs}
               fat={summary.totalFat}
               maintenance={maintenanceView(targets.tdee, summary.totalCalories)}
+              progress={measurement}
             />
           </Animated.View>
 

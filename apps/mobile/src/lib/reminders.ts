@@ -8,6 +8,7 @@ import {
   type ReminderPlan,
 } from '@macrolog/core';
 import type { I18nKey, TFn } from '@/i18n';
+import { track } from './analytics';
 
 // Local, on-device smart reminders. The *decision* of what to schedule lives in
 // the shared core `planReminders` (meal windows + streak-at-risk + weigh-in);
@@ -98,6 +99,12 @@ export async function setRemindersEnabled(enabled: boolean): Promise<boolean> {
     await AsyncStorage.setItem(ENABLED_KEY, '0');
     return false;
   }
+  // Counted HERE, after the OS said yes, and nowhere else: this is the one
+  // line both the onboarding step and the Settings switch pass through, and
+  // it is the only point where "reminders are on" is actually true. Every
+  // notification-shaped retention lever reaches exactly the users who hit
+  // this line — `config/retention` could not see how many until 2026-09-10.
+  track('reminders_on');
   return true;
 }
 

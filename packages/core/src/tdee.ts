@@ -164,7 +164,21 @@ export type TdeeResult = MeasuredTdee | FormulaTdee | SeedTdee;
 export const KCAL_PER_POUND = 3500;
 const MIN_DAILY_TARGET = 1500;
 const DEFAULT_PACE_LBS_PER_WEEK = 1.0;
-const MEASURED_MIN_DAYS = 14;
+/**
+ * Logged days before a measured estimate exists at all. Exported since
+ * 2026-09-10 so `measurement-progress.ts` can tell a new user how far they are
+ * from the one number this app is for, using the SAME threshold that opens the
+ * branch below — a second copy is how a readout says "14 of 14" on a day the
+ * estimator still calls a seed.
+ */
+export const MEASURED_MIN_DAYS = 14;
+/**
+ * Weigh-ins the trend fit needs before it can return a slope at all
+ * (`weightTrendLbsPerDay`). Exported for the same reason as
+ * {@link MEASURED_MIN_DAYS}: the progress readout names it, and it must name
+ * the number the fit actually uses.
+ */
+export const TREND_MIN_WEIGH_INS = 2;
 /**
  * Logged days the measured estimate is built from. **42, raised from 28 on
  * 2026-08-19.**
@@ -730,7 +744,7 @@ function corroboratedSlope(points: { x: number; y: number }[]): Fit | null {
 
 function weightTrendLbsPerDay(daily: DailyLog[]): { slope: number; dropped: number } | null {
   const weighed = daily.filter((l): l is DailyLog & { weight: number } => l.weight != null);
-  if (weighed.length < 2) return null;
+  if (weighed.length < TREND_MIN_WEIGH_INS) return null;
   const t0 = weighed[0].date.getTime();
   const allPoints = weighed.map((l) => ({
     x: (l.date.getTime() - t0) / 86_400_000,

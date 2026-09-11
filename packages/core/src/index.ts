@@ -103,6 +103,10 @@ export * from './tdee-recalibration';
 // TDEE is genuinely measured, so a formula/seed guess never appears on Today
 // dressed as an observation.
 export * from './maintenance-view';
+// How far a NOT-yet-measured account is from its first measured burn — the
+// Today hero's footer before `maintenanceView` has anything to show. Same
+// contract: presentation gate over the estimator's own thresholds, no math.
+export * from './measurement-progress';
 // What a chosen pace actually delivers once calorieFloor clamps the target.
 // Same shape as maintenance-view: a reading over calculateTdee's own
 // arithmetic, no target math changed. Exists because the pace control is a
