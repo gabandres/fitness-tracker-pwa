@@ -409,8 +409,8 @@ exactly one place (done 2026-08-06):
 
 ```
 Host ignia-mac
-    HostName Stephanies-MacBook-Air.local
-    User stephaniecastillozambrana
+    HostName 100.83.226.52      # the rebuilt M1's Tailscale IP (node `ignia-mac`); see §3.9 on why not the MagicDNS name
+    User gabrielbermudez
     IdentityFile ~/.ssh/id_ed25519_ignia_mac
     IdentitiesOnly yes
     ServerAliveInterval 30
@@ -453,10 +453,10 @@ as a logged-in GUI user with an unlocked keychain. More setup; correct destinati
 
 **What is installed and verified on the Air** (`ignia-mac`): Xcode **26.6** —
 which is what makes SDK 55+ possible at all, since 55 raised the Xcode floor to
-26 — Node **22.23.2** (deliberately not the 26.7 Homebrew default), npm 10.9.8,
-and this is **left alone on purpose**: it is someone else's laptop, RN 0.86
-accepts `^22.13.0`, and only the Windows workstation may rewrite
-`package-lock.json` (the Air runs `npm ci` and nothing else — see
+26 — Node **24.12.0** via fnm since the 2026-09-10 rebuild (`scripts/mac-bootstrap.sh`
+installs `.nvmrc`'s version; it was 22.23.2 on the shared install, left alone
+because it was someone else's laptop), and still only the Windows workstation
+may rewrite `package-lock.json` (the Air runs `npm ci` and nothing else — see
 `docs/build-infrastructure.md`). CocoaPods
 **1.17.0** on its own Homebrew Ruby 4.0.6 — the system Ruby is 2.6.10 with a broken
 `ffi`, so never use it. `LANG`/`LC_ALL` are set in `~/.zprofile` because CocoaPods
@@ -467,9 +467,14 @@ warns and can fail without UTF-8.
 completes. Only three schemes exist; `Today` is an extension target built as a
 dependency of `Ignia`, which is normal and not a fault.
 
-**Addressing is SOLVED — via Tailscale, 2026-08-06.** `~/.ssh/config` on Windows
-points `ignia-mac` at the **Tailscale MagicDNS name** `stephanies-macbook-air-3`.
-Use the name, never an address: `.local` is LAN-only and failed transiently twice
+**Addressing is SOLVED — via Tailscale, 2026-08-06; re-pointed 2026-09-10.**
+`~/.ssh/config` on Windows points `ignia-mac` at the rebuilt M1's **Tailscale IP
+`100.83.226.52`** (node `ignia-mac`, key expiry disabled). It said the MagicDNS
+name until the rebuild, when that name stopped resolving on this Windows box
+(`ssh: Could not resolve hostname`) while `tailscale status` still listed the
+node — MagicDNS on the Windows client is not reliable here, and a Tailscale IP
+is stable for the life of a node. The 08-06 reasoning below still holds for
+`.local` names: use the name, never an address: `.local` is LAN-only and failed transiently twice
 during setup, the docked Air holds two LAN addresses at once and the Wi-Fi one timed
 out mid-session during a handover, and **the Tailscale IP itself changed** (`100.122…`
 → `100.64…`) when the Mac re-registered. The MagicDNS name survived all three.
@@ -541,8 +546,22 @@ Ignia.app
 Signed to team `AE6TTXW92K` with profile `*[expo] fit.ignia.app AppStore`,
 `MinimumOSVersion` 16.4.
 
-**Three prerequisites that §3.9's toolchain check cannot see.** Each surfaced only
-after the previous was fixed, so expect to fix them in this order:
+**Four prerequisites that §3.9's toolchain check cannot see.** Each surfaced only
+after the previous was fixed, so expect to fix them in this order. The fourth
+appeared on the 2026-09-10 fresh install and will appear on every fresh Mac:
+**Apple's WWDR intermediate certificates are not on a clean macOS** (only the
+original 2013 WWDR CA, expired 2023, is in the System keychain; Xcode adds the
+current ones only when an Apple account signs in, which this box never does).
+Without them the distribution certificate imports but does not validate, and
+the build dies in `PREPARE_CREDENTIALS` with *"Distribution certificate with
+fingerprint … hasn't been imported successfully"* — after a full credential
+fetch, so it reads like an EAS/ASC problem. Fix (once, survives reboots):
+```sh
+cd /tmp && for c in AppleWWDRCAG3 AppleWWDRCAG4 AppleWWDRCAG6; do
+  curl -sSfO "https://www.apple.com/certificateauthority/$c.cer" &&
+  sudo security add-certificates -k /Library/Keychains/System.keychain $c.cer; done
+```
+`scripts/mac-bootstrap.sh` step 0 now does this. The other three, in order:
 
 1. **fastlane is not installed by anything else.** `eas build --local` drives the
    archive through fastlane gym; without it the build dies in ~35 s with
@@ -1170,7 +1189,7 @@ ssh ignia-mac "rm -rf ~/fitness-tracker-pwa ~/.expo ~/.ssh/authorized_keys"
 ssh ignia-mac "sudo launchctl bootout system/fit.ignia.nosleep; sudo rm /Library/LaunchDaemons/fit.ignia.nosleep.plist"
 ```
 
-Then Tailscale admin console → Machines → remove `stephanies-macbook-air-3`.
+Then Tailscale admin console → Machines → remove the old node (was `stephanies-macbook-air-3`; done from the phone on 09-10).
 The Sentry token is **not** rotated (owner's standing instruction); FileVault is
 on, so the erase is cryptographic. No Time Machine destination exists, so no
 backup copy survives anywhere. `tracker-app` and the `agenda-*` files in that
@@ -1227,6 +1246,69 @@ better as a server. Planned reboots over SSH are just `sudo reboot`; if
 FileVault is ever turned back on, they become `sudo fdesetup authrestart`
 (one-time Secure Enclave token, works on Apple silicon) and every *unplanned*
 reboot is a trip again.
+
+
+**DONE 2026-09-10 — the rebuilt box passed the gate: iOS fingerprint
+`52802bba…` = build 64, so the OTA channel carried over with no new binary.**
+"Ignia-only" turned out to mean "no personal data and no other people's
+accounts", not "no other project": **the same box builds Callbook
+(`Z:\tracker-app`, GitHub `gabandres/agenda-app`)** from `~/tracker-app` and
+`~/tracker-app-ota`, re-cloned the same night over a read-only deploy key
+(`~/.ssh/id_ed25519_github_tracker`), with the ASC key in
+`~/.appstoreconnect/private_keys/`. Its `CLAUDE.md` carries the before/after.
+Read back over SSH: FileVault Off, `sleep 0` (powerd + the LaunchDaemon's
+caffeinate), Ethernet (`Belkin USB-C LAN`) first, macOS/App Store auto-install
+off, Xcode 26.6 (the App Store's current version — it had not moved to 27),
+Node 24.12.0, CocoaPods 1.17.0, fastlane 2.239.0, 162 GiB free. Tailscale node
+renamed `ignia-mac`, **key expiry disabled on both nodes** (the default 180-day
+expiry would have dropped a closed-lid box off the tailnet with no way back but
+a lid). **Remote GUI = RustDesk + BetterDisplay, both free, both login items.**
+A closed MacBook with no monitor turns its panel OFF, so every remote-desktop
+tool shows black (`screencapture` says *could not create image from display*);
+BetterDisplay's free virtual screen `IgniaRemote` (1920x1080, set as main,
+created from the CLI: `betterdisplaycli create -type=VirtualScreen
+-virtualScreenName=IgniaRemote -useResolutionList=on -resolutionList=1920x1080
+-virtualScreenHiDPI=off`, then `set -connected=on`, `set -main=on`) is what
+gives the lid-closed box a picture. RustDesk (`brew install --cask rustdesk`;
+`direct-server = 'Y'` in `RustDesk2.toml`; permanent password set in its GUI,
+kept in the owner's password manager) is reached from Windows by IP, no relay:
+`rustdesk.exe --connect 100.83.226.52`, peer config pinned to hardware H.265
+(VideoToolbox → D3D11VA on the ARM box), custom quality, 60 fps. Tried and
+retired the same day: RealVNC (its viewer is trial-ware now) and TightVNC over
+Apple Screen Sharing with a legacy VNC password (worked, laggy; the legacy
+password is disabled again, Apple-auth Screen Sharing on 5900 stays as a
+fallback). Screensaver idle set to 0 so a remote session is never at the lock
+screen. `eas-cli` is a GLOBAL npm install on the Mac (`npm i -g eas-cli`) —
+it is not a repo dependency, and `npx eas` without it fails with *could not
+determine executable to run*. Both owner steps landed the same night: `eas login`
+via a helper script (`~/eas-login.sh`; `eas-cli` is a global npm install, see
+above), and **auto-login through System Settings → Users & Groups**, because
+`sysadminctl -autologin set` over SSH wrote `autoLoginUser` but never
+`/etc/kcpassword` — half-set, reads OFF, and the stale key had to be deleted
+before the GUI toggle would take. **Reboot test passed** (`sudo reboot` → back
+in 42 s, console user `gabrielbermudez`, RustDesk listening, BetterDisplay's
+virtual screen main, Tailscale up, sleep 0). Spotlight indexing is OFF
+(`mdutil -a -i off`; it was eating 670 MB and a core during the first build).
+**Verification build: green** — `eas build --local`, 02:40→02:55 UTC (15 min,
+cold caches), `build-1789095342352.ipa` 40 MB, verifier 22/22, **build 66**,
+runtime fingerprint `52802bba…` from the artifact. It exists only on the Mac;
+nothing was submitted, so `autoIncrement` will hand the next real build 67.
+
+The order above was NOT followed — Migration Assistant ran before step B, so
+the secrets reached the new Air and were deleted there by hand; `eas logout`
+on the old install still killed the migrated session server-side. The old
+install's files were never deleted: FileVault was on, so the erase was
+cryptographic and that was enough.
+
+**The script had never run against a fresh install and needed four launches.
+Each fix is in the script now; the shapes, because they will recur:**
+
+| Died at | Why | Fix |
+|---|---|---|
+| step 1 (exit 0!) | `ssh 'bash -s' < script` feeds the script on stdin — and **the Homebrew installer reads stdin**, swallowing the rest of the script. Exit 0, nothing after step 1. | run the script from a file on the Mac: `scp` it, then `nohup bash ~/mac-bootstrap.sh >log 2>&1 </dev/null & disown` — also survives the 10-minute cap on a Windows-side background command |
+| step 0 | `xcodebuild -version \| head -1` under `set -o pipefail`: `head` exits first, xcodebuild takes SIGPIPE, the pipeline fails, `set -e` kills the run. A race — the first launch got past it. | `sed -n 1p` (reads all input) |
+| step 6 | `/usr/local/bin` does not exist on a fresh macOS | `mkdir -p` |
+| step 6 | the GUI Tailscale app's binary aborts through a symlink (*"bundleIdentifier is unknown to the registry"*) | a wrapper script that `exec`s the full path; and the GUI app is now preferred over the brew daemon when present |
 
 **Reading the state back**, all over SSH: `pmset -g` (want `disablesleep 1`,
 `sleep 0`, `womp 1`), `fdesetup status` (want `Off`), `sysadminctl -autologin

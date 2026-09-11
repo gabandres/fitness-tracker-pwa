@@ -65,12 +65,12 @@ in the number, or a faster laptop reads as a regression.
 - The Mac holds `dev.keystore`, `credentials.json`, the Sentry token and an EAS
   session — locations and disposal list in `CLAUDE.local.md`.
 
-**The two hosts run different Node, on purpose: resolve on Windows, `npm ci` on
-the Mac.** Windows is Node **24.12.0** / npm **11.6.2**; `ignia-mac` is Node
-**22.23.2** / npm **10.9.8**. `.nvmrc` names **24.12.0** — the preferred version,
-and what a fresh machine should install — while root `engines` deliberately
-accepts **both** majors (`^22.13.0 || ^24.12.0`), because two supported hosts is
-the actual state of this project and `engines` should describe it.
+**Resolve on Windows, `npm ci` on the Mac** — that rule stands even though the
+two hosts now run the SAME Node: Windows is Node **24.12.0** / npm **11.6.2**,
+and since the 2026-09-10 rebuild `ignia-mac` is also **24.12.0** / 11.6.2 (the
+bootstrap installs `.nvmrc`'s version via fnm; it was 22.23.2 on the shared
+install). Root `engines` still accepts both majors (`^22.13.0 || ^24.12.0`);
+narrowing it is harmless now but not needed.
 
 Pinning `engines` to 24 alone was tried first and is wrong: `eas build --local`
 runs its own `INSTALL_DEPENDENCIES` step, so **every iOS build on the Mac printed

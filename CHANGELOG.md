@@ -1,5 +1,33 @@
 # Changelog
 
+## 2026-09-10 — `ignia-mac` rebuilt from zero as a dedicated, closed-lid iOS box
+
+- **The M1 Air is Ignia-only now.** Erased (FileVault was on, so cryptographic),
+  fresh local admin with no Apple Account, `scripts/mac-bootstrap.sh` did the
+  rest over SSH: Homebrew, Node 24.12.0, CocoaPods, fastlane, Maestro,
+  never-sleep + keepalive LaunchDaemon, Ethernet-first, updates manual, both
+  Xcode 26.6 platforms, clone + `npm ci`. **Fingerprint gate: `52802bba…` =
+  build 64**, so the iOS OTA channel survived the wipe with no new binary.
+- **Reachability hardened:** Tailscale node `ignia-mac` with key expiry
+  disabled (a 180-day expiry on a lidless box is a physical trip in the making),
+  a remote desktop that works with the lid shut — RustDesk by direct IP over
+  Tailscale onto a BetterDisplay virtual screen (a closed MacBook with no
+  monitor has no framebuffer; VNC/RustDesk alike show black without one),
+  hardware H.265 end to end — and `ssh ignia-mac` re-pointed at the Tailscale
+  IP because MagicDNS stopped resolving on Windows.
+- **The bootstrap script was fiction until today** — four launches, four
+  fixes (Homebrew eats a stdin-fed script; `head` + `pipefail` SIGPIPE race;
+  no `/usr/local/bin` on fresh macOS; the GUI Tailscale binary refuses
+  symlinks). Table in `docs/DEV_ENVIRONMENT.md` §3.15.
+- **Closed out the same night:** auto-login (GUI; the `sysadminctl` route
+  half-writes and reads OFF), `eas login`, a reboot test (back in 42 s with
+  everything up), Spotlight off, and **verification build 66 green** —
+  `eas build --local` in 15 min, verifier 22/22, fingerprint `52802bba…` from
+  the artifact. One more fresh-Mac trap for the runbook: Apple's WWDR
+  intermediates are absent on a clean macOS, so the distribution cert
+  "hasn't been imported successfully" until they are added to the System
+  keychain (`docs/DEV_ENVIRONMENT.md` §3.10; the bootstrap does it now).
+
 ## 2026-09-08 (evening) — a photo-scan repeat now lands on an editable draft; the Play Data safety amendment is confirmed published
 
 - **ADR-0029's last open question, settled by the owner:** a matched repeat

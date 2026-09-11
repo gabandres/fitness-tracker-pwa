@@ -31,9 +31,16 @@ if [ ! -d /Applications/Xcode.app ]; then
   exit 1
 fi
 sudo xcode-select -s /Applications/Xcode.app
+# Apple's WWDR intermediates are NOT on a clean macOS (only the expired 2013 CA is), and Xcode adds
+# them only when an Apple account signs in — which this box never does. Without them the
+# distribution cert imports but never validates: "hasn't been imported successfully" (§3.10).
+for c in AppleWWDRCAG3 AppleWWDRCAG4 AppleWWDRCAG6; do
+  curl -sSfo "/tmp/$c.cer" "https://www.apple.com/certificateauthority/$c.cer" \
+    && sudo security add-certificates -k /Library/Keychains/System.keychain "/tmp/$c.cer" 2>/dev/null || true
+done
 sudo xcodebuild -license accept
 sudo xcodebuild -runFirstLaunch
-xcodebuild -version | head -1
+xcodebuild -version | sed -n 1p   # not head: SIGPIPE + pipefail killed the 2026-09-10 run here
 
 step "1. Homebrew"
 if ! command -v /opt/homebrew/bin/brew >/dev/null; then
@@ -42,9 +49,11 @@ fi
 eval "$(/opt/homebrew/bin/brew shellenv)"
 # fastlane: eas build --local archives through gym; cocoapods on Homebrew Ruby (the system
 # Ruby's ffi is broken); openjdk+bundletool for Maestro/aab reads; jq for the gate below.
-brew install fnm cocoapods fastlane gh openjdk bundletool jq tailscale
-# Open-source tailscaled: headless-friendly (`tailscale up` prints an auth URL).
-# Fallback if it misbehaves: `brew install --cask tailscale-app` and sign in in the GUI.
+brew install fnm cocoapods fastlane gh openjdk bundletool jq
+# Tailscale: if the GUI app is already installed and signed in (the 2026-09-10 rebuild did it by
+# hand), reuse it — a second, open-source tailscaled next to it fights over the tun device.
+# Otherwise the open-source one is headless-friendly (`tailscale up` prints an auth URL).
+[ -d /Applications/Tailscale.app ] || brew install tailscale
 
 step "2. Node ${NODE_VERSION} via fnm"
 eval "$(fnm env)"
@@ -153,12 +162,25 @@ else
 fi
 
 step "6. Tailscale — same tailnet as Windows (gabandres@), or neither side sees the other"
-sudo brew services start tailscale || true
-if ! tailscale status >/dev/null 2>&1; then
-  # TS_AUTHKEY (a pre-auth key from the admin console) makes this unattended; without it a URL prints.
-  sudo tailscale up ${TS_AUTHKEY:+--auth-key "$TS_AUTHKEY"} --hostname ignia-mac
+if [ -d /Applications/Tailscale.app ]; then
+  # GUI app: expose its CLI so `tailscale status` works over SSH; the node is already up.
+  # A wrapper, not a symlink: the app binary aborts ("bundleIdentifier is unknown to the registry")
+  # when invoked through a symlink. Fresh macOS has no /usr/local/bin and it is not on this
+  # non-interactive PATH, so create it and add it.
+  sudo mkdir -p /usr/local/bin
+  printf '#!/bin/sh
+exec /Applications/Tailscale.app/Contents/MacOS/Tailscale "$@"
+' | sudo tee /usr/local/bin/tailscale >/dev/null
+  sudo chmod 755 /usr/local/bin/tailscale
+  export PATH="/usr/local/bin:$PATH"
+else
+  sudo brew services start tailscale || true
+  if ! tailscale status >/dev/null 2>&1; then
+    # TS_AUTHKEY (a pre-auth key from the admin console) makes this unattended; without it a URL prints.
+    sudo tailscale up ${TS_AUTHKEY:+--auth-key "$TS_AUTHKEY"} --hostname ignia-mac
+  fi
 fi
-tailscale status | head -3
+tailscale status | sed -n 1,3p
 
 step "7. Xcode platform components (~7 GB; an archive needs BOTH, -showsdks lies)"
 sudo xcodebuild -downloadPlatform iOS
@@ -181,7 +203,7 @@ fi
 npx eas whoami || true
 
 step "10. Verify — the four-command check proves prebuild; fastlane + destinations prove an archive can run"
-node -v; npm -v; pod --version; fastlane --version 2>/dev/null | tail -1; xcodebuild -version | head -1
+node -v; npm -v; pod --version; fastlane --version 2>/dev/null | tail -1; xcodebuild -version | sed -n 1p
 echo "power:    $(pmset -g | grep -E '^\s*(disablesleep|sleep|womp|tcpkeepalive)\b' | tr -s ' ' | tr '\n' ' ')"
 echo "filevault: $(fdesetup status | head -1)   autologin: $(sysadminctl -autologin status 2>&1 | tail -1)"
 echo "updates:  schedule $(softwareupdate --schedule | awk '{print $NF}')"

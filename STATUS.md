@@ -1,6 +1,6 @@
 # STATUS — what is true right now
 
-**Updated:** 2026-09-07 · **Owns:** current state only. Not history
+**Updated:** 2026-09-10 · **Owns:** current state only. Not history
 (`CHANGELOG.md`), not rationale (`docs/adr/`), not vocabulary (`CONTEXT.md`),
 not commands (`docs/COMMANDS.md`), not build tooling
 (`docs/build-infrastructure.md`).
@@ -55,21 +55,20 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 - **`plugins/withGradleJvmArgs.js` is FROZEN** — any byte, *including a
   comment*, moves both platforms. Its docstring is stale on purpose.
 
-**`ignia-mac` disk is a recurring build constraint** — 21 GiB free after the
-2026-09-08 teardown (a 4 GB watchOS runtime + a 5 GB sim build took it to
-**100% full**, 109 MiB, in one afternoon) against an iOS build's ~17 GB floor,
-and `df -h /` lies (`docs/build-infrastructure.md`). **The watchOS simulator
-runtime is NOT installed** — the next iOS archive needs `xcodebuild
--downloadPlatform watchOS` (4 GB) first.
+**`ignia-mac` is a dedicated, closed-lid Ignia box since 2026-09-10** — 160 GiB
+free with both platforms installed, auto-login + never-sleep, reached over
+Tailscale (`100.83.226.52`) by SSH and RustDesk; verification build 66 green
+from it, fingerprint `52802bba…` = build 64. The disk constraint that lived
+here is gone with the shared install (`docs/DEV_ENVIRONMENT.md` §3.15).
 
 ## 2. Merged, on `main`, and not delivered anywhere
 
 **Photo-scan repeat → editable draft (2026-09-08, ADR-0029's last question,
 owner's call).** JS-only; both gates green (Windows android `15c1cfc8…` = vc 45,
 bundle +0.12% within budget). **Android PUBLISHED** (`c511c098…` on `15c1cfc8…`,
-reaches Play production on next launch). **iOS NOT published:** needs
-`ignia-mac`, which was handed back to its owner the same afternoon — `git pull`
-+ `eas update --platform ios` from there when it is free (gate `52802bba…`).
+reaches Play production on next launch). **iOS NOT published:** `ignia-mac`
+is free and rebuilt (2026-09-10, gate reads `52802bba…`) — `git pull` +
+`eas update --platform ios` from it is the next shipping step.
 
 Everything else merged has shipped (`node scripts/app-version-sync.mjs --check`
 re-derives the live numbers).
@@ -84,21 +83,6 @@ test devices on hand are Android — not a new problem.
 **Only genuinely open work belongs here.** A row whose work has shipped gets
 deleted and its outcome goes to `CHANGELOG.md`.
 
-**`ignia-mac` is being REBUILT as a dedicated box — decided 2026-09-05, NOT STARTED.**
-The M1 Air gets wiped and becomes Ignia-only (iOS builds, uploads, simulator);
-Stephanie moves to the new Air. Runbook and ordering in `docs/DEV_ENVIRONMENT.md`
-§3.15; `scripts/mac-bootstrap.sh` does every non-physical step. **Blocked on:**
-the new Air arriving (this week); Stephanie's Apple Account password for the
-erase (Activation Lock); an Xcode 26.6 install on the fresh account (App Store
-or `.xip`, GUI). **Backup DONE 2026-09-07** (LLC OneDrive, `CLAUDE.local.md` has the path) — the wipe no longer
-risks the keystore. **Gate before wiping counts as done:** the rebuilt host must print iOS
-fingerprint `52802bba…` (build 64's), or the next iOS binary is cut from it
-before any iOS OTA. The old install's cleanup (B in §3.15) must run **before**
-any Migration Assistant to the new Air, and it closes the iOS OTA channel until
-the rebuilt host passes that gate — so B→C→D happen in one sitting.
-**Amended 2026-09-07:** the target state is closed-lid, USB-C Ethernet first, FileVault
-OFF + auto-login, updates manual — so any reboot comes back on its own; §3.15
-has the table and the why. Shopping list before D: a USB-C Ethernet adapter.
 
 ### Retention — the standing focus (owner's call, 2026-09-02)
 
