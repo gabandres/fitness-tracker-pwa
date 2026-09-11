@@ -1,5 +1,28 @@
 # Changelog
 
+## 2026-09-11 — The Body weight number is tappable, and the tap is counted
+
+A user tapped the big weight number on Body expecting to edit it and had to be
+told about the *Update today's weight* button, which sits below the chart and
+the maintenance card. What the data could say (`usageEvents`, 30 days, the
+five synthetic accounts excluded): of 5 real users active 4+ days, **2 never
+logged a weight and 2 logged once**; across all 35 users seen, 12 ever did.
+Nothing measured taps on the number — the only Body counter was
+`weight_logged`, the sheet's outcome, not its entry.
+
+  - **The hero now opens the weigh-in sheet** (`body.tsx`), same sheet as the
+    button, with an accessibility label; the button stays.
+  - **`body_hero_tap`** counts the route — core union, `firestore.rules`
+    allowlist (deployed before either client publish), admin Overview label
+    *Weight number taps*. Hero taps on a day with no `weight_logged` mean the
+    sheet was opened and abandoned.
+  - Gates: rules 633/633, `body.test.tsx` 7/7 (+1), mobile `tsc` clean;
+    Android export +0.17% raw / +0.15% gzipped, within budget.
+  - **iOS OTA `664856c5` on build 64** published from `ignia-mac`, announced to
+    23 devices. **Android publish pending** — the session classifier refused
+    `eas update` on Windows (precedent 09-07/09-08); the owner runs it.
+    `WHATS_NEW_VERSION` not bumped — a discoverability fix.
+
 ## 2026-09-10 (night) — Today tells a new user what 14 logged days buy them, and the reminders opt-in rate is finally counted
 
 **The re-read that opened the session.** `config/retention`, computed 09-10
