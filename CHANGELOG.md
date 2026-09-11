@@ -65,9 +65,10 @@ Gates: core 1,514/1,514 (+6) and typecheck; mobile jest **767/767 (+7)**,
 `15c1cfc8…` = vc 45. **Not device-verified:** no Android host was attached
 overnight (`adb devices` empty) and there is no iOS device here; the flip and
 the slot discipline are pinned by tests. **Delivered to iOS the same night**
-(group `a1940875…`, runtime `52802bba…` = build 64, public); **Android is
-WAITING on an EAS login on Windows** — the row in `apps/mobile/AGENTS.md`
-has the exact state and the one command.
+(group `a1940875…`, runtime `52802bba…` = build 64) **and to Android on
+09-11** (group `165f8e21…`, runtime `15c1cfc8…` = vc 45) — both public on
+next launch; the row in `apps/mobile/AGENTS.md` has the detail, including
+the ~40 min the Android half waited on an EAS login.
 
 ## 2026-09-10 — `ignia-mac` rebuilt from zero as a dedicated, closed-lid iOS box
 

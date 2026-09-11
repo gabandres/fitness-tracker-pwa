@@ -63,14 +63,6 @@ here is gone with the shared install (`docs/DEV_ENVIRONMENT.md` §3.15).
 
 ## 2. Merged, on `main`, and not delivered anywhere
 
-- **`f7260c7a` on ANDROID only** — the measured-burn progress footer +
-  `reminders_on` (retention levers 8/9, `CHANGELOG.md` 2026-09-10 night).
-  iOS has it by OTA; **Android is blocked on an EAS login on Windows**
-  (`eas whoami` → *Not logged in*; the Mac's Android fingerprint is
-  `7514d026…`, not vc 45's, so it cannot publish instead). Gate, export and
-  rules are already done — it is one `eas login` and the documented Android
-  `eas update` command (`apps/mobile/AGENTS.md`, top row).
-
 Everything else merged has shipped (`node scripts/app-version-sync.mjs --check`
 re-derives the live numbers).
 
@@ -109,8 +101,8 @@ despite Play production going live 09-03 — an acquisition fact, not a product 
 | 1–4, 7 | First log inside onboarding · lapsed local nudges · the two deciding numbers instrumented · first-scan celebration · maintenance mode (ADR-0037) | **SHIPPED** (2026-09-02, 09-04, 09-05 — `CHANGELOG.md` has the device evidence). Watch: `config/retention` `timeToFirstLog` (first read: median 1 h 32 m, p75 4 h 49 m, 17% inside five minutes, n=12 — the number lever 1 has to move) and `secsPerLog`. `meals-100` stays parked — it needs a lifetime count no window answers honestly. |
 | 5 | **Verify the zero-friction triggers** — Android widget on a real home screen, watch/Siri (rows below). A widget is a log path under 10 s. | **Android widget VERIFIED 2026-09-08** on the OnePlus (log → numbers move, tap → add sheet, sign-out → blank; row below). Watch/Siri stay open, owner with an iPhone. |
 | 6 | **Guest mode (`UX_AUDIT.md` N5)** if lever 1 does not move D1 alone. | Deferred until 1 is measured. |
-| 8 | **Say what 14 logged days buy** — the Today hero counts toward the measured burn until measured mode opens (`measurementProgress` in core). | **iOS SHIPPED 2026-09-10 by OTA (public); Android WAITS on `eas login` on Windows** — see §2. Watch `logsPerActivatedUserPerDay` and activated D1. |
-| 9 | **Count the reminders opt-in** (`reminders_on` usage event) — every notification lever reaches only these users, and nothing could say how many. | **Rules DEPLOYED + iOS SHIPPED 2026-09-10; Android WAITS with lever 8.** Lands in `config/retention.remindersOptIn` (`{users, of, activated, ofActivated}`; `hourlyTasks` deployed 2026-09-10). First read: the 09-11 09:00 UTC pass onward, iOS-only until Android ships. If low, the next lever is asking for reminders AFTER the first log lands, not before it. |
+| 8 | **Say what 14 logged days buy** — the Today hero counts toward the measured burn until measured mode opens (`measurementProgress` in core). | **SHIPPED by OTA, both platforms, public** (iOS 2026-09-10, Android 2026-09-11 — `apps/mobile/AGENTS.md`). Watch `logsPerActivatedUserPerDay` and activated D1. |
+| 9 | **Count the reminders opt-in** (`reminders_on` usage event) — every notification lever reaches only these users, and nothing could say how many. | **SHIPPED both platforms** (rules first, then iOS 09-10, Android 09-11). Lands in `config/retention.remindersOptIn` (`{users, of, activated, ofActivated}`; `hourlyTasks` deployed 2026-09-10). First read: the 09-11 09:00 UTC pass onward. If low, the next lever is asking for reminders AFTER the first log lands, not before it. |
 
 Not taken with lever 2, deliberately: bounding the OS-repeating meal-window
 dailies (silence after a week away) changes existing schedules — a separate call.
