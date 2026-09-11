@@ -1,0 +1,26 @@
+# Verifies the 2026-09-11 change: tapping the big weight number on Body opens
+# the weigh-in sheet (the same one the Update button opens). Written because
+# the owner tapped it on a device and saw nothing — the question this answers
+# is "does the shipped JS do it", separated from "has the OTA landed".
+# Needs a signed-in session (run android-signin.yaml first).
+appId: fit.ignia.app
+---
+- launchApp:
+    clearState: false
+- tapOn: 'Body'
+- extendedWaitUntil:
+    visible:
+      id: 'body-hero'
+    timeout: 15000
+- assertNotVisible:
+    id: 'weight-input'
+- takeScreenshot: .maestro/capture/shots/body-hero-before
+- tapOn:
+    id: 'body-hero-tap'
+- extendedWaitUntil:
+    visible:
+      id: 'weight-input'
+    timeout: 5000
+- takeScreenshot: .maestro/capture/shots/body-hero-after
+- assertVisible:
+    id: 'weight-save'
