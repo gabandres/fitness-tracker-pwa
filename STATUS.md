@@ -63,12 +63,6 @@ here is gone with the shared install (`docs/DEV_ENVIRONMENT.md` §3.15).
 
 ## 2. Merged, on `main`, and not delivered anywhere
 
-**Photo-scan repeat → editable draft (2026-09-08, ADR-0029's last question,
-owner's call).** JS-only; both gates green (Windows android `15c1cfc8…` = vc 45,
-bundle +0.12% within budget). **Android PUBLISHED** (`c511c098…` on `15c1cfc8…`,
-reaches Play production on next launch). **iOS NOT published:** `ignia-mac`
-is free and rebuilt (2026-09-10, gate reads `52802bba…`) — `git pull` +
-`eas update --platform ios` from it is the next shipping step.
 
 Everything else merged has shipped (`node scripts/app-version-sync.mjs --check`
 re-derives the live numbers).

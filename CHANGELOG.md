@@ -2,6 +2,12 @@
 
 ## 2026-09-10 — `ignia-mac` rebuilt from zero as a dedicated, closed-lid iOS box
 
+- **iOS OTA published from the rebuilt box** — the iOS half of the 09-08
+  repeat-to-draft change (group `22c9febd…`, runtime `52802bba…` = build 64,
+  from `52c3f8da`). Both platforms now carry it; reaches the public App Store
+  1.2.3 on next launch. Gates green on the Mac (iOS export +0.12% raw /
+  +1.74% gzipped, within budget). `WHATS_NEW_VERSION` not bumped, matching the
+  Android decision.
 - **The M1 Air is Ignia-only now.** Erased (FileVault was on, so cryptographic),
   fresh local admin with no Apple Account, `scripts/mac-bootstrap.sh` did the
   rest over SSH: Homebrew, Node 24.12.0, CocoaPods, fastlane, Maestro,
