@@ -18,10 +18,19 @@ Nothing measured taps on the number — the only Body counter was
     sheet was opened and abandoned.
   - Gates: rules 633/633, `body.test.tsx` 7/7 (+1), mobile `tsc` clean;
     Android export +0.17% raw / +0.15% gzipped, within budget.
-  - **iOS OTA `664856c5` on build 64** from `ignia-mac` and **Android OTA
-    `fcd63ac6` on vc 45** from Windows, each announced to 23 devices. Both
-    reach the public on next launch. `WHATS_NEW_VERSION` not bumped — a
-    discoverability fix.
+  - **The first publish did not work, and the owner caught it on a device.**
+    iOS `664856c5` / Android `fcd63ac6` shipped the handler, but `CountUpText`
+    renders an `editable={false}` `TextInput`, which on iOS is still a touch
+    target and swallowed the tap before the parent Touchable saw it. The jest
+    test passed because RNTL does no hit-testing. **Reproduced on the iOS
+    simulator on `ignia-mac`** with the new `.maestro/capture/body-hero-tap-verify`
+    flow (a fresh Release sim build; the Sentry upload phase needs
+    `SENTRY_DISABLE_AUTO_UPLOAD=true` there), fixed with `pointerEvents="none"`
+    on the number's wrap (`lib/motion.tsx`, `fa4807d1`), and the flow passed
+    on the rebuilt app — screenshot shows the sheet open over the hero.
+  - **Second publish carries the fix: iOS OTA `e34dad63` on build 64, Android
+    OTA `b33c1865` on vc 45**, each announced to 23 devices. Both reach the
+    public on next launch. `WHATS_NEW_VERSION` not bumped.
 
 ## 2026-09-10 (night) — Today tells a new user what 14 logged days buy them, and the reminders opt-in rate is finally counted
 
