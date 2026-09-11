@@ -29,6 +29,8 @@ const mockMeasurements: Measurement[] = [
   { id: 'm2', date: new Date('2026-07-25T12:00:00Z'), waist: 35 },
 ];
 
+jest.mock('@/lib/analytics', () => ({ track: jest.fn() }));
+
 jest.mock('@/hooks/useBody', () => ({
   useBody: () => ({
     loading: false,
@@ -131,5 +133,16 @@ describe('Body screen — measurements', () => {
     const screen = await render(<BodyScreen />);
     // Discoverability regression guard: the trash affordance must exist per row.
     expect(screen.getByTestId('measurement-delete-m1')).toBeTruthy();
+  });
+});
+
+describe('Body screen — the weight number is an entry point', () => {
+  it('tapping the hero opens the weigh-in sheet and counts the tap', async () => {
+    const { track } = jest.requireMock('@/lib/analytics') as { track: jest.Mock };
+    const screen = await render(<BodyScreen />);
+    expect(screen.queryByTestId('weight-input')).toBeNull();
+    await fireEvent.press(screen.getByTestId('body-hero-tap'));
+    await waitFor(() => expect(screen.getByTestId('weight-input')).toBeTruthy());
+    expect(track).toHaveBeenCalledWith('body_hero_tap');
   });
 });

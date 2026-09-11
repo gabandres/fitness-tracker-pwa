@@ -37,6 +37,7 @@ import { recordMilestone, switchToMaintenance } from '@/lib/ledger';
 import { type I18nKey, type Locale, type TFn, useLocale, useT } from '@/i18n';
 import { type BodyFatInput, isMaintaining } from '@macrolog/core';
 import * as haptics from '@/lib/haptics';
+import { track } from '@/lib/analytics';
 import { useDeferredFocus } from '@/lib/use-deferred-focus';
 import { useUnitSystem } from '@/lib/use-unit-system';
 import { CountUpText, enterUp, usePulse } from '@/lib/motion';
@@ -172,7 +173,20 @@ export default function Body() {
 
           <Animated.View entering={enterUp(0)}>
           <Animated.View style={[styles.heroPanel, goalPulse]} testID="body-hero">
-            <View style={styles.hero}>
+            {/* The number is the thing people try to tap (a user did, 2026-09-11,
+                and had to be told about the Update button a screen below). So
+                it opens the same sheet the button does; the counter says how
+                often that route is taken. */}
+            <TouchableOpacity
+              style={styles.hero}
+              onPress={() => {
+                track('body_hero_tap');
+                setOpen(true);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={todayWeight != null ? t('body.updateWeight') : t('body.logWeight')}
+              testID="body-hero-tap"
+            >
               {currentWeight != null ? (
                 <CountUpText
                   value={toDisplayWeight(currentWeight, unitSystem)}
@@ -184,7 +198,7 @@ export default function Body() {
                 <Text style={styles.heroValue} testID="current-weight">—</Text>
               )}
               <Text style={styles.heroUnit}>{unit}</Text>
-            </View>
+            </TouchableOpacity>
             <Text style={styles.heroCaption}>
               {todayWeight != null ? t('body.todayWeighIn') : t('body.recentWeight')}
             </Text>

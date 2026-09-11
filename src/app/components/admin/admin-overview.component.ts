@@ -14,6 +14,7 @@ const EVENT_LABELS: Record<string, string> = {
   quick_add: 'Quick adds',
   repeat_yesterday: 'Repeat yesterday',
   weight_logged: 'Weigh-ins',
+  body_hero_tap: 'Weight number taps',
   workout_finished: 'Workouts finished',
   signup: 'Sign-ups',
   onboarding_complete: 'Onboarding done',

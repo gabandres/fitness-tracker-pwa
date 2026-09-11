@@ -71,6 +71,15 @@ export const USAGE_EVENTS = [
   'voice_log',
   'coach_ask',
   'weight_logged',
+  /**
+   * The Body hero (the big weight number) was tapped. Added 2026-09-11 after
+   * a user tapped it expecting to edit and had to be told about the Update
+   * button. The tap now opens the weigh-in sheet, so this counts how many
+   * people reach the sheet that way versus the button (`weight_logged` is
+   * the sheet's outcome, not its entry). A `weight_logged`-free day with
+   * hero taps means the sheet was opened and abandoned.
+   */
+  'body_hero_tap',
   'workout_finished',
   /**
    * The reminders master switch flipped ON with the OS permission granted —
