@@ -510,6 +510,9 @@ v22.23.2
 Xcode 26.6
 ```
 
+(Capture from before the 2026-09-10 rebuild. Since then the Mac runs Node
+**24.12.0** via fnm, matching `.nvmrc`; `npm ci`-only still applies.)
+
 **That check proves prebuilding, NOT archiving — do not read it as end-to-end.**
 It was labelled "verified working end to end" until 2026-08-07, when the first real
 `eas build --local` failed three times in a row on prerequisites none of the four

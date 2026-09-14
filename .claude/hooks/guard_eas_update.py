@@ -14,10 +14,15 @@ prints a group id, and reaches zero devices -- indistinguishable from a working
 update. Three OTAs were lost that way in one day (2026-08-07), back when the
 mistake was possible in only one direction.
 
-    platform    locally (Windows)    via `ssh ignia-mac`
-    android     ALLOW                BLOCK
-    ios         BLOCK                ALLOW
-    all / none  BLOCK                BLOCK
+    platform    on Windows    on the Mac    via `ssh ignia-mac`
+    android     ALLOW         BLOCK         BLOCK
+    ios         BLOCK         ALLOW         ALLOW
+    all / none  BLOCK         BLOCK         BLOCK
+
+"On the Mac" means a Claude session running ON ignia-mac (Remote Control,
+since 2026-09-14): there a bare `eas update --platform ios` is the right
+command and `ssh ignia-mac` is not needed. The local host is read from
+`sys.platform`; `GUARD_HOST=mac|windows` overrides it for the test matrix.
 
 **Bare `eas update` publishes BOTH platforms**, which under a split build host
 is correct on neither machine -- it is blocked everywhere, and that is the rule
@@ -37,6 +42,7 @@ Gate before publishing: compare `npx expo-updates fingerprint:generate
 (`apps/mobile/AGENTS.md`), on the machine that owns that platform.
 """
 import json
+import os
 import re
 import sys
 
@@ -62,6 +68,13 @@ ENVIRONMENT = re.compile(r"--environment[=\s]+\S+")
 # Which host owns which platform. Update this table when a build host moves --
 # it is the single place the routing lives.
 OWNER = {"android": "windows", "ios": "mac"}
+
+# The machine this hook is running on. A session on ignia-mac publishes iOS
+# directly; a session on the Windows workstation publishes Android directly and
+# reaches the Mac through `ssh ignia-mac`.
+LOCAL_HOST = os.environ.get("GUARD_HOST") or (
+    "mac" if sys.platform == "darwin" else "windows"
+)
 
 
 def strip_heredocs(cmd):
@@ -152,7 +165,7 @@ if "--help" in cmd:
 
 m = PLATFORM.search(cmd)
 platform = m.group(1).lower() if m else None
-here = "mac" if mac_publish and not local_publish else "windows"
+here = "mac" if mac_publish and not local_publish else LOCAL_HOST
 
 if platform not in OWNER:
     block(

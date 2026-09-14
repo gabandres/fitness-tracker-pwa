@@ -97,6 +97,13 @@ case(E, cmd('ssh ignia-mac "cd ~/x && npx eas update --platform ios --branch pro
 case(E, cmd("cd apps/mobile && npx eas update --platform android --branch production"), "android from Windows, no --environment", "BLOCK")
 case(E, cmd("cd apps/mobile && npx eas update --platform android --branch production --environment=production"), "--environment= form", "allow")
 case(E, cmd("cd apps/mobile && npx eas update --platform ios --branch production"), "ios from Windows (wrong host)", "BLOCK")
+
+# A session running ON ignia-mac (Remote Control) -- iOS is local there, Android is not.
+MACENV = {"GUARD_HOST": "mac"}
+case(E, cmd("cd apps/mobile && npx eas update --platform ios --branch production --environment production"), "ios directly on the Mac (owner)", "allow", MACENV)
+case(E, cmd("cd apps/mobile && npx eas update --platform android --branch production --environment production"), "android directly on the Mac (wrong host)", "BLOCK", MACENV)
+case(E, cmd('ssh ignia-mac "cd ~/x && npx eas update --platform ios --branch production --environment production"'), "ios via ssh, from the Mac itself", "allow", MACENV)
+case(E, cmd("cd apps/mobile && npx eas update --platform ios --branch production"), "ios on the Mac, no --environment", "BLOCK", MACENV)
 # Mentions, not invocations. The `|` inside a quoted regex used to split into a
 # phantom segment starting with `eas update` and block a plain grep (2026-08-17).
 case(E, cmd('grep -nE "ssh ignia-mac.*(eas update|gradlew)" docs/COMMANDS.md'), "grep whose PATTERN mentions eas update", "allow")
