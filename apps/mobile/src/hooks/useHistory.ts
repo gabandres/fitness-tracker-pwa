@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { type CustomFood, type DailyLog, type DaySummary, type MealPreset, type DayBoundary, dayBoundaryOf, dayKeyAt, LOG_WINDOW_ROWS, summarizeDays } from '@macrolog/core';
 import { useAuth } from '@/lib/auth';
 import { type LogWrites, useLogWrites } from '@/hooks/useLogWrites';
+import { feedChannel, useLedgerFeed } from '@/hooks/useLedgerFeed';
 import {
   subscribeCustomFoods,
   subscribeDailyWeights,
@@ -37,28 +38,50 @@ export function useHistory(): HistoryState {
   const [weights, setWeights] = useState<Record<string, number>>({});
   const [presets, setPresets] = useState<MealPreset[]>([]);
   const [customFoods, setCustomFoods] = useState<CustomFood[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-
-  useEffect(() => {
-    if (!uid) return;
-    setLoading(true);
-    const unsubs = [
-      subscribeRecentLogs(
-        uid,
-        LOG_WINDOW_ROWS,
-        (l) => {
-          setLogs(l);
-          setLoading(false);
-        },
-        setError,
-      ),
-      subscribeDailyWeights(uid, setWeights, setError),
-      subscribePresets(uid, setPresets, setError),
-      subscribeCustomFoods(uid, setCustomFoods, setError),
-    ];
-    return () => unsubs.forEach((u) => u());
-  }, [uid]);
+  // MOUNT-gated, not focus-gated, and left that way on purpose: nothing in the
+  // code shows the choice to be a bug, so the migration to `useLedgerFeed`
+  // states it (`gate: 'mount'`) rather than quietly upgrading it. What the feed
+  // does add here is the `trackSubs` wrapping this hook never had — four
+  // listeners that the dev counter could not see were four it could not blame.
+  const feed = useLedgerFeed({
+    uid,
+    label: 'History',
+    gate: 'mount',
+    channels: () =>
+      uid
+        ? [
+            feedChannel({
+              key: 'logs',
+              open: (deliver, fail) => subscribeRecentLogs(uid, LOG_WINDOW_ROWS, deliver, fail),
+              apply: setLogs,
+            }),
+            // The other three feed the calendar but the spinner has never
+            // waited on them — a day with weights and no logs still needs the
+            // rows to know which days exist.
+            feedChannel({
+              key: 'weights',
+              settles: 'none',
+              open: (deliver, fail) => subscribeDailyWeights(uid, deliver, fail),
+              apply: setWeights,
+            }),
+            feedChannel({
+              key: 'presets',
+              settles: 'none',
+              open: (deliver, fail) => subscribePresets(uid, deliver, fail),
+              apply: setPresets,
+            }),
+            feedChannel({
+              key: 'customFoods',
+              settles: 'none',
+              open: (deliver, fail) => subscribeCustomFoods(uid, deliver, fail),
+              apply: setCustomFoods,
+            }),
+          ]
+        : [],
+    deps: [uid],
+  });
+  const loading = !feed.answered.logs;
+  const error = feed.error;
 
   // ADR-0030. `profile` comes off the auth context, which is already
   // subscribed app-wide — reading it here adds no listener, so this does not

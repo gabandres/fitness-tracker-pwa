@@ -1,5 +1,4 @@
 import { useCallback, useMemo, useState } from 'react';
-import { useFocusEffect } from 'expo-router';
 import {
   type DateKey,
   type Fast,
@@ -9,7 +8,7 @@ import {
   sortFastsByEndDesc,
 } from '@macrolog/core';
 import { useAuth } from '@/lib/auth';
-import { trackSubs } from '@/lib/sub-debug';
+import { feedChannel, useLedgerFeed } from '@/hooks/useLedgerFeed';
 import { addFast, deleteFast, subscribeFastsAround, updateFast } from '@/lib/ledger';
 
 /**
@@ -80,7 +79,6 @@ export function useDayFasts(
   const { user } = useAuth();
   const uid = user?.uid;
   const [fasts, setFasts] = useState<Fast[]>([]);
-  const [loading, setLoading] = useState(true);
 
   // `dayRange` rather than a naive midnight pair: on a 3 AM boundary the day
   // this screen shows runs 03:00 → 03:00, and the listener has to be bounded to
@@ -88,27 +86,28 @@ export function useDayFasts(
   // fasts exist.
   const { start, end } = useMemo(() => dayRange(key, boundary), [key, boundary]);
 
-  useFocusEffect(
-    useCallback(() => {
-      if (!uid || !enabled) return;
-      const unsubs = [
-        subscribeFastsAround(
-          uid,
-          start,
-          end,
-          (next) => {
-            setFasts(next);
-            setLoading(false);
-          },
-          // A failed listener must not render as "no fasts on this day" — that
-          // invites the user to add a duplicate of a fast that is already
-          // there. Staying in `loading` shows the spinner instead.
-          () => {},
-        ),
-      ];
-      return trackSubs('History/day-fasts', unsubs);
-    }, [uid, enabled, start, end]),
-  );
+  const feed = useLedgerFeed({
+    uid,
+    label: 'History/day-fasts',
+    gate: 'focus',
+    enabled,
+    channels: () =>
+      uid
+        ? [
+            feedChannel({
+              key: 'fasts',
+              // No `fail` is wired, and that is the policy: a failed listener
+              // must not render as "no fasts on this day" — that invites the
+              // user to add a duplicate of a fast that is already there.
+              // Staying unanswered shows the spinner instead.
+              open: (deliver) => subscribeFastsAround(uid, start, end, deliver),
+              apply: setFasts,
+            }),
+          ]
+        : [],
+    deps: [uid, start, end],
+  });
+  const loading = !feed.ready;
 
   const dayFasts = useMemo(
     () => sortFastsByEndDesc(fastsEndingOn(fasts, key, boundary)),

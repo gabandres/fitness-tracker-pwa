@@ -1,5 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
-import { useFocusEffect } from 'expo-router';
+import { useMemo, useState } from 'react';
 import {
   type DailyLog,
   type Profile,
@@ -15,7 +14,7 @@ import {
   trailingDateKeys,
 } from '@macrolog/core';
 import { useAuth } from '@/lib/auth';
-import { trackSubs } from '@/lib/sub-debug';
+import { feedChannel, useLedgerFeed } from '@/hooks/useLedgerFeed';
 import { subscribeDailySleepSince } from '@/lib/ledger';
 import { isHealthConnected } from '@/lib/health-sync';
 import { isOuraConnectedOnce } from '@/lib/oura';
@@ -73,7 +72,6 @@ export function useSleepTrends(
   const { user } = useAuth();
   const uid = user?.uid;
   const [sleepByDay, setSleepByDay] = useState<Record<string, SleepEntry>>({});
-  const [answered, setAnswered] = useState(false);
   const [connectedTo, setConnectedTo] = useState<'oura' | 'health' | null>(null);
 
   const boundary = useMemo(() => dayBoundaryOf(profile), [profile]);
@@ -93,42 +91,40 @@ export function useSleepTrends(
     [boundary],
   );
 
-  useFocusEffect(
-    useCallback(() => {
-      if (!uid) return;
-      let alive = true;
-
-      // One-shot reads, not listeners: this only decides which sentence the
-      // EMPTY row shows, and a permanent listener for a string is exactly what
-      // ADR-0016's focus-gating rule exists to prevent.
+  const feed = useLedgerFeed({
+    uid,
+    label: 'Trends/sleep',
+    gate: 'focus',
+    // One-shot reads, not listeners: this only decides which sentence the
+    // EMPTY row shows, and a permanent listener for a string is exactly what
+    // ADR-0016's focus-gating rule exists to prevent. `alive()` is the feed's,
+    // so a resolve that lands after the tab blurred is dropped.
+    onOpen: ({ uid: u, alive }) => {
       void (async () => {
         const [oura, health] = await Promise.all([
-          isOuraConnectedOnce(uid).catch(() => false),
+          isOuraConnectedOnce(u).catch(() => false),
           isHealthConnected().catch(() => false),
         ]);
-        if (alive) setConnectedTo(oura ? 'oura' : health ? 'health' : null);
+        if (alive()) setConnectedTo(oura ? 'oura' : health ? 'health' : null);
       })();
-
-      const unsubs = [
-        subscribeDailySleepSince(
-          uid,
-          dateKeys[0] ?? '',
-          (sleep) => {
-            setSleepByDay(sleep);
-            setAnswered(true);
-          },
-          // A listener error is not evidence of "no sleep". Leave `answered`
-          // false so the card renders nothing at all rather than an invitation
-          // to connect a source the user has already connected.
-          () => {},
-        ),
-      ];
-      return () => {
-        alive = false;
-        trackSubs('Trends/sleep', unsubs)();
-      };
-    }, [uid, dateKeys]),
-  );
+    },
+    channels: () =>
+      uid
+        ? [
+            feedChannel({
+              key: 'sleep',
+              // No `fail` is wired: a listener error is not evidence of "no
+              // sleep". Staying unanswered renders the card as nothing at all
+              // rather than as an invitation to connect a source the user has
+              // already connected.
+              open: (deliver) => subscribeDailySleepSince(uid, dateKeys[0] ?? '', deliver),
+              apply: setSleepByDay,
+            }),
+          ]
+        : [],
+    deps: [uid, dateKeys],
+  });
+  const answered = feed.ready;
 
   const window = useMemo(() => sleepWindow(sleepByDay, dateKeys), [sleepByDay, dateKeys]);
 

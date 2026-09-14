@@ -1,5 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
-import { useFocusEffect } from 'expo-router';
+import { useMemo, useState } from 'react';
 import {
   type Fast,
   type FastingWindow,
@@ -13,7 +12,7 @@ import {
   trailingDateKeys,
 } from '@macrolog/core';
 import { useAuth } from '@/lib/auth';
-import { trackSubs } from '@/lib/sub-debug';
+import { feedChannel, useLedgerFeed } from '@/hooks/useLedgerFeed';
 import { subscribeFastsSince } from '@/lib/ledger';
 
 /**
@@ -67,7 +66,6 @@ export function useFastingTrends(profile: Profile | null): FastingTrends {
   const { user } = useAuth();
   const uid = user?.uid;
   const [fasts, setFasts] = useState<Fast[]>([]);
-  const [answered, setAnswered] = useState(false);
 
   const boundary = useMemo(() => dayBoundaryOf(profile), [profile]);
 
@@ -89,26 +87,27 @@ export function useFastingTrends(profile: Profile | null): FastingTrends {
     return first ? dayRange(first, boundary).start : new Date(0);
   }, [dateKeys, boundary]);
 
-  useFocusEffect(
-    useCallback(() => {
-      if (!uid) return;
-      const unsubs = [
-        subscribeFastsSince(
-          uid,
-          since,
-          (next) => {
-            setFasts(next);
-            setAnswered(true);
-          },
-          // A listener error is not evidence of "no fasts". Leaving `answered`
-          // false renders nothing at all, rather than inviting someone to start
-          // a fast because their history failed to load.
-          () => {},
-        ),
-      ];
-      return trackSubs('Trends/fasting', unsubs);
-    }, [uid, since]),
-  );
+  const feed = useLedgerFeed({
+    uid,
+    label: 'Trends/fasting',
+    gate: 'focus',
+    channels: () =>
+      uid
+        ? [
+            feedChannel({
+              key: 'fasts',
+              // No `fail` is wired: a listener error is not evidence of "no
+              // fasts". Staying unanswered renders nothing at all, rather than
+              // inviting someone to start a fast because their history failed
+              // to load.
+              open: (deliver) => subscribeFastsSince(uid, since, deliver),
+              apply: setFasts,
+            }),
+          ]
+        : [],
+    deps: [uid, since],
+  });
+  const answered = feed.ready;
 
   const window = useMemo(
     () => fastingWindow(fasts, dateKeys, boundary),

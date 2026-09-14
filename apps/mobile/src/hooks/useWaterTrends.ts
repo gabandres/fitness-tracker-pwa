@@ -1,5 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
-import { useFocusEffect } from 'expo-router';
+import { useMemo, useState } from 'react';
 import {
   type Profile,
   type WaterWindow,
@@ -10,7 +9,7 @@ import {
   waterWindow,
 } from '@macrolog/core';
 import { useAuth } from '@/lib/auth';
-import { trackSubs } from '@/lib/sub-debug';
+import { feedChannel, useLedgerFeed } from '@/hooks/useLedgerFeed';
 import { subscribeDailyWaterSince } from '@/lib/ledger';
 
 /**
@@ -55,7 +54,6 @@ export function useWaterTrends(profile: Profile | null): WaterTrends {
   const { user } = useAuth();
   const uid = user?.uid;
   const [waterByDay, setWaterByDay] = useState<Record<string, number>>({});
-  const [answered, setAnswered] = useState(false);
 
   const boundary = useMemo(() => dayBoundaryOf(profile), [profile]);
 
@@ -67,26 +65,27 @@ export function useWaterTrends(profile: Profile | null): WaterTrends {
     [boundary],
   );
 
-  useFocusEffect(
-    useCallback(() => {
-      if (!uid) return;
-      const unsubs = [
-        subscribeDailyWaterSince(
-          uid,
-          dateKeys[0] ?? '',
-          (next) => {
-            setWaterByDay(next);
-            setAnswered(true);
-          },
-          // A listener error is not evidence of "no water". Leaving `answered`
-          // false renders nothing at all, rather than inviting someone to start
-          // logging because their history failed to load.
-          () => {},
-        ),
-      ];
-      return trackSubs('Trends/water', unsubs);
-    }, [uid, dateKeys]),
-  );
+  const feed = useLedgerFeed({
+    uid,
+    label: 'Trends/water',
+    gate: 'focus',
+    channels: () =>
+      uid
+        ? [
+            feedChannel({
+              key: 'water',
+              // No `fail` is wired: a listener error is not evidence of "no
+              // water". Staying unanswered renders nothing at all, rather than
+              // inviting someone to start logging because their history failed
+              // to load.
+              open: (deliver) => subscribeDailyWaterSince(uid, dateKeys[0] ?? '', deliver),
+              apply: setWaterByDay,
+            }),
+          ]
+        : [],
+    deps: [uid, dateKeys],
+  });
+  const answered = feed.ready;
 
   const window = useMemo(() => waterWindow(waterByDay, dateKeys), [waterByDay, dateKeys]);
 

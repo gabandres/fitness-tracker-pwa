@@ -1,8 +1,7 @@
-import { useCallback, useState } from 'react';
-import { useFocusEffect } from 'expo-router';
+import { useState } from 'react';
 import { type DailyLog, type Profile, LOG_WINDOW_ROWS } from '@macrolog/core';
 import { useAuth } from '@/lib/auth';
-import { trackSubs } from '@/lib/sub-debug';
+import { feedChannel, useLedgerFeed } from '@/hooks/useLedgerFeed';
 import { subscribeDailyWeights, subscribeProfile, subscribeRecentLogs } from '@/lib/ledger';
 
 /**
@@ -22,7 +21,9 @@ import { subscribeDailyWeights, subscribeProfile, subscribeRecentLogs } from '@/
  *
  * Focus-gating is not an option here. ADR-0016 makes it the rule that bounds
  * the per-hook duplication, so it is a property of this module rather than a
- * decision each caller re-makes.
+ * decision each caller re-makes — and since 2026-09-14 of `useLedgerFeed`,
+ * which this hook now states its three channels to rather than re-wiring the
+ * gate, the `trackSubs` label, the readiness record and the error sink itself.
  */
 export interface CoreSnapshot {
   /** Oldest-first, per the ledger seam's contract. */
@@ -54,56 +55,50 @@ export function useCoreSnapshot(label: string): CoreSnapshot {
   const [logs, setLogs] = useState<DailyLog[]>([]);
   const [weights, setWeights] = useState<Record<string, number>>({});
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [error, setError] = useState<Error | null>(null);
-  const [answered, setAnswered] = useState({ logs: false, weights: false, profile: false });
 
-  useFocusEffect(
-    useCallback(() => {
-      if (!uid) return;
-      setError(null);
-      // `answered` is deliberately NOT reset here. It is keyed to the account,
-      // not to the subscription cycle: re-subscribing on every refocus would
-      // otherwise flip `loaded` false for a frame and flash a "—" over a number
-      // the user was already looking at. Firestore answers a refocus from its
-      // own cache anyway.
-      const mark = (k: 'logs' | 'weights' | 'profile') =>
-        setAnswered((prev) => (prev[k] ? prev : { ...prev, [k]: true }));
-      const unsubs = [
-        subscribeRecentLogs(
-          uid,
-          LOG_WINDOW_ROWS,
-          (l) => {
-            setLogs(l);
-            mark('logs');
-          },
-          setError,
-        ),
-        subscribeDailyWeights(
-          uid,
-          (w) => {
-            setWeights(w);
-            mark('weights');
-          },
-          setError,
-        ),
-        subscribeProfile(
-          uid,
-          (p) => {
-            setProfile(p);
-            mark('profile');
-          },
-          setError,
-        ),
-      ];
-      return trackSubs(label, unsubs);
-    }, [uid, label]),
-  );
+  // The gate, the `trackSubs` wrapping, the readiness record and the error
+  // policy are `useLedgerFeed`'s; the three `subscribe*` calls stay this hook's
+  // own, which is the half ADR-0016 is about.
+  const feed = useLedgerFeed({
+    uid,
+    label,
+    gate: 'focus',
+    // A refocus is a retry here, uniquely: `loaded` is gated on `!error`, so a
+    // standing error would otherwise strand every derivation on this screen
+    // until the tab unmounts.
+    retryOnOpen: true,
+    channels: () =>
+      uid
+        ? [
+            // `settles: 'any'` throughout: a profile that comes back `null`
+            // counts, and so does a cache answer. That is an answer ("this user
+            // has no profile doc"), not silence — and requiring a server answer
+            // would hang a cold-cache offline start.
+            feedChannel({
+              key: 'logs',
+              open: (deliver, fail) => subscribeRecentLogs(uid, LOG_WINDOW_ROWS, deliver, fail),
+              apply: setLogs,
+            }),
+            feedChannel({
+              key: 'weights',
+              open: (deliver, fail) => subscribeDailyWeights(uid, deliver, fail),
+              apply: setWeights,
+            }),
+            feedChannel({
+              key: 'profile',
+              open: (deliver, fail) => subscribeProfile(uid, deliver, fail),
+              apply: setProfile,
+            }),
+          ]
+        : [],
+    deps: [uid],
+  });
 
   return {
     logs,
     weights,
     profile,
-    loaded: !error && answered.logs && answered.weights && answered.profile,
-    error,
+    loaded: !feed.error && feed.ready,
+    error: feed.error,
   };
 }
