@@ -542,8 +542,13 @@ export function subscribeDailySleepSince(
 
 /** Where a night's number came from. Absent on every document written before
  *  2026-08-24, which {@link importDailySleep} treats as `manual` — protecting
- *  what a user already typed rather than assuming it is disposable. */
-export type SleepSource = 'manual' | 'import';
+ *  what a user already typed rather than assuming it is disposable.
+ *
+ *  Re-exported, not redeclared: it is one of the eight registered `source`
+ *  axes and core owns the declaration (`@macrolog/core/source-axes`). A second
+ *  copy here would be a second thing to widen. */
+import type { SleepSource } from '@macrolog/core';
+export type { SleepSource };
 
 /**
  * Write a night the USER entered — the sleep sheet on Today, or the extras on a

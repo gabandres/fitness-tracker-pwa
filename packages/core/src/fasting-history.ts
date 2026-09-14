@@ -94,6 +94,8 @@ export interface Fast {
   readonly source?: FastSource;
 }
 
+/** Whether a fast was recorded by the running timer or typed in afterwards.
+ *  One of the eight `source` axes — see `./source-axes`. */
 export type FastSource = 'timer' | 'manual';
 
 /**

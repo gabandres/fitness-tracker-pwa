@@ -19,7 +19,9 @@
 /**
  * Which food *database* a result came from. Deliberately distinct from the
  * CustomFood *capture* `FoodSource` ('barcode' | 'label' | 'text' | 'manual')
- * in `./types` — same idea, different axis, so it gets its own name.
+ * in `./types` — same idea, different axis, so it gets its own name. Both are
+ * registered in `./source-axes`, which proves by compilation that they share no
+ * literal and therefore cannot be handed to each other.
  *
  * `'menu'` is the bundled MenuStat chain-restaurant corpus (ADR-0027). Its
  * items differ from `'fdc'` in one way that matters to every consumer: macros

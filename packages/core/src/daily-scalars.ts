@@ -18,6 +18,8 @@
  * module never imports a Firestore SDK — callers hand it `snap.data()`.
  */
 
+import type { SleepSource } from './sleep-intake';
+
 /** Millilitres per US fluid ounce. The `ml` field is legacy; nothing writes it
  *  any more, but historic docs still carry it. */
 export const ML_PER_FL_OZ = 29.5735;
@@ -59,7 +61,7 @@ export function readSleepHours(data: unknown): number | null {
  * reason: the rules constrain the field, but a reader that trusts the server
  * to have been deployed first is a reader that can be surprised.
  */
-export function readSleepSource(data: unknown): 'manual' | 'import' {
+export function readSleepSource(data: unknown): SleepSource {
   return (data as { source?: unknown } | null | undefined)?.source === 'import'
     ? 'import'
     : 'manual';

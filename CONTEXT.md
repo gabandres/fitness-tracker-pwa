@@ -32,11 +32,33 @@ add a term when a real ambiguity exists, not preemptively.
   a quick-add and every row older than 2026-09-03 carry no `source` at all — so
   it answers "was this photo-scanned?" and no other question. It is the evidence
   the `first-scan` **Milestone** is awarded on.
-  - **The three-`source` footgun.** Three unrelated unions now share the name:
-    this one on a `DailyLog`; **FoodSource** (`barcode | label | text | manual`)
-    on a `CustomFood`, which is how a *food* was captured; and
-    `CardioBlock.source` (`manual | health`). One careless autocomplete apart —
-    all three declarations carry a doc comment saying so.
+  - **The `source` footgun — now a compile error, not a comment.** **Eight**
+    unrelated domain axes are spelled `source` (the note here said "three" until
+    2026-09-14, which undercounted by five): **LogSource** (`photo`) on a
+    `DailyLog`; **FoodSource** (`barcode | label | text | manual`) on a
+    `CustomFood`, how a *food* was captured; **CardioSource**
+    (`manual | health | oura`) on a `CardioBlock`, how an effort arrived;
+    **FoodDbSource** (`fdc | off | menu`), which *database* answered;
+    **FastSource** (`timer | manual`); **SleepSource** (`manual | import`);
+    **ScannedItemSource** (`usda | custom | model`), what grounded a scanned
+    item; and `TdeeResult['source']` (`measured | formula | seed`), which
+    estimator ran.
+    - Each is a **named alias over a disjoint literal set**, so handing one axis
+      to something expecting another is TS2322 — the crossing the old comment
+      warned about does not compile. `packages/core/src/source-axes.ts` is the
+      registry: a type-only `SourceAxes` map plus pins that make the
+      disjointness itself a build failure, so widening one axis into another's
+      vocabulary (`CardioSource` gaining `text`, say) breaks the build instead
+      of surfacing later as a bad document. `source-axes.test.ts` asserts each
+      crossing fails to compile.
+    - **The only literal any two axes share is `'manual'`** — food, cardio, fast
+      and sleep, where it means the same thing on all four ("a human typed it")
+      and is each one's conservative default. That single word is the entire
+      residual surface, and closing it would cost a cast at ~123 literal
+      assignment sites; the field names are **stored** and `firestore.rules`
+      validates them by literal, so branding or renaming is not on the table.
+    - Registering a **ninth** axis means a line in `SourceAxes` as well as at
+      the declaration: an axis that is not in the map is an axis nothing checks.
 - **MealLabel** — Optional free-text name on a `DailyLog`
   (`log.mealLabel`). Powers the recent-entries one-tap-relog row and
   recipe deduplication. Empty for weight-only or 0-cal training-marker
@@ -103,8 +125,10 @@ add a term when a real ambiguity exists, not preemptively.
   client. Each frontend supplies a one-line transport adapter (web
   `CallableGateway`, mobile `httpsCallable`); `functions/src/food-search.ts` is
   the server wire source (separate project, kept in sync). **FoodDbSource**
-  (`'fdc' | 'off'`, which *database*) is distinct from the CustomFood
-  **FoodSource** (`'barcode' | 'label' | 'text' | 'manual'`, how it was *captured*).
+  (`'fdc' | 'off' | 'menu'`, which *database*) is distinct from the CustomFood
+  **FoodSource** (`'barcode' | 'label' | 'text' | 'manual'`, how it was
+  *captured*) — one of eight `source` axes, all registered and pinned disjoint
+  in `packages/core/src/source-axes.ts` (see *the `source` footgun* above).
 - **Firestore mappers** — The shared doc→domain read-path mappers, single-sourced
   in `packages/core/src/firestore-mappers.ts` (the read-path twin of
   `prune-undefined`, the write-path pruner). Owns the `Timestamp → Date`
@@ -441,7 +465,8 @@ collections + a `WorkoutStore` facet back the Train tab.
     ([ADR-0024](docs/adr/0024-continuous-activity-multiplier-floored-at-fao-minimum.md)
     decision 4, extended to the event stream). Pinned by
     `cardio-energy-independence.test.ts`.
-  - **Source vs provider** — `source` is `manual | health` (how it got here);
+  - **Source vs provider** — `source` is `manual | health | oura` (how it got
+    here, and one of the eight `source` axes);
     `provider` is which wearable authored it (`oura | apple-watch | garmin |
     whoop | other`). Apple Health is a *store*, not a source
     ([ADR-0026](docs/adr/0026-oura-through-the-os-health-store.md)).

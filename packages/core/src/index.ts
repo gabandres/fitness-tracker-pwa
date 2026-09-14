@@ -407,3 +407,9 @@ export {
 // the onboarding plan step and the Settings editor cannot disagree about what
 // a legal number is.
 export * from './target-input';
+
+// ────────────────────── The `source` axes ──────────────────────
+// Type-only registry of every domain axis spelled `source`, plus the pins that
+// make "these eight stay disjoint" a build failure rather than a doc comment.
+// Emits no runtime code; nothing needs to import it to be protected by it.
+export type { SourceAxes, SourceAxis, SharedLiterals } from './source-axes';

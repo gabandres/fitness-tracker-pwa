@@ -35,15 +35,20 @@ export const MEAL_TYPES: readonly MealType[] = ['breakfast', 'lunch', 'dinner', 
  * at all — so this field answers "was this photo-scanned?" and nothing else.
  * Reading absence as "hand-typed" would be wrong for every historic row.
  *
- * ## The naming footgun (`CONTEXT.md` records it too)
+ * ## The naming footgun, and why it is now the compiler's problem
  *
- * There are now three `source` fields in this codebase and they are three
- * different unions: {@link FoodSource} on a `CustomFood` is how a *food* was
- * captured (`barcode | label | text | manual`); `CardioBlock.source` is
- * `manual | health`; this one is on a `DailyLog` and is `'photo'`. One member
- * today, deliberately — a value nothing writes is speculative, and adding one
- * later is a `firestore.rules` deploy that must land before any client writes
- * it.
+ * EIGHT unrelated domain axes are spelled `source` — this one, {@link FoodSource}
+ * on a `CustomFood`, `CardioSource`, `FoodDbSource`, `FastSource`,
+ * `SleepSource`, `ScannedItemSource` and `TdeeResult['source']`. They are not
+ * interchangeable and they are no longer guarded by prose: each is a named
+ * alias over a disjoint literal set, so crossing them is TS2322, and
+ * `./source-axes` pins the disjointness so widening one into another's
+ * vocabulary fails the build. `source-axes.test.ts` asserts the crossings do
+ * not compile. Read that file before adding a ninth axis or a new member here.
+ *
+ * `'photo'` is one member today, deliberately — a value nothing writes is
+ * speculative, and adding one later is a `firestore.rules` deploy that must
+ * land before any client writes it.
  */
 export type LogSource = 'photo';
 
@@ -111,7 +116,12 @@ export interface MealPreset {
 
 // ─── Custom food library types (ADR-0013) ──────────────────────
 /** How a CustomFood entered the library. Drives provenance UI and tracks
- *  which resolution path produced it. */
+ *  which resolution path produced it.
+ *
+ *  One of the eight `source` axes (`./source-axes`). It shares the literal
+ *  `'manual'` with `CardioSource`, `FastSource` and `SleepSource` and nothing
+ *  else — that single word is the whole residual overlap, and it means the same
+ *  thing on all four: a human typed it. */
 export type FoodSource = 'barcode' | 'label' | 'text' | 'manual';
 
 /** Serving unit for a CustomFood. Grams-first: mass units are exact;

@@ -66,7 +66,10 @@ export const CARDIO_MODALITIES: readonly CardioModality[] = [
  *
  * Adding a member costs no `firestore.rules` deploy: `isValidWorkoutSession`
  * validates `cardio` as a capped list and stops, because rules cannot iterate
- * a list (see this file's header).
+ * a list (see this file's header). It DOES cost a line in `./source-axes`: this
+ * is one of eight axes spelled `source`, and the pin there proves it shares
+ * only the literal `'manual'` with any other. Widen it into another axis's
+ * vocabulary and the build fails on purpose.
  */
 export type CardioSource = 'manual' | 'health' | 'oura';
 

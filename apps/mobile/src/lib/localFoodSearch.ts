@@ -5,6 +5,7 @@ import {
   loadFoodIndex,
   searchFoodIndex,
   type CompactFoodIndex,
+  type FoodDbSource,
   type FoodDetail,
   type FoodSearchHit,
   type IndexedFood,
@@ -131,7 +132,7 @@ export function localSearch(query: string, pageSize = 20): FoodSearchHit[] {
  * `'off'` ids are barcodes and legitimately need the network, and an exception
  * here would turn a normal fallback into an error path.
  */
-export function localGetDetail(source: string, id: string): FoodDetail | null {
+export function localGetDetail(source: FoodDbSource, id: string): FoodDetail | null {
   if (source !== 'fdc') return null;
   const food = findFoodById(getIndex(), id);
   return food ? buildFoodDetail(food) : null;

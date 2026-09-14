@@ -102,12 +102,23 @@ export const SLEEP_CARD_MIN_NIGHTS = 3;
  *  self-scaling chart makes a bad week look like a good one. */
 export const SLEEP_STRIP_CEILING_HOURS = 10;
 
+/**
+ * How a night's `hours` got into `dailySleep/{dateKey}` — typed by the user, or
+ * pulled from the OS health store.
+ *
+ * One of the eight `source` axes; see `./source-axes` for the registry and for
+ * the compile-time proof that they stay disjoint. This one shares the literal
+ * `'manual'` with {@link FoodSource}, {@link CardioSource} and {@link FastSource}
+ * and nothing else.
+ */
+export type SleepSource = 'manual' | 'import';
+
 /** One night's stored number, as the ledger holds it. */
 export interface SleepEntry {
   hours: number;
   /** Absent on every document written before 2026-08-24; those read `manual`
    *  (`readSleepSource`). */
-  source: 'manual' | 'import';
+  source: SleepSource;
 }
 
 /** One column of the strip. `hours: null` is a night with NO reading — drawn as
