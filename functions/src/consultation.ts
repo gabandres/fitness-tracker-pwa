@@ -2,7 +2,7 @@ import { getAuth } from "firebase-admin/auth";
 import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
 import type { Response } from "express";
 import { ErrorCode } from "./error-codes";
-import { callerAccess, dailyQuota, db, geminiApiKey, spendCeiling } from "./init";
+import { callerAccess, dailyQuota, db, geminiApiKey, withCostGuards } from "./init";
 import { recordAiUsage, usageFromMetadata } from "./ai-usage";
 import { getGeminiClient } from "./gemini-client";
 
@@ -122,75 +122,74 @@ export const consultationStream = onRequest(
       return;
     }
 
-    // ── Org-wide spend guard, before the per-user reserve ──
-    // Checked first so a per-user rejection never burns a slot of the shared
-    // ceiling. Unlimited callers are metered but not blocked (spend-ceiling.ts).
-    if (!caller.unlimited) {
-      try {
-        await spendCeiling.check("consultation");
-      } catch (err) {
-        sendPreambleError(res, err); // FEATURE_DISABLED / SERVICE_CEILING_REACHED
-        return;
-      }
-    }
-
-    // ── Reserve one slot (comped bypasses; admin does NOT) ──
+    // ── The two AI-cost guards, in the one order that is correct ──
+    //
+    // `withCostGuards` (cost-guards.ts) checks the org-wide ceiling BEFORE the
+    // per-user reserve — so an ordinary "you hit your own limit" rejection
+    // never burns a slot of the shared budget — reserves one slot (comped
+    // bypasses; admin does NOT, see `Caller.quotaExempt`), meters the spend for
+    // every tier, and refunds the SLOT if the work below throws. The spend is
+    // never refunded: the user did not get their consultation, but the tokens
+    // were still spent, and a ceiling that refunds real spend stops guarding
+    // the bill. ADR-0008 owns the caller/quota model.
+    //
+    // Unlimited callers are metered but not blocked (spend-ceiling.ts).
     const limit = dailyQuota.limitFor("consultation", caller.paidClaim);
-    let remaining = -1;
-    let reserved = false;
-    if (!caller.quotaExempt) {
-      try {
-        const r = await dailyQuota.reserve(caller.uid, "consultation", caller.tier === "paid");
-        remaining = r.remaining;
-        reserved = true;
-      } catch (err) {
-        sendPreambleError(res, err); // 429 CONSULTATION_QUOTA_EXCEEDED
-        return;
-      }
-    }
-
-    // Metered once the call is authorized. Deliberately NOT refunded in the
-    // Gemini-failure path below: the per-user slot is refunded because the
-    // user did not get their consultation, but the tokens were still spent,
-    // and a ceiling that refunds real spend stops guarding the bill.
-    await spendCeiling.record("consultation");
-
-    // ── Stream Gemini as SSE ──
-    res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
-    res.setHeader("Cache-Control", "no-cache, no-transform");
-    res.setHeader("X-Accel-Buffering", "no"); // defeat any proxy buffering
-    res.flushHeaders?.();
-    // First event carries the quota counter so the UI can update "N left".
-    res.write(`event: meta\ndata: ${JSON.stringify({ remaining, limit })}\n\n`);
-
     try {
-      const client = getGeminiClient();
-      const stream = await client.models.generateContentStream({
-        model: CONSULT_MODEL,
-        contents: prompt,
-        config: { systemInstruction, temperature: 0.4 },
+      await withCostGuards({ kind: "consultation", caller }, async ({ reservation }) => {
+        // Comped callers hold no reservation, so there is no real count to
+        // show; `-1` is the client's "hide the N-left caption" signal.
+        const remaining = reservation ? reservation.remaining : -1;
+
+        // ── Stream Gemini as SSE ──
+        res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+        res.setHeader("Cache-Control", "no-cache, no-transform");
+        res.setHeader("X-Accel-Buffering", "no"); // defeat any proxy buffering
+        res.flushHeaders?.();
+        // First event carries the quota counter so the UI can update "N left".
+        res.write(`event: meta\ndata: ${JSON.stringify({ remaining, limit })}\n\n`);
+
+        try {
+          const client = getGeminiClient();
+          const stream = await client.models.generateContentStream({
+            model: CONSULT_MODEL,
+            contents: prompt,
+            config: { systemInstruction, temperature: 0.4 },
+          });
+          let usage: { promptTokenCount?: number; candidatesTokenCount?: number; thoughtsTokenCount?: number } | undefined;
+          for await (const chunk of stream) {
+            // The final chunk carries the whole call's totals; keep the last seen.
+            if (chunk.usageMetadata) usage = chunk.usageMetadata;
+            const text = chunk.text;
+            if (text) res.write(`data: ${JSON.stringify({ text })}\n\n`);
+          }
+          res.write("event: done\ndata: {}\n\n");
+          res.end();
+          void recordAiUsage(db, { kind: "consultation", model: CONSULT_MODEL, ...usageFromMetadata(usage) });
+        } catch (err) {
+          console.error("consultationStream Gemini error:", err);
+          // Rethrown, NOT handled here: the wrapper owes the user their slot
+          // back (a transient Gemini failure must not cost a daily
+          // consultation, and the client cannot refund it itself — its own
+          // rate-limit window would reject the release call). The SSE `error`
+          // event is written below, AFTER that refund has landed, so a client
+          // that retries on the error cannot race it.
+          throw err;
+        }
       });
-      let usage: { promptTokenCount?: number; candidatesTokenCount?: number; thoughtsTokenCount?: number } | undefined;
-      for await (const chunk of stream) {
-        // The final chunk carries the whole call's totals; keep the last seen.
-        if (chunk.usageMetadata) usage = chunk.usageMetadata;
-        const text = chunk.text;
-        if (text) res.write(`data: ${JSON.stringify({ text })}\n\n`);
-      }
-      res.write("event: done\ndata: {}\n\n");
-      res.end();
-      void recordAiUsage(db, { kind: "consultation", model: CONSULT_MODEL, ...usageFromMetadata(usage) });
     } catch (err) {
-      console.error("consultationStream Gemini error:", err);
-      // We already consumed a slot; refund it server-side so a transient
-      // Gemini failure doesn't silently cost the user one of their daily
-      // consultations. (Client can't reliably refund — the rate-limit
-      // window would reject its release call.)
-      if (reserved) {
-        void dailyQuota.release(caller.uid, "consultation");
+      if (res.headersSent) {
+        // The stream was already open, so the client is mid-response and can
+        // only be told in-band. The refund, if there was one, has landed.
+        res.write(`event: error\ndata: ${JSON.stringify({ code: ErrorCode.REPORT_GENERATE_FAILED })}\n\n`);
+        res.end();
+      } else {
+        // A guard rejected before any SSE byte: FEATURE_DISABLED /
+        // SERVICE_CEILING_REACHED from the ceiling, or a 429
+        // CONSULTATION_QUOTA_EXCEEDED from the reserve.
+        sendPreambleError(res, err);
       }
-      res.write(`event: error\ndata: ${JSON.stringify({ code: ErrorCode.REPORT_GENERATE_FAILED })}\n\n`);
-      res.end();
+      return;
     }
   },
 );

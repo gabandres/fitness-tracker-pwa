@@ -2,6 +2,7 @@ import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { defineSecret } from "firebase-functions/params";
 import { CallerAccess } from "./caller-access";
+import { makeCostGuards, type WithCostGuards } from "./cost-guards";
 import { DailyQuota } from "./daily-quota";
 import { SpendCeiling } from "./spend-ceiling";
 
@@ -38,3 +39,8 @@ export const dailyQuota = new DailyQuota(db);
 // this caps everyone together, because a free tier scales the AI bill with
 // users who never pay and every one of those calls is individually legal.
 export const spendCeiling = new SpendCeiling(db);
+// The ONLY sanctioned way to spend AI money. Ordering, the two exemption
+// flags and the refund asymmetry live in cost-guards.ts, not at the call
+// site — a callable that reaches Gemini through anything else has skipped a
+// guard silently. Annotated for `declaration: true`, same reason as above.
+export const withCostGuards: WithCostGuards = makeCostGuards(dailyQuota, spendCeiling);
