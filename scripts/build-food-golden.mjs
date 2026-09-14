@@ -24,12 +24,22 @@
  * implementation — the older of the two, and the one the web app depends on —
  * over a query corpus and records the exact ordered ids it returns.
  * `packages/core/src/usda-search.test.ts` asserts the on-device copy reproduces
- * it, and `functions/src/usda-db.golden.test.ts` asserts the server copy still
- * does. Change either ranking and BOTH suites go red until this is re-run
- * deliberately.
+ * it, so a drift in the CLIENT ranking goes red in a normal test run.
  *
- * `--check` verifies the committed fixture is current without writing, so CI
- * catches a re-ingest that silently reorders results.
+ * **The server half is NOT held by any suite.** This header used to name a
+ * `functions/src/usda-db.golden.test.ts` that has never existed; nothing under
+ * `functions/` reads this fixture at all. The only thing comparing the server
+ * copy against it is `npm run doctor` (`scripts/doctor.mjs`, the
+ * `usda-search-golden` check) — and that check SKIPS rather than fails when
+ * `functions/lib` is unbuilt, so a server-side ranking drift is green
+ * everywhere until someone runs doctor on a workstation that has built it.
+ * `functions/test/usda-relaxation-parity.spec.ts` (2026-09-14) covers the
+ * relaxation branch the strict fixture cannot reach, but not the scoring this
+ * file pins. Corrected 2026-09-14; there is no CI (README §CI / CD).
+ *
+ * `--check` verifies the committed fixture is current without writing, so a
+ * re-ingest that silently reorders results is caught — by doctor, on a
+ * workstation, not by a suite.
  *
  * ## Choosing the corpus
  *
