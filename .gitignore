@@ -94,6 +94,7 @@ _outer-junk-git-backup/
 # Machine-local notes: credential LOCATIONS (never values), demo-account
 # details, capture paths. Ignored because this repo is public.
 CLAUDE.local.md
+CLAUDE.local-history.md
 
 # Store screenshot production — raw captures show a populated demo account's
 # real logs, and the caption font is a downloaded OFL binary. Composited
