@@ -5,12 +5,29 @@
  *
  * **The sections below mirror CONTEXT.md's headings**, so a reader who knows
  * the glossary can find the module and a reader who finds the module can look
- * up the term. They are the only structure this surface has: every line is
- * still `export *`, so ~430 symbols share one flat namespace and an import from
- * '@macrolog/core' autocompletes to all of them. Keep a new module under the
- * heading its concept lives under in CONTEXT.md, and add the term there if it
- * has none — a module whose name means nothing in the glossary is a module
- * nobody will find twice.
+ * up the term. They are the only structure this surface has: one flat namespace
+ * that an import from '@macrolog/core' autocompletes to all of. Keep a new
+ * module under the heading its concept lives under in CONTEXT.md, and add the
+ * term there if it has none — a module whose name means nothing in the glossary
+ * is a module nobody will find twice.
+ *
+ * (A symbol count used to live in this line. It said ~430 when the real figure
+ * had drifted past 590, so it is gone rather than re-stated: nobody updates a
+ * number that no test can fail on, and a stale one is worse than none.)
+ *
+ * This barrel has TWO tiers, and the difference is load-bearing:
+ *  - `export *` (74 modules) — the whole module is reachable from
+ *    '@macrolog/core', and it needs no subpath entry in package.json.
+ *  - curated `export { … }` (13 modules: cardio, cluster-groups, csv-export,
+ *    health-workouts, oura-daily, oura-scopes, oura-workouts,
+ *    restaurant-chains, source-axes, usda-search, workout, workout-mappers,
+ *    workout-session) — only the listed names come through, because the rest
+ *    are colliding type names. The withheld half has no barrel path, so those
+ *    13 are the ones package.json republishes as deep subpaths.
+ *
+ * That list in package.json `exports` is now EXPLICIT, not a `"./*"` wildcard:
+ * a deep import of any other module fails to resolve. Adding a module here as
+ * `export *` needs no packaging change; adding it as a curated block does.
  */
 
 // ─────────────────────────── Foundations ───────────────────────────

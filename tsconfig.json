@@ -16,8 +16,16 @@
     "module": "preserve",
     "baseUrl": ".",
     "paths": {
-      "@macrolog/core": ["packages/core/src/index.ts"],
-      "@macrolog/core/*": ["packages/core/src/*"]
+      // The barrel only. The wildcard that used to sit here
+      // (`"@macrolog/core/*": ["packages/core/src/*"]`) resolved ANY module
+      // in the package by path, and a tsconfig `paths` entry beats the
+      // package's own `exports` map — so it silently re-opened the deep
+      // imports that map exists to restrict. The Angular app has never had a
+      // deep import (checked 2026-09-14), so removing it costs nothing here
+      // and makes `packages/core/package.json` the single answer to "what may
+      // be imported from core" for every consumer. Add a subpath THERE, not
+      // here.
+      "@macrolog/core": ["packages/core/src/index.ts"]
     }
   },
   "angularCompilerOptions": {
