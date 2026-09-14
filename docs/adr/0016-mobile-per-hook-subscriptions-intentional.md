@@ -79,3 +79,44 @@ seam / reference-counted listener cache.** F is closed as **won't-do**.
 - If a future screen ever does co-mount two of these hooks (making the
   overlap simultaneous, not sequential), that specific case — not the whole
   model — is the trigger to reconsider, and this ADR should be revisited then.
+
+## Amendment — 2026-09-14: the glue moved, the subscriptions did not
+
+The decision above is unchanged. This records what a later refactor *is*, so
+it is not mistaken for the shared cache this ADR closes.
+
+[`apps/mobile/src/hooks/useLedgerFeed.ts`](../../apps/mobile/src/hooks/useLedgerFeed.ts)
+now owns the **policy** that sat around every hook's `subscribe*` calls:
+focus-vs-mount gating, the `trackSubs` wrapping, snapshot provenance
+(`meta.fromCache`), readiness settling and error narrowing. Nine hooks pass
+their own channels into it.
+
+**It is not a subscription seam.** Nothing is cached, shared or
+reference-counted; each hook still constructs and owns its own `subscribe*`
+calls, inside its own channels, and the concurrent-listener count is
+unchanged — which is the quantity this ADR is actually about. The listener
+model is untouched; only the five decisions each hook was re-making around it
+moved. `useLogWrites` had already made the same argument for the **write**
+side after that glue drifted between Today and History.
+
+This *strengthens* the mitigation the Decision calls load-bearing: focus-gating
+and `trackSubs` are now the module's default rather than something each new
+hook has to remember, so the concurrent-listener bound no longer depends on a
+convention being followed by hand.
+
+Two corrections to the record above, both from drift rather than from a
+decision:
+
+- **"The Expo app has no unit-test runner" is no longer true.** It runs Jest —
+  98 suites / 802 tests as of this amendment, including 18 covering the
+  subscription policy itself. That was load-bearing in *Alternatives
+  considered* ("a listener leak has nothing to catch it"), and it is worth
+  re-reading with that premise removed if a shared cache is ever argued again.
+  The rest of the rejection — that the live multiplier does not exist — is
+  unaffected and still decides it.
+- The hook list is older than the app: `useDailyTargets` and `useTrends` are
+  named above, and the current set that subscribes is thirteen hooks. Four of
+  them subscribe on **mount**, not focus (`useMilestones`, `useReminderSync`,
+  `useWeeklyReport`, `useWidgetSync`); each has a reason and each kept its
+  gating through the refactor, but the Decision's "new hooks subscribe inside
+  `useFocusEffect`" reads as universal and is not.

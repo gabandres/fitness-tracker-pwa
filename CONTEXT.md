@@ -135,6 +135,25 @@ add a term when a real ambiguity exists, not preemptively.
   parameter, never an SDK `now()` call, so stamps stay assertable. The adapters
   keep all I/O, the collection paths, their `pruneUndefined` binding, and
   `mergeExercises` (a rewrite rule over fetched docs, not a serializer).
+- **Ledger operation** — A named multi-step write in
+  `apps/mobile/src/lib/ledger-ops.ts`: `writeDailyMetric`, `finishWorkout`,
+  `repeatYesterday`. Distinct from a **ledger verb** (`lib/ledger.ts`), which is
+  one Firestore call shaped like the schema. An operation is the sequence a
+  screen used to assemble itself — the write-then-mirror order, the day-boundary
+  derivation, the plausibility backstop. It lives one layer **above** the ledger
+  because both things it needs (`health-sync.ts`, `pending-logs.ts`) already
+  import the ledger, so putting it inside would close a cycle. The four verbs
+  that are already multi-step and stayed in `ledger.ts` (`switchToMaintenance`,
+  `markExercised`, `startFast`/`breakFast`) touch Firestore only — that is the
+  dividing line.
+- **LedgerFeed** — The read-side twin, `apps/mobile/src/hooks/useLedgerFeed.ts`:
+  the subscription **policy** (focus-vs-mount gate, `trackSubs` teardown,
+  snapshot provenance, readiness, error narrowing) every reading hook used to
+  re-decide. A hook passes its own channels (`feedChannel({ key, open, apply,
+  settles })`) and still opens its own `subscribe*` inside `open` — **this is
+  not a shared listener**, and ADR-0016 still holds (see its 2026-09-14
+  amendment). `settles` is the term for how a channel gates readiness:
+  `'server'` (a cache-only answer is not an answer), `'any'`, `'none'`.
 - **Daily scalars** — The four per-day, one-number-per-doc collections keyed by
   `dateKey`: `dailyWeights` (lb), `dailyWater` (fl oz, legacy `ml` branch),
   `dailySleep` (hours), `dailyActivity` (`{steps?, activeKcal?}` — both metrics
