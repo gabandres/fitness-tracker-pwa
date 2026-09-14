@@ -23,8 +23,9 @@ cd apps/mobile && npx expo-updates fingerprint:generate --platform android \
   | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>console.log(JSON.parse(s).hash))"
 ```
 
-Compare against the binary testers run — the table in `apps/mobile/AGENTS.md`,
-whose **"read from the artifact"** rows are the only ones that count.
+Compare against the binary testers run — the two-row current-state table in
+`apps/mobile/AGENTS.md` (values read from the artifact; the full history is
+`apps/mobile/docs/fingerprint-ledger.md`).
 
 | Result | Meaning |
 |---|---|
@@ -235,8 +236,9 @@ the Play tracks API (and `/admin` → System → **Sync now** refreshes on deman
 (`functions/src/app-version.ts`, since 2026-09-05). The static file is gone —
 do not recreate `public/app-version.json`, a static file wins over the rewrite.
 
-Then update the fingerprint table in `apps/mobile/AGENTS.md` (value read from the
-artifact) and `STATUS.md`. **A merged fix reaches nobody until it is in a binary
+Then prepend a row to `apps/mobile/docs/fingerprint-ledger.md`, replace the
+Android row of the current-state table in `apps/mobile/AGENTS.md` if a new
+binary shipped (value read from the artifact), and update `STATUS.md`. **A merged fix reaches nobody until it is in a binary
 or an update** — say which, and which cohort, when reporting.
 
 Shipping a binary does **not** deliver an OTA: a device becomes OTA-capable only

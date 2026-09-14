@@ -6,8 +6,9 @@ platforms build locally on the MacBook Air (`ignia-mac`) at zero EAS quota, and
 JS-only changes need no build at all.
 
 Operational runbook: `docs/DEV_ENVIRONMENT.md` §3.10 (iOS) / §3.11 (Android),
-plus the `build-ios` and `build-android` skills. Fingerprints and per-build
-artifact readings: `apps/mobile/AGENTS.md`.
+plus the `build-ios` and `build-android` skills. Current fingerprints: the
+table in `apps/mobile/AGENTS.md`; every build/OTA reading with its post-mortem:
+`apps/mobile/docs/fingerprint-ledger.md`.
 
 ## The default path: local, free
 

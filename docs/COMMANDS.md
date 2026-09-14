@@ -179,8 +179,8 @@ wrong host and any publish missing `--environment`.
 
 Ground truth is the fingerprint file **inside the artifact**
 (`base/assets/fingerprint` in an `.aab`, `Payload/*.app/EXUpdates.bundle/fingerprint`
-in an `.ipa`), never a locally generated hash. The current table lives in
-`apps/mobile/AGENTS.md`.
+in an `.ipa`), never a locally generated hash. The current two-row table lives in
+`apps/mobile/AGENTS.md`; every past row is `apps/mobile/docs/fingerprint-ledger.md`.
 
 ## How long a local build takes — on THIS machine
 

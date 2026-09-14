@@ -1,5 +1,9 @@
 # Changelog
 
+Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
+ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
+2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
+
 ## 2026-09-11 — The Body weight number is tappable, and the tap is counted
 
 A user tapped the big weight number on Body expecting to edit it and had to be

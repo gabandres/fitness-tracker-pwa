@@ -239,7 +239,7 @@ Ignia is not a medical device and does not provide medical advice.
 ### What's New — 1.2.3 · submitted 2026-09-05 (the re-shot screenshots ship with it)
 
 Written against App Store 1.2.2 / build 63. Everything listed already reached
-1.2.2 users over the air (`apps/mobile/AGENTS.md` rows 2026-09-04/05); the
+1.2.2 users over the air (`apps/mobile/docs/fingerprint-ledger.md` rows 2026-09-04/05); the
 binary bakes it in for fresh installs and carries the new screenshots. The
 machine-readable copy is `WHATS_NEW` in `scripts/asc-release-version.mjs`,
 which uploads it; this block is the source of truth for wording. The script now

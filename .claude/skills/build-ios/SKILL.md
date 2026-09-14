@@ -179,8 +179,9 @@ position once.
 
 ## After shipping
 
-Update the fingerprint table in `apps/mobile/AGENTS.md` (value read from the
-artifact), then `STATUS.md`. `app-version.json` needs no deploy: it is served
+Prepend a row to `apps/mobile/docs/fingerprint-ledger.md`, replace the iOS row
+of the current-state table in `apps/mobile/AGENTS.md` if a new binary shipped
+(value read from the artifact), then `STATUS.md`. `app-version.json` needs no deploy: it is served
 from Firestore, iOS derived hourly from Apple's public lookup (marketing
 version), and `asc-release-version.mjs` records the version→build map for the
 pre-2026-09-05 binaries at submission (`functions/src/app-version.ts`). **A
