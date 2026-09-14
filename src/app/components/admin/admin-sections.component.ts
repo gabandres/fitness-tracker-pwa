@@ -1,8 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { AdminService } from '../../services/admin.service';
 import { AuthService } from '../../services/auth.service';
-import { AdminDataService } from './admin-data.service';
+import { AdminConsole } from './admin-console';
 import { AdminShellState } from './admin-shell.state';
 import { fmtDateTime, relTime } from './admin-format';
 
@@ -15,7 +14,7 @@ import { fmtDateTime, relTime } from './admin-format';
   template: `
     <div class="adm-page-head">
       <div><h1 class="adm-h1">Activity</h1><p class="adm-sub">Last 20 sign-ups and last 20 entries, merged by time. Cached 30 s server-side.</p></div>
-      <button type="button" class="adm-btn" (click)="data.loadActivity(true)" [disabled]="data.isLoading('activity')">Refresh</button>
+      <button type="button" class="adm-btn" (click)="data.activity.refresh()" [disabled]="data.activity.loading()">Refresh</button>
     </div>
     <section class="adm-card">
       <ul class="adm-timeline">
@@ -29,17 +28,17 @@ import { fmtDateTime, relTime } from './admin-format';
               <span class="adm-muted" style="font-size:12px; margin-left:auto;">{{ rel(a.timestamp) }}</span>
             </span>
           </li>
-        } @empty { <li><span class="adm-empty">{{ data.isLoading('activity') ? 'Loading…' : 'No activity yet.' }}</span></li> }
+        } @empty { <li><span class="adm-empty">{{ data.activity.loading() ? 'Loading…' : 'No activity yet.' }}</span></li> }
       </ul>
     </section>
   `,
 })
 export class AdminActivityComponent {
-  readonly data = inject(AdminDataService);
+  readonly data = inject(AdminConsole);
   readonly shell = inject(AdminShellState);
   readonly fmt = fmtDateTime;
   readonly rel = relTime;
-  constructor() { void this.data.loadActivity(); }
+  constructor() { void this.data.activity.load(); }
 }
 
 // ─── Feedback ──────────────────────────────────────────────────────
@@ -54,7 +53,7 @@ export class AdminActivityComponent {
       <div><h1 class="adm-h1">Feedback</h1><p class="adm-sub">{{ data.feedback().length }} reports from the mobile composer · {{ data.unreadFeedback() }} unread on this browser. Append-only: nobody, including this panel, can edit or delete them.</p></div>
       <div style="display:flex; gap:8px;">
         <button type="button" class="adm-btn" (click)="markAllSeen()" [disabled]="data.unreadFeedback() === 0">Mark all read</button>
-        <button type="button" class="adm-btn" (click)="data.loadFeedback(true)" [disabled]="data.isLoading('feedback')">Refresh</button>
+        <button type="button" class="adm-btn" (click)="data.feedback.refresh()" [disabled]="data.feedback.loading()">Refresh</button>
       </div>
     </div>
     <div class="adm-toolbar">
@@ -78,12 +77,12 @@ export class AdminActivityComponent {
           </div>
           <div class="adm-fb-body">{{ f.message }}</div>
         </article>
-      } @empty { <div class="adm-card"><div class="adm-empty">{{ data.isLoading('feedback') ? 'Loading…' : 'Nothing here.' }}</div></div> }
+      } @empty { <div class="adm-card"><div class="adm-empty">{{ data.feedback.loading() ? 'Loading…' : 'Nothing here.' }}</div></div> }
     </div>
   `,
 })
 export class AdminFeedbackComponent {
-  readonly data = inject(AdminDataService);
+  readonly data = inject(AdminConsole);
   readonly shell = inject(AdminShellState);
   readonly fmt = fmtDateTime;
   readonly filter = signal<'all' | 'unread'>('all');
@@ -92,7 +91,7 @@ export class AdminFeedbackComponent {
   readonly filtered = computed(() => this.data.feedback()
     .filter((f) => this.filter() === 'all' || !this.data.seenFeedback().has(f.id))
     .filter((f) => this.category() === 'all' || f.category === this.category()));
-  constructor() { void this.data.loadFeedback(); }
+  constructor() { void this.data.feedback.load(); }
   markAllSeen(): void { this.data.markFeedbackSeen(this.data.feedback().map((f) => f.id)); }
 }
 
@@ -127,7 +126,7 @@ const AUDITED: ReadonlyArray<[string, string]> = [
   template: `
     <div class="adm-page-head">
       <div><h1 class="adm-h1">Audit log</h1><p class="adm-sub">{{ data.audit().length }} entr{{ data.audit().length === 1 ? 'y' : 'ies' }} · every mutating admin call and every console session, written server-side. Append-only; no client can write it.</p></div>
-      <button type="button" class="adm-btn" (click)="data.loadAudit(true)" [disabled]="data.isLoading('audit')">Refresh</button>
+      <button type="button" class="adm-btn" (click)="data.audit.refresh()" [disabled]="data.audit.loading()">Refresh</button>
     </div>
     <div class="adm-toolbar">
       <select class="adm-field adm-select" [ngModel]="action()" (ngModelChange)="action.set($event)">
@@ -151,7 +150,7 @@ const AUDITED: ReadonlyArray<[string, string]> = [
           </li>
         } @empty {
           <li style="grid-template-columns:1fr;">
-            @if (data.isLoading('audit')) { <span class="adm-empty">Loading…</span> }
+            @if (data.audit.loading()) { <span class="adm-empty">Loading…</span> }
             @else if (data.audit().length === 0) {
               <div class="adm-empty" style="text-align:left;">
                 <strong style="color:var(--adm-ink);">Nothing has been audited yet.</strong> The log fills as admin actions happen — it is not a mirror of user activity (that is the Activity page). What writes here:
@@ -164,14 +163,14 @@ const AUDITED: ReadonlyArray<[string, string]> = [
         }
       </ul>
       @if (data.auditHasMore()) {
-        <div style="margin-top:12px;"><button type="button" class="adm-btn sm" (click)="data.loadMoreAudit()" [disabled]="data.isLoading('audit')">Load older entries</button></div>
+        <div style="margin-top:12px;"><button type="button" class="adm-btn sm" (click)="data.loadMoreAudit()" [disabled]="data.audit.loading()">Load older entries</button></div>
       }
     </section>
   `,
 })
 export class AdminAuditComponent {
   readonly audited = AUDITED;
-  readonly data = inject(AdminDataService);
+  readonly data = inject(AdminConsole);
   readonly shell = inject(AdminShellState);
   readonly fmt = fmtDateTime;
   readonly tone = ACTION_TONE;
@@ -184,7 +183,7 @@ export class AdminAuditComponent {
       .filter((l) => this.action() === 'all' || l.action === this.action())
       .filter((l) => !term || (l.targetEmail ?? '').toLowerCase().includes(term) || (l.targetUid ?? '').toLowerCase().includes(term));
   });
-  constructor() { void this.data.loadAudit(); }
+  constructor() { void this.data.audit.load(); }
   details(d: unknown): string { try { return d && typeof d === 'object' ? JSON.stringify(d) : ''; } catch { return ''; } }
   open(uid?: string): void { if (uid) { this.shell.openUser(uid); this.shell.go('users'); } }
 }
@@ -207,7 +206,7 @@ export class AdminAuditComponent {
           <span class="adm-avatar">{{ initials }}</span>
           <div>
             <div class="adm-mono" style="font-weight:600;">{{ auth.user()?.email }}</div>
-            <div class="adm-muted" style="font-size:12px;">uid {{ auth.user()?.uid }} · claim <span class="adm-chip" [class.good]="api.isAdmin()" [class.danger]="!api.isAdmin()">{{ api.isAdmin() ? 'admin: true' : 'no claim' }}</span></div>
+            <div class="adm-muted" style="font-size:12px;">uid {{ auth.user()?.uid }} · claim <span class="adm-chip" [class.good]="data.isAdmin()" [class.danger]="!data.isAdmin()">{{ data.isAdmin() ? 'admin: true' : 'no claim' }}</span></div>
           </div>
         </div>
         <dl class="adm-kv adm-section">
@@ -217,22 +216,22 @@ export class AdminAuditComponent {
           <dt>Enforced in</dt><dd style="font-family:inherit;"><span class="adm-mono">firestore.rules → isAdmin()</span> for reads, <span class="adm-mono">requireAdmin()</span> on every admin callable, and the audit log on every mutation.</dd>
         </dl>
         <div class="adm-section">
-          <button type="button" class="adm-btn sm" (click)="refresh()" [disabled]="busy()">Re-check claim</button>
+          <button type="button" class="adm-btn sm" (click)="data.recheckClaim()" [disabled]="data.running('access')">Re-check claim</button>
         </div>
       </section>
 
       <section class="adm-card">
-        <div class="adm-card-head"><h2 class="adm-h2">Comped (friends &amp; family)</h2><span class="adm-chip teal">{{ api.compedEmails().length }}</span></div>
+        <div class="adm-card-head"><h2 class="adm-h2">Comped (friends &amp; family)</h2><span class="adm-chip teal">{{ data.compedEmails().length }}</span></div>
         <p class="adm-soft" style="font-size:12.5px; margin:0 0 10px;">Unlimited AI, no quota. Stored in <span class="adm-mono">config/accessList</span>; matched by email on the server.</p>
         <div style="display:flex; gap:8px;">
           <input type="email" class="adm-field grow" [(ngModel)]="newComped" placeholder="email@example.com" />
-          <button type="button" class="adm-btn sm primary" (click)="addComped()" [disabled]="busy() || !newComped.trim()">Add</button>
+          <button type="button" class="adm-btn sm primary" (click)="addComped()" [disabled]="data.running('access') || !newComped.trim()">Add</button>
         </div>
         <ul class="adm-timeline" style="margin-top:10px;">
-          @for (e of api.compedEmails(); track e) {
+          @for (e of data.compedEmails(); track e) {
             <li style="grid-template-columns: 1fr auto;">
               <span class="adm-mono" style="font-size:12.5px;">{{ e }}</span>
-              <button type="button" class="adm-btn sm ghost" (click)="removeComped(e)" [disabled]="busy()">remove</button>
+              <button type="button" class="adm-btn sm ghost" (click)="data.setComped(e, false)" [disabled]="data.running('access')">remove</button>
             </li>
           } @empty { <li><span class="adm-muted" style="font-size:12.5px;">nobody comped</span></li> }
         </ul>
@@ -259,10 +258,8 @@ export class AdminAuditComponent {
   `,
 })
 export class AdminAccessComponent {
-  readonly api = inject(AdminService);
+  readonly data = inject(AdminConsole);
   readonly auth = inject(AuthService);
-  readonly shell = inject(AdminShellState);
-  readonly busy = signal(false);
   newComped = '';
   get initials(): string { return (this.auth.user()?.email ?? '?').slice(0, 2).toUpperCase(); }
   readonly matrix = [
@@ -275,18 +272,11 @@ export class AdminAccessComponent {
     { cap: 'Read any user, audit log, config', where: 'firestore.rules · isAdmin()', cells: ['—', '—', '—', '✓'] },
     { cap: 'Suspend, delete, override plan, set ceilings', where: 'admin-ops callables · requireAdmin()', cells: ['—', '—', '—', '✓'] },
   ];
-  private async run(label: string, op: () => Promise<unknown>) {
-    this.busy.set(true);
-    try { await op(); this.shell.toast(label, 'ok'); }
-    catch (err) { this.shell.toast(err instanceof Error ? err.message : String(err), 'error'); }
-    finally { this.busy.set(false); }
-  }
-  refresh() { return this.run('Claim re-checked', () => this.api.refreshAdminStatus()); }
-  addComped() {
+  /** The only local step: clear the box, and only once the grant landed. */
+  async addComped(): Promise<void> {
     const email = this.newComped.trim().toLowerCase();
-    return this.run(`${email} comped`, async () => { await this.api.setCompedEmail(email, true); this.newComped = ''; });
+    if (await this.data.setComped(email, true)) this.newComped = '';
   }
-  removeComped(email: string) { return this.run(`${email} removed from comped`, () => this.api.setCompedEmail(email, false)); }
 }
 
 // ─── Exports ───────────────────────────────────────────────────────
@@ -299,7 +289,7 @@ export class AdminAccessComponent {
     <div class="adm-page-head"><div><h1 class="adm-h1">Exports</h1><p class="adm-sub">CSV, generated server-side and written to the audit log. The logs export walks every user and can take up to a minute.</p></div></div>
     <div class="adm-grid adm-grid-3">
       @for (e of choices; track e.type) {
-        <button type="button" class="adm-card" style="text-align:left; cursor:pointer;" (click)="download(e.type)" [disabled]="busy()">
+        <button type="button" class="adm-card" style="text-align:left; cursor:pointer;" (click)="data.exportCsv(e.type)" [disabled]="data.running('exports')">
           <span class="adm-label">{{ e.type }}</span>
           <div class="adm-h2" style="margin-top:6px;">{{ e.label }}</div>
           <div class="adm-muted" style="font-size:12.5px; margin-top:4px;">{{ e.hint }}</div>
@@ -309,24 +299,10 @@ export class AdminAccessComponent {
   `,
 })
 export class AdminExportsComponent {
-  private readonly api = inject(AdminService);
-  private readonly shell = inject(AdminShellState);
-  readonly busy = signal(false);
+  readonly data = inject(AdminConsole);
   readonly choices = [
     { type: 'users' as const, label: 'Users', hint: 'uid, email, plan, created, last seen' },
     { type: 'logs' as const, label: 'Daily logs', hint: 'every log across all users' },
     { type: 'metrics' as const, label: 'Metrics', hint: 'the cached platform stats' },
   ];
-  async download(type: 'users' | 'logs' | 'metrics'): Promise<void> {
-    this.busy.set(true);
-    try {
-      const csv = await this.api.exportData(type);
-      const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-      const a = document.createElement('a');
-      a.href = url; a.download = `ignia-${type}-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 5000);
-      this.shell.toast(`${type}.csv downloaded`, 'ok');
-    } catch (err) { this.shell.toast(err instanceof Error ? err.message : String(err), 'error'); }
-    finally { this.busy.set(false); }
-  }
 }

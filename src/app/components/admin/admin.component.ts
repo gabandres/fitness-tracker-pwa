@@ -2,8 +2,7 @@ import { ChangeDetectionStrategy, Component, ViewEncapsulation, computed, effect
 import { DomSanitizer, type SafeHtml } from '@angular/platform-browser';
 import { NgTemplateOutlet } from '@angular/common';
 import { AuthService } from '../../services/auth.service';
-import { AdminService } from '../../services/admin.service';
-import { AdminDataService } from './admin-data.service';
+import { AdminConsole } from './admin-console';
 import { ADMIN_SECTIONS, AdminShellState } from './admin-shell.state';
 import { AdminOverviewComponent } from './admin-overview.component';
 import { AdminUsersComponent } from './admin-users.component';
@@ -43,16 +42,16 @@ const ICONS: Record<string, string> = {
   template: `
     @if (preview) {
       <ng-container *ngTemplateOutlet="console" />
-    } @else if (!admin.ready()) {
+    } @else if (!data.ready()) {
       <div class="adm-empty" style="padding: 80px 0;">Resolving admin claim…</div>
-    } @else if (!admin.isAdmin()) {
-      @if (admin.canBootstrap()) {
+    } @else if (!data.isAdmin()) {
+      @if (data.canBootstrap()) {
         <div class="adm-card" style="max-width: 520px; margin: 60px auto;">
           <h2 class="adm-h2">Bootstrap admin</h2>
           <p class="adm-soft" style="font-size:13px;">No admin is configured. You are on the seed list; this mints the <span class="adm-mono">admin</span> claim once and then disables itself.</p>
           <div class="adm-actions" style="margin-top:12px;">
-            <button type="button" class="adm-btn primary" (click)="bootstrap()" [disabled]="busy()">{{ busy() ? 'Working…' : 'Bootstrap' }}</button>
-            <button type="button" class="adm-btn" (click)="admin.refreshAdminStatus()">Re-check claim</button>
+            <button type="button" class="adm-btn primary" (click)="data.bootstrap()" [disabled]="data.running('bootstrap')">{{ data.running('bootstrap') ? 'Working…' : 'Bootstrap' }}</button>
+            <button type="button" class="adm-btn" (click)="data.refreshClaim()">Re-check claim</button>
           </div>
         </div>
       } @else {
@@ -143,8 +142,7 @@ const ICONS: Record<string, string> = {
 })
 export class AdminComponent {
   readonly auth = inject(AuthService);
-  readonly admin = inject(AdminService);
-  readonly data = inject(AdminDataService);
+  readonly data = inject(AdminConsole);
   readonly shell = inject(AdminShellState);
   private readonly sanitizer = inject(DomSanitizer);
   // Static, hand-written SVG strings — trusted so Angular's sanitizer keeps the <svg>.
@@ -152,7 +150,6 @@ export class AdminComponent {
 
   /** Dev-only fixture mode — see admin-preview.ts. */
   readonly preview = adminPreviewEnabled();
-  readonly busy = signal(false);
   readonly collapsed = signal(localStorage.getItem('ignia.admin.collapsed') === '1');
   readonly dark = signal(currentEffectiveTheme() === 'dark');
   readonly groups = ['Monitor', 'Operate', 'Govern'] as const;
@@ -167,7 +164,7 @@ export class AdminComponent {
     if (this.preview) seedPreview(this.data);
     // One audit row per browser session, once the claim is confirmed.
     effect(() => {
-      if (!this.preview && this.admin.ready() && this.admin.isAdmin()) this.admin.noteSession();
+      if (!this.preview && this.data.ready() && this.data.isAdmin()) this.data.noteSession();
     });
     // Dark leads (ADR-0014). Only an explicit stored choice overrides it.
     if (readStoredTheme() === 'auto') {
@@ -185,17 +182,6 @@ export class AdminComponent {
     const next = this.dark() ? 'light' : 'dark';
     writeStoredTheme(next);
     this.dark.set(applyThemeChoice(next) === 'dark');
-  }
-
-  async bootstrap(): Promise<void> {
-    this.busy.set(true);
-    try {
-      await this.admin.bootstrap();
-      await this.admin.refreshAdminStatus();
-      this.shell.toast('Admin bootstrapped', 'ok');
-    } catch (err) {
-      this.shell.toast(err instanceof Error ? err.message : String(err), 'error');
-    } finally { this.busy.set(false); }
   }
 
   async signOut(): Promise<void> {

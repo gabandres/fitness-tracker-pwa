@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
-import { AdminDataService } from './admin-data.service';
+import { AdminConsole } from './admin-console';
 import { AdminShellState } from './admin-shell.state';
 import { AdmBars, AdmKpi, AdmMeter, AdmSpark } from './admin-ui';
 import { LOG_METHOD_LABELS, deltaPct, fmtSecs, methodRows, pct, pooledRetention, sumEvent, type LogMethod } from './admin-insights';
@@ -99,7 +99,7 @@ const EVENT_LABELS: Record<string, string> = {
         <dl class="adm-kv">
           <dt>Status pulse</dt>
           <dd>
-            @if (data.heartbeatAgeMin(); as age) {
+            @if (data.heartbeat(); as age) {
               <span class="adm-chip" [class.good]="age <= 20" [class.warn]="age > 20 && age <= 45" [class.danger]="age > 45">{{ age < 1 ? 'just now' : round(age) + ' min ago' }}</span>
             } @else { <span class="adm-chip muted">unknown</span> }
           </dd>
@@ -112,8 +112,8 @@ const EVENT_LABELS: Record<string, string> = {
               Android vc {{ v.android?.latestVersionCode ?? '—' }} · iOS {{ v.ios?.latestVersion ?? '—' }}{{ v.ios?.latestBuild ? ' (build ' + v.ios!.latestBuild + ')' : '' }}
               <span class="adm-soft">· {{ v.updatedAt ? 'synced ' + relTime(v.updatedAt) : 'never synced' }}</span>
             } @else { <span class="adm-chip muted">unknown</span> }
-            <button type="button" class="adm-btn sm ghost" style="margin-left: 8px;" (click)="data.syncStoreVersions()" [disabled]="data.isLoading('storeVersions')">
-              {{ data.isLoading('storeVersions') ? 'Syncing…' : 'Sync now' }}
+            <button type="button" class="adm-btn sm ghost" style="margin-left: 8px;" (click)="data.syncStoreVersions()" [disabled]="data.storeVersions.loading()">
+              {{ data.storeVersions.loading() ? 'Syncing…' : 'Sync now' }}
             </button>
             @for (n of data.storeSyncNotes(); track n) { <div class="adm-kpi-hint">{{ n }}</div> }
           </dd>
@@ -233,7 +233,7 @@ const EVENT_LABELS: Record<string, string> = {
   `,
 })
 export class AdminOverviewComponent {
-  readonly data = inject(AdminDataService);
+  readonly data = inject(AdminConsole);
   readonly shell = inject(AdminShellState);
   readonly sumEvent = sumEvent;
   readonly fmt = fmtDateTime;
@@ -279,7 +279,7 @@ export class AdminOverviewComponent {
   }
   ret(key: 'd1' | 'd7' | 'd30') { return pooledRetention(this.data.retention(), key); }
 
-  funnel(s: NonNullable<ReturnType<AdminDataService['stats']>>) {
+  funnel(s: NonNullable<ReturnType<AdminConsole['stats']>>) {
     return [
       { label: 'Signed up', value: s.totalUsers, tone: 'ink-muted' },
       { label: 'Verified email', value: s.verifiedCount, tone: 'info' },

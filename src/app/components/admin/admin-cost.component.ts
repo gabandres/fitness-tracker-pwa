@@ -1,8 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { AdminService, type BillingRow, type CostLine, type LedgerItem } from '../../services/admin.service';
-import { AdminDataService } from './admin-data.service';
-import { AdminShellState } from './admin-shell.state';
+import { type BillingRow, type CostLine, type LedgerItem } from '../../services/admin.service';
+import { AdminConsole, ceilingLabel } from './admin-console';
 import { AdmBars, AdmKpi, AdmMeter, AdmSpark } from './admin-ui';
 import { relTime } from './admin-format';
 
@@ -41,7 +40,7 @@ function num(n: number): string {
         <h1 class="adm-h1">Cost &amp; AI</h1>
         <p class="adm-sub">What Ignia costs to run: metered usage priced at list ({{ model()?.pricesAsOf ? 'prices as of ' + model()!.pricesAsOf : 'prices pending' }}), the actual bill once the export is on, and the fixed costs around it.</p>
       </div>
-      <button type="button" class="adm-btn" (click)="reload()" [disabled]="data.isLoading('costModel')">{{ data.isLoading('costModel') ? 'Reading meters…' : 'Refresh' }}</button>
+      <button type="button" class="adm-btn" (click)="reload()" [disabled]="data.costModel.loading()">{{ data.costModel.loading() ? 'Reading meters…' : 'Refresh' }}</button>
     </div>
 
     <!-- Row 1 — the money -->
@@ -67,7 +66,7 @@ function num(n: number): string {
               @for (w of m.warnings; track w) { <li style="grid-template-columns:1fr;"><span class="adm-chip warn">meter unreadable</span> <span class="adm-muted" style="font-size:12px;">{{ w }}</span></li> }
             </ul>
           }
-        } @else { <p class="adm-empty">{{ data.isLoading('costModel') ? 'Reading Cloud Monitoring, Secret Manager, Scheduler and the AI ledger…' : 'Not loaded.' }}</p> }
+        } @else { <p class="adm-empty">{{ data.costModel.loading() ? 'Reading Cloud Monitoring, Secret Manager, Scheduler and the AI ledger…' : 'Not loaded.' }}</p> }
       </section>
 
       <section class="adm-card">
@@ -186,7 +185,7 @@ function num(n: number): string {
           </ol>
           <p class="adm-muted" style="font-size:12px; margin:10px 0 0;">Last check: {{ b.reason }}</p>
         }
-      } @else { <p class="adm-empty">{{ data.isLoading('billing') ? 'Querying BigQuery…' : '—' }}</p> }
+      } @else { <p class="adm-empty">{{ data.billing.loading() ? 'Querying BigQuery…' : '—' }}</p> }
     </section>
 
     <!-- Row 5 — fixed costs + functions -->
@@ -206,7 +205,7 @@ function num(n: number): string {
         <div class="adm-actions" style="margin-top:10px;">
           <button type="button" class="adm-btn sm" (click)="add()">Add item</button>
           @if (draft().length === 0 && ledger().length === 0) { <button type="button" class="adm-btn sm ghost" (click)="addDefaults()">Add the usual four</button> }
-          <button type="button" class="adm-btn sm primary" (click)="save()" [disabled]="busy() || !dirty()">Save ledger</button>
+          <button type="button" class="adm-btn sm primary" (click)="save()" [disabled]="data.running('cost') || !dirty()">Save ledger</button>
           @if (ledger().length) { <span class="adm-muted" style="font-size:12px; align-self:center;">{{ usd(fixedMonthly()) }}/mo · {{ usd(fixedMonthly() * 12) }}/yr amortised</span> }
         </div>
       </section>
@@ -240,7 +239,7 @@ function num(n: number): string {
             <span class="adm-label">Daily ceiling</span>
             <div style="display:flex; gap:8px; align-items:center;">
               <input type="number" class="adm-field" style="width:120px;" [ngModel]="limits()[c.kind] ?? c.limit" (ngModelChange)="setLimit(c.kind, $event)" min="0" />
-              <button type="button" class="adm-btn sm" (click)="saveLimit(c)" [disabled]="busy() || (limits()[c.kind] ?? c.limit) === c.limit">Save</button>
+              <button type="button" class="adm-btn sm" (click)="saveLimit(c)" [disabled]="data.running('cost') || (limits()[c.kind] ?? c.limit) === c.limit">Save</button>
               <span class="adm-muted" style="font-size:12px;">≈ {{ usd(c.limit * perUnitCost(c.kind), 2) }}/day at this month's rate</span>
             </div>
           </div>
@@ -248,30 +247,27 @@ function num(n: number): string {
             <span class="adm-label">Kill-switch</span>
             @if (c.killed) {
               <p class="adm-soft" style="font-size:12.5px; margin:0 0 8px;">Reason on file: “{{ c.killedReason || '—' }}”</p>
-              <button type="button" class="adm-btn sm" (click)="setKill(c, false)" [disabled]="busy()">Switch {{ label(c.kind) }} back on</button>
+              <button type="button" class="adm-btn sm" (click)="setKill(c, false)" [disabled]="data.running('cost')">Switch {{ label(c.kind) }} back on</button>
             } @else {
               <div style="display:flex; gap:8px; align-items:center;">
                 <input class="adm-field grow" [ngModel]="reasons()[c.kind] ?? ''" (ngModelChange)="setReason(c.kind, $event)" placeholder="Reason (required — it goes in the audit log)" />
-                <button type="button" class="adm-btn sm danger" (click)="setKill(c, true)" [disabled]="busy() || !(reasons()[c.kind] ?? '').trim()">Switch off</button>
+                <button type="button" class="adm-btn sm danger" (click)="setKill(c, true)" [disabled]="data.running('cost') || !(reasons()[c.kind] ?? '').trim()">Switch off</button>
               </div>
             }
           </div>
         </section>
-      } @empty { <div class="adm-card"><div class="adm-empty">{{ data.isLoading('ceilings') ? 'Loading…' : 'No ceilings configured.' }}</div></div> }
+      } @empty { <div class="adm-card"><div class="adm-empty">{{ data.ceilings.loading() ? 'Loading…' : 'No ceilings configured.' }}</div></div> }
     </div>
     <p class="adm-muted" style="font-size:12px; margin:12px 0 0;">Per-user quota: 3 photo scans + 3 coach calls a day free, 30 each paid, unlimited for comped and admin. The ceiling is everyone together per UTC day and self-resets; the kill-switch does not. The modelled Gemini cost assumes the paid tier — the free tier's rate limits are not a budget.</p>
   `,
 })
 export class AdminCostComponent {
-  readonly data = inject(AdminDataService);
-  readonly shell = inject(AdminShellState);
-  private readonly api = inject(AdminService);
+  readonly data = inject(AdminConsole);
   readonly project = PROJECT;
   readonly usd = usd;
   readonly num = num;
   readonly relTime = relTime;
 
-  readonly busy = signal(false);
   readonly limits = signal<Record<string, number>>({});
   readonly reasons = signal<Record<string, string>>({});
   readonly draft = signal<LedgerItem[]>([]);
@@ -292,17 +288,17 @@ export class AdminCostComponent {
   });
 
   constructor() {
-    void this.data.loadCeilings();
-    void this.data.loadCostModel();
-    void this.data.loadBilling();
-    void this.data.loadCostLedger().then(() => this.draft.set(structuredClone(this.ledger())));
-    if (this.data.usage() === null) void this.data.loadUsage();
+    void this.data.ceilings.load();
+    void this.data.costModel.load();
+    void this.data.billing.load();
+    void this.data.costLedger.load().then(() => this.draft.set(structuredClone(this.ledger())));
+    if (this.data.usage() === null) void this.data.usage.load();
   }
 
   reload(): void {
-    void this.data.loadCostModel(true);
-    void this.data.loadBilling(true);
-    void this.data.loadCeilings(true);
+    void this.data.costModel.refresh();
+    void this.data.billing.refresh();
+    void this.data.ceilings.refresh();
   }
 
   n(v: string | null | undefined): number { return v == null ? 0 : Number(v); }
@@ -314,7 +310,7 @@ export class AdminCostComponent {
     const tone: Record<string, string> = { 'Gemini API': 'warn', Firestore: 'accent', 'Cloud Run functions': 'teal', 'Secret Manager': 'violet', 'Cloud Scheduler': 'info' };
     return Object.entries(by).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).map(([k, v]) => ({ label: `${k} · ${usd(v, 3)}`, value: Math.round(v * 1000) / 1000, tone: tone[k] ?? 'ink-muted' }));
   }
-  kindRows(ai: NonNullable<NonNullable<ReturnType<AdminDataService['costModel']>>['ai']>) {
+  kindRows(ai: NonNullable<NonNullable<ReturnType<AdminConsole['costModel']>>['ai']>) {
     const labels: Record<string, string> = { photo: 'Photo scans', consultation: 'AI coach', weeklyReport: 'Weekly report' };
     // Price each kind at the month's blended per-token rates, so a kind's cost
     // is its share of the modelled Gemini spend rather than a second estimate.
@@ -354,32 +350,15 @@ export class AdminCostComponent {
     ]);
   }
   async save(): Promise<void> {
-    this.busy.set(true);
-    try {
-      const items = await this.api.setCostLedger(this.draft().filter((i) => i.label.trim()));
-      this.data.costLedger.set(items);
-      this.draft.set(structuredClone(items));
-      this.shell.toast('Ledger saved', 'ok');
-    } catch (err) { this.shell.toast(err instanceof Error ? err.message : String(err), 'error'); }
-    finally { this.busy.set(false); }
+    if (await this.data.saveLedger(this.draft().filter((i) => i.label.trim()))) {
+      this.draft.set(structuredClone(this.data.costLedger()));
+    }
   }
 
   // ── guards
-  label(kind: string): string { return kind === 'photo' ? 'Photo scan' : kind === 'consultation' ? 'AI coach' : kind; }
+  readonly label = ceilingLabel;
   setLimit(kind: string, v: number) { this.limits.update((l) => ({ ...l, [kind]: Number(v) })); }
   setReason(kind: string, v: string) { this.reasons.update((r) => ({ ...r, [kind]: v })); }
-  private async run(label: string, op: () => Promise<unknown>) {
-    this.busy.set(true);
-    try { await op(); await this.data.loadCeilings(true); this.shell.toast(label, 'ok'); }
-    catch (err) { this.shell.toast(err instanceof Error ? err.message : String(err), 'error'); }
-    finally { this.busy.set(false); }
-  }
-  saveLimit(c: { kind: string; limit: number }) {
-    const limit = this.limits()[c.kind] ?? c.limit;
-    return this.run(`${this.label(c.kind)} ceiling → ${limit}`, () => this.api.setSpendCeiling({ kind: c.kind, limit }));
-  }
-  setKill(c: { kind: string }, killed: boolean) {
-    const reason = (this.reasons()[c.kind] ?? '').trim();
-    return this.run(`${this.label(c.kind)} switched ${killed ? 'OFF' : 'on'}`, () => this.api.setSpendCeiling({ kind: c.kind, killed, reason }));
-  }
+  saveLimit(c: { kind: string; limit: number }) { return this.data.setCeilingLimit(c.kind, this.limits()[c.kind] ?? c.limit); }
+  setKill(c: { kind: string }, killed: boolean) { return this.data.setCeilingKill(c.kind, killed, (this.reasons()[c.kind] ?? '').trim()); }
 }

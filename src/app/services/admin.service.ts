@@ -1,7 +1,7 @@
 import { Injectable, Injector, computed, effect, inject, runInInjectionContext, signal } from '@angular/core';
 import { Auth, authState, signInWithCustomToken } from '@angular/fire/auth';
 import { Firestore, collectionGroup, doc, getDoc, getDocs, limit, onSnapshot, orderBy, query } from '@angular/fire/firestore';
-import type { CeilingStatus, RetentionSummary, UsageSeries } from '../components/admin/admin-insights';
+import type { RetentionSummary } from '../components/admin/admin-insights';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { CallableGateway } from './callable.gateway';
 
@@ -165,9 +165,17 @@ export interface ActivityItem {
 const IMPERSONATION_KEY = 'macrolog.admin.originalUid';
 
 /**
- * Admin panel client service. Mirrors the subscription.service pattern:
- * signal-based state, Firestore snapshot listeners for shared-state docs
- * (config/admins, config/accessList), callable wrappers for ops.
+ * The admin SESSION: who the signed-in user is to the console, the config
+ * docs it watches, the impersonation swap, and the handful of reads that are
+ * a real implementation rather than a callable name (the feedback
+ * collection-group query, the admin-readable `config/*` docs, the public
+ * `app-version.json` fetch).
+ *
+ * What the console SHOWS and DOES goes through `AdminConsole`
+ * (components/admin/admin-console.ts), which owns the cache, the busy flags
+ * and the error policy and calls `CallableGateway` itself — the one-line
+ * `adminX` wrappers that used to sit here were deleted with it. Outside
+ * /admin only `app.ts` injects this service, for the impersonation banner.
  *
  * Security model: `isAdmin` fires ONLY when the Firebase custom claim is
  * present — email match alone is not enough to render the panel. The
@@ -283,35 +291,7 @@ export class AdminService {
     if (this.adminCheckPromise) await this.adminCheckPromise;
   }
 
-  // ─── Callable wrappers ─────────────────────────────────────────
-
-  async bootstrap(): Promise<{ seeded: string[] }> {
-    return this.callables.call<unknown, { seeded: string[] }>('bootstrapAdmin', {});
-  }
-
-  async listUsers(): Promise<{ users: AdminUserRow[] }> {
-    return this.callables.call<unknown, { users: AdminUserRow[] }>('listUsers', {});
-  }
-
-  async getPlatformStats(refresh = false): Promise<PlatformStats> {
-    return this.callables.call<{ refresh: boolean }, PlatformStats>('getPlatformStats', { refresh });
-  }
-
-  async getRecentActivity(): Promise<{ items: ActivityItem[] }> {
-    return this.callables.call<unknown, { items: ActivityItem[] }>('getRecentActivity', {});
-  }
-
-  async getAuditLogs(params: {
-    limit?: number;
-    startAfterTimestamp?: string;
-    actionFilter?: string;
-    dateFrom?: string;
-    dateTo?: string;
-  } = {}): Promise<{ logs: AuditLog[]; hasMore: boolean }> {
-    return this.callables.call<typeof params, { logs: AuditLog[]; hasMore: boolean }>(
-      'getAuditLogs', params,
-    );
-  }
+  // ─── Reads with an implementation ──────────────────────────────
 
   /**
    * Every user's feedback, newest first.
@@ -344,51 +324,6 @@ export class AdminService {
     });
   }
 
-  async suspendUser(targetUid: string, disabled: boolean): Promise<void> {
-    await this.callables.call('adminSuspendUser', { targetUid, disabled });
-  }
-
-  async deleteUser(targetUid: string): Promise<void> {
-    await this.callables.call('adminDeleteUser', { targetUid });
-  }
-
-  async resetPassword(targetEmail: string): Promise<{ link: string }> {
-    return this.callables.call<{ targetEmail: string }, { link: string }>(
-      'adminResetPassword', { targetEmail },
-    );
-  }
-
-  async overridePlan(targetUid: string, role: string | null): Promise<void> {
-    await this.callables.call('adminOverridePlan', { targetUid, role });
-  }
-
-  async setCompedEmail(email: string, grant: boolean): Promise<void> {
-    await this.callables.call('adminSetCompedEmail', { email, grant });
-  }
-
-  async resetQuotas(targetUid: string): Promise<void> {
-    await this.callables.call('adminResetQuotas', { targetUid });
-  }
-
-  async exportData(type: 'users' | 'logs' | 'metrics'): Promise<string> {
-    const { csv } = await this.callables.call<{ type: string }, { csv: string }>(
-      'adminExportData', { type },
-    );
-    return csv;
-  }
-
-  async getUserDetails(targetUid: string): Promise<AdminUserDetails> {
-    return this.callables.call<{ targetUid: string }, AdminUserDetails>('adminGetUserDetails', { targetUid });
-  }
-
-  // ─── Product-health reads (ADR-0036 admin revamp) ──────────────
-
-  /** DAU/WAU/MAU and per-day platform + event totals, aggregated server-side
-   *  because `usageEvents` is owner-read only in the rules. Cached 5 min. */
-  async getUsageSeries(days = 30, refresh = false): Promise<UsageSeries> {
-    return this.callables.call<{ days: number; refresh: boolean }, UsageSeries>('adminGetUsageSeries', { days, refresh });
-  }
-
   /** `config/retention`, written daily by the hourly dispatcher. Admin-read
    *  under the `config/{doc}` rule, so no callable is needed. */
   async getRetention(): Promise<RetentionSummary | null> {
@@ -414,11 +349,6 @@ export class AdminService {
     }
   }
 
-  async getSpendCeilings(): Promise<CeilingStatus[]> {
-    const { ceilings } = await this.callables.call<unknown, { ceilings: CeilingStatus[] }>('adminGetSpendCeilings', {});
-    return ceilings;
-  }
-
   /** What the mobile app's update banner is being told right now — the same
    *  public URL the app reads, served from Firestore `public/appVersion`
    *  (`functions/src/app-version.ts`). No callable, no auth. */
@@ -426,12 +356,6 @@ export class AdminService {
     const res = await fetch('https://ignia.fit/app-version.json', { cache: 'no-store' });
     if (!res.ok) throw new Error(`app-version.json HTTP ${res.status}`);
     return (await res.json()) as StoreVersionDoc;
-  }
-
-  /** Re-read Play and the App Store now instead of waiting for the hourly
-   *  pass. Audited server-side. */
-  async syncStoreVersions(): Promise<StoreVersionSync> {
-    return this.callables.call<unknown, StoreVersionSync>('adminSyncAppVersion', {});
   }
 
   /** Audit "the console was opened" once per browser session. Fire-and-forget. */
@@ -447,31 +371,11 @@ export class AdminService {
     }).catch(() => undefined);
   }
 
-  // ─── Cost page ─────────────────────────────────────────────────
-
-  async getCostModel(): Promise<CostModel> {
-    return this.callables.call<unknown, CostModel>('adminGetCostModel', {});
-  }
-
-  async getBilling(): Promise<BillingReport> {
-    return this.callables.call<unknown, BillingReport>('adminGetBilling', {});
-  }
-
   /** `config/costLedger` — admin-read under the config rule. */
   async getCostLedger(): Promise<LedgerItem[]> {
     const snap = await getDoc(doc(this.firestore, 'config', 'costLedger'));
     const items = snap.exists() ? (snap.data()?.['items'] as LedgerItem[] | undefined) : undefined;
     return Array.isArray(items) ? items : [];
-  }
-
-  async setCostLedger(items: LedgerItem[]): Promise<LedgerItem[]> {
-    const r = await this.callables.call<{ items: LedgerItem[] }, { items: LedgerItem[] }>('adminSetCostLedger', { items });
-    return r.items;
-  }
-
-  async setSpendCeiling(input: { kind: string; limit?: number; killed?: boolean; reason?: string }): Promise<CeilingStatus> {
-    const { ceiling } = await this.callables.call<typeof input, { ceiling: CeilingStatus }>('adminSetSpendCeiling', input);
-    return ceiling;
   }
 
   // ─── Impersonation ────────────────────────────────────────────

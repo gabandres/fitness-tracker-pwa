@@ -1,5 +1,5 @@
 import { isDevMode } from '@angular/core';
-import type { AdminDataService } from './admin-data.service';
+import type { AdminConsole } from './admin-console';
 import type { AdminUserRow } from '../../services/admin.service';
 
 /**
@@ -25,7 +25,7 @@ function dayKeys(n: number): string[] {
   return out;
 }
 
-export function seedPreview(data: AdminDataService): void {
+export function seedPreview(data: AdminConsole): void {
   const keys = dayKeys(30);
   const daily = keys.map((day, i) => {
     const active = 6 + Math.round(4 * Math.sin(i / 3)) + (i % 7 === 0 ? 3 : 0);
@@ -74,7 +74,7 @@ export function seedPreview(data: AdminDataService): void {
     { kind: 'photo', date: keys[29], used: 41, limit: 60, killed: false, killedReason: '', ratio: 0.68 },
     { kind: 'consultation', date: keys[29], used: 12, limit: 40, killed: false, killedReason: '', ratio: 0.3 },
   ]);
-  data.heartbeatAgeMin.set(4);
+  data.heartbeat.set(4);
   data.costModel.set({
     computedAt: new Date().toISOString(), pricesAsOf: '2026-08-30', month: keys[29].slice(0, 7), daysElapsed: 30, daysInMonth: 31,
     monthToDate: 0.93, projectedMonth: 0.96,

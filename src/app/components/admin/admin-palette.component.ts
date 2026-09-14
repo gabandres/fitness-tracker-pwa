@@ -1,14 +1,14 @@
 import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ADMIN_SECTIONS, AdminShellState, type AdminSection } from './admin-shell.state';
-import { AdminDataService } from './admin-data.service';
+import { AdminConsole } from './admin-console';
 
 interface PaletteItem { readonly group: string; readonly label: string; readonly hint: string; readonly run: () => void; }
 
 /**
  * ⌘K / Ctrl+K. Jumps to a section, opens a user by email or uid, or runs a
  * refresh. Users come from the cached list, so the first open after a cold
- * load triggers `loadUsers()`.
+ * load triggers `users.load()`.
  */
 @Component({
   selector: 'adm-palette',
@@ -36,7 +36,7 @@ interface PaletteItem { readonly group: string; readonly label: string; readonly
 })
 export class AdminPaletteComponent {
   readonly shell = inject(AdminShellState);
-  private readonly data = inject(AdminDataService);
+  private readonly data = inject(AdminConsole);
   readonly q = signal('');
   readonly index = signal(0);
   private readonly box = viewChild<ElementRef<HTMLInputElement>>('box');
@@ -47,7 +47,7 @@ export class AdminPaletteComponent {
     });
     effect(() => {
       if (this.shell.paletteOpen()) {
-        if (this.data.users().length === 0) void this.data.loadUsers();
+        if (this.data.users().length === 0) void this.data.users.load();
         queueMicrotask(() => this.box()?.nativeElement.focus());
       }
     });

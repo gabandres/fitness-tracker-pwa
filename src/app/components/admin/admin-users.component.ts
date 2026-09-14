@@ -1,8 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { AdminService, type AdminUserDetails, type AdminUserRow } from '../../services/admin.service';
+import { type AdminUserDetails, type AdminUserRow } from '../../services/admin.service';
 import { AuthService } from '../../services/auth.service';
-import { AdminDataService } from './admin-data.service';
+import { AdminConsole } from './admin-console';
 import { AdminShellState } from './admin-shell.state';
 import { fmtDate, fmtDateTime, initials, relTime } from './admin-format';
 import { adminPreviewEnabled } from './admin-preview';
@@ -27,7 +27,7 @@ type FlagFilter = 'all' | 'unverified' | 'disabled' | 'noProfile';
         <h1 class="adm-h1">Users</h1>
         <p class="adm-sub">{{ filtered().length }} of {{ data.users().length }} accounts · {{ counts().paid }} paid · {{ counts().comped }} comped · {{ counts().disabled }} suspended</p>
       </div>
-      <button type="button" class="adm-btn" (click)="data.loadUsers(true)" [disabled]="data.isLoading('users')">{{ data.isLoading('users') ? 'Loading…' : 'Reload' }}</button>
+      <button type="button" class="adm-btn" (click)="data.users.refresh()" [disabled]="data.users.loading()">{{ data.users.loading() ? 'Loading…' : 'Reload' }}</button>
     </div>
 
     <div class="adm-toolbar">
@@ -104,7 +104,7 @@ type FlagFilter = 'all' | 'unverified' | 'disabled' | 'noProfile';
               <td data-label="Last sign-in" class="adm-mono" style="font-size:12px;" [title]="fmtDateTime(u.lastSignInAt)">{{ relTime(u.lastSignInAt) }}</td>
             </tr>
           } @empty {
-            <tr><td colspan="7"><div class="adm-empty">{{ data.isLoading('users') ? 'Loading accounts…' : 'No accounts match.' }}</div></td></tr>
+            <tr><td colspan="7"><div class="adm-empty">{{ data.users.loading() ? 'Loading accounts…' : 'No accounts match.' }}</div></td></tr>
           }
         </tbody>
       </table>
@@ -173,23 +173,23 @@ type FlagFilter = 'all' | 'unverified' | 'disabled' | 'noProfile';
           <div class="adm-section">
             <span class="adm-label">Actions <span class="adm-muted" style="letter-spacing:0; text-transform:none;">— every one is written to the audit log</span></span>
             <div class="adm-actions">
-              <button type="button" class="adm-btn sm" (click)="togglePlan(u)" [disabled]="busy()">{{ u.stripeRole === 'paid' ? 'Revoke paid' : 'Grant paid' }}</button>
-              <button type="button" class="adm-btn sm" (click)="toggleComped(u)" [disabled]="busy()">{{ isComped(u) ? 'Remove comped' : 'Add comped' }}</button>
-              <button type="button" class="adm-btn sm" (click)="resetQuotas(u)" [disabled]="busy()">Reset today's AI quota</button>
-              <button type="button" class="adm-btn sm" (click)="passwordLink(u)" [disabled]="busy()">Copy password-reset link</button>
-              <button type="button" class="adm-btn sm" [class.danger]="!u.disabled" (click)="toggleSuspend(u)" [disabled]="busy() || u.uid === me()">{{ u.disabled ? 'Unsuspend' : 'Suspend' }}</button>
+              <button type="button" class="adm-btn sm" (click)="data.togglePlan(u)" [disabled]="data.running('users')">{{ u.stripeRole === 'paid' ? 'Revoke paid' : 'Grant paid' }}</button>
+              <button type="button" class="adm-btn sm" (click)="data.toggleComped(u)" [disabled]="data.running('users')">{{ isComped(u) ? 'Remove comped' : 'Add comped' }}</button>
+              <button type="button" class="adm-btn sm" (click)="data.resetQuotas(u)" [disabled]="data.running('users')">Reset today's AI quota</button>
+              <button type="button" class="adm-btn sm" (click)="data.copyPasswordLink(u)" [disabled]="data.running('users')">Copy password-reset link</button>
+              <button type="button" class="adm-btn sm" [class.danger]="!u.disabled" (click)="data.toggleSuspend(u)" [disabled]="data.running('users') || u.uid === me()">{{ u.disabled ? 'Unsuspend' : 'Suspend' }}</button>
             </div>
           </div>
 
           <div class="adm-section">
             <span class="adm-label">Danger zone</span>
             @if (!confirmingDelete()) {
-              <button type="button" class="adm-btn sm danger" (click)="confirmingDelete.set(true)" [disabled]="busy() || u.uid === me()">Delete account and all data…</button>
+              <button type="button" class="adm-btn sm danger" (click)="confirmingDelete.set(true)" [disabled]="data.running('users') || u.uid === me()">Delete account and all data…</button>
             } @else {
               <p class="adm-soft" style="font-size:12.5px; margin: 0 0 8px;">Irreversible. Removes Firestore data, the Auth user and any Stripe customer. Type <span class="adm-mono">DELETE</span> to confirm.</p>
               <div style="display:flex; gap:8px;">
                 <input class="adm-field" [(ngModel)]="deleteWord" placeholder="DELETE" style="width:140px;" />
-                <button type="button" class="adm-btn sm danger" (click)="deleteUser(u)" [disabled]="busy() || deleteWord !== 'DELETE'">Delete forever</button>
+                <button type="button" class="adm-btn sm danger" (click)="data.deleteUser(u)" [disabled]="data.running('users') || deleteWord !== 'DELETE'">Delete forever</button>
                 <button type="button" class="adm-btn sm ghost" (click)="confirmingDelete.set(false); deleteWord = ''">Cancel</button>
               </div>
             }
@@ -202,9 +202,8 @@ type FlagFilter = 'all' | 'unverified' | 'disabled' | 'noProfile';
   `,
 })
 export class AdminUsersComponent {
-  readonly data = inject(AdminDataService);
+  readonly data = inject(AdminConsole);
   readonly shell = inject(AdminShellState);
-  private readonly api = inject(AdminService);
   private readonly auth = inject(AuthService);
 
   readonly fmtDate = fmtDate;
@@ -220,7 +219,6 @@ export class AdminUsersComponent {
   readonly platform = signal<'all' | 'ios' | 'android' | 'none'>('all');
   readonly sort = signal<SortKey>('createdAt');
   readonly dir = signal<1 | -1>(-1);
-  readonly busy = signal(false);
   readonly details = signal<AdminUserDetails | null>(null);
   readonly detailsError = signal('');
   readonly confirmingDelete = signal(false);
@@ -261,7 +259,7 @@ export class AdminUsersComponent {
   });
 
   constructor() {
-    void this.data.loadUsers();
+    void this.data.users.load();
     // Load the drawer's deep record whenever a different user is selected.
     effect(() => {
       const uid = this.shell.selectedUid();
@@ -270,20 +268,20 @@ export class AdminUsersComponent {
       this.confirmingDelete.set(false);
       this.deleteWord = '';
       if (!uid) return;
-      if (this.data.users().length === 0) void this.data.loadUsers();
+      if (this.data.users().length === 0) void this.data.users.load();
       if (adminPreviewEnabled()) {
         const u = this.data.users().find((x) => x.uid === uid);
         if (u) this.details.set({ user: u, profile: { goalDirection: 'lose', targetWeightLbs: 165 }, counts: { dailyLogs: 212, presets: 9, reports: 2, measurements: 14 }, subscriptions: [] });
         return;
       }
-      void this.api.getUserDetails(uid)
+      void this.data.getUserDetails(uid)
         .then((d) => { if (this.shell.selectedUid() === uid) this.details.set(d); })
         .catch((err) => this.detailsError.set(err instanceof Error ? err.message : String(err)));
     });
   }
 
   close(): void { this.shell.selectedUid.set(null); }
-  isComped(u: AdminUserRow): boolean { return this.api.compedEmails().includes(u.email.toLowerCase()); }
+  isComped(u: AdminUserRow): boolean { return this.data.isComped(u); }
   tierRank(u: AdminUserRow): number { return u.admin ? 3 : this.isComped(u) ? 2 : u.stripeRole === 'paid' ? 1 : 0; }
   shortProvider(p: string): string { return p.replace('.com', ''); }
   platformChips(u: AdminUserRow): Array<{ id: string; label: string; days: number; tone: string }> {
@@ -304,42 +302,4 @@ export class AdminUsersComponent {
     return String(v);
   }
   subLabel(s: AdminUserDetails['subscriptions'][number]): string { return `${s.status}${s.cancel_at_period_end ? ' (cancelling)' : ''}`; }
-
-  private async run(label: string, op: () => Promise<void>, reload = true): Promise<void> {
-    this.busy.set(true);
-    try {
-      await op();
-      this.shell.toast(label, 'ok');
-      if (reload) await this.data.loadUsers(true);
-    } catch (err) {
-      this.shell.toast(err instanceof Error ? err.message : String(err), 'error');
-    } finally { this.busy.set(false); }
-  }
-
-  togglePlan(u: AdminUserRow) {
-    const next = u.stripeRole === 'paid' ? null : 'paid';
-    return this.run(`${u.email}: plan → ${next ?? 'free'}`, () => this.api.overridePlan(u.uid, next));
-  }
-  toggleComped(u: AdminUserRow) {
-    const grant = !this.isComped(u);
-    return this.run(`${u.email}: ${grant ? 'comped' : 'comped removed'}`, () => this.api.setCompedEmail(u.email.toLowerCase(), grant), false);
-  }
-  toggleSuspend(u: AdminUserRow) {
-    return this.run(`${u.email}: ${u.disabled ? 'unsuspended' : 'suspended'}`, () => this.api.suspendUser(u.uid, !u.disabled));
-  }
-  resetQuotas(u: AdminUserRow) {
-    return this.run(`${u.email}: today's AI quotas reset`, () => this.api.resetQuotas(u.uid), false);
-  }
-  passwordLink(u: AdminUserRow) {
-    return this.run(`Password-reset link copied for ${u.email}`, async () => {
-      const { link } = await this.api.resetPassword(u.email);
-      await navigator.clipboard.writeText(link);
-    }, false);
-  }
-  deleteUser(u: AdminUserRow) {
-    return this.run(`${u.email} deleted`, async () => {
-      await this.api.deleteUser(u.uid);
-      this.close();
-    });
-  }
 }

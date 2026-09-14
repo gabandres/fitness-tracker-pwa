@@ -25,7 +25,7 @@ export interface Toast { readonly id: number; readonly text: string; readonly ki
 /**
  * Cross-component UI state for the console: which section is open, which
  * user is in the drawer, the toast stack and the command palette. Kept out
- * of AdminDataService so data loading and chrome never share a file.
+ * of AdminConsole so data loading and chrome never share a file.
  */
 @Injectable({ providedIn: 'root' })
 export class AdminShellState {
