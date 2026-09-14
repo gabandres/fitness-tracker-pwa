@@ -59,7 +59,7 @@ const SEARCH_PAGE_SIZE_MAX = 25;
 // contract is mirrored by hand — keep the two byte-for-byte in sync. The enum
 // is `FoodDbSource` on BOTH sides (was `FoodSource` here) so a source-axis
 // rename can't silently drift them apart, which it already had.
-type FoodDbSource = 'fdc' | 'off' | 'menu';
+export type FoodDbSource = 'fdc' | 'off' | 'menu';
 
 export interface FoodSearchHit {
   /** Which database the hit came from — drives getFoodDetail dispatch. */
@@ -83,7 +83,7 @@ export interface FoodSearchHit {
   servings?: ServingOption[];
 }
 
-interface ServingOption {
+export interface ServingOption {
   /** Display label, e.g. "1 cup", "100 g", "1 medium (148 g)" */
   label: string;
   /** Grams this serving represents — drives the proportional macro math. */
@@ -103,7 +103,7 @@ interface ServingOption {
   kind: 'per100g' | 'portion';
 }
 
-interface FoodDetail {
+export interface FoodDetail {
   source: FoodDbSource;
   id: string;
   description: string;
