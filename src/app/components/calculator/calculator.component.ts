@@ -19,6 +19,7 @@ import {
   computeKcal,
   computeProtein,
 } from '@macrolog/core';
+import { CALC_VARIANTS, type CalcVariantKey } from '../../seo/seo-routes';
 import { setCalcPrefill } from '../../utils/calc-prefill';
 import { share } from '../../utils/share';
 import { LucideAngularModule } from 'lucide-angular';
@@ -29,30 +30,29 @@ import { APP_STORE_URL, PLAY_STORE_URL, playBadgeSrc } from '../../utils/app-sto
 // Same calculator logic, different URL slugs + meta + intro copy. Each
 // variant targets a specific search intent ("tdee calculator women",
 // "cutting calculator", etc.) and prefills `goal` so the result block
-// matches the searcher's expectation. Adding a variant is two lines
-// here + i18n keys + a sitemap.xml entry.
+// matches the searcher's expectation.
+//
+// The slug → variant + goal mapping is NOT restated here: it is read off
+// `CALC_VARIANTS` in src/app/seo/seo-routes.ts, the same table app.ts routes
+// from and prerender-seo.mjs generates from. Adding a variant is one row
+// there plus its `calcVariants.<key>` i18n keys in both locales.
+//
+// The `Record<…, { goal: GoalDirection }>` annotation below is load-bearing,
+// not decoration: the manifest declares its own `MacroGoal` because a file
+// importable by plain Node cannot resolve the `@macrolog/core` path alias,
+// and this assignment is what ties the two unions together at compile time.
 
-export type CalcVariantKey =
-  | 'default'
-  | 'tdeeWomen'
-  | 'tdeeMen'
-  | 'cutting'
-  | 'bulking'
-  | 'maintenance'
-  | 'keto'
-  | 'weightLoss'
-  | 'protein';
+// Re-exported so the variant union keeps its historical import site.
+export type { CalcVariantKey } from '../../seo/seo-routes';
 
 const VARIANT_PATHS: Record<string, { variant: CalcVariantKey; goal: GoalDirection }> = {
+  // `/calculator` is the canonical page, not a variant — it draws its title
+  // from `calculator.pageTitle` and carries its own sitemap priority, so the
+  // manifest leaves it out and it is named here.
   '/calculator': { variant: 'default', goal: 'maintain' },
-  '/tdee-calculator-women': { variant: 'tdeeWomen', goal: 'maintain' },
-  '/tdee-calculator-men': { variant: 'tdeeMen', goal: 'maintain' },
-  '/cutting-calculator': { variant: 'cutting', goal: 'lose' },
-  '/bulking-calculator': { variant: 'bulking', goal: 'gain' },
-  '/maintenance-calculator': { variant: 'maintenance', goal: 'maintain' },
-  '/keto-macro-calculator': { variant: 'keto', goal: 'lose' },
-  '/weight-loss-calculator': { variant: 'weightLoss', goal: 'lose' },
-  '/protein-calculator': { variant: 'protein', goal: 'maintain' },
+  ...Object.fromEntries(
+    CALC_VARIANTS.map((v) => [`/${v.slug}`, { variant: v.key, goal: v.goal }] as const),
+  ),
 };
 
 function currentPath(): string {

@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } 
 import { TranslocoDirective } from '@jsverse/transloco';
 import { TranslationService } from './services/translation.service';
 import { stripLangPrefix } from './i18n/locale-path';
+import { CALC_VARIANT_PATH_RE, MACROS_PATH_RE, VS_PATH_RE } from './seo/seo-routes';
 import { AdminGateComponent } from './components/admin-gate/admin-gate.component';
 import { CalculatorComponent } from './components/calculator/calculator.component';
 import { MacrosPageComponent } from './components/macros-page/macros-page.component';
@@ -201,14 +202,18 @@ export class App {
     if (path === '/admin') return 'admin';
     if (path === '/calculator') return 'calculator';
     // Programmatic SEO variants — same component, different intent + meta.
-    // Adding a variant: register the path here AND in calculator.component.ts
-    // VARIANT_PATHS AND in prerender-seo.mjs.
-    if (/^\/(tdee-calculator-women|tdee-calculator-men|cutting-calculator|bulking-calculator|maintenance-calculator|keto-macro-calculator|weight-loss-calculator|protein-calculator)$/.test(path)) return 'calculator';
+    // The patterns come from src/app/seo/seo-routes.ts, which is also what
+    // prerender-seo.mjs generates the pages and the sitemap from, so a slug
+    // added there is routable here without an edit. A URL that routes but is
+    // not prerendered serves the shell's `canonical=https://ignia.fit/` and
+    // self-declares as a homepage duplicate — that is the drift this shares
+    // one table to prevent.
+    if (CALC_VARIANT_PATH_RE.test(path)) return 'calculator';
     if (path === '/faq') return 'faq';
-    if (/^\/vs\/[a-z0-9-]+$/.test(path)) return 'vs';
+    if (VS_PATH_RE.test(path)) return 'vs';
     if (/^\/u\/[a-z0-9-]+$/.test(path)) return 'publicProfile';
     if (path === '/transformations') return 'transformations';
-    if (/^\/macros\/(lose|maintain|gain)\/\d{2,3}-lb$/.test(path)) return 'macros';
+    if (MACROS_PATH_RE.test(path)) return 'macros';
     // The retired logging app (ADR-0036). `/app` is the installed PWA's
     // start_url and the target of every recap email's "Open your log"
     // button; the rest are its tabs. All of them get the "moved" page.

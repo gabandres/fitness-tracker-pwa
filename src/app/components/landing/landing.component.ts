@@ -4,6 +4,7 @@ import { Firestore, doc, getDoc } from '@angular/fire/firestore';
 import { APP_STORE_URL, PLAY_STORE_URL, PLAY_STORE_LIVE, playBadgeSrc } from '../../utils/app-store';
 import { TranslationService } from '../../services/translation.service';
 import { localizedPath } from '../../i18n/locale-path';
+import { CALC_VARIANTS } from '../../seo/seo-routes';
 
 /**
  * Public marketing surface at `/` — redesigned 2026-08-30 (round two of the
@@ -336,20 +337,12 @@ export class LandingComponent {
   protected readonly otherLangCode = computed(() =>
     this.i18n.language() === 'es-PR' ? 'en' : 'es');
 
-  /** Footer-directory rows for the calculator variants. slug → i18n key —
-   *  must stay in sync with VARIANT_PATHS in calculator.component.ts and
-   *  CALC_VARIANTS in scripts/prerender-seo.mjs (same dual-maintenance rule
-   *  those two already declare for each other). */
-  protected readonly CALC_VARIANTS = [
-    { slug: 'tdee-calculator-women', key: 'tdeeWomen' },
-    { slug: 'tdee-calculator-men', key: 'tdeeMen' },
-    { slug: 'cutting-calculator', key: 'cutting' },
-    { slug: 'bulking-calculator', key: 'bulking' },
-    { slug: 'maintenance-calculator', key: 'maintenance' },
-    { slug: 'keto-macro-calculator', key: 'keto' },
-    { slug: 'weight-loss-calculator', key: 'weightLoss' },
-    { slug: 'protein-calculator', key: 'protein' },
-  ] as const;
+  /** Footer-directory rows for the calculator variants — the published table
+   *  itself (src/app/seo/seo-routes.ts), not a copy of it. This list is the
+   *  only crawlable path INTO the variant pages from `/`, so a variant that
+   *  reached the sitemap but not this list would be an orphan in the link
+   *  graph; reading the manifest is what makes that impossible. */
+  protected readonly CALC_VARIANTS = CALC_VARIANTS;
 
   /** "Cutting Calculator · Calorie Deficit & Protein · Ignia" → "Cutting
    *  Calculator". The calcVariants titles are page titles; the first `·`

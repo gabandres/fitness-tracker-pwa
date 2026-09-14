@@ -9,6 +9,8 @@
  * for both sides. `winner` decides which column gets the highlight.
  */
 
+import type { VsSlug } from '../../seo/seo-routes';
+
 export type Verdict = 'us' | 'them' | 'tie';
 
 export interface VsRow {
@@ -22,8 +24,13 @@ export interface VsRow {
 }
 
 export interface VsProfile {
-  /** URL slug — must be lowercase, no spaces. */
-  slug: string;
+  /** URL slug. The published set lives in `VS_PAGES`
+   *  (src/app/seo/seo-routes.ts), which is also what the prerenderer and the
+   *  sitemap enumerate — typing it as that union means a profile whose slug
+   *  is not published is a compile error, and prerender-seo.mjs throws on the
+   *  mirror case (a published slug with no profile here). The "keep them in
+   *  sync" comment those two used to carry is now the type system's job. */
+  slug: VsSlug;
   /** Display name of the competitor (e.g. "MyFitnessPal"). */
   name: string;
   /** Short tagline — used in the sub-head. */

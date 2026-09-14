@@ -41,12 +41,26 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-// The comparison table's own source of truth, imported rather than restated.
-// Node 24 strips TypeScript types natively, so a `.ts` data module is
-// importable from a plain `.mjs` build script with no compile step — which is
-// what keeps the prerendered table and the rendered table the same table.
-// If this ever moves to a Node without type stripping, the fix is a build
-// step, NOT a second copy of the data.
+// The app's own source of truth for both the URL space and the comparison
+// content, imported rather than restated.
+//
+// Node 24 (pinned in .nvmrc / root `engines`) strips TypeScript types
+// natively, so a `.ts` data module is importable from a plain `.mjs` build
+// script with no compile step — which is what keeps the prerendered table and
+// the rendered table the same table. If this ever moves to a Node without
+// type stripping, the fix is a build step, NOT a second copy of the data.
+//
+// `seo-routes.ts` is the manifest this script used to duplicate: its
+// CALC_VARIANTS / VS / RANGES / MACROS_PRIORITY blocks were four of the five
+// hand-synced copies of the route table, and drift between them is exactly
+// the defect the CALC_VARIANTS comment below warned about.
+import {
+  CALC_VARIANTS,
+  MACRO_BRACKETS,
+  SITE_ORIGIN,
+  VS_PAGES,
+  macroWeightsFor,
+} from '../src/app/seo/seo-routes.ts';
 import { VS_PROFILES } from '../src/app/components/vs-page/vs-data.ts';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -56,7 +70,7 @@ const dist = resolve(root, 'dist/fitness-tracker-pwa/browser');
 const shell = readFileSync(resolve(dist, 'index.html'), 'utf8');
 const readI18n = (f) => JSON.parse(readFileSync(resolve(root, 'src/app/i18n', f), 'utf8'));
 
-const SITE = 'https://ignia.fit';
+const SITE = SITE_ORIGIN;
 
 const KCAL = { lose: 11, maintain: 14, gain: 17 };
 // Protein: g/kg standard, 1.6 g/kg default (muscle-retention floor on a cut).
@@ -153,44 +167,26 @@ const COPY = {
 };
 
 /**
- * Calculator variants — the same component under intent-specific URLs.
- * `key` indexes `calcVariants.<key>` in the i18n bundles; `slug` must match
- * VARIANT_PATHS in src/app/components/calculator/calculator.component.ts.
+ * Comparison landings: the published slug + sitemap priority from the
+ * manifest, joined to the display name from the page's own content module.
  *
- * These were in the sitemap but NOT prerendered, which was worse than being
- * absent: they served the shell, so every one of them declared
- * `canonical=https://ignia.fit/` and told Google it was a duplicate of the
- * homepage. Nothing repairs that at runtime — the app sets a title, but no
- * code anywhere writes a canonical tag.
+ * The join is checked rather than assumed. A slug in VS_PAGES with no profile
+ * in vs-data.ts would otherwise prerender a page titled `vs undefined` and
+ * still put the URL in the sitemap — a live page Google would rate thin. The
+ * mirror case (a profile whose slug is not published) is a compile error,
+ * because vs-data.ts types its `slug` field as the `VsSlug` union.
  */
-const CALC_VARIANTS = [
-  { slug: 'tdee-calculator-women', key: 'tdeeWomen', priority: 0.9 },
-  { slug: 'tdee-calculator-men', key: 'tdeeMen', priority: 0.9 },
-  { slug: 'cutting-calculator', key: 'cutting', priority: 0.85 },
-  { slug: 'bulking-calculator', key: 'bulking', priority: 0.85 },
-  { slug: 'maintenance-calculator', key: 'maintenance', priority: 0.7 },
-  { slug: 'keto-macro-calculator', key: 'keto', priority: 0.85 },
-  { slug: 'weight-loss-calculator', key: 'weightLoss', priority: 0.9 },
-  { slug: 'protein-calculator', key: 'protein', priority: 0.85 },
-];
-
-/** Comparison landings. Mirrors the slug list in
- *  src/app/components/vs-page/vs-data.ts — keep them in sync. */
-const VS = [
-  { slug: 'myfitnesspal', name: 'MyFitnessPal', priority: 0.8 },
-  { slug: 'loseit', name: 'Lose It!', priority: 0.8 },
-  { slug: 'cronometer', name: 'Cronometer', priority: 0.7 },
-  { slug: 'macrofactor', name: 'MacroFactor', priority: 0.8 },
-  { slug: 'calai', name: 'Cal AI', priority: 0.7 },
-];
-
-/** /macros/<goal>/<weight>-lb — enumerated, one page per bracket. */
-const RANGES = {
-  lose:     [120, 130, 140, 150, 160, 170, 180, 190, 200, 210, 220, 230, 240, 250, 260],
-  maintain: [120, 130, 140, 150, 160, 170, 180, 190, 200, 210, 220, 230],
-  gain:     [120, 130, 140, 150, 160, 170, 180, 190, 200],
-};
-const MACROS_PRIORITY = { lose: 0.7, maintain: 0.6, gain: 0.6 };
+const VS = VS_PAGES.map((v) => {
+  const profile = VS_PROFILES.find((p) => p.slug === v.slug);
+  if (!profile) {
+    throw new Error(
+      `VS_PAGES lists /vs/${v.slug} but src/app/components/vs-page/vs-data.ts ` +
+        `has no profile for it — add the profile or drop the slug from ` +
+        `src/app/seo/seo-routes.ts.`,
+    );
+  }
+  return { slug: v.slug, name: profile.name, priority: v.priority };
+});
 
 /** hreflang pair for a page that exists as two hand-written files rather than
  *  two generated routes. Same shape the route table produces, so the sitemap
@@ -656,20 +652,22 @@ function footerGroups(route, locale) {
   const targets = [];
   if (m) {
     const [, goal, weight] = m;
-    for (const w of RANGES[goal]) {
+    for (const w of macroWeightsFor(goal)) {
       if (String(w) !== weight) {
         targets.push(li(p(`/macros/${goal}/${w}-lb`), `${copy.goalLabel[goal]} · ${w} lb`));
       }
     }
-    for (const g of Object.keys(RANGES)) {
-      if (g !== goal && RANGES[g].includes(Number(weight))) {
-        targets.push(li(p(`/macros/${g}/${weight}-lb`), `${copy.goalLabel[g]} · ${weight} lb`));
+    for (const g of MACRO_BRACKETS) {
+      if (g.goal !== goal && g.weightsLb.includes(Number(weight))) {
+        targets.push(
+          li(p(`/macros/${g.goal}/${weight}-lb`), `${copy.goalLabel[g.goal]} · ${weight} lb`),
+        );
       }
     }
   } else {
-    for (const g of Object.keys(RANGES)) {
-      for (const w of [150, 180, 200].filter((x) => RANGES[g].includes(x))) {
-        targets.push(li(p(`/macros/${g}/${w}-lb`), `${copy.goalLabel[g]} · ${w} lb`));
+    for (const g of MACRO_BRACKETS) {
+      for (const w of [150, 180, 200].filter((x) => g.weightsLb.includes(x))) {
+        targets.push(li(p(`/macros/${g.goal}/${w}-lb`), `${copy.goalLabel[g.goal]} · ${w} lb`));
       }
     }
   }
@@ -927,8 +925,8 @@ function buildRoutes(locale) {
     ],
   });
 
-  for (const goal of Object.keys(RANGES)) {
-    for (const weight of RANGES[goal]) {
+  for (const { goal, priority, weightsLb } of MACRO_BRACKETS) {
+    for (const weight of weightsLb) {
       const kcal = computeKcal(weight, goal);
       const protein = computeProtein(weight);
       const title = interp(i18n.macrosPage.title[goal], { weight });
@@ -943,7 +941,7 @@ function buildRoutes(locale) {
         description,
         content: macrosContent(i18n, { goal, weight, kcal, protein }),
         canonical: pageUrl,
-        priority: MACROS_PRIORITY[goal],
+        priority,
         jsonLd: [
           breadcrumb([
             home,

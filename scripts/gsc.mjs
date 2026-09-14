@@ -27,21 +27,56 @@
  */
 import { writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+// The URL space, from the one module that defines it. Node 24 strips
+// TypeScript types natively, so these `.ts` modules load here with no build
+// step — the same mechanism scripts/prerender-seo.mjs uses, and the reason no
+// URL below is spelled out by hand. A slug renamed in the manifest renames
+// the URL inspected here; a slug DELETED there fails the assertion below
+// loudly rather than reporting "URL is unknown to Google" forever.
+import { CALC_VARIANTS, SITE_ORIGIN, VS_PAGES } from '../src/app/seo/seo-routes.ts';
+import { ES_PATH_PREFIX } from '../src/app/i18n/locale-path.ts';
 
-const SITE_URL = 'https://ignia.fit/';
-const SITEMAP = 'https://ignia.fit/sitemap.xml';
+const SITE_URL = `${SITE_ORIGIN}/`;
+const SITEMAP = `${SITE_ORIGIN}/sitemap.xml`;
 const QUOTA_PROJECT = 'fitness-tracker-gb-1775407101';
 
-/** The nine that used to self-canonicalize, plus a Spanish sample. */
-const DEFAULT_INSPECT = [
-  'https://ignia.fit/cutting-calculator',
-  'https://ignia.fit/protein-calculator',
-  'https://ignia.fit/tdee-calculator-women',
-  'https://ignia.fit/weight-loss-calculator',
-  'https://ignia.fit/transformations',
-  'https://ignia.fit/es/calculator',
-  'https://ignia.fit/es/vs/macrofactor',
-];
+/** `https://ignia.fit/es/vs/macrofactor` from `('/vs/macrofactor', 'es')`. */
+const seoUrl = (path, lang = 'en') =>
+  `${SITE_ORIGIN}${lang === 'es' ? ES_PATH_PREFIX : ''}${path}`;
+
+/**
+ * A curated sample, not the whole sitemap: `inspect` costs a quota unit per
+ * URL and the point is a spot-check, not an audit.
+ *
+ * These are the calculator variants that used to ship
+ * `canonical=https://ignia.fit/` and so self-declared as homepage duplicates
+ * (docs/seo-status.md, 2026-07-29) — the URLs where a regression would be
+ * invisible and expensive — plus /transformations and one page from each half
+ * of the Spanish site, because the /es URLs have no inbound links of their own.
+ *
+ * Named by manifest KEY rather than by URL so the slugs stay in one place.
+ */
+const SAMPLE_VARIANT_KEYS = ['cutting', 'protein', 'tdeeWomen', 'weightLoss'];
+const SAMPLE_VS_SLUG = 'macrofactor';
+
+function defaultInspect() {
+  const bySlug = new Map(CALC_VARIANTS.map((v) => [v.key, v.slug]));
+  const missing = SAMPLE_VARIANT_KEYS.filter((k) => !bySlug.has(k));
+  if (missing.length || !VS_PAGES.some((v) => v.slug === SAMPLE_VS_SLUG)) {
+    throw new Error(
+      `gsc.mjs inspect sample is stale: ${[...missing, ...(VS_PAGES.some((v) => v.slug === SAMPLE_VS_SLUG) ? [] : [SAMPLE_VS_SLUG])].join(', ')} ` +
+        `no longer in src/app/seo/seo-routes.ts. Pick replacements there.`,
+    );
+  }
+  return [
+    ...SAMPLE_VARIANT_KEYS.map((k) => seoUrl(`/${bySlug.get(k)}`)),
+    seoUrl('/transformations'),
+    seoUrl('/calculator', 'es'),
+    seoUrl(`/vs/${SAMPLE_VS_SLUG}`, 'es'),
+  ];
+}
+
+const DEFAULT_INSPECT = defaultInspect();
 
 function token() {
   // gcloud is a .cmd on Windows, which Node refuses to spawn directly
