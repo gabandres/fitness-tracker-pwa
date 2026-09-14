@@ -1,9 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
-import { useFocusEffect } from 'expo-router';
-import { trackSubs } from '@/lib/sub-debug';
 import { useCachedState } from '@/hooks/useCachedState';
-import { track } from '@/lib/analytics';
-import { exportDaily, exportWorkout } from '@/lib/health-sync';
+import { asError, feedChannel, useLedgerFeed } from '@/hooks/useLedgerFeed';
+import { finishWorkout as finishWorkoutOp } from '@/lib/ledger-ops';
 import { useAuth } from '@/lib/auth';
 import {
   addExercise as addExerciseDoc,
@@ -14,9 +12,6 @@ import {
   editExercise as editExerciseDoc,
   getActiveSession,
   mergeExercises as mergeExercisesDoc,
-  markExercised,
-  setDailySleep,
-  setDailyWeight,
   startSession,
   subscribeExercises,
   subscribeRecentSessions,
@@ -29,7 +24,6 @@ import {
   applySessionAction,
   findDuplicateExercise,
   dayBoundaryOf,
-  dayKeyAt,
   newCardioBlock,
   newWorkoutSet,
 } from '@macrolog/core';
@@ -43,7 +37,6 @@ import {
   type TemplateExercise,
   type WorkoutSession,
   type WorkoutTemplate,
-  dropEmptyCardio,
   dropEmptySets,
   templateToSessionCardio,
   templateToSessionExercises,
@@ -53,7 +46,6 @@ import {
   type SeedTemplate,
   fillMissingClusterLoads,
   findSeedExercise,
-  isStorableWeight,
   seedExerciseCues,
   seedExerciseName,
   seedTemplateExerciseCues,
@@ -188,70 +180,75 @@ export function useTrain(): TrainState {
   // edit, so Cancel can restore it (set edits live-write, so they're already
   // in Firestore by the time the user changes their mind).
   const editOriginal = useRef<WorkoutSession | null>(null);
-  // `snapshotArrived` replaces a plain `loading` flag, and the distinction is
-  // the bug it fixes. The old flag started true and was cleared in exactly ONE
-  // place — the sessions success callback — so an errored listener (offline, a
-  // dropped connection) left it true forever. train.tsx checks `loading` BEFORE
-  // it renders anything, and the `train.loadErr` string it already has lives
-  // inside StartView, i.e. the else branch, so the one screen that could
-  // explain the failure was unreachable exactly when it was needed. Now the
-  // spinner ends at whichever comes first — a snapshot, a cache hit, or an
-  // error — mirroring useToday.
-  const [snapshotArrived, setSnapshotArrived] = useState(false);
-  const [errored, setErrored] = useState(false);
   const [saving, setSaving] = useState(false);
+  // ONE error slot for both halves of the hook: the eight write verbs record
+  // theirs here, and the feed is told to route a listener failure into the same
+  // one rather than a second slot the screen would have to merge.
   const [error, setError] = useState<Error | null>(null);
-  /** Record the error AND release the spinner, so the failure can be shown. */
-  const failWith = useCallback((e: Error) => {
-    setError(e);
-    setErrored(true);
-  }, []);
-  const loading = !snapshotArrived && !sessionsFromCache && !errored;
 
   // Focus-gated so the Train tab drops its live listeners when it blurs
   // (battery/network). Re-subscribes + reloads the active session on refocus.
-  // See useToday.
-  useFocusEffect(
-    useCallback(() => {
-      if (!uid) return;
-      let alive = true;
-      const unsubs = [
-        subscribeExercises(uid, (rows, meta) =>
-          setCatalog(rows, { authoritative: !meta?.fromCache }),
-        ),
-        subscribeTemplates(uid, (rows, meta) =>
-          setTemplates(rows, { authoritative: !meta?.fromCache }),
-        ),
-        subscribeRecentSessions(
-          uid,
-          50,
-          (s, meta) => {
-            // Recent list shows completed sessions; the active one (if any) is
-            // surfaced separately via getActiveSession below.
-            const authoritative = !meta?.fromCache;
-            setRecentSessions(s.filter((x) => x.status === 'completed'), { authoritative });
-            // Only a SERVER answer ends the spinner on its own. An offline
-            // listener's immediate empty cache hit is not an answer — the disk
-            // cache (`sessionsFromCache`) or an error releases it instead.
-            if (authoritative) setSnapshotArrived(true);
-          },
-          failWith,
-        ),
-      ];
-      // One-shot load of any in-progress session so set edits aren't clobbered
-      // by a live subscription mid-typing.
-      getActiveSession(uid)
-        .then((s) => {
-          if (alive) setActive(s);
+  // See useToday. The three `subscribe*` calls stay this hook's own (ADR-0016).
+  const feed = useLedgerFeed({
+    uid,
+    label: 'Train',
+    gate: 'focus',
+    onError: setError,
+    // One-shot load of any in-progress session so set edits aren't clobbered
+    // by a live subscription mid-typing. `alive()` is the feed's — a resolve
+    // that lands after the tab blurred must not revive a torn-down screen.
+    onOpen: ({ uid: u, alive, fail }) => {
+      getActiveSession(u)
+        .then((session) => {
+          if (alive()) setActive(session);
         })
-        .catch(failWith);
-      const stop = trackSubs('Train', unsubs);
-      return () => {
-        alive = false;
-        stop();
-      };
-    }, [uid]),
-  );
+        .catch(fail);
+    },
+    channels: () =>
+      uid
+        ? [
+            feedChannel({
+              key: 'exercises',
+              settles: 'none',
+              open: (deliver) => subscribeExercises(uid, deliver),
+              apply: setCatalog,
+            }),
+            feedChannel({
+              key: 'templates',
+              settles: 'none',
+              open: (deliver) => subscribeTemplates(uid, deliver),
+              apply: setTemplates,
+            }),
+            feedChannel<WorkoutSession[], 'sessions'>({
+              key: 'sessions',
+              // Only a SERVER answer ends the spinner on its own. An offline
+              // listener's immediate empty cache hit is not an answer — the
+              // disk cache (`sessionsFromCache`) or an error releases it.
+              settles: 'server',
+              open: (deliver, fail) => subscribeRecentSessions(uid, 50, deliver, fail),
+              // Recent list shows completed sessions; the active one (if any)
+              // is surfaced separately via `onOpen` above.
+              apply: (sessions: WorkoutSession[], provenance) =>
+                setRecentSessions(
+                  sessions.filter((x) => x.status === 'completed'),
+                  provenance,
+                ),
+            }),
+          ]
+        : [],
+    deps: [uid],
+  });
+
+  // `feed.answered.sessions` replaces a plain `loading` flag, and the
+  // distinction is the bug it fixes. The old flag started true and was cleared
+  // in exactly ONE place — the sessions success callback — so an errored
+  // listener (offline, a dropped connection) left it true forever. train.tsx
+  // checks `loading` BEFORE it renders anything, and the `train.loadErr` string
+  // it already has lives inside StartView, i.e. the else branch, so the one
+  // screen that could explain the failure was unreachable exactly when it was
+  // needed. The spinner now ends at whichever comes first — a server snapshot,
+  // a cache hit, or an error — mirroring useToday.
+  const loading = !feed.answered.sessions && !sessionsFromCache && !feed.failed;
 
   /** Persist the current local active session. */
   const persist = useCallback(
@@ -270,7 +267,7 @@ export function useTrain(): TrainState {
           ...(session.cardio !== undefined ? { cardio: session.cardio } : {}),
         });
       } catch (e) {
-        setError(e instanceof Error ? e : new Error('Save failed'));
+        setError(asError(e, 'Save failed'));
       } finally {
         setSaving(false);
       }
@@ -290,7 +287,7 @@ export function useTrain(): TrainState {
       const id = await startSession(uid, draft);
       setActive({ ...draft, id, createdAt: new Date(), updatedAt: new Date() });
     } catch (e) {
-      setError(e instanceof Error ? e : new Error('Start failed'));
+      setError(asError(e, 'Start failed'));
     }
   }, [uid, setActive]);
 
@@ -316,7 +313,7 @@ export function useTrain(): TrainState {
         const id = await startSession(uid, draft);
         setActive({ ...draft, id, createdAt: new Date(), updatedAt: new Date() });
       } catch (e) {
-        setError(e instanceof Error ? e : new Error('Start failed'));
+        setError(asError(e, 'Start failed'));
       }
     },
     [uid, setActive],
@@ -337,7 +334,7 @@ export function useTrain(): TrainState {
         const id = await startSession(uid, draft);
         setActive({ ...draft, id, createdAt: new Date(), updatedAt: new Date() });
       } catch (e) {
-        setError(e instanceof Error ? e : new Error('Start failed'));
+        setError(asError(e, 'Start failed'));
       }
     },
     [uid, setActive],
@@ -514,38 +511,17 @@ export function useTrain(): TrainState {
       if (!uid || !active?.id) return;
       setSaving(true);
       try {
-        const date = active.date;
-        // Heal logged-but-loadless sets from their siblings before pruning, so
-        // a blank-weight cluster/activation row can't persist (see core).
-        const exercises = dropEmptySets(fillMissingClusterLoads(active.exercises));
-        // A prescribed block the user never performed must not enter history —
-        // the cardio twin of dropEmptySets.
-        const cardio = dropEmptyCardio(active.cardio);
-        await updateSession(uid, active.id, {
-          status: 'completed',
-          exercises,
-          ...(cardio !== undefined ? { cardio } : {}),
-          bodyweight: extras.bodyweight,
-          sleepHours: extras.sleepHours,
-        });
-        const dateKey = dayKeyAt(date, dayBoundaryOf(profile));
-        // `> 0` let an 11 lb session bodyweight reach `dailyWeights`; the
-        // store backstop applies here like on every other weight write.
-        if (extras.bodyweight != null && isStorableWeight(extras.bodyweight)) {
-          await setDailyWeight(uid, dateKey, extras.bodyweight);
-          void exportDaily('weight', dateKey, extras.bodyweight);
-        }
-        if (extras.sleepHours != null && extras.sleepHours > 0) {
-          await setDailySleep(uid, dateKey, extras.sleepHours);
-          void exportDaily('sleep', dateKey, extras.sleepHours);
-        }
-        await markExercised(uid, date, dayBoundaryOf(profile));
-        // Mirror the finished session to Health (ends now; strength training).
-        track('workout_finished');
-        void exportWorkout({ start: date, end: new Date() });
+        // The six-step sequence itself lives in `ledger-ops.ts`, where it is
+        // reachable without a renderer — the pruning order, the weight
+        // backstop and which half is fire-and-forget are asserted there. This
+        // hook keeps only what is React's: the saving flag, clearing the
+        // active session, and turning a rejection into a visible error.
+        // ADR-0030: the boundary is derived here, from the profile the auth
+        // context already holds, and passed down rather than re-read.
+        await finishWorkoutOp(uid, active, dayBoundaryOf(profile), extras);
         setActive(null);
       } catch (e) {
-        setError(e instanceof Error ? e : new Error('Finish failed'));
+        setError(asError(e, 'Finish failed'));
       } finally {
         setSaving(false);
       }
@@ -567,7 +543,7 @@ export function useTrain(): TrainState {
     } catch (e) {
       // Same reasoning as the starters: an uncaught reject here reaches Sentry
       // with no stack and no screen. Surface it on the tab instead.
-      setError(e instanceof Error ? e : new Error('Discard failed'));
+      setError(asError(e, 'Discard failed'));
     }
   }, [uid, setActive]);
 
@@ -601,7 +577,7 @@ export function useTrain(): TrainState {
       try {
         await updateSession(uid, active.id, { exercises: dropEmptySets(fillMissingClusterLoads(active.exercises)) });
       } catch (e) {
-        setError(e instanceof Error ? e : new Error('Save failed'));
+        setError(asError(e, 'Save failed'));
       } finally {
         setSaving(false);
       }
@@ -620,7 +596,7 @@ export function useTrain(): TrainState {
       try {
         await updateSession(uid, original.id, { exercises: original.exercises });
       } catch (e) {
-        setError(e instanceof Error ? e : new Error('Restore failed'));
+        setError(asError(e, 'Restore failed'));
       } finally {
         setSaving(false);
       }

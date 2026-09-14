@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useFocusEffect } from 'expo-router';
-import { trackSubs } from '@/lib/sub-debug';
 import { useCoreSnapshot } from '@/hooks/useCoreSnapshot';
+import { feedChannel, useLedgerFeed } from '@/hooks/useLedgerFeed';
 import { exportDaily } from '@/lib/health-sync';
-import { track } from '@/lib/analytics';
+import { writeDailyMetric } from '@/lib/ledger-ops';
 import {
   type BodyFatInput,
   type Measurement,
@@ -30,7 +29,6 @@ import {
   addMeasurement as addMeasurementDoc,
   deleteMeasurement as deleteMeasurementDoc,
   updateMeasurement as updateMeasurementDoc,
-  setDailyWeight,
   subscribeMeasurements,
 } from '@/lib/ledger';
 
@@ -94,20 +92,31 @@ export function useBody(): BodyState {
   // along.
   const { logs, weights, profile, loaded, error: snapshotError } = useCoreSnapshot('Body');
   const [measurements, setMeasurements] = useState<Measurement[]>([]);
-  const [measurementError, setMeasurementError] = useState<Error | null>(null);
-  const loading = !loaded;
-  const error = snapshotError ?? measurementError;
 
   // Measurements are this tab's alone, so they stay its own subscription —
-  // focus-gated and tracked the same way.
-  useFocusEffect(
-    useCallback(() => {
-      if (!uid) return;
-      return trackSubs('BodyMeasurements', [
-        subscribeMeasurements(uid, 20, setMeasurements, setMeasurementError),
-      ]);
-    }, [uid]),
-  );
+  // focus-gated and tracked the same way, through the same feed policy as the
+  // three channels above (ADR-0016: still this hook's own listener).
+  const measurementFeed = useLedgerFeed({
+    uid,
+    label: 'BodyMeasurements',
+    gate: 'focus',
+    channels: () =>
+      uid
+        ? [
+            feedChannel({
+              key: 'measurements',
+              open: (deliver, fail) => subscribeMeasurements(uid, 20, deliver, fail),
+              apply: setMeasurements,
+            }),
+          ]
+        : [],
+    deps: [uid],
+  });
+
+  const loading = !loaded;
+  // Two independent reads, one error slot — the tab can only show one message,
+  // and the core snapshot is the one that blanks the whole screen.
+  const error = snapshotError ?? measurementFeed.error;
 
   const todayKey = dayKeyAt(new Date(), dayBoundaryOf(profile));
   const weighIns = useMemo<WeighIn[]>(
@@ -188,10 +197,11 @@ export function useBody(): BodyState {
   const setWeight = useCallback(
     async (weight: number, dateKey?: string) => {
       if (!uid) return;
-      const key = dateKey ?? todayKey;
-      await setDailyWeight(uid, key, weight);
-      track('weight_logged');
-      void exportDaily('weight', key, weight); // mirror to Health if connected
+      // Write, then count it, then mirror to Health if connected — one
+      // operation (`ledger-ops.writeDailyMetric`). `weight_logged` is passed
+      // because Body's weigh-in is the one of the four write-then-mirror sites
+      // that counts; it fires only once the write has landed.
+      await writeDailyMetric(uid, 'weight', dateKey ?? todayKey, weight, 'weight_logged');
     },
     [uid, todayKey],
   );

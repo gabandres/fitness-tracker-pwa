@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useFocusEffect } from 'expo-router';
-import { trackSubs } from '@/lib/sub-debug';
 import { useCachedState } from '@/hooks/useCachedState';
-import { addLogDurably, onPendingLogsChanged, pendingLogsAsRows } from '@/lib/pending-logs';
-import { track } from '@/lib/analytics';
-import { exportDaily } from '@/lib/health-sync';
+import { feedChannel, useLedgerFeed } from '@/hooks/useLedgerFeed';
+import { onPendingLogsChanged, pendingLogsAsRows } from '@/lib/pending-logs';
+import { repeatYesterday as repeatYesterdayOp, writeDailyMetric } from '@/lib/ledger-ops';
 import {
   type CustomFood,
   type DailyLog,
@@ -31,8 +29,6 @@ import { useAuth } from '@/lib/auth';
 import { type LogWrites, useLogWrites } from '@/hooks/useLogWrites';
 import {
   breakFast as breakFastDoc,
-  setDailySleep,
-  setDailyWater,
   setHiddenRecentLabels,
   startFast as startFastDoc,
   subscribeCustomFoods,
@@ -129,30 +125,104 @@ export function useToday(): TodayState {
     'activity',
     {},
   );
-  const [snapshotArrived, setSnapshotArrived] = useState(false);
-  /**
-   * The profile listener has answered AT ALL — server or cache, present or
-   * genuinely absent. Not "authoritative", deliberately: see {@link loading}.
-   */
-  const [profileSettled, setProfileSettled] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
-  const [failed, setFailed] = useState(false);
-  /** Record the error AND release the spinner, so a failure is not a hang. */
-  const failWith = useCallback((e: Error) => {
-    setError(e);
-    setFailed(true);
-  }, []);
   /** Rows parked on disk by an offline add, not yet in Firestore. */
   const [pending, setPending] = useState<DailyLog[]>([]);
+
+  // Focus-gated (not mount-gated): the tab detaches its Firestore listeners
+  // when it blurs, so background tabs stop holding live onSnapshot channels
+  // awake (battery/network). Re-subscribes from cache on refocus — no spinner
+  // flash, because `useLedgerFeed` keys readiness to the ACCOUNT, not to the
+  // subscription cycle. The eight `subscribe*` calls stay this hook's own
+  // (ADR-0016); only the wiring around them is the feed's.
+  const feed = useLedgerFeed({
+    uid,
+    label: 'Today',
+    gate: 'focus',
+    channels: () =>
+      uid
+        ? [
+            // Every slice below honours snapshot PROVENANCE, which the feed now
+            // hands each `apply` rather than leaving to eight call sites to
+            // remember. Firestore runs memory-only here (RN has no IndexedDB),
+            // so an offline listener fires immediately with an EMPTY result
+            // carrying `fromCache: true`. Treating that as real data discarded
+            // the disk hydration, wrote the empty value through — poisoning the
+            // cache for the next cold start — and then clobbered whatever had
+            // already been painted. Measured on Train, which took three
+            // publishes to get right; this is the same defect on the screen
+            // `offline-cache.ts` was actually written for.
+            feedChannel({
+              key: 'logs',
+              // Only a SERVER answer ends the spinner on its own; the disk
+              // cache and `feed.failed` below cover the offline cases.
+              settles: 'server',
+              open: (deliver, fail) => subscribeRecentLogs(uid, LOG_WINDOW_ROWS, deliver, fail),
+              apply: setLogs,
+            }),
+            feedChannel({
+              key: 'profile',
+              // Any answer settles it — see the `loading` note. Requiring a
+              // server answer here would hang a cold-cache offline start.
+              settles: 'any',
+              open: (deliver) => subscribeProfile(uid, deliver),
+              apply: setProfile,
+            }),
+            // The six below feed the screen but nothing waits on them, and none
+            // wires `fail` — exactly as before, because a dropped weights
+            // listener must not put Today into the error state that belongs to
+            // the logs channel.
+            feedChannel({
+              key: 'weights',
+              settles: 'none',
+              open: (deliver) => subscribeDailyWeights(uid, deliver),
+              apply: setWeights,
+            }),
+            feedChannel({
+              key: 'presets',
+              settles: 'none',
+              open: (deliver) => subscribePresets(uid, deliver),
+              apply: setPresets,
+            }),
+            feedChannel({
+              key: 'customFoods',
+              settles: 'none',
+              open: (deliver) => subscribeCustomFoods(uid, deliver),
+              apply: setCustomFoods,
+            }),
+            feedChannel({
+              key: 'water',
+              settles: 'none',
+              open: (deliver) => subscribeDailyWater(uid, deliver),
+              apply: setWaterMap,
+            }),
+            feedChannel({
+              key: 'sleep',
+              settles: 'none',
+              open: (deliver) => subscribeDailySleep(uid, deliver),
+              apply: setSleepMap,
+            }),
+            // Health-imported steps / active energy. Read-only here — the
+            // device measures these and the app never writes them back.
+            feedChannel({
+              key: 'activity',
+              settles: 'none',
+              open: (deliver) => subscribeDailyActivity(uid, deliver),
+              apply: setActivityMap,
+            }),
+          ]
+        : [],
+    deps: [uid],
+  });
+  const error = feed.error;
 
   // The rule lives in `today-gate.ts` — pure, dependency-free and tested there,
   // because it decides whether a user is shown someone else's calorie target.
   // Every clause is a bug that has actually happened; `isTodayLoading`'s doc
   // comment carries which, including why the profile half deliberately accepts a
   // cache-only answer where the logs half does not.
-  const logsReady = snapshotArrived || logsFromCache;
-  const profileReady = profileSettled || profileFromCache;
-  const loading = isTodayLoading({ logsReady, profileReady, failed });
+  const logsReady = feed.answered.logs || logsFromCache;
+  const profileReady = feed.answered.profile || profileFromCache;
+  const loading = isTodayLoading({ logsReady, profileReady, failed: feed.failed });
 
   // Re-read the parked queue when it changes (a park, or a flush that emptied
   // it) and whenever the account does. Cheap: one AsyncStorage read of a list
@@ -193,65 +263,6 @@ export function useToday(): TodayState {
     // below relies on it, so the merge re-sorts rather than appending.
     return [...liveLogs, ...extra].sort((a, b) => a.date.getTime() - b.date.getTime());
   }, [liveLogs, pending]);
-
-  // Focus-gated (not mount-gated): the tab detaches its Firestore listeners
-  // when it blurs, so background tabs stop holding live onSnapshot channels
-  // awake (battery/network). Re-subscribes from cache on refocus — no spinner
-  // flash, hence no setLoading(true) here (initial state covers first load).
-  useFocusEffect(
-    useCallback(() => {
-      if (!uid) return;
-      const unsubs = [
-        // Every slice below honours snapshot PROVENANCE. Firestore runs
-        // memory-only here (RN has no IndexedDB), so an offline listener fires
-        // immediately with an EMPTY result carrying `fromCache: true`. Treating
-        // that as real data discarded the disk hydration, wrote the empty value
-        // through — poisoning the cache for the next cold start — and then
-        // clobbered whatever had already been painted. Measured on Train, which
-        // took three publishes to get right; this is the same defect on the
-        // screen `offline-cache.ts` was actually written for.
-        subscribeRecentLogs(
-          uid,
-          LOG_WINDOW_ROWS,
-          (l, meta) => {
-            const authoritative = !meta?.fromCache;
-            setLogs(l, { authoritative });
-            // Only a SERVER answer ends the spinner on its own; the disk cache
-            // and `failed` below cover the offline cases.
-            if (authoritative) setSnapshotArrived(true);
-          },
-          failWith,
-        ),
-        subscribeDailyWeights(uid, (w, meta) =>
-          setWeights(w, { authoritative: !meta?.fromCache }),
-        ),
-        subscribeProfile(uid, (p, meta) => {
-          setProfile(p, { authoritative: !meta.fromCache });
-          // Any answer settles it — see the `loading` note. Requiring a server
-          // answer here would hang a cold-cache offline start.
-          setProfileSettled(true);
-        }),
-        subscribePresets(uid, (rows, meta) =>
-          setPresets(rows, { authoritative: !meta?.fromCache }),
-        ),
-        subscribeCustomFoods(uid, (rows, meta) =>
-          setCustomFoods(rows, { authoritative: !meta?.fromCache }),
-        ),
-        subscribeDailyWater(uid, (m, meta) =>
-          setWaterMap(m, { authoritative: !meta?.fromCache }),
-        ),
-        subscribeDailySleep(uid, (m, meta) =>
-          setSleepMap(m, { authoritative: !meta?.fromCache }),
-        ),
-        // Health-imported steps / active energy. Read-only here — the
-        // device measures these and the app never writes them back.
-        subscribeDailyActivity(uid, (m, meta) =>
-          setActivityMap(m, { authoritative: !meta?.fromCache }),
-        ),
-      ];
-      return trackSubs('Today', unsubs);
-    }, [uid]),
-  );
 
   // ADR-0030: which day "today" IS, and which day each row belongs to, both
   // come from the profile's boundary. An empty boundary is the calendar date,
@@ -330,32 +341,14 @@ export function useToday(): TodayState {
     return { streak, loggedDays, weightDeltaLb };
   }, [logs, weights, streak, boundary]);
 
+  // The multi-row copy is `ledger-ops.repeatYesterday` — which day counts as
+  // yesterday under the user's boundary, the rebuilt timestamps and the
+  // count-once-per-use event are asserted there, not through a renderer. The
+  // merged `logs` (live + parked) are handed down rather than re-read, so the
+  // rows copied are exactly the rows the user is looking at.
   const repeatYesterday = useCallback(async () => {
     if (!uid) return 0;
-    const y = new Date();
-    y.setDate(y.getDate() - 1);
-    const yKey = dayKeyAt(y, boundary);
-    const yLogs = logs.filter((l) => dayKeyAt(l.date, boundary) === yKey && l.calories > 0);
-    for (const l of yLogs) {
-      const ts = new Date();
-      ts.setHours(l.date.getHours(), l.date.getMinutes(), 0, 0);
-      // Durable like every other add — a repeat is the one-tap path a user
-      // reaches for precisely when they cannot be bothered to retype a day,
-      // and losing it offline would be losing a whole day of meals at once.
-      await addLogDurably(uid, {
-        calories: l.calories,
-        protein: l.protein,
-        carbs: l.carbs,
-        fat: l.fat,
-        mealLabel: l.mealLabel,
-        mealType: l.mealType,
-        timestamp: ts,
-      });
-    }
-    // Counted once per use, not once per row copied — the question it answers
-    // is whether the shortcut earns its place on an empty Today.
-    if (yLogs.length > 0) track('repeat_yesterday');
-    return yLogs.length;
+    return repeatYesterdayOp(uid, logs, boundary);
   }, [uid, logs, boundary]);
 
   // Every logging surface's writes, shared with History so the two cannot
@@ -373,19 +366,21 @@ export function useToday(): TodayState {
     },
     [uid, profile],
   );
+  // Write, then mirror to Health — one operation (`ledger-ops.writeDailyMetric`)
+  // rather than the three hand-written copies these two and Body's weigh-in
+  // used to be. Neither counts an analytics event, which is why neither passes
+  // one.
   const setWater = useCallback(
     async (flOz: number) => {
       if (!uid) return;
-      await setDailyWater(uid, todayKey, flOz);
-      void exportDaily('water', todayKey, flOz);
+      await writeDailyMetric(uid, 'water', todayKey, flOz);
     },
     [uid, todayKey],
   );
   const setSleep = useCallback(
     async (hours: number) => {
       if (!uid) return;
-      await setDailySleep(uid, todayKey, hours);
-      void exportDaily('sleep', todayKey, hours);
+      await writeDailyMetric(uid, 'sleep', todayKey, hours);
     },
     [uid, todayKey],
   );
