@@ -4,6 +4,64 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-09-14 — An architecture pass: ten deepenings, no user-visible change
+
+Ten refactors from one review (`22252ebc..07d27fb8`). Every one replaces a rule
+that lived in a comment with a rule the compiler, a test or a module signature
+enforces. Nothing a user can see changes, so no what's-new banner fires.
+
+  - **Snapshot policy has a module.** `apps/mobile/src/hooks/useLedgerFeed.ts`
+    owns focus-vs-mount gating, `trackSubs` teardown, provenance
+    (`meta.fromCache`), readiness and error narrowing for 9 hooks. The rule
+    "an offline listener's empty cache hit is not an answer" was restated 14×
+    in two hooks and missing from the other eleven. **ADR-0016 still holds and
+    is amended, not overturned** — no listener moved, nothing is shared or
+    ref-counted; each hook still opens its own `subscribe*`. Its *Alternatives*
+    section rejected a shared cache partly because "the Expo app has no unit-test
+    runner"; it now runs 802 tests, so that half of the rejection is gone and the
+    amendment says which half still decides it.
+  - **Multi-step writes are named.** `lib/ledger-ops.ts` —
+    `finishWorkout`, `repeatYesterday`, `writeDailyMetric`. They could not live
+    in `ledger.ts`: `health-sync.ts` and `pending-logs.ts` both import it, so
+    either would close a cycle. Write-then-mirror went from four copies to one.
+    Two defects found while moving code were left in place and reported rather
+    than silently fixed.
+  - **Eight `source` axes, not three.** `packages/core/src/source-axes.ts` pins
+    their disjointness with `@ts-expect-error`. Probing tsc first showed the
+    cross-axis assignments were *already* errors and that CONTEXT.md named three
+    of eight — so the fix is a pin, not a refactor, and branding (123 literal
+    sites) was rejected.
+  - **One SEO route table.** `src/app/seo/seo-routes.ts` replaces five
+    hand-synced copies whose comments told the reader to update the other four.
+    A route in the sitemap but not the prerender list serves the shell with
+    `canonical=https://ignia.fit/`. Verified by diffing `dist`: sitemap
+    byte-identical, all 120 prerendered pages unchanged.
+  - **One admin console.** `AdminDataService` deleted, 20 pass-through wrappers
+    and six copies of catch-to-toast gone; the two sections that bypassed the
+    cache no longer can. 19 specs on a path that had none.
+  - **The cost-guard ordering is an interface.** `functions/src/cost-guards.ts`
+    makes the refund asymmetry unrepresentable — `reserveUnits` is refunded,
+    `recordUnits` never is, and the refund reuses the reservation's own day.
+  - **Four parity specs** close the last unheld mirrors, including the web
+    locale bundles, which had nothing while mobile has been held since day one.
+    Each was proved by injecting the drift it catches. The USDA one is *not*
+    redundant with the golden fixture: all 24 fixture queries match strictly, so
+    the relaxation branch is unreachable through it.
+  - **`packages/core` has one interface again** — an explicit export map
+    replaces the wildcard subpath, and the root `tsconfig` wildcard that beat it
+    is deleted too.
+
+Shipped: **Android OTA only** (group `17c05bcf…`), plus the functions and
+hosting deploys. **iOS was not published** — `ignia-mac` lost power and the
+fingerprint is machine-bound; `STATUS.md` §2 carries the one command that
+finishes it.
+
+Two things found and deliberately not fixed here: `generateWeeklyReport` has no
+rate-limit spec and its 6-day gate is armed only by a report that got *written*
+(issue #122), and `build-food-golden.mjs` named a test asserting the server half
+of the ranking pin that has never existed — so that half was held only by
+`npm run doctor`, which *skips* when `functions/lib` is unbuilt.
+
 ## 2026-09-11 — The Body weight number is tappable, and the tap is counted
 
 A user tapped the big weight number on Body expecting to edit it and had to be

@@ -76,11 +76,28 @@ half is why this row exists.
 | Web | one SEO route manifest (5 copies → 1), one admin console (three modules → one) |
 | Functions | `withCostGuards`, plus parity specs for the last three mirrors |
 
-**Verified, and the OTA is NOT published.** Both fingerprints are UNCHANGED —
-Android `15c1cfc8…` on Windows, iOS `52802bba…` on the Mac — so both channels
-accept this as an OTA whenever it is published. Suites: mobile 802, core 1516,
-functions 739, web 63, all green; both platforms bundle under `expo export`;
-Android bundle +0.23%, within budget.
+**SHIPPED on Android, NOT on iOS — the platforms are split.** Both fingerprints
+were UNCHANGED (Android `15c1cfc8…` read on Windows, iOS `52802bba…` read on the
+Mac), so both channels accept this. The **Android OTA is published** — group
+`17c05bcf-9b8b-48df-84d5-f59ded0a918e`, from `07d27fb8`, reaching vc 45 on next
+launch. **iOS is still on the 2026-09-11 update** (`e34dad63`): `ignia-mac` lost
+power before its publish, and an iOS publish from Windows is refused by the
+guard because the fingerprint would match no binary.
+
+**To finish, from the Mac when it is back:**
+`ssh ignia-mac` → `cd ~/fitness-tracker-pwa/apps/mobile` →
+`npx eas update --platform ios --branch production --environment production --message "…"`.
+The Mac is already at `07d27fb8`. Rollback, if ever needed:
+`eas update:republish --group b33c1865-39f7-48d7-852f-b53bd4afd9b0`.
+
+**Cloud Functions and hosting are both DEPLOYED** from `07d27fb8` — the
+functions half carries `withCostGuards`, the hosting half the SEO route manifest
+and the rebuilt admin console.
+
+Suites before publishing: mobile 802, core 1516, functions 739, web 63, all
+green; both platforms bundle under `expo export`; Android bundle +0.23%, within
+budget. `WHATS_NEW_VERSION` deliberately NOT bumped — no user-visible change, so
+there is nothing for the banner to announce.
 
 **An iOS regression run now exists, and it contradicts the paragraph this row
 replaced.** A Release simulator build of `6aa96edc` on `ignia-mac` (iPhone 17,
