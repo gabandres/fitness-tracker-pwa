@@ -4,6 +4,10 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-09-15 — Web: Sentry drops browser IndexedDB-eviction noise (IGNIA-WEB-P/N)
+
+`src/app/sentry-ignore.ts` + `ignoreErrors` in `main.ts`: iOS WebKit's "Database deleted by request of the user" (a retired PWA install at `macrolog.web.app/app`) and Chrome's corrupt-IndexedDB refusal (a bing.com crawler on a pre-ADR-0036 bundle) both fire inside the Firebase SDK's own storage, not in `src/`; one event, zero users each. Hosting-only deploy; both issues resolved in Sentry.
+
 ## 2026-09-14 — An architecture pass: ten deepenings, no user-visible change
 
 Ten refactors from one review (`22252ebc..07d27fb8`). Every one replaces a rule
