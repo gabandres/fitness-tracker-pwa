@@ -76,19 +76,20 @@ half is why this row exists.
 | Web | one SEO route manifest (5 copies → 1), one admin console (three modules → one) |
 | Functions | `withCostGuards`, plus parity specs for the last three mirrors |
 
-**SHIPPED on Android, NOT on iOS — the platforms are split.** Both fingerprints
-were UNCHANGED (Android `15c1cfc8…` read on Windows, iOS `52802bba…` read on the
-Mac), so both channels accept this. The **Android OTA is published** — group
-`17c05bcf-9b8b-48df-84d5-f59ded0a918e`, from `07d27fb8`, reaching vc 45 on next
-launch. **iOS is still on the 2026-09-11 update** (`e34dad63`): `ignia-mac` lost
-power before its publish, and an iOS publish from Windows is refused by the
-guard because the fingerprint would match no binary.
+**SHIPPED on BOTH platforms.** Fingerprints were UNCHANGED and each was read on
+the machine that builds that platform: Android `15c1cfc8…` on Windows, iOS
+`52802bba…` on the Mac. Android group
+`17c05bcf-9b8b-48df-84d5-f59ded0a918e` (from `07d27fb8`), iOS group
+`0974606c-e216-413e-8cc6-5d25a033bc9b` (from `144161ff`). Both reach the public
+on next launch.
 
-**To finish, from the Mac when it is back:**
-`ssh ignia-mac` → `cd ~/fitness-tracker-pwa/apps/mobile` →
-`npx eas update --platform ios --branch production --environment production --message "…"`.
-The Mac is already at `07d27fb8`. Rollback, if ever needed:
-`eas update:republish --group b33c1865-39f7-48d7-852f-b53bd4afd9b0`.
+The two publishes were ~40 minutes apart because `ignia-mac` lost power after
+the Android half, and an iOS publish from Windows is refused by the guard — the
+fingerprint would match no binary. `144161ff` is `07d27fb8` plus documentation
+only, and **the iOS gate was re-run on the Mac after pulling it**, still
+`52802bba…`, so both halves carry the same app code. Rollback, if ever needed:
+`eas update:republish --group b33c1865-39f7-48d7-852f-b53bd4afd9b0` (Android) /
+`e34dad63-0668-4798-b74d-72f5dfd3848f` (iOS).
 
 **Cloud Functions and hosting are both DEPLOYED** from `07d27fb8` — the
 functions half carries `withCostGuards`, the hosting half the SEO route manifest

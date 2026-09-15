@@ -51,10 +51,11 @@ enforces. Nothing a user can see changes, so no what's-new banner fires.
     replaces the wildcard subpath, and the root `tsconfig` wildcard that beat it
     is deleted too.
 
-Shipped: **Android OTA only** (group `17c05bcf…`), plus the functions and
-hosting deploys. **iOS was not published** — `ignia-mac` lost power and the
-fingerprint is machine-bound; `STATUS.md` §2 carries the one command that
-finishes it.
+Shipped over the air to **both** platforms — Android group `17c05bcf…` from
+`07d27fb8`, iOS group `0974606c…` from `144161ff` — plus the functions and
+hosting deploys. The halves landed ~40 minutes apart because `ignia-mac` lost
+power in between; the iOS fingerprint gate was re-run on the Mac after it came
+back rather than trusting the earlier reading, and still matched build 64.
 
 Two things found and deliberately not fixed here: `generateWeeklyReport` has no
 rate-limit spec and its 6-day gate is armed only by a report that got *written*
