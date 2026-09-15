@@ -215,7 +215,7 @@ export const esPR: Record<I18nKey, string> = {
   'link.failedBody': 'Tu dispositivo lo bloqueó. Abre esto en tu navegador:\n\n{url}',
   'whatsNew.title': 'Novedades',
   'whatsNew.body':
-    'El escaneo de fotos funciona de nuevo. Estuvo fallando desde el 30 de agosto — y le echaba la culpa a tu foto, cuando el problema era nuestro. Ya está arreglado, y si el escaneo se vuelve a caer la app te lo dirá en vez de pedirte que repitas la foto. En Android, Health Connect ya trae bien tu energía activa y tus entrenamientos.',
+    'Entrenar ahora te dice qué hacer después. Cada ejercicio en clúster muestra la decisión para la próxima sesión — SUBIR CARGA, MANTENER Y SUMAR REPS o REPETIR — con los números detrás, y con "Próxima sesión" bajo una plantilla ves el plan completo antes de empezar. Lee tu serie de activación y la primera mini: una primera mini de más de 5 reps o menos de 2 significa que la lectura fue inválida, así que la app te pide repetir la carga en vez de adivinar. Anota el RIR en la serie de activación para que funcione. Los chips bajo el conteo semanal muestran clústeres por músculo frente al rango 2-6.',
 
   // ── app updates ──
   'update.ota.title': 'Actualización lista',

@@ -211,7 +211,7 @@ export const ptBR = {
   'link.failedBody': 'O seu aparelho bloqueou. Abra isto no seu navegador:\n\n{url}',
   'whatsNew.title': 'Novidades',
   'whatsNew.body':
-    'O escaneamento de fotos voltou a funcionar. Ele falhava desde 30 de agosto — e culpava a sua foto, quando o problema era nosso. Isso está corrigido, e se o escaneamento cair de novo o app vai avisar em vez de pedir outra foto. No Android, o Health Connect agora traz sua energia ativa e seus treinos direito.',
+    'Treinar agora diz o que fazer em seguida. Cada exercício em cluster mostra a decisão para a próxima sessão — SUBIR CARGA, MANTER E SOMAR REPS ou REPETIR — com os números por trás, e com "Próxima sessão" sob um modelo você vê o plano inteiro antes de começar. Ele lê sua série de ativação e a primeira mini: uma primeira mini com mais de 5 reps ou menos de 2 significa que a leitura foi inválida, então o app pede para repetir a carga em vez de adivinhar. Registre o RIR na série de ativação para funcionar. Os chips sob a contagem semanal mostram clusters por músculo contra a faixa 2-6.',
 
   // ── app updates ──
   'update.ota.title': 'Atualização pronta',

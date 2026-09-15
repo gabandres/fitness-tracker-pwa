@@ -226,7 +226,7 @@ export const en = {
   'link.failedBody': 'Your device blocked it. Open this in your browser instead:\n\n{url}',
   'whatsNew.title': "What's new",
   'whatsNew.body':
-    'Photo scan works again. It had been failing since August 30 — and it wrongly blamed your photo, when the problem was on our side. That is fixed, and if scanning ever goes down again the app will say so instead of asking you to retake the picture. On Android, Health Connect now brings your active energy and workouts across properly too.',
+    'Train now tells you what to do next. Every clustered lift shows a call for the next session — ADD LOAD, HOLD AND BUILD, or REPEAT — with the numbers behind it, and tap "Next session" under a template to see the whole plan before you start. It reads your activation set and the first mini-set: a first mini over 5 reps or under 2 means the read was invalid, so the app asks you to repeat the load rather than guess. Log RIR on the activation set for it to work. Chips under the weekly count show clusters per muscle against the 2-6 range.',
 
   // ── app updates ──
   'update.ota.title': 'Update ready',

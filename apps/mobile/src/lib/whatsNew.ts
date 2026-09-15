@@ -80,7 +80,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // reach your goal you can…", which is exactly the forward-looking pressure
 // `milestones.ts` and UX_AUDIT §S12 keep out of this app. Same precedent as
 // the milestones non-bump above.
-export const WHATS_NEW_VERSION = '2026-09-04-scan-fixed';
+// Bumped 2026-09-15 for the progression engine (ADR-0038): every clustered
+// lift on Train now carries a call for the next session (add load / hold /
+// repeat) with its reason, a "Next session" line under each template, and
+// weekly cluster chips. A lifter sees new UI on the next Train-tab open, so
+// the banner explains what the words mean — and says plainly that an invalid
+// read means "repeat", not "you did it wrong".
+export const WHATS_NEW_VERSION = '2026-09-15-progression-engine';
 
 const KEY = 'whatsNew.seen';
 
