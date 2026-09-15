@@ -77,7 +77,9 @@ half is why this row exists.
 | Functions | `withCostGuards`, plus parity specs for the last three mirrors |
 
 **2026-09-15 — the progression engine (ADR-0038) and the CSV `setDurationSec`
-column SHIPPED on BOTH platforms as OTAs from `046ce695`** (Android group
+column SHIPPED on BOTH platforms as OTAs from `046ce695`, and the What's New
+screen followed the same day from `287a80db` (Android `984781cf…`, iOS
+`4f116c8f…`)** (Android group
 `4f58f2ad…` from Windows on `15c1cfc8…`, iOS group `b00d5d3c…` from
 `ignia-mac` on `52802bba…`; each gate matched its binary). `WHATS_NEW_VERSION`
 bumped. Rollback if ever needed: `eas update:republish --group

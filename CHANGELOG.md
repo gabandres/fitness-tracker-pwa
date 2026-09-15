@@ -4,6 +4,18 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-09-15 — What's New is a screen, not a card — OTA on both platforms
+
+`apps/mobile/src/app/whats-new.tsx`, a root route opened once per release from
+the tab layout: the mark, a title, one card of three items with an icon well
+each, staggered in, and one Continue button — the shape the tour already has.
+The Today banner (a 14-pt paragraph under a dismiss cross, competing with the
+rings for the one Nudge slot) is deleted, and `whatsNew` leaves the Nudge
+queue. Notes are data now (`WHATS_NEW_ITEMS`) rather than a paragraph per
+locale. `shouldAutoOpenWhatsNew` is pure and tested: once per version, tab
+root only, never over onboarding or the tour, and a fresh install is marked
+seen rather than shown a release it never saw the before of.
+
 ## 2026-09-15 — Train: the progression engine (ADR-0038) — OTA on both platforms
 
 `packages/core/src/progression-engine.ts` decides the next-session call per
