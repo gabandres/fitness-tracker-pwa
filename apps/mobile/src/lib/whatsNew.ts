@@ -88,7 +88,12 @@ import type { I18nKey } from '@/i18n';
 // weekly cluster chips. A lifter sees new UI on the next Train-tab open, so
 // the banner explains what the words mean — and says plainly that an invalid
 // read means "repeat", not "you did it wrong".
-export const WHATS_NEW_VERSION = '2026-09-15-progression-engine';
+// Re-bumped the same day, on the owner's instruction, when the banner became
+// a full screen (`app/whats-new.tsx`): the notes are the same release, but
+// whoever dismissed the CARD never saw the screen, and the owner wants it
+// seen. The same-day re-bump precedent above still stands for bug fixes;
+// this is a new surface, not a second copy of the same one.
+export const WHATS_NEW_VERSION = '2026-09-15-progression-engine-screen';
 
 const KEY = 'whatsNew.seen';
 
