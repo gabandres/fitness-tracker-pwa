@@ -122,6 +122,8 @@ function AuthGate({ fontsReady }: { fontsReady: boolean }) {
     // the tab layout the bar and the raised + button overlapped its footer and
     // clipped its last row.
     const onTour = route === 'tour';
+    // What's New is a root route for the same reason.
+    const onWhatsNew = route === 'whats-new';
 
     // `sessionUid`, not `user`: before Firebase answers this may be the session
     // read off disk (#83). Redirecting to /sign-in on a slow network would tell
@@ -129,7 +131,7 @@ function AuthGate({ fontsReady }: { fontsReady: boolean }) {
     // than waiting. When the real event lands it wins — including when it says
     // signed out, which lands here and redirects properly.
     if (!sessionUid) {
-      if (inApp || onOnboarding || onVerify || onTour) router.replace('/sign-in');
+      if (inApp || onOnboarding || onVerify || onTour || onWhatsNew) router.replace('/sign-in');
       return;
     }
     // Email/password signups must verify before they can write anything
@@ -166,7 +168,7 @@ function AuthGate({ fontsReady }: { fontsReady: boolean }) {
     }
     // Completed users live in (app); leave them on /onboarding when they open
     // it deliberately (Settings → Edit goals / redo).
-    if (!inApp && !onOnboarding && !onTour) router.replace('/(app)');
+    if (!inApp && !onOnboarding && !onTour && !onWhatsNew) router.replace('/(app)');
   }, [sessionUid, sessionPresumed, initializing, emailVerified, decision, segments, router]);
 
   // Always mount <Slot/> so the navigator exists when the redirect effect

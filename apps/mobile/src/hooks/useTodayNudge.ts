@@ -1,6 +1,5 @@
 import { useRecalibrationVisible } from '@/components/RecalibrationCard';
 import { useUpdateVisible } from '@/components/UpdateBanner';
-import { useWhatsNewVisible } from '@/components/WhatsNewBanner';
 
 /**
  * Which single Nudge Today is allowed to show (UX_AUDIT §S14 TD1).
@@ -24,8 +23,10 @@ import { useWhatsNewVisible } from '@/components/WhatsNewBanner';
  * 2. **recalibration** — a real change to their targets that the app has
  *    already applied. It is the only Nudge carrying information the user would
  *    want even if they never act on it.
- * 3. **whatsNew** — marketing about a release they are already running. It
- *    waits, and losing it entirely costs nothing.
+ * What's-new used to be third here. Since 2026-09-15 it is a full screen
+ * (`app/whats-new.tsx`) opened once per release from the tab layout, so it
+ * never competes for the slot — a card at caption size under a dismiss cross
+ * was the shape of something to swipe past.
  *
  * Web's list additionally ranks `refine`, `push` and `install` above
  * what's-new; none of those three exist as Today cards on mobile (targets are
@@ -40,18 +41,16 @@ import { useWhatsNewVisible } from '@/components/WhatsNewBanner';
  * reclassified it as. Neither competes for this slot, so the worst-case Today
  * is rings + repeat-yesterday + one Nudge — the shape the audit specified.
  */
-export type TodayNudge = 'update' | 'recalibration' | 'whatsNew' | null;
+export type TodayNudge = 'update' | 'recalibration' | null;
 
 export function useTodayNudge(): TodayNudge {
-  // All three are called unconditionally — they are hooks, and skipping one
+  // Both are called unconditionally — they are hooks, and skipping one
   // behind an early return would break the rules of hooks the moment the
   // higher-priority Nudge appeared.
   const update = useUpdateVisible();
   const recalibration = useRecalibrationVisible();
-  const whatsNew = useWhatsNewVisible();
 
   if (update) return 'update';
   if (recalibration) return 'recalibration';
-  if (whatsNew) return 'whatsNew';
   return null;
 }

@@ -214,8 +214,17 @@ export const esPR: Record<I18nKey, string> = {
   'link.failedTitle': 'No se pudo abrir ese enlace',
   'link.failedBody': 'Tu dispositivo lo bloqueó. Abre esto en tu navegador:\n\n{url}',
   'whatsNew.title': 'Novedades',
-  'whatsNew.body':
-    'Entrenar ahora te dice qué hacer después. Cada ejercicio en clúster muestra la decisión para la próxima sesión — SUBIR CARGA, MANTENER Y SUMAR REPS o REPETIR — con los números detrás, y con "Próxima sesión" bajo una plantilla ves el plan completo antes de empezar. Lee tu serie de activación y la primera mini: una primera mini de más de 5 reps o menos de 2 significa que la lectura fue inválida, así que la app te pide repetir la carga en vez de adivinar. Anota el RIR en la serie de activación para que funcione. Los chips bajo el conteo semanal muestran clústeres por músculo frente al rango 2-6.',
+  'whatsNew.subtitle': 'Lo que cambió desde la última vez que abriste Ignia.',
+  'whatsNew.continue': 'Continuar',
+  'whatsNew.call.title': 'Entrenar te dice qué hacer después',
+  'whatsNew.call.body':
+    'Cada ejercicio en clúster muestra la decisión para la próxima sesión — SUBIR CARGA, MANTENER Y SUMAR REPS o REPETIR — con los números detrás. Anota el RIR en la serie de activación para que funcione.',
+  'whatsNew.plan.title': 'El plan completo antes de empezar',
+  'whatsNew.plan.body':
+    'Toca "Próxima sesión" bajo una plantilla. Una primera mini de más de 5 reps o menos de 2 significa que la lectura fue inválida, así que la app te pide repetir la carga en vez de adivinar.',
+  'whatsNew.clusters.title': 'Clústeres por músculo, por semana',
+  'whatsNew.clusters.body':
+    'Los chips bajo el conteo semanal muestran cada músculo frente al rango 2-6. Un clúster es una serie rest-pause.',
 
   // ── app updates ──
   'update.ota.title': 'Actualización lista',

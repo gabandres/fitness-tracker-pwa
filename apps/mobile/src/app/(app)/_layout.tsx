@@ -10,6 +10,7 @@ import { useAuth } from '@/lib/auth';
 import { useAutoApplyOta } from '@/lib/app-update';
 import { useOtaPushListener, useRegisterPushToken } from '@/lib/push-token';
 import { loadTourSeen, shouldAutoOpenTour, useTourHeld } from '@/lib/tour';
+import { getWhatsNewSeen, markWhatsNewSeen, shouldAutoOpenWhatsNew } from '@/lib/whatsNew';
 import { useHealthAutoImport } from '@/lib/health-sync';
 import { useOuraAutoImport } from '@/lib/oura';
 import { track } from '@/lib/analytics';
@@ -129,10 +130,52 @@ function useTourOnce() {
   }, [seen, profile?.profileCompleted, segments, router, held]);
 }
 
+/**
+ * Open What's New once per release, on the first Today after an update lands.
+ * `shouldAutoOpenWhatsNew` holds the reasoning (and the fresh-install rule)
+ * and is tested on its own; this hook reads the two flags and navigates. It
+ * sits after `useTourOnce` on purpose: the tour flag it reads is false until
+ * the tour has been through, so a first-run user meets the tour today and
+ * the next release's notes another day.
+ */
+function useWhatsNewOnce() {
+  const { profile } = useAuth();
+  const segments = useSegments();
+  const router = useRouter();
+  const [seen, setSeen] = useState<string | null | undefined>(undefined);
+  const [tourSeen, setTourSeen] = useState<boolean | null>(null);
+  const held = useTourHeld();
+  const decided = useRef(false);
+
+  useEffect(() => {
+    void getWhatsNewSeen().then(setSeen, () => setSeen(null));
+    void loadTourSeen().then(setTourSeen);
+  }, []);
+
+  useEffect(() => {
+    if (decided.current) return;
+    const verdict = shouldAutoOpenWhatsNew({
+      seen,
+      profileCompleted: profile?.profileCompleted === true,
+      route: segments[0] === '(app)' ? (segments[1] ?? 'index') : segments[0],
+      tourSeen,
+      held,
+    });
+    if (verdict === 'none') return;
+    decided.current = true;
+    if (verdict === 'mark') {
+      void markWhatsNewSeen();
+      return;
+    }
+    router.push('/whats-new');
+  }, [seen, tourSeen, profile?.profileCompleted, segments, router, held]);
+}
+
 export default function AppTabsLayout() {
   const t = useT();
   const { user } = useAuth();
   useTourOnce();
+  useWhatsNewOnce();
   // Pull weight/sleep/water from Apple Health / Health Connect on app-open and
   // every foreground (no-op unless the user connected Health in Settings).
   useHealthAutoImport(user?.uid);

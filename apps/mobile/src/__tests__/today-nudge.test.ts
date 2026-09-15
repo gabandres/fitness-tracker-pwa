@@ -11,7 +11,6 @@ import { renderHook } from '@testing-library/react-native';
 
 const mockUpdate = { value: false };
 const mockRecal = { value: false };
-const mockWhatsNew = { value: false };
 
 jest.mock('@/components/UpdateBanner', () => ({
   useUpdateVisible: () => mockUpdate.value,
@@ -19,16 +18,12 @@ jest.mock('@/components/UpdateBanner', () => ({
 jest.mock('@/components/RecalibrationCard', () => ({
   useRecalibrationVisible: () => mockRecal.value,
 }));
-jest.mock('@/components/WhatsNewBanner', () => ({
-  useWhatsNewVisible: () => mockWhatsNew.value,
-}));
 
 import { useTodayNudge } from '@/hooks/useTodayNudge';
 
 beforeEach(() => {
   mockUpdate.value = false;
   mockRecal.value = false;
-  mockWhatsNew.value = false;
 });
 
 // `renderHook` is async in this RNTL version — the same shape `log-writes`
@@ -44,21 +39,20 @@ describe('useTodayNudge', () => {
   });
 
   it('gives the slot to the only claimant', async () => {
-    mockWhatsNew.value = true;
-    expect(await activeNudge()).toBe('whatsNew');
+    mockRecal.value = true;
+    expect(await activeNudge()).toBe('recalibration');
   });
 
   it('ranks update over everything — its value decays, the others wait', async () => {
     mockUpdate.value = true;
     mockRecal.value = true;
-    mockWhatsNew.value = true;
     expect(await activeNudge()).toBe('update');
   });
 
-  it('ranks a real target change over marketing about a release already running', async () => {
-    mockRecal.value = true;
-    mockWhatsNew.value = true;
-    expect(await activeNudge()).toBe('recalibration');
+  it('what\'s-new is not a claimant any more — it is a screen, opened from the tab layout', async () => {
+    // Nothing else wants the slot, so it stays empty rather than showing
+    // release notes as a card (see `useTodayNudge`'s header).
+    expect(await activeNudge()).toBeNull();
   });
 
   it('never returns more than one — the whole point', async () => {

@@ -1,4 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import type Ionicons from '@expo/vector-icons/Ionicons';
+import type { I18nKey } from '@/i18n';
 
 // Bump this when there's something new worth a one-time banner on Today.
 // Mirrors the PWA's WHATS_NEW_VERSION pattern: the banner shows until the
@@ -95,5 +97,66 @@ export async function getWhatsNewSeen(): Promise<string | null> {
 }
 
 export async function markWhatsNewSeen(): Promise<void> {
-  await AsyncStorage.setItem(KEY, WHATS_NEW_VERSION);
+  try {
+    await AsyncStorage.setItem(KEY, WHATS_NEW_VERSION);
+  } catch {
+    // Storage unavailable: the screen reappears next launch, a nuisance
+    // rather than a fault. Same stance as the tour's flag.
+  }
+}
+
+/**
+ * The release notes as DATA — icon plus two dictionary keys per item, so the
+ * screen reads in whichever language the phone does and the list is three
+ * rows, not a paragraph. Rewrite this list with every `WHATS_NEW_VERSION`
+ * bump; the previous release's items do not carry over.
+ */
+export interface WhatsNewItem {
+  icon: keyof typeof Ionicons.glyphMap;
+  titleKey: I18nKey;
+  bodyKey: I18nKey;
+}
+
+export const WHATS_NEW_ITEMS: readonly WhatsNewItem[] = [
+  { icon: 'barbell-outline', titleKey: 'whatsNew.call.title', bodyKey: 'whatsNew.call.body' },
+  { icon: 'list-outline', titleKey: 'whatsNew.plan.title', bodyKey: 'whatsNew.plan.body' },
+  { icon: 'analytics-outline', titleKey: 'whatsNew.clusters.title', bodyKey: 'whatsNew.clusters.body' },
+];
+
+/**
+ * Should the What's New screen open by itself right now — and if not, should
+ * the release be marked seen without showing it?
+ *
+ * Pure, so the judgement calls live in a test rather than on a device:
+ *
+ *  - **A fresh install reads nothing.** Everything is new to somebody who just
+ *    arrived; release notes on day one are a tour, and the tour is a separate
+ *    screen. "Fresh" is: nothing ever stored AND the tour not yet seen. The
+ *    caller marks the current release seen (`'mark'`) so the NEXT release is
+ *    the first one they read about. An existing user who simply never
+ *    dismissed the old banner has toured, so they still get this one.
+ *  - **Once per release**, keyed by `WHATS_NEW_VERSION` — several OTAs can
+ *    ride one set of notes and none of them re-opens it.
+ *  - **Never over someone mid-task**: only from the tab root, never during
+ *    onboarding, the tour, or onboarding's first-log sheet.
+ *
+ * @param seen     the stored version; `undefined` while storage is loading,
+ *                 `null` when nothing was ever stored
+ * @param tourSeen the tour flag; `null` while loading
+ */
+export function shouldAutoOpenWhatsNew(args: {
+  seen: string | null | undefined;
+  profileCompleted: boolean;
+  route: string | undefined;
+  tourSeen: boolean | null;
+  held?: boolean;
+}): 'open' | 'mark' | 'none' {
+  const { seen, profileCompleted, route, tourSeen, held = false } = args;
+  if (seen === undefined || tourSeen === null) return 'none';
+  if (seen === WHATS_NEW_VERSION) return 'none';
+  if (!profileCompleted) return 'none';
+  if (seen === null && !tourSeen) return 'mark';
+  if (!tourSeen) return 'none';
+  if (held) return 'none';
+  return route === 'index' ? 'open' : 'none';
 }

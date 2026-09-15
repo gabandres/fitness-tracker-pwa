@@ -225,8 +225,19 @@ export const en = {
   'link.failedTitle': "Couldn't open that link",
   'link.failedBody': 'Your device blocked it. Open this in your browser instead:\n\n{url}',
   'whatsNew.title': "What's new",
-  'whatsNew.body':
-    'Train now tells you what to do next. Every clustered lift shows a call for the next session — ADD LOAD, HOLD AND BUILD, or REPEAT — with the numbers behind it, and tap "Next session" under a template to see the whole plan before you start. It reads your activation set and the first mini-set: a first mini over 5 reps or under 2 means the read was invalid, so the app asks you to repeat the load rather than guess. Log RIR on the activation set for it to work. Chips under the weekly count show clusters per muscle against the 2-6 range.',
+  'whatsNew.subtitle': 'What changed since you last opened Ignia.',
+  'whatsNew.continue': 'Continue',
+  // One item per thing a person will NOTICE, in the order they meet it. Body
+  // sentences carry the number that makes the feature usable, not a pitch.
+  'whatsNew.call.title': 'Train tells you what to do next',
+  'whatsNew.call.body':
+    'Every clustered lift shows a call for the next session — ADD LOAD, HOLD AND BUILD, or REPEAT — with the numbers behind it. Log RIR on the activation set for it to work.',
+  'whatsNew.plan.title': 'The whole plan before you start',
+  'whatsNew.plan.body':
+    'Tap "Next session" under a template. A first mini-set over 5 reps or under 2 means the read was invalid, so the app asks you to repeat the load rather than guess.',
+  'whatsNew.clusters.title': 'Clusters per muscle, per week',
+  'whatsNew.clusters.body':
+    'Chips under the weekly count show each muscle against the 2-6 range. One cluster is one rest-pause set.',
 
   // ── app updates ──
   'update.ota.title': 'Update ready',

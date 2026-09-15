@@ -22,7 +22,6 @@ import { useAuth } from '@/lib/auth';
 import { RecalibrationCard } from '@/components/RecalibrationCard';
 import { ShareCard } from '@/components/ShareCard';
 import { UpdateBanner } from '@/components/UpdateBanner';
-import { WhatsNewBanner } from '@/components/WhatsNewBanner';
 import { type Locale, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { releaseTour } from '@/lib/tour';
@@ -451,8 +450,6 @@ export default function Today() {
               the priority; each card still owns whether it has anything to say,
               so a suppressed one renders nothing rather than an empty frame. */}
           <UpdateBanner suppressed={nudge !== 'update'} />
-
-          <WhatsNewBanner suppressed={nudge !== 'whatsNew'} />
 
           <Animated.View entering={enterUp(0)}>
             <HeroRings

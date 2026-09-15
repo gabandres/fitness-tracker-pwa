@@ -13,7 +13,7 @@ import { font, radius, space } from '@/theme';
  *  the app. Only one banner ever renders — two stacked "update" prompts read as
  *  a broken app.
  *
- *  Unlike {@link WhatsNewBanner} this is not one-time-per-version state: it
+ *  Unlike the What's New screen this is not one-time-per-version state: it
  *  reflects a live condition. The OTA half needs no dismiss (tapping resolves
  *  it by construction); the store half is dismissible because leaving for the
  *  store is the only action available and it may not be one the user can take. */

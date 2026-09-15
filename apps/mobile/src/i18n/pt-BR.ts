@@ -210,8 +210,17 @@ export const ptBR = {
   'link.failedTitle': 'Não foi possível abrir esse link',
   'link.failedBody': 'O seu aparelho bloqueou. Abra isto no seu navegador:\n\n{url}',
   'whatsNew.title': 'Novidades',
-  'whatsNew.body':
-    'Treinar agora diz o que fazer em seguida. Cada exercício em cluster mostra a decisão para a próxima sessão — SUBIR CARGA, MANTER E SOMAR REPS ou REPETIR — com os números por trás, e com "Próxima sessão" sob um modelo você vê o plano inteiro antes de começar. Ele lê sua série de ativação e a primeira mini: uma primeira mini com mais de 5 reps ou menos de 2 significa que a leitura foi inválida, então o app pede para repetir a carga em vez de adivinhar. Registre o RIR na série de ativação para funcionar. Os chips sob a contagem semanal mostram clusters por músculo contra a faixa 2-6.',
+  'whatsNew.subtitle': 'O que mudou desde a última vez que você abriu o Ignia.',
+  'whatsNew.continue': 'Continuar',
+  'whatsNew.call.title': 'Treinar diz o que fazer em seguida',
+  'whatsNew.call.body':
+    'Cada exercício em cluster mostra a decisão para a próxima sessão — SUBIR CARGA, MANTER E SOMAR REPS ou REPETIR — com os números por trás. Registre o RIR na série de ativação para funcionar.',
+  'whatsNew.plan.title': 'O plano inteiro antes de começar',
+  'whatsNew.plan.body':
+    'Toque em "Próxima sessão" sob um modelo. Uma primeira mini com mais de 5 reps ou menos de 2 significa que a leitura foi inválida, então o app pede para repetir a carga em vez de adivinhar.',
+  'whatsNew.clusters.title': 'Clusters por músculo, por semana',
+  'whatsNew.clusters.body':
+    'Os chips sob a contagem semanal mostram cada músculo contra a faixa 2-6. Um cluster é uma série rest-pause.',
 
   // ── app updates ──
   'update.ota.title': 'Atualização pronta',
