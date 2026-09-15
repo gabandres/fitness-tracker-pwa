@@ -63,13 +63,50 @@ here is gone with the shared install (`docs/DEV_ENVIRONMENT.md` §3.15).
 
 ## 2. Merged, on `main`, and not delivered anywhere
 
+**The 2026-09-14 architecture pass — ten deepenings, `22252ebc..6aa96edc`, in no
+binary and on no OTA channel.** No user-visible change in any of it; the mobile
+half is why this row exists.
+
+| What | Where |
+|---|---|
+| Subscription policy stated once | `apps/mobile/src/hooks/useLedgerFeed.ts`, 9 hooks migrated (ADR-0016 amended — the listeners did not move) |
+| Multi-step writes named | `apps/mobile/src/lib/ledger-ops.ts` — `finishWorkout`, `repeatYesterday`, `writeDailyMetric` |
+| Source axes pinned | `packages/core/src/source-axes.ts` — eight axes, not the three CONTEXT.md named |
+| Core export map | wildcard subpath replaced; root `tsconfig` wildcard deleted with it |
+| Web | one SEO route manifest (5 copies → 1), one admin console (three modules → one) |
+| Functions | `withCostGuards`, plus parity specs for the last three mirrors |
+
+**Verified, and the OTA is NOT published.** Both fingerprints are UNCHANGED —
+Android `15c1cfc8…` on Windows, iOS `52802bba…` on the Mac — so both channels
+accept this as an OTA whenever it is published. Suites: mobile 802, core 1516,
+functions 739, web 63, all green; both platforms bundle under `expo export`;
+Android bundle +0.23%, within budget.
+
+**An iOS regression run now exists, and it contradicts the paragraph this row
+replaced.** A Release simulator build of `6aa96edc` on `ignia-mac` (iPhone 17,
+iOS 26.5) ran the full suite: **17 of 20**, including the whole
+log → edit → delete arc, both locales and both themes. The three failures are
+pre-existing selector artifacts, not regressions — `15-search` and
+`18-train-template` fail on the same assertion strings `coverage.md` already
+documents for iOS, and `20-units-metric` fails its pounds baseline because
+`assertVisible: 'lb'` is a full-match regex with no standalone `lb` node on
+iOS; the failure capture shows the hero rendering `184.1 lb` correctly from
+live Firestore. None of the ten commits touches `body.tsx` or `CountUpText.tsx`.
+
+Two runbook corrections found doing it: Maestro needs `--device` or it silently
+targets another simulator, and the JDK 17 path in `.maestro/README.md` does not
+exist on the rebuilt Mac (Homebrew ships 26 at
+`/opt/homebrew/opt/openjdk/libexec/openjdk.jdk/Contents/Home`).
+
 Everything else merged has shipped (`node scripts/app-version-sync.mjs --check`
 re-derives the live numbers).
 
-**iOS behaviour is UNVERIFIED for most of it.** The identical JS is
-device-verified on Android in detail (`AGENTS.md`); no iOS device runs the
-regression suite here. That is the standing shape of this project — the only
-test devices on hand are Android — not a new problem.
+**iOS behaviour was UNVERIFIED for most of it, and that is now cheaper to fix
+than this file assumed.** The standing claim here was that no iOS device runs
+the regression suite; the 2026-09-14 run above did, on the `ignia-mac`
+simulator, at the cost of one Release build and no EAS quota. The only test
+devices on hand are still Android, so Android detail (`AGENTS.md`) remains the
+deeper record — but "no iOS run is possible" is not the reason any more.
 
 ## 3. Open work, and what each is blocked on
 

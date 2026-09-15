@@ -45,8 +45,14 @@ echo no | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd   -n igni
 neither is in the Mac's shell config, and Maestro 2.x fails with a bare
 *"Java 17 or higher is required"* against the Mac's default Microsoft JDK 11.
 
+**`openjdk@17` is gone since the Mac's 2026-09-10 rebuild.** Homebrew ships 26
+now, `/usr/libexec/java_home -V` reports *"Unable to locate a Java Runtime"*
+(it does not see Homebrew's), and a `JAVA_HOME` pointing at the old path fails
+with *"JAVA_HOME is set to an invalid directory"* — which reads nothing like a
+missing JDK. Maestro 2.x runs fine on 26; the requirement is 17 **or higher**.
+
 ```sh
-export JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home
+export JAVA_HOME=/opt/homebrew/opt/openjdk/libexec/openjdk.jdk/Contents/Home
 export ANDROID_HOME=$HOME/Library/Android/sdk
 export PATH=$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$HOME/.maestro/bin:$PATH
 
@@ -56,6 +62,26 @@ until [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = 1 ]; do sleep 1
 
 Headless (`-no-window`) is deliberate: this is driven over SSH, and it boots in
 about two minutes.
+
+### iOS: always pass `--device`, and know what the text matchers are
+
+The Mac carries simulators belonging to other projects. **`maestro test` with no
+`--device` picks one of them** and dies at `launchApp` with
+`FBSOpenApplicationServiceErrorDomain code=4 — the request to open
+"fit.ignia.app" failed`, which reads as a broken build rather than as the wrong
+device. Pass the UDID (`xcrun simctl list devices`):
+
+```sh
+maestro --device <UDID> test .maestro/regression/
+```
+
+**`assertVisible:` text params are FULL-MATCH regexes** (`15-search` says so and
+`18-train-template` relies on it). A bare `assertVisible: 'lb'` therefore needs a
+text node that is exactly `lb` — and the Body hero renders `184.1 lb` as ONE
+node on iOS, so flow 20's pounds baseline fails there while the screen is
+perfectly correct. Treat a bare-word assertion failing on iOS as a selector
+shape question first; the flow-20 comment claiming Maestro matches substrings is
+wrong, and was wrong before this was noticed on 2026-09-14.
 
 ### Install the REAL artifact, not a preview build
 
