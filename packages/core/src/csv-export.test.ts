@@ -72,6 +72,31 @@ describe('buildCsv', () => {
     expect(rows.filter((r) => r.startsWith('workout,')).length).toBe(1);
     expect(rows.filter((r) => r.startsWith('workout_set,')).length).toBe(1);
   });
+
+  it('exports a timed hold in its own column, never as reps', () => {
+    const session: WorkoutSession = {
+      status: 'completed',
+      date: new Date('2026-09-15T12:02:21Z'),
+      templateName: 'Leg Day',
+      createdAt: new Date('2026-09-15T12:02:21Z'),
+      updatedAt: new Date('2026-09-15T12:02:21Z'),
+      exercises: [
+        {
+          exerciseId: 'plank',
+          name: 'Plank',
+          cues: [],
+          logStyle: 'time',
+          sets: [{ kind: 'working', durationSec: 92, targetDurationSec: 90 }],
+        },
+      ],
+    };
+    const rows = buildCsv({ ...emptyData(), workoutSessions: [session] }).split('\r\n');
+    const header = rows[0].split(',');
+    const set = rows.find((r) => r.startsWith('workout_set,'))!.split(',');
+    expect(set).toBeDefined();
+    expect(set[header.indexOf('setDurationSec')]).toBe('92');
+    expect(set[header.indexOf('setReps')]).toBe('');
+  });
 });
 
 // ─── Cardio rows (ADR-0025) ─────────────────────────────────────

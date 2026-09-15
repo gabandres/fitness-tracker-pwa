@@ -20,6 +20,12 @@ const COLS = [
   'waist', 'chest', 'bicep', 'hip', 'neck',
   // Workout columns — filled on 'workout' (session) + 'workout_set' rows.
   'template', 'exercise', 'setKind', 'setGroup', 'setWeight', 'setReps',
+  // A `time`-style set (plank, a mobility hold) has no reps: its count is a
+  // duration. It went blank in the export for as long as `time` has existed
+  // (found 2026-09-15 on a plank that read setReps=NaN from 09-08 on); the
+  // hold was in Firestore the whole time. Its own column, never a default
+  // into `setReps` — a 90 in a reps column is a lie about a hold.
+  'setDurationSec',
   'setRir', 'durationMin', 'sleepHours',
   // Cardio columns — filled on 'cardio' rows only (ADR-0025). Distance is
   // exported in METERS, the stored unit, so the file does not depend on which
@@ -156,6 +162,7 @@ export function buildCsv(data: ExportData, boundary: DayBoundary = MIDNIGHT): st
           setGroup: set.group,
           setWeight: set.weight,
           setReps: set.reps,
+          setDurationSec: set.durationSec,
           setRir: set.rir,
         }));
       }
