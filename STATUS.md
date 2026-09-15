@@ -77,13 +77,13 @@ half is why this row exists.
 | Functions | `withCostGuards`, plus parity specs for the last three mirrors |
 
 **2026-09-15 — the progression engine (ADR-0038) and the CSV `setDurationSec`
-column, merged, in no binary and on no OTA channel.** JS-only on mobile (an
-OTA candidate for both platforms; run the fingerprint gate on each build host
-first). `firestore.rules` for the two new exercise fields IS deployed, so the
-live app can already read `availableLoads` / `assisted` once it carries the
-code. User-visible on the Train tab (a call per lift, "Next session" under each
-template, weekly cluster chips) — a `WHATS_NEW` decision is owed before the
-publish. Suites at merge: core 1,553, mobile Train 57, rules 741, all green.
+column SHIPPED on BOTH platforms as OTAs from `046ce695`** (Android group
+`4f58f2ad…` from Windows on `15c1cfc8…`, iOS group `b00d5d3c…` from
+`ignia-mac` on `52802bba…`; each gate matched its binary). `WHATS_NEW_VERSION`
+bumped. Rollback if ever needed: `eas update:republish --group
+b33c1865-39f7-48d7-852f-b53bd4afd9b0` (Android) /
+`e34dad63-0668-4798-b74d-72f5dfd3848f` (iOS). The ledger row in
+`apps/mobile/docs/fingerprint-ledger.md` has the ids.
 
 **SHIPPED on BOTH platforms.** Fingerprints were UNCHANGED and each was read on
 the machine that builds that platform: Android `15c1cfc8…` on Windows, iOS

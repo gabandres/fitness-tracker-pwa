@@ -4,7 +4,7 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
-## 2026-09-15 — Train: the progression engine (ADR-0038) — merged, not yet on an OTA
+## 2026-09-15 — Train: the progression engine (ADR-0038) — OTA on both platforms
 
 `packages/core/src/progression-engine.ts` decides the next-session call per
 lift from logged sets: a validity gate first (first mini 2-5, RIR 1-3, no mini
