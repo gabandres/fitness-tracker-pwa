@@ -68,6 +68,16 @@ import {
   type ActivationIssue,
   sessionActivationIssues,
 } from '@macrolog/core';
+// The progression engine (validity gate → activation-only progression →
+// increment check → stall diagnosis) and its weekly cluster count. Core
+// decides; `RecommendationNote` renders. See `progression-engine.ts`.
+import {
+  type Recommendation,
+  recommend,
+  recommendOptionsFor,
+  weeklyClusterAudit,
+} from '@macrolog/core';
+import { RecommendationNote } from '@/components/train/RecommendationNote';
 // Train derivations — shared with the Angular Train tab so the two cannot
 // disagree about the same numbers (`@macrolog/core/train-view`).
 import {
@@ -191,6 +201,14 @@ function StartView({
     () => trainHeroStats(train.recentSessions, Date.now()),
     [train.recentSessions],
   );
+  // Weekly volume in CLUSTERS (progression engine layer 5) — the rest-pause
+  // range is 2-6 per muscle per week, and a cluster counts once, never as
+  // the three sets it replaces.
+  const audit = useMemo(
+    () => weeklyClusterAudit(train.recentSessions, train.catalog, Date.now()),
+    [train.recentSessions, train.catalog],
+  );
+  const [nextOpen, setNextOpen] = useState<string | null>(null);
 
   return (
     <ScrollView contentContainerStyle={styles.body}>
@@ -226,6 +244,31 @@ function StartView({
       </Animated.View>
       </Animated.View>
 
+      {audit.clusters > 0 ? (
+        <View style={styles.auditWrap} testID="cluster-audit">
+          <Text style={styles.auditTitle}>{t('train.audit.title')}</Text>
+          <View style={styles.auditRow}>
+            {audit.muscles.map((m) => (
+              <View
+                key={m.muscle}
+                style={[styles.auditChip, m.status !== 'in-range' && styles.auditChipOff]}
+                testID={`cluster-audit-${m.muscle}`}
+              >
+                <Text style={styles.auditMuscle}>{t(`train.muscle.${m.muscle}` as I18nKey)}</Text>
+                <Text style={styles.auditCount}>
+                  {m.clusters} · {t(m.status === 'below' ? 'train.audit.below' : m.status === 'above' ? 'train.audit.above' : 'train.audit.inRange')}
+                </Text>
+              </View>
+            ))}
+          </View>
+          <Text style={styles.auditHint}>
+            {audit.unattributed.length > 0
+              ? t('train.audit.unattributed', { names: audit.unattributed.join(', ') })
+              : t('train.audit.hint')}
+          </Text>
+        </View>
+      ) : null}
+
       <TouchableOpacity
         style={styles.startBtn}
         onPress={() => {
@@ -253,10 +296,23 @@ function StartView({
       ) : (
         <View style={styles.list}>
           {train.templates.map((tpl) => (
-            <View key={tpl.id} style={styles.tplRow} testID={`template-${tpl.id}`}>
+            <View key={tpl.id} style={styles.tplWrap}>
+            <View style={styles.tplRow} testID={`template-${tpl.id}`}>
               <Pressable style={styles.tplMain} onPress={() => setEditing(tpl)} testID={`edit-template-${tpl.id}`}>
                 <Text style={styles.histDate}>{tpl.name}</Text>
                 <Text style={styles.histSub}>{templateSummary(tpl, t)}</Text>
+                {/* The engine's calls for this template, BEFORE the session
+                    starts — the spec's layer 6 surface. Collapsed by default
+                    so the list stays a list; one tap opens it. */}
+                <TouchableOpacity
+                  onPress={() => setNextOpen((cur) => (cur === tpl.id ? null : tpl.id ?? null))}
+                  hitSlop={8}
+                  testID={`next-session-${tpl.id}`}
+                >
+                  <Text style={styles.tplNextToggle}>
+                    {nextOpen === tpl.id ? t('train.rec.hide') : t('train.rec.nextSession')}
+                  </Text>
+                </TouchableOpacity>
               </Pressable>
               <TouchableOpacity
                 style={styles.tplStart}
@@ -268,6 +324,8 @@ function StartView({
               >
                 <Text style={styles.tplStartText}>{t('train.startTpl')}</Text>
               </TouchableOpacity>
+            </View>
+            {nextOpen === tpl.id ? <TemplateNextSession train={train} template={tpl} /> : null}
             </View>
           ))}
         </View>
@@ -693,6 +751,62 @@ function templateSummary(tpl: WorkoutTemplate, t: TFn): string {
   return countsLine(templateCounts(tpl), t);
 }
 
+/**
+ * The engine's call for one exercise, from the completed history the tab
+ * already holds. The prescription (cluster or not, rep target, increment)
+ * comes from the template row; the equipment (`availableLoads`, `assisted`)
+ * from the catalog exercise. An ad-hoc session exercise has no template row,
+ * so its own sets say whether it is clustered and its snapshotted
+ * `progression` supplies the band.
+ */
+function recommendationFor(
+  train: ReturnType<typeof useTrain>,
+  exerciseId: string,
+  templateRow: WorkoutTemplate['exercises'][number] | null | undefined,
+  sessionEx?: SessionExercise,
+): Recommendation {
+  const completed = train.recentSessions.filter((s) => s.status === 'completed');
+  const history = exerciseHistory(completed, exerciseId);
+  const catalogEx = train.catalog.find((e) => e.id === exerciseId) ?? null;
+  const opts = templateRow
+    ? recommendOptionsFor(templateRow, catalogEx)
+    : {
+        ...recommendOptionsFor(null, catalogEx),
+        expectsCluster: sessionEx?.sets.some((x) => x.kind === 'activation') ?? false,
+        ...(sessionEx?.progression ? { progression: sessionEx.progression } : {}),
+      };
+  return recommend(history, opts);
+}
+
+/** Every exercise of a template with its recommendation, one line each. */
+function TemplateNextSession({
+  train,
+  template,
+}: {
+  train: ReturnType<typeof useTrain>;
+  template: WorkoutTemplate;
+}) {
+  const styles = useThemedStyles(createStyles);
+  const rows = useMemo(
+    () =>
+      template.exercises
+        .map((row) => ({ row, rec: recommendationFor(train, row.exerciseId, row) }))
+        .filter((r) => r.rec.action !== 'none'),
+    [train, template],
+  );
+  if (rows.length === 0) return null;
+  return (
+    <View style={styles.tplNext} testID={`next-session-list-${template.id}`}>
+      {rows.map(({ row, rec }) => (
+        <View key={row.exerciseId} style={styles.tplNextRow}>
+          <Text style={styles.tplNextName}>{row.name}</Text>
+          <RecommendationNote rec={rec} compact testID={`rec-${template.id}-${row.exerciseId}`} />
+        </View>
+      ))}
+    </View>
+  );
+}
+
 // ─── Active session logger ──────────────────────────────────────
 function ActiveSession({ train }: { train: ReturnType<typeof useTrain> }) {
   const t = useT();
@@ -972,6 +1086,19 @@ function ExerciseCard({
   const sug = suggestProgression(history, ex.progression, style);
   const ghost = lastHint(sug, style, t);
   const bumpTo = sug.bumped ? sug.suggestedWeight : undefined;
+  // The progression engine's call. On a clustered lift it REPLACES the
+  // double-progression bump and the blocked note below (it subsumes both: the
+  // RIR band is its layer 1, the bump its layer 2). A straight-set lift gets
+  // `action: 'none'` and keeps exactly what it had.
+  const templateRow = train.templates
+    .find((tpl) => tpl.id === train.active?.templateId)
+    ?.exercises.find((e) => e.exerciseId === ex.exerciseId);
+  const rec = useMemo(
+    () => recommendationFor(train, ex.exerciseId, templateRow, ex),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- history + catalog are what change it
+    [train.recentSessions, train.catalog, ex.exerciseId, templateRow, ex.progression],
+  );
+  const engineHasCall = rec.action !== 'none';
   // When core withheld a recommendation because the last activation was
   // unreadable, SAY so. Silence and "no bump today" look identical otherwise,
   // and the second one is a claim about the training rather than about the data.
@@ -1024,7 +1151,23 @@ function ExerciseCard({
 
       {collapsed ? null : (
         <Animated.View entering={FadeIn.duration(160)} exiting={FadeOut.duration(120)}>
-          {bumpTo != null ? (
+          {engineHasCall ? (
+            <RecommendationNote
+              rec={rec}
+              testID={`recommendation-${exerciseIndex}`}
+              onAccept={(load) => {
+                haptics.tap();
+                // Same affordance the bump had: the accepted load lands on
+                // every working set that has no weight yet, so a cluster's
+                // minis inherit it too.
+                ex.sets.forEach((s, idx) => {
+                  if (isWorkingSet(s) && (s.weight ?? 0) === 0) {
+                    train.dispatch({ type: 'patchSet', exerciseIndex, setIndex: idx, patch: { weight: load } });
+                  }
+                });
+              }}
+            />
+          ) : bumpTo != null ? (
             <TouchableOpacity
               style={styles.bumpChip}
               onPress={() => {

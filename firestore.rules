@@ -277,7 +277,11 @@ service cloud.firestore {
     // request.resource.data is the POST-write doc so the required
     // stamps remain present and the same validator covers update.
     function isValidExercise(data) {
-      return data.keys().hasOnly(['name', 'muscles', 'defaultCues', 'logStyle', 'seedKey', 'createdAt'])
+      // `availableLoads` (equipment steps, lb) and `assisted` (the logged
+      // weight is assistance) feed the progression engine's increment check;
+      // both optional, both absent on every doc written before 2026-09-15.
+      return data.keys().hasOnly(['name', 'muscles', 'defaultCues', 'logStyle', 'seedKey',
+                                  'availableLoads', 'assisted', 'createdAt'])
           && data.keys().hasAll(['name', 'createdAt'])
           && data.name is string && data.name.size() > 0 && data.name.size() <= 100
           && data.createdAt is timestamp
@@ -288,7 +292,10 @@ service cloud.firestore {
           && (!('logStyle' in data.keys()) ||
               (data.logStyle in ['weight-reps', 'bodyweight', 'time']))
           && (!('seedKey' in data.keys()) ||
-              (data.seedKey is string && data.seedKey.size() <= 100));
+              (data.seedKey is string && data.seedKey.size() <= 100))
+          && (!('availableLoads' in data.keys()) ||
+              (data.availableLoads is list && data.availableLoads.size() <= 60))
+          && (!('assisted' in data.keys()) || data.assisted is bool);
     }
 
     // `cardioBlocks` is the PRESCRIPTION half of ADR-0025 — cardio a template

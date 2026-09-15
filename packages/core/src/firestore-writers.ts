@@ -369,6 +369,10 @@ export interface ExerciseDraftInput {
   defaultCues?: string[];
   logStyle?: LogStyle;
   seedKey?: string;
+  /** Equipment steps in pounds (progression engine layer 3). */
+  availableLoads?: number[];
+  /** The logged weight is assistance, so less is progress. */
+  assisted?: boolean;
 }
 
 /** `users/{uid}/exercises/{id}` — `isValidExercise` in firestore.rules, which
@@ -380,6 +384,8 @@ export interface ExerciseDoc<TS> {
   createdAt: TS;
   logStyle?: LogStyle;
   seedKey?: string;
+  availableLoads?: number[];
+  assisted?: boolean;
 }
 
 export function toExerciseDoc<TS>(
@@ -394,6 +400,8 @@ export function toExerciseDoc<TS>(
     createdAt: codec.timestamp(now),
     ...(draft.logStyle !== undefined ? { logStyle: draft.logStyle } : {}),
     ...(draft.seedKey !== undefined ? { seedKey: draft.seedKey } : {}),
+    ...(draft.availableLoads !== undefined ? { availableLoads: draft.availableLoads } : {}),
+    ...(draft.assisted !== undefined ? { assisted: draft.assisted } : {}),
   };
 }
 

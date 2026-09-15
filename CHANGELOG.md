@@ -4,6 +4,31 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-09-15 — Train: the progression engine (ADR-0038) — merged, not yet on an OTA
+
+`packages/core/src/progression-engine.ts` decides the next-session call per
+lift from logged sets: a validity gate first (first mini 2-5, RIR 1-3, no mini
+out-repping its activation, one load per exercise), then activation-only
+progression against the template's rep band with the split-cluster rule, then
+an increment check (`Exercise.availableLoads`, `assisted`; a step over 15%
+asks for reps first), then stall diagnosis at three same-load sessions. An
+invalid read never moves load. `weekly-cluster-audit.ts` counts clusters, not
+sets, against 2-6 per muscle per week. Mobile renders it on the session card
+and under each template ("Next session"), freezes the call onto the session
+(`SessionExercise.recommendation`) so overrides are auditable, and shows the
+weekly cluster chips under the Train hero. `firestore.rules` gained the two
+exercise fields (deployed). Every historical case in the spec is a test fixture
+from the real sessions. Straight-set lifts are untouched.
+
+## 2026-09-15 — Export: a timed hold gets its own CSV column
+
+`setDurationSec` on `workout_set` rows. A `time`-style set (plank, a mobility
+hold) exported with blank `setReps` since `time` existed — the hold was in
+Firestore the whole time, the CSV had nowhere to put it. Found on a plank that
+read `setReps=NaN` from 2026-09-08, the session after its doc was switched to
+`logStyle: time`. Not a default into `setReps`: a 90 in a reps column is a lie
+about a hold.
+
 ## 2026-09-15 — Web: Sentry drops browser IndexedDB-eviction noise (IGNIA-WEB-P/N)
 
 `src/app/sentry-ignore.ts` + `ignoreErrors` in `main.ts`: iOS WebKit's "Database deleted by request of the user" (a retired PWA install at `macrolog.web.app/app`) and Chrome's corrupt-IndexedDB refusal (a bing.com crawler on a pre-ADR-0036 bundle) both fire inside the Firebase SDK's own storage, not in `src/`; one event, zero users each. Hosting-only deploy; both issues resolved in Sentry.

@@ -176,6 +176,13 @@ export * from './warmup';
 // `pre` position at all so it produces nothing.
 export * from './mobility';
 export * from './workout-progression';
+// The progression engine: validity gate → activation-only progression →
+// increment check → stall diagnosis, plus the weekly CLUSTER count. Sits
+// beside ./workout-progression (double progression for straight sets) rather
+// than inside it: the engine is a property of the cluster protocol and says
+// nothing about a straight-set lift.
+export * from './progression-engine';
+export * from './weekly-cluster-audit';
 // Function-only export (the ./workout types stay un-barreled — see note above).
 export { normalizeClusterGroups, setRowLabels } from './cluster-groups';
 // Finish-boundary guard: fill a logged set's missing load from its siblings

@@ -76,6 +76,15 @@ half is why this row exists.
 | Web | one SEO route manifest (5 copies → 1), one admin console (three modules → one) |
 | Functions | `withCostGuards`, plus parity specs for the last three mirrors |
 
+**2026-09-15 — the progression engine (ADR-0038) and the CSV `setDurationSec`
+column, merged, in no binary and on no OTA channel.** JS-only on mobile (an
+OTA candidate for both platforms; run the fingerprint gate on each build host
+first). `firestore.rules` for the two new exercise fields IS deployed, so the
+live app can already read `availableLoads` / `assisted` once it carries the
+code. User-visible on the Train tab (a call per lift, "Next session" under each
+template, weekly cluster chips) — a `WHATS_NEW` decision is owed before the
+publish. Suites at merge: core 1,553, mobile Train 57, rules 741, all green.
+
 **SHIPPED on BOTH platforms.** Fingerprints were UNCHANGED and each was read on
 the machine that builds that platform: Android `15c1cfc8…` on Windows, iOS
 `52802bba…` on the Mac. Android group

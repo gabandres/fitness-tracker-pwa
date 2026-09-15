@@ -126,6 +126,26 @@ export interface SessionExercise {
   logStyle?: LogStyle;
   progression?: ProgressionRule; // snapshot
   sets: WorkoutSet[];
+  /**
+   * What the progression engine RECOMMENDED for this exercise when the session
+   * was started, frozen here so the recommendation can be audited against what
+   * the lifter actually did (`progression-engine.ts`, "every override must be
+   * logged"). The engine never mutates a template; this is its only write, and
+   * it is a snapshot on the session, not on the template.
+   */
+  recommendation?: RecommendationSnapshot;
+}
+
+/** The frozen half of a recommendation — enough to tell, later, whether the
+ *  session followed it. The live object is `Recommendation` in
+ *  `progression-engine.ts`; this is deliberately the small storable subset. */
+export interface RecommendationSnapshot {
+  /** `add-load` | `hold` | `build-reps` | `repeat-invalid` | `calibrate` | `none`. */
+  action: string;
+  /** The load the engine asked for, pounds. Absent for bodyweight/unknown. */
+  load?: number;
+  /** ISO timestamp of the session the read came from. */
+  basedOn?: string;
 }
 
 export type SessionStatus = 'active' | 'completed';
@@ -212,6 +232,23 @@ export interface Exercise {
   logStyle?: LogStyle;
   /** Stable slug of the shipped library entry this was cloned from, if any. */
   seedKey?: string;
+  /**
+   * The loads this exercise's equipment can actually be set to, in POUNDS,
+   * ascending — a DB rack, a selectorized stack, the plates the gym stocks.
+   * Read by the progression engine's increment check (`progression-engine.ts`
+   * layer 3): "add load" is only a recommendation when the next step exists
+   * and is not too large a jump. Absent means "unknown", and the engine falls
+   * back to the template's `progression.incrementLb`. An EQUIPMENT property,
+   * so it lives on the catalog exercise rather than on every template row.
+   */
+  availableLoads?: number[];
+  /**
+   * True when the logged `weight` is ASSISTANCE (an assisted-dip machine, a
+   * band), so progress means LESS of it. Without this the engine would read
+   * "add load" as "add assistance" — the opposite of the intent. Set on the
+   * exercise, not the set, because it describes the movement's loading.
+   */
+  assisted?: boolean;
   createdAt: Date;
 }
 

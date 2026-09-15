@@ -28,6 +28,7 @@ export type {
   PlannedCardioBlock,
 } from '@macrolog/core/cardio';
 import type { CardioBlock, PlannedCardioBlock } from '@macrolog/core/cardio';
+import type { RecommendationSnapshot } from '@macrolog/core/workout';
 
 export type MuscleGroup =
   | 'chest' | 'back' | 'shoulders' | 'biceps' | 'triceps' | 'quads'
@@ -56,6 +57,10 @@ export interface Exercise {
    *  Lets re-cloning (even in another locale) reuse this doc instead of
    *  creating a locale-named duplicate that would split history/e1RM. */
   seedKey?: string;
+  /** Equipment steps in pounds, ascending — see `packages/core` `Exercise`. */
+  availableLoads?: number[];
+  /** The logged weight is ASSISTANCE; progress is less of it. */
+  assisted?: boolean;
   createdAt: Date;
 }
 
@@ -88,6 +93,9 @@ export interface SessionExercise {
    *  logger can surface a deterministic +load bump (not just the ghost). */
   progression?: ProgressionRule;
   sets: WorkoutSet[];
+  /** The engine's call for this exercise, frozen at session start so the
+   *  session can be audited against it. Mirrors `packages/core`. */
+  recommendation?: RecommendationSnapshot;
 }
 
 // ─── Templates ──────────────────────────────────────────────────

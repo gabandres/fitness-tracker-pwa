@@ -473,6 +473,42 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   // labels and this is a sentence a human reads.
   blockedText: { flex: 1, fontSize: font.small, color: colors.muted, lineHeight: font.small * 1.4 },
 
+  // Progression engine (layer 6). The headline is the one line a lifter reads
+  // between sets — load first, then the action in caps — so it takes the body
+  // size; the reason and last-session lines sit under it in `small`, the
+  // same sentence size as `blockedText`. An invalid read is muted rather than
+  // coloured: it is the absence of a call, and must not read louder than one.
+  recBlock: { marginTop: space.xs, gap: 2 },
+  recCompact: { marginTop: 2, gap: 1 },
+  recHeadRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
+  recHeadline: { fontSize: font.small, color: colors.ink, fontWeight: '800', letterSpacing: 0.3 },
+  recHeadlineInvalid: { color: colors.muted },
+  recReason: { fontSize: font.small, color: colors.muted, lineHeight: font.small * 1.4 },
+  recLast: { fontSize: font.tiny, color: colors.faint, marginTop: 1 },
+  recStall: { marginTop: space.xs, gap: 1, borderLeftWidth: 2, borderLeftColor: colors.line, paddingLeft: space.sm },
+  recStallHead: { fontSize: font.small, color: colors.ink, fontWeight: '700' },
+  recStallLine: { fontSize: font.small, color: colors.muted, lineHeight: font.small * 1.4 },
+  // "Next session" under a template row — the engine's calls before the
+  // session starts. Collapsed by default so the template list stays a list.
+  tplNextToggle: { fontSize: font.small, color: colors.teal, fontWeight: '700', marginTop: space.xs },
+  tplNext: { gap: space.sm, paddingTop: space.sm },
+  tplNextRow: { gap: 1 },
+  tplNextName: { fontSize: font.small, color: colors.ink, fontWeight: '700' },
+  tplWrap: { gap: 0 },
+  // Weekly cluster audit (layer 5) — one chip per muscle under the hero.
+  auditWrap: { marginTop: space.sm, gap: space.xs },
+  auditTitle: { fontSize: font.tiny, color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.6 },
+  auditRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
+  auditChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    borderWidth: 1, borderColor: colors.line, borderRadius: radius.sm,
+    paddingHorizontal: space.sm, paddingVertical: 2, backgroundColor: colors.card,
+  },
+  auditChipOff: { borderStyle: 'dashed' },
+  auditMuscle: { fontSize: font.small, color: colors.ink, fontWeight: '700' },
+  auditCount: { fontSize: font.small, color: colors.muted },
+  auditHint: { fontSize: font.tiny, color: colors.faint },
+
   // Session roll-up above the Complete button. Same shape as scan.tsx's
   // `lowConf` notice, which does the identical job: a caution about the result
   // you are accepting, sitting above the primary action. `inputBg` rather than

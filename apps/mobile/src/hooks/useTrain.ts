@@ -24,8 +24,12 @@ import {
   applySessionAction,
   findDuplicateExercise,
   dayBoundaryOf,
+  exerciseHistory,
   newCardioBlock,
   newWorkoutSet,
+  recommend,
+  recommendOptionsFor,
+  toRecommendationSnapshot,
 } from '@macrolog/core';
 import {
   type Exercise,
@@ -322,12 +326,31 @@ export function useTrain(): TrainState {
   const startFromTemplate = useCallback(
     async (template: WorkoutTemplate) => {
       if (!uid || activeRef.current) return;
+      // The engine's call for each lift is FROZEN onto the session at start
+      // (progression engine: "every override must be logged"). It is computed
+      // from the same completed history the card reads, so what the session
+      // stores is exactly what the lifter was shown. A straight-set lift gets
+      // no snapshot: the engine has nothing to say about it.
+      const completed = recentSessions.filter((s) => s.status === 'completed');
+      const exercises = templateToSessionExercises(template).map((se) => {
+        const history = exerciseHistory(completed, se.exerciseId);
+        const rec = recommend(
+          history,
+          recommendOptionsFor(
+            template.exercises.find((e) => e.exerciseId === se.exerciseId) ?? null,
+            catalog.find((e) => e.id === se.exerciseId) ?? null,
+          ),
+        );
+        if (rec.action === 'none') return se;
+        const basedOn = completed.find((s) => s.exercises.includes(history[0]))?.date;
+        return { ...se, recommendation: toRecommendationSnapshot(rec, basedOn) };
+      });
       const draft = {
         status: 'active' as const,
         date: new Date(),
         templateId: template.id,
         templateName: template.name,
-        exercises: templateToSessionExercises(template),
+        exercises,
         cardio: templateToSessionCardio(template),
       };
       try {
@@ -337,7 +360,7 @@ export function useTrain(): TrainState {
         setError(asError(e, 'Start failed'));
       }
     },
-    [uid, setActive],
+    [uid, setActive, recentSessions, catalog],
   );
 
   const saveTemplate = useCallback(

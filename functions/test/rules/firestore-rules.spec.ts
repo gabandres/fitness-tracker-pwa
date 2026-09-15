@@ -1182,6 +1182,37 @@ describe('firestore.rules', () => {
     );
   });
 
+  it('accepts the progression-engine equipment fields on a catalog exercise', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertSucceeds(
+      addDoc(collection(db, 'users', 'alice', 'exercises'), {
+        name: 'Chest Dip (forward lean)',
+        muscles: ['chest'],
+        defaultCues: [],
+        logStyle: 'weight-reps',
+        availableLoads: [20, 30, 40, 50],
+        assisted: true,
+        createdAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  it('rejects a non-list availableLoads and a non-bool assisted', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertFails(
+      addDoc(collection(db, 'users', 'alice', 'exercises'), {
+        name: 'Smith squat', availableLoads: 5, createdAt: Timestamp.now(),
+      }),
+    );
+    await assertFails(
+      addDoc(collection(db, 'users', 'alice', 'exercises'), {
+        name: 'Dips', assisted: 'yes', createdAt: Timestamp.now(),
+      }),
+    );
+  });
+
   it('rejects a catalog exercise with a non-string seedKey', async () => {
     const db = authed('alice');
     await setDoc(doc(db, 'users', 'alice'), baseProfile());

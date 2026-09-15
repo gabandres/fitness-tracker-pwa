@@ -39,6 +39,8 @@ export function toWorkoutExercise(id: string, data: Record<string, unknown>): Ex
     defaultCues: (data['defaultCues'] as string[]) ?? [],
     logStyle: data['logStyle'] as Exercise['logStyle'],
     seedKey: data['seedKey'] as string | undefined,
+    availableLoads: data['availableLoads'] as number[] | undefined,
+    assisted: data['assisted'] as boolean | undefined,
     createdAt: toDate(data['createdAt']),
   };
 }
