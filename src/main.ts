@@ -2,6 +2,7 @@ import { bootstrapApplication } from '@angular/platform-browser';
 import * as Sentry from '@sentry/angular';
 import { appConfig } from './app/app.config';
 import { App } from './app/app';
+import { SENTRY_IGNORE_ERRORS } from './app/sentry-ignore';
 import { environment } from './environments/environment';
 
 // Initialize Sentry BEFORE bootstrap so it can capture init errors too.
@@ -14,6 +15,8 @@ if (environment.sentry.dsn) {
     // errors by deploy. Falls back to 'dev' when not set.
     release: (globalThis as any).__MACROLOG_RELEASE__ ?? 'dev',
     environment: environment.production ? 'prod' : 'dev',
+    // Browser-storage eviction noise the shell cannot cause — see the file.
+    ignoreErrors: [...SENTRY_IGNORE_ERRORS],
   });
 }
 
