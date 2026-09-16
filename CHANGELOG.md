@@ -4,7 +4,37 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
-## 2026-09-16 — Train: rest-pause and cluster sets get their own readers (ADR-0040) — merged, not yet on any OTA
+## 2026-09-16 — ADR-0039 + ADR-0040 reach the public, and What's New says why Train looks empty
+
+Three merged commits (`2dffa045`, `a2b907fa`, `94e283a3`) had reached nobody.
+They are JS-only, both fingerprint gates matched their live binary, and both
+channels were open, so an OTA carried all three: **Android group
+`5b3f9e23-398f-4a4c-ace1-c3bda58abee9` on `15c1cfc8…` (vc 45) from Windows,
+iOS group `239f49bb-7740-4f5c-9881-0b5985aeb1cc` on `52802bba…` (build 64)
+from `ignia-mac`**, both from `5c8a0b38`. Each gate was re-run on its own host
+*after* the commit rather than before it.
+
+Shipped with a `WHATS_NEW_VERSION` bump, and the bump is the point. This is
+the first release whose correct behaviour looks like a fault: on the next
+Train open **every clustered lift reads "Calibrating — 0 of 3 valid sessions
+logged" and makes no load call**, because ADR-0039 derives the rep band per
+lift from reads at the RIR 0 standard and deliberately excludes the 706
+pre-cutoff sets from deriving it. The sets are still in history; they are out
+of the band. An OTA carries no store release notes, so the What's New screen
+is the only channel that can say "this is supposed to look like that" — the
+same reasoning as the 2026-09-01 rest-timer bump, not the bug-fix non-bumps.
+Notes rewritten, not appended, in all **three** locales (en, es-PR, pt-BR —
+`CLAUDE.md` says two; it is three).
+
+Rollback if ever needed: `eas update:republish --group
+9a419154-f8bc-4b90-b374-fc3b0c076572` (Android) /
+`57be096e-d6ab-4066-abda-b222c295f36c` (iOS).
+
+Verified before publishing: core 1607, mobile 831, web 67, all green; tsc
+clean; Metro export clean on Android with the bundle at +0.85% vs the
+`perf-budget.json` baseline, within budget.
+
+## 2026-09-16 — Train: rest-pause and cluster sets get their own readers (ADR-0040) — OTA on both platforms
 
 The second ADR-0040 slice. `rest-pause` sums reps across the activation and
 its `continuation` sets and progresses on the TOTAL; `cluster` compares each
@@ -23,7 +53,7 @@ refuse explicitly; the picker's readable flags are pinned against core's
 `READABLE_STRUCTURES` by test rather than a duplicated literal. Myo-reps
 unchanged.
 
-## 2026-09-16 — Train: the set structure is declared, and the engine dispatches on it (ADR-0040) — merged, not yet on any OTA
+## 2026-09-16 — Train: the set structure is declared, and the engine dispatches on it (ADR-0040) — OTA on both platforms
 
 Straight sets are programmable and get a real recommendation; the other five
 structures are declarable and refuse explicitly. `SetStructure`
@@ -46,7 +76,7 @@ fixed. `SetKind` gains `continuation` for the structures still to come;
 `setGroup` needed no change. Rules deployed 2026-09-16 before any client
 writes the field.
 
-## 2026-09-15 — Train: RIR 0 is the standard, the rep band is derived per lift (ADR-0039) — merged, not yet on any OTA
+## 2026-09-15 — Train: RIR 0 is the standard, the rep band is derived per lift (ADR-0039) — OTA on both platforms 2026-09-16
 
 An amendment to the progression engine after 85 logged clusters showed the
 self-reported RIR was uncalibrated (logged RIR 2 had a mean first mini of

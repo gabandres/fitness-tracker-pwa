@@ -1,6 +1,6 @@
 # STATUS — what is true right now
 
-**Updated:** 2026-09-10 · **Owns:** current state only. Not history
+**Updated:** 2026-09-16 · **Owns:** current state only. Not history
 (`CHANGELOG.md`), not rationale (`docs/adr/`), not vocabulary (`CONTEXT.md`),
 not commands (`docs/COMMANDS.md`), not build tooling
 (`docs/build-infrastructure.md`).
@@ -76,24 +76,20 @@ half is why this row exists.
 | Web | one SEO route manifest (5 copies → 1), one admin console (three modules → one) |
 | Functions | `withCostGuards`, plus parity specs for the last three mirrors |
 
-**2026-09-16 — ADR-0040 (declared set structure; straight, rest-pause and
-cluster readers) is MERGED and on NO OTA yet.** `firestore.rules` IS deployed, so the catalog
-`setStructure` field is writable; nothing writes it until the OTA lands.
-Straight sets, rest-pause and cluster sets all get a real load call;
-`drop`, `superset` and `hit` are pickable and say "the engine does not
-read that structure yet". `hit` is the cheapest one left. Myo-reps is unchanged — the guarantee is that all 1567 pre-existing
-core tests pass untouched, and a regression there is a bug in this change,
-not a consequence of it. Ships with `build-android` / `build-ios` (JS-only;
-verify the fingerprint at publish time, never assume).
-
-**2026-09-15 — ADR-0039 (RIR 0 standard, derived rep band, legacy flag) is
-MERGED and on NO OTA yet.** Rules are deployed and the owner's 706 pre-cutoff
-sets are flagged, so a device on the current OTA still runs the ADR-0038
-engine against data that now carries `legacyEffortStandard` (harmless: it
-ignores the field) and two catalog docs with `effortStandard: 'rir1'`. Every
-clustered lift will read "Calibrating — 0 of 3" once the OTA lands, by
-design. Ship with `build-android` / `build-ios` (JS-only; fingerprints
-unmoved by this change — verify at publish time, never assume).
+**2026-09-16 — ADR-0039 + ADR-0040 SHIPPED as an OTA on BOTH platforms** from
+`5c8a0b38` (Android group `5b3f9e23…` on `15c1cfc8…` from Windows, iOS group
+`239f49bb…` on `52802bba…` from `ignia-mac`; each gate re-run on its own host
+after the commit). The public gets it on next launch. **What to expect, and
+what is NOT a fault: every clustered lift now reads "Calibrating — 0 of 3
+valid sessions logged" and makes no load call** until three valid reads
+accumulate at one load — the band is derived per lift and the owner's 706
+pre-cutoff sets are excluded from deriving it by design. `WHATS_NEW_VERSION`
+bumped to `2026-09-16-derived-rep-bands` to say exactly that; it is the only
+channel an OTA has. `drop`, `superset` and `hit` are pickable and refuse
+explicitly; **`hit` is the cheapest structure left to implement**, `drop` and
+`superset` are not (ADR-0040 §Consequences). Rollback: `eas update:republish
+--group 9a419154-f8bc-4b90-b374-fc3b0c076572` (Android) /
+`57be096e-d6ab-4066-abda-b222c295f36c` (iOS).
 
 **2026-09-15 — the progression engine (ADR-0038) and the CSV `setDurationSec`
 column SHIPPED on BOTH platforms as OTAs from `046ce695`, and the What's New
