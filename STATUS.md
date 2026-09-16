@@ -85,9 +85,14 @@ valid sessions logged" and makes no load call** until three valid reads
 accumulate at one load — the band is derived per lift and the owner's 706
 pre-cutoff sets are excluded from deriving it by design. `WHATS_NEW_VERSION`
 bumped to `2026-09-16-derived-rep-bands` to say exactly that; it is the only
-channel an OTA has. `drop`, `superset` and `hit` are pickable and refuse
-explicitly; **`hit` is the cheapest structure left to implement**, `drop` and
-`superset` are not (ADR-0040 §Consequences). Rollback: `eas update:republish
+channel an OTA has. **Slice 3 (`hit`) followed the same
+day** as a second OTA (Android group `5268dc4f…`, iOS group `f38e501e…`, both
+from `dae6aa3a`, no What's New re-bump), so a single set to failure now gets a
+real load call too. `drop` and `superset` stay pickable and refuse explicitly,
+and are **not** cheap to add: `drop` needs within-set load reduction,
+`superset` needs a pairing between two exercises, and the model carries
+neither (ADR-0040 §Consequences). Do not bundle them into a slice that looks
+adjacent. Rollback: `eas update:republish
 --group 9a419154-f8bc-4b90-b374-fc3b0c076572` (Android) /
 `57be096e-d6ab-4066-abda-b222c295f36c` (iOS).
 

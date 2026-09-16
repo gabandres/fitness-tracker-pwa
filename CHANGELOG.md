@@ -42,7 +42,7 @@ derived band and records that this lift keeps RIR 1 for the lumbar
 restriction; and Wide-grip lat pulldown's `targetLoad` moved 90 → 80, the
 logged number.
 
-## 2026-09-16 — Train: HIT gets a reader (ADR-0040 slice 3) — merged, not yet on any OTA
+## 2026-09-16 — Train: HIT gets a reader (ADR-0040 slice 3) — OTA on both platforms
 
 The third and last cheap structure. A `hit` lift — one set taken to failure —
 now gets a real load call instead of "the engine does not read that structure
@@ -69,7 +69,16 @@ within-set load reduction, `superset` needs a pairing between two exercises,
 and the model carries neither. Also removed here: a dead unreachable `return`
 left in `recommendStraight` by slice 1.
 
-Core 1615 (was 1607), mobile 832, both green; tsc clean on both.
+Core 1615 (was 1607), mobile 832, both green; all four buildable units clean.
+
+Shipped the same day as slice 1/2, as a second OTA: Android group
+`5268dc4f-a2d5-47fa-ab45-8aa9c8db4334` on `15c1cfc8…` from Windows, iOS group
+`f38e501e-2be6-483f-843b-8bbf5168795e` on `52802bba…` from `ignia-mac`, both
+from `dae6aa3a`, both gates re-read on their own host first. `WHATS_NEW_VERSION`
+deliberately NOT re-bumped — the morning's bump went out hours earlier and the
+screen shows on the SECOND launch, so re-bumping would replace notes most
+people have not reached; and `hit` is invisible unless a lift is declared as
+it. Bundle +0.88%, within budget.
 
 ## 2026-09-16 — ADR-0039 + ADR-0040 reach the public, and What's New says why Train looks empty
 
