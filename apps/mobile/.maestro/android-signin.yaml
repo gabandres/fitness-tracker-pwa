@@ -154,3 +154,29 @@ appId: fit.ignia.app
     text: 'Not Now'
     optional: true
 - assertVisible: 'Today'
+
+# ── Dismiss the tour AGAIN, after the session lands ──
+# The identical block at the top of this flow cannot fire on a genuinely fresh
+# device, and that is not a race — it is the order of events. The tour opens
+# for anyone with a COMPLETED PROFILE, and on a fresh install there is no
+# profile until sign-in finishes, so at the top of this flow the tour does not
+# exist yet and `when: visible: tour-skip` is correctly false. It only appears
+# here, after `Today` renders.
+#
+# Measured 2026-09-16, iOS simulator, fresh install: the top block was skipped,
+# this flow passed clean, and then 19 of 20 regression flows failed against the
+# tour — `01-today` reporting `No visible element found: "Water"`, which is
+# verbatim the symptom regression/README.md documents for this exact cause.
+# Every failure read as a separate regression; none was. A void suite run costs
+# ~25 minutes and, worse, invites someone to "fix" twenty imaginary bugs.
+#
+# `optional`/conditional, so a device that already dismissed the tour passes
+# straight through and this stays idempotent.
+- runFlow:
+    when:
+      visible:
+        id: 'tour-skip'
+    commands:
+      - tapOn:
+          id: 'tour-skip'
+      - assertVisible: 'Today'

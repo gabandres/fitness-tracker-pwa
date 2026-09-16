@@ -10,6 +10,72 @@ Update this file in the same commit as any flow change. If a surface ships
 that has no row here, the suite's "100%" claim is false until the row exists —
 add it as ✗ first, cover it second.
 
+## iOS run 2026-09-16 — 17 of 20, and all three failures are the documented ones
+
+Run on **`ignia-mac`**, simulator `Ignia-QA` (iPhone 17, iOS 26.5), against a
+**Release build of `45304920`** — the tree carrying ADR-0039 (derived rep band,
+RIR 0), ADR-0040 slices 1–3 (declared set structure; straight / rest-pause /
+cluster / `hit` readers) and the `2026-09-16-derived-rep-bands` What's New
+copy. Maestro 2.10.0 on OpenJDK 26.0.2 (the README still says 2.8.0).
+
+**20 flows, not 21**: `17-coach-ask` is tagged `manual` and excluded by
+`config.yaml` because it spends real AI money. That is the correct denominator,
+not a missing flow.
+
+| Flow | Result | Note |
+|---|---|---|
+| `15-search` | FAIL | `Element not found: Text matching regex: ^Banana, raw$` — **byte-identical** to the failure this file already documents for iOS: list rows absent from the accessibility hierarchy |
+| `18-train-template` | FAIL | `Assertion is false: ".*3 × 8 · 20 lb.*" is visible` — same assertion string already recorded for the 2026-08-24 iOS run, and it fails at the same point, not earlier |
+| `20-units-metric` | FAIL | `Assertion is false: "lb" is visible` — the known full-match-regex artifact: there is no standalone `lb` node on iOS |
+
+**The other 17 passed, including every flow that could have caught today's
+changes**: `16-train-terms`, `21-train-cardio`, `03-tabs`, and the whole
+`11 → 12 → 13` log → edit → delete arc. **Zero new failures.** QA state verified
+restored afterwards: 0 entries, water 0, `preferredLocale: en`, the four
+baseline presets, no `QA E2E` leftovers.
+
+### What the screenshots show, which is the half assertions cannot
+
+- `16-set-types` — **"CALIBRATING"** with *"No session logged yet — the first
+  one is a calibration, not a read."* ADR-0039 rendering on a device. The SET
+  TYPE glossary lists **Continuation** with its ADR-0040 copy.
+- `18-set-prescribed` — the **Set structure** picker: `Auto`, `straight sets`,
+  `myo-reps`, `rest-pause`, `cluster sets`, `drop sets` *(not read yet)*,
+  `supersets` *(not read yet)*, `single set to failure`. **`single set to
+  failure` carries no "not read yet" badge and the other two do** — that is
+  ADR-0040 slice 3 visible on a real build, and it is the one thing no unit
+  test can show.
+
+### The first run of the day was VOID, and the cause is now fixed in the flow
+
+The first sweep returned **19 of 20 failed** — and none of them was real. The
+guided tour was on screen for every flow (`tour-skip`, `tour-next`,
+`tour-step-map` in the hierarchy dump), so each flow failed on whatever anchor
+it reached first: `settings-open`, `tab-train`, `log-button`. `01-today` failed
+with `No visible element found: "Water"`, which is **verbatim the symptom
+`README.md` already documents for this cause**.
+
+The documented guard did not work, and the reason is an ordering fact rather
+than a race: `android-signin.yaml` taps `tour-skip` conditionally at the TOP of
+the flow, but the tour opens only for an account with a **completed profile**,
+which on a fresh install does not exist until sign-in finishes. So the tour was
+genuinely not on screen when that block evaluated, the block was correctly
+skipped, the flow passed clean — and the tour appeared immediately afterwards.
+
+`android-signin.yaml` now repeats the conditional tour-skip **after** the
+closing `Today` assertion. Still idempotent; a device that has already
+dismissed the tour passes straight through.
+
+Two host findings worth carrying:
+
+- **`~/qa-pass.txt` did not exist on `ignia-mac`.** The Mac was rebuilt
+  2026-09-10, two days after the 2026-09-08 password rotation, and the file was
+  never restored — `CLAUDE.local.md` lists the Mac as holding it and was stale.
+  The symptom is a sign-in that types an empty password and fails on the
+  `Today` assertion, i.e. it reads exactly like a broken sign-in screen.
+- **The simulator had to be created.** No `Ignia-QA` device existed; `--device`
+  is mandatory regardless, per the README.
+
 ## Android run 2026-09-04 — 20 of 20, and the four known failures are FIXED
 
 Run on the **LG VS988** (Android 9 / API 28) against the **published** bundle —
