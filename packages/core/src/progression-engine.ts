@@ -376,6 +376,12 @@ export type RecommendReason =
    *  Not a rep count against a band — cluster sets are not autoregulated. */
   | { kind: 'cluster-sets'; completed: number; blocks: number;
       sessionsAtTarget: number; holdSessions: number }
+  /** A HIT read (ADR-0040): the reps of the ONE set taken to failure. Shaped
+   *  like `straight-sets` because it is the same double progression over a
+   *  single set — kept a separate kind so the copy can name the structure the
+   *  user actually picked rather than call their HIT set "straight sets". */
+  | { kind: 'hit'; reps: number; targetReps: number;
+      sessionsAtTarget: number; holdSessions: number }
   /** No target to progress against: the prescription states no
    *  `progression.targetReps` (straight / rest-pause) or no per-block
    *  `targetReps` (cluster), so there is no threshold to hold. */
@@ -704,6 +710,70 @@ function recommendCluster(history: readonly SessionExercise[], opts: RecommendOp
   return loadCall(base, opts, currentLoad, sessionsAtTarget, holdSessions, reason, latest.blocks as number);
 }
 
+/**
+ * HIT: ONE set taken to failure.
+ *
+ * The read is that set's reps, and the progression is the same double
+ * progression every other non-myo-reps structure runs — hold `targetReps` for
+ * `holdSessions` consecutive sessions at the current load, then add load. It
+ * is a one-set straight read, which is why it reuses `heldRun` and `loadCall`
+ * rather than growing a rule of its own.
+ *
+ * **The FIRST working set is the HIT set, not the lowest.** That is the one
+ * deliberate difference from {@link bindingStraight}, and it follows from what
+ * the structure prescribes: a HIT lift programmes exactly one set to failure,
+ * so a second logged set is back-off work the prescription does not own.
+ * Taking the minimum would let a light back-off set veto a qualifying effort
+ * — the mirror image of the defect `bindingStraight` exists to prevent, where
+ * the binding set is genuinely part of the prescription.
+ *
+ * No RIR gate, deliberately. "To failure" is the definition of the structure,
+ * not a validity condition the engine re-checks; ADR-0039's effort standard
+ * governs the myo-reps ACTIVATION set and adding it here would be new policy
+ * no ADR has taken.
+ */
+function hitRead(ex: SessionExercise): { reps?: number; load?: number; rir?: number } {
+  const set = workingReps(ex)[0];
+  if (!set) return {};
+  return {
+    reps: set.reps as number,
+    ...(set.weight != null ? { load: set.weight } : {}),
+    ...(set.rir != null ? { rir: set.rir } : {}),
+  };
+}
+
+function recommendHit(history: readonly SessionExercise[], opts: RecommendOptions): Recommendation {
+  const assisted = opts.assisted ?? false;
+  const base = {
+    last: [] as ActivationSummary[], assisted, band: null,
+    calibration: EMPTY_CALIBRATION, warnings: [] as RecommendWarning[],
+  };
+  if (history.length === 0) return { ...base, action: 'calibrate', reason: { kind: 'no-history' } };
+
+  const latest = hitRead(history[0]);
+  const currentLoad = latest.load;
+  // Declared `hit` but the latest session logged no working set — an
+  // activation/mini-shaped log under a structure that does not own those
+  // kinds. Reading reps out of them is the cross-structure guess ADR-0040
+  // exists to refuse.
+  if (latest.reps == null) {
+    return { ...base, action: 'none', ...(currentLoad != null ? { currentLoad } : {}), reason: { kind: 'nothing-to-read' } };
+  }
+  const targetReps = opts.progression?.targetReps;
+  if (targetReps == null) {
+    return { ...base, action: 'none', load: currentLoad, currentLoad, reason: { kind: 'no-rule' } };
+  }
+  const holdSessions = Math.max(1, opts.progression?.holdSessions ?? 1);
+  const sessionsAtTarget = heldRun(history, currentLoad, (h) => {
+    const r = hitRead(h);
+    return { load: r.load, held: r.reps != null && r.reps >= targetReps };
+  });
+  const reason: RecommendReason = {
+    kind: 'hit', reps: latest.reps, targetReps, sessionsAtTarget, holdSessions,
+  };
+  return loadCall(base, opts, currentLoad, sessionsAtTarget, holdSessions, reason, targetReps);
+}
+
 function recommendStraight(history: readonly SessionExercise[], opts: RecommendOptions): Recommendation {
   const assisted = opts.assisted ?? false;
   const base = {
@@ -740,7 +810,6 @@ function recommendStraight(history: readonly SessionExercise[], opts: RecommendO
     ...(latest.reps != null ? { reps: latest.reps } : {}),
   };
   return loadCall(base, opts, currentLoad, sessionsAtTarget, holdSessions, reason, targetReps);
-  return { ...base, action: 'build-reps', load: currentLoad, currentLoad, reason };
 }
 
 /**
@@ -756,6 +825,7 @@ export function recommend(history: readonly SessionExercise[], opts: RecommendOp
   if (structure === 'straight') return recommendStraight(history, opts);
   if (structure === 'rest-pause') return recommendRestPause(history, opts);
   if (structure === 'cluster') return recommendCluster(history, opts);
+  if (structure === 'hit') return recommendHit(history, opts);
   if (structure !== 'myoreps') {
     return {
       last: [], assisted: opts.assisted ?? false, band: null,

@@ -31,7 +31,7 @@ describe('ADR-0040 dispatch', () => {
   });
 
   it('refuses every structure with no reader, and never falls through', () => {
-    const unreadable: SetStructure[] = ['drop', 'superset', 'hit'];
+    const unreadable: SetStructure[] = ['drop', 'superset'];
     for (const structure of unreadable) {
       const rec = recommend([straight(135, 8, 8, 8)], { structure, progression: RULE });
       expect(rec.reason).toEqual({ kind: 'unsupported-structure', structure });

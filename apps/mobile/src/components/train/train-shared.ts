@@ -90,7 +90,7 @@ export const SET_STRUCTURES: { value: SetStructure | undefined; labelKey: I18nKe
   { value: 'cluster', labelKey: 'train.structure.cluster', readable: true },
   { value: 'drop', labelKey: 'train.structure.drop', readable: false },
   { value: 'superset', labelKey: 'train.structure.superset', readable: false },
-  { value: 'hit', labelKey: 'train.structure.hit', readable: false },
+  { value: 'hit', labelKey: 'train.structure.hit', readable: true },
 ];
 
 export function logStyleKey(style: LogStyle | undefined): I18nKey {

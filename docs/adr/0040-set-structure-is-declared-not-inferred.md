@@ -1,9 +1,11 @@
 # ADR-0040: The set structure is declared on the prescription, and the engine dispatches on it
 
-- **Status:** accepted 2026-09-16 — `straight`, `rest-pause` and `cluster`
-  implemented; `drop`, `superset` and `hit` are declared-but-unread and
-  refuse explicitly. Extends ADR-0038 and ADR-0039, which stay in force for
-  `myoreps` unchanged.
+- **Status:** accepted 2026-09-16 — `straight`, `rest-pause`, `cluster` and
+  `hit` implemented; `drop` and `superset` are declared-but-unread and refuse
+  explicitly. Extends ADR-0038 and ADR-0039, which stay in force for
+  `myoreps` unchanged. **Slice 3 (`hit`) landed 2026-09-16**, after the
+  slice-1/2 OTA; the consequence below that called it the cheapest of the
+  three was acted on rather than left as a note.
 - **Date:** 2026-09-16
 - **Touches:** `packages/core/src/workout.ts` (`SetStructure`,
   `TemplateExercise.setStructure`, `Exercise.setStructure`, `SetKind`
@@ -195,11 +197,26 @@ pairing. The interpretation is structure-specific; the field is not.
 
 - Straight sets are programmable and get a real recommendation. Main
   compounds can be programmed as the literature actually describes them.
-- `drop`, `superset` and `hit` remain declarable and say so honestly, rather
-  than being handed a number computed by another structure's rule. `hit` is
-  the cheapest of the three to add — a single set to failure is a one-set
-  straight read — while `drop` needs within-set load reduction and `superset`
-  needs a pairing between two exercises, which the model does not yet carry.
+- `drop` and `superset` remain declarable and say so honestly, rather than
+  being handed a number computed by another structure's rule. `drop` needs
+  within-set load reduction and `superset` needs a pairing between two
+  exercises; the model carries neither, so neither is cheap and neither should
+  be bundled into a slice that looks adjacent.
+- **`hit` was the cheap one, and it is now implemented** (slice 3). A single
+  set to failure is a one-set straight read, so `recommendHit` reuses `heldRun`
+  and `loadCall` unchanged and adds only its own reason kind. Two decisions in
+  it are deliberate and are the reasons it is not simply `recommendStraight`
+  with a length check. **It binds on the FIRST working set, not the lowest:** a
+  HIT prescription owns exactly one set, so a second logged set is back-off
+  work, and taking the minimum would let that back-off set veto a qualifying
+  effort — the mirror image of the defect `bindingStraight` prevents, where the
+  binding set really is part of the prescription. And it applies **no RIR
+  gate**: "to failure" is the definition of the structure, not a validity
+  condition to re-check, and ADR-0039's effort standard governs the myo-reps
+  activation set. Its reason kind is `hit` rather than `straight-sets` so the
+  copy names the structure the user picked, and it is in
+  `NON_MYOREPS_REASONS` — without that it would print "Calibrating — n of 3"
+  for a band it will never use.
 - The picker's `readable` flags are pinned against core's
   `READABLE_STRUCTURES` by test, not by a duplicated literal: a picker that
   advertises a structure the engine refuses is the same lie in a different

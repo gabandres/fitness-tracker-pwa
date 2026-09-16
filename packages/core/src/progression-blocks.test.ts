@@ -151,6 +151,83 @@ describe('cluster sets', () => {
   });
 });
 
+/** One set to failure — what a `hit` prescription actually is. */
+const hitSet = (load: number, reps: number, rir?: number): SessionExercise => ({
+  exerciseId: 'ht', name: 'HIT lift', cues: [],
+  sets: [{ kind: 'working', weight: load, reps, ...(rir != null ? { rir } : {}) } as WorkoutSet],
+});
+
+describe('hit', () => {
+  const HIT_RULE = { targetReps: 8, holdSessions: 2, incrementLb: 5 };
+
+  it('reads the single set and adds load once the target has held', () => {
+    const rec = recommend([hitSet(100, 8), hitSet(100, 9)], { structure: 'hit', progression: HIT_RULE });
+    expect(rec.reason).toMatchObject({
+      kind: 'hit', reps: 8, targetReps: 8, sessionsAtTarget: 2, holdSessions: 2,
+    });
+    expect(rec.action).toBe('add-load');
+    expect(rec.load).toBe(105);
+  });
+
+  it('builds while the set is short of target', () => {
+    const rec = recommend([hitSet(100, 6)], { structure: 'hit', progression: HIT_RULE });
+    expect(rec.reason).toMatchObject({ kind: 'hit', reps: 6, sessionsAtTarget: 0 });
+    expect(rec.action).toBe('build-reps');
+    expect(rec.load).toBe(100);
+  });
+
+  it('restarts the run when the load changes', () => {
+    const rec = recommend([hitSet(100, 9), hitSet(95, 9)], { structure: 'hit', progression: HIT_RULE });
+    expect(rec.reason).toMatchObject({ sessionsAtTarget: 1 });
+    expect(rec.action).toBe('build-reps');
+  });
+
+  it('takes the FIRST working set, not the lowest — a back-off set cannot veto the effort', () => {
+    // 9 to failure, then a light back-off at 5. `bindingStraight` would bind
+    // on the 5 and never progress; a HIT prescription owns one set.
+    const withBackoff: SessionExercise = {
+      exerciseId: 'ht', name: 'HIT lift', cues: [],
+      sets: [
+        { kind: 'working', weight: 100, reps: 9 },
+        { kind: 'working', weight: 60, reps: 5 },
+      ] as WorkoutSet[],
+    };
+    const rec = recommend([withBackoff, withBackoff], { structure: 'hit', progression: HIT_RULE });
+    expect(rec.reason).toMatchObject({ kind: 'hit', reps: 9, sessionsAtTarget: 2 });
+    expect(rec.action).toBe('add-load');
+  });
+
+  it('does not gate on RIR — "to failure" is the structure, not a validity check', () => {
+    const rec = recommend([hitSet(100, 8, 3), hitSet(100, 8, 3)], { structure: 'hit', progression: HIT_RULE });
+    expect(rec.reason.kind).toBe('hit');
+    expect(rec.action).toBe('add-load');
+  });
+
+  it('says so when no rep target is prescribed', () => {
+    expect(recommend([hitSet(100, 8)], { structure: 'hit' }).reason).toEqual({ kind: 'no-rule' });
+  });
+
+  it('refuses an activation/mini log — those kinds belong to myo-reps', () => {
+    const clustered: SessionExercise = {
+      exerciseId: 'ht', name: 'HIT lift', cues: [],
+      sets: [
+        { kind: 'activation', group: 1, weight: 100, reps: 12 },
+        { kind: 'mini', group: 1, weight: 100, reps: 4 },
+      ] as WorkoutSet[],
+    };
+    expect(recommend([clustered], { structure: 'hit', progression: HIT_RULE }).reason)
+      .toEqual({ kind: 'nothing-to-read' });
+  });
+
+  it('never derives a myo-reps band', () => {
+    const rec = recommend([hitSet(100, 8), hitSet(100, 8), hitSet(100, 8)], {
+      structure: 'hit', progression: HIT_RULE,
+    });
+    expect(rec.band).toBeNull();
+    expect(rec.calibration.validSessions).toBe(0);
+  });
+});
+
 describe('the two readers stay out of each other', () => {
   it('the same log reads differently under each structure, by design', () => {
     const log = [prescribed(100, [[5, 5], [5, 5], [5, 5]]), prescribed(100, [[5, 5], [5, 5], [5, 5]])];

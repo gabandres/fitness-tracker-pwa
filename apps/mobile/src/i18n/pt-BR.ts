@@ -716,6 +716,8 @@ export const ptBR = {
   'train.rec.reason.restPause.hit': 'Total de {total} reps na série — manteve {target} por {n} sessões.',
   'train.rec.reason.restPause.building': 'Total de {total} de {target} reps — {n} de {needed} sessões na meta.',
   'train.rec.reason.clusterSets.hit': 'Completou todos os {blocks} blocos prescritos por {n} sessões.',
+  'train.rec.reason.hitSet.held': 'Levou a série a {reps} reps — manteve {target} por {n} sessões.',
+  'train.rec.reason.hitSet.building': 'Levou a série a {reps} de {target} reps — {n} de {needed} sessões na meta.',
   'train.rec.reason.clusterSets.building': 'Completou {done} de {blocks} blocos prescritos — {n} de {needed} sessões na meta.',
   'train.rec.reason.noRule': 'Sem meta de reps — defina uma para progredir por carga.',
   'train.rec.reason.nothingToRead': 'Ainda não há nada registrado para ler.',

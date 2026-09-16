@@ -67,11 +67,14 @@ describe('structureOf — precedence', () => {
 
 describe('READABLE_STRUCTURES', () => {
   it('is exactly the structures with an engine reader', () => {
-    expect([...READABLE_STRUCTURES].sort()).toEqual(['cluster', 'myoreps', 'rest-pause', 'straight']);
+    expect([...READABLE_STRUCTURES].sort()).toEqual(['cluster', 'hit', 'myoreps', 'rest-pause', 'straight']);
   });
 
   it('refuses every structure that has no reader', () => {
-    const unreadable: SetStructure[] = ['drop', 'superset', 'hit'];
+    // `drop` needs within-set load reduction and `superset` needs a pairing
+    // between two exercises. Neither is in the model, so neither is cheap the
+    // way `hit` was (ADR-0040 §Consequences).
+    const unreadable: SetStructure[] = ['drop', 'superset'];
     for (const s of unreadable) expect(isReadableStructure(s)).toBe(false);
   });
 });

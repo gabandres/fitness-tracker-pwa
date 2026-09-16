@@ -38,7 +38,7 @@ import type { SetStructure } from './workout';
 /** Structures the progression engine can actually read. Everything else must
  *  be refused explicitly rather than routed to a reader built for something
  *  else — see `unsupported-structure` in `progression-engine.ts`. */
-export const READABLE_STRUCTURES: readonly SetStructure[] = ['straight', 'myoreps', 'rest-pause', 'cluster'];
+export const READABLE_STRUCTURES: readonly SetStructure[] = ['straight', 'myoreps', 'rest-pause', 'cluster', 'hit'];
 
 export function isReadableStructure(s: SetStructure): boolean {
   return READABLE_STRUCTURES.includes(s);

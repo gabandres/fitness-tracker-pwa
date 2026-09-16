@@ -35,7 +35,7 @@ const lines = (reason: Recommendation['reason'], extra: Partial<Recommendation> 
 
 describe('ADR-0040 recommendation copy', () => {
   it('names the structure when the engine has no reader for it', () => {
-    for (const structure of ['drop', 'superset', 'hit'] as const) {
+    for (const structure of ['drop', 'superset'] as const) {
       const { reason } = lines({ kind: 'unsupported-structure', structure });
       expect(reason).not.toBe('');
       // The user picked this structure; the copy must say which one it is.
@@ -91,12 +91,28 @@ describe('ADR-0040 recommendation copy', () => {
     expect(hit.reason).toContain('3');
   });
 
+  it('reports a HIT read as the ONE set, in both states', () => {
+    const building = lines({
+      kind: 'hit', reps: 6, targetReps: 8, sessionsAtTarget: 0, holdSessions: 2,
+    });
+    expect(building.reason).not.toBe('');
+    expect(building.reason).toContain('6');
+    expect(building.reason).toContain('8');
+
+    const held = lines({
+      kind: 'hit', reps: 9, targetReps: 8, sessionsAtTarget: 2, holdSessions: 2,
+    });
+    expect(held.reason).not.toBe('');
+    expect(held.reason).toContain('9');
+  });
+
   it('has copy for every non-myo-reps reason', () => {
     expect(lines({ kind: 'no-rule' }).reason).not.toBe('');
     expect(lines({ kind: 'nothing-to-read' }).reason).not.toBe('');
     expect(lines({ kind: 'rest-pause', total: 1, targetReps: 2, sessionsAtTarget: 0, holdSessions: 1 }).reason).not.toBe('');
     expect(lines({ kind: 'cluster-sets', completed: 0, blocks: 1, sessionsAtTarget: 0, holdSessions: 1 }).reason).not.toBe('');
     expect(lines({ kind: 'straight-sets', sessionsAtTarget: 0, holdSessions: 2 }).reason).not.toBe('');
+    expect(lines({ kind: 'hit', reps: 1, targetReps: 2, sessionsAtTarget: 0, holdSessions: 1 }).reason).not.toBe('');
   });
 
   it('never shows the myo-reps calibration count off the myo-reps path', () => {
@@ -105,7 +121,8 @@ describe('ADR-0040 recommendation copy', () => {
     expect(lines({ kind: 'straight-sets', sessionsAtTarget: 1, holdSessions: 2, targetReps: 8 }).calibration).toBeNull();
     expect(lines({ kind: 'no-rule' }).calibration).toBeNull();
     expect(lines({ kind: 'nothing-to-read' }).calibration).toBeNull();
-    expect(lines({ kind: 'unsupported-structure', structure: 'hit' }).calibration).toBeNull();
+    expect(lines({ kind: 'unsupported-structure', structure: 'drop' }).calibration).toBeNull();
+    expect(lines({ kind: 'hit', reps: 8, targetReps: 8, sessionsAtTarget: 1, holdSessions: 2 }).calibration).toBeNull();
     expect(lines({ kind: 'rest-pause', total: 1, targetReps: 2, sessionsAtTarget: 0, holdSessions: 1 }).calibration).toBeNull();
     expect(lines({ kind: 'cluster-sets', completed: 0, blocks: 1, sessionsAtTarget: 0, holdSessions: 1 }).calibration).toBeNull();
   });

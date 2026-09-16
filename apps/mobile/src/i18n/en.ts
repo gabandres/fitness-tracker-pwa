@@ -824,6 +824,8 @@ export const en = {
   'train.rec.reason.restPause.building': 'Total {total} of {target} reps — {n} of {needed} sessions at target.',
   'train.rec.reason.clusterSets.hit': 'Completed all {blocks} prescribed blocks for {n} sessions.',
   'train.rec.reason.clusterSets.building': 'Completed {done} of {blocks} prescribed blocks — {n} of {needed} sessions at target.',
+  'train.rec.reason.hitSet.held': 'Took the set to {reps} reps — held {target} for {n} sessions.',
+  'train.rec.reason.hitSet.building': 'Took the set to {reps} of {target} reps — {n} of {needed} sessions at target.',
   'train.rec.reason.noRule': 'No rep target on this lift — set one to progress by load.',
   'train.rec.reason.nothingToRead': 'Nothing logged yet to read.',
   'train.rec.reason.unsupportedStructure': 'Programmed as {structure} — the engine does not read that structure yet.',

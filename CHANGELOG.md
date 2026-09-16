@@ -4,6 +4,35 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-09-16 — Train: HIT gets a reader (ADR-0040 slice 3) — merged, not yet on any OTA
+
+The third and last cheap structure. A `hit` lift — one set taken to failure —
+now gets a real load call instead of "the engine does not read that structure
+yet", through the same `heldRun` / `loadCall` tail the other two ADR-0040
+readers share, so it cannot drift on what progression means.
+
+Two decisions make it more than `recommendStraight` with a length check.
+**It binds on the FIRST working set, not the lowest.** A HIT prescription owns
+exactly one set, so a second logged set is back-off work; taking the minimum
+would let a light back-off set veto a qualifying effort, which is the mirror
+image of the defect `bindingStraight` exists to prevent. And **there is no RIR
+gate** — "to failure" is the definition of the structure, not a validity
+condition to re-check, and ADR-0039's effort standard governs the myo-reps
+activation set, not this one.
+
+Its reason kind is `hit`, not `straight-sets`, so the copy names the structure
+the user picked; it is in `NON_MYOREPS_REASONS`, without which it would print
+"Calibrating — n of 3" toward a band it will never use. Copy in all three
+locales. `READABLE_STRUCTURES` and the picker's `readable` flag move together
+because the mobile test pins one against the other.
+
+`drop` and `superset` stay unread and refuse explicitly: `drop` needs
+within-set load reduction, `superset` needs a pairing between two exercises,
+and the model carries neither. Also removed here: a dead unreachable `return`
+left in `recommendStraight` by slice 1.
+
+Core 1615 (was 1607), mobile 832, both green; tsc clean on both.
+
 ## 2026-09-16 — ADR-0039 + ADR-0040 reach the public, and What's New says why Train looks empty
 
 Three merged commits (`2dffa045`, `a2b907fa`, `94e283a3`) had reached nobody.

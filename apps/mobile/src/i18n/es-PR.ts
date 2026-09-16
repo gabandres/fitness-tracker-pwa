@@ -726,6 +726,8 @@ export const esPR: Record<I18nKey, string> = {
   'train.rec.reason.restPause.hit': 'Total de {total} reps en la serie — aguantaste {target} por {n} sesiones.',
   'train.rec.reason.restPause.building': 'Total de {total} de {target} reps — {n} de {needed} sesiones en meta.',
   'train.rec.reason.clusterSets.hit': 'Completaste los {blocks} bloques pautados por {n} sesiones.',
+  'train.rec.reason.hitSet.held': 'Llevaste la serie a {reps} reps — mantuviste {target} por {n} sesiones.',
+  'train.rec.reason.hitSet.building': 'Llevaste la serie a {reps} de {target} reps — {n} de {needed} sesiones en meta.',
   'train.rec.reason.clusterSets.building': 'Completaste {done} de {blocks} bloques pautados — {n} de {needed} sesiones en meta.',
   'train.rec.reason.noRule': 'Sin meta de reps — pon una para progresar por carga.',
   'train.rec.reason.nothingToRead': 'Todavía no hay nada anotado que leer.',
