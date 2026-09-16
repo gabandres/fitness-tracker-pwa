@@ -78,6 +78,7 @@ import {
   weeklyClusterAudit,
 } from '@macrolog/core';
 import { RecommendationNote } from '@/components/train/RecommendationNote';
+import { LiftSettingsSheet } from '@/components/train/LiftSettingsSheet';
 // Train derivations — shared with the Angular Train tab so the two cannot
 // disagree about the same numbers (`@macrolog/core/train-view`).
 import {
@@ -794,15 +795,33 @@ function TemplateNextSession({
         .filter((r) => r.rec.action !== 'none'),
     [train, template],
   );
+  // One lift-settings sheet for the list, keyed on the exercise it is open
+  // for — the effort standard and the band override are catalog properties,
+  // and this list is where a "calibrating" line invites the question.
+  const [settingsFor, setSettingsFor] = useState<string | null>(null);
+  const open = rows.find((r) => r.row.exerciseId === settingsFor);
+  const openEx = open ? train.catalog.find((e) => e.id === open.row.exerciseId) ?? null : null;
   if (rows.length === 0) return null;
   return (
     <View style={styles.tplNext} testID={`next-session-list-${template.id}`}>
       {rows.map(({ row, rec }) => (
         <View key={row.exerciseId} style={styles.tplNextRow}>
           <Text style={styles.tplNextName}>{row.name}</Text>
-          <RecommendationNote rec={rec} compact testID={`rec-${template.id}-${row.exerciseId}`} />
+          <RecommendationNote
+            rec={rec}
+            compact
+            testID={`rec-${template.id}-${row.exerciseId}`}
+            onSettings={train.catalog.some((e) => e.id === row.exerciseId) ? () => setSettingsFor(row.exerciseId) : undefined}
+          />
         </View>
       ))}
+      <LiftSettingsSheet
+        visible={openEx != null}
+        exercise={openEx}
+        rec={open?.rec ?? null}
+        onClose={() => setSettingsFor(null)}
+        onSave={(patch) => (openEx?.id ? train.editCatalogExercise(openEx.id, patch) : Promise.resolve())}
+      />
     </View>
   );
 }
@@ -1030,7 +1049,6 @@ function ActiveSession({ train }: { train: ReturnType<typeof useTrain> }) {
  *  than a switch so adding an `ActivationIssue` without a string is a compile
  *  error — the union is small and its members are user-facing. */
 const ACTIVATION_ISSUE_KEYS: Record<ActivationIssue, I18nKey> = {
-  'rir-to-failure': 'train.invalidRirFailure',
   'rir-too-easy': 'train.invalidRirEasy',
   'rir-missing': 'train.invalidRirMissing',
   'not-clustered': 'train.invalidNotClustered',
@@ -1099,6 +1117,8 @@ function ExerciseCard({
     [train.recentSessions, train.catalog, ex.exerciseId, templateRow, ex.progression],
   );
   const engineHasCall = rec.action !== 'none';
+  const [liftOpen, setLiftOpen] = useState(false);
+  const catalogEx = train.catalog.find((e) => e.id === ex.exerciseId) ?? null;
   // When core withheld a recommendation because the last activation was
   // unreadable, SAY so. Silence and "no bump today" look identical otherwise,
   // and the second one is a claim about the training rather than about the data.
@@ -1151,10 +1171,20 @@ function ExerciseCard({
 
       {collapsed ? null : (
         <Animated.View entering={FadeIn.duration(160)} exiting={FadeOut.duration(120)}>
+          {engineHasCall && catalogEx ? (
+            <LiftSettingsSheet
+              visible={liftOpen}
+              exercise={catalogEx}
+              rec={rec}
+              onClose={() => setLiftOpen(false)}
+              onSave={(patch) => train.editCatalogExercise(catalogEx.id as string, patch)}
+            />
+          ) : null}
           {engineHasCall ? (
             <RecommendationNote
               rec={rec}
               testID={`recommendation-${exerciseIndex}`}
+              onSettings={catalogEx ? () => setLiftOpen(true) : undefined}
               onAccept={(load) => {
                 haptics.tap();
                 // Same affordance the bump had: the accepted load lands on

@@ -40,8 +40,10 @@ import {
 } from './types';
 import type { CardioBlock, PlannedCardioBlock } from './cardio';
 import type {
+  EffortStandard,
   LogStyle,
   MuscleGroup,
+  RepBand,
   SessionExercise,
   SessionStatus,
   TemplateExercise,
@@ -373,6 +375,10 @@ export interface ExerciseDraftInput {
   availableLoads?: number[];
   /** The logged weight is assistance, so less is progress. */
   assisted?: boolean;
+  /** `failure` (default) or `rir1` — see `EffortStandard` in workout.ts. */
+  effortStandard?: EffortStandard;
+  /** Manual override of the derived activation rep band. */
+  targetRepBand?: RepBand;
 }
 
 /** `users/{uid}/exercises/{id}` — `isValidExercise` in firestore.rules, which
@@ -402,6 +408,8 @@ export function toExerciseDoc<TS>(
     ...(draft.seedKey !== undefined ? { seedKey: draft.seedKey } : {}),
     ...(draft.availableLoads !== undefined ? { availableLoads: draft.availableLoads } : {}),
     ...(draft.assisted !== undefined ? { assisted: draft.assisted } : {}),
+    ...(draft.effortStandard !== undefined ? { effortStandard: draft.effortStandard } : {}),
+    ...(draft.targetRepBand !== undefined ? { targetRepBand: draft.targetRepBand } : {}),
   };
 }
 

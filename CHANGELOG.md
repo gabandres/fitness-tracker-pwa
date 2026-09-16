@@ -4,6 +4,26 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-09-15 — Train: RIR 0 is the standard, the rep band is derived per lift (ADR-0039) — merged, not yet on any OTA
+
+An amendment to the progression engine after 85 logged clusters showed the
+self-reported RIR was uncalibrated (logged RIR 2 had a mean first mini of
+7.7; only RIR 0 sets passed the mini rule). `rir-to-failure` is deleted as an
+invalidity — RIR 0 is in band, RIR 4+ still is not, and the first-mini rule
+is unchanged as the primary gate. The band is no longer hardcoded: a lift is
+"Calibrating — n of 3 valid sessions logged" (no load recommendation) until
+three valid reads at one load, then `addLoadAt = max observed activation
+reps`, hold `max-2..max-1`, build under that; a load change restarts it.
+Computed on read, never stored; `Exercise.targetRepBand` is the manual
+override and `Exercise.effortStandard` (`failure` | `rir1`) marks the two
+lifts that keep 1 in reserve — an RIR-0 activation there is a warning, not
+an invalid read. Every set logged on or before 2026-09-15 now carries
+`legacyEffortStandard: true` (706 sets across 30 sessions on the owner's
+account, `scripts/mark-legacy-effort-standard.mjs`); the engine excludes
+them from band derivation and never judges one as the latest read, and they
+stay in history. New `LiftSettingsSheet` off the recommendation note;
+`isValidExercise` accepts the two fields (rules deployed 2026-09-15).
+
 ## 2026-09-15 — What's New is a screen, not a card — OTA on both platforms
 
 `apps/mobile/src/app/whats-new.tsx`, a root route opened once per release from

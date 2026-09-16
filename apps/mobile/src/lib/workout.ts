@@ -28,7 +28,8 @@ export type {
   PlannedCardioBlock,
 } from '@macrolog/core/cardio';
 import type { CardioBlock, PlannedCardioBlock } from '@macrolog/core/cardio';
-import type { RecommendationSnapshot } from '@macrolog/core/workout';
+import type { EffortStandard, RecommendationSnapshot, RepBand } from '@macrolog/core/workout';
+export type { EffortStandard, RepBand } from '@macrolog/core/workout';
 
 export type MuscleGroup =
   | 'chest' | 'back' | 'shoulders' | 'biceps' | 'triceps' | 'quads'
@@ -61,6 +62,10 @@ export interface Exercise {
   availableLoads?: number[];
   /** The logged weight is ASSISTANCE; progress is less of it. */
   assisted?: boolean;
+  /** `failure` (default) or `rir1` — see `EffortStandard` in core (ADR-0039). */
+  effortStandard?: EffortStandard;
+  /** Manual override of the derived activation rep band (ADR-0039). */
+  targetRepBand?: RepBand;
   createdAt: Date;
 }
 
@@ -81,6 +86,10 @@ export interface WorkoutSet {
    *  to the real fields only when the set is ticked `done`. */
   targetReps?: number;
   targetDurationSec?: number;
+  /** Logged on or before 2026-09-15, under the uncalibrated RIR standard;
+   *  excluded from the engine's band derivation, kept as history (ADR-0039).
+   *  Written by `scripts/mark-legacy-effort-standard.mjs`, never by the app. */
+  legacyEffortStandard?: boolean;
 }
 
 export interface SessionExercise {
@@ -236,6 +245,8 @@ export interface WorkoutSession {
 }
 
 export type ExerciseDraft = Omit<Exercise, 'id' | 'createdAt'>;
+/** A catalog edit; `targetRepBand: null` clears the override (back to derived). */
+export type ExercisePatch = Omit<Partial<ExerciseDraft>, 'targetRepBand'> & { targetRepBand?: RepBand | null };
 export type SessionDraft = Omit<WorkoutSession, 'id' | 'createdAt' | 'updatedAt'>;
 
 // The types above stay local (the PWA's `models/workout.ts` holds a

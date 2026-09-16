@@ -1198,6 +1198,45 @@ describe('firestore.rules', () => {
     );
   });
 
+  it('accepts the ADR-0039 lift settings: an effort standard and a manual rep band', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertSucceeds(
+      addDoc(collection(db, 'users', 'alice', 'exercises'), {
+        name: 'Smith squat',
+        effortStandard: 'rir1',
+        targetRepBand: { addLoadAt: 12, holdLo: 10, holdHi: 11 },
+        createdAt: Timestamp.now(),
+      }),
+    );
+    await assertSucceeds(
+      addDoc(collection(db, 'users', 'alice', 'exercises'), {
+        name: 'Seated Cable Row', effortStandard: 'failure', createdAt: Timestamp.now(),
+      }),
+    );
+    // repBandFrom(1): every edge collapses to 1 and the order still holds.
+    await assertSucceeds(
+      addDoc(collection(db, 'users', 'alice', 'exercises'), {
+        name: 'Dips', targetRepBand: { addLoadAt: 1, holdLo: 1, holdHi: 1 }, createdAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  it('rejects an unknown effort standard and a malformed or out-of-order rep band', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    const bad = (extra: Record<string, unknown>) =>
+      assertFails(addDoc(collection(db, 'users', 'alice', 'exercises'), { name: 'X', createdAt: Timestamp.now(), ...extra }));
+    await bad({ effortStandard: 'rir2' });
+    await bad({ targetRepBand: 12 });
+    await bad({ targetRepBand: { addLoadAt: 12 } });
+    await bad({ targetRepBand: { addLoadAt: 12, holdLo: 10, holdHi: 11, extra: 1 } });
+    await bad({ targetRepBand: { addLoadAt: 12.5, holdLo: 10, holdHi: 11 } });
+    await bad({ targetRepBand: { addLoadAt: 9, holdLo: 10, holdHi: 11 } });
+    await bad({ targetRepBand: { addLoadAt: 12, holdLo: 0, holdHi: 11 } });
+    await bad({ targetRepBand: { addLoadAt: 101, holdLo: 99, holdHi: 100 } });
+  });
+
   it('rejects a non-list availableLoads and a non-bool assisted', async () => {
     const db = authed('alice');
     await setDoc(doc(db, 'users', 'alice'), baseProfile());

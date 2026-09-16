@@ -27,7 +27,9 @@ describe('activationIssue — the RIR band on activation sets', () => {
     for (let r = ACTIVATION_RIR_MIN; r <= ACTIVATION_RIR_MAX; r++) {
       expect(activationIssue(ex(cluster(r)))).toBeNull();
     }
-    expect(activationIssue(ex(cluster(0)))).toBe('rir-to-failure');
+    // RIR 0 is the standard since ADR-0039, so the floor of the scale is in band.
+    expect(ACTIVATION_RIR_MIN).toBe(0);
+    expect(activationIssue(ex(cluster(0)))).toBeNull();
     expect(activationIssue(ex(cluster(4)))).toBe('rir-too-easy');
     expect(activationIssue(ex(cluster(5)))).toBe('rir-too-easy');
   });
@@ -35,7 +37,6 @@ describe('activationIssue — the RIR band on activation sets', () => {
   it('reports a missing RIR without calling the set bad', () => {
     expect(activationIssue(ex(cluster(undefined)))).toBe('rir-missing');
     expect(blocksProgression('rir-missing')).toBe(false);
-    expect(blocksProgression('rir-to-failure')).toBe(true);
     expect(blocksProgression('rir-too-easy')).toBe(true);
     expect(blocksProgression(null)).toBe(false);
   });
@@ -47,15 +48,14 @@ describe('activationIssue — the RIR band on activation sets', () => {
     expect(activationIssue(ex([{ kind: 'working', weight: 50, reps: 12, rir: 5 }]))).toBeNull();
   });
 
-  it('inspects EVERY activation, so a clean C1 cannot mask a collapsed C2', () => {
-    // The 2026-08-26 shoulder press: C1 11 @ RIR 1, C2 6 @ RIR 0.
+  it('inspects EVERY activation, so a clean C1 cannot mask a too-easy C2', () => {
     const twoCluster = ex([
       { kind: 'activation', group: 1, weight: 50, reps: 11, rir: 1 },
       { kind: 'mini', group: 1, weight: 50, reps: 7 },
-      { kind: 'activation', group: 2, weight: 50, reps: 6, rir: 0 },
-      { kind: 'mini', group: 2, weight: 50, reps: 2 },
+      { kind: 'activation', group: 2, weight: 50, reps: 14, rir: 5 },
+      { kind: 'mini', group: 2, weight: 50, reps: 9 },
     ]);
-    expect(activationIssue(twoCluster)).toBe('rir-to-failure');
+    expect(activationIssue(twoCluster)).toBe('rir-too-easy');
   });
 
   it('prefers a hard issue over a missing one', () => {

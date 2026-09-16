@@ -14,7 +14,7 @@
  * So a load recommendation built on an out-of-band activation is not a weak
  * recommendation, it is an unfounded one. The app should not make it.
  *
- * ## Why the band is 1-3, and why it stops at `activation`
+ * ## Why the band is 0-3, and why it stops at `activation`
  *
  * Trainees systematically UNDER-predict how many reps they have left: Steele
  * 2017 (n=141) puts the error at 1-2 reps, Halperin's review (12 studies, 414
@@ -22,6 +22,14 @@
  * a true RIR 4, which is the edge of where proximity to failure still drives
  * hypertrophy. Past that the set is not a stimulus the next session can be
  * measured against.
+ *
+ * RIR 0 is INSIDE the band since ADR-0039. The owner's own 85 logged clusters
+ * showed the self-report was uncalibrated the other way too — logged RIR 2
+ * sets had a mean first mini of 7.7 reps, which the mini rule reads as
+ * "activation nowhere near failure"; only the RIR 0 sets passed it. Failure
+ * on the activation is now the intended standard, not an error state. The
+ * objective check (the first mini-set's rep count, `progression-engine.ts`)
+ * is what actually catches an activation taken too far.
  *
  * **This band applies to `activation` sets ONLY, and that boundary is
  * load-bearing.** A plain `working` set carries no protocol-defined stopping
@@ -42,15 +50,12 @@ import type { LogStyle, SessionExercise, WorkoutSet } from './workout';
 import { DEFAULT_LOG_STYLE } from './workout';
 
 /** The RIR band an `activation` set must land in for its reps to be readable. */
-export const ACTIVATION_RIR_MIN = 1;
+export const ACTIVATION_RIR_MIN = 0;
 export const ACTIVATION_RIR_MAX = 3;
 
 export type ActivationIssue =
   /** No RIR recorded — unjudgeable, but not evidence of a bad set. */
   | 'rir-missing'
-  /** RIR 0: the activation was taken to failure, so the minis that follow it
-   *  are not the protocol's minis and the rep count cannot be repeated. */
-  | 'rir-to-failure'
   /** RIR above {@link ACTIVATION_RIR_MAX}: not proximate to failure, so the
    *  rep count is not comparable to the sessions it would be measured against. */
   | 'rir-too-easy'
@@ -61,7 +66,7 @@ export type ActivationIssue =
 /** True when the issue is EVIDENCE the set is invalid, rather than absence of
  *  evidence. Only these block a load recommendation. */
 export function blocksProgression(issue: ActivationIssue | null | undefined): boolean {
-  return issue === 'rir-to-failure' || issue === 'rir-too-easy';
+  return issue === 'rir-too-easy';
 }
 
 /**
@@ -102,7 +107,8 @@ export function activationIssue(
   // before the `rir-missing` fallback below.
   for (const s of performed) {
     if (s.rir == null) continue;
-    if (s.rir < ACTIVATION_RIR_MIN) return 'rir-to-failure';
+    // `rir` is clamped to [RIR_MIN, RIR_MAX] on write, so only the top edge
+    // can be out of band: ACTIVATION_RIR_MIN is 0, the floor of the scale.
     if (s.rir > ACTIVATION_RIR_MAX) return 'rir-too-easy';
   }
   if (performed.some((s) => s.rir == null)) return 'rir-missing';

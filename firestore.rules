@@ -280,8 +280,13 @@ service cloud.firestore {
       // `availableLoads` (equipment steps, lb) and `assisted` (the logged
       // weight is assistance) feed the progression engine's increment check;
       // both optional, both absent on every doc written before 2026-09-15.
+      // `effortStandard` and `targetRepBand` (ADR-0039): the activation's
+      // effort standard and a manual rep band; both optional, both absent on
+      // every doc written before 2026-09-16. The band is three small ints in
+      // the order the engine reads them: holdLo <= holdHi < addLoadAt.
       return data.keys().hasOnly(['name', 'muscles', 'defaultCues', 'logStyle', 'seedKey',
-                                  'availableLoads', 'assisted', 'createdAt'])
+                                  'availableLoads', 'assisted', 'effortStandard',
+                                  'targetRepBand', 'createdAt'])
           && data.keys().hasAll(['name', 'createdAt'])
           && data.name is string && data.name.size() > 0 && data.name.size() <= 100
           && data.createdAt is timestamp
@@ -295,7 +300,20 @@ service cloud.firestore {
               (data.seedKey is string && data.seedKey.size() <= 100))
           && (!('availableLoads' in data.keys()) ||
               (data.availableLoads is list && data.availableLoads.size() <= 60))
-          && (!('assisted' in data.keys()) || data.assisted is bool);
+          && (!('assisted' in data.keys()) || data.assisted is bool)
+          && (!('effortStandard' in data.keys()) ||
+              (data.effortStandard in ['failure', 'rir1']))
+          && (!('targetRepBand' in data.keys()) ||
+              (data.targetRepBand is map
+               && data.targetRepBand.keys().hasOnly(['addLoadAt', 'holdLo', 'holdHi'])
+               && data.targetRepBand.keys().hasAll(['addLoadAt', 'holdLo', 'holdHi'])
+               && data.targetRepBand.addLoadAt is int
+               && data.targetRepBand.holdLo is int
+               && data.targetRepBand.holdHi is int
+               && data.targetRepBand.holdLo >= 1
+               && data.targetRepBand.holdLo <= data.targetRepBand.holdHi
+               && data.targetRepBand.holdHi <= data.targetRepBand.addLoadAt
+               && data.targetRepBand.addLoadAt <= 100));
     }
 
     // `cardioBlocks` is the PRESCRIPTION half of ADR-0025 — cardio a template

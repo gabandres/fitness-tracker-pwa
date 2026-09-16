@@ -8,12 +8,16 @@
  *
  * The shape is fixed by the spec: load, action, one line of reason citing the
  * numbers, and last session's activation reps + RIR. A stall adds its own
- * lines under that. Nothing here invents a number: every figure comes off the
- * `Recommendation` object.
+ * lines under that. Since ADR-0039 two more lines can appear: the
+ * calibration count while the lift has no band yet ("Calibrating — n of 3
+ * valid sessions logged"), and a soft warning when a 1-in-reserve lift was
+ * taken to failure. Nothing here invents a number: every figure comes off
+ * the `Recommendation` object.
  */
 import {
   type InvalidReason,
   type Recommendation,
+  type RecommendWarning,
   type StallReport,
   type UnitSystem,
   formatLoad,
@@ -31,6 +35,11 @@ export interface RecommendationText {
   reason: string;
   /** "Last: 11 reps @ RIR 1" (per cluster when there are several), or null. */
   last: string | null;
+  /** The calibration count when the lift has no band yet AND the reason line
+   *  did not already say so (an invalid read during calibration). */
+  calibration: string | null;
+  /** Soft warnings, in order; empty when there are none. */
+  warnings: string[];
   /** Stall diagnosis lines, in order; empty when there is no stall. */
   stall: string[];
   /** Whether the action is an actionable load change (a chip the user can tap). */
@@ -40,7 +49,6 @@ export interface RecommendationText {
 const INVALID_KEYS: Record<InvalidReason, I18nKey> = {
   'reps-missing': 'train.rec.invalid.repsMissing',
   'rir-missing': 'train.rec.invalid.rirMissing',
-  'rir-to-failure': 'train.rec.invalid.rirToFailure',
   'rir-too-easy': 'train.rec.invalid.rirTooEasy',
   'minis-missing': 'train.rec.invalid.minisMissing',
   'first-mini-too-many': 'train.rec.invalid.firstMiniTooMany',
@@ -48,6 +56,10 @@ const INVALID_KEYS: Record<InvalidReason, I18nKey> = {
   'mini-exceeds-activation': 'train.rec.invalid.miniExceeds',
   'load-changed': 'train.rec.invalid.loadChanged',
   'not-clustered': 'train.rec.invalid.notClustered',
+};
+
+const WARNING_KEYS: Record<RecommendWarning, I18nKey> = {
+  'failure-on-rir1': 'train.rec.warn.failureOnRir1',
 };
 
 function actionKey(rec: Recommendation): I18nKey {
@@ -64,12 +76,18 @@ function actionKey(rec: Recommendation): I18nKey {
 function reasonText(rec: Recommendation, unitSystem: UnitSystem, t: TFn): string {
   const r = rec.reason;
   const load = rec.currentLoad != null ? formatLoad(rec.currentLoad, unitSystem) : '';
-  const { lo, hi } = rec.band;
+  // The band is non-null on every reason kind that cites it; the fallbacks
+  // keep the renderer total rather than trusting that invariant.
+  const lo = rec.band?.holdLo ?? '';
+  const hi = rec.band?.holdHi ?? '';
+  const at = rec.band?.addLoadAt ?? '';
   switch (r.kind) {
     case 'no-history':
       return t('train.rec.reason.noHistory');
     case 'straight-sets':
       return '';
+    case 'calibrating':
+      return t('train.rec.calibrating', { n: r.valid, needed: r.needed });
     case 'invalid': {
       const body = t(INVALID_KEYS[r.reason], {
         n: r.firstMini ?? '', reps: r.reps ?? '', rir: r.rir ?? '',
@@ -78,17 +96,21 @@ function reasonText(rec: Recommendation, unitSystem: UnitSystem, t: TFn): string
         ? `${t('train.rec.clusterPrefix', { group: r.group })}${body}`
         : body;
     }
-    case 'in-band':
+    case 'at-target':
       if (rec.currentLoad == null) return t('train.rec.reason.bodyweightAdd', { reps: r.reps });
       return r.rir != null
-        ? t('train.rec.reason.inBand', { reps: r.reps, rir: r.rir, load })
-        : t('train.rec.reason.inBandNoRir', { reps: r.reps, load });
+        ? t('train.rec.reason.atTarget', { reps: r.reps, rir: r.rir, load, at })
+        : t('train.rec.reason.atTargetNoRir', { reps: r.reps, load, at });
     case 'over-band':
-      return t('train.rec.reason.overBand', { reps: r.reps, lo, hi });
+      return t('train.rec.reason.overBand', { reps: r.reps, at });
     case 'below-band':
       return r.group != null
-        ? t('train.rec.reason.belowBandCluster', { group: r.group, reps: r.reps, lo, hi })
-        : t('train.rec.reason.belowBand', { reps: r.reps, lo, hi });
+        ? t('train.rec.reason.belowBandCluster', { group: r.group, reps: r.reps, at })
+        : t('train.rec.reason.belowBand', { reps: r.reps, lo, hi, at });
+    case 'under-band':
+      return r.group != null
+        ? t('train.rec.reason.underBandCluster', { group: r.group, reps: r.reps, lo, hi, goal: r.goal, load })
+        : t('train.rec.reason.underBand', { reps: r.reps, lo, hi, goal: r.goal, load });
     case 'jump-too-big':
       return t('train.rec.reason.jumpTooBig', {
         next: formatLoad(r.nextLoad, unitSystem),
@@ -114,6 +136,15 @@ function lastText(rec: Recommendation, t: TFn): string | null {
       : t('train.rec.lastClusterNoRir', { group: a.group, reps: a.reps as number }),
   );
   return `${t('train.last')}: ${parts.join(' · ')}`;
+}
+
+/** The calibration count, shown when no band is in force and the reason line
+ *  is about something else (an invalid read). Null otherwise. */
+function calibrationText(rec: Recommendation, t: TFn): string | null {
+  if (rec.band != null) return null;
+  if (rec.reason.kind === 'calibrating' || rec.reason.kind === 'no-history') return null;
+  if (!rec.calibration.load && rec.calibration.validSessions === 0 && rec.reason.kind === 'straight-sets') return null;
+  return t('train.rec.calibrating', { n: rec.calibration.validSessions, needed: rec.calibration.needed });
 }
 
 export function stallLines(stall: StallReport, unitSystem: UnitSystem, t: TFn): string[] {
@@ -154,6 +185,8 @@ export function recommendationText(
     load,
     reason: reasonText(rec, unitSystem, t),
     last: lastText(rec, t),
+    calibration: calibrationText(rec, t),
+    warnings: rec.warnings.map((w) => t(WARNING_KEYS[w])),
     stall: rec.stall ? stallLines(rec.stall, unitSystem, t) : [],
     tappable: rec.action === 'add-load' && rec.load != null,
   };

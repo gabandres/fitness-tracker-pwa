@@ -163,10 +163,10 @@ describe('workout-progression — an unreadable activation blocks the recommenda
     expect(s.lastReps).toBe(12);
   });
 
-  it('refuses when the activation was taken to failure', () => {
+  it('an activation taken to failure is a readable set, not a refusal (ADR-0039)', () => {
     const s = suggestProgression([act(12, 0), act(12, 0)], rule, 'weight-reps');
-    expect(s.bumped).toBe(false);
-    expect(s.blockedBy).toBe('rir-to-failure');
+    expect(s.bumped).toBe(true);
+    expect(s.blockedBy).toBeUndefined();
   });
 
   it('still bumps inside the band', () => {

@@ -116,6 +116,15 @@ export interface WorkoutSet {
    *  ticked `done`. */
   targetReps?: number;
   targetDurationSec?: number;
+  /**
+   * The set was logged BEFORE the effort standard was fixed (ADR-0039,
+   * cutoff 2026-09-15 inclusive), when self-reported RIR was uncalibrated —
+   * a logged RIR 2 was functionally RIR 4-5. The progression engine EXCLUDES
+   * flagged sets when it derives an exercise's rep band and never judges one
+   * as the latest read; history and PRs still show them. Written once by
+   * `scripts/mark-legacy-effort-standard.mjs`, never by a client.
+   */
+  legacyEffortStandard?: boolean;
 }
 
 export interface SessionExercise {
@@ -223,6 +232,29 @@ export function findDuplicateExercise<T extends { id?: string; name: string }>(
   return catalog.find((e) => exerciseNameKey(e.name) === key);
 }
 
+/**
+ * How close to failure the ACTIVATION set of a cluster is taken on a lift.
+ * `failure` (RIR 0) is the standard since ADR-0039; `rir1` leaves one rep in
+ * reserve, for lifts where failure under load conflicts with a restriction
+ * (the owner's Smith squat and seated cable row — lumbar). A property of the
+ * lift, not of the programme, so it lives on the catalog exercise.
+ */
+export type EffortStandard = 'failure' | 'rir1';
+export const DEFAULT_EFFORT_STANDARD: EffortStandard = 'failure';
+
+/**
+ * The activation-rep band a clustered lift is judged against. Derived per
+ * exercise from observed reps (`progression-engine.ts` `repBandFrom`): reps
+ * at or over `addLoadAt` → add load; `holdLo`-`holdHi` → hold; under
+ * `holdLo` → build reps. Stored on the catalog exercise ONLY as a manual
+ * override; the derived band is computed on read and never written.
+ */
+export interface RepBand {
+  addLoadAt: number;
+  holdLo: number;
+  holdHi: number;
+}
+
 export interface Exercise {
   id?: string;
   name: string;
@@ -249,6 +281,11 @@ export interface Exercise {
    * exercise, not the set, because it describes the movement's loading.
    */
   assisted?: boolean;
+  /** See {@link EffortStandard}. Absent reads as {@link DEFAULT_EFFORT_STANDARD}. */
+  effortStandard?: EffortStandard;
+  /** Manual override of the derived rep band — see {@link RepBand}. Absent
+   *  means "derive it from three valid sessions at the current load". */
+  targetRepBand?: RepBand;
   createdAt: Date;
 }
 

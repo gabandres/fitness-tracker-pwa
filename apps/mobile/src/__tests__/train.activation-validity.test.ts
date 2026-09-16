@@ -26,7 +26,6 @@ import { esPR } from '@/i18n/es-PR';
 import { ptBR } from '@/i18n/pt-BR';
 
 const ISSUE_KEYS = [
-  'train.invalidRirFailure',
   'train.invalidRirEasy',
   'train.invalidRirMissing',
   'train.invalidNotClustered',

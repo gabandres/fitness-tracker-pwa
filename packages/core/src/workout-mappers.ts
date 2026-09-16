@@ -41,6 +41,8 @@ export function toWorkoutExercise(id: string, data: Record<string, unknown>): Ex
     seedKey: data['seedKey'] as string | undefined,
     availableLoads: data['availableLoads'] as number[] | undefined,
     assisted: data['assisted'] as boolean | undefined,
+    effortStandard: data['effortStandard'] as Exercise['effortStandard'],
+    targetRepBand: data['targetRepBand'] as Exercise['targetRepBand'],
     createdAt: toDate(data['createdAt']),
   };
 }

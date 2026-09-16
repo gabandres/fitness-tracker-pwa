@@ -500,6 +500,23 @@ collections + a `WorkoutStore` facet back the Train tab.
   is wrong in a way the type system cannot catch, which is why
   [ADR-0028](docs/adr/0028-stretching-mobility-model.md) rules that **RAMP's
   letters are never identifiers.**
+- **Effort standard** — how close to failure the *activation* set of a cluster
+  is taken: `failure` (RIR 0, the default since ADR-0039) or `rir1` (one rep
+  in reserve, for a lift where failure under load conflicts with a
+  restriction). A property of the catalog `Exercise`, not of a template row.
+  An RIR-0 activation on a `rir1` lift is a **warning**, never an invalid
+  read; RIR 4+ is invalid on any lift; the first-mini rule decides validity.
+- **Rep band** (`RepBand`) — the activation-rep thresholds a clustered lift is
+  judged against: `addLoadAt` (add load at or over it), `holdLo`-`holdHi`
+  (hold), under `holdLo` (build reps). **Derived per exercise on read** from
+  three valid sessions at the current load (`calibrationFor`), never stored;
+  `Exercise.targetRepBand` is the only stored form and means "manual
+  override". "Calibrating" is the state before a band exists. The old
+  hardcoded 11-12 / 9-10 band is gone.
+- **Legacy set** — a `WorkoutSet` with `legacyEffortStandard: true`: logged on
+  or before 2026-09-15 under the uncalibrated RIR standard. Excluded from
+  band derivation, never judged as the latest read, kept as history (PRs,
+  CSV, the stall run). Written once by a script, never by a client.
 - **Mobility set** — the canonical term for a stretch, a hold or a joint-prep
   movement: a catalog `Exercise` with `logStyle: 'time'`, no `ProgressionRule`,
   logged as a `WorkoutSet` of kind `mobility` inside the ordinary `exercises[]`

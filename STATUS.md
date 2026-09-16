@@ -76,6 +76,15 @@ half is why this row exists.
 | Web | one SEO route manifest (5 copies → 1), one admin console (three modules → one) |
 | Functions | `withCostGuards`, plus parity specs for the last three mirrors |
 
+**2026-09-15 — ADR-0039 (RIR 0 standard, derived rep band, legacy flag) is
+MERGED and on NO OTA yet.** Rules are deployed and the owner's 706 pre-cutoff
+sets are flagged, so a device on the current OTA still runs the ADR-0038
+engine against data that now carries `legacyEffortStandard` (harmless: it
+ignores the field) and two catalog docs with `effortStandard: 'rir1'`. Every
+clustered lift will read "Calibrating — 0 of 3" once the OTA lands, by
+design. Ship with `build-android` / `build-ios` (JS-only; fingerprints
+unmoved by this change — verify at publish time, never assume).
+
 **2026-09-15 — the progression engine (ADR-0038) and the CSV `setDurationSec`
 column SHIPPED on BOTH platforms as OTAs from `046ce695`, and the What's New
 screen followed the same day from `287a80db` (Android `984781cf…`, iOS

@@ -7,22 +7,43 @@
  * Layer 1 (validity) runs FIRST and blocks everything after it. Self-reported
  * RIR is unreliable (Steele 2017, Halperin, Refalo 2024 — see
  * `activation-validity.ts`); the mini-set rep count is objective. In myo-reps
- * an activation set at RIR 1-2 is followed by mini-sets after 5-10 s, and the
- * published rule reads the FIRST mini as a measurement of the activation:
+ * an activation set is followed by mini-sets after 5-10 s, and the published
+ * rule reads the FIRST mini as a measurement of the activation:
  *
  *     first mini > 5 reps  → the activation was too easy   → read INVALID
  *     first mini < 2 reps  → the activation was too hard   → read INVALID
  *     first mini 2-5 reps  → read VALID
+ *
+ * That rule holds under any effort standard, which is why it is the primary
+ * gate. The activation's RIR only invalidates at the top (RIR 4+); RIR 0 is
+ * the intended standard since ADR-0039 — the owner's 85 logged clusters showed
+ * only the RIR-0 activations passed the mini rule.
  *
  * An invalid read never produces a load recommendation. It produces "repeat
  * <load> — read invalid" and the specific reason. That is the single most
  * important rule in this module: advancing load off a read that cannot support
  * the claim corrupts every session that follows it.
  *
- * Layer 2 (progression) reads the ACTIVATION SET ONLY. Minis never drive load.
- * A multi-cluster lift advances only when EVERY activation lands in band
- * (`keySets` in `workout-progression.ts` closed the half-evidence bug this
- * generalises), and the blocking cluster is named.
+ * Layer 2 (progression) reads the ACTIVATION SET ONLY, against a rep band
+ * that is DERIVED PER EXERCISE, not hardcoded. Thresholds calibrated to a
+ * RIR 1-2 standard (11-12 / 9-10 / under 9) do not transfer to failure sets,
+ * so the band is computed from what the lifter actually did: after
+ * {@link CALIBRATION_SESSIONS} valid sessions at one load,
+ *
+ *     addLoadAt = max observed activation reps
+ *     hold      = max-2 .. max-1
+ *     build     = under max-2
+ *
+ * and it is recomputed whenever the load changes (the calibration run is the
+ * consecutive sessions at the CURRENT load). Until then the engine says
+ * "Calibrating — n of 3 valid sessions logged" and recommends NO load. A
+ * manual `Exercise.targetRepBand` overrides the derivation. Minis never drive
+ * load. A multi-cluster lift advances only when EVERY activation clears the
+ * mark, and the blocking cluster is named.
+ *
+ * Sets flagged `legacyEffortStandard` (logged on or before 2026-09-15, under
+ * an inconsistent RIR standard) are EXCLUDED from the band derivation and are
+ * never judged as the latest read; they remain history.
  *
  * Layer 3 (increments) refuses to recommend a load the equipment cannot be
  * set to, or a jump over {@link MAX_JUMP_PCT} — except on a lift that is
@@ -32,12 +53,20 @@
  * Layer 4 (stalls) counts consecutive sessions at one load and, at three,
  * says WHY rather than just that.
  *
+ * ## Effort standard per lift
+ *
+ * `Exercise.effortStandard` is `failure` by default; `rir1` marks a lift that
+ * deliberately stops one rep short (a restriction). On a `rir1` lift an
+ * activation logged at RIR 0 is a WARNING on the recommendation, not an
+ * invalid read — the mini rule still decides validity.
+ *
  * ## What it deliberately does not do
  *
  * No soreness/pump prompts, no %1RM, no velocity, no deload scheduling, and it
- * NEVER mutates a template. It recommends; the lifter accepts or overrides,
- * and the recommendation is frozen on the session (`SessionExercise.
- * recommendation`) so the override can be audited later.
+ * NEVER mutates a template or a catalog exercise. It recommends; the lifter
+ * accepts or overrides, and the recommendation is frozen on the session
+ * (`SessionExercise.recommendation`) so the override can be audited later.
+ * The derived band is computed on read and never written anywhere.
  *
  * ## Straight sets
  *
@@ -50,9 +79,16 @@
  *
  * Pure, framework-free, shared by both apps (ADR-0012).
  */
-import type { LogStyle, ProgressionRule, SessionExercise, WorkoutSet } from './workout';
-import { DEFAULT_LOG_STYLE } from './workout';
-import { ACTIVATION_RIR_MAX, ACTIVATION_RIR_MIN } from './activation-validity';
+import type {
+  EffortStandard,
+  LogStyle,
+  ProgressionRule,
+  RepBand,
+  SessionExercise,
+  WorkoutSet,
+} from './workout';
+import { DEFAULT_EFFORT_STANDARD, DEFAULT_LOG_STYLE } from './workout';
+import { ACTIVATION_RIR_MAX } from './activation-validity';
 import { DEFAULT_INCREMENT_LB } from './load-units';
 
 // ─── Constants (stated once; the tests pin them) ────────────────
@@ -60,9 +96,14 @@ import { DEFAULT_INCREMENT_LB } from './load-units';
 /** The first mini-set's readable band, inclusive. */
 export const FIRST_MINI_MIN = 2;
 export const FIRST_MINI_MAX = 5;
-/** Rep target when the template carries no `progression.targetReps`. The band
- *  is `[target - 1, target]` — 11-12 by default. */
-export const DEFAULT_TARGET_REPS = 12;
+/** Valid (non-legacy) sessions at one load before a rep band is derived. */
+export const CALIBRATION_SESSIONS = 3;
+/** The hold band sits this many reps under the add-load mark: `max-2 .. max-1`. */
+export const HOLD_BAND_WIDTH = 2;
+/** Sets logged on or before this date (inclusive) carry
+ *  `legacyEffortStandard: true` — see `WorkoutSet`. Informational here; the
+ *  engine reads the flag, never the date. */
+export const LEGACY_EFFORT_CUTOFF = '2026-09-15';
 // The fallback load step is `DEFAULT_INCREMENT_LB` from ./load-units — the
 // same 5 lb the weight stepper assumes, one number for "the smallest step we
 // assume exists" when neither the equipment nor the template says.
@@ -76,6 +117,16 @@ export const STALL_SESSIONS = 3;
 /** Consecutive same-load sessions that earn an intervention list. */
 export const INTERVENTION_SESSIONS = 5;
 
+/** The band a lift earns from its highest valid activation rep count. */
+export function repBandFrom(maxReps: number): RepBand {
+  const max = Math.max(1, Math.round(maxReps));
+  return {
+    addLoadAt: max,
+    holdLo: Math.max(1, max - HOLD_BAND_WIDTH),
+    holdHi: Math.max(1, max - 1),
+  };
+}
+
 // ─── Layer 1: validity ──────────────────────────────────────────
 
 export type InvalidReason =
@@ -83,8 +134,6 @@ export type InvalidReason =
   | 'reps-missing'
   /** No RIR on the activation. Blocks only in strict mode (clustered lifts). */
   | 'rir-missing'
-  /** Activation at RIR 0 — taken to failure; the minis are not the protocol's. */
-  | 'rir-to-failure'
   /** Activation at RIR {@link ACTIVATION_RIR_MAX}+ — not proximate to failure. */
   | 'rir-too-easy'
   /** No mini-set logged after the activation — the objective check cannot run. */
@@ -109,6 +158,8 @@ export interface ClusterRead {
   minis: number[];
   /** The first blocking issue on this cluster, or null when it is clean. */
   issue: InvalidReason | null;
+  /** The activation carries `legacyEffortStandard`. */
+  legacy: boolean;
 }
 
 export interface ExerciseRead {
@@ -125,6 +176,9 @@ export interface ExerciseRead {
   load?: number;
   /** True when there was an activation set to read at all. */
   clustered: boolean;
+  /** Any performed activation was logged under the legacy effort standard.
+   *  Such a read is history, not evidence: excluded from band derivation. */
+  legacy: boolean;
 }
 
 export interface ReadOptions {
@@ -152,7 +206,7 @@ export function readExercise(
   const style: LogStyle = exercise.logStyle ?? DEFAULT_LOG_STYLE;
   const strict = opts.strictRir ?? opts.expectsCluster ?? false;
   const none = (issue: InvalidReason | null, clustered = false): ExerciseRead => ({
-    clusters: [], issue, valid: false, clustered,
+    clusters: [], issue, valid: false, clustered, legacy: false,
   });
   // A timed hold has no reps to read. The engine is a rep engine; this is not
   // a defect in the log, it is the wrong instrument.
@@ -172,16 +226,20 @@ export function readExercise(
       .map((s) => s.reps as number);
     // Nothing performed in this cluster: skip it rather than judge it.
     if (!hasReps(a) && minis.length === 0) continue;
-    const read: ClusterRead = { group, load: a.weight, reps: a.reps, rir: a.rir, minis, issue: null };
+    const read: ClusterRead = {
+      group, load: a.weight, reps: a.reps, rir: a.rir, minis, issue: null,
+      legacy: a.legacyEffortStandard === true,
+    };
     read.issue = clusterIssue(read, strict);
     clusters.push(read);
   }
   if (clusters.length === 0) return none(null, true);
+  const legacy = clusters.some((c) => c.legacy);
 
   const loads = new Set(clusters.map((c) => c.load).filter((w): w is number => w != null));
   const load = loads.size === 1 ? [...loads][0] : undefined;
   if (loads.size > 1) {
-    return { clusters, issue: 'load-changed', valid: false, clustered: true };
+    return { clusters, issue: 'load-changed', valid: false, clustered: true, legacy };
   }
   const bad = clusters.find((c) => c.issue);
   return {
@@ -191,6 +249,7 @@ export function readExercise(
     valid: !bad,
     load,
     clustered: true,
+    legacy,
   };
 }
 
@@ -198,9 +257,9 @@ function clusterIssue(c: ClusterRead, strict: boolean): InvalidReason | null {
   if (c.reps == null) return 'reps-missing';
   if (c.rir == null) {
     if (strict) return 'rir-missing';
-  } else {
-    if (c.rir < ACTIVATION_RIR_MIN) return 'rir-to-failure';
-    if (c.rir > ACTIVATION_RIR_MAX) return 'rir-too-easy';
+  } else if (c.rir > ACTIVATION_RIR_MAX) {
+    // RIR 0 is the standard, not an error (ADR-0039); only the top edge blocks.
+    return 'rir-too-easy';
   }
   if (c.minis.length === 0) return 'minis-missing';
   const first = c.minis[0];
@@ -210,20 +269,91 @@ function clusterIssue(c: ClusterRead, strict: boolean): InvalidReason | null {
   return null;
 }
 
+// ─── Layer 2a: the band — calibration ───────────────────────────
+
+export interface Calibration {
+  /** The load being calibrated: the most recent clustered read's load. */
+  load?: number;
+  /** Valid, non-legacy sessions in the consecutive run at that load. */
+  validSessions: number;
+  needed: number;
+  /** Highest activation reps across those sessions, once there is one. */
+  maxReps?: number;
+  /** The band in force, or null while calibrating. */
+  band: RepBand | null;
+  /** Where the band came from. */
+  source: 'override' | 'derived' | null;
+}
+
+/**
+ * The calibration state for one exercise. `history` is most-recent-first.
+ *
+ * The run is the consecutive clustered reads at the CURRENT load, so a load
+ * change restarts calibration by construction ("recalculate whenever the
+ * load changes"). Legacy reads are skipped without breaking the run — they
+ * are invisible to calibration, at any load. Reads whose load is unknown
+ * (`load-changed`, a bodyweight cluster) neither count nor break the run.
+ */
+export function calibrationFor(history: readonly SessionExercise[], opts: RecommendOptions = {}): Calibration {
+  return calibrationFrom(history.map((h) => readExercise(h, opts)), opts);
+}
+
+/** The load a read calibrates under: a bodyweight cluster (no weight on any
+ *  set) is one load, "none", and calibrates like any other; a read whose
+ *  clusters disagree about the load has no key at all. */
+function loadKey(r: ExerciseRead): number | undefined {
+  if (!r.clustered || r.issue === 'load-changed') return undefined;
+  return r.load ?? 0;
+}
+
+function calibrationFrom(reads: readonly ExerciseRead[], opts: RecommendOptions): Calibration {
+  const needed = CALIBRATION_SESSIONS;
+  const current = reads.find((r) => loadKey(r) != null && !r.legacy)
+    ?? reads.find((r) => loadKey(r) != null);
+  const key = current ? loadKey(current) : undefined;
+  const load = current?.load;
+  let validSessions = 0;
+  let maxReps: number | undefined;
+  if (key != null) {
+    for (const r of reads) {
+      if (!r.clustered || r.legacy) continue;
+      const k = loadKey(r);
+      if (k == null) continue;
+      if (k !== key) break;
+      if (!r.valid) continue;
+      const reps = r.clusters.map((c) => c.reps).filter((x): x is number => x != null);
+      if (reps.length === 0) continue;
+      validSessions += 1;
+      const m = Math.max(...reps);
+      maxReps = maxReps == null ? m : Math.max(maxReps, m);
+    }
+  }
+  if (opts.targetRepBand) {
+    return { load, validSessions, needed, maxReps, band: opts.targetRepBand, source: 'override' };
+  }
+  const derived = validSessions >= needed && maxReps != null;
+  return {
+    load, validSessions, needed, maxReps,
+    band: derived ? repBandFrom(maxReps as number) : null,
+    source: derived ? 'derived' : null,
+  };
+}
+
 // ─── Layer 2 + 3: the recommendation ────────────────────────────
 
 export type RecommendAction =
-  /** Every activation landed in band (or over it): take the next load. On an
-   *  `assisted` lift this means LESS assistance. */
+  /** Every activation reached the add-load mark (or passed it): take the next
+   *  load. On an `assisted` lift this means LESS assistance. */
   | 'add-load'
-  /** Below band on at least one cluster: same load, build reps. */
+  /** In the hold band on at least one cluster: same load, build reps. */
   | 'hold'
-  /** In band, but the next available load is too big a step: same load,
-   *  build {@link BUILD_REPS_EXTRA} more reps first. */
+  /** Same load, build reps first — either under the hold band on at least one
+   *  cluster, or the next available load is too big a step. */
   | 'build-reps'
   /** The last read was invalid: repeat the load, fix the read. */
   | 'repeat-invalid'
-  /** No readable history: the first session is a calibration, not a read. */
+  /** No band yet: the session is a calibration, not a read. Also the state
+   *  before any history, and after a legacy latest read. */
   | 'calibrate'
   /** Not a clustered lift; the engine has nothing to say. */
   | 'none';
@@ -231,11 +361,22 @@ export type RecommendAction =
 export type RecommendReason =
   | { kind: 'no-history' }
   | { kind: 'straight-sets' }
+  /** Band not yet derived: `valid` of `needed` sessions at the current load. */
+  | { kind: 'calibrating'; valid: number; needed: number }
   | { kind: 'invalid'; reason: InvalidReason; group?: number; firstMini?: number; rir?: number; reps?: number }
-  | { kind: 'in-band'; reps: number; rir?: number }
+  /** Every cluster at the add-load mark. */
+  | { kind: 'at-target'; reps: number; rir?: number }
+  /** Every cluster OVER the add-load mark — only possible under an override. */
   | { kind: 'over-band'; reps: number; rir?: number }
+  /** At least one cluster in the hold band. */
   | { kind: 'below-band'; reps: number; group?: number; clusters: number }
+  /** At least one cluster UNDER the hold band; `goal` is the band's floor. */
+  | { kind: 'under-band'; reps: number; group?: number; clusters: number; goal: number }
   | { kind: 'jump-too-big'; nextLoad: number; jumpPct: number; repsGoal: number };
+
+export type RecommendWarning =
+  /** A `rir1` lift logged its activation at RIR 0. Soft: the read stands. */
+  | 'failure-on-rir1';
 
 export interface ActivationSummary {
   group: number;
@@ -247,7 +388,8 @@ export interface ActivationSummary {
 export interface Recommendation {
   action: RecommendAction;
   /** The load to use next session, pounds. Equals `currentLoad` on hold /
-   *  repeat / build-reps; the next step on add-load. Absent when unknown. */
+   *  repeat / build-reps / calibrate; the next step on add-load. Absent when
+   *  unknown. */
   load?: number;
   /** The load the last session used. */
   currentLoad?: number;
@@ -256,18 +398,27 @@ export interface Recommendation {
   reason: RecommendReason;
   /** True when the exercise's weight is assistance (less is progress). */
   assisted: boolean;
-  /** The rep band the activation is judged against, inclusive. */
-  band: { lo: number; hi: number };
+  /** The rep band in force, or null while calibrating. */
+  band: RepBand | null;
+  /** Where the band stands: valid sessions so far, its source, its max. */
+  calibration: Calibration;
+  /** Soft flags that do not change the action. */
+  warnings: RecommendWarning[];
   /** Layer 4, when there is enough history. */
   stall?: StallReport;
 }
 
 export interface RecommendOptions extends ReadOptions {
-  /** From the template's `progression`; the band is `[targetReps-1, targetReps]`. */
+  /** From the template's `progression`; only `incrementLb` is read now that
+   *  the band is derived. */
   progression?: Partial<ProgressionRule>;
   /** From the catalog exercise. */
   availableLoads?: number[];
   assisted?: boolean;
+  /** From the catalog exercise; defaults to {@link DEFAULT_EFFORT_STANDARD}. */
+  effortStandard?: EffortStandard;
+  /** From the catalog exercise: a manual band that skips calibration. */
+  targetRepBand?: RepBand;
 }
 
 /** The activation reps that bind a multi-cluster read: the lowest. */
@@ -307,20 +458,20 @@ export function nextLoad(
  * COMPLETED sessions, most-recent-first (what `exerciseHistory` returns).
  */
 export function recommend(history: readonly SessionExercise[], opts: RecommendOptions = {}): Recommendation {
-  const target = opts.progression?.targetReps ?? DEFAULT_TARGET_REPS;
-  const band = { lo: target - 1, hi: target };
   const assisted = opts.assisted ?? false;
-  const last = history[0];
-  const base = { last: [] as ActivationSummary[], assisted, band };
+  const reads = history.map((h) => readExercise(h, opts));
+  const calibration = calibrationFrom(reads, opts);
+  const band = calibration.band;
+  const base = { last: [] as ActivationSummary[], assisted, band, calibration, warnings: [] as RecommendWarning[] };
+  const read = reads[0];
 
-  if (!last) return { ...base, action: 'calibrate', reason: { kind: 'no-history' } };
+  if (!read) return { ...base, action: 'calibrate', reason: { kind: 'no-history' } };
 
-  const read = readExercise(last, opts);
   const summaries: ActivationSummary[] = read.clusters.map((c) => ({
     group: c.group, reps: c.reps, rir: c.rir, firstMini: c.minis[0],
   }));
   const currentLoad = read.load ?? read.clusters.find((c) => c.load != null)?.load;
-  const stall = detectStall(history, opts);
+  const stall = stallFrom(reads, band);
   const withStall = stall ? { stall } : {};
 
   if (!read.clustered) {
@@ -333,10 +484,16 @@ export function recommend(history: readonly SessionExercise[], opts: RecommendOp
     return { ...base, action: 'none', currentLoad, reason: { kind: 'straight-sets' } };
   }
 
+  // A `rir1` lift taken to failure: say so, but the mini rule decides validity.
+  const standard = opts.effortStandard ?? DEFAULT_EFFORT_STANDARD;
+  const warnings: RecommendWarning[] =
+    standard === 'rir1' && read.clusters.some((c) => c.rir === 0) ? ['failure-on-rir1'] : [];
+  const judged = { ...base, warnings, last: summaries, currentLoad, ...withStall };
+
   if (!read.valid) {
     const bad = read.clusters.find((c) => c.group === read.issueGroup);
     return {
-      ...base, ...withStall, action: 'repeat-invalid', load: currentLoad, currentLoad, last: summaries,
+      ...judged, action: 'repeat-invalid', load: currentLoad,
       reason: {
         kind: 'invalid',
         reason: read.issue as InvalidReason,
@@ -348,28 +505,52 @@ export function recommend(history: readonly SessionExercise[], opts: RecommendOp
     };
   }
 
-  // Layer 2 — activation reps only; every cluster must clear the band.
-  const below = read.clusters.find((c) => (c.reps as number) < band.lo);
+  // A legacy latest read is history, not evidence — and no band means the
+  // engine has nothing to judge against yet. Both are "calibrate": repeat the
+  // load, log a clean session, and the count moves.
+  if (read.legacy || band == null) {
+    return {
+      ...judged, action: 'calibrate', load: currentLoad,
+      reason: { kind: 'calibrating', valid: calibration.validSessions, needed: calibration.needed },
+    };
+  }
+
+  // Layer 2 — activation reps only; every cluster must clear the mark. The
+  // cluster named is the BINDING one (fewest reps), which on a two-cluster
+  // lift is the one the lifter has to move.
+  const multi = read.clusters.length > 1;
+  const lowest = [...read.clusters].sort((a, b) => (a.reps as number) - (b.reps as number))[0];
+  const under = (lowest.reps as number) < band.holdLo ? lowest : undefined;
+  if (under) {
+    return {
+      ...judged, action: 'build-reps', load: currentLoad,
+      reason: {
+        kind: 'under-band', reps: under.reps as number, clusters: read.clusters.length, goal: band.holdLo,
+        ...(multi ? { group: under.group } : {}),
+      },
+    };
+  }
+  const below = (lowest.reps as number) < band.addLoadAt ? lowest : undefined;
   if (below) {
     return {
-      ...base, ...withStall, action: 'hold', load: currentLoad, currentLoad, last: summaries,
+      ...judged, action: 'hold', load: currentLoad,
       reason: {
         kind: 'below-band', reps: below.reps as number, clusters: read.clusters.length,
-        ...(read.clusters.length > 1 ? { group: below.group } : {}),
+        ...(multi ? { group: below.group } : {}),
       },
     };
   }
   const reps = bindingReps(read) as number;
-  const over = read.clusters.every((c) => (c.reps as number) > band.hi);
+  const over = read.clusters.every((c) => (c.reps as number) > band.addLoadAt);
   const lead = read.clusters[0];
-  const inBand: RecommendReason = over
+  const atMark: RecommendReason = over
     ? { kind: 'over-band', reps: Math.max(...read.clusters.map((c) => c.reps as number)), ...(lead.rir != null ? { rir: lead.rir } : {}) }
-    : { kind: 'in-band', reps, ...(lead.rir != null ? { rir: lead.rir } : {}) };
+    : { kind: 'at-target', reps, ...(lead.rir != null ? { rir: lead.rir } : {}) };
 
   if (currentLoad == null) {
     // Bodyweight cluster with no logged load: the call is still "add load",
     // and what that means (a plate, a band) is the lifter's to decide.
-    return { ...base, ...withStall, action: 'add-load', last: summaries, reason: inBand };
+    return { ...judged, action: 'add-load', reason: atMark };
   }
 
   // Layer 3 — does the next step exist, and is it a step or a leap?
@@ -377,15 +558,15 @@ export function recommend(history: readonly SessionExercise[], opts: RecommendOp
     availableLoads: opts.availableLoads, incrementLb: opts.progression?.incrementLb, assisted,
   });
   // The cap protects a lifter from a 100% Smith jump; it must not cap a lift
-  // that already reads over the band — that one is under-loaded and the cap
+  // that already reads over the mark — that one is under-loaded and the cap
   // would freeze it there (the calf raise that returned 15-20 at three loads).
   if (next.jumpPct > MAX_JUMP_PCT && !over) {
     return {
-      ...base, ...withStall, action: 'build-reps', load: currentLoad, currentLoad, last: summaries,
+      ...judged, action: 'build-reps', load: currentLoad,
       reason: { kind: 'jump-too-big', nextLoad: next.load, jumpPct: next.jumpPct, repsGoal: reps + BUILD_REPS_EXTRA },
     };
   }
-  return { ...base, ...withStall, action: 'add-load', load: next.load, currentLoad, last: summaries, reason: inBand };
+  return { ...judged, action: 'add-load', load: next.load, reason: atMark };
 }
 
 // ─── Layer 4: stalls ────────────────────────────────────────────
@@ -405,8 +586,8 @@ export interface StallReport {
   invalidSessions: number;
   /** Sessions whose first mini exceeded {@link FIRST_MINI_MAX}: activation too easy. */
   easyActivations: number;
-  /** On a multi-cluster lift, the cluster that sat below band in EVERY session
-   *  while another cleared it at least once. */
+  /** On a multi-cluster lift, the cluster that sat under the add-load mark in
+   *  EVERY session while another reached it at least once. Needs a band. */
   blockingGroup?: number;
   /** Ranked, present from {@link INTERVENTION_SESSIONS} sessions on. */
   interventions: StallIntervention[];
@@ -418,12 +599,15 @@ export interface StallReport {
  *
  * "Not increasing" is judged on the most recent step (`reps[0] <= reps[1]`),
  * which is what a lifter means by it: a run of 10, 11, 11 has stopped moving
- * even though it once moved.
+ * even though it once moved. Legacy sessions count toward the run — a stall
+ * is about the load not moving, whatever the effort standard was.
  */
 export function detectStall(history: readonly SessionExercise[], opts: RecommendOptions = {}): StallReport | null {
-  const target = opts.progression?.targetReps ?? DEFAULT_TARGET_REPS;
-  const lo = target - 1;
   const reads = history.map((h) => readExercise(h, opts));
+  return stallFrom(reads, calibrationFrom(reads, opts).band);
+}
+
+function stallFrom(reads: readonly ExerciseRead[], band: RepBand | null): StallReport | null {
   const first = reads[0];
   if (!first?.clustered || first.load == null) return null;
   const load = first.load;
@@ -443,13 +627,14 @@ export function detectStall(history: readonly SessionExercise[], opts: Recommend
 
   let blockingGroup: number | undefined;
   const groups = new Set(run.flatMap((r) => r.clusters.map((c) => c.group)));
-  if (groups.size > 1) {
+  if (band && groups.size > 1) {
+    const mark = band.addLoadAt;
     for (const g of groups) {
       const alwaysBelow = run.every((r) => {
         const c = r.clusters.find((x) => x.group === g);
-        return c?.reps != null && c.reps < lo;
+        return c?.reps != null && c.reps < mark;
       });
-      const otherCleared = run.some((r) => r.clusters.some((c) => c.group !== g && (c.reps ?? 0) >= lo));
+      const otherCleared = run.some((r) => r.clusters.some((c) => c.group !== g && (c.reps ?? 0) >= mark));
       if (alwaysBelow && otherCleared) { blockingGroup = g; break; }
     }
   }
@@ -471,13 +656,19 @@ export function detectStall(history: readonly SessionExercise[], opts: Recommend
 
 /**
  * The engine options for one template row — the prescription (cluster or
- * not, rep target, increment) from the template, the equipment (steps,
- * assisted) from the catalog exercise. Both apps build options through this
- * so they cannot disagree about which field means what.
+ * not, increment) from the template; the equipment (steps, assisted), the
+ * effort standard and any band override from the catalog exercise. Both apps
+ * build options through this so they cannot disagree about which field means
+ * what.
  */
 export function recommendOptionsFor(
   templateExercise: { plannedSets: readonly { kind: string }[]; progression?: Partial<ProgressionRule> } | null | undefined,
-  catalogExercise: { availableLoads?: number[]; assisted?: boolean } | null | undefined,
+  catalogExercise: {
+    availableLoads?: number[];
+    assisted?: boolean;
+    effortStandard?: EffortStandard;
+    targetRepBand?: RepBand;
+  } | null | undefined,
 ): RecommendOptions {
   const expectsCluster = (templateExercise?.plannedSets ?? []).some((p) => p.kind === 'activation');
   return {
@@ -485,6 +676,8 @@ export function recommendOptionsFor(
     ...(templateExercise?.progression ? { progression: templateExercise.progression } : {}),
     ...(catalogExercise?.availableLoads ? { availableLoads: catalogExercise.availableLoads } : {}),
     ...(catalogExercise?.assisted != null ? { assisted: catalogExercise.assisted } : {}),
+    ...(catalogExercise?.effortStandard ? { effortStandard: catalogExercise.effortStandard } : {}),
+    ...(catalogExercise?.targetRepBand ? { targetRepBand: catalogExercise.targetRepBand } : {}),
   };
 }
 

@@ -95,6 +95,7 @@ import {
 } from '@macrolog/core';
 import { db } from './firebase';
 import type {
+  ExercisePatch,
   Exercise,
   ExerciseDraft,
   SessionDraft,
@@ -1471,9 +1472,17 @@ export async function addExercise(uid: string, draft: ExerciseDraft): Promise<st
 export async function editExercise(
   uid: string,
   id: string,
-  patch: Partial<ExerciseDraft>,
+  patch: ExercisePatch,
 ): Promise<void> {
-  await updateDoc(exerciseDoc(uid, id), pruneUndefined({ ...patch }));
+  // `null` on the band means "back to the derived band": a field delete, and
+  // it is attached AFTER pruning so the sentinel is never walked as a plain
+  // object.
+  const { targetRepBand, ...rest } = patch;
+  const body = pruneUndefined({ ...rest, ...(targetRepBand ? { targetRepBand } : {}) });
+  await updateDoc(
+    exerciseDoc(uid, id),
+    targetRepBand === null ? { ...body, targetRepBand: deleteField() } : body,
+  );
 }
 
 export async function deleteExercise(uid: string, id: string): Promise<void> {

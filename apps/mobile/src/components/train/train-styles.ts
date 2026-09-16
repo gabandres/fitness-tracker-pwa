@@ -488,6 +488,22 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   recStall: { marginTop: space.xs, gap: 1, borderLeftWidth: 2, borderLeftColor: colors.line, paddingLeft: space.sm },
   recStallHead: { fontSize: font.small, color: colors.ink, fontWeight: '700' },
   recStallLine: { fontSize: font.small, color: colors.muted, lineHeight: font.small * 1.4 },
+  // ADR-0039: a soft warning (a rir1 lift taken to failure) reads in ink, not
+  // muted — it is advice about the NEXT set, not the absence of a call. The
+  // calibration count under an invalid read is muted like the reason.
+  recWarnRow: { flexDirection: 'row', alignItems: 'flex-start', gap: space.xs, marginTop: 2 },
+  recWarnText: { flex: 1, fontSize: font.small, color: colors.ink, lineHeight: font.small * 1.4 },
+  recCalib: { fontSize: font.small, color: colors.muted, lineHeight: font.small * 1.4 },
+  recGear: { marginLeft: 'auto', padding: 4 },
+  // Lift settings sheet: effort standard chips + the band override field.
+  liftSection: { marginTop: space.md, gap: space.xs },
+  liftLabel: { fontSize: font.tiny, color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: '700' },
+  liftHint: { fontSize: font.small, color: colors.muted, lineHeight: font.small * 1.4 },
+  liftBandRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  liftBandInput: { width: 84, textAlign: 'center' },
+  liftBandUnit: { fontSize: font.small, color: colors.muted },
+  liftClear: { alignSelf: 'flex-start', paddingVertical: space.xs },
+  liftClearText: { fontSize: font.small, color: colors.ring, fontWeight: '700' },
   // "Next session" under a template row — the engine's calls before the
   // session starts. Collapsed by default so the template list stays a list.
   tplNextToggle: { fontSize: font.small, color: colors.teal, fontWeight: '700', marginTop: space.xs },

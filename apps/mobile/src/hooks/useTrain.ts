@@ -34,6 +34,7 @@ import {
 import {
   type Exercise,
   type ExerciseDraft,
+  type ExercisePatch,
   type LogStyle,
   type SessionExercise,
   type SetKind,
@@ -88,8 +89,9 @@ export interface TrainState {
   /** Create a catalog exercise, returning its id (used by the template
    *  editor when adding a free-typed exercise). */
   addCatalogExercise: (name: string, logStyle: LogStyle) => Promise<string>;
-  /** Edit a catalog exercise's fields (name / logStyle / muscles / cues). */
-  editCatalogExercise: (id: string, patch: Partial<ExerciseDraft>) => Promise<void>;
+  /** Edit a catalog exercise's fields (name / logStyle / muscles / cues /
+   *  effort standard / band override — `targetRepBand: null` clears it). */
+  editCatalogExercise: (id: string, patch: ExercisePatch) => Promise<void>;
   /** Delete a catalog exercise (sessions/templates keep their name snapshot). */
   deleteCatalogExercise: (id: string) => Promise<void>;
   /** Merge `fromId` into `toId`, rewriting every referencing session/template. */
@@ -466,7 +468,7 @@ export function useTrain(): TrainState {
   );
 
   const editCatalogExercise = useCallback(
-    async (id: string, patch: Partial<ExerciseDraft>) => {
+    async (id: string, patch: ExercisePatch) => {
       if (uid) await editExerciseDoc(uid, id, patch);
     },
     [uid],

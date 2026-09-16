@@ -17,17 +17,23 @@ import { recommendationText } from '@/components/train/recommendation-text';
  * same "tap to take the suggestion" affordance the double-progression bump
  * had, and it only ever patches the first working set of the LIVE session.
  * A "repeat" or "hold" is a sentence, not a chip: there is nothing to accept.
+ *
+ * `onSettings` opens the lift's settings (effort standard, band override —
+ * ADR-0039). It sits on the note because the note is where "calibrating"
+ * and "logged at failure" are read, which is where the question arises.
  */
 export function RecommendationNote({
   rec,
   compact = false,
   onAccept,
+  onSettings,
   testID,
 }: {
   rec: Recommendation;
   /** One line (headline + reason) for the template list. */
   compact?: boolean;
   onAccept?: (load: number) => void;
+  onSettings?: () => void;
   testID?: string;
 }) {
   const t = useT();
@@ -38,6 +44,7 @@ export function RecommendationNote({
   if (!text) return null;
 
   const invalid = rec.action === 'repeat-invalid';
+  const calibrating = rec.action === 'calibrate';
   const canAccept = text.tappable && onAccept && rec.load != null;
 
   return (
@@ -45,6 +52,8 @@ export function RecommendationNote({
       <View style={styles.recHeadRow}>
         {invalid ? (
           <Ionicons name="alert-circle-outline" size={15} color={colors.muted} />
+        ) : calibrating ? (
+          <Ionicons name="analytics-outline" size={15} color={colors.muted} />
         ) : null}
         {canAccept ? (
           <TouchableOpacity
@@ -55,10 +64,31 @@ export function RecommendationNote({
             <Text style={styles.bumpText}>{text.headline}</Text>
           </TouchableOpacity>
         ) : (
-          <Text style={[styles.recHeadline, invalid && styles.recHeadlineInvalid]}>{text.headline}</Text>
+          <Text style={[styles.recHeadline, (invalid || calibrating) && styles.recHeadlineInvalid]}>{text.headline}</Text>
         )}
+        {onSettings ? (
+          <TouchableOpacity
+            style={styles.recGear}
+            onPress={onSettings}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={t('train.rec.settings')}
+            testID={testID ? `${testID}-settings` : undefined}
+          >
+            <Ionicons name="options-outline" size={16} color={colors.faint} />
+          </TouchableOpacity>
+        ) : null}
       </View>
       {text.reason ? <Text style={styles.recReason}>{text.reason}</Text> : null}
+      {text.calibration ? (
+        <Text style={styles.recCalib} testID={testID ? `${testID}-calibration` : undefined}>{text.calibration}</Text>
+      ) : null}
+      {text.warnings.map((line, i) => (
+        <View key={i} style={styles.recWarnRow} testID={testID ? `${testID}-warning` : undefined}>
+          <Ionicons name="information-circle-outline" size={15} color={colors.ink} />
+          <Text style={styles.recWarnText}>{line}</Text>
+        </View>
+      ))}
       {!compact && text.last ? <Text style={styles.recLast}>{text.last}</Text> : null}
       {!compact && text.stall.length > 0 ? (
         <View style={styles.recStall} testID={testID ? `${testID}-stall` : undefined}>
