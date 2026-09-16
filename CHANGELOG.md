@@ -4,6 +4,30 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-09-16 — The three workout templates stop contradicting the engine
+
+ADR-0039 deleted the hardcoded band and made RIR 0 the standard, and the
+templates still said otherwise in five places. Owner-approved, written to live
+Firestore; none of it is repo state.
+
+**Two treatments, deliberately.** The undated "Cluster format:" header lines
+and the Rear delt DB flye CUE are instructions in force, so they were edited in
+place: `activation @ RIR 1-2` → `activation to failure (RIR 0)` on Push and
+Leg, `Take to RIR 1-2` → `Take it to failure (RIR 0)` on the cue. Leg Day's
+header also gained the exception that belongs on it — Smith squat is both its
+main compound and one of the two lifts that keep a rep in reserve.
+
+Everything else lives in DATED log entries (`2026-09-04 - program locked...`),
+and rewriting a dated entry falsifies a record. Those are superseded by an
+appended 2026-09-16 note on all three templates instead, which names the two
+RIR 1 exceptions, says the 11-12 / 9-10 / <9 band is gone and why every
+clustered lift now reads "Calibrating - 0 of 3", and states outright that
+nothing above it was deleted because it was true when it was written.
+
+Pull Day's header line never named an RIR, so it was left alone. The one-shot
+script refused unless every old string matched verbatim, and was deleted after
+it ran.
+
 ## 2026-09-16 — Every plank logged before 2026-09-02 counts again
 
 A one-time repair on the owner's account, plus the script that made it
