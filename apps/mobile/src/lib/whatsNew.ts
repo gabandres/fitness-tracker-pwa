@@ -93,7 +93,18 @@ import type { I18nKey } from '@/i18n';
 // whoever dismissed the CARD never saw the screen, and the owner wants it
 // seen. The same-day re-bump precedent above still stands for bug fixes;
 // this is a new surface, not a second copy of the same one.
-export const WHATS_NEW_VERSION = '2026-09-15-progression-engine-screen';
+// Bumped 2026-09-16 for ADR-0039 + ADR-0040. This one is not announcing a
+// gain — it is getting ahead of a loss that is not one. Once the OTA lands,
+// every clustered lift reads "Calibrating — 0 of 3 valid sessions logged" and
+// makes no load call, because the rep band is now DERIVED per lift from reads
+// at the new RIR 0 standard and the 706 pre-cutoff sets are deliberately
+// excluded from deriving it. That is the ADR working as designed, and it is
+// indistinguishable from data loss to anyone who was not told. The precedent
+// this follows is the 2026-09-01 rest-timer bump ("a behaviour every lifter
+// feels on the next session is worth one banner"), not the bug-fix non-bumps:
+// the screen is the only channel an OTA has, and the thing it has to say is
+// "this is supposed to look like that".
+export const WHATS_NEW_VERSION = '2026-09-16-derived-rep-bands';
 
 const KEY = 'whatsNew.seen';
 
@@ -123,9 +134,9 @@ export interface WhatsNewItem {
 }
 
 export const WHATS_NEW_ITEMS: readonly WhatsNewItem[] = [
-  { icon: 'barbell-outline', titleKey: 'whatsNew.call.title', bodyKey: 'whatsNew.call.body' },
-  { icon: 'list-outline', titleKey: 'whatsNew.plan.title', bodyKey: 'whatsNew.plan.body' },
-  { icon: 'analytics-outline', titleKey: 'whatsNew.clusters.title', bodyKey: 'whatsNew.clusters.body' },
+  { icon: 'barbell-outline', titleKey: 'whatsNew.band.title', bodyKey: 'whatsNew.band.body' },
+  { icon: 'flame-outline', titleKey: 'whatsNew.rir.title', bodyKey: 'whatsNew.rir.body' },
+  { icon: 'options-outline', titleKey: 'whatsNew.structure.title', bodyKey: 'whatsNew.structure.body' },
 ];
 
 /**

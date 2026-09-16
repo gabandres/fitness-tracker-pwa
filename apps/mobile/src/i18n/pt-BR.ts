@@ -212,15 +212,15 @@ export const ptBR = {
   'whatsNew.title': 'Novidades',
   'whatsNew.subtitle': 'O que mudou desde a última vez que você abriu o Ignia.',
   'whatsNew.continue': 'Continuar',
-  'whatsNew.call.title': 'Treinar diz o que fazer em seguida',
-  'whatsNew.call.body':
-    'Cada exercício em cluster mostra a decisão para a próxima sessão — SUBIR CARGA, MANTER E SOMAR REPS ou REPETIR — com os números por trás. Registre o RIR na série de ativação para funcionar.',
-  'whatsNew.plan.title': 'O plano inteiro antes de começar',
-  'whatsNew.plan.body':
-    'Toque em "Próxima sessão" sob um modelo. Uma primeira mini com mais de 5 reps ou menos de 2 significa que a leitura foi inválida, então o app pede para repetir a carga em vez de adivinhar.',
-  'whatsNew.clusters.title': 'Clusters por músculo, por semana',
-  'whatsNew.clusters.body':
-    'Os chips sob a contagem semanal mostram cada músculo contra a faixa 2-6. Um cluster é uma série rest-pause.',
+  'whatsNew.band.title': 'Treinar reaprende suas faixas de reps',
+  'whatsNew.band.body':
+    'Sua faixa agora é medida por exercício em vez de ser fixa para todos. Cada exercício em cluster começa em "Calibrando — 0 de 3" e recupera sua decisão depois de três sessões válidas com a mesma carga.',
+  'whatsNew.rir.title': 'Um só padrão: RIR 0',
+  'whatsNew.rir.body':
+    'Leve a série de ativação até a falha. As séries registradas antes da mudança continuam no seu histórico, mas ficam fora da faixa, para que ela seja construída só com leituras no novo padrão.',
+  'whatsNew.structure.title': 'Séries retas e rest-pause também decidem',
+  'whatsNew.structure.body':
+    'Escolha a estrutura de cada exercício no editor de modelos. Séries retas, rest-pause e clusters agora têm cada um a sua própria leitura — não só myo-reps.',
 
   // ── app updates ──
   'update.ota.title': 'Atualização pronta',

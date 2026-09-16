@@ -229,15 +229,15 @@ export const en = {
   'whatsNew.continue': 'Continue',
   // One item per thing a person will NOTICE, in the order they meet it. Body
   // sentences carry the number that makes the feature usable, not a pitch.
-  'whatsNew.call.title': 'Train tells you what to do next',
-  'whatsNew.call.body':
-    'Every clustered lift shows a call for the next session — ADD LOAD, HOLD AND BUILD, or REPEAT — with the numbers behind it. Log RIR on the activation set for it to work.',
-  'whatsNew.plan.title': 'The whole plan before you start',
-  'whatsNew.plan.body':
-    'Tap "Next session" under a template. A first mini-set over 5 reps or under 2 means the read was invalid, so the app asks you to repeat the load rather than guess.',
-  'whatsNew.clusters.title': 'Clusters per muscle, per week',
-  'whatsNew.clusters.body':
-    'Chips under the weekly count show each muscle against the 2-6 range. One cluster is one rest-pause set.',
+  'whatsNew.band.title': 'Train re-learns your rep bands',
+  'whatsNew.band.body':
+    'Your band is measured per lift now instead of fixed for all of them. Every clustered lift starts at "Calibrating — 0 of 3" and gets its call back after three valid sessions at the same load.',
+  'whatsNew.rir.title': 'One standard: RIR 0',
+  'whatsNew.rir.body':
+    'Take the activation set to failure. Sets logged before the switch stay in your history but sit out of the band, so the band is built only from reads at the new standard.',
+  'whatsNew.structure.title': 'Straight sets and rest-pause get a call',
+  'whatsNew.structure.body':
+    'Pick a structure for each lift in the template editor. Straight sets, rest-pause and cluster sets now each get their own read — not just myo-reps.',
 
   // ── app updates ──
   'update.ota.title': 'Update ready',

@@ -216,15 +216,15 @@ export const esPR: Record<I18nKey, string> = {
   'whatsNew.title': 'Novedades',
   'whatsNew.subtitle': 'Lo que cambió desde la última vez que abriste Ignia.',
   'whatsNew.continue': 'Continuar',
-  'whatsNew.call.title': 'Entrenar te dice qué hacer después',
-  'whatsNew.call.body':
-    'Cada ejercicio en clúster muestra la decisión para la próxima sesión — SUBIR CARGA, MANTENER Y SUMAR REPS o REPETIR — con los números detrás. Anota el RIR en la serie de activación para que funcione.',
-  'whatsNew.plan.title': 'El plan completo antes de empezar',
-  'whatsNew.plan.body':
-    'Toca "Próxima sesión" bajo una plantilla. Una primera mini de más de 5 reps o menos de 2 significa que la lectura fue inválida, así que la app te pide repetir la carga en vez de adivinar.',
-  'whatsNew.clusters.title': 'Clústeres por músculo, por semana',
-  'whatsNew.clusters.body':
-    'Los chips bajo el conteo semanal muestran cada músculo frente al rango 2-6. Un clúster es una serie rest-pause.',
+  'whatsNew.band.title': 'Entrenar vuelve a aprender tus rangos de reps',
+  'whatsNew.band.body':
+    'Tu rango ahora se mide por ejercicio en vez de ser fijo para todos. Cada ejercicio en clúster empieza en "Calibrando — 0 de 3" y recupera su decisión tras tres sesiones válidas con la misma carga.',
+  'whatsNew.rir.title': 'Un solo estándar: RIR 0',
+  'whatsNew.rir.body':
+    'Lleva la serie de activación al fallo. Las series anotadas antes del cambio se quedan en tu historial pero quedan fuera del rango, para que el rango se construya solo con lecturas del nuevo estándar.',
+  'whatsNew.structure.title': 'Las series rectas y el rest-pause también deciden',
+  'whatsNew.structure.body':
+    'Elige la estructura de cada ejercicio en el editor de plantillas. Series rectas, rest-pause y clústeres ahora tienen su propia lectura — no solo myo-reps.',
 
   // ── app updates ──
   'update.ota.title': 'Actualización lista',
