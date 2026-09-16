@@ -10,6 +10,44 @@ Update this file in the same commit as any flow change. If a surface ships
 that has no row here, the suite's "100%" claim is false until the row exists —
 add it as ✗ first, cover it second.
 
+## iOS confirming sweep 2026-09-16 — 19 of 20 MEASURED, and why composing the number failed
+
+Same host, same `Ignia-QA` simulator, same Release build. Run after the two
+selector fixes below, to turn an inference into a measurement.
+
+**The inference was wrong, and the way it was wrong is the point.** "17 passed
++ 2 fixed = 19 of 20" looked safe: both fixed flows had been re-run
+individually and exited 0. The full sweep returned **18 of 20** — because a
+FOURTH flow, `08-refine-targets`, which had passed in the earlier sweep and
+passes alone (verified twice, exit 0 each), failed inside the suite at
+`No visible element found: id: refine-save`.
+
+This suite is order-dependent by design (11→12→13 share one diary row; 09 and
+10 flip account and device state they restore in their own tails), so a flow
+passing alone is weaker evidence than the same flow passing in sequence.
+**Never compose a suite result from individual runs.**
+
+`08-refine-targets` was not a regression. The hierarchy at the failure showed
+the Refine form rendered correctly and scrolled as far as "Weekly pace", with
+`refine-save` still below the fold: its `scrollUntilVisible` carries a 15 s
+budget chosen before the form grew an `refine-activity-connect` /
+"Connect Health" block, so the button sits lower than it used to and a slow
+scroll under full-suite timing does not always reach it. Fixed with this
+suite's standard long-form adapter — `optional: true` on the scroll plus the
+bounded `repeat`/`while: notVisible`/`swipe` fallback that `18-train-template`
+already uses five times — and an explicit `assertVisible: id: refine-save` so a
+swallowed scroll fails here rather than at the next step. Additive, so Android
+cannot regress.
+
+**Confirming sweep: 19 of 20.** `08-refine-targets` (35 s), `15-search` (26 s)
+and `20-units-metric` (1 m 20 s) all green IN SEQUENCE. The only red is
+`18-train-template`, at its documented assertion, for the documented reason.
+
+A flow that is green alone and red in sequence is the worst kind of red: it
+gets re-run, it passes, and it teaches everyone to ignore the suite. That is
+exactly the failure mode a standing set of permanent reds produces, and it is
+why they were worth clearing.
+
 ## iOS run 2026-09-16 — 17 of 20, and all three failures are the documented ones
 
 Run on **`ignia-mac`**, simulator `Ignia-QA` (iPhone 17, iOS 26.5), against a
@@ -96,9 +134,11 @@ oracle here, because the field's value is not observable through the hierarchy.
 
 **The other 17 passed, including every flow that could have caught today's
 changes**: `16-train-terms`, `21-train-cardio`, `03-tabs`, and the whole
-`11 → 12 → 13` log → edit → delete arc. **Zero new failures.** Two of the three
-reds were fixed later the same day and re-verified green individually
-(`15-search` and `20-units-metric`, exit 0 each), taking iOS to **19 of 20**. QA state verified
+`11 → 12 → 13` log → edit → delete arc. **Zero new failures.**
+
+**iOS now stands at 19 of 20, and that number is MEASURED in one full-suite
+run**, not composed from individual passes — see the sweep below, which is the
+reason the distinction is written down here at all. QA state verified
 restored afterwards: 0 entries, water 0, `preferredLocale: en`, the four
 baseline presets, no `QA E2E` leftovers.
 
