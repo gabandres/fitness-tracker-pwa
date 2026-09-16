@@ -63,6 +63,9 @@ export const SET_KINDS: { value: WorkoutSet['kind']; labelKey: I18nKey; descKey:
   { value: 'activation', labelKey: 'train.kind.activation', descKey: 'train.kindDesc.activation' },
   { value: 'mini', labelKey: 'train.kind.mini', descKey: 'train.kindDesc.mini' },
   { value: 'drop', labelKey: 'train.kind.drop', descKey: 'train.kindDesc.drop' },
+  // ADR-0040. Reads as PRESCRIBED, unlike `mini` which is autoregulated to
+  // failure — the pair rest-pause and cluster sets are built from.
+  { value: 'continuation', labelKey: 'train.kind.continuation', descKey: 'train.kindDesc.continuation' },
   // ADR-0028. Last in the picker deliberately: it is the least-used kind and
   // pushing it above `drop` would reorder a list users already have muscle
   // memory for.
@@ -83,8 +86,8 @@ export const SET_STRUCTURES: { value: SetStructure | undefined; labelKey: I18nKe
   { value: undefined, labelKey: 'train.structure.auto', readable: true },
   { value: 'straight', labelKey: 'train.structure.straight', readable: true },
   { value: 'myoreps', labelKey: 'train.structure.myoreps', readable: true },
-  { value: 'rest-pause', labelKey: 'train.structure.restPause', readable: false },
-  { value: 'cluster', labelKey: 'train.structure.cluster', readable: false },
+  { value: 'rest-pause', labelKey: 'train.structure.restPause', readable: true },
+  { value: 'cluster', labelKey: 'train.structure.cluster', readable: true },
   { value: 'drop', labelKey: 'train.structure.drop', readable: false },
   { value: 'superset', labelKey: 'train.structure.superset', readable: false },
   { value: 'hit', labelKey: 'train.structure.hit', readable: false },

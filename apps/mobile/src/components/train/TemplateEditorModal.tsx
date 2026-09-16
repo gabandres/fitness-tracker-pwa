@@ -455,6 +455,18 @@ export function TemplateEditorModal({
     mutateSets(index, (sets) => [...sets, newDraftSet('activation'), newDraftSet('mini'), newDraftSet('mini')]);
   }
 
+  /** ADR-0040: rest-pause and cluster sets are an activation plus PRESCRIBED
+   *  continuations. One button, because the two differ in what the engine
+   *  reads (total reps vs completion), not in how they are scaffolded. */
+  function addBlock(index: number) {
+    haptics.tap();
+    mutateSets(index, (sets) =>
+      sets.some((x) => x.kind === 'activation')
+        ? [...sets, newDraftSet('continuation')]
+        : [...sets, newDraftSet('activation'), newDraftSet('continuation')],
+    );
+  }
+
   function removeSet(index: number, setIdx: number) {
     mutateSets(index, (sets) => sets.filter((_, i) => i !== setIdx));
   }
@@ -1008,6 +1020,9 @@ export function TemplateEditorModal({
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => addCluster(i)} testID={`template-add-cluster-${i}`}>
                       <Text style={styles.sectionAction}>{t('train.addCluster')}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => addBlock(i)} testID={`template-add-block-${i}`}>
+                      <Text style={styles.sectionAction}>{t('train.addBlock')}</Text>
                     </TouchableOpacity>
                   </View>
 

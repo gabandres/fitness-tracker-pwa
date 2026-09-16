@@ -804,6 +804,9 @@ export const en = {
   // ADR-0040: set structures. `straight` and `myoreps` have an engine reader;
   // the rest are declarable and say honestly that they are not read yet.
   'train.rec.action.noCall': 'No load call',
+  'train.kind.continuation': 'Continuation',
+  'train.kindDesc.continuation': 'Prescribed reps after a short rest — rest-pause or cluster sets.',
+  'train.addBlock': '+ Continuation',
   'train.structure.auto': 'Auto',
   'train.structureLabel': 'Set structure',
   'train.structureUnread': 'not read yet',
@@ -817,6 +820,10 @@ export const en = {
   'train.rec.reason.straightSets.hit': 'Held {target} reps on every set for {n} sessions.',
   'train.rec.reason.straightSets.building': 'Lowest set was {reps} of {target} reps — {n} of {needed} sessions at target.',
   'train.rec.reason.straightSets.noTarget': 'No rep target set for this lift.',
+  'train.rec.reason.restPause.hit': 'Total {total} reps across the set — held {target} for {n} sessions.',
+  'train.rec.reason.restPause.building': 'Total {total} of {target} reps — {n} of {needed} sessions at target.',
+  'train.rec.reason.clusterSets.hit': 'Completed all {blocks} prescribed blocks for {n} sessions.',
+  'train.rec.reason.clusterSets.building': 'Completed {done} of {blocks} prescribed blocks — {n} of {needed} sessions at target.',
   'train.rec.reason.noRule': 'No rep target on this lift — set one to progress by load.',
   'train.rec.reason.nothingToRead': 'Nothing logged yet to read.',
   'train.rec.reason.unsupportedStructure': 'Programmed as {structure} — the engine does not read that structure yet.',

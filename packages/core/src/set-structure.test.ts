@@ -66,12 +66,12 @@ describe('structureOf — precedence', () => {
 });
 
 describe('READABLE_STRUCTURES', () => {
-  it('is exactly the two structures with an engine reader', () => {
-    expect([...READABLE_STRUCTURES].sort()).toEqual(['myoreps', 'straight']);
+  it('is exactly the structures with an engine reader', () => {
+    expect([...READABLE_STRUCTURES].sort()).toEqual(['cluster', 'myoreps', 'rest-pause', 'straight']);
   });
 
   it('refuses every structure that has no reader', () => {
-    const unreadable: SetStructure[] = ['rest-pause', 'cluster', 'drop', 'superset', 'hit'];
+    const unreadable: SetStructure[] = ['drop', 'superset', 'hit'];
     for (const s of unreadable) expect(isReadableStructure(s)).toBe(false);
   });
 });

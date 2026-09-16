@@ -1,15 +1,18 @@
 # ADR-0040: The set structure is declared on the prescription, and the engine dispatches on it
 
-- **Status:** accepted 2026-09-16 — straight sets implemented; the remaining
-  structures are declared-but-unread and refuse explicitly. Extends ADR-0038
-  and ADR-0039, which stay in force for `myoreps` unchanged.
+- **Status:** accepted 2026-09-16 — `straight`, `rest-pause` and `cluster`
+  implemented; `drop`, `superset` and `hit` are declared-but-unread and
+  refuse explicitly. Extends ADR-0038 and ADR-0039, which stay in force for
+  `myoreps` unchanged.
 - **Date:** 2026-09-16
 - **Touches:** `packages/core/src/workout.ts` (`SetStructure`,
   `TemplateExercise.setStructure`, `Exercise.setStructure`, `SetKind`
   gains `continuation`), `packages/core/src/set-structure.ts` (new —
   `structureOf`, `inferStructure`), `packages/core/src/progression-engine.ts`
-  (dispatch, `recommendStraight`, `unsupported-structure`, `no-rule`,
-  `nothing-to-read`, `straight-sets` carries a read),
+  (dispatch, `recommendStraight`, `recommendRestPause`, `recommendCluster`,
+  the shared `heldRun` / `loadCall`, `unsupported-structure`, `no-rule`,
+  `nothing-to-read`, `straight-sets` / `rest-pause` / `cluster-sets` carry
+  a read),
   `firestore.rules` `isValidExercise`, `apps/mobile`
   (`TemplateEditorModal`, `train-shared.ts`, `recommendation-text.ts`,
   `train.tsx`, three locale files). No scheduled job, no AI call, no Cloud
@@ -150,9 +153,8 @@ pairing. The interpretation is structure-specific; the field is not.
    headline rather than vanishing.
 
 5. **`SetKind` gains `continuation`.** Prescribed reps, not autoregulated:
-   the role rest-pause and cluster sets need. It is added now, with the
-   type, so those structures have somewhere to land; nothing reads it yet,
-   because nothing may read it until its structure has a reader.
+   the role rest-pause and cluster sets need, and deliberately not `mini`,
+   which means autoregulated-to-failure to the myo-reps reader.
 
 6. **Structure resolution has exactly one seam.** `recommendOptionsFor`
    resolves template → catalog → inference, and both call sites already
@@ -161,14 +163,47 @@ pairing. The interpretation is structure-specific; the field is not.
    what." The ad-hoc branch passes its logged sets as the inference fallback;
    nothing else changes.
 
+7. **Rest-pause reads the TOTAL; cluster sets read COMPLETION.** Both are
+   built on `activation` + `continuation`, and the distinction between them
+   is not in the set list — it is in what the prescription claims, which is
+   precisely why the structure has to be declared.
+
+   Rest-pause sums reps across the activation and its continuations and
+   compares that to `progression.targetReps`. The myo-reps first-mini rule is
+   not merely unused here, it would be actively wrong: a rest-pause
+   continuation is SUPPOSED to be short, so a 2-5 band would fault every
+   correct set.
+
+   Cluster sets compare each block's performed reps to its own `targetReps`,
+   snapshotted from the template — completion against a prescription, not a
+   rep count against a band. A cluster set with no prescribed reps is not a
+   cluster set the engine can judge, and returns `no-rule` rather than
+   guessing a threshold.
+
+   Neither reader ever counts a `mini` set. A myo-reps log must not be able
+   to satisfy a rest-pause target by accident.
+
+8. **The three non-myo-reps readers share their tail.** `heldRun` counts
+   consecutive sessions that held the prescription AT THE CURRENT LOAD, and
+   `loadCall` makes the add-load / build-reps decision with the jump ceiling
+   and the assisted/steps handling. Stated once so the structures cannot
+   drift apart on what "held it for N sessions" means, and so a load change
+   restarts every structure's run the same way ADR-0039 restarts
+   calibration.
+
 ## Consequences
 
 - Straight sets are programmable and get a real recommendation. Main
   compounds can be programmed as the literature actually describes them.
-- The five unimplemented structures are declarable and say so honestly. A
-  user can pick `rest-pause` today and will be told the engine does not read
-  it yet, rather than being handed a myo-reps number computed from the wrong
-  rule.
+- `drop`, `superset` and `hit` remain declarable and say so honestly, rather
+  than being handed a number computed by another structure's rule. `hit` is
+  the cheapest of the three to add — a single set to failure is a one-set
+  straight read — while `drop` needs within-set load reduction and `superset`
+  needs a pairing between two exercises, which the model does not yet carry.
+- The picker's `readable` flags are pinned against core's
+  `READABLE_STRUCTURES` by test, not by a duplicated literal: a picker that
+  advertises a structure the engine refuses is the same lie in a different
+  place.
 - `setStructure` on the CATALOG exercise passes through `isValidExercise`,
   whose `hasOnly` allowlist rejects unknown keys — so **the rules deploy
   strictly precedes any client that writes it**. On the TEMPLATE it needs no

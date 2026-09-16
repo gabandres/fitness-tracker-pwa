@@ -4,6 +4,25 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-09-16 — Train: rest-pause and cluster sets get their own readers (ADR-0040) — merged, not yet on any OTA
+
+The second ADR-0040 slice. `rest-pause` sums reps across the activation and
+its `continuation` sets and progresses on the TOTAL; `cluster` compares each
+block's reps to its own snapshotted `targetReps` and progresses on
+COMPLETION. The distinction is not visible in the set list — both are
+activation + continuations — which is the case the declared structure exists
+to carry. Neither reader counts a `mini` set, so a myo-reps log cannot
+satisfy a rest-pause target by accident, and neither applies the first-mini
+rule: a rest-pause continuation is supposed to be short, and a cluster block
+is not autoregulated at all. The three non-myo-reps readers now share
+`heldRun` (consecutive sessions holding the prescription at the CURRENT load)
+and `loadCall` (add-load vs build-reps, jump ceiling, assisted steps), so they
+cannot drift on what progression means. `SetKind` `continuation` is now read,
+is pickable in the editor, and takes RIR. `drop`, `superset` and `hit` still
+refuse explicitly; the picker's readable flags are pinned against core's
+`READABLE_STRUCTURES` by test rather than a duplicated literal. Myo-reps
+unchanged.
+
 ## 2026-09-16 — Train: the set structure is declared, and the engine dispatches on it (ADR-0040) — merged, not yet on any OTA
 
 Straight sets are programmable and get a real recommendation; the other five

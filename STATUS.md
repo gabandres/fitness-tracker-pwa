@@ -76,12 +76,12 @@ half is why this row exists.
 | Web | one SEO route manifest (5 copies → 1), one admin console (three modules → one) |
 | Functions | `withCostGuards`, plus parity specs for the last three mirrors |
 
-**2026-09-16 — ADR-0040 (declared set structure, straight-sets reader) is
-MERGED and on NO OTA yet.** `firestore.rules` IS deployed, so the catalog
+**2026-09-16 — ADR-0040 (declared set structure; straight, rest-pause and
+cluster readers) is MERGED and on NO OTA yet.** `firestore.rules` IS deployed, so the catalog
 `setStructure` field is writable; nothing writes it until the OTA lands.
-Straight sets get a real load call for the first time; the other five
-structures are pickable and say "the engine does not read that structure
-yet". Myo-reps is unchanged — the guarantee is that all 1567 pre-existing
+Straight sets, rest-pause and cluster sets all get a real load call;
+`drop`, `superset` and `hit` are pickable and say "the engine does not
+read that structure yet". `hit` is the cheapest one left. Myo-reps is unchanged — the guarantee is that all 1567 pre-existing
 core tests pass untouched, and a regression there is a bug in this change,
 not a consequence of it. Ships with `build-android` / `build-ios` (JS-only;
 verify the fingerprint at publish time, never assume).

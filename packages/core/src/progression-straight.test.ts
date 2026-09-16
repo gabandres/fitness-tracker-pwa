@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { recommend } from './progression-engine';
+import { READABLE_STRUCTURES } from './set-structure';
 import type { SessionExercise, SetStructure, WorkoutSet } from './workout';
 
 /** A straight-sets session: N working sets at one load. */
@@ -30,7 +31,7 @@ describe('ADR-0040 dispatch', () => {
   });
 
   it('refuses every structure with no reader, and never falls through', () => {
-    const unreadable: SetStructure[] = ['rest-pause', 'cluster', 'drop', 'superset', 'hit'];
+    const unreadable: SetStructure[] = ['drop', 'superset', 'hit'];
     for (const structure of unreadable) {
       const rec = recommend([straight(135, 8, 8, 8)], { structure, progression: RULE });
       expect(rec.reason).toEqual({ kind: 'unsupported-structure', structure });
@@ -38,6 +39,18 @@ describe('ADR-0040 dispatch', () => {
       // The refusal must not smuggle a number in through another field.
       expect(rec.load).toBeUndefined();
       expect(rec.band).toBeNull();
+    }
+  });
+
+  it('every READABLE_STRUCTURES entry really has a dispatch branch', () => {
+    // The list and the dispatcher must not drift. A structure marked readable
+    // with no branch falls through to `unsupported-structure`, which would
+    // tell the user the engine cannot read something it advertises. Asserting
+    // membership against the same list proves nothing — this drives the real
+    // dispatcher and checks it does not refuse.
+    for (const structure of READABLE_STRUCTURES) {
+      const rec = recommend([straight(135, 8, 8, 8)], { structure, progression: RULE });
+      expect(rec.reason.kind).not.toBe('unsupported-structure');
     }
   });
 

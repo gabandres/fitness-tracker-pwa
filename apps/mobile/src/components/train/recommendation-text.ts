@@ -50,7 +50,8 @@ export interface RecommendationText {
 /** Reason kinds that are NOT on the myo-reps path, and for which the derived
  *  band / calibration count is meaningless (ADR-0040). */
 const NON_MYOREPS_REASONS = new Set<string>([
-  'straight-sets', 'no-rule', 'nothing-to-read', 'unsupported-structure',
+  'straight-sets', 'rest-pause', 'cluster-sets',
+  'no-rule', 'nothing-to-read', 'unsupported-structure',
 ]);
 
 /** Display name per set structure — the user picked it, so name it back. */
@@ -117,6 +118,18 @@ function reasonText(rec: Recommendation, unitSystem: UnitSystem, t: TFn): string
         n: r.sessionsAtTarget, needed: r.holdSessions,
       });
     }
+    case 'rest-pause':
+      return r.sessionsAtTarget >= r.holdSessions
+        ? t('train.rec.reason.restPause.hit', { total: r.total, target: r.targetReps, n: r.sessionsAtTarget })
+        : t('train.rec.reason.restPause.building', {
+            total: r.total, target: r.targetReps, n: r.sessionsAtTarget, needed: r.holdSessions,
+          });
+    case 'cluster-sets':
+      return r.sessionsAtTarget >= r.holdSessions
+        ? t('train.rec.reason.clusterSets.hit', { blocks: r.blocks, n: r.sessionsAtTarget })
+        : t('train.rec.reason.clusterSets.building', {
+            done: r.completed, blocks: r.blocks, n: r.sessionsAtTarget, needed: r.holdSessions,
+          });
     case 'no-rule':
       return t('train.rec.reason.noRule');
     case 'nothing-to-read':

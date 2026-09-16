@@ -1374,7 +1374,10 @@ function SetRow({
   // confirmed is not a logged set (see WorkoutSet.targetReps).
   const target = logStyle === 'time' ? set.targetDurationSec : set.targetReps;
   // RIR is meaningful on real working effort, not warmups/back-offs.
-  const showRir = set.kind === 'working' || set.kind === 'activation' || set.kind === 'mini';
+  // `continuation` carries RIR too: a rest-pause continuation is taken to
+  // failure, so the reading is as meaningful there as on the activation.
+  const showRir = set.kind === 'working' || set.kind === 'activation'
+    || set.kind === 'mini' || set.kind === 'continuation';
 
   return (
    <View>

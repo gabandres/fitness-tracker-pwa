@@ -368,8 +368,17 @@ export type RecommendReason =
    *  fell short. `sessionsAtTarget` counts back from the most recent. */
   | { kind: 'straight-sets'; reps?: number; targetReps?: number;
       sessionsAtTarget: number; holdSessions: number }
-  /** Straight sets with no rep target to progress against: the template
-   *  states no `progression.targetReps`, so there is no threshold to hold. */
+  /** A rest-pause read (ADR-0040): TOTAL reps across the activation and its
+   *  continuations, which is the quantity this structure produces. */
+  | { kind: 'rest-pause'; total: number; targetReps: number;
+      sessionsAtTarget: number; holdSessions: number }
+  /** A cluster-set read (ADR-0040): how many PRESCRIBED blocks were completed.
+   *  Not a rep count against a band — cluster sets are not autoregulated. */
+  | { kind: 'cluster-sets'; completed: number; blocks: number;
+      sessionsAtTarget: number; holdSessions: number }
+  /** No target to progress against: the prescription states no
+   *  `progression.targetReps` (straight / rest-pause) or no per-block
+   *  `targetReps` (cluster), so there is no threshold to hold. */
   | { kind: 'no-rule' }
   /** Nothing in the latest session the engine can read — a timed hold, or a
    *  lift with no performed sets. Not a fault in the log. */
@@ -515,6 +524,186 @@ function bindingStraight(ex: SessionExercise): { reps?: number; load?: number; r
  * NOT the myo-reps reader: no activation, no mini rule, no derived band. The
  * mini rule is meaningless here and must never run on this path.
  */
+/** One session's read, in the shape every non-myo-reps structure shares:
+ *  did it HOLD the prescription, and at what load. */
+interface HeldRead {
+  load?: number;
+  held: boolean;
+}
+
+/**
+ * Consecutive sessions, counting back from the most recent, that held the
+ * prescription AT THE CURRENT LOAD.
+ *
+ * Any other load breaks the run, so a load change restarts the count by
+ * construction — the rule ADR-0039 uses for the myo-reps calibration run, and
+ * for the same reason: holding the target at 130 says nothing about whether
+ * 135 has been held yet. Shared by every ADR-0040 reader so the three cannot
+ * drift apart on what "held it for N sessions" means.
+ */
+function heldRun(
+  history: readonly SessionExercise[],
+  currentLoad: number | undefined,
+  read: (ex: SessionExercise) => HeldRead,
+): number {
+  let n = 0;
+  for (const h of history) {
+    const r = read(h);
+    if (!r.held || r.load !== currentLoad) break;
+    n++;
+  }
+  return n;
+}
+
+/**
+ * The add-load / build-reps decision, once a reader has counted its run.
+ * Shared so the jump ceiling and the assisted/steps handling cannot diverge
+ * between structures.
+ */
+function loadCall(
+  base: Pick<Recommendation, 'last' | 'assisted' | 'band' | 'calibration' | 'warnings'>,
+  opts: RecommendOptions,
+  currentLoad: number | undefined,
+  sessionsAtTarget: number,
+  holdSessions: number,
+  reason: RecommendReason,
+  repsGoal: number,
+): Recommendation {
+  if (sessionsAtTarget >= holdSessions && currentLoad != null) {
+    const { load, jumpPct } = nextLoad(currentLoad, {
+      availableLoads: opts.availableLoads,
+      incrementLb: opts.progression?.incrementLb,
+      assisted: base.assisted,
+    });
+    if (jumpPct > MAX_JUMP_PCT) {
+      return {
+        ...base, action: 'build-reps', load: currentLoad, currentLoad,
+        reason: { kind: 'jump-too-big', nextLoad: load, jumpPct, repsGoal },
+      };
+    }
+    return { ...base, action: 'add-load', load, currentLoad, reason };
+  }
+  return {
+    ...base, action: 'build-reps',
+    ...(currentLoad != null ? { load: currentLoad, currentLoad } : {}),
+    reason,
+  };
+}
+
+/** The sets a rest-pause / cluster read owns: the activation and the
+ *  PRESCRIBED continuations that follow it. Never `mini` — that kind means
+ *  autoregulated-to-failure and belongs to myo-reps (ADR-0040). */
+function blockSets(ex: SessionExercise): WorkoutSet[] {
+  return ex.sets.filter((s) => (s.kind === 'activation' || s.kind === 'continuation') && s.reps != null);
+}
+
+/** The single load a block ran at, or undefined when the sets disagree. */
+function blockLoad(sets: readonly WorkoutSet[]): number | undefined {
+  const loads = new Set(sets.map((s) => s.weight).filter((w): w is number => w != null));
+  return loads.size === 1 ? [...loads][0] : undefined;
+}
+
+/**
+ * Rest-pause: activation to failure, short rest, continue to failure.
+ *
+ * The read is TOTAL reps across the whole set — that is the quantity the
+ * structure produces, and it is why the myo-reps first-mini rule is
+ * meaningless here: a rest-pause continuation is SUPPOSED to be short, and
+ * judging it against a 2-5 band would fault every correct set.
+ */
+function restPauseRead(ex: SessionExercise): { total?: number; load?: number } {
+  const sets = blockSets(ex);
+  if (sets.length === 0) return {};
+  const total = sets.reduce((sum, s) => sum + (s.reps as number), 0);
+  const load = blockLoad(sets);
+  return { total, ...(load != null ? { load } : {}) };
+}
+
+/**
+ * Cluster sets: PRESCRIBED reps per block with intra-set rest.
+ *
+ * Not autoregulated — which is exactly what separates this from myo-reps — so
+ * the read is completion against the prescription, not a rep count against a
+ * derived band. The prescription is each set's `targetReps`, snapshotted from
+ * the template when the session started.
+ */
+function clusterSetRead(
+  ex: SessionExercise,
+): { done?: number; blocks?: number; prescribed: boolean; load?: number } {
+  const sets = blockSets(ex);
+  if (sets.length === 0) return { prescribed: false };
+  const load = blockLoad(sets);
+  const withTarget = sets.filter((s) => s.targetReps != null);
+  // Nothing prescribed: there is no threshold to judge completion against.
+  if (withTarget.length === 0) return { prescribed: false, ...(load != null ? { load } : {}) };
+  const done = withTarget.filter((s) => (s.reps as number) >= (s.targetReps as number)).length;
+  return { done, blocks: withTarget.length, prescribed: true, ...(load != null ? { load } : {}) };
+}
+
+function recommendRestPause(history: readonly SessionExercise[], opts: RecommendOptions): Recommendation {
+  const assisted = opts.assisted ?? false;
+  const base = {
+    last: [] as ActivationSummary[], assisted, band: null,
+    calibration: EMPTY_CALIBRATION, warnings: [] as RecommendWarning[],
+  };
+  if (history.length === 0) return { ...base, action: 'calibrate', reason: { kind: 'no-history' } };
+
+  const latest = restPauseRead(history[0]);
+  const currentLoad = latest.load;
+  if (latest.total == null) {
+    return {
+      ...base, action: 'none', ...(currentLoad != null ? { currentLoad } : {}),
+      reason: { kind: 'nothing-to-read' },
+    };
+  }
+  const targetReps = opts.progression?.targetReps;
+  if (targetReps == null) {
+    return { ...base, action: 'none', load: currentLoad, currentLoad, reason: { kind: 'no-rule' } };
+  }
+  const holdSessions = Math.max(1, opts.progression?.holdSessions ?? 1);
+  const sessionsAtTarget = heldRun(history, currentLoad, (h) => {
+    const r = restPauseRead(h);
+    return { load: r.load, held: r.total != null && r.total >= targetReps };
+  });
+  const reason: RecommendReason = {
+    kind: 'rest-pause', total: latest.total, targetReps, sessionsAtTarget, holdSessions,
+  };
+  return loadCall(base, opts, currentLoad, sessionsAtTarget, holdSessions, reason, targetReps);
+}
+
+function recommendCluster(history: readonly SessionExercise[], opts: RecommendOptions): Recommendation {
+  const assisted = opts.assisted ?? false;
+  const base = {
+    last: [] as ActivationSummary[], assisted, band: null,
+    calibration: EMPTY_CALIBRATION, warnings: [] as RecommendWarning[],
+  };
+  if (history.length === 0) return { ...base, action: 'calibrate', reason: { kind: 'no-history' } };
+
+  const latest = clusterSetRead(history[0]);
+  const currentLoad = latest.load;
+  if (!latest.prescribed) {
+    // Two different absences, and they are not the same failure. Nothing
+    // logged is unreadable; sets logged with no prescribed reps is an absent
+    // PRESCRIPTION — a cluster set is defined by its prescription, so without
+    // one there is nothing to judge completion against.
+    const logged = blockSets(history[0]).length > 0;
+    return {
+      ...base, action: 'none', ...(currentLoad != null ? { load: currentLoad, currentLoad } : {}),
+      reason: logged ? { kind: 'no-rule' } : { kind: 'nothing-to-read' },
+    };
+  }
+  const holdSessions = Math.max(1, opts.progression?.holdSessions ?? 1);
+  const sessionsAtTarget = heldRun(history, currentLoad, (h) => {
+    const r = clusterSetRead(h);
+    return { load: r.load, held: r.prescribed && r.done === r.blocks };
+  });
+  const reason: RecommendReason = {
+    kind: 'cluster-sets', completed: latest.done as number, blocks: latest.blocks as number,
+    sessionsAtTarget, holdSessions,
+  };
+  return loadCall(base, opts, currentLoad, sessionsAtTarget, holdSessions, reason, latest.blocks as number);
+}
+
 function recommendStraight(history: readonly SessionExercise[], opts: RecommendOptions): Recommendation {
   const assisted = opts.assisted ?? false;
   const base = {
@@ -541,38 +730,16 @@ function recommendStraight(history: readonly SessionExercise[], opts: RecommendO
     return { ...base, action: 'none', load: currentLoad, currentLoad, reason: { kind: 'no-rule' } };
   }
 
-  // Count back from the most recent while the target was held AT THE CURRENT
-  // LOAD. Any other load breaks the run, so a load change restarts the count
-  // by construction — the same rule ADR-0039 uses for the myo-reps
-  // calibration run, and for the same reason: holding 8 reps at 130 says
-  // nothing about whether 135 has been held yet.
-  let sessionsAtTarget = 0;
-  for (const h of history) {
+  const sessionsAtTarget = heldRun(history, currentLoad, (h) => {
     const r = bindingStraight(h);
-    if (r.reps == null || r.reps < targetReps) break;
-    if (r.load !== currentLoad) break;
-    sessionsAtTarget++;
-  }
+    return { load: r.load, held: r.reps != null && r.reps >= targetReps };
+  });
 
   const reason: RecommendReason = {
     kind: 'straight-sets', targetReps, sessionsAtTarget, holdSessions,
     ...(latest.reps != null ? { reps: latest.reps } : {}),
   };
-
-  if (sessionsAtTarget >= holdSessions && currentLoad != null) {
-    const { load, jumpPct } = nextLoad(currentLoad, {
-      availableLoads: opts.availableLoads,
-      incrementLb: opts.progression?.incrementLb,
-      assisted,
-    });
-    if (jumpPct > MAX_JUMP_PCT) {
-      return {
-        ...base, action: 'build-reps', load: currentLoad, currentLoad,
-        reason: { kind: 'jump-too-big', nextLoad: load, jumpPct, repsGoal: targetReps },
-      };
-    }
-    return { ...base, action: 'add-load', load, currentLoad, reason };
-  }
+  return loadCall(base, opts, currentLoad, sessionsAtTarget, holdSessions, reason, targetReps);
   return { ...base, action: 'build-reps', load: currentLoad, currentLoad, reason };
 }
 
@@ -587,6 +754,8 @@ export function recommend(history: readonly SessionExercise[], opts: RecommendOp
   // declines silently is indistinguishable from one that is broken.
   const structure = opts.structure ?? inferStructure(history[0]?.sets);
   if (structure === 'straight') return recommendStraight(history, opts);
+  if (structure === 'rest-pause') return recommendRestPause(history, opts);
+  if (structure === 'cluster') return recommendCluster(history, opts);
   if (structure !== 'myoreps') {
     return {
       last: [], assisted: opts.assisted ?? false, band: null,

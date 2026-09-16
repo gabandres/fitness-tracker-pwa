@@ -11,7 +11,7 @@
 import { recommendationText } from '@/components/train/recommendation-text';
 import { SET_STRUCTURES } from '@/components/train/train-shared';
 import { en } from '@/i18n/en';
-import type { Recommendation } from '@macrolog/core';
+import { READABLE_STRUCTURES, type Recommendation } from '@macrolog/core';
 
 const t = ((key: string, vars?: Record<string, unknown>) => {
   const raw = (en as Record<string, string>)[key];
@@ -35,7 +35,7 @@ const lines = (reason: Recommendation['reason'], extra: Partial<Recommendation> 
 
 describe('ADR-0040 recommendation copy', () => {
   it('names the structure when the engine has no reader for it', () => {
-    for (const structure of ['rest-pause', 'cluster', 'drop', 'superset', 'hit'] as const) {
+    for (const structure of ['drop', 'superset', 'hit'] as const) {
       const { reason } = lines({ kind: 'unsupported-structure', structure });
       expect(reason).not.toBe('');
       // The user picked this structure; the copy must say which one it is.
@@ -61,9 +61,41 @@ describe('ADR-0040 recommendation copy', () => {
     expect(hit.reason).toContain('8');
   });
 
+  it('reports a rest-pause read as a TOTAL, in both states', () => {
+    const building = lines({
+      kind: 'rest-pause', total: 16, targetReps: 20, sessionsAtTarget: 0, holdSessions: 2,
+    });
+    expect(building.reason).not.toBe('');
+    expect(building.reason).toContain('16');
+    expect(building.reason).toContain('20');
+
+    const hit = lines({
+      kind: 'rest-pause', total: 20, targetReps: 20, sessionsAtTarget: 2, holdSessions: 2,
+    });
+    expect(hit.reason).not.toBe('');
+    expect(hit.reason).toContain('20');
+  });
+
+  it('reports a cluster read as COMPLETION, in both states', () => {
+    const building = lines({
+      kind: 'cluster-sets', completed: 2, blocks: 3, sessionsAtTarget: 0, holdSessions: 2,
+    });
+    expect(building.reason).not.toBe('');
+    expect(building.reason).toContain('2');
+    expect(building.reason).toContain('3');
+
+    const hit = lines({
+      kind: 'cluster-sets', completed: 3, blocks: 3, sessionsAtTarget: 2, holdSessions: 2,
+    });
+    expect(hit.reason).not.toBe('');
+    expect(hit.reason).toContain('3');
+  });
+
   it('has copy for every non-myo-reps reason', () => {
     expect(lines({ kind: 'no-rule' }).reason).not.toBe('');
     expect(lines({ kind: 'nothing-to-read' }).reason).not.toBe('');
+    expect(lines({ kind: 'rest-pause', total: 1, targetReps: 2, sessionsAtTarget: 0, holdSessions: 1 }).reason).not.toBe('');
+    expect(lines({ kind: 'cluster-sets', completed: 0, blocks: 1, sessionsAtTarget: 0, holdSessions: 1 }).reason).not.toBe('');
     expect(lines({ kind: 'straight-sets', sessionsAtTarget: 0, holdSessions: 2 }).reason).not.toBe('');
   });
 
@@ -74,6 +106,8 @@ describe('ADR-0040 recommendation copy', () => {
     expect(lines({ kind: 'no-rule' }).calibration).toBeNull();
     expect(lines({ kind: 'nothing-to-read' }).calibration).toBeNull();
     expect(lines({ kind: 'unsupported-structure', structure: 'hit' }).calibration).toBeNull();
+    expect(lines({ kind: 'rest-pause', total: 1, targetReps: 2, sessionsAtTarget: 0, holdSessions: 1 }).calibration).toBeNull();
+    expect(lines({ kind: 'cluster-sets', completed: 0, blocks: 1, sessionsAtTarget: 0, holdSessions: 1 }).calibration).toBeNull();
   });
 });
 
@@ -83,9 +117,13 @@ describe('SET_STRUCTURES picker list', () => {
     expect(SET_STRUCTURES.slice(1, 3).map((s) => s.value)).toEqual(['straight', 'myoreps']);
   });
 
-  it('marks exactly the two engine-readable structures as readable', () => {
+  it('agrees with core about which structures the engine reads', () => {
+    // Pinned against core's own list, not a hand-written copy: the picker
+    // labelling a structure readable when the engine refuses it is the exact
+    // lie ADR-0040 exists to prevent, and a duplicated literal here would let
+    // the two drift silently.
     const readable = SET_STRUCTURES.filter((s) => s.readable && s.value != null).map((s) => s.value);
-    expect(readable).toEqual(['straight', 'myoreps']);
+    expect([...readable].sort()).toEqual([...READABLE_STRUCTURES].sort());
   });
 
   it('has a label in en for every option', () => {
