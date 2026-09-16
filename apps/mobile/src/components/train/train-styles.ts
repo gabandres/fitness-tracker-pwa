@@ -413,6 +413,22 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   },
   tplSetGroup: { flex: 1, fontSize: font.tiny, color: colors.muted },
   tplSetBtns: { flexDirection: 'row', gap: space.lg, marginTop: space.xs },
+  // ADR-0040 structure picker. Wraps rather than scrolls: eight chips do not
+  // fit one row at 360 dp, and a horizontal scroller hides the options that
+  // matter most behind a gesture nobody discovers.
+  tplStructureLabel: {
+    fontSize: font.small, color: colors.muted, fontWeight: '700',
+    marginTop: space.md, marginBottom: space.xs,
+  },
+  tplStructureRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
+  tplStructureChip: {
+    paddingVertical: space.xs, paddingHorizontal: space.sm,
+    borderRadius: radius.sm, backgroundColor: colors.inputBg,
+  },
+  tplStructureChipOn: { backgroundColor: colors.teal },
+  tplStructureText: { fontSize: font.small, color: colors.ink, fontWeight: '600' },
+  tplStructureTextOn: { color: colors.onInk },
+  tplStructureNote: { fontSize: 10, color: colors.muted, marginTop: -1 },
   // "More options" — the one level of depth everything optional lives behind.
   moreRow: {
     flexDirection: 'row',

@@ -284,9 +284,13 @@ service cloud.firestore {
       // effort standard and a manual rep band; both optional, both absent on
       // every doc written before 2026-09-16. The band is three small ints in
       // the order the engine reads them: holdLo <= holdHi < addLoadAt.
+      // `setStructure` (ADR-0040): what this lift is PROGRAMMED as, the
+      // catalog-level default for templates that do not state one. Optional
+      // and absent on every doc written before 2026-09-16; absent means the
+      // engine infers with the pre-0040 rule, so nothing is backfilled.
       return data.keys().hasOnly(['name', 'muscles', 'defaultCues', 'logStyle', 'seedKey',
                                   'availableLoads', 'assisted', 'effortStandard',
-                                  'targetRepBand', 'createdAt'])
+                                  'targetRepBand', 'setStructure', 'createdAt'])
           && data.keys().hasAll(['name', 'createdAt'])
           && data.name is string && data.name.size() > 0 && data.name.size() <= 100
           && data.createdAt is timestamp
@@ -303,6 +307,9 @@ service cloud.firestore {
           && (!('assisted' in data.keys()) || data.assisted is bool)
           && (!('effortStandard' in data.keys()) ||
               (data.effortStandard in ['failure', 'rir1']))
+          && (!('setStructure' in data.keys()) ||
+              (data.setStructure in ['straight', 'myoreps', 'rest-pause',
+                                     'cluster', 'drop', 'superset', 'hit']))
           && (!('targetRepBand' in data.keys()) ||
               (data.targetRepBand is map
                && data.targetRepBand.keys().hasOnly(['addLoadAt', 'holdLo', 'holdHi'])

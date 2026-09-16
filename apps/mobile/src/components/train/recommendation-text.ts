@@ -22,6 +22,7 @@ import {
   type UnitSystem,
   formatLoad,
 } from '@macrolog/core';
+import type { SetStructure } from '@/lib/workout';
 import type { I18nKey, TFn } from '@/i18n';
 
 export interface RecommendationText {
@@ -46,6 +47,23 @@ export interface RecommendationText {
   tappable: boolean;
 }
 
+/** Reason kinds that are NOT on the myo-reps path, and for which the derived
+ *  band / calibration count is meaningless (ADR-0040). */
+const NON_MYOREPS_REASONS = new Set<string>([
+  'straight-sets', 'no-rule', 'nothing-to-read', 'unsupported-structure',
+]);
+
+/** Display name per set structure — the user picked it, so name it back. */
+const STRUCTURE_KEYS: Record<SetStructure, I18nKey> = {
+  straight: 'train.structure.straight',
+  myoreps: 'train.structure.myoreps',
+  'rest-pause': 'train.structure.restPause',
+  cluster: 'train.structure.cluster',
+  drop: 'train.structure.drop',
+  superset: 'train.structure.superset',
+  hit: 'train.structure.hit',
+};
+
 const INVALID_KEYS: Record<InvalidReason, I18nKey> = {
   'reps-missing': 'train.rec.invalid.repsMissing',
   'rir-missing': 'train.rec.invalid.rirMissing',
@@ -69,7 +87,10 @@ function actionKey(rec: Recommendation): I18nKey {
     case 'build-reps': return 'train.rec.action.buildReps';
     case 'repeat-invalid': return 'train.rec.action.repeat';
     case 'calibrate': return 'train.rec.action.calibrate';
-    case 'none': return 'train.rec.action.calibrate';
+    // ADR-0040. Previously unreachable: `recommendationText` returned null for
+    // every `none`, so this label was never rendered. It is reachable now, and
+    // "Calibrating" would be a lie about a refusal.
+    case 'none': return 'train.rec.action.noCall';
   }
 }
 
@@ -84,8 +105,26 @@ function reasonText(rec: Recommendation, unitSystem: UnitSystem, t: TFn): string
   switch (r.kind) {
     case 'no-history':
       return t('train.rec.reason.noHistory');
-    case 'straight-sets':
-      return '';
+    case 'straight-sets': {
+      // ADR-0040: this was the empty string, so a straight-sets lift showed
+      // nothing at all and the user could not tell the engine from a bug.
+      if (r.targetReps == null) return t('train.rec.reason.straightSets.noTarget');
+      if (r.sessionsAtTarget >= r.holdSessions) {
+        return t('train.rec.reason.straightSets.hit', { target: r.targetReps, n: r.sessionsAtTarget });
+      }
+      return t('train.rec.reason.straightSets.building', {
+        reps: r.reps ?? '', target: r.targetReps,
+        n: r.sessionsAtTarget, needed: r.holdSessions,
+      });
+    }
+    case 'no-rule':
+      return t('train.rec.reason.noRule');
+    case 'nothing-to-read':
+      return t('train.rec.reason.nothingToRead');
+    case 'unsupported-structure':
+      return t('train.rec.reason.unsupportedStructure', {
+        structure: t(STRUCTURE_KEYS[r.structure]),
+      });
     case 'calibrating':
       return t('train.rec.calibrating', { n: r.valid, needed: r.needed });
     case 'invalid': {
@@ -143,7 +182,10 @@ function lastText(rec: Recommendation, t: TFn): string | null {
 function calibrationText(rec: Recommendation, t: TFn): string | null {
   if (rec.band != null) return null;
   if (rec.reason.kind === 'calibrating' || rec.reason.kind === 'no-history') return null;
-  if (!rec.calibration.load && rec.calibration.validSessions === 0 && rec.reason.kind === 'straight-sets') return null;
+  // The derived-band calibration is a myo-reps concept (ADR-0039). Off that
+  // path there is nothing calibrating, so counting sessions toward a band the
+  // lift will never use would be noise at best and a lie at worst.
+  if (NON_MYOREPS_REASONS.has(rec.reason.kind)) return null;
   return t('train.rec.calibrating', { n: rec.calibration.validSessions, needed: rec.calibration.needed });
 }
 
@@ -176,7 +218,11 @@ export function recommendationText(
   unitSystem: UnitSystem,
   t: TFn,
 ): RecommendationText | null {
-  if (rec.action === 'none') return null;
+  // ADR-0040. `action: 'none'` used to mean "render nothing", which is the
+  // second half of why a straight-sets lift was silent: the copy was the empty
+  // string AND the note never mounted. A refusal the user cannot see is
+  // indistinguishable from a broken engine, so these reasons speak.
+  if (rec.action === 'none' && !NON_MYOREPS_REASONS.has(rec.reason.kind)) return null;
   const action = t(actionKey(rec));
   const load = rec.load != null ? formatLoad(rec.load, unitSystem) : null;
   return {

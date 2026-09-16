@@ -1237,6 +1237,37 @@ describe('firestore.rules', () => {
     await bad({ targetRepBand: { addLoadAt: 101, holdLo: 99, holdHi: 100 } });
   });
 
+  it('accepts every ADR-0040 set structure on a catalog exercise, and absence', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    for (const setStructure of
+      ['straight', 'myoreps', 'rest-pause', 'cluster', 'drop', 'superset', 'hit']) {
+      await assertSucceeds(
+        addDoc(collection(db, 'users', 'alice', 'exercises'), {
+          name: `Lift ${setStructure}`, setStructure, createdAt: Timestamp.now(),
+        }),
+      );
+    }
+    // Absent is the migration path (ADR-0040 decision 2): the engine infers.
+    await assertSucceeds(
+      addDoc(collection(db, 'users', 'alice', 'exercises'), {
+        name: 'No structure stated', createdAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  it('rejects an unknown or malformed set structure', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    const bad = (extra: Record<string, unknown>) =>
+      assertFails(addDoc(collection(db, 'users', 'alice', 'exercises'), { name: 'X', createdAt: Timestamp.now(), ...extra }));
+    await bad({ setStructure: 'myo-reps' });   // the spelling the engine does not use
+    await bad({ setStructure: 'restpause' });
+    await bad({ setStructure: '' });
+    await bad({ setStructure: 7 });
+    await bad({ setStructure: ['straight'] });
+  });
+
   it('rejects a non-list availableLoads and a non-bool assisted', async () => {
     const db = authed('alice');
     await setDoc(doc(db, 'users', 'alice'), baseProfile());

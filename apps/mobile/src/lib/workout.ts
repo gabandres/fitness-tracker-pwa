@@ -28,8 +28,13 @@ export type {
   PlannedCardioBlock,
 } from '@macrolog/core/cardio';
 import type { CardioBlock, PlannedCardioBlock } from '@macrolog/core/cardio';
-import type { EffortStandard, RecommendationSnapshot, RepBand } from '@macrolog/core/workout';
+import type {
+  EffortStandard, RecommendationSnapshot, RepBand, SetStructure,
+} from '@macrolog/core/workout';
 export type { EffortStandard, RepBand } from '@macrolog/core/workout';
+// ADR-0040, introduced after core existed: re-exported, not re-declared —
+// the rule this file's header states.
+export type { SetStructure } from '@macrolog/core/workout';
 
 export type MuscleGroup =
   | 'chest' | 'back' | 'shoulders' | 'biceps' | 'triceps' | 'quads'
@@ -37,7 +42,11 @@ export type MuscleGroup =
 
 /** How a set counts. v1 only creates `working`; the others exist so docs
  *  written by the PWA round-trip cleanly. */
-export type SetKind = 'warmup' | 'activation' | 'working' | 'mini' | 'drop' | 'mobility';
+export type SetKind =
+  | 'warmup' | 'activation' | 'working' | 'mini' | 'drop' | 'mobility'
+  /** Prescribed continuation of an activation — rest-pause / cluster sets
+   *  (ADR-0040). Not `mini`, which means autoregulated to failure. */
+  | 'continuation';
 
 export type SessionStatus = 'active' | 'completed';
 
@@ -64,6 +73,8 @@ export interface Exercise {
   assisted?: boolean;
   /** `failure` (default) or `rir1` — see `EffortStandard` in core (ADR-0039). */
   effortStandard?: EffortStandard;
+  /** Default structure for this lift (ADR-0040); a template's own wins. */
+  setStructure?: SetStructure;
   /** Manual override of the derived activation rep band (ADR-0039). */
   targetRepBand?: RepBand;
   createdAt: Date;
@@ -151,6 +162,9 @@ export interface TemplateExercise {
   cues?: string[];
   logStyle?: LogStyle;
   progression?: ProgressionRule;
+  /** What this lift is PROGRAMMED as (ADR-0040). Absent means the engine
+   *  infers with the pre-0040 rule; the catalog exercise is the fallback. */
+  setStructure?: SetStructure;
   plannedSets: PlannedSet[];
   /** Exercise-level override of the template's `restMiniSec` (seconds). Mirrors
    *  `packages/core`; see the comment there for why it exists. */

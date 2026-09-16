@@ -18,7 +18,14 @@ import type { CardioBlock, PlannedCardioBlock } from './cardio';
  *  workout.ts`, `apps/mobile/src/lib/workout.ts`, and the web template
  *  editor's `SET_KINDS` array, which populates the kind `<select>`. Missing
  *  the last one compiles cleanly and silently never offers the kind. */
-export type SetKind = 'warmup' | 'activation' | 'working' | 'mini' | 'drop' | 'mobility';
+export type SetKind =
+  | 'warmup' | 'activation' | 'working' | 'mini' | 'drop' | 'mobility'
+  /** A PRESCRIBED continuation of an activation — rest-pause and cluster
+   *  sets (ADR-0040). Deliberately not `mini`: `mini` means *autoregulated
+   *  to failure* to the progression engine, and "not autoregulated" is
+   *  exactly what separates a cluster set from myo-reps. Nothing reads this
+   *  yet; no structure that uses it has an engine reader. */
+  | 'continuation';
 
 /** Muscle groups a catalog exercise can target. */
 export type MuscleGroup =
@@ -58,6 +65,48 @@ export type LogStyle = 'weight-reps' | 'bodyweight' | 'time';
 
 /** Treat a missing logStyle as the classic load×reps set. */
 export const DEFAULT_LOG_STYLE: LogStyle = 'weight-reps';
+
+/**
+ * How an exercise's sets are STRUCTURED — what it is programmed as (ADR-0040).
+ *
+ * The sibling of {@link LogStyle}: a small closed union on the PRESCRIPTION,
+ * declared rather than recovered by inspecting what got logged. That
+ * distinction is the whole point. Myo-reps, rest-pause and cluster sets are
+ * all "an activation followed by continuations" in shape; what separates a
+ * cluster set from myo-reps is that it is not autoregulated, which lives in
+ * the prescription and leaves no trace in the set list.
+ *
+ * Only `myoreps` and `straight` have an engine reader. The rest are
+ * declarable so a user can state the intent and be told, honestly, that the
+ * engine does not read it yet — see `unsupported-structure` in
+ * `progression-engine.ts`. A structure must never fall through to the
+ * myo-reps path.
+ */
+export type SetStructure =
+  /** N sets × target reps, full rest. Double progression. */
+  | 'straight'
+  /** Activation set + autoregulated mini-sets (ADR-0038/0039). */
+  | 'myoreps'
+  /** Activation to failure, short rest, continue to failure. */
+  | 'rest-pause'
+  /** Prescribed reps per mini-block with intra-set rest, NOT autoregulated. */
+  | 'cluster'
+  /** Load reduced within a single set. */
+  | 'drop'
+  /** Two exercises paired with shared rest. */
+  | 'superset'
+  /** A single set taken to failure. */
+  | 'hit';
+
+/**
+ * What an exercise with no declared structure is read as.
+ *
+ * NOT a constant: absence means "infer with the pre-ADR-0040 rule", which
+ * depends on the set list. See `structureOf` in `set-structure.ts` — that
+ * resolver IS the old behaviour, which is what lets ADR-0040 ship without
+ * rewriting a single stored document.
+ */
+export const DEFAULT_SET_STRUCTURE: SetStructure = 'straight';
 
 /** Deterministic double-progression rule. When the key set hits `targetReps`
  *  for `holdSessions` consecutive sessions, suggest bumping by `incrementLb`. */
@@ -286,6 +335,9 @@ export interface Exercise {
   /** Manual override of the derived rep band — see {@link RepBand}. Absent
    *  means "derive it from three valid sessions at the current load". */
   targetRepBand?: RepBand;
+  /** The DEFAULT structure for this lift (ADR-0040) — used by templates that
+   *  do not state one. A template's own `setStructure` wins. */
+  setStructure?: SetStructure;
   createdAt: Date;
 }
 
@@ -299,6 +351,10 @@ export interface TemplateExercise {
   cues?: string[];
   logStyle?: LogStyle;
   progression?: ProgressionRule;
+  /** What this lift is PROGRAMMED as (ADR-0040). Absent means "infer with
+   *  the pre-0040 rule" — see `structureOf`. Falls back to the catalog
+   *  exercise's `setStructure` before inference. */
+  setStructure?: SetStructure;
   plannedSets: PlannedSet[];
   /** Rest before this exercise's mini-sets / straight sets, seconds — an
    *  EXERCISE-level override of the template's `restMiniSec`. Exists because a

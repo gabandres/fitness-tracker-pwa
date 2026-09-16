@@ -85,11 +85,13 @@ import type {
   ProgressionRule,
   RepBand,
   SessionExercise,
+  SetStructure,
   WorkoutSet,
 } from './workout';
 import { DEFAULT_EFFORT_STANDARD, DEFAULT_LOG_STYLE } from './workout';
 import { ACTIVATION_RIR_MAX } from './activation-validity';
 import { DEFAULT_INCREMENT_LB } from './load-units';
+import { inferStructure, structureOf } from './set-structure';
 
 // ─── Constants (stated once; the tests pin them) ────────────────
 
@@ -360,7 +362,21 @@ export type RecommendAction =
 
 export type RecommendReason =
   | { kind: 'no-history' }
-  | { kind: 'straight-sets' }
+  /** A straight-sets read (ADR-0040). `reps` is the BINDING set — the lowest
+   *  rep count across the session's working sets, because double progression's
+   *  claim is "the threshold was held", and it is not held by the set that
+   *  fell short. `sessionsAtTarget` counts back from the most recent. */
+  | { kind: 'straight-sets'; reps?: number; targetReps?: number;
+      sessionsAtTarget: number; holdSessions: number }
+  /** Straight sets with no rep target to progress against: the template
+   *  states no `progression.targetReps`, so there is no threshold to hold. */
+  | { kind: 'no-rule' }
+  /** Nothing in the latest session the engine can read — a timed hold, or a
+   *  lift with no performed sets. Not a fault in the log. */
+  | { kind: 'nothing-to-read' }
+  /** The exercise is programmed as a structure the engine has no reader for
+   *  (ADR-0040). Never a fall-through to another structure's rule. */
+  | { kind: 'unsupported-structure'; structure: SetStructure }
   /** Band not yet derived: `valid` of `needed` sessions at the current load. */
   | { kind: 'calibrating'; valid: number; needed: number }
   | { kind: 'invalid'; reason: InvalidReason; group?: number; firstMini?: number; rir?: number; reps?: number }
@@ -419,6 +435,12 @@ export interface RecommendOptions extends ReadOptions {
   effortStandard?: EffortStandard;
   /** From the catalog exercise: a manual band that skips calibration. */
   targetRepBand?: RepBand;
+  /** What the exercise is PROGRAMMED as (ADR-0040), resolved by `structureOf`
+   *  from the template, then the catalog. Absent means "infer with the
+   *  pre-0040 rule" from the latest session's set list, which is exactly what
+   *  the engine did before this option existed — so an undeclared myo-reps
+   *  lift still reads as myo-reps and history is not reinterpreted. */
+  structure?: SetStructure;
 }
 
 /** The activation reps that bind a multi-cluster read: the lowest. */
@@ -453,13 +475,133 @@ export function nextLoad(
   return { load, jumpPct };
 }
 
+/** The calibration state for a structure that does not calibrate. The derived
+ *  band is a myo-reps concept (ADR-0039); straight sets progress against the
+ *  template's rep target, and an unreadable structure has no state at all. */
+const EMPTY_CALIBRATION: Calibration = { validSessions: 0, needed: CALIBRATION_SESSIONS, band: null, source: null };
+
+/** Working sets that were actually performed, in log order. */
+function workingReps(ex: SessionExercise): WorkoutSet[] {
+  return ex.sets.filter((s) => s.kind === 'working' && s.reps != null);
+}
+
+/**
+ * The BINDING rep count of a straight-sets session: the lowest across its
+ * working sets.
+ *
+ * Double progression's claim is "the threshold was held for N sessions", and
+ * a threshold is not held by the set that fell short of it. Taking the first
+ * or the best set instead is the same defect `keySets` was written to close
+ * for multi-cluster lifts — the app recommended load off half the evidence.
+ */
+function bindingStraight(ex: SessionExercise): { reps?: number; load?: number; rir?: number } {
+  const sets = workingReps(ex);
+  if (sets.length === 0) return {};
+  const reps = Math.min(...sets.map((s) => s.reps as number));
+  const loads = sets.map((s) => s.weight).filter((w): w is number => w != null);
+  const rirs = sets.map((s) => s.rir).filter((r): r is number => r != null);
+  return {
+    reps,
+    ...(loads.length ? { load: Math.min(...loads) } : {}),
+    ...(rirs.length ? { rir: Math.min(...rirs) } : {}),
+  };
+}
+
+/**
+ * Straight sets: deterministic double progression (ADR-0040).
+ *
+ * Bump the load once every working set has held `targetReps` for
+ * `holdSessions` consecutive sessions at a non-decreasing load. Deliberately
+ * NOT the myo-reps reader: no activation, no mini rule, no derived band. The
+ * mini rule is meaningless here and must never run on this path.
+ */
+function recommendStraight(history: readonly SessionExercise[], opts: RecommendOptions): Recommendation {
+  const assisted = opts.assisted ?? false;
+  const base = {
+    last: [] as ActivationSummary[], assisted, band: null,
+    calibration: EMPTY_CALIBRATION, warnings: [] as RecommendWarning[],
+  };
+  if (history.length === 0) return { ...base, action: 'calibrate', reason: { kind: 'no-history' } };
+
+  const latest = bindingStraight(history[0]);
+  const currentLoad = latest.load;
+  // Declared `straight` but the latest session logged no working set — e.g. a
+  // lift whose structure was switched while its log is still activation/mini
+  // shaped. Reading a rep count out of sets this structure does not own would
+  // be the exact cross-structure guess ADR-0040 forbids.
+  if (latest.reps == null) {
+    return { ...base, action: 'none', ...(currentLoad != null ? { currentLoad } : {}), reason: { kind: 'nothing-to-read' } };
+  }
+  const targetReps = opts.progression?.targetReps;
+  const holdSessions = Math.max(1, opts.progression?.holdSessions ?? 1);
+
+  // No stated target is not a failed read, it is an absent prescription. Say
+  // so rather than invent a threshold the user never programmed.
+  if (targetReps == null) {
+    return { ...base, action: 'none', load: currentLoad, currentLoad, reason: { kind: 'no-rule' } };
+  }
+
+  // Count back from the most recent while the target was held AT THE CURRENT
+  // LOAD. Any other load breaks the run, so a load change restarts the count
+  // by construction — the same rule ADR-0039 uses for the myo-reps
+  // calibration run, and for the same reason: holding 8 reps at 130 says
+  // nothing about whether 135 has been held yet.
+  let sessionsAtTarget = 0;
+  for (const h of history) {
+    const r = bindingStraight(h);
+    if (r.reps == null || r.reps < targetReps) break;
+    if (r.load !== currentLoad) break;
+    sessionsAtTarget++;
+  }
+
+  const reason: RecommendReason = {
+    kind: 'straight-sets', targetReps, sessionsAtTarget, holdSessions,
+    ...(latest.reps != null ? { reps: latest.reps } : {}),
+  };
+
+  if (sessionsAtTarget >= holdSessions && currentLoad != null) {
+    const { load, jumpPct } = nextLoad(currentLoad, {
+      availableLoads: opts.availableLoads,
+      incrementLb: opts.progression?.incrementLb,
+      assisted,
+    });
+    if (jumpPct > MAX_JUMP_PCT) {
+      return {
+        ...base, action: 'build-reps', load: currentLoad, currentLoad,
+        reason: { kind: 'jump-too-big', nextLoad: load, jumpPct, repsGoal: targetReps },
+      };
+    }
+    return { ...base, action: 'add-load', load, currentLoad, reason };
+  }
+  return { ...base, action: 'build-reps', load: currentLoad, currentLoad, reason };
+}
+
 /**
  * Layers 1-4 for one exercise. `history` is the SAME exercise across recent
  * COMPLETED sessions, most-recent-first (what `exerciseHistory` returns).
  */
 export function recommend(history: readonly SessionExercise[], opts: RecommendOptions = {}): Recommendation {
+  // ADR-0040. Resolve the PRESCRIBED structure first and dispatch on it. The
+  // fall-through is an explicit refusal, never another structure's reader:
+  // an engine that guesses is worse than one that declines, and one that
+  // declines silently is indistinguishable from one that is broken.
+  const structure = opts.structure ?? inferStructure(history[0]?.sets);
+  if (structure === 'straight') return recommendStraight(history, opts);
+  if (structure !== 'myoreps') {
+    return {
+      last: [], assisted: opts.assisted ?? false, band: null,
+      calibration: EMPTY_CALIBRATION, warnings: [],
+      action: 'none', reason: { kind: 'unsupported-structure', structure },
+    };
+  }
+
+  // ─── myo-reps: ADR-0038/0039, unchanged below this line ───────────
   const assisted = opts.assisted ?? false;
-  const reads = history.map((h) => readExercise(h, opts));
+  // A declared myo-reps lift DOES expect a cluster, which is what makes a
+  // straight-set log of it read as `not-clustered` instead of being ignored.
+  // An explicit caller value still wins.
+  const readOpts: RecommendOptions = { ...opts, expectsCluster: opts.expectsCluster ?? true };
+  const reads = history.map((h) => readExercise(h, readOpts));
   const calibration = calibrationFrom(reads, opts);
   const band = calibration.band;
   const base = { last: [] as ActivationSummary[], assisted, band, calibration, warnings: [] as RecommendWarning[] };
@@ -481,7 +623,13 @@ export function recommend(history: readonly SessionExercise[], opts: RecommendOp
         reason: { kind: 'invalid', reason: 'not-clustered' },
       };
     }
-    return { ...base, action: 'none', currentLoad, reason: { kind: 'straight-sets' } };
+    // Reached only when there is no cluster to read AND no straight-set log
+    // to fault: a myo-reps lift whose latest session is a timed hold (the
+    // engine is a rep engine — wrong instrument, not a bad log), or one with
+    // nothing performed yet. Before ADR-0040 this returned `straight-sets`,
+    // which was a lie about a lift programmed as myo-reps, and it rendered as
+    // the empty string so nobody could see the lie.
+    return { ...base, action: 'none', currentLoad, reason: { kind: 'nothing-to-read' } };
   }
 
   // A `rir1` lift taken to failure: say so, but the mini rule decides validity.
@@ -662,17 +810,32 @@ function stallFrom(reads: readonly ExerciseRead[], band: RepBand | null): StallR
  * what.
  */
 export function recommendOptionsFor(
-  templateExercise: { plannedSets: readonly { kind: string }[]; progression?: Partial<ProgressionRule> } | null | undefined,
+  templateExercise: {
+    plannedSets: readonly { kind: string }[];
+    progression?: Partial<ProgressionRule>;
+    setStructure?: SetStructure;
+  } | null | undefined,
   catalogExercise: {
     availableLoads?: number[];
     assisted?: boolean;
     effortStandard?: EffortStandard;
     targetRepBand?: RepBand;
+    setStructure?: SetStructure;
   } | null | undefined,
+  /** The logged sets to infer from when there is no template row — an ad-hoc
+   *  exercise, where the log is the only statement of intent there is. Never
+   *  consulted when a template states a structure (ADR-0040). */
+  fallbackSets?: readonly { kind: string }[],
 ): RecommendOptions {
   const expectsCluster = (templateExercise?.plannedSets ?? []).some((p) => p.kind === 'activation');
+  const structure = structureOf(
+    templateExercise ?? undefined,
+    catalogExercise ?? undefined,
+    templateExercise?.plannedSets ?? fallbackSets,
+  );
   return {
     expectsCluster,
+    structure,
     ...(templateExercise?.progression ? { progression: templateExercise.progression } : {}),
     ...(catalogExercise?.availableLoads ? { availableLoads: catalogExercise.availableLoads } : {}),
     ...(catalogExercise?.assisted != null ? { assisted: catalogExercise.assisted } : {}),

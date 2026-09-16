@@ -131,9 +131,29 @@ describe('recommendation text — the spec examples on the real numbers', () => 
     ]);
   });
 
-  it('a straight-set lift renders nothing — the engine has no call', () => {
-    const rec: Recommendation = recommend([{ exerciseId: 'x', name: 'X', cues: [], sets: [{ kind: 'working', reps: 8, weight: 100 }] }], {});
-    expect(recommendationText(rec, 'us', t)).toBeNull();
+  // ADR-0040 REPLACES the old contract here. This used to assert
+  // `toBeNull()` — a straight-set lift rendered nothing at all, which is the
+  // silence ADR-0040 exists to end: the user could not tell an engine with no
+  // call from an engine that was broken.
+  it('a straight-set lift now reports its read instead of rendering nothing', () => {
+    const rec: Recommendation = recommend(
+      [{ exerciseId: 'x', name: 'X', cues: [], sets: [{ kind: 'working', reps: 8, weight: 100 }] }],
+      { progression: { targetReps: 8, holdSessions: 2, incrementLb: 5 } },
+    );
+    const text = recommendationText(rec, 'us', t);
+    expect(text).not.toBeNull();
+    expect(text!.reason).not.toBe('');
+    expect(text!.reason).toContain('8');
+  });
+
+  it('a straight-set lift with no rep target says so rather than going quiet', () => {
+    const rec: Recommendation = recommend(
+      [{ exerciseId: 'x', name: 'X', cues: [], sets: [{ kind: 'working', reps: 8, weight: 100 }] }],
+      {},
+    );
+    const text = recommendationText(rec, 'us', t);
+    expect(text).not.toBeNull();
+    expect(text!.reason).toBe(en['train.rec.reason.noRule']);
   });
 });
 

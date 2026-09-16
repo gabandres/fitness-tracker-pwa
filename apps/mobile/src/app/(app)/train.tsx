@@ -772,7 +772,10 @@ function recommendationFor(
   const opts = templateRow
     ? recommendOptionsFor(templateRow, catalogEx)
     : {
-        ...recommendOptionsFor(null, catalogEx),
+        // No template row: this is an ad-hoc exercise, so its own sets are the
+        // only statement of intent there is — both for `expectsCluster` and,
+        // via the fallback list, for the ADR-0040 structure.
+        ...recommendOptionsFor(null, catalogEx, sessionEx?.sets),
         expectsCluster: sessionEx?.sets.some((x) => x.kind === 'activation') ?? false,
         ...(sessionEx?.progression ? { progression: sessionEx.progression } : {}),
       };

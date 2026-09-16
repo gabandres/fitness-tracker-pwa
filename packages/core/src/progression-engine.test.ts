@@ -439,14 +439,25 @@ describe('wiring helpers', () => {
     );
     expect(opts).toEqual({
       expectsCluster: true,
+      // ADR-0040: resolved from the template's plannedSets when neither the
+      // template nor the catalog declares one.
+      structure: 'myoreps',
       progression: { targetReps: 12, incrementLb: 5, holdSessions: 2 },
       availableLoads: [10, 20],
       assisted: true,
       effortStandard: 'rir1',
       targetRepBand: BAND_12,
     });
-    expect(recommendOptionsFor({ plannedSets: [{ kind: 'working' }] }, null)).toEqual({ expectsCluster: false });
-    expect(recommendOptionsFor(null, { effortStandard: 'failure' })).toEqual({ expectsCluster: false, effortStandard: 'failure' });
+    expect(recommendOptionsFor({ plannedSets: [{ kind: 'working' }] }, null))
+      .toEqual({ expectsCluster: false, structure: 'straight' });
+    expect(recommendOptionsFor(null, { effortStandard: 'failure' }))
+      .toEqual({ expectsCluster: false, structure: 'straight', effortStandard: 'failure' });
+    // A declared structure beats the set list it contradicts.
+    expect(recommendOptionsFor({ plannedSets: [{ kind: 'working' }], setStructure: 'myoreps' }, null))
+      .toMatchObject({ structure: 'myoreps' });
+    // Catalog default, used when the template states nothing.
+    expect(recommendOptionsFor({ plannedSets: [{ kind: 'working' }] }, { setStructure: 'hit' }))
+      .toMatchObject({ structure: 'hit' });
   });
 
   it('freezes the storable subset and audits whether it was followed', () => {

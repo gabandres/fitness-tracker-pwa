@@ -1,5 +1,5 @@
 import type { I18nKey } from '@/i18n';
-import type { LogStyle, SetKind, WorkoutSet } from '@/lib/workout';
+import type { LogStyle, SetKind, SetStructure, WorkoutSet } from '@/lib/workout';
 
 /**
  * Label maps and small parsers shared by the Train screen and its modals.
@@ -67,6 +67,27 @@ export const SET_KINDS: { value: WorkoutSet['kind']; labelKey: I18nKey; descKey:
   // pushing it above `drop` would reorder a list users already have muscle
   // memory for.
   { value: 'mobility', labelKey: 'train.kind.mobility', descKey: 'train.kindDesc.mobility' },
+];
+
+/**
+ * The structures a template can declare (ADR-0040), in picker order.
+ *
+ * `undefined` is a real, distinct choice and is rendered first as "Auto": it
+ * means the template states nothing and the engine infers with the pre-0040
+ * rule. Templates written before the field existed are undeclared, and
+ * re-saving one must not silently restate them as something.
+ *
+ * `straight` and `myoreps` lead because they are the two the engine reads.
+ */
+export const SET_STRUCTURES: { value: SetStructure | undefined; labelKey: I18nKey; readable: boolean }[] = [
+  { value: undefined, labelKey: 'train.structure.auto', readable: true },
+  { value: 'straight', labelKey: 'train.structure.straight', readable: true },
+  { value: 'myoreps', labelKey: 'train.structure.myoreps', readable: true },
+  { value: 'rest-pause', labelKey: 'train.structure.restPause', readable: false },
+  { value: 'cluster', labelKey: 'train.structure.cluster', readable: false },
+  { value: 'drop', labelKey: 'train.structure.drop', readable: false },
+  { value: 'superset', labelKey: 'train.structure.superset', readable: false },
+  { value: 'hit', labelKey: 'train.structure.hit', readable: false },
 ];
 
 export function logStyleKey(style: LogStyle | undefined): I18nKey {

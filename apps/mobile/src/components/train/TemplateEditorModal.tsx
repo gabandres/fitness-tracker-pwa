@@ -31,6 +31,7 @@ import type {
   LogStyle,
   PlannedSet,
   SetKind,
+  SetStructure,
   TemplateDraft,
   TemplateExercise,
   WorkoutTemplate,
@@ -44,7 +45,7 @@ import { useDeferredFocus } from '@/lib/use-deferred-focus';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { space } from '@/theme';
 import {
-  CREATION_STYLES, SET_KINDS, type CreationStyle,
+  CREATION_STYLES, SET_KINDS, SET_STRUCTURES, type CreationStyle,
   kindLabelKey, logStyleFor, logStyleKey, numOrUndef, setKindFor,
 } from './train-shared';
 import { mobilityDoseWarnings } from '@macrolog/core';
@@ -185,6 +186,10 @@ interface DraftEx {
   incrementLb: string;
   /** Exercise-level mini-set rest override, seconds; '' = use the template's. */
   restMiniSec: string;
+  /** What this lift is PROGRAMMED as (ADR-0040). `undefined` keeps a template
+   *  written before the field existed undeclared, so the engine keeps
+   *  inferring for it and nothing is silently restated on an unrelated save. */
+  setStructure?: SetStructure;
   /** The real planned sets, not a count — a count cannot represent a cluster
    *  (activation/mini/mini) and rewriting one as N working sets destroys it. */
   sets: DraftSet[];
@@ -297,6 +302,7 @@ export function TemplateEditorModal({
         holdSessions: ex.progression ? String(ex.progression.holdSessions) : '',
         incrementLb: ex.progression ? String(toDisplayLoad(ex.progression.incrementLb, unitSystem)) : '',
         restMiniSec: ex.restMiniSec != null ? String(ex.restMiniSec) : '',
+        setStructure: ex.setStructure,
         sets: ex.plannedSets.length
           ? ex.plannedSets.map((ps) => toDraftSet(ps, unitSystem))
           : [newDraftSet('working')],
@@ -458,6 +464,11 @@ export function TemplateEditorModal({
     mutateSets(index, (sets) => sets.map((s, i) => (i === setIdx ? { ...s, ...patch } : s)));
   }
 
+  function setStructure(index: number, value: SetStructure | undefined) {
+    haptics.tap();
+    setExercises((prev) => prev.map((d, i) => (i === index ? { ...d, setStructure: value } : d)));
+  }
+
   function setSetKind(index: number, setIdx: number, kind: SetKind) {
     haptics.tap();
     mutateSets(index, (sets) => sets.map((s, i) => (i === setIdx ? { ...s, kind } : s)));
@@ -512,6 +523,7 @@ export function TemplateEditorModal({
                 }
               : undefined,
             restMiniSec: numOrUndef(d.restMiniSec),
+            setStructure: d.setStructure,
             plannedSets: normalizeClusterGroups(
               d.sets.length ? d.sets : [newDraftSet('working')],
             ).map((d) => toPlannedSet(d, unitSystem)),
@@ -961,6 +973,35 @@ export function TemplateEditorModal({
                       </View>
                     );
                   })}
+                  {/* ADR-0040. The structure is DECLARED here rather than
+                      inferred from the set list, because myo-reps, rest-pause
+                      and cluster sets are all "activation + continuations" in
+                      shape and cannot be told apart by inspection. */}
+                  <Text style={styles.tplStructureLabel}>{t('train.structureLabel')}</Text>
+                  <View style={styles.tplStructureRow}>
+                    {SET_STRUCTURES.map((st) => {
+                      const on = d.setStructure === st.value;
+                      return (
+                        <TouchableOpacity
+                          key={st.value ?? 'auto'}
+                          style={[styles.tplStructureChip, on && styles.tplStructureChipOn]}
+                          onPress={() => setStructure(i, st.value)}
+                          testID={`template-structure-${i}-${st.value ?? 'auto'}`}
+                        >
+                          <Text style={[styles.tplStructureText, on && styles.tplStructureTextOn]}>
+                            {t(st.labelKey)}
+                          </Text>
+                          {/* Named, not hidden: a user may legitimately want to
+                              program rest-pause today and should be told the
+                              engine will not read it, not quietly given a
+                              number computed by another structure's rule. */}
+                          {!st.readable ? (
+                            <Text style={styles.tplStructureNote}>{t('train.structureUnread')}</Text>
+                          ) : null}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
                   <View style={styles.tplSetBtns}>
                     <TouchableOpacity onPress={() => addSet(i)} testID={`template-add-set-${i}`}>
                       <Text style={styles.sectionAction}>{t('train.addSet')}</Text>

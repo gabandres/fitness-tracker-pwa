@@ -4,6 +4,29 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-09-16 — Train: the set structure is declared, and the engine dispatches on it (ADR-0040) — merged, not yet on any OTA
+
+Straight sets are programmable and get a real recommendation; the other five
+structures are declarable and refuse explicitly. `SetStructure`
+(`straight | myoreps | rest-pause | cluster | drop | superset | hit`) lives on
+the template exercise and, as a default, on the catalog exercise;
+`structureOf` resolves template → catalog → inference. **Absence means "infer
+with the pre-0040 rule" (`activation` present ⇒ myo-reps), so no document is
+rewritten, no backfill runs, and no logged session is reinterpreted.**
+`recommend()` dispatches: `myoreps` to the ADR-0038/0039 path byte-for-byte
+unchanged (all 1567 pre-existing core tests pass untouched), `straight` to a
+double-progression read bound by the LOWEST working set and counting sessions
+at the CURRENT load, everything else to `unsupported-structure` — the
+dispatcher has no fall-through. Three premises in the brief did not survive
+the code and are corrected in the ADR: the engine was never applying the
+mini rule to straight sets, `not-clustered` was never dead, and straight-set
+double progression already existed in `suggestProgression`. What WAS broken is
+silence — `straight-sets` rendered as the empty string AND `recommendationText`
+returned null for every `action: 'none'`, so the note never mounted. Both
+fixed. `SetKind` gains `continuation` for the structures still to come;
+`setGroup` needed no change. Rules deployed 2026-09-16 before any client
+writes the field.
+
 ## 2026-09-15 — Train: RIR 0 is the standard, the rep band is derived per lift (ADR-0039) — merged, not yet on any OTA
 
 An amendment to the progression engine after 85 logged clusters showed the
