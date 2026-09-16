@@ -97,6 +97,80 @@ export const USER_SUBCOLLECTIONS = [
 export const EXPORT_EXCLUDED: ReadonlySet<string> = new Set(["private"]);
 
 /**
+ * Personal data that is NOT under `users/{uid}`.
+ *
+ * `USER_SUBCOLLECTIONS` made the two obligations agree with each other. It can
+ * only ever reach children of `users/{uid}`, and that limit was known: the
+ * parity spec's own comment records that an earlier pass saw `publicSlugs` and
+ * `usageEvents`, correctly refused to add them to that list (doing so would
+ * have deleted another user's slug reservation), and stopped there. Refusing
+ * to put them in the subcollection list was right. Concluding that they
+ * therefore needed no erasure was the part nobody asked.
+ *
+ * `firestore.rules` had already written down the intent for one of them —
+ * *"Deletion is the account-deletion path, which runs in the admin SDK and
+ * bypasses these rules"* — against a delete path that never touched the
+ * collection. Measured 2026-09-16: 7 `usageEvents` documents belonging to 3
+ * accounts that no longer exist in Firebase Auth.
+ *
+ * Each entry says how a document is traced back to a uid, because that is the
+ * part that differs — a doc id prefix, a `uid` field, or a second collection
+ * keyed by a value the first one holds.
+ */
+export const UID_KEYED_TOP_LEVEL = [
+  {
+    /** `usageEvents/<uid>_<YYYY-MM-DD>` — per-day product counters. Integer
+     *  counts only, but they are counts OF one identified person's behaviour,
+     *  which is what makes them personal data rather than statistics. */
+    collection: "usageEvents",
+    by: "uid-field",
+  },
+  {
+    /** `publicSlugs/<slug>` = `{ uid, claimedAt }`, and `publicProfiles/<slug>`
+     *  is the world-readable mirror keyed by that same slug.
+     *
+     *  **This is the more dangerous of the two and the less obvious.** The
+     *  mirror is maintained by `onUserUpdate`, an `onDocumentUpdated` trigger,
+     *  and `deleteAccount` DELETES `users/{uid}` — a delete does not fire an
+     *  update trigger, and there is no `onDocumentDeleted` anywhere in
+     *  `functions/src`. So a deleted account's display name, start weight,
+     *  current weight and goal would stay readable by anyone, forever, at
+     *  `ignia.fit/u/<slug>`. No live orphan exists today only because no
+     *  account currently has a public profile (measured 2026-09-16: zero
+     *  documents in both collections) — the gap is latent, not absent, and
+     *  `/u/**` is a kept surface (ADR-0036). */
+    collection: "publicSlugs",
+    by: "uid-field",
+    /** Deleted alongside, keyed by the slug (the `publicSlugs` doc id). */
+    mirror: "publicProfiles",
+  },
+] as const;
+
+/**
+ * Every OTHER top-level collection in `firestore.rules`, and why erasure does
+ * not touch it. A reason, not an omission — the parity spec requires each one
+ * to appear either here or above, so a new top-level collection cannot be
+ * added without someone deciding which it is.
+ */
+export const TOP_LEVEL_NOT_ERASED: Readonly<Record<string, string>> = {
+  users: "the account root itself — erased by deleteAccount, subcollections via USER_SUBCOLLECTIONS",
+  consultationQuota:
+    "uid-keyed, and already erased — dailyQuota.deleteAll(uid) covers the photo and consultation counters",
+  customers:
+    "Stripe extension, REMOVED 2026-08-31 (CLAUDE.md); zero documents as of 2026-09-16. If subscriptions ever ship they go through Apple/Google IAP and this decision is re-made then",
+  emailRateLimits:
+    "not uid-keyed and not reachable from one: ids are a hash of the address (`pw_email_<hash>`, password-reset.ts), which is the point — the limiter never stores the email it throttles",
+  auditLogs:
+    "record of ADMIN actions, retained deliberately. An accountability log that the subject of an action can erase is not an accountability log; retention here is the legitimate-interest basis, not an oversight",
+  config: "server-side configuration and aggregates; no personal data",
+  opsBudget: "org-wide spend ceiling and kill-switch; no personal data",
+  products: "Stripe catalog data; no personal data",
+  status: "the /status heartbeat; no personal data",
+  public: "public aggregate stats and app-version; no personal data",
+  publicProfiles: "erased as the mirror of publicSlugs — see UID_KEYED_TOP_LEVEL",
+};
+
+/**
  * Recursively delete all documents in a subcollection in batches of 500
  * (Firestore's max batch size). Firestore doesn't cascade on user or doc
  * deletion, so we have to walk each subcollection manually.
@@ -114,6 +188,36 @@ async function deleteSubcollection(
     snap.docs.forEach((d) => batch.delete(d.ref));
     await batch.commit();
     if (snap.size < pageSize) return;
+  }
+}
+
+/**
+ * Erase the uid-keyed TOP-LEVEL collections (see {@link UID_KEYED_TOP_LEVEL}).
+ *
+ * Driven off the constant for the same reason the subcollection path is: a
+ * collection named in code and not in a list is the drift this file has
+ * already paid for twice.
+ *
+ * Deliberately NOT folded into `USER_SUBCOLLECTIONS`. These are siblings of
+ * `users/{uid}`, not children, and `deleteSubcollection` would resolve
+ * `users/{uid}/publicSlugs` — a path that does not exist — while the real
+ * documents survived. Worse, an earlier reading of that idea would have had
+ * the delete walk `publicSlugs` wholesale and take other users' slug
+ * reservations with it.
+ */
+async function deleteUidKeyedTopLevel(uid: string): Promise<void> {
+  for (const entry of UID_KEYED_TOP_LEVEL) {
+    const snap = await db.collection(entry.collection).where("uid", "==", uid).get();
+    if (snap.empty) continue;
+    const batch = db.batch();
+    for (const d of snap.docs) {
+      batch.delete(d.ref);
+      // The mirror is keyed by THIS document's id (the slug), not by the uid,
+      // so it can only be found from here.
+      const mirror = (entry as { mirror?: string }).mirror;
+      if (mirror) batch.delete(db.doc(`${mirror}/${d.id}`));
+    }
+    await batch.commit();
   }
 }
 
@@ -182,11 +286,21 @@ export const exportUserData = onCall({ maxInstances: 5 }, async (request) => {
   // `workoutTemplates` and `exercises` join the payload here for the first
   // time — they were erasable but not portable.
   const exported = USER_SUBCOLLECTIONS.filter((name) => !EXPORT_EXCLUDED.has(name));
-  const [profileSnap, collections, photoQuota, consultationQuota] = await Promise.all([
+  // Art. 17 and Art. 20 cover the same data, and that is this file's whole
+  // doctrine — so the usage counters join the payload the same day they become
+  // erasable, rather than the day someone notices the asymmetry. They are
+  // observed rather than volunteered, which does not exclude them: the test is
+  // whether the data is about an identified person, and a per-day counter
+  // under their uid is. The public-profile mirror is not exported: it is a
+  // projection of the profile fields already in `profile`, and it is world-
+  // readable, so there is nothing to hand back that the user cannot read.
+  const [profileSnap, collections, photoQuota, consultationQuota, usageEvents] = await Promise.all([
     userRef.get(),
     Promise.all(exported.map((name) => dumpCollection(name))),
     dailyQuota.dump(uid, "photo"),
     dailyQuota.dump(uid, "consultation"),
+    db.collection("usageEvents").where("uid", "==", uid).get()
+      .then((s) => s.docs.map((d) => ({ id: d.id, ...d.data() }))),
   ]);
   const byName = Object.fromEntries(exported.map((name, i) => [name, collections[i]]));
 
@@ -207,6 +321,7 @@ export const exportUserData = onCall({ maxInstances: 5 }, async (request) => {
     ...byName,
     photoQuota,
     consultationQuota,
+    usageEvents,
   };
 
   // Callable response cap is ~10 MB. Reject early with a typed error so
@@ -267,6 +382,14 @@ export const deleteAccount = onCall({ secrets: APPLE_SECRETS }, async (request) 
     await getStorage()
       .bucket()
       .deleteFiles({ prefix: `users/${uid}/photos/` });
+
+    // 1c. Purge the uid-keyed TOP-LEVEL collections. Firestore does not
+    //     cascade and these are siblings of `users/{uid}`, so nothing above
+    //     reaches them: `usageEvents` counters, and the public-profile slug
+    //     plus its world-readable mirror. `firestore.rules` has claimed since
+    //     it was written that this path deletes the usage counters; until now
+    //     it did not.
+    await deleteUidKeyedTopLevel(uid);
 
     // 2. Delete quota docs (photo + consultation).
     await dailyQuota.deleteAll(uid);

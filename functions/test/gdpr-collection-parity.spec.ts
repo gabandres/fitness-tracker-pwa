@@ -2,7 +2,12 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { EXPORT_EXCLUDED, USER_SUBCOLLECTIONS } from "../src/gdpr";
+import {
+  EXPORT_EXCLUDED,
+  TOP_LEVEL_NOT_ERASED,
+  UID_KEYED_TOP_LEVEL,
+  USER_SUBCOLLECTIONS,
+} from "../src/gdpr";
 
 /**
  * Erasure (Art. 17) and portability (Art. 20) must cover the same data.
@@ -98,6 +103,12 @@ describe("GDPR erasure/export collection parity", () => {
     // them to the erasure list would have deleted another user's slug
     // reservation. `match /users/{uid}` is indented four spaces and its
     // children six, so the block ends at the next four-space `match`.
+    //
+    // That reasoning was right and it stopped one question early: a collection
+    // that does not belong in USER_SUBCOLLECTIONS still holds personal data,
+    // and nothing was erasing it. `every top-level collection is classified`
+    // below is the test that asks the second question — it would have caught
+    // the `usageEvents` orphans on the day the collection was created.
     const lines = rules.split("\n");
     const start = lines.findIndex((l) => l.startsWith("    match /users/{uid}"));
     expect(start, "match /users/{uid} not found at the expected indent").toBeGreaterThan(-1);
@@ -115,6 +126,79 @@ describe("GDPR erasure/export collection parity", () => {
       if (m && !declared.has(m[1])) missing.push(m[1]);
     }
     expect(missing, `not in USER_SUBCOLLECTIONS: ${missing.join(", ")}`).toEqual([]);
+  });
+
+  /**
+   * The rules-derived test above covers CHILDREN of `users/{uid}`. This one
+   * covers its SIBLINGS, which is where the erasure gap actually was.
+   *
+   * Every top-level collection in `firestore.rules` must be classified: either
+   * it is erased by uid (`UID_KEYED_TOP_LEVEL`) or it carries a written reason
+   * for not being (`TOP_LEVEL_NOT_ERASED`). Silence is not a classification,
+   * and silence is exactly what left 7 `usageEvents` documents belonging to
+   * deleted accounts — in a collection whose own rules block says this path
+   * deletes them.
+   *
+   * Source-level and emulator-free, like the rest of this file: the property is
+   * a fact about two files, not about a running Firestore.
+   */
+  it("classifies every top-level collection in firestore.rules", () => {
+    const rules = readFileSync(
+      resolve(dirname(fileURLToPath(import.meta.url)), "../../firestore.rules"),
+      "utf8",
+    );
+    // Four-space `match /name/{...}` is a top-level collection; six-space is a
+    // child. The same indentation contract the test above relies on.
+    const topLevel = [...rules.matchAll(/^ {4}match \/([A-Za-z][A-Za-z0-9_]*)\/\{/gm)]
+      .map((m) => m[1]);
+    expect(topLevel.length, "no top-level matches found \u2014 indentation contract changed").toBeGreaterThan(5);
+
+    const erased = new Set<string>();
+    for (const e of UID_KEYED_TOP_LEVEL) {
+      erased.add(e.collection);
+      const mirror = (e as { mirror?: string }).mirror;
+      if (mirror) erased.add(mirror);
+    }
+
+    const unclassified = topLevel.filter(
+      (name) => !erased.has(name) && !(name in TOP_LEVEL_NOT_ERASED),
+    );
+    expect(
+      unclassified,
+      `top-level collection(s) neither erased nor given a reason: ${unclassified.join(", ")}`,
+    ).toEqual([]);
+  });
+
+  it("gives every not-erased collection a real reason, and names nothing twice", () => {
+    for (const [name, reason] of Object.entries(TOP_LEVEL_NOT_ERASED)) {
+      // A reason short enough to be a label is not a reason.
+      expect(reason.length, `${name}: reason too short to be one`).toBeGreaterThan(20);
+    }
+    // A collection cannot be both erased by uid and excused from erasure.
+    for (const e of UID_KEYED_TOP_LEVEL) {
+      expect(
+        e.collection in TOP_LEVEL_NOT_ERASED,
+        `${e.collection} is both erased and excused`,
+      ).toBe(false);
+    }
+  });
+
+  it("erases the two collections the 2026-09-16 audit found \u2014 the specific past bug", () => {
+    const names = UID_KEYED_TOP_LEVEL.map((e) => e.collection);
+    // usageEvents: 7 orphaned docs across 3 deleted accounts, measured.
+    expect(names).toContain("usageEvents");
+    // publicSlugs + its world-readable mirror: latent, because the mirror is
+    // maintained by an onDocumentUpdated trigger and deleteAccount deletes.
+    expect(names).toContain("publicSlugs");
+    const slugs = UID_KEYED_TOP_LEVEL.find((e) => e.collection === "publicSlugs");
+    expect((slugs as { mirror?: string } | undefined)?.mirror).toBe("publicProfiles");
+  });
+
+  it("drives the top-level purge off the constant, not off literals", () => {
+    // Same property the subcollection path has: a collection named inline is a
+    // second list being born.
+    expect(SRC).toMatch(/for \(const entry of UID_KEYED_TOP_LEVEL\)/);
+    expect(SRC).toMatch(/await deleteUidKeyedTopLevel\(uid\)/);
   });
 
   it("keeps the three #99 collections in both obligations", () => {
