@@ -62,7 +62,7 @@ in-app banner is the **only** user-facing channel:
 | What | Where |
 |---|---|
 | Version constant (bumping it is what makes the banner fire) | `apps/mobile/src/lib/whatsNew.ts` → `WHATS_NEW_VERSION` |
-| Copy, both locales, flat keys | `apps/mobile/src/i18n/{en,es-PR}.ts` → `whatsNew.*` |
+| Copy, **all THREE locales**, flat keys | `apps/mobile/src/i18n/{en,es-PR,pt-BR}.ts` → `whatsNew.*` |
 
 Run the Metro gate — `tsc` and `jest` both pass while bundling is broken:
 

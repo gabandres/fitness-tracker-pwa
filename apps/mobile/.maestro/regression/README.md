@@ -52,23 +52,40 @@ was actually executed.
 
 ### iOS — `ignia-mac`, the only working host today
 
-Two breakages, neither of which announces itself until you try:
+Three things to set up, none of which announces itself until you try.
+**Re-measured 2026-09-16; the first two rows said something different and
+weaker before that.**
 
-- **`openjdk@17` is gone**, removed with the Android toolchain. The Mac's
-  default `java` is 11, on which Maestro 2.x refuses to start at all:
-  `ERROR: Java 17 or higher is required.` Homebrew's keg-only `openjdk` is
-  26.0.2 and Maestro 2.8.0 runs on it fine — it simply is not on `PATH`.
-- **There are no simulator devices left.** `simctl delete all` was part of the
-  disk reclaim (`DEV_ENVIRONMENT.md` §3.9), so `maestro test` has nothing to
-  auto-select. Create one — and pass `--device` explicitly regardless, because
-  this is a shared laptop and another simulator is routinely booted beside ours,
-  which makes auto-selection a coin flip.
+- **There is no Java runtime on `PATH` at all.** `openjdk@17` went with the
+  Android toolchain, and this section used to say the fallback was Java 11
+  failing with `ERROR: Java 17 or higher is required`. It is not: `java` resolves
+  to Apple's `/usr/bin/java` stub with nothing behind it, so the actual symptom
+  is `The operation couldn't be completed. Unable to locate a Java Runtime.` —
+  a different message that reads like a broken Maestro install rather than a
+  `PATH` problem. Homebrew's keg-only `openjdk` (26.0.2) is present and
+  **Maestro 2.10.0** runs on it fine; it simply is not on `PATH`.
+- **Simulator devices EXIST again — 18 of them, and one is ours.** This section
+  claimed `simctl delete all` (the `DEV_ENVIRONMENT.md` §3.9 disk reclaim) had
+  left none. Xcode has since recreated its defaults and the persistent
+  **`Ignia-QA`** (iPhone 17 / iOS 26.5) was created 2026-09-16 and is kept.
+  `simctl create` below is therefore idempotent-by-hand: check for `Ignia-QA`
+  first and reuse it. **`--device` stays mandatory regardless** — this is a
+  shared laptop, another simulator is routinely booted beside ours, and
+  auto-selection is a coin flip.
+- **`~/qa-pass.txt` may not be there.** The Mac was rebuilt 2026-09-10, two days
+  after the 2026-09-08 QA password rotation, and the file was not restored;
+  `CLAUDE.local.md` listed the Mac as holding it and was wrong until 2026-09-16.
+  The symptom is a sign-in flow that types an **empty password** and then fails
+  its `Today` assertion — indistinguishable from a broken sign-in screen. Check
+  the file exists before blaming the app.
 
 ```sh
 export JAVA_HOME=/opt/homebrew/opt/openjdk       # 26.0.2 — NOT openjdk@17, which no longer exists
 export PATH=$JAVA_HOME/bin:$HOME/.maestro/bin:$PATH
 
-UDID=$(xcrun simctl create Ignia-QA \
+# Reuse Ignia-QA if it already exists; only create it the first time.
+UDID=$(xcrun simctl list devices | awk -F'[()]' '/Ignia-QA/ {print $2; exit}')
+[ -n "$UDID" ] || UDID=$(xcrun simctl create Ignia-QA \
   com.apple.CoreSimulator.SimDeviceType.iPhone-17 \
   com.apple.CoreSimulator.SimRuntime.iOS-26-5)
 xcrun simctl boot "$UDID"
@@ -131,6 +148,18 @@ this section still holds. Three things learned running it there on 2026-08-29:
   `visibilityPercentage`. Selecting by `id` works fine, which is why
   `android-signin.yaml` passes. Prefer ids on this host; for anything text-only,
   scroll with `adb input swipe` and tap by pixel.
+
+**The guided-tour trap is FIXED in the flow, 2026-09-16 — do not re-diagnose
+it.** A fresh install used to lose a whole sweep to it: the tour is a ROOT
+route, it covers Today, and every flow failed on whatever anchor it reached
+first, with `01-today` reporting `No visible element found: "Water"` as though
+the metrics card had regressed. `android-signin.yaml` had a conditional
+`tour-skip` tap for exactly this and it **could not fire**, because the tour
+only opens for an account with a COMPLETED PROFILE, which on a fresh install
+does not exist until sign-in finishes — so at the top of that flow the tour
+genuinely was not on screen. The tap is now repeated AFTER the closing `Today`
+assertion, and stays idempotent. Cost when it bites: a void 25-minute sweep
+reporting 19 of 20 false failures.
 
 **Screenshots do NOT land beside the flows — collect them, or the audit has no
 evidence.** Maestro 2.x ignores the path in `takeScreenshot:` as a repo

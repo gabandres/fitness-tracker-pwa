@@ -84,7 +84,7 @@ The importer ships in the August EAS build and has never run on a device.
 
 - **Web:** no code change. Verify only that `profile.activityLevel` continues to flow into the web Refine Targets selector and `dailyTargets` (it does today).
 - **Rules:** `firestore.rules:520` already carries the `dailyActivity` read+write clause (shipped `4a84dc64`). **No rules deploy needed** — the suggestion writes through the existing `activityLevel` profile path. Cover any new nothing here; no new top-level field.
-- **i18n:** the disclosure line + card copy need keys in **both** locales, mobile flat shape (`apps/mobile/src/i18n/{en,es-PR}.ts`, `{var}` braces).
+- **i18n:** the disclosure line + card copy need keys in **all three** locales, mobile flat shape (`apps/mobile/src/i18n/{en,es-PR,pt-BR}.ts`, `{var}` braces). This said "both" and named two files until 2026-09-16; `pt-BR.ts` exists and `npm run doctor` checks parity across all three.
 
 ## 7. Not a ship gate — the validation trip-wire (post-August)
 

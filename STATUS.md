@@ -85,20 +85,29 @@ within-set load reduction and `superset` needs a pairing between two
 exercises; the model carries neither (ADR-0040 §Consequences). Do not read
 "two structures left" as "two slices left".
 
-**An iOS regression run exists and costs one Release build, no EAS quota.**
-A Release simulator build on `ignia-mac` (iPhone 17, iOS 26.5) ran the full
-Maestro suite on 2026-09-14: **17 of 20**, including the whole
-log → edit → delete arc, both locales and both themes. The three failures are
-pre-existing selector artifacts `coverage.md` already documents for iOS
-(`15-search`, `18-train-template`, and `20-units-metric`, whose
-`assertVisible: 'lb'` is a full-match regex with no standalone `lb` node on
-iOS — the capture shows `184.1 lb` rendering correctly). The only test devices
-on hand are still Android, so `AGENTS.md` remains the deeper record — but "no
-iOS run is possible" stopped being the reason. Two runbook corrections found
-doing it: Maestro needs `--device` or it silently targets another simulator,
-and the JDK 17 path in `.maestro/README.md` does not exist on the rebuilt Mac
-(Homebrew ships 26 at
-`/opt/homebrew/opt/openjdk/libexec/openjdk.jdk/Contents/Home`).
+**The iOS regression suite is at 19 of 20 and costs one Release build, no EAS
+quota.** Measured 2026-09-16 in a single full sweep on `ignia-mac`, simulator
+`Ignia-QA` (iPhone 17 / iOS 26.5, now kept rather than recreated). It stood at
+17 of 20 until that day; three flows were fixed
+(`15-search` and `20-units-metric`, both selector bugs — Maestro matches a
+selector as a FULL match and iOS merges a row's children into one
+`accessibilityText`; plus `08-refine-targets`, an order-dependent scroll flake).
+**The one red is `18-train-template`, and it is neither a selector artifact nor
+an app bug** — the flow fails to fill set row 0 on iOS, proven against the
+saved Firestore document and a capture taken before Save. `coverage.md` owns
+the detail, including two attempted fixes that were disproved and removed so
+nobody retries them.
+
+**Never compose a suite number from individual flow runs.** "17 passed + 2
+fixed = 19" was wrong: the next full sweep read 18 of 20, because a fourth flow
+that passes ALONE failed in sequence. This suite is order-dependent by design
+(11→12→13 share one diary row; 09 and 10 flip state they restore in their own
+tails).
+
+The only test devices on hand are still Android, so `AGENTS.md` remains the
+deeper record — but "no iOS run is possible" stopped being the reason. Host
+setup, and the three traps that each cost a run, are in
+`.maestro/regression/README.md`.
 
 ## 3. Open work, and what each is blocked on
 

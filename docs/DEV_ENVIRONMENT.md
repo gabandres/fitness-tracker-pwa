@@ -833,10 +833,15 @@ See the `build-android` skill for the OTA-vs-build decision that comes first.
 Both were hit on 2026-08-22, the first time the suite ran on this machine since
 Maestro 2.x, and neither says what it means.
 
-**1. Maestro needs Java 17+ and this Mac defaults to 11.** The message is
-`ERROR: Java 17 or higher is required.` and `/usr/libexec/java_home -V` lists
-only Microsoft 11 and Temurin 8 — so it reads like "install a JDK". A modern one
-is already here, from Homebrew, just not on `PATH`:
+**1. Maestro needs Java 17+ and this Mac has NO Java runtime on `PATH`.**
+Re-measured 2026-09-16 on the rebuilt Air: `java` resolves to Apple's
+`/usr/bin/java` stub with nothing behind it, and the message is
+`The operation couldn't be completed. Unable to locate a Java Runtime.` This
+paragraph used to say the default was Java 11 failing with
+`ERROR: Java 17 or higher is required.` — true on the machine before the
+2026-09-10 rebuild, and misleading now, because the two messages send you
+looking for different things. Either way the fix is identical: a modern JDK is
+already here, from Homebrew, just not on `PATH`:
 
 ```sh
 export JAVA_HOME=/opt/homebrew/opt/openjdk        # 26.0.2
@@ -888,8 +893,18 @@ device state they restore in their own tails.
 **3. A fresh install opens the guided tour, and the tour covers Today.** The
 suite died at its first scroll with `No visible element found: "Water"`, which
 reads exactly like a metrics-card regression. `.maestro/android-signin.yaml`
-dismisses the tour now, guarded by `runFlow: when:` so a device that has already
+dismisses the tour, guarded by `runFlow: when:` so a device that has already
 seen it is unaffected.
+
+**That guard was in the wrong PLACE until 2026-09-16, and it cost a second
+void sweep** — 19 of 20 false failures. The tap sat at the TOP of the sign-in
+flow, but the tour opens only for an account with a COMPLETED PROFILE, which on
+a fresh install does not exist until sign-in finishes. So the tour genuinely was
+not on screen when the condition was evaluated, the block was correctly skipped,
+the flow passed clean, and the tour appeared a second later. The tap is now
+repeated AFTER the closing `Today` assertion. If a whole sweep ever fails on
+first-anchor lookups again (`settings-open`, `tab-train`, `log-button`), dump
+the hierarchy and look for `tour-skip` before believing any of it.
 
 ### 3.13 Building the app for the SIMULATOR — do not pass `-sdk`
 

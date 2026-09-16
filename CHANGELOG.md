@@ -4,6 +4,47 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-09-16 — The iOS regression suite goes 17 of 20 → 19 of 20
+
+Three flows fixed, one red left, and one method error worth more than any of
+them.
+
+**`15-search` and `20-units-metric` were selector bugs, not the "missing
+accessibility hierarchy" this project had recorded since August.** Maestro's
+iOS tree carries `accessibilityText` SEPARATELY from `text`, and every previous
+diagnosis had read `text`, which is empty on almost every RN node. The rows were
+never missing. `FoodSearch.tsx` labels each hit `description[, brand],
+trustLabel`, so iOS exposes the single string `Banana, raw, USDA` where Android
+exposes bare `Text` children — and Maestro matches a selector as a FULL match,
+so `^Banana, raw$` could never hold there. Same shape on the Body hero, whose
+accessible text is the whole string `184.1 lb` with no standalone `lb` node.
+Both labels are correct for VoiceOver and were left alone; the selectors moved,
+each to a strict SUPERSET of the old one so Android — which has no host on this
+workstation — cannot regress.
+
+**`08-refine-targets` was an order-dependent flake**, and it only surfaced
+because the suite number was re-measured instead of composed. "17 passed + 2
+fixed = 19" was wrong: the next full sweep read 18 of 20, because a fourth flow
+that passes ALONE (verified twice, exit 0) failed in sequence at
+`No visible element found: id: refine-save`. Its `scrollUntilVisible` carries a
+15 s budget chosen before the Refine form grew a "Connect Health" block. Fixed
+with this suite's own long-form adapter. **This suite is order-dependent by
+design, so a suite result must never be composed from individual runs** — now
+recorded next to the number in `coverage.md`.
+
+**`18-train-template` remains red and its diagnosis is now correct.** It is
+neither a selector artifact nor an app bug: the flow fails to fill set row 0 on
+iOS, proven three ways (the saved Firestore document, a capture taken before
+Save showing SET 1 empty on screen, and a clean read of the editor's update
+path). Two attempted fixes were disproved and removed rather than left in, and
+both are written down so nobody retries them.
+
+Also fixed: the guided-tour trap that voided a whole 25-minute sweep with 19 of
+20 false failures. `android-signin.yaml` had a conditional `tour-skip` for
+exactly this and it could not fire — the tour opens only for an account with a
+completed profile, which on a fresh install does not exist until sign-in
+finishes. The tap now repeats after the closing `Today` assertion.
+
 ## 2026-09-16 — Account deletion missed two collections, and the reminders zero is real
 
 Started as one question — is `remindersOptIn: 0 of 43` a real zero or a dead
