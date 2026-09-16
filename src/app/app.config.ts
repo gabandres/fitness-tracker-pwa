@@ -9,7 +9,7 @@ import {
 } from '@angular/fire/firestore';
 import { provideAuth, getAuth, connectAuthEmulator } from '@angular/fire/auth';
 import { provideFunctions, getFunctions, connectFunctionsEmulator } from '@angular/fire/functions';
-import { LucideAngularModule, Check } from 'lucide-angular';
+import { LucideAngularModule, Check, Share2 } from 'lucide-angular';
 
 import { routes } from './app.routes';
 import { environment } from '../environments/environment';
@@ -53,6 +53,6 @@ export const appConfig: ApplicationConfig = {
     { provide: ErrorHandler, useValue: Sentry.createErrorHandler() },
     // Lucide icons used by the surviving components. Each icon must be
     // registered here so `<lucide-icon name="…">` resolves at runtime.
-    LucideAngularModule.pick({ Check }).providers!,
+    LucideAngularModule.pick({ Check, Share2 }).providers!,
   ],
 };

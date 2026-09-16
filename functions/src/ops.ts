@@ -61,14 +61,34 @@ export const weeklyFirestoreBackup = onSchedule(
     }
     // Dynamic import — @google-cloud/firestore is a transitive of
     // firebase-admin, no direct dep needed.
-    const { v1 } = await import("@google-cloud/firestore");
-    const client = new v1.FirestoreAdminClient();
-    const databaseName = client.databasePath(
-      process.env.GCLOUD_PROJECT!,
-      "(default)",
-    );
+    //
+    // This file compiles to CommonJS but `module: NodeNext` leaves the
+    // `import()` as a REAL dynamic import, so Node loads the CJS package
+    // through the ESM interop layer. That layer's named-export detection
+    // does not surface `v1` — it only exists on `.default`. Destructuring
+    // `{ v1 }` therefore yielded `undefined` and the constructor below threw
+    // `Cannot read properties of undefined (reading 'FirestoreAdminClient')`
+    // on every scheduled run from 2026-08-23 to 2026-09-13 (zero backups ever
+    // ran). Read both shapes so either interop result works.
+    const firestoreNs = await import("@google-cloud/firestore");
+    const v1 = firestoreNs.v1 ??
+      (firestoreNs as unknown as { default?: typeof firestoreNs }).default?.v1;
+    if (!v1) {
+      console.error(
+        "weeklyFirestoreBackup: @google-cloud/firestore exposed no `v1` admin " +
+        "client namespace — skipping. Interop shape changed.",
+      );
+      return;
+    }
     const outputUri = `${BACKUP_BUCKET}/firestore/${new Date().toISOString().split("T")[0]}`;
     try {
+      // Construct inside the try: a throw here used to reject the whole
+      // scheduled run instead of being logged.
+      const client = new v1.FirestoreAdminClient();
+      const databaseName = client.databasePath(
+        process.env.GCLOUD_PROJECT!,
+        "(default)",
+      );
       const [operation] = await client.exportDocuments({
         name: databaseName,
         outputUriPrefix: outputUri,
