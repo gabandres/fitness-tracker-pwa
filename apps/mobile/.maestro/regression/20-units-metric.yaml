@@ -47,7 +47,17 @@ appId: fit.ignia.app
     visible:
       id: 'body-hero'
     timeout: 15000
-- assertVisible: 'lb'
+# Maestro matches a selector as a FULL match, NOT as a substring — the comment
+# further down this file still says otherwise and is wrong. On iOS the hero's
+# accessible text is the whole string `184.1 lb`, so a bare `lb` matches
+# nothing; on Android the unit is its own node and `^lb$` held. Measured
+# 2026-09-16 from the failing step's hierarchy, which listed `184.1 lb`,
+# `172.0 lb` and `5.5 lb to goal` and no standalone `lb`.
+#
+# `\b` keeps the old comment's real concern — that a bare `lb` substring would
+# hit any word containing those letters — while being a strict SUPERSET of
+# `^lb$`, so Android cannot regress.
+- assertVisible: '.*\blb\b.*'
 - takeScreenshot: .maestro/regression/shots/20-units-lb
 
 # ── Switch to metric ──
@@ -89,11 +99,15 @@ appId: fit.ignia.app
     visible:
       id: 'body-hero'
     timeout: 15000
-# `kg` only — deliberately NOT `assertNotVisible: 'lb'`. Maestro matches text
-# as a substring, so `lb` would hit any word containing those letters and the
-# assertion would fail for a reason that has nothing to do with units. The
-# screenshot is the evidence that the pounds are gone.
-- assertVisible: 'kg'
+# `kg` only — deliberately NOT `assertNotVisible: 'lb'`: that would fail for a
+# reason having nothing to do with units the moment any word containing those
+# letters appears. The screenshot is the evidence that the pounds are gone.
+#
+# The claim this comment used to make — "Maestro matches text as a substring" —
+# is FALSE and cost this flow a month of red: matching is a full match, which is
+# why the pounds assertion above needed the same `.*\b...\b.*` shape. This one
+# had never been reached to discover it, because the flow died upstream.
+- assertVisible: '.*\bkg\b.*'
 - takeScreenshot: .maestro/regression/shots/20-units-kg
 
 # The weigh-in sheet: the field, its unit and its note all follow.

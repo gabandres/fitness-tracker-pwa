@@ -24,13 +24,81 @@ not a missing flow.
 
 | Flow | Result | Note |
 |---|---|---|
-| `15-search` | FAIL | `Element not found: Text matching regex: ^Banana, raw$` — **byte-identical** to the failure this file already documents for iOS: list rows absent from the accessibility hierarchy |
-| `18-train-template` | FAIL | `Assertion is false: ".*3 × 8 · 20 lb.*" is visible` — same assertion string already recorded for the 2026-08-24 iOS run, and it fails at the same point, not earlier |
-| `20-units-metric` | FAIL | `Assertion is false: "lb" is visible` — the known full-match-regex artifact: there is no standalone `lb` node on iOS |
+| `15-search` | FAIL → **FIXED** | `^Banana, raw$` could never match on iOS. Root cause below |
+| `20-units-metric` | FAIL → **FIXED** | bare `'lb'` could never match on iOS. Root cause below |
+| `18-train-template` | FAIL — **still red, and NOT what this file said it was** | Root cause below |
+
+### The two that are fixed, and why they were never "the same family"
+
+This file had recorded all three as one thing — *"iOS list rows absent from the
+accessibility hierarchy"*. That was wrong, and it was wrong because nobody had
+read the right attribute. Maestro's iOS hierarchy carries **`accessibilityText`
+separately from `text`**, and every diagnosis here had been made by reading
+`text`, which is empty on almost every RN node. The rows were never missing.
+
+- **`15-search`.** `FoodSearch.tsx:297` gives each hit an `accessibilityLabel`
+  of `description[, brand], trustLabel`, so the row's accessible text on iOS is
+  the single string `Banana, raw, USDA`. Android exposes the bare `Text`
+  children instead. Maestro matches a selector as a FULL match, so
+  `^Banana, raw$` could never hold on iOS while the loose
+  `.*[Bb]anana.*raw.*` two lines above it always did — which is exactly why the
+  flow got as far as the tap before dying. **The label is correct and must not
+  be weakened**; it is what VoiceOver should read. The selector is now
+  `^Banana, raw(,.*)?$`: still front-anchored, so it still excludes
+  `Bananas, raw`, `Pepper, banana, raw` and the six pudding rows that the loose
+  regex matches.
+- **`20-units-metric`.** The hero's accessible text is the whole string
+  `184.1 lb`; there is no standalone `lb` node. The flow's own comment claimed
+  *"Maestro matches text as a substring"* — **that claim is false** and is what
+  kept this red. Now `.*\blb\b.*`, with `\b` preserving the comment's real
+  concern (a bare `lb` hitting any word containing those letters). The `kg`
+  assertion had the identical bug and had simply never been reached.
+
+Both new selectors are strict SUPERSETS of the old ones, which is deliberate:
+there is no Android host here to re-verify on, and anything that matched the
+old selector matches the new one, so Android cannot regress.
+
+### `18-train-template` is a real failure with a wrong label
+
+**It is not a selector artifact, and it is not an app bug.** Measured
+2026-09-16, three ways:
+
+1. The saved Firestore document reads `reps=(blank) weight=(blank)` for **set
+   0**, while sets 1 and 2 both hold `reps=8 weight=20`.
+2. A capture taken immediately before Save shows **SET 1 empty on screen** and
+   SET 2 filled. So the app saved exactly what the UI held — there is no
+   round-trip or data-loss bug, and `exSummary`'s count-only fallback
+   (`"3 sets"`) is the CORRECT output for a table with one unfilled row.
+3. The app code is clean: `mutateSets` uses the functional updater form, and
+   `normalizeClusterGroups` spreads and preserves every field it does not own.
+
+So the flow simply fails to fill row 0 on iOS, and the summary assertion three
+minutes later is an honest report of that. **What it is not is a selector
+problem, and chasing it as one is what cost a month.**
+
+**A value-based assertion cannot be used to catch it sooner, and that was tried
+and reverted the same day.** Every `template-set-*` field reports
+`text=None`/`value=None` in the iOS hierarchy — including `-0-1` and `-0-2`,
+which demonstrably DO hold their values in Firestore — because the
+`accessibilityLabel` (`"Set 1 target weight"`) replaces the value. An
+`assertVisible: {id, text: '20'}` therefore fails on iOS whether or not the
+input landed, which would have made the flow permanently red for a second
+bogus reason. It was written, run, disproved and removed.
+
+Also tried and disproved: a `waitForAnimationToEnd` plus a second tap before
+the first `inputText`, on the theory that the first numeric keyboard's entry
+animation eats the text. It does not fix it.
+
+**Next step for whoever picks this up:** the open question is why the tap or
+the `inputText` on `template-set-weight-0-0` does not reach the field on iOS
+when rows 1 and 2 work identically. The Firestore document is the only reliable
+oracle here, because the field's value is not observable through the hierarchy.
 
 **The other 17 passed, including every flow that could have caught today's
 changes**: `16-train-terms`, `21-train-cardio`, `03-tabs`, and the whole
-`11 → 12 → 13` log → edit → delete arc. **Zero new failures.** QA state verified
+`11 → 12 → 13` log → edit → delete arc. **Zero new failures.** Two of the three
+reds were fixed later the same day and re-verified green individually
+(`15-search` and `20-units-metric`, exit 0 each), taking iOS to **19 of 20**. QA state verified
 restored afterwards: 0 entries, water 0, `preferredLocale: en`, the four
 baseline presets, no `QA E2E` leftovers.
 

@@ -52,8 +52,22 @@ env:
 # "Pepper, banana, raw" — the last of which sits clipped at the bottom edge on
 # a 360x720dp screen, so the tap can land on the nav bar and the flow then
 # waits out its timeout on the results list. Measured on Android 2026-08-19.
+# `(,.*)?` is the iOS tail, and it is what made this flow red since 2026-08-24.
+# `FoodSearch.tsx` gives each hit an accessibilityLabel of
+# `description[, brand], trustLabel` — correct, and exactly what VoiceOver
+# should read — so the row's accessible text on iOS is `Banana, raw, USDA`,
+# while Android exposes the bare `Text` children and matches `^Banana, raw$`.
+# Maestro matches a selector as a FULL match, so the anchored form could never
+# hold on iOS. Measured 2026-09-16 from the failing step's hierarchy.
+#
+# This stays anchored at the FRONT, which is the whole point of the exact
+# selector: `^Banana, raw(,.*)?$` still excludes `Bananas, raw, USDA`,
+# `Pepper, banana, raw, USDA` and the six pudding rows, all of which the loose
+# `.*[Bb]anana.*raw.*` above would match. It is a strict SUPERSET of the old
+# selector, so Android — which has no host here to re-verify on — cannot
+# regress: anything matching `^Banana, raw$` matches this too.
 - tapOn:
-    text: '^Banana, raw$'
+    text: '^Banana, raw(,.*)?$'
 # Wait for the DETAIL to exist before asserting anything in it. getFoodDetail
 # is a separate Cloud Function and cold-starts: measured 2.83-3.79s server-side
 # (plus searchFoods' own 2.06-2.36s), so this screen legitimately takes seconds
