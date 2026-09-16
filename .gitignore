@@ -125,3 +125,13 @@ scratch/
 
 # Local Maestro run logs (see apps/mobile/.maestro)
 .maestro-*.log
+
+# Expo CLI writes a stub `{"expo": {}}` here when `npx eas`/`npx expo` is run
+# from the REPO ROOT instead of `apps/mobile`. It is junk, it is not this
+# repo's config, and on 2026-09-16 one got committed by a `git add -A`. It does
+# NOT move the mobile fingerprint (measured: identical with and without it,
+# because @expo/fingerprint hashes apps/mobile/app.json) - but a stray file
+# named app.json sitting next to a project whose real app.json is a hashed
+# fingerprint source is a trap worth never setting again. Run eas from
+# apps/mobile.
+/app.json
