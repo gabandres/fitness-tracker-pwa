@@ -4,6 +4,44 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-09-16 — Every plank logged before 2026-09-02 counts again
+
+A one-time repair on the owner's account, plus the script that made it
+(`scripts/migrate-time-sets-duration.mjs`, which rode in on the previous
+commit).
+
+**What broke, and it was not a write.** Plank was logged as a reps exercise
+for months and the number typed in was always SECONDS. On 2026-09-02 the Plank
+catalog doc gained `logStyle: 'time'`, and every log after that correctly went
+to `durationSec`. But `isLoggedSet(s, 'time')` reads `durationSec` and nothing
+else, so the moment the catalog flipped, every plank logged before it stopped
+counting as logged at all — gone from history and from volume with no write
+touching it. The data was never lost; it became unreadable, which from the app
+is indistinguishable.
+
+**Moved: 10 sets across 4 sessions** (06-23: 61/30/20 · 06-30: 71/32/18 ·
+07-06: 85/32/14 · 08-24: 90), `reps → durationSec`, nothing else touched. The
+three 2026-06-15 rows carry neither field and were left alone — those are
+genuinely empty. A re-run reads 0 remaining.
+
+The script is a dry run unless given `--apply` and ABORTS rather than
+half-applying on three conditions: a target dated on or after the cutoff
+(which would mean a client is STILL writing the old shape, so migrating races
+the device), a value outside plausible seconds, or a set carrying both fields
+with different values. None fired.
+
+**Not the bug that was reported.** The original report was the mirror image —
+"plank saves with a kind but no reps, broken 09-08". The post-flip rows are
+correct and an empty `reps` on a time-style lift is correct by design. Fixing
+what was reported would have broken what still worked.
+
+Also, on the owner's call, two Pull Day template edits: the Seated cable row's
+third cue lost the `11-12` band ADR-0039 deleted (it would have sat directly
+above "Calibrating — 0 of 3" and contradicted it) and now points at the
+derived band and records that this lift keeps RIR 1 for the lumbar
+restriction; and Wide-grip lat pulldown's `targetLoad` moved 90 → 80, the
+logged number.
+
 ## 2026-09-16 — Train: HIT gets a reader (ADR-0040 slice 3) — merged, not yet on any OTA
 
 The third and last cheap structure. A `hit` lift — one set taken to failure —
