@@ -109,21 +109,37 @@ deleted and its outcome goes to `CHANGELOG.md`.
 ### Retention — the standing focus (owner's call, 2026-09-02)
 
 **The numbers say activation and the daily habit are the problem, not late
-churn.** `config/retention` **re-read 2026-09-10** (120-day window, synthetic
-excluded, `insufficientSample: true`): 34 signups → **12 activated (35%)**;
-activated D1 **42%**, D7 **18%**, D30 14%; **0.15 logs per activated user per
-day** (0.48 on 09-02 — flat at 0.08–0.15 since 09-04); `timeToFirstLog`
-median **1 h 32 m** / p75 10 h 23 m / **14% inside five minutes** (n=14);
-`secsPerLog` 27.3 s (n=12) — under the 30 s cliff. **Lever 1 is unreadable,
-not failed: 6 signups since it reached the public** (`CHANGELOG.md`
-2026-09-10 night has the per-user shape — day-0 bursts, then silence).
+churn.** `config/retention` **re-read 2026-09-16** (120-day window, synthetic
+excluded, `insufficientSample: true`): 43 signups → **14 activated (33%)**;
+**0.34 logs per activated user per day** (0.15 on 09-10); `timeToFirstLog`
+median **34 m 43 s** / p75 4 h 49 m / **17.6% inside five minutes** (n=17);
+`secsPerLog` **56.2 s** (n=38). **Lever 1 worked** — time-to-first-log more
+than halved and logs/activated/day is up 2.3×; those are the two numbers it
+was built to move.
+
+**Two things are now the job, and the first is settled rather than suspected.**
+**Reminders opt-in is a REAL zero** (0 of 43, 0 of 14 activated), verified
+2026-09-16 rather than assumed: `reminders_on` has fired exactly once in the
+app's life (iOS, 09-14) and that account has since been deleted, so the
+aggregation — which iterates `users` docs — correctly reports none. The
+instrument is sound end to end; there is nothing to fix in it. So **every
+notification-shaped lever currently reaches nobody**, and the response this
+file pre-committed is now the live move: **ask for reminders AFTER the first
+log lands, not during onboarding.** Second: `secsPerLog` crossed the 30 s
+cliff, and the split says why — **search 23.8 s (4 users, 16 logs) vs photo
+79.8 s (3 users, 22 logs)**; the average is photo. That sits awkwardly against
+the research premise that photo loggers retain better, and nobody has looked
+at where the 80 s goes.
+
 Research levers, in the order they attack that: logging speed (<30 s/meal
 retains 78% at six months vs 23% over 2 min; photo loggers 42% D30 vs 17%
 search), a meaningful action in session one (2–3× at D30), triggers tied to
 something the user did. **Re-read `config/retention` before claiming any of
-this moved** — at ~30 signups per 120 days no A/B is readable; pair retention
-work with acquisition. **None of the 12 real signups since 08-20 has an Android usage document**
-despite Play production going live 09-03 — an acquisition fact, not a product one.
+this moved** — at ~40 signups per 120 days no A/B is readable; pair retention
+work with acquisition. **The window's denominator is signups IN WINDOW, not
+active users**: 8 accounts created in April 2026 still log daily (the owner's
+among them) and sit outside the 120-day `createdAt` filter entirely, so a good
+opt-in rate among the oldest users would still read as zero here.
 
 | # | Lever | State |
 |---|---|---|
@@ -131,7 +147,7 @@ despite Play production going live 09-03 — an acquisition fact, not a product 
 | 5 | **Verify the zero-friction triggers** — Android widget on a real home screen, watch/Siri (rows below). A widget is a log path under 10 s. | **Android widget VERIFIED 2026-09-08** on the OnePlus (log → numbers move, tap → add sheet, sign-out → blank; row below). Watch/Siri stay open, owner with an iPhone. |
 | 6 | **Guest mode (`UX_AUDIT.md` N5)** if lever 1 does not move D1 alone. | Deferred until 1 is measured. |
 | 8 | **Say what 14 logged days buy** — the Today hero counts toward the measured burn until measured mode opens (`measurementProgress` in core). | **SHIPPED by OTA, both platforms, public** (iOS 2026-09-10, Android 2026-09-11 — `apps/mobile/AGENTS.md`). Watch `logsPerActivatedUserPerDay` and activated D1. |
-| 9 | **Count the reminders opt-in** (`reminders_on` usage event) — every notification lever reaches only these users, and nothing could say how many. | **SHIPPED both platforms** (rules first, then iOS 09-10, Android 09-11). Lands in `config/retention.remindersOptIn` (`{users, of, activated, ofActivated}`; `hourlyTasks` deployed 2026-09-10). First read: the 09-11 09:00 UTC pass onward. If low, the next lever is asking for reminders AFTER the first log lands, not before it. |
+| 9 | **Count the reminders opt-in** (`reminders_on` usage event) — every notification lever reaches only these users, and nothing could say how many. | **SHIPPED, and ANSWERED 2026-09-16: zero.** 0 of 43, 0 of 14 activated. Verified rather than assumed — the counter fired exactly once (iOS, 09-14) and that account was deleted; the pipeline is sound at every step. **The pre-committed next lever is now live work: ask for reminders AFTER the first log lands, not during onboarding.** Nothing else notification-shaped is worth building until it moves. |
 
 Not taken with lever 2, deliberately: bounding the OS-repeating meal-window
 dailies (silence after a week away) changes existing schedules — a separate call.

@@ -4,6 +4,47 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-09-16 — Account deletion missed two collections, and the reminders zero is real
+
+Started as one question — is `remindersOptIn: 0 of 43` a real zero or a dead
+instrument — and the trace answered it and found something else.
+
+**The zero is real.** `reminders_on` fires only after the OS grants permission
+(`reminders.ts:107`, the one line both onboarding and Settings pass through).
+It has fired exactly once in the app's life: iOS, 2026-09-14, a well-formed doc
+with `uid`, `day` and `platform`. `config/retention` reports 0 because that
+account has since been deleted and the aggregation iterates `users` documents.
+Nothing is broken. **So every notification-shaped lever reaches nobody, and the
+response `STATUS.md` pre-committed — ask for reminders after the first log, not
+during onboarding — stops being a hypothesis.**
+
+**Found on the way: `deleteAccount` never erased two uid-keyed collections.**
+`USER_SUBCOLLECTIONS` reaches only children of `users/{uid}`; these are
+siblings. `usageEvents` was the realised gap — **7 documents across 3 accounts
+absent from Firebase Auth** — in a collection whose own rules block has always
+claimed "deletion is the account-deletion path". `publicSlugs` +
+`publicProfiles` was the latent and worse one: the mirror is rebuilt by an
+`onDocumentUpdated` trigger, `deleteAccount` DELETES the user doc, a delete
+fires no update trigger, and there is no `onDocumentDeleted` in
+`functions/src` — so a deleted account's name, weights and goal would stay
+**world-readable** at `ignia.fit/u/<slug>` forever. Zero live orphans there
+only because no account currently has a public profile.
+
+Fixed as this file's doctrine requires: `UID_KEYED_TOP_LEVEL` drives the purge,
+`TOP_LEVEL_NOT_ERASED` gives every other top-level collection a written reason,
+and the parity spec now fails unless each one is classified — verified by
+removing a classification and watching it fail with the right message.
+`usageEvents` joins the Art. 20 export in the same change, because shipping
+erasure without portability is the exact asymmetry this file has already paid
+for twice.
+
+Deployed (`deleteAccount`, `exportUserData`) and the 7 orphans purged; a
+re-run reads 0 of 202. `scripts/purge-orphan-usage-events.mjs` keys on absence
+from Firebase Auth, deliberately NOT on a missing `users` doc — five live
+accounts legitimately lack one (signups that abandoned onboarding before the
+profile write), and deleting their data would be a worse bug than the one
+being fixed. Tests 745 → 749.
+
 ## 2026-09-16 — The three workout templates stop contradicting the engine
 
 ADR-0039 deleted the hardcoded band and made RIR 0 the standard, and the
