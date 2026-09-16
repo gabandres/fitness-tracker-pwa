@@ -63,100 +63,42 @@ here is gone with the shared install (`docs/DEV_ENVIRONMENT.md` §3.15).
 
 ## 2. Merged, on `main`, and not delivered anywhere
 
-**The 2026-09-14 architecture pass — ten deepenings, `22252ebc..6aa96edc`, in no
-binary and on no OTA channel.** No user-visible change in any of it; the mobile
-half is why this row exists.
+**Nothing.** Everything merged is in a binary or on an OTA channel as of
+2026-09-16. Re-derive rather than trust this line: `git log --oneline` against
+the newest OTA row in `apps/mobile/docs/fingerprint-ledger.md`, and
+`node scripts/app-version-sync.mjs --check` for the live store numbers.
 
-| What | Where |
-|---|---|
-| Subscription policy stated once | `apps/mobile/src/hooks/useLedgerFeed.ts`, 9 hooks migrated (ADR-0016 amended — the listeners did not move) |
-| Multi-step writes named | `apps/mobile/src/lib/ledger-ops.ts` — `finishWorkout`, `repeatYesterday`, `writeDailyMetric` |
-| Source axes pinned | `packages/core/src/source-axes.ts` — eight axes, not the three CONTEXT.md named |
-| Core export map | wildcard subpath replaced; root `tsconfig` wildcard deleted with it |
-| Web | one SEO route manifest (5 copies → 1), one admin console (three modules → one) |
-| Functions | `withCostGuards`, plus parity specs for the last three mirrors |
+**What DID ship on 2026-09-16, and the one thing about it that will look like
+a fault.** ADR-0039 + ADR-0040 went out as two OTAs on both platforms (the
+ledger owns the group ids and the rollback commands). On the next Train open
+**every clustered lift reads "Calibrating — 0 of 3 valid sessions logged" and
+makes no load call** until three valid reads accumulate at one load: the rep
+band is now DERIVED per lift and the owner's 706 pre-cutoff sets are excluded
+from deriving it by design. That is the ADR working. `WHATS_NEW_VERSION` was
+bumped to `2026-09-16-derived-rep-bands` to say so in the app, which is the
+only channel an OTA has. **If this row is still here after the owner has
+trained three times, delete it — it is a prediction, and it expires.**
 
-**2026-09-16 — ADR-0039 + ADR-0040 SHIPPED as an OTA on BOTH platforms** from
-`5c8a0b38` (Android group `5b3f9e23…` on `15c1cfc8…` from Windows, iOS group
-`239f49bb…` on `52802bba…` from `ignia-mac`; each gate re-run on its own host
-after the commit). The public gets it on next launch. **What to expect, and
-what is NOT a fault: every clustered lift now reads "Calibrating — 0 of 3
-valid sessions logged" and makes no load call** until three valid reads
-accumulate at one load — the band is derived per lift and the owner's 706
-pre-cutoff sets are excluded from deriving it by design. `WHATS_NEW_VERSION`
-bumped to `2026-09-16-derived-rep-bands` to say exactly that; it is the only
-channel an OTA has. **Slice 3 (`hit`) followed the same
-day** as a second OTA (Android group `5268dc4f…`, iOS group `f38e501e…`, both
-from `dae6aa3a`, no What's New re-bump), so a single set to failure now gets a
-real load call too. `drop` and `superset` stay pickable and refuse explicitly,
-and are **not** cheap to add: `drop` needs within-set load reduction,
-`superset` needs a pairing between two exercises, and the model carries
-neither (ADR-0040 §Consequences). Do not bundle them into a slice that looks
-adjacent. Rollback: `eas update:republish
---group 9a419154-f8bc-4b90-b374-fc3b0c076572` (Android) /
-`57be096e-d6ab-4066-abda-b222c295f36c` (iOS).
+**`drop` and `superset` are the only unread structures left, and they are NOT
+the next cheap thing.** `hit` was, and it shipped the same day. `drop` needs
+within-set load reduction and `superset` needs a pairing between two
+exercises; the model carries neither (ADR-0040 §Consequences). Do not read
+"two structures left" as "two slices left".
 
-**2026-09-15 — the progression engine (ADR-0038) and the CSV `setDurationSec`
-column SHIPPED on BOTH platforms as OTAs from `046ce695`, and the What's New
-screen followed the same day from `287a80db` (Android `984781cf…`, iOS
-`4f116c8f…`), then a version re-bump from `2522eee1` (Android `9a419154…`,
-iOS `57be096e…`) so everyone sees the screen once** (Android group
-`4f58f2ad…` from Windows on `15c1cfc8…`, iOS group `b00d5d3c…` from
-`ignia-mac` on `52802bba…`; each gate matched its binary). `WHATS_NEW_VERSION`
-bumped. Rollback if ever needed: `eas update:republish --group
-b33c1865-39f7-48d7-852f-b53bd4afd9b0` (Android) /
-`e34dad63-0668-4798-b74d-72f5dfd3848f` (iOS). The ledger row in
-`apps/mobile/docs/fingerprint-ledger.md` has the ids.
-
-**SHIPPED on BOTH platforms.** Fingerprints were UNCHANGED and each was read on
-the machine that builds that platform: Android `15c1cfc8…` on Windows, iOS
-`52802bba…` on the Mac. Android group
-`17c05bcf-9b8b-48df-84d5-f59ded0a918e` (from `07d27fb8`), iOS group
-`0974606c-e216-413e-8cc6-5d25a033bc9b` (from `144161ff`). Both reach the public
-on next launch.
-
-The two publishes were ~40 minutes apart because `ignia-mac` lost power after
-the Android half, and an iOS publish from Windows is refused by the guard — the
-fingerprint would match no binary. `144161ff` is `07d27fb8` plus documentation
-only, and **the iOS gate was re-run on the Mac after pulling it**, still
-`52802bba…`, so both halves carry the same app code. Rollback, if ever needed:
-`eas update:republish --group b33c1865-39f7-48d7-852f-b53bd4afd9b0` (Android) /
-`e34dad63-0668-4798-b74d-72f5dfd3848f` (iOS).
-
-**Cloud Functions and hosting are both DEPLOYED** from `07d27fb8` — the
-functions half carries `withCostGuards`, the hosting half the SEO route manifest
-and the rebuilt admin console.
-
-Suites before publishing: mobile 802, core 1516, functions 739, web 63, all
-green; both platforms bundle under `expo export`; Android bundle +0.23%, within
-budget. `WHATS_NEW_VERSION` deliberately NOT bumped — no user-visible change, so
-there is nothing for the banner to announce.
-
-**An iOS regression run now exists, and it contradicts the paragraph this row
-replaced.** A Release simulator build of `6aa96edc` on `ignia-mac` (iPhone 17,
-iOS 26.5) ran the full suite: **17 of 20**, including the whole
+**An iOS regression run exists and costs one Release build, no EAS quota.**
+A Release simulator build on `ignia-mac` (iPhone 17, iOS 26.5) ran the full
+Maestro suite on 2026-09-14: **17 of 20**, including the whole
 log → edit → delete arc, both locales and both themes. The three failures are
-pre-existing selector artifacts, not regressions — `15-search` and
-`18-train-template` fail on the same assertion strings `coverage.md` already
-documents for iOS, and `20-units-metric` fails its pounds baseline because
+pre-existing selector artifacts `coverage.md` already documents for iOS
+(`15-search`, `18-train-template`, and `20-units-metric`, whose
 `assertVisible: 'lb'` is a full-match regex with no standalone `lb` node on
-iOS; the failure capture shows the hero rendering `184.1 lb` correctly from
-live Firestore. None of the ten commits touches `body.tsx` or `CountUpText.tsx`.
-
-Two runbook corrections found doing it: Maestro needs `--device` or it silently
-targets another simulator, and the JDK 17 path in `.maestro/README.md` does not
-exist on the rebuilt Mac (Homebrew ships 26 at
+iOS — the capture shows `184.1 lb` rendering correctly). The only test devices
+on hand are still Android, so `AGENTS.md` remains the deeper record — but "no
+iOS run is possible" stopped being the reason. Two runbook corrections found
+doing it: Maestro needs `--device` or it silently targets another simulator,
+and the JDK 17 path in `.maestro/README.md` does not exist on the rebuilt Mac
+(Homebrew ships 26 at
 `/opt/homebrew/opt/openjdk/libexec/openjdk.jdk/Contents/Home`).
-
-Everything else merged has shipped (`node scripts/app-version-sync.mjs --check`
-re-derives the live numbers).
-
-**iOS behaviour was UNVERIFIED for most of it, and that is now cheaper to fix
-than this file assumed.** The standing claim here was that no iOS device runs
-the regression suite; the 2026-09-14 run above did, on the `ignia-mac`
-simulator, at the cost of one Release build and no EAS quota. The only test
-devices on hand are still Android, so Android detail (`AGENTS.md`) remains the
-deeper record — but "no iOS run is possible" is not the reason any more.
 
 ## 3. Open work, and what each is blocked on
 
