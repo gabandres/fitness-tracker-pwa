@@ -192,6 +192,7 @@ export { fillMissingClusterLoads } from './workout';
 // Set/exercise validation shared by both loggers — same function-only rule as
 // above, so the ./workout types stay un-barreled.
 export {
+  MUSCLE_GROUPS,
   RIR_MAX,
   RIR_MIN,
   clampRir,
@@ -224,6 +225,10 @@ export * from './workout-seed';
 // Train tabs read these instead of hand-mirroring them, which is how the two
 // apps came to disagree about the user's heaviest lift.
 export * from './train-view';
+// What to train NEXT, what you did LAST time, and what a declared structure
+// scaffolds — the questions the Train UI asks that had no answer here, so each
+// frontend was about to answer them in a renderer. Sibling of ./train-view.
+export * from './train-plan';
 
 // ──────────────────── Cardio (ADR-0025) ────────────────────
 // Same un-barreled rule as ./workout above, for the same reason: both

@@ -83,7 +83,8 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   activeText: { fontSize: font.small, color: colors.accent, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
   savingText: { fontSize: font.tiny, color: colors.faint },
   progressText: { fontSize: font.small, color: colors.muted, fontWeight: '700' },
-  exHead: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 44 },
+  exHeadRow: { flexDirection: 'row', alignItems: 'center' },
+  exHead: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 44 },
   exName: { fontFamily: type.heading, fontSize: font.h3, color: colors.ink },
   exCount: { backgroundColor: colors.inputBg, borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: 3, minWidth: 44, alignItems: 'center' },
   exCountText: { fontSize: font.small, fontWeight: '800', color: colors.muted },
@@ -142,9 +143,9 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   cardioWarn: { fontSize: font.tiny, color: colors.muted, lineHeight: 15, marginTop: space.xs },
   cardioTarget: { fontSize: font.tiny, color: colors.teal, fontWeight: '700' },
   modalityChips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
-  setHeadRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  setHeadRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   setHeadCell: { fontSize: font.tiny, color: colors.muted, fontWeight: '600', textTransform: 'uppercase' },
-  setRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  setRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   setNumCell: { width: 24 },
   setNum: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
   setNumCluster: { color: colors.teal, fontWeight: '800' },
@@ -176,8 +177,13 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   setRirBtn: { alignItems: 'center', justifyContent: 'center' },
   setRirValue: { fontSize: font.body, color: colors.ink },
   setRirEmpty: { color: colors.faint },
-  setInputCell: { width: 62, textAlign: 'center' },
-  setRirCell: { width: 40, textAlign: 'center' },
+  // FLEX, not a fixed width. The row gained a PREVIOUS column, and 24 + 62 +
+  // 62 + 62 + 40 + 32 plus five gaps overflows the 312dp of content a 360dp
+  // screen has — which is the LG VS988, the narrowest device this ships to.
+  // Flexing the two number cells makes the row fit any width by construction
+  // instead of by a measurement that only held on one phone.
+  setInputCell: { flex: 1, minWidth: 44, textAlign: 'center' },
+  setRirCell: { width: 38, textAlign: 'center' },
   setInput: {
     backgroundColor: colors.inputBg,
     borderWidth: 1,
@@ -633,4 +639,108 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   manageDanger: { color: colors.danger },
   confirmRow: { marginTop: space.md, gap: space.sm },
   confirmBtns: { flexDirection: 'row', gap: space.xl },
+
+  // ── Next up (the home screen's one question) ──
+  nextCard: {
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.line,
+    padding: space.lg,
+    gap: space.xs,
+    ...shadow.e1,
+  },
+  nextCaption: {
+    fontSize: font.tiny,
+    color: colors.muted,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  nextName: { fontFamily: type.display, fontSize: font.h2, color: colors.ink },
+  nextMeta: { fontSize: font.small, color: colors.muted, marginBottom: space.md },
+  // The empty-workout escape hatch. A LINK, not a button: it starts a session
+  // with nothing in it, which is the rarest path anyone takes and used to be
+  // the most prominent control on the tab.
+  secondaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: space.xl,
+    paddingVertical: space.sm,
+  },
+  secondaryLink: { fontSize: font.small, color: colors.teal, fontWeight: '700' },
+
+  // ── Exercise search (catalog + shipped library) ──
+  searchGroup: {
+    fontSize: font.tiny,
+    color: colors.muted,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginTop: space.md,
+    marginBottom: space.xs,
+  },
+  searchMain: { flex: 1, gap: 2 },
+  searchMuscles: { fontSize: font.tiny, color: colors.muted },
+
+  // ── Per-exercise overflow menu ──
+  menuRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    paddingVertical: space.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
+  },
+  menuMain: { flex: 1, gap: 2 },
+  menuLabel: { fontSize: font.body, color: colors.ink, fontWeight: '600' },
+  menuLabelDanger: { color: colors.danger },
+  menuDesc: { fontSize: font.tiny, color: colors.muted },
+  exMoreBtn: { paddingHorizontal: space.xs, paddingVertical: space.xs },
+
+  // ── Set-row sheet ──
+  setSheetGap: { marginTop: space.lg },
+  setSheetTail: { height: 24 },
+
+  // ── The PREVIOUS column ──
+  // Non-interactive, and styled to say so: it is the number to match or beat,
+  // not a field. Right-aligned against the input beside it so the two read as
+  // a comparison rather than as two entries.
+  setPrevCell: { width: 56, paddingHorizontal: 2 },
+  setPrevText: { fontSize: font.tiny, color: colors.muted, textAlign: 'center' },
+  setPrevEmpty: { color: colors.faint },
+  // Swipe-left reveal behind a set row.
+  swipeDelete: {
+    backgroundColor: colors.danger,
+    justifyContent: 'center',
+    alignItems: 'flex-end',
+    paddingHorizontal: space.lg,
+    marginBottom: space.xs,
+    borderRadius: radius.sm,
+  },
+
+  // ── Structure-first template card ──
+  tplStructureMore: { paddingVertical: space.xs },
+  tplStructureMoreText: { fontSize: font.tiny, color: colors.teal, fontWeight: '700' },
+  tplStructureDesc: { fontSize: font.tiny, color: colors.muted, marginTop: space.xs },
+  tplStructureKept: { fontSize: font.tiny, color: colors.muted, marginTop: space.xs, fontStyle: 'italic' },
+  tplOptionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: space.md,
+    marginTop: space.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
+  },
+  tplOptionsText: { fontSize: font.small, color: colors.muted, fontWeight: '700' },
+
+  // ── Collapsed cluster audit ──
+  auditLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: space.sm,
+  },
+  auditLineText: { fontSize: font.small, color: colors.muted, flex: 1 },
 });

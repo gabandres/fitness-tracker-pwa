@@ -3,7 +3,12 @@ import { Glossary, type GlossarySection } from './Glossary';
 /** Term keys under `train.glossary.*`; each has a matching `…Body` entry, so
  *  adding a term is one line here and two per locale. */
 const SECTIONS: GlossarySection[] = [
-  { title: 'train.glossary.sectionLogging', terms: ['rir', 'setTypes', 'cluster', 'rest'] },
+  // `structure` sits beside `cluster` because ADR-0041 made the structure the
+  // FIRST thing a template card asks for, and it decides how the engine reads
+  // every future session of that lift. The picker explains each option
+  // inline; this is the same answer for someone who arrived at the word
+  // from the logger instead.
+  { title: 'train.glossary.sectionLogging', terms: ['rir', 'setTypes', 'structure', 'cluster', 'rest'] },
   {
     title: 'train.glossary.sectionProgress',
     terms: ['progression', 'suggest', 'last', 'pr', 'e1rm', 'volume', 'topSet'],

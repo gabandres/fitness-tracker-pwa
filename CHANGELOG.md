@@ -4,6 +4,70 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-09-16 — Train UX overhaul: the logger and the coach stop sharing a surface
+
+The owner's report was "crowded, and not as intuitive as I imagined — not just
+editing a template, but starting the workout too." Reading the tab found one
+cause: the progression engine's vocabulary (ADR-0038/0039/0040) had become the
+whole tab's default, for everyone. `+ Add cluster` sat under every exercise
+including the straight-set ones it contradicts; a new template's first four
+fields were Name, Notes, **Rest (mini)**, **Rest (cluster)**; the structure
+picker was eight bare chips of gym jargon. The header's glossary button was the
+tell. [ADR-0041](docs/adr/0041-train-ux-overhaul-logger-vs-coach.md) has the
+full reasoning and the competitive scan behind it.
+
+**What changed, in the order you meet it.**
+
+- **The home screen answers "what am I doing today."** The full-width primary
+  was `Start workout`, which starts an *empty* session — the rarest path
+  anyone takes. It is now a **Next up** card naming the template gone longest
+  without being performed, with the date it was last done.
+  `nextTemplateUp` decides it (pure, in core); least-recently-performed needs
+  no stored order, survives the template list reordering, and for a plain
+  A/B/C split produces exactly the rotation. Empty workout is kept as a link.
+  The exercise catalog — previously an unbounded list, the sixth stacked
+  section — moves behind one row into a searchable sheet. The six-chip cluster
+  audit collapses to its verdict.
+- **PREVIOUS is on every set row.** Last session's numbers, positionally: row
+  3 against row 3. It was one aggregate line at the card head, which cannot
+  answer "what do I put in row 3." Ticking an untyped set now accepts last
+  session's reps **and load**, not just a template's prescription — which is
+  most rows, for most users.
+- **One action on the card, the rest behind `⋯`.** `+ Add set` stays; add
+  cluster/block, plates & warm-up, lift settings and remove move into an
+  overflow sheet, and which exist depends on the declared structure. The set
+  row drops from six hit targets to five: the permanent `✕` becomes
+  swipe-left, with the same action as a labelled row in the new set sheet.
+  That sheet also replaces the set-kind and RIR pickers, which used to expand
+  *inside* the set list and shove every row below them down mid-logging.
+- **The template editor asks for the structure first, and scaffolds from it.**
+  Picking "straight sets" gives three working rows and hides the two buttons
+  that would contradict it; "myo-reps" gives activation + two minis. Rows you
+  have already typed numbers into are kept, and the card says so. Notes, rest
+  defaults and cardio move behind one **Template options** row. ADR-0040's
+  model is untouched — the structure is still declared, never inferred.
+- **A live workout is visible from every tab** as a dot on the Train icon. One
+  boolean and a name, no new listener (ADR-0016 stands).
+
+**Two real defects fixed, both found while reading.**
+
+`EXERCISE_LIBRARY` — ~70 movements carrying muscle groups and coaching cues in
+all three locales — **was unreachable**. Both pickers searched the user's own
+catalog and nothing else, so it only ever entered a catalog as a side effect of
+cloning a starter template. And `addCatalogExercise`/`addExerciseToActive`
+hardcoded `muscles: []` with **no screen anywhere able to set them
+afterwards**, so `weeklyClusterAudit`'s `unattributed` line reported a gap the
+user could not close. Both pickers now search the library, an exact typed name
+inherits its metadata (exact only — a fuzzy match would attach the wrong muscle
+group silently), and the exercise sheet gained a muscle-group picker for
+everything created before today. Deleting a logged workout also asks now; it
+used to happen on a bare long-press.
+
+Engine untouched (`progression-engine.ts`, `activation-validity.ts`,
+`set-structure.ts`). JS-only, so OTA-shippable. Bundle +1.47% raw / +82 KB
+gzipped, almost all `ReanimatedSwipeable`, within budget. 869 mobile tests and
+1,650 core tests green; 61 of them are new (35 in core, 26 on the screen).
+
 ## 2026-09-16 — An auto-applied OTA was silently eating reviewed photo scans
 
 Reported as "the macros went good, she went out and came back and the data was

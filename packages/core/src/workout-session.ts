@@ -29,6 +29,13 @@ export type SessionAction =
   | { type: 'addSet'; exerciseIndex: number }
   /** Append a cluster — one activation plus two mini sets — and renumber. */
   | { type: 'addCluster'; exerciseIndex: number }
+  /** Append a rest-pause / cluster-set block (ADR-0040) and renumber: one
+   *  PRESCRIBED continuation, plus the activation to hang it off when the
+   *  exercise has none yet. The template editor could scaffold this and the
+   *  live session could not, so a lift PROGRAMMED as rest-pause had no way to
+   *  gain another block mid-workout — the user had to pick `continuation`
+   *  out of the set-kind list by hand and know that it was the right one. */
+  | { type: 'addBlock'; exerciseIndex: number }
   /** Patch one set's fields. Does NOT re-derive cluster groups; use
    *  `setSetKind` for a change that can form or dissolve a cluster. */
   | { type: 'patchSet'; exerciseIndex: number; setIndex: number; patch: Partial<WorkoutSet> }
@@ -139,6 +146,17 @@ export function applySessionAction(
     case 'addCluster':
       return mapExercise(session, action.exerciseIndex, (ex) =>
         mapSets(ex, (sets) => normalizeClusterGroups([...sets, ...newCluster()])),
+      );
+
+    case 'addBlock':
+      return mapExercise(session, action.exerciseIndex, (ex) =>
+        mapSets(ex, (sets) =>
+          normalizeClusterGroups(
+            sets.some((x) => x.kind === 'activation')
+              ? [...sets, newWorkoutSet('continuation')]
+              : [...sets, newWorkoutSet('activation'), newWorkoutSet('continuation')],
+          ),
+        ),
       );
 
     case 'patchSet':

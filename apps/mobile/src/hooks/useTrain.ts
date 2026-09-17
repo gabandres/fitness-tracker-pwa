@@ -48,15 +48,18 @@ import {
 } from '@/lib/workout';
 import type { CardioModality } from '@macrolog/core/cardio';
 import {
+  type SeedExercise,
   type SeedTemplate,
   fillMissingClusterLoads,
   findSeedExercise,
+  findSeedExerciseByName,
   seedExerciseCues,
   seedExerciseName,
   seedTemplateExerciseCues,
   seedTemplateName,
   seedTemplateNotes,
 } from '@macrolog/core';
+import { publishActiveWorkout } from '@/lib/active-workout-signal';
 import { useLocale } from '@/i18n';
 
 export interface TrainState {
@@ -87,8 +90,20 @@ export interface TrainState {
   cloneStarterTemplate: (seed: SeedTemplate) => Promise<void>;
   deleteTemplate: (id: string) => Promise<void>;
   /** Create a catalog exercise, returning its id (used by the template
-   *  editor when adding a free-typed exercise). */
+   *  editor when adding a free-typed exercise).
+   *
+   *  A typed name that EXACTLY matches a shipped library movement inherits its
+   *  muscles, cues and `seedKey`. Before this, every hand-created exercise was
+   *  written with `muscles: []` and no screen could ever set them, so the
+   *  weekly cluster audit's `unattributed` list was unfixable by the user. */
   addCatalogExercise: (name: string, logStyle: LogStyle) => Promise<string>;
+  /** Ensure a shipped library movement exists in the catalog and return its
+   *  id and canonical (localized) name. Idempotent: an entry already cloned —
+   *  by a starter template or by an earlier pick — is reused, so history and
+   *  e1RM never split across a duplicate. */
+  addLibraryExercise: (seed: SeedExercise) => Promise<{ id: string; name: string; logStyle: LogStyle }>;
+  /** Add a shipped library movement straight to the active session. */
+  addLibraryExerciseToActive: (seed: SeedExercise) => Promise<void>;
   /** Edit a catalog exercise's fields (name / logStyle / muscles / cues /
    *  effort standard / band override — `targetRepBand: null` clears it). */
   editCatalogExercise: (id: string, patch: ExercisePatch) => Promise<void>;
@@ -177,10 +192,18 @@ export function useTrain(): TrainState {
    * state directly, or the ref would drift from it.
    */
   const activeRef = useRef<WorkoutSession | null>(null);
-  const setActive = useCallback((next: WorkoutSession | null) => {
-    activeRef.current = next;
-    setActiveState(next);
-  }, []);
+  const setActive = useCallback(
+    (next: WorkoutSession | null) => {
+      activeRef.current = next;
+      setActiveState(next);
+      // Every write to `active` goes through here, which is what makes this
+      // the one honest place to tell the rest of the app a workout is open.
+      // Not a shared subscription (ADR-0016) — one boolean and a name, no
+      // listener, one producer. See `active-workout-signal.ts`.
+      publishActiveWorkout(uid, next);
+    },
+    [uid],
+  );
   const [editingExisting, setEditingExisting] = useState(false);
   // Pristine snapshot of a reopened completed session, captured before any
   // edit, so Cancel can restore it (set edits live-write, so they're already
@@ -381,10 +404,45 @@ export function useTrain(): TrainState {
     [uid],
   );
 
+  /**
+   * The catalog id for a shipped library movement, creating the entry if it is
+   * missing.
+   *
+   * Lifted out of `cloneStarterTemplate`, which was the ONLY path that ever
+   * wrote muscles and cues onto a catalog doc. Every other door — the
+   * template editor's adder, the in-session add sheet — wrote
+   * `muscles: []`, so a movement acquired its muscle group purely by accident
+   * of how it was first added. Dedupe is by `seedKey` first (stable across a
+   * locale switch) and by case-insensitive name second (pre-`seedKey` clones).
+   */
+  const ensureLibraryExercise = useCallback(
+    async (seed: SeedExercise) => {
+      if (!uid) throw new Error('Not signed in');
+      const name = seedExerciseName(seed, locale);
+      const logStyle: LogStyle = seed.logStyle ?? 'weight-reps';
+      const existing = catalog.find(
+        (c) =>
+          (c.seedKey && c.seedKey === seed.key) ||
+          c.name.toLowerCase() === name.toLowerCase(),
+      );
+      if (existing?.id) return { id: existing.id, name: existing.name, logStyle: existing.logStyle ?? logStyle };
+      const id = await addExerciseDoc(uid, {
+        name,
+        muscles: seed.muscles,
+        defaultCues: seedExerciseCues(seed, locale),
+        logStyle,
+        seedKey: seed.key,
+      });
+      return { id, name, logStyle };
+    },
+    [uid, catalog, locale],
+  );
+
   const cloneStarterTemplate = useCallback(
     async (seed: SeedTemplate) => {
       if (!uid) return;
       const exercises: TemplateExercise[] = [];
+      const made = new Map<string, { id: string; name: string; logStyle: LogStyle }>();
       for (const se of seed.exercises) {
         const lib = findSeedExercise(se.key);
         // Resolve display name/cues for the active locale, then store as the
@@ -392,26 +450,32 @@ export function useTrain(): TrainState {
         // resolved name for pre-seedKey clones) so re-cloning — even in another
         // locale — reuses the existing catalog entry instead of splitting
         // history/e1RM across a duplicate.
-        const name = lib ? seedExerciseName(lib, locale) : se.key;
         // Both of these were hardcoded `'weight-reps'` before ADR-0028, which
         // is right for every lift in the library and wrong for a mobility
         // movement: a timed hold logged as load x reps has no field to put the
         // hold in.
-        const logStyle: LogStyle = lib?.logStyle ?? 'weight-reps';
-        const existing = catalog.find(
-          (c) =>
-            (c.seedKey && c.seedKey === se.key) ||
-            c.name.toLowerCase() === name.toLowerCase(),
-        );
-        const id =
-          existing?.id ??
-          (await addExerciseDoc(uid, {
-            name,
-            muscles: lib?.muscles ?? [],
-            defaultCues: lib ? seedExerciseCues(lib, locale) : [],
-            logStyle: logStyle,
-            seedKey: se.key,
-          }));
+        let name = lib ? seedExerciseName(lib, locale) : se.key;
+        let logStyle: LogStyle = lib?.logStyle ?? 'weight-reps';
+        let id: string;
+        // `ensureLibraryExercise` reads `catalog` from the closure, which does
+        // not update between iterations of this loop — so a template naming
+        // the same movement twice would mint it twice. The memo is that
+        // within-call dedupe, and it is why this loop cannot just call the
+        // helper blind.
+        const madeHere = made.get(se.key);
+        if (madeHere) {
+          ({ id, name, logStyle } = madeHere);
+        } else if (lib) {
+          const entry = await ensureLibraryExercise(lib);
+          made.set(se.key, entry);
+          ({ id, name, logStyle } = entry);
+        } else {
+          // A template referencing a key the library does not carry. Nothing
+          // to inherit; keep the pre-existing behaviour of minting by key.
+          const existing = catalog.find((c) => c.seedKey === se.key || c.name.toLowerCase() === name.toLowerCase());
+          id = existing?.id ?? (await addExerciseDoc(uid, { name, muscles: [], defaultCues: [], logStyle, seedKey: se.key }));
+          made.set(se.key, { id, name, logStyle });
+        }
         exercises.push({
           exerciseId: id,
           name,
@@ -431,7 +495,7 @@ export function useTrain(): TrainState {
         seedKey: seed.key,
       });
     },
-    [uid, catalog, locale],
+    [uid, catalog, locale, ensureLibraryExercise],
   );
 
   /**
@@ -459,12 +523,23 @@ export function useTrain(): TrainState {
     if (current) await persist(current);
   }, [persist]);
 
+  const addLibraryExercise = useCallback(
+    (seed: SeedExercise) => ensureLibraryExercise(seed),
+    [ensureLibraryExercise],
+  );
+
   const addCatalogExercise = useCallback(
     async (name: string, logStyle: LogStyle) => {
       if (!uid) throw new Error('Not signed in');
+      // An exact name match against the library carries real metadata the
+      // free-type path would otherwise throw away. Exact only: a fuzzy match
+      // would silently attach the wrong muscle group to a movement the user
+      // named deliberately (`findSeedExerciseByName`).
+      const seed = findSeedExerciseByName(name, locale);
+      if (seed) return (await ensureLibraryExercise(seed)).id;
       return addExerciseDoc(uid, { name, muscles: [], defaultCues: [], logStyle });
     },
-    [uid],
+    [uid, locale, ensureLibraryExercise],
   );
 
   const editCatalogExercise = useCallback(
@@ -512,7 +587,16 @@ export function useTrain(): TrainState {
         }
       }
       if (!id) {
-        id = await addExerciseDoc(uid, { name, muscles: [], defaultCues: [], logStyle });
+        // Same rule as `addCatalogExercise`: an exact library name brings its
+        // muscles and cues with it rather than minting an unattributable doc.
+        const seed = findSeedExerciseByName(name, locale);
+        if (seed) {
+          const made = await ensureLibraryExercise(seed);
+          id = made.id;
+          canonical = made.name;
+        } else {
+          id = await addExerciseDoc(uid, { name, muscles: [], defaultCues: [], logStyle });
+        }
       }
       const exercise: SessionExercise = {
         exerciseId: id,
@@ -526,7 +610,33 @@ export function useTrain(): TrainState {
       };
       await dispatch({ type: 'addExercise', exercise });
     },
-    [uid, catalog, dispatch],
+    [uid, catalog, dispatch, locale, ensureLibraryExercise],
+  );
+
+  /**
+   * Add a shipped library movement to the live session.
+   *
+   * Not `addExerciseToActive(seed.name, ...)`: that would round-trip the
+   * movement through a name lookup it does not need, and a locale whose
+   * translation of the name happens to collide with a user-created exercise
+   * would resolve to the wrong doc. The seed key is the identity here.
+   */
+  const addLibraryExerciseToActive = useCallback(
+    async (seed: SeedExercise) => {
+      if (!uid || !activeRef.current) return;
+      const { id, name, logStyle } = await ensureLibraryExercise(seed);
+      const exercise: SessionExercise = {
+        exerciseId: id,
+        name,
+        cues: seedExerciseCues(seed, locale),
+        logStyle,
+        // A seeded mobility movement stays mobility, so a stretch added
+        // mid-session cannot take a duration PR (ADR-0028).
+        sets: [newWorkoutSet(logStyle === 'time' ? 'mobility' : 'working')],
+      };
+      await dispatch({ type: 'addExercise', exercise });
+    },
+    [uid, locale, ensureLibraryExercise, dispatch],
   );
 
 
@@ -646,6 +756,8 @@ export function useTrain(): TrainState {
     deleteTemplate,
     cloneStarterTemplate,
     addCatalogExercise,
+    addLibraryExercise,
+    addLibraryExerciseToActive,
     editCatalogExercise,
     deleteCatalogExercise,
     mergeCatalogExercises,

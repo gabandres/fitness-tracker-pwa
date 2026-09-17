@@ -1,23 +1,27 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
   View,
   useWindowDimensions,
 } from 'react-native';
-import Animated, { FadeIn, FadeOut, useAnimatedRef } from 'react-native-reanimated';
+import Animated, { useAnimatedRef } from 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Sortable from 'react-native-sortables';
 import {
+  type SeedExercise,
   type UnitSystem,
   MOBILITY_SEED_KEYS,
+  addActionsFor,
   defaultIncrement as defaultIncrementLb,
+  isPristineScaffold,
   loadUnit,
   normalizeClusterGroups,
   parseLoadToLb,
+  scaffoldKindsFor,
+  seedExerciseCues,
   setRowLabels,
   toDisplayLoad,
   CARDIO_MODALITIES,
@@ -36,18 +40,17 @@ import type {
   TemplateExercise,
   WorkoutTemplate,
 } from '@/lib/workout';
-import { DEFAULT_LOG_STYLE } from '@/lib/workout';
 import type { useTrain } from '@/hooks/useTrain';
-import { type TFn, useT, type I18nKey} from '@/i18n';
+import { type TFn, useLocale, useT, type I18nKey} from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { smoothLayout } from '@/lib/motion';
-import { useDeferredFocus } from '@/lib/use-deferred-focus';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { space } from '@/theme';
 import {
-  CREATION_STYLES, SET_KINDS, SET_STRUCTURES, type CreationStyle,
-  kindLabelKey, logStyleFor, logStyleKey, numOrUndef, setKindFor,
+  CREATION_STYLES, PRIMARY_STRUCTURES, SET_KINDS, SET_STRUCTURES, type CreationStyle,
+  kindLabelKey, logStyleFor, numOrUndef, setKindFor,
 } from './train-shared';
+import { ExerciseSearchList } from './ExerciseSearchList';
 import { mobilityDoseWarnings } from '@macrolog/core';
 import { BottomSheet } from '@/components/BottomSheet';
 import { useUnitSystem } from '@/lib/use-unit-system';
@@ -207,6 +210,7 @@ export function TemplateEditorModal({
   onClose: () => void;
 }) {
   const t = useT();
+  const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const unitSystem = useUnitSystem();
   const { colors } = useTheme();
@@ -257,6 +261,17 @@ export function TemplateEditorModal({
     [exercises],
   );
   const [moreEx, setMoreEx] = useState<number | null>(null);
+  /** Which card is showing the declared-but-unread structures (`drop`,
+   *  `superset`). Null = every card shows the readable six. */
+  const [structuresOpen, setStructuresOpen] = useState<number | null>(null);
+  /** Which card just kept its typed rows through a structure change, so the
+   *  card can SAY it did rather than look like the choice did nothing. */
+  const [structureKept, setStructureKept] = useState<number | null>(null);
+  /** Notes, rest defaults and prescribed cardio, behind one row. A new
+   *  template's first four fields used to be Name, Notes, "Rest (mini)" and
+   *  "Rest (cluster)" — two of the four being myo-reps vocabulary, asked
+   *  before a single exercise existed. */
+  const [optionsOpen, setOptionsOpen] = useState(false);
   /** Handed to Sortable so a drag near the sheet's edge scrolls it. It must be
    *  a Reanimated AnimatedRef on an Animated.ScrollView — a plain ref is
    *  accepted by the types and simply never auto-scrolls. */
@@ -311,6 +326,16 @@ export function TemplateEditorModal({
     setKindOpen(null);
     setOpenEx(null);
     setMoreEx(null);
+    setStructuresOpen(null);
+    setStructureKept(null);
+    // Opened by DEFAULT when the template already uses any of it — an existing
+    // template's notes and rests must not become invisible on the next edit.
+    setOptionsOpen(
+      !!template && (
+        !!template.notes || template.restMiniSec != null
+        || template.restClusterSec != null || (template.cardioBlocks?.length ?? 0) > 0
+      ),
+    );
     setErr('');
     setExName('');
     setExStyle('weight-reps');
@@ -318,9 +343,6 @@ export function TemplateEditorModal({
   }, [visible, template]);
 
   const trimmedEx = exName.trim();
-  const matches = trimmedEx
-    ? train.catalog.filter((e) => e.name.toLowerCase().includes(trimmedEx.toLowerCase())).slice(0, 5)
-    : [];
 
   function appendEx(
     exercise: Pick<DraftEx, 'exerciseId' | 'name' | 'logStyle'> & { cuesText?: string },
@@ -363,6 +385,28 @@ export function TemplateEditorModal({
       logStyle: c.logStyle ?? 'weight-reps',
       cuesText: (c.defaultCues ?? []).join('\n'),
     }, mobility ? 'mobility' : 'working');
+  }
+
+  /** A shipped library movement: ensure the catalog entry (with its muscles
+   *  and localized cues) exists, then append it like any other. */
+  async function addFromLibrary(seed: SeedExercise) {
+    if (busy) return;
+    haptics.tap();
+    setBusy(true);
+    try {
+      const { id, name: canonical, logStyle } = await train.addLibraryExercise(seed);
+      appendEx(
+        {
+          exerciseId: id,
+          name: canonical,
+          logStyle,
+          cuesText: seedExerciseCues(seed, locale).join('\n'),
+        },
+        logStyle === 'time' && MOBILITY_SEED_KEYS.has(seed.key) ? 'mobility' : 'working',
+      );
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function addFreeType() {
@@ -476,9 +520,53 @@ export function TemplateEditorModal({
     mutateSets(index, (sets) => sets.map((s, i) => (i === setIdx ? { ...s, ...patch } : s)));
   }
 
+  /**
+   * Declare what this lift is programmed as — and, when the rows are still
+   * placeholders, rewrite them to match (ADR-0040 + `scaffoldKindsFor`).
+   *
+   * The editor used to ask for the structure UNDERNEATH the sets table, after
+   * three buttons (`+ Add set`, `+ Add cluster`, `+ Add block`) had already
+   * made the user hand-build a set list that implies a structure. That is
+   * backwards: the structure is the decision, the rows are its consequence.
+   *
+   * The scaffold is gated on {@link isPristineScaffold}. Rows the user has
+   * typed numbers into are KEPT and only the declaration changes, with a line
+   * saying so — this repo does not silently overrule a person who typed a
+   * number, and a template's numbers are the ones that took real effort.
+   */
   function setStructure(index: number, value: SetStructure | undefined) {
     haptics.tap();
-    setExercises((prev) => prev.map((d, i) => (i === index ? { ...d, setStructure: value } : d)));
+    const current = exercises[index];
+    if (!current) return;
+    const kinds = scaffoldKindsFor(value);
+    const pristine = isPristineScaffold(
+      current.sets.map((x) => ({
+        reps: numOrUndef(x.repsText),
+        weight: numOrUndef(x.weightText),
+        durationSec: numOrUndef(x.durationText),
+      })),
+    );
+    // Both decisions are made HERE, out of the updater. Calling `setState`
+    // from inside another `setState`'s updater makes the updater impure, and
+    // React is free to run it twice or discard the result — which it did: the
+    // scaffold silently never applied.
+    const rescaffold = kinds.length > 0 && pristine;
+    // Only a notice when there was a scaffold to apply and it was withheld.
+    // "Auto" declares nothing and rewrites nothing, by design.
+    setStructureKept(kinds.length > 0 && !pristine ? index : null);
+    setExercises((prev) =>
+      prev.map((d, i) =>
+        i === index
+          ? {
+              ...d,
+              setStructure: value,
+              ...(rescaffold
+                ? { sets: normalizeClusterGroups(kinds.map((k) => newDraftSet(k))) }
+                : {}),
+            }
+          : d,
+      ),
+    );
   }
 
   function setSetKind(index: number, setIdx: number, kind: SetKind) {
@@ -601,6 +689,33 @@ export function TemplateEditorModal({
               testID="template-name"
             />
 
+            {/* Notes, rest defaults and prescribed cardio, behind one row.
+                A new template's first four fields were Name, Notes, "Rest
+                (mini)" and "Rest (cluster)" — two of the four myo-reps
+                vocabulary, asked before a single exercise existed, of someone
+                who may never program a cluster. Name and exercises is the
+                whole form now; the rest is one tap away and opens itself for
+                any template that already uses it. */}
+            <TouchableOpacity
+              style={styles.tplOptionsRow}
+              onPress={() => {
+                haptics.tap();
+                setOptionsOpen((o) => !o);
+              }}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: optionsOpen }}
+              testID="template-options"
+            >
+              <Text style={styles.tplOptionsText}>{t('train.templateOptions')}</Text>
+              <Ionicons
+                name={optionsOpen ? 'chevron-up' : 'chevron-down'}
+                size={16}
+                color={colors.muted}
+              />
+            </TouchableOpacity>
+
+            {optionsOpen ? (
+            <>
             <Text style={[styles.fieldLabel, { marginTop: space.sm }]}>{t('train.templateNotes')}</Text>
             <TextInput
               style={[styles.input, styles.notesInput]}
@@ -720,6 +835,8 @@ export function TemplateEditorModal({
                 <Text style={styles.addExText}>{t('cardio.templateAdd')}</Text>
               </TouchableOpacity>
             )}
+            </>
+            ) : null}
 
             <Text style={[styles.fieldLabel, { marginTop: space.md }]}>{t('train.templateExercises')}</Text>
 
@@ -749,19 +866,16 @@ export function TemplateEditorModal({
                     );
                   })}
                 </View>
-                {matches.map((e, mi) => (
-                  <TouchableOpacity
-                    key={e.id}
-                    style={styles.catalogRow}
-                    onPress={() => addFromCatalog(e)}
-                    // Indexed, not keyed by doc id: a UI test can know "the
-                    // first match" but never a Firestore id it did not create.
-                    testID={`template-match-${mi}`}
-                  >
-                    <Text style={styles.catalogName}>{e.name}</Text>
-                    <Text style={styles.catalogStyle}>{t(logStyleKey(e.logStyle))}</Text>
-                  </TouchableOpacity>
-                ))}
+                {/* Catalog AND shipped library. The library half is what
+                    stops a typed name minting a movement with `muscles: []`
+                    that no screen could then edit. */}
+                <ExerciseSearchList
+                  query={exName}
+                  catalog={train.catalog}
+                  testIDPrefix="template-match"
+                  onPickCatalog={addFromCatalog}
+                  onPickSeed={addFromLibrary}
+                />
                 <TouchableOpacity style={styles.createRow} onPress={addFreeType} testID="template-create-exercise">
                   <Text style={styles.createText}>{t('train.addNamed', { name: trimmedEx })}</Text>
                 </TouchableOpacity>
@@ -803,6 +917,9 @@ export function TemplateEditorModal({
                 const setLabels = setRowLabels(d.sets);
                 const open = openEx === i;
                 const more = moreEx === i;
+                // Undeclared keeps every affordance a legacy template was
+                // written with; a declared structure gets only its own.
+                const canAdd = addActionsFor(d.setStructure);
                 return (
                 <Animated.View
                   key={`${d.exerciseId}-${i}`}
@@ -870,6 +987,66 @@ export function TemplateEditorModal({
                   </View>
                   {open ? (
                   <>
+                  {/* ADR-0040, and it is the FIRST thing the card asks now.
+                      The structure is DECLARED rather than inferred — myo-reps,
+                      rest-pause and cluster sets are all "activation +
+                      continuations" in shape and cannot be told apart by
+                      inspection — and it decides how the engine reads every
+                      future session of this lift. It used to sit UNDER the
+                      sets table, after three buttons had made the user
+                      hand-build a list that implies a structure, which is the
+                      decision and its consequence in the wrong order.
+                      Choosing one scaffolds the rows (`scaffoldKindsFor`),
+                      unless they already carry typed numbers. */}
+                  <Text style={styles.tplStructureLabel}>{t('train.structureLabel')}</Text>
+                  <View style={styles.tplStructureRow}>
+                    {(structuresOpen === i ? SET_STRUCTURES : SET_STRUCTURES.slice(0, PRIMARY_STRUCTURES))
+                      .map((st) => {
+                        const on = d.setStructure === st.value;
+                        return (
+                          <TouchableOpacity
+                            key={st.value ?? 'auto'}
+                            style={[styles.tplStructureChip, on && styles.tplStructureChipOn]}
+                            onPress={() => setStructure(i, st.value)}
+                            testID={`template-structure-${i}-${st.value ?? 'auto'}`}
+                          >
+                            <Text style={[styles.tplStructureText, on && styles.tplStructureTextOn]}>
+                              {t(st.labelKey)}
+                            </Text>
+                            {/* Named, not hidden: a user may legitimately want
+                                to program drop sets today and should be told
+                                the engine will not read them, not quietly
+                                given a number computed by another
+                                structure's rule. */}
+                            {!st.readable ? (
+                              <Text style={styles.tplStructureNote}>{t('train.structureUnread')}</Text>
+                            ) : null}
+                          </TouchableOpacity>
+                        );
+                      })}
+                  </View>
+                  {/* The chosen structure, in a sentence. Eight bare chips of
+                      gym jargon asked the user to already know the vocabulary
+                      the tab keeps a glossary for. */}
+                  <Text style={styles.tplStructureDesc}>
+                    {t((SET_STRUCTURES.find((st) => st.value === d.setStructure) ?? SET_STRUCTURES[0]).descKey)}
+                  </Text>
+                  {structureKept === i ? (
+                    <Text style={styles.tplStructureKept} testID={`template-structure-kept-${i}`}>
+                      {t('train.structureKept')}
+                    </Text>
+                  ) : null}
+                  <TouchableOpacity
+                    style={styles.tplStructureMore}
+                    onPress={() => setStructuresOpen(structuresOpen === i ? null : i)}
+                    accessibilityRole="button"
+                    testID={`template-structure-more-${i}`}
+                  >
+                    <Text style={styles.tplStructureMoreText}>
+                      {structuresOpen === i ? t('train.structureFewer') : t('train.structureMore')}
+                    </Text>
+                  </TouchableOpacity>
+
                   {/* Sets are a small TABLE: a row says what to do, and the
                       headers say what the numbers mean, so neither needs a
                       legend. The set number doubles as the type control —
@@ -985,45 +1162,26 @@ export function TemplateEditorModal({
                       </View>
                     );
                   })}
-                  {/* ADR-0040. The structure is DECLARED here rather than
-                      inferred from the set list, because myo-reps, rest-pause
-                      and cluster sets are all "activation + continuations" in
-                      shape and cannot be told apart by inspection. */}
-                  <Text style={styles.tplStructureLabel}>{t('train.structureLabel')}</Text>
-                  <View style={styles.tplStructureRow}>
-                    {SET_STRUCTURES.map((st) => {
-                      const on = d.setStructure === st.value;
-                      return (
-                        <TouchableOpacity
-                          key={st.value ?? 'auto'}
-                          style={[styles.tplStructureChip, on && styles.tplStructureChipOn]}
-                          onPress={() => setStructure(i, st.value)}
-                          testID={`template-structure-${i}-${st.value ?? 'auto'}`}
-                        >
-                          <Text style={[styles.tplStructureText, on && styles.tplStructureTextOn]}>
-                            {t(st.labelKey)}
-                          </Text>
-                          {/* Named, not hidden: a user may legitimately want to
-                              program rest-pause today and should be told the
-                              engine will not read it, not quietly given a
-                              number computed by another structure's rule. */}
-                          {!st.readable ? (
-                            <Text style={styles.tplStructureNote}>{t('train.structureUnread')}</Text>
-                          ) : null}
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
+                  {/* Only the buttons this structure can use. The three-button
+                      row was the union of every structure's needs, on every
+                      card - "+ Add cluster" under a straight-set lift is an
+                      offer to break the declaration directly above it. */}
                   <View style={styles.tplSetBtns}>
-                    <TouchableOpacity onPress={() => addSet(i)} testID={`template-add-set-${i}`}>
-                      <Text style={styles.sectionAction}>{t('train.addSet')}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => addCluster(i)} testID={`template-add-cluster-${i}`}>
-                      <Text style={styles.sectionAction}>{t('train.addCluster')}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => addBlock(i)} testID={`template-add-block-${i}`}>
-                      <Text style={styles.sectionAction}>{t('train.addBlock')}</Text>
-                    </TouchableOpacity>
+                    {canAdd.set ? (
+                      <TouchableOpacity onPress={() => addSet(i)} testID={`template-add-set-${i}`}>
+                        <Text style={styles.sectionAction}>{t('train.addSet')}</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                    {canAdd.cluster ? (
+                      <TouchableOpacity onPress={() => addCluster(i)} testID={`template-add-cluster-${i}`}>
+                        <Text style={styles.sectionAction}>{t('train.addCluster')}</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                    {canAdd.block ? (
+                      <TouchableOpacity onPress={() => addBlock(i)} testID={`template-add-block-${i}`}>
+                        <Text style={styles.sectionAction}>{t('train.addBlock')}</Text>
+                      </TouchableOpacity>
+                    ) : null}
                   </View>
 
                   {/* Everything below is optional, and none of it is what a

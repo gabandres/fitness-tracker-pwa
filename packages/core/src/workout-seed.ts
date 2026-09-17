@@ -607,3 +607,86 @@ export function seedTemplateExerciseCues(
   if (se.cues) return se.cues;
   return lib ? seedExerciseCues(lib, locale) : undefined;
 }
+
+// ─── Browsing the library ───────────────────────────────────────
+
+/**
+ * Library entries matching `query`, localized, best-first.
+ *
+ * The library shipped with 71 movements carrying muscle groups and coaching
+ * cues, and until now the ONLY door into it was cloning a starter template —
+ * both exercise pickers searched the user's own catalog and nothing else. So
+ * a new account typing "Bench" saw an empty list and free-typed a movement
+ * with `muscles: []`, which is permanently unattributed (the weekly cluster
+ * audit's `unattributed` line is exactly this, and no screen could fix it).
+ *
+ * Matching is on the LOCALIZED name, because that is the string the user is
+ * looking at; the English name is also matched so a Spanish UI still finds
+ * "Bench Press" typed from memory. `startsWith` sorts above a mid-word hit,
+ * which is what makes a three-letter query useful.
+ *
+ * `exclude` takes the seed keys already in the user's catalog. Offering an
+ * entry they own would mint nothing and read as a duplicate of the row
+ * directly above it.
+ */
+/**
+ * How well one name answers a query: 0 the whole name starts with it, 1 some
+ * WORD in the name starts with it, 2 it appears mid-word, `null` no match.
+ *
+ * The word tier is the one that matters. Nothing in the library is called
+ * "Bench" — the entries are "Barbell Bench Press" and "Dumbbell Bench Press" —
+ * so a whole-string prefix alone leaves the most obvious three-letter query in
+ * the app ranked by nothing at all.
+ */
+function nameRank(name: string, q: string): number | null {
+  if (name.startsWith(q)) return 0;
+  if (name.split(/[\s-]+/).some((w) => w.startsWith(q))) return 1;
+  return name.includes(q) ? 2 : null;
+}
+
+export function searchExerciseLibrary(
+  query: string,
+  locale: string,
+  opts?: { exclude?: ReadonlySet<string>; limit?: number },
+): SeedExercise[] {
+  const q = query.trim().toLowerCase();
+  const exclude = opts?.exclude;
+  const limit = opts?.limit ?? 8;
+  const scored: { ex: SeedExercise; rank: number }[] = [];
+  for (const ex of EXERCISE_LIBRARY) {
+    if (exclude?.has(ex.key)) continue;
+    const local = seedExerciseName(ex, locale).toLowerCase();
+    const english = ex.name.toLowerCase();
+    if (!q) {
+      scored.push({ ex, rank: 3 });
+      continue;
+    }
+    const rank = nameRank(local, q) ?? nameRank(english, q);
+    if (rank != null) scored.push({ ex, rank });
+  }
+  // Stable within a rank: `EXERCISE_LIBRARY` is grouped by muscle, which is a
+  // more useful browse order than alphabetical when the query is empty.
+  scored.sort((a, b) => a.rank - b.rank);
+  return scored.slice(0, limit).map((s) => s.ex);
+}
+
+/**
+ * The library entry whose name (localized or English) equals `name`, ignoring
+ * case and surrounding space.
+ *
+ * Used on the free-type path: someone who types "Barbell Bench Press" in full
+ * should get the muscles and cues the library already holds for it rather than
+ * an empty doc that happens to share its name. Exact match only — a fuzzy one
+ * here would attach the wrong muscle group to a movement the user named
+ * deliberately, and silently.
+ */
+export function findSeedExerciseByName(
+  name: string,
+  locale: string,
+): SeedExercise | undefined {
+  const n = name.trim().toLowerCase();
+  if (!n) return undefined;
+  return EXERCISE_LIBRARY.find(
+    (ex) => ex.name.toLowerCase() === n || seedExerciseName(ex, locale).toLowerCase() === n,
+  );
+}

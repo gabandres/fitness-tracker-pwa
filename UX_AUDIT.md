@@ -752,6 +752,60 @@ and most of it is below.
 
 ---
 
+## 🏋️ S17 — Train module UX overhaul, 2026-09-16 (SHIPPED to `main`, not yet OTA)
+
+Triggered by the owner: "crowded, and not as intuitive as I imagined — not just
+editing or creating a template, but starting the workout too." The reading is
+in [ADR-0041](docs/adr/0041-train-ux-overhaul-logger-vs-coach.md), which owns
+the reasoning and the competitive scan; this section is the checklist so the
+items are not re-scoped.
+
+**Diagnosis in one line:** the progression engine's vocabulary
+(ADR-0038/0039/0040) had become the whole tab's default for everyone. The
+header's glossary button was the tell.
+
+- [x] **S17-1 · The home screen answers "what am I doing today."** The
+      full-width primary was `Start workout` = an EMPTY session, the rarest
+      path. Now a **Next up** card (`nextTemplateUp`, least-recently-performed)
+      naming the template and when it was last done. Empty workout kept as a
+      link.
+- [x] **S17-2 · The catalog is not a home-screen section.** It rendered
+      unbounded as the sixth stacked block; now one row into a searchable
+      sheet. Cluster audit collapsed from six chips to its verdict.
+- [x] **S17-3 · PREVIOUS on every set row**, positional (row 3 vs row 3). It
+      was one aggregate line at the card head. The tick now accepts last
+      session's reps AND load, not only a template's prescription.
+- [x] **S17-4 · One action on the card, the rest behind `⋯`.** Set row down
+      from six hit targets to five; the permanent `✕` is now swipe-left, with
+      a labelled equivalent in the set sheet for VoiceOver. The set-kind and
+      RIR pickers no longer expand inside the set list and shove the rows
+      below them down.
+- [x] **S17-5 · Template editor asks for the structure FIRST** and scaffolds
+      the rows from it; add-buttons follow the declaration. Typed rows are
+      kept and the card says so. Notes/rest/cardio behind **Template
+      options** — "Rest (mini)" and "Rest (cluster)" were fields 3 and 4 of an
+      empty form.
+- [x] **S17-6 · A live workout is visible from every tab** (a dot on the Train
+      icon). One boolean, no new listener.
+- [x] **S17-7 · Two real defects.** `EXERCISE_LIBRARY` (70 movements with
+      muscles + cues, three locales) was **unreachable from every picker**;
+      `muscles` was **write-once**, so `weeklyClusterAudit`'s `unattributed`
+      line could never be cleared. Both pickers now search the library, exact
+      typed names inherit metadata, and the exercise sheet has a muscle
+      picker. Deleting a logged workout now confirms (was a bare long-press).
+
+### Open, deliberately not done in this pass
+
+- [ ] **S17-8 · Continuous scroll instead of the accordion in a live session**
+      (what Strong and Hevy do). The accordion is load-bearing for a
+      nine-exercise session at 360dp, and PREVIOUS + `⋯` address most of what
+      it was hiding. Revisit only if the complaint survives a few sessions on
+      the new build.
+- [ ] **S17-9 · A real program entity with ordered days.** The right long-term
+      shape; needs a new entity, editor and migration. `nextTemplateUp`
+      delivers the rotation behaviour with no stored state, so this is not
+      urgent — and if it is ever built it replaces that one function.
+
 ## 5. Notes for future additions
 
 - When adding a new surface, check it against: (a) does copy work for a first-time user; (b) is every icon-only button labelled; (c) does it announce state changes via `aria-live`.

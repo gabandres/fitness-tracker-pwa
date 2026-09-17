@@ -12,6 +12,7 @@ import { useOtaPushListener, useRegisterPushToken } from '@/lib/push-token';
 import { loadTourSeen, shouldAutoOpenTour, useTourHeld } from '@/lib/tour';
 import { getWhatsNewSeen, markWhatsNewSeen, shouldAutoOpenWhatsNew } from '@/lib/whatsNew';
 import { useHealthAutoImport } from '@/lib/health-sync';
+import { hydrateActiveWorkout, useActiveWorkout } from '@/lib/active-workout-signal';
 import { useOuraAutoImport } from '@/lib/oura';
 import { track } from '@/lib/analytics';
 import * as haptics from '@/lib/haptics';
@@ -47,6 +48,7 @@ type AppTabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>['tabBar
  * celebration).
  */
 function AppTabBar({ state, descriptors, navigation }: AppTabBarProps) {
+  const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -55,6 +57,10 @@ function AppTabBar({ state, descriptors, navigation }: AppTabBarProps) {
   // (UX_AUDIT S16-3). A flex spacer keeps the four tabs in place.
   const segments = useSegments();
   const onDayDetail = segments[segments.length - 1] === '[date]';
+  // A workout left open is invisible from every tab but Train — and the raised
+  // Log button actively pulls you to Today mid-session. One dot, from a signal
+  // that opens no listener (`active-workout-signal.ts`).
+  const workout = useActiveWorkout();
 
   function tab(name: string) {
     const route = state.routes.find((r) => r.name === name);
@@ -63,6 +69,7 @@ function AppTabBar({ state, descriptors, navigation }: AppTabBarProps) {
     const focused = state.index === state.routes.indexOf(route);
     const icons = TAB_ICONS[name];
     const label = typeof options.title === 'string' ? options.title : name;
+    const inProgress = name === 'train' && workout.active;
     return (
       <PressScale
         key={route.key}
@@ -70,7 +77,7 @@ function AppTabBar({ state, descriptors, navigation }: AppTabBarProps) {
         scaleTo={0.9}
         accessibilityRole="tab"
         accessibilityState={{ selected: focused }}
-        accessibilityLabel={label}
+        accessibilityLabel={inProgress ? `${label}, ${t('train.inProgress')}` : label}
         testID={`tab-${name}`}
         onPress={() => {
           haptics.tap();
@@ -78,7 +85,10 @@ function AppTabBar({ state, descriptors, navigation }: AppTabBarProps) {
           if (!focused && !event.defaultPrevented) navigation.navigate(route.name, route.params);
         }}
       >
-        <Ionicons name={focused ? icons.filled : icons.outline} size={23} color={focused ? colors.ink : colors.faint} />
+        <View>
+          <Ionicons name={focused ? icons.filled : icons.outline} size={23} color={focused ? colors.ink : colors.faint} />
+          {inProgress ? <View style={styles.tabDot} testID="tab-train-active" /> : null}
+        </View>
         <Text style={[styles.tabLabel, { color: focused ? colors.ink : colors.faint }]}>{label}</Text>
       </PressScale>
     );
@@ -201,6 +211,13 @@ export default function AppTabsLayout() {
     opened.current = true;
     track('app_open');
   }, [user?.uid]);
+  // Restore the "workout open" dot before Train has ever mounted — quitting
+  // mid-workout and reopening on Today is exactly the case the dot is for.
+  // A HINT only; `useTrain` overwrites it with the truth on load, and it
+  // never overwrites a live value (see the module).
+  useEffect(() => {
+    void hydrateActiveWorkout(user?.uid);
+  }, [user?.uid]);
   return (
     <>
     <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <AppTabBar {...props} />}>
@@ -244,5 +261,18 @@ function createStyles({ colors }: Theme) {
     },
     tab: { flex: 1, alignItems: 'center', gap: 2, paddingVertical: 2 },
     tabLabel: { fontSize: font.tiny, fontWeight: '600' },
+    // Sits on the icon, not beside the label: the label is already the widest
+    // thing in the cell and a dot after it reads as punctuation.
+    tabDot: {
+      position: 'absolute',
+      top: -1,
+      right: -3,
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: colors.accent,
+      borderWidth: 1.5,
+      borderColor: colors.paper,
+    },
   });
 }

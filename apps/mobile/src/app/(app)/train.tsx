@@ -10,12 +10,18 @@ import {
   View,
 } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
+// Swipe-to-delete on a set row. No `GestureHandlerRootView` is added here —
+// the app root already mounts one (`src/app/_layout.tsx`), and this screen is
+// not inside a Modal, which is the case that needs its own (see the template
+// editor, where RNGH cannot see the app's root through the native modal view).
+import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTrain } from '@/hooks/useTrain';
 import { useRestTimer } from '@/hooks/useRestTimer';
 import type {
   Exercise,
   LogStyle,
+  MuscleGroup,
   SessionExercise,
   WorkoutSession,
   WorkoutSet,
@@ -34,6 +40,7 @@ import {
   parseWeightToLb,
   type SeedTemplate,
   MOBILITY_SEED_KEYS,
+  MUSCLE_GROUPS,
   RIR_MAX,
   RIR_MIN,
   STARTER_TEMPLATES,
@@ -60,6 +67,19 @@ import {
   isWorkingSet,
   suggestProgression,
 } from '@macrolog/core';
+// What to train next, what you did last time, and what a declared structure
+// implies — the three questions this screen asks that core now answers
+// (`train-plan.ts`), so none of them is decided inside a renderer.
+import {
+  type NextUp,
+  type SeedExercise,
+  addActionsFor,
+  nextTemplateUp,
+  previousCell,
+  previousSets,
+  structureOf,
+  templateLastPerformed,
+} from '@macrolog/core';
 // Why a load recommendation is being withheld, and the session-level roll-up
 // of the same check. The app must not suggest a load off an activation set it
 // cannot read — see `activation-validity.ts`.
@@ -79,6 +99,12 @@ import {
 } from '@macrolog/core';
 import { RecommendationNote } from '@/components/train/RecommendationNote';
 import { LiftSettingsSheet } from '@/components/train/LiftSettingsSheet';
+import { ExerciseSearchList } from '@/components/train/ExerciseSearchList';
+import { ExerciseLibrarySheet } from '@/components/train/ExerciseLibrarySheet';
+import { ExerciseMenuSheet, type ExerciseMenuAction } from '@/components/train/ExerciseMenuSheet';
+import { NextUpCard } from '@/components/train/NextUpCard';
+import { SetRowSheet } from '@/components/train/SetRowSheet';
+import { confirm } from '@/components/ConfirmSheet';
 // Train derivations — shared with the Angular Train tab so the two cannot
 // disagree about the same numbers (`@macrolog/core/train-view`).
 import {
@@ -101,8 +127,8 @@ import { HeaderAvatar } from '@/components/HeaderAvatar';
 // against a web Train tab that has been split since it was written.
 import { TemplateEditorModal } from '@/components/train/TemplateEditorModal';
 import {
-  CREATION_STYLES, LOG_STYLES, SET_KINDS, type CreationStyle,
-  logStyleFor, logStyleKey, numOrUndef, setKindFor,
+  CREATION_STYLES, LOG_STYLES, type CreationStyle,
+  kindLabelKey, logStyleFor, logStyleKey, numOrUndef, setKindFor,
 } from '@/components/train/train-shared';
 import { BottomSheet } from '@/components/BottomSheet';
 import { CardioBlockCard } from '@/components/train/CardioBlockCard';
@@ -118,13 +144,6 @@ import { useDeferredFocus } from '@/lib/use-deferred-focus';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { font, space } from '@/theme';
 import { formatDate } from '@/lib/date-format';
-
-/** The 0–5 RIR scale, spelled out one option per value. Derived from the
- *  bounds @macrolog/core owns so the picker can't drift from the clamp. */
-const RIR_CHOICES: number[] = Array.from(
-  { length: RIR_MAX - RIR_MIN + 1 },
-  (_, i) => RIR_MIN + i,
-);
 
 export default function Train() {
   const t = useT();
@@ -193,11 +212,16 @@ function StartView({
   const t = useT();
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
   const unitSystem = useUnitSystem();
   // null = closed; a template = edit it; {} = create new.
   const [editing, setEditing] = useState<WorkoutTemplate | Record<string, never> | null>(null);
   const [detailEx, setDetailEx] = useState<Exercise | null>(null);
   const [startersOpen, setStartersOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  // The cluster audit is a six-chip block that used to sit ABOVE the primary
+  // action. Collapsed to its one-line verdict, with the chips one tap away.
+  const [auditOpen, setAuditOpen] = useState(false);
   const stats = useMemo(
     () => trainHeroStats(train.recentSessions, Date.now()),
     [train.recentSessions],
@@ -210,6 +234,28 @@ function StartView({
     [train.recentSessions, train.catalog],
   );
   const [nextOpen, setNextOpen] = useState<string | null>(null);
+  // Which template to offer, and when each was last completed. Both are pure
+  // and live in core (`train-plan.ts`); this screen only renders them.
+  const nextUp = useMemo(
+    () => nextTemplateUp(train.templates, train.recentSessions, Date.now()),
+    [train.templates, train.recentSessions],
+  );
+  const lastByTemplate = useMemo(
+    () => templateLastPerformed(train.recentSessions),
+    [train.recentSessions],
+  );
+
+  function confirmDeleteSession(id: string, label: string) {
+    // Long-press used to delete a logged workout outright — undiscoverable
+    // AND unconfirmed, on the one surface where the data cannot be recovered.
+    confirm({
+      title: t('train.deleteSessionTitle'),
+      body: t('train.deleteSessionBody', { name: label }),
+      confirmText: t('common.remove'),
+      destructive: true,
+      onConfirm: () => void train.deleteSession(id),
+    });
+  }
 
   return (
     <ScrollView contentContainerStyle={styles.body}>
@@ -245,41 +291,93 @@ function StartView({
       </Animated.View>
       </Animated.View>
 
+      {/* The one question a training home screen exists to answer. The
+          full-width primary here used to be "Start workout", which starts an
+          EMPTY session — the rarest path anyone takes, given the most
+          prominent control on the tab. */}
+      {nextUp ? (
+        <NextUpCard
+          next={nextUp}
+          onStart={() => train.startFromTemplate(nextUp.template)}
+          onEdit={() => setEditing(nextUp.template)}
+        />
+      ) : (
+        <View style={styles.nextCard} testID="next-up-empty">
+          <Text style={styles.nextCaption}>{t('train.nextUp')}</Text>
+          <Text style={styles.nextMeta}>{t('train.noTemplates')}</Text>
+          <TouchableOpacity style={styles.startBtn} onPress={() => setStartersOpen(true)} testID="next-up-starters">
+            <Text style={styles.startBtnText}>{t('train.starters')}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Demoted, not removed. An empty session and a bare run are both real
+          things to want; neither is what you came to the tab to do. */}
+      <View style={styles.secondaryRow}>
+        <TouchableOpacity
+          onPress={() => {
+            haptics.tap();
+            train.startWorkout();
+          }}
+          hitSlop={8}
+          testID="start-workout"
+        >
+          <Text style={styles.secondaryLink}>{t('train.startEmpty')}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => setLibraryOpen(true)} hitSlop={8} testID="open-library">
+          <Text style={styles.secondaryLink}>{t('train.library')}</Text>
+        </TouchableOpacity>
+      </View>
+
       {audit.clusters > 0 ? (
         <View style={styles.auditWrap} testID="cluster-audit">
-          <Text style={styles.auditTitle}>{t('train.audit.title')}</Text>
-          <View style={styles.auditRow}>
-            {audit.muscles.map((m) => (
-              <View
-                key={m.muscle}
-                style={[styles.auditChip, m.status !== 'in-range' && styles.auditChipOff]}
-                testID={`cluster-audit-${m.muscle}`}
-              >
-                <Text style={styles.auditMuscle}>{t(`train.muscle.${m.muscle}` as I18nKey)}</Text>
-                <Text style={styles.auditCount}>
-                  {m.clusters} · {t(m.status === 'below' ? 'train.audit.below' : m.status === 'above' ? 'train.audit.above' : 'train.audit.inRange')}
-                </Text>
+          <TouchableOpacity
+            style={styles.auditLine}
+            onPress={() => setAuditOpen((o) => !o)}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: auditOpen }}
+            testID="cluster-audit-toggle"
+          >
+            <Text style={styles.auditTitle}>{t('train.audit.title')}</Text>
+            <Text style={styles.auditLineText} numberOfLines={1}>
+              {'  '}
+              {t('train.audit.summary', {
+                n: audit.clusters,
+                inRange: audit.muscles.filter((m) => m.status === 'in-range').length,
+                total: audit.muscles.length,
+              })}
+            </Text>
+            <Ionicons
+              name={auditOpen ? 'chevron-up' : 'chevron-down'}
+              size={16}
+              color={colors.faint}
+            />
+          </TouchableOpacity>
+          {auditOpen ? (
+            <>
+              <View style={styles.auditRow}>
+                {audit.muscles.map((m) => (
+                  <View
+                    key={m.muscle}
+                    style={[styles.auditChip, m.status !== 'in-range' && styles.auditChipOff]}
+                    testID={`cluster-audit-${m.muscle}`}
+                  >
+                    <Text style={styles.auditMuscle}>{t(`train.muscle.${m.muscle}` as I18nKey)}</Text>
+                    <Text style={styles.auditCount}>
+                      {m.clusters} · {t(m.status === 'below' ? 'train.audit.below' : m.status === 'above' ? 'train.audit.above' : 'train.audit.inRange')}
+                    </Text>
+                  </View>
+                ))}
               </View>
-            ))}
-          </View>
-          <Text style={styles.auditHint}>
-            {audit.unattributed.length > 0
-              ? t('train.audit.unattributed', { names: audit.unattributed.join(', ') })
-              : t('train.audit.hint')}
-          </Text>
+              <Text style={styles.auditHint}>
+                {audit.unattributed.length > 0
+                  ? t('train.audit.unattributed', { names: audit.unattributed.join(', ') })
+                  : t('train.audit.hint')}
+              </Text>
+            </>
+          ) : null}
         </View>
       ) : null}
-
-      <TouchableOpacity
-        style={styles.startBtn}
-        onPress={() => {
-          haptics.tap();
-          train.startWorkout();
-        }}
-        testID="start-workout"
-      >
-        <Text style={styles.startBtnText}>{t('train.start')}</Text>
-      </TouchableOpacity>
 
       <View style={styles.sectionHead}>
         <Text style={styles.sectionTitle}>{t('train.templates')}</Text>
@@ -301,7 +399,15 @@ function StartView({
             <View style={styles.tplRow} testID={`template-${tpl.id}`}>
               <Pressable style={styles.tplMain} onPress={() => setEditing(tpl)} testID={`edit-template-${tpl.id}`}>
                 <Text style={styles.histDate}>{tpl.name}</Text>
-                <Text style={styles.histSub}>{templateSummary(tpl, t)}</Text>
+                {/* "3 exercises · 12 sets · last Tue". The counts alone could
+                    not tell you which of four templates you are due for, which
+                    is the question the list is actually being scanned for. */}
+                <Text style={styles.histSub}>
+                  {templateSummary(tpl, t)}
+                  {tpl.id && lastByTemplate[tpl.id]
+                    ? ` · ${t('train.tplLast', { day: formatDate(lastByTemplate[tpl.id], locale, { month: 'short', day: 'numeric' }) })}`
+                    : ` · ${t('train.nextNever')}`}
+                </Text>
                 {/* The engine's calls for this template, BEFORE the session
                     starts — the spec's layer 6 surface. Collapsed by default
                     so the list stays a list; one tap opens it. */}
@@ -346,7 +452,13 @@ function StartView({
               style={styles.histRow}
               testID={`session-${s.id}`}
               onPress={() => train.reopenSession(s)}
-              onLongPress={() => s.id && train.deleteSession(s.id)}
+              onLongPress={() =>
+                s.id &&
+                confirmDeleteSession(
+                  s.id,
+                  formatDate(s.date, locale, { month: 'short', day: 'numeric' }),
+                )
+              }
             >
               <View style={styles.histMain}>
                 <Text style={styles.histDate}>
@@ -360,24 +472,20 @@ function StartView({
         </View>
       )}
 
-      {train.catalog.length ? (
-        <>
-          <Text style={styles.sectionTitle}>{t('train.exercises')}</Text>
-          <View style={styles.list}>
-            {train.catalog.map((e) => (
-              <Pressable
-                key={e.id}
-                style={styles.exLibRow}
-                onPress={() => setDetailEx(e)}
-                testID={`exercise-${e.id}`}
-              >
-                <Text style={styles.histDate}>{e.name}</Text>
-                <Text style={styles.histSub}>{t(logStyleKey(e.logStyle))}</Text>
-              </Pressable>
-            ))}
-          </View>
-        </>
-      ) : null}
+      {/* The catalog used to render here in full, unbounded, as the sixth
+          stacked section of the home screen. A library is a lookup surface —
+          you arrive at it with a movement in mind — so it is one row and a
+          searchable sheet (`ExerciseLibrarySheet`). */}
+      <Pressable
+        style={styles.exLibRow}
+        onPress={() => setLibraryOpen(true)}
+        testID="exercise-library-row"
+      >
+        <Text style={styles.histDate}>{t('train.exercises')}</Text>
+        <Text style={styles.histSub}>
+          {t('train.libraryCount', { n: train.catalog.length })}
+        </Text>
+      </Pressable>
 
       <TemplateEditorModal
         visible={editing !== null}
@@ -395,6 +503,18 @@ function StartView({
         visible={startersOpen}
         train={train}
         onClose={() => setStartersOpen(false)}
+      />
+      <ExerciseLibrarySheet
+        visible={libraryOpen}
+        catalog={train.catalog}
+        onClose={() => setLibraryOpen(false)}
+        onOpenExercise={(e) => {
+          setLibraryOpen(false);
+          setDetailEx(e);
+        }}
+        onAddSeed={async (seed) => {
+          await train.addLibraryExercise(seed);
+        }}
       />
     </ScrollView>
   );
@@ -514,6 +634,13 @@ function ExerciseDetailModal({
   const [confirmDel, setConfirmDel] = useState(false);
   const [editName, setEditName] = useState('');
   const [editStyle, setEditStyle] = useState<LogStyle>('weight-reps');
+  // Muscle groups were WRITE-ONCE and only by `cloneStarterTemplate`: every
+  // other creation path wrote `muscles: []`, and no screen could set them
+  // afterwards. `weeklyClusterAudit` then reported the gap in an
+  // "unattributed" line the user had no way to act on. Creation now inherits
+  // them from the library; this is how the exercises created before that get
+  // fixed.
+  const [editMuscles, setEditMuscles] = useState<MuscleGroup[]>([]);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -522,6 +649,7 @@ function ExerciseDetailModal({
       setConfirmDel(false);
       setEditName(exercise.name);
       setEditStyle(exercise.logStyle ?? 'weight-reps');
+      setEditMuscles(exercise.muscles ?? []);
       setBusy(false);
     }
   }, [visible, exercise]);
@@ -541,7 +669,11 @@ function ExerciseDetailModal({
     if (!exercise?.id || !editName.trim() || busy) return;
     setBusy(true);
     try {
-      await train.editCatalogExercise(exercise.id, { name: editName.trim(), logStyle: editStyle });
+      await train.editCatalogExercise(exercise.id, {
+        name: editName.trim(),
+        logStyle: editStyle,
+        muscles: editMuscles,
+      });
       onClose();
     } finally {
       setBusy(false);
@@ -595,6 +727,32 @@ function ExerciseDetailModal({
                         onPress={() => setEditStyle(ls.value)}
                       >
                         <Text style={[styles.styleChipText, on && styles.styleChipTextOn]}>{t(ls.labelKey)}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+                <Text style={[styles.fieldLabel, { marginTop: space.md }]}>{t('train.musclesLabel')}</Text>
+                <Text style={styles.sheetHint}>{t('train.musclesHint')}</Text>
+                <View style={styles.kindChips}>
+                  {MUSCLE_GROUPS.map((m) => {
+                    const on = editMuscles.includes(m);
+                    return (
+                      <TouchableOpacity
+                        key={m}
+                        style={[styles.kindChip, on && styles.kindChipOn]}
+                        onPress={() => {
+                          haptics.tap();
+                          setEditMuscles((cur) =>
+                            cur.includes(m) ? cur.filter((x) => x !== m) : [...cur, m],
+                          );
+                        }}
+                        accessibilityRole="checkbox"
+                        accessibilityState={{ checked: on }}
+                        testID={`edit-muscle-${m}`}
+                      >
+                        <Text style={[styles.kindChipText, on && styles.kindChipTextOn]}>
+                          {t(`train.muscle.${m}` as I18nKey)}
+                        </Text>
                       </TouchableOpacity>
                     );
                   })}
@@ -1058,8 +1216,16 @@ const ACTIVATION_ISSUE_KEYS: Record<ActivationIssue, I18nKey> = {
 };
 const activationIssueKey = (issue: ActivationIssue): I18nKey => ACTIVATION_ISSUE_KEYS[issue];
 
-/** "Last: 135 × 8" — the ghost hint. Core picks which numbers matter for the
- *  log style; this renders them in the user's language. */
+/**
+ * "Last: 135 x 8" — the ghost hint, shown on a COLLAPSED card only.
+ *
+ * It used to be the exercise's whole memory: one aggregate line at the card
+ * head, where Hevy, Strong and Boostcamp all put last session's numbers on
+ * EVERY set row. An aggregate cannot answer "what do I put in row 3", which is
+ * the question being asked. The per-row answer is the PREVIOUS column
+ * (`previousCell`); this survives as the one-line summary a collapsed row can
+ * fit, which is exactly what an aggregate is good for.
+ */
 function lastHint(sug: ProgressionSuggestion, style: LogStyle, t: TFn): string | null {
   const last = lastPerformed(sug, style);
   if (!last) return null;
@@ -1121,7 +1287,22 @@ function ExerciseCard({
   );
   const engineHasCall = rec.action !== 'none';
   const [liftOpen, setLiftOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const catalogEx = train.catalog.find((e) => e.id === ex.exerciseId) ?? null;
+  // Last session's sets, positionally — row 3 compares against row 3. This is
+  // the PREVIOUS column every competitor puts on every row and this app had
+  // only as one aggregate line at the card head.
+  const prevSets = useMemo(() => previousSets(history), [history]);
+  // Which add-actions this lift can use (ADR-0040). The card used to show the
+  // union of every structure's needs — `+ Add set` AND `+ Add cluster` — under
+  // every exercise, including the straight-set ones that can use neither.
+  // Resolved through core's precedence (template -> catalog -> inference) so
+  // an undeclared legacy template keeps every affordance it was written with.
+  const canAdd = addActionsFor(
+    templateRow?.setStructure
+      ?? catalogEx?.setStructure
+      ?? (ex.sets.some((x) => x.kind === 'activation') ? undefined : 'straight'),
+  );
   // When core withheld a recommendation because the last activation was
   // unreadable, SAY so. Silence and "no bump today" look identical otherwise,
   // and the second one is a claim about the training rather than about the data.
@@ -1150,15 +1331,21 @@ function ExerciseCard({
 
   return (
     <Animated.View style={styles.exCard} layout={smoothLayout}>
+      <View style={styles.exHeadRow}>
       <TouchableOpacity
         style={styles.exHead}
         onPress={onToggle}
         activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: !collapsed }}
         testID={`exercise-head-${exerciseIndex}`}
       >
         <View style={{ flex: 1 }}>
           <Text style={styles.exName}>{ex.name}</Text>
-          {ghost ? <Text style={styles.ghost}>{ghost}</Text> : null}
+          {/* Only while collapsed: an open card shows last session per ROW,
+              and repeating an aggregate above it is two answers to one
+              question. */}
+          {collapsed && ghost ? <Text style={styles.ghost}>{ghost}</Text> : null}
         </View>
         {allDone ? (
           <View style={styles.exDone}>
@@ -1171,6 +1358,21 @@ function ExerciseCard({
         ) : null}
         <Ionicons name={collapsed ? 'chevron-down' : 'chevron-up'} size={20} color={colors.faint} style={styles.exChevron} />
       </TouchableOpacity>
+      {/* One overflow control in place of four permanent inline ones. Only on
+          an open card: a collapsed row is a list item, not a form. */}
+      {collapsed ? null : (
+        <TouchableOpacity
+          style={styles.exMoreBtn}
+          onPress={() => setMenuOpen(true)}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={t('train.exMenuA11y', { name: ex.name })}
+          testID={`exercise-menu-${exerciseIndex}`}
+        >
+          <Ionicons name="ellipsis-horizontal" size={20} color={colors.muted} />
+        </TouchableOpacity>
+      )}
+      </View>
 
       {collapsed ? null : (
         <Animated.View entering={FadeIn.duration(160)} exiting={FadeOut.duration(120)}>
@@ -1232,6 +1434,12 @@ function ExerciseCard({
           cluster takes one set number with lettered sub-sets (2a/2b/2c). */}
       <View style={styles.setHeadRow}>
         <Text style={[styles.setHeadCell, styles.setNumCell]}>#</Text>
+        {/* PREVIOUS. The single highest-leverage cell on the screen and the
+            one this app did not have: it turns logging from a decision into a
+            comparison — match it or beat it. */}
+        <Text style={[styles.setHeadCell, styles.setPrevCell, styles.setPrevText]} numberOfLines={1} adjustsFontSizeToFit>
+          {t('train.prevShort')}
+        </Text>
         {/* The column header IS the unit, so it stops being a fixed string. */}
         {style === 'weight-reps' ? <Text style={[styles.setHeadCell, styles.setInputCell]}>{loadUnit(unitSystem)}</Text> : null}
         {style === 'time' ? (
@@ -1257,30 +1465,28 @@ function ExerciseCard({
           set={set}
           logStyle={style}
           label={setLabels[setIdx]}
+          // Positional: row 3 against row 3. Comparing against the nth WORKING
+          // set instead would silently re-point the moment a warm-up is added
+          // or dropped, and a comparison that moves is worse than none.
+          previous={previousCell(prevSets[setIdx], style, unitSystem)}
+          previousSet={prevSets[setIdx]}
           onDone={onSetDone}
         />
       ))}
 
-      <View style={styles.addSetRow}>
-        <TouchableOpacity style={styles.addSetBtn} onPress={() => train.dispatch({ type: 'addSet', exerciseIndex })} testID={`add-set-${exerciseIndex}`}>
-          <Text style={styles.addSetText}>{t('train.addSet')}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.addSetBtn} onPress={() => train.dispatch({ type: 'addCluster', exerciseIndex })} testID={`add-cluster-${exerciseIndex}`}>
-          <Text style={styles.addSetText}>{t('train.addCluster')}</Text>
-        </TouchableOpacity>
-      </View>
+      {/* The ONE action taken mid-set stays on the card. Everything else moved
+          into the overflow menu — burying the most frequent action to tidy the
+          rarest ones is the same mistake in the other direction. */}
+      <TouchableOpacity
+        style={styles.addSetBtn}
+        onPress={() => train.dispatch({ type: 'addSet', exerciseIndex })}
+        testID={`add-set-${exerciseIndex}`}
+      >
+        <Text style={styles.addSetText}>{t('train.addSet')}</Text>
+      </TouchableOpacity>
 
       {showPanel ? (
         <>
-          <TouchableOpacity
-            style={styles.panelToggle}
-            onPress={() => setPanelOpen((o) => !o)}
-            testID={`plates-toggle-${exerciseIndex}`}
-          >
-            <Text style={styles.panelToggleText}>
-              {panelOpen ? t('train.hidePanel') : t('train.platesWarmup')}
-            </Text>
-          </TouchableOpacity>
           {panelOpen ? (
             <View style={styles.panel} testID={`plates-panel-${exerciseIndex}`}>
               {keyWeight && keyWeight > 0 ? (
@@ -1313,14 +1519,54 @@ function ExerciseCard({
         </>
       ) : null}
 
-          <TouchableOpacity
-            style={styles.exRemoveRow}
-            onPress={() => train.dispatch({ type: 'removeExercise', exerciseIndex })}
-            hitSlop={8}
-            testID={`remove-ex-${exerciseIndex}`}
-          >
-            <Text style={styles.exRemove}>{t('common.remove')}</Text>
-          </TouchableOpacity>
+          <ExerciseMenuSheet
+            visible={menuOpen}
+            name={ex.name}
+            onClose={() => setMenuOpen(false)}
+            actions={[
+              ...(canAdd.cluster
+                ? [{
+                    key: 'cluster',
+                    icon: 'layers-outline' as const,
+                    labelKey: 'train.addCluster' as I18nKey,
+                    descKey: 'train.addClusterDesc' as I18nKey,
+                    onPress: () => void train.dispatch({ type: 'addCluster', exerciseIndex }),
+                  }]
+                : []),
+              ...(canAdd.block
+                ? [{
+                    key: 'block',
+                    icon: 'layers-outline' as const,
+                    labelKey: 'train.addBlock' as I18nKey,
+                    descKey: 'train.addBlockDesc' as I18nKey,
+                    onPress: () => void train.dispatch({ type: 'addBlock', exerciseIndex }),
+                  }]
+                : []),
+              ...(showPanel
+                ? [{
+                    key: 'plates',
+                    icon: 'barbell-outline' as const,
+                    labelKey: (panelOpen ? 'train.hidePanel' : 'train.platesWarmup') as I18nKey,
+                    onPress: () => setPanelOpen((o) => !o),
+                  }]
+                : []),
+              ...(engineHasCall && catalogEx
+                ? [{
+                    key: 'lift',
+                    icon: 'options-outline' as const,
+                    labelKey: 'train.lift.title' as I18nKey,
+                    onPress: () => setLiftOpen(true),
+                  }]
+                : []),
+              {
+                key: 'remove',
+                icon: 'trash-outline' as const,
+                labelKey: 'train.removeExercise' as I18nKey,
+                destructive: true,
+                onPress: () => void train.dispatch({ type: 'removeExercise', exerciseIndex }),
+              },
+            ] satisfies ExerciseMenuAction[]}
+          />
         </Animated.View>
       )}
     </Animated.View>
@@ -1334,6 +1580,8 @@ function SetRow({
   set,
   logStyle,
   label,
+  previous,
+  previousSet,
   onDone,
 }: {
   train: ReturnType<typeof useTrain>;
@@ -1344,6 +1592,11 @@ function SetRow({
   /** Row label from `setRowLabels` — "2" for a straight set, "2a/2b/2c"
    *  for a cluster. Derived by the parent, which holds the whole sequence. */
   label: string;
+  /** Last session's numbers for THIS row position, pre-formatted by core. */
+  previous: string | null;
+  /** The same set, unformatted — the source for the one-tap "repeat last
+   *  time". Passing both avoids re-parsing the string the cell just rendered. */
+  previousSet?: WorkoutSet;
   onDone?: (setIndex: number) => void;
 }) {
   const unitSystem = useUnitSystem();
@@ -1365,40 +1618,78 @@ function SetRow({
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
-  const [kindOpen, setKindOpen] = useState(false);
-  const [rirOpen, setRirOpen] = useState(false);
+  // ONE sheet in place of the set-kind and RIR expanders, which both opened
+  // INSIDE the set list and pushed every row below them down — a layout jump
+  // mid-logging, on a screen used one-handed with wet hands.
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   const commit = () => train.commitActive();
   // What the template prescribed for this set, if it came from one. Shown as
   // the placeholder rather than the value: a target the lifter has not
   // confirmed is not a logged set (see WorkoutSet.targetReps).
   const target = logStyle === 'time' ? set.targetDurationSec : set.targetReps;
+  // Falls back to what was actually done last time. This is the half the
+  // one-tap path was missing: a PRESCRIBED set could be accepted with a tick,
+  // but an ad-hoc or unprescribed one had nothing to accept and had to be
+  // typed — which is most rows, for most users, on most sessions.
+  const acceptCount =
+    target ?? (logStyle === 'time' ? previousSet?.durationSec : previousSet?.reps);
   // RIR is meaningful on real working effort, not warmups/back-offs.
   // `continuation` carries RIR too: a rest-pause continuation is taken to
   // failure, so the reading is as meaningful there as on the activation.
   const showRir = set.kind === 'working' || set.kind === 'activation'
     || set.kind === 'mini' || set.kind === 'continuation';
 
-  return (
-   <View>
+  // Closed after a delete taken from the sheet, so the row that slides up into
+  // this slot is not already swiped open.
+  const swipeRef = useRef<SwipeableMethods>(null);
+  const remove = () => {
+    swipeRef.current?.close();
+    return train.dispatch({ type: 'removeSet', exerciseIndex, setIndex });
+  };
+
+  const row = (
     <View style={styles.setRow}>
       <TouchableOpacity
         style={styles.setNumCell}
-        onPress={() => setKindOpen((o) => !o)}
+        onPress={() => setSheetOpen(true)}
+        accessibilityRole="button"
+        accessibilityLabel={t('train.setTypeA11y', { n: label, kind: t(kindLabelKey(set.kind)) })}
         testID={`set-kind-${exerciseIndex}-${setIndex}`}
       >
         <Text style={[styles.setNum, set.group != null && styles.setNumCluster]}>{label}</Text>
       </TouchableOpacity>
 
+      {/* PREVIOUS — read-only on purpose. It is the number to match or beat,
+          and making it a field would invite typing into last week. */}
+      <View
+        style={styles.setPrevCell}
+        accessible
+        accessibilityLabel={`${t('train.prevA11y')} ${previous ?? t('train.prevNone')}`}
+        testID={`set-prev-${exerciseIndex}-${setIndex}`}
+      >
+        <Text
+          style={[styles.setPrevText, !previous && styles.setPrevEmpty]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+        >
+          {previous ?? '—'}
+        </Text>
+      </View>
+
       {logStyle === 'weight-reps' ? (
         <TextInput
           style={[styles.setInput, styles.setInputCell]}
-          placeholder="0"
+          placeholder={
+            previousSet?.weight != null
+              ? String(toDisplayLoad(previousSet.weight, unitSystem))
+              : '0'
+          }
           placeholderTextColor={colors.faint}
           keyboardType="numeric"
           value={weight}
-          onChangeText={(t) => {
-            setWeight(t);
+          onChangeText={(v) => {
+            setWeight(v);
             train.dispatch(
               {
                 type: 'patchSet',
@@ -1407,7 +1698,7 @@ function SetRow({
                 // Through the shared ceiling (@macrolog/core) for the same
                 // reason RIR is: `parseLoadToLb` only converts units and
                 // rejects negatives, so a mistyped 12750 was storable (#85).
-                patch: { weight: clampSetLoad(parseLoadToLb(t, unitSystem)) },
+                patch: { weight: clampSetLoad(parseLoadToLb(v, unitSystem)) },
               },
               { defer: true },
             );
@@ -1419,19 +1710,19 @@ function SetRow({
 
       <TextInput
         style={[styles.setInput, styles.setInputCell]}
-        placeholder={target != null ? String(target) : '0'}
+        placeholder={acceptCount != null ? String(acceptCount) : '0'}
         placeholderTextColor={colors.faint}
         keyboardType="numeric"
         value={count}
-        onChangeText={(t) => {
-          setCount(t);
-          const v = numOrUndef(t);
+        onChangeText={(v) => {
+          setCount(v);
+          const n = numOrUndef(v);
           train.dispatch(
             {
               type: 'patchSet',
               exerciseIndex,
               setIndex,
-              patch: logStyle === 'time' ? { durationSec: v } : { reps: v },
+              patch: logStyle === 'time' ? { durationSec: n } : { reps: n },
             },
             { defer: true },
           );
@@ -1442,11 +1733,11 @@ function SetRow({
 
       {showRir ? (
         // A bare numeric box asked the user to know both the acronym and that
-        // 0 is the hard end of the scale. Tapping opens the same labelled
-        // chip picker the set-kind cell uses, so the scale explains itself.
+        // 0 is the hard end of the scale. Tapping opens the labelled picker in
+        // the set sheet, so the scale explains itself.
         <TouchableOpacity
           style={[styles.setInput, styles.setRirCell, styles.setRirBtn]}
-          onPress={() => setRirOpen((o) => !o)}
+          onPress={() => setSheetOpen(true)}
           accessibilityRole="button"
           // The label carries the CURRENT VALUE, not just the prompt. Before
           // 2026-08-18 it was the prompt alone, so VoiceOver announced the
@@ -1473,24 +1764,38 @@ function SetRow({
         onPress={() => {
           haptics.tap();
           const nowDone = !set.done;
-          // Ticking a prescribed set you have not typed into ACCEPTS the
-          // prescription — the one-tap path Strong/Hevy use, and the reason
-          // targets are not pre-filled as values: nothing is logged until
-          // this tap, so abandoning a session mid-way records only what was
-          // actually done. Typed input always wins; untick never erases.
-          const accept = nowDone && target != null && numOrUndef(count) == null;
+          // Ticking a set you have not typed into ACCEPTS what was prescribed
+          // — or, failing that, what you did last time. This is the one-tap
+          // path Strong and Hevy use, and the reason neither number is
+          // pre-filled as a VALUE: nothing is logged until this tap, so
+          // abandoning a session mid-way records only what was actually done.
+          // Typed input always wins; untick never erases.
+          const accept = nowDone && acceptCount != null && numOrUndef(count) == null;
           if (accept) {
-            setCount(String(target));
-            // Deferred: the `done` patch on the next line persists, and it
-            // reads the same ref this one just updated, so one write carries
-            // both. Two immediate writes would race for no benefit.
+            setCount(String(acceptCount));
+            // Deferred: the `done` patch below persists, and it reads the same
+            // ref this one just updated, so one write carries both. Two
+            // immediate writes would race for no benefit.
             train.dispatch(
               {
                 type: 'patchSet',
                 exerciseIndex,
                 setIndex,
-                patch: logStyle === 'time' ? { durationSec: target } : { reps: target },
+                patch: logStyle === 'time' ? { durationSec: acceptCount } : { reps: acceptCount },
               },
+              { defer: true },
+            );
+          }
+          // The LOAD comes along with it. A repeated set at no weight is not a
+          // record of the set that was performed, and retyping the same 135
+          // every session is the friction the PREVIOUS column exists to remove.
+          if (
+            nowDone && logStyle === 'weight-reps'
+            && numOrUndef(weight) == null && previousSet?.weight != null
+          ) {
+            setWeight(String(toDisplayLoad(previousSet.weight, unitSystem)));
+            train.dispatch(
+              { type: 'patchSet', exerciseIndex, setIndex, patch: { weight: previousSet.weight } },
               { defer: true },
             );
           }
@@ -1501,93 +1806,68 @@ function SetRow({
       >
         <Ionicons name="checkmark" size={font.small + 2} style={[styles.doneCheck, set.done && styles.doneCheckOn]} />
       </TouchableOpacity>
-
-      <TouchableOpacity
-        onPress={() => train.dispatch({ type: 'removeSet', exerciseIndex, setIndex })}
-        hitSlop={6}
-        style={styles.setDel}
-        accessibilityLabel={t('train.removeSet')}
-      >
-        <Ionicons name="close" size={font.small + 2} style={styles.setDelText} />
-      </TouchableOpacity>
     </View>
+  );
 
-    {kindOpen ? (
-      <View style={styles.kindPicker}>
-        <Text style={styles.kindPickerLabel}>{t('train.setType')}</Text>
-        {/* Rows, not a chip wrap: "Activation" and "Mini" are cluster-training
-            vocabulary, and a bare chip label teaches nobody what they are. */}
-        {SET_KINDS.map((k) => {
-          const on = set.kind === k.value;
-          return (
-            <TouchableOpacity
-              key={k.value}
-              style={[styles.kindRow, on && styles.kindRowOn]}
-              onPress={() => {
-                haptics.tap();
-                train.dispatch({ type: 'setSetKind', exerciseIndex, setIndex, kind: k.value });
-                setKindOpen(false);
-              }}
-              testID={`set-kind-${exerciseIndex}-${setIndex}-${k.value}`}
-            >
-              <Text style={[styles.kindRowName, on && styles.kindRowNameOn]}>{t(k.labelKey)}</Text>
-              <Text style={styles.kindRowDesc}>{t(k.descKey)}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-    ) : null}
-
-    {rirOpen ? (
-      <View style={styles.kindPicker}>
-        <Text style={styles.kindPickerLabel}>{t('train.rirPrompt')}</Text>
-        <View style={styles.kindChips}>
+  return (
+    <View>
+      {/* Swipe-left to delete — the gesture the whole category uses for this.
+          The permanent `✕` it replaces was a seventh target on every row: the
+          smallest, the most destructive, and directly beside the one control
+          tapped after every single set. The set sheet carries the same action
+          as a labelled row, which is what keeps it reachable by VoiceOver and
+          by anyone who does not know the gesture. */}
+      <ReanimatedSwipeable
+        ref={swipeRef}
+        friction={2}
+        rightThreshold={40}
+        overshootRight={false}
+        // The swipe REVEALS; the tap deletes. Deleting on
+        // `onSwipeableOpen` would make an over-enthusiastic scroll on a wet
+        // screen destroy a logged set with no undo — stricter than the `✕`
+        // this replaces, not looser, which would be the wrong trade for the
+        // one gesture added to the busiest screen in the app.
+        renderRightActions={() => (
           <TouchableOpacity
-            style={[styles.kindChip, set.rir == null && styles.kindChipOn]}
+            style={styles.swipeDelete}
             onPress={() => {
               haptics.tap();
-              train.dispatch(
-                { type: 'patchSet', exerciseIndex, setIndex, patch: { rir: undefined } },
-                { defer: true },
-              );
-              commit();
-              setRirOpen(false);
+              void remove();
             }}
-            testID={`set-rir-${exerciseIndex}-${setIndex}-none`}
+            accessibilityRole="button"
+            accessibilityLabel={t('train.removeSet')}
+            testID={`set-swipe-delete-${exerciseIndex}-${setIndex}`}
           >
-            <Text style={[styles.kindChipText, set.rir == null && styles.kindChipTextOn]}>
-              {t('train.rirClear')}
-            </Text>
+            <Ionicons name="trash-outline" size={18} color={colors.onInk} />
           </TouchableOpacity>
-          {RIR_CHOICES.map((v) => {
-            const on = set.rir === v;
-            return (
-              <TouchableOpacity
-                key={v}
-                style={[styles.kindChip, on && styles.kindChipOn]}
-                onPress={() => {
-                  haptics.tap();
-                  // Still through the shared 0–5 clamp (@macrolog/core) so the
-                  // two loggers cannot disagree about what is storable.
-                  train.dispatch(
-                    { type: 'patchSet', exerciseIndex, setIndex, patch: { rir: clampRir(v) } },
-                    { defer: true },
-                  );
-                  commit();
-                  setRirOpen(false);
-                }}
-                testID={`set-rir-${exerciseIndex}-${setIndex}-${v}`}
-              >
-                <Text style={[styles.kindChipText, on && styles.kindChipTextOn]}>
-                  {t(`train.rirScale.${v}` as I18nKey)}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      </View>
-    ) : null}
-   </View>
+        )}
+      >
+        {row}
+      </ReanimatedSwipeable>
+
+      <SetRowSheet
+        visible={sheetOpen}
+        set={set}
+        label={label}
+        onClose={() => setSheetOpen(false)}
+        onKind={(kind) => {
+          train.dispatch({ type: 'setSetKind', exerciseIndex, setIndex, kind });
+          setSheetOpen(false);
+        }}
+        onRir={(rir) => {
+          train.dispatch(
+            { type: 'patchSet', exerciseIndex, setIndex, patch: { rir } },
+            { defer: true },
+          );
+          void commit();
+          setSheetOpen(false);
+        }}
+        onRemove={() => {
+          setSheetOpen(false);
+          void remove();
+        }}
+      />
+    </View>
   );
 }
 
@@ -1682,13 +1962,16 @@ function AddExerciseModal({
   }, [visible]);
 
   const trimmed = name.trim();
-  const matches = trimmed
-    ? train.catalog.filter((e) => e.name.toLowerCase().includes(trimmed.toLowerCase())).slice(0, 6)
-    : train.catalog.slice(0, 8);
 
   async function add(exName: string, style: CreationStyle, exerciseId?: string) {
     haptics.tap();
     await train.addExerciseToActive(exName, logStyleFor(style), exerciseId, setKindFor(style));
+    onClose();
+  }
+
+  async function addSeed(seed: SeedExercise) {
+    haptics.tap();
+    await train.addLibraryExerciseToActive(seed);
     onClose();
   }
 
@@ -1728,28 +2011,27 @@ function AddExerciseModal({
             </TouchableOpacity>
           ) : null}
 
+          {/* The user's catalog AND the shipped library, one list. The
+              library half is the fix for the free-type path minting a
+              movement with `muscles: []` that no screen could then edit. */}
           <ScrollView style={styles.catalogList} keyboardShouldPersistTaps="handled">
-            {matches.map((e) => (
-              <TouchableOpacity
-                key={e.id}
-                style={styles.catalogRow}
-                // A seeded mobility movement stays mobility when re-added from
-                // the catalog, whatever the chips happen to be showing.
-                onPress={() => add(
+            <ExerciseSearchList
+              query={name}
+              catalog={train.catalog}
+              testIDPrefix="add-ex"
+              // A seeded mobility movement stays mobility when re-added from
+              // the catalog, whatever the chips happen to be showing.
+              onPickCatalog={(e) =>
+                void add(
                   e.name,
                   e.seedKey != null && MOBILITY_SEED_KEYS.has(e.seedKey)
                     ? 'mobility'
                     : (e.logStyle ?? 'weight-reps'),
                   e.id,
-                )}
-              >
-                <Text style={styles.catalogName}>{e.name}</Text>
-                <Text style={styles.catalogStyle}>{t(logStyleKey(e.logStyle))}</Text>
-              </TouchableOpacity>
-            ))}
-            {matches.length === 0 ? (
-              <Text style={styles.empty}>{t('train.noSaved')}</Text>
-            ) : null}
+                )
+              }
+              onPickSeed={(seed) => void addSeed(seed)}
+            />
           </ScrollView>
     </BottomSheet>
   );

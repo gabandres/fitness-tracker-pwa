@@ -29,16 +29,18 @@ export type {
 } from '@macrolog/core/cardio';
 import type { CardioBlock, PlannedCardioBlock } from '@macrolog/core/cardio';
 import type {
-  EffortStandard, RecommendationSnapshot, RepBand, SetStructure,
+  EffortStandard, MuscleGroup, RecommendationSnapshot, RepBand, SetStructure,
 } from '@macrolog/core/workout';
 export type { EffortStandard, RepBand } from '@macrolog/core/workout';
 // ADR-0040, introduced after core existed: re-exported, not re-declared —
 // the rule this file's header states.
 export type { SetStructure } from '@macrolog/core/workout';
 
-export type MuscleGroup =
-  | 'chest' | 'back' | 'shoulders' | 'biceps' | 'triceps' | 'quads'
-  | 'hamstrings' | 'glutes' | 'calves' | 'core' | 'forearms';
+// Re-exported, not re-declared — the rule this file's header states. The
+// local copy predated core's and had already been duplicated verbatim; the
+// muscle picker needs the VALUE list (`MUSCLE_GROUPS`) beside it, and two
+// enumerations of one union is exactly how a chip goes missing.
+export type { MuscleGroup } from '@macrolog/core/workout';
 
 /** How a set counts. v1 only creates `working`; the others exist so docs
  *  written by the PWA round-trip cleanly. */

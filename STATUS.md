@@ -63,10 +63,30 @@ here is gone with the shared install (`docs/DEV_ENVIRONMENT.md` §3.15).
 
 ## 2. Merged, on `main`, and not delivered anywhere
 
-**Nothing.** Everything merged is in a binary or on an OTA channel as of
-2026-09-16. Re-derive rather than trust this line: `git log --oneline` against
-the newest OTA row in `apps/mobile/docs/fingerprint-ledger.md`, and
+**The Train UX overhaul (ADR-0041), 2026-09-16.** On branch
+`feat/train-ux-overhaul`, **not yet merged to `main`** — fast-forward it when
+you have looked at it. JS-only, so once merged it is OTA-shippable on both
+open channels and needs no build. Re-derive rather than trust this line: `git log --oneline`
+against the newest OTA row in `apps/mobile/docs/fingerprint-ledger.md`, and
 `node scripts/app-version-sync.mjs --check` for the live store numbers.
+
+What lands when it ships, in the order a user meets it: a **Next up** card
+replaces the empty-workout primary on the Train home screen; **PREVIOUS** on
+every set row; one action per exercise card with the rest behind `⋯`;
+swipe-left to delete a set; the template editor asks for the set structure
+first and scaffolds the rows from it; a dot on the Train tab while a workout is
+open. Two defects go with it — the shipped 70-movement exercise library was
+unreachable from every picker, and `muscles` was write-once, which is why
+`weeklyClusterAudit` reported `unattributed` movements nobody could fix.
+
+**The thing that will look like a fault:** an existing template opened after
+this ships shows its set structure as **Auto** and all three add-buttons, not
+as `myo-reps`. That is correct — ADR-0040 made absence mean "infer with the
+pre-0040 rule", and nothing is backfilled. Declaring a structure on a template
+whose rows already carry numbers **keeps those rows** and only records the
+declaration; the card says so. Bundle is +1.47% raw (13,343,009 →
+13,538,783), accepted on the record in ADR-0041. **Delete this entry once it
+is on both channels** and put the outcome in the fingerprint ledger.
 
 **What DID ship on 2026-09-16, and the one thing about it that will look like
 a fault.** ADR-0039 + ADR-0040 went out as two OTAs on both platforms (the

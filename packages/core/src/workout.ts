@@ -32,6 +32,21 @@ export type MuscleGroup =
   | 'chest' | 'back' | 'shoulders' | 'biceps' | 'triceps' | 'quads'
   | 'hamstrings' | 'glutes' | 'calves' | 'core' | 'forearms';
 
+/**
+ * Every {@link MuscleGroup}, in the order a picker should offer them
+ * (push, pull, legs, then the rest) — the one place the union is enumerated
+ * as a value.
+ *
+ * It exists because the attribution editor needs to RENDER the union, and the
+ * `satisfies` below makes a missing entry a compile error rather than a chip
+ * nobody notices is absent. `weeklyClusterAudit` reads these, so a group that
+ * cannot be picked is a group that can never be counted.
+ */
+export const MUSCLE_GROUPS = [
+  'chest', 'back', 'shoulders', 'biceps', 'triceps',
+  'quads', 'hamstrings', 'glutes', 'calves', 'core', 'forearms',
+] as const satisfies readonly MuscleGroup[];
+
 /** Planned scaffold for one set the session pre-fills. `group` clusters sets
  *  (C1/C2); omit it for plain straight sets.
  *

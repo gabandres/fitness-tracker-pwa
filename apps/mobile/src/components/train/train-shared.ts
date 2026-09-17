@@ -82,16 +82,37 @@ export const SET_KINDS: { value: WorkoutSet['kind']; labelKey: I18nKey; descKey:
  *
  * `straight` and `myoreps` lead because they are the two the engine reads.
  */
-export const SET_STRUCTURES: { value: SetStructure | undefined; labelKey: I18nKey; readable: boolean }[] = [
-  { value: undefined, labelKey: 'train.structure.auto', readable: true },
-  { value: 'straight', labelKey: 'train.structure.straight', readable: true },
-  { value: 'myoreps', labelKey: 'train.structure.myoreps', readable: true },
-  { value: 'rest-pause', labelKey: 'train.structure.restPause', readable: true },
-  { value: 'cluster', labelKey: 'train.structure.cluster', readable: true },
-  { value: 'drop', labelKey: 'train.structure.drop', readable: false },
-  { value: 'superset', labelKey: 'train.structure.superset', readable: false },
-  { value: 'hit', labelKey: 'train.structure.hit', readable: true },
+export const SET_STRUCTURES: {
+  value: SetStructure | undefined;
+  labelKey: I18nKey;
+  /** One line saying what the structure IS. The picker used to be eight bare
+   *  chips of gym jargon — "myo-reps", "rest-pause", "cluster sets" — offered
+   *  to someone whose next tap decides how the engine reads every future
+   *  session of that lift. The set-kind picker has carried a description per
+   *  row since it shipped and is the best-explained control in the tab; this
+   *  is that pattern, applied to the choice that matters most. */
+  descKey: I18nKey;
+  readable: boolean;
+}[] = [
+  { value: undefined, labelKey: 'train.structure.auto', descKey: 'train.structureDesc.auto', readable: true },
+  { value: 'straight', labelKey: 'train.structure.straight', descKey: 'train.structureDesc.straight', readable: true },
+  { value: 'myoreps', labelKey: 'train.structure.myoreps', descKey: 'train.structureDesc.myoreps', readable: true },
+  { value: 'rest-pause', labelKey: 'train.structure.restPause', descKey: 'train.structureDesc.restPause', readable: true },
+  { value: 'cluster', labelKey: 'train.structure.cluster', descKey: 'train.structureDesc.cluster', readable: true },
+  { value: 'hit', labelKey: 'train.structure.hit', descKey: 'train.structureDesc.hit', readable: true },
+  { value: 'drop', labelKey: 'train.structure.drop', descKey: 'train.structureDesc.drop', readable: false },
+  { value: 'superset', labelKey: 'train.structure.superset', descKey: 'train.structureDesc.superset', readable: false },
 ];
+
+/**
+ * How many of {@link SET_STRUCTURES} the picker shows before "More".
+ *
+ * The first six are every structure the engine can actually read, in the order
+ * ADR-0040 ranks them. `drop` and `superset` are declared-but-unread: they are
+ * kept, and NAMED as unread when chosen, but putting them in the default row
+ * gave two dead ends equal billing with the five live ones on every card.
+ */
+export const PRIMARY_STRUCTURES = 6;
 
 export function logStyleKey(style: LogStyle | undefined): I18nKey {
   return style === 'bodyweight' ? 'logStyle.bodyweight' : style === 'time' ? 'logStyle.time' : 'logStyle.weightReps';

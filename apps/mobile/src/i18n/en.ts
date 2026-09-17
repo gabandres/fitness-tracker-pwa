@@ -817,6 +817,64 @@ export const en = {
   'train.structure.drop': 'drop sets',
   'train.structure.superset': 'supersets',
   'train.structure.hit': 'single set to failure',
+
+  // ── Train UX overhaul (2026-09-16) ──
+  // "Next up": the home screen's answer to "what am I doing today". The
+  // template offered is the one gone longest unperformed (`nextTemplateUp`).
+  'train.nextUp': 'Next up',
+  'train.nextNever': 'never done',
+  'train.nextToday': 'done today',
+  'train.nextYesterday': 'last done yesterday',
+  'train.nextLast': 'last done {day}',
+  'train.nextDaysAgo': 'last done {n} days ago',
+  'train.nextEditA11y': 'Edit {name}',
+  'train.startNamed': 'Start {name}',
+  'train.startEmpty': 'Empty workout',
+  'train.tplLast': 'last {day}',
+  // The exercise library — the catalog plus the ~70 shipped movements that
+  // carry muscle groups and cues. Reachable from the home screen and from both
+  // pickers since 2026-09-16; before that only a starter template could clone
+  // one in, which is why hand-made exercises had no muscle group.
+  'train.library': 'Exercise library',
+  'train.libraryTitle': 'Exercises',
+  'train.librarySearchPh': 'Search exercises',
+  'train.libraryCount': '{n} saved',
+  'train.searchMine': 'Your exercises',
+  'train.searchLibrary': 'From the library',
+  'train.searchNone': 'No match — add it with the button above.',
+  // The PREVIOUS column: last session's numbers, per row.
+  'train.prevShort': 'PREV',
+  'train.prevA11y': 'Last time',
+  'train.prevNone': 'no record',
+  // One sheet in place of the two inline pickers that shifted every row below
+  // them mid-logging.
+  'train.setSheetTitle': 'Set {n}',
+  'train.rirExplain': 'Reps in reserve — how many more you could have done. 0 means you could not do another.',
+  'train.exMenuA11y': 'More options for {name}',
+  'train.addClusterDesc': 'Activation set, then two mini-sets after a short rest.',
+  'train.addBlockDesc': 'A prescribed continuation after a short rest.',
+  // Deleting a logged workout used to happen on a bare long-press.
+  'train.deleteSessionTitle': 'Delete this workout?',
+  'train.deleteSessionBody': 'The workout logged on {name} will be removed. This cannot be undone.',
+  // The cluster audit, collapsed to its verdict.
+  'train.audit.summary': '{n} clusters · {inRange} of {total} in range',
+  // What each set structure IS, so the picker stops being eight bare chips of
+  // gym jargon (ADR-0040).
+  'train.structureDesc.auto': 'Not stated — the app reads the set list and infers.',
+  'train.structureDesc.straight': 'Plain sets with full rest. Progress by adding load.',
+  'train.structureDesc.myoreps': 'One set close to failure, then mini-sets after 5-10 s rest.',
+  'train.structureDesc.restPause': 'One set to failure, then prescribed reps after a short rest.',
+  'train.structureDesc.cluster': 'One set, then prescribed continuations after short rests.',
+  'train.structureDesc.hit': 'A single set taken to failure.',
+  'train.structureDesc.drop': 'Drop the load and keep going. The app will not judge these yet.',
+  'train.structureDesc.superset': 'Two lifts back to back. The app will not judge these yet.',
+  'train.structureMore': 'More structures',
+  'train.structureFewer': 'Fewer structures',
+  'train.structureKept': 'Your sets were kept — they already have numbers in them.',
+  'train.templateOptions': 'Template options — notes, rest, cardio',
+  // Muscle attribution — editable at last. `weeklyClusterAudit` reads it.
+  'train.musclesLabel': 'Muscle groups',
+  'train.musclesHint': 'Used by the weekly cluster count. An exercise with none set is reported as unattributed.',
   'train.rec.reason.straightSets.hit': 'Held {target} reps on every set for {n} sessions.',
   'train.rec.reason.straightSets.building': 'Lowest set was {reps} of {target} reps — {n} of {needed} sessions at target.',
   'train.rec.reason.straightSets.noTarget': 'No rep target set for this lift.',
@@ -959,6 +1017,8 @@ export const en = {
   'train.glossary.setTypes': 'Set types',
   'train.glossary.setTypesBody': "Tap a set's number to change its type. Warm-ups are excluded from records and progression; everything else counts.",
   'train.glossary.cluster': 'Cluster (1a, 1b, 1c)',
+  'train.glossary.structure': 'Set structure',
+  'train.glossary.structureBody': 'How a lift is PROGRAMMED — straight sets, myo-reps, rest-pause, cluster sets, or one set to failure. You declare it on the template, and it decides two things: what rows the exercise starts with, and which rule the app uses to judge whether to add load next time. Leave it on Auto and the app reads your set list instead.',
   'train.glossary.clusterBody': 'One activation set plus a few minis at the same weight, separated by short rests. A cluster takes one set number and letters its parts — 1a, 1b, 1c — so it stays in step with the sets around it.',
   'train.glossary.rest': 'Rest timer',
   'train.glossary.restBody': 'Starts when you tick a set off. The length comes from the template: a short one between sets, a longer one between clusters.',
