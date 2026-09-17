@@ -6,7 +6,9 @@ app went live on the App Store.
 > **Why this was rewritten.** The previous draft sold a product that doesn't
 > exist: "Snap a photo — AI estimates the macros", "Start free. Upgrade to
 > Pro", a 7-day trial, and gated history. In the shipped build `PRO_ENABLED`
-> is `false` on both platforms and nothing is behind a paywall. (`photoScan`
+> is `false` (mobile only since ADR-0036 — this said "both platforms" until
+> 2026-09-17; the web copy was deleted 2026-08-30) and nothing is behind a
+> paywall. (`photoScan`
 > was `false` too when this was written; **ADR-0017 turned it on and free on
 > 2026-08-07**, so the photo claim is now fair game — the paywall claims are
 > not.) Shipping that copy would have
@@ -28,14 +30,17 @@ app went live on the App Store.
 | Listing URL | <https://apps.apple.com/app/id6788589414> |
 | Platforms | iPhone (iOS 16+, **not** iPad — `supportsTablet: false`) · Android · **no browser version** — the web logging app was retired 2026-08-30 (ADR-0036); <https://ignia.fit> is the marketing site |
 | Android | **LIVE on Play production since 2026-09-03** (first release vc 44; vc 45 / 1.2.3 followed 2026-09-07). Listing URL <https://play.google.com/store/apps/details?id=fit.ignia.app>. Which version is live is a `STATUS.md` §1 question. |
-| Price | **Free. No paywall, no subscription, no trial.** **The tip jar is OFF since 2026-08-19** — `FEATURES.tips = false` on both platforms, the three `fit.ignia.tip.*` consumables are `DEVELOPER_REMOVED_FROM_SALE`, `/tip` → `/support`. Do not market a way to pay the developer; there isn't one. Re-enables only when payouts land in the Bermudez Systems LLC bank account (`STATUS.md` §3) |
-| Languages | English + Spanish (Puerto Rico), fully translated |
+| Price | **Free. No paywall, no subscription, no trial.** **The tip jar is OFF since 2026-08-19** — `FEATURES.tips = false` (mobile is the only place the flag exists, ADR-0036), the three `fit.ignia.tip.*` consumables are `DEVELOPER_REMOVED_FROM_SALE`, `/tip` → `/support`. Do not market a way to pay the developer; there isn't one. Re-enables only when payouts land in the Bermudez Systems LLC bank account — the condition is stated in the `tips` docstring of `apps/mobile/src/lib/features.ts` (this row pointed at `STATUS.md` §3 until 2026-09-17; §3 has no tip-jar row) |
+| Languages | English + Spanish (Puerto Rico) + Portuguese (Brazil), fully translated — three mobile locales (`apps/mobile/src/i18n/{en,es-PR,pt-BR}.ts`); this row said two until 2026-09-17 |
 
 **Shipped and claimable:**
 adaptive TDEE recalibration from the real weight trend · strength-training log
 (templates, sets/reps/RIR, double progression, plate calculator, warm-up
 generator, cluster sets) · barcode scanning (Open Food Facts) · food search
-(USDA FoodData Central + Open Food Facts) · plain-language meal entry · saved
+(bundled USDA database + restaurant corpus, **offline — no network call**;
+this said "USDA FoodData Central + Open Food Facts" until 2026-09-17, false
+since 2026-08-19 when text search went offline and OFF became barcode-only,
+`STATUS.md` §1) · plain-language meal entry · saved
 presets, custom foods and recipes · AI coach grounded in the user's own logs ·
 weekly insights, calorie budget, weight-trend projection · fasting timer ·
 weight, measurements, Navy body-fat · CSV import (MyFitnessPal / Lose It! /
@@ -44,21 +49,22 @@ photo → macros, free to everyone** (ADR-0017) · **Apple Watch app and
 complication** · **home-screen and Lock Screen widgets**, device-verified.
 
 **The question this section answers is "what can the public install", not "what
-is built".** Those diverged on 2026-08-08 and are still apart: the App Store
-serves **1.1.0 / build 24**, while TestFlight runs 1.2.0 / build 54, which is
-`WAITING_FOR_REVIEW` with a manual release. Anything that landed after build 24
-is real, shipped, and **still unclaimable to the public** until 1.2.0 is
-released. Re-read `STATUS.md` §2 for the current cutline.
+is built".** Which version the public installs is a `STATUS.md` §1 question —
+re-read it, or ask ASC directly (`node scripts/asc-client.mjs`, `docs/COMMANDS.md`)
+— and `STATUS.md` §2 is the cutline for anything merged but not delivered.
+(This paragraph carried "App Store 1.1.0 / build 24, TestFlight 1.2.0 / build 54
+`WAITING_FOR_REVIEW`" until 2026-09-17; false since 1.2.0 released 2026-08-19,
+and a snapshot here would expire again.)
 
 **NOT claimable — do not put these in any listing:**
 
 | Feature | Why not |
 |---|---|
-| Pro / premium / unlimited-anything | `PRO_ENABLED = false`; there is no paid tier to upsell |
+| Pro / premium / unlimited-anything | `PRO_ENABLED = false` (`apps/mobile/src/lib/subscription.ts`, the only copy); there is no paid tier to upsell. No subscription or IAP product exists; the Stripe extension was removed 2026-08-31 |
 | Free trial, "upgrade", pricing anchors | nothing to buy |
 | Progress photos | uploading works, but it was cut from the v1 story — don't market it |
 | Android app | **Live on Google Play** since 2026-09-03 — <https://play.google.com/store/apps/details?id=fit.ignia.app> returns 200. Market it as available |
-| Voice dictation · the redesigned Add screen · the fasting Live Activity · the wide home-screen widget | all shipped and all **only on TestFlight** — they reach the public when 1.2.0 releases, not before |
+| Voice dictation · the redesigned Add screen · the fasting Live Activity · the wide home-screen widget | **Public since 1.2.0 released 2026-08-19** — claimable. (This row said "only on TestFlight" until 2026-09-17.) |
 
 **Corrected 2026-08-15 — two rows in this table were badly wrong**, and both
 would have suppressed a real headline feature during a launch push:
@@ -112,7 +118,7 @@ verified on a real iPhone on 2026-08-03, numbers moving after a logged meal.
 
 - Targets recalibrate from a least-squares fit of your own weight trend, not
   from a formula that assumed you're average.
-- Four ways to log: barcode, food search (USDA + Open Food Facts), plain
+- Four ways to log: barcode, food search (bundled USDA database, offline), plain
   language, or a saved preset.
 - A training log with double-progression suggestions, plate math, warm-up
   generation and cluster sets.
@@ -179,6 +185,6 @@ arguing about; the field values are just their output.
 Out of scope for v1 and **not** to be referenced in any current listing. The
 paid direction (AI photo-scan flagship, ADR-0015) and its pricing anchors are
 recorded in `STATUS.md` §5 (decided-not-happening). Turning it on means
-flipping `PRO_ENABLED` on both platforms, rewriting §0's not-claimable table,
+flipping `PRO_ENABLED` in `apps/mobile/src/lib/subscription.ts` (the only copy since ADR-0036) and wiring Apple/Google IAP — Stripe is gone — rewriting §0's not-claimable table,
 and reworking every field in `app-store-metadata.md` — with the same rule:
 never claim what the build can't back.

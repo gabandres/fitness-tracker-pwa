@@ -108,6 +108,16 @@ about **freshness**.
 
 ## Build traps
 
+**The `gradlew` / `gradlew.bat` / `patch-android-release.mjs` recipes from here
+down are the Windows raw-Gradle route (vc 31–45).** Since 2026-09-17 the
+intended release path is `eas build --local -p android --profile production` on
+`ignia-mac` (`SKILL.md`, `docs/build-infrastructure.md`) — no
+`patch-android-release.mjs`, no `gradlew.bat`. This file presented the Windows
+recipes as *the* release route until then. They stay until the cutover lands
+(`STATUS.md`): the live runtime (vc 45) is Windows-built, so a Windows rebuild
+is the fallback until the first Mac-built vc ships, and the Windows section of
+`SKILL.md` is deleted in the same commit as the guard flip.
+
 **`SENTRY_AUTH_TOKEN` fails the build at the very end.** `@sentry/react-native`
 uploads source maps as a Gradle task. Measured 2026-08-17: 1089 tasks executed,
 all the C++ compiled, then `error: Auth token is required for this request` at
@@ -169,9 +179,13 @@ once per ABI.
 
 ---
 
-## Avenues that are genuinely closed on Windows
+## Avenues that were closed on Windows — history of the Windows era (2026-08-17 → 2026-09-17)
 
-Kept because each was tried, and the first two will be re-proposed.
+Android's build host moved back to `ignia-mac` on 2026-09-17, so none of these
+is on the release path any more; this heading read "genuinely closed on Windows"
+in the present tense until then. The rows are durable facts about the Surface
+(ARM64) and still hold for anyone building there. Kept because each was tried,
+and the first two will be re-proposed.
 
 | Attempt | Why it fails |
 |---|---|
@@ -192,9 +206,12 @@ counter advancing for the *next* build. Under `eas build`, `autoIncrement` burns
 number per **attempt**, so failed builds leave permanent gaps — vc 12, 14–17, 19,
 20 and iOS build 26 do not exist.
 
-On the Windows path there is no `autoIncrement`: the number is whatever you passed
-to `patch-android-release.mjs`, so nothing is burned by a failure and nothing is
-reserved. Read the live value first (`node scripts/app-version-sync.mjs --check`).
+On the Windows raw-Gradle path (vc 31–45) there was no `autoIncrement`: the
+number was whatever you passed to `patch-android-release.mjs`, so nothing was
+burned by a failure and nothing reserved. Read the live value first
+(`node scripts/app-version-sync.mjs --check`). The Mac's `eas build --local`
+route (2026-09-17 onward) is back under `autoIncrement`, so the gap rule above
+applies again; this paragraph read as the current route until 2026-09-17.
 
 ---
 
@@ -289,7 +306,7 @@ Every one of these reported success. The lesson is the same each time: **verify
 the artifact or the API, never the exit code.** That rule was already here for
 `eas submit`; these are three more ways to arrive at it.
 
-### `gradlew.bat` is "not recognized" from the Bash tool
+### `gradlew.bat` is "not recognized" from the Bash tool (Windows route)
 
 `NoDefaultCurrentDirectoryInExePath` is set in the environment Git Bash hands to
 Node on this workstation, so `cmd.exe` refuses to resolve an executable from the

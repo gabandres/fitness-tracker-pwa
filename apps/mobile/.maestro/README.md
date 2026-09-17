@@ -26,37 +26,44 @@ unticked from the day the feature shipped, and vc 18 and vc 21 both reached
 testers with nothing anywhere having launched them. The emulator is what closes
 that, and it is already installed:
 
-| Piece | Where | State |
+| Piece | Where | State (2026-09-17, `DEV_ENVIRONMENT.md` §3.11) |
 |---|---|---|
-| Emulator + API 35 `google_apis` `arm64-v8a` image | `~/Library/Android/sdk` | installed |
+| Emulator + API 36 `google_apis` `arm64-v8a` image | `~/Library/Android/sdk` | installed (reinstalled 2026-09-17 with the Android build host) |
 | Maestro | `~/.maestro/bin/maestro` | installed |
 | bundletool | `/opt/homebrew/bin/bundletool` | installed |
-| AVD `ignia-a35` | `~/.android/avd` | **deleted to reclaim 2 GB — recreate it below** |
+| AVD `pixel_api36` | `~/.android/avd` | present — keep it |
 
-The AVD is the only disposable piece; the 2 GB it costs is not worth leaving
-parked on someone else's laptop between sessions. Recreating it takes about a
-minute and needs no download, because the system image stays:
+This table said the image was API 35 and that AVD `ignia-a35` was "deleted to
+reclaim 2 GB — recreate it below", because the Air was someone else's laptop.
+True until the 2026-09-10 rebuild made it a dedicated box; the whole toolchain
+was then absent 2026-08-17 → 2026-09-17 and came back as API 36. The AVD is no
+longer disposable. If it is ever missing (the system image stays, so no
+download):
 
 ```sh
-echo no | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd   -n ignia-a35 -k 'system-images;android-35;google_apis;arm64-v8a' -d pixel_6 --force
+echo no | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd -n pixel_api36 -k 'system-images;android-36;google_apis;arm64-v8a' --force
 ```
 
-**Every one of these needs `JAVA_HOME` and `ANDROID_HOME` exported explicitly** —
-neither is in the Mac's shell config, and Maestro 2.x fails with a bare
-*"Java 17 or higher is required"* against the Mac's default Microsoft JDK 11.
+**`JAVA_HOME` and `ANDROID_HOME` are exported by `~/.zshrc`, `~/.zprofile` and
+the T3 Code launchd plist since 2026-09-17.** This paragraph said neither was
+in the Mac's shell config (true until then). A non-interactive
+`ssh ignia-mac '…'` reads neither rc file, so export them explicitly there;
+Maestro 2.x otherwise fails with a bare *"Java 17 or higher is required"* (old
+Microsoft JDK 11) or *"Unable to locate a Java Runtime"* (nothing on `PATH`).
 
-**`openjdk@17` is gone since the Mac's 2026-09-10 rebuild.** Homebrew ships 26
-now, `/usr/libexec/java_home -V` reports *"Unable to locate a Java Runtime"*
-(it does not see Homebrew's), and a `JAVA_HOME` pointing at the old path fails
-with *"JAVA_HOME is set to an invalid directory"* — which reads nothing like a
-missing JDK. Maestro 2.x runs fine on 26; the requirement is 17 **or higher**.
+**`openjdk@17` is back since 2026-09-17** at `/opt/homebrew/opt/openjdk@17`,
+which is the exported `JAVA_HOME`. This paragraph said it was gone since the
+2026-09-10 rebuild — true for one week. Durable: `/usr/libexec/java_home -V`
+does not see Homebrew JDKs, and a `JAVA_HOME` at a wrong path fails with
+*"JAVA_HOME is set to an invalid directory"* — which reads nothing like a
+missing JDK. The requirement is 17 **or higher**.
 
 ```sh
-export JAVA_HOME=/opt/homebrew/opt/openjdk/libexec/openjdk.jdk/Contents/Home
+export JAVA_HOME=/opt/homebrew/opt/openjdk@17
 export ANDROID_HOME=$HOME/Library/Android/sdk
 export PATH=$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$HOME/.maestro/bin:$PATH
 
-emulator -avd ignia-a35 -no-window -no-audio -no-snapshot -gpu swiftshader_indirect &
+emulator -avd pixel_api36 -no-window -no-audio -no-snapshot -gpu swiftshader_indirect &
 until [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = 1 ]; do sleep 10; done
 ```
 
@@ -128,10 +135,13 @@ cd android && ./gradlew assembleRelease   # → app/build/outputs/apk/release/ap
 Debug-keystore signing is fine here (email sign-in only). Two obligations
 travel with this: it is NOT evidence about a shipped binary — artifact-level
 verification stays with `verify-mobile-artifact.mjs` on real `.aab`s — and
-**the `android/` prebuild dir must be deleted before any fingerprint work on
-the Mac** (`rm -rf apps/mobile/android`): a resident prebuild dir is hashed
-into the fingerprint and would strand every future OTA published from here
-(`AGENTS.md`, the machine-dependence section).
+fingerprint work follows `AGENTS.md`'s rule: **generate on the host that builds
+the platform, from the same tree state as the build.** This paragraph said the
+`android/` prebuild dir had to be deleted first because it was hashed — disproven
+2026-08-17 (`dir:` sources hash only git-tracked content; `AGENTS.md`, "What
+does NOT move it"), and moot the other way since 2026-09-17, when the Mac
+became the Android build host and `eas build --local` prebuilds anyway. The one
+worktree-only hazard is line endings (`AGENTS.md`, last section).
 
 ### The Settings sheet is 31 seconds tall on the LG G6 — budget for it
 

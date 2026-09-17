@@ -148,24 +148,28 @@ node scripts/play-production-release.mjs --availability   # read the track's cou
 node scripts/play-production-release.mjs --check-source   # diff against App Store Connect
 ```
 
-`--availability` names every missing/extra territory. The target is **128**, not
-the 145 the ASC mirror holds: Play's picker offers 176 territories and does not
-offer 17 that iOS ships to, and the EU 27 + GB/IS/NO are held back deliberately
-until Play's own DSA trader declaration is filed. Country availability is
-**Console-only** — `edits.countryavailability` has `get` and nothing else.
+`--availability` names every missing/extra territory. The target is **158 of
+Play's attainable 158**, matched 2026-09-03 (`STATUS.md` §1). (This said "128,
+EU 27 + GB/IS/NO held back until Play's DSA declaration" until 2026-09-17 — the
+hold-back ended with the 09-03 production release.) Play's picker offers 176
+territories and does not offer 17 that iOS ships to, which is why the ASC
+mirror's count differs. Country availability is **Console-only** —
+`edits.countryavailability` has `get` and nothing else.
 
 ## OTA — the fingerprint gate
 
 An update published against a changed fingerprint **succeeds and reaches
 nobody**, which is indistinguishable from a working update. Gate first, on the
-machine that **builds that platform** — the hash is machine-dependent, and since
-2026-08-17 the hosts are split: **Android on Windows, iOS on `ignia-mac`**. A
-hash generated on the other machine matches no binary.
+machine that **builds that platform** — the hash is machine-dependent. iOS is
+`ignia-mac`; **Android OTAs publish from Windows until the first Mac-built
+Android vc ships** (the build host moved to `ignia-mac` on 2026-09-17; the
+cutover is tracked in `STATUS.md`). A hash generated on the other machine
+matches no binary.
 
 ```sh
 # iOS — on the Mac
 ssh ignia-mac "cd ~/fitness-tracker-pwa/apps/mobile && npx expo-updates fingerprint:generate --platform ios"
-# Android — here
+# Android — on Windows until the first Mac-built vc ships (STATUS.md)
 cd apps/mobile && npx expo-updates fingerprint:generate --platform android
 
 cd apps/mobile && npx eas update:list --branch production --limit 3
@@ -263,8 +267,11 @@ when `PRICES.asOf` is older than a quarter; the page prints the date.
 
 ```sh
 node scripts/usage-report.mjs --days 30      # `platforms.web` reads 0 from 2026-08-30 on — the web writes no usageEvents (ADR-0036)
-node scratchpad/tester-engagement.mjs        # Firebase Auth × per-user Firestore count()
 ```
+
+(`node scratchpad/tester-engagement.mjs` was listed here until 2026-09-17; the
+file no longer exists (deleted with ADR-0036) and nothing replaced it.
+`usage-report.mjs` and `/admin` are the per-user reads.)
 
 **Do not read `lastSignInTime` as retention.** Firebase only updates it on an
 actual sign-in event and sessions persist, so "last sign-in = created" is an
@@ -273,7 +280,7 @@ artefact, not a churned user. Row counts are the honest signal.
 ## Cost / config drift
 
 ```sh
-npm run doctor                                # fails on drift; audited secret-version floor is 7
+npm run doctor                                # fails on drift; audited secret-version floor is 6 (`MAX_SECRET_VERSIONS` in scripts/doctor.mjs — this said 7 until 2026-09-17, stale since the Stripe secrets went 2026-08-31)
 gcloud run services list --format="value(metadata.name, spec.template.metadata.annotations)" | grep -i <SECRET>
 ```
 

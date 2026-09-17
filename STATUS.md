@@ -12,9 +12,8 @@ read as a status doc.
 
 **This file is a status doc, not a changelog. Budget: ~200 lines AND ~35 KB
 (`wc -l STATUS.md; wc -c STATUS.md`).** When something ships, its entry is
-*deleted* and the outcome goes to `CHANGELOG.md`. It reached 941 lines once
-(2026-08-15, four self-contradictions) and 293 lines / 65 KB once (2026-08-26,
-4,500-character cells); a status file nobody can hold in their head stops being read.
+*deleted* and the outcome goes to `CHANGELOG.md`. It hit 941 lines (2026-08-15),
+293 lines / 65 KB (2026-08-26) and 249 (2026-09-17); nobody can hold that in their head.
 
 ---
 
@@ -43,17 +42,20 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 | iOS | `52802bba…` | **build 64 ships `52802bba…`, `READY_FOR_SALE` as 1.2.3 since 2026-09-06** (read from the `.ipa`) | **OPEN** to the public |
 
 - **Gate the COMMIT, not just the fingerprint. `eas update` prints a `Commit`
-  line — read it.** On 2026-09-17 an iOS OTA published from a tree four commits
-  behind: the `git pull` preceding it had been piped through a parser that
-  swallowed its output, so the pull's failure was invisible and the publish
-  exited 0. The fingerprint still matched (it is native-only, and no native file
-  had changed), so the hash gate passed while the JS was stale — it shipped a
-  known-broken surface and omitted the fix it was meant to carry. Superseded a
-  minute later; devices resolve the newest matching group. **Never pipe the
+  line — read it.** The fingerprint is native-only, so a stale JS tree passes
+  the hash gate (it did on 2026-09-17, `CHANGELOG.md`). **Never pipe the
   `git pull` that precedes a publish, and assert `git rev-parse HEAD` in the
   same shell.**
-- **The fingerprint is machine-dependent — publish from the machine that BUILDS
-  that platform: Android from Windows, iOS from `ignia-mac`.** Bare `eas update`
+- **The fingerprint is machine-dependent — publish from the machine that BUILT
+  the binary testers run: today Android from Windows, iOS from `ignia-mac`.**
+  **Android's build host moved to `ignia-mac` on 2026-09-17** (toolchain,
+  keystore and Play SA are there; `docs/build-infrastructure.md`), but the live
+  Android runtime is still the Windows-built one, so **cutover is OPEN**: cut
+  the first `eas build --local -p android --profile production` on the Mac,
+  submit it, and in the same commit flip `OWNER["android"]` in
+  `.claude/hooks/guard_eas_update.py`, update `test_guards.py`, and drop the
+  Windows section of the `build-android` skill. Until then an Android OTA still
+  publishes from Windows. Bare `eas update`
   publishes both and is correct on neither — always `--platform`-scope it
   (`.claude/hooks/guard_eas_update.py` enforces it). Three OTAs once reached
   **nobody** this way. Why the hosts disagree is settled (`@expo/fingerprint`
@@ -65,17 +67,16 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 - **`plugins/withGradleJvmArgs.js` is FROZEN** — any byte, *including a
   comment*, moves both platforms. Its docstring is stale on purpose.
 
-**`ignia-mac` is a dedicated, closed-lid Ignia box since 2026-09-10** — 160 GiB
-free with both platforms installed, auto-login + never-sleep, reached over
-Tailscale (`100.83.226.52`) by SSH and RustDesk; verification build 66 green
-from it, fingerprint `52802bba…` = build 64. The disk constraint that lived
-here is gone with the shared install (`docs/DEV_ENVIRONMENT.md` §3.15).
+**`ignia-mac` is a dedicated, closed-lid Ignia box since 2026-09-10** (Tailscale
+`100.83.226.52`, SSH + RustDesk; its fingerprint reproduces build 64's
+`52802bba…`). Setup and disk: `docs/DEV_ENVIRONMENT.md` §3.15, `CLAUDE.local.md`.
 
 ## 2. Merged, on `main`, and not delivered anywhere
 
 **Nothing.** Everything on `main` shipped in the 2026-09-17 OTA (ADR-0041, the
 rest-pause continuation rest, the inline catalog, the What's New bump). Both
-channels are on `3508aeb6`; the ledger owns the group ids and the rollback
+channels are on `76fae0a3` (the second 09-17 publish, ledger row 1; this said
+`3508aeb6` for a few hours); the ledger owns the group ids and the rollback
 commands.
 
 Re-derive rather than trust this line: `git log --oneline` against the newest
@@ -97,24 +98,10 @@ reduction and `superset` needs a pairing between two exercises; the model
 carries neither (ADR-0040 §Consequences). Do not read "two structures left" as
 "two slices left".
 
-**The iOS regression suite is at 21 of 21** — the first clean sweep — measured
-2026-09-17 on `ignia-mac`, simulator `Ignia-QA` (iPhone 17 / iOS 26.5, kept,
-not recreated). Costs one Release build and no EAS quota. `18-train-template`
-now passes; its old set-row-0 red did not recur. Three flows had been red from
-`25b55ff7`, which renamed the RIR selectors when the pickers became one sheet
-and missed the sibling `set-kind-0-0-working`; that one stale id cost all three,
-because the flow died before its teardown and left a workout in progress, which
-renames the tab to "Train, Workout in progress" and breaks every flow that taps
-Train by TEXT. Tab taps now go by `id: tab-train` with an arrival assert.
-
-**Never compose a suite number from individual flow runs.** "17 passed + 2
-fixed = 19" was wrong once: the next full sweep read 18 of 20, because a flow
-that passes ALONE failed in sequence. This suite is order-dependent by design
-(11→12→13 share one diary row; 09 and 10 flip state they restore in their own
-tails).
-
-Host setup and the traps that each cost a run are in
-`.maestro/regression/README.md`.
+**The iOS regression suite is at 21 of 21** (2026-09-17, `ignia-mac`, simulator
+`Ignia-QA`; how it got there is in `CHANGELOG.md`). **Never compose a suite
+number from individual flow runs** — the suite is order-dependent by design;
+host setup and traps are in `.maestro/regression/README.md`.
 
 ## 3. Open work, and what each is blocked on
 
@@ -159,19 +146,13 @@ median **34 m 43 s** / p75 4 h 49 m / **17.6% inside five minutes** (n=17);
 than halved and logs/activated/day is up 2.3×; those are the two numbers it
 was built to move.
 
-**Two things are now the job, and the first is settled rather than suspected.**
-**Reminders opt-in is a REAL zero** (0 of 43, 0 of 14 activated), verified
-2026-09-16 rather than assumed: `reminders_on` has fired exactly once in the
-app's life (iOS, 09-14) and that account has since been deleted, so the
-aggregation — which iterates `users` docs — correctly reports none. The
-instrument is sound end to end; there is nothing to fix in it. So **every
-notification-shaped lever currently reaches nobody**, and the response this
-file pre-committed is now the live move: **ask for reminders AFTER the first
-log lands, not during onboarding.** Second: `secsPerLog` crossed the 30 s
-cliff, and the split says why — **search 23.8 s (4 users, 16 logs) vs photo
-79.8 s (3 users, 22 logs)**; the average is photo. That sits awkwardly against
-the research premise that photo loggers retain better, and nobody has looked
-at where the 80 s goes.
+**Two things are now the job.** **Reminders opt-in is a REAL zero** (0 of 43,
+0 of 14 activated; verified 2026-09-16, the instrument is sound — `CHANGELOG.md`),
+so **every notification-shaped lever currently reaches nobody**; the live move
+is lever 10 below. Second: `secsPerLog` crossed the 30 s cliff, and the split
+says why — **search 23.8 s (4 users, 16 logs) vs photo 79.8 s (3 users, 22
+logs)**; that sits awkwardly against the research premise that photo loggers
+retain better, and nobody has looked at where the 80 s goes.
 
 Research levers, in the order they attack that: logging speed (<30 s/meal
 retains 78% at six months vs 23% over 2 min; photo loggers 42% D30 vs 17%
@@ -185,11 +166,12 @@ opt-in rate among the oldest users would still read as zero here.
 
 | # | Lever | State |
 |---|---|---|
-| 1–4, 7 | First log inside onboarding · lapsed local nudges · the two deciding numbers instrumented · first-scan celebration · maintenance mode (ADR-0037) | **SHIPPED** (2026-09-02, 09-04, 09-05 — `CHANGELOG.md` has the device evidence). Watch: `config/retention` `timeToFirstLog` (first read: median 1 h 32 m, p75 4 h 49 m, 17% inside five minutes, n=12 — the number lever 1 has to move) and `secsPerLog`. `meals-100` stays parked — it needs a lifetime count no window answers honestly. |
 | 5 | **Verify the zero-friction triggers** — Android widget on a real home screen, watch/Siri (rows below). A widget is a log path under 10 s. | **Android widget VERIFIED 2026-09-08** on the OnePlus (log → numbers move, tap → add sheet, sign-out → blank; row below). Watch/Siri stay open, owner with an iPhone. |
 | 6 | **Guest mode (`UX_AUDIT.md` N5)** if lever 1 does not move D1 alone. | Deferred until 1 is measured. |
-| 8 | **Say what 14 logged days buy** — the Today hero counts toward the measured burn until measured mode opens (`measurementProgress` in core). | **SHIPPED by OTA, both platforms, public** (iOS 2026-09-10, Android 2026-09-11 — `apps/mobile/AGENTS.md`). Watch `logsPerActivatedUserPerDay` and activated D1. |
-| 9 | **Count the reminders opt-in** (`reminders_on` usage event) — every notification lever reaches only these users, and nothing could say how many. | **SHIPPED, and ANSWERED 2026-09-16: zero.** 0 of 43, 0 of 14 activated. Verified rather than assumed — the counter fired exactly once (iOS, 09-14) and that account was deleted; the pipeline is sound at every step. **The pre-committed next lever is now live work: ask for reminders AFTER the first log lands, not during onboarding.** Nothing else notification-shaped is worth building until it moves. |
+| 10 | **Ask for reminders AFTER the first log lands, not during onboarding** — the pre-committed response to lever 9's zero. | **Open.** Nothing else notification-shaped is worth building until this moves the opt-in. |
+
+(Levers 1–4, 7, 8 and 9 SHIPPED — 2026-09-02 → 09-16, `CHANGELOG.md`; `meals-100`
+stays parked, it needs a lifetime count no window answers honestly.)
 
 Not taken with lever 2, deliberately: bounding the OS-repeating meal-window
 dailies (silence after a week away) changes existing schedules — a separate call.
@@ -218,7 +200,7 @@ counting defects around it and left this one alone.
 Do not re-propose these without new information; reasoning is in the linked ADR
 or research note.
 
-- **Pro tier / IAP / Stripe** — dormant, flag-gated off. v1 is free. (ADR-0015)
+- **Pro tier / subscriptions** — v1 is free; `PRO_ENABLED = false` on mobile (the only copy). **Stripe is GONE** (extension removed 2026-08-31); if a paid tier ever ships it is Apple/Google IAP, nothing else. (ADR-0015; this row said "IAP / Stripe — dormant" until 2026-09-17)
 - **Watch app reading Firestore directly** — structurally unavailable; there is
   no watchOS Firestore client. (`docs/research/watch-complication-transport.md`)
 - **Real-time push to a WidgetKit complication** — Apple-side, FB12926788.
@@ -245,42 +227,15 @@ or research note.
 
 ## 5. App Store submission — standing rules
 
-Carried over from the two 1.0 rejections. Permanent, not a checklist to do once.
-
-- **Both accounts are the LLC** (Apple since 08-25, Play org account
-  `6598754086801415923` since 08-26). Guideline 5.1.1(ix) prefers a legal
-  entity for health apps that touch HealthKit; that accepted risk is retired.
-- **Always hand Apple `review@ignia.fit`** in the Demo Account fields — it is
-  pre-verified and seeded. A fresh account is walled out by the
-  email-verification gate. Never point them at `demo@ignia.fit` (screenshots
-  only). Confirm it can still write before submitting.
-- **Notes for Review must name the specific changes.** Generic text gets rejected
-  under 2.3.1.
-- **Do not advertise a feature that is `BEHAVIOUR UNVERIFIED`.** The watch
-  complication and Siri quick-add are deliberately claimed to no reviewer.
-- **`supportsTablet` stays `false`.** Flipping it obliges an iPad design pass
-  *and* iPad screenshots — more rejection surface, not less.
-- **Keep `NSPhotoLibraryUsageDescription`.** A *missing* purpose string is an
-  automated ITMS-90683 rejection; an extra one is never punished.
-- **Privacy labels must match reality** — health data + email, no Photos.
-- **A submitted version's build is frozen.** Swapping it is cancel → re-point →
-  resubmit (`scripts/asc-swap-review-build.mjs`), the cancel is irreversible, and
-  it has cost ~19h of queue position once and ~4h once.
-- **On Play, sending ANY listing change while a release is in review restarts
-  that review** (measured 2026-09-07). Bundle listing changes with the release
-  submit, or hold them until the release lands.
+Durable rules, not state — they moved verbatim to `docs/app-store-metadata.md`
+§"Standing submission rules" on 2026-09-17 (this file is a status doc). Read
+them before every submit: demo account, review notes, unverified features,
+`supportsTablet`, frozen builds, Play's review-restart on listing edits.
 
 ## 6. What gets deleted
 
-`CLAUDE.md` §"Where to look" is the one-file-per-question map; it is not
-repeated here.
-
-**A plan document is deleted the day its work ships.** Its outcome belongs in
-`CHANGELOG.md`, its reasoning in an ADR, its current state here. Git keeps the
-original forever; `git log --diff-filter=D --name-only` finds it. Never leave a
-shipped plan in the tree with a "CORRECTION" block on top — that is how a status
-doc and a wish list become indistinguishable.
-
-**The same rule applies to this file.** Every section above is subject to the
-~200-line budget; if adding a row would push it over, something in it has already
-shipped and should be deleted rather than amended.
+The housekeeping rule lives in `CLAUDE.md` (§"Where to look"): a plan document
+is deleted the day its work ships — outcome to `CHANGELOG.md`, reasoning to an
+ADR, state here; `git log --diff-filter=D --name-only` finds the original.
+**The same rule applies to this file**: if adding a row would break the
+~200-line budget, something above has already shipped and gets deleted, not amended.

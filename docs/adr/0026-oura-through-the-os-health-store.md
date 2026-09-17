@@ -164,8 +164,8 @@ Reading workouts needs `android.permission.health.READ_EXERCISE` in
 `app.json`'s `android.permissions`. That is a manifest change, so it moves the
 Android runtime fingerprint — and an OTA published against a moved fingerprint
 **succeeds and reaches nobody**, which is indistinguishable from a working
-update. Measured on the Windows workstation, which is the host that builds
-Android:
+update. Measured on the Windows workstation, which built Android at the time
+(the host moved back to `ignia-mac` on 2026-09-17; `STATUS.md`):
 
 | `apps/mobile` state | Android fingerprint |
 |---|---|

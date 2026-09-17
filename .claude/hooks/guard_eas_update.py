@@ -29,6 +29,14 @@ is correct on neither machine -- it is blocked everywhere, and that is the rule
 most likely to be tripped over, because it was safe for the app's whole life
 until now.
 
+2026-09-17: Android's BUILD host moved back to ignia-mac (toolchain, keystore
+and Play service account are there; `docs/build-infrastructure.md`). The OWNER
+table below has NOT flipped yet, on purpose: the Android binary testers run is
+still the Windows-built one, and an OTA must come from the host that built the
+running binary, not the host that will build the next one. Flip
+`OWNER["android"]` to "mac" -- and the android rows of `test_guards.py` -- in
+the same commit that ships the first Mac-built vc. `STATUS.md` carries the item.
+
 Read-only subcommands (`update:list`, `update:view`, `--help`) are allowed.
 
 `--environment` is also required, and this guard enforces it. eas-cli's own help

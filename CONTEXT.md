@@ -231,18 +231,22 @@ These three windows look similar and are NOT interchangeable. See
 - **Free-tier 90-day cap** — `CHART_HISTORY_DAYS_FREE = 90`. Applied
   inside `allTimeLogs()`; the underlying `_allTimeLogs` stays uncapped
   so CSV export and `monthlySummary` still see lifetime history.
-- **TierLimits** — `src/app/models/tier-limits.ts`, the one module that
+- **TierLimits** — `packages/core/src/tier-limits.ts` (the web copy
+  `src/app/models/tier-limits.ts` was deleted with ADR-0036; this entry
+  cited it until 2026-09-17), the one module that
   states what "free" means: `PRESET_LIMIT_FREE`,
   `CHART_HISTORY_DAYS_FREE`, `CUSTOM_TEMPLATE_LIMIT_FREE`,
   `WORKOUT_HISTORY_DAYS_FREE`. Never re-declare these numbers; the gate
-  check itself stays `SubscriptionService.isPaid()`. Server-side photo /
+  check itself stays `isPro()` in `apps/mobile/src/lib/subscription.ts`
+  (`SubscriptionService.isPaid()` was the web copy). Server-side photo /
   consultation caps live in `functions/src/daily-quota.ts` (deliberate
   twin, no shared package).
 
 ## Aggregations
 
 - **DaySummary** — The canonical per-day rollup
-  (`src/app/utils/day-summary.ts`). Pure function: `summarizeDay(dateKey,
+  (`packages/core/src/day-summary.ts`; the web copy `src/app/utils/day-summary.ts`
+  went with ADR-0036 — cited here until 2026-09-17). Pure function: `summarizeDay(dateKey,
   logs, dailyWeights?)`. Returns `{ dateKey, totalCalories, totalProtein,
   mealCount, exercised, weightLb }`. Used by the Today card, weekly-
   report prompt, CSV export, milestone math. See
@@ -479,9 +483,10 @@ collections + a `WorkoutStore` facet back the Train tab.
   Warmups, drops and mobility are excluded from PR + progression math.
   `mobility` shipped 2026-08-27 per
   [ADR-0028](docs/adr/0028-stretching-mobility-model.md). The union is
-  hand-mirrored in **FOUR** places, not three — `packages/core/src/workout.ts`,
-  `src/app/models/workout.ts`, `apps/mobile/src/lib/workout.ts`, and the web
-  template editor's `SET_KINDS`; missing the last compiles cleanly and silently
+  hand-mirrored in **TWO** places — `packages/core/src/workout.ts` and
+  `apps/mobile/src/lib/workout.ts` (this said FOUR until 2026-09-17: the web
+  `src/app/models/workout.ts` and the web template editor's `SET_KINDS` were
+  deleted with ADR-0036); missing the mobile one compiles cleanly and silently
   never offers the kind. Read the three entries below **before** using any of
   these three words, because two of them already mean something narrower than
   they sound.
@@ -776,8 +781,10 @@ under the same security rules (ADR-0002 unchanged).
 - **localDateKey** — `YYYY-MM-DD` in the user's local timezone. The
   canonical key shape across every dated collection (`dailyWeights`,
   `dailyWater`, `DaySummary.dateKey`, all `logsForLastDays` windowing).
-  Use `localDateKey(date)` from `src/app/utils/date.ts`; never construct
-  date keys ad-hoc.
+  Use `calendarDateKey(d)` / `dayKeyAt(...)` from `packages/core/src/date.ts`
+  (`localDateKey` was renamed 2026-08-25, ADR-0030, and the web copy
+  `src/app/utils/date.ts` went with ADR-0036 — this entry cited both until
+  2026-09-17); never construct date keys ad-hoc.
 - **`v2` namespace** — The `v2.*` prefix in i18n keys and the `v2-`
   prefix on CSS classes are **legacy** carried over from the rebuild.
   Do not add new `v2.*` keys, but do not refactor existing ones either.

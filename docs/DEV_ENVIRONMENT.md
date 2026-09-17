@@ -210,12 +210,20 @@ why every iOS build so far cost a slot and a queue, and why the widget's missing
 `ExtensionStorage` pod could only be found by shipping a binary and reading a
 runtime probe. A Mac removes that whole class of blindness.
 
-Target machine: the MacBook Air M1. **iOS only, as of 2026-08-17.**
+Target machine: the MacBook Air M1. **Both platforms since 2026-09-17** — this
+line read "iOS only, as of 2026-08-17" until then; the Android toolchain is back
+on the Air (§3.11, `docs/build-infrastructure.md`).
 
+> **HISTORY — the Windows era, 2026-08-17 → 2026-09-17.** The block below reads
+> as current but is not: Android's build host moved back to the Air on
+> 2026-09-17 (§3.11). The Surface keeps its SDK and the raw-Gradle route still
+> works there, but it is no longer the intended host — it stays the Android OTA
+> host only until the first Mac-built vc ships (`STATUS.md`).
+>
 > **CORRECTION (2026-08-18).** This section used to say the Mac was the *only*
 > machine that could build Android, because Windows hits the `MAX_PATH` wall on
-> RN's New Architecture C++. That is stale: Android's build host moved to
-> **Windows** on 2026-08-17 and vc 32, 33 and 34 were all built there. MAX_PATH
+> RN's New Architecture C++. That was stale: Android's build host moved to
+> **Windows** on 2026-08-17 and vc 32 through 45 were built there. MAX_PATH
 > is cleared by keeping the SDK on a **short path** — `Z:\packagesndroid-sdk`,
 > not the `%LOCALAPPDATA%\Android\Sdk` default.
 >
@@ -287,7 +295,7 @@ email the `.p8` or the keystore):
 | `.env.local` (repo root) | every ASC script, `npm run doctor` | holds `ASC_ISSUER_ID` and `SENTRY_AUTH_TOKEN` |
 | `AuthKey_47Z9RY8MT5.p8` | ASC reads/writes, `eas build` credential validation | put it anywhere stable, e.g. `~/keys/` |
 | `CLAUDE.local.md` (repo root) | knowing where everything lives | git-ignored by design; it is the index to the rest |
-| `apps/mobile/credentials.json` + `credentials/` | **Android only** | skip on an iOS-only Mac |
+| `apps/mobile/credentials.json` + `credentials/` | **Android only** | on the Air since 2026-09-17 (mode 600, hash-verified, §3.11). This row said "skip on an iOS-only Mac" until then |
 
 **The trap: `scripts/asc-client.mjs` defaults `ASC_KEY_PATH` to a Windows path**
 (`C:/Users/gabri/Downloads/AuthKey_…p8`). On macOS it is not overridden by anything,
@@ -713,8 +721,10 @@ requirement and not on top of a number that already looked sufficient.
 
 **Net after everything: 16 GB free.** That clears iOS (~17 GB is the archive
 figure, and the watchOS platform is now already installed rather than pending)
-but stays under Android's 20 GB. So as of this date the Air is an **iOS-only**
-build host in practice.
+but stays under Android's 20 GB. So as of this date (2026-08-07) the Air was an
+**iOS-only** build host in practice. **Superseded:** the 2026-09-10 rebuild
+made it a dedicated box and the Android toolchain returned 2026-09-17 (§3.11);
+this sentence read as present tense until then.
 
 **The conclusion is structural, not a cleanup to repeat.** After every
 dev-owned byte was reclaimed, the remaining ~183 GB is essentially all the machine
@@ -757,9 +767,24 @@ allowed, **keep wrapping long builds in `caffeinate -dims`** — the pmset confi
 does not cover a build that starts on AC and continues on battery.
 
 
-### 3.11 Android is NOT built on the Air any more — 2026-08-17
+### 3.11 Android on the Air — removed 2026-08-17, reinstated 2026-09-17
 
-**Android's build host is the Windows workstation, permanently.** This section
+**Update 2026-09-17: the Air builds Android again.** The toolchain below was
+reinstalled to the Surface's exact versions (`brew install openjdk@17` +
+`--cask android-commandlinetools`, then `sdkmanager` for `platforms;android-36`,
+`build-tools;35.0.0`+`36.0.0`, `ndk;27.1.12297006`, `cmake;3.22.1`, `emulator`,
+`system-images;android-36;google_apis;arm64-v8a`, AVD `pixel_api36`), the
+keystore, `credentials.json` and `play-service-account.json` were copied back
+(mode 600, hash-verified), and `JAVA_HOME`/`ANDROID_HOME` are exported from
+`~/.zshrc`, `~/.zprofile` **and** the T3 Code launchd plist (a session started
+from the phone inherits the plist, not the shell). Disk was made by deleting
+`~/Library/Developer/Xcode/DerivedData` (34 GB, a cache); the 30 GB of
+`~/build-artifacts/eas-1.2.*` working trees are the next thing to prune. The
+release path is `eas build --local -p android --profile production` — the
+`build-android` skill owns it; the Windows/Gradle text that follows is history
+and the cutover rule is in `docs/build-infrastructure.md`.
+
+**Android's build host was the Windows workstation from 2026-08-17.** This section
 used to be a ~150-line runbook for `eas build --local -p android` on the Air,
 resting on the claim that Windows *could not* compile an AAB at all. Both halves
 are now void:
@@ -833,18 +858,23 @@ See the `build-android` skill for the OTA-vs-build decision that comes first.
 Both were hit on 2026-08-22, the first time the suite ran on this machine since
 Maestro 2.x, and neither says what it means.
 
-**1. Maestro needs Java 17+ and this Mac has NO Java runtime on `PATH`.**
-Re-measured 2026-09-16 on the rebuilt Air: `java` resolves to Apple's
+**1. Maestro needs Java 17+, and a shell that skips the rc files has NO Java
+runtime on `PATH`.** Since 2026-09-17 `JAVA_HOME=/opt/homebrew/opt/openjdk@17`
+is exported by `~/.zshrc`, `~/.zprofile` and the T3 Code plist (§3.11), so a
+login shell has it — this paragraph said the Mac had no Java on `PATH` at all,
+true from the 2026-09-10 rebuild until 2026-09-17. The trap that remains is a
+non-interactive `ssh ignia-mac '…'` command, which reads neither rc file.
+Re-measured 2026-09-16 on the rebuilt Air: `java` then resolves to Apple's
 `/usr/bin/java` stub with nothing behind it, and the message is
 `The operation couldn't be completed. Unable to locate a Java Runtime.` This
 paragraph used to say the default was Java 11 failing with
 `ERROR: Java 17 or higher is required.` — true on the machine before the
 2026-09-10 rebuild, and misleading now, because the two messages send you
-looking for different things. Either way the fix is identical: a modern JDK is
-already here, from Homebrew, just not on `PATH`:
+looking for different things. Either way the fix is identical: export the JDK
+explicitly in that shell:
 
 ```sh
-export JAVA_HOME=/opt/homebrew/opt/openjdk        # 26.0.2
+export JAVA_HOME=/opt/homebrew/opt/openjdk@17     # the Mac's JAVA_HOME since 2026-09-17; this line pointed at keg-only openjdk 26 before, which also runs Maestro
 export PATH="$JAVA_HOME/bin:$HOME/.maestro/bin:$PATH"
 ```
 

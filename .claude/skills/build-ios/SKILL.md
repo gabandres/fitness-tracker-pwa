@@ -1,6 +1,6 @@
 ---
 name: build-ios
-description: Build and optionally submit an iOS binary on the MacBook Air (`ignia-mac`) over SSH, or decide that a JS-only change needs no build at all — a local EAS build that costs no EAS quota and no cloud queue. Use for "cut an iOS build", "build for TestFlight", "ship the iPhone app", or whenever a mobile fix needs to reach iOS testers. Android is the `build-android` skill, and it builds on the WINDOWS workstation — the Air is iOS-only since 2026-08-17.
+description: Build and optionally submit an iOS binary on the MacBook Air (`ignia-mac`) over SSH, or decide that a JS-only change needs no build at all — a local EAS build that costs no EAS quota and no cloud queue. Use for "cut an iOS build", "build for TestFlight", "ship the iPhone app", or whenever a mobile fix needs to reach iOS testers. Android is the `build-android` skill; since 2026-09-17 it builds on the Air too (the Air was iOS-only from 2026-08-17 to then), so do not run both platform builds at once on its 16 GB.
 ---
 
 # Build iOS on the Mac

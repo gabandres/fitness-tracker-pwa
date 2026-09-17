@@ -17,14 +17,16 @@ Two numbers move the needle for fat loss and lean recomp: **calories** and **pro
 - AI coach that reads your real history
 - Fasting timer + body-weight log + measurements
 - Full Spanish (es-PR) localization
-- Home-screen widget, Apple Watch complication, Siri quick-add
+- Home-screen widget (device-verified); Apple Watch complication and Siri quick-add ship in the binary but are **unverified on hardware** (`STATUS.md` §3) — this line listed them as plain features until 2026-09-17
 
 **The browser version is retired (ADR-0036, 2026-08-30).** `ignia.fit` is the marketing/compliance site plus the owner's `/admin` page; the old `/app` routes tell you where the apps are.
 
 **Pricing: free. All of it.** There is no Pro tier, no subscription, no trial
-and nothing to buy — `PRO_ENABLED` is `false` on both platforms. **Donation
-intake is also off** since 2026-08-19 (`FEATURES.tips = false` on both
-platforms, the three `fit.ignia.tip.*` consumables removed from sale in ASC,
+and nothing to buy — `PRO_ENABLED` is `false` (`apps/mobile/src/lib/subscription.ts`;
+the flags exist on mobile only since ADR-0036 — this said "both platforms"
+until 2026-09-17). **Donation intake is also off** since 2026-08-19
+(`FEATURES.tips = false` in `apps/mobile/src/lib/features.ts`, the three
+`fit.ignia.tip.*` consumables removed from sale in ASC,
 `/tip` → `/support`) while operations transfer to Bermudez Systems LLC; the
 re-enable condition is payouts landing in the LLC's bank account, not a date.
 This line described a live tip jar until then.
@@ -47,7 +49,7 @@ Uniquely, ships both photo-AI logging (like Cal AI) *and* adaptive TDEE coaching
 ## Project map
 
 - `src/` — the Angular web shell (the repo root *is* the default `ng` project): landing, calculators, comparisons, FAQ, legal, status, public profiles, and `/admin`. No data layer — the logging app is gone (ADR-0036).
-- `apps/mobile/` — the Expo SDK 57 React Native app, live on the iOS App Store and submitted to Google Play production (`STATUS.md` has where that stands). Has its own `AGENTS.md`; read it before working there.
+- `apps/mobile/` — the Expo SDK 57 React Native app, live on the iOS App Store and on Google Play production since 2026-09-03 (`STATUS.md` §1 has which version; this said "submitted to" until 2026-09-17). Has its own `AGENTS.md`; read it before working there.
 - `packages/core/` (`@macrolog/core`) — pure shared domain types + math (TDEE, targets, dates, units), imported by both apps. Keep it dependency-free.
 - `functions/` — Cloud Functions (gen2, Node 22), read from `functions/src/index.ts` on 2026-08-15: `logWebhook`, `analyzePhoto`, `consultationStream` (SSE AI coach, server-held Gemini key), `checkAccessStatus`, `exportUserData`, `deleteAccount`, `registerAppleRefreshToken`, `generateWeeklyReport`, `statusPulse`, `weeklyFirestoreBackup`, `hourlyTasks`, `sendWelcomeEmail`, `onDailyLogCreated`, `onSubscriptionWritten`, `sendPasswordReset`, `sendVerificationEmail`, `searchFoods`, `getFoodDetail`, `importRecipe`, `ogImagePublicProfile`, `servePublicProfilePage`, `bootstrapAdmin` (`setAdminClaims` deleted 2026-08-30 — one admin, no grant path), `startImpersonation`, `stopImpersonation`; added 2026-09-05: `adminSyncAppVersion` and `appVersionJson` (the `/app-version.json` rewrite — store versions derived in the cloud with no store credential, `functions/src/app-version.ts`).
   *(The old list named `sendDailyReminders`, `sendDayThreeCoachPush` and `publishUserCount` as separate functions. They were not, and the first two are **deleted** as of 2026-08-30 — web push went with the web logging app, ADR-0036 / #112. `publishUserCount` folds into `hourlyTasks`: Cloud Scheduler's free tier is 3 jobs and all 3 are spent, so recurring work folds into the `hourlyTasks` dispatcher — see `CLAUDE.md`. Regenerate this list from `index.ts` rather than editing it by hand.)*
@@ -59,7 +61,7 @@ Uniquely, ships both photo-AI logging (like Cal AI) *and* adaptive TDEE coaching
 ## Reference docs
 
 - **`CHANGELOG.md`** — significant ships, newest first.
-- **`UX_AUDIT.md`** — living UX backlog. **§S13 is the launch-readiness checklist** — read it before any public distribution push (Stripe live verification, tax, password policy, backups, monitoring alerts, GDPR, custom domain, email deliverability, etc.).
+- **`UX_AUDIT.md`** — living UX backlog. **§S13 is the launch-readiness checklist** — read it before any public distribution push (tax, password policy, backups, monitoring alerts, GDPR, custom domain, email deliverability, etc. — the Stripe items there are historical; the extension was removed 2026-08-31).
 
 ## Daily commands
 
@@ -88,7 +90,6 @@ Firebase project: `fitness-tracker-gb-1775407101`. Hosting site: `macrolog`.
 - **Firebase web config** (`apiKey`, `projectId`, `authDomain`, `storageBucket`, `messagingSenderId`, `vapidKey`, `appId`) — these are public by Firebase design; access control is enforced by `firestore.rules` + Firebase Auth, not by hiding the keys.
 - **Sentry DSN** — public; Sentry rate-limits by DSN owner, not by secret.
 - **Gemini client key** (used by the consultation streaming call) — HTTP-referrer-restricted at Google Cloud, so only `https://ignia.fit` can use it.
-- **Stripe `priceId` values** — public identifiers.
 
 ### Must stay server-side (never in `src/`)
 

@@ -4,6 +4,49 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-09-17 — docs audit: STATUS.md back under budget, four shipped entries moved here
+
+Outcomes deleted from `STATUS.md` (249 → under ~200 non-blank lines), recorded
+once each:
+
+- **iOS Maestro regression suite: 21 of 21**, the first clean sweep, measured
+  2026-09-17 on `ignia-mac` (simulator `Ignia-QA`, iPhone 17 / iOS 26.5; one
+  Release build, no EAS quota). `18-train-template` passes; its old set-row-0
+  red did not recur. Three flows had been red since `25b55ff7` renamed the RIR
+  selectors and missed the sibling `set-kind-0-0-working` — the flow died before
+  teardown, left a workout in progress, which renames the tab to "Train, Workout
+  in progress" and broke every flow tapping Train by text. Tab taps now go by
+  `id: tab-train` with an arrival assert. Lesson kept in `STATUS.md`: never
+  compose a suite number from single-flow runs (order-dependent by design).
+- **Retention levers 1–4, 7, 8, 9 shipped** (2026-09-02 → 09-16): first log
+  inside onboarding, lapsed local nudges, the two deciding numbers instrumented,
+  first-scan celebration, maintenance mode (ADR-0037), the "what 14 logged days
+  buy" hero (`measurementProgress`; OTA both platforms 09-10/09-11), and the
+  `reminders_on` counter — which answered **zero** (0 of 43 signups, 0 of 14
+  activated, verified 09-16; the counter fired once and that account was
+  deleted). First read of lever 1's target: `timeToFirstLog` median 1 h 32 m,
+  17% inside five minutes, n=12; it has since more than halved.
+- **The stale-tree iOS OTA of 2026-09-17**: a publish went out from a tree four
+  commits behind because the preceding `git pull` was piped through a parser
+  that swallowed its failure; the native-only fingerprint still matched, so the
+  hash gate passed while the JS was stale. Superseded a minute later (devices
+  resolve the newest matching group). Rule kept in `STATUS.md` §1: read the
+  `Commit` line `eas update` prints, never pipe that `git pull`.
+- `STATUS.md` §5 (App Store standing rules) moved verbatim to
+  `docs/app-store-metadata.md`; §6 collapsed to a pointer at `CLAUDE.md`.
+
+Also corrected in the same pass (each file carries its own one-line note):
+`go-to-market.md` (App Store 1.1.0/TestFlight 1.2.0 snapshot, "USDA + OFF" text
+search, two locales, tip-jar pointer), `app-store-metadata.md` (1.2.3 "draft
+only", release type `MANUAL`, live What's New copy), `README.md` (Play
+"submitted", Siri as a shipped feature, Stripe references), `CLAUDE.md`
+(`require-java21` as a preflight, ADRs to 0024, photo-scan env gate, billing
+account), `docs/COMMANDS.md` (secret floor 7, Play 128 territories, dead
+`scratchpad/` script), `docs/build-infrastructure.md` (`node_modules` as a
+fingerprint input, August ceiling sentence), `UX_AUDIT.md` (S17 "not yet OTA",
+ToS auto-renewal item), `CONTEXT.md` (four deleted `src/app/**` paths),
+`fingerprint-ledger.md` (build 24 "THE LIVE" in the present tense).
+
 ## 2026-09-17 — a rest-pause continuation took the between-sets rest
 
 Checking the box on a rest-pause activation set started a full between-sets

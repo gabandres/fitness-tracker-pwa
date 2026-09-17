@@ -53,7 +53,7 @@ What's between "deployed" and "safe to share with strangers." Grouped by severit
 - [x] **Cloud Monitoring alerts.** *(2026-04-19)* — email channel `projects/…/notificationChannels/14532171541501133516` (→ `gabrielandresbermudez@gmail.com`) + 3 alert policies (Cloud Functions error rate >5% over 10 min; statusPulse absent >30 min; analyzePhoto >500 invocations/hour). Applied via REST because `gcloud beta` wasn't installed; documented the REST fallback in `scripts/monitoring/setup-alerts.sh`.
 
 ### ⚠️ Soft blockers — ship-breakers if the app catches traction
-- [ ] **Terms of Service legal review.** `/terms` exists — needs a Termly/Iubenda pass or a lawyer read for: limitation of liability, arbitration, governing jurisdiction, subscription auto-renewal language (required by CA/NY/NC/FL state law for auto-renew SaaS).
+- [x] **Terms of Service legal review.** *(closed 2026-09-17)* — the item's trigger was subscription auto-renewal language for auto-renew SaaS, and no subscription exists or is planned outside Apple/Google IAP (the Stripe extension was removed 2026-08-31; `PRO_ENABLED = false`). A general lawyer read of `/terms` (liability, arbitration, jurisdiction) is not a launch blocker for a free app; re-open if a paid tier ships.
 - [x] **Refund policy published.** *(2026-04-19)* — "refunds" + "subscriptions + auto-renewal" sections on `/terms`. EU/UK/CH 14-day statutory withdrawal with explicit email path, rest-of-world discretionary goodwill, chargeback-before-file clause. en + es-PR.
 - [x] **Account deletion wiring audit.** *(2026-04-19)* — verified `deleteAccount` purges all 5 subcollections (dailyLogs, presets, reports, dailyWeights, measurements), both quota collections, Stripe subscriptions (cancel_at_period_end), profile doc (which holds fcmToken), and the Firebase Auth user. Rate-limited 5 s.
 - [x] **Age gate in onboarding.** *(2026-04-19)* — new required checkbox on step 1, stamps `ageConfirmedAt: Timestamp` on the profile. Attestation bound to an explicit `ageConfirmed: true` in `ProfileFields` so future `saveProfile` callers cannot silently age-attest. Rules validator updated.
@@ -82,9 +82,9 @@ say "owner, not shipped" for items ticked `[x]` two sections above it — it was
 read as a to-do list months after the work landed, which is exactly how this repo
 re-scopes finished work. What actually remains:
 
-1. **Terms of Service legal review** — the only original item still open, and it
-   is *not* urgent: the auto-renewal language it turns on applies to a paid tier,
-   and Pro is flag-gated off (ADR-0015). Revisit when Pro does.
+1. ~~**Terms of Service legal review**~~ — **closed 2026-09-17**: its trigger was
+   auto-renewal language for a subscription, and none exists (Stripe removed
+   2026-08-31; any future paid tier is Apple/Google IAP). Re-open with a paid tier.
 2. ~~**OG meta tags**~~ — **closed 2026-08-04, and it was never actually open.**
    The tags were live and per-route correct; the entry above records what was
    verified and the one genuine gap it turned up. This is the third time this
@@ -752,7 +752,7 @@ and most of it is below.
 
 ---
 
-## 🏋️ S17 — Train module UX overhaul, 2026-09-16 (SHIPPED to `main`, not yet OTA)
+## 🏋️ S17 — Train module UX overhaul, 2026-09-16 (SHIPPED — OTA'd to both platforms 2026-09-17, `apps/mobile/docs/fingerprint-ledger.md`; this heading said "not yet OTA" until then)
 
 Triggered by the owner: "crowded, and not as intuitive as I imagined — not just
 editing or creating a template, but starting the workout too." The reading is

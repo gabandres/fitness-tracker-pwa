@@ -56,14 +56,18 @@ Three things to set up, none of which announces itself until you try.
 **Re-measured 2026-09-16; the first two rows said something different and
 weaker before that.**
 
-- **There is no Java runtime on `PATH` at all.** `openjdk@17` went with the
-  Android toolchain, and this section used to say the fallback was Java 11
-  failing with `ERROR: Java 17 or higher is required`. It is not: `java` resolves
-  to Apple's `/usr/bin/java` stub with nothing behind it, so the actual symptom
-  is `The operation couldn't be completed. Unable to locate a Java Runtime.` —
-  a different message that reads like a broken Maestro install rather than a
-  `PATH` problem. Homebrew's keg-only `openjdk` (26.0.2) is present and
-  **Maestro 2.10.0** runs on it fine; it simply is not on `PATH`.
+- **Java is on `PATH` in a login shell since 2026-09-17** —
+  `JAVA_HOME=/opt/homebrew/opt/openjdk@17` is exported by `~/.zshrc`,
+  `~/.zprofile` and the T3 Code plist (`DEV_ENVIRONMENT.md` §3.11). This row
+  said there was no Java runtime on `PATH` at all, `openjdk@17` having gone
+  with the Android toolchain on 2026-08-17 — true until 2026-09-17. What
+  remains: a non-interactive `ssh ignia-mac '…'` reads neither rc file, and
+  then `java` resolves to Apple's `/usr/bin/java` stub with nothing behind it,
+  so the symptom is `The operation couldn't be completed. Unable to locate a
+  Java Runtime.` — not `ERROR: Java 17 or higher is required` (the pre-rebuild
+  Java 11 message), and it reads like a broken Maestro install rather than a
+  `PATH` problem. Export it explicitly in that shell. **Maestro 2.10.0** runs on
+  17 or higher.
 - **Simulator devices EXIST again — 18 of them, and one is ours.** This section
   claimed `simctl delete all` (the `DEV_ENVIRONMENT.md` §3.9 disk reclaim) had
   left none. Xcode has since recreated its defaults and the persistent
@@ -80,7 +84,7 @@ weaker before that.**
   the file exists before blaming the app.
 
 ```sh
-export JAVA_HOME=/opt/homebrew/opt/openjdk       # 26.0.2 — NOT openjdk@17, which no longer exists
+export JAVA_HOME=/opt/homebrew/opt/openjdk@17    # the Mac's JAVA_HOME since 2026-09-17; this line said "NOT openjdk@17, which no longer exists" (true 2026-09-10 → 09-17)
 export PATH=$JAVA_HOME/bin:$HOME/.maestro/bin:$PATH
 
 # Reuse Ignia-QA if it already exists; only create it the first time.
@@ -100,14 +104,18 @@ build dies as `** BUILD INTERRUPTED **` with no `error:` line anywhere, a
 signature that reads like a linker crash. `build-ios`'s `REFERENCE.md` carries
 the measurement.
 
-### Android has NO host — 2026-08-18
+### Android hosts — none on 2026-08-18; the LG since 2026-08-29; the Mac emulator again since 2026-09-17
 
-Android UI regression is **unhosted**. This is not a missing install:
+Android UI regression was **unhosted** on 2026-08-18, and this heading said
+"Android has NO host" in the present tense until 2026-09-17. Today the suite
+runs on `ignia-mac` (`emulator -avd pixel_api36` + adb, recipe in
+`.maestro/README.md`) or on the LG over adb from Windows. The table is that
+day's state; only the Windows row is still true:
 
-| Machine | Why it cannot run the Android suite |
+| Machine | Why it could not run the Android suite (2026-08-18) |
 |---|---|
-| `ignia-mac` | Android SDK, emulator and `openjdk@17` were all removed on 2026-08-17, when Android's build host moved to Windows (`DEV_ENVIRONMENT.md` §3.11) |
-| Windows workstation | Snapdragon X Elite — **ARM64**. No Android emulator runs on it, by any route |
+| `ignia-mac` | Android SDK, emulator and `openjdk@17` were all removed on 2026-08-17, when Android's build host moved to Windows. **Reinstated 2026-09-17** with the build host (`DEV_ENVIRONMENT.md` §3.11): SDK at `~/Library/Android/sdk`, AVD `pixel_api36`, `JAVA_HOME`/`ANDROID_HOME` in the shell config |
+| Windows workstation | Snapdragon X Elite — **ARM64**. No Android emulator runs on it, by any route — durable |
 
 **Maestro itself is fine on Windows**: 2.8.0, installed natively, no WSL — the
 docs discourage WSL explicitly ("advanced port configuration and can introduce
@@ -128,10 +136,11 @@ which Maestro drives natively — and which would also cover the single check no
 emulator can reach: Google Sign-In on a **Play-signed** install, broken twice
 historically and structurally invisible on a local build.
 
-**THAT HOST NOW EXISTS — the heading above is stale from 2026-08-19.** The
-**LG VS988** (Android 9 / API 28) is driven over adb from this workstation and
-Maestro 2.8.0 runs the suite against it natively. Only the *emulator* half of
-this section still holds. Three things learned running it there on 2026-08-29:
+**THAT HOST EXISTS since 2026-08-29.** The **LG VS988** (Android 9 / API 28)
+is driven over adb from this workstation and Maestro 2.8.0 runs the suite
+against it natively. The Windows-emulator half of this section is durable
+(ARM64); the Mac emulator is back since 2026-09-17. Three things learned
+running it on the LG on 2026-08-29:
 
 - **The suite requires the app in ENGLISH.** Flow 01 asserts `"Today"`; an
   account whose `preferredLocale` is `pt-BR` renders `"Hoje"` and the first

@@ -266,9 +266,11 @@ the per-version reminder below is closed for good.
 • Arreglado: el encabezado de Hoy podía recortarse con texto grande, y un encabezado de columna en Entrenar se partía en dos líneas en español.
 ```
 
-### What's New — 1.2.0 · SHIPPED 2026-08-19 as build **55** (submitted 08-15 with build 54)
+### What's New — 1.2.0 · SHIPPED 2026-08-19 as build **55** (submitted 08-15 with build 54), kept for reference
 
-**This is the live release copy.** Written against App Store 1.1.0 / build 24
+**Historical — the live release copy is the 1.2.3 block above** (1.2.3 / build 64
+went `READY_FOR_SALE` 2026-09-06; this heading said "This is the live release
+copy" until 2026-09-17). Written against App Store 1.1.0 / build 24
 (uploaded 2026-08-07) → build 54, i.e. everything the public has not seen.
 The machine-readable copy is **`store-assets/whats-new-1.2.0.json`**, which
 `scripts/asc-swap-review-build.mjs --notes` uploads. This document stays the
@@ -403,30 +405,24 @@ for 1.0 users, so it is not app release news.
 | `usesIdfa` | **`false`** — set by `scripts/asc-release-version.mjs` on every version since 1.2.3; see the note below | no ads and no attribution SDK, so the honest answer is false |
 | Export compliance | declared on the build: `usesNonExemptEncryption=false` | set per-build, not per-version — a new build re-asks |
 | Demo account | `review@ignia.fit`, required | ASC carries it forward; never point Review at `demo@ignia.fit`. Re-confirmed verified, enabled and seeded before submitting 1.2.0 |
-| Release type | **`MANUAL`** | changed for 1.2.0. 1.1.0 used `AFTER_APPROVAL`, which publishes the instant Review passes; manual keeps the public moment a human decision, which matters when a promotion is being timed around it |
+| Release type | **`AFTER_APPROVAL`** on every version 1.1.0 → 1.2.3 (ASC API, read 2026-09-17) | This row said `MANUAL`, "changed for 1.2.0", until 2026-09-17 — it was flipped back before 1.2.1 (see *Applied status*: 1.2.1 auto-released 2026-08-24), and every version since ships the instant Review passes. Re-read with `node scripts/asc-client.mjs` before timing a promotion around a release |
 
 ✅ **RESOLVED 2026-08-19.** `usesIdfa` was PATCHed to `false` on the 1.2.1
 version before submitting and ASC accepted it (`PATCH /v1/appStoreVersions/<id>`
 with `attributes.usesIdfa`). The separate `/idfaDeclaration` sub-resource is
-**gone** — it 404s — so the field lives on the version itself now. The
-historical note follows.
-
-⚠️ **The `usesIdfa` claim in this file was wrong.** It said a `null` value stops
-the submission flow to ask. 1.2.0 was submitted on 2026-08-15 with `usesIdfa`
-still `null` and ASC accepted it — `WAITING_FOR_REVIEW`, no prompt, no error.
-So either the field is answered at app level now or ASC stopped gating on it.
-**It was deliberately not "corrected" after the fact**: the version was already
-waiting for review, and editing a waiting submission risks more than a cosmetic
-field is worth. Set it to `false` explicitly on the *next* version, before
-submitting, and delete this note once that is confirmed to work.
+**gone** — it 404s — so the field lives on the version itself now. (A note
+here recorded that 1.2.0 was accepted with `usesIdfa: null`; it asked to be
+deleted once the explicit `false` was confirmed to work, which the table row
+above and the 1.2.3 read-back confirm — deleted 2026-09-17.)
 
 ### Screenshots on file — RE-SHOT 2026-09-05, uploaded to the 1.2.3 draft (en-US 5, es-MX 5, both `--replace`d; watch slots untouched)
 
-> **1.2.3 exists only as a *Prepare for Submission* draft** (id `e6f6ce2c…`), created
-> 2026-09-05 because ASC refuses screenshot edits on a `READY_FOR_SALE` version.
-> The new frames go public when 1.2.3 ships with a build; 1.2.2's listing keeps
-> the Aug 30 set until then. Source: `store-assets/out/{en,es}/`, captured on the
-> iPhone 16 Pro Max simulator (`.maestro/capture/store-shots.yaml`).
+> **These frames are LIVE — 1.2.3 / build 64 went `READY_FOR_SALE` 2026-09-06.**
+> (This note said "1.2.3 exists only as a *Prepare for Submission* draft" until
+> 2026-09-17; the draft, id `e6f6ce2c…`, was created 2026-09-05 because ASC
+> refuses screenshot edits on a `READY_FOR_SALE` version, and shipped the next
+> day.) Source: `store-assets/out/{en,es}/`, captured on the iPhone 16 Pro Max
+> simulator (`.maestro/capture/store-shots.yaml`).
 
 The table below is the 1.2.0–1.2.2 record, kept for the watch slots:
 
@@ -591,7 +587,7 @@ Sin anuncios. Sin venta de datos. Exporta o borra tu cuenta desde la app.
 Ignia no es un dispositivo médico y no da consejo médico.
 ```
 
-### Novedades — 1.1.0 · SHIPPED, kept for reference (the live 1.2.0 es-MX copy is in the What's New — 1.2.0 block above)
+### Novedades — 1.1.0 · SHIPPED, kept for reference (the live es-MX copy is 1.2.3, in the What's New — 1.2.3 block above; this said 1.2.0 until 2026-09-17)
 
 Same gating as the English block above: if the widget or Health bullets are
 cut there, cut them here too, or the two localizations claim different builds.
@@ -666,6 +662,33 @@ list in that script, then re-running it. See `store-assets/README.md`.
 - [ ] No feature visible that §0 says isn't claimable
 
 ---
+
+## Standing submission rules (moved verbatim from `STATUS.md` §5, 2026-09-17)
+
+Carried over from the two 1.0 rejections. Permanent, not a checklist to do once.
+
+- **Both accounts are the LLC** (Apple since 08-25, Play org account
+  `6598754086801415923` since 08-26). Guideline 5.1.1(ix) prefers a legal
+  entity for health apps that touch HealthKit; that accepted risk is retired.
+- **Always hand Apple `review@ignia.fit`** in the Demo Account fields — it is
+  pre-verified and seeded. A fresh account is walled out by the
+  email-verification gate. Never point them at `demo@ignia.fit` (screenshots
+  only). Confirm it can still write before submitting.
+- **Notes for Review must name the specific changes.** Generic text gets rejected
+  under 2.3.1.
+- **Do not advertise a feature that is `BEHAVIOUR UNVERIFIED`.** The watch
+  complication and Siri quick-add are deliberately claimed to no reviewer.
+- **`supportsTablet` stays `false`.** Flipping it obliges an iPad design pass
+  *and* iPad screenshots — more rejection surface, not less.
+- **Keep `NSPhotoLibraryUsageDescription`.** A *missing* purpose string is an
+  automated ITMS-90683 rejection; an extra one is never punished.
+- **Privacy labels must match reality** — health data + email, no Photos.
+- **A submitted version's build is frozen.** Swapping it is cancel → re-point →
+  resubmit (`scripts/asc-swap-review-build.mjs`), the cancel is irreversible, and
+  it has cost ~19h of queue position once and ~4h once.
+- **On Play, sending ANY listing change while a release is in review restarts
+  that review** (measured 2026-09-07). Bundle listing changes with the release
+  submit, or hold them until the release lands.
 
 ## 4. Post-change checks
 

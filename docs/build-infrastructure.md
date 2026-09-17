@@ -28,8 +28,9 @@ in the number, or a faster laptop reads as a regression.
   The **10m36s cold / 1m51s incremental** figures were measured through raw
   Gradle, so read them as the compile cost of this app's native graph, not as a
   sanctioned release path.
-- **Android APKs** build locally and free on Windows via Gradle directly (*not*
-  through `eas build --local`, which refuses to run on Windows).
+- **Android APKs** build locally and free on either host via Gradle directly; on
+  Windows that is the only path (`eas build --local` refuses to run there), on the
+  Mac it is the local-iteration path and `eas build --local` is the release path.
 - **Windows CAN build a signed AAB — and must never ship one.** Measured
   2026-08-17 on the Snapdragon X Elite X1E80100 workstation (12 cores, 32 GB):
   `./gradlew bundleRelease` exited 0 in **12m58s** near-warm (1307 tasks, 274
@@ -48,19 +49,39 @@ in the number, or a faster laptop reads as a regression.
   release, r29 included, because Google cross-compiles the Windows toolchain
   from Linux with MinGW rather than building it on Windows. The x86_64 NDK runs
   here under emulation, which is where the build time goes.
-- **Android's build host is the Windows workstation, permanently** (decided
-  2026-08-17). `scripts/patch-android-release.mjs` supplies the channel, the
+- **Android's build host moves back to `ignia-mac` on 2026-09-17**, reversing
+  the 2026-08-17 decision below. The reason that decision existed — the Air was
+  a shared laptop with a ~17 GB iOS disk floor — died with the 2026-09-10
+  rebuild; the reason to reverse it is that the owner now drives both apps from
+  a phone through T3 Code on the Mac, and a Mac session must be able to ship
+  Android. The Mac got the Surface's exact SDK set that day (JDK 17 via Homebrew
+  `openjdk@17`, `~/Library/Android/sdk` with platform 36, build-tools 35/36, NDK
+  27.1.12297006, cmake 3.22.1, emulator + `pixel_api36` arm64 AVD) plus
+  `credentials.json`, `credentials/dev.keystore` and
+  `credentials/play-service-account.json` (SHA-256 verified, mode 600). The
+  release path there is the one the first bullet of this section always named:
+  `eas build --local -p android --profile production`, which writes the channel,
+  signs with the local keystore and takes the remote versionCode itself — no
+  `patch-android-release.mjs`, no `gradlew.bat` runner.
+
+  **Cutover is not done until a Mac-built vc is live.** The fingerprint follows
+  the build host (CRLF vs LF), so the Android runtime testers run today is the
+  Windows one, and an OTA for it must still be published from Windows.
+  `guard_eas_update.py` therefore keeps `OWNER["android"] = "windows"` until
+  the first Mac-built binary reaches the alpha track; flipping it, updating
+  `test_guards.py`, and deleting the Windows section of the `build-android`
+  skill are one commit, made that day. `STATUS.md` tracks it.
+- **Android's build host was the Windows workstation from 2026-08-17 to
+  2026-09-17.** `scripts/patch-android-release.mjs` supplied the channel, the
   release signing and the versionCode that `eas build --local` would have, and
-  `verify-mobile-artifact.mjs` is the gate. A second build of the same tree with
+  `verify-mobile-artifact.mjs` was the gate. A second build of the same tree with
   the channel injected came out **10m12s**, verifier-green, at vc 31.
-  Consequences that are easy to miss:
-  - **Android OTAs must be published from Windows, iOS OTAs from the Mac.** The
-    runtime fingerprint follows the build host, per platform.
-  - **Bare `eas update` publishes BOTH platforms and is therefore correct on
-    neither machine.** Every publish must be `--platform`-scoped. This is new:
-    it was safe while one machine built everything.
-  - The Mac becomes an **iOS-only** host by choice rather than by disk pressure,
-    so `~/Library/Android` (3.3 GB) is now genuinely disposable there.
+  Consequences that outlive the move:
+  - **The runtime fingerprint follows the build host, per platform** — publish
+    an OTA from the machine that built the binary testers are running.
+  - **Bare `eas update` publishes BOTH platforms.** Every publish must be
+    `--platform`-scoped; the guard enforces it. Once both platforms build on the
+    Mac again this is belt-and-braces, and it stays.
 - **Most fixes need no build.** EAS Update ships JS/TS over the air in seconds.
   Run the fingerprint gate first (`docs/COMMANDS.md`).
 - The Mac holds `dev.keystore`, `credentials.json`, the Sentry token and an EAS
@@ -89,12 +110,14 @@ is how the two clones drift for real.
 This is *not* justified by fingerprint parity, which was the old reason and is
 **disproven** — see `apps/mobile/AGENTS.md`. Aligning Node would not converge the
 two hashes and does not need to: each platform is fingerprinted on its own build
-host. Note also that `npm ci` on the Mac rebuilds `node_modules`, which is a
-fingerprint input, so it is not a free act while an iOS binary is awaiting
-review — run the gate before it, not after.
+host. `npm ci` on the Mac rebuilds `node_modules`, which is **not** a
+fingerprint input (disproven 2026-08-17, `apps/mobile/AGENTS.md`; this sentence
+called it one, and `npm ci` "not a free act", until 2026-09-17). Run the gate
+whenever a binary is awaiting review regardless — it is the hash, not the
+install, that decides.
 
-`npx expo prebuild -p ios` does **not** work on Windows: SDK 54 skips it outright
-and exits non-zero. There is no local way to inspect the generated Podfile or
+`npx expo prebuild -p ios` does **not** work on Windows: since SDK 54 (still true
+on 57) it skips it outright and exits non-zero. There is no local way to inspect the generated Podfile or
 verify iOS autolinking here, which is why the widget's missing native module
 could only be caught by shipping a build and reading a runtime probe.
 
@@ -108,10 +131,9 @@ platforms are used unevenly.
 2026-09-03 by `npm run doctor` (the August period closed at iOS 13/15,
 Android 6/15, 19/30 on the account total; every September binary so far —
 vc 41–44, builds 62–63 — was built locally, so the new period is untouched).
-**No build of either platform has been created since 2026-08-10**, so the local
-hosts are doing exactly what they were adopted for; the 87% on iOS is spend from
-the first ten days of the month, not ongoing consumption. Two caveats worth
-keeping. **The counter moved 11 → 13 with no new builds**, so it either lags or
+(A sentence here said "no build of either platform since 2026-08-10 … the 87%
+on iOS" until 2026-09-17 — an August-period reading that contradicted the
+September one above it.) Two caveats worth keeping. **The counter moved 11 → 13 with no new builds**, so it either lags or
 the 08-18 reading was wrong — do not treat a rising number as evidence that
 something built. And **the two sources disagree on the split**: `build:list`
 says iOS 12 / Android 7 for this period while `account:usage` says iOS 13 /

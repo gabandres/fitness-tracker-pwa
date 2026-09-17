@@ -70,13 +70,20 @@ the bug you "fixed" keeps getting reported.
 
 ## The fingerprint is a property of the MACHINE, not just the commit
 
-**Run the gate — and `eas update` itself — on the machine that BUILDS that
-platform. Since 2026-08-17 that is not one machine:**
+**Run the gate — and `eas update` itself — on the machine that BUILT the binary
+testers run. Since 2026-08-17 that is not one machine, and since 2026-09-17 the
+Android answer is in transition:**
 
-| Platform | Built on | Gate + `eas update` from |
+| Platform | Build host | Gate + `eas update` from |
 |---|---|---|
-| **Android** | the Windows workstation (vc 31+) | **Windows** |
+| **Android** | `ignia-mac` since 2026-09-17 (vc 31–45 were built on the Windows workstation) | **Windows** until the first Mac-built vc reaches Play alpha — the live runtime (vc 45) is Windows-built, so its fingerprint is the Windows one. `STATUS.md` owns the cutover |
 | **iOS** | `ignia-mac` | **`ignia-mac`** |
+
+This table read "Android: built on Windows, gate from Windows" until
+2026-09-17, when the Android toolchain went back onto the Mac
+(`docs/build-infrastructure.md`, `DEV_ENVIRONMENT.md` §3.11). The OTA host lags
+the build host by one release on purpose: the hash follows the machine that
+produced the *live* binary, not the one that will produce the next.
 
 **Bare `eas update` publishes BOTH platforms and is therefore correct on
 NEITHER machine — always pass `--platform`.** `.claude/hooks/guard_eas_update.py`
@@ -135,7 +142,8 @@ Three commit-independent causes, found by diffing the two `sources` arrays
 
 **Consequence: cross-host fingerprint parity is not achievable and is no longer a
 goal.** It also does not need to be. Since 2026-08-17 each platform is built,
-gated and published on one host — Android on Windows, iOS on the Mac — so each
+gated and published on one host — iOS on the Mac; Android on Windows through
+vc 45 and on the Mac from the cutover build onward (table above) — so each
 hash only ever has to match binaries produced by the same machine, which it does:
 measured that day, Windows/Android returns `3d3bc410…` (= live vc 31, read from
 the `.aab`) and Mac/iOS returns `886bf0b3…` (= build 55, read from the `.ipa`).
@@ -168,15 +176,17 @@ day was largely this artifact: one machine's number was being compared against
 another machine's. The 22:00 update is the first one published from the Mac and
 the first that provably matches a shipped binary.
 
-So the gate before every publish runs **on that platform's build host** — iOS on
-the Mac, Android on Windows:
+So the gate before every publish runs **on the host that built the live
+binary** — iOS on the Mac; Android on Windows until the cutover (table above),
+then on the Mac too:
 
 ```sh
 # iOS — on ignia-mac
 ssh ignia-mac "cd ~/fitness-tracker-pwa && git checkout main && git pull --ff-only"
 ssh ignia-mac "cd ~/fitness-tracker-pwa/apps/mobile && npx expo-updates fingerprint:generate --platform ios"
 
-# Android — on the Windows workstation
+# Android — on the Windows workstation while vc 45 (Windows-built) is live;
+# on ignia-mac once the first Mac-built vc ships (STATUS.md)
 cd apps/mobile && npx expo-updates fingerprint:generate --platform android
 ```
 
@@ -215,9 +225,10 @@ artifact"; which version is *live* is `STATUS.md`'s question.
 | Android | vc 45 / 1.2.3 — Play production + alpha | `15c1cfc8aaa0951e882c278af5c1256de5836194` | the `.aab` |
 | iOS | build 64 / 1.2.3 — App Store | `52802bba95ac0ac3f4cfd053d6ee61c354cc18d9` | the `.ipa` |
 
-Both channels are OPEN on those hashes; the newest OTA on each is `478e00b4`
-(2026-09-16, third publish — the OTA auto-apply no longer eats a reviewed photo
-scan). **Only a value read from the artifact is evidence** — a build
+Both channels are OPEN on those hashes; the newest OTA on each is `76fae0a3`
+(2026-09-17, second publish — the Next Up button no longer repeats the template
+name). This line lagged the ledger by two publishes on 2026-09-17; the ledger's
+top row is the authority. **Only a value read from the artifact is evidence** — a build
 log, a locally generated hash, or an old Windows-computed number is not.
 
 **What MOVES the fingerprint (⇒ a build per platform):**
@@ -262,7 +273,11 @@ gate")
 - **The EAS cloud worker is a third machine with a third fingerprint.** A cloud
   artifact lands on a runtime no installed binary matches. Build locally: iOS on
   `ignia-mac` (needs the watchOS platform installed — the scheme embeds
-  `IgniaWatch.app`, `DEV_ENVIRONMENT.md` §3.10), Android on Windows.
+  `IgniaWatch.app`, `DEV_ENVIRONMENT.md` §3.10), Android on `ignia-mac` too
+  since 2026-09-17 (`eas build --local -p android --profile production`,
+  `build-android` skill). Windows built vc 31–45 via raw Gradle and this line
+  said "Android on Windows" until 2026-09-17; it stays the Android OTA host
+  until the first Mac-built vc ships (`STATUS.md`).
 
 **Delivery:**
 

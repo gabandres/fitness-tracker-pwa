@@ -1,12 +1,21 @@
 ---
 name: build-android
-description: Ship an Android change — decide between an over-the-air EAS Update (free, instant, no build) and a real build, run the fingerprint gate that decides whether an OTA can land, and submit to the Play alpha track. Use for "ship this to Android", "cut an Android build", "push a fix to testers", or any mobile fix headed for Play. Android builds on the WINDOWS workstation; iOS is the `build-ios` skill, on the Mac.
+description: Ship an Android change — decide between an over-the-air EAS Update (free, instant, no build) and a real build, run the fingerprint gate that decides whether an OTA can land, and submit to the Play alpha track. Use for "ship this to Android", "cut an Android build", "push a fix to testers", or any mobile fix headed for Play. Android builds on `ignia-mac` since 2026-09-17 (`eas build --local`); iOS is the `build-ios` skill, also on the Mac. Android OTAs still publish from Windows until the first Mac-built vc is live — see the cutover note.
 ---
 
 # Ship an Android change
 
-**Android builds on this Windows workstation, iOS on `ignia-mac`** (since
-2026-08-17). Both are local and cost zero EAS quota.
+**Both platforms build on `ignia-mac`** — iOS since 2026-08-07, Android again
+since 2026-09-17 (it was on this Windows workstation from 2026-08-17; the
+reversal and its reasons are in `docs/build-infrastructure.md`). Both are local
+and cost zero EAS quota. A session ON the Mac (T3 Code, Remote Control) runs the
+Mac commands bare; a session on Windows wraps them in `ssh ignia-mac "…"`.
+
+**Cutover note (delete when done):** the Android binary testers run today is
+the Windows-built one, so its OTAs still publish from Windows and
+`guard_eas_update.py` still says so. The first Mac-built vc that reaches the
+alpha track flips it: `OWNER["android"] = "mac"`, the android rows of
+`test_guards.py`, and the *Step 3 (Windows)* section below, one commit.
 
 `REFERENCE.md` in this directory holds the evidence behind every rule below — the
 measurement, the incident, the wrong conclusion it replaced. **Read it when a rule
@@ -100,7 +109,43 @@ cd apps/mobile && npx eas update:list --branch production --limit 3
 - Testers get it on the **next** launch. Undo with
   `eas update:roll-back-to-embedded`. `--message` is for the dashboard, not users.
 
-## Step 3 — build, on Windows, free
+## Step 3 — build, on `ignia-mac`, free
+
+`eas build --local` is the sanctioned path and the only one that writes the EAS
+Update channel, signs with `credentials/dev.keystore` (`credentialsSource:
+"local"`) and takes the remote versionCode — the three things raw Gradle
+omits. It refuses Windows, which is why Step 3 (Windows) below exists.
+
+```sh
+ssh ignia-mac   # or run bare from a session on the Mac
+cd ~/fitness-tracker-pwa && git pull --ff-only && git rev-parse HEAD   # never pipe this
+npm ci                                                                  # Mac never `npm install`s
+cd apps/mobile
+set -a && source ../../.env.local && set +a        # SENTRY_AUTH_TOKEN for the Gradle source-map task
+npx eas build --local -p android --profile production --non-interactive \
+  --output ~/build-artifacts/ignia-<version>-vc<N>.aab
+```
+
+- `JAVA_HOME`/`ANDROID_HOME` come from `~/.zprofile` (ssh) or the T3 Code
+  plist (phone session) — do not export them by hand, and if `java -version`
+  is not 17 the shell is wrong, not the SDK.
+- **Run it detached** (`nohup … &` or `run_in_background`): past any foreground
+  timeout. Measured 2026-09-17 on the M1 Air, first-ever run, `preview` APK,
+  all four ABIs: **Gradle 21m42s** of which ~8 min was an empty `~/.gradle`
+  filling to 4.7 GB — expect a warm production AAB well under that. The log
+  sits at `:expo-updates-gradle-plugin:jar` with a flat task count for the
+  whole download; that is not the socket hang, check `du -sh ~/.gradle`
+  before assuming it is. A timeout kill looks exactly like a failure.
+- `--profile production` **autoIncrements the remote versionCode** on every
+  run, including failed ones — a retry costs a number. For a toolchain check
+  use `--profile preview` (APK, no increment, EAS's stray keystore; **never
+  ship it**).
+- Verify exactly as below (`verify-mobile-artifact.mjs` runs on macOS as-is)
+  and read the fingerprint **from the artifact** — it is the Mac's hash from
+  now on, which is the whole point of the cutover note at the top.
+- 16 GB RAM: do not run the iOS build or the emulator at the same time.
+
+## Step 3 (Windows) — raw Gradle, kept until cutover
 
 `eas build --local` refuses to run on Windows, so raw Gradle is the only path —
 and it omits three things that each fail **silently**: the EAS Update channel
@@ -224,8 +269,10 @@ cd apps/mobile && npx eas submit -p android --profile production \
 ```
 
 Goes to the **alpha** track, `releaseStatus: "completed"` — rolled out to the
-tester list, not a draft. No build quota. The Mac must never submit: it lacks
-`play-service-account.json` deliberately.
+tester list, not a draft. No build quota. Since 2026-09-17 the Mac holds
+`credentials/play-service-account.json` too, so the same command runs there
+with `--path ~/build-artifacts/<file>.aab`; submit from whichever host built
+the artifact, never move an AAB between machines to submit it.
 
 ## After shipping
 
