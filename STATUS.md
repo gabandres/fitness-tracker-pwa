@@ -192,6 +192,22 @@ dailies (silence after a week away) changes existing schedules — a separate ca
 | **Photo-scan validation gate** | 30–50 real photos, judging the **item list and portions** — never the macros. Harness: `scripts/validate-photo-itemiser.mjs` (ADR-0015 §2). |
 | **MenuStat permission email — sent, no reply** | **Owner, awaiting NYC DOHMH.** The restaurant corpus is live on all three surfaces. The open risk is the **licence**: menustat.org published through 2022 all-rights-reserved and the site is now GONE; the only copy with a written grant (Harvard Dataverse, CC0 1.0) stops at 2018 and loses The Cheesecake Factory (399 items). Sent 2026-08-24 to `info@menustat.org` Cc `MenuStat@health.nyc.gov` (the Cc is what carried it); replies land in the `bermudezpr.com` Microsoft 365 tenant. Follow-ups: Pollo Tropical (absent from MenuStat's 91) and the mobile provenance chip (`dataType: restaurant_menu_2022`). |
 
+**Two maintenance-copy findings still OPEN**, from the 2026-09-16 trace that
+produced the `fix/maintenance-burn-copy` branch (that branch fixes three
+others). Both are verified against the code, neither is a copy change:
+
+- **The 95% interval is computed and never shown.** `seTdee` / `ci95Tdee`
+  exist (`tdee.ts`); Today shows only the binary `holding`. An account has
+  read `confidence` 0.957 while its interval ran **1,775..3,242** — the
+  caveat the user sees blames gaps, which is not where that width came from.
+  Showing an interval on the hero is a product decision, not a string edit.
+- **A workout-only day inflates "N of M days logged."** `finishWorkout`
+  writes `WORKOUT_MARKER_KCAL = 0`, which counts toward `windowDays` — the
+  numerator of that caveat — while being filtered out of the intake math by
+  `calories > 0`. So the fraction can overstate the food evidence behind the
+  number. The fix changes a displayed figure downward, so it wants a decision
+  rather than a quiet patch.
+
 ## 4. Decided and deliberately not happening
 
 Do not re-propose these without new information; reasoning is in the linked ADR

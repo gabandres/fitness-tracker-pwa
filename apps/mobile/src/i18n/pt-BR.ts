@@ -179,13 +179,13 @@ export const ptBR = {
   'today.fat': 'Gorduras',
   'today.entries': 'Registros',
   'today.maintenance': 'manutenção',
-  'today.underMaintenance': '{n} abaixo do seu gasto',
-  'today.overMaintenance': '{n} acima do seu gasto',
-  'today.maintenanceRough': '{logged} dos últimos {span} dias registrados — as lacunas deixam isto menos preciso',
+  'today.underMaintenance': '{n} abaixo do seu gasto habitual',
+  'today.overMaintenance': '{n} acima do seu gasto habitual',
+  'today.maintenanceRough': '{logged} de {span} dias registrados — as lacunas deixam isto menos preciso',
   'today.maintenanceHolding':
     'Estável — as pesagens recentes estão espalhadas demais para atualizar isso. Pese-se na maioria dos dias e o número volta a se mover.',
   'today.maintenanceProvisional':
-    'Por enquanto é em parte a fórmula — vai se aproximando dos seus dados conforme você registra',
+    'Por enquanto é em parte a fórmula — vai se aproximando dos seus dados conforme as lacunas saem do seu histórico',
   'today.maintenanceOutlier': '1 pesagem ignorada — um salto real de peso pode parecer leitura errada',
   'today.measureProgress': '{n} de {needed} dias registrados rumo ao seu gasto medido',
   'today.measureNext': 'Registre mais {n} e o Ignia mede o que você realmente gasta — sem fórmula',
