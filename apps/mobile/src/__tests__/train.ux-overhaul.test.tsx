@@ -148,9 +148,17 @@ describe('the home screen answers "what am I doing today"', () => {
     // Pull A was 2026-09-09, Push A 2026-09-14 — Pull A is due.
     expect(ui.getByTestId('next-up')).toBeTruthy();
     expect(ui.getByTestId('next-up-start')).toBeTruthy();
-    // Named on the card AND on its start button, so this is an "at least
-    // one" query — `queryByText` throws on multiple matches.
     expect(ui.getAllByText(/Pull A/).length).toBeGreaterThan(0);
+    // The BUTTON does not repeat it. It used to read "Start Pull A", saying the
+    // same thing as the heading directly above and wrapping to two lines at
+    // 360dp (measured on the OnePlus 8T, 2026-09-17). Asserted on the button
+    // rather than by counting "Pull A" on screen, because the Templates list
+    // below legitimately names it too.
+    // The name is not lost — it moved to the button's accessibility label, so
+    // someone who lands on the button without reading the heading still knows
+    // which template they are starting.
+    expect(ui.getByTestId('next-up-start')).not.toHaveTextContent(/Pull A/);
+    expect(ui.getByTestId('next-up-start').props.accessibilityLabel).toMatch(/Pull A/);
   });
 
   it('starts that template from the primary button', async () => {

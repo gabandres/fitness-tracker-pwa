@@ -72,15 +72,23 @@ export function NextUpCard({
         <Text style={styles.nextName}>{next.template.name}</Text>
         <Text style={styles.nextMeta}>{when}</Text>
       </TouchableOpacity>
+      {/* Short label, named only to a screen reader. The template name is the
+          card's heading two lines above, so repeating it inside the button said
+          the same thing twice and wrapped to two lines at 360dp — measured on
+          the OnePlus 8T (360x800dp) 2026-09-17. `startNamed` still carries the
+          name where it is NOT redundant: an assistive user lands on the button
+          without having read the heading. */}
       <TouchableOpacity
         style={styles.startBtn}
         onPress={() => {
           haptics.tap();
           onStart();
         }}
+        accessibilityRole="button"
+        accessibilityLabel={t('train.startNamed', { name: next.template.name })}
         testID="next-up-start"
       >
-        <Text style={styles.startBtnText}>{t('train.startNamed', { name: next.template.name })}</Text>
+        <Text style={styles.startBtnText}>{t('train.start')}</Text>
       </TouchableOpacity>
     </View>
   );
