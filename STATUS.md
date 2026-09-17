@@ -1,6 +1,6 @@
 # STATUS — what is true right now
 
-**Updated:** 2026-09-16 · **Owns:** current state only. Not history
+**Updated:** 2026-09-17 · **Owns:** current state only. Not history
 (`CHANGELOG.md`), not rationale (`docs/adr/`), not vocabulary (`CONTEXT.md`),
 not commands (`docs/COMMANDS.md`), not build tooling
 (`docs/build-infrastructure.md`).
@@ -42,6 +42,16 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 | Android | `15c1cfc8…` (since `437a90ce`, the 1.2.3 bump) | **vc 45 ships `15c1cfc8…`** (read from the `.aab`), live on production since 2026-09-07 ~22:46 UTC (vc 44 / `68ea2dd3…` is superseded) | **OPEN** to the public |
 | iOS | `52802bba…` | **build 64 ships `52802bba…`, `READY_FOR_SALE` as 1.2.3 since 2026-09-06** (read from the `.ipa`) | **OPEN** to the public |
 
+- **Gate the COMMIT, not just the fingerprint. `eas update` prints a `Commit`
+  line — read it.** On 2026-09-17 an iOS OTA published from a tree four commits
+  behind: the `git pull` preceding it had been piped through a parser that
+  swallowed its output, so the pull's failure was invisible and the publish
+  exited 0. The fingerprint still matched (it is native-only, and no native file
+  had changed), so the hash gate passed while the JS was stale — it shipped a
+  known-broken surface and omitted the fix it was meant to carry. Superseded a
+  minute later; devices resolve the newest matching group. **Never pipe the
+  `git pull` that precedes a publish, and assert `git rev-parse HEAD` in the
+  same shell.**
 - **The fingerprint is machine-dependent — publish from the machine that BUILDS
   that platform: Android from Windows, iOS from `ignia-mac`.** Bare `eas update`
   publishes both and is correct on neither — always `--platform`-scope it
@@ -63,64 +73,47 @@ here is gone with the shared install (`docs/DEV_ENVIRONMENT.md` §3.15).
 
 ## 2. Merged, on `main`, and not delivered anywhere
 
-**The Train UX overhaul (ADR-0041), 2026-09-16.** Merged to `main`, not
-pushed and not published. JS-only, so it is OTA-shippable on both open
-channels and needs no build — but **it has never run on a device.** RNTL runs
-no Yoga pass, and the one layout bug found so far (a sheet that could not
-scroll past its own content) was caught by reading, not by the 869 green
-tests. Publish only after a device pass. What it changes is in
-`CHANGELOG.md`; why, in the ADR.
+**Nothing.** Everything on `main` shipped in the 2026-09-17 OTA (ADR-0041, the
+rest-pause continuation rest, the inline catalog, the What's New bump). Both
+channels are on `3508aeb6`; the ledger owns the group ids and the rollback
+commands.
 
-**The thing that will look like a fault:** an existing template opens showing
-its set structure as **Auto** with all three add-buttons, not as `myo-reps`.
-That is correct — ADR-0040 made absence mean "infer with the pre-0040 rule"
-and nothing is backfilled. Declaring a structure on a template whose rows
-already carry numbers KEEPS those rows and only records the declaration; the
-card says so.
-
-Re-derive rather than trust this section: `git log --oneline` against the
-newest OTA row in `apps/mobile/docs/fingerprint-ledger.md`, and
+Re-derive rather than trust this line: `git log --oneline` against the newest
+OTA row in `apps/mobile/docs/fingerprint-ledger.md`, and
 `node scripts/app-version-sync.mjs --check` for the live store numbers.
 
-**What DID ship on 2026-09-16, and the one thing about it that will look like
-a fault.** ADR-0039 + ADR-0040 went out as two OTAs on both platforms (the
-ledger owns the group ids and the rollback commands). On the next Train open
-**every clustered lift reads "Calibrating — 0 of 3 valid sessions logged" and
-makes no load call** until three valid reads accumulate at one load: the rep
-band is now DERIVED per lift and the owner's 706 pre-cutoff sets are excluded
-from deriving it by design. That is the ADR working. `WHATS_NEW_VERSION` was
-bumped to `2026-09-16-derived-rep-bands` to say so in the app, which is the
-only channel an OTA has. **If this row is still here after the owner has
-trained three times, delete it — it is a prediction, and it expires.**
+**The thing that will still look like a fault (ADR-0040, shipped 2026-09-16).**
+An existing template opens showing its set structure as **Auto** with all three
+add-buttons, not as `myo-reps`; and every clustered lift reads "Calibrating —
+0 of 3 valid sessions logged" and makes no load call until three valid reads
+accumulate at one load. Both are the ADRs working: absence means "infer with
+the pre-0040 rule", and the band is derived per lift with the owner's 706
+pre-cutoff sets excluded by design. **If this row is still here after the owner
+has trained three times, delete it — it is a prediction, and it expires.**
 
 **`drop` and `superset` are the only unread structures left, and they are NOT
-the next cheap thing.** `hit` was, and it shipped the same day. `drop` needs
-within-set load reduction and `superset` needs a pairing between two
-exercises; the model carries neither (ADR-0040 §Consequences). Do not read
-"two structures left" as "two slices left".
+the next cheap thing.** `hit` was, and it shipped. `drop` needs within-set load
+reduction and `superset` needs a pairing between two exercises; the model
+carries neither (ADR-0040 §Consequences). Do not read "two structures left" as
+"two slices left".
 
-**The iOS regression suite is at 19 of 20 and costs one Release build, no EAS
-quota.** Measured 2026-09-16 in a single full sweep on `ignia-mac`, simulator
-`Ignia-QA` (iPhone 17 / iOS 26.5, now kept rather than recreated). It stood at
-17 of 20 until that day; three flows were fixed
-(`15-search` and `20-units-metric`, both selector bugs — Maestro matches a
-selector as a FULL match and iOS merges a row's children into one
-`accessibilityText`; plus `08-refine-targets`, an order-dependent scroll flake).
-**The one red is `18-train-template`, and it is neither a selector artifact nor
-an app bug** — the flow fails to fill set row 0 on iOS, proven against the
-saved Firestore document and a capture taken before Save. `coverage.md` owns
-the detail, including two attempted fixes that were disproved and removed so
-nobody retries them.
+**The iOS regression suite is at 21 of 21** — the first clean sweep — measured
+2026-09-17 on `ignia-mac`, simulator `Ignia-QA` (iPhone 17 / iOS 26.5, kept,
+not recreated). Costs one Release build and no EAS quota. `18-train-template`
+now passes; its old set-row-0 red did not recur. Three flows had been red from
+`25b55ff7`, which renamed the RIR selectors when the pickers became one sheet
+and missed the sibling `set-kind-0-0-working`; that one stale id cost all three,
+because the flow died before its teardown and left a workout in progress, which
+renames the tab to "Train, Workout in progress" and breaks every flow that taps
+Train by TEXT. Tab taps now go by `id: tab-train` with an arrival assert.
 
 **Never compose a suite number from individual flow runs.** "17 passed + 2
-fixed = 19" was wrong: the next full sweep read 18 of 20, because a fourth flow
+fixed = 19" was wrong once: the next full sweep read 18 of 20, because a flow
 that passes ALONE failed in sequence. This suite is order-dependent by design
 (11→12→13 share one diary row; 09 and 10 flip state they restore in their own
 tails).
 
-The only test devices on hand are still Android, so `AGENTS.md` remains the
-deeper record — but "no iOS run is possible" stopped being the reason. Host
-setup, and the three traps that each cost a run, are in
+Host setup and the traps that each cost a run are in
 `.maestro/regression/README.md`.
 
 ## 3. Open work, and what each is blocked on
@@ -128,6 +121,32 @@ setup, and the three traps that each cost a run, are in
 **Only genuinely open work belongs here.** A row whose work has shipped gets
 deleted and its outcome goes to `CHANGELOG.md`.
 
+
+### `ExerciseLibrarySheet` rows are untappable on iOS — cause UNKNOWN
+
+Nothing inside that sheet's ScrollView fires `onPress`. The list scrolls, the
+search field above it takes taps, both list halves are dead, and the identical
+`ExerciseSearchList` works inside `TemplateEditorModal`. Not a harness
+artifact: verified 2026-09-17 with a REAL macOS click at the row's own centre
+(mapping calibrated against the search field first) and with an instrumented
+handler whose marker was confirmed present in the installed `main.jsbundle`.
+
+**Eight causes tested and DISPROVEN — do not retry them:** `flexShrink: 1` on
+the ScrollView, `keyboardShouldPersistTaps="always"`, the `useDeferredFocus`
+autofocus, content height (one filtered row still fails), a modal-presentation
+conflict (ruled out — `onPress` never fires), synthetic-tap timing /
+`delaysContentTouches` (a long press fails too), `GestureHandlerRootView` as
+`TemplateEditorModal` carries, and making the ScrollView the sheet's only child
+to match `SetRowSheet` exactly.
+
+**Not user-facing today** — the sheet was reverted out of the Train tab on
+2026-09-17 and the catalog is an inline list again, so nothing renders it. The
+component is kept for this work. The cost of leaving it: no way to browse the
+shipped seed library from Train (it stays reachable mid-session via
+add-exercise, where it lived before ADR-0041).
+
+Unit tests cannot see this class of bug — RNTL presses a TouchableOpacity
+directly and never runs a native hit-test. Only the Maestro sweep caught it.
 
 ### Retention — the standing focus (owner's call, 2026-09-02)
 

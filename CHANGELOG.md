@@ -4,6 +4,54 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-09-17 — a rest-pause continuation took the between-sets rest
+
+Checking the box on a rest-pause activation set started a full between-sets
+rest instead of the short pause, which turns the continuation into an ordinary
+second set. `restAfterSet` decides the countdown from the kind of the set that
+is COMING, and ADR-0040 added the `continuation` kind on 2026-09-16 without
+teaching that function about it, so it fell through to the straight-set value.
+Measured against a template resting 90s between sets, rest-pause and cluster
+both returned 90s where they should pause ~20s. It had shipped in OTA
+`478e00b4`.
+
+`REST_INTO_CONTINUATION_SEC = 20`, beside the drop constant and
+non-configurable for the same reason: the template's two knobs are "between
+sets" and "between clusters", and this is neither.
+
+Nothing could see it. `rest-after-set.test.ts` had no `continuation` case, and
+its fixture used `mini: 20` — the same number as the fix — so a naive test
+would have passed against the bug. No Maestro flow touched the rest timer
+either; before `22-train-rest-pause.yaml` no flow in the suite tapped a
+`set-done-*` box at all. That flow asserts by DISAPPEARANCE rather than by
+value, because Maestro's iOS hierarchy fetch costs ~15s and a 20s timer already
+reads 0:03 by the time any value assertion runs.
+
+## 2026-09-17 — the exercise catalog is an inline list again
+
+Reverts one ADR-0041 decision. Nothing inside `ExerciseLibrarySheet`'s
+ScrollView is tappable on iOS: the list scrolls and the search field above it
+takes taps, but no row ever fires `onPress`, so the catalog was unreachable —
+including the only path to editing muscle attribution, which is what makes the
+cluster audit's unattributed line fixable.
+
+Confirmed with a real macOS click at the row's own centre (mapping calibrated
+against the search field first) and with an instrumented handler whose marker
+was verified present in the installed bundle. Eight causes were tested and
+disproven: `flexShrink`, `keyboardShouldPersistTaps="always"`, the autofocus,
+content height, a modal-presentation conflict, synthetic-tap timing,
+`GestureHandlerRootView`, and matching `SetRowSheet`'s structure exactly. Cause
+unknown; the component is kept, unused, with the findings at the old call site.
+
+The sheet never reached a shipped build, so users see no change. The rest of
+ADR-0041 stands. Browsing the shipped seed library from Train goes with the
+sheet and stays reachable mid-session via add-exercise, where it lived before.
+
+`train.ux-overhaul.test.tsx` asserted the sheet and PASSED against this bug:
+RNTL presses a TouchableOpacity directly and never runs a native hit-test — the
+same blind spot that shipped the collapsed search field on 2026-08-08 and is
+why the Maestro sweep exists.
+
 ## 2026-09-16 — "N of M days logged" counted days with no food in them
 
 The last of the five findings from the maintenance trace (the other four are
