@@ -156,6 +156,27 @@ describe('shouldAutoApplyOta', () => {
     expect(shouldAutoApplyOta({ ...base, isUpdatePending: false })).toBe(false);
   });
 
+  // The 2026-09-16 incident: a reviewed photo scan was lost because leaving the
+  // app to read a product label and coming back is a foreground transition, and
+  // a foreground transition was treated as proof the user was between tasks.
+  it('defers on a foreground while a surface is holding', () => {
+    expect(shouldAutoApplyOta({ ...base, moment: 'foreground', held: true })).toBe(false);
+  });
+
+  it('defers at mount too — a cold start can land straight into a restored scan', () => {
+    expect(shouldAutoApplyOta({ ...base, held: true })).toBe(false);
+  });
+
+  it('applies on the NEXT foreground once the hold is released', () => {
+    // A hold defers the update, it does not cancel it. Nothing re-arms, so the
+    // ordinary foreground path has to be what picks it back up.
+    expect(shouldAutoApplyOta({ ...base, moment: 'foreground', held: false })).toBe(true);
+  });
+
+  it('is unheld by default, so no caller has to opt in to being restarted', () => {
+    expect(shouldAutoApplyOta({ ...base, moment: 'foreground' })).toBe(true);
+  });
+
   it('applies when the target id is unknown but nothing has failed', () => {
     // A rollback UpdateInfo carries no updateId; it is still safe to apply.
     expect(shouldAutoApplyOta({ ...base, targetUpdateId: undefined })).toBe(true);

@@ -27,6 +27,9 @@ import {
 import { quotaResetLabel } from '@/lib/date-format';
 import { track } from '@/lib/analytics';
 import { clearLogTimer, startLogTimer } from '@/lib/log-timer';
+import { useAuth } from '@/lib/auth';
+import { useOtaHold } from '@/lib/ota-hold';
+import { clearScanDraft, readScanDraft, saveScanDraft } from '@/lib/scan-draft';
 import { encodeEntryPrefill } from '@/lib/entry-prefill';
 import { CountUpText, enterUp, PressScale } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
@@ -112,6 +115,8 @@ export default function Scan() {
   // `customFoods` is already on this hook, so repeat detection adds NO new
   // Firestore subscription (ADR-0016's per-hook model, unchanged).
   const { addEntry, customFoods } = useToday();
+  const { user } = useAuth();
+  const uid = user?.uid ?? null;
 
   // Seconds-per-log stopwatch (`lib/log-timer.ts`): the scan screen is a
   // logging surface, so the clock runs from the intro to the review's Add —
@@ -146,6 +151,80 @@ export default function Scan() {
    * know that before tapping Analyze, not after.
    */
   const [pendingUris, setPendingUris] = useState<string[]>([]);
+
+  /**
+   * Don't restart the process out from under this flow.
+   *
+   * `useAutoApplyOta` reloads on every background→active transition once a
+   * bundle is pending, and leaving the app mid-scan is ordinary — you go and
+   * read the label on the carton. On 2026-09-16 that combination ate a good
+   * scan of a mango kefir: result at 00:30:24Z, gone by the time she came back,
+   * re-logged by hand at 00:35. See `ota-hold.ts`. The update still applies, on
+   * the next foreground after this screen is done.
+   */
+  useOtaHold(phase !== 'intro');
+
+  /**
+   * Restore a scan the process died in the middle of.
+   *
+   * The hold above removes the cause we control; this covers the ones we do not
+   * (an iOS memory kill after the camera and the encode, a crash). A draft is
+   * only ever on disk because something ended the process — leaving on purpose
+   * clears it — so restoring straight into `review` is honest rather than
+   * startling. See `scan-draft.ts`.
+   */
+  const [restored, setRestored] = useState(false);
+  useEffect(() => {
+    if (!uid || restored) return;
+    let alive = true;
+    void readScanDraft(uid).then((d) => {
+      if (!alive) return;
+      setRestored(true);
+      if (!d) return;
+      setItems(d.items);
+      setMealName(d.mealName);
+      setPortion(d.portion);
+      setLowConf(d.lowConf);
+      setNote(d.note);
+      setRemaining(d.remaining);
+      setPhase('review');
+    });
+    return () => {
+      alive = false;
+    };
+  }, [uid, restored]);
+
+  /**
+   * Park every edit to the review, debounced.
+   *
+   * Debounced because `editGrams` fires per keystroke and the draft is only
+   * worth what it is at the moment the process dies — a write a third of a
+   * second behind the UI loses nothing a user would notice, and a write per
+   * character is churn on a path that must never be the slow part of typing.
+   */
+  useEffect(() => {
+    if (phase !== 'review' || !uid || !items.length) return;
+    const id = setTimeout(() => {
+      void saveScanDraft({
+        uid,
+        atMs: Date.now(),
+        items,
+        mealName,
+        portion,
+        lowConf,
+        note,
+        remaining,
+      });
+    }, 300);
+    return () => clearTimeout(id);
+  }, [phase, uid, items, mealName, portion, lowConf, note, remaining]);
+
+  /** Leaving on purpose ends the scan. Only an accident leaves a draft behind —
+   *  that is what makes an unexpected restore trustworthy. */
+  function onBack() {
+    void clearScanDraft();
+    router.back();
+  }
 
   /**
    * Capture → analyze, with the waiting made legible.
@@ -259,6 +338,7 @@ export default function Scan() {
   function logRepeat(c: RepeatCandidate<CustomFood>) {
     if (saving) return;
     haptics.tap();
+    void clearScanDraft();
     const mult = c.quantity != null && c.quantity > 0 ? c.quantity : 1;
     const f = c.food;
     router.replace({
@@ -336,6 +416,10 @@ export default function Scan() {
         // never took one.
         source: 'photo',
       });
+      // The row is written; the draft has nothing left to protect. Cleared
+      // BEFORE navigating so a restart during the transition cannot resurrect a
+      // meal the user has already logged.
+      await clearScanDraft();
       haptics.success();
       router.replace('/(app)'); // back to Today — rings re-sweep to the new total
     } finally {
@@ -361,7 +445,7 @@ export default function Scan() {
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.header}>
-        <PressScale style={styles.back} onPress={() => router.back()} scaleTo={0.9} testID="scan-back">
+        <PressScale style={styles.back} onPress={onBack} scaleTo={0.9} testID="scan-back">
           <Ionicons name="chevron-back" size={26} color={colors.ink} />
         </PressScale>
         <Text style={styles.title}>{t('scan.title')}</Text>
@@ -642,6 +726,7 @@ export default function Scan() {
               scaleTo={0.97}
               onPress={() => {
                 haptics.tap();
+                void clearScanDraft();
                 router.replace({ pathname: '/(app)', params: { openAdd: String(Date.now()) } });
               }}
               testID="scan-manual"

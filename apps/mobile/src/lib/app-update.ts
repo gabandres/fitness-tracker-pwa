@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Application from 'expo-application';
 import * as Updates from 'expo-updates';
 import { openExternal } from '@/lib/open-external';
+import { isOtaHeld } from '@/lib/ota-hold';
 import { useTheme } from '@/lib/theme-context';
 import type { ColorTokens } from '@/theme';
 
@@ -446,11 +447,19 @@ export function shouldAutoApplyOta(args: {
   moment: 'mount' | 'foreground';
   /** Whether a bundle was already waiting when the session started. */
   pendingAtMount: boolean;
+  /** Whether a surface is mid-flow and would lose state to a restart
+   *  (`ota-hold.ts`). Defers this reload; it does not cancel the update. */
+  held?: boolean;
 }): boolean {
-  const { isUpdatePending, targetUpdateId, failedUpdateId, moment, pendingAtMount } = args;
+  const { isUpdatePending, targetUpdateId, failedUpdateId, moment, pendingAtMount, held } = args;
   if (!isUpdatePending) return false;
   // Never re-apply a bundle that bricked its own launch.
   if (targetUpdateId && failedUpdateId === targetUpdateId) return false;
+  // Leaving and returning is NOT proof the user is between tasks. It is what
+  // someone does to check a product label mid-scan — and a reload there ate a
+  // reviewed photo scan on 2026-09-16 (see `ota-hold.ts`). A held surface gets
+  // this foreground; the next one applies.
+  if (held) return false;
   // At mount, only a bundle downloaded by an EARLIER run is safe: one that
   // arrives during this session waits for the user to leave.
   return moment === 'foreground' ? true : pendingAtMount;
@@ -505,6 +514,9 @@ export function useAutoApplyOta(): void {
         failedUpdateId: failed,
         moment,
         pendingAtMount: pendingAtMount.current === true,
+        // Read here, not captured: the hold must reflect the moment the event
+        // arrived, not the moment this effect subscribed.
+        held: isOtaHeld(),
       })) return;
       if (target) await AsyncStorage.setItem(ATTEMPT_KEY, target);
       try {
