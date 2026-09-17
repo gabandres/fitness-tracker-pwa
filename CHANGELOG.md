@@ -4,6 +4,52 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-09-16 — An auto-applied OTA was silently eating reviewed photo scans
+
+Reported as "the macros went good, she went out and came back and the data was
+lost". It was not the save path: scan→log conversion since `source:'photo'`
+landed on 2026-09-03 is 30 of 45 across all users, and the server side of the
+scan in question was clean — `analyzePhoto` returned HTTP 200 in 6.94 s with
+1/1 items resolved from USDA at 00:30:24Z.
+
+**The cause was our own update mechanism.** `useAutoApplyOta` calls
+`Updates.reloadAsync()` — a process restart — on *every* background→active
+transition once a bundle is pending. Four iOS OTAs went out in the 24 h before
+that scan, two of them ~9 h before. The user left the app to read the product
+label (her own note names the brand), came back, and the restart took the
+review with it: `scan.tsx` held the entire result in `useState` and nothing
+else. She re-logged it by hand at 00:35:05 as a bare 140 kcal / 10 p quick-add
+— no carbs, no fat, no `source:'photo'`. The quota slot and the model call
+bought nothing, and there was no error, no draft and nothing to recover.
+
+ADR-0031 had already written down that auto-apply "applies on **every**
+foreground once a bundle is pending" — but as the explanation for why the
+update banner is almost never seen, not as a data-loss risk. The code comment
+next to it even named "a half-typed entry sheet" as the thing waiting for a
+background→foreground transition was supposed to protect.
+
+Two fixes, because they cover different halves of the problem:
+
+- **`ota-hold.ts`** — a ref-counted hold that DEFERS the reload (it never
+  cancels the update; the next foreground applies it). `/scan` holds from the
+  moment a photo is picked. Leaving and returning is not proof the user is
+  between tasks.
+- **`scan-draft.ts`** — the reviewed scan is parked on disk, debounced, and
+  restored on mount. This is what covers the causes we do NOT control: an iOS
+  memory kill after the camera and the base64 encode, or a crash. A draft
+  survives an **accident**, never a **decision** — cleared on add and on every
+  deliberate exit, so the only way one is still on disk is that the process
+  went away underneath it, which is what makes an unexpected restore
+  trustworthy instead of startling.
+
+Deliberately not folded into `offline-cache.ts`, which says of itself that it
+"never feeds a write"; this draft exists precisely to still be there when the
+user taps Add.
+
+Shipped OTA to both platforms the same day, `478e00b4`, on the runtimes vc 45
+and build 64 already carry — both gates re-run and matched. Row in
+`apps/mobile/docs/fingerprint-ledger.md`. 843 mobile tests pass.
+
 ## 2026-09-16 — The iOS regression suite goes 17 of 20 → 19 of 20
 
 Three flows fixed, one red left, and one method error worth more than any of

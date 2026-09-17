@@ -215,8 +215,9 @@ artifact"; which version is *live* is `STATUS.md`'s question.
 | Android | vc 45 / 1.2.3 — Play production + alpha | `15c1cfc8aaa0951e882c278af5c1256de5836194` | the `.aab` |
 | iOS | build 64 / 1.2.3 — App Store | `52802bba95ac0ac3f4cfd053d6ee61c354cc18d9` | the `.ipa` |
 
-Both channels are OPEN on those hashes; the newest OTA on each is `dae6aa3a`
-(2026-09-16, second publish — ADR-0040 slice 3, the `hit` reader). **Only a value read from the artifact is evidence** — a build
+Both channels are OPEN on those hashes; the newest OTA on each is `478e00b4`
+(2026-09-16, third publish — the OTA auto-apply no longer eats a reviewed photo
+scan). **Only a value read from the artifact is evidence** — a build
 log, a locally generated hash, or an old Windows-computed number is not.
 
 **What MOVES the fingerprint (⇒ a build per platform):**
