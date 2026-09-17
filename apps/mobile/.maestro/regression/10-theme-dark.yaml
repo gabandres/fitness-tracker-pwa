@@ -112,7 +112,10 @@ env:
 - scroll
 - takeScreenshot: .maestro/regression/shots/10-dark-today-entries
 # ── tabs ──
-- tapOn: 'Train'
+# Train by ID — its label carries ", Workout in progress" while a session is
+# live, unlike Trends/Body below (2026-09-17).
+- tapOn:
+    id: 'tab-train'
 - takeScreenshot: .maestro/regression/shots/10-dark-train
 - tapOn: 'Trends'
 - takeScreenshot: .maestro/regression/shots/10-dark-trends

@@ -149,7 +149,10 @@ appId: fit.ignia.app
           point: '50%,8%'
 
 # ── Train keeps its own, unchanged by the generalisation ──
-- tapOn: 'Train'
+# By ID: the tab reads "Train, Workout in progress" while a session is live,
+# which a text selector cannot full-match (2026-09-17).
+- tapOn:
+    id: 'tab-train'
 - extendedWaitUntil:
     visible:
       id: 'train-glossary-open'

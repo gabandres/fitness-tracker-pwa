@@ -129,7 +129,10 @@ appId: fit.ignia.app
 # solver runs in the DISPLAY unit rather than solving in pounds and converting
 # — converting afterwards yields 20.4 kg plates no rack owns. The arithmetic is
 # `packages/core/src/load-units.test.ts`; this is the wiring.
-- tapOn: 'Train'
+# By ID: the tab reads "Train, Workout in progress" with a session live, which
+# a text selector cannot full-match (2026-09-17).
+- tapOn:
+    id: 'tab-train'
 - extendedWaitUntil:
     visible: 'Templates'
     timeout: 15000

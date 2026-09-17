@@ -45,7 +45,16 @@ appId: fit.ignia.app
 - launchApp:
     clearState: false
 - assertVisible: 'Today'
-- tapOn: 'Train'
+# By ID: with a session live the tab's label is "Train, Workout in progress",
+# and a text selector full-matches, so `tapOn: 'Train'` fails in precisely the
+# state the guard below exists to clean up. On 2026-09-17 flow 16 died before
+# its teardown and this flow never reached that guard.
+- tapOn:
+    id: 'tab-train'
+- extendedWaitUntil:
+    visible:
+      id: 'train-glossary-open'
+    timeout: 60000
 
 # A session left in progress by an earlier flow's death hides the whole idle
 # view, and `new-template` is then not on screen for a reason that has nothing

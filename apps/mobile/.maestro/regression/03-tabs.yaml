@@ -7,7 +7,15 @@ appId: fit.ignia.app
 - launchApp:
     clearState: false
 - assertVisible: 'Today'
-- tapOn: 'Train'
+# By ID: while a session is live the tab's label is "Train, Workout in
+# progress", which a text selector cannot full-match — and a workout left over
+# by an earlier run's death would fail the suite here, at flow 3 (2026-09-17).
+- tapOn:
+    id: 'tab-train'
+- extendedWaitUntil:
+    visible:
+      id: 'train-glossary-open'
+    timeout: 60000
 - takeScreenshot: .maestro/regression/shots/03-train
 - scroll
 - scroll
