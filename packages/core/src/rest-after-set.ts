@@ -22,6 +22,28 @@ export interface RestSeconds {
 export const REST_INTO_DROP_SEC = 10;
 
 /**
+ * Rest before a `continuation` set: the short intra-block pause, not a real rest.
+ *
+ * A `continuation` is the prescribed second half of an activation — rest-pause
+ * ("activation to failure, SHORT rest, continue to failure") and cluster
+ * ("prescribed reps per mini-block with INTRA-SET rest"). Both structures are
+ * defined by the shortness of this gap: rest the between-sets value into one and
+ * the continuation stops being a continuation and becomes an ordinary second
+ * set, which is the same failure {@link REST_INTO_DROP_SEC} exists to prevent
+ * for drops. `progression-engine.ts` already states the intent — "a rest-pause
+ * continuation is SUPPOSED to be short".
+ *
+ * Not configurable, for the same reason as the drop constant: the template's two
+ * knobs are "between sets" and "between clusters", and neither is this. A third
+ * field would only be a way to set it wrong.
+ *
+ * ADR-0040 added the `continuation` kind on 2026-09-16 without teaching this
+ * function about it, so both structures fell through to `rest.mini` — the
+ * between-STRAIGHT-sets rest — and shipped that way in OTA `478e00b4`.
+ */
+export const REST_INTO_CONTINUATION_SEC = 20;
+
+/**
  * Which rest follows the set at `index`.
  *
  * The rest between two sets belongs to the set that is COMING, not the one just
@@ -37,12 +59,12 @@ export const REST_INTO_DROP_SEC = 10;
  * So: the long rest when the next set opens a new cluster (`activation`) or
  * there is no next set in this exercise; the short rest otherwise.
  *
- * The one exception is a `drop` coming next, which takes
- * {@link REST_INTO_DROP_SEC} regardless of either template value — see that
- * constant for why. It is checked FIRST because a drop is the last set of its
- * exercise in practice, and the `!next` branch would otherwise never be
- * reached for it anyway; ordering it here makes the rule independent of where
- * the drop happens to sit.
+ * Two kinds coming next override both template values, and both are checked
+ * FIRST so the rule stays independent of where in the list they sit: a `drop`
+ * takes {@link REST_INTO_DROP_SEC} and a `continuation` takes
+ * {@link REST_INTO_CONTINUATION_SEC} — see those constants for why. (A drop is
+ * the last set of its exercise in practice, so the `!next` branch would never
+ * be reached for it anyway.)
  */
 export function restAfterSet(
   sets: readonly { kind: SetKind }[],
@@ -51,6 +73,7 @@ export function restAfterSet(
 ): number {
   const next = sets[index + 1];
   if (next?.kind === 'drop') return REST_INTO_DROP_SEC;
+  if (next?.kind === 'continuation') return REST_INTO_CONTINUATION_SEC;
   if (!next || next.kind === 'activation') return rest.cluster;
   return rest.mini;
 }

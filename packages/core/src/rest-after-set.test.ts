@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { restAfterSet } from './rest-after-set';
+import { REST_INTO_CONTINUATION_SEC, restAfterSet } from './rest-after-set';
 
 const rest = { mini: 20, cluster: 150 };
 const cluster = [
@@ -54,5 +54,49 @@ describe('restAfterSet — into a drop set', () => {
   it('does not disturb a sequence with no drop in it', () => {
     expect(restAfterSet(cluster, 0, rest)).toBe(20);
     expect(restAfterSet(cluster, 2, rest)).toBe(150);
+  });
+});
+
+describe('restAfterSet — into a continuation set', () => {
+  // The two shapes `scaffoldKindsFor` builds for the structures ADR-0040 added.
+  const restPause = [{ kind: 'activation' as const }, { kind: 'continuation' as const }];
+  const clusterBlock = [
+    { kind: 'activation' as const },
+    { kind: 'continuation' as const },
+    { kind: 'continuation' as const },
+  ];
+  // Deliberately NOT the file's `rest`, whose `mini` is 20 and would pass this
+  // suite by coincidence against the very bug it is here to pin.
+  const longRest = { mini: 90, cluster: 180 };
+
+  it('rests the short intra-block pause, not the between-sets rest', () => {
+    expect(restAfterSet(restPause, 0, longRest)).toBe(REST_INTO_CONTINUATION_SEC);
+    expect(restAfterSet(clusterBlock, 0, longRest)).toBe(REST_INTO_CONTINUATION_SEC);
+    expect(restAfterSet(clusterBlock, 1, longRest)).toBe(REST_INTO_CONTINUATION_SEC);
+  });
+
+  it('cannot be lengthened by the template or by an exercise-level override', () => {
+    // The regression: `continuation` had no case, so both of these returned the
+    // straight-set rest and the continuation became an ordinary second set.
+    expect(restAfterSet(restPause, 0, { mini: 300, cluster: 600 })).toBe(REST_INTO_CONTINUATION_SEC);
+    expect(restAfterSet(restPause, 0, { ...longRest, mini: 120 })).toBe(REST_INTO_CONTINUATION_SEC);
+  });
+
+  it('gives the long rest after the block, where the next effort is a real one', () => {
+    expect(restAfterSet(restPause, 1, longRest)).toBe(180);
+    expect(restAfterSet(clusterBlock, 2, longRest)).toBe(180);
+  });
+
+  it('rests long between blocks of a multi-block exercise', () => {
+    const twoBlocks = [...restPause, ...restPause];
+    expect(restAfterSet(twoBlocks, 1, longRest)).toBe(180); // block 1 → block 2
+    expect(restAfterSet(twoBlocks, 2, longRest)).toBe(REST_INTO_CONTINUATION_SEC);
+    expect(restAfterSet(twoBlocks, 3, longRest)).toBe(180);
+  });
+
+  it('leaves myo-reps mini-sets on the template value', () => {
+    // `mini` and `continuation` are different kinds: only the latter is pinned.
+    expect(restAfterSet(cluster, 0, longRest)).toBe(90);
+    expect(restAfterSet(cluster, 1, longRest)).toBe(90);
   });
 });

@@ -1,0 +1,189 @@
+# The rest that follows a set, measured on the timer the user actually sees.
+#
+# WHY THIS EXISTS. `restAfterSet` decides the countdown from the kind of the set
+# that is COMING. ADR-0040 added the `continuation` kind on 2026-09-16 for
+# rest-pause and cluster work; nothing taught that function about it, so a
+# continuation fell through to the between-STRAIGHT-sets rest and a rest-pause
+# continuation got a full rest — which makes it an ordinary second set, the same
+# failure `REST_INTO_DROP_SEC` exists to prevent for drops. It shipped that way
+# in OTA `478e00b4` and the owner found it on a phone.
+#
+# It was invisible to everything: `tsc` passes, and the core unit suite had 1653
+# green tests with ZERO `continuation` case in `rest-after-set.test.ts`. No
+# Maestro flow touched the rest timer either — before this file, no flow in the
+# suite even tapped a `set-done-*` box. A pure-function fix plus a unit test
+# closes the arithmetic; this closes "the app wires it through", which is the
+# half that ADR-0041 churned and that a unit test cannot see.
+#
+# WHAT IT ASSERTS. Two readings off `rest-bar`, and the SECOND is what stops a
+# fix from becoming an over-correction:
+#   1. next set is a `continuation` → the short intra-block pause (0:20)
+#   2. next set does not exist      → the long rest (2:00) still happens
+# An ad-hoc session carries no template, so the fallbacks are the values under
+# test: mini 60s ("1:00") and cluster 120s ("2:00"). The regression therefore
+# reads "1:00" at step 1 — a different MINUTE from the correct 0:20, so the
+# regex below cannot pass against it by rounding or by a slow tick.
+#
+# STATE: starts ONE session and discards it in its own tail, then deletes the
+# "QA " catalog entry it created. Nothing is left in Firestore.
+appId: fit.ignia.app
+---
+- launchApp:
+    clearState: false
+- assertVisible: 'Today'
+# By ID, then assert arrival — 21-train-cardio's harness lesson 1, and with a
+# session live the tab reads "Train, Workout in progress", which a text
+# selector cannot full-match.
+- tapOn:
+    id: 'tab-train'
+- extendedWaitUntil:
+    visible:
+      id: 'train-glossary-open'
+    timeout: 60000
+- waitForAnimationToEnd:
+    timeout: 5000
+
+# Leftover-session guard. It SCROLLS rather than keying on a visible
+# `discard-workout` — 21's harness lesson 3: that button sits in the footer
+# under the whole exercise list, so a `when: visible:` guard silently skips
+# itself exactly when a session is big enough to need it.
+- runFlow:
+    when:
+      notVisible:
+        id: 'start-workout'
+    commands:
+      - scrollUntilVisible:
+          element:
+            id: 'discard-workout'
+          direction: DOWN
+          timeout: 20000
+          centerElement: true
+      - tapOn:
+          id: 'discard-workout'
+      - extendedWaitUntil:
+          visible:
+            id: 'start-workout'
+          timeout: 20000
+
+- tapOn:
+    id: 'start-workout'
+- extendedWaitUntil:
+    visible:
+      id: 'add-exercise'
+    timeout: 60000
+- tapOn:
+    id: 'add-exercise'
+- tapOn:
+    id: 'exercise-name'
+- inputText: 'QA Rest Pause'
+# Tap the sheet's own title first — the keyboard is up and Maestro taps an
+# element's LAYOUT bounds, so a create-row tap would land on the keyboard
+# (documented in 14-metrics and 16-train-terms).
+- tapOn: 'Add exercise'
+- tapOn:
+    id: 'create-exercise'
+# An ad-hoc exercise arrives with exactly ONE set, kind `working`
+# (`useTrain.addExerciseToActive`). The rest before a set is decided by the set
+# AFTER it, so this flow needs a second row before it can say anything.
+- extendedWaitUntil:
+    visible:
+      id: 'set-done-0-0'
+    timeout: 30000
+- tapOn:
+    id: 'add-set-0'
+- extendedWaitUntil:
+    visible:
+      id: 'set-done-0-1'
+    timeout: 15000
+
+# ── 1. A continuation coming next → the SHORT intra-block pause ───
+# Make row 1 a continuation. The kind rows live in the shared `SetRowSheet`
+# since ADR-0041, so the option id has no `-<ex>-<set>` suffix; the CELL that
+# opens it keeps its coordinates.
+- tapOn:
+    id: 'set-kind-0-1'
+- assertVisible:
+    id: 'set-sheet-kind-continuation'
+- tapOn:
+    id: 'set-sheet-kind-continuation'
+# Picking a kind closes the sheet (`onKind` dispatches then sets it closed).
+- extendedWaitUntil:
+    visible:
+      id: 'set-done-0-0'
+    timeout: 15000
+
+# Check the box on row 0. Row 1 is the continuation, so this is the rest-pause
+# pause — 0:20, not the 1:00 between-sets rest.
+- tapOn:
+    id: 'set-done-0-0'
+- assertVisible:
+    id: 'rest-bar'
+# Assert the LABEL, which is a child Text node - `rest-bar` is the container and
+# its own accessible text is EMPTY, so an `id: rest-bar` + `text:` selector can
+# never match however right the regex is (measured 2026-09-17; it reads as the
+# timer showing the wrong value when in fact nothing was compared).
+- assertVisible: '.*Rest . 0:.*'
+# The real discriminator, and it is a DISAPPEARANCE, not a value. Maestro's iOS
+# hierarchy fetch costs ~15 s per assertion and the timer ticks once a second,
+# so by the time any value assertion runs, 20 s has become 0:03 and the
+# regression's 60 s has become 0:4x - both "sub-minute", i.e. a value check
+# cannot separate them and a tighter regex only makes it flaky. Running out
+# inside 40 s can only happen on the short rest: the regression is still
+# counting at 40 s.
+- extendedWaitUntil:
+    notVisible:
+      id: 'rest-bar'
+    timeout: 40000
+
+# ── 2. Nothing coming next → the LONG rest, unchanged ─────────────
+# The over-correction guard. Pinning the continuation must not pin every rest:
+# row 1 is the last set of the exercise, which still takes the cluster rest.
+- tapOn:
+    id: 'set-done-0-1'
+- assertVisible:
+    id: 'rest-bar'
+# A MINUTE digit. This one survives the fetch latency on its own: 120 s still
+# reads 1:4x a full 15 s later, while the short rest could never show a minute
+# digit at all. (Again the label, not the container - see above.)
+- assertVisible: '.*Rest . [12]:[0-5][0-9].*'
+- takeScreenshot: .maestro/regression/shots/22-rest-after-last-set
+- tapOn:
+    id: 'rest-skip'
+
+# ── 3. Teardown: leave the account as we found it ─────────────────
+- scrollUntilVisible:
+    element:
+      id: 'discard-workout'
+    direction: DOWN
+    timeout: 20000
+    centerElement: true
+- tapOn:
+    id: 'discard-workout'
+- extendedWaitUntil:
+    visible:
+      id: 'start-workout'
+    timeout: 20000
+# The catalog entry outlives the session.
+# Straight down the Train tab again: the catalog is an INLINE list once more.
+# ADR-0041 had moved it into `ExerciseLibrarySheet`, whose rows turned out to be
+# untappable on iOS, and that sheet was reverted on 2026-09-17 - so `open-library`
+# and `exercise-library-row` no longer exist. Regex, not the bare name: iOS merges
+# a catalog ROW into one label, so the name is not a node of its own. 45s, not 15s
+# - this step failed on 2026-08-23 when the budget ran out while Train was still
+# settling, and the capture showed the row plainly on screen.
+- scrollUntilVisible:
+    element:
+      text: '.*QA Rest Pause.*'
+    direction: DOWN
+    timeout: 45000
+    centerElement: true
+- tapOn: '.*QA Rest Pause.*'
+- extendedWaitUntil:
+    visible:
+      id: 'exercise-delete'
+    timeout: 20000
+- tapOn:
+    id: 'exercise-delete'
+- tapOn:
+    id: 'exercise-delete-confirm'
+- takeScreenshot: .maestro/regression/shots/22-teardown
