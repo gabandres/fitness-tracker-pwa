@@ -100,7 +100,6 @@ import {
 import { RecommendationNote } from '@/components/train/RecommendationNote';
 import { LiftSettingsSheet } from '@/components/train/LiftSettingsSheet';
 import { ExerciseSearchList } from '@/components/train/ExerciseSearchList';
-import { ExerciseLibrarySheet } from '@/components/train/ExerciseLibrarySheet';
 import { ExerciseMenuSheet, type ExerciseMenuAction } from '@/components/train/ExerciseMenuSheet';
 import { NextUpCard } from '@/components/train/NextUpCard';
 import { SetRowSheet } from '@/components/train/SetRowSheet';
@@ -218,7 +217,6 @@ function StartView({
   const [editing, setEditing] = useState<WorkoutTemplate | Record<string, never> | null>(null);
   const [detailEx, setDetailEx] = useState<Exercise | null>(null);
   const [startersOpen, setStartersOpen] = useState(false);
-  const [libraryOpen, setLibraryOpen] = useState(false);
   // The cluster audit is a six-chip block that used to sit ABOVE the primary
   // action. Collapsed to its one-line verdict, with the chips one tap away.
   const [auditOpen, setAuditOpen] = useState(false);
@@ -341,9 +339,6 @@ function StartView({
           testID="start-workout"
         >
           <Text style={styles.secondaryLink}>{t('train.startEmpty')}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => setLibraryOpen(true)} hitSlop={8} testID="open-library">
-          <Text style={styles.secondaryLink}>{t('train.library')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -490,20 +485,37 @@ function StartView({
         </View>
       )}
 
-      {/* The catalog used to render here in full, unbounded, as the sixth
-          stacked section of the home screen. A library is a lookup surface —
-          you arrive at it with a movement in mind — so it is one row and a
-          searchable sheet (`ExerciseLibrarySheet`). */}
-      <Pressable
-        style={styles.exLibRow}
-        onPress={() => setLibraryOpen(true)}
-        testID="exercise-library-row"
-      >
-        <Text style={styles.histDate}>{t('train.exercises')}</Text>
-        <Text style={styles.histSub}>
-          {t('train.libraryCount', { n: train.catalog.length })}
-        </Text>
-      </Pressable>
+      {/* INLINE catalog, restored 2026-09-17. ADR-0041 replaced this with one row
+          plus `ExerciseLibrarySheet`, and NOTHING INSIDE THAT SHEET'S ScrollView is
+          tappable on iOS: the list scrolls, the search field above it takes taps,
+          and no row ever fires `onPress` - verified with a real macOS click at the
+          row's own centre (mapping calibrated against the search field) and with
+          instrumentation confirmed present in the installed bundle. Eight causes
+          were tested and disproven: flexShrink, keyboardShouldPersistTaps=always,
+          the autofocus, content height, a modal-presentation conflict, synthetic-tap
+          timing, GestureHandlerRootView, and matching SetRowSheet's structure
+          exactly. Cause still unknown; the component is kept, unused, for that work.
+          This list is the pre-ADR-0041 code and is known to work.
+          NOTE: browsing the SHIPPED seed library from Train goes with the sheet. It
+          is still reachable mid-session through add-exercise. */}
+      {train.catalog.length ? (
+        <>
+          <Text style={styles.sectionTitle}>{t('train.exercises')}</Text>
+          <View style={styles.list}>
+            {train.catalog.map((e) => (
+              <Pressable
+                key={e.id}
+                style={styles.exLibRow}
+                onPress={() => setDetailEx(e)}
+                testID={`exercise-${e.id}`}
+              >
+                <Text style={styles.histDate}>{e.name}</Text>
+                <Text style={styles.histSub}>{t(logStyleKey(e.logStyle))}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </>
+      ) : null}
 
       <TemplateEditorModal
         visible={editing !== null}
@@ -521,18 +533,6 @@ function StartView({
         visible={startersOpen}
         train={train}
         onClose={() => setStartersOpen(false)}
-      />
-      <ExerciseLibrarySheet
-        visible={libraryOpen}
-        catalog={train.catalog}
-        onClose={() => setLibraryOpen(false)}
-        onOpenExercise={(e) => {
-          setLibraryOpen(false);
-          setDetailEx(e);
-        }}
-        onAddSeed={async (seed) => {
-          await train.addLibraryExercise(seed);
-        }}
       />
     </ScrollView>
   );

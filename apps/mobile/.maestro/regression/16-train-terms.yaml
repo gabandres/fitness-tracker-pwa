@@ -18,7 +18,17 @@ appId: fit.ignia.app
 - launchApp:
     clearState: false
 - assertVisible: 'Today'
-- tapOn: 'Train'
+# By ID, and then assert arrival — 21-train-cardio's harness lesson 1. There is
+# a second reason here since ADR-0041: with a session live the tab's label is
+# "Train, Workout in progress", and a text selector full-matches, so
+# `tapOn: 'Train'` cannot find it in exactly the state a died-mid-flow run
+# leaves behind. That is what broke 18 and 19 on 2026-09-17.
+- tapOn:
+    id: 'tab-train'
+- extendedWaitUntil:
+    visible:
+      id: 'train-glossary-open'
+    timeout: 60000
 
 # ── 1. The glossary, straight off the tab header ──────────────────
 - tapOn:
@@ -90,7 +100,11 @@ appId: fit.ignia.app
     commands:
       - tapOn:
           point: '50%, 12%'
-- assertVisible: 'Train'
+# The Train header, not the tab label: `train-glossary-open` is present in both
+# of this tab's states, while the text 'Train' disappears the moment a session
+# goes live (the tab reads "Train, Workout in progress").
+- assertVisible:
+    id: 'train-glossary-open'
 
 # ── 2. A set row, and the two pickers on it ───────────────────────
 # A previous run that died mid-flow leaves a session in progress, and then
@@ -210,15 +224,22 @@ appId: fit.ignia.app
 - assertVisible: 'Set type'
 # Regex, not the bare sentence. Each row of this picker is a title plus a
 # description, and iOS merges them into ONE label — measured 2026-08-18:
-# `set-kind-0-0-working` reads "Working, A real, hard set — the default.".
+# the Working row reads "Working, A real, hard set — the default.".
 # A full-match text selector cannot match a description that is only part
 # of its row's label. Android keeps the two Texts separate, and `.*…` still
 # matches there, so one regex serves both platforms.
 - assertVisible: '.*A real, hard set.*'
 - assertVisible: '.*First hard set of a cluster.*'
 - takeScreenshot: .maestro/regression/shots/16-set-types
+# `set-sheet-kind-working`, NOT `set-kind-0-0-working`. ADR-0041 moved the
+# set-kind OPTIONS into the shared sheet, which renders them once and so drops
+# the per-row `-<ex>-<set>-` coordinates; the CELL you tap to open it
+# (`set-kind-0-0`, above) kept its. The sibling RIR ids moved in `25b55ff7`
+# and this one did not, which cost the 2026-09-17 iOS run three flows: this
+# tap is the last step BEFORE the teardown, so the failure left a workout in
+# progress and 18/19 then failed on the Train tab (see their tab-tap note).
 - tapOn:
-    id: 'set-kind-0-0-working'
+    id: 'set-sheet-kind-working'
 
 # ── 3. Teardown: leave the account as we found it ─────────────────
 - scrollUntilVisible:
@@ -252,6 +273,13 @@ appId: fit.ignia.app
 # catalog, and the next run's screenshots inherit it. `qa-regression-verify.mjs
 # cleanup` now also deletes "QA "-prefixed exercises and templates, so the
 # recovery exists — but the flow should not need it.
+# Straight down the Train tab again: the catalog is an INLINE list once more.
+# ADR-0041 had moved it into `ExerciseLibrarySheet`, whose rows turned out to be
+# untappable on iOS, and that sheet was reverted on 2026-09-17 - so `open-library`
+# and `exercise-library-row` no longer exist. Regex, not the bare name: iOS merges
+# a catalog ROW into one label, so the name is not a node of its own. 45s, not 15s
+# - this step failed on 2026-08-23 when the budget ran out while Train was still
+# settling, and the capture showed the row plainly on screen.
 - scrollUntilVisible:
     element:
       text: '.*QA Term Check.*'
@@ -259,6 +287,10 @@ appId: fit.ignia.app
     timeout: 45000
     centerElement: true
 - tapOn: '.*QA Term Check.*'
+- extendedWaitUntil:
+    visible:
+      id: 'exercise-delete'
+    timeout: 20000
 - tapOn:
     id: 'exercise-delete'
 - tapOn:

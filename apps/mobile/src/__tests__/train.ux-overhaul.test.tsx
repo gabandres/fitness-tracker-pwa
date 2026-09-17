@@ -166,9 +166,17 @@ describe('the home screen answers "what am I doing today"', () => {
     expect(mockStartWorkout).toHaveBeenCalledTimes(1);
   });
 
-  it('puts the exercise catalog behind one row instead of listing it all', async () => {
+  // ADR-0041 put the catalog behind one row plus `ExerciseLibrarySheet`. That was
+  // REVERTED on 2026-09-17: nothing inside the sheet's ScrollView was tappable on
+  // iOS, so the catalog became unreachable. The list is inline again.
+  //
+  // Note what this file could NOT see: the version of this suite that drove the
+  // sheet passed green, because RNTL presses a `TouchableOpacity` directly and
+  // never runs a native hit-test. Only the Maestro sweep caught it - the same
+  // blind spot that shipped the collapsed search field on 2026-08-08.
+  it('lists the exercise catalog inline, each row opening its detail', async () => {
     const ui = await render(<TrainScreen />);
-    expect(ui.getByTestId('exercise-library-row')).toBeTruthy();
+    expect(ui.getByTestId('exercise-e1')).toBeTruthy();
   });
 });
 
@@ -213,9 +221,7 @@ describe('muscle attribution', () => {
     // creation path wrote `[]`, and no screen could set them afterwards — so
     // `weeklyClusterAudit` reported a gap the user could not close.
     const ui = await render(<TrainScreen />);
-    await fireEvent.press(ui.getByTestId('exercise-library-row'));
-    await waitFor(() => expect(ui.getByTestId('library-mine-0')).toBeTruthy());
-    await fireEvent.press(ui.getByTestId('library-mine-0'));
+    await fireEvent.press(ui.getByTestId('exercise-e1'));
     await waitFor(() => expect(ui.getByTestId('exercise-edit')).toBeTruthy());
     await fireEvent.press(ui.getByTestId('exercise-edit'));
     await waitFor(() => expect(ui.getByTestId('edit-muscle-triceps')).toBeTruthy());
