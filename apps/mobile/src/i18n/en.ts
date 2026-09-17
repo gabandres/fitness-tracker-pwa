@@ -194,13 +194,28 @@ export const en = {
   'today.fat': 'Fat',
   'today.entries': 'Entries',
   'today.maintenance': 'maintenance',
-  'today.underMaintenance': '{n} under your burn',
-  'today.overMaintenance': '{n} over your burn',
-  'today.maintenanceRough': '{logged} of the last {span} days logged — gaps make this less certain',
+  // "your USUAL burn", not "your burn". This figure is a rolling average
+  // over up to 42 logged days and it structurally excludes today — today's
+  // intake is zeroed out of it (`withoutInProgressIntake`) and HealthKit
+  // active energy is not an input to it at all (ADR-0024). The old wording
+  // sat one card above "356 kcal active" for today, and a user reasonably
+  // read the two as the same day's number.
+  'today.underMaintenance': '{n} under your usual burn',
+  'today.overMaintenance': '{n} over your usual burn',
+  // NOT "the last {span} days": `spanDays` is the calendar span of the rows
+  // in the window, measured back from the newest one — so after a lapse it
+  // is a span that ended whenever you last logged, not one ending today.
+  'today.maintenanceRough': '{logged} of {span} days logged — gaps make this less certain',
   'today.maintenanceHolding':
     'Holding steady — recent weigh-ins are too scattered to update this. Weigh in most days and it will start moving again.',
+  // The remedy named here has to be the real one. `confidence` is gated on
+  // completeness = windowDays / spanDays, and windowDays is CAPPED at 42 —
+  // so logging MORE days cannot raise the numerator. The ratio improves when
+  // the span shrinks as old gap days roll off the tail, which is what
+  // `maintenance-view.ts` says beside `loggedDays` and what this string said
+  // the opposite of until 2026-09-16.
   'today.maintenanceProvisional':
-    'Part formula estimate for now — it shifts toward your own data as you log',
+    'Part formula estimate for now — it shifts to your own data as the gaps roll off your record',
   'today.maintenanceOutlier': '1 weigh-in ignored — a real jump in weight can look like a bad reading',
   'today.measureProgress': '{n} of {needed} logged days toward your measured burn',
   'today.measureNext': 'Log {n} more and Ignia measures what you actually burn — no formula',

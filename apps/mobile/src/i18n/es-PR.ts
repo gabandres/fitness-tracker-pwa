@@ -182,13 +182,13 @@ export const esPR: Record<I18nKey, string> = {
   'today.fat': 'Grasa',
   'today.entries': 'Registros',
   'today.maintenance': 'mantenimiento',
-  'today.underMaintenance': '{n} bajo lo que quemas',
-  'today.overMaintenance': '{n} sobre lo que quemas',
-  'today.maintenanceRough': '{logged} de los últimos {span} días anotados — los huecos lo hacen menos preciso',
+  'today.underMaintenance': '{n} bajo lo que quemas normalmente',
+  'today.overMaintenance': '{n} sobre lo que quemas normalmente',
+  'today.maintenanceRough': '{logged} de {span} días anotados — los huecos lo hacen menos preciso',
   'today.maintenanceHolding':
     'Se mantiene igual — los pesajes recientes están muy regados para actualizarlo. Pésate casi todos los días y vuelve a moverse.',
   'today.maintenanceProvisional':
-    'Por ahora es en parte la fórmula — se acerca a tus datos según vas anotando',
+    'Por ahora es en parte la fórmula — se acerca a tus datos según los huecos van saliendo de tu récord',
   'today.maintenanceOutlier':
     '1 pesaje ignorado — un cambio real de peso puede parecer una lectura mala',
   'today.measureProgress': '{n} de {needed} días anotados para medir tu gasto real',
