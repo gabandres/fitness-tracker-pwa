@@ -185,6 +185,8 @@ export const esPR: Record<I18nKey, string> = {
   'today.underMaintenance': '{n} bajo lo que quemas normalmente',
   'today.overMaintenance': '{n} sobre lo que quemas normalmente',
   'today.maintenanceRough': '{logged} de {span} días anotados — los huecos lo hacen menos preciso',
+  'today.maintenanceRoughFood':
+    '{logged} de {span} días anotados, {food} con comida — los huecos lo hacen menos preciso',
   'today.maintenanceHolding':
     'Se mantiene igual — los pesajes recientes están muy regados para actualizarlo. Pésate casi todos los días y vuelve a moverse.',
   'today.maintenanceProvisional':

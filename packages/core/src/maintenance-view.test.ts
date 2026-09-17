@@ -11,6 +11,9 @@ describe('maintenanceView', () => {
       delta: -60,
       reliable: true,
       loggedDays: 23,
+      // Below `loggedDays` in the fixture on purpose — a window normally
+      // holds some weigh-in-only or workout-only rows.
+      intakeDays: 21,
       spanDays: 28,
       weighInsDropped: 0,
       // A TdeeResult carrying no `confidence` reads as "nothing held back".
@@ -92,5 +95,29 @@ describe('maintenanceView', () => {
   it('rounds intake and never reports a negative consumed', () => {
     expect(maintenanceView(measured(), 1810.4)?.consumed).toBe(1810);
     expect(maintenanceView(measured(), -5)?.consumed).toBe(0);
+  });
+
+  describe('intakeDays — the caveat must not overstate its own evidence', () => {
+    it('carries the FOOD-day count separately from the row count', () => {
+      const v = maintenanceView(measured({ windowDays: 42, intakeDays: 38 }), 1810);
+      expect(v?.loggedDays).toBe(42);
+      expect(v?.intakeDays).toBe(38);
+    });
+
+    it('is the same as loggedDays when every row carried food', () => {
+      // The caller shows the plainer sentence in this case; there is nothing
+      // extra worth saying.
+      const v = maintenanceView(measured({ windowDays: 30, intakeDays: 30 }), 1810);
+      expect(v?.intakeDays).toBe(v?.loggedDays);
+    });
+
+    it('never exceeds loggedDays', () => {
+      // A workout writes WORKOUT_MARKER_KCAL = 0 and a weigh-in writes no
+      // calories at all: both are rows, neither is a meal. So the food count
+      // is a subset by construction, and a caveat reading "42 of 63 days
+      // logged" was claiming 42 days of intake evidence it may not have.
+      const v = maintenanceView(measured({ windowDays: 20, intakeDays: 12 }), 1810);
+      expect(v!.intakeDays!).toBeLessThanOrEqual(v!.loggedDays!);
+    });
   });
 });

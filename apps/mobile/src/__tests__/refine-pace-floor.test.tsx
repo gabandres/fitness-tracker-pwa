@@ -22,6 +22,7 @@ const tdee: TdeeResult = {
   reliable: true,
   loggingCompletenessPct: 82,
   windowDays: 23,
+  intakeDays: 23,
   spanDays: 28,
   outliersDropped: 0,
   measuredTdee: 1870,

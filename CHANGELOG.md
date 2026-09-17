@@ -4,6 +4,28 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-09-16 — "N of M days logged" counted days with no food in them
+
+The last of the five findings from the maintenance trace (the other four are
+in the commit above). `finishWorkout` writes a day row with
+`WORKOUT_MARKER_KCAL = 0`, and a weigh-in writes one with no calories at all.
+Both count toward `windowDays`, which is the numerator the Today caveat
+prints — while the intake maths filters them straight back out with
+`calories > 0`. So "42 of 63 days logged — gaps make this less certain" was
+claiming 42 days of *intake* evidence when there might be 38.
+
+`MeasuredTdee` gains `intakeDays` (display only — `loggingCompletenessPct`
+still uses `windowDays`, because changing what drives `confidence` is a
+different decision from fixing what a sentence claims). The caveat names the
+food count only when it differs from the row count: "42 of 63 days logged, 38
+with food". Making the field REQUIRED rather than optional is what found all
+four stale fixtures at compile time.
+
+Still open and deliberately untouched: the computed 95% interval
+(`seTdee`/`ci95Tdee`) is never displayed. An account has read confidence
+0.957 on an interval of 1,775..3,242. Putting a range that wide on the hero
+is a product decision, not a copy fix — `STATUS.md` §3 holds it.
+
 ## 2026-09-16 — Train UX overhaul: the logger and the coach stop sharing a surface
 
 The owner's report was "crowded, and not as intuitive as I imagined — not just

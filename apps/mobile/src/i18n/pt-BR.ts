@@ -182,6 +182,8 @@ export const ptBR = {
   'today.underMaintenance': '{n} abaixo do seu gasto habitual',
   'today.overMaintenance': '{n} acima do seu gasto habitual',
   'today.maintenanceRough': '{logged} de {span} dias registrados — as lacunas deixam isto menos preciso',
+  'today.maintenanceRoughFood':
+    '{logged} de {span} dias registrados, {food} com comida — as lacunas deixam isto menos preciso',
   'today.maintenanceHolding':
     'Estável — as pesagens recentes estão espalhadas demais para atualizar isso. Pese-se na maioria dos dias e o número volta a se mover.',
   'today.maintenanceProvisional':

@@ -271,11 +271,23 @@ export function HeroRings({ calConsumed, calTarget, protConsumed, protTarget, ca
           ) : maintenance.reliable ||
             maintenance.loggedDays == null ||
             maintenance.spanDays == null ? null : (
-            <Text style={styles.maintenanceCaveat}>
-              {t('today.maintenanceRough', {
-                logged: maintenance.loggedDays,
-                span: maintenance.spanDays,
-              })}
+            <Text style={styles.maintenanceCaveat} testID="maintenance-rough">
+              {/* Two strings, not one with an optional clause: the food count
+                  is only worth saying when it DIFFERS from the row count, and
+                  "42 of 63 days logged (42 with food)" is noise. A row is
+                  written by a weigh-in or a finished workout too — a workout
+                  writes `WORKOUT_MARKER_KCAL = 0` — so the plain count read as
+                  more intake evidence than the estimate actually had. */}
+              {maintenance.intakeDays != null && maintenance.intakeDays < maintenance.loggedDays
+                ? t('today.maintenanceRoughFood', {
+                    logged: maintenance.loggedDays,
+                    span: maintenance.spanDays,
+                    food: maintenance.intakeDays,
+                  })
+                : t('today.maintenanceRough', {
+                    logged: maintenance.loggedDays,
+                    span: maintenance.spanDays,
+                  })}
             </Text>
           )}
           {/* Says what the app DID about a patchy record, not just that it

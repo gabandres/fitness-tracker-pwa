@@ -206,6 +206,11 @@ export const en = {
   // in the window, measured back from the newest one — so after a lapse it
   // is a span that ended whenever you last logged, not one ending today.
   'today.maintenanceRough': '{logged} of {span} days logged — gaps make this less certain',
+  // Said when a weigh-in-only or workout-only day is in the window. Those
+  // are rows, not meals, and the plain count read as more intake evidence
+  // than the estimate has (`intakeDays` on the measured result).
+  'today.maintenanceRoughFood':
+    '{logged} of {span} days logged, {food} with food — gaps make this less certain',
   'today.maintenanceHolding':
     'Holding steady — recent weigh-ins are too scattered to update this. Weigh in most days and it will start moving again.',
   // The remedy named here has to be the real one. `confidence` is gated on

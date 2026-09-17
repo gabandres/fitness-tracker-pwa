@@ -44,6 +44,7 @@ const measured: TdeeResult = {
   reliable: true,
   loggingCompletenessPct: 90,
   windowDays: 40,
+  intakeDays: 40,
   spanDays: 42,
   outliersDropped: 0,
   measuredTdee: 2600,
