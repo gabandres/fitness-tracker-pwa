@@ -249,17 +249,12 @@ export const en = {
   'whatsNew.continue': 'Continue',
   // One item per thing a person will NOTICE, in the order they meet it. Body
   // sentences carry the number that makes the feature usable, not a pitch.
-  'whatsNew.band.title': 'Train re-learns your rep bands',
-  'whatsNew.band.body':
-    'Your band is measured per lift now instead of fixed for all of them. Every clustered lift starts at "Calibrating — 0 of 3" and gets its call back after three valid sessions at the same load.',
-  'whatsNew.rir.title': 'One standard: RIR 0',
-  'whatsNew.rir.body':
-    'Take the activation set to failure. Sets logged before the switch stay in your history but sit out of the band, so the band is built only from reads at the new standard.',
-  'whatsNew.structure.title': 'Straight sets and rest-pause get a call',
-  'whatsNew.structure.body':
-    'Pick a structure for each lift in the template editor. Straight sets, rest-pause and cluster sets now each get their own read — not just myo-reps.',
-
-  // ── app updates ──
+  'whatsNew.logger.title': 'Train puts the next set first',
+  'whatsNew.logger.body':
+    'The Train tab leads with what you are lifting next, every set row shows what you did last time, and the rarer actions moved into a menu so the set you are on stays in front of you.',
+  'whatsNew.restpause.title': 'Rest-pause rests are short again',
+  'whatsNew.restpause.body':
+    'A continuation set now rests about 20 seconds instead of your full between-sets rest. That short pause is what makes it a rest-pause and not just a second set.',
   'update.ota.title': 'Update ready',
   'update.ota.body': 'Ignia restarts to apply it — a few seconds.',
   'update.ota.action': 'Restart',

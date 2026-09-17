@@ -104,7 +104,15 @@ import type { I18nKey } from '@/i18n';
 // feels on the next session is worth one banner"), not the bug-fix non-bumps:
 // the screen is the only channel an OTA has, and the thing it has to say is
 // "this is supposed to look like that".
-export const WHATS_NEW_VERSION = '2026-09-16-derived-rep-bands';
+// Bumped 2026-09-17 for ADR-0041 plus the rest-pause fix. Two bumps in two days
+// because the 09-16 banner shipped in OTA `478e00b4` and said nothing about
+// either: ADR-0041 rearranges the whole Train tab, and the rest fix changes a
+// duration every lifter feels on the very next set. Both clear the bar this file
+// already set on 2026-09-01 — "a behaviour every lifter feels on the next session
+// is worth one banner" — and neither is a bug-fix non-bump.
+// The catalog going back to an inline list is deliberately NOT announced: the
+// sheet it reverts was never in a shipped build, so for a user nothing changed.
+export const WHATS_NEW_VERSION = '2026-09-17-train-logger';
 
 const KEY = 'whatsNew.seen';
 
@@ -134,9 +142,8 @@ export interface WhatsNewItem {
 }
 
 export const WHATS_NEW_ITEMS: readonly WhatsNewItem[] = [
-  { icon: 'barbell-outline', titleKey: 'whatsNew.band.title', bodyKey: 'whatsNew.band.body' },
-  { icon: 'flame-outline', titleKey: 'whatsNew.rir.title', bodyKey: 'whatsNew.rir.body' },
-  { icon: 'options-outline', titleKey: 'whatsNew.structure.title', bodyKey: 'whatsNew.structure.body' },
+  { icon: 'barbell-outline', titleKey: 'whatsNew.logger.title', bodyKey: 'whatsNew.logger.body' },
+  { icon: 'timer-outline', titleKey: 'whatsNew.restpause.title', bodyKey: 'whatsNew.restpause.body' },
 ];
 
 /**

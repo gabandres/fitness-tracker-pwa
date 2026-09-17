@@ -218,17 +218,12 @@ export const esPR: Record<I18nKey, string> = {
   'whatsNew.title': 'Novedades',
   'whatsNew.subtitle': 'Lo que cambió desde la última vez que abriste Ignia.',
   'whatsNew.continue': 'Continuar',
-  'whatsNew.band.title': 'Entrenar vuelve a aprender tus rangos de reps',
-  'whatsNew.band.body':
-    'Tu rango ahora se mide por ejercicio en vez de ser fijo para todos. Cada ejercicio en clúster empieza en "Calibrando — 0 de 3" y recupera su decisión tras tres sesiones válidas con la misma carga.',
-  'whatsNew.rir.title': 'Un solo estándar: RIR 0',
-  'whatsNew.rir.body':
-    'Lleva la serie de activación al fallo. Las series anotadas antes del cambio se quedan en tu historial pero quedan fuera del rango, para que el rango se construya solo con lecturas del nuevo estándar.',
-  'whatsNew.structure.title': 'Las series rectas y el rest-pause también deciden',
-  'whatsNew.structure.body':
-    'Elige la estructura de cada ejercicio en el editor de plantillas. Series rectas, rest-pause y clústeres ahora tienen su propia lectura — no solo myo-reps.',
-
-  // ── app updates ──
+  'whatsNew.logger.title': 'Entrenar pone la próxima serie primero',
+  'whatsNew.logger.body':
+    'La pestaña Entrenar empieza con lo que vas a levantar, cada fila de serie muestra lo que hiciste la vez pasada, y las acciones menos comunes se movieron a un menú para que la serie en la que estás quede al frente.',
+  'whatsNew.restpause.title': 'Los descansos de rest-pause vuelven a ser cortos',
+  'whatsNew.restpause.body':
+    'Una serie de continuación ahora descansa unos 20 segundos en vez de tu descanso completo entre series. Esa pausa corta es lo que la hace un rest-pause y no una segunda serie.',
   'update.ota.title': 'Actualización lista',
   'update.ota.body': 'Ignia se reinicia para aplicarla — unos segundos.',
   'update.ota.action': 'Reiniciar',

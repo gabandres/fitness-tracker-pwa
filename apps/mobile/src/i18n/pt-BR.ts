@@ -214,17 +214,12 @@ export const ptBR = {
   'whatsNew.title': 'Novidades',
   'whatsNew.subtitle': 'O que mudou desde a última vez que você abriu o Ignia.',
   'whatsNew.continue': 'Continuar',
-  'whatsNew.band.title': 'Treinar reaprende suas faixas de reps',
-  'whatsNew.band.body':
-    'Sua faixa agora é medida por exercício em vez de ser fixa para todos. Cada exercício em cluster começa em "Calibrando — 0 de 3" e recupera sua decisão depois de três sessões válidas com a mesma carga.',
-  'whatsNew.rir.title': 'Um só padrão: RIR 0',
-  'whatsNew.rir.body':
-    'Leve a série de ativação até a falha. As séries registradas antes da mudança continuam no seu histórico, mas ficam fora da faixa, para que ela seja construída só com leituras no novo padrão.',
-  'whatsNew.structure.title': 'Séries retas e rest-pause também decidem',
-  'whatsNew.structure.body':
-    'Escolha a estrutura de cada exercício no editor de modelos. Séries retas, rest-pause e clusters agora têm cada um a sua própria leitura — não só myo-reps.',
-
-  // ── app updates ──
+  'whatsNew.logger.title': 'Treinar começa pela próxima série',
+  'whatsNew.logger.body':
+    'A aba Treinar começa pelo que você vai levantar, cada linha de série mostra o que você fez da última vez, e as ações mais raras foram para um menu, então a série em que você está fica à frente.',
+  'whatsNew.restpause.title': 'Os descansos de rest-pause voltaram a ser curtos',
+  'whatsNew.restpause.body':
+    'Uma série de continuação agora descansa cerca de 20 segundos em vez do seu descanso completo entre séries. Essa pausa curta é o que faz dela um rest-pause e não uma segunda série.',
   'update.ota.title': 'Atualização pronta',
   'update.ota.body': 'O Ignia reinicia para aplicá-la — alguns segundos.',
   'update.ota.action': 'Reiniciar',
