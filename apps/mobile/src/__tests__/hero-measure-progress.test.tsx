@@ -33,6 +33,7 @@ const maintenance: MaintenanceView = {
   delta: -1458,
   reliable: true,
   loggedDays: 28,
+  intakeDays: 28,
   spanDays: 30,
   weighInsDropped: 0,
   confidence: 1,

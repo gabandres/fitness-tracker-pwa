@@ -53,6 +53,13 @@ export interface MaintenanceView {
    *  instead of just that it is: "28 of 49 days". Null when the TDEE result
    *  did not carry a completeness figure. */
   loggedDays: number | null;
+  /** Of those, the days carrying FOOD. Lower than {@link loggedDays} whenever
+   *  the window holds a weigh-in-only or workout-only day — a finished workout
+   *  writes `WORKOUT_MARKER_KCAL = 0`, which is a row but not a meal, and the
+   *  intake maths filters it straight back out with `calories > 0`. The caveat
+   *  names this when the two differ, because "42 of 63 days logged" reads as
+   *  42 days of intake evidence when there may only be 38. */
+  intakeDays: number | null;
   spanDays: number | null;
   /**
    * Weigh-ins the estimate threw away as implausible, or null when the TDEE
@@ -141,6 +148,7 @@ export function maintenanceView(tdee: TdeeResult, consumedKcal: number): Mainten
     // numerator cannot grow past 42. A patchy record improves by the SPAN
     // shrinking, not by the count rising — "42 of 63" becomes "42 of 42".
     loggedDays: tdee.windowDays,
+    intakeDays: tdee.intakeDays,
     spanDays: tdee.spanDays,
     weighInsDropped: tdee.outliersDropped,
     confidence: tdee.confidence,

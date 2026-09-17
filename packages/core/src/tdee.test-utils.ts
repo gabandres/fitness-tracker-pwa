@@ -39,6 +39,10 @@ export function measuredTdeeFixture(over: Partial<MeasuredTdee> = {}): MeasuredT
     source: 'measured',
     loggingCompletenessPct: 82,
     windowDays: 23,
+    // Below `windowDays` on purpose: the fixture's default should be the
+    // shape that exists in the wild, where some rows are weigh-in- or
+    // workout-only and carry no food.
+    intakeDays: 21,
     spanDays: 28,
     reliable: true,
     outliersDropped: 0,

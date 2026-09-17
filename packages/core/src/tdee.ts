@@ -66,6 +66,23 @@ export interface MeasuredTdee extends TdeeBase {
    *     is pinned there for good, so a thin record improves by `spanDays`
    *     falling, never by `windowDays` rising. */
   windowDays: number;
+  /**
+   * Days in that window that actually carry FOOD (`calories > 0`) — always
+   * `<= windowDays`, and the honest denominator for "how much intake evidence
+   * is behind this number".
+   *
+   * Display only; nothing computes off it. It exists because `windowDays`
+   * counts every row, and a finished workout writes one with
+   * `WORKOUT_MARKER_KCAL = 0` — so a day where nothing was eaten-and-logged
+   * still raised the "N of M days logged" caveat's numerator while being
+   * filtered straight back out of the intake maths by the `c > 0` guard. The
+   * caveat overstated its own evidence.
+   *
+   * `loggingCompletenessPct` deliberately still uses `windowDays`: it feeds
+   * `confidence`, and changing what drives the estimate is a different
+   * decision from fixing what a sentence claims.
+   */
+  intakeDays: number;
   spanDays: number;
   reliable: boolean;
   /** Weigh-ins discarded as implausible before fitting the trend. Non-zero
@@ -1300,6 +1317,7 @@ export function calculateTdee(
       source: 'measured',
       loggingCompletenessPct,
       windowDays: window.length,
+      intakeDays: intakeCals.length,
       spanDays,
       reliable,
       outliersDropped,

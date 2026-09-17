@@ -63,30 +63,24 @@ here is gone with the shared install (`docs/DEV_ENVIRONMENT.md` §3.15).
 
 ## 2. Merged, on `main`, and not delivered anywhere
 
-**The Train UX overhaul (ADR-0041), 2026-09-16.** On branch
-`feat/train-ux-overhaul`, **not yet merged to `main`** — fast-forward it when
-you have looked at it. JS-only, so once merged it is OTA-shippable on both
-open channels and needs no build. Re-derive rather than trust this line: `git log --oneline`
-against the newest OTA row in `apps/mobile/docs/fingerprint-ledger.md`, and
+**The Train UX overhaul (ADR-0041), 2026-09-16.** Merged to `main`, not
+pushed and not published. JS-only, so it is OTA-shippable on both open
+channels and needs no build — but **it has never run on a device.** RNTL runs
+no Yoga pass, and the one layout bug found so far (a sheet that could not
+scroll past its own content) was caught by reading, not by the 869 green
+tests. Publish only after a device pass. What it changes is in
+`CHANGELOG.md`; why, in the ADR.
+
+**The thing that will look like a fault:** an existing template opens showing
+its set structure as **Auto** with all three add-buttons, not as `myo-reps`.
+That is correct — ADR-0040 made absence mean "infer with the pre-0040 rule"
+and nothing is backfilled. Declaring a structure on a template whose rows
+already carry numbers KEEPS those rows and only records the declaration; the
+card says so.
+
+Re-derive rather than trust this section: `git log --oneline` against the
+newest OTA row in `apps/mobile/docs/fingerprint-ledger.md`, and
 `node scripts/app-version-sync.mjs --check` for the live store numbers.
-
-What lands when it ships, in the order a user meets it: a **Next up** card
-replaces the empty-workout primary on the Train home screen; **PREVIOUS** on
-every set row; one action per exercise card with the rest behind `⋯`;
-swipe-left to delete a set; the template editor asks for the set structure
-first and scaffolds the rows from it; a dot on the Train tab while a workout is
-open. Two defects go with it — the shipped 70-movement exercise library was
-unreachable from every picker, and `muscles` was write-once, which is why
-`weeklyClusterAudit` reported `unattributed` movements nobody could fix.
-
-**The thing that will look like a fault:** an existing template opened after
-this ships shows its set structure as **Auto** and all three add-buttons, not
-as `myo-reps`. That is correct — ADR-0040 made absence mean "infer with the
-pre-0040 rule", and nothing is backfilled. Declaring a structure on a template
-whose rows already carry numbers **keeps those rows** and only records the
-declaration; the card says so. Bundle is +1.47% raw (13,343,009 →
-13,538,783), accepted on the record in ADR-0041. **Delete this entry once it
-is on both channels** and put the outcome in the fingerprint ledger.
 
 **What DID ship on 2026-09-16, and the one thing about it that will look like
 a fault.** ADR-0039 + ADR-0040 went out as two OTAs on both platforms (the
@@ -192,21 +186,13 @@ dailies (silence after a week away) changes existing schedules — a separate ca
 | **Photo-scan validation gate** | 30–50 real photos, judging the **item list and portions** — never the macros. Harness: `scripts/validate-photo-itemiser.mjs` (ADR-0015 §2). |
 | **MenuStat permission email — sent, no reply** | **Owner, awaiting NYC DOHMH.** The restaurant corpus is live on all three surfaces. The open risk is the **licence**: menustat.org published through 2022 all-rights-reserved and the site is now GONE; the only copy with a written grant (Harvard Dataverse, CC0 1.0) stops at 2018 and loses The Cheesecake Factory (399 items). Sent 2026-08-24 to `info@menustat.org` Cc `MenuStat@health.nyc.gov` (the Cc is what carried it); replies land in the `bermudezpr.com` Microsoft 365 tenant. Follow-ups: Pollo Tropical (absent from MenuStat's 91) and the mobile provenance chip (`dataType: restaurant_menu_2022`). |
 
-**Two maintenance-copy findings still OPEN**, from the 2026-09-16 trace that
-produced the `fix/maintenance-burn-copy` branch (that branch fixes three
-others). Both are verified against the code, neither is a copy change:
-
-- **The 95% interval is computed and never shown.** `seTdee` / `ci95Tdee`
-  exist (`tdee.ts`); Today shows only the binary `holding`. An account has
-  read `confidence` 0.957 while its interval ran **1,775..3,242** — the
-  caveat the user sees blames gaps, which is not where that width came from.
-  Showing an interval on the hero is a product decision, not a string edit.
-- **A workout-only day inflates "N of M days logged."** `finishWorkout`
-  writes `WORKOUT_MARKER_KCAL = 0`, which counts toward `windowDays` — the
-  numerator of that caveat — while being filtered out of the intake math by
-  `calories > 0`. So the fraction can overstate the food evidence behind the
-  number. The fix changes a displayed figure downward, so it wants a decision
-  rather than a quiet patch.
+**The maintenance 95% interval is computed and never shown.** `seTdee` /
+`ci95Tdee` exist (`tdee.ts`); Today shows only the binary `holding`. An
+account has read `confidence` 0.957 while its interval ran **1,775..3,242**,
+and the caveat it sees blames gaps — which is not where that width came from.
+Putting a range on the hero is a product decision (it is alarming, and
+correctly so), which is why the 2026-09-16 trace fixed the four copy and
+counting defects around it and left this one alone.
 
 ## 4. Decided and deliberately not happening
 
