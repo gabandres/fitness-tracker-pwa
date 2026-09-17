@@ -222,23 +222,41 @@ function StartView({
   // The cluster audit is a six-chip block that used to sit ABOVE the primary
   // action. Collapsed to its one-line verdict, with the chips one tap away.
   const [auditOpen, setAuditOpen] = useState(false);
+  /**
+   * ONE render clock for the three windows below.
+   *
+   * `trainHeroStats`, `weeklyClusterAudit` and `nextTemplateUp` all take `now`
+   * as a parameter so their windows are testable — core's rule, not a choice
+   * here. Each used to call `Date.now()` inside its own `useMemo`, which is
+   * three impure calls in one render (react-hooks flags each) and three
+   * timestamps that can disagree across a midnight boundary. Pinned to a ref
+   * so it is read once per mount rather than per render: a day window does not
+   * need to move while the user scrolls, and re-reading it would invalidate
+   * every memo on every render.
+   *
+   * A LAZY `useState` initializer, not `useRef(Date.now())` — the argument to
+   * `useRef` is evaluated on every render even though only the first is kept,
+   * so that form calls the clock impurely during render AND reads a ref during
+   * render, which is two lint failures where the original was one.
+   */
+  const [now] = useState(() => Date.now());
   const stats = useMemo(
-    () => trainHeroStats(train.recentSessions, Date.now()),
-    [train.recentSessions],
+    () => trainHeroStats(train.recentSessions, now),
+    [train.recentSessions, now],
   );
   // Weekly volume in CLUSTERS (progression engine layer 5) — the rest-pause
   // range is 2-6 per muscle per week, and a cluster counts once, never as
   // the three sets it replaces.
   const audit = useMemo(
-    () => weeklyClusterAudit(train.recentSessions, train.catalog, Date.now()),
-    [train.recentSessions, train.catalog],
+    () => weeklyClusterAudit(train.recentSessions, train.catalog, now),
+    [train.recentSessions, train.catalog, now],
   );
   const [nextOpen, setNextOpen] = useState<string | null>(null);
   // Which template to offer, and when each was last completed. Both are pure
   // and live in core (`train-plan.ts`); this screen only renders them.
   const nextUp = useMemo(
-    () => nextTemplateUp(train.templates, train.recentSessions, Date.now()),
-    [train.templates, train.recentSessions],
+    () => nextTemplateUp(train.templates, train.recentSessions, now),
+    [train.templates, train.recentSessions, now],
   );
   const lastByTemplate = useMemo(
     () => templateLastPerformed(train.recentSessions),

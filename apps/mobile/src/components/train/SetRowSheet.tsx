@@ -1,4 +1,4 @@
-import { Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { RIR_MAX, RIR_MIN, clampRir } from '@macrolog/core';
 import type { SetKind, WorkoutSet } from '@/lib/workout';
 import { type I18nKey, useT } from '@/i18n';
@@ -67,6 +67,14 @@ export function SetRowSheet({
 
   return (
     <BottomSheet visible={visible} onClose={onClose} contentStyle={styles.sheetBody} maxHeight="80%">
+      {/* `BottomSheet` CLAMPS height and does not scroll — every other sheet
+          in Train supplies its own ScrollView and this one has to as well.
+          Seven set-kind rows (each a name plus a description), the RIR
+          explainer, eight chips and a remove row do not fit in 80% of a
+          720dp screen, and without this the RIR half and Remove sit below
+          the fold with nothing able to reach them. Exactly the failure
+          `BottomSheet`'s own `flexShrink` comment documents. */}
+      <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
       <Text style={styles.sheetTitle}>{t('train.setSheetTitle', { n: label })}</Text>
 
       <Text style={styles.fieldLabel}>{t('train.setType')}</Text>
@@ -146,6 +154,7 @@ export function SetRowSheet({
         <Text style={styles.moreRemoveText}>{t('train.removeSet')}</Text>
       </TouchableOpacity>
       <View style={styles.setSheetTail} />
+      </ScrollView>
     </BottomSheet>
   );
 }

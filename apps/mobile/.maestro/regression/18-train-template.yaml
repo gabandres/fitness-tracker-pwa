@@ -108,12 +108,20 @@ appId: fit.ignia.app
 - tapOn:
     id: 'template-add-exercise'
 - inputText: 'Bench'
+# Dismiss the keyboard by tapping the section label. `template-add-exercise`
+# is the field itself, so it cannot be the dismissal target.
 - tapOn: 'Exercises'
 - waitForAnimationToEnd:
     timeout: 5000
 - takeScreenshot: .maestro/regression/shots/18-adder-matches
+# `-mine-`, not a bare index. Since ADR-0041 the adder shows TWO groups — the
+# user's own catalog and the shipped `EXERCISE_LIBRARY`, which was unreachable
+# from any picker before that — so a single ordinal is ambiguous. The `-mine-`
+# half is also what keeps this flow's no-cleanup invariant true: picking a
+# CATALOG row needs no write, where picking a LIBRARY row clones the movement
+# into the catalog and would leave a doc behind for the tail to delete.
 - tapOn:
-    id: 'template-match-0'
+    id: 'template-match-mine-0'
 
 # ── 3. The card opens COLLAPSED — the readability change ──────────
 # A freshly added exercise opens itself (you added it to edit it), so collapse

@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { type I18nKey, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { BottomSheet } from '@/components/BottomSheet';
@@ -52,6 +52,10 @@ export function ExerciseMenuSheet({
   const { colors } = useTheme();
   return (
     <BottomSheet visible={visible} onClose={onClose} contentStyle={styles.sheetBody} maxHeight="80%">
+      {/* Same reason as `SetRowSheet`: `BottomSheet` clamps and does not
+          scroll. Five rows fit on any phone at default type, and do not at
+          the largest accessibility text size. */}
+      <ScrollView showsVerticalScrollIndicator={false}>
       <Text style={styles.sheetTitle}>{name}</Text>
       {actions.map((a) => (
         <TouchableOpacity
@@ -82,6 +86,7 @@ export function ExerciseMenuSheet({
         </TouchableOpacity>
       ))}
       <View style={styles.setSheetTail} />
+      </ScrollView>
     </BottomSheet>
   );
 }

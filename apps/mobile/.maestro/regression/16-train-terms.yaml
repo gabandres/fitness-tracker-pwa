@@ -134,7 +134,9 @@ appId: fit.ignia.app
 
 # RIR: the cell used to be a bare 0–5 number box. Tapping it must now open a
 # scale that says what each number MEANS — including that 0 is the hard end,
-# which is the half users get backwards.
+# which is the half users get backwards. Since ADR-0041 the scale lives in a
+# bottom sheet rather than expanding inline, so the rows BELOW the tapped set
+# no longer move while it is open.
 - tapOn:
     id: 'set-rir-0-0'
 # Anchor on a chip that exists ONLY while the picker is open.
@@ -149,17 +151,23 @@ appId: fit.ignia.app
 # being an exact match — the assert failed on a run where the hierarchy dump
 # showed all seven picker chips plainly present.
 #
-# `set-rir-0-0-none` is rendered by the picker and by nothing else, so it
+# `set-sheet-rir-none` is rendered by the sheet and by nothing else, so it
 # cannot pass against a closed cell. The three chip labels below are the
 # content assertions; this one is the state assertion.
+#
+# The ids lost their `-<ex>-<set>` suffix on 2026-09-16 (ADR-0041): the RIR
+# chips and the set-kind rows used to expand INLINE inside the set list,
+# which is why they were keyed per row. They are one `SetRowSheet` now — at
+# most one is open at a time, so the row index is no longer part of the
+# identity. The cell that OPENS it keeps its per-row id (`set-rir-0-0`).
 - assertVisible:
-    id: 'set-rir-0-0-none'
+    id: 'set-sheet-rir-none'
 - assertVisible: '0 · to failure'
 - assertVisible: '5+ · easy'
 - assertVisible: 'Not tracking'
 - takeScreenshot: .maestro/regression/shots/16-rir-scale
 - tapOn:
-    id: 'set-rir-0-0-2'
+    id: 'set-sheet-rir-2'
 # The picker closes and the cell carries the chosen value.
 #
 # `containsChild`, not `id` + `text` on one node: the testID is on the
