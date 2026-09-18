@@ -358,6 +358,38 @@ async function bqQuery(sql: string): Promise<Array<Record<string, string | null>
   return (res.rows ?? []).map((r) => Object.fromEntries(r.f.map((c, i) => [names[i], c.v])));
 }
 
+/**
+ * Which export table to read.
+ *
+ * The dataset can hold more than one `gcp_billing_export_v1_*` table, because
+ * disabling an export stops the writes but leaves behind whatever it already
+ * wrote. That is what the 2026-08-30 billing split left here: the old
+ * account's table (`..._010F4E_5E97BC_6B83D0`, nothing after 2026-07-01) sits
+ * beside the live one (`..._01916B_2927E2_E01DC7`). `tables.list` returns ids
+ * in alphabetical order and `010F4E` sorts ahead of `01916B`, so taking the
+ * first match pinned this page to the dead table and showed no spend after
+ * July 1 — silently, because a stale table answers every query quite happily.
+ *
+ * Pick the table still being written to instead. `lastModifiedTime` comes back
+ * from tables.get but NOT from tables.list, so pay for those calls only when
+ * the choice is genuinely ambiguous.
+ */
+async function liveExportTable(ids: string[]): Promise<string> {
+  if (ids.length === 1) return ids[0];
+  const stamped = await Promise.all(ids.map(async (id) => {
+    try {
+      const meta = await gapi<{ lastModifiedTime?: string }>(
+        `https://bigquery.googleapis.com/bigquery/v2/projects/${PROJECT}/datasets/${BILLING_DATASET}/tables/${id}`,
+      );
+      return { id, at: Number(meta.lastModifiedTime) || 0 };
+    } catch {
+      return { id, at: 0 }; // unreadable metadata must never win the tiebreak
+    }
+  }));
+  stamped.sort((a, b) => b.at - a.at || a.id.localeCompare(b.id));
+  return stamped[0].id;
+}
+
 export const adminGetBilling = onCall({ timeoutSeconds: 120 }, async (request) => {
   requireAdmin(request);
   let tables: Array<{ tableReference: { tableId: string } }>;
@@ -369,8 +401,9 @@ export const adminGetBilling = onCall({ timeoutSeconds: 120 }, async (request) =
   } catch (err) {
     return { enabled: false, reason: `dataset ${PROJECT}.${BILLING_DATASET} unreadable: ${err instanceof Error ? err.message : String(err)}` };
   }
-  const table = tables.map((t) => t.tableReference.tableId).find((id) => id.startsWith("gcp_billing_export_v1_"));
-  if (!table) return { enabled: false, reason: "no gcp_billing_export_v1_* table in the dataset yet — enable the standard export in Billing → Billing export, or wait for the first load" };
+  const candidates = tables.map((t) => t.tableReference.tableId).filter((id) => id.startsWith("gcp_billing_export_v1_"));
+  if (candidates.length === 0) return { enabled: false, reason: "no gcp_billing_export_v1_* table in the dataset yet — enable the standard export in Billing → Billing export, or wait for the first load" };
+  const table = await liveExportTable(candidates);
 
   const fq = `\`${PROJECT}.${BILLING_DATASET}.${table}\``;
   const [byMonth, byProjectService, bySku, lifetime] = await Promise.all([

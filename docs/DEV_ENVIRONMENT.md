@@ -152,19 +152,30 @@ Remaining steps that genuinely can't be scripted here:
 - **Billing budget + alert** — Cloud Billing → Budgets & alerts → set a monthly
   cap + 50/90/100% email alerts. Your worst case is a runaway Gemini/functions
   bill; it's currently **uncapped**.
-- **BigQuery billing export — ALREADY ON, and it does not live in this
-  project.** Detailed usage cost has been exporting since ~2026-04 into
+- **BigQuery billing export — the old one is GONE, the live one is HERE.**
+  Detailed usage cost exported since ~2026-04 into
   **`citafy-6129184.billing_export`**, a *different* GCP project on the same
-  billing account (`010F4E-5E97BC-6B83D0`, "Firebase Payment"). `bq ls` inside
-  `fitness-tracker-gb-1775407101` shows nothing and reads as "no export
-  configured" — it is not. Query the billing account's data there:
+  billing account (`010F4E-5E97BC-6B83D0`, "Firebase Payment"). That project
+  was deleted on **2026-09-18** when Citafy was decommissioned, and the
+  dataset went with it — roughly five months of per-SKU history for
+  `callbook-access`, `zoho-integration-billing` and Ignia's own pre-split
+  charges. `bq ls --project_id=citafy-6129184` now answers `Project
+  citafy-6129184 has been deleted.` The owner declined the 30-day undelete
+  window knowingly. The export destination on `010F4E` now points at a dead
+  project and writes nowhere, so re-point it at a surviving project if
+  detailed cost tracking on that account is ever wanted again.
+
+  **What Ignia actually reads lives in this project**: dataset `billing`,
+  table `gcp_billing_export_v1_01916B_2927E2_E01DC7`, the standard export on
+  the new account. Verified 2026-09-18 — 18,129 rows, current through that
+  morning.
 
   ```sh
-  bq query --project_id=citafy-6129184 --use_legacy_sql=false \
+  bq query --project_id=fitness-tracker-gb-1775407101 --use_legacy_sql=false \
   'SELECT service.description AS service,
           ROUND(SUM(cost),2) AS gross_usd,
           ROUND(SUM(cost) + SUM(IFNULL((SELECT SUM(c.amount) FROM UNNEST(credits) c),0)),2) AS net_usd
-   FROM `citafy-6129184.billing_export.gcp_billing_export_resource_v1_010F4E_5E97BC_6B83D0`
+   FROM `fitness-tracker-gb-1775407101.billing.gcp_billing_export_v1_01916B_2927E2_E01DC7`
    WHERE usage_start_time >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
    GROUP BY service ORDER BY net_usd DESC'
   ```
@@ -172,6 +183,23 @@ Remaining steps that genuinely can't be scripted here:
   **Read `net_usd`, not `cost`** — Cloud Run Functions bills $3.04 gross and
   $0.00 net, because the free tier arrives as a credit rather than as an
   absent charge. Ignoring credits triples the apparent bill.
+- **`adminGetBilling` reads the table still being written to — bug found and
+  fixed 2026-09-18.** The `billing` dataset holds TWO `gcp_billing_export_v1_*`
+  tables: `..._010F4E_5E97BC_6B83D0`, the old account's export disabled at the
+  2026-08-30 split — **stale, 1,321 rows, nothing after 2026-07-01** — and
+  `..._01916B_2927E2_E01DC7`, the live one. `cost-model.ts` used to take the
+  FIRST match, `.find((id) => id.startsWith("gcp_billing_export_v1_"))`, and
+  `tables.list` returns ids alphabetically, where `010F4E` sorts ahead of
+  `01916B`. So the actual-bill half of `/admin?tab=ai` read the dead table from
+  the split onward and showed no spend after July 1 — silently, because a stale
+  table answers every query quite happily. The table id was on screen the whole
+  time (`admin-cost.component.ts:177`), which is where it would have been
+  caught. `liveExportTable()` now compares `lastModifiedTime` and takes the
+  newest; that field comes back from tables.get but NOT from tables.list, so
+  the extra metadata calls happen only when more than one candidate exists.
+  Disabling an export stops the writes but never drops the table it already
+  wrote, so dropping `..._010F4E_5E97BC_6B83D0` is still worth doing — the fix
+  just means the page is right either way.
 - **Secret Manager version storage is the whole bill, not Gemini.** Lifetime
   net spend to 2026-08-04 is **~$7.85**, of which Secret Manager is **$5.91**
   and the **Gemini API is $0.08**. The SKU is *secret version replica
@@ -1422,7 +1450,14 @@ than assumed:
   via GitHub SSO**, and holds all three zones: ignia.fit,
   bermudezsystems.com (so the "Northwest DNS" note above/in CLAUDE.local.md
   is stale — the zone is Active on Cloudflare), and citafy.app. citafy.app
-  is also registered here (Mar 10, 2027).
+  is also registered here (expires Mar 11, 2027) and is **being
+  decommissioned** — Firebase project `citafy-6129184` deleted 2026-09-18,
+  owner is not renewing. The only lever that stops the cost is **Auto-Renew
+  off** on the registration: Cloudflare will not delete a zone while it still
+  holds that domain's registration, the year is already paid with no refund,
+  and `clientTransferProhibited` (the 60-day registrant-email lock from the
+  2026-08-30/31 LLC change) rules out transferring it away. Owner-only, still
+  open as of 2026-09-18.
 - **Registrant fully moved to the LLC, in two confirmed rounds (2026-08-30/31).**
   Round 1: Organization = "Bermudez Systems LLC" — owner clicked the
   confirmation email, verified applied in the edit form. Round 2 (owner
@@ -1508,8 +1543,12 @@ What exists now, all verified from the pages rather than assumed:
   created that morning for Ignia's sake, and left on it would write a SECOND
   `gcp_billing_export_v1_*` table (the other three projects' charges) into
   Ignia's dataset, where `cost-model.ts` picks the FIRST matching table it
-  finds. One dataset, one exporting account. The citafy `billing_export`
-  detailed export on the old account was left untouched.
+  finds. One dataset, one exporting account — except disabling the old export
+  did not remove the table it had already written, and that leftover is
+  exactly the FIRST-match hazard described above: see the `adminGetBilling`
+  bug under "C. Production hardening". The citafy `billing_export` detailed
+  export on the old account was left untouched then, and was destroyed on
+  2026-09-18 along with `citafy-6129184`.
 - Google auto-created an empty **"My First Project"** during signup — inert,
   linked to the LLC account, delete or ignore at leisure.
 

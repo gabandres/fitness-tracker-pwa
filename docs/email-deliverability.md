@@ -85,7 +85,9 @@ POST   /domains  {"name":"mail.ignia.fit", ...}        → id 426e86ae-6518-4f5f
   domain mints a *new* DKIM keypair, so the old `resend._domainkey` TXT record
   in citafy.app's DNS would have to be replaced, not reused.
 - The `citafy.app` DNS records were **not** touched. They are now inert and can
-  be deleted from that zone whenever convenient.
+  be deleted from that zone whenever convenient — moot as of 2026-09-18:
+  citafy.app is being decommissioned outright (project deleted, registration
+  not renewing), so the zone goes with it.
 
 ---
 
