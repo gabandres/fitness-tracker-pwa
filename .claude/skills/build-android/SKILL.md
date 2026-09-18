@@ -157,10 +157,24 @@ node scripts/app-version-sync.mjs --check            # live versionCode; pass th
 cd apps/mobile/android && ./gradlew --stop || true   # NOT optional
 
 # --- prebuild is CONDITIONAL. See "When to skip --clean" below. ---
-cd .. && npx expo prebuild -p android --clean        # only when the fingerprint moved
+cd .. && npx expo prebuild -p android --clean --no-install   # only when the fingerprint moved
+# `--no-install` is LOAD-BEARING and was MISSING here until 2026-09-17. Without
+# it prebuild runs `npm install`. On Windows that is allowed (it owns the
+# lockfile) and this is harmless; on `ignia-mac` it moves BOTH fingerprints and
+# shuts both OTA channels SILENTLY. Measured on the Mac that day:
+#   clean tree     ios 52802bba...  android 7514d026...  <- matches live build 64
+#   after prebuild ios 700258fd...  android d98ccb24...  <- both channels shut
+#   after npm ci   ios 52802bba...  android 7514d026...  <- restored exactly
+# The flag is added here rather than only in a Mac copy because this section
+# becomes the Mac's path the moment raw Gradle is used there. CLAUDE.md already
+# says the Mac never runs `npm install`; this is the line that broke that rule.
+# If a prebuild ever ran without it: `npm ci`, then RE-GATE before publishing.
+#
 # prebuild DELETES android/local.properties - restore it or Gradle reports
-# "SDK location not found", which reads like a missing SDK install:
-[ -f android/local.properties ] || echo "sdk.dir=Z:/packages/android-sdk" > android/local.properties
+# "SDK location not found", which reads like a missing SDK install.
+# The path is PER HOST:
+[ -f android/local.properties ] || echo "sdk.dir=Z:/packages/android-sdk" > android/local.properties        # Windows
+# [ -f android/local.properties ] || echo "sdk.dir=$HOME/Library/Android/sdk" > android/local.properties    # macOS
 
 node scripts/patch-android-release.mjs <versionCode> production   # safe to re-run
 # Run bundleRelease via the runner in REFERENCE.md. Two details are load-bearing:
