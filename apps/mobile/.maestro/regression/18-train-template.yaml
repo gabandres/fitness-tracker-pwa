@@ -61,15 +61,45 @@ appId: fit.ignia.app
 # to do with templates. Same guard as 16.
 - runFlow:
     when:
-      visible:
-        id: 'discard-workout'
+      notVisible:
+        id: 'start-workout'
     commands:
+      # HARDENED 2026-09-17 (ADR-0042). This guard used to be
+      # `when: visible: id: 'discard-workout'`, which is FALSE exactly when the
+      # guard is needed: Discard is the LAST element in the session's scroll
+      # view, so with a session in progress it sits below the fold and the whole
+      # block silently skips. The flow then walks into a screen with no idle
+      # view and dies later on a selector that has nothing to do with what it
+      # tests. Measured on the `pixel_api36` AVD (411x914dp, 20:9), where
+      # `18-train-template` failed on `template-ex-toggle-0` while Train showed
+      # WORKOUT IN PROGRESS - and failed identically when re-run alone, so it
+      # was account state the guard was supposed to clear and did not.
+      #
+      # Key on `notVisible: start-workout` ("a session IS in progress") and
+      # SCROLL to Discard. The 40% threshold and the absence of `centerElement`
+      # are 21-train-cardio's measured values: Discard can never be centred, so
+      # a centred 100%-visible target scrolls forever against a button already
+      # on screen.
+      - scrollUntilVisible:
+          element:
+            id: 'discard-workout'
+          direction: DOWN
+          timeout: 30000
+          visibilityPercentage: 40
+          # Without this the scroll's momentum is still settling when Maestro
+          # captures the hierarchy, and it taps STALE coordinates. Measured
+          # 2026-09-17 on `pixel_api36`: Maestro's own log reported tapping
+          # bounds [63,1543][306,1698] and reported COMPLETED, while the button
+          # was actually at [63,1467][306,1622] - the tap landed ~76px BELOW it,
+          # on nothing. A direct `adb shell input tap` at the true centre
+          # discarded the session instantly, which is what proves the button
+          # was never broken. A tap that hits nothing still reports COMPLETED.
+          waitToSettleTimeoutMs: 500
       - tapOn:
           id: 'discard-workout'
       - extendedWaitUntil:
           visible:
             id: 'start-workout'
-          # 60s for the same Train-tab subscription cost noted below.
           timeout: 60000
 
 # ── 1. A new template, named ──────────────────────────────────────

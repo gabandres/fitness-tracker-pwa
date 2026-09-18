@@ -772,18 +772,37 @@ does not cover a build that starts on AC and continues on battery.
 **Update 2026-09-17: the Air builds Android again.** The toolchain below was
 reinstalled to the Surface's exact versions (`brew install openjdk@17` +
 `--cask android-commandlinetools`, then `sdkmanager` for `platforms;android-36`,
-`build-tools;35.0.0`+`36.0.0`, `ndk;27.1.12297006`, `cmake;3.22.1`, `emulator`,
+`build-tools;35.0.0`+`36.0.0`, `ndk;27.0.12077973` **and** `ndk;27.1.12297006` (both), `cmake;3.22.1`, `emulator`,
 `system-images;android-36;google_apis;arm64-v8a`, AVD `pixel_api36`), the
 keystore, `credentials.json` and `play-service-account.json` were copied back
 (mode 600, hash-verified), and `JAVA_HOME`/`ANDROID_HOME` are exported from
 `~/.zshrc`, `~/.zprofile` **and** the T3 Code launchd plist (a session started
 from the phone inherits the plist, not the shell). Disk was made by deleting
-`~/Library/Developer/Xcode/DerivedData` (34 GB, a cache); the 30 GB of
-`~/build-artifacts/eas-1.2.*` working trees are the next thing to prune. The
-release path is `eas build --local -p android --profile production` — the
-`build-android` skill owns it; the Windows/Gradle text that follows is history
-and the cutover rule is in `docs/build-infrastructure.md`.
+`~/Library/Developer/Xcode/DerivedData` (34 GB, a cache). **The
+`~/build-artifacts/eas-1.2.*` trees named here as "next to prune" are gone**
+(30.4 GB), along with `~/.maestro/tests` (23 GB), the watchOS 26.5 and iOS 26.5
+simulator runtimes (~16 GB; both 27.0 runtimes remain and `Ignia-QA` was
+migrated to iOS 27.0 with its session intact, 21/21 green) and two Callbook
+simulators (7.2 GB). **105 GB free**, from 43 GB.
 
+**Both NDKs are required.** The graph resolves 27.1 and something else pins
+27.0; deleting 27.0 on the assumption it was stale cost a 2.4 GB re-download
+mid-build.
+
+The release path is **raw Gradle + `patch-android-release.mjs` +
+`verify-mobile-artifact.mjs` (non-optional)** — owner's decision 2026-09-17,
+[ADR-0042](adr/0042-android-build-host-returns-to-the-mac.md). Measured here:
+15m04s, 62.6 MB AAB, two ABIs, signer byte-identical to `dev.keystore`, channel
+injected, verifier 10/10. `eas build --local -p android` is also verified green
+(10m25s) and is the safer path; it is deliberately not the default. The
+`build-android` skill owns the procedure and the cutover rule is in
+`docs/build-infrastructure.md`.
+
+**Read ADR-0042's Traps section before running any of this on the Mac.** T1
+alone — `expo prebuild` without `--no-install` — shuts BOTH OTA channels
+silently, and it was in the skill's own commands until that day.
+
+**Android's build host was the Windows workstation from 2026-08-17.** This section
 **Android's build host was the Windows workstation from 2026-08-17.** This section
 used to be a ~150-line runbook for `eas build --local -p android` on the Air,
 resting on the claim that Windows *could not* compile an AAB at all. Both halves

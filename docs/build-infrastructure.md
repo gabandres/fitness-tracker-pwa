@@ -55,14 +55,26 @@ in the number, or a faster laptop reads as a regression.
   rebuild; the reason to reverse it is that the owner now drives both apps from
   a phone through T3 Code on the Mac, and a Mac session must be able to ship
   Android. The Mac got the Surface's exact SDK set that day (JDK 17 via Homebrew
-  `openjdk@17`, `~/Library/Android/sdk` with platform 36, build-tools 35/36, NDK
-  27.1.12297006, cmake 3.22.1, emulator + `pixel_api36` arm64 AVD) plus
+  `openjdk@17`, `~/Library/Android/sdk` with platform 36, build-tools 35/36, NDK **27.0.12077973 AND
+  27.1.12297006** (both - the graph resolves 27.1 and something else pins 27.0;
+  deleting either costs a mid-build re-download, measured), cmake 3.22.1, emulator + `pixel_api36` arm64 AVD) plus
   `credentials.json`, `credentials/dev.keystore` and
   `credentials/play-service-account.json` (SHA-256 verified, mode 600). The
-  release path there is the one the first bullet of this section always named:
-  `eas build --local -p android --profile production`, which writes the channel,
-  signs with the local keystore and takes the remote versionCode itself — no
-  `patch-android-release.mjs`, no `gradlew.bat` runner.
+  release path there is **raw Gradle plus `patch-android-release.mjs`, with
+  `verify-mobile-artifact.mjs` as a NON-OPTIONAL gate** — owner's decision
+  2026-09-17, recorded in
+  [ADR-0042](adr/0042-android-build-host-returns-to-the-mac.md), taken on build
+  time and artifact size. Measured on the Mac that day: **15m04s, a 62.6 MB AAB,
+  two ABIs, a signer byte-identical to `dev.keystore`, channel injected,
+  verifier 10/10**; the patch script ran unmodified on macOS.
+
+  `eas build --local -p android --profile production` is **also verified green
+  there** (10m25s, channel injected automatically, ABI set controllable via
+  `ORG_GRADLE_PROJECT_reactNativeArchitectures`, which is a shell variable and
+  moves no fingerprint). It is the safer path — it cannot silently omit the
+  channel, the signing or the versionCode, which is the class of bug that
+  shipped vc 10 — and it is **deliberately not the default**. If the verifier is
+  ever skipped, prefer it.
 
   **Cutover is not done until a Mac-built vc is live.** The fingerprint follows
   the build host (CRLF vs LF), so the Android runtime testers run today is the
@@ -71,6 +83,8 @@ in the number, or a faster laptop reads as a regression.
   the first Mac-built binary reaches the alpha track; flipping it, updating
   `test_guards.py`, and deleting the Windows section of the `build-android`
   skill are one commit, made that day. `STATUS.md` tracks it.
+- **Android's build host was the Windows workstation from 2026-08-17 to
+  2026-09-17.** `scripts/patch-android-release.mjs` supplied the channel, the
 - **Android's build host was the Windows workstation from 2026-08-17 to
   2026-09-17.** `scripts/patch-android-release.mjs` supplied the channel, the
   release signing and the versionCode that `eas build --local` would have, and

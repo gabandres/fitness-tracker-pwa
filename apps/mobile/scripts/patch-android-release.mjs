@@ -251,7 +251,12 @@ const before = gradle.match(/versionCode\s+(\d+)/)?.[1];
 gradle = gradle.replace(/versionCode\s+\d+/, `versionCode ${versionCode}`);
 console.log(`build.gradle: versionCode ${before} -> ${versionCode}`);
 
-// --- 3. WINDOWS ONLY: resolve sentry.gradle ourselves ---
+// --- 3. resolve sentry.gradle ourselves ---
+// LABELLED "WINDOWS ONLY" UNTIL 2026-09-17 AND IT IS NOT GATED ON PLATFORM.
+// It ran on macOS during the ADR-0042 proof and logged "(Windows fix)" there.
+// Harmless - the build succeeded and Sentry uploaded - but the comment lies to
+// the next reader. Either gate it on process.platform or rename it; do not
+// assume from the old label that macOS skips this block.
 // The template locates @sentry/react-native by shelling out from Groovy:
 //   apply from: new File(["node","--print","…require.resolve(…)"].execute()…, "sentry.gradle")
 // `.execute()` does not go through a shell, so on Windows bare `node` does not

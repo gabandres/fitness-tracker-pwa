@@ -81,9 +81,15 @@ Android answer is in transition:**
 
 This table read "Android: built on Windows, gate from Windows" until
 2026-09-17, when the Android toolchain went back onto the Mac
-(`docs/build-infrastructure.md`, `DEV_ENVIRONMENT.md` §3.11). The OTA host lags
-the build host by one release on purpose: the hash follows the machine that
-produced the *live* binary, not the one that will produce the next.
+(`docs/build-infrastructure.md`, `DEV_ENVIRONMENT.md` §3.11,
+[ADR-0042](../../docs/adr/0042-android-build-host-returns-to-the-mac.md)). The
+OTA host lags the build host by one release on purpose: the hash follows the
+machine that produced the *live* binary, not the one that will produce the next.
+
+**So do not edit this table yet.** The Mac computes `7514d026…` for Android
+while the live vc 45 binary carries `15c1cfc8…`, so an Android OTA published
+here would reach nobody. Flip it, and `guard_eas_update.py` with it, only once a
+Mac-built AAB is live on the Play alpha track.
 
 **Bare `eas update` publishes BOTH platforms and is therefore correct on
 NEITHER machine — always pass `--platform`.** `.claude/hooks/guard_eas_update.py`

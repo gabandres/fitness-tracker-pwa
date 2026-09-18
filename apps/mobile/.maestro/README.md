@@ -41,7 +41,8 @@ longer disposable. If it is ever missing (the system image stays, so no
 download):
 
 ```sh
-echo no | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd -n pixel_api36 -k 'system-images;android-36;google_apis;arm64-v8a' --force
+echo no | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd -n pixel_api36 \
+  -k 'system-images;android-36;google_apis;arm64-v8a' -d pixel_7 --force
 ```
 
 **`JAVA_HOME` and `ANDROID_HOME` are exported by `~/.zshrc`, `~/.zprofile` and
@@ -58,17 +59,53 @@ does not see Homebrew JDKs, and a `JAVA_HOME` at a wrong path fails with
 *"JAVA_HOME is set to an invalid directory"* — which reads nothing like a
 missing JDK. The requirement is 17 **or higher**.
 
+**`-d pixel_7` is load-bearing in that command.** Without it the AVD takes the
+default device and a different aspect ratio, and two flows are tuned to screen
+*fractions*: `19-glossary` taps the sheet backdrop at `50%,5%` (measured on the
+LG G6, 18:9) and it does not clear the panel on a 20:9 screen. `pixel_api36` is
+411x914dp, 20:9 - see ADR-0042 A1. The current AVD is ~5.2 GB once booted and
+the API 36 image is 4.3 GB.
+
+**Maestro itself does not need JDK 17** - it wants 17 *or higher* and runs fine
+on Homebrew's `openjdk` 26. Gradle is the one that is pinned to 17.
+
 ```sh
 export JAVA_HOME=/opt/homebrew/opt/openjdk@17
 export ANDROID_HOME=$HOME/Library/Android/sdk
 export PATH=$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$HOME/.maestro/bin:$PATH
 
-emulator -avd pixel_api36 -no-window -no-audio -no-snapshot -gpu swiftshader_indirect &
-until [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = 1 ]; do sleep 10; done
+emulator -avd pixel_api36 -no-window -no-audio -no-boot-anim -gpu host -no-snapshot &until [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = 1 ]; do sleep 10; done
 ```
 
-Headless (`-no-window`) is deliberate: this is driven over SSH, and it boots in
-about two minutes.
+Headless (`-no-window`) is deliberate: this is driven over SSH. On the rebuilt
+Air it cold-boots in **about 30 seconds**, not two minutes.
+
+**`-gpu host`, NEVER `-gpu swiftshader_indirect`** — this line said
+`swiftshader_indirect` until 2026-09-17 and it does not work here. The emulator
+boots fine, then drops to `offline` the instant the app launches:
+
+```
+ERROR | Failed to find ColorBuffer: 85
+```
+
+Maestro then dies at `launchApp` with `device 'emulator-5554' not found` /
+`device offline`, which reads as a broken build rather than a dead renderer.
+`-gpu host` uses Metal, works headless over SSH, and passed on the first try.
+Apple silicon has no software-rasteriser problem to work around.
+
+**Let an install SETTLE before running a flow.** `adb install` returns before
+Android has finished the package update, and the update kills the running app.
+The next flow then fails at its FIRST assertion, which reads exactly like a UI
+regression. Diagnosed twice on 2026-09-17; the tell is in logcat, never on
+screen:
+
+```
+D/PackageUpdatedTask: Package updated: mOp=UPDATE packages=[fit.ignia.app]
+I/Zygote:             Process 4234 exited due to signal 9 (Killed)
+```
+
+Re-running the same flow unchanged passes. If a fresh install fails at its first
+anchor, grep logcat for `signal 9` before believing anything about the UI.
 
 ### iOS: always pass `--device`, and know what the text matchers are
 
