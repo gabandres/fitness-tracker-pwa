@@ -112,6 +112,17 @@ import type { I18nKey } from '@/i18n';
 // is worth one banner" — and neither is a bug-fix non-bump.
 // The catalog going back to an inline list is deliberately NOT announced: the
 // sheet it reverts was never in a shipped build, so for a user nothing changed.
+// NOT bumped 2026-09-21 (the verify-email resend copy). A clear bug-fix
+// non-bump, and the closest precedent is the 2026-09-04 scan-fixed bump that
+// went the OTHER way — so the difference is worth stating. That one earned a
+// banner because five days of failures gave users "a concrete memory of it
+// failing and no way to know it works again". This one has no such cohort:
+// Firebase Auth's throttle only answers a resend tapped seconds after the
+// automatic sign-up send, inside a window most users never enter, and the
+// production log shows it reaching exactly one account. The people it did hit
+// are mid-signup and have not reached a Today banner at all — the screen this
+// fires on is one they see after onboarding. A banner would announce a wrong
+// error message to thousands who never saw it.
 export const WHATS_NEW_VERSION = '2026-09-17-train-logger';
 
 const KEY = 'whatsNew.seen';
