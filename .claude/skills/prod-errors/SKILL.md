@@ -1,6 +1,6 @@
 ---
 name: prod-errors
-description: Triage, diagnose, and fix Ignia production errors across its five separate error surfaces — Sentry ignia-web (the web shell + /admin), Sentry ignia-mobile (Expo, Android-only so far), Cloud Functions logs, App Store Connect crash reports (iOS), and cloud config drift that no dashboard shows at all (npm run doctor). Use for "any errors in prod?", "what's crashing?", "the app is broken for a user", "check the functions logs", "sign-in is failing", or when the owner pastes a stack trace or a user's bug report.
+description: Triage, diagnose, and fix Ignia production errors across its five separate error surfaces — Sentry ignia-web (the web shell + /admin), Sentry ignia-mobile (Expo, both platforms), Cloud Functions logs, App Store Connect crash reports (iOS), and cloud config drift that no dashboard shows at all (npm run doctor). Use for "any errors in prod?", "what's crashing?", "the app is broken for a user", "check the functions logs", "sign-in is failing", or when the owner pastes a stack trace or a user's bug report.
 ---
 
 # Production error triage
@@ -22,10 +22,20 @@ slice of the product, and none of them talks to the others:
 | **Cloud config drift** | errors NO dashboard shows — see below | `npm run doctor` | gcloud + Play service account |
 
 **Mobile Sentry exists as of 2026-08-03** (it did not before; older notes saying
-"the Expo app has no crash reporting" are stale). It is **live on Android in vc 6**
-and **in no iOS binary yet** — build `f3e5daaf` carries it but was never submitted
-to TestFlight. So: an iOS JS crash still produces nothing anywhere. Say which
-platform your "no errors" claim covers.
+"the Expo app has no crash reporting" are stale). It is live on **both**
+platforms: Android since vc 6, and iOS is reporting too — real-device events
+have arrived tagged `1.2.0` (dist 49), `1.2.1` (dist 60) and `1.2.3` (dist 64),
+including native crashes and iOS AppHangs. This paragraph said "**in no iOS
+binary yet** — build `f3e5daaf` ... never submitted to TestFlight" until
+2026-09-21, and a triage sweep read that as "an iOS JS crash produces nothing
+anywhere" while iOS issues sat unread in the list. Still say which platform a
+"no errors" claim covers — just don't assume iOS is blind.
+
+Read the **`environment` tag before the stack**: `sentry.ts` sets it to `dev`,
+`prod` or `simulator` (`Device.isDevice`), and a Release build on a simulator
+lands in `simulator`, not `prod`. `IGNIA-MOBILE-7` is the standing example — a
+`fatal` SIGABRT in `ExpoSpeechRecognizer.prepareMicrophoneRecognition` that only
+means the simulator has no audio input unit.
 
 `SENTRY_ORG` / `SENTRY_PROJECT` are **no longer secrets** — both default in
 `scripts/sentry-release.mjs` (`gabriel-bermudez` / `ignia-web`). Only

@@ -1365,6 +1365,7 @@ export const en = {
   'verify.notYet': 'Still not verified — tap the link in the email, then refresh.',
   'verify.checkFailed': "Couldn't refresh status. Try again.",
   'verify.resendFailed': "Couldn't resend the email. Try again.",
+  'verify.resendTooSoon': 'You just asked for one — check your inbox and spam folder. You can resend again in a minute.',
   'onboarding.saveErrVerify': 'Please verify your email first (check your inbox or spam), then try again.',
 
   // ── daily targets (targetMode: custom vs automatic) ──

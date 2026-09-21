@@ -73,7 +73,18 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 
 ## 2. Merged, on `main`, and not delivered anywhere
 
-**Nothing.** Everything on `main` shipped in the 2026-09-17 OTA (ADR-0041, the
+**One row: the `verify.resendTooSoon` copy on the email-verification screen**
+(2026-09-21). Firebase Auth throttles link generation far tighter than our own
+5-per-uid budget, so a new signup who tapped **Resend** seconds after the
+automatic sign-up send was told "Couldn't resend the email. Try again." while
+the mail was already on its way — a 500 in the request log, and the one
+instruction that keeps it failing (seen in prod 2026-09-14). **The server half
+is deployed** and ships independently: `sendVerificationEmail` classifies the
+throttle (`isAuthThrottled`, covered by `functions/test/verify-email-throttle.spec.ts`)
+and throws a typed `RATE_LIMITED`. The screen that reads that code is JS-only
+and reaches nobody until the next OTA. **Delete this row when that OTA lands.**
+
+Everything else on `main` shipped in the 2026-09-17 OTA (ADR-0041, the
 rest-pause continuation rest, the inline catalog, the What's New bump). Both
 channels are on `76fae0a3` (the second 09-17 publish, ledger row 1; this said
 `3508aeb6` for a few hours); the ledger owns the group ids and the rollback

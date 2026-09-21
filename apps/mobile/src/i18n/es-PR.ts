@@ -1223,6 +1223,7 @@ export const esPR: Record<I18nKey, string> = {
   'verify.notYet': 'Aún sin verificar — toca el enlace del correo y actualiza.',
   'verify.checkFailed': 'No se pudo actualizar el estado. Intenta de nuevo.',
   'verify.resendFailed': 'No se pudo reenviar el correo. Intenta de nuevo.',
+  'verify.resendTooSoon': 'Acabas de pedir uno — revisa tu bandeja y la carpeta de spam. Puedes reenviarlo en un minuto.',
   'onboarding.saveErrVerify': 'Verifica tu correo primero (revisa tu bandeja o spam) e intenta de nuevo.',
 
   // ── daily targets (targetMode: custom vs automatic) ──

@@ -57,6 +57,47 @@ import { verifyEmailEmail } from "./email-templates";
 /** Deliberately generous — a real person who mistypes and retries is never blocked. */
 export const MAX_PER_USER = 5;
 
+/**
+ * Firebase Auth's OWN throttle on link generation — separate from, and much
+ * tighter than, `MAX_PER_USER` above.
+ *
+ * Observed in production 2026-09-14: a new account signed up (which mails a
+ * link automatically) and tapped "Resend" eight seconds later. Our budget
+ * allows five, so the second call sailed straight past it into
+ * `generateEmailVerificationLink`, which answered `400
+ * TOO_MANY_ATTEMPTS_TRY_LATER`. With nothing to catch that, it fell to the
+ * generic `internal` below — an HTTP 500 in the logs, and
+ * `verify.resendFailed` ("Couldn't resend the email. Try again.") on screen,
+ * shown to a user whose email had in fact just gone out. Both halves were
+ * wrong: nothing had failed, and trying again immediately is the one action
+ * that keeps it failing.
+ *
+ * The Admin SDK does not surface this as `auth/too-many-requests`. It masks it
+ * as `auth/internal-error` and leaves the Identity Toolkit's status token in
+ * the raw message, so the token is what we match — both spellings, because the
+ * masking is the SDK's choice and not a contract.
+ *
+ * Matching a string is right here, unlike `isProviderExhausted` in
+ * `analyze-photo.ts` which deliberately refuses to: `TOO_MANY_ATTEMPTS_TRY_LATER`
+ * is a server error ENUM, not human prose someone can reword.
+ */
+export function isAuthThrottled(err: unknown): boolean {
+  if (err == null) return false;
+  if (typeof err === "string") return err.includes("TOO_MANY_ATTEMPTS_TRY_LATER");
+  if (typeof err !== "object") return false;
+  const e = err as {
+    code?: unknown;
+    message?: unknown;
+    errorInfo?: { code?: unknown; message?: unknown } | null;
+  };
+  if (e.code === "auth/too-many-requests" || e.errorInfo?.code === "auth/too-many-requests") {
+    return true;
+  }
+  return [e.message, e.errorInfo?.message].some(
+    (m) => typeof m === "string" && m.includes("TOO_MANY_ATTEMPTS_TRY_LATER"),
+  );
+}
+
 /** Where the user lands after Firebase's handler accepts the code. */
 const CONTINUE_URL = process.env.MACROLOG_VERIFY_CONTINUE_URL || "https://ignia.fit/";
 
@@ -125,6 +166,19 @@ export const sendVerificationEmail = onCall<
         }),
       );
     } catch (err) {
+      if (isAuthThrottled(err)) {
+        // Not a crash, and not worth alarming anyone with: a link went out
+        // moments ago. A typed `resource-exhausted` is the DESIGNED rejection
+        // path (CLAUDE.md / the triage skill: a typed HttpsError is not an
+        // outage), and it also demotes the request log from ERROR to WARNING,
+        // where this belongs.
+        console.warn(
+          `sendVerificationEmail: auth throttled uid=${uid} — a link was already sent recently`,
+        );
+        throw new HttpsError("resource-exhausted", "A verification email was just sent.", {
+          code: ErrorCode.RATE_LIMITED,
+        });
+      }
       console.error(`sendVerificationEmail: link generation failed uid=${uid}`, err);
       throw new HttpsError("internal", "Could not send the verification email.", {
         code: ErrorCode.VERIFY_EMAIL_FAILED,

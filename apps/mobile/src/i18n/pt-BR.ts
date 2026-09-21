@@ -1202,6 +1202,7 @@ export const ptBR = {
   'verify.notYet': 'Ainda não confirmado — toque no link do e-mail e atualize.',
   'verify.checkFailed': 'Não foi possível atualizar o status. Tente de novo.',
   'verify.resendFailed': 'Não foi possível reenviar o e-mail. Tente de novo.',
+  'verify.resendTooSoon': 'Você acabou de pedir um — confira a caixa de entrada e o spam. Você pode reenviar em um minuto.',
   'onboarding.saveErrVerify': 'Confirme o seu e-mail primeiro (veja a caixa de entrada ou o spam) e tente de novo.',
 
   // ── daily targets (targetMode: custom vs automatic) ──
