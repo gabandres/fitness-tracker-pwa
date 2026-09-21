@@ -231,9 +231,9 @@ artifact"; which version is *live* is `STATUS.md`'s question.
 | Android | vc 45 / 1.2.3 — Play production + alpha | `15c1cfc8aaa0951e882c278af5c1256de5836194` | the `.aab` |
 | iOS | build 64 / 1.2.3 — App Store | `52802bba95ac0ac3f4cfd053d6ee61c354cc18d9` | the `.ipa` |
 
-Both channels are OPEN on those hashes; the newest OTA on each is `76fae0a3`
-(2026-09-17, second publish — the Next Up button no longer repeats the template
-name). This line lagged the ledger by two publishes on 2026-09-17; the ledger's
+Both channels are OPEN on those hashes; the newest OTA on each is `ebbe0147`
+(2026-09-21 — a verification-email resend inside Firebase Auth's throttle no
+longer reports failure). This line lagged the ledger by two publishes on 2026-09-17; the ledger's
 top row is the authority. **Only a value read from the artifact is evidence** — a build
 log, a locally generated hash, or an old Windows-computed number is not.
 
