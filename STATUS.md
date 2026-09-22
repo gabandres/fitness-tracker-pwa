@@ -109,6 +109,33 @@ host setup and traps are in `.maestro/regression/README.md`.
 deleted and its outcome goes to `CHANGELOG.md`.
 
 
+### iOS builds on `ignia-mac` do not launch — Xcode 27 / UIScene. BLOCKS all iOS QA
+
+A Release build cut here 2026-09-22 installs and dies on the first frame:
+`UIScene life cycle is required for apps built with this SDK`. Xcode is now
+**27.0** and the **iOS 26.5 runtime is gone** (`Ignia-QA` runs 27.0).
+**No `app.json`-only fix exists** — neither `react-native@0.86.2` nor
+`expo@57.0.14` ships a `UIWindowSceneDelegate`, so the manifest would point at
+nothing. Build 64 in production is fine; the NEXT iOS binary is the exposure,
+and the check is SDK-linked so treat a device build as blocked too.
+
+Settle two facts before writing code: has Expo shipped UIScene support (57
+patch or 58)? does Apple require the iOS 27 SDK to submit yet? Two noes make
+pinning the host to Xcode 26.x the cheap move. Options and evidence:
+`CODE_REVIEW_2026-09-22.md` §0. Consequences: no Maestro sweep ran on 09-22,
+and the 09-17 binary is NOT a fallback — it only ran on the 26.5 runtime.
+
+### Batch 1 of the 2026-09-22 review sits on `wt/review-batch-1`, unmerged
+
+Five fixes, one commit each, every test verified to fail against the unfixed
+source: the photo-scan per-keystroke gram rescale (corrupted macros; could park
+a row at zero permanently), Recent relog dropping carbs/fat, onboarding protein
+validation, the sign-in error slot one collision silenced for the session, and
+the verify-email Resend latch. All JS-only and **the iOS fingerprint still
+matches build 64 (`52802bba…`), so they ship by OTA with no binary** — the
+blocker above does not gate them. Unmerged, unpublished, and NOT visually
+verified. The remaining ~67 findings are unstarted.
+
 ### `ExerciseLibrarySheet` rows are untappable on iOS — cause UNKNOWN
 
 Nothing inside that sheet's ScrollView fires `onPress`. The list scrolls, the
