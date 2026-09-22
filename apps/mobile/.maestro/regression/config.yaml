@@ -43,6 +43,11 @@ executionOrder:
     # 21 asserts imperial unit labels ("DISTANCE (mi)"), so running it after
     # 20 would read kilometres if 20 ever died before its restore tail.
     - 21-train-cardio
+    # 22 was MISSING from this list until 2026-09-22. Maestro still ran it —
+    # unlisted flows are appended — but that put it AFTER 20, the one position
+    # the note below forbids, so a mid-flow death in 20 would have handed 22 a
+    # metric account. It is pinned here, before 20, for that reason.
+    - 22-train-rest-pause
     # 20 flips the account to metric and restores it in its own tail — keep it
     # LAST, so a mid-flow death cannot leave every later flow reading kilograms.
     - 20-units-metric

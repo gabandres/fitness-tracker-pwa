@@ -50,7 +50,33 @@ setup on BOTH platforms, silently and in two different ways, and this section
 described a machine that could no longer run any of it. What follows is what
 was actually executed.
 
-### iOS — `ignia-mac`, the only working host today
+### iOS — `ignia-mac`, BLOCKED since 2026-09-22 (was "the only working host")
+
+> **STOP — the suite cannot run on this host right now.** `ignia-mac` upgraded
+> to **Xcode 27.0** and the **iOS 26.5 runtime is gone**; `iOS 27.0` is the only
+> one left and `Ignia-QA` now runs it. Any app built here links the iOS 27 SDK,
+> and iOS 27 refuses to launch it:
+>
+> ```
+> (UIKitCore) failure in _UIApplicationEvaluateRuntimeIssueForNoSceneLifecycleAdoption
+> Application failed to launch: UIScene life cycle is required for apps built with this SDK.
+> ```
+>
+> The build SUCCEEDS and installs — it dies on the first frame, so this reads
+> like an app crash and is not one. Neither `react-native@0.86.2` nor
+> `expo@57.0.14` ships a `UIWindowSceneDelegate`, and the generated
+> `AppDelegate.swift` still builds its own `UIWindow` in
+> `didFinishLaunchingWithOptions`, so **there is no `app.json`-only fix** —
+> `UIApplicationSceneManifest` is a pointer to a delegate that does not exist
+> here, and adding it alone trades the abort for a black window.
+>
+> Production is unaffected: App Store build 64 was cut with the previous Xcode.
+> The exposure is the next iOS binary cut on this machine. Options and evidence:
+> `CODE_REVIEW_2026-09-22.md` §0. Until one is taken, everything below is the
+> recipe for a host that cannot currently run it.
+>
+> The 2026-09-17 QA binary is NOT a fallback — it only ran because the iOS 26.5
+> runtime still existed.
 
 Three things to set up, none of which announces itself until you try.
 **Re-measured 2026-09-16; the first two rows said something different and
@@ -71,7 +97,9 @@ weaker before that.**
 - **Simulator devices EXIST again — 18 of them, and one is ours.** This section
   claimed `simctl delete all` (the `DEV_ENVIRONMENT.md` §3.9 disk reclaim) had
   left none. Xcode has since recreated its defaults and the persistent
-  **`Ignia-QA`** (iPhone 17 / iOS 26.5) was created 2026-09-16 and is kept.
+  **`Ignia-QA`** was created 2026-09-16 and is kept. It was iPhone 17 / iOS
+  26.5; since the 2026-09-22 Xcode 27 upgrade it runs **iOS 27.0**, and the
+  26.5 devices left in `simctl list` are orphans whose runtime is gone.
   `simctl create` below is therefore idempotent-by-hand: check for `Ignia-QA`
   first and reuse it. **`--device` stays mandatory regardless** — this is a
   shared laptop, another simulator is routinely booted beside ours, and
@@ -91,7 +119,10 @@ export PATH=$JAVA_HOME/bin:$HOME/.maestro/bin:$PATH
 UDID=$(xcrun simctl list devices | awk -F'[()]' '/Ignia-QA/ {print $2; exit}')
 [ -n "$UDID" ] || UDID=$(xcrun simctl create Ignia-QA \
   com.apple.CoreSimulator.SimDeviceType.iPhone-17 \
-  com.apple.CoreSimulator.SimRuntime.iOS-26-5)
+  $(xcrun simctl list runtimes | awk '/^iOS /{print $NF; exit}'))
+# ^ resolve the runtime instead of naming one: this line said `iOS-26-5`
+#   until 2026-09-22, by which time that runtime had been removed and the
+#   create failed with a message that reads like a broken Xcode install.
 xcrun simctl boot "$UDID"
 
 cd ~/fitness-tracker-pwa/apps/mobile
