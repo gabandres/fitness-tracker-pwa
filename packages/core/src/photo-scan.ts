@@ -13,6 +13,18 @@
 export type ScannedItemSource = 'usda' | 'custom' | 'model';
 
 /** One recognized food in a scanned meal, with server-resolved macros. */
+/**
+ * The values one scanned row was FIRST known at — its immutable per-gram
+ * truth. Portion edits scale from this and never from a row's current numbers.
+ */
+export interface ScannedFoodBasis {
+  grams: number;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+}
+
 export interface ScannedFoodItem {
   /** Display name the vision model recognized ("grilled chicken breast"). */
   name: string;
@@ -55,6 +67,24 @@ export interface ScannedFoodItem {
    * weight and a model fallback with a weighed one are both real.
    */
   measured?: boolean;
+  /**
+   * Immutable basis every portion edit scales from — the gram field AND the
+   * whole-plate chips, which route through the same function.
+   *
+   * Why this exists: `rescaleScannedItem` used to scale from `item`, whose
+   * numbers are already rounded (calories to 1 kcal, macros to 0.1 g) and
+   * already rescaled by every prior edit. `scan.tsx` calls it PER KEYSTROKE
+   * over a `selectTextOnFocus` field, so retyping `150` over a 100 g row ran
+   * 1 g -> 15 g -> 150 g and compounded the rounding at every step, landing on
+   * 300 kcal / 0 g protein where 360 / 6.6 was right. Clearing the field first
+   * was worse: it set `grams` to 0, and the old `grams <= 0` guard then made
+   * every later keystroke a no-op, so the row was stuck at zero macros for
+   * good and no amount of retyping recovered it. Measured 2026-09-22.
+   *
+   * Optional because a draft parked by an older build carries none. It is
+   * captured lazily on the first edit, while the row still holds scan values.
+   */
+  basis?: ScannedFoodBasis;
 }
 
 /** Full result of one scan: the items plus the source the macros came from. */
@@ -90,21 +120,49 @@ export function sumScannedMacros(items: ScannedFoodItem[]): {
 }
 
 /**
- * Rescale an item's macros when the user edits its portion. Macros are linear
- * in grams, so we scale from the ratio of new:old grams. Guards a zero/again
- * old-grams so a mis-scanned 0 g item stays editable instead of dividing by 0.
+ * Rescale an item's macros when the user edits its portion.
+ *
+ * Macros are linear in grams, so this is a ratio — but it is taken against
+ * {@link ScannedFoodItem.basis}, NOT against the row's current values. Read
+ * that field for why: this runs per keystroke, and scaling from already-
+ * rounded, already-rescaled numbers compounds until the macros are wrong.
+ *
+ * The basis is captured here on first use, while the row still holds the
+ * values the scan produced.
  */
 export function rescaleScannedItem(item: ScannedFoodItem, newGrams: number): ScannedFoodItem {
-  const grams = Math.max(0, newGrams);
-  if (item.grams <= 0) return { ...item, grams };
-  const r = grams / item.grams;
+  const grams = Math.max(0, Number.isFinite(newGrams) ? newGrams : 0);
+  const basis = item.basis ?? snapshotBasis(item);
+
+  // A model-fallback whole-meal row arrives with `grams: 0`: there is no
+  // per-gram truth to scale by. Its macros stand as a whole-meal estimate, and
+  // the first positive weight the user enters is what DEFINES the basis for
+  // any later edit — which is the behaviour this had before the basis existed.
+  if (basis.grams <= 0) {
+    return grams > 0
+      ? { ...item, grams, basis: { ...snapshotBasis(item), grams } }
+      : { ...item, grams, basis };
+  }
+
+  const r = grams / basis.grams;
   const round = (n: number) => Math.round(n * 10) / 10;
   return {
     ...item,
     grams,
-    calories: Math.round(item.calories * r),
-    protein: round(item.protein * r),
-    carbs: round(item.carbs * r),
-    fat: round(item.fat * r),
+    basis,
+    calories: Math.round(basis.calories * r),
+    protein: round(basis.protein * r),
+    carbs: round(basis.carbs * r),
+    fat: round(basis.fat * r),
+  };
+}
+
+function snapshotBasis(item: ScannedFoodItem): ScannedFoodBasis {
+  return {
+    grams: item.grams,
+    calories: item.calories,
+    protein: item.protein,
+    carbs: item.carbs,
+    fat: item.fat,
   };
 }
