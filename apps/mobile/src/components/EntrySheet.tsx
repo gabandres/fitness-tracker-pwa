@@ -405,8 +405,19 @@ export function EntrySheet({
         key: `recent-${r.id}`,
         name: r.mealLabel ?? '',
         kcal: r.calories,
+        // All four macros, not just kcal+protein. A recent row IS a DailyLog
+        // and carries carbs and fat; dropping them here logged a row the user
+        // believed was a copy of the original, under-reported the carb and fat
+        // rings, and mirrored the same gap to Apple Health. The My Foods branch
+        // below always passed all four — this one did not. Fixed 2026-09-22.
         onLog: () =>
-          quickLog({ calories: r.calories, protein: r.protein ?? undefined, mealLabel: r.mealLabel ?? undefined }),
+          quickLog({
+            calories: r.calories,
+            protein: r.protein ?? undefined,
+            carbs: r.carbs ?? undefined,
+            fat: r.fat ?? undefined,
+            mealLabel: r.mealLabel ?? undefined,
+          }),
         onRemove: r.mealLabel && onHideRecent ? () => onHideRecent(r.mealLabel as string) : undefined,
       });
     }
