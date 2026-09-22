@@ -333,3 +333,124 @@ removed by `registry.ts:32`. That asymmetry is the structural reason the
   simulator; both are hardware-only checks per `coverage.md`.
 - **Android** — no host decision made this session; the sweep was iOS-only by
   request.
+
+---
+
+# §6 UX review — 2026-09-22, from real captures
+
+**How this was produced.** iOS QA was unblocked by downloading the **iOS 26.0
+simulator runtime** and installing the already-built `Ignia.app` onto a fresh
+`Ignia-QA-26` sim — no rebuild. The app launches there; the §0 abort needs the
+iOS **27** runtime, not merely the iOS 27 SDK. The full suite then ran
+**21/21 in 18m 3s**, and `collect-shots.sh` captured **84 screenshots**. Seven
+agents reviewed them by surface. Flow 01's capture is light-themed, which is the
+README's own check that flow 10 restored the theme — so the set is trustworthy.
+
+**§0 is unchanged.** This unblocks QA, not shipping. A binary cut here still
+links the iOS 27 SDK and will not launch for a user on iOS 27.
+
+## The headline: the 2026-08-08 regression class is BACK, in the mic error path
+
+`MicButton.tsx` carries two comments asserting it cannot happen:
+
+> "Width is capped so a transient message cannot squeeze the search field,
+> which is the exact regression this suite was built to catch." (:160)
+> "Capped: … an unbounded string here would collapse it — the 2026-08-08 bug
+> this suite exists for." (:184)
+
+The cap **bounds** the damage; it does not prevent it. With `maxWidth: 104` and
+`numberOfLines={2}`, `14-mic-after-tap.png` vs `14-search-row.png` measures the
+search field collapsing **309dp → 203dp (−34%)**, and `voice.failed`
+("Couldn't start listening — type it instead.") truncates so the remedy never
+renders. The user is told the problem, not the fix, and redirected to the field
+that just shrank. Invisible to 880 passing tests. **This is the whole argument
+for the suite.**
+
+## Confirmed by the orchestrator against source
+
+- **Body measurements are an inches island inside a metric screen.**
+  `body.tsx:433` prints `` `${label} ${v}` `` — no unit, no conversion. Bounds
+  are `MEASUREMENT_BOUNDS_IN`, the hint hardcodes `'Inches.'`, and no
+  `unitSystem` conversion exists anywhere on measurements. A metric user reads
+  "Waist 33.3" as cm (a thigh); typing 84 is rejected against inch bounds by a
+  message quoting inches. Feeds the body-fat estimate. **Worse than the `lb/wk`
+  label bug, because a wrong label is visible and a missing one is not.**
+- **The Body trend layer deletes itself silently.** Chart gated at
+  `body.tsx:206` on `weightSeries.length >= 2` over `SPARK_DAYS = 14`; chips on
+  `PROJECTION_WINDOW_DAYS = 28`. Skip two weeks and the sparkline and both chips
+  vanish with no replacement copy — while the goal rail keeps asserting
+  "55% · 5.5 lb to goal" from a 31-day-old weigh-in, and
+  `'body.recentWeight': 'Most recent weight'` carries **no date**.
+- **`train.nextUp` is mistranslated in es-PR only.** en `'Next up'`, pt-BR
+  `'Próximo'` (correct), **es-PR `'Toca ahora'` = "Tap now"**. It labels a
+  title, not a button, and the same screen teaches *tocar* = tap. This is
+  exactly the *value*-parity class §3 said nothing in the repo can detect —
+  1305 keys present in all three locales, zero placeholder drift, test-enforced,
+  and still wrong. Also `entreno` (9) vs `entrenamiento` (20) in one file —
+  UX_AUDIT §S16-11's defect recurring on a new word.
+- **Train's tick contradicts its own counters.** `22-rest-after-last-set.png`:
+  two sets show a filled black tick while the chip reads `0/2` and the header
+  `0 of 1 done`, with `LB`/`REPS` at a grey placeholder `0`. Mid-workout a user
+  reads the tick. The grey `0` is its own hazard — `0` is a LEGAL value here
+  (RIR "0 · to failure"; a bodyweight set is 0 lb), so placeholder and typed
+  value differ only in text colour.
+- **The FAB overlaps the rest bar**, sitting between thumb and `SKIP` on the one
+  element read from arm's length with the phone on a bench.
+- **Template `Remove` deletes on one tap, ~28px from `Save`.** Corroborates the
+  §2 source finding at `TemplateEditorModal.tsx:644` from the opposite
+  direction — two independent methods, one defect.
+
+## Dark theme — one bug wearing five faces (ADR-0014 says dark LEADS)
+
+Surfaces differentiated by a small lightness step in light lose that step in
+dark; controls that carried their own fill are reduced to borders. The food
+search field stops reading as an input; the Trends segmented pill is invisible;
+an OFF toggle has no visible track; skeleton blocks read as card texture; metric
+icon discs lose their fill. Separately and more urgently, the **`Got it`
+recalibration button is white-on-pale-coral (~2.3:1)** — the app's front door,
+in the theme that ships store screenshots, matching the ratio §2 measured
+independently in the source.
+
+## Systematic: the `faint` token is doing work it was never vetted for
+
+`#a8a29e` measures **2.39:1** on page / **2.25:1** on card, while `theme.ts`
+claims "All text tokens are WCAG-AA on their canvas". It currently carries
+"Tap + to log your first meal." — the only instruction on an empty Today — plus
+the 12pt row pencils (non-text controls, 3:1 floor).
+
+## Harness defects found by the review itself
+
+- **`*-today-metrics.png` is byte-identical to `*-today-top.png` in all three
+  variants** (sha1-verified: `01-today`, `09-es-today`, `10-dark-today`). The
+  scroll step never moves, so `coverage.md` claims reviewed coverage of the
+  daily-metrics card that **no run has ever captured**. Fix: `scrollUntilVisible`
+  on "Water" before the shot, as flow 14 already does.
+- **The Budget strip is never tapped**, so the "unlogged day renders identically
+  to a future day" suspicion is neither confirmed nor refuted.
+- **The units flow stops one screen short.** `20-units-train-kg.png` contains no
+  weight or unit at all, and the Refine capture predates the metric flip by 14
+  minutes — so the `lb/wk`-to-metric-users bug is untested.
+- **`05-history-prevmonth.png` REFUTES a §2 suspicion**: August renders 30+
+  logged dots, so the 400-row window does not bite one month back. Untested at
+  2+ months, which is where it would.
+
+## Also found (not exhaustive — the seven full reports have the rest)
+
+Scan screen keeps the tab bar and FAB with **no tab selected**; `MANAGE` is
+pixel-identical to the static section label beside it; a Quick Add chip
+truncates mid-word with 150dp of its own row empty; the three metric rows offer
+three different edit idioms (Sleep's value is genuinely inert while its siblings
+carry pencils); search results carry **no numbers at all**, so "Banana, raw" and
+"Bananas, raw" are indistinguishable without opening both; delete announces
+itself purely by absence and then greets the user with "Tap + to log your first
+meal"; the Trends "?" opens the glossary at *Today's* terms; sleep and weight
+charts carry no axis labels; two saturated warm reds (`#ff6a3d`, `#c62f27`)
+appear in one viewport with the loudest button being a dismissal.
+
+## Triage note
+
+All of it is JS-only — **no binary required, and §0 does not gate any of it.**
+Suggested order: the mic field collapse and the measurement units first (both
+mislead about real numbers), then the `Toca ahora` string (one word, high
+damage), then the dark-theme contrast cluster (one root cause, five symptoms),
+then the `faint` token audit.
