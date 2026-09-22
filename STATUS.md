@@ -109,27 +109,40 @@ host setup and traps are in `.maestro/regression/README.md`.
 deleted and its outcome goes to `CHANGELOG.md`.
 
 
-### iOS builds on `ignia-mac` won't launch on iOS 27 — Xcode 27 / UIScene. SHIPPING blocker
+### iOS / UIScene — SOLVED upstream, needs a version bump and one flag
 
-A Release build cut here 2026-09-22 installs and dies on the first frame:
-`UIScene life cycle is required for apps built with this SDK`. Xcode is now
-**27.0** and the **iOS 26.5 runtime is gone** (`Ignia-QA` runs 27.0).
-**No `app.json`-only fix exists** — neither `react-native@0.86.2` nor
-`expo@57.0.14` ships a `UIWindowSceneDelegate`, so the manifest would point at
-nothing. Build 64 in production is fine; the NEXT iOS binary is the exposure,
-and the check is SDK-linked so treat a device build as blocked too.
+A build cut here links the iOS 27 SDK and dies on the first frame on the iOS 27
+runtime (`UIScene life cycle is required for apps built with this SDK`).
+**QA is not affected** — the check is in the RUNTIME's UIKit, so the same
+binary passes 21/21 on iOS 26.0 (`xcodebuild -downloadPlatform iOS
+-buildVersion 26.0`, then `simctl install` the existing `.app`; device
+`Ignia-QA-26`).
 
-Settle two facts before writing code: has Expo shipped UIScene support (57
-patch or 58)? does Apple require the iOS 27 SDK to submit yet? Two noes make
-pinning the host to Xcode 26.x the cheap move. Options and evidence:
-`CODE_REVIEW_2026-09-22.md` §0.
+**Do NOT write a SceneDelegate plugin — Expo shipped this on 2026-09-15.**
+Verified against npm and the published tarball, not just docs:
 
-**QA is NOT blocked** — that was true for about an hour on 09-22 and this row
-said so. The check lives in the RUNTIME's UIKit, so the same binary that aborts
-on iOS 27.0 passed 21/21 on **iOS 26.0**: `xcodebuild -downloadPlatform iOS
--buildVersion 26.0`, then `simctl install` the existing `.app` — no rebuild.
-The QA device is now **`Ignia-QA-26`**; the old `Ignia-QA` is on 27 and cannot
-run the app. Recipe: `.maestro/regression/README.md`.
+- `expo@57.0.24` exists (we are on **57.0.14**); the scene runtime was
+  backported to the 57 line in `expo@57.0.23`.
+- `expo-build-properties@57.0.21` exists (we are on **57.0.12**) and genuinely
+  contains `ios.enableSceneSupport` — `build/iosSceneSupport.js` is in the
+  tarball. `57.0.20` added the fix for plugins that inject into the startup
+  block, which matters because Sentry and google-signin are in our plugin list.
+- Setting it makes prebuild point `UIApplicationSceneManifest` at Expo's own
+  `EXExpoAppSceneDelegate`. **No `SceneDelegate.swift` is generated on SDK 57**,
+  and `ios/` is gitignored here, so CNG covers us — no native file to maintain.
+- It is a documented no-op on SDK 58, which adopts scenes by default. SDK 58 is
+  in beta (2026-09-15, "three to four weeks"); no stable date announced.
+
+**The deadline is April 2027, not now.** Apple requires the iOS **26** SDK
+today (since 2026-04-28); the iOS 27 SDK floor starts April 2027
+(developer.apple.com/news/?id=k1mtkt1k, 2026-09-09). So pinning Xcode 26.x is a
+genuine fallback with ~7 months of runway, not a cliff.
+
+Next step is a 10-minute check, not a decision: `npx expo install --fix`, set
+`ios.enableSceneSupport: true`, `npx expo prebuild --clean --platform ios`, and
+read whether the plugin actually patched our AppDelegate. **This moves the
+native fingerprint — it needs a fresh binary per platform and cannot go out as
+an OTA.** Full evidence and URLs: `CODE_REVIEW_2026-09-22.md` §0.
 
 ### Batch 1 of the 2026-09-22 review sits on `wt/review-batch-1`, unmerged
 
