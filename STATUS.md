@@ -109,7 +109,7 @@ host setup and traps are in `.maestro/regression/README.md`.
 deleted and its outcome goes to `CHANGELOG.md`.
 
 
-### iOS builds on `ignia-mac` do not launch — Xcode 27 / UIScene. BLOCKS all iOS QA
+### iOS builds on `ignia-mac` won't launch on iOS 27 — Xcode 27 / UIScene. SHIPPING blocker
 
 A Release build cut here 2026-09-22 installs and dies on the first frame:
 `UIScene life cycle is required for apps built with this SDK`. Xcode is now
@@ -122,8 +122,14 @@ and the check is SDK-linked so treat a device build as blocked too.
 Settle two facts before writing code: has Expo shipped UIScene support (57
 patch or 58)? does Apple require the iOS 27 SDK to submit yet? Two noes make
 pinning the host to Xcode 26.x the cheap move. Options and evidence:
-`CODE_REVIEW_2026-09-22.md` §0. Consequences: no Maestro sweep ran on 09-22,
-and the 09-17 binary is NOT a fallback — it only ran on the 26.5 runtime.
+`CODE_REVIEW_2026-09-22.md` §0.
+
+**QA is NOT blocked** — that was true for about an hour on 09-22 and this row
+said so. The check lives in the RUNTIME's UIKit, so the same binary that aborts
+on iOS 27.0 passed 21/21 on **iOS 26.0**: `xcodebuild -downloadPlatform iOS
+-buildVersion 26.0`, then `simctl install` the existing `.app` — no rebuild.
+The QA device is now **`Ignia-QA-26`**; the old `Ignia-QA` is on 27 and cannot
+run the app. Recipe: `.maestro/regression/README.md`.
 
 ### Batch 1 of the 2026-09-22 review sits on `wt/review-batch-1`, unmerged
 
