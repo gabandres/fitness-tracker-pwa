@@ -15,6 +15,7 @@ import {
   toTemplateDoc,
   toTemplatePatch,
 } from './firestore-writers';
+import type { SessionExercise } from './workout';
 
 /**
  * A stand-in for the SDK values the real adapters inject. Both are plain,
@@ -529,5 +530,36 @@ describe('toOnboardingV2Patch', () => {
 describe('BATCH_CHUNK', () => {
   it('stays under Firestore\'s 500-write cap', () => {
     expect(BATCH_CHUNK).toBeLessThan(500);
+  });
+});
+
+describe('a timed set at the write seam', () => {
+  // Reported 2026-09-21 as "plank rows save with setKind but no duration" on
+  // five sessions. In code the hold is `durationSec` and `reps` is empty BY
+  // DESIGN on a `time`-style exercise (ADR-0028; `isLoggedSet` reads
+  // `durationSec` there and nothing else). This pins that both session
+  // writers carry `durationSec` through untouched and never manufacture a
+  // `reps` for it — a default would corrupt progression history silently.
+  const plank: SessionExercise = {
+    exerciseId: 'plank',
+    name: 'Plank',
+    logStyle: 'time',
+    cues: [],
+    sets: [{ kind: 'working', durationSec: 100, rir: 0, done: true }],
+  };
+  const firstSet = (exercises: unknown) => (exercises as SessionExercise[])[0].sets[0];
+
+  it('keeps durationSec and writes no reps on create', () => {
+    const doc = toSessionDoc({ status: 'completed', date: NOW, exercises: [plank] }, codec, NOW);
+    const set = firstSet(doc.exercises);
+    expect(set).toEqual({ kind: 'working', durationSec: 100, rir: 0, done: true });
+    expect('reps' in set).toBe(false);
+  });
+
+  it('keeps durationSec and writes no reps on finish (patch)', () => {
+    const patch = toSessionPatch({ status: 'completed', exercises: [plank] }, codec, NOW);
+    const set = firstSet(patch.exercises);
+    expect(set.durationSec).toBe(100);
+    expect('reps' in set).toBe(false);
   });
 });
