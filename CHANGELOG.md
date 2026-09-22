@@ -4,6 +4,42 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-09-21 — the plank holds were in the database the whole time; the 09-16 migration left them unreadable
+
+Reported as "duration exercises save with no duration", five sessions, with
+8/24 offered as proof the write path once worked. It is not a write bug and no
+commit introduced it. Read straight from Firestore, every hold is present:
+**06-23, 06-30, 07-06, 08-24 (90 s), 09-08 (67 s), 09-15 (92 s), 09-21 (100 s)**.
+There is no plank session on 09-11 at all. A `time`-style set stores its count
+in `durationSec` and leaves `reps` empty by design (ADR-0028), so any
+reps-only reader shows a blank — which the CSV export did until `d0d00a63`.
+
+**The real defect, and it was ours.** `migrate-time-sets-duration.mjs`
+(2026-09-16) chose which rows to move by falling back to the CATALOG when a
+session exercise had no `logStyle` — then wrote only the sets. No reader
+consults the catalog; they all resolve `ex.logStyle ?? DEFAULT_LOG_STYLE`, and
+that default is `weight-reps`. So the four migrated sessions came out of that
+repair resolving to weight-reps with `reps` emptied: still invisible, for the
+opposite reason. On **2026-08-24 the migration caused the blank** — that row
+read correctly as `reps: 90` beforehand, which is exactly why 8/24 looked like
+the last good day.
+
+Fixed with `scripts/stamp-time-logstyle.mjs`: writes `logStyle: 'time'` and
+nothing else, only where the catalog says time-style, the row has no style of
+its own, some set has `durationSec` and NO set has `reps`. **4 sessions
+stamped** (06-23, 06-30, 07-06, 08-24). The three 2026-06-15 scaffold sets
+carry neither field and were left alone again. A re-scan reads 0 remaining.
+The "Leg Day" template already carries `logStyle: time`, so new sessions
+cannot reacquire this.
+
+Also landed: a `firestore-writers` test pinning that both session write paths
+carry a timed set's `durationSec` through and never manufacture a `reps`, and
+`scripts/backfill-2026-09-21.mjs`, which found 09-21 **already holding
+`durationSec: 100`** and correctly wrote nothing there. It did add the two
+missing weigh-ins, **2026-09-19 = 156.4 lb and 2026-09-20 = 155.6 lb**; 09-21
+has no weigh-in and none was invented. Trailing 7-day average, 6 of 7 days
+weighed: **154.97 lb**.
+
 ## 2026-09-17 — docs audit: STATUS.md back under budget, four shipped entries moved here
 
 Outcomes deleted from `STATUS.md` (249 → under ~200 non-blank lines), recorded
