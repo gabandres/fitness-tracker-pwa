@@ -1361,6 +1361,7 @@ export const en = {
   'verify.resend': 'Resend email',
   'verify.resending': 'Sending…',
   'verify.resent': 'Email sent',
+  'verify.resentWait': 'Email sent — resend in {n}s',
   'verify.signOut': 'Use a different account',
   'verify.notYet': 'Still not verified — tap the link in the email, then refresh.',
   'verify.checkFailed': "Couldn't refresh status. Try again.",

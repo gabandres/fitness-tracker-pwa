@@ -24,7 +24,15 @@ export default function VerifyEmail() {
   const { user, reloadUser, resendVerification, signOut } = useAuth();
   const [checking, setChecking] = useState(false);
   const [resending, setResending] = useState(false);
-  const [resent, setResent] = useState(false);
+  // A COOLDOWN, not a latch. `resent` was a one-way boolean: the first
+  // successful resend disabled the button for the life of the screen, so if
+  // that second mail was also lost the only way out of the verification wall
+  // was to force-quit or sign out — from the one screen standing between
+  // sign-up and the product. The RATE_LIMITED branch below had already worked
+  // out the right shape ("the button stays enabled, because a minute later it
+  // will work"); the success path just never adopted it. Found 2026-09-22.
+  const [resentAt, setResentAt] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
   const [error, setError] = useState<string | null>(null);
 
   // The branded ignia.fit/auth/action page verifies the email in the browser
@@ -64,13 +72,28 @@ export default function VerifyEmail() {
     }
   }
 
+  /** Firebase throttles link generation tightly; a minute matches it. */
+  const RESEND_COOLDOWN_MS = 60_000;
+  const cooldownLeft =
+    resentAt == null ? 0 : Math.max(0, Math.ceil((resentAt + RESEND_COOLDOWN_MS - now) / 1000));
+
+  useEffect(() => {
+    if (resentAt == null) return;
+    const id = setInterval(() => {
+      const t = Date.now();
+      setNow(t);
+      if (t >= resentAt + RESEND_COOLDOWN_MS) clearInterval(id);
+    }, 1000);
+    return () => clearInterval(id);
+  }, [resentAt]);
+
   async function onResend() {
-    if (resending || resent) return;
+    if (resending || cooldownLeft > 0) return;
     setError(null);
     setResending(true);
     try {
       await resendVerification(locale);
-      setResent(true);
+      setResentAt(Date.now());
     } catch (e) {
       // `RATE_LIMITED` is not a failure. Firebase Auth throttles link
       // generation far tighter than our own per-uid budget, so tapping Resend
@@ -127,13 +150,19 @@ export default function VerifyEmail() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.secondary, (resending || resent) && styles.busy]}
+            style={[styles.secondary, (resending || cooldownLeft > 0) && styles.busy]}
             onPress={onResend}
-            disabled={resending || resent}
+            disabled={resending || cooldownLeft > 0}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: resending || cooldownLeft > 0 }}
             testID="verify-resend"
           >
             <Text style={styles.secondaryText}>
-              {resending ? t('verify.resending') : resent ? `✓ ${t('verify.resent')}` : t('verify.resend')}
+              {resending
+                ? t('verify.resending')
+                : cooldownLeft > 0
+                  ? `✓ ${t('verify.resentWait', { n: String(cooldownLeft) })}`
+                  : t('verify.resend')}
             </Text>
           </TouchableOpacity>
 

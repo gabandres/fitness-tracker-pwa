@@ -1198,6 +1198,7 @@ export const ptBR = {
   'verify.resend': 'Reenviar e-mail',
   'verify.resending': 'Enviando…',
   'verify.resent': 'E-mail enviado',
+  'verify.resentWait': 'E-mail enviado — reenviar em {n}s',
   'verify.signOut': 'Usar outra conta',
   'verify.notYet': 'Ainda não confirmado — toque no link do e-mail e atualize.',
   'verify.checkFailed': 'Não foi possível atualizar o status. Tente de novo.',

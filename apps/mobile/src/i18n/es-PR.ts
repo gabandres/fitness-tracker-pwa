@@ -1219,6 +1219,7 @@ export const esPR: Record<I18nKey, string> = {
   'verify.resend': 'Reenviar correo',
   'verify.resending': 'Enviando…',
   'verify.resent': 'Correo enviado',
+  'verify.resentWait': 'Correo enviado — reenvía en {n}s',
   'verify.signOut': 'Usar otra cuenta',
   'verify.notYet': 'Aún sin verificar — toca el enlace del correo y actualiza.',
   'verify.checkFailed': 'No se pudo actualizar el estado. Intenta de nuevo.',
