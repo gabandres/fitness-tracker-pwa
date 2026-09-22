@@ -22,6 +22,16 @@ appId: fit.ignia.app
 - takeScreenshot: .maestro/regression/shots/03-train-bottom
 - tapOn: 'Trends'
 - takeScreenshot: .maestro/regression/shots/03-trends
+# The Budget face. Added 2026-09-22: the panel's second tab had NEVER been
+# opened by any flow, so the weekly-budget strip had no capture at all and the
+# "an unlogged past day renders identically to a future day" question could not
+# be answered from the shot set. The tab is a no-op when already active, so
+# this is safe to run unconditionally.
+- tapOn:
+    id: 'panel-tab-budget'
+- takeScreenshot: .maestro/regression/shots/03-trends-budget
+- tapOn:
+    id: 'panel-tab-week'
 - scroll
 - scroll
 - takeScreenshot: .maestro/regression/shots/03-trends-bottom

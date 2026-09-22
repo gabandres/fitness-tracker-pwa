@@ -98,11 +98,18 @@ env:
     visible: 'Today'
     timeout: 15000
 - takeScreenshot: .maestro/regression/shots/10-dark-today-top
+# centerElement, added 2026-09-22. WITHOUT it this scroll SUCCEEDS WITHOUT
+# MOVING: the metrics card peeks above the fold, Maestro counts the label as
+# visible, and the capture is taken from the unscrolled position — so
+# `*-today-metrics.png` came out BYTE-IDENTICAL to `*-today-top.png` in all
+# three variants (sha1-verified 2026-09-22). coverage.md had therefore been
+# claiming a reviewed capture of the metrics card that no run ever took.
 - scrollUntilVisible:
     element:
       text: 'Water'
     direction: DOWN
     timeout: 15000
+    centerElement: true
 - takeScreenshot: .maestro/regression/shots/10-dark-today-metrics
 - scrollUntilVisible:
     element:
