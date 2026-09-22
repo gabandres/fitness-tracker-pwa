@@ -149,6 +149,9 @@ export function EntrySheet({
   const [busy, setBusy] = useState(false);
   const [manage, setManage] = useState(false);
   const [mode, setMode] = useState<'browse' | 'custom' | 'recipe' | 'recipeImport' | 'meal'>('browse');
+  // Raised by MicButton; rendered full-width under the search row rather than
+  // beside the field, which used to collapse it. See MicButton.onFailedChange.
+  const [micFailed, setMicFailed] = useState(false);
   /** The collapsed "more ways to log" list. Closed by default — that is the point. */
   const [moreOpen, setMoreOpen] = useState(false);
   /** Dictated text, routed by `routeTranscript` to whichever surface fits. */
@@ -599,8 +602,16 @@ export function EntrySheet({
               <FoodSearch
                 unitSystem={unitSystem}
                 seedQuery={searchSeed}
+                micMessage={
+                  micFailed ? (
+                    <Text style={styles.micFailed} testID="mic-failed">
+                      {t('voice.failed')}
+                    </Text>
+                  ) : null
+                }
                 micSlot={
                   <MicButton
+                    onFailedChange={setMicFailed}
                     onSearch={(text) => setSearchSeed(text)}
                     onMeal={(text) => { setVoiceSeed(text); setMode('meal'); }}
                   />
@@ -822,6 +833,9 @@ const createStyles = ({ scheme, colors, shadow }: Theme) => StyleSheet.create({
     paddingHorizontal: space.lg,
     paddingVertical: space.md,
   },
+  // Full width, unclamped, no numberOfLines — the whole point of moving it
+  // out of the search row is that the sentence gets to finish.
+  micFailed: { fontSize: font.small, color: colors.muted, paddingHorizontal: space.xs, paddingBottom: space.xs },
   primaryBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.xs, paddingVertical: space.sm, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card },
   primaryBtnText: { fontSize: font.small, fontWeight: '600', color: colors.ink },
   moreList: { marginTop: space.xs, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card, overflow: 'hidden' },

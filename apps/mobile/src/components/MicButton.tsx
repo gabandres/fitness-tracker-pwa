@@ -50,11 +50,26 @@ import { font, radius, space } from '@/theme';
 export function MicButton({
   onSearch,
   onMeal,
+  onFailedChange,
 }: {
   /** A bare food name — put it in the search box. */
   onSearch: (text: string) => void;
   /** A quantified utterance — hand it to the meal-text draft. */
   onMeal: (text: string) => void;
+  /**
+   * Raised when the recognizer refuses, so the PARENT can render the message
+   * full-width below the search row.
+   *
+   * It used to render inline, as a sibling of the search field, capped at
+   * `maxWidth: 104` with `numberOfLines={2}`. Two comments here asserted the
+   * cap made that safe — "the exact regression this suite was built to catch".
+   * It did not. Measured 2026-09-22 off `14-mic-after-tap.png` vs
+   * `14-search-row.png`: the field still collapsed **309dp -> 203dp (-34%)**,
+   * and the string truncated at "Couldn't start / listening — type…", so the
+   * half that tells the user what to do instead never rendered. A cap bounds
+   * the damage; it does not prevent it.
+   */
+  onFailedChange?: (failed: boolean) => void;
 }) {
   const t = useT();
   const locale = useLocale();
@@ -124,6 +139,10 @@ export function MicButton({
     startListening(lang, onDevice);
   }, [listening, locale]);
 
+  useEffect(() => {
+    onFailedChange?.(failed);
+  }, [failed, onFailedChange]);
+
   if (!isSpeechAvailable()) return null;
 
   if (denied) {
@@ -150,21 +169,11 @@ export function MicButton({
           color={listening ? colors.accent : colors.ink}
         />
       </TouchableOpacity>
-      {/* Say so when the recognizer refuses. Silence here reads as a broken
-          button, and it points at typing rather than at Settings, because
-          this failure is not a permission problem — that path is `denied`.
-
-          INLINE, not absolutely positioned: Android does not draw a child
-          that falls outside its parent's bounds, so an overlay hung below
-          this button rendered on nothing (measured on the emulator — the
-          state was set and the text never appeared). Width is capped so a
-          transient message cannot squeeze the search field, which is the
-          exact regression this suite was built to catch. */}
-      {failed ? (
-        <Text style={styles.failedText} numberOfLines={2} testID="mic-failed">
-          {t('voice.failed')}
-        </Text>
-      ) : null}
+      {/* The failure message is NOT rendered here — it goes up through
+          `onFailedChange` and is drawn full-width below the search row. An
+          absolute overlay was tried first and does not work: Android does not
+          draw a child outside its parent's bounds, so it rendered on nothing.
+          A capped inline sibling was tried second and is what this replaces. */}
     </View>
   );
 }
@@ -180,11 +189,4 @@ const createStyles = ({ colors }: Theme) =>
       borderRadius: radius.sm,
     },
     row: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
-    failedText: {
-      // Capped: this sits beside the search field, and an unbounded string
-      // here would collapse it — the 2026-08-08 bug this suite exists for.
-      maxWidth: 104,
-      fontSize: font.tiny,
-      color: colors.muted,
-    },
   });
