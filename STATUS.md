@@ -73,11 +73,13 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 
 ## 2. Merged, on `main`, and not delivered anywhere
 
-**Nothing.** Everything on `main` shipped in the 2026-09-21 OTA (the
-verification-email resend fix, whose server half deployed the same day) or in
-the 2026-09-17 one before it (ADR-0041, the rest-pause continuation rest, the
-inline catalog, the What's New bump). Both channels are on `ebbe0147` (ledger
-row 1); the ledger owns the group ids and the rollback commands.
+**ANDROID is owed `2227698c`** — the 2026-09-22 review ship (nine user-facing
+fixes; `CHANGELOG.md`). iOS has it as an OTA on build 64 (group `c0d351c4`).
+Android does not, and **cannot be published from `ignia-mac`**: the live
+Android binary is Windows-built on `15c1cfc8…` and this Mac computes a
+different Android hash, so a publish from here reaches nobody
+(`guard_eas_update.py` enforces it). **Publish it from the Windows workstation
+at `2227698c`.** Everything else on `main` is delivered on both.
 
 Re-derive rather than trust this line: `git log --oneline` against the newest
 OTA row in `apps/mobile/docs/fingerprint-ledger.md`, and
@@ -98,8 +100,10 @@ reduction and `superset` needs a pairing between two exercises; the model
 carries neither (ADR-0040 §Consequences). Do not read "two structures left" as
 "two slices left".
 
-**The iOS regression suite is at 21 of 21** (2026-09-17, `ignia-mac`, simulator
-`Ignia-QA`; how it got there is in `CHANGELOG.md`). **Never compose a suite
+**The iOS regression suite is at 21 of 21** (2026-09-22, `ignia-mac`, simulator
+**`Ignia-QA-26`** — the old `Ignia-QA` is on iOS 27 and cannot launch anything
+built by this Xcode; see the UIScene row in §3). That sweep ran on the 10:46
+binary and so predates the fixes in the 09-22 ship. **Never compose a suite
 number from individual flow runs** — the suite is order-dependent by design;
 host setup and traps are in `.maestro/regression/README.md`.
 
@@ -143,17 +147,6 @@ Next step is a 10-minute check, not a decision: `npx expo install --fix`, set
 read whether the plugin actually patched our AppDelegate. **This moves the
 native fingerprint — it needs a fresh binary per platform and cannot go out as
 an OTA.** Full evidence and URLs: `CODE_REVIEW_2026-09-22.md` §0.
-
-### Batch 1 of the 2026-09-22 review sits on `wt/review-batch-1`, unmerged
-
-Five fixes, one commit each, every test verified to fail against the unfixed
-source: the photo-scan per-keystroke gram rescale (corrupted macros; could park
-a row at zero permanently), Recent relog dropping carbs/fat, onboarding protein
-validation, the sign-in error slot one collision silenced for the session, and
-the verify-email Resend latch. All JS-only and **the iOS fingerprint still
-matches build 64 (`52802bba…`), so they ship by OTA with no binary** — the
-blocker above does not gate them. Unmerged, unpublished, and NOT visually
-verified. The remaining ~67 findings are unstarted.
 
 ### `ExerciseLibrarySheet` rows are untappable on iOS — cause UNKNOWN
 

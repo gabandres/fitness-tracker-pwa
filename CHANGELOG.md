@@ -4,6 +4,61 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-09-22 — a code + UX review of every mobile surface, and the nine fixes it earned
+
+Seven agents read the source; seven more read 84 real screenshots from a 21/21
+Maestro sweep. Roughly 72 code findings and 60 UX findings; this ships the nine
+that mislead a user about their own numbers or stop them reaching the product.
+Full list: `CODE_REVIEW_2026-09-22.md` (a review artifact — triage and delete).
+
+**The three that corrupt data.** `rescaleScannedItem` scaled from the item it
+was handed, whose numbers are already rounded and already rescaled — and
+`scan.tsx` calls it PER KEYSTROKE over a `selectTextOnFocus` field. Retyping
+`150` over a 100 g rice row ran 1 → 15 → 150 and landed **300 kcal / 0 g
+protein** where 360 / 6.6 was right; clearing the field first set grams to 0
+and the old guard then made every later keystroke a no-op, parking the row at
+zero macros permanently. A one-tap relog from Recent passed only kcal and
+protein, so the copy silently lost carbs and fat — and mirrored the gap into
+Apple Health. Body measurements printed the stored INCHES raw, with no unit and
+no conversion, so the row was byte-identical in pounds mode and kilograms mode:
+a metric user read "Waist 33.3" as centimetres, which is a thigh.
+
+**The three that strand a new user.** Clearing the onboarding protein field
+left "Set my plan" fully enabled over a function whose first line returned;
+typing 1000+ was accepted by the client, rejected by the rules, and reported as
+*"verify your email first"* to a verified user on the last step. On sign-in,
+one account collision set `pendingLink` and the error line was its `else`, so
+every later error rendered nothing — a wrong password changed nothing on
+screen. Verify-email's Resend latched off permanently after one success, so a
+second lost mail left force-quit as the only way off the wall.
+
+**Two more.** The mic failure message sat beside the search field and collapsed
+it 34% while truncating itself before the half that says what to do instead —
+the 2026-08-08 regression class, in code carrying two comments asserting a
+width cap made it impossible. A cap bounds the damage; it does not prevent it.
+And `train.nextUp` was `Toca ahora` — "Tap now" — in es-PR only, labelling a
+title on the card that answers "what am I training today"; pt-BR had it right.
+Twelve more es-PR strings went with it, including `entreno`/`entrenamiento`
+drifting inside one viewport.
+
+**New core seam** `body-measure-units.ts`, mirroring `body-weight-units`:
+display, parse, per-field bounds in the user's own unit, and `formatMeasure`.
+Storage stays inches; the Firestore shape and the rules are unchanged.
+
+**The suite was lying about its own coverage.** `*-today-metrics.png` was
+byte-identical to `*-today-top.png` in all three variants — the scroll step was
+present and succeeded *without moving*, because the card peeks above the fold.
+So `coverage.md` claimed a reviewed capture of the daily-metrics card that no
+run had ever taken. Fixed with `centerElement`; the first genuine capture
+immediately confirmed three open findings. The Trends Budget face had never
+been opened by any flow, and the units flow stopped one screen short of
+anywhere that prints a load.
+
+**iOS shipped as an OTA on build 64** (group `c0d351c4`, commit `2227698c`).
+**Android is owed the same ship** and must be published from the Windows
+workstation — the live Android binary is Windows-built and this Mac computes a
+different Android hash.
+
 ## 2026-09-21 — the plank holds were in the database the whole time; the 09-16 migration left them unreadable
 
 Reported as "duration exercises save with no duration", five sessions, with
