@@ -147,6 +147,7 @@ export * from './weight-bounds';
 // POUNDS. Display/input seam only — see the header for why the model never
 // learns kilograms exist (UX_AUDIT F3).
 export * from './body-weight-units';
+export * from './body-measure-units';
 // Per-field tape-measurement bands, in inches. One shared 0–200 range could
 // not tell a 15in chest from a 15in neck; these can.
 export * from './measurement-bounds';

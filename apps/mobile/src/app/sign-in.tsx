@@ -47,6 +47,7 @@ export default function SignIn() {
     signInWithMicrosoft,
     microsoftAvailable,
     pendingLink,
+    clearPendingLink,
   } = useAuth();
   const [step, setStep] = useState<'intro' | 'form'>('intro');
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
@@ -119,6 +120,10 @@ export default function SignIn() {
     if (next === mode) return;
     setError(null);
     setNotice(null);
+    // The prompt says "sign in below and we'll link it" — meaningless once the
+    // user has switched to Sign up, and it used to outlive the mode switch and
+    // go on hiding every error raised there.
+    clearPendingLink();
     setMode(next);
   }
 
@@ -130,7 +135,7 @@ export default function SignIn() {
       await signInWithGoogle();
       // AuthGate navigates once auth state flips.
     } catch (e: unknown) {
-      setError(errorMessage(e, t, 'federated'));
+      if (!isPendingLinkCollision(e)) setError(errorMessage(e, t, 'federated'));
     } finally {
       setGoogleBusy(false);
     }
@@ -144,7 +149,7 @@ export default function SignIn() {
       await signInWithMicrosoft();
       // AuthGate navigates once auth state flips.
     } catch (e: unknown) {
-      setError(errorMessage(e, t, 'federated'));
+      if (!isPendingLinkCollision(e)) setError(errorMessage(e, t, 'federated'));
     } finally {
       setMsBusy(false);
     }
@@ -156,7 +161,7 @@ export default function SignIn() {
       await signInWithApple();
       // AuthGate navigates once auth state flips.
     } catch (e: unknown) {
-      setError(errorMessage(e, t, 'federated'));
+      if (!isPendingLinkCollision(e)) setError(errorMessage(e, t, 'federated'));
     }
   }
 
@@ -285,7 +290,14 @@ export default function SignIn() {
               <Text style={styles.notice} testID="signin-pending-link">
                 {t('signIn.linkPrompt', { email: pendingLink.email })}
               </Text>
-            ) : error ? (
+            ) : null}
+            {/* Its OWN slot, not the `else` of the prompt above. As a ternary,
+                one collision silenced the error line for the rest of the
+                session: the user followed the prompt, typed the wrong
+                password, and nothing changed on screen — and the same went for
+                every local validation, so a blank name on Sign up looked like
+                an inert button. Found 2026-09-22. */}
+            {error ? (
               // Selectable so a tester can long-press → copy the native code
               // tail and paste it to us; without a crash reporter that copy is
               // the whole diagnostic channel.
@@ -396,6 +408,20 @@ type ErrSource = 'password' | 'federated';
  * when we could not classify it. There is no crash reporter here, so that tail
  * is the only way an unclassified failure on a tester's device ever reaches us.
  */
+/**
+ * The provider handed back an email that already belongs to another method.
+ * `capturePendingLink` has parked the credential and the screen renders the
+ * link prompt, which says what to do; the raw message only states that the
+ * email uses a different sign-in method and leaves the user nowhere. So this
+ * one code is suppressed — and ONLY this one. Every other federated failure
+ * still reaches the error slot.
+ */
+function isPendingLinkCollision(e: unknown): boolean {
+  return String((e as { code?: string })?.code ?? '').includes(
+    'account-exists-with-different-credential',
+  );
+}
+
 function errorMessage(e: unknown, t: TFn, source: ErrSource = 'password'): string {
   const base = t(errorKey(e, source));
   const detail = (e as { detail?: string })?.detail;

@@ -18,6 +18,7 @@ import {
   parseWeightToLb,
   toDisplayWeight,
   validateCalorieTarget,
+  validateProteinTarget,
 } from '@macrolog/core';
 import { BrandMark } from '@/components/BrandMark';
 import { useAuth } from '@/lib/auth';
@@ -187,10 +188,17 @@ export default function Onboarding() {
   const kcal = kcalDraft != null ? (numOrUndef(kcalDraft) ?? null) : suggestedKcal;
   const protein = proteinDraft != null ? (numOrUndef(proteinDraft) ?? null) : suggestedProtein;
   const edited = kcalDraft != null || proteinDraft != null;
-  // Only the calorie number is checked against the floor here. Protein has no
-  // safety floor concept in onboarding, and the estimator's own clamp catches
-  // anything wild on the way out.
+  // BOTH numbers are validated. Protein used to be unchecked here on the
+  // reasoning that "the estimator's own clamp catches anything wild on the way
+  // out" — it does not, because the clamp is server-side: `firestore.rules`
+  // rejects a protein target >= 1000, `onFinish` maps permission-denied to
+  // "verify your email first", and a verified user on the last step of
+  // onboarding was told to go and check their inbox with no way forward.
+  // Clearing the field was the other half: protein went null, `canAdvance`
+  // still read true because only kcal was checked, and the CTA rendered fully
+  // enabled over an `onFinish` that returned silently. Found 2026-09-22.
   const kcalCheck = validateCalorieTarget(kcal, { profile });
+  const proteinCheck = validateProteinTarget(protein);
 
   function openEditor(which: 'kcal' | 'protein') {
     haptics.tap();
@@ -227,7 +235,7 @@ export default function Onboarding() {
     // A typed calorie number has to clear the floor before it can be saved —
     // otherwise `dailyTargets` clamps it on the way out and hands the user a
     // number they did not choose, which is the exact defect being fixed.
-    (step === 'plan' && (!edited || kcalCheck.ok)) ||
+    (step === 'plan' && (!edited || (kcalCheck.ok && proteinCheck.ok))) ||
     step === 'reminders' ||
     step === 'firstLog';
 
@@ -255,7 +263,15 @@ export default function Onboarding() {
   }
 
   async function onFinish() {
-    if (busy || !user || !goal || weightLbs == null || kcal == null || protein == null) return;
+    if (busy || !user || !goal || weightLbs == null) return;
+    // Defence in depth: `canAdvance` already gates the CTA on both checks, so
+    // this is unreachable from the button. It sets an error rather than
+    // returning silently, because a bare `return` here is what made a live-
+    // looking CTA do nothing at all.
+    if (kcal == null || protein == null || !kcalCheck.ok || !proteinCheck.ok) {
+      setError(t('targets.errNumber'));
+      return;
+    }
     setError(null);
     setBusy(true);
     try {
@@ -663,9 +679,25 @@ export default function Onboarding() {
               <Text style={styles.planSub}>
                 {t('onboarding.planSub')} {t('targets.editHint')}
               </Text>
-              {edited && !kcalCheck.ok && kcalCheck.issue?.kind === 'belowFloor' ? (
+              {/* Every rejection says WHY. Only `belowFloor` was rendered before,
+                  so an above-ceiling or cleared number greyed the CTA with
+                  nothing on screen to explain it. */}
+              {edited && !kcalCheck.ok ? (
                 <Text style={styles.error} testID="onboarding-kcal-error">
-                  {t('targets.errBelowFloor', { n: formatNumber(kcalCheck.issue.floor, locale) })}
+                  {kcalCheck.issue?.kind === 'belowFloor'
+                    ? t('targets.errBelowFloor', { n: formatNumber(kcalCheck.issue.floor, locale) })
+                    : kcalCheck.issue?.kind === 'aboveCeiling'
+                      ? t('targets.errAboveCeiling', { n: formatNumber(kcalCheck.issue.ceiling, locale) })
+                      : t('targets.errNumber')}
+                </Text>
+              ) : null}
+              {edited && kcalCheck.ok && !proteinCheck.ok ? (
+                <Text style={styles.error} testID="onboarding-protein-error">
+                  {proteinCheck.issue?.kind === 'belowFloor'
+                    ? t('targets.errProteinMin', { n: formatNumber(proteinCheck.issue.floor, locale) })
+                    : proteinCheck.issue?.kind === 'aboveCeiling'
+                      ? t('targets.errProteinMax', { n: formatNumber(proteinCheck.issue.ceiling, locale) })
+                      : t('targets.errNumber')}
                 </Text>
               ) : null}
             </View>

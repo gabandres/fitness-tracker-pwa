@@ -138,6 +138,21 @@ appId: fit.ignia.app
     timeout: 15000
 - takeScreenshot: .maestro/regression/shots/20-units-train-kg
 
+# ── Trends must follow the setting too ──
+# Added 2026-09-22. This flow used to stop at Train, whose HOME screen prints
+# no load and no unit at all — so `20-units-train-kg.png` could neither confirm
+# nor refute the defect the same-day code review found at `trends.tsx:41`:
+# `slopeLabel` renders `weightSlopeLbPerWeek` raw and appends `refine.paceUnit`,
+# which is hardcoded 'lb/wk' in ALL THREE locales, while Body's own chip
+# converts through `toDisplayWeight`. If that is real, this capture shows the
+# Body hero and the Trends weight-trend row disagreeing on the same regression.
+- tapOn:
+    id: 'tab-trends'
+- extendedWaitUntil:
+    visible: 'Trends'
+    timeout: 15000
+- takeScreenshot: .maestro/regression/shots/20-units-trends-kg
+
 # ── Restore. The suite after this one assumes pounds. ──
 - tapOn:
     id: 'settings-open'

@@ -50,7 +50,44 @@ setup on BOTH platforms, silently and in two different ways, and this section
 described a machine that could no longer run any of it. What follows is what
 was actually executed.
 
-### iOS — `ignia-mac`, the only working host today
+### iOS — `ignia-mac`, WORKING again since 2026-09-22 (on an iOS 26 runtime)
+
+> **The suite runs. Shipping is what is blocked — do not confuse the two.**
+>
+> `ignia-mac` is on **Xcode 27.0** and the iOS 26.5 runtime is gone. Anything
+> built here links the iOS 27 SDK, and on the **iOS 27 runtime** it dies on the
+> first frame:
+>
+> ```
+> (UIKitCore) failure in _UIApplicationEvaluateRuntimeIssueForNoSceneLifecycleAdoption
+> Application failed to launch: UIScene life cycle is required for apps built with this SDK.
+> ```
+>
+> The build SUCCEEDS and installs — it dies on launch, so it reads like an app
+> crash and is not one.
+>
+> **The workaround is the runtime, not the SDK.** Measured 2026-09-22: the same
+> binary that aborts on iOS 27.0 launches and passes 21/21 on **iOS 26.0**. The
+> check lives in the runtime's UIKit, so an older runtime does not carry it.
+> (Corroborating evidence: the 2026-09-17 build linked the iOS 26 SDK and ran
+> fine on 26.5 — so it is the iOS 27 SDK *plus* the iOS 27 runtime that bites.)
+>
+> ```sh
+> xcodebuild -downloadPlatform iOS -buildVersion 26.0   # one shot, ~5 min
+> ```
+>
+> **You do not need to rebuild to use it** — `simctl install` the existing
+> `.app` out of DerivedData onto a 26.0 device.
+>
+> **What this does NOT fix:** a binary cut here still links the iOS 27 SDK and
+> will not launch for a real user on iOS 27. Neither `react-native@0.86.2` nor
+> `expo@57.0.14` ships a `UIWindowSceneDelegate`, so there is no
+> `app.json`-only fix — the manifest would point at a delegate that does not
+> exist. `STATUS.md` §3 owns that decision; `CODE_REVIEW_2026-09-22.md` §0 has
+> the evidence and the options.
+>
+> **`Ignia-QA` (the old device) is on iOS 27 and cannot run the app.** The
+> device this section now builds is **`Ignia-QA-26`**.
 
 Three things to set up, none of which announces itself until you try.
 **Re-measured 2026-09-16; the first two rows said something different and
@@ -71,7 +108,9 @@ weaker before that.**
 - **Simulator devices EXIST again — 18 of them, and one is ours.** This section
   claimed `simctl delete all` (the `DEV_ENVIRONMENT.md` §3.9 disk reclaim) had
   left none. Xcode has since recreated its defaults and the persistent
-  **`Ignia-QA`** (iPhone 17 / iOS 26.5) was created 2026-09-16 and is kept.
+  **`Ignia-QA`** was created 2026-09-16 and is kept. It was iPhone 17 / iOS
+  26.5; since the 2026-09-22 Xcode 27 upgrade it runs **iOS 27.0**, and the
+  26.5 devices left in `simctl list` are orphans whose runtime is gone.
   `simctl create` below is therefore idempotent-by-hand: check for `Ignia-QA`
   first and reuse it. **`--device` stays mandatory regardless** — this is a
   shared laptop, another simulator is routinely booted beside ours, and
@@ -87,15 +126,22 @@ weaker before that.**
 export JAVA_HOME=/opt/homebrew/opt/openjdk@17    # the Mac's JAVA_HOME since 2026-09-17; this line said "NOT openjdk@17, which no longer exists" (true 2026-09-10 → 09-17)
 export PATH=$JAVA_HOME/bin:$HOME/.maestro/bin:$PATH
 
-# Reuse Ignia-QA if it already exists; only create it the first time.
-UDID=$(xcrun simctl list devices | awk -F'[()]' '/Ignia-QA/ {print $2; exit}')
-[ -n "$UDID" ] || UDID=$(xcrun simctl create Ignia-QA \
-  com.apple.CoreSimulator.SimDeviceType.iPhone-17 \
-  com.apple.CoreSimulator.SimRuntime.iOS-26-5)
+# Reuse Ignia-QA-26 if it exists; only create it the first time.
+# PIN the runtime — do NOT resolve "the newest iOS". iOS 27 cannot launch a
+# binary built by this Xcode (see the banner above), so picking the latest is
+# exactly wrong here. Match on the EXACT name: a `/Ignia-QA/` regex also
+# matches the retired iOS-27 `Ignia-QA`, and takes whichever sorts first.
+QA_RUNTIME=com.apple.CoreSimulator.SimRuntime.iOS-26-0
+UDID=$(xcrun simctl list devices | awk -F'[()]' '/^ *Ignia-QA-26 / {print $2; exit}')
+[ -n "$UDID" ] || UDID=$(xcrun simctl create Ignia-QA-26 \
+  com.apple.CoreSimulator.SimDeviceType.iPhone-17 "$QA_RUNTIME")
 xcrun simctl boot "$UDID"
 
 cd ~/fitness-tracker-pwa/apps/mobile
-npx expo run:ios --configuration Release --device "$UDID"   # Release: the suite needs a standalone bundle, not Metro
+# If a Release build already exists, just install it — no rebuild (~45 min saved):
+APP=$(ls -d ~/Library/Developer/Xcode/DerivedData/Ignia-*/Build/Products/Release-iphonesimulator/Ignia.app 2>/dev/null | head -1)
+[ -n "$APP" ] && xcrun simctl install "$UDID" "$APP" \
+  || npx expo run:ios --configuration Release --device "$UDID"   # Release: the suite needs a standalone bundle, not Metro
 maestro --device "$UDID" test .maestro/regression/
 ```
 

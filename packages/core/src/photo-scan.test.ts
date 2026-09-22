@@ -85,3 +85,61 @@ describe('portion chips are absolute, not compounding', () => {
     expect(bigger.carbs).toBeCloseTo(37.5, 5);
   });
 });
+
+/**
+ * `scan.tsx` calls `rescaleScannedItem` PER KEYSTROKE, over a field with
+ * `selectTextOnFocus`. Retyping a 3-digit portion therefore rescales three
+ * times, and before the basis existed each step scaled from the previous
+ * step's ALREADY-ROUNDED output. Measured 2026-09-22: retyping `150` over a
+ * 100 g rice row landed 300 kcal / 0 g protein instead of 360 / 6.6, and
+ * clearing the field first parked the row at zero macros permanently.
+ */
+describe('per-keystroke gram edits do not compound', () => {
+  const rice = item({ name: 'rice', grams: 100, calories: 240, protein: 4.4, carbs: 53, fat: 0.4 });
+
+  /** Typing "150" into a field whose contents are selected: 1, then 15, then 150. */
+  const type = (it: ScannedFoodItem, digits: string) =>
+    [...digits].reduce(
+      (acc, _, i) => rescaleScannedItem(acc, Number(digits.slice(0, i + 1))),
+      it,
+    );
+
+  it('lands on the exact macros for the number typed', () => {
+    const typed = type(rice, '150');
+    expect(typed.grams).toBe(150);
+    expect(typed.calories).toBe(360);
+    expect(typed.protein).toBe(6.6);
+    expect(typed.carbs).toBe(79.5);
+    expect(typed.fat).toBe(0.6);
+  });
+
+  it('matches a single edit to the same weight', () => {
+    expect(type(rice, '150').calories).toBe(rescaleScannedItem(rice, 150).calories);
+    expect(type(rice, '150').protein).toBe(rescaleScannedItem(rice, 150).protein);
+  });
+
+  it('recovers after the field is cleared — the old guard made this permanent', () => {
+    const cleared = rescaleScannedItem(rice, 0);
+    expect(cleared.calories).toBe(0);
+    const retyped = type(cleared, '150');
+    expect(retyped.calories).toBe(360);
+    expect(retyped.protein).toBe(6.6);
+  });
+
+  it('treats unparseable input as zero rather than NaN', () => {
+    const bad = rescaleScannedItem(rice, Number('1.2.3'));
+    expect(bad.grams).toBe(0);
+    expect(bad.calories).toBe(0);
+    expect(rescaleScannedItem(bad, 150).calories).toBe(360);
+  });
+
+  it('keeps a whole-meal row scalable once the user weighs it', () => {
+    // `grams: 0` is the model-fallback shape: macros are a whole-meal estimate
+    // with no per-gram truth, so the first weight entered defines the basis.
+    const plate = item({ grams: 0, calories: 520, protein: 30, carbs: 60, fat: 18 });
+    const weighed = rescaleScannedItem(plate, 300);
+    expect(weighed.grams).toBe(300);
+    expect(weighed.calories).toBe(520);
+    expect(rescaleScannedItem(weighed, 600).calories).toBe(1040);
+  });
+});

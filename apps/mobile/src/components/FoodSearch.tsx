@@ -47,6 +47,10 @@ interface Props {
   /** Rendered INSIDE the search row, beside the keyboard-driven input — the
    *  mic is a peer of typing, not a sixth way to log. */
   micSlot?: ReactNode;
+  /** Rendered BELOW the search row, full width — the mic's failure message.
+   *  It lives here rather than inside the row because an in-row sibling
+   *  collapsed the field by 34% and truncated itself (2026-09-22). */
+  micMessage?: ReactNode;
   /** Text dictated into the mic that resolved to a plain food search. */
   seedQuery?: string;
   /** Rendered below the search field when the query is empty (idle), instead
@@ -71,6 +75,7 @@ export function FoodSearch({
   onCancel,
   headerRight,
   micSlot,
+  micMessage,
   seedQuery,
   emptyContent,
   onCreateFromQuery,
@@ -252,6 +257,7 @@ export function FoodSearch({
           </TouchableOpacity>
         ) : null}
       </View>
+      {micMessage}
       {/* Below the row, full width, and ALWAYS rendered — including while the
           user is typing. `docs/research/mobile-manual-food-entry.md` is settled
           that a query removing the write-it-yourself affordance is a defect:

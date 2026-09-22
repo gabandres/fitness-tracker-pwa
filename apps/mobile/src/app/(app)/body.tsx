@@ -14,8 +14,12 @@ import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   type Measurement,
-  MEASUREMENT_BOUNDS_IN,
   implausibleMeasurementFields,
+  formatMeasure,
+  measureBoundsFor,
+  measureUnit,
+  parseMeasureToIn,
+  toDisplayMeasure,
   parseYmd,
   type UnitSystem,
   bodyWeightUnit,
@@ -348,7 +352,7 @@ export default function Body() {
                 >
                   <Text style={styles.rowDate}>{formatDate(m.date, locale, { month: 'short', day: 'numeric' })}</Text>
                   <View style={styles.rowRight}>
-                    <Text style={styles.rowMeasure}>{measureLine(m, t)}</Text>
+                    <Text style={styles.rowMeasure}>{measureLine(m, t, unitSystem)}</Text>
                     {/* Explicit pencil + trash, matching the PWA's row controls.
                         Editing was unreachable and deletion was a hidden
                         long-press, so neither was discoverable on mobile. */}
@@ -415,6 +419,7 @@ export default function Body() {
 
       <MeasurementModal
         visible={measureOpen}
+        unitSystem={unitSystem}
         initial={editing}
         onClose={() => setMeasureOpen(false)}
         onSave={async (entry) => {
@@ -430,10 +435,18 @@ export default function Body() {
 
 /** Localized field names, not the "W 33.3 · N 15.5" letter codes nothing on
  *  screen expanded (UX_AUDIT S16-8). Reuses the sheet's own field labels. */
-function measureLine(m: Measurement, t: ReturnType<typeof useT>): string {
+function measureLine(
+  m: Measurement,
+  t: ReturnType<typeof useT>,
+  unitSystem: UnitSystem,
+): string {
+  // `${label} ${v}` printed the STORED INCHES raw, with no unit and no
+  // conversion, so this line was byte-identical in pounds mode and kilograms
+  // mode (measured 2026-09-22 on 20-units-lb.png vs 20-units-kg.png). A metric
+  // user read "Waist 33.3" as centimetres, which is a thigh.
   const parts = MEASURE_FIELDS.flatMap((f) => {
     const v = m[f.key];
-    return v != null ? [`${t(f.labelKey)} ${v}`] : [];
+    return v != null ? [`${t(f.labelKey)} ${formatMeasure(v, unitSystem)}`] : [];
   });
   return parts.join(' · ') || '—';
 }
@@ -452,12 +465,17 @@ function MeasurementModal({
   initial,
   onSave,
   onClose,
+  unitSystem,
 }: {
   visible: boolean;
   /** The row being edited, or null when adding. */
   initial: Measurement | null;
   onSave: (entry: Omit<Measurement, 'id' | 'date'>) => Promise<void> | void;
   onClose: () => void;
+  /** Measurements are STORED in inches; this decides what the user sees and
+   *  what their typing means. Without it the sheet was an inches-only island
+   *  inside a metric screen. */
+  unitSystem: UnitSystem;
 }) {
   const t = useT();
   const locale = useLocale();
@@ -475,19 +493,17 @@ function MeasurementModal({
       initial
         ? MEASURE_FIELDS.reduce<Record<string, string>>((acc, f) => {
             const v = initial[f.key];
-            if (v != null) acc[f.key] = String(v);
+            if (v != null) acc[f.key] = String(toDisplayMeasure(v, unitSystem));
             return acc;
           }, {})
         : {},
     );
     setBusy(false);
-  }, [visible, initial]);
+  }, [visible, initial, unitSystem]);
 
+  /** The user's unit in, inches out — storage is always inches. */
   function parse(s: string): number | undefined {
-    const trimmed = s.trim();
-    if (trimmed === '') return undefined;
-    const n = Number(trimmed);
-    return Number.isFinite(n) && n > 0 ? n : undefined;
+    return parseMeasureToIn(s, unitSystem) ?? undefined;
   }
 
   const entry = MEASURE_FIELDS.reduce<Record<string, number>>((acc, f) => {
@@ -503,8 +519,9 @@ function MeasurementModal({
   const rangeHint = implausible.length
     ? t('body.measureRange', {
         field: t(MEASURE_FIELDS.find((f) => f.key === implausible[0])!.labelKey),
-        min: MEASUREMENT_BOUNDS_IN[implausible[0]][0],
-        max: MEASUREMENT_BOUNDS_IN[implausible[0]][1],
+        min: measureBoundsFor(implausible[0], unitSystem).min,
+        max: measureBoundsFor(implausible[0], unitSystem).max,
+        unit: measureUnit(unitSystem),
       })
     : null;
 
@@ -523,7 +540,7 @@ function MeasurementModal({
           <Text style={styles.sheetTitle}>
             {initial ? t('body.editMeasurement') : t('body.addMeasurement')}
           </Text>
-          <Text style={styles.sheetHint}>{rangeHint ?? t('body.measureHint')}</Text>
+          <Text style={styles.sheetHint}>{rangeHint ?? t('body.measureHint', { unit: measureUnit(unitSystem) })}</Text>
           <View style={styles.measureGrid}>
             {MEASURE_FIELDS.map((f) => (
               <View key={f.key} style={styles.measureField}>

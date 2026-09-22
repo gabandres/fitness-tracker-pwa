@@ -109,6 +109,52 @@ host setup and traps are in `.maestro/regression/README.md`.
 deleted and its outcome goes to `CHANGELOG.md`.
 
 
+### iOS / UIScene — SOLVED upstream, needs a version bump and one flag
+
+A build cut here links the iOS 27 SDK and dies on the first frame on the iOS 27
+runtime (`UIScene life cycle is required for apps built with this SDK`).
+**QA is not affected** — the check is in the RUNTIME's UIKit, so the same
+binary passes 21/21 on iOS 26.0 (`xcodebuild -downloadPlatform iOS
+-buildVersion 26.0`, then `simctl install` the existing `.app`; device
+`Ignia-QA-26`).
+
+**Do NOT write a SceneDelegate plugin — Expo shipped this on 2026-09-15.**
+Verified against npm and the published tarball, not just docs:
+
+- `expo@57.0.24` exists (we are on **57.0.14**); the scene runtime was
+  backported to the 57 line in `expo@57.0.23`.
+- `expo-build-properties@57.0.21` exists (we are on **57.0.12**) and genuinely
+  contains `ios.enableSceneSupport` — `build/iosSceneSupport.js` is in the
+  tarball. `57.0.20` added the fix for plugins that inject into the startup
+  block, which matters because Sentry and google-signin are in our plugin list.
+- Setting it makes prebuild point `UIApplicationSceneManifest` at Expo's own
+  `EXExpoAppSceneDelegate`. **No `SceneDelegate.swift` is generated on SDK 57**,
+  and `ios/` is gitignored here, so CNG covers us — no native file to maintain.
+- It is a documented no-op on SDK 58, which adopts scenes by default. SDK 58 is
+  in beta (2026-09-15, "three to four weeks"); no stable date announced.
+
+**The deadline is April 2027, not now.** Apple requires the iOS **26** SDK
+today (since 2026-04-28); the iOS 27 SDK floor starts April 2027
+(developer.apple.com/news/?id=k1mtkt1k, 2026-09-09). So pinning Xcode 26.x is a
+genuine fallback with ~7 months of runway, not a cliff.
+
+Next step is a 10-minute check, not a decision: `npx expo install --fix`, set
+`ios.enableSceneSupport: true`, `npx expo prebuild --clean --platform ios`, and
+read whether the plugin actually patched our AppDelegate. **This moves the
+native fingerprint — it needs a fresh binary per platform and cannot go out as
+an OTA.** Full evidence and URLs: `CODE_REVIEW_2026-09-22.md` §0.
+
+### Batch 1 of the 2026-09-22 review sits on `wt/review-batch-1`, unmerged
+
+Five fixes, one commit each, every test verified to fail against the unfixed
+source: the photo-scan per-keystroke gram rescale (corrupted macros; could park
+a row at zero permanently), Recent relog dropping carbs/fat, onboarding protein
+validation, the sign-in error slot one collision silenced for the session, and
+the verify-email Resend latch. All JS-only and **the iOS fingerprint still
+matches build 64 (`52802bba…`), so they ship by OTA with no binary** — the
+blocker above does not gate them. Unmerged, unpublished, and NOT visually
+verified. The remaining ~67 findings are unstarted.
+
 ### `ExerciseLibrarySheet` rows are untappable on iOS — cause UNKNOWN
 
 Nothing inside that sheet's ScrollView fires `onPress`. The list scrolls, the
