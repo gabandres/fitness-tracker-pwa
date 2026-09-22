@@ -478,8 +478,8 @@ export const esPR: Record<I18nKey, string> = {
   'body.howBicep': 'Bíceps — la parte más gruesa del brazo, relajado al lado del cuerpo.',
   'body.howConsistency':
     'Ajustada, no apretada — la cinta debe descansar sobre la piel sin hundirla. Mide a la misma hora del día (en la mañana, antes de comer, es lo más fácil de repetir). La constancia importa más que la precisión: lo que mueve tu estimado es la tendencia.',
-  'body.measureHint': 'Pulgadas. Cintura + cuello (y cadera para mujeres) calculan la grasa corporal.',
-  'body.measureRange': '{field} se ve raro — se espera {min}–{max} pulg. Verifica que usaste el campo correcto.',
+  'body.measureHint': 'Mide en {unit}. Cintura + cuello (y cadera para mujeres) calculan la grasa corporal.',
+  'body.measureRange': '{field} se ve raro — se espera {min}–{max} {unit}. Verifica que usaste el campo correcto.',
   'measure.waist': 'Cintura',
   'measure.neck': 'Cuello',
   'measure.hip': 'Cadera',

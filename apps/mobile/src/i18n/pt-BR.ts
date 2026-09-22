@@ -470,8 +470,8 @@ export const ptBR = {
   'body.howBicep': 'Bíceps — na parte mais grossa do braço, relaxado ao lado do corpo.',
   'body.howConsistency':
     'Justa, não apertada — a fita deve encostar na pele sem marcá-la. Meça sempre no mesmo horário (de manhã, em jejum, é o mais fácil de repetir). Consistência importa mais que precisão: é a tendência que move a sua estimativa.',
-  'body.measureHint': 'Em polegadas. Cintura + pescoço (e quadril, para mulheres) alimentam a estimativa de gordura corporal.',
-  'body.measureRange': '{field} parece fora do esperado — o normal é {min}–{max} pol. Confira se usou o campo certo.',
+  'body.measureHint': 'Meça em {unit}. Cintura + pescoço (e quadril, para mulheres) alimentam a estimativa de gordura corporal.',
+  'body.measureRange': '{field} parece fora do esperado — o normal é {min}–{max} {unit}. Confira se usou o campo certo.',
   'measure.waist': 'Cintura',
   'measure.neck': 'Pescoço',
   'measure.hip': 'Quadril',

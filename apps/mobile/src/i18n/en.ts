@@ -526,8 +526,8 @@ export const en = {
   'body.howBicep': 'Bicep — the thickest part of the upper arm, relaxed at your side.',
   'body.howConsistency':
     'Snug, not tight — the tape should sit on skin without denting it. Measure at the same time of day (morning, before eating, is easiest to repeat). Consistency matters more than precision: the trend is what moves your estimate.',
-  'body.measureHint': 'Inches. Waist + neck (and hip for women) drive the body-fat estimate.',
-  'body.measureRange': '{field} looks off — expected {min}–{max} in. Check you used the right field.',
+  'body.measureHint': 'Measure in {unit}. Waist + neck (and hip for women) drive the body-fat estimate.',
+  'body.measureRange': '{field} looks off — expected {min}–{max} {unit}. Check you used the right field.',
   'measure.waist': 'Waist',
   'measure.neck': 'Neck',
   'measure.hip': 'Hip',
