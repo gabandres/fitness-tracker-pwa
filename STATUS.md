@@ -109,6 +109,17 @@ host setup and traps are in `.maestro/regression/README.md`.
 deleted and its outcome goes to `CHANGELOG.md`.
 
 
+### Owner-account backfill (2026-09-21) — blocked on credentials, script ready
+
+`node scripts/backfill-2026-09-21.mjs --email <owner> --apply` from the
+**Windows workstation** (ADC lives there; `ignia-mac` has neither gcloud nor a
+key). It writes Plank 2026-09-21 `durationSec: 100` only if that set carries
+neither field, and `dailyWeights/2026-09-19 = 156.4`, `2026-09-20 = 155.6`;
+refuses on any existing value; prints the 7-day average. The plank report
+("saves with setKind but no duration") is the 2026-09-16 story again: in code
+a `time`-style set holds `durationSec` and `reps` is empty by design — the
+dry run prints all four fields per set first. **Delete this row once run.**
+
 ### `ExerciseLibrarySheet` rows are untappable on iOS — cause UNKNOWN
 
 Nothing inside that sheet's ScrollView fires `onPress`. The list scrolls, the
