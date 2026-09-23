@@ -24,7 +24,7 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 
 | Surface | State |
 |---|---|
-| **Public App Store (iOS)** | **1.2.3 / build 64, `READY_FOR_SALE`, released 2026-09-06 00:01 UTC** (iTunes lookup + ASC API, read 2026-09-07). Runtime `52802bba…`, which IS what this tree produces, so **the iOS OTA channel is OPEN to the public**; the first publish on it is the 2026-09-07 IGNIA-MOBILE-V fix (`apps/mobile/AGENTS.md`). Carries the re-shot screenshots (en-US 5, es-MX 5) and `usesIdfa: false`. **Available in 175 of 175 territories** since 2026-08-28 (DSA trader declaration filed). Play matched on 2026-09-03: 158 of Play's attainable 158 |
+| **Public App Store (iOS)** | **1.2.3 / build 64, `READY_FOR_SALE`, released 2026-09-06 00:01 UTC** (iTunes lookup + ASC API, read 2026-09-07). Runtime `52802bba…` — **HEAD no longer produces it since `7f25177c` (1.2.4, now in review, §3), so publish build-64 OTAs from `98fb0646` or earlier**; the first publish on it is the 2026-09-07 IGNIA-MOBILE-V fix (`apps/mobile/AGENTS.md`). Carries the re-shot screenshots (en-US 5, es-MX 5) and `usesIdfa: false`. **Available in 175 of 175 territories** since 2026-08-28 (DSA trader declaration filed). Play matched on 2026-09-03: 158 of Play's attainable 158 |
 | **TestFlight** | **build 64 / 1.2.3 (runtime `52802bba…`) is in the EXTERNAL *Public Beta Testers* group, `IN_BETA_TESTING`** (read 2026-09-08 via `asc-testflight-external.mjs --build 64`; it was `WAITING_FOR_BETA_REVIEW` from 09-05). Build 63 is in the group but can never reach an external tester — a build of an already-released version stays `READY_FOR_BETA_SUBMISSION` forever. **Read the group's builds AND each build's `externalBuildState`, never assume:** `VALID` + in the group ≠ installable |
 | **Play production + alpha** | **LIVE — vc 45 / 1.2.3 (runtime `15c1cfc8…`, the IGNIA-MOBILE-V fix, plus the Ember-on-Ink icon, feature graphic and five re-shot screenshots), production 100% + alpha, released 2026-09-07 ~22:46 UTC** (store page reads 1.2.3 / *Updated on Sep 7, 2026*, read 2026-09-08). The review took ~7.5 h from the 15:05 UTC restart. **Nothing is in review; the next submit can go whenever there is a change to ship.** **The tracks API cannot tell "in review" from "live"** — the Console app row or the store page is the read. The 09-03 Data safety amendment (*Device or other IDs*) is PUBLISHED — it rode the vc 45 review; Publishing overview read *nothing in review, last published Sep 7* on 2026-09-08. `eas submit` has failed and exited 0 three times (lost Play edit on bundles > 60 MB; a missing health declaration) — **`play-upload-bundle.mjs` is the upload path; confirm every submit against the tracks API** |
 | **Web `ignia.fit`** | **Shell + `/admin` — the web logging app was RETIRED 2026-08-30 (ADR-0036).** 113 prerendered pages, EN + es-PR. Links BOTH stores with the official badges since 2026-09-08 (`PLAY_STORE_LIVE = true`; Google's en / es-419 badge artwork on the landing, `/vs`, `/calculator`, the retired and auth-action pages, and `/download`). **`/download` said "Android coming soon — email me" until 2026-09-08** — this row claimed no such copy remained; grep `public/` as well as `src/` before repeating that. `/app` and the old tabs render a "moved to the apps" page; a safety worker evicts old PWA installs. SEO pages and `/u/**` are KEPT, owner-ratified |
@@ -38,8 +38,8 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 
 | Platform | Tree now | Live binary | Channel |
 |---|---|---|---|
-| Android | `15c1cfc8…` (since `437a90ce`, the 1.2.3 bump) | **vc 45 ships `15c1cfc8…`** (read from the `.aab`), live on production since 2026-09-07 ~22:46 UTC (vc 44 / `68ea2dd3…` is superseded) | **OPEN** to the public |
-| iOS | `52802bba…` | **build 64 ships `52802bba…`, `READY_FOR_SALE` as 1.2.3 since 2026-09-06** (read from the `.ipa`) | **OPEN** to the public |
+| Android | **MOVED at `7f25177c`** (1.2.4 + Expo patch bumps) — re-measure on Windows; `98fb0646` is the last `15c1cfc8…` tree | **vc 45 ships `15c1cfc8…`** (read from the `.aab`), live on production since 2026-09-07 ~22:46 UTC (vc 44 / `68ea2dd3…` is superseded) | **OPEN** to the public |
+| iOS | `1b239e44…` since `7f25177c` (build 67, in review); `52802bba…` through `98fb0646` | **build 64 ships `52802bba…`, `READY_FOR_SALE` as 1.2.3 since 2026-09-06** (read from the `.ipa`) | **OPEN** to the public |
 
 - **Gate the COMMIT, not just the fingerprint. `eas update` prints a `Commit`
   line — read it.** The fingerprint is native-only, so a stale JS tree passes
@@ -101,8 +101,8 @@ carries neither (ADR-0040 §Consequences). Do not read "two structures left" as
 "two slices left".
 
 **The iOS regression suite is at 21 of 21** (2026-09-22, `ignia-mac`, simulator
-**`Ignia-QA-26`** — the old `Ignia-QA` is on iOS 27 and cannot launch anything
-built by this Xcode; see the UIScene row in §3). That sweep ran on the 10:46
+**`Ignia-QA-26`**; since 1.2.4 enabled scene support the iOS 27 `Ignia-QA` runs
+the app too, and the 2026-09-23 sweep ran there). That sweep ran on the 10:46
 binary and so predates the fixes in the 09-22 ship. **Never compose a suite
 number from individual flow runs** — the suite is order-dependent by design;
 host setup and traps are in `.maestro/regression/README.md`.
@@ -113,40 +113,28 @@ host setup and traps are in `.maestro/regression/README.md`.
 deleted and its outcome goes to `CHANGELOG.md`.
 
 
-### iOS / UIScene — SOLVED upstream, needs a version bump and one flag
+### iOS 1.2.4 / build 67 — `WAITING_FOR_REVIEW` since 2026-09-23 ~04:30 UTC
 
-A build cut here links the iOS 27 SDK and dies on the first frame on the iOS 27
-runtime (`UIScene life cycle is required for apps built with this SDK`).
-**QA is not affected** — the check is in the RUNTIME's UIKit, so the same
-binary passes 21/21 on iOS 26.0 (`xcodebuild -downloadPlatform iOS
--buildVersion 26.0`, then `simctl install` the existing `.app`; device
-`Ignia-QA-26`).
+Carries the Dynamic Island fix (a running fast's compact timer stretched the
+pill across the status bar and hid the clock — user report 2026-09-22) and
+**Expo scene support**, which is what lets an Xcode 27 build launch on iOS 27.
+`releaseType: AFTER_APPROVAL`, so it goes live on approval. Runtime
+**`1b239e448f60b8cb3b147ac232202ef7f7e25b27`** (read from the `.ipa`).
 
-**Do NOT write a SceneDelegate plugin — Expo shipped this on 2026-09-15.**
-Verified against npm and the published tarball, not just docs:
-
-- `expo@57.0.24` exists (we are on **57.0.14**); the scene runtime was
-  backported to the 57 line in `expo@57.0.23`.
-- `expo-build-properties@57.0.21` exists (we are on **57.0.12**) and genuinely
-  contains `ios.enableSceneSupport` — `build/iosSceneSupport.js` is in the
-  tarball. `57.0.20` added the fix for plugins that inject into the startup
-  block, which matters because Sentry and google-signin are in our plugin list.
-- Setting it makes prebuild point `UIApplicationSceneManifest` at Expo's own
-  `EXExpoAppSceneDelegate`. **No `SceneDelegate.swift` is generated on SDK 57**,
-  and `ios/` is gitignored here, so CNG covers us — no native file to maintain.
-- It is a documented no-op on SDK 58, which adopts scenes by default. SDK 58 is
-  in beta (2026-09-15, "three to four weeks"); no stable date announced.
-
-**The deadline is April 2027, not now.** Apple requires the iOS **26** SDK
-today (since 2026-04-28); the iOS 27 SDK floor starts April 2027
-(developer.apple.com/news/?id=k1mtkt1k, 2026-09-09). So pinning Xcode 26.x is a
-genuine fallback with ~7 months of runway, not a cliff.
-
-Next step is a 10-minute check, not a decision: `npx expo install --fix`, set
-`ios.enableSceneSupport: true`, `npx expo prebuild --clean --platform ios`, and
-read whether the plugin actually patched our AppDelegate. **This moves the
-native fingerprint — it needs a fresh binary per platform and cannot go out as
-an OTA.** Full evidence and URLs: `CODE_REVIEW_2026-09-22.md` §0.
+- **QA:** 21/21 on `Ignia-QA` (**iOS 27.0**) with flow 11's timing fix, plus
+  11–13 on `Ignia-QA-26`. The Live Activity started and iOS re-laid the status
+  bar around it with the clock still showing, but `simctl` does not draw the
+  island itself — **look at it on a real iPhone once 1.2.4 is live.**
+- **The lockfile was rewritten on the Mac** (`npx expo install --fix`: expo
+  57.0.24, RN 0.86.3, every `expo-*` patch) — owner's call, to ship tonight.
+  Windows must `npm ci` before its next build, not `npm install`.
+- **Both fingerprints moved at `7f25177c`** (version bump + deps). Until 1.2.4
+  is live, an iOS OTA from HEAD reaches nobody; publish build-64 fixes from
+  `98fb0646` or earlier.
+- **Android is owed a binary AND the 09-22 OTA.** The OTA must be published
+  from Windows at **`98fb0646`** (the last commit on vc 45's `15c1cfc8…`
+  tree — `98fb0646` only touched `targets/`, which is not hashed), NOT from
+  HEAD. Then cut vc 46 from HEAD so Android picks up 1.2.4.
 
 ### `ExerciseLibrarySheet` rows are untappable on iOS — cause UNKNOWN
 

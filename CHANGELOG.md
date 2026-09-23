@@ -4,6 +4,22 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-09-23 — iOS 1.2.4: the Dynamic Island stops hiding the clock, and builds launch on iOS 27
+
+- **Dynamic Island.** `Text(timerInterval:)` asks for all the width it is
+  offered and the compact trailing slot gives it, so a running fast stretched
+  the pill across the whole status bar (user report with screenshot). The
+  timer is now overlaid on a hidden `0:00:00` template (`00:00:00` once the
+  fast can reach 10 h inside one Activity), which fixes the pill's width.
+  Apple forums 723316 / 735125.
+- **UIScene.** `ignia-mac` has only Xcode 27, and an iOS 27 SDK binary dies on
+  launch on iOS 27 without a scene manifest. `expo@57.0.24` +
+  `expo-build-properties@57.0.21` with `ios.enableSceneSupport: true` point it
+  at Expo's `EXExpoAppSceneDelegate`; no native file to maintain. Verified: a
+  Release build launches on the iOS 27 simulator and passes the 21-flow suite.
+- Submitted as build 67, `WAITING_FOR_REVIEW`. `STATUS.md` §3 has what Android
+  is owed.
+
 ## 2026-09-22 — a code + UX review of every mobile surface, and the nine fixes it earned
 
 Seven agents read the source; seven more read 84 real screenshots from a 21/21

@@ -52,6 +52,11 @@ was actually executed.
 
 ### iOS — `ignia-mac`, WORKING again since 2026-09-22 (on an iOS 26 runtime)
 
+> **2026-09-23: iOS 27 runs the app again.** 1.2.4 enabled Expo scene support
+> (`ios.enableSceneSupport`), so a build from this tree launches on the iOS 27
+> `Ignia-QA` and the suite passed 21/21 there. The banner below describes
+> builds from before `7f25177c`; keep `Ignia-QA-26` for comparing against iOS 26.
+
 > **The suite runs. Shipping is what is blocked — do not confuse the two.**
 >
 > `ignia-mac` is on **Xcode 27.0** and the iOS 26.5 runtime is gone. Anything
