@@ -1,0 +1,5 @@
+{
+  "_comment": "Release notes for App Store 1.2.4. The rest of what changed since 1.2.3 already reached users over the air, so these notes cover only what needed a new binary.",
+  "en-US": "• Fixed: while a fast was running, its timer in the Dynamic Island stretched across the top of the screen and hid the clock. The island now stays just wide enough for the timer.\n• Ready for iOS 27.\n• Smaller fixes and polish.",
+  "es-MX": "• Arreglado: mientras corría un ayuno, su contador en la Dynamic Island se estiraba por toda la parte de arriba de la pantalla y tapaba la hora. Ahora la isla ocupa solo lo que necesita el contador.\n• Listo para iOS 27.\n• Correcciones y mejoras menores."
+}

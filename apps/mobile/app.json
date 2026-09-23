@@ -2,7 +2,7 @@
   "expo": {
     "name": "Ignia",
     "slug": "macro-log",
-    "version": "1.2.3",
+    "version": "1.2.4",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "ignia",
@@ -156,7 +156,8 @@
             "minSdkVersion": 26
           },
           "ios": {
-            "deploymentTarget": "16.4"
+            "deploymentTarget": "16.4",
+            "enableSceneSupport": true
           }
         }
       ],
