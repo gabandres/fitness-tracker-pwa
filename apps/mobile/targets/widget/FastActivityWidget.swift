@@ -76,6 +76,37 @@ private struct FastTimer: View {
   }
 }
 
+/// The compact-trailing timer: the live `FastTimer`, overlaid on a hidden
+/// template string so it cannot claim more width than its digits need.
+///
+/// The template has to cover the longest string this Activity will ever show.
+/// An Activity lives at most 8h from when JS (re)starts it, but JS restarts it
+/// with the fast's *original* `startedAt` (`_shared/FastActivity.swift`), so a
+/// fast already past 2h can reach 10:00:00 inside one Activity. That is when
+/// the hour needs two digits; below it one digit saves a character of pill.
+/// `Date()` is read at render time, and any later re-render only sees a larger
+/// elapsed — so the template can only err wide, never clip.
+private struct CompactFastTimer: View {
+  let startedAt: Date
+
+  private static let font = Font.system(size: 14, weight: .semibold)
+
+  var body: some View {
+    let maxElapsed = Date().timeIntervalSince(startedAt) + 8 * 60 * 60
+    let template = maxElapsed >= 10 * 60 * 60 ? "00:00:00" : "0:00:00"
+
+    Text(template)
+      .font(Self.font)
+      .monospacedDigit()
+      .lineLimit(1)
+      .hidden()
+      .overlay(alignment: .trailing) {
+        FastTimer(startedAt: startedAt, font: Self.font)
+          .multilineTextAlignment(.trailing)
+      }
+  }
+}
+
 /// Lock Screen, and the banner shown on devices with no Dynamic Island.
 private struct FastLockScreenView: View {
   let attributes: FastActivityAttributes
@@ -162,19 +193,20 @@ struct FastActivityWidget: Widget {
           .foregroundStyle(Color.fastAccent)
           .padding(.leading, 3)
       } compactTrailing: {
-        // **No fixed width.** A 52pt frame with `.trailing` alignment was worse
-        // than useless here: it reserved far more room than `0:05` needs, so the
-        // system widened the whole pill and the timer floated in the middle of
-        // an empty box instead of sitting near the right edge.
+        // **Sized by a hidden template, never by the timer itself.**
+        // `Text(timerInterval:)` is greedy: it asks for every point of width it
+        // is offered, and the compact trailing slot grants it — so the pill
+        // stretched to the full island width and covered the status-bar clock
+        // (user report, 2026-09-22; Apple forums 723316 / 735125). A fixed
+        // `.frame(width:)` was tried before and floated the digits in an empty
+        // box, because a guessed width is always wrong for some font size.
         //
-        // Letting it size to its content is the correct behaviour — the island
-        // is *supposed* to grow when the digit count does (9:59 → 10:00), and
-        // `monospacedDigit` already stops the number jittering as seconds tick.
-        FastTimer(
-          startedAt: context.attributes.startedAt,
-          font: .system(size: 14, weight: .semibold)
-        )
-        .padding(.trailing, 3)
+        // The fix the community converged on: lay out an invisible `Text` of
+        // the longest string this Activity can show, in the same font, and pin
+        // the live timer over it trailing-aligned. The pill is then exactly as
+        // wide as the digits and never resizes as they tick.
+        CompactFastTimer(startedAt: context.attributes.startedAt)
+          .padding(.trailing, 3)
       } minimal: {
         // The minimal face is a circle barely wider than a glyph — a timer will
         // not fit legibly, so it shows only that a fast is running and defers
