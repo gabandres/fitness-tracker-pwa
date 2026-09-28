@@ -23,6 +23,16 @@ describe('isExpectedHealthState', () => {
     expect(isExpectedHealthState(err)).toBe(true);
   });
 
+  // IGNIA-MOBILE-W / -X, release 1.2.3 / vc 45, Android 10 under memory
+  // pressure. Health Connect is another process; the OS killed it and the
+  // bind rejected. Sentry shows a bare `android.os.RemoteException` with no
+  // JS frame, indistinguishable from a native crash at a glance.
+  it('claims a Health Connect binding failure', () => {
+    expect(isExpectedHealthState(new Error('Binding to service failed'))).toBe(true);
+    expect(isExpectedHealthState(new Error('Binding died'))).toBe(true);
+    expect(isExpectedHealthState(new Error('android.os.RemoteException: Binding died'))).toBe(true);
+  });
+
   // The direction that matters more: a predicate that claims everything would
   // silence real import bugs, which is the reason this is a list and not a
   // bare `catch {}`.

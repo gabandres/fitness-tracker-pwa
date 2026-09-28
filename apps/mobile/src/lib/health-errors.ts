@@ -38,5 +38,25 @@ export function isExpectedHealthState(err: unknown): boolean {
   return msg.includes('Protected health data is inaccessible')
     || msg.includes('com.apple.healthkit Code=6')
     || msg.includes('com.apple.healthkit Code=5')
-    || msg.includes('Authorization not determined');
+    || msg.includes('Authorization not determined')
+    || isHealthConnectBindingFailure(msg);
+}
+
+/**
+ * Health Connect's twin of the locked-device case, added 2026-09-28 from
+ * IGNIA-MOBILE-W / -X on release 1.2.3 / vc 45 (a TECNO on Android 10 with a
+ * "Low memory" breadcrumb a second before each event).
+ *
+ * Health Connect is a separate process the app binds to over IPC. When the OS
+ * has killed it for memory, or refuses the bind, the client throws
+ * `android.os.RemoteException` with "Binding to service failed" (never bound)
+ * or "Binding died" (bound, then killed mid-call). Neither is ours to act on
+ * from a foreground-triggered import: the next foreground binds again. The
+ * error carries no JS frame, so in Sentry it is a bare `RemoteException` that
+ * reads like a native crash.
+ */
+function isHealthConnectBindingFailure(msg: string): boolean {
+  return msg.includes('Binding to service failed')
+    || msg.includes('Binding died')
+    || msg.includes('android.os.RemoteException');
 }
