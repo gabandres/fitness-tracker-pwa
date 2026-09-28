@@ -155,7 +155,7 @@ export function useBody(): BodyState {
   // Fit the trend over a 28-day window of daily weights (longer than the
   // history list so this week's water-weight noise doesn't dominate).
   const projection = useMemo<WeightProjection | null>(() => {
-    const points = weightPointsForDays(weights, PROJECTION_WINDOW_DAYS, new Date());
+    const points = weightPointsForDays(weights, PROJECTION_WINDOW_DAYS, new Date(), dayBoundaryOf(profile));
     return projectWeight(points, profile?.targetWeightLbs ?? profile?.goalWeightLbs ?? null);
   }, [weights, profile]);
 
@@ -171,7 +171,7 @@ export function useBody(): BodyState {
    * 28-day window, so the prompt cannot disagree with the number above it.
    */
   const goalCrossed = useMemo<boolean>(() => {
-    const points = weightPointsForDays(weights, PROJECTION_WINDOW_DAYS, new Date());
+    const points = weightPointsForDays(weights, PROJECTION_WINDOW_DAYS, new Date(), dayBoundaryOf(profile));
     return goalTrendCrossed({
       goalDirection: profile?.goalDirection,
       targetWeightLbs: profile?.targetWeightLbs ?? profile?.goalWeightLbs ?? null,
@@ -182,8 +182,11 @@ export function useBody(): BodyState {
 
   // 14-day weight line (oldest → newest), missed days dropped.
   const weightSeries = useMemo<number[]>(
-    () => weightSeriesForDays(weights, SPARK_DAYS, new Date()),
-    [weights],
+    // Boundary-aware like `todayKey` above and the Trends weight chart: between
+    // midnight and a 3 AM day start, a midnight-keyed window includes a day
+    // that has not begun and drops the oldest real one.
+    () => weightSeriesForDays(weights, SPARK_DAYS, new Date(), dayBoundaryOf(profile)),
+    [weights, profile],
   );
 
   // Dashed forecast: step from the last plotted weight along the fitted slope.

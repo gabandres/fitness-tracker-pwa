@@ -72,6 +72,24 @@ describe('analytics flush', () => {
     });
   });
 
+  it("does not hand a signed-out account's counts to whoever signs in next", async () => {
+    // Sign-out: `setAnalyticsUser(null)` flushes A's buffer and clears the uid.
+    // Offline that flush hangs, times out, and used to put A's counts BACK —
+    // into a buffer the next sign-in inherits, so B's first flush wrote A's
+    // session under `usageEvents/{B}_{day}`.
+    mockRecordUsage.mockReturnValue(new Promise<void>(() => {}));
+    track('log_added');
+    setAnalyticsUser(null);
+    await jest.advanceTimersByTimeAsync(5000);
+
+    setAnalyticsUser('u2');
+    mockRecordUsage.mockReset();
+    mockRecordUsage.mockResolvedValue(undefined);
+    await flush();
+
+    expect(mockRecordUsage).not.toHaveBeenCalled();
+  });
+
   it('does not write at all when nothing was recorded', async () => {
     await flush();
     expect(mockRecordUsage).not.toHaveBeenCalled();

@@ -341,4 +341,41 @@ describe('repeatYesterday', () => {
     )[1];
     expect([entry.timestamp.getHours(), entry.timestamp.getMinutes()]).toEqual([1, 0]);
   });
+
+  it("files every copy onto TODAY's key under the boundary, not yesterday's again", async () => {
+    // Same 3am boundary. Yesterday's 01:00 meal (logged on the 14th's calendar
+    // date) must be copied to a timestamp that `dayKeyAt` files under TODAY —
+    // which is 01:00 on the 15th's calendar date, not 01:00 on the 14th, which
+    // is the exact day it came from.
+    const threeAm = [{ from: '2026-01-01' as DateKey, hour: 3 }];
+    const rows = [
+      log({ id: 'late-night', date: new Date(2026, 8, 14, 1, 0), calories: 300 }),
+      log({ id: 'lunch', date: new Date(2026, 8, 13, 12, 30), calories: 600 }),
+    ];
+    expect(await repeatYesterday(UID, rows, threeAm)).toBe(2);
+    const todayKey = dayKeyAt(NOW, threeAm);
+    const stamps = mockAddLogDurably.mock.calls.map(
+      (c) => (c as unknown as [string, { timestamp: Date }])[1].timestamp,
+    );
+    expect(stamps.map((d) => dayKeyAt(d, threeAm))).toEqual([todayKey, todayKey]);
+    expect(stamps.map((d) => [d.getHours(), d.getMinutes()])).toEqual([
+      [1, 0],
+      [12, 30],
+    ]);
+  });
+
+  it("copies onto the user's today, not the calendar's, when now is before the boundary", async () => {
+    // 01:30 on the 15th under a 3am start is still the 14th for the user.
+    // "Yesterday" is therefore the 13th, and the copies must land on the 14th's
+    // key — a copy stamped 12:00 on the 15th would land on TOMORROW.
+    jest.setSystemTime(new Date(2026, 8, 15, 1, 30));
+    const threeAm = [{ from: '2026-01-01' as DateKey, hour: 3 }];
+    const rows = [log({ id: 'lunch', date: new Date(2026, 8, 13, 12, 0), calories: 600 })];
+    expect(await repeatYesterday(UID, rows, threeAm)).toBe(1);
+    const entry = (
+      mockAddLogDurably.mock.calls[0] as unknown as [string, { timestamp: Date }]
+    )[1];
+    expect(dayKeyAt(entry.timestamp, threeAm)).toBe('2026-09-14');
+    expect(dayKeyAt(new Date(2026, 8, 15, 1, 30), threeAm)).toBe('2026-09-14');
+  });
 });

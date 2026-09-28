@@ -229,7 +229,13 @@ export function useTrain(): TrainState {
     onOpen: ({ uid: u, alive, fail }) => {
       getActiveSession(u)
         .then((session) => {
-          if (alive()) setActive(session);
+          // Not while a COMPLETED session is open for editing. `reopenSession`
+          // loads it into `active` without changing its status, so this query
+          // answers `null` on every refocus — and writing that through closed
+          // the editor while `editingExisting` and the Cancel snapshot stayed
+          // set, leaving the NEXT workout started wearing the edit chrome:
+          // "Done" then never marked it completed.
+          if (alive() && !editOriginal.current) setActive(session);
         })
         .catch(fail);
     },
@@ -661,7 +667,7 @@ export function useTrain(): TrainState {
         setSaving(false);
       }
     },
-    [uid, setActive],
+    [uid, profile, setActive],
   );
 
   const discardWorkout = useCallback(async () => {
@@ -684,7 +690,15 @@ export function useTrain(): TrainState {
 
   const deleteSession = useCallback(
     async (id: string) => {
-      if (uid) await deleteSessionDoc(uid, id);
+      if (!uid) return;
+      try {
+        await deleteSessionDoc(uid, id);
+      } catch (e) {
+        // The screen fires this from a confirm sheet as `void deleteSession(id)`;
+        // an uncaught reject there reaches Sentry with no stack and no screen,
+        // the same as every other verb here. Surface it on the tab instead.
+        setError(asError(e, 'Delete failed'));
+      }
     },
     [uid],
   );

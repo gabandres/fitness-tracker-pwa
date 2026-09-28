@@ -264,6 +264,34 @@ describe('flushPendingLogs', () => {
     expect(await flushPendingLogs('u1')).toBe(0);
     expect(mockAddLogWithId).not.toHaveBeenCalled();
   });
+
+  it('keeps a row parked WHILE the flush was in flight', async () => {
+    // The flush has no write deadline, so offline it sits on the first row
+    // until the socket returns — minutes, on a commute. Every in-app add in
+    // that window parks a new row. If the flush then rewrites the queue from
+    // the list it read at the start, those rows are dropped from disk without
+    // ever having landed.
+    await park(1);
+    let release: () => void = () => {};
+    mockAddLogWithId.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+    );
+    const flushing = flushPendingLogs('u1');
+    // Let the flush read the queue and start its first (hanging) write.
+    await new Promise((r) => setTimeout(r, 0));
+    mockAddLogWithId.mockRejectedValueOnce(new Error('offline'));
+    expect(await logQuickAdd({ ...target, calories: 999 })).toBe('queued');
+    expect(await readPendingLogs()).toHaveLength(2);
+
+    release();
+    expect(await flushing).toBe(1);
+    const left = await readPendingLogs();
+    expect(left).toHaveLength(1);
+    expect(left[0].calories).toBe(999);
+  });
 });
 
 describe('clearQuickAdd', () => {

@@ -154,8 +154,11 @@ export async function flush(): Promise<void> {
     await withDeadline(ledgerRecordUsage()(account, day, platform, sending), FLUSH_DEADLINE_MS);
   } catch {
     // Put them back, unless the day has since rolled — a stale day's counts are
-    // not worth carrying into a document they do not belong to.
-    if (day === bufferDay) {
+    // not worth carrying into a document they do not belong to — or the
+    // ACCOUNT has: sign-out flushes and then clears `uid`, so a write that
+    // times out offline would otherwise land its counts back in a buffer the
+    // next sign-in inherits, and be written under whoever that is.
+    if (day === bufferDay && account === uid) {
       for (const [event, count] of Object.entries(sending)) {
         buffer = addUsageCount(buffer, event as UsageEvent, count);
       }

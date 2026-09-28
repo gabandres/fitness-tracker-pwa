@@ -134,7 +134,12 @@ export function useMilestones(ev: MilestoneEvidence): MilestonesState {
   const [ready, setReady] = useState(false);
   // One probe attempt per mount, per collection. A `useRef` rather than state:
   // flipping it must not schedule a render, and it must not re-run the effect.
-  const probed = useRef({ fast: false, workout: false });
+  // The probe's ANSWER per mount, not merely whether it was asked. The effect
+  // below re-runs whenever `streak` or `earned` moves — on a cold start that is
+  // routinely while the first probe is still in flight — and the superseded run
+  // drops its result at the `alive` check. With only an asked-flag, the new run
+  // then skipped the probe, and a true answer was lost for the whole mount.
+  const probed = useRef<{ fast?: boolean; workout?: boolean }>({});
 
   useEffect(() => {
     if (!uid) {
@@ -177,22 +182,25 @@ export function useMilestones(ev: MilestoneEvidence): MilestonesState {
 
       // Probes, each gated on the milestone being unrecorded. `newlyEarned`
       // filters again below, so a probe answering true is not itself a write.
-      if (!earned['first-fast'] && !probed.current.fast) {
-        probed.current.fast = true;
-        try {
-          if (await hasAnyCompletedFast(uid)) candidates.push('first-fast');
-        } catch {
-          // Offline or denied — try again next mount.
-          probed.current.fast = false;
+      if (!earned['first-fast']) {
+        if (probed.current.fast === undefined) {
+          try {
+            probed.current.fast = await hasAnyCompletedFast(uid);
+          } catch {
+            // Offline or denied — left unanswered, so the next run asks again.
+          }
         }
+        if (probed.current.fast) candidates.push('first-fast');
       }
-      if (!earned['first-workout'] && !probed.current.workout) {
-        probed.current.workout = true;
-        try {
-          if (await hasAnyCompletedWorkout(uid)) candidates.push('first-workout');
-        } catch {
-          probed.current.workout = false;
+      if (!earned['first-workout']) {
+        if (probed.current.workout === undefined) {
+          try {
+            probed.current.workout = await hasAnyCompletedWorkout(uid);
+          } catch {
+            /* same */
+          }
         }
+        if (probed.current.workout) candidates.push('first-workout');
       }
 
       if (!alive) return;

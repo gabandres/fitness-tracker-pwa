@@ -130,6 +130,44 @@ export function hkSampleFilter(days: number): { date: { startDate: Date; endDate
 }
 
 /**
+ * The workout query, built through {@link hkSampleFilter} for the reason that
+ * function documents: `FilterForWorkouts` extends `FilterForSamplesBase`, so
+ * it reads the window under `date` too. `readWorkouts` carried the flat shape
+ * until 2026-09-27 — silently ignored behind its `as never`, and with
+ * `limit: 0` that read every workout the store held on every import.
+ */
+export function hkWorkoutQueryOptions(sinceDays: number): {
+  limit: number;
+  energyUnit: string;
+  distanceUnit: string;
+  filter: { date: { startDate: Date; endDate: Date } };
+} {
+  return { limit: 0, energyUnit: 'kcal', distanceUnit: 'm', filter: hkSampleFilter(sinceDays) };
+}
+
+/**
+ * A HealthKit workout's activity type as a NAME.
+ *
+ * `WorkoutProxy.workoutActivityType` is the numeric `WorkoutActivityType` enum
+ * (`running = 37`, `walking = 52`, `cycling = 13`), and `String(37)` is `"37"`
+ * — which `toCardioModality` matches against nothing, so every iOS workout
+ * classified as `other` and `partitionImportable` declined all of them as
+ * non-cardio. An Apple Watch run never reached Train. `names` is the enum
+ * object off the module (a TS numeric enum carries its reverse mapping, so
+ * `names[37] === 'running'`), read at call time the way the Android branch
+ * reads `ExerciseType`; anything unmapped falls back to the raw value, which is
+ * visibly wrong rather than silently so.
+ */
+export function hkWorkoutTypeName(names: unknown, raw: unknown): string {
+  if (typeof raw === 'number' || (typeof raw === 'string' && /^\d+$/.test(raw))) {
+    const table = names != null && typeof names === 'object' ? (names as Record<string, unknown>) : null;
+    const name = table?.[String(raw)];
+    if (typeof name === 'string') return name;
+  }
+  return raw == null ? '' : String(raw);
+}
+
+/**
  * Local midnight at the start of `d`'s day.
  *
  * Both platforms' aggregate APIs anchor their buckets on the *start of the
@@ -482,18 +520,14 @@ const healthKit: HealthPort = {
       | ((opts: unknown) => Promise<unknown>)
       | undefined;
     if (typeof query !== 'function') return [];
-    const rows = (await query({
-      limit: 0,
-      energyUnit: 'kcal',
-      distanceUnit: 'm',
-      filter: { startDate: sinceDate(sinceDays), endDate: new Date() },
-    })) as unknown as HKWorkoutRow[];
+    const rows = (await query(hkWorkoutQueryOptions(sinceDays))) as unknown as HKWorkoutRow[];
+    const typeNames = (HK as unknown as Record<string, unknown>)['WorkoutActivityType'];
     return (rows ?? []).map((w) => ({
       // `uuid` is HealthKit's stable per-sample identity and is what makes a
       // re-import update rather than duplicate. Falling back to the time range
       // keeps that property for any build where the field is absent.
       id: String(w.uuid ?? `${ms(w.startDate)}-${ms(w.endDate)}`),
-      activityType: String(w.workoutActivityType ?? ''),
+      activityType: hkWorkoutTypeName(typeNames, w.workoutActivityType),
       startMs: ms(w.startDate),
       endMs: ms(w.endDate),
       distanceM: w.totalDistance?.quantity,
@@ -668,6 +702,43 @@ const HC_READ: Record<ReadableKind, string> = {
  * `scripts/native-expectations.json` `forbiddenPermissions` is the other half:
  * the artifact verifier fails a build whose manifest still carries it.
  */
+/**
+ * Every record in a range, following `pageToken`.
+ *
+ * `readRecords` on `react-native-health-connect@3.5.3` answers ONE page —
+ * `pageSize` defaults to 1000, `ascendingOrder` to true — and the token for the
+ * next page rides on the result. A single call therefore returns the OLDEST
+ * thousand records of the window. Over the 400-day import that is reached by
+ * any source writing a few records a day (a water app at ~8/day passes it in
+ * ~125 days), after which the import covered only the far end of the window
+ * and the recent days — the ones a user is actually waiting on — never
+ * arrived. Exported for the test, which drives it with a fake module; the
+ * dynamic import of the real one cannot run under jest.
+ *
+ * `maxPages` is a guard against a token that never clears, not a budget:
+ * 100 pages is a hundred thousand records, far past anything a phone holds
+ * for one type in 400 days.
+ */
+export async function hcReadAllRecords<T>(
+  HC: { readRecords: (type: never, opts: never) => Promise<unknown> },
+  recordType: string,
+  timeRangeFilter: { operator: 'between'; startTime: string; endTime: string },
+  maxPages = 100,
+): Promise<T[]> {
+  const out: T[] = [];
+  let pageToken: string | undefined;
+  for (let page = 0; page < maxPages; page++) {
+    const res = (await HC.readRecords(
+      recordType as never,
+      { timeRangeFilter, ...(pageToken ? { pageToken } : {}) } as never,
+    )) as { records?: T[]; pageToken?: string } | null | undefined;
+    out.push(...(res?.records ?? []));
+    if (!res?.pageToken) break;
+    pageToken = res.pageToken;
+  }
+  return out;
+}
+
 export const HC_SKIPPED_KINDS: ReadonlySet<ReadableKind> = new Set<ReadableKind>(['steps']);
 
 /** What the Android connect prompt asks for. Exported so a test can pin that
@@ -787,10 +858,7 @@ const healthConnect: HealthPort = {
       startTime: sinceDate(sinceDays).toISOString(),
       endTime: new Date().toISOString(),
     };
-    const res = (await HC.readRecords(HC_READ[kind] as never, { timeRangeFilter } as never)) as unknown as {
-      records: HCRecord[];
-    };
-    const rows = res.records ?? [];
+    const rows = await hcReadAllRecords<HCRecord>(HC, HC_READ[kind], timeRangeFilter);
     const mine = (r: HCRecord) => r.metadata?.dataOrigin === APP_ID;
 
     if (kind === 'sleep') {

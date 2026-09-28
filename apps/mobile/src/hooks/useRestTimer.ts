@@ -26,12 +26,18 @@ function formatMMSS(s: number): string {
 export function useRestTimer(): RestTimer {
   const [remaining, setRemaining] = useState(0);
   const handle = useRef<ReturnType<typeof setInterval> | null>(null);
+  /** When the rest ends, epoch ms. The interval only REDRAWS from this — it
+   *  never counts. JS timers are suspended while the screen is locked, and a
+   *  lifter locks the phone between sets: a tick-counting timer that slept 60 s
+   *  of a 90 s rest woke up still showing ~90 s, and buzzed a minute late. */
+  const deadline = useRef<number | null>(null);
 
   const stop = useCallback(() => {
     if (handle.current) {
       clearInterval(handle.current);
       handle.current = null;
     }
+    deadline.current = null;
     setRemaining(0);
   }, []);
 
@@ -40,21 +46,26 @@ export function useRestTimer(): RestTimer {
       if (handle.current) clearInterval(handle.current);
       if (!(seconds > 0)) {
         handle.current = null;
+        deadline.current = null;
         setRemaining(0);
         return;
       }
-      setRemaining(Math.round(seconds));
+      const secs = Math.round(seconds);
+      deadline.current = Date.now() + secs * 1000;
+      setRemaining(secs);
       handle.current = setInterval(() => {
-        setRemaining((r) => {
-          if (r <= 1) {
-            if (handle.current) clearInterval(handle.current);
-            handle.current = null;
-            // Buzz on natural completion (time to lift) — skip/stop stays silent.
-            haptics.success();
-            return 0;
-          }
-          return r - 1;
-        });
+        const end = deadline.current;
+        const left = end == null ? 0 : Math.max(0, Math.ceil((end - Date.now()) / 1000));
+        if (left <= 0) {
+          if (handle.current) clearInterval(handle.current);
+          handle.current = null;
+          deadline.current = null;
+          // Buzz on natural completion (time to lift) — skip/stop stays silent.
+          haptics.success();
+          setRemaining(0);
+          return;
+        }
+        setRemaining(left);
       }, 1000);
     },
     [],

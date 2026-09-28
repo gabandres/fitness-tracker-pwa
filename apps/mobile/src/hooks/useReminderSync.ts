@@ -32,7 +32,7 @@ function daysSinceWeighIn(
     }
   }
   if (!latestKey) return null;
-  return daysSinceKey(latestKey);
+  return daysSinceKey(latestKey, boundary);
 }
 
 /** Whole days since the newest FOOD log's day key, or null with no logs in
@@ -44,14 +44,23 @@ function daysSinceLastLog(logs: DailyLog[], boundary: DayBoundary): number | nul
     const k = dayKeyAt(l.date, boundary);
     if (latestKey == null || k > latestKey) latestKey = k;
   }
-  return latestKey ? daysSinceKey(latestKey) : null;
+  return latestKey ? daysSinceKey(latestKey, boundary) : null;
 }
 
-function daysSinceKey(key: string): number {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+/**
+ * Whole days between a day key and TODAY — the user's today (ADR-0030), not
+ * calendar midnight: `key` is a boundary-aware `dayKeyAt` key, and at 01:00
+ * under a 3 AM start a log from 23:00 is the SAME day, not one day ago.
+ *
+ * `round`, not `floor`: both ends are local midnights, so the span is a whole
+ * number of days except across a DST change, where it is an hour short or
+ * long. `floor` turned "an hour short" into a day too few, and the lapsed
+ * nudges (+3/+7 days) fired a day late for the week after clocks went forward.
+ */
+function daysSinceKey(key: string, boundary: DayBoundary): number {
+  const today = parseYmd(dayKeyAt(new Date(), boundary));
   const then = parseYmd(key);
-  return Math.max(0, Math.floor((today.getTime() - then.getTime()) / 86_400_000));
+  return Math.max(0, Math.round((today.getTime() - then.getTime()) / 86_400_000));
 }
 
 /**

@@ -13,6 +13,7 @@ import {
 } from '@macrolog/core';
 import { useAuth } from '@/lib/auth';
 import { feedChannel, useLedgerFeed } from '@/hooks/useLedgerFeed';
+import { useFocusDay } from '@/hooks/useFocusDay';
 import { subscribeFastsSince } from '@/lib/ledger';
 
 /**
@@ -68,13 +69,16 @@ export function useFastingTrends(profile: Profile | null): FastingTrends {
   const [fasts, setFasts] = useState<Fast[]>([]);
 
   const boundary = useMemo(() => dayBoundaryOf(profile), [profile]);
+  const focusDay = useFocusDay(boundary);
 
   const dateKeys = useMemo(
     // Boundary-aware, like every other window on this screen. Trends keyed the
     // sleep card and the insight cards to two different calendars once; a new
     // window that is midnight-only would be adding that bug back on purpose.
-    () => trailingDateKeys(FASTING_WINDOW_DAYS, new Date(), boundary),
-    [boundary],
+    // `focusDay`, not `new Date()`: keyed on `boundary` alone this memo never
+    // recomputed, and the window froze on the mount day — see `useFocusDay`.
+    () => trailingDateKeys(FASTING_WINDOW_DAYS, focusDay, boundary),
+    [focusDay, boundary],
   );
 
   // The query bound is the START of the window's first day, not a naive

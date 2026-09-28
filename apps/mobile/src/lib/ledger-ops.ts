@@ -37,9 +37,12 @@ import {
   type DayBoundary,
   type DailyLog,
   type UsageEvent,
+  addDays,
+  calendarDateKey,
   dayKeyAt,
   fillMissingClusterLoads,
   isStorableWeight,
+  parseYmd,
 } from '@macrolog/core';
 import { track } from './analytics';
 import { exportDaily, exportWorkout } from './health-sync';
@@ -236,13 +239,22 @@ export async function repeatYesterday(
   logs: DailyLog[],
   boundary: DayBoundary,
 ): Promise<number> {
-  const y = new Date();
-  y.setDate(y.getDate() - 1);
-  const yKey = dayKeyAt(y, boundary);
+  // Both keys are the USER's days (ADR-0030): today is whatever `dayKeyAt`
+  // says now belongs to, and yesterday is the key before it.
+  const todayKey = dayKeyAt(new Date(), boundary);
+  const yKey = calendarDateKey(addDays(parseYmd(todayKey), -1));
   const yLogs = logs.filter((l) => dayKeyAt(l.date, boundary) === yKey && l.calories > 0);
   for (const l of yLogs) {
-    const ts = new Date();
+    // Today's KEY as the calendar date, then the row's wall-clock time. Under
+    // a 3am start a 01:00 meal belongs to the day the clock names minus one,
+    // so "today at 01:00" is 01:00 on the NEXT calendar date — the nudge below
+    // is what keeps the copy on today's ring rather than filing it straight
+    // back onto the day it was copied from. Built from `todayKey` rather than
+    // `new Date()` for the mirror case: at 01:30 under that boundary the
+    // calendar date is already tomorrow's key.
+    const ts = parseYmd(todayKey);
     ts.setHours(l.date.getHours(), l.date.getMinutes(), 0, 0);
+    if (dayKeyAt(ts, boundary) !== todayKey) ts.setDate(ts.getDate() + 1);
     await addLogDurably()(uid, {
       calories: l.calories,
       protein: l.protein,

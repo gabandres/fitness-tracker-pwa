@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from '@testing-library/react-native';
+import { act, renderHook, waitFor } from '@testing-library/react-native';
 
 /**
  * `useTrain.loading` — the spinner has to be able to END.
@@ -25,6 +25,20 @@ let mockSessionsImpl: (
   cb: (s: unknown[], meta?: { fromCache: boolean }) => void,
   onError: (e: Error) => void,
 ) => () => void;
+
+/** Drives the focus gate (the global setup mock has no toggle). */
+const mockFocus = { focused: true };
+jest.mock('expo-router', () => ({
+  useFocusEffect: (cb: () => void | (() => void)) => {
+    const React = require('react');
+    const focused = mockFocus.focused;
+    React.useEffect(() => {
+      if (!focused) return;
+      const cleanup = cb();
+      return typeof cleanup === 'function' ? cleanup : undefined;
+    }, [cb, focused]);
+  },
+}));
 
 jest.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { uid: 'u1' } }) }));
 jest.mock('@/i18n', () => ({ useLocale: () => 'en' }));
@@ -119,5 +133,46 @@ describe('useTrain loading', () => {
     const hook = await renderHook(() => useTrain());
     await waitFor(() => expect(hook.result.current.loading).toBe(false));
     expect(hook.result.current.recentSessions).toEqual([]);
+  });
+});
+
+describe('refocus while editing a completed session', () => {
+  it('does not let the active-session reload (null) close the editor', async () => {
+    mockSessionsImpl = (_u, _n, cb) => {
+      cb([], { fromCache: false });
+      return mockNoop;
+    };
+    const hook = await renderHook(() => useTrain());
+    await waitFor(() => expect(hook.result.current.loading).toBe(false));
+    const completed = {
+      id: 's-done',
+      status: 'completed' as const,
+      date: new Date(2026, 8, 20, 17, 0),
+      exercises: [],
+      createdAt: new Date(2026, 8, 20, 17, 0),
+      updatedAt: new Date(2026, 8, 20, 17, 0),
+    };
+    await act(async () => {
+      hook.result.current.reopenSession(completed as never);
+    });
+    expect(hook.result.current.editingExisting).toBe(true);
+    expect(hook.result.current.active?.id).toBe('s-done');
+
+    // A blur + refocus re-runs `onOpen`, whose `getActiveSession` (status ==
+    // 'active') answers null for a completed session. That null used to be
+    // written through, closing the editor while `editingExisting` stayed true.
+    mockFocus.focused = false;
+    await act(async () => {
+      hook.rerender(undefined);
+    });
+    mockFocus.focused = true;
+    await act(async () => {
+      hook.rerender(undefined);
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(hook.result.current.active?.id).toBe('s-done');
+    expect(hook.result.current.editingExisting).toBe(true);
   });
 });

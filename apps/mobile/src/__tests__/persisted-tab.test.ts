@@ -84,6 +84,21 @@ describe('usePersistedTab', () => {
     expect(result.current[0]).toBe('budget');
   });
 
+  it('does not let a slow disk read undo a tap that landed first', async () => {
+    const key = freshKey();
+    let resolveRead: (v: string | null) => void = () => {};
+    mockGetItem.mockReturnValueOnce(new Promise<string | null>((r) => { resolveRead = r; }));
+    const { result } = await renderHook(() => usePersistedTab(key, TABS, 'week'));
+    // The user taps before AsyncStorage has answered.
+    await act(async () => result.current[1]('budget'));
+    expect(result.current[0]).toBe('budget');
+    // The read comes back with LAST session's face.
+    await act(async () => {
+      resolveRead('week');
+    });
+    expect(result.current[0]).toBe('budget');
+  });
+
   it('reads storage once per key, then serves the memo', async () => {
     // Trends unmounts on every tab change, so without the memo each return
     // would repaint the default face and flip a frame later.

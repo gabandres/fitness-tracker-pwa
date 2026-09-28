@@ -110,3 +110,34 @@ describe('useMilestones — first-scan evidence', () => {
     expect(mockRecordMilestone).not.toHaveBeenCalled();
   });
 });
+
+describe('useMilestones — the probes survive an effect re-run', () => {
+  it('records first-fast when the probe answers after streak moved', async () => {
+    // Cold start: the probe is in flight when Today's logs land and `streak`
+    // goes 0 → 3, re-running the effect. The superseded run drops its answer
+    // at the `alive` check; the new run must not SKIP the probe because the
+    // old one "already asked".
+    let answer: (v: boolean) => void = () => {};
+    // First ask: in flight. The store's answer does not change underneath, so
+    // any later ask gets the same `true` — that second ask is what the fix
+    // relies on, and what the asked-flag used to suppress.
+    mockHasAnyCompletedFast
+      .mockImplementationOnce(() => new Promise<boolean>((r) => { answer = r; }))
+      .mockResolvedValueOnce(true);
+    let ev = evidence({ streak: 0 });
+    let hook!: Awaited<ReturnType<typeof renderHook<unknown, typeof ev>>>;
+    await act(async () => {
+      hook = await renderHook((e: typeof ev) => useMilestones(e), { initialProps: ev });
+    });
+    ev = evidence({ streak: 3 });
+    await act(async () => {
+      hook.rerender(ev);
+    });
+    await act(async () => {
+      answer(true);
+    });
+    await waitFor(() =>
+      expect(mockRecordMilestone).toHaveBeenCalledWith('u1', 'first-fast'),
+    );
+  });
+});

@@ -89,7 +89,10 @@ export function usePersistedTab(
     let alive = true;
     void AsyncStorage.getItem(key)
       .then((stored) => {
-        if (!alive || stored == null) return;
+        // `memo.has(key)`: a tap (`select`) or an external write landed while
+        // the read was in flight. The disk value is older than what is on
+        // screen, and applying it would snap the strip back under the finger.
+        if (!alive || stored == null || memo.has(key)) return;
         // Validated, not trusted — see the header.
         if (!valid.includes(stored)) return;
         memo.set(key, stored);

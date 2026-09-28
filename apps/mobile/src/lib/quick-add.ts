@@ -441,21 +441,30 @@ export async function flushPendingLogs(uid: string, nowMs: number = Date.now()):
   // previous session is not "failed", it is not ours to write, and this is the
   // path that clears it.
   const mine = prunePendingLogs(all, nowMs, uid);
-  const stillPending: PendingLog[] = [];
-  let landed = 0;
+  const landedIds = new Set<string>();
 
   for (const row of mine) {
     try {
       await addLogWithId(uid, row.id, pendingLogEntry(row));
-      landed++;
+      landedIds.add(row.id);
     } catch {
-      stillPending.push(row);
+      /* Stays parked; the re-read below keeps it. */
     }
   }
 
   try {
-    if (stillPending.length === 0) await pendingStore.clear();
-    else await pendingStore.write(serializePendingLogs(stillPending));
+    // Re-read rather than rewriting from `all`. There is no write deadline on
+    // this loop — offline it sits on the first row until the socket returns,
+    // which on a commute is minutes — and every in-app add in that window
+    // parks a NEW row under the same key. A rewrite from the list read at the
+    // top would drop those rows from disk without their ever having landed:
+    // the exact loss this queue exists to prevent, on the path meant to drain
+    // it. So the rewrite is "what is on disk now, minus what this run landed".
+    const remaining = prunePendingLogs(await readPendingLogs(), nowMs, uid).filter(
+      (row) => !landedIds.has(row.id),
+    );
+    if (remaining.length === 0) await pendingStore.clear();
+    else await pendingStore.write(serializePendingLogs(remaining));
   } catch {
     /* Best-effort: worst case a landed row is retried, which is idempotent. */
   }
@@ -463,7 +472,7 @@ export async function flushPendingLogs(uid: string, nowMs: number = Date.now()):
   // `landed`, because pruning alone changes what is queued — a row belonging to
   // a signed-out account is dropped here and must stop being drawn.
   notifyPendingLogsChanged();
-  return landed;
+  return landedIds.size;
 }
 
 /**

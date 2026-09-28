@@ -15,6 +15,7 @@ import {
 } from '@macrolog/core';
 import { useAuth } from '@/lib/auth';
 import { feedChannel, useLedgerFeed } from '@/hooks/useLedgerFeed';
+import { useFocusDay } from '@/hooks/useFocusDay';
 import { subscribeDailySleepSince } from '@/lib/ledger';
 import { isHealthConnected } from '@/lib/health-sync';
 import { isOuraConnectedOnce } from '@/lib/oura';
@@ -75,6 +76,7 @@ export function useSleepTrends(
   const [connectedTo, setConnectedTo] = useState<'oura' | 'health' | null>(null);
 
   const boundary = useMemo(() => dayBoundaryOf(profile), [profile]);
+  const focusDay = useFocusDay(boundary);
 
   // The window's keys, and the `since` bound the query needs. Recomputed per
   // render is fine and per focus is what matters — a card left open across
@@ -87,8 +89,10 @@ export function useSleepTrends(
     // Writing a NEW pairing midnight-only would be adding a latent bug on
     // purpose; the pairing between a night and the day's eating is the entire
     // claim this card makes.
-    () => trailingDateKeys(SLEEP_WINDOW_DAYS, new Date(), boundary),
-    [boundary],
+    // `focusDay`, not `new Date()`: keyed on `boundary` alone this memo never
+    // recomputed, and the window froze on the mount day — see `useFocusDay`.
+    () => trailingDateKeys(SLEEP_WINDOW_DAYS, focusDay, boundary),
+    [focusDay, boundary],
   );
 
   const feed = useLedgerFeed({
