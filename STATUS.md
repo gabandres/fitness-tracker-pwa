@@ -1,6 +1,6 @@
 # STATUS — what is true right now
 
-**Updated:** 2026-09-17 · **Owns:** current state only. Not history
+**Updated:** 2026-09-28 · **Owns:** current state only. Not history
 (`CHANGELOG.md`), not rationale (`docs/adr/`), not vocabulary (`CONTEXT.md`),
 not commands (`docs/COMMANDS.md`), not build tooling
 (`docs/build-infrastructure.md`).
@@ -31,15 +31,15 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 | **Cloud Functions / rules** | Deployed, project `fitness-tracker-gb-1775407101` |
 | **Photo-scan** | **ON and free to everyone, both platforms** (ADR-0017), resolving macros against the bundled USDA database (ADR-0019). Tiering is server-side only: `dailyQuota` 3/day free · 30/day paid, plus the `photo` `spendCeiling` |
 | **Food search** | Bundled USDA DB, 13,272 foods, plus the restaurant corpus (25,126 items / 91 chains, ADR-0027). **Text search makes NO network call** (since 2026-08-19; Open Food Facts serves **barcode only** — its 10 req/min search cap cannot host typeahead behind one egress IP). Servings ship with each hit. `docs/research/off-branded-ingest.md` scopes getting branded text results back |
-| **OTA (EAS Update)** | Live. `runtimeVersion: {"policy":"fingerprint"}`, channels match build profiles. Free tier 1,000 MAU. **iOS OPEN** on `52802bba…` since 2026-09-06. **Android OPEN** on `15c1cfc8…` since vc 45 went live 2026-09-07 ~22:46 UTC — both channels open; first Android publish on the reopened channel 2026-09-08 (`cb330ecc…`, `update:list` reads runtime `15c1cfc8…`). Reminder: `app.json` is hashed whole, so a version string bump moves BOTH fingerprints (`437a90ce` did). **"Published" is not "delivered":** a user gets it on the launch AFTER the download. **This row is a POINTER: `apps/mobile/AGENTS.md` is the per-publish record and it wins.** Re-check with `npx eas update:list --branch production --limit 3` |
+| **OTA (EAS Update)** | Live. `runtimeVersion: {"policy":"fingerprint"}`, channels match build profiles. Free tier 1,000 MAU. **iOS OPEN** on `1b239e44…` (build 67) since 2026-09-28; newest group `dbe26c08…`. **Android OPEN** on `3e596c87…` (vc 46) since 2026-09-28; newest group `605679ee…` — published with `runtimeVersion` PINNED to the artifact value in `app.json` and reverted, because the Mac tree never reproduces the Android artifact hash (ledger row). vc 45 users (`15c1cfc8…`) are unreachable from here; the Play review of 46 is their delivery. Reminder: `app.json` is hashed whole, so a version string bump moves BOTH fingerprints (`437a90ce` did). **"Published" is not "delivered":** a user gets it on the launch AFTER the download. **This row is a POINTER: `apps/mobile/AGENTS.md` is the per-publish record and it wins.** Re-check with `npx eas update:list --branch production --limit 3` |
 | **`app-version.json`** | **Self-driving since 2026-09-05** — served from Firestore `public/appVersion` by the `appVersionJson` rewrite, refreshed hourly by `hourlyTasks` (Android from the Play tracks API as `647810616435-compute@…`, invited read-only to the org Play Console; iOS from Apple's public lookup) and on demand from `/admin` → System → **Sync now**. No static file, no deploy, no secret; `npm run doctor` compares the LIVE URL with both stores. See the Play row for the in-review wrinkle |
 
 **The runtime fingerprints, and the three traps around them.**
 
 | Platform | Tree now | Live binary | Channel |
 |---|---|---|---|
-| Android | **Mac-built since vc 46** — read it from the artifact, never the tree (`android/` is hashed whole and drifts with Gradle's leftovers; ledger row) | **vc 46 ships `3e596c87…`** (read from the `.aab`), on Play **alpha** since 2026-09-28, sent for review. promoted to production 100% the same day, in review; **vc 45 (`15c1cfc8…`, Windows-built) is what users run until Play clears 46** | **OPEN** on both tracks once review clears |
-| iOS | `1b239e44…` since `7f25177c`, re-measured on `ignia-mac` 2026-09-28 at `cb4a287a` and MATCHED | **build 67 ships `1b239e44…`, LIVE as 1.2.4 since 2026-09-28** (read from the `.ipa`); first OTA on it `b2d0205b…` the same day | **OPEN** to the public |
+| Android | **Mac-built since vc 46** — read it from the artifact, never the tree (`android/` is hashed whole and drifts with Gradle's leftovers; ledger row) | **vc 46 ships `3e596c87…`** (read from the `.aab`), on Play **alpha** since 2026-09-28, promoted to production 100% the same day, in review; first OTA on it `605679ee…` (pinned runtime); **vc 45 (`15c1cfc8…`, Windows-built) is what users run until Play clears 46** | **OPEN** (pin the runtime for every publish) |
+| iOS | `1b239e44…` since `7f25177c`, re-measured on `ignia-mac` 2026-09-28 at `cb4a287a` and MATCHED | **build 67 ships `1b239e44…`, LIVE as 1.2.4 since 2026-09-28** (read from the `.ipa`); OTAs on it `b2d0205b…` and `dbe26c08…` the same day | **OPEN** to the public — after an Android Gradle build, restore the masked-view manifest first (bullet below) |
 
 - **Gate the COMMIT, not just the fingerprint. `eas update` prints a `Commit`
   line — read it.** The fingerprint is native-only, so a stale JS tree passes
@@ -47,15 +47,15 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
   `git pull` that precedes a publish, and assert `git rev-parse HEAD` in the
   same shell.**
 - **The fingerprint is machine-dependent — publish from the machine that BUILT
-  the binary testers run: today Android from Windows, iOS from `ignia-mac`.**
-  **Android's build host moved to `ignia-mac` on 2026-09-17** (toolchain,
-  keystore and Play SA are there; `docs/build-infrastructure.md`), but the live
-  Android runtime is still the Windows-built one, so **cutover is OPEN**: cut
-  the first `eas build --local -p android --profile production` on the Mac,
-  submit it, and in the same commit flip `OWNER["android"]` in
-  `.claude/hooks/guard_eas_update.py`, update `test_guards.py`, and drop the
-  Windows section of the `build-android` skill. Until then an Android OTA still
-  publishes from Windows. Bare `eas update`
+  the binary users run: BOTH platforms from `ignia-mac` since vc 46
+  (2026-09-28).** `OWNER` in `.claude/hooks/guard_eas_update.py` says so and
+  blocks the rest. **A Gradle build rewrites one file inside `node_modules`
+  (`@react-native-masked-view/masked-view/android/src/main/AndroidManifest.xml`,
+  AGP 8 strips `package=`) and that package is hashed WHOLE for iOS — so an
+  Android build silently shuts the iOS gate until the file is restored**
+  (`npm ci`, or the `npm pack` one-liner in `docs/COMMANDS.md`). When a gate
+  mismatches on a tree with no native change, `eas fingerprint:compare
+  <live-runtime>` names the source; do not reason about it first. Bare `eas update`
   publishes both and is correct on neither — always `--platform`-scope it
   (`.claude/hooks/guard_eas_update.py` enforces it). Three OTAs once reached
   **nobody** this way. Why the hosts disagree is settled (`@expo/fingerprint`
@@ -73,18 +73,13 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 
 ## 2. Merged, on `main`, and not delivered anywhere
 
-**ANDROID is owed `2227698c`** — the 2026-09-22 review ship (nine user-facing
-fixes; `CHANGELOG.md`). iOS has it as an OTA on build 64 (group `c0d351c4`).
-Android does not, and **cannot be published from `ignia-mac`**: the live
-Android binary is Windows-built on `15c1cfc8…` and this Mac computes a
-different Android hash, so a publish from here reaches nobody
-(`guard_eas_update.py` enforces it). **Publish it from the Windows workstation
-at `2227698c`.** Everything else on `main` is delivered on iOS: **the 2026-09-28
-sweep + S18 ship (`28a24f8d`..`cb4a287a`) is LIVE on iOS as OTA `b2d0205b…` on
-the 1.2.4 runtime `1b239e44…`** (1.2.4 went live the same morning; functions
-and rules deployed). **Android has NONE of it** — neither `2227698c` nor the
-09-28 ship — until vc 46 (Mac-built from `cb4a287a`) is on Play; see the
-fingerprint-ledger row for where that build stands.
+**Everything on `main` is delivered on iOS** (build 67 / 1.2.4 runtime
+`1b239e44…`, newest OTA `dbe26c08…` at `298365d3`) **and published for Android
+vc 46** (runtime `3e596c87…`, newest OTA `605679ee…` at `298365d3`). What
+Android production users actually run is still vc 45 (`15c1cfc8…`) until Play
+clears 46 — they hold neither `2227698c` nor either 09-28 ship, and **no OTA can
+reach them from this Mac** (the Windows-built runtime). Do not publish for vc 45;
+the 46 review is the delivery. Functions and rules are deployed.
 
 Re-derive rather than trust this line: `git log --oneline` against the newest
 OTA row in `apps/mobile/docs/fingerprint-ledger.md`, and

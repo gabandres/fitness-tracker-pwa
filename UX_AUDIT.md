@@ -824,29 +824,16 @@ Usability 25 · A11y 20 · Platform 15 · Visual 15 · Perf 10 · Copy 10 · Del
 copy and motion already sit at 8–9; a11y is 5 across all three groups for the
 same five reasons. Fixing S18-1..5 alone is worth ~10 points.
 
-### Shipped 2026-09-28 (iOS OTA `b2d0205b…` on build 67; Android with vc 46)
-S18-1..S18-12, S18-15, S18-16 and the copy half of S18-17 shipped in `329bf0d7`
-+ `b4e9a535` (`CHANGELOG.md` 2026-09-28). Entries deleted per the housekeeping
-rule; the score above is the pre-ship baseline. **Re-score after the next audit**
-— the expected lift from the a11y block alone is ~10 points.
-
-### Still open
-- **S18-13 (half)** History paging: the "older days aren't loaded" note ships, but
-  the 400-row window still does not page older months on demand, and History
-  still boots on a spinner with no cached paint (Today has one via
-  `useCachedState`; `offline-cache.ts` already lists a `logs` slice).
-- **S18-14 (half)** Coach and Milestones still render inside the Tabs navigator
-  (tab bar visible with no tab selected, no iOS swipe-back). Back chevrons are
-  labelled and the FAB band is applied; the move to a stack outside `(app)` is
-  the remaining work.
-- **S18-17 (half)** `LogSpeedDial`'s manual satellite still pairs a pencil icon
-  with "Search foods"; `Flame` has no tint prop, so the streak chip shows the
-  brand ember rather than `habitFasting`.
-- **S18-18** Speed-dial makes the primary action two taps. Single tap → sheet,
-  long-press → scan is the proposal; not started.
-- **S18-10 (native half)** The rest-timer local notification ships (JS,
-  `expo-notifications` already linked) but only fires when notification
-  permission was already granted; there is no priming for it.
+### Shipped 2026-09-28 — all eighteen items
+S18-1..S18-12, S18-15, S18-16 and the copy half of S18-17 shipped in the morning
+(`329bf0d7` + `b4e9a535`, iOS OTA `b2d0205b…`); the rest — S18-13 month paging +
+cached History/Body paint, S18-14 Coach and Milestones on the root native stack,
+S18-17/18 tap-to-log + with a long-press dial and a tinted Flame, and the
+priming half of S18-10 — shipped the same afternoon (`16cdb4cf`, iOS OTA
+`dbe26c08…` on build 67, Android OTA `605679ee…` on vc 46). `CHANGELOG.md`
+2026-09-28. Entries deleted per the housekeeping rule; the score table above is
+the pre-ship baseline. **Re-score at the next audit** — the a11y block alone was
+scoped at ~10 points, and nothing in §S18 is open.
 
 **Preserve** (all three reviews, independently): motion accessible by
 construction through `lib/motion.tsx`; durable offline-first adds with honest

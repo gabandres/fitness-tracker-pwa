@@ -160,17 +160,25 @@ mirror's count differs. Country availability is **Console-only** —
 
 An update published against a changed fingerprint **succeeds and reaches
 nobody**, which is indistinguishable from a working update. Gate first, on the
-machine that **builds that platform** — the hash is machine-dependent. iOS is
-`ignia-mac`; **Android OTAs publish from Windows until the first Mac-built
-Android vc ships** (the build host moved to `ignia-mac` on 2026-09-17; the
-cutover is tracked in `STATUS.md`). A hash generated on the other machine
-matches no binary.
+machine that **builds that platform** — the hash is machine-dependent. **Both
+platforms build and publish on `ignia-mac` since vc 46 (2026-09-28)**; this
+paragraph said "Android from Windows" until then. A hash generated on another
+machine matches no binary.
 
 ```sh
-# iOS — on the Mac
+# iOS — on the Mac; must equal the live binary's value (STATUS.md / AGENTS.md)
 ssh ignia-mac "cd ~/fitness-tracker-pwa/apps/mobile && npx expo-updates fingerprint:generate --platform ios"
-# Android — on Windows until the first Mac-built vc ships (STATUS.md)
-cd apps/mobile && npx expo-updates fingerprint:generate --platform android
+# Android — the TREE hash is not the gate (android/ is hashed whole and drifts):
+# read the artifact, pin `runtimeVersion` in app.json to it for the publish, revert after
+unzip -p ~/build-artifacts/<the shipped>.aab base/assets/fingerprint
+
+# A gate that mismatches on a tree with no native change: let EAS name the source
+cd apps/mobile && npx eas fingerprint:compare <live-runtime-hash> --environment production --non-interactive --json | grep -o '"filePath":"[^"]*"' | sort | uniq -c | sort -rn | head
+# Known cause (2026-09-28): an Android Gradle build rewrites this file in node_modules
+# and iOS hashes the package whole. Restore it (or `npm ci` from the repo root):
+V=$(node -p "require('./node_modules/@react-native-masked-view/masked-view/package.json').version") \
+  && (cd /tmp && npm pack @react-native-masked-view/masked-view@$V --silent >/dev/null && tar -xzf react-native-masked-view-masked-view-$V.tgz package/android/src/main/AndroidManifest.xml) \
+  && cp /tmp/package/android/src/main/AndroidManifest.xml node_modules/@react-native-masked-view/masked-view/android/src/main/AndroidManifest.xml
 
 cd apps/mobile && npx eas update:list --branch production --limit 3
 ```

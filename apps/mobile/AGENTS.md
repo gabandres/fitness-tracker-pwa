@@ -79,6 +79,16 @@ Android answer is in transition:**
 | **Android** | `ignia-mac` since 2026-09-17; **vc 46 (2026-09-28) is the first Mac-built binary** (vc 31–45 were Windows-built) | **`ignia-mac`** for vc 46+ (runtime `3e596c87…`). vc 45 users still run the Windows runtime `15c1cfc8…` until they update; a publish for THEM is Windows at `98fb0646` — `STATUS.md` says whether that still matters |
 | **iOS** | `ignia-mac` | **`ignia-mac`** |
 
+**Both rows are the Mac since vc 46, with two mechanical rules** (measured
+2026-09-28, ledger rows): an Android publish pins `runtimeVersion` in `app.json`
+to the ARTIFACT value and reverts it (the Mac tree never reproduces the Android
+artifact hash); and **an Android Gradle build rewrites
+`node_modules/@react-native-masked-view/masked-view/android/src/main/AndroidManifest.xml`,
+which the iOS fingerprint hashes whole** — restore it (`npm ci`, or the
+`npm pack` one-liner in `docs/COMMANDS.md`) before an iOS gate. A gate that
+mismatches on a clean tree: `eas fingerprint:compare <live-runtime>` names the
+source.
+
 This table read "Android: built on Windows, gate from Windows" until
 2026-09-17, when the Android toolchain went back onto the Mac
 (`docs/build-infrastructure.md`, `DEV_ENVIRONMENT.md` §3.11,

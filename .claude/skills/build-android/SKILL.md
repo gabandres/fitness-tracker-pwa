@@ -1,6 +1,6 @@
 ---
 name: build-android
-description: Ship an Android change — decide between an over-the-air EAS Update (free, instant, no build) and a real build, run the fingerprint gate that decides whether an OTA can land, and submit to the Play alpha track. Use for "ship this to Android", "cut an Android build", "push a fix to testers", or any mobile fix headed for Play. Android builds on `ignia-mac` since 2026-09-17 (`eas build --local`); iOS is the `build-ios` skill, also on the Mac. Android OTAs still publish from Windows until the first Mac-built vc is live — see the cutover note.
+description: Ship an Android change — decide between an over-the-air EAS Update (free, instant, no build) and a real build, run the fingerprint gate that decides whether an OTA can land, and submit to the Play alpha track. Use for "ship this to Android", "cut an Android build", "push a fix to testers", or any mobile fix headed for Play. Android builds on `ignia-mac` since 2026-09-17 (`eas build --local`); iOS is the `build-ios` skill, also on the Mac. Android OTAs publish from the Mac too since vc 46 (2026-09-28), with `runtimeVersion` pinned to the artifact value. After ANY Gradle build, restore the masked-view manifest before an iOS gate (Step 3b).
 ---
 
 # Ship an Android change
@@ -286,6 +286,26 @@ fingerprint **from the artifact** — the only value `AGENTS.md` may record.
 `scripts/native-expectations.json` in the same commit.
 
 **Never read the versionCode from the build log** — it prints the *next* number.
+
+## Step 3b — after ANY Gradle build: undo what Gradle did to `node_modules`
+
+Measured 2026-09-28 (ledger, *A Gradle build mutates `node_modules`*): the
+release build rewrites
+`node_modules/@react-native-masked-view/masked-view/android/src/main/AndroidManifest.xml`
+in place (AGP 8 drops the `package=` attribute). Android does not care — its
+gate is the artifact. **iOS does**: that package is hashed whole, so the next
+iOS fingerprint gate reads a new hash on a clean tree and an iOS OTA is blocked
+(or, worse, published on a runtime nobody has). Before any iOS gate:
+
+```sh
+# from the repo root — either
+npm ci
+# or the targeted restore in docs/COMMANDS.md § OTA (npm pack the installed version, copy the manifest back)
+```
+
+Then re-run `npx expo-updates fingerprint:generate --platform ios` and expect
+the live value. If it still differs, `eas fingerprint:compare <live-runtime>`
+names the source — do that before reasoning about it.
 
 ## Step 4 — submit
 
