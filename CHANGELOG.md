@@ -4,6 +4,15 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-09-28 — a Sentry triage, a scored UX audit (69/100), and 38 review fixes — MERGED, in no binary or OTA yet
+
+- **Sentry**: `IGNIA-MOBILE-W`/`-X` (`android.os.RemoteException: Binding to service failed` / `Binding died`, a TECNO on Android 10 under memory pressure) are Health Connect's twin of the HealthKit locked-device case; `isExpectedHealthState` now claims them so the foreground auto-import stops reporting an OS state as a crash (`28a24f8d`).
+- **UX audit** (`UX_AUDIT.md` §S18): three independent reviews against HIG iOS 26/27, M3 Expressive, WCAG 2.2 AA and Nielsen. App scores **69/100** (68.5 / 67 / 71 by screen group); visual, copy and motion at 8–9, accessibility at 5 across the board and the whole gap.
+- **Code review, core/functions** (`9f5c1289`): every `/u/<slug>` page showed "—" for weights (ordered `dailyWeights` by a field the docs do not have); admin delete-user erased 7 of 17 subcollections and no Storage — both callables now share `eraseUserData`; streak over-counted across a boundary changeover; `weeklyEnvelope` counted rows as days; NaN targets from a non-finite pace/weight; three untyped throws → `invalid-argument`.
+- **Code review, mobile data layer** (`5941316d`): repeat-yesterday under a non-midnight boundary; offline flush dropping meals parked mid-flush; sign-out analytics flush crediting the next account; **iOS cardio import imported nothing** (numeric `workoutActivityType`), plus the date filter that read every workout ever; Health Connect capped at the oldest 1,000 records; rest timer counted ticks not time; Train refocus left edit mode armed; milestone probe race; reminder days-since off by one; trends windows frozen on the mount day; body windows ignoring the boundary; persisted tab snapping back.
+- **Code review, mobile screens** (`b0a4ae40`): comma decimals rejected everywhere and `12,5 g` read as **125 g** on scan; stale set-row numbers after a delete; streak celebration and Oura banner firing on mount; lb shown to metric users on Trends; hard-coded AM/PM; `/history/<bad>` deep link; dark-mode invisible spinner; mic recording after close; scan Retake keeping the draft; double-tap guards; unhandled press-handler rejections.
+- **Found, not fixed (owner calls)**: `generateWeeklyReport` reaches Gemini behind neither cost guard (feature is `FEATURES`-off); `log-webhook` trusts `x-forwarded-for[0]`; `onSubscriptionWritten` listens on a path nothing writes; sleep import sums every source (Watch + Oura ≈ 16 h nights); `finishWorkout` failure closes the sheet silently.
+
 ## 2026-09-23 — iOS 1.2.4: the Dynamic Island stops hiding the clock, and builds launch on iOS 27
 
 - **Dynamic Island.** `Text(timerInterval:)` asks for all the width it is

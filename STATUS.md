@@ -79,7 +79,13 @@ Android does not, and **cannot be published from `ignia-mac`**: the live
 Android binary is Windows-built on `15c1cfc8…` and this Mac computes a
 different Android hash, so a publish from here reaches nobody
 (`guard_eas_update.py` enforces it). **Publish it from the Windows workstation
-at `2227698c`.** Everything else on `main` is delivered on both.
+at `2227698c`.** Everything else on `main` is delivered on both — **except the
+2026-09-28 review sweep** (`28a24f8d`..`b0a4ae40`: 31 mobile fixes, 7 in
+core/functions; `CHANGELOG.md`), which is in NO binary and NO OTA on either
+platform. The functions half (`/u/<slug>` weights, admin delete-user erasure)
+needs `firebase deploy --only functions`. The user-visible mobile ones: comma
+decimals, iOS Apple-Watch cardio import, Health Connect paging, rest timer
+under lock, repeat-yesterday under a 3 AM boundary.
 
 Re-derive rather than trust this line: `git log --oneline` against the newest
 OTA row in `apps/mobile/docs/fingerprint-ledger.md`, and
