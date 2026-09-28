@@ -33,6 +33,9 @@ const FILES = [
   'MealEntries.tsx',
   'HeaderAvatar.tsx',
   'Toast.tsx',
+  // S18-15 follow-up: the two Train modals' buttons carry roles too.
+  'train/TemplateEditorModal.tsx',
+  'train/RestNotifySheet.tsx',
 ];
 const TOUCHABLES = ['TouchableOpacity', 'Pressable', 'PressScale', 'AnimatedPressable'];
 

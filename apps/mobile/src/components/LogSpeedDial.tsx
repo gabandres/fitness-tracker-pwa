@@ -22,11 +22,22 @@ const CAM_RISE = -150;
 const MAN_RISE = -78;
 
 /**
- * The raised center action. Tapping the **+** fans open two labelled actions —
- * 📷 Scan meal and ✎ Manual entry — on a spring, staggered, over a dimming
+ * The raised center action. A **tap** on the + is the primary action and opens
+ * the food search on Today directly; a **long-press** fans open the dial —
+ * 📷 Scan meal and 🔍 Search foods — on a spring, staggered, over a dimming
  * backdrop, while the + rotates into an ×. Honors reduce-motion (instant
  * toggle). When `FEATURES.photoScan` is off it degrades to a plain + that opens
- * the manual sheet directly.
+ * the search directly, with no dial at all.
+ *
+ * ## Tap is the sheet, long-press is the dial (UX_AUDIT S18-18)
+ *
+ * Until 2026-09-28 a tap opened the dial and the sheet was a second tap away —
+ * the most frequent action in the app behind a menu whose other entry (Scan)
+ * has its own tab-bar-adjacent route. "Tap + to log your first meal"
+ * (`today.emptyHint`) is now literally true. Screen-reader users get the same
+ * two paths: the hint says long-press for more, and a `longpress`
+ * accessibility action opens the dial without a timed gesture. While the dial
+ * is open the + is its close button, as before.
  *
  * ## It is rendered by the TAB LAYOUT, which is why dismissal is explicit
  *
@@ -100,21 +111,37 @@ export function LogSpeedDial() {
     animate(next);
   }
 
-  function toggle() {
-    haptics.tap();
-    setDial(!openRef.current);
-  }
-
   function close() {
     if (!openRef.current) return;
     setDial(false);
+  }
+
+  function openSheet() {
+    router.navigate({ pathname: '/(app)', params: { openAdd: String(Date.now()) } });
+  }
+
+  /** Tap: the primary action — or, while the dial is open, its close button. */
+  function primary() {
+    haptics.tap();
+    if (openRef.current) {
+      setDial(false);
+      return;
+    }
+    openSheet();
+  }
+
+  /** Long-press (or the `longpress` accessibility action): fan the dial open. */
+  function more() {
+    if (openRef.current) return;
+    haptics.tap();
+    setDial(true);
   }
 
   function choose(action: 'scan' | 'manual') {
     haptics.tap();
     setDial(false);
     if (action === 'scan') router.navigate('/scan');
-    else router.navigate({ pathname: '/(app)', params: { openAdd: String(Date.now()) } });
+    else openSheet();
   }
 
   // Every route change closes the dial. `choose()` already does for the two
@@ -136,7 +163,7 @@ export function LogSpeedDial() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // Flag off → plain + straight to the manual sheet, no dial.
+  // Flag off → plain + straight to the search sheet, no dial.
   if (!FEATURES.photoScan) {
     return (
       <View style={styles.slot}>
@@ -147,7 +174,7 @@ export function LogSpeedDial() {
           testID="log-button"
           onPress={() => {
             haptics.tap();
-            router.navigate({ pathname: '/(app)', params: { openAdd: String(Date.now()) } });
+            openSheet();
           }}
         >
           <Ionicons name="add" size={32} color={colors.white} />
@@ -189,7 +216,9 @@ export function LogSpeedDial() {
             <Text style={styles.labelText}>{t('log.manual')}</Text>
           </Animated.View>
           <View style={styles.satBtn}>
-            <Ionicons name="create-outline" size={22} color={colors.ink} />
+            {/* A magnifier, not a pencil: the label says "Search foods" and the
+                sheet it opens IS the search (UX_AUDIT S18-17). */}
+            <Ionicons name="search-outline" size={22} color={colors.ink} />
           </View>
         </Pressable>
       </Animated.View>
@@ -198,10 +227,18 @@ export function LogSpeedDial() {
         style={styles.fab}
         accessibilityRole="button"
         accessibilityLabel={t('log.openA11y')}
-        accessibilityHint={t('log.openHint')}
+        // No hint while open: the button is the dial's close then, and the
+        // expanded state already says so.
+        accessibilityHint={open ? undefined : t('log.fabHint')}
         accessibilityState={{ expanded: open }}
+        accessibilityActions={[{ name: 'longpress', label: t('log.moreA11y') }]}
+        onAccessibilityAction={(e) => {
+          if (e.nativeEvent.actionName === 'longpress') more();
+        }}
         testID="log-button"
-        onPress={toggle}
+        onPress={primary}
+        onLongPress={more}
+        delayLongPress={350}
       >
         <Animated.View style={plusStyle}>
           <Ionicons name="add" size={32} color={colors.white} />

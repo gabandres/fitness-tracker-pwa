@@ -609,8 +609,13 @@ function ThisWeek({
           label={t('trends.avgIntake')}
           value={`${formatNumber(insights.avgCalories, locale)}`}
           unit="kcal"
-          sub={`${formatNumber(Math.abs(deficit), locale)} ${deficit >= 0 ? t('trends.avgDeficit') : t('trends.avgSurplus')}`}
-          subColor={deficit >= 0 ? colors.accent : colors.danger}
+          // A sign glyph carries the direction, not just the colour: light
+          // `accent` and `danger` are both reds (1.13:1 apart), so a deficit
+          // and a surplus were the same colour to most eyes. Deficit is now
+          // `good` (jade) and reads "−n under"; surplus stays `danger` and
+          // reads "+n over" (UX_AUDIT S18, 2026-09-28).
+          sub={`${deficit >= 0 ? '−' : '+'}${formatNumber(Math.abs(deficit), locale)} ${deficit >= 0 ? t('trends.avgDeficit') : t('trends.avgSurplus')}`}
+          subColor={deficit >= 0 ? colors.good : colors.danger}
           styles={styles}
         />
         <View style={styles.tileDivider} />
@@ -774,7 +779,9 @@ function Budget({
       <View style={styles.divider} />
       <View style={styles.kv}>
         <Text style={styles.kvLabel}>{t('trends.budgetRemaining')}</Text>
-        <Text style={[styles.kvValue, { color: budget.remaining < 0 ? colors.danger : colors.accent }]}>
+        {/* Same pair as the insights tile: `good`, not `accent`, against
+            `danger` — the sign glyph below is the non-colour cue. */}
+        <Text style={[styles.kvValue, { color: budget.remaining < 0 ? colors.danger : colors.good }]}>
           {budget.remaining < 0 ? '−' : ''}
           {formatNumber(Math.abs(Math.round(budget.remaining)), locale)} kcal
         </Text>

@@ -317,10 +317,12 @@ const createStyles = ({ colors }: Theme) =>
     // pinned to the top and bottom of the strip, so any leading pushes them off
     // the gridline they are naming and the axis reads as approximate.
     axisLabel: { fontSize: font.tiny, color: colors.faint, lineHeight: font.tiny },
-    legend: { fontSize: font.tiny, color: colors.faint },
+    // Sentence-length copy reads in `muted`; `faint` (AA since S18-2) is kept
+    // for the two-character axis numerals and glyphs.
+    legend: { fontSize: font.tiny, color: colors.muted },
     divider: { height: 1, backgroundColor: colors.line, marginVertical: space.xs },
     claim: { fontSize: font.body, color: colors.ink, lineHeight: 22 },
-    foot: { fontSize: font.tiny, color: colors.faint },
+    foot: { fontSize: font.tiny, color: colors.muted },
     // The under-threshold row: one line, hairline-bounded, no card.
     hairline: { height: 1, backgroundColor: colors.line },
     linkRow: {

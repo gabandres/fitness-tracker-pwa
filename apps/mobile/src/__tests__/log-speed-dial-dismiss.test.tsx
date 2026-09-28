@@ -43,10 +43,16 @@ beforeEach(() => {
   mockPathname = '/';
 });
 
+// Since 2026-09-28 a TAP on the + is the primary action (opens the food
+// search) and the dial fans open on a LONG-PRESS (UX_AUDIT S18-18) — see
+// `log-speed-dial-primary.test.tsx`. Every case here needs the dial open, so
+// they open it the way a user now does.
+const openDial = (button: Parameters<typeof fireEvent>[0]) => fireEvent(button, 'longPress');
+
 describe('LogSpeedDial — dismissal', () => {
   it('acts on a tap that lands on the label pill, not only on the circle', async () => {
     const { getByTestId, getByText } = await render(<LogSpeedDial />);
-    await fireEvent.press(getByTestId('log-button'));
+    await openDial(getByTestId('log-button'));
 
     // The pill and the circle are one Pressable now, so the label's own text
     // node reaches the same handler. `getByText` finds the pill; pressing it
@@ -58,7 +64,7 @@ describe('LogSpeedDial — dismissal', () => {
 
   it('closes when the route changes under it', async () => {
     const { getByTestId, rerender } = await render(<LogSpeedDial />);
-    await fireEvent.press(getByTestId('log-button'));
+    await openDial(getByTestId('log-button'));
     expect(getByTestId('log-button').props.accessibilityState).toEqual(
       expect.objectContaining({ expanded: true }),
     );
@@ -86,7 +92,7 @@ describe('LogSpeedDial — dismissal', () => {
     // Closed: nothing registered, so back navigates as usual.
     expect(handlers).toHaveLength(0);
 
-    await fireEvent.press(getByTestId('log-button'));
+    await openDial(getByTestId('log-button'));
     expect(handlers).toHaveLength(1);
     // `true` = handled; the navigation that used to run underneath does not.
     let handled: boolean | undefined;

@@ -804,7 +804,7 @@ export function TemplateEditorModal({
                     />
                   </View>
                 </View>
-                <TouchableOpacity onPress={() => removeCardio(i)} style={styles.exRemoveRow}>
+                <TouchableOpacity onPress={() => removeCardio(i)} style={styles.exRemoveRow} accessibilityRole="button">
                   <Text style={styles.exRemove}>{t('cardio.remove')}</Text>
                 </TouchableOpacity>
               </View>
@@ -816,6 +816,9 @@ export function TemplateEditorModal({
                   <TouchableOpacity
                     key={m}
                     style={styles.kindChip}
+                    // Compact chip; hitSlop lifts the ~22-pt box to 44.
+                    hitSlop={{ top: 11, bottom: 11, left: 4, right: 4 }}
+                    accessibilityRole="button"
                     testID={`template-cardio-modality-${m}`}
                     onPress={() => {
                       addCardio(m);
@@ -830,6 +833,7 @@ export function TemplateEditorModal({
               <TouchableOpacity
                 style={[styles.addExBtn, { marginTop: space.sm }]}
                 onPress={() => setCardioPick(true)}
+                accessibilityRole="button"
                 testID="template-add-cardio"
               >
                 <Text style={styles.addExText}>{t('cardio.templateAdd')}</Text>
@@ -860,6 +864,8 @@ export function TemplateEditorModal({
                         key={ls.value}
                         style={[styles.styleChip, styles.styleChipHalf, on && styles.styleChipOn]}
                         onPress={() => setExStyle(ls.value)}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: on }}
                       >
                         <Text style={[styles.styleChipText, on && styles.styleChipTextOn]}>{t(ls.labelKey)}</Text>
                       </TouchableOpacity>
@@ -876,7 +882,7 @@ export function TemplateEditorModal({
                   onPickCatalog={addFromCatalog}
                   onPickSeed={addFromLibrary}
                 />
-                <TouchableOpacity style={styles.createRow} onPress={addFreeType} testID="template-create-exercise">
+                <TouchableOpacity style={styles.createRow} onPress={addFreeType} accessibilityRole="button" testID="template-create-exercise">
                   <Text style={styles.createText}>{t('train.addNamed', { name: trimmedEx })}</Text>
                 </TouchableOpacity>
               </>
@@ -1008,6 +1014,10 @@ export function TemplateEditorModal({
                             key={st.value ?? 'auto'}
                             style={[styles.tplStructureChip, on && styles.tplStructureChipOn]}
                             onPress={() => setStructure(i, st.value)}
+                            // Compact chip; hitSlop lifts the ~24-pt box to 44.
+                            hitSlop={{ top: 10, bottom: 10, left: 4, right: 4 }}
+                            accessibilityRole="button"
+                            accessibilityState={{ selected: on }}
                             testID={`template-structure-${i}-${st.value ?? 'auto'}`}
                           >
                             <Text style={[styles.tplStructureText, on && styles.tplStructureTextOn]}>
@@ -1073,6 +1083,10 @@ export function TemplateEditorModal({
                           <TouchableOpacity
                             style={styles.tplSetNumCell}
                             onPress={() => setKindOpen(kindOpen === openKey ? null : openKey)}
+                            // The set row is ~32 pt tall (S18-3 precedent); hitSlop lifts it to 44.
+                            hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+                            accessibilityRole="button"
+                            accessibilityState={{ expanded: kindOpen === openKey }}
                             accessibilityLabel={t('train.setTypeA11y', {
                               n: setLabels[si],
                               kind: t(kindLabelKey(ps.kind)),
@@ -1131,8 +1145,10 @@ export function TemplateEditorModal({
 
                           <TouchableOpacity
                             onPress={() => removeSet(i, si)}
-                            hitSlop={8}
+                            // 26-pt cell + 16-pt glyph: 9/14 of slop reach 44 on both axes.
+                            hitSlop={{ top: 14, bottom: 14, left: 9, right: 9 }}
                             style={styles.tplSetDelCell}
+                            accessibilityRole="button"
                             accessibilityLabel={t('train.removeSet')}
                             testID={`template-set-remove-${i}-${si}`}
                           >
@@ -1148,6 +1164,8 @@ export function TemplateEditorModal({
                                   key={k.value}
                                   style={[styles.kindRow, on && styles.kindRowOn]}
                                   onPress={() => setSetKind(i, si, k.value)}
+                                  accessibilityRole="button"
+                                  accessibilityState={{ selected: on }}
                                   testID={`template-set-kind-${i}-${si}-${k.value}`}
                                 >
                                   <Text style={[styles.kindRowName, on && styles.kindRowNameOn]}>
@@ -1168,17 +1186,17 @@ export function TemplateEditorModal({
                       offer to break the declaration directly above it. */}
                   <View style={styles.tplSetBtns}>
                     {canAdd.set ? (
-                      <TouchableOpacity onPress={() => addSet(i)} testID={`template-add-set-${i}`}>
+                      <TouchableOpacity onPress={() => addSet(i)} style={styles.addSetBtn} accessibilityRole="button" testID={`template-add-set-${i}`}>
                         <Text style={styles.sectionAction}>{t('train.addSet')}</Text>
                       </TouchableOpacity>
                     ) : null}
                     {canAdd.cluster ? (
-                      <TouchableOpacity onPress={() => addCluster(i)} testID={`template-add-cluster-${i}`}>
+                      <TouchableOpacity onPress={() => addCluster(i)} style={styles.addSetBtn} accessibilityRole="button" testID={`template-add-cluster-${i}`}>
                         <Text style={styles.sectionAction}>{t('train.addCluster')}</Text>
                       </TouchableOpacity>
                     ) : null}
                     {canAdd.block ? (
-                      <TouchableOpacity onPress={() => addBlock(i)} testID={`template-add-block-${i}`}>
+                      <TouchableOpacity onPress={() => addBlock(i)} style={styles.addSetBtn} accessibilityRole="button" testID={`template-add-block-${i}`}>
                         <Text style={styles.sectionAction}>{t('train.addBlock')}</Text>
                       </TouchableOpacity>
                     ) : null}
@@ -1257,6 +1275,8 @@ export function TemplateEditorModal({
                           haptics.tap();
                           patchEx(i, { hasProgression: !d.hasProgression });
                         }}
+                        accessibilityRole="checkbox"
+                        accessibilityState={{ checked: !!d.hasProgression }}
                         testID={`template-progression-${i}`}
                       >
                         <Ionicons
@@ -1344,7 +1364,7 @@ export function TemplateEditorModal({
 
             <View style={styles.editorBtns}>
               {template ? (
-                <TouchableOpacity style={styles.discardBtn} onPress={remove} disabled={busy} testID="delete-template">
+                <TouchableOpacity style={styles.discardBtn} onPress={remove} disabled={busy} accessibilityRole="button" testID="delete-template">
                   <Text style={styles.discardText}>{t('common.remove')}</Text>
                 </TouchableOpacity>
               ) : null}
@@ -1352,6 +1372,8 @@ export function TemplateEditorModal({
                 style={[styles.finishBtn, !canSave && styles.btnDisabled]}
                 onPress={save}
                 disabled={!canSave}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: !canSave, busy }}
                 testID="save-template"
               >
                 <Text style={styles.finishText}>{busy ? t('common.saving') : t('common.save')}</Text>

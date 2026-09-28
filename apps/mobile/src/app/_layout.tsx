@@ -4,7 +4,7 @@
 import { Manrope_700Bold } from '@expo-google-fonts/manrope/700Bold';
 import { Manrope_800ExtraBold } from '@expo-google-fonts/manrope/800ExtraBold';
 import { useFonts } from '@expo-google-fonts/manrope/useFonts';
-import { Slot, useRouter, useSegments } from 'expo-router';
+import { Stack, useNavigationContainerRef, useRootNavigationState, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { LogBox, StyleSheet, Text, View } from 'react-native';
@@ -14,6 +14,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { useIsOffline } from '@/lib/connectivity';
 import { assessRoute, shouldShowSplash } from '@/lib/onboarding-gate';
+import { DETAIL_ROUTES, reconcileRootRoutes } from '@/lib/root-stack';
 import { setSplashVisible } from '@/lib/splash-state';
 import { BrandLoader } from '@/components/BrandLoader';
 import { I18nProvider, useT } from '@/i18n';
@@ -115,7 +116,9 @@ function AuthGate({ fontsReady }: { fontsReady: boolean }) {
   useEffect(() => {
     if (initializing) return;
     const route = segments[0];
-    const inApp = route === '(app)';
+    // Coach and Milestones are root routes pushed over the tabs (UX_AUDIT
+    // S18-14) — signed-in surfaces, so they count as "in the app" here.
+    const inApp = route === '(app)' || DETAIL_ROUTES.has(route);
     const onOnboarding = route === 'onboarding';
     const onVerify = route === 'verify-email';
     // The guided tour is a root route so it can take the whole screen — inside
@@ -171,7 +174,21 @@ function AuthGate({ fontsReady }: { fontsReady: boolean }) {
     if (!inApp && !onOnboarding && !onTour && !onWhatsNew) router.replace('/(app)');
   }, [sessionUid, sessionPresumed, initializing, emailVerified, decision, segments, router]);
 
-  // Always mount <Slot/> so the navigator exists when the redirect effect
+  // The root is a native stack so Coach and Milestones can push over the tabs
+  // with swipe-back (S18-14), but every other root navigation in this app was
+  // written for `<Slot>`, whose `replace()` calls leave stale entries a stack
+  // would mount. `lib/root-stack.ts` states the rule; this applies it,
+  // handing back the same route objects so the survivors stay mounted.
+  const rootState = useRootNavigationState();
+  const navRef = useNavigationContainerRef();
+  useEffect(() => {
+    if (!rootState?.routes || rootState.stale) return;
+    const keep = reconcileRootRoutes(rootState.routes, rootState.index);
+    if (!keep || !navRef.isReady()) return;
+    navRef.resetRoot({ ...rootState, routes: keep, index: keep.length - 1 });
+  }, [rootState, navRef]);
+
+  // Always mount the stack so the navigator exists when the redirect effect
   // fires; cover it with the splash while auth/profile/fonts settle.
   const gateSettled = !initializing && fontsReady && decision !== 'wait';
 
@@ -194,7 +211,15 @@ function AuthGate({ fontsReady }: { fontsReady: boolean }) {
   }, [showSplash]);
   return (
     <>
-      <Slot />
+      {/* `animation: 'none'` + no gesture is the `<Slot>` behaviour every root
+          route had until 2026-09-28 (sign-in ⇄ app ⇄ onboarding are `replace`
+          swaps, and the tour/what's-new leave with one too). Only the two
+          detail routes get the native push, the swipe-back and the hardware
+          back — that is the whole point of the stack (UX_AUDIT S18-14). */}
+      <Stack screenOptions={{ headerShown: false, animation: 'none', gestureEnabled: false }}>
+        <Stack.Screen name="coach" options={{ animation: 'default', gestureEnabled: true }} />
+        <Stack.Screen name="milestones" options={{ animation: 'default', gestureEnabled: true }} />
+      </Stack>
       {showSplash ? <Splash /> : null}
     </>
   );

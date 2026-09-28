@@ -14,6 +14,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { BottomSheet } from '@/components/BottomSheet';
 import { useAuth } from '@/lib/auth';
 import { useLocale, useT } from '@/i18n';
 import { formatDate, formatTime } from '@/lib/date-format';
@@ -83,21 +84,36 @@ export default function ConnectedAppsScreen() {
   const healthSync = useHealthSync(user?.uid);
   const [showDetails, setShowDetails] = useState(false);
   const [healthMsg, setHealthMsg] = useState<string | null>(null);
+  /** The rationale sheet that precedes the OS health prompt (S18 "priming"):
+   *  what is read, what is written, where it goes. Open only on a fresh
+   *  connect — a reconnect for wider scopes already had the explanation. */
+  const [healthPrimeOpen, setHealthPrimeOpen] = useState(false);
 
   /** The health calls do not catch (`health-sync.ts`); a rejection from the
    *  OS bridge used to leave the Switch flipped with nothing said and reach
    *  Sentry unhandled. The denied copy is the honest fallback: whatever the
    *  cause, Health is not connected. */
+  async function connectHealthNow() {
+    try {
+      const ok = await healthSync.connect();
+      setHealthMsg(ok ? t('settings.healthConnected') : t('settings.healthDenied'));
+    } catch (e) {
+      setHealthMsg(t('settings.healthDenied'));
+      captureError(e, { where: 'connectedApps.toggleHealth' });
+    }
+  }
+
   async function toggleHealth(next: boolean) {
     haptics.tap();
+    if (next) {
+      // Explain first, ask second. The Switch stays off until the OS says
+      // yes — its value is `healthSync.connected`, not this tap.
+      setHealthPrimeOpen(true);
+      return;
+    }
     try {
-      if (next) {
-        const ok = await healthSync.connect();
-        setHealthMsg(ok ? t('settings.healthConnected') : t('settings.healthDenied'));
-      } else {
-        await healthSync.disconnect();
-        setHealthMsg(null);
-      }
+      await healthSync.disconnect();
+      setHealthMsg(null);
     } catch (e) {
       setHealthMsg(t('settings.healthDenied'));
       captureError(e, { where: 'connectedApps.toggleHealth' });
@@ -432,6 +448,50 @@ export default function ConnectedAppsScreen() {
 
         <Text style={styles.footnote}>{t('connected.footnote')}</Text>
       </ScrollView>
+
+      {/* Same idiom as the rest-timer priming sheet on Train (`RestNotifySheet`)
+          and `ConfirmSheet`: the app explains in its own voice, then the OS
+          asks. Not now leaves the Switch off and nothing recorded — a user
+          who wants to read the details first can flip it again. */}
+      <BottomSheet
+        visible={healthPrimeOpen}
+        onClose={() => setHealthPrimeOpen(false)}
+        backdropTestID="health-prime-backdrop"
+      >
+        <View style={styles.primeWrap} testID="health-prime">
+          <Text style={styles.primeTitle} accessibilityRole="header">
+            {t('connected.healthPrime.title')}
+          </Text>
+          <Text style={styles.primeBody}>{t('connected.healthPrime.body')}</Text>
+          <View style={styles.primeList}>
+            <Text style={styles.primeLine}>{t('connected.healthPrime.reads')}</Text>
+            <Text style={styles.primeLine}>{t('connected.healthPrime.writes')}</Text>
+            <Text style={styles.primeLine}>{t('connected.healthPrime.privacy')}</Text>
+          </View>
+          <View style={styles.primeRow}>
+            <TouchableOpacity
+              style={[styles.btn, styles.btnQuiet, styles.primeBtn]}
+              onPress={() => setHealthPrimeOpen(false)}
+              accessibilityRole="button"
+              testID="health-prime-not-now"
+            >
+              <Text style={[styles.btnText, styles.btnTextQuiet]}>{t('connected.healthPrime.notNow')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.btn, styles.btnPrimary, styles.primeBtn]}
+              onPress={() => {
+                haptics.tap();
+                setHealthPrimeOpen(false);
+                void connectHealthNow();
+              }}
+              accessibilityRole="button"
+              testID="health-prime-continue"
+            >
+              <Text style={[styles.btnText, styles.btnTextPrimary]}>{t('connected.healthPrime.continue')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </BottomSheet>
     </SafeAreaView>
   );
 }
@@ -528,4 +588,14 @@ const makeStyles = ({ colors }: Theme) =>
     // `muted`, not `faint`: faint is 2.40:1 on light paper (S18-2) and these
     // are sentences, not decoration.
     footnote: { fontSize: font.tiny, color: colors.muted, lineHeight: font.tiny * 1.5 },
+
+    primeWrap: { gap: space.sm, paddingTop: space.xs },
+    primeTitle: { fontSize: font.h3, fontWeight: '800', color: colors.ink },
+    primeBody: { fontSize: font.small, color: colors.muted, lineHeight: 20 },
+    primeList: { gap: space.xs, paddingVertical: space.xs },
+    primeLine: { fontSize: font.small, color: colors.ink, lineHeight: 20 },
+    primeRow: { flexDirection: 'row', gap: space.md, marginTop: space.md },
+    /** The card buttons are 8-pt padded (≈33 pt); the sheet's two are real
+     *  decisions and get the 44-pt floor. */
+    primeBtn: { minHeight: 44, justifyContent: 'center', paddingVertical: space.md },
   });

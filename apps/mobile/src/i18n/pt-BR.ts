@@ -1488,4 +1488,23 @@ export const ptBR = {
   'body.deleteWeighInBody': 'A pesagem de {date} é removida do seu histórico e do seu gasto medido.',
   'body.editWeighInA11y': 'Editar a pesagem de {date}',
   'body.deleteWeighInA11y': 'Excluir a pesagem de {date}',
+  // S18 train/motion (2026-09-28)
+  'train.restNotify.title': 'Receba um aviso quando o descanso acabar',
+  'train.restNotify.body': 'O Ignia pode enviar uma notificação quando o seu cronômetro de descanso terminar, mesmo com a tela bloqueada ou em outro app. Nada além disso, e nada agendado quando você não está treinando.',
+  'train.restNotify.allow': 'Permitir',
+  'train.restNotify.notNow': 'Agora não',
+  'connected.healthPrime.title': 'Antes de o seu celular perguntar',
+  'connected.healthPrime.body': 'A próxima tela é a permissão do sistema. Isto é exatamente o que o Ignia faz com ela:',
+  'connected.healthPrime.reads': 'Lê: peso, sono, água, passos, energia ativa e treinos de cardio.',
+  'connected.healthPrime.writes': 'Grava: suas pesagens, sono, água, refeições e treinos concluídos.',
+  'connected.healthPrime.privacy': 'Nada sai do seu celular a não ser para a sua própria conta do Ignia — nunca para terceiros.',
+  'connected.healthPrime.continue': 'Continuar',
+  'connected.healthPrime.notNow': 'Agora não',
+  // S18 history/trends (2026-09-28)
+  'history.olderLoading': 'Carregando dias mais antigos…',
+  'trends.sleepAxisHours': '{h}h',
+  // S18 nav/speed-dial (2026-09-28)
+  'log.fabHint': 'Abre a busca de alimentos. Segure para escanear e mais.',
+  'log.moreA11y': 'Mais formas de registrar',
+  'coach.offline': 'Você está offline. O coach precisa de conexão; seus registros estão seguros e o Perguntar volta quando você reconectar.',
 } as const;

@@ -90,7 +90,8 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   exCountText: { fontSize: font.small, fontWeight: '800', color: colors.muted },
   exDone: { width: 26, height: 26, borderRadius: 13, backgroundColor: colors.good, alignItems: 'center', justifyContent: 'center' },
   exChevron: { marginLeft: 2 },
-  exRemoveRow: { alignSelf: 'flex-start', paddingVertical: space.sm, marginTop: space.xs },
+  // 44-pt targets (UX_AUDIT S18-15) on the editor's text-only actions.
+  exRemoveRow: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center', paddingVertical: space.sm, marginTop: space.xs },
   exCard: {
     backgroundColor: colors.card,
     borderRadius: radius.lg,
@@ -167,7 +168,7 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   // rows rather than the compact chips the RIR scale uses.
   prHint: { fontSize: font.tiny, color: colors.faint, marginTop: 1, textAlign: 'center' },
   progRule: { fontSize: font.tiny, color: colors.muted, marginTop: space.xs, lineHeight: 16 },
-  kindRow: { paddingVertical: space.sm, paddingHorizontal: space.md, borderRadius: radius.sm },
+  kindRow: { minHeight: 44, justifyContent: 'center', paddingVertical: space.sm, paddingHorizontal: space.md, borderRadius: radius.sm },
   kindRowOn: { backgroundColor: colors.inputBg },
   kindRowName: { fontSize: font.small, fontWeight: '700', color: colors.ink },
   kindRowNameOn: { color: colors.teal },
@@ -210,9 +211,11 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   setDel: { paddingHorizontal: space.xs },
   setDelText: { color: colors.danger, fontSize: font.small, fontWeight: '700' },
   addSetRow: { flexDirection: 'row', gap: space.xl },
-  addSetBtn: { paddingVertical: space.sm },
+  addSetBtn: { minHeight: 44, justifyContent: 'center', paddingVertical: space.sm },
   addSetText: { fontSize: font.small, color: colors.teal, fontWeight: '700' },
   addExBtn: {
+    minHeight: 44,
+    justifyContent: 'center',
     borderWidth: 1,
     borderColor: colors.line,
     borderStyle: 'dashed',
@@ -263,11 +266,13 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   styleRow: { flexDirection: 'row', gap: space.sm, marginTop: space.md },
   styleChip: {
     flex: 1,
+    minHeight: 44,
     borderWidth: 1,
     borderColor: colors.line,
     borderRadius: radius.md,
     paddingVertical: space.sm,
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: colors.inputBg,
   },
   // Four chips will not fit one row at 360 dp: the label "Weight x reps" alone
@@ -281,7 +286,7 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   styleChipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
   styleChipText: { fontSize: font.tiny, color: colors.muted, fontWeight: '600' },
   styleChipTextOn: { color: colors.onInk },
-  createRow: { paddingVertical: space.sm },
+  createRow: { minHeight: 44, justifyContent: 'center', paddingVertical: space.sm },
   createText: { fontSize: font.body, color: colors.teal, fontWeight: '700' },
   catalogList: { maxHeight: 220 },
   catalogRow: {
@@ -373,7 +378,7 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   // template editor — rest timers, progression, per-set rows
   restRow: { flexDirection: 'row', gap: space.md },
   restCell: { flex: 1 },
-  progToggle: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingVertical: space.xs },
+  progToggle: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 44, paddingVertical: space.xs },
   progToggleText: { fontSize: font.small, color: colors.ink, fontWeight: '600' },
   progRow: { flexDirection: 'row', gap: space.sm },
   progCell: { flex: 1, gap: space.xs },

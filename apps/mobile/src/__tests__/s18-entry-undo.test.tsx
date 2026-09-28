@@ -66,6 +66,9 @@ jest.mock('@/hooks/useHistory', () => ({
     presets: [],
     customFoods: [],
     boundary: mockBoundary,
+    // The day is inside the window here; the month fetch is idle (S18-13).
+    ensureMonthLoaded: jest.fn(),
+    olderMonths: { loading: false, error: null },
     addEntry: jest.fn(),
     updateEntry: jest.fn(),
     deleteEntry: mockDeleteEntry,

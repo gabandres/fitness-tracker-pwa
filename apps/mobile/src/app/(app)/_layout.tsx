@@ -231,8 +231,9 @@ export default function AppTabsLayout() {
       <Tabs.Screen name="history" options={{ href: null }} />
       {/* Reachable via the Today header avatar; hidden from the tab bar. */}
       <Tabs.Screen name="settings" options={{ href: null }} />
-      {/* Reachable via Trends → Ask the Coach; hidden from the tab bar. */}
-      <Tabs.Screen name="coach" options={{ href: null }} />
+      {/* Coach and Milestones are NOT here: they are root stack routes pushed
+          over this navigator (UX_AUDIT S18-14, `lib/root-stack.ts`), so the
+          tab bar and the raised + never cover them and swipe-back works. */}
       {/* Reachable via Settings → Refine targets; hidden from the tab bar. */}
       <Tabs.Screen name="refine-targets" options={{ href: null }} />
       {/* Meal-photo scan (ADR-0015) — reached via the center camera button. */}

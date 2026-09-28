@@ -18,6 +18,9 @@ import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTrain } from '@/hooks/useTrain';
 import { useRestTimer } from '@/hooks/useRestTimer';
+import { RestNotifySheet } from '@/components/train/RestNotifySheet';
+import { decideRestNotifyPriming, markRestNotifyPrimed } from '@/components/train/rest-notify-priming';
+import { requestNotificationPermission } from '@/lib/reminders';
 import type {
   Exercise,
   LogStyle,
@@ -325,7 +328,12 @@ function StartView({
       <Animated.View style={[styles.heroPanel, heroPulse]} testID="train-hero">
         <Text style={styles.heroCaption}>{t('train.thisWeek')}</Text>
         <View style={styles.hero}>
-          <CountUpText value={stats.count} style={styles.heroValue} testID="week-workouts" />
+          <CountUpText
+            value={stats.count}
+            style={styles.heroValue}
+            accessibilityLabel={`${stats.count} ${stats.count === 1 ? t('train.workoutUnit') : t('train.workoutsUnit')}`}
+            testID="week-workouts"
+          />
           <Text style={styles.heroUnit}>
             {stats.count === 1 ? t('train.workoutUnit') : t('train.workoutsUnit')}
           </Text>
@@ -1078,6 +1086,11 @@ function ActiveSession({ train }: { train: ReturnType<typeof useTrain> }) {
   const [cardioPickerOpen, setCardioPickerOpen] = useState(false);
   const [finishOpen, setFinishOpen] = useState(false);
   const rest = useRestTimer();
+  // The one-time "buzz when rest is over" priming (UX_AUDIT S18-10). Opened
+  // by the FIRST rest start on this device when the OS has not been asked
+  // yet; both answers record it as shown (`rest-notify-priming.ts`).
+  const [restNotifyOpen, setRestNotifyOpen] = useState(false);
+  const restNotifyAsked = useRef(false);
 
   // Lifts whose activation set cannot be read as a progression input. Judged
   // against the template the session was STARTED from, which is the only way
@@ -1136,7 +1149,23 @@ function ActiveSession({ train }: { train: ReturnType<typeof useTrain> }) {
     if (!ex) return;
     const override = tpl?.exercises.find((te) => te.exerciseId === ex.exerciseId)?.restMiniSec;
     rest.start(restAfterSet(ex.sets, setIndex, { mini: override ?? restMini, cluster: restCluster }));
+    // Decided once per session mount; the stored flag makes it once per device.
+    if (!restNotifyAsked.current) {
+      restNotifyAsked.current = true;
+      void decideRestNotifyPriming().then((show) => {
+        if (show) setRestNotifyOpen(true);
+      });
+    }
   };
+
+  async function answerRestNotify(allow: boolean) {
+    setRestNotifyOpen(false);
+    await markRestNotifyPrimed();
+    if (!allow) return;
+    // Granted: arm the countdown that surfaced the sheet — it started before
+    // permission existed, so its own schedule resolved null.
+    if (await requestNotificationPermission()) rest.rearm();
+  }
 
   return (
     <>
@@ -1207,6 +1236,7 @@ function ActiveSession({ train }: { train: ReturnType<typeof useTrain> }) {
               <TouchableOpacity
                 style={styles.discardBtn}
                 onPress={() => train.cancelEdit()}
+                accessibilityRole="button"
                 testID="cancel-editing"
               >
                 <Text style={styles.discardText}>{t('common.cancel')}</Text>
@@ -1214,6 +1244,7 @@ function ActiveSession({ train }: { train: ReturnType<typeof useTrain> }) {
               <TouchableOpacity
                 style={styles.finishBtn}
                 onPress={() => train.finishEdit()}
+                accessibilityRole="button"
                 testID="done-editing"
               >
                 <Text style={styles.finishText}>{t('train.doneEditing')}</Text>
@@ -1234,6 +1265,7 @@ function ActiveSession({ train }: { train: ReturnType<typeof useTrain> }) {
                     onConfirm: () => void train.discardWorkout(),
                   })
                 }
+                accessibilityRole="button"
                 testID="discard-workout"
               >
                 <Text style={styles.discardText}>{t('train.discard')}</Text>
@@ -1244,6 +1276,7 @@ function ActiveSession({ train }: { train: ReturnType<typeof useTrain> }) {
                   await train.commitActive();
                   setFinishOpen(true);
                 }}
+                accessibilityRole="button"
                 testID="finish-workout"
               >
                 <Text style={styles.finishText}>{t('train.finish')}</Text>
@@ -1283,6 +1316,12 @@ function ActiveSession({ train }: { train: ReturnType<typeof useTrain> }) {
           </View>
         </View>
       ) : null}
+
+      <RestNotifySheet
+        visible={restNotifyOpen}
+        onAllow={() => void answerRestNotify(true)}
+        onNotNow={() => void answerRestNotify(false)}
+      />
 
       <AddExerciseModal
         visible={addOpen}
@@ -2340,7 +2379,17 @@ function FinishModal({
             </Text>
           ) : null}
 
-          <TouchableOpacity style={styles.finishBtn} onPress={finish} disabled={busy} testID="finish-confirm">
+          {/* The button IS the retry: a failed save leaves the sheet open with
+              the typed values and the error line above, and tapping Complete
+              again re-runs the same write (`s18-train-finish.test.tsx`). */}
+          <TouchableOpacity
+            style={styles.finishBtn}
+            onPress={finish}
+            disabled={busy}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: busy, busy }}
+            testID="finish-confirm"
+          >
             <Text style={styles.finishText}>{busy ? t('common.saving') : t('train.complete')}</Text>
           </TouchableOpacity>
           </ScrollView>

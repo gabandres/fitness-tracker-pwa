@@ -156,6 +156,21 @@ type CountUpProps = {
   suffix?: string;
   style?: StyleProp<TextStyle>;
   testID?: string;
+  /**
+   * What a screen reader says for this number. Defaults to the formatted
+   * TARGET value (plus `suffix`) — the number the animation lands on, not a
+   * frame of it. Pass the sentence when the numeral is only half the story
+   * ("3 workouts"); pass nothing when a labelled parent hides its descendants
+   * (`HeroRings`, the Body hero button) — the input is then never reached.
+   */
+  accessibilityLabel?: string;
+  /**
+   * Cap on Dynamic Type / font-scale growth. Default 1.4: the 72-pt hero
+   * numerals clip their box at the OS's larger settings, and a display number
+   * cut off at the edge is worse than one that scales less. Applied to the
+   * ghost too, so the measured width and the drawn text always agree.
+   */
+  maxFontSizeMultiplier?: number;
 };
 
 /**
@@ -215,7 +230,15 @@ export function widestCountUpText(
  * invisible until a user crosses a digit boundary, which is exactly how this
  * defect survived.
  */
-export function CountUpText({ value, decimals = 0, suffix = '', style, testID }: CountUpProps) {
+export function CountUpText({
+  value,
+  decimals = 0,
+  suffix = '',
+  style,
+  testID,
+  accessibilityLabel,
+  maxFontSizeMultiplier = 1.4,
+}: CountUpProps) {
   const reduce = useReducedMotion();
   // Resolved on the JS thread; the worklet below only ever sees two strings.
   const { group, decimal } = numberSeparators(useLocale());
@@ -237,6 +260,12 @@ export function CountUpText({ value, decimals = 0, suffix = '', style, testID }:
     const text = formatNumber(sv.value, decimals, group, decimal) + suffix;
     return { text, defaultValue: text };
   });
+  // The read-only TextInput is announced as an EDIT BOX by VoiceOver/TalkBack
+  // (UX_AUDIT S18-5 named the Today hero, the Trends maintenance number and
+  // the plan numerals). `role="text"` plus a label makes it a static number:
+  // the label is the landing value, computed here on the JS thread, because
+  // the animated frames are never visible to the accessibility tree anyway.
+  const a11yLabel = accessibilityLabel ?? formatNumber(value, decimals, group, decimal) + suffix;
   // `pointerEvents="none"` on the whole wrap: a TextInput — even
   // `editable={false}` — is a first-class touch target on iOS and swallows the
   // tap before any parent Touchable sees it. Measured 2026-09-11 on the
@@ -252,6 +281,8 @@ export function CountUpText({ value, decimals = 0, suffix = '', style, testID }:
         accessible={false}
         importantForAccessibility="no-hide-descendants"
         numberOfLines={1}
+        maxFontSizeMultiplier={maxFontSizeMultiplier}
+        testID={testID ? `${testID}-ghost` : undefined}
       >
         {widest}
       </Text>
@@ -260,6 +291,9 @@ export function CountUpText({ value, decimals = 0, suffix = '', style, testID }:
         underlineColorAndroid="transparent"
         style={[styles.countUp, style, styles.countUpOverlay]}
         animatedProps={animatedProps}
+        accessibilityRole="text"
+        accessibilityLabel={a11yLabel}
+        maxFontSizeMultiplier={maxFontSizeMultiplier}
         testID={testID}
       />
     </View>

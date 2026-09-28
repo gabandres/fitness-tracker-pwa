@@ -13,6 +13,14 @@ export interface RestTimer {
   start: (seconds: number) => void;
   /** Cancel the countdown and go idle. Idempotent. */
   stop: () => void;
+  /**
+   * Schedule the "rest over" notification for the countdown already running,
+   * if none is scheduled yet. For the priming sheet (`RestNotifySheet`): the
+   * countdown that surfaced it started BEFORE permission existed, so its
+   * schedule resolved null; once the OS says yes this arms it without
+   * restarting the clock. No-op when idle or already armed.
+   */
+  rearm: () => void;
 }
 
 function formatMMSS(s: number): string {
@@ -26,9 +34,11 @@ function formatMMSS(s: number): string {
  * when it must not be scheduled.
  *
  * Only when permission is ALREADY granted — `getPermissionsAsync`, never
- * `requestPermissionsAsync`. The reminders opt-in (`reminders.ts`) is the one
- * place the app asks, and a permission sheet popping between sets is exactly
- * the wrong moment to ask. No permission, no notification, no prompt.
+ * `requestPermissionsAsync`. The app asks in two places, both explained
+ * first: the reminders opt-in (`reminders.ts`) and the one-time priming sheet
+ * Train shows when the first rest starts (`rest-notify-priming.ts`). A bare
+ * OS dialog popping mid-countdown is exactly the wrong moment, so this never
+ * asks. No permission, no notification, no prompt.
  *
  * Exported for the test; the hook is the only production caller.
  */
@@ -141,6 +151,20 @@ export function useRestTimer(): RestTimer {
     [t, cancelNotification],
   );
 
+  const rearm = useCallback(() => {
+    const end = deadline.current;
+    if (end == null || notifId.current) return;
+    const gen = generation.current;
+    void scheduleRestDoneNotification(new Date(end), t).then((id) => {
+      if (!id) return;
+      if (generation.current !== gen || deadline.current !== end) {
+        void Notifications.cancelScheduledNotificationAsync(id).catch(() => {});
+        return;
+      }
+      notifId.current = id;
+    });
+  }, [t]);
+
   // Clear the interval — and the pending notification — if the component
   // unmounts mid-countdown (the workout was finished or discarded).
   useEffect(() => () => {
@@ -148,5 +172,5 @@ export function useRestTimer(): RestTimer {
     cancelNotification();
   }, [cancelNotification]);
 
-  return { remaining, label: formatMMSS(remaining), start, stop };
+  return { remaining, label: formatMMSS(remaining), start, stop, rearm };
 }

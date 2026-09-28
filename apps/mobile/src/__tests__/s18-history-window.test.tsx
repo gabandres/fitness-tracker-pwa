@@ -3,9 +3,11 @@
  *
  * The calendar pages back forever while `useHistory` holds only the newest
  * `LOG_WINDOW_ROWS` rows, so an old month rendered empty whether or not
- * anything was logged. The predicate below is what decides when to say so,
- * and the render test pins that the note appears only once the viewed month
- * reaches past the oldest loaded row — and never when the window has room.
+ * anything was logged. Since 2026-09-28 the screen asks the hook to fetch the
+ * month on demand (`lib/history-paging.ts` owns the rules and has its own
+ * test); what is pinned here is the wiring — the screen asks for the month it
+ * shows, says so while the fetch runs, and keeps the "older days aren't
+ * loaded" note for the failure case only.
  */
 import React from 'react';
 import { fireEvent, renderWithProviders as render } from '@/test-utils';
@@ -21,6 +23,7 @@ jest.mock('@/lib/auth', () => ({
 }));
 // `useHistory` reaches `@/lib/ledger` → firebase's untranspiled ESM; the hook
 // is the seam this screen reads through, so it is what gets replaced.
+const mockEnsureMonthLoaded = jest.fn<void, [Date]>();
 const mockHistory = {
   loading: false,
   error: null as Error | null,
@@ -30,6 +33,8 @@ const mockHistory = {
   presets: [],
   customFoods: [],
   boundary: dayBoundaryOf(null),
+  ensureMonthLoaded: mockEnsureMonthLoaded,
+  olderMonths: { loading: false, error: null as Error | null },
 };
 const mockUseHistory = jest.fn(() => mockHistory);
 jest.mock('@/hooks/useHistory', () => ({ useHistory: () => mockUseHistory() }));
@@ -48,8 +53,10 @@ function rows(n: number, oldest: Date): DailyLog[] {
 
 beforeEach(() => {
   mockUseHistory.mockClear();
+  mockEnsureMonthLoaded.mockClear();
   mockHistory.error = null;
   mockHistory.logs = [];
+  mockHistory.olderMonths = { loading: false, error: null };
 });
 
 describe('olderThanLoaded', () => {
@@ -84,23 +91,35 @@ describe('oldestLogKey', () => {
 });
 
 describe('History calendar', () => {
-  it('shows the older-not-loaded note only once the view pages past the window', async () => {
-    // A full window whose oldest row is the 1st of the current month.
-    const now = new Date();
-    mockHistory.logs = rows(400, new Date(now.getFullYear(), now.getMonth(), 1));
+  it('asks the hook for the month on screen, on mount and on every page', async () => {
     const screen = await render(<HistoryCalendar />);
+    const now = new Date();
+    expect(mockEnsureMonthLoaded).toHaveBeenCalledTimes(1);
+    expect(mockEnsureMonthLoaded.mock.calls[0][0].getMonth()).toBe(now.getMonth());
 
-    expect(screen.queryByTestId('history-older-not-loaded')).toBeNull();
     await fireEvent.press(screen.getByTestId('month-prev'));
-    expect(screen.getByTestId('history-older-not-loaded')).toBeTruthy();
+    expect(mockEnsureMonthLoaded).toHaveBeenCalledTimes(2);
+    const asked = mockEnsureMonthLoaded.mock.calls[1][0];
+    const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    expect([asked.getFullYear(), asked.getMonth()]).toEqual([prev.getFullYear(), prev.getMonth()]);
   });
 
-  it('never shows the note when the window is not full', async () => {
-    mockHistory.logs = rows(5, new Date(2026, 8, 1));
+  it('shows a loading line while an older month is fetched, and no note', async () => {
+    mockHistory.olderMonths = { loading: true, error: null };
     const screen = await render(<HistoryCalendar />);
-    await fireEvent.press(screen.getByTestId('month-prev'));
-    await fireEvent.press(screen.getByTestId('month-prev'));
+    expect(screen.getByTestId('history-older-loading')).toBeTruthy();
     expect(screen.queryByTestId('history-older-not-loaded')).toBeNull();
+  });
+
+  it('keeps the older-not-loaded note for the failure case only', async () => {
+    const screen = await render(<HistoryCalendar />);
+    expect(screen.queryByTestId('history-older-not-loaded')).toBeNull();
+
+    mockHistory.olderMonths = { loading: false, error: new Error('offline') };
+    // A month change re-renders with the failed state.
+    await fireEvent.press(screen.getByTestId('month-prev'));
+    expect(screen.getByTestId('history-older-not-loaded')).toBeTruthy();
+    expect(screen.queryByTestId('history-older-loading')).toBeNull();
   });
 
   it('Retry remounts the screen so the feed re-opens', async () => {

@@ -413,8 +413,9 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
             >
               {/* The brand ember, not a platform emoji that renders differently
                   on every OS (UX_AUDIT S18-17). Still, so a chip does not
-                  flicker in the corner of every Today. */}
-              <Flame size={18} flicker={false} />
+                  flicker in the corner of every Today; tinted in the streak/
+                  fasting hue because here it is a data mark, not the logo. */}
+              <Flame size={18} flicker={false} tint={colors.habitFasting} />
               <Text style={styles.streakNum}>{streak}</Text>
             </Animated.View>
           ) : null}
@@ -589,6 +590,8 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
                 style={[styles.repeatBtn, repeating && styles.repeatBtnDisabled]}
                 onPress={onRepeatYesterday}
                 disabled={repeating}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: repeating, busy: repeating }}
                 testID="repeat-yesterday"
               >
                 <Ionicons name="refresh" size={15} color={colors.ink} />

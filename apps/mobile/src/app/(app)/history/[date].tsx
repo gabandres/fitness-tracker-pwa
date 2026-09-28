@@ -72,7 +72,14 @@ export default function DayDetail() {
   useEffect(() => {
     if (!validKey) router.replace('/history');
   }, [validKey, router]);
-  const { loading, logs, weights, presets, customFoods, boundary, addEntry, updateEntry, deleteEntry, addPreset, deletePreset, addCustomFood, deleteCustomFood } = useHistory();
+  const { loading, logs, weights, presets, customFoods, boundary, addEntry, updateEntry, deleteEntry, addPreset, deletePreset, addCustomFood, deleteCustomFood, ensureMonthLoaded, olderMonths } = useHistory();
+  // A day behind the 400-row window (a tap-through from a paged-back month, or
+  // a deep link) fetches its month once, the same way the calendar does
+  // (S18-13). This route mounts its own `useHistory`, so the calendar's fetched
+  // rows are not here — one bounded read is the price of not sharing state.
+  useEffect(() => {
+    if (validKey) ensureMonthLoaded(parseYmd(dateKey));
+  }, [validKey, dateKey, ensureMonthLoaded]);
   const unitSystem = useUnitSystem();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<DailyLog | null>(null);
@@ -189,7 +196,9 @@ export default function DayDetail() {
         <View style={{ width: 26 }} />
       </View>
 
-      {loading ? (
+      {/* The month fetch counts as loading here: a day behind the window would
+          otherwise read "no entries" for the beat before its rows land. */}
+      {loading || olderMonths.loading ? (
         <View style={styles.fill}>
           <ActivityIndicator color={colors.accent} />
         </View>

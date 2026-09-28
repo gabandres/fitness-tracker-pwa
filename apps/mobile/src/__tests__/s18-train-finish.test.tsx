@@ -70,7 +70,7 @@ jest.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { uid: 'u1' }, profile:
 jest.mock('@/lib/reviewPrompt', () => ({ recordPositiveMoment: () => mockRecordPositiveMoment() }));
 jest.mock('@/lib/haptics', () => ({ tap: jest.fn(), success: jest.fn(), warn: jest.fn(), warning: jest.fn() }));
 jest.mock('@/hooks/useRestTimer', () => ({
-  useRestTimer: () => ({ remaining: 0, running: false, start: jest.fn(), stop: jest.fn() }),
+  useRestTimer: () => ({ remaining: 0, running: false, start: jest.fn(), stop: jest.fn(), rearm: jest.fn() }),
 }));
 
 import TrainScreen from '@/app/(app)/train';
@@ -98,6 +98,27 @@ describe('Finish sheet', () => {
     await waitFor(() => expect(screen.getByTestId('finish-save-error')).toBeTruthy());
     expect(screen.getByTestId('finish-confirm')).toBeTruthy();
     expect(mockRecordPositiveMoment).not.toHaveBeenCalled();
+  });
+
+  it('the Complete button IS the retry: a second tap after a failed save re-runs the write and closes on success', async () => {
+    mockFinishWorkout.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    const screen = await openFinish();
+
+    await fireEvent.press(screen.getByTestId('finish-confirm'));
+    await waitFor(() => expect(screen.getByTestId('finish-save-error')).toBeTruthy());
+
+    await fireEvent.press(screen.getByTestId('finish-confirm'));
+    await waitFor(() => expect(mockFinishWorkout).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(mockRecordPositiveMoment).toHaveBeenCalledTimes(1));
+    expect(screen.queryByTestId('finish-save-error')).toBeNull();
+  });
+
+  it('the Complete button carries a role and its busy state (S18-15)', async () => {
+    mockFinishWorkout.mockResolvedValue(true);
+    const screen = await openFinish();
+    const btn = screen.getByTestId('finish-confirm');
+    expect(btn.props.accessibilityRole).toBe('button');
+    expect(btn.props.accessibilityState).toEqual({ disabled: false, busy: false });
   });
 
   it('a successful save closes the sheet and records the positive moment', async () => {

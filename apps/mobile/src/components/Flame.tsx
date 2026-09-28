@@ -43,11 +43,21 @@ const EMBER_HEART = '#fdf6ec';
  * halo pulse + a drifting spark); when false — or under reduce-motion — it
  * renders a still, fully-lit ember. Pure SVG + reanimated transforms on
  * wrapping views, so it exports to web and stays Playwright-verifiable.
+ *
+ * `tint` recolours the glyph for the one place it is a DATA mark rather than
+ * the logo: Today's streak chip, which reads it in the theme's streak/fasting
+ * hue (UX_AUDIT S18-17) so it sits with the habit accents instead of shouting
+ * brand coral in the header. Omit it everywhere the flame means "Ignia" — the
+ * brand layers above stay fixed across themes on purpose. A tinted flame is
+ * three opacities of one colour, so it keeps its silhouette at 18 px.
  */
-export function Flame({ size = 96, flicker = true }: { size?: number; flicker?: boolean }) {
+export function Flame({ size = 96, flicker = true, tint }: { size?: number; flicker?: boolean; tint?: string }) {
   const { colors } = useTheme();
   const reduce = useReducedMotion();
   const live = flicker && !reduce;
+  const layers = tint
+    ? { deep: tint, deepOpacity: 0.55, mid: tint, midOpacity: 0.8, core: tint, halo: tint }
+    : { deep: EMBER_DEEP, deepOpacity: 1, mid: EMBER_MID, midOpacity: 1, core: EMBER_CORE, halo: colors.ring };
 
   // Flame breathe: a quick, uneven scale/opacity loop reads as a flicker.
   const breathe = useSharedValue(0);
@@ -94,16 +104,16 @@ export function Flame({ size = 96, flicker = true }: { size?: number; flicker?: 
       {/* Heat halo — a soft coral bloom behind the ember. */}
       <Animated.View style={[{ position: 'absolute', width: size, height: size }, live && haloStyle]}>
         <Svg width={size} height={size} viewBox="0 0 100 100">
-          <Circle cx={50} cy={54} r={40} fill={colors.ring} opacity={live ? 1 : 0.12} />
+          <Circle cx={50} cy={54} r={40} fill={layers.halo} opacity={live ? 1 : 0.12} />
         </Svg>
       </Animated.View>
 
       {/* The three ember layers. */}
       <Animated.View style={[{ position: 'absolute', width: size, height: size }, live && flameStyle]}>
         <Svg width={size} height={size} viewBox="0 0 100 100">
-          <Path d={FLAME_OUTER} fill={EMBER_DEEP} />
-          <Path d={FLAME_MID} fill={EMBER_MID} />
-          <Path d={FLAME_CORE} fill={EMBER_CORE} />
+          <Path d={FLAME_OUTER} fill={layers.deep} opacity={layers.deepOpacity} />
+          <Path d={FLAME_MID} fill={layers.mid} opacity={layers.midOpacity} />
+          <Path d={FLAME_CORE} fill={layers.core} />
           {/* White-hot heart at the base — the point the eye reads as "lit". */}
           <Circle cx={48} cy={70} r={5} fill={EMBER_HEART} opacity={0.8} />
         </Svg>

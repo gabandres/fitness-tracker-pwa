@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCachedState } from '@/hooks/useCachedState';
 import { useCoreSnapshot } from '@/hooks/useCoreSnapshot';
 import { feedChannel, useLedgerFeed } from '@/hooks/useLedgerFeed';
 import { exportDaily } from '@/lib/health-sync';
@@ -91,7 +92,10 @@ export function useBody(): BodyState {
   // The 400 this hook used to pass as a bare literal was `LOG_WINDOW_ROWS` all
   // along.
   const { logs, weights, profile, loaded, error: snapshotError } = useCoreSnapshot('Body');
-  const [measurements, setMeasurements] = useState<Measurement[]>([]);
+  // Cached like the core three (UX_AUDIT S18-13): the tape list is bounded by
+  // the subscription's own `limit(20)`, and a cold open of Body should show
+  // the last body-fat estimate rather than "no measurements" for a second.
+  const [measurements, setMeasurements] = useCachedState<Measurement[]>(uid, 'measurements', []);
 
   // Measurements are this tab's alone, so they stay its own subscription —
   // focus-gated and tracked the same way, through the same feed policy as the

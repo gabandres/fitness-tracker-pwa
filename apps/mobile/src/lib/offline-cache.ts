@@ -22,8 +22,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
  * ## What is deliberately not here
  *
  * No eviction policy beyond the uid namespace and no size cap. The cached
- * slices are one 14-row log window, one profile and four small maps — kilobytes,
- * bounded by the queries themselves rather than by anything this file does.
+ * slices are one `LOG_WINDOW_ROWS` (400-row) log window, one profile and a few
+ * small maps and lists — tens of kilobytes at most, bounded by the queries
+ * themselves rather than by anything this file does. The History calendar's
+ * on-demand older months (`history-paging.ts`) are deliberately NOT cached:
+ * they are component state, and caching them would be the unbounded growth
+ * the window exists to prevent.
  *
  * ## Privacy
  *
@@ -59,7 +63,14 @@ export type CacheSlice =
   // subscription uses.
   | 'workoutSessions'
   | 'exercises'
-  | 'templates';
+  | 'templates'
+  // Body's own. Added 2026-09-28 (UX_AUDIT S18-13): History, Trends and Body
+  // all booted on a bare spinner while Today painted from disk. History and
+  // Trends read the SAME queries Today caches (`logs` is the one 400-row
+  // window, `weights`/`profile` the same docs), so they now hydrate those
+  // slices; measurements are the one read nobody else made. Bounded by the
+  // subscription's own `limit(20)`.
+  | 'measurements';
 
 function cacheKey(uid: string, slice: CacheSlice): string {
   return `${CACHE_PREFIX}.${uid}.${slice}`;

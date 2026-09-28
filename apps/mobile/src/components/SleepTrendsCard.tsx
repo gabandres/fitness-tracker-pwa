@@ -3,6 +3,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import {
   SLEEP_MIN_NIGHTS,
+  SLEEP_STRIP_CEILING_HOURS,
   SLEEP_WINDOW_DAYS,
   sleepBarFraction,
   sleepHoursParts,
@@ -153,6 +154,7 @@ export function SleepTrendsCard({
           </Text>
         </View>
 
+        <View style={styles.stripRow}>
         <View style={styles.strip} testID="sleep-strip">
           {window.nights.map((night) => {
             const fraction = sleepBarFraction(night.hours);
@@ -190,6 +192,18 @@ export function SleepTrendsCard({
               ]}
             />
           ) : null}
+        </View>
+          {/* The axis its two siblings already carry (fasting, water). Without
+              it no bar height means anything: the headline says 7h 10m and
+              nothing on the strip lets you check it against the ceiling. */}
+          <View style={styles.axis} pointerEvents="none">
+            <Text style={styles.axisLabel} testID="sleep-axis-max">
+              {t('trends.sleepAxisHours', { h: formatNumber(SLEEP_STRIP_CEILING_HOURS, locale) })}
+            </Text>
+            <Text style={styles.axisLabel}>
+              {t('trends.sleepAxisHours', { h: formatNumber(0, locale) })}
+            </Text>
+          </View>
         </View>
         <Text style={styles.legend}>{t('trends.sleepLegend')}</Text>
 
@@ -235,6 +249,9 @@ export function SleepTrendsCard({
   );
 }
 
+/** Strip height, in dp, shared by the bars, their tracks and the axis column. */
+const STRIP_H = 64;
+
 /** Window-level provenance only — `dailySleep` has no `provider`, so the card
  *  can never honestly say "via Oura" the way a cardio block can. */
 const PROVENANCE_KEY = {
@@ -266,11 +283,25 @@ const createStyles = ({ colors }: Theme) =>
     // A duration in the display face, never a score.
     value: { fontFamily: type.display, fontSize: font.h1, color: colors.ink },
     caption: { fontSize: font.small, color: colors.muted },
+    stripRow: { flexDirection: 'row', alignItems: 'stretch', marginTop: space.xs },
     // `overflow: visible` on purpose — the median line is positioned against
     // this box and must be allowed to sit on its own edge.
-    strip: { flexDirection: 'row', alignItems: 'flex-end', height: 64, marginTop: space.xs },
+    strip: { flex: 1, flexDirection: 'row', alignItems: 'flex-end', height: STRIP_H },
     col: { flex: 1, alignItems: 'center' },
-    track: { width: '62%', height: 64, justifyContent: 'flex-end' },
+    track: { width: '62%', height: STRIP_H, justifyContent: 'flex-end' },
+    // The strip, its tracks and the axis column MUST share one height, or the
+    // axis stops naming the gridline it sits on (same rule as the siblings).
+    axis: {
+      width: 30,
+      height: STRIP_H,
+      justifyContent: 'space-between',
+      alignItems: 'flex-end',
+      paddingLeft: space.xs,
+    },
+    // `lineHeight` equal to the font size, and NOT larger: the two labels are
+    // pinned to the top and bottom of the strip, so any leading pushes them off
+    // the gridline they are naming and the axis reads as approximate.
+    axisLabel: { fontSize: font.tiny, color: colors.faint, lineHeight: font.tiny },
     bar: { width: '100%', borderRadius: 2 },
     gap: { width: '100%', height: 1, backgroundColor: colors.line },
     medianLine: {
@@ -281,12 +312,14 @@ const createStyles = ({ colors }: Theme) =>
       backgroundColor: colors.faint,
       opacity: 0.6,
     },
-    legend: { fontSize: font.tiny, color: colors.faint },
+    // Sentence-length copy reads in `muted`; `faint` (AA since S18-2) is kept
+    // for the two-character axis numerals and glyphs.
+    legend: { fontSize: font.tiny, color: colors.muted },
     divider: { height: 1, backgroundColor: colors.line, marginVertical: space.xs },
     claim: { fontSize: font.body, color: colors.ink, lineHeight: 22 },
     qualify: { fontSize: font.small, color: colors.muted },
     progress: { fontSize: font.small, color: colors.muted, lineHeight: 20 },
-    foot: { fontSize: font.tiny, color: colors.faint },
+    foot: { fontSize: font.tiny, color: colors.muted },
     // The 0–2 nights row: one line, hairline-bounded, no card.
     hairline: { height: 1, backgroundColor: colors.line },
     linkRow: {

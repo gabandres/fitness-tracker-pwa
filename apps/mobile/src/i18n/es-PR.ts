@@ -1508,4 +1508,23 @@ export const esPR: Record<I18nKey, string> = {
   'body.deleteWeighInBody': 'El pesaje del {date} se quita de tu historial y de tu gasto medido.',
   'body.editWeighInA11y': 'Editar el pesaje del {date}',
   'body.deleteWeighInA11y': 'Eliminar el pesaje del {date}',
+  // S18 train/motion (2026-09-28)
+  'train.restNotify.title': 'Recibe un aviso cuando termine el descanso',
+  'train.restNotify.body': 'Ignia puede enviarte una notificación cuando termine tu temporizador de descanso, aunque la pantalla esté bloqueada o estés en otra app. Nada más, y nada programado cuando no estás entrenando.',
+  'train.restNotify.allow': 'Permitir',
+  'train.restNotify.notNow': 'Ahora no',
+  'connected.healthPrime.title': 'Antes de que tu teléfono pregunte',
+  'connected.healthPrime.body': 'La próxima pantalla es el permiso del sistema. Esto es exactamente lo que Ignia hace con él:',
+  'connected.healthPrime.reads': 'Lee: peso, sueño, agua, pasos, energía activa y sesiones de cardio.',
+  'connected.healthPrime.writes': 'Escribe: tus pesajes, sueño, agua, comidas y entrenamientos terminados.',
+  'connected.healthPrime.privacy': 'Nada sale de tu teléfono salvo hacia tu propia cuenta de Ignia — nunca a un tercero.',
+  'connected.healthPrime.continue': 'Continuar',
+  'connected.healthPrime.notNow': 'Ahora no',
+  // S18 history/trends (2026-09-28)
+  'history.olderLoading': 'Cargando días más antiguos…',
+  'trends.sleepAxisHours': '{h}h',
+  // S18 nav/speed-dial (2026-09-28)
+  'log.fabHint': 'Abre la búsqueda de comidas. Mantén presionado para escanear y más.',
+  'log.moreA11y': 'Más formas de registrar',
+  'coach.offline': 'Estás sin conexión. El coach necesita internet; tus registros están a salvo y Preguntar vuelve cuando te reconectes.',
 };

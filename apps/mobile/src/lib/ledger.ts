@@ -55,6 +55,7 @@ import {
   type DayBoundary,
   dayKeyAt,
   manualNightKeys,
+  dayRange,
   sanitizeDayBoundary,
   setDayStartHour as coreSetDayStartHour,
   oldestFirst,
@@ -283,6 +284,40 @@ export function subscribeRecentLogs(
       error: (e) => onError?.(e),
     },
   );
+}
+
+/**
+ * Every log row whose DAY (under `boundary`, ADR-0030) falls in
+ * `[fromKey, toKey]`, OLDEST FIRST — one bounded `getDocs`, never a listener.
+ *
+ * What the History calendar reaches for when the viewed month lies behind the
+ * 400-row window (`history-paging.ts`, UX_AUDIT S18-13). A month is the unit
+ * because it is what the screen shows; a range query on `timestamp` needs only
+ * the single-field index Firestore builds on its own, and `firestore.rules`
+ * gates `dailyLogs` on owner read with no query constraint.
+ *
+ * `maxRows` is a ceiling, not a page size: a 7-meals-a-day logger fills a
+ * month in ~220 rows, so the default is never reached by a real account and
+ * exists so a pathological one cannot pull an unbounded read.
+ */
+export async function getLogsForRange(
+  uid: string,
+  fromKey: DateKey,
+  toKey: DateKey,
+  boundary: DayBoundary = [],
+  maxRows = 1000,
+): Promise<DailyLog[]> {
+  const { start } = dayRange(fromKey, boundary);
+  const { end } = dayRange(toKey, boundary);
+  const q = query(
+    logsCol(uid),
+    where('timestamp', '>=', Timestamp.fromDate(start)),
+    where('timestamp', '<', Timestamp.fromDate(end)),
+    orderBy('timestamp', 'asc'),
+    limit(maxRows),
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => toDailyLog(d.id, d.data()));
 }
 
 /**

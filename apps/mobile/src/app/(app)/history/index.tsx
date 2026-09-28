@@ -1,10 +1,11 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { type DayBoundary, type DaySummary, LOG_WINDOW_ROWS, formatBodyWeight, dayKeyAt, monthGrid, parseYmd } from '@macrolog/core';
+import { type DaySummary, formatBodyWeight, dayKeyAt, monthGrid, parseYmd } from '@macrolog/core';
 import { HeaderAvatar } from '@/components/HeaderAvatar';
+import { OfflineBanner } from '@/components/OfflineBanner';
 import { useHistory } from '@/hooks/useHistory';
 import { useUnitSystem } from '@/lib/use-unit-system';
 import { type Locale, useLocale, useT } from '@/i18n';
@@ -21,38 +22,10 @@ function dayLabel(dateKey: string, locale: Locale): string {
   return formatDate(parseYmd(dateKey), locale, { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
-/**
- * Does the viewed month reach past what the 400-row window loaded?
- *
- * `useHistory` subscribes to the newest `LOG_WINDOW_ROWS` rows and the
- * calendar pages back forever, so a month older than the window rendered as
- * empty — indistinguishable from a month with nothing logged (UX_AUDIT S18-13).
- * The rule: when the window is FULL (there may be more rows behind it) and the
- * first day of the viewed month is older than the oldest row on hand, some of
- * that month is not loaded. A window with room to spare loaded everything, so
- * an empty old month is genuinely empty and no note is shown.
- */
-export function olderThanLoaded(
-  view: Date,
-  oldestLoadedKey: string | null,
-  loadedRows: number,
-  windowRows: number = LOG_WINDOW_ROWS,
-): boolean {
-  if (oldestLoadedKey == null || loadedRows < windowRows) return false;
-  const y = view.getFullYear();
-  const m = String(view.getMonth() + 1).padStart(2, '0');
-  return `${y}-${m}-01` < oldestLoadedKey;
-}
-
-/** The oldest day key among the loaded rows, under the user's boundary. */
-export function oldestLogKey(logs: readonly { date: Date }[], boundary: DayBoundary): string | null {
-  let oldest: string | null = null;
-  for (const l of logs) {
-    const k = dayKeyAt(l.date, boundary);
-    if (oldest == null || k < oldest) oldest = k;
-  }
-  return oldest;
-}
+// The window predicate and the oldest-row helper moved to `lib/history-paging`
+// with the on-demand month fetch (UX_AUDIT S18-13); re-exported so the seam
+// this screen used to own keeps its name.
+export { oldestLogKey, olderThanLoaded } from '@/lib/history-paging';
 
 /** Remount boundary for Retry — see Today for why a `key` bump is the
  *  mechanism (the feed hooks expose no reload; UX_AUDIT S18-7). */
@@ -66,7 +39,7 @@ function HistoryCalendarScreen({ onRetry }: { onRetry: () => void }) {
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
-  const { loading, error, days, logs, boundary } = useHistory();
+  const { loading, error, days, boundary, ensureMonthLoaded, olderMonths } = useHistory();
   const unitSystem = useUnitSystem();
   const router = useRouter();
   // A date within the viewed month; starts on the current month.
@@ -82,8 +55,13 @@ function HistoryCalendarScreen({ onRetry }: { onRetry: () => void }) {
   const weekdays = useMemo(() => weekdayLetters(locale), [locale]);
   const todayKey = dayKeyAt(new Date(), boundary);
   const monthLabel = formatDate(view, locale, { month: 'long', year: 'numeric' });
-  const oldestLoaded = useMemo(() => oldestLogKey(logs, boundary), [logs, boundary]);
-  const partial = olderThanLoaded(view, oldestLoaded, logs.length);
+  // Page back past the 400-row window and the month is fetched once, on
+  // demand (S18-13). The hook decides whether anything is needed; this effect
+  // only says which month is on screen — and re-asks when the window itself
+  // answers, since the first call lands before any row is loaded.
+  useEffect(() => {
+    ensureMonthLoaded(view);
+  }, [view, ensureMonthLoaded]);
 
   function shiftMonth(delta: number) {
     setView((v) => new Date(v.getFullYear(), v.getMonth() + delta, 1));
@@ -115,6 +93,10 @@ function HistoryCalendarScreen({ onRetry }: { onRetry: () => void }) {
               </Pressable>
             </View>
           ) : null}
+
+          {/* A state readout, same slot it has on Today (UX_AUDIT S18-12) — the
+              calendar now paints from disk, so offline it shows data plus this. */}
+          <OfflineBanner />
 
           <View style={styles.monthNav}>
             <Pressable
@@ -185,10 +167,15 @@ function HistoryCalendarScreen({ onRetry }: { onRetry: () => void }) {
             })}
           </View>
 
-          {/* Says when the month on screen reaches past the loaded window, so
-              an empty old month is not mistaken for an empty record. */}
-          {partial ? (
-            <Text style={styles.partialNote} testID="history-older-not-loaded">
+          {/* A month behind the window is being fetched; when that fails, say
+              so, so an empty old month is not mistaken for an empty record. */}
+          {olderMonths.loading ? (
+            <View style={styles.partialRow} accessibilityLiveRegion="polite" testID="history-older-loading">
+              <ActivityIndicator size="small" color={colors.muted} />
+              <Text style={styles.partialNote}>{t('history.olderLoading')}</Text>
+            </View>
+          ) : olderMonths.error ? (
+            <Text style={styles.partialNote} accessibilityLiveRegion="polite" testID="history-older-not-loaded">
               {t('history.olderNotLoaded')}
             </Text>
           ) : null}
@@ -264,6 +251,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   retryBtn: { borderWidth: 1, borderColor: colors.ink, borderRadius: radius.pill, paddingHorizontal: space.md, minHeight: 36, justifyContent: 'center' },
   retryText: { fontSize: font.small, fontWeight: '700', color: colors.ink },
   partialNote: { fontSize: font.small, color: colors.muted, textAlign: 'center', marginTop: space.xs },
+  partialRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.sm },
   monthNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.sm },
   monthLabel: { fontSize: font.h3, fontWeight: '800', color: colors.ink, textTransform: 'capitalize' },
   weekHead: { flexDirection: 'row' },

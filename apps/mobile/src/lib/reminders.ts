@@ -109,6 +109,25 @@ export async function setRemindersEnabled(enabled: boolean): Promise<boolean> {
 }
 
 /**
+ * Ask the OS for notification permission and answer whether it is granted.
+ *
+ * The one prompt helper for surfaces OTHER than the reminders switch (which
+ * keeps its own inline call because it also flips the stored flag): the
+ * rest-timer priming sheet on Train reuses this so the app has exactly one
+ * spelling of "request, then read `status`". Never throws — a bridge error
+ * reads as "not granted", which is the only honest fallback.
+ */
+export async function requestNotificationPermission(): Promise<boolean> {
+  if (!isNative) return false;
+  try {
+    const { status } = await Notifications.requestPermissionsAsync();
+    return status === 'granted';
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Cancel and reschedule the full smart plan from core `planReminders`. Called
  * on Today focus, after every log, and after a settings change. No-op on web or
  * when reminders are disabled. The meal windows come straight from the user's

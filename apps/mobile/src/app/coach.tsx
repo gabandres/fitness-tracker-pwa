@@ -18,12 +18,13 @@ import { CoachMarkdown } from '@/components/CoachMarkdown';
 import { useCoach } from '@/hooks/useCoach';
 import { useAuth } from '@/lib/auth';
 import { CoachErrorCode, type CoachError, streamCoach } from '@/lib/coach';
+import { useIsOffline } from '@/lib/connectivity';
 import { track } from '@/lib/analytics';
 import { getConsultationQuota } from '@/lib/ledger';
 import { type I18nKey, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { FAB_BAND, font, radius, space } from '@/theme';
+import { font, radius, space } from '@/theme';
 
 type Status = 'idle' | 'streaming' | 'done' | 'error';
 
@@ -52,6 +53,11 @@ function errorKey(code: string | undefined): I18nKey {
 // app root, so this costs nothing new. Same props, so `behavior` stays
 // iOS-only: Android relies on windowSoftInputMode=adjustResize and must not
 // also be padded.
+//
+// This is a ROOT route pushed over the tabs on the native stack (UX_AUDIT
+// S18-14, `lib/root-stack.ts`), not a tab: no tab bar, no raised + over the
+// composer, swipe-back on iOS and hardware back on Android come from the
+// navigator. It was `(app)/coach.tsx` until 2026-09-28.
 export default function Coach() {
   const t = useT();
   const styles = useThemedStyles(createStyles);
@@ -60,6 +66,10 @@ export default function Coach() {
   const router = useRouter();
   const { user } = useAuth();
   const { logs, tdee, profile, dailyWeights } = useCoach();
+  // Every ask is a network call; offline it can only fail. Say so up front and
+  // keep Ask off, rather than letting the generic "Something went wrong" stand
+  // in for a missing connection.
+  const offline = useIsOffline();
 
   const [question, setQuestion] = useState('');
   const [status, setStatus] = useState<Status>('idle');
@@ -106,7 +116,7 @@ export default function Coach() {
 
   const ask = async (raw?: string) => {
     const q = (raw ?? question).trim();
-    if (!q || streaming || asking.current) return;
+    if (!q || streaming || asking.current || offline) return;
     asking.current = true;
     haptics.tap();
     setQuestion(q);
@@ -146,7 +156,8 @@ export default function Coach() {
     } catch (err) {
       const code = (err as CoachError)?.code;
       if (code === CoachErrorCode.CONSULTATION_QUOTA_EXCEEDED) setOverLimit(true);
-      setErrorMsg(t(errorKey(code)));
+      // A connection lost mid-stream is the one failure whose cause we know.
+      setErrorMsg(t(offline ? 'coach.offline' : errorKey(code)));
       setStatus('error');
     } finally {
       asking.current = false;
@@ -154,10 +165,11 @@ export default function Coach() {
   };
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
+    <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <TouchableOpacity
-          onPress={() => router.back()}
+          // A cold deep link (`ignia://coach`) has nothing beneath it to pop to.
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/(app)'))}
           hitSlop={10}
           accessibilityRole="button"
           accessibilityLabel={t('common.back')}
@@ -186,14 +198,21 @@ export default function Coach() {
             </Text>
           ) : null}
           <Text style={styles.disclaimer}>{t('coach.notMedical')}</Text>
+          {offline ? (
+            <Text style={styles.offline} accessibilityRole="alert" accessibilityLiveRegion="polite" testID="coach-offline">
+              {t('coach.offline')}
+            </Text>
+          ) : null}
 
           {/* Suggested prompts */}
           <View style={styles.chips}>
             {SUGGESTIONS.map((key) => (
               <TouchableOpacity
                 key={key}
-                style={styles.chip}
-                disabled={streaming}
+                style={[styles.chip, offline && styles.chipOff]}
+                disabled={streaming || offline}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: streaming || offline }}
                 onPress={() => ask(t(key))}
                 testID={`coach-suggest-${key}`}
               >
@@ -214,9 +233,11 @@ export default function Coach() {
             testID="coach-input"
           />
           <TouchableOpacity
-            style={[styles.askBtn, (streaming || !question.trim()) && styles.askBtnOff]}
+            style={[styles.askBtn, (streaming || offline || !question.trim()) && styles.askBtnOff]}
             onPress={() => ask()}
-            disabled={streaming || !question.trim()}
+            disabled={streaming || offline || !question.trim()}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: streaming || offline || !question.trim(), busy: streaming }}
             testID="coach-ask"
           >
             {streaming ? (
@@ -257,13 +278,15 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
     paddingVertical: space.md,
   },
   title: { fontSize: font.h2, fontWeight: '700', color: colors.ink },
-  // `FAB_BAND`: this route renders inside the Tabs navigator, under the tab
-  // bar and the raised + button (UX_AUDIT S18-14).
-  body: { paddingHorizontal: space.lg, paddingBottom: FAB_BAND },
+  // `space.xl`, not `FAB_BAND`: nothing floats over this screen any more —
+  // it is a root stack route, not a tab (UX_AUDIT S18-14).
+  body: { paddingHorizontal: space.lg, paddingBottom: space.xl },
   intro: { fontSize: font.body, color: colors.ink, lineHeight: 21 },
   counter: { fontSize: font.small, color: colors.teal, marginTop: space.xs, fontVariant: ['tabular-nums'] },
   disclaimer: { fontSize: font.tiny, color: colors.faint, marginTop: space.xs },
+  offline: { fontSize: font.small, color: colors.muted, marginTop: space.md, lineHeight: 20 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginTop: space.lg },
+  chipOff: { opacity: 0.4 },
   chip: {
     borderWidth: 1,
     borderColor: colors.line,

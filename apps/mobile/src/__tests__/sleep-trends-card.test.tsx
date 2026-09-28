@@ -12,7 +12,7 @@ jest.mock('expo-router', () => ({
 
 import { fireEvent, renderWithProviders as render } from '@/test-utils';
 import React from 'react';
-import { SLEEP_MIN_NIGHTS, SLEEP_WINDOW_DAYS, sleepWindow, type SleepEntry } from '@macrolog/core';
+import { SLEEP_MIN_NIGHTS, SLEEP_STRIP_CEILING_HOURS, SLEEP_WINDOW_DAYS, sleepWindow, type SleepEntry } from '@macrolog/core';
 import { SleepTrendsCard } from '@/components/SleepTrendsCard';
 import type { SleepTrends } from '@/hooks/useSleepTrends';
 
@@ -114,6 +114,14 @@ describe('state 2 — some nights, not enough', () => {
   it('captions the headline with the nights it actually has', async () => {
     const { getByText } = await render(<SleepTrendsCard sleep={cardState(5)} />);
     expect(getByText('a night, 5 nights')).toBeTruthy();
+  });
+
+  it('labels the strip axis like its two siblings — the ceiling on top, 0h at the baseline', async () => {
+    // Without an axis no bar height means anything: the headline says 6h 30m
+    // and nothing on the strip let you check it (UX_AUDIT S18, 2026-09-28).
+    const { getByTestId, getByText } = await render(<SleepTrendsCard sleep={cardState(5)} />);
+    expect(getByTestId('sleep-axis-max').props.children).toBe(`${SLEEP_STRIP_CEILING_HOURS}h`);
+    expect(getByText('0h')).toBeTruthy();
   });
 });
 

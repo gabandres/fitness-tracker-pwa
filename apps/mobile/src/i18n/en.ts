@@ -1678,6 +1678,25 @@ export const en = {
   'body.deleteWeighInBody': 'The {date} weigh-in is removed from your history and your measured burn.',
   'body.editWeighInA11y': 'Edit the {date} weigh-in',
   'body.deleteWeighInA11y': 'Delete the {date} weigh-in',
+  // S18 train/motion (2026-09-28)
+  'train.restNotify.title': 'Get a buzz when rest is over',
+  'train.restNotify.body': 'Ignia can send one notification when your rest timer ends — even if the screen is locked or you are in another app. Nothing else, and nothing scheduled while you are not training.',
+  'train.restNotify.allow': 'Allow',
+  'train.restNotify.notNow': 'Not now',
+  'connected.healthPrime.title': 'Before your phone asks',
+  'connected.healthPrime.body': 'The next screen is the system permission prompt. Here is exactly what Ignia does with it:',
+  'connected.healthPrime.reads': 'Reads: weight, sleep, water, steps, active energy and cardio workouts.',
+  'connected.healthPrime.writes': 'Writes: your weigh-ins, sleep, water, meals and finished workouts.',
+  'connected.healthPrime.privacy': 'Nothing leaves your phone except to your own Ignia account — never to a third party.',
+  'connected.healthPrime.continue': 'Continue',
+  'connected.healthPrime.notNow': 'Not now',
+  // S18 history/trends (2026-09-28)
+  'history.olderLoading': 'Loading older days…',
+  'trends.sleepAxisHours': '{h}h',
+  // S18 nav/speed-dial (2026-09-28)
+  'log.fabHint': 'Opens the food search. Long-press for scan and more.',
+  'log.moreA11y': 'More ways to log',
+  'coach.offline': "You're offline. The coach needs a connection — your logs are safe and Ask comes back when you are.",
 } as const;
 
 export type I18nKey = keyof typeof en;

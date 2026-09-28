@@ -1,6 +1,6 @@
-import { useState } from 'react';
 import { type DailyLog, type Profile, LOG_WINDOW_ROWS } from '@macrolog/core';
 import { useAuth } from '@/lib/auth';
+import { useCachedState } from '@/hooks/useCachedState';
 import { feedChannel, useLedgerFeed } from '@/hooks/useLedgerFeed';
 import { subscribeDailyWeights, subscribeProfile, subscribeRecentLogs } from '@/lib/ledger';
 
@@ -32,8 +32,10 @@ export interface CoreSnapshot {
   profile: Profile | null;
   /**
    * True once all three channels have delivered at least one snapshot and none
-   * has errored. A profile that comes back `null` counts — that is an answer
-   * ("this user has no profile doc"), not silence.
+   * has errored — OR once all three have painted from the disk cache, which is
+   * the last online session's answer to the same three queries. A profile that
+   * comes back `null` counts — that is an answer ("this user has no profile
+   * doc"), not silence.
    *
    * The raw fields above are safe to read either way: empty is an honest
    * reading of "nothing seen yet". What is NOT safe is a *derivation* over
@@ -52,9 +54,15 @@ export interface CoreSnapshot {
 export function useCoreSnapshot(label: string): CoreSnapshot {
   const { user } = useAuth();
   const uid = user?.uid;
-  const [logs, setLogs] = useState<DailyLog[]>([]);
-  const [weights, setWeights] = useState<Record<string, number>>({});
-  const [profile, setProfile] = useState<Profile | null>(null);
+  // The same three slices Today hydrates (`offline-cache.ts`) — these are the
+  // SAME queries, so the disk holds the same data. Trends and Body used to be
+  // the two tabs that booted on a bare spinner while Today painted at once
+  // (UX_AUDIT S18-13). The setters honour the provenance `useLedgerFeed`
+  // passes, so an offline listener's empty `fromCache` snapshot neither
+  // clobbers the paint nor poisons the cache.
+  const [logs, setLogs, logsFromCache] = useCachedState<DailyLog[]>(uid, 'logs', []);
+  const [weights, setWeights, weightsFromCache] = useCachedState<Record<string, number>>(uid, 'weights', {});
+  const [profile, setProfile, profileFromCache] = useCachedState<Profile | null>(uid, 'profile', null);
 
   // The gate, the `trackSubs` wrapping, the readiness record and the error
   // policy are `useLedgerFeed`'s; the three `subscribe*` calls stay this hook's
@@ -94,11 +102,17 @@ export function useCoreSnapshot(label: string): CoreSnapshot {
     deps: [uid],
   });
 
+  // A cache paint of all three is a complete last-session answer, and it is
+  // what turns a cold open — online but slow, or offline entirely — into data
+  // plus the `OfflineBanner` rather than a spinner. A partial paint (say, a
+  // profile with no logs slice yet) is not: `dailyTargets` over empty logs
+  // would render a seed target, which is the exact failure `loaded` guards.
+  const painted = logsFromCache && weightsFromCache && profileFromCache;
   return {
     logs,
     weights,
     profile,
-    loaded: !feed.error && feed.ready,
+    loaded: !feed.error && (feed.ready || painted),
     error: feed.error,
   };
 }

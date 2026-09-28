@@ -10,7 +10,7 @@ import { useAuth } from '@/lib/auth';
 import { formatDate } from '@/lib/date-format';
 import { enterUp } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { FAB_BAND, font, radius, space, type } from '@/theme';
+import { font, radius, space, type } from '@/theme';
 
 /**
  * The milestone archive — everything this account has on record.
@@ -39,6 +39,13 @@ import { FAB_BAND, font, radius, space, type } from '@/theme';
  * derived milestones are evaluated when the app next opens Today, and the date
  * is when Ignia noticed rather than when the act happened. The copy says
  * `Recorded {date}` and claims no more than that. See `useMilestones.ts`.
+ *
+ * ## It is a ROOT route, not a tab
+ *
+ * Pushed over the tabs on the native stack (UX_AUDIT S18-14,
+ * `lib/root-stack.ts`): no tab bar, no raised + over the last row, swipe-back
+ * on iOS and hardware back on Android. It was `(app)/milestones.tsx` until
+ * 2026-09-28.
  */
 /**
  * Month + day + year, no weekday and no time.
@@ -65,10 +72,11 @@ export default function MilestonesScreen() {
   const rows = sortMilestones(Object.keys(earned));
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
+    <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <TouchableOpacity
-          onPress={() => router.back()}
+          // A cold deep link (`ignia://milestones`) has nothing beneath it to pop to.
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/(app)'))}
           hitSlop={10}
           accessibilityRole="button"
           accessibilityLabel={t('common.back')}
@@ -135,12 +143,10 @@ const makeStyles = ({ colors }: Theme) =>
       color: colors.ink,
     },
     headerSpacer: { width: 26 },
-    // `FAB_BAND`, not `space.xl`: this route lives inside `(app)`, so the tab
-    // bar AND the floating + button render over it. Caught on the device with
-    // one row — with a full archive the last entry would sit under the button,
-    // which is the failure that has now hit Today (UX_AUDIT F5), the Trends
-    // Coach row (#96) and the fasting card footer.
-    body: { paddingHorizontal: space.xl, paddingBottom: FAB_BAND, gap: space.md },
+    // `space.xl` is enough here: nothing floats over this screen since it left
+    // the tab group (S18-14). The `FAB_BAND` rule still applies to every tab —
+    // `fab-band-clearance.test.ts` — this simply is not one any more.
+    body: { paddingHorizontal: space.xl, paddingBottom: space.xl, gap: space.md },
     subtitle: { fontSize: font.body, color: colors.muted, marginBottom: space.sm },
     empty: { fontSize: font.body, color: colors.muted, lineHeight: 24 },
     row: {
