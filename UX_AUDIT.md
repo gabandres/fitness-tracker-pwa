@@ -824,29 +824,29 @@ Usability 25 · A11y 20 · Platform 15 · Visual 15 · Perf 10 · Copy 10 · Del
 copy and motion already sit at 8–9; a11y is 5 across all three groups for the
 same five reasons. Fixing S18-1..5 alone is worth ~10 points.
 
-### P1 — accessibility (every group)
-- **S18-1** `accessibilityRole`/`accessibilityState` missing on text-only pressables and selection chips: EntrySheet (1 of 20 has a role), FoodSearch, ConfirmSheet (0 of 2), meal-type chips, onboarding goal/sex/activity cards, Settings units/day-start/theme/language segments, Trends `PanelTabs`. `daily-targets.tsx` radio rows are the pattern. Extend `a11y-labels.test.ts` past icon-only controls.
-- **S18-2** `colors.faint` is **2.40:1** on light paper (dark 4.16:1) while `theme.ts` claims AA; it is the inactive tab colour, the Coach disclaimer, every chart legend/axis, and several sentences. Darken to ≈`#78716c`/`#8f887d` or move sentences to `muted`.
-- **S18-3** Inputs without accessible names: sign-in name/email/password, refine ft/in/age, the 72-pt onboarding weight, Train set-row weight/reps (template editor already has the `train.set*A11y` keys); Done box needs `role="checkbox"` + `checked`.
-- **S18-4** Validation errors are plain `<Text>`, never announced (`OfflineBanner` is the app's only live region). `accessibilityLiveRegion="polite"` + `role="alert"` on every error slot.
-- **S18-5** Charts have no text alternative (budget strip, `Sparkline`, sleep strip); `BottomSheet` lacks `accessibilityViewIsModal` and a labelled backdrop; hero `CountUpText` is a `TextInput` VoiceOver reads as an edit box; History calendar cells unlabelled.
+### Shipped 2026-09-28 (iOS OTA `b2d0205b…` on build 67; Android with vc 46)
+S18-1..S18-12, S18-15, S18-16 and the copy half of S18-17 shipped in `329bf0d7`
++ `b4e9a535` (`CHANGELOG.md` 2026-09-28). Entries deleted per the housekeeping
+rule; the score above is the pre-ship baseline. **Re-score after the next audit**
+— the expected lift from the a11y block alone is ~10 points.
 
-### P1 — behaviour
-- **S18-6** Destructive taps with no confirm and no undo: delete a logged entry (`EntrySheet.tsx:744`), delete presets/My Foods in Manage mode, **Discard live workout** (`train.tsx:1160`), sign-out from onboarding's top-right slot. Route through `confirm({destructive:true})` or add a 5-s Undo toast (`addLogWithId` makes re-add cheap).
-- **S18-7** `today.loadErr` / `train.loadErr` say "Pull to retry" — there is **no `RefreshControl` anywhere**; Trends/Body/History error lines have no action. Add Retry (reuse `common.retry`) and fix the copy in three locales.
-- **S18-8** Units ignore the unit system: water is hard-coded `fl oz` with 8/16/24 pills (`DailyMetrics.tsx:242`; pt-BR is metric); height is ft/in only in onboarding and refine (a metric user typing 175 is swallowed by `maxLength=1`).
-- **S18-9** **No age attestation in mobile onboarding.** §S13 marks it done, but that was the retired web wizard; `ageConfirmedAt` is never written and the age field is on a skippable step. Rules already accept the field.
-- **S18-10** Rest timer: the deadline recompute shipped in the 09-28 sweep; a local notification on expiry still needs `expo-notifications` scheduling (next binary).
-- **S18-11** Onboarding weight has no plausibility band (`weightBoundsFor()` exists in core); "1800" builds a plan or dies at rules two steps later.
-
-### P2
-- **S18-12** Offline: `OfflineBanner` is mounted only on Today; Settings writes hang silently; queued adds give no receipt though `offline.queued` exists in all locales and is used nowhere.
-- **S18-13** History is capped at 400 rows but the calendar pages back forever, rendering older months as empty; History and Trends/Body boot on a bare spinner with no cached paint (Today has one).
-- **S18-14** Coach and Milestones render inside the Tabs navigator (tab bar visible, hand-made back chevron with no role, Coach body under the FAB — `FAB_BAND` not applied).
-- **S18-15** Touch targets 26–36 pt on the highest-frequency controls (fast/sleep/water pills, quantity stepper, Settings steppers, Done box, rest bar +30s/Skip).
-- **S18-16** Body history rows are read-only: no edit/delete of a past weigh-in, so a typo bends the projection and measured TDEE permanently.
-- **S18-17** Sleep legend says "your average" over a median line in three languages; `HeaderAvatar` a11y label is hard-coded English; residual 🔥 emoji and `P/C/F` codes; `✓` dingbat in verify-email.
-- **S18-18** Speed-dial makes the primary action two taps; the manual satellite's pencil icon contradicts its "Search foods" label.
+### Still open
+- **S18-13 (half)** History paging: the "older days aren't loaded" note ships, but
+  the 400-row window still does not page older months on demand, and History
+  still boots on a spinner with no cached paint (Today has one via
+  `useCachedState`; `offline-cache.ts` already lists a `logs` slice).
+- **S18-14 (half)** Coach and Milestones still render inside the Tabs navigator
+  (tab bar visible with no tab selected, no iOS swipe-back). Back chevrons are
+  labelled and the FAB band is applied; the move to a stack outside `(app)` is
+  the remaining work.
+- **S18-17 (half)** `LogSpeedDial`'s manual satellite still pairs a pencil icon
+  with "Search foods"; `Flame` has no tint prop, so the streak chip shows the
+  brand ember rather than `habitFasting`.
+- **S18-18** Speed-dial makes the primary action two taps. Single tap → sheet,
+  long-press → scan is the proposal; not started.
+- **S18-10 (native half)** The rest-timer local notification ships (JS,
+  `expo-notifications` already linked) but only fires when notification
+  permission was already granted; there is no priming for it.
 
 **Preserve** (all three reviews, independently): motion accessible by
 construction through `lib/motion.tsx`; durable offline-first adds with honest

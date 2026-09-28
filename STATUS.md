@@ -24,7 +24,7 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 
 | Surface | State |
 |---|---|
-| **Public App Store (iOS)** | **1.2.3 / build 64, `READY_FOR_SALE`, released 2026-09-06 00:01 UTC** (iTunes lookup + ASC API, read 2026-09-07). Runtime `52802bba…` — **HEAD no longer produces it since `7f25177c` (1.2.4, now in review, §3), so publish build-64 OTAs from `98fb0646` or earlier**; the first publish on it is the 2026-09-07 IGNIA-MOBILE-V fix (`apps/mobile/AGENTS.md`). Carries the re-shot screenshots (en-US 5, es-MX 5) and `usesIdfa: false`. **Available in 175 of 175 territories** since 2026-08-28 (DSA trader declaration filed). Play matched on 2026-09-03: 158 of Play's attainable 158 |
+| **Public App Store (iOS)** | **1.2.4 / build 67, LIVE since 2026-09-28** (owner's word; `app-version.json` read `1.2.4` at 12:17 UTC — its `latestBuild` still says 64 because Apple's public lookup carries no build number). Runtime **`1b239e44…`**, which HEAD reproduces on `ignia-mac`; the first OTA on it is the 09-28 S18 ship (`b2d0205b…`). Build 64 / `52802bba…` users get 1.2.4 through the store update; no more build-64 OTAs. Carries the re-shot screenshots (en-US 5, es-MX 5) and `usesIdfa: false`. **Available in 175 of 175 territories** since 2026-08-28 (DSA trader declaration filed). Play matched on 2026-09-03: 158 of Play's attainable 158 |
 | **TestFlight** | **build 64 / 1.2.3 (runtime `52802bba…`) is in the EXTERNAL *Public Beta Testers* group, `IN_BETA_TESTING`** (read 2026-09-08 via `asc-testflight-external.mjs --build 64`; it was `WAITING_FOR_BETA_REVIEW` from 09-05). Build 63 is in the group but can never reach an external tester — a build of an already-released version stays `READY_FOR_BETA_SUBMISSION` forever. **Read the group's builds AND each build's `externalBuildState`, never assume:** `VALID` + in the group ≠ installable |
 | **Play production + alpha** | **LIVE — vc 45 / 1.2.3 (runtime `15c1cfc8…`, the IGNIA-MOBILE-V fix, plus the Ember-on-Ink icon, feature graphic and five re-shot screenshots), production 100% + alpha, released 2026-09-07 ~22:46 UTC** (store page reads 1.2.3 / *Updated on Sep 7, 2026*, read 2026-09-08). The review took ~7.5 h from the 15:05 UTC restart. **Nothing is in review; the next submit can go whenever there is a change to ship.** **The tracks API cannot tell "in review" from "live"** — the Console app row or the store page is the read. The 09-03 Data safety amendment (*Device or other IDs*) is PUBLISHED — it rode the vc 45 review; Publishing overview read *nothing in review, last published Sep 7* on 2026-09-08. `eas submit` has failed and exited 0 three times (lost Play edit on bundles > 60 MB; a missing health declaration) — **`play-upload-bundle.mjs` is the upload path; confirm every submit against the tracks API** |
 | **Web `ignia.fit`** | **Shell + `/admin` — the web logging app was RETIRED 2026-08-30 (ADR-0036).** 113 prerendered pages, EN + es-PR. Links BOTH stores with the official badges since 2026-09-08 (`PLAY_STORE_LIVE = true`; Google's en / es-419 badge artwork on the landing, `/vs`, `/calculator`, the retired and auth-action pages, and `/download`). **`/download` said "Android coming soon — email me" until 2026-09-08** — this row claimed no such copy remained; grep `public/` as well as `src/` before repeating that. `/app` and the old tabs render a "moved to the apps" page; a safety worker evicts old PWA installs. SEO pages and `/u/**` are KEPT, owner-ratified |
@@ -79,13 +79,12 @@ Android does not, and **cannot be published from `ignia-mac`**: the live
 Android binary is Windows-built on `15c1cfc8…` and this Mac computes a
 different Android hash, so a publish from here reaches nobody
 (`guard_eas_update.py` enforces it). **Publish it from the Windows workstation
-at `2227698c`.** Everything else on `main` is delivered on both — **except the
-2026-09-28 review sweep** (`28a24f8d`..`b0a4ae40`: 31 mobile fixes, 7 in
-core/functions; `CHANGELOG.md`), which is in NO binary and NO OTA on either
-platform. The functions half (`/u/<slug>` weights, admin delete-user erasure)
-needs `firebase deploy --only functions`. The user-visible mobile ones: comma
-decimals, iOS Apple-Watch cardio import, Health Connect paging, rest timer
-under lock, repeat-yesterday under a 3 AM boundary.
+at `2227698c`.** Everything else on `main` is delivered on iOS: **the 2026-09-28
+sweep + S18 ship (`28a24f8d`..`cb4a287a`) is LIVE on iOS as OTA `b2d0205b…` on
+the 1.2.4 runtime `1b239e44…`** (1.2.4 went live the same morning; functions
+and rules deployed). **Android has NONE of it** — neither `2227698c` nor the
+09-28 ship — until vc 46 (Mac-built from `cb4a287a`) is on Play; see the
+fingerprint-ledger row for where that build stands.
 
 Re-derive rather than trust this line: `git log --oneline` against the newest
 OTA row in `apps/mobile/docs/fingerprint-ledger.md`, and
@@ -119,28 +118,25 @@ host setup and traps are in `.maestro/regression/README.md`.
 deleted and its outcome goes to `CHANGELOG.md`.
 
 
-### iOS 1.2.4 / build 67 — `WAITING_FOR_REVIEW` since 2026-09-23 ~04:30 UTC
+### iOS 1.2.4 / build 67 — LIVE 2026-09-28; Android cutover in flight
 
-Carries the Dynamic Island fix (a running fast's compact timer stretched the
-pill across the status bar and hid the clock — user report 2026-09-22) and
-**Expo scene support**, which is what lets an Xcode 27 build launch on iOS 27.
-`releaseType: AFTER_APPROVAL`, so it goes live on approval. Runtime
-**`1b239e448f60b8cb3b147ac232202ef7f7e25b27`** (read from the `.ipa`).
+1.2.4 carries the Dynamic Island fix and Expo scene support (iOS 27 launch);
+`CHANGELOG.md` 2026-09-23. Runtime `1b239e44…`. **Look at the island on a real
+iPhone** — `simctl` never drew it. The lockfile rewrite on the Mac stands:
+**Windows must `npm ci` before its next build.**
 
-- **QA:** 21/21 on `Ignia-QA` (**iOS 27.0**) with flow 11's timing fix, plus
-  11–13 on `Ignia-QA-26`. The Live Activity started and iOS re-laid the status
-  bar around it with the clock still showing, but `simctl` does not draw the
-  island itself — **look at it on a real iPhone once 1.2.4 is live.**
-- **The lockfile was rewritten on the Mac** (`npx expo install --fix`: expo
-  57.0.24, RN 0.86.3, every `expo-*` patch) — owner's call, to ship tonight.
-  Windows must `npm ci` before its next build, not `npm install`.
-- **Both fingerprints moved at `7f25177c`** (version bump + deps). Until 1.2.4
-  is live, an iOS OTA from HEAD reaches nobody; publish build-64 fixes from
-  `98fb0646` or earlier.
-- **Android is owed a binary AND the 09-22 OTA.** The OTA must be published
-  from Windows at **`98fb0646`** (the last commit on vc 45's `15c1cfc8…`
-  tree — `98fb0646` only touched `targets/`, which is not hashed), NOT from
-  HEAD. Then cut vc 46 from HEAD so Android picks up 1.2.4.
+- **Android**: vc 46 is being cut on `ignia-mac` from `cb4a287a` (`eas build
+  --local -p android --profile production`, launched 2026-09-28 12:58 UTC, log
+  `~/android-build.log`). It is the **first Mac-built Android binary**, so when
+  it reaches Play the cutover closes: flip `OWNER["android"]` in
+  `guard_eas_update.py`, its rows in `test_guards.py`, and drop the Windows
+  section of `build-android`. Until it is live, Android users hold vc 45 with
+  neither `2227698c` nor the 09-28 ship, and **no Android OTA can be published
+  from anywhere useful** (Windows would need `98fb0646`, which predates both).
+- **Device QA host**: the OnePlus 8T is on adb over Tailscale from this Mac —
+  `apps/mobile/scripts/phone.sh` attaches, wakes and unlocks it and prints the
+  adb id (ported from PoolFlow 2026-09-28; same phone, serial `49bae1ea`).
+  It holds Play-installed vc 45 (`installerPackageName=com.android.vending`).
 
 ### `ExerciseLibrarySheet` rows are untappable on iOS — cause UNKNOWN
 
