@@ -18,10 +18,13 @@ import {
   type Sex,
   activityMultiplier as activityMultiplierFor,
   basalMifflinStJeor,
+  toDisplayMeasure,
   isPlausibleAge,
   isPlausibleHeightIn,
   paceReality,
 } from '@macrolog/core';
+import { heightBandFor, parseHeightInput } from '@/app/onboarding';
+import { useUnitSystem } from '@/lib/use-unit-system';
 import { useActivitySuggestion } from '@/lib/activity-suggestion';
 import { useAuth } from '@/lib/auth';
 import { useDailyTargets } from '@/hooks/useDailyTargets';
@@ -67,9 +70,17 @@ export default function RefineTargets() {
   // already on the suggested bucket, so accepting is just Save.
   const { suggested } = useLocalSearchParams<{ suggested?: ActivityLevel }>();
 
+  const unitSystem = useUnitSystem();
+  const metric = unitSystem === 'metric';
+
   const [sex, setSex] = useState<Sex | null>(profile?.sex ?? null);
   const [feet, setFeet] = useState(profile?.heightIn ? String(Math.floor(profile.heightIn / 12)) : '');
   const [inches, setInches] = useState(profile?.heightIn ? String(profile.heightIn % 12) : '');
+  // Metric height is ONE `cm` field (S18-8) — same parser and band as
+  // onboarding's body step, so the two screens cannot disagree about it.
+  const [heightCm, setHeightCm] = useState(
+    profile?.heightIn ? String(Math.round(toDisplayMeasure(profile.heightIn, 'metric'))) : '',
+  );
   const [age, setAge] = useState(profile?.age != null ? String(profile.age) : '');
   const [activity, setActivity] = useState<ActivityLevel | null>(
     suggested ?? profile?.activityLevel ?? null,
@@ -78,9 +89,8 @@ export default function RefineTargets() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const ft = intOrNull(feet);
-  const inch = intOrNull(inches);
-  const heightIn = ft != null && inch != null ? ft * 12 + inch : null;
+  const heightIn = parseHeightInput(unitSystem, { cm: heightCm, feet, inches });
+  const heightTyped = metric ? heightCm.trim() !== '' : feet.trim() !== '' || inches.trim() !== '';
   const ageNum = intOrNull(age);
 
   // Bands live in `@macrolog/core/profile-bounds`, not here: onboarding's body
@@ -209,7 +219,13 @@ export default function RefineTargets() {
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={10} testID="refine-back">
+        <TouchableOpacity
+          onPress={() => router.back()}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.back')}
+          testID="refine-back"
+        >
           <Ionicons name="chevron-back" size={26} color={colors.ink} />
         </TouchableOpacity>
         <Text style={styles.title}>{t('refine.title')}</Text>
@@ -230,6 +246,8 @@ export default function RefineTargets() {
                     key={s}
                     style={[styles.segBtn, on && styles.segBtnOn]}
                     onPress={() => { haptics.tap(); setSex(s); }}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: on }}
                     testID={`refine-sex-${s}`}
                   >
                     <Text style={[styles.segText, on && styles.segTextOn]}>{s === 'male' ? t('refine.male') : t('refine.female')}</Text>
@@ -241,21 +259,35 @@ export default function RefineTargets() {
 
           <View style={styles.field}>
             <Text style={styles.label}>{t('refine.height')}</Text>
-            <View style={styles.row}>
-              <View style={styles.unitInput}>
-                <TextInput style={styles.input} placeholder="5" placeholderTextColor={colors.faint} keyboardType="numeric" value={feet} onChangeText={setFeet} testID="refine-feet" />
-                <Text style={styles.unit}>{t('refine.feet')}</Text>
+            {metric ? (
+              <View style={styles.row}>
+                <View style={styles.unitInput}>
+                  <TextInput style={styles.input} placeholder="175" placeholderTextColor={colors.faint} keyboardType="numeric" value={heightCm} onChangeText={setHeightCm} maxLength={5} accessibilityLabel={t('onboarding.heightCm')} testID="refine-height-cm" />
+                  <Text style={styles.unit}>cm</Text>
+                </View>
               </View>
-              <View style={styles.unitInput}>
-                <TextInput style={styles.input} placeholder="10" placeholderTextColor={colors.faint} keyboardType="numeric" value={inches} onChangeText={setInches} testID="refine-inches" />
-                <Text style={styles.unit}>{t('refine.inches')}</Text>
+            ) : (
+              <View style={styles.row}>
+                <View style={styles.unitInput}>
+                  <TextInput style={styles.input} placeholder="5" placeholderTextColor={colors.faint} keyboardType="numeric" value={feet} onChangeText={setFeet} accessibilityLabel={t('refine.feet')} testID="refine-feet" />
+                  <Text style={styles.unit}>{t('refine.feet')}</Text>
+                </View>
+                <View style={styles.unitInput}>
+                  <TextInput style={styles.input} placeholder="10" placeholderTextColor={colors.faint} keyboardType="numeric" value={inches} onChangeText={setInches} accessibilityLabel={t('refine.inches')} testID="refine-inches" />
+                  <Text style={styles.unit}>{t('refine.inches')}</Text>
+                </View>
               </View>
-            </View>
+            )}
+            {heightTyped && !heightValid ? (
+              <Text style={styles.error} accessibilityRole="alert" accessibilityLiveRegion="polite" testID="refine-height-error">
+                {t('onboarding.heightRange', heightBandFor(unitSystem, { ft: t('refine.feet'), in: t('refine.inches') }))}
+              </Text>
+            ) : null}
           </View>
 
           <View style={styles.field}>
             <Text style={styles.label}>{t('refine.age')}</Text>
-            <TextInput style={[styles.input, styles.ageInput]} placeholder="30" placeholderTextColor={colors.faint} keyboardType="numeric" value={age} onChangeText={setAge} testID="refine-age" />
+            <TextInput style={[styles.input, styles.ageInput]} placeholder="30" placeholderTextColor={colors.faint} keyboardType="numeric" value={age} onChangeText={setAge} accessibilityLabel={t('refine.age')} testID="refine-age" />
           </View>
 
           <View style={styles.field}>
@@ -268,6 +300,8 @@ export default function RefineTargets() {
                     key={a.value}
                     style={[styles.activityRow, on && styles.activityRowOn]}
                     onPress={() => chooseActivity(a.value)}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: on }}
                     testID={`refine-activity-${a.value}`}
                   >
                     <Text style={[styles.activityText, on && styles.activityTextOn]}>{t(a.labelKey)}</Text>
@@ -323,13 +357,13 @@ export default function RefineTargets() {
           <View style={styles.field}>
             <Text style={styles.label}>{t('refine.pace')}</Text>
             <View style={styles.paceRow}>
-              <TouchableOpacity style={styles.step} onPress={() => setPace((p) => Math.max(0, Math.round((p - 0.25) * 100) / 100))} testID="refine-pace-minus">
+              <TouchableOpacity style={styles.step} onPress={() => setPace((p) => Math.max(0, Math.round((p - 0.25) * 100) / 100))} accessibilityRole="button" accessibilityLabel={t('settings.lower')} testID="refine-pace-minus">
                 <Text style={styles.stepText}>−</Text>
               </TouchableOpacity>
               <Text style={styles.paceValue} testID="refine-pace">
                 {pace === 0 ? t('refine.maintain') : `${pace.toFixed(2)} ${t('refine.paceUnit')}`}
               </Text>
-              <TouchableOpacity style={styles.step} onPress={() => setPace((p) => Math.min(2, Math.round((p + 0.25) * 100) / 100))} testID="refine-pace-plus">
+              <TouchableOpacity style={styles.step} onPress={() => setPace((p) => Math.min(2, Math.round((p + 0.25) * 100) / 100))} accessibilityRole="button" accessibilityLabel={t('settings.raise')} testID="refine-pace-plus">
                 <Text style={styles.stepText}>+</Text>
               </TouchableOpacity>
             </View>
@@ -348,7 +382,11 @@ export default function RefineTargets() {
             ) : null}
           </View>
 
-          {error ? <Text style={styles.error}>{error}</Text> : null}
+          {error ? (
+            <Text style={styles.error} accessibilityRole="alert" accessibilityLiveRegion="polite" testID="refine-error">
+              {error}
+            </Text>
+          ) : null}
         </ScrollView>
 
         <View style={styles.footer}>

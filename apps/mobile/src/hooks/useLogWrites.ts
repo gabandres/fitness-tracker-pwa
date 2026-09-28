@@ -8,7 +8,7 @@ import {
 import { exportNutrition } from '@/lib/health-sync';
 import { recordScanMilestone } from '@/lib/first-scan';
 import { useAuth } from '@/lib/auth';
-import { addLogDurably } from '@/lib/pending-logs';
+import { addLogDurably, type WriteOutcome } from '@/lib/pending-logs';
 import { track } from '@/lib/analytics';
 import { takeLogTimerSecs } from '@/lib/log-timer';
 import {
@@ -38,7 +38,9 @@ import {
  * gets it.
  */
 export interface LogWrites {
-  addEntry: (entry: LogEntry) => Promise<void>;
+  /** Resolves with the durable-write outcome (`'queued'` when parked offline)
+   *  so the screen can show a receipt; `undefined` when signed out. */
+  addEntry: (entry: LogEntry) => Promise<WriteOutcome | undefined>;
   updateEntry: (id: string, entry: LogEntry) => Promise<void>;
   deleteEntry: (id: string) => Promise<void>;
   addPreset: (preset: Omit<MealPreset, 'id'>) => Promise<void>;
@@ -92,6 +94,9 @@ export function useLogWrites(): LogWrites {
       // photo-scan surface inherits the award instead of having to remember it.
       // Not awaited, and it cannot throw — see `first-scan.ts`.
       void recordScanMilestone(uid, entry.source);
+      // The screen shows `offline.queued` on a parked add (UX_AUDIT S18-12);
+      // without this return the receipt is inert.
+      return outcome;
     },
     [uid],
   );

@@ -71,6 +71,17 @@ export function publishActiveWorkout(
   void write.catch(() => {});
 }
 
+/**
+ * Drop the in-memory signal on sign-out. Module state outlives the session:
+ * without this, an account that signed out mid-workout left the dot lit for
+ * whoever signed in next until Train mounted and overwrote it. The uid-scoped
+ * AsyncStorage copy is left alone — it is keyed to the account that owns it,
+ * and `hydrateActiveWorkout` only ever reads the signed-in uid's key.
+ */
+export function clearActiveWorkoutSignal(): void {
+  emit(EMPTY);
+}
+
 /** Restore the cached hint at app start, before Train has ever mounted. Never
  *  overwrites a signal `useTrain` has already published — the live value is
  *  always the truth, and a slow disk read must not resurrect a finished

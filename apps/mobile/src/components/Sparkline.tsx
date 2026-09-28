@@ -12,13 +12,18 @@ interface Props {
   width?: number;
   height?: number;
   color?: string;
+  /** The chart's text alternative — the caller knows what the series IS
+   *  ("Weight, last 30 days, 82 to 80 kg, trending down"); this component
+   *  only knows it has numbers. Without it the SVG is silent to VoiceOver
+   *  (S18-5). */
+  accessibilityLabel?: string;
 }
 
 /** Hand-rolled sparkline (RN-svg port of the PWA ui-sparkline): a quadratic-
  *  smoothed line through the values with a dot at the latest point and an
  *  optional dashed projection on the same y-scale. <2 points → a muted dashed
  *  baseline, so the caller keeps a stable footprint regardless of data. */
-function SparklineImpl({ values, projection = [], width = 280, height = 56, color }: Props) {
+function SparklineImpl({ values, projection = [], width = 280, height = 56, color, accessibilityLabel }: Props) {
   const { colors } = useTheme();
   const stroke = color ?? colors.ink;
   const PAD = 4;
@@ -64,7 +69,11 @@ function SparklineImpl({ values, projection = [], width = 280, height = 56, colo
   }, [values, projection, width, height]);
 
   return (
-    <View>
+    <View
+      accessible={accessibilityLabel != null}
+      accessibilityRole={accessibilityLabel != null ? 'image' : undefined}
+      accessibilityLabel={accessibilityLabel}
+    >
       <Svg width={width} height={height}>
         {hasData ? (
           <>

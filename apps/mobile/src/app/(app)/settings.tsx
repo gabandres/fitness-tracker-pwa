@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { type Href, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Platform, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
@@ -37,6 +37,9 @@ import { isTipIapAvailable } from '@/lib/purchases';
 import { FEATURES } from '@/lib/features';
 import { APP_STORE_REVIEW_URL } from '@/lib/reviewPrompt';
 import { openExternal } from '@/lib/open-external';
+import { confirm } from '@/components/ConfirmSheet';
+import { OfflineBanner } from '@/components/OfflineBanner';
+import { useIsOffline } from '@/lib/connectivity';
 import { TipSheet } from '@/components/TipSheet';
 import { QuickAddCard } from '@/components/QuickAddCard';
 import { WatchDiagnosticsCard, watchDiagnosticsAvailable } from '@/components/WatchDiagnosticsCard';
@@ -117,10 +120,27 @@ export default function Settings() {
   const targetsView = useDailyTargets();
   const targets = targetsView.loaded ? targetsView.targets : null;
   const router = useRouter();
+  // Firestore writes from this screen hang silently with no network (S18-12):
+  // the SDK queues them, the segment never moves, and nothing says why. The
+  // banner says why; the write controls below are disabled while it is true.
+  // Theme and reminders are device-local and stay live.
+  const offline = useIsOffline();
   const [savingUnit, setSavingUnit] = useState(false);
   const [savingDayStart, setSavingDayStart] = useState(false);
   const [reminderEnabled, setReminderEnabled] = useState(false);
-  const [meals, setMeals] = useState<MealReminderSettings>(DEFAULT_MEAL_REMINDERS);
+  const [meals, setMealsState] = useState<MealReminderSettings>(DEFAULT_MEAL_REMINDERS);
+  // The current value, readable OUTSIDE the render closure. `bumpMealHour`
+  // used to read `meals` from the closure it was created in, so two taps
+  // inside one render (a fast double-tap on +) both computed from the same
+  // starting hour and the second overwrote the first — one step lost. A ref
+  // rather than a functional `setState` because the persist call must see the
+  // same `next` the state does, and side effects inside an updater run twice
+  // under StrictMode.
+  const mealsRef = useRef<MealReminderSettings>(DEFAULT_MEAL_REMINDERS);
+  function setMeals(next: MealReminderSettings) {
+    mealsRef.current = next;
+    setMealsState(next);
+  }
   const [exporting, setExporting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showTip, setShowTip] = useState(false);
@@ -244,21 +264,33 @@ export default function Settings() {
 
   /** Persist one meal's row and reschedule. Every edit rewrites the whole
    *  schedule because `syncReminders` cancels and re-adds the full set — there
-   *  is no per-notification update path. */
+   *  is no per-notification update path. Optimistic: the row moves at once
+   *  and is put BACK if the write fails, so the screen never shows an hour
+   *  the OS schedule does not hold. */
   async function applyMeals(next: MealReminderSettings) {
+    const prev = mealsRef.current;
     setMeals(next);
-    await setMealReminders(next);
-    if (reminderEnabled) await syncReminders(NEUTRAL_STATE, t);
+    try {
+      await setMealReminders(next);
+      if (reminderEnabled) await syncReminders(NEUTRAL_STATE, t);
+    } catch (e) {
+      // Only roll back if nothing newer has landed meanwhile — a later tap's
+      // value must not be clobbered by an earlier tap's failure.
+      if (mealsRef.current === next) setMeals(prev);
+      console.warn('settings: meal reminder write failed', e);
+    }
   }
 
   async function toggleMeal(key: MealKey) {
     haptics.tap();
-    await applyMeals({ ...meals, [key]: { ...meals[key], enabled: !meals[key].enabled } });
+    const cur = mealsRef.current;
+    await applyMeals({ ...cur, [key]: { ...cur[key], enabled: !cur[key].enabled } });
   }
 
   async function bumpMealHour(key: MealKey, delta: number) {
-    const hour = (meals[key].hour + delta + 24) % 24;
-    await applyMeals({ ...meals, [key]: { ...meals[key], hour } });
+    const cur = mealsRef.current;
+    const hour = (cur[key].hour + delta + 24) % 24;
+    await applyMeals({ ...cur, [key]: { ...cur[key], hour } });
   }
 
   // Calorie floor (kcal safety clamp). Seeded from the profile (1500 default
@@ -336,6 +368,21 @@ export default function Settings() {
     await setPreferredLocale(user.uid, next);
   }
 
+  /** Sign-out asks first (S18-6). Not the account-deletion double `Alert` —
+   *  this is reversible, so the branded sheet is the right weight. */
+  function confirmSignOut() {
+    haptics.tap();
+    confirm({
+      title: t('settings.signOut'),
+      body: t('settings.signOutConfirm'),
+      confirmText: t('settings.signOut'),
+      destructive: true,
+      onConfirm: () => {
+        signOut().catch((e) => console.warn('signOut failed', e));
+      },
+    });
+  }
+
   async function toggleDigest(next: boolean) {
     if (!user) return;
     haptics.tap();
@@ -346,11 +393,20 @@ export default function Settings() {
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={10} testID="settings-back">
+        <TouchableOpacity
+          onPress={() => router.back()}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.back')}
+          testID="settings-back"
+        >
           <Ionicons name="chevron-back" size={26} color={colors.ink} />
         </TouchableOpacity>
         <Text style={styles.title}>{t('nav.settings')}</Text>
         <View style={styles.headerSpacer} />
+      </View>
+      <View style={styles.bannerSlot}>
+        <OfflineBanner />
       </View>
 
       <ScrollView contentContainerStyle={styles.body}>
@@ -626,8 +682,11 @@ export default function Settings() {
               return (
                 <TouchableOpacity
                   key={u}
-                  style={[styles.segmentBtn, on && styles.segmentBtnOn]}
+                  style={[styles.segmentBtn, on && styles.segmentBtnOn, offline && styles.segmentBtnOff]}
                   onPress={() => pickUnit(u)}
+                  disabled={offline || savingUnit}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: on, disabled: offline || savingUnit }}
                   testID={`settings-unit-${u}`}
                 >
                   <Text style={[styles.segmentText, on && styles.segmentTextOn]}>
@@ -648,9 +707,11 @@ export default function Settings() {
               return (
                 <TouchableOpacity
                   key={h}
-                  style={[styles.segmentBtn, on && styles.segmentBtnOn]}
+                  style={[styles.segmentBtn, on && styles.segmentBtnOn, offline && styles.segmentBtnOff]}
                   onPress={() => pickDayStart(h)}
-                  disabled={savingDayStart}
+                  disabled={offline || savingDayStart}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: on, disabled: offline || savingDayStart }}
                   testID={`settings-day-start-${h}`}
                 >
                   <Text style={[styles.segmentText, on && styles.segmentTextOn]}>
@@ -682,6 +743,8 @@ export default function Settings() {
                     haptics.tap();
                     setPreference(opt.value);
                   }}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: on }}
                   testID={`settings-theme-${opt.value}`}
                 >
                   <Text style={[styles.segmentText, on && styles.segmentTextOn]}>{t(opt.labelKey)}</Text>
@@ -692,14 +755,18 @@ export default function Settings() {
         </View>
 
         <View style={styles.card}>
+          <Text style={styles.rowLabel}>{t('settings.language')}</Text>
           <View style={styles.segment}>
             {LANGUAGES.map((l) => {
               const on = locale === l.value;
               return (
                 <TouchableOpacity
                   key={l.value}
-                  style={[styles.segmentBtn, on && styles.segmentBtnOn]}
+                  style={[styles.segmentBtn, on && styles.segmentBtnOn, offline && styles.segmentBtnOff]}
                   onPress={() => pickLanguage(l.value)}
+                  disabled={offline}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: on, disabled: offline }}
                   testID={`settings-lang-${l.value}`}
                 >
                   <Text style={[styles.segmentText, on && styles.segmentTextOn]}>{l.label}</Text>
@@ -737,6 +804,8 @@ export default function Settings() {
                         <TouchableOpacity
                           style={styles.step}
                           onPress={() => bumpMealHour(key, -1)}
+                          accessibilityRole="button"
+                          accessibilityLabel={t('settings.earlier')}
                           testID={`reminder-${key}-hour-minus`}
                         >
                           <Text style={styles.stepText}>−</Text>
@@ -747,6 +816,8 @@ export default function Settings() {
                         <TouchableOpacity
                           style={styles.step}
                           onPress={() => bumpMealHour(key, 1)}
+                          accessibilityRole="button"
+                          accessibilityLabel={t('settings.later')}
                           testID={`reminder-${key}-hour-plus`}
                         >
                           <Text style={styles.stepText}>+</Text>
@@ -775,6 +846,7 @@ export default function Settings() {
             <Switch
               value={!!profile?.weeklyDigestOptIn}
               onValueChange={toggleDigest}
+              disabled={offline}
               trackColor={{ true: colors.tealSolid, false: colors.line }}
               testID="digest-toggle"
             />
@@ -861,18 +933,22 @@ export default function Settings() {
             </View>
             <View style={styles.stepper}>
               <TouchableOpacity
-                style={[styles.step, calorieFloor <= CALORIE_FLOOR_MIN && { opacity: 0.4 }]}
-                disabled={calorieFloor <= CALORIE_FLOOR_MIN}
+                style={[styles.step, (offline || calorieFloor <= CALORIE_FLOOR_MIN) && { opacity: 0.4 }]}
+                disabled={offline || calorieFloor <= CALORIE_FLOOR_MIN}
                 onPress={() => bumpCalorieFloor(-50)}
+                accessibilityRole="button"
+                accessibilityLabel={t('settings.lower')}
                 testID="calorie-floor-minus"
               >
                 <Text style={styles.stepText}>−</Text>
               </TouchableOpacity>
               <Text style={styles.hourValue} testID="calorie-floor">{calorieFloor}</Text>
               <TouchableOpacity
-                style={[styles.step, calorieFloor >= CALORIE_FLOOR_MAX && { opacity: 0.4 }]}
-                disabled={calorieFloor >= CALORIE_FLOOR_MAX}
+                style={[styles.step, (offline || calorieFloor >= CALORIE_FLOOR_MAX) && { opacity: 0.4 }]}
+                disabled={offline || calorieFloor >= CALORIE_FLOOR_MAX}
                 onPress={() => bumpCalorieFloor(50)}
+                accessibilityRole="button"
+                accessibilityLabel={t('settings.raise')}
                 testID="calorie-floor-plus"
               >
                 <Text style={styles.stepText}>+</Text>
@@ -889,9 +965,11 @@ export default function Settings() {
             </View>
             <View style={styles.stepper}>
               <TouchableOpacity
-                style={[styles.step, proteinFloor == null && { opacity: 0.4 }]}
-                disabled={proteinFloor == null}
+                style={[styles.step, (offline || proteinFloor == null) && { opacity: 0.4 }]}
+                disabled={offline || proteinFloor == null}
                 onPress={() => bumpProteinFloor(-5)}
+                accessibilityRole="button"
+                accessibilityLabel={t('settings.lower')}
                 testID="protein-floor-minus"
               >
                 <Text style={styles.stepText}>−</Text>
@@ -902,10 +980,12 @@ export default function Settings() {
               <TouchableOpacity
                 style={[
                   styles.step,
-                  (proteinFloor ?? 0) >= PROTEIN_FLOOR_MAX && { opacity: 0.4 },
+                  (offline || (proteinFloor ?? 0) >= PROTEIN_FLOOR_MAX) && { opacity: 0.4 },
                 ]}
-                disabled={(proteinFloor ?? 0) >= PROTEIN_FLOOR_MAX}
+                disabled={offline || (proteinFloor ?? 0) >= PROTEIN_FLOOR_MAX}
                 onPress={() => bumpProteinFloor(5)}
+                accessibilityRole="button"
+                accessibilityLabel={t('settings.raise')}
                 testID="protein-floor-plus"
               >
                 <Text style={styles.stepText}>+</Text>
@@ -989,7 +1069,7 @@ export default function Settings() {
               {user?.email ?? '—'}
             </Text>
           </View>
-          <TouchableOpacity style={styles.signOut} onPress={signOut} testID="settings-signout">
+          <TouchableOpacity style={styles.signOut} onPress={confirmSignOut} accessibilityRole="button" testID="settings-signout">
             <Ionicons name="log-out-outline" size={18} color={colors.danger} />
             <Text style={styles.signOutText}>{t('settings.signOut')}</Text>
           </TouchableOpacity>
@@ -1059,7 +1139,9 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   },
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   rowLabel: { fontSize: font.body, color: colors.ink, fontWeight: '600' },
-  linkRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: space.sm },
+  // 44 pt minimum (S18-15): three legal links stacked at ~34 pt each were the
+  // smallest targets on the screen.
+  linkRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: space.sm, minHeight: 44 },
   legalNote: { fontSize: font.tiny, color: colors.muted, marginTop: space.sm, lineHeight: font.tiny * 1.5 },
   rowValue: { fontSize: font.body, color: colors.muted, marginTop: 2 },
   rowValueRight: { fontSize: font.body, color: colors.muted, maxWidth: '60%', textAlign: 'right' },
@@ -1119,14 +1201,17 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
     backgroundColor: colors.inputBg,
   },
   segmentBtnOn: { backgroundColor: colors.ink, borderColor: colors.ink },
+  segmentBtnOff: { opacity: 0.5 },
+  bannerSlot: { paddingHorizontal: space.xl },
   segmentText: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
   segmentTextOn: { color: colors.onInk },
   // Stepper + switch share a row; the stepper is hidden when the meal is off,
   // so the switch stays put and the row doesn't reflow as it collapses.
   mealControls: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  // 44, matching refine-targets' pace stepper (S18-15) — these were 36.
   step: {
-    width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: colors.line,
+    width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: colors.line,
     alignItems: 'center', justifyContent: 'center', backgroundColor: colors.inputBg,
   },
   stepText: { fontSize: font.h3, color: colors.ink, fontWeight: '700' },

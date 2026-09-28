@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Application from 'expo-application';
 import * as StoreReview from 'expo-store-review';
+import { MIDNIGHT, dayKeyAt } from '@macrolog/core';
 
 /**
  * In-app rating prompt.
@@ -55,8 +56,19 @@ const MAX_DAYS_TRACKED = 10;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/** The LOCAL calendar day. This was `toISOString().slice(0, 10)` — the UTC
+ *  date — until 2026-09-28, so an evening workout west of Greenwich counted
+ *  under tomorrow, and two same-evening moments could read as two days.
+ *  Exported for the test; nothing else should need it. */
+export function reviewDayKey(now: Date = new Date()): string {
+  // MIDNIGHT, not the user's day boundary: this is a device-local UI
+  // preference with no profile in reach, and "distinct days" only has to be
+  // consistent with itself.
+  return dayKeyAt(now, MIDNIGHT);
+}
+
 function today(): string {
-  return new Date().toISOString().slice(0, 10);
+  return reviewDayKey();
 }
 
 function currentVersion(): string {

@@ -63,6 +63,17 @@ jest.mock('@/lib/ledger', () => ({
   saveRefinedTargets: jest.fn().mockResolvedValue(undefined),
 }));
 
+// `onboarding.tsx` stamps `ageConfirmedAt` straight through the SDK after the
+// save (see `stampAgeConfirmed` there). The real package is ESM jest cannot
+// parse, and `@/lib/firebase` initialises an app on import — mock both.
+const mockUpdateDoc = jest.fn().mockResolvedValue(undefined);
+jest.mock('@/lib/firebase', () => ({ db: {} }));
+jest.mock('firebase/firestore', () => ({
+  doc: (...a: unknown[]) => ({ path: (a as unknown[]).slice(1).map(String).join('/') }),
+  updateDoc: (...a: unknown[]) => mockUpdateDoc(...(a as [])),
+  serverTimestamp: () => ({ __serverTimestamp: true }),
+}));
+
 jest.mock('@/lib/activity-suggestion', () => ({
   useActivitySuggestion: () => ({
     suggestion: null,

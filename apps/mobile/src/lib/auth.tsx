@@ -77,6 +77,7 @@ import { clearStoredSession, restoreSessionIfNeeded, saveSessionForRestore } fro
 import { flush as flushAnalytics, setAnalyticsUser, track } from './analytics';
 import { resetConnectivity } from './connectivity';
 import { clearWidget } from './widget';
+import { clearActiveWorkoutSignal } from './active-workout-signal';
 
 // Required for the web-OAuth popup/redirect to resolve when the app
 // regains focus after the Google consent screen.
@@ -1207,6 +1208,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // buffer is written out before the uid it is addressed to disappears.
         await flushAnalytics();
         setAnalyticsUser(null);
+        // In-memory "workout in progress" dot — module state, so it would
+        // otherwise survive into the next account's session.
+        clearActiveWorkoutSignal();
         await clearOfflineCache(user?.uid);
         // The Block Store copy of the session is a REFRESH TOKEN in Google's
         // backup. Signing out has to take it with everything else, or a sold or

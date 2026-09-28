@@ -21,6 +21,8 @@ export interface GeneratedWeeklyReport {
 export const ReportErrorCode = {
   NOT_ENTITLED: 'REPORT_NOT_ENTITLED',
   TOO_SOON: 'REPORT_TOO_SOON',
+  /** Per-user daily cap (1/day) — the server-side cost guard behind TOO_SOON. */
+  QUOTA_EXCEEDED: 'REPORT_QUOTA_EXCEEDED',
   GENERATE_FAILED: 'REPORT_GENERATE_FAILED',
 } as const;
 

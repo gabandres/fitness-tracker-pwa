@@ -99,7 +99,7 @@ export function RecipeBuilder({ onApply, onCancel }: Props) {
     <View style={styles.wrap}>
       <View style={styles.head}>
         <Text style={styles.title}>{t('recipe.title')}</Text>
-        <TouchableOpacity onPress={onCancel} hitSlop={8}>
+        <TouchableOpacity onPress={onCancel} hitSlop={12} accessibilityRole="button">
           <Text style={styles.cancel}>{t('common.cancel')}</Text>
         </TouchableOpacity>
       </View>
@@ -146,13 +146,21 @@ export function RecipeBuilder({ onApply, onCancel }: Props) {
               keyboardType="numeric"
               value={ing.protein}
               onChangeText={(v) => setIng(i, 'protein', v)}
+              accessibilityLabel={t('recipe.proteinShort')}
             />
-            <TouchableOpacity style={styles.colDel} onPress={() => removeIng(i)} hitSlop={6} accessibilityLabel={t('common.remove')}>
+            <TouchableOpacity
+              style={styles.colDel}
+              onPress={() => removeIng(i)}
+              // 24dp column + 10 each side = 44 (S18-15); the row is ~44 tall.
+              hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.remove')}
+            >
               <Ionicons name="close" size={font.small + 2} color={colors.danger} />
             </TouchableOpacity>
           </View>
         ))}
-        <TouchableOpacity style={styles.addIng} onPress={addIng} testID="recipe-add-ing">
+        <TouchableOpacity style={styles.addIng} onPress={addIng} hitSlop={8} accessibilityRole="button" testID="recipe-add-ing">
           <Text style={styles.addIngText}>{t('recipe.addIngredient')}</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -182,6 +190,7 @@ export function RecipeBuilder({ onApply, onCancel }: Props) {
         style={[styles.apply, !canApply && styles.applyDisabled]}
         onPress={apply}
         disabled={!canApply}
+        accessibilityRole="button"
         testID="recipe-apply"
       >
         <Text style={styles.applyText}>{t('recipe.useThis')}</Text>

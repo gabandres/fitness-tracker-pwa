@@ -178,7 +178,13 @@ export default function ConnectedAppsScreen() {
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={10} testID="connected-apps-back">
+        <TouchableOpacity
+          onPress={() => router.back()}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.back')}
+          testID="connected-apps-back"
+        >
           <Ionicons name="chevron-back" size={26} color={colors.ink} />
         </TouchableOpacity>
         <Text style={styles.title}>{t('connected.title')}</Text>
@@ -519,5 +525,7 @@ const makeStyles = ({ colors }: Theme) =>
     details: { gap: space.sm },
     detailText: { fontSize: font.small, color: colors.muted, lineHeight: font.small * 1.5 },
 
-    footnote: { fontSize: font.tiny, color: colors.faint, lineHeight: font.tiny * 1.5 },
+    // `muted`, not `faint`: faint is 2.40:1 on light paper (S18-2) and these
+    // are sentences, not decoration.
+    footnote: { fontSize: font.tiny, color: colors.muted, lineHeight: font.tiny * 1.5 },
   });

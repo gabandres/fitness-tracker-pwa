@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -23,7 +23,7 @@ import { getConsultationQuota } from '@/lib/ledger';
 import { type I18nKey, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space } from '@/theme';
+import { FAB_BAND, font, radius, space } from '@/theme';
 
 type Status = 'idle' | 'streaming' | 'done' | 'error';
 
@@ -99,10 +99,15 @@ export default function Coach() {
   }, [user, unlimited]);
 
   const streaming = status === 'streaming';
+  // Synchronous re-entry guard. `streaming` is state, so two taps in the same
+  // frame both read it false and both spend a consultation (UX_AUDIT S18-14);
+  // a ref flips before React gets to render.
+  const asking = useRef(false);
 
   const ask = async (raw?: string) => {
     const q = (raw ?? question).trim();
-    if (!q || streaming) return;
+    if (!q || streaming || asking.current) return;
+    asking.current = true;
     haptics.tap();
     setQuestion(q);
     setStatus('streaming');
@@ -143,13 +148,21 @@ export default function Coach() {
       if (code === CoachErrorCode.CONSULTATION_QUOTA_EXCEEDED) setOverLimit(true);
       setErrorMsg(t(errorKey(code)));
       setStatus('error');
+    } finally {
+      asking.current = false;
     }
   };
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={10} testID="coach-back">
+        <TouchableOpacity
+          onPress={() => router.back()}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.back')}
+          testID="coach-back"
+        >
           <Ionicons name="chevron-back" size={26} color={colors.ink} />
         </TouchableOpacity>
         <Text style={styles.title}>{t('coach.title')}</Text>
@@ -244,7 +257,9 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
     paddingVertical: space.md,
   },
   title: { fontSize: font.h2, fontWeight: '700', color: colors.ink },
-  body: { paddingHorizontal: space.lg, paddingBottom: space.xxl },
+  // `FAB_BAND`: this route renders inside the Tabs navigator, under the tab
+  // bar and the raised + button (UX_AUDIT S18-14).
+  body: { paddingHorizontal: space.lg, paddingBottom: FAB_BAND },
   intro: { fontSize: font.body, color: colors.ink, lineHeight: 21 },
   counter: { fontSize: font.small, color: colors.teal, marginTop: space.xs, fontVariant: ['tabular-nums'] },
   disclaimer: { fontSize: font.tiny, color: colors.faint, marginTop: space.xs },

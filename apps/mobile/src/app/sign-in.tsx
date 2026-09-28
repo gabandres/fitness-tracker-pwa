@@ -228,6 +228,7 @@ export default function SignIn() {
                   textContentType="givenName"
                   value={firstName}
                   onChangeText={setFirstName}
+                  accessibilityLabel={t('signIn.firstName')}
                   testID="firstName"
                 />
                 <TextInput
@@ -238,6 +239,7 @@ export default function SignIn() {
                   textContentType="familyName"
                   value={lastName}
                   onChangeText={setLastName}
+                  accessibilityLabel={t('signIn.lastName')}
                   testID="lastName"
                 />
               </Animated.View>
@@ -253,6 +255,7 @@ export default function SignIn() {
               textContentType="emailAddress"
               value={email}
               onChangeText={setEmail}
+              accessibilityLabel={t('signIn.email')}
               testID="email"
             />
 
@@ -265,6 +268,7 @@ export default function SignIn() {
                 textContentType="password"
                 value={password}
                 onChangeText={setPassword}
+                accessibilityLabel={t('signIn.password')}
                 testID="password"
                 onSubmitEditing={onSubmit}
               />
@@ -313,7 +317,13 @@ export default function SignIn() {
               // Selectable so a tester can long-press → copy the native code
               // tail and paste it to us; without a crash reporter that copy is
               // the whole diagnostic channel.
-              <Text selectable style={styles.error} testID="signin-error">
+              <Text
+                selectable
+                style={styles.error}
+                accessibilityRole="alert"
+                accessibilityLiveRegion="polite"
+                testID="signin-error"
+              >
                 {error}
               </Text>
             ) : null}
@@ -540,10 +550,13 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
     borderColor: colors.line,
     borderRadius: radius.md,
     paddingHorizontal: space.lg,
-    // Fixed height (not paddingVertical): iOS UITextView only centers text
-    // deterministically when the height is constrained — with auto-height the
-    // placeholder mis-aligns on first render and "fixes" itself on reload.
-    height: 56,
+    // A constrained height (not paddingVertical): iOS UITextView only centers
+    // text deterministically when the height is constrained — with auto-height
+    // the placeholder mis-aligns on first render and "fixes" itself on reload.
+    // `minHeight`, not `height`, since 2026-09-28 (S18-7): a fixed 56 clipped
+    // the field at the larger Dynamic Type sizes. At default type the box is
+    // still exactly 56, so the centring behaviour above is unchanged.
+    minHeight: 56,
     fontSize: font.body,
     color: colors.ink,
   },

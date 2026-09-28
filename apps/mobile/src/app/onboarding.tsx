@@ -5,23 +5,34 @@ import { ActivityIndicator, Platform, ScrollView, StyleSheet, Text, TextInput, V
 import Animated, { FadeInLeft, FadeInRight, ReduceMotion } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
+import { doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import {
   type ActivityLevel,
   type GoalDirection,
+  HEIGHT_IN_MAX,
+  HEIGHT_IN_MIN,
   type Sex,
+  type UnitSystem,
+  WEIGHT_MAX_LB,
+  WEIGHT_MIN_LB,
   bodyWeightUnit,
   computeProtein,
   isPlausibleAge,
   isPlausibleHeightIn,
   onboardingPace,
   onboardingSeed,
+  parseMeasureToIn,
   parseWeightToLb,
+  toDisplayMeasure,
   toDisplayWeight,
   validateCalorieTarget,
   validateProteinTarget,
+  weightBoundsFor,
 } from '@macrolog/core';
 import { BrandMark } from '@/components/BrandMark';
+import { ConfirmHost, confirm } from '@/components/ConfirmSheet';
 import { useAuth } from '@/lib/auth';
+import { db } from '@/lib/firebase';
 import { saveOnboardingV2 } from '@/lib/ledger';
 import { setRemindersEnabled } from '@/lib/reminders';
 import { holdTour } from '@/lib/tour';
@@ -71,6 +82,60 @@ function numOrUndef(s: string): number | undefined {
   if (t === '') return undefined;
   const n = Number(t);
   return Number.isFinite(n) && n > 0 ? n : undefined;
+}
+
+// ── Pure glue, exported for `onboarding-input-bounds.test.ts` ───────────
+// Expo Router only reads the default export of a route file; named exports
+// are how the gating below gets pinned without rendering the whole wizard.
+
+/** The welcome step is the ONE step a first run cannot skip, so the 16+
+ *  attestation lives there (UX_AUDIT S18-9). A redo from Settings starts on
+ *  the goal step and is an existing user — the attestation is never re-asked. */
+export function canLeaveWelcome(isRedo: boolean, ageConfirmed: boolean): boolean {
+  return isRedo || ageConfirmed;
+}
+
+/** Height typed in the user's OWN unit → whole inches, or null when it is
+ *  not a usable number. Metric is one `cm` field; US is feet + inches, where
+ *  0 inches is a legal answer (`intOrNull`, not `numOrUndef`). Whole inches
+ *  so a metric answer round-trips into the ft/in prefill cleanly — 175 cm is
+ *  69 in, not 68.897637 in shown as "5 ft 8.897637 in". */
+export function parseHeightInput(
+  unitSystem: UnitSystem,
+  input: { cm: string; feet: string; inches: string },
+): number | null {
+  if (unitSystem === 'metric') {
+    const inches = parseMeasureToIn(input.cm, 'metric');
+    return inches == null ? null : Math.round(inches);
+  }
+  const ft = intOrNull(input.feet);
+  const inch = intOrNull(input.inches);
+  return ft != null && inch != null ? ft * 12 + inch : null;
+}
+
+/** `HEIGHT_IN_MIN..MAX` said in the user's unit: `102–243 cm`, or
+ *  `3 ft 4 in – 8 ft 0 in`. A US user told "between 40 and 96" has been
+ *  handed inches with no label. */
+export function heightBandFor(
+  unitSystem: UnitSystem,
+  units: { ft: string; in: string },
+): { min: string; max: string } {
+  if (unitSystem === 'metric') {
+    return {
+      min: `${Math.ceil(toDisplayMeasure(HEIGHT_IN_MIN, 'metric'))} cm`,
+      max: `${Math.floor(toDisplayMeasure(HEIGHT_IN_MAX, 'metric'))} cm`,
+    };
+  }
+  const say = (total: number) => `${Math.floor(total / 12)} ${units.ft} ${total % 12} ${units.in}`;
+  return { min: say(HEIGHT_IN_MIN), max: say(HEIGHT_IN_MAX) };
+}
+
+/** A parsed weight is only advanceable inside the plausible band that
+ *  `firestore.rules` and `weightBoundsFor` share (UX_AUDIT S18-11) — "1800"
+ *  used to build a plan for an 1,800 lb person and die at the rules two
+ *  steps later, with the error blaming the connection. */
+export function weightInBand(weightLbs: number | null | undefined): weightLbs is number {
+  return weightLbs != null && weightLbs >= WEIGHT_MIN_LB && weightLbs <= WEIGHT_MAX_LB;
 }
 
 // `KeyboardAvoidingView` comes from react-native-keyboard-controller, NOT from
@@ -135,6 +200,11 @@ export default function Onboarding() {
   const [sex, setSex] = useState<Sex | null>(profile?.sex ?? null);
   const [feet, setFeet] = useState(profile?.heightIn ? String(Math.floor(profile.heightIn / 12)) : '');
   const [inches, setInches] = useState(profile?.heightIn ? String(profile.heightIn % 12) : '');
+  // The metric answer to the same question (UX_AUDIT S18-8): one `cm` field.
+  // A metric user typing 175 into a `maxLength={1}` feet box got "1".
+  const [heightCm, setHeightCm] = useState(
+    profile?.heightIn ? String(Math.round(toDisplayMeasure(profile.heightIn, 'metric'))) : '',
+  );
   const [age, setAge] = useState(profile?.age != null ? String(profile.age) : '');
   const [activity, setActivity] = useState<ActivityLevel | null>(profile?.activityLevel ?? null);
   // Set by the "Skip" link on either of the two new steps. It hides them from
@@ -142,10 +212,14 @@ export default function Onboarding() {
   // redo arrives with them prefilled and skipping past an answer you already
   // gave should not un-answer it.
   const [skippedBody, setSkippedBody] = useState(false);
+  // The 16+ attestation (S18-9). §S13 marked it done, but that was the retired
+  // web wizard: mobile never wrote `ageConfirmedAt`. Required on the welcome
+  // step because it is the one a first run cannot skip; `canLeaveWelcome`.
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
 
-  const ft = intOrNull(feet);
-  const inch = intOrNull(inches);
-  const heightIn = ft != null && inch != null ? ft * 12 + inch : null;
+  const metric = unitSystem === 'metric';
+  const heightIn = parseHeightInput(unitSystem, { cm: heightCm, feet, inches });
+  const heightTyped = metric ? heightCm.trim() !== '' : feet.trim() !== '' || inches.trim() !== '';
   const ageNum = intOrNull(age);
   const heightValid = isPlausibleHeightIn(heightIn);
   const ageValid = isPlausibleAge(ageNum);
@@ -154,6 +228,10 @@ export default function Onboarding() {
   // Typed in the user's own unit, stored in pounds. Typing `68` on a metric
   // profile used to build a plan for a 68 lb person (UX_AUDIT F3).
   const weightLbs = parseWeightToLb(weight, unitSystem) ?? undefined;
+  const weightOk = weightInBand(weightLbs);
+  const targetWeightLbs = parseWeightToLb(targetWeight, unitSystem);
+  const targetWeightOk = weightInBand(targetWeightLbs);
+  const weightBand = weightBoundsFor(unitSystem);
   // Onboarding has no pace control, so the pace is derived: 1 lb/wk for a cut
   // unless the user already dialled one in Refine, 0 otherwise. See
   // `onboardingPace` for why "gain" persists 0 rather than a surplus.
@@ -228,10 +306,10 @@ export default function Onboarding() {
   }
 
   const canAdvance =
-    step === 'welcome' ||
+    (step === 'welcome' && canLeaveWelcome(isRedo, ageConfirmed)) ||
     (step === 'goal' && goal != null) ||
-    (step === 'weight' && weightLbs != null) ||
-    (step === 'goalWeight' && parseWeightToLb(targetWeight, unitSystem) != null) ||
+    (step === 'weight' && weightOk) ||
+    (step === 'goalWeight' && targetWeightOk) ||
     (step === 'body' && bodyComplete) ||
     (step === 'activity' && activity != null) ||
     // A typed calorie number has to clear the floor before it can be saved —
@@ -264,6 +342,34 @@ export default function Onboarding() {
     setStep('plan');
   }
 
+  /** First run only: sign out is a destructive tap from a screen with unsaved
+   *  answers, so it asks first (S18-6). The sheet's host is mounted below for
+   *  this screen alone — `ConfirmHost` lives in the `(app)` layout, which is
+   *  not on the stack during a first run. */
+  function onSignOut(): void {
+    haptics.tap();
+    confirm({
+      title: t('settings.signOut'),
+      body: t('settings.signOutConfirm'),
+      confirmText: t('settings.signOut'),
+      destructive: true,
+      onConfirm: () => {
+        signOut().catch((e) => captureError(e, { where: 'onboarding.signOut' }));
+      },
+    });
+  }
+
+  /** The attestation stamp. A SECOND write after `saveOnboardingV2`, not a
+   *  field on it: `OnboardingV2Submission` (packages/core) has no slot for it
+   *  and this change does not edit core or `ledger.ts`. It cannot go BEFORE
+   *  the save either — `isValidProfileInitial` in `firestore.rules` does not
+   *  list `ageConfirmedAt`, only the Completed branch does, and the save is
+   *  what flips `profileCompleted`. `serverTimestamp()` satisfies the rules'
+   *  `is timestamp`. */
+  async function stampAgeConfirmed(uid: string): Promise<void> {
+    await updateDoc(doc(db, 'users', uid), { ageConfirmedAt: serverTimestamp() });
+  }
+
   async function onFinish() {
     if (busy || !user || !goal || weightLbs == null) return;
     // Defence in depth: `canAdvance` already gates the CTA on both checks, so
@@ -280,9 +386,7 @@ export default function Onboarding() {
       await saveOnboardingV2(user.uid, {
         weightLbs,
         goalDirection: goal,
-        targetWeightLbs: skipGoalWeight
-          ? undefined
-          : (parseWeightToLb(targetWeight, unitSystem) ?? undefined),
+        targetWeightLbs: skipGoalWeight ? undefined : (targetWeightLbs ?? undefined),
         manualCaloriesTarget: kcal,
         manualProteinTarget: protein,
         // The Mifflin-St Jeor set. Passed unconditionally — `toOnboardingV2Patch`
@@ -305,6 +409,9 @@ export default function Onboarding() {
         // estimate — see OnboardingV2Submission.isRedo.
         isRedo,
       });
+      // First run only — an existing user was never asked, and the field is
+      // the attestation's timestamp, not a "profile saved" stamp.
+      if (!isRedo && ageConfirmed) await stampAgeConfirmed(user.uid);
       // Only on a first run: a redo is a target change by an existing user,
       // and counting it would inflate the one funnel step this exists to answer.
       if (!isRedo) track('onboarding_complete');
@@ -442,10 +549,9 @@ export default function Onboarding() {
             <PressScale
               style={styles.back}
               scaleTo={0.9}
-              onPress={() => {
-                signOut().catch((e) => captureError(e, { where: 'onboarding.signOut' }));
-              }}
+              onPress={onSignOut}
               testID="onboarding-signout"
+              accessibilityRole="button"
               accessibilityLabel={t('settings.signOut')}
             >
               <Ionicons name="log-out-outline" size={22} color={colors.faint} />
@@ -468,6 +574,36 @@ export default function Onboarding() {
               <BrandMark />
               <Text style={styles.welcomeTitle}>{t('onboarding.titleNew')}</Text>
               <Text style={styles.welcomeBody}>{t('onboarding.welcomeBody')}</Text>
+              {/* Required, and said to be: the CTA below stays disabled until
+                  this is checked, and a greyed button with no stated reason is
+                  a locked door. Apple 5.1.4 / GDPR-K want the attestation
+                  itself; `ageConfirmedAt` is the record of it. */}
+              <View style={styles.attestWrap}>
+                <PressScale
+                  style={styles.attestRow}
+                  scaleTo={0.98}
+                  onPress={() => {
+                    haptics.tap();
+                    setAgeConfirmed((v) => !v);
+                  }}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: ageConfirmed }}
+                  accessibilityLabel={t('onboarding.ageAttest')}
+                  testID="onboarding-age-attest"
+                >
+                  <Ionicons
+                    name={ageConfirmed ? 'checkbox' : 'square-outline'}
+                    size={24}
+                    color={ageConfirmed ? colors.accent : colors.muted}
+                  />
+                  <Text style={styles.attestText}>{t('onboarding.ageAttest')}</Text>
+                </PressScale>
+                {!ageConfirmed ? (
+                  <Text style={styles.attestHint} testID="onboarding-age-attest-hint">
+                    {t('onboarding.ageAttestRequired')}
+                  </Text>
+                ) : null}
+              </View>
             </View>
           ) : null}
 
@@ -486,6 +622,8 @@ export default function Onboarding() {
                         haptics.tap();
                         setGoal(g.key);
                       }}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: on }}
                       testID={`onboarding-goal-${g.key}`}
                     >
                       <View style={[styles.goalIcon, on && styles.goalIconOn]}>
@@ -506,14 +644,24 @@ export default function Onboarding() {
           {step === 'weight' ? (
             <View style={styles.step}>
               <Text style={styles.question}>{t('onboarding.weightQ')}</Text>
-              <BigInput value={weight} onChangeText={setWeight} placeholder={String(toDisplayWeight(180, unitSystem))} unit={weightUnit} styles={styles} colors={colors} testID="onboarding-weight" />
+              <BigInput value={weight} onChangeText={setWeight} placeholder={String(toDisplayWeight(180, unitSystem))} unit={weightUnit} label={t('onboarding.weightQ')} styles={styles} colors={colors} testID="onboarding-weight" />
+              {weight.trim() !== '' && !weightOk ? (
+                <Text style={styles.error} accessibilityRole="alert" accessibilityLiveRegion="polite" testID="onboarding-weight-error">
+                  {t('onboarding.weightRange', { min: weightBand.min, max: weightBand.max, unit: weightUnit })}
+                </Text>
+              ) : null}
             </View>
           ) : null}
 
           {step === 'goalWeight' ? (
             <View style={styles.step}>
               <Text style={styles.question}>{t('onboarding.goalWeightQ')}</Text>
-              <BigInput value={targetWeight} onChangeText={setTargetWeight} placeholder={String(toDisplayWeight(165, unitSystem))} unit={weightUnit} styles={styles} colors={colors} testID="onboarding-target-weight" />
+              <BigInput value={targetWeight} onChangeText={setTargetWeight} placeholder={String(toDisplayWeight(165, unitSystem))} unit={weightUnit} label={t('onboarding.goalWeightQ')} styles={styles} colors={colors} testID="onboarding-target-weight" />
+              {targetWeight.trim() !== '' && !targetWeightOk ? (
+                <Text style={styles.error} accessibilityRole="alert" accessibilityLiveRegion="polite" testID="onboarding-target-weight-error">
+                  {t('onboarding.weightRange', { min: weightBand.min, max: weightBand.max, unit: weightUnit })}
+                </Text>
+              ) : null}
             </View>
           ) : null}
 
@@ -540,7 +688,8 @@ export default function Onboarding() {
                         style={[styles.segBtn, on && styles.segBtnOn]}
                         scaleTo={0.97}
                         onPress={() => { haptics.tap(); setSex(s); }}
-                        accessibilityRole="button"
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected: on }}
                         testID={`onboarding-sex-${s}`}
                       >
                         <Text style={[styles.segText, on && styles.segTextOn]}>
@@ -554,36 +703,60 @@ export default function Onboarding() {
 
               <View style={styles.field}>
                 <Text style={styles.label}>{t('refine.height')}</Text>
-                <View style={styles.row}>
-                  <View style={styles.unitInput}>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="5"
-                      placeholderTextColor={colors.faint}
-                      keyboardType="numeric"
-                      value={feet}
-                      onChangeText={setFeet}
-                      maxLength={1}
-                      accessibilityLabel={t('refine.feet')}
-                      testID="onboarding-feet"
-                    />
-                    <Text style={styles.unit}>{t('refine.feet')}</Text>
+                {metric ? (
+                  <View style={styles.row}>
+                    <View style={styles.unitInput}>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="175"
+                        placeholderTextColor={colors.faint}
+                        keyboardType="numeric"
+                        value={heightCm}
+                        onChangeText={setHeightCm}
+                        maxLength={5}
+                        accessibilityLabel={t('onboarding.heightCm')}
+                        testID="onboarding-height-cm"
+                      />
+                      <Text style={styles.unit}>cm</Text>
+                    </View>
                   </View>
-                  <View style={styles.unitInput}>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="10"
-                      placeholderTextColor={colors.faint}
-                      keyboardType="numeric"
-                      value={inches}
-                      onChangeText={setInches}
-                      maxLength={2}
-                      accessibilityLabel={t('refine.inches')}
-                      testID="onboarding-inches"
-                    />
-                    <Text style={styles.unit}>{t('refine.inches')}</Text>
+                ) : (
+                  <View style={styles.row}>
+                    <View style={styles.unitInput}>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="5"
+                        placeholderTextColor={colors.faint}
+                        keyboardType="numeric"
+                        value={feet}
+                        onChangeText={setFeet}
+                        maxLength={1}
+                        accessibilityLabel={t('refine.feet')}
+                        testID="onboarding-feet"
+                      />
+                      <Text style={styles.unit}>{t('refine.feet')}</Text>
+                    </View>
+                    <View style={styles.unitInput}>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="10"
+                        placeholderTextColor={colors.faint}
+                        keyboardType="numeric"
+                        value={inches}
+                        onChangeText={setInches}
+                        maxLength={2}
+                        accessibilityLabel={t('refine.inches')}
+                        testID="onboarding-inches"
+                      />
+                      <Text style={styles.unit}>{t('refine.inches')}</Text>
+                    </View>
                   </View>
-                </View>
+                )}
+                {heightTyped && !heightValid ? (
+                  <Text style={styles.fieldError} accessibilityRole="alert" accessibilityLiveRegion="polite" testID="onboarding-height-error">
+                    {t('onboarding.heightRange', heightBandFor(unitSystem, { ft: t('refine.feet'), in: t('refine.inches') }))}
+                  </Text>
+                ) : null}
               </View>
 
               <View style={styles.field}>
@@ -617,7 +790,8 @@ export default function Onboarding() {
                       style={[styles.activityRow, on && styles.activityRowOn]}
                       scaleTo={0.98}
                       onPress={() => { haptics.tap(); setActivity(a.value); }}
-                      accessibilityRole="button"
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: on }}
                       testID={`onboarding-activity-${a.value}`}
                     >
                       <Text style={[styles.activityText, on && styles.activityTextOn]}>{t(a.labelKey)}</Text>
@@ -687,7 +861,7 @@ export default function Onboarding() {
                   so an above-ceiling or cleared number greyed the CTA with
                   nothing on screen to explain it. */}
               {edited && !kcalCheck.ok ? (
-                <Text style={styles.error} testID="onboarding-kcal-error">
+                <Text style={styles.error} accessibilityRole="alert" accessibilityLiveRegion="polite" testID="onboarding-kcal-error">
                   {kcalCheck.issue?.kind === 'belowFloor'
                     ? t('targets.errBelowFloor', { n: formatNumber(kcalCheck.issue.floor, locale) })
                     : kcalCheck.issue?.kind === 'aboveCeiling'
@@ -696,7 +870,7 @@ export default function Onboarding() {
                 </Text>
               ) : null}
               {edited && kcalCheck.ok && !proteinCheck.ok ? (
-                <Text style={styles.error} testID="onboarding-protein-error">
+                <Text style={styles.error} accessibilityRole="alert" accessibilityLiveRegion="polite" testID="onboarding-protein-error">
                   {proteinCheck.issue?.kind === 'belowFloor'
                     ? t('targets.errProteinMin', { n: formatNumber(proteinCheck.issue.floor, locale) })
                     : proteinCheck.issue?.kind === 'aboveCeiling'
@@ -733,7 +907,11 @@ export default function Onboarding() {
             </View>
           ) : null}
 
-          {error ? <Text style={styles.error}>{error}</Text> : null}
+          {error ? (
+            <Text style={styles.error} accessibilityRole="alert" accessibilityLiveRegion="polite" testID="onboarding-error">
+              {error}
+            </Text>
+          ) : null}
         </Animated.View>
         </ScrollView>
 
@@ -785,6 +963,10 @@ export default function Onboarding() {
           </PressScale>
         </View>
       </KeyboardAvoidingView>
+      {/* First run only. A redo is pushed ON TOP of the `(app)` layout, whose
+          own host is registered — a second one here would take the slot and
+          null it on unmount, leaving Settings' confirms dead. */}
+      {!isRedo ? <ConfirmHost /> : null}
     </SafeAreaView>
   );
 }
@@ -833,6 +1015,7 @@ function PlanStat({
           onChangeText={onChangeDraft}
           onBlur={onBlur}
           keyboardType="number-pad"
+          maxFontSizeMultiplier={1.4}
           autoFocus
           selectTextOnFocus
           returnKeyType="done"
@@ -895,6 +1078,7 @@ function BigInput({
   onChangeText,
   placeholder,
   unit,
+  label,
   styles,
   colors,
   testID,
@@ -905,6 +1089,9 @@ function BigInput({
   /** `lb` or `kg` — was a hardcoded literal, which is the whole of F3's first
    *  sentence. */
   unit: string;
+  /** The question the field answers — its accessible name (S18-3). A 72-pt
+   *  number with no label reads as "text field" and nothing else. */
+  label: string;
   styles: ReturnType<typeof createStyles>;
   colors: Theme['colors'];
   testID: string;
@@ -921,6 +1108,10 @@ function BigInput({
         autoFocus
         selectTextOnFocus
         maxLength={5}
+        accessibilityLabel={label}
+        // 72 pt × the largest accessibility size overflows the row; 1.4 keeps
+        // the number and its unit on one line (S18-7).
+        maxFontSizeMultiplier={1.4}
         testID={testID}
       />
       <Text style={styles.bigUnit}>{unit}</Text>
@@ -932,7 +1123,7 @@ const createStyles = ({ colors, shadow }: Theme) =>
   StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.paper },
     fill: { flex: 1 },
-    topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.xl, paddingTop: space.md, height: 44 },
+    topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.xl, paddingTop: space.md, minHeight: 44 },
     back: { width: 40, height: 40, alignItems: 'flex-start', justifyContent: 'center' },
     dots: { flexDirection: 'row', gap: space.xs },
     dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.line },
@@ -946,6 +1137,22 @@ const createStyles = ({ colors, shadow }: Theme) =>
     welcome: { alignItems: 'center', gap: space.lg },
     welcomeTitle: { fontFamily: type.display, fontSize: 34, color: colors.ink, textAlign: 'center', marginTop: space.md },
     welcomeBody: { fontSize: font.h3, color: colors.muted, textAlign: 'center', lineHeight: font.h3 * 1.45, paddingHorizontal: space.md },
+    // The 16+ attestation row on the welcome step.
+    attestWrap: { alignSelf: 'stretch', gap: space.xs, marginTop: space.md },
+    attestRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: space.md,
+      minHeight: 44,
+      borderWidth: 1,
+      borderColor: colors.line,
+      borderRadius: radius.md,
+      paddingVertical: space.md,
+      paddingHorizontal: space.lg,
+      backgroundColor: colors.card,
+    },
+    attestText: { flex: 1, fontSize: font.body, color: colors.ink, fontWeight: '600' },
+    attestHint: { fontSize: font.small, color: colors.muted, textAlign: 'center' },
     // A form step.
     step: { gap: space.xl },
     question: { fontFamily: type.display, fontSize: 30, color: colors.ink, lineHeight: 36 },
@@ -1038,6 +1245,8 @@ const createStyles = ({ colors, shadow }: Theme) =>
     planDivider: { width: 1, alignSelf: 'stretch', backgroundColor: colors.heroTrack, marginVertical: space.sm },
     planSub: { fontSize: font.body, color: colors.muted, textAlign: 'center', paddingHorizontal: space.md },
     error: { color: colors.danger, fontSize: font.small, textAlign: 'center', marginTop: space.md },
+    // Under a labelled field, so left-aligned and without the centred slot's top margin.
+    fieldError: { color: colors.danger, fontSize: font.small },
     // Same maxWidth as stepWrap so the CTA lines up with the step on an iPad.
     footer: { paddingHorizontal: space.xl, paddingTop: space.md, paddingBottom: space.md, width: '100%', maxWidth: 480, alignSelf: 'center' },
     cta: { backgroundColor: colors.ink, borderRadius: radius.md, paddingVertical: space.lg, alignItems: 'center' },

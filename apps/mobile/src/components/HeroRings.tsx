@@ -151,7 +151,21 @@ export function HeroRings({ calConsumed, calTarget, protConsumed, protTarget, ca
 
   return (
     <View style={styles.panel} testID="hero-rings">
-      <View style={styles.ringWrap}>
+      {/* One announcement for the whole ring element (S18-5). `CountUpText` is
+          a TextInput under the hood and VoiceOver reads it as an edit box; the
+          SVG arcs say nothing at all. So the wrap is the accessible node with
+          the sentence, and everything inside it is hidden from the tree. */}
+      <View
+        style={styles.ringWrap}
+        accessible
+        accessibilityLabel={t('a11y.hero', {
+          kcal: formatNumber(calConsumed, locale),
+          kcalTarget: formatNumber(calTarget, locale),
+          protein: protConsumed,
+          proteinTarget: protTarget,
+        })}
+        importantForAccessibility="no-hide-descendants"
+      >
         <Svg width={SIZE} height={SIZE}>
           <Ring
             r={OUTER_R}

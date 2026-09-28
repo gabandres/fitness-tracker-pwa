@@ -169,6 +169,9 @@ const createStyles = ({ colors }: Theme) =>
       justifyContent: 'space-between',
       paddingVertical: space.sm,
       gap: space.sm,
+      // 44pt floor (S18-15): the two-line text already reaches it; a one-line
+      // name with no macros did not.
+      minHeight: 44,
     },
     rowText: { flex: 1 },
     name: { fontSize: font.body, color: colors.ink },

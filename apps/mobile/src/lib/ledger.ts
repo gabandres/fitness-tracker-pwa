@@ -5,6 +5,7 @@ import {
   deleteField,
   doc,
   documentId,
+  getCountFromServer,
   getDoc,
   getDocs,
   increment as fsIncrement,
@@ -284,6 +285,26 @@ export function subscribeRecentLogs(
   );
 }
 
+/**
+ * All-time log facts for milestone copy ("N months of logging", "N entries"):
+ * the total count and the earliest entry's date. Two cheap server calls — one
+ * aggregate count (billed per 1,000 index entries, never per document) and a
+ * one-document oldest-first query — rather than reading the whole collection,
+ * which the 400-row window used to stand in for and misreported the moment an
+ * account outgrew it.
+ */
+export async function getLogStats(uid: string): Promise<{ totalLogs: number; earliestLogAt: Date | null }> {
+  const [count, oldest] = await Promise.all([
+    getCountFromServer(logsCol(uid)),
+    getDocs(query(logsCol(uid), orderBy('timestamp', 'asc'), limit(1))),
+  ]);
+  const first = oldest.docs[0];
+  return {
+    totalLogs: count.data().count,
+    earliestLogAt: first ? toDailyLog(first.id, first.data()).date : null,
+  };
+}
+
 /** Live-subscribe to the most recent AI weekly report (or null when none
  *  exists yet). Reports are written server-side by the generateWeeklyReport
  *  Cloud Function; rules block client writes, so read-only here. */
@@ -400,6 +421,11 @@ export async function getLatestDailyWeight(uid: string): Promise<number | null> 
 
 export async function setDailyWeight(uid: string, dateKey: string, weight: number): Promise<void> {
   await setDoc(weightDoc(uid, dateKey), { weight });
+}
+
+/** Remove a day's weigh-in outright. Idempotent — deleting a missing doc is a no-op. */
+export async function deleteDailyWeight(uid: string, dateKey: string): Promise<void> {
+  await deleteDoc(weightDoc(uid, dateKey));
 }
 
 // ─── Daily water ────────────────────────────────────────────────

@@ -38,6 +38,17 @@ jest.mock('@/lib/analytics', () => ({
   track: (...args: unknown[]) => mockTrack(...args),
 }));
 
+// `onboarding.tsx` stamps `ageConfirmedAt` straight through the SDK after the
+// save (see `stampAgeConfirmed` there). The real package is ESM jest cannot
+// parse, and `@/lib/firebase` initialises an app on import — mock both.
+const mockUpdateDoc = jest.fn().mockResolvedValue(undefined);
+jest.mock('@/lib/firebase', () => ({ db: {} }));
+jest.mock('firebase/firestore', () => ({
+  doc: (...a: unknown[]) => ({ path: (a as unknown[]).slice(1).map(String).join('/') }),
+  updateDoc: (...a: unknown[]) => mockUpdateDoc(...(a as [])),
+  serverTimestamp: () => ({ __serverTimestamp: true }),
+}));
+
 jest.mock('expo-router', () => ({
   ...jest.requireActual('expo-router'),
   useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
@@ -60,6 +71,7 @@ type Screen = Awaited<ReturnType<typeof render>>;
 /** welcome -> goal -> weight -> goalWeight, stopping on the body step. */
 async function walkToBody(screen: Screen) {
   const { getByTestId } = screen;
+  await fireEvent.press(getByTestId('onboarding-age-attest')); // 16+ attestation (S18-9)
   await fireEvent.press(getByTestId('onboarding-next')); // welcome
   await fireEvent.press(getByTestId('onboarding-goal-lose'));
   await fireEvent.press(getByTestId('onboarding-next'));

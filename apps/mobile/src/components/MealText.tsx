@@ -189,7 +189,7 @@ export function MealText({ forDate, onAddMany, onCancel, seedText }: Props) {
       <View style={styles.wrap}>
         <View style={styles.head}>
           <Text style={styles.title}>{t('entry.describeMeal')}</Text>
-          <TouchableOpacity onPress={() => { setRows([]); setPhase('input'); }} hitSlop={8}>
+          <TouchableOpacity onPress={() => { setRows([]); setPhase('input'); }} hitSlop={12} accessibilityRole="button">
             <Text style={styles.back}>{t('mealText.startOver')}</Text>
           </TouchableOpacity>
         </View>
@@ -205,7 +205,8 @@ export function MealText({ forDate, onAddMany, onCancel, seedText }: Props) {
                   ) : null}
                   {row.servingLabel ? <Text style={styles.cardSub}>{row.servingLabel}</Text> : null}
                 </View>
-                <TouchableOpacity onPress={() => removeRow(i)} hitSlop={8} accessibilityLabel={t('common.remove')}>
+                {/* 17dp glyph + 14dp slop each side = 45pt (S18-15). */}
+                <TouchableOpacity onPress={() => removeRow(i)} hitSlop={14} accessibilityRole="button" accessibilityLabel={t('common.remove')}>
                   <Ionicons name="close" size={font.body} color={colors.muted} />
                 </TouchableOpacity>
               </View>
@@ -216,10 +217,12 @@ export function MealText({ forDate, onAddMany, onCancel, seedText }: Props) {
                 </View>
               ) : null}
               <View style={styles.macroRow}>
-                <MacroField label="kcal" value={row.calories} onChange={(v) => editRow(i, 'calories', v)} />
-                <MacroField label="P" value={row.protein} onChange={(v) => editRow(i, 'protein', v)} />
-                <MacroField label="C" value={row.carbs} onChange={(v) => editRow(i, 'carbs', v)} />
-                <MacroField label="F" value={row.fat} onChange={(v) => editRow(i, 'fat', v)} />
+                {/* Words, not P/C/F codes (S18-17): the codes are jargon on a
+                    first read and letters to a screen reader. */}
+                <MacroField label={t('macro.kcal')} value={row.calories} onChange={(v) => editRow(i, 'calories', v)} />
+                <MacroField label={t('macro.protein')} value={row.protein} onChange={(v) => editRow(i, 'protein', v)} />
+                <MacroField label={t('macro.carbs')} value={row.carbs} onChange={(v) => editRow(i, 'carbs', v)} />
+                <MacroField label={t('macro.fat')} value={row.fat} onChange={(v) => editRow(i, 'fat', v)} />
               </View>
             </View>
           ))}
@@ -228,6 +231,7 @@ export function MealText({ forDate, onAddMany, onCancel, seedText }: Props) {
           style={[styles.add, (rows.length === 0 || busy) && styles.addDisabled]}
           onPress={addAll}
           disabled={rows.length === 0 || busy}
+          accessibilityRole="button"
           testID="mealtext-add-all"
         >
           <Text style={styles.addText}>{t('mealText.addAll')}</Text>
@@ -243,7 +247,7 @@ export function MealText({ forDate, onAddMany, onCancel, seedText }: Props) {
           every EntrySheet mode dismisses from one place (UX_AUDIT S16-7). */}
       <View style={styles.head}>
         <Text style={styles.title}>{t('entry.describeMeal')}</Text>
-        <TouchableOpacity onPress={onCancel} hitSlop={8}>
+        <TouchableOpacity onPress={onCancel} hitSlop={12} accessibilityRole="button">
           <Text style={styles.back}>{t('common.cancel')}</Text>
         </TouchableOpacity>
       </View>
@@ -262,6 +266,7 @@ export function MealText({ forDate, onAddMany, onCancel, seedText }: Props) {
         style={[styles.add, (query.trim().length < 2 || phase === 'resolving') && styles.addDisabled]}
         onPress={resolve}
         disabled={query.trim().length < 2 || phase === 'resolving'}
+        accessibilityRole="button"
         testID="mealtext-parse"
       >
         {phase === 'resolving' ? (
@@ -279,7 +284,7 @@ function MacroField({ label, value, onChange }: { label: string; value: string; 
   const { colors } = useTheme();
   return (
     <View style={styles.macroField}>
-      <Text style={styles.macroLabel}>{label}</Text>
+      <Text style={styles.macroLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{label}</Text>
       <TextInput
         style={styles.macroInput}
         value={value}
@@ -287,6 +292,7 @@ function MacroField({ label, value, onChange }: { label: string; value: string; 
         keyboardType="numeric"
         placeholder="0"
         placeholderTextColor={colors.faint}
+        accessibilityLabel={label}
       />
     </View>
   );
@@ -328,6 +334,8 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   macroRow: { flexDirection: 'row', gap: space.sm, marginTop: space.xs },
   macroField: { flex: 1, gap: 2 },
   macroLabel: { fontSize: font.tiny, color: colors.muted, textAlign: 'center' },
+  // A word ("Proteína") has to fit where a letter did; the four fields split
+  // the row equally, so the label shrinks before it wraps.
   macroInput: {
     backgroundColor: colors.inputBg,
     borderWidth: 1,

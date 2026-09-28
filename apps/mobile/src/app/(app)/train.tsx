@@ -133,6 +133,7 @@ import { BottomSheet } from '@/components/BottomSheet';
 import { CardioBlockCard } from '@/components/train/CardioBlockCard';
 import { useUnitSystem } from '@/lib/use-unit-system';
 import { createStyles } from '@/components/train/train-styles';
+import { OfflineBanner } from '@/components/OfflineBanner';
 import { Sparkline } from '@/components/Sparkline';
 import { TrainGlossary } from '@/components/TrainGlossary';
 import { type I18nKey, type TFn, useLocale, useT } from '@/i18n';
@@ -145,7 +146,14 @@ import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { font, space } from '@/theme';
 import { formatDate } from '@/lib/date-format';
 
+/** Remount boundary for Retry — see Today for why a `key` bump is the
+ *  mechanism (the feed hooks expose no reload; UX_AUDIT S18-7). */
 export default function Train() {
+  const [attempt, setAttempt] = useState(0);
+  return <TrainScreen key={attempt} onRetry={() => setAttempt((a) => a + 1)} />;
+}
+
+function TrainScreen({ onRetry }: { onRetry: () => void }) {
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
@@ -195,7 +203,7 @@ export default function Train() {
       ) : train.active ? (
         <ActiveSession train={train} />
       ) : (
-        <StartView train={train} heroPulse={prPulse} />
+        <StartView train={train} heroPulse={prPulse} onRetry={onRetry} />
       )}
     </SafeAreaView>
   );
@@ -205,9 +213,11 @@ export default function Train() {
 function StartView({
   train,
   heroPulse,
+  onRetry,
 }: {
   train: ReturnType<typeof useTrain>;
   heroPulse: ReturnType<typeof usePulse>[0];
+  onRetry: () => void;
 }) {
   const t = useT();
   const locale = useLocale();
@@ -283,7 +293,31 @@ function StartView({
 
   return (
     <ScrollView contentContainerStyle={styles.body}>
-      {train.error ? <Text style={styles.error}>{t('train.loadErr')}</Text> : null}
+      {train.error ? (
+        <View
+          style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}
+          accessibilityRole="alert"
+          accessibilityLiveRegion="polite"
+        >
+          {/* A failed write is not a failed load: the tab still has its data
+              and "Tap Retry" would be the wrong instruction for it. */}
+          <Text style={[styles.error, { flex: 1 }]}>
+            {train.errorKind === 'save' ? t('train.workoutSaveErr') : t('train.loadErr')}
+          </Text>
+          <TouchableOpacity
+            onPress={onRetry}
+            style={[styles.discardBtn, { minHeight: 36, justifyContent: 'center' }]}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.retry')}
+            testID="retry"
+          >
+            <Text style={styles.discardText}>{t('common.retry')}</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
+      {/* A state readout, same slot it has on Today (UX_AUDIT S18-12). */}
+      <OfflineBanner />
 
       {/* Hero panel — the Today skeleton (ADR-0014 §7): workouts this week is
           the one big number; volume + top set live inside as chips. */}
@@ -688,6 +722,10 @@ function ExerciseDetailModal({
     : [];
   const history = rows.map((r) => r.ex);
   const series = exerciseSeries(history, style);
+  /** One point of `series` in the user's words, for the chart's text
+   *  alternative — a load in their unit, a hold in seconds, or a rep count. */
+  const fmtPoint = (v: number) =>
+    style === 'weight-reps' ? formatLoad(v, unitSystem, 0) : style === 'time' ? `${Math.round(v)}s` : String(Math.round(v));
   const prs = computeExercisePRs(history);
   const others = exercise ? train.catalog.filter((e) => e.id !== exercise.id) : [];
 
@@ -841,7 +879,25 @@ function ExerciseDetailModal({
                         <Text style={styles.panelLabel}>
                           {style === 'time' ? t('train.trendHold') : style === 'bodyweight' ? t('train.trendReps') : t('train.trendE1rm')}
                         </Text>
-                        <Sparkline values={series} color={colors.ring} />
+                        <Sparkline
+                          values={series}
+                          color={colors.ring}
+                          // The weight-chart sentence, reused: "{from} to {to}" is
+                          // the part that matters and the unit rides in the points.
+                          accessibilityLabel={t('a11y.chart.weight', {
+                            days: series.length,
+                            from: fmtPoint(series[0] as number),
+                            to: fmtPoint(series[series.length - 1] as number),
+                            unit: '',
+                            trend: t(
+                              (series[series.length - 1] as number) < (series[0] as number)
+                                ? 'a11y.trend.down'
+                                : (series[series.length - 1] as number) > (series[0] as number)
+                                  ? 'a11y.trend.up'
+                                  : 'a11y.trend.flat',
+                            ),
+                          })}
+                        />
                       </View>
                     ) : null}
 
@@ -1165,7 +1221,21 @@ function ActiveSession({ train }: { train: ReturnType<typeof useTrain> }) {
             </>
           ) : (
             <>
-              <TouchableOpacity style={styles.discardBtn} onPress={() => train.discardWorkout()} testID="discard-workout">
+              <TouchableOpacity
+                style={styles.discardBtn}
+                // Confirmed, like deleting a logged session: Discard deletes the
+                // in-progress doc and nothing brings it back (UX_AUDIT S18-6).
+                onPress={() =>
+                  confirm({
+                    title: t('train.discard'),
+                    body: t('train.discardConfirm'),
+                    confirmText: t('train.discard'),
+                    destructive: true,
+                    onConfirm: () => void train.discardWorkout(),
+                  })
+                }
+                testID="discard-workout"
+              >
                 <Text style={styles.discardText}>{t('train.discard')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -1190,10 +1260,24 @@ function ActiveSession({ train }: { train: ReturnType<typeof useTrain> }) {
         <View style={styles.restBarFloat} testID="rest-bar">
           <Text style={styles.restLabel}>{`${t('train.rest')} · ${rest.label}`}</Text>
           <View style={styles.restActions}>
-            <TouchableOpacity onPress={() => rest.start(rest.remaining + 30)} hitSlop={6} testID="rest-plus">
+            {/* 44-pt targets (UX_AUDIT S18-15): the text is small on purpose
+                inside a floating bar, so the box around it does the work. */}
+            <TouchableOpacity
+              onPress={() => rest.start(rest.remaining + 30)}
+              hitSlop={8}
+              style={{ minHeight: 44, minWidth: 44, justifyContent: 'center', alignItems: 'center' }}
+              accessibilityRole="button"
+              testID="rest-plus"
+            >
               <Text style={styles.restPlus}>+30s</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => rest.stop()} hitSlop={6} testID="rest-skip">
+            <TouchableOpacity
+              onPress={() => rest.stop()}
+              hitSlop={8}
+              style={{ minHeight: 44, minWidth: 44, justifyContent: 'center', alignItems: 'center' }}
+              accessibilityRole="button"
+              testID="rest-skip"
+            >
               <Text style={styles.restSkip}>{t('train.skip')}</Text>
             </TouchableOpacity>
           </View>
@@ -1219,13 +1303,19 @@ function ActiveSession({ train }: { train: ReturnType<typeof useTrain> }) {
         // happened, and refusing to store it would lose the evidence.
         invalid={invalidActivations}
         onFinish={async (extras) => {
-          await train.finishWorkout(extras);
+          // `finishWorkout` answers `false` on a failed save (the hook's
+          // boolean contract); a legacy void resolve reads as success. On
+          // failure the sheet stays up with the typed values, says so, and
+          // does NOT spend a rating prompt on a workout that was not saved.
+          const ok: unknown = await train.finishWorkout(extras);
+          if (ok === false) return false;
           setFinishOpen(false);
           // Finishing a workout is the app's clearest "that went well"
           // beat — the best place to spend one of iOS's few rating
           // requests. Fire-and-forget; it self-throttles and no-ops
           // until the user has enough qualifying days.
           void recordPositiveMoment();
+          return true;
         }}
       />
     </>
@@ -1752,6 +1842,7 @@ function SetRow({
             );
           }}
           onEndEditing={commit}
+          accessibilityLabel={t('train.setWeightA11y', { n: label })}
           testID={`set-weight-${exerciseIndex}-${setIndex}`}
         />
       ) : null}
@@ -1776,6 +1867,11 @@ function SetRow({
           );
         }}
         onEndEditing={commit}
+        accessibilityLabel={
+          logStyle === 'time'
+            ? t('train.setDurationA11y', { n: label })
+            : t('train.setRepsA11y', { n: label })
+        }
         testID={`set-count-${exerciseIndex}-${setIndex}`}
       />
 
@@ -1808,7 +1904,12 @@ function SetRow({
 
       <TouchableOpacity
         style={[styles.setDoneCell, styles.doneBox, set.done && styles.doneBoxOn]}
-        accessibilityLabel={t('common.done')}
+        // A checkbox with state, not a button that says "Done" whether or not
+        // it is (UX_AUDIT S18-3). hitSlop lifts the 32-pt cell to 44.
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: set.done }}
+        accessibilityLabel={`${t('common.done')} · ${label}`}
+        hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
         onPress={() => {
           haptics.tap();
           const nowDone = !set.done;
@@ -2113,7 +2214,8 @@ function FinishModal({
   /** Lifts whose activation could not be read. Reported, never blocking. */
   invalid: ActivationFinding[];
   visible: boolean;
-  onFinish: (extras: { bodyweight?: number; sleepHours?: number }) => Promise<void> | void;
+  /** Resolves `false` when the save failed and the sheet should stay open. */
+  onFinish: (extras: { bodyweight?: number; sleepHours?: number }) => Promise<boolean | void> | boolean | void;
   onClose: () => void;
 }) {
   const t = useT();
@@ -2127,6 +2229,7 @@ function FinishModal({
   const [sleep, setSleep] = useState('');
   const [busy, setBusy] = useState(false);
   const [weightErr, setWeightErr] = useState('');
+  const [saveErr, setSaveErr] = useState('');
 
   useEffect(() => {
     if (visible) {
@@ -2134,6 +2237,7 @@ function FinishModal({
       setSleep('');
       setBusy(false);
       setWeightErr('');
+      setSaveErr('');
     }
   }, [visible]);
 
@@ -2149,12 +2253,14 @@ function FinishModal({
       return;
     }
     setWeightErr('');
+    setSaveErr('');
     setBusy(true);
     try {
-      await onFinish({
+      const ok = await onFinish({
         bodyweight: lb ?? undefined,
         sleepHours: numOrUndef(sleep),
       });
+      if (ok === false) setSaveErr(t('train.workoutSaveErr'));
     } finally {
       setBusy(false);
     }
@@ -2221,6 +2327,17 @@ function FinishModal({
                 <Text style={styles.invalidHint}>{t('train.invalidHint')}</Text>
               </View>
             </View>
+          ) : null}
+
+          {saveErr ? (
+            <Text
+              style={[styles.sheetHint, { color: colors.danger }]}
+              accessibilityRole="alert"
+              accessibilityLiveRegion="polite"
+              testID="finish-save-error"
+            >
+              {saveErr}
+            </Text>
           ) : null}
 
           <TouchableOpacity style={styles.finishBtn} onPress={finish} disabled={busy} testID="finish-confirm">

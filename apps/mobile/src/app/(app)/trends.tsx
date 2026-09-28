@@ -15,6 +15,7 @@ import {
   toDisplayWeight,
 } from '@macrolog/core';
 import { HeaderAvatar } from '@/components/HeaderAvatar';
+import { OfflineBanner } from '@/components/OfflineBanner';
 import { NumbersGlossary } from '@/components/NumbersGlossary';
 import { SleepTrendsCard } from '@/components/SleepTrendsCard';
 import { FastingTrendsCard } from '@/components/FastingTrendsCard';
@@ -60,7 +61,14 @@ const TDEE_MODE: Record<TdeeResult['source'], { badgeKey: I18nKey; hintKey: I18n
   seed: { badgeKey: 'trends.estimate', hintKey: 'trends.seedHint' },
 };
 
+/** Remount boundary for Retry — see Today for why a `key` bump is the
+ *  mechanism (the feed hooks expose no reload; UX_AUDIT S18-7). */
 export default function Trends() {
+  const [attempt, setAttempt] = useState(0);
+  return <TrendsScreen key={attempt} onRetry={() => setAttempt((a) => a + 1)} />;
+}
+
+function TrendsScreen({ onRetry }: { onRetry: () => void }) {
   const [glossaryOpen, setGlossaryOpen] = useState(false);
   const t = useT();
   const locale = useLocale();
@@ -202,7 +210,23 @@ export default function Trends() {
         </View>
       ) : (
         <ScrollView ref={scrollRef} contentContainerStyle={styles.body}>
-          {error ? <Text style={styles.error}>{t('trends.loadErr')}</Text> : null}
+          {error ? (
+            <View style={styles.errorRow} accessibilityRole="alert" accessibilityLiveRegion="polite">
+              <Text style={styles.error}>{t('trends.loadErr')}</Text>
+              <TouchableOpacity
+                onPress={onRetry}
+                style={styles.retryBtn}
+                accessibilityRole="button"
+                accessibilityLabel={t('common.retry')}
+                testID="retry"
+              >
+                <Text style={styles.retryText}>{t('common.retry')}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+
+          {/* A state readout, same slot it has on Today (UX_AUDIT S18-12). */}
+          <OfflineBanner />
 
           {/* 1. Maintenance hero — the anchor, always populated with at least
               a formula estimate (never a dash once onboarding is done). */}
@@ -518,6 +542,8 @@ function PanelTabs({
           <PressScale
             key={tab.key}
             style={[styles.tab, on && styles.tabOn]}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: on }}
             testID={`panel-tab-${tab.key}`}
             onPress={() => {
               if (on) return;
@@ -593,7 +619,9 @@ function ThisWeek({
           value={`${insights.avgProtein}`}
           unit="g"
           sub={proteinTarget > 0 ? t('trends.proteinDays', { hit: insights.proteinGoalDays, days: insights.loggedDays }) : undefined}
-          subColor={colors.protein}
+          // `good`, not `protein`: the macro green is a DATA colour tuned for
+          // fills and measures 2.72:1 as text on light paper (UX_AUDIT S18-2).
+          subColor={colors.good}
           styles={styles}
         />
       </View>
@@ -707,16 +735,38 @@ function Budget({
           {formatNumber(Math.round(budget.consumed), locale)} / {formatNumber(budget.weeklyBudget, locale)}
         </Text>
       </View>
-      <View style={styles.barStrip}>
+      {/* One accessible node, not seven bars — a reader gets the week's
+          answer in a sentence (UX_AUDIT S18-5). The hairline is the target
+          height (the bars scale so that target = 70% of the track), and an
+          over-target day carries an outline and an underlined day letter as
+          well as the red, so the cue survives colour-blindness. */}
+      <View
+        style={styles.barStrip}
+        accessible
+        accessibilityRole="image"
+        accessibilityLabel={t('a11y.chart.budget', {
+          logged: budget.bars.filter((b) => b.calories > 0).length,
+          over: budget.bars.filter((b) => b.calories > budget.dailyTarget).length,
+        })}
+        testID="budget-strip"
+      >
         {budget.bars.map((b) => {
           const h = b.calories > 0 && budget.dailyTarget > 0 ? Math.max(6, Math.min(100, (b.calories / budget.dailyTarget) * 70)) : 0;
           const over = b.calories > budget.dailyTarget;
           return (
             <View key={b.dateKey} style={styles.barCol}>
               <View style={styles.barTrack}>
-                <View style={[styles.barFill, { height: `${h}%`, backgroundColor: over ? colors.danger : colors.ring, opacity: b.elapsed ? 1 : 0.3 }]} />
+                <View
+                  style={[
+                    styles.barFill,
+                    { height: `${h}%`, backgroundColor: over ? colors.danger : colors.ring, opacity: b.elapsed ? 1 : 0.3 },
+                    over && styles.barFillOver,
+                  ]}
+                  testID={over ? `budget-bar-over-${b.dateKey}` : undefined}
+                />
+                <View style={styles.barTargetLine} pointerEvents="none" />
               </View>
-              <Text style={styles.barDay}>{weekdayNarrow(b.dateKey, locale)}</Text>
+              <Text style={[styles.barDay, over && styles.barDayOver]}>{weekdayNarrow(b.dateKey, locale)}</Text>
             </View>
           );
         })}
@@ -755,7 +805,10 @@ const createStyles = ({ colors, shadow }: Theme) =>
     // That is #96 — the Coach row was untappable — and it caught the fasting
     // card's footer too once #98 added a sixth element below Coach.
     body: { padding: space.xl, paddingBottom: FAB_BAND, gap: space.sm },
-    error: { color: colors.danger, fontSize: font.small },
+    error: { color: colors.danger, fontSize: font.small, flex: 1 },
+    errorRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+    retryBtn: { borderWidth: 1, borderColor: colors.ink, borderRadius: radius.pill, paddingHorizontal: space.md, minHeight: 36, justifyContent: 'center' },
+    retryText: { fontSize: font.small, fontWeight: '700', color: colors.ink },
     // Hero
     heroPanel: { backgroundColor: colors.heroPanel, borderRadius: radius.xl, paddingVertical: space.xl, paddingHorizontal: space.lg, alignItems: 'center', gap: space.xs, ...shadow.e2 },
     hero: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: space.xs, marginTop: space.xs },
@@ -838,5 +891,9 @@ const createStyles = ({ colors, shadow }: Theme) =>
     barCol: { flex: 1, alignItems: 'center', gap: 4 },
     barTrack: { width: '55%', height: 64, borderRadius: radius.sm, backgroundColor: colors.line, justifyContent: 'flex-end', overflow: 'hidden' },
     barFill: { width: '100%', borderRadius: radius.sm },
+    barFillOver: { borderWidth: 1.5, borderColor: colors.ink },
+    // 70% up the track = the daily target (see the bar height formula).
+    barTargetLine: { position: 'absolute', left: 0, right: 0, bottom: '70%', height: StyleSheet.hairlineWidth * 2, backgroundColor: colors.ink, opacity: 0.55 },
+    barDayOver: { textDecorationLine: 'underline', fontWeight: '800', color: colors.ink },
     barDay: { fontSize: font.tiny, color: colors.faint, textTransform: 'uppercase' },
   });

@@ -4,6 +4,7 @@ import { Tabs, useRouter, useSegments } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ConfirmHost } from '@/components/ConfirmSheet';
+import { ToastProvider } from '@/components/Toast';
 import { LogSpeedDial } from '@/components/LogSpeedDial';
 import { useT } from '@/i18n';
 import { useAuth } from '@/lib/auth';
@@ -219,7 +220,7 @@ export default function AppTabsLayout() {
     void hydrateActiveWorkout(user?.uid);
   }, [user?.uid]);
   return (
-    <>
+    <ToastProvider>
     <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <AppTabBar {...props} />}>
       <Tabs.Screen name="index" options={{ title: t('nav.today') }} />
       <Tabs.Screen name="train" options={{ title: t('nav.train') }} />
@@ -244,7 +245,7 @@ export default function AppTabsLayout() {
     {/* Branded confirm dialogs (UX_AUDIT S16-10) — one host for every
         `confirm()` call in the authed shell. */}
     <ConfirmHost />
-    </>
+    </ToastProvider>
   );
 }
 

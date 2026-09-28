@@ -62,9 +62,17 @@ import {
 import { publishActiveWorkout } from '@/lib/active-workout-signal';
 import { useLocale } from '@/i18n';
 
+/** Which half of the hook failed. `load` is the Firestore feed (the screen
+ *  cannot show data it never received — `train.loadErr`); `save` is one of the
+ *  write verbs (the data on screen is fine, the last change did not land —
+ *  `train.saveErr`). */
+export type TrainErrorKind = 'load' | 'save';
+
 export interface TrainState {
   loading: boolean;
   error: Error | null;
+  /** Set alongside `error`; null when `error` is null. */
+  errorKind: TrainErrorKind | null;
   /** Exercise catalog (alphabetical). */
   catalog: Exercise[];
   /** Reusable workout templates, most-recently-updated first. */
@@ -141,8 +149,12 @@ export interface TrainState {
    *  any `dispatch(..., { defer: true })`). */
   commitActive: () => Promise<void>;
   /** Complete the workout: drop empty sets, flip to completed, mirror
-   *  bodyweight → dailyWeights + sleep → dailySleep, mark the day exercised. */
-  finishWorkout: (extras: { bodyweight?: number; sleepHours?: number }) => Promise<void>;
+   *  bodyweight → dailyWeights + sleep → dailySleep, mark the day exercised.
+   *  Resolves `true` when the session was finished and cleared, `false` when
+   *  the write failed (`error`/`errorKind: 'save'` are set) or there was no
+   *  active session — so the screen keeps the Finish sheet open and does not
+   *  fire the review prompt on a failure. Never rejects. */
+  finishWorkout: (extras: { bodyweight?: number; sleepHours?: number }) => Promise<boolean>;
   /** Abandon the active session (delete the doc). */
   discardWorkout: () => Promise<void>;
   deleteSession: (id: string) => Promise<void>;
@@ -212,8 +224,22 @@ export function useTrain(): TrainState {
   const [saving, setSaving] = useState(false);
   // ONE error slot for both halves of the hook: the eight write verbs record
   // theirs here, and the feed is told to route a listener failure into the same
-  // one rather than a second slot the screen would have to merge.
-  const [error, setError] = useState<Error | null>(null);
+  // one rather than a second slot the screen would have to merge. The KIND
+  // rides along so the screen can say "could not load" vs "did not save" —
+  // until 2026-09-28 every failure rendered as the load message.
+  const [errorState, setErrorState] = useState<{ error: Error; kind: TrainErrorKind } | null>(null);
+  const error = errorState?.error ?? null;
+  const errorKind = errorState?.kind ?? null;
+  /** The write verbs' setter. */
+  const setError = useCallback(
+    (e: Error | null) => setErrorState(e ? { error: e, kind: 'save' } : null),
+    [],
+  );
+  /** The feed's setter. */
+  const setLoadError = useCallback(
+    (e: Error | null) => setErrorState(e ? { error: e, kind: 'load' } : null),
+    [],
+  );
 
   // Focus-gated so the Train tab drops its live listeners when it blurs
   // (battery/network). Re-subscribes + reloads the active session on refocus.
@@ -222,7 +248,7 @@ export function useTrain(): TrainState {
     uid,
     label: 'Train',
     gate: 'focus',
-    onError: setError,
+    onError: setLoadError,
     // One-shot load of any in-progress session so set edits aren't clobbered
     // by a live subscription mid-typing. `alive()` is the feed's — a resolve
     // that lands after the tab blurred must not revive a torn-down screen.
@@ -647,9 +673,9 @@ export function useTrain(): TrainState {
 
 
   const finishWorkout = useCallback(
-    async (extras: { bodyweight?: number; sleepHours?: number }) => {
+    async (extras: { bodyweight?: number; sleepHours?: number }): Promise<boolean> => {
       const active = activeRef.current;
-      if (!uid || !active?.id) return;
+      if (!uid || !active?.id) return false;
       setSaving(true);
       try {
         // The six-step sequence itself lives in `ledger-ops.ts`, where it is
@@ -661,13 +687,19 @@ export function useTrain(): TrainState {
         // context already holds, and passed down rather than re-read.
         await finishWorkoutOp(uid, active, dayBoundaryOf(profile), extras);
         setActive(null);
+        return true;
       } catch (e) {
+        // `false`, not a rethrow: the screen used to `await` this inside a
+        // handler that then closed the Finish sheet and fired the review
+        // prompt regardless. A boolean makes "did it land" a value the
+        // handler has to look at; the error itself still surfaces on the tab.
         setError(asError(e, 'Finish failed'));
+        return false;
       } finally {
         setSaving(false);
       }
     },
-    [uid, profile, setActive],
+    [uid, profile, setActive, setError],
   );
 
   const discardWorkout = useCallback(async () => {
@@ -758,6 +790,7 @@ export function useTrain(): TrainState {
   return {
     loading,
     error,
+    errorKind,
     catalog,
     templates,
     recentSessions,

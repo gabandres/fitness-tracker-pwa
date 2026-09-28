@@ -77,6 +77,12 @@ export default function FeedbackScreen() {
 
   const over = message.length - FEEDBACK_MAX_LENGTH;
   const canSend = message.trim().length > 0 && over <= 0 && !busy;
+  // A remaining-characters line once the box is 80% full, and only then: a
+  // counter from the first keystroke turns "tell me what you think" into a
+  // form with a limit, and at 4,000 characters nobody is near it. The over-limit
+  // line below takes over once `over > 0`.
+  const charsLeft = FEEDBACK_MAX_LENGTH - message.length;
+  const showCharsLeft = over <= 0 && message.length >= FEEDBACK_MAX_LENGTH * 0.8;
 
   async function onSend() {
     if (!canSend || !user) return;
@@ -103,7 +109,13 @@ export default function FeedbackScreen() {
     return (
       <SafeAreaView style={styles.screen} edges={['top']}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} hitSlop={10} testID="feedback-back">
+          <TouchableOpacity
+            onPress={() => router.back()}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.back')}
+            testID="feedback-back"
+          >
             <Ionicons name="chevron-back" size={26} color={colors.ink} />
           </TouchableOpacity>
           <Text style={styles.title}>{t('feedback.title')}</Text>
@@ -121,7 +133,13 @@ export default function FeedbackScreen() {
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={10} testID="feedback-back">
+        <TouchableOpacity
+          onPress={() => router.back()}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.back')}
+          testID="feedback-back"
+        >
           <Ionicons name="chevron-back" size={26} color={colors.ink} />
         </TouchableOpacity>
         <Text style={styles.title}>{t('feedback.title')}</Text>
@@ -165,13 +183,22 @@ export default function FeedbackScreen() {
             testID="feedback-message"
           />
           {over > 0 ? (
-            <Text style={[styles.note, styles.noteBad]} testID="feedback-too-long">
+            <Text style={[styles.note, styles.noteBad]} accessibilityRole="alert" accessibilityLiveRegion="polite" testID="feedback-too-long">
               {t('feedback.tooLong', { n: over })}
+            </Text>
+          ) : null}
+          {showCharsLeft ? (
+            <Text style={styles.note} testID="feedback-chars-left">
+              {t('feedback.charsLeft', { n: charsLeft })}
             </Text>
           ) : null}
 
           <Text style={styles.note}>{t('feedback.privacy')}</Text>
-          {error ? <Text style={styles.error}>{error}</Text> : null}
+          {error ? (
+            <Text style={styles.error} accessibilityRole="alert" accessibilityLiveRegion="polite" testID="feedback-error">
+              {error}
+            </Text>
+          ) : null}
         </ScrollView>
 
         <View style={styles.footer}>

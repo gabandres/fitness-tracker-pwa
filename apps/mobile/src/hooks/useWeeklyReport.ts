@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
+  type DailyLog,
+  type MilestoneContext,
   type WeeklyReport,
   buildMilestoneContext,
   buildWeeklyReportPayload,
   computeStreak,
 } from '@macrolog/core';
 import { useAuth } from '@/lib/auth';
-import { subscribeLatestReport } from '@/lib/ledger';
+import { getLogStats, subscribeLatestReport } from '@/lib/ledger';
 import { requestWeeklyReport, reportErrorCode } from '@/lib/weeklyReport';
 import { useLocale } from '@/i18n';
 import { useCoach } from './useCoach';
@@ -21,6 +23,32 @@ export interface WeeklyReportState {
   /** True when there is no report or the cached one is >7 days old. */
   isStale: boolean;
   generate: () => Promise<void>;
+}
+
+/**
+ * The milestone context from an all-time read, with the loaded window as the
+ * floor. `buildMilestoneContext` is documented as lifetime-only; feeding it the
+ * 400-row coach window capped "N months of logging" at whatever the window
+ * reached back to. `stats` is null when the read failed, in which case the
+ * window is the honest fallback (an understatement, never an invention).
+ * Exported for the test.
+ */
+export function milestoneFromStats(
+  stats: { totalLogs: number; earliestLogAt: Date | null } | null,
+  windowLogs: DailyLog[],
+  currentStreak: number,
+): MilestoneContext {
+  const fromWindow = buildMilestoneContext(windowLogs, currentStreak);
+  if (!stats) return fromWindow;
+  const earliest =
+    stats.earliestLogAt && fromWindow.earliestLogAt
+      ? new Date(Math.min(stats.earliestLogAt.getTime(), fromWindow.earliestLogAt.getTime()))
+      : stats.earliestLogAt ?? fromWindow.earliestLogAt;
+  return {
+    totalLogs: Math.max(stats.totalLogs, fromWindow.totalLogs),
+    earliestLogAt: earliest,
+    currentStreak,
+  };
 }
 
 /**
@@ -51,7 +79,9 @@ export function useWeeklyReport(): WeeklyReportState {
     setErrorCode(null);
     try {
       const streak = computeStreak(logs).streak;
-      const milestone = buildMilestoneContext(logs, streak);
+      // One bounded all-time read; a failure falls back to the window.
+      const stats = await getLogStats(uid!).catch(() => null);
+      const milestone = milestoneFromStats(stats, logs, streak);
       const payload = buildWeeklyReportPayload({ logs, tdee, profile, dailyWeights, milestone, locale });
       // The server writes the doc; subscribeLatestReport delivers the update.
       await requestWeeklyReport(payload);
@@ -60,7 +90,7 @@ export function useWeeklyReport(): WeeklyReportState {
     } finally {
       setGenerating(false);
     }
-  }, [generating, logs, tdee, profile, dailyWeights, locale]);
+  }, [generating, uid, logs, tdee, profile, dailyWeights, locale]);
 
   const isStale = !report || Date.now() - report.generatedAt.getTime() > SEVEN_DAYS_MS;
 

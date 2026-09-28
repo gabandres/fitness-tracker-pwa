@@ -785,7 +785,9 @@ function ItemRow({
           testID={`scan-item-name-${index}`}
         />
         <Text style={styles.itemMacros}>
-          {Math.round(item.calories)} kcal · {Math.round(item.protein)}P · {Math.round(item.carbs)}C · {Math.round(item.fat)}F
+          {/* Spelled, not `P/C/F` — the letter codes were the only place in
+              the app that assumed the reader knew them (UX_AUDIT S18-17). */}
+          {Math.round(item.calories)} kcal · {t('history.protein')} {Math.round(item.protein)} g · {t('today.carbs')} {Math.round(item.carbs)} g · {t('today.fat')} {Math.round(item.fat)} g
         </Text>
         {estimated ? (
           <Text style={styles.itemEstimate}>{t('scan.sourceEstimate' as never)}</Text>

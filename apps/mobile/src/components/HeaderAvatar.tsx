@@ -1,5 +1,6 @@
 import { router } from 'expo-router';
 import { Image, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { useT } from '@/i18n';
 import { useAuth } from '@/lib/auth';
 import { useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font } from '@/theme';
@@ -22,6 +23,7 @@ function initials(name: string | null | undefined): string {
  * when those populate photoURL) and falls back to initials.
  */
 export function HeaderAvatar() {
+  const t = useT();
   const { user } = useAuth();
   const styles = useThemedStyles(createStyles);
   const photo = user?.photoURL ?? null;
@@ -33,7 +35,7 @@ export function HeaderAvatar() {
       testID="settings-open"
       hitSlop={10}
       accessibilityRole="button"
-      accessibilityLabel="Settings"
+      accessibilityLabel={t('nav.settings')}
     >
       {photo ? (
         <Image source={{ uri: photo }} style={styles.img} />

@@ -14,8 +14,11 @@ import { Platform, type ViewStyle } from 'react-native';
  * research-backed (Radix Tomato/Teal/Sand ramps).
  * Discipline in both: coral = the calorie hero + primary CTAs; teal =
  * secondary interactive; saturation is reserved for data + semantic state.
- * All text tokens are WCAG-AA on their canvas (`ring` is intentionally
- * brighter — it's a large fill, not text).
+ * All text tokens are WCAG-AA (≥4.5:1) on BOTH `paper` and `card` — `faint`
+ * included, which it was not until 2026-09-28 (light `#a8a29e` measured
+ * 2.40:1 while this header claimed AA; UX_AUDIT S18-2). `theme-contrast.test.ts`
+ * computes the ratios, so the claim is checked rather than asserted. `ring`
+ * is intentionally brighter — it's a large fill, not text.
  *
  * NOTE: v1 styles with React Native StyleSheet rather than NativeWind
  * (Tailwind v3/v4 monorepo conflict — see docs/adr/0012).
@@ -26,13 +29,13 @@ const light = {
   card: '#f4f2ee', // warm-gray surface (temperature-matched to the canvas)
   ink: '#1c1917', // primary text + strong CTAs/FAB — warm near-black
   muted: '#57534e', // warm secondary text
-  faint: '#a8a29e', // warm tertiary text / placeholders
+  faint: '#736c67', // warm tertiary text / placeholders — 4.9:1 paper, 4.6:1 card
   line: '#e7e5e2', // warm hairline border
   accent: '#c62f27', // coral HERO — accent text/links, AA on canvas (~4.6:1)
   accentSoft: '#faf3f1', // coral section wash (tinted surface)
   ring: '#ff6a3d', // bright coral-orange calorie ring — "energy", large fill
   teal: '#0f766e', // SECONDARY accent — links/toggles, AA text (~4.9:1)
-  tealSolid: '#12a594', // teal fill — switch tracks, indicators
+  tealSolid: '#0a776d', // teal fill — switch tracks, indicators; AA as text on `tealSoft` (4.7:1)
   tealSoft: '#e6f2f0', // teal section wash (tinted surface)
   protein: '#0fa968', // green (macro data)
   carbs: '#f59e0b', // amber (macro data)
@@ -48,8 +51,8 @@ const light = {
   habitSleep: '#8b5cf6', // violet — shares `fat`'s vetted hue
   habitFasting: '#d97706', // ember amber — between `carbs` and `warn`, ≥3:1 on canvas
   habitWater: '#0f766e', // teal — same as `teal`, the row's existing colour
-  good: '#208368', // success text (jade, AA)
-  warn: '#ab6400', // warning text (amber, AA — bright amber fails on white)
+  good: '#1e7b62', // success text (jade) — 4.9:1 paper, 4.6:1 card (was #208368, 4.4:1)
+  warn: '#a25f00', // warning text (amber) — 4.8:1 paper, 4.5:1 card; bright amber fails on white
   info: '#0d74ce', // info text (blue, AA)
   danger: '#dc2626', // danger red — distinct from the coral brand
   white: '#ffffff',
@@ -70,13 +73,13 @@ const dark: ColorTokens = {
   card: '#1d1b18', // elevated warm surface
   ink: '#f3f1ec', // primary text — warm off-white
   muted: '#b3ada3', // secondary text
-  faint: '#7c766c', // tertiary text / placeholders
+  faint: '#8f887d', // tertiary text / placeholders — 5.3:1 paper, 4.9:1 card
   line: '#2b2822', // warm hairline border
   accent: '#ff8a5c', // coral text/links — AA on the dark canvas
   accentSoft: '#2a1712', // coral wash (deep ember surface)
   ring: '#ff6a3d', // SAME hero coral — glows on near-black
   teal: '#3fd6c0', // secondary accent text — AA on canvas
-  tealSolid: '#12a594', // teal fill — unchanged, reads on both
+  tealSolid: '#12a594', // teal fill — 4.6:1 as text on the dark `tealSoft`
   tealSoft: '#11302b', // teal wash (deep sea surface)
   protein: '#34d399', // green (macro data) — brightened for dark
   carbs: '#fbbf24', // amber (macro data)

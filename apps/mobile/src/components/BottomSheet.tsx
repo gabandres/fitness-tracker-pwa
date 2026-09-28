@@ -4,6 +4,7 @@ import {
   StyleSheet, type StyleProp, View, type ViewStyle,
 } from 'react-native';
 import Reanimated from 'react-native-reanimated';
+import { useT } from '@/i18n';
 import { useKeyboardSheetPadding } from '@/lib/use-keyboard-sheet-style';
 import { useThemedStyles, type Theme } from '@/lib/theme-context';
 import { radius, space } from '@/theme';
@@ -52,6 +53,7 @@ export function BottomSheet({
   maxHeight = '94%',
   backdropTestID,
 }: Props) {
+  const t = useT();
   const styles = useThemedStyles(createStyles);
   const [mounted, setMounted] = useState(visible);
   const anim = useRef(new Animated.Value(0)).current;
@@ -119,15 +121,35 @@ export function BottomSheet({
 
   return (
     <Modal visible={mounted} transparent animationType="none" onRequestClose={onClose}>
+      {/* The backdrop is a real control — it closes the sheet — so it says so
+          (S18-5). Without a role and a label VoiceOver reads it as an unnamed
+          button the size of the screen. */}
       <Animated.View style={backdropStyle}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} testID={backdropTestID} />
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel={t('a11y.close')}
+          testID={backdropTestID}
+        />
       </Animated.View>
       <View style={[styles.wrap, { pointerEvents: 'box-none' }]}>
         {/* Outer Reanimated layer lifts the sheet with the keyboard (frame-
-            perfect); inner RN-Animated layer owns the open/close spring + drag. */}
-        <Animated.View style={sheetStyle}>
+            perfect); inner RN-Animated layer owns the open/close spring + drag.
+            `accessibilityViewIsModal` keeps VoiceOver INSIDE the panel — the
+            screen underneath is still in the tree and would otherwise be
+            swipeable-to. */}
+        <Animated.View style={sheetStyle} accessibilityViewIsModal>
           <Reanimated.View style={[styles.sheet, contentStyle, sheetPadding]}>
-            <View style={styles.grabZone} {...pan.panHandlers}>
+            {/* The handle is a drag affordance with no screen-reader meaning:
+                the backdrop and the OS back gesture already close the sheet. */}
+            <View
+              style={styles.grabZone}
+              accessible={false}
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+              {...pan.panHandlers}
+            >
               <View style={styles.handle} />
             </View>
             {children}

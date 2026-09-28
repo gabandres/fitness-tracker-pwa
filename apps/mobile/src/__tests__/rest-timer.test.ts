@@ -1,8 +1,22 @@
 jest.mock('@/lib/haptics', () => ({ success: jest.fn() }));
+// The hook schedules a local notification at the deadline; that behaviour has
+// its own spec (rest-timer-notification.test.ts). Here it is inert.
+jest.mock('expo-notifications', () => ({
+  getPermissionsAsync: jest.fn(async () => ({ status: 'denied' })),
+  scheduleNotificationAsync: jest.fn(async () => 'id'),
+  cancelScheduledNotificationAsync: jest.fn(async () => undefined),
+  SchedulableTriggerInputTypes: { DAILY: 'daily', DATE: 'date' },
+}));
+jest.mock('@/lib/auth', () => ({ useAuth: () => ({ profile: null }) }));
 
+import React from 'react';
 import { act, renderHook } from '@testing-library/react-native';
+import { I18nProvider } from '@/i18n';
 import { useRestTimer } from '@/hooks/useRestTimer';
 import * as haptics from '@/lib/haptics';
+
+const wrapper = ({ children }: { children: React.ReactNode }) =>
+  React.createElement(I18nProvider, null, children);
 
 /**
  * The rest countdown is WALL-CLOCK time. JS timers are suspended while the
@@ -16,7 +30,7 @@ afterEach(() => jest.useRealTimers());
 /** Mount with real timers (the async renderer needs them to flush), then
  *  freeze the clock so `start` and every tick run against fake time. */
 async function mount() {
-  const hook = await renderHook(() => useRestTimer());
+  const hook = await renderHook(() => useRestTimer(), { wrapper });
   jest.useFakeTimers();
   jest.setSystemTime(new Date(2026, 8, 27, 12, 0, 0));
   return hook;

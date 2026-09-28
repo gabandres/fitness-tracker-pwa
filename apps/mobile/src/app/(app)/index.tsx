@@ -8,6 +8,8 @@ import { captureAndShare } from '@/lib/shareCapture';
 import type { DailyLog, LogEntry } from '@macrolog/core';
 import { fastLengthHours, maintenanceView } from '@macrolog/core';
 import { confirm } from '@/components/ConfirmSheet';
+import { Flame } from '@/components/Flame';
+import { useToast } from '@/components/Toast';
 import { DailyMetrics } from '@/components/DailyMetrics';
 import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { NumbersGlossary } from '@/components/NumbersGlossary';
@@ -31,6 +33,8 @@ import { useDayFasts } from '@/hooks/useDayFasts';
 import { useFastActivity } from '@/hooks/useFastActivity';
 import { useReminderSync } from '@/hooks/useReminderSync';
 import { performQuickAdd } from '@/lib/quick-add';
+import { addLogWithId } from '@/lib/ledger';
+import { entryFromLog } from '@/app/(app)/history/[date]';
 import { useMilestones } from '@/hooks/useMilestones';
 import { useToday } from '@/hooks/useToday';
 import { useTodayNudge } from '@/hooks/useTodayNudge';
@@ -74,8 +78,23 @@ function todayLabel(locale: Locale): string {
   return formatDate(new Date(), locale, { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
+/**
+ * Remount boundary for Retry (UX_AUDIT S18-7).
+ *
+ * The feed hooks expose no reload — `useLedgerFeed` re-opens on focus and
+ * resets its error only for a NEW account — so the honest retry is a fresh
+ * mount: every listener closes and reopens, `error` starts null, and the
+ * spinner/cached-paint logic runs exactly as on a cold open. A `key` bump is
+ * the whole mechanism; nothing about the hooks changes (ADR-0016).
+ */
 export default function Today() {
+  const [attempt, setAttempt] = useState(0);
+  return <TodayScreen key={attempt} onRetry={() => setAttempt((a) => a + 1)} />;
+}
+
+function TodayScreen({ onRetry }: { onRetry: () => void }) {
   const t = useT();
+  const toast = useToast();
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
@@ -308,14 +327,50 @@ export default function Today() {
     setSheetOpen(true);
   }
   async function onSave(entry: LogEntry) {
-    if (editing?.id) await updateEntry(editing.id, entry);
-    else await addEntry(entry);
+    if (editing?.id) {
+      await updateEntry(editing.id, entry);
+    } else {
+      // `addLogDurably` answers 'logged' | 'queued'; `useLogWrites` forwards it
+      // once the hooks change lands, and until then resolves void, which is
+      // simply "not queued" here. The receipt is what `offline.queued` was
+      // written for and never used (UX_AUDIT S18-12).
+      const outcome: unknown = await addEntry(entry);
+      if (outcome === 'queued') toast.show(t('offline.queued'));
+    }
     haptics.success();
   }
+  /**
+   * Delete first, offer Undo second (UX_AUDIT S18-6). No confirm sheet: a
+   * mis-tap costs one more tap to reverse, and the reversal is exact — same
+   * id, same timestamp — so nothing about the day changes except the row
+   * coming back. A confirm would cost every intentional delete a step to
+   * protect against the rare one.
+   */
   async function onDelete() {
-    if (editing?.id) await deleteEntry(editing.id);
+    const log = editing;
+    if (log?.id) {
+      await deleteEntry(log.id);
+      offerUndo(log);
+    }
     haptics.success();
     closeSheet();
+  }
+  function offerUndo(log: DailyLog) {
+    const id = log.id;
+    const uid = user?.uid;
+    if (!id || !uid) return;
+    toast.show(t('entry.deleted'), {
+      durationMs: 5000,
+      action: {
+        label: t('common.undo'),
+        onPress: () => {
+          addLogWithId(uid, id, entryFromLog(log)).catch((e) => {
+            haptics.warning();
+            captureError(e, { where: 'today.undoDelete' });
+          });
+        },
+      },
+    });
   }
   /** Every way the add sheet closes goes through here: the guided tour is
    *  held while onboarding's first-log sheet is up, and this is its release. */
@@ -356,7 +411,10 @@ export default function Today() {
               accessibilityRole="text"
               accessibilityLabel={t('today.streakA11y', { n: streak })}
             >
-              <Text style={styles.streakFlame}>🔥</Text>
+              {/* The brand ember, not a platform emoji that renders differently
+                  on every OS (UX_AUDIT S18-17). Still, so a chip does not
+                  flicker in the corner of every Today. */}
+              <Flame size={18} flicker={false} />
               <Text style={styles.streakNum}>{streak}</Text>
             </Animated.View>
           ) : null}
@@ -455,7 +513,20 @@ export default function Today() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.body}>
-          {error ? <Text style={styles.error}>{t('today.loadErr')}</Text> : null}
+          {error ? (
+            <View style={styles.errorRow} accessibilityRole="alert" accessibilityLiveRegion="polite">
+              <Text style={styles.error}>{t('today.loadErr')}</Text>
+              <TouchableOpacity
+                onPress={onRetry}
+                style={styles.retryBtn}
+                accessibilityRole="button"
+                accessibilityLabel={t('common.retry')}
+                testID="retry"
+              >
+                <Text style={styles.retryText}>{t('common.retry')}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
 
           {/* A state readout, not a Nudge — above the banners that are, and
               never competing with them for the one-at-a-time slot. */}
@@ -540,6 +611,8 @@ export default function Today() {
         editing={editing}
         onSave={onSave}
         onDelete={editing ? onDelete : undefined}
+        // Undo is offered here, so the sheet's delete fires at once (S18-6).
+        deleteUndoable
         onClose={closeSheet}
         presets={presets}
         recentEntries={recentEntries}
@@ -584,7 +657,10 @@ function createStyles({ colors }: Theme) {
     // the content above happens to end — which at 360x720dp is directly under
     // the FAB (UX_AUDIT F5).
     body: { flexGrow: 1, paddingHorizontal: space.xl, paddingBottom: space.xl, gap: space.lg },
-    error: { color: colors.danger, fontSize: font.small },
+    error: { color: colors.danger, fontSize: font.small, flex: 1 },
+    errorRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+    retryBtn: { borderWidth: 1, borderColor: colors.ink, borderRadius: radius.pill, paddingHorizontal: space.md, minHeight: 36, justifyContent: 'center' },
+    retryText: { fontSize: font.small, fontWeight: '700', color: colors.ink },
     sectionTitle: { fontFamily: type.heading, fontSize: font.h3, color: colors.ink },
     // UX_AUDIT F5: the orange + button was drawn straight over "Repeat
     // yesterday", which rendered as `Repe(+)sterday` on a 360x720dp screen —
@@ -654,7 +730,6 @@ function createStyles({ colors }: Theme) {
     headerRight: { flexDirection: 'row', alignItems: 'center', gap: space.md, flexShrink: 0 },
     shareCapture: { position: 'absolute', left: -10000, top: 0, opacity: 0 },
     streakChip: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.pill, paddingHorizontal: space.sm, paddingVertical: 3 },
-    streakFlame: { fontSize: font.small },
     streakNum: { fontSize: font.small, fontWeight: '800', color: colors.ink },
     repeatBtn: { flexDirection: 'row', alignItems: 'center', gap: space.xs, marginTop: space.sm, borderWidth: 1, borderColor: colors.ink, borderRadius: radius.pill, paddingHorizontal: space.lg, paddingVertical: space.sm },
     repeatBtnDisabled: { opacity: 0.5 },

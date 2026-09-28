@@ -25,6 +25,7 @@ import {
 } from '@macrolog/core';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { BottomSheet } from '@/components/BottomSheet';
+import { confirm } from '@/components/ConfirmSheet';
 import { MicButton } from './MicButton';
 import { FoodSearch } from '@/components/FoodSearch';
 import { MealText } from '@/components/MealText';
@@ -46,6 +47,15 @@ interface Props {
   editing: DailyLog | null;
   onSave: (entry: LogEntry) => Promise<void> | void;
   onDelete?: () => Promise<void> | void;
+  /**
+   * The caller offers Undo after a delete (a toast that re-adds the row with
+   * `addLogWithId`), so the Delete button fires at once. When false — the
+   * default — Delete goes through the confirm sheet instead. One of the two,
+   * never both: a confirm in front of an undoable action charges every
+   * intentional delete a step to guard against a mis-tap it can already
+   * reverse (UX_AUDIT S18-6 names either as sufficient).
+   */
+  deleteUndoable?: boolean;
   onClose: () => void;
   presets?: MealPreset[];
   recentEntries?: DailyLog[];
@@ -121,6 +131,7 @@ export function EntrySheet({
   editing,
   onSave,
   onDelete,
+  deleteUndoable = false,
   onClose,
   presets = [],
   recentEntries = [],
@@ -450,7 +461,20 @@ export function EntrySheet({
         tag: t('entry.myFoods'),
         onLog: () =>
           quickLog({ calories: m.calories, protein: m.protein, carbs: m.carbs, fat: m.fat, mealLabel: f.name }),
-        onRemove: f.id && onDeleteCustomFood ? () => onDeleteCustomFood(f.id as string) : undefined,
+        // Removing a saved food is destructive and one tap away in Manage mode,
+        // so it goes through the confirm sheet (S18-6). Hiding a recent is not
+        // — it is a list preference, and the food itself is still in the diary.
+        onRemove:
+          f.id && onDeleteCustomFood
+            ? () =>
+                confirm({
+                  title: t('entry.foodDeleteConfirm'),
+                  body: f.name,
+                  confirmText: t('common.remove'),
+                  destructive: true,
+                  onConfirm: () => void onDeleteCustomFood(f.id as string),
+                })
+            : undefined,
       });
     }
     return rows.slice(0, BROWSE_ROW_CAP);
@@ -464,7 +488,12 @@ export function EntrySheet({
           <View style={styles.groupHead}>
             <Text style={styles.groupLabel}>{t('entry.quickAdd')}</Text>
             {onDeletePreset ? (
-              <TouchableOpacity onPress={() => setManage((m) => !m)} hitSlop={8}>
+              <TouchableOpacity
+                onPress={() => setManage((m) => !m)}
+                hitSlop={12}
+                accessibilityRole="button"
+                accessibilityState={{ selected: manage }}
+              >
                 <Text style={[styles.manageText, manage && styles.manageOn]}>
                   {manage ? t('common.done') : t('common.manage')}
                 </Text>
@@ -477,9 +506,18 @@ export function EntrySheet({
                 key={p.id}
                 style={styles.presetChip}
                 testID={`preset-${p.id}`}
+                accessibilityRole="button"
+                accessibilityLabel={manage ? `${t('common.remove')}: ${p.name}` : undefined}
                 onPress={() =>
                   manage
-                    ? p.id && onDeletePreset?.(p.id)
+                    ? p.id &&
+                      confirm({
+                        title: t('entry.presetDeleteConfirm'),
+                        body: p.name,
+                        confirmText: t('common.remove'),
+                        destructive: true,
+                        onConfirm: () => void onDeletePreset?.(p.id as string),
+                      })
                     : quickLog({ calories: p.calories, protein: p.protein, carbs: p.carbs, fat: p.fat, mealLabel: p.name })
                 }
               >
@@ -501,7 +539,12 @@ export function EntrySheet({
           <View style={styles.groupHead}>
             <Text style={styles.groupLabel}>{t('entry.recent')}</Text>
             {onHideRecent || onDeleteCustomFood ? (
-              <TouchableOpacity onPress={() => setManage((m) => !m)} hitSlop={8}>
+              <TouchableOpacity
+                onPress={() => setManage((m) => !m)}
+                hitSlop={12}
+                accessibilityRole="button"
+                accessibilityState={{ selected: manage }}
+              >
                 <Text style={[styles.manageText, manage && styles.manageOn]}>
                   {manage ? t('common.done') : t('common.manage')}
                 </Text>
@@ -513,6 +556,8 @@ export function EntrySheet({
               key={row.key}
               style={styles.row}
               testID={row.key}
+              accessibilityRole="button"
+              accessibilityLabel={manage && row.onRemove ? `${t('common.remove')}: ${row.name}` : undefined}
               onPress={() => (manage ? row.onRemove?.() : row.onLog())}
             >
               <Text style={styles.rowName} numberOfLines={1}>{row.name}</Text>
@@ -536,6 +581,7 @@ export function EntrySheet({
                 key={f.label}
                 style={styles.starterChip}
                 testID={`starter-${f.label}`}
+                accessibilityRole="button"
                 onPress={() => prefill({ calories: f.calories, protein: f.protein, mealLabel: f.label })}
               >
                 <Text style={styles.starterLabel} numberOfLines={1}>{f.label}</Text>
@@ -558,13 +604,14 @@ export function EntrySheet({
           The label stays "Write it in": the icon carries the action, the words
           carry which of the four ways in this is. `testID` is unchanged on
           purpose — four Maestro flows and a unit test drive this button by it. */}
-      <TouchableOpacity style={styles.primaryBtn} onPress={() => openCustomBlank()} testID="open-manual">
+      <TouchableOpacity style={styles.primaryBtn} onPress={() => openCustomBlank()} accessibilityRole="button" testID="open-manual">
         <Ionicons name="add" size={20} color={colors.ink} />
         <Text style={styles.primaryBtnText}>{t('entry.writeItYourself')}</Text>
       </TouchableOpacity>
       <TouchableOpacity
         style={styles.primaryBtn}
         onPress={() => { haptics.tap(); setMoreOpen((v) => !v); }}
+        accessibilityRole="button"
         accessibilityState={{ expanded: moreOpen }}
         testID="open-more"
       >
@@ -574,22 +621,22 @@ export function EntrySheet({
     </View>
     {moreOpen ? (
       <View style={styles.moreList}>
-        <TouchableOpacity style={styles.moreRow} onPress={() => { haptics.tap(); setMoreOpen(false); setMode('meal'); }} testID="open-mealtext">
+        <TouchableOpacity style={styles.moreRow} onPress={() => { haptics.tap(); setMoreOpen(false); setMode('meal'); }} accessibilityRole="button" testID="open-mealtext">
           <Ionicons name="chatbubble-ellipses-outline" size={20} color={colors.ink} />
           <Text style={styles.moreRowText}>{t('entry.describeMeal')}</Text>
         </TouchableOpacity>
         {Platform.OS !== 'web' ? (
-          <TouchableOpacity style={styles.moreRow} onPress={() => { haptics.tap(); setMoreOpen(false); if (!cameraDenied) setScannerOpen(true); }} testID="open-barcode">
+          <TouchableOpacity style={styles.moreRow} onPress={() => { haptics.tap(); setMoreOpen(false); if (!cameraDenied) setScannerOpen(true); }} accessibilityRole="button" testID="open-barcode">
             <Ionicons name="barcode-outline" size={20} color={colors.ink} />
             <Text style={styles.moreRowText}>{t('entry.scanBarcode')}</Text>
           </TouchableOpacity>
         ) : null}
-        <TouchableOpacity style={styles.moreRow} onPress={() => { haptics.tap(); setMoreOpen(false); setMode('recipe'); }} testID="open-recipe">
+        <TouchableOpacity style={styles.moreRow} onPress={() => { haptics.tap(); setMoreOpen(false); setMode('recipe'); }} accessibilityRole="button" testID="open-recipe">
           <Ionicons name="calculator-outline" size={20} color={colors.ink} />
           <Text style={styles.moreRowText}>{t('entry.recipeBuilder')}</Text>
         </TouchableOpacity>
         {Platform.OS !== 'web' ? (
-          <TouchableOpacity style={styles.moreRow} onPress={() => { haptics.tap(); setMoreOpen(false); setMode('recipeImport'); }} testID="open-recipe-import">
+          <TouchableOpacity style={styles.moreRow} onPress={() => { haptics.tap(); setMoreOpen(false); setMode('recipeImport'); }} accessibilityRole="button" testID="open-recipe-import">
             <Ionicons name="link-outline" size={20} color={colors.ink} />
             <Text style={styles.moreRowText}>{t('entry.importRecipe')}</Text>
           </TouchableOpacity>
@@ -599,7 +646,7 @@ export function EntrySheet({
     {cameraDenied ? (
       <View style={styles.camDenied}>
         <Text style={styles.camDeniedText}>{t('barcode.permNeeded')}</Text>
-        <TouchableOpacity onPress={() => Linking.openSettings()} testID="barcode-perm-settings">
+        <TouchableOpacity onPress={() => Linking.openSettings()} hitSlop={12} accessibilityRole="button" testID="barcode-perm-settings">
           <Text style={styles.camDeniedLink}>{t('barcode.openSettings')}</Text>
         </TouchableOpacity>
       </View>
@@ -712,7 +759,16 @@ export function EntrySheet({
                       {MEAL_TYPES.map((mt) => {
                         const on = mealType === mt;
                         return (
-                          <TouchableOpacity key={mt} style={[styles.chip, on && styles.chipOn]} onPress={() => setMealType(on ? undefined : mt)}>
+                          <TouchableOpacity
+                            key={mt}
+                            style={[styles.chip, on && styles.chipOn]}
+                            onPress={() => setMealType(on ? undefined : mt)}
+                            // 36dp chip + 4 slop = 44 (S18-15); chips sit 8dp apart.
+                            hitSlop={4}
+                            accessibilityRole="button"
+                            accessibilityState={{ selected: on }}
+                            testID={`meal-type-${mt}`}
+                          >
                             <Text style={[styles.chipText, on && styles.chipTextOn]}>{t(`meal.${mt}`)}</Text>
                           </TouchableOpacity>
                         );
@@ -723,7 +779,7 @@ export function EntrySheet({
                   {showDateRow ? (
                     <Field label={t('entry.date')}>
                       <View style={styles.dateRow}>
-                        <TouchableOpacity style={styles.dateStep} onPress={() => shiftEntryDate(-1)} testID="entry-date-prev">
+                        <TouchableOpacity style={styles.dateStep} onPress={() => shiftEntryDate(-1)} hitSlop={2} accessibilityRole="button" accessibilityLabel={t('settings.earlier')} testID="entry-date-prev">
                           <Text style={styles.dateStepText}>−</Text>
                         </TouchableOpacity>
                         <Text style={styles.dateLabel} testID="entry-date">
@@ -733,6 +789,10 @@ export function EntrySheet({
                           style={[styles.dateStep, isSameDay(entryDate, new Date()) && styles.dateStepDisabled]}
                           onPress={() => shiftEntryDate(1)}
                           disabled={isSameDay(entryDate, new Date())}
+                          hitSlop={2}
+                          accessibilityRole="button"
+                          accessibilityLabel={t('settings.later')}
+                          accessibilityState={{ disabled: isSameDay(entryDate, new Date()) }}
                           testID="entry-date-next"
                         >
                           <Text style={styles.dateStepText}>+</Text>
@@ -742,14 +802,14 @@ export function EntrySheet({
                   ) : null}
 
                   {canSavePreset ? (
-                    <TouchableOpacity style={styles.savePreset} onPress={saveAsPreset} testID="save-preset">
+                    <TouchableOpacity style={styles.savePreset} onPress={saveAsPreset} hitSlop={8} accessibilityRole="button" testID="save-preset">
                       <Ionicons name="star-outline" size={font.small} color={colors.teal} />
                       <Text style={styles.savePresetText}>{t('entry.savePreset')}</Text>
                     </TouchableOpacity>
                   ) : null}
 
                   {canSaveCustomFood ? (
-                    <TouchableOpacity style={styles.savePreset} onPress={saveAsCustomFood} testID="save-customfood">
+                    <TouchableOpacity style={styles.savePreset} onPress={saveAsCustomFood} hitSlop={8} accessibilityRole="button" testID="save-customfood">
                       <Ionicons name="add" size={font.small + 2} color={colors.teal} />
                       <Text style={styles.savePresetText}>{t('entry.saveMyFood')}</Text>
                     </TouchableOpacity>
@@ -758,11 +818,33 @@ export function EntrySheet({
 
                 <View style={styles.actions}>
                   {editing && onDelete ? (
-                    <TouchableOpacity style={styles.delete} onPress={onDelete} testID="entry-delete">
+                    // Guarded one way or the other (S18-6): this button sits
+                    // beside Save at the bottom of a keyboard-driven form, which
+                    // is where a thumb lands by habit. Screens that offer Undo
+                    // pass `deleteUndoable` and the tap fires at once; the rest
+                    // get the confirm sheet. `ConfirmHost` is mounted in the tab
+                    // layout; with no host the confirm performs nothing, which
+                    // is the safe failure.
+                    <TouchableOpacity
+                      style={styles.delete}
+                      onPress={() =>
+                        deleteUndoable
+                          ? void onDelete()
+                          : confirm({
+                              title: t('entry.deleteConfirm'),
+                              body: label.trim() || undefined,
+                              confirmText: t('entry.delete'),
+                              destructive: true,
+                              onConfirm: () => void onDelete(),
+                            })
+                      }
+                      accessibilityRole="button"
+                      testID="entry-delete"
+                    >
                       <Text style={styles.deleteText}>{t('entry.delete')}</Text>
                     </TouchableOpacity>
                   ) : null}
-                  <TouchableOpacity style={[styles.save, !canSave && styles.saveDisabled]} onPress={save} disabled={!canSave || busy} testID="entry-save">
+                  <TouchableOpacity style={[styles.save, !canSave && styles.saveDisabled]} onPress={save} disabled={!canSave || busy} accessibilityRole="button" testID="entry-save">
                     <Text style={styles.saveText}>{editing ? t('common.save') : t('entry.add')}</Text>
                   </TouchableOpacity>
                 </View>
@@ -931,6 +1013,8 @@ const createStyles = ({ scheme, colors, shadow }: Theme) => StyleSheet.create({
     paddingHorizontal: space.md,
     paddingVertical: space.xs,
     backgroundColor: colors.inputBg,
+    minHeight: 36,
+    justifyContent: 'center',
   },
   chipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
   chipText: { fontSize: font.small, color: colors.muted, textTransform: 'capitalize' },

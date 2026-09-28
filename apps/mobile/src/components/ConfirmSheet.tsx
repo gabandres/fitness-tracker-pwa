@@ -73,11 +73,12 @@ export function ConfirmHost() {
           <Text style={styles.title}>{opts.title}</Text>
           {opts.body ? <Text style={styles.body}>{opts.body}</Text> : null}
           <View style={styles.row}>
-            <TouchableOpacity style={styles.cancel} onPress={close} testID="confirm-cancel">
+            <TouchableOpacity style={styles.cancel} onPress={close} accessibilityRole="button" testID="confirm-cancel">
               <Text style={styles.cancelText}>{t('common.cancel')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.go, opts.destructive && styles.goDanger]}
+              accessibilityRole="button"
               testID="confirm-go"
               onPress={() => {
                 haptics.tap();

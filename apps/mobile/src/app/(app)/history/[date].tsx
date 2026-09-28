@@ -15,11 +15,14 @@ import {
   summarizeDay,
 } from '@macrolog/core';
 import { confirm } from '@/components/ConfirmSheet';
+import { useToast } from '@/components/Toast';
 import { EntrySheet } from '@/components/EntrySheet';
 import { FastSheet, type FastSheetMode } from '@/components/FastSheet';
 import { MealEntries } from '@/components/MealEntries';
 import { useDayFasts } from '@/hooks/useDayFasts';
 import { useHistory } from '@/hooks/useHistory';
+import { useAuth } from '@/lib/auth';
+import { addLogWithId } from '@/lib/ledger';
 import { useUnitSystem } from '@/lib/use-unit-system';
 import { useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
@@ -28,11 +31,37 @@ import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
 import { formatDate, formatNumber, formatTime } from '@/lib/date-format';
 
+/**
+ * The `LogEntry` that re-creates a deleted row byte-for-byte.
+ *
+ * Undo re-adds through `addLogWithId` at the row's ORIGINAL id and timestamp,
+ * so the restored meal lands on the same day, in the same slot, and a second
+ * Undo tap cannot duplicate it (`setDoc` is idempotent). Lives on this route (the lighter of the two
+ * that delete entries) and is imported by Today; exported for the test too — a route may export a pure helper;
+ * what it must not do is host a test file (`AGENTS.md`).
+ */
+export function entryFromLog(log: DailyLog): LogEntry {
+  return {
+    calories: log.calories,
+    timestamp: log.date,
+    weight: log.weight,
+    protein: log.protein,
+    carbs: log.carbs,
+    fat: log.fat,
+    exerciseCompleted: log.exerciseCompleted,
+    mealLabel: log.mealLabel,
+    mealType: log.mealType,
+    source: log.source,
+  };
+}
+
 export default function DayDetail() {
   const t = useT();
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
+  const toast = useToast();
+  const { user } = useAuth();
   const { date } = useLocalSearchParams<{ date: string }>();
   const dateKey = String(date);
   const router = useRouter();
@@ -80,8 +109,29 @@ export default function DayDetail() {
     else await addEntry(entry);
     haptics.success();
   }
+  /** Same delete-then-Undo as Today (UX_AUDIT S18-6): the re-add carries the
+   *  row's own id and timestamp, so it lands back on THIS day. */
   async function onDelete() {
-    if (editing?.id) await deleteEntry(editing.id);
+    const log = editing;
+    const uid = user?.uid;
+    if (log?.id) {
+      await deleteEntry(log.id);
+      const id = log.id;
+      if (uid) {
+        toast.show(t('entry.deleted'), {
+          durationMs: 5000,
+          action: {
+            label: t('common.undo'),
+            onPress: () => {
+              addLogWithId(uid, id, entryFromLog(log)).catch((e) => {
+                haptics.warning();
+                captureError(e, { where: 'history.undoDelete' });
+              });
+            },
+          },
+        });
+      }
+    }
     haptics.success();
     setSheetOpen(false);
   }
@@ -124,7 +174,13 @@ export default function DayDetail() {
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={12} testID="back">
+        <TouchableOpacity
+          onPress={() => router.back()}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.back')}
+          testID="back"
+        >
           <Ionicons name="chevron-back" size={26} color={colors.ink} />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>
@@ -240,6 +296,8 @@ export default function DayDetail() {
         presets={presets}
         onSave={onSave}
         onDelete={editing ? onDelete : undefined}
+        // Undo is offered here, so the sheet's delete fires at once (S18-6).
+        deleteUndoable
         onClose={() => setSheetOpen(false)}
         onSavePreset={addPreset}
         onDeletePreset={deletePreset}

@@ -89,7 +89,7 @@ export function RecipeImport({ onApply, onCancel }: Props) {
     <View style={styles.wrap}>
       <View style={styles.head}>
         <Text style={styles.title}>{t('recipeImport.title')}</Text>
-        <TouchableOpacity onPress={onCancel} hitSlop={8}>
+        <TouchableOpacity onPress={onCancel} hitSlop={12} accessibilityRole="button">
           <Text style={styles.cancel}>{t('common.cancel')}</Text>
         </TouchableOpacity>
       </View>
@@ -113,6 +113,7 @@ export function RecipeImport({ onApply, onCancel }: Props) {
           style={[styles.fetchBtn, (loading || !url.trim()) && styles.btnDisabled]}
           onPress={fetchRecipe}
           disabled={loading || !url.trim()}
+          accessibilityRole="button"
           testID="recipe-import-fetch"
         >
           <Text style={styles.fetchText}>
@@ -121,7 +122,11 @@ export function RecipeImport({ onApply, onCancel }: Props) {
         </TouchableOpacity>
       </View>
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error ? (
+        <Text style={styles.error} accessibilityRole="alert" accessibilityLiveRegion="polite">
+          {error}
+        </Text>
+      ) : null}
 
       {result ? (
         <ScrollView keyboardShouldPersistTaps="handled" style={styles.resultScroll}>
@@ -147,6 +152,7 @@ export function RecipeImport({ onApply, onCancel }: Props) {
           style={[styles.apply, !canApply && styles.btnDisabled]}
           onPress={apply}
           disabled={!canApply}
+          accessibilityRole="button"
           testID="recipe-import-apply"
         >
           <Text style={styles.applyText}>{t('recipeImport.useThis')}</Text>

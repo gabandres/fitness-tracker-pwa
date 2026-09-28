@@ -97,7 +97,13 @@ export function FoodSearch({
   const [multiplier, setMultiplier] = useState(1);
   const [errorMsg, setErrorMsg] = useState('');
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Guard against a slow earlier query resolving after a newer keystroke.
+  // Guard against a slow earlier query resolving after a newer keystroke —
+  // AND against a slow `getFoodDetail` landing after the user has typed a new
+  // query or tapped a different hit. One counter for both: any search or
+  // detail request bumps it, and a response only applies if it is still the
+  // newest thing asked for. Before this the detail path had no guard, so a
+  // 3 s cold callable could replace a newer query's results with a portion
+  // picker for a food the user had moved on from.
   const reqId = useRef(0);
 
   useEffect(() => {
@@ -165,12 +171,15 @@ export function FoodSearch({
 
     // Slow path, and it must stay: hits served from a pre-existing search cache
     // entry, or by a functions deploy older than this bundle, carry no servings.
+    const id = ++reqId.current;
     setPhase('detail-loading');
     try {
       const d = await getFoodDetail(hit.source, hit.id);
+      if (id !== reqId.current) return; // stale: a newer query or tap won
       setDetail(d);
       setPhase('portion-pick');
     } catch (e) {
+      if (id !== reqId.current) return;
       setErrorMsg(t(messageKey(e)));
       setPhase('error');
     }
@@ -201,7 +210,13 @@ export function FoodSearch({
     const servings = sortServings(detail.servings, unitSystem);
     return (
       <View style={styles.wrap}>
-        <TouchableOpacity onPress={() => setPhase('results')} style={styles.back} hitSlop={8}>
+        <TouchableOpacity
+          onPress={() => setPhase('results')}
+          style={styles.back}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.back')}
+        >
           <Text style={styles.backText}>{t('food.results')}</Text>
         </TouchableOpacity>
         <Text style={styles.detailTitle} numberOfLines={2}>{detail.description}</Text>
@@ -210,11 +225,23 @@ export function FoodSearch({
         <View style={styles.multRow}>
           <Text style={styles.multLabel}>{t('food.quantity')}</Text>
           <View style={styles.stepper}>
-            <TouchableOpacity style={styles.step} onPress={() => setMultiplier((m) => Math.max(0.5, Math.round((m - 0.5) * 10) / 10))}>
+            <TouchableOpacity
+              style={styles.step}
+              onPress={() => setMultiplier((m) => Math.max(0.5, Math.round((m - 0.5) * 10) / 10))}
+              accessibilityRole="button"
+              accessibilityLabel={t('settings.lower')}
+              testID="food-qty-minus"
+            >
               <Text style={styles.stepText}>−</Text>
             </TouchableOpacity>
-            <Text style={styles.multValue}>{multiplier}×</Text>
-            <TouchableOpacity style={styles.step} onPress={() => setMultiplier((m) => Math.round((m + 0.5) * 10) / 10)}>
+            <Text style={styles.multValue} accessibilityLabel={`${t('food.quantity')} ${multiplier}×`}>{multiplier}×</Text>
+            <TouchableOpacity
+              style={styles.step}
+              onPress={() => setMultiplier((m) => Math.round((m + 0.5) * 10) / 10)}
+              accessibilityRole="button"
+              accessibilityLabel={t('settings.raise')}
+              testID="food-qty-plus"
+            >
               <Text style={styles.stepText}>+</Text>
             </TouchableOpacity>
           </View>
@@ -222,7 +249,7 @@ export function FoodSearch({
 
         <ScrollView keyboardShouldPersistTaps="handled" style={styles.scroll}>
           {servings.map((s, i) => (
-            <Pressable key={`${s.label}-${i}`} style={styles.serving} onPress={() => pickServing(s)}>
+            <Pressable key={`${s.label}-${i}`} style={styles.serving} onPress={() => pickServing(s)} accessibilityRole="button">
               <View style={styles.servingMain}>
                 <Text style={styles.servingLabel}>{s.label}</Text>
                 <Text style={styles.servingMacros}>
@@ -252,7 +279,7 @@ export function FoodSearch({
         />
         {micSlot}
         {onCancel ? (
-          <TouchableOpacity onPress={onCancel} hitSlop={8}>
+          <TouchableOpacity onPress={onCancel} hitSlop={12} accessibilityRole="button">
             <Text style={styles.cancel}>{t('common.cancel')}</Text>
           </TouchableOpacity>
         ) : null}
@@ -272,7 +299,9 @@ export function FoodSearch({
         <View style={styles.center}>
           <Text style={styles.error}>{errorMsg}</Text>
           {query.trim().length >= 2 ? (
-            <TouchableOpacity onPress={() => void runSearch(query.trim())}><Text style={styles.retry}>{t('common.retry')}</Text></TouchableOpacity>
+            <TouchableOpacity onPress={() => void runSearch(query.trim())} hitSlop={12} accessibilityRole="button">
+              <Text style={styles.retry}>{t('common.retry')}</Text>
+            </TouchableOpacity>
           ) : null}
         </View>
       ) : phase === 'results' ? (
@@ -283,6 +312,7 @@ export function FoodSearch({
               <TouchableOpacity
                 style={styles.createFromQuery}
                 onPress={() => onCreateFromQuery(query.trim())}
+                accessibilityRole="button"
                 testID="create-from-query"
               >
                 <Ionicons name="create-outline" size={18} color={colors.accent} />
@@ -417,8 +447,10 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   multRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.sm },
   multLabel: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  // 44, not 36: the quantity stepper is the most-tapped control in the picker
+  // and 36 is under both platforms' minimum target (S18-15).
   step: {
-    width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: colors.line,
+    width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: colors.line,
     alignItems: 'center', justifyContent: 'center', backgroundColor: colors.inputBg,
   },
   stepText: { fontSize: font.h3, color: colors.ink, fontWeight: '700' },

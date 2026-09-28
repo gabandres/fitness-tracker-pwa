@@ -240,7 +240,7 @@ describe('useLogWrites — the first-scan award', () => {
     await act(async () => {
       await expect(
         result.current.addEntry({ calories: 500, source: 'photo' }),
-      ).resolves.toBeUndefined();
+      ).resolves.toBe('logged');
     });
 
     expect(mockAddLogDurably).toHaveBeenCalledTimes(1);

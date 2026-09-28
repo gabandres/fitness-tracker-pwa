@@ -5,6 +5,7 @@ import { toCardioModality } from '@macrolog/core/health-workouts';
 import {
   type WritableKind,
   type HealthSample,
+  asleepHoursFromSession,
   flOzToLiters,
   kgToLb,
   litersToFlOz,
@@ -414,6 +415,9 @@ const healthKit: HealthPort = {
           value: (ms(s.endDate) - ms(s.startDate)) / 3_600_000, // ms → hours
           endMs: ms(s.endDate),
           fromUs: mine(s),
+          // Core folds sleep per SOURCE (largest wins): a Watch and an Oura
+          // ring both writing the same night must not add up to 16 h.
+          source: s.sourceRevision?.source?.bundleIdentifier,
         }));
     }
 
@@ -478,6 +482,7 @@ const healthKit: HealthPort = {
       kind,
       value: s.quantity,
       endMs: ms(s.endDate ?? s.startDate),
+      source: s.sourceRevision?.source?.bundleIdentifier,
       fromUs: mine(s),
     }));
   },
@@ -557,13 +562,15 @@ const healthKit: HealthPort = {
 
 // ───────────────────────── Android — Health Connect ─────────────────────────
 
-interface HCRecord {
+export interface HCRecord {
   metadata?: { dataOrigin?: string };
   time?: string;
   startTime?: string;
   endTime?: string;
   weight?: { inPounds?: number; inKilograms?: number };
   volume?: { inLiters?: number };
+  /** SleepSession only. Absent or empty when the source wrote no stages. */
+  stages?: { startTime?: string; endTime?: string; stage?: number }[];
 }
 
 /**
@@ -765,6 +772,78 @@ export const HC_PERMISSIONS: ReadonlyArray<{ accessType: 'read' | 'write'; recor
   { accessType: 'write', recordType: 'ExerciseSession' },
 ];
 
+/**
+ * Map raw Health Connect records of one kind to `HealthSample`s. Pure — split
+ * from `readSamples` so the per-record rules (skip valueless records, tag the
+ * source, asleep stages only) are testable without the native module, whose
+ * dynamic import jest cannot execute.
+ */
+export function hcRecordsToSamples(
+  kind: Exclude<ReadableKind, 'steps' | 'activeEnergy'>,
+  rows: readonly HCRecord[],
+  boundary: DayBoundary,
+): HealthSample[] {
+  const mine = (r: HCRecord) => r.metadata?.dataOrigin === APP_ID;
+
+  if (kind === 'sleep') {
+    return rows.map((r) => {
+      const start = new Date(r.startTime ?? 0).getTime();
+      const end = new Date(r.endTime ?? 0).getTime();
+      return {
+        // Wake-day rule, owned by ADR-0033 — see the iOS sleep branch.
+        dateKey: calendarDateKey(new Date(end)),
+        kind: 'sleep' as const,
+        // A session spans in-bed → out-of-bed. With stages, only the asleep
+        // ones count (awake time inside the session is not sleep); without
+        // them the span is all there is. `asleepHoursFromSession` in core.
+        value: asleepHoursFromSession({
+          startMs: start,
+          endMs: end,
+          stages: (r.stages ?? []).map((st) => ({
+            startMs: new Date(st.startTime ?? Number.NaN).getTime(),
+            endMs: new Date(st.endTime ?? Number.NaN).getTime(),
+            stage: st.stage ?? 0,
+          })),
+        }),
+        endMs: end,
+        fromUs: mine(r),
+        // Per-source fold in core — see the HealthKit sleep branch.
+        source: r.metadata?.dataOrigin,
+      };
+    });
+  }
+  // A record with no usable value must not become a 0: `water` accepts 0 as
+  // storable, so a valueless Hydration record would overwrite a real day
+  // with nothing. Skip anything that is not a finite number > 0.
+  const positive = (n: number | undefined): n is number => typeof n === 'number' && Number.isFinite(n) && n > 0;
+  if (kind === 'water') {
+    return rows.flatMap((r) => {
+      const liters = r.volume?.inLiters;
+      if (!positive(liters)) return [];
+      const end = new Date(r.endTime ?? r.startTime ?? 0).getTime();
+      return [{
+        // Raw sample, so the day is ours to derive — ADR-0030 Q5.
+        dateKey: dayKeyAt(new Date(end), boundary),
+        kind: 'water' as const,
+        value: litersToFlOz(liters),
+        endMs: end,
+        fromUs: mine(r),
+        source: r.metadata?.dataOrigin,
+      }];
+    });
+  }
+  // weight
+  return rows.flatMap((r) => {
+    const t = new Date(r.time ?? 0).getTime();
+    const lb = positive(r.weight?.inPounds)
+      ? r.weight!.inPounds!
+      : positive(r.weight?.inKilograms) ? kgToLb(r.weight!.inKilograms!) : undefined;
+    if (!positive(lb)) return [];
+    // Raw sample, so the day is ours to derive — ADR-0030 Q5.
+    return [{ dateKey: dayKeyAt(new Date(t), boundary), kind: 'weight' as const, value: lb, endMs: t, fromUs: mine(r), source: r.metadata?.dataOrigin }];
+  });
+}
+
 const healthConnect: HealthPort = {
   async isAvailable() {
     try {
@@ -859,42 +938,7 @@ const healthConnect: HealthPort = {
       endTime: new Date().toISOString(),
     };
     const rows = await hcReadAllRecords<HCRecord>(HC, HC_READ[kind], timeRangeFilter);
-    const mine = (r: HCRecord) => r.metadata?.dataOrigin === APP_ID;
-
-    if (kind === 'sleep') {
-      return rows.map((r) => {
-        const start = new Date(r.startTime ?? 0).getTime();
-        const end = new Date(r.endTime ?? 0).getTime();
-        return {
-          // Wake-day rule, owned by ADR-0033 — see the iOS sleep branch.
-          dateKey: calendarDateKey(new Date(end)),
-          kind: 'sleep' as const,
-          value: (end - start) / 3_600_000,
-          endMs: end,
-          fromUs: mine(r),
-        };
-      });
-    }
-    if (kind === 'water') {
-      return rows.map((r) => {
-        const end = new Date(r.endTime ?? r.startTime ?? 0).getTime();
-        return {
-          // Raw sample, so the day is ours to derive — ADR-0030 Q5.
-          dateKey: dayKeyAt(new Date(end), boundary),
-          kind: 'water' as const,
-          value: litersToFlOz(r.volume?.inLiters ?? 0),
-          endMs: end,
-          fromUs: mine(r),
-        };
-      });
-    }
-    // weight
-    return rows.map((r) => {
-      const t = new Date(r.time ?? 0).getTime();
-      const lb = r.weight?.inPounds ?? (r.weight?.inKilograms != null ? kgToLb(r.weight.inKilograms) : 0);
-      // Raw sample, so the day is ours to derive — ADR-0030 Q5.
-      return { dateKey: dayKeyAt(new Date(t), boundary), kind: 'weight' as const, value: lb, endMs: t, fromUs: mine(r) };
-    });
+    return hcRecordsToSamples(kind, rows, boundary);
   },
 
   async writeDaily(kind, dateKey, value) {

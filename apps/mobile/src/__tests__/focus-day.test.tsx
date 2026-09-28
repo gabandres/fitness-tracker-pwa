@@ -29,13 +29,14 @@ beforeEach(() => {
 });
 afterEach(() => jest.useRealTimers());
 
-/** Mount with real timers (the async renderer needs them to flush), then
- *  freeze the clock at noon on the 27th. */
+/** Freeze the clock at noon on the 27th BEFORE mounting — the first version
+ *  mounted on the real clock and froze afterwards, so it passed on the day it
+ *  was written and failed the next morning. `advanceTimers` keeps the async
+ *  renderer's flushes working under fake timers. */
 async function mount<T>(cb: () => T) {
-  const hook = await renderHook(cb);
-  jest.useFakeTimers();
+  jest.useFakeTimers({ advanceTimers: true });
   jest.setSystemTime(new Date(2026, 8, 27, 12, 0));
-  return hook;
+  return renderHook(cb);
 }
 
 async function blurThenFocus(rerender: () => void) {

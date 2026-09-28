@@ -184,7 +184,13 @@ export default function DailyTargetsScreen() {
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={10} testID="targets-back">
+        <TouchableOpacity
+          onPress={() => router.back()}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.back')}
+          testID="targets-back"
+        >
           <Ionicons name="chevron-back" size={26} color={colors.ink} />
         </TouchableOpacity>
         <Text style={styles.title}>{t('targets.title')}</Text>
@@ -236,7 +242,12 @@ export default function DailyTargetsScreen() {
               </Text>
             )}
             {kcalMsg ? (
-              <Text style={[styles.note, kcalBlocking && styles.noteBad]} testID="targets-kcal-note">
+              <Text
+                style={[styles.note, kcalBlocking && styles.noteBad]}
+                accessibilityRole={kcalBlocking ? 'alert' : undefined}
+                accessibilityLiveRegion="polite"
+                testID="targets-kcal-note"
+              >
                 {kcalMsg}
               </Text>
             ) : null}
@@ -272,7 +283,7 @@ export default function DailyTargetsScreen() {
               </Text>
             )}
             {proteinBad ? (
-              <Text style={[styles.note, styles.noteBad]} testID="targets-protein-note">
+              <Text style={[styles.note, styles.noteBad]} accessibilityRole="alert" accessibilityLiveRegion="polite" testID="targets-protein-note">
                 {t('targets.errProteinRange', { min: TARGET_PROTEIN_MIN, max: TARGET_PROTEIN_MAX })}
               </Text>
             ) : null}
@@ -283,7 +294,11 @@ export default function DailyTargetsScreen() {
             ) : null}
           </View>
 
-          {error ? <Text style={styles.error}>{error}</Text> : null}
+          {error ? (
+            <Text style={styles.error} accessibilityRole="alert" accessibilityLiveRegion="polite" testID="targets-error">
+              {error}
+            </Text>
+          ) : null}
         </ScrollView>
 
         <View style={styles.footer}>

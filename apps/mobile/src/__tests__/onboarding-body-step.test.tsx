@@ -42,6 +42,17 @@ jest.mock('@/lib/ledger', () => ({
 
 jest.mock('@/lib/analytics', () => ({ track: jest.fn() }));
 
+// `onboarding.tsx` stamps `ageConfirmedAt` straight through the SDK after the
+// save (see `stampAgeConfirmed` there). The real package is ESM jest cannot
+// parse, and `@/lib/firebase` initialises an app on import — mock both.
+const mockUpdateDoc = jest.fn().mockResolvedValue(undefined);
+jest.mock('@/lib/firebase', () => ({ db: {} }));
+jest.mock('firebase/firestore', () => ({
+  doc: (...a: unknown[]) => ({ path: (a as unknown[]).slice(1).map(String).join('/') }),
+  updateDoc: (...a: unknown[]) => mockUpdateDoc(...(a as [])),
+  serverTimestamp: () => ({ __serverTimestamp: true }),
+}));
+
 jest.mock('expo-router', () => ({
   ...jest.requireActual('expo-router'),
   useRouter: () => ({ push: jest.fn(), replace: mockReplace, back: jest.fn() }),
@@ -60,6 +71,7 @@ type Screen = Awaited<ReturnType<typeof render>>;
 /** welcome -> goal -> weight -> goalWeight, stopping on the body step. */
 async function walkToBody(screen: Screen, weightLb = '180') {
   const { getByTestId } = screen;
+  await fireEvent.press(getByTestId('onboarding-age-attest')); // 16+ attestation (S18-9)
   await fireEvent.press(getByTestId('onboarding-next')); // welcome
   await fireEvent.press(getByTestId('onboarding-goal-lose'));
   await fireEvent.press(getByTestId('onboarding-next'));
@@ -249,6 +261,7 @@ describe('onboarding weight entry in kilograms', () => {
   it('stores pounds for a weight typed in kilograms', async () => {
     const screen = await render(<Onboarding />);
     const { getByTestId } = screen;
+    await fireEvent.press(getByTestId('onboarding-age-attest')); // 16+ attestation (S18-9)
     await fireEvent.press(getByTestId('onboarding-next'));
     await fireEvent.press(getByTestId('onboarding-goal-lose'));
     await fireEvent.press(getByTestId('onboarding-next'));
@@ -268,6 +281,7 @@ describe('onboarding weight entry in kilograms', () => {
   it('builds the calorie seed off the converted weight, not the typed number', async () => {
     const screen = await render(<Onboarding />);
     const { getByTestId } = screen;
+    await fireEvent.press(getByTestId('onboarding-age-attest')); // 16+ attestation (S18-9)
     await fireEvent.press(getByTestId('onboarding-next'));
     await fireEvent.press(getByTestId('onboarding-goal-maintain'));
     await fireEvent.press(getByTestId('onboarding-next'));

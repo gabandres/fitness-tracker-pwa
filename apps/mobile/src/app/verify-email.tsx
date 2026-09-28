@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { ActivityIndicator, AppState, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated from 'react-native-reanimated';
@@ -132,7 +133,7 @@ export default function VerifyEmail() {
           <Text style={styles.hint}>{t('verify.hint')}</Text>
 
           {error ? (
-            <Text style={styles.error} testID="verify-error">
+            <Text style={styles.error} accessibilityRole="alert" accessibilityLiveRegion="polite" testID="verify-error">
               {error}
             </Text>
           ) : null}
@@ -158,13 +159,28 @@ export default function VerifyEmail() {
             accessibilityState={{ disabled: resending || cooldownLeft > 0 }}
             testID="verify-resend"
           >
-            <Text style={styles.secondaryText}>
-              {resending
-                ? t('verify.resending')
-                : cooldownLeft > 0
-                  ? `✓ ${t('verify.resentWait', { n: String(cooldownLeft) })}`
-                  : t('verify.resend')}
-            </Text>
+            {/* An icon, not the `✓` dingbat it replaced (S18-17): the glyph
+                renders as an emoji on some Android keyboards' fonts and reads
+                as "check mark" in the middle of the sentence to a screen
+                reader — the icon is decorative and hidden from it. */}
+            <View style={styles.secondaryRow}>
+              {!resending && cooldownLeft > 0 ? (
+                <Ionicons
+                  name="checkmark"
+                  size={16}
+                  color={colors.good}
+                  accessibilityElementsHidden
+                  importantForAccessibility="no"
+                />
+              ) : null}
+              <Text style={styles.secondaryText}>
+                {resending
+                  ? t('verify.resending')
+                  : cooldownLeft > 0
+                    ? t('verify.resentWait', { n: String(cooldownLeft) })
+                    : t('verify.resend')}
+              </Text>
+            </View>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -238,6 +254,7 @@ const createStyles = ({ colors }: Theme) =>
       paddingVertical: space.lg,
       alignItems: 'center',
     },
+    secondaryRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
     secondaryText: { color: colors.ink, fontSize: font.body, fontWeight: '700' },
     busy: { opacity: 0.7 },
     ghost: { alignItems: 'center', paddingVertical: space.sm },

@@ -221,8 +221,8 @@ async function importScalars(uid: string): Promise<number> {
     for (const kind of IMPORT_KINDS) {
       const samples = await health.readSamples(kind, IMPORT_DAYS, boundary);
       const reduced = reduceImportedSamples(samples);
-      // `reduceImportedSamples` folds sleep by SUM and throws the sample times
-      // away with it. The wake instant is not part of the value and is not
+      // `reduceImportedSamples` folds sleep per source (largest source wins)
+      // and throws the sample times away with it. The wake instant is not part of the value and is not
       // stored — it only tells the guard which document could hold the manual
       // twin of this night.
       const run: ImportRun = {

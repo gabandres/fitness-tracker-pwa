@@ -33,11 +33,12 @@ import { confirm } from '@/components/ConfirmSheet';
 import { GoalMilestonePrompt } from '@/components/GoalMilestonePrompt';
 import { MaintenanceSwitchCard } from '@/components/MaintenanceSwitchCard';
 import { HeaderAvatar } from '@/components/HeaderAvatar';
+import { OfflineBanner } from '@/components/OfflineBanner';
 import { Sparkline } from '@/components/Sparkline';
-import { useBody } from '@/hooks/useBody';
+import { type WeighIn, useBody } from '@/hooks/useBody';
 import { useMilestoneRecord } from '@/hooks/useMilestones';
 import { useAuth } from '@/lib/auth';
-import { recordMilestone, switchToMaintenance } from '@/lib/ledger';
+import { deleteDailyWeight, recordMilestone, switchToMaintenance } from '@/lib/ledger';
 import { type I18nKey, type Locale, type TFn, useLocale, useT } from '@/i18n';
 import { type BodyFatInput, isMaintaining } from '@macrolog/core';
 import * as haptics from '@/lib/haptics';
@@ -79,12 +80,28 @@ function fieldList(missing: BodyFatInput[], t: TFn): string {
   return `${names.slice(0, -1).join(', ')} ${t('common.listAnd')} ${names[names.length - 1]}`;
 }
 
+/** The spoken direction of a series, for a chart's text alternative. The
+ *  0.1 lb deadband is the same one `trendLabel` uses for "holding steady". */
+export function trendKey(series: readonly (number | null | undefined)[]): I18nKey {
+  const nums = series.filter((v): v is number => typeof v === 'number');
+  if (nums.length < 2) return 'a11y.trend.flat';
+  const d = nums[nums.length - 1] - nums[0];
+  return d < -0.1 ? 'a11y.trend.down' : d > 0.1 ? 'a11y.trend.up' : 'a11y.trend.flat';
+}
+
 /** "Goal ~Jul 6" from a projected date key. */
 function goalEtaLabel(dateKey: string, locale: Locale): string {
   return `~${formatDate(parseYmd(dateKey), locale, { month: 'short', day: 'numeric' })}`;
 }
 
+/** Remount boundary for Retry — see Today for why a `key` bump is the
+ *  mechanism (the feed hooks expose no reload; UX_AUDIT S18-7). */
 export default function Body() {
+  const [attempt, setAttempt] = useState(0);
+  return <BodyScreen key={attempt} onRetry={() => setAttempt((a) => a + 1)} />;
+}
+
+function BodyScreen({ onRetry }: { onRetry: () => void }) {
   const {
     loading,
     error,
@@ -114,6 +131,10 @@ export default function Body() {
   const unitSystem = useUnitSystem();
   const unit = bodyWeightUnit(unitSystem);
   const [open, setOpen] = useState(false);
+  // A past weigh-in the sheet is correcting; null = today's. A typo in a past
+  // row bent the projection and the measured TDEE with no way back short of
+  // Firestore (UX_AUDIT S18-16).
+  const [editingWeighIn, setEditingWeighIn] = useState<WeighIn | null>(null);
   const [measureOpen, setMeasureOpen] = useState(false);
   // Which saved row the sheet is editing; null = adding a new one. The sheet
   // reads its initial values from this, so add and edit stay one component
@@ -125,6 +146,29 @@ export default function Body() {
   function openMeasure(m: Measurement | null) {
     setEditing(m);
     setMeasureOpen(true);
+  }
+
+  function openWeighIn(w: WeighIn | null) {
+    haptics.tap();
+    setEditingWeighIn(w);
+    setOpen(true);
+  }
+
+  function confirmDeleteWeighIn(w: WeighIn) {
+    const date = dayLabel(w.dateKey, locale);
+    confirm({
+      title: t('body.deleteWeighInTitle'),
+      body: t('body.deleteWeighInBody', { date }),
+      confirmText: t('common.remove'),
+      destructive: true,
+      onConfirm: () => {
+        if (!user?.uid) return;
+        deleteDailyWeight(user.uid, w.dateKey).catch((e) => {
+          haptics.warning();
+          captureError(e, { where: 'body.deleteWeighIn' });
+        });
+      },
+    });
   }
 
   function confirmDeleteMeasurement(id: string) {
@@ -179,7 +223,23 @@ export default function Body() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.body}>
-          {error ? <Text style={styles.error}>{t('body.loadErr')}</Text> : null}
+          {error ? (
+            <View style={styles.errorRow} accessibilityRole="alert" accessibilityLiveRegion="polite">
+              <Text style={styles.error}>{t('body.loadErr')}</Text>
+              <TouchableOpacity
+                onPress={onRetry}
+                style={styles.retryBtn}
+                accessibilityRole="button"
+                accessibilityLabel={t('common.retry')}
+                testID="retry"
+              >
+                <Text style={styles.retryText}>{t('common.retry')}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+
+          {/* A state readout, same slot it has on Today (UX_AUDIT S18-12). */}
+          <OfflineBanner />
 
           <Animated.View entering={enterUp(0)}>
           <Animated.View style={[styles.heroPanel, goalPulse]} testID="body-hero">
@@ -195,6 +255,12 @@ export default function Body() {
               }}
               accessibilityRole="button"
               accessibilityLabel={todayWeight != null ? t('body.updateWeight') : t('body.logWeight')}
+              // `CountUpText` is a TextInput under the hood, which VoiceOver
+              // reads as an edit box; the value on the button is what a reader
+              // actually gets (UX_AUDIT S18-5).
+              accessibilityValue={{
+                text: currentWeight != null ? `${toDisplayWeight(currentWeight, unitSystem)} ${unit}` : '—',
+              }}
               testID="body-hero-tap"
             >
               {currentWeight != null ? (
@@ -215,7 +281,20 @@ export default function Body() {
 
             {weightSeries.length >= 2 ? (
               <View style={styles.chartWrap} testID="weight-chart">
-                <Sparkline values={weightSeries} projection={projectedSeries} width={300} height={64} color={colors.ring} />
+                <Sparkline
+                  values={weightSeries}
+                  projection={projectedSeries}
+                  width={300}
+                  height={64}
+                  color={colors.ring}
+                  accessibilityLabel={t('a11y.chart.weight', {
+                    days: weightSeries.length,
+                    from: toDisplayWeight(weightSeries[0] as number, unitSystem).toFixed(1),
+                    to: toDisplayWeight(weightSeries[weightSeries.length - 1] as number, unitSystem).toFixed(1),
+                    unit,
+                    trend: t(trendKey(weightSeries)),
+                  })}
+                />
                 {/* The solid line is 14 days; the dash is fitted over 28
                     (PROJECTION_WINDOW_DAYS in useBody — a 14-day fit is
                     dominated by water weight). Say so, or a flat-looking
@@ -393,10 +472,32 @@ export default function Body() {
           ) : (
             <View style={styles.list}>
               {(showAllWeighIns ? weighIns : weighIns.slice(0, WEIGH_PREVIEW)).map((w) => (
-                <View key={w.dateKey} style={styles.row} testID={`weighin-${w.dateKey}`}>
+                <Pressable
+                  key={w.dateKey}
+                  style={styles.row}
+                  onPress={() => openWeighIn(w)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('body.editWeighInA11y', { date: dayLabel(w.dateKey, locale) })}
+                  accessibilityValue={{ text: `${toDisplayWeight(w.weight, unitSystem)} ${unit}` }}
+                  testID={`weighin-${w.dateKey}`}
+                >
                   <Text style={styles.rowDate}>{dayLabel(w.dateKey, locale)}</Text>
-                  <Text style={styles.rowWeight}>{toDisplayWeight(w.weight, unitSystem)} {unit}</Text>
-                </View>
+                  <View style={styles.rowRight}>
+                    <Text style={styles.rowWeight}>{toDisplayWeight(w.weight, unitSystem)} {unit}</Text>
+                    {/* Same pencil + trash the measurement rows carry, so the
+                        two lists read as one system. */}
+                    <Ionicons name="pencil" size={15} color={colors.muted} />
+                    <TouchableOpacity
+                      onPress={() => confirmDeleteWeighIn(w)}
+                      hitSlop={10}
+                      testID={`weighin-delete-${w.dateKey}`}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('body.deleteWeighInA11y', { date: dayLabel(w.dateKey, locale) })}
+                    >
+                      <Ionicons name="trash-outline" size={15} color={colors.muted} />
+                    </TouchableOpacity>
+                  </View>
+                </Pressable>
               ))}
               {weighIns.length > WEIGH_PREVIEW ? (
                 <TouchableOpacity onPress={() => setShowAllWeighIns((v) => !v)} hitSlop={8} style={styles.showMore}>
@@ -412,14 +513,21 @@ export default function Body() {
 
       <WeightModal
         visible={open}
-        initial={todayWeight}
-        current={currentWeight}
+        initial={editingWeighIn ? editingWeighIn.weight : todayWeight}
+        current={editingWeighIn ? editingWeighIn.weight : currentWeight}
+        title={editingWeighIn ? dayLabel(editingWeighIn.dateKey, locale) : undefined}
         unitSystem={unitSystem}
-        onClose={() => setOpen(false)}
+        onClose={() => {
+          setOpen(false);
+          setEditingWeighIn(null);
+        }}
         onSave={async (w) => {
-          await setWeight(w);
+          // `setWeight(w, dateKey)` writes `dailyWeights/{dateKey}` — the same
+          // doc the row came from — so an edit replaces, never duplicates.
+          await setWeight(w, editingWeighIn?.dateKey);
           haptics.success();
           setOpen(false);
+          setEditingWeighIn(null);
         }}
       />
 
@@ -610,11 +718,15 @@ function WeightModal({
   initial,
   current,
   unitSystem,
+  title,
   onSave,
   onClose,
 }: {
   visible: boolean;
   initial: number | null;
+  /** Names the day when a PAST weigh-in is being corrected; defaults to the
+   *  "Log weight" title for today's. */
+  title?: string;
   /** The most recent recorded weight, for the resting note. May be a previous
    *  day's when there is no weigh-in today. */
   current: number | null;
@@ -663,7 +775,7 @@ function WeightModal({
 
   return (
     <BottomSheet visible={visible} onClose={onClose}>
-          <Text style={styles.sheetTitle}>{t('body.logWeight')}</Text>
+          <Text style={styles.sheetTitle}>{title ?? t('body.logWeight')}</Text>
           <View style={styles.inputRow}>
             <TextInput
               ref={inputRef}
@@ -726,7 +838,10 @@ const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.create({
   fill: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   // See FAB_BAND — the + button overhangs every tab's scroll area.
   body: { padding: space.xl, paddingBottom: FAB_BAND, gap: space.md },
-  error: { color: colors.danger, fontSize: font.small },
+  error: { color: colors.danger, fontSize: font.small, flex: 1 },
+  errorRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  retryBtn: { borderWidth: 1, borderColor: colors.ink, borderRadius: radius.pill, paddingHorizontal: space.md, minHeight: 36, justifyContent: 'center' },
+  retryText: { fontSize: font.small, fontWeight: '700', color: colors.ink },
   // Hero panel — the Today skeleton (ADR-0014 §7): shared dark canvas so the
   // coral trend line glows identically in both themes.
   heroPanel: {

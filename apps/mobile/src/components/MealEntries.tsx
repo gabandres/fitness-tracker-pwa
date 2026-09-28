@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeOut } from 'react-native-reanimated';
 import { type DailyLog, type MealSlot, groupByMealSlot } from '@macrolog/core';
-import { type I18nKey, type Locale, useLocale, useT } from '@/i18n';
+import { type I18nKey, type Locale, type TFn, useLocale, useT } from '@/i18n';
 import { enterUp, PressScale, springLayout } from '@/lib/motion';
 import { useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
@@ -19,11 +19,15 @@ function timeOf(d: Date, locale: Locale): string {
   return formatTime(d, locale);
 }
 
-function macroLine(log: DailyLog): string {
+/** `30 g protein · 40 g carbs`, not `P 30g · C 40g`: the single-letter codes
+ *  are jargon a first-time user has to decode and a screen reader spells out
+ *  as letters (S18-17). Localized, since "carbs" is not "carbos" is not
+ *  "carbo". */
+function macroLine(log: DailyLog, t: TFn): string {
   const parts: string[] = [];
-  if (log.protein != null) parts.push(`P ${log.protein}g`);
-  if (log.carbs != null) parts.push(`C ${log.carbs}g`);
-  if (log.fat != null) parts.push(`F ${log.fat}g`);
+  if (log.protein != null) parts.push(t('entry.proteinAmount', { n: log.protein }));
+  if (log.carbs != null) parts.push(t('entry.carbsAmount', { n: log.carbs }));
+  if (log.fat != null) parts.push(t('entry.fatAmount', { n: log.fat }));
   return parts.join(' · ');
 }
 
@@ -74,7 +78,7 @@ export function MealEntries({
             </View>
           ) : null}
           {g.entries.map((log) => {
-            const sub = [timeOf(log.date, locale), macroLine(log)].filter(Boolean).join('  ·  ');
+            const sub = [timeOf(log.date, locale), macroLine(log, t)].filter(Boolean).join('  ·  ');
             return (
               <Animated.View key={log.id} entering={enterUp(row++)} exiting={FadeOut} layout={springLayout}>
                 <PressScale
@@ -82,6 +86,7 @@ export function MealEntries({
                   style={styles.entry}
                   onPress={() => onPress(log)}
                   onLongPress={onSavePreset ? () => onSavePreset(log) : undefined}
+                  accessibilityRole="button"
                   testID={`entry-${log.id}`}
                 >
                   <View style={styles.entryMain}>

@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { WATER_MAX_FLOZ, clampWaterFlOz, fastHoursParts } from '@macrolog/core';
+import { clampWaterFlOz, fastHoursParts, type UnitSystem } from '@macrolog/core';
 import { BottomSheet } from '@/components/BottomSheet';
 import { type I18nKey, type TFn, useLocale, useT } from '@/i18n';
 import { formatNumber } from '@/lib/date-format';
@@ -18,6 +18,15 @@ import * as haptics from '@/lib/haptics';
 import { PressScale } from '@/lib/motion';
 import { setPersistedTab } from '@/hooks/usePersistedTab';
 import { useDeferredFocus } from '@/lib/use-deferred-focus';
+import { useUnitSystem } from '@/lib/use-unit-system';
+import {
+  WATER_PILLS,
+  displayWater,
+  toFlOz,
+  waterMaxDisplay,
+  waterStep,
+  waterUnitFor,
+} from '@/components/water-display';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
 
@@ -155,6 +164,10 @@ function HabitShortcut({ metric }: { metric: HabitMetric }) {
   );
 }
 
+/** Vertical slop that lifts a 26dp pill / 30dp action to the 44pt target
+ *  (S18-15). Vertical only: the water pills sit 4dp apart. */
+const PILL_SLOP = { top: 9, bottom: 9 } as const;
+
 /** Today's daily-metric strip: fasting timer, water quick-add, sleep. The
  *  fasting row re-renders every 30s while a fast is running so the elapsed
  *  clock stays live without a global timer. */
@@ -163,6 +176,18 @@ export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
+  // Water is STORED in fl oz and SHOWN in the profile's unit (S18-8): a pt-BR
+  // user reads ml and taps +250, and the store never notices. All of the
+  // conversion is `water-display.ts`; this component only ever hands
+  // `onAddWater` a fl-oz total.
+  const unitSystem = useUnitSystem();
+  const waterUnit = t(unitSystem === 'metric' ? 'water.unitMl' : 'water.unit');
+  const waterShown = displayWater(water, unitSystem);
+  const step = waterStep(unitSystem);
+  const addWater = (deltaDisplay: number) => {
+    haptics.tap();
+    onAddWater(Math.max(0, water + toFlOz(deltaDisplay, unitSystem)));
+  };
   const [sleepOpen, setSleepOpen] = useState(false);
   const [waterOpen, setWaterOpen] = useState(false);
   const [, setTick] = useState(0);
@@ -208,6 +233,8 @@ export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater
             haptics.tap();
             fastStartedAt ? onBreakFast() : onStartFast();
           }}
+          hitSlop={PILL_SLOP}
+          accessibilityRole="button"
           testID="fast-toggle"
         >
           <Text style={[styles.actionText, fastStartedAt && styles.actionTextStop]}>
@@ -239,26 +266,44 @@ export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater
           >
             <Text style={styles.label}>{t('metrics.water')}</Text>
             <View style={styles.waterValueRow}>
-              <Text style={[styles.value, styles.waterValue]}>{water} fl oz</Text>
+              <Text style={[styles.value, styles.waterValue]}>{waterShown} {waterUnit}</Text>
               <Ionicons name="pencil" size={12} color={colors.faint} />
             </View>
           </PressScale>
         </View>
         <View style={styles.waterBtns}>
+          {/* The pill text is a bare number; the label says what it is and in
+              what unit, or a screen reader hears "plus eight". `hitSlop` lifts
+              the 26dp pill to the 44pt target without widening the row
+              (S18-15) — vertical only, the pills sit 4dp apart. testIDs keep
+              the US numbers: four flows drive the row by them. */}
           {water > 0 ? (
-            <PressScale scaleTo={0.88} style={styles.pill} onPress={() => { haptics.tap(); onAddWater(Math.max(0, water - 8)); }} testID="water-minus">
-              <Text style={styles.pillText}>−8</Text>
+            <PressScale
+              scaleTo={0.88}
+              style={styles.pill}
+              hitSlop={PILL_SLOP}
+              accessibilityRole="button"
+              accessibilityLabel={t('water.removeA11y', { n: step, unit: waterUnit })}
+              onPress={() => addWater(-step)}
+              testID="water-minus"
+            >
+              <Text style={styles.pillText}>−{step}</Text>
             </PressScale>
           ) : null}
-          <PressScale scaleTo={0.88} style={styles.pill} onPress={() => { haptics.tap(); onAddWater(water + 8); }} testID="water-plus-8">
-            <Text style={styles.pillText}>+8</Text>
-          </PressScale>
-          <PressScale scaleTo={0.88} style={styles.pill} onPress={() => { haptics.tap(); onAddWater(water + 16); }} testID="water-plus-16">
-            <Text style={styles.pillText}>+16</Text>
-          </PressScale>
-          <PressScale scaleTo={0.88} style={styles.pill} onPress={() => { haptics.tap(); onAddWater(water + 24); }} testID="water-plus-24">
-            <Text style={styles.pillText}>+24</Text>
-          </PressScale>
+          {WATER_PILLS[unitSystem].map((n, i) => (
+            <PressScale
+              key={n}
+              scaleTo={0.88}
+              style={styles.pill}
+              hitSlop={PILL_SLOP}
+              accessibilityRole="button"
+              accessibilityLabel={t('water.addA11y', { n, unit: waterUnit })}
+              onPress={() => addWater(n)}
+              testID={`water-plus-${WATER_PILLS.us[i]}`}
+            >
+              <Text style={styles.pillText}>+{n}</Text>
+            </PressScale>
+          ))}
         </View>
       </View>
 
@@ -273,7 +318,14 @@ export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater
             <Text style={styles.value}>{sleep != null ? `${sleep}h` : '—'}</Text>
           </View>
         </View>
-        <PressScale scaleTo={0.92} style={styles.action} onPress={() => { haptics.tap(); setSleepOpen(true); }} testID="sleep-open">
+        <PressScale
+          scaleTo={0.92}
+          style={styles.action}
+          hitSlop={PILL_SLOP}
+          accessibilityRole="button"
+          onPress={() => { haptics.tap(); setSleepOpen(true); }}
+          testID="sleep-open"
+        >
           <Text style={styles.actionText}>{sleep != null ? t('metrics.edit') : t('metrics.log')}</Text>
         </PressScale>
       </View>
@@ -306,6 +358,7 @@ export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater
       <WaterModal
         visible={waterOpen}
         current={water}
+        unitSystem={unitSystem}
         onClose={() => setWaterOpen(false)}
         onSave={(next) => {
           onAddWater(next);
@@ -353,11 +406,15 @@ export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater
 function WaterModal({
   visible,
   current,
+  unitSystem,
   onSave,
   onClose,
 }: {
   visible: boolean;
+  /** Today's total, in stored fl oz. */
   current: number;
+  unitSystem: UnitSystem;
+  /** Receives the next total in fl oz — the store's unit, whatever is shown. */
   onSave: (nextTotal: number) => void;
   onClose: () => void;
 }) {
@@ -367,6 +424,9 @@ function WaterModal({
   const inputRef = useDeferredFocus(visible);
   const [mode, setMode] = useState<'add' | 'set'>('add');
   const [value, setValue] = useState('');
+  const unit = t(unitSystem === 'metric' ? 'water.unitMl' : 'water.unit');
+  const currentShown = displayWater(current, unitSystem);
+  const maxShown = waterMaxDisplay(unitSystem);
 
   useEffect(() => {
     if (visible) {
@@ -378,8 +438,11 @@ function WaterModal({
   // Comma accepted as the decimal point (pt-BR keyboards) — see EntrySheet.
   const n = Number(value.trim().replace(',', '.'));
   const parsed = value.trim() !== '' && Number.isFinite(n) && n >= 0;
-  const nextTotal = parsed ? Math.round(mode === 'add' ? current + n : n) : current;
-  const over = nextTotal > WATER_MAX_FLOZ;
+  // Arithmetic in the DISPLAY unit (what the user is reasoning in), converted
+  // to fl oz once, at the save boundary.
+  const nextShown = parsed ? Math.round(mode === 'add' ? currentShown + n : n) : currentShown;
+  const nextTotal = parsed ? toFlOz(nextShown, unitSystem) : current;
+  const over = nextShown > maxShown;
   const valid = parsed && !over;
 
   function toggleMode() {
@@ -388,7 +451,7 @@ function WaterModal({
     setMode(next);
     // Set total starts from what is on screen, so correcting 16 to 15 is one
     // keystroke. Add stays empty — prefilling it would read as "add 16 more".
-    setValue(next === 'set' ? String(current) : '');
+    setValue(next === 'set' ? String(currentShown) : '');
   }
 
   return (
@@ -401,7 +464,7 @@ function WaterModal({
               <Text style={styles.sheetTitle}>
                 {t(mode === 'add' ? 'water.addTitle' : 'water.setTitle')}
               </Text>
-              <TouchableOpacity onPress={toggleMode} hitSlop={10} testID="water-mode-toggle">
+              <TouchableOpacity onPress={toggleMode} hitSlop={12} accessibilityRole="button" testID="water-mode-toggle">
                 <Text style={styles.sheetLink}>
                   {t(mode === 'add' ? 'water.switchToSet' : 'water.switchToAdd')}
                 </Text>
@@ -423,7 +486,7 @@ function WaterModal({
                 accessibilityLabel={t(mode === 'add' ? 'water.addTitle' : 'water.setTitle')}
                 testID="water-input"
               />
-              <Text style={styles.inputUnit}>{t('water.unit')}</Text>
+              <Text style={styles.inputUnit}>{unit}</Text>
             </View>
 
             {/* The total is what is actually being changed, so the total is
@@ -433,18 +496,19 @@ function WaterModal({
               testID="water-preview"
             >
               {over
-                ? t('water.tooMuch', { n: WATER_MAX_FLOZ })
+                ? t('water.tooMuch', { n: maxShown, unit })
                 : mode === 'set'
                   ? t('water.setHint')
                   : parsed
-                    ? t('water.preview', { from: current, to: nextTotal })
-                    : t('water.today', { n: current })}
+                    ? t('water.preview', { from: currentShown, to: nextShown, unit })
+                    : t('water.today', { n: currentShown, unit })}
             </Text>
 
             <TouchableOpacity
               style={[styles.save, !valid && styles.saveDisabled]}
               onPress={() => valid && onSave(clampWaterFlOz(nextTotal))}
               disabled={!valid}
+              accessibilityRole="button"
               testID="water-save"
             >
               <Text style={styles.saveText}>{t('common.save')}</Text>
@@ -505,6 +569,7 @@ function SleepModal({
         style={[styles.save, !valid && styles.saveDisabled]}
         onPress={() => valid && onSave(n)}
         disabled={!valid}
+        accessibilityRole="button"
         testID="sleep-save"
       >
         <Text style={styles.saveText}>{t('common.save')}</Text>
