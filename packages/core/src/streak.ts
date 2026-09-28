@@ -1,4 +1,5 @@
 import type { DailyLog } from './types';
+import { addDays, calendarDateKey, parseYmd } from './date';
 import { MIDNIGHT, dayKeyAt, type DayBoundary } from './day-boundary';
 
 /**
@@ -25,31 +26,41 @@ export function computeStreak(
 
   let streak = 0;
   let freezeUsed = false;
-  const cursor = opts?.today ? new Date(opts.today) : new Date();
-  if (!dates.has(dayKeyAt(cursor, boundary))) {
-    cursor.setDate(cursor.getDate() - 1);
-    if (!dates.has(dayKeyAt(cursor, boundary))) return { streak: 0, freezeUsed: false };
+
+  // Walk DAY KEYS, not instants. The anchor is the user's day (`dayKeyAt` of
+  // `today`), and every step back from it is a plain calendar day off a
+  // settled key — the same pattern `trailingDateKeys` uses (ADR-0030).
+  //
+  // Stepping a wall-clock instant back with `setDate(-1)` and re-deriving the
+  // key each time was wrong across a boundary changeover: the changeover day
+  // runs 27 hours, so `D+1 01:00` and `D 01:00` are BOTH day D, and the walk
+  // counted D twice — a streak one longer than the days actually logged.
+  const today = opts?.today ? new Date(opts.today) : new Date();
+  const anchor = parseYmd(dayKeyAt(today, boundary));
+  let offset = 0;
+  const keyAt = (daysBack: number) => calendarDateKey(addDays(anchor, -daysBack));
+  if (!dates.has(keyAt(0))) {
+    offset = 1;
+    if (!dates.has(keyAt(offset))) return { streak: 0, freezeUsed: false };
   }
 
   while (true) {
-    if (dates.has(dayKeyAt(cursor, boundary))) {
+    if (dates.has(keyAt(offset))) {
       streak++;
-      cursor.setDate(cursor.getDate() - 1);
+      offset++;
       continue;
     }
     if (maxGap === 0) break;
-    let probe: Date | null = null;
+    let probe: number | null = null;
     for (let i = 1; i <= maxGap; i++) {
-      const c = new Date(cursor);
-      c.setDate(c.getDate() - i);
-      if (dates.has(dayKeyAt(c, boundary))) {
-        probe = c;
+      if (dates.has(keyAt(offset + i))) {
+        probe = offset + i;
         break;
       }
     }
-    if (!probe) break;
+    if (probe == null) break;
     freezeUsed = true;
-    cursor.setTime(probe.getTime());
+    offset = probe;
   }
 
   return { streak, freezeUsed };

@@ -132,7 +132,11 @@ export function onboardingSeed(input: OnboardingSeedInput): OnboardingSeed {
   const floor = calorieFloor({ calorieFloor: input.calorieFloor ?? undefined });
 
   if (!Number.isFinite(weightLbs) || weightLbs <= 0 || !hasFormulaInputs(input)) {
-    const kcal = computeKcal(weightLbs, goal);
+    // A non-finite weight is NO weight: `computeKcal(NaN)` is NaN and
+    // `Math.max(floor, NaN)` is NaN, which would put "NaN kcal" on the plan
+    // step. Zero rounds to zero and lands on the floor, which is the honest
+    // answer for an input the screen has not validated yet.
+    const kcal = Number.isFinite(weightLbs) && weightLbs > 0 ? computeKcal(weightLbs, goal) : 0;
     return {
       kcal: Math.max(floor, kcal),
       basis: 'heuristic',

@@ -115,3 +115,26 @@ describe('weeklyEnvelope', () => {
     expect(env).toBeNull();
   });
 });
+
+describe('weeklyEnvelope counts DAYS, not rows (ADR-0004)', () => {
+  const NOW = new Date(2026, 6, 5, 12, 0, 0);
+
+  it('three meals a day for three days is three days elapsed, not nine', () => {
+    const logs: DailyLog[] = [];
+    for (const back of [0, 1, 2]) {
+      for (const hour of [8, 13, 19]) {
+        const d = new Date(NOW);
+        d.setDate(d.getDate() - back);
+        d.setHours(hour, 0, 0, 0);
+        logs.push({ calories: 700, date: d });
+      }
+    }
+    const env = weeklyEnvelope(logs, 2000, NOW)!;
+    expect(env.consumed).toBe(6300);
+    expect(env.daysLogged).toBe(3);
+    expect(env.daysRemaining).toBe(4);
+    // surplus is against 3 days of target, not 9 rows of it.
+    expect(env.surplus).toBe(6300 - 3 * 2000);
+    expect(env.adjustedDailyTarget).toBe(Math.round((14000 - 6300) / 4));
+  });
+});

@@ -11,8 +11,8 @@ import { requireAdmin } from "./admin-guard";
 export const startImpersonation = onCall(async (request) => {
   const admin = requireAdmin(request, "Only admins can impersonate.");
 
-  const { targetEmail } = request.data as { targetEmail?: string };
-  if (!targetEmail) {
+  const { targetEmail } = (request.data ?? {}) as { targetEmail?: unknown };
+  if (typeof targetEmail !== "string" || !targetEmail) {
     throw new HttpsError("invalid-argument", "targetEmail is required.");
   }
 
@@ -63,8 +63,8 @@ export const stopImpersonation = onCall(async (request) => {
     throw new HttpsError("unauthenticated", "Must be signed in.");
   }
 
-  const { originalUid } = request.data as { originalUid?: string };
-  if (!originalUid) {
+  const { originalUid } = (request.data ?? {}) as { originalUid?: unknown };
+  if (typeof originalUid !== "string" || !originalUid) {
     throw new HttpsError("invalid-argument", "originalUid is required.");
   }
 

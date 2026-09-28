@@ -293,3 +293,13 @@ describe('paceOffsetKcal', () => {
     expect(paceOffsetKcal(1, 'gain')).toBeCloseTo(-500, 0);
   });
 });
+
+describe('onboardingSeed never hands back NaN', () => {
+  it('a non-finite weight lands on the floor rather than NaN', () => {
+    const seed = onboardingSeed({ weightLbs: Number.NaN, goal: 'lose' });
+    expect(seed.basis).toBe('heuristic');
+    expect(Number.isFinite(seed.kcal)).toBe(true);
+    expect(seed.kcal).toBe(1500);
+    expect(seed.floorBinding).toBe(true);
+  });
+});

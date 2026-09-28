@@ -1,6 +1,7 @@
 import type { DailyLog } from './types';
 import { aggregateByDay } from './tdee';
-import { MIDNIGHT, type DayBoundary } from './day-boundary';
+import { MIDNIGHT, dayKeyAt, type DayBoundary } from './day-boundary';
+import { trailingDateKeys } from './log-window';
 
 /**
  * Rolling weekly derivations — averages/adherence (`weeklySummary`), the
@@ -98,21 +99,26 @@ export function weeklyEnvelope(
   logs: DailyLog[],
   dailyTarget: number,
   now: Date = new Date(),
+  boundary: DayBoundary = MIDNIGHT,
 ): WeeklyEnvelope | null {
   if (logs.length === 0 || dailyTarget <= 0) return null;
 
-  // Look at the last 7 calendar days (including today).
-  const sevenDaysAgo = new Date(now);
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
-  sevenDaysAgo.setHours(0, 0, 0, 0);
-
-  const thisWeekLogs = logs.filter((l) => l.date >= sevenDaysAgo);
+  // The last 7 of the user's days, including the one in progress — a set of
+  // day KEYS, never millisecond arithmetic (ADR-0004: it drifts across DST).
+  const week = new Set(trailingDateKeys(7, now, boundary));
+  const thisWeekLogs = logs.filter((l) => week.has(dayKeyAt(l.date, boundary)));
   if (thisWeekLogs.length === 0) return null;
 
+  // Aggregate FIRST. `daysLogged` used to be `thisWeekLogs.length`, i.e. the
+  // ROW count — three meals a day for three days read as nine days elapsed,
+  // the surplus was judged against nine days of target, and `daysRemaining`
+  // pinned to 1. That is the rows-vs-days confusion ADR-0004 exists to name.
+  const daily = aggregateByDay(thisWeekLogs, boundary);
+
   const weeklyBudget = dailyTarget * 7;
-  const consumed = thisWeekLogs.reduce((s, l) => s + l.calories, 0);
-  const surplus = consumed - (dailyTarget * thisWeekLogs.length);
-  const daysElapsed = thisWeekLogs.length;
+  const consumed = daily.reduce((s, l) => s + l.calories, 0);
+  const daysElapsed = daily.length;
+  const surplus = consumed - (dailyTarget * daysElapsed);
   const daysRemaining = Math.max(1, 7 - daysElapsed);
   const budgetRemaining = weeklyBudget - consumed;
   const adjustedDailyTarget = Math.max(

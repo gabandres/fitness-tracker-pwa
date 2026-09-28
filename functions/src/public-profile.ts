@@ -1,6 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { onDocumentUpdated, onDocumentWritten } from "firebase-functions/v2/firestore";
-import { getFirestore, FieldValue, Timestamp } from "firebase-admin/firestore";
+import { FieldPath, getFirestore, FieldValue, Timestamp } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 
 // ─── Public profile pages (`/u/<slug>`) ────────────────────────────
@@ -139,6 +139,41 @@ interface PublicMirror {
   updatedAt: FirebaseFirestore.FieldValue;
 }
 
+/** The two ends of a user's weigh-in history, as `dailyWeights` stores them:
+ *  the doc ID is the local `YYYY-MM-DD` key and the body is `{ weight }`. */
+export interface WeightEdgeDoc {
+  id: string;
+  weight?: unknown;
+}
+
+const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Start / current weight and the start date for the public mirror, from the
+ * OLDEST and NEWEST `dailyWeights` docs. Pure — the query that feeds it is the
+ * part that was wrong, and this is what a test can pin.
+ *
+ * `startedAt` is rebuilt from the oldest doc's ID because the doc carries no
+ * `date` field. UTC midnight of that key is close enough for "Tracking since
+ * Aug 2026", which is the only thing that reads it; a malformed ID yields null.
+ */
+export function mirrorWeightsFromEdges(
+  first: WeightEdgeDoc | null,
+  last: WeightEdgeDoc | null,
+): { startWeight: number | null; currentWeight: number | null; startedAt: Timestamp | null } {
+  const num = (v: unknown): number | null =>
+    typeof v === "number" && Number.isFinite(v) ? v : null;
+  const startedAt =
+    first && DATE_KEY_RE.test(first.id)
+      ? Timestamp.fromMillis(Date.parse(`${first.id}T00:00:00Z`))
+      : null;
+  return {
+    startWeight: first ? num(first.weight) : null,
+    currentWeight: last ? num(last.weight) : null,
+    startedAt,
+  };
+}
+
 async function buildMirrorFromProfile(
   uid: string,
   profile: FirebaseFirestore.DocumentData,
@@ -147,24 +182,29 @@ async function buildMirrorFromProfile(
   if (!slug) return null;
 
   const db = getFirestore();
-  // Pull start + current weight from dailyWeights (preferred) — falls
-  // back to whatever's on the profile if no daily weights exist yet.
+  // Pull start + current weight from dailyWeights. Ordered by DOCUMENT ID,
+  // which is the whole point: a dailyWeights doc is
+  // `users/{uid}/dailyWeights/{YYYY-MM-DD} -> { weight }` and carries NO
+  // `date` field (`firestore.rules` allows `weight` and nothing else). Both
+  // queries here used to order on `date`, and Firestore silently omits
+  // documents that lack the ordered field — so they matched ZERO docs for
+  // every user, forever, and every public profile showed "—" for start and
+  // current weight. `weekly-digest.ts` hit the identical bug on 2026-08-23
+  // and fixed its own copy; this one was not looked at. The descending order
+  // needs the `__name__ DESC` index `firestore.indexes.json` already carries.
   let startWeight: number | null = null;
   let currentWeight: number | null = null;
   let startedAt: Timestamp | null = null;
   try {
-    const dwAsc = await db.collection(`users/${uid}/dailyWeights`)
-      .orderBy("date", "asc").limit(1).get();
-    const dwDesc = await db.collection(`users/${uid}/dailyWeights`)
-      .orderBy("date", "desc").limit(1).get();
-    if (!dwAsc.empty) {
-      startWeight = (dwAsc.docs[0].data()?.["weight"] as number | undefined) ?? null;
-      const d = dwAsc.docs[0].data()?.["date"];
-      if (d instanceof Timestamp) startedAt = d;
-    }
-    if (!dwDesc.empty) {
-      currentWeight = (dwDesc.docs[0].data()?.["weight"] as number | undefined) ?? null;
-    }
+    const [dwAsc, dwDesc] = await Promise.all([
+      db.collection(`users/${uid}/dailyWeights`)
+        .orderBy(FieldPath.documentId(), "asc").limit(1).get(),
+      db.collection(`users/${uid}/dailyWeights`)
+        .orderBy(FieldPath.documentId(), "desc").limit(1).get(),
+    ]);
+    const edge = (snap: FirebaseFirestore.QuerySnapshot): WeightEdgeDoc | null =>
+      snap.empty ? null : { id: snap.docs[0].id, weight: snap.docs[0].data()?.["weight"] };
+    ({ startWeight, currentWeight, startedAt } = mirrorWeightsFromEdges(edge(dwAsc), edge(dwDesc)));
   } catch (err) {
     console.warn(`buildMirror: dailyWeights query failed for uid=${uid}`, err);
   }

@@ -1150,6 +1150,21 @@ function mifflinStJeor(profile: ProfileFields, weightLbs: number): number {
  * subtracting, byte for byte, which is every account predating v2 onboarding
  * and every cut and maintain since.
  */
+/**
+ * The pace to plan against: the stored one when it is a finite number, else
+ * {@link DEFAULT_PACE_LBS_PER_WEEK}.
+ *
+ * Both branches below used to read the field raw. `??` passes `NaN` straight
+ * through, `paceOffsetKcal(NaN)` is `NaN`, and `Math.max(floor, NaN)` is `NaN`
+ * — so a corrupt stored pace did not degrade to the floor, it took the
+ * calorie target down with it. Same reasoning as the finiteness guard on
+ * `activityMultiplier`: a bad value must fall back, never propagate.
+ */
+function paceOf(profile?: { targetPaceLbsPerWeek?: number } | null): number {
+  const p = profile?.targetPaceLbsPerWeek;
+  return typeof p === 'number' && Number.isFinite(p) ? p : DEFAULT_PACE_LBS_PER_WEEK;
+}
+
 export function paceOffsetKcal(
   paceLbsPerWeek: number,
   goalDirection?: GoalDirection,
@@ -1305,7 +1320,7 @@ export function calculateTdee(
         ? Math.round(confidence * measuredTdee + (1 - confidence) * anchor)
         : measuredTdee;
 
-    const pace = profile?.targetPaceLbsPerWeek ?? DEFAULT_PACE_LBS_PER_WEEK;
+    const pace = paceOf(profile);
     const targetDeficit = paceOffsetKcal(pace, profile?.goalDirection);
     const floor = calorieFloor(profile);
     const newDailyTarget = Math.max(floor, Math.round(trueTdee - targetDeficit));
@@ -1341,7 +1356,7 @@ export function calculateTdee(
       if (daily[i].weight != null) { latestWeight = daily[i].weight!; break; }
     }
     const trueTdee = Math.round(mifflinStJeor(profile, latestWeight));
-    const pace = profile.targetPaceLbsPerWeek;
+    const pace = paceOf(profile);
     const targetDeficit = paceOffsetKcal(pace, profile.goalDirection);
     const floor = calorieFloor(profile);
     const newDailyTarget = Math.max(floor, Math.round(trueTdee - targetDeficit));

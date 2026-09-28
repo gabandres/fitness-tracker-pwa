@@ -338,69 +338,90 @@ export const exportUserData = onCall({ maxInstances: 5 }, async (request) => {
   return payload;
 });
 
+/**
+ * Erase everything the project holds for `uid`, then the Auth user itself.
+ *
+ * **The one erasure path.** `adminDeleteUser` (admin-ops.ts) used to carry its
+ * own copy of this sequence with a hand-written list of SEVEN subcollections
+ * against the seventeen in {@link USER_SUBCOLLECTIONS}, no Storage purge, no
+ * `usageEvents` / `publicSlugs` sweep and no Apple revoke — so an account the
+ * owner deleted from the console kept its custom foods, progress photos,
+ * workouts, fasts, milestones, health imports, feedback, Oura link and public
+ * profile mirror, forever. That is the same drift `USER_SUBCOLLECTIONS` was
+ * created to end, reappearing one file over. Both callables now call this.
+ *
+ * Order matters and is unchanged from the owner-initiated flow: read the Apple
+ * token before `private` is wiped; delete the Auth user LAST so a failure
+ * midway leaves an account that can retry rather than an orphaned tree with
+ * no owner to retry it.
+ */
+export async function eraseUserData(uid: string): Promise<void> {
+  const userPath = `users/${uid}`;
+
+  // 0. Revoke the Sign in with Apple token (App Review 5.1.1(v)). Read it
+  //    before step 1 wipes `private`. Best-effort: a revoke failure (or the
+  //    Apple secrets not being mounted on the calling function) must never
+  //    block deletion — deletion is the hard requirement, revocation the
+  //    soft one.
+  try {
+    const appleSnap = await db.doc(`${userPath}/private/appleAuth`).get();
+    const refreshToken = appleSnap.get("refreshToken");
+    if (typeof refreshToken === "string" && refreshToken) {
+      await revokeAppleToken(refreshToken);
+    }
+  } catch (e) {
+    console.warn(`Apple token revoke failed for uid=${uid} (non-fatal):`, e);
+  }
+
+  // 1. Delete every subcollection under users/{uid}. The list lives in
+  //    USER_SUBCOLLECTIONS above — Firestore does NOT cascade, so a name
+  //    missing from it orphans that data forever (GDPR Art. 17 gap), which
+  //    is exactly what happened to the workout* + exercises trio once.
+  await Promise.all(
+    USER_SUBCOLLECTIONS.map((name) => deleteSubcollection(userPath, name)),
+  );
+
+  // 1b. Purge progress-photo BYTES from Storage (ADR-0010). The Firestore
+  //     index docs above don't cascade to the Storage objects, so without
+  //     this the photos linger after account deletion — a GDPR Art. 17 gap.
+  await getStorage()
+    .bucket()
+    .deleteFiles({ prefix: `users/${uid}/photos/` });
+
+  // 1c. Purge the uid-keyed TOP-LEVEL collections. Firestore does not
+  //     cascade and these are siblings of `users/{uid}`, so nothing above
+  //     reaches them: `usageEvents` counters, and the public-profile slug
+  //     plus its world-readable mirror. `firestore.rules` has claimed since
+  //     it was written that this path deletes the usage counters; until now
+  //     it did not.
+  await deleteUidKeyedTopLevel(uid);
+
+  // 2. Delete quota docs (photo + consultation).
+  await dailyQuota.deleteAll(uid);
+
+  // 3. Delete the user profile doc itself.
+  await db.doc(userPath).delete();
+
+  // 4. Delete the Firebase Auth user. This signs them out of all
+  //    sessions and prevents future logins. After this point the
+  //    client's ID token is invalid.
+  await getAuth().deleteUser(uid);
+}
+
 export const deleteAccount = onCall({ secrets: APPLE_SECRETS }, async (request) => {
   const { uid } = await callerAccess.resolveCaller(request, {
     collection: "deleteRateLimit",
     minIntervalMs: DELETE_ACCOUNT_MIN_INTERVAL_MS,
     errorCode: ErrorCode.RATE_LIMITED,
   });
-  const userPath = `users/${uid}`;
 
   try {
-    // 0. Flag any active Stripe subscriptions to cancel at period end so
-    //    a deleted user doesn't keep getting billed. The extension's own
-    //    auto-delete trigger handles the Stripe customer doc when the
-    //    Auth user is deleted, but doesn't cancel live subscriptions —
-    //    that's what this step is for.
+    // Flag any active Stripe subscriptions to cancel at period end so a
+    // deleted user doesn't keep getting billed. The extension's own
+    // auto-delete trigger handles the Stripe customer doc when the Auth
+    // user is deleted, but doesn't cancel live subscriptions.
     await cancelStripeSubscriptions(uid);
-
-    // 0b. Revoke the Sign in with Apple token (App Review 5.1.1(v)). Read it
-    //     before step 1 wipes `private`. Best-effort: a revoke failure (or the
-    //     Apple secrets not being configured) must never block deletion —
-    //     deletion is the hard requirement, revocation the soft one.
-    try {
-      const appleSnap = await db.doc(`${userPath}/private/appleAuth`).get();
-      const refreshToken = appleSnap.get("refreshToken");
-      if (typeof refreshToken === "string" && refreshToken) {
-        await revokeAppleToken(refreshToken);
-      }
-    } catch (e) {
-      console.warn(`Apple token revoke failed for uid=${uid} (non-fatal):`, e);
-    }
-
-    // 1. Delete every subcollection under users/{uid}. The list lives in
-    //    USER_SUBCOLLECTIONS above — Firestore does NOT cascade, so a name
-    //    missing from it orphans that data forever (GDPR Art. 17 gap), which
-    //    is exactly what happened to the workout* + exercises trio once.
-    await Promise.all(
-      USER_SUBCOLLECTIONS.map((name) => deleteSubcollection(userPath, name)),
-    );
-
-    // 1b. Purge progress-photo BYTES from Storage (ADR-0010). The Firestore
-    //     index docs above don't cascade to the Storage objects, so without
-    //     this the photos linger after account deletion — a GDPR Art. 17 gap.
-    await getStorage()
-      .bucket()
-      .deleteFiles({ prefix: `users/${uid}/photos/` });
-
-    // 1c. Purge the uid-keyed TOP-LEVEL collections. Firestore does not
-    //     cascade and these are siblings of `users/{uid}`, so nothing above
-    //     reaches them: `usageEvents` counters, and the public-profile slug
-    //     plus its world-readable mirror. `firestore.rules` has claimed since
-    //     it was written that this path deletes the usage counters; until now
-    //     it did not.
-    await deleteUidKeyedTopLevel(uid);
-
-    // 2. Delete quota docs (photo + consultation).
-    await dailyQuota.deleteAll(uid);
-
-    // 3. Delete the user profile doc itself.
-    await db.doc(userPath).delete();
-
-    // 4. Delete the Firebase Auth user. This signs them out of all
-    //    sessions and prevents future logins. After this point the
-    //    client's ID token is invalid.
-    await getAuth().deleteUser(uid);
+    await eraseUserData(uid);
 
     console.log(`Account deleted for uid=${uid}`);
     return { success: true };

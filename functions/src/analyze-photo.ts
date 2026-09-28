@@ -606,7 +606,9 @@ export const analyzePhoto = onCall(
     // spent on their behalf. Nothing below this point has cost money yet, so
     // nothing below this point may cost the user a slot. Order is the fix;
     // a refund would be the wrong shape for a request that never ran.
-    const { photoBase64, photosBase64, locale, note } = request.data as {
+    // `?? {}`: a null payload destructured raw is a TypeError, i.e. an
+    // untyped 500 for what is a missing-photo request.
+    const { photoBase64, photosBase64, locale, note } = (request.data ?? {}) as {
       photoBase64?: string;
       photosBase64?: string[];
       locale?: string;

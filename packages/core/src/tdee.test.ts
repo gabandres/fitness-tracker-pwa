@@ -473,3 +473,24 @@ describe('the in-progress day', () => {
     expect(withFuture.avgDailyIntake).toBe(base.avgDailyIntake);
   });
 });
+
+describe('calculateTdee never leaks NaN through the pace', () => {
+  it('formula mode falls back to the default pace when the stored pace is not finite', () => {
+    const broken = { ...baseProfile, targetPaceLbsPerWeek: Number.NaN };
+    const r = calculateTdee([log(0, 2000, 180)], broken);
+    expect(r.source).toBe('formula');
+    expect(Number.isFinite(r.newDailyTarget)).toBe(true);
+    // Same answer as the documented 1.0 lb/wk default.
+    expect(r.newDailyTarget).toBe(calculateTdee([log(0, 2000, 180)], baseProfile).newDailyTarget);
+  });
+
+  it('measured mode falls back to the default pace when the stored pace is not finite', () => {
+    const logs: DailyLog[] = [];
+    for (let i = 0; i < 30; i++) logs.push(log(i + 1, 2200, 180 - i * 0.05));
+    const broken = { ...baseProfile, targetPaceLbsPerWeek: Number.NaN };
+    const r = calculateTdee(logs, broken);
+    expect(r.source).toBe('measured');
+    expect(Number.isFinite(r.newDailyTarget)).toBe(true);
+    expect(r.newDailyTarget).toBe(calculateTdee(logs, baseProfile).newDailyTarget);
+  });
+});

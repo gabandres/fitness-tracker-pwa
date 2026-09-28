@@ -7,6 +7,8 @@ import { DailyQuota, type QuotaKind } from "./daily-quota";
 import { SpendCeiling } from "./spend-ceiling";
 import { redactProfileSecrets } from "./redact";
 import { describeLogRow, type LogRowFields } from "./activity-detail";
+import { eraseUserData } from "./gdpr";
+import { APPLE_SECRETS } from "./apple-signin";
 
 const STATS_TTL_MS = 5 * 60 * 1000; // 5-min cache — cheap to refresh, expensive to run
 const ACTIVITY_TTL_MS = 30 * 1000;  // 30-sec cache — feed barely changes between rapid refreshes
@@ -424,13 +426,24 @@ export const getAuditLogs = onCall({ timeoutSeconds: 30 }, async (request) => {
       dateTo?: string;
     };
 
+  // `Timestamp.fromDate(new Date("garbage"))` throws a RangeError, which the
+  // callable surfaced as an untyped `internal` (HTTP 500) for a bad query
+  // string. Reject it as the invalid argument it is.
+  const parseDate = (label: string, raw: string): Date => {
+    const d = new Date(raw);
+    if (Number.isNaN(d.getTime())) {
+      throw new HttpsError("invalid-argument", `${label} must be an ISO date string.`);
+    }
+    return d;
+  };
+
   let q: FirebaseFirestore.Query = db.collection("auditLogs");
   if (actionFilter) q = q.where("action", "==", actionFilter);
-  if (dateFrom) q = q.where("timestamp", ">=", Timestamp.fromDate(new Date(dateFrom)));
-  if (dateTo) q = q.where("timestamp", "<=", Timestamp.fromDate(new Date(dateTo)));
+  if (dateFrom) q = q.where("timestamp", ">=", Timestamp.fromDate(parseDate("dateFrom", dateFrom)));
+  if (dateTo) q = q.where("timestamp", "<=", Timestamp.fromDate(parseDate("dateTo", dateTo)));
   q = q.orderBy("timestamp", "desc");
   if (startAfterTimestamp) {
-    q = q.startAfter(Timestamp.fromDate(new Date(startAfterTimestamp)));
+    q = q.startAfter(Timestamp.fromDate(parseDate("startAfterTimestamp", startAfterTimestamp)));
   }
 
   const clamped = Math.min(Math.max(1, limit), 200);
@@ -479,7 +492,10 @@ export const adminSuspendUser = onCall(async (request) => {
   return { targetUid, disabled };
 });
 
-export const adminDeleteUser = onCall({ timeoutSeconds: 120 }, async (request) => {
+// `APPLE_SECRETS` are bound so the shared erasure path can revoke a Sign in
+// with Apple token here too — the owner deleting an account from the console
+// carries the same App Review 5.1.1(v) obligation as the user doing it.
+export const adminDeleteUser = onCall({ timeoutSeconds: 120, secrets: APPLE_SECRETS }, async (request) => {
   const admin = requireAdmin(request);
   const { targetUid } = (request.data || {}) as { targetUid?: string };
   if (!targetUid) {
@@ -497,7 +513,7 @@ export const adminDeleteUser = onCall({ timeoutSeconds: 120 }, async (request) =
   const targetEmail = target.email || "";
 
   // Flag active Stripe subscriptions to cancel at period end. Mirrors
-  // the owner-initiated deleteAccount flow (index.ts cancelStripeSubscriptions)
+  // the owner-initiated deleteAccount flow (gdpr.ts cancelStripeSubscriptions)
   // so admin-deleted paid users don't keep getting billed.
   try {
     const subsSnap = await db.collection(`customers/${targetUid}/subscriptions`).get();
@@ -512,26 +528,12 @@ export const adminDeleteUser = onCall({ timeoutSeconds: 120 }, async (request) =
     console.warn(`adminDeleteUser: Stripe cancel step failed for uid=${targetUid}`, err);
   }
 
-  // Mirror the user's own deleteAccount flow: cascade subcollections,
-  // quotas, profile doc, then the auth record itself.
-  const userPath = `users/${targetUid}`;
-  const subcollections = [
-    "dailyLogs", "presets", "reports", "dailyWeights", "dailyWater", "dailySleep", "measurements",
-  ];
-  for (const sub of subcollections) {
-    const coll = db.collection(`${userPath}/${sub}`);
-    while (true) {
-      const snap = await coll.limit(500).get();
-      if (snap.empty) break;
-      const batch = db.batch();
-      snap.docs.forEach((d) => batch.delete(d.ref));
-      await batch.commit();
-      if (snap.size < 500) break;
-    }
-  }
-  await new DailyQuota(db).deleteAll(targetUid);
-  await db.doc(userPath).delete().catch(() => undefined);
-  await auth.deleteUser(targetUid);
+  // THE SAME erasure the user's own deleteAccount runs — every declared
+  // subcollection, the Storage photos, the uid-keyed top-level collections,
+  // the quota docs, the profile doc, then the Auth record. This used to be a
+  // hand-copied subset (7 of 17 subcollections, no Storage, no usageEvents /
+  // publicSlugs) — see `eraseUserData` for what that left behind.
+  await eraseUserData(targetUid);
 
   await writeAuditLog({
     action: "user_delete",

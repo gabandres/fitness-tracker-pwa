@@ -41,3 +41,25 @@ describe('computeStreak', () => {
     expect(computeStreak([], { today: TODAY }).streak).toBe(0);
   });
 });
+
+describe('computeStreak under a day-boundary changeover (ADR-0030)', () => {
+  // The boundary moves 0 -> 3 on D. `dayKeyAt` makes the CHANGEOVER day long —
+  // D runs from D 00:00 to D+1 03:00 — and every later day starts at 03:00.
+  // Stepping a wall-clock cursor back one calendar day from D+1 01:00 lands on
+  // D 01:00, which is still day D, so an instant-stepping walk counted D twice.
+  it('does not count the changeover day twice when opened in its early window', async () => {
+    const { setDayStartHour } = await import('./day-boundary');
+    const { calendarDateKey } = await import('./date');
+    const D = new Date(2026, 5, 15, 12);
+    const boundary = setDayStartHour([], calendarDateKey(D), 3);
+    const at = (dayOffset: number, hour: number) =>
+      new Date(2026, 5, 15 + dayOffset, hour);
+    const logs: DailyLog[] = [
+      { calories: 500, date: at(-1, 12) }, // D-1
+      { calories: 500, date: at(0, 12) },  // D
+    ];
+    // Opened at D+1 01:00 — still day D under the changeover rule.
+    const today = at(1, 1);
+    expect(computeStreak(logs, { today, boundary }).streak).toBe(2);
+  });
+});

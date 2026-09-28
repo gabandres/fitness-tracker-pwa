@@ -34,6 +34,10 @@ const SRC = readFileSync(
   resolve(dirname(fileURLToPath(import.meta.url)), "../src/gdpr.ts"),
   "utf8",
 );
+const ADMIN_SRC = readFileSync(
+  resolve(dirname(fileURLToPath(import.meta.url)), "../src/admin-ops.ts"),
+  "utf8",
+);
 
 describe("GDPR erasure/export collection parity", () => {
   it("erases every declared subcollection", () => {
@@ -210,5 +214,16 @@ describe("GDPR erasure/export collection parity", () => {
       expect(USER_SUBCOLLECTIONS).toContain(name);
       expect(EXPORT_EXCLUDED.has(name)).toBe(false);
     }
+  });
+
+  it("the admin delete runs the SAME erasure as the user's own", () => {
+    // `adminDeleteUser` carried a hand-copied subset of this sequence — seven
+    // subcollections of seventeen, no Storage purge, no usageEvents /
+    // publicSlugs sweep — which is this exact drift, one file over. It must
+    // call the shared path and must not grow its own list again.
+    expect(ADMIN_SRC).toMatch(/await eraseUserData\(targetUid\)/);
+    expect(ADMIN_SRC).not.toMatch(/"dailyLogs",\s*"presets"/);
+    expect(ADMIN_SRC).not.toMatch(/new DailyQuota\(db\)\.deleteAll/);
+    expect(ADMIN_SRC).not.toMatch(/auth\.deleteUser\(targetUid\)/);
   });
 });
