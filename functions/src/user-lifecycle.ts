@@ -1,6 +1,6 @@
 import { Timestamp } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
-import { onDocumentUpdated, onDocumentCreated, onDocumentWritten } from "firebase-functions/v2/firestore";
+import { onDocumentUpdated, onDocumentCreated } from "firebase-functions/v2/firestore";
 import { getResend, baseSendOptions, resendApiKey } from "./resend-client";
 import { emailLocale } from "./locales";
 import { welcomeEmail } from "./email-templates";
@@ -112,79 +112,5 @@ export const onDailyLogCreated = onDocumentCreated(
     if (!snap.exists) return;
     if (snap.data()?.["firstEntryAt"] != null) return;
     await profileRef.update({ firstEntryAt: Timestamp.now() });
-  },
-);
-
-// ─── Referral reward grant ─────────────────────────────────────────
-//
-// Fires when a `users/{uid}/subscriptions/{subId}` doc is created or
-// updated by the firestore-stripe-payments extension. When a referred
-// user's subscription becomes active/trialing for the first time, both
-// sides receive 30 days of comped Pro access via the `compedUntil`
-// field — a server-stamped Timestamp the checkAccessStatus callable
-// reads to decide unlimited access.
-//
-// Idempotent: latched by `referralRewardGrantedAt` on the referee's
-// profile. Subscription churn (cancel + resub) won't double-grant.
-//
-// Self-referrals are blocked at the profile-create site (firebase.service.ts);
-// invalid referrer uids (deleted account, typo) are caught here when
-// the referrer's profile fetch returns empty.
-const REFERRAL_REWARD_DAYS = 30;
-const REFERRAL_REWARD_MS = REFERRAL_REWARD_DAYS * 24 * 60 * 60 * 1000;
-
-export const onSubscriptionWritten = onDocumentWritten(
-  "users/{uid}/subscriptions/{subId}",
-  async (event) => {
-    const after = event.data?.after?.data();
-    if (!after) return;
-    const status = after["status"] as string | undefined;
-    if (status !== "active" && status !== "trialing") return;
-
-    const refereeUid = event.params.uid;
-    const refereeRef = db.doc(`users/${refereeUid}`);
-    const refereeSnap = await refereeRef.get();
-    if (!refereeSnap.exists) return;
-    const referee = refereeSnap.data()!;
-    if (referee["referralRewardGrantedAt"] != null) return; // already granted
-    const referrerUid = referee["referredBy"] as string | undefined;
-    if (!referrerUid || typeof referrerUid !== "string") return;
-    if (referrerUid === refereeUid) return; // self-referral guard
-
-    const referrerRef = db.doc(`users/${referrerUid}`);
-    const referrerSnap = await referrerRef.get();
-    if (!referrerSnap.exists) {
-      // Referrer's account was deleted or the uid was malformed —
-      // latch the referee so we don't keep retrying every subscription
-      // write. The referee still gets their bonus (they signed up via
-      // a real link at the time, even if the referrer is now gone).
-      await refereeRef.update({
-        referralRewardGrantedAt: Timestamp.now(),
-        compedUntil: Timestamp.fromMillis(Date.now() + REFERRAL_REWARD_MS),
-      });
-      console.warn(`referral: referrer ${referrerUid} not found; granted referee ${refereeUid} only`);
-      return;
-    }
-
-    // Both sides get +30d. If either already has compedUntil > now
-    // (e.g. from a prior referral), extend from that point instead of
-    // overwriting — the reward stacks on existing comped time.
-    const now = Date.now();
-    const grant = (current: Timestamp | undefined) => {
-      const base = current && current.toMillis() > now ? current.toMillis() : now;
-      return Timestamp.fromMillis(base + REFERRAL_REWARD_MS);
-    };
-
-    await Promise.all([
-      refereeRef.update({
-        referralRewardGrantedAt: Timestamp.now(),
-        compedUntil: grant(referee["compedUntil"] as Timestamp | undefined),
-      }),
-      referrerRef.update({
-        compedUntil: grant(referrerSnap.data()?.["compedUntil"] as Timestamp | undefined),
-      }),
-    ]);
-
-    console.log(`referral: granted +${REFERRAL_REWARD_DAYS}d to referrer=${referrerUid} + referee=${refereeUid}`);
   },
 );

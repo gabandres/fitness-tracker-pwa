@@ -646,7 +646,8 @@ hook that owns that slice".
   digest and the user-count publish are **tasks inside that dispatcher**,
   not functions — this list previously named them as schedules, which
   reads as headroom that does not exist. Triggers: `onDailyLogCreated`,
-  `onSubscriptionWritten`, `sendWelcomeEmail`.
+  `sendWelcomeEmail` (`onSubscriptionWritten`, the Stripe-era referral grant,
+  was deleted 2026-09-28 — nothing wrote its path after 2026-08-31).
 - **CallerAccess** (`functions/src/caller-access.ts`) — the Cloud
   Functions caller-resolution module: auth check, per-uid rate limit,
   and tier resolution in one `resolveCaller(request, rateLimit?)` call.

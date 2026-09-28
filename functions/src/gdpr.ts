@@ -155,7 +155,7 @@ export const UID_KEYED_TOP_LEVEL = [
 export const TOP_LEVEL_NOT_ERASED: Readonly<Record<string, string>> = {
   users: "the account root itself — erased by deleteAccount, subcollections via USER_SUBCOLLECTIONS",
   consultationQuota:
-    "uid-keyed, and already erased — dailyQuota.deleteAll(uid) covers the photo and consultation counters",
+    "uid-keyed, and already erased — dailyQuota.deleteAll(uid) covers the photo, consultation and weekly-report counters",
   customers:
     "Stripe extension, REMOVED 2026-08-31 (CLAUDE.md); zero documents as of 2026-09-16. If subscriptions ever ship they go through Apple/Google IAP and this decision is re-made then",
   emailRateLimits:
@@ -294,11 +294,12 @@ export const exportUserData = onCall({ maxInstances: 5 }, async (request) => {
   // under their uid is. The public-profile mirror is not exported: it is a
   // projection of the profile fields already in `profile`, and it is world-
   // readable, so there is nothing to hand back that the user cannot read.
-  const [profileSnap, collections, photoQuota, consultationQuota, usageEvents] = await Promise.all([
+  const [profileSnap, collections, photoQuota, consultationQuota, weeklyReportQuota, usageEvents] = await Promise.all([
     userRef.get(),
     Promise.all(exported.map((name) => dumpCollection(name))),
     dailyQuota.dump(uid, "photo"),
     dailyQuota.dump(uid, "consultation"),
+    dailyQuota.dump(uid, "weeklyReport"),
     db.collection("usageEvents").where("uid", "==", uid).get()
       .then((s) => s.docs.map((d) => ({ id: d.id, ...d.data() }))),
   ]);
@@ -321,6 +322,7 @@ export const exportUserData = onCall({ maxInstances: 5 }, async (request) => {
     ...byName,
     photoQuota,
     consultationQuota,
+    weeklyReportQuota,
     usageEvents,
   };
 

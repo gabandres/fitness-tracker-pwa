@@ -16,7 +16,11 @@ export { registerAppleRefreshToken } from "./apple-signin";
 export { generateWeeklyReport } from "./weekly-report";
 export { statusPulse, weeklyFirestoreBackup } from "./ops";
 export { hourlyTasks } from "./hourly-tasks";
-export { sendWelcomeEmail, onDailyLogCreated, onSubscriptionWritten } from "./user-lifecycle";
+// `onSubscriptionWritten` (referral reward on a Stripe subscription doc) was
+// deleted 2026-09-28: it listened on `users/{uid}/subscriptions`, a path nothing
+// has written since the Stripe extension was removed 2026-08-31. Referral
+// CFs stay dormant; if IAP subscriptions ever ship the grant is re-made then.
+export { sendWelcomeEmail, onDailyLogCreated } from "./user-lifecycle";
 export { sendPasswordReset } from "./password-reset";
 export { onFeedbackCreated } from "./feedback-notify";
 export { sendVerificationEmail } from "./verify-email";

@@ -2,9 +2,12 @@ import { DocumentData, Firestore } from "firebase-admin/firestore";
 import { HttpsError } from "firebase-functions/v2/https";
 import { ErrorCode } from "./error-codes";
 
-/** The two daily-capped features. Each maps to its own quota collection
-    with docs keyed `${uid}_${utcDay}` carrying `{ count, uid, date }`. */
-export type QuotaKind = "photo" | "consultation";
+/** The daily-capped AI features. Each maps to its own quota collection
+    with docs keyed `${uid}_${utcDay}` carrying `{ count, uid, date }`.
+    `weeklyReport` joined 2026-09-28: it reached Gemini behind neither guard
+    before that, relying on a 6-day cadence check that a user could defeat by
+    deleting their newest report doc. */
+export type QuotaKind = "photo" | "consultation" | "weeklyReport";
 
 interface KindConfig {
   collection: string;
@@ -32,6 +35,16 @@ const KINDS: Record<QuotaKind, KindConfig> = {
     label: "consultations",
     limitFree: 3,
     limitPaid: 30,
+  },
+  // One per day for every tier: the feature's own cadence is one report per
+  // 6 days, so this is a backstop against a client hammering the callable
+  // (or deleting its report docs to reset the cadence), not an allowance.
+  weeklyReport: {
+    collection: "weeklyReportQuota",
+    exceededCode: ErrorCode.REPORT_QUOTA_EXCEEDED,
+    label: "weekly reports",
+    limitFree: 1,
+    limitPaid: 1,
   },
 };
 
@@ -156,7 +169,7 @@ export class DailyQuota {
     return snap.exists ? (snap.data()!.count as number) : 0;
   }
 
-  /** Admin knob: clear today's docs for both kinds so a user who hit the
+  /** Admin knob: clear today's docs for every kind so a user who hit the
       cap via a stuck client retry gets their slots back. */
   async resetToday(uid: string): Promise<void> {
     const today = utcDayKey();
@@ -165,7 +178,7 @@ export class DailyQuota {
     );
   }
 
-  /** GDPR delete: remove every quota doc the uid ever wrote, both kinds. */
+  /** GDPR delete: remove every quota doc the uid ever wrote, every kind. */
   async deleteAll(uid: string): Promise<void> {
     for (const kind of ALL_KINDS) {
       const snap = await this.db.collection(KINDS[kind].collection).where("uid", "==", uid).get();

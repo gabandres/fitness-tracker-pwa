@@ -669,7 +669,7 @@ export const adminResetQuotas = onCall(async (request) => {
 // to stop a feature outright. See spend-ceiling.ts for why the ceiling
 // self-clears at UTC midnight and the switch deliberately does not.
 
-const CEILING_KINDS = new Set<QuotaKind>(["photo", "consultation"]);
+const CEILING_KINDS = new Set<QuotaKind>(["photo", "consultation", "weeklyReport"]);
 
 function parseKind(value: unknown): QuotaKind {
   if (typeof value !== "string" || !CEILING_KINDS.has(value as QuotaKind)) {

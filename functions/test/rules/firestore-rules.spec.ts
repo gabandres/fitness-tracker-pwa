@@ -1948,4 +1948,24 @@ describe('firestore.rules', () => {
     await assertSucceeds(updateDoc(doc(db, 'users', 'alice'), { lastSeenAt: Timestamp.now() }));
   });
 
+  // ─── dailyWeights ────────────────────────────────────────────
+  it('owner can create and DELETE their own dailyWeight; a stranger can do neither', async () => {
+    const alice = authed('alice');
+    const ref = doc(alice, 'users', 'alice', 'dailyWeights', '2026-01-15');
+    await assertSucceeds(setDoc(ref, { weight: 180.4 }));
+    await assertFails(setDoc(ref, { weight: 0 }));
+    await assertFails(setDoc(ref, { weight: 180, note: 'x' }));
+
+    const mallory = authed('mallory');
+    const foreign = doc(mallory, 'users', 'alice', 'dailyWeights', '2026-01-15');
+    await assertFails(getDoc(foreign));
+    await assertFails(deleteDoc(foreign));
+    await assertFails(deleteDoc(doc(unauthed(), 'users', 'alice', 'dailyWeights', '2026-01-15')));
+
+    // The `write` rule reads request.resource, which a delete does not carry;
+    // the explicit `allow delete` is what lets the owner remove a weigh-in.
+    await assertSucceeds(deleteDoc(ref));
+    await assertSucceeds(deleteDoc(ref)); // idempotent on a missing doc
+  });
+
 });

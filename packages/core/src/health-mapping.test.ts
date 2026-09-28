@@ -4,6 +4,7 @@ import {
   clampSleepHours, clampWaterFlOz,
   fractionToPercent, flOzToLiters, isStorableHealthValue, kgToLb, lbToKg, litersToFlOz,
   latestSampleEndByDay, percentToFraction, reduceImportedSamples, valuesToApply,
+  HC_ASLEEP_STAGES, asleepHoursFromSession,
   type HealthKind, type HealthSample,
 } from './health-mapping';
 
@@ -82,13 +83,58 @@ describe('reduceImportedSamples', () => {
     expect(out).toEqual({ c: 175 });
   });
 
-  it('sums additive kinds per day (sleep segments → nightly hours)', () => {
+  it('sums one source\'s sleep segments per day (stage fragments → nightly hours)', () => {
     const out = reduceImportedSamples([
-      sample({ kind: 'sleep', dateKey: 'd', value: 4, endMs: 100 }),
-      sample({ kind: 'sleep', dateKey: 'd', value: 3.5, endMs: 900 }),
-      sample({ kind: 'sleep', dateKey: 'e', value: 8, endMs: 200 }),
+      sample({ kind: 'sleep', dateKey: 'd', value: 4, endMs: 100, source: 'com.apple.health' }),
+      sample({ kind: 'sleep', dateKey: 'd', value: 3.5, endMs: 900, source: 'com.apple.health' }),
+      sample({ kind: 'sleep', dateKey: 'e', value: 8, endMs: 200, source: 'com.apple.health' }),
     ]);
     expect(out).toEqual({ d: 7.5, e: 8 });
+  });
+
+  it('takes the LARGEST single source per day for sleep, never the cross-source sum', () => {
+    // A Watch and an Oura ring both saw the same night. Summed this read as
+    // a ~16 h night; the day is one night, so it is the fuller recording.
+    const out = reduceImportedSamples([
+      sample({ kind: 'sleep', dateKey: 'd', value: 3, endMs: 100, source: 'com.apple.health' }),
+      sample({ kind: 'sleep', dateKey: 'd', value: 4.5, endMs: 900, source: 'com.apple.health' }),
+      sample({ kind: 'sleep', dateKey: 'd', value: 5, endMs: 150, source: 'com.ouraring.oura' }),
+      sample({ kind: 'sleep', dateKey: 'd', value: 3.2, endMs: 880, source: 'com.ouraring.oura' }),
+    ]);
+    expect(out).toEqual({ d: 8.2 });
+  });
+
+  it('pools sleep samples without a source as one anonymous source', () => {
+    const out = reduceImportedSamples([
+      sample({ kind: 'sleep', dateKey: 'd', value: 4, endMs: 100 }),
+      sample({ kind: 'sleep', dateKey: 'd', value: 3, endMs: 900 }),
+      sample({ kind: 'sleep', dateKey: 'd', value: 6, endMs: 500, source: 'com.ouraring.oura' }),
+    ]);
+    expect(out).toEqual({ d: 7 });
+  });
+
+  it('still drops our own sleep exports before choosing a source', () => {
+    const out = reduceImportedSamples([
+      sample({ kind: 'sleep', dateKey: 'd', value: 9, endMs: 900, source: 'fit.ignia.app', fromUs: true }),
+      sample({ kind: 'sleep', dateKey: 'd', value: 7, endMs: 800, source: 'com.apple.health' }),
+    ]);
+    expect(out).toEqual({ d: 7 });
+  });
+
+  it('gates the chosen source total, not the fragments (a 30 h source is junk)', () => {
+    const out = reduceImportedSamples([
+      sample({ kind: 'sleep', dateKey: 'd', value: 20, endMs: 100, source: 'buggy' }),
+      sample({ kind: 'sleep', dateKey: 'd', value: 10, endMs: 900, source: 'buggy' }),
+    ]);
+    expect(out).toEqual({});
+  });
+
+  it('still sums water ACROSS sources — each sip is a distinct event', () => {
+    const out = reduceImportedSamples([
+      sample({ kind: 'water', dateKey: 'd', value: 8, endMs: 100, source: 'a' }),
+      sample({ kind: 'water', dateKey: 'd', value: 12, endMs: 200, source: 'b' }),
+    ]);
+    expect(out).toEqual({ d: 20 });
   });
 
   it('sums additive water sips and rejects an impossible day-total', () => {
@@ -148,8 +194,9 @@ describe('DAILY_FOLD', () => {
   it('leaves the writable kinds unchanged', () => {
     expect(DAILY_FOLD.weight).toBe('latest');
     expect(DAILY_FOLD.bodyFat).toBe('latest');
-    // Sleep + water still arrive as raw fragments and still sum.
-    expect(DAILY_FOLD.sleep).toBe('sum');
+    // Water still arrives as raw sips and still sums; sleep sums WITHIN a
+    // source and keeps the largest one (every source records the same night).
+    expect(DAILY_FOLD.sleep).toBe('maxSource');
     expect(DAILY_FOLD.water).toBe('sum');
   });
 });
@@ -258,5 +305,48 @@ describe('write-path clamps', () => {
     expect(clampSleepHours(7.3)).toBe(7.5);
     expect(clampSleepHours(7.1)).toBe(7);
     expect(clampSleepHours(SLEEP_MAX_HOURS + 3)).toBe(SLEEP_MAX_HOURS);
+  });
+});
+
+describe('asleepHoursFromSession (Health Connect)', () => {
+  const H = 3_600_000;
+
+  it('uses the whole span when the source recorded no stages', () => {
+    expect(asleepHoursFromSession({ startMs: 0, endMs: 8 * H })).toBe(8);
+    expect(asleepHoursFromSession({ startMs: 0, endMs: 8 * H, stages: [] })).toBe(8);
+  });
+
+  it('sums only asleep stages — awake and out-of-bed time inside the session is excluded', () => {
+    const hours = asleepHoursFromSession({
+      startMs: 0,
+      endMs: 9 * H,
+      stages: [
+        { startMs: 0, endMs: 0.5 * H, stage: 1 },        // AWAKE (falling asleep)
+        { startMs: 0.5 * H, endMs: 3 * H, stage: 4 },    // LIGHT
+        { startMs: 3 * H, endMs: 4.5 * H, stage: 5 },    // DEEP
+        { startMs: 4.5 * H, endMs: 5 * H, stage: 1 },    // AWAKE
+        { startMs: 5 * H, endMs: 7 * H, stage: 6 },      // REM
+        { startMs: 7 * H, endMs: 8 * H, stage: 2 },      // SLEEPING
+        { startMs: 8 * H, endMs: 9 * H, stage: 3 },      // OUT_OF_BED
+      ],
+    });
+    expect(hours).toBeCloseTo(7, 6);
+  });
+
+  it('ignores unknown / awake-in-bed stages and malformed intervals', () => {
+    const hours = asleepHoursFromSession({
+      startMs: 0,
+      endMs: 9 * H,
+      stages: [
+        { startMs: 0, endMs: 1 * H, stage: 0 },              // UNKNOWN
+        { startMs: 1 * H, endMs: 2 * H, stage: 7 },          // AWAKE_IN_BED
+        { startMs: 2 * H, endMs: 6 * H, stage: 5 },
+        { startMs: 7 * H, endMs: 6 * H, stage: 5 },          // inverted
+        { startMs: Number.NaN, endMs: 8 * H, stage: 5 },     // non-finite
+      ],
+    });
+    expect(hours).toBe(4);
+    for (const s of [2, 4, 5, 6]) expect(HC_ASLEEP_STAGES.has(s)).toBe(true);
+    for (const s of [0, 1, 3, 7]) expect(HC_ASLEEP_STAGES.has(s)).toBe(false);
   });
 });

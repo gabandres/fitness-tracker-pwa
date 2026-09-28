@@ -44,6 +44,11 @@ export interface HealthSample {
   /** True when this sample's source bundle id is ours — i.e. the app wrote it
    *  (so import must drop it, never re-import our own exports). */
   fromUs: boolean;
+  /** The recording app/device — HealthKit `sourceRevision.source.bundleIdentifier`,
+   *  Health Connect `metadata.dataOrigin.packageName`. Optional because not
+   *  every adapter path has one; samples without it pool under one anonymous
+   *  source. What the `maxSource` fold groups by. */
+  source?: string;
 }
 
 // ── Unit conversions (pure; the adapter converts native units → canonical
@@ -121,12 +126,17 @@ export function isStorableHealthValue(kind: HealthKind, value: number): boolean 
  *
  * - `latest` — a point-in-time reading (weight, body-fat): newest `endMs` wins.
  * - `sum` — an accumulating metric the adapter hands us as raw fragments
- *   (sleep segments, water sips): add them up across the day.
+ *   (water sips): add them up across the day.
+ * - `maxSource` — an accumulating metric where every source records the SAME
+ *   underlying event (sleep: a Watch and an Oura ring both see one night).
+ *   Fragments are summed **within** a source and the largest single source's
+ *   total is the day's value — never the cross-source sum, which is how a
+ *   7.5 h night became ~16 h when two devices both wrote it to Health.
  * - `preAggregated` — the adapter already asked the OS for **the day's total**
  *   and hands us one value per day. Summing here would double-count a figure
  *   that is complete on arrival, so this folds like `latest`.
  */
-export type DailyFold = 'latest' | 'sum' | 'preAggregated';
+export type DailyFold = 'latest' | 'sum' | 'maxSource' | 'preAggregated';
 
 /**
  * Per-kind fold policy (see {@link DailyFold}). The adapter still does
@@ -136,7 +146,9 @@ export type DailyFold = 'latest' | 'sum' | 'preAggregated';
 export const DAILY_FOLD: Record<HealthKind, DailyFold> = {
   weight: 'latest',
   bodyFat: 'latest',
-  sleep: 'sum',
+  // Was `sum` until 2026-09-28. Every sleep source measures the same night,
+  // so summing across sources doubles it; see `DailyFold`.
+  sleep: 'maxSource',
   water: 'sum',
   // Activity is additive *in nature* — Health stores it as many short buckets
   // across the day — but we no longer sum those buckets ourselves. Both OSes
@@ -166,11 +178,20 @@ export function reduceImportedSamples(samples: readonly HealthSample[]): Record<
   const list = samples ?? [];
   const kind = list[0]?.kind;
   if (!kind) return {};
-  const additive = DAILY_FOLD[kind] === 'sum';
+  const fold = DAILY_FOLD[kind];
+  const additive = fold === 'sum' || fold === 'maxSource';
   const bestEndMs: Record<string, number> = {};
   const out: Record<string, number> = {};
+  // maxSource only: dateKey → source → that source's summed fragments.
+  const perSource: Record<string, Record<string, number>> = {};
   for (const s of list) {
     if (s.fromUs || !Number.isFinite(s.value)) continue;
+    if (fold === 'maxSource') {
+      const bySource = (perSource[s.dateKey] ??= {});
+      const src = s.source ?? '';
+      bySource[src] = (bySource[src] ?? 0) + s.value;
+      continue;
+    }
     if (additive) {
       out[s.dateKey] = (out[s.dateKey] ?? 0) + s.value; // gate the day-total below
       continue;
@@ -180,6 +201,11 @@ export function reduceImportedSamples(samples: readonly HealthSample[]): Record<
     if (prev == null || s.endMs > prev) {
       bestEndMs[s.dateKey] = s.endMs;
       out[s.dateKey] = s.value;
+    }
+  }
+  if (fold === 'maxSource') {
+    for (const [dateKey, bySource] of Object.entries(perSource)) {
+      out[dateKey] = Math.max(...Object.values(bySource));
     }
   }
   // Additive kinds gate the summed day-total, not each fragment.
@@ -252,4 +278,43 @@ export function latestSampleEndByDay(samples: readonly HealthSample[]): Record<s
     if (prev == null || s.endMs > prev) out[s.dateKey] = s.endMs;
   }
   return out;
+}
+
+/**
+ * Health Connect `SleepSessionRecord.stages[].stage` values that mean the
+ * sleeper was asleep: SLEEPING(2), LIGHT(4), DEEP(5), REM(6). Excluded:
+ * UNKNOWN(0), AWAKE(1), OUT_OF_BED(3), and AWAKE_IN_BED(7, newer SDKs).
+ * Numeric on purpose — core stays free of the native package.
+ */
+export const HC_ASLEEP_STAGES: ReadonlySet<number> = new Set([2, 4, 5, 6]);
+
+export interface SleepSessionLike {
+  startMs: number;
+  endMs: number;
+  /** Stage intervals, when the source recorded them. */
+  stages?: readonly { startMs: number; endMs: number; stage: number }[];
+}
+
+/**
+ * Hours actually asleep in one Health Connect sleep session.
+ *
+ * A `SleepSession` spans in-bed to out-of-bed. When the source recorded
+ * stages, awake and out-of-bed intervals are part of that span, so the
+ * session length overstates sleep — sum only the asleep stages. Without
+ * stages (many sources write none) the span is all we have, so it is used
+ * as-is; that keeps a stage-less source comparable to HealthKit, whose
+ * adapter already filters to asleep category values.
+ *
+ * Non-finite or inverted intervals contribute nothing.
+ */
+export function asleepHoursFromSession(session: SleepSessionLike): number {
+  const span = (a: number, b: number) =>
+    Number.isFinite(a) && Number.isFinite(b) && b > a ? (b - a) / 3_600_000 : 0;
+  const stages = session.stages ?? [];
+  if (stages.length === 0) return span(session.startMs, session.endMs);
+  let hours = 0;
+  for (const st of stages) {
+    if (HC_ASLEEP_STAGES.has(st.stage)) hours += span(st.startMs, st.endMs);
+  }
+  return hours;
 }

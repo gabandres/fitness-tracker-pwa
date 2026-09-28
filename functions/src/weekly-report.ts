@@ -1,7 +1,7 @@
 import { Timestamp } from "firebase-admin/firestore";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { ErrorCode } from "./error-codes";
-import { callerAccess, db, geminiApiKey } from "./init";
+import { callerAccess, db, geminiApiKey, withCostGuards } from "./init";
 import { recordAiUsage, usageFromMetadata } from "./ai-usage";
 import { getGeminiClient } from "./gemini-client";
 
@@ -18,6 +18,15 @@ import { getGeminiClient } from "./gemini-client";
 // this function. Gate is paid OR admin OR comped. Rate limit: at most
 // one new report every 6 days (the UI only surfaces a fresh report
 // weekly anyway, so this is the real usage pattern).
+//
+// The 6-day check reads the user's OWN newest report, so it is a cadence,
+// not a cost guard — a client that deletes its newest report doc resets it.
+// Since 2026-09-28 the Gemini call also sits behind the two guards every
+// AI-cost callable uses (`withCostGuards`, cost-guards.ts): the org-wide
+// `spendCeiling` check before the per-user `dailyQuota` reserve (kind
+// `weeklyReport`, 1/day for every tier), `record` after. The cadence check
+// stays in front of both because it is free (one read, no spend) and
+// rejecting there consumes nothing.
 
 const REPORT_MIN_INTERVAL_MS = 6 * 24 * 60 * 60 * 1000;
 const REPORT_SYSTEM_MAX_CHARS = 20_000;
@@ -68,31 +77,36 @@ export const generateWeeklyReport = onCall(
       }
     }
 
-    try {
-      const client = getGeminiClient();
-      const result = await client.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: prompt,
-        config: { systemInstruction, temperature: 0.3 },
-      });
-      void recordAiUsage(db, { kind: "weeklyReport", model: "gemini-2.5-flash", ...usageFromMetadata(result.usageMetadata) });
-      const markdown = (result.text ?? "").slice(0, REPORT_OUTPUT_MAX_CHARS);
-      if (!markdown) {
-        throw new HttpsError("internal", "Empty response from Gemini.", { code: ErrorCode.REPORT_GENERATE_FAILED });
+    // Ceiling check → per-user reserve → record → work; the slot is refunded
+    // if the work throws, the spend never is. Quota errors (REPORT_QUOTA_EXCEEDED,
+    // SERVICE_CEILING_REACHED, FEATURE_DISABLED) propagate as HttpsErrors.
+    return await withCostGuards({ kind: "weeklyReport", caller }, async () => {
+      try {
+        const client = getGeminiClient();
+        const result = await client.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: prompt,
+          config: { systemInstruction, temperature: 0.3 },
+        });
+        void recordAiUsage(db, { kind: "weeklyReport", model: "gemini-2.5-flash", ...usageFromMetadata(result.usageMetadata) });
+        const markdown = (result.text ?? "").slice(0, REPORT_OUTPUT_MAX_CHARS);
+        if (!markdown) {
+          throw new HttpsError("internal", "Empty response from Gemini.", { code: ErrorCode.REPORT_GENERATE_FAILED });
+        }
+
+        const generatedAt = Timestamp.now();
+        const docRef = await reportsRef.add({ markdown, generatedAt });
+
+        return {
+          id: docRef.id,
+          markdown,
+          generatedAt: generatedAt.toMillis(),
+        };
+      } catch (err) {
+        if (err instanceof HttpsError) throw err;
+        console.error("generateWeeklyReport error:", err);
+        throw new HttpsError("internal", "Report generation failed.", { code: ErrorCode.REPORT_GENERATE_FAILED });
       }
-
-      const generatedAt = Timestamp.now();
-      const docRef = await reportsRef.add({ markdown, generatedAt });
-
-      return {
-        id: docRef.id,
-        markdown,
-        generatedAt: generatedAt.toMillis(),
-      };
-    } catch (err) {
-      if (err instanceof HttpsError) throw err;
-      console.error("generateWeeklyReport error:", err);
-      throw new HttpsError("internal", "Report generation failed.", { code: ErrorCode.REPORT_GENERATE_FAILED });
-    }
+    });
   },
 );

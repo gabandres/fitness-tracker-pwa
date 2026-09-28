@@ -23,6 +23,11 @@ export const enum ErrorCode {
   ACCOUNT_DELETE_FAILED = "ACCOUNT_DELETE_FAILED",
   REPORT_NOT_ENTITLED = "REPORT_NOT_ENTITLED",
   REPORT_TOO_SOON = "REPORT_TOO_SOON",
+  /** The per-user daily quota on report generation (1/day, every tier).
+      Distinct from REPORT_TOO_SOON, which is the 6-day cadence read off the
+      user's own reports; this one is the cost guard, and it holds even when
+      the newest report doc has been deleted. */
+  REPORT_QUOTA_EXCEEDED = "REPORT_QUOTA_EXCEEDED",
   REPORT_PAYLOAD_INVALID = "REPORT_PAYLOAD_INVALID",
   REPORT_GENERATE_FAILED = "REPORT_GENERATE_FAILED",
   PHOTO_RATE_LIMITED = "PHOTO_RATE_LIMITED",

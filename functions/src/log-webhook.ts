@@ -1,6 +1,7 @@
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { db } from "./init";
+import { clientIp } from "./client-ip";
 
 // Per-IP fixed-window throttle. The endpoint authenticates by scanning
 // `users` for a matching `webhookApiKey`, so an unthrottled caller could
@@ -112,9 +113,9 @@ export const logWebhook = onRequest(
     }
 
     // Rate-limit by client IP before the key lookup (brute-force defense).
-    const ip = ((req.headers["x-forwarded-for"] as string) || req.ip || "unknown")
-      .split(",")[0]
-      .trim();
+    // LAST forwarded-for entry: the one Cloud Run appended, not the one the
+    // client chose (client-ip.ts).
+    const ip = clientIp(req.headers["x-forwarded-for"], req.ip);
     if (await throttled(ip)) {
       res.status(429).json({ error: "Too many requests. Slow down." });
       return;

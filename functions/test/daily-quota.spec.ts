@@ -32,6 +32,10 @@ describe("limitFor", () => {
     expect(quota.limitFor("photo", true)).toBe(30);
     expect(quota.limitFor("consultation", false)).toBe(3);
     expect(quota.limitFor("consultation", true)).toBe(30);
+    // One per day for EVERY tier — a backstop behind the 6-day cadence, not
+    // an allowance, so paid does not buy more.
+    expect(quota.limitFor("weeklyReport", false)).toBe(1);
+    expect(quota.limitFor("weeklyReport", true)).toBe(1);
   });
 });
 
@@ -55,6 +59,15 @@ describe("reserve", () => {
     const uid = freshUid();
     for (let i = 0; i < 3; i++) await quota.reserve(uid, "consultation", false);
     await expectQuotaExceeded(quota.reserve(uid, "consultation", false), "CONSULTATION_QUOTA_EXCEEDED", 3);
+  });
+
+  it("caps weekly reports at one per day on both tiers with its own code", async () => {
+    const uid = freshUid();
+    expect(await quota.reserve(uid, "weeklyReport", true)).toEqual({ usedAfter: 1, remaining: 0, day: utcDayKey() });
+    await expectQuotaExceeded(quota.reserve(uid, "weeklyReport", true), "REPORT_QUOTA_EXCEEDED", 1);
+    await expectQuotaExceeded(quota.reserve(uid, "weeklyReport", false), "REPORT_QUOTA_EXCEEDED", 1);
+    // Isolated from the other kinds: a report does not spend a photo slot.
+    expect(await quota.peek(uid, "photo")).toBe(0);
   });
 
   it("keeps kinds isolated", async () => {
@@ -143,6 +156,7 @@ describe("deleteAll + dump", () => {
     const other = freshUid();
     await quota.reserve(uid, "photo", false);
     await quota.reserve(uid, "consultation", false);
+    await quota.reserve(uid, "weeklyReport", false);
     await quota.reserve(other, "photo", false);
 
     const photoDocs = await quota.dump(uid, "photo");
@@ -153,6 +167,7 @@ describe("deleteAll + dump", () => {
     await quota.deleteAll(uid);
     expect(await quota.dump(uid, "photo")).toHaveLength(0);
     expect(await quota.dump(uid, "consultation")).toHaveLength(0);
+    expect(await quota.dump(uid, "weeklyReport")).toHaveLength(0);
     // Other users' docs untouched.
     expect(await quota.peek(other, "photo")).toBe(1);
   });

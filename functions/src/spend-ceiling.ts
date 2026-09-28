@@ -78,6 +78,10 @@ const COLLECTION = "opsBudget";
 const DEFAULT_LIMITS: Record<QuotaKind, number> = {
   photo: 2_000,
   consultation: 1_000,
+  // One report is ~20k prompt chars on gemini-2.5-flash, and every user is
+  // capped at one per day, so 200/day is "more paid users generated a report
+  // today than the product has ever had" — a signal, not a routine event.
+  weeklyReport: 200,
 };
 
 /** What the admin panel and the hourly warning read. */
