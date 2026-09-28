@@ -4,9 +4,11 @@
  * (`apps/mobile/.maestro/regression/`). The suite's screen asserts prove what
  * RENDERED; this proves what Firestore actually HOLDS — the two halves of the
  * e2e flows 11–13 (log → edit → delete), and the janitor for what they leave
- * behind. Runs from the machine with ADC (the Windows workstation), while
- * Maestro runs on `ignia-mac`; the interleave is documented in the suite's
- * coverage.md.
+ * behind. Runs from any machine with ADC — both the Windows workstation and
+ * `ignia-mac` have it (`gcloud auth application-default login` plus
+ * `set-quota-project fitness-tracker-gb-1775407101`; Identity Toolkit 403s
+ * without the quota project). Maestro runs on `ignia-mac`; the interleave is
+ * documented in the suite's coverage.md.
  *
  * Writes to PRODUCTION Firestore, admin SDK, same guardrails as
  * seed-demo-account.mjs: the email must contain demo|test|review|appstore, and
