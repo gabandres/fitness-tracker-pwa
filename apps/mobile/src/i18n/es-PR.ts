@@ -218,6 +218,9 @@ export const esPR: Record<I18nKey, string> = {
   'whatsNew.title': 'Novedades',
   'whatsNew.subtitle': 'Lo que cambió desde la última vez que abriste Ignia.',
   'whatsNew.continue': 'Continuar',
+  'whatsNew.fab.title': 'Toca + para registrar',
+  'whatsNew.fab.body':
+    'Un toque en + abre la búsqueda de alimentos. Mantenlo presionado para el menú con Escanear comida. Coach e Hitos abren como páginas completas desde las que puedes deslizar para volver.',
   'whatsNew.undo.title': '¿Borraste una comida por error? Deshazlo',
   'whatsNew.undo.body':
     'Al borrar una entrada ahora aparece un Deshacer de cinco segundos. Descartar un entrenamiento, quitar un preset y cerrar sesión preguntan antes.',

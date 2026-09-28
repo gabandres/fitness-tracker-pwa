@@ -214,6 +214,9 @@ export const ptBR = {
   'whatsNew.title': 'Novidades',
   'whatsNew.subtitle': 'O que mudou desde a última vez que você abriu o Ignia.',
   'whatsNew.continue': 'Continuar',
+  'whatsNew.fab.title': 'Toque em + para registrar',
+  'whatsNew.fab.body':
+    'Um toque em + abre a busca de alimentos. Segure para o menu com Escanear refeição. Coach e Marcos abrem como páginas inteiras das quais você pode deslizar para voltar.',
   'whatsNew.undo.title': 'Apagou uma refeição sem querer? Desfaça',
   'whatsNew.undo.body':
     'Apagar uma entrada agora mostra um Desfazer de cinco segundos. Descartar um treino, remover um preset e sair da conta pedem confirmação.',

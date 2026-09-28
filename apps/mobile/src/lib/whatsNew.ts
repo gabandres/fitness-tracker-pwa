@@ -129,6 +129,14 @@ import type { I18nKey } from '@/i18n';
 // not corrections to something that was already wrong. The 30-odd accessibility
 // and bug fixes in the same OTA are deliberately NOT listed — a banner is not
 // a changelog, and a VoiceOver user finds the roles by using them.
+// NOT re-bumped later the same day for the remaining-S18 OTA (tap-to-log +,
+// Coach/Milestones on a native stack, History paging). The + change is the
+// first thing every user meets, so it clears the 2026-09-01 bar — but the
+// 09-28 banner above shipped hours earlier and fires on the SECOND launch, so
+// most users have not reached it yet. This is the first-mobility-OTA case
+// exactly: the ITEMS are extended (`whatsNew.fab` leads the list) and the
+// version is left alone, so whoever has not yet seen the screen sees all four
+// rows and whoever dismissed it is not nagged twice in one day.
 export const WHATS_NEW_VERSION = '2026-09-28-undo-weighins-metric';
 
 const KEY = 'whatsNew.seen';
@@ -159,6 +167,7 @@ export interface WhatsNewItem {
 }
 
 export const WHATS_NEW_ITEMS: readonly WhatsNewItem[] = [
+  { icon: 'add-circle-outline', titleKey: 'whatsNew.fab.title', bodyKey: 'whatsNew.fab.body' },
   { icon: 'arrow-undo-outline', titleKey: 'whatsNew.undo.title', bodyKey: 'whatsNew.undo.body' },
   { icon: 'scale-outline', titleKey: 'whatsNew.weighins.title', bodyKey: 'whatsNew.weighins.body' },
   { icon: 'water-outline', titleKey: 'whatsNew.metric.title', bodyKey: 'whatsNew.metric.body' },
