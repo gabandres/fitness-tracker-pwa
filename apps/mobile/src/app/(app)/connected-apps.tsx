@@ -20,6 +20,7 @@ import { formatDate, formatTime } from '@/lib/date-format';
 import { useHealthSync } from '@/lib/health-sync';
 import { useOura } from '@/lib/oura';
 import * as haptics from '@/lib/haptics';
+import { captureError } from '@/lib/sentry';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
 
@@ -83,14 +84,23 @@ export default function ConnectedAppsScreen() {
   const [showDetails, setShowDetails] = useState(false);
   const [healthMsg, setHealthMsg] = useState<string | null>(null);
 
+  /** The health calls do not catch (`health-sync.ts`); a rejection from the
+   *  OS bridge used to leave the Switch flipped with nothing said and reach
+   *  Sentry unhandled. The denied copy is the honest fallback: whatever the
+   *  cause, Health is not connected. */
   async function toggleHealth(next: boolean) {
     haptics.tap();
-    if (next) {
-      const ok = await healthSync.connect();
-      setHealthMsg(ok ? t('settings.healthConnected') : t('settings.healthDenied'));
-    } else {
-      await healthSync.disconnect();
-      setHealthMsg(null);
+    try {
+      if (next) {
+        const ok = await healthSync.connect();
+        setHealthMsg(ok ? t('settings.healthConnected') : t('settings.healthDenied'));
+      } else {
+        await healthSync.disconnect();
+        setHealthMsg(null);
+      }
+    } catch (e) {
+      setHealthMsg(t('settings.healthDenied'));
+      captureError(e, { where: 'connectedApps.toggleHealth' });
     }
   }
 
@@ -99,14 +109,24 @@ export default function ConnectedAppsScreen() {
    *  declined prompt leaves the banner up rather than silently clearing it. */
   async function onHealthReconnect() {
     haptics.tap();
-    const ok = await healthSync.connect();
-    setHealthMsg(ok ? t('settings.healthConnected') : t('settings.healthDenied'));
+    try {
+      const ok = await healthSync.connect();
+      setHealthMsg(ok ? t('settings.healthConnected') : t('settings.healthDenied'));
+    } catch (e) {
+      setHealthMsg(t('settings.healthDenied'));
+      captureError(e, { where: 'connectedApps.reconnect' });
+    }
   }
 
   async function onHealthSyncNow() {
     haptics.tap();
-    const n = await healthSync.syncNow();
-    setHealthMsg(t('settings.healthSynced', { n }));
+    try {
+      const n = await healthSync.syncNow();
+      setHealthMsg(t('settings.healthSynced', { n }));
+    } catch (e) {
+      haptics.warning();
+      captureError(e, { where: 'connectedApps.syncNow' });
+    }
   }
 
   const connected = oura.status.connected;
@@ -123,12 +143,17 @@ export default function ConnectedAppsScreen() {
    * It auto-clears: a success banner that stays forever stops meaning "just
    * now" and becomes furniture.
    */
-  const wasConnected = useRef(connected);
+  // `null` until the FIRST ready value: `useOuraStatus` starts at
+  // `connected: false` before the snapshot lands, so seeding from that made an
+  // already-linked user's first snapshot look like a fresh link — the success
+  // banner and haptic fired on every visit to this screen.
+  const wasConnected = useRef<boolean | null>(null);
   const [justConnected, setJustConnected] = useState(false);
   const pop = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    if (!wasConnected.current && connected) {
+    if (!oura.ready) return;
+    if (wasConnected.current === false && connected) {
       setJustConnected(true);
       haptics.success();
       pop.setValue(0);
@@ -146,7 +171,7 @@ export default function ConnectedAppsScreen() {
       });
     }
     wasConnected.current = connected;
-  }, [connected, pop]);
+  }, [connected, oura.ready, pop]);
   const syncedAt = oura.status.lastSyncedAt;
   const records = oura.status.lastRecordCount;
 

@@ -41,6 +41,7 @@ import { recordMilestone, switchToMaintenance } from '@/lib/ledger';
 import { type I18nKey, type Locale, type TFn, useLocale, useT } from '@/i18n';
 import { type BodyFatInput, isMaintaining } from '@macrolog/core';
 import * as haptics from '@/lib/haptics';
+import { captureError } from '@/lib/sentry';
 import { track } from '@/lib/analytics';
 import { useDeferredFocus } from '@/lib/use-deferred-focus';
 import { useUnitSystem } from '@/lib/use-unit-system';
@@ -132,7 +133,12 @@ export default function Body() {
       body: t('body.deleteMeasureBody'),
       confirmText: t('common.remove'),
       destructive: true,
-      onConfirm: () => void deleteMeasurement(id),
+      onConfirm: () => {
+        deleteMeasurement(id).catch((e) => {
+          haptics.warning();
+          captureError(e, { where: 'body.deleteMeasurement' });
+        });
+      },
     });
   }
   // Keep the measurements list short as history grows; the rest is one tap away.

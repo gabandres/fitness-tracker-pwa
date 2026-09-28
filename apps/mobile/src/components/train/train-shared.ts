@@ -126,8 +126,12 @@ export function kindLabelKey(kind: SetKind): I18nKey {
  *  Blank must stay `undefined` rather than 0 — a cleared weight field means
  *  "not entered", and writing 0 would log a real set at no load. */
 export function numOrUndef(s: string): number | undefined {
-  const t = s.trim();
+  // A comma is a decimal point here, not a rejection: pt-BR keyboards (and
+  // iOS decimal pads under a Brazilian region) type `12,5`, and `Number()`
+  // reads that as NaN. Same normalisation core's unit parsers already do.
+  const t = s.trim().replace(',', '.');
   if (t === '') return undefined;
   const n = Number(t);
-  return Number.isFinite(n) ? n : undefined;
+  // Reps, seconds and rest are counts: a negative one is a typo, not a value.
+  return Number.isFinite(n) && n >= 0 ? n : undefined;
 }

@@ -59,6 +59,8 @@ export default function SignIn() {
   const [busy, setBusy] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
   const [msBusy, setMsBusy] = useState(false);
+  const [appleBusy, setAppleBusy] = useState(false);
+  const [resetBusy, setResetBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -102,17 +104,23 @@ export default function SignIn() {
   }
 
   async function onReset() {
+    // Guarded like the federated buttons: repeated taps sent several reset
+    // emails and quickly hit `resource-exhausted`.
+    if (resetBusy) return;
     setError(null);
     setNotice(null);
     if (!email.trim()) {
       setError(t('signIn.errInvalidEmail'));
       return;
     }
+    setResetBusy(true);
     try {
       await resetPassword(email, locale);
       setNotice(t('signIn.resetSent'));
     } catch (e: unknown) {
       setError(errorMessage(e, t, 'password'));
+    } finally {
+      setResetBusy(false);
     }
   }
 
@@ -156,12 +164,16 @@ export default function SignIn() {
   }
 
   async function onApple() {
+    if (appleBusy) return;
     setError(null);
+    setAppleBusy(true);
     try {
       await signInWithApple();
       // AuthGate navigates once auth state flips.
     } catch (e: unknown) {
       if (!isPendingLinkCollision(e)) setError(errorMessage(e, t, 'federated'));
+    } finally {
+      setAppleBusy(false);
     }
   }
 
@@ -328,7 +340,7 @@ export default function SignIn() {
             </TouchableOpacity>
 
             {mode === 'signin' ? (
-              <TouchableOpacity onPress={onReset} style={styles.forgot} testID="signin-forgot">
+              <TouchableOpacity onPress={onReset} style={styles.forgot} disabled={resetBusy} testID="signin-forgot">
                 <Text style={styles.forgotText}>{t('signIn.forgot')}</Text>
               </TouchableOpacity>
             ) : null}

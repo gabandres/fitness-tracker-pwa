@@ -137,6 +137,7 @@ import { Sparkline } from '@/components/Sparkline';
 import { TrainGlossary } from '@/components/TrainGlossary';
 import { type I18nKey, type TFn, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
+import { captureError } from '@/lib/sentry';
 import { CountUpText, enterUp, smoothLayout, usePulse } from '@/lib/motion';
 import { recordPositiveMoment } from '@/lib/reviewPrompt';
 import { useDeferredFocus } from '@/lib/use-deferred-focus';
@@ -269,7 +270,14 @@ function StartView({
       body: t('train.deleteSessionBody', { name: label }),
       confirmText: t('common.remove'),
       destructive: true,
-      onConfirm: () => void train.deleteSession(id),
+      onConfirm: () => {
+        // `deleteSession` does not catch: an unhandled rejection here reached
+        // Sentry as a crash and told the user nothing.
+        train.deleteSession(id).catch((e) => {
+          haptics.warning();
+          captureError(e, { where: 'train.deleteSession' });
+        });
+      },
     });
   }
 
@@ -1633,6 +1641,28 @@ function SetRow({
       ? set.durationSec != null ? String(set.durationSec) : ''
       : set.reps != null ? String(set.reps) : '',
   );
+  // Re-seed the buffers when the SET changes underneath the row: an accepted
+  // recommendation, the bump chip — or a delete above, which slides a
+  // different set into this index-keyed row. Without this the field kept
+  // showing whatever it was mounted with while the stored set had moved on,
+  // and the next keystroke overwrote the accepted load. Skipped while the
+  // buffer already parses to the stored value, so a half-typed "12." is never
+  // rewritten to "12" under the user's thumb. Compared in the DISPLAY unit,
+  // which is what survives the lb↔kg round trip.
+  useEffect(() => {
+    const typed = clampSetLoad(parseLoadToLb(weight, unitSystem));
+    const same =
+      typed == null || set.weight == null
+        ? typed == null && set.weight == null
+        : toDisplayLoad(typed, unitSystem) === toDisplayLoad(set.weight, unitSystem);
+    if (!same) setWeight(set.weight != null ? String(toDisplayLoad(set.weight, unitSystem)) : '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [set.weight, unitSystem]);
+  useEffect(() => {
+    const stored = logStyle === 'time' ? set.durationSec : set.reps;
+    if (numOrUndef(count) !== stored) setCount(stored != null ? String(stored) : '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [set.reps, set.durationSec, logStyle]);
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
@@ -1980,17 +2010,35 @@ function AddExerciseModal({
   }, [visible]);
 
   const trimmed = name.trim();
+  // One add at a time: a fast double tap on a catalog row used to add the
+  // exercise twice, and a rejected write (signed out, offline rules) left the
+  // sheet open with nothing said and an unhandled rejection in Sentry.
+  const [adding, setAdding] = useState(false);
 
-  async function add(exName: string, style: CreationStyle, exerciseId?: string) {
+  async function guarded(run: () => Promise<void>, where: string) {
+    if (adding) return;
     haptics.tap();
-    await train.addExerciseToActive(exName, logStyleFor(style), exerciseId, setKindFor(style));
-    onClose();
+    setAdding(true);
+    try {
+      await run();
+      onClose();
+    } catch (e) {
+      haptics.warning();
+      captureError(e, { where });
+    } finally {
+      setAdding(false);
+    }
   }
 
-  async function addSeed(seed: SeedExercise) {
-    haptics.tap();
-    await train.addLibraryExerciseToActive(seed);
-    onClose();
+  function add(exName: string, style: CreationStyle, exerciseId?: string) {
+    return guarded(
+      () => train.addExerciseToActive(exName, logStyleFor(style), exerciseId, setKindFor(style)),
+      'train.addExerciseToActive',
+    );
+  }
+
+  function addSeed(seed: SeedExercise) {
+    return guarded(() => train.addLibraryExerciseToActive(seed), 'train.addLibraryExerciseToActive');
   }
 
   return (

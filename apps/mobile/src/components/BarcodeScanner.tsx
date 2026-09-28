@@ -122,7 +122,10 @@ export function BarcodeScanner({ visible, onClose, onPick, onDenied }: Props) {
         {!permission?.granted ? (
           // Loading, the OS prompt is being presented (auto-requested above), or
           // denied — in which case onDenied() is already closing this modal.
-          <View style={styles.center}><ActivityIndicator color={colors.white} /></View>
+          // On the `ink` surface, so `onInk` (ADR-0014): `white` was invisible
+          // here in dark mode, where `ink` is off-white. The overlay below stays
+          // `white` on purpose — it sits on the camera feed, not a themed surface.
+          <View style={styles.center}><ActivityIndicator color={colors.onInk} /></View>
         ) : (
           <View style={styles.fill}>
             <CameraView

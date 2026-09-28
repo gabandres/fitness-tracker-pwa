@@ -57,7 +57,8 @@ import { font, radius, space } from '@/theme';
 const MODES: TargetMode[] = ['auto', 'custom'];
 
 function numOrNull(s: string): number | null {
-  const trimmed = s.trim();
+  // Comma accepted as the decimal point (pt-BR keyboards) — see EntrySheet.
+  const trimmed = s.trim().replace(',', '.');
   if (trimmed === '') return null;
   const n = Number(trimmed);
   return Number.isFinite(n) ? n : null;

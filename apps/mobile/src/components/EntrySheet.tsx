@@ -33,6 +33,7 @@ import { RecipeImport } from '@/components/RecipeImport';
 import { useLocale, useT } from '@/i18n';
 import { starterFoods } from '@/lib/starterFoods';
 import * as haptics from '@/lib/haptics';
+import { captureError } from '@/lib/sentry';
 import { clearLogTimer, startLogTimer } from '@/lib/log-timer';
 import type { EntryPrefill } from '@/lib/entry-prefill';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
@@ -83,10 +84,15 @@ function isSameDay(a: Date, b: Date): boolean {
 /** Keep numeric fields as raw strings so partial input ("12.", "1.5")
  *  binds cleanly; parse only on save (see the decimal-input gotcha). */
 function numOrUndef(s: string): number | undefined {
-  const t = s.trim();
+  // A comma is a decimal point here, not a rejection: pt-BR keyboards (and
+  // iOS decimal pads under a Brazilian region) type `12,5`, and `Number()`
+  // reads that as NaN. Same normalisation core's unit parsers already do.
+  const t = s.trim().replace(',', '.');
   if (t === '') return undefined;
   const n = Number(t);
-  return Number.isFinite(n) ? n : undefined;
+  // Negative macros are typeable (Android's numeric keypad has a minus) and
+  // firestore.rules rejects them, which surfaced as a lost row, not an error.
+  return Number.isFinite(n) && n >= 0 ? n : undefined;
 }
 
 /** Grams-first save context carried from a search/scan pick (ADR-0013).
@@ -253,7 +259,13 @@ export function EntrySheet({
    *  day, restamp it to that day rather than keeping the source's date. */
   function quickLog(entry: LogEntry) {
     haptics.success();
-    void onSave(forDate ? { ...entry, timestamp: forDate } : entry);
+    // Fire-and-forget by design (the sheet closes on the tap), but never
+    // unhandled: the write path queues offline, so a rejection is a real
+    // fault worth a report rather than a silent vanish.
+    Promise.resolve(onSave(forDate ? { ...entry, timestamp: forDate } : entry)).catch((e) => {
+      haptics.warning();
+      captureError(e, { where: 'entry.quickLog' });
+    });
     onClose();
   }
 
@@ -285,6 +297,11 @@ export function EntrySheet({
     try {
       await onSave(entry);
       onClose();
+    } catch (e) {
+      // The sheet stays open with the typed values, so the user can retry;
+      // the haptic is what says the tap did not land.
+      haptics.warning();
+      captureError(e, { where: 'entry.save' });
     } finally {
       setBusy(false);
     }

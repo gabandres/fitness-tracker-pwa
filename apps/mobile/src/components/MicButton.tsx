@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { routeTranscript, parseMealUtterance } from '@macrolog/core';
 import { useLocale, useT } from '@/i18n';
@@ -119,6 +119,20 @@ export function MicButton({
       err?.remove();
     };
   }, [onMeal, onSearch]);
+
+  // Closing the sheet mid-dictation used to leave the recognizer — and the
+  // microphone — running with nobody listening for the result. Unmount-only,
+  // through a ref: the listener effect above re-runs whenever the parent's
+  // inline callbacks change identity, and stopping there would cut a
+  // dictation short on every re-render.
+  const listeningRef = useRef(listening);
+  listeningRef.current = listening;
+  useEffect(
+    () => () => {
+      if (listeningRef.current) stopListening();
+    },
+    [],
+  );
 
   const toggle = useCallback(async () => {
     haptics.tap();

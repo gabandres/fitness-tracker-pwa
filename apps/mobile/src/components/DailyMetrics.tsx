@@ -375,7 +375,8 @@ function WaterModal({
     }
   }, [visible]);
 
-  const n = Number(value.trim());
+  // Comma accepted as the decimal point (pt-BR keyboards) — see EntrySheet.
+  const n = Number(value.trim().replace(',', '.'));
   const parsed = value.trim() !== '' && Number.isFinite(n) && n >= 0;
   const nextTotal = parsed ? Math.round(mode === 'add' ? current + n : n) : current;
   const over = nextTotal > WATER_MAX_FLOZ;
@@ -473,7 +474,8 @@ function SleepModal({
     if (visible) setValue(initial != null ? String(initial) : '');
   }, [visible, initial]);
 
-  const n = Number(value.trim());
+  // Comma accepted as the decimal point (pt-BR keyboards) — see EntrySheet.
+  const n = Number(value.trim().replace(',', '.'));
   const valid = value.trim() !== '' && Number.isFinite(n) && n >= 0 && n <= 24;
 
   return (

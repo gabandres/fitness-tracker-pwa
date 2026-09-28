@@ -47,10 +47,13 @@ interface Props {
 type Phase = 'input' | 'resolving' | 'review' | 'error';
 
 function numOrUndef(s: string): number | undefined {
-  const t = s.trim();
+  // A comma is a decimal point here, not a rejection: pt-BR keyboards (and
+  // iOS decimal pads under a Brazilian region) type `12,5`, and `Number()`
+  // reads that as NaN. Same normalisation core's unit parsers already do.
+  const t = s.trim().replace(',', '.');
   if (t === '') return undefined;
   const n = Number(t);
-  return Number.isFinite(n) ? n : undefined;
+  return Number.isFinite(n) && n >= 0 ? n : undefined;
 }
 
 /**

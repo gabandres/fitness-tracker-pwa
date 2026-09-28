@@ -6,10 +6,13 @@ import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   type TdeeResult,
+  type UnitSystem,
   type WeeklyBudget,
   type WeeklyInsights,
   activityMultiplier as activityMultiplierFor,
+  bodyWeightUnit,
   parseYmd,
+  toDisplayWeight,
 } from '@macrolog/core';
 import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { NumbersGlossary } from '@/components/NumbersGlossary';
@@ -29,6 +32,7 @@ import { CountUpText, enterUp, PressScale } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { FAB_BAND, font, radius, space, type } from '@/theme';
 import { formatDate, formatNumber } from '@/lib/date-format';
+import { useUnitSystem } from '@/lib/use-unit-system';
 
 function dayLabel(dateKey: string, locale: Locale): string {
   return formatDate(parseYmd(dateKey), locale, { weekday: 'short', month: 'short', day: 'numeric' });
@@ -38,9 +42,13 @@ function weekdayNarrow(dateKey: string, locale: Locale): string {
   return formatDate(parseYmd(dateKey), locale, { weekday: 'narrow' });
 }
 
-function slopeLabel(slope: number, t: TFn): string {
-  if (Math.abs(slope) < 0.1) return t('body.holdingSteady');
-  return `${slope < 0 ? '−' : '+'}${Math.abs(slope).toFixed(1)} ${t('refine.paceUnit')}`;
+/** Same rule as Body's trend chip: the steady threshold stays in POUNDS (a
+ *  statement about the measurement), the shown number follows the user's
+ *  unit. This printed the pound value under "lb/wk" to metric users. */
+function slopeLabel(slopeLbPerWeek: number, unitSystem: UnitSystem, t: TFn): string {
+  if (Math.abs(slopeLbPerWeek) < 0.1) return t('body.holdingSteady');
+  const shown = toDisplayWeight(Math.abs(slopeLbPerWeek), unitSystem);
+  return `${slopeLbPerWeek < 0 ? '−' : '+'}${shown.toFixed(1)} ${bodyWeightUnit(unitSystem)}/${t('body.perWeek')}`;
 }
 
 // seed/formula both read as "Estimate" to the user; measured is "Adaptive".
@@ -547,6 +555,7 @@ function ThisWeek({
   t: TFn;
   locale: Locale;
 }) {
+  const unitSystem = useUnitSystem();
   // Below the 3-day insight gate: a preview skeleton + a "keep logging" nudge,
   // so day zero still says what the card will show and prompts the next log.
   if (!insights) {
@@ -607,7 +616,7 @@ function ThisWeek({
           {insights.weightSlopeLbPerWeek != null ? (
             <View style={styles.kv}>
               <Text style={styles.kvLabel}>{t('trends.weightTrend')}</Text>
-              <Text style={styles.kvValue}>{slopeLabel(insights.weightSlopeLbPerWeek, t)}</Text>
+              <Text style={styles.kvValue}>{slopeLabel(insights.weightSlopeLbPerWeek, unitSystem, t)}</Text>
             </View>
           ) : null}
         </>

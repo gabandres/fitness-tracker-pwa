@@ -24,10 +24,13 @@ interface Ingredient {
 }
 
 function num(s: string): number | null {
-  const t = s.trim();
+  // A comma is a decimal point here, not a rejection: pt-BR keyboards (and
+  // iOS decimal pads under a Brazilian region) type `12,5`, and `Number()`
+  // reads that as NaN. Same normalisation core's unit parsers already do.
+  const t = s.trim().replace(',', '.');
   if (t === '') return null;
   const n = Number(t);
-  return Number.isFinite(n) ? n : null;
+  return Number.isFinite(n) && n >= 0 ? n : null;
 }
 
 /** Stateless recipe calculator (mirrors the PWA recipe-builder): list

@@ -242,3 +242,62 @@ describe('muscle attribution', () => {
     expect(patch.muscles).toEqual(['chest', 'triceps']);
   });
 });
+
+describe('set rows follow the session', () => {
+  // `SetRow` is keyed by index and seeds its text buffers once, on mount.
+  // Deleting set 0 therefore left row 0 showing set 0's numbers while its
+  // data was already set 1's — every row below a delete was wrong — and an
+  // accepted recommendation changed the stored load without the field ever
+  // showing it. The buffers now re-seed when the set changes underneath them.
+  const twoSets = {
+    ...activeSession,
+    exercises: [
+      {
+        ...activeSession.exercises[0],
+        sets: [
+          { kind: 'working', weight: 135, reps: 8, done: false },
+          { kind: 'working', weight: 225, reps: 5, done: false },
+        ],
+      },
+    ],
+  } as unknown as WorkoutSession;
+
+  it('re-seeds a row after the set above it is deleted', async () => {
+    mockActive = twoSets;
+    const ui = await render(<TrainScreen />);
+    await waitFor(() => expect(ui.getByTestId('set-weight-0-0')).toBeTruthy());
+    expect(ui.getByTestId('set-weight-0-0').props.value).toBe('135');
+    expect(ui.getByTestId('set-count-0-0').props.value).toBe('8');
+
+    mockActive = {
+      ...twoSets,
+      exercises: [{ ...twoSets.exercises[0], sets: [twoSets.exercises[0].sets[1]] }],
+    } as unknown as WorkoutSession;
+    ui.rerender(<TrainScreen />);
+
+    await waitFor(() => expect(ui.getByTestId('set-weight-0-0').props.value).toBe('225'));
+    expect(ui.getByTestId('set-count-0-0').props.value).toBe('5');
+    expect(ui.queryByTestId('set-weight-0-1')).toBeNull();
+  });
+
+  it('shows a load that lands on the set from outside the field', async () => {
+    mockActive = activeSession; // two EMPTY rows
+    const ui = await render(<TrainScreen />);
+    await waitFor(() => expect(ui.getByTestId('set-weight-0-0')).toBeTruthy());
+    expect(ui.getByTestId('set-weight-0-0').props.value).toBe('');
+
+    mockActive = {
+      ...activeSession,
+      exercises: [
+        {
+          ...activeSession.exercises[0],
+          sets: [{ kind: 'working', weight: 140, done: false }, { kind: 'working', done: false }],
+        },
+      ],
+    } as unknown as WorkoutSession;
+    ui.rerender(<TrainScreen />);
+
+    await waitFor(() => expect(ui.getByTestId('set-weight-0-0').props.value).toBe('140'));
+    expect(ui.getByTestId('set-weight-0-1').props.value).toBe('');
+  });
+});

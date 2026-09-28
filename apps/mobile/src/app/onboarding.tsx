@@ -30,6 +30,7 @@ import { track } from '@/lib/analytics';
 import { type I18nKey, useLocale, useT } from '@/i18n';
 import { formatNumber } from '@/lib/date-format';
 import * as haptics from '@/lib/haptics';
+import { captureError } from '@/lib/sentry';
 import { CountUpText, PressScale } from '@/lib/motion';
 import { useUnitSystem } from '@/lib/use-unit-system';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
@@ -65,7 +66,8 @@ function intOrNull(s: string): number | null {
 }
 
 function numOrUndef(s: string): number | undefined {
-  const t = s.trim();
+  // Comma accepted as the decimal point (pt-BR keyboards) — see EntrySheet.
+  const t = s.trim().replace(',', '.');
   if (t === '') return undefined;
   const n = Number(t);
   return Number.isFinite(n) && n > 0 ? n : undefined;
@@ -440,7 +442,9 @@ export default function Onboarding() {
             <PressScale
               style={styles.back}
               scaleTo={0.9}
-              onPress={() => { void signOut(); }}
+              onPress={() => {
+                signOut().catch((e) => captureError(e, { where: 'onboarding.signOut' }));
+              }}
               testID="onboarding-signout"
               accessibilityLabel={t('settings.signOut')}
             >

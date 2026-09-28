@@ -24,6 +24,7 @@ import { ShareCard } from '@/components/ShareCard';
 import { UpdateBanner } from '@/components/UpdateBanner';
 import { type Locale, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
+import { captureError } from '@/lib/sentry';
 import { releaseTour } from '@/lib/tour';
 import { parseEntryPrefill, type EntryPrefill } from '@/lib/entry-prefill';
 import { useDayFasts } from '@/hooks/useDayFasts';
@@ -200,14 +201,21 @@ export default function Today() {
         body: t('today.savePresetBody', { name }),
         confirmText: t('entry.savePresetShort'),
         onConfirm: () => {
-          void addPreset({
+          // The success beat waits for the write: it used to fire before the
+          // promise settled, so a rejected preset still felt saved — and the
+          // rejection itself went to Sentry unhandled.
+          addPreset({
             name,
             calories: log.calories,
             protein: log.protein ?? 0,
             carbs: log.carbs ?? 0,
             fat: log.fat ?? 0,
-          });
-          haptics.success();
+          })
+            .then(() => haptics.success())
+            .catch((e) => {
+              haptics.warning();
+              captureError(e, { where: 'today.savePresetFromLog' });
+            });
         },
       });
     },
@@ -250,7 +258,7 @@ export default function Today() {
     // the question it answers: how often the tile has to open the app instead
     // of logging silently.
     track('quick_add');
-    void performQuickAdd(slot);
+    performQuickAdd(slot).catch((e) => captureError(e, { where: 'today.quickAddFallback' }));
   }, [quickAddSlotParam]);
 
   // Celebration: the flame chip bounces when the streak extends mid-session
@@ -258,6 +266,10 @@ export default function Today() {
   const [streakPulse, triggerStreakPulse] = usePulse(1.3);
   const prevStreak = useRef<number | null>(null);
   useEffect(() => {
+    // Not while the feed is loading: `streak` is 0 until the logs land, so the
+    // 0 → N step on every cold start read as an extension and fired the bounce,
+    // the haptic and a review-prompt beat on mount.
+    if (loading) return;
     if (prevStreak.current !== null && streak > prevStreak.current) {
       haptics.tap();
       triggerStreakPulse();
@@ -267,7 +279,7 @@ export default function Today() {
       if (streak >= MIN_STREAK_FOR_REVIEW) void recordPositiveMoment();
     }
     prevStreak.current = streak;
-  }, [streak, triggerStreakPulse]);
+  }, [streak, loading, triggerStreakPulse]);
 
   async function onShare() {
     haptics.tap();
@@ -417,7 +429,10 @@ export default function Today() {
                   confirmText: t('common.remove'),
                   destructive: true,
                   onConfirm: () => {
-                    void deleteFast(editableFast.id as string);
+                    deleteFast(editableFast.id as string).catch((e) => {
+                      haptics.warning();
+                      captureError(e, { where: 'today.deleteFast' });
+                    });
                     setFastSheetOpen(false);
                   },
                 });

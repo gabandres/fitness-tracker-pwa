@@ -382,7 +382,9 @@ export default function Scan() {
   }
 
   function editGrams(index: number, raw: string) {
-    const n = Number(raw.replace(/[^0-9.]/g, ''));
+    // The comma is a decimal point before it is stripped as punctuation —
+    // otherwise a pt-BR `12,5` becomes 125 and rescales the item tenfold.
+    const n = Number(raw.replace(',', '.').replace(/[^0-9.]/g, ''));
     setItems((prev) =>
       prev.map((it, i) => (i === index ? rescaleScannedItem(it, Number.isFinite(n) ? n : 0) : it)),
     );
@@ -686,7 +688,16 @@ export default function Scan() {
           </ScrollView>
 
           <View style={styles.footer}>
-            <PressScale style={styles.retake} scaleTo={0.96} onPress={() => { haptics.tap(); setPhase('intro'); setItems([]); setPortion(1); }} testID="scan-retake">
+            <PressScale style={styles.retake} scaleTo={0.96} onPress={() => {
+                haptics.tap();
+                setPhase('intro');
+                setItems([]);
+                setPortion(1);
+                // Retake is leaving on purpose too: with `items` empty the save
+                // effect stops writing but never removes what it wrote, so the
+                // thrown-away scan came back as a "restored" review next mount.
+                void clearScanDraft();
+              }} testID="scan-retake">
               <Text style={styles.retakeText}>{t('scan.retake')}</Text>
             </PressScale>
             <PressScale style={[styles.add, saving && styles.addDisabled]} scaleTo={0.97} onPress={onAdd} disabled={saving} testID="scan-add">

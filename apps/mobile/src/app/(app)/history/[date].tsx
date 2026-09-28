@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -23,6 +23,7 @@ import { useHistory } from '@/hooks/useHistory';
 import { useUnitSystem } from '@/lib/use-unit-system';
 import { useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
+import { captureError } from '@/lib/sentry';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
 import { formatDate, formatNumber, formatTime } from '@/lib/date-format';
@@ -35,6 +36,13 @@ export default function DayDetail() {
   const { date } = useLocalSearchParams<{ date: string }>();
   const dateKey = String(date);
   const router = useRouter();
+  // A deep link can carry anything here. `parseYmd('foo')` is an Invalid Date,
+  // which titled the screen "Invalid Date" and stamped a new entry with a
+  // timestamp Firestore rejects — so a malformed key goes back to the list.
+  const validKey = /^\d{4}-\d{2}-\d{2}$/.test(dateKey) && !Number.isNaN(parseYmd(dateKey).getTime());
+  useEffect(() => {
+    if (!validKey) router.replace('/history');
+  }, [validKey, router]);
   const { loading, logs, weights, presets, customFoods, boundary, addEntry, updateEntry, deleteEntry, addPreset, deletePreset, addCustomFood, deleteCustomFood } = useHistory();
   const unitSystem = useUnitSystem();
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -95,7 +103,12 @@ export default function DayDetail() {
       confirmText: t('common.remove'),
       destructive: true,
       onConfirm: () => {
-        if (fast.id) void deleteFast(fast.id);
+        if (fast.id) {
+          deleteFast(fast.id).catch((e) => {
+            haptics.warning();
+            captureError(e, { where: 'history.deleteFast' });
+          });
+        }
         setFastSheet(null);
       },
     });

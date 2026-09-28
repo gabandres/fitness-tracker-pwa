@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth';
 import { useLocale, useT } from '@/i18n';
 import { enterUp } from '@/lib/motion';
 import * as haptics from '@/lib/haptics';
+import { captureError } from '@/lib/sentry';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space, type } from '@/theme';
 
@@ -166,7 +167,13 @@ export default function VerifyEmail() {
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.ghost} onPress={signOut} testID="verify-signout">
+          <TouchableOpacity
+            style={styles.ghost}
+            onPress={() => {
+              signOut().catch((e) => captureError(e, { where: 'verifyEmail.signOut' }));
+            }}
+            testID="verify-signout"
+          >
             <Text style={styles.ghostText}>{t('verify.signOut')}</Text>
           </TouchableOpacity>
         </Animated.View>

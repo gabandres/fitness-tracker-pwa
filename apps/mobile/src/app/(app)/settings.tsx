@@ -49,16 +49,16 @@ import {
   syncReminders,
 } from '@/lib/reminders';
 import { LOCALES, LOCALE_DEFS, type I18nKey, type Locale, useLocale, useT } from '@/i18n';
-import { formatNumber } from '@/lib/date-format';
+import { formatNumber, formatTime } from '@/lib/date-format';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
 
-/** "8 PM" / "12 PM" / "12 AM" from a 0–23 hour. */
-function hourLabel(h: number): string {
-  const period = h < 12 ? 'AM' : 'PM';
-  const display = h % 12 === 0 ? 12 : h % 12;
-  return `${display} ${period}`;
+/** "8 PM" in English, "20" in pt-BR, "8 p. m." in es-PR — from a 0–23 hour.
+ *  Through `formatTime` so the clock convention follows the app locale; the
+ *  hand-rolled "AM"/"PM" this replaces showed English to every locale. */
+function hourLabel(h: number, locale: Locale): string {
+  return formatTime(new Date(2000, 0, 1, h), locale, { hour: 'numeric' });
 }
 
 const GOAL_LABEL: Record<string, I18nKey> = {
@@ -742,7 +742,7 @@ export default function Settings() {
                           <Text style={styles.stepText}>−</Text>
                         </TouchableOpacity>
                         <Text style={styles.hourValue} testID={`reminder-${key}-hour`}>
-                          {hourLabel(meals[key].hour)}
+                          {hourLabel(meals[key].hour, locale)}
                         </Text>
                         <TouchableOpacity
                           style={styles.step}
