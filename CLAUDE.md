@@ -99,7 +99,7 @@ prose alone did not prevent them:
 |---|---|---|
 | `guard_firestore_import.py` | `from 'firebase/firestore'` in `src/**` (not specs, not `apps/mobile/**`, not `functions/**`) | a second SDK copy breaks `doc()`/instance identity; it broke prod sign-in once |
 | `guard_firebase_deploy.py` | a hosting deploy whose `dist` has no `build-info.json` (written last by the prod build), no `sitemap.xml`, no safety worker, or predates `src/` | a dev/stale build ships no prerendered pages and no release stamp; until ADR-0036 it also left the PWA update banner firing for every returning user |
-| `guard_eas_update.py` | `eas update` for a platform whose build host is not the machine running it (iOS → the Mac, directly or via `ssh ignia-mac`; a session ON the Mac may publish iOS bare. Android → Windows **until the first Mac-built vc ships** — the Android build host moved to the Mac on 2026-09-17 and the guard flips with that release; `STATUS.md`) | the fingerprint is machine-dependent; a publish from the wrong host exits 0 and reaches **nobody** |
+| `guard_eas_update.py` | `eas update` for a platform whose build host is not the machine running it (iOS → the Mac, directly or via `ssh ignia-mac`; a session ON the Mac may publish iOS bare. Android → **also the Mac since vc 46, 2026-09-28** — this said "Windows until the first Mac-built vc ships" from 2026-09-17 until then) | the fingerprint is machine-dependent; a publish from the wrong host exits 0 and reaches **nobody** |
 
 They match **invocations, not mentions** — echoing, grepping or heredoc'ing one
 of these commands is allowed, and `npm run build && firebase deploy` (the

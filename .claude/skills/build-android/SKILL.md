@@ -11,11 +11,10 @@ reversal and its reasons are in `docs/build-infrastructure.md`). Both are local
 and cost zero EAS quota. A session ON the Mac (T3 Code, Remote Control) runs the
 Mac commands bare; a session on Windows wraps them in `ssh ignia-mac "…"`.
 
-**Cutover note (delete when done):** the Android binary testers run today is
-the Windows-built one, so its OTAs still publish from Windows and
-`guard_eas_update.py` still says so. The first Mac-built vc that reaches the
-alpha track flips it: `OWNER["android"] = "mac"`, the android rows of
-`test_guards.py`, and the *Step 3 (Windows)* section below, one commit.
+**Cutover DONE 2026-09-28**: vc 46 is the first Mac-built Android binary, so
+both platforms gate and publish from `ignia-mac`; `guard_eas_update.py` says so.
+**Until vc 46 is live on Play production, vc 45 users are on the Windows runtime
+`15c1cfc8…`** and can only be OTA'd from Windows at `98fb0646` — `STATUS.md`.
 
 `REFERENCE.md` in this directory holds the evidence behind every rule below — the
 measurement, the incident, the wrong conclusion it replaced. **Read it when a rule
@@ -145,7 +144,20 @@ npx eas build --local -p android --profile production --non-interactive \
   now on, which is the whole point of the cutover note at the top.
 - 16 GB RAM: do not run the iOS build or the emulator at the same time.
 
-## Step 3 (Windows) — raw Gradle, kept until cutover
+## Step 3 (raw Gradle + `patch-android-release.mjs`) — THE ROUTE THAT SHIPPED vc 46
+
+**Measured 2026-09-28 on `ignia-mac`: `eas build --local -p android --profile
+production` is NOT sufficient on its own.** It prebuilds in its own temp copy,
+so nothing under the gitignored `android/` — and nothing
+`patch-android-release.mjs` does — reaches it. The artifact it produced
+(`ignia-1.2.4-android-1790600304.aab`) failed `verify-mobile-artifact.mjs` on
+four counts (READ_EXERCISE missing, READ_STEPS present, both Health Connect
+intent filters missing) and carried **versionCode 32**, because EAS's remote
+counter had never been advanced past the Windows-built vc 33–45 (fixed the same
+day: `eas build:version:set` → 46). Four ABIs, 104 MB. **Do not submit that
+route's output without the verifier passing.** What did ship vc 46 is the
+section below, run bare on the Mac (the macOS `local.properties` line, not the
+Windows one):
 
 `eas build --local` refuses to run on Windows, so raw Gradle is the only path —
 and it omits three things that each fail **silently**: the EAS Update channel

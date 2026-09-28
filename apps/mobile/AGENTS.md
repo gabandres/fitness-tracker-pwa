@@ -76,7 +76,7 @@ Android answer is in transition:**
 
 | Platform | Build host | Gate + `eas update` from |
 |---|---|---|
-| **Android** | `ignia-mac` since 2026-09-17 (vc 31–45 were built on the Windows workstation) | **Windows** until the first Mac-built vc reaches Play alpha — the live runtime (vc 45) is Windows-built, so its fingerprint is the Windows one. `STATUS.md` owns the cutover |
+| **Android** | `ignia-mac` since 2026-09-17; **vc 46 (2026-09-28) is the first Mac-built binary** (vc 31–45 were Windows-built) | **`ignia-mac`** for vc 46+ (runtime `3e596c87…`). vc 45 users still run the Windows runtime `15c1cfc8…` until they update; a publish for THEM is Windows at `98fb0646` — `STATUS.md` says whether that still matters |
 | **iOS** | `ignia-mac` | **`ignia-mac`** |
 
 This table read "Android: built on Windows, gate from Windows" until
@@ -149,7 +149,7 @@ Three commit-independent causes, found by diffing the two `sources` arrays
 **Consequence: cross-host fingerprint parity is not achievable and is no longer a
 goal.** It also does not need to be. Since 2026-08-17 each platform is built,
 gated and published on one host — iOS on the Mac; Android on Windows through
-vc 45 and on the Mac from the cutover build onward (table above) — so each
+vc 45 and on the Mac from vc 46 (2026-09-28) onward (table above) — so each
 hash only ever has to match binaries produced by the same machine, which it does:
 measured that day, Windows/Android returns `3d3bc410…` (= live vc 31, read from
 the `.aab`) and Mac/iOS returns `886bf0b3…` (= build 55, read from the `.ipa`).
@@ -183,8 +183,8 @@ another machine's. The 22:00 update is the first one published from the Mac and
 the first that provably matches a shipped binary.
 
 So the gate before every publish runs **on the host that built the live
-binary** — iOS on the Mac; Android on Windows until the cutover (table above),
-then on the Mac too:
+binary** — iOS on the Mac; Android on Windows through vc 45 and on the Mac from vc 46
+(table above):
 
 ```sh
 # iOS — on ignia-mac
@@ -283,8 +283,8 @@ gate")
   `IgniaWatch.app`, `DEV_ENVIRONMENT.md` §3.10), Android on `ignia-mac` too
   since 2026-09-17 (`eas build --local -p android --profile production`,
   `build-android` skill). Windows built vc 31–45 via raw Gradle and this line
-  said "Android on Windows" until 2026-09-17; it stays the Android OTA host
-  until the first Mac-built vc ships (`STATUS.md`).
+  said "Android on Windows" until 2026-09-17; Windows stayed the Android OTA
+  host until vc 46 shipped from the Mac on 2026-09-28.
 
 **Delivery:**
 

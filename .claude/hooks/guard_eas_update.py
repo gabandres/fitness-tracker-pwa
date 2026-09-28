@@ -31,11 +31,15 @@ until now.
 
 2026-09-17: Android's BUILD host moved back to ignia-mac (toolchain, keystore
 and Play service account are there; `docs/build-infrastructure.md`). The OWNER
-table below has NOT flipped yet, on purpose: the Android binary testers run is
-still the Windows-built one, and an OTA must come from the host that built the
-running binary, not the host that will build the next one. Flip
-`OWNER["android"]` to "mac" -- and the android rows of `test_guards.py` -- in
-the same commit that ships the first Mac-built vc. `STATUS.md` carries the item.
+table stayed on Windows until the first Mac-built vc reached Play, because an
+OTA must come from the host that built the RUNNING binary. **2026-09-28: vc 46
+(1.2.4, runtime 3e596c87...) was built on ignia-mac via raw Gradle +
+`patch-android-release.mjs` and submitted to the alpha track, so
+`OWNER["android"]` flipped to "mac" in that commit.** Both platforms now gate
+and publish from the Mac; a Windows session reaches it through `ssh ignia-mac`.
+Until vc 46 is LIVE on production, vc 45 users (Windows runtime `15c1cfc8...`)
+can only be reached from Windows at `98fb0646` -- `STATUS.md` says whether that
+window is still open.
 
 Read-only subcommands (`update:list`, `update:view`, `--help`) are allowed.
 
@@ -75,7 +79,7 @@ ENVIRONMENT = re.compile(r"--environment[=\s]+\S+")
 
 # Which host owns which platform. Update this table when a build host moves --
 # it is the single place the routing lives.
-OWNER = {"android": "windows", "ios": "mac"}
+OWNER = {"android": "mac", "ios": "mac"}
 
 # The machine this hook is running on. A session on ignia-mac publishes iOS
 # directly; a session on the Windows workstation publishes Android directly and

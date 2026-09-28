@@ -183,11 +183,15 @@
 //
 // Defaults to whatever versionCode is live on `alpha`, because promoting the
 // binary testers have been running is the whole point.
-import { JWT } from 'file:///Z:/macro-app/node_modules/google-auth-library/build/src/index.js';
+import { JWT } from 'google-auth-library';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+// Repo root, so the script runs from either workstation (it hard-coded Z:/macro-app until 2026-09-28).
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 import { readFileSync } from 'node:fs';
 
 const PKG = 'fit.ignia.app';
-const KEY_PATH = 'Z:/macro-app/apps/mobile/credentials/play-service-account.json';
+const KEY_PATH = resolve(ROOT, 'apps/mobile/credentials/play-service-account.json');
 
 /**
  * The 145 territories iOS ships to, as ISO 3166-1 **alpha-2** — the form Play

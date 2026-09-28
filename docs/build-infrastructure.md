@@ -76,7 +76,7 @@ in the number, or a faster laptop reads as a regression.
   shipped vc 10 — and it is **deliberately not the default**. If the verifier is
   ever skipped, prefer it.
 
-  **Cutover is not done until a Mac-built vc is live.** The fingerprint follows
+  **Cutover happened with vc 46 on 2026-09-28** (raw Gradle + the patch script on `ignia-mac`; `eas build --local` alone skips the patch — `build-android` Step 3). The paragraph below is history: The fingerprint follows
   the build host (CRLF vs LF), so the Android runtime testers run today is the
   Windows one, and an OTA for it must still be published from Windows.
   `guard_eas_update.py` therefore keeps `OWNER["android"] = "windows"` until

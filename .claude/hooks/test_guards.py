@@ -18,6 +18,7 @@ HOOKS = os.path.join(ROOT, ".claude", "hooks")
 
 D = "guard_firebase_deploy.py"
 E = "guard_eas_update.py"
+WINENV = {"GUARD_HOST": "windows"}  # rows that describe a Windows session; the matrix runs on both hosts since 2026-09-28
 F = "guard_firestore_import.py"
 
 failures = []
@@ -80,28 +81,29 @@ print("\n-- eas update --")
 case(E, cmd("echo 'npx eas update --branch production'"), "echo mentioning eas update", "allow")
 case(E, cmd("npx eas update:list --branch production --limit 2"), "update:list (read-only)", "allow")
 case(E, cmd("npx eas build -p ios --local"), "eas build", "allow")
-# Split build host since 2026-08-17: Android is built on Windows, iOS on the Mac.
+# Split build host 2026-08-17 .. 2026-09-28 (Android on Windows, iOS on the Mac);
+# since vc 46 (2026-09-28) BOTH platforms build and publish on the Mac.
 # Bare `eas update` publishes BOTH, so it is correct on NEITHER machine — this is
 # the case that was legal for the app's entire life until now.
-case(E, cmd("cd apps/mobile && npx eas update --branch production"), "bare update on Windows (no --platform)", "BLOCK")
+case(E, cmd("cd apps/mobile && npx eas update --branch production"), "bare update on Windows (no --platform)", "BLOCK", WINENV)
 case(E, cmd('ssh ignia-mac "cd ~/x && npx eas update --branch production"'), "bare update via ignia-mac (no --platform)", "BLOCK")
 case(E, cmd("cd apps/mobile && npx eas update --platform all --branch production"), "--platform all", "BLOCK")
-# Android belongs to Windows now. Every allowed publish must also carry
+# Android belongs to the Mac since vc 46. Every allowed publish must also carry
 # --environment, which eas-cli requires from Expo SDK 55 (this app is on 57).
-case(E, cmd("cd apps/mobile && npx eas update --platform android --branch production --environment production"), "android from Windows (owner)", "allow")
-case(E, cmd("cd apps/mobile && npx eas update -p android --branch production --environment production"), "android from Windows, short -p", "allow")
-case(E, cmd('ssh ignia-mac "cd ~/x && npx eas update --platform android --branch production --environment production"'), "android via ignia-mac (wrong host)", "BLOCK")
+case(E, cmd("cd apps/mobile && npx eas update --platform android --branch production --environment production"), "android bare from Windows (wrong host since vc 46)", "BLOCK", WINENV)
+case(E, cmd("cd apps/mobile && npx eas update -p android --branch production --environment production"), "android bare from Windows, short -p (wrong host)", "BLOCK", WINENV)
+case(E, cmd('ssh ignia-mac "cd ~/x && npx eas update --platform android --branch production --environment production"'), "android via ignia-mac (owner)", "allow")
 # iOS still belongs to the Mac.
 case(E, cmd('ssh ignia-mac "cd ~/x && npx eas update --platform ios --branch production --environment production"'), "ios via ignia-mac (owner)", "allow")
 # Correctly routed, but missing the SDK 55+ required flag.
-case(E, cmd("cd apps/mobile && npx eas update --platform android --branch production"), "android from Windows, no --environment", "BLOCK")
-case(E, cmd("cd apps/mobile && npx eas update --platform android --branch production --environment=production"), "--environment= form", "allow")
-case(E, cmd("cd apps/mobile && npx eas update --platform ios --branch production"), "ios from Windows (wrong host)", "BLOCK")
+case(E, cmd('ssh ignia-mac "cd ~/x && npx eas update --platform android --branch production"'), "android via ignia-mac, no --environment", "BLOCK")
+case(E, cmd('ssh ignia-mac "cd ~/x && npx eas update --platform android --branch production --environment=production"'), "--environment= form", "allow")
+case(E, cmd("cd apps/mobile && npx eas update --platform ios --branch production"), "ios from Windows (wrong host)", "BLOCK", WINENV)
 
-# A session running ON ignia-mac (Remote Control) -- iOS is local there, Android is not.
+# A session running ON ignia-mac (T3 Code / Remote Control) -- both platforms are local there.
 MACENV = {"GUARD_HOST": "mac"}
 case(E, cmd("cd apps/mobile && npx eas update --platform ios --branch production --environment production"), "ios directly on the Mac (owner)", "allow", MACENV)
-case(E, cmd("cd apps/mobile && npx eas update --platform android --branch production --environment production"), "android directly on the Mac (wrong host)", "BLOCK", MACENV)
+case(E, cmd("cd apps/mobile && npx eas update --platform android --branch production --environment production"), "android directly on the Mac (owner)", "allow", MACENV)
 case(E, cmd('ssh ignia-mac "cd ~/x && npx eas update --platform ios --branch production --environment production"'), "ios via ssh, from the Mac itself", "allow", MACENV)
 case(E, cmd("cd apps/mobile && npx eas update --platform ios --branch production"), "ios on the Mac, no --environment", "BLOCK", MACENV)
 # Mentions, not invocations. The `|` inside a quoted regex used to split into a

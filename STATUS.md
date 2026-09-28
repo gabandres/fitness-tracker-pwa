@@ -26,7 +26,7 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 |---|---|
 | **Public App Store (iOS)** | **1.2.4 / build 67, LIVE since 2026-09-28** (owner's word; `app-version.json` read `1.2.4` at 12:17 UTC — its `latestBuild` still says 64 because Apple's public lookup carries no build number). Runtime **`1b239e44…`**, which HEAD reproduces on `ignia-mac`; the first OTA on it is the 09-28 S18 ship (`b2d0205b…`). Build 64 / `52802bba…` users get 1.2.4 through the store update; no more build-64 OTAs. Carries the re-shot screenshots (en-US 5, es-MX 5) and `usesIdfa: false`. **Available in 175 of 175 territories** since 2026-08-28 (DSA trader declaration filed). Play matched on 2026-09-03: 158 of Play's attainable 158 |
 | **TestFlight** | **build 64 / 1.2.3 (runtime `52802bba…`) is in the EXTERNAL *Public Beta Testers* group, `IN_BETA_TESTING`** (read 2026-09-08 via `asc-testflight-external.mjs --build 64`; it was `WAITING_FOR_BETA_REVIEW` from 09-05). Build 63 is in the group but can never reach an external tester — a build of an already-released version stays `READY_FOR_BETA_SUBMISSION` forever. **Read the group's builds AND each build's `externalBuildState`, never assume:** `VALID` + in the group ≠ installable |
-| **Play production + alpha** | **LIVE — vc 45 / 1.2.3 (runtime `15c1cfc8…`, the IGNIA-MOBILE-V fix, plus the Ember-on-Ink icon, feature graphic and five re-shot screenshots), production 100% + alpha, released 2026-09-07 ~22:46 UTC** (store page reads 1.2.3 / *Updated on Sep 7, 2026*, read 2026-09-08). The review took ~7.5 h from the 15:05 UTC restart. **Nothing is in review; the next submit can go whenever there is a change to ship.** **The tracks API cannot tell "in review" from "live"** — the Console app row or the store page is the read. The 09-03 Data safety amendment (*Device or other IDs*) is PUBLISHED — it rode the vc 45 review; Publishing overview read *nothing in review, last published Sep 7* on 2026-09-08. `eas submit` has failed and exited 0 three times (lost Play edit on bundles > 60 MB; a missing health declaration) — **`play-upload-bundle.mjs` is the upload path; confirm every submit against the tracks API** |
+| **Play production + alpha** | **production: vc 45 / 1.2.3 LIVE; alpha: vc 46 / 1.2.4 since 2026-09-28 (Mac-built, in review)** — earlier text: **LIVE — vc 45 / 1.2.3 (runtime `15c1cfc8…`, the IGNIA-MOBILE-V fix, plus the Ember-on-Ink icon, feature graphic and five re-shot screenshots), production 100% + alpha, released 2026-09-07 ~22:46 UTC** (store page reads 1.2.3 / *Updated on Sep 7, 2026*, read 2026-09-08). The review took ~7.5 h from the 15:05 UTC restart. **Nothing is in review; the next submit can go whenever there is a change to ship.** **The tracks API cannot tell "in review" from "live"** — the Console app row or the store page is the read. The 09-03 Data safety amendment (*Device or other IDs*) is PUBLISHED — it rode the vc 45 review; Publishing overview read *nothing in review, last published Sep 7* on 2026-09-08. `eas submit` has failed and exited 0 three times (lost Play edit on bundles > 60 MB; a missing health declaration) — **`play-upload-bundle.mjs` is the upload path; confirm every submit against the tracks API** |
 | **Web `ignia.fit`** | **Shell + `/admin` — the web logging app was RETIRED 2026-08-30 (ADR-0036).** 113 prerendered pages, EN + es-PR. Links BOTH stores with the official badges since 2026-09-08 (`PLAY_STORE_LIVE = true`; Google's en / es-419 badge artwork on the landing, `/vs`, `/calculator`, the retired and auth-action pages, and `/download`). **`/download` said "Android coming soon — email me" until 2026-09-08** — this row claimed no such copy remained; grep `public/` as well as `src/` before repeating that. `/app` and the old tabs render a "moved to the apps" page; a safety worker evicts old PWA installs. SEO pages and `/u/**` are KEPT, owner-ratified |
 | **Cloud Functions / rules** | Deployed, project `fitness-tracker-gb-1775407101` |
 | **Photo-scan** | **ON and free to everyone, both platforms** (ADR-0017), resolving macros against the bundled USDA database (ADR-0019). Tiering is server-side only: `dailyQuota` 3/day free · 30/day paid, plus the `photo` `spendCeiling` |
@@ -38,8 +38,8 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 
 | Platform | Tree now | Live binary | Channel |
 |---|---|---|---|
-| Android | **MOVED at `7f25177c`** (1.2.4 + Expo patch bumps) — re-measure on Windows; `98fb0646` is the last `15c1cfc8…` tree | **vc 45 ships `15c1cfc8…`** (read from the `.aab`), live on production since 2026-09-07 ~22:46 UTC (vc 44 / `68ea2dd3…` is superseded) | **OPEN** to the public |
-| iOS | `1b239e44…` since `7f25177c` (build 67, in review); `52802bba…` through `98fb0646` | **build 64 ships `52802bba…`, `READY_FOR_SALE` as 1.2.3 since 2026-09-06** (read from the `.ipa`) | **OPEN** to the public |
+| Android | **Mac-built since vc 46** — read it from the artifact, never the tree (`android/` is hashed whole and drifts with Gradle's leftovers; ledger row) | **vc 46 ships `3e596c87…`** (read from the `.aab`), on Play **alpha** since 2026-09-28, sent for review. **vc 45 (`15c1cfc8…`, Windows-built) is still what production users run** until 46 is promoted | **alpha: OPEN**; production: vc 45 |
+| iOS | `1b239e44…` since `7f25177c`, re-measured on `ignia-mac` 2026-09-28 at `cb4a287a` and MATCHED | **build 67 ships `1b239e44…`, LIVE as 1.2.4 since 2026-09-28** (read from the `.ipa`); first OTA on it `b2d0205b…` the same day | **OPEN** to the public |
 
 - **Gate the COMMIT, not just the fingerprint. `eas update` prints a `Commit`
   line — read it.** The fingerprint is native-only, so a stale JS tree passes
@@ -125,18 +125,19 @@ deleted and its outcome goes to `CHANGELOG.md`.
 iPhone** — `simctl` never drew it. The lockfile rewrite on the Mac stands:
 **Windows must `npm ci` before its next build.**
 
-- **Android**: vc 46 is being cut on `ignia-mac` from `cb4a287a` (`eas build
-  --local -p android --profile production`, launched 2026-09-28 12:58 UTC, log
-  `~/android-build.log`). It is the **first Mac-built Android binary**, so when
-  it reaches Play the cutover closes: flip `OWNER["android"]` in
-  `guard_eas_update.py`, its rows in `test_guards.py`, and drop the Windows
-  section of `build-android`. Until it is live, Android users hold vc 45 with
-  neither `2227698c` nor the 09-28 ship, and **no Android OTA can be published
-  from anywhere useful** (Windows would need `98fb0646`, which predates both).
+- **Android — CUTOVER DONE**: vc 46 (1.2.4, runtime `3e596c87…`) was built on
+  `ignia-mac` on 2026-09-28 (raw Gradle + `patch-android-release.mjs`; the
+  `eas build --local` route alone produced an unshippable artifact — ledger
+  row) and is on the **Play alpha track, sent for review**. `OWNER["android"]`
+  is `mac`; both platforms gate and publish from the Mac. **Still owed:
+  promote 46 to production** (`scripts/play-production-release.mjs`) — until
+  then production users hold vc 45 with neither `2227698c` nor the 09-28 ship,
+  and reaching them means a Windows publish at `98fb0646` (not worth it; the
+  binary is the fix). EAS's remote Android versionCode is 46 (was 32).
 - **Device QA host**: the OnePlus 8T is on adb over Tailscale from this Mac —
   `apps/mobile/scripts/phone.sh` attaches, wakes and unlocks it and prints the
   adb id (ported from PoolFlow 2026-09-28; same phone, serial `49bae1ea`).
-  It holds Play-installed vc 45 (`installerPackageName=com.android.vending`).
+  It now holds the adb-installed vc 46 (`installerPackageName=pc`, data wiped by the reinstall); **reinstall it from Play once 46 is on a track it can see**, so the next Android OTA can be proven the PoolFlow way (`DownloadComplete` in logcat).
 
 ### `ExerciseLibrarySheet` rows are untappable on iOS — cause UNKNOWN
 

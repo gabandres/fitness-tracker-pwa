@@ -17,11 +17,15 @@
 // Retry policy, measured 2026-08-25: `edits` answers a transient 503
 // `backendError` under load — the upload itself succeeded and the very next
 // small call got one. The SMALL calls are retried here; the upload is not.
-import { JWT } from 'file:///Z:/macro-app/node_modules/google-auth-library/build/src/index.js';
+import { JWT } from 'google-auth-library';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+// Repo root, so the script runs from either workstation (it hard-coded Z:/macro-app until 2026-09-28).
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 import { readFileSync, statSync } from 'node:fs';
 
 const PKG = 'fit.ignia.app';
-const KEY_PATH = 'Z:/macro-app/apps/mobile/credentials/play-service-account.json';
+const KEY_PATH = resolve(ROOT, 'apps/mobile/credentials/play-service-account.json');
 
 const args = process.argv.slice(2);
 const aabPath = args.find((a) => !a.startsWith('--'));
@@ -101,7 +105,7 @@ try {
   const current = (tracks.tracks ?? []).find((t) => t.track === track);
   const priorName = current?.releases?.[0]?.name;
   const release = {
-    name: `${up.versionCode} (${JSON.parse(readFileSync('Z:/macro-app/apps/mobile/app.json','utf8')).expo.version})`,
+    name: `${up.versionCode} (${JSON.parse(readFileSync(resolve(ROOT, 'apps/mobile/app.json'),'utf8')).expo.version})`,
     versionCodes: [String(up.versionCode)],
     status: 'completed',
   };

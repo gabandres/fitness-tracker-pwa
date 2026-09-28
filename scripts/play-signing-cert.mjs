@@ -1,8 +1,12 @@
-import { JWT } from 'file:///Z:/macro-app/node_modules/google-auth-library/build/src/index.js';
+import { JWT } from 'google-auth-library';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+// Repo root, so the script runs from either workstation (it hard-coded Z:/macro-app until 2026-09-28).
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 import { readFileSync } from 'fs';
 
 const PKG = 'fit.ignia.app';
-const key = JSON.parse(readFileSync('Z:/macro-app/apps/mobile/credentials/play-service-account.json', 'utf8'));
+const key = JSON.parse(readFileSync(resolve(ROOT, 'apps/mobile/credentials/play-service-account.json'), 'utf8'));
 const client = new JWT({
   email: key.client_email,
   key: key.private_key,
