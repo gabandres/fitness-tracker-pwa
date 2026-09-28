@@ -218,12 +218,15 @@ export const esPR: Record<I18nKey, string> = {
   'whatsNew.title': 'Novedades',
   'whatsNew.subtitle': 'Lo que cambió desde la última vez que abriste Ignia.',
   'whatsNew.continue': 'Continuar',
-  'whatsNew.logger.title': 'Entrenar pone la próxima serie primero',
-  'whatsNew.logger.body':
-    'La pestaña Entrenar empieza con lo que vas a levantar, cada fila de serie muestra lo que hiciste la vez pasada, y las acciones menos comunes se movieron a un menú para que la serie en la que estás quede al frente.',
-  'whatsNew.restpause.title': 'Los descansos de rest-pause vuelven a ser cortos',
-  'whatsNew.restpause.body':
-    'Una serie de continuación ahora descansa unos 20 segundos en vez de tu descanso completo entre series. Esa pausa corta es lo que la hace un rest-pause y no una segunda serie.',
+  'whatsNew.undo.title': '¿Borraste una comida por error? Deshazlo',
+  'whatsNew.undo.body':
+    'Al borrar una entrada ahora aparece un Deshacer de cinco segundos. Descartar un entrenamiento, quitar un preset y cerrar sesión preguntan antes.',
+  'whatsNew.weighins.title': 'Corrige un pesaje anterior',
+  'whatsNew.weighins.body':
+    'Toca cualquier pesaje en el historial de Cuerpo para corregirlo o borrar un error, y un número equivocado ya no tuerce tu tendencia.',
+  'whatsNew.metric.title': 'Agua y estatura en tus unidades',
+  'whatsNew.metric.body':
+    'Las cuentas métricas registran el agua en mililitros con atajos de 250, 500 y 750, y la estatura en centímetros.',
   'update.ota.title': 'Actualización lista',
   'update.ota.body': 'Ignia se reinicia para aplicarla — unos segundos.',
   'update.ota.action': 'Reiniciar',

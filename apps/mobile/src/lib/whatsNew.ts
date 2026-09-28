@@ -123,7 +123,13 @@ import type { I18nKey } from '@/i18n';
 // are mid-signup and have not reached a Today banner at all — the screen this
 // fires on is one they see after onboarding. A banner would announce a wrong
 // error message to thousands who never saw it.
-export const WHATS_NEW_VERSION = '2026-09-17-train-logger';
+// Bumped 2026-09-28 for the S18 audit ship. Clears the bar this file set on
+// 2026-09-01 three times over: Undo on a deleted meal, edit/delete of a past
+// weigh-in and metric water are new surfaces a user meets on the next open,
+// not corrections to something that was already wrong. The 30-odd accessibility
+// and bug fixes in the same OTA are deliberately NOT listed — a banner is not
+// a changelog, and a VoiceOver user finds the roles by using them.
+export const WHATS_NEW_VERSION = '2026-09-28-undo-weighins-metric';
 
 const KEY = 'whatsNew.seen';
 
@@ -153,8 +159,9 @@ export interface WhatsNewItem {
 }
 
 export const WHATS_NEW_ITEMS: readonly WhatsNewItem[] = [
-  { icon: 'barbell-outline', titleKey: 'whatsNew.logger.title', bodyKey: 'whatsNew.logger.body' },
-  { icon: 'timer-outline', titleKey: 'whatsNew.restpause.title', bodyKey: 'whatsNew.restpause.body' },
+  { icon: 'arrow-undo-outline', titleKey: 'whatsNew.undo.title', bodyKey: 'whatsNew.undo.body' },
+  { icon: 'scale-outline', titleKey: 'whatsNew.weighins.title', bodyKey: 'whatsNew.weighins.body' },
+  { icon: 'water-outline', titleKey: 'whatsNew.metric.title', bodyKey: 'whatsNew.metric.body' },
 ];
 
 /**

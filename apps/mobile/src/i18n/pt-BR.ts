@@ -214,12 +214,15 @@ export const ptBR = {
   'whatsNew.title': 'Novidades',
   'whatsNew.subtitle': 'O que mudou desde a última vez que você abriu o Ignia.',
   'whatsNew.continue': 'Continuar',
-  'whatsNew.logger.title': 'Treinar começa pela próxima série',
-  'whatsNew.logger.body':
-    'A aba Treinar começa pelo que você vai levantar, cada linha de série mostra o que você fez da última vez, e as ações mais raras foram para um menu, então a série em que você está fica à frente.',
-  'whatsNew.restpause.title': 'Os descansos de rest-pause voltaram a ser curtos',
-  'whatsNew.restpause.body':
-    'Uma série de continuação agora descansa cerca de 20 segundos em vez do seu descanso completo entre séries. Essa pausa curta é o que faz dela um rest-pause e não uma segunda série.',
+  'whatsNew.undo.title': 'Apagou uma refeição sem querer? Desfaça',
+  'whatsNew.undo.body':
+    'Apagar uma entrada agora mostra um Desfazer de cinco segundos. Descartar um treino, remover um preset e sair da conta pedem confirmação.',
+  'whatsNew.weighins.title': 'Corrija uma pesagem antiga',
+  'whatsNew.weighins.body':
+    'Toque em qualquer pesagem no histórico de Corpo para corrigi-la ou apagar um erro de digitação, e um número errado deixa de torcer sua tendência.',
+  'whatsNew.metric.title': 'Água e altura nas suas unidades',
+  'whatsNew.metric.body':
+    'Contas métricas registram água em mililitros com atalhos de 250, 500 e 750, e a altura em centímetros.',
   'update.ota.title': 'Atualização pronta',
   'update.ota.body': 'O Ignia reinicia para aplicá-la — alguns segundos.',
   'update.ota.action': 'Reiniciar',

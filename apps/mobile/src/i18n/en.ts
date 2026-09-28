@@ -249,12 +249,15 @@ export const en = {
   'whatsNew.continue': 'Continue',
   // One item per thing a person will NOTICE, in the order they meet it. Body
   // sentences carry the number that makes the feature usable, not a pitch.
-  'whatsNew.logger.title': 'Train puts the next set first',
-  'whatsNew.logger.body':
-    'The Train tab leads with what you are lifting next, every set row shows what you did last time, and the rarer actions moved into a menu so the set you are on stays in front of you.',
-  'whatsNew.restpause.title': 'Rest-pause rests are short again',
-  'whatsNew.restpause.body':
-    'A continuation set now rests about 20 seconds instead of your full between-sets rest. That short pause is what makes it a rest-pause and not just a second set.',
+  'whatsNew.undo.title': 'Deleted a meal by mistake? Undo it',
+  'whatsNew.undo.body':
+    'Deleting an entry now shows a five-second Undo. Discarding a workout, removing a preset and signing out ask first.',
+  'whatsNew.weighins.title': 'Fix a past weigh-in',
+  'whatsNew.weighins.body':
+    'Tap any weigh-in in Body history to correct it, or remove a typo, so one wrong number no longer bends your trend.',
+  'whatsNew.metric.title': 'Water and height in your units',
+  'whatsNew.metric.body':
+    'Metric accounts log water in millilitres with 250, 500 and 750 quick-adds, and enter height in centimetres.',
   'update.ota.title': 'Update ready',
   'update.ota.body': 'Ignia restarts to apply it — a few seconds.',
   'update.ota.action': 'Restart',
