@@ -254,7 +254,14 @@ function RootLayout() {
   const [fontsLoaded, fontsError] = useFonts({ Manrope_700Bold, Manrope_800ExtraBold });
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <KeyboardProvider>
+      {/* `preload={false}`: the default makes a hidden UITextField take first
+          responder at launch to warm the keyboard, and that remote-keyboard
+          XPC handshake ran on the main thread — IGNIA-MOBILE-J, a 2 s+ App
+          Hang at startup on an iPhone SE (2nd gen), iOS 18, build 64, inside
+          `UIResponder.preloadKeyboardIfNeeded`. The warm-up now happens on
+          the first real focus, where the user is already waiting for a
+          keyboard, instead of blocking a launch they did not ask to type in. */}
+      <KeyboardProvider preload={false}>
         <SafeAreaProvider>
           <ThemeProvider>
           <ThemedStatusBar />
