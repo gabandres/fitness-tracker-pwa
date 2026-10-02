@@ -214,18 +214,9 @@ export const ptBR = {
   'whatsNew.title': 'Novidades',
   'whatsNew.subtitle': 'O que mudou desde a última vez que você abriu o Ignia.',
   'whatsNew.continue': 'Continuar',
-  'whatsNew.fab.title': 'Toque em + para registrar',
-  'whatsNew.fab.body':
-    'Um toque em + abre a busca de alimentos. Segure para o menu com Escanear refeição. Coach e Marcos abrem como páginas inteiras das quais você pode deslizar para voltar.',
-  'whatsNew.undo.title': 'Apagou uma refeição sem querer? Desfaça',
-  'whatsNew.undo.body':
-    'Apagar uma entrada agora mostra um Desfazer de cinco segundos. Descartar um treino, remover um preset e sair da conta pedem confirmação.',
-  'whatsNew.weighins.title': 'Corrija uma pesagem antiga',
-  'whatsNew.weighins.body':
-    'Toque em qualquer pesagem no histórico de Corpo para corrigi-la ou apagar um erro de digitação, e um número errado deixa de torcer sua tendência.',
-  'whatsNew.metric.title': 'Água e altura nas suas unidades',
-  'whatsNew.metric.body':
-    'Contas métricas registram água em mililitros com atalhos de 250, 500 e 750, e a altura em centímetros.',
+  'whatsNew.mealTime.title': 'Mude o horário de uma refeição',
+  'whatsNew.mealTime.body':
+    'Ao editar um registro agora há uma linha de Horário: mova-o em uma hora ou cinco minutos e ele vai para a refeição daquele horário.',
   'update.ota.title': 'Atualização pronta',
   'update.ota.body': 'O Ignia reinicia para aplicá-la — alguns segundos.',
   'update.ota.action': 'Reiniciar',

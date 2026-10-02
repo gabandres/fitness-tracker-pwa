@@ -218,18 +218,9 @@ export const esPR: Record<I18nKey, string> = {
   'whatsNew.title': 'Novedades',
   'whatsNew.subtitle': 'Lo que cambió desde la última vez que abriste Ignia.',
   'whatsNew.continue': 'Continuar',
-  'whatsNew.fab.title': 'Toca + para registrar',
-  'whatsNew.fab.body':
-    'Un toque en + abre la búsqueda de alimentos. Mantenlo presionado para el menú con Escanear comida. Coach e Hitos abren como páginas completas desde las que puedes deslizar para volver.',
-  'whatsNew.undo.title': '¿Borraste una comida por error? Deshazlo',
-  'whatsNew.undo.body':
-    'Al borrar una entrada ahora aparece un Deshacer de cinco segundos. Descartar un entrenamiento, quitar un preset y cerrar sesión preguntan antes.',
-  'whatsNew.weighins.title': 'Corrige un pesaje anterior',
-  'whatsNew.weighins.body':
-    'Toca cualquier pesaje en el historial de Cuerpo para corregirlo o borrar un error, y un número equivocado ya no tuerce tu tendencia.',
-  'whatsNew.metric.title': 'Agua y estatura en tus unidades',
-  'whatsNew.metric.body':
-    'Las cuentas métricas registran el agua en mililitros con atajos de 250, 500 y 750, y la estatura en centímetros.',
+  'whatsNew.mealTime.title': 'Cambia la hora de una comida',
+  'whatsNew.mealTime.body':
+    'Al editar una entrada ahora hay una fila de Hora: muévela por una hora o cinco minutos y se archiva en la comida que corresponde a esa hora.',
   'update.ota.title': 'Actualización lista',
   'update.ota.body': 'Ignia se reinicia para aplicarla — unos segundos.',
   'update.ota.action': 'Reiniciar',

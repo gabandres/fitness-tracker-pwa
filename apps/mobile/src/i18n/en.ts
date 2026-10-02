@@ -249,18 +249,9 @@ export const en = {
   'whatsNew.continue': 'Continue',
   // One item per thing a person will NOTICE, in the order they meet it. Body
   // sentences carry the number that makes the feature usable, not a pitch.
-  'whatsNew.fab.title': 'Tap + to log',
-  'whatsNew.fab.body':
-    'One tap on + opens food search now. Hold it for the menu with Scan meal. Coach and Milestones open as full pages you can swipe back from.',
-  'whatsNew.undo.title': 'Deleted a meal by mistake? Undo it',
-  'whatsNew.undo.body':
-    'Deleting an entry now shows a five-second Undo. Discarding a workout, removing a preset and signing out ask first.',
-  'whatsNew.weighins.title': 'Fix a past weigh-in',
-  'whatsNew.weighins.body':
-    'Tap any weigh-in in Body history to correct it, or remove a typo, so one wrong number no longer bends your trend.',
-  'whatsNew.metric.title': 'Water and height in your units',
-  'whatsNew.metric.body':
-    'Metric accounts log water in millilitres with 250, 500 and 750 quick-adds, and enter height in centimetres.',
+  'whatsNew.mealTime.title': 'Change a meal\'s time',
+  'whatsNew.mealTime.body':
+    'Editing an entry now has a Time row: move it by an hour or five minutes, and it re-files under the meal that time belongs to.',
   'update.ota.title': 'Update ready',
   'update.ota.body': 'Ignia restarts to apply it — a few seconds.',
   'update.ota.action': 'Restart',

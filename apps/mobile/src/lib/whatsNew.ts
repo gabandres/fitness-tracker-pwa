@@ -137,7 +137,11 @@ import type { I18nKey } from '@/i18n';
 // exactly: the ITEMS are extended (`whatsNew.fab` leads the list) and the
 // version is left alone, so whoever has not yet seen the screen sees all four
 // rows and whoever dismissed it is not nagged twice in one day.
-export const WHATS_NEW_VERSION = '2026-09-28-undo-weighins-metric';
+// Bumped 2026-10-02: a logged meal's time is editable — a new control on the
+// entry sheet that nobody would find by accident. The same OTA's workout fix
+// (set edits no longer lost to a restart mid-session) is a correction and is
+// deliberately not listed, by the same rule as the 09-28 a11y fixes above.
+export const WHATS_NEW_VERSION = '2026-10-02-meal-time';
 
 const KEY = 'whatsNew.seen';
 
@@ -167,10 +171,7 @@ export interface WhatsNewItem {
 }
 
 export const WHATS_NEW_ITEMS: readonly WhatsNewItem[] = [
-  { icon: 'add-circle-outline', titleKey: 'whatsNew.fab.title', bodyKey: 'whatsNew.fab.body' },
-  { icon: 'arrow-undo-outline', titleKey: 'whatsNew.undo.title', bodyKey: 'whatsNew.undo.body' },
-  { icon: 'scale-outline', titleKey: 'whatsNew.weighins.title', bodyKey: 'whatsNew.weighins.body' },
-  { icon: 'water-outline', titleKey: 'whatsNew.metric.title', bodyKey: 'whatsNew.metric.body' },
+  { icon: 'time-outline', titleKey: 'whatsNew.mealTime.title', bodyKey: 'whatsNew.mealTime.body' },
 ];
 
 /**
