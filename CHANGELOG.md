@@ -6,6 +6,12 @@ ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 
 ## 2026-10-02 — lost RIR reproduced and fixed (device journal + OTA hold); food-entry time edit; Push/Leg Day template changes applied
 
+- **Delivery**: OTAs published from `ignia-mac` at `c908b6e4` — **iOS group
+  `9a7146d1-d912-47f1-8cf7-a70db1c0ac6a`** on runtime `1b239e44…` (build 67,
+  gate matched), **Android group `df784c63-f197-479a-8c60-07ad83482307`** on
+  `3e596c87…` (vc 46, runtime pinned then reverted). `WHATS_NEW_VERSION` →
+  `2026-10-02-meal-time`. Not device-verified.
+
 **Report:** 10-01 Push Day — Incline Dumbbell Press ×6 and Chest Dip ×3 stored no
 RIR while the other five lifts stored `rir: 0`; same shape as 09-29.
 **Root cause (reproduced, not proven from server logs):** the active workout
