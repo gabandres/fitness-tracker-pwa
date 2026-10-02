@@ -4,6 +4,23 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-10-02 — Sentry cleanup: the four older mobile issues closed, one fixed in code
+
+- **IGNIA-MOBILE-J** (App Hang ≥2 s at launch, iPhone SE 2 / iOS 18, build 64)
+  — `react-native-keyboard-controller`'s `<KeyboardProvider>` defaults
+  `preload` to true, which makes a hidden `UITextField` take first responder at
+  launch; the RemoteTextInput XPC handshake ran on the main thread. `_layout.tsx`
+  now passes `preload={false}`, locked by `keyboard-provider-no-preload.test.ts`
+  (red without the prop). OTAs: iOS `a00adf71`, Android `d10f0548`.
+- **IGNIA-MOBILE-X / -W** (Android `RemoteException` "Binding died" / "Binding
+  to service failed", one TECNO on vc 45) — already fixed 2026-09-28 (`28a24f8d`,
+  `isExpectedHealthState`), in vc 46 on Play production; resolved.
+- **IGNIA-MOBILE-D** (WatchdogTermination) — one surviving event on 1.2.0 build
+  45, none on 1.2.3/1.2.4; no stack from the killed run. Resolved without a
+  change, with a note: a recurrence reopens it as a regression.
+- Left open: **IGNIA-MOBILE-Y** (today's RCTNetworking crash, owner's phone, on
+  the 09-28 bundle) — one event inside React Native, watched.
+
 ## 2026-10-02 — lost RIR reproduced and fixed (device journal + OTA hold); food-entry time edit; Push/Leg Day template changes applied
 
 - **Delivery**: OTAs published from `ignia-mac` at `c908b6e4` — **iOS group
