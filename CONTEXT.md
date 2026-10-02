@@ -448,6 +448,25 @@ collections + a `WorkoutStore` facet back the Train tab.
   resume; there is at most **one active session** (enforced in
   `WorkoutStore.startSession`). The session's `date` is stored as the
   `timestamp` field at the seam.
+- **Set load** — `WorkoutSet.weight`, in pounds. On a lift that carries no
+  external load (a pull-up, a dip logged `weight-reps`) **`0` means "no added
+  load / no assistance" and ABSENT means "unknown"** — decided 2026-09-30, when
+  one pull-up stored 0 one week and nothing the next. Two things keep them
+  apart: a template gives such a lift `targetLoad: 0`, so a new session
+  pre-fills a real 0 rather than showing a grey "0" placeholder; and
+  `fillMissingClusterLoads` (at Finish) copies an explicit sibling 0 onto a
+  logged set that stored none. A set whose exercise carries no weight on any
+  row stays absent — nothing says what was lifted. The same `0`/absent
+  distinction holds for **RIR**: `0` is to failure (the standard, ADR-0039),
+  absent is "not recorded"; `set-zero-roundtrip.test.ts` pins both through
+  save and export.
+- **Exercise name snapshot** — the `name` on a template row and on each
+  session exercise is a copy taken when it was written; the catalog doc's
+  `name` is the third copy. Renaming in the app (`editExercise`) changes only
+  the catalog, so history and the CSV (which prints the session snapshot) keep
+  the old name. A rename that should show everywhere rewrites all three, keyed
+  by `exerciseId` (`scripts/template-updates-2026-09-30.mjs` is the precedent);
+  progression joins on `exerciseId`, so history survives either way.
 - **Cardio block** — The canonical term for one logged cardio effort: a run, a
   ride, a walk. Type `CardioBlock` in `packages/core/src/cardio.ts`, stored as
   `cardio: CardioBlock[]` **on the session**, beside `exercises[]`

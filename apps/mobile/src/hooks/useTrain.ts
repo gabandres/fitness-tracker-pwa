@@ -4,6 +4,13 @@ import { asError, feedChannel, useLedgerFeed } from '@/hooks/useLedgerFeed';
 import { finishWorkout as finishWorkoutOp } from '@/lib/ledger-ops';
 import { useAuth } from '@/lib/auth';
 import {
+  clearActiveSessionJournal,
+  journalActiveSession,
+  readActiveSessionJournal,
+  reconcileActiveSession,
+} from '@/lib/active-session-journal';
+import { useOtaHold } from '@/lib/ota-hold';
+import {
   addExercise as addExerciseDoc,
   addTemplate as addTemplateDoc,
   deleteExercise as deleteExerciseDoc,
@@ -208,6 +215,9 @@ export function useTrain(): TrainState {
     (next: WorkoutSession | null) => {
       activeRef.current = next;
       setActiveState(next);
+      // On the device BEFORE Firestore hears of it: the SDK's write queue is
+      // memory-only on RN and dies with the runtime (`active-session-journal.ts`).
+      if (uid && next) void journalActiveSession(uid, next);
       // Every write to `active` goes through here, which is what makes this
       // the one honest place to tell the rest of the app a workout is open.
       // Not a shared subscription (ADR-0016) — one boolean and a name, no
@@ -253,15 +263,28 @@ export function useTrain(): TrainState {
     // by a live subscription mid-typing. `alive()` is the feed's — a resolve
     // that lands after the tab blurred must not revive a torn-down screen.
     onOpen: ({ uid: u, alive, fail }) => {
-      getActiveSession(u)
-        .then((session) => {
+      Promise.all([getActiveSession(u), readActiveSessionJournal(u)])
+        .then(([server, journal]) => {
           // Not while a COMPLETED session is open for editing. `reopenSession`
           // loads it into `active` without changing its status, so this query
           // answers `null` on every refocus — and writing that through closed
           // the editor while `editingExisting` and the Cancel snapshot stayed
           // set, leaving the NEXT workout started wearing the edit chrome:
           // "Done" then never marked it completed.
-          if (alive() && !editOriginal.current) setActive(session);
+          if (!alive() || editOriginal.current) return;
+          // A refocus of the SAME workout keeps the copy in memory. Every
+          // write to that session came from it, so the server's can only be
+          // equal or behind — behind by any deferred edit not yet committed,
+          // or by writes still queued on a slow connection. Replacing it threw
+          // those away, and the next whole-array write made it permanent.
+          const local = activeRef.current;
+          if (local?.id && server?.id === local.id) return;
+          // A fresh mount (cold start, OTA reload): the device journal wins
+          // when it is newer than the server's last write, and is written back
+          // so Firestore gets the edits a dead runtime never sent.
+          const { session, resync } = reconcileActiveSession(server, journal);
+          setActive(session);
+          if (session && resync) void persist(session);
         })
         .catch(fail);
     },
@@ -299,6 +322,12 @@ export function useTrain(): TrainState {
         : [],
     deps: [uid],
   });
+
+  // A workout in progress is not a moment to restart the runtime: an OTA
+  // `reloadAsync` drops every set edit still queued in the SDK's memory-only
+  // write queue (2026-10-02, `active-session-journal.ts`). Deferred, not
+  // cancelled — it applies on the next foreground after Finish or Discard.
+  useOtaHold(active?.status === 'active');
 
   // `feed.answered.sessions` replaces a plain `loading` flag, and the
   // distinction is the bug it fixes. The old flag started true and was cleared
@@ -686,6 +715,9 @@ export function useTrain(): TrainState {
         // ADR-0030: the boundary is derived here, from the profile the auth
         // context already holds, and passed down rather than re-read.
         await finishWorkoutOp(uid, active, dayBoundaryOf(profile), extras);
+        // Only once the completed write has landed: cleared earlier, a restart
+        // in between would bring back the server's stale active copy alone.
+        void clearActiveSessionJournal(uid);
         setActive(null);
         return true;
       } catch (e) {
@@ -711,6 +743,8 @@ export function useTrain(): TrainState {
     // write to the doc the delete is in the middle of removing. With the ref
     // already null, `dispatch`/`commitActive` see no session and write nothing.
     setActive(null);
+    // The user asked for it gone; a journal must not bring it back.
+    void clearActiveSessionJournal(uid);
     try {
       await deleteSessionDoc(uid, active.id);
     } catch (e) {

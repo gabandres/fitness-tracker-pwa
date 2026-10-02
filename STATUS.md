@@ -81,6 +81,11 @@ clears 46 — they hold neither `2227698c` nor either 09-28 ship, and **no OTA c
 reach them from this Mac** (the Windows-built runtime). Do not publish for vc 45;
 the 46 review is the delivery. Functions and rules are deployed.
 
+**Except the 2026-09-30 and 2026-10-02 fixes** (CHANGELOG): Body save errors,
+the analytics double-count, the bodyweight-zero fill at Finish; the active-
+workout journal + OTA hold (lost RIR) and the food-entry time edit. JS-only —
+OTA-eligible on both runtimes, **uncommitted and not yet published**.
+
 Re-derive rather than trust this line: `git log --oneline` against the newest
 OTA row in `apps/mobile/docs/fingerprint-ledger.md`, and
 `node scripts/app-version-sync.mjs --check` for the live store numbers.
@@ -134,6 +139,17 @@ iPhone** — `simctl` never drew it. The lockfile rewrite on the Mac stands:
   `apps/mobile/scripts/phone.sh` attaches, wakes and unlocks it and prints the
   adb id (ported from PoolFlow 2026-09-28; same phone, serial `49bae1ea`).
   It now holds the adb-installed vc 46 (`installerPackageName=pc`, data wiped by the reinstall); **reinstall it from Play once 46 is on a track it can see**, so the next Android OTA can be proven the PoolFlow way (`DownloadComplete` in logcat).
+
+### Lost set edits mid-workout — fix written, NOT shipped (2026-10-02)
+
+Whole exercises' RIR vanished on 09-29 and 10-01 (CHANGELOG 2026-10-02):
+unacknowledged writes die with a runtime restart (OTA auto-apply took no hold
+during a workout; iOS process kills), and Train re-adopted the server copy.
+Reproduced in `train.active-session-journal.test.ts`; fixed by a device
+journal of the active session (`lib/active-session-journal.ts`), an OTA hold
+while a workout is open, and a refocus that keeps the in-memory copy. Reaches
+nobody until the OTA. Owner data APPLIED 2026-10-02
+(`scripts/backfill-2026-10-02.mjs`, `scripts/template-updates-2026-10-02.mjs`).
 
 ### `ExerciseLibrarySheet` rows are untappable on iOS — cause UNKNOWN
 

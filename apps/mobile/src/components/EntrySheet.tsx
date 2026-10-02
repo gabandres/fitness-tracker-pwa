@@ -21,7 +21,9 @@ import {
   buildCustomFood,
   buildMealPreset,
   macroEnergyMismatch,
+  mealTypeAfterRetime,
   scaleCustomFood,
+  shiftTimeOfDay,
 } from '@macrolog/core';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { BottomSheet } from '@/components/BottomSheet';
@@ -39,7 +41,7 @@ import { clearLogTimer, startLogTimer } from '@/lib/log-timer';
 import type { EntryPrefill } from '@/lib/entry-prefill';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
-import { formatDate } from '@/lib/date-format';
+import { formatDate, formatTime } from '@/lib/date-format';
 
 interface Props {
   visible: boolean;
@@ -78,6 +80,17 @@ interface Props {
    *  time the sheet opens for an ADD while set; the owner clears it on close. */
   initialPrefill?: EntryPrefill | null;
 }
+
+/** The time row's four steppers, earliest first. Hour and five-minute steps:
+ *  12:00 → 4:15 PM is seven taps, where a single 15-minute step took
+ *  seventeen. JS only on purpose — a native picker would move the runtime
+ *  fingerprint and cost a store build for one control. */
+const TIME_STEPS = [
+  { minutes: -60, label: 'entry.timeMinusHour', a11y: 'entry.timeEarlierHourA11y', testID: 'entry-time-minus-hour' },
+  { minutes: -5, label: 'entry.timeMinusMin', a11y: 'entry.timeEarlierMinA11y', testID: 'entry-time-minus-min' },
+  { minutes: 5, label: 'entry.timePlusMin', a11y: 'entry.timeLaterMinA11y', testID: 'entry-time-plus-min' },
+  { minutes: 60, label: 'entry.timePlusHour', a11y: 'entry.timeLaterHourA11y', testID: 'entry-time-plus-hour' },
+] as const;
 
 /** Local noon on a YYYY-MM-DD. Noon (not midnight) so a backdated entry can't
  *  bleed into the previous day under a negative UTC offset — matches the CSV
@@ -163,6 +176,15 @@ export function EntrySheet({
   // the "now" timestamp and hide the row.
   const [entryDate, setEntryDate] = useState<Date>(new Date());
   const showDateRow = editing != null || dateKey != null;
+  // Whether the meal chips were tapped in THIS sheet. A time edit re-derives
+  // a clock-defaulted slot (`mealTypeAfterRetime`); once the user has picked
+  // one by hand, the clock no longer gets a say.
+  const [mealTouched, setMealTouched] = useState(false);
+  // The slot and time the entry OPENED with. Each time step is judged against
+  // these, not against the previous step: stepping 12:00 → 6 PM an hour at a
+  // time passes through the snack band, and a per-step rule would turn a
+  // deliberate noon Snack into Dinner on the way.
+  const [retimeOrigin, setRetimeOrigin] = useState<{ mealType?: MealType; at: Date }>({ at: new Date() });
   const [busy, setBusy] = useState(false);
   const [manage, setManage] = useState(false);
   const [mode, setMode] = useState<'browse' | 'custom' | 'recipe' | 'recipeImport' | 'meal'>('browse');
@@ -204,7 +226,10 @@ export function EntrySheet({
     setCarbs(editing?.carbs != null ? String(editing.carbs) : '');
     setFat(editing?.fat != null ? String(editing.fat) : '');
     setMealType(editing?.mealType);
-    setEntryDate(editing?.date ?? (dateKey ? noonOf(dateKey) : new Date()));
+    setMealTouched(false);
+    const openedAt = editing?.date ?? (dateKey ? noonOf(dateKey) : new Date());
+    setEntryDate(openedAt);
+    setRetimeOrigin({ mealType: editing?.mealType, at: openedAt });
     setBusy(false);
     setManage(false);
     setPendingServing(null);
@@ -237,6 +262,22 @@ export function EntrySheet({
       next.setDate(next.getDate() + deltaDays);
       return next.getTime() > Date.now() ? prev : next;
     });
+  }
+
+  /**
+   * Move the entry's time of day (2026-10-02: a bar eaten ~4:15 PM sat at
+   * the 12:00 a past-day add stamps, with no way to fix it). Stays on the
+   * date row's day and out of the future (`shiftTimeOfDay`), and carries a
+   * clock-defaulted meal slot along — 12:00 Lunch → 4:15 PM Snack — so the
+   * entry re-files where the diary would have put it. A slot picked by hand,
+   * here or when it was logged, stays put.
+   */
+  function shiftEntryTime(deltaMinutes: number) {
+    const next = shiftTimeOfDay(entryDate, deltaMinutes, new Date());
+    if (next.getTime() === entryDate.getTime()) return;
+    haptics.tap();
+    if (!mealTouched) setMealType(mealTypeAfterRetime(retimeOrigin.mealType, retimeOrigin.at, next));
+    setEntryDate(next);
   }
 
   /** Prefill the manual form from an estimate (search portion, recipe,
@@ -762,7 +803,10 @@ export function EntrySheet({
                           <TouchableOpacity
                             key={mt}
                             style={[styles.chip, on && styles.chipOn]}
-                            onPress={() => setMealType(on ? undefined : mt)}
+                            onPress={() => {
+                              setMealTouched(true);
+                              setMealType(on ? undefined : mt);
+                            }}
                             // 36dp chip + 4 slop = 44 (S18-15); chips sit 8dp apart.
                             hitSlop={4}
                             accessibilityRole="button"
@@ -797,6 +841,42 @@ export function EntrySheet({
                         >
                           <Text style={styles.dateStepText}>+</Text>
                         </TouchableOpacity>
+                      </View>
+                    </Field>
+                  ) : null}
+
+                  {showDateRow ? (
+                    <Field label={t('entry.time')}>
+                      <View style={styles.dateRow}>
+                        {TIME_STEPS.slice(0, 2).map((st) => (
+                          <TouchableOpacity
+                            key={st.minutes}
+                            style={[styles.dateStep, styles.timeStep]}
+                            onPress={() => shiftEntryTime(st.minutes)}
+                            hitSlop={2}
+                            accessibilityRole="button"
+                            accessibilityLabel={t(st.a11y)}
+                            testID={st.testID}
+                          >
+                            <Text style={styles.timeStepText}>{t(st.label)}</Text>
+                          </TouchableOpacity>
+                        ))}
+                        <Text style={styles.dateLabel} testID="entry-time">
+                          {formatTime(entryDate, locale)}
+                        </Text>
+                        {TIME_STEPS.slice(2).map((st) => (
+                          <TouchableOpacity
+                            key={st.minutes}
+                            style={[styles.dateStep, styles.timeStep]}
+                            onPress={() => shiftEntryTime(st.minutes)}
+                            hitSlop={2}
+                            accessibilityRole="button"
+                            accessibilityLabel={t(st.a11y)}
+                            testID={st.testID}
+                          >
+                            <Text style={styles.timeStepText}>{t(st.label)}</Text>
+                          </TouchableOpacity>
+                        ))}
                       </View>
                     </Field>
                   ) : null}
@@ -1022,6 +1102,9 @@ const createStyles = ({ scheme, colors, shadow }: Theme) => StyleSheet.create({
   savePreset: { alignSelf: 'flex-start', paddingVertical: space.xs, flexDirection: 'row', alignItems: 'center', gap: space.xs },
   savePresetText: { fontSize: font.small, color: colors.teal, fontWeight: '700' },
   dateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.md },
+  // Wider than the date row's ± so "+5 min" fits on one line.
+  timeStep: { width: undefined, minWidth: 52, paddingHorizontal: space.xs },
+  timeStepText: { fontSize: font.small, fontWeight: '700', color: colors.ink },
   dateStep: { width: 40, height: 40, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
   dateStepDisabled: { opacity: 0.4 },
   dateStepText: { fontSize: font.h3, color: colors.ink, fontWeight: '700' },

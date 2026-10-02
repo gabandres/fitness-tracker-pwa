@@ -414,9 +414,15 @@ export function isLoggedSet(s: WorkoutSet, logStyle: LogStyle = DEFAULT_LOG_STYL
  * training, where the activation + mini rows share one weight, and the common
  * data-entry gap where a row gets reps + RIR but the weight is left blank.
  *
- * Exercises with no loaded set are left untouched, so a genuine bodyweight /
- * isometric move (pull-up, plank — often mis-catalogued as `weight-reps`) keeps
- * its legitimate 0, and `time`/`bodyweight` styles are skipped entirely. Pure;
+ * Exercises with no loaded set keep their legitimate 0, so a genuine
+ * bodyweight / isometric move (pull-up, plank — often mis-catalogued as
+ * `weight-reps`) is never given a load it did not carry, and `time`/`bodyweight`
+ * styles are skipped entirely. On such an exercise a logged set that stored NO
+ * weight inherits an explicit sibling `0`: for a bodyweight lift `0` means "no
+ * added load" and absent means "unknown" (CONTEXT.md, "Set load"), and one row
+ * left blank beside two typed 0s is the grey `0` placeholder, not an unknown —
+ * 2026-09-23's pull-up stored 0, 0, (none). An exercise where no set carries
+ * any weight is left alone: nothing says what the load was. Pure;
  * apply alongside {@link isLoggedSet}-based pruning so a reps-but-no-weight row
  * can't persist into a completed session (ADR-0012: both apps call this).
  */
@@ -428,12 +434,15 @@ export function fillMissingClusterLoads<
     const style = ex.logStyle ?? DEFAULT_LOG_STYLE;
     if (style !== 'weight-reps') return ex;
     const maxWeight = ex.sets.reduce((m, s) => Math.max(m, s.weight ?? 0), 0);
-    if (maxWeight <= 0) return ex; // no loaded sibling → bodyweight/isometric; 0 is correct
+    // No loaded sibling → bodyweight/isometric: 0 is correct, and the only gap
+    // worth closing is a blank beside an explicit 0.
+    const fill = maxWeight > 0 ? maxWeight : ex.sets.some((s) => s.weight === 0) ? 0 : null;
+    if (fill == null) return ex;
     let changed = false;
     const sets = ex.sets.map((s): S => {
-      if (isLoggedSet(s, style) && (s.weight == null || s.weight <= 0)) {
+      if (isLoggedSet(s, style) && (s.weight == null || (fill > 0 && s.weight <= 0))) {
         changed = true;
-        return { ...s, weight: maxWeight };
+        return { ...s, weight: fill };
       }
       return s;
     });

@@ -113,3 +113,45 @@ export function withDefaultMealSlot(entry: LogEntry, at: Date): LogEntry {
   if (entry.mealType != null || !isMealRow(entry)) return entry;
   return { ...entry, mealType: slotForTime(entry.timestamp ?? at) };
 }
+
+/**
+ * Move a logged entry's time by `deltaMinutes`, staying on its calendar day
+ * and never past `now`.
+ *
+ * The day is the date row's job (`EntrySheet` steps it separately), so a time
+ * edit that ran past midnight would be a second, hidden way to move an entry
+ * to another day — clamped at 00:00 and 23:59 instead. Seconds are dropped:
+ * the control steps in minutes and an entry restamped to 4:15 should read
+ * 4:15, not 4:15:37.
+ */
+export function shiftTimeOfDay(at: Date, deltaMinutes: number, now: Date = new Date()): Date {
+  const next = new Date(at.getTime() + deltaMinutes * 60_000);
+  next.setSeconds(0, 0);
+  const dayStart = new Date(at.getFullYear(), at.getMonth(), at.getDate(), 0, 0, 0, 0);
+  const dayEnd = new Date(at.getFullYear(), at.getMonth(), at.getDate(), 23, 59, 0, 0);
+  const ceiling = new Date(Math.min(dayEnd.getTime(), now.getTime()));
+  ceiling.setSeconds(0, 0);
+  if (next.getTime() < dayStart.getTime()) return dayStart;
+  if (next.getTime() > ceiling.getTime()) return ceiling < dayStart ? dayStart : ceiling;
+  return next;
+}
+
+/**
+ * The meal slot an entry should carry after its time moves from `before` to
+ * `after`.
+ *
+ * Re-derived from the clock ONLY when the slot it had was the clock's own
+ * answer for `before` — i.e. it was defaulted ({@link withDefaultMealSlot}), or
+ * agrees with the default. A slot that disagrees with its time was a choice
+ * (a noon cookie filed under Snack), and a time edit is not a reason to undo
+ * it. An untagged entry stays untagged: `other` means "no slot", not "unknown
+ * slot". The sheet shows the chips update live, so the user can still override.
+ */
+export function mealTypeAfterRetime(
+  mealType: MealType | undefined,
+  before: Date,
+  after: Date,
+): MealType | undefined {
+  if (mealType == null) return undefined;
+  return mealType === slotForTime(before) ? slotForTime(after) : mealType;
+}

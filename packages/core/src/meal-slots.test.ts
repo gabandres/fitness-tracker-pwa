@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { groupByMealSlot, isMealRow, slotForTime, withDefaultMealSlot } from './meal-slots';
+import {
+  groupByMealSlot,
+  isMealRow,
+  mealTypeAfterRetime,
+  shiftTimeOfDay,
+  slotForTime,
+  withDefaultMealSlot,
+} from './meal-slots';
+import { toLogPatch, type DocCodec } from './firestore-writers';
 import type { DailyLog, MealType } from './types';
 
 function log(calories: number, mealType?: MealType): DailyLog {
@@ -122,5 +130,74 @@ describe('withDefaultMealSlot', () => {
     const a = withDefaultMealSlot({ calories: 300, timestamp: new Date(2026, 7, 9, 12, 52) }, noon);
     const b = withDefaultMealSlot({ calories: 300, timestamp: new Date(2026, 7, 9, 12, 54) }, noon);
     expect(a.mealType).toBe(b.mealType);
+  });
+});
+
+describe('shiftTimeOfDay', () => {
+  const now = new Date(2026, 9, 2, 13, 0, 30);
+
+  it('moves within the day and drops seconds', () => {
+    const at = new Date(2026, 9, 1, 12, 0, 0);
+    expect(shiftTimeOfDay(at, 4 * 60 + 15, now)).toEqual(new Date(2026, 9, 1, 16, 15, 0));
+    expect(shiftTimeOfDay(new Date(2026, 9, 1, 12, 21, 42), 5, now)).toEqual(new Date(2026, 9, 1, 12, 26, 0));
+  });
+
+  it('never leaves the calendar day (the date row moves days)', () => {
+    expect(shiftTimeOfDay(new Date(2026, 9, 1, 23, 30), 60, now)).toEqual(new Date(2026, 9, 1, 23, 59));
+    expect(shiftTimeOfDay(new Date(2026, 9, 1, 0, 30), -60, now)).toEqual(new Date(2026, 9, 1, 0, 0));
+  });
+
+  it('never moves into the future', () => {
+    expect(shiftTimeOfDay(new Date(2026, 9, 2, 12, 30), 60, now)).toEqual(new Date(2026, 9, 2, 13, 0));
+  });
+});
+
+describe('mealTypeAfterRetime', () => {
+  const noon = new Date(2026, 9, 1, 12, 0);
+  const afternoon = new Date(2026, 9, 1, 16, 15);
+
+  it('a clock-defaulted slot follows the new time (10-01 cookie bar: lunch → snack)', () => {
+    expect(mealTypeAfterRetime('lunch', noon, afternoon)).toBe('snack');
+  });
+
+  it('a slot that disagreed with its time was a choice and is kept', () => {
+    expect(mealTypeAfterRetime('dinner', noon, afternoon)).toBe('dinner');
+  });
+
+  it('untagged stays untagged', () => {
+    expect(mealTypeAfterRetime(undefined, noon, afternoon)).toBeUndefined();
+  });
+});
+
+describe('a time edit re-sorts the day', () => {
+  it('10-01: the cookie bar moved 12:00 → 16:15 leaves Lunch and lands in Snack, in time order', () => {
+    const at = (h: number, m: number) => new Date(2026, 9, 1, h, m);
+    const row = (id: string, date: Date, mealType: MealType): DailyLog => ({ ...log(100, mealType), id, date });
+    const day = [
+      row('stack', at(8, 32), 'breakfast'),
+      row('cookie', at(12, 0), 'lunch'),
+      row('kirkland', at(12, 21), 'lunch'),
+      row('casein', at(17, 47), 'dinner'),
+      row('yogurt', at(16, 40), 'snack'),
+    ];
+    const before = day[1].date;
+    const after = shiftTimeOfDay(before, 4 * 60 + 15, new Date(2026, 9, 2, 9, 0));
+    const edited = day.map((l) =>
+      l.id === 'cookie' ? { ...l, date: after, mealType: mealTypeAfterRetime(l.mealType, before, after) } : l,
+    );
+    // Today and the day-detail screen list a day oldest-first (`useToday`).
+    const sorted = [...edited].sort((a, b) => a.date.getTime() - b.date.getTime());
+    expect(sorted.map((l) => l.id)).toEqual(['stack', 'kirkland', 'cookie', 'yogurt', 'casein']);
+    expect(groupByMealSlot(sorted).map((g) => [g.slot, g.entries.map((l) => l.id)])).toEqual([
+      ['breakfast', ['stack']],
+      ['lunch', ['kirkland']],
+      ['dinner', ['casein']],
+      ['snack', ['cookie', 'yogurt']],
+    ]);
+    // ...and the edit reaches the stored row: `updateLog` writes this patch.
+    const codec: DocCodec<string> = { timestamp: (d) => d.toISOString(), remove: () => null };
+    const cookie = edited.find((l) => l.id === 'cookie')!;
+    const patch = toLogPatch({ calories: cookie.calories, mealType: cookie.mealType, timestamp: cookie.date }, codec);
+    expect(patch).toMatchObject({ timestamp: after.toISOString(), mealType: 'snack' });
   });
 });

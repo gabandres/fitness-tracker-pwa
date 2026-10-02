@@ -62,32 +62,38 @@ function ledgerRecordUsage(): RecordUsage {
 const FLUSH_INTERVAL_MS = 5 * 60 * 1000;
 
 /**
- * How long a flush may run before it is treated as failed.
- *
- * ## Why this is not optional
+ * How long a flush may hold its caller before giving up WAITING.
  *
  * **Firestore's `setDoc` does not reject when it cannot reach the backend — it
- * waits, indefinitely.** `quick-add.ts` documents this at length for meals; the
- * same fact applies here and was missed. Without a deadline the flush's `catch`
- * is unreachable, so the buffer — already swapped out and cleared — is held by a
- * promise that never settles, and a process death takes the counts with it.
+ * waits, indefinitely** (`quick-add.ts` documents this at length for meals).
+ * Without a deadline the flush's `catch` was unreachable and a sign-out flush
+ * could hang its caller forever.
  *
- * Confirmed in production 2026-08-13, not theorised: an airplane-mode test
- * logged a meal, backgrounded, and force-quit. The meal itself survived (it had
- * a deadline and a durable queue). Its `log_queued_offline` count did not, and
- * the day's document came back carrying `app_open` alone.
+ * **A deadline is not a failure, and until 2026-09-30 this treated it as one.**
+ * The timed-out write is still in the SDK's queue and lands the moment the
+ * connection returns — it is an `increment`, so putting its counts back in the
+ * buffer and flushing them again counted them TWICE. On a slow gym network it
+ * compounded: the owner's 2026-09-29 row read `workout_finished: 4` for one
+ * finished workout (and 09-03 read 2). Re-buffering also bought no durability:
+ * the buffer lives in memory exactly like the SDK's queue (the RN SDK has no
+ * persistent cache), so a process death loses both — which is what the
+ * 2026-08-13 airplane-mode test actually showed.
  *
- * Shorter than the log path's deadline because nothing waits on this: analytics
- * is fire-and-forget, and a fast give-up simply means the counts ride along on
- * the next flush instead.
+ * So after a deadline the counts are LEFT with the pending write, and restored
+ * only if that write later rejects outright. A rejection inside the deadline
+ * (permission-denied, a dead session) restores immediately, as before.
  */
 const FLUSH_DEADLINE_MS = 4000;
 
-/** Reject once the deadline passes, converting a hang into the failure the
- *  restore path below already handles. */
+/** Rejected by {@link withDeadline} — the write is still pending, not failed.
+ *  One instance compared by identity: an `Error` subclass is not reliably
+ *  `instanceof`-checkable once Babel transpiles the class. */
+const FLUSH_DEADLINE = new Error('analytics flush deadline');
+
+/** Reject once the deadline passes, so a hang cannot hold the caller. */
 function withDeadline<T>(p: Promise<T>, ms: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('analytics flush deadline')), ms);
+    const timer = setTimeout(() => reject(FLUSH_DEADLINE), ms);
     p.then(
       (v) => { clearTimeout(timer); resolve(v); },
       (e) => { clearTimeout(timer); reject(e); },
@@ -150,19 +156,25 @@ export async function flush(): Promise<void> {
   const day = bufferDay;
   const account = uid;
   buffer = {};
-  try {
-    await withDeadline(ledgerRecordUsage()(account, day, platform, sending), FLUSH_DEADLINE_MS);
-  } catch {
-    // Put them back, unless the day has since rolled — a stale day's counts are
-    // not worth carrying into a document they do not belong to — or the
-    // ACCOUNT has: sign-out flushes and then clears `uid`, so a write that
-    // times out offline would otherwise land its counts back in a buffer the
-    // next sign-in inherits, and be written under whoever that is.
+  // Put counts back, unless the day has since rolled — a stale day's counts are
+  // not worth carrying into a document they do not belong to — or the ACCOUNT
+  // has: sign-out flushes and then clears `uid`, so a failed write would
+  // otherwise land its counts back in a buffer the next sign-in inherits, and
+  // be written under whoever that is.
+  const restore = () => {
     if (day === bufferDay && account === uid) {
       for (const [event, count] of Object.entries(sending)) {
         buffer = addUsageCount(buffer, event as UsageEvent, count);
       }
     }
+  };
+  const write = ledgerRecordUsage()(account, day, platform, sending);
+  try {
+    await withDeadline(write, FLUSH_DEADLINE_MS);
+  } catch (e) {
+    // Still queued: it lands on reconnect. Restore only if it fails for real.
+    if (e === FLUSH_DEADLINE) write.catch(restore);
+    else restore();
   }
 }
 

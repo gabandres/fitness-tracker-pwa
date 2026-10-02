@@ -4,6 +4,119 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-10-02 — lost RIR reproduced and fixed (device journal + OTA hold); food-entry time edit; Push/Leg Day template changes applied
+
+**Report:** 10-01 Push Day — Incline Dumbbell Press ×6 and Chest Dip ×3 stored no
+RIR while the other five lifts stored `rir: 0`; same shape as 09-29.
+**Root cause (reproduced, not proven from server logs):** the active workout
+lived only in memory — React state plus the RN Firestore SDK's memory-only write
+queue. A runtime restart while set edits are still queued (an OTA
+`reloadAsync` on foreground, which a workout did NOT hold off — only the photo
+scan took an `ota-hold`; or iOS killing the backgrounded app) drops them; Train
+remounts on the server copy; the next whole-array session write makes the loss
+permanent. It is per-exercise and intermittent because it needs a restart while
+a stretch of edits is unacknowledged, and RIR is the last thing entered for a
+lift. Not a falsy-zero check: the surviving rows keep insertion order
+`…reps, rir`, and every zero path is now pinned. Sentry has no events for the
+account in the window, and EAS insights are not per device, so which restart
+fired on the owner's phone is unknowable.
+
+**Fix (mobile, JS-only):** `lib/active-session-journal.ts` writes every active-
+session state to AsyncStorage before Firestore; on load `reconcileActiveSession`
+prefers it when newer than the server's `updatedAt` (same device clock) and
+writes it back; never resurrects a finished/discarded session. `useTrain` takes
+`useOtaHold` while a workout is active, and a refocus of the same session keeps
+the in-memory copy instead of the server's (which also lost uncommitted typed
+loads/reps). Tests: `train.active-session-journal.test.ts` (red on the pre-fix
+hook with exactly the 10-01 shape, six `undefined` RIRs; green after) and
+`train.zero-persistence.test.ts` (RIR 0 and load 0 through create, live
+logging, edit, reorder-equivalents, Finish and the restart replay, each replayed
+through the real writer + reader).
+
+**Food-entry time edit:** `EntrySheet` gains a Time row (−1 h / −5 min / +5 min /
++1 h, JS only — a native picker would move the fingerprint) wherever the date
+row shows (edit, past-day add). Stays on the date row's day and out of the
+future (`shiftTimeOfDay`); a clock-defaulted meal slot re-files from the
+time the sheet opened with (`mealTypeAfterRetime`: 12:00 Lunch → 4:15 PM Snack),
+a hand-picked slot never moves. Three locales. Tests: `entry-sheet-time-edit.test.tsx`,
+`meal-slots.test.ts` (persist via `toLogPatch` + day re-sort).
+
+**Owner data — APPLIED 2026-10-02 on the owner's go, re-runs read "Nothing to do":**
+`scripts/backfill-2026-10-02.mjs` (`rir: 0` on the 9 listed 10-01 rows; 09-29
+calf rows already 0 from 09-30) and `scripts/template-updates-2026-10-02.mjs`
+(Push Day: dip → new Deficit Push-up @0 ×1 cluster, shoulder press 50 → 70,
+flat press 20 → 25; Leg Day: Plank out, Standing calf raise → new Single-leg DB
+calf raise @25 ×2 clusters, new Hanging Knee Raise @0 ×1 after the crunch; the
+09-29 calf entry relabeled to the new exercise id). `exercise-relabel.test.ts`
+pins that progress/PRs do not join across the relabel.
+
+## 2026-09-30 — the missing RIR was never written; owner-account repairs; zero pinned end to end
+
+**Investigation (report: "RIR 0 not saved on 09-29, load null, no 09-28 weigh-in, no measurements since 08-30").**
+Read straight from Firestore: the twelve 09-29 sets (Leg Extensions ×3, Standing
+calf raise ×3, Weighted Floor Crunch ×6) have **no `rir` key at all** — not
+null — so neither the export nor any reader caused it. No falsy-zero check
+exists on the path: picker (`clampRir(0)` → 0), reducer, `toSessionPatch`,
+`pruneUndefined`, reader and `buildCsv` all keep 0, and the same session stored
+`rir: 0` on the other three lifts. **Root cause NOT proven.** The strongest
+candidate is a lost write: the RN Firestore SDK holds unsent writes in memory
+only, and 09-29 had a bad connection (below); a process death drops the tail,
+and the next whole-array session write cements the loss. Server-side proof is
+impossible — Data Access audit logs are off. 09-16's hammer curl (Android) is
+the same shape. **Load**: the 09-24 Skull Crusher stored no weight on any set,
+and pull-ups stored 0 / 0 / (none) on 09-23 and nothing on 09-30 — an empty load
+cell shows a grey "0" (or last week's number) that reads exactly like a typed
+value. **Plank**: 09-21's 100 s was a live save (the 09-21 backfill found it
+there); 09-08 (67 s) and 09-15 (92 s) are stored and exported; 09-29's Plank
+was removed from the session (Finish never drops an exercise entry). **Weigh-in
+and tape**: nothing in Firestore, no `weight_logged` event, no Sentry — entered
+or not is unknowable. **Mixed loads**: the engine reads load from the
+activation only, so 09-30's hammer curl (8 @ 20, 3 @ 15, 2 @ 20) reads VALID at
+20 — mini loads are never looked at.
+
+**Found on the way — analytics double-counted on slow networks.** `flush()`
+re-buffered its counts when the 4 s deadline fired, but the timed-out
+`increment` was still queued and landed later: 09-29 read `workout_finished: 4`
+for one workout. Re-buffering bought no durability (both live in memory). Now
+the counts stay with the pending write and come back only if it rejects
+(`analytics.ts`, `analytics-flush.test.ts`).
+
+**Data (owner's account, owner-confirmed values):** `scripts/backfill-2026-09-30.mjs`
+— `rir: 0` on the twelve sets, `dailyWeights/2026-09-28 = 156.4`, measurements
+09-14 (waist 32.25 / neck 14.5) and 09-28 (32.00 / 14.5). Replay (`dailyTargets`
++ `latestNavyBodyFat`, now = 09-30): measured TDEE **2043 → 2032** kcal
+(slope −0.0367 → −0.0336 lb/day), calorie target **1800 → 1800**, body fat
+**15.9% → 15.3%**. Engine: Leg Extensions and calf raise go from `rir-missing`
+to valid; the crunch goes to `first-mini-too-many` (7 > 5), matching the
+owner's "too easy". `scripts/template-updates-2026-09-30.mjs` — Leg Day crunch
+25→30, leg extensions 60→80, leg curls 70→80; Pull Day seated row 90→100 and
+renamed **Seated Machine Row**, chest-supported row 30→35, "DB bicep curl"
+renamed **Incline DB Curl 45°**; pull-up and chest dip `targetLoad: 0`. Renames
+rewrite catalog + template rows + 14 session snapshots each (the earlier bicep
+rename had never been applied anywhere, and an in-app rename touches only the
+catalog — CONTEXT.md "Exercise name snapshot").
+
+Then `scripts/backfill-bodyweight-zero-2026-09-30.mjs` applied that
+representation to the pull-up's history: it has never carried a positive load
+in 16 sessions, so 13 logged sets with no weight (08-12, 08-27, 09-09, 09-23
+set 3, 09-30) now store `0`. The owner then supplied the rest
+(`scripts/backfill-known-loads-2026-09-30.mjs`): plank is bodyweight → `0` on
+08-24, 09-08, 09-15, 09-21 (June–July already stored 0); chest dips carry no
+assistance → `0` on 09-11 and 09-17; Skull Crusher is always 15 → 09-24's three
+sets, and the Push Day template's Skull Crusher `targetLoad` → 15 so the cell no
+longer starts empty. No plank DURATION was invented — 09-29 still has no plank.
+
+**Code:** bodyweight load is `0` = no added load, absent = unknown (CONTEXT.md
+"Set load"); `fillMissingClusterLoads` copies an explicit sibling 0 onto a blank
+logged set. The Body weigh-in and measurement sheets catch a rejected save and
+say so (`body.saveErr`, three locales) instead of an unhandled rejection.
+Regression guards: `packages/core/src/set-zero-roundtrip.test.ts` (reducer →
+writer → JSON round trip → reader → CSV; verified red against a planted falsy
+check in `escape` and in `clampRir`) and `apps/mobile/src/__tests__/train.zero-values.test.tsx`
+(real taps on the RIR "0" chip and a typed "0" load, replayed to the CSV).
+Gates: core 1,693 + typecheck, mobile `tsc` clean, jest 137 suites / 1,091.
+**Not published** — JS-only, OTA-eligible.
+
 ## 2026-09-28 — a Sentry triage, a scored UX audit (69/100), 38 review fixes, then the S18 ship — iOS OTA LIVE on 1.2.4, functions + rules DEPLOYED
 
 - **Delivery**: functions and `firestore.rules` deployed 2026-09-28 ~12:50 UTC (`onSubscriptionWritten` deleted with `--force`). **iOS OTA group `b2d0205b-de3f-42ba-b74a-2d481a563396`** published from `ignia-mac` at `cb4a287a` on runtime `1b239e44…` = build 67 / **1.2.4, which went live on the App Store the same morning** — the first OTA on the 1.2.4 runtime. `WHATS_NEW_VERSION` bumped to `2026-09-28-undo-weighins-metric` (three items: Undo, past weigh-ins, metric water/height). Rollback: `eas update:republish --group 762dd7b8-ce0a-4138-bbb3-f4b84c349e87`. **Android: vc 46 / 1.2.4 — the first Mac-built binary — uploaded to Play alpha ~13:35 UTC** (raw Gradle + patch script on `ignia-mac`, runtime `3e596c87…` read from the `.aab`, verified on the OnePlus 8T over wireless adb; the `eas build --local` route was tried first and produced an unshippable vc 32 — ledger row). Cutover closed: `guard_eas_update.py` `OWNER["android"] = "mac"`, matrix green on both hosts. **Promoted to production at 100% ~13:45 UTC** (country table re-read: 158, `restOfWorld=false`), sent for review.

@@ -7,7 +7,8 @@ jest.mock('@/lib/ledger', () => ({
 import { flush, resetAnalytics, setAnalyticsUser, track } from '@/lib/analytics';
 
 /**
- * The flush must survive a write that never answers.
+ * The flush must survive a write that never answers — without counting it
+ * twice when it finally does (2026-09-30).
  *
  * Found in production, not in review: an airplane-mode test on 2026-08-13
  * logged a meal and force-quit. The meal survived — it had a deadline and a
@@ -38,16 +39,35 @@ describe('analytics flush', () => {
     });
   });
 
-  it('keeps the counts when the write hangs, instead of losing them', async () => {
-    // The offline shape: never resolves, never rejects.
+  it('does not send a hung write\'s counts twice — they land when the connection returns', async () => {
+    // The offline shape: never resolves, never rejects. Real Firestore keeps
+    // the write queued and applies the `increment` on reconnect, so putting
+    // the counts back and flushing again double-counted them: the owner's
+    // 2026-09-29 row read `workout_finished: 4` for one finished workout.
     mockRecordUsage.mockReturnValue(new Promise<void>(() => {}));
-    track('log_queued_offline');
+    track('workout_finished');
 
     const pending = flush();
     jest.advanceTimersByTime(5000);
     await pending;
 
-    // Second attempt, now online — the count must still be there.
+    mockRecordUsage.mockResolvedValue(undefined);
+    await flush();
+
+    expect(mockRecordUsage).toHaveBeenCalledTimes(1);
+  });
+
+  it('restores the counts if a write that outlived the deadline then fails for real', async () => {
+    let fail!: (e: Error) => void;
+    mockRecordUsage.mockReturnValueOnce(new Promise<void>((_, reject) => { fail = reject; }));
+    track('log_queued_offline');
+
+    const pending = flush();
+    jest.advanceTimersByTime(5000);
+    await pending;
+    fail(new Error('permission-denied'));
+    await Promise.resolve();
+
     mockRecordUsage.mockResolvedValue(undefined);
     await flush();
 

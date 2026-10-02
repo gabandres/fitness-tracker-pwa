@@ -5,7 +5,7 @@ jest.mock('@/lib/ledger', () => ({
   subscribeMilestones: () => () => {},
 }));
 
-import { fireEvent, renderWithProviders as render } from '@/test-utils';
+import { fireEvent, renderWithProviders as render, waitFor } from '@/test-utils';
 
 /**
  * The weigh-in sheet, held to the same rules as the water sheet.
@@ -120,6 +120,18 @@ describe('the weigh-in sheet matches the water sheet', () => {
     expect(note).toContain('50');
     expect(note).toContain('500');
     expect(view.getByTestId('weight-save').props.accessibilityState?.disabled).toBe(true);
+  });
+
+  it('says so when the save is rejected, and keeps the typed weight', async () => {
+    // 2026-09-30: a 09-28 weigh-in reported as entered was never in Firestore.
+    // A rejected write used to escape as an unhandled rejection with the sheet
+    // silent; now it names the failure and leaves the value to retry.
+    mockSetWeight.mockRejectedValueOnce(new Error('permission-denied'));
+    const view = await openSheet();
+    await fireEvent.changeText(view.getByTestId('weight-input'), '156.4');
+    await fireEvent.press(view.getByTestId('weight-save'));
+    await waitFor(() => expect(view.getByTestId('weight-save-error')).toBeTruthy());
+    expect(view.getByTestId('weight-input').props.value).toBe('156.4');
   });
 
   it('says nothing about "today" before there is a weigh-in today', async () => {

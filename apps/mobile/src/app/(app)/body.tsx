@@ -597,6 +597,7 @@ function MeasurementModal({
   const { colors } = useTheme();
   const [vals, setVals] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  const [saveErr, setSaveErr] = useState(false);
 
   useEffect(() => {
     if (!visible) return;
@@ -613,6 +614,7 @@ function MeasurementModal({
         : {},
     );
     setBusy(false);
+    setSaveErr(false);
   }, [visible, initial, unitSystem]);
 
   /** The user's unit in, inches out — storage is always inches. */
@@ -642,8 +644,17 @@ function MeasurementModal({
   async function save() {
     if (!valid || busy) return;
     setBusy(true);
+    setSaveErr(false);
+    // A rejected write (rules, permission, a dead session) used to escape as
+    // an unhandled rejection: `finally` re-enabled Save and the sheet sat
+    // there saying nothing, so a weigh-in could be lost with no sign it had
+    // been tried. The error stays in the sheet with the typed values
+    // (2026-09-30: a 09-28 weigh-in and two tape measurements reported as
+    // entered were never in Firestore, and nothing could say why).
     try {
       await onSave(entry as Omit<Measurement, 'id' | 'date'>);
+    } catch {
+      setSaveErr(true);
     } finally {
       setBusy(false);
     }
@@ -676,6 +687,11 @@ function MeasurementModal({
               </View>
             ))}
           </View>
+          {saveErr ? (
+            <Text style={[styles.sheetHint, styles.sheetNoteBad]} accessibilityRole="alert" testID="measure-save-error">
+              {t('body.saveErr')}
+            </Text>
+          ) : null}
           <TouchableOpacity
             style={[styles.save, !valid && styles.saveDisabled]}
             onPress={save}
@@ -743,11 +759,13 @@ function WeightModal({
   const inputRef = useDeferredFocus(visible);
   const [value, setValue] = useState('');
   const [busy, setBusy] = useState(false);
+  const [saveErr, setSaveErr] = useState(false);
 
   useEffect(() => {
     if (visible) {
       setValue(initial != null ? String(toDisplayWeight(initial, unitSystem)) : '');
       setBusy(false);
+      setSaveErr(false);
     }
   }, [visible, initial, unitSystem]);
 
@@ -766,8 +784,12 @@ function WeightModal({
   async function save() {
     if (!valid || busy) return;
     setBusy(true);
+    setSaveErr(false);
+    // Same as the measurement sheet: a failed write stays visible here.
     try {
       await onSave(n);
+    } catch {
+      setSaveErr(true);
     } finally {
       setBusy(false);
     }
@@ -818,6 +840,11 @@ function WeightModal({
                     })
                   : t('body.weightFirst')}
           </Text>
+          {saveErr ? (
+            <Text style={[styles.sheetNote, styles.sheetNoteBad]} accessibilityRole="alert" testID="weight-save-error">
+              {t('body.saveErr')}
+            </Text>
+          ) : null}
           <TouchableOpacity
             style={[styles.save, !valid && styles.saveDisabled]}
             onPress={save}

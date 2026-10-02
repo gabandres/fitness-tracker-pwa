@@ -48,6 +48,36 @@ describe('fillMissingClusterLoads', () => {
     expect(out).toBe(input[0]); // unchanged reference — no needless copy
   });
 
+  it('fills a blank logged set with an explicit sibling 0 (bodyweight: 0 = no added load)', () => {
+    // 2026-09-23 pull-up as stored: 0, 0, then a set whose load cell showed the
+    // grey "0" placeholder and was never typed.
+    const [out] = fillMissingClusterLoads([
+      ex({
+        sets: [
+          { kind: 'activation', group: 1, reps: 10, rir: 0, weight: 0 },
+          { kind: 'mini', group: 1, reps: 3, rir: 0, weight: 0 },
+          { kind: 'mini', group: 1, reps: 2, rir: 0 },
+        ],
+      }),
+    ]);
+    expect(out.sets.map((s) => s.weight)).toEqual([0, 0, 0]);
+  });
+
+  it('never raises a lighter logged load to the heaviest (a drop set stays a drop set)', () => {
+    const [out] = fillMissingClusterLoads([
+      ex({ sets: [{ kind: 'activation', reps: 8, weight: 20 }, { kind: 'mini', reps: 3, weight: 15 }] }),
+    ]);
+    expect(out.sets.map((s) => s.weight)).toEqual([20, 15]);
+  });
+
+  it('leaves an exercise with no weight on any set unknown, not 0', () => {
+    // 2026-09-24 Skull Crusher: a load was lifted, nobody recorded which.
+    const input = [ex({ sets: [{ kind: 'activation', reps: 11, rir: 0 }, { kind: 'mini', reps: 4, rir: 0 }] })];
+    const [out] = fillMissingClusterLoads(input);
+    expect(out).toBe(input[0]);
+    expect(out.sets.every((s) => s.weight === undefined)).toBe(true);
+  });
+
   it('skips time and bodyweight log styles', () => {
     const timeEx = ex({ logStyle: 'time', sets: [{ kind: 'working', durationSec: 45 }, { kind: 'working', durationSec: 30, weight: 10 }] });
     const [out] = fillMissingClusterLoads([timeEx]);
