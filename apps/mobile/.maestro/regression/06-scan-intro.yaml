@@ -33,7 +33,8 @@ appId: fit.ignia.app
 # That is a harness-visibility problem, not a product one.
 - runFlow:
     when:
-      notVisible: 'Scan a meal'
+      notVisible:
+        id: 'scan-back'
     commands:
       # Reach the screen by route instead; the screen, not the button, is what
       # the rest of this flow covers.
@@ -58,18 +59,36 @@ appId: fit.ignia.app
           text: 'Open'
           optional: true
 - extendedWaitUntil:
-    visible: 'Scan a meal'
+    visible:
+      id: 'scan-back'
     timeout: 10000
 # testIDs, not labels: on iOS the Ionicons glyph merges into each button's
 # accessibility label, so a full-match text selector never matches (see
 # 02-add-sheet's header for the measurement).
-- assertVisible:
-    id: 'scan-take'
-- assertVisible:
-    id: 'scan-choose'
-- assertVisible:
-    id: 'scan-manual'
-- takeScreenshot: .maestro/regression/shots/06-scan-intro
+# Two first screens since 2026-10-04: with camera access already granted the
+# screen opens straight into the in-app viewfinder (shutter + library); without
+# it, the intro with its three choices. Assert whichever this device shows —
+# both are the product, and neither branch taps into system UI.
+- runFlow:
+    when:
+      visible:
+        id: 'scan-shutter'
+    commands:
+      - assertVisible:
+          id: 'scan-choose'
+      - takeScreenshot: .maestro/regression/shots/06-scan-camera
+- runFlow:
+    when:
+      notVisible:
+        id: 'scan-shutter'
+    commands:
+      - assertVisible:
+          id: 'scan-take'
+      - assertVisible:
+          id: 'scan-choose'
+      - assertVisible:
+          id: 'scan-manual'
+      - takeScreenshot: .maestro/regression/shots/06-scan-intro
 - tapOn:
     id: 'scan-back'
 - assertVisible: 'Today'

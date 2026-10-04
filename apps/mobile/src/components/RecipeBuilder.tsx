@@ -1,8 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useT } from '@/i18n';
+import { useLocale, useT } from '@/i18n';
+import { formatNumber } from '@/lib/date-format';
 import * as haptics from '@/lib/haptics';
+import { useA11yFocus } from '@/lib/use-a11y-focus';
+import { useDoneKeyProps } from '@/components/KeyboardBar';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
 
@@ -15,6 +18,9 @@ export interface RecipeEstimate {
 interface Props {
   onApply: (estimate: RecipeEstimate) => void;
   onCancel: () => void;
+  /** Whether anything has been typed — the add sheet asks before a stray
+   *  backdrop tap throws a half-built recipe away. */
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 interface Ingredient {
@@ -37,8 +43,15 @@ function num(s: string): number | null {
  *  ingredients (kcal + optional protein) and a serving count, then emit one
  *  serving's totals to prefill the manual form. Not persisted — "save as
  *  preset" on the prefilled form is the reuse path. */
-export function RecipeBuilder({ onApply, onCancel }: Props) {
+export function RecipeBuilder({ onApply, onCancel, onDirtyChange }: Props) {
+  // Opens in place of the add sheet's browse view; tell the screen reader.
+  const titleRef = useA11yFocus('recipe');
+  // The number fields set no return key, so on an iPhone's decimal pad
+  // there was no way to put the keyboard away and reach "Use this". This
+  // gives them RN's Done toolbar, in the user's language (KeyboardBar.tsx).
+  const kbProps = useDoneKeyProps();
   const t = useT();
+  const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const [name, setName] = useState('');
@@ -75,6 +88,12 @@ export function RecipeBuilder({ onApply, onCancel }: Props) {
 
   const canApply = totals.kcal > 0 && servingCount != null && servingCount > 0;
 
+  const dirty =
+    name.trim() !== '' || ingredients.some((ing) => ing.name.trim() || ing.calories.trim() || ing.protein.trim());
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
+
   function setIng(idx: number, field: keyof Ingredient, value: string) {
     setIngredients((list) => list.map((ing, i) => (i === idx ? { ...ing, [field]: value } : ing)));
   }
@@ -98,7 +117,7 @@ export function RecipeBuilder({ onApply, onCancel }: Props) {
   return (
     <View style={styles.wrap}>
       <View style={styles.head}>
-        <Text style={styles.title}>{t('recipe.title')}</Text>
+        <Text ref={titleRef} style={styles.title} accessibilityRole="header">{t('recipe.title')}</Text>
         <TouchableOpacity onPress={onCancel} hitSlop={12} accessibilityRole="button">
           <Text style={styles.cancel}>{t('common.cancel')}</Text>
         </TouchableOpacity>
@@ -110,6 +129,7 @@ export function RecipeBuilder({ onApply, onCancel }: Props) {
         placeholderTextColor={colors.faint}
         value={name}
         onChangeText={setName}
+        accessibilityLabel={t('recipe.namePlaceholder')}
         testID="recipe-name"
       />
 
@@ -117,7 +137,11 @@ export function RecipeBuilder({ onApply, onCancel }: Props) {
         <View style={styles.colHead}>
           <Text style={[styles.colLabel, styles.colName]}>{t('recipe.ingredient')}</Text>
           <Text style={[styles.colLabel, styles.colNum]}>{t('recipe.kcal')}</Text>
-          <Text style={[styles.colLabel, styles.colNum]}>{t('recipe.proteinShort')}</Text>
+          {/* Spelled out (S18-17): "P" is jargon on a first read and a letter
+              to a screen reader. Shrinks to fit the narrow column. */}
+          <Text style={[styles.colLabel, styles.colNum]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+            {t('recipe.proteinShort')}
+          </Text>
           <View style={styles.colDel} />
         </View>
         {ingredients.map((ing, i) => (
@@ -128,6 +152,7 @@ export function RecipeBuilder({ onApply, onCancel }: Props) {
               placeholderTextColor={colors.faint}
               value={ing.name}
               onChangeText={(v) => setIng(i, 'name', v)}
+              accessibilityLabel={t('recipe.ingredientA11y', { n: i + 1 })}
               testID={`recipe-ing-name-${i}`}
             />
             <TextInput
@@ -135,8 +160,10 @@ export function RecipeBuilder({ onApply, onCancel }: Props) {
               placeholder="0"
               placeholderTextColor={colors.faint}
               keyboardType="numeric"
+              {...kbProps}
               value={ing.calories}
               onChangeText={(v) => setIng(i, 'calories', v)}
+              accessibilityLabel={t('recipe.kcalA11y', { n: i + 1 })}
               testID={`recipe-ing-kcal-${i}`}
             />
             <TextInput
@@ -144,9 +171,10 @@ export function RecipeBuilder({ onApply, onCancel }: Props) {
               placeholder="0"
               placeholderTextColor={colors.faint}
               keyboardType="numeric"
+              {...kbProps}
               value={ing.protein}
               onChangeText={(v) => setIng(i, 'protein', v)}
-              accessibilityLabel={t('recipe.proteinShort')}
+              accessibilityLabel={t('recipe.proteinA11y', { n: i + 1 })}
             />
             <TouchableOpacity
               style={styles.colDel}
@@ -173,15 +201,18 @@ export function RecipeBuilder({ onApply, onCancel }: Props) {
             placeholder="1"
             placeholderTextColor={colors.faint}
             keyboardType="numeric"
+            {...kbProps}
             value={servings}
             onChangeText={setServings}
+            accessibilityLabel={t('recipe.servings')}
             testID="recipe-servings"
           />
         </View>
         <View style={styles.perServing}>
           <Text style={styles.fieldLabel}>{t('recipe.perServing')}</Text>
           <Text style={styles.perValue} testID="recipe-per-serving">
-            {perServing.kcal} kcal{perServing.protein != null ? ` · ${perServing.protein}g` : ''}
+            {formatNumber(perServing.kcal, locale)} {t('today.kcal')}
+            {perServing.protein != null ? ` · ${t('entry.proteinAmount', { n: perServing.protein })}` : ''}
           </Text>
         </View>
       </View>
@@ -214,7 +245,8 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   input: {
     backgroundColor: colors.inputBg,
     borderWidth: 1,
-    borderColor: colors.line,
+    // `lineStrong`: an input's edge has to clear 3:1 (WCAG 1.4.11).
+    borderColor: colors.lineStrong,
     borderRadius: radius.md,
     paddingHorizontal: space.md,
     paddingVertical: space.sm,

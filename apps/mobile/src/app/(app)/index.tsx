@@ -1,21 +1,22 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { captureAndShare } from '@/lib/shareCapture';
-import type { DailyLog, LogEntry } from '@macrolog/core';
-import { fastLengthHours, maintenanceView } from '@macrolog/core';
+import type { DailyLog, DateKey, LogEntry, MealSlot } from '@macrolog/core';
+import { fastLengthHours, maintenanceView, parseYmd } from '@macrolog/core';
 import { confirm } from '@/components/ConfirmSheet';
 import { Flame } from '@/components/Flame';
 import { useToast } from '@/components/Toast';
+import { useAddReceipt } from '@/hooks/useAddReceipt';
 import { DailyMetrics } from '@/components/DailyMetrics';
 import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { NumbersGlossary } from '@/components/NumbersGlossary';
 import { EntrySheet } from '@/components/EntrySheet';
 import { FastSheet } from '@/components/FastSheet';
-import { HeroRings } from '@/components/HeroRings';
+import { HeroRings, HeroRingsSkeleton } from '@/components/HeroRings';
 import { MealEntries } from '@/components/MealEntries';
 import { MilestoneNote } from '@/components/MilestoneNote';
 import { OfflineBanner } from '@/components/OfflineBanner';
@@ -24,7 +25,7 @@ import { useAuth } from '@/lib/auth';
 import { RecalibrationCard } from '@/components/RecalibrationCard';
 import { ShareCard } from '@/components/ShareCard';
 import { UpdateBanner } from '@/components/UpdateBanner';
-import { type Locale, useLocale, useT } from '@/i18n';
+import { type I18nKey, type Locale, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { captureError } from '@/lib/sentry';
 import { releaseTour } from '@/lib/tour';
@@ -33,8 +34,9 @@ import { useDayFasts } from '@/hooks/useDayFasts';
 import { useFastActivity } from '@/hooks/useFastActivity';
 import { useReminderSync } from '@/hooks/useReminderSync';
 import { performQuickAdd } from '@/lib/quick-add';
-import { addLogWithId } from '@/lib/ledger';
-import { entryFromLog } from '@/app/(app)/history/[date]';
+import { addLogDurably } from '@/lib/pending-logs';
+import { addPresetNow } from '@/lib/ledger';
+import { entryFromLog, isNoopEdit } from '@/lib/entry-from-log';
 import { useMilestones } from '@/hooks/useMilestones';
 import { useToday } from '@/hooks/useToday';
 import { useTodayNudge } from '@/hooks/useTodayNudge';
@@ -47,14 +49,25 @@ import { formatDate } from '@/lib/date-format';
 
 /** Streak length below which a streak extension is too early to read as
  *  "this app is working for me" — see reviewPrompt.ts for the full policy. */
-/** Vertical band at the bottom of Today that the raised + button occupies —
- *  the FAB itself plus the tab bar it sits above. Nothing tappable may be laid
- *  out inside it. Was a bare `96` in one place and absent where it mattered
- *  most (UX_AUDIT F5). */
-// Was defined here, and that is exactly why the other three tabs never got
-// it (#96). It now lives in `@/theme` and is imported.
-
 const MIN_STREAK_FOR_REVIEW = 3;
+
+/** Vertical-only slop that lifts a 40–44dp control to Android's 48dp target.
+ *  Vertical only, because horizontally these controls have neighbours. */
+const ICON_SLOP = { top: 4, bottom: 4 } as const;
+
+/** The header's three icons are 38dp wide (the row has no more at 360dp —
+ *  `iconBtn`); 3dp of side slop makes each a 44dp target, overlapping its
+ *  neighbour's by under a dp of the 4dp gap. */
+const HEADER_ICON_SLOP = { top: 4, bottom: 4, left: 3, right: 3 } as const;
+
+/** Slot names for the copy-from-yesterday chips — the diary's own words. */
+const SLOT_LABEL: Record<MealSlot, I18nKey> = {
+  breakfast: 'meal.breakfast',
+  lunch: 'meal.lunch',
+  dinner: 'meal.dinner',
+  snack: 'meal.snack',
+  other: 'meal.other',
+};
 
 /**
  * "Fri, Sep 4" — abbreviated on purpose.
@@ -73,9 +86,13 @@ const MIN_STREAK_FOR_REVIEW = 3;
  *
  * Nothing is lost: the screen is titled "Today", so the year and the full
  * weekday were never carrying information the user needed here.
+ *
+ * Formatted from the day KEY, not `new Date()`: the key is what re-renders at
+ * rollover (`useDayKey`), and under a day boundary at 01:00 it is still
+ * yesterday — which is the day the ring below is describing.
  */
-function todayLabel(locale: Locale): string {
-  return formatDate(new Date(), locale, { weekday: 'short', month: 'short', day: 'numeric' });
+function todayLabel(dayKey: DateKey, locale: Locale): string {
+  return formatDate(parseYmd(dayKey), locale, { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
 /**
@@ -95,6 +112,7 @@ export default function Today() {
 function TodayScreen({ onRetry }: { onRetry: () => void }) {
   const t = useT();
   const toast = useToast();
+  const receipt = useAddReceipt();
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
@@ -125,13 +143,17 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
     fastStartedAt,
     startFast,
     breakFast,
+    undoBreakFast,
     boundary,
     todayKey,
     streak,
     repeatYesterday,
+    yesterdayCount,
+    yesterdaySlots,
     shareStats,
     hasWeighIn,
     hasPhotoScan,
+    hasPriorLogs,
     measurement,
   } = useToday();
   // The single Nudge slot this screen is allowed to fill.
@@ -204,41 +226,63 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
   useFastActivity(fastStartedAt);
 
   /**
-   * Long-press a logged entry to promote it to a quick-add preset.
-   *
-   * Confirms first, because a preset is not a private note: slot 1 is what the
-   * home-screen widget button and the Quick Settings tile fire, so creating one
-   * silently would change what a blind tap on another surface logs.
+   * Promote a logged entry to a quick-add preset, from the row's long-press
+   * menu or its screen-reader action. No confirm — both are explicit choices —
+   * but a duplicate is refused and the receipt carries an Undo. A new preset
+   * joins the list; which presets fill the widget/tile slots is set in
+   * Settings, so this cannot silently change what a blind tap logs.
    */
   const savePresetFromLog = useCallback(
     (log: DailyLog) => {
       const name = log.mealLabel?.trim();
-      if (!name) return;
+      const uid = user?.uid;
+      if (!name || !uid) return;
+      // No confirm: this is reached from the row's menu ("Save preset") or its
+      // screen-reader action — both an explicit choice, where the confirm was
+      // there for the old bare long-press. Asking again was a second step, and
+      // a confirm presented as the menu closed could be dropped outright
+      // (Android: the menu sheet's own host took it, then unmounted).
       haptics.tap();
-      confirm({
-        title: t('today.savePresetTitle'),
-        body: t('today.savePresetBody', { name }),
-        confirmText: t('entry.savePresetShort'),
-        onConfirm: () => {
-          // The success beat waits for the write: it used to fire before the
-          // promise settled, so a rejected preset still felt saved — and the
-          // rejection itself went to Sentry unhandled.
-          addPreset({
-            name,
-            calories: log.calories,
-            protein: log.protein ?? 0,
-            carbs: log.carbs ?? 0,
-            fat: log.fat ?? 0,
-          })
-            .then(() => haptics.success())
-            .catch((e) => {
-              haptics.warning();
-              captureError(e, { where: 'today.savePresetFromLog' });
-            });
+      // Saving the same food twice made two identical presets in the strip.
+      const key = name.toLowerCase();
+      const protein = log.protein ?? 0;
+      if (
+        presets.some(
+          (p) => p.name.trim().toLowerCase() === key && p.calories === log.calories && (p.protein ?? 0) === protein,
+        )
+      ) {
+        toast.show(t('today.presetExists', { name }));
+        return;
+      }
+      // Id minted up front, so the receipt's Undo works offline too — the
+      // write resolves only on the server's ack.
+      const { id, written } = addPresetNow(uid, {
+        name,
+        calories: log.calories,
+        protein,
+        carbs: log.carbs ?? 0,
+        fat: log.fat ?? 0,
+      });
+      let undone = false;
+      toast.show(t('today.presetSavedSlot', { name }), {
+        action: {
+          label: t('common.undo'),
+          onPress: () => {
+            undone = true;
+            deletePreset(id).catch((e) => captureError(e, { where: 'today.undoPreset' }));
+          },
         },
       });
+      written
+        .then(() => {
+          if (!undone) haptics.success();
+        })
+        .catch((e) => {
+          haptics.warning();
+          captureError(e, { where: 'today.savePresetFromLog' });
+        });
     },
-    [addPreset, t],
+    [user?.uid, presets, deletePreset, t, toast],
   );
 
   // The tab bar's Log button navigates here with a fresh `openAdd` nonce —
@@ -309,13 +353,44 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
     }
   }
 
+  // Slots copied today, keyed to the day. A copied chip must go even when the
+  // copy does not land in its slot: unslotted ("other") rows have no stored
+  // slot and file by the clock, so the "Other" chip never cleared on its own
+  // and a second tap duplicated the copy.
+  const [copied, setCopied] = useState<{ day: string; slots: MealSlot[] }>({ day: '', slots: [] });
+  const copiedToday = copied.day === todayKey ? copied.slots : [];
+  const copySlots = yesterdaySlots.filter((s) => !copiedToday.includes(s));
+  async function onCopySlot(slot: MealSlot) {
+    if (repeating) return;
+    haptics.tap();
+    setRepeating(true);
+    try {
+      const ids = await repeatYesterday(slot);
+      haptics.success();
+      setCopied((c) => ({ day: todayKey, slots: [...(c.day === todayKey ? c.slots : []), slot] }));
+      // Undo puts the chip back: hidden until tomorrow was a mis-tap's cost.
+      receipt.showCopied(ids, () =>
+        setCopied((c) => ({ ...c, slots: c.slots.filter((x) => x !== slot) })),
+      );
+    } finally {
+      setRepeating(false);
+    }
+  }
   async function onRepeatYesterday() {
     if (repeating) return;
     haptics.tap();
     setRepeating(true);
     try {
-      await repeatYesterday();
+      const ids = await repeatYesterday();
       haptics.success();
+      // Only "Other" needs marking: every slotted copy lands in its own slot,
+      // which clears that chip by itself (and brings it back if the copies are
+      // deleted by hand). Unslotted rows file by the clock, so the "Other" chip
+      // would stay up and a tap on it copied them twice.
+      setCopied({ day: todayKey, slots: ['other'] });
+      // "Copied 3 entries · Undo" — the copy used to land with a bare haptic,
+      // and a mis-tap meant deleting each row by hand.
+      receipt.showCopied(ids, () => setCopied({ day: todayKey, slots: [] }));
     } finally {
       setRepeating(false);
     }
@@ -326,17 +401,72 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
     setEditing(log);
     setSheetOpen(true);
   }
+  // The latest list, for the receipt's Edit — its closure is from the add.
+  const todayLogsRef = useRef(todayLogs);
+  todayLogsRef.current = todayLogs;
+  // A ref, not the state: the receipt's closure is from the save, when the
+  // sheet was still open.
+  const sheetOpenRef = useRef(sheetOpen);
+  sheetOpenRef.current = sheetOpen;
+  /** Reopen a just-added row from its receipt ("right food, wrong amount").
+   *  The snapshot usually has it by the time Edit is tapped; if not, the row
+   *  is rebuilt from what was written, under the same id. */
+  function editAdded(id: string, entry: LogEntry) {
+    // A receipt outliving its sheet: if a new add is already open, Edit would
+    // reset that form and drop what is typed in it.
+    if (sheetOpenRef.current) return;
+    const live = todayLogsRef.current.find((l) => l.id === id);
+    openEdit(live ?? { ...entry, id, date: entry.timestamp ?? new Date() });
+  }
   async function onSave(entry: LogEntry) {
     if (editing?.id) {
-      await updateEntry(editing.id, entry);
+      const before = editing;
+      // An untouched form's Save writes nothing and says nothing.
+      if (isNoopEdit(before, entry)) return;
+      // Not awaited: the SDK resolves an update only on the server's ack, so
+      // offline the sheet sat with Save disabled forever while the banner
+      // promised "will sync". The SDK holds the patch either way; the sheet
+      // closes now, and a rejection (rules, a deleted row) says so in a toast
+      // rather than rolling the row back behind a lone haptic.
+      updateEntry(editing.id, entry).catch((e) => {
+        haptics.warning();
+        toast.show(t('entry.updateFailed'));
+        captureError(e, { where: 'today.updateEntry' });
+      });
+      // An edit is undoable like an add or a delete: the receipt puts the row
+      // back exactly as it was (same id, same fields) — "I changed the wrong
+      // entry" no longer means re-typing the old numbers from memory.
+      const label = entry.mealLabel?.trim() || before.mealLabel?.trim();
+      toast.show(label ? t('entry.updatedNamed', { label }) : t('entry.updated'), {
+        action: {
+          label: t('common.undo'),
+          onPress: () => {
+            updateEntry(before.id!, entryFromLog(before)).catch((e) => {
+              haptics.warning();
+              toast.show(t('entry.updateFailed'));
+              captureError(e, { where: 'today.undoEdit' });
+            });
+          },
+        },
+      });
     } else {
-      // `addLogDurably` answers 'logged' | 'queued'; `useLogWrites` forwards it
-      // once the hooks change lands, and until then resolves void, which is
-      // simply "not queued" here. The receipt is what `offline.queued` was
-      // written for and never used (UX_AUDIT S18-12).
-      const outcome: unknown = await addEntry(entry);
-      if (outcome === 'queued') toast.show(t('offline.queued'));
+      // The receipt names what landed and carries Edit + Undo; a parked add
+      // keeps the honest `offline.queued` copy (UX_AUDIT S18-12).
+      const r = await addEntry(entry);
+      receipt.showAdded(r, { label: entry.mealLabel, calories: entry.calories }, (id) =>
+        editAdded(id, entry),
+      );
     }
+    haptics.success();
+  }
+  /** "Add all" from a described meal: N rows, ONE receipt, one Undo for all. */
+  async function onSaveMany(entries: LogEntry[]) {
+    // In parallel — offline, one at a time cost each row its own deadline.
+    const receipts = await Promise.all(entries.map((entry) => addEntry(entry)));
+    receipt.showAddedMany(
+      receipts,
+      entries.reduce((sum, e) => sum + e.calories, 0),
+    );
     haptics.success();
   }
   /**
@@ -349,11 +479,64 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
   async function onDelete() {
     const log = editing;
     if (log?.id) {
-      await deleteEntry(log.id);
+      // Fire, then Undo at once — awaiting the server's ack left the sheet
+      // open and the Undo unshown for as long as the device was offline.
+      deleteEntry(log.id).catch((e) => {
+        haptics.warning();
+        captureError(e, { where: 'today.deleteEntry' });
+      });
       offerUndo(log);
     }
     haptics.success();
     closeSheet();
+  }
+  /** Delete straight from the list — the row's swipe or its screen-reader
+   *  action. Same fire-then-Undo path as the sheet's delete. */
+  function deleteFromList(log: DailyLog) {
+    if (!log.id) return;
+    deleteEntry(log.id).catch((e) => {
+      haptics.warning();
+      captureError(e, { where: 'today.deleteEntry' });
+    });
+    offerUndo(log);
+    haptics.success();
+  }
+  /**
+   * End the fast, then offer Undo — the button sits beside the water pills and
+   * a mis-tap used to close a 16-hour fast for good (the only repair was
+   * re-typing both instants in History).
+   *
+   * The toast waits for the commit (see the body): Undo needs the id the
+   * write minted, and a receipt for a write that failed would be a lie.
+   */
+  function onBreakFast() {
+    // The toast waits for the commit: `breakFast` reads the profile first, and
+    // with no SDK persistence that read fails offline — an Undo offered up
+    // front would be a receipt for a fast that never ended.
+    breakFast()
+      .then((receipt) => {
+        toast.show(t('metrics.fastEnded'), {
+          action: receipt?.startedAt
+            ? {
+                label: t('common.undo'),
+                onPress: () => {
+                  undoBreakFast(receipt).catch((e) => {
+                    haptics.warning();
+                    captureError(e, { where: 'today.undoBreakFast' });
+                  });
+                },
+              }
+            : undefined,
+          testID: 'toast-fast-ended',
+        });
+      })
+      .catch((e) => {
+        haptics.warning();
+        // `breakFast` reads the profile before it commits, and with no SDK
+        // persistence that read fails offline — say so, rather than a lone buzz.
+        toast.show(t('metrics.fastEndFailed'));
+        captureError(e, { where: 'today.breakFast' });
+      });
   }
   function offerUndo(log: DailyLog) {
     const id = log.id;
@@ -364,7 +547,10 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
       action: {
         label: t('common.undo'),
         onPress: () => {
-          addLogWithId(uid, id, entryFromLog(log)).catch((e) => {
+          // Durable, like any add: the same id and every field when it can reach
+          // the server, parked on disk when it cannot (a plain write offline died
+          // with the process).
+          addLogDurably(uid, entryFromLog(log), id).catch((e) => {
             haptics.warning();
             captureError(e, { where: 'today.undoDelete' });
           });
@@ -398,16 +584,24 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
               outgrows the floor and hard-clips. Both numbers live in
               `theme.headerTitle` and are pinned together by
               `header-title-fit.test.ts`. */}
-          <Text style={styles.title} maxFontSizeMultiplier={headerTitle.maxFontScale}>
+          <Text
+            style={styles.title}
+            maxFontSizeMultiplier={headerTitle.maxFontScale}
+            accessibilityRole="header"
+          >
             {t('nav.today')}
           </Text>
-          <Text style={styles.date} numberOfLines={1}>{todayLabel(locale)}</Text>
+          <Text style={styles.date} numberOfLines={1}>{todayLabel(todayKey, locale)}</Text>
         </View>
         <View style={styles.headerRight}>
           {streak > 0 ? (
             <Animated.View
-              style={[styles.streakChip, streakPulse]}
+              style={[styles.streakChip, streak >= 100 && styles.streakChipWide, streakPulse]}
               testID="streak-chip"
+              // `accessible` is what makes the label count: without it the
+              // View is not a focusable node and VoiceOver read the bare
+              // digit inside it, not "12-day streak".
+              accessible
               accessibilityRole="text"
               accessibilityLabel={t('today.streakA11y', { n: streak })}
             >
@@ -416,13 +610,19 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
                   flicker in the corner of every Today; tinted in the streak/
                   fasting hue because here it is a data mark, not the logo. */}
               <Flame size={18} flicker={false} tint={colors.habitFasting} />
-              <Text style={styles.streakNum}>{streak}</Text>
+              {/* Capped like the title: the header row has ~5dp to spare at
+                  360dp, and an uncapped digit at a large text size pushed the
+                  avatar off the edge. The chip's spoken label is unaffected. */}
+              <Text style={styles.streakNum} maxFontSizeMultiplier={headerTitle.maxFontScale}>
+                {streak}
+              </Text>
             </Animated.View>
           ) : null}
           <TouchableOpacity
             onPress={() => { haptics.tap(); router.push('/history'); }}
             testID="open-history"
-            hitSlop={10}
+            style={styles.iconBtn}
+            hitSlop={HEADER_ICON_SLOP}
             accessibilityRole="button"
             accessibilityLabel={t('nav.history')}
           >
@@ -431,7 +631,8 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
           <TouchableOpacity
             onPress={onShare}
             testID="share-progress"
-            hitSlop={10}
+            style={styles.iconBtn}
+            hitSlop={HEADER_ICON_SLOP}
             accessibilityRole="button"
             accessibilityLabel={t('today.shareA11y')}
           >
@@ -445,7 +646,8 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
           <TouchableOpacity
             onPress={() => { haptics.tap(); setGlossaryOpen(true); }}
             testID="today-glossary-open"
-            hitSlop={10}
+            style={styles.iconBtn}
+            hitSlop={HEADER_ICON_SLOP}
             accessibilityRole="button"
             accessibilityLabel={t('numbers.glossaryOpen')}
           >
@@ -508,9 +710,12 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
         </View>
       </View>
 
+      {/* A cold cache paints the hero's empty tracks where the hero will be,
+          rather than a spinner in the middle of nothing — the screen keeps its
+          shape, and the first real frame fills it instead of replacing it. */}
       {loading ? (
-        <View style={styles.fill}>
-          <ActivityIndicator color={colors.accent} />
+        <View style={styles.skeletonBody}>
+          <HeroRingsSkeleton />
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.body}>
@@ -520,6 +725,7 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
               <TouchableOpacity
                 onPress={onRetry}
                 style={styles.retryBtn}
+                hitSlop={ICON_SLOP}
                 accessibilityRole="button"
                 accessibilityLabel={t('common.retry')}
                 testID="retry"
@@ -575,21 +781,35 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
               onAddWater={setWater}
               onSetSleep={setSleep}
               onStartFast={startFast}
-              onBreakFast={breakFast}
+              onBreakFast={onBreakFast}
             />
           </Animated.View>
 
-          <Animated.Text style={styles.sectionTitle} entering={enterUp(2)}>
+          <Animated.Text
+            style={styles.sectionTitle}
+            entering={enterUp(2)}
+            accessibilityRole="header"
+          >
             {t('today.entries')}
           </Animated.Text>
           {todayLogs.length === 0 ? (
             <Animated.View style={styles.empty} entering={enterUp(3)}>
               <Text style={styles.emptyText}>{t('today.emptyTitle')}</Text>
-              <Text style={styles.emptyHint}>{t('today.emptyHint')}</Text>
+              {/* "your first meal" is day-1 copy; said every empty morning to
+                  someone with weeks of history, it reads as the app forgetting
+                  them. */}
+              <Text style={styles.emptyHint}>
+                {t(hasPriorLogs ? 'today.emptyHintReturning' : 'today.emptyHint')}
+              </Text>
+              {/* Only when there is something to copy: on day 1 — the first
+                  screen every new user sees — it used to buzz success and do
+                  nothing. */}
+              {yesterdayCount > 0 ? (
               <PressScale
                 style={[styles.repeatBtn, repeating && styles.repeatBtnDisabled]}
                 onPress={onRepeatYesterday}
                 disabled={repeating}
+                hitSlop={ICON_SLOP}
                 accessibilityRole="button"
                 accessibilityState={{ disabled: repeating, busy: repeating }}
                 testID="repeat-yesterday"
@@ -599,9 +819,47 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
                   {repeating ? t('common.saving') : t('today.repeatYesterday')}
                 </Text>
               </PressScale>
+              ) : null}
             </Animated.View>
           ) : (
-            <MealEntries logs={todayLogs} onPress={openEdit} onSavePreset={savePresetFromLog} />
+            <>
+              {/* "Repeat yesterday" used to exist only on an EMPTY day, so the
+                  person who eats the same breakfast every morning lost it the
+                  moment they logged anything. One chip per meal yesterday had
+                  and today has not — copied with a receipt and an Undo. Above
+                  the list, not under it: at the foot of a long day it was the
+                  one thing nobody scrolled to. */}
+              {copySlots.length > 0 ? (
+                <View style={styles.copyRow} testID="copy-from-yesterday">
+                  <Text style={styles.copyLabel}>{t('today.copyFromYesterday')}</Text>
+                  <View style={styles.copyChips}>
+                    {copySlots.map((slot) => (
+                      <PressScale
+                        key={slot}
+                        style={[styles.copyChip, repeating && styles.repeatBtnDisabled]}
+                        onPress={() => onCopySlot(slot)}
+                        disabled={repeating}
+                        hitSlop={ICON_SLOP}
+                        accessibilityRole="button"
+                        accessibilityState={{ disabled: repeating }}
+                        accessibilityLabel={t('today.copySlotA11y', { slot: t(SLOT_LABEL[slot]) })}
+                        accessibilityHint={slot === 'other' ? t('today.copyOtherHint') : undefined}
+                        testID={`copy-slot-${slot}`}
+                      >
+                        <Ionicons name="refresh" size={14} color={colors.ink} />
+                        <Text style={styles.copyChipText}>{t(SLOT_LABEL[slot])}</Text>
+                      </PressScale>
+                    ))}
+                  </View>
+                </View>
+              ) : null}
+              <MealEntries
+                logs={todayLogs}
+                onPress={openEdit}
+                onSavePreset={savePresetFromLog}
+                onDelete={deleteFromList}
+              />
+            </>
           )}
           {/* Clears the + button for the SCROLLING case (a populated list).
               The empty state handles itself — see `styles.empty`. */}
@@ -613,6 +871,7 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
         visible={sheetOpen}
         editing={editing}
         onSave={onSave}
+        onSaveMany={onSaveMany}
         onDelete={editing ? onDelete : undefined}
         // Undo is offered here, so the sheet's delete fires at once (S18-6).
         deleteUndoable
@@ -635,7 +894,7 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
 function createStyles({ colors }: Theme) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.paper },
-    fill: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+    skeletonBody: { paddingHorizontal: space.xl },
     header: {
       flexDirection: 'row',
       alignItems: 'flex-start',
@@ -662,7 +921,8 @@ function createStyles({ colors }: Theme) {
     body: { flexGrow: 1, paddingHorizontal: space.xl, paddingBottom: space.xl, gap: space.lg },
     error: { color: colors.danger, fontSize: font.small, flex: 1 },
     errorRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
-    retryBtn: { borderWidth: 1, borderColor: colors.ink, borderRadius: radius.pill, paddingHorizontal: space.md, minHeight: 36, justifyContent: 'center' },
+    // 44pt tall (iOS); `ICON_SLOP` takes the hit area to 48dp (Android).
+    retryBtn: { borderWidth: 1, borderColor: colors.ink, borderRadius: radius.pill, paddingHorizontal: space.md, minHeight: 44, justifyContent: 'center' },
     retryText: { fontSize: font.small, fontWeight: '700', color: colors.ink },
     sectionTitle: { fontFamily: type.heading, fontSize: font.h3, color: colors.ink },
     // UX_AUDIT F5: the orange + button was drawn straight over "Repeat
@@ -717,7 +977,8 @@ function createStyles({ colors }: Theme) {
     // where the title rendered intact: "Today" occupies **86.7dp**, and the
     // block was handing it 80.7dp — the width of "Fri, Sep 4". 96dp clears the
     // title with room for a heavier face, and the row still fits: 96 + 203
-    // (streak + 3 icons + avatar + gaps) + 48 (padding) = 347dp of 360dp.
+    // (streak + 3 icons + avatar + gaps) + 48 (padding) = 347dp of 360dp —
+    // 355dp since 2026-10-04, when the icons became 38dp targets (`iconBtn`).
     //
     // `flexShrink` stays as the safety net for a locale wider than this one,
     // but it can no longer eat the title.
@@ -730,12 +991,33 @@ function createStyles({ colors }: Theme) {
     // the fix is `maxFontSizeMultiplier` on the title above; see
     // `theme.headerTitle` for the measurement both numbers come from.
     headerTitleBlock: { flexShrink: 1, minWidth: headerTitle.minWidth },
-    headerRight: { flexDirection: 'row', alignItems: 'center', gap: space.md, flexShrink: 0 },
+    // `gap` is xs, not md, because the icon buttons now carry their own 8dp of
+    // side padding (`iconBtn`): visually the icons sit 12dp from the streak
+    // chip and the avatar as before, and 16dp from each other.
+    headerRight: { flexDirection: 'row', alignItems: 'center', gap: space.xs, flexShrink: 0 },
+    // The header icons were 22dp glyphs with 10dp of slop — a 42dp target,
+    // under both platforms' floor. 44 tall is iOS's; `ICON_SLOP` reaches
+    // Android's 48. WIDTH is 38, not 44, and that is the header's budget, not
+    // an oversight: the row measured 347 of 360dp before this (see
+    // `headerTitleBlock`), these three add 8dp net, and 44 would overflow it
+    // by 5dp and clip the avatar again. Horizontal slop cannot make up the
+    // rest without overlapping the neighbouring icon's target.
+    iconBtn: { minWidth: 38, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
     shareCapture: { position: 'absolute', left: -10000, top: 0, opacity: 0 },
     streakChip: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.pill, paddingHorizontal: space.sm, paddingVertical: 3 },
     streakNum: { fontSize: font.small, fontWeight: '800', color: colors.ink },
-    repeatBtn: { flexDirection: 'row', alignItems: 'center', gap: space.xs, marginTop: space.sm, borderWidth: 1, borderColor: colors.ink, borderRadius: radius.pill, paddingHorizontal: space.lg, paddingVertical: space.sm },
+    // A third digit costs ~8dp the header does not have at 360dp; the chip's
+    // own padding and icon gap give it back.
+    streakChipWide: { paddingHorizontal: 4, gap: 1 },
+    // minHeight 40 + `ICON_SLOP` = a 48dp target with the pill barely taller
+    // than it was (~34dp of padding and text).
+    repeatBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.xs, marginTop: space.sm, borderWidth: 1, borderColor: colors.ink, borderRadius: radius.pill, paddingHorizontal: space.lg, paddingVertical: space.sm, minHeight: 40 },
     repeatBtnDisabled: { opacity: 0.5 },
     repeatText: { fontSize: font.small, fontWeight: '700', color: colors.ink },
+    copyRow: { marginBottom: space.md, gap: space.xs },
+    copyLabel: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
+    copyChips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
+    copyChip: { flexDirection: 'row', alignItems: 'center', gap: space.xs, minHeight: 40, paddingHorizontal: space.md, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.inputBg },
+    copyChipText: { fontSize: font.small, fontWeight: '700', color: colors.ink, textTransform: 'capitalize' },
   });
 }

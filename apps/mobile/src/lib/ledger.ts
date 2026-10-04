@@ -857,22 +857,63 @@ export async function startFast(uid: string, startedAt?: Date): Promise<void> {
  * `endedAt` is a parameter so a caller can end a fast at a corrected time
  * (ADR-0032 decision 3 — editing is the feature, not the polish); it defaults
  * to now, which is every call today.
+ *
+ * Resolves with a {@link BreakFastReceipt} so Today can offer Undo
+ * (`undoBreakFast`) without re-reading anything.
  */
-export async function breakFast(uid: string, endedAt?: Date): Promise<void> {
+export async function breakFast(uid: string, endedAt?: Date): Promise<BreakFastReceipt> {
   const end = endedAt ?? new Date();
   const snap = await getDoc(userDoc(uid));
   const startedAt = snap.data()?.fastStartedAt as Timestamp | null | undefined;
   const start = startedAt instanceof Timestamp ? startedAt.toDate() : null;
 
   const batch = writeBatch(db);
+  let fastId: string | null = null;
   if (start && isStorableFast(start, end)) {
-    batch.set(doc(fastsCol(uid)), {
+    // The ref is minted before the commit so the receipt can name the document
+    // Undo has to remove — `doc(collection)` generates the id client-side.
+    const ref = doc(fastsCol(uid));
+    fastId = ref.id;
+    batch.set(ref, {
       startedAt: Timestamp.fromDate(start),
       endedAt: Timestamp.fromDate(end),
       source: 'timer',
     });
   }
   batch.update(userDoc(uid), { fastStartedAt: null, lastSeenAt: Timestamp.now() });
+  await batch.commit();
+  return { fastId, startedAt: start };
+}
+
+/**
+ * What `breakFast` changed, which is exactly what `undoBreakFast` reverses:
+ * the archived document's id (null when the interval was not storable and
+ * nothing was written) and the `fastStartedAt` it cleared (null when no fast
+ * was running, which makes the receipt a no-op).
+ */
+export interface BreakFastReceipt {
+  fastId: string | null;
+  startedAt: Date | null;
+}
+
+/**
+ * Put an ended fast back: the timer resumes from its ORIGINAL start and the
+ * document `breakFast` archived is removed.
+ *
+ * Ending a fast was the one daily action on Today with no way back — a mis-tap
+ * on End next to the water pills closed a 16-hour fast, and the only repair was
+ * to find the archived record in History and re-type both instants. One batch
+ * for the same reason `breakFast` is one: restoring the timer without removing
+ * the record (or the reverse) would leave a fast counted twice or not at all.
+ */
+export async function undoBreakFast(uid: string, receipt: BreakFastReceipt): Promise<void> {
+  if (!receipt.startedAt) return;
+  const batch = writeBatch(db);
+  if (receipt.fastId) batch.delete(doc(fastsCol(uid), receipt.fastId));
+  batch.update(userDoc(uid), {
+    fastStartedAt: Timestamp.fromDate(receipt.startedAt),
+    lastSeenAt: Timestamp.now(),
+  });
   await batch.commit();
 }
 
@@ -1415,6 +1456,19 @@ export function subscribePresets(
 
 export async function addPreset(uid: string, preset: Omit<MealPreset, 'id'>): Promise<string> {
   return createDoc(presetsCol(uid), toPresetDoc(preset));
+}
+
+/**
+ * Add a preset at an id minted NOW, before any network: the caller can offer
+ * Undo (delete by that id) at once. `addPreset` resolves its id only on the
+ * server's ack, which offline is never — so a receipt keyed on it never came.
+ */
+export function addPresetNow(
+  uid: string,
+  preset: Omit<MealPreset, 'id'>,
+): { id: string; written: Promise<void> } {
+  const ref = doc(presetsCol(uid));
+  return { id: ref.id, written: setDoc(ref, toPresetDoc(preset) as unknown as Record<string, unknown>) };
 }
 
 export async function deletePreset(uid: string, id: string): Promise<void> {

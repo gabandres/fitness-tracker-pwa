@@ -276,8 +276,10 @@ describe('repeatYesterday', () => {
       log({ id: 'a', date: new Date(2026, 8, 13, 8, 30), calories: 400 }),
       log({ id: 'b', date: new Date(2026, 8, 13, 19, 5), calories: 700, mealLabel: 'Dinner' }),
     ];
-    const n = await repeatYesterday(UID, rows, MIDNIGHT);
-    expect(n).toBe(2);
+    const ids = await repeatYesterday(UID, rows, MIDNIGHT);
+    expect(ids).toHaveLength(2);
+    // The ids handed back are the ids written — the screen's Undo deletes by them.
+    expect(mockAddLogDurably.mock.calls.map((c) => (c as unknown[])[2])).toEqual(ids);
     expect(mockAddLogDurably).toHaveBeenCalledTimes(2);
 
     const stamps = mockAddLogDurably.mock.calls.map(
@@ -314,14 +316,36 @@ describe('repeatYesterday', () => {
       log({ id: 'marker', date: new Date(2026, 8, 13, 18, 0), calories: 0 }),
       log({ id: 'keep', date: new Date(2026, 8, 13, 12, 15), calories: 650 }),
     ];
-    expect(await repeatYesterday(UID, rows, MIDNIGHT)).toBe(1);
+    expect(await repeatYesterday(UID, rows, MIDNIGHT)).toHaveLength(1);
     const entry = (mockAddLogDurably.mock.calls[0] as unknown as [string, { calories: number }])[1];
     expect(entry.calories).toBe(650);
   });
 
+  it('copies ONE meal when a slot is given — breakfast on a day already begun', async () => {
+    const rows = [
+      log({ id: 'b', date: new Date(2026, 8, 13, 8, 0), calories: 400, mealType: 'breakfast' }),
+      log({ id: 'd', date: new Date(2026, 8, 13, 19, 0), calories: 700, mealType: 'dinner' }),
+      // The factory defaults to breakfast; this row is genuinely untagged.
+      log({ id: 'u', date: new Date(2026, 8, 13, 15, 0), calories: 150, mealType: undefined }),
+    ];
+    expect(await repeatYesterday(UID, rows, MIDNIGHT, 'breakfast')).toHaveLength(1);
+    const entry = (mockAddLogDurably.mock.calls[0] as unknown as [string, { calories: number }])[1];
+    expect(entry.calories).toBe(400);
+    mockAddLogDurably.mockClear();
+    // A row with no slot is `other`, as the diary groups it.
+    expect(await repeatYesterday(UID, rows, MIDNIGHT, 'other')).toHaveLength(1);
+  });
+
+  it('copies the note with the meal', async () => {
+    const rows = [log({ id: 'n', date: new Date(2026, 8, 13, 8, 0), calories: 400, note: 'no sugar' })];
+    await repeatYesterday(UID, rows, MIDNIGHT);
+    const entry = (mockAddLogDurably.mock.calls[0] as unknown as [string, { note?: string }])[1];
+    expect(entry.note).toBe('no sugar');
+  });
+
   it('counts nothing when there is nothing to copy', async () => {
     const rows = [log({ id: 'today', date: new Date(2026, 8, 14, 9, 0), calories: 500 })];
-    expect(await repeatYesterday(UID, rows, MIDNIGHT)).toBe(0);
+    expect(await repeatYesterday(UID, rows, MIDNIGHT)).toHaveLength(0);
     expect(mockAddLogDurably).not.toHaveBeenCalled();
     expect(mockTrack).not.toHaveBeenCalled();
   });
@@ -335,7 +359,7 @@ describe('repeatYesterday', () => {
       log({ id: 'late-night', date: new Date(2026, 8, 14, 1, 0), calories: 300 }),
       log({ id: 'this-morning', date: new Date(2026, 8, 14, 4, 0), calories: 300 }),
     ];
-    expect(await repeatYesterday(UID, rows, threeAm)).toBe(1);
+    expect(await repeatYesterday(UID, rows, threeAm)).toHaveLength(1);
     const entry = (
       mockAddLogDurably.mock.calls[0] as unknown as [string, { timestamp: Date }]
     )[1];
@@ -352,7 +376,7 @@ describe('repeatYesterday', () => {
       log({ id: 'late-night', date: new Date(2026, 8, 14, 1, 0), calories: 300 }),
       log({ id: 'lunch', date: new Date(2026, 8, 13, 12, 30), calories: 600 }),
     ];
-    expect(await repeatYesterday(UID, rows, threeAm)).toBe(2);
+    expect(await repeatYesterday(UID, rows, threeAm)).toHaveLength(2);
     const todayKey = dayKeyAt(NOW, threeAm);
     const stamps = mockAddLogDurably.mock.calls.map(
       (c) => (c as unknown as [string, { timestamp: Date }])[1].timestamp,
@@ -371,7 +395,7 @@ describe('repeatYesterday', () => {
     jest.setSystemTime(new Date(2026, 8, 15, 1, 30));
     const threeAm = [{ from: '2026-01-01' as DateKey, hour: 3 }];
     const rows = [log({ id: 'lunch', date: new Date(2026, 8, 13, 12, 0), calories: 600 })];
-    expect(await repeatYesterday(UID, rows, threeAm)).toBe(1);
+    expect(await repeatYesterday(UID, rows, threeAm)).toHaveLength(1);
     const entry = (
       mockAddLogDurably.mock.calls[0] as unknown as [string, { timestamp: Date }]
     )[1];

@@ -32,6 +32,8 @@ const mockUid = { current: undefined as string | undefined };
 // whose untranspiled ESM cannot load here.
 jest.mock('@/lib/pending-logs', () => ({
   addLogDurably: (...a: unknown[]) => mockAddLogDurably(...(a as [])),
+  dropPendingLogs: jest.fn(async () => undefined),
+  editParkedLog: jest.fn(async () => null),
 }));
 
 jest.mock('@/lib/ledger', () => ({
@@ -85,7 +87,11 @@ describe('useLogWrites', () => {
       });
     });
 
-    expect(mockAddLogDurably).toHaveBeenCalledWith('u1', expect.objectContaining({ calories: 700 }));
+    expect(mockAddLogDurably).toHaveBeenCalledWith(
+      'u1',
+      expect.objectContaining({ calories: 700 }),
+      expect.any(String),
+    );
     expect(mockExportNutrition).toHaveBeenCalledWith({
       at,
       kcal: 700,
@@ -178,6 +184,7 @@ describe('useLogWrites — the first-scan award', () => {
     expect(mockAddLogDurably).toHaveBeenCalledWith(
       'u1',
       expect.objectContaining({ source: 'photo' }),
+      expect.any(String),
     );
     expect(mockRecordMilestone).toHaveBeenCalledWith('u1', 'first-scan');
     expect(mockRecordPositiveMoment).toHaveBeenCalledTimes(1);
@@ -240,7 +247,7 @@ describe('useLogWrites — the first-scan award', () => {
     await act(async () => {
       await expect(
         result.current.addEntry({ calories: 500, source: 'photo' }),
-      ).resolves.toBe('logged');
+      ).resolves.toMatchObject({ outcome: 'logged' });
     });
 
     expect(mockAddLogDurably).toHaveBeenCalledTimes(1);

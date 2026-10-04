@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { AccessibilityInfo, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { routeTranscript, parseMealUtterance } from '@macrolog/core';
 import { useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
@@ -12,8 +12,44 @@ import {
   stopListening,
 } from '@/lib/speech';
 import { track } from '@/lib/analytics';
+import { announce, isScreenReaderOn } from '@/lib/a11y';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
+
+/**
+ * Apple's 44pt / Material's 48dp. This was a 24pt glyph plus `hitSlop={8}` —
+ * 40 on paper, and less on Android, which drops slop that reaches past the
+ * parent's bounds (the row hugs the button). A real box is the only version of
+ * the target that holds on both platforms.
+ */
+const TARGET = Platform.OS === 'android' ? 48 : 44;
+
+/**
+ * Say "Listening" and, under a screen reader, let it finish before the mic
+ * opens. The announcement comes out of the same speaker the recogniser is
+ * about to listen to, so opening it at once can transcribe the app's own word
+ * and search for "listening". iOS reports when an announcement ends; Android
+ * does not, and the cap bounds the wait on both.
+ */
+function announceBeforeListening(message: string): Promise<void> {
+  if (!isScreenReaderOn()) return Promise.resolve();
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      sub?.remove();
+      clearTimeout(cap);
+      resolve();
+    };
+    const sub =
+      Platform.OS === 'ios'
+        ? AccessibilityInfo.addEventListener('announcementFinished', finish)
+        : undefined;
+    const cap = setTimeout(finish, 1500);
+    announce(message);
+  });
+}
 
 /**
  * Dictate a meal instead of typing it.
@@ -105,10 +141,22 @@ export function MicButton({
         if (routed.to === 'meal') onMeal(routed.text);
         else onSearch(routed.text);
       });
-      end = mod.ExpoSpeechRecognitionModule.addListener?.('end', () => setListening(false));
+      end = mod.ExpoSpeechRecognitionModule.addListener?.('end', () => {
+        // The recogniser ends on its own after a pause. Said aloud only if we
+        // were still listening, so the user's own Stop tap (which flips state
+        // first and announces itself) is not read twice.
+        if (listeningRef.current) announce(t('voice.stopped'));
+        // Flipped here as well as by the render: a second `end` (or the Stop
+        // tap's own) can arrive before React re-renders, and read it twice.
+        listeningRef.current = false;
+        setListening(false);
+      });
       err = mod.ExpoSpeechRecognitionModule.addListener?.('error', () => {
         setListening(false);
         setFailed(true);
+        // The parent draws the message (see `onFailedChange`) with no live
+        // region, so it is spoken from here, where the failure is known.
+        announce(t('voice.failed'));
       });
     } catch {
       /* no module in this binary — the button is not rendered anyway */
@@ -118,7 +166,9 @@ export function MicButton({
       end?.remove();
       err?.remove();
     };
-  }, [onMeal, onSearch]);
+    // `t` is stable per locale; listed so a language switch mid-session still
+    // announces in the right one.
+  }, [onMeal, onSearch, t]);
 
   // Closing the sheet mid-dictation used to leave the recognizer — and the
   // microphone — running with nobody listening for the result. Unmount-only,
@@ -127,8 +177,12 @@ export function MicButton({
   // dictation short on every re-render.
   const listeningRef = useRef(listening);
   listeningRef.current = listening;
+  /** Cleared by a Stop tap or unmount — read after the "Listening" wait below,
+   *  where `listeningRef` still holds the pre-render value. */
+  const wantMic = useRef(false);
   useEffect(
     () => () => {
+      wantMic.current = false;
       if (listeningRef.current) stopListening();
     },
     [],
@@ -138,8 +192,13 @@ export function MicButton({
     haptics.tap();
     setFailed(false);
     if (listening) {
+      wantMic.current = false;
+      // Before `stopListening`: its `end` event can fire synchronously, ahead
+      // of the re-render, and would announce "Stopped" a second time.
+      listeningRef.current = false;
       stopListening();
       setListening(false);
+      announce(t('voice.stopped'));
       return;
     }
     const perm = await requestSpeechPermission();
@@ -149,9 +208,14 @@ export function MicButton({
     }
     const { lang, onDevice } = await speechConfigFor(locale);
     setListening(true);
+    wantMic.current = true;
+    // The icon swap is the only other cue that the mic is live.
+    await announceBeforeListening(t('voice.listening'));
+    // Stopped (or unmounted) during that wait: do not open a mic nobody wants.
+    if (!wantMic.current) return;
     track('voice_log');
     startListening(lang, onDevice);
-  }, [listening, locale]);
+  }, [listening, locale, t]);
 
   useEffect(() => {
     onFailedChange?.(failed);
@@ -161,7 +225,12 @@ export function MicButton({
 
   if (denied) {
     return (
-      <TouchableOpacity onPress={() => Linking.openSettings()} hitSlop={8} testID="mic-denied">
+      <TouchableOpacity
+        onPress={() => Linking.openSettings()}
+        style={styles.target}
+        accessibilityRole="button"
+        testID="mic-denied"
+      >
         <Text style={styles.deniedText}>{t('voice.enable')}</Text>
       </TouchableOpacity>
     );
@@ -171,10 +240,13 @@ export function MicButton({
     <View style={styles.row}>
       <TouchableOpacity
         onPress={toggle}
-        hitSlop={8}
+        style={styles.target}
         accessibilityRole="button"
+        // The label already flips between "Say what you ate" and "Stop
+        // listening"; `selected` is the state behind it. It was `busy`, which
+        // VoiceOver reads as "busy" — i.e. not ready, the opposite of a live mic.
         accessibilityLabel={t(listening ? 'voice.stop' : 'voice.start')}
-        accessibilityState={{ busy: listening }}
+        accessibilityState={{ selected: listening }}
         testID="mic-toggle"
       >
         <Ionicons
@@ -203,4 +275,5 @@ const createStyles = ({ colors }: Theme) =>
       borderRadius: radius.sm,
     },
     row: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
+    target: { minWidth: TARGET, minHeight: TARGET, alignItems: 'center', justifyContent: 'center' },
   });

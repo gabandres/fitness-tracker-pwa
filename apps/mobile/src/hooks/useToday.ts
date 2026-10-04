@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useCachedState } from '@/hooks/useCachedState';
+import { useDayKey } from '@/hooks/useDayKey';
 import { feedChannel, useLedgerFeed } from '@/hooks/useLedgerFeed';
 import { onPendingLogsChanged, pendingLogsAsRows } from '@/lib/pending-logs';
 import { repeatYesterday as repeatYesterdayOp, writeDailyMetric } from '@/lib/ledger-ops';
@@ -9,6 +10,7 @@ import {
   type DailyTargets,
   type DaySummary,
   type MealPreset,
+  type MealSlot,
   type Profile,
   type ShareStats,
   STREAK_FREEZE_MAX_GAP_PRO,
@@ -19,19 +21,27 @@ import {
   type DateKey,
   dayBoundaryOf,
   dayKeyAt,
+  addDays,
+  calendarDateKey,
+  parseYmd,
   LOG_WINDOW_ROWS,
   summarizeDay,
   measurementProgress,
   type MeasurementProgress,
 } from '@macrolog/core';
 import { useSubscription } from '@/lib/subscription';
+
+/** Diary order, as `groupByMealSlot` draws it. */
+const SLOT_ORDER: readonly MealSlot[] = ['breakfast', 'lunch', 'dinner', 'snack', 'other'];
 import { useAuth } from '@/lib/auth';
 import { type LogWrites, useLogWrites } from '@/hooks/useLogWrites';
 import {
+  type BreakFastReceipt,
   breakFast as breakFastDoc,
   setHiddenRecentLabels,
   startFast as startFastDoc,
   subscribeCustomFoods,
+  undoBreakFast as undoBreakFastDoc,
   subscribeDailyActivity,
   subscribeDailySleep,
   subscribeDailyWater,
@@ -80,12 +90,23 @@ export interface TodayState extends LogWrites {
   fastStartedAt: Date | null;
   /** Omit `startedAt` to begin now; pass one to correct a running fast. */
   startFast: (startedAt?: Date) => Promise<void>;
-  breakFast: () => Promise<void>;
+  /** End the running fast. Resolves with what `undoBreakFast` needs to put it
+   *  back, or null when nothing was running (or there is no session). */
+  breakFast: () => Promise<BreakFastReceipt | null>;
+  /** Reverse a `breakFast` — the Undo on Today's "Fast ended" toast. */
+  undoBreakFast: (receipt: BreakFastReceipt) => Promise<void>;
   /** Consecutive logged-day streak ending today (or yesterday). */
   streak: number;
   /** Copy yesterday's food entries onto today (time-of-day preserved).
-   *  Returns how many were copied. */
-  repeatYesterday: () => Promise<number>;
+   *  Resolves with the ids of the rows copied (empty when yesterday had none). */
+  /** `slot` copies one meal ("yesterday's breakfast") on a day already begun. */
+  repeatYesterday: (slot?: MealSlot) => Promise<string[]>;
+  /** How many food rows yesterday has — what `repeatYesterday` would copy. The
+   *  button hides at 0 rather than buzzing success and doing nothing (day 1). */
+  yesterdayCount: number;
+  /** Meal slots yesterday had and today does not yet — what the "Copy from
+   *  yesterday" chips offer once today has entries (fixed slot order). */
+  yesterdaySlots: MealSlot[];
   /** Numbers-only progress stats for the share card (streak, logged days,
    *  weight change). */
   shareStats: ShareStats;
@@ -100,6 +121,10 @@ export interface TodayState extends LogWrites {
    *  holds. Evidence for `first-scan`, and SUFFICIENT ONLY — see the return
    *  site. */
   hasPhotoScan: boolean;
+  /** Whether any food row from an EARLIER day is in the window this hook
+   *  holds — picks the returning-user empty-state copy. Window-bound like
+   *  `hasPhotoScan` (ADR-0004), which is fine for a line of copy. */
+  hasPriorLogs: boolean;
 }
 
 export function useToday(): TodayState {
@@ -268,7 +293,10 @@ export function useToday(): TodayState {
   // come from the profile's boundary. An empty boundary is the calendar date,
   // which is every account until the Settings row is used.
   const boundary = useMemo(() => dayBoundaryOf(profile), [profile]);
-  const todayKey = dayKeyAt(new Date(), boundary);
+  // NOT `dayKeyAt(new Date(), boundary)` inline: that only moved when something
+  // re-rendered, so an app resumed the next morning kept showing yesterday as
+  // "Today". `useDayKey` re-keys at the boundary instant and on foreground.
+  const todayKey = useDayKey(boundary);
   const summary = useMemo(
     () => summarizeDay(todayKey, logs, weights, boundary),
     [todayKey, logs, weights, boundary],
@@ -346,10 +374,33 @@ export function useToday(): TodayState {
   // count-once-per-use event are asserted there, not through a renderer. The
   // merged `logs` (live + parked) are handed down rather than re-read, so the
   // rows copied are exactly the rows the user is looking at.
-  const repeatYesterday = useCallback(async () => {
-    if (!uid) return 0;
-    return repeatYesterdayOp(uid, logs, boundary);
-  }, [uid, logs, boundary]);
+  const repeatYesterday = useCallback(
+    async (slot?: MealSlot) => {
+      if (!uid) return [];
+      return repeatYesterdayOp(uid, logs, boundary, slot);
+    },
+    [uid, logs, boundary],
+  );
+  // Same filter as the op, so the button's presence and the copy agree.
+  const { yesterdayCount, yesterdaySlots } = useMemo(() => {
+    const yKey = calendarDateKey(addDays(parseYmd(todayKey), -1));
+    const yRows = logs.filter((l) => l.calories > 0 && dayKeyAt(l.date, boundary) === yKey);
+    const todaySlots = new Set(
+      logs
+        .filter((l) => l.calories > 0 && dayKeyAt(l.date, boundary) === todayKey)
+        .map((l) => l.mealType ?? 'other'),
+    );
+    const ySlots = new Set(yRows.map((l) => l.mealType ?? 'other'));
+    return {
+      yesterdayCount: yRows.length,
+      yesterdaySlots: SLOT_ORDER.filter((s) => ySlots.has(s) && !todaySlots.has(s)),
+    };
+  }, [logs, boundary, todayKey]);
+
+  const hasPriorLogs = useMemo(
+    () => logs.some((l) => l.calories > 0 && dayKeyAt(l.date, boundary) < todayKey),
+    [logs, boundary, todayKey],
+  );
 
   // Every logging surface's writes, shared with History so the two cannot
   // drift again (`useLogWrites`). The meal-slot default sits below even that,
@@ -396,9 +447,16 @@ export function useToday(): TodayState {
   const startFast = useCallback(async (startedAt?: Date) => {
     if (uid) await startFastDoc(uid, startedAt);
   }, [uid]);
-  const breakFast = useCallback(async () => {
-    if (uid) await breakFastDoc(uid);
-  }, [uid]);
+  const breakFast = useCallback(
+    async () => (uid ? breakFastDoc(uid) : null),
+    [uid],
+  );
+  const undoBreakFast = useCallback(
+    async (receipt: BreakFastReceipt) => {
+      if (uid) await undoBreakFastDoc(uid, receipt);
+    },
+    [uid],
+  );
 
   return {
     loading,
@@ -425,8 +483,11 @@ export function useToday(): TodayState {
     fastStartedAt: profile?.fastStartedAt ?? null,
     startFast,
     breakFast,
+    undoBreakFast,
     streak,
     repeatYesterday,
+    yesterdayCount,
+    yesterdaySlots,
     shareStats,
     measurement,
     /**
@@ -461,5 +522,6 @@ export function useToday(): TodayState {
      * take a milestone away.
      */
     hasPhotoScan: logs.some((l) => l.source === 'photo'),
+    hasPriorLogs,
   };
 }

@@ -17,6 +17,7 @@ import type { DailyActivity } from '@/lib/ledger';
 import * as haptics from '@/lib/haptics';
 import { PressScale } from '@/lib/motion';
 import { setPersistedTab } from '@/hooks/usePersistedTab';
+import { announce } from '@/lib/a11y';
 import { useDeferredFocus } from '@/lib/use-deferred-focus';
 import { useUnitSystem } from '@/lib/use-unit-system';
 import {
@@ -186,8 +187,13 @@ export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater
   const step = waterStep(unitSystem);
   const addWater = (deltaDisplay: number) => {
     haptics.tap();
-    onAddWater(Math.max(0, water + toFlOz(deltaDisplay, unitSystem)));
+    const next = Math.max(0, water + toFlOz(deltaDisplay, unitSystem));
+    onAddWater(next);
+    // The pill's label says what a tap ADDS; nothing said what the total
+    // became, so a screen-reader user tapped +250 and heard silence.
+    announce(t('metrics.waterNowA11y', { n: displayWater(next, unitSystem), unit: waterUnit }));
   };
+  const fastValue = fastingValue(fastStartedAt, fastedTodayHours, t);
   const [sleepOpen, setSleepOpen] = useState(false);
   const [waterOpen, setWaterOpen] = useState(false);
   const [, setTick] = useState(0);
@@ -215,13 +221,15 @@ export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater
             onPress={onEditFast ? () => { haptics.tap(); onEditFast(); } : undefined}
             disabled={!onEditFast}
             accessibilityRole={onEditFast ? 'button' : undefined}
-            accessibilityLabel={t('metrics.fasting')}
+            // Name AND value: an `accessibilityLabel` replaces the children, so
+            // the label alone meant the elapsed time was never read at all.
+            accessibilityLabel={`${t('metrics.fasting')}, ${fastValue}`}
             accessibilityHint={t('fast.editHint')}
             testID="fast-open"
           >
             <Text style={styles.label}>{t('metrics.fasting')}</Text>
             <View style={styles.waterValueRow}>
-              <Text style={styles.value}>{fastingValue(fastStartedAt, fastedTodayHours, t)}</Text>
+              <Text style={styles.value}>{fastValue}</Text>
               {onEditFast ? <Ionicons name="pencil" size={12} color={colors.faint} /> : null}
             </View>
           </PressScale>
@@ -235,6 +243,9 @@ export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater
           }}
           hitSlop={PILL_SLOP}
           accessibilityRole="button"
+          // "End" alone does not say what ends; the visible word is short for
+          // the row's width, the spoken one need not be.
+          accessibilityLabel={fastStartedAt ? t('metrics.endFastA11y') : t('metrics.startFast')}
           testID="fast-toggle"
         >
           <Text style={[styles.actionText, fastStartedAt && styles.actionTextStop]}>
@@ -252,7 +263,10 @@ export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater
           right: +8/+16/+24 cover the common glass and nothing else. Same shape
           as the Sleep row directly below, so it is one interaction to learn
           rather than two. */}
-      <View style={styles.row}>
+      {/* Wraps rather than squeezes: at 360dp in ml (four pills) or at a large
+          font scale, the pills and the label/value cannot share one line, and
+          without `flexWrap` the lead group shrank until "473 ml" truncated. */}
+      <View style={[styles.row, styles.rowWrap]}>
         <View style={styles.leadGroup}>
           <HabitShortcut metric="water" />
           <PressScale
@@ -260,7 +274,7 @@ export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater
             style={styles.left}
             onPress={() => { haptics.tap(); setWaterOpen(true); }}
             accessibilityRole="button"
-            accessibilityLabel={t('water.title')}
+            accessibilityLabel={`${t('water.title')}, ${waterShown} ${waterUnit}`}
             accessibilityHint={t('water.amount')}
             testID="water-open"
           >
@@ -323,6 +337,7 @@ export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater
           style={styles.action}
           hitSlop={PILL_SLOP}
           accessibilityRole="button"
+          accessibilityLabel={sleep != null ? t('metrics.sleepEditA11y') : t('metrics.sleepLogA11y')}
           onPress={() => { haptics.tap(); setSleepOpen(true); }}
           testID="sleep-open"
         >
@@ -589,6 +604,7 @@ const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
     ...shadow.e1,
   },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: space.sm },
+  rowWrap: { flexWrap: 'wrap', rowGap: space.sm, columnGap: space.sm },
   left: { gap: 2 },
   // The habit chip + the row's label/value, as one leading cluster. The 12dp
   // gap is load-bearing: the chip carries 6dp of hitSlop on each side, so the
@@ -620,7 +636,7 @@ const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   actionStop: { borderColor: colors.danger },
   actionText: { fontSize: font.small, color: colors.ink, fontWeight: '700' },
   actionTextStop: { color: colors.danger },
-  waterBtns: { flexDirection: 'row', gap: space.xs },
+  waterBtns: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
   waterValueRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   sheetNote: { fontSize: font.small, color: colors.muted, marginTop: space.xs, textAlign: 'center' },
   sheetNoteBad: { color: colors.danger },

@@ -36,12 +36,14 @@
 import {
   type DayBoundary,
   type DailyLog,
+  type MealSlot,
   type UsageEvent,
   addDays,
   calendarDateKey,
   dayKeyAt,
   fillMissingClusterLoads,
   isStorableWeight,
+  newLedgerId,
   parseYmd,
 } from '@macrolog/core';
 import { track } from './analytics';
@@ -229,6 +231,9 @@ export async function finishWorkout(
  * retype a day, and losing it offline would be losing a whole day of meals at
  * once (ADR-0020).
  *
+ * Returns the ids it wrote (empty when yesterday had nothing), so the caller
+ * can say how many it copied and offer an Undo that removes exactly those.
+ *
  * The event is counted **once per use, not once per row**, and not at all when
  * there was nothing to copy — the question it answers is whether the shortcut
  * earns its place on an empty Today, and a use that copied nothing is evidence
@@ -238,12 +243,25 @@ export async function repeatYesterday(
   uid: string,
   logs: DailyLog[],
   boundary: DayBoundary,
-): Promise<number> {
+  /** Copy only this meal slot (rows with no slot count as `other`). Omit for
+   *  the whole day. */
+  slot?: MealSlot,
+): Promise<string[]> {
   // Both keys are the USER's days (ADR-0030): today is whatever `dayKeyAt`
   // says now belongs to, and yesterday is the key before it.
   const todayKey = dayKeyAt(new Date(), boundary);
   const yKey = calendarDateKey(addDays(parseYmd(todayKey), -1));
-  const yLogs = logs.filter((l) => dayKeyAt(l.date, boundary) === yKey && l.calories > 0);
+  const yLogs = logs.filter(
+    (l) =>
+      dayKeyAt(l.date, boundary) === yKey &&
+      l.calories > 0 &&
+      (slot == null || (l.mealType ?? 'other') === slot),
+  );
+  const ids: string[] = [];
+  // In parallel: offline each write waits out its own deadline before parking,
+  // and one at a time a six-row day sat on "Saving…" for ~9 s. The queue
+  // serialises its own read-modify-writes (`quick-add.ts` `serial`).
+  const writes: Promise<unknown>[] = [];
   for (const l of yLogs) {
     // Today's KEY as the calendar date, then the row's wall-clock time. Under
     // a 3am start a 01:00 meal belongs to the day the clock names minus one,
@@ -255,16 +273,25 @@ export async function repeatYesterday(
     const ts = parseYmd(todayKey);
     ts.setHours(l.date.getHours(), l.date.getMinutes(), 0, 0);
     if (dayKeyAt(ts, boundary) !== todayKey) ts.setDate(ts.getDate() + 1);
-    await addLogDurably()(uid, {
+    // Minted here so the screen's "Copied N · Undo" can delete exactly these.
+    const id = newLedgerId(Math.random);
+    ids.push(id);
+    writes.push(addLogDurably()(uid, {
       calories: l.calories,
       protein: l.protein,
       carbs: l.carbs,
       fat: l.fat,
       mealLabel: l.mealLabel,
       mealType: l.mealType,
+      // The note is part of the meal ("no rice, extra beans") — copying the
+      // meal without it was copying half of it.
+      note: l.note,
       timestamp: ts,
-    });
+    }, id));
   }
+  await Promise.all(writes);
+  // One event for a whole-day and a one-meal copy: the usage-event names are
+  // a closed set validated by the rules, and both answer the same question.
   if (yLogs.length > 0) track('repeat_yesterday');
-  return yLogs.length;
+  return ids;
 }

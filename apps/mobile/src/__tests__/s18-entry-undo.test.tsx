@@ -2,7 +2,7 @@
  * Entry delete → Undo (UX_AUDIT S18-6), pinned on the History day screen.
  *
  * The property: a deleted row comes back EXACTLY — same id, same timestamp —
- * through `addLogWithId`, so Undo cannot duplicate it or move it to another
+ * through `addLogDurably` at its own id, so Undo cannot duplicate it or move it to another
  * day. `entryFromLog` is the conversion; the render test drives the real
  * EntrySheet delete button and the toast action.
  */
@@ -12,6 +12,7 @@ import { type DailyLog, dayBoundaryOf } from '@macrolog/core';
 
 const mockShow = jest.fn();
 jest.mock('@/components/Toast', () => ({
+  ToastSheetHost: () => null,
   useToast: () => ({ show: mockShow }),
   ToastProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
@@ -29,6 +30,12 @@ jest.mock('@/lib/ledger', () => ({
   // Reached transitively by the screen's other imports; none is exercised.
   recordMilestone: jest.fn(),
   subscribeMilestones: () => () => {},
+}));
+// The add receipt's Undo (`useAddReceipt`) reaches firebase through here.
+const mockAddLogDurably = jest.fn().mockResolvedValue('logged');
+jest.mock('@/lib/pending-logs', () => ({
+  undoAdds: jest.fn(),
+  addLogDurably: (...a: unknown[]) => mockAddLogDurably(...a),
 }));
 jest.mock('@/lib/haptics', () => ({ tap: jest.fn(), success: jest.fn(), warning: jest.fn() }));
 // EntrySheet → FoodSearch → firebase/functions; same seam the EntrySheet
@@ -84,6 +91,7 @@ import DayDetail, { entryFromLog } from '@/app/(app)/history/[date]';
 beforeEach(() => {
   mockShow.mockClear();
   mockAddLogWithId.mockClear();
+  mockAddLogDurably.mockClear();
   mockDeleteEntry.mockClear();
 });
 
@@ -128,6 +136,7 @@ describe('History day — delete with Undo', () => {
     expect(opts.action.label).toBe('Undo');
 
     opts.action.onPress();
-    expect(mockAddLogWithId).toHaveBeenCalledWith('u1', 'log-1', entryFromLog(mockLunch));
+    // Durable since 2026-10-04: same id, every field, parked if offline.
+    expect(mockAddLogDurably).toHaveBeenCalledWith('u1', entryFromLog(mockLunch), 'log-1');
   });
 });

@@ -12,6 +12,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeInDown, FadeOutDown, ReduceMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useT } from '@/i18n';
+import { announce, primeScreenReaderState, recommendedTimeoutMs } from '@/lib/a11y';
 import * as haptics from '@/lib/haptics';
 import { useThemedStyles, type Theme } from '@/lib/theme-context';
 import { FAB_BAND, font, motion, radius, space } from '@/theme';
@@ -46,16 +47,17 @@ import { FAB_BAND, font, motion, radius, space } from '@/theme';
  *
  * One toast at a time; a new `show` replaces the old (the newest fact wins).
  * Auto-dismisses after `durationMs` (default 4 s; 5 s when there is an
- * action — the WCAG "enough time" floor for a timed control). The action fires
+ * action — the WCAG "enough time" floor for a timed control; at least 10 s for
+ * an actionable toast while a screen reader is on, and never shorter than
+ * Android's "time to take action" setting — `lib/a11y.ts`). The action fires
  * once and dismisses. Enter/exit through Reanimated with `ReduceMotion.System`,
  * so a reduce-motion user gets a plain appear/disappear — same rule as every
- * primitive in `lib/motion.tsx`. Announced through `accessibilityLiveRegion`
- * and `accessibilityRole="alert"`, so a screen-reader user hears the receipt
- * without it stealing focus.
- *
- * Sits above the FAB band, not on it: the speed-dial owns the bottom-right
- * corner on every tab, and a toast under a floating button is a toast with
- * its action covered.
+ * primitive in `lib/motion.tsx`. Announced once through
+ * `announceForAccessibility` on both platforms (no live region: the toast can
+ * move from a sheet's host to the root host, and a live region re-reads on
+ * every remount), so a screen-reader user hears the receipt without it
+ * stealing focus. Inside a sheet it draws at the top of the panel — the bottom
+ * there is the keyboard and the sheet's action row — and drops "Edit".
  */
 export interface ToastAction {
   label: string;
@@ -63,8 +65,11 @@ export interface ToastAction {
 }
 
 export interface ToastOptions {
-  /** The one button. Omit for a plain receipt (which gets Dismiss). */
+  /** The main button. Omit for a plain receipt (which gets Dismiss). */
   action?: ToastAction;
+  /** An optional second button, drawn before `action` — the add receipt's
+   *  "Edit" beside its "Undo". Ignored without `action`. */
+  secondaryAction?: ToastAction;
   /** Auto-dismiss after this long. Default 4000; 5000 when `action` is set. */
   durationMs?: number;
   testID?: string;
@@ -75,12 +80,27 @@ interface ToastApi {
   hide: () => void;
 }
 
+/** What the in-modal host needs: the live toast and the portal stack. */
+interface ToastStateApi {
+  current: ActiveToast | null;
+  hide: () => void;
+  /** Ids of mounted `ToastSheetHost`s, newest last — only the newest draws. */
+  portals: readonly number[];
+  register: (id: number) => () => void;
+}
+
 interface ActiveToast extends ToastOptions {
   message: string;
   key: number;
 }
 
+/** Two actions side by side: full vertical slop, but horizontal slop under
+ *  half the gap between them, so their targets cannot overlap. */
+const ACTION_SLOP = { top: 12, bottom: 12, left: 5, right: 5 } as const;
+
 const ToastContext = createContext<ToastApi | null>(null);
+const ToastStateContext = createContext<ToastStateApi | null>(null);
+let portalSeq = 0;
 
 let notify: ((message: string, opts?: ToastOptions) => void) | null = null;
 
@@ -105,18 +125,33 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       if (timer.current) clearTimeout(timer.current);
       const key = ++seq.current;
       setCurrent({ ...opts, message, key });
-      const ms = opts.durationMs ?? (opts.action ? 5000 : 4000);
-      timer.current = setTimeout(() => {
-        // Only the toast that armed this timer may clear it — a newer one has
-        // its own.
-        setCurrent((c) => (c?.key === key ? null : c));
-        timer.current = null;
-      }, ms);
+      // Spoken on iOS too: the live region below is Android-only, and
+      // `role="alert"` is silent under VoiceOver. The action label rides along
+      // so a screen-reader user knows there is something to reach for.
+      const actions = [opts.action && opts.secondaryAction?.label, opts.action?.label]
+        .filter(Boolean)
+        .join(', ');
+      // Spoken once, here, on both platforms — not through a live region:
+      // the toast can move from a sheet's host to the root host as the sheet
+      // closes, and a live region re-announces on every remount.
+      announce(actions ? `${message}. ${actions}` : message);
+      const base = opts.durationMs ?? (opts.action ? 5000 : 4000);
+      void recommendedTimeoutMs(base, !!opts.action).then((ms) => {
+        // A newer toast already replaced this one while the timeout resolved.
+        if (seq.current !== key) return;
+        timer.current = setTimeout(() => {
+          // Only the toast that armed this timer may clear it — a newer one has
+          // its own.
+          setCurrent((c) => (c?.key === key ? null : c));
+          timer.current = null;
+        }, ms);
+      });
     },
     [],
   );
 
   useEffect(() => {
+    primeScreenReaderState();
     notify = show;
     return () => {
       notify = null;
@@ -126,12 +161,42 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const api = useMemo<ToastApi>(() => ({ show, hide }), [show, hide]);
 
+  const [portals, setPortals] = useState<number[]>([]);
+  const register = useCallback((id: number) => {
+    setPortals((p) => [...p, id]);
+    return () => setPortals((p) => p.filter((x) => x !== id));
+  }, []);
+  const state = useMemo<ToastStateApi>(
+    () => ({ current, hide, portals, register }),
+    [current, hide, portals, register],
+  );
+
   return (
     <ToastContext.Provider value={api}>
-      {children}
-      <ToastHost toast={current} onHide={hide} />
+      <ToastStateContext.Provider value={state}>
+        {children}
+        {/* While a sheet is open its own host draws the toast: a native Modal
+            sits above everything in this tree, so a receipt raised from inside
+            a sheet ("Saved to My Foods") was spoken but never seen. */}
+        {portals.length === 0 ? <ToastHost toast={current} onHide={hide} /> : null}
+      </ToastStateContext.Provider>
     </ToastContext.Provider>
   );
+}
+
+/**
+ * The toast, drawn inside a modal. `BottomSheet` mounts one in its `Modal`, so
+ * a toast shown while a sheet is up lands above the sheet rather than behind
+ * it. Stacked sheets (a confirm over the food sheet) each register; only the
+ * newest draws. Outside a `ToastProvider` it renders nothing.
+ */
+export function ToastSheetHost() {
+  const ctx = useContext(ToastStateContext);
+  const id = useRef(++portalSeq).current;
+  const register = ctx?.register;
+  useEffect(() => register?.(id), [register, id]);
+  if (!ctx || ctx.portals[ctx.portals.length - 1] !== id) return null;
+  return <ToastHost toast={ctx.current} onHide={ctx.hide} placement="sheet" />;
 }
 
 export function useToast(): ToastApi {
@@ -140,25 +205,57 @@ export function useToast(): ToastApi {
   return ctx;
 }
 
-function ToastHost({ toast, onHide }: { toast: ActiveToast | null; onHide: () => void }) {
+function ToastHost({
+  toast,
+  onHide,
+  placement = 'bottom',
+}: {
+  toast: ActiveToast | null;
+  onHide: () => void;
+  /** `sheet`: drawn at the top of an open sheet's panel — the bottom there is
+   *  the keyboard and the sheet's own action row, and a toast over either is
+   *  covered or covering. */
+  placement?: 'bottom' | 'sheet';
+}) {
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
   if (!toast) return null;
+  const inSheet = placement === 'sheet';
+  // In a sheet the wrapper sits beside the panel (elevation 6 on Android); a
+  // higher elevation keeps it drawn above the panel if Fabric keeps the node.
+  const at = inSheet ? { top: space.sm, elevation: 8 } : { bottom: insets.bottom + FAB_BAND };
+  // No "Edit" inside a sheet: it would open an editor over the one already
+  // open. The receipt is usually raised while the add sheet is closing, and
+  // the root host draws the full toast, Edit included, once it has.
+  const secondary = inSheet ? undefined : toast.secondaryAction;
   return (
-    <View style={[styles.layer, { bottom: insets.bottom + FAB_BAND }]} pointerEvents="box-none">
+    <View style={[styles.layer, at]} pointerEvents="box-none">
       <Animated.View
         key={toast.key}
         entering={FadeInDown.duration(motion.dur.base).reduceMotion(ReduceMotion.System)}
         exiting={FadeOutDown.duration(motion.dur.fast).reduceMotion(ReduceMotion.System)}
         style={styles.toast}
         accessibilityRole="alert"
-        accessibilityLiveRegion="polite"
         testID={toast.testID ?? 'toast'}
       >
         <Text style={styles.message} numberOfLines={2}>
           {toast.message}
         </Text>
+        {toast.action && secondary ? (
+          <TouchableOpacity
+            onPress={() => {
+              haptics.tap();
+              onHide();
+              secondary.onPress();
+            }}
+            hitSlop={ACTION_SLOP}
+            accessibilityRole="button"
+            testID="toast-secondary-action"
+          >
+            <Text style={styles.action}>{secondary.label}</Text>
+          </TouchableOpacity>
+        ) : null}
         {toast.action ? (
           <TouchableOpacity
             onPress={() => {
@@ -166,7 +263,7 @@ function ToastHost({ toast, onHide }: { toast: ActiveToast | null; onHide: () =>
               onHide();
               toast.action?.onPress();
             }}
-            hitSlop={10}
+            hitSlop={secondary ? ACTION_SLOP : 10}
             accessibilityRole="button"
             testID="toast-action"
           >
@@ -219,5 +316,9 @@ const createStyles = ({ colors, shadow }: Theme) =>
       color: colors.onInk,
       textDecorationLine: 'underline',
       paddingVertical: space.xs,
+      // A 44pt target even for a short word ("Edit", "Undo") — the text box
+      // alone measured ~40pt wide, under the floor.
+      minWidth: 44,
+      textAlign: 'center',
     },
   });

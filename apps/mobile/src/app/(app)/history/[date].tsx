@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -16,13 +16,15 @@ import {
 } from '@macrolog/core';
 import { confirm } from '@/components/ConfirmSheet';
 import { useToast } from '@/components/Toast';
+import { useAddReceipt } from '@/hooks/useAddReceipt';
+import { entryFromLog, isNoopEdit } from '@/lib/entry-from-log';
 import { EntrySheet } from '@/components/EntrySheet';
 import { FastSheet, type FastSheetMode } from '@/components/FastSheet';
 import { MealEntries } from '@/components/MealEntries';
 import { useDayFasts } from '@/hooks/useDayFasts';
 import { useHistory } from '@/hooks/useHistory';
 import { useAuth } from '@/lib/auth';
-import { addLogWithId } from '@/lib/ledger';
+import { addLogDurably } from '@/lib/pending-logs';
 import { useUnitSystem } from '@/lib/use-unit-system';
 import { useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
@@ -31,32 +33,9 @@ import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
 import { formatDate, formatNumber, formatTime } from '@/lib/date-format';
 
-/**
- * The `LogEntry` that re-creates a deleted row byte-for-byte.
- *
- * Undo re-adds through `addLogWithId` at the row's ORIGINAL id and timestamp,
- * so the restored meal lands on the same day, in the same slot, and a second
- * Undo tap cannot duplicate it (`setDoc` is idempotent). Lives on this route (the lighter of the two
- * that delete entries) and is imported by Today; exported for the test too — a route may export a pure helper;
- * what it must not do is host a test file (`AGENTS.md`).
- */
-export function entryFromLog(log: DailyLog): LogEntry {
-  return {
-    calories: log.calories,
-    timestamp: log.date,
-    weight: log.weight,
-    protein: log.protein,
-    carbs: log.carbs,
-    fat: log.fat,
-    exerciseCompleted: log.exerciseCompleted,
-    mealLabel: log.mealLabel,
-    mealType: log.mealType,
-    source: log.source,
-    note: log.note,
-    // Undo puts the row back where it was among same-minute rows.
-    createdAt: log.createdAt,
-  };
-}
+// Re-exported: the helper moved to `lib/` (Today imported it from this route),
+// and the undo tests still reach it here.
+export { entryFromLog } from '@/lib/entry-from-log';
 
 export default function DayDetail() {
   const t = useT();
@@ -64,6 +43,7 @@ export default function DayDetail() {
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const toast = useToast();
+  const receipt = useAddReceipt();
   const { user } = useAuth();
   const { date } = useLocalSearchParams<{ date: string }>();
   const dateKey = String(date);
@@ -104,6 +84,12 @@ export default function DayDetail() {
     .filter((l) => dayKeyAt(l.date, boundary) === dateKey && l.calories > 0)
     .sort((a, b) => a.date.getTime() - b.date.getTime());
 
+  // Latest values for the receipt's Edit, whose closure is from the add.
+  const dayLogsRef = useRef(dayLogs);
+  dayLogsRef.current = dayLogs;
+  const sheetOpenRef = useRef(sheetOpen);
+  sheetOpenRef.current = sheetOpen;
+
   function openAdd() {
     haptics.tap();
     setEditing(null);
@@ -115,8 +101,56 @@ export default function DayDetail() {
     setSheetOpen(true);
   }
   async function onSave(entry: LogEntry) {
-    if (editing?.id) await updateEntry(editing.id, entry);
-    else await addEntry(entry);
+    if (editing?.id) {
+      const before = editing;
+      // An untouched form's Save writes nothing and says nothing.
+      if (isNoopEdit(before, entry)) return;
+      // Not awaited: the SDK resolves an update only on the server's ack, so
+      // offline the sheet sat with Save disabled forever while the banner
+      // promised "will sync". The SDK holds the patch either way; the sheet
+      // closes now, and a rejection (rules, a deleted row) says so in a toast
+      // rather than rolling the row back behind a lone haptic.
+      updateEntry(editing.id, entry).catch((e) => {
+        haptics.warning();
+        toast.show(t('entry.updateFailed'));
+        captureError(e, { where: 'history.updateEntry' });
+      });
+      // An edit is undoable like an add or a delete: the receipt puts the row
+      // back exactly as it was (same id, same fields) — "I changed the wrong
+      // entry" no longer means re-typing the old numbers from memory.
+      const label = entry.mealLabel?.trim() || before.mealLabel?.trim();
+      toast.show(label ? t('entry.updatedNamed', { label }) : t('entry.updated'), {
+        action: {
+          label: t('common.undo'),
+          onPress: () => {
+            updateEntry(before.id!, entryFromLog(before)).catch((e) => {
+              haptics.warning();
+              toast.show(t('entry.updateFailed'));
+              captureError(e, { where: 'history.undoEdit' });
+            });
+          },
+        },
+      });
+    } else {
+      const r = await addEntry(entry);
+      receipt.showAdded(r, { label: entry.mealLabel, calories: entry.calories }, (id) => {
+        // Same as Today's: never over an open sheet, and the live row when
+        // the snapshot has it.
+        if (sheetOpenRef.current) return;
+        const live = dayLogsRef.current.find((l) => l.id === id);
+        openEdit(live ?? { ...entry, id, date: entry.timestamp ?? new Date() });
+      });
+    }
+    haptics.success();
+  }
+  /** "Add all" from a described meal — one receipt, one Undo (see Today). */
+  async function onSaveMany(entries: LogEntry[]) {
+    // In parallel — offline, one at a time cost each row its own deadline.
+    const receipts = await Promise.all(entries.map((entry) => addEntry(entry)));
+    receipt.showAddedMany(
+      receipts,
+      entries.reduce((sum, e) => sum + e.calories, 0),
+    );
     haptics.success();
   }
   /** Same delete-then-Undo as Today (UX_AUDIT S18-6): the re-add carries the
@@ -125,7 +159,11 @@ export default function DayDetail() {
     const log = editing;
     const uid = user?.uid;
     if (log?.id) {
-      await deleteEntry(log.id);
+      // Not awaited — offline the delete never acks and the Undo never showed.
+      deleteEntry(log.id).catch((e) => {
+        haptics.warning();
+        captureError(e, { where: 'history.deleteEntry' });
+      });
       const id = log.id;
       if (uid) {
         toast.show(t('entry.deleted'), {
@@ -133,7 +171,10 @@ export default function DayDetail() {
           action: {
             label: t('common.undo'),
             onPress: () => {
-              addLogWithId(uid, id, entryFromLog(log)).catch((e) => {
+              // Durable, like any add: the same id and every field when it can reach
+          // the server, parked on disk when it cannot (a plain write offline died
+          // with the process).
+          addLogDurably(uid, entryFromLog(log), id).catch((e) => {
                 haptics.warning();
                 captureError(e, { where: 'history.undoDelete' });
               });
@@ -304,6 +345,7 @@ export default function DayDetail() {
       <EntrySheet
         visible={sheetOpen}
         editing={editing}
+        onSaveMany={onSaveMany}
         dateKey={dateKey}
         presets={presets}
         onSave={onSave}

@@ -47,7 +47,8 @@ const TTL_MS = 6 * 60 * 60 * 1000;
 export interface ScanDraft {
   /** Whose scan this is. A draft is never restored into another account. */
   uid: string;
-  /** When the review was last touched, for {@link TTL_MS}. */
+  /** When this scan's draft was FIRST written, for {@link TTL_MS} — kept across
+   *  restores (`scan.tsx` `draftAt`), so a review left with Back still expires. */
   atMs: number;
   items: ScannedFoodItem[];
   mealName: string;

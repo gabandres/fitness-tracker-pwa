@@ -42,7 +42,7 @@ jest.mock('@/lib/firebase', () => ({
 
 import { isOffline, reportSnapshotMeta, resetConnectivity } from '@/lib/connectivity';
 import { clearOfflineCache, readCache, writeCache } from '@/lib/offline-cache';
-import { addLogDurably, pendingLogsAsRows } from '@/lib/pending-logs';
+import { addLogDurably, dropPendingLogs, editParkedLog, pendingLogsAsRows } from '@/lib/pending-logs';
 
 beforeEach(async () => {
   jest.useFakeTimers();
@@ -199,6 +199,17 @@ describe('addLogDurably', () => {
     expect(parsePendingLogs(await AsyncStorage.getItem(PENDING_LOGS_KEY))).toHaveLength(1);
   });
 
+  it('does not park a write the user undid while it waited out its deadline (2026-10-04)', async () => {
+    // Undo on the receipt can land before the add's deadline: the Undo finds
+    // nothing on disk to drop, and the add then parked the row it removed.
+    mockAddLogWithId.mockReturnValue(new Promise<void>(() => {}));
+    const pending = addLogDurably('u1', entry, 'undone-mid-flight');
+    await dropPendingLogs(['undone-mid-flight']);
+    jest.advanceTimersByTime(9000);
+    await pending;
+    expect(parsePendingLogs(await AsyncStorage.getItem(PENDING_LOGS_KEY))).toEqual([]);
+  });
+
   it('gives up faster when connectivity is already known bad', async () => {
     reportSnapshotMeta(true);
     jest.advanceTimersByTime(5000);
@@ -243,5 +254,22 @@ describe('pendingLogsAsRows', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].mealLabel).toBe('Mine');
     expect(rows[0].date).toBeInstanceOf(Date);
+  });
+});
+
+describe('editParkedLog (2026-10-04)', () => {
+  it('rewrites a parked row and keeps its source, which the sheet never sends', async () => {
+    // A photo-scanned meal edited while still offline used to land as a typed
+    // row — the edit entry carries no `source` — losing first-scan evidence.
+    mockAddLogWithId.mockRejectedValue(new Error('offline'));
+    await addLogDurably('u1', { calories: 620, mealLabel: 'Bowl', source: 'photo' }, 'scan-1');
+    const landed = await editParkedLog('u1', 'scan-1', { calories: 540, mealLabel: 'Bowl', note: 'half rice' });
+    expect(landed).toMatchObject({ calories: 540, source: 'photo', note: 'half rice' });
+    const [parked] = parsePendingLogs(await AsyncStorage.getItem(PENDING_LOGS_KEY));
+    expect(parked).toMatchObject({ id: 'scan-1', calories: 540, source: 'photo', note: 'half rice' });
+  });
+
+  it('answers null for a row that is not parked, so the caller patches the server', async () => {
+    expect(await editParkedLog('u1', 'landed-long-ago', { calories: 1 })).toBeNull();
   });
 });

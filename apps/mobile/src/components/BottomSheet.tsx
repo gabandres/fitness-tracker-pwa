@@ -3,13 +3,29 @@ import {
   Animated, type DimensionValue, Dimensions, Modal, PanResponder, Pressable,
   StyleSheet, type StyleProp, View, type ViewStyle,
 } from 'react-native';
-import Reanimated from 'react-native-reanimated';
+import Reanimated, { useReducedMotion } from 'react-native-reanimated';
+import { ToastSheetHost } from '@/components/Toast';
 import { useT } from '@/i18n';
 import { useKeyboardSheetPadding } from '@/lib/use-keyboard-sheet-style';
 import { useThemedStyles, type Theme } from '@/lib/theme-context';
 import { radius, space } from '@/theme';
 
 const OFFSCREEN = Dimensions.get('window').height;
+
+/**
+ * The confirm host, nested in an open sheet. `ConfirmHost` is
+ * required lazily: `ConfirmSheet` renders a `BottomSheet`, so a top-level
+ * import would be a require cycle.
+ */
+function SheetOverlays() {
+  const { ConfirmHost } = require('@/components/ConfirmSheet') as typeof import('@/components/ConfirmSheet');
+  // Absent when a test mocks the module down to `confirm`. (The toast host is
+  // mounted inside the panel instead — see the render.)
+  return ConfirmHost ? <ConfirmHost /> : null;
+}
+
+/** Which dismissal the user made without aiming at a button. */
+export type SheetCloseVia = 'backdrop' | 'drag' | 'back';
 
 interface Props {
   visible: boolean;
@@ -30,6 +46,18 @@ interface Props {
   maxHeight?: DimensionValue;
   /** testID for the dim backdrop, for tests that dismiss by tapping it. */
   backdropTestID?: string;
+  /**
+   * Called INSTEAD of `onClose` for the three dismissals that are easy to
+   * make by accident — a backdrop tap, a drag on the handle, Android back —
+   * so a sheet holding typed input can step back or ask first. Return
+   * `false` to stay open (a drag then settles back into place); anything
+   * else means the caller closed. Omit it and those gestures close outright,
+   * as they always have.
+   */
+  onRequestClose?: (via: SheetCloseVia) => boolean | void;
+  /** Host toasts and confirms inside this sheet's Modal while it is open
+   *  (default true). The confirm's own sheet passes false — it IS the overlay. */
+  overlays?: boolean;
 }
 
 /**
@@ -52,9 +80,13 @@ export function BottomSheet({
   contentStyle,
   maxHeight = '94%',
   backdropTestID,
+  onRequestClose,
+  overlays = true,
 }: Props) {
   const t = useT();
   const styles = useThemedStyles(createStyles);
+  // Reduce Motion: the sheet appears and disappears in place, no spring.
+  const reduceMotion = useReducedMotion();
   const [mounted, setMounted] = useState(visible);
   const anim = useRef(new Animated.Value(0)).current;
   const drag = useRef(new Animated.Value(0)).current;
@@ -70,6 +102,10 @@ export function BottomSheet({
     if (visible) {
       setMounted(true);
       drag.setValue(0);
+      if (reduceMotion) {
+        anim.setValue(1);
+        return;
+      }
       Animated.spring(anim, {
         toValue: 1,
         stiffness: 250,
@@ -79,6 +115,11 @@ export function BottomSheet({
         useNativeDriver: true,
       }).start();
     } else if (mounted) {
+      if (reduceMotion) {
+        anim.setValue(0);
+        setMounted(false);
+        return;
+      }
       Animated.timing(anim, { toValue: 0, duration: 180, useNativeDriver: true }).start(({ finished }) => {
         if (finished) setMounted(false);
       });
@@ -88,16 +129,20 @@ export function BottomSheet({
 
   // Drag-to-dismiss on the handle strip: follow the finger down, release past
   // the threshold (or a flick) closes; otherwise spring back into place.
-  // (onClose through a ref — the responder is created once, the prop isn't.)
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+  // (Through a ref — the responder is created once, the props aren't.)
+  const requestRef = useRef<(via: SheetCloseVia) => boolean>(() => true);
+  requestRef.current = (via) => {
+    if (onRequestClose) return onRequestClose(via) !== false;
+    onClose();
+    return true;
+  };
   const pan = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, g) => g.dy > 4 && Math.abs(g.dy) > Math.abs(g.dx),
       onPanResponderMove: (_, g) => drag.setValue(Math.max(0, g.dy)),
       onPanResponderRelease: (_, g) => {
-        if (g.dy > 120 || g.vy > 0.8) onCloseRef.current();
-        else Animated.spring(drag, { toValue: 0, stiffness: 300, damping: 26, useNativeDriver: true }).start();
+        if ((g.dy > 120 || g.vy > 0.8) && requestRef.current('drag')) return;
+        Animated.spring(drag, { toValue: 0, stiffness: 300, damping: 26, useNativeDriver: true }).start();
       },
     }),
   ).current;
@@ -120,14 +165,14 @@ export function BottomSheet({
   );
 
   return (
-    <Modal visible={mounted} transparent animationType="none" onRequestClose={onClose}>
+    <Modal visible={mounted} transparent animationType="none" onRequestClose={() => requestRef.current('back')}>
       {/* The backdrop is a real control — it closes the sheet — so it says so
           (S18-5). Without a role and a label VoiceOver reads it as an unnamed
           button the size of the screen. */}
       <Animated.View style={backdropStyle}>
         <Pressable
           style={StyleSheet.absoluteFill}
-          onPress={onClose}
+          onPress={() => requestRef.current('backdrop')}
           accessibilityRole="button"
           accessibilityLabel={t('a11y.close')}
           testID={backdropTestID}
@@ -154,8 +199,17 @@ export function BottomSheet({
             </View>
             {children}
           </Reanimated.View>
+          {/* The toast lives INSIDE the modal panel: `accessibilityViewIsModal`
+              hides every sibling from VoiceOver, so a toast drawn beside the
+              panel was announced but its Undo could not be reached. */}
+          {visible && overlays ? <ToastSheetHost /> : null}
         </Animated.View>
       </View>
+      {/* Confirms raised while this sheet is open are presented from here:
+          iOS will not present a second Modal from a controller already
+          presenting this one, which is where the tab-layout host lives. Only
+          while visible; toasts get the same treatment inside the panel. */}
+      {visible && overlays ? <SheetOverlays /> : null}
     </Modal>
   );
 }

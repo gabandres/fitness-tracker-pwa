@@ -25,7 +25,7 @@ import { widgetStrings } from '../widgets/strings';
 import { notifyPendingLogsChanged } from './pending-logs-events';
 import { NATIVE_REST_CONFIG, auth, onSessionTokenChanged } from './firebase';
 import { exportNutrition } from './health-sync';
-import { addLogWithId } from './ledger';
+import { addLogWithId, deleteLog } from './ledger';
 import { APP_GROUP, assertWatchSnapshot, readWidgetSnapshot, saveWidgetSnapshot } from './widget';
 
 /**
@@ -400,17 +400,100 @@ const pendingStore = {
  * grow a second queue to solve it. One store, one flush, one TTL: two would
  * double-write the same meal the first time both landed.
  */
+/**
+ * Every read-modify-write of the queue goes through this one chain. Two parks
+ * in parallel each read the same list and the second write drops the first
+ * row — which is what made batch adds (Repeat yesterday, "Add all") write one
+ * row at a time, each waiting out its own offline deadline (~1.5 s a row).
+ * Serialised here, the writes themselves can run in parallel.
+ */
+let queueChain: Promise<unknown> = Promise.resolve();
+function serial<T>(fn: () => Promise<T>): Promise<T> {
+  const run = queueChain.then(fn, fn);
+  queueChain = run.catch(() => undefined);
+  return run;
+}
+
 export async function parkPendingLog(row: PendingLog): Promise<void> {
-  try {
-    const list = parsePendingLogs(await pendingStore.read());
-    await pendingStore.write(serializePendingLogs(mergePendingLog(list, row)));
-  } catch {
-    /* A queue we cannot write is a lost tap, not a crash. */
-  }
+  await serial(async () => {
+    try {
+      const list = parsePendingLogs(await pendingStore.read());
+      await pendingStore.write(serializePendingLogs(mergePendingLog(list, row)));
+    } catch {
+      /* A queue we cannot write is a lost tap, not a crash. */
+    }
+  });
   // Inside the park rather than at each call site: a row nobody redraws for is
   // a row the user believes they lost. In a headless widget context there are
   // no listeners and this is a no-op.
   notifyPendingLogsChanged();
+}
+
+/**
+ * Ids the user has undone this session. A flush that read the queue BEFORE the
+ * Undo would otherwise land the row after the Undo's delete and bring it back;
+ * the flush skips these, and deletes any it raced past. In memory only — the
+ * race it closes cannot outlive the process.
+ */
+const undoneIds = new Set<string>();
+
+/** Forget an Undo: the same id is being written again on purpose (the Undo of
+ *  a delete re-adds at the row's own id). Without this, an in-flight flush
+ *  would delete the restored row behind its own write. */
+export function reviveUndoneId(id: string): void {
+  undoneIds.delete(id);
+}
+
+/** Whether the user has undone this id since its write began. */
+export function isUndoneId(id: string): boolean {
+  return undoneIds.has(id);
+}
+
+/**
+ * Drop parked rows by id — the Undo of adds that were parked offline. One
+ * read-modify-write for the whole set: parallel single drops each read the
+ * same list and the last write won, so undoing a 4-row Repeat yesterday left
+ * three rows to flush back later. Ids not on disk are ignored.
+ */
+export async function dropPendingLogs(ids: readonly string[]): Promise<void> {
+  if (ids.length === 0) return;
+  for (const id of ids) undoneIds.add(id);
+  const drop = new Set(ids);
+  await serial(async () => {
+    try {
+      const list = parsePendingLogs(await pendingStore.read());
+      const remaining = list.filter((row) => !drop.has(row.id));
+      if (remaining.length !== list.length) {
+        if (remaining.length === 0) await pendingStore.clear();
+        else await pendingStore.write(serializePendingLogs(remaining));
+      }
+    } catch {
+      /* Best-effort, like the park. */
+    }
+  });
+  notifyPendingLogsChanged();
+}
+
+/**
+ * Replace a parked row's values — an EDIT of an add that is still waiting on
+ * disk. Without this the edit patched a server doc that did not exist yet, and
+ * the next flush wrote the original values over the correction. True when the
+ * row was parked (and is now rewritten); false when it is not on disk, in which
+ * case the caller patches the server doc as usual.
+ */
+export async function replacePendingLog(id: string, next: PendingLog): Promise<boolean> {
+  const replaced = await serial(async () => {
+    try {
+      const list = parsePendingLogs(await pendingStore.read());
+      if (!list.some((row) => row.id === id)) return false;
+      await pendingStore.write(serializePendingLogs(mergePendingLog(list, next)));
+      return true;
+    } catch {
+      return false;
+    }
+  });
+  if (replaced) notifyPendingLogsChanged();
+  return replaced;
 }
 
 export async function readPendingLogs(): Promise<PendingLog[]> {
@@ -441,17 +524,33 @@ export async function flushPendingLogs(uid: string, nowMs: number = Date.now()):
   // previous session is not "failed", it is not ours to write, and this is the
   // path that clears it.
   const mine = prunePendingLogs(all, nowMs, uid);
-  const landedIds = new Set<string>();
+  // id → the exact bytes this run wrote. The rewrite below drops a row only if
+  // disk still holds THOSE bytes: an edit made while this loop sat offline on
+  // an earlier row (`replacePendingLog`) changes them, and must survive to the
+  // next flush rather than be dropped as "landed" with the old values.
+  const landed = new Map<string, string>();
+  let landedCount = 0;
 
-  for (const row of mine) {
+  for (const listed of mine) {
+    // Undone while parked: never land it (and the rewrite below drops it).
+    if (undoneIds.has(listed.id)) continue;
+    // Re-read just before the write — this loop can sit for minutes on an
+    // earlier row, and the freshest bytes are the user's latest edit.
+    const row = (await readPendingLogs()).find((r) => r.id === listed.id);
+    if (!row) continue;
     try {
       await addLogWithId(uid, row.id, pendingLogEntry(row));
-      landedIds.add(row.id);
+      landed.set(row.id, JSON.stringify(row));
+      landedCount++;
+      // Undone while this write was in flight: the Undo's delete may already
+      // have run, so delete again behind the write we just made.
+      if (undoneIds.has(row.id)) void deleteLog(uid, row.id).catch(() => {});
     } catch {
       /* Stays parked; the re-read below keeps it. */
     }
   }
 
+  await serial(async () => {
   try {
     // Re-read rather than rewriting from `all`. There is no write deadline on
     // this loop — offline it sits on the first row until the socket returns,
@@ -461,18 +560,19 @@ export async function flushPendingLogs(uid: string, nowMs: number = Date.now()):
     // the exact loss this queue exists to prevent, on the path meant to drain
     // it. So the rewrite is "what is on disk now, minus what this run landed".
     const remaining = prunePendingLogs(await readPendingLogs(), nowMs, uid).filter(
-      (row) => !landedIds.has(row.id),
+      (row) => !undoneIds.has(row.id) && landed.get(row.id) !== JSON.stringify(row),
     );
     if (remaining.length === 0) await pendingStore.clear();
     else await pendingStore.write(serializePendingLogs(remaining));
   } catch {
     /* Best-effort: worst case a landed row is retried, which is idempotent. */
   }
+  });
   // Tell the day view the overlay is stale. Unconditional rather than gated on
   // `landed`, because pruning alone changes what is queued — a row belonging to
   // a signed-out account is dropped here and must stop being drawn.
   notifyPendingLogsChanged();
-  return landedIds.size;
+  return landedCount;
 }
 
 /**

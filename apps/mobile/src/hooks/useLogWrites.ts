@@ -4,15 +4,17 @@ import {
   type LogEntry,
   type MealPreset,
   customFoodDocId,
+  newLedgerId,
 } from '@macrolog/core';
 import { exportNutrition } from '@/lib/health-sync';
 import { recordScanMilestone } from '@/lib/first-scan';
 import { useAuth } from '@/lib/auth';
-import { addLogDurably, type WriteOutcome } from '@/lib/pending-logs';
+import { addLogDurably, dropPendingLogs, editParkedLog, type WriteOutcome } from '@/lib/pending-logs';
 import { track } from '@/lib/analytics';
 import { takeLogTimerSecs } from '@/lib/log-timer';
 import {
   addCustomFood as addCustomFoodDoc,
+  addLogWithId as addLogWithIdDoc,
   addPreset as addPresetDoc,
   deleteCustomFood as deleteCustomFoodDoc,
   deleteLog as deleteLogDoc,
@@ -37,10 +39,18 @@ import {
  * ledger write (`addLog`), where even a caller that never touches this hook
  * gets it.
  */
+/** What an add hands back: whether it landed or parked, and the id the
+ *  receipt's Undo deletes by. */
+export interface AddReceipt {
+  outcome: WriteOutcome;
+  id: string;
+}
+
 export interface LogWrites {
-  /** Resolves with the durable-write outcome (`'queued'` when parked offline)
-   *  so the screen can show a receipt; `undefined` when signed out. */
-  addEntry: (entry: LogEntry) => Promise<WriteOutcome | undefined>;
+  /** Resolves with the durable-write receipt (`outcome: 'queued'` when parked
+   *  offline) so the screen can show a receipt with Undo; `undefined` when
+   *  signed out. */
+  addEntry: (entry: LogEntry) => Promise<AddReceipt | undefined>;
   updateEntry: (id: string, entry: LogEntry) => Promise<void>;
   deleteEntry: (id: string) => Promise<void>;
   addPreset: (preset: Omit<MealPreset, 'id'>) => Promise<void>;
@@ -62,7 +72,8 @@ export function useLogWrites(): LogWrites {
       // has no SDK persistence and an in-memory write dies with the process.
       // See `pending-logs.ts` — edits and deletes below are deliberately not
       // covered, and that file says why.
-      const outcome = await addLogDurably(uid, entry);
+      const id = newLedgerId(Math.random);
+      const outcome = await addLogDurably(uid, entry, id);
       // Two counters, not one: `log_queued_offline` is the health signal that
       // says how often the durable path is actually load-bearing. If it is near
       // zero the queue is insurance; if it is not, connectivity is a product
@@ -94,23 +105,42 @@ export function useLogWrites(): LogWrites {
       // photo-scan surface inherits the award instead of having to remember it.
       // Not awaited, and it cannot throw — see `first-scan.ts`.
       void recordScanMilestone(uid, entry.source);
-      // The screen shows `offline.queued` on a parked add (UX_AUDIT S18-12);
-      // without this return the receipt is inert.
-      return outcome;
+      // The screen shows `offline.queued` on a parked add (UX_AUDIT S18-12)
+      // and an Undo keyed on the id; without this return the receipt is inert.
+      return { outcome, id };
     },
     [uid],
   );
 
   const updateEntry = useCallback(
     async (id: string, entry: LogEntry) => {
-      if (uid) await updateLogDoc(uid, id, entry);
+      if (!uid) return;
+      // A row still parked offline has no server doc to patch — and the flush
+      // would land the ORIGINAL values over the edit. Rewrite it in the queue,
+      // AND hand the SDK the whole edited doc: the SDK may still hold the
+      // original add as a pending write, which the live list shows (and wins
+      // the merge with the parked overlay) until reconnect. The set carries the
+      // same fields the flush will write (the queue holds the note too), so
+      // landing twice is idempotent. Not awaited: offline it never acks.
+      const landed = await editParkedLog(uid, id, entry);
+      if (landed) {
+        void addLogWithIdDoc(uid, id, landed).catch(() => {});
+        return;
+      }
+      await updateLogDoc(uid, id, entry);
     },
     [uid],
   );
 
   const deleteEntry = useCallback(
     async (id: string) => {
-      if (uid) await deleteLogDoc(uid, id);
+      if (!uid) return;
+      // Queue-aware: a row parked offline is drawn from the queue overlay, not
+      // from Firestore, so deleting only the doc left it on screen under a
+      // "Deleted" toast — and the next flush wrote it back. Dropping it from
+      // the queue first is what makes swipe-delete work on a parked row.
+      await dropPendingLogs([id]);
+      await deleteLogDoc(uid, id);
     },
     [uid],
   );

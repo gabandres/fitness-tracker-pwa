@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { openingTags, type OpeningTag } from './jsx-scan';
 
 /**
  * Every pressable in the logging sheets carries an `accessibilityRole`.
@@ -18,24 +19,46 @@ import { join } from 'node:path';
  * A control is exempt if it is hidden from the tree (`accessible={false}`,
  * `accessibilityElementsHidden`, `importantForAccessibility="no…"`), which is
  * the right answer for a decorative wrapper. Nothing else is.
+ *
+ * The same list also gets a `<TextInput>` check (bottom of the file): every
+ * field names itself. Same files, because a screen brought up to "every control
+ * announces what it is" is not there while its fields announce only a value.
  */
-const COMPONENTS = join(__dirname, '..', 'components');
+const SRC = join(__dirname, '..');
 const FILES = [
-  'EntrySheet.tsx',
-  'FoodSearch.tsx',
-  'ConfirmSheet.tsx',
-  'MealText.tsx',
-  'RecipeBuilder.tsx',
-  'RecipeImport.tsx',
-  'DailyMetrics.tsx',
-  'QuickAddCard.tsx',
-  'BottomSheet.tsx',
-  'MealEntries.tsx',
-  'HeaderAvatar.tsx',
-  'Toast.tsx',
+  'components/EntrySheet.tsx',
+  'components/FoodSearch.tsx',
+  'components/ConfirmSheet.tsx',
+  'components/MealText.tsx',
+  'components/RecipeBuilder.tsx',
+  'components/RecipeImport.tsx',
+  'components/DailyMetrics.tsx',
+  'components/QuickAddCard.tsx',
+  'components/BottomSheet.tsx',
+  'components/MealEntries.tsx',
+  'components/HeaderAvatar.tsx',
+  'components/Toast.tsx',
   // S18-15 follow-up: the two Train modals' buttons carry roles too.
-  'train/TemplateEditorModal.tsx',
-  'train/RestNotifySheet.tsx',
+  'components/train/TemplateEditorModal.tsx',
+  'components/train/RestNotifySheet.tsx',
+  // The photo/barcode/voice doors into logging. Scan mostly missed the S18
+  // pass — six CTAs and the back chevron had no role — which is exactly the
+  // drift a curated list invites, so the logging doors are listed by name.
+  'components/BarcodeScanner.tsx',
+  'components/MicButton.tsx',
+  'app/(app)/scan.tsx',
+  // Screens that already pass, listed so they stay passing. The rest of
+  // `src/app` (settings, train, body, trends, onboarding, sign-in, …) still
+  // has role-less pressables; add each here as it is brought up.
+  'app/(app)/index.tsx',
+  'app/(app)/_layout.tsx',
+  'app/(app)/history/index.tsx',
+  'app/(app)/history/[date].tsx',
+  'app/_layout.tsx',
+  'app/coach.tsx',
+  'app/milestones.tsx',
+  'app/tour.tsx',
+  'app/whats-new.tsx',
 ];
 const TOUCHABLES = ['TouchableOpacity', 'Pressable', 'PressScale', 'AnimatedPressable'];
 
@@ -45,56 +68,51 @@ interface Offender {
   snippet: string;
 }
 
-/** Opening tags of touchables, with their attribute text — the same crude
- *  brace/string-aware scan `a11y-labels.test.ts` uses. */
+const HIDDEN = ['accessible={false}', 'accessibilityElementsHidden', 'importantForAccessibility'];
+
+function offender(tag: OpeningTag, file: string): Offender {
+  return { file, line: tag.line, snippet: tag.attrs.slice(0, 80).replace(/\s+/g, ' ') };
+}
+
+/** Touchables whose opening tag carries no `accessibilityRole` and is not
+ *  hidden from the tree. */
 export function findRoleless(source: string, file: string): Offender[] {
-  const out: Offender[] = [];
-  const open = new RegExp(`<(${TOUCHABLES.join('|')})\\b`, 'g');
-  let match: RegExpExecArray | null;
-  while ((match = open.exec(source)) != null) {
-    let depth = 0;
-    let i = match.index + match[0].length;
-    let inString: string | null = null;
-    for (; i < source.length; i++) {
-      const c = source[i];
-      if (inString) {
-        if (c === inString) inString = null;
-        continue;
-      }
-      if (c === '/' && source[i + 1] === '/') {
-        const nl = source.indexOf('\n', i);
-        if (nl === -1) break;
-        i = nl;
-        continue;
-      }
-      if (c === '"' || c === "'" || c === '`') inString = c;
-      else if (c === '{') depth++;
-      else if (c === '}') depth--;
-      else if (c === '>' && depth === 0) break;
-    }
-    const attrs = source.slice(match.index, i);
-    if (
-      attrs.includes('accessibilityRole') ||
-      attrs.includes('accessible={false}') ||
-      attrs.includes('accessibilityElementsHidden') ||
-      attrs.includes('importantForAccessibility')
-    ) {
-      continue;
-    }
-    out.push({
-      file,
-      line: source.slice(0, match.index).split('\n').length,
-      snippet: attrs.slice(0, 80).replace(/\s+/g, ' '),
-    });
-  }
-  return out;
+  return openingTags(source, TOUCHABLES)
+    .filter((tag) => !tag.attrs.includes('accessibilityRole') && !HIDDEN.some((h) => tag.attrs.includes(h)))
+    .map((tag) => offender(tag, file));
+}
+
+/**
+ * Text fields with no `accessibilityLabel`.
+ *
+ * A placeholder is not a label: it disappears the moment there is a value, so
+ * VoiceOver reads a filled field as its value alone — "120, text field" on the
+ * scan review, with nothing saying 120 of WHAT. And a visible title above the
+ * field is not associated with it on iOS, where RN has no `labelledBy`.
+ * `accessibilityLabelledBy` (Android) does not count for the same reason.
+ */
+export function findUnlabelledInputs(source: string, file: string): Offender[] {
+  return openingTags(source, ['TextInput'])
+    .filter(
+      (tag) =>
+        !tag.attrs.includes('accessibilityLabel=') &&
+        !tag.attrs.includes('aria-label=') &&
+        // A wrapper that spreads its props (`EntrySheet`'s `TextInputBase`)
+        // gets its label at the call site, which this scan cannot follow.
+        !tag.attrs.includes('{...') &&
+        !HIDDEN.some((h) => tag.attrs.includes(h)),
+    )
+    .map((tag) => offender(tag, file));
+}
+
+function report(offenders: Offender[]): string {
+  const lines = offenders.map((o) => `  ${o.file}:${o.line}  ${o.snippet}`).join('\n');
+  return offenders.length === 0 ? '' : `\n${lines}\n`;
 }
 
 describe('pressables in the logging sheets carry an accessibilityRole', () => {
   it.each(FILES)('%s', (file) => {
-    const offenders = findRoleless(readFileSync(join(COMPONENTS, file), 'utf8'), file);
-    const report = offenders.map((o) => `  ${o.file}:${o.line}  ${o.snippet}`).join('\n');
-    expect(offenders.length === 0 ? '' : `\n${report}\n`).toBe('');
+    expect(report(findRoleless(readFileSync(join(SRC, file), 'utf8'), file))).toBe('');
   });
 
   it('detects the shape it is supposed to detect', () => {
@@ -107,5 +125,43 @@ describe('pressables in the logging sheets carry an accessibilityRole', () => {
     // A conditional role still counts as one — the attribute is there.
     const conditional = `<PressScale onPress={x} accessibilityRole={on ? 'button' : undefined}>\n  <Text>a</Text>\n</PressScale>`;
     expect(findRoleless(conditional, 'sample.tsx')).toHaveLength(0);
+  });
+});
+
+/**
+ * Files whose fields predate this check, with the count they had when it
+ * landed (2026-10-04). A RATCHET, not an exemption: the count may fall, never
+ * rise, and a file leaves this map — and becomes strict — the day it reaches 0.
+ * None of them is a logging sheet; the sheets are strict from day one.
+ */
+const INPUTS_PENDING: Record<string, number> = {
+  'components/RecipeImport.tsx': 1,
+  'components/train/TemplateEditorModal.tsx': 13,
+  'app/coach.tsx': 1,
+};
+
+describe('text fields in the same files carry an accessibilityLabel', () => {
+  it.each(FILES)('%s', (file) => {
+    const found = findUnlabelledInputs(readFileSync(join(SRC, file), 'utf8'), file);
+    const allowed = INPUTS_PENDING[file];
+    if (allowed == null) {
+      expect(report(found)).toBe('');
+    } else {
+      // Ratchet: report the list on a rise, and fail on a fall too so the
+      // number here is lowered with the fix rather than left as headroom.
+      expect({ file, unlabelled: found.length }).toEqual({ file, unlabelled: allowed });
+    }
+  });
+
+  it('detects the shape it is supposed to detect', () => {
+    const bad = `<TextInput value={g} onChangeText={set} placeholder="0" keyboardType="numeric" />`;
+    expect(findUnlabelledInputs(bad, 'sample.tsx')).toHaveLength(1);
+
+    const good = `<TextInput value={g} onChangeText={set} accessibilityLabel={t('scan.itemGramsLabel', { name })} />`;
+    expect(findUnlabelledInputs(good, 'sample.tsx')).toHaveLength(0);
+
+    // `accessibilityLabelledBy` is Android-only and must not satisfy the check.
+    const androidOnly = `<TextInput value={g} accessibilityLabelledBy="title" />`;
+    expect(findUnlabelledInputs(androidOnly, 'sample.tsx')).toHaveLength(1);
   });
 });

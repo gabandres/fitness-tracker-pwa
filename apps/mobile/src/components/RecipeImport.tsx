@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { parseRecipeFromHtml, type ParsedRecipe } from '@macrolog/core';
-import { useT } from '@/i18n';
+import { useLocale, useT } from '@/i18n';
+import { formatNumber } from '@/lib/date-format';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
@@ -10,6 +11,8 @@ import type { RecipeEstimate } from '@/components/RecipeBuilder';
 interface Props {
   onApply: (estimate: RecipeEstimate) => void;
   onCancel: () => void;
+  /** Whether a URL has been typed — see RecipeBuilder's prop of the same name. */
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 const FETCH_TIMEOUT_MS = 8000;
@@ -23,8 +26,9 @@ const UA = 'Mozilla/5.0 (compatible; IgniaRecipeImporter/1.0; +https://ignia.fit
  * Function needed. When the page publishes nutrition, one serving is emitted
  * to prefill the manual form (same path as the recipe builder).
  */
-export function RecipeImport({ onApply, onCancel }: Props) {
+export function RecipeImport({ onApply, onCancel, onDirtyChange }: Props) {
   const t = useT();
+  const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const [url, setUrl] = useState('');
@@ -35,6 +39,11 @@ export function RecipeImport({ onApply, onCancel }: Props) {
   const perServingKcal = result?.perServing?.calories ?? 0;
   const perServingProtein = result?.perServing?.protein ?? null;
   const canApply = perServingKcal > 0;
+
+  const dirty = url.trim() !== '';
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
 
   async function fetchRecipe() {
     const raw = url.trim();
@@ -88,7 +97,7 @@ export function RecipeImport({ onApply, onCancel }: Props) {
   return (
     <View style={styles.wrap}>
       <View style={styles.head}>
-        <Text style={styles.title}>{t('recipeImport.title')}</Text>
+        <Text style={styles.title} accessibilityRole="header">{t('recipeImport.title')}</Text>
         <TouchableOpacity onPress={onCancel} hitSlop={12} accessibilityRole="button">
           <Text style={styles.cancel}>{t('common.cancel')}</Text>
         </TouchableOpacity>
@@ -133,7 +142,7 @@ export function RecipeImport({ onApply, onCancel }: Props) {
           <View style={styles.resultCard}>
             <Text style={styles.resultName}>{result.name || t('recipeImport.untitled')}</Text>
             <Text style={styles.resultMeta}>
-              {perServingKcal} kcal
+              {formatNumber(perServingKcal, locale)} {t('today.kcal')}
               {perServingProtein != null ? ` · ${perServingProtein}${t('recipeImport.proteinUnit')}` : ''}
               {' '}{t('recipeImport.perServing')}
               {result.servings ? ` · ${t('recipeImport.servings', { n: result.servings })}` : ''}
@@ -172,7 +181,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   input: {
     backgroundColor: colors.inputBg,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: colors.lineStrong,
     borderRadius: radius.md,
     paddingHorizontal: space.md,
     paddingVertical: space.sm,

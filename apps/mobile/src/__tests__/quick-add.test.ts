@@ -20,8 +20,10 @@ const mockAuth: {
   listener: ((u: { uid: string } | null) => void) | null;
 } = { user: { uid: 'u1' }, listener: null };
 
+const mockDeleteLog = jest.fn<Promise<void>, [string, string]>(async () => undefined);
 jest.mock('@/lib/ledger', () => ({
   addLogWithId: (...args: [string, string, unknown]) => mockAddLogWithId(...args),
+  deleteLog: (...args: [string, string]) => mockDeleteLog(...args),
 }));
 
 jest.mock('@/lib/health-sync', () => ({
@@ -66,7 +68,9 @@ const target: QuickAddTarget = { presetId: 'p1', name: 'Protein shake', calories
 // Imported after the mocks are registered.
 import {
   clearQuickAdd,
+  dropPendingLogs,
   flushPendingLogs,
+  replacePendingLog,
   getQuickAddSlots,
   logQuickAdd,
   readPendingLogs,
@@ -352,5 +356,79 @@ describe('pending queue on iOS', () => {
     await logQuickAdd(target);
     await clearQuickAdd();
     expect(mockAppGroup.get(PENDING_LOGS_KEY)).toBeUndefined();
+  });
+});
+
+describe('dropPendingLogs — the Undo of parked adds (2026-10-04)', () => {
+  async function park(n: number) {
+    mockAddLogWithId.mockRejectedValue(new Error('offline'));
+    for (let i = 0; i < n; i++) await logQuickAdd({ ...target, calories: 100 + i });
+    mockAddLogWithId.mockReset();
+    mockAddLogWithId.mockResolvedValue(undefined);
+  }
+
+  it('drops every id in ONE write — a batch undo leaves nothing to flush back', async () => {
+    // Parallel single drops each read the same list and the last write won:
+    // undoing a four-row Repeat yesterday left three rows parked.
+    await park(4);
+    const ids = (await readPendingLogs()).map((r) => r.id);
+    await dropPendingLogs(ids.slice(0, 3));
+    const left = await readPendingLogs();
+    expect(left.map((r) => r.id)).toEqual([ids[3]]);
+  });
+
+  it('a flush that read the row before the Undo deletes it behind its own write', async () => {
+    await park(1);
+    const [row] = await readPendingLogs();
+    let release: () => void = () => {};
+    mockAddLogWithId.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+    );
+    const flushing = flushPendingLogs('u1');
+    await new Promise((r) => setTimeout(r, 0));
+    // Undo lands while the flush's write is in flight.
+    await dropPendingLogs([row.id]);
+    release();
+    await flushing;
+    expect(mockDeleteLog).toHaveBeenCalledWith('u1', row.id);
+    expect(await readPendingLogs()).toEqual([]);
+  });
+});
+
+describe('an edit to a parked row while a flush is running (2026-10-04)', () => {
+  it('keeps the edit on disk instead of dropping it as landed', async () => {
+    // The commute case: log two rows offline, reopen still offline (the flush
+    // sits on row 1), edit row 2. The flush must write row 2's EDITED values
+    // — or, if it already wrote the old ones, keep the edit for next time.
+    mockAddLogWithId.mockRejectedValue(new Error('offline'));
+    await logQuickAdd({ ...target, calories: 100 });
+    await logQuickAdd({ ...target, calories: 200 });
+    mockAddLogWithId.mockReset();
+    const [first, second] = await readPendingLogs();
+
+    let release: () => void = () => {};
+    mockAddLogWithId.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+    );
+    mockAddLogWithId.mockResolvedValue(undefined);
+    const flushing = flushPendingLogs('u1');
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(await replacePendingLog(second.id, { ...second, calories: 250 })).toBe(true);
+    release();
+    await flushing;
+
+    // Row 2 was re-read before its write, so the edit is what landed…
+    const written = mockAddLogWithId.mock.calls.find((c) => c[1] === second.id);
+    expect((written?.[2] as { calories: number }).calories).toBe(250);
+    // …and the queue is drained of both.
+    expect((await readPendingLogs()).map((r) => r.id)).not.toContain(first.id);
+    expect(await readPendingLogs()).toEqual([]);
   });
 });

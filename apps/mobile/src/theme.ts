@@ -31,6 +31,7 @@ const light = {
   muted: '#57534e', // warm secondary text
   faint: '#736c67', // warm tertiary text / placeholders — 4.9:1 paper, 4.6:1 card
   line: '#e7e5e2', // warm hairline border
+  lineStrong: '#8a837c', // input / control border — 3.7:1 on inputBg, 3.3:1 on card (WCAG 1.4.11)
   accent: '#c62f27', // coral HERO — accent text/links, AA on canvas (~4.6:1)
   accentSoft: '#faf3f1', // coral section wash (tinted surface)
   ring: '#ff6a3d', // bright coral-orange calorie ring — "energy", large fill
@@ -53,8 +54,8 @@ const light = {
   habitWater: '#0f766e', // teal — same as `teal`, the row's existing colour
   good: '#1e7b62', // success text (jade) — 4.9:1 paper, 4.6:1 card (was #208368, 4.4:1)
   warn: '#a25f00', // warning text (amber) — 4.8:1 paper, 4.5:1 card; bright amber fails on white
-  info: '#0d74ce', // info text (blue, AA)
-  danger: '#dc2626', // danger red — distinct from the coral brand
+  info: '#0a66b8', // info text (blue) — 5.2:1 on card (was #0d74ce, 4.3)
+  danger: '#c42020', // danger red — distinct from the coral brand; 5.2:1 on card (was #dc2626, 4.3)
   white: '#ffffff',
   onInk: '#ffffff', // text/icons on an `ink` surface (inverts with the theme)
   inputBg: '#ffffff', // text-field / chip fill (white in light, card in dark)
@@ -75,6 +76,7 @@ const dark: ColorTokens = {
   muted: '#b3ada3', // secondary text
   faint: '#8f887d', // tertiary text / placeholders — 5.3:1 paper, 4.9:1 card
   line: '#2b2822', // warm hairline border
+  lineStrong: '#736c62', // input / control border — 3.3:1 on inputBg/card
   accent: '#ff8a5c', // coral text/links — AA on the dark canvas
   accentSoft: '#2a1712', // coral wash (deep ember surface)
   ring: '#ff6a3d', // SAME hero coral — glows on near-black

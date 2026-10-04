@@ -34,7 +34,7 @@
  * The caller injects `nowMs`, `at` and `rand`.
  */
 
-import { MEAL_TYPES, type LogEntry, type LogSource, type MealPreset, type MealType } from './types';
+import { LOG_NOTE_MAX, MEAL_TYPES, type LogEntry, type LogSource, type MealPreset, type MealType } from './types';
 
 /** How many quick-add slots a user can designate. Slot 1 is the one a blind
  *  single-tap surface (the Quick Settings tile) uses; the interactive widget
@@ -189,6 +189,13 @@ export interface PendingLog {
    * where nobody would look for it.
    */
   source?: LogSource;
+  /**
+   * The entry's note. Absent on every native tap and on most adds; carried for
+   * an EDIT made while the row is still parked (`replacePendingLog`) — the
+   * flush is a whole-doc `setDoc`, so a note the queue did not carry was wiped
+   * from the landed row even though the user had typed it.
+   */
+  note?: string;
   /** Tap time, epoch ms. Becomes the log's timestamp on flush. */
   atMs: number;
 }
@@ -208,6 +215,7 @@ export function buildPendingLog(id: string, uid: string, entry: LogEntry, atMs: 
     ...(entry.mealLabel ? { mealLabel: entry.mealLabel } : {}),
     ...(entry.mealType ? { mealType: entry.mealType } : {}),
     ...(entry.source ? { source: entry.source } : {}),
+    ...(entry.note?.trim() ? { note: entry.note.trim().slice(0, LOG_NOTE_MAX) } : {}),
     atMs: Number.isFinite(at) ? Math.round(at) : atMs,
   };
 }
@@ -222,6 +230,7 @@ export function pendingLogEntry(p: PendingLog): LogEntry {
     ...(p.mealLabel ? { mealLabel: p.mealLabel } : {}),
     ...(p.mealType ? { mealType: p.mealType } : {}),
     ...(p.source ? { source: p.source } : {}),
+    ...(p.note ? { note: p.note } : {}),
     timestamp: new Date(p.atMs),
   };
 }
@@ -244,6 +253,14 @@ function isPendingLog(x: unknown): x is PendingLog {
   // value, so a corrupted `source` would fail its flush forever and sit in the
   // queue until the TTL. Reject the row here, not on the wire.
   if (o['source'] !== undefined && o['source'] !== 'photo') return false;
+  // And the note: the rules take 1–500 characters, so anything else would
+  // fail its flush forever.
+  if (
+    o['note'] !== undefined &&
+    (typeof o['note'] !== 'string' || o['note'].length === 0 || o['note'].length > LOG_NOTE_MAX)
+  ) {
+    return false;
+  }
   return true;
 }
 

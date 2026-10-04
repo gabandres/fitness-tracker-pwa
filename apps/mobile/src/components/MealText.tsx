@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
@@ -11,6 +11,8 @@ import { getFoodDetail, searchFoods } from '@/lib/foodSearch';
 import { resolveOneItem } from '@/lib/mealResolution';
 import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
+import { useA11yFocus } from '@/lib/use-a11y-focus';
+import { useDoneKeyProps } from '@/components/KeyboardBar';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
 
@@ -42,6 +44,9 @@ interface Props {
    * before anything is resolved — never auto-submitted.
    */
   seedText?: string;
+  /** Whether there is typed text or a draft to lose — the add sheet asks
+   *  before a stray backdrop tap discards it. */
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 type Phase = 'input' | 'resolving' | 'review' | 'error';
@@ -69,14 +74,22 @@ function numOrUndef(s: string): number | undefined {
  * by `resolveMealItem`, then presented as an EDITABLE draft the user confirms
  * with one "Add all" — never a fake-precise silent auto-commit.
  */
-export function MealText({ forDate, onAddMany, onCancel, seedText }: Props) {
+export function MealText({ forDate, onAddMany, onCancel, seedText, onDirtyChange }: Props) {
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const [query, setQuery] = useState(seedText ?? '');
   const [phase, setPhase] = useState<Phase>('input');
+  // Opens in place of the add sheet's browse view, and swaps input ↔ review
+  // in place too; each lands the screen reader on the heading.
+  const titleRef = useA11yFocus(phase);
   const [rows, setRows] = useState<DraftRow[]>([]);
   const [busy, setBusy] = useState(false);
+
+  const dirty = query.trim() !== '' || rows.length > 0;
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
 
   async function resolve() {
     const items = parseMealUtterance(query);
@@ -188,7 +201,7 @@ export function MealText({ forDate, onAddMany, onCancel, seedText }: Props) {
     return (
       <View style={styles.wrap}>
         <View style={styles.head}>
-          <Text style={styles.title}>{t('entry.describeMeal')}</Text>
+          <Text ref={titleRef} style={styles.title} accessibilityRole="header">{t('entry.describeMeal')}</Text>
           <TouchableOpacity onPress={() => { setRows([]); setPhase('input'); }} hitSlop={12} accessibilityRole="button">
             <Text style={styles.back}>{t('mealText.startOver')}</Text>
           </TouchableOpacity>
@@ -219,10 +232,10 @@ export function MealText({ forDate, onAddMany, onCancel, seedText }: Props) {
               <View style={styles.macroRow}>
                 {/* Words, not P/C/F codes (S18-17): the codes are jargon on a
                     first read and letters to a screen reader. */}
-                <MacroField label={t('macro.kcal')} value={row.calories} onChange={(v) => editRow(i, 'calories', v)} />
-                <MacroField label={t('macro.protein')} value={row.protein} onChange={(v) => editRow(i, 'protein', v)} />
-                <MacroField label={t('macro.carbs')} value={row.carbs} onChange={(v) => editRow(i, 'carbs', v)} />
-                <MacroField label={t('macro.fat')} value={row.fat} onChange={(v) => editRow(i, 'fat', v)} />
+                <MacroField label={t('macro.kcal')} food={row.food} value={row.calories} onChange={(v) => editRow(i, 'calories', v)} />
+                <MacroField label={t('macro.protein')} food={row.food} value={row.protein} onChange={(v) => editRow(i, 'protein', v)} />
+                <MacroField label={t('macro.carbs')} food={row.food} value={row.carbs} onChange={(v) => editRow(i, 'carbs', v)} />
+                <MacroField label={t('macro.fat')} food={row.food} value={row.fat} onChange={(v) => editRow(i, 'fat', v)} />
               </View>
             </View>
           ))}
@@ -246,7 +259,7 @@ export function MealText({ forDate, onAddMany, onCancel, seedText }: Props) {
       {/* Title left, Cancel right — the same header the recipe sheets use, so
           every EntrySheet mode dismisses from one place (UX_AUDIT S16-7). */}
       <View style={styles.head}>
-        <Text style={styles.title}>{t('entry.describeMeal')}</Text>
+        <Text ref={titleRef} style={styles.title} accessibilityRole="header">{t('entry.describeMeal')}</Text>
         <TouchableOpacity onPress={onCancel} hitSlop={12} accessibilityRole="button">
           <Text style={styles.back}>{t('common.cancel')}</Text>
         </TouchableOpacity>
@@ -259,6 +272,7 @@ export function MealText({ forDate, onAddMany, onCancel, seedText }: Props) {
         onChangeText={(v) => { setQuery(v); if (phase === 'error') setPhase('input'); }}
         autoCorrect
         multiline
+        accessibilityLabel={t('entry.describeMeal')}
         testID="mealtext-input"
       />
       <Text style={styles.hint}>{phase === 'error' ? t('mealText.noItems') : t('mealText.hint')}</Text>
@@ -279,9 +293,12 @@ export function MealText({ forDate, onAddMany, onCancel, seedText }: Props) {
   );
 }
 
-function MacroField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+function MacroField({ label, food, value, onChange }: { label: string; food: string; value: string; onChange: (v: string) => void }) {
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
+  // No return key was set, so an iPhone decimal pad offered no way to put the
+  // keyboard away; this is RN's Done toolbar, localized (KeyboardBar.tsx).
+  const kbProps = useDoneKeyProps();
   return (
     <View style={styles.macroField}>
       <Text style={styles.macroLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{label}</Text>
@@ -292,7 +309,10 @@ function MacroField({ label, value, onChange }: { label: string; value: string; 
         keyboardType="numeric"
         placeholder="0"
         placeholderTextColor={colors.faint}
-        accessibilityLabel={label}
+        {...kbProps}
+        // Which food, too: every card has the same four fields, and "kcal"
+        // alone left a screen-reader user guessing which row they were in.
+        accessibilityLabel={`${label}, ${food}`}
       />
     </View>
   );
@@ -307,7 +327,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   input: {
     backgroundColor: colors.inputBg,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: colors.lineStrong,
     borderRadius: radius.md,
     paddingHorizontal: space.md,
     paddingVertical: space.md,
@@ -339,7 +359,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   macroInput: {
     backgroundColor: colors.inputBg,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: colors.lineStrong,
     borderRadius: radius.sm,
     paddingVertical: space.xs,
     fontSize: font.small,

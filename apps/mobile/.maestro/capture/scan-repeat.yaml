@@ -30,6 +30,13 @@ appId: fit.ignia.app
 - takeScreenshot: .maestro/capture/shots/scan-repeat-1-picker
 - tapOn:
     point: '25%,32%'
+# Since 2026-10-04 a picked photo lands in the in-app viewfinder's strip, where
+# the note is an optional chip ("Add a note") rather than a step of its own.
+# Optional, so the flow still runs where the camera is blocked and the old
+# intro → note path applies.
+- tapOn:
+    id: 'scan-add-note'
+    optional: true
 - extendedWaitUntil:
     visible:
       id: 'scan-note'

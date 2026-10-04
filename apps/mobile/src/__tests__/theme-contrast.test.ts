@@ -37,14 +37,18 @@ describe.each(['light', 'dark'] as const)('%s palette contrast', (scheme) => {
     },
   );
 
-  // The semantic-state tokens are AA on paper (`good` and `warn` were 4.4:1
-  // there until 2026-09-28 and were darkened a step). On the light CARD
-  // `info`/`danger` still measure 4.26/4.32 — a known gap outside S18-2,
-  // recorded here as a floor so it cannot get worse unnoticed. Raise to
-  // AA_TEXT when those two are re-tuned.
-  it.each(['good', 'warn', 'info', 'danger'] as const)('%s is AA text on paper (≥4.2 on card)', (token) => {
+  // The semantic-state tokens are AA on paper and on card. `good`/`warn` were
+  // 4.4:1 on paper until 2026-09-28; light `info`/`danger` measured 4.26/4.32
+  // on card until 2026-10-04, when both were darkened a step and this floor
+  // was raised from 4.2 to AA.
+  it.each(['good', 'warn', 'info', 'danger'] as const)('%s is AA text on paper and on card', (token) => {
     expect(contrastRatio(c[token], c.paper)).toBeGreaterThanOrEqual(AA_TEXT);
-    expect(contrastRatio(c[token], c.card)).toBeGreaterThanOrEqual(4.2);
+    expect(contrastRatio(c[token], c.card)).toBeGreaterThanOrEqual(AA_TEXT);
+  });
+
+  it('lineStrong is a visible control boundary on the input fill and on card (1.4.11)', () => {
+    expect(contrastRatio(c.lineStrong, c.inputBg)).toBeGreaterThanOrEqual(3);
+    expect(contrastRatio(c.lineStrong, c.card)).toBeGreaterThanOrEqual(3);
   });
 
   it('faint is AA on the input/chip fill too (placeholders live there)', () => {

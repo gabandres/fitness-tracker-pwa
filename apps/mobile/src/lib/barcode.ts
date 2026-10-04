@@ -4,10 +4,12 @@
 // Scanning is native (expo-camera) — see components/BarcodeScanner.
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
+  type CustomFood,
   type OffResponse,
   type ResolvedProduct,
   offProductUrl,
   resolveOffProduct,
+  scaleCustomFood,
 } from '@macrolog/core';
 
 /**
@@ -85,13 +87,47 @@ export async function clearBarcodeCache(): Promise<void> {
 }
 
 /**
+ * The open add-sheet's view of the user's own library, for the scan in flight.
+ *
+ * `resolveLocal` answers a barcode from the user's saved My Foods BEFORE Open
+ * Food Facts is asked: a food the user typed in from a label (because OFF did
+ * not have it) must match on the next scan, or saving it bought nothing.
+ *
+ * A module-level registration rather than a prop on `BarcodeScanner` because
+ * the scanner calls `lookupProduct` itself; the sheet registers while its
+ * scanner is open and clears on close. One scanner is ever open at a time, so
+ * one slot is enough.
+ */
+export interface ScanLibrary {
+  resolveLocal: (barcode: string) => ResolvedProduct | null;
+}
+
+let scanLibrary: ScanLibrary | null = null;
+
+/** Register the library for the scan in flight; returns the unregister. */
+export function setScanLibrary(lib: ScanLibrary): () => void {
+  scanLibrary = lib;
+  return () => {
+    if (scanLibrary === lib) scanLibrary = null;
+  };
+}
+
+/**
  * Look up a barcode on OpenFoodFacts and resolve it to a single nutriment
  * basis. Throws `OffLookupError` (carrying a translatable `code`) when the
  * product or its calories are missing, and a plain Error on transport failure.
  *
- * Served from the on-device cache when one is warm and unexpired.
+ * The user's own saved food wins over both the cache and the network (see
+ * {@link ScanLibrary}). Otherwise served from the on-device cache when one is
+ * warm and unexpired.
  */
 export async function lookupProduct(barcode: string): Promise<ResolvedProduct> {
+  const own = scanLibrary?.resolveLocal(barcode);
+  if (own) return own;
+  return lookupRemote(barcode);
+}
+
+async function lookupRemote(barcode: string): Promise<ResolvedProduct> {
   const cache = await readCache();
   const hit = cache[barcode];
   if (hit && Date.now() - hit.at < CACHE_TTL_MS && hit.product) {
@@ -122,4 +158,35 @@ export async function lookupProduct(barcode: string): Promise<ResolvedProduct> {
   await writeCache(cache);
 
   return product;
+}
+
+/**
+ * A saved My Foods entry as the scanner's `ResolvedProduct`, or null when the
+ * library holds nothing under this barcode. One serving of the saved food is
+ * the basis; its gram weight rides along only when the food was saved
+ * grams-first (`servingUnit: 'g'`), so a `serving:1` food stays honest about
+ * having no weight (ADR-0013).
+ */
+export function productFromLibrary(foods: readonly CustomFood[], barcode: string): ResolvedProduct | null {
+  const food = foods.find((f) => f.barcode === barcode);
+  if (!food) return null;
+  const m = scaleCustomFood(food, 1);
+  const grams = food.servingUnit === 'g' && food.servingSize > 0 ? food.servingSize : null;
+  return {
+    calories: m.calories,
+    protein: m.protein ?? 0,
+    carbs: m.carbs ?? null,
+    fat: m.fat ?? null,
+    productName: food.name,
+    brand: food.brand,
+    grams,
+    serving: {
+      grams: grams ?? undefined,
+      // `barcode` keeps a re-save keyed on the same doc (`customFoodDocId`).
+      source: 'barcode',
+      barcode,
+      brand: food.brand,
+      name: food.name,
+    },
+  };
 }

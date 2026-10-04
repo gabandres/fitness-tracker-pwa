@@ -117,7 +117,15 @@ export function MilestoneNote({
         style={styles.body}
         testID="milestone-note-open"
         accessibilityRole="button"
-        accessibilityLabel={t('milestones.title')}
+        // Names what was recorded, not the archive it opens — "Milestones,
+        // button" told a screen-reader user nothing had happened. The role and
+        // a hint carry where the tap goes.
+        accessibilityLabel={[
+          t('milestones.today'),
+          ...shown.map((k) => t(`milestones.${k}` as I18nKey)),
+          ...(extra > 0 ? [t('milestones.more', { n: String(extra) })] : []),
+        ].join(', ')}
+        accessibilityHint={t('a11y.milestonesOpen')}
         onPress={() => {
           haptics.tap();
           onOpen();

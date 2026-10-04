@@ -4,9 +4,9 @@ import {
   type DailyTargets,
   type DaySummary,
   type MealPreset,
+  type DateKey,
   type DayBoundary,
   dayBoundaryOf,
-  dayKeyAt,
   dayRange,
   resolveQuickAddTargets,
 } from '@macrolog/core';
@@ -58,9 +58,19 @@ import { syncWidget } from '@/lib/widget';
  * had the widget label the previous day's totals as today's from midnight until
  * 03:00, and a widget quick-add in that window filed against a different day
  * than the same food logged in the app.
+ *
+ * **Stamped with the day the SUMMARY describes, not the day the clock says.**
+ * It was `dayKeyAt(new Date())`, and on a foreground the morning after, the
+ * AppState path below paired that fresh key with the summary Today was still
+ * holding — yesterday's totals, labelled today — for the moment before Today
+ * re-keyed (`useDayKey`). Stamping `summary.dateKey` cannot mislabel: a stale
+ * summary goes out as yesterday with yesterday's end, which every widget
+ * already renders as an empty today, and Today's re-key pushes the real one.
  */
-function dayStamp(boundary: DayBoundary, at: Date): { key: string; endsMs: number } {
-  const key = dayKeyAt(at, boundary);
+function dayStamp(boundary: DayBoundary, summary: DaySummary): { key: string; endsMs: number } {
+  // `summarizeDay` is handed a `DateKey` and echoes it back; the summary type
+  // just widened it to string.
+  const key = summary.dateKey as DateKey;
   return { key, endsMs: dayRange(key, boundary).end.getTime() };
 }
 
@@ -98,7 +108,7 @@ export function useWidgetSync(
   latest.current = { summary, targets, locale, quickAdd, uid, boundary };
 
   useEffect(() => {
-    const { key, endsMs } = dayStamp(boundary, new Date());
+    const { key, endsMs } = dayStamp(boundary, summary);
     void syncWidget(summary, targets, key, locale, Date.now(), quickAdd, endsMs);
   }, [summary, targets, locale, quickAdd, boundary]);
 
@@ -134,10 +144,10 @@ export function useWidgetSync(
     const sub = AppState.addEventListener('change', (state) => {
       if (state !== 'active') return;
       const { summary: s, targets: tg, locale: l, quickAdd: qa, uid: u, boundary: b } = latest.current;
-      // Recomputed here rather than captured: after a rollover the app can
-      // resume on a different day than the one this effect mounted on — and
-      // with a boundary that day is not the calendar one.
-      const { key, endsMs } = dayStamp(b, new Date());
+      // Read from `latest` rather than captured at mount. After a rollover
+      // this summary can still be yesterday's — `dayStamp` labels it as such,
+      // and Today's re-key re-runs the effect above with the new day.
+      const { key, endsMs } = dayStamp(b, s);
       void syncWidget(s, tg, key, l, Date.now(), qa, endsMs);
       if (u) void flushPendingLogs(u);
     });

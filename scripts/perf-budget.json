@@ -9,12 +9,12 @@
       "measuredAtCommit": "cf0953d4"
     },
     "ios": {
-      "bundleRaw": 13155105,
-      "bundleGzip": 5243357,
+      "bundleRaw": 13633489,
+      "bundleGzip": 5546186,
       "assetBytes": 607184,
       "headroomPct": 5,
-      "measuredAt": "2026-09-04",
-      "measuredAtCommit": "eb1e3c2c"
+      "measuredAt": "2026-10-04",
+      "measuredAtCommit": "90606402"
     }
   },
   "note": "Baselines for scripts/perf-budget.mjs. Regenerate with `npm run perf:budget -- --update`. A change here is someone accepting the growth on the record — say why in the commit message."

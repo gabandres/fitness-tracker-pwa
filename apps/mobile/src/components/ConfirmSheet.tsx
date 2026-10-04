@@ -17,8 +17,8 @@ import { font, radius, space } from '@/theme';
  * ## API — imperative, like the Alert it replaces
  *
  * `confirm({ title, body, confirmText, destructive, onConfirm })` from
- * anywhere; `<ConfirmHost />` is mounted ONCE in the tab layout and renders
- * whatever the last call asked for. Module-level listener rather than context,
+ * anywhere; `<ConfirmHost />` is mounted in the tab layout and, nested, inside
+ * every open `BottomSheet` (see `hosts`); the newest renders the call. Module-level listener rather than context,
  * on the `setPersistedTab` precedent — the callers are spread across screens
  * and a context would thread through every one of them for no benefit.
  *
@@ -37,13 +37,25 @@ export interface ConfirmOptions {
   onConfirm: () => void;
 }
 
-let notify: ((opts: ConfirmOptions) => void) | null = null;
+/**
+ * Mounted hosts, newest last; `confirm` goes to the newest.
+ *
+ * A stack rather than one slot because a confirm can be asked for from INSIDE
+ * a sheet ("Discard this entry?", "Remove this food?"). The tab-layout host is
+ * a sibling native Modal of that sheet, and iOS will not present a modal from a
+ * controller that is already presenting one — the confirm silently failed to
+ * appear, and a sheet whose dismissal waits on it could not be closed at all.
+ * So every open `BottomSheet` mounts a nested host inside its own Modal
+ * (presented FROM the sheet, which iOS allows), and that host takes over while
+ * the sheet is up.
+ */
+const hosts: ((opts: ConfirmOptions) => void)[] = [];
 
 export function confirm(opts: ConfirmOptions): void {
   // No host mounted (a test, or a surface outside the tab layout): fail open
   // by NOT performing the action — a confirm that auto-accepts is worse than
   // one that never fires.
-  notify?.(opts);
+  hosts[hosts.length - 1]?.(opts);
 }
 
 export function ConfirmHost() {
@@ -53,12 +65,14 @@ export function ConfirmHost() {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    notify = (o) => {
+    const host = (o: ConfirmOptions) => {
       setOpts(o);
       setVisible(true);
     };
+    hosts.push(host);
     return () => {
-      notify = null;
+      const i = hosts.lastIndexOf(host);
+      if (i >= 0) hosts.splice(i, 1);
     };
   }, []);
 
@@ -67,7 +81,9 @@ export function ConfirmHost() {
   }
 
   return (
-    <BottomSheet visible={visible} onClose={close} backdropTestID="confirm-backdrop">
+    // `overlays={false}`: the confirm's own sheet hosts no nested confirm or
+    // toast — it is the overlay.
+    <BottomSheet visible={visible} onClose={close} backdropTestID="confirm-backdrop" overlays={false}>
       {opts ? (
         <View style={styles.wrap}>
           <Text style={styles.title}>{opts.title}</Text>

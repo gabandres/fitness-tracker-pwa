@@ -1,7 +1,7 @@
 import React from 'react';
 import { Text } from 'react-native';
 import { act, fireEvent, renderWithProviders as render } from '@/test-utils';
-import { ToastProvider, showToast, useToast } from '@/components/Toast';
+import { ToastProvider, ToastSheetHost, showToast, useToast } from '@/components/Toast';
 
 jest.mock('@/lib/auth', () => ({
   useAuth: () => ({ user: null, profile: null }),
@@ -107,5 +107,62 @@ describe('Toast', () => {
 
   it('is a no-op with no provider mounted', () => {
     expect(() => showToast('nobody home')).not.toThrow();
+  });
+});
+
+describe('Toast — Edit beside Undo, and inside sheets (2026-10-04)', () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  function Fire({ onEdit, onUndo }: { onEdit: () => void; onUndo: () => void }) {
+    const toast = useToast();
+    return (
+      <Text
+        testID="fire2"
+        onPress={() =>
+          toast.show('Logged Oatmeal · 300 kcal', {
+            action: { label: 'Undo', onPress: onUndo },
+            secondaryAction: { label: 'Edit', onPress: onEdit },
+          })
+        }
+      >
+        fire
+      </Text>
+    );
+  }
+
+  it('draws the secondary action and runs only that one', async () => {
+    const onEdit = jest.fn();
+    const onUndo = jest.fn();
+    const { getByTestId, queryByTestId } = await render(
+      <ToastProvider>
+        <Fire onEdit={onEdit} onUndo={onUndo} />
+      </ToastProvider>,
+    );
+    await fireEvent.press(getByTestId('fire2'));
+    await fireEvent.press(getByTestId('toast-secondary-action'));
+    expect(onEdit).toHaveBeenCalledTimes(1);
+    expect(onUndo).not.toHaveBeenCalled();
+    expect(queryByTestId('toast')).toBeNull();
+  });
+
+  it('while a sheet host is mounted, only the sheet draws the toast', async () => {
+    const onEdit = jest.fn();
+    const { getByTestId, getAllByTestId, rerender } = await render(
+      <ToastProvider>
+        <Fire onEdit={onEdit} onUndo={() => {}} />
+        <ToastSheetHost />
+      </ToastProvider>,
+    );
+    await fireEvent.press(getByTestId('fire2'));
+    // One toast, not two: the root host stands down for the sheet's.
+    expect(getAllByTestId('toast')).toHaveLength(1);
+    await act(async () => {
+      rerender(
+        <ToastProvider>
+          <Fire onEdit={onEdit} onUndo={() => {}} />
+        </ToastProvider>,
+      );
+    });
   });
 });

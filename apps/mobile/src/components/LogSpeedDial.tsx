@@ -181,7 +181,7 @@ export function LogSpeedDial() {
             openSheet();
           }}
         >
-          <Ionicons name="add" size={32} color={colors.white} />
+          <Ionicons name="add" size={32} color={colors.heroPanel} />
         </Pressable>
       </View>
     );
@@ -192,14 +192,27 @@ export function LogSpeedDial() {
     <View style={[styles.slot, { pointerEvents: 'box-none' }]}>
       {/* Full-screen dimmer — big negative insets so it covers the screen from
           inside the tab bar; taps anywhere close the dial. */}
+      {/* While open it is a real control — the only big "dismiss" target —
+          so it is named; while closed it is out of the tree entirely. */}
       <AnimatedPressable
         style={[styles.backdrop, backdropStyle, { pointerEvents: pe }]}
         onPress={close}
+        accessibilityRole="button"
+        accessibilityLabel={t('a11y.close')}
         accessibilityElementsHidden={!open}
+        importantForAccessibility={open ? 'auto' : 'no-hide-descendants'}
         testID="log-backdrop"
       />
 
-      <Animated.View style={[styles.satellite, camSatStyle, { pointerEvents: pe }]}>
+      {/* Opacity 0 hides a satellite from the EYE only — VoiceOver and
+          TalkBack still swiped onto "Scan meal" and "Search foods" with the
+          dial shut, buttons that were invisible and untappable. So the closed
+          dial takes them out of the accessibility tree as well. */}
+      <Animated.View
+        style={[styles.satellite, camSatStyle, { pointerEvents: pe }]}
+        accessibilityElementsHidden={!open}
+        importantForAccessibility={open ? 'auto' : 'no-hide-descendants'}
+      >
         {/* The pill is INSIDE the Pressable so tapping the words works too — it
             was a dead target for as long as it was a sibling `View`. */}
         <Pressable style={styles.satHit} onPress={() => choose('scan')} accessibilityRole="button" accessibilityLabel={t('log.scan')} testID="log-scan">
@@ -212,7 +225,11 @@ export function LogSpeedDial() {
         </Pressable>
       </Animated.View>
 
-      <Animated.View style={[styles.satellite, manSatStyle, { pointerEvents: pe }]}>
+      <Animated.View
+        style={[styles.satellite, manSatStyle, { pointerEvents: pe }]}
+        accessibilityElementsHidden={!open}
+        importantForAccessibility={open ? 'auto' : 'no-hide-descendants'}
+      >
         {/* The pill is INSIDE the Pressable so tapping the words works too — it
             was a dead target for as long as it was a sibling `View`. */}
         <Pressable style={styles.satHit} onPress={() => choose('manual')} accessibilityRole="button" accessibilityLabel={t('log.manual')} testID="log-manual">
@@ -244,8 +261,11 @@ export function LogSpeedDial() {
         onLongPress={more}
         delayLongPress={350}
       >
+        {/* Dark glyph, not white: white on the coral is 2.85:1, under the 3:1
+            WCAG floor for a graphical control. `heroPanel` is the one dark
+            token shared by both themes, and it measures 6.46:1 on `ring`. */}
         <Animated.View style={plusStyle}>
-          <Ionicons name="add" size={32} color={colors.white} />
+          <Ionicons name="add" size={32} color={colors.heroPanel} />
         </Animated.View>
       </Pressable>
     </View>

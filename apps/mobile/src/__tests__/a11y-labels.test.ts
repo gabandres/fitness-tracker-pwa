@@ -1,5 +1,6 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { elementBody, openingTags } from './jsx-scan';
 
 /**
  * Every icon-only control must say what it does.
@@ -53,58 +54,16 @@ interface Offender {
 }
 
 /**
- * Opening tags of touchable elements, with their attribute text.
+ * Touchables that render an icon and no text of their own, unlabelled.
  *
- * Deliberately crude — a regex over JSX, not a parser. It is looking for one
- * specific shape and the cost of a false negative here is a missing label, not
- * a broken build.
+ * Deliberately crude — a scan over JSX, not a parser (see `jsx-scan.ts`). It is
+ * looking for one specific shape and the cost of a false negative here is a
+ * missing label, not a broken build.
  */
-function findUnlabelled(source: string, file: string): Offender[] {
+export function findUnlabelled(source: string, file: string): Offender[] {
   const out: Offender[] = [];
-  const open = new RegExp(`<(${TOUCHABLES.join('|')})\\b`, 'g');
-  let match: RegExpExecArray | null;
-  while ((match = open.exec(source)) != null) {
-    // Attributes run to the end of the opening tag. Find it by scanning for the
-    // first '>' that is not inside a brace expression or a string.
-    let depth = 0;
-    let i = match.index + match[0].length;
-    let inString: string | null = null;
-    for (; i < source.length; i++) {
-      const c = source[i];
-      if (inString) {
-        if (c === inString) inString = null;
-        continue;
-      }
-      // A `//` comment inside the opening tag, skipped to end of line.
-      //
-      // Without this, a prose apostrophe in one — `// ADR-0033's Amendment 2 …`
-      // — reads as an opening quote, and the scan runs on to the next `'`
-      // somewhere in the body, swallowing the element's children. The control
-      // is then judged icon-only because its `<Text>` is no longer where the
-      // scan is looking, and a correctly labelled row is reported as a
-      // violation. That happened to `FastingTrendsCard` (#98), and a false
-      // POSITIVE is the expensive direction for a lint: it fails the build over
-      // nothing and points at a control that is fine.
-      //
-      // It has to happen HERE rather than as a pre-pass over the source,
-      // because only the scan knows whether a `//` is a comment at all —
-      // stripping them up front also mutilates every `https://` URL, which
-      // leaves an unbalanced quote and produces four NEW false positives in
-      // `settings.tsx`. Tried, measured, reverted.
-      if (c === '/' && source[i + 1] === '/') {
-        const nl = source.indexOf('\n', i);
-        if (nl === -1) break;
-        i = nl;
-        continue;
-      }
-      if (c === '"' || c === "'" || c === '`') inString = c;
-      else if (c === '{') depth++;
-      else if (c === '}') depth--;
-      else if (c === '>' && depth === 0) break;
-    }
-    const attrs = source.slice(match.index, i);
-    const selfClosing = source[i - 1] === '/';
-
+  for (const tag of openingTags(source, TOUCHABLES)) {
+    const { attrs } = tag;
     if (
       attrs.includes('accessibilityLabel') ||
       attrs.includes('accessibilityElementsHidden') ||
@@ -115,16 +74,18 @@ function findUnlabelled(source: string, file: string): Offender[] {
 
     // Only icon-only controls: anything rendering its own <Text> already
     // announces that text, which is a better label than one we would invent.
-    const body = selfClosing ? attrs : source.slice(i, i + 500);
-    const hasIcon = /<Ionicons\b/.test(attrs) || /<Ionicons\b/.test(body.slice(0, 300));
-    const hasText = /<Text[\s>]/.test(body.slice(0, 300));
+    // A text-rendering component counts too, by name (`StubLabel`,
+    // `CountUpText`): the scan cannot follow it into its file, and the three
+    // Trends empty-state rows label themselves exactly that way.
+    //
+    // The body stops at the element's OWN closing tag — a sibling title after
+    // it is not this control's label, however close it sits.
+    const body = elementBody(source, tag);
+    const hasIcon = /<Ionicons\b/.test(attrs) || /<Ionicons\b/.test(body);
+    const hasText = /<(Text|\w+Text|\w+Label)[\s>/]/.test(body);
     if (!hasIcon || hasText) continue;
 
-    out.push({
-      file,
-      line: source.slice(0, match.index).split('\n').length,
-      snippet: attrs.slice(0, 80).replace(/\s+/g, ' '),
-    });
+    out.push({ file, line: tag.line, snippet: attrs.slice(0, 80).replace(/\s+/g, ' ') });
   }
   return out;
 }
@@ -147,5 +108,14 @@ describe('icon-only controls carry an accessibility label', () => {
 
     const good = `<Pressable onPress={x} accessibilityLabel={t('common.dismiss')}>\n  <Ionicons name="close" size={20} />\n</Pressable>`;
     expect(findUnlabelled(good, 'sample.tsx')).toHaveLength(0);
+ 
+    // A title AFTER the control is not its label. The old fixed 300-char
+    // window read straight past `</Pressable>` into this `<Text>` and passed it.
+    const sibling = `<Pressable onPress={back}>\n  <Ionicons name="chevron-back" size={26} />\n</Pressable>\n<Text style={s.title}>{t('scan.title')}</Text>`;
+    expect(findUnlabelled(sibling, 'sample.tsx')).toHaveLength(1);
+
+    // Text INSIDE the control, however far down, is its label.
+    const nested = `<Pressable onPress={x}>\n  <View><Pressable onPress={y} accessibilityLabel="inner"><Ionicons name="a" /></Pressable></View>\n  <Ionicons name="b" />\n  <Text>Done</Text>\n</Pressable>`;
+    expect(findUnlabelled(nested, 'sample.tsx')).toHaveLength(0);
   });
 });

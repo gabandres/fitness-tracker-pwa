@@ -155,23 +155,31 @@ export function HeroRings({ calConsumed, calTarget, protConsumed, protTarget, ca
           a TextInput under the hood and VoiceOver reads it as an edit box; the
           SVG arcs say nothing at all. So the wrap is the accessible node with
           the sentence, and everything inside it is hidden from the tree. */}
+      {/* The remaining/over figure is the ring's headline — the big number in
+          its centre — so the spoken sentence carries it too. It used to read
+          only "1,200 of 2,000 kcal" and leave the subtraction to the listener. */}
       <View
         style={styles.ringWrap}
         accessible
-        accessibilityLabel={t('a11y.hero', {
+        accessibilityLabel={t(over ? 'a11y.heroOver' : 'a11y.heroLeft', {
           kcal: formatNumber(calConsumed, locale),
           kcalTarget: formatNumber(calTarget, locale),
+          n: formatNumber(Math.abs(calRemaining), locale),
           protein: protConsumed,
           proteinTarget: protTarget,
         })}
         importantForAccessibility="no-hide-descendants"
       >
         <Svg width={SIZE} height={SIZE}>
+          {/* The ring keeps its colour past the target. Red there was a verdict
+              (UX_AUDIT "Adherence-neutral colors"): eating over a number is
+              information, not a failure, and the "kcal over" caption in the
+              centre already states the fact without grading it. */}
           <Ring
             r={OUTER_R}
             stroke={OUTER_STROKE}
             trackColor={colors.heroTrack}
-            color={over ? colors.danger : colors.ring}
+            color={colors.ring}
             progress={calTarget ? calConsumed / calTarget : 0}
             delay={100}
           />
@@ -203,7 +211,7 @@ export function HeroRings({ calConsumed, calTarget, protConsumed, protTarget, ca
 
       <View style={styles.legendRow}>
         <View style={styles.legendItem}>
-          <View style={[styles.dot, { backgroundColor: over ? colors.danger : colors.ring }]} />
+          <View style={[styles.dot, { backgroundColor: colors.ring }]} />
           <Text style={styles.legendText}>
             {formatNumber(calConsumed, locale)} / {formatNumber(calTarget, locale)} {t('today.kcal')}
           </Text>
@@ -216,11 +224,14 @@ export function HeroRings({ calConsumed, calTarget, protConsumed, protTarget, ca
         </View>
       </View>
 
+      {/* Each chip carries its own label: the "●" is a nested span, and a
+          nested span cannot be hidden from VoiceOver on its own — the parent
+          reads the whole string, glyph included ("black circle, carbs 40g"). */}
       <View style={styles.macroRow}>
-        <Text style={styles.macroChip}>
+        <Text style={styles.macroChip} accessibilityLabel={t('entry.carbsAmount', { n: carbs })}>
           <Text style={{ color: colors.carbs }}>●</Text> {t('today.carbs')} {carbs}g
         </Text>
-        <Text style={styles.macroChip}>
+        <Text style={styles.macroChip} accessibilityLabel={t('entry.fatAmount', { n: fat })}>
           <Text style={{ color: colors.fat }}>●</Text> {t('today.fat')} {fat}g
         </Text>
       </View>
@@ -237,7 +248,15 @@ export function HeroRings({ calConsumed, calTarget, protConsumed, protTarget, ca
           <Text style={styles.maintenanceLabel}>
             {t('today.measureProgress', { n: progress.loggedDays, needed: progress.neededDays })}
           </Text>
-          <View style={styles.progressTrack} accessibilityRole="progressbar">
+          {/* Announced as a progress bar WITH its value; a bare role reads as
+              an empty, unnamed control. The sentence above carries the count. */}
+          <View
+            style={styles.progressTrack}
+            accessible
+            accessibilityRole="progressbar"
+            accessibilityLabel={t('a11y.measureBar')}
+            accessibilityValue={{ min: 0, max: progress.neededDays, now: progress.loggedDays }}
+          >
             <View style={[styles.progressFill, { width: `${Math.round(progress.fraction * 100)}%` }]} />
           </View>
           <Text style={styles.maintenanceCaveat} testID="measure-progress-next">
@@ -342,6 +361,32 @@ export function HeroRings({ calConsumed, calTarget, protConsumed, protTarget, ca
           ) : null}
         </View>
       ) : null}
+    </View>
+  );
+}
+
+/**
+ * The hero's shape with nothing in it — two empty tracks on the panel — for a
+ * cold start with no cache. Not `HeroRings` at zero: that would print
+ * "0 kcal left" for a target nobody has loaded yet, which is a wrong number,
+ * not a placeholder.
+ */
+export function HeroRingsSkeleton() {
+  const t = useT();
+  const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
+  return (
+    <View
+      style={styles.panel}
+      testID="hero-skeleton"
+      accessible
+      accessibilityLabel={t('a11y.loadingToday')}
+      accessibilityState={{ busy: true }}
+    >
+      <Svg width={SIZE} height={SIZE}>
+        <Circle cx={SIZE / 2} cy={SIZE / 2} r={OUTER_R} stroke={colors.heroTrack} strokeWidth={OUTER_STROKE} fill="none" />
+        <Circle cx={SIZE / 2} cy={SIZE / 2} r={INNER_R} stroke={colors.heroTrack} strokeWidth={INNER_STROKE} fill="none" />
+      </Svg>
     </View>
   );
 }

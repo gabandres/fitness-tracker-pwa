@@ -7,8 +7,16 @@ import {
   withDefaultMealSlot,
 } from '@macrolog/core';
 import { isOffline } from './connectivity';
-import { addLogWithId } from './ledger';
-import { parkPendingLog, readPendingLogs, withWriteDeadline } from './quick-add';
+import { addLogWithId, deleteLog } from './ledger';
+import {
+  dropPendingLogs,
+  parkPendingLog,
+  readPendingLogs,
+  isUndoneId,
+  replacePendingLog,
+  reviveUndoneId,
+  withWriteDeadline,
+} from './quick-add';
 
 /**
  * The in-app half of the durable write queue.
@@ -26,15 +34,14 @@ import { parkPendingLog, readPendingLogs, withWriteDeadline } from './quick-add'
  * failure, flushed on the next foreground by the same `flushPendingLogs` the
  * widget uses. One queue, not two — see {@link parkPendingLog}.
  *
- * ## What this does NOT cover, and why
+ * ## Edits and deletes of a PARKED row
  *
- * **Edits and deletes.** They are patches against a server document, so a parked
- * one has to be reconciled rather than replayed: a delete of a row that never
- * landed, or an edit racing an edit from the PWA, needs a merge policy this
- * queue's `setDoc`-of-known-bytes model deliberately does not have. Offline they
- * behave as they always have — the SDK holds them and lands them if the session
- * survives. Adds are the overwhelming majority of offline writes and the only
- * ones that lose *new* information, which is why they are what this buys.
+ * A row still on disk has no server doc to patch, so an edit rewrites it in the
+ * queue (`editParkedLog`) and a delete drops it (`dropPendingLogs`). Edits and
+ * deletes of rows that already landed are ordinary SDK writes: the SDK holds
+ * them and lands them if the session survives, and they are never queued here —
+ * a patch against a server document would need a merge policy this queue's
+ * `setDoc`-of-known-bytes model deliberately does not have.
  */
 
 /**
@@ -60,6 +67,8 @@ export type WriteOutcome = 'logged' | 'queued';
  *  its own module to keep `quick-add.ts` — which also fires it, from the flush —
  *  out of a require cycle with this file. */
 export { onPendingLogsChanged } from './pending-logs-events';
+/** Re-exported for the same reason: the one import for the queue. */
+export { dropPendingLogs } from './quick-add';
 
 /**
  * Add one log row, durably.
@@ -72,22 +81,74 @@ export { onPendingLogsChanged } from './pending-logs-events';
  * as saved, but it is a far better one than a meal that vanishes at the moment
  * of saving.
  */
-export async function addLogDurably(uid: string, entry: LogEntry): Promise<WriteOutcome> {
+export async function addLogDurably(
+  uid: string,
+  entry: LogEntry,
+  /** Minted by the caller when it needs the id back — the add receipt's Undo
+   *  deletes by it. Defaults to a fresh one. */
+  id: string = newLedgerId(Math.random),
+): Promise<WriteOutcome> {
   const at = entry.timestamp ?? new Date();
   // Applied here rather than inherited from `addLog`: this path writes through
   // `addLogWithId`, which is the id-carrying primitive and deliberately does not
   // guess a slot. Without this line an offline add would file into `other` while
   // the identical online add filed into lunch.
   const withSlot = withDefaultMealSlot(entry, at);
-  const id = newLedgerId(Math.random);
+  // A write at an id the user once undid (the Undo of a delete) is the newer
+  // intent; it must not be treated as undone by a flush already in flight.
+  reviveUndoneId(id);
   const deadline = isOffline() ? OFFLINE_DEADLINE_MS : ONLINE_DEADLINE_MS;
   try {
     await withWriteDeadline(addLogWithId(uid, id, withSlot), deadline);
     return 'logged';
   } catch {
+    // Undone while this write waited out its deadline: parking it now would
+    // bring back the row the user just removed.
+    if (isUndoneId(id)) return 'queued';
     await parkPendingLog(buildPendingLog(id, uid, withSlot, at.getTime()));
     return 'queued';
   }
+}
+
+/**
+ * Apply an edit to a row that is still parked offline. Resolves with the entry
+ * as it will land — the edit, plus what the sheet never sends but the row must
+ * keep (its `source`: a photo-scanned meal edited offline would otherwise land
+ * as a typed one and lose its first-scan evidence) — when the row was parked;
+ * null when it is not on disk and the server doc should be patched instead.
+ * The queue carries the note too, so the flush lands the edit whole.
+ */
+export async function editParkedLog(uid: string, id: string, entry: LogEntry): Promise<LogEntry | null> {
+  const parked = (await readPendingLogs()).find((p) => p.id === id && p.uid === uid);
+  if (!parked) return null;
+  const at = entry.timestamp ?? new Date(parked.atMs);
+  const merged: LogEntry = withDefaultMealSlot(
+    { ...entry, ...(entry.source ?? parked.source ? { source: entry.source ?? parked.source } : {}) },
+    at,
+  );
+  const ok = await replacePendingLog(id, buildPendingLog(id, uid, merged, at.getTime()));
+  return ok ? { ...merged, timestamp: at } : null;
+}
+
+/**
+ * Reverse adds, wherever they got to: drop them from the queue if they parked
+ * (one write for the whole set — see `dropPendingLogs`), and delete the server
+ * docs in case they landed, or land later from a write that outlived its
+ * deadline (a delete of a missing doc is a no-op). The server half is not
+ * awaited: offline the SDK holds the deletes like any other write.
+ */
+export async function undoAdds(uid: string, ids: readonly string[]): Promise<void> {
+  await dropPendingLogs(ids);
+  for (const id of ids) {
+    void deleteLog(uid, id).catch(() => {
+      /* Offline or already gone — the overlay drop above is what the user sees. */
+    });
+  }
+}
+
+/** One-id form of {@link undoAdds}. */
+export function undoAdd(uid: string, id: string): Promise<void> {
+  return undoAdds(uid, [id]);
 }
 
 /**
@@ -122,5 +183,6 @@ function toRow(p: PendingLog): DailyLog {
     // long as the device is offline — the one window where the award-at-write
     // has already failed.
     ...(p.source ? { source: p.source } : {}),
+    ...(p.note ? { note: p.note } : {}),
   };
 }

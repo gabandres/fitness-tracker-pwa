@@ -126,6 +126,19 @@ describe('newLedgerId', () => {
 });
 
 describe('buildPendingLog / pendingLogEntry', () => {
+  it('carries the note through park → flush, trimmed and capped (2026-10-04)', () => {
+    // An edit made while a row is parked is a whole-row replace, and the flush
+    // a whole-doc set: a note the queue did not carry was wiped on landing.
+    const p = buildPendingLog('n1', 'u1', { calories: 300, note: '  weighed  ' }, 0);
+    expect(p.note).toBe('weighed');
+    expect(pendingLogEntry(p).note).toBe('weighed');
+    expect(buildPendingLog('n2', 'u1', { calories: 300, note: '   ' }, 0)).not.toHaveProperty('note');
+    expect(buildPendingLog('n3', 'u1', { calories: 1, note: 'x'.repeat(900) }, 0).note).toHaveLength(500);
+    // A corrupted note is a row that would fail forever: dropped on read.
+    const bad = serializePendingLogs([{ ...p, note: '' }]);
+    expect(parsePendingLogs(bad)).toEqual([]);
+  });
+
   const entry = {
     calories: 180,
     protein: 32,

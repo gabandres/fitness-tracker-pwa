@@ -74,6 +74,7 @@ export function RecalibrationCard({ suppressed = false }: { suppressed?: boolean
           haptics.tap();
           acknowledge();
         }}
+        accessibilityRole="button"
         testID="recalibration-ack"
       >
         <Text style={styles.ctaText}>{t('recalibration.cardCta')}</Text>
