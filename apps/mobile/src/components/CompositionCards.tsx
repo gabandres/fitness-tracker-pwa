@@ -33,7 +33,16 @@ function signed(v: number, digits: number, locale: ReturnType<typeof useLocale>)
 }
 
 /** The line under the maintenance number on Trends. */
-export function CompositionLine({ result, unitSystem }: { result: CompositionMaintenance; unitSystem: UnitSystem }) {
+export function CompositionLine({
+  result,
+  unitSystem,
+  female = false,
+}: {
+  result: CompositionMaintenance;
+  unitSystem: UnitSystem;
+  /** Women's Navy set includes the hip. */
+  female?: boolean;
+}) {
   const t = useT();
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
@@ -41,7 +50,7 @@ export function CompositionLine({ result, unitSystem }: { result: CompositionMai
   if (result.status !== 'ok') {
     const text =
       result.status === 'insufficient_tapes'
-        ? result.profileMissing ? t('comp.needProfile') : t('comp.needTapes')
+        ? result.profileMissing ? t('comp.needProfile') : t(female ? 'comp.needTapesHip' : 'comp.needTapes')
         : result.status === 'insufficient_logging'
           ? t('comp.needLogging', { n: COMP_MIN_LOGGED_DAYS, have: result.loggedDays })
           : t('comp.needWeight');
@@ -84,10 +93,12 @@ export function RecompCard({
   signal,
   unitSystem,
   lastTapeAt,
+  female = false,
 }: {
   signal: RecompSignal;
   unitSystem: UnitSystem;
   lastTapeAt: Date | null;
+  female?: boolean;
 }) {
   const t = useT();
   const locale = useLocale();
@@ -165,7 +176,7 @@ export function RecompCard({
         />
       </View>
       {denied ? <Text style={styles.recompNote}>{t('recomp.remindDenied')}</Text> : null}
-      <Text style={styles.recompHow}>{t('recomp.how')}</Text>
+      <Text style={styles.recompHow}>{t(female ? 'recomp.howHip' : 'recomp.how')}</Text>
     </View>
   );
 }

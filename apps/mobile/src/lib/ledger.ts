@@ -1473,6 +1473,22 @@ export function subscribeMeasurements(
   return onSnapshot(q, (snap) => cb(snap.docs.map((d) => toMeasurement(d.id, d.data()))), onError);
 }
 
+/**
+ * Every measurement since `since`, newest first — bounded by TIME, not rows.
+ * The composition view (ADR-0043) looks back 182 days for a DXA pair; a row
+ * cap there could push the older scan out on a heavy measurer and the estimate
+ * would quietly fall back to tapes. Single-field range + order: no index.
+ */
+export function subscribeMeasurementsSince(
+  uid: string,
+  since: Date,
+  cb: (measurements: Measurement[]) => void,
+  onError?: (e: Error) => void,
+): Unsub {
+  const q = query(measurementsCol(uid), where('timestamp', '>=', Timestamp.fromDate(since)), orderBy('timestamp', 'desc'));
+  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => toMeasurement(d.id, d.data()))), onError);
+}
+
 export async function addMeasurement(uid: string, entry: MeasurementInput): Promise<string> {
   return createDoc(measurementsCol(uid), toMeasurementDoc(entry, CODEC));
 }

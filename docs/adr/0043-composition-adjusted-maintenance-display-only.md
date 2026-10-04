@@ -168,10 +168,11 @@ and the cap can also cut the oldest cached day off partway. The estimator theref
 takes `logsCompleteFromKey` (`logsCompleteFrom`: the day after the oldest row, once
 the cache is full). Days before it are unknown, not unlogged, and intake is averaged
 from there (`intakeFromKey`). That is the measured estimate's own assumption about
-unlogged days: the logged days stand for the rest. Trends' measurements listener went
-from 40 to 80 rows to reach 182 days of weekly tapes. More than 80 rows in 182 days
-(several rows per session) would push the older scan out, and the estimate would
-quietly fall back to `mixed`.
+unlogged days: the logged days stand for the rest. Trends' measurements listener is
+bounded by TIME (`subscribeMeasurementsSince`, the last 183 days) rather than by rows.
+It shipped first at 80 rows, which could have pushed the older scan out for a heavy
+measurer and quietly dropped the estimate back to `mixed`. Replaced 2026-10-04. A
+range plus order on `timestamp` alone needs no composite index (checked on prod).
 
 **Fixed in the pre-ship review (2026-10-03):**
 - Switching meal reminders OFF in Settings ran `cancelAll`, which took `tape-weekly`
@@ -189,5 +190,16 @@ quietly fall back to `mixed`.
 - The CSV export carries `bodyFatPct` and `bodyFatMethod`, appended as the last columns.
   Before this, a DXA-only row exported blank.
 
-Still open, minor: the "needs tapes" copy says waist + neck, but women also need hip,
-and a hip entered on a separate row that day is ignored.
+**Women's tapes (2026-10-04).** `compositionPoints` combines tape fields PER FIELD
+across a day's rows (median of the rows that carry each field), so a hip saved on its
+own row completes a woman's set; before this, all three had to be on one row. For a
+female profile the Trends copy asks for waist + neck + hip (`comp.needTapesHip`), and
+the how-to measures the waist at its narrowest and the hips at their widest
+(`recomp.howHip`). Still open: the weekly tape reminder's notification text names only
+waist and neck. The reminder plan has no profile, and the feature is admin-only.
+
+**Not modelled, by decision (2026-10-04): trend-weight error.** Rough estimate, assuming
+~1 lb daily noise and near-daily weigh-ins: about ±0.5 lb at each end → ±12 kcal/day at
+84 d against ±91 from DXA alone, so it would not move a confidence label. The
+extrapolation case it would have mattered for is blocked by `TREND_MAX_EDGE_DAYS`. Add
+it to the Monte Carlo if a High DXA reading ever has to be defended.

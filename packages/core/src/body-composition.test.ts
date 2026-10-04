@@ -84,6 +84,30 @@ describe('compositionPoints — source priority per day', () => {
     expect(p.tapes).toEqual({ waistIn: 32.25, neckIn: 14.5 });
   });
 
+  it('combines a day\'s fields across rows — a hip on its own row still counts for a woman', () => {
+    const ms: Measurement[] = [
+      { date: at('2026-09-01', 7), waist: 30, neck: 13 },
+      { date: at('2026-09-01', 8), hip: 38 },
+    ];
+    const [p] = compositionPoints(ms, { sex: 'female', heightIn: 65 });
+    expect(p.source).toBe('navy');
+    expect(p.tapes).toEqual({ waistIn: 30, neckIn: 13, hipIn: 38 });
+  });
+
+  it('each field is the median of the rows that carry it', () => {
+    const ms: Measurement[] = [
+      { date: at('2026-09-01', 7), waist: 32.5, neck: 14.5 },
+      { date: at('2026-09-01', 8), waist: 32 },
+      { date: at('2026-09-01', 9), waist: 32.25, chest: 40 },
+    ];
+    expect(compositionPoints(ms, body)[0].tapes).toEqual({ waistIn: 32.25, neckIn: 14.5 });
+  });
+
+  it('a woman with no hip that day gets no Navy point', () => {
+    const ms: Measurement[] = [{ date: at('2026-09-01'), waist: 30, neck: 13 }];
+    expect(compositionPoints(ms, { sex: 'female', heightIn: 65 })).toEqual([]);
+  });
+
   it('without sex/height only measured %BF can become a point', () => {
     const ms: Measurement[] = [
       { date: at('2026-09-01'), waist: 32, neck: 14.5 },

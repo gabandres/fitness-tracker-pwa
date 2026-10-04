@@ -526,6 +526,7 @@ export const esPR: Record<I18nKey, string> = {
   'comp.conf.high': 'alta',
   'comp.detail': 'Grasa {fm} · masa magra (incluye agua) {ffm}',
   'comp.needTapes': 'Mide cintura + cuello cada semana para estimar la recomposición (hacen falta 3 medidas en 4+ semanas).',
+  'comp.needTapesHip': 'Mide cintura + cuello + cadera cada semana para estimar la recomposición (hacen falta 3 medidas en 4+ semanas).',
   'comp.needProfile': 'Añade tu sexo y estatura para estimar la recomposición con la cinta.',
   'comp.needLogging': 'El ajuste por composición necesita {n}+ días registrados entre tu primera y última medida (tienes {have}).',
   'comp.needWeight': 'El ajuste por composición necesita pesajes cerca de tu primera y última medida.',
@@ -544,6 +545,7 @@ export const esPR: Record<I18nKey, string> = {
   'recomp.remindOn': 'Activado · los {day}, 7:00',
   'recomp.remindDenied': 'Las notificaciones de Ignia están apagadas — actívalas en Ajustes para recibir el recordatorio.',
   'recomp.how': 'El mismo día de la semana, al levantarte, en ayunas. Cintura a la altura del ombligo, relajado; cuello justo debajo de la manzana de Adán. Toma 3 lecturas y registra la mediana.',
+  'recomp.howHip': 'El mismo día de la semana, al levantarte, en ayunas. Cintura en su punto más estrecho, relajada; cadera en su punto más ancho; cuello justo debajo de la laringe. Toma 3 lecturas y registra la mediana.',
   'trends.dailyTarget': 'Meta diaria',
   // Corrección del nivel de actividad — la actividad importada de Health
   // sugiere un nivel distinto al que la persona reportó.

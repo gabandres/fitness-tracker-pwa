@@ -82,6 +82,26 @@ describe('CompositionLine', () => {
   });
 });
 
+describe('women need the hip too', () => {
+  it('the insufficient line asks for waist + neck + hip', async () => {
+    const screen = await render(
+      <CompositionLine result={{ status: 'insufficient_tapes', points: 0, spanDays: 0, profileMissing: false }} unitSystem="us" female />,
+    );
+    expect(screen.getByTestId('comp-line').props.children).toBe(
+      'Log a waist + neck + hip tape weekly to estimate recomposition (needs 3 tapes over 4+ weeks).',
+    );
+  });
+
+  it('the how-to measures the waist at its narrowest and the hips at their widest', async () => {
+    const screen = await render(
+      <RecompCard signal={{ status: 'insufficient', reason: 'tapes', tapes: 0 }} unitSystem="us" lastTapeAt={null} female />,
+    );
+    const text = allText(screen);
+    expect(text).toContain('hips at their widest');
+    expect(text).not.toContain('Adam');
+  });
+});
+
 describe('RecompCard', () => {
   const signal: RecompSignal = {
     status: 'ok',

@@ -9,7 +9,7 @@ import type { Measurement } from '@macrolog/core';
 let mockIsAdmin = false;
 jest.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { uid: 'u1' }, isAdmin: mockIsAdmin }) }));
 const mockSubscribe = jest.fn();
-jest.mock('@/lib/ledger', () => ({ subscribeMeasurements: (...a: unknown[]) => mockSubscribe(...a) }));
+jest.mock('@/lib/ledger', () => ({ subscribeMeasurementsSince: (...a: unknown[]) => mockSubscribe(...a) }));
 // Open every channel immediately — the focus gating is useLedgerFeed's own,
 // tested where it lives.
 jest.mock('@/hooks/useLedgerFeed', () => {
@@ -35,7 +35,7 @@ const tapes: Measurement[] = [
 
 beforeEach(() => {
   mockSubscribe.mockReset();
-  mockSubscribe.mockImplementation((_uid: string, _n: number, cb: (m: Measurement[]) => void) => {
+  mockSubscribe.mockImplementation((_uid: string, _since: Date, cb: (m: Measurement[]) => void) => {
     cb(tapes);
     return () => undefined;
   });
@@ -45,16 +45,28 @@ it('flag OFF (no admin claim): no listener, nothing computed', async () => {
   mockIsAdmin = false;
   const { result } = await renderHook(() => useCompositionTrends([], {}, null));
   expect(mockSubscribe).not.toHaveBeenCalled();
-  expect(result.current).toEqual({ enabled: false, composition: null, recomp: null, lastTapeAt: null });
+  expect(result.current).toEqual({ enabled: false, composition: null, recomp: null, lastTapeAt: null, female: false });
 });
 
 it('flag ON (admin): subscribes to measurements and computes both', async () => {
   mockIsAdmin = true;
   const profile = { sex: 'male', heightIn: 68 } as never;
   const { result } = await renderHook(() => useCompositionTrends([], {}, profile));
-  expect(mockSubscribe).toHaveBeenCalledWith('u1', 80, expect.any(Function), expect.any(Function));
+  // Bounded by TIME, not rows: every row the 182-day DXA lookback can use.
+  expect(mockSubscribe).toHaveBeenCalledWith('u1', expect.any(Date), expect.any(Function), expect.any(Function));
+  const since = mockSubscribe.mock.calls[0][1] as Date;
+  const daysBack = (Date.now() - since.getTime()) / 86_400_000;
+  expect(daysBack).toBeGreaterThanOrEqual(182);
+  expect(daysBack).toBeLessThan(185);
   expect(result.current.enabled).toBe(true);
   expect(result.current.composition).not.toBeNull();
   expect(result.current.recomp).not.toBeNull();
   expect(result.current.lastTapeAt).toEqual(new Date(2026, 8, 28, 9));
+  expect(result.current.female).toBe(false);
+});
+
+it('a female profile is passed through for the hip copy', async () => {
+  mockIsAdmin = true;
+  const { result } = await renderHook(() => useCompositionTrends([], {}, { sex: 'female', heightIn: 65 } as never));
+  expect(result.current.female).toBe(true);
 });

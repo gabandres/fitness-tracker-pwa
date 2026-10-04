@@ -576,6 +576,7 @@ export const en = {
   'comp.conf.high': 'High',
   'comp.detail': 'Fat {fm} · lean mass (includes water) {ffm}',
   'comp.needTapes': 'Log a waist + neck tape weekly to estimate recomposition (needs 3 tapes over 4+ weeks).',
+  'comp.needTapesHip': 'Log a waist + neck + hip tape weekly to estimate recomposition (needs 3 tapes over 4+ weeks).',
   'comp.needProfile': 'Add your sex and height to estimate recomposition from tapes.',
   'comp.needLogging': 'Composition-adjusted needs {n}+ logged days between your first and last tape (you have {have}).',
   'comp.needWeight': 'Composition-adjusted needs weigh-ins around your first and last tape.',
@@ -594,6 +595,7 @@ export const en = {
   'recomp.remindOn': 'On · {day}s, 7:00',
   'recomp.remindDenied': 'Notifications are off for Ignia — turn them on in Settings to get the reminder.',
   'recomp.how': 'Same weekday, first thing in the morning, fasted. Waist at the navel, relaxed; neck just below the Adam’s apple. Take 3 readings and log the median.',
+  'recomp.howHip': 'Same weekday, first thing in the morning, fasted. Waist at its narrowest, relaxed; hips at their widest; neck just below the larynx. Take 3 readings and log the median.',
   'trends.dailyTarget': 'Daily target',
   // Activity-level correction card — imported Health activity suggests a
   // better activity bucket than the one the user self-reported.

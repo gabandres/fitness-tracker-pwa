@@ -5,6 +5,7 @@ import {
   type Measurement,
   type Profile,
   type RecompSignal,
+  COMP_DXA_WINDOW_MAX_DAYS,
   LOG_WINDOW_ROWS,
   compositionMaintenance,
   dayBoundaryOf,
@@ -14,12 +15,12 @@ import {
 import { feedChannel, useLedgerFeed } from '@/hooks/useLedgerFeed';
 import { useAuth } from '@/lib/auth';
 import { FEATURES, isFeatureOn } from '@/lib/features';
-import { subscribeMeasurements } from '@/lib/ledger';
+import { subscribeMeasurementsSince } from '@/lib/ledger';
 
-/** Rows the composition windows can need: the DXA-anchored mode looks back
- *  182 days (26 weekly tapes plus the scans), and a three-readings day adds a
- *  few. Bounded like Body's 20; read only while the flag is on. */
-const MEASUREMENT_ROWS = 80;
+/** The longest window anything here reads — the DXA-anchored lookback — plus
+ *  a day of slack for a non-midnight day boundary. Bounded by time, not rows
+ *  (a row cap could drop the older scan); read only while the flag is on. */
+const LOOKBACK_DAYS = COMP_DXA_WINDOW_MAX_DAYS + 1;
 
 export interface CompositionTrends {
   /** The flag (`FEATURES.compositionMaintenance`) for this user. When false
@@ -29,6 +30,8 @@ export interface CompositionTrends {
   recomp: RecompSignal | null;
   /** Newest tape row's date — the default weekday for the tape reminder. */
   lastTapeAt: Date | null;
+  /** Women's Navy set includes the hip — the copy asks for it. */
+  female: boolean;
 }
 
 /**
@@ -58,7 +61,8 @@ export function useCompositionTrends(
         ? [
             feedChannel({
               key: 'measurements',
-              open: (deliver, fail) => subscribeMeasurements(uid, MEASUREMENT_ROWS, deliver, fail),
+              open: (deliver, fail) =>
+                subscribeMeasurementsSince(uid, new Date(Date.now() - LOOKBACK_DAYS * 86_400_000), deliver, fail),
               apply: (rows: Measurement[]) => setMeasurements(rows),
             }),
           ]
@@ -67,7 +71,7 @@ export function useCompositionTrends(
   });
 
   return useMemo<CompositionTrends>(() => {
-    if (!enabled) return { enabled: false, composition: null, recomp: null, lastTapeAt: null };
+    if (!enabled) return { enabled: false, composition: null, recomp: null, lastTapeAt: null, female: false };
     const boundary = dayBoundaryOf(profile);
     const now = new Date();
     const body = { sex: profile?.sex ?? null, heightIn: profile?.heightIn ?? null };
@@ -87,6 +91,7 @@ export function useCompositionTrends(
       }),
       recomp: recompSignal({ dailyWeights: weights, measurements, boundary, now }),
       lastTapeAt: lastTape?.date ?? null,
+      female: profile?.sex === 'female',
     };
   }, [enabled, logs, weights, profile, measurements]);
 }

@@ -255,7 +255,7 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
             {/* ADR-0043: UNDER the maintenance number, never instead of it,
                 and display-only — `targetCalories` above never reads it. */}
             {composition.enabled && composition.composition ? (
-              <CompositionLine result={composition.composition} unitSystem={compUnits} />
+              <CompositionLine result={composition.composition} unitSystem={compUnits} female={composition.female} />
             ) : null}
             <View style={styles.heroChips}>
               <Text style={styles.trendChip}>
@@ -267,7 +267,7 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
           </Animated.View>
 
           {composition.enabled && composition.recomp ? (
-            <RecompCard signal={composition.recomp} unitSystem={compUnits} lastTapeAt={composition.lastTapeAt} />
+            <RecompCard signal={composition.recomp} unitSystem={compUnits} lastTapeAt={composition.lastTapeAt} female={composition.female} />
           ) : null}
 
           {/* 1b. Activity correction — sits under the hero because it changes

@@ -145,7 +145,9 @@ function median(values: number[]): number {
  * another measured %BF > the Navy estimate from that day's tapes > nothing.
  * Several rows of the same source on one day are combined by median (the
  * reminder asks for three readings and their median, so a user who enters all
- * three is not penalised). Tape rows that fail the Navy guards are skipped.
+ * three is not penalised). Tapes combine PER FIELD across the day's rows, so a
+ * hip saved on its own row still completes a woman's set. A day whose tapes
+ * fail the Navy guards gets no Navy point.
  */
 export function compositionPoints(
   measurements: readonly Measurement[],
@@ -168,13 +170,15 @@ export function compositionPoints(
     }
     if (body.sex && body.heightIn) {
       const female = body.sex === 'female';
-      const tapeRows = rows.filter((r) => r.waist != null && r.neck != null && (!female || r.hip != null));
-      if (tapeRows.length) {
-        const tapes = {
-          waistIn: median(tapeRows.map((r) => r.waist!)),
-          neckIn: median(tapeRows.map((r) => r.neck!)),
-          ...(female ? { hipIn: median(tapeRows.map((r) => r.hip!)) } : {}),
-        };
+      const field = (k: 'waist' | 'neck' | 'hip') => {
+        const vals = rows.map((r) => r[k]).filter((v): v is number => v != null);
+        return vals.length ? median(vals) : undefined;
+      };
+      const waistIn = field('waist');
+      const neckIn = field('neck');
+      const hipIn = female ? field('hip') : undefined;
+      if (waistIn != null && neckIn != null && (!female || hipIn != null)) {
+        const tapes = { waistIn, neckIn, ...(female ? { hipIn } : {}) };
         const res = navyBodyFatPct({ sex: body.sex, heightIn: body.heightIn, ...tapes });
         if (res.ok) candidates.push({ dateKey, bodyFatPct: res.pct, source: 'navy', tapes });
       }
