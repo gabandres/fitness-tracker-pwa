@@ -239,4 +239,10 @@ describe('toMeasurement — body-fat pair', () => {
     const m = toMeasurement('m', { timestamp: stamp(new Date('2026-10-01T12:00:00Z')), bodyFatPct: 17.2, bodyFatMethod: 'dxa' });
     expect(m).toMatchObject({ bodyFatPct: 17.2, bodyFatMethod: 'dxa' });
   });
+
+  it('a row without the pair does not NAME it — a spread into a patch must not touch it', () => {
+    const m = toMeasurement('m', { timestamp: stamp(new Date('2026-10-01T12:00:00Z')), waist: 32 });
+    expect('bodyFatPct' in m).toBe(false);
+    expect('bodyFatMethod' in m).toBe(false);
+  });
 });

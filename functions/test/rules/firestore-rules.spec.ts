@@ -238,12 +238,40 @@ describe('firestore.rules', () => {
     await assertFails(addDoc(ms, { timestamp: Timestamp.now(), chest: 15 })); // the neck-in-chest typo
   });
 
+  it('accepts %BF at exactly 2 and exactly 60 — the band is inclusive', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    const ms = collection(db, 'users', 'alice', 'measurements');
+    await assertSucceeds(addDoc(ms, { timestamp: Timestamp.now(), bodyFatPct: 2, bodyFatMethod: 'dxa' }));
+    await assertSucceeds(addDoc(ms, { timestamp: Timestamp.now(), bodyFatPct: 60, bodyFatMethod: 'other' }));
+  });
+
+  it('rejects a %BF stored as a string', async () => {
+    // A text field's raw value reaching the writer unparsed. `'17'` compares
+    // as a string, so only the `is number` guard stops it.
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    const ms = collection(db, 'users', 'alice', 'measurements');
+    await assertFails(addDoc(ms, { timestamp: Timestamp.now(), bodyFatPct: '17', bodyFatMethod: 'dxa' }));
+  });
+
+  it('a legacy tapes-only row still takes an edit that never names the pair', async () => {
+    // Every measurement written before ADR-0043 has no pair. The pairing check
+    // compares absent with absent, so an ordinary tape edit must keep passing.
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    const ref = doc(db, 'users', 'alice', 'measurements', 'legacy');
+    await assertSucceeds(setDoc(ref, { timestamp: Timestamp.now(), waist: 32, neck: 14.5 }));
+    await assertSucceeds(updateDoc(ref, { waist: 31.5 }));
+  });
+
   it('an edit can clear the pair together, never half of it', async () => {
     const db = authed('alice');
     await setDoc(doc(db, 'users', 'alice'), baseProfile());
     const ref = doc(db, 'users', 'alice', 'measurements', 'm1');
     await assertSucceeds(setDoc(ref, { timestamp: Timestamp.now(), waist: 32, bodyFatPct: 17, bodyFatMethod: 'dxa' }));
     await assertFails(updateDoc(ref, { bodyFatMethod: deleteField() }));
+    await assertFails(updateDoc(ref, { bodyFatPct: deleteField() }));
     await assertSucceeds(updateDoc(ref, { bodyFatPct: deleteField(), bodyFatMethod: deleteField() }));
   });
 

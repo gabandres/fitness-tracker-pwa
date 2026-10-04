@@ -3,6 +3,10 @@ import { StyleSheet, Switch, Text, View } from 'react-native';
 import {
   KG_PER_LB,
   COMP_MIN_LOGGED_DAYS,
+  COMP_MIN_POINTS,
+  COMP_MIN_SPAN_DAYS,
+  RECOMP_MIN_TAPES,
+  RECOMP_WAIST_DAYS,
   defaultTapeReminder,
   type CompositionMaintenance,
   type RecompSignal,
@@ -10,7 +14,7 @@ import {
   type UnitSystem,
 } from '@macrolog/core';
 import { useLocale, useT, type I18nKey } from '@/i18n';
-import { formatDate, formatNumber } from '@/lib/date-format';
+import { formatDate, formatNumber, formatTime } from '@/lib/date-format';
 import { getTapeReminder, setTapeReminder } from '@/lib/reminders';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
@@ -50,7 +54,9 @@ export function CompositionLine({
   if (result.status !== 'ok') {
     const text =
       result.status === 'insufficient_tapes'
-        ? result.profileMissing ? t('comp.needProfile') : t(female ? 'comp.needTapesHip' : 'comp.needTapes')
+        ? result.profileMissing
+          ? t('comp.needProfile')
+          : t(female ? 'comp.needTapesHip' : 'comp.needTapes', { n: COMP_MIN_POINTS, weeks: COMP_MIN_SPAN_DAYS / 7 })
         : result.status === 'insufficient_logging'
           ? t('comp.needLogging', { n: COMP_MIN_LOGGED_DAYS, have: result.loggedDays })
           : t('comp.needWeight');
@@ -105,7 +111,7 @@ export function RecompCard({
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const [reminder, setReminder] = useState<TapeReminderSetting | null>(null);
-  const [denied, setDenied] = useState(false);
+  const [problem, setProblem] = useState<'denied' | 'failed' | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -117,9 +123,9 @@ export function RecompCard({
 
   async function toggle(on: boolean) {
     const next = on ? defaultTapeReminder(lastTapeAt, new Date(), female) : null;
-    const ok = await setTapeReminder(next, t);
-    setDenied(!ok);
-    if (ok) setReminder(next);
+    const res = await setTapeReminder(next, t);
+    setProblem(res === 'ok' ? null : res);
+    if (res === 'ok') setReminder(next);
   }
 
   const metric = unitSystem === 'metric';
@@ -127,7 +133,9 @@ export function RecompCard({
   if (signal.status !== 'ok') {
     body = (
       <Text style={styles.recompBody} testID="recomp-insufficient">
-        {signal.reason === 'tapes' ? t('recomp.needTapes', { n: signal.tapes }) : t('recomp.needWeight')}
+        {signal.reason === 'tapes'
+          ? t('recomp.needTapes', { need: RECOMP_MIN_TAPES, weeks: RECOMP_WAIST_DAYS / 7, n: signal.tapes })
+          : t('recomp.needWeight')}
       </Text>
     );
   } else {
@@ -154,9 +162,8 @@ export function RecompCard({
     );
   }
 
-  const dayName = reminder
-    ? formatDate(new Date(2026, 1, reminder.weekday), locale, { weekday: 'long' }) // 2026-02-01 is a Sunday
-    : null;
+  // 2026-02-01 is a Sunday, so day `weekday` of that month is the weekday.
+  const reminderAt = reminder ? new Date(2026, 1, reminder.weekday, reminder.hour, reminder.minute) : null;
 
   return (
     <View style={styles.recompCard} testID="recomp-card">
@@ -165,7 +172,14 @@ export function RecompCard({
       <View style={styles.remindRow}>
         <View style={{ flex: 1 }}>
           <Text style={styles.remindLabel}>{t('recomp.remind')}</Text>
-          {dayName ? <Text style={styles.recompNote}>{t('recomp.remindOn', { day: dayName })}</Text> : null}
+          {reminderAt ? (
+            <Text style={styles.recompNote}>
+              {t('recomp.remindOn', {
+                day: formatDate(reminderAt, locale, { weekday: 'long' }),
+                time: formatTime(reminderAt, locale),
+              })}
+            </Text>
+          ) : null}
         </View>
         <Switch
           value={reminder != null}
@@ -175,7 +189,9 @@ export function RecompCard({
           testID="recomp-remind"
         />
       </View>
-      {denied ? <Text style={styles.recompNote}>{t('recomp.remindDenied')}</Text> : null}
+      {problem ? (
+        <Text style={styles.recompNote}>{t(problem === 'denied' ? 'recomp.remindDenied' : 'recomp.remindFailed')}</Text>
+      ) : null}
       <Text style={styles.recompHow}>{t(female ? 'recomp.howHip' : 'recomp.how')}</Text>
     </View>
   );

@@ -391,8 +391,10 @@ These three windows look similar and are NOT interchangeable. See
 - **Measured body fat** — `bodyFatPct` + `bodyFatMethod` (`dxa` | `other`) on a
   **Measurement**, always as a pair (ADR-0043). A value the user measured, as
   opposed to the **Body-fat estimate** the app derives. Flag-gated entry. The
-  Body card shows it instead of the estimate while it is at least as recent as
-  the newest tape (`bodyFatToShow`).
+  Body card shows it instead of the estimate while it is at least as recent,
+  by day, as the newest day whose tapes yield a Navy estimate — tapes combined
+  per field across that day's rows, DXA over other on a shared day
+  (`bodyFatToShow`). Flag off, the card shows the estimate only.
 - **Composition point** — one body-fat % per day for the composition estimate:
   DXA > other measured > Navy-from-that-day's-tapes > none
   (`compositionPoints`). Not the same as a **Measurement** row: several rows
@@ -400,7 +402,9 @@ These three windows look similar and are NOT interchangeable. See
 - **Composition-adjusted maintenance** — `compositionMaintenance` (ADR-0043):
   intake minus the energy stored in a change of fat mass (9,440 kcal/kg) and
   fat-free mass (1,816 kcal/kg), over first → last **Composition point** in the
-  last 84 days (`mixed` mode) — or, given ≥ 2 DXA scans ≥ 28 days apart in the
+  last 84 days (`mixed` mode: one slope shared across methods, an intercept per
+  method, and only methods read ≥ 2 times — a gap BETWEEN methods is never a
+  change) — or, given ≥ 2 DXA scans ≥ 28 days apart in the
   last 182, over those scans alone (`dxa_anchored` mode) — with a seeded Monte
   Carlo 80% interval. **Display-only and never
   a synonym for maintenance/TDEE** — the measured estimate (ADR-0024) is still

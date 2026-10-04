@@ -26,10 +26,14 @@ jest.mock('expo-router', () => ({
     }, [cb, focused]);
   },
 }));
+const mockAdmin = { current: false };
 jest.mock('@/lib/auth', () => ({
-  useAuth: () => ({ user: { uid: 'u1' }, profile: mockProfile.current }),
+  useAuth: () => ({ user: { uid: 'u1' }, profile: mockProfile.current, isAdmin: mockAdmin.current }),
 }));
-jest.mock('@/i18n', () => ({ useT: () => (k: string) => k }));
+// Stable, like the real `useT` between locale changes — a fresh function per
+// render would re-run the focus effect on every render.
+const mockT = (k: string) => k;
+jest.mock('@/i18n', () => ({ useT: () => mockT }));
 jest.mock('@/lib/sub-debug', () => ({
   trackSubs: (_l: string, unsubs: (() => void)[]) => () => unsubs.forEach((u) => u()),
 }));
@@ -85,4 +89,28 @@ it('counts whole days across a DST change (round, not floor)', async () => {
     subs.logs?.([{ id: 'a', date: new Date(2026, 2, 8, 9, 0), calories: 600 }]);
   });
   expect(lastState()).toMatchObject({ loggedToday: false, daysSinceLastLog: 2 });
+});
+
+it('passes the tape gate (ADR-0043), and re-plans when a late admin claim flips it', async () => {
+  mockProfile.current = { sex: 'female' };
+  mockAdmin.current = false;
+  jest.setSystemTime(new Date(2026, 9, 4, 12, 0));
+  let hook: Awaited<ReturnType<typeof renderHook>> | undefined;
+  await act(async () => {
+    hook = await renderHook(() => useReminderSync());
+  });
+  await act(async () => {
+    subs.weights?.({});
+    subs.logs?.([]);
+  });
+  expect(lastState()).toMatchObject({ tape: { allowed: false, female: true } });
+
+  const before = mockSync.mock.calls.length;
+  mockAdmin.current = true;
+  await act(async () => {
+    await hook!.rerender({});
+  });
+  expect(mockSync.mock.calls.length).toBe(before + 1);
+  expect(lastState()).toMatchObject({ tape: { allowed: true, female: true } });
+  mockAdmin.current = false;
 });

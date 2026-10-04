@@ -120,12 +120,16 @@ export type BodyFatShown =
 
 /**
  * The body fat to show: a MEASURED value (DXA, or another method — ADR-0043)
- * when it is at least as recent, by day, as the newest tape that yields a Navy
- * estimate; otherwise that estimate. A scan someone just entered must not sit
- * under a tape number from the same week, and a weekly tape after an old scan
- * must not be hidden by it. Same day → the measured value. It needs no
+ * when it is at least as recent, by day, as the newest day whose tapes yield a
+ * Navy estimate; otherwise that estimate. A scan someone just entered must not
+ * sit under a tape number from the same week, and a weekly tape after an old
+ * scan must not be hidden by it. Same day → the measured value. It needs no
  * sex/height, so a missing profile cannot hide it. Rounded to 0.1, like the
  * estimate.
+ *
+ * Read per DAY, the way the estimator reads them (`compositionPoints`): a
+ * day's tapes combine per field (median), so a hip saved on its own row still
+ * completes a woman's set, and on a day with both, DXA beats another method.
  */
 export function bodyFatToShow(
   measurements: readonly (BodyFatMeasurement & { date: Date; bodyFatPct?: number | null; bodyFatMethod?: BodyFatMethod | null })[],
@@ -133,26 +137,57 @@ export function bodyFatToShow(
   heightIn: number | null | undefined,
   boundary: DayBoundary = MIDNIGHT,
 ): BodyFatShown | null {
-  const rows = [...measurements].sort((a, b) => b.date.getTime() - a.date.getTime());
-  const measured = rows.find((m) => m.bodyFatPct != null && m.bodyFatMethod != null);
-  let navy: { pct: number; date: Date } | null = null;
+  type Row = (typeof measurements)[number];
+  const byDay = new Map<string, Row[]>();
+  for (const m of measurements) {
+    const key = dayKeyAt(m.date, boundary);
+    const list = byDay.get(key);
+    if (list) list.push(m);
+    else byDay.set(key, [m]);
+  }
+  const days = [...byDay.keys()].sort().reverse();
+  const newestFirst = (rows: Row[]) => [...rows].sort((a, b) => b.date.getTime() - a.date.getTime());
+
+  let measured: { key: string; pct: number; method: BodyFatMethod; date: Date } | null = null;
+  for (const key of days) {
+    const rows = byDay.get(key)!;
+    for (const method of ['dxa', 'other'] as const) {
+      const hits = newestFirst(rows.filter((r) => r.bodyFatMethod === method && r.bodyFatPct != null));
+      if (hits.length) {
+        measured = { key, pct: median(hits.map((r) => r.bodyFatPct!)), method, date: hits[0].date };
+        break;
+      }
+    }
+    if (measured) break;
+  }
+
+  let navy: { key: string; pct: number } | null = null;
   if (sex && heightIn != null && heightIn > 0) {
-    for (const m of rows) {
-      if (m.waist == null || m.neck == null) continue;
-      const pct = navyBodyFat(sex, heightIn, m.waist, m.neck, m.hip ?? undefined);
+    for (const key of days) {
+      const rows = byDay.get(key)!;
+      const field = (k: BodyFatInput) => {
+        const vals = rows.map((r) => r[k]).filter((v): v is number => v != null);
+        return vals.length ? median(vals) : undefined;
+      };
+      const waist = field('waist');
+      const neck = field('neck');
+      if (waist == null || neck == null) continue;
+      const pct = navyBodyFat(sex, heightIn, waist, neck, field('hip'));
       if (pct != null) {
-        navy = { pct, date: m.date };
+        navy = { key, pct };
         break;
       }
     }
   }
-  if (measured && (!navy || dayKeyAt(measured.date, boundary) >= dayKeyAt(navy.date, boundary))) {
-    return {
-      source: 'measured',
-      pct: Math.round(measured.bodyFatPct! * 10) / 10,
-      method: measured.bodyFatMethod!,
-      date: measured.date,
-    };
+
+  if (measured && (!navy || measured.key >= navy.key)) {
+    return { source: 'measured', pct: Math.round(measured.pct * 10) / 10, method: measured.method, date: measured.date };
   }
   return navy ? { source: 'navy', pct: navy.pct } : null;
+}
+
+function median(values: readonly number[]): number {
+  const s = [...values].sort((a, b) => a - b);
+  const m = s.length >> 1;
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }

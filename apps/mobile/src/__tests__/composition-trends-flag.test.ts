@@ -16,11 +16,21 @@ jest.mock('@/hooks/useLedgerFeed', () => {
   const React = jest.requireActual('react');
   return {
     feedChannel: (spec: unknown) => spec,
-    useLedgerFeed: (opts: { channels: () => { open: (d: (v: unknown) => void, f: () => void) => void; apply: (v: unknown) => void }[]; deps: unknown[] }) => {
+    useLedgerFeed: (opts: { channels: () => { open: (d: (v: unknown) => void, f: (e: unknown) => void) => void; apply: (v: unknown) => void }[]; deps: unknown[] }) => {
+      const [ready, setReady] = React.useState(false);
+      const [failed, setFailed] = React.useState(false);
       React.useEffect(() => {
-        for (const c of opts.channels()) c.open((v) => c.apply(v), () => undefined);
+        for (const c of opts.channels()) {
+          c.open(
+            (v) => {
+              c.apply(v);
+              setReady(true);
+            },
+            () => setFailed(true),
+          );
+        }
       }, opts.deps);
-      return { loaded: true, error: null };
+      return { answered: {}, ready, failed, error: failed ? new Error('denied') : null };
     },
   };
 });
@@ -69,4 +79,21 @@ it('a female profile is passed through for the hip copy', async () => {
   mockIsAdmin = true;
   const { result } = await renderHook(() => useCompositionTrends([], {}, { sex: 'female', heightIn: 65 } as never));
   expect(result.current.female).toBe(true);
+});
+
+it('before the first snapshot: nothing computed — not "you have 0 tapes"', async () => {
+  mockIsAdmin = true;
+  mockSubscribe.mockImplementation(() => () => undefined); // never answers
+  const { result } = await renderHook(() => useCompositionTrends([], {}, { sex: 'male', heightIn: 68 } as never));
+  expect(result.current).toMatchObject({ enabled: true, composition: null, recomp: null });
+});
+
+it('a failing listener shows nothing rather than a stuck "need tapes"', async () => {
+  mockIsAdmin = true;
+  mockSubscribe.mockImplementation((_u: string, _s: Date, _cb: unknown, fail: (e: unknown) => void) => {
+    fail(new Error('permission-denied'));
+    return () => undefined;
+  });
+  const { result } = await renderHook(() => useCompositionTrends([], {}, { sex: 'male', heightIn: 68 } as never));
+  expect(result.current).toMatchObject({ enabled: true, composition: null, recomp: null });
 });

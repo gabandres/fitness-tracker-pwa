@@ -99,7 +99,7 @@ describe('weekly tape reminder (ADR-0043)', () => {
 
   it('turning it off cancels by id and forgets the setting', async () => {
     mockStore.set('reminder.tape', JSON.stringify({ weekday: 2, hour: 7, minute: 0 }));
-    expect(await setTapeReminder(null, t)).toBe(true);
+    expect(await setTapeReminder(null, t)).toBe('ok');
     expect(mockStore.has('reminder.tape')).toBe(false);
     expect(notif().cancelScheduledNotificationAsync).toHaveBeenCalledWith('tape-weekly');
   });
@@ -122,11 +122,47 @@ describe('weekly tape reminder (ADR-0043)', () => {
     expect(cancelledAt).toBeGreaterThan(scheduledAt);
   });
 
+  it('meal reminders OFF that cannot cancel: rejects, and the stored flag stays ON', async () => {
+    notif().getAllScheduledNotificationsAsync.mockRejectedValueOnce(new Error('bridge'));
+    await expect(setRemindersEnabled(false)).rejects.toThrow('bridge');
+    expect(mockStore.get('reminder.enabled')).toBe('1');
+  });
+
   it('sign-out forgets it and cancels it — it belongs to the account, not the phone', async () => {
     mockStore.set('reminder.tape', JSON.stringify({ weekday: 2, hour: 7, minute: 0 }));
     await clearTapeReminder();
     expect(mockStore.has('reminder.tape')).toBe(false);
     expect(notif().cancelScheduledNotificationAsync).toHaveBeenCalledWith('tape-weekly');
+  });
+
+  it('flag OFF on a gated sync: the notification is cancelled but the setting is KEPT', async () => {
+    mockStore.set('reminder.enabled', '0');
+    mockStore.set('reminder.tape', JSON.stringify({ weekday: 2, hour: 7, minute: 0 }));
+    await syncReminders({ ...live, tape: { allowed: false, female: false } }, t);
+    expect(notif().scheduleNotificationAsync).not.toHaveBeenCalled();
+    expect(notif().cancelScheduledNotificationAsync).toHaveBeenCalledWith('tape-weekly');
+    expect(mockStore.has('reminder.tape')).toBe(true);
+
+    // A later ungated sync (Settings') must not re-arm it…
+    await syncReminders(live, t);
+    expect(notif().scheduleNotificationAsync).not.toHaveBeenCalled();
+    // …and the flag coming back restores it without asking again.
+    await syncReminders({ ...live, tape: { allowed: true, female: false } }, t);
+    expect(notif().scheduleNotificationAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it('the hip wording follows the LIVE profile, not the stored setting', async () => {
+    mockStore.set('reminder.enabled', '0');
+    mockStore.set('reminder.tape', JSON.stringify({ weekday: 2, hour: 7, minute: 0 })); // stored before `hip`
+    await syncReminders({ ...live, tape: { allowed: true, female: true } }, t);
+    expect(notif().scheduleNotificationAsync.mock.calls[0][0].content.body).toBe('reminder.tapeBodyHip');
+  });
+
+  it('a failed store reports "failed" — the switch must not say On', async () => {
+    const storage = jest.requireMock('@react-native-async-storage/async-storage').default;
+    (storage.setItem as jest.Mock).mockRejectedValueOnce(new Error('disk full'));
+    expect(await setTapeReminder({ weekday: 2, hour: 7, minute: 0 }, t)).toBe('failed');
+    expect(mockStore.has('reminder.tape')).toBe(false);
   });
 
   it('a tape-reminder failure never costs the meal plan', async () => {

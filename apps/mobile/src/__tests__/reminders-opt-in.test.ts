@@ -9,6 +9,9 @@ jest.mock('expo-notifications', () => ({
   setNotificationHandler: jest.fn(),
   requestPermissionsAsync: jest.fn(async () => ({ status: mockStatus })),
   cancelAllScheduledNotificationsAsync: jest.fn(async () => undefined),
+  // Switching off cancels by id; a missing mock used to be swallowed silently.
+  getAllScheduledNotificationsAsync: jest.fn(async () => []),
+  cancelScheduledNotificationAsync: jest.fn(async () => undefined),
   scheduleNotificationAsync: jest.fn(async () => 'id'),
   SchedulableTriggerInputTypes: { DAILY: 'daily', DATE: 'date' },
 }));

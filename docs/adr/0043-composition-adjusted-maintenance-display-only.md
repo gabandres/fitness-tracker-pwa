@@ -216,6 +216,32 @@ is turned on from a female profile, and its text then names the hip
 - Still the owner's to do: a native-speaker read of the es-PR / pt-BR copy, and
   watching the weekly reminder fire on a real phone.
 
+**Fixed in the post-ship review (2026-10-04, second pass):**
+- **Mixed mode read the gap between methods as a change.** It fitted one line through
+  DXA, other and Navy LEVELS, though this ADR's own evidence puts Navy ~6 points under
+  DXA. Measured on a flat-weight 2,000 kcal fixture with nine weekly tapes: one DXA on
+  the last tape day printed **1,640**, on the first **2,365**, with the 80% interval
+  barely covering the truth (a systematic bias is not a Monte Carlo term). Now the fit
+  shares ONE slope across methods with an intercept PER method, a method needs ≥ 2
+  readings in the window to take part (one reading has a level, not a change), the
+  gate counts only those points and needs one method to span ≥ 28 days by itself, and
+  the change is priced at the most accurate level present (DXA > other > Navy). With
+  one method — every tape-only window — the result is identical to before.
+- `bodyFatToShow` now reads per day like `compositionPoints` (a hip on its own row
+  completes a woman's set; DXA beats other on a shared day). With the flag off the
+  Body card and the measurement list show no measured value.
+- Trends shows no composition line or recomp card until the measurements listener has
+  answered, and none while it is failing (it said "you have 0 tapes" meanwhile).
+  `composition_view` counts once per focus in which the line is on screen.
+- The tape reminder takes a live gate from Today's sync: the flag OFF cancels the
+  notification but keeps the setting (its only switch is on a card that leaves with
+  the flag), and the hip wording follows the profile as it is now. A signed-out
+  verdict that did not come through `signOut()` (revoked, deleted elsewhere) clears it
+  too. Switching meal reminders off, or the tape toggle, now reports a failure instead
+  of showing a state the OS does not hold.
+- Rules ↔ core parity is pinned (`functions/test/composition-rules-parity.spec.ts`):
+  the usage-event list and caps, the body-fat band and methods, the tape ranges.
+
 **Not modelled, by decision (2026-10-04): trend-weight error.** Rough estimate, assuming
 ~1 lb daily noise and near-daily weigh-ins: about ±0.5 lb at each end → ±12 kcal/day at
 84 d against ±91 from DXA alone, so it would not move a confidence label. The

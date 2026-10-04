@@ -34,13 +34,27 @@
  * fails a later gate (no weigh-ins around an old scan, too little intake), the
  * mixed estimate is tried instead.
  *
+ * ## Mixed mode reads change WITHIN a method, never across two
+ *
+ * Methods disagree on LEVEL — the Navy formula reads ~6 %BF points under DXA —
+ * so one line through a DXA, a smart-scale reading and tapes turns that gap
+ * into a fat change that never happened (one DXA on the last tape day moved a
+ * flat-weight 2,000 kcal maintenance to 1,640; on the first day, to 2,365).
+ * The fit therefore shares ONE slope across methods but gives each method its
+ * OWN intercept, and a method needs ≥ 2 readings in the window to take part: a
+ * single reading says where body fat is by that method, not how it moved. The
+ * gate counts only those points, and at least one method must itself span
+ * {@link COMP_MIN_SPAN_DAYS}. The level the change is priced at is the most
+ * accurate method present (DXA > other > Navy).
+ *
  * Intake follows the measured-mode logged-day rules: days are bucketed by
  * `aggregateByDay` under the user's boundary, unlogged days are EXCLUDED (never
- * imputed), the day still in progress contributes no intake
- * (`withoutInProgressIntake`, cf0953d4), and the mean is the same
- * `trimmedMean` the measured estimate uses. Intake days are [first point,
- * last point): the energy stored between the morning of the first tape and the
- * morning of the last.
+ * imputed), and the mean is the same `trimmedMean` the measured estimate uses.
+ * Intake days are [first point, last point): the energy stored between the
+ * morning of the first tape and the morning of the last. Points are never
+ * after today, so that half-open window already keeps the day in progress out
+ * (the rule `withoutInProgressIntake`, cf0953d4, states for the measured
+ * estimate).
  *
  * The app's log cache is ROWS, not days (`LOG_WINDOW_ROWS`, ADR-0004), so a
  * long window can start before the cache does. Days before
@@ -55,7 +69,8 @@
  *
  * Each of {@link MC_DRAWS} draws perturbs every reading (tape σ: waist 0.25 in,
  * neck 0.125 in, hip 0.25 in; a DXA %BF σ 1.0; another measured %BF σ 1.0),
- * re-fits the body-fat line by least squares over ALL points, and adds the
+ * re-fits the body-fat line (shared slope, per-method intercepts) over every
+ * point that passed the gate, and adds the
  * method's error on a CHANGE — {@link NAVY_CHANGE_SD_PER_56_DAYS} %BF points
  * per 8 weeks, scaled by √(days/56) (Frontiers in Physiology 2023: DXA change
  * −3.3 ± 2.8 vs circumference −2.2 ± 3.3 over 8 weeks, n = 926 men) — unless
@@ -77,9 +92,10 @@ import {
   trendWeightAt,
   type BodyProfile,
   type CompositionPoint,
+  type CompositionSource,
 } from './body-composition';
 import { MIDNIGHT, dayKeyAt, type DayBoundary } from './day-boundary';
-import { MEASURED_MIN_DAYS, aggregateByDay, trimmedMean, withoutInProgressIntake } from './tdee';
+import { MEASURED_MIN_DAYS, aggregateByDay, trimmedMean } from './tdee';
 import type { DailyLog, Measurement } from './types';
 
 /** Lookback for composition points, calendar days (ADR-0043 decision 1). */
@@ -117,8 +133,9 @@ export const CONFIDENCE_HIGH_MAX_KCAL = 150;
 export const CONFIDENCE_MEDIUM_MAX_KCAL = 300;
 
 export type CompConfidence = 'high' | 'medium' | 'low';
-/** `dxa_anchored`: the change is from DXA scans alone. `mixed`: every point in
- *  the 84-day window, with the method-change error unless all are DXA. */
+/** `dxa_anchored`: the change is from DXA scans alone. `mixed`: the 84-day
+ *  window's points from every method seen ≥ 2 times, fitted per method, with
+ *  the method-change error unless all are DXA. */
 export type CompMode = 'dxa_anchored' | 'mixed';
 
 export type CompositionMaintenance =
@@ -126,7 +143,7 @@ export type CompositionMaintenance =
       status: 'insufficient_tapes';
       points: number;
       spanDays: number;
-      /** Neither sex nor height on the profile — tapes cannot become points. */
+      /** Sex or height missing from the profile — tapes cannot become points. */
       profileMissing: boolean;
     }
   | { status: 'insufficient_logging'; points: number; spanDays: number; loggedDays: number }
@@ -199,20 +216,55 @@ function gaussian(rand: () => number): () => number {
   };
 }
 
-/** Least-squares line through (x, y); returns the fitted y at x = 0 and x = span. */
-function fitEnds(xs: readonly number[], ys: readonly number[], span: number): { start: number; end: number } {
-  const n = xs.length;
-  const mx = xs.reduce((a, v) => a + v, 0) / n;
-  const my = ys.reduce((a, v) => a + v, 0) / n;
+/** Which method's level a change is priced at — the most accurate present. */
+const LEVEL_ORDER: readonly CompositionSource[] = ['dxa', 'other', 'navy'];
+
+/**
+ * Least-squares body-fat line with ONE slope shared by every method and an
+ * intercept PER method (a fixed-effects fit), so a gap between methods is
+ * absorbed by their intercepts instead of reading as change. Returns the line
+ * of the most accurate method present ({@link LEVEL_ORDER}) at x = 0 and
+ * x = span. With a single method this is the ordinary least-squares line.
+ */
+function fitEnds(
+  xs: readonly number[],
+  ys: readonly number[],
+  sources: readonly CompositionSource[],
+  span: number,
+): { start: number; end: number } {
+  const means = new Map<CompositionSource, { mx: number; my: number }>();
+  for (const src of LEVEL_ORDER) {
+    const idx = sources.flatMap((s, i) => (s === src ? [i] : []));
+    if (!idx.length) continue;
+    means.set(src, {
+      mx: idx.reduce((a, i) => a + xs[i], 0) / idx.length,
+      my: idx.reduce((a, i) => a + ys[i], 0) / idx.length,
+    });
+  }
   let sxy = 0;
   let sxx = 0;
-  for (let i = 0; i < n; i++) {
+  for (let i = 0; i < xs.length; i++) {
+    const { mx, my } = means.get(sources[i])!;
     sxy += (xs[i] - mx) * (ys[i] - my);
     sxx += (xs[i] - mx) ** 2;
   }
   const slope = sxx === 0 ? 0 : sxy / sxx;
+  const { mx, my } = means.get(LEVEL_ORDER.find((s) => means.has(s))!)!;
   const at = (x: number) => my + slope * (x - mx);
   return { start: at(0), end: at(span) };
+}
+
+/** The points of every method read ≥ 2 times — a lone reading has a level and
+ *  no change, and {@link fitEnds} reads change within a method only. */
+function changePoints(pts: readonly CompositionPoint[]): CompositionPoint[] {
+  const n: Record<CompositionSource, number> = { dxa: 0, other: 0, navy: 0 };
+  for (const p of pts) n[p.source]++;
+  return pts.filter((p) => n[p.source] >= 2);
+}
+
+/** The longest first→last span any single method covers, days. */
+function longestMethodSpan(pts: readonly CompositionPoint[]): number {
+  return Math.max(0, ...LEVEL_ORDER.map((src) => spanOf(pts.filter((p) => p.source === src))));
 }
 
 function quantile(sorted: readonly number[], q: number): number {
@@ -280,15 +332,15 @@ export function compositionMaintenance(input: CompositionMaintenanceInput): Comp
   const dxa = all.filter((p) => p.source === 'dxa' && p.dateKey >= dxaOldestKey);
   let dxaMiss: CompositionMaintenance | undefined;
   if (dxa.length >= COMP_DXA_MIN_POINTS && spanOf(dxa) >= COMP_MIN_SPAN_DAYS) {
-    const r = estimate(input, dxa, 'dxa_anchored', boundary, now);
+    const r = estimate(input, dxa, 'dxa_anchored', boundary);
     if (r.status === 'ok') return r;
     dxaMiss = r;
   }
 
   const oldestKey = shiftKey(todayKey, -COMP_WINDOW_MAX_DAYS);
-  const pts = all.filter((p) => p.dateKey >= oldestKey);
+  const pts = changePoints(all.filter((p) => p.dateKey >= oldestKey));
   const spanDays = spanOf(pts);
-  if (pts.length < COMP_MIN_POINTS || spanDays < COMP_MIN_SPAN_DAYS) {
+  if (pts.length < COMP_MIN_POINTS || longestMethodSpan(pts) < COMP_MIN_SPAN_DAYS) {
     // A DXA pair that missed on logging or weight names THAT gap — telling
     // someone with two scans to "log a tape" points at the wrong fix.
     if (dxaMiss) return dxaMiss;
@@ -296,7 +348,7 @@ export function compositionMaintenance(input: CompositionMaintenanceInput): Comp
     const profileMissing = !sex || !(heightIn != null && heightIn > 0);
     return { status: 'insufficient_tapes', points: pts.length, spanDays, profileMissing };
   }
-  return estimate(input, pts, 'mixed', boundary, now);
+  return estimate(input, pts, 'mixed', boundary);
 }
 
 /** The estimate over points that already passed their mode's count/span gate. */
@@ -305,7 +357,6 @@ function estimate(
   pts: readonly CompositionPoint[],
   mode: CompMode,
   boundary: DayBoundary,
-  now: Date,
 ): Exclude<CompositionMaintenance, { status: 'insufficient_tapes' }> {
   const { sex, heightIn } = input.profile;
   const spanDays = spanOf(pts);
@@ -313,11 +364,11 @@ function estimate(
   const last = pts[pts.length - 1];
 
   // Intake: the measured-mode logged-day rules, over [first, last), from where
-  // the log cache is complete.
+  // the log cache is complete. `last` is never after today, so the half-open
+  // window already leaves the day in progress out.
   const intakeFromKey =
     input.logsCompleteFromKey && input.logsCompleteFromKey > first.dateKey ? input.logsCompleteFromKey : first.dateKey;
-  const daily = withoutInProgressIntake(aggregateByDay([...input.logs], boundary), boundary, now);
-  const intake = daily
+  const intake = aggregateByDay([...input.logs], boundary)
     .filter((d) => {
       const k = dayKeyAt(d.date, boundary);
       return k >= intakeFromKey && k < last.dateKey;
@@ -337,7 +388,8 @@ function estimate(
 
   const x0 = dayNumber(first.dateKey);
   const xs = pts.map((p) => dayNumber(p.dateKey) - x0);
-  const nominal = fitEnds(xs, pts.map((p) => p.bodyFatPct), spanDays);
+  const srcs = pts.map((p) => p.source);
+  const nominal = fitEnds(xs, pts.map((p) => p.bodyFatPct), srcs, spanDays);
   const point = maintenanceFromComposition({
     meanIntake,
     spanDays,
@@ -367,7 +419,7 @@ function estimate(
       }
       return p.bodyFatPct + normal() * (p.source === 'dxa' ? DXA_SD_PCT : OTHER_SD_PCT);
     });
-    const ends = fitEnds(xs, ys, spanDays);
+    const ends = fitEnds(xs, ys, srcs, spanDays);
     const m = maintenanceFromComposition({
       meanIntake,
       spanDays,

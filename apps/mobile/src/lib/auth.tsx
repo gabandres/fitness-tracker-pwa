@@ -751,6 +751,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         setIsPro(false);
         setIsAdmin(false);
+        // A session can end without `signOut()` — revoked, deleted or disabled
+        // from another device — and the tape reminder would then fire for
+        // whoever signs in next (ADR-0043). Idempotent and never throws, so a
+        // launch that was signed out all along pays one storage read.
+        void clearTapeReminder();
         // Signed out with nothing on disk: this may be a fresh install on a
         // NEW device with a session waiting in Block Store. Only ever reached
         // when Firebase itself says there is no session, so it cannot disturb a

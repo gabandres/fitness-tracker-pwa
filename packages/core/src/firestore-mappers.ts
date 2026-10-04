@@ -111,8 +111,14 @@ export function toMeasurement(id: string, data: Record<string, unknown>): Measur
     bicep: data['bicep'] as number | undefined,
     hip: data['hip'] as number | undefined,
     neck: data['neck'] as number | undefined,
-    bodyFatPct: data['bodyFatPct'] as number | undefined,
-    bodyFatMethod: data['bodyFatMethod'] as Measurement['bodyFatMethod'],
+    // Only when stored: `updateMeasurement` reads a NAMED `bodyFatPct` key as
+    // "edit the pair", so a mapped row spread into a patch must not name it.
+    ...(data['bodyFatPct'] != null
+      ? {
+          bodyFatPct: data['bodyFatPct'] as number,
+          bodyFatMethod: data['bodyFatMethod'] as Measurement['bodyFatMethod'],
+        }
+      : {}),
   };
 }
 

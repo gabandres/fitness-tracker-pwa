@@ -257,9 +257,16 @@ export default function Settings() {
 
   async function toggleReminder(next: boolean) {
     haptics.tap();
-    const applied = await setRemindersEnabled(next);
-    setReminderEnabled(applied);
-    if (applied) await syncReminders(NEUTRAL_STATE, t);
+    try {
+      const applied = await setRemindersEnabled(next);
+      setReminderEnabled(applied);
+      if (applied) await syncReminders(NEUTRAL_STATE, t);
+    } catch (e) {
+      // Turning off could not cancel the nudges, so they are still on — and
+      // `setRemindersEnabled` put the stored flag back to say so.
+      setReminderEnabled(true);
+      console.warn('settings: reminders off failed', e);
+    }
   }
 
   /** Persist one meal's row and reschedule. Every edit rewrites the whole

@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useFocusEffect } from 'expo-router';
 import {
   type DailyLog,
@@ -11,6 +11,7 @@ import {
   type DayBoundary,
 } from '@macrolog/core';
 import { useAuth } from '@/lib/auth';
+import { FEATURES, isFeatureOn } from '@/lib/features';
 import { useT } from '@/i18n';
 import { subscribeDailyWeights, subscribeRecentLogs } from '@/lib/ledger';
 import { trackSubs } from '@/lib/sub-debug';
@@ -76,8 +77,14 @@ function daysSinceKey(key: string, boundary: DayBoundary): number {
  * constant, which it used to restate as a local 400.
  */
 export function useReminderSync(): void {
-  const { user, profile } = useAuth();
+  const { user, profile, isAdmin } = useAuth();
   const uid = user?.uid;
+  // The tape reminder's gate (ADR-0043): its only switch is on a card that
+  // goes away with the flag, so the flag has to reach the scheduler from here.
+  const tapeAllowed = isFeatureOn(FEATURES.compositionMaintenance, { isAdmin });
+  const tapeAllowedRef = useRef(tapeAllowed);
+  tapeAllowedRef.current = tapeAllowed;
+  const recomputeRef = useRef<(() => void) | null>(null);
   const t = useT();
   const logsRef = useRef<DailyLog[]>([]);
   const weightsRef = useRef<Record<string, number>>({});
@@ -106,12 +113,13 @@ export function useReminderSync(): void {
         // Read here, off the ref, like the boundary: a goal change re-plans on
         // the next snapshot rather than re-rendering Today.
         const maintaining = isMaintaining(profileRef.current);
+        const tape = { allowed: tapeAllowedRef.current, female: profileRef.current?.sex === 'female' };
 
-        const sig = `${loggedToday}|${streak}|${sinceWeigh}|${sinceLog}|${maintaining}`;
+        const sig = `${loggedToday}|${streak}|${sinceWeigh}|${sinceLog}|${maintaining}|${tape.allowed}|${tape.female}`;
         if (sig === lastSig.current) return;
         lastSig.current = sig;
         void syncReminders(
-          { loggedToday, streak, daysSinceWeighIn: sinceWeigh, daysSinceLastLog: sinceLog, maintaining },
+          { loggedToday, streak, daysSinceWeighIn: sinceWeigh, daysSinceLastLog: sinceLog, maintaining, tape },
           t,
         );
       };
@@ -119,14 +127,28 @@ export function useReminderSync(): void {
       const unsubs = [
         subscribeRecentLogs(uid, LOG_WINDOW_ROWS, (l) => {
           logsRef.current = l;
+          recomputeRef.current = recompute;
           recompute();
         }),
         subscribeDailyWeights(uid, (w) => {
           weightsRef.current = w;
+          recomputeRef.current = recompute;
           recompute();
         }),
       ];
-      return trackSubs('ReminderSync', unsubs);
+      const release = trackSubs('ReminderSync', unsubs);
+      return () => {
+        recomputeRef.current = null;
+        release();
+      };
     }, [uid, t]),
   );
+
+  // The admin claim lands after the first snapshots (`getIdTokenResult` is not
+  // awaited before routing), so a flag change re-plans here rather than
+  // waiting for the next log. Only once a snapshot has armed `recompute`: a
+  // plan from empty refs would be the wrong plan.
+  useEffect(() => {
+    recomputeRef.current?.();
+  }, [tapeAllowed]);
 }

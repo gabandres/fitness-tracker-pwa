@@ -5,7 +5,7 @@ import type { CompositionMaintenanceOk, RecompSignal } from '@macrolog/core';
 jest.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { uid: 'u1' }, profile: null }) }));
 jest.mock('@/lib/reminders', () => ({
   getTapeReminder: jest.fn(async () => null),
-  setTapeReminder: jest.fn(async () => true),
+  setTapeReminder: jest.fn(async () => 'ok'),
 }));
 
 import { CompositionLine, RecompCard } from '@/components/CompositionCards';

@@ -141,4 +141,25 @@ describe('bodyFatToShow — a measured value beats the tape estimate when it is 
     const chestOnly: Measurement = { date: at(1), chest: 40 };
     expect(bodyFatToShow([chestOnly], 'male', 70)).toBeNull();
   });
+  // Per day, like the estimator (compositionPoints) — review 2026-10-04.
+  it("a woman's hip on its own row still completes the day's set, so it beats an older DXA", () => {
+    const rows = [
+      { date: at(20, 7), waist: 30, neck: 13 },
+      { date: at(20, 8), hip: 40 },
+      dxa(1, 30),
+    ];
+    expect(bodyFatToShow(rows, 'female', 65)).toEqual({
+      source: 'navy',
+      pct: navyBodyFat('female', 65, 30, 13, 40),
+    });
+  });
+
+  it('same day, DXA and another method: DXA wins even when the other is later', () => {
+    const other = { date: at(3, 18), bodyFatPct: 26, bodyFatMethod: 'other' as const };
+    expect(bodyFatToShow([other, dxa(3, 20)], 'male', 70)).toMatchObject({ source: 'measured', method: 'dxa', pct: 20 });
+  });
+
+  it('a newer waist-only tape (no Navy estimate) does not knock a DXA off', () => {
+    expect(bodyFatToShow([{ date: at(5), waist: 34 }, dxa(3)], 'male', 70)).toMatchObject({ source: 'measured' });
+  });
 });

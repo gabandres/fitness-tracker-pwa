@@ -27,6 +27,7 @@ const mockDelete = jest.fn().mockResolvedValue(undefined);
 const mockMeasurements: Measurement[] = [
   { id: 'm1', date: new Date('2026-08-01T12:00:00Z'), waist: 34, neck: 15 },
   { id: 'm2', date: new Date('2026-07-25T12:00:00Z'), waist: 35 },
+  { id: 'm3', date: new Date('2026-07-18T12:00:00Z'), bodyFatPct: 21.5, bodyFatMethod: 'dxa' },
 ];
 
 jest.mock('@/lib/analytics', () => ({ track: jest.fn() }));
@@ -55,8 +56,10 @@ jest.mock('@/hooks/useBody', () => ({
   }),
 }));
 
+// The composition flag is 'admin' (ADR-0043): off unless a test turns it on.
+let mockIsAdmin = false;
 jest.mock('@/lib/auth', () => ({
-  useAuth: () => ({ user: { uid: 'u1', email: 'a@b.co' }, profile: { sex: 'male', heightIn: 70 } }),
+  useAuth: () => ({ user: { uid: 'u1', email: 'a@b.co' }, profile: { sex: 'male', heightIn: 70 }, isAdmin: mockIsAdmin }),
 }));
 
 jest.mock('@/hooks/useDailyTargets', () => ({
@@ -72,8 +75,12 @@ beforeEach(() => {
 });
 
 describe('Body screen — the body-fat card (ADR-0043)', () => {
+  beforeEach(() => {
+    mockIsAdmin = true;
+  });
   afterEach(() => {
     mockBodyFatShown = { source: 'navy', pct: 18.2 };
+    mockIsAdmin = false;
   });
 
   it('shows the Navy estimate when no newer measured value exists', async () => {
@@ -88,6 +95,63 @@ describe('Body screen — the body-fat card (ADR-0043)', () => {
     expect(screen.getByTestId('bodyfat-value').props.children).toBe('18.4%');
     expect(screen.getByTestId('bodyfat-source').props.children).toBe('Measured · DXA · Oct 3');
     expect(screen.getByText('Tape estimate: 18.2%')).toBeTruthy();
+  });
+
+  it('flag OFF: a stored DXA neither takes over the card nor shows in the list', async () => {
+    mockIsAdmin = false;
+    mockBodyFatShown = { source: 'measured', pct: 21.5, method: 'dxa', date: new Date(2026, 9, 3, 7) };
+    const screen = await render(<BodyScreen />);
+    expect(screen.getByTestId('bodyfat-value').props.children).toBe('18.2%');
+    expect(screen.getByTestId('bodyfat-source').props.children).toBe('U.S. Navy estimate');
+    expect(screen.queryByText(/21\.5%/)).toBeNull();
+  });
+
+  it('flag ON: the stored DXA shows in its row', async () => {
+    const screen = await render(<BodyScreen />);
+    expect(screen.getByText(/21\.5% \(DXA\)/)).toBeTruthy();
+  });
+});
+
+describe('Body screen — the measured body-fat field (ADR-0043)', () => {
+  beforeEach(() => {
+    mockIsAdmin = true;
+    mockAdd.mockClear();
+    mockUpdate.mockClear();
+  });
+  afterEach(() => {
+    mockIsAdmin = false;
+  });
+
+  it('is hidden with the flag off', async () => {
+    mockIsAdmin = false;
+    const screen = await render(<BodyScreen />);
+    await fireEvent.press(screen.getByTestId('add-measurement'));
+    await waitFor(() => expect(screen.getByTestId('measure-waist')).toBeTruthy());
+    expect(screen.queryByTestId('measure-bodyfat-block')).toBeNull();
+  });
+
+  it('a method with no number blocks save and says why — it used to save as nothing', async () => {
+    const screen = await render(<BodyScreen />);
+    await fireEvent.press(screen.getByTestId('add-measurement'));
+    await waitFor(() => expect(screen.getByTestId('measure-waist')).toBeTruthy());
+    await fireEvent.changeText(screen.getByTestId('measure-waist'), '33');
+    await fireEvent.press(screen.getByTestId('measure-bf-dxa'));
+    expect(screen.getByText('Enter the body-fat %, or unselect the method.')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('measure-save'));
+    expect(mockAdd).not.toHaveBeenCalled();
+  });
+
+  it('emptying the % on a row that had one clears the pair', async () => {
+    const screen = await render(<BodyScreen />);
+    await fireEvent.press(screen.getByTestId('measurement-m3'));
+    await waitFor(() => expect(screen.getByTestId('measure-bodyfat').props.value).toBe('21.5'));
+    await fireEvent.changeText(screen.getByTestId('measure-bodyfat'), '');
+    await fireEvent.changeText(screen.getByTestId('measure-waist'), '33');
+    await fireEvent.press(screen.getByTestId('measure-save'));
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1));
+    const patch = mockUpdate.mock.calls[0][1];
+    expect('bodyFatPct' in patch).toBe(true);
+    expect(patch.bodyFatPct).toBeUndefined();
   });
 });
 

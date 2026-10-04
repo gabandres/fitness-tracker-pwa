@@ -26,6 +26,9 @@ export interface CompositionTrends {
   /** The flag (`FEATURES.compositionMaintenance`) for this user. When false
    *  nothing below is computed and Trends renders exactly as before. */
   enabled: boolean;
+  /** Null until the measurements listener has answered, and while it is
+   *  failing — an empty list would read as "log a tape" to someone with
+   *  eight of them. */
   composition: CompositionMaintenance | null;
   recomp: RecompSignal | null;
   /** Newest tape row's date — the default weekday for the tape reminder. */
@@ -52,10 +55,12 @@ export function useCompositionTrends(
   const enabled = isFeatureOn(FEATURES.compositionMaintenance, { isAdmin });
   const [measurements, setMeasurements] = useState<Measurement[]>([]);
 
-  useLedgerFeed({
+  const feed = useLedgerFeed({
     uid,
     label: 'TrendsMeasurements',
     gate: 'focus',
+    // Readiness is blocked by a standing error, so a refocus must retry.
+    retryOnOpen: true,
     channels: () =>
       uid && enabled
         ? [
@@ -69,9 +74,13 @@ export function useCompositionTrends(
         : [],
     deps: [uid, enabled],
   });
+  const answered = feed.ready && !feed.failed;
 
   return useMemo<CompositionTrends>(() => {
     if (!enabled) return { enabled: false, composition: null, recomp: null, lastTapeAt: null, female: false };
+    if (!answered) {
+      return { enabled: true, composition: null, recomp: null, lastTapeAt: null, female: profile?.sex === 'female' };
+    }
     const boundary = dayBoundaryOf(profile);
     const now = new Date();
     const body = { sex: profile?.sex ?? null, heightIn: profile?.heightIn ?? null };
@@ -93,5 +102,5 @@ export function useCompositionTrends(
       lastTapeAt: lastTape?.date ?? null,
       female: profile?.sex === 'female',
     };
-  }, [enabled, logs, weights, profile, measurements]);
+  }, [enabled, answered, logs, weights, profile, measurements]);
 }

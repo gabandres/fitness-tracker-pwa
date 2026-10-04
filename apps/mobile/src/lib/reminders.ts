@@ -41,6 +41,23 @@ export interface ReminderLiveState {
    *  `planReminders`, `maintaining`). Optional: the Settings permission probe
    *  passes a stub state and has no profile to read it from. */
   maintaining?: boolean;
+  /** The weekly tape reminder's live gate (ADR-0043). Absent → the last gate
+   *  a sync passed, see {@link TapeGate}. */
+  tape?: TapeGate;
+}
+
+/**
+ * Whether the weekly tape reminder may fire, and for which body, from LIVE
+ * state rather than from what was stored when it was turned on.
+ * - `allowed`: `FEATURES.compositionMaintenance` for this user. False cancels
+ *   the notification but KEEPS the setting — the switch lives on a card that
+ *   disappears with the flag, so a rollback must silence it and a re-enable
+ *   must bring it back without asking again.
+ * - `female`: names the hip from the profile as it is now.
+ */
+export interface TapeGate {
+  allowed: boolean;
+  female: boolean;
 }
 
 const isNative = Platform.OS !== 'web';
@@ -93,14 +110,24 @@ export async function setRemindersEnabled(enabled: boolean): Promise<boolean> {
   if (!isNative) return enabled;
 
   if (!enabled) {
-    await enqueue(async () => {
-      const scheduled = await Notifications.getAllScheduledNotificationsAsync();
-      await Promise.all(
-        scheduled
-          .filter((n) => n.identifier !== TAPE_NOTIFICATION_ID)
-          .map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier)),
+    try {
+      await enqueue(
+        async () => {
+          const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+          await Promise.all(
+            scheduled
+              .filter((n) => n.identifier !== TAPE_NOTIFICATION_ID)
+              .map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier)),
+          );
+        },
+        { rethrow: true },
       );
-    });
+    } catch (e) {
+      // The nudges are still scheduled, so the switch must still say so —
+      // put the flag back and let the caller keep it on.
+      await AsyncStorage.setItem(ENABLED_KEY, '1');
+      throw e;
+    }
     return false;
   }
 
@@ -158,11 +185,13 @@ export function syncReminders(state: ReminderLiveState, t: TFn): Promise<void> {
 let syncQueue: Promise<void> = Promise.resolve();
 
 /** Every cancel/schedule goes through this one chain — the sync, the master
- *  switch and the tape toggle — so none of them can undo another mid-flight. */
-function enqueue(work: () => Promise<void>): Promise<void> {
-  const run = syncQueue.then(work).catch(() => undefined);
-  syncQueue = run;
-  return run;
+ *  switch and the tape toggle — so none of them can undo another mid-flight.
+ *  A failure never blocks the chain; `rethrow` hands it to a caller that has
+ *  a switch to keep honest, everyone else gets it swallowed. */
+function enqueue(work: () => Promise<void>, { rethrow = false } = {}): Promise<void> {
+  const run = syncQueue.then(work);
+  syncQueue = run.catch(() => undefined);
+  return rethrow ? run : run.catch(() => undefined);
 }
 
 async function syncOnce(state: ReminderLiveState, t: TFn): Promise<void> {
@@ -172,6 +201,7 @@ async function syncOnce(state: ReminderLiveState, t: TFn): Promise<void> {
   // The weekly tape reminder is its own opt-in (Trends recomp card), so it is
   // re-armed BEFORE the master-switch return: cancel-all just took it too.
   // Isolated: a failure here must never cost the user their meal reminders.
+  if (state.tape) tapeGate = state.tape;
   await scheduleTapeReminder(t).catch(() => undefined);
   if (!enabled) return;
 
@@ -214,6 +244,12 @@ const TAPE_KEY = 'reminder.tape';
  *  reminder on twice never fires twice. */
 const TAPE_NOTIFICATION_ID = 'tape-weekly';
 
+/** The last {@link TapeGate} a sync passed (Today's `useReminderSync`), so a
+ *  sync without one — Settings' — cannot re-arm what the flag turned off.
+ *  Undefined until the first gated sync, and again after sign-out: the stored
+ *  setting is then armed as stored, the behaviour before the gate existed. */
+let tapeGate: TapeGate | undefined;
+
 export async function getTapeReminder(): Promise<TapeReminderSetting | null> {
   try {
     const raw = await AsyncStorage.getItem(TAPE_KEY);
@@ -225,17 +261,30 @@ export async function getTapeReminder(): Promise<TapeReminderSetting | null> {
 
 /**
  * Turn the weekly tape reminder on (with its schedule) or off. Asks for
- * notification permission when turning it on; returns false — and stores
- * nothing — when permission is refused.
+ * notification permission when turning it on: `'denied'` stores nothing.
+ * `'failed'` when storing or scheduling threw — the switch must not claim a
+ * reminder the OS does not hold.
  */
-export async function setTapeReminder(setting: TapeReminderSetting | null, t: TFn): Promise<boolean> {
-  if (setting && isNative && !(await requestNotificationPermission())) return false;
-  await enqueue(async () => {
-    if (setting) await AsyncStorage.setItem(TAPE_KEY, JSON.stringify(setting));
-    else await AsyncStorage.removeItem(TAPE_KEY);
-    await scheduleTapeReminder(t);
-  });
-  return true;
+export async function setTapeReminder(
+  setting: TapeReminderSetting | null,
+  t: TFn,
+): Promise<'ok' | 'denied' | 'failed'> {
+  if (setting && isNative && !(await requestNotificationPermission())) return 'denied';
+  // Only the Trends card turns it on, and only while the flag is on there.
+  if (setting) tapeGate = { allowed: true, female: setting.hip === true };
+  try {
+    await enqueue(
+      async () => {
+        if (setting) await AsyncStorage.setItem(TAPE_KEY, JSON.stringify(setting));
+        else await AsyncStorage.removeItem(TAPE_KEY);
+        await scheduleTapeReminder(t);
+      },
+      { rethrow: true },
+    );
+    return 'ok';
+  } catch {
+    return 'failed';
+  }
 }
 
 /**
@@ -244,6 +293,7 @@ export async function setTapeReminder(setting: TapeReminderSetting | null, t: TF
  * so it must not keep firing for whoever signs in next. Never throws.
  */
 export function clearTapeReminder(): Promise<void> {
+  tapeGate = undefined;
   return enqueue(async () => {
     await AsyncStorage.removeItem(TAPE_KEY);
     if (isNative) await Notifications.cancelScheduledNotificationAsync(TAPE_NOTIFICATION_ID);
@@ -254,7 +304,9 @@ export function clearTapeReminder(): Promise<void> {
 // `.catch` can isolate.
 async function scheduleTapeReminder(t: TFn): Promise<void> {
   if (!isNative) return;
-  const plan = planTapeReminder(await getTapeReminder());
+  const stored = await getTapeReminder();
+  const plan =
+    tapeGate?.allowed === false ? null : planTapeReminder(stored && tapeGate ? { ...stored, hip: tapeGate.female } : stored);
   if (!plan) {
     await Notifications.cancelScheduledNotificationAsync(TAPE_NOTIFICATION_ID).catch(() => undefined);
     return;

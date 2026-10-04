@@ -116,7 +116,7 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
     bodyFat,
     bodyFatGap,
     bodyFatMissing,
-    bodyFatShown,
+    bodyFatShown: bodyFatShownAny,
     addMeasurement,
     updateMeasurement,
     deleteMeasurement,
@@ -129,6 +129,13 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
   const { user, profile, isAdmin } = useAuth();
   // ADR-0043: the measured body-fat field ships with composition maintenance.
   const showBodyFat = isFeatureOn(FEATURES.compositionMaintenance, { isAdmin });
+  // Flag off → the card is what it was before ADR-0043: the Navy estimate
+  // only, even when a measured value is stored on a row.
+  const bodyFatShown = showBodyFat
+    ? bodyFatShownAny
+    : bodyFat != null
+      ? ({ source: 'navy', pct: bodyFat } as const)
+      : null;
   const milestones = useMilestoneRecord(user?.uid);
   const t = useT();
   const locale = useLocale();
@@ -454,7 +461,7 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
                 >
                   <Text style={styles.rowDate}>{formatDate(m.date, locale, { month: 'short', day: 'numeric' })}</Text>
                   <View style={styles.rowRight}>
-                    <Text style={styles.rowMeasure}>{measureLine(m, t, unitSystem)}</Text>
+                    <Text style={styles.rowMeasure}>{measureLine(m, t, unitSystem, showBodyFat)}</Text>
                     {/* Explicit pencil + trash, matching the PWA's row controls.
                         Editing was unreachable and deletion was a hidden
                         long-press, so neither was discoverable on mobile. */}
@@ -571,6 +578,7 @@ function measureLine(
   m: Measurement,
   t: ReturnType<typeof useT>,
   unitSystem: UnitSystem,
+  showBodyFat: boolean,
 ): string {
   // `${label} ${v}` printed the STORED INCHES raw, with no unit and no
   // conversion, so this line was byte-identical in pounds mode and kilograms
@@ -580,7 +588,7 @@ function measureLine(
     const v = m[f.key];
     return v != null ? [`${t(f.labelKey)} ${formatMeasure(v, unitSystem)}`] : [];
   });
-  if (m.bodyFatPct != null) {
+  if (showBodyFat && m.bodyFatPct != null) {
     const method = m.bodyFatMethod === 'dxa' ? t('measure.methodDxa') : t('measure.methodOther');
     parts.push(`${m.bodyFatPct}% (${method})`);
   }
@@ -668,6 +676,9 @@ function MeasurementModal({
   const [bfMin, bfMax] = BODY_FAT_PCT_BOUNDS;
   const bfOutOfRange = bfNum != null && !(bfNum >= bfMin && bfNum <= bfMax);
   const bfNeedsMethod = bfNum != null && !bfOutOfRange && bfMethod == null;
+  // A method with no number would save as "no measured value" without a word.
+  // Editing a row that HAD one is the exception: emptying it is how it clears.
+  const bfNeedsValue = showBodyFat && bfNum == null && bfMethod != null && initial?.bodyFatPct == null;
   const bodyFatEntry: Partial<Measurement> = !showBodyFat
     ? {}
     : bfNum != null && !bfOutOfRange && bfMethod
@@ -675,12 +686,14 @@ function MeasurementModal({
       : // Named, undefined: an edit that emptied the field clears it.
         { bodyFatPct: undefined };
   const hasAny = Object.keys(entry).length > 0 || bodyFatEntry.bodyFatPct != null;
-  const valid = hasAny && implausible.length === 0 && !bfOutOfRange && !bfNeedsMethod;
+  const valid = hasAny && implausible.length === 0 && !bfOutOfRange && !bfNeedsMethod && !bfNeedsValue;
   const rangeHint = bfOutOfRange
     ? t('measure.bodyFatRange', { min: bfMin, max: bfMax })
     : bfNeedsMethod
       ? t('measure.bodyFatNeedsMethod')
-      : implausible.length
+      : bfNeedsValue
+        ? t('measure.bodyFatNeedsValue')
+        : implausible.length
     ? t('body.measureRange', {
         field: t(MEASURE_FIELDS.find((f) => f.key === implausible[0])!.labelKey),
         min: measureBoundsFor(implausible[0], unitSystem).min,

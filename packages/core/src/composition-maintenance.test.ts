@@ -29,8 +29,10 @@ interface Fixture {
   first?: number;
   intake?: (i: number) => number | null; // null = unlogged day
   weight?: (i: number) => number;
-  tapes?: { i: number; waist: number; neck?: number }[];
+  tapes?: { i: number; waist: number; neck?: number; hip?: number }[];
   dxa?: { i: number; pct: number }[];
+  other?: { i: number; pct: number }[];
+  sex?: 'male' | 'female';
 }
 function build(f: Fixture) {
   const logs: DailyLog[] = [];
@@ -41,10 +43,13 @@ function build(f: Fixture) {
     dailyWeights[keyOf(i)] = (f.weight ?? (() => 156))(i);
   }
   const measurements: Measurement[] = [
-    ...(f.tapes ?? []).map((t) => ({ date: dateOf(t.i, 7), waist: t.waist, neck: t.neck ?? 14.5 })),
+    ...(f.tapes ?? []).map((t) => ({
+      date: dateOf(t.i, 7), waist: t.waist, neck: t.neck ?? 14.5, ...(t.hip != null ? { hip: t.hip } : {}),
+    })),
     ...(f.dxa ?? []).map((t) => ({ date: dateOf(t.i, 7), bodyFatPct: t.pct, bodyFatMethod: 'dxa' as const })),
+    ...(f.other ?? []).map((t) => ({ date: dateOf(t.i, 7), bodyFatPct: t.pct, bodyFatMethod: 'other' as const })),
   ];
-  return { logs, dailyWeights, measurements, profile: { sex: 'male' as const, heightIn: 68 }, now: NOW };
+  return { logs, dailyWeights, measurements, profile: { sex: f.sex ?? ('male' as const), heightIn: 68 }, now: NOW };
 }
 const ok = (r: ReturnType<typeof compositionMaintenance>) => {
   if (r.status !== 'ok') throw new Error(`status ${r.status}`);
@@ -126,7 +131,10 @@ describe('gates', () => {
     expect(r).toMatchObject({ status: 'insufficient_logging' });
   });
 
-  it('the day in progress contributes no intake', () => {
+  // Guaranteed by construction, not by a filter: points are never after today
+  // and intake is [first, last), so neither the last point's day nor today can
+  // add intake. This pins the window, which is what keeps the rule.
+  it('intake stops the day before the last point — the day in progress never counts', () => {
     const base = build({ tapes: weekly(33, 32) });
     const withToday = { ...base, logs: [...base.logs, { calories: 9000, date: new Date(2026, 9, 4, 7, 30) }] };
     expect(ok(compositionMaintenance(withToday)).meanIntake).toBe(ok(compositionMaintenance(base)).meanIntake);
@@ -136,6 +144,71 @@ describe('gates', () => {
     const f = build({ tapes: weekly(33, 32) });
     const weights = Object.fromEntries(Object.entries(f.dailyWeights).filter(([k]) => k > keyOf(30)));
     expect(compositionMaintenance({ ...f, dailyWeights: weights })).toMatchObject({ status: 'insufficient_weight' });
+  });
+});
+
+describe('mixed mode reads change within a method, never across two', () => {
+  const flat = weekly(32, 32); // Navy 15.32% every week, weight flat
+  const tapeOnly = () => ok(compositionMaintenance(build({ tapes: flat })));
+
+  it('one DXA on the last tape day — 7 points above the tapes — moves nothing', () => {
+    // Review repro (2026-10-04): a single fit through both methods read the
+    // method gap as +2.7 kg of fat and printed 1,640 instead of ~2,000.
+    const r = ok(compositionMaintenance(build({ tapes: flat, dxa: [{ i: 69, pct: 22.4 }] })));
+    expect(r.mode).toBe('mixed');
+    expect(r.sources).toEqual({ dxa: 0, other: 0, navy: 8 });
+    expect(Math.abs(r.median - tapeOnly().median)).toBeLessThan(40);
+    expect(Math.abs(r.deltaFmKg)).toBeLessThan(0.05);
+  });
+
+  it('one DXA on the FIRST tape day moves nothing either (it read 2,365)', () => {
+    const r = ok(compositionMaintenance(build({ tapes: flat, dxa: [{ i: 13, pct: 22.4 }] })));
+    expect(Math.abs(r.median - tapeOnly().median)).toBeLessThan(40);
+  });
+
+  it('two methods with a level gap: the gap goes to the intercepts, the shared slope to the change', () => {
+    // Tapes fall 33 → 32 in; two "other" readings sit 6 points above the tapes
+    // and fall in step. A single line through both would have read a rise.
+    const tapes = ok(compositionMaintenance(build({ tapes: weekly(33, 32) })));
+    const navyAt = (i: number) => tapes.bodyFatStartPct + ((tapes.bodyFatEndPct - tapes.bodyFatStartPct) * (i - 13)) / 56;
+    const r = ok(compositionMaintenance(build({
+      tapes: weekly(33, 32).filter((t) => t.i !== 20 && t.i !== 62),
+      other: [20, 62].map((i) => ({ i, pct: navyAt(i) + 6 })),
+    })));
+    expect(r.sources).toEqual({ dxa: 0, other: 2, navy: 7 });
+    // Priced at the "other" level (the more accurate method present)…
+    expect(r.bodyFatStartPct).toBeCloseTo(tapes.bodyFatStartPct + 6, 1);
+    // …but the change is the tapes' change.
+    expect(r.bodyFatEndPct - r.bodyFatStartPct).toBeCloseTo(tapes.bodyFatEndPct - tapes.bodyFatStartPct, 1);
+  });
+
+  it('no single method spanning 28 days → insufficient_tapes, however far apart the methods sit', () => {
+    const r = compositionMaintenance(build({
+      tapes: [13, 20, 27].map((i) => ({ i, waist: 32 })),
+      other: [{ i: 55, pct: 20 }, { i: 69, pct: 20 }],
+    }));
+    expect(r).toMatchObject({ status: 'insufficient_tapes', points: 5 });
+  });
+});
+
+describe('women — the hip is a Navy input', () => {
+  it('hips on their own rows complete the set; the Monte Carlo perturbs them without NaN', () => {
+    const waist = weekly(31, 30);
+    const f = build({ sex: 'female', tapes: waist });
+    // Each week's hip on a separate row the same morning.
+    f.measurements.push(...waist.map((t) => ({ date: dateOf(t.i, 8), hip: 39 })));
+    const r = ok(compositionMaintenance(f));
+    expect(r.sources.navy).toBe(9);
+    expect(r.deltaFmKg).toBeLessThan(0);
+    for (const v of [r.median, r.p10, r.p90]) expect(Number.isFinite(v)).toBe(true);
+    expect(r.p10).toBeLessThan(r.median);
+    expect(r.median).toBeLessThan(r.p90);
+  });
+
+  it('a woman with no hip anywhere has no points', () => {
+    expect(compositionMaintenance(build({ sex: 'female', tapes: weekly(31, 30) }))).toMatchObject({
+      status: 'insufficient_tapes', points: 0, profileMissing: false,
+    });
   });
 });
 
@@ -211,7 +284,9 @@ describe('DXA-anchored mode (ADR-0043 §Open 1)', () => {
 
   it('a scan older than 182 days does not count', () => {
     const r = compositionMaintenance(build({ first: -120, dxa: [{ i: -114, pct: 18 }, { i: 69, pct: 16 }] }));
-    expect(r).toMatchObject({ status: 'insufficient_tapes', points: 1 });
+    // The recent scan is alone in its method, so it counts for nothing in
+    // mixed mode either: one reading has a level, not a change.
+    expect(r).toMatchObject({ status: 'insufficient_tapes', points: 0 });
   });
 
   it('a DXA pair under 28 days apart falls back to the mixed estimate', () => {
@@ -280,7 +355,8 @@ describe('display only — the target never reads it', () => {
     }) as Record<string, string>;
     expect(Object.keys(sources)).toHaveLength(3);
     for (const src of Object.values(sources)) {
-      expect(src).not.toMatch(/from '\.\/(composition-maintenance|body-composition|recomp-signal)'/);
+      // Any quote style, with or without an extension, and the barrel too.
+      expect(src).not.toMatch(/['"]\.\/(index|composition-maintenance|body-composition|recomp-signal)(\.[jt]s)?['"]/);
     }
   });
 
