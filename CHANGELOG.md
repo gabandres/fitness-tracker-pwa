@@ -4,6 +4,35 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-10-04 — Body card shows measured body fat; composition glossary, view counter, women's reminder (ADR-0043)
+
+- **Delivery**: commit `4895b9d1`. Rules deployed FIRST (`composition_view`
+  added to the usage catalogue; released 2026-10-04T14:47:44Z, live ruleset
+  read back byte-identical), then OTAs from `ignia-mac`: **iOS group
+  `361b81be-ea5b-40a6-8bb5-b75f1a0d2c2e`** on `1b239e44…` (build 67, gate
+  matched), **Android group `5b72ea79-a42d-49d5-bb08-af06c6f7f665`** on
+  `3e596c87…` (vc 46, runtime pinned then reverted). No `WHATS_NEW_VERSION`
+  bump.
+- **Body-fat card**: a measured %BF that is at least as recent as the newest tape
+  replaces the Navy estimate, labelled "Measured · DXA · Oct 4", with "Tape
+  estimate: 15.1%" kept beside it (core `bodyFatToShow`). Health still gets only
+  the Navy number. Not flag-gated in code, but only flagged users can enter a
+  measured value.
+- **Women's reminder**: turning the tape reminder on from a female profile
+  stores `hip: true`, and the notification text names the hip.
+- **Glossary**: Trends' "?" lists Composition-adjusted and Recomp signal, for
+  flagged users only.
+- **Usage**: `composition_view`, one per Trends focus while the line is shown.
+- **Verified**: core 1,841 + typecheck; mobile tsc + jest 1,147; functions +
+  rules 773; iOS export within budget. On the `Ignia-QA` simulator (QA account,
+  flag forced on in a local bundle only): the card with a seeded DXA row and
+  after editing it to 19% "other" (written through the live rules, read back);
+  the edit sheet prefilled with 18.4 / DXA; the tape reminder on, kept across
+  a relaunch, then off; the glossary terms. Seeded row removed. A typed-digit
+  glitch seen twice was Maestro tapping a stale position over the keyboard, not
+  the app. Still to do: a native-speaker read of es-PR / pt-BR, and seeing the
+  reminder fire on a real phone.
+
 ## 2026-10-04 — Composition view: 182-day lookback by time; women's hip tapes (ADR-0043)
 
 - **Delivery**: commit `de7ead6a`, no rules change (reads only). OTAs from

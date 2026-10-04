@@ -74,8 +74,8 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 ## 2. Merged, on `main`, and not delivered anywhere
 
 **Everything on `main` is delivered on iOS** (build 67 / 1.2.4 runtime
-`1b239e44…`, newest OTA `618b7920…` at `de7ead6a`) **and published for Android
-vc 46** (runtime `3e596c87…`, newest OTA `d6f084b9…` at `de7ead6a`). What
+`1b239e44…`, newest OTA `361b81be…` at `4895b9d1`) **and published for Android
+vc 46** (runtime `3e596c87…`, newest OTA `5b72ea79…` at `4895b9d1`). What
 Android production users actually run is still vc 45 (`15c1cfc8…`) until Play
 clears 46 — they hold neither `2227698c` nor either 09-28 ship, and **no OTA can
 reach them from this Mac** (the Windows-built runtime). Do not publish for vc 45;
@@ -83,7 +83,7 @@ the 46 review is the delivery. Functions and rules are deployed.
 
 The 2026-09-30 and 2026-10-02 fixes went out as OTAs on 2026-10-02 (iOS
 `9a7146d1` on build 67, Android `df784c63` on vc 46; CHANGELOG). 10-03: notes +
-typed time, then ADR-0043's admin-only composition view (+ 10-04 follow-up); the
+typed time, then ADR-0043's admin-only composition view (+ two 10-04 follow-ups); the
 groups are in CHANGELOG and the fingerprint ledger.
 
 Re-derive rather than trust this line: `git log --oneline` against the newest
