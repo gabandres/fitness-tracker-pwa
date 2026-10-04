@@ -82,10 +82,9 @@ reach them from this Mac** (the Windows-built runtime). Do not publish for vc 45
 the 46 review is the delivery. Functions and rules are deployed.
 
 The 2026-09-30 and 2026-10-02 fixes went out as OTAs on 2026-10-02 (iOS
-`9a7146d1` on build 67, Android `df784c63` on vc 46; CHANGELOG). 2026-10-03:
-notes + typed time (iOS `692a269d`, Android `13a5cb80`), then ADR-0043's
-admin-only composition view (iOS `1ff4aa65`, Android `631f3110`; 10-04 follow-up
-`618b7920` / `d6f084b9`); rules first.
+`9a7146d1` on build 67, Android `df784c63` on vc 46; CHANGELOG). 10-03: notes +
+typed time, then ADR-0043's admin-only composition view (+ 10-04 follow-up); the
+groups are in CHANGELOG and the fingerprint ledger.
 
 Re-derive rather than trust this line: `git log --oneline` against the newest
 OTA row in `apps/mobile/docs/fingerprint-ledger.md`, and
