@@ -74,8 +74,8 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 ## 2. Merged, on `main`, and not delivered anywhere
 
 **Everything on `main` is delivered on iOS** (build 67 / 1.2.4 runtime
-`1b239e44…`, newest OTA `65e194a5…` at `7da7bc42`) **and published for Android
-vc 46** (runtime `3e596c87…`, newest OTA `b438cf18…` at `7da7bc42`). What
+`1b239e44…`, newest OTA `ef8a7718…` at `f9642d92`) **and published for Android
+vc 46** (runtime `3e596c87…`, newest OTA `677fea0e…` at `f9642d92`). What
 Android production users actually run is still vc 45 (`15c1cfc8…`) until Play
 clears 46 — they hold neither `2227698c` nor either 09-28 ship, and **no OTA can
 reach them from this Mac** (the Windows-built runtime). Do not publish for vc 45;

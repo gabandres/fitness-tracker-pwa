@@ -4,6 +4,23 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-10-04 — "Scan meal" in the food sheet's More ways list, with a what's-new
+
+- **Why**: since the 09-28 tap-to-log change (`16cdb4cf`, UX_AUDIT S18-18) the
+  camera was reachable only by holding +, which nothing on screen shows, and
+  the owner could not find it. The dial's comment claiming Scan had "its own
+  tab-bar-adjacent route" was never true; corrected.
+- **What**: tap + → More ways → Scan meal closes the sheet and opens `/scan`.
+  Today only — the scan screen logs to today, so the History day sheet does
+  not offer it. What's-new `2026-10-04-scan-door` (owner's call) leads with it
+  and keeps the day-old 10-03 time/notes rows.
+- **Delivery**: commits `59c3bb07` (feature) and `f9642d92` (banner). OTAs from
+  `ignia-mac`: iOS `02a41ff5…` then `ef8a7718…` on `1b239e44…` (build 67, gate
+  matched); Android `2cc7fbad…` then `677fea0e…` on `3e596c87…` (vc 46, runtime
+  pinned then reverted).
+- **Verified**: mobile tsc + jest 1,164 (new `entry-sheet-scan-door`), i18n
+  parity, iOS export within budget. Not device-QA'd.
+
 ## 2026-10-04 — Composition review fixes: per-method fit, live tape-reminder gate, loading states (ADR-0043)
 
 - **Delivery**: commit `7da7bc42`, no rules change (only the rules spec and a
