@@ -1,4 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Linking,
@@ -38,6 +39,7 @@ import { RecipeBuilder } from '@/components/RecipeBuilder';
 import { RecipeImport } from '@/components/RecipeImport';
 import { useLocale, useT } from '@/i18n';
 import { starterFoods } from '@/lib/starterFoods';
+import { FEATURES } from '@/lib/features';
 import * as haptics from '@/lib/haptics';
 import { captureError } from '@/lib/sentry';
 import { clearLogTimer, startLogTimer } from '@/lib/log-timer';
@@ -701,6 +703,26 @@ export function EntrySheet({
     </View>
     {moreOpen ? (
       <View style={styles.moreList}>
+        {/* Photo scan's second door. Since the + went tap-to-search
+            (UX_AUDIT S18-18) the only other way in is a long-press on it,
+            which nothing on screen shows. Today only: the scan screen logs to
+            today, so it would put a past day's meal on the wrong date. */}
+        {FEATURES.photoScan && Platform.OS !== 'web' && !dateKey ? (
+          <TouchableOpacity
+            style={styles.moreRow}
+            onPress={() => {
+              haptics.tap();
+              setMoreOpen(false);
+              onClose();
+              router.navigate('/scan');
+            }}
+            accessibilityRole="button"
+            testID="open-scan"
+          >
+            <Ionicons name="camera-outline" size={20} color={colors.ink} />
+            <Text style={styles.moreRowText}>{t('log.scan')}</Text>
+          </TouchableOpacity>
+        ) : null}
         <TouchableOpacity style={styles.moreRow} onPress={() => { haptics.tap(); setMoreOpen(false); setMode('meal'); }} accessibilityRole="button" testID="open-mealtext">
           <Ionicons name="chatbubble-ellipses-outline" size={20} color={colors.ink} />
           <Text style={styles.moreRowText}>{t('entry.describeMeal')}</Text>

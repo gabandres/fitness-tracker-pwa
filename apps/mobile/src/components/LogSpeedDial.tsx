@@ -34,7 +34,11 @@ const MAN_RISE = -78;
  * Until 2026-09-28 a tap opened the dial and the sheet was a second tap away —
  * the most frequent action in the app behind a menu whose other entry (Scan)
  * has its own tab-bar-adjacent route. "Tap + to log your first meal"
- * (`today.emptyHint`) is now literally true. Screen-reader users get the same
+ * (`today.emptyHint`) is now literally true. The scan's other door is the
+ * food sheet's "More ways" list (`open-scan` in EntrySheet) — added 2026-10-04,
+ * when the owner could not find the camera: a long-press is invisible, and
+ * this comment's claim that Scan had "its own tab-bar-adjacent route" was
+ * never true. Screen-reader users get the same
  * two paths: the hint says long-press for more, and a `longpress`
  * accessibility action opens the dial without a timed gesture. While the dial
  * is open the + is its close button, as before.
