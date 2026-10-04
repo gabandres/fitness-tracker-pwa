@@ -3,9 +3,11 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import {
   planReminders,
+  planTapeReminder,
   resolveMealReminders,
   type MealReminderSettings,
   type ReminderPlan,
+  type TapeReminderSetting,
 } from '@macrolog/core';
 import type { I18nKey, TFn } from '@/i18n';
 import { track } from './analytics';
@@ -81,7 +83,8 @@ export async function setMealReminders(meals: MealReminderSettings): Promise<voi
 
 /**
  * Flip the master switch. Enabling requests permission first; if denied,
- * returns false and stays off. Disabling clears every scheduled nudge.
+ * returns false and stays off. Disabling clears every scheduled nudge EXCEPT
+ * the weekly tape reminder, which is its own opt-in (ADR-0043).
  * Does NOT itself schedule — see {@link setMealReminders}.
  */
 export async function setRemindersEnabled(enabled: boolean): Promise<boolean> {
@@ -90,7 +93,14 @@ export async function setRemindersEnabled(enabled: boolean): Promise<boolean> {
   if (!isNative) return enabled;
 
   if (!enabled) {
-    await Notifications.cancelAllScheduledNotificationsAsync();
+    await enqueue(async () => {
+      const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+      await Promise.all(
+        scheduled
+          .filter((n) => n.identifier !== TAPE_NOTIFICATION_ID)
+          .map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier)),
+      );
+    });
     return false;
   }
 
@@ -142,17 +152,27 @@ export function syncReminders(state: ReminderLiveState, t: TFn): Promise<void> {
   // fired TWICE. Measured on the LG VS988 (2026-09-02): four alarms for a
   // two-item plan after one launch. A chain makes the last caller's plan the
   // one that survives, and a failed sync never blocks the next.
-  const run = syncQueue.then(() => syncOnce(state, t)).catch(() => undefined);
-  syncQueue = run;
-  return run;
+  return enqueue(() => syncOnce(state, t));
 }
 
 let syncQueue: Promise<void> = Promise.resolve();
+
+/** Every cancel/schedule goes through this one chain — the sync, the master
+ *  switch and the tape toggle — so none of them can undo another mid-flight. */
+function enqueue(work: () => Promise<void>): Promise<void> {
+  const run = syncQueue.then(work).catch(() => undefined);
+  syncQueue = run;
+  return run;
+}
 
 async function syncOnce(state: ReminderLiveState, t: TFn): Promise<void> {
   const { enabled, meals } = await getReminderSettings();
 
   await Notifications.cancelAllScheduledNotificationsAsync();
+  // The weekly tape reminder is its own opt-in (Trends recomp card), so it is
+  // re-armed BEFORE the master-switch return: cancel-all just took it too.
+  // Isolated: a failure here must never cost the user their meal reminders.
+  await scheduleTapeReminder(t).catch(() => undefined);
   if (!enabled) return;
 
   const plans = planReminders({
@@ -185,4 +205,68 @@ function scheduleOne(plan: ReminderPlan, t: TFn): Promise<string> {
       : { type: Notifications.SchedulableTriggerInputTypes.DATE, date: plan.fireAt };
 
   return Notifications.scheduleNotificationAsync({ content: { title, body }, trigger });
+}
+
+// ─── Weekly tape reminder (ADR-0043) ────────────────────────────
+
+const TAPE_KEY = 'reminder.tape';
+/** Fixed identifier: scheduling again under it REPLACES, so turning the
+ *  reminder on twice never fires twice. */
+const TAPE_NOTIFICATION_ID = 'tape-weekly';
+
+export async function getTapeReminder(): Promise<TapeReminderSetting | null> {
+  try {
+    const raw = await AsyncStorage.getItem(TAPE_KEY);
+    return raw ? (JSON.parse(raw) as TapeReminderSetting) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Turn the weekly tape reminder on (with its schedule) or off. Asks for
+ * notification permission when turning it on; returns false — and stores
+ * nothing — when permission is refused.
+ */
+export async function setTapeReminder(setting: TapeReminderSetting | null, t: TFn): Promise<boolean> {
+  if (setting && isNative && !(await requestNotificationPermission())) return false;
+  await enqueue(async () => {
+    if (setting) await AsyncStorage.setItem(TAPE_KEY, JSON.stringify(setting));
+    else await AsyncStorage.removeItem(TAPE_KEY);
+    await scheduleTapeReminder(t);
+  });
+  return true;
+}
+
+/**
+ * Forget and cancel the tape reminder — on sign-out. It is stored per device
+ * but belongs to the account (and to a flag the next account may not have),
+ * so it must not keep firing for whoever signs in next. Never throws.
+ */
+export function clearTapeReminder(): Promise<void> {
+  return enqueue(async () => {
+    await AsyncStorage.removeItem(TAPE_KEY);
+    if (isNative) await Notifications.cancelScheduledNotificationAsync(TAPE_NOTIFICATION_ID);
+  });
+}
+
+// `async`, so even a synchronous throw inside becomes a rejection the caller's
+// `.catch` can isolate.
+async function scheduleTapeReminder(t: TFn): Promise<void> {
+  if (!isNative) return;
+  const plan = planTapeReminder(await getTapeReminder());
+  if (!plan) {
+    await Notifications.cancelScheduledNotificationAsync(TAPE_NOTIFICATION_ID).catch(() => undefined);
+    return;
+  }
+  await Notifications.scheduleNotificationAsync({
+    identifier: TAPE_NOTIFICATION_ID,
+    content: { title: t(plan.titleKey as I18nKey), body: t(plan.bodyKey as I18nKey) },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
+      weekday: plan.weekday,
+      hour: plan.hour,
+      minute: plan.minute,
+    },
+  });
 }

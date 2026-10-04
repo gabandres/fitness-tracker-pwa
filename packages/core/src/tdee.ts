@@ -327,8 +327,11 @@ function round(value: number, decimals: number): number {
   return Math.round(value * f) / f;
 }
 
-/** Mean after removing the single lowest and highest value. */
-function trimmedMean(arr: number[]): number {
+/** Mean after removing the single lowest and highest value. Exported for
+ *  `composition-maintenance.ts`, which must average intake exactly as the
+ *  measured estimate does or the two numbers differ for a reason nobody can
+ *  see. */
+export function trimmedMean(arr: number[]): number {
   if (arr.length < 3) return average(arr);
   const sorted = [...arr].sort((a, b) => a - b);
   return average(sorted.slice(1, sorted.length - 1));
@@ -1197,7 +1200,7 @@ export function paceOffsetKcal(
  * timezone ahead of this one — is even less of a finished day than today is.
  * Day keys are `YYYY-MM-DD`, so the string compare is the date compare.
  */
-function withoutInProgressIntake(
+export function withoutInProgressIntake(
   daily: DailyLog[],
   boundary: DayBoundary,
   now: Date,

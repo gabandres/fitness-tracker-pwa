@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_MEAL_REMINDERS,
   DEFAULT_REMINDER_HOUR,
+  defaultTapeReminder,
+  planTapeReminder,
   planReminders,
   resolveMealReminders,
   type MealReminderSettings,
@@ -247,5 +249,26 @@ describe('planReminders — maintenance mode (quieter, never silent)', () => {
 
   it('omitted means the full plan — every existing caller is unchanged', () => {
     expect(ids(planReminders(base))).toEqual(ids(planReminders({ ...base, maintaining: false })));
+  });
+});
+
+describe('weekly tape reminder (ADR-0043)', () => {
+  it('defaults to the last tape\'s weekday at 07:00 (1 = Sunday)', () => {
+    // 2026-09-28 was a Monday.
+    expect(defaultTapeReminder(new Date(2026, 8, 28, 9), new Date(2026, 9, 3))).toEqual({ weekday: 2, hour: 7, minute: 0 });
+    // No tape yet: today's weekday (2026-10-03, Saturday).
+    expect(defaultTapeReminder(null, new Date(2026, 9, 3))).toEqual({ weekday: 7, hour: 7, minute: 0 });
+  });
+
+  it('plans a weekly trigger, or nothing for an off / malformed setting', () => {
+    expect(planTapeReminder({ weekday: 2, hour: 7, minute: 0 })).toMatchObject({ id: 'tape', kind: 'weekly', weekday: 2, hour: 7 });
+    expect(planTapeReminder(null)).toBeNull();
+    expect(planTapeReminder({ weekday: 0, hour: 7, minute: 0 })).toBeNull();
+    expect(planTapeReminder({ weekday: 2, hour: 24, minute: 0 })).toBeNull();
+  });
+
+  it('never joins the meal/streak plan', () => {
+    const plans = planReminders({ now: new Date(2026, 9, 3, 6), meals: DEFAULT_MEAL_REMINDERS, loggedToday: false, streak: 0 });
+    expect(plans.some((p) => (p.id as string) === 'tape')).toBe(false);
   });
 });

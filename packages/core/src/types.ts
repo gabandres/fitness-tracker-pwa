@@ -103,6 +103,9 @@ export interface LogEntry {
 }
 
 // ─── Measurement types ──────────────────────────────────────────
+export type BodyFatMethod = 'dxa' | 'other';
+export const BODY_FAT_METHODS: readonly BodyFatMethod[] = ['dxa', 'other'];
+
 export interface Measurement {
   id?: string;
   waist?: number;
@@ -112,6 +115,15 @@ export interface Measurement {
   /** Neck circumference (inches) — added 2026-06 for the Navy body-fat
    *  estimate. Optional; older rows lack it. */
   neck?: number;
+  /** A body-fat % the user MEASURED (DXA, or another method), as opposed to
+   *  the Navy estimate the app derives from the tapes. Added 2026-10-03
+   *  (ADR-0043): a composition point outranks the tape estimate on its day.
+   *  Always paired with {@link bodyFatMethod}. */
+  bodyFatPct?: number;
+  /** How {@link bodyFatPct} was measured. `dxa` carries ~1 %BF error on a
+   *  change; `other` (smart scale, calipers, BIA…) is treated as no better
+   *  than the tape method. */
+  bodyFatMethod?: BodyFatMethod;
   date: Date;
 }
 

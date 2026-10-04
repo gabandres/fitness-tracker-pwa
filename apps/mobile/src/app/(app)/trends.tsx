@@ -33,6 +33,7 @@ import { CountUpText, enterUp, PressScale } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { FAB_BAND, font, radius, space, type } from '@/theme';
 import { formatDate, formatNumber } from '@/lib/date-format';
+import { CompositionLine, RecompCard } from '@/components/CompositionCards';
 import { useUnitSystem } from '@/lib/use-unit-system';
 
 function dayLabel(dateKey: string, locale: Locale): string {
@@ -75,7 +76,8 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const router = useRouter();
-  const { loading, error, insights, loggedThisWeek, proteinTarget, tdee, targetCalories, budget, basalKcal, activityLevel, sleep, fasting, water } = useTrends();
+  const { loading, error, insights, loggedThisWeek, proteinTarget, tdee, targetCalories, budget, basalKcal, activityLevel, sleep, fasting, water, composition } = useTrends();
+  const compUnits = useUnitSystem();
   // A Today habit chip lands here with `?habits=<nonce>` — scroll the strip
   // into view so the user sees what they tapped for instead of the hero
   // (UX_AUDIT S16-6). A nonce, not a flag: expo-router keeps a visited Trends
@@ -250,6 +252,11 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
                 {tdee.reliable ? '' : t('trends.logMore')}
               </Text>
             ) : null}
+            {/* ADR-0043: UNDER the maintenance number, never instead of it,
+                and display-only — `targetCalories` above never reads it. */}
+            {composition.enabled && composition.composition ? (
+              <CompositionLine result={composition.composition} unitSystem={compUnits} />
+            ) : null}
             <View style={styles.heroChips}>
               <Text style={styles.trendChip}>
                 {t('trends.dailyTarget')}  <Text style={styles.trendChipValue}>
@@ -258,6 +265,10 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
               </Text>
             </View>
           </Animated.View>
+
+          {composition.enabled && composition.recomp ? (
+            <RecompCard signal={composition.recomp} unitSystem={compUnits} lastTapeAt={composition.lastTapeAt} />
+          ) : null}
 
           {/* 1b. Activity correction — sits under the hero because it changes
               the number above it. Distinct from RecalibrationCard (measured

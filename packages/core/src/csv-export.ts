@@ -39,6 +39,9 @@ const COLS = [
   // whole interval and a reader can re-derive any attribution rule they like
   // rather than being stuck with ours.
   'fastEndedAt', 'fastHours',
+  // Measured body fat — 'measurement' rows only (ADR-0043). Appended, not
+  // placed beside the tapes, so no existing column moves.
+  'bodyFatPct', 'bodyFatMethod',
 ] as const;
 type Col = typeof COLS[number];
 
@@ -130,6 +133,8 @@ export function buildCsv(data: ExportData, boundary: DayBoundary = MIDNIGHT): st
       bicep: m.bicep,
       hip: m.hip,
       neck: m.neck,
+      bodyFatPct: m.bodyFatPct,
+      bodyFatMethod: m.bodyFatMethod,
     }));
   }
 

@@ -30,6 +30,7 @@
 import { hasFormulaInputs } from './onboarding-seed';
 import {
   LOG_NOTE_MAX,
+  type BodyFatMethod,
   type CustomFood,
   type LogEntry,
   type LogSource,
@@ -336,6 +337,16 @@ export interface MeasurementDoc<TS> {
   bicep?: number;
   hip?: number;
   neck?: number;
+  /** Written only together with `bodyFatMethod` — rules require the pair. */
+  bodyFatPct?: number;
+  bodyFatMethod?: BodyFatMethod;
+}
+
+/** The pair, or nothing: a % without its method cannot be weighted. */
+function bodyFatPair(entry: MeasurementInput): { bodyFatPct: number; bodyFatMethod: BodyFatMethod } | null {
+  return entry.bodyFatPct != null && entry.bodyFatMethod != null
+    ? { bodyFatPct: entry.bodyFatPct, bodyFatMethod: entry.bodyFatMethod }
+    : null;
 }
 
 export function toMeasurementDoc<TS>(
@@ -350,6 +361,7 @@ export function toMeasurementDoc<TS>(
     ...(entry.bicep != null ? { bicep: entry.bicep } : {}),
     ...(entry.hip != null ? { hip: entry.hip } : {}),
     ...(entry.neck != null ? { neck: entry.neck } : {}),
+    ...(bodyFatPair(entry) ?? {}),
   };
 }
 
@@ -366,13 +378,22 @@ export function toMeasurementPatch<TS>(
   entry: MeasurementInput,
   codec: DocCodec<TS>,
 ): Record<string, unknown> {
-  return {
+  const patch: Record<string, unknown> = {
     waist: entry.waist != null ? entry.waist : codec.remove(),
     chest: entry.chest != null ? entry.chest : codec.remove(),
     bicep: entry.bicep != null ? entry.bicep : codec.remove(),
     hip: entry.hip != null ? entry.hip : codec.remove(),
     neck: entry.neck != null ? entry.neck : codec.remove(),
   };
+  // The body-fat pair is touched only when the caller NAMES it (even as
+  // undefined, which clears it). An edit form that predates the field — or a
+  // tapes-only one — must not silently erase a DXA reading on the same row.
+  if ('bodyFatPct' in entry) {
+    const pair = bodyFatPair(entry);
+    patch['bodyFatPct'] = pair?.bodyFatPct ?? codec.remove();
+    patch['bodyFatMethod'] = pair?.bodyFatMethod ?? codec.remove();
+  }
+  return patch;
 }
 
 // ─── Workout: exercise catalog ──────────────────────────────────

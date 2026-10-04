@@ -111,6 +111,8 @@ export function toMeasurement(id: string, data: Record<string, unknown>): Measur
     bicep: data['bicep'] as number | undefined,
     hip: data['hip'] as number | undefined,
     neck: data['neck'] as number | undefined,
+    bodyFatPct: data['bodyFatPct'] as number | undefined,
+    bodyFatMethod: data['bodyFatMethod'] as Measurement['bodyFatMethod'],
   };
 }
 

@@ -22,6 +22,7 @@ import {
 /** Sparkline length — a chart-width choice, not a domain window. */
 const SPARK_DAYS = 14;
 import { useCoreSnapshot } from '@/hooks/useCoreSnapshot';
+import { type CompositionTrends, useCompositionTrends } from '@/hooks/useCompositionTrends';
 import { type SleepTrends, useSleepTrends } from '@/hooks/useSleepTrends';
 import { type FastingTrends, useFastingTrends } from '@/hooks/useFastingTrends';
 import { type WaterTrends, useWaterTrends } from '@/hooks/useWaterTrends';
@@ -30,6 +31,9 @@ const INSIGHT_DAYS = 7;
 const SLOPE_WINDOW_DAYS = 28;
 
 export interface TrendsState {
+  /** Composition-adjusted maintenance + recomp signal (ADR-0043). Behind
+   *  `FEATURES.compositionMaintenance`; `enabled: false` renders nothing. */
+  composition: CompositionTrends;
   loading: boolean;
   error: Error | null;
   /** 7-day calorie insights, or null below the logged-day gate. */
@@ -93,6 +97,8 @@ export function useTrends(): TrendsState {
   // Profile only for the day boundary every window on this screen shares. Water
   // has no running state and nothing else on the profile to read.
   const water = useWaterTrends(profile);
+  // Display-only, flag-gated (ADR-0043): `targets` below never sees it.
+  const composition = useCompositionTrends(logs, weights, profile);
 
   const targets: DailyTargets = useMemo(
     () => dailyTargets(profile, logs, weights),
@@ -166,5 +172,6 @@ export function useTrends(): TrendsState {
     sleep,
     fasting,
     water,
+    composition,
   };
 }

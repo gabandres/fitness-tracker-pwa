@@ -13,6 +13,8 @@ import {
 import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
+  BODY_FAT_PCT_BOUNDS,
+  type BodyFatMethod,
   type Measurement,
   implausibleMeasurementFields,
   formatMeasure,
@@ -38,6 +40,7 @@ import { Sparkline } from '@/components/Sparkline';
 import { type WeighIn, useBody } from '@/hooks/useBody';
 import { useMilestoneRecord } from '@/hooks/useMilestones';
 import { useAuth } from '@/lib/auth';
+import { FEATURES, isFeatureOn } from '@/lib/features';
 import { deleteDailyWeight, recordMilestone, switchToMaintenance } from '@/lib/ledger';
 import { type I18nKey, type Locale, type TFn, useLocale, useT } from '@/i18n';
 import { type BodyFatInput, isMaintaining } from '@macrolog/core';
@@ -122,7 +125,9 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
     goalProgress,
     goalCrossed,
   } = useBody();
-  const { user, profile } = useAuth();
+  const { user, profile, isAdmin } = useAuth();
+  // ADR-0043: the measured body-fat field ships with composition maintenance.
+  const showBodyFat = isFeatureOn(FEATURES.compositionMaintenance, { isAdmin });
   const milestones = useMilestoneRecord(user?.uid);
   const t = useT();
   const locale = useLocale();
@@ -534,6 +539,7 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
       <MeasurementModal
         visible={measureOpen}
         unitSystem={unitSystem}
+        showBodyFat={showBodyFat}
         initial={editing}
         onClose={() => setMeasureOpen(false)}
         onSave={async (entry) => {
@@ -562,6 +568,10 @@ function measureLine(
     const v = m[f.key];
     return v != null ? [`${t(f.labelKey)} ${formatMeasure(v, unitSystem)}`] : [];
   });
+  if (m.bodyFatPct != null) {
+    const method = m.bodyFatMethod === 'dxa' ? t('measure.methodDxa') : t('measure.methodOther');
+    parts.push(`${m.bodyFatPct}% (${method})`);
+  }
   return parts.join(' · ') || '—';
 }
 
@@ -580,7 +590,12 @@ function MeasurementModal({
   onSave,
   onClose,
   unitSystem,
+  showBodyFat = false,
 }: {
+  /** The measured body-fat % field (ADR-0043, flag-gated). When false the
+   *  sheet is exactly what it was, and an edit never names the field — so a
+   *  stored DXA value on the row survives (`toMeasurementPatch`). */
+  showBodyFat?: boolean;
   visible: boolean;
   /** The row being edited, or null when adding. */
   initial: Measurement | null;
@@ -596,6 +611,8 @@ function MeasurementModal({
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const [vals, setVals] = useState<Record<string, string>>({});
+  const [bodyFat, setBodyFat] = useState('');
+  const [bfMethod, setBfMethod] = useState<BodyFatMethod | null>(null);
   const [busy, setBusy] = useState(false);
   const [saveErr, setSaveErr] = useState(false);
 
@@ -613,6 +630,8 @@ function MeasurementModal({
           }, {})
         : {},
     );
+    setBodyFat(initial?.bodyFatPct != null ? String(initial.bodyFatPct) : '');
+    setBfMethod(initial?.bodyFatMethod ?? null);
     setBusy(false);
     setSaveErr(false);
   }, [visible, initial, unitSystem]);
@@ -631,8 +650,25 @@ function MeasurementModal({
   // firestore.rules. A 15in chest is a neck reading in the wrong field, and it
   // silently moves the body-fat estimate — one shared range cannot catch it.
   const implausible = implausibleMeasurementFields(entry);
-  const valid = Object.keys(entry).length > 0 && implausible.length === 0;
-  const rangeHint = implausible.length
+  // The measured %BF: a number in band AND a method, or nothing at all.
+  const bfText = bodyFat.trim().replace(',', '.');
+  const bfNum = bfText === '' ? undefined : Number(bfText);
+  const [bfMin, bfMax] = BODY_FAT_PCT_BOUNDS;
+  const bfOutOfRange = bfNum != null && !(bfNum >= bfMin && bfNum <= bfMax);
+  const bfNeedsMethod = bfNum != null && !bfOutOfRange && bfMethod == null;
+  const bodyFatEntry: Partial<Measurement> = !showBodyFat
+    ? {}
+    : bfNum != null && !bfOutOfRange && bfMethod
+      ? { bodyFatPct: Math.round(bfNum * 10) / 10, bodyFatMethod: bfMethod }
+      : // Named, undefined: an edit that emptied the field clears it.
+        { bodyFatPct: undefined };
+  const hasAny = Object.keys(entry).length > 0 || bodyFatEntry.bodyFatPct != null;
+  const valid = hasAny && implausible.length === 0 && !bfOutOfRange && !bfNeedsMethod;
+  const rangeHint = bfOutOfRange
+    ? t('measure.bodyFatRange', { min: bfMin, max: bfMax })
+    : bfNeedsMethod
+      ? t('measure.bodyFatNeedsMethod')
+      : implausible.length
     ? t('body.measureRange', {
         field: t(MEASURE_FIELDS.find((f) => f.key === implausible[0])!.labelKey),
         min: measureBoundsFor(implausible[0], unitSystem).min,
@@ -652,7 +688,7 @@ function MeasurementModal({
     // (2026-09-30: a 09-28 weigh-in and two tape measurements reported as
     // entered were never in Firestore, and nothing could say why).
     try {
-      await onSave(entry as Omit<Measurement, 'id' | 'date'>);
+      await onSave({ ...entry, ...bodyFatEntry } as Omit<Measurement, 'id' | 'date'>);
     } catch {
       setSaveErr(true);
     } finally {
@@ -687,6 +723,40 @@ function MeasurementModal({
               </View>
             ))}
           </View>
+          {showBodyFat ? (
+            <View style={styles.bfBlock} testID="measure-bodyfat-block">
+              <Text style={styles.fieldLabel}>{t('measure.bodyFat')}</Text>
+              <View style={styles.bfRow}>
+                <TextInput
+                  style={[styles.measureInput, styles.bfInput]}
+                  placeholder="—"
+                  placeholderTextColor={colors.faint}
+                  keyboardType="decimal-pad"
+                  value={bodyFat}
+                  onChangeText={setBodyFat}
+                  testID="measure-bodyfat"
+                />
+                {(['dxa', 'other'] as BodyFatMethod[]).map((m) => {
+                  const on = bfMethod === m;
+                  return (
+                    <TouchableOpacity
+                      key={m}
+                      style={[styles.bfChip, on && styles.bfChipOn]}
+                      onPress={() => setBfMethod(on ? null : m)}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: on }}
+                      testID={`measure-bf-${m}`}
+                    >
+                      <Text style={[styles.bfChipText, on && styles.bfChipTextOn]}>
+                        {m === 'dxa' ? t('measure.methodDxa') : t('measure.methodOther')}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              <Text style={styles.bfFieldHint}>{t('measure.bodyFatHint')}</Text>
+            </View>
+          ) : null}
           {saveErr ? (
             <Text style={[styles.sheetHint, styles.sheetNoteBad]} accessibilityRole="alert" testID="measure-save-error">
               {t('body.saveErr')}
@@ -950,6 +1020,14 @@ const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.create({
   sheetHint: { fontSize: font.small, color: colors.muted, marginBottom: space.md },
   measureGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.md },
   measureField: { width: '47%', gap: space.xs },
+  bfBlock: { gap: space.xs, marginTop: space.md },
+  bfRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  bfInput: { flex: 1 },
+  bfChip: { paddingHorizontal: space.md, paddingVertical: space.sm, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, minHeight: 44, justifyContent: 'center' },
+  bfChipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
+  bfChipText: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
+  bfChipTextOn: { color: colors.onInk },
+  bfFieldHint: { fontSize: font.tiny, color: colors.muted },
   fieldLabel: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
   // Same visual language as `input` (the weight sheet) minus its `flex: 1`,
   // which only makes sense inside `inputRow`. Slightly tighter padding and type

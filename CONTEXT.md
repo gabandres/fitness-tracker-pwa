@@ -383,9 +383,28 @@ These three windows look similar and are NOT interchangeable. See
   the body-fat estimate). Latest two are exposed as `latestMeasurement`
   + `previousMeasurement` with a `measurementDeltas` derivation.
 - **Body-fat estimate** — U.S. Navy circumference formula
-  (`utils/body-fat.ts`, pure): waist + neck + height (+ hip for female)
-  → est. %. Always framed as an estimate, never clinical. Surfaced on
-  the Body tab off the latest **Measurement** + profile height/sex.
+  (`packages/core/src/body-fat.ts`, pure): waist + neck + height (+ hip for
+  female) → est. %, rounded to 0.1 and clamped 2–60 for DISPLAY. Always framed
+  as an estimate, never clinical. Surfaced on the Body tab off the latest
+  **Measurement** + profile height/sex. Its unrounded, guarded twin is
+  `navyBodyFatPct` (`body-composition.ts`) — the one a slope fit uses.
+- **Measured body fat** — `bodyFatPct` + `bodyFatMethod` (`dxa` | `other`) on a
+  **Measurement**, always as a pair (ADR-0043). A value the user measured, as
+  opposed to the **Body-fat estimate** the app derives. Flag-gated entry.
+- **Composition point** — one body-fat % per day for the composition estimate:
+  DXA > other measured > Navy-from-that-day's-tapes > none
+  (`compositionPoints`). Not the same as a **Measurement** row: several rows
+  can make one point, and a bicep-only row makes none.
+- **Composition-adjusted maintenance** — `compositionMaintenance` (ADR-0043):
+  intake minus the energy stored in a change of fat mass (9,440 kcal/kg) and
+  fat-free mass (1,816 kcal/kg), over first → last **Composition point** in the
+  last 84 days (`mixed` mode) — or, given ≥ 2 DXA scans ≥ 28 days apart in the
+  last 182, over those scans alone (`dxa_anchored` mode) — with a seeded Monte
+  Carlo 80% interval. **Display-only and never
+  a synonym for maintenance/TDEE** — the measured estimate (ADR-0024) is still
+  the number, and nothing derives a target from this one.
+- **Recomp signal** — `recompSignal`: the 28-day weight slope against the 42-day
+  waist slope, classified (`recomp`, `fat_loss`, …). Says nothing about energy.
 - **Progress Photo** — *Removed 2026-07-05* (pre-launch scope cut to shrink the
   health-data/breach surface; [ADR-0010](docs/adr/0010-progress-photos-firebase-storage.md)
   is now reverted). Was a dated, owner-private before/after body photo in

@@ -598,3 +598,23 @@ describe('a timed set at the write seam', () => {
     expect('reps' in set).toBe(false);
   });
 });
+
+describe('measurement body-fat pair (ADR-0043)', () => {
+  it('writes bodyFatPct + bodyFatMethod together, or neither', () => {
+    expect(toMeasurementDoc({ bodyFatPct: 17.2, bodyFatMethod: 'dxa' }, codec, NOW)).toEqual({
+      timestamp: stamp, bodyFatPct: 17.2, bodyFatMethod: 'dxa',
+    });
+    expect(toMeasurementDoc({ waist: 32, bodyFatPct: 17.2 }, codec, NOW)).toEqual({ timestamp: stamp, waist: 32 });
+  });
+
+  it('an edit that names the pair sets it or removes both', () => {
+    expect(toMeasurementPatch({ bodyFatPct: 16, bodyFatMethod: 'other' }, codec)).toMatchObject({ bodyFatPct: 16, bodyFatMethod: 'other' });
+    expect(toMeasurementPatch({ waist: 32, bodyFatPct: undefined }, codec)).toMatchObject({ bodyFatPct: REMOVE, bodyFatMethod: REMOVE });
+  });
+
+  it('an edit that does not name it leaves a stored DXA value alone', () => {
+    const patch = toMeasurementPatch({ waist: 32 }, codec);
+    expect('bodyFatPct' in patch).toBe(false);
+    expect('bodyFatMethod' in patch).toBe(false);
+  });
+});

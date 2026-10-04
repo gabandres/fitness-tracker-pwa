@@ -1,0 +1,194 @@
+import { useEffect, useState } from 'react';
+import { StyleSheet, Switch, Text, View } from 'react-native';
+import {
+  KG_PER_LB,
+  COMP_MIN_LOGGED_DAYS,
+  defaultTapeReminder,
+  type CompositionMaintenance,
+  type RecompSignal,
+  type TapeReminderSetting,
+  type UnitSystem,
+} from '@macrolog/core';
+import { useLocale, useT, type I18nKey } from '@/i18n';
+import { formatDate, formatNumber } from '@/lib/date-format';
+import { getTapeReminder, setTapeReminder } from '@/lib/reminders';
+import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
+import { font, radius, space } from '@/theme';
+
+/**
+ * ADR-0043 surfaces. Copy rules, from the brief and enforced here:
+ * - "lean mass (includes water)", never "muscle";
+ * - no direction claim (fat down / lean up) while confidence is Low;
+ * - the composition number sits UNDER the existing maintenance, never instead
+ *   of it, and nothing here reaches the calorie target.
+ */
+
+const CM_PER_IN = 2.54;
+const round10 = (n: number) => Math.round(n / 10) * 10;
+
+/** `+0.12` / `−0.24` — a real minus sign, locale digits. */
+function signed(v: number, digits: number, locale: ReturnType<typeof useLocale>): string {
+  const abs = formatNumber(Math.abs(v), locale, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  return `${v < 0 ? '−' : '+'}${abs}`;
+}
+
+/** The line under the maintenance number on Trends. */
+export function CompositionLine({ result, unitSystem }: { result: CompositionMaintenance; unitSystem: UnitSystem }) {
+  const t = useT();
+  const locale = useLocale();
+  const styles = useThemedStyles(createStyles);
+
+  if (result.status !== 'ok') {
+    const text =
+      result.status === 'insufficient_tapes'
+        ? result.profileMissing ? t('comp.needProfile') : t('comp.needTapes')
+        : result.status === 'insufficient_logging'
+          ? t('comp.needLogging', { n: COMP_MIN_LOGGED_DAYS, have: result.loggedDays })
+          : t('comp.needWeight');
+    return <Text style={styles.compLine} testID="comp-line">{text}</Text>;
+  }
+
+  const what =
+    result.mode === 'dxa_anchored'
+      ? t('comp.whatDxa')
+      : result.sources.navy === result.points
+        ? t('comp.whatTapes')
+        : t('comp.whatReadings');
+  const metric = unitSystem === 'metric';
+  const mass = (kg: number) => `${signed(metric ? kg : kg / KG_PER_LB, 1, locale)} ${metric ? 'kg' : 'lb'}`;
+  return (
+    <View style={styles.compWrap}>
+      <Text style={styles.compLine} testID="comp-line">
+        {t('comp.line', {
+          kcal: formatNumber(round10(result.median), locale),
+          lo: formatNumber(round10(result.p10), locale),
+          hi: formatNumber(round10(result.p90), locale),
+          conf: t(`comp.conf.${result.confidence}` as I18nKey),
+          n: result.points,
+          what,
+          days: result.spanDays,
+        })}
+      </Text>
+      {/* No direction claims inside Low confidence. */}
+      {result.confidence !== 'low' ? (
+        <Text style={styles.compDetail} testID="comp-detail">
+          {t('comp.detail', { fm: mass(result.deltaFmKg), ffm: mass(result.deltaFfmKg) })}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
+/** The recomp signal card: two slopes, a class, and the weekly tape reminder. */
+export function RecompCard({
+  signal,
+  unitSystem,
+  lastTapeAt,
+}: {
+  signal: RecompSignal;
+  unitSystem: UnitSystem;
+  lastTapeAt: Date | null;
+}) {
+  const t = useT();
+  const locale = useLocale();
+  const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
+  const [reminder, setReminder] = useState<TapeReminderSetting | null>(null);
+  const [denied, setDenied] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    void getTapeReminder().then((r) => live && setReminder(r));
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  async function toggle(on: boolean) {
+    const next = on ? defaultTapeReminder(lastTapeAt, new Date()) : null;
+    const ok = await setTapeReminder(next, t);
+    setDenied(!ok);
+    if (ok) setReminder(next);
+  }
+
+  const metric = unitSystem === 'metric';
+  let body: React.ReactNode;
+  if (signal.status !== 'ok') {
+    body = (
+      <Text style={styles.recompBody} testID="recomp-insufficient">
+        {signal.reason === 'tapes' ? t('recomp.needTapes', { n: signal.tapes }) : t('recomp.needWeight')}
+      </Text>
+    );
+  } else {
+    const w = metric ? signal.weightLbPerWeek * KG_PER_LB : signal.weightLbPerWeek;
+    const waist = metric ? signal.waistInPer4Wk * CM_PER_IN : signal.waistInPer4Wk;
+    const se = metric ? signal.waistSeInPer4Wk * CM_PER_IN : signal.waistSeInPer4Wk;
+    body = (
+      <>
+        <Text style={styles.recompClass} testID="recomp-class">{t(`recomp.cls.${signal.cls}` as I18nKey)}</Text>
+        <Text style={styles.recompBody} testID="recomp-slopes">
+          {t('recomp.slopes', {
+            w: signed(w, 2, locale),
+            wu: metric ? 'kg' : 'lb',
+            waist: signed(waist, 2, locale),
+            se: formatNumber(se, locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+            lu: metric ? 'cm' : 'in',
+            n: signal.tapes,
+          })}
+        </Text>
+        {signal.waistWithinNoise ? (
+          <Text style={styles.recompNote} testID="recomp-noise">{t('recomp.noise')}</Text>
+        ) : null}
+      </>
+    );
+  }
+
+  const dayName = reminder
+    ? formatDate(new Date(2026, 1, reminder.weekday), locale, { weekday: 'long' }) // 2026-02-01 is a Sunday
+    : null;
+
+  return (
+    <View style={styles.recompCard} testID="recomp-card">
+      <Text style={styles.recompTitle}>{t('recomp.title')}</Text>
+      {body}
+      <View style={styles.remindRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.remindLabel}>{t('recomp.remind')}</Text>
+          {dayName ? <Text style={styles.recompNote}>{t('recomp.remindOn', { day: dayName })}</Text> : null}
+        </View>
+        <Switch
+          value={reminder != null}
+          onValueChange={(v) => void toggle(v)}
+          trackColor={{ true: colors.accent, false: colors.line }}
+          accessibilityLabel={t('recomp.remind')}
+          testID="recomp-remind"
+        />
+      </View>
+      {denied ? <Text style={styles.recompNote}>{t('recomp.remindDenied')}</Text> : null}
+      <Text style={styles.recompHow}>{t('recomp.how')}</Text>
+    </View>
+  );
+}
+
+const createStyles = ({ colors }: Theme) =>
+  StyleSheet.create({
+    compWrap: { gap: 2, marginTop: space.xs },
+    compLine: { textAlign: 'center', color: colors.heroMuted, fontSize: font.tiny },
+    compDetail: { textAlign: 'center', color: colors.heroMuted, fontSize: font.tiny, opacity: 0.8 },
+    recompCard: {
+      marginTop: space.md,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.line,
+      borderRadius: radius.lg,
+      padding: space.lg,
+      gap: space.xs,
+    },
+    recompTitle: { fontSize: font.small, fontWeight: '700', color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.5 },
+    recompClass: { fontSize: font.body, fontWeight: '700', color: colors.ink },
+    recompBody: { fontSize: font.small, color: colors.muted },
+    recompNote: { fontSize: font.tiny, color: colors.muted },
+    remindRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, marginTop: space.sm },
+    remindLabel: { fontSize: font.small, fontWeight: '600', color: colors.ink },
+    recompHow: { fontSize: font.tiny, color: colors.faint, marginTop: space.xs },
+  });

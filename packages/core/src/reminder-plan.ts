@@ -312,3 +312,55 @@ export function resolveMealReminders(
       : DEFAULT_REMINDER_HOUR;
   return { ...DEFAULT_MEAL_REMINDERS, dinner: { enabled: true, hour, minute: 0 } };
 }
+
+// ─── Weekly tape reminder (ADR-0043) ────────────────────────────
+
+export const TAPE_TITLE_KEY = 'reminder.tapeTitle';
+export const TAPE_BODY_KEY = 'reminder.tapeBody';
+/** Morning, before eating — the protocol the composition estimate assumes. */
+export const TAPE_HOUR = 7;
+export const TAPE_MINUTE = 0;
+
+/**
+ * The weekly tape reminder's schedule. `weekday` follows expo-notifications'
+ * WEEKLY trigger: 1 = Sunday … 7 = Saturday.
+ */
+export interface TapeReminderSetting {
+  weekday: number;
+  hour: number;
+  minute: number;
+}
+
+/**
+ * Deliberately NOT a member of {@link ReminderPlan}: that list is rebuilt from
+ * scratch on every sync and gated on the meal-reminder master switch, and a
+ * tape reminder the user turned on from the Trends card must survive both.
+ * The adapter schedules it under a fixed identifier instead.
+ */
+export interface TapeReminderPlan {
+  id: 'tape';
+  kind: 'weekly';
+  weekday: number;
+  hour: number;
+  minute: number;
+  titleKey: string;
+  bodyKey: string;
+}
+
+/**
+ * The default schedule: the SAME weekday as the last tape (so the series stays
+ * evenly spaced — a regression over tapes bunched at one end is a worse
+ * regression), else today's weekday; 07:00, before breakfast.
+ */
+export function defaultTapeReminder(lastTape: Date | null, now: Date): TapeReminderSetting {
+  return { weekday: (lastTape ?? now).getDay() + 1, hour: TAPE_HOUR, minute: TAPE_MINUTE };
+}
+
+/** The plan for a setting, or null when it is off or malformed. */
+export function planTapeReminder(setting: TapeReminderSetting | null | undefined): TapeReminderPlan | null {
+  if (!setting) return null;
+  const { weekday, hour, minute } = setting;
+  const okInt = (v: number, lo: number, hi: number) => Number.isInteger(v) && v >= lo && v <= hi;
+  if (!okInt(weekday, 1, 7) || !okInt(hour, 0, 23) || !okInt(minute, 0, 59)) return null;
+  return { id: 'tape', kind: 'weekly', weekday, hour, minute, titleKey: TAPE_TITLE_KEY, bodyKey: TAPE_BODY_KEY };
+}

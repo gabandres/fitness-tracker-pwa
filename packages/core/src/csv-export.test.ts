@@ -33,6 +33,17 @@ describe('buildCsv', () => {
     expect(measRow!.split(',')[neckIdx]).toBe('15.5');
   });
 
+  it('emits a measured body fat and its method (a DXA-only row is not blank)', () => {
+    const csv = buildCsv({
+      ...emptyData(),
+      measurements: [{ date: new Date('2026-06-30T12:00:00Z'), bodyFatPct: 17.2, bodyFatMethod: 'dxa' }],
+    });
+    const header = csv.split('\r\n')[0].split(',');
+    const measRow = csv.split('\r\n').find((r) => r.startsWith('measurement'))!.split(',');
+    expect(measRow[header.indexOf('bodyFatPct')]).toBe('17.2');
+    expect(measRow[header.indexOf('bodyFatMethod')]).toBe('dxa');
+  });
+
   it('emits liftCompleted/cardioCompleted on a meal row', () => {
     const log: DailyLog = {
       calories: 500,

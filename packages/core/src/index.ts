@@ -133,6 +133,9 @@ export * from './pace-reality';
 
 // ──────────────────────────── Body ────────────────────────────
 export * from './body-fat';
+export * from './body-composition';
+export * from './composition-maintenance';
+export * from './recomp-signal';
 export * from './weight-projection';
 // Bodyweight sanity rules (shared by both frontends — logger, workout-finish
 // mirror, store backstop). Distinct from ./macro-heuristic's CALC_WEIGHT_*

@@ -210,7 +210,8 @@ service cloud.firestore {
     // ─── Measurement schema ─────────────────────────────────────
     function isValidMeasurement(data) {
       return data.keys().hasAll(['timestamp'])
-          && data.keys().hasOnly(['timestamp', 'waist', 'chest', 'bicep', 'hip', 'neck'])
+          && data.keys().hasOnly(['timestamp', 'waist', 'chest', 'bicep', 'hip', 'neck',
+                                  'bodyFatPct', 'bodyFatMethod'])
           && data.timestamp is timestamp
           && data.keys().size() >= 2
           // Per-field bands in INCHES, mirroring MEASUREMENT_BOUNDS_IN in
@@ -222,7 +223,13 @@ service cloud.firestore {
           && (!('chest' in data.keys()) || (data.chest is number && data.chest >= 20 && data.chest <= 80))
           && (!('bicep' in data.keys()) || (data.bicep is number && data.bicep >= 5 && data.bicep <= 30))
           && (!('hip' in data.keys()) || (data.hip is number && data.hip >= 20 && data.hip <= 80))
-          && (!('neck' in data.keys()) || (data.neck is number && data.neck >= 8 && data.neck <= 30));
+          && (!('neck' in data.keys()) || (data.neck is number && data.neck >= 8 && data.neck <= 30))
+          // A measured body-fat % (DXA or other) and its method, always as a
+          // pair (ADR-0043). BODY_FAT_PCT_BOUNDS in measurement-bounds.ts.
+          && (('bodyFatPct' in data.keys()) == ('bodyFatMethod' in data.keys()))
+          && (!('bodyFatPct' in data.keys()) ||
+              (data.bodyFatPct is number && data.bodyFatPct >= 2 && data.bodyFatPct <= 60))
+          && (!('bodyFatMethod' in data.keys()) || data.bodyFatMethod in ['dxa', 'other']);
     }
 
     // ─── Preset schema ────────────────────────────────────────

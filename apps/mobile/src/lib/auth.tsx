@@ -65,6 +65,7 @@ import { registerAppleRefreshToken } from './appleSignin';
 import { addBreadcrumb, captureError, setSentryUser } from './sentry';
 import { isGoogleInternalError } from './google-signin-errors';
 import { clearQuickAdd } from './quick-add';
+import { clearTapeReminder } from './reminders';
 import { clearOfflineCache, readCache, writeCache } from './offline-cache';
 import * as Updates from 'expo-updates';
 import {
@@ -435,6 +436,11 @@ interface AuthState {
   /** True when the user's custom claims grant Pro (Stripe `stripeRole:paid`
    *  or any future entitlement source). */
   isPro: boolean;
+  /** The `admin` custom claim — the owner's account only (SEED_ADMINS in
+   *  functions/src/admin-claims.ts). Gates features that ship to one account
+   *  first (`isFeatureOn` in ./features). Never an access control: the rules
+   *  are, and they do not consult this copy. */
+  isAdmin: boolean;
   /** The user's profile doc, or null when signed out / not yet loaded. */
   profile: Profile | null;
   /** True until the first profile snapshot arrives — gates the onboarding
@@ -531,6 +537,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    */
   const sessionUid = user?.uid ?? presumed?.uid ?? null;
   const [isPro, setIsPro] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [emailVerified, setEmailVerified] = useState(false);
   // Profile is keyed by uid so "loaded for the current user" is derivable
   // synchronously — no effect-set flag that lags a render behind `user` and
@@ -674,8 +681,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const token = await u.getIdTokenResult();
       // Mirrors the PWA's SubscriptionService: Pro = stripeRole "paid".
       setIsPro(token.claims['stripeRole'] === 'paid' || token.claims['pro'] === true);
+      setIsAdmin(token.claims['admin'] === true);
     } catch {
       setIsPro(false);
+      setIsAdmin(false);
     }
   }
 
@@ -741,6 +750,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         void clearRehydrateRetry();
       } else {
         setIsPro(false);
+        setIsAdmin(false);
         // Signed out with nothing on disk: this may be a fresh install on a
         // NEW device with a session waiting in Block Store. Only ever reached
         // when Firebase itself says there is no session, so it cannot disturb a
@@ -943,6 +953,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       sessionPresumed,
       initializing,
       isPro,
+      isAdmin,
       profile,
       profileLoading,
       profileConfirmed,
@@ -1200,6 +1211,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // above (ADR-0020). `clearQuickAdd` never throws, so it cannot strand
         // the sign-out.
         await clearQuickAdd();
+        // The weekly tape reminder is device-stored but the account's own
+        // (ADR-0043). `clearTapeReminder` never throws.
+        await clearTapeReminder();
         // And the read cache — the third store holding this account's food off
         // the network. Namespaced by uid, so the risk it removes is not the next
         // account seeing it but this one's day surviving on a shared or sold
@@ -1228,6 +1242,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       sessionPresumed,
       initializing,
       isPro,
+      isAdmin,
       profile,
       profileLoading,
       profileConfirmed,

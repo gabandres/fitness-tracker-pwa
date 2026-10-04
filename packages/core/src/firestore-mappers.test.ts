@@ -233,3 +233,10 @@ describe('compareLogsOldestFirst', () => {
     expect(rows.sort(compareLogsOldestFirst).map((r) => r.id)).toEqual(['a', 'z', 'b']);
   });
 });
+
+describe('toMeasurement — body-fat pair', () => {
+  it('reads bodyFatPct and bodyFatMethod', () => {
+    const m = toMeasurement('m', { timestamp: stamp(new Date('2026-10-01T12:00:00Z')), bodyFatPct: 17.2, bodyFatMethod: 'dxa' });
+    expect(m).toMatchObject({ bodyFatPct: 17.2, bodyFatMethod: 'dxa' });
+  });
+});

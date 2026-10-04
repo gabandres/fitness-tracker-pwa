@@ -28,6 +28,11 @@ export const MEASUREMENT_BOUNDS_IN: Record<MeasurementField, readonly [number, n
   hip: [20, 80],
 };
 
+/** Inclusive band for a measured body-fat % (`Measurement.bodyFatPct`) —
+ *  the same 2–60 the Navy estimate clamps to (./body-fat). firestore.rules
+ *  says the same. */
+export const BODY_FAT_PCT_BOUNDS: readonly [number, number] = [2, 60];
+
 /** True when `value` is a plausible measurement for that specific field. */
 export function isPlausibleMeasurement(field: MeasurementField, value: number): boolean {
   const band = MEASUREMENT_BOUNDS_IN[field];

@@ -216,6 +216,37 @@ describe('firestore.rules', () => {
     await assertSucceeds(updateDoc(ref, { calories: 620, note: deleteField() }));
   });
 
+  // ── measurements: tape bands + the body-fat pair (ADR-0043) ──
+  it('accepts tapes, a DXA %BF with its method, and both on one row', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    const ms = collection(db, 'users', 'alice', 'measurements');
+    await assertSucceeds(addDoc(ms, { timestamp: Timestamp.now(), waist: 32, neck: 14.5 }));
+    await assertSucceeds(addDoc(ms, { timestamp: Timestamp.now(), bodyFatPct: 17.2, bodyFatMethod: 'dxa' }));
+    await assertSucceeds(addDoc(ms, { timestamp: Timestamp.now(), waist: 32, bodyFatPct: 18, bodyFatMethod: 'other' }));
+  });
+
+  it('rejects a %BF without its method (and vice versa), out of band, or an unknown method', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    const ms = collection(db, 'users', 'alice', 'measurements');
+    await assertFails(addDoc(ms, { timestamp: Timestamp.now(), bodyFatPct: 17.2 }));
+    await assertFails(addDoc(ms, { timestamp: Timestamp.now(), waist: 32, bodyFatMethod: 'dxa' }));
+    await assertFails(addDoc(ms, { timestamp: Timestamp.now(), bodyFatPct: 1, bodyFatMethod: 'dxa' }));
+    await assertFails(addDoc(ms, { timestamp: Timestamp.now(), bodyFatPct: 61, bodyFatMethod: 'dxa' }));
+    await assertFails(addDoc(ms, { timestamp: Timestamp.now(), bodyFatPct: 17, bodyFatMethod: 'bodpod' }));
+    await assertFails(addDoc(ms, { timestamp: Timestamp.now(), chest: 15 })); // the neck-in-chest typo
+  });
+
+  it('an edit can clear the pair together, never half of it', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    const ref = doc(db, 'users', 'alice', 'measurements', 'm1');
+    await assertSucceeds(setDoc(ref, { timestamp: Timestamp.now(), waist: 32, bodyFatPct: 17, bodyFatMethod: 'dxa' }));
+    await assertFails(updateDoc(ref, { bodyFatMethod: deleteField() }));
+    await assertSucceeds(updateDoc(ref, { bodyFatPct: deleteField(), bodyFatMethod: deleteField() }));
+  });
+
   it('rejects a dailyLog write from an unverified email', async () => {
     // The /dailyLogs rules gate on isOwner only, but the parent profile
     // write path is gated on isVerifiedUser, so an unverified user who

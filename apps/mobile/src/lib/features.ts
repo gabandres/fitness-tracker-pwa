@@ -50,4 +50,29 @@ export const FEATURES = {
    * protocol can't be honoured. Set EXPO_PUBLIC_FEATURE_ACTIVITY_TDEE=0.
    */
   activityTdee: process.env.EXPO_PUBLIC_FEATURE_ACTIVITY_TDEE !== '0',
+  /**
+   * Composition-adjusted maintenance + the recomp signal card on Trends, and
+   * the measured body-fat % field on Body (ADR-0043). `'admin'` = ON for the
+   * owner's account only (the `admin` custom claim), OFF for everyone else;
+   * `true`/`false` turn it on/off for all. Display-only — nothing behind it
+   * feeds the calorie target. Hardcoded (OTA-gated), like `photoScan`.
+   * The body-fat field writes `bodyFatPct`/`bodyFatMethod`, so
+   * `firestore:rules` must be deployed before this reaches anyone.
+   */
+  compositionMaintenance: 'admin',
+  /**
+   * The Forbes prior (ADR-0043 §Forbes): price scale change at the Forbes
+   * FM/FFM split when there is no composition data. OFF — it comes from
+   * non-training cohorts and overstates lean loss for a lifter. Computed in
+   * core (`forbesMaintenance`), surfaced nowhere while this is false.
+   */
+  forbesPrior: false,
 } as const;
+
+/** A flag's rollout: everyone, no one, or the admin account only. */
+export type FeatureRollout = boolean | 'admin';
+
+/** Whether a rollout flag is on for this user. */
+export function isFeatureOn(rollout: FeatureRollout, who: { isAdmin?: boolean }): boolean {
+  return rollout === 'admin' ? who.isAdmin === true : rollout;
+}
