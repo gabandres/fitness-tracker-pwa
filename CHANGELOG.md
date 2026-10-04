@@ -4,6 +4,41 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-10-03 — Time row on every add + typed time; notes on food entries; same-minute rows keep their order
+
+- **Delivery**: rules deployed first (`firestore:rules`, released
+  2026-10-04T02:13:50Z, read back live), then OTAs from `ignia-mac` at
+  `5bf28088` — **iOS group `692a269d-9b64-4b4b-8d7e-5fd3e79b6491`** on
+  `1b239e44…` (build 67, gate matched), **Android group
+  `13a5cb80-cc81-4dd8-8608-b2daaa2f38c1`** on `3e596c87…` (vc 46, runtime
+  pinned then reverted). `WHATS_NEW_VERSION` → `2026-10-03-notes-time`. Not
+  device-verified.
+
+**Report:** the owner's 10-03 food log was entered at ~22:00. A today-add had
+no Time row (stamped 22:00; 8:15 meant add → edit → 22 stepper taps), the
+per-row notes had no field (`isValidLog` is `hasOnly`), and the three 08:15 rows
+listed in random order — Firestore breaks a same-instant tie by doc id.
+
+**Fix:** `EntrySheet` shows the Time row on every form; tapping the time opens a
+typed field (`parseTimeOfDay`: `8:15`, `815`, `18:30`, `6:30pm`; no suffix =
+24-hour, deliberately — guessing "most recent" reads an 8:15 breakfast as
+20:15). An untouched today-add still saves at Save time. `note` (≤ 500,
+trimmed, absent not empty) on `DailyLog`/`LogEntry`, through `toLogDoc` /
+`toLogPatch` / `toDailyLog`, undo (`entryFromLog`), the day list (under the row)
+and the CSV `notes` column; repeat-yesterday does not copy it. `toLogDoc` stamps
+`createdAt`; `compareLogsOldestFirst` (time, createdAt, id) orders
+`subscribeRecentLogs`, `getLogsForRange` and `mergeLogs`. Rules: `note`
+(non-empty string ≤ 500) and `createdAt` (timestamp) on `isValidLog`. Tests:
+`entry-sheet-notes-typed-time.test.tsx`, core `parseTimeOfDay` /
+`setTimeOfDay` / `compareLogsOldestFirst` / writer + mapper + CSV, three rules
+cases.
+
+**Owner data — APPLIED 2026-10-03:** `scripts/backfill-food-2026-10-03.mts`
+(the eight 10-03 food rows through `toLogDoc`; 2,206 kcal / 113 g; the day was
+empty, nothing skipped) and, after the rules deploy,
+`scripts/backfill-food-notes-2026-10-03.mts` (the owner's note on each of the
+eight, plus `createdAt` in table order). Weight 154.4 and sleep 6 h untouched.
+
 ## 2026-10-02 — Sentry cleanup: the four older mobile issues closed, one fixed in code
 
 - **IGNIA-MOBILE-J** (App Hang ≥2 s at launch, iPhone SE 2 / iOS 18, build 64)

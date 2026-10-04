@@ -82,7 +82,9 @@ reach them from this Mac** (the Windows-built runtime). Do not publish for vc 45
 the 46 review is the delivery. Functions and rules are deployed.
 
 The 2026-09-30 and 2026-10-02 fixes went out as OTAs on 2026-10-02 (iOS
-`9a7146d1` on build 67, Android `df784c63` on vc 46; CHANGELOG).
+`9a7146d1` on build 67, Android `df784c63` on vc 46; CHANGELOG). The 10-03
+notes + typed-time change went out 2026-10-03 (iOS `692a269d`, Android
+`13a5cb80`, at `5bf28088`; rules deployed first).
 
 Re-derive rather than trust this line: `git log --oneline` against the newest
 OTA row in `apps/mobile/docs/fingerprint-ledger.md`, and
