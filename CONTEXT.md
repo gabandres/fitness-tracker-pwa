@@ -390,7 +390,9 @@ These three windows look similar and are NOT interchangeable. See
   `navyBodyFatPct` (`body-composition.ts`) — the one a slope fit uses.
 - **Measured body fat** — `bodyFatPct` + `bodyFatMethod` (`dxa` | `other`) on a
   **Measurement**, always as a pair (ADR-0043). A value the user measured, as
-  opposed to the **Body-fat estimate** the app derives. Flag-gated entry.
+  opposed to the **Body-fat estimate** the app derives. Flag-gated entry. The
+  Body card shows it instead of the estimate while it is at least as recent as
+  the newest tape (`bodyFatToShow`).
 - **Composition point** — one body-fat % per day for the composition estimate:
   DXA > other measured > Navy-from-that-day's-tapes > none
   (`compositionPoints`). Not the same as a **Measurement** row: several rows

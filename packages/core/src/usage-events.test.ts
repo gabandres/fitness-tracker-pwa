@@ -68,6 +68,10 @@ describe('clampUsageCounts', () => {
 });
 
 describe('the catalogue itself', () => {
+  it('counts Trends views of the composition line (ADR-0043, 2026-10-04)', () => {
+    expect(USAGE_EVENTS).toContain('composition_view');
+  });
+
   it('has no duplicates — a repeat would silently double-count', () => {
     expect(new Set(USAGE_EVENTS).size).toBe(USAGE_EVENTS.length);
   });

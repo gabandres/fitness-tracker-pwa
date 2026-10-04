@@ -116,6 +116,7 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
     bodyFat,
     bodyFatGap,
     bodyFatMissing,
+    bodyFatShown,
     addMeasurement,
     updateMeasurement,
     deleteMeasurement,
@@ -385,18 +386,29 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
           <View style={styles.bfCard} testID="bodyfat-card">
             <View style={styles.bfText}>
               <Text style={styles.bfLabel}>{t('body.bodyFat')}</Text>
-              <Text style={styles.bfHint}>
-                {bodyFat != null
-                  ? t('body.navyEstimate')
-                  : bodyFatGap === 'profile'
-                    ? t('body.bfNeedProfile')
-                    : t('body.bfNeedFields', { fields: fieldList(bodyFatMissing, t) })}
+              <Text style={styles.bfHint} testID="bodyfat-source">
+                {bodyFatShown?.source === 'measured'
+                  ? t(bodyFatShown.method === 'dxa' ? 'body.measuredDxa' : 'body.measuredOther', {
+                      date: formatDate(bodyFatShown.date, locale, { month: 'short', day: 'numeric' }),
+                    })
+                  : bodyFatShown
+                    ? t('body.navyEstimate')
+                    : bodyFatGap === 'profile'
+                      ? t('body.bfNeedProfile')
+                      : t('body.bfNeedFields', { fields: fieldList(bodyFatMissing, t) })}
               </Text>
-              {bodyFat != null ? (
+              {/* A measured value keeps the tape estimate in view, so the
+                  two methods can be compared rather than one silently
+                  replacing the other. */}
+              {bodyFatShown?.source === 'measured' ? (
+                bodyFat != null ? (
+                  <Text style={styles.bfHint}>{t('body.navyAlso', { pct: bodyFat })}</Text>
+                ) : null
+              ) : bodyFatShown ? (
                 <Text style={styles.bfHint}>{t('body.navyAccuracy')}</Text>
               ) : null}
             </View>
-            <Text style={styles.bfValue} testID="bodyfat-value">{bodyFat != null ? `${bodyFat}%` : '—'}</Text>
+            <Text style={styles.bfValue} testID="bodyfat-value">{bodyFatShown ? `${bodyFatShown.pct}%` : '—'}</Text>
           </View>
 
           <View style={styles.measureHeader}>

@@ -7,7 +7,8 @@
  * estimate is a rough field method — accurate to ~3–4% vs a DEXA scan —
  * so callers should frame it as an estimate, never a clinical number.
  */
-import type { Sex } from './types';
+import { MIDNIGHT, dayKeyAt, type DayBoundary } from './day-boundary';
+import type { BodyFatMethod, Sex } from './types';
 
 /** Plausible body-fat band; results outside it mean bad inputs, so we
  *  clamp rather than show a -5% or 80% figure. */
@@ -110,4 +111,48 @@ export function missingBodyFatInputs(
   );
   if (!withTape) return needed;
   return needed.filter((k) => withTape[k] == null);
+}
+
+/** What the Body tab's body-fat card shows. */
+export type BodyFatShown =
+  | { source: 'measured'; pct: number; method: BodyFatMethod; date: Date }
+  | { source: 'navy'; pct: number };
+
+/**
+ * The body fat to show: a MEASURED value (DXA, or another method — ADR-0043)
+ * when it is at least as recent, by day, as the newest tape that yields a Navy
+ * estimate; otherwise that estimate. A scan someone just entered must not sit
+ * under a tape number from the same week, and a weekly tape after an old scan
+ * must not be hidden by it. Same day → the measured value. It needs no
+ * sex/height, so a missing profile cannot hide it. Rounded to 0.1, like the
+ * estimate.
+ */
+export function bodyFatToShow(
+  measurements: readonly (BodyFatMeasurement & { date: Date; bodyFatPct?: number | null; bodyFatMethod?: BodyFatMethod | null })[],
+  sex: Sex | null | undefined,
+  heightIn: number | null | undefined,
+  boundary: DayBoundary = MIDNIGHT,
+): BodyFatShown | null {
+  const rows = [...measurements].sort((a, b) => b.date.getTime() - a.date.getTime());
+  const measured = rows.find((m) => m.bodyFatPct != null && m.bodyFatMethod != null);
+  let navy: { pct: number; date: Date } | null = null;
+  if (sex && heightIn != null && heightIn > 0) {
+    for (const m of rows) {
+      if (m.waist == null || m.neck == null) continue;
+      const pct = navyBodyFat(sex, heightIn, m.waist, m.neck, m.hip ?? undefined);
+      if (pct != null) {
+        navy = { pct, date: m.date };
+        break;
+      }
+    }
+  }
+  if (measured && (!navy || dayKeyAt(measured.date, boundary) >= dayKeyAt(navy.date, boundary))) {
+    return {
+      source: 'measured',
+      pct: Math.round(measured.bodyFatPct! * 10) / 10,
+      method: measured.bodyFatMethod!,
+      date: measured.date,
+    };
+  }
+  return navy ? { source: 'navy', pct: navy.pct } : null;
 }

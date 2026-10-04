@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { type Href, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type Href, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -35,6 +35,7 @@ import { FAB_BAND, font, radius, space, type } from '@/theme';
 import { formatDate, formatNumber } from '@/lib/date-format';
 import { CompositionLine, RecompCard } from '@/components/CompositionCards';
 import { useUnitSystem } from '@/lib/use-unit-system';
+import { track } from '@/lib/analytics';
 
 function dayLabel(dateKey: string, locale: Locale): string {
   return formatDate(parseYmd(dateKey), locale, { weekday: 'short', month: 'short', day: 'numeric' });
@@ -78,6 +79,14 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
   const router = useRouter();
   const { loading, error, insights, loggedThisWeek, proteinTarget, tdee, targetCalories, budget, basalKcal, activityLevel, sleep, fasting, water, composition } = useTrends();
   const compUnits = useUnitSystem();
+  // One `composition_view` per Trends focus while the composition line is on
+  // screen (ADR-0043) — the number that says whether anyone reads it before
+  // the flag goes past the owner. Nothing is counted for anyone else.
+  useFocusEffect(
+    useCallback(() => {
+      if (composition.enabled) track('composition_view');
+    }, [composition.enabled]),
+  );
   // A Today habit chip lands here with `?habits=<nonce>` — scroll the strip
   // into view so the user sees what they tapped for instead of the hero
   // (UX_AUDIT S16-6). A nonce, not a flag: expo-router keeps a visited Trends
@@ -205,7 +214,7 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
         </TouchableOpacity>
         <HeaderAvatar />
       </View>
-      <NumbersGlossary visible={glossaryOpen} onClose={() => setGlossaryOpen(false)} />
+      <NumbersGlossary visible={glossaryOpen} onClose={() => setGlossaryOpen(false)} composition={composition.enabled} />
       {loading ? (
         <View style={styles.fill}>
           <ActivityIndicator color={colors.accent} />

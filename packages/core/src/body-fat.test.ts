@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { missingBodyFatInputs, navyBodyFat, latestNavyBodyFat } from './body-fat';
+import type { Measurement } from './types';
+import { bodyFatToShow, missingBodyFatInputs, navyBodyFat, latestNavyBodyFat } from './body-fat';
 
 describe('navyBodyFat', () => {
   it('estimates for a male from waist/neck/height', () => {
@@ -104,5 +105,40 @@ describe('missingBodyFatInputs', () => {
 
   it('reports every field when the sex is unknown, rather than guessing', () => {
     expect(missingBodyFatInputs([], null)).toEqual(['waist', 'neck']);
+  });
+});
+
+describe('bodyFatToShow — a measured value beats the tape estimate when it is newer', () => {
+  const at = (d: number, h = 7) => new Date(2026, 9, d, h);
+  const tape = (d: number) => ({ date: at(d), waist: 34, neck: 15 });
+  const dxa = (d: number, pct = 18.4) => ({ date: at(d), bodyFatPct: pct, bodyFatMethod: 'dxa' as const });
+
+  it('a DXA newer than the last tape is shown, with its method and date', () => {
+    expect(bodyFatToShow([dxa(3), tape(1)], 'male', 70)).toEqual({ source: 'measured', pct: 18.4, method: 'dxa', date: at(3) });
+  });
+
+  it('a tape newer than the DXA goes back to the Navy estimate', () => {
+    expect(bodyFatToShow([tape(3), dxa(1)], 'male', 70)).toEqual({ source: 'navy', pct: latestNavyBodyFat([tape(3)], 'male', 70) });
+  });
+
+  it('same day: the measured value wins, whichever row came later', () => {
+    expect(bodyFatToShow([{ ...tape(3), date: at(3, 9) }, dxa(3)], 'male', 70)).toMatchObject({ source: 'measured' });
+  });
+
+  it('newest-first order is not assumed', () => {
+    expect(bodyFatToShow([tape(1), dxa(3)], 'male', 70)).toMatchObject({ source: 'measured' });
+  });
+
+  it('a measured value needs no sex/height — the profile gap must not hide it', () => {
+    expect(bodyFatToShow([dxa(3), tape(1)], null, null)).toMatchObject({ source: 'measured', pct: 18.4 });
+  });
+
+  it('rounds to 0.1 like the estimate', () => {
+    expect(bodyFatToShow([dxa(3, 18.456)], 'male', 70)).toMatchObject({ pct: 18.5 });
+  });
+
+  it('nothing usable → null', () => {
+    const chestOnly: Measurement = { date: at(1), chest: 40 };
+    expect(bodyFatToShow([chestOnly], 'male', 70)).toBeNull();
   });
 });

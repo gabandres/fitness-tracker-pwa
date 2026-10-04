@@ -267,6 +267,12 @@ describe('weekly tape reminder (ADR-0043)', () => {
     expect(planTapeReminder({ weekday: 2, hour: 24, minute: 0 })).toBeNull();
   });
 
+  it('a female profile gets the hip wording; an old setting without the flag keeps the original', () => {
+    expect(defaultTapeReminder(null, new Date(2026, 9, 3), true)).toEqual({ weekday: 7, hour: 7, minute: 0, hip: true });
+    expect(planTapeReminder({ weekday: 2, hour: 7, minute: 0, hip: true })!.bodyKey).toBe('reminder.tapeBodyHip');
+    expect(planTapeReminder({ weekday: 2, hour: 7, minute: 0 })!.bodyKey).toBe('reminder.tapeBody');
+  });
+
   it('never joins the meal/streak plan', () => {
     const plans = planReminders({ now: new Date(2026, 9, 3, 6), meals: DEFAULT_MEAL_REMINDERS, loggedToday: false, streak: 0 });
     expect(plans.some((p) => (p.id as string) === 'tape')).toBe(false);

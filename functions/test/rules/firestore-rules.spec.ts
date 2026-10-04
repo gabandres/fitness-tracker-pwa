@@ -438,6 +438,12 @@ describe('firestore.rules', () => {
     );
   });
 
+  it('accepts composition_view — Trends views of the composition line (ADR-0043, 2026-10-04)', async () => {
+    const at = doc(authed('alice'), 'usageEvents', 'alice_2026-08-12');
+    await assertSucceeds(setDoc(at, { ...usageDoc(), composition_view: 3 }));
+    await assertFails(setDoc(at, { ...usageDoc(), composition_view: 2001 }));
+  });
+
   it('blocks an event name outside the catalogue', async () => {
     await assertFails(
       setDoc(doc(authed('alice'), 'usageEvents', 'alice_2026-08-12'), {

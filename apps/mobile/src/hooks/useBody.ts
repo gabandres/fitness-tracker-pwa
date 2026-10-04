@@ -6,11 +6,13 @@ import { exportDaily } from '@/lib/health-sync';
 import { writeDailyMetric } from '@/lib/ledger-ops';
 import {
   type BodyFatInput,
+  type BodyFatShown,
   type Measurement,
   type GoalProgress,
   type WeightProjection,
   type WeightPoint,
   addDays,
+  bodyFatToShow,
   computeGoalProgress,
   currentWeight as coreCurrentWeight,
   dayBoundaryOf,
@@ -58,6 +60,10 @@ export interface BodyState {
   /** Exactly which tape inputs are still missing, so the nudge can name them.
    *  Empty when the estimate is available or the gap is the profile. */
   bodyFatMissing: BodyFatInput[];
+  /** What the body-fat card shows: a measured %BF (ADR-0043) when it is at
+   *  least as recent as the newest tape, else the Navy estimate. `bodyFat`
+   *  above stays the Navy number — it is what is mirrored to Health. */
+  bodyFatShown: BodyFatShown | null;
   addMeasurement: (entry: Omit<Measurement, 'id' | 'date'>) => Promise<void>;
   /** Edits a saved row in place, keeping its original date. Clearing a field
    *  removes it, so a value typed into the wrong box can be undone. */
@@ -155,6 +161,11 @@ export function useBody(): BodyState {
       bodyFatMissing: missingBodyFatInputs(measurements, profile.sex),
     };
   }, [profile, measurements]);
+
+  const bodyFatShown = useMemo(
+    () => bodyFatToShow(measurements, profile?.sex, profile?.heightIn, dayBoundaryOf(profile)),
+    [measurements, profile],
+  );
 
   // Fit the trend over a 28-day window of daily weights (longer than the
   // history list so this week's water-weight noise doesn't dominate).
@@ -258,6 +269,7 @@ export function useBody(): BodyState {
     bodyFat,
     bodyFatGap,
     bodyFatMissing,
+    bodyFatShown,
     addMeasurement,
     updateMeasurement,
     deleteMeasurement,

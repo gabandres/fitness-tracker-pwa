@@ -195,8 +195,26 @@ across a day's rows (median of the rows that carry each field), so a hip saved o
 own row completes a woman's set; before this, all three had to be on one row. For a
 female profile the Trends copy asks for waist + neck + hip (`comp.needTapesHip`), and
 the how-to measures the waist at its narrowest and the hips at their widest
-(`recomp.howHip`). Still open: the weekly tape reminder's notification text names only
-waist and neck. The reminder plan has no profile, and the feature is admin-only.
+(`recomp.howHip`). The weekly reminder carries `hip: true` in its stored setting when it
+is turned on from a female profile, and its text then names the hip
+(`reminder.tapeBodyHip`). A setting stored before that keeps the original text.
+
+**Before widening the flag (done 2026-10-04):**
+- **The Body tab's body-fat card shows a measured value.** It uses the measured
+  %BF when that is at least as recent, by day, as the newest Navy-capable tape
+  (`bodyFatToShow`; the measured value wins on the same day and needs no
+  sex/height), labelled "Measured · DXA · Oct 4" with the tape estimate kept
+  beside it. Before this, a DXA entered today sat under a "U.S. Navy estimate"
+  from the same week. `bodyFat` itself is still the Navy number, and only that
+  is mirrored to Health.
+- **Glossary:** Trends' "?" sheet lists *Composition-adjusted* and *Recomp
+  signal*, only for users with the flag.
+- **Usage signal:** `composition_view`, one per Trends focus while the line is
+  shown. Like every event it is in the catalogue, the rules' closed field list
+  and the rules spec, and the rules deploy before the OTA; otherwise the whole
+  day's flush is rejected.
+- Still the owner's to do: a native-speaker read of the es-PR / pt-BR copy, and
+  watching the weekly reminder fire on a real phone.
 
 **Not modelled, by decision (2026-10-04): trend-weight error.** Rough estimate, assuming
 ~1 lb daily noise and near-daily weigh-ins: about ±0.5 lb at each end → ±12 kcal/day at

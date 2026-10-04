@@ -116,7 +116,7 @@ export function RecompCard({
   }, []);
 
   async function toggle(on: boolean) {
-    const next = on ? defaultTapeReminder(lastTapeAt, new Date()) : null;
+    const next = on ? defaultTapeReminder(lastTapeAt, new Date(), female) : null;
     const ok = await setTapeReminder(next, t);
     setDenied(!ok);
     if (ok) setReminder(next);

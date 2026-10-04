@@ -9,6 +9,9 @@ jest.mock('@/lib/reminders', () => ({
 }));
 
 import { CompositionLine, RecompCard } from '@/components/CompositionCards';
+import { NumbersGlossary } from '@/components/NumbersGlossary';
+import { fireEvent, waitFor } from '@testing-library/react-native';
+import { setTapeReminder } from '@/lib/reminders';
 import { FEATURES, isFeatureOn } from '@/lib/features';
 
 /**
@@ -134,6 +137,26 @@ describe('RecompCard', () => {
       <RecompCard signal={{ status: 'insufficient', reason: 'tapes', tapes: 2 }} unitSystem="us" lastTapeAt={null} />,
     );
     expect(screen.getByTestId('recomp-insufficient').props.children).toBe('Needs 3 waist tapes in the last 6 weeks (you have 2).');
+  });
+});
+
+describe('the reminder for women', () => {
+  it('turning it on from a female profile stores the hip wording', async () => {
+    const screen = await render(
+      <RecompCard signal={{ status: 'insufficient', reason: 'tapes', tapes: 0 }} unitSystem="us" lastTapeAt={null} female />,
+    );
+    await fireEvent(screen.getByRole('switch'), 'valueChange', true);
+    await waitFor(() => expect(setTapeReminder).toHaveBeenCalledWith(expect.objectContaining({ hip: true }), expect.any(Function)));
+  });
+});
+
+describe('the Trends glossary', () => {
+  it('lists the composition terms only where the line is shown', async () => {
+    const on = await render(<NumbersGlossary visible onClose={() => undefined} composition />);
+    expect(on.getByText('Composition-adjusted')).toBeTruthy();
+    expect(on.getByText('Recomp signal')).toBeTruthy();
+    const off = await render(<NumbersGlossary visible onClose={() => undefined} />);
+    expect(off.queryByText('Composition-adjusted')).toBeNull();
   });
 });
 

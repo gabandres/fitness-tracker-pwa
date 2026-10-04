@@ -104,6 +104,13 @@ export const USAGE_EVENTS = [
    * where Ignia sits (`STATUS.md` §3, retention lever 3).
    */
   'log_secs',
+  /**
+   * Trends was opened with the composition-adjusted line on screen (ADR-0043)
+   * — one per Trends focus, only while `FEATURES.compositionMaintenance` is on
+   * for the user. Added 2026-10-04 so that, before the flag goes past the
+   * owner, there is a number for whether anyone looks at it.
+   */
+  'composition_view',
 ] as const;
 
 export type UsageEvent = (typeof USAGE_EVENTS)[number];

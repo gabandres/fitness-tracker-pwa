@@ -1133,6 +1133,7 @@ service cloud.firestore {
         'log_queued_offline', 'repeat_yesterday', 'quick_add', 'photo_scan',
         'barcode_scan', 'voice_log', 'coach_ask', 'weight_logged',
         'body_hero_tap', 'workout_finished', 'reminders_on', 'log_secs',
+        'composition_view',
       ];
     }
 
@@ -1179,6 +1180,7 @@ service cloud.firestore {
         && validUsageCount(d, 'body_hero_tap')
         && validUsageCount(d, 'workout_finished')
         && validUsageCount(d, 'reminders_on')
+        && validUsageCount(d, 'composition_view')
         && validUsageSeconds(d, 'log_secs');
     }
 

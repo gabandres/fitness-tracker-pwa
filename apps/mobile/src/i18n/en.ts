@@ -352,6 +352,10 @@ export const en = {
   'numbers.glossary.trend': 'Weight trend',
   'numbers.glossary.trendBody':
     'The direction your weight is moving per week, smoothed. A single heavy morning is mostly water and does not move it much — which is the point of a trend.',
+  'numbers.glossary.composition': 'Composition-adjusted',
+  'numbers.glossary.compositionBody': 'A second maintenance number, shown under the measured one and never used for your target. It counts fat and lean mass separately — fat stores about five times more energy per kilogram — using body fat from your tapes or a DXA scan. From tapes it stays Low confidence, because a tape is too rough to read small changes in body fat. Two DXA scans a month or more apart can reach Medium or High.',
+  'numbers.glossary.recomp': 'Recomp signal',
+  'numbers.glossary.recompBody': 'Your weight trend over the last 4 weeks next to your waist trend over the last 6. Waist down while weight holds steady suggests fat lost and lean mass (including water) gained. A change of about a quarter inch (half a centimetre) is within tape noise, and the card says so when it is.',
   'numbers.glossaryOpen': 'What these numbers mean',
   // The browse sheet's own title. Every other mode announced itself and this
   // one — the one most people land on — opened with a bare search field.
@@ -516,6 +520,9 @@ export const en = {
   'body.bfNeedMeasurement': 'Add a waist + neck measurement',
   'body.bfNeedFields': 'Add a {fields} measurement',
   'body.navyAccuracy': 'A tape estimate — within about 3–4% of a DEXA scan.',
+  'body.measuredDxa': 'Measured · DXA · {date}',
+  'body.measuredOther': 'Measured · {date}',
+  'body.navyAlso': 'Tape estimate: {pct}%',
   'body.measurements': 'Measurements',
   'body.add': '+ Add',
   'body.showAll': 'Show all',
@@ -1244,6 +1251,7 @@ export const en = {
   'reminder.weighInBody': "It's been {n} days — a quick weigh-in keeps your calorie target accurate.",
   'reminder.tapeTitle': 'Tape day',
   'reminder.tapeBody': 'Before breakfast: waist at the navel and neck, 3 readings each — log the median.',
+  'reminder.tapeBodyHip': 'Before breakfast: waist at its narrowest, hips at their widest, and neck — 3 readings each, log the median.',
   'reminder.lapsed3Title': 'Your plan is still here',
   'reminder.lapsed3Body': "Log one meal when you're ready — that's all it takes to pick back up.",
   'reminder.lapsed7Title': "Whenever you're ready",

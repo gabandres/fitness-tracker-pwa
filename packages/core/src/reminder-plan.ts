@@ -317,6 +317,8 @@ export function resolveMealReminders(
 
 export const TAPE_TITLE_KEY = 'reminder.tapeTitle';
 export const TAPE_BODY_KEY = 'reminder.tapeBody';
+/** Women's Navy set adds the hip (and measures the waist at its narrowest). */
+export const TAPE_BODY_HIP_KEY = 'reminder.tapeBodyHip';
 /** Morning, before eating — the protocol the composition estimate assumes. */
 export const TAPE_HOUR = 7;
 export const TAPE_MINUTE = 0;
@@ -329,6 +331,9 @@ export interface TapeReminderSetting {
   weekday: number;
   hour: number;
   minute: number;
+  /** Fixed when the reminder is turned on, from the profile's sex. Absent on
+   *  settings stored before 2026-10-04, which read as false. */
+  hip?: boolean;
 }
 
 /**
@@ -352,8 +357,8 @@ export interface TapeReminderPlan {
  * evenly spaced — a regression over tapes bunched at one end is a worse
  * regression), else today's weekday; 07:00, before breakfast.
  */
-export function defaultTapeReminder(lastTape: Date | null, now: Date): TapeReminderSetting {
-  return { weekday: (lastTape ?? now).getDay() + 1, hour: TAPE_HOUR, minute: TAPE_MINUTE };
+export function defaultTapeReminder(lastTape: Date | null, now: Date, hip = false): TapeReminderSetting {
+  return { weekday: (lastTape ?? now).getDay() + 1, hour: TAPE_HOUR, minute: TAPE_MINUTE, ...(hip ? { hip: true } : {}) };
 }
 
 /** The plan for a setting, or null when it is off or malformed. */
@@ -362,5 +367,6 @@ export function planTapeReminder(setting: TapeReminderSetting | null | undefined
   const { weekday, hour, minute } = setting;
   const okInt = (v: number, lo: number, hi: number) => Number.isInteger(v) && v >= lo && v <= hi;
   if (!okInt(weekday, 1, 7) || !okInt(hour, 0, 23) || !okInt(minute, 0, 59)) return null;
-  return { id: 'tape', kind: 'weekly', weekday, hour, minute, titleKey: TAPE_TITLE_KEY, bodyKey: TAPE_BODY_KEY };
+  const bodyKey = setting.hip === true ? TAPE_BODY_HIP_KEY : TAPE_BODY_KEY;
+  return { id: 'tape', kind: 'weekly', weekday, hour, minute, titleKey: TAPE_TITLE_KEY, bodyKey };
 }

@@ -27,7 +27,24 @@ const SECTIONS: GlossarySection[] = [
   },
 ];
 
-export function NumbersGlossary({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+/** The composition terms (ADR-0043), listed only where that line is shown. */
+const COMPOSITION_TERMS = ['composition', 'recomp'];
+
+export function NumbersGlossary({
+  visible,
+  onClose,
+  composition = false,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  /** `FEATURES.compositionMaintenance` is on for this user. */
+  composition?: boolean;
+}) {
+  const sections = composition
+    ? SECTIONS.map((s) =>
+        s.title === 'numbers.glossary.sectionTrends' ? { ...s, terms: [...s.terms, ...COMPOSITION_TERMS] } : s,
+      )
+    : SECTIONS;
   return (
     <Glossary
       visible={visible}
@@ -35,7 +52,7 @@ export function NumbersGlossary({ visible, onClose }: { visible: boolean; onClos
       titleKey="numbers.glossary.title"
       introKey="numbers.glossary.intro"
       prefix="numbers.glossary"
-      sections={SECTIONS}
+      sections={sections}
       testID="numbers-glossary-title"
     />
   );

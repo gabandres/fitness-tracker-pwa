@@ -31,6 +31,8 @@ const mockMeasurements: Measurement[] = [
 
 jest.mock('@/lib/analytics', () => ({ track: jest.fn() }));
 
+let mockBodyFatShown: unknown = { source: 'navy', pct: 18.2 };
+
 jest.mock('@/hooks/useBody', () => ({
   useBody: () => ({
     loading: false,
@@ -42,6 +44,7 @@ jest.mock('@/hooks/useBody', () => ({
     measurements: mockMeasurements,
     bodyFat: 18.2,
     bodyFatGap: null,
+    bodyFatShown: mockBodyFatShown,
     addMeasurement: mockAdd,
     updateMeasurement: mockUpdate,
     deleteMeasurement: mockDelete,
@@ -66,6 +69,26 @@ beforeEach(() => {
   mockAdd.mockClear();
   mockUpdate.mockClear();
   mockDelete.mockClear();
+});
+
+describe('Body screen — the body-fat card (ADR-0043)', () => {
+  afterEach(() => {
+    mockBodyFatShown = { source: 'navy', pct: 18.2 };
+  });
+
+  it('shows the Navy estimate when no newer measured value exists', async () => {
+    const screen = await render(<BodyScreen />);
+    expect(screen.getByTestId('bodyfat-value').props.children).toBe('18.2%');
+    expect(screen.getByTestId('bodyfat-source').props.children).toBe('U.S. Navy estimate');
+  });
+
+  it('a newer DXA wins — with its method and date, and the tape estimate kept beside it', async () => {
+    mockBodyFatShown = { source: 'measured', pct: 18.4, method: 'dxa', date: new Date(2026, 9, 3, 7) };
+    const screen = await render(<BodyScreen />);
+    expect(screen.getByTestId('bodyfat-value').props.children).toBe('18.4%');
+    expect(screen.getByTestId('bodyfat-source').props.children).toBe('Measured · DXA · Oct 3');
+    expect(screen.getByText('Tape estimate: 18.2%')).toBeTruthy();
+  });
 });
 
 describe('Body screen — measurements', () => {
