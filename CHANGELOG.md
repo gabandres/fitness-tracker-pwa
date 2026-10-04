@@ -4,6 +4,31 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-10-04 — Composition review fixes: per-method fit, live tape-reminder gate, loading states (ADR-0043)
+
+- **Delivery**: commit `7da7bc42`, no rules change (only the rules spec and a
+  new rules↔core parity spec). OTAs from `ignia-mac`: **iOS group
+  `65e194a5-f8e0-47cc-b89b-f6a2ba408a3a`** on `1b239e44…` (build 67, gate
+  matched), **Android group `b438cf18-d030-426e-b09a-b443d8c4ea0a`** on
+  `3e596c87…` (vc 46, runtime pinned then reverted). No `WHATS_NEW_VERSION`
+  bump (admin-only).
+- **Mixed mode reads change within a method**: one slope shared across
+  methods, an intercept per method, methods read ≥ 2 times only. A single fit
+  through DXA/other/Navy levels turned the ~6-point method gap into fat change
+  (one DXA on the last tape day: 1,640 instead of ~2,000; on the first, 2,365).
+  Tape-only windows are unchanged.
+- **Body card** reads per day like the estimator (hip on its own row; DXA over
+  other); flag off, no measured %BF on the card or in the list. A method with
+  no % now blocks save with a hint.
+- **Trends**: no "you have 0 tapes" while measurements load or the listener
+  fails; `composition_view` once per focus in which the line is shown.
+- **Tape reminder**: flag off cancels it but keeps the setting; hip wording
+  follows the live profile; cleared on any signed-out verdict; reminder and
+  meal-switch failures are reported instead of swallowed. Time from the
+  setting, "every {day}".
+- **Verified**: core 1,851 + typecheck; mobile tsc + jest 1,162; rules 156
+  (emulator) + parity 10; iOS + Android export within budget. Not device-QA'd.
+
 ## 2026-10-04 — Body card shows measured body fat; composition glossary, view counter, women's reminder (ADR-0043)
 
 - **Delivery**: commit `4895b9d1`. Rules deployed FIRST (`composition_view`
