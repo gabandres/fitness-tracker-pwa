@@ -31,7 +31,7 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 | **Cloud Functions / rules** | Deployed, project `fitness-tracker-gb-1775407101` |
 | **Photo-scan** | **ON and free to everyone, both platforms** (ADR-0017), resolving macros against the bundled USDA database (ADR-0019). Tiering is server-side only: `dailyQuota` 3/day free · 30/day paid, plus the `photo` `spendCeiling` |
 | **Food search** | Bundled USDA DB, 13,272 foods, plus the restaurant corpus (25,126 items / 91 chains, ADR-0027). **Text search makes NO network call** (since 2026-08-19; Open Food Facts serves **barcode only** — its 10 req/min search cap cannot host typeahead behind one egress IP). Servings ship with each hit. `docs/research/off-branded-ingest.md` scopes getting branded text results back |
-| **OTA (EAS Update)** | Live. `runtimeVersion: {"policy":"fingerprint"}`, channels match build profiles. Free tier 1,000 MAU. **iOS OPEN** on `1b239e44…` (build 67) since 2026-09-28; newest group `dbe26c08…`. **Android OPEN** on `3e596c87…` (vc 46) since 2026-09-28; newest group `605679ee…` — published with `runtimeVersion` PINNED to the artifact value in `app.json` and reverted, because the Mac tree never reproduces the Android artifact hash (ledger row). vc 45 users (`15c1cfc8…`) are unreachable from here; the Play review of 46 is their delivery. Reminder: `app.json` is hashed whole, so a version string bump moves BOTH fingerprints (`437a90ce` did). **"Published" is not "delivered":** a user gets it on the launch AFTER the download. **This row is a POINTER: `apps/mobile/AGENTS.md` is the per-publish record and it wins.** Re-check with `npx eas update:list --branch production --limit 3` |
+| **OTA (EAS Update)** | Live. `runtimeVersion: {"policy":"fingerprint"}`, channels match build profiles. Free tier 1,000 MAU. **iOS OPEN** on `1b239e44…` (build 67) since 2026-09-28; newest group `dabeaffa…` (2026-10-04, S19). **Android OPEN** on `3e596c87…` (vc 46) since 2026-09-28; newest group `d13b2d5e…` (2026-10-04, S19) — published with `runtimeVersion` PINNED to the artifact value in `app.json` and reverted, because the Mac tree never reproduces the Android artifact hash (ledger row). vc 45 users (`15c1cfc8…`) are unreachable from here; the Play review of 46 is their delivery. Reminder: `app.json` is hashed whole, so a version string bump moves BOTH fingerprints (`437a90ce` did). **"Published" is not "delivered":** a user gets it on the launch AFTER the download. **This row is a POINTER: `apps/mobile/AGENTS.md` is the per-publish record and it wins.** Re-check with `npx eas update:list --branch production --limit 3` |
 | **`app-version.json`** | **Self-driving since 2026-09-05** — served from Firestore `public/appVersion` by the `appVersionJson` rewrite, refreshed hourly by `hourlyTasks` (Android from the Play tracks API as `647810616435-compute@…`, invited read-only to the org Play Console; iOS from Apple's public lookup) and on demand from `/admin` → System → **Sync now**. No static file, no deploy, no secret; `npm run doctor` compares the LIVE URL with both stores. See the Play row for the in-review wrinkle |
 
 **The runtime fingerprints, and the three traps around them.**
@@ -74,8 +74,8 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 ## 2. Merged, on `main`, and not delivered anywhere
 
 **Everything on `main` is delivered on iOS** (build 67 / 1.2.4 runtime
-`1b239e44…`, newest OTA `ef8a7718…` at `f9642d92`) **and published for Android
-vc 46** (runtime `3e596c87…`, newest OTA `677fea0e…` at `f9642d92`). What
+`1b239e44…`, newest OTA `dabeaffa…` at `4773b4b1`) **and published for Android
+vc 46** (runtime `3e596c87…`, newest OTA `d13b2d5e…` at `4773b4b1`). What
 Android production users actually run is still vc 45 (`15c1cfc8…`) until Play
 clears 46 — they hold neither `2227698c` nor either 09-28 ship, and **no OTA can
 reach them from this Mac** (the Windows-built runtime). Do not publish for vc 45;

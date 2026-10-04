@@ -840,6 +840,34 @@ construction through `lib/motion.tsx`; durable offline-first adds with honest
 dedupe; validation that explains itself from one source of truth; empty states
 that teach; the PREVIOUS column with one-tap accept in the logger.
 
+## 📏 S19 — Today + add-meal re-scored to 9+ (2026-10-04)
+
+Same rubric as §S18. Three parallel reviews (Today; add-meal with competitor
+tap counts; a11y + platform with computed contrast), then seven fix rounds, each
+re-scored by a fresh independent read-only reviewer.
+
+| Pass | Today | Add-meal |
+|---|---|---|
+| Baseline (3 reviews) | 74.5 | 68.6 |
+| Rounds 1 → 6 | 82.3 · 84.3 · 86.8 · 88.8 · 89.6 · 90.4 | 77.0 · 80.5 · 84.5 · 87.4 · 88.8 · 89.6 |
+| **Shipped** (`4773b4b1`) | **91.1** | **90.3** |
+
+Tap counts at ship (Ignia / best competitor): re-log yesterday's meal 1 / 3,
+fix a serving just logged 3 / 3, barcode 3 / 3, quick add 3–4 / 3–4, saved meal
+2 / 3, photo plate 5 / 4–5. `CHANGELOG.md` 2026-10-04 has the delivery.
+
+**The remaining gap to 9.5 is native, not JS** (every reviewer agreed): native
+iOS 26 sheet detents / Liquid Glass, `UIContextMenu` with a row preview, Android
+predictive back (`predictiveBackGestureEnabled` in `app.json` — moves both
+fingerprints). These cap Platform at ~8.6. Open, owner's call: storing a gram
+basis on logged rows (needs a rules deploy) so an edit can re-weigh; a
+what's-new for this ship.
+
+**Device-QA first** (nothing here was run on a phone): in-app camera
+(`onCameraReady` + 2 s fallback), the per-field iOS KeyboardBar, a confirm
+presented from inside an open sheet, `sendAccessibilityEvent` focus moves, the
+in-panel toast's elevation on Android.
+
 ## 5. Notes for future additions
 
 - When adding a new surface, check it against: (a) does copy work for a first-time user; (b) is every icon-only button labelled; (c) does it announce state changes via `aria-live`.

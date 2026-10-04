@@ -4,6 +4,36 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-10-04 — Today + add-meal UX overhaul: every write undoable, in-app camera, accessibility (UX_AUDIT §S19)
+
+- **Why**: owner asked for UX reviews of Today and the add-meal flow and a score
+  "above 9, very close to 10". Three parallel reviews scored Today 74.5 and
+  add-meal 68.6 on the §S18 rubric; seven fix rounds, each re-scored by a fresh
+  independent reviewer, ended at **Today 91.1 / add-meal 90.3**.
+- **What** (highlights): add receipts "Logged X · N kcal · Edit · Undo" on every
+  add surface (one receipt for batches); Undo on edit, delete, fast end, copies
+  and preset saves; per-meal "From yesterday" chips; long-press menu
+  (ActionSheetIOS / Material bottom menu) + swipe-delete + screen-reader actions;
+  day rollover on resume; no red ring over target; search ranks My Foods and
+  recents first; grams field + Scale chips; barcode and camera buttons in the
+  search field (barcode 3 taps, photo plate 7 → 5 with the new in-app
+  viewfinder); discard confirm; confirms and toasts hosted inside the open sheet
+  (iOS cannot present a modal over a presenting controller); iOS announcements
+  (RN live regions are Android-only); iOS ‹ › Done bar on number pads; contrast
+  tokens (`lineStrong`, light danger/info to AA). Offline queue: serialised
+  read-modify-writes, Undo tombstones, parked edits rewrite the queue (PendingLog
+  carries `note`, keeps `source`), flush re-reads and keeps mid-flight edits.
+- **Delivery**: commit `4773b4b1`. OTAs from `ignia-mac`: iOS
+  `dabeaffa-bef0-4c49-8115-7d606ba6a630` on `1b239e44…` (build 67, gate matched);
+  Android `d13b2d5e-35cb-415d-aad8-8647399f3cb0` on `3e596c87…` (vc 46, runtime
+  pinned then reverted). No rules or functions change. No `WHATS_NEW_VERSION` bump.
+- **Verified**: core 1,852 + typecheck, mobile tsc + jest 157 suites / 1,297,
+  iOS + Android `expo export`; iOS perf budget re-baselined (+49 KB gz from this
+  work over a month of drift; HEAD alone was +4.69%), Android within. **Not
+  device-QA'd** — the in-app camera, KeyboardBar, nested confirm-in-sheet and
+  VoiceOver focus moves are the paths a phone should confirm first. Maestro
+  `06-scan-intro` / `scan-repeat` updated for the camera-first scan screen.
+
 ## 2026-10-04 — "Scan meal" in the food sheet's More ways list, with a what's-new
 
 - **Why**: since the 09-28 tap-to-log change (`16cdb4cf`, UX_AUDIT S18-18) the
