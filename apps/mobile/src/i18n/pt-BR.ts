@@ -214,6 +214,9 @@ export const ptBR = {
   'whatsNew.title': 'Novidades',
   'whatsNew.subtitle': 'O que mudou desde a última vez que você abriu o Ignia.',
   'whatsNew.continue': 'Continuar',
+  'whatsNew.scanDoor.title': 'Escaneie uma refeição pela busca',
+  'whatsNew.scanDoor.body':
+    'Toque em +, depois Mais formas → Escanear refeição para registrar uma refeição por foto. Segurar o + também abre.',
   'whatsNew.typeTime.title': 'Defina o horário ao registrar',
   'whatsNew.typeTime.body':
     'Todo registro novo agora tem uma linha de Horário. Toque no horário e digite — 8:15, 18h30 — em vez de ir passo a passo.',

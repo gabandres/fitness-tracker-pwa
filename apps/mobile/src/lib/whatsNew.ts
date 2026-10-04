@@ -144,7 +144,14 @@ import type { I18nKey } from '@/i18n';
 // Bumped 2026-10-03: the Time row is on every add and takes a typed time, and
 // entries carry a note. Same-minute rows now keep their logged order — a
 // correction, so not listed.
-export const WHATS_NEW_VERSION = '2026-10-03-notes-time';
+// Bumped 2026-10-04, on the owner's instruction, for "Scan meal" in the food
+// sheet's More ways list. Since the 09-28 tap-to-log change the camera was
+// reachable only by holding +, and the owner could not find it — the people
+// who stopped scanning since are exactly who this has to reach. The 10-03 rows
+// are KEPT, against this file's rewrite-the-list rule: they are one day old
+// and fire on the second launch, so many users have not seen them yet, and a
+// bump would otherwise erase them unread.
+export const WHATS_NEW_VERSION = '2026-10-04-scan-door';
 
 const KEY = 'whatsNew.seen';
 
@@ -174,6 +181,7 @@ export interface WhatsNewItem {
 }
 
 export const WHATS_NEW_ITEMS: readonly WhatsNewItem[] = [
+  { icon: 'camera-outline', titleKey: 'whatsNew.scanDoor.title', bodyKey: 'whatsNew.scanDoor.body' },
   { icon: 'time-outline', titleKey: 'whatsNew.typeTime.title', bodyKey: 'whatsNew.typeTime.body' },
   { icon: 'create-outline', titleKey: 'whatsNew.notes.title', bodyKey: 'whatsNew.notes.body' },
 ];

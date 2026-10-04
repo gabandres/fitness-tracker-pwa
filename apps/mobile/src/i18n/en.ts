@@ -249,6 +249,9 @@ export const en = {
   'whatsNew.continue': 'Continue',
   // One item per thing a person will NOTICE, in the order they meet it. Body
   // sentences carry the number that makes the feature usable, not a pitch.
+  'whatsNew.scanDoor.title': 'Scan a meal from food search',
+  'whatsNew.scanDoor.body':
+    'Tap +, then More ways → Scan meal to log a meal from a photo. Holding + opens it too.',
   'whatsNew.typeTime.title': 'Set the time as you log',
   'whatsNew.typeTime.body':
     'Every new entry has a Time row now. Tap the time and type it — 8:15, 6:30pm — instead of stepping.',

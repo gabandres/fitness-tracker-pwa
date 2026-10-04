@@ -218,6 +218,9 @@ export const esPR: Record<I18nKey, string> = {
   'whatsNew.title': 'Novedades',
   'whatsNew.subtitle': 'Lo que cambió desde la última vez que abriste Ignia.',
   'whatsNew.continue': 'Continuar',
+  'whatsNew.scanDoor.title': 'Escanea una comida desde la búsqueda',
+  'whatsNew.scanDoor.body':
+    'Toca +, luego Más opciones → Escanear comida para registrar una comida con una foto. Mantener presionado + también lo abre.',
   'whatsNew.typeTime.title': 'Pon la hora al registrar',
   'whatsNew.typeTime.body':
     'Cada entrada nueva tiene ahora una fila de Hora. Toca la hora y escríbela — 8:15, 18:30 — en vez de ir paso a paso.',
