@@ -4,6 +4,27 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-10-04 — Composition view: 182-day lookback by time; women's hip tapes (ADR-0043)
+
+- **Delivery**: commit `de7ead6a`, no rules change (reads only). OTAs from
+  `ignia-mac`: **iOS group `618b7920-93eb-4197-9eed-9250ffba1f45`** on
+  `1b239e44…` (build 67, gate matched), **Android group
+  `d6f084b9-1487-4621-8c1b-d377e4077b7f`** on `3e596c87…` (vc 46, runtime pinned
+  then reverted). Admin-only, no `WHATS_NEW_VERSION` bump.
+- Trends' measurements listener now reads the last 183 days by `timestamp`
+  instead of the newest 80 rows, so a heavy measurer can't push the older DXA
+  scan out and silently drop to the tape estimate. The query needs no index;
+  the same shape was run on prod.
+- `compositionPoints` combines waist / neck / hip per field across a day's
+  rows, so a hip saved on its own row completes a woman's set. A female profile
+  gets "waist + neck + hip" copy and the women's landmarks in the how-to, in all
+  three locales. The tape reminder's notification text still names only waist
+  and neck.
+- Trend-weight error stays out of the interval, by decision; the reasoning is
+  in the ADR.
+- **Verified**: core 1,832 + typecheck, mobile tsc + jest 1,143, iOS export
+  within the perf budget. Not device-checked.
+
 ## 2026-10-03 — Composition-adjusted maintenance, admin-only (ADR-0043)
 
 - **Delivery**: commit `a9f57976`. Rules deployed FIRST (`bodyFatPct` /

@@ -74,8 +74,8 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 ## 2. Merged, on `main`, and not delivered anywhere
 
 **Everything on `main` is delivered on iOS** (build 67 / 1.2.4 runtime
-`1b239e44…`, newest OTA `1ff4aa65…` at `a9f57976`) **and published for Android
-vc 46** (runtime `3e596c87…`, newest OTA `631f3110…` at `a9f57976`). What
+`1b239e44…`, newest OTA `618b7920…` at `de7ead6a`) **and published for Android
+vc 46** (runtime `3e596c87…`, newest OTA `d6f084b9…` at `de7ead6a`). What
 Android production users actually run is still vc 45 (`15c1cfc8…`) until Play
 clears 46 — they hold neither `2227698c` nor either 09-28 ship, and **no OTA can
 reach them from this Mac** (the Windows-built runtime). Do not publish for vc 45;
@@ -84,7 +84,8 @@ the 46 review is the delivery. Functions and rules are deployed.
 The 2026-09-30 and 2026-10-02 fixes went out as OTAs on 2026-10-02 (iOS
 `9a7146d1` on build 67, Android `df784c63` on vc 46; CHANGELOG). 2026-10-03:
 notes + typed time (iOS `692a269d`, Android `13a5cb80`), then ADR-0043's
-admin-only composition view (iOS `1ff4aa65`, Android `631f3110`); rules first.
+admin-only composition view (iOS `1ff4aa65`, Android `631f3110`; 10-04 follow-up
+`618b7920` / `d6f084b9`); rules first.
 
 Re-derive rather than trust this line: `git log --oneline` against the newest
 OTA row in `apps/mobile/docs/fingerprint-ledger.md`, and
