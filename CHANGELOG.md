@@ -4,6 +4,36 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-10-03 — Composition-adjusted maintenance, admin-only (ADR-0043)
+
+- **Delivery**: commit `a9f57976`. Rules deployed FIRST (`bodyFatPct` /
+  `bodyFatMethod`; released 2026-10-04T03:11:32Z, live ruleset read back
+  byte-identical to `firestore.rules`), then OTAs from `ignia-mac`: **iOS group
+  `1ff4aa65-845b-4949-8265-a152b1197318`** on `1b239e44…` (build 67, gate
+  matched), **Android group `631f3110-ac56-4295-8620-9837099948ae`** on
+  `3e596c87…` (vc 46, runtime pinned then reverted). `WHATS_NEW_VERSION` not
+  bumped: only the `admin` claim sees it.
+- **What**: Trends shows a composition-adjusted maintenance UNDER the measured
+  number. It uses Navy tapes or a measured %BF, priced at Hall's 9,440 / 1,816
+  kcal/kg, with a seeded 80% interval. It feeds nothing: `dailyTargets` /
+  `calculateTdee` are pinned byte-identical. Also on Trends: a recomp-signal
+  card and an opt-in weekly tape reminder. On Body: a measured body-fat field
+  (DXA / other).
+- **Owner's calls**: DXA-anchored mode added (≥ 2 DXA scans ≥ 28 d apart within
+  182 d → no method error; Medium from ~6 weeks, High from ~12). The 84-day tape
+  cap is kept, so tape-only estimates stay Low.
+- **Pre-ship review fixes**: switching meal reminders off no longer cancels the
+  tape reminder. Reminder scheduling is one queue. Sign-out clears the tape
+  reminder. Trend weight is no longer extrapolated 11+ days past one-sided
+  weigh-ins. Intake starts where the 400-row log cache is complete. The CSV
+  export carries the body-fat pair.
+- **Verified**: core 1,829 + typecheck; mobile tsc + jest 1,140; functions +
+  rules 772 on the emulator; iOS export within the perf budget. On the
+  `Ignia-QA` simulator (QA account, flag forced on in a local bundle only):
+  the insufficient / mixed / DXA-anchored Trends lines, the recomp card, and a
+  Body-tab DXA write through the live rules. The seeded rows were removed.
+  Not seen on the owner's own account or device.
+
 ## 2026-10-03 — Time row on every add + typed time; notes on food entries; same-minute rows keep their order
 
 - **Delivery**: rules deployed first (`firestore:rules`, released

@@ -1,6 +1,7 @@
 # ADR-0043: Composition-adjusted maintenance is shown beside the measured number, never in its place
 
-- **Status:** accepted 2026-10-03 — flag-gated to the owner's account. §Open settled the
+- **Status:** accepted 2026-10-03 — flag-gated to the owner's account; shipped by OTA
+  the same day (iOS `1ff4aa65`, Android `631f3110`, at `a9f57976`). §Open settled the
   same day (§Resolved): DXA-anchored mode added, the 84-day cap kept.
 - **Date:** 2026-10-03
 - **Touches:** `packages/core/src/{body-composition,composition-maintenance,recomp-signal}.ts`
