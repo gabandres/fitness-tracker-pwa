@@ -50,6 +50,7 @@ import {
   clampCutPace,
   clampSleepHours,
   clampWaterFlOz,
+  compareLogsOldestFirst,
   MIDNIGHT,
   type DateKey,
   type DayBoundary,
@@ -279,7 +280,9 @@ export function subscribeRecentLogs(
     {
       next: (snap) => {
         reportSnapshotMeta(snap.metadata.fromCache);
-        cb(oldestFirst(snap.docs.map((d) => toDailyLog(d.id, d.data()))), metaOf(snap));
+        // Re-sorted, not just reversed: Firestore breaks a same-instant tie by
+        // doc id, which is random (`compareLogsOldestFirst`).
+        cb(oldestFirst(snap.docs.map((d) => toDailyLog(d.id, d.data()))).sort(compareLogsOldestFirst), metaOf(snap));
       },
       error: (e) => onError?.(e),
     },
@@ -317,7 +320,7 @@ export async function getLogsForRange(
     limit(maxRows),
   );
   const snap = await getDocs(q);
-  return snap.docs.map((d) => toDailyLog(d.id, d.data()));
+  return snap.docs.map((d) => toDailyLog(d.id, d.data())).sort(compareLogsOldestFirst);
 }
 
 /**

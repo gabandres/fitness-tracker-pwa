@@ -36,7 +36,7 @@ service cloud.firestore {
               'weight', 'calories', 'timestamp',
               'protein', 'carbs', 'fat', 'exerciseCompleted',
               'liftCompleted', 'cardioCompleted',
-              'mealLabel', 'mealType', 'source'
+              'mealLabel', 'mealType', 'source', 'note', 'createdAt'
           ])
           && (!('weight' in data.keys()) ||
               (data.weight is number && data.weight > 0 && data.weight < 1000))
@@ -67,7 +67,13 @@ service cloud.firestore {
           // milestone is awarded on, and a free-text value would let a client
           // bug write provenance nothing produced. Absent is the normal case —
           // every typed meal, every preset, every row older than 2026-09-03.
-          && (!('source' in data.keys()) || data.source in ['photo']);
+          && (!('source' in data.keys()) || data.source in ['photo'])
+          // Free text the user attached; LOG_NOTE_MAX in packages/core.
+          && (!('note' in data.keys()) ||
+              (data.note is string && data.note.size() > 0 && data.note.size() <= 500))
+          // Creation instant, the same-minute ordering tie-break
+          // (`compareLogsOldestFirst`). Client clock, so only typed.
+          && (!('createdAt' in data.keys()) || data.createdAt is timestamp);
     }
 
     // ─── Profile schema ─────────────────────────────────────────

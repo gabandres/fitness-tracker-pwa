@@ -72,7 +72,33 @@ export function toDailyLog(id: string, data: Record<string, unknown>): DailyLog 
     mealLabel: data['mealLabel'] as string | undefined,
     mealType: data['mealType'] as DailyLog['mealType'],
     source: data['source'] as DailyLog['source'],
+    note: typeof data['note'] === 'string' ? data['note'] : undefined,
+    createdAt: isTimestampLike(data['createdAt']) || data['createdAt'] instanceof Date
+      ? toDate(data['createdAt'])
+      : undefined,
   };
+}
+
+/**
+ * Log rows in diary order: by when the food was eaten, then by when the row was
+ * logged, then by id.
+ *
+ * The middle key exists because a time the user sets is minute-precision, so
+ * three breakfast items entered as 8:15 share an instant — and Firestore breaks
+ * that tie by document id, which is random. They listed in a different order
+ * from the one they were typed in (2026-10-03). A row with no `createdAt`
+ * (older than the field) sorts by `date` alone among its ties, ahead of rows
+ * that carry one; the id keeps the result total either way.
+ */
+export function compareLogsOldestFirst(a: DailyLog, b: DailyLog): number {
+  const byDate = a.date.getTime() - b.date.getTime();
+  if (byDate !== 0) return byDate;
+  const ac = a.createdAt?.getTime() ?? -Infinity;
+  const bc = b.createdAt?.getTime() ?? -Infinity;
+  if (ac !== bc) return ac < bc ? -1 : 1;
+  const ai = a.id ?? '';
+  const bi = b.id ?? '';
+  return ai < bi ? -1 : ai > bi ? 1 : 0;
 }
 
 // ─── Body measurements ──────────────────────────────────────────

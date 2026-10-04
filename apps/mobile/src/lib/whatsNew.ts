@@ -141,7 +141,10 @@ import type { I18nKey } from '@/i18n';
 // entry sheet that nobody would find by accident. The same OTA's workout fix
 // (set edits no longer lost to a restart mid-session) is a correction and is
 // deliberately not listed, by the same rule as the 09-28 a11y fixes above.
-export const WHATS_NEW_VERSION = '2026-10-02-meal-time';
+// Bumped 2026-10-03: the Time row is on every add and takes a typed time, and
+// entries carry a note. Same-minute rows now keep their logged order — a
+// correction, so not listed.
+export const WHATS_NEW_VERSION = '2026-10-03-notes-time';
 
 const KEY = 'whatsNew.seen';
 
@@ -171,7 +174,8 @@ export interface WhatsNewItem {
 }
 
 export const WHATS_NEW_ITEMS: readonly WhatsNewItem[] = [
-  { icon: 'time-outline', titleKey: 'whatsNew.mealTime.title', bodyKey: 'whatsNew.mealTime.body' },
+  { icon: 'time-outline', titleKey: 'whatsNew.typeTime.title', bodyKey: 'whatsNew.typeTime.body' },
+  { icon: 'create-outline', titleKey: 'whatsNew.notes.title', bodyKey: 'whatsNew.notes.body' },
 ];
 
 /**

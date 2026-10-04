@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import {
+  LOG_NOTE_MAX,
   MEAL_TYPES,
   type CustomFood,
   type DailyLog,
@@ -22,7 +23,9 @@ import {
   buildMealPreset,
   macroEnergyMismatch,
   mealTypeAfterRetime,
+  parseTimeOfDay,
   scaleCustomFood,
+  setTimeOfDay,
   shiftTimeOfDay,
 } from '@macrolog/core';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
@@ -171,11 +174,19 @@ export function EntrySheet({
   const [carbs, setCarbs] = useState('');
   const [fat, setFat] = useState('');
   const [mealType, setMealType] = useState<MealType | undefined>(undefined);
+  const [note, setNote] = useState('');
   // Editable entry date — lets the user MOVE an entry to another day (shown
-  // only when editing or adding to a specific past day). Plain today-adds keep
-  // the "now" timestamp and hide the row.
+  // only when editing or adding to a specific past day). Plain today-adds hide
+  // the date row.
   const [entryDate, setEntryDate] = useState<Date>(new Date());
   const showDateRow = editing != null || dateKey != null;
+  // The TIME row shows on every form, today-adds included (2026-10-03: a day
+  // logged at night stamped breakfast at 22:00, and fixing it was an add, an
+  // edit and 22 stepper taps). A today-add whose time was never touched still
+  // saves at the moment of Save, not the moment the sheet opened.
+  const [timeTouched, setTimeTouched] = useState(false);
+  // The typed-time field's text while it is open; null when the label shows.
+  const [timeDraft, setTimeDraft] = useState<string | null>(null);
   // Whether the meal chips were tapped in THIS sheet. A time edit re-derives
   // a clock-defaulted slot (`mealTypeAfterRetime`); once the user has picked
   // one by hand, the clock no longer gets a say.
@@ -226,7 +237,10 @@ export function EntrySheet({
     setCarbs(editing?.carbs != null ? String(editing.carbs) : '');
     setFat(editing?.fat != null ? String(editing.fat) : '');
     setMealType(editing?.mealType);
+    setNote(editing?.note ?? '');
     setMealTouched(false);
+    setTimeTouched(false);
+    setTimeDraft(null);
     const openedAt = editing?.date ?? (dateKey ? noonOf(dateKey) : new Date());
     setEntryDate(openedAt);
     setRetimeOrigin({ mealType: editing?.mealType, at: openedAt });
@@ -273,11 +287,31 @@ export function EntrySheet({
    * here or when it was logged, stays put.
    */
   function shiftEntryTime(deltaMinutes: number) {
-    const next = shiftTimeOfDay(entryDate, deltaMinutes, new Date());
+    applyEntryTime(shiftTimeOfDay(entryDate, deltaMinutes, new Date()));
+  }
+
+  function applyEntryTime(next: Date) {
+    setTimeTouched(true);
     if (next.getTime() === entryDate.getTime()) return;
     haptics.tap();
     if (!mealTouched) setMealType(mealTypeAfterRetime(retimeOrigin.mealType, retimeOrigin.at, next));
     setEntryDate(next);
+  }
+
+  /** Commit the typed time (`parseTimeOfDay`: 8:15, 815, 6:30pm). Unreadable
+   *  text is dropped with a warning haptic and the label comes back unchanged —
+   *  the label then shows what WAS understood, which is the confirmation. */
+  function commitTypedTime() {
+    if (timeDraft == null) return;
+    const text = timeDraft;
+    setTimeDraft(null);
+    if (text.trim() === '') return;
+    const parsed = parseTimeOfDay(text);
+    if (!parsed) {
+      haptics.warning();
+      return;
+    }
+    applyEntryTime(setTimeOfDay(entryDate, parsed.hours, parsed.minutes, new Date()));
   }
 
   /** Prefill the manual form from an estimate (search portion, recipe,
@@ -298,6 +332,7 @@ export function EntrySheet({
       setCarbs(src.carbs != null ? String(src.carbs) : '');
       setFat(src.fat != null ? String(src.fat) : '');
       setMealType(undefined);
+      setNote('');
       // Remember the grams-first context so "Save to My Foods" can store a
       // gram-weighted, barcode-deduped food. Tied to these calories so a later
       // edit invalidates it (see saveAsCustomFood).
@@ -344,7 +379,10 @@ export function EntrySheet({
       fat: numOrUndef(fat),
       mealLabel: label.trim() || undefined,
       mealType,
-      timestamp: showDateRow ? entryDate : forDate,
+      // Always passed, empty or not: on an edit, absent CLEARS the stored note
+      // (`toLogPatch`), which is what emptying the field means.
+      note: note.trim() || undefined,
+      timestamp: showDateRow || timeTouched ? entryDate : forDate,
     };
     try {
       await onSave(entry);
@@ -440,6 +478,7 @@ export function EntrySheet({
     setCarbs('');
     setFat('');
     setMealType(undefined);
+    setNote('');
     setPendingServing(null);
     setMode('custom');
   }
@@ -845,41 +884,84 @@ export function EntrySheet({
                     </Field>
                   ) : null}
 
-                  {showDateRow ? (
-                    <Field label={t('entry.time')}>
-                      <View style={styles.dateRow}>
-                        {TIME_STEPS.slice(0, 2).map((st) => (
-                          <TouchableOpacity
-                            key={st.minutes}
-                            style={[styles.dateStep, styles.timeStep]}
-                            onPress={() => shiftEntryTime(st.minutes)}
-                            hitSlop={2}
-                            accessibilityRole="button"
-                            accessibilityLabel={t(st.a11y)}
-                            testID={st.testID}
-                          >
-                            <Text style={styles.timeStepText}>{t(st.label)}</Text>
-                          </TouchableOpacity>
-                        ))}
-                        <Text style={styles.dateLabel} testID="entry-time">
-                          {formatTime(entryDate, locale)}
-                        </Text>
-                        {TIME_STEPS.slice(2).map((st) => (
-                          <TouchableOpacity
-                            key={st.minutes}
-                            style={[styles.dateStep, styles.timeStep]}
-                            onPress={() => shiftEntryTime(st.minutes)}
-                            hitSlop={2}
-                            accessibilityRole="button"
-                            accessibilityLabel={t(st.a11y)}
-                            testID={st.testID}
-                          >
-                            <Text style={styles.timeStepText}>{t(st.label)}</Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    </Field>
-                  ) : null}
+                  <Field label={t('entry.time')}>
+                    <View style={styles.dateRow}>
+                      {TIME_STEPS.slice(0, 2).map((st) => (
+                        <TouchableOpacity
+                          key={st.minutes}
+                          style={[styles.dateStep, styles.timeStep]}
+                          onPress={() => shiftEntryTime(st.minutes)}
+                          hitSlop={2}
+                          accessibilityRole="button"
+                          accessibilityLabel={t(st.a11y)}
+                          testID={st.testID}
+                        >
+                          <Text style={styles.timeStepText}>{t(st.label)}</Text>
+                        </TouchableOpacity>
+                      ))}
+                      {timeDraft != null ? (
+                        <TextInput
+                          style={[styles.dateLabel, styles.timeInput]}
+                          value={timeDraft}
+                          onChangeText={setTimeDraft}
+                          // Done blurs a single-line field (`blurOnSubmit`),
+                          // so blur is the one commit — both would apply twice.
+                          onBlur={commitTypedTime}
+                          autoFocus
+                          selectTextOnFocus
+                          placeholder={t('entry.timeTypePlaceholder')}
+                          placeholderTextColor={colors.faint}
+                          keyboardType={Platform.OS === 'ios' ? 'numbers-and-punctuation' : 'default'}
+                          autoCorrect={false}
+                          autoCapitalize="none"
+                          returnKeyType="done"
+                          maxLength={10}
+                          maxFontSizeMultiplier={1.4}
+                          accessibilityLabel={t('entry.timeTypeA11y')}
+                          testID="entry-time-input"
+                        />
+                      ) : (
+                        <TouchableOpacity
+                          style={styles.timeLabelTap}
+                          onPress={() => setTimeDraft('')}
+                          accessibilityRole="button"
+                          accessibilityLabel={formatTime(entryDate, locale)}
+                          accessibilityHint={t('entry.timeTypeA11y')}
+                          testID="entry-time-tap"
+                        >
+                          <Text style={[styles.dateLabel, styles.timeLabelText]} testID="entry-time">
+                            {formatTime(entryDate, locale)}
+                          </Text>
+                          <Text style={styles.timeTapHint}>{t('entry.timeTapHint')}</Text>
+                        </TouchableOpacity>
+                      )}
+                      {TIME_STEPS.slice(2).map((st) => (
+                        <TouchableOpacity
+                          key={st.minutes}
+                          style={[styles.dateStep, styles.timeStep]}
+                          onPress={() => shiftEntryTime(st.minutes)}
+                          hitSlop={2}
+                          accessibilityRole="button"
+                          accessibilityLabel={t(st.a11y)}
+                          testID={st.testID}
+                        >
+                          <Text style={styles.timeStepText}>{t(st.label)}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </Field>
+
+                  <Field label={t('entry.note')}>
+                    <TextInputBase
+                      style={[styles.input, styles.noteInput]}
+                      placeholder={t('entry.notePlaceholder')}
+                      value={note}
+                      onChangeText={setNote}
+                      multiline
+                      maxLength={LOG_NOTE_MAX}
+                      testID="entry-note"
+                    />
+                  </Field>
 
                   {canSavePreset ? (
                     <TouchableOpacity style={styles.savePreset} onPress={saveAsPreset} hitSlop={8} accessibilityRole="button" testID="save-preset">
@@ -1109,6 +1191,11 @@ const createStyles = ({ scheme, colors, shadow }: Theme) => StyleSheet.create({
   dateStepDisabled: { opacity: 0.4 },
   dateStepText: { fontSize: font.h3, color: colors.ink, fontWeight: '700' },
   dateLabel: { flex: 1, textAlign: 'center', fontSize: font.body, color: colors.ink, fontWeight: '700' },
+  timeLabelTap: { flex: 1, alignItems: 'center', minHeight: 40, justifyContent: 'center' },
+  timeLabelText: { flex: 0 },
+  timeTapHint: { fontSize: font.tiny, color: colors.faint },
+  timeInput: { minHeight: 40, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, backgroundColor: colors.inputBg, paddingVertical: 0 },
+  noteInput: { minHeight: 72, paddingTop: space.sm, paddingBottom: space.sm, textAlignVertical: 'top' },
   actions: { flexDirection: 'row', gap: space.md, paddingTop: space.md, alignItems: 'center' },
   delete: { paddingHorizontal: space.lg, paddingVertical: space.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.danger },
   deleteText: { color: colors.danger, fontWeight: '700', fontSize: font.body },

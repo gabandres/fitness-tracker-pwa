@@ -67,7 +67,18 @@ export interface DailyLog {
   mealType?: MealType;
   /** Provenance, when there is any. See {@link LogSource}. */
   source?: LogSource;
+  /** Free text the user attached ("weighed", "logged high"). At most
+   *  {@link LOG_NOTE_MAX} characters; absent when there is none. */
+  note?: string;
+  /** When the row was CREATED, as opposed to `date`, the time the food was
+   *  eaten. Only a tie-break: rows sharing a minute list in the order they were
+   *  logged ({@link compareLogsOldestFirst}). Absent on rows older than
+   *  2026-10-04 and on rows written by builds that predate it. */
+  createdAt?: Date;
 }
+
+/** Longest note a log row may carry — `isValidLog` in firestore.rules says the same. */
+export const LOG_NOTE_MAX = 500;
 
 /** Shape passed to addLog / updateLog — the fields the user submits. */
 export interface LogEntry {
@@ -82,6 +93,13 @@ export interface LogEntry {
   timestamp?: Date; // for undo-restore at original time
   /** Set only by the photo-scan path. See {@link LogSource}. */
   source?: LogSource;
+  /** See {@link DailyLog.note}. On an EDIT, absent means "no note" and clears
+   *  a stored one — the entry sheet always passes the field. */
+  note?: string;
+  /** Creation instant to keep — passed only by undo-restore, so a restored
+   *  row returns to its old place among same-minute rows. New rows are
+   *  stamped by the serializer. */
+  createdAt?: Date;
 }
 
 // ─── Measurement types ──────────────────────────────────────────

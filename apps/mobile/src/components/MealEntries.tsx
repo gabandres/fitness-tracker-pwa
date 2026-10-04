@@ -92,6 +92,11 @@ export function MealEntries({
                   <View style={styles.entryMain}>
                     <Text style={styles.entryLabel}>{log.mealLabel || t('today.entry')}</Text>
                     <Text style={styles.entryMacros}>{sub || '—'}</Text>
+                    {log.note ? (
+                      <Text style={styles.entryNote} numberOfLines={2} testID={`entry-note-${log.id}`}>
+                        {log.note}
+                      </Text>
+                    ) : null}
                   </View>
                   <Text style={styles.entryKcal}>{formatNumber(log.calories, locale)}</Text>
                 </PressScale>
@@ -125,5 +130,6 @@ const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   entryMain: { flex: 1, gap: 2 },
   entryLabel: { fontSize: font.body, fontWeight: '600', color: colors.ink },
   entryMacros: { fontSize: font.small, color: colors.muted },
+  entryNote: { fontSize: font.small, color: colors.faint, fontStyle: 'italic' },
   entryKcal: { fontSize: font.body, fontWeight: '700', color: colors.ink, marginLeft: space.md },
 });

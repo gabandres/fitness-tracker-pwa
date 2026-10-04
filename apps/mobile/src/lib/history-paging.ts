@@ -1,4 +1,4 @@
-import { type DailyLog, type DayBoundary, LOG_WINDOW_ROWS, dayKeyAt } from '@macrolog/core';
+import { type DailyLog, type DayBoundary, LOG_WINDOW_ROWS, compareLogsOldestFirst, dayKeyAt } from '@macrolog/core';
 
 /**
  * Paging the History calendar back past the 400-row window (UX_AUDIT S18-13).
@@ -97,5 +97,5 @@ export function mergeLogs(
   // A row with no id cannot be deduplicated; keep it as-is (ledger rows always
   // carry one, so this is a type accommodation, not a real path).
   const out = [...byId.values(), ...windowLogs.filter((l) => !l.id)];
-  return out.sort((a, b) => a.date.getTime() - b.date.getTime());
+  return out.sort(compareLogsOldestFirst);
 }

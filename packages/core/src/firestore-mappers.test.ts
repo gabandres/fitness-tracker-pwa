@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  compareLogsOldestFirst,
   isTimestampLike,
   oldestFirst,
   toCustomFood,
@@ -55,6 +56,16 @@ describe('oldestFirst', () => {
 
 describe('toDailyLog', () => {
   const date = new Date('2026-02-01T12:00:00Z');
+
+  it('reads note and createdAt, and ignores a malformed one', () => {
+    const made = new Date('2026-02-01T22:00:00Z');
+    const log = toDailyLog('n', { calories: 1, timestamp: stamp(date), note: 'weighed', createdAt: stamp(made) });
+    expect(log.note).toBe('weighed');
+    expect(log.createdAt).toEqual(made);
+    const bad = toDailyLog('m', { calories: 1, timestamp: stamp(date), note: 7, createdAt: 'yesterday' });
+    expect(bad.note).toBeUndefined();
+    expect(bad.createdAt).toBeUndefined();
+  });
 
   it('maps every field and converts timestamp → date', () => {
     const log = toDailyLog('abc', {
@@ -193,5 +204,32 @@ describe('toDomainProfile / toDomainProfilePatch', () => {
     expect(patch.lastSeenAt).toEqual(seen);
     expect(patch.heightIn).toBe(68);
     expect('createdAt' in patch).toBe(false);
+  });
+});
+
+describe('compareLogsOldestFirst', () => {
+  const at = (h: number, m = 0) => new Date(2026, 9, 3, h, m);
+  const row = (id: string, date: Date, createdAt?: Date) => ({ id, calories: 1, date, createdAt });
+
+  it('orders by eaten-at time first', () => {
+    const rows = [row('a', at(9)), row('b', at(8, 15))];
+    expect(rows.sort(compareLogsOldestFirst).map((r) => r.id)).toEqual(['b', 'a']);
+  });
+
+  it('breaks a same-minute tie by createdAt, not by the random doc id (2026-10-03)', () => {
+    // The three 8:15 breakfast rows, logged eggs → pancake → fruit; ids are
+    // random, so id order is the wrong answer on purpose here.
+    const rows = [
+      row('zzz-eggs', at(8, 15), at(21, 0)),
+      row('aaa-pancake', at(8, 15), at(21, 1)),
+      row('mmm-fruit', at(8, 15), at(21, 2)),
+    ];
+    expect([...rows].reverse().sort(compareLogsOldestFirst).map((r) => r.id))
+      .toEqual(['zzz-eggs', 'aaa-pancake', 'mmm-fruit']);
+  });
+
+  it('puts a legacy row (no createdAt) first among its ties, and falls back to id', () => {
+    const rows = [row('b', at(8), at(9)), row('z', at(8)), row('a', at(8))];
+    expect(rows.sort(compareLogsOldestFirst).map((r) => r.id)).toEqual(['a', 'z', 'b']);
   });
 });

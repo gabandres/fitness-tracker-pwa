@@ -218,9 +218,12 @@ export const esPR: Record<I18nKey, string> = {
   'whatsNew.title': 'Novedades',
   'whatsNew.subtitle': 'Lo que cambió desde la última vez que abriste Ignia.',
   'whatsNew.continue': 'Continuar',
-  'whatsNew.mealTime.title': 'Cambia la hora de una comida',
-  'whatsNew.mealTime.body':
-    'Al editar una entrada ahora hay una fila de Hora: muévela por una hora o cinco minutos y se archiva en la comida que corresponde a esa hora.',
+  'whatsNew.typeTime.title': 'Pon la hora al registrar',
+  'whatsNew.typeTime.body':
+    'Cada entrada nueva tiene ahora una fila de Hora. Toca la hora y escríbela — 8:15, 18:30 — en vez de ir paso a paso.',
+  'whatsNew.notes.title': 'Notas en las entradas',
+  'whatsNew.notes.body':
+    'Añade una nota a cualquier comida — "pesado", "estimado alto" — y la verás debajo de la entrada en tu día.',
   'update.ota.title': 'Actualización lista',
   'update.ota.body': 'Ignia se reinicia para aplicarla — unos segundos.',
   'update.ota.action': 'Reiniciar',
@@ -372,6 +375,11 @@ export const esPR: Record<I18nKey, string> = {
   'entry.timeEarlierMinA11y': '5 minutos antes',
   'entry.timeLaterMinA11y': '5 minutos después',
   'entry.timeLaterHourA11y': '1 hora después',
+  'entry.timeTapHint': 'Toca para escribir',
+  'entry.timeTypePlaceholder': '8:15 o 18:30',
+  'entry.timeTypeA11y': 'Escribe una hora, como 8:15 o 18:30',
+  'entry.note': 'Nota',
+  'entry.notePlaceholder': 'Opcional — pesado, estimado, marca…',
   'entry.savePreset': 'Guardar como preajuste',
   'entry.saveMyFood': 'Guardar en Mis Comidas',
   'entry.searchDb': '🔍  Buscar en la base de datos',

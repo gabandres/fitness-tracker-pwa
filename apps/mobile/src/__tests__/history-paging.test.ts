@@ -117,3 +117,13 @@ describe('mergeLogs — what ends up on screen', () => {
     expect(mergeLogs(windowLogs, {})).toEqual(windowLogs);
   });
 });
+
+describe('mergeLogs — same-minute rows (2026-10-03)', () => {
+  it('lists rows sharing a minute in logged order, not by their random ids', () => {
+    const at = '2026-10-03T12:15:00Z';
+    const eggs = { ...row('zz', at), createdAt: new Date('2026-10-04T01:00:00Z') };
+    const pancake = { ...row('aa', at), createdAt: new Date('2026-10-04T01:01:00Z') };
+    const fruit = { ...row('mm', at), createdAt: new Date('2026-10-04T01:02:00Z') };
+    expect(mergeLogs([fruit, pancake], { '2026-10': [eggs] }).map((l) => l.id)).toEqual(['zz', 'aa', 'mm']);
+  });
+});

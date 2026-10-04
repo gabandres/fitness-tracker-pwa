@@ -15,6 +15,7 @@ import {
   toTemplateDoc,
   toTemplatePatch,
 } from './firestore-writers';
+import { LOG_NOTE_MAX } from './types';
 import type { SessionExercise } from './workout';
 
 /**
@@ -36,6 +37,7 @@ describe('toLogDoc', () => {
     expect(toLogDoc({ calories: 500 }, codec, NOW)).toEqual({
       calories: 500,
       timestamp: stamp,
+      createdAt: stamp,
     });
   });
 
@@ -60,6 +62,7 @@ describe('toLogDoc', () => {
     ).toEqual({
       calories: 620,
       timestamp: { ts: at.getTime() },
+      createdAt: stamp,
       weight: 181.4,
       protein: 44,
       carbs: 61,
@@ -97,6 +100,38 @@ describe('toLogDoc', () => {
     // claim. `useMilestones` reads presence, so a written falsy value would be
     // a row asserting it was scanned.
     expect('source' in toLogDoc({ calories: 500 }, codec, NOW)).toBe(false);
+  });
+});
+
+describe('toLogDoc — note + createdAt (2026-10-03)', () => {
+  it('stamps createdAt with `now` even when the eaten-at time is back-dated', () => {
+    // createdAt is the same-minute tie-break: it must be WHEN THE ROW WAS
+    // LOGGED, never the meal's time, or three 8:15 rows still tie.
+    const doc = toLogDoc({ calories: 1, timestamp: new Date('2026-07-29T08:15:00Z') }, codec, NOW);
+    expect(doc.createdAt).toEqual(stamp);
+  });
+
+  it('keeps a createdAt the entry carries (undo-restore)', () => {
+    const was = new Date('2026-07-01T00:00:00Z');
+    expect(toLogDoc({ calories: 1, createdAt: was }, codec, NOW).createdAt).toEqual({ ts: was.getTime() });
+  });
+
+  it('writes a trimmed note, capped at LOG_NOTE_MAX', () => {
+    expect(toLogDoc({ calories: 1, note: '  weighed  ' }, codec, NOW).note).toBe('weighed');
+    expect(toLogDoc({ calories: 1, note: 'x'.repeat(LOG_NOTE_MAX + 20) }, codec, NOW).note)
+      .toHaveLength(LOG_NOTE_MAX);
+  });
+
+  it('omits a blank note — isValidLog rejects an empty string', () => {
+    expect('note' in toLogDoc({ calories: 1, note: '   ' }, codec, NOW)).toBe(false);
+    expect('note' in toLogDoc({ calories: 1 }, codec, NOW)).toBe(false);
+  });
+
+  it('an edit sets, clears, and never touches createdAt', () => {
+    expect(toLogPatch({ calories: 1, note: ' logged high ' }, codec)['note']).toBe('logged high');
+    expect(toLogPatch({ calories: 1 }, codec)['note']).toBe(REMOVE);
+    expect(toLogPatch({ calories: 1, note: '' }, codec)['note']).toBe(REMOVE);
+    expect('createdAt' in toLogPatch({ calories: 1, createdAt: NOW }, codec)).toBe(false);
   });
 });
 

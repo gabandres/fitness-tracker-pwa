@@ -88,6 +88,14 @@ beforeEach(() => {
 });
 
 describe('entryFromLog', () => {
+  it('carries the note and the creation instant, so undo restores both (2026-10-03)', () => {
+    const made = new Date(2026, 8, 20, 21, 0);
+    expect(entryFromLog({ ...mockLunch, note: 'Weighed', createdAt: made })).toMatchObject({
+      note: 'Weighed',
+      createdAt: made,
+    });
+  });
+
   it('carries every submitted field and pins the timestamp to the original date', async () => {
     expect(entryFromLog(mockLunch)).toEqual({
       calories: 640,

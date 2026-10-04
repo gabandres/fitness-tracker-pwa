@@ -11,6 +11,7 @@ import { isLoggedCardioBlock } from './cardio';
 import { type WorkoutSession, isLoggedSet } from './workout';
 import { normalizeClusterGroups } from './cluster-groups';
 import { MIDNIGHT, dayKeyAt, type DayBoundary } from './day-boundary';
+import { compareLogsOldestFirst } from './firestore-mappers';
 
 const COLS = [
   'type', 'date', 'timestamp',
@@ -81,7 +82,7 @@ export interface ExportData {
 export function buildCsv(data: ExportData, boundary: DayBoundary = MIDNIGHT): string {
   const rows: string[] = [COLS.join(',')];
 
-  const sortedLogs = [...data.logs].sort((a, b) => a.date.getTime() - b.date.getTime());
+  const sortedLogs = [...data.logs].sort(compareLogsOldestFirst);
   for (const l of sortedLogs) {
     rows.push(row({
       type: 'meal',
@@ -97,6 +98,8 @@ export function buildCsv(data: ExportData, boundary: DayBoundary = MIDNIGHT): st
       cardioCompleted: l.cardioCompleted ? 'true' : '',
       mealLabel: l.mealLabel,
       mealType: l.mealType,
+      // The cardio rows' column; a meal's note is the same kind of free text.
+      notes: l.note,
     }));
   }
 

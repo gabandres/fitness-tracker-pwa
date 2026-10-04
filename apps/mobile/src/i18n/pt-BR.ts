@@ -214,9 +214,12 @@ export const ptBR = {
   'whatsNew.title': 'Novidades',
   'whatsNew.subtitle': 'O que mudou desde a última vez que você abriu o Ignia.',
   'whatsNew.continue': 'Continuar',
-  'whatsNew.mealTime.title': 'Mude o horário de uma refeição',
-  'whatsNew.mealTime.body':
-    'Ao editar um registro agora há uma linha de Horário: mova-o em uma hora ou cinco minutos e ele vai para a refeição daquele horário.',
+  'whatsNew.typeTime.title': 'Defina o horário ao registrar',
+  'whatsNew.typeTime.body':
+    'Todo registro novo agora tem uma linha de Horário. Toque no horário e digite — 8:15, 18h30 — em vez de ir passo a passo.',
+  'whatsNew.notes.title': 'Notas nos registros',
+  'whatsNew.notes.body':
+    'Adicione uma nota a qualquer registro — "pesado", "estimado por cima" — e veja-a abaixo dele no seu dia.',
   'update.ota.title': 'Atualização pronta',
   'update.ota.body': 'O Ignia reinicia para aplicá-la — alguns segundos.',
   'update.ota.action': 'Reiniciar',
@@ -367,6 +370,11 @@ export const ptBR = {
   'entry.timeEarlierMinA11y': '5 minutos antes',
   'entry.timeLaterMinA11y': '5 minutos depois',
   'entry.timeLaterHourA11y': '1 hora depois',
+  'entry.timeTapHint': 'Toque para digitar',
+  'entry.timeTypePlaceholder': '8:15 ou 18h30',
+  'entry.timeTypeA11y': 'Digite um horário, como 8:15 ou 18h30',
+  'entry.note': 'Nota',
+  'entry.notePlaceholder': 'Opcional — pesado, estimado, marca…',
   'entry.savePreset': 'Salvar como atalho',
   'entry.saveMyFood': 'Salvar em Meus alimentos',
   'entry.searchDb': '🔍  Buscar no banco de alimentos',

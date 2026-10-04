@@ -3,6 +3,8 @@ import {
   groupByMealSlot,
   isMealRow,
   mealTypeAfterRetime,
+  parseTimeOfDay,
+  setTimeOfDay,
   shiftTimeOfDay,
   slotForTime,
   withDefaultMealSlot,
@@ -199,5 +201,42 @@ describe('a time edit re-sorts the day', () => {
     const cookie = edited.find((l) => l.id === 'cookie')!;
     const patch = toLogPatch({ calories: cookie.calories, mealType: cookie.mealType, timestamp: cookie.date }, codec);
     expect(patch).toMatchObject({ timestamp: after.toISOString(), mealType: 'snack' });
+  });
+});
+
+describe('parseTimeOfDay', () => {
+  it.each([
+    ['8:15', 8, 15], ['08:15', 8, 15], ['815', 8, 15], ['0815', 8, 15], ['8', 8, 0],
+    ['8.15', 8, 15], ['8h15', 8, 15], ['18h', 18, 0], ['18:30', 18, 30], ['1230', 12, 30],
+    ['0:05', 0, 5], ['23:59', 23, 59],
+    ['6:30pm', 18, 30], ['6:30 PM', 18, 30], ['6:30 p', 18, 30], ['6:30 p.m.', 18, 30],
+    ['630p', 18, 30], ['8:15am', 8, 15], ['12a', 0, 0], ['12:30a', 0, 30], ['12p', 12, 0], ['12:05 pm', 12, 5],
+  ])('reads %s as %i:%i', (input, hours, minutes) => {
+    expect(parseTimeOfDay(input)).toEqual({ hours, minutes });
+  });
+
+  it('takes an unsuffixed time literally as 24-hour — 6:30 is morning', () => {
+    expect(parseTimeOfDay('6:30')).toEqual({ hours: 6, minutes: 30 });
+  });
+
+  it.each(['', 'abc', '24:00', '8:60', '13pm', '0am', '8:5', '8:155', '-1', '8:15x'])('rejects %j', (input) => {
+    expect(parseTimeOfDay(input)).toBeNull();
+  });
+});
+
+describe('setTimeOfDay', () => {
+  const now = new Date(2026, 9, 3, 21, 58, 16);
+
+  it('moves the time on the same day, seconds zeroed', () => {
+    expect(setTimeOfDay(now, 8, 15, now)).toEqual(new Date(2026, 9, 3, 8, 15, 0, 0));
+  });
+
+  it('never lands in the future — clamps to now (minute)', () => {
+    expect(setTimeOfDay(now, 23, 0, now)).toEqual(new Date(2026, 9, 3, 21, 58, 0, 0));
+  });
+
+  it('a past day accepts any time on that day', () => {
+    const past = new Date(2026, 9, 1, 12, 0);
+    expect(setTimeOfDay(past, 23, 30, now)).toEqual(new Date(2026, 9, 1, 23, 30, 0, 0));
   });
 });

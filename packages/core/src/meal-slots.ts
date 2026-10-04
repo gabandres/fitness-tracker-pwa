@@ -137,6 +137,45 @@ export function shiftTimeOfDay(at: Date, deltaMinutes: number, now: Date = new D
 }
 
 /**
+ * Read a typed time of day: `8:15`, `08:15`, `815`, `8`, `8.15`, `8h15`,
+ * `18:30`, `6:30pm`, `6:30 p`, `6:30 p.m.`. Returns null for anything else.
+ *
+ * Exists because stepping is slow for the case that matters most: the whole
+ * day logged at night (2026-10-03 — 8:15 breakfast entered at 22:00 was 22
+ * taps of the stepper). Typing it is one gesture.
+ *
+ * **No suffix means 24-hour, always.** `6:30` is 06:30. Guessing "the most
+ * recent 6:30" would read a typed `8:15` breakfast at 22:00 as 20:15, so the
+ * rule is the literal one, and the sheet shows what it understood straight
+ * away. A suffix makes it 12-hour, where `12a` is midnight and `12p` noon.
+ */
+export function parseTimeOfDay(input: string): { hours: number; minutes: number } | null {
+  const s = input.trim().toLowerCase().replace(/\s+/g, '');
+  const m = /^(\d{1,2})(?:[:h.]?(\d{2}))?h?(?:([ap])\.?(?:m\.?)?)?$/.exec(s);
+  if (!m) return null;
+  let hours = Number(m[1]);
+  const minutes = m[2] != null ? Number(m[2]) : 0;
+  if (minutes > 59) return null;
+  const half = m[3];
+  if (half) {
+    if (hours < 1 || hours > 12) return null;
+    hours = (hours % 12) + (half === 'p' ? 12 : 0);
+  } else if (hours > 23) {
+    return null;
+  }
+  return { hours, minutes };
+}
+
+/**
+ * `at` with its time of day set to `hours:minutes` — same day, same clamps as
+ * {@link shiftTimeOfDay} (never past `now`, never off the day), seconds zero.
+ */
+export function setTimeOfDay(at: Date, hours: number, minutes: number, now: Date = new Date()): Date {
+  const target = new Date(at.getFullYear(), at.getMonth(), at.getDate(), hours, minutes, 0, 0);
+  return shiftTimeOfDay(at, (target.getTime() - at.getTime()) / 60_000, now);
+}
+
+/**
  * The meal slot an entry should carry after its time moves from `before` to
  * `after`.
  *

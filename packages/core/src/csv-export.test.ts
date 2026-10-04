@@ -47,6 +47,20 @@ describe('buildCsv', () => {
     expect(mealRow[cols.indexOf('cardioCompleted')]).toBe('true');
   });
 
+  it("emits a meal's note in the notes column, and same-minute meals in logged order", () => {
+    const at = new Date('2026-10-03T12:15:00Z');
+    const logs: DailyLog[] = [
+      { id: 'zz', calories: 225, date: at, mealLabel: 'Eggs', note: 'Weighed', createdAt: new Date('2026-10-04T01:00:00Z') },
+      { id: 'aa', calories: 65, date: at, mealLabel: 'Fruit', createdAt: new Date('2026-10-04T01:02:00Z') },
+    ];
+    const csv = buildCsv({ ...emptyData(), logs: [logs[1], logs[0]] });
+    const cols = csv.split('\r\n')[0].split(',');
+    const meals = csv.split('\r\n').filter((r) => r.startsWith('meal')).map((r) => r.split(','));
+    expect(meals.map((m) => m[cols.indexOf('mealLabel')])).toEqual(['Eggs', 'Fruit']);
+    expect(meals[0][cols.indexOf('notes')]).toBe('Weighed');
+    expect(meals[1][cols.indexOf('notes')]).toBe('');
+  });
+
   it('emits a workout summary row + one workout_set row per logged set', () => {
     const session: WorkoutSession = {
       status: 'completed',

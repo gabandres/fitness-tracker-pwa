@@ -182,6 +182,40 @@ describe('firestore.rules', () => {
     await assertSucceeds(updateDoc(ref, { calories: 620 }));
   });
 
+  // ── note + createdAt (2026-10-03) ──
+  it('allows a dailyLog carrying a note and a createdAt', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertSucceeds(
+      addDoc(collection(db, 'users', 'alice', 'dailyLogs'), {
+        ...validLog(),
+        note: 'Weighed. ~2.05 kcal/g cooked',
+        createdAt: Timestamp.now(),
+      }),
+    );
+    await assertSucceeds(
+      addDoc(collection(db, 'users', 'alice', 'dailyLogs'), { ...validLog(), note: 'x'.repeat(500) }),
+    );
+  });
+
+  it('rejects an empty, overlong or non-string note, and a non-timestamp createdAt', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    const logs = collection(db, 'users', 'alice', 'dailyLogs');
+    await assertFails(addDoc(logs, { ...validLog(), note: '' }));
+    await assertFails(addDoc(logs, { ...validLog(), note: 'x'.repeat(501) }));
+    await assertFails(addDoc(logs, { ...validLog(), note: 42 }));
+    await assertFails(addDoc(logs, { ...validLog(), createdAt: '2026-10-03' }));
+  });
+
+  it('lets an edit clear a note and keep createdAt', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    const ref = doc(db, 'users', 'alice', 'dailyLogs', 'noted-row');
+    await assertSucceeds(setDoc(ref, { ...validLog(), note: 'logged high', createdAt: Timestamp.now() }));
+    await assertSucceeds(updateDoc(ref, { calories: 620, note: deleteField() }));
+  });
+
   it('rejects a dailyLog write from an unverified email', async () => {
     // The /dailyLogs rules gate on isOwner only, but the parent profile
     // write path is gated on isVerifiedUser, so an unverified user who

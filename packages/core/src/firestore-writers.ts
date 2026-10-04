@@ -29,6 +29,7 @@
  */
 import { hasFormulaInputs } from './onboarding-seed';
 import {
+  LOG_NOTE_MAX,
   type CustomFood,
   type LogEntry,
   type LogSource,
@@ -90,6 +91,17 @@ export interface LogDoc<TS> {
    *  `'photo'`. Validated by `isValidLog`'s allow-list; a rules deploy has to
    *  land before any client writes it. */
   source?: LogSource;
+  /** Trimmed, at most {@link LOG_NOTE_MAX} characters, never empty. */
+  note?: string;
+  /** Creation instant — the same-minute tie-break. Every row this serializer
+   *  creates carries it; {@link toLogPatch} never names it, so an edit keeps it. */
+  createdAt: TS;
+}
+
+/** A note as stored: trimmed, capped, and absent rather than empty. */
+export function cleanLogNote(note: string | undefined): string | undefined {
+  const t = note?.trim();
+  return t ? t.slice(0, LOG_NOTE_MAX) : undefined;
 }
 
 /** Serialize a log for creation (`addLog`, and each row of `importLogs`).
@@ -100,9 +112,11 @@ export function toLogDoc<TS>(
   codec: DocCodec<TS>,
   now: Date = new Date(),
 ): LogDoc<TS> {
+  const note = cleanLogNote(entry.note);
   return {
     calories: entry.calories,
     timestamp: codec.timestamp(entry.timestamp ?? now),
+    createdAt: codec.timestamp(entry.createdAt ?? now),
     ...(entry.weight != null ? { weight: entry.weight } : {}),
     ...(entry.protein != null ? { protein: entry.protein } : {}),
     ...(entry.carbs != null ? { carbs: entry.carbs } : {}),
@@ -111,6 +125,7 @@ export function toLogDoc<TS>(
     ...(entry.mealLabel ? { mealLabel: entry.mealLabel } : {}),
     ...(entry.mealType ? { mealType: entry.mealType } : {}),
     ...(entry.source ? { source: entry.source } : {}),
+    ...(note ? { note } : {}),
   };
 }
 
@@ -140,6 +155,7 @@ export function toLogPatch<TS>(entry: LogEntry, codec: DocCodec<TS>): Record<str
     cardioCompleted: codec.remove(),
     mealLabel: entry.mealLabel ? entry.mealLabel : codec.remove(),
     mealType: entry.mealType ? entry.mealType : codec.remove(),
+    note: cleanLogNote(entry.note) ?? codec.remove(),
   };
   if (entry.weight != null) patch['weight'] = entry.weight;
   if (entry.timestamp != null) patch['timestamp'] = codec.timestamp(entry.timestamp);

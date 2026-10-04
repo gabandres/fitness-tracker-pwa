@@ -249,9 +249,12 @@ export const en = {
   'whatsNew.continue': 'Continue',
   // One item per thing a person will NOTICE, in the order they meet it. Body
   // sentences carry the number that makes the feature usable, not a pitch.
-  'whatsNew.mealTime.title': 'Change a meal\'s time',
-  'whatsNew.mealTime.body':
-    'Editing an entry now has a Time row: move it by an hour or five minutes, and it re-files under the meal that time belongs to.',
+  'whatsNew.typeTime.title': 'Set the time as you log',
+  'whatsNew.typeTime.body':
+    'Every new entry has a Time row now. Tap the time and type it — 8:15, 6:30pm — instead of stepping.',
+  'whatsNew.notes.title': 'Notes on entries',
+  'whatsNew.notes.body':
+    'Add a note to any food entry — "weighed", "logged high" — and see it under the entry in your day.',
   'update.ota.title': 'Update ready',
   'update.ota.body': 'Ignia restarts to apply it — a few seconds.',
   'update.ota.action': 'Restart',
@@ -416,6 +419,11 @@ export const en = {
   'entry.timeEarlierMinA11y': '5 minutes earlier',
   'entry.timeLaterMinA11y': '5 minutes later',
   'entry.timeLaterHourA11y': '1 hour later',
+  'entry.timeTapHint': 'Tap to type',
+  'entry.timeTypePlaceholder': '8:15 or 6:30pm',
+  'entry.timeTypeA11y': 'Type a time, like 8:15 or 6:30pm',
+  'entry.note': 'Note',
+  'entry.notePlaceholder': 'Optional — weighed, estimated, brand…',
   'entry.savePreset': 'Save as preset',
   'entry.saveMyFood': 'Save to My Foods',
   'entry.searchDb': '🔍  Search food database',

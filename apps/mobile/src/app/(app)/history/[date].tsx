@@ -52,6 +52,9 @@ export function entryFromLog(log: DailyLog): LogEntry {
     mealLabel: log.mealLabel,
     mealType: log.mealType,
     source: log.source,
+    note: log.note,
+    // Undo puts the row back where it was among same-minute rows.
+    createdAt: log.createdAt,
   };
 }
 
