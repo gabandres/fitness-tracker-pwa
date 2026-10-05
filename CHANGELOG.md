@@ -29,8 +29,10 @@ ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
   backgrounded the app; the search placeholder ("Food or kcal") drawn on one
   line, since the native hint wrapped and clipped beside the in-field doors.
 - **Delivery**: iOS build 68 / 1.2.5 (`489bf3b5…`) submitted, release
-  automatic on approval; first OTA on it `440e81a0-5014-47b8-bcab-842ba0a2597e`
-  at `b19d26b1`, published ahead of approval. Android vc 47 / 1.2.5
+  automatic on approval; OTA on it `8919830c-2736-4979-b1ba-d32d27ed8eb5`
+  at `ae9d647b`, published ahead of approval (it supersedes `440e81a0`, whose
+  glass bar covered the rest bar and the Settings / targets / Feedback screens'
+  bottom buttons — found by the Impeccable native-audit trial, UX_AUDIT §S20, fixed the same hour). Android vc 47 / 1.2.5
   (`ef607e85…`, built at `b19d26b1`) on Play alpha and production
   (100%, promoted on the owner's word), in review. `app.json` moved both runtimes, so 1.2.4
   users get none of this until the store update. No rules or functions change.

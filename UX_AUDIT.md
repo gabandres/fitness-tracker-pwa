@@ -885,6 +885,39 @@ numbers above are the tree before them; nothing measures what 1.2.5 actually
 ships. Re-score before claiming a number. What the reviewers said still caps
 Platform: native work, not JS. `CHANGELOG.md` 2026-10-05 has the delivery.
 
+**Impeccable native audit — a second rubric, trialled 2026-10-05.** The
+third-party skill (impeccable.style, user-level plugin; its auto-hook is OFF via
+`IMPECCABLE_HOOK_DISABLED=1`, and its detector cannot read React Native) scored
+Today and Train **13/20** each on its 0–4 × 5 scale. It is a code read against
+HIG / Material checklists, and it caught what our per-screen rubric did not:
+cross-screen regressions. Its two P0s — the glass bar over the rest bar and
+over Settings' Delete account — were fixed the same hour (`ae9d647b`). Hand it
+the recorded-decision list (raised +, brand fonts, predictive back off, no
+iPad, no Material You) or ~9 of them come back as defects. **Open from it**
+(file:line as of `ae9d647b`):
+
+- iOS keyboard covers low set fields in a live workout — the ScrollView lacks
+  `automaticallyAdjustKeyboardInsets` (`train/ActiveSession.tsx:798-804`).
+- Dark theme: white on accent/danger/teal fills fails AA — "Got it" 2.32:1
+  (`RecalibrationCard.tsx:107`), swipe labels 3.07–3.37:1 (`MealEntries.tsx:816`),
+  destructive confirm 3.37:1 (`ConfirmSheet.tsx:148`). Needs `on*` tokens.
+- ~12 Train sheet inputs have no `accessibilityLabel` (placeholder "12" read as
+  a value): `FinishSheet.tsx:288,312`, `LiftSettingsSheet.tsx:130`,
+  `TemplateEditorModal.tsx:812,823,1388-1414`, `ExerciseDetailSheet.tsx:215`.
+- Android: 44 dp targets (48 is the floor) across Train and Today's header;
+  ⋯ menus drop item subtitles (`NativeMenuButtonModule.kt:94-104`, native);
+  no ripple on custom buttons.
+- Number pads without a Done key, or an English one in es-PR / pt-BR — template
+  editor, lift settings, cardio card (`useDoneKeyProps()`).
+- No Undo on removing a cardio block (`ActiveSession.tsx:873`); session detail
+  squeezes names into a 56 pt column (`SessionDetailSheet.tsx:115`); PREVIOUS
+  can shrink to 10.2 pt (`SetRow.tsx:47`); the + has no pressed state
+  (`LogSpeedDial.tsx:216,319`); the previous-day chevron is a 36 pt target
+  (`index.tsx:81`).
+- Settings is a hidden tab, so no iOS edge-swipe back (`HeaderAvatar.tsx:34`);
+  Android 16 large screens ignore the portrait lock at targetSdk 36 and Today
+  has no width cap.
+
 ## 5. Notes for future additions
 
 - When adding a new surface, check it against: (a) does copy work for a first-time user; (b) is every icon-only button labelled; (c) does it announce state changes via `aria-live`.
