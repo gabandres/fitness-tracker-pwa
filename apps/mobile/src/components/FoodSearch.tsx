@@ -578,6 +578,13 @@ export function FoodSearch({
   const showScanIcon = onScanBarcode != null && empty;
   const showMealIcon = onScanMeal != null && empty;
   const inFieldCount = (showScanIcon ? 1 : 0) + (showMealIcon ? 1 : 0);
+  const placeholder = t(onQuickAdd ? 'food.placeholderQuick' : 'food.placeholder');
+  // Android wraps a placeholder that does not fit onto a second line, which
+  // the field's height clips mid-glyph (measured 2026-10-05, OnePlus 8T,
+  // 360 dp: 139 dp beside the two doors). Drawn as one line with an ellipsis
+  // instead, as iOS draws its own — so a larger font or a narrower phone
+  // costs the end of the hint, never a half-drawn second line.
+  const ownPlaceholder = Platform.OS === 'android';
 
   /**
    * Return on the search field. A typed calorie count logs (U4: "350" ⏎ is
@@ -610,7 +617,7 @@ export function FoodSearch({
             ref={inputRef}
             // Where a typed number logs as kcal, the placeholder says so
             // (re-score gap 2): the hint below reached screen readers only.
-            placeholder={t(onQuickAdd ? 'food.placeholderQuick' : 'food.placeholder')}
+            placeholder={ownPlaceholder ? undefined : placeholder}
             placeholderTextColor={colors.faint}
             value={query}
             onChangeText={onChange}
@@ -628,6 +635,18 @@ export function FoodSearch({
             maxFontSizeMultiplier={1.4}
             style={[styles.search, inFieldCount > 0 && { paddingRight: IN_FIELD_BTN * inFieldCount + space.xs }]}
           />
+          {ownPlaceholder && empty ? (
+            // Under the input's own label and hint for TalkBack, so hidden here.
+            <View
+              style={[styles.placeholderBox, inFieldCount > 0 && { right: IN_FIELD_BTN * inFieldCount + space.xs }]}
+              pointerEvents="none"
+              importantForAccessibility="no-hide-descendants"
+            >
+              <Text style={styles.placeholder} numberOfLines={1} maxFontSizeMultiplier={1.4} testID="food-search-placeholder">
+                {placeholder}
+              </Text>
+            </View>
+          ) : null}
           {/* The barcode door, in the field itself (2026-10-04). It sat two
               levels down — + → More ways → Scan a barcode — so a packaged food
               cost five taps to log; here it is + → this → Add. Shown while the
@@ -1124,6 +1143,9 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   },
   // Android's clear control, inside the field's right edge; 48dp, Android's target.
   clear: { position: 'absolute', right: 0, width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
+  // Over the input's text box: its padding plus its 1 dp border.
+  placeholderBox: { position: 'absolute', left: space.md + 1, right: space.md + 1, top: 0, bottom: 0, justifyContent: 'center' },
+  placeholder: { fontSize: font.body, color: colors.faint },
   cancel: { fontSize: font.small, color: colors.muted, fontWeight: '700' },
   scroll: { flexShrink: 1 },
   center: { alignItems: 'center', justifyContent: 'center', paddingVertical: space.xl, gap: space.sm },

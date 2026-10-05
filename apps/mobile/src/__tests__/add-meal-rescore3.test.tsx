@@ -168,7 +168,24 @@ describe('the time of an abandoned form (bug 4)', () => {
 describe('search placeholder (gap 2)', () => {
   it('says a typed number logs kcal', async () => {
     const screen = await render(sheet());
-    expect(screen.getByTestId('food-search-input').props.placeholder).toBe('Search or type kcal');
+    expect(screen.getByTestId('food-search-input').props.placeholder).toBe('Food or kcal');
+  });
+
+  it('draws it as ONE line on Android, where the native hint wraps and clips', async () => {
+    const { Platform } = jest.requireActual<typeof import('react-native')>('react-native');
+    jest.replaceProperty(Platform, 'OS', 'android');
+    try {
+      const screen = await render(sheet());
+      expect(screen.getByTestId('food-search-input').props.placeholder).toBeUndefined();
+      const own = screen.getByTestId('food-search-placeholder', { includeHiddenElements: true });
+      expect(own.props.children).toBe('Food or kcal');
+      expect(own.props.numberOfLines).toBe(1);
+      // Gone the moment there is text, like a hint.
+      await fireEvent.changeText(screen.getByTestId('food-search-input'), 'egg');
+      expect(screen.queryByTestId('food-search-placeholder', { includeHiddenElements: true })).toBeNull();
+    } finally {
+      jest.restoreAllMocks();
+    }
   });
 });
 
