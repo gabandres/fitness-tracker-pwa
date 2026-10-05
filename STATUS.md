@@ -31,7 +31,7 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 | **Cloud Functions / rules** | Deployed, project `fitness-tracker-gb-1775407101` |
 | **Photo-scan** | **ON and free to everyone, both platforms** (ADR-0017), resolving macros against the bundled USDA database (ADR-0019). Tiering is server-side only: `dailyQuota` 3/day free · 30/day paid, plus the `photo` `spendCeiling` |
 | **Food search** | Bundled USDA DB, 13,272 foods, plus the restaurant corpus (25,126 items / 91 chains, ADR-0027). **Text search makes NO network call** (since 2026-08-19; Open Food Facts serves **barcode only** — its 10 req/min search cap cannot host typeahead behind one egress IP). Servings ship with each hit. `docs/research/off-branded-ingest.md` scopes getting branded text results back |
-| **OTA (EAS Update)** | Live. `runtimeVersion: {"policy":"fingerprint"}`, channels match build profiles. Free tier 1,000 MAU. **iOS**: build 67 / `1b239e44…` newest group `dabeaffa…` (2026-10-04, S19); **build 68 / `489bf3b5…` newest group `8919830c…` (2026-10-05, `ae9d647b`; supersedes `440e81a0…`), published ahead of Apple's approval on the owner's word — it lands once 1.2.5 is released.** **Android**: vc 46 / `3e596c87…` newest group `d13b2d5e…` (2026-10-04) — publish with `runtimeVersion` PINNED to the artifact value and revert (ledger row); vc 47 / `ef607e85…` has no OTA yet (it embeds `b19d26b1`). 1.2.4 binaries get no 1.2.5 JS — `app.json` moved both runtimes. **"Published" is not "delivered":** a user gets it on the launch AFTER the download. **This row is a POINTER: `apps/mobile/docs/fingerprint-ledger.md` is the per-publish record and it wins.** Re-check with `npx eas update:list --branch production --limit 3` |
+| **OTA (EAS Update)** | Live. `runtimeVersion: {"policy":"fingerprint"}`, channels match build profiles. Free tier 1,000 MAU. **iOS**: build 67 / `1b239e44…` newest group `dabeaffa…` (2026-10-04, S19); **build 68 / `489bf3b5…` newest group `9eae6aa3…` (2026-10-05, `445d1565`; supersedes `8919830c…` and `440e81a0…`), published ahead of Apple's approval on the owner's word — it lands once 1.2.5 is released.** **Android**: vc 46 / `3e596c87…` newest group `d13b2d5e…` (2026-10-04) — publish with `runtimeVersion` PINNED to the artifact value and revert (ledger row); vc 47 / `ef607e85…` newest group `f61a1c44…` (2026-10-05, `445d1565`, runtime pinned). 1.2.4 binaries get no 1.2.5 JS — `app.json` moved both runtimes. **"Published" is not "delivered":** a user gets it on the launch AFTER the download. **This row is a POINTER: `apps/mobile/docs/fingerprint-ledger.md` is the per-publish record and it wins.** Re-check with `npx eas update:list --branch production --limit 3` |
 | **`app-version.json`** | **Self-driving since 2026-09-05** — served from Firestore `public/appVersion` by the `appVersionJson` rewrite, refreshed hourly by `hourlyTasks` (Android from the Play tracks API as `647810616435-compute@…`, invited read-only to the org Play Console; iOS from Apple's public lookup) and on demand from `/admin` → System → **Sync now**. No static file, no deploy, no secret; `npm run doctor` compares the LIVE URL with both stores. See the Play row for the in-review wrinkle |
 
 **The runtime fingerprints, and the three traps around them.**
@@ -73,9 +73,9 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 
 ## 2. Merged, on `main`, and not delivered anywhere
 
-**Everything on `main` (to `ae9d647b`) is in the 1.2.5 binaries or their OTA** —
-vc 47 embeds `b19d26b1` (the later glass fixes are iOS-only); build 68 gets it
-as OTA `8919830c…`. **Neither has
+**Everything on `main` (to `445d1565`) is in the 1.2.5 binaries or their OTAs** —
+vc 47 embeds `b19d26b1` and gets the rest as OTA `f61a1c44…`; build 68 gets it
+as OTA `9eae6aa3…`. **Neither has
 reached a user yet:** 1.2.5 is in review on both stores, and the S20 work since
 `4773b4b1` cannot reach 1.2.4 binaries (both runtimes moved). The newest 1.2.4
 OTAs are `dabeaffa…` (iOS) / `d13b2d5e…` (Android) at `4773b4b1`. Functions and
@@ -120,11 +120,11 @@ Android Material `formSheet`), context menus, date/time pickers, the Lock Screen
 rest timer and App Intents (iOS), the iOS 26 Liquid Glass tab bar (OTA), and
 round 3's re-score fixes. `CHANGELOG.md` 2026-10-05.
 
-- **iOS**: build 68 waiting for review, release automatic; OTA `8919830c…` rides
+- **iOS**: build 68 waiting for review, release automatic; OTA `9eae6aa3…` rides
   with it. The glass tab bar was checked on the `Ignia-QA-26` simulator only —
   **look at it on a real iPhone on iOS 26** once 1.2.5 is out.
 - **Android**: vc 47 on alpha and production 100%, in review (promoted
-  2026-10-05 on the owner's word). The hourly sync already reads 47 off the
+  2026-10-05 on the owner's word); OTA `f61a1c44…` rides with it. The hourly sync already reads 47 off the
   tracks API, which cannot tell review from live — the in-review wrinkle.
 - **Predictive back is OFF on Android** despite `predictiveBackGestureEnabled:
   true` in `app.json` — `patch-android-release.mjs` step 4e rewrites the

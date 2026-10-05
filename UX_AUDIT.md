@@ -891,16 +891,12 @@ third-party skill (impeccable.style, user-level plugin; its auto-hook is OFF via
 Today and Train **13/20** each on its 0–4 × 5 scale. It is a code read against
 HIG / Material checklists, and it caught what our per-screen rubric did not:
 cross-screen regressions. Its two P0s — the glass bar over the rest bar and
-over Settings' Delete account — were fixed the same hour (`ae9d647b`). Hand it
+over Settings' Delete account — were fixed the same hour (`ae9d647b`), then
+the workout keyboard (`89a335ed`) and dark-mode text on fills (`445d1565`). Hand it
 the recorded-decision list (raised +, brand fonts, predictive back off, no
 iPad, no Material You) or ~9 of them come back as defects. **Open from it**
 (file:line as of `ae9d647b`):
 
-- iOS keyboard covers low set fields in a live workout — the ScrollView lacks
-  `automaticallyAdjustKeyboardInsets` (`train/ActiveSession.tsx:798-804`).
-- Dark theme: white on accent/danger/teal fills fails AA — "Got it" 2.32:1
-  (`RecalibrationCard.tsx:107`), swipe labels 3.07–3.37:1 (`MealEntries.tsx:816`),
-  destructive confirm 3.37:1 (`ConfirmSheet.tsx:148`). Needs `on*` tokens.
 - ~12 Train sheet inputs have no `accessibilityLabel` (placeholder "12" read as
   a value): `FinishSheet.tsx:288,312`, `LiftSettingsSheet.tsx:130`,
   `TemplateEditorModal.tsx:812,823,1388-1414`, `ExerciseDetailSheet.tsx:215`.

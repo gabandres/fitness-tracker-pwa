@@ -29,10 +29,14 @@ ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
   backgrounded the app; the search placeholder ("Food or kcal") drawn on one
   line, since the native hint wrapped and clipped beside the in-field doors.
 - **Delivery**: iOS build 68 / 1.2.5 (`489bf3b5…`) submitted, release
-  automatic on approval; OTA on it `8919830c-2736-4979-b1ba-d32d27ed8eb5`
-  at `ae9d647b`, published ahead of approval (it supersedes `440e81a0`, whose
-  glass bar covered the rest bar and the Settings / targets / Feedback screens'
-  bottom buttons — found by the Impeccable native-audit trial, UX_AUDIT §S20, fixed the same hour). Android vc 47 / 1.2.5
+  automatic on approval; OTA on it `9eae6aa3-1f3a-4ff5-9ca0-ebe71ab5eb39`
+  at `445d1565`, published ahead of approval. It supersedes `8919830c` and
+  `440e81a0`: the first glass bar covered the rest bar and the Settings /
+  targets / Feedback screens' bottom buttons, and three more fixes followed from
+  the Impeccable native-audit trial (UX_AUDIT §S20) — those two, the live-
+  workout keyboard covering set fields and their ± steppers, and dark-mode text
+  on accent / danger / teal fills (new `onFill` token, AA in both themes).
+  Android vc 47 gets the `onFill` fix as OTA `f61a1c44-0040-4f23-95ef-02db9ec9fb1a`. Android vc 47 / 1.2.5
   (`ef607e85…`, built at `b19d26b1`) on Play alpha and production
   (100%, promoted on the owner's word), in review. `app.json` moved both runtimes, so 1.2.4
   users get none of this until the store update. No rules or functions change.
