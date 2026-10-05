@@ -22,7 +22,9 @@ const mockActiveSession = {
       name: 'Bench',
       logStyle: 'weight-reps',
       cues: [],
-      sets: [{ kind: 'working', done: true }, { kind: 'working', done: false }],
+      // One LOGGED set: Finish on a session with nothing logged offers to
+      // discard instead of opening the sheet (Train review bug 10).
+      sets: [{ kind: 'working', done: true, weight: 100, reps: 5 }, { kind: 'working', done: false }],
     },
   ],
 } as unknown as WorkoutSession;
@@ -31,6 +33,17 @@ const mockFinishWorkout = jest.fn();
 const mockDiscardWorkout = jest.fn().mockResolvedValue(undefined);
 const mockRecordPositiveMoment = jest.fn();
 
+// Native sheets present through a root `sheet` route that does not exist
+// under jest; the JS sheet renders its children in place, which is what this
+// suite asserts against (Train sheets went native in the 2026-10-04 review).
+jest.mock('@/components/BottomSheet', () => {
+  const actual = jest.requireActual('@/components/BottomSheet');
+  return {
+    ...actual,
+    NATIVE_SHEETS: false,
+    BottomSheet: (p: object) => actual.BottomSheet({ ...p, native: false }),
+  };
+});
 jest.mock('@/hooks/useTrain', () => ({
   useTrain: () => ({
     loading: false,
@@ -142,7 +155,10 @@ describe('Finish sheet', () => {
 describe('Discard', () => {
   it('asks before discarding — with no confirm host mounted, nothing is deleted', async () => {
     const screen = await render(<TrainScreen />);
-    await fireEvent.press(screen.getByTestId('discard-workout'));
+    // Discard lives in the session's ⋯ menu since the sticky header (Train
+    // review item 5) — a destructive action no longer sits beside Finish.
+    await fireEvent.press(screen.getByTestId('session-menu'));
+    await fireEvent.press(screen.getByTestId('session-menu-discard'));
     expect(mockDiscardWorkout).not.toHaveBeenCalled();
   });
 });

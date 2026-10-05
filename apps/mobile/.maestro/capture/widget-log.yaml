@@ -31,7 +31,7 @@ appId: fit.ignia.app
 - tapOn:
     id: 'entry-protein'
 - inputText: '5'
-- tapOn: 'Add food'
+- tapOn: 'Write it in'
 - tapOn:
     id: 'entry-save'
 - extendedWaitUntil:

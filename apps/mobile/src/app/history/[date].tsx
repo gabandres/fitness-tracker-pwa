@@ -1,12 +1,10 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
-  type DailyLog,
   type Fast,
-  type LogEntry,
   fastHoursParts,
   fastLengthHours,
   formatBodyWeight,
@@ -15,19 +13,16 @@ import {
   summarizeDay,
 } from '@macrolog/core';
 import { confirm } from '@/components/ConfirmSheet';
-import { useToast } from '@/components/Toast';
-import { useAddReceipt } from '@/hooks/useAddReceipt';
-import { entryFromLog, isNoopEdit } from '@/lib/entry-from-log';
 import { EntrySheet } from '@/components/EntrySheet';
 import { FastSheet, type FastSheetMode } from '@/components/FastSheet';
 import { MealEntries } from '@/components/MealEntries';
 import { useDayFasts } from '@/hooks/useDayFasts';
+import { useDiaryActions } from '@/hooks/useDiaryActions';
 import { useHistory } from '@/hooks/useHistory';
-import { useAuth } from '@/lib/auth';
-import { addLogDurably } from '@/lib/pending-logs';
 import { useUnitSystem } from '@/lib/use-unit-system';
-import { useLocale, useT } from '@/i18n';
+import { type Locale, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
+import { PressScale } from '@/lib/motion';
 import { captureError } from '@/lib/sentry';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
@@ -37,14 +32,35 @@ import { formatDate, formatNumber, formatTime } from '@/lib/date-format';
 // and the undo tests still reach it here.
 export { entryFromLog } from '@/lib/entry-from-log';
 
+/**
+ * "Sun, Sep 20" — and "Sun, Sep 20, 2025" only when the year is not this one
+ * (review, Copy). The title was the long form with the year always on
+ * ("Sunday, September 20, 2026"), which ellipsized in the header on a 360dp
+ * phone and spent its width on the one part a user already knew. Exported
+ * for test.
+ */
+export function dayTitle(dateKey: string, locale: Locale, now: Date = new Date()): string {
+  const d = parseYmd(dateKey);
+  return formatDate(d, locale, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    ...(d.getFullYear() !== now.getFullYear() ? { year: 'numeric' as const } : {}),
+  });
+}
+
+/**
+ * One day of the diary. Since UX_AUDIT Today review U2 it is the SAME diary as
+ * Today — the same `MealEntries` with swipe-delete, Save to Quick add and the
+ * per-meal "+ Add", and the same `useDiaryActions` behind it — for a
+ * different date. It used to be a read-mostly copy whose save/delete/Undo
+ * had been pasted from Today and had drifted.
+ */
 export default function DayDetail() {
   const t = useT();
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
-  const toast = useToast();
-  const receipt = useAddReceipt();
-  const { user } = useAuth();
   const { date } = useLocalSearchParams<{ date: string }>();
   const dateKey = String(date);
   const router = useRouter();
@@ -64,8 +80,6 @@ export default function DayDetail() {
     if (validKey) ensureMonthLoaded(parseYmd(dateKey));
   }, [validKey, dateKey, ensureMonthLoaded]);
   const unitSystem = useUnitSystem();
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const [editing, setEditing] = useState<DailyLog | null>(null);
   // Fasting is its own listener rather than a widening of `useHistory`
   // (ADR-0016): the day list needs a few days EITHER SIDE of this one so the
   // editor can see the neighbours a proposed interval might collide with, and
@@ -79,113 +93,37 @@ export default function DayDetail() {
   } = useDayFasts(dateKey, boundary);
   const [fastSheet, setFastSheet] = useState<{ mode: FastSheetMode; fast: Fast | null } | null>(null);
 
-  const summary = summarizeDay(dateKey, logs, weights, boundary);
-  const dayLogs = logs
-    .filter((l) => dayKeyAt(l.date, boundary) === dateKey && l.calories > 0)
-    .sort((a, b) => a.date.getTime() - b.date.getTime());
+  // Memoised on their inputs (review, Performance): both walk the whole
+  // window — up to 400 rows plus any fetched months — and ran on every render,
+  // including every keystroke-driven re-render under an open sheet.
+  const summary = useMemo(
+    () => summarizeDay(dateKey, logs, weights, boundary),
+    [dateKey, logs, weights, boundary],
+  );
+  const dayLogs = useMemo(
+    () =>
+      logs
+        .filter((l) => dayKeyAt(l.date, boundary) === dateKey && l.calories > 0)
+        .sort((a, b) => a.date.getTime() - b.date.getTime()),
+    [logs, boundary, dateKey],
+  );
 
-  // Latest values for the receipt's Edit, whose closure is from the add.
-  const dayLogsRef = useRef(dayLogs);
-  dayLogsRef.current = dayLogs;
-  const sheetOpenRef = useRef(sheetOpen);
-  sheetOpenRef.current = sheetOpen;
+  const diary = useDiaryActions({
+    where: 'history',
+    dateKey,
+    dayLogs,
+    presets,
+    addEntry,
+    updateEntry,
+    deleteEntry,
+    deletePreset,
+  });
 
   function openAdd() {
     haptics.tap();
-    setEditing(null);
-    setSheetOpen(true);
+    diary.openAdd();
   }
-  function openEdit(log: DailyLog) {
-    haptics.tap();
-    setEditing(log);
-    setSheetOpen(true);
-  }
-  async function onSave(entry: LogEntry) {
-    if (editing?.id) {
-      const before = editing;
-      // An untouched form's Save writes nothing and says nothing.
-      if (isNoopEdit(before, entry)) return;
-      // Not awaited: the SDK resolves an update only on the server's ack, so
-      // offline the sheet sat with Save disabled forever while the banner
-      // promised "will sync". The SDK holds the patch either way; the sheet
-      // closes now, and a rejection (rules, a deleted row) says so in a toast
-      // rather than rolling the row back behind a lone haptic.
-      updateEntry(editing.id, entry).catch((e) => {
-        haptics.warning();
-        toast.show(t('entry.updateFailed'));
-        captureError(e, { where: 'history.updateEntry' });
-      });
-      // An edit is undoable like an add or a delete: the receipt puts the row
-      // back exactly as it was (same id, same fields) — "I changed the wrong
-      // entry" no longer means re-typing the old numbers from memory.
-      const label = entry.mealLabel?.trim() || before.mealLabel?.trim();
-      toast.show(label ? t('entry.updatedNamed', { label }) : t('entry.updated'), {
-        action: {
-          label: t('common.undo'),
-          onPress: () => {
-            updateEntry(before.id!, entryFromLog(before)).catch((e) => {
-              haptics.warning();
-              toast.show(t('entry.updateFailed'));
-              captureError(e, { where: 'history.undoEdit' });
-            });
-          },
-        },
-      });
-    } else {
-      const r = await addEntry(entry);
-      receipt.showAdded(r, { label: entry.mealLabel, calories: entry.calories }, (id) => {
-        // Same as Today's: never over an open sheet, and the live row when
-        // the snapshot has it.
-        if (sheetOpenRef.current) return;
-        const live = dayLogsRef.current.find((l) => l.id === id);
-        openEdit(live ?? { ...entry, id, date: entry.timestamp ?? new Date() });
-      });
-    }
-    haptics.success();
-  }
-  /** "Add all" from a described meal — one receipt, one Undo (see Today). */
-  async function onSaveMany(entries: LogEntry[]) {
-    // In parallel — offline, one at a time cost each row its own deadline.
-    const receipts = await Promise.all(entries.map((entry) => addEntry(entry)));
-    receipt.showAddedMany(
-      receipts,
-      entries.reduce((sum, e) => sum + e.calories, 0),
-    );
-    haptics.success();
-  }
-  /** Same delete-then-Undo as Today (UX_AUDIT S18-6): the re-add carries the
-   *  row's own id and timestamp, so it lands back on THIS day. */
-  async function onDelete() {
-    const log = editing;
-    const uid = user?.uid;
-    if (log?.id) {
-      // Not awaited — offline the delete never acks and the Undo never showed.
-      deleteEntry(log.id).catch((e) => {
-        haptics.warning();
-        captureError(e, { where: 'history.deleteEntry' });
-      });
-      const id = log.id;
-      if (uid) {
-        toast.show(t('entry.deleted'), {
-          durationMs: 5000,
-          action: {
-            label: t('common.undo'),
-            onPress: () => {
-              // Durable, like any add: the same id and every field when it can reach
-          // the server, parked on disk when it cannot (a plain write offline died
-          // with the process).
-          addLogDurably(uid, entryFromLog(log), id).catch((e) => {
-                haptics.warning();
-                captureError(e, { where: 'history.undoDelete' });
-              });
-            },
-          },
-        });
-      }
-    }
-    haptics.success();
-    setSheetOpen(false);
-  }
+  const g = (n: number) => t('unit.grams', { n: formatNumber(n, locale) });
 
   /** Where a hand-logged fast is anchored when there is nothing to copy.
    *  Local noon on the day being viewed: a fast that ends around midday and
@@ -215,18 +153,13 @@ export default function DayDetail() {
     });
   }
 
-  const title = formatDate(parseYmd(dateKey), locale, {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  });
+  const title = dayTitle(dateKey, locale);
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/history'))}
           hitSlop={12}
           accessibilityRole="button"
           accessibilityLabel={t('common.back')}
@@ -234,7 +167,7 @@ export default function DayDetail() {
         >
           <Ionicons name="chevron-back" size={26} color={colors.ink} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>
+        <Text style={styles.headerTitle} numberOfLines={1} accessibilityRole="header">
           {title}
         </Text>
         <View style={{ width: 26 }} />
@@ -250,9 +183,9 @@ export default function DayDetail() {
         <ScrollView contentContainerStyle={styles.body}>
           <View style={styles.totals}>
             <Total label={t('today.calories')} value={formatNumber(summary.totalCalories, locale)} />
-            <Total label={t('history.protein')} value={`${summary.totalProtein}g`} />
-            <Total label={t('today.carbs')} value={`${summary.totalCarbs}g`} />
-            <Total label={t('today.fat')} value={`${summary.totalFat}g`} />
+            <Total label={t('history.protein')} value={g(summary.totalProtein)} />
+            <Total label={t('today.carbs')} value={g(summary.totalCarbs)} />
+            <Total label={t('today.fat')} value={g(summary.totalFat)} />
           </View>
           {summary.weightLb != null ? (
             <Text style={styles.weight}>
@@ -260,12 +193,19 @@ export default function DayDetail() {
             </Text>
           ) : null}
 
-          <Text style={styles.sectionTitle}>{t('today.entries')}</Text>
-          {dayLogs.length === 0 ? (
-            <Text style={styles.empty}>{t('history.noEntries')}</Text>
-          ) : (
-            <MealEntries logs={dayLogs} onPress={openEdit} />
-          )}
+          <Text style={styles.sectionTitle} accessibilityRole="header">{t('today.entries')}</Text>
+          {/* Today's diary, for this date: four meal slots each with "+ Add",
+              swipe to delete or save to Quick add (review U2/U3). */}
+          <MealEntries
+            logs={dayLogs}
+            onPress={(log) => {
+              haptics.tap();
+              diary.openEdit(log);
+            }}
+            onSavePreset={diary.savePresetFromLog}
+            onDelete={diary.deleteFromList}
+            onAddToSlot={diary.openSlot}
+          />
 
           {/* Fasting. Below the meals because meals are what this screen is
               for, and a fast is the thing you come back to CORRECT — the case
@@ -329,30 +269,35 @@ export default function DayDetail() {
         </ScrollView>
       )}
 
+      {/* The same coral + as Today's (review V4) — it was an ink circle, so
+          the one action that means "log food" looked like two different
+          buttons depending on the date. Same size, glyph and colour pair. */}
       {!loading ? (
-        <TouchableOpacity
+        <PressScale
           style={styles.fab}
           onPress={openAdd}
           testID="add-food-day"
-          activeOpacity={0.85}
           accessibilityRole="button"
           accessibilityLabel={t('log.manual')}
+          accessibilityShowsLargeContentViewer
+          accessibilityLargeContentTitle={t('log.manual')}
         >
-          <Ionicons name="add" size={28} color={colors.onInk} />
-        </TouchableOpacity>
+          <Ionicons name="add" size={32} color={colors.heroPanel} />
+        </PressScale>
       ) : null}
 
       <EntrySheet
-        visible={sheetOpen}
-        editing={editing}
-        onSaveMany={onSaveMany}
+        visible={diary.sheetOpen}
+        editing={diary.editing}
+        onSaveMany={diary.onSaveMany}
         dateKey={dateKey}
         presets={presets}
-        onSave={onSave}
-        onDelete={editing ? onDelete : undefined}
+        onSave={diary.onSave}
+        onDelete={diary.editing ? diary.onDelete : undefined}
         // Undo is offered here, so the sheet's delete fires at once (S18-6).
         deleteUndoable
-        onClose={() => setSheetOpen(false)}
+        onClose={diary.closeSheet}
+        initialPrefill={diary.prefill}
         onSavePreset={addPreset}
         onDeletePreset={deletePreset}
         customFoods={customFoods}
@@ -396,7 +341,7 @@ function Total({ label, value }: { label: string; value: string }) {
   );
 }
 
-const createStyles = ({ colors }: Theme) => StyleSheet.create({
+const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
   header: {
     flexDirection: 'row',
@@ -408,7 +353,8 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   },
   headerTitle: { flex: 1, textAlign: 'center', fontSize: font.h3, fontWeight: '700', color: colors.ink },
   fill: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  body: { padding: space.xl, gap: space.lg },
+  // The tail padding clears the + button over the last row.
+  body: { padding: space.xl, paddingBottom: 96, gap: space.lg },
   totals: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -446,16 +392,12 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
     position: 'absolute',
     right: space.xl,
     bottom: space.xl,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.ink,
+    width: 58,
+    height: 58,
+    borderRadius: radius.pill,
+    backgroundColor: colors.ring,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 5,
+    ...shadow.e3,
   },
 });

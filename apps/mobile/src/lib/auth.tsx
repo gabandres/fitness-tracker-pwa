@@ -65,6 +65,7 @@ import { registerAppleRefreshToken } from './appleSignin';
 import { addBreadcrumb, captureError, setSentryUser } from './sentry';
 import { isGoogleInternalError } from './google-signin-errors';
 import { clearQuickAdd } from './quick-add';
+import { clearPendingBody } from './pending-body';
 import { clearTapeReminder } from './reminders';
 import { clearOfflineCache, readCache, writeCache } from './offline-cache';
 import * as Updates from 'expo-updates';
@@ -1216,6 +1217,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // above (ADR-0020). `clearQuickAdd` never throws, so it cannot strand
         // the sign-out.
         await clearQuickAdd();
+        // The parked weigh-ins and measurements — same reason, same store kind.
+        await clearPendingBody();
         // The weekly tape reminder is device-stored but the account's own
         // (ADR-0043). `clearTapeReminder` never throws.
         await clearTapeReminder();

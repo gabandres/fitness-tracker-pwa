@@ -37,7 +37,7 @@ appId: fit.ignia.app
 - takeScreenshot: .maestro/regression/shots/01-today-metrics
 - scrollUntilVisible:
     element:
-      text: 'Entries'
+      text: 'Meals'
     direction: DOWN
     timeout: 15000
 # Scroll to the END before the final shot — a mid-scroll capture put "Repeat

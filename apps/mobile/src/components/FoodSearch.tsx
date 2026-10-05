@@ -1,7 +1,10 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { type MutableRefObject, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
+  type MutableRefObject, type ReactNode, startTransition, useDeferredValue, useEffect, useMemo, useRef, useState,
+} from 'react';
+import {
+  AccessibilityInfo, ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput,
+  TouchableOpacity, View,
 } from 'react-native';
 import type { FoodSource } from '@macrolog/core';
 import { queryNamesRestaurantChain, trustForDataType } from '@macrolog/core';
@@ -14,10 +17,15 @@ import {
   warmFoodIndex,
 } from '@/lib/foodSearch';
 import type { GramBasis } from '@/lib/grams-rescale';
+import { Glyph } from '@/components/Glyph';
 import { useDoneKeyProps } from '@/components/KeyboardBar';
 import { matchLibrary } from '@/lib/libraryMatch';
+import { announce } from '@/lib/a11y';
+import { isOffline } from '@/lib/connectivity';
+import { formatDecimal, parseDecimal, parseQuickAddQuery, type QuickAddQuery } from '@/lib/entry-input';
 import { useA11yFocus } from '@/lib/use-a11y-focus';
-import { type I18nKey, useLocale, useT } from '@/i18n';
+import { useDeferredFocus } from '@/lib/use-deferred-focus';
+import { type I18nKey, type Locale, useLocale, useT } from '@/i18n';
 import { formatNumber } from '@/lib/date-format';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
@@ -112,6 +120,28 @@ interface Props {
    *  picker back to the results and returns true, or returns false when there
    *  is nothing inside this component to step back from. */
   backHandlerRef?: MutableRefObject<(() => boolean) | null>;
+  /**
+   * Put the keyboard up on open (U2), deferred past the sheet's own entrance
+   * like the blank form's Calories field (`use-deferred-focus` says why not
+   * `autoFocus`). Only when the box opens empty: a search restored on the way
+   * back from a review has results to look at, and a keyboard over them is in
+   * the way.
+   */
+  autoFocus?: boolean;
+  /** Bump to focus the field again — "Search by name" from a barcode miss. */
+  focusSignal?: number;
+  /**
+   * The ⊕ on a result row (U3): log the hit's default portion in one tap,
+   * skipping the portion step and the review form. The receipt that follows
+   * carries Edit and Undo, which is the review for the minority who need it.
+   * Omit to hide the button.
+   */
+  onQuickLog?: (estimate: FoodEstimate) => void;
+  /**
+   * A number-only query ("350", "350 40p") offered as "Log 350 kcal" above the
+   * results (U4), and logged by Return. Omit to search numbers as text only.
+   */
+  onQuickAdd?: (entry: QuickAddQuery) => void;
 }
 
 type Phase = 'idle' | 'searching' | 'results' | 'detail-loading' | 'portion-pick' | 'error';
@@ -124,14 +154,19 @@ interface PortionDetail {
 }
 
 /**
- * Debounce in front of the search. The bundled index answers in ~30 ms, so
- * the old 350 ms wait was ten times the work it was hiding and made every
- * keystroke feel like a network call. A query that names a chain restaurant
- * still pays a real round trip (`lib/foodSearch.ts`), so it keeps the longer
- * wait rather than firing a callable per keystroke.
+ * Debounce in front of a CHAIN-restaurant query only: it pays a real round
+ * trip (`lib/foodSearch.ts`), so it waits rather than firing a callable per
+ * keystroke. A local query has no timer at all (F2): the bundled index answers
+ * in ~30 ms, and it runs off `useDeferredValue(query)` instead — React renders
+ * the keystroke first and the search when it is idle, skipping intermediate
+ * values when typing outruns it, which is what the old 100 ms timer
+ * approximated with a fixed guess.
  */
-const LOCAL_DEBOUNCE_MS = 100;
 const CHAIN_DEBOUNCE_MS = 350;
+
+/** How long results must sit unchanged before their count is spoken (A3) —
+ *  long enough that a typing screen-reader user hears one count, not five. */
+const ANNOUNCE_SETTLE_MS = 700;
 
 /** Global food-database search, mirroring the PWA food-search component:
  *  type ≥2 chars → debounced searchFoods → tap result → getFoodDetail →
@@ -153,12 +188,23 @@ export function FoodSearch({
   initial,
   onSnapshot,
   backHandlerRef,
+  autoFocus = false,
+  focusSignal,
+  onQuickLog,
+  onQuickAdd,
 }: Props) {
   const t = useT();
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const [query, setQuery] = useState(initial?.query ?? '');
+  const inputRef = useDeferredFocus(autoFocus && !initial?.query);
+  useEffect(() => {
+    if (!focusSignal) return;
+    // Past the scanner's own dismissal, for the reason the open focus waits.
+    const timer = setTimeout(() => inputRef.current?.focus(), 350);
+    return () => clearTimeout(timer);
+  }, [focusSignal, inputRef]);
   // A dictated bare food name arrives here rather than in the meal draft — see
   // `routeTranscript`. Keyed on the seed VALUE so typing afterwards is never
   // fought with. A restored search (`initial`) already contains whatever the
@@ -192,6 +238,13 @@ export function FoodSearch({
   // what lets the list say so (`staleHits`).
   const [hitsQuery, setHitsQuery] = useState(initial?.query.trim() ?? '');
   const [pendingQuery, setPendingQuery] = useState<string | null>(null);
+  // The local search runs off this (see CHAIN_DEBOUNCE_MS). `lastRun` stops a
+  // restored search re-running on mount, and a chain query running twice.
+  const deferredQuery = useDeferredValue(query);
+  const lastRun = useRef(initial?.query.trim() ?? '');
+  // The first row of whatever the list shows — Return moves a screen reader
+  // there (A3), since Return has nothing else to do on a live search.
+  const firstRowRef = useRef<View>(null);
 
   useEffect(() => {
     return () => {
@@ -236,6 +289,22 @@ export function FoodSearch({
     [query, libraryItems],
   );
 
+  // Say how many results there are once the list settles (A3). Sighted users
+  // see the list change under the field; a screen-reader user typing heard
+  // nothing at all until they went looking. Once per answered query.
+  const announcedFor = useRef('');
+  useEffect(() => {
+    if (phase !== 'results' || pendingQuery != null) return;
+    const q = hitsQuery;
+    if (!q || q === announcedFor.current) return;
+    const n = hits.length + libraryHits.length;
+    const timer = setTimeout(() => {
+      announcedFor.current = q;
+      announce(n === 0 ? t('food.noMatches') : n === 1 ? t('food.resultsOne') : t('food.resultsCount', { n }));
+    }, ANNOUNCE_SETTLE_MS);
+    return () => clearTimeout(timer);
+  }, [phase, pendingQuery, hitsQuery, hits.length, libraryHits.length, t]);
+
   function onChange(text: string) {
     setQuery(text);
     if (debounce.current) clearTimeout(debounce.current);
@@ -244,6 +313,7 @@ export function FoodSearch({
       // A response still in flight for the longer query must not land on the
       // browse list this just restored.
       reqId.current++;
+      lastRun.current = '';
       setPhase('idle');
       setHits([]);
       setPendingQuery(null);
@@ -254,23 +324,43 @@ export function FoodSearch({
     // old flip to a spinner on every keystroke blanked the list ten times a
     // word for a search that finishes before the next key lands.
     setPhase((p) => (p === 'results' ? 'results' : 'searching'));
-    const wait = queryNamesRestaurantChain(q) ? CHAIN_DEBOUNCE_MS : LOCAL_DEBOUNCE_MS;
-    debounce.current = setTimeout(() => void runSearch(q), wait);
+    if (queryNamesRestaurantChain(q)) {
+      debounce.current = setTimeout(() => {
+        lastRun.current = q;
+        void runSearch(q);
+      }, CHAIN_DEBOUNCE_MS);
+    }
   }
+
+  // The local search, off the deferred query (F2). A chain query is the
+  // debounce's; a query under two characters is `onChange`'s reset.
+  useEffect(() => {
+    const q = deferredQuery.trim();
+    if (q.length < 2 || q === lastRun.current || queryNamesRestaurantChain(q)) return;
+    lastRun.current = q;
+    void runSearch(q);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deferredQuery]);
 
   async function runSearch(q: string) {
     const id = ++reqId.current;
     try {
       const results = await searchFoods(q);
       if (id !== reqId.current) return; // stale
-      setHits(results);
-      setHitsQuery(q);
-      setPendingQuery(null);
-      setPhase('results');
+      // A transition: the list is the non-urgent half of a keystroke, and the
+      // field must never wait on it.
+      startTransition(() => {
+        setHits(results);
+        setHitsQuery(q);
+        setPendingQuery(null);
+        setPhase('results');
+      });
     } catch (e) {
       if (id !== reqId.current) return;
       setPendingQuery(null);
-      setErrorMsg(t(messageKey(e, 'food.failed')));
+      // Offline is said as offline (C3): "didn't work, try again" invites the
+      // retry that cannot work until the connection is back.
+      setErrorMsg(t(messageKey(e, isOffline() ? 'food.failedOffline' : 'food.failed')));
       setPhase('error');
     }
   }
@@ -315,8 +405,9 @@ export function FoodSearch({
     } catch (e) {
       if (id !== reqId.current) return;
       // This one IS a network call (an Open Food Facts product, or a hit that
-      // arrived without servings), so "check your connection" is honest here.
-      setErrorMsg(t(messageKey(e, 'food.detailFailed')));
+      // arrived without servings), so "check your connection" is honest here —
+      // and when the app already knows it is offline, it says that instead.
+      setErrorMsg(t(messageKey(e, isOffline() ? 'food.detailFailedOffline' : 'food.detailFailed')));
       setPhase('error');
     }
   }
@@ -338,7 +429,7 @@ export function FoodSearch({
 
   const typed = query.trim();
   // Only a chain query is slow enough to matter: the bundled index answers a
-  // local one in ~30 ms behind a 100 ms debounce, and dimming the list for that
+  // local one in ~30 ms off a deferred render, and dimming the list for that
   // would flicker on every keystroke. Library rows are matched synchronously
   // against what is typed, so they are never stale and stay live.
   const staleHits =
@@ -346,33 +437,63 @@ export function FoodSearch({
     pendingQuery != null &&
     pendingQuery !== hitsQuery &&
     queryNamesRestaurantChain(pendingQuery);
-  const libraryRows = typed.length >= 2 && libraryHits.length > 0 ? (
+  // "350" / "350 40p" — a calorie count typed into the search (U4).
+  const quick = onQuickAdd ? parseQuickAddQuery(typed, locale) : null;
+  // Whichever row the list leads with takes `firstRowRef` (A3).
+  const showLibrary = typed.length >= 2 && libraryHits.length > 0;
+  const first: 'quick' | 'library' | 'hit' = quick ? 'quick' : showLibrary ? 'library' : 'hit';
+
+  const quickRow = quick && onQuickAdd ? (
+    <Pressable
+      ref={firstRowRef}
+      style={({ pressed }) => [styles.quickRow, pressed && styles.pressed]}
+      // The owner's log plays the haptic (its outcome, or a late tap).
+      onPress={() => onQuickAdd(quick)}
+      accessibilityRole="button"
+      accessibilityLabel={[
+        t('food.quickAddA11y', { n: formatNumber(quick.calories, locale) }),
+        ...macroWords(quick, locale, t),
+      ].join(', ')}
+      testID="search-quick-add"
+    >
+      <Glyph sf="plus.circle.fill" ion="add-circle" size={24} color={colors.teal} />
+      <View style={styles.quickMain}>
+        <Text style={styles.quickTitle} maxFontSizeMultiplier={2.2}>
+          {t('food.quickAddRow', { n: formatNumber(quick.calories, locale) })}
+        </Text>
+        {macroWords(quick, locale, t).length ? (
+          <Text style={styles.hitServing} maxFontSizeMultiplier={2.2}>{macroWords(quick, locale, t).join(' · ')}</Text>
+        ) : null}
+      </View>
+    </Pressable>
+  ) : null;
+
+  const libraryRows = showLibrary ? (
     <View testID="search-library">
-      {libraryHits.map((item) => (
+      {libraryHits.map((item, i) => (
         <Pressable
           key={item.key}
+          ref={first === 'library' && i === 0 ? firstRowRef : undefined}
           style={({ pressed }) => [styles.hit, pressed && styles.pressed]}
-          onPress={() => {
-            haptics.tap();
-            item.onPick();
-          }}
+          // `onPick` is the sheet's one-tap log, which plays its own haptic.
+          onPress={item.onPick}
           accessibilityRole="button"
           accessibilityLabel={[
             item.name,
             item.tag,
-            `${formatNumber(item.kcal, locale)} ${t('today.kcal')}`,
+            t('entry.caloriesA11y', { n: formatNumber(item.kcal, locale) }),
             item.protein != null ? t('entry.proteinAmount', { n: item.protein }) : null,
           ].filter(Boolean).join(', ')}
           testID={`search-lib-${item.key}`}
         >
           <View style={styles.libRow}>
-            <Text style={[styles.hitDesc, styles.libName]} numberOfLines={1}>{item.name}</Text>
-            <Text style={styles.libKcal}>{formatNumber(item.kcal, locale)} {t('today.kcal')}</Text>
+            <Text style={[styles.hitDesc, styles.libName]} numberOfLines={1} maxFontSizeMultiplier={2.2}>{item.name}</Text>
+            <Text style={styles.libKcal} maxFontSizeMultiplier={2.2}>{formatNumber(item.kcal, locale)} {t('today.kcal')}</Text>
           </View>
           <View style={styles.hitMeta}>
-            <Text style={styles.libTag}>{item.tag}</Text>
+            <Text style={styles.libTag} maxFontSizeMultiplier={2.2}>{item.tag}</Text>
             {item.protein != null ? (
-              <Text style={styles.hitServing}>{t('entry.proteinAmount', { n: item.protein })}</Text>
+              <Text style={styles.hitServing} maxFontSizeMultiplier={2.2}>{t('entry.proteinAmount', { n: item.protein })}</Text>
             ) : null}
           </View>
         </Pressable>
@@ -384,7 +505,7 @@ export function FoodSearch({
   // carried along — see `onCreateFromQuery` and `onScanBarcode`.
   const missActions = (
     <View style={styles.center}>
-      {libraryHits.length === 0 ? <Text style={styles.muted}>{t('food.noMatches')}</Text> : null}
+      {libraryHits.length === 0 && !quick ? <Text style={styles.muted}>{t('food.noMatches')}</Text> : null}
       {onCreateFromQuery ? (
         <TouchableOpacity
           style={styles.createFromQuery}
@@ -405,7 +526,7 @@ export function FoodSearch({
           accessibilityRole="button"
           testID="scan-from-miss"
         >
-          <Ionicons name="barcode-outline" size={18} color={colors.accent} />
+          <Glyph sf="barcode.viewfinder" ion="barcode-outline" size={18} color={colors.accent} />
           <Text style={styles.createFromQueryText} numberOfLines={2}>
             {t('food.scanInstead')}
           </Text>
@@ -421,21 +542,47 @@ export function FoodSearch({
   const showMealIcon = onScanMeal != null && empty;
   const inFieldCount = (showScanIcon ? 1 : 0) + (showMealIcon ? 1 : 0);
 
+  /**
+   * Return on the search field. A typed calorie count logs (U4: "350" ⏎ is
+   * the two-tap quick add). Otherwise there is nothing to submit — results are
+   * live — so a screen reader is moved onto the first result (A3) instead of
+   * being left on a field whose keyboard just went away.
+   */
+  function onSubmit() {
+    if (quick && onQuickAdd) {
+      onQuickAdd(quick);
+      return;
+    }
+    try {
+      if (firstRowRef.current) AccessibilityInfo.sendAccessibilityEvent(firstRowRef.current, 'focus');
+    } catch {
+      // A renderer without native handles (tests, web) has nothing to focus.
+    }
+  }
+
+  // Drag the list to put the keyboard away (B2): on iOS the keyboard follows
+  // the finger, on Android a drag dismisses it.
+  const dismissMode = Platform.OS === 'ios' ? 'interactive' : 'on-drag';
+
   // ── Search + results ──
   return (
     <View style={styles.wrap}>
       <View style={styles.searchRow}>
         <View style={styles.searchBox}>
           <TextInput
+            ref={inputRef}
             placeholder={t('food.placeholder')}
             placeholderTextColor={colors.faint}
             value={query}
             onChangeText={onChange}
+            onSubmitEditing={onSubmit}
             autoCorrect={false}
-            returnKeyType="search"
+            returnKeyType={quick ? 'done' : 'search'}
             // iOS draws its own clear button; Android gets the one below.
             clearButtonMode="while-editing"
+            accessibilityRole="search"
             accessibilityLabel={t('food.searchA11y')}
+            accessibilityHint={onQuickAdd ? t('food.searchHint') : undefined}
             testID="food-search-input"
             // Capped like the form's fields: past 1.4× the placeholder no
             // longer fits beside two 44pt doors on a 360dp phone.
@@ -462,7 +609,7 @@ export function FoodSearch({
                   accessibilityLabel={t('log.scan')}
                   testID="search-scan-meal"
                 >
-                  <Ionicons name="camera-outline" size={22} color={colors.ink} />
+                  <Glyph sf="camera" ion="camera-outline" size={22} color={colors.ink} />
                 </TouchableOpacity>
               ) : null}
               {showScanIcon ? (
@@ -473,7 +620,7 @@ export function FoodSearch({
                   accessibilityLabel={t('entry.scanBarcode')}
                   testID="search-scan-barcode"
                 >
-                  <Ionicons name="barcode-outline" size={22} color={colors.ink} />
+                  <Glyph sf="barcode.viewfinder" ion="barcode-outline" size={22} color={colors.ink} />
                 </TouchableOpacity>
               ) : null}
             </View>
@@ -511,7 +658,8 @@ export function FoodSearch({
           <ActivityIndicator color={colors.accent} accessibilityLabel={t('food.loadingFood')} testID="food-detail-loading" />
         </View>
       ) : phase === 'error' ? (
-        <ScrollView keyboardShouldPersistTaps="handled" style={styles.scroll}>
+        <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode={dismissMode} style={styles.scroll}>
+          {quickRow}
           {libraryRows}
           <View style={styles.center}>
             <Text style={styles.error} accessibilityRole="alert">{errorMsg}</Text>
@@ -523,7 +671,8 @@ export function FoodSearch({
           </View>
         </ScrollView>
       ) : phase === 'searching' || phase === 'results' ? (
-        <ScrollView keyboardShouldPersistTaps="handled" style={styles.scroll}>
+        <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode={dismissMode} style={styles.scroll}>
+          {quickRow}
           {libraryRows}
           {staleHits ? (
             // Slim and inline, above the rows it is about: the list stays put
@@ -545,44 +694,65 @@ export function FoodSearch({
           ) : hits.length === 0 ? (
             missActions
           ) : (
-            hits.map((h) => {
-              const serving = defaultServingLine(h, unitSystem, t);
+            hits.map((h, i) => {
+              const s = defaultServing(h, unitSystem);
+              const serving = s ? servingLine(s, locale, t) : null;
               return (
-                <Pressable
-                  key={`${h.source}-${h.id}`}
-                  // Dimmed and inert while they answer the previous query: a
-                  // tap there used to open a food the user had typed past.
-                  style={({ pressed }) => [styles.hit, staleHits && styles.hitStale, pressed && styles.pressed]}
-                  onPress={() => openDetail(h)}
-                  disabled={staleHits}
-                  accessibilityRole="button"
-                  accessibilityState={{ disabled: staleHits }}
-                  accessibilityLabel={[h.description, h.brand, serving, t(trustLabelKey(h))].filter(Boolean).join(', ')}
-                  testID={`search-hit-${h.source}-${h.id}`}
-                >
-                  <Text style={styles.hitDesc} numberOfLines={2}>{h.description}</Text>
-                  {/* The default portion's numbers, when the hit already carries
-                      them (every bundled-index hit does). A row that would need
-                      a detail fetch to say this simply doesn't. */}
-                  {serving ? <Text style={styles.hitServing} numberOfLines={1}>{serving}</Text> : null}
-                  <View style={styles.hitMeta}>
-                    {h.brand ? <Text style={styles.hitBrand}>{h.brand}</Text> : null}
-                    {/* Where the number came from. Two databases feed this list —
-                        lab-analyzed USDA rows and crowd-entered Open Food Facts
-                        products — and until now they were indistinguishable, so a
-                        measured value and a stranger's typo looked equally
-                        authoritative. Cronometer sells "verified, not
-                        crowdsourced" as its whole pitch; saying it plainly is
-                        free, and it lets a user who cares choose. */}
-                    <Text style={[styles.hitTrust, trustStyle(h, styles)]}>{t(trustLabelKey(h))}</Text>
-                  </View>
-                </Pressable>
+                <View key={`${h.source}-${h.id}`} style={styles.hitRow}>
+                  <Pressable
+                    ref={first === 'hit' && i === 0 ? firstRowRef : undefined}
+                    // Dimmed and inert while they answer the previous query: a
+                    // tap there used to open a food the user had typed past.
+                    style={({ pressed }) => [styles.hitMain, staleHits && styles.hitStale, pressed && styles.pressed]}
+                    onPress={() => openDetail(h)}
+                    disabled={staleHits}
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: staleHits }}
+                    accessibilityLabel={[h.description, h.brand, s ? servingA11y(s, locale, t) : null, t(trustLabelKey(h))]
+                      .filter(Boolean)
+                      .join(', ')}
+                    testID={`search-hit-${h.source}-${h.id}`}
+                  >
+                    <Text style={styles.hitDesc} numberOfLines={2} maxFontSizeMultiplier={2.2}>{h.description}</Text>
+                    {/* The default portion's numbers, when the hit already carries
+                        them (every bundled-index hit does). A row that would need
+                        a detail fetch to say this simply doesn't. */}
+                    {serving ? <Text style={styles.hitServing} numberOfLines={1} maxFontSizeMultiplier={2.2}>{serving}</Text> : null}
+                    <View style={styles.hitMeta}>
+                      {h.brand ? <Text style={styles.hitBrand} maxFontSizeMultiplier={2.2}>{h.brand}</Text> : null}
+                      {/* Where the number came from. Two databases feed this list —
+                          lab-analyzed USDA rows and crowd-entered Open Food Facts
+                          products — and until now they were indistinguishable, so a
+                          measured value and a stranger's typo looked equally
+                          authoritative. Cronometer sells "verified, not
+                          crowdsourced" as its whole pitch; saying it plainly is
+                          free, and it lets a user who cares choose. */}
+                      <Text style={[styles.hitTrust, trustStyle(h, styles)]} maxFontSizeMultiplier={2.2}>{t(trustLabelKey(h))}</Text>
+                    </View>
+                  </Pressable>
+                  {/* ⊕ — the default portion, logged now (U3). Only where the
+                      hit carries its portions: a hit that needs a detail fetch
+                      has no number to log without one. */}
+                  {onQuickLog && s ? (
+                    <Pressable
+                      style={({ pressed }) => [styles.hitAdd, staleHits && styles.hitStale, pressed && styles.pressed]}
+                      onPress={() => onQuickLog(estimateFor(s, 1, h.description, h.brand, { source: 'text' }))}
+                      disabled={staleHits}
+                      accessibilityRole="button"
+                      accessibilityState={{ disabled: staleHits }}
+                      accessibilityLabel={t('food.quickLogA11y', { name: h.description, serving: servingA11y(s, locale, t) })}
+                      testID={`search-hit-add-${h.source}-${h.id}`}
+                    >
+                      <Glyph sf="plus.circle" ion="add-circle-outline" size={26} color={colors.teal} />
+                    </Pressable>
+                  ) : null}
+                </View>
               );
             })
           )}
         </ScrollView>
       ) : emptyContent != null ? (
-        <ScrollView keyboardShouldPersistTaps="handled" style={styles.scroll}>
+        <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode={dismissMode} style={styles.scroll}>
           {emptyContent}
         </ScrollView>
       ) : (
@@ -592,17 +762,35 @@ export function FoodSearch({
   );
 }
 
-/** "1 cup (160 g) · 104 kcal · 1 g protein" for a hit's first portion in the
- *  user's preferred order, or null when the hit carries no portions. */
-function defaultServingLine(
-  h: FoodSearchHit,
-  unitSystem: 'us' | 'metric',
-  t: ReturnType<typeof useT>,
-): string | null {
+/** A hit's first portion in the user's preferred order, or null when the hit
+ *  carries no portions (it would need a detail fetch to say). */
+function defaultServing(h: FoodSearchHit, unitSystem: 'us' | 'metric'): ServingOption | null {
   if (!h.servings?.length) return null;
-  const s = sortServings(h.servings, unitSystem)[0];
-  if (!s) return null;
-  return `${s.label} · ${s.kcal} kcal · ${t('entry.proteinAmount', { n: Math.round(s.protein) })}`;
+  return sortServings(h.servings, unitSystem)[0] ?? null;
+}
+
+/** "1 cup (160 g) · 104 kcal · 1 g protein" — localized number, localized unit. */
+function servingLine(s: ServingOption, locale: Locale, t: ReturnType<typeof useT>): string {
+  return `${s.label} · ${formatNumber(s.kcal, locale)} ${t('today.kcal')} · ${t('entry.proteinAmount', { n: Math.round(s.protein) })}`;
+}
+
+/** The same, for a screen reader: "calories" spoken as a word (A5) — "kcal"
+ *  was read letter by letter. */
+function servingA11y(s: ServingOption, locale: Locale, t: ReturnType<typeof useT>): string {
+  return [
+    s.label,
+    t('entry.caloriesA11y', { n: formatNumber(s.kcal, locale) }),
+    t('entry.proteinAmount', { n: Math.round(s.protein) }),
+  ].join(', ');
+}
+
+/** "40 g protein", "30 g carbs", "12 g fat" — whichever a quick add carries. */
+function macroWords(q: QuickAddQuery, locale: Locale, t: ReturnType<typeof useT>): string[] {
+  return [
+    q.protein != null ? t('entry.proteinAmount', { n: formatNumber(q.protein, locale) }) : null,
+    q.carbs != null ? t('entry.carbsAmount', { n: formatNumber(q.carbs, locale) }) : null,
+    q.fat != null ? t('entry.fatAmount', { n: formatNumber(q.fat, locale) }) : null,
+  ].filter((w): w is string => w != null);
 }
 
 /** Width of one in-field door: the platform minimum target (44pt iOS, 48dp
@@ -616,12 +804,11 @@ const roundQty = (n: number) => Math.round(n * 100) / 100;
 const QTY_MIN = 0.1;
 const QTY_MAX = 99;
 
-/** A typed quantity (1.5, 0,25), or null when unreadable or out of range. */
-function parseQty(text: string): number | null {
-  const raw = text.trim().replace(',', '.');
-  if (raw === '') return null;
-  const n = Number(raw);
-  return Number.isFinite(n) && n >= QTY_MIN && n <= QTY_MAX ? roundQty(n) : null;
+/** A typed quantity (1.5, 0,25), or null when unreadable or out of range.
+ *  Read in the user's locale (`parseDecimal`), like the form's numbers. */
+function parseQty(text: string, locale: Locale): number | null {
+  const n = parseDecimal(text, locale);
+  return n != null && n >= QTY_MIN && n <= QTY_MAX ? roundQty(n) : null;
 }
 
 /** One portion × `m` as the estimate the review form opens on. */
@@ -688,9 +875,15 @@ export function PortionPicker({
   // The picker replaces the list in place; say where the user now is.
   const titleRef = useA11yFocus(title);
 
-  const stepDown = () =>
+  // A tick per step (D1) — the most-tapped control here gave no feedback at all.
+  const stepDown = () => {
+    haptics.selection();
     setMultiplier((m) => Math.max(Math.min(m, 0.5), roundQty(m - 0.5)));
-  const stepUp = () => setMultiplier((m) => Math.min(QTY_MAX, roundQty(m + 0.5)));
+  };
+  const stepUp = () => {
+    haptics.selection();
+    setMultiplier((m) => Math.min(QTY_MAX, roundQty(m + 0.5)));
+  };
 
   /** Commit the typed quantity. Unreadable or out-of-range text keeps the old
    *  value with a warning haptic; the label then shows what stands. */
@@ -699,7 +892,7 @@ export function PortionPicker({
     const raw = qtyDraft.trim();
     setQtyDraft(null);
     if (raw === '') return;
-    const n = parseQty(raw);
+    const n = parseQty(raw, locale);
     if (n == null) {
       haptics.warning();
       return;
@@ -712,7 +905,7 @@ export function PortionPicker({
   // the field first — and an iPhone decimal pad has no Return key — so the
   // pick used to go out at the OLD quantity while the field showed the new one.
   // The rows preview it too, for the same reason.
-  const liveQty = (qtyDraft != null ? parseQty(qtyDraft) : null) ?? multiplier;
+  const liveQty = (qtyDraft != null ? parseQty(qtyDraft, locale) : null) ?? multiplier;
 
   function pickServing(s: ServingOption) {
     // A tap: the success buzz belongs to the add that follows, not the pick.
@@ -732,8 +925,8 @@ export function PortionPicker({
         <Ionicons name="chevron-back" size={18} color={colors.muted} />
         <Text style={styles.backText}>{backLabel}</Text>
       </TouchableOpacity>
-      <Text ref={titleRef} style={styles.detailTitle} numberOfLines={2} accessibilityRole="header">{title}</Text>
-      {brand ? <Text style={styles.brand}>{brand}</Text> : null}
+      <Text ref={titleRef} style={styles.detailTitle} numberOfLines={2} maxFontSizeMultiplier={1.6} accessibilityRole="header">{title}</Text>
+      {brand ? <Text style={styles.brand} maxFontSizeMultiplier={2.2}>{brand}</Text> : null}
 
       <View style={styles.multRow}>
         <Text style={styles.multLabel} importantForAccessibility="no" accessibilityElementsHidden>
@@ -773,7 +966,7 @@ export function PortionPicker({
             // steps could not say "a third of the bag" or "3.25 servings".
             <TouchableOpacity
               style={styles.multTap}
-              onPress={() => setQtyDraft(String(multiplier))}
+              onPress={() => setQtyDraft(formatDecimal(multiplier, locale))}
               accessibilityRole="adjustable"
               accessibilityLabel={t('food.quantity')}
               accessibilityValue={{ text: qtyText }}
@@ -782,7 +975,7 @@ export function PortionPicker({
               onAccessibilityAction={(e) => {
                 if (e.nativeEvent.actionName === 'increment') stepUp();
                 else if (e.nativeEvent.actionName === 'decrement') stepDown();
-                else if (e.nativeEvent.actionName === 'activate') setQtyDraft(String(multiplier));
+                else if (e.nativeEvent.actionName === 'activate') setQtyDraft(formatDecimal(multiplier, locale));
               }}
               testID="food-qty-value"
             >
@@ -803,27 +996,37 @@ export function PortionPicker({
         </View>
       </View>
 
-      <ScrollView keyboardShouldPersistTaps="handled" style={styles.scroll}>
-        {servings.map((s, i) => (
-          <Pressable
-            key={`${s.label}-${i}`}
-            style={({ pressed }) => [styles.serving, pressed && styles.pressed]}
-            onPress={() => pickServing(s)}
-            accessibilityRole="button"
-            testID={`portion-${i}`}
-          >
-            <View style={styles.servingMain}>
-              <Text style={styles.servingLabel}>{s.label}</Text>
-              {/* Words, not "P 12g" (S18-17), same as the diary rows. */}
-              <Text style={styles.servingMacros}>
-                {formatNumber(Math.round(s.kcal * liveQty), locale)} kcal · {t('entry.proteinAmount', { n: Math.round(s.protein * liveQty) })}
-              </Text>
-            </View>
-            {/* "Review", not "Add": this tap opens the form, whose own button
-                is the one that adds. Two "Add"s in a row read as a double log. */}
-            <Text style={styles.servingPick}>{t('food.review')}</Text>
-          </Pressable>
-        ))}
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+        style={styles.scroll}
+      >
+        {servings.map((s, i) => {
+          const kcal = formatNumber(Math.round(s.kcal * liveQty), locale);
+          const protein = t('entry.proteinAmount', { n: Math.round(s.protein * liveQty) });
+          return (
+            <Pressable
+              key={`${s.label}-${i}`}
+              style={({ pressed }) => [styles.serving, pressed && styles.pressed]}
+              onPress={() => pickServing(s)}
+              accessibilityRole="button"
+              // "calories" as a word (A5); the visible line keeps "kcal".
+              accessibilityLabel={[s.label, t('entry.caloriesA11y', { n: kcal }), protein, t('food.review')].join(', ')}
+              testID={`portion-${i}`}
+            >
+              <View style={styles.servingMain}>
+                <Text style={styles.servingLabel} maxFontSizeMultiplier={2.2}>{s.label}</Text>
+                {/* Words, not "P 12g" (S18-17), same as the diary rows. */}
+                <Text style={styles.servingMacros} maxFontSizeMultiplier={2.2}>
+                  {kcal} {t('today.kcal')} · {protein}
+                </Text>
+              </View>
+              {/* "Review", not "Add": this tap opens the form, whose own button
+                  is the one that adds. Two "Add"s in a row read as a double log. */}
+              <Text style={styles.servingPick} maxFontSizeMultiplier={2.2}>{t('food.review')}</Text>
+            </Pressable>
+          );
+        })}
       </ScrollView>
     </View>
   );
@@ -860,7 +1063,11 @@ function messageKey(e: unknown, fallback: I18nKey): I18nKey {
 }
 
 const createStyles = ({ colors }: Theme) => StyleSheet.create({
-  wrap: { minHeight: 320, gap: space.sm },
+  // `flexShrink`, no floor and no cap on the list below (B2): a fixed 320
+  // floor plus a 360 cap put the bottom of the results under the keyboard
+  // padding on a small phone. The sheet's container is the one height that
+  // matters; this shrinks into it and the list scrolls.
+  wrap: { flexShrink: 1, gap: space.sm },
   searchRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   searchBox: { flex: 1, justifyContent: 'center' },
   search: {
@@ -879,7 +1086,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   // Android's clear control, inside the field's right edge; 48dp, Android's target.
   clear: { position: 'absolute', right: 0, width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   cancel: { fontSize: font.small, color: colors.muted, fontWeight: '700' },
-  scroll: { maxHeight: 360 },
+  scroll: { flexShrink: 1 },
   center: { alignItems: 'center', justifyContent: 'center', paddingVertical: space.xl, gap: space.sm },
   muted: { fontSize: font.small, color: colors.muted },
   error: { fontSize: font.small, color: colors.danger, textAlign: 'center' },
@@ -917,6 +1124,23 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.line,
   },
+  // A database hit: the row opens the portion step, the ⊕ beside it logs.
+  hitRow: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: colors.line },
+  hitMain: { flex: 1, paddingVertical: space.md },
+  // 48 square, the row's full height at least: a one-tap log is the last
+  // control to make small.
+  hitAdd: { width: 48, minHeight: 48, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', marginRight: -space.sm },
+  quickRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    paddingVertical: space.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
+    minHeight: 48,
+  },
+  quickMain: { flex: 1, gap: 2 },
+  quickTitle: { fontSize: font.body, color: colors.teal, fontWeight: '700' },
   hitDesc: { fontSize: font.body, color: colors.ink, fontWeight: '600' },
   hitServing: { fontSize: font.small, color: colors.muted, marginTop: 2 },
   libRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },

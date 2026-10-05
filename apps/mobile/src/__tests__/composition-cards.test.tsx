@@ -7,8 +7,15 @@ jest.mock('@/lib/reminders', () => ({
   getTapeReminder: jest.fn(async () => null),
   setTapeReminder: jest.fn(async () => 'ok'),
 }));
+// The glossary is a `native` sheet since 2026-10-04, and jest runs as iOS — so
+// it would publish to the native-sheet portal and render nothing in place.
+// What this file asserts is WHICH terms are listed, so draw the JS sheet.
+jest.mock('@/components/BottomSheet', () => {
+  const actual = jest.requireActual('@/components/BottomSheet');
+  return { ...actual, NATIVE_SHEETS: false, BottomSheet: (p: object) => actual.BottomSheet({ ...p, native: false }) };
+});
 
-import { CompositionLine, RecompCard } from '@/components/CompositionCards';
+import { CompositionLine, RecompCard, recompHeadlineKey } from '@/components/CompositionCards';
 import { NumbersGlossary } from '@/components/NumbersGlossary';
 import { fireEvent, waitFor } from '@testing-library/react-native';
 import { setTapeReminder } from '@/lib/reminders';
@@ -116,19 +123,32 @@ describe('RecompCard', () => {
     tapes: 3,
   };
 
-  it('shows the class, both slopes, the tape count, and the noise caveat', async () => {
+  it('inside tape noise the headline hedges, so it agrees with its own caveat', async () => {
     const screen = await render(<RecompCard signal={signal} unitSystem="us" lastTapeAt={null} />);
-    expect(screen.getByTestId('recomp-class').props.children).toBe('Recomposition signal: waist down, weight stable');
+    expect(screen.getByTestId('recomp-class').props.children).toBe('Possible recomposition: waist down, weight stable');
     expect(screen.getByTestId('recomp-slopes').props.children).toBe(
-      'Weight −0.13 lb/wk · Waist −0.24 ± 0.34 in per 4 wk · 3 tapes',
+      'Weight −0.13 lb/wk · Waist −0.24 ± 0.34 in per 4 wk · 3 tapes in the last 42 days',
     );
     expect(screen.getByTestId('recomp-noise')).toBeTruthy();
+  });
+
+  it('outside the noise it states the signal outright', async () => {
+    const screen = await render(
+      <RecompCard signal={{ ...signal, waistWithinNoise: false }} unitSystem="us" lastTapeAt={null} />,
+    );
+    expect(screen.getByTestId('recomp-class').props.children).toBe('Recomposition signal: waist down, weight stable');
+    expect(screen.queryByTestId('recomp-noise')).toBeNull();
+  });
+
+  it('a waist-flat class is not hedged — noise does not contradict "flat"', () => {
+    expect(recompHeadlineKey('gaining_waist_stable', true)).toBe('recomp.cls.gaining_waist_stable');
+    expect(recompHeadlineKey('fat_loss', true)).toBe('recomp.clsPossible.fat_loss');
   });
 
   it('metric users get kg and cm', async () => {
     const screen = await render(<RecompCard signal={signal} unitSystem="metric" lastTapeAt={null} />);
     expect(screen.getByTestId('recomp-slopes').props.children).toBe(
-      'Weight −0.06 kg/wk · Waist −0.60 ± 0.87 cm per 4 wk · 3 tapes',
+      'Weight −0.06 kg/wk · Waist −0.60 ± 0.87 cm per 4 wk · 3 tapes in the last 42 days',
     );
   });
 

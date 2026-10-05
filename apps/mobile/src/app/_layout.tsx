@@ -20,6 +20,8 @@ import { BrandLoader } from '@/components/BrandLoader';
 import { I18nProvider, useT } from '@/i18n';
 import { Sentry } from '@/lib/sentry';
 import { ThemeProvider, useTheme } from '@/lib/theme-context';
+import { ToastProvider } from '@/components/Toast';
+import { sheetOptions } from '@/lib/sheet-options';
 import { font, space } from '@/theme';
 
 // Silence Expo Go's expo-notifications warnings: we use LOCAL notifications
@@ -116,9 +118,13 @@ function AuthGate({ fontsReady }: { fontsReady: boolean }) {
   useEffect(() => {
     if (initializing) return;
     const route = segments[0];
-    // Coach and Milestones are root routes pushed over the tabs (UX_AUDIT
-    // S18-14) — signed-in surfaces, so they count as "in the app" here.
-    const inApp = route === '(app)' || DETAIL_ROUTES.has(route);
+    // Coach, Milestones and History are root routes pushed over the tabs
+    // (UX_AUDIT S18-14, Today review P1) — signed-in surfaces, so they count
+    // as "in the app" here.
+    // The native sheet route (UX_AUDIT S20) is presented over the tabs too —
+    // missing from this list, it was "not in the app" and replaced away the
+    // moment it opened.
+    const inApp = route === '(app)' || DETAIL_ROUTES.has(route) || route === 'sheet';
     const onOnboarding = route === 'onboarding';
     const onVerify = route === 'verify-email';
     // The guided tour is a root route so it can take the whole screen — inside
@@ -216,10 +222,21 @@ function AuthGate({ fontsReady }: { fontsReady: boolean }) {
           swaps, and the tour/what's-new leave with one too). Only the two
           detail routes get the native push, the swipe-back and the hardware
           back — that is the whole point of the stack (UX_AUDIT S18-14). */}
+      <ToastProvider>
       <Stack screenOptions={{ headerShown: false, animation: 'none', gestureEnabled: false }}>
         <Stack.Screen name="coach" options={{ animation: 'default', gestureEnabled: true }} />
         <Stack.Screen name="milestones" options={{ animation: 'default', gestureEnabled: true }} />
+        <Stack.Screen name="history" options={{ animation: 'default', gestureEnabled: true }} />
+        <Stack.Screen name="connected-apps" options={{ animation: 'default', gestureEnabled: true }} />
+        {/* Meal-photo scan: a camera takes the whole screen, so it is presented
+            as one — no tab bar, no raised + over the viewfinder, a modal's
+            slide-up and Android back to leave. */}
+        <Stack.Screen name="scan" options={{ presentation: 'fullScreenModal', animation: 'default', gestureEnabled: false }} />
+        {/* `BottomSheet native` (UX_AUDIT S20, `lib/sheet-portal.ts`): the
+            system sheet — detents, grabber, swipe-down, Liquid Glass on iOS 26. */}
+        <Stack.Screen name="sheet" options={sheetOptions} />
       </Stack>
+      </ToastProvider>
       {showSplash ? <Splash /> : null}
     </>
   );

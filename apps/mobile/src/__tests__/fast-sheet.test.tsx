@@ -4,6 +4,9 @@
 jest.mock('@/lib/auth', () => ({
   useAuth: () => ({ user: { uid: 'u1' }, profile: null }),
 }));
+// The sheet is `native` since the Body review (P1); iOS-under-jest would
+// publish it to a root route this suite does not mount.
+jest.mock('@/components/BottomSheet', () => require('./js-sheet').jsSheetModule());
 
 import React from 'react';
 import { Alert } from 'react-native';

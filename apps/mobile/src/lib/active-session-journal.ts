@@ -53,6 +53,19 @@ export interface JournalEntry {
    *  `updatedAt`, which `toSessionPatch` stamps from the SAME device clock. */
   savedAt: number;
   session: WorkoutSession;
+  /**
+   * Whether the server is known to have the session's document — its create
+   * was acknowledged, or the session was read back from the server.
+   *
+   * `false` only for a session started on this device whose create has not
+   * landed yet (2026-10-04: a start no longer waits on the network). A restart
+   * in that window loses the create with the SDK's memory queue, so "the
+   * server has no such session" stops meaning "it was finished or discarded"
+   * and starts meaning "it was never sent" — and the journal is then the only
+   * copy there is. Absent on entries written before the field existed, which
+   * read as `true`: those sessions were all created before they were journaled.
+   */
+  created?: boolean;
 }
 
 /** Dates round-trip as `{ $d: ms }`: `JSON.stringify` would turn them into
@@ -96,14 +109,64 @@ export async function journalActiveSession(
   uid: string,
   session: WorkoutSession,
   now: number = Date.now(),
+  opts: { created?: boolean } = {},
 ): Promise<void> {
   if (!session.id || session.status !== 'active') return;
+  const entry: JournalEntry = { savedAt: now, session };
+  if (opts.created === false) entry.created = false;
   try {
-    await AsyncStorage.setItem(keyFor(uid), encodeJournal({ savedAt: now, session }));
+    await AsyncStorage.setItem(keyFor(uid), encodeJournal(entry));
   } catch {
     // Storage full or unavailable: Firestore is still written as before.
   }
 }
+
+/**
+ * The journal write, debounced.
+ *
+ * `useTrain` used to call {@link journalActiveSession} on EVERY change to the
+ * session — which, with deferred per-keystroke edits, is an AsyncStorage write
+ * per digit typed. Coalescing them into one write per `delayMs` of quiet
+ * costs at most that much of the newest edits on a hard kill, which is the
+ * trade the review asked for; the moments that matter are flushed explicitly
+ * (the tab blurring, the app backgrounding, a start, a finish), and a flush
+ * writes synchronously enough that a reload which follows it reads it back.
+ *
+ * One writer per hook instance. `cancel` drops a pending write without
+ * performing it — for a finish or discard, where writing the old session back
+ * a moment later would resurrect it.
+ */
+export function createJournalWriter(delayMs = 500) {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let pending: { uid: string; session: WorkoutSession; created?: boolean } | null = null;
+
+  function flush(): Promise<void> {
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+    const next = pending;
+    pending = null;
+    if (!next) return Promise.resolve();
+    return journalActiveSession(next.uid, next.session, Date.now(), { created: next.created });
+  }
+
+  return {
+    write(uid: string, session: WorkoutSession, created?: boolean): void {
+      pending = { uid, session, created };
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => void flush(), delayMs);
+    },
+    flush,
+    cancel(): void {
+      if (timer) clearTimeout(timer);
+      timer = null;
+      pending = null;
+    },
+  };
+}
+
+export type JournalWriter = ReturnType<typeof createJournalWriter>;
 
 export async function readActiveSessionJournal(uid: string): Promise<JournalEntry | null> {
   try {
@@ -127,10 +190,21 @@ export async function clearActiveSessionJournal(uid: string): Promise<void> {
  * Which copy of the active session the screen should show, and whether the
  * server needs to be told.
  *
- * - No active session on the server → none. The journal is never used to
- *   resurrect a session that was finished or discarded (or that an offline
- *   cache simply cannot see yet); it is left in place, not deleted, so a
- *   later load that does see the session can still use it.
+ * - No active session on the server, and the server ANSWERED (`serverKnown`)
+ *   and is known to have had the doc (`journal.created !== false`) → none.
+ *   The journal is never used to resurrect a session that was finished or
+ *   discarded; it is left in place, not deleted, so a later load that does see
+ *   the session can still use it.
+ * - No active session in a read that came from the memory cache, or that
+ *   failed — offline, a cold start — → the journal's, and `recreate`. RN
+ *   Firestore is memory-only, so an offline read after a restart is EMPTY, not
+ *   authoritative; trusting it showed Start, and the lifter started a second
+ *   workout over the one they were in (Train review bug 4, 2026-10-04).
+ * - Same, for a session whose create never landed (`created: false`) → the
+ *   journal's, and `recreate`, whatever the server says.
+ * - A session the caller knows is already being finished (`finishing`) is
+ *   never offered back as active — not from the journal, and not from a
+ *   server that has not heard the finish yet.
  * - A different session id → the server's. The journal belongs to another
  *   workout.
  * - Same id, journal strictly newer than the server's last write → the
@@ -138,19 +212,103 @@ export async function clearActiveSessionJournal(uid: string): Promise<void> {
  * - Otherwise the server's: it already has everything this device wrote, or a
  *   later write from somewhere else.
  *
+ * `recreate` asks for the whole document to be written (`startSession` with
+ * the id) rather than a patch — an update of a document the server never got
+ * fails `not-found`.
+ *
  * Pure, so the rule is testable without storage or a network.
  */
 export function reconcileActiveSession(
   server: WorkoutSession | null,
   journal: JournalEntry | null,
-): { session: WorkoutSession | null; resync: boolean } {
-  if (!server) return { session: null, resync: false };
-  if (!journal || journal.session.id !== server.id) return { session: server, resync: false };
-  const serverAt = server.updatedAt instanceof Date ? server.updatedAt.getTime() : 0;
-  if (journal.savedAt > serverAt) {
+  opts: { serverKnown?: boolean; finishing?: ReadonlySet<string> } = {},
+): { session: WorkoutSession | null; resync: boolean; recreate: boolean } {
+  const usable = journal && !opts.finishing?.has(journal.session.id ?? '') ? journal : null;
+  // A session this device has finished is not active, whatever a server that
+  // has not heard the finish yet still says.
+  const live = server?.id && opts.finishing?.has(server.id) ? null : server;
+  if (!live) {
+    if (usable && (opts.serverKnown === false || usable.created === false)) {
+      return { session: usable.session, resync: true, recreate: true };
+    }
+    return { session: null, resync: false, recreate: false };
+  }
+  if (!usable || usable.session.id !== live.id) return { session: live, resync: false, recreate: false };
+  const serverAt = live.updatedAt instanceof Date ? live.updatedAt.getTime() : 0;
+  if (usable.savedAt > serverAt) {
     // The status stays the server's: the journal only ever holds an active
     // session, and the server saying `active` is the precondition here.
-    return { session: { ...journal.session, status: server.status }, resync: true };
+    return { session: { ...usable.session, status: live.status }, resync: true, recreate: false };
   }
-  return { session: server, resync: false };
+  return { session: live, resync: false, recreate: false };
+}
+
+// ─── Finishes that have not landed yet ──────────────────────────
+
+/**
+ * A finished workout the server has not acknowledged yet.
+ *
+ * Finish used to `await` the completed write before closing the sheet, and on
+ * a gym's dead signal that write resolves only when the connection returns —
+ * "Saving…" forever (Train review bug 2). It now completes on the device: the
+ * session moves HERE, out of the active journal, the screen moves on, and the
+ * write runs behind it. This list is what survives a restart in between, and
+ * `useTrain` replays it on the next mount until each entry lands.
+ *
+ * A separate key from the active journal on purpose: the next workout can be
+ * started — and journaled — before the last one's finish has been heard.
+ */
+export interface PendingFinish {
+  savedAt: number;
+  session: WorkoutSession;
+  extras: { bodyweight?: number; sleepHours?: number };
+}
+
+const FINISH_PREFIX = 'ignia.pendingFinish.v1.';
+const finishKeyFor = (uid: string) => `${FINISH_PREFIX}${uid}`;
+
+function decodeFinishes(raw: string | null): PendingFinish[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw, reviver) as PendingFinish[];
+    return Array.isArray(parsed)
+      ? parsed.filter((p) => typeof p?.savedAt === 'number' && !!p.session?.id)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function readPendingFinishes(uid: string): Promise<PendingFinish[]> {
+  try {
+    return decodeFinishes(await AsyncStorage.getItem(finishKeyFor(uid)));
+  } catch {
+    return [];
+  }
+}
+
+async function writeFinishes(uid: string, list: PendingFinish[]): Promise<void> {
+  // An empty list is REMOVED, not stored as `[]`: a finished, synced account
+  // leaves nothing behind on the device.
+  if (list.length === 0) await AsyncStorage.removeItem(finishKeyFor(uid));
+  else await AsyncStorage.setItem(finishKeyFor(uid), JSON.stringify(list, replacer));
+}
+
+/** Add (or replace, by session id) a finish to replay. Throws on a storage
+ *  failure — the caller then falls back to waiting on the network. */
+export async function recordPendingFinish(uid: string, entry: PendingFinish): Promise<void> {
+  const list = (await readPendingFinishes(uid)).filter((p) => p.session.id !== entry.session.id);
+  await writeFinishes(uid, [...list, entry]);
+}
+
+/** Drop a finish once its writes have landed (or been refused for good). */
+export async function removePendingFinish(uid: string, sessionId: string): Promise<void> {
+  try {
+    const list = await readPendingFinishes(uid);
+    const next = list.filter((p) => p.session.id !== sessionId);
+    if (next.length !== list.length) await writeFinishes(uid, next);
+  } catch {
+    // Replaying a finish that already landed is harmless: the writes are
+    // idempotent and `markExercised` checks for its own marker.
+  }
 }

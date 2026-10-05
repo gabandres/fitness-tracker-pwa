@@ -12,6 +12,8 @@ import { fireEvent, renderWithProviders as render } from '@/test-utils';
  * the 2026-09-22 code review.
  */
 
+// iOS presents this sheet natively, through a route this test does not mount.
+jest.mock('@/components/BottomSheet', () => require('./js-sheet').jsSheetModule());
 jest.mock('@/lib/foodSearch', () => ({
   searchFoods: jest.fn().mockResolvedValue([]),
   getFoodDetail: jest.fn(),
@@ -19,7 +21,7 @@ jest.mock('@/lib/foodSearch', () => ({
   warmFoodIndex: jest.fn(),
 }));
 
-jest.mock('@/lib/haptics', () => ({ tap: jest.fn(), success: jest.fn(), warn: jest.fn() }));
+jest.mock('@/lib/haptics', () => ({ tap: jest.fn(), success: jest.fn(), warn: jest.fn(), warning: jest.fn(), selection: jest.fn(), tapThenOutcome: jest.fn(), removed: jest.fn() }));
 jest.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { uid: 'u1' }, profile: null }) }));
 jest.mock('@/components/BarcodeScanner', () => ({ BarcodeScanner: () => null }));
 

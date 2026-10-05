@@ -1,9 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useState } from 'react';
-import { AppState } from 'react-native';
+import { AppState, Linking, Platform } from 'react-native';
 import {
   type WritableKind,
   type DayBoundary,
+  dropOverriddenSamples,
   importableWorkouts,
   isLoggedCardioBlock,
   calendarDateKey,
@@ -33,6 +34,15 @@ import {
 import type { WorkoutSession } from './workout';
 import { isExpectedHealthState } from './health-errors';
 import { health, type NutritionExport, type ReadableKind, type WorkoutExport } from './health';
+import { type OverrideKind, readManualOverrides, recordManualOverride } from './health-overrides';
+import {
+  HEALTH_CONNECTED_KEY,
+  type HealthLastSync,
+  noteHealthConnected,
+  recordHealthSync,
+  useHealthStatus,
+} from './health-status';
+import { flushPendingBody } from './pending-body';
 
 /**
  * Health sync orchestration — the glue between the pure `health-mapping` brain,
@@ -50,7 +60,8 @@ import { health, type NutritionExport, type ReadableKind, type WorkoutExport } f
  * goes to Firestore. All native calls are `tsc`-verified only; QA needs a build.
  */
 
-const CONNECTED_KEY = 'ignia.health.connected';
+/** Owned by `health-status.ts`, which screens read without importing this. */
+const CONNECTED_KEY = HEALTH_CONNECTED_KEY;
 
 /**
  * Which set of scopes the stored grant covers.
@@ -158,6 +169,7 @@ export async function isHealthConnected(): Promise<boolean> {
 async function setConnectedFlag(v: boolean): Promise<void> {
   connectedCache = v;
   await AsyncStorage.setItem(CONNECTED_KEY, v ? '1' : '0');
+  await noteHealthConnected(v);
 }
 
 /**
@@ -200,11 +212,18 @@ export async function importHealth(uid: string): Promise<number> {
   if (importing || !uid || !(await isHealthConnected())) return 0;
   importing = true;
   try {
-    return await importScalars(uid);
+    const n = await importScalars(uid);
+    await recordHealthSync(n);
+    return n;
   } finally {
     importing = false;
   }
 }
+
+/** The kinds a user can correct by hand, whose manual acts the import must
+ *  honour (`health-overrides.ts`). Steps and active energy are import-only —
+ *  there is no hand-typed value for a sample to overwrite. */
+const OVERRIDABLE = new Set<ReadableKind>(['weight', 'sleep', 'water']);
 
 /** The scalar import itself, WITHOUT the in-flight guard, so {@link importAll}
  *  can hold one guard across both halves instead of two that can interleave. */
@@ -219,7 +238,13 @@ async function importScalars(uid: string): Promise<number> {
     ]);
     let applied = 0;
     for (const kind of IMPORT_KINDS) {
-      const samples = await health.readSamples(kind, IMPORT_DAYS, boundary);
+      const read = await health.readSamples(kind, IMPORT_DAYS, boundary);
+      // A day the user deleted or retyped by hand is THEIRS: samples that
+      // ended before that act are superseded by it (Body review, bug 1). Done
+      // before the fold, because the fold throws the sample times away.
+      const samples = OVERRIDABLE.has(kind)
+        ? dropOverriddenSamples(read, await readManualOverrides(uid, kind as OverrideKind))
+        : read;
       const reduced = reduceImportedSamples(samples);
       // `reduceImportedSamples` folds sleep per source (largest source wins)
       // and throws the sample times away with it. The wake instant is not part of the value and is not
@@ -412,6 +437,9 @@ export async function importAll(uid: string): Promise<number> {
   try {
     const scalars = await importScalars(uid);
     const workouts = await importHealthWorkouts(uid);
+    // Recorded only for a run that FINISHED: a locked-device failure halfway
+    // through must not stamp "synced just now" on the Connected apps card.
+    await recordHealthSync(scalars + workouts);
     return scalars + workouts;
   } finally {
     importing = false;
@@ -426,6 +454,82 @@ export async function exportDaily(kind: WritableKind, dateKey: string, value: nu
   } catch {
     /* Health write is best-effort; the Firestore write already succeeded. */
   }
+}
+
+/**
+ * Export a hand-typed weigh-in, replacing what Ignia exported for that day
+ * before, and record the manual act for the importer.
+ *
+ * Two fixes in one call, both from the Body review. The override is bug 1's
+ * other half: a correction typed over a scale's reading used to be reverted to
+ * the scale's number on the next foreground import. The replace is the
+ * export-side twin — every edit of a past day exported ANOTHER sample, so
+ * Apple Health showed each correction stacked beside the value it corrected.
+ * The delete only ever reaches our own samples (`HealthPort.deleteDaily`).
+ *
+ * Best-effort like every export: nothing here can fail the Firestore write.
+ */
+export async function exportManualWeight(uid: string, dateKey: string, lb: number): Promise<void> {
+  await recordManualOverride(uid, 'weight', dateKey);
+  try {
+    if (!(await isHealthConnected())) return;
+    try {
+      await health.deleteDaily('weight', dateKey);
+    } catch {
+      /* A failed tidy-up still exports the new value. */
+    }
+    await health.writeDaily('weight', dateKey, lb);
+  } catch {
+    /* best-effort */
+  }
+}
+
+/**
+ * The Health half of deleting a weigh-in (Body review, bug 1).
+ *
+ * Records the manual act, so a scale's sample for the day stops resurrecting
+ * it on every foreground, then removes the sample Ignia itself exported. True
+ * when that sample was removed — what the delete receipt says "also from Apple
+ * Health" on (C4). False when Health is off or the platform declined, which is
+ * not an error: the weigh-in is gone from Ignia either way.
+ */
+export async function forgetHealthWeight(uid: string, dateKey: string): Promise<boolean> {
+  await recordManualOverride(uid, 'weight', dateKey);
+  try {
+    if (!(await isHealthConnected())) return false;
+    return await health.deleteDaily('weight', dateKey);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Where a user fixes a denied Health permission. Neither OS lets an app
+ * re-show its permission prompt once declined, so "Permission denied" with no
+ * way forward was a dead end (Body review, U11).
+ *
+ * iOS: the Health app (Sharing → Apps → Ignia is where the toggles are); the
+ * app's own Settings page if the URL is refused. Android: Health Connect's own
+ * settings screen, lazily required like every other Health Connect call.
+ */
+export async function openHealthPermissions(): Promise<void> {
+  if (Platform.OS === 'android') {
+    try {
+      const HC = await import('react-native-health-connect');
+      HC.openHealthConnectSettings();
+      return;
+    } catch {
+      /* fall through to the app's settings */
+    }
+  } else if (Platform.OS === 'ios') {
+    try {
+      await Linking.openURL('x-apple-health://');
+      return;
+    } catch {
+      /* fall through */
+    }
+  }
+  await Linking.openSettings().catch(() => {});
 }
 
 export async function exportNutrition(entry: NutritionExport): Promise<void> {
@@ -460,6 +564,10 @@ export function useHealthSync(uid: string | undefined) {
    *  platforms — so "reconnect to import workouts" cannot be inferred from the
    *  data and must be tracked here. */
   const [needsReauth, setNeedsReauth] = useState(false);
+  /** When the last import finished and what it wrote — the evidence the
+   *  Connected apps card promised and never had for Health (bug 14). */
+  const status = useHealthStatus();
+  const lastSync: HealthLastSync | null = status?.lastSync ?? null;
 
   useEffect(() => {
     let alive = true;
@@ -502,7 +610,7 @@ export function useHealthSync(uid: string | undefined) {
     }
   }, [uid]);
 
-  return { available, connected, syncing, needsReauth, connect, disconnect, syncNow };
+  return { available, connected, syncing, needsReauth, lastSync, connect, disconnect, syncNow };
 }
 
 /**
@@ -529,6 +637,12 @@ export function useHealthAutoImport(uid: string | undefined): void {
   useEffect(() => {
     if (!uid) return;
     const run = (): void => {
+      // Weigh-ins and measurements parked offline land on the same foreground
+      // the import runs on (`pending-body.ts`). Independent of the import —
+      // offline the flush waits on the socket, and the import is local.
+      flushPendingBody(uid).catch(() => {
+        /* Stays parked; the next foreground retries. */
+      });
       importAll(uid).catch((err: unknown) => {
         if (isExpectedHealthState(err)) return;
         throw err;

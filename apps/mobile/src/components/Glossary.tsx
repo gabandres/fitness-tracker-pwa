@@ -1,5 +1,5 @@
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { BottomSheet } from './BottomSheet';
+import { BottomSheet, NATIVE_SHEETS } from './BottomSheet';
 import { useT, type I18nKey } from '@/i18n';
 import { useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, space } from '@/theme';
@@ -60,17 +60,24 @@ export function Glossary({
   // the published OTA bundle and this id is not in it yet;
   // `.maestro/regression/19-glossary.yaml` says to switch once a bundle
   // carrying it ships.
+  //
+  // `native` since 2026-10-04: on iOS this is a real `UISheetPresentationController`
+  // (half height first, drag to full — the glossary is reference text, and the
+  // half detent keeps the numbers it explains visible behind it). Android and
+  // tests keep the JS sheet, unchanged. The native sheet sizes its own content,
+  // so the scroll area FILLS it there instead of capping at 460dp — a cap
+  // inside a full-height detent would leave half the sheet empty.
   return (
-    <BottomSheet visible={visible} onClose={onClose} backdropTestID="glossary-backdrop">
-      <Text style={styles.title} testID={testID}>{t(titleKey)}</Text>
+    <BottomSheet visible={visible} onClose={onClose} backdropTestID="glossary-backdrop" native detents={[0.5, 1]}>
+      <Text style={styles.title} testID={testID} accessibilityRole="header">{t(titleKey)}</Text>
       <Text style={styles.intro}>{t(introKey)}</Text>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollBody}>
+      <ScrollView style={NATIVE_SHEETS ? styles.scrollNative : styles.scroll} contentContainerStyle={styles.scrollBody}>
         {sections.map((section) => (
           <View key={section.title} style={styles.section}>
             {/* A single-section glossary does not need a heading telling the
                 reader what the only group is. */}
             {sections.length > 1 ? (
-              <Text style={styles.sectionLabel}>{t(section.title)}</Text>
+              <Text style={styles.sectionLabel} accessibilityRole="header">{t(section.title)}</Text>
             ) : null}
             {section.terms.map((term) => (
               <View key={term} style={styles.term}>
@@ -91,6 +98,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   // Capped so a long glossary scrolls inside the sheet instead of pushing the
   // sheet past its own maxHeight and clipping the last terms.
   scroll: { maxHeight: 460, marginTop: space.md },
+  scrollNative: { flex: 1, marginTop: space.md },
   scrollBody: { paddingBottom: space.md },
   section: { marginBottom: space.lg },
   sectionLabel: {

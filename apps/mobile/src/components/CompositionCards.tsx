@@ -37,6 +37,17 @@ function signed(v: number, digits: number, locale: ReturnType<typeof useLocale>)
 }
 
 /** The line under the maintenance number on Trends. */
+/** Classes whose call rests on the waist MOVING — the ones a within-noise
+ *  change cannot back up. "Waist flat" classes stay as they are: noise does
+ *  not contradict flat. */
+const NOISE_HEDGED: ReadonlySet<string> = new Set(['recomp', 'fat_loss', 'gaining_fat']);
+
+/** The headline. When the waist change is inside tape noise the fine print
+ *  says so, and a headline claiming "Recomposition signal" contradicted it. */
+export function recompHeadlineKey(cls: string, withinNoise: boolean): I18nKey {
+  return (withinNoise && NOISE_HEDGED.has(cls) ? `recomp.clsPossible.${cls}` : `recomp.cls.${cls}`) as I18nKey;
+}
+
 export function CompositionLine({
   result,
   unitSystem,
@@ -144,7 +155,7 @@ export function RecompCard({
     const se = metric ? signal.waistSeInPer4Wk * CM_PER_IN : signal.waistSeInPer4Wk;
     body = (
       <>
-        <Text style={styles.recompClass} testID="recomp-class">{t(`recomp.cls.${signal.cls}` as I18nKey)}</Text>
+        <Text style={styles.recompClass} testID="recomp-class">{t(recompHeadlineKey(signal.cls, signal.waistWithinNoise))}</Text>
         <Text style={styles.recompBody} testID="recomp-slopes">
           {t('recomp.slopes', {
             w: signed(w, 2, locale),
@@ -153,6 +164,10 @@ export function RecompCard({
             se: formatNumber(se, locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
             lu: metric ? 'cm' : 'in',
             n: signal.tapes,
+            // Says which window: the maintenance card above counts every tape
+            // since the first, this one only the recent ones, and "5 tapes"
+            // beside "3 tapes" read as a bug.
+            days: RECOMP_WAIST_DAYS,
           })}
         </Text>
         {signal.waistWithinNoise ? (

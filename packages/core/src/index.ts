@@ -124,6 +124,9 @@ export * from './maintenance-view';
 // Today hero's footer before `maintenanceView` has anything to show. Same
 // contract: presentation gate over the estimator's own thresholds, no math.
 export * from './measurement-progress';
+// The maintenance estimate's history (a per-day replay of calculateTdee, no
+// new math) and the weight trend line — the two lines Trends draws.
+export * from './tdee-series';
 // What a chosen pace actually delivers once calorieFloor clamps the target.
 // Same shape as maintenance-view: a reading over calculateTdee's own
 // arithmetic, no target math changed. Exists because the pace control is a
@@ -137,6 +140,10 @@ export * from './body-composition';
 export * from './composition-maintenance';
 export * from './recomp-signal';
 export * from './weight-projection';
+// Trend weight (EWMA, gap-aware) — the Body headline, its long-range chart,
+// the "trend moved" receipt and the trend milestone. See the header for why
+// it is not the projection's fitted line.
+export * from './weight-trend';
 // Bodyweight sanity rules (shared by both frontends — logger, workout-finish
 // mirror, store backstop). Distinct from ./macro-heuristic's CALC_WEIGHT_*
 // input range; see the header of ./weight-bounds.

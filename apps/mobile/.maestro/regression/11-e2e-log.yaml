@@ -55,7 +55,7 @@ env:
 # (Maestro's own known-issues page says so, and it failed here on the numeric
 # keypad, which has no return key). The documented workaround is to tap a
 # non-interactive element; the sheet's own title is exactly that.
-- tapOn: 'Add food'
+- tapOn: 'Write it in'
 - takeScreenshot: .maestro/regression/shots/11-e2e-filled
 - tapOn:
     id: 'entry-save'

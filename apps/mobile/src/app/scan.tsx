@@ -20,18 +20,26 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   findRepeatCandidates,
   hasUngroundedItems,
+  parseTimeOfDay,
   rescaleScannedItem,
+  setTimeOfDay,
+  shiftTimeOfDay,
   sumScannedMacros,
   type CustomFood,
+  type MealType,
   type RepeatCandidate,
   type ScannedFoodItem,
 } from '@macrolog/core';
-import { confirm } from '@/components/ConfirmSheet';
+import { ConfirmHost, confirm } from '@/components/ConfirmSheet';
+import { MealSlotChips, TimeOfDayRow } from '@/components/EntryWhen';
 import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { ScanCamera } from '@/components/ScanCamera';
 import { useAddReceipt } from '@/hooks/useAddReceipt';
 import { useToday } from '@/hooks/useToday';
 import { announce } from '@/lib/a11y';
+import { isOffline, useIsOffline } from '@/lib/connectivity';
+import { parseDecimal } from '@/lib/entry-input';
+import { captureError } from '@/lib/sentry';
 import { type I18nKey, type TFn, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import {
@@ -53,9 +61,11 @@ import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space, type } from '@/theme';
 
 /**
- * `camera` is the in-app viewfinder (`ScanCamera`). Photos taken there land in
- * its strip and Analyze is right beside the shutter, so a plate with nothing
- * to say about it never visits `describe` at all: shutter → Analyze → Add.
+ * `camera` is the in-app viewfinder (`ScanCamera`). The first shot of a meal
+ * is analyzed at once (S20: shutter → Add, with Cancel on the wait), so a
+ * plate with nothing to say about it never visits `describe` at all. Library
+ * picks, and shots after a Cancel or an "Add another angle", collect in its
+ * strip, with Analyze beside the shutter.
  * Until 2026-10-04 "Take photo" handed off to the system camera, whose shutter
  * and "Use Photo" confirm were two taps that bought nothing, and every photo
  * then went through `describe` — seven taps from the + to a logged plate.
@@ -206,6 +216,29 @@ export default function Scan() {
   /** Focus the note on arrival — set only when the user asked for it ("Add a
    *  note"), so a library pick does not throw a keyboard over its photo. */
   const [noteFocus, setNoteFocus] = useState(false);
+  /** The photos behind the review on screen — "Add another angle" puts them
+   *  back in the viewfinder's strip. Empty for a restored draft (photos are
+   *  not part of it), which then offers Retake only. */
+  const [analyzedUris, setAnalyzedUris] = useState<string[]>([]);
+  /** Bumped by Cancel during the wait (U9): a result for a run that is no
+   *  longer this number is dropped on arrival. */
+  const analyzeRun = useRef(0);
+  const analyzingUris = useRef<string[]>([]);
+  /** Add failed (B3): inline above the footer, where the user is looking. */
+  const [addError, setAddError] = useState<string | null>(null);
+  /**
+   * Which meal, and when (U6). The review had neither, so a plate scanned at
+   * 9 PM was filed by the clock at the moment of Add — the only fix was an
+   * edit on Today. Untouched, both stay what they were: now, and the slot the
+   * clock gives it (the write path's default).
+   */
+  const [slot, setSlot] = useState<MealType | undefined>(undefined);
+  const [eatenAt, setEatenAt] = useState<Date>(() => new Date());
+  const [timeTouched, setTimeTouched] = useState(false);
+  const [timeDraft, setTimeDraft] = useState<string | null>(null);
+  /** Known-offline (U9): photo scan is a model call, so say it BEFORE the
+   *  photo is encoded and sent, and offer the search, which works offline. */
+  const offline = useIsOffline();
 
   /**
    * Camera access, read through expo-camera because the viewfinder is
@@ -274,6 +307,7 @@ export default function Scan() {
       setLowConf(d.lowConf);
       setNote(d.note);
       setRemaining(d.remaining);
+      resetWhen();
       setPhase('review');
     });
     return () => {
@@ -362,6 +396,19 @@ export default function Scan() {
     if (error) announce(error, { androidHasLiveRegion: true });
   }, [error]);
 
+  /**
+   * Back to Today, optionally opening its add sheet. A `replace` while this
+   * screen is a hidden tab; once it is a root-stack `fullScreenModal` (P4) the
+   * modal is dismissed onto Today with the same params instead — a replace
+   * from inside the modal would stack Today on top of it.
+   */
+  function leaveToToday(params?: Record<string, string>) {
+    const href = params ? { pathname: '/(app)' as const, params } : '/(app)';
+    // `?.`: the screen's tests hand it a router with replace/back/push only.
+    if (router.canDismiss?.()) router.dismissTo(href);
+    else router.replace(href);
+  }
+
   /** Leaving on purpose ends the scan. Only an accident leaves a draft behind —
    *  that is what makes an unexpected restore trustworthy. */
   function onBack() {
@@ -425,6 +472,27 @@ export default function Scan() {
   }
 
   /**
+   * The shutter. The FIRST shot of a meal goes straight to analysis — one
+   * photo is the overwhelmingly common scan, and an Analyze tap after every
+   * shutter press was a tap that asked nothing (+ → Scan meal → shutter → Add).
+   * Cancel on the wait is the way back if the shot was wrong. A shot taken
+   * with photos already in the strip (after a Cancel, or "Add another angle"
+   * from the review) joins them, and Analyze sends them together.
+   */
+  function onShutter(uri: string) {
+    if (pendingUris.length === 0) void onAnalyze([uri]);
+    else addPhoto(uri);
+  }
+
+  /** "Search instead" — the add sheet's search works offline (the food index
+   *  is on the device), where a photo scan cannot. */
+  function searchInstead() {
+    haptics.tap();
+    void clearScanDraft();
+    leaveToToday({ openAdd: String(Date.now()) });
+  }
+
+  /**
    * "Take photo" on the intro. The OS dialog fires on THIS tap when access was
    * never decided — the user has asked for the camera, so no pre-prompt of our
    * own comes first. A blocked camera does nothing here; the intro is already
@@ -472,11 +540,25 @@ export default function Scan() {
    * existed, including the ordering that made the wait legible: the phase flips
    * and the captured frame renders first, and the encode runs behind it.
    */
-  async function onAnalyze() {
-    const uris = pendingUris;
+  async function onAnalyze(shot?: string[]) {
+    const uris = shot ?? pendingUris;
     if (!uris.length) return;
     haptics.tap();
 
+    // Known offline: stop before the encode and the call (U9). The photos stay
+    // in the strip, so Analyze is one tap once the connection is back — and
+    // the search, which needs none, is offered beside the message.
+    if (isOffline()) {
+      setPendingUris(uris);
+      setError(t('scan.errOffline'));
+      setPhase(camGranted ? 'camera' : 'describe');
+      haptics.warning();
+      return;
+    }
+
+    const run = ++analyzeRun.current;
+    analyzingUris.current = uris;
+    setError(null);
     setPreview(uris[0]);
     setStep('preparing');
     setPhase('analyzing');
@@ -488,10 +570,12 @@ export default function Scan() {
       const encoded = (await Promise.all(uris.map(encodeMealPhoto))).filter(
         (b): b is string => typeof b === 'string' && b.length > 0,
       );
+      if (run !== analyzeRun.current) return; // cancelled
       if (!encoded.length) throw new Error('encode');
 
       setStep('reading');
       const scan = await analyzeMealPhoto(encoded, locale, note);
+      if (run !== analyzeRun.current) return; // cancelled while the model read
       if (!scan.items.length) throw new Error('empty');
 
       setStep('resolving');
@@ -500,21 +584,41 @@ export default function Scan() {
       setMealName(defaultMealName(scan.items, t('scan.mealName')));
       setLowConf(scan.confidence === 'low');
       setRemaining(scan.photosRemaining ?? null);
+      setAnalyzedUris(uris);
+      setFromDraft(false);
+      resetWhen();
       setPhase('review');
       haptics.success();
     } catch (e) {
+      if (run !== analyzeRun.current) return;
       // Say what actually went wrong. This used to be a bare `catch {}` that
       // rendered "Couldn't read that photo" for every failure — including the
       // daily quota, which is not about the photo and which retaking it can
-      // only make worse. See `scanErrorMessage`.
-      const { key, params } = scanErrorMessage(e);
+      // only make worse. See `scanErrorMessage`. A connection lost mid-call is
+      // said as that, not as a bad photo.
+      const { key, params } = isOffline() ? { key: 'scan.errOffline' as const, params: {} } : scanErrorMessage(e);
       setError(t(key, { ...params, time: quotaResetLabel(locale) }));
       setPhase('intro');
       haptics.warning();
     } finally {
-      setPreview(null);
-      setPendingUris([]);
+      if (run === analyzeRun.current) {
+        setPreview(null);
+        setPendingUris([]);
+      }
     }
+  }
+
+  /**
+   * Cancel on the wait (U9). The call cannot be recalled — the server may
+   * still count it — but the user is not held hostage by a 7 s cold start for
+   * a photo they already know is wrong. The photos go back to the strip.
+   */
+  function cancelAnalyze() {
+    haptics.tap();
+    analyzeRun.current++;
+    setPreview(null);
+    setPendingUris(analyzingUris.current);
+    setPhase(restartPhase === 'camera' ? 'camera' : 'describe');
   }
 
   /**
@@ -541,18 +645,15 @@ export default function Scan() {
     void clearScanDraft();
     const mult = c.quantity != null && c.quantity > 0 ? c.quantity : 1;
     const f = c.food;
-    router.replace({
-      pathname: '/(app)',
-      params: {
-        openAdd: `repeat-${Date.now()}`,
-        prefill: encodeEntryPrefill({
-          calories: Math.round(f.calories * mult),
-          protein: Math.round((f.protein ?? 0) * mult),
-          carbs: Math.round((f.carbs ?? 0) * mult),
-          fat: Math.round((f.fat ?? 0) * mult),
-          mealLabel: f.name,
-        }),
-      },
+    leaveToToday({
+      openAdd: `repeat-${Date.now()}`,
+      prefill: encodeEntryPrefill({
+        calories: Math.round(f.calories * mult),
+        protein: Math.round((f.protein ?? 0) * mult),
+        carbs: Math.round((f.carbs ?? 0) * mult),
+        fat: Math.round((f.fat ?? 0) * mult),
+        mealLabel: f.name,
+      }),
     });
   }
 
@@ -575,19 +676,17 @@ export default function Scan() {
    */
   function applyPortion(next: number) {
     if (next === portion) return;
-    haptics.tap();
+    haptics.selection();
     const relative = next / portion;
     setItems((prev) => prev.map((it) => scalePortion(it, relative)));
     setPortion(next);
   }
 
   function editGrams(index: number, raw: string) {
-    // The comma is a decimal point before it is stripped as punctuation —
-    // otherwise a pt-BR `12,5` becomes 125 and rescales the item tenfold.
-    const n = Number(raw.replace(',', '.').replace(/[^0-9.]/g, ''));
-    setItems((prev) =>
-      prev.map((it, i) => (i === index ? rescaleScannedItem(it, Number.isFinite(n) ? n : 0) : it)),
-    );
+    // Read the way the locale writes it (`parseDecimal`): a pt-BR `12,5` is
+    // 12.5, not 125 — and an English `1,250` is 1250, not 1.25.
+    const n = parseDecimal(raw, locale) ?? 0;
+    setItems((prev) => prev.map((it, i) => (i === index ? rescaleScannedItem(it, n) : it)));
   }
 
   function editName(index: number, value: string) {
@@ -624,8 +723,7 @@ export default function Scan() {
    * `basis` is still dropped so the plate-wide portion chips scale from these.
    */
   function editMacro(index: number, field: 'calories' | 'protein', raw: string) {
-    const n = Number(raw.replace(',', '.').replace(/[^0-9.]/g, ''));
-    const v = Number.isFinite(n) ? n : 0;
+    const v = parseDecimal(raw, locale) ?? 0;
     setItems((prev) =>
       prev.map((it, i) =>
         i === index
@@ -646,10 +744,63 @@ export default function Scan() {
     });
   }
 
+  /** "Which meal, and when" back to untouched: now, and the clock's slot. */
+  function resetWhen() {
+    setSlot(undefined);
+    setEatenAt(new Date());
+    setTimeTouched(false);
+    setTimeDraft(null);
+  }
+
+  /** A stepper or a typed time. Today only, never the future (`shiftTimeOfDay`
+   *  clamps both) — the scan logs to today. */
+  function applyTime(next: Date) {
+    setTimeTouched(true);
+    if (next.getTime() === eatenAt.getTime()) return;
+    haptics.selection();
+    setEatenAt(next);
+  }
+
+  function commitTypedTime() {
+    if (timeDraft == null) return;
+    const text = timeDraft;
+    setTimeDraft(null);
+    if (text.trim() === '') return;
+    const parsed = parseTimeOfDay(text);
+    if (!parsed) {
+      haptics.warning();
+      return;
+    }
+    applyTime(setTimeOfDay(eatenAt, parsed.hours, parsed.minutes, new Date()));
+  }
+
+  /**
+   * "Add another angle" on the review. The plate is read again from every
+   * photo — a second scan for the first photo too, and the edits made here go
+   * with the old reading — so it asks, like Retake.
+   */
+  function onAddAngle() {
+    haptics.tap();
+    confirm({
+      title: t('scan.addAngleTitle'),
+      body: t('scan.addAngleBody', { n: analyzedUris.length + 1 }),
+      confirmText: t('scan.addAngleConfirm'),
+      cancelText: t('scan.keepThis'),
+      onConfirm: () => {
+        const uris = analyzedUris;
+        discardScan();
+        setPendingUris(uris);
+        if (!camGranted) void onCapture('library');
+      },
+    });
+  }
+
   /** Throw the reviewed scan away and start over. */
   function discardScan() {
     draftAt.current = null;
     setFromDraft(false);
+    setAnalyzedUris([]);
+    setAddError(null);
     setPhase(restartPhase);
     setItems([]);
     setPortion(1);
@@ -681,6 +832,11 @@ export default function Scan() {
   async function onAdd() {
     if (!items.length || saving) return;
     setSaving(true);
+    setAddError(null);
+    // A typed time still open counts — Add is outside the scroll area, so it
+    // does not blur the field (the same rule as the add sheet's form).
+    const typed = timeDraft != null && timeDraft.trim() !== '' ? parseTimeOfDay(timeDraft) : null;
+    const at = typed ? setTimeOfDay(eatenAt, typed.hours, typed.minutes, new Date()) : eatenAt;
     try {
       const total = sumScannedMacros(items);
       const label = mealName.trim() || t('scan.mealName');
@@ -691,6 +847,9 @@ export default function Scan() {
         carbs: Math.round(total.carbs),
         fat: Math.round(total.fat),
         mealLabel: label,
+        // Untouched → absent: "now" and the clock's slot, decided at the write.
+        ...(slot ? { mealType: slot } : {}),
+        ...(timeTouched || typed ? { timestamp: at } : {}),
         // The ONE place a photo-scanned row is distinguishable from a typed one
         // (#109). It is what `first-scan` is awarded on, so it is set here and
         // nowhere else — `logRepeat` above deliberately does NOT set it: that
@@ -699,6 +858,9 @@ export default function Scan() {
         // never took one.
         source: 'photo',
       });
+      // Refused by the rules: nothing was written, so the review — and the
+      // draft protecting it — stays. Said here, where the user is looking.
+      if (r?.outcome === 'rejected') throw new Error('add rejected');
       // The row is written; the draft has nothing left to protect. Cleared
       // BEFORE navigating so a restart during the transition cannot resurrect a
       // meal the user has already logged.
@@ -709,7 +871,15 @@ export default function Scan() {
       // still on screen when Today paints, and a scan was the one add that
       // left the user to infer from the rings whether it had landed.
       receipt.showAdded(r, { label, calories });
-      router.replace('/(app)'); // back to Today — rings re-sweep to the new total
+      leaveToToday(); // back to Today — rings re-sweep to the new total
+    } catch (e) {
+      // It used to be try/finally with no catch: a failed add was an
+      // unhandled rejection and a button that simply stopped saying "Saving…"
+      // (B3). The review stays, the draft with it, and the line says why.
+      haptics.warning();
+      setAddError(t('scan.addFailed'));
+      announce(t('scan.addFailed'), { androidHasLiveRegion: true });
+      captureError(e, { where: 'scan.add' });
     } finally {
       setSaving(false);
     }
@@ -729,6 +899,19 @@ export default function Scan() {
    * at the moment the user is least likely to check it.
    */
   const repeats = findRepeatCandidates(note, customFoods);
+
+  /**
+   * What the viewfinder / describe step says above its controls: the error
+   * from the last attempt, else a standing "you're offline" (U9) — said BEFORE
+   * the shutter, so the photo is not taken, encoded and sent to fail. Both
+   * offer the search when the network is the problem.
+   */
+  const offlineError = error === t('scan.errOffline');
+  const notice = error
+    ? { text: error, onSearch: offlineError ? searchInstead : undefined }
+    : offline
+      ? { text: t('scan.offlineNotice'), onSearch: searchInstead }
+      : null;
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
@@ -759,11 +942,12 @@ export default function Scan() {
                 ? t('scan.remaining', { n: remaining })
                 : null
           }
-          onShot={addPhoto}
+          notice={notice}
+          onShot={onShutter}
           onRemove={removePending}
           onLibrary={() => onCapture('library')}
           onNote={openNote}
-          onAnalyze={onAnalyze}
+          onAnalyze={() => void onAnalyze()}
         />
       ) : phase === 'describe' ? (
         // KeyboardAvoidingView from react-native-keyboard-controller, as on the
@@ -771,10 +955,13 @@ export default function Scan() {
         // sits under the photo and the keyboard covered it and Analyze both.
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.kav}>
         <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+          {notice ? <ScanNotice notice={notice} styles={styles} t={t} /> : null}
           {/* One photo fills the width; several become a strip. A single
               image is the overwhelmingly common case and should not be shrunk
-              into a gallery to accommodate a case the user has not chosen. */}
-          {pendingUris.length === 1 ? (
+              into a gallery to accommodate a case the user has not chosen.
+              None yet: the note was opened from the viewfinder before the
+              shot, which is how a note reaches a shutter that analyzes. */}
+          {pendingUris.length === 0 ? null : pendingUris.length === 1 ? (
             <Image source={{ uri: pendingUris[0] }} style={styles.notePreview} resizeMode="cover" />
           ) : (
             <View style={styles.shotRow}>
@@ -800,7 +987,7 @@ export default function Scan() {
             </View>
           )}
 
-          {pendingUris.length < MAX_PHOTOS ? (
+          {pendingUris.length > 0 && pendingUris.length < MAX_PHOTOS ? (
             <PressScale
               style={styles.addShot}
               scaleTo={0.97}
@@ -880,24 +1067,44 @@ export default function Scan() {
             </Animated.View>
           ) : null}
 
-          <PressScale
-            style={styles.noteAnalyze}
-            scaleTo={0.97}
-            onPress={onAnalyze}
-            testID="scan-analyze"
-            accessibilityRole="button"
-          >
-            <Text style={styles.noteAnalyzeText}>{t('scan.noteAnalyze')}</Text>
-          </PressScale>
-          <PressScale
-            style={styles.noteRetake}
-            scaleTo={0.97}
-            onPress={() => { haptics.tap(); setPhase(restartPhase); setPendingUris([]); setNote(''); }}
-            testID="scan-describe-cancel"
-            accessibilityRole="button"
-          >
-            <Text style={styles.noteRetakeText}>{t('scan.retake')}</Text>
-          </PressScale>
+          {pendingUris.length > 0 ? (
+            <>
+              <PressScale
+                style={styles.noteAnalyze}
+                scaleTo={0.97}
+                onPress={() => void onAnalyze()}
+                testID="scan-analyze"
+                accessibilityRole="button"
+              >
+                <Text style={styles.noteAnalyzeText}>{t('scan.noteAnalyze')}</Text>
+              </PressScale>
+              <PressScale
+                style={styles.noteRetake}
+                scaleTo={0.97}
+                onPress={() => { haptics.tap(); setPhase(restartPhase); setPendingUris([]); setNote(''); }}
+                testID="scan-describe-cancel"
+                accessibilityRole="button"
+              >
+                <Text style={styles.noteRetakeText}>{t('scan.retake')}</Text>
+              </PressScale>
+            </>
+          ) : (
+            // Note first, photo second: back to the viewfinder, note kept —
+            // the shutter there sends both.
+            <PressScale
+              style={styles.noteAnalyze}
+              scaleTo={0.97}
+              onPress={() => {
+                haptics.tap();
+                if (camGranted) setPhase('camera');
+                else void onCapture('library');
+              }}
+              testID="scan-note-done"
+              accessibilityRole="button"
+            >
+              <Text style={styles.noteAnalyzeText}>{t('scan.noteThenPhoto')}</Text>
+            </PressScale>
+          )}
         </ScrollView>
         </KeyboardAvoidingView>
       ) : phase === 'analyzing' ? (
@@ -931,6 +1138,16 @@ export default function Scan() {
               );
             })}
           </View>
+          {/* The way out of a wait the user already knows is wrong (U9). */}
+          <PressScale
+            style={styles.cancelScan}
+            scaleTo={0.97}
+            onPress={cancelAnalyze}
+            testID="scan-cancel"
+            accessibilityRole="button"
+          >
+            <Text style={styles.cancelScanText}>{t('common.cancel')}</Text>
+          </PressScale>
         </View>
       ) : phase === 'review' && items.length ? (
         // Same keyboard handling as the describe step, and here it also lifts
@@ -1031,26 +1248,65 @@ export default function Scan() {
             {/* Whole-plate portion */}
             <Animated.View entering={enterUp(5)}>
               <Text style={styles.section}>{t('scan.portion')}</Text>
-              <View style={styles.portionRow}>
+              {/* One of four, so a radio group (A2) — "1.5×, radio button, 3
+                  of 4, checked" rather than a row of unrelated buttons. */}
+              <View style={styles.portionRow} accessibilityRole="radiogroup">
                 {PORTION_STEPS.map((p) => (
                   <PressScale
                     key={p}
                     style={[styles.portionChip, p === portion && styles.portionChipOn]}
                     scaleTo={0.92}
                     onPress={() => applyPortion(p)}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: p === portion }}
+                    accessibilityRole="radio"
+                    accessibilityLabel={t('entry.scaleBy', { n: formatNumber(p, locale) })}
+                    accessibilityState={{ checked: p === portion, selected: p === portion }}
                     testID={`portion-${p}`}
                   >
                     <Text style={[styles.portionText, p === portion && styles.portionTextOn]}>
-                      {p === 1 ? '1×' : `${p}×`}
+                      {formatNumber(p, locale)}×
                     </Text>
                   </PressScale>
                 ))}
               </View>
             </Animated.View>
+
+            {/* Which meal, and when (U6) — the add sheet's own controls. */}
+            <Animated.View entering={enterUp(6)} style={styles.whenBlock}>
+              <Text style={styles.section}>{t('entry.meal')}</Text>
+              <MealSlotChips value={slot} onChange={setSlot} />
+              <Text style={styles.section}>{t('entry.time')}</Text>
+              <TimeOfDayRow
+                at={eatenAt}
+                draft={timeDraft}
+                onDraftChange={setTimeDraft}
+                onStep={(m) => applyTime(shiftTimeOfDay(eatenAt, m, new Date()))}
+                onCommit={commitTypedTime}
+              />
+            </Animated.View>
+
+            {/* Another photo of the same plate, read again with this one. Not
+                for a restored draft: its photos did not survive the restart. */}
+            {analyzedUris.length > 0 && analyzedUris.length < MAX_PHOTOS ? (
+              <PressScale
+                style={styles.addShot}
+                scaleTo={0.97}
+                onPress={onAddAngle}
+                testID="scan-add-angle"
+                accessibilityRole="button"
+              >
+                <Ionicons name="add" size={18} color={colors.ink} />
+                <Text style={styles.addShotText}>
+                  {t('scan.addPhoto', { n: MAX_PHOTOS - analyzedUris.length })}
+                </Text>
+              </PressScale>
+            ) : null}
           </ScrollView>
 
+          {addError ? (
+            <Text style={styles.addError} accessibilityRole="alert" accessibilityLiveRegion="polite" testID="scan-add-error">
+              {addError}
+            </Text>
+          ) : null}
           <View style={styles.footer}>
             <PressScale
               style={styles.retake}
@@ -1085,6 +1341,9 @@ export default function Scan() {
             >
               {error}
             </Text>
+          ) : null}
+          {offlineError || (offline && !error) ? (
+            <ScanNotice notice={{ text: offline && !error ? t('scan.offlineNotice') : '', onSearch: searchInstead }} styles={styles} t={t} />
           ) : null}
           <Animated.View style={styles.introCard} entering={enterUp(0)}>
             <View style={styles.cameraCircle}>
@@ -1138,7 +1397,7 @@ export default function Scan() {
               onPress={() => {
                 haptics.tap();
                 void clearScanDraft();
-                router.replace({ pathname: '/(app)', params: { openAdd: String(Date.now()) } });
+                leaveToToday({ openAdd: String(Date.now()) });
               }}
               testID="scan-manual"
               accessibilityRole="button"
@@ -1149,6 +1408,9 @@ export default function Scan() {
           </Animated.View>
         </View>
       )}
+      {/* Presented full-screen over the tabs, where the tab layout's host
+          cannot reach — confirms raised here are drawn by this one. */}
+      <ConfirmHost />
     </SafeAreaView>
   );
 }
@@ -1303,6 +1565,40 @@ function TotalChip({
       <Text style={styles.totalValue} testID={testID}>
         {Math.round(value)}
       </Text>
+    </View>
+  );
+}
+
+/**
+ * A line above the scan's controls, with "Search instead" when the network is
+ * what stands in the way (U9). The add sheet's search runs on the device, so
+ * it is the one way to log that an offline phone still has.
+ */
+function ScanNotice({
+  notice,
+  styles,
+  t,
+}: {
+  notice: { text: string; onSearch?: () => void };
+  styles: ReturnType<typeof createStyles>;
+  t: TFn;
+}) {
+  const { colors } = useTheme();
+  return (
+    <View style={styles.notice} testID="scan-notice">
+      {notice.text ? <Text style={styles.noticeText}>{notice.text}</Text> : null}
+      {notice.onSearch ? (
+        <PressScale
+          style={styles.noticeAction}
+          scaleTo={0.97}
+          onPress={notice.onSearch}
+          accessibilityRole="button"
+          testID="scan-search-instead"
+        >
+          <Ionicons name="search" size={16} color={colors.ink} />
+          <Text style={styles.noticeActionText}>{t('scan.searchInstead')}</Text>
+        </PressScale>
+      ) : null}
     </View>
   );
 }
@@ -1516,5 +1812,36 @@ function createStyles({ colors, shadow }: Theme) {
     add: { flex: 1, backgroundColor: colors.ink, borderRadius: radius.md, paddingVertical: space.lg, alignItems: 'center' },
     addDisabled: { opacity: 0.5 },
     addText: { color: colors.onInk, fontSize: font.h3, fontWeight: '700' },
+    addError: { color: colors.danger, fontSize: font.small, textAlign: 'center', paddingHorizontal: space.xl, paddingTop: space.sm },
+    // ── Which meal, and when (U6) ─────────────────────────────────
+    whenBlock: { gap: space.sm },
+    // ── The wait's way out (U9) ───────────────────────────────────
+    cancelScan: {
+      minHeight: TARGET,
+      minWidth: 120,
+      paddingHorizontal: space.xl,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.lineStrong,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    cancelScanText: { fontSize: font.body, fontWeight: '700', color: colors.ink },
+    // ── Offline / last error, with the search beside it (U9) ─────
+    notice: { gap: space.sm, padding: space.md, borderRadius: radius.md, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.lineStrong },
+    noticeText: { fontSize: font.small, color: colors.ink, lineHeight: font.small * 1.4 },
+    noticeAction: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      alignSelf: 'flex-start',
+      gap: space.xs,
+      minHeight: TARGET,
+      paddingHorizontal: space.md,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.lineStrong,
+      backgroundColor: colors.inputBg,
+    },
+    noticeActionText: { fontSize: font.small, fontWeight: '700', color: colors.ink },
   });
 }

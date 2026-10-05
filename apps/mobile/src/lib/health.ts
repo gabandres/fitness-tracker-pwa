@@ -104,6 +104,20 @@ export interface HealthPort {
   /** Export one day's value. Typed to `WritableKind` so the import-only
    *  activity metrics can't be passed here — we have nothing to write. */
   writeDaily(kind: WritableKind, dateKey: string, value: number): Promise<void>;
+  /**
+   * Remove the weigh-in WE exported for `dateKey` (Body review, bug 1).
+   *
+   * Only ever touches Ignia's own samples, and that is the platforms' rule, not
+   * a filter here: HealthKit's `deleteObjects` deletes only objects the calling
+   * app saved, and Health Connect's `deleteRecordsByTimeRange` only the calling
+   * app's records. A scale's reading in the same window is untouchable from
+   * here — which is why the importer also needs `health-overrides.ts`.
+   *
+   * The window is the whole calendar day of `dateKey`: our export is anchored
+   * at its noon (`anchorAt`), and an edit that exported twice left two.
+   * Resolves true when the platform accepted the delete.
+   */
+  deleteDaily(kind: 'weight', dateKey: string): Promise<boolean>;
   /** Export one logged meal's macros as dietary samples. */
   writeNutrition(entry: NutritionExport): Promise<void>;
   /** Export a finished workout session. */
@@ -503,6 +517,20 @@ const healthKit: HealthPort = {
     } as const;
     const [id, unit, v] = map[kind];
     await HK.saveQuantitySample(id as never, unit as never, v, at, at);
+  },
+
+  async deleteDaily(_kind, dateKey) {
+    const HK = await hkModule();
+    // Loosely typed like the other kingstinct calls: `deleteObjects` exists in
+    // every binary built since the module was added (CoreModule.swift), but
+    // a missing export must read as "not deleted", never as a crash.
+    const del = (HK as unknown as { deleteObjects?: (id: never, filter: never) => Promise<number> }).deleteObjects;
+    if (typeof del !== 'function') return false;
+    const startDate = startOfLocalDay(parseYmd(dateKey));
+    const endDate = new Date(startDate);
+    endDate.setDate(endDate.getDate() + 1);
+    await del('HKQuantityTypeIdentifierBodyMass' as never, { date: { startDate, endDate } } as never);
+    return true;
   },
 
   async writeNutrition({ at, kcal, protein, carbs, fat }) {
@@ -973,6 +1001,20 @@ const healthConnect: HealthPort = {
     await HC.insertRecords([record!] as never);
   },
 
+  async deleteDaily(_kind, dateKey) {
+    const HC = await hcModule();
+    await HC.initialize();
+    const start = startOfLocalDay(parseYmd(dateKey));
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+    await HC.deleteRecordsByTimeRange('Weight' as never, {
+      operator: 'between',
+      startTime: start.toISOString(),
+      endTime: end.toISOString(),
+    } as never);
+    return true;
+  },
+
   async writeNutrition({ at, kcal, protein, carbs, fat }) {
     const HC = await hcModule();
     await HC.initialize();
@@ -1081,6 +1123,9 @@ const noopHealth: HealthPort = {
     return [];
   },
   async writeDaily() {},
+  async deleteDaily() {
+    return false;
+  },
   async writeNutrition() {},
   async writeWorkout() {},
 };

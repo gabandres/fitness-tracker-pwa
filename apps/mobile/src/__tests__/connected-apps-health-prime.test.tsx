@@ -20,6 +20,8 @@ let mockHealth = {
 };
 
 jest.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { uid: 'u1' }, profile: null }) }));
+// The rationale is a native `fit` sheet on iOS (Body review P1); draw it in place.
+jest.mock('@/components/BottomSheet', () => require('./js-sheet').jsSheetModule());
 jest.mock('@/lib/health-sync', () => ({ useHealthSync: () => mockHealth }));
 jest.mock('@/lib/oura', () => ({
   useOura: () => ({
@@ -36,7 +38,7 @@ jest.mock('@/lib/oura', () => ({
   }),
 }));
 
-import ConnectedAppsScreen from '@/app/(app)/connected-apps';
+import ConnectedAppsScreen from '@/app/connected-apps';
 
 beforeEach(() => {
   jest.clearAllMocks();

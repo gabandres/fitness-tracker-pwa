@@ -78,11 +78,13 @@ describe('every bottom sheet is the same component', () => {
   it('the keyboard padding is only ever applied by BottomSheet', () => {
     // A second caller means a second sheet shell, which is how the rest of
     // this drifts back apart. `use-keyboard-sheet-style.ts` itself is where
-    // the hook is defined, so it is not a caller.
+    // the hook is defined, so it is not a caller. `app/sheet.tsx` is the
+    // native half of BottomSheet itself (UX_AUDIT S20): the route that hosts a
+    // `BottomSheet native`, so the same shell, presented by iOS.
     const callers = files
       .filter((f) => readFileSync(f, 'utf8').includes('useKeyboardSheetPadding('))
       .map(rel)
       .sort();
-    expect(callers).toEqual(['components/BottomSheet.tsx', 'lib/use-keyboard-sheet-style.ts']);
+    expect(callers).toEqual(['app/sheet.tsx', 'components/BottomSheet.tsx', 'lib/use-keyboard-sheet-style.ts']);
   });
 });

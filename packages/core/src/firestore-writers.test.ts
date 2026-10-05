@@ -15,7 +15,7 @@ import {
   toTemplateDoc,
   toTemplatePatch,
 } from './firestore-writers';
-import { LOG_NOTE_MAX } from './types';
+import { LOG_LABEL_MAX, LOG_NOTE_MAX, cleanLogLabel } from './types';
 import type { SessionExercise } from './workout';
 
 /**
@@ -132,6 +132,33 @@ describe('toLogDoc — note + createdAt (2026-10-03)', () => {
     expect(toLogPatch({ calories: 1 }, codec)['note']).toBe(REMOVE);
     expect(toLogPatch({ calories: 1, note: '' }, codec)['note']).toBe(REMOVE);
     expect('createdAt' in toLogPatch({ calories: 1, createdAt: NOW }, codec)).toBe(false);
+  });
+});
+
+describe('meal label cap (S20)', () => {
+  const long = 'Restaurant item with an extremely long descriptive name, '.repeat(4);
+
+  it('caps at the rules limit with an ellipsis', () => {
+    const out = cleanLogLabel(long)!;
+    expect(Array.from(out).length).toBe(LOG_LABEL_MAX);
+    expect(out.endsWith('…')).toBe(true);
+  });
+
+  it('leaves short labels alone and drops blank ones', () => {
+    expect(cleanLogLabel('  Oatmeal ')).toBe('Oatmeal');
+    expect(cleanLogLabel('   ')).toBeUndefined();
+    expect(cleanLogLabel('x'.repeat(LOG_LABEL_MAX))).toBe('x'.repeat(LOG_LABEL_MAX));
+  });
+
+  it('never splits an emoji', () => {
+    const out = cleanLogLabel('🍕'.repeat(150))!;
+    expect(Array.from(out).length).toBe(LOG_LABEL_MAX);
+    expect(out).toBe(`${'🍕'.repeat(LOG_LABEL_MAX - 1)}…`);
+  });
+
+  it('applies in both the create and the edit serializer', () => {
+    expect(Array.from(toLogDoc({ calories: 1, mealLabel: long }, codec).mealLabel!).length).toBe(LOG_LABEL_MAX);
+    expect(Array.from(toLogPatch({ calories: 1, mealLabel: long }, codec)['mealLabel'] as string).length).toBe(LOG_LABEL_MAX);
   });
 });
 

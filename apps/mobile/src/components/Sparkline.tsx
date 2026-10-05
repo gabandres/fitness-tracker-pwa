@@ -4,8 +4,14 @@ import Svg, { Circle, Line, Path } from 'react-native-svg';
 import { useTheme } from '@/lib/theme-context';
 
 interface Props {
-  /** Main series, oldest → newest. Non-numbers are dropped (a missed day
-   *  won't punch a hole). */
+  /** Main series, oldest → newest, ONE ENTRY PER DAY. A non-number is a day
+   *  without a reading: it keeps its x position and the line is bridged
+   *  across it with a faint dashed segment.
+   *
+   *  This used to drop non-numbers before laying the series out, so a
+   *  fortnight with five weigh-ins drew five evenly spaced points — the time
+   *  axis squeezed and a three-day gap looked like one day. A caller that
+   *  passes only readings (Body's `weightSeries`) draws exactly as before. */
   values: readonly (number | null | undefined)[];
   /** Optional forecast continuing past the solid line, drawn dashed. */
   projection?: readonly (number | null | undefined)[];
@@ -28,24 +34,46 @@ function SparklineImpl({ values, projection = [], width = 280, height = 56, colo
   const stroke = color ?? colors.ink;
   const PAD = 4;
 
-  const { mainD, projD, last, hasData } = useMemo(() => {
-    const vs = (values ?? []).filter((v): v is number => typeof v === 'number' && !Number.isNaN(v));
-    const ps = (projection ?? []).filter((v): v is number => typeof v === 'number' && !Number.isNaN(v));
-    if (vs.length < 2) return { mainD: '', projD: '', last: { x: 0, y: 0 }, hasData: false };
+  const { mainD, gapD, projD, last, hasData } = useMemo(() => {
+    const isNum = (v: unknown): v is number => typeof v === 'number' && !Number.isNaN(v);
+    const raw = values ?? [];
+    const vs = raw.filter(isNum);
+    const ps = (projection ?? []).filter(isNum);
+    if (vs.length < 2) return { mainD: '', gapD: '', projD: '', last: { x: 0, y: 0 }, hasData: false };
 
     const all = ps.length ? vs.concat(ps) : vs;
     const min = Math.min(...all);
     const max = Math.max(...all);
     const span = max - min || 1;
-    const total = vs.length + ps.length;
+    // Positions are by DAY index over the raw series, gaps included.
+    const total = raw.length + ps.length;
     const stepX = (width - PAD * 2) / (total - 1);
     const toPoint = (v: number, i: number) => ({
       x: PAD + i * stepX,
       y: height - PAD - ((v - min) / span) * (height - PAD * 2),
     });
 
-    const main = vs.map((v, i) => toPoint(v, i));
-    const proj = ps.map((v, k) => toPoint(v, vs.length + k));
+    // Contiguous runs of readings draw solid; the hop between two runs is a
+    // separate faint dashed segment — "no reading here", never invented data.
+    const runs: { x: number; y: number }[][] = [];
+    let run: { x: number; y: number }[] = [];
+    raw.forEach((v, i) => {
+      if (isNum(v)) run.push(toPoint(v, i));
+      else if (run.length) {
+        runs.push(run);
+        run = [];
+      }
+    });
+    if (run.length) runs.push(run);
+    const main = runs.flat();
+    const proj = ps.map((v, k) => toPoint(v, raw.length + k));
+    const bridges = runs
+      .slice(1)
+      .map((r, k) => {
+        const a = runs[k][runs[k].length - 1];
+        return `M ${a.x.toFixed(2)} ${a.y.toFixed(2)} L ${r[0].x.toFixed(2)} ${r[0].y.toFixed(2)}`;
+      })
+      .join(' ');
 
     const smooth = (pts: { x: number; y: number }[]) => {
       if (pts.length < 2) return '';
@@ -60,7 +88,8 @@ function SparklineImpl({ values, projection = [], width = 280, height = 56, colo
     };
 
     return {
-      mainD: smooth(main),
+      mainD: runs.map(smooth).filter(Boolean).join(' '),
+      gapD: bridges,
       // Anchor the dashed segment at the last solid point so they join.
       projD: proj.length ? smooth([main[main.length - 1], ...proj]) : '',
       last: main[main.length - 1],
@@ -77,6 +106,7 @@ function SparklineImpl({ values, projection = [], width = 280, height = 56, colo
       <Svg width={width} height={height}>
         {hasData ? (
           <>
+            {gapD ? <Path d={gapD} fill="none" stroke={colors.lineStrong} strokeWidth={1.25} strokeDasharray="2 3" /> : null}
             <Path d={mainD} fill="none" stroke={stroke} strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" />
             {projD ? (
               <Path d={projD} fill="none" stroke={stroke} strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" strokeDasharray="3 3" opacity={0.5} />

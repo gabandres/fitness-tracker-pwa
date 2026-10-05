@@ -120,8 +120,11 @@ describe('state 2 — some nights, not enough', () => {
     // Without an axis no bar height means anything: the headline says 6h 30m
     // and nothing on the strip let you check it (UX_AUDIT S18, 2026-09-28).
     const { getByTestId, getByText } = await render(<SleepTrendsCard sleep={cardState(5)} />);
-    expect(getByTestId('sleep-axis-max').props.children).toBe(`${SLEEP_STRIP_CEILING_HOURS}h`);
-    expect(getByText('0h')).toBeTruthy();
+    // Hidden from screen readers since 2026-10-04 (the strip's adjustable label
+    // carries the scale), so the queries ask for hidden elements.
+    const hidden = { includeHiddenElements: true };
+    expect(getByTestId('sleep-axis-max', hidden).props.children).toBe(`${SLEEP_STRIP_CEILING_HOURS}h`);
+    expect(getByText('0h', hidden)).toBeTruthy();
   });
 });
 

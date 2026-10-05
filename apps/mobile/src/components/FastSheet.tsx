@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import {
   MAX_FAST_MS,
   type Fast,
@@ -8,8 +8,10 @@ import {
   isStorableFast,
   overlappingFasts,
 } from '@macrolog/core';
-import { BottomSheet } from '@/components/BottomSheet';
+import { BottomSheet, type SheetCloseVia } from '@/components/BottomSheet';
+import { confirm } from '@/components/ConfirmSheet';
 import { type Locale, useLocale, useT } from '@/i18n';
+import { announce } from '@/lib/a11y';
 import { formatDate, formatNumber, formatTime, localeTag } from '@/lib/date-format';
 import * as haptics from '@/lib/haptics';
 import { PressScale } from '@/lib/motion';
@@ -180,6 +182,9 @@ export function FastSheet({
   const [field, setField] = useState<'start' | 'end'>('start');
   const [saving, setSaving] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  /** The instants the sheet opened with — "dirty" is any field off them, and
+   *  a dirty sheet asks before a swipe throws the edit away (P1 / U10). */
+  const [seedMs, setSeedMs] = useState<{ start: number; end: number }>({ start: 0, end: 0 });
 
   // A running fast's end is the present, so it moves while the sheet is open.
   // Same 30s cadence as the Today row this was opened from — matching it means
@@ -229,12 +234,33 @@ export function FastSheet({
     if (startedMs != null && (mode === 'edit' || mode === 'running')) {
       setStart(new Date(startedMs));
       if (mode === 'edit' && endedMs != null) setEnd(new Date(endedMs));
+      setSeedMs({ start: startedMs, end: mode === 'edit' && endedMs != null ? endedMs : 0 });
       return;
     }
     const anchor = floorTo5(anchorMs != null ? new Date(anchorMs) : new Date());
     setEnd(anchor);
     setStart(new Date(anchor.getTime() - PREFILL_MS));
+    setSeedMs({ start: anchor.getTime() - PREFILL_MS, end: anchor.getTime() });
   }, [visible, mode, startedMs, endedMs, anchorMs]);
+
+  const dirty =
+    start.getTime() !== seedMs.start || (mode !== 'running' && seedMs.end !== 0 && end.getTime() !== seedMs.end);
+
+  function requestClose(_via: SheetCloseVia): boolean {
+    if (!dirty || saving) {
+      onClose();
+      return true;
+    }
+    confirm({
+      title: t('fast.discardTitle'),
+      body: t('fast.discardBody'),
+      confirmText: t('fast.discard'),
+      cancelText: t('fast.keepEditing'),
+      destructive: true,
+      onConfirm: onClose,
+    });
+    return false;
+  }
 
   const effectiveEnd = mode === 'running' ? new Date(now) : end;
   const storable = isStorableFast(start, effectiveEnd);
@@ -342,6 +368,8 @@ export function FastSheet({
       return;
     }
     haptics.success();
+    // The sheet closing is the visual receipt; this is the spoken one (A9).
+    announce(t('fast.saved'));
     onClose();
     try {
       await written;
@@ -353,9 +381,28 @@ export function FastSheet({
   const note = notice();
   const editingStart = mode === 'running' || field === 'start';
 
+  // The line under the fields is SPOKEN when it changes (A9) — a reader who
+  // typed a start after the end otherwise hears nothing and finds Save dead.
+  const noteText = note?.text ?? '';
+  const spoken = useRef('');
+  useEffect(() => {
+    if (!visible) return;
+    if (noteText && noteText !== spoken.current) announce(noteText);
+    spoken.current = noteText;
+  }, [visible, noteText]);
+
   return (
-    <BottomSheet visible={visible} onClose={onClose}>
-      <Text style={styles.title}>
+    <BottomSheet
+      visible={visible}
+      onClose={onClose}
+      onRequestClose={requestClose}
+      // P1: a real iOS sheet, two detents — the editor opens at 0.6 and the
+      // AM/PM row and a long conflict note fit at full height.
+      native
+      detents={[0.6, 1]}
+      guarded={dirty}
+    >
+      <Text style={styles.title} accessibilityRole="header">
         {t(
           mode === 'edit'
             ? 'fast.editTitle'
@@ -368,7 +415,7 @@ export function FastSheet({
       {/* The duration is the number the user came here for — every field on
           this sheet exists to move it — so it is the biggest thing on the
           panel and it updates on every keystroke. */}
-      <Text style={styles.duration} testID="fast-duration">
+      <Text style={styles.duration} accessibilityLiveRegion="polite" testID="fast-duration">
         {t(mode === 'running' ? 'fast.runningFor' : 'fast.length', {
           h: formatNumber(parts.hours, locale),
           m: formatNumber(parts.minutes, locale),
@@ -395,6 +442,9 @@ export function FastSheet({
             onChange={setStart}
             locale={locale}
             testIDPrefix="fast-start"
+            // U12: the hour is the field a correction lands on — "I started at
+            // eight" — so it opens with the keyboard up on it.
+            focusOnMount={visible}
           />
         ) : null}
 
@@ -470,11 +520,15 @@ function TimeField({
   onChange,
   locale,
   testIDPrefix,
+  focusOnMount = false,
 }: {
   value: Date;
   onChange: (next: Date) => void;
   locale: Locale;
   testIDPrefix: string;
+  /** Focus the hour once the sheet has settled (deferred like
+   *  `useDeferredFocus`, so the keyboard does not race the sheet's spring). */
+  focusOnMount?: boolean;
 }) {
   const t = useT();
   const styles = useThemedStyles(createStyles);
@@ -482,6 +536,18 @@ function TimeField({
   const tag = localeTag(locale);
   const hour12 = localeUses12Hour(tag);
   const minuteRef = useRef<TextInput>(null);
+  const hourRef = useRef<TextInput>(null);
+  // At the largest text sizes the two AM/PM chips no longer fit beside two
+  // digit fields on a 360 dp phone, and the row clipped the second chip (A11).
+  // Past 1.3× they stack instead.
+  const { fontScale } = useWindowDimensions();
+  const stackPeriods = fontScale >= 1.3;
+
+  useEffect(() => {
+    if (!focusOnMount) return;
+    const timer = setTimeout(() => hourRef.current?.focus(), 300);
+    return () => clearTimeout(timer);
+  }, [focusOnMount]);
 
   const isPm = value.getHours() >= 12;
   const [hourText, setHourText] = useState(() =>
@@ -573,6 +639,7 @@ function TimeField({
 
       <View style={styles.timeRow}>
         <TextInput
+          ref={hourRef}
           style={styles.timeInput}
           value={hourText}
           onChangeText={commitHour}
@@ -601,7 +668,7 @@ function TimeField({
           testID={`${testIDPrefix}-minute`}
         />
         {hour12 ? (
-          <View style={styles.periods}>
+          <View style={[styles.periods, stackPeriods && styles.periodsStacked]}>
             {[false, true].map((pm) => (
               <PressScale
                 key={pm ? 'pm' : 'am'}
@@ -672,10 +739,10 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
     backgroundColor: colors.inputBg,
     borderRadius: radius.md,
     borderWidth: 1,
-    // The unselected border is the hairline every other field in the app uses;
-    // selection thickens and inks it rather than tinting the fill, so both rows
+    // The unselected border is the control border (A8 — the old hairline fell
+    // under 3:1); selection inks it rather than tinting the fill, so both rows
     // keep the same weight and only one of them reads as open.
-    borderColor: colors.line,
+    borderColor: colors.lineStrong,
     paddingHorizontal: space.lg,
     paddingVertical: space.md,
   },
@@ -692,12 +759,16 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   runningNote: { fontSize: font.small, color: colors.muted, paddingHorizontal: space.xs },
   editor: { gap: space.sm, paddingHorizontal: space.xs },
   dayRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  // 44 pt (A7) — these were 28 pt tall, the smallest targets on the sheet.
   dayBtn: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: space.md,
-    paddingVertical: space.xs,
     borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: colors.lineStrong,
   },
   dayText: { fontSize: font.body, color: colors.ink, fontWeight: '700' },
   timeRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
@@ -706,7 +777,10 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
     textAlign: 'center',
     backgroundColor: colors.inputBg,
     borderWidth: 1,
-    borderColor: colors.line,
+    // `lineStrong` (A8): the hairline was 1.26:1 against the field in light
+    // and the dark field 1.09:1 against paper — under the 3:1 a control
+    // boundary needs (WCAG 1.4.11).
+    borderColor: colors.lineStrong,
     borderRadius: radius.md,
     paddingVertical: space.md,
     fontSize: font.h2,
@@ -715,12 +789,15 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   },
   colon: { fontSize: font.h2, fontWeight: '800', color: colors.ink },
   periods: { flexDirection: 'row', gap: space.xs, marginLeft: space.xs },
+  periodsStacked: { flexDirection: 'column' },
   period: {
+    minHeight: 44,
+    justifyContent: 'center',
     paddingHorizontal: space.md,
     paddingVertical: space.md,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: colors.lineStrong,
   },
   periodOn: { backgroundColor: colors.ink, borderColor: colors.ink },
   periodText: { fontSize: font.small, color: colors.muted, fontWeight: '700' },

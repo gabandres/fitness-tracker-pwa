@@ -1,4 +1,4 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { Glyph } from '@/components/charts/Glyph';
 import { useRouter } from 'expo-router';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated from 'react-native-reanimated';
@@ -82,9 +82,9 @@ export default function MilestonesScreen() {
           accessibilityLabel={t('common.back')}
           testID="milestones-back"
         >
-          <Ionicons name="chevron-back" size={26} color={colors.ink} />
+          <Glyph ios="chevron.left" android="chevron-back" size={26} color={colors.ink} />
         </TouchableOpacity>
-        <Text style={styles.title}>{t('milestones.title')}</Text>
+        <Text style={styles.title} accessibilityRole="header">{t('milestones.title')}</Text>
         {/* Balances the back chevron so the title is optically centred. */}
         <View style={styles.headerSpacer} />
       </View>
@@ -102,24 +102,32 @@ export default function MilestonesScreen() {
             </Text>
           ) : null
         ) : (
-          rows.map((key, i) => (
+          rows.map((key, i) => {
+            const name = t(`milestones.${key}` as I18nKey);
+            const recorded = t('milestones.recorded', {
+              date: formatDate(earned[key], locale, MILESTONE_DATE),
+            });
+            return (
+            // One element per row for a screen reader — "A week of logging,
+            // Recorded Oct 2, 2026" — rather than a title and a date as two
+            // stops with nothing tying them together. The accent rule is
+            // decoration and has nothing to say.
             <Animated.View
               key={key}
               entering={enterUp(i)}
               style={styles.row}
+              accessible
+              accessibilityLabel={t('milestones.rowA11y', { name, recorded })}
               testID={`milestone-${key}`}
             >
               <View style={styles.rule} />
               <View style={styles.rowCol}>
-                <Text style={styles.rowTitle}>{t(`milestones.${key}` as I18nKey)}</Text>
-                <Text style={styles.rowMeta}>
-                  {t('milestones.recorded', {
-                    date: formatDate(earned[key], locale, MILESTONE_DATE),
-                  })}
-                </Text>
+                <Text style={styles.rowTitle}>{name}</Text>
+                <Text style={styles.rowMeta}>{recorded}</Text>
               </View>
             </Animated.View>
-          ))
+            );
+          })
         )}
       </ScrollView>
     </SafeAreaView>

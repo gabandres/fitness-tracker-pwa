@@ -115,7 +115,7 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   cardioInput: {
     backgroundColor: colors.inputBg,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: colors.lineStrong,
     borderRadius: radius.md,
     paddingHorizontal: space.md,
     paddingVertical: space.sm,
@@ -147,7 +147,10 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   setHeadRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   setHeadCell: { fontSize: font.tiny, color: colors.muted, fontWeight: '600', textTransform: 'uppercase' },
   setRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
-  setNumCell: { width: 24 },
+  // 44pt tall, and a MIN width: the set number is the set sheet's trigger and
+  // was a 24×20 target (Train review item 16). minWidth so a scaled "2a"
+  // grows the cell instead of clipping (item 17).
+  setNumCell: { minWidth: 28, minHeight: 44, justifyContent: 'center' },
   setNum: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
   setNumCluster: { color: colors.teal, fontWeight: '800' },
   kindPicker: { paddingVertical: space.sm, gap: space.xs },
@@ -184,23 +187,27 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   // Flexing the two number cells makes the row fit any width by construction
   // instead of by a measurement that only held on one phone.
   setInputCell: { flex: 1, minWidth: 44, textAlign: 'center' },
-  setRirCell: { width: 38, textAlign: 'center' },
+  setRirCell: { minWidth: 38, textAlign: 'center' },
+  // `lineStrong`, not `line`: a field's boundary has to meet WCAG 1.4.11's
+  // 3:1, and `line` on the input fill measured 1.17:1 dark / 1.27:1 light —
+  // the boxes were invisible in a bright gym (Train review item 13).
   setInput: {
     backgroundColor: colors.inputBg,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: colors.lineStrong,
     borderRadius: radius.sm,
     paddingVertical: space.sm,
     fontSize: font.body,
     color: colors.ink,
   },
-  setDoneCell: { width: 32, alignItems: 'center' },
+  // The cell is the 44pt target; the box inside it is what is drawn.
+  setDoneCell: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   doneBox: {
     width: 30,
     height: 30,
     borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: colors.lineStrong,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.inputBg,
@@ -253,7 +260,7 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   input: {
     backgroundColor: colors.inputBg,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: colors.lineStrong,
     borderRadius: radius.md,
     paddingHorizontal: space.md,
     paddingVertical: space.md,
@@ -312,6 +319,10 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   },
   sectionActions: { flexDirection: 'row', gap: space.lg },
   sectionAction: { fontSize: font.small, color: colors.teal, fontWeight: '700' },
+  /** The touchable around a text action: 44pt tall whatever the text is
+   *  (Train review item 16 — these measured ~18-34pt). Row, so an icon can
+   *  lead the label where a "+" used to be typed into the string. */
+  textAction: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: space.xs },
   tplRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -324,17 +335,33 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
     paddingVertical: space.md,
   },
   tplMain: { flex: 1, gap: 2 },
+  /** A template row as a card: the edit button and Start on top, the "Next
+   *  session" toggle and its list under them — siblings, not nested. */
+  tplCard: {
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+    paddingVertical: space.md,
+  },
+  tplCardTop: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingHorizontal: space.lg },
   // Same gap as `list`, for the starter sheet's scroll content. The title and
   // hint are children of the same container, so they gain it too — which is
   // what they wanted anyway.
   starterList: { gap: space.sm },
+  // The same primary as Next up's Start, at row size: ink fill, onInk text,
+  // the `md` radius, 44pt tall. It was a 33pt `sm` chip in a smaller type.
   tplStart: {
     backgroundColor: colors.ink,
-    borderRadius: radius.sm,
-    paddingHorizontal: space.md,
-    paddingVertical: space.sm,
+    borderRadius: radius.md,
+    paddingHorizontal: space.lg,
+    minHeight: 44,
+    justifyContent: 'center',
   },
-  tplStartText: { color: colors.onInk, fontWeight: '700', fontSize: font.small },
+  tplStartText: { color: colors.onInk, fontWeight: '700', fontSize: font.body },
+  /** The first exercises of a template, under its name — "Bench · Row ·
+   *  Squat +2" — so a row says what it IS, not just how big it is. */
+  tplExNames: { fontSize: font.small, color: colors.ink },
   // template editor
   notesInput: { minHeight: 56, textAlignVertical: 'top' },
   tplExCard: {
@@ -409,14 +436,14 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   tplSetNum: { fontFamily: type.heading, fontSize: font.body, color: colors.ink },
   /** Printed under the number only for a non-`working` kind, so the common
    *  row stays a bare number and an unusual one still names itself. */
-  tplSetKindTag: { fontSize: 10, color: colors.muted, marginTop: -1 },
+  tplSetKindTag: { fontSize: font.tiny, color: colors.muted, marginTop: -1 },
   tplSetCell: { flex: 1 },
   tplSetDelCell: { width: 26, alignItems: 'center', justifyContent: 'center' },
   tplSetInput: {
     height: 44,
     backgroundColor: colors.inputBg,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: colors.lineStrong,
     borderRadius: radius.sm,
     textAlign: 'center',
     fontSize: font.body,
@@ -439,7 +466,7 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   tplStructureChipOn: { backgroundColor: colors.teal },
   tplStructureText: { fontSize: font.small, color: colors.ink, fontWeight: '600' },
   tplStructureTextOn: { color: colors.onInk },
-  tplStructureNote: { fontSize: 10, color: colors.muted, marginTop: -1 },
+  tplStructureNote: { fontSize: font.tiny, color: colors.muted, marginTop: -1 },
   // "More options" — the one level of depth everything optional lives behind.
   moreRow: {
     flexDirection: 'row',
@@ -465,7 +492,7 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
     width: 64,
     backgroundColor: colors.inputBg,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: colors.lineStrong,
     borderRadius: radius.sm,
     paddingVertical: space.sm,
     textAlign: 'center',
@@ -476,15 +503,19 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   btnDisabled: { opacity: 0.4 },
   // plates & warm-up panel
   ghost: { fontSize: font.tiny, color: colors.muted, marginTop: 1 },
+  // Dark text on the coral, not white: white on `ring` measured 2.85:1, the
+  // hero panel's near-black on it is ~6.6:1 in both themes (Train review
+  // item 15). Tall enough to hit, where it was a ~20pt sliver.
   bumpChip: {
     alignSelf: 'flex-start',
     marginTop: space.xs,
     backgroundColor: colors.ring,
     borderRadius: radius.sm,
-    paddingHorizontal: space.sm,
-    paddingVertical: 2,
+    paddingHorizontal: space.md,
+    minHeight: 32,
+    justifyContent: 'center',
   },
-  bumpText: { fontSize: font.tiny, color: colors.white, fontWeight: '800' },
+  bumpText: { fontSize: font.small, color: colors.heroPanel, fontWeight: '800' },
   // Why no load was recommended. Deliberately NOT a `bumpChip`: that is a
   // filled coral pill you tap to accept a suggestion, and this is the absence
   // of a suggestion — giving it a fill would make withheld advice look louder
@@ -521,7 +552,7 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   recWarnRow: { flexDirection: 'row', alignItems: 'flex-start', gap: space.xs, marginTop: 2 },
   recWarnText: { flex: 1, fontSize: font.small, color: colors.ink, lineHeight: font.small * 1.4 },
   recCalib: { fontSize: font.small, color: colors.muted, lineHeight: font.small * 1.4 },
-  recGear: { marginLeft: 'auto', padding: 4 },
+  recGear: { marginLeft: 'auto', minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   // Lift settings sheet: effort standard chips + the band override field.
   liftSection: { marginTop: space.md, gap: space.xs },
   liftLabel: { fontSize: font.tiny, color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: '700' },
@@ -529,12 +560,17 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   liftBandRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   liftBandInput: { width: 84, textAlign: 'center' },
   liftBandUnit: { fontSize: font.small, color: colors.muted },
-  liftClear: { alignSelf: 'flex-start', paddingVertical: space.xs },
-  liftClearText: { fontSize: font.small, color: colors.ring, fontWeight: '700' },
+  liftClear: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' },
+  // `accent`, the coral that is AA as text; `ring` is a fill colour and read
+  // ~2.4:1 on the light sheet.
+  liftClearText: { fontSize: font.small, color: colors.accent, fontWeight: '700' },
   // "Next session" under a template row — the engine's calls before the
   // session starts. Collapsed by default so the template list stays a list.
-  tplNextToggle: { fontSize: font.small, color: colors.teal, fontWeight: '700', marginTop: space.xs },
-  tplNext: { gap: space.sm, paddingTop: space.sm },
+  tplNextToggle: { fontSize: font.small, color: colors.teal, fontWeight: '700' },
+  /** "Next session" under a template row: a sibling of the row's edit button,
+   *  not a control nested inside it, which VoiceOver could not reach. */
+  tplNextToggleBtn: { minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start', paddingHorizontal: space.lg },
+  tplNext: { gap: space.sm, paddingTop: space.sm, paddingHorizontal: space.lg },
   tplNextRow: { gap: 1 },
   tplNextName: { fontSize: font.small, color: colors.ink, fontWeight: '700' },
   tplWrap: { gap: 0 },
@@ -593,25 +629,37 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   panelHint: { fontSize: font.small, color: colors.muted },
   warmRow: { fontSize: font.small, color: colors.ink },
   // rest timer bar
+  // Lifted clear of the raised Log button: it overhangs the screen by
+  // `space.xl + 2` (LogSpeedDial's negative margin), and at `bottom: 12` it sat
+  // on the bar's centre — over the countdown itself (Train review item 27).
   restBarFloat: {
     position: 'absolute',
     left: space.xl,
     right: space.xl,
-    bottom: space.md,
+    bottom: space.xl + space.md,
     zIndex: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     backgroundColor: colors.ink,
     borderRadius: radius.md,
     paddingHorizontal: space.lg,
-    paddingVertical: space.md,
+    paddingTop: space.sm,
+    paddingBottom: space.sm,
+    gap: space.xs,
+    overflow: 'hidden',
     ...shadow.e3,
   },
-  restLabel: { color: colors.onInk, fontWeight: '800', fontSize: font.body },
-  restActions: { flexDirection: 'row', alignItems: 'center', gap: space.lg },
-  restPlus: { color: colors.onInk, fontWeight: '700', fontSize: font.small, opacity: 0.85 },
-  restSkip: { color: colors.ring, fontWeight: '800', fontSize: font.small, textTransform: 'uppercase', letterSpacing: 0.5 },
+  restBarRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  // Tabular figures, so the countdown does not jitter as 1:11 becomes 1:10.
+  restLabel: { color: colors.onInk, fontWeight: '800', fontSize: font.body, fontVariant: ['tabular-nums'] },
+  restActions: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
+  restBtn: { minHeight: 44, minWidth: 44, justifyContent: 'center', alignItems: 'center' },
+  restPlus: { color: colors.onInk, fontWeight: '700', fontSize: font.small, opacity: 0.85, fontVariant: ['tabular-nums'] },
+  // onInk, not `ring`: coral on the light `ink` of the dark theme read 2.5:1.
+  restSkip: { color: colors.onInk, fontWeight: '800', fontSize: font.small, textTransform: 'uppercase', letterSpacing: 0.5 },
+  // Progress through the rest: a track and a fill, redrawn per tick (no
+  // animation, so Reduce Motion has nothing to turn off).
+  restTrack: { height: 3, borderRadius: 2, backgroundColor: colors.onInk, opacity: 0.25 },
+  restFill: { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 2, backgroundColor: colors.ring },
+  restTrackWrap: { height: 3, marginBottom: space.xs },
   // exercise library + detail
   exLibRow: {
     backgroundColor: colors.card,
@@ -641,6 +689,7 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   detailSets: { flex: 1, fontSize: font.small, color: colors.ink },
   manageRow: { flexDirection: 'row', gap: space.xl, marginTop: space.lg, paddingTop: space.md, borderTopWidth: 1, borderTopColor: colors.line },
   manageLink: { fontSize: font.small, color: colors.teal, fontWeight: '700' },
+  manageBtn: { minHeight: 44, justifyContent: 'center' },
   manageDanger: { color: colors.danger },
   confirmRow: { marginTop: space.md, gap: space.sm },
   confirmBtns: { flexDirection: 'row', gap: space.xl },
@@ -674,6 +723,7 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
     paddingVertical: space.sm,
   },
   secondaryLink: { fontSize: font.small, color: colors.teal, fontWeight: '700' },
+  secondaryBtn: { minHeight: 44, justifyContent: 'center', paddingHorizontal: space.sm },
 
   // ── Exercise search (catalog + shipped library) ──
   searchGroup: {
@@ -739,6 +789,101 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
     borderTopColor: colors.line,
   },
   tplOptionsText: { fontSize: font.small, color: colors.muted, fontWeight: '700' },
+
+  // ── Live session header (Train review item 5) ──
+  // Outside the ScrollView, so the workout's name, clock, volume and Finish
+  // stay put while the sets scroll under them — Finish used to be the last
+  // thing on the page, under every exercise and both add buttons.
+  sessionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    paddingHorizontal: space.xl,
+    paddingVertical: space.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
+    backgroundColor: colors.paper,
+  },
+  sessionHeaderMain: { flex: 1, gap: 2 },
+  sessionTitle: { fontFamily: type.heading, fontSize: font.h3, color: colors.ink },
+  sessionMeta: { fontSize: font.small, color: colors.muted, fontVariant: ['tabular-nums'] },
+  sessionEyebrow: { fontSize: font.tiny, color: colors.accent, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  headerIconBtn: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  headerPrimary: {
+    backgroundColor: colors.ink,
+    borderRadius: radius.md,
+    paddingHorizontal: space.lg,
+    minHeight: 44,
+    justifyContent: 'center',
+  },
+  headerPrimaryText: { color: colors.onInk, fontWeight: '700', fontSize: font.body },
+  // Where a queued write is, in words: "Saved on this phone" offline,
+  // "Saving…" while the server has not answered.
+  syncRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
+  syncText: { fontSize: font.tiny, color: colors.muted },
+  errorRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  errorBtn: {
+    minHeight: 44,
+    paddingHorizontal: space.lg,
+    justifyContent: 'center',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.danger,
+  },
+  // One add-button style, with the "+" as an icon rather than typed into the
+  // string (Train review item 26).
+  addExRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.xs },
+
+  // ── Number entry: the focused row's ± steppers (Train review item 6) ──
+  stepRow: { flexDirection: 'row', justifyContent: 'flex-end', gap: space.sm, paddingVertical: space.xs },
+  stepBtn: {
+    minWidth: 64,
+    minHeight: 44,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.lineStrong,
+    backgroundColor: colors.inputBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: space.sm,
+  },
+  stepText: { fontSize: font.small, color: colors.ink, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  // Large text (fontScale ≥ 1.5): PREVIOUS moves to its own line above the
+  // inputs instead of squeezing every cell into an unreadable column.
+  setPrevLine: { fontSize: font.small, color: colors.muted, paddingLeft: space.xs },
+
+  // ── Records (Train review item 35) ──
+  prBadge: {
+    alignSelf: 'center',
+    backgroundColor: colors.ring,
+    borderRadius: radius.pill,
+    paddingHorizontal: space.sm,
+    paddingVertical: 1,
+  },
+  prBadgeText: { fontSize: font.tiny, fontWeight: '800', color: colors.heroPanel },
+
+  // ── Finish summary (Train review item 34) ──
+  summaryGrid: { flexDirection: 'row', gap: space.sm },
+  summaryTile: {
+    flex: 1,
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+    paddingVertical: space.md,
+    alignItems: 'center',
+    gap: 2,
+  },
+  summaryValue: { fontFamily: type.heading, fontSize: font.h3, color: colors.ink, fontVariant: ['tabular-nums'] },
+  summaryLabel: { fontSize: font.tiny, color: colors.muted, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3 },
+  summaryLine: { fontSize: font.small, color: colors.ink, lineHeight: font.small * 1.4 },
+  summaryBest: { fontSize: font.small, color: colors.ink, fontWeight: '700' },
+
+  // Sheets whose content is several siblings: the gap the JS panel gets from
+  // `sheetBody` is also needed inside the native sheet, which ignores
+  // `contentStyle`. `flexShrink` so a ScrollView inside still clamps.
+  sheetStack: { flexShrink: 1, gap: space.sm },
+  showAllBtn: { minHeight: 44, justifyContent: 'center', alignItems: 'center' },
 
   // ── Collapsed cluster audit ──
   auditLine: {

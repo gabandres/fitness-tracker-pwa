@@ -3,16 +3,17 @@ import { join } from 'node:path';
 import { APP_ROUTE, DETAIL_ROUTES, reconcileRootRoutes } from '@/lib/root-stack';
 
 /**
- * Coach and Milestones are root stack routes pushed over the tabs
- * (UX_AUDIT S18-14), and the root layout reconciles the stack so the
+ * Coach, Milestones and History are root stack routes pushed over the tabs
+ * (UX_AUDIT S18-14; History since the Today review's P1, 2026-10-04), and the
+ * root layout reconciles the stack so the
  * `replace()`-based navigation written for `<Slot>` keeps working on it.
  *
  * Two halves. The pure half pins `reconcileRootRoutes`, which is the whole
  * reason a native stack at the root is safe here: without it a tour dismissal
  * would leave two mounted tab shells and a swipe-back from Today into Today.
- * The source half is the route-resolution check: every `/coach` and
- * `/milestones` href in the app must land on a file at the root of
- * `src/app`, and neither may still be declared as a tab.
+ * The source half is the route-resolution check: every `/coach`,
+ * `/milestones` and `/history` href in the app must land on a route at the
+ * root of `src/app`, and none may still be declared as a tab.
  */
 
 type R = { name: string; key: string };
@@ -26,6 +27,9 @@ describe('reconcileRootRoutes — the <Slot> contract on a native stack', () => 
   it('keeps (app) under a pushed detail route, so back has somewhere to go', () => {
     const routes = [r(APP_ROUTE), r('coach')];
     expect(reconcileRootRoutes(routes, 1)).toBeNull();
+    // History is one of them now: Today's calendar icon pushes it.
+    expect(DETAIL_ROUTES.has('history')).toBe(true);
+    expect(reconcileRootRoutes([r(APP_ROUTE), r('history')], 1)).toBeNull();
   });
 
   it('keeps (app) under the tour, what\'s-new and a Settings-opened onboarding', () => {
@@ -86,21 +90,34 @@ function sourceFiles(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-describe('coach and milestones resolve as root stack routes', () => {
-  it.each([...DETAIL_ROUTES])('%s.tsx lives at the root of src/app, not in (app)', (name) => {
-    expect(existsSync(join(APP_DIR, `${name}.tsx`))).toBe(true);
-    expect(existsSync(join(APP_DIR, '(app)', `${name}.tsx`))).toBe(false);
+/** A root route is a file (`coach.tsx`) or a directory with a layout
+ *  (`history/_layout.tsx`, which carries its own stack). */
+const routeAtRoot = (dir: string, name: string) =>
+  existsSync(join(dir, `${name}.tsx`)) || existsSync(join(dir, name, '_layout.tsx'));
+
+/** The screen files a detail route draws — for the source checks below. */
+const screenFiles = (name: string): string[] =>
+  existsSync(join(APP_DIR, `${name}.tsx`))
+    ? [join(APP_DIR, `${name}.tsx`)]
+    : readdirSync(join(APP_DIR, name))
+        .filter((f) => f.endsWith('.tsx') && f !== '_layout.tsx')
+        .map((f) => join(APP_DIR, name, f));
+
+describe('detail routes resolve as root stack routes', () => {
+  it.each([...DETAIL_ROUTES])('%s lives at the root of src/app, not in (app)', (name) => {
+    expect(routeAtRoot(APP_DIR, name)).toBe(true);
+    expect(routeAtRoot(join(APP_DIR, '(app)'), name)).toBe(false);
   });
 
-  it('every href to a detail route points at a file that exists', () => {
+  it('every href to a detail route points at a route that exists', () => {
     const hrefs = new Set<string>();
     for (const file of sourceFiles(SRC)) {
       const src = readFileSync(file, 'utf8');
-      for (const m of src.matchAll(/['"`]\/(coach|milestones)(?:[?'"`])/g)) hrefs.add(m[1]);
+      for (const m of src.matchAll(/['"`]\/(coach|milestones|history)(?:[?/'"`])/g)) hrefs.add(m[1]);
     }
     // The links exist — this is not vacuously green because nothing links.
-    expect([...hrefs].sort()).toEqual(['coach', 'milestones']);
-    for (const name of hrefs) expect(existsSync(join(APP_DIR, `${name}.tsx`))).toBe(true);
+    expect([...hrefs].sort()).toEqual(['coach', 'history', 'milestones']);
+    for (const name of hrefs) expect(routeAtRoot(APP_DIR, name)).toBe(true);
   });
 
   it('the tab layout no longer declares them, and the root stack does', () => {
@@ -116,13 +133,24 @@ describe('coach and milestones resolve as root stack routes', () => {
     }
   });
 
-  it('neither screen reserves FAB_BAND any more — nothing floats over a stack route', () => {
+  it('no detail screen reserves FAB_BAND any more — nothing floats over a stack route', () => {
     for (const name of DETAIL_ROUTES) {
-      const src = readFileSync(join(APP_DIR, `${name}.tsx`), 'utf8');
-      // Usage and import, not mentions — the comment that says why it left is fine.
-      expect(src).not.toMatch(/paddingBottom:\s*FAB_BAND/);
-      expect(src).not.toMatch(/import\s*\{[^}]*\bFAB_BAND\b/);
+      for (const file of screenFiles(name)) {
+        const src = readFileSync(file, 'utf8');
+        // Usage and import, not mentions — the comment that says why it left is fine.
+        expect(src).not.toMatch(/paddingBottom:\s*FAB_BAND/);
+        expect(src).not.toMatch(/import\s*\{[^}]*\bFAB_BAND\b/);
+      }
     }
+  });
+
+  it('History leads with a back button, and puts the calendar under a cold-opened day', () => {
+    // As a hidden tab it had no back at all (review P1). The calendar's back
+    // falls through to Today when nothing is beneath it (a cold deep link).
+    const calendar = readFileSync(join(APP_DIR, 'history', 'index.tsx'), 'utf8');
+    expect(calendar).toMatch(/testID="history-back"/);
+    expect(calendar).toMatch(/router\.canGoBack\(\) \? router\.back\(\) : router\.replace\('\/\(app\)'\)/);
+    expect(readFileSync(join(APP_DIR, 'history', '_layout.tsx'), 'utf8')).toMatch(/initialRouteName: 'index'/);
   });
 
   it('the Maestro flows still find the back buttons they tap', () => {

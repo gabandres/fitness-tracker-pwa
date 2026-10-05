@@ -37,6 +37,13 @@ jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
 );
 
+// `BottomSheet native` renders NOTHING in place on iOS (jest-expo reports
+// iOS): it publishes to the root `sheet` route, which a component test does
+// not mount (UX_AUDIT S20, `lib/sheet-portal.ts`). Suites test what is IN a
+// sheet, so every one gets the in-place JS sheet. `sheet-portal`'s own tests
+// exercise the native path through the portal directly.
+jest.mock('@/components/BottomSheet', () => require('./src/__tests__/js-sheet').jsSheetModule());
+
 // react-native-keyboard-controller binds a native event emitter at MODULE
 // scope, so merely importing BottomSheet throws outside a dev build. The sheet
 // is on the path of every screen test, so this mock is load-bearing.
@@ -95,6 +102,11 @@ jest.mock('@/lib/haptics', () => ({
   warning: jest.fn(),
   selection: jest.fn(),
   impact: jest.fn(),
+  removed: jest.fn(),
+  celebrate: jest.fn(),
+  celebrateIfQuiet: jest.fn(),
+  tapThenOutcome: jest.fn(),
+  __resetHaptics: jest.fn(),
 }));
 
 // The home-screen widget writes to an App Group / Android widget store.

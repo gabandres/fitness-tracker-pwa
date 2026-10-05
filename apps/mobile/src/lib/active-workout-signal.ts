@@ -36,9 +36,13 @@ export interface ActiveWorkoutSignal {
   active: boolean;
   /** The source template's name, when the session came from one. */
   name: string | null;
+  /** When the session started (epoch ms) — the elapsed clock on the
+   *  "Workout · 12:34 · Resume" pill. Null on a cached hint written before
+   *  the field existed. */
+  startedAt: number | null;
 }
 
-const EMPTY: ActiveWorkoutSignal = { active: false, name: null };
+const EMPTY: ActiveWorkoutSignal = { active: false, name: null, startedAt: null };
 
 let current: ActiveWorkoutSignal = EMPTY;
 let listeners: (() => void)[] = [];
@@ -48,7 +52,11 @@ const keyFor = (uid: string) => `activeWorkout:${uid}`;
 function emit(next: ActiveWorkoutSignal) {
   // Same object identity for an unchanged value, or `useSyncExternalStore`
   // re-renders every tab on every set that is logged.
-  if (next.active === current.active && next.name === current.name) return;
+  if (
+    next.active === current.active
+    && next.name === current.name
+    && next.startedAt === current.startedAt
+  ) return;
   current = next;
   for (const l of listeners) l();
 }
@@ -57,15 +65,22 @@ function emit(next: ActiveWorkoutSignal) {
  *  cached copy; pass `null` when signed out, which clears the signal. */
 export function publishActiveWorkout(
   uid: string | undefined,
-  session: { templateName?: string } | null,
+  session: { templateName?: string; date?: Date; status?: string } | null,
 ): void {
-  const next: ActiveWorkoutSignal = session
-    ? { active: true, name: session.templateName ?? null }
+  // A reopened COMPLETED session is an edit of history, not a workout in
+  // progress: no dot, no pill, no clock counting from last Tuesday.
+  const live = session && session.status !== 'completed' ? session : null;
+  const next: ActiveWorkoutSignal = live
+    ? {
+        active: true,
+        name: live.templateName ?? null,
+        startedAt: live.date instanceof Date ? live.date.getTime() : null,
+      }
     : EMPTY;
   emit(next);
   if (!uid) return;
   const k = keyFor(uid);
-  const write = session
+  const write = live
     ? AsyncStorage.setItem(k, JSON.stringify(next))
     : AsyncStorage.removeItem(k);
   void write.catch(() => {});
@@ -92,7 +107,13 @@ export async function hydrateActiveWorkout(uid: string | undefined): Promise<voi
     const raw = await AsyncStorage.getItem(keyFor(uid));
     if (!raw || current.active) return;
     const parsed = JSON.parse(raw) as ActiveWorkoutSignal;
-    if (parsed?.active) emit({ active: true, name: parsed.name ?? null });
+    if (parsed?.active) {
+      emit({
+        active: true,
+        name: parsed.name ?? null,
+        startedAt: typeof parsed.startedAt === 'number' ? parsed.startedAt : null,
+      });
+    }
   } catch {
     // Unreadable or malformed cache: no dot. See the module docstring.
   }

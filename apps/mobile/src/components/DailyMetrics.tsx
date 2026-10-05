@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { clampWaterFlOz, fastHoursParts, type UnitSystem } from '@macrolog/core';
 import { BottomSheet } from '@/components/BottomSheet';
-import { type I18nKey, type TFn, useLocale, useT } from '@/i18n';
+import { type I18nKey, type Locale, type TFn, useLocale, useT } from '@/i18n';
 import { formatNumber } from '@/lib/date-format';
 import { type HabitMetric, TRENDS_HABIT_TAB_KEY, habitColor } from '@/lib/habit-identity';
 import type { DailyActivity } from '@/lib/ledger';
@@ -75,12 +75,19 @@ interface Props {
  * that closely, and this app should not spend battery to look busy.
  *
  * `0h 42m` is also just noise — under an hour the hours field carries nothing.
+ *
+ * The hours-and-minutes form comes from the string table like the other two.
+ * It was a template literal, so English's `14h 03m` sat next to a Spanish
+ * `42 min` on the same row a minute later (UX_AUDIT Today review, Copy).
  */
-function elapsedLabel(since: Date, now: number, t: TFn): string {
+function elapsedLabel(since: Date, now: number, t: TFn, locale: Locale): string {
   const mins = Math.max(0, Math.floor((now - since.getTime()) / 60000));
   if (mins < 1) return t('metrics.fastJustStarted');
-  if (mins < 60) return t('metrics.fastMinutes', { m: String(mins) });
-  return `${Math.floor(mins / 60)}h ${String(mins % 60).padStart(2, '0')}m`;
+  if (mins < 60) return t('metrics.fastMinutes', { m: formatNumber(mins, locale) });
+  return t('metrics.fastElapsed', {
+    h: formatNumber(Math.floor(mins / 60), locale),
+    m: String(mins % 60).padStart(2, '0'),
+  });
 }
 
 /**
@@ -92,11 +99,19 @@ function elapsedLabel(since: Date, now: number, t: TFn): string {
  * `completedFastHours`, so it follows the same end-day attribution as History
  * and Trends and cannot disagree with them.
  */
-function fastingValue(since: Date | null, todayHours: number | null | undefined, t: TFn): string {
-  if (since) return elapsedLabel(since, Date.now(), t);
+function fastingValue(
+  since: Date | null,
+  todayHours: number | null | undefined,
+  t: TFn,
+  locale: Locale,
+): string {
+  if (since) return elapsedLabel(since, Date.now(), t, locale);
   if (todayHours != null && todayHours > 0) {
     const parts = fastHoursParts(todayHours);
-    return t('metrics.fastedToday', { h: String(parts.hours), m: String(parts.minutes) });
+    return t('metrics.fastedToday', {
+      h: formatNumber(parts.hours, locale),
+      m: formatNumber(parts.minutes, locale),
+    });
   }
   return t('metrics.notFasting');
 }
@@ -186,14 +201,29 @@ export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater
   const waterShown = displayWater(water, unitSystem);
   const step = waterStep(unitSystem);
   const addWater = (deltaDisplay: number) => {
-    haptics.tap();
+    // A stepper moves through values; it is not a button press (review P6).
+    haptics.selection();
     const next = Math.max(0, water + toFlOz(deltaDisplay, unitSystem));
     onAddWater(next);
     // The pill's label says what a tap ADDS; nothing said what the total
     // became, so a screen-reader user tapped +250 and heard silence.
     announce(t('metrics.waterNowA11y', { n: displayWater(next, unitSystem), unit: waterUnit }));
   };
-  const fastValue = fastingValue(fastStartedAt, fastedTodayHours, t);
+  const fastValue = fastingValue(fastStartedAt, fastedTodayHours, t, locale);
+  // "7.5 h" / "7,5 h" — through the locale, not `${sleep}h`, which printed
+  // "7.5h" to a Brazilian reader (review, Copy).
+  const sleepValue =
+    sleep != null ? t('metrics.sleepValue', { n: formatNumber(sleep, locale, { maximumFractionDigits: 2 }) }) : null;
+  const activityValue = activity
+    ? [
+        activity.steps != null ? t('metrics.steps', { n: formatNumber(activity.steps, locale) }) : null,
+        activity.activeKcal != null
+          ? t('metrics.activeKcal', { n: formatNumber(activity.activeKcal, locale) })
+          : null,
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    : '';
   const [sleepOpen, setSleepOpen] = useState(false);
   const [waterOpen, setWaterOpen] = useState(false);
   const [, setTick] = useState(0);
@@ -211,8 +241,10 @@ export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater
           reason: starting and ending a fast is the daily action, correcting one
           is a rare repair, and a repair that shares a control with the common
           action gets hit by accident. The pencil is what says the number is
-          touchable at all; without it this row looks inert. */}
-      <View style={styles.row}>
+          touchable at all; without it this row looks inert. Wraps like the
+          Water row: at large text "Fasting · 14 h 03 min" and the End button
+          cannot share a line at 360dp (review A1). */}
+      <View style={[styles.row, styles.rowWrap]}>
         <View style={styles.leadGroup}>
           <HabitShortcut metric="fasting" />
           <PressScale
@@ -323,14 +355,28 @@ export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater
 
       <View style={styles.divider} />
 
-      {/* Sleep */}
-      <View style={styles.row}>
+      {/* Sleep. The value opens the editor like Fasting's and Water's do —
+          it was the one row whose number did nothing when tapped (review U5),
+          and one label/value node for a reader: "Sleep, not logged" rather
+          than "Sleep" then a bare dash (review A4). */}
+      <View style={[styles.row, styles.rowWrap]}>
         <View style={styles.leadGroup}>
           <HabitShortcut metric="sleep" />
-          <View style={styles.left}>
+          <PressScale
+            scaleTo={0.96}
+            style={styles.left}
+            onPress={() => { haptics.tap(); setSleepOpen(true); }}
+            accessibilityRole="button"
+            accessibilityLabel={`${t('metrics.sleep')}, ${sleepValue ?? t('metrics.notLogged')}`}
+            accessibilityHint={t('metrics.hoursSlept')}
+            testID="sleep-value"
+          >
             <Text style={styles.label}>{t('metrics.sleep')}</Text>
-            <Text style={styles.value}>{sleep != null ? `${sleep}h` : '—'}</Text>
-          </View>
+            <View style={styles.waterValueRow}>
+              <Text style={styles.value}>{sleepValue ?? '—'}</Text>
+              <Ionicons name="pencil" size={12} color={colors.faint} />
+            </View>
+          </PressScale>
         </View>
         <PressScale
           scaleTo={0.92}
@@ -353,17 +399,15 @@ export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater
         <>
           <View style={styles.divider} />
           <View style={styles.row}>
-            <View style={styles.left}>
+            {/* One node, label and value together (review A4). */}
+            <View
+              style={styles.left}
+              accessible
+              accessibilityLabel={`${t('metrics.activity')}, ${activityValue}`}
+            >
               <Text style={styles.label}>{t('metrics.activity')}</Text>
               <Text style={styles.value} testID="activity-value">
-                {[
-                  activity.steps != null ? t('metrics.steps', { n: formatNumber(activity.steps, locale) }) : null,
-                  activity.activeKcal != null
-                    ? t('metrics.activeKcal', { n: formatNumber(activity.activeKcal, locale) })
-                    : null,
-                ]
-                  .filter(Boolean)
-                  .join(' · ')}
+                {activityValue}
               </Text>
             </View>
           </View>
@@ -470,7 +514,7 @@ function WaterModal({
   }
 
   return (
-    <BottomSheet visible={visible} onClose={onClose}>
+    <BottomSheet native detents="fit" visible={visible} onClose={onClose}>
             {/* The mode switch lives in the TITLE ROW and not under Save,
                 because the keyboard opens with the sheet: anything below the
                 primary button is behind it, and a rare path nobody can see is
@@ -558,7 +602,7 @@ function SleepModal({
   const valid = value.trim() !== '' && Number.isFinite(n) && n >= 0 && n <= 24;
 
   return (
-    <BottomSheet visible={visible} onClose={onClose}>
+    <BottomSheet native detents="fit" visible={visible} onClose={onClose}>
       <Text style={styles.sheetTitle}>{t('metrics.hoursSlept')}</Text>
       <View style={styles.inputRow}>
         <TextInput
@@ -578,7 +622,7 @@ function SleepModal({
           accessibilityLabel={t('metrics.hoursSlept')}
           testID="sleep-input"
         />
-        <Text style={styles.inputUnit}>h</Text>
+        <Text style={styles.inputUnit}>{t('metrics.hoursUnit')}</Text>
       </View>
       <TouchableOpacity
         style={[styles.save, !valid && styles.saveDisabled]}

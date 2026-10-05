@@ -1,14 +1,14 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { type DaySummary, formatBodyWeight, dayKeyAt, monthGrid, parseYmd } from '@macrolog/core';
-import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { useHistory } from '@/hooks/useHistory';
 import { useUnitSystem } from '@/lib/use-unit-system';
 import { type Locale, useLocale, useT } from '@/i18n';
+import { capitalizeFirst } from '@/i18n/grammar';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
 import { formatDate, formatNumber } from '@/lib/date-format';
@@ -54,7 +54,9 @@ function HistoryCalendarScreen({ onRetry }: { onRetry: () => void }) {
   const cells = useMemo(() => monthGrid(view), [view]);
   const weekdays = useMemo(() => weekdayLetters(locale), [locale]);
   const todayKey = dayKeyAt(new Date(), boundary);
-  const monthLabel = formatDate(view, locale, { month: 'long', year: 'numeric' });
+  // Sentence case, not `textTransform: 'capitalize'`, which title-cased
+  // pt-BR's "outubro de 2026" into "Outubro De 2026" (review #3).
+  const monthLabel = capitalizeFirst(formatDate(view, locale, { month: 'long', year: 'numeric' }), locale);
   // Page back past the 400-row window and the month is fetched once, on
   // demand (S18-13). The hook decides whether anything is needed; this effect
   // only says which month is on screen — and re-asks when the window itself
@@ -69,9 +71,24 @@ function HistoryCalendarScreen({ onRetry }: { onRetry: () => void }) {
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
+      {/* A pushed screen now (root stack, review P1), so it leads with back —
+          the edge-swipe and hardware back do the same. The avatar it carried
+          as a tab is gone: Settings is one back away, on Today. A cold deep
+          link has nothing beneath it and goes to Today instead. */}
       <View style={styles.headerRow}>
-        <Text style={styles.title}>{t('nav.history')}</Text>
-        <HeaderAvatar />
+        <TouchableOpacity
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/(app)'))}
+          hitSlop={12}
+          style={styles.backBtn}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.back')}
+          testID="history-back"
+        >
+          <Ionicons name="chevron-back" size={26} color={colors.ink} />
+        </TouchableOpacity>
+        <Text style={styles.title} accessibilityRole="header">
+          {t('nav.history')}
+        </Text>
       </View>
       {loading ? (
         <View style={styles.fill}>
@@ -242,8 +259,10 @@ const CELL = `${100 / 7}%`;
 
 const createStyles = ({ colors }: Theme) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
-  title: { fontSize: font.h1, fontWeight: '800', color: colors.ink, paddingHorizontal: space.xl, paddingTop: space.md },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: space.xl },
+  title: { flexShrink: 1, fontSize: font.h1, fontWeight: '800', color: colors.ink },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs, paddingHorizontal: space.lg, paddingTop: space.md },
+  // 44pt tall, the chevron's 26dp plus `hitSlop` for the rest of the target.
+  backBtn: { minHeight: 44, justifyContent: 'center' },
   fill: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.xs },
   body: { padding: space.xl, gap: space.md },
   error: { color: colors.danger, fontSize: font.small, flex: 1 },
@@ -253,7 +272,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   partialNote: { fontSize: font.small, color: colors.muted, textAlign: 'center', marginTop: space.xs },
   partialRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.sm },
   monthNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.sm },
-  monthLabel: { fontSize: font.h3, fontWeight: '800', color: colors.ink, textTransform: 'capitalize' },
+  monthLabel: { fontSize: font.h3, fontWeight: '800', color: colors.ink },
   weekHead: { flexDirection: 'row' },
   weekHeadCell: { width: CELL, textAlign: 'center', fontSize: font.tiny, color: colors.faint, fontWeight: '700', textTransform: 'uppercase' },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },

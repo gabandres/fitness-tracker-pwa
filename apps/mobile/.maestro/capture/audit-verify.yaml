@@ -34,7 +34,7 @@ env:
 - tapOn:
     text: 'Open'
     optional: true
-- assertVisible: 'Entries'
+- assertVisible: 'Meals'
 - assertVisible:
     id: 'add-food-day'
 - takeScreenshot: .maestro/capture/shots/v2-dayfab

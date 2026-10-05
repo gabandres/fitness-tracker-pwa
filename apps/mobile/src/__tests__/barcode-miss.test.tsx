@@ -13,13 +13,18 @@ jest.mock('@/lib/auth', () => ({
 // The camera is the one thing jest cannot run. The mock hands the test the
 // scan callback so a "barcode in frame" is a plain function call.
 let mockScan: ((r: { data: string }) => void) | undefined;
+let mockTorch: boolean | undefined;
 jest.mock('expo-camera', () => ({
   useCameraPermissions: () => [{ granted: true, canAskAgain: true, status: 'granted' }, jest.fn()],
-  CameraView: (props: { onBarcodeScanned?: (r: { data: string }) => void }) => {
+  CameraView: (props: { onBarcodeScanned?: (r: { data: string }) => void; enableTorch?: boolean }) => {
     mockScan = props.onBarcodeScanned;
+    mockTorch = props.enableTorch;
     return null;
   },
 }));
+
+let mockOffline = false;
+jest.mock('@/lib/connectivity', () => ({ isOffline: () => mockOffline }));
 
 const mockLookup = jest.fn();
 jest.mock('@/lib/barcode', () => ({
@@ -71,5 +76,62 @@ describe('BarcodeScanner miss', () => {
 
     expect(screen.getByText(/type it in from the package label/)).toBeTruthy();
     expect(screen.queryByTestId('barcode-enter-label')).toBeNull();
+  });
+});
+
+/**
+ * U8: a lookup that failed in transit is not "not in the database"; a miss can
+ * go back to the name search; and a dim pantry has a torch.
+ */
+describe('BarcodeScanner — offline, name search, torch (S20)', () => {
+  let announce: jest.SpyInstance;
+  beforeEach(() => {
+    mockScan = undefined;
+    mockOffline = false;
+    announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
+  });
+  afterEach(() => announce.mockRestore());
+
+  const base = { visible: true, onClose: jest.fn(), onPick: jest.fn(), onDenied: jest.fn() };
+
+  it('says "offline" for a lookup that never reached the database', async () => {
+    mockLookup.mockReset().mockRejectedValue(new TypeError('Network request failed'));
+    const screen = await render(<BarcodeScanner {...base} />);
+
+    await act(async () => mockScan?.({ data: '0123456789012' }));
+    await waitFor(() => expect(screen.getByTestId('barcode-miss')).toBeTruthy());
+
+    expect(screen.getByText("You're offline, so that barcode couldn't be looked up.")).toBeTruthy();
+    expect(screen.queryByText(/Open Food Facts/)).toBeNull();
+  });
+
+  it('says "offline" when the app already knows it is, whatever the error', async () => {
+    mockOffline = true;
+    mockLookup.mockReset().mockRejectedValue(new Error('OpenFoodFacts returned 503.'));
+    const screen = await render(<BarcodeScanner {...base} />);
+    await act(async () => mockScan?.({ data: '0123456789012' }));
+    expect(await waitFor(() => screen.getByText(/You're offline/))).toBeTruthy();
+  });
+
+  it('offers "Search by name" on a miss when wired', async () => {
+    mockLookup.mockReset().mockRejectedValue(new OffLookupError('FOOD_NOT_FOUND'));
+    const onSearchByName = jest.fn();
+    const screen = await render(<BarcodeScanner {...base} onSearchByName={onSearchByName} />);
+    expect(screen.queryByTestId('barcode-search-name')).toBeNull();
+
+    await act(async () => mockScan?.({ data: '0123456789012' }));
+    await fireEvent.press(await waitFor(() => screen.getByTestId('barcode-search-name')));
+    expect(onSearchByName).toHaveBeenCalled();
+  });
+
+  it('toggles the torch, as a switch', async () => {
+    const screen = await render(<BarcodeScanner {...base} />);
+    const torch = screen.getByTestId('barcode-torch');
+    expect(torch.props.accessibilityRole).toBe('switch');
+    expect(mockTorch).toBe(false);
+
+    await fireEvent.press(torch);
+    expect(mockTorch).toBe(true);
+    expect(screen.getByTestId('barcode-torch').props.accessibilityState).toMatchObject({ checked: true });
   });
 });

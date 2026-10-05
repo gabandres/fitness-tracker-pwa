@@ -218,6 +218,48 @@ export function reduceImportedSamples(samples: readonly HealthSample[]): Record<
 }
 
 /**
+ * `dateKey → epoch ms` of the last time the USER acted on that day's value by
+ * hand — deleted the weigh-in, or typed one over it.
+ *
+ * A device-local fact (the app keeps it in AsyncStorage), never a Firestore
+ * field: it describes what this phone's importer must not undo, and the rules
+ * would have to be redeployed before a client could write a new field anyway.
+ */
+export type ManualOverrides = Readonly<Record<string, number>>;
+
+/**
+ * Drop the Health samples a manual act has superseded.
+ *
+ * ## The bug this closes
+ *
+ * `valuesToApply` treats a Health reading as authoritative for its day, which
+ * is right for a day the app knows nothing about and wrong for a day the user
+ * has just corrected. Delete a weigh-in a smart scale also wrote, and the next
+ * foreground import (every one, via `useHealthAutoImport`) finds the scale's
+ * sample, sees no Firestore value for the day, and writes it straight back.
+ * Type 178 over a scale's 180 and the same import "corrects" it to 180. Both
+ * read to the user as the app ignoring them.
+ *
+ * ## Why by time, not by day
+ *
+ * A sample is dropped only when it ENDED at or before the manual act. A
+ * reading taken afterwards — the person steps on the scale again that evening —
+ * is newer information than the correction and still imports, under the same
+ * "newest reading wins" rule `reduceImportedSamples` applies within a day. A
+ * per-day block would silently swallow that reading forever.
+ */
+export function dropOverriddenSamples(
+  samples: readonly HealthSample[],
+  overrides: ManualOverrides | null | undefined,
+): HealthSample[] {
+  if (!overrides || Object.keys(overrides).length === 0) return [...(samples ?? [])];
+  return (samples ?? []).filter((s) => {
+    const at = overrides[s.dateKey];
+    return at == null || s.endMs > at;
+  });
+}
+
+/**
  * The days that actually need a write on import: the reduced Health map minus
  * days whose current app value already matches (within `epsilon` — unit
  * round-trips like lb↔kg or L↔flOz aren't bit-exact). Keeps a re-sync from

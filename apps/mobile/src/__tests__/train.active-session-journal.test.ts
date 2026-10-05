@@ -16,8 +16,10 @@ import type { WorkoutSession } from '@/lib/workout';
  * See `lib/active-session-journal.ts`.
  */
 
-/** The server's copy of the session — what `getActiveSession` answers. */
+/** The server's copy of the session — what `readActiveSession` answers. */
 let mockServer: WorkoutSession | null = null;
+/** Whether that answer came from the SDK's memory cache — offline. */
+let mockReadFromCache = false;
 /** 'ack': a write lands on the server. 'queued': it sits in the SDK's
  *  in-memory queue and never resolves — a weak gym connection. */
 let mockNetwork: 'ack' | 'queued' = 'ack';
@@ -62,7 +64,7 @@ jest.mock('@/lib/ledger', () => ({
     cb([]);
     return mockNoop;
   },
-  getActiveSession: async () => mockServer,
+  readActiveSession: async () => ({ session: mockServer, fromCache: mockReadFromCache }),
   startSession: jest.fn().mockResolvedValue('s1'),
   updateSession: (uid: string, id: string, patch: Partial<WorkoutSession>) => mockUpdateSession(uid, id, patch),
   addExercise: jest.fn().mockResolvedValue('ex-1'),
@@ -136,6 +138,7 @@ beforeEach(async () => {
   await AsyncStorage.clear();
   __resetOtaHolds();
   mockServer = pushDay();
+  mockReadFromCache = false;
   mockNetwork = 'ack';
   mockUpdateSession.mockClear();
   mockRefocus = null;
@@ -266,16 +269,20 @@ describe('reconcileActiveSession', () => {
 
   it('server written at or after the journal → server (another device, or nothing lost)', () => {
     const out = reconcileActiveSession(server, { savedAt: server.updatedAt.getTime(), session: withRir });
-    expect(out).toEqual({ session: server, resync: false });
+    expect(out).toEqual({ session: server, resync: false, recreate: false });
   });
 
   it('a journal for a different workout is ignored', () => {
     const out = reconcileActiveSession(server, { savedAt: Date.now(), session: { ...withRir, id: 'other' } });
-    expect(out).toEqual({ session: server, resync: false });
+    expect(out).toEqual({ session: server, resync: false, recreate: false });
   });
 
   it('no active session on the server → none, whatever the journal says', () => {
-    expect(reconcileActiveSession(null, { savedAt: Date.now(), session: withRir })).toEqual({ session: null, resync: false });
+    expect(reconcileActiveSession(null, { savedAt: Date.now(), session: withRir })).toEqual({
+      session: null,
+      resync: false,
+      recreate: false,
+    });
   });
 
   it('the journal round-trips 0 and Dates exactly', () => {
@@ -284,5 +291,63 @@ describe('reconcileActiveSession', () => {
     expect(back.session.exercises[0].sets[0]).toEqual({ kind: 'activation', weight: 0, reps: 0, rir: 0, done: false });
     expect(back.session.date).toBeInstanceOf(Date);
     expect(back.session.date.getTime()).toBe(withRir.date.getTime());
+  });
+});
+
+describe('reconcileActiveSession — offline and unsent (Train review bug 4)', () => {
+  const journaled = pushDay();
+  const entry = { savedAt: Date.now(), session: journaled };
+
+  it('an empty read FROM CACHE is not "no workout": the journal wins, and is re-sent whole', () => {
+    expect(reconcileActiveSession(null, entry, { serverKnown: false })).toEqual({
+      session: journaled,
+      resync: true,
+      recreate: true,
+    });
+  });
+
+  it('a session whose create never landed survives a server that has no such doc', () => {
+    const out = reconcileActiveSession(null, { ...entry, created: false }, { serverKnown: true });
+    expect(out.session).toBe(journaled);
+    expect(out.recreate).toBe(true);
+  });
+
+  it('a created session the server answers without stays gone — finished or discarded', () => {
+    expect(reconcileActiveSession(null, entry, { serverKnown: true }).session).toBeNull();
+  });
+
+  it('a session being finished is never offered back — from the journal or from a server behind', () => {
+    const finishing = new Set([journaled.id!]);
+    expect(reconcileActiveSession(null, entry, { serverKnown: false, finishing }).session).toBeNull();
+    expect(reconcileActiveSession(journaled, entry, { finishing }).session).toBeNull();
+  });
+});
+
+describe('createJournalWriter', () => {
+  it('coalesces a burst of edits into ONE write, and flush writes the newest at once', async () => {
+    jest.useFakeTimers();
+    try {
+      const { createJournalWriter } = jest.requireActual('@/lib/active-session-journal') as typeof import('@/lib/active-session-journal');
+      const setItem = jest.spyOn(AsyncStorage, 'setItem');
+      setItem.mockClear();
+      const writer = createJournalWriter(500);
+      const s = pushDay();
+      writer.write('u1', { ...s, templateName: 'a' });
+      writer.write('u1', { ...s, templateName: 'b' });
+      writer.write('u1', { ...s, templateName: 'c' });
+      expect(setItem).not.toHaveBeenCalled();
+      await writer.flush();
+      expect(setItem).toHaveBeenCalledTimes(1);
+      expect(decodeJournal(setItem.mock.calls[0][1] as string)!.session.templateName).toBe('c');
+
+      // A cancelled write never lands — a finish or discard must not be
+      // undone by a debounced copy of the session arriving after it.
+      writer.write('u1', s);
+      writer.cancel();
+      jest.advanceTimersByTime(1000);
+      expect(setItem).toHaveBeenCalledTimes(1);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

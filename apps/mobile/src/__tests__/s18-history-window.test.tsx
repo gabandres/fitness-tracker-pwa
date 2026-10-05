@@ -40,7 +40,7 @@ const mockUseHistory = jest.fn(() => mockHistory);
 jest.mock('@/hooks/useHistory', () => ({ useHistory: () => mockUseHistory() }));
 jest.mock('@/lib/use-unit-system', () => ({ useUnitSystem: () => 'us' }));
 
-import HistoryCalendar, { oldestLogKey, olderThanLoaded } from '@/app/(app)/history/index';
+import HistoryCalendar, { oldestLogKey, olderThanLoaded } from '@/app/history/index';
 
 /** `n` rows, one per day, newest first, ending on `oldest` (inclusive). */
 function rows(n: number, oldest: Date): DailyLog[] {

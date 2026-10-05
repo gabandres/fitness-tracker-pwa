@@ -1,11 +1,11 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { type Href, router, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { type Href, router, useLocalSearchParams, useScrollToTop } from 'expo-router';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { captureAndShare } from '@/lib/shareCapture';
-import type { DailyLog, DateKey, LogEntry, MealSlot } from '@macrolog/core';
+import type { DateKey, MealSlot } from '@macrolog/core';
 import { fastLengthHours, maintenanceView, parseYmd } from '@macrolog/core';
 import { confirm } from '@/components/ConfirmSheet';
 import { Flame } from '@/components/Flame';
@@ -26,17 +26,18 @@ import { RecalibrationCard } from '@/components/RecalibrationCard';
 import { ShareCard } from '@/components/ShareCard';
 import { UpdateBanner } from '@/components/UpdateBanner';
 import { type I18nKey, type Locale, useLocale, useT } from '@/i18n';
+import { capitalizeFirst } from '@/i18n/grammar';
+import { remainingAfterAdd, willCelebrate } from '@/lib/celebration';
 import * as haptics from '@/lib/haptics';
 import { captureError } from '@/lib/sentry';
 import { releaseTour } from '@/lib/tour';
-import { parseEntryPrefill, type EntryPrefill } from '@/lib/entry-prefill';
+import { parseEntryPrefill } from '@/lib/entry-prefill';
+import { refreshImports } from '@/lib/today-refresh';
 import { useDayFasts } from '@/hooks/useDayFasts';
+import { useDiaryActions } from '@/hooks/useDiaryActions';
 import { useFastActivity } from '@/hooks/useFastActivity';
 import { useReminderSync } from '@/hooks/useReminderSync';
 import { performQuickAdd } from '@/lib/quick-add';
-import { addLogDurably } from '@/lib/pending-logs';
-import { addPresetNow } from '@/lib/ledger';
-import { entryFromLog, isNoopEdit } from '@/lib/entry-from-log';
 import { useMilestones } from '@/hooks/useMilestones';
 import { useToday } from '@/hooks/useToday';
 import { useTodayNudge } from '@/hooks/useTodayNudge';
@@ -59,6 +60,10 @@ const ICON_SLOP = { top: 4, bottom: 4 } as const;
  *  `iconBtn`); 3dp of side slop makes each a 44dp target, overlapping its
  *  neighbour's by under a dp of the 4dp gap. */
 const HEADER_ICON_SLOP = { top: 4, bottom: 4, left: 3, right: 3 } as const;
+
+/** The date line under the title grows with text size only this far — past
+ *  it, it ellipsizes rather than pushing the header's controls off the row. */
+const HEADER_DATE_MAX_SCALE = 1.35;
 
 /** Slot names for the copy-from-yesterday chips — the diary's own words. */
 const SLOT_LABEL: Record<MealSlot, I18nKey> = {
@@ -109,17 +114,68 @@ export default function Today() {
   return <TodayScreen key={attempt} onRetry={() => setAttempt((a) => a + 1)} />;
 }
 
+/**
+ * The cold-start placeholder: the hero's empty rings, the metrics card's
+ * three rows and two diary rows, in the shapes they will fill (review V5).
+ * It used to be the hero alone, so the first real frame still pushed
+ * everything below it into place. Hidden from the reader as one busy node —
+ * the hero skeleton carries the "Loading today" label.
+ */
+function TodaySkeleton({ inline = false }: { inline?: boolean }) {
+  const styles = useThemedStyles(createStyles);
+  return (
+    <View
+      style={inline ? styles.skeletonInline : styles.skeletonBody}
+      testID="today-skeleton"
+      // Under a load error it is a placeholder for content that is NOT
+      // coming, so it does not announce itself as loading.
+      importantForAccessibility={inline ? 'no-hide-descendants' : 'auto'}
+      accessibilityElementsHidden={inline}
+    >
+      <HeroRingsSkeleton />
+      <View style={styles.skeletonCard} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+        {[0, 1, 2].map((i) => (
+          <View key={i} style={[styles.skeletonMetric, i > 0 && styles.skeletonDivider]}>
+            <View style={styles.skeletonDot} />
+            <View style={styles.skeletonLines}>
+              <View style={[styles.skeletonBar, { width: 56 }]} />
+              <View style={[styles.skeletonBar, styles.skeletonBarStrong, { width: 96 }]} />
+            </View>
+          </View>
+        ))}
+      </View>
+      {[0, 1].map((i) => (
+        <View key={i} style={styles.skeletonRow} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+          <View style={styles.skeletonLines}>
+            <View style={[styles.skeletonBar, styles.skeletonBarStrong, { width: '55%' }]} />
+            <View style={[styles.skeletonBar, { width: '35%' }]} />
+          </View>
+          <View style={[styles.skeletonBar, styles.skeletonBarStrong, { width: 48 }]} />
+        </View>
+      ))}
+    </View>
+  );
+}
+
 function TodayScreen({ onRetry }: { onRetry: () => void }) {
   const t = useT();
   const toast = useToast();
+  // Water and sleep are fire-and-forget taps; a refused write (rules, a bad
+  // value) said nothing and surfaced as an unhandled rejection (Body review 12).
+  function metricFailed(e: unknown, where: string) {
+    haptics.warning();
+    toast.show(t('metrics.saveFailed'));
+    captureError(e, { where });
+  }
   const receipt = useAddReceipt();
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
-  const { colors } = useTheme();
+  const { colors, scheme } = useTheme();
   const { user } = useAuth();
   const {
     loading,
     error,
+    hasData,
     summary,
     targets,
     activity,
@@ -153,7 +209,6 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
     shareStats,
     hasWeighIn,
     hasPhotoScan,
-    hasPriorLogs,
     measurement,
   } = useToday();
   // The single Nudge slot this screen is allowed to fill.
@@ -169,7 +224,43 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
     hasPhotoScan,
     boundary,
   });
-  const [sheetOpen, setSheetOpen] = useState(false);
+
+  // Every diary action — the sheet's state, save/edit/delete with their
+  // receipts and Undo, Save to Quick add — is shared with the History day
+  // (review U2). Today adds the two things only it can know: what is left of
+  // the day after an add, and whether the add is a moment.
+  const diary = useDiaryActions({
+    where: 'today',
+    dateKey: todayKey,
+    dayLogs: todayLogs,
+    presets,
+    addEntry,
+    updateEntry,
+    deleteEntry,
+    deletePreset,
+    remainingAfter: (entry) =>
+      remainingAfterAdd({
+        kcal: entry.calories,
+        timestamp: entry.timestamp,
+        todayKey,
+        boundary,
+        consumed: summary.totalCalories,
+        target: targets.calorieTarget,
+      }),
+    celebrates: (entry) =>
+      willCelebrate({
+        entry,
+        todayKey,
+        boundary,
+        todayFoodRows: todayLogs.length,
+        proteinSoFar: summary.totalProtein,
+        proteinTarget: targets.proteinTarget,
+      }),
+    // The guided tour is held while onboarding's first-log sheet is up, and
+    // every close of the sheet is its release.
+    onClose: releaseTour,
+  });
+
   const [glossaryOpen, setGlossaryOpen] = useState(false);
   const [fastSheetOpen, setFastSheetOpen] = useState(false);
   /**
@@ -207,8 +298,18 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
     () => (fastStartedAt ? { startedAt: fastStartedAt, endedAt: fastStartedAt } : null),
     [fastStartedAt],
   );
+  // Built once per change of its two inputs rather than inline in the hero's
+  // props on every render (review, Performance).
+  const maintenance = useMemo(
+    () => maintenanceView(targets.tdee, summary.totalCalories),
+    [targets.tdee, summary.totalCalories],
+  );
   const [repeating, setRepeating] = useState(false);
   const shareRef = useRef<View>(null);
+  const scrollRef = useRef<ScrollView>(null);
+  // Re-tapping the focused Today tab scrolls back to the top — the platform
+  // convention on both OSes (review A9). The tab bar announces it.
+  useScrollToTop(scrollRef);
 
   // Keep on-device smart reminders in sync with today's state (runs on Today
   // focus + after every log). No-op unless the user enabled reminders.
@@ -225,65 +326,13 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
   // swipe it away — see the hook. iOS-only; a no-op everywhere else.
   useFastActivity(fastStartedAt);
 
-  /**
-   * Promote a logged entry to a quick-add preset, from the row's long-press
-   * menu or its screen-reader action. No confirm — both are explicit choices —
-   * but a duplicate is refused and the receipt carries an Undo. A new preset
-   * joins the list; which presets fill the widget/tile slots is set in
-   * Settings, so this cannot silently change what a blind tap logs.
-   */
-  const savePresetFromLog = useCallback(
-    (log: DailyLog) => {
-      const name = log.mealLabel?.trim();
-      const uid = user?.uid;
-      if (!name || !uid) return;
-      // No confirm: this is reached from the row's menu ("Save preset") or its
-      // screen-reader action — both an explicit choice, where the confirm was
-      // there for the old bare long-press. Asking again was a second step, and
-      // a confirm presented as the menu closed could be dropped outright
-      // (Android: the menu sheet's own host took it, then unmounted).
-      haptics.tap();
-      // Saving the same food twice made two identical presets in the strip.
-      const key = name.toLowerCase();
-      const protein = log.protein ?? 0;
-      if (
-        presets.some(
-          (p) => p.name.trim().toLowerCase() === key && p.calories === log.calories && (p.protein ?? 0) === protein,
-        )
-      ) {
-        toast.show(t('today.presetExists', { name }));
-        return;
-      }
-      // Id minted up front, so the receipt's Undo works offline too — the
-      // write resolves only on the server's ack.
-      const { id, written } = addPresetNow(uid, {
-        name,
-        calories: log.calories,
-        protein,
-        carbs: log.carbs ?? 0,
-        fat: log.fat ?? 0,
-      });
-      let undone = false;
-      toast.show(t('today.presetSavedSlot', { name }), {
-        action: {
-          label: t('common.undo'),
-          onPress: () => {
-            undone = true;
-            deletePreset(id).catch((e) => captureError(e, { where: 'today.undoPreset' }));
-          },
-        },
-      });
-      written
-        .then(() => {
-          if (!undone) haptics.success();
-        })
-        .catch((e) => {
-          haptics.warning();
-          captureError(e, { where: 'today.savePresetFromLog' });
-        });
-    },
-    [user?.uid, presets, deletePreset, t, toast],
-  );
+  // The diary's latest actions, for callbacks registered once (the sheet
+  // opener) or fired from a param effect. Written in an effect — a render-time
+  // ref write made the React Compiler skip this whole screen (review #1).
+  const diaryRef = useRef(diary);
+  useEffect(() => {
+    diaryRef.current = diary;
+  });
 
   // The tab bar's Log button navigates here with a fresh `openAdd` nonce —
   // each new value opens the add sheet (see AppTabBar in the tab layout).
@@ -295,12 +344,9 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
   // A draft carried in beside the nonce — the scan screen's repeat suggestion
   // (ADR-0029, settled 2026-09-08). Parsed once per nonce; a bad param opens
   // the sheet empty rather than not at all.
-  const [sheetPrefill, setSheetPrefill] = useState<EntryPrefill | null>(null);
   useEffect(() => {
     if (!openAddParam) return;
-    setEditing(null);
-    setSheetPrefill(parseEntryPrefill(prefillParam));
-    setSheetOpen(true);
+    diaryRef.current.openAdd(parseEntryPrefill(prefillParam));
   }, [openAddParam, prefillParam]);
 
   // The Quick Settings tile's FALLBACK path (ADR-0020). Its tap normally logs
@@ -325,7 +371,9 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
   }, [quickAddSlotParam]);
 
   // Celebration: the flame chip bounces when the streak extends mid-session
-  // (null-first ref so it doesn't fire on mount).
+  // (null-first ref so it doesn't fire on mount). The bounce is skipped under
+  // reduce motion (`usePulse`); the haptic stays, and is the save's own when
+  // the save caused the extension — `celebrateIfQuiet` (review #7).
   const [streakPulse, triggerStreakPulse] = usePulse(1.3);
   const prevStreak = useRef<number | null>(null);
   useEffect(() => {
@@ -334,7 +382,7 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
     // the haptic and a review-prompt beat on mount.
     if (loading) return;
     if (prevStreak.current !== null && streak > prevStreak.current) {
-      haptics.tap();
+      haptics.celebrateIfQuiet();
       triggerStreakPulse();
       // Extending a streak is the other reliable "this is working" beat
       // (the first is finishing a workout). Held back until the streak is
@@ -344,13 +392,40 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
     prevStreak.current = streak;
   }, [streak, loading, triggerStreakPulse]);
 
-  async function onShare() {
+  // The share card is mounted only while a share is being captured (review,
+  // Performance): it was an off-screen tree re-rendered on every snapshot for
+  // a button pressed a few times a month. One frame after mounting is enough
+  // for the capture to see it laid out.
+  const [sharing, setSharing] = useState(false);
+  function onShare() {
+    if (sharing) return;
     haptics.tap();
-    try {
-      await captureAndShare(shareRef, t('today.shareCard'));
-    } catch {
-      /* capture/share failed or user dismissed — no-op */
-    }
+    setSharing(true);
+  }
+  useEffect(() => {
+    if (!sharing) return;
+    const id = requestAnimationFrame(() => {
+      captureAndShare(shareRef, t('today.shareCard'))
+        .catch(() => {
+          /* capture/share failed or user dismissed — no-op */
+        })
+        .then(() => setSharing(false));
+    });
+    return () => cancelAnimationFrame(id);
+  }, [sharing, t]);
+
+  // Pull to refresh runs the Health / Oura imports — the only part of Today
+  // that is not already live (`lib/today-refresh.ts`, review U7). From the
+  // error state it is also Retry: a fresh mount re-opens every listener.
+  const [refreshing, setRefreshing] = useState(false);
+  async function onRefresh() {
+    haptics.selection();
+    setRefreshing(true);
+    // `refreshImports` settles every branch and never rejects; no try/finally
+    // (the React Compiler cannot compile one — see `onCopySlot`).
+    await refreshImports(user?.uid);
+    setRefreshing(false);
+    if (error) onRetry();
   }
 
   // Slots copied today, keyed to the day. A copied chip must go even when the
@@ -360,9 +435,25 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
   const [copied, setCopied] = useState<{ day: string; slots: MealSlot[] }>({ day: '', slots: [] });
   const copiedToday = copied.day === todayKey ? copied.slots : [];
   const copySlots = yesterdaySlots.filter((s) => !copiedToday.includes(s));
+  /**
+   * A copy that fails says so (review #2): it used to end in `finally` with
+   * no `catch`, so a refused write cleared the busy state and nothing else —
+   * no rows, no message, and an unhandled rejection.
+   *
+   * No `finally` here at all, deliberately: the React Compiler cannot lower a
+   * `try` with a finalizer and skipped this ENTIRE screen for it (review #1).
+   * The `catch` handles every rejection, so the line after it always runs.
+   */
+  function copyFailed(e: unknown, where: string) {
+    haptics.warning();
+    toast.show(t('today.copyFailed'));
+    captureError(e, { where });
+  }
   async function onCopySlot(slot: MealSlot) {
     if (repeating) return;
-    haptics.tap();
+    // The press is acknowledged only if the copy is slow; a quick one is a
+    // single success beat (review P6).
+    haptics.tapThenOutcome();
     setRepeating(true);
     try {
       const ids = await repeatYesterday(slot);
@@ -372,13 +463,14 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
       receipt.showCopied(ids, () =>
         setCopied((c) => ({ ...c, slots: c.slots.filter((x) => x !== slot) })),
       );
-    } finally {
-      setRepeating(false);
+    } catch (e) {
+      copyFailed(e, 'today.copySlot');
     }
+    setRepeating(false);
   }
   async function onRepeatYesterday() {
     if (repeating) return;
-    haptics.tap();
+    haptics.tapThenOutcome();
     setRepeating(true);
     try {
       const ids = await repeatYesterday();
@@ -391,136 +483,30 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
       // "Copied 3 entries · Undo" — the copy used to land with a bare haptic,
       // and a mis-tap meant deleting each row by hand.
       receipt.showCopied(ids, () => setCopied({ day: todayKey, slots: [] }));
-    } finally {
-      setRepeating(false);
+    } catch (e) {
+      copyFailed(e, 'today.repeatYesterday');
     }
+    setRepeating(false);
   }
-  const [editing, setEditing] = useState<DailyLog | null>(null);
 
-  function openEdit(log: DailyLog) {
-    setEditing(log);
-    setSheetOpen(true);
-  }
-  // The latest list, for the receipt's Edit — its closure is from the add.
-  const todayLogsRef = useRef(todayLogs);
-  todayLogsRef.current = todayLogs;
-  // A ref, not the state: the receipt's closure is from the save, when the
-  // sheet was still open.
-  const sheetOpenRef = useRef(sheetOpen);
-  sheetOpenRef.current = sheetOpen;
-  /** Reopen a just-added row from its receipt ("right food, wrong amount").
-   *  The snapshot usually has it by the time Edit is tapped; if not, the row
-   *  is rebuilt from what was written, under the same id. */
-  function editAdded(id: string, entry: LogEntry) {
-    // A receipt outliving its sheet: if a new add is already open, Edit would
-    // reset that form and drop what is typed in it.
-    if (sheetOpenRef.current) return;
-    const live = todayLogsRef.current.find((l) => l.id === id);
-    openEdit(live ?? { ...entry, id, date: entry.timestamp ?? new Date() });
-  }
-  async function onSave(entry: LogEntry) {
-    if (editing?.id) {
-      const before = editing;
-      // An untouched form's Save writes nothing and says nothing.
-      if (isNoopEdit(before, entry)) return;
-      // Not awaited: the SDK resolves an update only on the server's ack, so
-      // offline the sheet sat with Save disabled forever while the banner
-      // promised "will sync". The SDK holds the patch either way; the sheet
-      // closes now, and a rejection (rules, a deleted row) says so in a toast
-      // rather than rolling the row back behind a lone haptic.
-      updateEntry(editing.id, entry).catch((e) => {
-        haptics.warning();
-        toast.show(t('entry.updateFailed'));
-        captureError(e, { where: 'today.updateEntry' });
-      });
-      // An edit is undoable like an add or a delete: the receipt puts the row
-      // back exactly as it was (same id, same fields) — "I changed the wrong
-      // entry" no longer means re-typing the old numbers from memory.
-      const label = entry.mealLabel?.trim() || before.mealLabel?.trim();
-      toast.show(label ? t('entry.updatedNamed', { label }) : t('entry.updated'), {
-        action: {
-          label: t('common.undo'),
-          onPress: () => {
-            updateEntry(before.id!, entryFromLog(before)).catch((e) => {
-              haptics.warning();
-              toast.show(t('entry.updateFailed'));
-              captureError(e, { where: 'today.undoEdit' });
-            });
-          },
-        },
-      });
-    } else {
-      // The receipt names what landed and carries Edit + Undo; a parked add
-      // keeps the honest `offline.queued` copy (UX_AUDIT S18-12).
-      const r = await addEntry(entry);
-      receipt.showAdded(r, { label: entry.mealLabel, calories: entry.calories }, (id) =>
-        editAdded(id, entry),
-      );
-    }
-    haptics.success();
-  }
-  /** "Add all" from a described meal: N rows, ONE receipt, one Undo for all. */
-  async function onSaveMany(entries: LogEntry[]) {
-    // In parallel — offline, one at a time cost each row its own deadline.
-    const receipts = await Promise.all(entries.map((entry) => addEntry(entry)));
-    receipt.showAddedMany(
-      receipts,
-      entries.reduce((sum, e) => sum + e.calories, 0),
-    );
-    haptics.success();
-  }
-  /**
-   * Delete first, offer Undo second (UX_AUDIT S18-6). No confirm sheet: a
-   * mis-tap costs one more tap to reverse, and the reversal is exact — same
-   * id, same timestamp — so nothing about the day changes except the row
-   * coming back. A confirm would cost every intentional delete a step to
-   * protect against the rare one.
-   */
-  async function onDelete() {
-    const log = editing;
-    if (log?.id) {
-      // Fire, then Undo at once — awaiting the server's ack left the sheet
-      // open and the Undo unshown for as long as the device was offline.
-      deleteEntry(log.id).catch((e) => {
-        haptics.warning();
-        captureError(e, { where: 'today.deleteEntry' });
-      });
-      offerUndo(log);
-    }
-    haptics.success();
-    closeSheet();
-  }
-  /** Delete straight from the list — the row's swipe or its screen-reader
-   *  action. Same fire-then-Undo path as the sheet's delete. */
-  function deleteFromList(log: DailyLog) {
-    if (!log.id) return;
-    deleteEntry(log.id).catch((e) => {
-      haptics.warning();
-      captureError(e, { where: 'today.deleteEntry' });
-    });
-    offerUndo(log);
-    haptics.success();
-  }
   /**
    * End the fast, then offer Undo — the button sits beside the water pills and
    * a mis-tap used to close a 16-hour fast for good (the only repair was
    * re-typing both instants in History).
    *
-   * The toast waits for the commit (see the body): Undo needs the id the
-   * write minted, and a receipt for a write that failed would be a lie.
+   * The toast waits for the commit: `breakFast` reads the profile first, and
+   * with no SDK persistence that read fails offline — an Undo offered up front
+   * would be a receipt for a fast that never ended.
    */
   function onBreakFast() {
-    // The toast waits for the commit: `breakFast` reads the profile first, and
-    // with no SDK persistence that read fails offline — an Undo offered up
-    // front would be a receipt for a fast that never ended.
     breakFast()
-      .then((receipt) => {
+      .then((fastReceipt) => {
         toast.show(t('metrics.fastEnded'), {
-          action: receipt?.startedAt
+          action: fastReceipt?.startedAt
             ? {
                 label: t('common.undo'),
                 onPress: () => {
-                  undoBreakFast(receipt).catch((e) => {
+                  undoBreakFast(fastReceipt).catch((e) => {
                     haptics.warning();
                     captureError(e, { where: 'today.undoBreakFast' });
                   });
@@ -538,36 +524,68 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
         captureError(e, { where: 'today.breakFast' });
       });
   }
-  function offerUndo(log: DailyLog) {
-    const id = log.id;
-    const uid = user?.uid;
-    if (!id || !uid) return;
-    toast.show(t('entry.deleted'), {
-      durationMs: 5000,
-      action: {
-        label: t('common.undo'),
-        onPress: () => {
-          // Durable, like any add: the same id and every field when it can reach
-          // the server, parked on disk when it cannot (a plain write offline died
-          // with the process).
-          addLogDurably(uid, entryFromLog(log), id).catch((e) => {
-            haptics.warning();
-            captureError(e, { where: 'today.undoDelete' });
-          });
-        },
+
+  /** One sheet, three jobs — see the FastSheet below. `startFast` REWRITES
+   *  `fastStartedAt`, which is what correcting a running fast is: the live
+   *  fast is a scalar on the profile, not a document. */
+  async function onSaveFast(startedAt: Date, endedAt: Date) {
+    if (fastStartedAt) await startFast(startedAt);
+    else if (editableFast?.id) await updateFast(editableFast.id, startedAt, endedAt);
+    else await addFast(startedAt, endedAt);
+  }
+  function onDeleteFast() {
+    const id = editableFast?.id;
+    if (!id) return;
+    confirm({
+      title: t('fast.deleteTitle'),
+      body: t('fast.deleteBody'),
+      confirmText: t('common.remove'),
+      destructive: true,
+      onConfirm: () => {
+        deleteFast(id).catch((e) => {
+          haptics.warning();
+          captureError(e, { where: 'today.deleteFast' });
+        });
+        setFastSheetOpen(false);
       },
     });
   }
-  /** Every way the add sheet closes goes through here: the guided tour is
-   *  held while onboarding's first-log sheet is up, and this is its release. */
-  function closeSheet() {
-    setSheetOpen(false);
-    setSheetPrefill(null);
-    releaseTour();
-  }
+
+  // A failed feed with nothing cached has no true numbers to draw: the hero
+  // would say "0 kcal" of a target nobody loaded, and the diary would say the
+  // day is empty. Skeleton plus the error instead (review #4).
+  const blank = !!error && !hasData;
+  // Light mode: the ember hue measured 2.85:1 on the chip's card; `warn` is
+  // the same amber family at 4.5:1. Dark keeps the brighter ember (review A8).
+  const flameTint = scheme === 'light' ? colors.warn : colors.habitFasting;
+
+  const errorRow = error ? (
+    <View style={styles.errorRow} accessibilityRole="alert" accessibilityLiveRegion="polite">
+      <Text style={styles.error}>{t('today.loadErr')}</Text>
+      <TouchableOpacity
+        onPress={onRetry}
+        style={styles.retryBtn}
+        hitSlop={ICON_SLOP}
+        accessibilityRole="button"
+        accessibilityLabel={t('common.retry')}
+        testID="retry"
+      >
+        <Text style={styles.retryText}>{t('common.retry')}</Text>
+      </TouchableOpacity>
+    </View>
+  ) : null;
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
+    <SafeAreaView
+      style={styles.screen}
+      edges={['top']}
+      // VoiceOver's Magic Tap (two-finger double-tap) runs the live toast's
+      // action — "Undo" from anywhere, instead of a hunt for a button that is
+      // timing out (review A6). Nothing else on Today claims the gesture.
+      onMagicTap={() => {
+        toast.act();
+      }}
+    >
       <View style={styles.header}>
         {/* Shrinkable, and the ONLY shrinkable thing in this row — see
             `headerTitleBlock`. The date is what makes the block wide (448px of
@@ -591,33 +609,57 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
           >
             {t('nav.today')}
           </Text>
-          <Text style={styles.date} numberOfLines={1}>{todayLabel(todayKey, locale)}</Text>
+          {/* Ellipsizes rather than wraps, and stops growing at 1.35×: two
+              lines of date would push the hero down for no information the
+              title has not already given (review A1). */}
+          <Text
+            style={styles.date}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+            maxFontSizeMultiplier={HEADER_DATE_MAX_SCALE}
+          >
+            {todayLabel(todayKey, locale)}
+          </Text>
         </View>
         <View style={styles.headerRight}>
           {streak > 0 ? (
-            <Animated.View
-              style={[styles.streakChip, streak >= 100 && styles.streakChipWide, streakPulse]}
-              testID="streak-chip"
-              // `accessible` is what makes the label count: without it the
-              // View is not a focusable node and VoiceOver read the bare
-              // digit inside it, not "12-day streak".
-              accessible
-              accessibilityRole="text"
-              accessibilityLabel={t('today.streakA11y', { n: streak })}
-            >
-              {/* The brand ember, not a platform emoji that renders differently
-                  on every OS (UX_AUDIT S18-17). Still, so a chip does not
-                  flicker in the corner of every Today; tinted in the streak/
-                  fasting hue because here it is a data mark, not the logo. */}
-              <Flame size={18} flicker={false} tint={colors.habitFasting} />
-              {/* Capped like the title: the header row has ~5dp to spare at
-                  360dp, and an uncapped digit at a large text size pushed the
-                  avatar off the edge. The chip's spoken label is unaffected. */}
-              <Text style={styles.streakNum} maxFontSizeMultiplier={headerTitle.maxFontScale}>
-                {streak}
-              </Text>
+            <Animated.View style={streakPulse}>
+              {/* A button now (review U4): the streak is a milestone in the
+                  making, and the milestones screen is where it is explained.
+                  It stays a compact chip — the header row has ~5dp to spare at
+                  360dp — so "day streak" is spoken, not printed. */}
+              <PressScale
+                scaleTo={0.92}
+                style={[styles.streakChip, streak >= 100 && styles.streakChipWide]}
+                hitSlop={ICON_SLOP}
+                onPress={() => {
+                  haptics.tap();
+                  router.push('/milestones' as Href);
+                }}
+                testID="streak-chip"
+                accessibilityRole="button"
+                accessibilityLabel={t('today.streakA11y', { n: streak })}
+                accessibilityHint={t('today.streakHint')}
+                accessibilityShowsLargeContentViewer
+                accessibilityLargeContentTitle={t('today.streakA11y', { n: streak })}
+              >
+                {/* The brand ember, not a platform emoji that renders differently
+                    on every OS (UX_AUDIT S18-17). Still, so a chip does not
+                    flicker in the corner of every Today; tinted in the streak/
+                    fasting hue because here it is a data mark, not the logo. */}
+                <Flame size={18} flicker={false} tint={flameTint} />
+                {/* Capped like the title: the header row has ~5dp to spare at
+                    360dp, and an uncapped digit at a large text size pushed the
+                    avatar off the edge. The chip's spoken label is unaffected. */}
+                <Text style={styles.streakNum} maxFontSizeMultiplier={headerTitle.maxFontScale}>
+                  {streak}
+                </Text>
+              </PressScale>
             </Animated.View>
           ) : null}
+          {/* The three icons do not grow with Dynamic Type (the row has no
+              room), so each offers iOS's large-content viewer instead — press
+              and hold at an accessibility text size (review A2). */}
           <TouchableOpacity
             onPress={() => { haptics.tap(); router.push('/history'); }}
             testID="open-history"
@@ -625,21 +667,27 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
             hitSlop={HEADER_ICON_SLOP}
             accessibilityRole="button"
             accessibilityLabel={t('nav.history')}
+            accessibilityShowsLargeContentViewer
+            accessibilityLargeContentTitle={t('nav.history')}
           >
             <Ionicons name="calendar-outline" size={22} color={colors.muted} />
           </TouchableOpacity>
           <TouchableOpacity
             onPress={onShare}
+            disabled={sharing}
             testID="share-progress"
             style={styles.iconBtn}
             hitSlop={HEADER_ICON_SLOP}
             accessibilityRole="button"
             accessibilityLabel={t('today.shareA11y')}
+            accessibilityState={{ busy: sharing }}
+            accessibilityShowsLargeContentViewer
+            accessibilityLargeContentTitle={t('today.shareA11y')}
           >
             <Ionicons name="share-outline" size={22} color={colors.muted} />
           </TouchableOpacity>
           {/* UX_AUDIT F6. The hero right below this reads `0 / 2,323 kcal` over
-              `maintenance 2,723` and the app defined neither word anywhere.
+              `Maintenance 2,723` and the app defined neither word anywhere.
               Same icon, same place, same sheet as the Train tab's "?" — one
               affordance across three tabs rather than a third way to explain
               something. */}
@@ -650,6 +698,8 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
             hitSlop={HEADER_ICON_SLOP}
             accessibilityRole="button"
             accessibilityLabel={t('numbers.glossaryOpen')}
+            accessibilityShowsLargeContentViewer
+            accessibilityLargeContentTitle={t('numbers.glossaryOpen')}
           >
             <Ionicons name="help-circle-outline" size={22} color={colors.muted} />
           </TouchableOpacity>
@@ -673,67 +723,43 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
         mode={fastStartedAt ? 'running' : editableFast ? 'edit' : 'add'}
         editing={fastStartedAt ? runningFast : editableFast}
         fasts={nearbyFasts}
-        onSave={async (startedAt, endedAt) => {
-          // `startFast` REWRITES `fastStartedAt`, which is what correcting a
-          // running fast is — the live fast is a scalar on the profile, not a
-          // document, so there is nothing else to update.
-          if (fastStartedAt) await startFast(startedAt);
-          else if (editableFast?.id) await updateFast(editableFast.id, startedAt, endedAt);
-          else await addFast(startedAt, endedAt);
-        }}
-        onDelete={
-          !fastStartedAt && editableFast?.id
-            ? () => {
-                confirm({
-                  title: t('fast.deleteTitle'),
-                  body: t('fast.deleteBody'),
-                  confirmText: t('common.remove'),
-                  destructive: true,
-                  onConfirm: () => {
-                    deleteFast(editableFast.id as string).catch((e) => {
-                      haptics.warning();
-                      captureError(e, { where: 'today.deleteFast' });
-                    });
-                    setFastSheetOpen(false);
-                  },
-                });
-              }
-            : undefined
-        }
+        onSave={onSaveFast}
+        onDelete={!fastStartedAt && editableFast?.id ? onDeleteFast : undefined}
         onClose={() => setFastSheetOpen(false)}
       />
 
-      {/* Off-screen capture target for the share card (native share only). */}
-      <View style={[styles.shareCapture, { pointerEvents: 'none' }]}>
-        <View ref={shareRef} collapsable={false}>
-          <ShareCard stats={shareStats} />
+      {/* Off-screen capture target for the share card (native share only),
+          mounted only while a share is in flight. */}
+      {sharing ? (
+        <View style={[styles.shareCapture, { pointerEvents: 'none' }]}>
+          <View ref={shareRef} collapsable={false}>
+            <ShareCard stats={shareStats} />
+          </View>
         </View>
-      </View>
+      ) : null}
 
-      {/* A cold cache paints the hero's empty tracks where the hero will be,
-          rather than a spinner in the middle of nothing — the screen keeps its
-          shape, and the first real frame fills it instead of replacing it. */}
+      {/* A cold cache paints the screen's shape where the content will be,
+          rather than a spinner in the middle of nothing — the first real frame
+          fills it instead of replacing it. A failed feed with nothing cached
+          keeps the shape and says why above it. */}
       {loading ? (
-        <View style={styles.skeletonBody}>
-          <HeroRingsSkeleton />
-        </View>
+        <TodaySkeleton />
+      ) : blank ? (
+        <ScrollView
+          contentContainerStyle={styles.body}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.muted} />}
+        >
+          {errorRow}
+          <OfflineBanner />
+          <TodaySkeleton inline />
+        </ScrollView>
       ) : (
-        <ScrollView contentContainerStyle={styles.body}>
-          {error ? (
-            <View style={styles.errorRow} accessibilityRole="alert" accessibilityLiveRegion="polite">
-              <Text style={styles.error}>{t('today.loadErr')}</Text>
-              <TouchableOpacity
-                onPress={onRetry}
-                style={styles.retryBtn}
-                hitSlop={ICON_SLOP}
-                accessibilityRole="button"
-                accessibilityLabel={t('common.retry')}
-                testID="retry"
-              >
-                <Text style={styles.retryText}>{t('common.retry')}</Text>
-              </TouchableOpacity>
-            </View>
-          ) : null}
+        <ScrollView
+          ref={scrollRef}
+          contentContainerStyle={styles.body}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.muted} />}
+        >
+          {errorRow}
 
           {/* A state readout, not a Nudge — above the banners that are, and
               never competing with them for the one-at-a-time slot. */}
@@ -752,7 +778,7 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
               protTarget={targets.proteinTarget || 0}
               carbs={summary.totalCarbs}
               fat={summary.totalFat}
-              maintenance={maintenanceView(targets.tdee, summary.totalCalories)}
+              maintenance={maintenance}
               progress={measurement}
             />
           </Animated.View>
@@ -778,8 +804,8 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
               fastStartedAt={fastStartedAt}
               onEditFast={() => setFastSheetOpen(true)}
               fastedTodayHours={fastedTodayHours}
-              onAddWater={setWater}
-              onSetSleep={setSleep}
+              onAddWater={(v) => void setWater(v).catch((e) => metricFailed(e, 'today.water'))}
+              onSetSleep={(v) => void setSleep(v).catch((e) => metricFailed(e, 'today.sleep'))}
               onStartFast={startFast}
               onBreakFast={onBreakFast}
             />
@@ -792,19 +818,14 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
           >
             {t('today.entries')}
           </Animated.Text>
-          {todayLogs.length === 0 ? (
-            <Animated.View style={styles.empty} entering={enterUp(3)}>
-              <Text style={styles.emptyText}>{t('today.emptyTitle')}</Text>
-              {/* "your first meal" is day-1 copy; said every empty morning to
-                  someone with weeks of history, it reads as the app forgetting
-                  them. */}
-              <Text style={styles.emptyHint}>
-                {t(hasPriorLogs ? 'today.emptyHintReturning' : 'today.emptyHint')}
-              </Text>
-              {/* Only when there is something to copy: on day 1 — the first
-                  screen every new user sees — it used to buzz success and do
-                  nothing. */}
-              {yesterdayCount > 0 ? (
+          {/* "Repeat yesterday" on an empty day, one chip per meal yesterday
+              had and today has not once it has begun — copied with a receipt
+              and an Undo. Above the list, not under it: at the foot of a long
+              day it was the one thing nobody scrolled to. Only when there is
+              something to copy: on day 1 it used to buzz success and do
+              nothing. */}
+          {todayLogs.length === 0 && yesterdayCount > 0 ? (
+            <Animated.View entering={enterUp(3)}>
               <PressScale
                 style={[styles.repeatBtn, repeating && styles.repeatBtnDisabled]}
                 onPress={onRepeatYesterday}
@@ -819,63 +840,60 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
                   {repeating ? t('common.saving') : t('today.repeatYesterday')}
                 </Text>
               </PressScale>
-              ) : null}
             </Animated.View>
-          ) : (
-            <>
-              {/* "Repeat yesterday" used to exist only on an EMPTY day, so the
-                  person who eats the same breakfast every morning lost it the
-                  moment they logged anything. One chip per meal yesterday had
-                  and today has not — copied with a receipt and an Undo. Above
-                  the list, not under it: at the foot of a long day it was the
-                  one thing nobody scrolled to. */}
-              {copySlots.length > 0 ? (
-                <View style={styles.copyRow} testID="copy-from-yesterday">
-                  <Text style={styles.copyLabel}>{t('today.copyFromYesterday')}</Text>
-                  <View style={styles.copyChips}>
-                    {copySlots.map((slot) => (
-                      <PressScale
-                        key={slot}
-                        style={[styles.copyChip, repeating && styles.repeatBtnDisabled]}
-                        onPress={() => onCopySlot(slot)}
-                        disabled={repeating}
-                        hitSlop={ICON_SLOP}
-                        accessibilityRole="button"
-                        accessibilityState={{ disabled: repeating }}
-                        accessibilityLabel={t('today.copySlotA11y', { slot: t(SLOT_LABEL[slot]) })}
-                        accessibilityHint={slot === 'other' ? t('today.copyOtherHint') : undefined}
-                        testID={`copy-slot-${slot}`}
-                      >
-                        <Ionicons name="refresh" size={14} color={colors.ink} />
-                        <Text style={styles.copyChipText}>{t(SLOT_LABEL[slot])}</Text>
-                      </PressScale>
-                    ))}
-                  </View>
-                </View>
-              ) : null}
-              <MealEntries
-                logs={todayLogs}
-                onPress={openEdit}
-                onSavePreset={savePresetFromLog}
-                onDelete={deleteFromList}
-              />
-            </>
-          )}
-          {/* Clears the + button for the SCROLLING case (a populated list).
-              The empty state handles itself — see `styles.empty`. */}
+          ) : null}
+          {todayLogs.length > 0 && copySlots.length > 0 ? (
+            <View style={styles.copyRow} testID="copy-from-yesterday">
+              <Text style={styles.copyLabel}>{t('today.copyFromYesterday')}</Text>
+              <View style={styles.copyChips}>
+                {copySlots.map((slot) => (
+                  <PressScale
+                    key={slot}
+                    style={[styles.copyChip, repeating && styles.repeatBtnDisabled]}
+                    onPress={() => onCopySlot(slot)}
+                    disabled={repeating}
+                    hitSlop={ICON_SLOP}
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: repeating }}
+                    accessibilityLabel={t('today.copySlotA11y', { slot: t(SLOT_LABEL[slot]) })}
+                    accessibilityHint={slot === 'other' ? t('today.copyOtherHint') : undefined}
+                    testID={`copy-slot-${slot}`}
+                  >
+                    <Ionicons name="refresh" size={14} color={colors.ink} />
+                    {/* Sentence case per locale, not `capitalize` (review #3). */}
+                    <Text style={styles.copyChipText}>{capitalizeFirst(t(SLOT_LABEL[slot]), locale)}</Text>
+                  </PressScale>
+                ))}
+              </View>
+            </View>
+          ) : null}
+          {/* The four meals are always on screen, each with its own "+ Add"
+              (review U3) — so an empty day is the diary waiting to be filled,
+              where it used to be "No entries yet" and a hint pointing at the
+              + button. */}
+          <Animated.View entering={enterUp(todayLogs.length === 0 ? 4 : 3)}>
+            <MealEntries
+              logs={todayLogs}
+              onPress={diary.openEdit}
+              onSavePreset={diary.savePresetFromLog}
+              onDelete={diary.deleteFromList}
+              onAddToSlot={diary.openSlot}
+            />
+          </Animated.View>
+          {/* Clears the + button at the foot of the list. */}
           <View style={{ height: FAB_BAND }} />
         </ScrollView>
       )}
 
       <EntrySheet
-        visible={sheetOpen}
-        editing={editing}
-        onSave={onSave}
-        onSaveMany={onSaveMany}
-        onDelete={editing ? onDelete : undefined}
+        visible={diary.sheetOpen}
+        editing={diary.editing}
+        onSave={diary.onSave}
+        onSaveMany={diary.onSaveMany}
+        onDelete={diary.editing ? diary.onDelete : undefined}
         // Undo is offered here, so the sheet's delete fires at once (S18-6).
         deleteUndoable
-        onClose={closeSheet}
+        onClose={diary.closeSheet}
         presets={presets}
         recentEntries={recentEntries}
         onSavePreset={addPreset}
@@ -885,7 +903,7 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
         onSaveCustomFood={addCustomFood}
         onDeleteCustomFood={deleteCustomFood}
         unitSystem={unitSystem}
-        initialPrefill={sheetPrefill}
+        initialPrefill={diary.prefill}
       />
     </SafeAreaView>
   );
@@ -894,7 +912,36 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
 function createStyles({ colors }: Theme) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.paper },
-    skeletonBody: { paddingHorizontal: space.xl },
+    skeletonBody: { paddingHorizontal: space.xl, gap: space.lg },
+    skeletonInline: { gap: space.lg },
+    // Placeholders in the shapes of DailyMetrics and a diary row, in the
+    // card colours they will have — so the first frame changes content, not
+    // layout (review V5).
+    skeletonCard: {
+      backgroundColor: colors.card,
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: colors.line,
+      paddingHorizontal: space.lg,
+      paddingVertical: space.sm,
+    },
+    skeletonMetric: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingVertical: space.md },
+    skeletonDivider: { borderTopWidth: 1, borderTopColor: colors.line },
+    skeletonDot: { width: 32, height: 32, borderRadius: radius.pill, backgroundColor: colors.line },
+    skeletonLines: { flex: 1, gap: space.xs },
+    skeletonBar: { height: 10, borderRadius: 5, backgroundColor: colors.line },
+    skeletonBarStrong: { height: 14, borderRadius: 7 },
+    skeletonRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: space.md,
+      backgroundColor: colors.card,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.line,
+      paddingHorizontal: space.lg,
+      paddingVertical: space.md,
+    },
     header: {
       flexDirection: 'row',
       alignItems: 'flex-start',
@@ -912,12 +959,10 @@ function createStyles({ colors }: Theme) {
     // row's bounds were [24,813][378,878] against an 874pt screen, so its
     // centre fell on the bar and the tap that should open the editor did
     // nothing at all. Every other tab already pads (body.tsx uses `padding`).
-    // `flexGrow: 1` is what makes the empty-state fix below deterministic:
-    // with it, short content still fills the viewport, so `styles.empty` can
-    // claim the leftover height and centre itself inside a region that
-    // excludes the + button's band. Without it that block simply sits wherever
-    // the content above happens to end — which at 360x720dp is directly under
-    // the FAB (UX_AUDIT F5).
+    // `flexGrow: 1` keeps short content filling the viewport, so pull to
+    // refresh works on an empty day too. (It also served the old centred
+    // empty state, UX_AUDIT F5 — that state is the four slot rows now, which
+    // sit in the flow and clear the + button with the tail spacer.)
     body: { flexGrow: 1, paddingHorizontal: space.xl, paddingBottom: space.xl, gap: space.lg },
     error: { color: colors.danger, fontSize: font.small, flex: 1 },
     errorRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
@@ -925,37 +970,6 @@ function createStyles({ colors }: Theme) {
     retryBtn: { borderWidth: 1, borderColor: colors.ink, borderRadius: radius.pill, paddingHorizontal: space.md, minHeight: 44, justifyContent: 'center' },
     retryText: { fontSize: font.small, fontWeight: '700', color: colors.ink },
     sectionTitle: { fontFamily: type.heading, fontSize: font.h3, color: colors.ink },
-    // UX_AUDIT F5: the orange + button was drawn straight over "Repeat
-    // yesterday", which rendered as `Repe(+)sterday` on a 360x720dp screen —
-    // and the empty state is the one screen every new user sees first.
-    //
-    // The 96px tail spacer below the list only ever helped the SCROLLING case.
-    // On a first run the content is shorter than the viewport, so nothing
-    // scrolls and the spacer sits below the button instead of lifting it.
-    //
-    // `flex: 1` (against the container's `flexGrow: 1`) makes this block take
-    // all remaining height and centre its contents in it; `paddingBottom`
-    // reserves the FAB's band out of that centring, so the CTA is pushed above
-    // the button rather than into it. Deterministic at any screen height,
-    // where "add some padding" is a guess that holds at one.
-    empty: {
-      // NOT `flex: 1`. In RN that is `flexBasis: 0`, so the block contributes
-      // nothing to the content height and takes only what is left over — and
-      // when the hero and the metrics card already fill the viewport there is
-      // nothing left, so it collapses and the CTA falls off the bottom.
-      // Measured on the device, which is the only place it shows.
-      // Grow into spare room, never shrink below the content.
-      flexGrow: 1,
-      flexShrink: 0,
-      flexBasis: 'auto',
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingTop: space.xl,
-      paddingBottom: FAB_BAND,
-      gap: space.xs,
-    },
-    emptyText: { fontSize: font.body, color: colors.muted, fontWeight: '600' },
-    emptyHint: { fontSize: font.small, color: colors.faint },
     // The header row overflowed and the overflow fell off the right edge,
     // taking most of the avatar with it (measured on a OnePlus 8T, 360dp:
     // 1,200px of content in 1,080px). `space-between` distributes free space
@@ -1011,13 +1025,13 @@ function createStyles({ colors }: Theme) {
     streakChipWide: { paddingHorizontal: 4, gap: 1 },
     // minHeight 40 + `ICON_SLOP` = a 48dp target with the pill barely taller
     // than it was (~34dp of padding and text).
-    repeatBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.xs, marginTop: space.sm, borderWidth: 1, borderColor: colors.ink, borderRadius: radius.pill, paddingHorizontal: space.lg, paddingVertical: space.sm, minHeight: 40 },
+    repeatBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-start', gap: space.xs, borderWidth: 1, borderColor: colors.ink, borderRadius: radius.pill, paddingHorizontal: space.lg, paddingVertical: space.sm, minHeight: 40 },
     repeatBtnDisabled: { opacity: 0.5 },
     repeatText: { fontSize: font.small, fontWeight: '700', color: colors.ink },
     copyRow: { marginBottom: space.md, gap: space.xs },
     copyLabel: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
     copyChips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
     copyChip: { flexDirection: 'row', alignItems: 'center', gap: space.xs, minHeight: 40, paddingHorizontal: space.md, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.inputBg },
-    copyChipText: { fontSize: font.small, fontWeight: '700', color: colors.ink, textTransform: 'capitalize' },
+    copyChipText: { fontSize: font.small, fontWeight: '700', color: colors.ink },
   });
 }

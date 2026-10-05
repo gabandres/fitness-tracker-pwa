@@ -1,3 +1,4 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -8,6 +9,7 @@ import { useT, type I18nKey } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { track } from '@/lib/analytics';
 import { announce } from '@/lib/a11y';
+import { isOffline } from '@/lib/connectivity';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
 
@@ -37,12 +39,23 @@ const ERROR_KEYS: Record<string, I18nKey> = {
   FOOD_NO_NUTRITION: 'errors.foodNoNutrition',
 };
 
+/**
+ * A lookup that failed in transit is not a product the database lacks (U8).
+ * `fetch` rejects with a TypeError when there is no network at all; the
+ * app-wide verdict (`connectivity.ts`) covers the slow-to-fail cases. Either
+ * way the copy says "you're offline" — "not found" sent people to type in a
+ * product that would have resolved one bar of signal later.
+ */
 function errorKeyFor(e: unknown): I18nKey {
-  return (e instanceof OffLookupError && ERROR_KEYS[e.code]) || 'barcode.failed';
+  if (e instanceof OffLookupError) return ERROR_KEYS[e.code] ?? 'barcode.failed';
+  if (e instanceof TypeError || isOffline()) return 'barcode.offline';
+  return 'barcode.failed';
 }
 
 /** Apple's 44pt / Material's 48dp floor for the Cancel and label buttons. */
 const TARGET = Platform.OS === 'android' ? 48 : 44;
+/** The glass behind overlay text: white on it is ≥ 7:1 whatever the feed shows. */
+const SCRIM = 'rgba(0,0,0,0.62)';
 
 interface Props {
   visible: boolean;
@@ -59,13 +72,16 @@ interface Props {
    * it just cannot do it for the user.
    */
   onEnterFromLabel?: (barcode: string) => void;
+  /** Optional other next step after a miss: back to the name search (U8). A
+   *  product the barcode database lacks is often in the food index by name. */
+  onSearchByName?: () => void;
 }
 
 /** Full-screen barcode scanner (native only — expo-camera). Scans an EAN/UPC,
  *  looks it up on OpenFoodFacts, and emits a BarcodeEstimate that prefills
  *  the entry form. A `handled` latch makes the first scan win so the lookup
  *  fires once. */
-export function BarcodeScanner({ visible, onClose, onPick, onDenied, onEnterFromLabel }: Props) {
+export function BarcodeScanner({ visible, onClose, onPick, onDenied, onEnterFromLabel, onSearchByName }: Props) {
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
@@ -74,6 +90,12 @@ export function BarcodeScanner({ visible, onClose, onPick, onDenied, onEnterFrom
   const [error, setError] = useState('');
   /** The code behind the current miss — what "Enter it from the label" hands on. */
   const [missed, setMissed] = useState('');
+  /** The torch (U8): a barcode under a restaurant table or in a dim pantry
+   *  does not scan, and the phone's own flashlight is two swipes away. */
+  const [torch, setTorch] = useState(false);
+  /** Whether the current miss is the network's, not the database's — the
+   *  label and name-search ways out are for a product that is not there. */
+  const [offlineMiss, setOfflineMiss] = useState(false);
   const handled = useRef(false);
   const lastMiss = useRef('');
 
@@ -83,6 +105,8 @@ export function BarcodeScanner({ visible, onClose, onPick, onDenied, onEnterFrom
       setBusy(false);
       setError('');
       setMissed('');
+      setOfflineMiss(false);
+      setTorch(false);
       lastMiss.current = '';
     }
   }, [visible]);
@@ -126,10 +150,13 @@ export function BarcodeScanner({ visible, onClose, onPick, onDenied, onEnterFrom
         serving,
       });
     } catch (e) {
-      const msg = t(errorKeyFor(e));
-      const next = t(onEnterFromLabel ? 'barcode.missRetry' : 'barcode.missNext');
+      const key = errorKeyFor(e);
+      const offline = key === 'barcode.offline';
+      const msg = t(key);
+      const next = t(offline ? 'barcode.offlineNext' : onEnterFromLabel ? 'barcode.missRetry' : 'barcode.missNext');
       setError(msg);
       setMissed(barcode);
+      setOfflineMiss(offline);
       // Spoken, not just drawn: the camera view gives VoiceOver nothing to land
       // on, so a miss was silence followed by more silence. The next step rides
       // along so the announcement is something to act on, not only a verdict.
@@ -159,47 +186,84 @@ export function BarcodeScanner({ visible, onClose, onPick, onDenied, onEnterFrom
             <CameraView
               style={StyleSheet.absoluteFill}
               facing="back"
+              enableTorch={torch}
               barcodeScannerSettings={{ barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e'] }}
               onBarcodeScanned={busy ? undefined : (r) => onScanned(r.data)}
             />
+            {/* Everything over the feed sits on a dark glass panel (A8): white
+                text straight on a camera image measured 1.3–1.5:1 over a
+                bright label, which is what a barcode usually is. */}
             <View style={[styles.overlay, { pointerEvents: 'box-none' }]}>
-              <Text style={styles.hint}>{t('barcode.point')}</Text>
+              <Text style={[styles.hint, styles.glass]}>{t('barcode.point')}</Text>
               <View style={styles.reticle} />
-              {busy ? <ActivityIndicator color={colors.white} style={{ marginTop: space.lg }} /> : null}
+              {busy ? (
+                <View style={styles.glassRound}>
+                  <ActivityIndicator color={colors.white} />
+                </View>
+              ) : null}
               {error ? (
                 // A miss used to end at "isn't in the Open Food Facts database
                 // yet" — a verdict with no way forward. The second line is the
-                // way forward; the button, when the caller wires it, takes it.
+                // way forward; the buttons, when the caller wires them, take it.
                 <View
-                  style={styles.miss}
+                  style={[styles.miss, styles.glass]}
                   accessibilityRole="alert"
                   accessibilityLiveRegion="polite"
                   testID="barcode-miss"
                 >
                   <Text style={styles.err}>{error}</Text>
                   <Text style={styles.errNext}>
-                    {t(onEnterFromLabel ? 'barcode.missRetry' : 'barcode.missNext')}
+                    {t(offlineMiss ? 'barcode.offlineNext' : onEnterFromLabel ? 'barcode.missRetry' : 'barcode.missNext')}
                   </Text>
                 </View>
               ) : null}
-              {error && onEnterFromLabel ? (
-                <TouchableOpacity
-                  style={styles.label}
-                  onPress={() => onEnterFromLabel(missed)}
-                  accessibilityRole="button"
-                  testID="barcode-enter-label"
-                >
-                  <Text style={styles.labelText}>{t('barcode.enterFromLabel')}</Text>
-                </TouchableOpacity>
+              {error && (onEnterFromLabel || onSearchByName) ? (
+                <View style={styles.missActions}>
+                  {onSearchByName ? (
+                    <TouchableOpacity
+                      style={styles.label}
+                      onPress={onSearchByName}
+                      accessibilityRole="button"
+                      testID="barcode-search-name"
+                    >
+                      <Text style={styles.labelText}>{t('barcode.searchByName')}</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                  {onEnterFromLabel ? (
+                    <TouchableOpacity
+                      style={styles.label}
+                      onPress={() => onEnterFromLabel(missed)}
+                      accessibilityRole="button"
+                      testID="barcode-enter-label"
+                    >
+                      <Text style={styles.labelText}>{t('barcode.enterFromLabel')}</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
               ) : null}
-              <TouchableOpacity
-                style={styles.cancel}
-                onPress={onClose}
-                accessibilityRole="button"
-                testID="barcode-cancel"
-              >
-                <Text style={styles.cancelText}>{t('common.cancel')}</Text>
-              </TouchableOpacity>
+              <View style={styles.bottomRow}>
+                <TouchableOpacity
+                  style={[styles.torch, torch && styles.torchOn]}
+                  onPress={() => {
+                    haptics.tap();
+                    setTorch((v) => !v);
+                  }}
+                  accessibilityRole="switch"
+                  accessibilityLabel={t('barcode.torch')}
+                  accessibilityState={{ checked: torch }}
+                  testID="barcode-torch"
+                >
+                  <Ionicons name={torch ? 'flashlight' : 'flashlight-outline'} size={22} color={torch ? '#000' : colors.white} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.cancel, styles.glass]}
+                  onPress={onClose}
+                  accessibilityRole="button"
+                  testID="barcode-cancel"
+                >
+                  <Text style={styles.cancelText}>{t('common.cancel')}</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         )}
@@ -212,7 +276,17 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.ink },
   fill: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: space.xl, gap: space.md },
-  overlay: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', gap: space.lg },
+  overlay: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', gap: space.lg, paddingHorizontal: space.lg },
+  // The dark glass behind anything drawn on the feed (A8). Fixed, not themed:
+  // the surface underneath is a camera image in both themes.
+  glass: {
+    backgroundColor: SCRIM,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+    paddingHorizontal: space.lg,
+    paddingVertical: space.sm,
+  },
+  glassRound: { backgroundColor: SCRIM, borderRadius: 24, padding: space.sm },
   hint: { color: colors.white, fontSize: font.h3, fontWeight: '700' },
   reticle: {
     width: 240,
@@ -222,22 +296,34 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
     borderRadius: radius.md,
     backgroundColor: 'transparent',
   },
-  miss: { alignItems: 'center', gap: space.xs },
-  err: { color: '#ffb4a8', fontSize: font.small, textAlign: 'center', paddingHorizontal: space.xl },
-  errNext: { color: colors.white, fontSize: font.small, textAlign: 'center', paddingHorizontal: space.xl },
-  // Outlined in white, like the reticle: it sits on the camera feed, not a
-  // themed surface, and the border is what sets it apart from Cancel below.
+  miss: { alignItems: 'center', gap: space.xs, maxWidth: '100%' },
+  err: { color: '#ffb4a8', fontSize: font.small, textAlign: 'center' },
+  errNext: { color: colors.white, fontSize: font.small, textAlign: 'center' },
+  missActions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: space.sm },
+  // Outlined in white on the glass: it sits on the camera feed, not a themed
+  // surface, and the border is what sets it apart from Cancel below.
   label: {
     minHeight: TARGET,
     justifyContent: 'center',
-    paddingHorizontal: space.xl,
+    paddingHorizontal: space.lg,
     borderRadius: radius.md,
     borderWidth: 2,
     borderColor: colors.white,
+    backgroundColor: SCRIM,
   },
   labelText: { color: colors.white, fontWeight: '700', fontSize: font.body },
+  bottomRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, marginTop: space.lg },
+  torch: {
+    width: TARGET + 4,
+    height: TARGET + 4,
+    borderRadius: (TARGET + 4) / 2,
+    backgroundColor: SCRIM,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  torchOn: { backgroundColor: colors.white },
   // `minHeight` states the floor instead of leaving it to padding + line
   // height, which is how this, the only way out of the modal, ended up under it.
-  cancel: { marginTop: space.lg, minHeight: TARGET, justifyContent: 'center', paddingHorizontal: space.xl, paddingVertical: space.md },
+  cancel: { minHeight: TARGET, justifyContent: 'center', paddingHorizontal: space.xl, paddingVertical: space.md },
   cancelText: { color: colors.white, fontWeight: '700', fontSize: font.body },
 });

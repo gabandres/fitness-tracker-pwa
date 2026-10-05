@@ -8,6 +8,7 @@ import {
 } from '@macrolog/core';
 import { isOffline } from './connectivity';
 import { addLogWithId, deleteLog } from './ledger';
+import { captureError } from './sentry';
 import {
   dropPendingLogs,
   parkPendingLog,
@@ -59,9 +60,21 @@ import {
 const OFFLINE_DEADLINE_MS = 1500;
 const ONLINE_DEADLINE_MS = 8000;
 
-/** Whether a save reached the ledger or is waiting on disk. The difference is
- *  the whole content of the receipt the user gets. */
-export type WriteOutcome = 'logged' | 'queued';
+/** Whether a save reached the ledger, is waiting on disk, or was REFUSED by
+ *  the rules and will never land. The difference is the whole content of the
+ *  receipt the user gets — and "saved offline" for a refused write is a lie
+ *  that ends with the row silently dropped at the queue's TTL (S20). */
+export type WriteOutcome = 'logged' | 'queued' | 'rejected';
+
+/**
+ * Firestore's answer for a write the rules refused. It is not a connectivity
+ * problem: the same bytes are refused on every retry, so parking them only
+ * delays the loss and lies about it in between.
+ */
+function isRefused(e: unknown): boolean {
+  const code = (e as { code?: unknown } | null)?.code;
+  return code === 'permission-denied' || code === 'firestore/permission-denied' || code === 'invalid-argument';
+}
 
 /** Re-exported so consumers have one import for the queue. The emitter lives in
  *  its own module to keep `quick-add.ts` — which also fires it, from the flush —
@@ -73,13 +86,13 @@ export { dropPendingLogs } from './quick-add';
 /**
  * Add one log row, durably.
  *
- * Never throws: the caller is a sheet's save button, and the two outcomes are
- * both successes from the user's point of view. A genuine rejection — rules
- * refusing the shape, a signed-out uid — parks too, and the flush's own retry
- * plus the TTL are what eventually drop it. That is the right trade for a food
- * log: a meal held for a week and dropped is a worse outcome than a meal shown
- * as saved, but it is a far better one than a meal that vanishes at the moment
- * of saving.
+ * Never throws: the caller is a sheet's save button. A write that could not
+ * reach Firestore — a timeout, a dropped socket — parks, and the flush lands it
+ * later. A write the rules REFUSED (`permission-denied`: a shape the rules
+ * reject, a signed-out uid) does not: it is returned as `'rejected'` so the
+ * receipt can say it was not saved. It used to park like the rest and show
+ * "Saved offline" while online — a 101-character food name did exactly that,
+ * and the row was dropped at the TTL a week later with nothing said (S20).
  */
 export async function addLogDurably(
   uid: string,
@@ -101,10 +114,16 @@ export async function addLogDurably(
   try {
     await withWriteDeadline(addLogWithId(uid, id, withSlot), deadline);
     return 'logged';
-  } catch {
+  } catch (e) {
     // Undone while this write waited out its deadline: parking it now would
     // bring back the row the user just removed.
     if (isUndoneId(id)) return 'queued';
+    if (isRefused(e)) {
+      // A client bug by definition — the sheet validates every bound the rules
+      // check — so it is reported, not just shown.
+      captureError(e, { where: 'pendingLogs.addRefused' });
+      return 'rejected';
+    }
     await parkPendingLog(buildPendingLog(id, uid, withSlot, at.getTime()));
     return 'queued';
   }

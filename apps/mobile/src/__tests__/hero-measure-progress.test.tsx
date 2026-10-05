@@ -60,7 +60,19 @@ describe('HeroRings measured-burn progress', () => {
       />,
     );
     expect(getByText('14 of 14 logged days toward your measured burn')).toBeTruthy();
-    expect(getByText('2 more weigh-in(s) and it unlocks — the trend needs two')).toBeTruthy();
+    // A real plural now (`i18n/grammar.ts`), not "weigh-in(s)".
+    expect(getByText('2 more weigh-ins and it unlocks — the trend needs two')).toBeTruthy();
+  });
+
+  it('says "weigh-in", singular, when one is left', async () => {
+    const { getByText } = await render(
+      <HeroRings
+        {...base}
+        maintenance={null}
+        progress={progress({ loggedDays: 14, daysToGo: 0, weighIns: 1, weighInsToGo: 1, fraction: 1 })}
+      />,
+    );
+    expect(getByText('1 more weigh-in and it unlocks — the trend needs two')).toBeTruthy();
   });
 
   it('yields the slot to the maintenance line — never both', async () => {

@@ -186,6 +186,17 @@ describe('addLogDurably', () => {
     expect(parked[0]).toMatchObject({ uid: 'u1', calories: 420, mealLabel: 'Rice bowl' });
   });
 
+  it('does not park a write the rules refused — it is returned as rejected (S20)', async () => {
+    // A 101-character name did exactly this: refused, parked as "Saved
+    // offline" while online, and dropped at the queue's TTL a week later.
+    mockAddLogWithId.mockRejectedValue(Object.assign(new Error('Missing or insufficient permissions.'), { code: 'permission-denied' }));
+
+    const outcome = await addLogDurably('u1', entry);
+
+    expect(outcome).toBe('rejected');
+    expect(parsePendingLogs(await AsyncStorage.getItem(PENDING_LOGS_KEY))).toEqual([]);
+  });
+
   it('parks the row when the write neither resolves nor rejects', async () => {
     // The real offline shape: Firestore's setDoc waits indefinitely rather than
     // throwing, so without a deadline the catch never runs and the meal is

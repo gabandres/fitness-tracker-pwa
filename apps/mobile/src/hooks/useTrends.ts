@@ -1,27 +1,35 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   type ActivityLevel,
   type DailyTargets,
+  type DateKey,
+  type MeasurementProgress,
   type TdeeResult,
+  type TdeeSeriesPoint,
   type WeeklyBudget,
   type WeeklyInsights,
-  type WeightPoint,
-  addDays,
+  type WeightSeriesPoint,
+  TDEE_SERIES_MAX_DAYS,
   basalMifflinStJeor,
   dayBoundaryOf,
+  dayKeyAt,
   computeWeeklyBudget,
   computeWeeklyInsights,
   dailyTargets,
+  measurementProgress,
+  parseYmd,
   summarizeDays,
   isoWeek,
+  tdeeSeries,
   trailingDateKeys,
   weightPointsForDays,
-  weightSeriesForDays,
+  weightTrendSeries,
 } from '@macrolog/core';
-
-/** Sparkline length — a chart-width choice, not a domain window. */
-const SPARK_DAYS = 14;
 import { useCoreSnapshot } from '@/hooks/useCoreSnapshot';
+import { useFocusDay } from '@/hooks/useFocusDay';
+import { feedChannel, useLedgerFeed } from '@/hooks/useLedgerFeed';
+import { useAuth } from '@/lib/auth';
+import { subscribeMilestones } from '@/lib/ledger';
 import { type CompositionTrends, useCompositionTrends } from '@/hooks/useCompositionTrends';
 import { type SleepTrends, useSleepTrends } from '@/hooks/useSleepTrends';
 import { type FastingTrends, useFastingTrends } from '@/hooks/useFastingTrends';
@@ -46,8 +54,32 @@ export interface TrendsState {
   /** Adaptive TDEE engine state (maintenance estimate + mode). */
   tdee: TdeeResult;
   targetCalories: number;
-  /** Last 14 days of daily weights (oldest → newest) for the weight chart. */
-  weightSeries: number[];
+  /**
+   * The chart window's day keys, oldest → newest — {@link TDEE_SERIES_MAX_DAYS}
+   * (the free 90-day cap) long, keyed exactly as `dailyTargets` keys the
+   * estimator (`MIDNIGHT`), so the expenditure line's right edge is the hero.
+   * Every per-day array below is aligned to it; a range chip slices the tail.
+   */
+  chartKeys: DateKey[];
+  /** Scale readings + trend line per chart day. Gaps stay null. */
+  weightSeries: WeightSeriesPoint[];
+  /** Calories logged per chart day, null on a day with no food logged. */
+  intakeSeries: (number | null)[];
+  /**
+   * The maintenance estimate's history for the last `rangeDays` days, or null
+   * while it is still being computed. Deferred past the first paint on
+   * purpose — 90 replays of `calculateTdee` are not render-path work
+   * (`tdee-series.ts`).
+   */
+  expenditure: TdeeSeriesPoint[] | null;
+  /** Days since the first logged row, capped at the chart window — what the
+   *  "All" range means. */
+  historyDays: number;
+  /** Milestones on record, for ticks on the charts. Empty until answered. */
+  milestones: Record<string, Date>;
+  /** How far a not-yet-measured account is from its first measured burn
+   *  (formula/seed mode), or null once measured. */
+  progress: MeasurementProgress | null;
   /** Weekly calorie budget / banking (Mon→Sun), or null below the target
    *  gate. */
   budget: WeeklyBudget | null;
@@ -80,12 +112,18 @@ export interface TrendsState {
 }
 
 
-export function useTrends(): TrendsState {
+/**
+ * @param rangeDays How many days of expenditure history the screen is showing
+ *   (the range chip). Only that many replays are computed.
+ */
+export function useTrends(rangeDays: number = 30): TrendsState {
   // Focus-gated so the Trends tab drops its live listeners when it blurs
   // (battery/network); re-subscribes from cache on refocus. That discipline,
   // the 400-row window and the error policy all live in `useCoreSnapshot`.
   const { logs, weights, profile, loaded, error } = useCoreSnapshot('Trends');
   const loading = !loaded;
+  const { user } = useAuth();
+  const uid = user?.uid;
 
   // The intake half of the sleep pairing is the stream above; the sleep half is
   // this hook's own listener.
@@ -100,11 +138,6 @@ export function useTrends(): TrendsState {
   // Display-only, flag-gated (ADR-0043): `targets` below never sees it.
   const composition = useCompositionTrends(logs, weights, profile);
 
-  const targets: DailyTargets = useMemo(
-    () => dailyTargets(profile, logs, weights),
-    [profile, logs, weights],
-  );
-
   // The user's day start (ADR-0030). EVERY window below is keyed by it, not by
   // midnight: the sleep card was made boundary-aware when it shipped and the
   // rest of this hook was not, so on any non-midnight boundary one screen was
@@ -113,36 +146,130 @@ export function useTrends(): TrendsState {
   // it as the current one. `MIDNIGHT` is the default everywhere, and under it
   // `dayKeyAt` IS the calendar date, so no existing account moves.
   const boundary = useMemo(() => dayBoundaryOf(profile), [profile]);
+  // "Now" as of the last focus, changing identity only when the DAY changes —
+  // the sibling hooks' rule (`useFocusDay`). Every memo below used to call
+  // `new Date()` inside a body keyed on logs/weights/boundary, so a Trends tab
+  // left mounted overnight kept yesterday's week until something re-logged.
+  const focusDay = useFocusDay(boundary);
+
+  // `focusDay` as `now`: `calculateTdee` only reads it for the day key (to keep
+  // the day in progress out of the intake mean), so this is the same answer
+  // as a fresh clock — and the SAME `now` the expenditure series replays with,
+  // which is what makes that line end on this number.
+  const targets: DailyTargets = useMemo(
+    () => dailyTargets(profile, logs, weights, focusDay),
+    [profile, logs, weights, focusDay],
+  );
+
+  // The trailing seven days, summarised ONCE — insights and the "N of 7" count
+  // read the same rows (this was three `summarizeDays` passes).
+  const week7 = useMemo(
+    () => summarizeDays(trailingDateKeys(INSIGHT_DAYS, focusDay, boundary), logs, weights, boundary),
+    [logs, weights, boundary, focusDay],
+  );
 
   const insights = useMemo(() => {
-    const today = new Date();
-    const summaries = summarizeDays(
-      trailingDateKeys(INSIGHT_DAYS, today, boundary), logs, weights, boundary,
-    );
-    const points = weightPointsForDays(weights, SLOPE_WINDOW_DAYS, today, boundary);
-    return computeWeeklyInsights(summaries, targets.calorieTarget, points, targets.proteinTarget);
-  }, [logs, weights, targets, boundary]);
+    const points = weightPointsForDays(weights, SLOPE_WINDOW_DAYS, focusDay, boundary);
+    // The deficit is measured against the number the hero shows, and only
+    // when that number is MEASURED — a formula figure is a population
+    // average, and "312 under maintenance" against it claims an observation.
+    const maintenance = targets.tdee.source === 'measured' ? targets.tdee.trueTdee : null;
+    return computeWeeklyInsights(week7, targets.calorieTarget, points, targets.proteinTarget, maintenance);
+  }, [week7, weights, targets, boundary, focusDay]);
 
-  const loggedThisWeek = useMemo(() => {
-    const today = new Date();
-    return summarizeDays(
-      trailingDateKeys(INSIGHT_DAYS, today, boundary), logs, weights, boundary,
-    ).filter((d) => d.mealCount > 0 && d.totalCalories > 0).length;
-  }, [logs, weights, boundary]);
-
-  const weightSeries = useMemo<number[]>(
-    () => weightSeriesForDays(weights, SPARK_DAYS, new Date(), boundary),
-    [weights, boundary],
+  const loggedThisWeek = useMemo(
+    () => week7.filter((d) => d.mealCount > 0 && d.totalCalories > 0).length,
+    [week7],
   );
 
   const budget = useMemo<WeeklyBudget | null>(() => {
     // ISO-local week (Monday-start): the seven Mon→Sun date keys and today's
     // 1-based position. Monday is at most 6 days back, so the log window covers
     // the elapsed week.
-    const week = isoWeek(new Date(), boundary);
+    const week = isoWeek(focusDay, boundary);
     const days = summarizeDays(week.keys, logs, weights, boundary);
     return computeWeeklyBudget(days, week.daysElapsed, targets.calorieTarget);
-  }, [logs, weights, targets, boundary]);
+  }, [logs, weights, targets, boundary, focusDay]);
+
+  // ── Chart series ──
+  // Keyed at MIDNIGHT (the default) because the estimator is: `dailyTargets`
+  // calls `calculateTdee` at MIDNIGHT, and a chart whose days disagree with
+  // the estimator's days would end one bucket off the hero for anyone on a
+  // later day start. Intake is still attributed by the user's boundary, which
+  // is what every other number on this screen does.
+  const chartKeys = useMemo(() => trailingDateKeys(TDEE_SERIES_MAX_DAYS, focusDay), [focusDay]);
+  const weightSeries = useMemo(() => weightTrendSeries(weights, chartKeys), [weights, chartKeys]);
+  const intakeSeries = useMemo(
+    () => summarizeDays(chartKeys, logs, weights, boundary).map((d) => (d.totalCalories > 0 ? d.totalCalories : null)),
+    [chartKeys, logs, weights, boundary],
+  );
+  const historyDays = useMemo(() => {
+    let first: string | null = null;
+    for (const l of logs) {
+      const k = dayKeyAt(l.date, boundary);
+      if (first == null || k < first) first = k;
+    }
+    if (first == null) return 0;
+    const span = Math.round((parseYmd(chartKeys[chartKeys.length - 1]).getTime() - parseYmd(first).getTime()) / 86_400_000) + 1;
+    return Math.max(1, Math.min(TDEE_SERIES_MAX_DAYS, span));
+  }, [logs, boundary, chartKeys]);
+
+  // Deferred: the series is up to 90 `calculateTdee` replays, which is tens of
+  // milliseconds on a desktop and more on a phone. Computing it in a memo would
+  // put that on the frame that first paints Trends; after an idle callback the
+  // screen is already up and scrollable, and the chart fills in.
+  const [expenditure, setExpenditure] = useState<TdeeSeriesPoint[] | null>(null);
+  useEffect(() => {
+    if (!loaded) return;
+    let cancelled = false;
+    const run = () => {
+      if (cancelled) return;
+      setExpenditure(tdeeSeries(profile, logs, weights, { days: rangeDays, now: focusDay }));
+    };
+    const ric = (globalThis as { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback;
+    const cic = (globalThis as { cancelIdleCallback?: (h: number) => void }).cancelIdleCallback;
+    if (ric && cic) {
+      const h = ric(run);
+      return () => {
+        cancelled = true;
+        cic(h);
+      };
+    }
+    const h = setTimeout(run, 0);
+    return () => {
+      cancelled = true;
+      clearTimeout(h);
+    };
+  }, [loaded, profile, logs, weights, rangeDays, focusDay]);
+
+  const progress = useMemo(
+    () => measurementProgress(targets.tdee, logs, weights, boundary),
+    [targets, logs, weights, boundary],
+  );
+
+  // Milestones for the chart ticks — the screen's own focus-gated listener
+  // (ADR-0016: a second consumer opens its own channel; `useMilestoneRecord`
+  // is a mount-long listener built for the archive screen, which is not what a
+  // tab may hold). Never gates readiness: a chart without ticks is complete.
+  const [milestones, setMilestones] = useState<Record<string, Date>>({});
+  useLedgerFeed({
+    uid,
+    label: 'Trends/milestones',
+    gate: 'focus',
+    channels: () =>
+      uid
+        ? [
+            feedChannel({
+              key: 'milestones',
+              settles: 'none',
+              // No `fail`: missing ticks are not an error worth a banner.
+              open: (deliver) => subscribeMilestones(uid, deliver),
+              apply: setMilestones,
+            }),
+          ]
+        : [],
+    deps: [uid],
+  });
 
   const basalKcal = useMemo(() => {
     if (!profile || profile.heightIn == null || profile.age == null || profile.sex == null) return 0;
@@ -165,7 +292,13 @@ export function useTrends(): TrendsState {
     proteinTarget: targets.proteinTarget,
     tdee: targets.tdee,
     targetCalories: targets.calorieTarget,
+    chartKeys,
     weightSeries,
+    intakeSeries,
+    expenditure,
+    historyDays,
+    milestones,
+    progress,
     budget,
     basalKcal,
     activityLevel: profile?.activityLevel ?? null,

@@ -42,7 +42,7 @@ jest.mock('@/lib/ledger', () => ({
     cb([]);
     return mockNoop;
   },
-  getActiveSession: () => mockGetActiveSession(),
+  readActiveSession: async () => ({ session: await mockGetActiveSession(), fromCache: false }),
   startSession: (...a: unknown[]) => mockStartSession(...a),
   updateSession: (...a: unknown[]) => mockUpdateSession(...a),
   addExercise: jest.fn().mockResolvedValue('ex-1'),
@@ -166,6 +166,9 @@ describe('useTrain.dispatch — write policy', () => {
       () => new Promise<void>((resolve) => (finishDelete = resolve)),
     );
 
+    // The id is minted on the device at start (2026-10-04), not returned by
+    // the create — so it is read off the session, not off the mock.
+    const id = result.current.active!.id;
     let discard!: Promise<void>;
     await act(async () => {
       discard = result.current.discardWorkout();
@@ -180,7 +183,7 @@ describe('useTrain.dispatch — write policy', () => {
       finishDelete();
       await discard;
     });
-    expect(deleteSession).toHaveBeenCalledWith('u1', 'sess-1');
+    expect(deleteSession).toHaveBeenCalledWith('u1', id);
     expect(result.current.error).toBeNull();
   });
 

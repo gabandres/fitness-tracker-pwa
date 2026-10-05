@@ -36,6 +36,7 @@ jest.mock('@/hooks/useAddReceipt', () => ({
 const mockConfirm = jest.fn();
 jest.mock('@/components/ConfirmSheet', () => ({
   confirm: (opts: unknown) => mockConfirm(opts),
+  ConfirmHost: () => null,
 }));
 
 jest.mock('@/components/HeaderAvatar', () => ({ HeaderAvatar: () => null }));
@@ -87,7 +88,7 @@ jest.mock('@/lib/scan-draft', () => ({
   clearScanDraft: jest.fn(async () => {}),
 }));
 
-import Scan from '@/app/(app)/scan';
+import Scan from '@/app/scan';
 
 beforeEach(() => {
   mockReplace.mockClear();
@@ -182,5 +183,65 @@ describe('scan review', () => {
     expect(screen.getByLabelText('Grams of Rice')).toBeTruthy();
     expect(screen.getByLabelText('Remove Rice')).toBeTruthy();
     expect(screen.getByLabelText('Back')).toBeTruthy();
+  });
+});
+
+/**
+ * S20: a failed Add says so on the review (B3 — it was an unhandled rejection
+ * and a button that just stopped saying "Saving…"), a refused write is a
+ * failure rather than a receipt, the review has the meal slot and time every
+ * other add has (U6), and the portion chips are one radio group (A2).
+ */
+describe('scan review (S20)', () => {
+  it('keeps the review and says so when the add fails', async () => {
+    mockAddEntry.mockRejectedValueOnce(new Error('boom') as never);
+    const screen = await openReview();
+
+    await fireEvent.press(screen.getByTestId('scan-add'));
+
+    expect(await waitFor(() => screen.getByTestId('scan-add-error'))).toBeTruthy();
+    expect(screen.getByTestId('scan-add')).toBeTruthy();
+    expect(mockReplace).not.toHaveBeenCalled();
+    expect(mockShowAdded).not.toHaveBeenCalled();
+  });
+
+  it('treats a write the rules refused as a failure, not a receipt', async () => {
+    mockAddEntry.mockResolvedValueOnce({ outcome: 'rejected', id: 'row1' } as never);
+    const screen = await openReview();
+
+    await fireEvent.press(screen.getByTestId('scan-add'));
+
+    expect(await waitFor(() => screen.getByTestId('scan-add-error'))).toBeTruthy();
+    expect(mockShowAdded).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it('files the meal in the slot picked on the review, at the time set there', async () => {
+    const screen = await openReview();
+
+    await fireEvent.press(screen.getByTestId('meal-type-lunch'));
+    await fireEvent.press(screen.getByTestId('entry-time-minus-hour'));
+    await fireEvent.press(screen.getByTestId('scan-add'));
+
+    const entry = (mockAddEntry.mock.calls[0] as unknown as [{ mealType?: string; timestamp?: Date }])[0];
+    expect(entry.mealType).toBe('lunch');
+    expect(entry.timestamp).toBeInstanceOf(Date);
+    expect(entry.timestamp!.getTime()).toBeLessThan(Date.now());
+  });
+
+  it('leaves slot and time to the write when untouched', async () => {
+    const screen = await openReview();
+    await fireEvent.press(screen.getByTestId('scan-add'));
+    const entry = (mockAddEntry.mock.calls[0] as unknown as [Record<string, unknown>])[0];
+    expect(entry).not.toHaveProperty('mealType');
+    expect(entry).not.toHaveProperty('timestamp');
+  });
+
+  it('presents the portion chips as one radio group', async () => {
+    const screen = await openReview();
+    const chip = screen.getByTestId('portion-1');
+    expect(chip.props.accessibilityRole).toBe('radio');
+    expect(chip.props.accessibilityState).toMatchObject({ checked: true });
+    expect(screen.getByTestId('portion-1.5').props.accessibilityState).toMatchObject({ checked: false });
   });
 });

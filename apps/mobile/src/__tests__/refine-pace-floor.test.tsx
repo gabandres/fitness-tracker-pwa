@@ -89,6 +89,9 @@ jest.mock('expo-router', () => ({
   ...jest.requireActual('expo-router'),
   useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
   useLocalSearchParams: () => ({}),
+  // The screen scopes its Android back handler to focus; there is no
+  // navigator here to focus it.
+  useFocusEffect: jest.fn(),
 }));
 
 import RefineTargets from '@/app/(app)/refine-targets';

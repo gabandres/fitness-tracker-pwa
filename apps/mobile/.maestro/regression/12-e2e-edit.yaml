@@ -91,11 +91,11 @@ appId: fit.ignia.app
 # ── preset via long-press ──
 - longPressOn:
     text: '.*QA E2E Sandwich.*'
-# Trailing .* because Maestro text is a full-match regex and the title ends
-# with a literal '?' — a bare '?' would quantify the 't' and never match.
-- assertVisible: 'Save as a quick-add preset.*'
-- takeScreenshot: .maestro/regression/shots/12-e2e-preset-alert
-- tapOn: 'Save preset'
+# iOS: the system context menu (preview card + Edit · Add to Quick add ·
+# Delete); Android: the row's bottom menu. Both name the item the same.
+- assertVisible: 'Add to Quick add'
+- takeScreenshot: .maestro/regression/shots/12-e2e-preset-menu
+- tapOn: 'Add to Quick add'
 # ── edit via row tap ──
 # Tapping the row by its accessibility text. The row is ONE element on iOS —
 # `{text: "", accessibilityText: "QA E2E Sandwich, 1:05 PM · P 9g, 123",

@@ -12,6 +12,9 @@ export interface ExerciseMenuAction {
   labelKey: I18nKey;
   /** Explains what it does, for the ones that are gym jargon. */
   descKey?: I18nKey;
+  /** A description that carries a value ("1:30 after each set"). Wins over
+   *  `descKey`. */
+  desc?: string;
   destructive?: boolean;
   onPress: () => void;
 }
@@ -35,28 +38,35 @@ export interface ExerciseMenuAction {
  * The caller supplies the actions because which ones exist is structure-
  * dependent (`addActionsFor`, ADR-0040) and because two of them — the plate
  * panel and lift settings — are state on the card, not writes.
+ *
+ * Since 2026-10-04 it is also the live session's own ⋯ (Add, Discard) — the
+ * same rows, so `testIDPrefix` tells the two apart — and ONE instance per
+ * session rather than one per card (Train review item 31). A native sheet
+ * sized to its rows.
  */
 export function ExerciseMenuSheet({
   visible,
   name,
   actions,
   onClose,
+  testIDPrefix = 'ex-menu',
 }: {
   visible: boolean;
   name: string;
   actions: ExerciseMenuAction[];
   onClose: () => void;
+  testIDPrefix?: string;
 }) {
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   return (
-    <BottomSheet visible={visible} onClose={onClose} contentStyle={styles.sheetBody} maxHeight="80%">
+    <BottomSheet native detents="fit" visible={visible} onClose={onClose} contentStyle={styles.sheetBody} maxHeight="80%">
       {/* Same reason as `SetRowSheet`: `BottomSheet` clamps and does not
           scroll. Five rows fit on any phone at default type, and do not at
           the largest accessibility text size. */}
       <ScrollView showsVerticalScrollIndicator={false}>
-      <Text style={styles.sheetTitle}>{name}</Text>
+      <Text style={styles.sheetTitle} accessibilityRole="header">{name}</Text>
       {actions.map((a) => (
         <TouchableOpacity
           key={a.key}
@@ -70,7 +80,7 @@ export function ExerciseMenuSheet({
             a.onPress();
           }}
           accessibilityRole="button"
-          testID={`ex-menu-${a.key}`}
+          testID={`${testIDPrefix}-${a.key}`}
         >
           <Ionicons
             name={a.icon}
@@ -81,7 +91,9 @@ export function ExerciseMenuSheet({
             <Text style={[styles.menuLabel, a.destructive && styles.menuLabelDanger]}>
               {t(a.labelKey)}
             </Text>
-            {a.descKey ? <Text style={styles.menuDesc}>{t(a.descKey)}</Text> : null}
+            {a.desc ?? (a.descKey ? t(a.descKey) : null) ? (
+              <Text style={styles.menuDesc}>{a.desc ?? t(a.descKey as I18nKey)}</Text>
+            ) : null}
           </View>
         </TouchableOpacity>
       ))}

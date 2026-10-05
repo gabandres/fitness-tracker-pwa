@@ -34,7 +34,7 @@
  * The caller injects `nowMs`, `at` and `rand`.
  */
 
-import { LOG_NOTE_MAX, MEAL_TYPES, type LogEntry, type LogSource, type MealPreset, type MealType } from './types';
+import { LOG_NOTE_MAX, MEAL_TYPES, cleanLogLabel, type LogEntry, type LogSource, type MealPreset, type MealType } from './types';
 
 /** How many quick-add slots a user can designate. Slot 1 is the one a blind
  *  single-tap surface (the Quick Settings tile) uses; the interactive widget
@@ -212,7 +212,7 @@ export function buildPendingLog(id: string, uid: string, entry: LogEntry, atMs: 
     ...(num(entry.protein) != null ? { protein: num(entry.protein) as number } : {}),
     ...(num(entry.carbs) != null ? { carbs: num(entry.carbs) as number } : {}),
     ...(num(entry.fat) != null ? { fat: num(entry.fat) as number } : {}),
-    ...(entry.mealLabel ? { mealLabel: entry.mealLabel } : {}),
+    ...(cleanLogLabel(entry.mealLabel) ? { mealLabel: cleanLogLabel(entry.mealLabel) } : {}),
     ...(entry.mealType ? { mealType: entry.mealType } : {}),
     ...(entry.source ? { source: entry.source } : {}),
     ...(entry.note?.trim() ? { note: entry.note.trim().slice(0, LOG_NOTE_MAX) } : {}),

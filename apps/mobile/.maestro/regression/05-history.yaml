@@ -29,7 +29,7 @@ env:
 - tapOn:
     text: 'Open'
     optional: true
-- assertVisible: 'Entries'
+- assertVisible: 'Meals'
 - assertVisible:
     id: 'add-food-day'
 - takeScreenshot: .maestro/regression/shots/05-history-day

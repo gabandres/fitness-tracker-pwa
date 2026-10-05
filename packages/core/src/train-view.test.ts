@@ -2,13 +2,18 @@ import { describe, expect, it } from 'vitest';
 import type { SessionExercise, WorkoutSession, WorkoutSet, WorkoutTemplate } from './workout';
 import {
   bestE1RMByExercise,
+  dropEmptyExercises,
   exerciseHistory,
   exerciseIsFullyDone,
   exerciseSeries,
+  finishSummary,
   improvedExercises,
   lastPerformed,
+  moveExercise,
   sessionCounts,
+  sessionHasLoggedWork,
   sessionVolume,
+  setBeatsBest,
   templateCounts,
   trainHeroStats,
   workingSetCells,
@@ -224,5 +229,117 @@ describe('sessionCounts / templateCounts', () => {
       ],
     } as unknown as WorkoutTemplate;
     expect(templateCounts(tpl)).toEqual({ exercises: 2, sets: 3 });
+  });
+});
+
+describe('sessionHasLoggedWork', () => {
+  it('is false for a template started and never touched', () => {
+    expect(sessionHasLoggedWork({ exercises: [ex('bench', [set({ weight: 135 }), set({})])] })).toBe(false);
+  });
+
+  it('is true once one set carries its count', () => {
+    expect(sessionHasLoggedWork({ exercises: [ex('bench', [set({}), set({ reps: 5 })])] })).toBe(true);
+  });
+
+  it('reads a timed lift by duration, not reps', () => {
+    const hold = ex('plank', [set({ durationSec: 45 })], { logStyle: 'time' });
+    expect(sessionHasLoggedWork({ exercises: [hold] })).toBe(true);
+  });
+
+  it('counts a performed cardio block, and not a prescribed one', () => {
+    const run = { modality: 'run' as const, durationSec: 1800, source: 'manual' as const };
+    const planned = { modality: 'run' as const, durationSec: 0, targetDurationSec: 1800, source: 'manual' as const };
+    expect(sessionHasLoggedWork({ exercises: [], cardio: [run] })).toBe(true);
+    expect(sessionHasLoggedWork({ exercises: [], cardio: [planned] })).toBe(false);
+  });
+});
+
+describe('dropEmptyExercises', () => {
+  it('drops exercises with no sets and keeps the order of the rest', () => {
+    const out = dropEmptyExercises([ex('a', [set({ reps: 5 })]), ex('b', []), ex('c', [set({ reps: 3 })])]);
+    expect(out.map((e) => e.exerciseId)).toEqual(['a', 'c']);
+  });
+
+  it('returns the same array when nothing is empty', () => {
+    const list = [ex('a', [set({ reps: 5 })])];
+    expect(dropEmptyExercises(list)).toBe(list);
+  });
+});
+
+describe('moveExercise', () => {
+  const list = ['a', 'b', 'c'];
+  it('moves rather than swaps', () => {
+    expect(moveExercise(list, 0, 2)).toEqual(['b', 'c', 'a']);
+    expect(moveExercise(list, 2, 1)).toEqual(['a', 'c', 'b']);
+  });
+
+  it('returns the input for a no-op or an out-of-range index', () => {
+    expect(moveExercise(list, 1, 1)).toBe(list);
+    expect(moveExercise(list, 0, -1)).toBe(list);
+    expect(moveExercise(list, 2, 3)).toBe(list);
+  });
+});
+
+describe('setBeatsBest', () => {
+  it('is true only for a working set strictly over the best', () => {
+    // Epley: 100 x 5 = 116.7; 100 x 6 = 120.
+    expect(setBeatsBest(set({ weight: 100, reps: 6 }), 'weight-reps', 117)).toBe(true);
+    expect(setBeatsBest(set({ weight: 100, reps: 5 }), 'weight-reps', 120)).toBe(false);
+  });
+
+  it('never calls a first record, a warm-up, or a non-load style a PR', () => {
+    expect(setBeatsBest(set({ weight: 300, reps: 5 }), 'weight-reps', undefined)).toBe(false);
+    expect(setBeatsBest(set({ weight: 300, reps: 5 }), 'weight-reps', 0)).toBe(false);
+    expect(setBeatsBest(set({ kind: 'warmup', weight: 300, reps: 5 }), 'weight-reps', 100)).toBe(false);
+    expect(setBeatsBest(set({ reps: 30 }), 'bodyweight', 10)).toBe(false);
+  });
+});
+
+describe('finishSummary', () => {
+  const start = new Date(NOW - 47 * 60 * 1000);
+
+  function live(exercises: SessionExercise[], extra: Partial<WorkoutSession> = {}): WorkoutSession {
+    return { id: 'live', status: 'active', date: start, exercises, createdAt: start, updatedAt: start, ...extra };
+  }
+
+  it('reports duration, volume and logged sets', () => {
+    const out = finishSummary(live([ex('bench', [set({ weight: 100, reps: 5 }), set({ weight: 100 })])]), [], NOW);
+    expect(out.durationMin).toBe(47);
+    expect(out.volume).toBe(500);
+    expect(out.sets).toBe(1);
+    expect(out.prs).toEqual([]);
+    expect(out.previousVolume).toBeNull();
+  });
+
+  it('names the best set that beats every prior session', () => {
+    const history = [session(3, [ex('bench', [set({ weight: 100, reps: 5 })])])];
+    const out = finishSummary(
+      live([ex('bench', [set({ weight: 100, reps: 6 }), set({ weight: 105, reps: 6 })], { name: 'Bench' })]),
+      history,
+      NOW,
+    );
+    expect(out.prs).toEqual([{ exerciseId: 'bench', name: 'Bench', weight: 105, reps: 6 }]);
+  });
+
+  it('compares volume with the last session of the same template only', () => {
+    const other = { ...session(1, [ex('squat', [set({ weight: 200, reps: 5 })])]), templateId: 'legs' };
+    const same = { ...session(4, [ex('bench', [set({ weight: 100, reps: 4 })])]), templateId: 'push' };
+    const out = finishSummary(
+      live([ex('bench', [set({ weight: 100, reps: 5 })])], { templateId: 'push' }),
+      [other, same],
+      NOW,
+    );
+    expect(out.previousVolume).toBe(400);
+  });
+
+  it('does not compare a reopened session with its own earlier copy', () => {
+    const own = { ...session(0, [ex('bench', [set({ weight: 100, reps: 5 })])]), id: 'live', templateId: 'push' };
+    const out = finishSummary(
+      live([ex('bench', [set({ weight: 100, reps: 6 })])], { templateId: 'push' }),
+      [own],
+      NOW,
+    );
+    expect(out.previousVolume).toBeNull();
+    expect(out.prs).toEqual([]);
   });
 });

@@ -118,7 +118,7 @@ tags:
 - tapOn:
     id: 'entry-protein'
 - inputText: '20'
-- tapOn: 'Add food'
+- tapOn: 'Write it in'
 - tapOn:
     id: 'entry-save'
 # The row lands in Entries.

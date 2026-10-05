@@ -4,6 +4,7 @@ jest.mock('@/lib/ledger', () => ({
   recordMilestone: jest.fn(),
   subscribeMilestones: () => () => {},
 }));
+jest.mock('@/components/BottomSheet', () => require('./js-sheet').jsSheetModule());
 
 import { renderWithProviders as render } from '@/test-utils';
 import React from 'react';
@@ -50,13 +51,20 @@ jest.mock('@/hooks/useDailyTargets', () => ({
 
 import BodyScreen from '@/app/(app)/body';
 
-const CAPTION = 'Last 14 days · the dashed line projects your 4-week trend';
+// The chart became the long-range one (Body review U4): dots are readings,
+// the line is the trend over all of them, the dash still the 28-day fit.
+const CAPTION = 'Dots are weigh-ins, the line is your trend · the dash projects your 4-week pace';
+
+const pts = (vals: number[]) => vals.map((weightLb, i) => ({ dateKey: `2026-09-${String(10 + i).padStart(2, '0')}`, weightLb }));
 
 describe('Body screen — weight chart caption', () => {
   it('names both windows when a forecast is drawn', async () => {
     mockBodyState = {
       ...baseBody,
       weightSeries: [181, 180.4, 180.8, 180.1, 179.9, 180.3, 179.7],
+      weightPoints: pts([181, 180.4, 180.8, 180.1, 179.9, 180.3, 179.7]),
+      trendPoints: pts([181, 180.9, 180.9, 180.8, 180.7, 180.7, 180.6]),
+      todayKey: '2026-09-16',
       projectedSeries: [179.5, 179.3, 179.1, 178.9, 178.7, 178.5, 178.3],
       projection: { slopeLbPerWeek: -1.4, goalDateKey: null },
     };
@@ -71,6 +79,9 @@ describe('Body screen — weight chart caption', () => {
     mockBodyState = {
       ...baseBody,
       weightSeries: [181, 180.4, 180.8],
+      weightPoints: pts([181, 180.4, 180.8]),
+      trendPoints: pts([181, 180.9, 180.9]),
+      todayKey: '2026-09-12',
       projectedSeries: [],
       projection: null,
     };

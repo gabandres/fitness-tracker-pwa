@@ -1,17 +1,17 @@
-import { useEffect, useRef } from 'react';
-import { Animated as RNAnimated, Easing as RNEasing, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Animated as RNAnimated, Easing as RNEasing, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import Animated, {
   Easing,
   useAnimatedProps,
   useReducedMotion,
   useSharedValue,
-  withDelay,
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
 import type { MaintenanceView, MeasurementProgress } from '@macrolog/core';
 import { useLocale, useT } from '@/i18n';
+import { plural } from '@/i18n/grammar';
 import { formatNumber } from '@/lib/date-format';
 import * as haptics from '@/lib/haptics';
 import { CountUpText } from '@/lib/motion';
@@ -26,6 +26,34 @@ const OUTER_STROKE = 15;
 const INNER_STROKE = 12;
 const OUTER_R = (SIZE - OUTER_STROKE) / 2;
 const INNER_R = OUTER_R - OUTER_STROKE - 7;
+/**
+ * How wide the centre text may be and still sit INSIDE the inner ring.
+ *
+ * The inner track's inside edge is a circle of radius `INNER_R - INNER_STROKE/2`
+ * (82.5dp, a 165dp hole). A text block ~70dp tall fits a chord of
+ * 2·√(82.5² − 35²) ≈ 149dp at its top and bottom edges, so 148 keeps every
+ * corner of the block off the track. Before this the centre was the whole
+ * 236dp square, and at large text sizes "kcal left" ran across the ring
+ * (UX_AUDIT Today review #5).
+ */
+const CENTER_MAX_W = 148;
+/** Text scale from which the legend stacks — the two entries no longer fit
+ *  side by side in the panel at 360dp. */
+const STACK_AT_FONT_SCALE = 1.35;
+
+/** `#rrggbb` → `rgba(…, a)`. The ring tracks are each ring's own hue, faint. */
+function withAlpha(hex: string, a: number): string {
+  const n = parseInt(hex.replace('#', '').slice(0, 6), 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+}
+
+/**
+ * Track alpha. A shared `heroTrack` grey sat at 1.29:1 against the panel and
+ * the empty ring all but vanished; a 22% wash of each ring's own colour reads
+ * as "the rest of this ring" rather than as a separate grey circle, and keeps
+ * the two rings distinguishable before either has any fill (review V2).
+ */
+const TRACK_ALPHA = 0.22;
 
 interface RingProps {
   r: number;
@@ -58,7 +86,10 @@ function Ring({ r, stroke, trackColor, color, progress, delay }: RingProps) {
   // AnimatedTextInput, a core RN component, and it animates correctly there.
   // That contrast is what located the fault in react-native-svg rather than in
   // Reanimated.
-  const anim = useRef(new RNAnimated.Value(0)).current;
+  //
+  // A lazy `useState`, not `useRef(...).current`: reading a ref during render
+  // made the React Compiler skip this component and, with it, the hero.
+  const [anim] = useState(() => new RNAnimated.Value(0));
   useEffect(() => {
     if (reduce) {
       anim.setValue(p);
@@ -125,29 +156,51 @@ export function HeroRings({ calConsumed, calTarget, protConsumed, protTarget, ca
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const reduce = useReducedMotion();
+  const { fontScale } = useWindowDimensions();
+  const stackLegend = fontScale >= STACK_AT_FONT_SCALE;
   const calRemaining = calTarget - calConsumed;
   const over = calRemaining < 0;
+  const g = (n: number) => t('unit.grams', { n: formatNumber(n, locale) });
 
   // Celebration: hitting the protein target flares the inner ring once —
-  // a glow halo swells and fades, with a success haptic. Fires only on the
-  // crossing (null-first ref so a day that ALREADY met the target doesn't
-  // flare on mount). Reduce motion keeps the haptic, skips the glow.
+  // a glow halo swells and fades. Fires only on the crossing (null-first ref
+  // so a day that ALREADY met the target doesn't flare on mount). Reduce
+  // motion skips the glow and keeps the haptic.
+  //
+  // The haptic is `celebrateIfQuiet`, not its own beat: the crossing is
+  // almost always caused by a save, and Today plays the save's haptic as the
+  // celebration when it can see the crossing coming. This one only fires for
+  // a crossing nobody here caused (an edit, a widget add) — one log, one
+  // haptic (review #7).
   const flare = useSharedValue(0);
   const prevProt = useRef<number | null>(null);
   useEffect(() => {
     const p = protTarget ? protConsumed / protTarget : 0;
     if (prevProt.current !== null && prevProt.current < 1 && p >= 1) {
-      haptics.success();
+      haptics.celebrateIfQuiet();
       if (!reduce) {
-        flare.value = withSequence(
-          withTiming(1, { duration: motion.dur.base, easing: Easing.out(Easing.cubic) }),
-          withTiming(0, { duration: motion.dur.slow * 2, easing: Easing.out(Easing.cubic) }),
+        flare.set(
+          withSequence(
+            withTiming(1, { duration: motion.dur.base, easing: Easing.out(Easing.cubic) }),
+            withTiming(0, { duration: motion.dur.slow * 2, easing: Easing.out(Easing.cubic) }),
+          ),
         );
       }
     }
     prevProt.current = p;
   }, [protConsumed, protTarget, reduce, flare]);
   const flareProps = useAnimatedProps(() => ({ opacity: flare.value * 0.35 }));
+
+  const sentence = [
+    t(over ? 'a11y.heroOver' : 'a11y.heroLeft', {
+      kcal: formatNumber(calConsumed, locale),
+      kcalTarget: formatNumber(calTarget, locale),
+      n: formatNumber(Math.abs(calRemaining), locale),
+      protein: formatNumber(protConsumed, locale),
+      proteinTarget: formatNumber(protTarget, locale),
+    }),
+    t('a11y.heroMacros', { carbs: formatNumber(carbs, locale), fat: formatNumber(fat, locale) }),
+  ].join(', ');
 
   return (
     <View style={styles.panel} testID="hero-rings">
@@ -157,17 +210,13 @@ export function HeroRings({ calConsumed, calTarget, protConsumed, protTarget, ca
           the sentence, and everything inside it is hidden from the tree. */}
       {/* The remaining/over figure is the ring's headline — the big number in
           its centre — so the spoken sentence carries it too. It used to read
-          only "1,200 of 2,000 kcal" and leave the subtraction to the listener. */}
+          only "1,200 of 2,000 kcal" and leave the subtraction to the listener.
+          Carbs and fat ride on the end, so the legend and the chips below can
+          be hidden: they said the same numbers again, one swipe at a time. */}
       <View
         style={styles.ringWrap}
         accessible
-        accessibilityLabel={t(over ? 'a11y.heroOver' : 'a11y.heroLeft', {
-          kcal: formatNumber(calConsumed, locale),
-          kcalTarget: formatNumber(calTarget, locale),
-          n: formatNumber(Math.abs(calRemaining), locale),
-          protein: protConsumed,
-          proteinTarget: protTarget,
-        })}
+        accessibilityLabel={sentence}
         importantForAccessibility="no-hide-descendants"
       >
         <Svg width={SIZE} height={SIZE}>
@@ -178,7 +227,7 @@ export function HeroRings({ calConsumed, calTarget, protConsumed, protTarget, ca
           <Ring
             r={OUTER_R}
             stroke={OUTER_STROKE}
-            trackColor={colors.heroTrack}
+            trackColor={withAlpha(colors.ring, TRACK_ALPHA)}
             color={colors.ring}
             progress={calTarget ? calConsumed / calTarget : 0}
             delay={100}
@@ -195,21 +244,47 @@ export function HeroRings({ calConsumed, calTarget, protConsumed, protTarget, ca
           <Ring
             r={INNER_R}
             stroke={INNER_STROKE}
-            trackColor={colors.heroTrack}
+            trackColor={withAlpha(colors.protein, TRACK_ALPHA)}
             color={colors.protein}
             progress={protTarget ? protConsumed / protTarget : 0}
             delay={280}
           />
         </Svg>
+        {/* Clamped to the inner ring's clear width (`CENTER_MAX_W`), and both
+            lines capped below the app's 1.4 default: at the largest text
+            sizes the number and its caption ran out over the ring. The
+            caption shrinks to fit as the last resort rather than wrapping
+            into the track. */}
         <View style={[styles.center, { pointerEvents: 'none' }]}>
-          <CountUpText value={Math.abs(calRemaining)} style={styles.centerValue} testID="hero-kcal" />
-          <Text style={styles.centerCaption}>
-            {t('today.kcal')} {over ? t('today.over') : t('today.left')}
-          </Text>
+          <View style={styles.centerInner}>
+            <CountUpText
+              value={Math.abs(calRemaining)}
+              style={styles.centerValue}
+              testID="hero-kcal"
+              maxFontSizeMultiplier={1.2}
+            />
+            <Text
+              style={styles.centerCaption}
+              maxFontSizeMultiplier={1.3}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.7}
+            >
+              {t('today.kcal')} {over ? t('today.over') : t('today.left')}
+            </Text>
+          </View>
         </View>
       </View>
 
-      <View style={styles.legendRow}>
+      {/* Hidden from the reader — the ring's sentence above already says all
+          of it (review A5). Wraps rather than overflowing the panel, and
+          stacks from 1.35× text (review #6). */}
+      <View
+        style={[styles.legendRow, stackLegend && styles.legendStacked]}
+        importantForAccessibility="no-hide-descendants"
+        accessibilityElementsHidden
+        testID="hero-legend"
+      >
         <View style={styles.legendItem}>
           <View style={[styles.dot, { backgroundColor: colors.ring }]} />
           <Text style={styles.legendText}>
@@ -219,20 +294,24 @@ export function HeroRings({ calConsumed, calTarget, protConsumed, protTarget, ca
         <View style={styles.legendItem}>
           <View style={[styles.dot, { backgroundColor: colors.protein }]} />
           <Text style={styles.legendText}>
-            {protConsumed}g / {protTarget}g {t('today.protein').toLowerCase()}
+            {formatNumber(protConsumed, locale)} / {g(protTarget)} {t('today.protein').toLowerCase()}
           </Text>
         </View>
       </View>
 
-      {/* Each chip carries its own label: the "●" is a nested span, and a
-          nested span cannot be hidden from VoiceOver on its own — the parent
-          reads the whole string, glyph included ("black circle, carbs 40g"). */}
-      <View style={styles.macroRow}>
-        <Text style={styles.macroChip} accessibilityLabel={t('entry.carbsAmount', { n: carbs })}>
-          <Text style={{ color: colors.carbs }}>●</Text> {t('today.carbs')} {carbs}g
+      {/* Hidden for the same reason as the legend: carbs and fat are the last
+          clause of the ring's sentence. "40 g", spaced, like every other
+          gram figure in the app (review V3). */}
+      <View
+        style={styles.macroRow}
+        importantForAccessibility="no-hide-descendants"
+        accessibilityElementsHidden
+      >
+        <Text style={styles.macroChip}>
+          <Text style={{ color: colors.carbs }}>●</Text> {t('today.carbs')} {g(carbs)}
         </Text>
-        <Text style={styles.macroChip} accessibilityLabel={t('entry.fatAmount', { n: fat })}>
-          <Text style={{ color: colors.fat }}>●</Text> {t('today.fat')} {fat}g
+        <Text style={styles.macroChip}>
+          <Text style={{ color: colors.fat }}>●</Text> {t('today.fat')} {g(fat)}
         </Text>
       </View>
 
@@ -262,7 +341,7 @@ export function HeroRings({ calConsumed, calTarget, protConsumed, protTarget, ca
           <Text style={styles.maintenanceCaveat} testID="measure-progress-next">
             {progress.daysToGo > 0
               ? t('today.measureNext', { n: progress.daysToGo })
-              : t('today.measureWeighIns', { n: progress.weighInsToGo })}
+              : plural(t, locale, 'today.measureWeighIns', progress.weighInsToGo)}
           </Text>
         </View>
       ) : null}
@@ -375,6 +454,8 @@ export function HeroRingsSkeleton() {
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
+  // The same tinted tracks as the live hero, so the first real frame fills
+  // these rings rather than recolouring them.
   return (
     <View
       style={styles.panel}
@@ -384,14 +465,14 @@ export function HeroRingsSkeleton() {
       accessibilityState={{ busy: true }}
     >
       <Svg width={SIZE} height={SIZE}>
-        <Circle cx={SIZE / 2} cy={SIZE / 2} r={OUTER_R} stroke={colors.heroTrack} strokeWidth={OUTER_STROKE} fill="none" />
-        <Circle cx={SIZE / 2} cy={SIZE / 2} r={INNER_R} stroke={colors.heroTrack} strokeWidth={INNER_STROKE} fill="none" />
+        <Circle cx={SIZE / 2} cy={SIZE / 2} r={OUTER_R} stroke={withAlpha(colors.ring, TRACK_ALPHA)} strokeWidth={OUTER_STROKE} fill="none" />
+        <Circle cx={SIZE / 2} cy={SIZE / 2} r={INNER_R} stroke={withAlpha(colors.protein, TRACK_ALPHA)} strokeWidth={INNER_STROKE} fill="none" />
       </Svg>
     </View>
   );
 }
 
-function createStyles({ colors, shadow }: Theme) {
+function createStyles({ colors, shadow, scheme }: Theme) {
   return StyleSheet.create({
     maintenanceFooter: {
       alignSelf: 'stretch',
@@ -426,6 +507,11 @@ function createStyles({ colors, shadow }: Theme) {
       alignItems: 'center',
       gap: space.lg,
       ...shadow.e2,
+      // The panel is the same near-black in both themes, which on the dark
+      // canvas measured 1.02:1 — the hero had no edge at all, and the shadow
+      // that defines it in light mode is invisible on near-black. A hairline
+      // of 6% white is the edge iOS draws on dark grouped cells (review V1).
+      ...(scheme === 'dark' ? { borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.06)' } : null),
     },
     ringWrap: { width: SIZE, height: SIZE },
     center: {
@@ -437,13 +523,22 @@ function createStyles({ colors, shadow }: Theme) {
       alignItems: 'center',
       justifyContent: 'center',
     },
+    centerInner: { maxWidth: CENTER_MAX_W, alignItems: 'center' },
     centerValue: { fontFamily: type.display, fontSize: font.hero, color: colors.heroText },
-    centerCaption: { fontSize: font.small, color: colors.heroMuted, marginTop: 2 },
-    legendRow: { flexDirection: 'row', gap: space.xl, alignItems: 'center' },
+    centerCaption: { fontSize: font.small, color: colors.heroMuted, marginTop: 2, textAlign: 'center' },
+    legendRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'center',
+      alignItems: 'center',
+      columnGap: space.xl,
+      rowGap: space.xs,
+    },
+    legendStacked: { flexDirection: 'column', alignItems: 'flex-start' },
     legendItem: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
     dot: { width: 8, height: 8, borderRadius: 4 },
     legendText: { fontSize: font.small, color: colors.heroText, fontFamily: type.heading },
-    macroRow: { flexDirection: 'row', gap: space.lg },
+    macroRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', columnGap: space.lg, rowGap: space.xs },
     macroChip: { fontSize: font.tiny, color: colors.heroMuted },
   });
 }

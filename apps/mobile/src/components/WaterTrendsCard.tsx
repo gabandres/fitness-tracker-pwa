@@ -1,21 +1,28 @@
 import { StyleSheet, Text, View } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import {
   WATER_CARD_MIN_DAYS,
   WATER_STRIP_CEILING_FLOZ,
   WATER_WINDOW_DAYS,
+  parseYmd,
   waterBarFraction,
 } from '@macrolog/core';
 import type { WaterTrends } from '@/hooks/useWaterTrends';
 import { useT, useLocale } from '@/i18n';
-import { formatNumber } from '@/lib/date-format';
+import { formatDate, formatNumber } from '@/lib/date-format';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { useDismissedStub } from '@/hooks/useDismissedStub';
 import { StubLabel } from '@/components/StubLabel';
 import { font, radius, space, type } from '@/theme';
 import { PressScale } from '@/lib/motion';
 import * as haptics from '@/lib/haptics';
+import { GapMarker, MedianLine } from '@/components/charts/StripParts';
+import { Glyph } from '@/components/charts/Glyph';
+import { useAdjustableDays } from '@/components/charts/useAdjustableDays';
+
+/** Axis numerals are glyphs in a fixed-height strip: they scale with the OS
+ *  text size, but only this far, or they overrun the gridline they name. */
+const AXIS_MAX_SCALE = 1.3;
 
 /**
  * Water on Trends — a typical day, fourteen columns, a coverage line (#115 §3).
@@ -44,7 +51,7 @@ import * as haptics from '@/lib/haptics';
  * rather than at a gallon precisely so the scale is not read as a verdict; the
  * argument is in `water-history.ts` and a test defends it.
  *
- * **A day with no water logged is a hairline at the baseline**, never a
+ * **A day with no water logged is a dashed mark at the baseline**, never a
  * zero-height bar. Ignia cannot tell a day nobody logged from a day nobody
  * drank, and a zero would pick the second reading — a claim about the user
  * rather than about the data.
@@ -79,6 +86,28 @@ export function WaterTrendsCard({
   // the other two say `fl oz`.
   const unit = t('water.unit');
 
+  // The strip as one adjustable element (summary + a day at a time). Built
+  // before the early returns so the hook order never changes with the state.
+  const days = water.kind === 'card' ? water.window.days : [];
+  const stepper = useAdjustableDays(
+    days.length,
+    water.kind === 'card'
+      ? t('trends.chart.waterSummary', {
+          n: formatNumber(WATER_WINDOW_DAYS, locale),
+          m: formatNumber(Math.round(water.window.medianFlOz), locale),
+          u: unit,
+          count: formatNumber(water.window.daysLogged, locale),
+        })
+      : '',
+    (i) => {
+      const day = days[i];
+      if (!day) return '';
+      const date = formatDate(parseYmd(day.dateKey), locale, { weekday: 'short', month: 'short', day: 'numeric' });
+      if (day.flOz == null) return t('trends.chart.noWater', { date });
+      return t('trends.chart.waterPoint', { date, n: formatNumber(Math.round(day.flOz), locale), u: unit });
+    },
+  );
+
   if (water.kind === 'pending') return null;
 
   if (water.kind === 'empty') {
@@ -91,6 +120,7 @@ export function WaterTrendsCard({
         <View style={styles.stubRow}>
           <PressScale
             style={styles.linkRow}
+            accessibilityRole="link"
             testID="water-empty-link"
             onPress={() => {
               haptics.tap();
@@ -107,7 +137,7 @@ export function WaterTrendsCard({
                   : t('trends.waterEmpty')
               }
             />
-            <Ionicons name="chevron-forward" size={16} color={colors.faint} />
+            <Glyph ios="chevron.right" android="chevron-forward" size={16} color={colors.faint} />
           </PressScale>
           {/* Dismiss sits OUTSIDE the navigating pressable rather than inside
               it — nesting one touchable in another makes which one fired depend
@@ -115,13 +145,14 @@ export function WaterTrendsCard({
           <PressScale
             style={styles.stubDismiss}
             testID="water-stub-dismiss"
+            accessibilityRole="button"
             accessibilityLabel={t('trends.stubDismiss')}
             onPress={() => {
               haptics.tap();
               dismissStub();
             }}
           >
-            <Ionicons name="close" size={16} color={colors.faint} />
+            <Glyph ios="xmark" android="close" size={16} color={colors.faint} />
           </PressScale>
         </View>
         <View style={styles.hairline} />
@@ -134,7 +165,7 @@ export function WaterTrendsCard({
 
   return (
     <View testID="water-card">
-      {hideHeader ? null : <Text style={styles.section}>{t('trends.waterTitle')}</Text>}
+      {hideHeader ? null : <Text style={styles.section} accessibilityRole="header">{t('trends.waterTitle')}</Text>}
       <View style={styles.card}>
         <View style={styles.head}>
           <Text style={styles.value} testID="water-median">
@@ -149,12 +180,12 @@ export function WaterTrendsCard({
         </View>
 
         <View style={styles.stripRow}>
-          <View style={styles.strip} testID="water-strip">
+          <View {...stepper.a11y} style={styles.strip} testID="water-strip">
             {window.days.map((day) => (
               <View key={day.dateKey} style={styles.col}>
                 <View style={styles.track}>
                   {day.flOz == null ? (
-                    <View style={styles.gap} />
+                    <GapMarker />
                   ) : (
                     <View
                       style={[
@@ -171,23 +202,17 @@ export function WaterTrendsCard({
                 all: what a person can read is whether the bar TOPS hug a line,
                 not whether fourteen similar heights differ. */}
             {window.medianFlOz > 0 ? (
-              <View
-                pointerEvents="none"
-                style={[
-                  styles.medianLine,
-                  { bottom: `${waterBarFraction(window.medianFlOz) * 100}%` },
-                ]}
-              />
+              <MedianLine bottomPct={waterBarFraction(window.medianFlOz) * 100} />
             ) : null}
           </View>
           {/* The axis. Without it no bar height means anything. Bare numbers —
               the unit is named once, in the legend, because 30dp does not hold
               "100 fl oz" at `font.tiny` and a clipped axis is worse than none. */}
-          <View style={styles.axis} pointerEvents="none">
-            <Text style={styles.axisLabel} testID="water-axis-max">
+          <View style={styles.axis} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+            <Text style={styles.axisLabel} testID="water-axis-max" maxFontSizeMultiplier={AXIS_MAX_SCALE}>
               {formatNumber(WATER_STRIP_CEILING_FLOZ, locale)}
             </Text>
-            <Text style={styles.axisLabel}>{formatNumber(0, locale)}</Text>
+            <Text style={styles.axisLabel} maxFontSizeMultiplier={AXIS_MAX_SCALE}>{formatNumber(0, locale)}</Text>
           </View>
         </View>
         <Text style={styles.legend}>
@@ -263,17 +288,10 @@ const createStyles = ({ colors }: Theme) =>
       // `waterValue`), so the metric keeps one colour across two screens.
       backgroundColor: colors.habitWater,
     },
-    gap: { width: '100%', height: 1, backgroundColor: colors.line },
-    medianLine: {
-      position: 'absolute',
-      left: 0,
-      right: 0,
-      height: 1,
-      backgroundColor: colors.ink,
-      opacity: 0.55,
-    },
+    // `minWidth`, not `width`: at a larger text size "100" outgrows 30dp and a
+    // fixed width clipped it. The height stays fixed — it IS the scale.
     axis: {
-      width: 30,
+      minWidth: 30,
       height: STRIP_H,
       justifyContent: 'space-between',
       alignItems: 'flex-end',

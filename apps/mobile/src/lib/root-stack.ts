@@ -36,8 +36,11 @@
  * Navigation leaves them mounted rather than remounting them.
  */
 
-/** Root routes that are pushed OVER `(app)` and animate as a native push. */
-export const DETAIL_ROUTES: ReadonlySet<string> = new Set(['coach', 'milestones']);
+/** Root routes that are pushed OVER `(app)` and animate as a native push.
+ *  History joined Coach and Milestones on 2026-10-04 (UX_AUDIT Today review
+ *  P1): as a hidden tab it had no back button, no edge-swipe and no hardware
+ *  back. It is a directory route (`history/_layout.tsx` + its own stack). */
+export const DETAIL_ROUTES: ReadonlySet<string> = new Set(['coach', 'milestones', 'history', 'scan', 'connected-apps']);
 
 /** Root routes that never keep an `(app)` beneath them. */
 export const STANDALONE_ROUTES: ReadonlySet<string> = new Set(['sign-in', 'verify-email']);

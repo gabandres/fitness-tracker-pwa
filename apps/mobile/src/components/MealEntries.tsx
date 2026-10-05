@@ -7,18 +7,78 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { BottomSheet } from '@/components/BottomSheet';
+import { CONTEXT_MENUS, ContextMenu } from '@/components/ContextMenu';
 import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
-import Animated, { FadeOut } from 'react-native-reanimated';
-import { type DailyLog, type MealSlot, groupByMealSlot } from '@macrolog/core';
+import Animated, {
+  FadeOut,
+  type SharedValue,
+  useAnimatedReaction,
+  useAnimatedStyle,
+} from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
+import { type DailyLog, type MealGroup, type MealSlot, type MealType, groupByMealSlot } from '@macrolog/core';
 import { type I18nKey, type Locale, type TFn, useLocale, useT } from '@/i18n';
+import { capitalizeFirst } from '@/i18n/grammar';
 import * as haptics from '@/lib/haptics';
 import { enterUp, PressScale, springLayout } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
 import { formatNumber, formatTime } from '@/lib/date-format';
+
+/** Text scale from which a row puts its kcal under the label (review A1): at
+ *  1.35× "Grilled chicken with rice" and "1,050 kcal" no longer share a line
+ *  at 360dp, and the label was what got squeezed to a column of fragments. */
+const STACK_AT_FONT_SCALE = 1.35;
+/** Rows past this index enter together — a 20-row day staggered at 40 ms each
+ *  finished its cascade most of a second after the screen was usable (V6). */
+const MAX_STAGGER = 6;
+/** The swipe action's resting width (the reveal), and the drag past which a
+ *  release COMMITS instead of revealing — the Mail/Reminders full swipe. */
+const SWIPE_ACTION_W = 96;
+const FULL_SWIPE = 168;
+/** The four slots a diary always shows when it can add to them (U3). `other`
+ *  appears only when a row is filed there — it is where untagged rows land,
+ *  not a meal anyone sets out to log. */
+const ADD_SLOTS: readonly MealType[] = ['breakfast', 'lunch', 'dinner', 'snack'];
+/** Lifts the 32dp "+ Add" pill to a 48dp target; vertical only, its row has
+ *  the slot name beside it. */
+const SLOT_ADD_SLOP = { top: 8, bottom: 8 } as const;
+
+/**
+ * The cascade index each group's first row starts at — computed BEFORE the
+ * render's map rather than with a `row++` inside it. The counter mutated a
+ * variable captured by the map's callback, which the React Compiler cannot
+ * model, so it skipped this component entirely (review #1). Exported for test.
+ */
+export function groupStartIndexes(groups: readonly Pick<MealGroup, 'entries'>[]): number[] {
+  const starts: number[] = [];
+  let next = 0;
+  for (const g of groups) {
+    starts.push(next);
+    next += g.entries.length;
+  }
+  return starts;
+}
+
+/**
+ * The slot groups the list draws. Without an add affordance it is exactly
+ * `groupByMealSlot` (only slots with rows). With one, the four meal slots are
+ * always present — an empty Lunch is a row with a "+ Add", which is the empty
+ * state now (U3) — and `other` joins when it has rows. Exported for test.
+ */
+export function diarySlots(logs: DailyLog[], withEmpty: boolean): MealGroup[] {
+  const groups = groupByMealSlot(logs);
+  if (!withEmpty) return groups;
+  const bySlot = new Map(groups.map((g) => [g.slot, g]));
+  const out: MealGroup[] = ADD_SLOTS.map((slot) => bySlot.get(slot) ?? { slot, entries: [], totalCalories: 0 });
+  const other = bySlot.get('other');
+  if (other) out.push(other);
+  return out;
+}
 
 const SLOT_KEY: Record<MealSlot, I18nKey> = {
   breakfast: 'meal.breakfast',
@@ -76,7 +136,13 @@ function EntryRow({
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
+  const { fontScale } = useWindowDimensions();
+  const stacked = fontScale >= STACK_AT_FONT_SCALE;
   const swipeRef = useRef<SwipeableMethods>(null);
+  // Which side's full swipe is armed. Written from the UI thread through
+  // `scheduleOnRN` as the drag crosses `FULL_SWIPE`, read on release — never
+  // during render.
+  const armed = useRef<'delete' | 'preset' | null>(null);
   const label = log.mealLabel || t('today.entry');
   const kcal = formatNumber(log.calories, locale);
   const sub = [timeOf(log.date, locale), macroLine(log, t)].filter(Boolean).join('  ·  ');
@@ -105,16 +171,27 @@ function EntryRow({
     }
   }
 
+  // iOS: the system context menu (`UIContextMenuInteraction`) with a preview
+  // card, the gesture Reminders, Mail and Health use on a row. Tapping the
+  // preview opens the editor. Elsewhere: the long-press menu below.
+  const contextMenu = CONTEXT_MENUS;
+
+  const a11y = {
+    accessibilityLabel: [t('today.entryA11y', { label, n: kcal }), sub, log.note].filter(Boolean).join(', '),
+    accessibilityActions: actions,
+    onAccessibilityAction: onAction,
+  };
+
   const row = (
     <PressScale
       scaleTo={0.98}
-      style={styles.entry}
+      style={[styles.entry, stacked && styles.entryStacked]}
       onPress={() => onPress(log)}
       // Long-press opens the row's menu — the platform convention (an iOS
       // action sheet, a Material bottom menu) — rather than silently saving a
       // preset, which was a gesture nobody could discover or predict.
       onLongPress={
-        canSavePreset || onDelete
+        !contextMenu && (canSavePreset || onDelete)
           ? () => {
               haptics.tap();
               onMenu?.(log, remove);
@@ -122,14 +199,10 @@ function EntryRow({
           : undefined
       }
       accessibilityRole="button"
-      accessibilityLabel={[t('today.entryA11y', { label, n: kcal }), sub, log.note]
-        .filter(Boolean)
-        .join(', ')}
-      accessibilityActions={actions}
-      onAccessibilityAction={onAction}
+      {...a11y}
       testID={`entry-${log.id}`}
     >
-      <View style={styles.entryMain}>
+      <View style={[styles.entryMain, stacked && styles.entryMainStacked]}>
         <Text style={styles.entryLabel}>{label}</Text>
         <Text style={styles.entryMacros}>{sub || '—'}</Text>
         {log.note ? (
@@ -140,43 +213,204 @@ function EntryRow({
       </View>
       {/* The unit is visible now: a bare "300" at the end of a row is a number
           a first-time user has to infer the meaning of. */}
-      <Text style={styles.entryKcal}>
+      <Text style={[styles.entryKcal, stacked && styles.entryKcalStacked]}>
         {kcal}
         <Text style={styles.entryUnit}> {t('today.kcal')}</Text>
       </Text>
     </PressScale>
   );
 
-  if (!onDelete) return row;
-  // Swipe-left to delete, the same gesture and the same reveal-then-tap rule
-  // as a Train set row (see `train.tsx`): the swipe REVEALS, the tap deletes,
-  // so a sideways scroll can never remove a meal on its own. Today's delete is
-  // fire-then-Undo, so even the tap is one tap from reversed.
+  const body = contextMenu ? (
+    <ContextMenu
+      title={label}
+      preview={<EntryPreview log={log} />}
+      previewSize={{ width: PREVIEW_WIDTH, height: previewHeight(log) }}
+      onPreviewPress={() => onPress(log)}
+      actions={[
+        { key: 'edit', title: t('entry.editTitle'), icon: 'pencil', onPress: () => onPress(log) },
+        ...(canSavePreset
+          ? [{ key: 'preset', title: t('entry.savePresetShort'), icon: 'bolt', onPress: () => onSavePreset?.(log) }]
+          : []),
+        ...(onDelete ? [{ key: 'delete', title: t('entry.delete'), icon: 'trash', destructive: true, onPress: remove }] : []),
+      ]}
+    >
+      {row}
+    </ContextMenu>
+  ) : (
+    row
+  );
+
+  if (!onDelete && !canSavePreset) return body;
+  const savePreset = () => {
+    swipeRef.current?.close();
+    onSavePreset?.(log);
+  };
+  // Swipe left to delete, swipe right to save to Quick add — the Mail /
+  // Reminders pair (review P9). A SHORT swipe reveals the action and a tap
+  // runs it, so a sideways scroll still cannot remove a meal on its own. A
+  // LONG swipe (past `FULL_SWIPE`, with a selection tick as it arms) runs it
+  // on release, because Today's delete is fire-then-Undo: the full swipe is
+  // one gesture from done and one tap from reversed. The action is labelled
+  // in words, not just an icon — a trash can alone was the only cue.
   return (
     <ReanimatedSwipeable
       ref={swipeRef}
-      friction={2}
+      friction={1}
       rightThreshold={40}
-      overshootRight={false}
-      renderRightActions={() => (
-        <TouchableOpacity
-          style={styles.swipeDelete}
-          onPress={() => {
-            haptics.tap();
-            remove();
-          }}
-          accessibilityRole="button"
-          accessibilityLabel={t('entry.delete')}
-          testID={`entry-swipe-delete-${log.id}`}
-        >
-          {/* White, not `onInk`: on the danger fill `onInk` goes dark in the
-              dark theme. ConfirmSheet's destructive button does the same. */}
-          <Ionicons name="trash-outline" size={20} color="#ffffff" />
-        </TouchableOpacity>
-      )}
+      leftThreshold={40}
+      overshootRight={!!onDelete}
+      overshootLeft={canSavePreset}
+      onSwipeableWillOpen={() => {
+        const run = armed.current;
+        armed.current = null;
+        if (run === 'delete') remove();
+        else if (run === 'preset') savePreset();
+      }}
+      renderRightActions={
+        onDelete
+          ? (_progress, translation) => (
+              <SwipeAction
+                side="right"
+                translation={translation}
+                label={t('entry.delete')}
+                icon="trash-outline"
+                color={colors.danger}
+                onArm={(on) => {
+                  armed.current = on ? 'delete' : null;
+                  if (on) haptics.selection();
+                }}
+                onPress={remove}
+                testID={`entry-swipe-delete-${log.id}`}
+              />
+            )
+          : undefined
+      }
+      renderLeftActions={
+        canSavePreset
+          ? (_progress, translation) => (
+              <SwipeAction
+                side="left"
+                translation={translation}
+                label={t('entry.swipeQuickAdd')}
+                a11yLabel={t('entry.saveQuickAddA11y')}
+                icon="flash-outline"
+                color={colors.tealSolid}
+                onArm={(on) => {
+                  armed.current = on ? 'preset' : null;
+                  if (on) haptics.selection();
+                }}
+                onPress={savePreset}
+                testID={`entry-swipe-preset-${log.id}`}
+              />
+            )
+          : undefined
+      }
     >
-      {row}
+      {body}
     </ReanimatedSwipeable>
+  );
+}
+
+/**
+ * One side's swipe action. It widens with the drag so the colour always fills
+ * what the row has uncovered, and reports — once per crossing, from the UI
+ * thread — whether the drag is past the full-swipe point.
+ *
+ * Its resting width is what the swipeable measures as the open position (it
+ * measures at the START of a drag, when the translation is at rest), so the
+ * widening never moves where a short swipe settles.
+ */
+function SwipeAction({
+  side,
+  translation,
+  label,
+  a11yLabel,
+  icon,
+  color,
+  onArm,
+  onPress,
+  testID,
+}: {
+  side: 'left' | 'right';
+  translation: SharedValue<number>;
+  label: string;
+  a11yLabel?: string;
+  icon: 'trash-outline' | 'flash-outline';
+  color: string;
+  onArm: (armed: boolean) => void;
+  onPress: () => void;
+  testID: string;
+}) {
+  const styles = useThemedStyles(createStyles);
+  const sign = side === 'right' ? -1 : 1;
+  useAnimatedReaction(
+    () => translation.value * sign > FULL_SWIPE,
+    (past, prev) => {
+      if (prev !== null && past !== prev) scheduleOnRN(onArm, past);
+    },
+  );
+  const fill = useAnimatedStyle(() => ({
+    width: Math.max(SWIPE_ACTION_W, translation.value * sign),
+  }));
+  return (
+    <Animated.View
+      style={[styles.swipeAction, { backgroundColor: color }, side === 'right' ? styles.swipeRight : styles.swipeLeft, fill]}
+    >
+      <TouchableOpacity
+        style={styles.swipeActionBtn}
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={a11yLabel ?? label}
+        testID={testID}
+      >
+        {/* White, not `onInk`: on the danger and teal fills `onInk` goes dark
+            in the dark theme. ConfirmSheet's destructive button does the same. */}
+        <Ionicons name={icon} size={20} color="#ffffff" />
+        <Text style={styles.swipeActionText} numberOfLines={1} maxFontSizeMultiplier={1.3}>
+          {label}
+        </Text>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
+const PREVIEW_WIDTH = 320;
+function previewHeight(log: DailyLog): number {
+  return 176 + (log.note ? 44 : 0);
+}
+
+/**
+ * The context-menu preview: the row, opened up — the full name, the calories
+ * large, every macro as its own figure, the time and the note. It is what the
+ * user would see in the editor, without opening it.
+ */
+function EntryPreview({ log }: { log: DailyLog }) {
+  const t = useT();
+  const locale = useLocale();
+  const styles = useThemedStyles(createStyles);
+  const macros: { key: string; label: string; value: number | undefined | null }[] = [
+    { key: 'p', label: t('history.protein'), value: log.protein },
+    { key: 'c', label: t('today.carbs'), value: log.carbs },
+    { key: 'f', label: t('today.fat'), value: log.fat },
+  ];
+  return (
+    <View style={styles.preview}>
+      <Text style={styles.previewTime}>{timeOf(log.date, locale)}</Text>
+      <Text style={styles.previewLabel} numberOfLines={2}>{log.mealLabel || t('today.entry')}</Text>
+      <Text style={styles.previewKcal}>
+        {formatNumber(log.calories, locale)}
+        <Text style={styles.previewUnit}> {t('today.kcal')}</Text>
+      </Text>
+      <View style={styles.previewMacros}>
+        {macros.map((m) => (
+          <View key={m.key} style={styles.previewMacro}>
+            <Text style={styles.previewMacroValue}>{m.value != null ? `${formatNumber(m.value, locale)} g` : '—'}</Text>
+            <Text style={styles.previewMacroLabel}>{m.label}</Text>
+          </View>
+        ))}
+      </View>
+      {log.note ? <Text style={styles.previewNote} numberOfLines={2}>{log.note}</Text> : null}
+    </View>
   );
 }
 
@@ -185,15 +419,24 @@ function EntryRow({
  * → snack → other) with per-slot calorie subtotals and a per-entry log time.
  * When every entry is untagged (single `other` group) the slot header is
  * suppressed so it reads as a plain list. Tapping a row calls `onPress`.
+ *
+ * With `onAddToSlot` it is a DIARY (UX_AUDIT Today review U3): the four meal
+ * headers are always there, each with its own "+ Add" that opens the sheet
+ * with that meal already chosen. An empty day is four headers waiting to be
+ * filled — the structure is the empty state, where it used to be a hint
+ * pointing at a button somewhere else.
  */
 export function MealEntries({
   logs,
   onPress,
   onSavePreset,
   onDelete,
+  onAddToSlot,
 }: {
   logs: DailyLog[];
   onPress: (log: DailyLog) => void;
+  /** Start an add in this meal slot — turns on the always-present headers. */
+  onAddToSlot?: (slot: MealType) => void;
   /**
    * Long-press a logged row to promote it to a quick-add preset.
    *
@@ -216,7 +459,8 @@ export function MealEntries({
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { scheme, colors } = useTheme();
-  const groups = groupByMealSlot(logs);
+  const groups = diarySlots(logs, !!onAddToSlot);
+  const starts = groupStartIndexes(groups);
   // Android's menu target; iOS presents the system action sheet directly.
   const [menu, setMenu] = useState<{ log: DailyLog; remove: () => void } | null>(null);
 
@@ -250,24 +494,66 @@ export function MealEntries({
     if (onDelete) items.push({ key: 'delete', label: t('entry.delete'), icon: 'trash-outline', run: remove, danger: true });
     return items;
   }
-  const showHeaders = groups.length > 1 || (groups[0]?.slot !== 'other');
+  const showHeaders = !!onAddToSlot || groups.length > 1 || (groups[0]?.slot !== 'other');
 
   // Rows fade+rise in with a stagger (index counted across groups so the
-  // whole list reads as one cascade), spring into place when a sibling is
-  // added/removed, and fade out on delete.
-  let row = 0;
+  // whole list reads as one cascade, capped at MAX_STAGGER), spring into
+  // place when a sibling is added/removed, and fade out on delete.
   return (
     <View style={styles.wrap}>
-      {groups.map((g) => (
+      {groups.map((g, gi) => {
+        // Sentence case in every locale — `textTransform: 'capitalize'` made
+        // pt-BR's "café da manhã" read "Café Da Manhã" (review #3).
+        const slotName = capitalizeFirst(t(SLOT_KEY[g.slot]), locale);
+        const total = `${formatNumber(g.totalCalories, locale)} ${t('today.kcal')}`;
+        const addable = !!onAddToSlot && g.slot !== 'other';
+        return (
         <View key={g.slot} style={styles.group}>
           {showHeaders ? (
             <View style={styles.slotHead}>
-              <Text style={styles.slotLabel}>{t(SLOT_KEY[g.slot])}</Text>
-              <Text style={styles.slotTotal}>{formatNumber(g.totalCalories, locale)} {t('today.kcal')}</Text>
+              {/* One heading node, "Breakfast, 450 kcal" — two text nodes made
+                  a rotor stop on the name and a second, unlabelled stop on a
+                  bare number (review A3). An empty slot says so instead of
+                  "0 kcal". */}
+              <View
+                style={styles.slotTitle}
+                accessible
+                accessibilityRole="header"
+                accessibilityLabel={g.entries.length ? `${slotName}, ${total}` : `${slotName}, ${t('today.slotEmpty')}`}
+              >
+                <Text style={styles.slotLabel}>{slotName}</Text>
+                {g.entries.length ? <Text style={styles.slotTotal}>{total}</Text> : null}
+              </View>
+              {addable ? (
+                <PressScale
+                  scaleTo={0.92}
+                  style={styles.slotAdd}
+                  hitSlop={SLOT_ADD_SLOP}
+                  onPress={() => {
+                    haptics.tap();
+                    onAddToSlot?.(g.slot as MealType);
+                  }}
+                  accessibilityRole="button"
+                  // The slot's own word, lower-case, inside the phrase — then
+                  // sentence-cased as a whole ("Add to lunch", "Cena: añadir").
+                  accessibilityLabel={capitalizeFirst(t('today.addToSlotA11y', { slot: t(SLOT_KEY[g.slot]) }), locale)}
+                  testID={`slot-add-${g.slot}`}
+                >
+                  <Ionicons name="add" size={16} color={colors.accent} />
+                  <Text style={styles.slotAddText} maxFontSizeMultiplier={1.3}>
+                    {t('today.addToSlot')}
+                  </Text>
+                </PressScale>
+              ) : null}
             </View>
           ) : null}
-          {g.entries.map((log) => (
-            <Animated.View key={log.id} entering={enterUp(row++)} exiting={FadeOut} layout={springLayout}>
+          {g.entries.map((log, i) => (
+            <Animated.View
+              key={log.id}
+              entering={enterUp(Math.min(starts[gi] + i, MAX_STAGGER))}
+              exiting={FadeOut}
+              layout={springLayout}
+            >
               <EntryRow
                 log={log}
                 onPress={onPress}
@@ -278,7 +564,8 @@ export function MealEntries({
             </Animated.View>
           ))}
         </View>
-      ))}
+        );
+      })}
       {Platform.OS !== 'ios' ? (
         // `overlays={false}`: the menu closes in the same tap that runs its
         // item, so anything it raised (a toast, a confirm) must go to the
@@ -315,9 +602,22 @@ export function MealEntries({
 const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   wrap: { gap: space.md },
   group: { gap: space.sm },
-  slotHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.xs },
-  slotLabel: { fontSize: font.small, color: colors.muted, fontWeight: '700', textTransform: 'capitalize' },
+  slotHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.sm, paddingHorizontal: space.xs, minHeight: 32 },
+  // Name and subtotal read as one line that may wrap at large text; the add
+  // pill keeps its size beside it.
+  slotTitle: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: space.sm },
+  slotLabel: { fontSize: font.small, color: colors.muted, fontWeight: '700' },
   slotTotal: { fontSize: font.small, color: colors.faint, fontWeight: '600' },
+  slotAdd: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    minHeight: 32,
+    paddingHorizontal: space.md,
+    borderRadius: radius.pill,
+    backgroundColor: colors.accentSoft,
+  },
+  slotAddText: { fontSize: font.small, fontWeight: '700', color: colors.accent },
   entry: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -330,23 +630,43 @@ const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
     paddingVertical: space.md,
     ...shadow.e1,
   },
+  // Large text: label block over the kcal, both full width (STACK_AT_FONT_SCALE).
+  entryStacked: { flexDirection: 'column', alignItems: 'flex-start', gap: space.xs },
   entryMain: { flex: 1, gap: 2 },
+  entryMainStacked: { flex: 0, alignSelf: 'stretch' },
   entryLabel: { fontSize: font.body, fontWeight: '600', color: colors.ink },
   entryMacros: { fontSize: font.small, color: colors.muted },
   entryNote: { fontSize: font.small, color: colors.faint, fontStyle: 'italic' },
   entryKcal: { fontSize: font.body, fontWeight: '700', color: colors.ink, marginLeft: space.md },
+  entryKcalStacked: { marginLeft: 0 },
   entryUnit: { fontSize: font.small, fontWeight: '500', color: colors.muted },
+  preview: { flex: 1, backgroundColor: colors.paper, padding: space.xl, gap: space.xs },
+  previewTime: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
+  previewLabel: { fontSize: font.h3, fontWeight: '800', color: colors.ink },
+  previewKcal: { fontSize: font.h1, fontWeight: '800', color: colors.ink, marginTop: space.xs },
+  previewUnit: { fontSize: font.body, fontWeight: '600', color: colors.muted },
+  previewMacros: { flexDirection: 'row', gap: space.lg, marginTop: space.sm },
+  previewMacro: { gap: 2 },
+  previewMacroValue: { fontSize: font.body, fontWeight: '700', color: colors.ink },
+  previewMacroLabel: { fontSize: font.small, color: colors.muted },
+  previewNote: { fontSize: font.small, color: colors.faint, fontStyle: 'italic', marginTop: space.sm },
   menu: { gap: space.xs, paddingBottom: space.sm },
   menuTitle: { fontSize: font.h3, fontWeight: '800', color: colors.ink, marginBottom: space.xs },
   menuItem: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 48, paddingHorizontal: space.xs },
   menuText: { fontSize: font.body, fontWeight: '600', color: colors.ink },
   menuDanger: { fontSize: font.body, fontWeight: '600', color: colors.danger },
-  // Swipe-left reveal behind a row — Train's `swipeDelete`, at this row's radius.
-  swipeDelete: {
-    backgroundColor: colors.danger,
+  // Swipe reveals behind a row, at this row's radius. The label hugs the
+  // row's edge on each side, so it travels with the finger on a long swipe.
+  swipeAction: { borderRadius: radius.md, justifyContent: 'center', overflow: 'hidden' },
+  swipeRight: { alignItems: 'flex-start' },
+  swipeLeft: { alignItems: 'flex-end' },
+  swipeActionBtn: {
+    width: SWIPE_ACTION_W,
+    alignSelf: 'stretch',
+    alignItems: 'center',
     justifyContent: 'center',
-    alignItems: 'flex-end',
-    paddingHorizontal: space.lg,
-    borderRadius: radius.md,
+    gap: 2,
+    paddingHorizontal: space.xs,
   },
+  swipeActionText: { fontSize: font.tiny, fontWeight: '700', color: '#ffffff' },
 });

@@ -37,6 +37,7 @@ import type { UnitSystem } from './unit-system';
 import { DEFAULT_LOG_STYLE, isLoggedSet } from './workout';
 import type { ProgressionSuggestion } from './workout-progression';
 import { computeExercisePRs, isWorkingSet, metricForSet } from './workout-progression';
+import { isLoggedCardioBlock } from './cardio';
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -251,4 +252,136 @@ export function templateCounts(template: Pick<WorkoutTemplate, 'exercises'>): Wo
   let sets = 0;
   for (const ex of template.exercises) sets += ex.plannedSets.length;
   return { exercises: template.exercises.length, sets };
+}
+
+// ─── Finishing a session ────────────────────────────────────────
+
+/**
+ * Whether a session holds anything that actually happened: one logged set, or
+ * one performed cardio block.
+ *
+ * The Finish button used to complete a session with nothing in it — a
+ * template started and abandoned before the first set — and that still wrote
+ * a completed workout and stamped the day's streak marker. "Nothing logged" is
+ * the condition the screen turns into "discard instead?", and the finish
+ * operation's own guard against marking an empty day as exercised.
+ *
+ * Reads `cardio` only to answer "is there anything here"; no strength number
+ * is derived from it (ADR-0025).
+ */
+export function sessionHasLoggedWork(
+  session: Pick<WorkoutSession, 'exercises' | 'cardio'>,
+): boolean {
+  for (const ex of session.exercises) {
+    const style = ex.logStyle ?? DEFAULT_LOG_STYLE;
+    if (ex.sets.some((s) => isLoggedSet(s, style))) return true;
+  }
+  return (session.cardio ?? []).some(isLoggedCardioBlock);
+}
+
+/**
+ * Drop exercises that are left with no sets once the unlogged ones have been
+ * pruned. A lift that was on the template and never touched is not part of
+ * the workout that happened — keeping it put a name with nothing under it in
+ * history and counted it in "3 exercises".
+ */
+export function dropEmptyExercises<E extends { sets: readonly unknown[] }>(exercises: E[]): E[] {
+  return exercises.some((e) => e.sets.length === 0)
+    ? exercises.filter((e) => e.sets.length > 0)
+    : exercises;
+}
+
+/**
+ * Move one exercise from `from` to `to` — the live session's "Move up / Move
+ * down". A MOVE, not a swap, so the same function serves a drag later. Out of
+ * range (or no move) returns the input unchanged, so a caller can skip the
+ * write by identity.
+ */
+export function moveExercise<E>(exercises: E[], from: number, to: number): E[] {
+  if (from === to || from < 0 || to < 0 || from >= exercises.length || to >= exercises.length) {
+    return exercises;
+  }
+  const next = [...exercises];
+  const [moved] = next.splice(from, 1);
+  next.splice(to, 0, moved);
+  return next;
+}
+
+/**
+ * Whether one set beats the best estimated-1RM on record for its lift — the
+ * "PR" badge that appears the moment a set is ticked.
+ *
+ * Strict, working sets only, `weight-reps` only (the same metric
+ * `bestE1RMByExercise` keeps), and never on a FIRST record: with no prior best
+ * every set of a new lift would be a "PR", which is noise rather than news.
+ */
+export function setBeatsBest(set: WorkoutSet, style: LogStyle, best: number | undefined): boolean {
+  if (style !== 'weight-reps' || !isWorkingSet(set) || !best || best <= 0) return false;
+  if (!isLoggedSet(set, style) || set.weight == null || set.weight <= 0) return false;
+  return metricForSet(set, style) > best;
+}
+
+/** One record set beaten in a session, for the finish summary. */
+export interface SessionPr {
+  exerciseId: string;
+  name: string;
+  /** Pounds, as stored. The screen converts. */
+  weight: number;
+  reps: number;
+}
+
+export interface FinishSummary {
+  /** Whole minutes from the session's start to `now`; never negative. */
+  durationMin: number;
+  /** {@link sessionVolume} of what is logged so far. */
+  volume: number;
+  /** Logged sets ({@link sessionCounts}). */
+  sets: number;
+  /** Lifts whose best set this session beats every prior session. */
+  prs: SessionPr[];
+  /** Volume of the last completed session of the SAME template, or null when
+   *  there is none to compare with (ad-hoc, or the first time). */
+  previousVolume: number | null;
+}
+
+/**
+ * What the Finish sheet says about the workout before it is saved: how long,
+ * how much, any records, and how it compares with last time.
+ *
+ * `completed` is the history the tab already holds, newest first (both apps
+ * pass it that way). The session itself is excluded by id, so a reopened
+ * session is not compared with its own earlier copy. The comparison is
+ * against the same template only — "more volume than your leg day" is not a
+ * comparison anyone asked for.
+ */
+export function finishSummary(
+  session: Pick<WorkoutSession, 'id' | 'date' | 'exercises' | 'templateId'>,
+  completed: readonly WorkoutSession[],
+  now: number,
+): FinishSummary {
+  const prior = completed.filter((s) => s.status === 'completed' && (!session.id || s.id !== session.id));
+  const best = bestE1RMByExercise(prior);
+  const prs: SessionPr[] = [];
+  for (const ex of session.exercises) {
+    const style = ex.logStyle ?? DEFAULT_LOG_STYLE;
+    let top: WorkoutSet | null = null;
+    for (const s of ex.sets) {
+      if (!setBeatsBest(s, style, best[ex.exerciseId])) continue;
+      if (!top || metricForSet(s, style) > metricForSet(top, style)) top = s;
+    }
+    if (top && top.weight != null && top.reps != null) {
+      prs.push({ exerciseId: ex.exerciseId, name: ex.name, weight: top.weight, reps: top.reps });
+    }
+  }
+  const last = session.templateId
+    ? prior.find((s) => s.templateId === session.templateId)
+    : undefined;
+  const started = session.date instanceof Date ? session.date.getTime() : now;
+  return {
+    durationMin: Math.max(0, Math.round((now - started) / 60_000)),
+    volume: sessionVolume(session),
+    sets: sessionCounts(session).sets,
+    prs,
+    previousVolume: last ? sessionVolume(last) : null,
+  };
 }

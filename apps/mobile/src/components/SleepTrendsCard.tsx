@@ -1,16 +1,16 @@
 import { StyleSheet, Text, View } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import {
   SLEEP_MIN_NIGHTS,
   SLEEP_STRIP_CEILING_HOURS,
   SLEEP_WINDOW_DAYS,
+  parseYmd,
   sleepBarFraction,
   sleepHoursParts,
 } from '@macrolog/core';
 import type { SleepTrends } from '@/hooks/useSleepTrends';
 import { useT } from '@/i18n';
-import { formatNumber } from '@/lib/date-format';
+import { formatDate, formatNumber } from '@/lib/date-format';
 import { useLocale } from '@/i18n';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { useDismissedStub } from '@/hooks/useDismissedStub';
@@ -18,6 +18,13 @@ import { StubLabel } from '@/components/StubLabel';
 import { font, radius, space, type } from '@/theme';
 import { PressScale } from '@/lib/motion';
 import * as haptics from '@/lib/haptics';
+import { GapMarker, MedianLine } from '@/components/charts/StripParts';
+import { Glyph } from '@/components/charts/Glyph';
+import { useAdjustableDays } from '@/components/charts/useAdjustableDays';
+
+/** Axis numerals are glyphs in a fixed-height strip: they scale with the OS
+ *  text size, but only this far, or they overrun the gridline they name. */
+const AXIS_MAX_SCALE = 1.3;
 
 /**
  * Sleep on Trends — one number, one strip, one sentence (ADR-0033, issue #81).
@@ -36,12 +43,13 @@ import * as haptics from '@/lib/haptics';
  *
  * **The highlighted bars ARE the sentence.** The short group's nights are drawn
  * in `colors.habitSleep` (sleep's identity violet — it was `info` until the
- * habit hues landed, 2026-08-30) and every other night in `colors.faint`, over the same
+ * habit hues landed, 2026-08-30) AND outlined in `ink` — the hue alone measured
+ * 1.22:1 against its neighbours — and every other night in `lineStrong`, over the same
  * fourteen days the sentence is computed from — so the chart is the claim drawn
  * rather than decoration beside it. That property is why the window is 14 for
  * both (see `sleep-intake.ts`).
  *
- * **A missing night is a hairline at the baseline** — never a zero, never
+ * **A missing night is a dashed mark at the baseline** — never a zero, never
  * interpolated — and the footer says the coverage out loud. A zero-height bar
  * would read as "did not sleep", which is a claim about the user rather than
  * about the data.
@@ -71,6 +79,35 @@ export function SleepTrendsCard({
   const router = useRouter();
   const [stubDismissed, dismissStub] = useDismissedStub('trends.stub.sleep.dismissed');
 
+  // The strip as one adjustable element (summary + a night at a time). Built
+  // before the early returns so the hook order never changes with the state.
+  const nights = sleep.kind === 'card' ? sleep.window.nights : [];
+  const shortKeys = new Set(sleep.kind === 'card' ? (sleep.contrast?.shortKeys ?? []) : []);
+  const median = sleep.kind === 'card' ? sleepHoursParts(sleep.window.medianHours) : { hours: 0, minutes: 0 };
+  const stepper = useAdjustableDays(
+    nights.length,
+    sleep.kind === 'card'
+      ? t('trends.chart.sleepSummary', {
+          n: formatNumber(SLEEP_WINDOW_DAYS, locale),
+          h: formatNumber(median.hours, locale),
+          m: formatNumber(median.minutes, locale),
+          count: formatNumber(sleep.window.nightsWithReading, locale),
+        })
+      : '',
+    (i) => {
+      const night = nights[i];
+      if (!night) return '';
+      const date = formatDate(parseYmd(night.dateKey), locale, { weekday: 'short', month: 'short', day: 'numeric' });
+      if (night.hours == null) return t('trends.chart.noReading', { date });
+      const p = sleepHoursParts(night.hours);
+      return t(shortKeys.has(night.dateKey) ? 'trends.chart.sleepPointShort' : 'trends.chart.sleepPoint', {
+        date,
+        h: formatNumber(p.hours, locale),
+        m: formatNumber(p.minutes, locale),
+      });
+    },
+  );
+
   if (sleep.kind === 'pending') return null;
 
   // 0–2 nights: a row, not a card, and no section header. Trends already
@@ -88,6 +125,7 @@ export function SleepTrendsCard({
         <View style={styles.stubRow}>
         <PressScale
           style={styles.linkRow}
+          accessibilityRole="link"
           testID="sleep-empty-link"
           onPress={() => {
             haptics.tap();
@@ -106,7 +144,7 @@ export function SleepTrendsCard({
                   : 'trends.sleepEmpty',
             )}
           />
-          <Ionicons name="chevron-forward" size={16} color={colors.faint} />
+          <Glyph ios="chevron.right" android="chevron-forward" size={16} color={colors.faint} />
         </PressScale>
         {/* Dismiss sits OUTSIDE the navigating pressable rather than inside
             it — nesting one touchable in another makes which one fired
@@ -115,13 +153,14 @@ export function SleepTrendsCard({
         <PressScale
           style={styles.stubDismiss}
           testID="sleep-stub-dismiss"
+          accessibilityRole="button"
           accessibilityLabel={t('trends.stubDismiss')}
           onPress={() => {
             haptics.tap();
             dismissStub();
           }}
         >
-          <Ionicons name="close" size={16} color={colors.faint} />
+          <Glyph ios="xmark" android="close" size={16} color={colors.faint} />
         </PressScale>
         </View>
         <View style={styles.hairline} />
@@ -136,7 +175,7 @@ export function SleepTrendsCard({
 
   return (
     <View testID="sleep-card">
-      {hideHeader ? null : <Text style={styles.section}>{t('trends.sleepTitle')}</Text>}
+      {hideHeader ? null : <Text style={styles.section} accessibilityRole="header">{t('trends.sleepTitle')}</Text>}
       <View style={styles.card}>
         <View style={styles.head}>
           <Text style={styles.value} testID="sleep-mean">
@@ -155,25 +194,31 @@ export function SleepTrendsCard({
         </View>
 
         <View style={styles.stripRow}>
-        <View style={styles.strip} testID="sleep-strip">
+        <View {...stepper.a11y} style={styles.strip} testID="sleep-strip">
           {window.nights.map((night) => {
             const fraction = sleepBarFraction(night.hours);
             return (
               <View key={night.dateKey} style={styles.col}>
                 <View style={styles.track}>
                   {night.hours == null ? (
-                    // The gap. A hairline at the baseline says "no reading"
+                    // The gap. A dashed mark at the baseline says "no reading"
                     // where a zero-height bar would say nothing at all and a
                     // full-height one would invent a night.
-                    <View style={styles.gap} />
+                    <GapMarker />
                   ) : (
                     <View
                       style={[
                         styles.bar,
-                        {
-                          height: `${Math.max(4, fraction * 100)}%`,
-                          backgroundColor: short.has(night.dateKey) ? colors.habitSleep : colors.faint,
-                        },
+                        // The highlighted nights carry an OUTLINE as well as
+                        // the violet: violet against the other nights' grey
+                        // measured 1.22:1 light / 1.29:1 dark, so the
+                        // highlight was a hue change most eyes could not see.
+                        // The others are `lineStrong`, which clears 3:1 on the
+                        // card where `faint` sat next to the violet.
+                        short.has(night.dateKey)
+                          ? [styles.barShort, { backgroundColor: colors.habitSleep }]
+                          : { backgroundColor: colors.lineStrong },
+                        { height: `${Math.max(4, fraction * 100)}%` },
                       ]}
                     />
                   )}
@@ -184,23 +229,19 @@ export function SleepTrendsCard({
           {/* The reference line is the user's OWN median, never a population
               7- or 8-hour standard — Ignia has no authority to assert one. */}
           {window.medianHours > 0 ? (
-            <View
-              pointerEvents="none"
-              style={[
-                styles.medianLine,
-                { bottom: `${sleepBarFraction(window.medianHours) * 100}%` },
-              ]}
-            />
+            <MedianLine bottomPct={sleepBarFraction(window.medianHours) * 100} />
           ) : null}
         </View>
           {/* The axis its two siblings already carry (fasting, water). Without
               it no bar height means anything: the headline says 7h 10m and
               nothing on the strip lets you check it against the ceiling. */}
-          <View style={styles.axis} pointerEvents="none">
-            <Text style={styles.axisLabel} testID="sleep-axis-max">
+          {/* Hidden from screen readers: the strip's own label and per-night
+              values already say what the scale says. */}
+          <View style={styles.axis} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+            <Text style={styles.axisLabel} testID="sleep-axis-max" maxFontSizeMultiplier={AXIS_MAX_SCALE}>
               {t('trends.sleepAxisHours', { h: formatNumber(SLEEP_STRIP_CEILING_HOURS, locale) })}
             </Text>
-            <Text style={styles.axisLabel}>
+            <Text style={styles.axisLabel} maxFontSizeMultiplier={AXIS_MAX_SCALE}>
               {t('trends.sleepAxisHours', { h: formatNumber(0, locale) })}
             </Text>
           </View>
@@ -291,8 +332,10 @@ const createStyles = ({ colors }: Theme) =>
     track: { width: '62%', height: STRIP_H, justifyContent: 'flex-end' },
     // The strip, its tracks and the axis column MUST share one height, or the
     // axis stops naming the gridline it sits on (same rule as the siblings).
+    // `minWidth`, not `width`: at a larger text size "10h" outgrows 30dp and a
+    // fixed width clipped it. The height stays fixed — it IS the scale.
     axis: {
-      width: 30,
+      minWidth: 30,
       height: STRIP_H,
       justifyContent: 'space-between',
       alignItems: 'flex-end',
@@ -303,15 +346,7 @@ const createStyles = ({ colors }: Theme) =>
     // the gridline they are naming and the axis reads as approximate.
     axisLabel: { fontSize: font.tiny, color: colors.faint, lineHeight: font.tiny },
     bar: { width: '100%', borderRadius: 2 },
-    gap: { width: '100%', height: 1, backgroundColor: colors.line },
-    medianLine: {
-      position: 'absolute',
-      left: 0,
-      right: 0,
-      height: 1,
-      backgroundColor: colors.faint,
-      opacity: 0.6,
-    },
+    barShort: { borderWidth: 1.5, borderColor: colors.ink },
     // Sentence-length copy reads in `muted`; `faint` (AA since S18-2) is kept
     // for the two-character axis numerals and glyphs.
     legend: { fontSize: font.tiny, color: colors.muted },

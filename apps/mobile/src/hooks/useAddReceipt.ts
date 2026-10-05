@@ -9,7 +9,12 @@ import { captureError } from '@/lib/sentry';
 import type { AddReceipt } from './useLogWrites';
 
 /**
- * The receipt for an add: "Logged Oatmeal · 300 kcal · Edit · Undo".
+ * The receipt for an add: "Logged Oatmeal · 300 kcal · 1,050 left · Edit · Undo".
+ *
+ * The remaining figure is the number the user was going to look up next — it
+ * is the hero's headline, and the ring is behind the sheet that is closing.
+ * Said only when the caller knows it (a target exists, and the add landed on
+ * the day the ring describes); a History add to last Tuesday omits it.
  *
  * Before this, delete was the only reversible write on Today — an add closed
  * the sheet with a haptic and nothing else, so a mis-tapped recent cost
@@ -34,44 +39,66 @@ export function useAddReceipt() {
   const { user } = useAuth();
   const uid = user?.uid;
 
+  // `undone` is said once the Undo has taken ("Removed Oatmeal"): the receipt
+  // vanished on the tap and nothing confirmed the reversal (B7). A toast, so
+  // it is drawn AND announced.
   const undoAction = useCallback(
-    (ids: readonly string[], onUndo?: () => void) =>
+    (ids: readonly string[], onUndo?: () => void, undone?: string) =>
       uid && ids.length
         ? {
             label: t('common.undo'),
             onPress: () => {
               onUndo?.();
-              undoAdds(uid, ids).catch((e) => {
-                haptics.warning();
-                captureError(e, { where: 'receipt.undoAdd' });
-              });
+              undoAdds(uid, ids)
+                .then(() => {
+                  if (undone) toast.show(undone, { testID: 'toast-undone' });
+                })
+                .catch((e) => {
+                  haptics.warning();
+                  captureError(e, { where: 'receipt.undoAdd' });
+                });
             },
           }
         : undefined,
-    [uid, t],
+    [uid, t, toast],
   );
 
   /**
    * One row added. `label`/`calories` are what the receipt names; `onEdit`,
    * when given, adds an "Edit" button that reopens the row — the fix for "right
-   * food, wrong amount" without hunting for it in the list.
+   * food, wrong amount" without hunting for it in the list. `remaining`, when
+   * given, is the day's kcal left AFTER this add (negative = over).
    */
   const showAdded = useCallback(
     (
       receipt: AddReceipt | undefined,
-      what: { label?: string; calories: number },
+      what: { label?: string; calories: number; remaining?: number | null },
       onEdit?: (id: string) => void,
     ) => {
       if (!receipt) return;
       const n = formatNumber(Math.round(what.calories), locale);
       const label = what.label?.trim();
+      if (receipt.outcome === 'rejected') {
+        // Refused by the rules — nothing was saved, so no Undo and no Edit
+        // (there is no row to act on). Never "Saved offline" (C3).
+        haptics.warning();
+        toast.show(label ? t('entry.rejectedNamed', { label }) : t('entry.rejected'), { testID: 'toast-rejected' });
+        return;
+      }
+      const base = label ? t('entry.logged', { label, n }) : t('entry.loggedKcal', { n });
+      const left =
+        what.remaining == null
+          ? null
+          : what.remaining >= 0
+            ? t('entry.loggedLeft', { n: formatNumber(Math.round(what.remaining), locale) })
+            : t('entry.loggedOver', { n: formatNumber(Math.round(-what.remaining), locale) });
       const message =
-        receipt.outcome === 'queued'
-          ? t('offline.queued')
-          : label
-            ? t('entry.logged', { label, n })
-            : t('entry.loggedKcal', { n });
-      const action = undoAction([receipt.id]);
+        receipt.outcome === 'queued' ? t('offline.queued') : left ? `${base} · ${left}` : base;
+      const action = undoAction(
+        [receipt.id],
+        undefined,
+        label ? t('entry.removedNamed', { label }) : t('entry.removed'),
+      );
       toast.show(message, {
         action,
         secondaryAction:
@@ -91,13 +118,22 @@ export function useAddReceipt() {
         showAdded(got[0], { calories: totalCalories });
         return;
       }
-      const message = got.some((r) => r.outcome === 'queued')
-        ? t('offline.queued')
-        : t('entry.loggedMany', {
-            n: got.length,
-            kcal: formatNumber(Math.round(totalCalories), locale),
-          });
-      toast.show(message, { action: undoAction(got.map((r) => r.id)), testID: 'toast-added' });
+      const landed = got.filter((r) => r.outcome !== 'rejected');
+      const refused = got.length - landed.length;
+      if (refused) haptics.warning();
+      const message = refused
+        ? t('entry.rejectedSome', { n: refused, total: got.length })
+        : got.some((r) => r.outcome === 'queued')
+          ? t('offline.queued')
+          : t('entry.loggedMany', {
+              n: got.length,
+              kcal: formatNumber(Math.round(totalCalories), locale),
+            });
+      const ids = landed.map((r) => r.id);
+      toast.show(message, {
+        action: undoAction(ids, undefined, ids.length === 1 ? t('entry.removed') : t('entry.removedMany', { n: ids.length })),
+        testID: refused ? 'toast-rejected' : 'toast-added',
+      });
     },
     [t, locale, toast, undoAction, showAdded],
   );

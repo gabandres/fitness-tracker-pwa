@@ -41,6 +41,8 @@ import type {
   WorkoutTemplate,
 } from '@/lib/workout';
 import type { useTrain } from '@/hooks/useTrain';
+import { confirm } from '@/components/ConfirmSheet';
+import { showToast } from '@/components/Toast';
 import { type TFn, useLocale, useT, type I18nKey} from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { smoothLayout } from '@/lib/motion';
@@ -138,6 +140,20 @@ function toPlannedSet(d: DraftSet, unitSystem: UnitSystem): PlannedSet {
 }
 
 const newDraftSet = (kind: SetKind): DraftSet => toDraftSet({ kind });
+
+/** Everything the editor can change, as one comparable string — the
+ *  "unsaved changes?" test. Text buffers, so a field typed and cleared again
+ *  reads as unchanged. */
+function draftKey(
+  name: string,
+  notes: string,
+  restMini: string,
+  restCluster: string,
+  exercises: readonly DraftEx[],
+  cardio: readonly DraftCardio[],
+): string {
+  return JSON.stringify([name, notes, restMini, restCluster, exercises, cardio]);
+}
 
 /** The one line a collapsed card shows — "3 × 8 · 20 lb". It answers the
  *  question the old card made you expand it to answer, and it degrades
@@ -287,26 +303,30 @@ export function TemplateEditorModal({
   const cardWidth = windowWidth - space.xl * 2;
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  /**
+   * The draft as it was opened, serialized — what "has anything been typed"
+   * is measured against. A swipe, a backdrop tap or Android back used to
+   * close the editor and throw a whole template's typing away with no
+   * question (Train review bug 8); with changes, they now ask first.
+   */
+  const [pristine, setPristine] = useState('');
 
   useEffect(() => {
     if (!visible) return;
-    setName(template?.name ?? '');
-    setNotes(template?.notes ?? '');
-    setRestMini(template?.restMiniSec != null ? String(template.restMiniSec) : '');
-    setRestCluster(template?.restClusterSec != null ? String(template.restClusterSec) : '');
-    setCardioBlocks(
-      (template?.cardioBlocks ?? []).map((b) => ({
-        modality: b.modality,
-        label: b.label ?? '',
-        minutes: b.targetDurationSec != null ? String(Math.round(b.targetDurationSec / 60)) : '',
-        distance:
-          b.targetDistanceM != null
-            ? String(toDisplayDistance(b.targetDistanceM, unitSystem))
-            : '',
-      })),
-    );
-    setExercises(
-      (template?.exercises ?? []).map((ex) => ({
+    const initialName = template?.name ?? '';
+    const initialNotes = template?.notes ?? '';
+    const initialRestMini = template?.restMiniSec != null ? String(template.restMiniSec) : '';
+    const initialRestCluster = template?.restClusterSec != null ? String(template.restClusterSec) : '';
+    const initialCardio: DraftCardio[] = (template?.cardioBlocks ?? []).map((b) => ({
+      modality: b.modality,
+      label: b.label ?? '',
+      minutes: b.targetDurationSec != null ? String(Math.round(b.targetDurationSec / 60)) : '',
+      distance:
+        b.targetDistanceM != null
+          ? String(toDisplayDistance(b.targetDistanceM, unitSystem))
+          : '',
+    }));
+    const initialExercises: DraftEx[] = (template?.exercises ?? []).map((ex) => ({
         exerciseId: ex.exerciseId,
         name: ex.name,
         logStyle: ex.logStyle ?? 'weight-reps',
@@ -321,8 +341,14 @@ export function TemplateEditorModal({
         sets: ex.plannedSets.length
           ? ex.plannedSets.map((ps) => toDraftSet(ps, unitSystem))
           : [newDraftSet('working')],
-      })),
-    );
+      }));
+    setName(initialName);
+    setNotes(initialNotes);
+    setRestMini(initialRestMini);
+    setRestCluster(initialRestCluster);
+    setCardioBlocks(initialCardio);
+    setExercises(initialExercises);
+    setPristine(draftKey(initialName, initialNotes, initialRestMini, initialRestCluster, initialExercises, initialCardio));
     setKindOpen(null);
     setOpenEx(null);
     setMoreEx(null);
@@ -576,6 +602,27 @@ export function TemplateEditorModal({
   }
 
   const canSave = name.trim().length > 0 && !busy;
+  const dirty = useMemo(
+    () => visible && draftKey(name, notes, restMini, restCluster, exercises, cardioBlocks) !== pristine,
+    [visible, name, notes, restMini, restCluster, exercises, cardioBlocks, pristine],
+  );
+
+  /** A dismissal the user did not aim at a button. Clean → close. Dirty →
+   *  ask, and stay open unless they choose to discard. */
+  function requestClose(): boolean {
+    if (!dirty) {
+      onClose();
+      return true;
+    }
+    confirm({
+      title: t('train.discardChangesTitle'),
+      body: t('train.discardChangesBody'),
+      confirmText: t('train.discard'),
+      destructive: true,
+      onConfirm: onClose,
+    });
+    return false;
+  }
 
   async function save() {
     if (!canSave) return;
@@ -641,25 +688,57 @@ export function TemplateEditorModal({
     }
   }
 
-  async function remove() {
+  /** Delete, after asking — it was one tap, unconfirmed, with no catch
+   *  (Train review bug 6). */
+  function remove() {
     if (!template?.id || busy) return;
-    setBusy(true);
-    try {
-      await train.deleteTemplate(template.id);
-      onClose();
-    } finally {
-      setBusy(false);
-    }
+    const id = template.id;
+    confirm({
+      title: t('train.deleteTemplateTitle'),
+      body: t('train.deleteTemplateBody'),
+      confirmText: t('train.delete'),
+      destructive: true,
+      onConfirm: () => {
+        void (async () => {
+          setBusy(true);
+          try {
+            await train.deleteTemplate(id);
+            onClose();
+          } catch {
+            haptics.warning();
+            showToast(t('train.templateDeleteErr'));
+          } finally {
+            setBusy(false);
+          }
+        })();
+      },
+    });
   }
 
   return (
-    <BottomSheet visible={visible} onClose={onClose} contentStyle={styles.sheetBody} maxHeight="80%">
+    <BottomSheet
+      // Full height, native, and GUARDED while there are changes: a swipe
+      // then asks instead of discarding (Train review items 8, 21).
+      native
+      detents={[1]}
+      guarded={dirty}
+      onRequestClose={requestClose}
+      backdropTestID="template-backdrop"
+      visible={visible}
+      onClose={onClose}
+      contentStyle={styles.sheetBody}
+      maxHeight="80%"
+    >
       {/* Gestures inside a `Modal` need their own root: RNGH attaches to the
           nearest GestureHandlerRootView, and the app's lives outside this
           modal's native view on Android, where the drag would otherwise never
           start. Harmless on iOS. It sits INSIDE `<BottomSheet>` rather than
           wrapping it for exactly that reason — the root has to be within the
-          modal's native view, and the modal now belongs to the sheet. */}
+          modal's native view, and the modal now belongs to the sheet.
+          KEPT on 2026-10-04 although the iOS sheet is now native (a root
+          route, under the app's own root): Android still presents this as
+          the JS sheet — an RN Modal — and the drag there needs it. A nested
+          root inside the native sheet is the harmless case above. */}
       <GestureHandlerRootView style={styles.ghRoot}>
           <Animated.ScrollView
             ref={scrollRef}
@@ -677,7 +756,7 @@ export function TemplateEditorModal({
                the scroll range. */
             contentContainerStyle={{ paddingBottom: 360 }}
           >
-            <Text style={styles.sheetTitle}>{template ? t('train.editTemplate') : t('train.newTemplateTitle')}</Text>
+            <Text style={styles.sheetTitle} accessibilityRole="header">{template ? t('train.editTemplate') : t('train.newTemplateTitle')}</Text>
 
             <Text style={styles.fieldLabel}>{t('train.templateName')}</Text>
             <TextInput
@@ -836,7 +915,10 @@ export function TemplateEditorModal({
                 accessibilityRole="button"
                 testID="template-add-cardio"
               >
-                <Text style={styles.addExText}>{t('cardio.templateAdd')}</Text>
+                <View style={styles.addExRow}>
+                  <Ionicons name="add" size={18} color={colors.muted} />
+                  <Text style={styles.addExText}>{t('cardio.templateAdd')}</Text>
+                </View>
               </TouchableOpacity>
             )}
             </>
@@ -940,15 +1022,25 @@ export function TemplateEditorModal({
                         is unchanged, only its sighted affordance is. */}
                     <View
                       style={styles.tplDragHandle}
+                      // `adjustable` is a promise of increment/decrement — a
+                      // swipe up/down in VoiceOver — and it carried neither,
+                      // so the swipe did nothing (Train review bug 14). Up the
+                      // list is "increment", the direction of the swipe; the
+                      // position is the value it adjusts.
+                      accessible
                       accessibilityRole="adjustable"
                       accessibilityLabel={t('train.reorderA11y', { name: d.name })}
+                      accessibilityValue={{ min: 1, max: exercises.length, now: i + 1 }}
                       accessibilityActions={[
+                        { name: 'increment', label: t('train.moveUp') },
+                        { name: 'decrement', label: t('train.moveDown') },
                         { name: 'moveUp', label: t('train.moveUp') },
                         { name: 'moveDown', label: t('train.moveDown') },
                       ]}
                       onAccessibilityAction={(e) => {
-                        if (e.nativeEvent.actionName === 'moveUp') moveEx(i, -1);
-                        if (e.nativeEvent.actionName === 'moveDown') moveEx(i, 1);
+                        const action = e.nativeEvent.actionName;
+                        if (action === 'moveUp' || action === 'increment') moveEx(i, -1);
+                        if (action === 'moveDown' || action === 'decrement') moveEx(i, 1);
                       }}
                       testID={`template-drag-${i}`}
                     >
@@ -1156,7 +1248,7 @@ export function TemplateEditorModal({
                           </TouchableOpacity>
                         </View>
                         {kindOpen === openKey ? (
-                          <View>
+                          <View accessibilityRole="radiogroup">
                             {SET_KINDS.map((k) => {
                               const on = ps.kind === k.value;
                               return (
@@ -1164,8 +1256,8 @@ export function TemplateEditorModal({
                                   key={k.value}
                                   style={[styles.kindRow, on && styles.kindRowOn]}
                                   onPress={() => setSetKind(i, si, k.value)}
-                                  accessibilityRole="button"
-                                  accessibilityState={{ selected: on }}
+                                  accessibilityRole="radio"
+                                  accessibilityState={{ selected: on, checked: on }}
                                   testID={`template-set-kind-${i}-${si}-${k.value}`}
                                 >
                                   <Text style={[styles.kindRowName, on && styles.kindRowNameOn]}>
@@ -1186,17 +1278,20 @@ export function TemplateEditorModal({
                       offer to break the declaration directly above it. */}
                   <View style={styles.tplSetBtns}>
                     {canAdd.set ? (
-                      <TouchableOpacity onPress={() => addSet(i)} style={styles.addSetBtn} accessibilityRole="button" testID={`template-add-set-${i}`}>
+                      <TouchableOpacity onPress={() => addSet(i)} style={[styles.addSetBtn, styles.textAction]} accessibilityRole="button" testID={`template-add-set-${i}`}>
+                        <Ionicons name="add" size={18} color={colors.teal} />
                         <Text style={styles.sectionAction}>{t('train.addSet')}</Text>
                       </TouchableOpacity>
                     ) : null}
                     {canAdd.cluster ? (
-                      <TouchableOpacity onPress={() => addCluster(i)} style={styles.addSetBtn} accessibilityRole="button" testID={`template-add-cluster-${i}`}>
+                      <TouchableOpacity onPress={() => addCluster(i)} style={[styles.addSetBtn, styles.textAction]} accessibilityRole="button" testID={`template-add-cluster-${i}`}>
+                        <Ionicons name="add" size={18} color={colors.teal} />
                         <Text style={styles.sectionAction}>{t('train.addCluster')}</Text>
                       </TouchableOpacity>
                     ) : null}
                     {canAdd.block ? (
-                      <TouchableOpacity onPress={() => addBlock(i)} style={styles.addSetBtn} accessibilityRole="button" testID={`template-add-block-${i}`}>
+                      <TouchableOpacity onPress={() => addBlock(i)} style={[styles.addSetBtn, styles.textAction]} accessibilityRole="button" testID={`template-add-block-${i}`}>
+                        <Ionicons name="add" size={18} color={colors.teal} />
                         <Text style={styles.sectionAction}>{t('train.addBlock')}</Text>
                       </TouchableOpacity>
                     ) : null}
@@ -1365,7 +1460,7 @@ export function TemplateEditorModal({
             <View style={styles.editorBtns}>
               {template ? (
                 <TouchableOpacity style={styles.discardBtn} onPress={remove} disabled={busy} accessibilityRole="button" testID="delete-template">
-                  <Text style={styles.discardText}>{t('common.remove')}</Text>
+                  <Text style={styles.discardText}>{t('train.delete')}</Text>
                 </TouchableOpacity>
               ) : null}
               <TouchableOpacity

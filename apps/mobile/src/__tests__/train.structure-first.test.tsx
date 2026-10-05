@@ -35,6 +35,17 @@ const mockTemplate: WorkoutTemplate = {
   updatedAt: new Date('2026-09-01T00:00:00Z'),
 };
 
+// Native sheets present through a root `sheet` route that does not exist
+// under jest; the JS sheet renders its children in place, which is what this
+// suite asserts against (Train sheets went native in the 2026-10-04 review).
+jest.mock('@/components/BottomSheet', () => {
+  const actual = jest.requireActual('@/components/BottomSheet');
+  return {
+    ...actual,
+    NATIVE_SHEETS: false,
+    BottomSheet: (p: object) => actual.BottomSheet({ ...p, native: false }),
+  };
+});
 jest.mock('@/hooks/useTrain', () => ({
   useTrain: () => ({
     loading: false,

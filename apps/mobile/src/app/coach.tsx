@@ -1,8 +1,9 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { Glyph } from '@/components/charts/Glyph';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Keyboard,
   Platform,
   ScrollView,
   StyleSheet,
@@ -18,7 +19,9 @@ import { CoachMarkdown } from '@/components/CoachMarkdown';
 import { useCoach } from '@/hooks/useCoach';
 import { useAuth } from '@/lib/auth';
 import { CoachErrorCode, type CoachError, streamCoach } from '@/lib/coach';
-import { useIsOffline } from '@/lib/connectivity';
+import { isOffline, useIsOffline } from '@/lib/connectivity';
+import { announce } from '@/lib/a11y';
+import { useA11yFocus } from '@/lib/use-a11y-focus';
 import { track } from '@/lib/analytics';
 import { getConsultationQuota } from '@/lib/ledger';
 import { type I18nKey, useLocale, useT } from '@/i18n';
@@ -27,6 +30,17 @@ import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
 
 type Status = 'idle' | 'streaming' | 'done' | 'error';
+
+/**
+ * How often a streaming answer is pushed into React, at most.
+ *
+ * Every chunk used to be a `setAnswer`, and every `setAnswer` re-parses the
+ * whole answer through `CoachMarkdown` — a re-render per network packet, many
+ * per second, each a little longer than the last. 50 ms is under a frame pair
+ * at 60 Hz and well under reading speed: the text still visibly streams, at a
+ * fraction of the renders.
+ */
+const ANSWER_FLUSH_MS = 50;
 
 const SUGGESTIONS: I18nKey[] = ['coach.suggestOnTrack', 'coach.suggestAdjust', 'coach.suggestProtein'];
 
@@ -109,6 +123,11 @@ export default function Coach() {
   }, [user, unlimited]);
 
   const streaming = status === 'streaming';
+  // The answer streams BELOW the composer, which is below the fold on most
+  // phones once the keyboard is up — it used to arrive out of sight. Follow it
+  // while it streams, and move a screen reader to it when it lands.
+  const scrollRef = useRef<ScrollView>(null);
+  const replyRef = useA11yFocus(status === 'done' ? answer.length : 0, status === 'done');
   // Synchronous re-entry guard. `streaming` is state, so two taps in the same
   // frame both read it false and both spend a consultation (UX_AUDIT S18-14);
   // a ref flips before React gets to render.
@@ -119,18 +138,31 @@ export default function Coach() {
     if (!q || streaming || asking.current || offline) return;
     asking.current = true;
     haptics.tap();
+    // The keyboard covers the reply that is about to stream in.
+    Keyboard.dismiss();
     setQuestion(q);
     setStatus('streaming');
     setAnswer('');
     setErrorMsg('');
     setOverLimit(false);
 
+    // Hoisted out of the `try` so the `catch` can tell "failed before a word
+    // arrived" from "dropped mid-answer", and keep what did arrive.
+    let streamed = false;
+    let buffer = '';
+
     try {
       if (!user) throw Object.assign(new Error('auth'), { code: CoachErrorCode.UNAUTHENTICATED });
       const idToken = await user.getIdToken();
       const systemInstruction = buildCoachSystemInstruction({ logs, tdee, profile, dailyWeights, locale });
 
-      let buffer = '';
+      // Throttled flush — see ANSWER_FLUSH_MS. A trailing flush after the
+      // stream ends makes sure the last chunk is never stranded in `buffer`.
+      let lastFlush = 0;
+      const flush = () => {
+        lastFlush = Date.now();
+        setAnswer(buffer);
+      };
       track('coach_ask');
       await streamCoach({
         systemInstruction,
@@ -149,16 +181,34 @@ export default function Coach() {
         },
         onChunk: (chunk) => {
           buffer += chunk;
-          setAnswer(buffer);
+          streamed = true;
+          if (Date.now() - lastFlush >= ANSWER_FLUSH_MS) flush();
         },
       });
+      flush();
       setStatus('done');
+      announce(t('coach.replied'));
     } catch (err) {
       const code = (err as CoachError)?.code;
       if (code === CoachErrorCode.CONSULTATION_QUOTA_EXCEEDED) setOverLimit(true);
-      // A connection lost mid-stream is the one failure whose cause we know.
-      setErrorMsg(t(offline ? 'coach.offline' : errorKey(code)));
+      // Whatever arrived before the failure stays on screen.
+      if (streamed) setAnswer(buffer);
+      // A lost connection is the one failure whose cause we can name — but
+      // the `offline` above was captured when the ask STARTED, and the guard at
+      // the top already returned if it was true, so this branch never ran.
+      // Read the live verdict instead (`connectivity.ts` — NetInfo is
+      // deliberately not a dependency: native code moves the fingerprint), and
+      // treat a code-less failure AFTER chunks arrived as the stream dropping:
+      // the server reports its own failures as a typed `error` frame, so an
+      // untyped one mid-answer is the transport.
+      const msg = isOffline()
+        ? t('coach.offline')
+        : code == null && streamed
+          ? t('coach.lostMidStream')
+          : t(errorKey(code));
+      setErrorMsg(msg);
       setStatus('error');
+      announce(msg);
     } finally {
       asking.current = false;
     }
@@ -175,9 +225,9 @@ export default function Coach() {
           accessibilityLabel={t('common.back')}
           testID="coach-back"
         >
-          <Ionicons name="chevron-back" size={26} color={colors.ink} />
+          <Glyph ios="chevron.left" android="chevron-back" size={26} color={colors.ink} />
         </TouchableOpacity>
-        <Text style={styles.title}>{t('coach.title')}</Text>
+        <Text style={styles.title} accessibilityRole="header">{t('coach.title')}</Text>
         <View style={{ width: 26 }} />
       </View>
 
@@ -186,7 +236,17 @@ export default function Coach() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={8}
       >
-        <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          ref={scrollRef}
+          contentContainerStyle={styles.body}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          // Follow the answer while it streams; leave the scroll alone otherwise
+          // so reading an earlier part of a finished answer is not yanked away.
+          onContentSizeChange={() => {
+            if (streaming) scrollRef.current?.scrollToEnd({ animated: false });
+          }}
+        >
           <Text style={styles.intro}>{t('coach.intro')}</Text>
           {unlimited ? (
             <Text style={styles.counter} testID="coach-remaining">
@@ -230,6 +290,8 @@ export default function Coach() {
             placeholder={t('coach.placeholder')}
             placeholderTextColor={colors.faint}
             multiline
+            accessibilityLabel={t('coach.composerLabel')}
+            accessibilityHint={t('coach.placeholder')}
             testID="coach-input"
           />
           <TouchableOpacity
@@ -250,9 +312,11 @@ export default function Coach() {
           {/* Response */}
           {status !== 'idle' ? (
             <View style={styles.reply} testID="coach-reply">
-              <Text style={styles.replyStamp}>{t('coach.replyStamp')}</Text>
+              <Text style={styles.replyStamp} ref={replyRef} accessibilityRole="header">{t('coach.replyStamp')}</Text>
               {answer ? <CoachMarkdown text={answer} /> : null}
-              {streaming && !answer ? <ActivityIndicator color={colors.accent} style={{ marginTop: space.sm }} /> : null}
+              {streaming && !answer ? (
+                <ActivityIndicator color={colors.accent} style={{ marginTop: space.sm }} accessibilityLabel={t('coach.replyStamp')} />
+              ) : null}
               {status === 'error' ? (
                 <View style={styles.errBox}>
                   <Text style={styles.errText}>{errorMsg}</Text>
@@ -287,12 +351,14 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   offline: { fontSize: font.small, color: colors.muted, marginTop: space.md, lineHeight: 20 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginTop: space.lg },
   chipOff: { opacity: 0.4 },
+  // 44pt tall — they were ~26 (WCAG 2.5.5 / Apple HIG).
   chip: {
     borderWidth: 1,
     borderColor: colors.line,
     borderRadius: radius.pill,
     paddingHorizontal: space.md,
-    paddingVertical: space.xs,
+    minHeight: 44,
+    justifyContent: 'center',
     backgroundColor: colors.inputBg,
   },
   chipText: { fontSize: font.small, color: colors.ink },

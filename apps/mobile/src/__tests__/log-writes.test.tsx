@@ -101,6 +101,21 @@ describe('useLogWrites', () => {
     });
   });
 
+  it('hands back a refused write as rejected, and mirrors nothing (S20)', async () => {
+    mockAddLogDurably.mockResolvedValueOnce('rejected' as never);
+    const { result } = await renderHook(() => useLogWrites());
+
+    let receipt: Awaited<ReturnType<typeof result.current.addEntry>>;
+    await act(async () => {
+      receipt = await result.current.addEntry({ calories: 300, mealLabel: 'Oats' });
+    });
+
+    expect(receipt!).toEqual({ outcome: 'rejected', id: expect.any(String) });
+    // Not in the diary, so not in Health either, and no milestone for it.
+    expect(mockExportNutrition).not.toHaveBeenCalled();
+    expect(mockRecordMilestone).not.toHaveBeenCalled();
+  });
+
   it('does not mirror a zero-calorie marker row to Health', async () => {
     const { result } = await renderHook(() => useLogWrites());
 

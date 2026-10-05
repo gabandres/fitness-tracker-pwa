@@ -58,6 +58,13 @@ jest.mock('@/lib/ledger', () => ({
     live.weights = cb;
     return () => {};
   },
+  // Body's weights listener is date-bounded (Body review Pf1); same channel.
+  subscribeDailyWeightsSince: (_uid: string, _since: string, cb: Deliver<Record<string, number>>) => {
+    live.weights = cb;
+    return () => {};
+  },
+  getEarliestDailyWeight: () => Promise.resolve(null),
+  getAllDailyWeights: () => Promise.resolve({}),
   subscribeProfile: (_uid: string, cb: Deliver<Profile | null>) => {
     live.profile = cb;
     return () => {};
@@ -267,6 +274,6 @@ describe('useBody paints its measurements from disk', () => {
     await waitFor(() => expect(hook.result.current.loading).toBe(false));
     expect(hook.result.current.measurements).toHaveLength(1);
     expect(hook.result.current.measurements[0].date.getTime()).toBe(rows[0].date.getTime());
-    expect(hook.result.current.weighIns).toEqual([{ dateKey: '2026-09-20', weight: 181 }]);
+    expect(hook.result.current.weighIns).toEqual([{ dateKey: '2026-09-20', weight: 181, deltaLb: null }]);
   });
 });

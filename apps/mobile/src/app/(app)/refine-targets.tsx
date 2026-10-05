@@ -1,8 +1,10 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { Glyph } from '@/components/charts/Glyph';
+import { type Href, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  BackHandler,
   Platform,
   ScrollView,
   StyleSheet,
@@ -68,7 +70,26 @@ export default function RefineTargets() {
   const { user, profile } = useAuth();
   // Set when the Trends correction card sends the user here: the screen opens
   // already on the suggested bucket, so accepting is just Save.
-  const { suggested } = useLocalSearchParams<{ suggested?: ActivityLevel }>();
+  const { suggested, from } = useLocalSearchParams<{ suggested?: ActivityLevel; from?: string }>();
+
+  // Where back AND save return to. This is a hidden TAB route, and a tab
+  // navigator's back goes to its first route — so `router.back()` landed on
+  // Today from both doors, and Save sent a user who came from Trends to
+  // Settings. The opener says which door it was (`from=trends`); anything else
+  // is the Settings row, the original door. `replace`, because the target is a
+  // sibling tab: pushing it would stack a second copy. Android's hardware back
+  // takes the same path while this screen is focused.
+  const returnTo: Href = from === 'trends' ? '/trends' : '/settings';
+  const leave = useCallback(() => router.replace(returnTo), [router, returnTo]);
+  useFocusEffect(
+    useCallback(() => {
+      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        leave();
+        return true;
+      });
+      return () => sub.remove();
+    }, [leave]),
+  );
 
   const unitSystem = useUnitSystem();
   const metric = unitSystem === 'metric';
@@ -209,7 +230,7 @@ export default function RefineTargets() {
       // bucket again.
       if (accepting) accept();
       haptics.success();
-      router.replace('/settings');
+      leave();
     } catch {
       setError(t('refine.saveErr'));
       setBusy(false);
@@ -220,15 +241,15 @@ export default function RefineTargets() {
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={leave}
           hitSlop={10}
           accessibilityRole="button"
           accessibilityLabel={t('common.back')}
           testID="refine-back"
         >
-          <Ionicons name="chevron-back" size={26} color={colors.ink} />
+          <Glyph ios="chevron.left" android="chevron-back" size={26} color={colors.ink} />
         </TouchableOpacity>
-        <Text style={styles.title}>{t('refine.title')}</Text>
+        <Text style={styles.title} accessibilityRole="header">{t('refine.title')}</Text>
         <View style={{ width: 26 }} />
       </View>
 

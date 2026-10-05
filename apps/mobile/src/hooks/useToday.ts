@@ -60,6 +60,14 @@ import { isTodayLoading } from '@/lib/today-gate';
 export interface TodayState extends LogWrites {
   loading: boolean;
   error: Error | null;
+  /**
+   * Whether the day's rows came from SOMEWHERE — the server or the disk cache.
+   * `loading` also releases when the feed fails with neither (so the error can
+   * show), and in that state every number below is built from zero rows: a
+   * hero reading "0 kcal" and a diary saying "No entries yet" would both be
+   * false. Today draws its skeleton plus the error then (review #4).
+   */
+  hasData: boolean;
   summary: DaySummary;
   targets: DailyTargets;
   /** The user's day boundary and today's key under it (ADR-0030). Exposed so
@@ -461,6 +469,7 @@ export function useToday(): TodayState {
   return {
     loading,
     error,
+    hasData: logsReady,
     summary,
     targets,
     // Exposed so Today can open a day-scoped fasting editor without deriving

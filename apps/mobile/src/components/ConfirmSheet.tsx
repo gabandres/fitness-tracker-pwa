@@ -32,6 +32,9 @@ export interface ConfirmOptions {
   body?: string;
   /** The affirmative button's label — always name the action, never "OK". */
   confirmText: string;
+  /** The way out, when "Cancel" would be ambiguous — "Keep editing" beside
+   *  "Discard" says which of the two keeps the user's work. Default Cancel. */
+  cancelText?: string;
   /** Paints the affirmative button danger — for deletes and disconnects. */
   destructive?: boolean;
   onConfirm: () => void;
@@ -90,7 +93,7 @@ export function ConfirmHost() {
           {opts.body ? <Text style={styles.body}>{opts.body}</Text> : null}
           <View style={styles.row}>
             <TouchableOpacity style={styles.cancel} onPress={close} accessibilityRole="button" testID="confirm-cancel">
-              <Text style={styles.cancelText}>{t('common.cancel')}</Text>
+              <Text style={styles.cancelText}>{opts.cancelText ?? t('common.cancel')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.go, opts.destructive && styles.goDanger]}

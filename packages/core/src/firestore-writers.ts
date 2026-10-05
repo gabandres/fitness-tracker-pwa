@@ -30,6 +30,7 @@
 import { hasFormulaInputs } from './onboarding-seed';
 import {
   LOG_NOTE_MAX,
+  cleanLogLabel,
   type BodyFatMethod,
   type CustomFood,
   type LogEntry,
@@ -114,6 +115,7 @@ export function toLogDoc<TS>(
   now: Date = new Date(),
 ): LogDoc<TS> {
   const note = cleanLogNote(entry.note);
+  const mealLabel = cleanLogLabel(entry.mealLabel);
   return {
     calories: entry.calories,
     timestamp: codec.timestamp(entry.timestamp ?? now),
@@ -123,7 +125,7 @@ export function toLogDoc<TS>(
     ...(entry.carbs != null ? { carbs: entry.carbs } : {}),
     ...(entry.fat != null ? { fat: entry.fat } : {}),
     ...(entry.exerciseCompleted ? { exerciseCompleted: true as const } : {}),
-    ...(entry.mealLabel ? { mealLabel: entry.mealLabel } : {}),
+    ...(mealLabel ? { mealLabel } : {}),
     ...(entry.mealType ? { mealType: entry.mealType } : {}),
     ...(entry.source ? { source: entry.source } : {}),
     ...(note ? { note } : {}),
@@ -154,7 +156,7 @@ export function toLogPatch<TS>(entry: LogEntry, codec: DocCodec<TS>): Record<str
     exerciseCompleted: entry.exerciseCompleted ? true : codec.remove(),
     liftCompleted: codec.remove(),
     cardioCompleted: codec.remove(),
-    mealLabel: entry.mealLabel ? entry.mealLabel : codec.remove(),
+    mealLabel: cleanLogLabel(entry.mealLabel) ?? codec.remove(),
     mealType: entry.mealType ? entry.mealType : codec.remove(),
     note: cleanLogNote(entry.note) ?? codec.remove(),
   };

@@ -188,8 +188,11 @@ describe('what the card says', () => {
 
   it('labels the axis, so a bar height means something', async () => {
     const { queryByText } = await render(<FastingTrendsCard fasting={cardState(THREE)} />);
-    expect(queryByText('24h')).toBeTruthy();
-    expect(queryByText('0h')).toBeTruthy();
+    // Hidden from screen readers since 2026-10-04 — the strip's adjustable
+    // label carries the scale — so the query has to ask for hidden elements.
+    const hidden = { includeHiddenElements: true };
+    expect(queryByText('24h', hidden)).toBeTruthy();
+    expect(queryByText('0h', hidden)).toBeTruthy();
   });
 
   it('draws a column only for a day a fast actually ended on', async () => {

@@ -59,6 +59,8 @@ export function RecommendationNote({
           <TouchableOpacity
             style={styles.bumpChip}
             onPress={() => onAccept(rec.load as number)}
+            hitSlop={{ top: 6, bottom: 6 }}
+            accessibilityRole="button"
             testID={testID ? `${testID}-accept` : undefined}
           >
             <Text style={styles.bumpText}>{text.headline}</Text>
@@ -70,7 +72,6 @@ export function RecommendationNote({
           <TouchableOpacity
             style={styles.recGear}
             onPress={onSettings}
-            hitSlop={8}
             accessibilityRole="button"
             accessibilityLabel={t('train.rec.settings')}
             testID={testID ? `${testID}-settings` : undefined}

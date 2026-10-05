@@ -80,6 +80,21 @@ export interface DailyLog {
 /** Longest note a log row may carry — `isValidLog` in firestore.rules says the same. */
 export const LOG_NOTE_MAX = 500;
 
+/** Longest `mealLabel` a log row may carry — `isValidLog` caps it at 100.
+ *  619 bundled food names are longer, and an uncapped one was rejected by the
+ *  rules, parked as "saved offline" and lost at the queue's TTL (S20). */
+export const LOG_LABEL_MAX = 100;
+
+/** A meal label as stored: trimmed and capped at {@link LOG_LABEL_MAX}
+ *  characters, ending in an ellipsis when cut. Cut on code points so an emoji
+ *  is never split in half. Absent rather than empty. */
+export function cleanLogLabel(label: string | undefined): string | undefined {
+  const t = label?.trim();
+  if (!t) return undefined;
+  const chars = Array.from(t);
+  return chars.length <= LOG_LABEL_MAX ? t : `${chars.slice(0, LOG_LABEL_MAX - 1).join('').trimEnd()}…`;
+}
+
 /** Shape passed to addLog / updateLog — the fields the user submits. */
 export interface LogEntry {
   weight?: number;

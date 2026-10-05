@@ -76,3 +76,16 @@ export function weightBoundsFor(unitSystem: UnitSystem | undefined): { min: numb
 export function formatBodyWeight(lb: number, unitSystem: UnitSystem | undefined): string {
   return `${toDisplayWeight(lb, unitSystem)} ${bodyWeightUnit(unitSystem)}`;
 }
+
+/**
+ * True when two stored weights read as the SAME number on screen.
+ *
+ * The weigh-in sheet prefills the rounded display value, so a kilogram user
+ * who opens 180 lb sees `81.6`, and that `81.6` parses back to 179.897 lb.
+ * Comparing pounds exactly then calls an untouched field a change: the note
+ * read "81.6 → 81.6 kg" and Save rewrote the row as 179.897. Compare at the
+ * precision the user can see, and an unchanged field stays unchanged.
+ */
+export function sameDisplayedWeight(aLb: number, bLb: number, unitSystem: UnitSystem | undefined): boolean {
+  return toDisplayWeight(aLb, unitSystem) === toDisplayWeight(bLb, unitSystem);
+}

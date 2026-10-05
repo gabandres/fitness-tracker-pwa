@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { type Recommendation, formatLoad, repBandFrom } from '@macrolog/core';
 import { BottomSheet } from '@/components/BottomSheet';
+import { showToast } from '@/components/Toast';
 import { createStyles } from '@/components/train/train-styles';
 import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
@@ -76,19 +77,25 @@ export function LiftSettingsSheet({
     try {
       await onSave(patch);
       onClose();
+    } catch {
+      // A refused write is said, not left as an unhandled rejection and a
+      // sheet that does nothing (Train review bug 7's twin).
+      haptics.warning();
+      showToast(t('train.exerciseSaveErr'));
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <BottomSheet visible={visible} onClose={onClose} contentStyle={styles.sheetBody} maxHeight="80%">
-      <Text style={styles.sheetTitle}>{t('train.lift.title')}</Text>
+    <BottomSheet native visible={visible} onClose={onClose} contentStyle={styles.sheetBody} maxHeight="80%">
+      <View style={styles.sheetStack}>
+      <Text style={styles.sheetTitle} accessibilityRole="header">{t('train.lift.title')}</Text>
       {exercise ? <Text style={styles.sheetHint}>{exercise.name}</Text> : null}
 
       <View style={styles.liftSection}>
         <Text style={styles.liftLabel}>{t('train.lift.effort')}</Text>
-        <View style={[styles.styleRow, { marginTop: 0 }]}>
+        <View style={[styles.styleRow, { marginTop: 0 }]} accessibilityRole="radiogroup">
           {(['failure', 'rir1'] as const).map((s) => {
             const on = standard === s;
             return (
@@ -96,6 +103,8 @@ export function LiftSettingsSheet({
                 key={s}
                 style={[styles.styleChip, on && styles.styleChipOn]}
                 onPress={() => setStandard(s)}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: on, checked: on }}
                 testID={`lift-effort-${s}`}
               >
                 <Text style={[styles.styleChipText, on && styles.styleChipTextOn]}>
@@ -131,7 +140,7 @@ export function LiftSettingsSheet({
         </View>
         <Text style={styles.liftHint}>{t('train.lift.bandHint')}</Text>
         {bandText ? (
-          <TouchableOpacity style={styles.liftClear} onPress={() => setBandText('')} testID="lift-band-clear">
+          <TouchableOpacity style={styles.liftClear} onPress={() => setBandText('')} accessibilityRole="button" testID="lift-band-clear">
             <Text style={styles.liftClearText}>{t('train.lift.bandClear')}</Text>
           </TouchableOpacity>
         ) : null}
@@ -141,10 +150,12 @@ export function LiftSettingsSheet({
         style={[styles.finishBtn, saving && styles.btnDisabled]}
         onPress={save}
         disabled={saving || !exercise?.id}
+        accessibilityRole="button"
         testID="lift-save"
       >
         <Text style={styles.finishText}>{t('train.lift.save')}</Text>
       </TouchableOpacity>
+      </View>
     </BottomSheet>
   );
 }

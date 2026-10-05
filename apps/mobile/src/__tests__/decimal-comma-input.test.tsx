@@ -15,13 +15,15 @@ import { numOrUndef } from '@/components/train/train-shared';
  */
 
 const mockSearchFoods = jest.fn();
+// iOS presents this sheet natively, through a route this test does not mount.
+jest.mock('@/components/BottomSheet', () => require('./js-sheet').jsSheetModule());
 jest.mock('@/lib/foodSearch', () => ({
   searchFoods: (...a: unknown[]) => mockSearchFoods(...a),
   getFoodDetail: jest.fn(),
   sortServings: (s: unknown) => s,
   warmFoodIndex: jest.fn(),
 }));
-jest.mock('@/lib/haptics', () => ({ tap: jest.fn(), success: jest.fn(), warn: jest.fn(), warning: jest.fn() }));
+jest.mock('@/lib/haptics', () => ({ tap: jest.fn(), success: jest.fn(), warn: jest.fn(), warning: jest.fn(), selection: jest.fn(), tapThenOutcome: jest.fn(), removed: jest.fn() }));
 jest.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { uid: 'u1' }, profile: null }) }));
 jest.mock('@/components/BarcodeScanner', () => ({ BarcodeScanner: () => null }));
 

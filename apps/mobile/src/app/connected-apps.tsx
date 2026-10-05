@@ -3,8 +3,6 @@ import * as Application from 'expo-application';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
-  Animated,
-  Easing,
   Platform,
   ScrollView,
   StyleSheet,
@@ -13,12 +11,14 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Animated, { FadeInUp, FadeOut, ReduceMotion } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BottomSheet } from '@/components/BottomSheet';
 import { useAuth } from '@/lib/auth';
 import { useLocale, useT } from '@/i18n';
-import { formatDate, formatTime } from '@/lib/date-format';
-import { useHealthSync } from '@/lib/health-sync';
+import { announce } from '@/lib/a11y';
+import { formatDate, formatNumber, formatTime } from '@/lib/date-format';
+import { openHealthPermissions, useHealthSync } from '@/lib/health-sync';
 import { useOura } from '@/lib/oura';
 import * as haptics from '@/lib/haptics';
 import { captureError } from '@/lib/sentry';
@@ -84,6 +84,18 @@ export default function ConnectedAppsScreen() {
   const healthSync = useHealthSync(user?.uid);
   const [showDetails, setShowDetails] = useState(false);
   const [healthMsg, setHealthMsg] = useState<string | null>(null);
+  /** The last Health answer was "denied" — the one outcome with a next step
+   *  this screen can offer: the OS permission screen (Body review, U11). */
+  const [healthDenied, setHealthDenied] = useState(false);
+  const store = Platform.OS === 'ios' ? t('health.storeIos') : t('health.storeAndroid');
+  const deniedMsg = Platform.OS === 'ios' ? t('settings.healthDeniedIos') : t('settings.healthDeniedAndroid');
+
+  /** Results are SPOKEN (A9): a status line that changes under a button the
+   *  user just pressed is invisible to VoiceOver otherwise. Android reads the
+   *  line through its live region. */
+  useEffect(() => {
+    if (healthMsg) announce(healthMsg, { androidHasLiveRegion: true });
+  }, [healthMsg]);
   /** The rationale sheet that precedes the OS health prompt (S18 "priming"):
    *  what is read, what is written, where it goes. Open only on a fresh
    *  connect — a reconnect for wider scopes already had the explanation. */
@@ -96,9 +108,11 @@ export default function ConnectedAppsScreen() {
   async function connectHealthNow() {
     try {
       const ok = await healthSync.connect();
-      setHealthMsg(ok ? t('settings.healthConnected') : t('settings.healthDenied'));
+      setHealthDenied(!ok);
+      setHealthMsg(ok ? t('settings.healthConnected') : deniedMsg);
     } catch (e) {
-      setHealthMsg(t('settings.healthDenied'));
+      setHealthDenied(true);
+      setHealthMsg(deniedMsg);
       captureError(e, { where: 'connectedApps.toggleHealth' });
     }
   }
@@ -114,8 +128,9 @@ export default function ConnectedAppsScreen() {
     try {
       await healthSync.disconnect();
       setHealthMsg(null);
+      setHealthDenied(false);
     } catch (e) {
-      setHealthMsg(t('settings.healthDenied'));
+      setHealthMsg(deniedMsg);
       captureError(e, { where: 'connectedApps.toggleHealth' });
     }
   }
@@ -127,9 +142,11 @@ export default function ConnectedAppsScreen() {
     haptics.tap();
     try {
       const ok = await healthSync.connect();
-      setHealthMsg(ok ? t('settings.healthConnected') : t('settings.healthDenied'));
+      setHealthDenied(!ok);
+      setHealthMsg(ok ? t('settings.healthConnected') : deniedMsg);
     } catch (e) {
-      setHealthMsg(t('settings.healthDenied'));
+      setHealthDenied(true);
+      setHealthMsg(deniedMsg);
       captureError(e, { where: 'connectedApps.reconnect' });
     }
   }
@@ -138,9 +155,12 @@ export default function ConnectedAppsScreen() {
     haptics.tap();
     try {
       const n = await healthSync.syncNow();
-      setHealthMsg(t('settings.healthSynced', { n }));
+      setHealthMsg(t('settings.healthSynced', { n: formatNumber(n, locale) }));
     } catch (e) {
+      // Bug 10: this was a haptic and nothing else — a failed sync looked
+      // exactly like a sync that found nothing new.
       haptics.warning();
+      setHealthMsg(t('health.syncFailed', { store }));
       captureError(e, { where: 'connectedApps.syncNow' });
     }
   }
@@ -165,29 +185,50 @@ export default function ConnectedAppsScreen() {
   // banner and haptic fired on every visit to this screen.
   const wasConnected = useRef<boolean | null>(null);
   const [justConnected, setJustConnected] = useState(false);
-  const pop = useRef(new Animated.Value(0)).current;
 
+  // The banner's entrance is Reanimated with `ReduceMotion.System` (A12 / bug
+  // 11): it was an RN `Animated` back-ease that overshot to 1.0x scale for
+  // everyone, Reduce Motion or not. Now a reduce-motion user gets a plain
+  // appear/disappear; the 2.6 s life is a timer rather than an animation
+  // sequence, so it holds either way.
   useEffect(() => {
     if (!oura.ready) return;
     if (wasConnected.current === false && connected) {
       setJustConnected(true);
       haptics.success();
-      pop.setValue(0);
-      Animated.sequence([
-        Animated.timing(pop, {
-          toValue: 1,
-          duration: 320,
-          easing: Easing.out(Easing.back(2)),
-          useNativeDriver: true,
-        }),
-        Animated.delay(2400),
-        Animated.timing(pop, { toValue: 0, duration: 220, useNativeDriver: true }),
-      ]).start(({ finished }) => {
-        if (finished) setJustConnected(false);
-      });
+      announce(t('connected.justConnected'));
     }
     wasConnected.current = connected;
-  }, [connected, oura.ready, pop]);
+  }, [connected, oura.ready, t]);
+  useEffect(() => {
+    if (!justConnected) return;
+    const timer = setTimeout(() => setJustConnected(false), 2600);
+    return () => clearTimeout(timer);
+  }, [justConnected]);
+
+  // Oura's outcome lines, spoken once per result (A9).
+  useEffect(() => {
+    if (oura.failed) announce(t('oura.failed'));
+  }, [oura.failed, t]);
+  useEffect(() => {
+    const r = oura.result;
+    if (!r) return;
+    announce(!r.linked ? t('oura.needsReconnect') : r.written > 0 ? t('oura.synced', { n: r.written }) : t('oura.syncedNone'));
+  }, [oura.result, t]);
+
+  /** P2 is the lead's (a root-stack screen with a native back button); until
+   *  then the in-screen chevron must still lead somewhere on a cold deep
+   *  link, where there is nothing to go back TO. */
+  function goBack() {
+    const r = router as typeof router & { canGoBack?: () => boolean };
+    if (typeof r.canGoBack === 'function' && !r.canGoBack()) router.replace('/settings');
+    else router.back();
+  }
+
+  const healthLast = healthSync.lastSync ?? null;
+  const healthWhen = healthLast
+    ? `${formatDate(new Date(healthLast.atMs), locale, { month: 'short', day: 'numeric' })} ${formatTime(new Date(healthLast.atMs), locale)}`
+    : null;
   const syncedAt = oura.status.lastSyncedAt;
   const records = oura.status.lastRecordCount;
 
@@ -195,15 +236,16 @@ export default function ConnectedAppsScreen() {
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={goBack}
           hitSlop={10}
+          style={styles.backBtn}
           accessibilityRole="button"
           accessibilityLabel={t('common.back')}
           testID="connected-apps-back"
         >
           <Ionicons name="chevron-back" size={26} color={colors.ink} />
         </TouchableOpacity>
-        <Text style={styles.title}>{t('connected.title')}</Text>
+        <Text style={styles.title} accessibilityRole="header">{t('connected.title')}</Text>
         {/* Balances the back chevron so the title is optically centred. */}
         <View style={styles.headerSpacer} />
       </View>
@@ -213,15 +255,10 @@ export default function ConnectedAppsScreen() {
 
         {justConnected ? (
           <Animated.View
-            style={[
-              styles.success,
-              {
-                opacity: pop,
-                transform: [
-                  { scale: pop.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) },
-                ],
-              },
-            ]}
+            entering={FadeInUp.duration(320).reduceMotion(ReduceMotion.System)}
+            exiting={FadeOut.duration(220).reduceMotion(ReduceMotion.System)}
+            style={styles.success}
+            accessibilityRole="alert"
             testID="oura-just-connected"
           >
             <Ionicons name="checkmark-circle" size={22} color={colors.tealSolid} />
@@ -232,7 +269,7 @@ export default function ConnectedAppsScreen() {
         <View style={styles.card} testID="provider-oura">
           <View style={styles.cardHead}>
             <View style={styles.cardHeadText}>
-              <Text style={styles.provider}>{t('oura.title')}</Text>
+              <Text style={styles.provider} accessibilityRole="header">{t('oura.title')}</Text>
               <Text style={styles.providerSub}>
                 {connected ? t('oura.subConnected') : t('oura.subDisconnected')}
               </Text>
@@ -283,6 +320,8 @@ export default function ConnectedAppsScreen() {
           ) : null}
 
           <View style={styles.actions}>
+            {/* The lock is shared, the words are not (bug 9 / C1): only the
+                button whose action is RUNNING says so. */}
             <TouchableOpacity
               onPress={connected ? oura.disconnect : oura.connect}
               disabled={oura.busy || !oura.ready}
@@ -291,14 +330,18 @@ export default function ConnectedAppsScreen() {
                 connected ? styles.btnQuiet : styles.btnPrimary,
                 (oura.busy || !oura.ready) && styles.btnDisabled,
               ]}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: oura.busy || !oura.ready, busy: oura.action === 'connect' || oura.action === 'disconnect' }}
               testID="oura-toggle"
             >
               <Text style={[styles.btnText, connected ? styles.btnTextQuiet : styles.btnTextPrimary]}>
-                {oura.busy
+                {oura.action === 'connect'
                   ? t('oura.connecting')
-                  : connected
-                    ? t('oura.disconnect')
-                    : t('oura.connect')}
+                  : oura.action === 'disconnect'
+                    ? t('connected.disconnecting')
+                    : connected
+                      ? t('oura.disconnect')
+                      : t('oura.connect')}
               </Text>
             </TouchableOpacity>
 
@@ -307,10 +350,12 @@ export default function ConnectedAppsScreen() {
                 onPress={oura.syncNow}
                 disabled={oura.busy}
                 style={[styles.btn, styles.btnPrimary, oura.busy && styles.btnDisabled]}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: oura.busy, busy: oura.action === 'sync' }}
                 testID="oura-sync-now"
               >
                 <Text style={[styles.btnText, styles.btnTextPrimary]}>
-                  {oura.busy ? t('common.saving') : t('oura.syncNow')}
+                  {oura.action === 'sync' ? t('connected.syncing') : t('oura.syncNow')}
                 </Text>
               </TouchableOpacity>
             ) : null}
@@ -364,6 +409,8 @@ export default function ConnectedAppsScreen() {
           <TouchableOpacity
             onPress={() => setShowDetails((v) => !v)}
             style={styles.disclosure}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: showDetails }}
             testID="oura-details-toggle"
           >
             <Text style={styles.disclosureText}>{t('connected.details')}</Text>
@@ -387,7 +434,7 @@ export default function ConnectedAppsScreen() {
           <View style={styles.card} testID="provider-health">
             <View style={styles.cardHead}>
               <View style={styles.cardHeadText}>
-                <Text style={styles.provider}>
+                <Text style={styles.provider} accessibilityRole="header">
                   {Platform.OS === 'ios'
                     ? t('settings.healthConnectIos')
                     : t('settings.healthConnectAndroid')}
@@ -397,7 +444,9 @@ export default function ConnectedAppsScreen() {
               <Switch
                 value={healthSync.connected}
                 onValueChange={toggleHealth}
-                trackColor={{ true: colors.tealSolid, false: colors.line }}
+                trackColor={{ true: colors.tealSolid, false: colors.lineStrong }}
+                // A bare Switch reads "switch, off" (A6) — sync WHAT, with whom.
+                accessibilityLabel={t('health.switchA11y', { store })}
                 testID="health-toggle"
               />
             </View>
@@ -410,7 +459,18 @@ export default function ConnectedAppsScreen() {
                   so "no permission" and "no workouts" are identical to the code
                   and must not be identical here.
                 */}
-                <View style={styles.evidence}>
+                <View style={styles.evidence} testID="health-evidence">
+                  {/* Bug 14: the evidence this card's header promised. */}
+                  <Text style={styles.evidenceLine}>
+                    {healthWhen ? t('health.lastSync', { when: healthWhen }) : t('health.lastSyncNever')}
+                  </Text>
+                  {healthLast ? (
+                    <Text style={styles.evidenceLine}>
+                      {healthLast.count > 0
+                        ? t('health.lastCount', { n: formatNumber(healthLast.count, locale) })
+                        : t('health.lastCountNone')}
+                    </Text>
+                  ) : null}
                   <Text style={styles.evidenceLine}>
                     {healthSync.needsReauth
                       ? t('health.reconnectBody')
@@ -428,11 +488,13 @@ export default function ConnectedAppsScreen() {
                     onPress={healthSync.needsReauth ? onHealthReconnect : onHealthSyncNow}
                     disabled={healthSync.syncing}
                     style={[styles.btn, styles.btnPrimary, healthSync.syncing && styles.btnDisabled]}
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: healthSync.syncing, busy: healthSync.syncing }}
                     testID="health-sync-now"
                   >
                     <Text style={[styles.btnText, styles.btnTextPrimary]}>
                       {healthSync.syncing
-                        ? t('common.saving')
+                        ? t('connected.syncing')
                         : healthSync.needsReauth
                           ? t('health.reconnect')
                           : t('settings.healthSyncNow')}
@@ -442,7 +504,28 @@ export default function ConnectedAppsScreen() {
               </>
             ) : null}
 
-            {healthMsg ? <Text style={styles.msg}>{healthMsg}</Text> : null}
+            {healthMsg ? (
+              <Text style={styles.msg} accessibilityLiveRegion="polite" testID="health-msg">
+                {healthMsg}
+              </Text>
+            ) : null}
+            {/* Neither OS re-shows a declined permission prompt, so "denied"
+                with no way forward was a dead end (U11). */}
+            {healthDenied ? (
+              <TouchableOpacity
+                onPress={() => {
+                  haptics.tap();
+                  void openHealthPermissions();
+                }}
+                style={[styles.btn, styles.btnQuiet, styles.btnSolo]}
+                accessibilityRole="button"
+                testID="health-open-settings"
+              >
+                <Text style={[styles.btnText, styles.btnTextQuiet]}>
+                  {Platform.OS === 'ios' ? t('health.openSettingsIos') : t('health.openSettingsAndroid')}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
         ) : null}
 
@@ -457,6 +540,9 @@ export default function ConnectedAppsScreen() {
         visible={healthPrimeOpen}
         onClose={() => setHealthPrimeOpen(false)}
         backdropTestID="health-prime-backdrop"
+        // P1: a real iOS sheet, sized to its text. Nothing typed, so not guarded.
+        native
+        detents="fit"
       >
         <View style={styles.primeWrap} testID="health-prime">
           <Text style={styles.primeTitle} accessibilityRole="header">
@@ -506,7 +592,8 @@ const makeStyles = ({ colors }: Theme) =>
       paddingVertical: space.md,
     },
     title: { flex: 1, textAlign: 'center', fontSize: font.h2, fontWeight: '800', color: colors.ink },
-    headerSpacer: { width: 26 },
+    headerSpacer: { width: 44 },
+    backBtn: { width: 44, minHeight: 44, justifyContent: 'center' },
     body: { paddingHorizontal: space.xl, paddingBottom: space.xl, gap: space.lg },
     subtitle: { fontSize: font.body, color: colors.muted },
 
@@ -546,15 +633,19 @@ const makeStyles = ({ colors }: Theme) =>
     noticeText: { fontSize: font.small, color: colors.ink },
 
     actions: { flexDirection: 'row', gap: space.sm },
+    // 44 pt floor on every card button (A7); they were ~33.
     btn: {
       flex: 1,
       borderRadius: radius.md,
       paddingVertical: space.sm,
       paddingHorizontal: space.md,
       alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: 44,
     },
+    btnSolo: { flex: 0, alignSelf: 'stretch' },
     btnPrimary: { backgroundColor: colors.ink },
-    btnQuiet: { borderWidth: 1, borderColor: colors.line },
+    btnQuiet: { borderWidth: 1, borderColor: colors.lineStrong },
     btnDisabled: { opacity: 0.5 },
     btnText: { fontSize: font.body, fontWeight: '700' },
     btnTextPrimary: { color: colors.onInk },
@@ -574,6 +665,7 @@ const makeStyles = ({ colors }: Theme) =>
     successText: { flex: 1, fontSize: font.body, fontWeight: '700', color: colors.tealSolid },
 
     disclosure: {
+      minHeight: 44,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
@@ -595,7 +687,7 @@ const makeStyles = ({ colors }: Theme) =>
     primeList: { gap: space.xs, paddingVertical: space.xs },
     primeLine: { fontSize: font.small, color: colors.ink, lineHeight: 20 },
     primeRow: { flexDirection: 'row', gap: space.md, marginTop: space.md },
-    /** The card buttons are 8-pt padded (≈33 pt); the sheet's two are real
-     *  decisions and get the 44-pt floor. */
+    /** Every card button has the 44-pt floor now; the sheet's two get more
+     *  padding as well, because they are the real decision. */
     primeBtn: { minHeight: 44, justifyContent: 'center', paddingVertical: space.md },
   });

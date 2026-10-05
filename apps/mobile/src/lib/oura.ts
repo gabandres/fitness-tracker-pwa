@@ -317,10 +317,18 @@ export async function importOuraDaily(uid: string): Promise<OuraDailyImportResul
  * each: they are three buttons on one card and any of them running is a reason
  * the other two should not start. The alternative — a flag per action — is how
  * a double-tap on *Sync now* mid-connect produces two imports of the same run.
+ *
+ * `action` says WHICH of the three is running, for the label only. With one
+ * flag the card said "Opening Oura…" on the Disconnect button while a SYNC ran
+ * and "Saving…" on Sync now (Body review, bug 9) — the lock is shared, the
+ * words must not be.
  */
+export type OuraAction = 'connect' | 'disconnect' | 'sync';
+
 export function useOura(uid: string | undefined) {
   const { status, ready } = useOuraStatus(uid);
   const [busy, setBusy] = useState(false);
+  const [action, setAction] = useState<OuraAction | null>(null);
   const [result, setResult] = useState<OuraImportResult | null>(null);
   const [daily, setDaily] = useState<OuraDailyImportResult | null>(null);
   const [failed, setFailed] = useState(false);
@@ -328,6 +336,7 @@ export function useOura(uid: string | undefined) {
   const connect = useCallback(async () => {
     if (busy) return;
     setBusy(true);
+    setAction('connect');
     setFailed(false);
     try {
       await connectOura();
@@ -337,12 +346,14 @@ export function useOura(uid: string | undefined) {
       setFailed(true);
     } finally {
       setBusy(false);
+      setAction(null);
     }
   }, [busy]);
 
   const disconnect = useCallback(async () => {
     if (busy) return;
     setBusy(true);
+    setAction('disconnect');
     setFailed(false);
     try {
       await disconnectOura();
@@ -352,12 +363,14 @@ export function useOura(uid: string | undefined) {
       setFailed(true);
     } finally {
       setBusy(false);
+      setAction(null);
     }
   }, [busy]);
 
   const syncNow = useCallback(async () => {
     if (busy || !uid) return;
     setBusy(true);
+    setAction('sync');
     setFailed(false);
     try {
       // Workouts first: they are the reason the integration exists, and a
@@ -375,6 +388,7 @@ export function useOura(uid: string | undefined) {
       setFailed(true);
     } finally {
       setBusy(false);
+      setAction(null);
     }
   }, [busy, uid]);
 
@@ -393,6 +407,7 @@ export function useOura(uid: string | undefined) {
     status,
     ready,
     busy,
+    action,
     result,
     daily,
     failed,

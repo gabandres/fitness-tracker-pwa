@@ -48,8 +48,8 @@ export interface AddReceipt {
 
 export interface LogWrites {
   /** Resolves with the durable-write receipt (`outcome: 'queued'` when parked
-   *  offline) so the screen can show a receipt with Undo; `undefined` when
-   *  signed out. */
+   *  offline, `'rejected'` when the rules refused it) so the screen can show a
+   *  receipt with Undo — or say it was not saved; `undefined` when signed out. */
   addEntry: (entry: LogEntry) => Promise<AddReceipt | undefined>;
   updateEntry: (id: string, entry: LogEntry) => Promise<void>;
   deleteEntry: (id: string) => Promise<void>;
@@ -74,6 +74,10 @@ export function useLogWrites(): LogWrites {
       // covered, and that file says why.
       const id = newLedgerId(Math.random);
       const outcome = await addLogDurably(uid, entry, id);
+      // Refused by the rules: nothing landed and nothing will. No usage count,
+      // no Health mirror (the meal is not in the diary), no milestone — the
+      // receipt says it was not saved (`useAddReceipt`).
+      if (outcome === 'rejected') return { outcome, id };
       // Two counters, not one: `log_queued_offline` is the health signal that
       // says how often the durable path is actually load-bearing. If it is near
       // zero the queue is insurance; if it is not, connectivity is a product

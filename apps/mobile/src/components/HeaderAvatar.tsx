@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { Image, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useT } from '@/i18n';
 import { useAuth } from '@/lib/auth';
 import { useThemedStyles, type Theme } from '@/lib/theme-context';
@@ -36,11 +36,31 @@ export function HeaderAvatar() {
       hitSlop={10}
       accessibilityRole="button"
       accessibilityLabel={t('nav.settings')}
+      // A 34dp circle does not grow with Dynamic Type, so iOS's large-content
+      // viewer (long-press at accessibility sizes) is how it gets bigger.
+      accessibilityShowsLargeContentViewer
+      accessibilityLargeContentTitle={t('nav.settings')}
     >
       {photo ? (
         <Image source={{ uri: photo }} style={styles.img} />
       ) : (
-        <Text style={styles.initials}>{initials(label)}</Text>
+        // The circle is fixed dp and the letters were not: at the largest
+        // text sizes the initials scaled straight out of it, and a
+        // `lineHeight` equal to the circle pinned them off-centre as they
+        // grew (UX_AUDIT Today review #9). Centred by flexbox now, capped, and
+        // shrunk to fit as the last resort — a two-letter monogram is a
+        // picture, not text anyone needs to read larger.
+        <View style={styles.initialsWrap}>
+          <Text
+            style={styles.initials}
+            maxFontSizeMultiplier={1.2}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.6}
+          >
+            {initials(label)}
+          </Text>
+        </View>
       )}
     </TouchableOpacity>
   );
@@ -56,7 +76,7 @@ const SIZE = 34;
 // 24dp right padding consumed entirely. A control must never be what gives.
 const createStyles = ({ colors }: Theme) => StyleSheet.create({
   img: { width: SIZE, height: SIZE, borderRadius: SIZE / 2, borderWidth: 1, borderColor: colors.line, flexShrink: 0 },
-  initials: {
+  initialsWrap: {
     width: SIZE,
     height: SIZE,
     flexShrink: 0,
@@ -64,10 +84,14 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.line,
     backgroundColor: colors.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  initials: {
     color: colors.ink,
     fontSize: font.small,
     fontWeight: '800',
     textAlign: 'center',
-    lineHeight: SIZE,
   },
 });

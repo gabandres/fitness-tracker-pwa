@@ -97,9 +97,11 @@ tags:
 - extendedWaitUntil:
     visible: 'Today'
     timeout: 30000
+# An empty day is the four meal slots, each with its own "+ Add" (the Today
+# review's U3) — there is no "No entries yet." line any more.
 - scrollUntilVisible:
     element:
-      text: 'No entries yet.'
+      id: 'slot-add-breakfast'
     direction: DOWN
     timeout: 15000
 - takeScreenshot: .maestro/regression/shots/empty-02-today

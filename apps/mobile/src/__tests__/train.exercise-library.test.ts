@@ -38,7 +38,7 @@ jest.mock('@/lib/ledger', () => ({
     cb([]);
     return mockNoop;
   },
-  getActiveSession: () => Promise.resolve(null),
+  readActiveSession: () => Promise.resolve({ session: null, fromCache: false }),
   startSession: () => Promise.resolve('sess-1'),
   updateSession: jest.fn().mockResolvedValue(undefined),
   addExercise: (...a: unknown[]) => mockAddExercise(...a),

@@ -1,5 +1,4 @@
 import { StyleSheet, Text, View } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import {
   FASTING_CARD_MIN_FASTS,
@@ -7,16 +6,24 @@ import {
   FASTING_WINDOW_DAYS,
   fastHoursParts,
   fastingBarFraction,
+  parseYmd,
 } from '@macrolog/core';
 import type { FastingTrends } from '@/hooks/useFastingTrends';
 import { useT, useLocale } from '@/i18n';
-import { formatNumber } from '@/lib/date-format';
+import { formatDate, formatNumber } from '@/lib/date-format';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { useDismissedStub } from '@/hooks/useDismissedStub';
 import { StubLabel } from '@/components/StubLabel';
 import { font, radius, space, type } from '@/theme';
 import { PressScale } from '@/lib/motion';
 import * as haptics from '@/lib/haptics';
+import { GapMarker, MedianLine } from '@/components/charts/StripParts';
+import { Glyph } from '@/components/charts/Glyph';
+import { useAdjustableDays } from '@/components/charts/useAdjustableDays';
+
+/** Axis numerals are glyphs in a fixed-height strip: they scale with the OS
+ *  text size, but only this far, or they overrun the gridline they name. */
+const AXIS_MAX_SCALE = 1.3;
 
 /**
  * Fasting on Trends — a typical length, fourteen columns, a coverage line
@@ -41,7 +48,7 @@ import * as haptics from '@/lib/haptics';
  *
  * ## Two details carrying the design, both inherited
  *
- * **A day with no fast is a hairline at the baseline**, never a zero-height bar
+ * **A day with no fast is a dashed mark at the baseline**, never a zero-height bar
  * and never interpolated — a zero would read as "you fasted for no time", which
  * is a claim about the user rather than about the data. The footer says the
  * coverage out loud for the same reason.
@@ -69,11 +76,35 @@ export function FastingTrendsCard({
   hideHeader?: boolean;
 }) {
   const styles = useThemedStyles(createStyles);
-  const { colors } = useTheme();
+  const { colors, scheme } = useTheme();
   const t = useT();
   const locale = useLocale();
   const router = useRouter();
   const [stubDismissed, dismissStub] = useDismissedStub('trends.stub.fasting.dismissed');
+
+  // The strip as one adjustable element (summary + a day at a time). Built
+  // before the early returns so the hook order never changes with the state.
+  const days = fasting.kind === 'card' ? fasting.window.days : [];
+  const med = fasting.kind === 'card' ? fastHoursParts(fasting.window.medianHours) : { hours: 0, minutes: 0 };
+  const stepper = useAdjustableDays(
+    days.length,
+    fasting.kind === 'card'
+      ? t('trends.chart.fastingSummary', {
+          n: formatNumber(FASTING_WINDOW_DAYS, locale),
+          h: formatNumber(med.hours, locale),
+          m: formatNumber(med.minutes, locale),
+          count: formatNumber(fasting.window.daysWithFast, locale),
+        })
+      : '',
+    (i) => {
+      const day = days[i];
+      if (!day) return '';
+      const date = formatDate(parseYmd(day.dateKey), locale, { weekday: 'short', month: 'short', day: 'numeric' });
+      if (day.hours == null) return t('trends.chart.noFast', { date });
+      const p = fastHoursParts(day.hours);
+      return t('trends.chart.fastingPoint', { date, h: formatNumber(p.hours, locale), m: formatNumber(p.minutes, locale) });
+    },
+  );
 
   if (fasting.kind === 'pending') return null;
 
@@ -87,6 +118,7 @@ export function FastingTrendsCard({
         <View style={styles.stubRow}>
         <PressScale
           style={styles.linkRow}
+          accessibilityRole="link"
           testID="fasting-empty-link"
           onPress={() => {
             haptics.tap();
@@ -111,7 +143,7 @@ export function FastingTrendsCard({
                   })
                 : t('trends.fastingEmpty')
           } />
-          <Ionicons name="chevron-forward" size={16} color={colors.faint} />
+          <Glyph ios="chevron.right" android="chevron-forward" size={16} color={colors.faint} />
         </PressScale>
         {/* Dismiss sits OUTSIDE the navigating pressable rather than inside
             it — nesting one touchable in another makes which one fired
@@ -120,13 +152,14 @@ export function FastingTrendsCard({
         <PressScale
           style={styles.stubDismiss}
           testID="fasting-stub-dismiss"
+          accessibilityRole="button"
           accessibilityLabel={t('trends.stubDismiss')}
           onPress={() => {
             haptics.tap();
             dismissStub();
           }}
         >
-          <Ionicons name="close" size={16} color={colors.faint} />
+          <Glyph ios="xmark" android="close" size={16} color={colors.faint} />
         </PressScale>
         </View>
         <View style={styles.hairline} />
@@ -141,7 +174,7 @@ export function FastingTrendsCard({
 
   return (
     <View testID="fasting-card">
-      {hideHeader ? null : <Text style={styles.section}>{t('trends.fastingTitle')}</Text>}
+      {hideHeader ? null : <Text style={styles.section} accessibilityRole="header">{t('trends.fastingTitle')}</Text>}
       <View style={styles.card}>
         <View style={styles.head}>
           <Text style={styles.value} testID="fasting-median">
@@ -159,16 +192,22 @@ export function FastingTrendsCard({
         </View>
 
         <View style={styles.stripRow}>
-          <View style={styles.strip} testID="fasting-strip">
+          <View {...stepper.a11y} style={styles.strip} testID="fasting-strip">
             {window.days.map((day) => (
               <View key={day.dateKey} style={styles.col}>
                 <View style={styles.track}>
                   {day.hours == null ? (
-                    <View style={styles.gap} />
+                    <GapMarker />
                   ) : (
                     <View
                       style={[
                         styles.bar,
+                        // Light mode draws the amber one step darker: the
+                        // identity `habitFasting` measured 2.85:1 against the
+                        // card, under the 3:1 a bar needs (WCAG 1.4.11).
+                        // `warn` is the same amber family at 4.5:1. Dark keeps
+                        // the identity hue, which is bright on near-black.
+                        { backgroundColor: scheme === 'light' ? colors.warn : colors.habitFasting },
                         { height: `${Math.max(4, fastingBarFraction(day.hours) * 100)}%` },
                       ]}
                     />
@@ -186,24 +225,18 @@ export function FastingTrendsCard({
                 read is whether the bar TOPS hug this line — and a faint line in
                 the same tone as the bars was invisible against them. */}
             {window.medianHours > 0 ? (
-              <View
-                pointerEvents="none"
-                style={[
-                  styles.medianLine,
-                  { bottom: `${fastingBarFraction(window.medianHours) * 100}%` },
-                ]}
-              />
+              <MedianLine bottomPct={fastingBarFraction(window.medianHours) * 100} />
             ) : null}
           </View>
           {/* The axis. Without it no bar height means anything: the headline
               says 16h and nothing on the strip lets you check it. */}
-          <View style={styles.axis} pointerEvents="none">
-            <Text style={styles.axisLabel}>
+          <View style={styles.axis} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+            <Text style={styles.axisLabel} maxFontSizeMultiplier={AXIS_MAX_SCALE}>
               {t('trends.fastingAxisHours', {
                 h: formatNumber(FASTING_STRIP_CEILING_HOURS, locale),
               })}
             </Text>
-            <Text style={styles.axisLabel}>
+            <Text style={styles.axisLabel} maxFontSizeMultiplier={AXIS_MAX_SCALE}>
               {t('trends.fastingAxisHours', { h: formatNumber(0, locale) })}
             </Text>
           </View>
@@ -294,20 +327,13 @@ const createStyles = ({ colors }: Theme) =>
       borderTopRightRadius: 3,
       // Fasting's identity amber (`lib/habit-identity`) — it used to share
       // `info` with the sleep card, and the two fourteen-column strips were
-      // indistinguishable at a glance (in-app feedback, 2026-08-30).
-      backgroundColor: colors.habitFasting,
+      // indistinguishable at a glance (in-app feedback, 2026-08-30). The fill
+      // is set at the render site, per scheme — see there.
     },
-    gap: { width: '100%', height: 1, backgroundColor: colors.line },
-    medianLine: {
-      position: 'absolute',
-      left: 0,
-      right: 0,
-      height: 1,
-      backgroundColor: colors.ink,
-      opacity: 0.55,
-    },
+    // `minWidth`, not `width`: at a larger text size "24h" outgrows 30dp and a
+    // fixed width clipped it. The height stays fixed — it IS the scale.
     axis: {
-      width: 30,
+      minWidth: 30,
       height: STRIP_H,
       justifyContent: 'space-between',
       alignItems: 'flex-end',

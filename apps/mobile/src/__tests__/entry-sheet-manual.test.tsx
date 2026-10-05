@@ -15,6 +15,8 @@ import { fireEvent, renderWithProviders as render, waitFor } from '@/test-utils'
 
 const mockSearchFoods = jest.fn();
 
+// iOS presents this sheet natively, through a route this test does not mount.
+jest.mock('@/components/BottomSheet', () => require('./js-sheet').jsSheetModule());
 jest.mock('@/lib/foodSearch', () => ({
   searchFoods: (...a: unknown[]) => mockSearchFoods(...a),
   getFoodDetail: jest.fn(),
@@ -24,7 +26,7 @@ jest.mock('@/lib/foodSearch', () => ({
   warmFoodIndex: jest.fn(),
 }));
 
-jest.mock('@/lib/haptics', () => ({ tap: jest.fn(), success: jest.fn(), warn: jest.fn() }));
+jest.mock('@/lib/haptics', () => ({ tap: jest.fn(), success: jest.fn(), warn: jest.fn(), warning: jest.fn(), selection: jest.fn(), tapThenOutcome: jest.fn(), removed: jest.fn() }));
 
 // I18nProvider reads the profile through auth, which boots the Firebase SDK.
 jest.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { uid: 'u1' }, profile: null }) }));

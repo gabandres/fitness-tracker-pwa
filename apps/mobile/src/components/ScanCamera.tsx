@@ -24,6 +24,11 @@ interface Props {
   hasNote: boolean;
   /** One line under the strip: the multi-photo cost, or scans left. */
   footnote?: string | null;
+  /** The last attempt's error, or "you're offline" — above the controls, with
+   *  "Search instead" when the network is the problem (U9). */
+  notice?: { text: string; onSearch?: () => void } | null;
+  /** A shot landed. The first shot of a meal is analyzed straight away by the
+   *  caller; later ones join the strip. */
   onShot: (uri: string) => void;
   onRemove: (index: number) => void;
   onLibrary: () => void;
@@ -38,8 +43,9 @@ interface Props {
  * cost two taps that bought nothing: the OS shutter, then the OS "Use Photo"
  * confirm. Here the shutter IS the capture, and the photo lands straight in
  * the strip below — whose remove buttons are the undo the confirm used to be.
- * That and Analyze living on this same screen are what take a plate from
- * seven taps to five.
+ * Since S20 the FIRST shot is analyzed straight away by the caller (Cancel on
+ * the wait is its undo), which takes a plate from seven taps to four; Analyze
+ * here is for a strip of several angles.
  *
  * **Image pipeline is unchanged on purpose.** The picker was called with
  * `quality: 1` and the full-size file went through `encodeMealPhoto` (768 px,
@@ -51,7 +57,7 @@ interface Props {
  * Permission is the caller's job — this only mounts once access is granted,
  * the same split BarcodeScanner has with its caller.
  */
-export function ScanCamera({ photos, max, hasNote, footnote, onShot, onRemove, onLibrary, onNote, onAnalyze }: Props) {
+export function ScanCamera({ photos, max, hasNote, footnote, notice, onShot, onRemove, onLibrary, onNote, onAnalyze }: Props) {
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
@@ -138,39 +144,59 @@ export function ScanCamera({ photos, max, hasNote, footnote, onShot, onRemove, o
         </PressScale>
       </View>
 
-      {photos.length ? (
-        <View style={styles.stripRow}>
-          {photos.map((uri, i) => (
-            <View key={uri} style={styles.thumbWrap}>
-              <Image source={{ uri }} style={styles.thumb} resizeMode="cover" accessibilityIgnoresInvertColors />
-              <PressScale
-                style={styles.thumbRemove}
-                scaleTo={0.9}
-                onPress={() => onRemove(i)}
-                testID={`scan-shot-remove-${i}`}
-                accessibilityRole="button"
-                accessibilityLabel={t('scan.removePhoto', { n: i + 1 })}
-                hitSlop={(TARGET - 22) / 2}
-              >
-                <Ionicons name="close" size={14} color={colors.onInk} />
-              </PressScale>
-            </View>
-          ))}
-          {/* The note is optional, so it is a chip, not a step: a plate with
-              nothing to say about it goes shutter → Analyze. */}
-          <PressScale
-            style={styles.noteChip}
-            scaleTo={0.96}
-            onPress={onNote}
-            testID="scan-add-note"
-            accessibilityRole="button"
-            accessibilityHint={t('scan.noteHelp')}
-          >
-            <Ionicons name={hasNote ? 'create' : 'create-outline'} size={16} color={colors.ink} />
-            <Text style={styles.noteChipText} numberOfLines={1}>
-              {t(hasNote ? 'scan.editNote' : 'scan.addNote')}
-            </Text>
-          </PressScale>
+      {/* The strip, and the note chip beside it. The chip shows before the
+          first shot too: that shot is analyzed at once, so a note has to be
+          writable before it. */}
+      <View style={styles.stripRow}>
+        {photos.map((uri, i) => (
+          <View key={uri} style={styles.thumbWrap}>
+            <Image source={{ uri }} style={styles.thumb} resizeMode="cover" accessibilityIgnoresInvertColors />
+            <PressScale
+              style={styles.thumbRemove}
+              scaleTo={0.9}
+              onPress={() => onRemove(i)}
+              testID={`scan-shot-remove-${i}`}
+              accessibilityRole="button"
+              accessibilityLabel={t('scan.removePhoto', { n: i + 1 })}
+              hitSlop={(TARGET - 22) / 2}
+            >
+              <Ionicons name="close" size={14} color={colors.onInk} />
+            </PressScale>
+          </View>
+        ))}
+        {/* The note is optional, so it is a chip, not a step: a plate with
+            nothing to say about it goes straight from the shutter to the
+            reading. */}
+        <PressScale
+          style={styles.noteChip}
+          scaleTo={0.96}
+          onPress={onNote}
+          testID="scan-add-note"
+          accessibilityRole="button"
+          accessibilityHint={t('scan.noteHelp')}
+        >
+          <Ionicons name={hasNote ? 'create' : 'create-outline'} size={16} color={colors.ink} />
+          <Text style={styles.noteChipText} numberOfLines={1}>
+            {t(hasNote ? 'scan.editNote' : 'scan.addNote')}
+          </Text>
+        </PressScale>
+      </View>
+
+      {notice ? (
+        <View style={styles.notice} testID="scan-notice">
+          <Text style={styles.noticeText} accessibilityLiveRegion="polite">{notice.text}</Text>
+          {notice.onSearch ? (
+            <PressScale
+              style={styles.noticeAction}
+              scaleTo={0.96}
+              onPress={notice.onSearch}
+              accessibilityRole="button"
+              testID="scan-search-instead"
+            >
+              <Ionicons name="search" size={16} color={colors.ink} />
+              <Text style={styles.noticeActionText} numberOfLines={1}>{t('scan.searchInstead')}</Text>
+            </PressScale>
+          ) : null}
         </View>
       ) : null}
 
@@ -300,6 +326,20 @@ const createStyles = ({ colors }: Theme) =>
     },
     noteChipText: { flexShrink: 1, fontSize: font.small, fontWeight: '700', color: colors.ink },
     footnote: { fontSize: font.small, color: colors.muted, textAlign: 'center' },
+    notice: { flexDirection: 'row', alignItems: 'center', gap: space.sm, flexWrap: 'wrap' },
+    noticeText: { flex: 1, minWidth: 160, fontSize: font.small, color: colors.ink },
+    noticeAction: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: space.xs,
+      minHeight: TARGET,
+      paddingHorizontal: space.md,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.lineStrong,
+      backgroundColor: colors.card,
+    },
+    noticeActionText: { fontSize: font.small, fontWeight: '700', color: colors.ink },
     failed: { fontSize: font.small, color: colors.danger, textAlign: 'center' },
     controls: { flexDirection: 'row', alignItems: 'center' },
     side: { flex: 1, alignItems: 'center', justifyContent: 'center' },

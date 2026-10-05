@@ -1,8 +1,10 @@
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
-  Animated, type DimensionValue, Dimensions, Modal, PanResponder, Pressable,
+  Animated, type DimensionValue, Dimensions, Modal, PanResponder, Platform, Pressable,
   StyleSheet, type StyleProp, View, type ViewStyle,
 } from 'react-native';
+import { router } from 'expo-router';
+import { clearSheetPortal, dismissSheet, isPresented, setSheetPortal } from '@/lib/sheet-portal';
 import Reanimated, { useReducedMotion } from 'react-native-reanimated';
 import { ToastSheetHost } from '@/components/Toast';
 import { useT } from '@/i18n';
@@ -58,6 +60,86 @@ interface Props {
   /** Host toasts and confirms inside this sheet's Modal while it is open
    *  (default true). The confirm's own sheet passes false — it IS the overlay. */
   overlays?: boolean;
+  /**
+   * Present as a NATIVE sheet where the platform has one worth using (iOS:
+   * `UISheetPresentationController` through the root `sheet` route — real
+   * detents, system grabber and swipe, Liquid Glass on iOS 26). Elsewhere it
+   * is this component, unchanged. UX_AUDIT S20; `lib/sheet-portal.ts`.
+   */
+  native?: boolean;
+  /**
+   * The content would be lost by an accidental dismissal (typed input). A
+   * native sheet then refuses the swipe-down and asks `onRequestClose`
+   * instead; the JS sheet always asks, so it ignores this.
+   */
+  guarded?: boolean;
+  /** Native detents: fractions of the screen, or `'fit'` to the content. */
+  detents?: number[] | 'fit';
+}
+
+/** Whether `native` sheets are presented natively on this platform. */
+export const NATIVE_SHEETS = Platform.OS === 'ios';
+
+export function BottomSheet(props: Props) {
+  return props.native && NATIVE_SHEETS ? <NativeBottomSheet {...props} /> : <JsBottomSheet {...props} />;
+}
+
+/**
+ * `BottomSheet native` on iOS: publishes its children to the portal and drives
+ * the root `sheet` route from `visible`. Renders nothing in place.
+ */
+function NativeBottomSheet({
+  visible,
+  onClose,
+  children,
+  onRequestClose,
+  overlays = true,
+  guarded = false,
+  detents = [0.6, 1],
+  backdropTestID,
+}: Props) {
+  const id = `sheet-${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
+  const requestRef = useRef<(via: SheetCloseVia) => boolean>(() => true);
+  requestRef.current = (via) => {
+    if (onRequestClose) return onRequestClose(via) !== false;
+    onClose();
+    return true;
+  };
+
+  // Republished every render so the route always shows current children.
+  useLayoutEffect(() => {
+    setSheetPortal(id, {
+      node: children,
+      requestClose: (via) => requestRef.current(via),
+      guarded,
+      overlays,
+      visible,
+      testID: backdropTestID ? `${backdropTestID}-native` : undefined,
+    });
+  });
+  // The owner unmounting takes its sheet with it — left up, the route would
+  // keep showing the last children with nobody to answer its buttons.
+  useEffect(
+    () => () => {
+      dismissSheet(id);
+      clearSheetPortal(id);
+    },
+    [id],
+  );
+
+  useEffect(() => {
+    if (visible && !isPresented(id)) {
+      router.push({
+        pathname: '/sheet',
+        params: { id, detents: detents === 'fit' ? 'fit' : detents.join(',') },
+      });
+    } else if (!visible) {
+      dismissSheet(id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, id]);
+
+  return null;
 }
 
 /**
@@ -73,7 +155,7 @@ interface Props {
  * Animated API (native driver) — proven smooth in these modals; see
  * lib/motion.tsx for the Reanimated primitives used elsewhere.
  */
-export function BottomSheet({
+function JsBottomSheet({
   visible,
   onClose,
   children,

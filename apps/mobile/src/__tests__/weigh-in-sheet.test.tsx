@@ -4,6 +4,8 @@ jest.mock('@/lib/ledger', () => ({
   recordMilestone: jest.fn(),
   subscribeMilestones: () => () => {},
 }));
+// The weigh-in sheet is `native` (Body review P1) — draw it in place here.
+jest.mock('@/components/BottomSheet', () => require('./js-sheet').jsSheetModule());
 
 import { fireEvent, renderWithProviders as render, waitFor } from '@/test-utils';
 
@@ -27,6 +29,9 @@ let mockTodayWeight: number | null = 180.4;
 let mockUnitSystem: 'us' | 'metric' = 'us';
 const mockSetWeight = jest.fn().mockResolvedValue(undefined);
 
+const mockToday = '2026-10-04';
+const mockYesterday = '2026-10-03';
+
 jest.mock('@/hooks/useBody', () => ({
   useBody: () => ({
     loading: false,
@@ -34,6 +39,12 @@ jest.mock('@/hooks/useBody', () => ({
     currentWeight: 180.4,
     get todayWeight() {
       return mockTodayWeight;
+    },
+    todayKey: mockToday,
+    // The sheet reads the day's value and its neighbour from the map: today's
+    // 180.4 when there is one, otherwise yesterday's as "the last weigh-in".
+    get weights() {
+      return mockTodayWeight != null ? { [mockToday]: mockTodayWeight } : { [mockYesterday]: 180.4 };
     },
     weighIns: [],
     setWeight: mockSetWeight,
@@ -93,9 +104,11 @@ describe('the weigh-in sheet matches the water sheet', () => {
 
   it('keeps the decimal keypad rather than copying water number-pad', async () => {
     // Consistency in the RULE, not in the value: give the field the keypad its
-    // values need. Water is whole fluid ounces; a weigh-in is 180.4.
+    // values need. Water is whole fluid ounces; a weigh-in is 180.4. Since the
+    // Body review (P4) it is `decimal-pad` — the keypad with a decimal and
+    // nothing else, not `numeric`'s sign keys.
     const input = (await openSheet()).getByTestId('weight-input');
-    expect(input.props.keyboardType).toBe('numeric');
+    expect(input.props.keyboardType).toBe('decimal-pad');
   });
 
   it('names the current weight at rest', async () => {

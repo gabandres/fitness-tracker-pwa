@@ -2,6 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   type LayoutChangeEvent,
   Linking,
   Platform,
@@ -11,10 +12,12 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import {
+  LOG_LABEL_MAX,
   LOG_NOTE_MAX,
-  MEAL_TYPES,
+  cleanLogLabel,
   type CustomFood,
   type DailyLog,
   type FoodSource,
@@ -33,6 +36,8 @@ import {
 import { BarcodeScanner, type BarcodeEstimate } from '@/components/BarcodeScanner';
 import { BottomSheet, type SheetCloseVia } from '@/components/BottomSheet';
 import { confirm } from '@/components/ConfirmSheet';
+import { MealSlotChips, TimeOfDayRow } from '@/components/EntryWhen';
+import { Glyph } from '@/components/Glyph';
 import { MicButton } from './MicButton';
 import {
   FoodSearch,
@@ -44,7 +49,7 @@ import { showToast } from '@/components/Toast';
 import { MealText } from '@/components/MealText';
 import { RecipeBuilder } from '@/components/RecipeBuilder';
 import { RecipeImport } from '@/components/RecipeImport';
-import { useLocale, useT } from '@/i18n';
+import { type Locale, useLocale, useT } from '@/i18n';
 import { starterFoods } from '@/lib/starterFoods';
 import { productFromLibrary, setScanLibrary } from '@/lib/barcode';
 import { normalizeName } from '@/lib/libraryMatch';
@@ -56,9 +61,10 @@ import * as haptics from '@/lib/haptics';
 import { captureError } from '@/lib/sentry';
 import { clearLogTimer, startLogTimer } from '@/lib/log-timer';
 import type { EntryPrefill } from '@/lib/entry-prefill';
+import { formatDecimal, kcalOutOfRange, LOG_KCAL_LIMIT, LOG_MACRO_LIMIT, macroOutOfRange, parseDecimal } from '@/lib/entry-input';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
-import { formatDate, formatNumber, formatTime } from '@/lib/date-format';
+import { formatDate, formatNumber } from '@/lib/date-format';
 
 interface Props {
   visible: boolean;
@@ -102,17 +108,6 @@ interface Props {
   initialPrefill?: EntryPrefill | null;
 }
 
-/** The time row's four steppers, earliest first. Hour and five-minute steps:
- *  12:00 → 4:15 PM is seven taps, where a single 15-minute step took
- *  seventeen. JS only on purpose — a native picker would move the runtime
- *  fingerprint and cost a store build for one control. */
-const TIME_STEPS = [
-  { minutes: -60, label: 'entry.timeMinusHour', a11y: 'entry.timeEarlierHourA11y', testID: 'entry-time-minus-hour' },
-  { minutes: -5, label: 'entry.timeMinusMin', a11y: 'entry.timeEarlierMinA11y', testID: 'entry-time-minus-min' },
-  { minutes: 5, label: 'entry.timePlusMin', a11y: 'entry.timeLaterMinA11y', testID: 'entry-time-plus-min' },
-  { minutes: 60, label: 'entry.timePlusHour', a11y: 'entry.timeLaterHourA11y', testID: 'entry-time-plus-hour' },
-] as const;
-
 /** The scale row's one-tap factors. Label and spoken name are built per locale
  *  at render — "1,5×" in es-PR / pt-BR, not "1.5×" — and the name carries the
  *  number, since "½×" reads as "one half times" at best. */
@@ -134,19 +129,9 @@ function isSameDay(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
-/** Keep numeric fields as raw strings so partial input ("12.", "1.5")
- *  binds cleanly; parse only on save (see the decimal-input gotcha). */
-function numOrUndef(s: string): number | undefined {
-  // A comma is a decimal point here, not a rejection: pt-BR keyboards (and
-  // iOS decimal pads under a Brazilian region) type `12,5`, and `Number()`
-  // reads that as NaN. Same normalisation core's unit parsers already do.
-  const t = s.trim().replace(',', '.');
-  if (t === '') return undefined;
-  const n = Number(t);
-  // Negative macros are typeable (Android's numeric keypad has a minus) and
-  // firestore.rules rejects them, which surfaced as a lost row, not an error.
-  return Number.isFinite(n) && n >= 0 ? n : undefined;
-}
+/** Past this Dynamic Type scale the three macro fields stop fitting side by
+ *  side on a 375pt phone, and they stack (A1). */
+const STACK_FONT_SCALE = 1.35;
 
 /** Grams-first save context carried from a search/scan pick (ADR-0013).
  *  Mirrors the web MacroEstimate.serving. */
@@ -177,22 +162,20 @@ function formSig(...fields: string[]): string {
 /** Scale one macro string by `f`, leaving blank or unreadable text alone.
  *  Kcal rounds to whole numbers; a macro keeps one decimal under 10 g (½ × 3 g
  *  of fat is 1.5, not 2) and whole grams above, matching how labels print. */
-function scaleField(s: string, f: number): string {
-  const n = numOrUndef(s);
+function scaleField(s: string, f: number, locale: Locale): string {
+  const n = parseDecimal(s, locale);
   if (n == null) return s;
   const v = n * f;
-  return String(v >= 10 ? Math.round(v) : Math.round(v * 10) / 10);
+  return formatDecimal(v >= 10 ? Math.round(v) : Math.round(v * 10) / 10, locale);
 }
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
 /** A typed Scale factor (1.25, 0,75), or null when it is not one yet or is
  *  outside 0.1–20 — past that it is a typo, not a portion. */
-function parseFactor(text: string): number | null {
-  const raw = text.trim().replace(',', '.');
-  if (raw === '') return null;
-  const f = Number(raw);
-  return Number.isFinite(f) && f >= 0.1 && f <= 20 ? f : null;
+function parseFactor(text: string, locale: Locale): number | null {
+  const f = parseDecimal(text, locale);
+  return f != null && f >= 0.1 && f <= 20 ? f : null;
 }
 
 /** The form's numeric fields, for the iOS keyboard bar and scroll-into-view. */
@@ -200,7 +183,9 @@ type NumField = 'calories' | 'protein' | 'carbs' | 'fat' | 'grams' | 'scale';
 /** The ‹ › order of the iOS keyboard bar (`KeyboardBar`). Grams and the Scale
  *  factor sit outside it: they are a different question ("how much") from the
  *  four numbers, and a Next from fat into a weight field would be a surprise.
- *  They get a localized Done only (`useDoneKeyProps`). */
+ *  They get a localized Done only (`useDoneKeyProps`). The Name field above
+ *  Calories is the chain's first stop for ‹ (A7) but has no bar of its own —
+ *  a text keyboard has a Return key. */
 const MACRO_CHAIN = ['calories', 'protein', 'carbs', 'fat'] as const;
 type MacroField = (typeof MACRO_CHAIN)[number];
 /** One bar PER field — an accessory links to a single input (KeyboardBar.tsx). */
@@ -244,6 +229,15 @@ export function EntrySheet({
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors, scheme } = useTheme();
+  const { fontScale } = useWindowDimensions();
+  // Typed numbers are read, and prefilled ones written, the way the user's
+  // locale writes them (B5): an English `1,250` was 1.25, and a pt-BR form
+  // showed `12.5` beside a `1,5×` chip.
+  const num = (s: string) => parseDecimal(s, locale);
+  const fmt = (n: number) => formatDecimal(n, locale);
+  // A slot the sheet was opened FOR — a per-slot "Add to Lunch" row on Today.
+  // Read defensively: the field joins `EntryPrefill` with that row.
+  const presetSlot = (initialPrefill as (EntryPrefill & { mealType?: MealType }) | null | undefined)?.mealType;
   // Which date a saved/relogged entry lands on: the edited row's own date,
   // else local noon on `dateKey` (past-day add), else undefined ("now").
   const forDate = editing?.date ?? (dateKey ? noonOf(dateKey) : undefined);
@@ -276,7 +270,10 @@ export function EntrySheet({
   // deliberate noon Snack into Dinner on the way.
   const [retimeOrigin, setRetimeOrigin] = useState<{ mealType?: MealType; at: Date }>({ at: new Date() });
   const [busy, setBusy] = useState(false);
-  const [manage, setManage] = useState(false);
+  // One per section (B6): a single flag put Quick add AND Recent into remove
+  // mode together, from a button that named neither.
+  const [manageQuick, setManageQuick] = useState(false);
+  const [manageRecent, setManageRecent] = useState(false);
   const [mode, setMode] = useState<'browse' | 'custom' | 'recipe' | 'recipeImport' | 'meal'>('browse');
   // The search as the user left it, handed back to FoodSearch when browse
   // remounts — "back" from reviewing a pick used to land on an empty box.
@@ -312,6 +309,7 @@ export function EntrySheet({
   // documents; the launch-time keyboard hang of 3c06c8de is the same subsystem,
   // which is why nothing here focuses before the sheet is up).
   const calRef = useDeferredFocus(visible && mode === 'custom' && blankOpen && !editing);
+  const nameRef = useRef<TextInput>(null);
   const proteinRef = useRef<TextInput>(null);
   const carbsRef = useRef<TextInput>(null);
   const fatRef = useRef<TextInput>(null);
@@ -338,6 +336,8 @@ export function EntrySheet({
   const [searchSeed, setSearchSeed] = useState<string | undefined>(undefined);
   const [voiceSeed, setVoiceSeed] = useState<string | undefined>(undefined);
   const [scannerOpen, setScannerOpen] = useState(false);
+  // Bumped by the scanner's "Search by name" (U8) to put the keyboard back up.
+  const [searchFocus, setSearchFocus] = useState(0);
   // Camera permanently denied: the scanner can't prompt again, so we say so
   // here — in the app's own UI, not as a gate in front of an OS prompt
   // (App Review 5.1.1(iv), submission 5ba1c7f5).
@@ -363,21 +363,32 @@ export function EntrySheet({
   // Reset form + mode whenever the sheet (re)opens.
   useEffect(() => {
     if (!visible) return;
-    setLabel(editing?.mealLabel ?? '');
-    setCalories(editing?.calories != null ? String(editing.calories) : '');
-    setProtein(editing?.protein != null ? String(editing.protein) : '');
-    setCarbs(editing?.carbs != null ? String(editing.carbs) : '');
-    setFat(editing?.fat != null ? String(editing.fat) : '');
-    setMealType(editing?.mealType);
+    const opened = {
+      label: editing?.mealLabel ?? '',
+      calories: editing?.calories != null ? fmt(editing.calories) : '',
+      protein: editing?.protein != null ? fmt(editing.protein) : '',
+      carbs: editing?.carbs != null ? fmt(editing.carbs) : '',
+      fat: editing?.fat != null ? fmt(editing.fat) : '',
+    };
+    setLabel(opened.label);
+    setCalories(opened.calories);
+    setProtein(opened.protein);
+    setCarbs(opened.carbs);
+    setFat(opened.fat);
+    // An edit keeps its own slot; an add opened from a slot's row starts on
+    // that slot, and counts as picked — the clock does not re-file it.
+    const slot = editing ? editing.mealType : presetSlot;
+    setMealType(slot);
     setNote(editing?.note ?? '');
-    setMealTouched(false);
+    setMealTouched(!editing && presetSlot != null);
     setTimeTouched(false);
     setTimeDraft(null);
     const openedAt = editing?.date ?? (dateKey ? noonOf(dateKey) : new Date());
     setEntryDate(openedAt);
-    setRetimeOrigin({ mealType: editing?.mealType, at: openedAt });
+    setRetimeOrigin({ mealType: slot, at: openedAt });
     setBusy(false);
-    setManage(false);
+    setManageQuick(false);
+    setManageRecent(false);
     setPendingServing(null);
     setMode(editing ? 'custom' : 'browse');
     searchSnap.current = undefined;
@@ -391,24 +402,16 @@ export function EntrySheet({
     scaleBase.current = null;
     setGramsDraft(null);
     setBlankOpen(false);
-    setBaseline(
-      formSig(
-        editing?.mealLabel ?? '',
-        editing?.calories != null ? String(editing.calories) : '',
-        editing?.protein != null ? String(editing.protein) : '',
-        editing?.carbs != null ? String(editing.carbs) : '',
-        editing?.fat != null ? String(editing.fat) : '',
-        editing?.note ?? '',
-      ),
-    );
-    // A carried-in draft wins over the empty add form, never over an edit.
-    if (!editing && initialPrefill) {
+    setBaseline(formSig(opened.label, opened.calories, opened.protein, opened.carbs, opened.fat, editing?.note ?? ''));
+    // A carried-in draft wins over the empty add form, never over an edit. A
+    // prefill that carries only a slot (no numbers) opens the search instead.
+    if (!editing && initialPrefill && typeof initialPrefill.calories === 'number') {
       const draft = [
-        initialPrefill.mealLabel ?? '',
-        String(initialPrefill.calories),
-        initialPrefill.protein != null ? String(initialPrefill.protein) : '',
-        initialPrefill.carbs != null ? String(initialPrefill.carbs) : '',
-        initialPrefill.fat != null ? String(initialPrefill.fat) : '',
+        cleanLogLabel(initialPrefill.mealLabel) ?? '',
+        fmt(initialPrefill.calories),
+        initialPrefill.protein != null ? fmt(initialPrefill.protein) : '',
+        initialPrefill.carbs != null ? fmt(initialPrefill.carbs) : '',
+        initialPrefill.fat != null ? fmt(initialPrefill.fat) : '',
       ] as const;
       setLabel(draft[0]);
       setCalories(draft[1]);
@@ -418,7 +421,9 @@ export function EntrySheet({
       setBaseline(formSig(...draft, ''));
       setMode('custom');
     }
-  }, [visible, editing, dateKey, initialPrefill]);
+    // `fmt`/`presetSlot` derive from `locale`/`initialPrefill`, both listed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, editing, dateKey, initialPrefill, locale]);
 
   // The recipe / meal-text dirty flag belongs to the sub-mode that raised it.
   useEffect(() => {
@@ -436,7 +441,7 @@ export function EntrySheet({
   /** Shift the editable entry date by whole days (move-to-date), keeping the
    *  time-of-day. Clamped so you can't push an entry into the future. */
   function shiftEntryDate(deltaDays: number) {
-    haptics.tap();
+    haptics.selection();
     setEntryDate((prev) => {
       const next = new Date(prev);
       next.setDate(next.getDate() + deltaDays);
@@ -459,7 +464,8 @@ export function EntrySheet({
   function applyEntryTime(next: Date) {
     setTimeTouched(true);
     if (next.getTime() === entryDate.getTime()) return;
-    haptics.tap();
+    // Stepping through values, not pressing a button (D1).
+    haptics.selection();
     if (!mealTouched) setMealType(mealTypeAfterRetime(retimeOrigin.mealType, retimeOrigin.at, next));
     setEntryDate(next);
   }
@@ -492,12 +498,15 @@ export function EntrySheet({
       serving?: ServingCtx;
     }) => {
       haptics.tap();
+      // The name is capped where it is shown, not only where it is written:
+      // 619 bundled food names run past the rules' 100 (B1), and a field
+      // holding more than its `maxLength` cannot be edited down sensibly.
       const draft = [
-        src.mealLabel ?? '',
-        String(src.calories),
-        src.protein != null ? String(src.protein) : '',
-        src.carbs != null ? String(src.carbs) : '',
-        src.fat != null ? String(src.fat) : '',
+        cleanLogLabel(src.mealLabel) ?? '',
+        formatDecimal(src.calories, locale),
+        src.protein != null ? formatDecimal(src.protein, locale) : '',
+        src.carbs != null ? formatDecimal(src.carbs, locale) : '',
+        src.fat != null ? formatDecimal(src.fat, locale) : '',
       ] as const;
       setLabel(draft[0]);
       setCalories(draft[1]);
@@ -512,7 +521,7 @@ export function EntrySheet({
       // A reviewed pick: the numbers are there, Add is the next tap, and a
       // keyboard sliding up over them would be in the way.
       setBlankOpen(false);
-      setMealType(undefined);
+      setMealType(presetSlot);
       setNote('');
       // Remember the grams-first context so "Save to My Foods" can store a
       // gram-weighted, barcode-deduped food. Tied to these calories so a later
@@ -527,34 +536,80 @@ export function EntrySheet({
       setPendingServing(sv ? { ctx: { ...sv, basis }, appliedCalories: src.calories } : null);
       setMode('custom');
     },
-    [],
+    [locale, presetSlot],
   );
 
-  /** One-tap relog: log a known entry (recent / preset) and close. On a past
-   *  day, restamp it to that day rather than keeping the source's date. */
-  function quickLog(entry: LogEntry) {
-    // A tap, not a success: the screen's `onSave` buzzes success when the row
-    // lands, and two successes for one tap read as two logs.
-    haptics.tap();
-    // Fire-and-forget by design (the sheet closes on the tap), but never
-    // unhandled: the write path queues offline, so a rejection is a real
-    // fault worth a report rather than a silent vanish.
-    Promise.resolve(onSave(forDate ? { ...entry, timestamp: forDate } : entry)).catch((e) => {
+  /**
+   * Write one known entry without the form. Fire-and-forget by design (the
+   * sheet has already closed), but never unhandled — and never silent: the
+   * write path queues offline, so a rejection here is a real fault, and the
+   * user is told with a way to try again (B7). A warning haptic alone reached
+   * nobody without haptics on, after the sheet that could have said so was gone.
+   */
+  function logNow(entry: LogEntry) {
+    Promise.resolve(onSave(entry)).catch((e) => {
       haptics.warning();
       captureError(e, { where: 'entry.quickLog' });
+      const label = entry.mealLabel?.trim();
+      showToast(label ? t('entry.quickLogFailedNamed', { label }) : t('entry.quickLogFailed'), {
+        action: { label: t('common.retry'), onPress: () => logNow(entry) },
+        testID: 'toast-quicklog-failed',
+      });
+    });
+  }
+
+  /** One-tap relog: log a known entry (recent / preset / search ⊕ / typed
+   *  kcal) and close. On a past day, restamp it to that day rather than keeping
+   *  the source's date; opened from a slot's row, file it in that slot. */
+  function quickLog(entry: LogEntry) {
+    // Not a success of its own: the screen's `onSave` buzzes success when the
+    // row lands, and two successes for one tap read as two logs. The press
+    // plays only if that outcome is slow to come (`tapThenOutcome`).
+    haptics.tapThenOutcome();
+    logNow({
+      ...entry,
+      mealLabel: cleanLogLabel(entry.mealLabel),
+      ...(forDate ? { timestamp: forDate } : {}),
+      ...(entry.mealType == null && presetSlot ? { mealType: presetSlot } : {}),
     });
     onClose();
   }
 
-  const calNum = numOrUndef(calories);
-  const canSave = calNum != null && calNum > 0;
+  const calNum = num(calories);
+  const proteinNum = num(protein);
+  const carbsNum = num(carbs);
+  const fatNum = num(fat);
+  // The rules' ceilings, said on the field (B1) — a refused write used to be
+  // parked as "Saved offline" and dropped at the queue's TTL.
+  const kcalTooHigh = kcalOutOfRange(calNum);
+  const macrosTooHigh = (
+    [
+      ['protein', proteinNum],
+      ['carbs', carbsNum],
+      ['fat', fatNum],
+    ] as const
+  ).filter(([, v]) => macroOutOfRange(v));
+  const outOfRange = kcalTooHigh || macrosTooHigh.length > 0;
+  // Zero calories is a real entry once it is named (U7) — black coffee, a
+  // diet soda, water with a note. Unnamed, it would be an empty row.
+  const named = label.trim().length > 0;
+  const canSave = calNum != null && (calNum > 0 || named) && !outOfRange;
+  // Why Save is off, for the button's hint (A6) — a disabled button that gave
+  // no reason was a dead end to a screen reader and a puzzle to everyone else.
+  const saveBlocker = canSave
+    ? null
+    : outOfRange
+      ? t('entry.saveHintRange')
+      : calNum === 0
+        ? t('entry.saveHintZero')
+        : t('entry.saveHintCalories');
   // Calories vs macros, reconciled live. A note, never a gate: partial macro
   // logging is legitimate, and a number typed on purpose must save.
   const macroMiss = macroEnergyMismatch({
     kcal: calNum,
-    protein: numOrUndef(protein),
-    carbs: numOrUndef(carbs),
-    fat: numOrUndef(fat),
+    protein: proteinNum,
+    carbs: carbsNum,
+    fat: fatNum,
   });
   const canSavePreset = onSavePreset != null && label.trim().length > 0 && calNum != null;
   const canSaveCustomFood = onSaveCustomFood != null && label.trim().length > 0 && calNum != null;
@@ -578,10 +633,10 @@ export function EntrySheet({
     }
     const entry: LogEntry = {
       calories: calNum!,
-      protein: numOrUndef(protein),
-      carbs: numOrUndef(carbs),
-      fat: numOrUndef(fat),
-      mealLabel: label.trim() || undefined,
+      protein: proteinNum,
+      carbs: carbsNum,
+      fat: fatNum,
+      mealLabel: cleanLogLabel(label),
       mealType: slot,
       // Always passed, empty or not: on an edit, absent CLEARS the stored note
       // (`toLogPatch`), which is what emptying the field means.
@@ -640,9 +695,9 @@ export function EntrySheet({
     const preset = buildMealPreset({
       name: label.trim(),
       calories: calNum,
-      protein: numOrUndef(protein),
-      carbs: numOrUndef(carbs),
-      fat: numOrUndef(fat),
+      protein: proteinNum,
+      carbs: carbsNum,
+      fat: fatNum,
     });
     void saveToLibrary('preset', () => onSavePreset(preset));
   }
@@ -656,9 +711,9 @@ export function EntrySheet({
   function saveAsCustomFood() {
     if (!onSaveCustomFood || !label.trim() || calNum == null) return;
     const name = label.trim();
-    const p = numOrUndef(protein);
-    const c = numOrUndef(carbs);
-    const f = numOrUndef(fat);
+    const p = proteinNum;
+    const c = carbsNum;
+    const f = fatNum;
     // The context is only valid if the calories still match the picked
     // portion — editing them means a different amount, so drop to manual.
     const ctx =
@@ -705,14 +760,15 @@ export function EntrySheet({
   /** Open the manual form. `name` prefills the label — used when the user
    *  arrives from a search miss, where they have already typed what the food
    *  is called and retyping it is pure loss. */
-  function openCustomBlank(name = '', ctx?: ServingCtx) {
+  function openCustomBlank(query = '', ctx?: ServingCtx) {
     haptics.tap();
+    const name = cleanLogLabel(query) ?? '';
     setLabel(name);
     setCalories('');
     setProtein('');
     setCarbs('');
     setFat('');
-    setMealType(undefined);
+    setMealType(presetSlot);
     setNote('');
     // A label typed in after a barcode miss carries that barcode, so "Save to
     // My Foods" stores it under the barcode (`customFoodDocId`) and the next
@@ -735,7 +791,7 @@ export function EntrySheet({
    * than dropping to a weightless `serving:1`.
    */
   function applyScaleFrom(base: ScaleBase, f: number) {
-    const baseCal = numOrUndef(base.cal);
+    const baseCal = num(base.cal);
     if (baseCal == null) return;
     if (f === 1) {
       // Exactly what was there: `scaleField(…, 1)` would round "1.25" to "1.3".
@@ -747,10 +803,10 @@ export function EntrySheet({
       return;
     }
     const nextCal = Math.round(baseCal * f);
-    setCalories(String(nextCal));
-    setProtein(scaleField(base.p, f));
-    setCarbs(scaleField(base.c, f));
-    setFat(scaleField(base.f, f));
+    setCalories(fmt(nextCal));
+    setProtein(scaleField(base.p, f, locale));
+    setCarbs(scaleField(base.c, f, locale));
+    setFat(scaleField(base.f, f, locale));
     const ps = base.ps;
     setPendingServing(
       ps && ps.appliedCalories === baseCal
@@ -767,7 +823,7 @@ export function EntrySheet({
    *  the chip multiplies what the user can see. */
   function scaleForm(f: number) {
     if (!(f > 0) || calNum == null) return;
-    haptics.tap();
+    haptics.selection();
     setGramsDraft(null);
     if (scaleBase.current) {
       scaleBase.current = null;
@@ -792,7 +848,7 @@ export function EntrySheet({
     setScaleDraft(text);
     const base = scaleBase.current;
     if (!base) return;
-    applyScaleFrom(base, parseFactor(text) ?? 1);
+    applyScaleFrom(base, parseFactor(text, locale) ?? 1);
   }
 
   /** Close the typed factor. A readable one is already applied; unreadable or
@@ -805,7 +861,7 @@ export function EntrySheet({
     scaleBase.current = null;
     const raw = (scaleDraft ?? '').trim();
     setScaleDraft(null);
-    if (raw === '' || parseFactor(raw) != null) return;
+    if (raw === '' || parseFactor(raw, locale) != null) return;
     haptics.warning();
     applyScaleFrom(base, 1);
   }
@@ -845,7 +901,9 @@ export function EntrySheet({
     return (
       <KeyboardBar
         nativeID={kbId(f)}
-        onPrev={prev ? () => macroRefs[prev].current?.focus() : undefined}
+        // ‹ from Calories goes up to Name (A7): it was greyed out with the
+        // Name field sitting right above it.
+        onPrev={prev ? () => macroRefs[prev].current?.focus() : () => nameRef.current?.focus()}
         onNext={next ? () => macroRefs[next].current?.focus() : undefined}
       />
     );
@@ -870,12 +928,14 @@ export function EntrySheet({
   function onGramsChange(text: string) {
     setGramsDraft(text);
     const basis = gramCtx?.basis;
-    const g = parseGrams(text);
+    // Read in the user's locale first; `parseGrams` keeps the range rule.
+    const typed = num(text);
+    const g = typed != null ? parseGrams(String(typed)) : null;
     if (!basis || g == null) return;
     const next = rescaleFromBasis(basis, g);
     if (!next) return;
-    const str = (n: number | undefined, prev: string) => (n != null ? String(n) : prev);
-    setCalories(String(next.calories));
+    const str = (n: number | undefined, prev: string) => (n != null ? fmt(n) : prev);
+    setCalories(fmt(next.calories));
     setProtein((v) => str(next.protein, v));
     setCarbs((v) => str(next.carbs, v));
     setFat((v) => str(next.fat, v));
@@ -977,9 +1037,14 @@ export function EntrySheet({
    * a drag back into place).
    */
   function askDiscard(then: () => void) {
+    const name = label.trim();
+    // The body names what goes (C2), and the way out says it keeps the work —
+    // "Cancel" beside "Discard" left it unclear which of the two cancels what.
     confirm({
       title: t('entry.discardConfirm'),
+      body: mode === 'custom' && name ? t('entry.discardBodyNamed', { label: name }) : t('entry.discardBody'),
       confirmText: t('entry.discard'),
+      cancelText: t('entry.keepEditing'),
       destructive: true,
       onConfirm: then,
     });
@@ -1155,17 +1220,23 @@ export function EntrySheet({
       {presets.length > 0 ? (
         <View style={styles.group}>
           <View style={styles.groupHead}>
-            <Text style={styles.groupLabel} accessibilityRole="header">{t('entry.quickAdd')}</Text>
+            <Text style={styles.groupLabel} accessibilityRole="header" maxFontSizeMultiplier={2.2}>{t('entry.quickAdd')}</Text>
             {onDeletePreset ? (
               <TouchableOpacity
-                onPress={() => setManage((m) => !m)}
+                onPress={() => {
+                  haptics.selection();
+                  setManageQuick((m) => !m);
+                }}
                 style={styles.manageBtn}
                 hitSlop={{ left: 12, right: 12 }}
                 accessibilityRole="button"
-                accessibilityState={{ selected: manage }}
+                // Named for its section (B6): two buttons both called "Manage".
+                accessibilityLabel={manageQuick ? t('entry.manageQuickAddDone') : t('entry.manageQuickAdd')}
+                accessibilityState={{ selected: manageQuick }}
+                testID="manage-quick-add"
               >
-                <Text style={[styles.manageText, manage && styles.manageOn]}>
-                  {manage ? t('common.done') : t('common.manage')}
+                <Text style={[styles.manageText, manageQuick && styles.manageOn]} maxFontSizeMultiplier={2.2}>
+                  {manageQuick ? t('common.done') : t('common.manage')}
                 </Text>
               </TouchableOpacity>
             ) : null}
@@ -1178,14 +1249,18 @@ export function EntrySheet({
                 testID={`preset-${p.id}`}
                 accessibilityRole="button"
                 accessibilityLabel={
-                  manage
+                  manageQuick
                     ? `${t('common.remove')}: ${p.name}`
-                    : [p.name, `${formatNumber(p.calories, locale)} ${t('today.kcal')}`, p.protein != null ? t('entry.proteinAmount', { n: p.protein }) : null]
+                    : [
+                        p.name,
+                        t('entry.caloriesA11y', { n: formatNumber(p.calories, locale) }),
+                        p.protein != null ? t('entry.proteinAmount', { n: p.protein }) : null,
+                      ]
                         .filter(Boolean)
                         .join(', ')
                 }
                 onPress={() =>
-                  manage
+                  manageQuick
                     ? p.id &&
                       confirm({
                         title: t('entry.presetDeleteConfirm'),
@@ -1197,14 +1272,14 @@ export function EntrySheet({
                     : quickLog({ calories: p.calories, protein: p.protein, carbs: p.carbs, fat: p.fat, mealLabel: p.name })
                 }
               >
-                <Text style={styles.presetName} numberOfLines={1}>{p.name}</Text>
-                {manage ? (
-                  <Ionicons name="close" size={font.tiny + 2} color={colors.onInk} style={{ opacity: 0.7 }} />
+                <Text style={styles.presetName} numberOfLines={1} maxFontSizeMultiplier={2.2}>{p.name}</Text>
+                {manageQuick ? (
+                  <Ionicons name="close" size={font.tiny + 2} color={colors.onInk} />
                 ) : (
                   // Protein beside kcal: this app tracks the two together, and a
                   // chip that showed one left the user guessing the other.
-                  <Text style={styles.presetKcal}>
-                    {p.calories}
+                  <Text style={styles.presetKcal} maxFontSizeMultiplier={2.2}>
+                    {formatNumber(p.calories, locale)} {t('today.kcal')}
                     {p.protein != null ? ` · ${t('entry.proteinAmount', { n: p.protein })}` : ''}
                   </Text>
                 )}
@@ -1218,17 +1293,22 @@ export function EntrySheet({
       {browseRows.length > 0 ? (
         <View style={styles.group}>
           <View style={styles.groupHead}>
-            <Text style={styles.groupLabel} accessibilityRole="header">{t('entry.recent')}</Text>
+            <Text style={styles.groupLabel} accessibilityRole="header" maxFontSizeMultiplier={2.2}>{t('entry.recent')}</Text>
             {onHideRecent || onDeleteCustomFood ? (
               <TouchableOpacity
-                onPress={() => setManage((m) => !m)}
+                onPress={() => {
+                  haptics.selection();
+                  setManageRecent((m) => !m);
+                }}
                 style={styles.manageBtn}
                 hitSlop={{ left: 12, right: 12 }}
                 accessibilityRole="button"
-                accessibilityState={{ selected: manage }}
+                accessibilityLabel={manageRecent ? t('entry.manageRecentsDone') : t('entry.manageRecents')}
+                accessibilityState={{ selected: manageRecent }}
+                testID="manage-recents"
               >
-                <Text style={[styles.manageText, manage && styles.manageOn]}>
-                  {manage ? t('common.done') : t('common.manage')}
+                <Text style={[styles.manageText, manageRecent && styles.manageOn]} maxFontSizeMultiplier={2.2}>
+                  {manageRecent ? t('common.done') : t('common.manage')}
                 </Text>
               </TouchableOpacity>
             ) : null}
@@ -1240,24 +1320,34 @@ export function EntrySheet({
               testID={row.key}
               accessibilityRole="button"
               accessibilityLabel={
-                manage && row.onRemove
+                manageRecent && row.onRemove
                   ? `${t('common.remove')}: ${row.name}`
-                  : // A bare "101" was all the number said; name the unit.
-                    [row.name, row.tag, `${formatNumber(row.kcal, locale)} ${t('today.kcal')}`, row.protein != null ? t('entry.proteinAmount', { n: row.protein }) : null]
+                  : // A bare "101" was all the number said; name the unit —
+                    // as a word, since "kcal" is read letter by letter (A5).
+                    [
+                      row.name,
+                      row.tag,
+                      t('entry.caloriesA11y', { n: formatNumber(row.kcal, locale) }),
+                      row.protein != null ? t('entry.proteinAmount', { n: row.protein }) : null,
+                    ]
                       .filter(Boolean)
                       .join(', ')
               }
-              onPress={() => (manage ? row.onRemove?.() : row.onLog())}
+              onPress={() => (manageRecent ? row.onRemove?.() : row.onLog())}
             >
-              <Text style={styles.rowName} numberOfLines={1}>{row.name}</Text>
-              {row.tag ? <Text style={styles.rowTag}>{row.tag}</Text> : null}
-              {manage && row.onRemove ? (
+              <Text style={styles.rowName} numberOfLines={1} maxFontSizeMultiplier={2.2}>{row.name}</Text>
+              {row.tag ? <Text style={styles.rowTag} maxFontSizeMultiplier={2.2}>{row.tag}</Text> : null}
+              {manageRecent && row.onRemove ? (
                 <Ionicons name="close" size={font.body} color={colors.danger} />
               ) : (
                 <View style={styles.rowNums}>
-                  <Text style={styles.rowKcal}>{row.kcal}</Text>
+                  {/* The unit beside the number (V3): "101" alone was a count
+                      of nothing in particular. */}
+                  <Text style={styles.rowKcal} maxFontSizeMultiplier={2.2}>
+                    {formatNumber(row.kcal, locale)} <Text style={styles.rowUnit}>{t('today.kcal')}</Text>
+                  </Text>
                   {row.protein != null ? (
-                    <Text style={styles.rowProtein}>{t('entry.proteinAmount', { n: row.protein })}</Text>
+                    <Text style={styles.rowProtein} maxFontSizeMultiplier={2.2}>{t('entry.proteinAmount', { n: row.protein })}</Text>
                   ) : null}
                 </View>
               )}
@@ -1268,7 +1358,7 @@ export function EntrySheet({
 
       {browseRows.length === 0 && presets.length === 0 ? (
         <View style={styles.group}>
-          <Text style={styles.groupLabel} accessibilityRole="header">{t('entry.suggested')}</Text>
+          <Text style={styles.groupLabel} accessibilityRole="header" maxFontSizeMultiplier={2.2}>{t('entry.suggested')}</Text>
           <View style={styles.starterWrap}>
             {starterFoods(locale).map((f) => (
               <TouchableOpacity
@@ -1276,17 +1366,23 @@ export function EntrySheet({
                 style={styles.starterChip}
                 testID={`starter-${f.label}`}
                 accessibilityRole="button"
-                accessibilityLabel={`${f.label}, ${formatNumber(f.calories, locale)} ${t('today.kcal')}`}
+                accessibilityLabel={`${f.label}, ${t('entry.caloriesA11y', { n: formatNumber(f.calories, locale) })}`}
                 onPress={() => prefill({ calories: f.calories, protein: f.protein, mealLabel: f.label })}
               >
-                <Text style={styles.starterLabel} numberOfLines={1}>{f.label}</Text>
-                <Text style={styles.starterKcal}>{f.calories}</Text>
+                <Text style={styles.starterLabel} numberOfLines={1} maxFontSizeMultiplier={2.2}>{f.label}</Text>
+                <Text style={styles.starterKcal} maxFontSizeMultiplier={2.2}>
+                  {formatNumber(f.calories, locale)} {t('today.kcal')}
+                </Text>
               </TouchableOpacity>
             ))}
           </View>
         </View>
       ) : null}
     </View>
+  );
+
+  const moreIcon = (sf: Parameters<typeof Glyph>[0]['sf'], ion: Parameters<typeof Glyph>[0]['ion']) => (
+    <Glyph sf={sf} ion={ion} size={20} color={colors.ink} />
   );
 
   const headerIcons = (
@@ -1300,8 +1396,8 @@ export function EntrySheet({
           carry which of the four ways in this is. `testID` is unchanged on
           purpose — four Maestro flows and a unit test drive this button by it. */}
       <TouchableOpacity style={styles.primaryBtn} onPress={() => openCustomBlank()} accessibilityRole="button" testID="open-manual">
-        <Ionicons name="add" size={20} color={colors.ink} />
-        <Text style={styles.primaryBtnText}>{t('entry.writeItYourself')}</Text>
+        <Glyph sf="plus" ion="add" size={20} color={colors.ink} />
+        <Text style={styles.primaryBtnText} maxFontSizeMultiplier={2.2}>{t('entry.writeItYourself')}</Text>
       </TouchableOpacity>
       <TouchableOpacity
         style={styles.primaryBtn}
@@ -1310,8 +1406,8 @@ export function EntrySheet({
         accessibilityState={{ expanded: moreOpen }}
         testID="open-more"
       >
-        <Ionicons name={moreOpen ? 'chevron-up' : 'ellipsis-horizontal'} size={18} color={colors.ink} />
-        <Text style={styles.primaryBtnText}>{t('entry.moreWays')}</Text>
+        <Glyph sf={moreOpen ? 'chevron.up' : 'ellipsis'} ion={moreOpen ? 'chevron-up' : 'ellipsis-horizontal'} size={18} color={colors.ink} />
+        <Text style={styles.primaryBtnText} maxFontSizeMultiplier={2.2}>{t('entry.moreWays')}</Text>
       </TouchableOpacity>
     </View>
     {moreOpen ? (
@@ -1326,28 +1422,28 @@ export function EntrySheet({
             accessibilityRole="button"
             testID="open-scan"
           >
-            <Ionicons name="camera-outline" size={20} color={colors.ink} />
-            <Text style={styles.moreRowText}>{t('log.scan')}</Text>
+            {moreIcon('camera', 'camera-outline')}
+            <Text style={styles.moreRowText} maxFontSizeMultiplier={2.2}>{t('log.scan')}</Text>
           </TouchableOpacity>
         ) : null}
         <TouchableOpacity style={styles.moreRow} onPress={() => { haptics.tap(); setMoreOpen(false); setMode('meal'); }} accessibilityRole="button" testID="open-mealtext">
-          <Ionicons name="chatbubble-ellipses-outline" size={20} color={colors.ink} />
-          <Text style={styles.moreRowText}>{t('entry.describeMeal')}</Text>
+          {moreIcon('text.bubble', 'chatbubble-ellipses-outline')}
+          <Text style={styles.moreRowText} maxFontSizeMultiplier={2.2}>{t('entry.describeMeal')}</Text>
         </TouchableOpacity>
         {Platform.OS !== 'web' ? (
           <TouchableOpacity style={styles.moreRow} onPress={openScanner} accessibilityRole="button" testID="open-barcode">
-            <Ionicons name="barcode-outline" size={20} color={colors.ink} />
-            <Text style={styles.moreRowText}>{t('entry.scanBarcode')}</Text>
+            {moreIcon('barcode.viewfinder', 'barcode-outline')}
+            <Text style={styles.moreRowText} maxFontSizeMultiplier={2.2}>{t('entry.scanBarcode')}</Text>
           </TouchableOpacity>
         ) : null}
         <TouchableOpacity style={styles.moreRow} onPress={() => { haptics.tap(); setMoreOpen(false); setMode('recipe'); }} accessibilityRole="button" testID="open-recipe">
-          <Ionicons name="calculator-outline" size={20} color={colors.ink} />
-          <Text style={styles.moreRowText}>{t('entry.recipeBuilder')}</Text>
+          {moreIcon('list.bullet.clipboard', 'calculator-outline')}
+          <Text style={styles.moreRowText} maxFontSizeMultiplier={2.2}>{t('entry.recipeBuilder')}</Text>
         </TouchableOpacity>
         {Platform.OS !== 'web' ? (
           <TouchableOpacity style={styles.moreRow} onPress={() => { haptics.tap(); setMoreOpen(false); setMode('recipeImport'); }} accessibilityRole="button" testID="open-recipe-import">
-            <Ionicons name="link-outline" size={20} color={colors.ink} />
-            <Text style={styles.moreRowText}>{t('entry.importRecipe')}</Text>
+            {moreIcon('link', 'link-outline')}
+            <Text style={styles.moreRowText} maxFontSizeMultiplier={2.2}>{t('entry.importRecipe')}</Text>
           </TouchableOpacity>
         ) : null}
       </View>
@@ -1363,15 +1459,67 @@ export function EntrySheet({
     </>
   );
 
+  /**
+   * A scanned product. One the user saved to My Foods under this barcode is
+   * logged straight away (+ → barcode → done, two taps): it is their own
+   * number, already reviewed once, and the receipt carries Edit and Undo for
+   * the time it is not right. Anything else lands on the review form.
+   */
+  function onBarcodePick(est: BarcodeEstimate) {
+    setScannerOpen(false);
+    const code = est.serving?.barcode;
+    if (code && customFoods.some((f) => f.barcode === code)) {
+      quickLog({
+        calories: Math.round(est.calories),
+        protein: est.protein != null ? round1(est.protein) : undefined,
+        carbs: est.carbs != null ? round1(est.carbs) : undefined,
+        fat: est.fat != null ? round1(est.fat) : undefined,
+        mealLabel: est.mealLabel,
+      });
+      return;
+    }
+    openBarcodeReview(est);
+  }
+
+  // The form's title says which of its two jobs it is doing (C2): typing an
+  // entry from nothing, or checking a pick. Both used to say "Add food", the
+  // same as the search view behind it.
+  const formTitle = editing
+    ? t('entry.editTitle')
+    : blankOpen
+      ? t('entry.writeItYourself')
+      : t('entry.reviewTitle');
+  const stackMacros = fontScale > STACK_FONT_SCALE;
+  const macroRangeLines = macrosTooHigh.map(([k]) =>
+    t('entry.macroTooHigh', {
+      macro: t(k === 'protein' ? 'history.protein' : k === 'carbs' ? 'today.carbs' : 'today.fat'),
+      max: formatNumber(LOG_MACRO_LIMIT - 1, locale),
+    }),
+  );
+
   return (
-    <BottomSheet visible={visible} onClose={onClose} onRequestClose={requestClose} backdropTestID="entry-backdrop">
+    <BottomSheet
+      native
+     
+      guarded={dirty}
+      visible={visible}
+      onClose={onClose}
+      onRequestClose={requestClose}
+      backdropTestID="entry-backdrop"
+      // The JS sheet (Android, and anywhere the native one is not used): in
+      // dark mode `paper` over the 0.6 black scrim measured 1.05:1, so the
+      // panel's edge was a guess. `card` plus a hairline gives it one (V1).
+      contentStyle={scheme === 'dark' ? styles.sheetDark : undefined}
+    >
             {/* UX_AUDIT F4: this sheet had no title at all. Every other mode
-                below announces itself ("Add food", "Edit entry"); the one most
-                people land on opened with a bare search field and left them to
-                infer what they were looking at. */}
+                below announces itself ("Write it in", "Edit entry"); the one
+                most people land on opened with a bare search field and left
+                them to infer what they were looking at. */}
             {mode === 'browse' ? (
               <>
-              <Text ref={modeTitleRef} style={styles.browseTitle} accessibilityRole="header">{t('entry.browseTitle')}</Text>
+              <Text ref={modeTitleRef} style={styles.browseTitle} accessibilityRole="header" maxFontSizeMultiplier={1.6}>
+                {t('entry.browseTitle')}
+              </Text>
               <FoodSearch
                 unitSystem={unitSystem}
                 seedQuery={searchSeed}
@@ -1381,6 +1529,16 @@ export function EntrySheet({
                 }}
                 backHandlerRef={searchBack}
                 libraryItems={libraryItems}
+                // The keyboard comes up with the sheet (U2): typing a food is
+                // what most opens are for, and a tap into the field first was
+                // a tap spent on nothing. Never over an edit or a carried-in
+                // draft — those open on the form, not here.
+                autoFocus={visible && !editing}
+                focusSignal={searchFocus}
+                onQuickLog={(est) =>
+                  quickLog({ calories: est.calories, protein: est.protein, carbs: est.carbs, fat: est.fat, mealLabel: est.mealLabel })
+                }
+                onQuickAdd={(q) => quickLog({ calories: q.calories, protein: q.protein, carbs: q.carbs, fat: q.fat })}
                 // Gone once the camera is denied for good: the notice under the
                 // buttons explains why, and a door that opens onto nothing is worse.
                 onScanBarcode={Platform.OS !== 'web' && !cameraDenied ? openScanner : undefined}
@@ -1441,13 +1599,19 @@ export function EntrySheet({
                   ) : (
                     <View style={styles.backSpacer} />
                   )}
-                  <Text ref={modeTitleRef} style={styles.title} accessibilityRole="header">{editing ? t('entry.editTitle') : t('entry.addTitle')}</Text>
+                  <Text ref={modeTitleRef} style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={1.6} numberOfLines={2}>
+                    {formTitle}
+                  </Text>
                   <View style={styles.backSpacer} />
                 </View>
 
                 {/* Scrolls so the fields can never push Save/Delete out of the
                     sheet when the keyboard is up — the actions row below stays
-                    pinned and reachable. */}
+                    pinned and reachable. `revealField` keeps the focused
+                    number in view; KeyboardAwareScrollView was weighed for it
+                    (F3) and left out, because it pads for the keyboard itself
+                    and the native sheet's container already does — two
+                    paddings for one keyboard. */}
                 <ScrollView
                   ref={formScrollRef}
                   style={styles.formScroll}
@@ -1471,10 +1635,14 @@ export function EntrySheet({
                       Return walks name → kcal → protein → carbs → fat. */}
                   <Field label={t('entry.name')} labelled>
                     <TextInputBase
+                      ref={nameRef}
                       placeholder={t('entry.namePlaceholder')}
                       value={label}
                       onChangeText={setLabel}
                       accessibilityLabel={t('entry.name')}
+                      // The rules' own cap (B1). Typing stops at it; a longer
+                      // pick or query is cut to it on the way in.
+                      maxLength={LOG_LABEL_MAX}
                       returnKeyType="next"
                       submitBehavior="submit"
                       onSubmitEditing={() => calRef.current?.focus()}
@@ -1490,7 +1658,9 @@ export function EntrySheet({
                     <TextInputBase
                       ref={calRef}
                       placeholder="0"
-                      keyboardType="numeric"
+                      // `decimal`, not `numeric`: Android's numeric keypad can
+                      // drop the comma a pt-BR user types (B10).
+                      inputMode="decimal"
                       value={calories}
                       onChangeText={setCalories}
                       accessibilityLabel={t('entry.calories')}
@@ -1500,70 +1670,64 @@ export function EntrySheet({
                       {...kbBarProps.calories}
                       onFocus={() => onNumFocus('calories')}
                       onBlur={() => onNumBlur('calories')}
+                      style={[styles.input, kcalTooHigh && styles.inputInvalid]}
                       testID="entry-calories"
                     />
                     {macroBar('calories')}
+                    {kcalTooHigh ? (
+                      <Text style={styles.fieldError} accessibilityRole="alert" accessibilityLiveRegion="polite" testID="entry-kcal-error">
+                        {t('entry.kcalTooHigh', { max: formatNumber(LOG_KCAL_LIMIT - 1, locale) })}
+                      </Text>
+                    ) : null}
                   </Field>
 
-                  <View style={styles.row3} onLayout={(e) => (fieldBoxes.current.macros = e.nativeEvent.layout)}>
-                    <Field label={t('entry.proteinG')} style={styles.third} labelled>
-                      <TextInputBase
-                        ref={proteinRef}
-                        placeholder="0"
-                        keyboardType="numeric"
-                        value={protein}
-                        onChangeText={setProtein}
-                        accessibilityLabel={t('entry.proteinG')}
-                        returnKeyType="next"
-                        submitBehavior="submit"
-                        onSubmitEditing={() => carbsRef.current?.focus()}
-                        {...kbBarProps.protein}
-                        onFocus={() => onNumFocus('protein')}
-                        onBlur={() => onNumBlur('protein')}
-                        testID="entry-protein"
-                      />
-                      {macroBar('protein')}
-                    </Field>
-                    <Field label={t('entry.carbsG')} style={styles.third} labelled>
-                      <TextInputBase
-                        ref={carbsRef}
-                        placeholder="0"
-                        keyboardType="numeric"
-                        value={carbs}
-                        onChangeText={setCarbs}
-                        accessibilityLabel={t('entry.carbsG')}
-                        returnKeyType="next"
-                        submitBehavior="submit"
-                        onSubmitEditing={() => fatRef.current?.focus()}
-                        {...kbBarProps.carbs}
-                        onFocus={() => onNumFocus('carbs')}
-                        onBlur={() => onNumBlur('carbs')}
-                        testID="entry-carbs"
-                      />
-                      {macroBar('carbs')}
-                    </Field>
-                    <Field label={t('entry.fatG')} style={styles.third} labelled>
-                      <TextInputBase
-                        ref={fatRef}
-                        placeholder="0"
-                        keyboardType="numeric"
-                        value={fat}
-                        onChangeText={setFat}
-                        accessibilityLabel={t('entry.fatG')}
-                        returnKeyType="done"
-                        {...kbBarProps.fat}
-                        onFocus={() => onNumFocus('fat')}
-                        onBlur={() => onNumBlur('fat')}
-                        testID="entry-fat"
-                      />
-                      {macroBar('fat')}
-                    </Field>
+                  <View
+                    style={[styles.row3, stackMacros && styles.row3Stacked]}
+                    onLayout={(e) => (fieldBoxes.current.macros = e.nativeEvent.layout)}
+                  >
+                    {(
+                      [
+                        ['protein', t('entry.proteinG'), protein, setProtein, proteinRef],
+                        ['carbs', t('entry.carbsG'), carbs, setCarbs, carbsRef],
+                        ['fat', t('entry.fatG'), fat, setFat, fatRef],
+                      ] as const
+                    ).map(([f, caption, value, setValue, ref]) => {
+                      const next = MACRO_CHAIN[MACRO_CHAIN.indexOf(f) + 1];
+                      const invalid = macrosTooHigh.some(([k]) => k === f);
+                      return (
+                        <Field key={f} label={caption} style={stackMacros ? undefined : styles.third} labelled>
+                          <TextInputBase
+                            ref={ref}
+                            placeholder="0"
+                            inputMode="decimal"
+                            value={value}
+                            onChangeText={setValue}
+                            accessibilityLabel={caption}
+                            returnKeyType={next ? 'next' : 'done'}
+                            {...(next
+                              ? { submitBehavior: 'submit' as const, onSubmitEditing: () => macroRefs[next].current?.focus() }
+                              : {})}
+                            {...kbBarProps[f]}
+                            onFocus={() => onNumFocus(f)}
+                            onBlur={() => onNumBlur(f)}
+                            style={[styles.input, invalid && styles.inputInvalid]}
+                            testID={`entry-${f}`}
+                          />
+                          {macroBar(f)}
+                        </Field>
+                      );
+                    })}
                   </View>
+                  {macroRangeLines.length ? (
+                    <Text style={styles.fieldError} accessibilityRole="alert" accessibilityLiveRegion="polite" testID="entry-macro-error">
+                      {macroRangeLines.join('\n')}
+                    </Text>
+                  ) : null}
                   {/* `|| gramCtx`: typing a tiny weight can round kcal to 0, and
                       the row (with the field being typed in) must not vanish. */}
                   {(calNum != null && calNum > 0) || gramCtx ? (
                     <View style={styles.scaleRow} onLayout={(e) => (fieldBoxes.current.scale = e.nativeEvent.layout)}>
-                      <Text style={styles.fieldLabel}>{t('entry.scale')}</Text>
+                      <Text style={styles.fieldLabel} maxFontSizeMultiplier={2.2}>{t('entry.scale')}</Text>
                       {SCALE_STEPS.map((st) => (
                         <TouchableOpacity
                           key={st.f}
@@ -1573,7 +1737,7 @@ export function EntrySheet({
                           accessibilityLabel={t('entry.scaleBy', { n: formatNumber(st.f, locale) })}
                           testID={`entry-scale-${st.f}`}
                         >
-                          <Text style={styles.scaleChipText}>
+                          <Text style={styles.scaleChipText} maxFontSizeMultiplier={2.2}>
                             {st.f === 0.5 ? '½' : formatNumber(st.f, locale)}×
                           </Text>
                         </TouchableOpacity>
@@ -1610,7 +1774,7 @@ export function EntrySheet({
                           accessibilityLabel={t('entry.scaleTypeA11y')}
                           testID="entry-scale-other"
                         >
-                          <Text style={styles.scaleChipText}>{t('entry.scaleOther')}</Text>
+                          <Text style={styles.scaleChipText} maxFontSizeMultiplier={2.2}>{t('entry.scaleOther')}</Text>
                         </TouchableOpacity>
                       )}
                       {/* Edit in grams — only when the pick came with a weight
@@ -1620,11 +1784,11 @@ export function EntrySheet({
                         <View style={styles.gramsBox}>
                           <TextInput
                             style={[styles.scaleChip, styles.scaleInput, styles.gramsInput]}
-                            value={gramsDraft ?? String(gramCtx.grams)}
+                            value={gramsDraft ?? fmt(gramCtx.grams ?? 0)}
                             onChangeText={onGramsChange}
                             {...doneKeyProps}
                             onFocus={() => {
-                              setGramsDraft(String(gramCtx.grams));
+                              setGramsDraft(fmt(gramCtx.grams ?? 0));
                               onNumFocus('grams');
                             }}
                             onBlur={() => {
@@ -1648,43 +1812,36 @@ export function EntrySheet({
                     </View>
                   ) : null}
                   {macroMiss ? (
-                    <Text style={styles.macroNote} testID="entry-macro-note">
-                      {t('entry.macroMismatch', { kcal: macroMiss.estimateKcal, entered: calNum ?? 0 })}
-                    </Text>
+                    // Information, not an error (V2): the line says "you can
+                    // still save", and red said the opposite.
+                    <View style={styles.macroNoteRow}>
+                      <Ionicons name="information-circle-outline" size={16} color={colors.muted} />
+                      <Text style={styles.macroNote} testID="entry-macro-note" maxFontSizeMultiplier={2.2}>
+                        {t('entry.macroMismatch', {
+                          kcal: formatNumber(macroMiss.estimateKcal, locale),
+                          entered: formatNumber(calNum ?? 0, locale),
+                        })}
+                      </Text>
+                    </View>
                   ) : null}
 
                   <Field label={t('entry.meal')}>
-                    <View style={styles.chips}>
-                      {MEAL_TYPES.map((mt) => {
-                        const on = mealType === mt;
-                        return (
-                          <TouchableOpacity
-                            key={mt}
-                            style={[styles.chip, on && styles.chipOn]}
-                            onPress={() => {
-                              setMealTouched(true);
-                              setMealType(on ? undefined : mt);
-                            }}
-                            // 40dp chip + 4 slop = 48 (S18-15; Android's 48dp too); chips sit 8dp apart.
-                            hitSlop={4}
-                            accessibilityRole="button"
-                            accessibilityState={{ selected: on }}
-                            testID={`meal-type-${mt}`}
-                          >
-                            <Text style={[styles.chipText, on && styles.chipTextOn]}>{t(`meal.${mt}`)}</Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
+                    <MealSlotChips
+                      value={mealType}
+                      onChange={(next) => {
+                        setMealTouched(true);
+                        setMealType(next);
+                      }}
+                    />
                   </Field>
 
                   {showDateRow ? (
                     <Field label={t('entry.date')}>
-                      <View style={styles.dateRow}>
+                      <View style={[styles.dateRow, fontScale > STACK_FONT_SCALE && styles.dateRowWrap]}>
                         <TouchableOpacity style={styles.dateStep} onPress={() => shiftEntryDate(-1)} hitSlop={2} accessibilityRole="button" accessibilityLabel={t('settings.earlier')} testID="entry-date-prev">
-                          <Text style={styles.dateStepText}>−</Text>
+                          <Text style={styles.dateStepText} maxFontSizeMultiplier={1.6}>−</Text>
                         </TouchableOpacity>
-                        <Text style={styles.dateLabel} testID="entry-date">
+                        <Text style={styles.dateLabel} testID="entry-date" maxFontSizeMultiplier={2.2}>
                           {formatDate(entryDate, locale, { weekday: 'short', month: 'short', day: 'numeric' })}
                         </Text>
                         <TouchableOpacity
@@ -1697,78 +1854,20 @@ export function EntrySheet({
                           accessibilityState={{ disabled: isSameDay(entryDate, new Date()) }}
                           testID="entry-date-next"
                         >
-                          <Text style={styles.dateStepText}>+</Text>
+                          <Text style={styles.dateStepText} maxFontSizeMultiplier={1.6}>+</Text>
                         </TouchableOpacity>
                       </View>
                     </Field>
                   ) : null}
 
                   <Field label={t('entry.time')}>
-                    <View style={styles.dateRow}>
-                      {TIME_STEPS.slice(0, 2).map((st) => (
-                        <TouchableOpacity
-                          key={st.minutes}
-                          style={[styles.dateStep, styles.timeStep]}
-                          onPress={() => shiftEntryTime(st.minutes)}
-                          hitSlop={2}
-                          accessibilityRole="button"
-                          accessibilityLabel={t(st.a11y)}
-                          testID={st.testID}
-                        >
-                          <Text style={styles.timeStepText}>{t(st.label)}</Text>
-                        </TouchableOpacity>
-                      ))}
-                      {timeDraft != null ? (
-                        <TextInput
-                          style={[styles.dateLabel, styles.timeInput]}
-                          value={timeDraft}
-                          onChangeText={setTimeDraft}
-                          // Done blurs a single-line field (`blurOnSubmit`),
-                          // so blur is the one commit — both would apply twice.
-                          onBlur={commitTypedTime}
-                          autoFocus
-                          selectTextOnFocus
-                          placeholder={t('entry.timeTypePlaceholder')}
-                          placeholderTextColor={colors.faint}
-                          keyboardType={Platform.OS === 'ios' ? 'numbers-and-punctuation' : 'default'}
-                          autoCorrect={false}
-                          autoCapitalize="none"
-                          returnKeyType="done"
-                          maxLength={10}
-                          maxFontSizeMultiplier={1.4}
-                          accessibilityLabel={t('entry.timeTypeA11y')}
-                          keyboardAppearance={scheme}
-                          testID="entry-time-input"
-                        />
-                      ) : (
-                        <TouchableOpacity
-                          style={styles.timeLabelTap}
-                          onPress={() => setTimeDraft('')}
-                          accessibilityRole="button"
-                          accessibilityLabel={formatTime(entryDate, locale)}
-                          accessibilityHint={t('entry.timeTypeA11y')}
-                          testID="entry-time-tap"
-                        >
-                          <Text style={[styles.dateLabel, styles.timeLabelText]} testID="entry-time">
-                            {formatTime(entryDate, locale)}
-                          </Text>
-                          <Text style={styles.timeTapHint}>{t('entry.timeTapHint')}</Text>
-                        </TouchableOpacity>
-                      )}
-                      {TIME_STEPS.slice(2).map((st) => (
-                        <TouchableOpacity
-                          key={st.minutes}
-                          style={[styles.dateStep, styles.timeStep]}
-                          onPress={() => shiftEntryTime(st.minutes)}
-                          hitSlop={2}
-                          accessibilityRole="button"
-                          accessibilityLabel={t(st.a11y)}
-                          testID={st.testID}
-                        >
-                          <Text style={styles.timeStepText}>{t(st.label)}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
+                    <TimeOfDayRow
+                      at={entryDate}
+                      draft={timeDraft}
+                      onDraftChange={setTimeDraft}
+                      onStep={shiftEntryTime}
+                      onCommit={commitTypedTime}
+                    />
                   </Field>
 
                   <Field label={t('entry.note')} labelled>
@@ -1786,19 +1885,23 @@ export function EntrySheet({
 
                   {canSavePreset ? (
                     <TouchableOpacity
-                      style={[styles.savePreset, (libBusy != null || libSaved.preset === currentSig) && styles.savePresetDone]}
+                      style={[styles.savePreset, libBusy != null && libSaved.preset !== currentSig && styles.savePresetBusy]}
                       onPress={saveAsPreset}
                       disabled={libBusy != null || libSaved.preset === currentSig}
                       accessibilityRole="button"
                       accessibilityState={{ disabled: libBusy != null || libSaved.preset === currentSig, busy: libBusy === 'preset' }}
                       testID="save-preset"
                     >
+                      {/* The saved state is a check at full strength (B8) — at
+                          0.7 opacity the light theme's teal fell to 2.99:1.
+                          The flash is Quick add's glyph wherever it appears
+                          (the diary row's menu draws the same one). */}
                       <Ionicons
-                        name={libSaved.preset === currentSig ? 'checkmark' : 'star-outline'}
+                        name={libSaved.preset === currentSig ? 'checkmark-circle' : 'flash-outline'}
                         size={font.small + 2}
                         color={colors.teal}
                       />
-                      <Text style={styles.savePresetText}>
+                      <Text style={styles.savePresetText} maxFontSizeMultiplier={2.2}>
                         {libSaved.preset === currentSig ? t('entry.presetSaved') : t('entry.savePreset')}
                       </Text>
                     </TouchableOpacity>
@@ -1806,7 +1909,7 @@ export function EntrySheet({
 
                   {canSaveCustomFood ? (
                     <TouchableOpacity
-                      style={[styles.savePreset, (libBusy != null || libSaved.food === currentSig) && styles.savePresetDone]}
+                      style={[styles.savePreset, libBusy != null && libSaved.food !== currentSig && styles.savePresetBusy]}
                       onPress={saveAsCustomFood}
                       disabled={libBusy != null || libSaved.food === currentSig}
                       accessibilityRole="button"
@@ -1814,11 +1917,11 @@ export function EntrySheet({
                       testID="save-customfood"
                     >
                       <Ionicons
-                        name={libSaved.food === currentSig ? 'checkmark' : 'add'}
+                        name={libSaved.food === currentSig ? 'checkmark-circle' : 'add'}
                         size={font.small + 2}
                         color={colors.teal}
                       />
-                      <Text style={styles.savePresetText}>
+                      <Text style={styles.savePresetText} maxFontSizeMultiplier={2.2}>
                         {libSaved.food === currentSig ? t('entry.myFoodSaved') : t('entry.saveMyFood')}
                       </Text>
                     </TouchableOpacity>
@@ -1855,13 +1958,32 @@ export function EntrySheet({
                       accessibilityRole="button"
                       testID="entry-delete"
                     >
-                      <Text style={styles.deleteText}>{t('entry.delete')}</Text>
+                      <Text style={styles.deleteText} maxFontSizeMultiplier={1.6}>{t('entry.delete')}</Text>
                     </TouchableOpacity>
                   ) : null}
-                  <TouchableOpacity style={[styles.save, !canSave && styles.saveDisabled]} onPress={save} disabled={!canSave || busy} accessibilityRole="button" testID="entry-save">
-                    <Text style={styles.saveText}>{editing ? t('common.save') : t('entry.add')}</Text>
+                  <TouchableOpacity
+                    style={[styles.save, !canSave && styles.saveDisabled]}
+                    onPress={save}
+                    disabled={!canSave || busy}
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: !canSave || busy, busy }}
+                    accessibilityHint={saveBlocker ?? undefined}
+                    testID="entry-save"
+                  >
+                    {busy ? (
+                      <ActivityIndicator color={colors.onInk} testID="entry-save-busy" />
+                    ) : (
+                      <Text style={styles.saveText} maxFontSizeMultiplier={1.6}>{editing ? t('common.save') : t('entry.add')}</Text>
+                    )}
                   </TouchableOpacity>
                 </View>
+                {/* Zero calories is the one rule nobody can guess (U7), so it
+                    is the one reason drawn as well as spoken. */}
+                {!canSave && calNum === 0 && !outOfRange ? (
+                  <Text style={styles.saveHint} testID="entry-save-hint" maxFontSizeMultiplier={2.2}>
+                    {saveBlocker}
+                  </Text>
+                ) : null}
               </View>
             )}
 
@@ -1877,10 +1999,7 @@ export function EntrySheet({
             setScannerOpen(false);
             setCameraDenied(true);
           }}
-          onPick={(est) => {
-            setScannerOpen(false);
-            openBarcodeReview(est);
-          }}
+          onPick={onBarcodePick}
           // The scan worked; the database simply lacks the product. The label
           // in the user's hand has every number the form needs, and the
           // barcode rides into the form so "Save to My Foods" stores it under
@@ -1888,6 +2007,13 @@ export function EntrySheet({
           onEnterFromLabel={(code) => {
             setScannerOpen(false);
             openCustomBlank('', { source: 'barcode', barcode: code });
+          }}
+          // …or the product is in the database under its name (U8): back to
+          // the search, keyboard up.
+          onSearchByName={() => {
+            setScannerOpen(false);
+            setMode('browse');
+            setSearchFocus((n) => n + 1);
           }}
         />
       ) : null}
@@ -1960,6 +2086,8 @@ function Field({
 
 const createStyles = ({ scheme, colors, shadow }: Theme) => StyleSheet.create({
   fill: { flex: 1 },
+  // The JS sheet's panel in dark mode (V1) — see the `contentStyle` above.
+  sheetDark: { backgroundColor: colors.card, borderTopWidth: StyleSheet.hairlineWidth, borderColor: colors.lineStrong },
   // backdrop / sheetWrap / sheet / grabZone / handle all moved to
   // `<BottomSheet>`, which this file's originals were copied into. Its
   // defaults are these values byte for byte, so the swap changes nothing here
@@ -1981,6 +2109,10 @@ const createStyles = ({ scheme, colors, shadow }: Theme) => StyleSheet.create({
     justifyContent: 'space-between',
     backgroundColor: colors.card,
     borderRadius: radius.md,
+    // `card` on `paper` is 1.06–1.09:1 — the rows ran together (V3). A
+    // `lineStrong` hairline gives each one an edge.
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.lineStrong,
     paddingHorizontal: space.lg,
     paddingVertical: space.md,
     minHeight: 48,
@@ -1996,12 +2128,15 @@ const createStyles = ({ scheme, colors, shadow }: Theme) => StyleSheet.create({
   moreRowText: { fontSize: font.body, color: colors.ink },
   presetStrip: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   // 44 tall (was ~33): a one-tap log is the last control to make small.
-  presetChip: { flexDirection: 'row', alignItems: 'center', gap: space.xs, paddingVertical: space.sm, paddingHorizontal: space.md, minHeight: 44, borderRadius: radius.pill, backgroundColor: colors.ink },
-  presetName: { fontSize: font.small, fontWeight: '600', color: colors.onInk, maxWidth: 150 },
+  presetChip: { flexDirection: 'row', alignItems: 'center', gap: space.xs, paddingVertical: space.sm, paddingHorizontal: space.md, minHeight: 44, maxWidth: '100%', borderRadius: radius.pill, backgroundColor: colors.ink },
+  // No fixed `maxWidth` (A1): 150pt cut a name to "Chi…" at a large text
+  // size. The chip caps at the row, and the name gives way to the numbers.
+  presetName: { fontSize: font.small, fontWeight: '600', color: colors.onInk, flexShrink: 1 },
   presetKcal: { fontSize: font.tiny, color: colors.onInk, opacity: 0.7 },
   rowTag: { fontSize: font.tiny, color: colors.muted, marginRight: space.sm },
   rowName: { fontSize: font.body, color: colors.ink, fontWeight: '600', flex: 1, marginRight: space.md },
   rowKcal: { fontSize: font.body, color: colors.muted, fontWeight: '700' },
+  rowUnit: { fontSize: font.tiny, fontWeight: '600' },
   rowNums: { alignItems: 'flex-end' },
   rowProtein: { fontSize: font.tiny, color: colors.muted },
   rowRemove: { fontSize: font.body, color: colors.danger, fontWeight: '700' },
@@ -2045,12 +2180,19 @@ const createStyles = ({ scheme, colors, shadow }: Theme) => StyleSheet.create({
   // 44 square: a 22pt chevron with 8 of slop was a 38pt target.
   backBtn: { width: 48, height: 48, alignItems: 'flex-start', justifyContent: 'center' },
   backSpacer: { width: 48 },
-  title: { fontSize: font.h2, fontWeight: '800', color: colors.ink },
+  title: { flexShrink: 1, textAlign: 'center', fontSize: font.h2, fontWeight: '800', color: colors.ink },
   formScroll: { flexShrink: 1 },
   form: { gap: space.md, paddingBottom: space.md },
   row3: { flexDirection: 'row', gap: space.sm },
+  // Past STACK_FONT_SCALE: one field per line, full width (A1).
+  row3Stacked: { flexDirection: 'column', gap: space.md },
   third: { flex: 1 },
-  macroNote: { color: colors.danger, fontSize: font.small, marginTop: -space.xs, marginBottom: space.sm },
+  // Muted with an info glyph, not danger red (V2): it says "you can still save".
+  macroNoteRow: { flexDirection: 'row', alignItems: 'flex-start', gap: space.xs, marginTop: -space.xs, marginBottom: space.sm },
+  macroNote: { flex: 1, color: colors.muted, fontSize: font.small },
+  // A number past the rules' ceiling (B1): the field's edge and a line under it.
+  inputInvalid: { borderColor: colors.danger, borderWidth: 2 },
+  fieldError: { color: colors.danger, fontSize: font.small },
   fieldLabel: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
   input: {
     backgroundColor: colors.inputBg,
@@ -2068,22 +2210,10 @@ const createStyles = ({ scheme, colors, shadow }: Theme) => StyleSheet.create({
     color: colors.ink,
     textAlignVertical: 'center',
   },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
-  chip: {
-    borderWidth: 1,
-    borderColor: colors.lineStrong,
-    borderRadius: radius.pill,
-    paddingHorizontal: space.md,
-    paddingVertical: space.xs,
-    backgroundColor: colors.inputBg,
-    minHeight: 40,
-    justifyContent: 'center',
-  },
-  chipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
-  chipText: { fontSize: font.small, color: colors.muted, textTransform: 'capitalize' },
-  chipTextOn: { color: colors.onInk },
   savePreset: { alignSelf: 'flex-start', minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: space.xs },
-  savePresetDone: { opacity: 0.7 },
+  // While a library write is in flight only — the SAVED state stays at full
+  // strength (B8).
+  savePresetBusy: { opacity: 0.7 },
   scaleRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: space.sm, marginTop: -space.xs },
   scaleChip: {
     minHeight: 48, minWidth: 48, paddingHorizontal: space.md, borderRadius: radius.md, borderWidth: 1,
@@ -2097,23 +2227,21 @@ const createStyles = ({ scheme, colors, shadow }: Theme) => StyleSheet.create({
   formError: { color: colors.danger, fontSize: font.small, paddingTop: space.sm },
   savePresetText: { fontSize: font.small, color: colors.teal, fontWeight: '700' },
   dateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.md },
-  // Wider than the date row's ± so "+5 min" fits on one line.
-  timeStep: { width: undefined, minWidth: 52, paddingHorizontal: space.xs },
-  timeStepText: { fontSize: font.small, fontWeight: '700', color: colors.ink },
+  // A large text size lets the day wrap under its steppers instead of
+  // squeezing them (A1).
+  dateRowWrap: { flexWrap: 'wrap' },
   // 44 + the 2dp hitSlop on each = 48.
   dateStep: { width: 44, height: 44, borderRadius: radius.md, borderWidth: 1, borderColor: colors.lineStrong, alignItems: 'center', justifyContent: 'center' },
   dateStepDisabled: { opacity: 0.4 },
   dateStepText: { fontSize: font.h3, color: colors.ink, fontWeight: '700' },
   dateLabel: { flex: 1, textAlign: 'center', fontSize: font.body, color: colors.ink, fontWeight: '700' },
-  timeLabelTap: { flex: 1, alignItems: 'center', minHeight: 48, justifyContent: 'center' },
-  timeLabelText: { flex: 0 },
-  timeTapHint: { fontSize: font.tiny, color: colors.faint },
-  timeInput: { minHeight: 44, borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.md, backgroundColor: colors.inputBg, paddingVertical: 0 },
   noteInput: { minHeight: 72, paddingTop: space.sm, paddingBottom: space.sm, textAlignVertical: 'top' },
   actions: { flexDirection: 'row', gap: space.md, paddingTop: space.md, alignItems: 'center' },
   delete: { minHeight: 48, justifyContent: 'center', paddingHorizontal: space.lg, paddingVertical: space.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.danger },
   deleteText: { color: colors.danger, fontWeight: '700', fontSize: font.body },
-  save: { flex: 1, backgroundColor: colors.ink, borderRadius: radius.md, paddingVertical: space.lg, alignItems: 'center' },
+  // `minHeight` so the busy spinner (A6) does not shrink the button under the thumb.
+  save: { flex: 1, minHeight: 56, backgroundColor: colors.ink, borderRadius: radius.md, paddingVertical: space.lg, alignItems: 'center', justifyContent: 'center' },
   saveDisabled: { opacity: 0.4 },
   saveText: { color: colors.onInk, fontWeight: '700', fontSize: font.h3 },
+  saveHint: { color: colors.muted, fontSize: font.small, textAlign: 'center', paddingTop: space.xs },
 });

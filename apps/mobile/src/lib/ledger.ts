@@ -21,7 +21,7 @@ import {
 } from 'firebase/firestore';
 import type { DocumentReference, SetOptions, WriteBatch } from 'firebase/firestore';
 import { addBreadcrumb } from './sentry';
-import { reportSnapshotMeta } from './connectivity';
+import { isOffline, reportSnapshotMeta } from './connectivity';
 import {
   type CustomFood,
   type DailyLog,
@@ -437,6 +437,54 @@ export function subscribeDailyWeights(
     },
     onError,
   );
+}
+
+/**
+ * Daily weights from `sinceKey` on — the same map shape as
+ * {@link subscribeDailyWeights}, bounded by DATE (Body review, Pf1).
+ *
+ * The unbounded listener re-reads every weigh-in a user has ever recorded on
+ * every focus of the tab, because the SDK's cache here is memory-only: a
+ * four-year scale history is ~1,400 reads per visit to Body, for a screen
+ * whose longest chart range is a year. The doc id IS the `YYYY-MM-DD` key, so
+ * a `documentId()` range is a calendar range, and an ascending `__name__`
+ * range needs no composite index.
+ *
+ * What the bound costs is the earliest-ever weigh-in, which goal progress
+ * measures from — {@link getEarliestDailyWeight} is that one document.
+ */
+export function subscribeDailyWeightsSince(
+  uid: string,
+  sinceKey: string,
+  cb: (weights: Record<string, number>, meta?: SnapshotMeta) => void,
+  onError?: (e: Error) => void,
+): Unsub {
+  return onSnapshot(
+    query(weightsCol(uid), where(documentId(), '>=', sinceKey)),
+    (snap) => {
+      const weights: Record<string, number> = {};
+      for (const d of snap.docs) {
+        const w = readWeightLb(d.data());
+        if (w != null) weights[d.id] = w;
+      }
+      cb(weights, metaOf(snap));
+    },
+    onError,
+  );
+}
+
+/**
+ * The FIRST weigh-in ever recorded, or null. One doc read, ascending on the
+ * doc id — the index Firestore builds automatically (only the descending one
+ * in {@link getLatestDailyWeight} needed declaring). Goal progress measures
+ * from here, so a date-bounded weights listener does not move the start line.
+ */
+export async function getEarliestDailyWeight(uid: string): Promise<{ dateKey: string; weight: number } | null> {
+  const snap = await getDocs(query(weightsCol(uid), orderBy(documentId(), 'asc'), limit(1)));
+  const d = snap.docs[0];
+  if (!d) return null;
+  const weight = readWeightLb(d.data());
+  return weight != null ? { dateKey: d.id, weight } : null;
 }
 
 /**
@@ -1547,6 +1595,23 @@ export async function addMeasurement(uid: string, entry: MeasurementInput): Prom
   return createDoc(measurementsCol(uid), toMeasurementDoc(entry, CODEC));
 }
 
+/**
+ * Add a measurement at a caller-minted id — the durable queue's primitive
+ * (`pending-body.ts`). Same reason `addLogWithId` exists: a write that is
+ * retried after a lost ack must land on the SAME document, or the replay is a
+ * second row. `timestamp` defaults to now, like {@link addMeasurement}; a
+ * parked row passes the instant the user saved it so a flush days later does
+ * not re-date it.
+ */
+export async function addMeasurementWithId(
+  uid: string,
+  id: string,
+  entry: MeasurementInput,
+  at?: Date,
+): Promise<void> {
+  await setDoc(measurementDoc(uid, id), toMeasurementDoc(entry, CODEC, at ?? new Date()));
+}
+
 /** Edits an existing measurement in place. `toMeasurementPatch` keeps the
  *  original `timestamp` (the row must not jump to today) and deletes fields the
  *  user cleared, so an accidental waist entry can be removed rather than frozen
@@ -1555,8 +1620,14 @@ export async function updateMeasurement(
   uid: string,
   id: string,
   entry: MeasurementInput,
+  /** A NEW date for the row, when the sheet's date stepper moved it (Body
+   *  review, U9). Omitted, the row keeps its original timestamp — the rule
+   *  above, unchanged for every existing caller. */
+  at?: Date,
 ): Promise<void> {
-  await updateDoc(measurementDoc(uid, id), toMeasurementPatch(entry, CODEC));
+  const patch = toMeasurementPatch(entry, CODEC) as Record<string, unknown>;
+  if (at) patch.timestamp = Timestamp.fromDate(at);
+  await updateDoc(measurementDoc(uid, id), patch);
 }
 
 export async function deleteMeasurement(uid: string, id: string): Promise<void> {
@@ -1586,6 +1657,37 @@ function pruneUndefined<T>(value: T): T {
   return pruneUndefinedCore(value, (v) => v instanceof Timestamp);
 }
 
+/**
+ * How long a Train catalog/template write is waited on before the caller moves
+ * on with the write still queued.
+ *
+ * The RN SDK resolves a write only on the server's ack, so on a dead gym
+ * connection every `await` below sat until the signal came back — the
+ * template editor and the exercise sheet said "Saving…" forever (Train review,
+ * 2026-10-04). The write is already applied to the local view the moment it
+ * is issued (the listeners see it), so the screen can move on; what waiting
+ * buys is hearing a REFUSAL, which arrives in well under this when online.
+ * Offline (as `connectivity.ts` already knows) there is nothing to wait for.
+ */
+const TRAIN_WRITE_PATIENCE_MS = 4000;
+
+/** Resolve on the ack, or once waiting stops being useful — whichever is
+ *  first. A refusal inside the window still rejects; one after it is
+ *  recorded by the wrapper's breadcrumb and otherwise dropped, since nobody
+ *  is waiting on it any more. */
+async function ackOrQueued(write: Promise<void>): Promise<void> {
+  write.catch(() => {});
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const patience = new Promise<void>((resolve) => {
+    timer = setTimeout(resolve, isOffline() ? 0 : TRAIN_WRITE_PATIENCE_MS);
+  });
+  try {
+    await Promise.race([write, patience]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // ── Exercise catalog ──
 export function subscribeExercises(
   uid: string,
@@ -1600,7 +1702,11 @@ export function subscribeExercises(
 }
 
 export async function addExercise(uid: string, draft: ExerciseDraft): Promise<string> {
-  return createDoc(exercisesCol(uid), pruneUndefined(toExerciseDoc(draft, CODEC)));
+  // The id is minted here (what `createDoc` does), so it is known before the
+  // ack and an add mid-workout offline does not wait on one.
+  const ref = doc(exercisesCol(uid));
+  await ackOrQueued(setDoc(ref, pruneUndefined(toExerciseDoc(draft, CODEC))));
+  return ref.id;
 }
 
 export async function editExercise(
@@ -1613,14 +1719,14 @@ export async function editExercise(
   // object.
   const { targetRepBand, ...rest } = patch;
   const body = pruneUndefined({ ...rest, ...(targetRepBand ? { targetRepBand } : {}) });
-  await updateDoc(
+  await ackOrQueued(updateDoc(
     exerciseDoc(uid, id),
     targetRepBand === null ? { ...body, targetRepBand: deleteField() } : body,
-  );
+  ));
 }
 
 export async function deleteExercise(uid: string, id: string): Promise<void> {
-  await deleteDoc(exerciseDoc(uid, id));
+  await ackOrQueued(deleteDoc(exerciseDoc(uid, id)));
 }
 
 /** Merge catalog exercise `fromId` (victim) into `toId` (survivor): rewrite
@@ -1678,7 +1784,9 @@ export function subscribeTemplates(
 }
 
 export async function addTemplate(uid: string, draft: TemplateDraft): Promise<string> {
-  return createDoc(templatesCol(uid), pruneUndefined(toTemplateDoc(draft, CODEC)));
+  const ref = doc(templatesCol(uid));
+  await ackOrQueued(setDoc(ref, pruneUndefined(toTemplateDoc(draft, CODEC))));
+  return ref.id;
 }
 
 export async function updateTemplate(uid: string, id: string, draft: TemplateDraft): Promise<void> {
@@ -1686,23 +1794,42 @@ export async function updateTemplate(uid: string, id: string, draft: TemplateDra
   // merge. A merge-update of `exercises` would union arrays, so the patch
   // carries the whole template doc.
   const data = pruneUndefined(toTemplatePatch(draft, CODEC));
-  await setDoc(templateDoc(uid, id), data, { merge: true });
+  await ackOrQueued(setDoc(templateDoc(uid, id), data, { merge: true }));
 }
 
 export async function deleteTemplate(uid: string, id: string): Promise<void> {
-  await deleteDoc(templateDoc(uid, id));
+  await ackOrQueued(deleteDoc(templateDoc(uid, id)));
 }
 
 // ── Sessions ──
 // The domain calls it `date`; the stored field is `timestamp`. Both the
 // create and the sparse live-update shapes come from @macrolog/core.
 
-/** One-shot read of the in-progress session, if any (status == 'active'). */
-export async function getActiveSession(uid: string): Promise<WorkoutSession | null> {
-  const snap = await getDocs(query(sessionsCol(uid), where('status', '==', 'active'), limit(1)));
-  if (snap.empty) return null;
-  const d = snap.docs[0];
-  return toSession(d.id, d.data());
+/**
+ * One-shot read of the in-progress session, if any (status == 'active'), and
+ * whether the answer came from the server.
+ *
+ * `fromCache` is the half that matters offline. This SDK runs memory-only
+ * (`offline-cache.ts`), so after a restart with no signal the read returns
+ * EMPTY from cache — which is not "no workout", and `reconcileActiveSession`
+ * must not treat it as one (Train review bug 4).
+ *
+ * No `limit(1)`, and the newest wins. There is meant to be at most one active
+ * session, but repeated taps on a start that waited on the network could
+ * queue several (bug 1), and `limit(1)` then picked whichever the index
+ * returned first — a different "current workout" from one launch to the next.
+ * Ordered on the client because a server `orderBy` beside this `where` needs a
+ * composite index, and the result set is one document in every healthy case.
+ */
+export async function readActiveSession(
+  uid: string,
+): Promise<{ session: WorkoutSession | null; fromCache: boolean }> {
+  const snap = await getDocs(query(sessionsCol(uid), where('status', '==', 'active')));
+  const fromCache = snap.metadata.fromCache;
+  if (snap.empty) return { session: null, fromCache };
+  const sessions = snap.docs.map((d) => toSession(d.id, d.data()));
+  sessions.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+  return { session: sessions[0], fromCache };
 }
 
 export function subscribeRecentSessions(
@@ -1726,8 +1853,19 @@ export async function getRecentSessions(uid: string, count: number): Promise<Wor
   return snap.docs.map((d) => toSession(d.id, d.data()));
 }
 
-export async function startSession(uid: string, draft: SessionDraft): Promise<string> {
-  return createDoc(sessionsCol(uid), pruneUndefined(toSessionDoc(draft, CODEC)));
+/**
+ * Create a session document. `id` is minted by the caller when given — the
+ * live workout's start passes one, so the screen can show the session the
+ * instant it is tapped and the write runs behind it (Train review bug 1). The
+ * same call with the same id is also how a session whose create never reached
+ * the server is written again in full: `setDoc` carries no precondition, so a
+ * replay is a harmless overwrite (see `createDoc`).
+ */
+export async function startSession(uid: string, draft: SessionDraft, id?: string): Promise<string> {
+  const data = pruneUndefined(toSessionDoc(draft, CODEC));
+  if (!id) return createDoc(sessionsCol(uid), data);
+  await setDoc(sessionDoc(uid, id), data);
+  return id;
 }
 
 export async function updateSession(

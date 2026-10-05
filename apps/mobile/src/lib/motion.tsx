@@ -1,5 +1,6 @@
-import { type ComponentProps, useCallback, useEffect, useMemo, useRef } from 'react';
+import { type ComponentProps, useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -81,23 +82,51 @@ type PressScaleProps = Omit<ComponentProps<typeof Pressable>, 'style'> & {
   scaleTo?: number;
   /** Fire haptics.tap() on press (skip when the handler already does). */
   haptic?: boolean;
+  /** The Android ink ripple (UX_AUDIT Today review P8). On by default; `false`
+   *  for a control whose own fill change already says "pressed". */
+  ripple?: boolean;
 };
 
-/** Pressable that springs down while pressed — the app's standard tactile CTA. */
-export function PressScale({ style, scaleTo = 0.96, haptic = false, onPress, onPressIn, onPressOut, ...rest }: PressScaleProps) {
+/**
+ * The Material press ripple, drawn in the foreground so it shows over a filled
+ * chip as well as over a card. A neutral grey at low alpha rather than a theme
+ * colour: it has to read on coral, ink, card and paper in both themes, and a
+ * hook here would make every `PressScale` depend on `ThemeProvider` (tests
+ * render some of them bare). Clipped to the control's `borderRadius` by RN.
+ */
+const RIPPLE = { color: 'rgba(128, 128, 128, 0.22)', foreground: true } as const;
+
+/** Pressable that springs down while pressed — the app's standard tactile CTA.
+ *  On Android it also ripples, which is what a Material user reads as "this
+ *  is a button"; the scale alone is an iOS idiom. */
+export function PressScale({
+  style,
+  scaleTo = 0.96,
+  haptic = false,
+  ripple = true,
+  onPress,
+  onPressIn,
+  onPressOut,
+  ...rest
+}: PressScaleProps) {
   const reduce = useReducedMotion();
   const scale = useSharedValue(1);
   const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  // `.set()`, not `scale.value =`: the React Compiler treats a hook's return as
+  // immutable and bailed out of this component (and every screen inherits that
+  // — this is the app's one button). Reanimated 4 added `set`/`get` for exactly
+  // this; same write, compiler-visible.
   return (
     <AnimatedPressable
+      android_ripple={Platform.OS === 'android' && ripple ? RIPPLE : undefined}
       {...rest}
       style={[style, animatedStyle]}
       onPressIn={(e) => {
-        if (!reduce) scale.value = withSpring(scaleTo, motion.spring.press);
+        if (!reduce) scale.set(withSpring(scaleTo, motion.spring.press));
         onPressIn?.(e);
       }}
       onPressOut={(e) => {
-        scale.value = withSpring(1, motion.spring.press);
+        scale.set(withSpring(1, motion.spring.press));
         onPressOut?.(e);
       }}
       onPress={(e) => {
@@ -119,7 +148,7 @@ export function usePulse(scaleTo = 1.25) {
   const style = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   const trigger = useCallback(() => {
     if (reduce) return;
-    scale.value = withSequence(withSpring(scaleTo, motion.spring.press), withSpring(1, motion.spring.gentle));
+    scale.set(withSequence(withSpring(scaleTo, motion.spring.press), withSpring(1, motion.spring.gentle)));
   }, [reduce, scaleTo, scale]);
   return [style, trigger] as const;
 }
@@ -243,18 +272,25 @@ export function CountUpText({
   // Resolved on the JS thread; the worklet below only ever sees two strings.
   const { group, decimal } = numberSeparators(useLocale());
   const sv = useSharedValue(value);
-  // Read during render, so it still holds the PREVIOUS value — the effect below
-  // advances it only after the ghost has been sized for the span being animated.
-  const from = useRef(value);
+  // The value the animation is LEAVING, held in state and advanced during
+  // render (React's "adjust state when a prop changes" pattern). It used to be
+  // a ref read during render, which made the React Compiler skip this
+  // component — and the Today hero renders it on every snapshot. The ghost
+  // below is sized from `from` → `value`, the whole span being animated.
+  const [shown, setShown] = useState(value);
+  const [from, setFrom] = useState(value);
+  if (shown !== value) {
+    setFrom(shown);
+    setShown(value);
+  }
   const widest = useMemo(
-    () => widestCountUpText(from.current, value, decimals, group, decimal, suffix),
-    [value, decimals, group, decimal, suffix],
+    () => widestCountUpText(from, value, decimals, group, decimal, suffix),
+    [from, value, decimals, group, decimal, suffix],
   );
   useEffect(() => {
-    sv.value = reduce
-      ? value
-      : withTiming(value, { duration: motion.dur.slow, easing: Easing.out(Easing.cubic) });
-    from.current = value;
+    sv.set(
+      reduce ? value : withTiming(value, { duration: motion.dur.slow, easing: Easing.out(Easing.cubic) }),
+    );
   }, [value, reduce, sv]);
   const animatedProps = useAnimatedProps(() => {
     const text = formatNumber(sv.value, decimals, group, decimal) + suffix;

@@ -11,6 +11,8 @@ import type { CustomFood, DailyLog } from '@macrolog/core';
  */
 
 const mockSearchFoods = jest.fn();
+// iOS presents this sheet natively, through a route this test does not mount.
+jest.mock('@/components/BottomSheet', () => require('./js-sheet').jsSheetModule());
 jest.mock('@/lib/foodSearch', () => ({
   searchFoods: (...a: unknown[]) => mockSearchFoods(...a),
   getFoodDetail: jest.fn(),
@@ -363,10 +365,11 @@ describe('edit in grams', () => {
 });
 
 describe('quick add focus', () => {
-  it('focuses Calories (deferred) on a blank form, not on a reviewed pick or an edit', async () => {
+  it('focuses the search on open, Calories on a blank form, and neither on a reviewed pick', async () => {
     mockSearchFoods.mockResolvedValue([bananaHit]);
     const screen = await render(<EntrySheet visible editing={null} onSave={jest.fn()} onClose={jest.fn()} />);
-    expect(mockDeferredFocus).not.toHaveBeenLastCalledWith(true);
+    // U2: the browse view's search asks for the keyboard (deferred, like Calories).
+    expect(mockDeferredFocus).toHaveBeenLastCalledWith(true);
 
     await fireEvent.press(screen.getByTestId('open-manual'));
     expect(mockDeferredFocus).toHaveBeenLastCalledWith(true);
@@ -505,14 +508,15 @@ describe('iOS keyboard bar on the number pads', () => {
     expect(screen.getByTestId('entry-label').props.inputAccessoryViewID).toBeUndefined();
   });
 
-  it('greys ‹ at kcal and › at fat, and Done dismisses without saving', async () => {
+  it('runs ‹ from kcal up to Name, greys › at fat, and Done dismisses without saving', async () => {
     const onSave = jest.fn();
     const screen = await render(<EntrySheet visible editing={null} onSave={onSave} onClose={jest.fn()} />);
     await fireEvent.press(screen.getByTestId('open-manual'));
     const bar = (f: string) => screen.getByTestId(`entry-${f}`).props.inputAccessoryViewID as string;
     const state = (id: string) => screen.getByTestId(id).props.accessibilityState;
 
-    expect(state(`${bar('calories')}-prev`)).toEqual(expect.objectContaining({ disabled: true }));
+    // A7: Name sits above Calories, so ‹ there is live, not greyed out.
+    expect(state(`${bar('calories')}-prev`)).toEqual(expect.objectContaining({ disabled: false }));
     expect(state(`${bar('calories')}-next`)).toEqual(expect.objectContaining({ disabled: false }));
     expect(screen.getByTestId(`${bar('calories')}-next`).props.accessibilityLabel).toBe('Next field');
     expect(state(`${bar('fat')}-next`)).toEqual(expect.objectContaining({ disabled: true }));

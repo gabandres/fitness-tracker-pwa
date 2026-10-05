@@ -8,7 +8,7 @@ import {
   useMemo,
   useState,
 } from 'react';
-import { StyleSheet, useColorScheme } from 'react-native';
+import { Appearance, StyleSheet, useColorScheme } from 'react-native';
 import { palettes, type ColorTokens, type ShadowTokens } from '@/theme';
 
 /**
@@ -57,6 +57,14 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const scheme: Scheme = preference === 'system' ? (system === 'light' ? 'light' : 'dark') : preference;
+
+  // Native UI follows the in-app choice: the system sheet's material, its
+  // grabber, the context menu, pickers and the keyboard all draw from the
+  // window's interface style, not from this palette (UX_AUDIT S20). "System"
+  // hands it back to the OS, so `useColorScheme` keeps reporting the real one.
+  useEffect(() => {
+    Appearance.setColorScheme(preference === 'system' ? 'unspecified' : preference);
+  }, [preference]);
 
   const value = useMemo<ThemeContextValue>(
     () => ({ scheme, ...palettes[scheme], preference, setPreference }),

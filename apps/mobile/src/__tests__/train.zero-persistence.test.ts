@@ -65,7 +65,7 @@ jest.mock('@/lib/ledger', () => ({
     cb([]);
     return mockNoop;
   },
-  getActiveSession: async () => (mockServer?.status === 'active' ? mockServer : null),
+  readActiveSession: async () => ({ session: mockServer?.status === 'active' ? mockServer : null, fromCache: false }),
   startSession: (uid: string, draft: Omit<WorkoutSession, 'createdAt' | 'updatedAt'>) => mockStartSession(uid, draft),
   updateSession: (uid: string, id: string, patch: Partial<WorkoutSession>) => mockUpdateSession(uid, id, patch),
   addExercise: jest.fn().mockResolvedValue('ex-1'),

@@ -138,7 +138,7 @@ describe('MealEntries row', () => {
 });
 
 describe('MealEntries row — long-press menu (2026-10-04)', () => {
-  it('opens the iOS action sheet with Edit · Save preset · Delete, and runs the pick', async () => {
+  it('without native context menus, opens the iOS action sheet with Edit · Add to Quick add · Delete, and runs the pick', async () => {
     const { ActionSheetIOS } = jest.requireActual('react-native') as typeof import('react-native');
     const show = jest
       .spyOn(ActionSheetIOS, 'showActionSheetWithOptions')
@@ -151,7 +151,7 @@ describe('MealEntries row — long-press menu (2026-10-04)', () => {
     );
     await fireEvent(view.getByTestId('entry-m1'), 'longPress');
     const opts = show.mock.calls[0][0];
-    expect(opts.options).toEqual(['Edit entry', 'Save preset', 'Delete', 'Cancel']);
+    expect(opts.options).toEqual(['Edit entry', 'Add to Quick add', 'Delete', 'Cancel']);
     expect(opts.destructiveButtonIndex).toBe(2);
     expect(onDelete).toHaveBeenCalledWith(log);
     expect(onSavePreset).not.toHaveBeenCalled();

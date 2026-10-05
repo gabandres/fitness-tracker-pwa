@@ -17,6 +17,7 @@
 const calls: string[] = [];
 
 const mockUpdateSession = jest.fn(async () => undefined);
+const mockStartSession = jest.fn(async () => 's1');
 const mockSetDailyWeight = jest.fn(async () => undefined);
 const mockSetDailyWater = jest.fn(async () => undefined);
 const mockSetDailySleep = jest.fn(async () => undefined);
@@ -33,6 +34,10 @@ jest.mock('@/lib/ledger', () => ({
   updateSession: (...a: unknown[]) => {
     calls.push('updateSession');
     return mockUpdateSession(...(a as []));
+  },
+  startSession: (...a: unknown[]) => {
+    calls.push('startSession');
+    return mockStartSession(...(a as []));
   },
   setDailyWeight: (...a: unknown[]) => {
     calls.push('setDailyWeight');
@@ -242,6 +247,49 @@ describe('finishWorkout', () => {
     expect(mockMarkExercised).not.toHaveBeenCalled();
     expect(mockTrack).not.toHaveBeenCalled();
     expect(mockExportWorkout).not.toHaveBeenCalled();
+  });
+
+  it('writes the session WHOLE when its create never reached the server (not-found)', async () => {
+    // A start no longer waits on its create (Train review bug 1). A restart
+    // before the ack loses it, and the completing update then has no doc.
+    mockUpdateSession.mockRejectedValueOnce(Object.assign(new Error('no doc'), { code: 'not-found' }));
+    await finishWorkout(UID, session(), MIDNIGHT, {});
+    expect(calls.slice(0, 2)).toEqual(['updateSession', 'startSession']);
+    const [, draft, id] = mockStartSession.mock.calls[0] as unknown as [string, { status: string; createdAt?: unknown }, string];
+    expect(id).toBe('s1');
+    expect(draft.status).toBe('completed');
+    expect('createdAt' in draft).toBe(false);
+    expect(mockMarkExercised).toHaveBeenCalled();
+  });
+
+  it('drops exercises left with no logged set (Train review bug 10)', async () => {
+    await finishWorkout(
+      UID,
+      session({
+        exercises: [
+          { exerciseId: 'e1', name: 'Bench Press', cues: [], logStyle: 'weight-reps', sets: [{ kind: 'working', weight: 135, reps: 8 }] },
+          { exerciseId: 'e2', name: 'Row', cues: [], logStyle: 'weight-reps', sets: [{ kind: 'working', weight: 95 }] },
+        ],
+      } as Partial<WorkoutSession>),
+      MIDNIGHT,
+      {},
+    );
+    const patch = (mockUpdateSession.mock.calls[0] as unknown as [string, string, { exercises: { exerciseId: string }[] }])[2];
+    expect(patch.exercises.map((e) => e.exerciseId)).toEqual(['e1']);
+  });
+
+  it('a session with nothing logged is stored but does not mark the day exercised', async () => {
+    await finishWorkout(
+      UID,
+      session({
+        exercises: [{ exerciseId: 'e1', name: 'Bench Press', cues: [], logStyle: 'weight-reps', sets: [{ kind: 'working' }] }],
+      } as Partial<WorkoutSession>),
+      MIDNIGHT,
+      {},
+    );
+    expect(calls).toEqual(['updateSession']);
+    expect(mockMarkExercised).not.toHaveBeenCalled();
+    expect(mockTrack).not.toHaveBeenCalled();
   });
 
   it('does nothing for a session that was never persisted', async () => {

@@ -2,10 +2,11 @@ import { useEffect, useRef, useState, type ComponentProps } from 'react';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Tabs, useRouter, useSegments } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
+import { announce } from '@/lib/a11y';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ConfirmHost } from '@/components/ConfirmSheet';
-import { ToastProvider } from '@/components/Toast';
 import { LogSpeedDial } from '@/components/LogSpeedDial';
+import { ActiveWorkoutPill } from '@/components/train/ActiveWorkoutPill';
 import { useT } from '@/i18n';
 import { useAuth } from '@/lib/auth';
 import { useAutoApplyOta } from '@/lib/app-update';
@@ -16,13 +17,13 @@ import { useHealthAutoImport } from '@/lib/health-sync';
 import { hydrateActiveWorkout, useActiveWorkout } from '@/lib/active-workout-signal';
 import { useOuraAutoImport } from '@/lib/oura';
 import { track } from '@/lib/analytics';
-import * as haptics from '@/lib/haptics';
 import { PressScale } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, space } from '@/theme';
 
 /** The four tab destinations, in bar order. History is deliberately NOT here
- *  (ADR-0014): it's a lookup surface, reached from Today's calendar icon. */
+ *  (ADR-0014): it's a lookup surface, reached from Today's calendar icon —
+ *  and since 2026-10-04 a root stack route, not a hidden tab (review P1). */
 const TAB_ICONS: Record<string, { outline: keyof typeof Ionicons.glyphMap; filled: keyof typeof Ionicons.glyphMap }> = {
   index: { outline: 'today-outline', filled: 'today' },
   train: { outline: 'barbell-outline', filled: 'barbell' },
@@ -31,6 +32,11 @@ const TAB_ICONS: Record<string, { outline: keyof typeof Ionicons.glyphMap; fille
 };
 const LEFT_TABS = ['index', 'train'];
 const RIGHT_TABS = ['trends', 'body'];
+
+/** Tab labels grow with Dynamic Type only this far: four labels and the
+ *  raised + share 360dp, and past ~1.2× "Entrenar"/"Tendências" collide.
+ *  Each tab offers the large-content viewer instead (review A2). */
+const TAB_LABEL_MAX_SCALE = 1.2;
 
 /**
  * expo-router 57 vendored react-navigation and dropped its `@react-navigation/*`
@@ -53,11 +59,9 @@ function AppTabBar({ state, descriptors, navigation }: AppTabBarProps) {
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  // The History day detail has its own add-to-this-day FAB; drawing the global
-  // add-to-TODAY dial beside it put two different "+" buttons on one screen
-  // (UX_AUDIT S16-3). A flex spacer keeps the four tabs in place.
-  const segments = useSegments();
-  const onDayDetail = segments[segments.length - 1] === '[date]';
+  // (The History day detail's "no second + over my own" spacer, UX_AUDIT
+  // S16-3, went with History's move to the root stack: no tab bar is drawn
+  // over a pushed route at all.)
   // A workout left open is invisible from every tab but Train — and the raised
   // Log button actively pulls you to Today mid-session. One dot, from a signal
   // that opens no listener (`active-workout-signal.ts`).
@@ -71,35 +75,68 @@ function AppTabBar({ state, descriptors, navigation }: AppTabBarProps) {
     const icons = TAB_ICONS[name];
     const label = typeof options.title === 'string' ? options.title : name;
     const inProgress = name === 'train' && workout.active;
+    const spoken = inProgress ? `${label}, ${t('train.inProgress')}` : label;
     return (
       <PressScale
         key={route.key}
         style={styles.tab}
         scaleTo={0.9}
+        // Borderless (overrides PressScale's bounded one): a bounded ripple on
+        // a cell this wide reads as a stripe.
+        android_ripple={{ color: 'rgba(128, 128, 128, 0.22)', borderless: true, radius: 32 }}
         accessibilityRole="tab"
         accessibilityState={{ selected: focused }}
-        accessibilityLabel={inProgress ? `${label}, ${t('train.inProgress')}` : label}
+        accessibilityLabel={spoken}
+        accessibilityShowsLargeContentViewer
+        accessibilityLargeContentTitle={label}
         testID={`tab-${name}`}
+        // No haptic: switching tabs is navigation, and neither platform's own
+        // tab bar buzzes for it (review P6).
         onPress={() => {
-          haptics.tap();
           const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
           if (!focused && !event.defaultPrevented) navigation.navigate(route.name, route.params);
+          // Re-tapping the tab you are on scrolls it to the top (Today wires
+          // `useScrollToTop` to this same event). A sighted user sees the jump;
+          // a screen-reader user is told (review A9).
+          if (focused && !event.defaultPrevented) announce(t('a11y.scrolledToTop', { screen: label }));
         }}
       >
         <View>
           <Ionicons name={focused ? icons.filled : icons.outline} size={23} color={focused ? colors.ink : colors.faint} />
           {inProgress ? <View style={styles.tabDot} testID="tab-train-active" /> : null}
         </View>
-        <Text style={[styles.tabLabel, { color: focused ? colors.ink : colors.faint }]}>{label}</Text>
+        <Text
+          style={[styles.tabLabel, { color: focused ? colors.ink : colors.faint }]}
+          maxFontSizeMultiplier={TAB_LABEL_MAX_SCALE}
+          numberOfLines={1}
+        >
+          {label}
+        </Text>
       </PressScale>
     );
   }
 
+  // A workout left running is one tap from every tab but its own (Train
+  // review U11) — the dot on the Train icon says it exists, this says how long
+  // and takes you back.
+  const onTrain = state.routes[state.index]?.name === 'train';
   return (
-    <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, space.sm) }]}>
-      {LEFT_TABS.map(tab)}
-      {onDayDetail ? <View style={{ flex: 1 }} /> : <LogSpeedDial />}
-      {RIGHT_TABS.map(tab)}
+    <View>
+      {!onTrain && workout.active ? (
+        <View style={styles.pillSlot}>
+          <ActiveWorkoutPill onResume={() => navigation.navigate('train')} />
+        </View>
+      ) : null}
+      {/* `tablist` is what makes the four `tab` roles a group: VoiceOver says
+          "tab, 1 of 4" only inside one, and TalkBack announces the bar (review #8). */}
+      <View
+        style={[styles.bar, { paddingBottom: Math.max(insets.bottom, space.sm) }]}
+        accessibilityRole="tablist"
+      >
+        {LEFT_TABS.map(tab)}
+        <LogSpeedDial />
+        {RIGHT_TABS.map(tab)}
+      </View>
     </View>
   );
 }
@@ -219,25 +256,24 @@ export default function AppTabsLayout() {
   useEffect(() => {
     void hydrateActiveWorkout(user?.uid);
   }, [user?.uid]);
+  // `ToastProvider` is in the root layout since S20: the native sheet route
+  // sits on the root stack, above this navigator, and hosts toasts too.
   return (
-    <ToastProvider>
+    <>
     <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <AppTabBar {...props} />}>
       <Tabs.Screen name="index" options={{ title: t('nav.today') }} />
       <Tabs.Screen name="train" options={{ title: t('nav.train') }} />
       <Tabs.Screen name="trends" options={{ title: t('nav.trends') }} />
       <Tabs.Screen name="body" options={{ title: t('nav.body') }} />
       {/* Routes without a tab button: */}
-      {/* History — reached via the Today header calendar icon (ADR-0014). */}
-      <Tabs.Screen name="history" options={{ href: null }} />
       {/* Reachable via the Today header avatar; hidden from the tab bar. */}
       <Tabs.Screen name="settings" options={{ href: null }} />
-      {/* Coach and Milestones are NOT here: they are root stack routes pushed
-          over this navigator (UX_AUDIT S18-14, `lib/root-stack.ts`), so the
-          tab bar and the raised + never cover them and swipe-back works. */}
+      {/* Coach, Milestones and History are NOT here: they are root stack
+          routes pushed over this navigator (UX_AUDIT S18-14, Today review P1,
+          `lib/root-stack.ts`), so the tab bar and the raised + never cover
+          them and swipe-back works. */}
       {/* Reachable via Settings → Refine targets; hidden from the tab bar. */}
       <Tabs.Screen name="refine-targets" options={{ href: null }} />
-      {/* Meal-photo scan (ADR-0015) — reached via the center camera button. */}
-      <Tabs.Screen name="scan" options={{ href: null }} />
       {/* Reachable via Settings → Daily targets; hidden from the tab bar. */}
       <Tabs.Screen name="daily-targets" options={{ href: null }} />
       {/* Reachable via Settings → Send feedback and the What's-new card. */}
@@ -246,7 +282,7 @@ export default function AppTabsLayout() {
     {/* Branded confirm dialogs (UX_AUDIT S16-10) — one host for every
         `confirm()` call in the authed shell. */}
     <ConfirmHost />
-    </ToastProvider>
+    </>
   );
 }
 
@@ -261,6 +297,8 @@ function createStyles({ colors }: Theme) {
       paddingTop: space.sm,
       paddingHorizontal: space.sm,
     },
+    // Clears the raised Log button, which stands ~26dp proud of the bar.
+    pillSlot: { paddingBottom: 30 },
     tab: { flex: 1, alignItems: 'center', gap: 2, paddingVertical: 2 },
     tabLabel: { fontSize: font.tiny, fontWeight: '600' },
     // Sits on the icon, not beside the label: the label is already the widest

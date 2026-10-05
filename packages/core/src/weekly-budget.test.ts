@@ -49,29 +49,52 @@ describe('computeWeeklyBudget', () => {
     expect(r.remaining).toBe(8200);
     expect(r.daysElapsed).toBe(3);
     expect(r.daysRemaining).toBe(4);
-    expect(r.pacePerRemainingDay).toBe(2050); // 8200 / 4
+    // Wednesday is still open, and its intake is already in `consumed` — so
+    // it is in the divisor too: 8200 over Wed..Sun, not over Thu..Sun.
+    expect(r.daysLeftInclToday).toBe(5);
+    expect(r.perDayInclToday).toBe(1640); // 8200 / 5
   });
 
   it('reports a negative pace once the week is overspent', () => {
     // Big Monday blows the budget; 6 days left must each borrow.
     const r = computeWeeklyBudget(week(20_000), 1, TARGET)!;
     expect(r.remaining).toBe(14_000 - 20_000);
-    expect(r.pacePerRemainingDay).toBe(-1000); // -6000 / 6
+    expect(r.perDayInclToday).toBe(-857); // -6000 / 7 (Monday is open too)
   });
 
-  it('has no pace on the last day of the week', () => {
-    const r = computeWeeklyBudget(week(2000, 2000, 2000, 2000, 2000, 2000, 2000), 7, TARGET)!;
+  it('on the last day of the week, the per-day figure is what is left today', () => {
+    const r = computeWeeklyBudget(week(2000, 2000, 2000, 2000, 2000, 2000, 1500), 7, TARGET)!;
     expect(r.daysRemaining).toBe(0);
-    expect(r.pacePerRemainingDay).toBeNull();
-    expect(r.consumed).toBe(14_000);
-    expect(r.remaining).toBe(0);
+    expect(r.daysLeftInclToday).toBe(1);
+    expect(r.perDayInclToday).toBe(500);
+    expect(r.consumed).toBe(13_500);
+    expect(r.remaining).toBe(500);
+  });
+
+  // The inflated-room bug: skipping Monday used to bank 2,000 kcal.
+  it('counts a past unlogged day at the target, not as zero eaten', () => {
+    // Wed (day 3): Mon unlogged, Tue 1900, Wed 600 so far.
+    const r = computeWeeklyBudget(week(0, 1900, 600), 3, TARGET)!;
+    expect(r.unloggedDays).toBe(1);
+    expect(r.consumed).toBe(2500); // what was LOGGED — the "used" line
+    expect(r.remaining).toBe(14_000 - 2500 - 2000);
+    expect(r.perDayInclToday).toBe(Math.round(9500 / 5));
+    expect(r.bars.map((b) => b.assumed)).toEqual([true, false, false, false, false, false, false]);
+  });
+
+  it('never treats today as unlogged, however empty', () => {
+    const r = computeWeeklyBudget(week(2000, 2000, 0), 3, TARGET)!;
+    expect(r.unloggedDays).toBe(0);
+    expect(r.bars[2].assumed).toBe(false);
+    expect(r.remaining).toBe(10_000);
+    expect(r.perDayInclToday).toBe(2000);
   });
 
   it('marks bars elapsed up to and including today, future days not', () => {
     const r = computeWeeklyBudget(week(1800, 1900, 2100), 3, TARGET)!;
     expect(r.bars).toHaveLength(7);
     expect(r.bars.map((b) => b.elapsed)).toEqual([true, true, true, false, false, false, false]);
-    expect(r.bars[0]).toEqual({ dateKey: '2026-06-08', calories: 1800, elapsed: true });
+    expect(r.bars[0]).toEqual({ dateKey: '2026-06-08', calories: 1800, elapsed: true, assumed: false });
     expect(r.bars[3].calories).toBe(0);
   });
 

@@ -113,7 +113,7 @@ env:
 - takeScreenshot: .maestro/regression/shots/10-dark-today-metrics
 - scrollUntilVisible:
     element:
-      text: 'Entries'
+      text: 'Meals'
     direction: DOWN
     timeout: 15000
 - scroll

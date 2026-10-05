@@ -4,6 +4,9 @@ jest.mock('@/lib/ledger', () => ({
   recordMilestone: jest.fn(),
   subscribeMilestones: () => () => {},
 }));
+// Body's sheets are `native` (Body review P1); iOS-under-jest would render
+// them into the root sheet route, which a screen test does not mount.
+jest.mock('@/components/BottomSheet', () => require('./js-sheet').jsSheetModule());
 
 import { fireEvent, renderWithProviders as render, waitFor } from '@/test-utils';
 import React from 'react';
@@ -216,10 +219,17 @@ describe('Body screen — measurements', () => {
     expect(screen.getByTestId('measure-how')).toBeTruthy();
   });
 
-  it('deletion is an explicit control, not a hidden long-press', async () => {
+  it('deletion is reachable by every user, not a hidden long-press', async () => {
     const screen = await render(<BodyScreen />);
-    // Discoverability regression guard: the trash affordance must exist per row.
-    expect(screen.getByTestId('measurement-delete-m1')).toBeTruthy();
+    // Discoverability regression guard (Body review A1 / bug 6): the trash
+    // used to be a button NESTED in the row, which VoiceOver never reaches.
+    // The row itself now carries the delete action (and a swipe reveals it).
+    const row = screen.getByTestId('measurement-m1');
+    expect(row.props.accessibilityActions.map((a: { name: string }) => a.name)).toEqual(
+      expect.arrayContaining(['edit', 'delete']),
+    );
+    await fireEvent(row, 'accessibilityAction', { nativeEvent: { actionName: 'delete' } });
+    await waitFor(() => expect(mockDelete).toHaveBeenCalledWith('m1'));
   });
 });
 

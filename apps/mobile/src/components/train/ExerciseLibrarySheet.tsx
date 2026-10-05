@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import type { SeedExercise } from '@macrolog/core';
 import type { Exercise } from '@/lib/workout';
 import { useT } from '@/i18n';
-import { BottomSheet } from '@/components/BottomSheet';
+import { BottomSheet, NATIVE_SHEETS } from '@/components/BottomSheet';
 import { useDeferredFocus } from '@/lib/use-deferred-focus';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { createStyles } from './train-styles';
@@ -25,6 +25,17 @@ import { ExerciseSearchList } from './ExerciseSearchList';
  * Picking a movement that is already yours opens its detail (history, PRs,
  * e1RM). Picking a library movement clones it into the catalog first — which
  * is what finally gives a hand-made catalog entry its muscle groups.
+ *
+ * ## Revived 2026-10-04 as a NATIVE sheet (Train review items 21, 32)
+ *
+ * It was retired on 2026-09-17 because no row inside its ScrollView fired
+ * `onPress` on iOS — inside the JS sheet's RN `Modal`, cause never found
+ * (eight candidates disproven; `train.tsx` history). On iOS it is now a
+ * `UISheetPresentationController` route, which has no RN Modal in it at all,
+ * so the one structure the failure was observed in is gone. Android keeps the
+ * JS sheet, where the rows were never reported dead. The home screen keeps a
+ * short inline list beside "Browse all", so a regression here costs the long
+ * tail, not the whole catalog — VERIFY ON AN iPHONE before trusting it.
  */
 export function ExerciseLibrarySheet({
   visible,
@@ -44,7 +55,7 @@ export function ExerciseLibrarySheet({
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
-  const inputRef = useDeferredFocus(visible);
+  const inputRef = useDeferredFocus(visible, NATIVE_SHEETS ? 450 : 300);
   const [query, setQuery] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -67,8 +78,9 @@ export function ExerciseLibrarySheet({
   }
 
   return (
-    <BottomSheet visible={visible} onClose={onClose} contentStyle={styles.sheetBody} maxHeight="80%">
-      <Text style={styles.sheetTitle}>{t('train.libraryTitle')}</Text>
+    <BottomSheet native detents={[0.6, 1]} visible={visible} onClose={onClose} contentStyle={styles.sheetBody} maxHeight="80%">
+      <View style={styles.sheetStack}>
+      <Text style={styles.sheetTitle} accessibilityRole="header">{t('train.libraryTitle')}</Text>
       <TextInput
         ref={inputRef}
         style={styles.input}
@@ -92,6 +104,7 @@ export function ExerciseLibrarySheet({
         />
         <View style={styles.setSheetTail} />
       </ScrollView>
+      </View>
     </BottomSheet>
   );
 }

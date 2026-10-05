@@ -41,10 +41,12 @@ import {
   addDays,
   calendarDateKey,
   dayKeyAt,
+  dropEmptyExercises,
   fillMissingClusterLoads,
   isStorableWeight,
   newLedgerId,
   parseYmd,
+  sessionHasLoggedWork,
 } from '@macrolog/core';
 import { track } from './analytics';
 import { exportDaily, exportWorkout } from './health-sync';
@@ -53,6 +55,7 @@ import {
   setDailySleep,
   setDailyWater,
   setDailyWeight,
+  startSession,
   updateSession,
 } from './ledger';
 import {
@@ -175,6 +178,21 @@ export async function writeDailyMetric(
  *
  * Everything up to and including `markExercised` is awaited, so a failure at
  * any step rejects and the caller can say so. The mirror cannot reject.
+ *
+ * ## Since 2026-10-04 (Train review bugs 1, 2, 10)
+ *
+ * - **Nobody waits on this any more.** `useTrain` completes the workout on the
+ *   device and runs this behind the screen, replaying it from
+ *   `active-session-journal.ts`'s pending-finish list after a restart. So it
+ *   must be safe to run twice: every write is a set/update of a known doc, and
+ *   `markExercised` looks for its own marker first.
+ * - **A session whose create never landed is written whole.** A start no
+ *   longer waits for its create; a restart before the ack loses it, and the
+ *   completing UPDATE then fails `not-found`. That is not a reason to lose the
+ *   workout — the session in hand is complete, so it is created as completed.
+ * - **Exercises left with no logged set are dropped**, and a session with
+ *   nothing logged at all does not mark the day exercised. The screen offers
+ *   "discard instead?" first; this is the backstop.
  */
 export async function finishWorkout(
   uid: string,
@@ -185,15 +203,23 @@ export async function finishWorkout(
   const id = session.id;
   if (!id) return;
   const date = session.date;
-  const exercises = dropEmptySets(fillMissingClusterLoads(session.exercises));
+  const exercises = dropEmptyExercises(dropEmptySets(fillMissingClusterLoads(session.exercises)));
   const cardio = dropEmptyCardio(session.cardio);
-  await updateSession(uid, id, {
-    status: 'completed',
+  const patch = {
+    status: 'completed' as const,
     exercises,
     ...(cardio !== undefined ? { cardio } : {}),
     bodyweight: extras.bodyweight,
     sleepHours: extras.sleepHours,
-  });
+  };
+  try {
+    await updateSession(uid, id, patch);
+  } catch (e) {
+    if ((e as { code?: string } | null)?.code !== 'not-found') throw e;
+    // `id` is stripped: the draft is the document body, the id is its name.
+    const { id: _id, createdAt: _c, updatedAt: _u, ...body } = session;
+    await startSession(uid, { ...body, ...patch }, id);
+  }
   const dateKey = dayKeyAt(date, boundary);
   if (extras.bodyweight != null && isStorableWeight(extras.bodyweight)) {
     await writeDailyMetric(uid, 'weight', dateKey, extras.bodyweight);
@@ -201,6 +227,9 @@ export async function finishWorkout(
   if (extras.sleepHours != null && extras.sleepHours > 0) {
     await writeDailyMetric(uid, 'sleep', dateKey, extras.sleepHours);
   }
+  // An empty session is still stored (it is what the user finished), but it is
+  // not a day of exercise and must not keep a streak alive.
+  if (!sessionHasLoggedWork({ exercises, cardio })) return;
   await markExercised(uid, date, boundary);
   track('workout_finished');
   // Mirror the finished session to Health (ends now; strength training).

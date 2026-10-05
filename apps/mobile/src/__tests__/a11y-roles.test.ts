@@ -46,19 +46,35 @@ const FILES = [
   // drift a curated list invites, so the logging doors are listed by name.
   'components/BarcodeScanner.tsx',
   'components/MicButton.tsx',
-  'app/(app)/scan.tsx',
+  // S20: the meal-slot / time controls the sheet and the scan review share,
+  // and the viewfinder.
+  'components/EntryWhen.tsx',
+  'components/ScanCamera.tsx',
+  'app/scan.tsx',
   // Screens that already pass, listed so they stay passing. The rest of
   // `src/app` (settings, train, body, trends, onboarding, sign-in, …) still
   // has role-less pressables; add each here as it is brought up.
   'app/(app)/index.tsx',
   'app/(app)/_layout.tsx',
-  'app/(app)/history/index.tsx',
-  'app/(app)/history/[date].tsx',
+  'app/history/index.tsx',
+  'app/history/[date].tsx',
   'app/_layout.tsx',
   'app/coach.tsx',
   'app/milestones.tsx',
   'app/tour.tsx',
   'app/whats-new.tsx',
+  // Body review (2026-10-04): Body, its sheets, Connected apps and the fast
+  // editor were brought up to "every control announces what it is".
+  'app/(app)/body.tsx',
+  'app/connected-apps.tsx',
+  'components/FastSheet.tsx',
+  'components/body/WeightSheet.tsx',
+  'components/body/MeasurementSheet.tsx',
+  'components/body/HistoryRow.tsx',
+  'components/body/WeightChart.tsx',
+  'components/body/BodyFatCard.tsx',
+  'components/body/HealthFooter.tsx',
+  'components/body/DayStepper.tsx',
 ];
 const TOUCHABLES = ['TouchableOpacity', 'Pressable', 'PressScale', 'AnimatedPressable'];
 
@@ -137,7 +153,6 @@ describe('pressables in the logging sheets carry an accessibilityRole', () => {
 const INPUTS_PENDING: Record<string, number> = {
   'components/RecipeImport.tsx': 1,
   'components/train/TemplateEditorModal.tsx': 13,
-  'app/coach.tsx': 1,
 };
 
 describe('text fields in the same files carry an accessibilityLabel', () => {

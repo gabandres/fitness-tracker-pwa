@@ -56,17 +56,24 @@ export function SetRowSheet({
 }) {
   const t = useT();
   const styles = useThemedStyles(createStyles);
-  if (!set) return null;
 
   // RIR is meaningful on real working effort, not warmups/back-offs.
   // `continuation` carries it too: a rest-pause continuation is taken to
   // failure, so the reading is as meaningful there as on the activation.
   const showRir =
-    set.kind === 'working' || set.kind === 'activation'
-    || set.kind === 'mini' || set.kind === 'continuation';
+    set?.kind === 'working' || set?.kind === 'activation'
+    || set?.kind === 'mini' || set?.kind === 'continuation';
 
+  // The sheet is ALWAYS rendered, and only its content depends on `set`: a
+  // native sheet is dismissed by its owner's `visible` turning false, and an
+  // owner that returned null instead (the old `if (!set) return null`, hit
+  // the moment a removed set left the index empty) would leave the system
+  // sheet up and blank. One instance for the whole session now (Train review
+  // item 31), native, sized to its rows.
   return (
-    <BottomSheet visible={visible} onClose={onClose} contentStyle={styles.sheetBody} maxHeight="80%">
+    <BottomSheet native detents="fit" visible={visible && set != null} onClose={onClose} contentStyle={styles.sheetBody} maxHeight="80%">
+      {set ? (
+      <>
       {/* `BottomSheet` CLAMPS height and does not scroll — every other sheet
           in Train supplies its own ScrollView and this one has to as well.
           Seven set-kind rows (each a name plus a description), the RIR
@@ -75,11 +82,12 @@ export function SetRowSheet({
           the fold with nothing able to reach them. Exactly the failure
           `BottomSheet`'s own `flexShrink` comment documents. */}
       <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-      <Text style={styles.sheetTitle}>{t('train.setSheetTitle', { n: label })}</Text>
+      <Text style={styles.sheetTitle} accessibilityRole="header">{t('train.setSheetTitle', { n: label })}</Text>
 
       <Text style={styles.fieldLabel}>{t('train.setType')}</Text>
       {/* Rows, not a chip wrap: "Activation" and "Mini" are cluster-training
           vocabulary, and a bare chip label teaches nobody what they are. */}
+      <View accessibilityRole="radiogroup">
       {SET_KINDS.map((k) => {
         const on = set.kind === k.value;
         return (
@@ -90,6 +98,10 @@ export function SetRowSheet({
               haptics.tap();
               onKind(k.value);
             }}
+            // A choice of one, with the current one said as selected — they
+            // were unlabelled buttons (Train review item 18).
+            accessibilityRole="radio"
+            accessibilityState={{ selected: on, checked: on }}
             testID={`set-sheet-kind-${k.value}`}
           >
             <Text style={[styles.kindRowName, on && styles.kindRowNameOn]}>{t(k.labelKey)}</Text>
@@ -97,6 +109,7 @@ export function SetRowSheet({
           </TouchableOpacity>
         );
       })}
+      </View>
 
       {showRir ? (
         <>
@@ -105,13 +118,16 @@ export function SetRowSheet({
               glossary button in the header should not be the only place the
               tab explains its own vocabulary. */}
           <Text style={styles.sheetHint}>{t('train.rirExplain')}</Text>
-          <View style={styles.kindChips}>
+          <View style={styles.kindChips} accessibilityRole="radiogroup">
             <TouchableOpacity
               style={[styles.kindChip, set.rir == null && styles.kindChipOn]}
+              hitSlop={{ top: 11, bottom: 11, left: 4, right: 4 }}
               onPress={() => {
                 haptics.tap();
                 onRir(undefined);
               }}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: set.rir == null, checked: set.rir == null }}
               testID="set-sheet-rir-none"
             >
               <Text style={[styles.kindChipText, set.rir == null && styles.kindChipTextOn]}>
@@ -124,6 +140,9 @@ export function SetRowSheet({
                 <TouchableOpacity
                   key={v}
                   style={[styles.kindChip, on && styles.kindChipOn]}
+                  hitSlop={{ top: 11, bottom: 11, left: 4, right: 4 }}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: on, checked: on }}
                   onPress={() => {
                     haptics.tap();
                     // Still through the shared 0–5 clamp (@macrolog/core) so
@@ -155,6 +174,8 @@ export function SetRowSheet({
       </TouchableOpacity>
       <View style={styles.setSheetTail} />
       </ScrollView>
+      </>
+      ) : null}
     </BottomSheet>
   );
 }

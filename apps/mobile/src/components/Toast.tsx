@@ -8,8 +8,17 @@ import {
   useRef,
   useState,
 } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import Animated, { FadeInDown, FadeOutDown, ReduceMotion } from 'react-native-reanimated';
+import { StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, {
+  FadeInDown,
+  FadeOutDown,
+  ReduceMotion,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useT } from '@/i18n';
 import { announce, primeScreenReaderState, recommendedTimeoutMs } from '@/lib/a11y';
@@ -29,7 +38,7 @@ import { FAB_BAND, font, motion, radius, space } from '@/theme';
  * ## API
  *
  * ```tsx
- * <ToastProvider>{app}</ToastProvider>                 // once, in the tab layout
+ * <ToastProvider>{app}</ToastProvider>                 // once, in the root layout
  * const toast = useToast();
  * toast.show(t('offline.queued'));
  * toast.show(t('entry.deleted'), {
@@ -58,6 +67,16 @@ import { FAB_BAND, font, motion, radius, space } from '@/theme';
  * every remount), so a screen-reader user hears the receipt without it
  * stealing focus. Inside a sheet it draws at the top of the panel — the bottom
  * there is the keyboard and the sheet's action row — and drops "Edit".
+ *
+ * The announcement waits {@link ANNOUNCE_AFTER_SHEET_MS} when a sheet is open
+ * or has just closed: the receipt is usually raised in the same tick the add
+ * sheet is dismissed, and VoiceOver drops an announcement that lands while it
+ * is moving focus back to the screen underneath.
+ *
+ * The bottom toast swipes away (sideways or down) — the Material snackbar
+ * gesture and the one iOS users try on any banner. From 1.35× text the
+ * actions take their own row under the message, so neither is squeezed into
+ * a sliver (UX_AUDIT Today review A7).
  */
 export interface ToastAction {
   label: string;
@@ -78,7 +97,18 @@ export interface ToastOptions {
 interface ToastApi {
   show: (message: string, opts?: ToastOptions) => void;
   hide: () => void;
+  /** Run the live toast's action (and dismiss it). False when there is no
+   *  toast or it has no action — the Magic Tap handler's answer. */
+  act: () => boolean;
 }
+
+/** How long an announcement waits around a sheet dismissal — see Behaviour. */
+export const ANNOUNCE_AFTER_SHEET_MS = 400;
+/** Text scale from which the toast stacks its actions under the message. */
+const STACK_AT_FONT_SCALE = 1.35;
+/** A swipe past either distance dismisses; shorter springs back. */
+const SWIPE_DISMISS_X = 80;
+const SWIPE_DISMISS_Y = 36;
 
 /** What the in-modal host needs: the live toast and the portal stack. */
 interface ToastStateApi {
@@ -101,6 +131,9 @@ const ACTION_SLOP = { top: 12, bottom: 12, left: 5, right: 5 } as const;
 const ToastContext = createContext<ToastApi | null>(null);
 const ToastStateContext = createContext<ToastStateApi | null>(null);
 let portalSeq = 0;
+/** Module-scope, so `useState(nextPortalId)` mints one id per host without the
+ *  React Compiler seeing a global mutated during render. */
+const nextPortalId = () => ++portalSeq;
 
 let notify: ((message: string, opts?: ToastOptions) => void) | null = null;
 
@@ -113,6 +146,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [current, setCurrent] = useState<ActiveToast | null>(null);
   const seq = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Read by `act` and `show` from event handlers only — never during render.
+  const currentRef = useRef<ActiveToast | null>(null);
+  const portalCount = useRef(0);
+  const lastSheetCloseAt = useRef(0);
+
+  useEffect(() => {
+    currentRef.current = current;
+  }, [current]);
 
   const hide = useCallback(() => {
     if (timer.current) clearTimeout(timer.current);
@@ -134,7 +175,17 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       // Spoken once, here, on both platforms — not through a live region:
       // the toast can move from a sheet's host to the root host as the sheet
       // closes, and a live region re-announces on every remount.
-      announce(actions ? `${message}. ${actions}` : message);
+      const spoken = actions ? `${message}. ${actions}` : message;
+      const nearSheet =
+        portalCount.current > 0 || Date.now() - lastSheetCloseAt.current < ANNOUNCE_AFTER_SHEET_MS;
+      if (nearSheet) {
+        setTimeout(() => {
+          // Superseded while it waited: the newer toast speaks for itself.
+          if (seq.current === key) announce(spoken);
+        }, ANNOUNCE_AFTER_SHEET_MS);
+      } else {
+        announce(spoken);
+      }
       const base = opts.durationMs ?? (opts.action ? 5000 : 4000);
       void recommendedTimeoutMs(base, !!opts.action).then((ms) => {
         // A newer toast already replaced this one while the timeout resolved.
@@ -150,6 +201,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const act = useCallback(() => {
+    const action = currentRef.current?.action;
+    if (!action) return false;
+    hide();
+    action.onPress();
+    return true;
+  }, [hide]);
+
   useEffect(() => {
     primeScreenReaderState();
     notify = show;
@@ -159,12 +218,17 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     };
   }, [show, hide]);
 
-  const api = useMemo<ToastApi>(() => ({ show, hide }), [show, hide]);
+  const api = useMemo<ToastApi>(() => ({ show, hide, act }), [show, hide, act]);
 
   const [portals, setPortals] = useState<number[]>([]);
   const register = useCallback((id: number) => {
+    portalCount.current += 1;
     setPortals((p) => [...p, id]);
-    return () => setPortals((p) => p.filter((x) => x !== id));
+    return () => {
+      portalCount.current -= 1;
+      lastSheetCloseAt.current = Date.now();
+      setPortals((p) => p.filter((x) => x !== id));
+    };
   }, []);
   const state = useMemo<ToastStateApi>(
     () => ({ current, hide, portals, register }),
@@ -192,7 +256,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
  */
 export function ToastSheetHost() {
   const ctx = useContext(ToastStateContext);
-  const id = useRef(++portalSeq).current;
+  const [id] = useState(nextPortalId);
   const register = ctx?.register;
   useEffect(() => register?.(id), [register, id]);
   if (!ctx || ctx.portals[ctx.portals.length - 1] !== id) return null;
@@ -217,70 +281,130 @@ function ToastHost({
    *  covered or covering. */
   placement?: 'bottom' | 'sheet';
 }) {
-  const t = useT();
-  const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
   if (!toast) return null;
   const inSheet = placement === 'sheet';
   // In a sheet the wrapper sits beside the panel (elevation 6 on Android); a
   // higher elevation keeps it drawn above the panel if Fabric keeps the node.
   const at = inSheet ? { top: space.sm, elevation: 8 } : { bottom: insets.bottom + FAB_BAND };
+  return (
+    // Keyed by the toast, so a replacement starts from rest rather than
+    // inheriting a half-finished swipe.
+    <ToastCard key={toast.key} toast={toast} onHide={onHide} inSheet={inSheet} at={at} />
+  );
+}
+
+function ToastCard({
+  toast,
+  onHide,
+  inSheet,
+  at,
+}: {
+  toast: ActiveToast;
+  onHide: () => void;
+  inSheet: boolean;
+  at: object;
+}) {
+  const t = useT();
+  const styles = useThemedStyles(createStyles);
+  const { fontScale } = useWindowDimensions();
+  const stacked = fontScale >= STACK_AT_FONT_SCALE;
   // No "Edit" inside a sheet: it would open an editor over the one already
   // open. The receipt is usually raised while the add sheet is closing, and
   // the root host draws the full toast, Edit included, once it has.
   const secondary = inSheet ? undefined : toast.secondaryAction;
+
+  // Swipe to dismiss. Only the bottom toast: inside a sheet's Modal the
+  // gesture would compete with the sheet's own drag-to-dismiss.
+  const tx = useSharedValue(0);
+  const ty = useSharedValue(0);
+  const swipe = Gesture.Pan()
+    .enabled(!inSheet)
+    .minDistance(8)
+    .onUpdate((e) => {
+      tx.set(e.translationX);
+      // Down only: the toast sits above the tab bar and has nowhere to go up.
+      ty.set(Math.max(0, e.translationY));
+    })
+    .onEnd((e) => {
+      const gone =
+        Math.abs(e.translationX) > SWIPE_DISMISS_X ||
+        e.translationY > SWIPE_DISMISS_Y ||
+        Math.abs(e.velocityX) > 800 ||
+        e.velocityY > 600;
+      if (gone) {
+        scheduleOnRN(onHide);
+        return;
+      }
+      tx.set(withTiming(0, { duration: motion.dur.fast }));
+      ty.set(withTiming(0, { duration: motion.dur.fast }));
+    });
+  const dragStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: tx.value }, { translateY: ty.value }],
+    opacity: 1 - Math.min(0.6, Math.abs(tx.value) / 300),
+  }));
+
+  const buttons = (
+    <>
+      {toast.action && secondary ? (
+        <TouchableOpacity
+          onPress={() => {
+            haptics.tap();
+            onHide();
+            secondary.onPress();
+          }}
+          hitSlop={ACTION_SLOP}
+          accessibilityRole="button"
+          testID="toast-secondary-action"
+        >
+          <Text style={styles.action}>{secondary.label}</Text>
+        </TouchableOpacity>
+      ) : null}
+      {toast.action ? (
+        <TouchableOpacity
+          onPress={() => {
+            haptics.tap();
+            onHide();
+            toast.action?.onPress();
+          }}
+          hitSlop={secondary ? ACTION_SLOP : 10}
+          accessibilityRole="button"
+          testID="toast-action"
+        >
+          <Text style={styles.action}>{toast.action.label}</Text>
+        </TouchableOpacity>
+      ) : (
+        <TouchableOpacity
+          onPress={onHide}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.dismiss')}
+          testID="toast-dismiss"
+        >
+          <Text style={styles.action}>{t('common.dismiss')}</Text>
+        </TouchableOpacity>
+      )}
+    </>
+  );
+
   return (
     <View style={[styles.layer, at]} pointerEvents="box-none">
-      <Animated.View
-        key={toast.key}
-        entering={FadeInDown.duration(motion.dur.base).reduceMotion(ReduceMotion.System)}
-        exiting={FadeOutDown.duration(motion.dur.fast).reduceMotion(ReduceMotion.System)}
-        style={styles.toast}
-        accessibilityRole="alert"
-        testID={toast.testID ?? 'toast'}
-      >
-        <Text style={styles.message} numberOfLines={2}>
-          {toast.message}
-        </Text>
-        {toast.action && secondary ? (
-          <TouchableOpacity
-            onPress={() => {
-              haptics.tap();
-              onHide();
-              secondary.onPress();
-            }}
-            hitSlop={ACTION_SLOP}
-            accessibilityRole="button"
-            testID="toast-secondary-action"
-          >
-            <Text style={styles.action}>{secondary.label}</Text>
-          </TouchableOpacity>
-        ) : null}
-        {toast.action ? (
-          <TouchableOpacity
-            onPress={() => {
-              haptics.tap();
-              onHide();
-              toast.action?.onPress();
-            }}
-            hitSlop={secondary ? ACTION_SLOP : 10}
-            accessibilityRole="button"
-            testID="toast-action"
-          >
-            <Text style={styles.action}>{toast.action.label}</Text>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity
-            onPress={onHide}
-            hitSlop={10}
-            accessibilityRole="button"
-            accessibilityLabel={t('common.dismiss')}
-            testID="toast-dismiss"
-          >
-            <Text style={styles.action}>{t('common.dismiss')}</Text>
-          </TouchableOpacity>
-        )}
-      </Animated.View>
+      <GestureDetector gesture={swipe}>
+        <Animated.View
+          entering={FadeInDown.duration(motion.dur.base).reduceMotion(ReduceMotion.System)}
+          exiting={FadeOutDown.duration(motion.dur.fast).reduceMotion(ReduceMotion.System)}
+          style={[styles.toast, stacked && styles.toastStacked, dragStyle]}
+          accessibilityRole="alert"
+          testID={toast.testID ?? 'toast'}
+        >
+          {/* Uncapped lines when stacked: the message has the full width then,
+              and two lines at 2× text cut most receipts mid-word. */}
+          <Text style={[styles.message, stacked && styles.messageStacked]} numberOfLines={stacked ? undefined : 2}>
+            {toast.message}
+          </Text>
+          {stacked ? <View style={styles.actionsRow}>{buttons}</View> : buttons}
+        </Animated.View>
+      </GestureDetector>
     </View>
   );
 }
@@ -306,7 +430,11 @@ const createStyles = ({ colors, shadow }: Theme) =>
       backgroundColor: colors.ink,
       ...shadow.e3,
     },
+    // Message over a right-aligned row of actions — see STACK_AT_FONT_SCALE.
+    toastStacked: { flexDirection: 'column', alignItems: 'stretch', gap: space.sm },
+    actionsRow: { flexDirection: 'row', justifyContent: 'flex-end', flexWrap: 'wrap', gap: space.lg },
     message: { flex: 1, fontSize: font.small, color: colors.onInk, fontWeight: '600' },
+    messageStacked: { flex: 0 },
     // `onInk`, not `accent`: accent is tuned for the CANVAS and lands near 2:1
     // on an ink fill in both themes. Weight + underline carry "this is the
     // button" instead of hue.

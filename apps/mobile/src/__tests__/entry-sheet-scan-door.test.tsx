@@ -10,6 +10,8 @@ import { fireEvent, renderWithProviders as render } from '@/test-utils';
  */
 
 const mockNavigate = jest.fn();
+// iOS presents this sheet natively, through a route this test does not mount.
+jest.mock('@/components/BottomSheet', () => require('./js-sheet').jsSheetModule());
 jest.mock('expo-router', () => ({ router: { navigate: (...a: unknown[]) => mockNavigate(...a) } }));
 jest.mock('@/lib/foodSearch', () => ({
   searchFoods: jest.fn(async () => []),
@@ -17,7 +19,7 @@ jest.mock('@/lib/foodSearch', () => ({
   sortServings: (s: unknown) => s,
   warmFoodIndex: jest.fn(),
 }));
-jest.mock('@/lib/haptics', () => ({ tap: jest.fn(), success: jest.fn(), warn: jest.fn() }));
+jest.mock('@/lib/haptics', () => ({ tap: jest.fn(), success: jest.fn(), warn: jest.fn(), warning: jest.fn(), selection: jest.fn(), tapThenOutcome: jest.fn(), removed: jest.fn() }));
 jest.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { uid: 'u1' }, profile: null }) }));
 jest.mock('@/components/BarcodeScanner', () => ({ BarcodeScanner: () => null }));
 

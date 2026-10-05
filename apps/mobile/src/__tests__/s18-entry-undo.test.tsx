@@ -11,6 +11,8 @@ import { fireEvent, renderWithProviders as render, waitFor } from '@/test-utils'
 import { type DailyLog, dayBoundaryOf } from '@macrolog/core';
 
 const mockShow = jest.fn();
+// iOS presents this sheet natively, through a route this test does not mount.
+jest.mock('@/components/BottomSheet', () => require('./js-sheet').jsSheetModule());
 jest.mock('@/components/Toast', () => ({
   ToastSheetHost: () => null,
   useToast: () => ({ show: mockShow }),
@@ -37,7 +39,7 @@ jest.mock('@/lib/pending-logs', () => ({
   undoAdds: jest.fn(),
   addLogDurably: (...a: unknown[]) => mockAddLogDurably(...a),
 }));
-jest.mock('@/lib/haptics', () => ({ tap: jest.fn(), success: jest.fn(), warning: jest.fn() }));
+jest.mock('@/lib/haptics', () => ({ tap: jest.fn(), success: jest.fn(), warning: jest.fn(), selection: jest.fn(), tapThenOutcome: jest.fn(), removed: jest.fn() }));
 // EntrySheet → FoodSearch → firebase/functions; same seam the EntrySheet
 // suites cut. `warmFoodIndex` must exist or the mount effect throws.
 jest.mock('@/lib/foodSearch', () => ({
@@ -86,7 +88,7 @@ jest.mock('@/hooks/useHistory', () => ({
   }),
 }));
 
-import DayDetail, { entryFromLog } from '@/app/(app)/history/[date]';
+import DayDetail, { entryFromLog } from '@/app/history/[date]';
 
 beforeEach(() => {
   mockShow.mockClear();

@@ -274,7 +274,9 @@ describe('the axis is a scale, not a verdict', () => {
 
     // Without the axis no bar height means anything — the headline says 56 and
     // nothing on the strip lets you check it.
-    expect(getByTestId('water-axis-max')).toHaveTextContent(String(WATER_STRIP_CEILING_FLOZ));
+    // Hidden from screen readers since 2026-10-04 (the strip's adjustable label
+    // carries the scale), so the query asks for hidden elements.
+    expect(getByTestId('water-axis-max', { includeHiddenElements: true })).toHaveTextContent(String(WATER_STRIP_CEILING_FLOZ));
   });
 
   it('tops out above the heaviest day anyone here has logged, and below a gallon', async () => {

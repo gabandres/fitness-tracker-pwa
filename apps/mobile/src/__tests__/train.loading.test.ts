@@ -56,7 +56,7 @@ jest.mock('@/lib/ledger', () => ({
     cb: (s: unknown[], meta?: { fromCache: boolean }) => void,
     onError: (e: Error) => void,
   ) => mockSessionsImpl(uid, n, cb, onError),
-  getActiveSession: () => Promise.resolve(null),
+  readActiveSession: () => Promise.resolve({ session: null, fromCache: false }),
   startSession: jest.fn(),
   updateSession: jest.fn(),
   addExercise: jest.fn(),
@@ -158,7 +158,7 @@ describe('refocus while editing a completed session', () => {
     expect(hook.result.current.editingExisting).toBe(true);
     expect(hook.result.current.active?.id).toBe('s-done');
 
-    // A blur + refocus re-runs `onOpen`, whose `getActiveSession` (status ==
+    // A blur + refocus re-runs `onOpen`, whose `readActiveSession` (status ==
     // 'active') answers null for a completed session. That null used to be
     // written through, closing the editor while `editingExisting` stayed true.
     mockFocus.focused = false;
