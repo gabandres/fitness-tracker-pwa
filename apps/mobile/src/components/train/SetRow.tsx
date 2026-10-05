@@ -28,6 +28,7 @@ import { font } from '@/theme';
 import type { ChainField, InputChain } from './input-chain';
 import { kindLabelKey, numOrUndef } from './train-shared';
 import { createStyles } from './train-styles';
+import { useKeepAboveKeyboard } from './reveal-above-keyboard';
 
 /** The set number's extra reach, left and right — see `setNumCell`. */
 const SET_NUM_SLOP = { left: 8, right: 8 };
@@ -156,6 +157,9 @@ export const SetRow = memo(function SetRow({
   }, [set.reps, set.durationSec, logStyle]);
   /** Which of this row's fields has the keyboard — it shows the ± steppers. */
   const [focused, setFocused] = useState<ChainField | null>(null);
+  // The steppers open under the field; the keyboard must not cover them.
+  const stepRowRef = useRef<View>(null);
+  useKeepAboveKeyboard(focused != null, stepRowRef);
 
   // What the template prescribed for this set, if it came from one. Shown as
   // the placeholder rather than the value: a target the lifter has not
@@ -526,7 +530,7 @@ export const SetRow = memo(function SetRow({
           one rep. Under the row rather than in it: the row is already the
           densest line on a 360dp screen, and these only matter while typing. */}
       {focused ? (
-        <View style={styles.stepRow} testID={`set-steps-${exerciseIndex}-${setIndex}`}>
+        <View ref={stepRowRef} style={styles.stepRow} testID={`set-steps-${exerciseIndex}-${setIndex}`}>
           {focused === 'weight' ? (
             <>
               <TouchableOpacity

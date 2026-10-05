@@ -28,6 +28,7 @@ import { ExerciseMenuSheet, type ExerciseMenuAction } from '@/components/train/E
 import { type I18nKey, type TFn, useLocale, useT } from '@/i18n';
 import { announce } from '@/lib/a11y';
 import { tabBarOverlap } from '@/lib/glass';
+import { RevealAboveKeyboardContext, useRevealAboveKeyboard } from './reveal-above-keyboard';
 import { publishRestEndsAt } from '@/lib/active-workout-signal';
 import { useIsOffline } from '@/lib/connectivity';
 import { formatDate } from '@/lib/date-format';
@@ -197,6 +198,9 @@ export function ActiveSession({
   const largeText = fontScale >= LARGE_TEXT_SCALE;
   const session = train.active!;
   const { dispatch, commitActive, undoRemoval } = train;
+  // Set rows reveal their ± steppers above the keyboard through this.
+  const scrollRef = useRef<ScrollView>(null);
+  const keyboardReveal = useRevealAboveKeyboard(scrollRef);
 
   const [addFor, setAddFor] = useState<{ index: number; name: string } | 'add' | null>(null);
   const [cardioPickerOpen, setCardioPickerOpen] = useState(false);
@@ -798,111 +802,122 @@ export function ActiveSession({
       </View>
 
       <ScrollView
+        ref={scrollRef}
+        onScroll={keyboardReveal.onScroll}
+        scrollEventThrottle={32}
         contentContainerStyle={styles.body}
         keyboardShouldPersistTaps="handled"
         // A drag through the list puts the keyboard away, the way every
         // logger behaves; tapping a set's own field still keeps it.
         keyboardDismissMode="on-drag"
+        // iOS: pad for the keyboard and scroll the focused set field above it
+        // (and above its ‹ › Done bar, which iOS counts as keyboard). Without
+        // it a low set's field opened under the number pad, and dragging to
+        // reveal it put the keyboard away (Impeccable audit, 2026-10-05).
+        // Same prop as sign-in; a no-op on Android, which resizes the window.
+        automaticallyAdjustKeyboardInsets
       >
-        {/* Failures during the workout are said HERE, on the workout — they
-            used to render only on the idle screen, so a refused write left
-            "Saving…" on screen and said nothing (Train review bug 3). */}
-        {train.error ? (
-          <View style={styles.errorRow} accessibilityRole="alert" accessibilityLiveRegion="polite" testID="session-error">
-            <Text style={[styles.error, { flex: 1 }]}>
-              {train.errorKind === 'save' ? t('train.workoutSaveErr') : t('train.loadErr')}
-            </Text>
-            <TouchableOpacity
-              style={styles.errorBtn}
-              onPress={() => {
-                train.clearError();
-                void commitActive();
+        <RevealAboveKeyboardContext.Provider value={keyboardReveal.reveal}>
+          {/* Failures during the workout are said HERE, on the workout — they
+              used to render only on the idle screen, so a refused write left
+              "Saving…" on screen and said nothing (Train review bug 3). */}
+          {train.error ? (
+            <View style={styles.errorRow} accessibilityRole="alert" accessibilityLiveRegion="polite" testID="session-error">
+              <Text style={[styles.error, { flex: 1 }]}>
+                {train.errorKind === 'save' ? t('train.workoutSaveErr') : t('train.loadErr')}
+              </Text>
+              <TouchableOpacity
+                style={styles.errorBtn}
+                onPress={() => {
+                  train.clearError();
+                  void commitActive();
+                }}
+                accessibilityRole="button"
+                testID="session-retry"
+              >
+                <Text style={styles.discardText}>{t('common.retry')}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+          {/* Offline, a queued write IS saved — on this phone, until the signal
+              comes back — and the banner says so in those words. */}
+          {offline ? (
+            <View style={styles.syncRow} accessibilityRole="text" testID="session-offline-note">
+              <Text style={styles.sheetHint}>{t('train.savedOnPhone')}</Text>
+            </View>
+          ) : null}
+          <OfflineBanner />
+
+          {session.exercises.length === 0 && (session.cardio ?? []).length === 0 ? (
+            <Text style={styles.empty}>{t('train.addFirst')}</Text>
+          ) : null}
+          {session.exercises.map((ex, exIdx) => (
+            <ExerciseCard
+              key={`${ex.exerciseId}-${exIdx}`}
+              exercise={ex}
+              exerciseIndex={exIdx}
+              collapsed={expanded !== exIdx}
+              recentSessions={train.recentSessions}
+              catalog={train.catalog}
+              templateRow={templateRowFor(ex.exerciseId)}
+              best={bestByEx[ex.exerciseId]}
+              platesOpen={platesOpen === exIdx}
+              largeText={largeText}
+              dispatch={dispatch}
+              commitActive={commitActive}
+              chain={chain}
+              onToggle={onToggle}
+              onOpenMenu={onOpenMenu}
+              menuActions={expanded === exIdx ? openMenuActions : undefined}
+              onOpenSetSheet={onOpenSetSheet}
+              onOpenLift={onOpenLift}
+              onSetDone={onSetDone}
+              onRemoveSet={onRemoveSet}
+            />
+          ))}
+
+          {(session.cardio ?? []).map((block, i) => (
+            <CardioBlockCard
+              key={`cardio-${block.sourceId ?? i}`}
+              block={block}
+              index={i}
+              overlaps={overlappingCardio.has(i)}
+              onPatch={(patch, opts) =>
+                void dispatch({ type: 'patchCardio', blockIndex: i, patch }, opts)
+              }
+              onCommit={() => void commitActive()}
+              onRemove={() => {
+                haptics.tap();
+                void dispatch({ type: 'removeCardio', blockIndex: i });
               }}
-              accessibilityRole="button"
-              testID="session-retry"
-            >
-              <Text style={styles.discardText}>{t('common.retry')}</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
-        {/* Offline, a queued write IS saved — on this phone, until the signal
-            comes back — and the banner says so in those words. */}
-        {offline ? (
-          <View style={styles.syncRow} accessibilityRole="text" testID="session-offline-note">
-            <Text style={styles.sheetHint}>{t('train.savedOnPhone')}</Text>
-          </View>
-        ) : null}
-        <OfflineBanner />
+            />
+          ))}
 
-        {session.exercises.length === 0 && (session.cardio ?? []).length === 0 ? (
-          <Text style={styles.empty}>{t('train.addFirst')}</Text>
-        ) : null}
-        {session.exercises.map((ex, exIdx) => (
-          <ExerciseCard
-            key={`${ex.exerciseId}-${exIdx}`}
-            exercise={ex}
-            exerciseIndex={exIdx}
-            collapsed={expanded !== exIdx}
-            recentSessions={train.recentSessions}
-            catalog={train.catalog}
-            templateRow={templateRowFor(ex.exerciseId)}
-            best={bestByEx[ex.exerciseId]}
-            platesOpen={platesOpen === exIdx}
-            largeText={largeText}
-            dispatch={dispatch}
-            commitActive={commitActive}
-            chain={chain}
-            onToggle={onToggle}
-            onOpenMenu={onOpenMenu}
-            menuActions={expanded === exIdx ? openMenuActions : undefined}
-            onOpenSetSheet={onOpenSetSheet}
-            onOpenLift={onOpenLift}
-            onSetDone={onSetDone}
-            onRemoveSet={onRemoveSet}
-          />
-        ))}
+          <TouchableOpacity
+            style={styles.addExBtn}
+            onPress={() => setAddFor('add')}
+            accessibilityRole="button"
+            testID="add-exercise"
+          >
+            <View style={styles.addExRow}>
+              <Ionicons name="add" size={18} color={colors.muted} />
+              <Text style={styles.addExText}>{t('train.addExercise')}</Text>
+            </View>
+          </TouchableOpacity>
 
-        {(session.cardio ?? []).map((block, i) => (
-          <CardioBlockCard
-            key={`cardio-${block.sourceId ?? i}`}
-            block={block}
-            index={i}
-            overlaps={overlappingCardio.has(i)}
-            onPatch={(patch, opts) =>
-              void dispatch({ type: 'patchCardio', blockIndex: i, patch }, opts)
-            }
-            onCommit={() => void commitActive()}
-            onRemove={() => {
-              haptics.tap();
-              void dispatch({ type: 'removeCardio', blockIndex: i });
-            }}
-          />
-        ))}
-
-        <TouchableOpacity
-          style={styles.addExBtn}
-          onPress={() => setAddFor('add')}
-          accessibilityRole="button"
-          testID="add-exercise"
-        >
-          <View style={styles.addExRow}>
-            <Ionicons name="add" size={18} color={colors.muted} />
-            <Text style={styles.addExText}>{t('train.addExercise')}</Text>
-          </View>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.addExBtn}
-          onPress={() => setCardioPickerOpen(true)}
-          accessibilityRole="button"
-          testID="add-cardio"
-        >
-          <View style={styles.addExRow}>
-            <Ionicons name="add" size={18} color={colors.muted} />
-            <Text style={styles.addExText}>{t('cardio.add')}</Text>
-          </View>
-        </TouchableOpacity>
-        <View style={{ height: 40 }} />
+          <TouchableOpacity
+            style={styles.addExBtn}
+            onPress={() => setCardioPickerOpen(true)}
+            accessibilityRole="button"
+            testID="add-cardio"
+          >
+            <View style={styles.addExRow}>
+              <Ionicons name="add" size={18} color={colors.muted} />
+              <Text style={styles.addExText}>{t('cardio.add')}</Text>
+            </View>
+          </TouchableOpacity>
+          <View style={{ height: 40 }} />
+        </RevealAboveKeyboardContext.Provider>
       </ScrollView>
 
       {/* Rest countdown — floats above the tab bar AND clear of the raised
