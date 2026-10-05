@@ -3,6 +3,24 @@ import {
   getFastActivityStatus,
   startFastActivity,
 } from '../../modules/fasting-live-activity';
+import { type IntentInboxAction, peekIntentInbox } from '../../modules/intent-inbox';
+
+/**
+ * The fast the user just ended from the Lock Screen whose archive write the app
+ * has not landed yet — `startedAt` epoch ms, or null.
+ *
+ * The "End" button (`EndFastIntent`) removes the Live Activity at once and
+ * leaves the Firestore write to the app (`targets/_shared/IntentInbox.swift`).
+ * Until that write lands, `profile.fastStartedAt` still says the fast is
+ * running, and a reconcile in that window would see "fast running, no
+ * Activity" and RE-ARM the timer the user just dismissed. Set by
+ * `useIntentInbox` around its `breakFast`; read below.
+ */
+let endingStartMs: number | null = null;
+
+export function markFastEnding(startedAtMs: number | null): void {
+  endingStartMs = startedAtMs;
+}
 
 /**
  * Make iOS show exactly the fast Firestore describes, and nothing else (N3).
@@ -70,5 +88,65 @@ export async function reconcileFastActivity(
     return;
   }
 
+  // Ended from the Lock Screen and not yet written — never re-arm it. Both
+  // checks run AFTER the peek resolves: the inbox drain removes the entry and
+  // marks the fast as ending in one step, so whichever of the two the drain has
+  // reached by then, one of them is visible here.
+  const startMs = fastStartedAt.getTime();
+  const pending = await peekIntentInbox(['fastEnd']);
+  if (endingStartMs === startMs || pending.some((a) => a.kind === 'fastEnd' && a.startedAtMs === startMs)) {
+    return;
+  }
+
   await startFastActivity(fastStartedAt, locale);
+}
+
+/** Siri actions older than this are dropped rather than applied: the app was
+ *  opened by the phrase, so a note still unread after this long was left by a
+ *  session that never reached Today (signed out, onboarding) and acting on it
+ *  now would start or end a fast nobody just asked about. */
+export const SPOKEN_ACTION_MAX_AGE_MS = 10 * 60 * 1000;
+
+/**
+ * What Today should do about one fast action from the intent inbox.
+ *
+ * - `end` — run the ordinary `breakFast` (archive + Undo toast) at `endedAt`:
+ *   the instant the user tapped End or spoke, never "now", so a slow cold
+ *   launch does not lengthen the fast.
+ * - `start` — `startFast` at the instant spoken.
+ * - `show` — "start a fast" while one is already running: open the fast sheet
+ *   rather than silently restarting the clock (a restart would discard hours).
+ * - `none` — not applicable to the fast that is actually running.
+ *
+ * The Lock Screen's `fastEnd` names the fast it ended (`startedAtMs`) and is
+ * applied ONLY to that fast: if a different one is running — restarted
+ * elsewhere in between — ending it would destroy the wrong fast. It has no age
+ * limit, because it is keyed to the fast rather than to the moment.
+ *
+ * Pure; `now` is injectable for tests.
+ */
+export type FastInboxStep =
+  | { type: 'end'; endedAt: Date }
+  | { type: 'start'; at: Date }
+  | { type: 'show' }
+  | { type: 'none' };
+
+export function planFastInboxAction(
+  action: Extract<IntentInboxAction, { kind: 'fastEnd' | 'fastStart' | 'fastStop' }>,
+  fastStartedAt: Date | null,
+  now = Date.now(),
+): FastInboxStep {
+  const running = fastStartedAt?.getTime() ?? null;
+  switch (action.kind) {
+    case 'fastEnd':
+      if (running == null || running !== action.startedAtMs) return { type: 'none' };
+      return { type: 'end', endedAt: new Date(Math.min(action.endedAtMs, now)) };
+    case 'fastStop':
+      if (now - action.atMs > SPOKEN_ACTION_MAX_AGE_MS || running == null) return { type: 'none' };
+      return { type: 'end', endedAt: new Date(Math.min(Math.max(action.atMs, running), now)) };
+    case 'fastStart':
+      if (now - action.atMs > SPOKEN_ACTION_MAX_AGE_MS) return { type: 'none' };
+      if (running != null) return { type: 'show' };
+      return { type: 'start', at: new Date(Math.min(action.atMs, now)) };
+  }
 }

@@ -136,6 +136,8 @@ private struct FastLockScreenView: View {
       }
 
       Spacer(minLength: 0)
+
+      EndFastButton(locale: attributes.locale)
     }
     .padding(.horizontal, 18)
     .padding(.vertical, 14)
@@ -143,6 +145,35 @@ private struct FastLockScreenView: View {
     // composites this onto the Lock Screen and owns the corner radius.
     .activityBackgroundTint(Color.fastPanel)
     .activitySystemActionForegroundColor(Color.fastText)
+    // A tap anywhere but the button opens Today with the fast sheet up (the
+    // `fast` param, handled in `src/app/(app)/index.tsx`) — where the start can
+    // be corrected, which the Lock Screen cannot do.
+    .widgetURL(URL(string: "ignia://?fast=1"))
+  }
+}
+
+/// "End" — ends the fast from the Lock Screen without opening the app.
+///
+/// `EndFastIntent` (`_shared/LiveActivityIntents.swift`) is a
+/// `LiveActivityIntent`, so it runs in the app's process: it removes this
+/// Activity at once (the receipt) and leaves the archived-fast write to the
+/// app's own `breakFast`, stamped with the instant of the tap. The inbox note it
+/// writes is applied the moment the app's JS is alive — usually immediately,
+/// otherwise on the next open, which then shows the ordinary "Fast ended · Undo"
+/// toast. `IntentInbox.swift` explains why this is not a REST write.
+///
+/// Prominent (coral fill) because it is the only action on the face; the
+/// timer stays neutral for legibility on any wallpaper.
+private struct EndFastButton: View {
+  let locale: String
+
+  var body: some View {
+    let words = ActivityCopy.words(locale)
+    Button(intent: EndFastIntent()) {
+      ActivityPillLabel(text: words.endFast, prominent: true)
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel(words.endFastA11y)
   }
 }
 
@@ -176,12 +207,17 @@ struct FastActivityWidget: Widget {
         }
 
         DynamicIslandExpandedRegion(.bottom) {
-          Text(
-            Glance.fastSinceLine(
-              startedAt: context.attributes.startedAt, locale: context.attributes.locale)
-          )
-          .font(.caption2)
-          .foregroundStyle(Color.fastMuted)
+          HStack(spacing: 8) {
+            Text(
+              Glance.fastSinceLine(
+                startedAt: context.attributes.startedAt, locale: context.attributes.locale)
+            )
+            .font(.caption2)
+            .foregroundStyle(Color.fastMuted)
+            Spacer(minLength: 4)
+            EndFastButton(locale: context.attributes.locale)
+          }
+          .padding(.horizontal, 4)
         }
       } compactLeading: {
         // Sized and padded deliberately. The compact regions sit hard against
@@ -215,6 +251,7 @@ struct FastActivityWidget: Widget {
           .foregroundStyle(Color.fastAccent)
       }
       .keylineTint(Color.fastAccent)
+      .widgetURL(URL(string: "ignia://?fast=1"))
     }
   }
 }

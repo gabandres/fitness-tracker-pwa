@@ -28,9 +28,12 @@ appId: fit.ignia.app
 # `*-today-metrics.png` came out BYTE-IDENTICAL to `*-today-top.png` in all
 # three variants (sha1-verified 2026-09-22). coverage.md had therefore been
 # claiming a reviewed capture of the metrics card that no run ever took.
+# `id: water-open`, 2026-10-04: the metrics rows are now grouped for a11y, so
+# the water row's whole label is "Water, 0 fl oz" and a bare 'Water' text
+# selector (a FULL match) no longer exists on iOS. The id is locale-free too.
 - scrollUntilVisible:
     element:
-      text: 'Water'
+      id: 'water-open'
     direction: DOWN
     timeout: 15000
     centerElement: true

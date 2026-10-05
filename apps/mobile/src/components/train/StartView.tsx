@@ -10,6 +10,7 @@ import {
   trainHeroStats,
   weeklyClusterAudit,
 } from '@macrolog/core';
+import { CONTEXT_MENUS, ContextMenu } from '@/components/ContextMenu';
 import { BottomSheet, NATIVE_SHEETS } from '@/components/BottomSheet';
 import { confirm } from '@/components/ConfirmSheet';
 import { OfflineBanner } from '@/components/OfflineBanner';
@@ -606,12 +607,13 @@ const SessionRow = memo(function SessionRow({
   const date = formatDate(s.date, locale, { weekday: 'short', month: 'short', day: 'numeric' });
   const summary = sessionSummary(s, t);
   const vol = volume > 0 ? formatLoad(volume, unitSystem, 0) : null;
-  return (
+  const row = (
     <Pressable
       style={styles.histRow}
       testID={`session-${s.id}`}
       onPress={() => onOpen(s)}
-      onLongPress={() => s.id && onDelete(s.id)}
+      // iOS: the system context menu takes the long-press (below).
+      onLongPress={CONTEXT_MENUS ? undefined : () => s.id && onDelete(s.id)}
       accessibilityRole="button"
       accessibilityLabel={[date, s.templateName, summary, vol].filter(Boolean).join(', ')}
       accessibilityHint={t('train.sessionRowHint')}
@@ -627,6 +629,17 @@ const SessionRow = memo(function SessionRow({
       </View>
       {vol ? <Text style={styles.histVol}>{vol}</Text> : null}
     </Pressable>
+  );
+  return (
+    <ContextMenu
+      title={[date, s.templateName].filter(Boolean).join(' · ')}
+      actions={[
+        { key: 'edit', title: t('common.edit'), icon: 'pencil', onPress: () => onOpen(s) },
+        { key: 'delete', title: t('train.delete'), icon: 'trash', destructive: true, onPress: () => s.id && onDelete(s.id) },
+      ]}
+    >
+      {row}
+    </ContextMenu>
   );
 });
 

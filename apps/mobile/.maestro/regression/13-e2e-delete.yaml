@@ -76,6 +76,12 @@ appId: fit.ignia.app
       - swipe:
           start: 10%, 80%
           end: 10%, 45%
+# Then to the END, as 12 does before its long-press (2026-10-04). The always-
+# present meal-slot headers made the list taller, so the 60%-visible stop now
+# parks the row half under the tab bar ([24,829][378,894] against an 874pt
+# screen, measured) and the centre tap lands on the bar. At max scroll the row
+# clears the bar with room to spare — the list's bottom padding is intact.
+- scroll
 - tapOn:
     text: '.*QA E2E Sandwich.*'
 # SOLVED 2026-08-18 — this was the suite's one standing iOS red, and it was

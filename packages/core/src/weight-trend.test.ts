@@ -19,7 +19,36 @@ import { weightTrendSeries } from './tdee-series';
 
 const pts = (rows: [string, number][]) => rows.map(([dateKey, weightLb]) => ({ dateKey, weightLb }));
 
-describe('trendWeightSeries — the EWMA trend', () => {
+describe('trendWeightSeries — the damped level + slope trend (S20)', () => {
+  /** Daily readings losing `perDay` lb from 184.6, with a ±0.6 lb wobble. */
+  function steadyLoss(days: number, perDay: number) {
+    const rows: [string, number][] = [];
+    for (let i = 0; i < days; i++) {
+      const d = new Date(Date.UTC(2026, 6, 12 + i)).toISOString().slice(0, 10);
+      rows.push([d, 184.6 - perDay * i + (i % 2 ? 0.6 : -0.6)]);
+    }
+    return pts(rows);
+  }
+
+  it('tracks a steady loss instead of lagging ~9 readings behind it', () => {
+    const points = steadyLoss(42, 0.18);
+    const last = trendWeightSeries(points).at(-1)!.weightLb;
+    const truth = 184.6 - 0.18 * 41;
+    // The old 0.1 average sat ~1.6 lb above the line here — above every dot.
+    expect(Math.abs(last - truth)).toBeLessThan(0.5);
+  });
+
+  it('a flat scale gives a flat trend', () => {
+    const s = trendWeightSeries(pts([['2026-09-01', 180], ['2026-09-02', 180], ['2026-09-05', 180], ['2026-09-20', 180]]));
+    for (const p of s) expect(p.weightLb).toBeCloseTo(180, 9);
+  });
+
+  it('a reading after a long gap is taken seriously, not damped to a tenth', () => {
+    const s = trendWeightSeries(pts([['2026-08-01', 180], ['2026-08-22', 176]]));
+    // 21 days of news: 1 − 0.9^21 ≈ 0.89 of the difference.
+    expect(s[1].weightLb).toBeLessThan(176.6);
+  });
+
   it('starts at the first reading and moves a tenth of the way per daily reading', () => {
     const s = trendWeightSeries(pts([['2026-09-01', 180], ['2026-09-02', 170]]));
     expect(s[0].weightLb).toBe(180);

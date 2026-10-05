@@ -1,5 +1,6 @@
 import { type ReactNode, useRef } from 'react';
 import { type AccessibilityActionEvent, Pressable, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ContextMenu } from '@/components/ContextMenu';
 import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
@@ -99,6 +100,14 @@ export function HistoryRow({
         </TouchableOpacity>
       )}
     >
+      {/* iOS long-press: the system context menu, beside the swipe. */}
+      <ContextMenu
+        title={label}
+        actions={[
+          { key: 'edit', title: t('common.edit'), icon: 'pencil', onPress: onEdit },
+          { key: 'delete', title: t('common.remove'), icon: 'trash', destructive: true, onPress: onDelete },
+        ]}
+      >
       <Pressable
         style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
         onPress={onEdit}
@@ -117,6 +126,7 @@ export function HistoryRow({
         <View style={styles.content}>{children}</View>
         <BodyIcon sf="chevron.right" ion="chevron-forward" size={16} color={colors.muted} />
       </Pressable>
+      </ContextMenu>
     </ReanimatedSwipeable>
   );
 }

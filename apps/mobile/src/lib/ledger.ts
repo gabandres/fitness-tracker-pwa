@@ -145,6 +145,20 @@ export interface SnapshotMeta {
   fromCache: boolean;
 }
 
+/**
+ * Every listener that reports `metaOf(snap)` subscribes with
+ * `includeMetadataChanges: true` — and must. A consumer that honours
+ * provenance (`useCachedState`) DROPS a `fromCache: true` snapshot once it has
+ * painted from disk, trusting that the server's answer follows. Without the
+ * flag Firestore does not send that answer when it matches what the cache
+ * already showed: it is a metadata-only change. So a listener re-opened over a
+ * fresh local write delivered the new value once, as cache-only, and never
+ * again. Measured 2026-10-04: sleep saved from Today's native sheet (the sheet
+ * route blurs Today, so its focus-gated listeners re-open on dismiss) stayed
+ * "not logged" until the next cold start, while Firestore held the value. The
+ * logs and profile listeners always carried the flag, which is why a diary row
+ * never went stale the same way.
+ */
 const metaOf = (snap: { metadata: { fromCache: boolean } }): SnapshotMeta => ({
   fromCache: snap.metadata.fromCache,
 });
@@ -427,6 +441,7 @@ export function subscribeDailyWeights(
 ): Unsub {
   return onSnapshot(
     weightsCol(uid),
+    { includeMetadataChanges: true },
     (snap) => {
       const weights: Record<string, number> = {};
       for (const d of snap.docs) {
@@ -461,6 +476,7 @@ export function subscribeDailyWeightsSince(
 ): Unsub {
   return onSnapshot(
     query(weightsCol(uid), where(documentId(), '>=', sinceKey)),
+    { includeMetadataChanges: true },
     (snap) => {
       const weights: Record<string, number> = {};
       for (const d of snap.docs) {
@@ -527,6 +543,7 @@ export function subscribeDailyWater(
 ): Unsub {
   return onSnapshot(
     waterCol(uid),
+    { includeMetadataChanges: true },
     (snap) => {
       const water: Record<string, number> = {};
       for (const d of snap.docs) water[d.id] = readWaterFlOz(d.data()) ?? 0;
@@ -569,6 +586,7 @@ export function subscribeDailyWaterSince(
 ): Unsub {
   return onSnapshot(
     query(waterCol(uid), where(documentId(), '>=', since)),
+    { includeMetadataChanges: true },
     (snap) => {
       const water: Record<string, number> = {};
       for (const d of snap.docs) {
@@ -597,6 +615,7 @@ export function subscribeDailySleep(
 ): Unsub {
   return onSnapshot(
     sleepCol(uid),
+    { includeMetadataChanges: true },
     (snap) => {
       const sleep: Record<string, number> = {};
       for (const d of snap.docs) {
@@ -641,6 +660,7 @@ export function subscribeDailySleepSince(
 ): Unsub {
   return onSnapshot(
     query(sleepCol(uid), where(documentId(), '>=', since)),
+    { includeMetadataChanges: true },
     (snap) => {
       const sleep: Record<string, SleepEntry> = {};
       for (const d of snap.docs) {
@@ -749,6 +769,7 @@ export function subscribeDailyActivity(
 ): Unsub {
   return onSnapshot(
     activityCol(uid),
+    { includeMetadataChanges: true },
     (snap) => {
       const activity: Record<string, DailyActivity> = {};
       for (const d of snap.docs) activity[d.id] = readActivity(d.data());
@@ -1004,6 +1025,7 @@ export function subscribeFastsSince(
       where('endedAt', '>=', Timestamp.fromDate(since)),
       orderBy('endedAt', 'desc'),
     ),
+    { includeMetadataChanges: true },
     (snap) => cb(snap.docs.map((d) => toFast(d.id, d.data())), metaOf(snap)),
     onError,
   );
@@ -1065,6 +1087,7 @@ export function subscribeFastsAround(
       where('endedAt', '<=', Timestamp.fromDate(new Date(dayEnd.getTime() + pad))),
       orderBy('endedAt', 'desc'),
     ),
+    { includeMetadataChanges: true },
     (snap) => cb(snap.docs.map((d) => toFast(d.id, d.data())), metaOf(snap)),
     onError,
   );
@@ -1340,6 +1363,7 @@ export function subscribeMilestones(
 ): Unsub {
   return onSnapshot(
     milestonesCol(uid),
+    { includeMetadataChanges: true },
     (snap) => {
       const earned: Record<string, Date> = {};
       for (const d of snap.docs) {
@@ -1497,6 +1521,7 @@ export function subscribePresets(
 ): Unsub {
   return onSnapshot(
     presetsCol(uid),
+    { includeMetadataChanges: true },
     (snap) => cb(snap.docs.map((d) => toPreset(d.id, d.data())), metaOf(snap)),
     onError,
   );
@@ -1539,6 +1564,7 @@ export function subscribeCustomFoods(
 ): Unsub {
   return onSnapshot(
     customFoodsCol(uid),
+    { includeMetadataChanges: true },
     (snap) => cb(snap.docs.map((d) => toCustomFood(d.id, d.data())), metaOf(snap)),
     onError,
   );
@@ -1696,6 +1722,7 @@ export function subscribeExercises(
 ): Unsub {
   return onSnapshot(
     query(exercisesCol(uid), orderBy('name')),
+    { includeMetadataChanges: true },
     (snap) => cb(snap.docs.map((d) => toExercise(d.id, d.data())), metaOf(snap)),
     onError,
   );
@@ -1778,6 +1805,7 @@ export function subscribeTemplates(
 ): Unsub {
   return onSnapshot(
     query(templatesCol(uid), orderBy('updatedAt', 'desc')),
+    { includeMetadataChanges: true },
     (snap) => cb(snap.docs.map((d) => toTemplate(d.id, d.data())), metaOf(snap)),
     onError,
   );
@@ -1840,6 +1868,7 @@ export function subscribeRecentSessions(
 ): Unsub {
   return onSnapshot(
     query(sessionsCol(uid), orderBy('timestamp', 'desc'), limit(count)),
+    { includeMetadataChanges: true },
     (snap) => cb(snap.docs.map((d) => toSession(d.id, d.data())), metaOf(snap)),
     onError,
   );

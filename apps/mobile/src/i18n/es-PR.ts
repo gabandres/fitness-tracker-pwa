@@ -219,8 +219,8 @@ export const esPR: Record<I18nKey, string> = {
   'today.fat': 'Grasa',
   'today.entries': 'Comidas',
   'today.maintenance': 'Mantenimiento',
-  'today.underMaintenance': '{n} bajo lo que quemas normalmente',
-  'today.overMaintenance': '{n} sobre lo que quemas normalmente',
+  'today.underMaintenance': '{n} por debajo en lo que va del día',
+  'today.overMaintenance': '{n} por encima en lo que va del día',
   'today.maintenanceRough': '{logged} de {span} días anotados — los huecos lo hacen menos preciso',
   'today.maintenanceRoughFood':
     '{logged} de {span} días anotados, {food} con comida — los huecos lo hacen menos preciso',
@@ -258,15 +258,15 @@ export const esPR: Record<I18nKey, string> = {
   'whatsNew.title': 'Novedades',
   'whatsNew.subtitle': 'Lo que cambió desde la última vez que abriste Ignia.',
   'whatsNew.continue': 'Continuar',
-  'whatsNew.scanDoor.title': 'Escanea una comida desde la búsqueda',
-  'whatsNew.scanDoor.body':
-    'Toca +, luego Más opciones → Escanear comida para registrar una comida con una foto. Mantener presionado + también lo abre.',
-  'whatsNew.typeTime.title': 'Pon la hora al registrar',
-  'whatsNew.typeTime.body':
-    'Cada entrada nueva tiene ahora una fila de Hora. Toca la hora y escríbela — 8:15, 18:30 — en vez de ir paso a paso.',
-  'whatsNew.notes.title': 'Notas en las entradas',
-  'whatsNew.notes.body':
-    'Añade una nota a cualquier comida — "pesado", "estimado alto" — y la verás debajo de la entrada en tu día.',
+  'whatsNew.hold.title': 'Mantén presionada una comida',
+  'whatsNew.hold.body':
+    'Mantén presionada cualquier comida para ver una vista previa con Editar, Añadir a Registro rápido y Borrar. Cada comida del día tiene ahora su propio + Añadir.',
+  'whatsNew.charts.title': 'Tus números a lo largo del tiempo',
+  'whatsNew.charts.body':
+    'Tendencias grafica tu mantenimiento estimado hasta tres meses, y Cuerpo dibuja tu peso con una línea de tendencia. Desliza el dedo por cualquiera para ver cada día.',
+  'whatsNew.offlineTrain.title': 'Entrenamientos sin señal',
+  'whatsNew.offlineTrain.body':
+    'Empieza, registra y termina un entrenamiento sin conexión: se guarda en tu teléfono y se sincroniza cuando vuelvas a tener señal.',
   'update.ota.title': 'Actualización lista',
   'update.ota.body': 'Ignia se reinicia para aplicarla — unos segundos.',
   'update.ota.action': 'Reiniciar',
@@ -900,7 +900,7 @@ export const esPR: Record<I18nKey, string> = {
   'train.inProgress': 'Entreno en curso',
   'train.progress': '{done} de {total} hechos',
   'train.editingSession': 'Editando entrenamiento pasado',
-  'train.editHint': 'Toca para editar · mantén para borrar',
+  'train.editHint': 'Toca para editar · mantén presionado para más',
   'train.doneEditing': 'Listo',
   'train.addFirst': 'Añade tu primer ejercicio para registrar series.',
   'train.addExercise': 'Añadir ejercicio',

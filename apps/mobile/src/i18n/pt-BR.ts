@@ -216,8 +216,8 @@ export const ptBR = {
   'today.fat': 'Gorduras',
   'today.entries': 'Refeições',
   'today.maintenance': 'Manutenção',
-  'today.underMaintenance': '{n} abaixo do seu gasto habitual',
-  'today.overMaintenance': '{n} acima do seu gasto habitual',
+  'today.underMaintenance': '{n} abaixo até agora hoje',
+  'today.overMaintenance': '{n} acima até agora hoje',
   'today.maintenanceRough': '{logged} de {span} dias registrados — as lacunas deixam isto menos preciso',
   'today.maintenanceRoughFood':
     '{logged} de {span} dias registrados, {food} com comida — as lacunas deixam isto menos preciso',
@@ -254,15 +254,15 @@ export const ptBR = {
   'whatsNew.title': 'Novidades',
   'whatsNew.subtitle': 'O que mudou desde a última vez que você abriu o Ignia.',
   'whatsNew.continue': 'Continuar',
-  'whatsNew.scanDoor.title': 'Escaneie uma refeição pela busca',
-  'whatsNew.scanDoor.body':
-    'Toque em +, depois Mais formas → Escanear refeição para registrar uma refeição por foto. Segurar o + também abre.',
-  'whatsNew.typeTime.title': 'Defina o horário ao registrar',
-  'whatsNew.typeTime.body':
-    'Todo registro novo agora tem uma linha de Horário. Toque no horário e digite — 8:15, 18h30 — em vez de ir passo a passo.',
-  'whatsNew.notes.title': 'Notas nos registros',
-  'whatsNew.notes.body':
-    'Adicione uma nota a qualquer registro — "pesado", "estimado por cima" — e veja-a abaixo dele no seu dia.',
+  'whatsNew.hold.title': 'Segure uma refeição para mais opções',
+  'whatsNew.hold.body':
+    'Segure qualquer refeição para ver uma prévia com Editar, Adicionar ao Registro rápido e Excluir. Cada refeição do dia agora tem seu próprio + Adicionar.',
+  'whatsNew.charts.title': 'Seus números ao longo do tempo',
+  'whatsNew.charts.body':
+    'Tendências mostra sua manutenção estimada em até três meses, e Corpo desenha seu peso com uma linha de tendência. Deslize o dedo por qualquer um para ver cada dia.',
+  'whatsNew.offlineTrain.title': 'Treinos sem sinal',
+  'whatsNew.offlineTrain.body':
+    'Comece, registre e finalize um treino sem conexão — ele fica salvo no celular e sincroniza quando você voltar a ficar online.',
   'update.ota.title': 'Atualização pronta',
   'update.ota.body': 'O Ignia reinicia para aplicá-la — alguns segundos.',
   'update.ota.action': 'Reiniciar',
@@ -890,7 +890,7 @@ export const ptBR = {
   'train.inProgress': 'Treino em andamento',
   'train.progress': '{done} de {total} concluídos',
   'train.editingSession': 'Editando treino anterior',
-  'train.editHint': 'Toque para editar · segure para excluir',
+  'train.editHint': 'Toque para editar · segure para mais opções',
   'train.doneEditing': 'Pronto',
   'train.addFirst': 'Adicione o seu primeiro exercício para começar a registrar séries.',
   'train.addExercise': 'Adicionar exercício',

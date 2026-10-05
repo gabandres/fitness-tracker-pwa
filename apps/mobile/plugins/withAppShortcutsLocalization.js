@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 /**
- * Localises the Siri phrases (`AppShortcutsProvider`) into es-PR.
+ * Localises the Siri phrases (`AppShortcutsProvider`) into es-PR and pt-BR.
  *
  * ## Why this needs a plugin at all
  *
@@ -51,9 +51,53 @@ const PHRASES = {
   'Add ${preset} to ${applicationName}': 'Añade ${preset} a ${applicationName}',
   'Log calories in ${applicationName}': 'Registra calorías en ${applicationName}',
   'Add calories to ${applicationName}': 'Añade calorías a ${applicationName}',
+  'Log my weight in ${applicationName}': 'Registra mi peso en ${applicationName}',
+  'Log weight in ${applicationName}': 'Registra el peso en ${applicationName}',
+  'Weigh in with ${applicationName}': 'Pésate con ${applicationName}',
+  'Start a fast in ${applicationName}': 'Empieza un ayuno en ${applicationName}',
+  'Start fasting in ${applicationName}': 'Empieza a ayunar en ${applicationName}',
+  'End my fast in ${applicationName}': 'Termina mi ayuno en ${applicationName}',
+  'End fast in ${applicationName}': 'Termina el ayuno en ${applicationName}',
+  'Stop fasting in ${applicationName}': 'Deja de ayunar en ${applicationName}',
 };
 
-const LOCALES = ['en', 'es-PR'];
+/**
+ * pt-BR, keyed identically. A separate map rather than a second column so the
+ * es-PR table above keeps the one-line `'en': 'es',` shape the parity test
+ * parses; the test checks this map against the Swift the same way.
+ *
+ * Imperative, like the es-PR column and like Siri's own pt-BR examples
+ * ("Registre…", "Comece…"). "Registro rápido" is the app's own pt-BR name for
+ * quick-add (`entry.quickAdd` in `src/i18n/pt-BR.ts`); "preset" stays as the
+ * es-PR table already leaves it, since it names the same in-app object.
+ */
+const PHRASES_PT_BR = {
+  'Log a preset in ${applicationName}': 'Registre um preset no ${applicationName}',
+  'Log my preset in ${applicationName}': 'Registre meu preset no ${applicationName}',
+  'Quick add in ${applicationName}': 'Registro rápido no ${applicationName}',
+  'Log ${preset} in ${applicationName}': 'Registre ${preset} no ${applicationName}',
+  'Log my ${preset} in ${applicationName}': 'Registre meu ${preset} no ${applicationName}',
+  'Add ${preset} to ${applicationName}': 'Adicione ${preset} ao ${applicationName}',
+  'Log calories in ${applicationName}': 'Registre calorias no ${applicationName}',
+  'Add calories to ${applicationName}': 'Adicione calorias ao ${applicationName}',
+  'Log my weight in ${applicationName}': 'Registre meu peso no ${applicationName}',
+  'Log weight in ${applicationName}': 'Registre o peso no ${applicationName}',
+  'Weigh in with ${applicationName}': 'Pese-se com o ${applicationName}',
+  'Start a fast in ${applicationName}': 'Comece um jejum no ${applicationName}',
+  'Start fasting in ${applicationName}': 'Comece a jejuar no ${applicationName}',
+  'End my fast in ${applicationName}': 'Encerre meu jejum no ${applicationName}',
+  'End fast in ${applicationName}': 'Encerre o jejum no ${applicationName}',
+  'Stop fasting in ${applicationName}': 'Pare de jejuar no ${applicationName}',
+};
+
+/**
+ * `pt-BR` joined on 2026-10-04 with the weight/fast shortcuts — the app has
+ * carried pt-BR copy since 2026-09-16 while its Siri phrases did not. Declaring
+ * it in `CFBundleLocalizations` also lets iOS draw its own in-app system UI in
+ * Portuguese for those users, and makes the store list the language, which the
+ * app's in-app copy already supports.
+ */
+const LOCALES = ['en', 'es-PR', 'pt-BR'];
 const FILENAME = 'AppShortcuts.strings';
 const PHASE_NAME = 'Copy AppShortcuts localizations';
 
@@ -66,13 +110,16 @@ function serialize(locale) {
     '',
   ].join('\n');
   const body = Object.entries(PHRASES)
-    .map(([en, es]) => `"${en}" = "${locale === 'en' ? en : es}";`)
+    .map(([en, es]) => {
+      const value = locale === 'en' ? en : locale === 'pt-BR' ? (PHRASES_PT_BR[en] ?? en) : es;
+      return `"${en}" = "${value}";`;
+    })
     .join('\n');
   return `${header}${body}\n`;
 }
 
 module.exports = function withAppShortcutsLocalization(config) {
-  // 1. Declare the localisations, or iOS never looks in `es-PR.lproj`.
+  // 1. Declare the localisations, or iOS never looks in `es-PR.lproj` / `pt-BR.lproj`.
   config = withInfoPlist(config, (cfg) => {
     cfg.modResults.CFBundleLocalizations = LOCALES;
     // The phrases are authored in English; anything unmatched falls back here.

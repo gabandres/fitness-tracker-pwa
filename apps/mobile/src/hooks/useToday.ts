@@ -98,9 +98,11 @@ export interface TodayState extends LogWrites {
   fastStartedAt: Date | null;
   /** Omit `startedAt` to begin now; pass one to correct a running fast. */
   startFast: (startedAt?: Date) => Promise<void>;
-  /** End the running fast. Resolves with what `undoBreakFast` needs to put it
-   *  back, or null when nothing was running (or there is no session). */
-  breakFast: () => Promise<BreakFastReceipt | null>;
+  /** End the running fast — at `endedAt` when given (the instant the user
+   *  tapped End on the Lock Screen or spoke to Siri), else now. Resolves with
+   *  what `undoBreakFast` needs to put it back, or null when nothing was
+   *  running (or there is no session). */
+  breakFast: (endedAt?: Date) => Promise<BreakFastReceipt | null>;
   /** Reverse a `breakFast` — the Undo on Today's "Fast ended" toast. */
   undoBreakFast: (receipt: BreakFastReceipt) => Promise<void>;
   /** Consecutive logged-day streak ending today (or yesterday). */
@@ -456,7 +458,7 @@ export function useToday(): TodayState {
     if (uid) await startFastDoc(uid, startedAt);
   }, [uid]);
   const breakFast = useCallback(
-    async () => (uid ? breakFastDoc(uid) : null),
+    async (endedAt?: Date) => (uid ? breakFastDoc(uid, endedAt) : null),
     [uid],
   );
   const undoBreakFast = useCallback(

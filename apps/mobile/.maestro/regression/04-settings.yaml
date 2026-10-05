@@ -26,4 +26,22 @@ appId: fit.ignia.app
 - takeScreenshot: .maestro/regression/shots/04-settings-quickadd
 - scroll
 - takeScreenshot: .maestro/regression/shots/04-settings-lower
-- back
+# Tapped, not `back` (2026-10-04): Maestro's iOS `back` is a no-op, so this
+# flow used to end ON Settings — the README asks every flow to hand the app
+# back on Today. Settings scrolls its header away, hence the relaunch-free
+# swipe back to the top before reaching for `settings-back`.
+- repeat:
+    times: 10
+    while:
+      notVisible:
+        id: 'settings-back'
+    commands:
+      - swipe:
+          start: 10%, 30%
+          end: 10%, 70%
+- tapOn:
+    id: 'settings-back'
+- extendedWaitUntil:
+    visible:
+      id: 'hero-rings'
+    timeout: 10000

@@ -17,6 +17,8 @@ import {
   yAt,
   ysOf,
 } from './chart-geometry';
+import { AccessibleChart } from './AccessibleChart';
+import { audioGraphDescriptor } from './audio-graph';
 import { useAdjustableDays } from './useAdjustableDays';
 
 /**
@@ -38,8 +40,10 @@ import { useAdjustableDays } from './useAdjustableDays';
  * The bubble and the screen reader read the SAME `pointLabel(i)`, so what a
  * sighted user scrubs to and what VoiceOver announces cannot disagree. That
  * array — one description per day plus a summary — is also exactly the input
- * an `AXChartDescriptor` (the audio graph) needs, so the native module can be
- * fed from here later without touching the screens.
+ * an `AXChartDescriptor` (the audio graph) needs: with `audioGraph` set, the
+ * adjustable element is an `AccessibleChart` and VoiceOver's rotor adds "Audio
+ * Graph" and "Chart Details" on iOS (`audio-graph.ts`). The stepper is
+ * unchanged — same element, same label, same actions.
  *
  * ## No React render while dragging
  *
@@ -99,6 +103,21 @@ export interface TrendChartProps {
     closeLabel: string;
     onOpen: (dateKey: string) => void;
   };
+  /**
+   * Names for the audio graph (iOS VoiceOver). Series come from `lines` then
+   * `dots`, named by their `key` through `seriesNames`. Omit and the chart
+   * keeps its stepper with no audio graph — the behaviour before it existed.
+   */
+  audioGraph?: {
+    title: string;
+    xTitle: string;
+    yTitle: string;
+    unit?: string;
+    decimals?: number;
+    /** The date as VoiceOver should read it, per `dateKeys` entry. */
+    xLabel: (dateKey: string) => string;
+    seriesNames: Readonly<Record<string, string>>;
+  };
   testID?: string;
 }
 
@@ -127,6 +146,7 @@ function TrendChartImpl({
   formatY,
   xLabels,
   openDay,
+  audioGraph,
   testID,
 }: TrendChartProps) {
   const styles = useThemedStyles(createStyles);
@@ -161,6 +181,27 @@ function TrendChartImpl({
       lastIdx: lastIndexWithValue(lines[cursorLine]?.values ?? []),
     };
   }, [lines, dots, reference, width, frame, dateKeys, n, cursorLine]);
+
+  const descriptor = useMemo(
+    () =>
+      audioGraph
+        ? audioGraphDescriptor({
+            title: audioGraph.title,
+            summary,
+            xTitle: audioGraph.xTitle,
+            xLabels: dateKeys.map(audioGraph.xLabel),
+            yTitle: audioGraph.yTitle,
+            unit: audioGraph.unit,
+            decimals: audioGraph.decimals,
+            series: [
+              ...lines.map((l) => ({ name: audioGraph.seriesNames[l.key] ?? l.key, values: l.values })),
+              ...dots.map((d) => ({ name: audioGraph.seriesNames[d.key] ?? d.key, values: d.values, continuous: false })),
+            ],
+            pointLabels,
+          })
+        : null,
+    [audioGraph, summary, dateKeys, lines, dots, pointLabels],
+  );
 
   const stepper = useAdjustableDays(n, summary, (i) => pointLabels[i] ?? '', {
     actions: openDay
@@ -254,8 +295,9 @@ function TrendChartImpl({
       </Animated.View>
 
       <GestureDetector gesture={gesture}>
-        <View
+        <AccessibleChart
           {...stepper.a11y}
+          descriptor={descriptor}
           style={{ height }}
           onLayout={(e) => setWidth(Math.round(e.nativeEvent.layout.width))}
           testID={testID ? `${testID}-plot` : undefined}
@@ -323,7 +365,7 @@ function TrendChartImpl({
           ) : null}
           <Animated.View style={[styles.cursor, { height }, cursorStyle]} pointerEvents="none" />
           <Animated.View style={[styles.cursorDot, { borderColor: lines[cursorLine]?.color ?? colors.ink }, dotStyle]} pointerEvents="none" />
-        </View>
+        </AccessibleChart>
       </GestureDetector>
 
       {xLabels ? (

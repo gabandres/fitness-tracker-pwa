@@ -125,9 +125,10 @@ describe('weightTrendSeries', () => {
     expect(s.map((p) => p.scale)).toEqual([null, 180, null, 182]);
     expect(s[0].trend).toBeNull();
     expect(s[1].trend).toBe(180);
-    // A gap holds the trend; the next reading moves it by alpha of the gap.
+    // A gap holds the trend; the reading after a two-day gap counts for
+    // 1 − 0.9² = 0.19 of the difference (it carries two days of news).
     expect(s[2].trend).toBe(180);
-    expect(s[3].trend).toBeCloseTo(180.2, 6);
+    expect(s[3].trend).toBeCloseTo(180.38, 6);
   });
 
   it('ignores non-positive or non-finite readings', () => {

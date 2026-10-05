@@ -46,6 +46,12 @@ function pluginKeys(): string[] {
   return [...block.matchAll(/^\s*'([^']+)':/gm)].map((m) => m[1]);
 }
 
+/** The keys of the pt-BR map — the same phrases, a second translation. */
+function pluginKeysPtBr(): string[] {
+  const block = /const PHRASES_PT_BR = \{([\s\S]*?)\n\};/.exec(plugin)?.[1] ?? '';
+  return [...block.matchAll(/^\s*'([^']+)':/gm)].map((m) => m[1]);
+}
+
 describe('Siri phrase localisation', () => {
   it('finds phrases in both places at all', () => {
     // Guards the regexes themselves: if either stops matching, every assertion
@@ -83,6 +89,16 @@ describe('Siri phrase localisation', () => {
       const tokens = (s: string) => (s.match(/\$\{\w+\}/g) ?? []).sort();
       expect(tokens(es)).toEqual(tokens(en));
     }
+  });
+
+  it('translates every phrase into pt-BR too, and nothing that does not exist', () => {
+    // pt-BR joined with the weight/fast shortcuts (2026-10-04). The app has
+    // carried pt-BR copy since 2026-09-16; a phrase missing here stays English
+    // on a Portuguese phone, silently.
+    expect(pluginKeysPtBr().length).toBeGreaterThanOrEqual(8);
+    expect(swiftPhrases().filter((p) => !pluginKeysPtBr().includes(p))).toEqual([]);
+    expect(pluginKeysPtBr().filter((k) => !swiftPhrases().includes(k))).toEqual([]);
+    expect(plugin).toMatch(/const LOCALES = \[[^\]]*'pt-BR'/);
   });
 
   it('is actually registered in app.json, or none of it ships', () => {

@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { AppState, ScrollView, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import {
   addActionsFor,
   exerciseIsFullyDone,
@@ -29,6 +29,7 @@ import { formatDate } from '@/lib/date-format';
 import * as haptics from '@/lib/haptics';
 import { requestNotificationPermission } from '@/lib/reminders';
 import * as restActivity from '@/lib/rest-timer-activity';
+import { subscribeIntentInbox, takeIntentInbox } from '../../../modules/intent-inbox';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { useUnitSystem } from '@/lib/use-unit-system';
 import { AddExerciseSheet } from './AddExerciseSheet';
@@ -176,9 +177,9 @@ export function ActiveSession({
     restStoppedByUser.current = false;
     rest.start(secs);
     setRestTotal(secs);
-    // Lock-screen seam (Train review item 20): a no-op until the native
-    // module lands, called where it will need to be.
-    restActivity.start(restDeadline(secs), ex.name);
+    // Lock-screen countdown (Train review item 20): the rest Live Activity on
+    // iOS, a no-op wherever its native module is absent.
+    restActivity.start(restDeadline(secs), ex.name, locale);
     announce(t('train.restStartedA11y', { time: clock(secs) }));
     // Decided once per session mount; the stored flag makes it once per device.
     if (!restNotifyAsked.current) {
@@ -201,6 +202,53 @@ export function ActiveSession({
     prevRemaining.current = rest.remaining;
   }, [rest.remaining, t]);
   useEffect(() => () => restActivity.end(), []);
+
+  // The Lock Screen's own "+30 s" / "Skip" (the rest Live Activity's buttons).
+  // They run natively while JS may be suspended and move the Activity and the
+  // pending notification themselves; what they cannot move is THIS bar, so they
+  // leave a note in the intent inbox and this applies it — on mount, on
+  // foreground, and the moment the inbox rings (`lib/rest-timer-activity.ts`
+  // `applyRestInboxAction` decides; `targets/_shared/IntentInbox.swift` has the
+  // hand-off). Read through a ref so the listeners register once.
+  const restRef = useRef(rest);
+  useEffect(() => {
+    restRef.current = rest;
+  });
+  useEffect(() => {
+    let alive = true;
+    const drain = () => {
+      void takeIntentInbox(['rest']).then((actions) => {
+        if (!alive) return;
+        for (const action of actions) {
+          if (action.kind !== 'rest') continue;
+          const out = restActivity.applyRestInboxAction(action);
+          if (!out) continue;
+          if (out.type === 'skip') {
+            // Silent, like the in-app skip: no buzz, no "rest over" announcement.
+            restStoppedByUser.current = true;
+            restRef.current.stop();
+            continue;
+          }
+          restStoppedByUser.current = false;
+          restRef.current.start(out.seconds);
+          setRestTotal((total) => Math.max(total, out.seconds));
+          // The app's own tick had already closed this rest (and its Activity)
+          // before the drain ran — put the Lock Screen countdown back too.
+          if (out.type === 'resume') restActivity.start(out.endsAt, out.exerciseName, out.locale);
+        }
+      });
+    };
+    drain();
+    const unsubscribe = subscribeIntentInbox(drain);
+    const appState = AppState.addEventListener('change', (state) => {
+      if (state === 'active') drain();
+    });
+    return () => {
+      alive = false;
+      unsubscribe();
+      appState.remove();
+    };
+  }, []);
 
   function adjustRest(delta: number) {
     haptics.tap();

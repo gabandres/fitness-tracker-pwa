@@ -65,9 +65,12 @@ env:
 # `*-today-metrics.png` came out BYTE-IDENTICAL to `*-today-top.png` in all
 # three variants (sha1-verified 2026-09-22). coverage.md had therefore been
 # claiming a reviewed capture of the metrics card that no run ever took.
+# `id: water-open` (2026-10-04): the metrics rows are grouped for a11y, so
+# the row's label is the whole "Water, 0 fl oz" and a bare-word full match
+# no longer exists. The id is locale-free besides.
 - scrollUntilVisible:
     element:
-      text: 'Agua'
+      id: 'water-open'
     direction: DOWN
     timeout: 15000
     centerElement: true
@@ -108,8 +111,32 @@ env:
 - assertVisible:
     id: 'open-recipe'
 - takeScreenshot: .maestro/regression/shots/09-es-sheet-moreways
-- tapOn:
-    id: 'entry-backdrop'
+# The add sheet is a NATIVE iOS sheet since 2026-10-04 (UX_AUDIT S20): no
+# dim-backdrop Pressable exists any more (`entry-backdrop` is now
+# `entry-backdrop-native`, the sheet's CONTENT), so dismiss it the way a user
+# does — drag the system grabber down. Android keeps the JS sheet and its
+# backdrop, so the old tap stays there.
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - swipe:
+          from:
+            text: 'Sheet Grabber'
+          direction: DOWN
+      # Prove it went: a native sheet that will not dismiss is a real bug.
+      # `entry-backdrop-native` is the sheet's own content root, so it is
+      # in the tree exactly as long as the sheet is presented.
+      - extendedWaitUntil:
+          notVisible:
+            id: 'entry-backdrop-native'
+          timeout: 5000
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - tapOn:
+          id: 'entry-backdrop'
 # ── flip back to EN — later flows depend on English anchors ──
 # Relaunch first: Today is scrolled to its bottom here and the header avatar
 # (settings-open) is OFF-SCREEN — this exact tap is where run 1 died, stranding

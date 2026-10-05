@@ -62,6 +62,7 @@ export function WeightSheet({
   todayKey,
   weights,
   unitSystem,
+  initialText = null,
   onSave,
   onClose,
 }: {
@@ -75,6 +76,11 @@ export function WeightSheet({
   /** Display/entry unit only. `onSave` always receives POUNDS — see
    *  `body-weight-units.ts` for why the store never learns about kilograms. */
   unitSystem: UnitSystem;
+  /** A value to type into the field on open, in the display unit — Siri's
+   *  "Log weight" (`AppActionIntents.swift`). Typed, not saved: the field is
+   *  dirty, so the note shows `from → to` and the outlier check runs before
+   *  anything is written. `null` (the default) opens on the stored value. */
+  initialText?: string | null;
   onSave: (weightLb: number, dateKey: string) => Promise<void> | void;
   onClose: () => void;
 }) {
@@ -110,12 +116,12 @@ export function WeightSheet({
     const lb = weightsAtOpen.current[initialDateKey];
     const text = lb != null ? String(toDisplayWeight(lb, unitSystem)) : '';
     setDateKey(initialDateKey);
-    setValue(text);
+    setValue(initialText ?? text);
     setPrefill(text);
     setBusy(false);
     setSaveErr(false);
     setOutlierOk(false);
-  }, [visible, initialDateKey, unitSystem]);
+  }, [visible, initialDateKey, unitSystem, initialText]);
 
   function changeDay(next: string) {
     setDateKey(next);

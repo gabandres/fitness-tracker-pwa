@@ -506,6 +506,9 @@ struct IgniaWidgets: WidgetBundle {
   var body: some Widget {
     TodayWidget()
     FastActivityWidget()
+    // The rest-timer Live Activity (Train review item 20). Same reasoning as
+    // the fast: a Live Activity is a WidgetKit widget, so it joins this bundle.
+    RestActivityWidget()
   }
 }
 

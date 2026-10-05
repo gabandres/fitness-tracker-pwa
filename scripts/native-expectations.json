@@ -19,8 +19,10 @@
     ],
     "requiredLproj": [
       "en.lproj",
-      "es-PR.lproj"
+      "es-PR.lproj",
+      "pt-BR.lproj"
     ],
+    "_lprojComment": "pt-BR.lproj joined 2026-10-04 with the weight/fast App Shortcuts (plugins/withAppShortcutsLocalization.js LOCALES). Build 34 once dropped es-PR.lproj silently, exit 0 — a third locale is a third chance of that.",
     "requiredEntitlements": {
       "PlugIns/Today.appex": [
         "com.apple.security.application-groups",

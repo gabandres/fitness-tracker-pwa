@@ -181,9 +181,9 @@ export interface WhatsNewItem {
 }
 
 export const WHATS_NEW_ITEMS: readonly WhatsNewItem[] = [
-  { icon: 'camera-outline', titleKey: 'whatsNew.scanDoor.title', bodyKey: 'whatsNew.scanDoor.body' },
-  { icon: 'time-outline', titleKey: 'whatsNew.typeTime.title', bodyKey: 'whatsNew.typeTime.body' },
-  { icon: 'create-outline', titleKey: 'whatsNew.notes.title', bodyKey: 'whatsNew.notes.body' },
+  { icon: 'hand-left-outline', titleKey: 'whatsNew.hold.title', bodyKey: 'whatsNew.hold.body' },
+  { icon: 'analytics-outline', titleKey: 'whatsNew.charts.title', bodyKey: 'whatsNew.charts.body' },
+  { icon: 'barbell-outline', titleKey: 'whatsNew.offlineTrain.title', bodyKey: 'whatsNew.offlineTrain.body' },
 ];
 
 /**

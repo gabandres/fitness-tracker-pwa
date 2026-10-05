@@ -27,6 +27,15 @@ appId: fit.ignia.app
 # "an unlogged past day renders identically to a future day" question could not
 # be answered from the shot set. The tab is a no-op when already active, so
 # this is safe to run unconditionally.
+# 2026-10-04: the panel moved BELOW the maintenance, expenditure and weight
+# cards in the Trends overhaul, so it starts off-screen — scroll to it first
+# (centred, so the tap cannot land under the tab bar).
+- scrollUntilVisible:
+    element:
+      id: 'panel-tab-budget'
+    direction: DOWN
+    timeout: 20000
+    centerElement: true
 - tapOn:
     id: 'panel-tab-budget'
 - takeScreenshot: .maestro/regression/shots/03-trends-budget

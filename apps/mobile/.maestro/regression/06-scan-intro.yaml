@@ -4,14 +4,17 @@
 # reliably drive. The scan review state stays uncovered here on purpose; it
 # needs a photo, which needs hardware or an injected image.
 #
-# Route: the FAB is a speed dial when photoScan is on — first tap opens the
-# dial, log-scan is the camera satellite.
+# Route: the FAB is a speed dial when photoScan is on — since 2026-09-28
+# (UX_AUDIT S18-18) a TAP opens the food sheet and a LONG-PRESS fans the dial;
+# log-scan is the camera satellite. This flow tapped until 2026-10-04, which
+# opened the sheet, missed log-scan, and then deep-linked the scan screen ON
+# TOP of the open sheet — so its Back returned to the sheet, not Today.
 appId: fit.ignia.app
 ---
 - launchApp:
     clearState: false
 - assertVisible: 'Today'
-- tapOn:
+- longPressOn:
     id: 'log-button'
 # The dial's satellite buttons do NOT expose their testIDs to the accessibility
 # tree (measured: hierarchy carries log-button only) — same species as the

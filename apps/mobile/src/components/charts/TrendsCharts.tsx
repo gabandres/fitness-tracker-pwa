@@ -194,7 +194,27 @@ function ExpenditureCardImpl({ keys, intake, series, days, target, milestones, r
     ],
     [view, colors.accent],
   );
-  const dots = useMemo(() => [{ key: 'intake', values: view.eat, color: colors.lineStrong, radius: 2.25 }], [view, colors.lineStrong]);
+  // Today's dot is left off the plot: a half-logged day (lunch at 380 kcal)
+  // stretched the axis down to it and flattened the estimate into a ruler line.
+  // Its value still reads in the per-day stepper.
+  const dots = useMemo(
+    () => [{ key: 'intake', values: [...view.eat.slice(0, -1), null], color: colors.lineStrong, radius: 2.25 }],
+    [view, colors.lineStrong],
+  );
+  // The audio graph's words (iOS VoiceOver, `AccessibleChart`): the legend's
+  // own series names, so what is heard matches what is drawn.
+  const audioGraph = useMemo(
+    () => ({
+      title: t('trends.expenditureTitle'),
+      xTitle: t('entry.date'),
+      yTitle: 'kcal',
+      unit: 'kcal',
+      decimals: 0,
+      xLabel: (key: string) => longDate(key, locale),
+      seriesNames: { tdee: t('trends.legendMaintenance'), intake: t('trends.legendIntake') },
+    }),
+    [t, locale],
+  );
 
   return (
     <View style={styles.card} testID="expenditure-card">
@@ -221,6 +241,7 @@ function ExpenditureCardImpl({ keys, intake, series, days, target, milestones, r
             closeLabel: t('a11y.close'),
             onOpen: onOpenDay,
           }}
+          audioGraph={audioGraph}
           testID="expenditure-chart"
         />
       )}
@@ -296,6 +317,20 @@ function WeightTrendCardImpl({ keys, series, days, unitSystem, milestones, onOpe
 
   const lines = useMemo(() => [{ key: 'trend', values: view.trend, color: colors.teal, width: 2.5 }], [view, colors.teal]);
   const dots = useMemo(() => [{ key: 'scale', values: view.scale, color: colors.lineStrong, radius: 2.75 }], [view, colors.lineStrong]);
+  // Same as the expenditure card's: legend names, display unit, one decimal —
+  // the precision the per-day sentences already read weights at.
+  const audioGraph = useMemo(
+    () => ({
+      title: t('trends.weightChartTitle'),
+      xTitle: t('entry.date'),
+      yTitle: unit,
+      unit,
+      decimals: 1,
+      xLabel: (key: string) => longDate(key, locale),
+      seriesNames: { trend: t('trends.legendTrend'), scale: t('trends.legendScale') },
+    }),
+    [t, locale, unit],
+  );
 
   return (
     <View style={styles.card} testID="weight-trend-card">
@@ -332,6 +367,7 @@ function WeightTrendCardImpl({ keys, series, days, unitSystem, milestones, onOpe
             closeLabel: t('a11y.close'),
             onOpen: onOpenDay,
           }}
+          audioGraph={audioGraph}
           testID="weight-trend-chart"
         />
       )}

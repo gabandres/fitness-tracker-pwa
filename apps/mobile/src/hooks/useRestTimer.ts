@@ -30,6 +30,22 @@ function formatMMSS(s: number): string {
 }
 
 /**
+ * Every rest notification's id starts with this, then a per-rest suffix.
+ *
+ * **Must equal `RestDoneNotification.idPrefix` in
+ * `targets/_shared/RestActivity.swift`.** The rest Live Activity's "+30 s" and
+ * "Skip" buttons run natively while JS may be suspended, and they move or
+ * cancel this notification by matching the prefix — otherwise the phone buzzes
+ * "rest over" 30 s early, or for a rest the lifter skipped. A prefix rather than
+ * one fixed id because each rest still needs its OWN id: the stale-schedule
+ * guard below cancels by id, and a shared one would cancel the next rest's.
+ */
+export const REST_DONE_ID_PREFIX = 'ignia.restDone.';
+/** Makes two rests with the same deadline (a replace inside one millisecond)
+ *  still get distinct ids. */
+let restDoneSeq = 0;
+
+/**
  * Schedule the "rest is over" local notification for `at`, or resolve null
  * when it must not be scheduled.
  *
@@ -48,6 +64,7 @@ export async function scheduleRestDoneNotification(at: Date, t: TFn): Promise<st
     const { status } = await Notifications.getPermissionsAsync();
     if (status !== 'granted') return null;
     return await Notifications.scheduleNotificationAsync({
+      identifier: `${REST_DONE_ID_PREFIX}${at.getTime()}.${++restDoneSeq}`,
       content: {
         title: t('train.restDoneTitle' as I18nKey),
         body: t('train.restDoneBody' as I18nKey),

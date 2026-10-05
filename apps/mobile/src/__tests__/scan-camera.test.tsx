@@ -110,6 +110,16 @@ async function openViewfinder() {
 }
 
 describe('scan viewfinder', () => {
+  // Presented as a root-stack fullScreenModal, a native `SafeAreaView` read a
+  // 0 top inset on iOS and the header drew under the status bar, where Back
+  // cannot be tapped (Maestro 06, 2026-10-04). The pad comes from the
+  // provider's window insets now — test-utils pins top: 47.
+  it('pads the header below the status bar from the window inset', async () => {
+    const screen = await openViewfinder();
+    const style = [screen.getByTestId('scan-screen').props.style].flat(3);
+    expect(style).toEqual(expect.arrayContaining([expect.objectContaining({ paddingTop: 47 })]));
+  });
+
   it('opens straight into the camera when access is already granted', async () => {
     const screen = await openViewfinder();
     expect(screen.queryByTestId('scan-take')).toBeNull();

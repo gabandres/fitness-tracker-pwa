@@ -240,8 +240,8 @@ export const en = {
   // active energy is not an input to it at all (ADR-0024). The old wording
   // sat one card above "356 kcal active" for today, and a user reasonably
   // read the two as the same day's number.
-  'today.underMaintenance': '{n} under your usual burn',
-  'today.overMaintenance': '{n} over your usual burn',
+  'today.underMaintenance': '{n} under it so far today',
+  'today.overMaintenance': '{n} over it so far today',
   // NOT "the last {span} days": `spanDays` is the calendar span of the rows
   // in the window, measured back from the newest one — so after a lapse it
   // is a span that ended whenever you last logged, not one ending today.
@@ -292,15 +292,15 @@ export const en = {
   'whatsNew.continue': 'Continue',
   // One item per thing a person will NOTICE, in the order they meet it. Body
   // sentences carry the number that makes the feature usable, not a pitch.
-  'whatsNew.scanDoor.title': 'Scan a meal from food search',
-  'whatsNew.scanDoor.body':
-    'Tap +, then More ways → Scan meal to log a meal from a photo. Holding + opens it too.',
-  'whatsNew.typeTime.title': 'Set the time as you log',
-  'whatsNew.typeTime.body':
-    'Every new entry has a Time row now. Tap the time and type it — 8:15, 6:30pm — instead of stepping.',
-  'whatsNew.notes.title': 'Notes on entries',
-  'whatsNew.notes.body':
-    'Add a note to any food entry — "weighed", "logged high" — and see it under the entry in your day.',
+  'whatsNew.hold.title': 'Hold a meal for more',
+  'whatsNew.hold.body':
+    'Press and hold any meal for a preview with Edit, Add to Quick add and Delete. Each meal of the day now has its own + Add.',
+  'whatsNew.charts.title': 'Your numbers, over time',
+  'whatsNew.charts.body':
+    'Trends charts your maintenance estimate for up to three months, and Body draws your weight with a trend line. Drag across either to read any day.',
+  'whatsNew.offlineTrain.title': 'Workouts without signal',
+  'whatsNew.offlineTrain.body':
+    'Start, log and finish a workout with no connection — it saves on your phone and syncs when you are back online.',
   'update.ota.title': 'Update ready',
   'update.ota.body': 'Ignia restarts to apply it — a few seconds.',
   'update.ota.action': 'Restart',
@@ -1012,7 +1012,7 @@ export const en = {
   'train.inProgress': 'Workout in progress',
   'train.progress': '{done} of {total} done',
   'train.editingSession': 'Editing past workout',
-  'train.editHint': 'Tap to edit · hold to delete',
+  'train.editHint': 'Tap to edit · hold for more',
   'train.doneEditing': 'Done',
   'train.addFirst': 'Add your first exercise to start logging sets.',
   'train.addExercise': 'Add exercise',

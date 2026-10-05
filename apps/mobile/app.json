@@ -2,7 +2,7 @@
   "expo": {
     "name": "Ignia",
     "slug": "macro-log",
-    "version": "1.2.4",
+    "version": "1.2.5",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "ignia",

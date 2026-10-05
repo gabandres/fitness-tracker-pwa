@@ -363,8 +363,13 @@ struct LogQuickAddSlotIntent: AppIntent {
  * phrases omit it, and it is also what stops "log my shake" from colliding with
  * every other tracker on the device.
  *
- * Only the two user-meaningful intents appear here. `LogQuickAddSlotIntent` is
- * for the widget and would read as gibberish spoken aloud.
+ * Only the user-meaningful intents appear here. `LogQuickAddSlotIntent` is for
+ * the widget and would read as gibberish spoken aloud, and the Live Activity
+ * buttons (`LiveActivityIntents.swift`) are bound to a face, not a sentence.
+ *
+ * Every phrase is translated in `plugins/withAppShortcutsLocalization.js`
+ * (es-PR, pt-BR); `src/__tests__/siri-phrases-parity.test.ts` fails the moment
+ * a phrase here has no translation there.
  */
 @available(iOS 16.0, *)
 struct IgniaShortcuts: AppShortcutsProvider {
@@ -399,5 +404,39 @@ struct IgniaShortcuts: AppShortcutsProvider {
       ],
       shortTitle: "Log calories",
       systemImageName: "flame.fill")
+
+    // The three below open the app — see `AppActionIntents.swift` for why they
+    // cannot finish headless the way the two above do. No phrase names the
+    // weight: it is an open-ended number, which App Shortcut phrases may not
+    // carry (WWDC22, the same rule `LogMacrosIntent` documents). A shortcut the
+    // user builds in the Shortcuts app can still pass one.
+    AppShortcut(
+      intent: LogWeightIntent(),
+      phrases: [
+        "Log my weight in \(.applicationName)",
+        "Log weight in \(.applicationName)",
+        "Weigh in with \(.applicationName)",
+      ],
+      shortTitle: "Log weight",
+      systemImageName: "scalemass.fill")
+
+    AppShortcut(
+      intent: StartFastIntent(),
+      phrases: [
+        "Start a fast in \(.applicationName)",
+        "Start fasting in \(.applicationName)",
+      ],
+      shortTitle: "Start fast",
+      systemImageName: "timer")
+
+    AppShortcut(
+      intent: StopFastIntent(),
+      phrases: [
+        "End my fast in \(.applicationName)",
+        "End fast in \(.applicationName)",
+        "Stop fasting in \(.applicationName)",
+      ],
+      shortTitle: "End fast",
+      systemImageName: "stop.circle")
   }
 }

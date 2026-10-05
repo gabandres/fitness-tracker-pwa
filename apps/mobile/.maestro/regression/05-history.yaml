@@ -34,6 +34,21 @@ env:
     id: 'add-food-day'
 - takeScreenshot: .maestro/regression/shots/05-history-day
 # Two levels back — flows hand each other the app ON Today.
-- back
-- back
+# Tapped, not `back`: since 2026-10-04 History is a ROOT-stack screen pushed
+# over the tabs, and Maestro's iOS `back` is a no-op there (no hardware back;
+# the flow used to "pass" its back steps and then fail `Today` on the day
+# screen). The day screen's back is `back`, the calendar's is `history-back`.
+- tapOn:
+    id: 'back'
+- extendedWaitUntil:
+    visible:
+      id: 'history-back'
+    timeout: 10000
+- assertVisible: 'History'
+- tapOn:
+    id: 'history-back'
+- extendedWaitUntil:
+    visible:
+      id: 'open-history'
+    timeout: 10000
 - assertVisible: 'Today'

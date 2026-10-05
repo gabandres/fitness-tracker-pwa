@@ -500,6 +500,25 @@ public enum Glance {
         fasting: "Ayuno",
         fastSince: "desde las %@"
       )
+    // pt-BR fell through to English on every Swift surface — widget, watch,
+    // the fasting Live Activity — while the app itself spoke Portuguese.
+    case "pt-BR":
+      return Strings(
+        kcal: "kcal",
+        left: "restantes",
+        over: "a mais",
+        protein: "proteína",
+        empty: "Abra o Ignia para começar",
+        emptyShort: "Abra o Ignia",
+        quickAddVerb: "Registrar",
+        emptyWatch: "Aguardando o iPhone",
+        watchSubline: "Seus números atualizam quando o iPhone está por perto.",
+        asOf: "às %@",
+        kcalLeftLabel: "kcal restantes",
+        kcalOverLabel: "kcal a mais",
+        fasting: "Jejum",
+        fastSince: "desde %@"
+      )
     default:
       return Strings(
         kcal: "kcal",

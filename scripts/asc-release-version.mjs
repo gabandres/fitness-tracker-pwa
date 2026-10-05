@@ -35,19 +35,21 @@ if (!versionString || !buildNumber) {
 // this copy must match it. 1.2.2's text is in git history (48ab27cc..).
 const WHATS_NEW = {
   'en-US':
-    '• Reached your goal? One tap on Body switches Ignia to maintenance: your target moves to the calories you have been measured to burn, and the streak nudges go quiet.\n' +
-    '• Your calorie target now follows Ignia\'s measured estimate from the first day of measured mode, instead of waiting behind a confidence bar.\n' +
-    '• Fixed: the sign-in screen could flash once after an update, even though you were still signed in.\n' +
-    '• Fixed: the day still in progress no longer counts as evidence in your maintenance estimate.\n' +
-    '• Fixed: redoing onboarding no longer overwrites a measured target.\n' +
-    '• Fixed: the Today header could clip at larger text sizes, and a column header in Train wrapped in Spanish.',
+    '• Logging feels native: the food sheet is a real iOS sheet you can pull up or swipe away, and pressing and holding any meal shows a preview with Edit, Add to Quick add and Delete.\n' +
+    '• Every meal of the day has its own + Add, and quick-logged foods show what is left: "Logged Oatmeal · 300 kcal · 1,050 left".\n' +
+    '• Trends now charts your maintenance estimate over time, and Body draws your weight with a trend line that follows a steady loss instead of lagging behind it. Drag across a chart to read any day.\n' +
+    '• Workouts work without signal: start, log and finish offline, and it syncs when you are back. A rest timer counts down on your Lock Screen.\n' +
+    '• Weigh-ins: log a day you missed, undo a delete, and get a heads-up when a number looks like a typo.\n' +
+    '• Fixed: foods with very long names could be lost after showing "saved offline", and a deleted weigh-in could come back from Apple Health.\n' +
+    '• Better with VoiceOver and large text across Today, Train, Trends and Body.',
   'es-MX':
-    '• ¿Llegaste a tu meta? Un toque en Cuerpo cambia Ignia a mantenimiento: tu objetivo pasa a las calorías que se ha medido que quemas, y los recordatorios de racha se callan.\n' +
-    '• Tu objetivo de calorías ahora sigue la estimación medida de Ignia desde el primer día del modo medido, en vez de esperar detrás de una barra de confianza.\n' +
-    '• Arreglado: la pantalla de inicio de sesión podía aparecer un momento después de una actualización, aunque seguías con la sesión iniciada.\n' +
-    '• Arreglado: el día en curso ya no cuenta como evidencia en tu estimación de mantenimiento.\n' +
-    '• Arreglado: repetir el onboarding ya no sobrescribe un objetivo medido.\n' +
-    '• Arreglado: el encabezado de Hoy podía recortarse con texto grande, y un encabezado de columna en Entrenar se partía en dos líneas en español.',
+    '• Registrar se siente nativo: la hoja de comidas es una hoja real de iOS que puedes subir o deslizar para cerrar, y al mantener presionada cualquier comida ves una vista previa con Editar, Añadir a Registro rápido y Borrar.\n' +
+    '• Cada comida del día tiene su propio + Añadir, y lo que registras rápido te dice cuánto te queda: «Registrado Avena · 300 kcal · quedan 1,050».\n' +
+    '• Tendencias ahora grafica tu mantenimiento estimado a lo largo del tiempo, y Cuerpo dibuja tu peso con una línea de tendencia que sigue una bajada constante en vez de quedarse atrás. Desliza el dedo por una gráfica para ver cada día.\n' +
+    '• Los entrenamientos funcionan sin señal: empieza, registra y termina sin conexión, y se sincroniza cuando vuelvas. Un temporizador de descanso cuenta en tu pantalla bloqueada.\n' +
+    '• Pesajes: registra un día que se te pasó, deshaz un borrado y recibe un aviso cuando un número parece un error de tecleo.\n' +
+    '• Arreglado: las comidas con nombres muy largos podían perderse después de decir «guardado sin conexión», y un pesaje borrado podía volver desde Salud de Apple.\n' +
+    '• Mejor con VoiceOver y texto grande en Hoy, Entrenar, Tendencias y Cuerpo.',
 };
 
 const OPEN = ['READY_FOR_REVIEW', 'WAITING_FOR_REVIEW', 'IN_REVIEW', 'UNRESOLVED_ISSUES'];

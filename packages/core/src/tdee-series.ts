@@ -146,18 +146,77 @@ export interface WeightSeriesPoint {
   dateKey: DateKey;
   /** The day's weigh-in, lb, or null — a GAP, never a zero and never filled. */
   scale: number | null;
-  /** Exponentially smoothed trend, lb; null before the first weigh-in. */
+  /** Smoothed trend, lb (`weightTrendStep`); null before the first weigh-in. */
   trend: number | null;
 }
 
 /**
- * How much of each new weigh-in the trend takes. 0.1 is the Hacker's Diet
- * figure and the one the category's "trend weight" lines use: a 2 lb overnight
- * water swing moves the trend 0.2 lb, while a real week-long change is mostly
- * absorbed within ~10 weigh-ins. It is a DISPLAY smoother — the estimator fits
- * its own robust slope and never reads this.
+ * The trend filter: a damped level-plus-slope smoother (Holt's linear method
+ * with a damped trend), stepped once per weigh-in and aware of the gap since
+ * the last one. It is a DISPLAY smoother — the estimator fits its own robust
+ * slope and never reads this.
+ *
+ * ## Why not the plain 0.1 EWMA it replaced (S20)
+ *
+ * The Hacker's Diet average takes 10% of each reading and nothing else, so on
+ * a steady loss it LAGS by about (1 − α)/α ≈ 9 weigh-ins. Measured on the QA
+ * account: six weeks of losing ~0.18 lb/day drew a "trend" ABOVE every single
+ * dot, ending at 180.2 lb over a 177.5 reading — the line a user is told to
+ * trust, sitting where they no longer are. And a gap held it frozen, so two
+ * weeks off the scale left it two weeks stale.
+ *
+ * Tracking the slope as well removes the lag on a steady change (the level is
+ * predicted forward by the slope before the reading corrects it), while a
+ * one-off 2 lb water swing still moves the level only 0.2 lb and the slope
+ * 0.02 lb/day. Over a gap the prediction rolls forward on a DAMPED slope
+ * (φ per day), and the reading after it counts for more (1 − (1 − α)^days):
+ * it carries more news. The slope is capped at a physiological ±0.5 lb/day so
+ * a typo cannot fling the line.
  */
 export const WEIGHT_TREND_ALPHA = 0.1;
+/** How much of each step's observed slope the trend's slope takes. */
+export const WEIGHT_TREND_BETA = 0.1;
+/** Per-day damping of the slope across a gap — a trend fades, it does not run on. */
+export const WEIGHT_TREND_PHI = 0.9;
+const MAX_TREND_SLOPE_LB_PER_DAY = 0.5;
+
+/** The filter's state after a reading. `day` is a whole-day index. */
+export interface WeightTrendState {
+  level: number;
+  slope: number;
+  day: number;
+}
+
+/** Whole days since the epoch for a `YYYY-MM-DD` key — gaps, not instants. */
+export function trendDayIndex(dateKey: string): number {
+  const [y, m, d] = dateKey.split('-').map(Number);
+  return Math.round(Date.UTC(y, m - 1, d) / 86_400_000);
+}
+
+/** One weigh-in through the filter. The first reading starts it, flat. */
+export function weightTrendStep(
+  prev: WeightTrendState | null,
+  day: number,
+  reading: number,
+  alpha: number = WEIGHT_TREND_ALPHA,
+): WeightTrendState {
+  if (!prev) return { level: reading, slope: 0, day };
+  const dt = Math.max(1, day - prev.day);
+  const phi = WEIGHT_TREND_PHI;
+  // Damped-trend forecast: the slope's contribution over `dt` days, each day
+  // after the first weaker by φ. One day ⇒ exactly the slope.
+  const carried = prev.slope * ((1 - phi ** dt) / (1 - phi));
+  const predicted = prev.level + carried;
+  const gain = 1 - (1 - alpha) ** dt;
+  const level = predicted + gain * (reading - predicted);
+  // The slope fades only across MISSED days: on a daily cadence it carries
+  // whole (damping every step re-introduced most of the lag it exists to fix).
+  const decayed = prev.slope * phi ** (dt - 1);
+  const observed = (level - prev.level) / dt;
+  const raw = decayed + WEIGHT_TREND_BETA * (observed - decayed);
+  const slope = Math.max(-MAX_TREND_SLOPE_LB_PER_DAY, Math.min(MAX_TREND_SLOPE_LB_PER_DAY, raw));
+  return { level, slope, day };
+}
 
 /**
  * Scale readings plus a trend line over the given day keys (oldest first).
@@ -172,11 +231,11 @@ export function weightTrendSeries(
   keys: readonly DateKey[],
   alpha = WEIGHT_TREND_ALPHA,
 ): WeightSeriesPoint[] {
-  let trend: number | null = null;
+  let state: WeightTrendState | null = null;
   return keys.map((dateKey) => {
     const v = dailyWeights[dateKey];
     const scale = typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null;
-    if (scale != null) trend = trend == null ? scale : trend + alpha * (scale - trend);
-    return { dateKey, scale, trend };
+    if (scale != null) state = weightTrendStep(state, trendDayIndex(dateKey), scale, alpha);
+    return { dateKey, scale, trend: state ? state.level : null };
   });
 }

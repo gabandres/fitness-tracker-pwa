@@ -36,6 +36,7 @@ import { refreshImports } from '@/lib/today-refresh';
 import { useDayFasts } from '@/hooks/useDayFasts';
 import { useDiaryActions } from '@/hooks/useDiaryActions';
 import { useFastActivity } from '@/hooks/useFastActivity';
+import { useIntentInbox } from '@/hooks/useIntentInbox';
 import { useReminderSync } from '@/hooks/useReminderSync';
 import { performQuickAdd } from '@/lib/quick-add';
 import { useMilestones } from '@/hooks/useMilestones';
@@ -336,11 +337,27 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
 
   // The tab bar's Log button navigates here with a fresh `openAdd` nonce —
   // each new value opens the add sheet (see AppTabBar in the tab layout).
-  const { openAdd: openAddParam, quickAddSlot: quickAddSlotParam, prefill: prefillParam } = useLocalSearchParams<{
+  const {
+    openAdd: openAddParam,
+    quickAddSlot: quickAddSlotParam,
+    prefill: prefillParam,
+    fast: fastParam,
+  } = useLocalSearchParams<{
     openAdd?: string;
     quickAddSlot?: string;
     prefill?: string;
+    fast?: string;
   }>();
+  // A tap on the fasting Live Activity (`ignia://?fast=1`, FastActivityWidget):
+  // open the fast sheet, where a running fast's start can be corrected — the
+  // one thing the Lock Screen cannot do. The param is a constant, not a nonce,
+  // so it is cleared once handled; otherwise a second tap would change nothing
+  // and open nothing.
+  useEffect(() => {
+    if (!fastParam) return;
+    setFastSheetOpen(true);
+    router.setParams({ fast: undefined });
+  }, [fastParam]);
   // A draft carried in beside the nonce — the scan screen's repeat suggestion
   // (ADR-0029, settled 2026-09-08). Parsed once per nonce; a bad param opens
   // the sheet empty rather than not at all.
@@ -498,8 +515,8 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
    * with no SDK persistence that read fails offline — an Undo offered up front
    * would be a receipt for a fast that never ended.
    */
-  function onBreakFast() {
-    breakFast()
+  function onBreakFast(endedAt?: Date) {
+    return breakFast(endedAt)
       .then((fastReceipt) => {
         toast.show(t('metrics.fastEnded'), {
           action: fastReceipt?.startedAt
@@ -550,6 +567,24 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
       },
     });
   }
+
+  // What the Lock Screen and Siri left for Today: the fasting Live Activity's
+  // End, and the spoken Start fast / End fast / Log weight. Each runs the same
+  // path a tap here does — `onBreakFast` (archive + Undo toast), `startFast`,
+  // the fast sheet, Body's weigh-in sheet. Held until the profile has loaded,
+  // or a Lock Screen End would be judged against "no fast running".
+  useIntentInbox({
+    ready: !loading,
+    fastStartedAt,
+    onEndFast: onBreakFast,
+    onStartFast: (at) => startFast(at),
+    onShowFast: () => setFastSheetOpen(true),
+    onLogWeight: (value) =>
+      router.navigate({
+        pathname: '/body',
+        params: { weigh: String(Date.now()), ...(value != null ? { weighValue: String(value) } : {}) },
+      } as Href),
+  });
 
   // A failed feed with nothing cached has no true numbers to draw: the hero
   // would say "0 kcal" of a target nobody loaded, and the diary would say the

@@ -35,6 +35,8 @@ import { formatDate, formatNumber } from '@/lib/date-format';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
+import { AccessibleChart } from '@/components/charts/AccessibleChart';
+import { audioGraphDescriptor } from '@/components/charts/audio-graph';
 import { type ChartFrame, nearestIndex, weightChartGeometry } from './weight-chart-geometry';
 
 /**
@@ -59,6 +61,9 @@ import { type ChartFrame, nearestIndex, weightChartGeometry } from './weight-cha
  * - **Accessible**: one adjustable element. Its label is the summary of the
  *   range (from, to, trend direction, low, high); swiping up/down steps the
  *   value through readings, newest first — Apple Health's own chart pattern.
+ *   On iOS that element is an `AccessibleChart`, so VoiceOver's rotor also
+ *   offers an audio graph of the readings and the trend (`audio-graph.ts`) —
+ *   additive; the stepper is unchanged.
  * - **Reduce Motion**: the plot fades in only when motion is allowed; the
  *   cursor never animates, it is placed.
  */
@@ -122,7 +127,15 @@ function WeightChartImpl({
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const unit = bodyWeightUnit(unitSystem);
-  const [range, setRange] = useState<WeightRange>('1M');
+  // Until the user picks one, the range is the shortest that has something to
+  // draw: a chart opening on "No weigh-ins in this range" when the last one is
+  // six weeks old reads as lost data, not as a filter.
+  const [picked, setPicked] = useState<WeightRange | null>(null);
+  const autoRange = useMemo<WeightRange>(
+    () => WEIGHT_RANGES.find((r) => pointsInRange(points, r, todayKey).length >= 2) ?? 'All',
+    [points, todayKey],
+  );
+  const range = picked ?? autoRange;
   const [width, setWidth] = useState(0);
   const [a11yIndex, setA11yIndex] = useState<number | null>(null);
 
@@ -180,6 +193,27 @@ function WeightChartImpl({
       max: num(Math.max(...lows)),
     });
   }
+
+  // ── Audio graph (iOS VoiceOver) — readings as points, the trend as a line,
+  // both in the display unit at the precision the labels read them. Built
+  // inline for the same React Compiler reason `labels` is. ──
+  const descriptor =
+    shown.length === 0
+      ? null
+      : audioGraphDescriptor({
+          title: t('trends.weightChartTitle'),
+          summary,
+          xTitle: t('entry.date'),
+          xLabels: shown.map((p) => dayLong(p.dateKey)),
+          yTitle: unit,
+          unit,
+          decimals: 1,
+          series: [
+            { name: t('trends.legendTrend'), values: shown.map((p, i) => toDisplayWeight(shownTrend[i]?.weightLb ?? p.weightLb, unitSystem)) },
+            { name: t('trends.legendScale'), values: shown.map((p) => toDisplayWeight(p.weightLb, unitSystem)), continuous: false },
+          ],
+          pointLabels: labels,
+        });
 
   // ── Adjustable stepping (screen readers) — clamped on read, newest first ──
   const n = shown.length;
@@ -239,7 +273,7 @@ function WeightChartImpl({
   function pick(r: WeightRange) {
     if (r === range) return;
     haptics.tap();
-    setRange(r);
+    setPicked(r);
     setA11yIndex(null);
     if (r === 'All' && hasOlderHistory) onNeedAll();
   }
@@ -286,7 +320,8 @@ function WeightChartImpl({
       </Animated.View>
 
       <GestureDetector gesture={pan}>
-        <View
+        <AccessibleChart
+          descriptor={descriptor}
           accessible
           accessibilityRole="adjustable"
           accessibilityLabel={summary}
@@ -359,7 +394,7 @@ function WeightChartImpl({
 
           <Animated.View style={[styles.cursor, cursorStyle]} pointerEvents="none" />
           <Animated.View style={[styles.dot, dotStyle]} pointerEvents="none" />
-        </View>
+        </AccessibleChart>
       </GestureDetector>
 
       {n > 0 ? (

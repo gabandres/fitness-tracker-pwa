@@ -5,7 +5,7 @@
  * the Body tab's headline, its long-range chart, the "trend moved" receipt and
  * the trend milestone haptic, so all four agree about where the user is.
  *
- * ## Why an EWMA and not the projection's fitted line
+ * ## Why a running filter and not the projection's fitted line
  *
  * `projectWeight` already returns `currentFittedLb`, and it is the right
  * number for the thing it is for: a straight line over 28 days, extended to a
@@ -14,19 +14,18 @@
  * across five days before it exists at all, and it has no history — there is
  * no "trend on Sep 3" to plot under a scrub cursor.
  *
- * An exponentially weighted moving average has all three properties the
- * headline needs: it exists from the first weigh-in, it only ever looks
- * backwards, and it produces one value per weigh-in that a chart can draw.
- * It is the Hacker's Diet trend line, and the approach every trend-weight app
- * since (Happy Scale, Libra, MacroFactor) has converged on.
+ * A running filter has all three properties the headline needs: it exists
+ * from the first weigh-in, it only ever looks backwards, and it produces one
+ * value per weigh-in that a chart can draw. Since S20 it tracks the slope too
+ * (`weightTrendStep` — the plain Hacker's Diet average lagged a steady loss by
+ * ~9 weigh-ins and drew its line above every dot).
  *
  * ## The SAME filter Trends draws, not a second one
  *
  * `tdee-series.ts` already smooths weight for the Trends chart
- * (`weightTrendSeries`, `WEIGHT_TREND_ALPHA`): one α-step per READING, and a
- * day with no reading holds the trend where it was. This module reuses that
- * constant and that update rule rather than inventing a gap-compounding
- * variant, so Body's headline and the Trends trend line are one number. Two
+ * (`weightTrendSeries`): one `weightTrendStep` per READING, and a day with no
+ * reading holds the trend where it was. This module steps the same filter, so
+ * Body's headline and the Trends trend line are one number. Two
  * "trend weights" that disagree by 0.3 lb across two tabs would teach the
  * user that neither means anything.
  */
@@ -34,7 +33,7 @@ import { addDays, calendarDateKey, parseYmd } from './date';
 import { MIDNIGHT, dayKeyAt, type DayBoundary } from './day-boundary';
 import type { DatedWeight } from './log-window';
 import { LB_PER_KG } from './health-mapping';
-import { WEIGHT_TREND_ALPHA } from './tdee-series';
+import { WEIGHT_TREND_ALPHA, trendDayIndex, weightTrendStep, type WeightTrendState } from './tdee-series';
 import type { UnitSystem } from './unit-system';
 
 /** The Trends smoother's own factor (see the header). Re-exported under this
@@ -62,14 +61,11 @@ export function trendWeightSeries(points: readonly DatedWeight[], alpha: number 
     .filter((p) => Number.isFinite(p.weightLb))
     .sort((a, b) => (a.dateKey < b.dateKey ? -1 : a.dateKey > b.dateKey ? 1 : 0));
   const out: DatedWeight[] = [];
-  let prev: DatedWeight | null = null;
+  let state: WeightTrendState | null = null;
   for (const p of sorted) {
-    // Same update as `weightTrendSeries`: start AT the first reading, then one
-    // α-step per reading, gaps held flat.
-    prev = prev
-      ? { dateKey: p.dateKey, weightLb: prev.weightLb + alpha * (p.weightLb - prev.weightLb) }
-      : { dateKey: p.dateKey, weightLb: p.weightLb };
-    out.push(prev);
+    // The same filter `weightTrendSeries` steps (see `weightTrendStep`).
+    state = weightTrendStep(state, trendDayIndex(p.dateKey), p.weightLb, alpha);
+    out.push({ dateKey: p.dateKey, weightLb: state.level });
   }
   return out;
 }

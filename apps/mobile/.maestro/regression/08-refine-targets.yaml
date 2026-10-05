@@ -63,6 +63,11 @@ appId: fit.ignia.app
     commands:
       - tapOn:
           id: 'settings-back'
+# `id: hero-rings`, 2026-10-04: the hero is one grouped a11y label now
+# ("380 of 2,265 kcal, 1,885 left, …"), so no standalone 'kcal left' node
+# exists to wait on. The rings' id is unique to Today and locale-free.
 - extendedWaitUntil:
-    visible: 'kcal left'
+    visible:
+      id: 'hero-rings'
     timeout: 10000
+- assertVisible: 'Today'

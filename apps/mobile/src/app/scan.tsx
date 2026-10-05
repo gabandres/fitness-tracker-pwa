@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import Animated from 'react-native-reanimated';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   findRepeatCandidates,
   hasUngroundedItems,
@@ -170,6 +170,13 @@ export default function Scan() {
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const router = useRouter();
+  // The top inset comes from the root provider, NOT a native `SafeAreaView`:
+  // presented as a root-stack `fullScreenModal`, `<SafeAreaView edges={['top']}>`
+  // measured a 0 top inset on iOS (2026-10-04, Maestro 06 on iOS 26), so the
+  // header drew under the status bar — the title over the clock, and Back and
+  // the avatar inside the band where taps never reach the app. The provider's
+  // insets are the window's, which is what a full-screen modal covers.
+  const insets = useSafeAreaInsets();
   // `customFoods` is already on this hook, so repeat detection adds NO new
   // Firestore subscription (ADR-0016's per-hook model, unchanged).
   const { addEntry, customFoods } = useToday();
@@ -914,7 +921,7 @@ export default function Scan() {
       : null;
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
+    <View style={[styles.screen, { paddingTop: insets.top }]} testID="scan-screen">
       <View style={styles.header}>
         <PressScale
           style={styles.back}
@@ -1411,7 +1418,7 @@ export default function Scan() {
       {/* Presented full-screen over the tabs, where the tab layout's host
           cannot reach — confirms raised here are drawn by this one. */}
       <ConfirmHost />
-    </SafeAreaView>
+    </View>
   );
 }
 

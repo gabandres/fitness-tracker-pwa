@@ -82,7 +82,10 @@ export default function SheetRoute() {
   if (!entry) return <View style={fit ? null : styles.root} />;
   return (
     <View style={[styles.surface, !fit && styles.root]} testID={entry.testID}>
-      <Reanimated.View style={[styles.pad, !fit && styles.root, padding]}>{entry.node}</Reanimated.View>
+      {/* Keyboard: iOS lifts a `'fit'` sheet above the keyboard itself, so
+          padding it as well left a screen-tall sheet with a blank band. A
+          sheet at a height detent stays put, and its content needs the room. */}
+      <Reanimated.View style={[styles.pad, !fit && styles.root, !fit && padding]}>{entry.node}</Reanimated.View>
       {entry.overlays ? <ToastSheetHost /> : null}
       {entry.overlays ? <ConfirmHost /> : null}
     </View>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -188,6 +189,8 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
   // The weigh-in sheet: which day it opens on. A tapped row's day, or today.
   const [weightOpen, setWeightOpen] = useState(false);
   const [weightDay, setWeightDay] = useState<string>(todayKey);
+  /** Text typed into the sheet on open — only Siri's "Log weight" sets it. */
+  const [weighPrefill, setWeighPrefill] = useState<string | null>(null);
   const [measureOpen, setMeasureOpen] = useState(false);
   // Which saved row the sheet is editing; null = adding a new one. The sheet
   // reads its initial values from this, so add and edit stay one component.
@@ -204,9 +207,28 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
 
   function openWeighIn(dateKey: string | null) {
     haptics.tap();
+    setWeighPrefill(null);
     setWeightDay(dateKey ?? todayKey);
     setWeightOpen(true);
   }
+
+  // Siri / Shortcuts "Log weight" (`targets/_shared/AppActionIntents.swift`,
+  // routed here by Today's `useIntentInbox`): open today's weigh-in sheet,
+  // prefilled with the spoken number when there was one. `weigh` is a nonce;
+  // both params are cleared once handled so a later visit does not reopen it.
+  // The number is in the unit Body displays, the same unit the field is in.
+  const { weigh: weighParam, weighValue: weighValueParam } = useLocalSearchParams<{
+    weigh?: string;
+    weighValue?: string;
+  }>();
+  useEffect(() => {
+    if (!weighParam) return;
+    const n = Number(weighValueParam);
+    setWeighPrefill(weighValueParam && Number.isFinite(n) && n > 0 ? String(n) : null);
+    setWeightDay(todayKey);
+    setWeightOpen(true);
+    router.setParams({ weigh: undefined, weighValue: undefined });
+  }, [weighParam, weighValueParam, todayKey]);
 
   /** From inside a history sheet: close it first, then open the editor, so
    *  two native sheets never race to present. */
@@ -701,6 +723,7 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
         todayKey={todayKey}
         weights={weights}
         unitSystem={unitSystem}
+        initialText={weighPrefill}
         onClose={() => setWeightOpen(false)}
         onSave={saveWeight}
       />
