@@ -1,6 +1,7 @@
 import { StyleSheet } from 'react-native';
 import { type Theme } from '@/lib/theme-context';
-import { FAB_BAND, font, radius, space, type } from '@/theme';
+import { font, radius, space, type } from '@/theme';
+import { TAB_SCROLL_BAND } from '@/lib/glass';
 
 /**
  * The Train tab's stylesheet, for the screen and every modal it opens.
@@ -28,7 +29,7 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   headerHelp: { marginLeft: 'auto', marginRight: space.md },
   fill: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   // See FAB_BAND — the + button overhangs every tab's scroll area.
-  body: { padding: space.xl, paddingBottom: FAB_BAND, gap: space.md },
+  body: { padding: space.xl, paddingBottom: TAB_SCROLL_BAND, gap: space.md },
   error: { color: colors.danger, fontSize: font.small },
   empty: { fontSize: font.small, color: colors.muted },
   sectionTitle: { fontFamily: type.heading, fontSize: font.h3, color: colors.ink, marginTop: space.sm },

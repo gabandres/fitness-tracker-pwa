@@ -22,6 +22,12 @@ import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, space } from '@/theme';
 import { useWorkoutIntentRouter } from '@/hooks/useStartNextWorkoutIntent';
 import { sweepOrphans } from '@/lib/rest-timer-activity';
+import { GLASS_TAB_BAR } from '@/lib/glass';
+
+/** The glass material, loaded only where it is drawn (iOS 26). */
+const GlassBackground = GLASS_TAB_BAR
+  ? (require('expo-glass-effect') as typeof import('expo-glass-effect')).GlassView
+  : null;
 
 /** The four tab destinations, in bar order. History is deliberately NOT here
  *  (ADR-0014): it's a lookup surface, reached from Today's calendar icon —
@@ -64,7 +70,7 @@ type AppTabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>['tabBar
 function AppTabBar({ state, descriptors, navigation }: AppTabBarProps) {
   const t = useT();
   const styles = useThemedStyles(createStyles);
-  const { colors } = useTheme();
+  const { colors, scheme } = useTheme();
   const insets = useSafeAreaInsets();
   // (The History day detail's "no second + over my own" spacer, UX_AUDIT
   // S16-3, went with History's move to the root stack: no tab bar is drawn
@@ -132,7 +138,10 @@ function AppTabBar({ state, descriptors, navigation }: AppTabBarProps) {
   // and takes you back.
   const onTrain = state.routes[state.index]?.name === 'train';
   return (
-    <View>
+    // iOS 26: a Liquid Glass capsule floating over the content, the way the
+    // system tab bar sits (owner-approved 2026-10-05). The content runs under
+    // it — every tab pads by `TAB_SCROLL_BAND`. Elsewhere: the opaque bar.
+    <View style={GLASS_TAB_BAR ? styles.floatWrap : undefined} pointerEvents="box-none">
       {!onTrain && workout.active ? (
         <View style={styles.pillSlot}>
           <ActiveWorkoutPill onResume={() => navigation.navigate('train')} />
@@ -141,9 +150,21 @@ function AppTabBar({ state, descriptors, navigation }: AppTabBarProps) {
       {/* `tablist` is what makes the four `tab` roles a group: VoiceOver says
           "tab, 1 of 4" only inside one, and TalkBack announces the bar (review #8). */}
       <View
-        style={[styles.bar, { paddingBottom: Math.max(insets.bottom, space.sm) }]}
+        style={
+          GLASS_TAB_BAR
+            ? [styles.barGlass, { marginBottom: Math.max(insets.bottom - 8, space.sm) }]
+            : [styles.bar, { paddingBottom: Math.max(insets.bottom, space.sm) }]
+        }
         accessibilityRole="tablist"
       >
+        {GlassBackground ? (
+          <GlassBackground
+            style={styles.glass}
+            glassEffectStyle="regular"
+            colorScheme={scheme}
+            isInteractive
+          />
+        ) : null}
         {LEFT_TABS.map(tab)}
         <LogSpeedDial />
         {RIGHT_TABS.map(tab)}
@@ -314,6 +335,18 @@ function createStyles({ colors }: Theme) {
       paddingTop: space.sm,
       paddingHorizontal: space.sm,
     },
+    floatWrap: { position: 'absolute', left: 0, right: 0, bottom: 0 },
+    barGlass: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginHorizontal: space.lg,
+      minHeight: 64,
+      borderRadius: 32,
+      paddingHorizontal: space.sm,
+    },
+    // Behind the tabs, the capsule's own shape. Not `overflow: hidden` on the
+    // bar: that would clip the raised + .
+    glass: { ...StyleSheet.absoluteFill, borderRadius: 32 },
     // Clears the raised Log button, which stands ~26dp proud of the bar.
     pillSlot: { paddingBottom: 30 },
     tab: { flex: 1, alignItems: 'center', gap: 2, paddingVertical: 2 },

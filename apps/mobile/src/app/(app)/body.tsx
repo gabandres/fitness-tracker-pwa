@@ -46,8 +46,9 @@ import { track } from '@/lib/analytics';
 import { useUnitSystem } from '@/lib/use-unit-system';
 import { CountUpText, enterUp, usePulse } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { FAB_BAND, font, headerTitle, radius, space, type } from '@/theme';
+import { font, headerTitle, radius, space, type } from '@/theme';
 import { formatDate, formatNumber, localeTag } from '@/lib/date-format';
+import { TAB_SCROLL_BAND } from '@/lib/glass';
 
 /**
  * Formatters cached per locale (Body review, Pf2). `toLocaleDateString` builds
@@ -917,7 +918,7 @@ const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: space.xl },
   showMore: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   // See FAB_BAND — the + button overhangs every tab's scroll area.
-  body: { padding: space.xl, paddingBottom: FAB_BAND, gap: space.md },
+  body: { padding: space.xl, paddingBottom: TAB_SCROLL_BAND, gap: space.md },
   error: { color: colors.danger, fontSize: font.small, flex: 1 },
   errorRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   retryBtn: { borderWidth: 1, borderColor: colors.ink, borderRadius: radius.pill, paddingHorizontal: space.md, minHeight: 44, justifyContent: 'center' },

@@ -54,8 +54,9 @@ import { useWidgetSync } from '@/hooks/useWidgetSync';
 import { enterUp, PressScale, usePulse } from '@/lib/motion';
 import { recordPositiveMoment } from '@/lib/reviewPrompt';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { FAB_BAND, font, headerTitle, radius, space, type } from '@/theme';
+import { font, headerTitle, radius, space, type } from '@/theme';
 import { formatDate } from '@/lib/date-format';
+import { TAB_SCROLL_BAND } from '@/lib/glass';
 
 /** Streak length below which a streak extension is too early to read as
  *  "this app is working for me" — see reviewPrompt.ts for the full policy. */
@@ -1024,7 +1025,7 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
             />
           </Animated.View>
           {/* Clears the + button at the foot of the list. */}
-          <View style={{ height: FAB_BAND }} />
+          <View style={{ height: TAB_SCROLL_BAND }} />
         </Animated.ScrollView>
       )}
 

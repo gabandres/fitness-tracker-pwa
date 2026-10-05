@@ -41,7 +41,9 @@ const read = (rel: string) => readFileSync(join(__dirname, '..', rel), 'utf8');
 describe('the floating + button does not cover the bottom of a tab', () => {
   it.each(TABS)('$label reserves FAB_BAND at the bottom of its scroll content', ({ file }) => {
     const src = read(file);
-    expect(src).toMatch(/FAB_BAND/);
+    // Directly, or through `TAB_SCROLL_BAND` (`lib/glass.ts`), which is
+    // FAB_BAND plus the floating glass bar's own height on iOS 26.
+    expect(src).toMatch(/FAB_BAND|TAB_SCROLL_BAND/);
     // Imported from the shared module, never redeclared. A local copy is the
     // original defect: it cannot be found by the next tab.
     expect(src).not.toMatch(/const\s+FAB_BAND\s*=/);

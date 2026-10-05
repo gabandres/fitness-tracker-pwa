@@ -66,11 +66,12 @@ import * as haptics from '@/lib/haptics';
 import { announce } from '@/lib/a11y';
 import { CountUpText, enterUp, PressScale } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { FAB_BAND, font, headerTitle, radius, space, type } from '@/theme';
+import { font, headerTitle, radius, space, type } from '@/theme';
 import { formatDate, formatNumber } from '@/lib/date-format';
 import { CompositionLine, RecompCard } from '@/components/CompositionCards';
 import { useUnitSystem } from '@/lib/use-unit-system';
 import { useCountViewPerFocus } from '@/hooks/useCountViewPerFocus';
+import { TAB_SCROLL_BAND } from '@/lib/glass';
 
 function dayLabel(dateKey: string | undefined, locale: Locale): string {
   // A missing day reads as a dash, never as "Invalid Date".
@@ -1318,7 +1319,7 @@ const createStyles = ({ colors, shadow }: Theme) =>
     // overhangs the scroll area, and 24 dp left the last element under it.
     // That is #96 — the Coach row was untappable — and it caught the fasting
     // card's footer too once #98 added a sixth element below Coach.
-    body: { padding: space.xl, paddingBottom: FAB_BAND, gap: space.sm },
+    body: { padding: space.xl, paddingBottom: TAB_SCROLL_BAND, gap: space.sm },
     error: { color: colors.danger, fontSize: font.small, flex: 1 },
     errorRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
     retryBtn: { borderWidth: 1, borderColor: colors.ink, borderRadius: radius.pill, paddingHorizontal: space.md, minHeight: 44, justifyContent: 'center' },
