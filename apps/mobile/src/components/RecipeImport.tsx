@@ -219,5 +219,5 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
     paddingVertical: space.md,
     alignItems: 'center',
   },
-  applyText: { fontSize: font.body, fontWeight: '800', color: colors.white },
+  applyText: { fontSize: font.body, fontWeight: '800', color: colors.onFill },
 });

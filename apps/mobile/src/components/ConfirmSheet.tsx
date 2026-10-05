@@ -143,7 +143,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   },
   goDanger: { backgroundColor: colors.danger },
   goText: { fontSize: font.body, fontWeight: '700', color: colors.onInk },
-  // `onInk` inverts with the theme (dark text in dark mode), which on a danger
-  // red reads muddy — white holds on both themes' danger fills.
-  goDangerText: { color: colors.white },
+  // `onFill`: white on light's deep red, the dark canvas on dark's light red —
+  // white there measured 3.37:1, under AA (it was white until 2026-10-05).
+  goDangerText: { color: colors.onFill },
 });

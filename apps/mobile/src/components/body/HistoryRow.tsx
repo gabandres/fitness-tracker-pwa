@@ -113,7 +113,7 @@ export function HistoryRow({
           accessibilityRole="button"
           accessibilityLabel={t('common.edit')}
         >
-          <BodyIcon sf="pencil" ion="pencil" size={20} color={colors.onInk} />
+          <BodyIcon sf="pencil" ion="pencil" size={20} color={colors.onFill} />
         </TouchableOpacity>
       )}
       renderRightActions={() => (
@@ -128,7 +128,7 @@ export function HistoryRow({
           accessibilityLabel={t('common.remove')}
           testID={deleteTestID ? `${deleteTestID}-swipe` : undefined}
         >
-          <BodyIcon sf="trash" ion="trash-outline" size={20} color={colors.onInk} />
+          <BodyIcon sf="trash" ion="trash-outline" size={20} color={colors.onFill} />
         </TouchableOpacity>
       )}
     >

@@ -396,6 +396,7 @@ function SwipeAction({
   testID: string;
 }) {
   const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
   const sign = side === 'right' ? -1 : 1;
   useAnimatedReaction(
     () => translation.value * sign > FULL_SWIPE,
@@ -417,9 +418,9 @@ function SwipeAction({
         accessibilityLabel={a11yLabel ?? label}
         testID={testID}
       >
-        {/* White, not `onInk`: on the danger and teal fills `onInk` goes dark
-            in the dark theme. ConfirmSheet's destructive button does the same. */}
-        <Ionicons name={icon} size={20} color="#ffffff" />
+        {/* `onFill`, not white: dark mode's danger and teal fills are light-
+            toned, and white on them measured 3.07–3.37:1 (2026-10-05). */}
+        <Ionicons name={icon} size={20} color={colors.onFill} />
         <Text style={styles.swipeActionText} numberOfLines={1} maxFontSizeMultiplier={1.3}>
           {label}
         </Text>
@@ -813,5 +814,5 @@ const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
     gap: 2,
     paddingHorizontal: space.xs,
   },
-  swipeActionText: { fontSize: font.tiny, fontWeight: '700', color: '#ffffff' },
+  swipeActionText: { fontSize: font.tiny, fontWeight: '700', color: colors.onFill },
 });

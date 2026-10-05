@@ -63,6 +63,12 @@ describe.each(['light', 'dark'] as const)('%s palette contrast', (scheme) => {
     expect(contrastRatio(c.tealSolid, c.tealSoft)).toBeGreaterThanOrEqual(AA_TEXT);
   });
 
+  // White on dark mode's light-toned fills measured 2.32 (accent), 3.07
+  // (tealSolid) and 3.37 (danger) until 2026-10-05 (Impeccable audit).
+  it.each(['accent', 'danger', 'tealSolid'] as const)('onFill is AA text on the %s fill', (fill) => {
+    expect(contrastRatio(c.onFill, c[fill])).toBeGreaterThanOrEqual(AA_TEXT);
+  });
+
   it('onInk reads on ink; hero text and hero muted read on the hero panel', () => {
     expect(contrastRatio(c.onInk, c.ink)).toBeGreaterThanOrEqual(AA_TEXT);
     expect(contrastRatio(c.heroText, c.heroPanel)).toBeGreaterThanOrEqual(AA_TEXT);

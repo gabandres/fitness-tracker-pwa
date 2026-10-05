@@ -104,5 +104,5 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
     paddingHorizontal: space.lg,
     paddingVertical: space.sm,
   },
-  ctaText: { fontSize: font.small, fontWeight: '800', color: colors.white },
+  ctaText: { fontSize: font.small, fontWeight: '800', color: colors.onFill },
 });

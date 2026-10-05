@@ -44,7 +44,7 @@ export function WeeklyReportCard(): React.ReactElement {
       <View style={styles.head}>
         <Text style={styles.section}>{t('report.title')}</Text>
         <View style={styles.proTag}>
-          <Ionicons name="sparkles" size={11} color={colors.white} />
+          <Ionicons name="sparkles" size={11} color={colors.onFill} />
           <Text style={styles.proText}>{t('report.pro')}</Text>
         </View>
       </View>
@@ -97,7 +97,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
     paddingHorizontal: space.sm,
     paddingVertical: 2,
   },
-  proText: { color: colors.white, fontSize: font.tiny, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  proText: { color: colors.onFill, fontSize: font.tiny, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
   card: {
     backgroundColor: colors.card,
     borderRadius: radius.lg,

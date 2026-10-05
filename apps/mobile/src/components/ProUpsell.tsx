@@ -26,7 +26,7 @@ export function ProUpsell({ feature }: { feature: string }) {
       testID="pro-upsell"
     >
       <View style={styles.badge}>
-        <Ionicons name="lock-closed" size={13} color={colors.white} />
+        <Ionicons name="lock-closed" size={13} color={colors.onFill} />
         <Text style={styles.badgeText}>{t('pro.badge')}</Text>
       </View>
       <Text style={styles.title}>{feature}</Text>
@@ -58,7 +58,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
     paddingHorizontal: space.sm,
     paddingVertical: 2,
   },
-  badgeText: { color: colors.white, fontSize: font.tiny, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+  badgeText: { color: colors.onFill, fontSize: font.tiny, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
   title: { fontSize: font.body, fontWeight: '700', color: colors.ink, marginTop: space.xs },
   sub: { fontSize: font.small, color: colors.muted },
   cta: { flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: space.xs },

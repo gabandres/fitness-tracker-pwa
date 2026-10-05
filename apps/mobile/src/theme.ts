@@ -58,6 +58,10 @@ const light = {
   danger: '#c42020', // danger red — distinct from the coral brand; 5.2:1 on card (was #dc2626, 4.3)
   white: '#ffffff',
   onInk: '#ffffff', // text/icons on an `ink` surface (inverts with the theme)
+  /** Text/icons on a saturated fill — `accent`, `danger`, `tealSolid`. White
+   *  here; the dark canvas in dark mode, where those fills are light-toned
+   *  and white measured 2.3–3.4:1 (Impeccable audit, 2026-10-05). */
+  onFill: '#ffffff',
   inputBg: '#ffffff', // text-field / chip fill (white in light, card in dark)
   /** The hero panel canvas — dark in BOTH themes so the rings always glow
    *  and the brand reads identically day or night (ADR-0014). */
@@ -95,6 +99,7 @@ const dark: ColorTokens = {
   danger: '#f2555a', // danger red — distinct from the coral brand
   white: '#ffffff',
   onInk: '#131210', // `ink` is LIGHT here, so on-ink text is the dark canvas
+  onFill: '#131210', // the fills are light-toned here: dark text, as Material's on-primary
   inputBg: '#1d1b18', // fields sit as card-toned wells, not glaring white
   heroPanel: '#161412', // hero canvas is shared across themes (brand anchor)
   heroTrack: '#2e2a25',
