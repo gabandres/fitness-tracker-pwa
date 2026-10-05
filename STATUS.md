@@ -26,7 +26,7 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 |---|---|
 | **Public App Store (iOS)** | **1.2.4 / build 67, LIVE since 2026-09-28** (Apple's public lookup read `1.2.4` on 2026-10-05). Runtime **`1b239e44…`**. **1.2.5 / build 68 (runtime `489bf3b5…`) is SUBMITTED, `WAITING_FOR_REVIEW`, release automatic on approval** — owner's word; this Mac cannot read ASC (no `ASC_ISSUER_ID` in its `.env.local`). Carries the re-shot screenshots (en-US 5, es-MX 5) and `usesIdfa: false`. **Available in 175 of 175 territories** since 2026-08-28 (DSA trader declaration filed). Play matched on 2026-09-03: 158 of Play's attainable 158 |
 | **TestFlight** | **build 64 / 1.2.3 (runtime `52802bba…`) is in the EXTERNAL *Public Beta Testers* group, `IN_BETA_TESTING`** (read 2026-09-08 via `asc-testflight-external.mjs --build 64`; it was `WAITING_FOR_BETA_REVIEW` from 09-05). Build 63 is in the group but can never reach an external tester — a build of an already-released version stays `READY_FOR_BETA_SUBMISSION` forever. **Read the group's builds AND each build's `externalBuildState`, never assume:** `VALID` + in the group ≠ installable |
-| **Play production + alpha** | **Production: vc 46 / 1.2.4, LIVE** (store page *Updated on Sep 28, 2026*, read 2026-10-05). **Alpha: vc 47 / 1.2.5 uploaded 2026-10-05, sent for review; NOT promoted to production** — the owner's call. **The tracks API cannot tell "in review" from "live"** — the Console app row or the store page is the read. `eas submit` has failed and exited 0 three times (lost Play edit on bundles > 60 MB; a missing health declaration) — **`play-upload-bundle.mjs` is the upload path, then `play-production-release.mjs --complete --commit --vc N`; confirm every submit against the tracks API** |
+| **Play production + alpha** | **Production: vc 46 / 1.2.4, LIVE** (store page *Updated on Sep 28, 2026*, read 2026-10-05). **vc 47 / 1.2.5 on alpha AND production (100%) since 2026-10-05, sent for review** — vc 46 is what users run until Play clears it. **The tracks API cannot tell "in review" from "live"** — the Console app row or the store page is the read. `eas submit` has failed and exited 0 three times (lost Play edit on bundles > 60 MB; a missing health declaration) — **`play-upload-bundle.mjs` is the upload path, then `play-production-release.mjs --complete --commit --vc N`; confirm every submit against the tracks API** |
 | **Web `ignia.fit`** | **Shell + `/admin` — the web logging app was RETIRED 2026-08-30 (ADR-0036).** 113 prerendered pages, EN + es-PR. Links BOTH stores with the official badges since 2026-09-08 (`PLAY_STORE_LIVE = true`; Google's en / es-419 badge artwork on the landing, `/vs`, `/calculator`, the retired and auth-action pages, and `/download`). **`/download` said "Android coming soon — email me" until 2026-09-08** — this row claimed no such copy remained; grep `public/` as well as `src/` before repeating that. `/app` and the old tabs render a "moved to the apps" page; a safety worker evicts old PWA installs. SEO pages and `/u/**` are KEPT, owner-ratified |
 | **Cloud Functions / rules** | Deployed, project `fitness-tracker-gb-1775407101` |
 | **Photo-scan** | **ON and free to everyone, both platforms** (ADR-0017), resolving macros against the bundled USDA database (ADR-0019). Tiering is server-side only: `dailyQuota` 3/day free · 30/day paid, plus the `photo` `spendCeiling` |
@@ -38,7 +38,7 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 
 | Platform | Tree now | Live binary | Channel |
 |---|---|---|---|
-| Android | **Mac-built since vc 46** — read it from the artifact, never the tree (`android/` is hashed whole and drifts with Gradle's leftovers; ledger row). vc 47's tree DID compute its artifact value `ef607e85…` (no prebuild between) | **vc 46 ships `3e596c87…`, LIVE on production**; **vc 47 ships `ef607e85…`** (read from the `.aab`), on **alpha** in review | **OPEN** on both (pin the runtime for every publish) |
+| Android | **Mac-built since vc 46** — read it from the artifact, never the tree (`android/` is hashed whole and drifts with Gradle's leftovers; ledger row). vc 47's tree DID compute its artifact value `ef607e85…` (no prebuild between) | **vc 46 ships `3e596c87…`, LIVE on production**; **vc 47 ships `ef607e85…`** (read from the `.aab`), on **alpha + production** in review | **OPEN** on both (pin the runtime for every publish) |
 | iOS | `489bf3b5…` (1.2.5) — re-measured on `ignia-mac` 2026-10-05 at `b19d26b1` and MATCHED build 68 | **build 67 ships `1b239e44…`, LIVE as 1.2.4**; **build 68 ships `489bf3b5…`** (read from the `.ipa`), in App Review | **OPEN** on both — after an Android Gradle build, restore the masked-view manifest first (bullet below) |
 
 - **Gate the COMMIT, not just the fingerprint. `eas update` prints a `Commit`
@@ -122,9 +122,9 @@ round 3's re-score fixes. `CHANGELOG.md` 2026-10-05.
 - **iOS**: build 68 waiting for review, release automatic; OTA `440e81a0…` rides
   with it. The glass tab bar was checked on the `Ignia-QA-26` simulator only —
   **look at it on a real iPhone on iOS 26** once 1.2.5 is out.
-- **Android**: vc 47 on alpha, in review. **Promote to production only on the
-  owner's word** (`play-production-release.mjs --complete --vc 47 --commit`);
-  `app-version.json` follows by itself once Play serves it.
+- **Android**: vc 47 on alpha and production 100%, in review (promoted
+  2026-10-05 on the owner's word). The hourly sync already reads 47 off the
+  tracks API, which cannot tell review from live — the in-review wrinkle.
 - **Predictive back is OFF on Android** despite `predictiveBackGestureEnabled:
   true` in `app.json` — `patch-android-release.mjs` step 4e rewrites the
   manifest, because with it on, back from History backgrounded the app

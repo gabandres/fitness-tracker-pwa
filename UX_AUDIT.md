@@ -868,6 +868,23 @@ what's-new for this ship.
 presented from inside an open sheet, `sendAccessibilityEvent` focus moves, the
 in-panel toast's elevation on Android.
 
+## 📏 S20 — all five tabs re-scored for 1.2.5 (2026-10-05)
+
+Same rubric as §S18, a fresh independent read-only reviewer per tab per pass
+(code read, not run on a device). A new reviewer re-baselines: S20 opened
+Today at 87.5 against S19's shipped 91.1 with no regression between them.
+
+| Pass | Today | Add-meal | Train | Trends | Body |
+|---|---|---|---|---|---|
+| S20 start | 87.5 | 87.8 | 67 | 69.5 | 71 |
+| Round 2 | 88.3 | 88.2 | 79.3 | 79.6 | 81.0 |
+| **Round 3** | **89.8** | **90.4** | **85.3** | **83.8** | **82.8** |
+
+**Round 3's own fix lists are implemented (`255e8e16`) and NOT re-scored** — the
+numbers above are the tree before them; nothing measures what 1.2.5 actually
+ships. Re-score before claiming a number. What the reviewers said still caps
+Platform: native work, not JS. `CHANGELOG.md` 2026-10-05 has the delivery.
+
 ## 5. Notes for future additions
 
 - When adding a new surface, check it against: (a) does copy work for a first-time user; (b) is every icon-only button labelled; (c) does it announce state changes via `aria-live`.

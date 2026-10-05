@@ -31,8 +31,8 @@ ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 - **Delivery**: iOS build 68 / 1.2.5 (`489bf3b5…`) submitted, release
   automatic on approval; first OTA on it `440e81a0-5014-47b8-bcab-842ba0a2597e`
   at `b19d26b1`, published ahead of approval. Android vc 47 / 1.2.5
-  (`ef607e85…`, built at `b19d26b1`) on Play alpha, in review; production
-  stays vc 46 until the owner promotes. `app.json` moved both runtimes, so 1.2.4
+  (`ef607e85…`, built at `b19d26b1`) on Play alpha and production
+  (100%, promoted on the owner's word), in review. `app.json` moved both runtimes, so 1.2.4
   users get none of this until the store update. No rules or functions change.
 - **Verified**: mobile tsc + jest 213 suites / 1,885; iOS + Android export
   within perf-budget (re-baselined for S20 in `2d3cc145`); iOS Maestro
