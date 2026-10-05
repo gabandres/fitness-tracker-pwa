@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffectThroughSheets } from '@/hooks/useFocusEffectThroughSheets';
 import { track } from '@/lib/analytics';
 import type { UsageEvent } from '@macrolog/core';
 
@@ -22,7 +22,8 @@ export function useCountViewPerFocus(event: UsageEvent, shown: boolean): void {
     track(event);
   }, [event]);
 
-  useFocusEffect(
+  // Through sheets: closing the meal sheet is not a second view of Today.
+  useFocusEffectThroughSheets(
     useCallback(() => {
       focused.current = true;
       counted.current = false;

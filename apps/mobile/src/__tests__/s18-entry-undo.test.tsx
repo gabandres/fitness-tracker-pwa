@@ -22,6 +22,9 @@ jest.mock('expo-router', () => ({
   ...jest.requireActual('expo-router'),
   useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
   useLocalSearchParams: () => ({ date: '2026-09-20' }),
+  // The day sets its native header through `Stack.Screen`, which needs a
+  // navigator this test does not mount; its title row is drawn in place.
+  Stack: { Screen: ({ options }: { options?: { headerTitle?: () => React.ReactNode } }) => options?.headerTitle?.() ?? null },
 }));
 jest.mock('@/lib/auth', () => ({
   useAuth: () => ({ user: { uid: 'u1' }, profile: null }),

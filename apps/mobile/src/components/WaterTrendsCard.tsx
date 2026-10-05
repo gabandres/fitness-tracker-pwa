@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { useCallback, useMemo } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   WATER_CARD_MIN_DAYS,
@@ -16,7 +17,8 @@ import { StubLabel } from '@/components/StubLabel';
 import { font, radius, space, type } from '@/theme';
 import { PressScale } from '@/lib/motion';
 import * as haptics from '@/lib/haptics';
-import { GapMarker, MedianLine } from '@/components/charts/StripParts';
+import { GapMarker, MedianLine, StripDates, useStripAudioGraph } from '@/components/charts/StripParts';
+import { AccessibleChart } from '@/components/charts/AccessibleChart';
 import { Glyph } from '@/components/charts/Glyph';
 import { useAdjustableDays } from '@/components/charts/useAdjustableDays';
 
@@ -88,9 +90,8 @@ export function WaterTrendsCard({
 
   // The strip as one adjustable element (summary + a day at a time). Built
   // before the early returns so the hook order never changes with the state.
-  const days = water.kind === 'card' ? water.window.days : [];
-  const stepper = useAdjustableDays(
-    days.length,
+  const days = useMemo(() => (water.kind === 'card' ? water.window.days : []), [water]);
+  const summary =
     water.kind === 'card'
       ? t('trends.chart.waterSummary', {
           n: formatNumber(WATER_WINDOW_DAYS, locale),
@@ -98,15 +99,40 @@ export function WaterTrendsCard({
           u: unit,
           count: formatNumber(water.window.daysLogged, locale),
         })
-      : '',
-    (i) => {
-      const day = days[i];
-      if (!day) return '';
-      const date = formatDate(parseYmd(day.dateKey), locale, { weekday: 'short', month: 'short', day: 'numeric' });
-      if (day.flOz == null) return t('trends.chart.noWater', { date });
-      return t('trends.chart.waterPoint', { date, n: formatNumber(Math.round(day.flOz), locale), u: unit });
-    },
+      : '';
+  // One sentence per day — the stepper's value and the audio graph's labels.
+  const pointLabels = useMemo(
+    () =>
+      days.map((day) => {
+        const date = formatDate(parseYmd(day.dateKey), locale, { weekday: 'short', month: 'short', day: 'numeric' });
+        if (day.flOz == null) return t('trends.chart.noWater', { date });
+        return t('trends.chart.waterPoint', { date, n: formatNumber(Math.round(day.flOz), locale), u: unit });
+      }),
+    [days, t, locale, unit],
   );
+  // A day opens in History — by tap, and by the stepper's rotor action.
+  const openDay = useCallback(
+    (dateKey: string) => {
+      haptics.tap();
+      router.push(`/history/${dateKey}`);
+    },
+    [router],
+  );
+  const stepper = useAdjustableDays(days.length, summary, (i) => pointLabels[i] ?? '', {
+    actions: [{ name: 'openDay', label: t('trends.chart.openDayAction'), run: (i) => days[i] && openDay(days[i].dateKey) }],
+  });
+  const dateKeys = useMemo(() => days.map((d) => d.dateKey), [days]);
+  const values = useMemo(() => days.map((d) => (d.flOz == null ? null : Math.round(d.flOz))), [days]);
+  const descriptor = useStripAudioGraph({
+    title: t('trends.waterTitle'),
+    summary,
+    xTitle: t('entry.date'),
+    unit,
+    dateKeys,
+    values,
+    pointLabels,
+    locale,
+  });
 
   if (water.kind === 'pending') return null;
 
@@ -180,9 +206,16 @@ export function WaterTrendsCard({
         </View>
 
         <View style={styles.stripRow}>
-          <View {...stepper.a11y} style={styles.strip} testID="water-strip">
+          <AccessibleChart {...stepper.a11y} descriptor={descriptor} style={styles.strip} testID="water-strip">
             {window.days.map((day) => (
-              <View key={day.dateKey} style={styles.col}>
+              <Pressable
+                key={day.dateKey}
+                style={styles.col}
+                onPress={() => openDay(day.dateKey)}
+                // Inside the adjustable element, so never a separate stop.
+                accessible={false}
+                testID={`water-col-${day.dateKey}`}
+              >
                 <View style={styles.track}>
                   {day.flOz == null ? (
                     <GapMarker />
@@ -195,7 +228,7 @@ export function WaterTrendsCard({
                     />
                   )}
                 </View>
-              </View>
+              </Pressable>
             ))}
             {/* Drawn AFTER the bars so it sits on top of them, and in `ink`
                 rather than `faint`. This is what makes the chart readable at
@@ -204,7 +237,7 @@ export function WaterTrendsCard({
             {window.medianFlOz > 0 ? (
               <MedianLine bottomPct={waterBarFraction(window.medianFlOz) * 100} />
             ) : null}
-          </View>
+          </AccessibleChart>
           {/* The axis. Without it no bar height means anything. Bare numbers —
               the unit is named once, in the legend, because 30dp does not hold
               "100 fl oz" at `font.tiny` and a clipped axis is worse than none. */}
@@ -215,6 +248,9 @@ export function WaterTrendsCard({
             <Text style={styles.axisLabel} maxFontSizeMultiplier={AXIS_MAX_SCALE}>{formatNumber(0, locale)}</Text>
           </View>
         </View>
+        {window.days.length > 0 ? (
+          <StripDates first={window.days[0].dateKey} last={window.days[window.days.length - 1].dateKey} locale={locale} />
+        ) : null}
         <Text style={styles.legend}>
           {t('trends.waterLegend', { n: formatNumber(median, locale), u: unit })}
         </Text>

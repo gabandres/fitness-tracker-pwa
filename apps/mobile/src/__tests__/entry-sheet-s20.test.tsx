@@ -329,7 +329,10 @@ describe('U8 — barcode', () => {
       }),
     );
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ calories: 210, protein: 20, mealLabel: 'Protein bar' }));
-    expect(onClose).toHaveBeenCalled();
+    // Logged at once; on iOS the sheet's close waits for the scanner's Modal
+    // to slide away (SCANNER_EXIT_MS), so the two do not dismiss in one tick.
+    expect(onClose).not.toHaveBeenCalled();
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
     expect(screen.queryByTestId('entry-calories')).toBeNull();
   });
 

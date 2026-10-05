@@ -11,6 +11,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
+import { CONTEXT_MENUS, ContextMenu } from '@/components/ContextMenu';
 import { useT } from '@/i18n';
 import { FEATURES } from '@/lib/features';
 import * as haptics from '@/lib/haptics';
@@ -20,6 +21,11 @@ import { font, motion, radius, space } from '@/theme';
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 const CAM_RISE = -150;
 const MAN_RISE = -78;
+/** How long the native menu's "Search foods" waits before opening the sheet:
+ *  `onSelected` fires while UIKit is still dismissing the menu, and a sheet
+ *  presented into that transition can be dropped (Today re-score, bug 7 —
+ *  the same wait as a diary row's menu, `MENU_DISMISS_MS` in MealEntries). */
+const MENU_DISMISS_MS = 300;
 
 /**
  * The raised center action. A **tap** on the + is the primary action and opens
@@ -64,6 +70,14 @@ const MAN_RISE = -78;
  * 2. **Hardware back navigated out from under it.** Back on the scan screen
  *    with the dial open returned to Today with the dial still fanned open over
  *    it. Now back dismisses the dial, and any route change closes it.
+ *
+ * ## On iOS the long-press is the system menu (Today re-score, Platform)
+ *
+ * Where native context menus exist (`CONTEXT_MENUS`), the long-press opens
+ * the same `UIContextMenu` the diary rows use — Scan meal · Search foods —
+ * instead of this custom fan, so the one long-press in the bar behaves like
+ * every other long-press in iOS. The dial stays for Android, which has no
+ * system equivalent. A screen reader gets Scan as a named action there.
  */
 export function LogSpeedDial() {
   const t = useT();
@@ -166,6 +180,58 @@ export function LogSpeedDial() {
     return () => sub.remove();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  // iOS: the system context menu on long-press, no fan (see the header).
+  if (FEATURES.photoScan && CONTEXT_MENUS) {
+    return (
+      <View style={styles.slot}>
+        {/* The lift lives on a plain View OUTSIDE the menu: a negative margin
+            inside the native wrapper would put the top of the button outside
+            its bounds, where UIKit does not deliver touches. */}
+        <View style={styles.lift}>
+          <ContextMenu
+            actions={[
+              {
+                key: 'scan',
+                title: t('log.scan'),
+                icon: 'camera',
+                onPress: () => router.navigate('/scan'),
+              },
+              {
+                key: 'manual',
+                title: t('log.manual'),
+                icon: 'magnifyingglass',
+                onPress: () => {
+                  setTimeout(openSheet, MENU_DISMISS_MS);
+                },
+              },
+            ]}
+          >
+            <Pressable
+              style={styles.fabShape}
+              accessibilityRole="button"
+              accessibilityLabel={t('log.openA11y')}
+              accessibilityHint={t('log.fabHint')}
+              accessibilityActions={[{ name: 'scan', label: t('log.scan') }]}
+              onAccessibilityAction={(e) => {
+                if (e.nativeEvent.actionName === 'scan') {
+                  haptics.tap();
+                  router.navigate('/scan');
+                }
+              }}
+              testID="log-button"
+              onPress={() => {
+                haptics.tap();
+                openSheet();
+              }}
+            >
+              <Ionicons name="add" size={32} color={colors.heroPanel} />
+            </Pressable>
+          </ContextMenu>
+        </View>
+      </View>
+    );
+  }
 
   // Flag off → plain + straight to the search sheet, no dial.
   if (!FEATURES.photoScan) {
@@ -284,6 +350,17 @@ function createStyles({ colors, shadow }: Theme) {
       justifyContent: 'center',
       marginTop: -(space.xl + 2),
       zIndex: 3,
+      ...shadow.e3,
+    },
+    // The iOS context-menu variant: the same button, its raise on a wrapper.
+    lift: { marginTop: -(space.xl + 2), zIndex: 3 },
+    fabShape: {
+      width: 58,
+      height: 58,
+      borderRadius: radius.pill,
+      backgroundColor: colors.ring,
+      alignItems: 'center',
+      justifyContent: 'center',
       ...shadow.e3,
     },
     backdrop: { position: 'absolute', top: -2000, bottom: -200, left: -2000, right: -2000, backgroundColor: '#000', zIndex: 1 },

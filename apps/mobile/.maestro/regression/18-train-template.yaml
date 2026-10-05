@@ -80,23 +80,15 @@ appId: fit.ignia.app
       # are 21-train-cardio's measured values: Discard can never be centred, so
       # a centred 100%-visible target scrolls forever against a button already
       # on screen.
-      - scrollUntilVisible:
-          element:
-            id: 'discard-workout'
-          direction: DOWN
-          timeout: 30000
-          visibilityPercentage: 40
-          # Without this the scroll's momentum is still settling when Maestro
-          # captures the hierarchy, and it taps STALE coordinates. Measured
-          # 2026-09-17 on `pixel_api36`: Maestro's own log reported tapping
-          # bounds [63,1543][306,1698] and reported COMPLETED, while the button
-          # was actually at [63,1467][306,1622] - the tap landed ~76px BELOW it,
-          # on nothing. A direct `adb shell input tap` at the true centre
-          # discarded the session instantly, which is what proves the button
-          # was never broken. A tap that hits nothing still reports COMPLETED.
-          waitToSettleTimeoutMs: 500
+      # Discard lives in the sticky session header's ⋯ menu since 2026-10-04
+      # (Train overhaul) — no longer a footer button to scroll to — and asks
+      # to confirm. The header is always on screen, so no scroll is needed.
       - tapOn:
-          id: 'discard-workout'
+          id: 'session-menu'
+      - tapOn:
+          id: 'session-menu-discard'
+      - tapOn:
+          id: 'confirm-go'
       - extendedWaitUntil:
           visible:
             id: 'start-workout'
@@ -608,6 +600,11 @@ appId: fit.ignia.app
 # is a no-op that Maestro reports as "no visible element found".
 - tapOn:
     id: 'delete-template'
+# Deleting asks first since 2026-10-04 ("Delete this template? Workouts you
+# logged from it are kept.") — the flow waited on `start-workout` with the
+# confirm still up.
+- tapOn:
+    id: 'confirm-go'
 # 60s, not 15s, for the reason this file already gives at the `new-template`
 # scroll: the Train tab re-subscribes to templates, history, exercises and the
 # week summary, and on the LG G6 (API 28) that has taken ~2 minutes. 15s

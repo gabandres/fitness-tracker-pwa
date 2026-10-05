@@ -41,18 +41,34 @@ import type { DailyLog, Profile } from './types';
  *     below full confidence, never as an additive term. ADR-0024 decision 4 is
  *     upheld because nothing here touches the arithmetic it governs.
  *
- * ## Bounded by the free cap
+ * ## Bounded by the tier cap
  *
- * At most {@link CHART_HISTORY_DAYS_FREE} (90) points — the one number that
- * says how much chart history "free" means. Each replay is the bounded run
- * fits inside `calculateTdee` (n ≤ 84 weigh-ins), which is cheap once and not
- * cheap ninety times: tens of milliseconds on a desktop, more on a phone. A
- * caller should compute only the range on screen and do it off the first
- * paint (Trends does it after interactions), not in a render-path memo.
+ * {@link CHART_HISTORY_DAYS_FREE} (90) points for the free tier — the one
+ * number that says how much chart history "free" means — and at most
+ * {@link TDEE_SERIES_PRO_MAX_DAYS} (a year) behind `isPro`, which v1 forces
+ * true. Each replay is the bounded run fits inside `calculateTdee` (n ≤ 84
+ * weigh-ins), which is cheap once and not cheap ninety times: tens of
+ * milliseconds on a desktop, more on a phone. A caller should compute only the
+ * range on screen, in chunks (`endOffset`), and off the first paint (Trends
+ * does it in idle callbacks), never in a render-path memo.
+ *
+ * ## The rows the hero saw that day (`windowRows`)
+ *
+ * The app's hero is computed from a ROW window (`LOG_WINDOW_ROWS`), not from
+ * all history. A caller that hands this function more history than that — to
+ * stop the left of a 3M line being replayed from rows the cache had already
+ * dropped — passes `windowRows`, and each point is then computed from the
+ * newest `windowRows` rows that existed by the end of that day: what the hero
+ * would have been handed on that day. With every row inside the window it is
+ * the same answer as the plain prefix replay.
  */
 
-/** Longest history this series will replay. */
+/** Longest FREE history this series will replay (the default cap). */
 export const TDEE_SERIES_MAX_DAYS = CHART_HISTORY_DAYS_FREE;
+
+/** Longest history at all — the Pro cap (`isPro`; forced true in v1). A year,
+ *  the same reach as Body's 1Y chip. */
+export const TDEE_SERIES_PRO_MAX_DAYS = 365;
 
 export interface TdeeSeriesPoint {
   dateKey: DateKey;
@@ -66,11 +82,25 @@ export interface TdeeSeriesPoint {
 }
 
 export interface TdeeSeriesOptions {
-  /** Days to replay, newest last. Clamped to [1, {@link TDEE_SERIES_MAX_DAYS}]. */
+  /** Days to replay, newest last. Clamped to [1, `maxDays`]. */
   days: number;
-  /** The clock. The last point uses it verbatim; earlier points end at their
+  /** The clock. Today's point uses it verbatim; earlier points end at their
    *  own next midnight, so each of those days counts as finished. */
   now: Date;
+  /** The cap `days` is clamped to — {@link TDEE_SERIES_MAX_DAYS} by default,
+   *  at most {@link TDEE_SERIES_PRO_MAX_DAYS}. */
+  maxDays?: number;
+  /**
+   * Days before today the series ENDS on (default 0 — today). A chunk of an
+   * older stretch: `{ days: 60, endOffset: 30 }` is the 60 days before the
+   * newest 30, so a long range can be replayed newest-first across several
+   * idle callbacks instead of in one long block. Every point is independent
+   * of the others, so chunks concatenate to exactly the one-call answer.
+   */
+  endOffset?: number;
+  /** Replay each day from at most this many of the newest rows by its end —
+   *  the hero's row window (see the header). Omit for every row. */
+  windowRows?: number;
 }
 
 /**
@@ -87,9 +117,13 @@ export function tdeeSeries(
   dailyWeights: Record<string, number>,
   opts: TdeeSeriesOptions,
 ): TdeeSeriesPoint[] {
-  const days = Math.max(1, Math.min(TDEE_SERIES_MAX_DAYS, Math.trunc(opts.days) || 1));
+  const cap = Math.max(1, Math.min(TDEE_SERIES_PRO_MAX_DAYS, Math.trunc(opts.maxDays ?? TDEE_SERIES_MAX_DAYS) || 1));
+  const days = Math.max(1, Math.min(cap, Math.trunc(opts.days) || 1));
+  const endOffset = Math.max(0, Math.trunc(opts.endOffset ?? 0) || 0);
+  const windowRows = opts.windowRows != null && opts.windowRows > 0 ? Math.trunc(opts.windowRows) : null;
   const boundary: DayBoundary = MIDNIGHT;
-  const merged = mergeDailyWeights(logs ?? [], dailyWeights ?? {}, boundary);
+  const rows = logs ?? [];
+  const merged = mergeDailyWeights(rows, dailyWeights ?? {}, boundary);
   // `dailyTargets` zeroes the pace for legacy `travelMode` accounts. Pace never
   // moves `trueTdee`, but mirroring the call keeps "same inputs" literally true.
   const fields = toProfileFields(profile);
@@ -105,15 +139,30 @@ export function tdeeSeries(
   // the 63- and 84-day widening attempts). Hence the caller defers it.
   const keyed = aggregateByDay(merged, boundary).map((log) => ({ log, key: dayKeyAt(log.date, boundary) }));
 
+  // Row-window mode: the raw rows' day keys, for "the newest N rows by the end
+  // of day D". Rows are oldest-first (the ledger seam's contract), so the
+  // count of rows on or before D only grows as D walks forward.
+  const rowKeys = windowRows != null ? rows.map((l) => dayKeyAt(l.date, boundary)) : null;
+
   const todayKey = dayKeyAt(opts.now, boundary);
   const anchor = parseYmd(todayKey);
   const out: TdeeSeriesPoint[] = [];
   let end = 0;
-  for (let i = days - 1; i >= 0; i--) {
+  let rowEnd = 0;
+  for (let i = endOffset + days - 1; i >= endOffset; i--) {
     const isToday = i === 0;
     const key = calendarDateKey(addDays(anchor, -i));
     let result: TdeeResult;
-    if (isToday) {
+    if (windowRows != null && rowKeys) {
+      if (isToday) {
+        // The hero's call over the hero's rows: the newest `windowRows`.
+        result = calculateTdee(merged.slice(-windowRows), adjusted, boundary, opts.now);
+      } else {
+        while (rowEnd < rowKeys.length && rowKeys[rowEnd] <= key) rowEnd++;
+        const window = merged.slice(Math.max(0, rowEnd - windowRows), rowEnd);
+        result = calculateTdee(window, adjusted, boundary, addDays(parseYmd(key), 1));
+      }
+    } else if (isToday) {
       // EXACTLY the hero's call: every row (a future-dated row included —
       // `calculateTdee` keeps its weigh-in and zeroes its intake), real `now`.
       result = calculateTdee(merged, adjusted, boundary, opts.now);
@@ -218,24 +267,67 @@ export function weightTrendStep(
   return { level, slope, day };
 }
 
+function validReading(v: unknown): number | null {
+  return typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null;
+}
+
 /**
  * Scale readings plus a trend line over the given day keys (oldest first).
  *
- * A day without a weigh-in keeps the trend where it was rather than pulling it
- * toward anything — there is no observation to learn from — and keeps `scale`
- * null so the chart can leave a gap at the right x position. The trend starts
- * AT the first reading rather than being seeded from a guess.
+ * **Warmed on the whole history.** The filter is stepped through every reading
+ * BEFORE `keys[0]` first, so the window's trend is the same number Body's
+ * `trendWeightSeries` reaches over all readings — a filter started at the
+ * first reading inside a 90-day window disagreed with Body's "Trend X" for a
+ * sparse weigher. The trend starts AT the first reading ever rather than being
+ * seeded from a guess.
+ *
+ * **Between two weigh-ins the trend is drawn straight from one level to the
+ * next.** It used to repeat the last level on every day without a reading, so
+ * a weekly weigher saw a staircase: six flat days, then a jump. The filter
+ * still only LEARNS at a reading — the interpolated days are the line between
+ * two levels it actually reached, not extra observations — and the weigh-in
+ * days carry the filter's value exactly. After the newest reading the level is
+ * held (nothing later exists to draw towards), and `scale` stays null on every
+ * day without a reading so the chart leaves the dot out.
  */
 export function weightTrendSeries(
   dailyWeights: Readonly<Record<string, number>>,
   keys: readonly DateKey[],
   alpha = WEIGHT_TREND_ALPHA,
 ): WeightSeriesPoint[] {
+  const out: WeightSeriesPoint[] = keys.map((dateKey) => ({ dateKey, scale: validReading(dailyWeights[dateKey]), trend: null }));
+  if (keys.length === 0) return out;
   let state: WeightTrendState | null = null;
-  return keys.map((dateKey) => {
-    const v = dailyWeights[dateKey];
-    const scale = typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null;
-    if (scale != null) state = weightTrendStep(state, trendDayIndex(dateKey), scale, alpha);
-    return { dateKey, scale, trend: state ? state.level : null };
+  // Warm-up: every reading before the window, in date order.
+  const first = keys[0];
+  const before = Object.keys(dailyWeights ?? {})
+    .filter((k) => k < first && validReading(dailyWeights[k]) != null)
+    .sort();
+  for (const k of before) state = weightTrendStep(state, trendDayIndex(k), dailyWeights[k], alpha);
+
+  // The last level the filter reached, and on which day — the left end of the
+  // segment being drawn towards the next reading.
+  let anchor: { day: number; level: number } | null = state ? { day: state.day, level: state.level } : null;
+  let pending: number[] = []; // window indexes waiting for the next reading
+  out.forEach((p, i) => {
+    if (p.scale == null) {
+      if (anchor) pending.push(i);
+      return;
+    }
+    const day = trendDayIndex(p.dateKey);
+    state = weightTrendStep(state, day, p.scale, alpha);
+    if (anchor) {
+      const span = day - anchor.day;
+      for (const j of pending) {
+        const f = span > 0 ? (trendDayIndex(out[j].dateKey) - anchor.day) / span : 1;
+        out[j].trend = anchor.level + f * (state.level - anchor.level);
+      }
+    }
+    pending = [];
+    p.trend = state.level;
+    anchor = { day, level: state.level };
   });
+  // After the newest reading: held, as before.
+  if (anchor) for (const j of pending) out[j].trend = (anchor as { level: number }).level;
+  return out;
 }

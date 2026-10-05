@@ -77,7 +77,9 @@ export function computeGoalProgress(
   if (totalDelta === 0) return null;
   const progressed = start > goalWeight ? start - current : current - start;
   const pct = Math.min(100, Math.max(0, Math.round((progressed / totalDelta) * 100)));
-  const remaining = Math.max(0, +Math.abs(current - goalWeight).toFixed(1));
+  // Directional: past the goal is 0 to go, not the distance back to it. An
+  // absolute value said "1.2 lb to goal" to someone 1.2 lb BEYOND it.
+  const remaining = Math.max(0, +(start > goalWeight ? current - goalWeight : goalWeight - current).toFixed(1));
   return { startWeight: start, currentWeight: current, goalWeight, pct, remaining };
 }
 

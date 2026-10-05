@@ -63,3 +63,18 @@ export async function getRestActivityStatus(): Promise<string> {
     return 'unavailable';
   }
 }
+
+/**
+ * End EVERY rest Live Activity, whatever JS believes is running — the orphan
+ * sweep. The native `end` already ends all of them (`endActivity` →
+ * `RestActivityStore.endAll`); this name exists because the seam's own `end()`
+ * in `src/lib/rest-timer-activity.ts` is guarded on its in-memory `current`,
+ * which a JS reload (OTA apply, crash, dev refresh) forgets — leaving a Lock
+ * Screen countdown nothing can end until iOS's eight-hour ceiling.
+ *
+ * Call it once on start when no rest is running. Never rejects; a no-op where
+ * the module is absent.
+ */
+export async function endAllRestActivities(): Promise<string | null> {
+  return endRestActivity();
+}

@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { useCallback, useMemo } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   FASTING_CARD_MIN_FASTS,
@@ -17,7 +18,8 @@ import { StubLabel } from '@/components/StubLabel';
 import { font, radius, space, type } from '@/theme';
 import { PressScale } from '@/lib/motion';
 import * as haptics from '@/lib/haptics';
-import { GapMarker, MedianLine } from '@/components/charts/StripParts';
+import { GapMarker, MedianLine, StripDates, useStripAudioGraph } from '@/components/charts/StripParts';
+import { AccessibleChart } from '@/components/charts/AccessibleChart';
 import { Glyph } from '@/components/charts/Glyph';
 import { useAdjustableDays } from '@/components/charts/useAdjustableDays';
 
@@ -84,10 +86,9 @@ export function FastingTrendsCard({
 
   // The strip as one adjustable element (summary + a day at a time). Built
   // before the early returns so the hook order never changes with the state.
-  const days = fasting.kind === 'card' ? fasting.window.days : [];
+  const days = useMemo(() => (fasting.kind === 'card' ? fasting.window.days : []), [fasting]);
   const med = fasting.kind === 'card' ? fastHoursParts(fasting.window.medianHours) : { hours: 0, minutes: 0 };
-  const stepper = useAdjustableDays(
-    days.length,
+  const summary =
     fasting.kind === 'card'
       ? t('trends.chart.fastingSummary', {
           n: formatNumber(FASTING_WINDOW_DAYS, locale),
@@ -95,16 +96,42 @@ export function FastingTrendsCard({
           m: formatNumber(med.minutes, locale),
           count: formatNumber(fasting.window.daysWithFast, locale),
         })
-      : '',
-    (i) => {
-      const day = days[i];
-      if (!day) return '';
-      const date = formatDate(parseYmd(day.dateKey), locale, { weekday: 'short', month: 'short', day: 'numeric' });
-      if (day.hours == null) return t('trends.chart.noFast', { date });
-      const p = fastHoursParts(day.hours);
-      return t('trends.chart.fastingPoint', { date, h: formatNumber(p.hours, locale), m: formatNumber(p.minutes, locale) });
-    },
+      : '';
+  // One sentence per day — the stepper's value and the audio graph's labels.
+  const pointLabels = useMemo(
+    () =>
+      days.map((day) => {
+        const date = formatDate(parseYmd(day.dateKey), locale, { weekday: 'short', month: 'short', day: 'numeric' });
+        if (day.hours == null) return t('trends.chart.noFast', { date });
+        const p = fastHoursParts(day.hours);
+        return t('trends.chart.fastingPoint', { date, h: formatNumber(p.hours, locale), m: formatNumber(p.minutes, locale) });
+      }),
+    [days, t, locale],
   );
+  // A day opens in History — by tap, and by the stepper's rotor action.
+  const openDay = useCallback(
+    (dateKey: string) => {
+      haptics.tap();
+      router.push(`/history/${dateKey}`);
+    },
+    [router],
+  );
+  const stepper = useAdjustableDays(days.length, summary, (i) => pointLabels[i] ?? '', {
+    actions: [{ name: 'openDay', label: t('trends.chart.openDayAction'), run: (i) => days[i] && openDay(days[i].dateKey) }],
+  });
+  const dateKeys = useMemo(() => days.map((d) => d.dateKey), [days]);
+  const values = useMemo(() => days.map((d) => d.hours), [days]);
+  const descriptor = useStripAudioGraph({
+    title: t('trends.fastingTitle'),
+    summary,
+    xTitle: t('entry.date'),
+    unit: 'h',
+    decimals: 1,
+    dateKeys,
+    values,
+    pointLabels,
+    locale,
+  });
 
   if (fasting.kind === 'pending') return null;
 
@@ -192,9 +219,16 @@ export function FastingTrendsCard({
         </View>
 
         <View style={styles.stripRow}>
-          <View {...stepper.a11y} style={styles.strip} testID="fasting-strip">
+          <AccessibleChart {...stepper.a11y} descriptor={descriptor} style={styles.strip} testID="fasting-strip">
             {window.days.map((day) => (
-              <View key={day.dateKey} style={styles.col}>
+              <Pressable
+                key={day.dateKey}
+                style={styles.col}
+                onPress={() => openDay(day.dateKey)}
+                // Inside the adjustable element, so never a separate stop.
+                accessible={false}
+                testID={`fasting-col-${day.dateKey}`}
+              >
                 <View style={styles.track}>
                   {day.hours == null ? (
                     <GapMarker />
@@ -213,7 +247,7 @@ export function FastingTrendsCard({
                     />
                   )}
                 </View>
-              </View>
+              </Pressable>
             ))}
             {/* Drawn AFTER the bars so it sits on top of them, and in `ink`
                 rather than `faint`.
@@ -227,7 +261,7 @@ export function FastingTrendsCard({
             {window.medianHours > 0 ? (
               <MedianLine bottomPct={fastingBarFraction(window.medianHours) * 100} />
             ) : null}
-          </View>
+          </AccessibleChart>
           {/* The axis. Without it no bar height means anything: the headline
               says 16h and nothing on the strip lets you check it. */}
           <View style={styles.axis} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
@@ -241,6 +275,9 @@ export function FastingTrendsCard({
             </Text>
           </View>
         </View>
+        {window.days.length > 0 ? (
+          <StripDates first={window.days[0].dateKey} last={window.days[window.days.length - 1].dateKey} locale={locale} />
+        ) : null}
         <Text style={styles.legend}>
           {t('trends.fastingLegend', {
             h: formatNumber(parts.hours, locale),

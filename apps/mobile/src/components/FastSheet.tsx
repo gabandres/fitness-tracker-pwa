@@ -1,6 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { SheetTextInput } from '@/components/SheetTextInput';
 import {
   MAX_FAST_MS,
   type Fast,
@@ -638,7 +639,7 @@ function TimeField({
       </View>
 
       <View style={styles.timeRow}>
-        <TextInput
+        <SheetTextInput
           ref={hourRef}
           style={styles.timeInput}
           value={hourText}
@@ -653,7 +654,7 @@ function TimeField({
           testID={`${testIDPrefix}-hour`}
         />
         <Text style={styles.colon}>:</Text>
-        <TextInput
+        <SheetTextInput
           ref={minuteRef}
           style={styles.timeInput}
           value={minuteText}

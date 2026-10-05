@@ -59,6 +59,22 @@ env:
     id: 'sleep-input'
 - eraseText
 - inputText: '7.5'
+# Verify what landed and retype once if needed (2026-10-04). Over a PREFILLED
+# value the iOS typing sometimes drops the "." — the field read "75", Save
+# stayed disabled (>24 h), and the flow failed at the value assert with the
+# sheet still up. A manual repeat of the exact steps typed 7.5 fine: harness
+# flake, not the input. The field's value is its `text` on both platforms.
+- repeat:
+    times: 2
+    while:
+      notVisible:
+        id: 'sleep-input'
+        text: '7[.,]5'
+    commands:
+      - tapOn:
+          id: 'sleep-input'
+      - eraseText
+      - inputText: '7.5'
 # Dismiss the keyboard BEFORE tapping Save, by tapping the modal's own title.
 #
 # Two separate failures make this line what it is. On Android the keyboard was
@@ -106,8 +122,16 @@ env:
     optional: true
 # The row's value arrives via the Firestore subscription round-trip, not the
 # tap — give it time.
+# 2026-10-04: the value is locale-formatted now ("7.5 h", with a space) and on
+# iOS lives inside the row's grouped label "Sleep, 7.5 h", so the old bare
+# '7.5h' could never match. Scoped to the row's id so the sheet's own field
+# cannot satisfy it. This assert also caught a real bug that day: a value
+# saved from the (now native) sheet never reached the screen until a cold
+# start — `includeMetadataChanges` was missing on the sleep listener.
 - extendedWaitUntil:
-    visible: '7.5h'
+    visible:
+      id: 'sleep-value'
+      text: '.*7[.,]5\s?h.*'
     timeout: 15000
 - takeScreenshot: .maestro/regression/shots/14-sleep-saved
 # ── mic (conditional — see header) ──

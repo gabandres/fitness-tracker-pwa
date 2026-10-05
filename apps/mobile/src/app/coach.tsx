@@ -299,6 +299,9 @@ export default function Coach() {
             onPress={() => ask()}
             disabled={streaming || offline || !question.trim()}
             accessibilityRole="button"
+            // Named in every state: while streaming the label Text is swapped
+            // for a spinner, and VoiceOver read "button, busy" with no name.
+            accessibilityLabel={t('coach.ask')}
             accessibilityState={{ disabled: streaming || offline || !question.trim(), busy: streaming }}
             testID="coach-ask"
           >

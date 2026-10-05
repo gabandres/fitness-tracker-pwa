@@ -24,7 +24,9 @@ jest.mock('@/components/WeeklyReportCard', () => ({ WeeklyReportCard: () => null
 jest.mock('@/lib/reminders', () => ({ getTapeReminder: jest.fn(async () => null), setTapeReminder: jest.fn() }));
 
 const mockTrends = jest.fn();
-jest.mock('@/hooks/useTrends', () => ({ useTrends: (days: number) => mockTrends(days) }));
+jest.mock('@/hooks/useTrends', () => ({ useTrends: (days: number, opts?: unknown) => mockTrends(days, opts) }));
+const mockAnnounce = jest.fn();
+jest.mock('@/lib/a11y', () => ({ ...jest.requireActual('@/lib/a11y'), announce: (m: string) => mockAnnounce(m) }));
 
 import React from 'react';
 import { readFileSync } from 'node:fs';
@@ -35,7 +37,7 @@ import {
   type DaySummary,
   type TdeeSeriesPoint,
 } from '@macrolog/core';
-import { fireEvent, renderWithProviders as render } from '@/test-utils';
+import { act, fireEvent, renderWithProviders as render } from '@/test-utils';
 import Trends from '@/app/(app)/trends';
 import { openingTags } from './jsx-scan';
 
@@ -107,6 +109,11 @@ function state(over: Record<string, unknown> = {}) {
     chartKeys: KEYS,
     weightSeries: KEYS.map((k, i) => ({ dateKey: k, scale: i % 3 ? null : 180 - i * 0.02, trend: 180 - i * 0.02 })),
     intakeSeries: KEYS.map((_, i) => (i % 4 ? 1850 : null)),
+    proteinSeries: KEYS.map((_, i) => (i % 4 ? 110 + (i % 20) : null)),
+    historyClip: null,
+    insightWindow: { from: '2026-09-27', to: '2026-10-03' },
+    streak: 0,
+    settledKey: 0,
     expenditure: series,
     historyDays: 90,
     milestones: {},
@@ -119,6 +126,7 @@ beforeEach(() => {
   mockPush.mockClear();
   mockNavigate.mockClear();
   mockTrends.mockReset();
+  mockAnnounce.mockClear();
 });
 
 describe('the last-7-days tile', () => {
@@ -145,6 +153,21 @@ describe('the last-7-days tile', () => {
     mockTrends.mockReturnValue(state());
     const view = await render(<Trends />);
     expect(view.getByTestId('panel-tab-week')).toHaveTextContent('Last 7 days');
+  });
+
+  it('says which seven days, ending yesterday — today joins once it is over', async () => {
+    mockTrends.mockReturnValue(state());
+    const view = await render(<Trends />);
+    expect(view.getByTestId('insights-window')).toHaveTextContent('Sep 27 – Oct 3 · today joins once the day is over');
+  });
+
+  it('celebrates an on-target run of three or more, and says nothing about a shorter one', async () => {
+    mockTrends.mockReturnValue(state({ streak: 4 }));
+    const view = await render(<Trends />);
+    expect(view.getByTestId('insights-streak')).toHaveTextContent('4 days in a row at or under your target');
+    mockTrends.mockReturnValue(state({ streak: 2 }));
+    const again = await render(<Trends />);
+    expect(again.queryByTestId('insights-streak')).toBeNull();
   });
 });
 
@@ -179,10 +202,46 @@ describe('the charts', () => {
     const view = await render(<Trends />);
     expect(view.getByTestId('expenditure-chart')).toBeTruthy();
     expect(view.getByTestId('weight-trend-chart')).toBeTruthy();
-    expect(mockTrends).toHaveBeenCalledWith(30);
+    // v1 forces `isPro`, so the chart cap is a year, not the free 90 days.
+    expect(mockTrends).toHaveBeenCalledWith(30, expect.objectContaining({ maxDays: 365, refreshKey: 0 }));
     expect(view.getByTestId('expenditure-chart-plot').props.accessibilityLabel).toMatch(
-      /Maintenance estimate over the last 30 days, from 1,990 to 2,019 kcal/,
+      /Maintenance estimate over the last 30 days, from 1,990 to 2,019 kcal\. Dots are calories logged\. The dotted line is your daily target, 1,850 kcal\.$/,
     );
+    // 6M and 1Y are offered under the year cap.
+    expect(view.getByTestId('trend-range-6m')).toBeTruthy();
+    expect(view.getByTestId('trend-range-1y')).toBeTruthy();
+  });
+
+  it('draws protein over the same range, and names the window on the cards without chips', async () => {
+    mockTrends.mockReturnValue(state());
+    const view = await render(<Trends />);
+    expect(view.getByTestId('protein-trend-chart')).toBeTruthy();
+    expect(view.getByTestId('protein-trend-window')).toHaveTextContent('Last 30 days');
+    expect(view.getByTestId('weight-trend-window')).toHaveTextContent('Last 30 days');
+    expect(view.getByTestId('protein-trend-chart-plot').props.accessibilityLabel).toMatch(/^Protein over the last 30 days, /);
+  });
+
+  it('clips to the days it has in full when the older rows could not load, and says so', async () => {
+    mockTrends.mockReturnValue(state({ historyClip: { days: 20, reason: 'failed' } }));
+    const view = await render(<Trends />);
+    expect(view.getByTestId('trends-history-clip')).toHaveTextContent(/showing the last 20 days/);
+    expect(view.getByTestId('expenditure-chart-plot').props.accessibilityLabel).toMatch(/over the last 20 days/);
+  });
+
+  it('pull-to-refresh re-runs the replay in place, holds the spinner until it settles, then says so', async () => {
+    mockTrends.mockReturnValue(state());
+    const view = await render(<Trends />);
+    await act(async () => {
+      view.getByTestId('trends-scroll').props.refreshControl.props.onRefresh();
+    });
+    expect(mockTrends).toHaveBeenLastCalledWith(30, expect.objectContaining({ refreshKey: 1 }));
+    expect(view.getByTestId('trends-scroll').props.refreshControl.props.refreshing).toBe(true);
+    // The screen was not remounted: the same instance is still on screen.
+    expect(view.getByTestId('expenditure-chart')).toBeTruthy();
+    mockTrends.mockReturnValue(state({ settledKey: 1 }));
+    await view.rerender(<Trends />);
+    expect(view.getByTestId('trends-scroll').props.refreshControl.props.refreshing).toBe(false);
+    expect(mockAnnounce).toHaveBeenCalledWith('Trends updated');
   });
 
   it('a placeholder holds the space while the series is still being computed', async () => {
@@ -202,6 +261,14 @@ describe('the budget face', () => {
     expect(view.getByTestId('budget-per-day')).toHaveTextContent('1,650 kcal');
     expect(view.getByText('4,500 of 12,950 kcal')).toBeTruthy();
     expect(view.getByTestId('budget-strip').props.accessibilityRole).toBe('adjustable');
+  });
+
+  it('a TAP on a day opens it in History (it was long-press only)', async () => {
+    mockTrends.mockReturnValue(state());
+    const view = await render(<Trends />);
+    await fireEvent.press(view.getByTestId('panel-tab-budget'));
+    await fireEvent.press(view.getByTestId('budget-bar-2026-09-30'));
+    expect(mockPush).toHaveBeenCalledWith('/history/2026-09-30');
   });
 });
 

@@ -479,6 +479,18 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
     paddingTop: space.sm,
   },
   moreText: { fontSize: font.small, fontWeight: '600', color: colors.muted },
+  // Context-menu previews (a template, a logged workout): the card, opened up.
+  preview: { flex: 1, backgroundColor: colors.paper, padding: space.xl, gap: space.xs },
+  previewTitle: { fontSize: font.h3, fontWeight: '800', color: colors.ink },
+  previewRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 22 },
+  previewBlock: { gap: 2, marginTop: space.xs },
+  previewName: { flexShrink: 1, flex: 1, fontSize: font.body, fontWeight: '600', color: colors.ink },
+  previewMeta: { fontSize: font.small, color: colors.muted, fontVariant: ['tabular-nums'] },
+  // The Finish sheet's record heading.
+  prHero: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingVertical: space.sm },
+  prHeroText: { flex: 1, fontFamily: type.heading, fontSize: font.h3, color: colors.ink },
+  /** A checkbox row in a sheet — the rest picker's "Keep for this lift". */
+  checkRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 44, marginTop: space.xs },
   moreBody: { gap: space.sm, paddingTop: space.xs },
   moreRemove: {
     flexDirection: 'row',

@@ -38,9 +38,25 @@ appId: fit.ignia.app
 # Both headings lead with what the COLUMN says and keep the jargon in
 # parentheses (2026-08-18): the RIR column header is now "LEFT", and a
 # cluster's rows are numbered 1a/1b/1c rather than C1/C2.
-- assertVisible: 'LEFT — reps in reserve (RIR)'
-- assertVisible: 'Cluster (1a, 1b, 1c)'
+# 2026-10-04: the column header is "RIR" now (the Train review found "LEFT"
+# read as a side, not a count), and the heading follows it.
+- assertVisible: 'RIR — reps in reserve'
 - takeScreenshot: .maestro/regression/shots/16-glossary-top
+# Scrolled to, not asserted in place: the native sheet opens at its half
+# detent (2026-10-04), so this term starts below the fold. Expand it FIRST
+# with a drag inside the sheet: Maestro's scroll gesture starts at screen
+# centre, which at the half detent is ABOVE the sheet's top edge, so every
+# scrollUntilVisible swipe landed on the dimmed area and moved nothing.
+- swipe:
+    start: 50%, 88%
+    end: 50%, 40%
+- waitForAnimationToEnd
+- scrollUntilVisible:
+    element:
+      text: 'Cluster \(1a, 1b, 1c\)'
+    direction: DOWN
+    timeout: 10000
+    visibilityPercentage: 60
 # The sheet's own ScrollView is capped (maxHeight) so the later sections are
 # BELOW the fold by design — scrolling to them is the assertion that the cap
 # scrolls rather than clips.
@@ -94,12 +110,22 @@ appId: fit.ignia.app
       platform: Android
     commands:
       - back
+# iOS, since 2026-10-04: the glossary is a NATIVE sheet (UX_AUDIT S20) — no JS
+# backdrop, and after the scrolls above it may have grown to the large detent,
+# where a point tap at 12% lands ON the sheet. The system grabber's swipe-down
+# works at every detent.
 - runFlow:
     when:
       platform: iOS
     commands:
-      - tapOn:
-          point: '50%, 12%'
+      - swipe:
+          from:
+            text: 'Sheet Grabber'
+          direction: DOWN
+      - extendedWaitUntil:
+          notVisible:
+            id: 'glossary-backdrop-native'
+          timeout: 5000
 # The Train header, not the tab label: `train-glossary-open` is present in both
 # of this tab's states, while the text 'Train' disappears the moment a session
 # goes live (the tab reads "Train, Workout in progress").
@@ -131,23 +157,15 @@ appId: fit.ignia.app
       # are 21-train-cardio's measured values: Discard can never be centred, so
       # a centred 100%-visible target scrolls forever against a button already
       # on screen.
-      - scrollUntilVisible:
-          element:
-            id: 'discard-workout'
-          direction: DOWN
-          timeout: 30000
-          visibilityPercentage: 40
-          # Without this the scroll's momentum is still settling when Maestro
-          # captures the hierarchy, and it taps STALE coordinates. Measured
-          # 2026-09-17 on `pixel_api36`: Maestro's own log reported tapping
-          # bounds [63,1543][306,1698] and reported COMPLETED, while the button
-          # was actually at [63,1467][306,1622] - the tap landed ~76px BELOW it,
-          # on nothing. A direct `adb shell input tap` at the true centre
-          # discarded the session instantly, which is what proves the button
-          # was never broken. A tap that hits nothing still reports COMPLETED.
-          waitToSettleTimeoutMs: 500
+      # Discard lives in the sticky session header's ⋯ menu since 2026-10-04
+      # (Train overhaul) — no longer a footer button to scroll to — and asks
+      # to confirm. The header is always on screen, so no scroll is needed.
       - tapOn:
-          id: 'discard-workout'
+          id: 'session-menu'
+      - tapOn:
+          id: 'session-menu-discard'
+      - tapOn:
+          id: 'confirm-go'
       - extendedWaitUntil:
           visible:
             id: 'start-workout'
@@ -273,14 +291,15 @@ appId: fit.ignia.app
     id: 'set-sheet-kind-working'
 
 # ── 3. Teardown: leave the account as we found it ─────────────────
-- scrollUntilVisible:
-    element:
-      id: 'discard-workout'
-    direction: DOWN
-    timeout: 15000
-    centerElement: true
+# Discard lives in the sticky session header's ⋯ menu since 2026-10-04
+# (Train overhaul) — no longer a footer button to scroll to — and asks
+# to confirm. The header is always on screen, so no scroll is needed.
 - tapOn:
-    id: 'discard-workout'
+    id: 'session-menu'
+- tapOn:
+    id: 'session-menu-discard'
+- tapOn:
+    id: 'confirm-go'
 - extendedWaitUntil:
     visible:
       id: 'start-workout'
@@ -316,7 +335,11 @@ appId: fit.ignia.app
       text: '.*QA Term Check.*'
     direction: DOWN
     timeout: 45000
-    centerElement: true
+    # Not centred (2026-10-04): since the Train overhaul the new exercise is the
+    # LAST row of the idle screen's Exercises list, and an end-of-list row can
+    # never be centred — the scroll swiped for 45s with the row plainly on screen
+    # (README rule 3). It sits clear of the tab bar at the end of the list.
+    visibilityPercentage: 60
 - tapOn: '.*QA Term Check.*'
 - extendedWaitUntil:
     visible:

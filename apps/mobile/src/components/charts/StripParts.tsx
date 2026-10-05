@@ -1,5 +1,12 @@
-import { StyleSheet, View } from 'react-native';
+import { useMemo } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+import { parseYmd } from '@macrolog/core';
+import type { Locale } from '@/i18n';
+import { formatDate } from '@/lib/date-format';
 import { useTheme } from '@/lib/theme-context';
+import { font, space } from '@/theme';
+import { audioGraphDescriptor } from './audio-graph';
+import type { ChartDescriptor } from './AccessibleChart';
 
 /**
  * The two marks every fourteen-column habit strip draws, stated once.
@@ -48,7 +55,70 @@ export function MedianLine({ bottomPct }: { bottomPct: number }) {
   );
 }
 
+/**
+ * First and last date under a strip — the line charts had them and the three
+ * habit strips did not, so fourteen columns were fourteen anonymous days
+ * (review S20). Sighted-only: the strip's adjustable value already says each
+ * day's date aloud. `axisGutter` keeps the right-hand date over the last
+ * column rather than under the axis numerals beside it.
+ */
+export function StripDates({ first, last, locale, axisGutter = 34 }: { first: string; last: string; locale: Locale; axisGutter?: number }) {
+  const { colors } = useTheme();
+  const fmt = (k: string) => formatDate(parseYmd(k), locale, { month: 'short', day: 'numeric' });
+  return (
+    <View
+      style={[styles.dates, { paddingRight: axisGutter }]}
+      pointerEvents="none"
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
+      <Text style={[styles.date, { color: colors.faint }]} maxFontSizeMultiplier={1.3}>{fmt(first)}</Text>
+      <Text style={[styles.date, { color: colors.faint }]} maxFontSizeMultiplier={1.3}>{fmt(last)}</Text>
+    </View>
+  );
+}
+
+/**
+ * The audio graph for a habit strip (iOS VoiceOver's "Audio Graph" rotor),
+ * from the strings the strip's stepper already reads — the line charts had
+ * one and the strips, built on the same `AccessibleChart`, did not. A gap
+ * stays a gap (silence), never a zero. One series, drawn as bars
+ * (`continuous: false`).
+ */
+export function useStripAudioGraph(input: {
+  title: string;
+  summary: string;
+  xTitle: string;
+  unit: string;
+  decimals?: number;
+  dateKeys: readonly string[];
+  values: readonly (number | null)[];
+  pointLabels: readonly string[];
+  locale: Locale;
+}): ChartDescriptor | null {
+  const { title, summary, xTitle, unit, decimals, dateKeys, values, pointLabels, locale } = input;
+  return useMemo(
+    () =>
+      dateKeys.length === 0
+        ? null
+        : audioGraphDescriptor({
+            title,
+            summary,
+            xTitle,
+            xLabels: dateKeys.map((k) => formatDate(parseYmd(k), locale, { weekday: 'short', month: 'short', day: 'numeric' })),
+            yTitle: unit,
+            unit,
+            decimals: decimals ?? 0,
+            series: [{ name: title, values, continuous: false }],
+            pointLabels,
+          }),
+    [title, summary, xTitle, unit, decimals, dateKeys, values, pointLabels, locale],
+  );
+}
+
 const styles = StyleSheet.create({
+  dates: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 },
+  date: { fontSize: font.tiny, paddingHorizontal: space.xs / 2 },
   gap: { width: '100%', height: 2, flexDirection: 'row', justifyContent: 'space-between' },
   dash: { width: '24%', height: 2, borderRadius: 1 },
   // Centred on its fraction: the 3px halo straddles the 1px line.

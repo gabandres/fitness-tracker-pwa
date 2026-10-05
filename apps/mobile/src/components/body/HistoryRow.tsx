@@ -1,11 +1,12 @@
-import { type ReactNode, useRef } from 'react';
-import { type AccessibilityActionEvent, Pressable, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { type ReactNode, useRef, useState } from 'react';
+import { type AccessibilityActionEvent, Platform, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { BottomSheet } from '@/components/BottomSheet';
 import { ContextMenu } from '@/components/ContextMenu';
 import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { radius, space } from '@/theme';
+import { font, radius, space } from '@/theme';
 import { BodyIcon } from './BodyIcon';
 
 /**
@@ -28,6 +29,10 @@ import { BodyIcon } from './BodyIcon';
  * - **Screen readers** (A1): the row carries `edit` and `delete` actions, which
  *   VoiceOver lists in its rotor and TalkBack in its actions menu — the
  *   platform answer to "a list row with more than one thing to do".
+ * - **Long-press**: the system context menu on iOS (`ContextMenu`); on
+ *   Android, where that component renders the row alone, a small sheet with
+ *   the same two actions (Body re-score) — M3's long-press menu, so the
+ *   gesture does the same thing on both platforms.
  *
  * Delete is undoable from the receipt (U5), so none of these asks first.
  */
@@ -40,7 +45,9 @@ export function HistoryRow({
   deleteTestID,
   children,
 }: {
-  /** What the row IS, spoken first ("Edit the Sep 28 weigh-in"). */
+  /** What the row IS, spoken first ("Sep 28 weigh-in"). A noun, not an
+   *  instruction: the hint says what a tap does, and "Edit the Sep 28
+   *  weigh-in… Opens it to edit" said it twice (Body re-score). */
   label: string;
   /** Its value, spoken after ("181.5 lb, down 0.4 lb"). */
   value?: string;
@@ -54,6 +61,14 @@ export function HistoryRow({
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const swipe = useRef<SwipeableMethods>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  /** Close the Android menu, then act — after its exit, so the editor's
+   *  sheet does not open under a menu still on its way out. */
+  function fromMenu(act: () => void) {
+    setMenuOpen(false);
+    setTimeout(act, 220);
+  }
 
   const onAccessibilityAction = (e: AccessibilityActionEvent) => {
     const name = e.nativeEvent.actionName;
@@ -111,6 +126,14 @@ export function HistoryRow({
       <Pressable
         style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
         onPress={onEdit}
+        onLongPress={
+          Platform.OS === 'android'
+            ? () => {
+                haptics.tap();
+                setMenuOpen(true);
+              }
+            : undefined
+        }
         accessibilityRole="button"
         accessibilityLabel={label}
         accessibilityValue={value ? { text: value } : undefined}
@@ -127,6 +150,33 @@ export function HistoryRow({
         <BodyIcon sf="chevron.right" ion="chevron-forward" size={16} color={colors.muted} />
       </Pressable>
       </ContextMenu>
+      {Platform.OS === 'android' ? (
+        <BottomSheet visible={menuOpen} onClose={() => setMenuOpen(false)} detents="fit">
+          <View style={styles.menu} testID={testID ? `${testID}-menu` : undefined}>
+            <Text style={styles.menuTitle} accessibilityRole="header" numberOfLines={2}>
+              {label}
+            </Text>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => fromMenu(onEdit)}
+              accessibilityRole="button"
+              testID={testID ? `${testID}-menu-edit` : undefined}
+            >
+              <BodyIcon sf="pencil" ion="pencil" size={20} color={colors.ink} />
+              <Text style={styles.menuText}>{t('common.edit')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => fromMenu(onDelete)}
+              accessibilityRole="button"
+              testID={deleteTestID ? `${deleteTestID}-menu` : undefined}
+            >
+              <BodyIcon sf="trash" ion="trash-outline" size={20} color={colors.danger} />
+              <Text style={[styles.menuText, styles.menuTextDanger]}>{t('common.remove')}</Text>
+            </TouchableOpacity>
+          </View>
+        </BottomSheet>
+      ) : null}
     </ReanimatedSwipeable>
   );
 }
@@ -153,4 +203,9 @@ const createStyles = ({ colors }: Theme) =>
     action: { width: 72, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md },
     actionEdit: { backgroundColor: colors.tealSolid, marginRight: space.sm },
     actionDelete: { backgroundColor: colors.danger, marginLeft: space.sm },
+    menu: { gap: space.xs },
+    menuTitle: { fontSize: font.small, fontWeight: '700', color: colors.muted, marginBottom: space.xs },
+    menuItem: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 48 },
+    menuText: { fontSize: font.body, fontWeight: '600', color: colors.ink },
+    menuTextDanger: { color: colors.danger },
   });

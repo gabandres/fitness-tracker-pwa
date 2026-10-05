@@ -61,6 +61,8 @@ export interface SetRowProps {
   onDone: (setIndex: number, done: WorkoutSet) => void;
   /** Open the ONE set sheet the session owns, for this row. */
   onOpenSheet: (exerciseIndex: number, setIndex: number) => void;
+  /** Remove this set — the session's, so the removal comes with an Undo. */
+  onRemove: (exerciseIndex: number, setIndex: number) => void;
   chain: InputChain;
 }
 
@@ -87,6 +89,7 @@ export const SetRow = memo(function SetRow({
   commitActive,
   onDone,
   onOpenSheet,
+  onRemove,
   chain,
 }: SetRowProps) {
   const unitSystem = useUnitSystem();
@@ -158,7 +161,7 @@ export const SetRow = memo(function SetRow({
   const swipeRef = useRef<SwipeableMethods>(null);
   const remove = () => {
     swipeRef.current?.close();
-    return dispatch({ type: 'removeSet', exerciseIndex, setIndex });
+    onRemove(exerciseIndex, setIndex);
   };
 
   const weightSlot = { exerciseIndex, setIndex, field: 'weight' as const };
@@ -241,7 +244,7 @@ export const SetRow = memo(function SetRow({
         ]}
         onAccessibilityAction={(e) => {
           if (e.nativeEvent.actionName === 'activate') onOpenSheet(exerciseIndex, setIndex);
-          if (e.nativeEvent.actionName === 'delete') void remove();
+          if (e.nativeEvent.actionName === 'delete') remove();
         }}
         testID={`set-kind-${exerciseIndex}-${setIndex}`}
       >
@@ -447,15 +450,16 @@ export const SetRow = memo(function SetRow({
         overshootRight={false}
         // The swipe REVEALS; the tap deletes. Deleting on
         // `onSwipeableOpen` would make an over-enthusiastic scroll on a wet
-        // screen destroy a logged set with no undo — stricter than the `✕`
-        // this replaces, not looser, which would be the wrong trade for the
-        // one gesture added to the busiest screen in the app.
+        // screen destroy a logged set — stricter than the `✕` this replaces,
+        // not looser, which would be the wrong trade for the one gesture
+        // added to the busiest screen in the app. The tap's delete then comes
+        // with an Undo toast (the session's `onRemove`), as Today's does.
         renderRightActions={() => (
           <TouchableOpacity
             style={styles.swipeDelete}
             onPress={() => {
               haptics.tap();
-              void remove();
+              remove();
             }}
             accessibilityRole="button"
             accessibilityLabel={t('train.removeSet')}

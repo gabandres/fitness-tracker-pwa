@@ -70,6 +70,10 @@ enum ActivityCopy {
     let addThirtyA11y: String
     let skip: String
     let skipA11y: String
+    /// The stale face's one button — the rest is over, so there is nothing
+    /// to skip; this clears the face.
+    let done: String
+    let doneA11y: String
     /// The fast's End button.
     let endFast: String
     let endFastA11y: String
@@ -82,18 +86,21 @@ enum ActivityCopy {
         rest: "Descanso", restOver: "Descanso terminado",
         addThirty: "+30 s", addThirtyA11y: "Añadir 30 segundos al descanso",
         skip: "Saltar", skipA11y: "Saltar el descanso",
+        done: "Listo", doneA11y: "Cerrar el temporizador de descanso",
         endFast: "Terminar", endFastA11y: "Terminar el ayuno")
     case "pt-BR":
       return Words(
         rest: "Descanso", restOver: "Descanso encerrado",
         addThirty: "+30 s", addThirtyA11y: "Adicionar 30 segundos ao descanso",
         skip: "Pular", skipA11y: "Pular o descanso",
+        done: "Pronto", doneA11y: "Fechar o timer de descanso",
         endFast: "Encerrar", endFastA11y: "Encerrar o jejum")
     default:
       return Words(
         rest: "Rest", restOver: "Rest over",
         addThirty: "+30 s", addThirtyA11y: "Add 30 seconds to rest",
         skip: "Skip", skipA11y: "Skip rest",
+        done: "Done", doneA11y: "Clear rest timer",
         endFast: "End", endFastA11y: "End fast")
     }
   }
@@ -141,9 +148,13 @@ private struct RestCountdown: View {
   }
 }
 
-/// The two Lock Screen / expanded-island buttons.
+/// The Lock Screen / expanded-island buttons: "+30 s" and "Skip" while the
+/// rest runs; "+30 s" and "Done" once it is over (the stale face). "Skip" on a
+/// finished rest offered to skip nothing. "Done" runs the same
+/// `RestSkipIntent` (end the face, drop the buzz) under the truthful label.
 private struct RestButtons: View {
   let words: ActivityCopy.Words
+  let stale: Bool
 
   var body: some View {
     HStack(spacing: 8) {
@@ -153,11 +164,19 @@ private struct RestButtons: View {
       .buttonStyle(.plain)
       .accessibilityLabel(words.addThirtyA11y)
 
-      Button(intent: RestSkipIntent()) {
-        ActivityPillLabel(text: words.skip, prominent: true)
+      if stale {
+        Button(intent: RestSkipIntent()) {
+          ActivityPillLabel(text: words.done, prominent: true)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(words.doneA11y)
+      } else {
+        Button(intent: RestSkipIntent()) {
+          ActivityPillLabel(text: words.skip, prominent: true)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(words.skipA11y)
       }
-      .buttonStyle(.plain)
-      .accessibilityLabel(words.skipA11y)
     }
   }
 }
@@ -218,7 +237,7 @@ private struct RestLockScreenView: View {
 
       HStack {
         Spacer(minLength: 0)
-        RestButtons(words: words)
+        RestButtons(words: words, stale: context.isStale)
       }
     }
     .padding(.horizontal, 18)
@@ -300,7 +319,7 @@ struct RestActivityWidget: Widget {
               .foregroundStyle(Color.restMuted)
               .lineLimit(1)
             Spacer(minLength: 4)
-            RestButtons(words: words)
+            RestButtons(words: words, stale: context.isStale)
           }
           .padding(.horizontal, 4)
         }

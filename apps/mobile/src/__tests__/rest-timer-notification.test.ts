@@ -1,21 +1,27 @@
 jest.mock('@/lib/haptics', () => ({ success: jest.fn() }));
 jest.mock('@/lib/auth', () => ({ useAuth: () => ({ profile: null }) }));
 
-type ScheduleArg = { content: { title: string; body: string }; trigger: { type: string; date: Date } };
+type ScheduleArg = {
+  identifier: string;
+  content: { title: string; body: string; interruptionLevel?: string };
+  trigger: { type: string; date: Date };
+};
 const mockPerm = jest.fn<Promise<{ status: string }>, []>(async () => ({ status: 'granted' }));
 const mockSchedule = jest.fn<Promise<string>, [ScheduleArg]>(async () => 'notif-1');
 const mockCancel = jest.fn<Promise<void>, [string]>(async () => undefined);
+const mockPending = jest.fn<Promise<{ identifier: string }[]>, []>(async () => []);
 jest.mock('expo-notifications', () => ({
   getPermissionsAsync: () => mockPerm(),
   scheduleNotificationAsync: (a: ScheduleArg) => mockSchedule(a),
   cancelScheduledNotificationAsync: (id: string) => mockCancel(id),
+  getAllScheduledNotificationsAsync: () => mockPending(),
   SchedulableTriggerInputTypes: { DAILY: 'daily', DATE: 'date' },
 }));
 
 import React from 'react';
 import { act, renderHook } from '@testing-library/react-native';
 import { I18nProvider } from '@/i18n';
-import { scheduleRestDoneNotification, useRestTimer } from '@/hooks/useRestTimer';
+import { REST_DONE_ID_PREFIX, scheduleRestDoneNotification, useRestTimer } from '@/hooks/useRestTimer';
 
 /**
  * The in-app haptic at the end of a rest only fires while the JS timer is
@@ -36,6 +42,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockPerm.mockImplementation(async () => ({ status: 'granted' }));
   mockSchedule.mockImplementation(async () => 'notif-1');
+  mockPending.mockImplementation(async () => []);
 });
 afterEach(() => jest.useRealTimers());
 
@@ -109,4 +116,41 @@ it('a schedule that resolves after its countdown was stopped is cancelled, not k
   await act(async () => { resolveId('late-id'); });
   await flush();
   expect(mockCancel).toHaveBeenCalledWith('late-id');
+});
+
+it('asks to break through a Focus mode (time-sensitive; the entitlement decides)', async () => {
+  const { result } = await mount();
+  await act(async () => result.current.start(60));
+  await flush();
+  expect(mockSchedule.mock.calls[0][0].content.interruptionLevel).toBe('timeSensitive');
+});
+
+it('sweeps every pending rest notification before scheduling — none the hook forgot survives (re-score bug 4)', async () => {
+  // A request the Lock Screen's +30 s moved after the in-app tick forgot its
+  // id, and one left by a runtime that has since restarted: both still carry
+  // the prefix. A reminder that does not is left alone.
+  mockPending.mockImplementation(async () => [
+    { identifier: `${REST_DONE_ID_PREFIX}111.1` },
+    { identifier: `${REST_DONE_ID_PREFIX}222.2` },
+    { identifier: 'ignia.reminder.lunch' },
+  ]);
+  const { result } = await mount();
+  await act(async () => result.current.start(60));
+  await flush();
+  expect(mockCancel).toHaveBeenCalledWith(`${REST_DONE_ID_PREFIX}111.1`);
+  expect(mockCancel).toHaveBeenCalledWith(`${REST_DONE_ID_PREFIX}222.2`);
+  expect(mockCancel).not.toHaveBeenCalledWith('ignia.reminder.lunch');
+  // The sweep runs BEFORE the new request, so it can never cancel it.
+  expect(mockSchedule).toHaveBeenCalledTimes(1);
+  expect(mockCancel).not.toHaveBeenCalledWith(mockSchedule.mock.calls[0][0].identifier);
+});
+
+it('a sweep that cannot list still schedules', async () => {
+  mockPending.mockImplementation(async () => {
+    throw new Error('not here');
+  });
+  const { result } = await mount();
+  await act(async () => result.current.start(60));
+  await flush();
+  expect(mockSchedule).toHaveBeenCalledTimes(1);
 });

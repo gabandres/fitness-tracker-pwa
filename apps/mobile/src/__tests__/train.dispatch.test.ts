@@ -223,6 +223,51 @@ describe('useTrain.dispatch — write policy', () => {
   });
 });
 
+describe('useTrain.undoRemoval — the Undo on a removal (Train re-score)', () => {
+  it('puts a removed set back where it was, and persists', async () => {
+    const { result } = await withActiveSession();
+    await act(async () => {
+      await result.current.dispatch(
+        { type: 'patchSet', exerciseIndex: 0, setIndex: 0, patch: { reps: 8 } },
+        { defer: true },
+      );
+    });
+    const removed = result.current.active!.exercises[0].sets[0];
+    await act(async () => {
+      await result.current.dispatch({ type: 'removeSet', exerciseIndex: 0, setIndex: 0 });
+    });
+    expect(result.current.active!.exercises[0].sets).toHaveLength(0);
+    mockUpdateSession.mockClear();
+
+    await act(async () => {
+      result.current.undoRemoval({ kind: 'set', exerciseIndex: 0, exerciseId: result.current.active!.exercises[0].exerciseId, setIndex: 0, set: removed });
+    });
+    expect(result.current.active!.exercises[0].sets[0].reps).toBe(8);
+    expect(mockUpdateSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('puts a removed exercise back at its index', async () => {
+    const { result } = await withActiveSession();
+    const ex = result.current.active!.exercises[0];
+    await act(async () => {
+      await result.current.dispatch({ type: 'removeExercise', exerciseIndex: 0 });
+    });
+    expect(result.current.active!.exercises).toHaveLength(0);
+    await act(async () => {
+      result.current.undoRemoval({ kind: 'exercise', index: 0, exercise: ex });
+    });
+    expect(result.current.active!.exercises[0]).toEqual(ex);
+  });
+
+  it('writes nothing when the set has nowhere to go', async () => {
+    const { result } = await withActiveSession();
+    await act(async () => {
+      result.current.undoRemoval({ kind: 'set', exerciseIndex: 0, exerciseId: 'gone', setIndex: 0, set: { kind: 'working' } });
+    });
+    expect(mockUpdateSession).not.toHaveBeenCalled();
+  });
+});
+
 describe('useTrain.dispatch — domain rules reach the session', () => {
   it('addCluster appends activation + two minis in one numbered group', async () => {
     const { result } = await withActiveSession();

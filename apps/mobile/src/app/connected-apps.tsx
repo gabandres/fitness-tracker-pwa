@@ -14,6 +14,7 @@ import {
 import Animated, { FadeInUp, FadeOut, ReduceMotion } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BottomSheet } from '@/components/BottomSheet';
+import { ConfirmHost, confirm } from '@/components/ConfirmSheet';
 import { useAuth } from '@/lib/auth';
 import { useLocale, useT } from '@/i18n';
 import { announce } from '@/lib/a11y';
@@ -167,6 +168,19 @@ export default function ConnectedAppsScreen() {
 
   const connected = oura.status.connected;
 
+  /** Disconnecting deletes our copy of the grant, and coming back means the
+   *  whole Oura sign-in again — so it asks first, and says so (re-score). */
+  function confirmOuraDisconnect() {
+    haptics.tap();
+    confirm({
+      title: t('oura.disconnectTitle'),
+      body: t('oura.disconnectBody'),
+      confirmText: t('oura.disconnect'),
+      destructive: true,
+      onConfirm: () => void oura.disconnect(),
+    });
+  }
+
   /**
    * The success moment.
    *
@@ -253,6 +267,107 @@ export default function ConnectedAppsScreen() {
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
         <Text style={styles.subtitle}>{t('connected.intro')}</Text>
 
+        {/* Health leads (re-score): it is where weigh-ins come from, and
+            Body's footer sends people here to find it. */}
+        {healthSync.available ? (
+          <View style={styles.card} testID="provider-health">
+            <View style={styles.cardHead}>
+              <View style={styles.cardHeadText}>
+                <Text style={styles.provider} accessibilityRole="header">
+                  {Platform.OS === 'ios'
+                    ? t('settings.healthConnectIos')
+                    : t('settings.healthConnectAndroid')}
+                </Text>
+                <Text style={styles.providerSub}>{t('settings.healthSub')}</Text>
+              </View>
+              <Switch
+                value={healthSync.connected}
+                onValueChange={toggleHealth}
+                trackColor={{ true: colors.tealSolid, false: colors.lineStrong }}
+                // A bare Switch reads "switch, off" (A6) — sync WHAT, with whom.
+                accessibilityLabel={t('health.switchA11y', { store })}
+                testID="health-toggle"
+              />
+            </View>
+
+            {healthSync.connected ? (
+              <>
+                {/*
+                  Workout import state is STATED rather than inferred, because
+                  an unauthorized read returns an EMPTY LIST on both platforms —
+                  so "no permission" and "no workouts" are identical to the code
+                  and must not be identical here.
+                */}
+                <View style={styles.evidence} testID="health-evidence">
+                  {/* Bug 14: the evidence this card's header promised. */}
+                  <Text style={styles.evidenceLine}>
+                    {healthWhen ? t('health.lastSync', { when: healthWhen }) : t('health.lastSyncNever')}
+                  </Text>
+                  {healthLast ? (
+                    <Text style={styles.evidenceLine}>
+                      {healthLast.count > 0
+                        ? t('health.lastCount', { n: formatNumber(healthLast.count, locale) })
+                        : t('health.lastCountNone')}
+                    </Text>
+                  ) : null}
+                  <Text style={styles.evidenceLine}>
+                    {healthSync.needsReauth
+                      ? t('health.reconnectBody')
+                      : Platform.OS === 'android' && !ANDROID_CARDIO_IN_BINARY
+                        ? t('health.androidPending')
+                        : t('health.workoutsOn')}
+                  </Text>
+                  {!healthSync.needsReauth && Platform.OS === 'ios' ? (
+                    <Text style={styles.evidenceLine}>{t('health.ouraHint')}</Text>
+                  ) : null}
+                </View>
+
+                <View style={styles.actions}>
+                  <TouchableOpacity
+                    onPress={healthSync.needsReauth ? onHealthReconnect : onHealthSyncNow}
+                    disabled={healthSync.syncing}
+                    style={[styles.btn, styles.btnPrimary, healthSync.syncing && styles.btnDisabled]}
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: healthSync.syncing, busy: healthSync.syncing }}
+                    testID="health-sync-now"
+                  >
+                    <Text style={[styles.btnText, styles.btnTextPrimary]}>
+                      {healthSync.syncing
+                        ? t('connected.syncing')
+                        : healthSync.needsReauth
+                          ? t('health.reconnect')
+                          : t('settings.healthSyncNow')}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            ) : null}
+
+            {healthMsg ? (
+              <Text style={styles.msg} accessibilityLiveRegion="polite" testID="health-msg">
+                {healthMsg}
+              </Text>
+            ) : null}
+            {/* Neither OS re-shows a declined permission prompt, so "denied"
+                with no way forward was a dead end (U11). */}
+            {healthDenied ? (
+              <TouchableOpacity
+                onPress={() => {
+                  haptics.tap();
+                  void openHealthPermissions();
+                }}
+                style={[styles.btn, styles.btnQuiet, styles.btnSolo]}
+                accessibilityRole="button"
+                testID="health-open-settings"
+              >
+                <Text style={[styles.btnText, styles.btnTextQuiet]}>
+                  {Platform.OS === 'ios' ? t('health.openSettingsIos') : t('health.openSettingsAndroid')}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        ) : null}
+
         {justConnected ? (
           <Animated.View
             entering={FadeInUp.duration(320).reduceMotion(ReduceMotion.System)}
@@ -323,7 +438,7 @@ export default function ConnectedAppsScreen() {
             {/* The lock is shared, the words are not (bug 9 / C1): only the
                 button whose action is RUNNING says so. */}
             <TouchableOpacity
-              onPress={connected ? oura.disconnect : oura.connect}
+              onPress={connected ? confirmOuraDisconnect : oura.connect}
               disabled={oura.busy || !oura.ready}
               style={[
                 styles.btn,
@@ -430,105 +545,6 @@ export default function ConnectedAppsScreen() {
           ) : null}
         </View>
 
-        {healthSync.available ? (
-          <View style={styles.card} testID="provider-health">
-            <View style={styles.cardHead}>
-              <View style={styles.cardHeadText}>
-                <Text style={styles.provider} accessibilityRole="header">
-                  {Platform.OS === 'ios'
-                    ? t('settings.healthConnectIos')
-                    : t('settings.healthConnectAndroid')}
-                </Text>
-                <Text style={styles.providerSub}>{t('settings.healthSub')}</Text>
-              </View>
-              <Switch
-                value={healthSync.connected}
-                onValueChange={toggleHealth}
-                trackColor={{ true: colors.tealSolid, false: colors.lineStrong }}
-                // A bare Switch reads "switch, off" (A6) — sync WHAT, with whom.
-                accessibilityLabel={t('health.switchA11y', { store })}
-                testID="health-toggle"
-              />
-            </View>
-
-            {healthSync.connected ? (
-              <>
-                {/*
-                  Workout import state is STATED rather than inferred, because
-                  an unauthorized read returns an EMPTY LIST on both platforms —
-                  so "no permission" and "no workouts" are identical to the code
-                  and must not be identical here.
-                */}
-                <View style={styles.evidence} testID="health-evidence">
-                  {/* Bug 14: the evidence this card's header promised. */}
-                  <Text style={styles.evidenceLine}>
-                    {healthWhen ? t('health.lastSync', { when: healthWhen }) : t('health.lastSyncNever')}
-                  </Text>
-                  {healthLast ? (
-                    <Text style={styles.evidenceLine}>
-                      {healthLast.count > 0
-                        ? t('health.lastCount', { n: formatNumber(healthLast.count, locale) })
-                        : t('health.lastCountNone')}
-                    </Text>
-                  ) : null}
-                  <Text style={styles.evidenceLine}>
-                    {healthSync.needsReauth
-                      ? t('health.reconnectBody')
-                      : Platform.OS === 'android' && !ANDROID_CARDIO_IN_BINARY
-                        ? t('health.androidPending')
-                        : t('health.workoutsOn')}
-                  </Text>
-                  {!healthSync.needsReauth && Platform.OS === 'ios' ? (
-                    <Text style={styles.evidenceLine}>{t('health.ouraHint')}</Text>
-                  ) : null}
-                </View>
-
-                <View style={styles.actions}>
-                  <TouchableOpacity
-                    onPress={healthSync.needsReauth ? onHealthReconnect : onHealthSyncNow}
-                    disabled={healthSync.syncing}
-                    style={[styles.btn, styles.btnPrimary, healthSync.syncing && styles.btnDisabled]}
-                    accessibilityRole="button"
-                    accessibilityState={{ disabled: healthSync.syncing, busy: healthSync.syncing }}
-                    testID="health-sync-now"
-                  >
-                    <Text style={[styles.btnText, styles.btnTextPrimary]}>
-                      {healthSync.syncing
-                        ? t('connected.syncing')
-                        : healthSync.needsReauth
-                          ? t('health.reconnect')
-                          : t('settings.healthSyncNow')}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            ) : null}
-
-            {healthMsg ? (
-              <Text style={styles.msg} accessibilityLiveRegion="polite" testID="health-msg">
-                {healthMsg}
-              </Text>
-            ) : null}
-            {/* Neither OS re-shows a declined permission prompt, so "denied"
-                with no way forward was a dead end (U11). */}
-            {healthDenied ? (
-              <TouchableOpacity
-                onPress={() => {
-                  haptics.tap();
-                  void openHealthPermissions();
-                }}
-                style={[styles.btn, styles.btnQuiet, styles.btnSolo]}
-                accessibilityRole="button"
-                testID="health-open-settings"
-              >
-                <Text style={[styles.btnText, styles.btnTextQuiet]}>
-                  {Platform.OS === 'ios' ? t('health.openSettingsIos') : t('health.openSettingsAndroid')}
-                </Text>
-              </TouchableOpacity>
-            ) : null}
-          </View>
-        ) : null}
-
         <Text style={styles.footnote}>{t('connected.footnote')}</Text>
       </ScrollView>
 
@@ -578,6 +594,10 @@ export default function ConnectedAppsScreen() {
           </View>
         </View>
       </BottomSheet>
+      {/* A root-stack screen over the tabs: the tab layout's confirm host is
+          underneath it, so confirms raised here are drawn by this one (the
+          same arrangement as `scan.tsx`). */}
+      <ConfirmHost />
     </SafeAreaView>
   );
 }

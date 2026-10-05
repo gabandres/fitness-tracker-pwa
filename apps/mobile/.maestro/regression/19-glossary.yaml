@@ -52,6 +52,17 @@ appId: fit.ignia.app
 # to the last one is the test; scrolling to the one before it was not.
 # Answered on the device the same day: both are reachable, so the 460 cap is
 # fine on this viewport.
+# Expand first (2026-10-04): the native sheet opens at its half detent, and
+# Maestro's scroll gesture starts at screen centre — ABOVE the sheet's top
+# edge there — so it dragged the dimmed area and never moved the list.
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - swipe:
+          start: 50%, 88%
+          end: 50%, 40%
+      - waitForAnimationToEnd
 - scrollUntilVisible:
     element:
       text: 'Weight trend'
@@ -96,8 +107,17 @@ appId: fit.ignia.app
     when:
       platform: iOS
     commands:
-      - tapOn:
-          point: '50%,8%'
+      # Native sheet since 2026-10-04: drag the system grabber down. A point
+      # tap at 8% lands ON the grabber once the sheet has grown to its large
+      # detent, which cycles the detent instead of dismissing.
+      - swipe:
+          from:
+            text: 'Sheet Grabber'
+          direction: DOWN
+      - extendedWaitUntil:
+          notVisible:
+            id: 'glossary-backdrop-native'
+          timeout: 5000
 
 # ── Trends: same affordance, same sheet ──
 - tapOn: 'Trends'
@@ -145,8 +165,17 @@ appId: fit.ignia.app
     when:
       platform: iOS
     commands:
-      - tapOn:
-          point: '50%,8%'
+      # Native sheet since 2026-10-04: drag the system grabber down. A point
+      # tap at 8% lands ON the grabber once the sheet has grown to its large
+      # detent, which cycles the detent instead of dismissing.
+      - swipe:
+          from:
+            text: 'Sheet Grabber'
+          direction: DOWN
+      - extendedWaitUntil:
+          notVisible:
+            id: 'glossary-backdrop-native'
+          timeout: 5000
 
 # ── Train keeps its own, unchanged by the generalisation ──
 # By ID: the tab reads "Train, Workout in progress" while a session is live,
@@ -197,7 +226,16 @@ appId: fit.ignia.app
     when:
       platform: iOS
     commands:
-      - tapOn:
-          point: '50%,8%'
+      # Native sheet since 2026-10-04: drag the system grabber down. A point
+      # tap at 8% lands ON the grabber once the sheet has grown to its large
+      # detent, which cycles the detent instead of dismissing.
+      - swipe:
+          from:
+            text: 'Sheet Grabber'
+          direction: DOWN
+      - extendedWaitUntil:
+          notVisible:
+            id: 'glossary-backdrop-native'
+          timeout: 5000
 - tapOn: 'Today'
 - assertVisible: 'Today'

@@ -155,3 +155,37 @@ export function parseQuickAddQuery(query: string, locale: Locale): QuickAddQuery
   }
   return out;
 }
+
+/**
+ * How long a save BUTTON waits on its write before it lets the user go.
+ * Here rather than beside the queue so the surfaces that use it (the sheet,
+ * the scan review) need not load the ledger to import it.
+ *
+ * `addLogDurably` (`pending-logs.ts`) can take up to 8 s to decide on a
+ * slow-but-not-offline connection, and the form's Add, "Add all" and the scan's
+ * Add used to spin for all of it while one-tap logs had long since closed. A
+ * write that answers inside this window is reported where the user is looking
+ * (an inline error keeps the form); one that does not lets the surface close
+ * and reports through the receipt when it does.
+ */
+export const SAVE_WAIT_MS = 1500;
+
+/**
+ * `write`, if it settles within `ms`; otherwise `{ settled: false }` and the
+ * write carries on unobserved by this call — the caller attaches its own late
+ * handling. A rejection inside the window is thrown, as `await write` would.
+ */
+export async function settleWithin<T>(
+  write: Promise<T>,
+  ms: number = SAVE_WAIT_MS,
+): Promise<{ settled: true; value: T } | { settled: false }> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<{ settled: false }>((resolve) => {
+    timer = setTimeout(() => resolve({ settled: false }), ms);
+  });
+  try {
+    return await Promise.race([write.then((value) => ({ settled: true as const, value })), late]);
+  } finally {
+    clearTimeout(timer);
+  }
+}

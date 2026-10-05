@@ -1,5 +1,6 @@
 import {
   endRestActivity,
+  getRestActivityStatus,
   startRestActivity,
   updateRestActivity,
 } from '../../modules/rest-timer-activity';
@@ -18,11 +19,14 @@ import type { IntentInboxAction } from '../../modules/intent-inbox';
  * below is a no-op on Android, in Expo Go, on web, and in iOS binaries older
  * than the one that introduced the module (an OTA can still reach them).
  *
- * Called from the three right places in `ActiveSession`:
+ * Called from the right places in `ActiveSession`:
  *
  * - {@link start} when a rest begins (a set is ticked),
  * - {@link update} when it moves (+30 s, −30 s in the app),
- * - {@link end} when it stops (skipped, run out, or the workout closes).
+ * - {@link end} when it stops (skipped, run out, or the workout closes),
+ *
+ * and {@link reconcileWithNative} once on mount, for an Activity that outlived
+ * a JS restart.
  *
  * `endsAt` is an absolute epoch-ms deadline rather than a duration on purpose:
  * a Live Activity renders a system timer counting down to a DATE, so it keeps
@@ -74,11 +78,61 @@ export function update(endsAt: number): void {
   void updateRestActivity(endsAt);
 }
 
-/** Remove the countdown. Idempotent. */
+/**
+ * Remove the countdown. Idempotent.
+ *
+ * ALWAYS reaches native, even when this seam believes nothing is showing.
+ * `current` is module state and does not survive an iOS memory kill or a
+ * reload while the phone is locked — the Activity does. Returning early on a
+ * null `current` left a stale "Rest over" face on the Lock Screen through the
+ * Finish and every later rest, until iOS's 8-hour ceiling (Train re-score
+ * bug 2). Native `end` with nothing to end is a no-op, so the call is cheap.
+ */
 export function end(): void {
-  if (!current) return;
   current = null;
   void endRestActivity();
+}
+
+/** What {@link reconcileWithNative} found on the Lock Screen. */
+export type RestReconcileOutcome = { type: 'restore'; endsAt: number; seconds: number } | null;
+
+/**
+ * Re-adopt a rest the Lock Screen is still counting after the JS runtime
+ * restarted (Train re-score bug 2).
+ *
+ * The Activity outlives the runtime; this seam's memory does not. So on mount
+ * `ActiveSession` asks native what is showing:
+ *
+ * - `running:<ms>` with time left → adopt it as `current` (so +30 s / Skip on
+ *   the Lock Screen apply again, and Finish ends it) and tell the caller to
+ *   put the rest bar back, for the seconds that are really left;
+ * - `running:<ms>` already past → a stale "Rest over" face nobody will clear;
+ *   end it;
+ * - anything else, or a rest this seam already knows about → nothing.
+ *
+ * `exerciseName` is the Activity's title if a later `resume` has to re-arm it;
+ * native does not report the one it is showing. `now` is injectable for tests.
+ */
+export async function reconcileWithNative(
+  exerciseName: string,
+  locale = 'en',
+  now = Date.now(),
+): Promise<RestReconcileOutcome> {
+  if (current) return null;
+  const status = await getRestActivityStatus();
+  const m = /^running:(\d+(?:\.\d+)?)$/.exec(status);
+  if (!m) return null;
+  const endsAt = Math.round(Number(m[1]));
+  // A start that raced this read already owns the Lock Screen.
+  if (current) return null;
+  const seconds = Math.round((endsAt - now) / 1000);
+  if (seconds <= 0) {
+    void endRestActivity();
+    return null;
+  }
+  current = { endsAt, exerciseName, startedAt: now, locale };
+  lastExercise = { name: exerciseName, locale };
+  return { type: 'restore', endsAt, seconds };
 }
 
 /** What the seam believes is on the lock screen — for tests. */

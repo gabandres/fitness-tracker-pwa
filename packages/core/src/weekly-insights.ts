@@ -142,3 +142,31 @@ export function computeWeeklyInsights(
     weightSlopeLbPerWeek: weightSlopeLbPerWeek(weightPoints),
   };
 }
+
+/** Shortest run worth a sentence. Two days in a row is a Tuesday; three is
+ *  the start of a habit, and the same bar the insight gate uses. */
+export const TARGET_STREAK_MIN_DAYS = MIN_INSIGHT_DAYS;
+
+/**
+ * Logged days in a row, counting back from the NEWEST row, that came in at or
+ * under the calorie target (the {@link ON_TARGET_BAND_KCAL} dead band
+ * included — 10 kcal over is "on target" everywhere else on the screen).
+ *
+ * The weekly panel's one celebratory line. Positive only, by construction: it
+ * counts what went right and says nothing at all when the run is short — a
+ * streak that announces its own breaking is the shame mechanic `UX_AUDIT.md`
+ * §S12 rules out. An unlogged day ends the run rather than counting either
+ * way: nobody knows what was eaten. Pass COMPLETE days only (the caller drops
+ * today — a lunchtime total is under every target).
+ */
+export function targetStreak(days: readonly DaySummary[], targetCalories: number, band = ON_TARGET_BAND_KCAL): number {
+  if (!(targetCalories > 0)) return 0;
+  let n = 0;
+  for (let i = days.length - 1; i >= 0; i--) {
+    const d = days[i];
+    if (!(d.mealCount > 0 && d.totalCalories > 0)) break;
+    if (d.totalCalories > targetCalories + band) break;
+    n++;
+  }
+  return n;
+}

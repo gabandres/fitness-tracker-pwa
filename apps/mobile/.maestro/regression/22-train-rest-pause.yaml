@@ -52,14 +52,15 @@ appId: fit.ignia.app
       notVisible:
         id: 'start-workout'
     commands:
-      - scrollUntilVisible:
-          element:
-            id: 'discard-workout'
-          direction: DOWN
-          timeout: 20000
-          centerElement: true
+      # Discard lives in the sticky session header's ⋯ menu since 2026-10-04
+      # (Train overhaul) — no longer a footer button to scroll to — and asks
+      # to confirm. The header is always on screen, so no scroll is needed.
       - tapOn:
-          id: 'discard-workout'
+          id: 'session-menu'
+      - tapOn:
+          id: 'session-menu-discard'
+      - tapOn:
+          id: 'confirm-go'
       - extendedWaitUntil:
           visible:
             id: 'start-workout'
@@ -151,14 +152,15 @@ appId: fit.ignia.app
     id: 'rest-skip'
 
 # ── 3. Teardown: leave the account as we found it ─────────────────
-- scrollUntilVisible:
-    element:
-      id: 'discard-workout'
-    direction: DOWN
-    timeout: 20000
-    centerElement: true
+# Discard lives in the sticky session header's ⋯ menu since 2026-10-04
+# (Train overhaul) — no longer a footer button to scroll to — and asks
+# to confirm. The header is always on screen, so no scroll is needed.
 - tapOn:
-    id: 'discard-workout'
+    id: 'session-menu'
+- tapOn:
+    id: 'session-menu-discard'
+- tapOn:
+    id: 'confirm-go'
 - extendedWaitUntil:
     visible:
       id: 'start-workout'

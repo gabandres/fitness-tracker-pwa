@@ -1,4 +1,5 @@
-import { Platform, StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { Platform, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { SheetTextInput } from '@/components/SheetTextInput';
 import { MEAL_TYPES, type MealType } from '@macrolog/core';
 import { useLocale, useT } from '@/i18n';
 import { formatTime } from '@/lib/date-format';
@@ -120,7 +121,7 @@ export function TimeOfDayRow({
 
   const label =
     draft != null ? (
-      <TextInput
+      <SheetTextInput
         style={[styles.label, styles.input]}
         value={draft}
         onChangeText={onDraftChange}
@@ -209,7 +210,10 @@ const createStyles = ({ colors }: Theme) =>
     label: { flex: 1, textAlign: 'center', fontSize: font.body, color: colors.ink, fontWeight: '700' },
     labelTap: { flex: 1, alignItems: 'center', minHeight: 48, justifyContent: 'center' },
     labelText: { flex: 0 },
-    tapHint: { fontSize: font.tiny, color: colors.faint },
+    // `muted`, not `faint`: 12pt text, and on iOS it can sit on the sheet's
+    // material rather than on `paper` — the margin is worth more than the step
+    // of hierarchy (re-score, A).
+    tapHint: { fontSize: font.tiny, color: colors.muted },
     input: {
       minHeight: 44,
       borderWidth: 1,

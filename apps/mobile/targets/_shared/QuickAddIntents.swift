@@ -438,5 +438,17 @@ struct IgniaShortcuts: AppShortcutsProvider {
       ],
       shortTitle: "End fast",
       systemImageName: "stop.circle")
+
+    // Opens the app too (`AppActionIntents.swift`). No parameter: "next" is
+    // decided in the app from the user's own templates and history.
+    AppShortcut(
+      intent: StartNextWorkoutIntent(),
+      phrases: [
+        "Start my next workout in \(.applicationName)",
+        "Start my workout in \(.applicationName)",
+        "Start a workout in \(.applicationName)",
+      ],
+      shortTitle: "Start workout",
+      systemImageName: "dumbbell.fill")
   }
 }

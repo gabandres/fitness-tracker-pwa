@@ -19,6 +19,7 @@ import { HealthFooter } from '@/components/body/HealthFooter';
 import { HistoryRow } from '@/components/body/HistoryRow';
 import { type HistorySection, HistorySheet } from '@/components/body/HistorySheet';
 import { MeasurementSheet, measureLine } from '@/components/body/MeasurementSheet';
+import { MeasurementTrends } from '@/components/body/MeasurementTrends';
 import { WeightChart } from '@/components/body/WeightChart';
 import { WeightSheet } from '@/components/body/WeightSheet';
 import { GoalMilestonePrompt } from '@/components/GoalMilestonePrompt';
@@ -35,6 +36,7 @@ import { type I18nKey, type Locale, type TFn, useLocale, useT } from '@/i18n';
 import { isMaintaining } from '@macrolog/core';
 import * as haptics from '@/lib/haptics';
 import { captureError } from '@/lib/sentry';
+import { isAnySheetActive, onSheetsIdle } from '@/lib/sheet-portal';
 import { track } from '@/lib/analytics';
 import { useUnitSystem } from '@/lib/use-unit-system';
 import { CountUpText, enterUp, usePulse } from '@/lib/motion';
@@ -125,6 +127,14 @@ function within<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {
   return Promise.race([p, new Promise<T>((r) => setTimeout(() => r(fallback), ms))]);
 }
 
+/** A stable stand-in for a missing `loadAllHistory` (stale mocks, partial
+ *  cached state), so the chart's memo is not defeated by a fresh closure. */
+const NO_OP = () => {};
+
+/** The longest a history-sheet → editor hand-off waits for the first sheet to
+ *  finish dismissing before opening anyway (see `fromSheet`). */
+const SHEET_HANDOFF_MAX_MS = 1200;
+
 /** Rows shown before "Show all". */
 const MEASURE_PREVIEW = 4;
 const WEIGH_PREVIEW = 8;
@@ -166,6 +176,11 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
   const consistency = body.consistency ?? null;
   const todayKey = body.todayKey ?? weighIns[0]?.dateKey ?? '';
   const latestKey = body.currentWeightDateKey ?? weighIns[0]?.dateKey ?? null;
+  const weekAverage = body.weekAverage ?? null;
+  // The chart is memoized; an inline `() => body.loadAllHistory?.()` was a new
+  // prop every render and rebuilt its labels and audio graph each time a sheet
+  // opened (Body re-score, bug 5).
+  const loadAllHistory = body.loadAllHistory ?? NO_OP;
 
   const { user, profile, isAdmin } = useAuth();
   // ADR-0043: the measured body-fat field ships with composition maintenance.
@@ -221,20 +236,49 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
     weigh?: string;
     weighValue?: string;
   }>();
+  // Held until the first paint (re-score, bug 10): on a Siri cold start the
+  // profile has not landed, and `todayKey` under the default boundary is
+  // tomorrow's-yesterday between midnight and a 3 AM day start.
   useEffect(() => {
-    if (!weighParam) return;
+    if (!weighParam || loading) return;
     const n = Number(weighValueParam);
-    setWeighPrefill(weighValueParam && Number.isFinite(n) && n > 0 ? String(n) : null);
+    // In the user's decimal mark, like every other prefill on this screen.
+    // The number is already in the display unit, so it is not converted.
+    setWeighPrefill(
+      weighValueParam && Number.isFinite(n) && n > 0
+        ? formatNumber(n, locale, { useGrouping: false, maximumFractionDigits: 1 })
+        : null,
+    );
     setWeightDay(todayKey);
     setWeightOpen(true);
     router.setParams({ weigh: undefined, weighValue: undefined });
-  }, [weighParam, weighValueParam, todayKey]);
+  }, [weighParam, weighValueParam, todayKey, loading, locale]);
 
-  /** From inside a history sheet: close it first, then open the editor, so
-   *  two native sheets never race to present. */
+  /**
+   * From inside a history sheet: close it first, then open the editor, so two
+   * native sheets never race to present. It waited a fixed 350 ms, and a slow
+   * dismissal (ProMotion off, a context menu still closing) let the push land
+   * mid-transition, where iOS drops it — `weightOpen` true and no sheet
+   * (re-score, bug 6). Now it opens when the portal says the last sheet has
+   * actually gone, with a ceiling so a stuck dismissal cannot swallow the tap.
+   * The JS sheet (Android) never registers with the portal; it keeps the delay.
+   */
   function fromSheet(close: () => void, open: () => void) {
     close();
-    setTimeout(open, 350);
+    if (!isAnySheetActive()) {
+      setTimeout(open, 350);
+      return;
+    }
+    let done = false;
+    const once = () => {
+      if (done) return;
+      done = true;
+      off();
+      clearTimeout(timer);
+      open();
+    };
+    const off = onSheetsIdle(once);
+    const timer = setTimeout(once, SHEET_HANDOFF_MAX_MS);
   }
 
   // Celebration (ADR-0014): crossing the goal weight bounces the hero panel
@@ -255,7 +299,9 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
   /** "Saved · trend −0.2 lb", or the milestone it crossed (D2 + D3). */
   function weighInReceipt(before: number | null, after: number | null): string {
     if (before != null && after != null) {
-      const start = trendPoints[0]?.weightLb ?? null;
+      // The start goal progress measures from (bug 4) — it was the oldest
+      // reading in a window that slides a day at a time.
+      const start = body.startLb ?? trendPoints[0]?.weightLb ?? null;
       const dir = profile?.goalDirection === 'lose' || profile?.goalDirection === 'gain' ? profile.goalDirection : null;
       const step = trendStepLb(unitSystem);
       const crossed = start != null ? trendMilestoneCrossed(start, before, after, step, dir) : null;
@@ -395,11 +441,13 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
 
   function weighInRow(w: WeighIn, inSheet: boolean) {
     const delta = deltaText(w.deltaLb);
-    const weight = `${formatNumber(toDisplayWeight(w.weight, unitSystem), locale)} ${unit}`;
+    // One fixed decimal, like the hero and the deltas: "181 lb" over
+    // "180.4 lb" was a ragged column (re-score).
+    const weight = `${wt(w.weight, unitSystem, locale)} ${unit}`;
     return (
       <HistoryRow
         key={w.dateKey}
-        label={t('body.editWeighInA11y', { date: dayLabel(w.dateKey, locale) })}
+        label={t('body.weighInRowA11y', { date: dayLabel(w.dateKey, locale) })}
         value={delta ? `${weight}, ${delta.spoken}` : weight}
         onEdit={() => (inSheet ? fromSheet(() => setAllWeighIns(false), () => openWeighIn(w.dateKey)) : openWeighIn(w.dateKey))}
         onDelete={() => void removeWeighIn(w)}
@@ -424,7 +472,7 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
     return (
       <HistoryRow
         key={m.id}
-        label={t('body.editMeasurementAria', { date })}
+        label={t('body.measurementRowA11y', { date })}
         value={line}
         onEdit={() => (inSheet ? fromSheet(() => setAllMeasures(false), () => openMeasure(m)) : openMeasure(m))}
         onDelete={() => void removeMeasurement(m)}
@@ -536,7 +584,7 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
                     slopeLbPerWeek={projection?.slopeLbPerWeek ?? null}
                     unitSystem={unitSystem}
                     hasOlderHistory={body.hasOlderHistory ?? false}
-                    onNeedAll={() => body.loadAllHistory?.()}
+                    onNeedAll={loadAllHistory}
                     testID="weight-chart-plot"
                   />
                   {/* The line is the trend over every reading; the dash is
@@ -548,12 +596,21 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
                 </View>
               ) : null}
 
-              {projection ? (
+              {projection || weekAverage ? (
                 <View style={styles.trendChips} testID="trend-card">
-                  <Text style={styles.trendChip}>
-                    {t('body.pace')}  <Text style={styles.trendChipValue}>{trendLabel(projection.slopeLbPerWeek, unitSystem, t, locale)}</Text>
-                  </Text>
-                  {projection.goalDateKey ? (
+                  {/* The week's plain average (re-score): the number people
+                      check a week against, which the lagging trend is not. */}
+                  {weekAverage ? (
+                    <Text style={styles.trendChip} testID="week-average">
+                      {t('body.weekAvg')}  <Text style={styles.trendChipValue}>{wt(weekAverage.avgLb, unitSystem, locale)} {unit}</Text>
+                    </Text>
+                  ) : null}
+                  {projection ? (
+                    <Text style={styles.trendChip}>
+                      {t('body.pace')}  <Text style={styles.trendChipValue}>{trendLabel(projection.slopeLbPerWeek, unitSystem, t, locale)}</Text>
+                    </Text>
+                  ) : null}
+                  {projection?.goalDateKey ? (
                     <Text style={styles.trendChip}>
                       {t('body.goalPace')}  <Text style={styles.trendChipValue}>{goalEtaLabel(projection.goalDateKey, locale)}</Text>
                     </Text>
@@ -647,6 +704,8 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
               <Text style={styles.addBtnText}>{t('body.add')}</Text>
             </TouchableOpacity>
           </View>
+          {/* Per-site trends once a site has two readings (re-score). */}
+          <MeasurementTrends measurements={measurements} unitSystem={unitSystem} />
           {/* Says what a tape measurement is FOR before asking for one. */}
           <Text style={styles.sectionHint}>{t('body.measureIntro')}</Text>
           <TouchableOpacity

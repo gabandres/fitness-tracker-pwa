@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useRouter } from 'expo-router';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import type { BodyFatInput, BodyFatShown } from '@macrolog/core';
 import { BottomSheet } from '@/components/BottomSheet';
@@ -30,6 +31,10 @@ export function fieldList(missing: readonly BodyFatInput[], t: TFn): string {
  *
  * The value is capped at 1.4× font scale (A11) — a display numeral that
  * outgrows its card clips, and a clipped "18.2%" reads "18.".
+ *
+ * A missing sex/height is a dead end without a way to it (Body re-score), so
+ * that gap carries a button to Refine targets — the one screen that edits
+ * both without re-running the whole onboarding wizard.
  */
 export function BodyFatCard({
   shown,
@@ -47,6 +52,7 @@ export function BodyFatCard({
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
+  const router = useRouter();
   const [infoOpen, setInfoOpen] = useState(false);
 
   const source =
@@ -91,6 +97,19 @@ export function BodyFatCard({
           can be compared rather than one silently replacing the other. */}
       {shown?.source === 'measured' && navyPct != null ? (
         <Text style={styles.hint}>{t('body.navyAlso', { pct: formatNumber(navyPct, locale) })}</Text>
+      ) : null}
+      {!shown && gap === 'profile' ? (
+        <TouchableOpacity
+          onPress={() => {
+            haptics.tap();
+            router.push('/refine-targets');
+          }}
+          style={styles.fixBtn}
+          accessibilityRole="button"
+          testID="bodyfat-set-profile"
+        >
+          <Text style={styles.fixBtnText}>{t('body.bfSetProfile')}</Text>
+        </TouchableOpacity>
       ) : null}
 
       <BottomSheet visible={infoOpen} onClose={() => setInfoOpen(false)} native detents="fit">
@@ -140,6 +159,18 @@ const createStyles = ({ colors }: Theme) =>
     chipTextOn: { color: colors.tealSolid },
     chipTextOff: { color: colors.muted },
     hint: { fontSize: font.small, color: colors.muted },
+    // The same bordered 44 pt button as Body's "Add" (V3 / A7).
+    fixBtn: {
+      alignSelf: 'flex-start',
+      minHeight: 44,
+      justifyContent: 'center',
+      paddingHorizontal: space.md,
+      borderRadius: radius.pill,
+      borderWidth: 1,
+      borderColor: colors.lineStrong,
+      marginTop: space.xs,
+    },
+    fixBtnText: { fontSize: font.small, color: colors.ink, fontWeight: '700' },
     sheet: { gap: space.md, paddingTop: space.xs },
     sheetTitle: { fontSize: font.h3, fontWeight: '800', color: colors.ink },
     sheetLine: { fontSize: font.small, color: colors.ink, lineHeight: font.small * 1.5 },

@@ -4,10 +4,10 @@ import { useRouter } from 'expo-router';
 import {
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SheetTextInput } from '@/components/SheetTextInput';
 import { clampWaterFlOz, fastHoursParts, type UnitSystem } from '@macrolog/core';
 import { BottomSheet } from '@/components/BottomSheet';
 import { type I18nKey, type Locale, type TFn, useLocale, useT } from '@/i18n';
@@ -531,7 +531,7 @@ function WaterModal({
             </View>
 
             <View style={styles.inputRow}>
-              <TextInput
+              <SheetTextInput
                 ref={inputRef}
                 style={styles.input}
                 placeholder="5"
@@ -605,7 +605,7 @@ function SleepModal({
     <BottomSheet native detents="fit" visible={visible} onClose={onClose}>
       <Text style={styles.sheetTitle}>{t('metrics.hoursSlept')}</Text>
       <View style={styles.inputRow}>
-        <TextInput
+        <SheetTextInput
           ref={inputRef}
           style={styles.input}
           placeholder="8"

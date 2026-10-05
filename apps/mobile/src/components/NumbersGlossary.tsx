@@ -23,7 +23,7 @@ const SECTIONS: GlossarySection[] = [
   },
   {
     title: 'numbers.glossary.sectionTrends',
-    terms: ['measured', 'estimate', 'completeness', 'trend'],
+    terms: ['measured', 'estimate', 'range', 'formulaLine', 'completeness', 'trend', 'budget', 'atTarget', 'milestoneMark'],
   },
 ];
 

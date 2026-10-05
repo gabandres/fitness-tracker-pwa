@@ -82,12 +82,18 @@ jest.mock('@/hooks/useTrain', () => ({ useTrain: () => mockTrain }));
 jest.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { uid: 'u1' }, profile: mockProfile }) }));
 jest.mock('@/lib/reviewPrompt', () => ({ recordPositiveMoment: jest.fn() }));
 jest.mock('@/hooks/useRestTimer', () => ({
+  // The deadline is what the session reads; the bar's own countdown is
+  // `useRestCountdown`, faked here to the same number.
   useRestTimer: () => ({
-    remaining: mockRestRemaining,
-    label: '1:00',
+    endsAt: mockRestRemaining > 0 ? 1_000_000 : null,
+    remainingNow: () => mockRestRemaining,
     start: mockRestStart,
     stop: jest.fn(),
     rearm: jest.fn(),
+  }),
+  useRestCountdown: (endsAt: number | null) => ({
+    remaining: endsAt == null ? 0 : mockRestRemaining,
+    label: '1:00',
   }),
 }));
 
@@ -184,7 +190,8 @@ describe('Finish (bugs 2, 10)', () => {
     await fireEvent.press(ui.getByTestId('finish-workout'));
     await fireEvent.press(ui.getByTestId('finish-confirm'));
     await waitFor(() =>
-      expect(mockShowToast).toHaveBeenCalledWith("Saved on this phone — syncs when you're back online."),
+      // The receipt also offers Share (Train re-score) — the second argument.
+      expect(mockShowToast).toHaveBeenCalledWith("Saved on this phone — syncs when you're back online.", expect.anything()),
     );
     expect(haptics.success).toHaveBeenCalled();
   });
@@ -429,7 +436,7 @@ describe('the home screen (bugs 6, 7, 9; items 8, 10, 14, 32)', () => {
     const ui = await render(<TrainScreen />);
     const row = ui.getByTestId('session-s1');
     expect(row.props.accessibilityRole).toBe('button');
-    expect(row.props.accessibilityHint).toBe('Opens this workout to edit.');
+    expect(row.props.accessibilityHint).toBe('Opens this workout.');
     await fireEvent(row, 'accessibilityAction', { nativeEvent: { actionName: 'delete' } });
     expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ confirmText: 'Delete' }));
   });

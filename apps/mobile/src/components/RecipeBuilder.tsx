@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SheetTextInput } from '@/components/SheetTextInput';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useLocale, useT } from '@/i18n';
 import { formatNumber } from '@/lib/date-format';
@@ -123,7 +124,7 @@ export function RecipeBuilder({ onApply, onCancel, onDirtyChange }: Props) {
         </TouchableOpacity>
       </View>
 
-      <TextInput
+      <SheetTextInput
         style={styles.input}
         placeholder={t('recipe.namePlaceholder')}
         placeholderTextColor={colors.faint}
@@ -146,7 +147,7 @@ export function RecipeBuilder({ onApply, onCancel, onDirtyChange }: Props) {
         </View>
         {ingredients.map((ing, i) => (
           <View key={i} style={styles.ingRow}>
-            <TextInput
+            <SheetTextInput
               style={[styles.input, styles.colName]}
               placeholder={t('recipe.ingredient')}
               placeholderTextColor={colors.faint}
@@ -155,7 +156,7 @@ export function RecipeBuilder({ onApply, onCancel, onDirtyChange }: Props) {
               accessibilityLabel={t('recipe.ingredientA11y', { n: i + 1 })}
               testID={`recipe-ing-name-${i}`}
             />
-            <TextInput
+            <SheetTextInput
               style={[styles.input, styles.colNum]}
               placeholder="0"
               placeholderTextColor={colors.faint}
@@ -166,7 +167,7 @@ export function RecipeBuilder({ onApply, onCancel, onDirtyChange }: Props) {
               accessibilityLabel={t('recipe.kcalA11y', { n: i + 1 })}
               testID={`recipe-ing-kcal-${i}`}
             />
-            <TextInput
+            <SheetTextInput
               style={[styles.input, styles.colNum]}
               placeholder="0"
               placeholderTextColor={colors.faint}
@@ -196,7 +197,7 @@ export function RecipeBuilder({ onApply, onCancel, onDirtyChange }: Props) {
       <View style={styles.footer}>
         <View style={styles.servingsBox}>
           <Text style={styles.fieldLabel}>{t('recipe.servings')}</Text>
-          <TextInput
+          <SheetTextInput
             style={[styles.input, styles.servingsInput]}
             placeholder="1"
             placeholderTextColor={colors.faint}

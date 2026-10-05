@@ -12,11 +12,13 @@
 const mockStart = jest.fn(async (..._a: unknown[]) => null);
 const mockUpdate = jest.fn(async (..._a: unknown[]) => null);
 const mockEnd = jest.fn(async () => null);
+const mockStatus = jest.fn(async () => 'stopped');
 
 jest.mock('../../modules/rest-timer-activity', () => ({
   startRestActivity: (...a: unknown[]) => mockStart(...a),
   updateRestActivity: (...a: unknown[]) => mockUpdate(...a),
   endRestActivity: () => mockEnd(),
+  getRestActivityStatus: () => mockStatus(),
 }));
 
 import {
@@ -25,6 +27,7 @@ import {
   __resetRestActivity,
   applyRestInboxAction,
   end,
+  reconcileWithNative,
   start,
   update,
 } from '@/lib/rest-timer-activity';
@@ -52,14 +55,58 @@ describe('the app → Lock Screen direction', () => {
     expect(__currentRestActivity()?.endsAt).toBe(T0 + 90_000);
   });
 
-  it('end is idempotent', () => {
-    end();
-    expect(mockEnd).not.toHaveBeenCalled();
-    start(T0 + 60_000, 'Row', 'en', T0);
-    end();
+  it('end ALWAYS reaches native, even when the seam remembers no rest (re-score bug 2)', () => {
+    // After a JS restart `current` is gone but the Lock Screen face is not; an
+    // end that returned early on a null `current` left it there for 8 hours.
     end();
     expect(mockEnd).toHaveBeenCalledTimes(1);
+    start(T0 + 60_000, 'Row', 'en', T0);
+    end();
+    expect(mockEnd).toHaveBeenCalledTimes(2);
     expect(__currentRestActivity()).toBeNull();
+  });
+});
+
+describe('reconcileWithNative — an Activity that outlived a JS restart', () => {
+  beforeEach(() => mockStatus.mockReset());
+
+  it('re-adopts a running rest and says how long is left', async () => {
+    mockStatus.mockResolvedValue(`running:${T0 + 45_000}`);
+    const out = await reconcileWithNative('Bench', 'es-PR', T0);
+    expect(out).toEqual({ type: 'restore', endsAt: T0 + 45_000, seconds: 45 });
+    expect(__currentRestActivity()).toEqual({ endsAt: T0 + 45_000, exerciseName: 'Bench', startedAt: T0, locale: 'es-PR' });
+    // Native already shows it; nothing is re-requested.
+    expect(mockStart).not.toHaveBeenCalled();
+  });
+
+  it('after which the Lock Screen buttons apply again', async () => {
+    mockStatus.mockResolvedValue(`running:${T0 + 45_000}`);
+    await reconcileWithNative('Bench', 'en', T0);
+    expect(applyRestInboxAction({ kind: 'rest', atMs: T0 + 1_000, endsAtMs: T0 + 75_000 }, T0 + 2_000))
+      .toEqual({ type: 'retarget', endsAt: T0 + 75_000, seconds: 73 });
+  });
+
+  it('clears a stale "Rest over" face nobody else would', async () => {
+    mockStatus.mockResolvedValue(`running:${T0 - 5_000}`);
+    expect(await reconcileWithNative('Bench', 'en', T0)).toBeNull();
+    expect(mockEnd).toHaveBeenCalledTimes(1);
+    expect(__currentRestActivity()).toBeNull();
+  });
+
+  it('does nothing when no Activity is up, or the module is absent', async () => {
+    for (const status of ['stopped', 'disabled', 'unsupported', 'unavailable']) {
+      mockStatus.mockResolvedValue(status);
+      expect(await reconcileWithNative('Bench', 'en', T0)).toBeNull();
+    }
+    expect(mockEnd).not.toHaveBeenCalled();
+  });
+
+  it('leaves a rest this runtime already knows about alone', async () => {
+    start(T0 + 90_000, 'Squat', 'en', T0);
+    mockStatus.mockResolvedValue(`running:${T0 + 30_000}`);
+    expect(await reconcileWithNative('Bench', 'en', T0)).toBeNull();
+    expect(mockStatus).not.toHaveBeenCalled();
+    expect(__currentRestActivity()?.endsAt).toBe(T0 + 90_000);
   });
 });
 

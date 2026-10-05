@@ -3,7 +3,7 @@ import Foundation
 
 //
 //  Ignia — Siri / Shortcuts actions that OPEN the app: "Log weight",
-//  "Start fast", "End fast". Their phrases are in `IgniaShortcuts`
+//  "Start fast", "End fast", "Start my next workout". Their phrases are in `IgniaShortcuts`
 //  (`QuickAddIntents.swift`), because an app has exactly one provider.
 //
 //  ## Why these open the app, when quick-add does not
@@ -95,6 +95,37 @@ struct StopFastIntent: AppIntent {
   @MainActor
   func perform() async throws -> some IntentResult {
     IntentInbox.post("fastStop")
+    return .result()
+  }
+}
+
+/// "Start my next workout in Ignia." Opens the app on Train and starts the
+/// template `nextTemplateUp` offers — the same "Next up" card's Start button
+/// (`StartView`), through the app's own `startFromTemplate`. With no templates
+/// it starts an empty workout; with one already running it shows that one
+/// rather than starting a second.
+///
+/// Why it opens the app, like the three above: starting a workout is the
+/// active-session document plus the in-app session state, the rest timer and
+/// the Lock Screen — all JS (`useTrain`). Which template is "next" is pure core
+/// (`train-plan.ts`) over the user's recent sessions, which only the app holds.
+///
+/// No parameters at all — nothing to get wrong in the provider (AGENTS.md
+/// "iOS native traps"). The app routes on the inbox `workoutStart` entry
+/// (`src/hooks/useStartNextWorkoutIntent.ts`); the same hook also honours the
+/// deep link `ignia://train?start=next` for anything that opens a URL instead.
+@available(iOS 16.0, *)
+struct StartNextWorkoutIntent: AppIntent {
+  static var title: LocalizedStringResource = "Start next workout"
+  static var description = IntentDescription(
+    "Opens Ignia and starts your next workout, from the template that's up next.")
+  static var openAppWhenRun: Bool = true
+
+  init() {}
+
+  @MainActor
+  func perform() async throws -> some IntentResult {
+    IntentInbox.post("workoutStart")
     return .result()
   }
 }

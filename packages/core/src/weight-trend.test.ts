@@ -3,6 +3,7 @@ import {
   pointsInRange,
   previousWeighIn,
   sortedWeighIns,
+  trailingAverageLb,
   trendMilestoneCrossed,
   trendShift,
   trendStepLb,
@@ -147,6 +148,25 @@ describe('weighInConsistency — a count, not a streak', () => {
     const boundary = setDayStartHour([], '2026-01-01' as DateKey, 3);
     const weights = { '2026-10-03': 180 };
     expect(weighInConsistency(weights, 1, new Date(2026, 9, 4, 1), boundary).logged).toBe(1);
+  });
+});
+
+describe('trailingAverageLb — the 7-day average beside the trend', () => {
+  it('averages only the readings inside the window', () => {
+    const weights = { '2026-10-04': 180, '2026-10-02': 181, '2026-09-28': 182, '2026-09-27': 190 };
+    expect(trailingAverageLb(weights, 7, new Date(2026, 9, 4, 9))).toEqual({ avgLb: 181, count: 3 });
+  });
+
+  it('is null under two readings — one reading is not an average', () => {
+    expect(trailingAverageLb({ '2026-10-04': 180 }, 7, new Date(2026, 9, 4, 9))).toBeNull();
+    expect(trailingAverageLb({}, 7, new Date(2026, 9, 4, 9))).toBeNull();
+  });
+
+  it('is boundary-aware like the count', () => {
+    const boundary = setDayStartHour([], '2026-01-01' as DateKey, 3);
+    // At 01:00 under a 03:00 start "today" is Oct 3, so Sep 27 is inside.
+    const weights = { '2026-10-03': 180, '2026-09-27': 182, '2026-09-26': 200 };
+    expect(trailingAverageLb(weights, 7, new Date(2026, 9, 4, 1), boundary)).toEqual({ avgLb: 181, count: 2 });
   });
 });
 

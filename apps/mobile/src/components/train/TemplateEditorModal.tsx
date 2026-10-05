@@ -2,11 +2,11 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Text,
-  TextInput,
   TouchableOpacity,
   View,
   useWindowDimensions,
 } from 'react-native';
+import { SheetTextInput } from '@/components/SheetTextInput';
 import Animated, { useAnimatedRef } from 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Sortable from 'react-native-sortables';
@@ -759,7 +759,7 @@ export function TemplateEditorModal({
             <Text style={styles.sheetTitle} accessibilityRole="header">{template ? t('train.editTemplate') : t('train.newTemplateTitle')}</Text>
 
             <Text style={styles.fieldLabel}>{t('train.templateName')}</Text>
-            <TextInput
+            <SheetTextInput
               style={styles.input}
               placeholder={t('train.templateNamePh')}
               placeholderTextColor={colors.faint}
@@ -796,7 +796,7 @@ export function TemplateEditorModal({
             {optionsOpen ? (
             <>
             <Text style={[styles.fieldLabel, { marginTop: space.sm }]}>{t('train.templateNotes')}</Text>
-            <TextInput
+            <SheetTextInput
               style={[styles.input, styles.notesInput]}
               placeholder={t('train.templateNotesPh')}
               placeholderTextColor={colors.faint}
@@ -809,7 +809,7 @@ export function TemplateEditorModal({
             <View style={styles.restRow}>
               <View style={styles.restCell}>
                 <Text style={[styles.fieldLabel, { marginTop: space.sm }]}>{t('train.restMini')}</Text>
-                <TextInput
+                <SheetTextInput
                   style={styles.input}
                   keyboardType="numeric"
                   placeholderTextColor={colors.faint}
@@ -820,7 +820,7 @@ export function TemplateEditorModal({
               </View>
               <View style={styles.restCell}>
                 <Text style={[styles.fieldLabel, { marginTop: space.sm }]}>{t('train.restCluster')}</Text>
-                <TextInput
+                <SheetTextInput
                   style={styles.input}
                   keyboardType="numeric"
                   placeholderTextColor={colors.faint}
@@ -845,7 +845,7 @@ export function TemplateEditorModal({
                 <View style={styles.cardioHead}>
                   <Text style={styles.cardioName}>{t(TPL_MODALITY_KEY[b.modality])}</Text>
                 </View>
-                <TextInput
+                <SheetTextInput
                   style={styles.input}
                   placeholder={t('cardio.labelPlaceholder')}
                   placeholderTextColor={colors.faint}
@@ -856,7 +856,7 @@ export function TemplateEditorModal({
                 <View style={styles.cardioFieldRow}>
                   <View style={styles.cardioField}>
                     <Text style={styles.cardioLabel}>{t('cardio.targetDuration')}</Text>
-                    <TextInput
+                    <SheetTextInput
                       style={styles.cardioInput}
                       keyboardType="number-pad"
                       inputMode="numeric"
@@ -871,7 +871,7 @@ export function TemplateEditorModal({
                     <Text style={styles.cardioLabel}>
                       {t('cardio.targetDistance')} ({distanceUnit(unitSystem)})
                     </Text>
-                    <TextInput
+                    <SheetTextInput
                       style={styles.cardioInput}
                       keyboardType="numeric"
                       inputMode="decimal"
@@ -928,7 +928,7 @@ export function TemplateEditorModal({
 
             {/* Adder at the TOP so it's reachable without scrolling past every
                 exercise. Type → pick a catalog match, or create a new one. */}
-            <TextInput
+            <SheetTextInput
               style={[styles.input, { marginTop: space.sm }]}
               placeholder={t('train.addExercisePh')}
               placeholderTextColor={colors.faint}
@@ -1204,7 +1204,7 @@ export function TemplateEditorModal({
                               column; the cell stays empty until it has a
                               number. */}
                           {d.logStyle === 'time' ? (
-                            <TextInput
+                            <SheetTextInput
                               style={[styles.tplSetInput, styles.tplSetCell]}
                               keyboardType="numeric"
                               value={ps.durationText}
@@ -1215,7 +1215,7 @@ export function TemplateEditorModal({
                           ) : (
                             <>
                               {d.logStyle !== 'bodyweight' ? (
-                                <TextInput
+                                <SheetTextInput
                                   style={[styles.tplSetInput, styles.tplSetCell]}
                                   keyboardType="numeric"
                                   value={ps.weightText}
@@ -1224,7 +1224,7 @@ export function TemplateEditorModal({
                                   testID={`template-set-weight-${i}-${si}`}
                                 />
                               ) : null}
-                              <TextInput
+                              <SheetTextInput
                                 style={[styles.tplSetInput, styles.tplSetCell]}
                                 keyboardType="numeric"
                                 value={ps.repsText}
@@ -1324,7 +1324,7 @@ export function TemplateEditorModal({
                       <View style={styles.tplExControls}>
                         {d.logStyle !== 'bodyweight' ? (
                           <View style={styles.tplLoadWrap}>
-                            <TextInput
+                            <SheetTextInput
                               style={styles.tplLoadInput}
                               placeholder={t('train.target')}
                               placeholderTextColor={colors.faint}
@@ -1343,7 +1343,7 @@ export function TemplateEditorModal({
                       {/* Per-exercise mini-set rest. Blank means the template's
                           value applies; the placeholder shows which. */}
                       <Text style={styles.fieldLabel}>{t('train.exRestMini')}</Text>
-                      <TextInput
+                      <SheetTextInput
                         style={styles.tplLoadInput}
                         keyboardType="numeric"
                         placeholder={restMini || '—'}
@@ -1355,7 +1355,7 @@ export function TemplateEditorModal({
                       />
 
                       <Text style={styles.fieldLabel}>{t('train.cues')}</Text>
-                      <TextInput
+                      <SheetTextInput
                         style={[styles.input, styles.notesInput]}
                         placeholderTextColor={colors.faint}
                         value={d.cuesText}
@@ -1385,7 +1385,7 @@ export function TemplateEditorModal({
                         <View style={styles.progRow}>
                           <View style={styles.progCell}>
                             <Text style={styles.tplSetsLabel}>{t('train.targetReps')}</Text>
-                            <TextInput
+                            <SheetTextInput
                               style={styles.tplLoadInput}
                               keyboardType="numeric"
                               placeholder="12"
@@ -1397,7 +1397,7 @@ export function TemplateEditorModal({
                           </View>
                           <View style={styles.progCell}>
                             <Text style={styles.tplSetsLabel}>{t('train.holdSessions')}</Text>
-                            <TextInput
+                            <SheetTextInput
                               style={styles.tplLoadInput}
                               keyboardType="numeric"
                               placeholder="2"
@@ -1411,7 +1411,7 @@ export function TemplateEditorModal({
                             <Text style={styles.tplSetsLabel}>
                               {t('train.incrementLb', { unit: loadUnit(unitSystem) })}
                             </Text>
-                            <TextInput
+                            <SheetTextInput
                               style={styles.tplLoadInput}
                               keyboardType="numeric"
                               placeholder="5"

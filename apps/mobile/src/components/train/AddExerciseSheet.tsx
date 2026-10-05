@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { SheetTextInput } from '@/components/SheetTextInput';
 import { MOBILITY_SEED_KEYS, type SeedExercise } from '@macrolog/core';
 import { BottomSheet, NATIVE_SHEETS } from '@/components/BottomSheet';
 import { showToast } from '@/components/Toast';
@@ -99,7 +100,7 @@ export function AddExerciseSheet({
           {replace ? t('train.replaceTitle', { name: replace.name }) : t('train.addExerciseTitle')}
         </Text>
 
-        <TextInput
+        <SheetTextInput
           ref={addExerciseInputRef}
           style={styles.input}
           placeholder={t('train.exerciseName')}

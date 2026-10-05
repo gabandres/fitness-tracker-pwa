@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SheetTextInput } from '@/components/SheetTextInput';
 import { parseRecipeFromHtml, type ParsedRecipe } from '@macrolog/core';
 import { useLocale, useT } from '@/i18n';
 import { formatNumber } from '@/lib/date-format';
@@ -105,7 +106,7 @@ export function RecipeImport({ onApply, onCancel, onDirtyChange }: Props) {
       <Text style={styles.desc}>{t('recipeImport.desc')}</Text>
 
       <View style={styles.row}>
-        <TextInput
+        <SheetTextInput
           style={[styles.input, styles.urlInput]}
           placeholder={t('recipeImport.urlPlaceholder')}
           placeholderTextColor={colors.faint}

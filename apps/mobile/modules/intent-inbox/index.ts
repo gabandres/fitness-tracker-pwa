@@ -131,3 +131,68 @@ export function subscribeIntentInbox(onChange: () => void): () => void {
     return () => {};
   }
 }
+
+/**
+ * Siri "Start my next workout" (`StartNextWorkoutIntent`, posted as
+ * `workoutStart`). Train's to apply — `src/hooks/useStartNextWorkoutIntent.ts`.
+ *
+ * Deliberately NOT a member of {@link IntentInboxAction}: Today's reader
+ * (`useIntentInbox`) narrows that union by elimination and hands the remainder
+ * to `planFastInboxAction`, so a sixth member there is a type error in a file
+ * that has no business knowing about workouts. Its own kind, its own reader;
+ * `take(['workoutStart'])` never touches the other five, and their readers
+ * never take this one.
+ */
+export interface WorkoutStartAction {
+  kind: 'workoutStart';
+  atMs: number;
+}
+
+const WORKOUT_START = 'workoutStart';
+
+/** The `workoutStart` entries of a native JSON array; anything else dropped. */
+export function parseWorkoutStartActions(raw: string): WorkoutStartAction[] {
+  let list: unknown;
+  try {
+    list = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(list)) return [];
+  const out: WorkoutStartAction[] = [];
+  for (const e of list) {
+    if (!e || typeof e !== 'object') continue;
+    const o = e as Record<string, unknown>;
+    const atMs = num(o.atMs);
+    if (atMs == null || atMs <= 0) continue;
+    switch (o.kind) {
+      case 'workoutStart':
+        out.push({ kind: 'workoutStart', atMs });
+        break;
+      default:
+        break;
+    }
+  }
+  return out;
+}
+
+/** Remove and return pending "start my next workout" actions. Never rejects. */
+export async function takeWorkoutStartActions(): Promise<WorkoutStartAction[]> {
+  try {
+    const raw = await native?.take([WORKOUT_START]);
+    return raw ? parseWorkoutStartActions(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Whether one is pending, left in place — for a router that must send the
+ *  user to Train before Train (the consumer) has mounted. Never rejects. */
+export async function peekWorkoutStartActions(): Promise<WorkoutStartAction[]> {
+  try {
+    const raw = await native?.peek([WORKOUT_START]);
+    return raw ? parseWorkoutStartActions(raw) : [];
+  } catch {
+    return [];
+  }
+}

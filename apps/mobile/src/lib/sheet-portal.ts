@@ -108,6 +108,7 @@ export function registerPresenter(id: string, presenter: Presenter): () => void 
   return () => {
     if (presenters.get(id) === presenter) presenters.delete(id);
     closing.delete(id);
+    clearSheetActive(id);
   };
 }
 
@@ -128,10 +129,47 @@ export function dismissSheet(id: string): void {
   p.dismiss();
 }
 
+/**
+ * Sheets presented right now, counted from the moment the owner PUSHES —
+ * before the route mounts. The screen underneath blurs when the sheet route
+ * lands, and `useFocusEffectThroughSheets` asks here whether that blur is a
+ * sheet over it (keep listening) or a real departure (let go). Marked before
+ * the push so the answer is already true when the blur arrives.
+ */
+const active = new Set<string>();
+const idleListeners = new Set<() => void>();
+
+export function markSheetActive(id: string): void {
+  active.add(id);
+}
+
+export function clearSheetActive(id: string): void {
+  if (!active.delete(id) || active.size > 0) return;
+  for (const l of [...idleListeners]) l();
+}
+
+export function isAnySheetActive(): boolean {
+  return active.size > 0;
+}
+
+/** Call `cb` once, when the last presented sheet has gone. */
+export function onSheetsIdle(cb: () => void): () => void {
+  const once = () => {
+    idleListeners.delete(once);
+    cb();
+  };
+  idleListeners.add(once);
+  return () => {
+    idleListeners.delete(once);
+  };
+}
+
 /** Test seam. */
 export function __resetSheetPortal(): void {
   entries.clear();
   presenters.clear();
   closing.clear();
   listeners.clear();
+  active.clear();
+  idleListeners.clear();
 }

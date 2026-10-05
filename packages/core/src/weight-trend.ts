@@ -23,8 +23,9 @@
  * ## The SAME filter Trends draws, not a second one
  *
  * `tdee-series.ts` already smooths weight for the Trends chart
- * (`weightTrendSeries`): one `weightTrendStep` per READING, and a day with no
- * reading holds the trend where it was. This module steps the same filter, so
+ * (`weightTrendSeries`): one `weightTrendStep` per READING; between readings
+ * that chart draws the line straight from one level to the next, and holds it
+ * after the newest. This module steps the same filter at the same readings, so
  * Body's headline and the Trends trend line are one number. Two
  * "trend weights" that disagree by 0.3 lb across two tabs would teach the
  * user that neither means anything.
@@ -187,6 +188,34 @@ export function weighInConsistency(
     if (typeof weights[calendarDateKey(addDays(today, -i))] === 'number') logged++;
   }
   return { logged, days };
+}
+
+/**
+ * The plain mean of the weigh-ins in the last `days` days — the "7-day avg"
+ * MacroFactor anchors its weight screen on (Body re-score, 2026-10-04).
+ *
+ * Not the trend: the trend is a filter that lags on purpose, and this is the
+ * number someone checks their week against. Same boundary-aware window as
+ * `weighInConsistency`. `null` under two readings, because one reading's
+ * "average" is just that reading said again with a more confident label.
+ */
+export function trailingAverageLb(
+  weights: Readonly<Record<string, number>>,
+  days: number,
+  now: Date,
+  boundary: DayBoundary = MIDNIGHT,
+): { avgLb: number; count: number } | null {
+  const today = parseYmd(dayKeyAt(now, boundary));
+  let sum = 0;
+  let count = 0;
+  for (let i = 0; i < days; i++) {
+    const v = weights[calendarDateKey(addDays(today, -i))];
+    if (typeof v === 'number' && Number.isFinite(v)) {
+      sum += v;
+      count++;
+    }
+  }
+  return count >= 2 ? { avgLb: sum / count, count } : null;
 }
 
 // ─── Trend milestones ───────────────────────────────────────────

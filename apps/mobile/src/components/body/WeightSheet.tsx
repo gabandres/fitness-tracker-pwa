@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SheetTextInput } from '@/components/SheetTextInput';
 import {
   type UnitSystem,
   WEIGH_IN_MIN_DATE_KEY,
@@ -15,7 +16,7 @@ import {
 import { BottomSheet, type SheetCloseVia } from '@/components/BottomSheet';
 import { confirm } from '@/components/ConfirmSheet';
 import { useDoneKeyProps } from '@/components/KeyboardBar';
-import { useLocale, useT } from '@/i18n';
+import { type Locale, useLocale, useT } from '@/i18n';
 import { announce } from '@/lib/a11y';
 import { formatDate, formatNumber } from '@/lib/date-format';
 import { useDeferredFocus } from '@/lib/use-deferred-focus';
@@ -47,15 +48,28 @@ import { DayStepper } from './DayStepper';
  *   unchanged value writes nothing.
  * - **An outlier check** (U7). A weight more than `WEIGHT_DELTA_WARN_LB` from
  *   the PREVIOUS weigh-in (not today's — a past-row correction is judged
- *   against its own neighbour) asks once: the note names the gap and Save
- *   becomes "Save anyway". A typo'd 1180 reaching the TDEE regression is the
- *   thing `checkWeightEntry`'s `prev` argument was always for.
+ *   against its own neighbour) is questioned: the note names the gap and the
+ *   button reads "Save anyway" the moment the value is typed. A typo'd 1180
+ *   reaching the TDEE regression is the thing `checkWeightEntry`'s `prev`
+ *   argument was always for. ONE tap, not two (Body re-score, bug 2): it was
+ *   a hidden first tap that only relabelled the button — silently, to
+ *   VoiceOver — while the note already told everyone to "tap Save anyway" on
+ *   a button that said "Save". The visible, spoken note IS the question.
+ * - **Locale prefill** (re-score, bug 8): the field opens on "81,6" in
+ *   Brazil, the way the hero and the keypad write it. Parsing takes either.
  * - **Closes on the local write** (bug 2). `onSave` resolves once the weigh-in
  *   is on disk (`pending-body.ts`), not when Firestore answers, so an offline
  *   save no longer leaves a dead button. A failure to even park stays here.
  * - **Native sheet, guarded** (P1 / U10): `fit` detent on iOS, and a swipe
  *   down with typed digits asks before discarding them.
  */
+/** What the field shows for a stored weight: the display value in the user's
+ *  own decimal mark, ungrouped so it parses straight back ("81,6", never
+ *  "1.081,6"). */
+export function fieldText(lb: number | undefined, unitSystem: UnitSystem, locale: Locale): string {
+  return lb != null ? formatNumber(toDisplayWeight(lb, unitSystem), locale, { useGrouping: false, maximumFractionDigits: 1 }) : '';
+}
+
 export function WeightSheet({
   visible,
   initialDateKey,
@@ -96,12 +110,10 @@ export function WeightSheet({
   const [prefill, setPrefill] = useState('');
   const [busy, setBusy] = useState(false);
   const [saveErr, setSaveErr] = useState(false);
-  const [outlierOk, setOutlierOk] = useState(false);
   const unit = bodyWeightUnit(unitSystem);
   const bounds = weightBoundsFor(unitSystem);
 
-  const shownText = (lb: number | undefined): string =>
-    lb != null ? String(toDisplayWeight(lb, unitSystem)) : '';
+  const shownText = (lb: number | undefined): string => fieldText(lb, unitSystem, locale);
 
   // Seeded once per open, from the instant the sheet opened: a weights
   // snapshot landing while the sheet is up must not overwrite typing (the
@@ -113,19 +125,16 @@ export function WeightSheet({
   });
   useEffect(() => {
     if (!visible) return;
-    const lb = weightsAtOpen.current[initialDateKey];
-    const text = lb != null ? String(toDisplayWeight(lb, unitSystem)) : '';
+    const text = fieldText(weightsAtOpen.current[initialDateKey], unitSystem, locale);
     setDateKey(initialDateKey);
     setValue(initialText ?? text);
     setPrefill(text);
     setBusy(false);
     setSaveErr(false);
-    setOutlierOk(false);
-  }, [visible, initialDateKey, unitSystem, initialText]);
+  }, [visible, initialDateKey, unitSystem, locale, initialText]);
 
   function changeDay(next: string) {
     setDateKey(next);
-    setOutlierOk(false);
     setSaveErr(false);
     // An untouched field follows the day; typed digits stay — they are the
     // person's, and the day is what they are correcting.
@@ -198,10 +207,6 @@ export function WeightSheet({
       onClose();
       return;
     }
-    if (outlier && !outlierOk) {
-      setOutlierOk(true);
-      return;
-    }
     setBusy(true);
     setSaveErr(false);
     try {
@@ -262,10 +267,10 @@ export function WeightSheet({
         testIDPrefix="weight"
       />
       <View style={styles.inputRow}>
-        <TextInput
+        <SheetTextInput
           ref={inputRef}
           style={styles.input}
-          placeholder={String(toDisplayWeight(180, unitSystem))}
+          placeholder={shownText(180)}
           placeholderTextColor={colors.faint}
           // `decimal-pad` (P4): a weigh-in carries a decimal, and this is the
           // keypad with one and nothing else. Water keeps `number-pad`: same
@@ -274,10 +279,7 @@ export function WeightSheet({
           value={value}
           selectTextOnFocus
           {...doneKey}
-          onChangeText={(text) => {
-            setValue(text);
-            setOutlierOk(false);
-          }}
+          onChangeText={setValue}
           accessibilityLabel={t('body.weightInputA11y', { unit: t(unit === 'kg' ? 'body.unitKgLong' : 'body.unitLbLong') })}
           testID="weight-input"
           onSubmitEditing={save}
@@ -306,7 +308,7 @@ export function WeightSheet({
         {busy ? (
           <ActivityIndicator color={colors.onInk} />
         ) : (
-          <Text style={styles.saveText}>{outlier && outlierOk ? t('body.saveAnyway') : t('common.save')}</Text>
+          <Text style={styles.saveText}>{outlier ? t('body.saveAnyway') : t('common.save')}</Text>
         )}
       </TouchableOpacity>
     </BottomSheet>

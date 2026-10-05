@@ -73,13 +73,16 @@ env:
 # (plus searchFoods' own 2.06-2.36s), so this screen legitimately takes seconds
 # even on an iPhone 16 Pro. Anchor on "Quantity", which only the detail has.
 - extendedWaitUntil:
-    visible: '.*Quantity.*'
+    visible:
+      id: 'food-qty-value'
     timeout: 30000
-# '.*Add.*': each serving row merges its label, macros and the Add affordance
-# into ONE accessibility element on iOS, so the bare word is not its own node
-# (same merge as the diary rows — see 11-e2e-log).
+# The serving rows themselves. This was `'.*Add.*'` until 2026-10-04 — but the
+# rows now end in ", Review" (they open the review step rather than adding),
+# and the sheet's own "Add food" TITLE matched the regex, so the assert proved
+# nothing. `portion-0` exists only on the serving detail.
 - extendedWaitUntil:
-    visible: '.*Add.*'
+    visible:
+      id: 'portion-0'
     timeout: 20000
 - takeScreenshot: .maestro/regression/shots/15-search-detail
 # The serving-detail view fills the sheet, so the backdrop is unreachable and

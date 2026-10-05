@@ -38,6 +38,7 @@ import { DEFAULT_LOG_STYLE, isLoggedSet } from './workout';
 import type { ProgressionSuggestion } from './workout-progression';
 import { computeExercisePRs, isWorkingSet, metricForSet } from './workout-progression';
 import { isLoggedCardioBlock } from './cardio';
+import { normalizeClusterGroups } from './cluster-groups';
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -163,12 +164,39 @@ export function exerciseHistory(
 export function exerciseSeries(history: readonly SessionExercise[], style: LogStyle): number[] {
   const pts: number[] = [];
   for (const ex of history) {
-    let metric = 0;
-    for (const s of ex.sets) {
-      if (!isWorkingSet(s)) continue;
-      metric = Math.max(metric, metricForSet(s, style));
-    }
-    if (metric > 0) pts.push(Math.round(metric));
+    const metric = sessionMetric(ex, style);
+    if (metric > 0) pts.push(metric);
+  }
+  return pts.reverse();
+}
+
+/** The best working-set metric of one session's sets, rounded; 0 = none. */
+function sessionMetric(ex: Pick<SessionExercise, 'sets'>, style: LogStyle): number {
+  let metric = 0;
+  for (const s of ex.sets) {
+    if (!isWorkingSet(s)) continue;
+    metric = Math.max(metric, metricForSet(s, style));
+  }
+  return Math.round(metric);
+}
+
+/**
+ * {@link exerciseSeries} with each point's date kept beside it — the x axis of
+ * the chart's audio graph and the session count its spoken summary names.
+ *
+ * Same drop rule, same OLDEST-FIRST order, so `points.map((p) => p.value)` is
+ * exactly `exerciseSeries`. It exists because the bare series cannot be lined
+ * back up with dates once a session has dropped out: index 3 of the series is
+ * not row 3 of the history.
+ */
+export function exerciseSeriesPoints<D>(
+  rows: readonly { date: D; ex: Pick<SessionExercise, 'sets'> }[],
+  style: LogStyle,
+): { date: D; value: number }[] {
+  const pts: { date: D; value: number }[] = [];
+  for (const r of rows) {
+    const value = sessionMetric(r.ex, style);
+    if (value > 0) pts.push({ date: r.date, value });
   }
   return pts.reverse();
 }
@@ -305,6 +333,72 @@ export function moveExercise<E>(exercises: E[], from: number, to: number): E[] {
   const [moved] = next.splice(from, 1);
   next.splice(to, 0, moved);
   return next;
+}
+
+/**
+ * The exercise to open after `from` is finished — the live session's
+ * auto-advance, which Strong and Hevy do and which used to cost a collapse and
+ * a tap here.
+ *
+ * The first unfinished exercise AFTER `from`, else the first one before it (a
+ * lift skipped earlier is still owed), else `null` when every exercise is done.
+ * "Unfinished" is {@link exerciseIsFullyDone}'s negation, so an exercise with no
+ * sets yet counts as unfinished — it is the next thing to fill in.
+ */
+export function nextUnfinishedExercise(
+  exercises: readonly Pick<SessionExercise, 'logStyle' | 'sets'>[],
+  from: number,
+): number | null {
+  for (let i = from + 1; i < exercises.length; i++) {
+    if (!exerciseIsFullyDone(exercises[i])) return i;
+  }
+  for (let i = 0; i < Math.min(from, exercises.length); i++) {
+    if (!exerciseIsFullyDone(exercises[i])) return i;
+  }
+  return null;
+}
+
+/**
+ * One removal from a live session, kept so it can be undone — the Undo on the
+ * "Set removed" / "Exercise removed" toast.
+ *
+ * The SET form carries the exercise's id beside its index: an exercise can be
+ * moved between the delete and the Undo, and a restore by index alone would
+ * then put a bench set into a row.
+ */
+export type SessionRemoval =
+  | { kind: 'exercise'; index: number; exercise: SessionExercise }
+  | { kind: 'set'; exerciseIndex: number; exerciseId: string; setIndex: number; set: WorkoutSet };
+
+/**
+ * Put back what {@link SessionRemoval} took out, purely.
+ *
+ * An exercise goes back at its old index (clamped, so a list that shrank in the
+ * meantime takes it at the end). A set goes back at its old position in the
+ * exercise with the same id — the one at its old index if it still matches,
+ * else the first with that id — and cluster groups are re-derived, because a
+ * restored mini or activation can re-form the cluster it was cut from. When the
+ * exercise is gone altogether there is nowhere to put the set, and the session
+ * comes back unchanged (same reference, so a caller skips the write).
+ */
+export function undoRemoval(session: WorkoutSession, removal: SessionRemoval): WorkoutSession {
+  const list = session.exercises;
+  if (removal.kind === 'exercise') {
+    const at = Math.max(0, Math.min(removal.index, list.length));
+    return { ...session, exercises: [...list.slice(0, at), removal.exercise, ...list.slice(at)] };
+  }
+  const target = list[removal.exerciseIndex]?.exerciseId === removal.exerciseId
+    ? removal.exerciseIndex
+    : list.findIndex((e) => e.exerciseId === removal.exerciseId);
+  if (target < 0) return session;
+  return {
+    ...session,
+    exercises: list.map((e, i) => {
+      if (i !== target) return e;
+      const at = Math.max(0, Math.min(removal.setIndex, e.sets.length));
+      return { ...e, sets: normalizeClusterGroups([...e.sets.slice(0, at), removal.set, ...e.sets.slice(at)]) };
+    }),
+  };
 }
 
 /**

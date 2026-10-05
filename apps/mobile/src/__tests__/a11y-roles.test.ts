@@ -108,7 +108,9 @@ export function findRoleless(source: string, file: string): Offender[] {
  * `accessibilityLabelledBy` (Android) does not count for the same reason.
  */
 export function findUnlabelledInputs(source: string, file: string): Offender[] {
-  return openingTags(source, ['TextInput'])
+  // `SheetTextInput` is the same field inside a native sheet (2026-10-04) —
+  // without it here every sheet's inputs would silently leave this check.
+  return openingTags(source, ['TextInput', 'SheetTextInput'])
     .filter(
       (tag) =>
         !tag.attrs.includes('accessibilityLabel=') &&

@@ -82,12 +82,32 @@ import Foundation
 
   @available(iOS 16.2, *)
   enum RestActivityStore {
-    /// The one live rest, if any. There is never more than one by
+    /// The one live rest, if any — running OR stale ("Rest over" is still
+    /// on screen and still ours to retarget). There is never more than one by
     /// construction (`start` ends extras), but `first` keeps a stray from
     /// becoming a crash.
+    ///
+    /// An `.ended` / `.dismissed` Activity is never returned: `update` on one
+    /// is a silent no-op, so treating it as "live" made `start` retarget a
+    /// corpse and show nothing (the old fallback to `activities.first`).
     static var current: Activity<RestActivityAttributes>? {
       Activity<RestActivityAttributes>.activities.first { $0.activityState == .active }
-        ?? Activity<RestActivityAttributes>.activities.first
+        ?? Activity<RestActivityAttributes>.activities.first { $0.activityState == .stale }
+    }
+
+    /// Move a rest's deadline, keeping the progress bar honest.
+    ///
+    /// A deadline already in the past means the face is stale ("Rest over"):
+    /// the old `startedAt` is then minutes behind, and keeping it would draw
+    /// the new 30 s as the last sliver of a long bar — a bar that restarts
+    /// almost empty. So a retarget of a finished rest is a NEW rest from now.
+    static func retarget(
+      _ state: RestActivityAttributes.ContentState, to endsAt: Date, now: Date = Date()
+    ) -> RestActivityAttributes.ContentState {
+      var next = state
+      if next.endsAt < now { next.startedAt = now }
+      next.endsAt = endsAt
+      return next
     }
 
     static func content(_ state: RestActivityAttributes.ContentState)
@@ -198,15 +218,35 @@ public final class IgniaRestActivity: NSObject {
         return nil
       }
 
-      Task { await RestActivityStore.endAll() }
+      // A replacement (none live, or a locale change). The Activities to end
+      // are SNAPSHOTTED before the request, and only those are ended.
+      //
+      // This line was `Task { await RestActivityStore.endAll() }` ahead of the
+      // request, and `endAll` reads `Activity.activities` when the Task RUNS —
+      // after `request` has already returned on this thread — so it could end
+      // the Activity just requested: a ticked set, and an empty Lock Screen.
+      // `Activity.request` is synchronous, so ordering by snapshot is exact
+      // without making the bridge async.
+      let superseded = Activity<RestActivityAttributes>.activities
       do {
-        _ = try Activity.request(
+        let fresh = try Activity.request(
           attributes: RestActivityAttributes(locale: locale),
           content: RestActivityStore.content(state),
           // Never a push token — every update is local. See the header.
           pushType: nil)
+        Task {
+          for old in superseded where old.id != fresh.id {
+            await old.end(nil, dismissalPolicy: .immediate)
+          }
+        }
         return nil
       } catch {
+        // The request failed (rate limit, Activities switched off mid-call):
+        // a superseded face would now show a deadline that is no longer true,
+        // so it goes too. No timer beats a wrong one.
+        Task {
+          for old in superseded { await old.end(nil, dismissalPolicy: .immediate) }
+        }
         return String(describing: error) as NSString
       }
     #else
@@ -220,8 +260,7 @@ public final class IgniaRestActivity: NSObject {
     #if canImport(ActivityKit)
       guard #available(iOS 16.2, *) else { return "unsupported" as NSString }
       guard let live = RestActivityStore.current else { return "stopped" as NSString }
-      var state = live.content.state
-      state.endsAt = endsAt as Date
+      let state = RestActivityStore.retarget(live.content.state, to: endsAt as Date)
       Task { await live.update(RestActivityStore.content(state)) }
       return nil
     #else
@@ -229,7 +268,12 @@ public final class IgniaRestActivity: NSObject {
     #endif
   }
 
-  /// Remove the countdown. Safe with none running.
+  /// Remove EVERY rest countdown. Safe with none running.
+  ///
+  /// It ends all of them, not "the current one", so it doubles as the orphan
+  /// sweep: a JS reload (OTA, crash, dev refresh) forgets the rest it armed,
+  /// and `src/lib/rest-timer-activity.ts` `end()` is a no-op without one —
+  /// JS calls `endAllRestActivities()` on start when no rest is running.
   @objc(endActivity)
   public static func end() -> NSString? {
     #if canImport(ActivityKit)

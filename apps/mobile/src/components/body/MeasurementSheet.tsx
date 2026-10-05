@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { SheetTextInput } from '@/components/SheetTextInput';
 import {
   BODY_FAT_PCT_BOUNDS,
   type BodyFatMethod,
@@ -17,7 +18,7 @@ import {
 import { BottomSheet, type SheetCloseVia } from '@/components/BottomSheet';
 import { confirm } from '@/components/ConfirmSheet';
 import { KeyboardBar, useKeyboardBarProps } from '@/components/KeyboardBar';
-import { type I18nKey, useLocale, useT } from '@/i18n';
+import { type I18nKey, type Locale, useLocale, useT } from '@/i18n';
 import { announce } from '@/lib/a11y';
 import { formatNumber } from '@/lib/date-format';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
@@ -32,6 +33,12 @@ export const MEASURE_FIELDS: { key: MeasureKey; labelKey: I18nKey }[] = [
   { key: 'chest', labelKey: 'measure.chest' },
   { key: 'bicep', labelKey: 'measure.bicep' },
 ];
+
+/** A stored number as the field shows it — the locale's decimal mark, no
+ *  grouping, at most one decimal. */
+function fieldNumber(n: number, locale: Locale): string {
+  return formatNumber(n, locale, { useGrouping: false, maximumFractionDigits: 1 });
+}
 
 /** Noon of a date key — a measurement is "on Sep 28", not at an instant, and
  *  noon cannot drift across midnight under a DST change. */
@@ -108,16 +115,18 @@ export function MeasurementSheet({
     // Prefill from the row being edited so the sheet shows what is already
     // stored — an edit form that opens blank reads as "start over", and
     // saving it would wipe every field the user didn't retype.
+    // In the user's decimal mark (Body re-score, bug 8): "84,5" in Brazil,
+    // like the rows and the keypad. Ungrouped so it parses straight back.
     const next = initial
       ? MEASURE_FIELDS.reduce<Record<string, string>>((acc, f) => {
           const v = initial[f.key];
-          if (v != null) acc[f.key] = String(toDisplayMeasure(v, unitSystem));
+          if (v != null) acc[f.key] = fieldNumber(toDisplayMeasure(v, unitSystem), locale);
           return acc;
         }, {})
       : {};
     setVals(next);
     setSeed(next);
-    setBodyFat(initial?.bodyFatPct != null ? String(initial.bodyFatPct) : '');
+    setBodyFat(initial?.bodyFatPct != null ? fieldNumber(initial.bodyFatPct, locale) : '');
     setBfMethod(initial?.bodyFatMethod ?? null);
     setDateKey(initial ? dayKeyAt(initial.date, MIDNIGHT) : todayKey);
     setBusy(false);
@@ -130,7 +139,7 @@ export function MeasurementSheet({
       return () => clearTimeout(timer);
     }
     return undefined;
-  }, [visible, initial, unitSystem, todayKey]);
+  }, [visible, initial, unitSystem, todayKey, locale]);
 
   /** The user's unit in, inches out — storage is always inches. */
   function parse(s: string): number | undefined {
@@ -177,9 +186,12 @@ export function MeasurementSheet({
               unit: measureUnit(unitSystem),
             })
           : null;
+  // The method chips count too (re-score, bug 9): a swipe-down dropped a
+  // changed method without asking.
   const dirty =
     MEASURE_FIELDS.some((f) => (vals[f.key] ?? '') !== (seed[f.key] ?? '')) ||
-    bodyFat !== (initial?.bodyFatPct != null ? String(initial.bodyFatPct) : '') ||
+    bodyFat !== (initial?.bodyFatPct != null ? fieldNumber(initial.bodyFatPct, locale) : '') ||
+    bfMethod !== (initial?.bodyFatMethod ?? null) ||
     dateKey !== initialKey;
 
   // Spoken when it appears (A9) — the hint replaces the resting instructions,
@@ -268,7 +280,7 @@ export function MeasurementSheet({
         <View style={styles.bfBlock} testID="measure-bodyfat-block">
           <Text style={styles.fieldLabel}>{t('measure.bodyFat')}</Text>
           <View style={styles.bfRow}>
-            <TextInput
+            <SheetTextInput
               ref={(r) => {
                 refs.current.bodyFat = r;
               }}
@@ -407,7 +419,7 @@ function MeasureField({
   return (
     <View style={styles.measureField}>
       <Text style={styles.fieldLabel}>{label}</Text>
-      <TextInput
+      <SheetTextInput
         ref={inputRef}
         // NOT a `flex: 1` input: the parent is a column with auto height, so
         // flex:1 resolves to flexBasis:0 on the vertical axis and collapses the

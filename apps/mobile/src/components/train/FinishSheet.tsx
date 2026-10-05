@@ -1,6 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useEffect, useMemo, useState } from 'react';
-import { ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import Animated from 'react-native-reanimated';
+import { SheetTextInput } from '@/components/SheetTextInput';
 import {
   type ActivationFinding,
   bodyWeightUnit,
@@ -21,6 +23,7 @@ import { useT } from '@/i18n';
 import { announce } from '@/lib/a11y';
 import { isOffline } from '@/lib/connectivity';
 import * as haptics from '@/lib/haptics';
+import { enterUp, usePulse } from '@/lib/motion';
 import { recordPositiveMoment } from '@/lib/reviewPrompt';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { useUnitSystem } from '@/lib/use-unit-system';
@@ -94,6 +97,25 @@ export function FinishSheet({
     : null;
   const typed = bodyweight.trim() !== '' || sleep.trim() !== '';
 
+  // A record is the best thing a workout can end on, and it was one trophy
+  // line among the stats (Train re-score, delight). It now leads the sheet: a
+  // heading, a trophy that bounces once (skipped under reduce motion — the
+  // haptic carries it), a success haptic. Once per opening.
+  const prCount = summary.prs.length;
+  const [trophyPulse, triggerTrophy] = usePulse(1.3);
+  const celebrated = useRef(false);
+  useEffect(() => {
+    if (!visible) {
+      celebrated.current = false;
+      return;
+    }
+    if (prCount > 0 && !celebrated.current) {
+      celebrated.current = true;
+      triggerTrophy();
+      haptics.success();
+    }
+  }, [visible, prCount, triggerTrophy]);
+
   async function finish() {
     if (busy) return;
     // Same gate the Body tab applies (`checkWeightEntry`): this sheet mirrors
@@ -154,6 +176,17 @@ export function FinishSheet({
         contentContainerStyle={styles.finishScroll}
       >
         <Text style={styles.sheetTitle} accessibilityRole="header">{t('train.finishTitle')}</Text>
+
+        {prCount > 0 ? (
+          <Animated.View entering={enterUp(0)} style={styles.prHero} testID="finish-pr-hero">
+            <Animated.View style={trophyPulse}>
+              <Ionicons name="trophy" size={34} color={colors.accent} />
+            </Animated.View>
+            <Text style={styles.prHeroText} accessibilityRole="header">
+              {prCount === 1 ? t('train.prHeadOne') : t('train.prHeadMany', { n: prCount })}
+            </Text>
+          </Animated.View>
+        ) : null}
 
         <View style={styles.summaryGrid} testID="finish-summary">
           <View style={styles.summaryTile} accessible accessibilityLabel={`${t('train.summaryTime')}: ${t('train.summaryMinutes', { n: summary.durationMin })}`}>
@@ -222,7 +255,7 @@ export function FinishSheet({
                 <Text style={styles.fieldLabel}>
                   {t('train.bodyweight', { unit: bodyWeightUnit(unitSystem) })}
                 </Text>
-                <TextInput
+                <SheetTextInput
                   style={styles.input}
                   placeholder="—"
                   placeholderTextColor={colors.faint}
@@ -246,7 +279,7 @@ export function FinishSheet({
               </View>
               <View style={styles.finishField}>
                 <Text style={styles.fieldLabel}>{t('train.sleepH')}</Text>
-                <TextInput
+                <SheetTextInput
                   style={styles.input}
                   placeholder="—"
                   placeholderTextColor={colors.faint}
@@ -303,10 +336,13 @@ export function TrainFinishSheet({
   train,
   visible,
   onClose,
+  onShare,
 }: {
   train: Pick<TrainState, 'active' | 'editingExisting' | 'templates' | 'recentSessions' | 'finishWorkout'>;
   visible: boolean;
   onClose: () => void;
+  /** Share the workout just finished — offered on the "Workout saved" receipt. */
+  onShare?: (session: WorkoutSession) => void;
 }) {
   const t = useT();
   const live = train.active && !train.editingExisting ? train.active : null;
@@ -353,7 +389,15 @@ export function TrainFinishSheet({
         haptics.success();
         // A finish recorded offline IS saved — on this phone, until the
         // signal returns — and the receipt says it in those words.
-        showToast(isOffline() ? t('train.savedOnPhone') : t('train.workoutSaved'));
+        // Share rides on the receipt — the moment a finished workout is worth
+        // showing someone, and the one place it costs nothing to offer.
+        const finished = session;
+        showToast(
+          isOffline() ? t('train.savedOnPhone') : t('train.workoutSaved'),
+          onShare
+            ? { action: { label: t('train.share'), onPress: () => onShare(finished) }, testID: 'train-toast' }
+            : undefined,
+        );
         // Finishing a workout is the app's clearest "that went well" beat —
         // the best place to spend one of iOS's few rating requests.
         // Fire-and-forget; it self-throttles and no-ops until the user has

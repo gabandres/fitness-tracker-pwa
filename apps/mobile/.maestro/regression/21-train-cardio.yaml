@@ -83,14 +83,15 @@ appId: fit.ignia.app
       # and a 100%-visible + centred target scrolls forever. Measured
       # 2026-08-24 — the scroll ran its full 30s against a button that was on
       # screen.
-      - scrollUntilVisible:
-          element:
-            id: 'discard-workout'
-          direction: DOWN
-          timeout: 30000
-          visibilityPercentage: 40
+      # Discard lives in the sticky session header's ⋯ menu since 2026-10-04
+      # (Train overhaul) — no longer a footer button to scroll to — and asks
+      # to confirm. The header is always on screen, so no scroll is needed.
       - tapOn:
-          id: 'discard-workout'
+          id: 'session-menu'
+      - tapOn:
+          id: 'session-menu-discard'
+      - tapOn:
+          id: 'confirm-go'
       - extendedWaitUntil:
           visible:
             id: 'start-workout'
@@ -180,14 +181,15 @@ appId: fit.ignia.app
 - assertVisible: '32:00'
 
 # ── 5. Tail: discard, leaving no state ────────────────────────────
-- scrollUntilVisible:
-    element:
-      id: 'discard-workout'
-    direction: DOWN
-    timeout: 30000
-    visibilityPercentage: 40
+# Discard lives in the sticky session header's ⋯ menu since 2026-10-04
+# (Train overhaul) — no longer a footer button to scroll to — and asks
+# to confirm. The header is always on screen, so no scroll is needed.
 - tapOn:
-    id: 'discard-workout'
+    id: 'session-menu'
+- tapOn:
+    id: 'session-menu-discard'
+- tapOn:
+    id: 'confirm-go'
 - extendedWaitUntil:
     visible:
       id: 'start-workout'

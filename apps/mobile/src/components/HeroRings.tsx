@@ -1,5 +1,14 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEffect, useRef, useState } from 'react';
-import { Animated as RNAnimated, Easing as RNEasing, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import {
+  Animated as RNAnimated,
+  Easing as RNEasing,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import Animated, {
   Easing,
@@ -14,7 +23,7 @@ import { useLocale, useT } from '@/i18n';
 import { plural } from '@/i18n/grammar';
 import { formatNumber } from '@/lib/date-format';
 import * as haptics from '@/lib/haptics';
-import { CountUpText } from '@/lib/motion';
+import { CountUpText, PressScale } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, motion, radius, space, type } from '@/theme';
 
@@ -55,6 +64,40 @@ function withAlpha(hex: string, a: number): string {
  */
 const TRACK_ALPHA = 0.22;
 
+/**
+ * A ring change smaller than this (a fraction of the whole ring) jumps instead
+ * of sweeping. The sweep is core Animated on the JS thread (see `Ring`), two
+ * rings for ~600 ms after every add, and it ran while the add sheet was still
+ * dismissing — for a 30 kcal coffee that moved the arc by a hair nobody could
+ * see (Today re-score, Performance). A change you can see still sweeps.
+ */
+export const SWEEP_MIN_DELTA = 0.02;
+
+/** Whether moving a ring from `prev` to `next` is worth a sweep. The first
+ *  value (mount, `prev` null) always sweeps — that is the hero's entrance.
+ *  Exported for test. */
+export function sweeps(prev: number | null, next: number): boolean {
+  return prev === null || Math.abs(next - prev) >= SWEEP_MIN_DELTA;
+}
+
+/** How close to the calorie target counts as "landed": ±5%. */
+export const CALORIE_BAND = 0.05;
+
+/**
+ * Whether the calorie ring just came INTO the band around its target — the
+ * outer ring's flare (Today re-score, Delight). Only the crossing: a day that
+ * mounts already inside the band does not flare, and neither does a step
+ * that stays inside it. From either side, deliberately — a correction down
+ * into the band is the same landing as an add up into it, so the flare marks
+ * arriving, not eating (UX_AUDIT "Adherence-neutral colors"). No target, no
+ * band. Exported for test.
+ */
+export function enteredCalorieBand(prev: number | null, next: number, target: number): boolean {
+  if (prev === null || !(target > 0)) return false;
+  const inBand = (kcal: number) => Math.abs(kcal / target - 1) <= CALORIE_BAND;
+  return !inBand(prev) && inBand(next);
+}
+
 interface RingProps {
   r: number;
   stroke: number;
@@ -90,8 +133,13 @@ function Ring({ r, stroke, trackColor, color, progress, delay }: RingProps) {
   // A lazy `useState`, not `useRef(...).current`: reading a ref during render
   // made the React Compiler skip this component and, with it, the hero.
   const [anim] = useState(() => new RNAnimated.Value(0));
+  // The last value this ring settled toward, for `sweeps`. Read and written in
+  // the effect only — never during render (React Compiler).
+  const last = useRef<number | null>(null);
   useEffect(() => {
-    if (reduce) {
+    const sweep = sweeps(last.current, p);
+    last.current = p;
+    if (reduce || !sweep) {
       anim.setValue(p);
       return;
     }
@@ -141,6 +189,12 @@ interface Props {
    *  null once measured mode is open. Takes the same footer slot as
    *  `maintenance`; the two are never both non-null (core guarantees it). */
   progress?: MeasurementProgress | null;
+  /** A tap on the rings — Today opens the numbers glossary. */
+  onPress?: () => void;
+  /** Share this progress; draws the share button in the panel's corner. */
+  onShare?: () => void;
+  /** A share is being captured — the button is busy. */
+  sharing?: boolean;
 }
 
 /**
@@ -150,7 +204,19 @@ interface Props {
  * icon's sweep: outer first, inner ~180ms behind. Carbs/fat have no targets
  * in the domain, so they render as value chips, never progress.
  */
-export function HeroRings({ calConsumed, calTarget, protConsumed, protTarget, carbs, fat, maintenance, progress = null }: Props) {
+export function HeroRings({
+  calConsumed,
+  calTarget,
+  protConsumed,
+  protTarget,
+  carbs,
+  fat,
+  maintenance,
+  progress = null,
+  onPress,
+  onShare,
+  sharing = false,
+}: Props) {
   const t = useT();
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
@@ -191,6 +257,25 @@ export function HeroRings({ calConsumed, calTarget, protConsumed, protTarget, ca
   }, [protConsumed, protTarget, reduce, flare]);
   const flareProps = useAnimatedProps(() => ({ opacity: flare.value * 0.35 }));
 
+  // The calorie ring's own, softer flare: on coming into ±5% of the target
+  // (`enteredCalorieBand`). It used to be only the protein ring that marked
+  // anything. No haptic of its own — the save that caused it already played
+  // one, and "landed near the number" is not a moment worth a second buzz.
+  const calFlare = useSharedValue(0);
+  const prevCal = useRef<number | null>(null);
+  useEffect(() => {
+    if (enteredCalorieBand(prevCal.current, calConsumed, calTarget) && !reduce) {
+      calFlare.set(
+        withSequence(
+          withTiming(1, { duration: motion.dur.base, easing: Easing.out(Easing.cubic) }),
+          withTiming(0, { duration: motion.dur.slow * 2, easing: Easing.out(Easing.cubic) }),
+        ),
+      );
+    }
+    prevCal.current = calConsumed;
+  }, [calConsumed, calTarget, reduce, calFlare]);
+  const calFlareProps = useAnimatedProps(() => ({ opacity: calFlare.value * 0.25 }));
+
   const sentence = [
     t(over ? 'a11y.heroOver' : 'a11y.heroLeft', {
       kcal: formatNumber(calConsumed, locale),
@@ -213,17 +298,35 @@ export function HeroRings({ calConsumed, calTarget, protConsumed, protTarget, ca
           only "1,200 of 2,000 kcal" and leave the subtraction to the listener.
           Carbs and fat ride on the end, so the legend and the chips below can
           be hidden: they said the same numbers again, one swipe at a time. */}
-      <View
+      {/* A button when Today gives it somewhere to go: tapping the rings
+          explains them (Today re-score — on Apple Fitness the rings drill in;
+          here they did nothing). Same node, same sentence, plus a hint. */}
+      <PressScale
         style={styles.ringWrap}
+        scaleTo={0.98}
+        ripple={false}
+        onPress={onPress}
         accessible
+        accessibilityRole={onPress ? 'button' : undefined}
         accessibilityLabel={sentence}
+        accessibilityHint={onPress ? t('today.heroHint') : undefined}
         importantForAccessibility="no-hide-descendants"
+        testID="hero-rings-open"
       >
         <Svg width={SIZE} height={SIZE}>
           {/* The ring keeps its colour past the target. Red there was a verdict
               (UX_AUDIT "Adherence-neutral colors"): eating over a number is
               information, not a failure, and the "kcal over" caption in the
               centre already states the fact without grading it. */}
+          <AnimatedCircle
+            cx={SIZE / 2}
+            cy={SIZE / 2}
+            r={OUTER_R}
+            stroke={colors.ring}
+            strokeWidth={OUTER_STROKE + 10}
+            fill="none"
+            animatedProps={calFlareProps}
+          />
           <Ring
             r={OUTER_R}
             stroke={OUTER_STROKE}
@@ -274,7 +377,28 @@ export function HeroRings({ calConsumed, calTarget, protConsumed, protTarget, ca
             </Text>
           </View>
         </View>
-      </View>
+      </PressScale>
+
+      {/* Share sits on the thing it shares (Today re-score): it was a third
+          header icon, which held all three to 38dp. The panel's corner is
+          clear of the outer ring at every width — the ring is a 236dp circle
+          centred in the panel, and even on a 320dp phone its arc (flare included)
+          stays ~5dp clear of this button's nearest corner. */}
+      {onShare ? (
+        <TouchableOpacity
+          onPress={onShare}
+          disabled={sharing}
+          style={styles.shareBtn}
+          testID="share-progress"
+          accessibilityRole="button"
+          accessibilityLabel={t('today.shareA11y')}
+          accessibilityState={{ busy: sharing }}
+          accessibilityShowsLargeContentViewer
+          accessibilityLargeContentTitle={t('today.shareA11y')}
+        >
+          <Ionicons name="share-outline" size={20} color={colors.heroMuted} />
+        </TouchableOpacity>
+      ) : null}
 
       {/* Hidden from the reader — the ring's sentence above already says all
           of it (review A5). Wraps rather than overflowing the panel, and
@@ -514,6 +638,17 @@ function createStyles({ colors, shadow, scheme }: Theme) {
       ...(scheme === 'dark' ? { borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.06)' } : null),
     },
     ringWrap: { width: SIZE, height: SIZE },
+    // 44pt square in the panel's top-right corner, over the hero's own
+    // padding — see the render for why the ring never reaches it.
+    shareBtn: {
+      position: 'absolute',
+      top: space.xs,
+      right: space.xs,
+      width: 44,
+      height: 44,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     center: {
       position: 'absolute',
       top: 0,

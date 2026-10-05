@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { type AccessibilityActionEvent, StyleSheet, Text, View } from 'react-native';
 import { addDays, calendarDateKey, parseYmd } from '@macrolog/core';
 import { useLocale, useT } from '@/i18n';
 import { formatDate } from '@/lib/date-format';
@@ -23,6 +23,11 @@ import { BodyIcon } from './BodyIcon';
  * weigh-in drags the regression's x range — `isStorableWeighInDate`) and at
  * `minKey`. The 44 pt targets are the floor FastSheet's own 28 pt steppers
  * missed (A7).
+ *
+ * The day itself is ADJUSTABLE to a screen reader (Body re-score): swipe up
+ * for a later day, down for an earlier one, the way VoiceOver steps a picker
+ * — rather than three separate stops (back, an inert label, forward) to move
+ * one day. The two buttons stay for everyone else and for Switch Control.
  */
 export function DayStepper({
   dateKey,
@@ -50,6 +55,11 @@ export function DayStepper({
     onChange(calendarDateKey(addDays(parseYmd(dateKey), delta)));
   }
 
+  function onAccessibilityAction(e: AccessibilityActionEvent) {
+    if (e.nativeEvent.actionName === 'increment' && canForward) step(1);
+    else if (e.nativeEvent.actionName === 'decrement' && canBack) step(-1);
+  }
+
   return (
     <View style={styles.row}>
       <PressScale
@@ -66,8 +76,14 @@ export function DayStepper({
       </PressScale>
       <Text
         style={styles.text}
-        accessibilityRole="text"
-        accessibilityLabel={t('body.dayA11y', { day: label })}
+        accessible
+        accessibilityRole="adjustable"
+        // "Date, Today, adjustable" — the day is the VALUE, so the label is
+        // only what it is a value of (it read "Day: Today" before it moved).
+        accessibilityLabel={t('entry.date')}
+        accessibilityValue={{ text: label }}
+        accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+        onAccessibilityAction={onAccessibilityAction}
         testID={`${testIDPrefix}-day`}
       >
         {label}

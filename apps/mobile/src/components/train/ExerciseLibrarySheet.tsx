@@ -1,4 +1,5 @@
-import { ScrollView, Text, TextInput, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
+import { SheetTextInput } from '@/components/SheetTextInput';
 import { useEffect, useState } from 'react';
 import type { SeedExercise } from '@macrolog/core';
 import type { Exercise } from '@/lib/workout';
@@ -81,7 +82,7 @@ export function ExerciseLibrarySheet({
     <BottomSheet native detents={[0.6, 1]} visible={visible} onClose={onClose} contentStyle={styles.sheetBody} maxHeight="80%">
       <View style={styles.sheetStack}>
       <Text style={styles.sheetTitle} accessibilityRole="header">{t('train.libraryTitle')}</Text>
-      <TextInput
+      <SheetTextInput
         ref={inputRef}
         style={styles.input}
         placeholder={t('train.librarySearchPh')}

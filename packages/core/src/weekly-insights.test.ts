@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DaySummary } from './day-summary';
-import { ON_TARGET_BAND_KCAL, balanceVerdict, computeWeeklyInsights } from './weekly-insights';
+import { ON_TARGET_BAND_KCAL, balanceVerdict, computeWeeklyInsights, targetStreak } from './weekly-insights';
 
 function day(dateKey: string, totalCalories: number, mealCount = 1): DaySummary {
   return {
@@ -75,5 +75,22 @@ describe('balanceVerdict', () => {
 
   it('degrades a non-finite input to "on" rather than printing NaN', () => {
     expect(balanceVerdict(Number.NaN)).toEqual({ kind: 'on', kcal: 0 });
+  });
+});
+
+describe('targetStreak', () => {
+  it('counts logged days at or under target back from the newest', () => {
+    const days = [day('2026-06-01', 2600), day('2026-06-02', 1900), day('2026-06-03', 2000 + ON_TARGET_BAND_KCAL), day('2026-06-04', 1700)];
+    expect(targetStreak(days, 2000)).toBe(3);
+  });
+
+  it('an unlogged day ends the run — it is not counted either way', () => {
+    const days = [day('2026-06-01', 1800), day('2026-06-02', 0, 0), day('2026-06-03', 1800)];
+    expect(targetStreak(days, 2000)).toBe(1);
+  });
+
+  it('is zero after an over day, and without a target', () => {
+    expect(targetStreak([day('2026-06-01', 1800), day('2026-06-02', 2400)], 2000)).toBe(0);
+    expect(targetStreak([day('2026-06-01', 1800)], 0)).toBe(0);
   });
 });

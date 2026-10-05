@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react';
 import {
-  ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+import { SheetTextInput } from '@/components/SheetTextInput';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import {
   type LogEntry, type ParsedFoodItem,
@@ -264,7 +270,7 @@ export function MealText({ forDate, onAddMany, onCancel, seedText, onDirtyChange
           <Text style={styles.back}>{t('common.cancel')}</Text>
         </TouchableOpacity>
       </View>
-      <TextInput
+      <SheetTextInput
         style={styles.input}
         placeholder={t('mealText.placeholder')}
         placeholderTextColor={colors.faint}
@@ -302,7 +308,7 @@ function MacroField({ label, food, value, onChange }: { label: string; food: str
   return (
     <View style={styles.macroField}>
       <Text style={styles.macroLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{label}</Text>
-      <TextInput
+      <SheetTextInput
         style={styles.macroInput}
         value={value}
         onChangeText={onChange}

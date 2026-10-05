@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffectThroughSheets } from '@/hooks/useFocusEffectThroughSheets';
 import { trackSubs } from '@/lib/sub-debug';
 
 type Unsub = () => void;
@@ -244,7 +244,8 @@ export function useLedgerFeed<K extends string>(opts: LedgerFeedOptions<K>): Led
 
   // Both gates are wired unconditionally — hooks cannot be called by branch —
   // and the one that does not match returns without opening anything.
-  useFocusEffect(useCallback(() => (gate === 'focus' ? open() : undefined), [gate, open]));
+  // Through sheets: a native sheet over the screen is not a departure (S20).
+  useFocusEffectThroughSheets(useCallback(() => (gate === 'focus' ? open() : undefined), [gate, open]));
   // Opening a listener IS the "subscribe to an external system" case the rule
   // below exempts; the only synchronous setState in `open` is `retryOnOpen`.
   // eslint-disable-next-line react-hooks/set-state-in-effect

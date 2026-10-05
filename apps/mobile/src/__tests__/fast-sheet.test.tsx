@@ -175,7 +175,10 @@ describe('FastSheet — you type the time', () => {
     await type(screen, 'fast-start-hour', '7');
     expect(screen.getByTestId('fast-start-hour').props.value).toBe('7');
     await type(screen, 'fast-start-hour', '70');
-    expect(screen.getByTestId('fast-start-hour').props.value).toBe('7');
+    // Waited for, not read at once: the field is a `SheetTextInput`, which shows
+    // the keystroke in the same render and reverts a REFUSED one a tick later,
+    // once the native sheet's publish has had its chance to arrive.
+    await waitFor(() => expect(screen.getByTestId('fast-start-hour').props.value).toBe('7'));
     // 12 is in range at both one digit and two, so it still types normally.
     await type(screen, 'fast-start-hour', '1');
     await type(screen, 'fast-start-hour', '12');

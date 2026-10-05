@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ComponentProps } from 'react';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Tabs, useRouter, useSegments } from 'expo-router';
-import { StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import { announce } from '@/lib/a11y';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ConfirmHost } from '@/components/ConfirmSheet';
@@ -37,6 +37,11 @@ const RIGHT_TABS = ['trends', 'body'];
  *  raised + share 360dp, and past ~1.2× "Entrenar"/"Tendências" collide.
  *  Each tab offers the large-content viewer instead (review A2). */
 const TAB_LABEL_MAX_SCALE = 1.2;
+
+/** Material 3's active indicator — the pill behind the focused tab's icon —
+ *  on Android only. iOS's tab bar marks the focused tab by tint and a filled
+ *  glyph alone, which this bar already does on both. */
+const TAB_INDICATOR = Platform.OS === 'android';
 
 /**
  * expo-router 57 vendored react-navigation and dropped its `@react-navigation/*`
@@ -101,9 +106,13 @@ function AppTabBar({ state, descriptors, navigation }: AppTabBarProps) {
           if (focused && !event.defaultPrevented) announce(t('a11y.scrolledToTop', { screen: label }));
         }}
       >
-        <View>
-          <Ionicons name={focused ? icons.filled : icons.outline} size={23} color={focused ? colors.ink : colors.faint} />
-          {inProgress ? <View style={styles.tabDot} testID="tab-train-active" /> : null}
+        {/* The pill is drawn behind the icon on Android (`TAB_INDICATOR`,
+            Today re-score, Platform); the dot stays pinned to the glyph. */}
+        <View style={TAB_INDICATOR ? [styles.indicator, focused && styles.indicatorOn] : undefined}>
+          <View>
+            <Ionicons name={focused ? icons.filled : icons.outline} size={23} color={focused ? colors.ink : colors.faint} />
+            {inProgress ? <View style={styles.tabDot} testID="tab-train-active" /> : null}
+          </View>
         </View>
         <Text
           style={[styles.tabLabel, { color: focused ? colors.ink : colors.faint }]}
@@ -301,6 +310,11 @@ function createStyles({ colors }: Theme) {
     pillSlot: { paddingBottom: 30 },
     tab: { flex: 1, alignItems: 'center', gap: 2, paddingVertical: 2 },
     tabLabel: { fontSize: font.tiny, fontWeight: '600' },
+    // 56×30 rather than M3's 64×32: a cell is ~71dp wide at 360dp, and the
+    // pill must not touch its neighbour's. `line` is the palette's quiet fill
+    // that still reads on the canvas in both themes.
+    indicator: { width: 56, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+    indicatorOn: { backgroundColor: colors.line },
     // Sits on the icon, not beside the label: the label is already the widest
     // thing in the cell and a dot after it reads as punctuation.
     tabDot: {

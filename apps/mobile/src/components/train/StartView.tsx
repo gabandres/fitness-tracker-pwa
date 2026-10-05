@@ -24,16 +24,19 @@ import { type I18nKey, useLocale, useT } from '@/i18n';
 import { formatDate } from '@/lib/date-format';
 import * as haptics from '@/lib/haptics';
 import { CountUpText, enterUp, type usePulse } from '@/lib/motion';
+import { showToast } from '@/components/Toast';
 import { captureError } from '@/lib/sentry';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { useUnitSystem } from '@/lib/use-unit-system';
 import type { Exercise, WorkoutSession, WorkoutTemplate } from '@/lib/workout';
 import { ExerciseDetailSheet } from './ExerciseDetailSheet';
+import { SessionDetailSheet } from './SessionDetailSheet';
 import { StarterTemplatesSheet } from './StarterTemplatesSheet';
 import { logStyleKey } from './train-shared';
 import {
   recommendationFor,
   sessionSummary,
+  setLine,
   templateExerciseNames,
   templateSummary,
 } from './train-summary';
@@ -59,10 +62,13 @@ export function StartView({
   train,
   heroPulse,
   onRetry,
+  onShare,
 }: {
   train: TrainState;
   heroPulse: ReturnType<typeof usePulse>[0];
   onRetry: () => void;
+  /** Share one logged workout as an image (the screen owns the capture). */
+  onShare: (s: WorkoutSession) => void;
 }) {
   const t = useT();
   const locale = useLocale();
@@ -75,6 +81,14 @@ export function StartView({
   const [startersOpen, setStartersOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  // The read-only detail of one logged workout. The session is KEPT after the
+  // sheet closes so its content does not blank mid-animation.
+  const [detail, setDetail] = useState<WorkoutSession | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const openDetail = (s: WorkoutSession) => {
+    setDetail(s);
+    setDetailOpen(true);
+  };
   // The cluster audit is a six-chip block that used to sit ABOVE the primary
   // action. Collapsed to its one-line verdict, with the chips one tap away.
   const [auditOpen, setAuditOpen] = useState(false);
@@ -141,14 +155,19 @@ export function StartView({
           <Text style={[styles.error, { flex: 1 }]}>
             {train.errorKind === 'save' ? t('train.workoutSaveErr') : t('train.loadErr')}
           </Text>
+          {/* A save error here has nothing to retry — no workout is open, and
+              the write that failed (a template, a delete) is not replayable
+              from this screen — so it says Dismiss, which is what it does
+              (Train re-score bug 7). A load error really is retried. */}
           <TouchableOpacity
             onPress={train.errorKind === 'save' ? train.clearError : onRetry}
             style={styles.errorBtn}
             accessibilityRole="button"
-            accessibilityLabel={t('common.retry')}
             testID="retry"
           >
-            <Text style={styles.discardText}>{t('common.retry')}</Text>
+            <Text style={styles.discardText}>
+              {train.errorKind === 'save' ? t('common.dismiss') : t('common.retry')}
+            </Text>
           </TouchableOpacity>
         </View>
       ) : null}
@@ -344,7 +363,9 @@ export function StartView({
             <SessionRow
               key={s.id}
               session={s}
-              onOpen={train.reopenSession}
+              onOpen={openDetail}
+              onEdit={train.reopenSession}
+              onShare={onShare}
               onDelete={(id) => confirmDeleteSession(id, sessionLabel(s))}
             />
           ))}
@@ -425,16 +446,42 @@ export function StartView({
           await train.addLibraryExercise(seed);
         }}
       />
+      <SessionDetailSheet
+        visible={detailOpen}
+        session={detail}
+        history={train.recentSessions}
+        onClose={() => setDetailOpen(false)}
+        onEdit={(s) => {
+          setDetailOpen(false);
+          afterSheet(() => train.reopenSession(s));
+        }}
+        onShare={(s) => {
+          setDetailOpen(false);
+          afterSheet(() => onShare(s));
+        }}
+        onDelete={(s) => {
+          if (!s.id) return;
+          const id = s.id;
+          setDetailOpen(false);
+          afterSheet(() => confirmDeleteSession(id, sessionLabel(s)));
+        }}
+      />
       <HistorySheet
         visible={historyOpen}
         sessions={train.recentSessions}
         onClose={() => setHistoryOpen(false)}
         onOpen={(s) => {
           setHistoryOpen(false);
+          // One sheet at a time: the list goes first (see `afterSheet`).
+          afterSheet(() => openDetail(s));
+        }}
+        onEdit={(s) => {
+          setHistoryOpen(false);
           // Reopening swaps this screen for the live session; the sheet goes
           // first (see `afterSheet`).
           afterSheet(() => train.reopenSession(s));
         }}
+        onShare={onShare}
         onDelete={(s) => {
           if (!s.id) return;
           const id = s.id;
@@ -481,7 +528,57 @@ const TemplateCard = memo(function TemplateCard({
   const sub = `${templateSummary(tpl, t)} · ${
     last ? t('train.tplLast', { day: formatDate(last, locale, { month: 'short', day: 'numeric' }) }) : t('train.nextNever')
   }`;
+  const start = () => {
+    haptics.tap();
+    void train.startFromTemplate(tpl);
+  };
+  // Duplicate and Delete were reachable only from inside the editor; the
+  // system menu puts them, Start and Edit on the card itself (Train re-score,
+  // platform). VoiceOver reaches Start and Edit as the card's own buttons.
+  function duplicate() {
+    const { id: _id, createdAt: _c, updatedAt: _u, ...draft } = tpl;
+    train
+      .saveTemplate({ ...draft, name: t('train.copyName', { name: tpl.name }).slice(0, 100) })
+      .then(() => showToast(t('train.templateDuplicated'), { testID: 'train-toast' }))
+      .catch((e) => {
+        haptics.warning();
+        showToast(t('train.exerciseSaveErr'), { testID: 'train-toast' });
+        captureError(e, { where: 'train.duplicateTemplate' });
+      });
+  }
+  function askDelete() {
+    if (!tpl.id) return;
+    const id = tpl.id;
+    confirm({
+      title: t('train.deleteTemplateTitle'),
+      body: t('train.deleteTemplateBody'),
+      confirmText: t('train.delete'),
+      destructive: true,
+      onConfirm: () => {
+        train.deleteTemplate(id).catch((e) => {
+          haptics.warning();
+          showToast(t('train.templateDeleteErr'), { testID: 'train-toast' });
+          captureError(e, { where: 'train.deleteTemplate' });
+        });
+      },
+    });
+  }
+  // The whole card is the menu's target, as a row is in every other list
+  // here: wrapping only the name button put a native view with no flex between
+  // it and the row, and the Start button lost its place at the edge.
   return (
+    <ContextMenu
+      title={tpl.name}
+      preview={<TemplatePreview tpl={tpl} sub={sub} />}
+      previewSize={{ width: PREVIEW_WIDTH, height: templatePreviewHeight(tpl) }}
+      onPreviewPress={() => onEdit(tpl)}
+      actions={[
+        { key: 'start', title: t('train.startTpl'), icon: 'play', onPress: start },
+        { key: 'edit', title: t('common.edit'), icon: 'pencil', onPress: () => onEdit(tpl) },
+        { key: 'duplicate', title: t('train.duplicate'), icon: 'plus.square.on.square', onPress: duplicate },
+        { key: 'delete', title: t('train.delete'), icon: 'trash', destructive: true, onPress: askDelete },
+      ]}
+    >
     <View style={styles.tplCard} testID={`template-${tpl.id}`}>
       <View style={styles.tplCardTop}>
         <Pressable
@@ -498,10 +595,7 @@ const TemplateCard = memo(function TemplateCard({
         </Pressable>
         <TouchableOpacity
           style={styles.tplStart}
-          onPress={() => {
-            haptics.tap();
-            void train.startFromTemplate(tpl);
-          }}
+          onPress={start}
           accessibilityRole="button"
           accessibilityLabel={t('train.startNamed', { name: tpl.name })}
           testID={`start-template-${tpl.id}`}
@@ -527,8 +621,65 @@ const TemplateCard = memo(function TemplateCard({
         <TemplateNextSession recentSessions={train.recentSessions} catalog={train.catalog} train={train} template={tpl} />
       ) : null}
     </View>
+    </ContextMenu>
   );
 });
+
+/** The context-menu previews' width, as Today's entry preview. */
+const PREVIEW_WIDTH = 320;
+/** Exercise lines a preview lists before "+N more". */
+const PREVIEW_LINES = 6;
+const templatePreviewHeight = (tpl: WorkoutTemplate) =>
+  96 + 26 * Math.min(tpl.exercises.length, PREVIEW_LINES) + (tpl.exercises.length > PREVIEW_LINES ? 26 : 0);
+const sessionPreviewHeight = (s: WorkoutSession) =>
+  108 + 40 * Math.min(s.exercises.length, PREVIEW_LINES) + (s.exercises.length > PREVIEW_LINES ? 26 : 0);
+
+/** A template, opened up: every exercise with its planned set count. */
+function TemplatePreview({ tpl, sub }: { tpl: WorkoutTemplate; sub: string }) {
+  const t = useT();
+  const styles = useThemedStyles(createStyles);
+  const shown = tpl.exercises.slice(0, PREVIEW_LINES);
+  const more = tpl.exercises.length - shown.length;
+  return (
+    <View style={styles.preview}>
+      <Text style={styles.previewTitle} numberOfLines={1}>{tpl.name}</Text>
+      <Text style={styles.histSub}>{sub}</Text>
+      {shown.map((e, i) => (
+        <View key={`${e.exerciseId}-${i}`} style={styles.previewRow}>
+          <Text style={styles.previewName} numberOfLines={1}>{e.name}</Text>
+          <Text style={styles.previewMeta}>
+            {`${e.plannedSets?.length ?? 0} ${(e.plannedSets?.length ?? 0) === 1 ? t('train.setOne') : t('train.setMany')}`}
+          </Text>
+        </View>
+      ))}
+      {more > 0 ? <Text style={styles.histSub}>{t('train.tplMore', { n: more })}</Text> : null}
+    </View>
+  );
+}
+
+/** A logged workout, opened up: each exercise with its working sets. */
+function SessionPreview({ session: s, date, vol }: { session: WorkoutSession; date: string; vol: string | null }) {
+  const t = useT();
+  const styles = useThemedStyles(createStyles);
+  const unitSystem = useUnitSystem();
+  const shown = s.exercises.slice(0, PREVIEW_LINES);
+  const more = s.exercises.length - shown.length;
+  return (
+    <View style={styles.preview}>
+      <Text style={styles.previewTitle} numberOfLines={1}>{s.templateName || t('train.workout')}</Text>
+      <Text style={styles.histSub}>{[date, vol].filter(Boolean).join(' · ')}</Text>
+      {shown.map((e, i) => (
+        <View key={`${e.exerciseId}-${i}`} style={styles.previewBlock}>
+          <Text style={styles.previewName} numberOfLines={1}>{e.name}</Text>
+          <Text style={styles.previewMeta} numberOfLines={1}>
+            {setLine(e, e.logStyle ?? 'weight-reps', unitSystem) || t('train.detailNoSets')}
+          </Text>
+        </View>
+      ))}
+      {more > 0 ? <Text style={styles.histSub}>{t('train.tplMore', { n: more })}</Text> : null}
+    </View>
+  );
+}
 
 /** Every exercise of a template with its recommendation, one line each. */
 function TemplateNextSession({
@@ -589,14 +740,25 @@ function TemplateNextSession({
  * One logged workout. A button that says what it opens, with Delete as an
  * accessibility action — the long-press that deletes is invisible to a
  * screen reader (Train review item 14).
+ *
+ * A tap opens the read-only detail (`SessionDetailSheet`), not the editor —
+ * Edit is one step further in, as in Strong and Hevy (Train re-score). The
+ * system menu on iOS previews the sets and offers Edit, Share and Delete
+ * without opening anything.
  */
 const SessionRow = memo(function SessionRow({
   session: s,
   onOpen,
+  onEdit,
+  onShare,
   onDelete,
 }: {
   session: WorkoutSession;
+  /** The read-only detail. */
   onOpen: (s: WorkoutSession) => void;
+  /** Straight into the editor (the menu's Edit). */
+  onEdit: (s: WorkoutSession) => void;
+  onShare: (s: WorkoutSession) => void;
   onDelete: (id: string) => void;
 }) {
   const t = useT();
@@ -617,9 +779,14 @@ const SessionRow = memo(function SessionRow({
       accessibilityRole="button"
       accessibilityLabel={[date, s.templateName, summary, vol].filter(Boolean).join(', ')}
       accessibilityHint={t('train.sessionRowHint')}
-      accessibilityActions={[{ name: 'activate' }, { name: 'delete', label: t('train.delete') }]}
+      accessibilityActions={[
+        { name: 'activate' },
+        { name: 'edit', label: t('common.edit') },
+        { name: 'delete', label: t('train.delete') },
+      ]}
       onAccessibilityAction={(e) => {
         if (e.nativeEvent.actionName === 'activate') onOpen(s);
+        if (e.nativeEvent.actionName === 'edit') onEdit(s);
         if (e.nativeEvent.actionName === 'delete' && s.id) onDelete(s.id);
       }}
     >
@@ -633,8 +800,12 @@ const SessionRow = memo(function SessionRow({
   return (
     <ContextMenu
       title={[date, s.templateName].filter(Boolean).join(' · ')}
+      preview={<SessionPreview session={s} date={date} vol={vol} />}
+      previewSize={{ width: PREVIEW_WIDTH, height: sessionPreviewHeight(s) }}
+      onPreviewPress={() => onOpen(s)}
       actions={[
-        { key: 'edit', title: t('common.edit'), icon: 'pencil', onPress: () => onOpen(s) },
+        { key: 'edit', title: t('common.edit'), icon: 'pencil', onPress: () => onEdit(s) },
+        { key: 'share', title: t('train.share'), icon: 'square.and.arrow.up', onPress: () => onShare(s) },
         { key: 'delete', title: t('train.delete'), icon: 'trash', destructive: true, onPress: () => s.id && onDelete(s.id) },
       ]}
     >
@@ -649,12 +820,16 @@ function HistorySheet({
   sessions,
   onClose,
   onOpen,
+  onEdit,
+  onShare,
   onDelete,
 }: {
   visible: boolean;
   sessions: readonly WorkoutSession[];
   onClose: () => void;
   onOpen: (s: WorkoutSession) => void;
+  onEdit: (s: WorkoutSession) => void;
+  onShare: (s: WorkoutSession) => void;
   onDelete: (s: WorkoutSession) => void;
 }) {
   const t = useT();
@@ -671,6 +846,8 @@ function HistorySheet({
             <SessionRow
               session={item}
               onOpen={onOpen}
+              onEdit={onEdit}
+              onShare={onShare}
               onDelete={() => onDelete(item)}
             />
           )}

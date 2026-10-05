@@ -11,6 +11,7 @@ import {
 } from '@macrolog/core';
 import type { I18nKey, TFn } from '@/i18n';
 import { track } from './analytics';
+import { REST_DONE_ID_PREFIX } from '@/hooks/useRestTimer';
 
 // Local, on-device smart reminders. The *decision* of what to schedule lives in
 // the shared core `planReminders` (meal windows + streak-at-risk + weigh-in);
@@ -65,12 +66,18 @@ const isNative = Platform.OS !== 'web';
 // Present the reminder as a banner even with the app foregrounded.
 if (isNative) {
   Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowBanner: true,
-      shouldShowList: true,
-      shouldPlaySound: false,
-      shouldSetBadge: false,
-    }),
+    handleNotification: async (notification) => {
+      // The rest-over buzz is for a phone in a pocket. With Ignia open, the
+      // rest bar already says it and plays its own haptic; a banner on top
+      // was the same news twice (Train re-score bug 8).
+      const restDone = notification.request.identifier.startsWith(REST_DONE_ID_PREFIX);
+      return {
+        shouldShowBanner: !restDone,
+        shouldShowList: !restDone,
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+      };
+    },
   });
 }
 

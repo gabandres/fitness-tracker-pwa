@@ -6,16 +6,18 @@ import {
   exerciseIsFullyDone,
   formatLoad,
   looksLikeSameEffort,
+  nextUnfinishedExercise,
   restAfterSet,
   sessionHasLoggedWork,
   sessionVolume,
   setRowLabels,
 } from '@macrolog/core';
 import type { TrainState } from '@/hooks/useTrain';
-import { useRestTimer } from '@/hooks/useRestTimer';
+import { useRestCountdown, useRestTimer } from '@/hooks/useRestTimer';
 import { NATIVE_SHEETS } from '@/components/BottomSheet';
 import { confirm } from '@/components/ConfirmSheet';
 import { OfflineBanner } from '@/components/OfflineBanner';
+import { showToast } from '@/components/Toast';
 import { CardioBlockCard } from '@/components/train/CardioBlockCard';
 import { LiftSettingsSheet } from '@/components/train/LiftSettingsSheet';
 import { RestNotifySheet } from '@/components/train/RestNotifySheet';
@@ -24,6 +26,7 @@ import { SetRowSheet } from '@/components/train/SetRowSheet';
 import { ExerciseMenuSheet, type ExerciseMenuAction } from '@/components/train/ExerciseMenuSheet';
 import { type I18nKey, useLocale, useT } from '@/i18n';
 import { announce } from '@/lib/a11y';
+import { publishRestEndsAt } from '@/lib/active-workout-signal';
 import { useIsOffline } from '@/lib/connectivity';
 import { formatDate } from '@/lib/date-format';
 import * as haptics from '@/lib/haptics';
@@ -32,10 +35,12 @@ import * as restActivity from '@/lib/rest-timer-activity';
 import { subscribeIntentInbox, takeIntentInbox } from '../../../modules/intent-inbox';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { useUnitSystem } from '@/lib/use-unit-system';
+import type { SessionExercise } from '@/lib/workout';
 import { AddExerciseSheet } from './AddExerciseSheet';
 import { CardioPickerSheet } from './CardioPickerSheet';
 import { ExerciseCard } from './ExerciseCard';
 import { chainOrder, useInputChain } from './input-chain';
+import { ReorderExercisesSheet } from './ReorderExercisesSheet';
 import { RestPickerSheet } from './RestPickerSheet';
 import {
   DEFAULT_REST_CLUSTER_SEC,
@@ -63,6 +68,19 @@ const restDeadline = (secs: number) => Date.now() + secs * 1000;
 
 /** Large text: at 1.5× and up the set row's cells cannot share one line. */
 const LARGE_TEXT_SCALE = 1.5;
+
+/** How long after a lift's last set is ticked its card hands over to the next
+ *  unfinished one — long enough to see the tick land and feel the haptic. */
+const AUTO_ADVANCE_MS = 400;
+
+/**
+ * Per-exercise rests chosen from the ⋯ menu, by session id. Module state, so a
+ * choice survives this component remounting mid-workout (a Retry, a reopen of
+ * the tab) — it lived in `useState` alone and was lost every time (Train
+ * re-score). A restart still forgets it; "Keep for this lift" in the picker is
+ * the durable version, written to the template.
+ */
+const restOverridesBySession = new Map<string, Record<string, number>>();
 
 type MenuFor = { kind: 'exercise'; index: number } | { kind: 'session' } | null;
 
@@ -92,7 +110,7 @@ export function ActiveSession({
   const { fontScale } = useWindowDimensions();
   const largeText = fontScale >= LARGE_TEXT_SCALE;
   const session = train.active!;
-  const { dispatch, commitActive } = train;
+  const { dispatch, commitActive, undoRemoval } = train;
 
   const [addFor, setAddFor] = useState<{ index: number; name: string } | 'add' | null>(null);
   const [cardioPickerOpen, setCardioPickerOpen] = useState(false);
@@ -101,15 +119,32 @@ export function ActiveSession({
   const [liftFor, setLiftFor] = useState<number | null>(null);
   const [restPickerFor, setRestPickerFor] = useState<number | null>(null);
   const [platesOpen, setPlatesOpen] = useState<number | null>(null);
+  const [reorderOpen, setReorderOpen] = useState(false);
   /** Per-exercise rest for THIS workout, by exercise id (stable across a
-   *  move), seconds. Set from the ⋯ menu's "Rest timer". */
-  const [restOverride, setRestOverride] = useState<Record<string, number>>({});
-  const rest = useRestTimer();
+   *  move), seconds. Set from the ⋯ menu's "Rest timer"; mirrored into
+   *  {@link restOverridesBySession} so a remount keeps it. */
+  const [restOverride, setRestOverrideState] = useState<Record<string, number>>(
+    () => (session.id ? restOverridesBySession.get(session.id) : undefined) ?? {},
+  );
+  const setRestOverride = (update: (cur: Record<string, number>) => Record<string, number>) => {
+    setRestOverrideState((cur) => {
+      const next = update(cur);
+      if (session.id) restOverridesBySession.set(session.id, next);
+      return next;
+    });
+  };
+  // Only a rest that RAN OUT is announced as over — a skip, a −30 past zero
+  // and a replace never reach `onElapsed`. And not one that ran out while the
+  // phone was locked: the notification already said it (Train re-score bug 8).
+  // The timer's own haptic covers sighted users; this is the VoiceOver/TalkBack
+  // half (Train review item 18).
+  const rest = useRestTimer({
+    onElapsed: ({ late }) => {
+      if (!late) announce(t('train.restDoneTitle'));
+    },
+  });
   /** Length of the countdown running now, for the progress track. */
   const [restTotal, setRestTotal] = useState(0);
-  /** Set when the user ends a rest (Skip, −30 past zero), so only a rest
-   *  that RAN OUT is announced as over. */
-  const restStoppedByUser = useRef(false);
   // The one-time "buzz when rest is over" priming (UX_AUDIT S18-10). Opened
   // by the FIRST rest start on this device when the OS has not been asked
   // yet; both answers record it as shown (`rest-notify-priming.ts`).
@@ -174,7 +209,6 @@ export function ActiveSession({
     const override = restOverride[ex.exerciseId];
     const mini = override ?? templateRowFor(ex.exerciseId)?.restMiniSec ?? restMini;
     const secs = restAfterSet(ex.sets, setIndex, { mini, cluster: override ?? restCluster });
-    restStoppedByUser.current = false;
     rest.start(secs);
     setRestTotal(secs);
     // Lock-screen countdown (Train review item 20): the rest Live Activity on
@@ -190,18 +224,28 @@ export function ActiveSession({
     }
   };
 
-  // A rest that RAN OUT is announced; a skipped one is not. The timer's own
-  // haptic covers sighted users; this is the VoiceOver/TalkBack half
-  // (Train review item 18).
-  const prevRemaining = useRef(rest.remaining);
+  // Whenever a rest stops — skipped, run out, cut to zero — the Lock Screen
+  // countdown goes with it. Keyed on the deadline, which moves on start, stop
+  // and run-out only, never once a second.
+  const prevEndsAt = useRef(rest.endsAt);
   useEffect(() => {
-    if (prevRemaining.current > 0 && rest.remaining === 0) {
-      if (!restStoppedByUser.current) announce(t('train.restDoneTitle'));
-      restActivity.end();
-    }
-    prevRemaining.current = rest.remaining;
-  }, [rest.remaining, t]);
-  useEffect(() => () => restActivity.end(), []);
+    if (prevEndsAt.current != null && rest.endsAt == null) restActivity.end();
+    prevEndsAt.current = rest.endsAt;
+    // The rest rides on the "Workout · 12:34" pill too, from any tab.
+    publishRestEndsAt(rest.endsAt);
+  }, [rest.endsAt]);
+  useEffect(() => () => {
+    restActivity.end();
+    publishRestEndsAt(null);
+  }, []);
+
+  /** What the Lock Screen re-arms with if a resumed rest has to be put back
+   *  after a restart: the lift whose set was ticked last, read once. Native
+   *  does not report the title it is showing. */
+  const [restoreTitle] = useState(() => {
+    const ticked = [...session.exercises].reverse().find((ex) => ex.sets.some((x) => x.done));
+    return { name: ticked?.name ?? session.exercises[0]?.name ?? '', locale };
+  });
 
   // The Lock Screen's own "+30 s" / "Skip" (the rest Live Activity's buttons).
   // They run natively while JS may be suspended and move the Activity and the
@@ -216,6 +260,19 @@ export function ActiveSession({
   });
   useEffect(() => {
     let alive = true;
+    // First, a rest the Lock Screen is still counting from before a JS restart
+    // (an iOS memory kill, an OTA reload while locked): put the bar back and
+    // re-adopt the Activity so Finish and the buttons reach it again — or clear
+    // a stale "Rest over" face nobody would (Train re-score bug 2). The drain
+    // waits for it, so a Lock Screen +30 s queued meanwhile retargets the
+    // restored rest instead of being judged against nothing.
+    const reconciled = restActivity
+      .reconcileWithNative(restoreTitle.name, restoreTitle.locale)
+      .then((out) => {
+        if (!alive || !out) return;
+        restRef.current.start(out.seconds);
+        setRestTotal(out.seconds);
+      });
     const drain = () => {
       void takeIntentInbox(['rest']).then((actions) => {
         if (!alive) return;
@@ -225,11 +282,9 @@ export function ActiveSession({
           if (!out) continue;
           if (out.type === 'skip') {
             // Silent, like the in-app skip: no buzz, no "rest over" announcement.
-            restStoppedByUser.current = true;
             restRef.current.stop();
             continue;
           }
-          restStoppedByUser.current = false;
           restRef.current.start(out.seconds);
           setRestTotal((total) => Math.max(total, out.seconds));
           // The app's own tick had already closed this rest (and its Activity)
@@ -238,7 +293,7 @@ export function ActiveSession({
         }
       });
     };
-    drain();
+    void reconciled.then(drain);
     const unsubscribe = subscribeIntentInbox(drain);
     const appState = AppState.addEventListener('change', (state) => {
       if (state === 'active') drain();
@@ -248,12 +303,11 @@ export function ActiveSession({
       unsubscribe();
       appState.remove();
     };
-  }, []);
+  }, [restoreTitle]);
 
   function adjustRest(delta: number) {
     haptics.tap();
-    const next = Math.max(0, rest.remaining + delta);
-    if (next === 0) restStoppedByUser.current = true;
+    const next = Math.max(0, rest.remainingNow() + delta);
     rest.start(next);
     if (delta > 0) setRestTotal((total) => Math.max(total + delta, next));
     if (next > 0) restActivity.update(restDeadline(next));
@@ -289,6 +343,16 @@ export function ActiveSession({
   useEffect(() => {
     startRestRef.current = startRest;
   });
+  // The live session, for callbacks that keep one identity for the memoized
+  // cards but must act on the exercises as they stand when they fire.
+  const exercisesRef = useRef(session.exercises);
+  useEffect(() => {
+    exercisesRef.current = session.exercises;
+  });
+  const advanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (advanceTimer.current) clearTimeout(advanceTimer.current);
+  }, []);
   const onSetDone = useCallback(
     (exerciseIndex: number, setIndex: number, info: { pr: boolean; complete: boolean }) => {
       // A record or the last set of the lift is a success; any other tick is
@@ -296,9 +360,59 @@ export function ActiveSession({
       if (info.pr || info.complete) haptics.success();
       else haptics.tap();
       startRestRef.current(exerciseIndex, setIndex);
+      // The lift is done: open the next unfinished one, the way Strong and
+      // Hevy move on by themselves — it used to take a collapse and a tap.
+      // Only if this card is still the open one when the beat is up; a lifter
+      // who has already opened another card meant to.
+      if (info.complete) {
+        if (advanceTimer.current) clearTimeout(advanceTimer.current);
+        advanceTimer.current = setTimeout(() => {
+          advanceTimer.current = null;
+          const next = nextUnfinishedExercise(exercisesRef.current, exerciseIndex);
+          if (next != null) setExpanded((cur) => (cur === exerciseIndex ? next : cur));
+        }, AUTO_ADVANCE_MS);
+      }
     },
     [],
   );
+
+  // Removals come with an Undo, as Today's do (Train re-score bug 3 and the
+  // set-delete gap): the swipe, the rotor action and the set sheet all land
+  // here. What was removed is kept in the toast's closure and put back by
+  // core's `undoRemoval` — by exercise id, so a move in between cannot send a
+  // set into the wrong lift.
+  const onRemoveSet = useCallback(
+    (exerciseIndex: number, setIndex: number) => {
+      const ex = exercisesRef.current[exerciseIndex];
+      const removed = ex?.sets[setIndex];
+      if (!ex || !removed) return;
+      void dispatch({ type: 'removeSet', exerciseIndex, setIndex });
+      showToast(t('train.setRemoved'), {
+        action: {
+          label: t('common.undo'),
+          onPress: () => undoRemoval({ kind: 'set', exerciseIndex, exerciseId: ex.exerciseId, setIndex, set: removed }),
+        },
+        testID: 'train-toast',
+      });
+    },
+    [dispatch, undoRemoval, t],
+  );
+  function removeExercise(index: number) {
+    const ex: SessionExercise | undefined = session.exercises[index];
+    if (!ex) return;
+    setPlatesOpen(null);
+    void dispatch({ type: 'removeExercise', exerciseIndex: index });
+    showToast(t('train.exerciseRemoved', { name: ex.name }), {
+      action: {
+        label: t('common.undo'),
+        onPress: () => {
+          undoRemoval({ kind: 'exercise', index, exercise: ex });
+          setExpanded(index);
+        },
+      },
+      testID: 'train-toast',
+    });
+  }
 
   function pressFinish() {
     // Nothing logged → offer the discard it really is (Train review bug 10):
@@ -332,7 +446,27 @@ export function ActiveSession({
     });
   }
 
+  /** Move an exercise and keep the open card on the lift that was open. */
+  function moveExercise(from: number, to: number) {
+    train.moveExerciseInActive(from, to);
+    setExpanded((cur) => {
+      if (cur == null) return cur;
+      if (cur === from) return to;
+      if (from < cur && to >= cur) return cur - 1;
+      if (from > cur && to <= cur) return cur + 1;
+      return cur;
+    });
+  }
+
   // ── The ⋯ menus ──
+  const reorderAction: ExerciseMenuAction[] = session.exercises.length > 1
+    ? [{
+        key: 'reorder',
+        icon: 'reorder-three-outline',
+        labelKey: 'train.reorderExercises',
+        onPress: () => handoff(() => setReorderOpen(true)),
+      }]
+    : [];
   const sessionActions: ExerciseMenuAction[] = train.editingExisting
     ? [
         {
@@ -341,6 +475,7 @@ export function ActiveSession({
           labelKey: 'train.addExerciseTitle',
           onPress: () => handoff(() => setAddFor('add')),
         },
+        ...reorderAction,
         {
           // Editing a past workout: no destructive Discard (that deletes the
           // whole session). Cancel reverts to the pre-edit state.
@@ -357,6 +492,7 @@ export function ActiveSession({
           labelKey: 'train.addExerciseTitle',
           onPress: () => handoff(() => setAddFor('add')),
         },
+        ...reorderAction,
         {
           key: 'add-cardio',
           icon: 'walk-outline',
@@ -396,10 +532,7 @@ export function ActiveSession({
             key: 'move-up',
             icon: 'arrow-up-outline' as const,
             labelKey: 'train.moveUp' as I18nKey,
-            onPress: () => {
-              train.moveExerciseInActive(index, index - 1);
-              setExpanded(index - 1);
-            },
+            onPress: () => moveExercise(index, index - 1),
           }]
         : []),
       ...(index < n - 1
@@ -407,10 +540,7 @@ export function ActiveSession({
             key: 'move-down',
             icon: 'arrow-down-outline' as const,
             labelKey: 'train.moveDown' as I18nKey,
-            onPress: () => {
-              train.moveExerciseInActive(index, index + 1);
-              setExpanded(index + 1);
-            },
+            onPress: () => moveExercise(index, index + 1),
           }]
         : []),
       {
@@ -478,10 +608,7 @@ export function ActiveSession({
         icon: 'trash-outline',
         labelKey: 'train.removeExercise',
         destructive: true,
-        onPress: () => {
-          setPlatesOpen(null);
-          void dispatch({ type: 'removeExercise', exerciseIndex: index });
-        },
+        onPress: () => removeExercise(index),
       },
     ];
   }
@@ -495,7 +622,26 @@ export function ActiveSession({
   const restEx = restPickerFor != null ? session.exercises[restPickerFor] : undefined;
 
   const title = session.templateName || t('train.workout');
-  const restProgress = restTotal > 0 ? Math.min(1, Math.max(0, 1 - rest.remaining / restTotal)) : 0;
+  // "Keep for this lift" writes the rest onto the template row this lift came
+  // from — only offered when there is one to write to.
+  const restTemplateRow = restEx && tpl?.id ? templateRowFor(restEx.exerciseId) : undefined;
+  async function saveRestForLift(exerciseId: string, seconds: number) {
+    if (!tpl?.id) return;
+    const { id, createdAt: _c, updatedAt: _u, ...draft } = tpl;
+    try {
+      await train.saveTemplate(
+        {
+          ...draft,
+          exercises: tpl.exercises.map((te) => (te.exerciseId === exerciseId ? { ...te, restMiniSec: seconds } : te)),
+        },
+        id,
+      );
+      showToast(t('train.restSaved', { template: tpl.name }), { testID: 'train-toast' });
+    } catch {
+      haptics.warning();
+      showToast(t('train.exerciseSaveErr'), { testID: 'train-toast' });
+    }
+  }
 
   return (
     <>
@@ -618,6 +764,7 @@ export function ActiveSession({
             onOpenSetSheet={onOpenSetSheet}
             onOpenLift={onOpenLift}
             onSetDone={onSetDone}
+            onRemoveSet={onRemoveSet}
           />
         ))}
 
@@ -665,50 +812,16 @@ export function ActiveSession({
       </ScrollView>
 
       {/* Rest countdown — floats above the tab bar AND clear of the raised
-          Log button, so it stays visible while the session scrolls. */}
-      {rest.remaining > 0 ? (
-        <View style={styles.restBarFloat} testID="rest-bar">
-          <View style={styles.restTrackWrap} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
-            <View style={styles.restTrack} />
-            <View style={[styles.restFill, { width: `${Math.round(restProgress * 100)}%` }]} testID="rest-progress" />
-          </View>
-          <View style={styles.restBarRow}>
-            <Text style={styles.restLabel}>{`${t('train.rest')} · ${rest.label}`}</Text>
-            <View style={styles.restActions}>
-              {/* 44-pt targets (UX_AUDIT S18-15): the text is small on purpose
-                  inside a floating bar, so the box around it does the work. */}
-              <TouchableOpacity
-                onPress={() => adjustRest(-30)}
-                style={styles.restBtn}
-                accessibilityRole="button"
-                accessibilityLabel={t('train.restMinusA11y')}
-                testID="rest-minus"
-              >
-                <Text style={styles.restPlus}>−30s</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => adjustRest(30)}
-                style={styles.restBtn}
-                accessibilityRole="button"
-                accessibilityLabel={t('train.restPlusA11y')}
-                testID="rest-plus"
-              >
-                <Text style={styles.restPlus}>+30s</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => {
-                  restStoppedByUser.current = true;
-                  rest.stop();
-                }}
-                style={styles.restBtn}
-                accessibilityRole="button"
-                testID="rest-skip"
-              >
-                <Text style={styles.restSkip}>{t('train.skip')}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
+          Log button, so it stays visible while the session scrolls. Its own
+          component: the second-by-second redraw belongs to the bar, not to
+          the whole workout (Train re-score, performance). */}
+      {rest.endsAt != null ? (
+        <RestBar
+          endsAt={rest.endsAt}
+          total={restTotal}
+          onAdjust={adjustRest}
+          onSkip={rest.stop}
+        />
       ) : null}
 
       <RestNotifySheet
@@ -739,7 +852,7 @@ export function ActiveSession({
         onRemove={() => {
           const target = setSheet;
           setSetSheet(null);
-          if (target) void dispatch({ type: 'removeSet', exerciseIndex: target.exerciseIndex, setIndex: target.setIndex });
+          if (target) onRemoveSet(target.exerciseIndex, target.setIndex);
         }}
       />
 
@@ -764,6 +877,10 @@ export function ActiveSession({
         name={restEx?.name ?? ''}
         current={restEx ? restOverride[restEx.exerciseId] ?? null : null}
         fallback={restPickerFor != null ? restFallback(restPickerFor) : restMini}
+        saveTo={restTemplateRow && tpl ? tpl.name : null}
+        onSave={(seconds) => {
+          if (restEx) void saveRestForLift(restEx.exerciseId, seconds);
+        }}
         onClose={() => setRestPickerFor(null)}
         onPick={(seconds) => {
           if (!restEx) return;
@@ -774,6 +891,13 @@ export function ActiveSession({
             return next;
           });
         }}
+      />
+
+      <ReorderExercisesSheet
+        visible={reorderOpen}
+        exercises={session.exercises}
+        onMove={moveExercise}
+        onClose={() => setReorderOpen(false)}
       />
 
       <AddExerciseSheet
@@ -790,6 +914,84 @@ export function ActiveSession({
     </>
   );
 }
+
+/**
+ * The floating rest bar: progress, `Rest · 1:23`, −30 s / +30 s / Skip.
+ *
+ * Owns the per-second tick (`useRestCountdown`) so the redraw is this bar's
+ * alone — when it lived in `ActiveSession`, every second of every rest
+ * re-rendered the whole workout. Says "10 seconds of rest left" once on the
+ * way down: the bar was announced when the rest began and when it ended, and
+ * nothing in between, so a screen-reader user had to go and look.
+ */
+function RestBar({
+  endsAt,
+  total,
+  onAdjust,
+  onSkip,
+}: {
+  endsAt: number;
+  /** Length of the whole countdown, seconds — the progress track's 100%. */
+  total: number;
+  onAdjust: (deltaSec: number) => void;
+  onSkip: () => void;
+}) {
+  const t = useT();
+  const styles = useThemedStyles(createStyles);
+  const { remaining, label } = useRestCountdown(endsAt);
+  const progress = total > 0 ? Math.min(1, Math.max(0, 1 - remaining / total)) : 0;
+  const prev = useRef(remaining);
+  useEffect(() => {
+    if (prev.current > REST_WARN_SEC && remaining <= REST_WARN_SEC && remaining > 0) {
+      announce(t('train.restTenA11y'));
+    }
+    prev.current = remaining;
+  }, [remaining, t]);
+  return (
+    <View style={styles.restBarFloat} testID="rest-bar">
+      <View style={styles.restTrackWrap} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+        <View style={styles.restTrack} />
+        <View style={[styles.restFill, { width: `${Math.round(progress * 100)}%` }]} testID="rest-progress" />
+      </View>
+      <View style={styles.restBarRow}>
+        <Text style={styles.restLabel} testID="rest-label">{`${t('train.rest')} · ${label}`}</Text>
+        <View style={styles.restActions}>
+          {/* 44-pt targets (UX_AUDIT S18-15): the text is small on purpose
+              inside a floating bar, so the box around it does the work. */}
+          <TouchableOpacity
+            onPress={() => onAdjust(-30)}
+            style={styles.restBtn}
+            accessibilityRole="button"
+            accessibilityLabel={t('train.restMinusA11y')}
+            testID="rest-minus"
+          >
+            <Text style={styles.restPlus}>{t('train.restMinusShort')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => onAdjust(30)}
+            style={styles.restBtn}
+            accessibilityRole="button"
+            accessibilityLabel={t('train.restPlusA11y')}
+            testID="rest-plus"
+          >
+            <Text style={styles.restPlus}>{t('train.restPlusShort')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={onSkip}
+            style={styles.restBtn}
+            accessibilityRole="button"
+            testID="rest-skip"
+          >
+            <Text style={styles.restSkip}>{t('train.skip')}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+/** The one mid-rest announcement, seconds left. */
+const REST_WARN_SEC = 10;
 
 /**
  * The session's elapsed time, ticking once a second. Its own component so the

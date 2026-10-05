@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { useCallback, useMemo } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   SLEEP_MIN_NIGHTS,
@@ -18,7 +19,8 @@ import { StubLabel } from '@/components/StubLabel';
 import { font, radius, space, type } from '@/theme';
 import { PressScale } from '@/lib/motion';
 import * as haptics from '@/lib/haptics';
-import { GapMarker, MedianLine } from '@/components/charts/StripParts';
+import { GapMarker, MedianLine, StripDates, useStripAudioGraph } from '@/components/charts/StripParts';
+import { AccessibleChart } from '@/components/charts/AccessibleChart';
 import { Glyph } from '@/components/charts/Glyph';
 import { useAdjustableDays } from '@/components/charts/useAdjustableDays';
 
@@ -81,11 +83,9 @@ export function SleepTrendsCard({
 
   // The strip as one adjustable element (summary + a night at a time). Built
   // before the early returns so the hook order never changes with the state.
-  const nights = sleep.kind === 'card' ? sleep.window.nights : [];
-  const shortKeys = new Set(sleep.kind === 'card' ? (sleep.contrast?.shortKeys ?? []) : []);
+  const nights = useMemo(() => (sleep.kind === 'card' ? sleep.window.nights : []), [sleep]);
   const median = sleep.kind === 'card' ? sleepHoursParts(sleep.window.medianHours) : { hours: 0, minutes: 0 };
-  const stepper = useAdjustableDays(
-    nights.length,
+  const summary =
     sleep.kind === 'card'
       ? t('trends.chart.sleepSummary', {
           n: formatNumber(SLEEP_WINDOW_DAYS, locale),
@@ -93,10 +93,12 @@ export function SleepTrendsCard({
           m: formatNumber(median.minutes, locale),
           count: formatNumber(sleep.window.nightsWithReading, locale),
         })
-      : '',
-    (i) => {
-      const night = nights[i];
-      if (!night) return '';
+      : '';
+  // One sentence per night — the stepper's value and the audio graph's point
+  // labels, so the two cannot disagree.
+  const pointLabels = useMemo(() => {
+    const shortKeys = new Set(sleep.kind === 'card' ? (sleep.contrast?.shortKeys ?? []) : []);
+    return nights.map((night) => {
       const date = formatDate(parseYmd(night.dateKey), locale, { weekday: 'short', month: 'short', day: 'numeric' });
       if (night.hours == null) return t('trends.chart.noReading', { date });
       const p = sleepHoursParts(night.hours);
@@ -105,8 +107,35 @@ export function SleepTrendsCard({
         h: formatNumber(p.hours, locale),
         m: formatNumber(p.minutes, locale),
       });
+    });
+  }, [sleep, nights, t, locale]);
+  // A night opens its day in History — by tap, and by the stepper's rotor
+  // action (the strips had neither; review S20).
+  const openDay = useCallback(
+    (dateKey: string) => {
+      haptics.tap();
+      router.push(`/history/${dateKey}`);
     },
+    [router],
   );
+  const stepper = useAdjustableDays(nights.length, summary, (i) => pointLabels[i] ?? '', {
+    actions: [
+      { name: 'openDay', label: t('trends.chart.openDayAction'), run: (i) => nights[i] && openDay(nights[i].dateKey) },
+    ],
+  });
+  const dateKeys = useMemo(() => nights.map((n) => n.dateKey), [nights]);
+  const values = useMemo(() => nights.map((n) => n.hours), [nights]);
+  const descriptor = useStripAudioGraph({
+    title: t('trends.sleepTitle'),
+    summary,
+    xTitle: t('entry.date'),
+    unit: 'h',
+    decimals: 1,
+    dateKeys,
+    values,
+    pointLabels,
+    locale,
+  });
 
   if (sleep.kind === 'pending') return null;
 
@@ -194,11 +223,18 @@ export function SleepTrendsCard({
         </View>
 
         <View style={styles.stripRow}>
-        <View {...stepper.a11y} style={styles.strip} testID="sleep-strip">
+        <AccessibleChart {...stepper.a11y} descriptor={descriptor} style={styles.strip} testID="sleep-strip">
           {window.nights.map((night) => {
             const fraction = sleepBarFraction(night.hours);
             return (
-              <View key={night.dateKey} style={styles.col}>
+              <Pressable
+                key={night.dateKey}
+                style={styles.col}
+                onPress={() => openDay(night.dateKey)}
+                // Inside the adjustable element, so never a separate stop.
+                accessible={false}
+                testID={`sleep-col-${night.dateKey}`}
+              >
                 <View style={styles.track}>
                   {night.hours == null ? (
                     // The gap. A dashed mark at the baseline says "no reading"
@@ -223,7 +259,7 @@ export function SleepTrendsCard({
                     />
                   )}
                 </View>
-              </View>
+              </Pressable>
             );
           })}
           {/* The reference line is the user's OWN median, never a population
@@ -231,7 +267,7 @@ export function SleepTrendsCard({
           {window.medianHours > 0 ? (
             <MedianLine bottomPct={sleepBarFraction(window.medianHours) * 100} />
           ) : null}
-        </View>
+        </AccessibleChart>
           {/* The axis its two siblings already carry (fasting, water). Without
               it no bar height means anything: the headline says 7h 10m and
               nothing on the strip lets you check it against the ceiling. */}
@@ -246,6 +282,9 @@ export function SleepTrendsCard({
             </Text>
           </View>
         </View>
+        {window.nights.length > 0 ? (
+          <StripDates first={window.nights[0].dateKey} last={window.nights[window.nights.length - 1].dateKey} locale={locale} />
+        ) : null}
         <Text style={styles.legend}>{t('trends.sleepLegend')}</Text>
 
         <View style={styles.divider} />

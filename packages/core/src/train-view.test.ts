@@ -6,16 +6,19 @@ import {
   exerciseHistory,
   exerciseIsFullyDone,
   exerciseSeries,
+  exerciseSeriesPoints,
   finishSummary,
   improvedExercises,
   lastPerformed,
   moveExercise,
+  nextUnfinishedExercise,
   sessionCounts,
   sessionHasLoggedWork,
   sessionVolume,
   setBeatsBest,
   templateCounts,
   trainHeroStats,
+  undoRemoval,
   workingSetCells,
 } from './train-view';
 
@@ -341,5 +344,82 @@ describe('finishSummary', () => {
     );
     expect(out.previousVolume).toBeNull();
     expect(out.prs).toEqual([]);
+  });
+});
+
+describe('exerciseSeriesPoints', () => {
+  it('is exerciseSeries with each point dated, dropping the same sessions', () => {
+    const rows = [
+      { date: 'd3', ex: ex('a', [set({ weight: 100, reps: 5 })]) },
+      { date: 'd2', ex: ex('a', [set({ kind: 'warmup', weight: 45, reps: 10 })]) },
+      { date: 'd1', ex: ex('a', [set({ weight: 90, reps: 5 })]) },
+    ];
+    const pts = exerciseSeriesPoints(rows, 'weight-reps');
+    // Oldest first; the warm-up-only session drops out instead of plotting 0.
+    expect(pts.map((p) => p.date)).toEqual(['d1', 'd3']);
+    expect(pts.map((p) => p.value)).toEqual(exerciseSeries(rows.map((r) => r.ex), 'weight-reps'));
+  });
+});
+
+describe('nextUnfinishedExercise', () => {
+  const done = ex('done', [set({ weight: 100, reps: 5, done: true })]);
+  const open = (id: string) => ex(id, [set()]);
+
+  it('opens the next unfinished lift after the one just finished', () => {
+    expect(nextUnfinishedExercise([done, done, open('c')], 0)).toBe(2);
+  });
+
+  it('wraps back to a lift skipped earlier', () => {
+    expect(nextUnfinishedExercise([open('a'), done, done], 2)).toBe(0);
+  });
+
+  it('is null when every lift is done', () => {
+    expect(nextUnfinishedExercise([done, done], 1)).toBeNull();
+  });
+
+  it('treats an exercise with no sets yet as the next thing to fill in', () => {
+    expect(nextUnfinishedExercise([done, ex('empty', [])], 0)).toBe(1);
+  });
+});
+
+describe('undoRemoval', () => {
+  function live(exercises: SessionExercise[]): WorkoutSession {
+    return { id: 's', status: 'active', date: new Date(NOW), exercises } as WorkoutSession;
+  }
+
+  it('puts an exercise back at its old index', () => {
+    const s = live([ex('a', []), ex('c', [])]);
+    const out = undoRemoval(s, { kind: 'exercise', index: 1, exercise: ex('b', []) });
+    expect(out.exercises.map((e) => e.exerciseId)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('clamps an index the list has since shrunk below', () => {
+    const s = live([ex('a', [])]);
+    const out = undoRemoval(s, { kind: 'exercise', index: 5, exercise: ex('b', []) });
+    expect(out.exercises.map((e) => e.exerciseId)).toEqual(['a', 'b']);
+  });
+
+  it('puts a set back at its old position', () => {
+    const s = live([ex('a', [set({ reps: 1 }), set({ reps: 3 })])]);
+    const out = undoRemoval(s, { kind: 'set', exerciseIndex: 0, exerciseId: 'a', setIndex: 1, set: set({ reps: 2 }) });
+    expect(out.exercises[0].sets.map((x) => x.reps)).toEqual([1, 2, 3]);
+  });
+
+  it('follows the exercise by id when it was moved in the meantime', () => {
+    const s = live([ex('b', [set()]), ex('a', [set({ reps: 3 })])]);
+    const out = undoRemoval(s, { kind: 'set', exerciseIndex: 0, exerciseId: 'a', setIndex: 0, set: set({ reps: 2 }) });
+    expect(out.exercises[0].sets).toHaveLength(1);
+    expect(out.exercises[1].sets.map((x) => x.reps)).toEqual([2, 3]);
+  });
+
+  it('re-forms the cluster a restored mini was cut from', () => {
+    const s = live([ex('a', [set({ kind: 'activation', group: 1 }), set({ kind: 'mini', group: 1 })])]);
+    const out = undoRemoval(s, { kind: 'set', exerciseIndex: 0, exerciseId: 'a', setIndex: 2, set: set({ kind: 'mini' }) });
+    expect(out.exercises[0].sets.map((x) => x.group)).toEqual([1, 1, 1]);
+  });
+
+  it('returns the same session when the exercise is gone', () => {
+    const s = live([ex('b', [])]);
+    expect(undoRemoval(s, { kind: 'set', exerciseIndex: 0, exerciseId: 'a', setIndex: 0, set: set() })).toBe(s);
   });
 });

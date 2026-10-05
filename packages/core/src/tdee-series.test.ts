@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { dailyTargets } from './targets';
 import { calculateTdee } from './tdee';
-import { TDEE_SERIES_MAX_DAYS, tdeeSeries, weightTrendSeries } from './tdee-series';
+import { TDEE_SERIES_MAX_DAYS, TDEE_SERIES_PRO_MAX_DAYS, tdeeSeries, weightTrendSeries } from './tdee-series';
 import { MIDNIGHT } from './day-boundary';
 import type { DateKey } from './date';
 import type { DailyLog, Profile } from './types';
@@ -115,6 +115,54 @@ describe('tdeeSeries', () => {
     expect(TDEE_SERIES_MAX_DAYS).toBe(90);
     expect(tdeeSeries(PROFILE, logs, weights, { days: 0, now: NOW })).toHaveLength(1);
   });
+
+  it('reaches a year behind the Pro cap, and no further', () => {
+    const { logs, weights } = history(20);
+    const s = tdeeSeries(PROFILE, logs, weights, { days: 400, now: NOW, maxDays: TDEE_SERIES_PRO_MAX_DAYS });
+    expect(s).toHaveLength(365);
+    expect(s[s.length - 1].dateKey).toBe(key(0));
+    expect(tdeeSeries(PROFILE, logs, weights, { days: 400, now: NOW, maxDays: 9999 })).toHaveLength(365);
+  });
+
+  it('chunks (endOffset) concatenate to exactly the one-call series', () => {
+    const { logs, weights } = history(60);
+    logs.push({ date: at(0, 9), calories: 450 });
+    const whole = tdeeSeries(PROFILE, logs, weights, { days: 40, now: NOW });
+    const newest = tdeeSeries(PROFILE, logs, weights, { days: 15, now: NOW });
+    const older = tdeeSeries(PROFILE, logs, weights, { days: 25, now: NOW, endOffset: 15 });
+    expect([...older, ...newest]).toEqual(whole);
+    expect(older[older.length - 1].dateKey).toBe(key(15));
+  });
+
+  describe('windowRows — the rows the hero saw that day', () => {
+    it('is the plain replay while every row fits the window', () => {
+      const { logs, weights } = history(60);
+      const plain = tdeeSeries(PROFILE, logs, weights, { days: 30, now: NOW });
+      const windowed = tdeeSeries(PROFILE, logs, weights, { days: 30, now: NOW, windowRows: 400 });
+      expect(windowed).toEqual(plain);
+    });
+
+    it('ends on the hero computed from the newest rows only', () => {
+      // Three rows a day for 120 days = 360 rows; a 100-row window is ~33 days.
+      const logs: DailyLog[] = [];
+      const weights: Record<string, number> = {};
+      for (let i = 119; i >= 0; i--) {
+        for (const h of [8, 12, 19]) logs.push({ date: at(i, h), calories: 700 });
+        weights[key(i)] = +(200 - ((119 - i) * 400) / 3500).toFixed(2);
+      }
+      const s = tdeeSeries(PROFILE, logs, weights, { days: 60, now: NOW, windowRows: 100 });
+      const hero = dailyTargets(PROFILE, logs.slice(-100), weights, NOW).tdee;
+      expect(s[s.length - 1].kcal).toBe(hero.trueTdee);
+      // 50 days ago, the hero had the 100 rows ending that night — not every
+      // row since the account began.
+      const p = s[s.length - 51];
+      const cutoff = new Date(at(50));
+      cutoff.setHours(24, 0, 0, 0);
+      const seen = logs.filter((l) => l.date < cutoff).slice(-100);
+      const merged = seen.map((l) => ({ ...l, weight: weights[key(Math.round((NOW.getTime() - l.date.getTime()) / 86_400_000))] }));
+      expect(p.kcal).toBe(calculateTdee(merged, PROFILE as never, MIDNIGHT, cutoff).trueTdee);
+    });
+  });
 });
 
 describe('weightTrendSeries', () => {
@@ -125,10 +173,32 @@ describe('weightTrendSeries', () => {
     expect(s.map((p) => p.scale)).toEqual([null, 180, null, 182]);
     expect(s[0].trend).toBeNull();
     expect(s[1].trend).toBe(180);
-    // A gap holds the trend; the reading after a two-day gap counts for
-    // 1 − 0.9² = 0.19 of the difference (it carries two days of news).
-    expect(s[2].trend).toBe(180);
+    // The reading after a two-day gap counts for 1 − 0.9² = 0.19 of the
+    // difference (it carries two days of news).
     expect(s[3].trend).toBeCloseTo(180.38, 6);
+  });
+
+  it('draws straight between two weigh-ins instead of a staircase', () => {
+    const s = weightTrendSeries({ '2026-10-02': 180, '2026-10-04': 182 }, keys);
+    // Halfway in time between the two levels the filter reached.
+    expect(s[2].trend).toBeCloseTo((180 + (s[3].trend as number)) / 2, 9);
+  });
+
+  it('holds the level after the newest reading', () => {
+    const s = weightTrendSeries({ '2026-10-01': 180, '2026-10-02': 181 }, keys);
+    expect(s[3].trend).toBe(s[1].trend);
+    expect(s[2].trend).toBe(s[1].trend);
+  });
+
+  it('is warmed on readings before the window, so it agrees with the full-history trend', () => {
+    const weights = { '2026-09-01': 190, '2026-09-10': 186, '2026-09-20': 183, '2026-10-02': 180 };
+    const windowed = weightTrendSeries(weights, keys);
+    const full = weightTrendSeries(weights, ['2026-09-01', '2026-09-10', '2026-09-20', '2026-10-02'] as DateKey[]);
+    expect(windowed[1].trend).toBeCloseTo(full[3].trend as number, 9);
+    // Before the first in-window reading, the line comes in from the last
+    // pre-window level rather than starting cold.
+    expect(windowed[0].trend).not.toBeNull();
+    expect(windowed[0].trend as number).toBeGreaterThan(windowed[1].trend as number);
   });
 
   it('ignores non-positive or non-finite readings', () => {

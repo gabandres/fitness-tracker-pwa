@@ -1,6 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useRestCountdown } from '@/hooks/useRestTimer';
 import { useT } from '@/i18n';
 import { useActiveWorkout } from '@/lib/active-workout-signal';
 import * as haptics from '@/lib/haptics';
@@ -17,18 +18,21 @@ import { clock } from './train-summary';
  * like this above their tab bars, because the raised Log button pulls you to
  * Today mid-session (a shake, a coffee) and the way back should be one tap.
  *
- * Reads the same one-producer signal as the dot (`active-workout-signal.ts`,
- * ADR-0016 — no listener, no documents). Renders nothing when no workout is
- * open, so the caller can mount it unconditionally.
+ * Reads the same signal as the dot (`active-workout-signal.ts`, ADR-0016 — no
+ * listener, no documents). Renders nothing when no workout is open, so the
+ * caller can mount it unconditionally; the tab layout does, above the tab bar
+ * on every tab but Train (which shows the session itself).
  *
- * NOT MOUNTED YET: the mount point is the tab layout, `app/(app)/_layout.tsx`,
- * which this change does not own — above the tab bar, on every tab but Train
- * (Train already shows the session itself). `onResume` navigates there.
+ * While a rest is running the pill shows the REST instead of the elapsed time
+ * ("Workout · Rest 1:12") — the number a lifter who stepped over to Today is
+ * actually waiting on, and what Hevy's mini-bar carries (Train re-score).
  */
 export function ActiveWorkoutPill({ onResume }: { onResume: () => void }) {
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const workout = useActiveWorkout();
+  const rest = useRestCountdown(workout.active ? workout.restEndsAt : null);
+  const resting = rest.remaining > 0;
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!workout.active) return;
@@ -49,12 +53,20 @@ export function ActiveWorkoutPill({ onResume }: { onResume: () => void }) {
         onResume();
       }}
       accessibilityRole="button"
-      accessibilityLabel={t('train.activePillA11y', { name, time: time ?? '' })}
+      accessibilityLabel={
+        resting
+          ? t('train.activePillRestA11y', { name, time: rest.label })
+          : t('train.activePillA11y', { name, time: time ?? '' })
+      }
       testID="active-workout-pill"
     >
       <View style={styles.dot} />
       <Text style={styles.name} numberOfLines={1}>{name}</Text>
-      {time ? <Text style={styles.time}>{time}</Text> : null}
+      {resting ? (
+        <Text style={styles.time} testID="active-workout-pill-rest">{t('train.activePillRest', { time: rest.label })}</Text>
+      ) : time ? (
+        <Text style={styles.time}>{time}</Text>
+      ) : null}
       <View style={styles.fill} />
       <Text style={styles.resume}>{t('train.activeResume')}</Text>
       <Ionicons name="chevron-forward" size={16} style={styles.chevron} />

@@ -23,6 +23,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useT } from '@/i18n';
 import { announce, primeScreenReaderState, recommendedTimeoutMs } from '@/lib/a11y';
 import * as haptics from '@/lib/haptics';
+import { isClosing } from '@/lib/sheet-portal';
 import { useThemedStyles, type Theme } from '@/lib/theme-context';
 import { FAB_BAND, font, motion, radius, space } from '@/theme';
 
@@ -253,13 +254,23 @@ export function ToastProvider({ children }: { children: ReactNode }) {
  * a toast shown while a sheet is up lands above the sheet rather than behind
  * it. Stacked sheets (a confirm over the food sheet) each register; only the
  * newest draws. Outside a `ToastProvider` it renders nothing.
+ *
+ * `sheetId` is the native sheet route's portal id (`lib/sheet-portal.ts`).
+ * While that sheet is dismissing, this host stays registered (the route has
+ * not unmounted yet) but draws nothing: the add receipt is raised in the same
+ * moment the sheet closes, and it used to fade in at the top of the closing
+ * sheet and then AGAIN at the bottom once the root host took over — one
+ * receipt, two entrances (Today re-score, Visual). Holding it back for the
+ * ~300 ms of dismissal means it appears once, where it will stay. The JS
+ * sheet gets the same result by unmounting this host as `visible` drops.
  */
-export function ToastSheetHost() {
+export function ToastSheetHost({ sheetId }: { sheetId?: string } = {}) {
   const ctx = useContext(ToastStateContext);
   const [id] = useState(nextPortalId);
   const register = ctx?.register;
   useEffect(() => register?.(id), [register, id]);
   if (!ctx || ctx.portals[ctx.portals.length - 1] !== id) return null;
+  if (sheetId && isClosing(sheetId)) return null;
   return <ToastHost toast={ctx.current} onHide={ctx.hide} placement="sheet" />;
 }
 

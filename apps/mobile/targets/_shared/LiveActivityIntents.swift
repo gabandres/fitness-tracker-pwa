@@ -3,7 +3,7 @@ import Foundation
 
 //
 //  Ignia — the buttons ON the Live Activities: the rest timer's "+30 s" and
-//  "Skip", and the fast's "End".
+//  "Skip" (or "Done" once the rest is over), and the fast's "End".
 //
 //  ## Why `LiveActivityIntent`, and why here
 //
@@ -57,11 +57,14 @@ import Foundation
 
     func perform() async throws -> some IntentResult {
       guard let live = RestActivityStore.current else { return .result() }
-      var state = live.content.state
+      let now = Date()
       // From the deadline while the rest is running; from NOW once it has run
       // out, so +30 s on a stale "Rest over" face is a fresh 30 s, not a
-      // deadline still in the past.
-      state.endsAt = max(state.endsAt, Date()).addingTimeInterval(Self.step)
+      // deadline still in the past — and `retarget` restarts `startedAt` with
+      // it, or the progress bar would draw those 30 s as a nearly-empty bar.
+      let current = live.content.state
+      let state = RestActivityStore.retarget(
+        current, to: max(current.endsAt, now).addingTimeInterval(Self.step), now: now)
       IntentInbox.post("rest", ["endsAtMs": IntentInbox.ms(state.endsAt)])
       await live.update(RestActivityStore.content(state))
       await RestDoneNotification.move(to: state.endsAt)
@@ -78,6 +81,12 @@ import Foundation
 
     init() {}
 
+    /// Also the stale ("Rest over") face's "Done" button
+    /// (`RestActivityWidget.RestButtons`): Skip on a rest that is already over
+    /// offered to skip nothing, so that face labels the same act "Done". The
+    /// effect is identical — end the Activity, drop any pending buzz, tell the
+    /// app the rest is closed (silent; ignored when its own tick already closed
+    /// it) — so it stays one type rather than a twin with the same body.
     func perform() async throws -> some IntentResult {
       // `endsAtMs: 0` is the inbox's word for "the rest is over, by choice" —
       // `applyRestInboxAction` in `src/lib/rest-timer-activity.ts` reads it as

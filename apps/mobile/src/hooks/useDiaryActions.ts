@@ -3,7 +3,8 @@ import type { DailyLog, LogEntry, MealPreset, MealType } from '@macrolog/core';
 import { useToast } from '@/components/Toast';
 import { useAddReceipt } from '@/hooks/useAddReceipt';
 import type { LogWrites } from '@/hooks/useLogWrites';
-import { useT } from '@/i18n';
+import { type I18nKey, useLocale, useT } from '@/i18n';
+import { capitalizeFirst } from '@/i18n/grammar';
 import { useAuth } from '@/lib/auth';
 import { entryFromLog, isNoopEdit } from '@/lib/entry-from-log';
 import type { EntryPrefill } from '@/lib/entry-prefill';
@@ -11,6 +12,26 @@ import * as haptics from '@/lib/haptics';
 import { addPresetNow } from '@/lib/ledger';
 import { addLogDurably } from '@/lib/pending-logs';
 import { captureError } from '@/lib/sentry';
+
+/** A meal slot's own word — the diary's slot headers use the same keys. */
+const SLOT_WORD: Record<MealType, I18nKey> = {
+  breakfast: 'meal.breakfast',
+  lunch: 'meal.lunch',
+  dinner: 'meal.dinner',
+  snack: 'meal.snack',
+};
+
+/**
+ * The row a "Copy to today" writes: every field of `log` except its time and
+ * its `createdAt` — it is a new meal, eaten now. The slot is kept when the
+ * row had one (lunch copied at 9 PM is still lunch, a choice the user made);
+ * an untagged row is left untagged so the write path slots it by the clock.
+ * Exported for test.
+ */
+export function copyForToday(log: DailyLog, now: Date = new Date()): LogEntry {
+  const { createdAt: _createdAt, ...rest } = entryFromLog(log);
+  return { ...rest, timestamp: now };
+}
 
 export interface DiaryActionsOptions
   extends Pick<LogWrites, 'addEntry' | 'updateEntry' | 'deleteEntry' | 'deletePreset'> {
@@ -79,6 +100,7 @@ export function useDiaryActions({
   onClose,
 }: DiaryActionsOptions) {
   const t = useT();
+  const locale = useLocale();
   const toast = useToast();
   const receipt = useAddReceipt();
   const { user } = useAuth();
@@ -172,10 +194,28 @@ export function useDiaryActions({
     // keeps the honest `offline.queued` copy (UX_AUDIT S18-12); a refused one
     // says so and plays its own warning.
     const r = await addEntry(entry);
-    receipt.showAdded(r, { label: entry.mealLabel, calories: entry.calories, remaining }, (id) =>
-      editAdded(id, entry),
+    // Edit only when it can act: with the sheet kept open for a multi-add,
+    // `editAdded` would return early and the button would do nothing.
+    receipt.showAdded(
+      r,
+      { label: entry.mealLabel, calories: entry.calories, remaining },
+      sheetOpenRef.current ? undefined : (id) => editAdded(id, entry),
     );
-    if (r?.outcome === 'rejected') return;
+    if (r?.outcome === 'rejected') {
+      // Refused by the server: what was typed is not lost — the form reopens
+      // holding it, so the one wrong value can be fixed and saved again.
+      if (!sheetOpenRef.current) {
+        openAdd({
+          calories: entry.calories,
+          protein: entry.protein,
+          carbs: entry.carbs,
+          fat: entry.fat,
+          mealLabel: entry.mealLabel,
+          mealType: entry.mealType,
+        });
+      }
+      return;
+    }
     if (party) haptics.celebrate();
     else haptics.success();
   }
@@ -285,6 +325,49 @@ export function useDiaryActions({
     });
   }
 
+  /**
+   * Move a row to another meal on the same day — the row menu's "Move to…"
+   * (Today re-score, Usability: every diary competitor has it, and the only
+   * way here was open → change the meal chip → Save). The time does not
+   * move: a slot is where the row is FILED, and the clock is a separate fact
+   * the editor owns. Not awaited, like every edit (offline it never acks);
+   * the receipt's Undo puts the slot back exactly as it was.
+   */
+  function moveToSlot(log: DailyLog, slot: MealType) {
+    const id = log.id;
+    if (!id || log.mealType === slot) return;
+    const before = entryFromLog(log);
+    const failed = (what: string) => (e: unknown) => {
+      haptics.warning();
+      toast.show(t('entry.updateFailed'));
+      captureError(e, { where: `${where}.${what}` });
+    };
+    updateEntry(id, { ...before, mealType: slot }).catch(failed('moveEntry'));
+    haptics.success();
+    toast.show(t('entry.movedTo', { slot: capitalizeFirst(t(SLOT_WORD[slot]), locale) }), {
+      action: {
+        label: t('common.undo'),
+        onPress: () => {
+          updateEntry(id, before).catch(failed('undoMove'));
+        },
+      },
+      testID: 'toast-moved',
+    });
+  }
+
+  /**
+   * Log a past day's row again, now — "Copy to today" on a History row. The
+   * same receipt as any add (named, with Undo), through the same durable add,
+   * so offline it parks rather than vanishing. No "Edit" on the receipt: the
+   * row it would open is on Today, not on the day this screen shows.
+   */
+  async function copyToToday(log: DailyLog) {
+    const entry = copyForToday(log);
+    const r = await addEntry(entry);
+    receipt.showAdded(r, { label: entry.mealLabel, calories: entry.calories });
+    if (r?.outcome !== 'rejected') haptics.success();
+  }
+
   return {
     sheetOpen,
     editing,
@@ -299,6 +382,8 @@ export function useDiaryActions({
     onDelete,
     deleteFromList,
     savePresetFromLog,
+    moveToSlot,
+    copyToToday,
   };
 }
 

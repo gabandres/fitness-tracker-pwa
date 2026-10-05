@@ -1,7 +1,17 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { MUSCLE_GROUPS, computeExercisePRs, exerciseSeries, formatLoad } from '@macrolog/core';
+import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { SheetTextInput } from '@/components/SheetTextInput';
+import {
+  MUSCLE_GROUPS,
+  computeExercisePRs,
+  exerciseSeriesPoints,
+  formatLoad,
+  loadUnit,
+  toDisplayLoad,
+} from '@macrolog/core';
 import { BottomSheet } from '@/components/BottomSheet';
+import { AccessibleChart } from '@/components/charts/AccessibleChart';
+import { audioGraphDescriptor } from '@/components/charts/audio-graph';
 import { confirm } from '@/components/ConfirmSheet';
 import { Sparkline } from '@/components/Sparkline';
 import { showToast } from '@/components/Toast';
@@ -87,11 +97,56 @@ export function ExerciseDetailSheet({
         .filter((r): r is { date: Date; ex: SessionExercise } => r.ex != null)
     : [];
   const history = rows.map((r) => r.ex);
-  const series = exerciseSeries(history, style);
+  // Dated, so the chart's audio graph can name each session; the values alone
+  // are `exerciseSeries`.
+  const points = exerciseSeriesPoints(rows, style);
+  const series = points.map((p) => p.value);
   /** One point of `series` in the user's words, for the chart's text
    *  alternative — a load in their unit, a hold in seconds, or a rep count. */
   const fmtPoint = (v: number) =>
     style === 'weight-reps' ? formatLoad(v, unitSystem, 0) : style === 'time' ? `${Math.round(v)}s` : String(Math.round(v));
+  const metric = style === 'time' ? t('train.trendHold') : style === 'bodyweight' ? t('train.trendReps') : t('train.trendE1rm');
+  /**
+   * The chart's spoken summary and its audio graph (Train re-score bug 5).
+   *
+   * It borrowed Body's weight sentence, so an e1RM trend read "Weight, last 6
+   * days, 100 to 110 , trending up" — sessions called days, an empty unit
+   * slot, and a lift called body weight. Its own sentence names the metric and
+   * counts sessions; the unit rides in the formatted points. The descriptor
+   * gives VoiceOver's rotor "Audio Graph" over the same points, in the user's
+   * unit, one stop per session named by its date.
+   */
+  const chart = series.length >= 2
+    ? (() => {
+        const first = series[0] as number;
+        const last = series[series.length - 1] as number;
+        const summary = t('a11y.chart.lift', {
+          metric,
+          sessions: series.length,
+          from: fmtPoint(first),
+          to: fmtPoint(last),
+          trend: t(last < first ? 'a11y.trend.down' : last > first ? 'a11y.trend.up' : 'a11y.trend.flat'),
+        });
+        const labels = points.map((p) => formatDate(p.date, locale, { month: 'short', day: 'numeric' }));
+        const descriptor = audioGraphDescriptor({
+          title: metric,
+          summary,
+          xTitle: t('train.chartSessionAxis'),
+          xLabels: labels,
+          yTitle: metric,
+          unit: style === 'weight-reps' ? loadUnit(unitSystem) : style === 'time' ? 's' : undefined,
+          decimals: 0,
+          series: [
+            {
+              name: metric,
+              values: series.map((v) => (style === 'weight-reps' ? Math.round(toDisplayLoad(v, unitSystem)) : v)),
+            },
+          ],
+          pointLabels: points.map((p, i) => `${labels[i]}: ${fmtPoint(p.value)}`),
+        });
+        return { summary, descriptor };
+      })()
+    : null;
   const prs = computeExercisePRs(history);
   const others = exercise ? train.catalog.filter((e) => e.id !== exercise.id) : [];
 
@@ -152,7 +207,7 @@ export function ExerciseDetailSheet({
         {mode === 'edit' ? (
           <>
             <Text style={[styles.fieldLabel, { marginTop: space.sm }]}>{t('train.exerciseName')}</Text>
-            <TextInput
+            <SheetTextInput
               style={styles.input}
               value={editName}
               onChangeText={setEditName}
@@ -258,30 +313,18 @@ export function ExerciseDetailSheet({
                   {style === 'time' ? <PrCard label={t('train.prHold')} value={`${prs.maxDurationSec}s`} /> : null}
                 </View>
 
-                {series.length >= 2 ? (
+                {chart ? (
                   <View style={styles.chartWrap}>
-                    <Text style={styles.panelLabel}>
-                      {style === 'time' ? t('train.trendHold') : style === 'bodyweight' ? t('train.trendReps') : t('train.trendE1rm')}
-                    </Text>
-                    <Sparkline
-                      values={series}
-                      color={colors.ring}
-                      // The weight-chart sentence, reused: "{from} to {to}" is
-                      // the part that matters and the unit rides in the points.
-                      accessibilityLabel={t('a11y.chart.weight', {
-                        days: series.length,
-                        from: fmtPoint(series[0] as number),
-                        to: fmtPoint(series[series.length - 1] as number),
-                        unit: '',
-                        trend: t(
-                          (series[series.length - 1] as number) < (series[0] as number)
-                            ? 'a11y.trend.down'
-                            : (series[series.length - 1] as number) > (series[0] as number)
-                              ? 'a11y.trend.up'
-                              : 'a11y.trend.flat',
-                        ),
-                      })}
-                    />
+                    <Text style={styles.panelLabel}>{metric}</Text>
+                    <AccessibleChart
+                      descriptor={chart.descriptor}
+                      accessible
+                      accessibilityRole="image"
+                      accessibilityLabel={chart.summary}
+                      testID="exercise-chart"
+                    >
+                      <Sparkline values={series} color={colors.ring} />
+                    </AccessibleChart>
                   </View>
                 ) : null}
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { type Href, useLocalSearchParams, useRouter } from 'expo-router';
 import {
   ActivityIndicator,
@@ -18,7 +18,9 @@ import {
   type TdeeResult,
   type WeeklyBudget,
   type WeeklyInsights,
+  TARGET_STREAK_MIN_DAYS,
   TDEE_SERIES_MAX_DAYS,
+  TDEE_SERIES_PRO_MAX_DAYS,
   activityMultiplier as activityMultiplierFor,
   balanceVerdict,
   parseYmd,
@@ -30,13 +32,18 @@ import { SleepTrendsCard } from '@/components/SleepTrendsCard';
 import { FastingTrendsCard } from '@/components/FastingTrendsCard';
 import { WaterTrendsCard } from '@/components/WaterTrendsCard';
 import { WeeklyReportCard } from '@/components/WeeklyReportCard';
+import { ContextMenu, CONTEXT_MENUS } from '@/components/ContextMenu';
 import { Glyph } from '@/components/charts/Glyph';
+import { MedianLine, useStripAudioGraph } from '@/components/charts/StripParts';
+import { AccessibleChart } from '@/components/charts/AccessibleChart';
 import {
   ExpenditureCard,
+  ProteinTrendCard,
   TREND_RANGES,
   type TrendRange,
   WeightTrendCard,
   rangeDays,
+  rangesFor,
 } from '@/components/charts/TrendsCharts';
 import { maintenanceLine, slopeLabel, targetLine } from '@/components/charts/trend-copy';
 import { useAdjustableDays } from '@/components/charts/useAdjustableDays';
@@ -49,6 +56,7 @@ import { useSubscription, PRO_ENABLED } from '@/lib/subscription';
 import { type I18nKey, type Locale, type TFn, useLocale, useT } from '@/i18n';
 import { plural } from '@/i18n/grammar';
 import * as haptics from '@/lib/haptics';
+import { announce } from '@/lib/a11y';
 import { CountUpText, enterUp, PressScale } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { FAB_BAND, font, radius, space, type } from '@/theme';
@@ -88,8 +96,10 @@ const TDEE_MODE: Record<TdeeResult['source'], { badgeKey: I18nKey; hintKey: I18n
 
 /** Remount boundary for Retry — see Today for why a `key` bump is the
  *  mechanism (the feed hooks expose no reload; UX_AUDIT S18-7). Pull-to-
- *  refresh is the same remount: the feeds re-open from cache, which is what
- *  "refresh" can honestly mean for a listener-backed screen. */
+ *  refresh is NOT a remount any more (review S20): a remount replayed every
+ *  entry animation and threw away the scroll position, for listeners that are
+ *  live anyway. It re-fetches the older rows and re-runs the replay instead —
+ *  the only two things on this screen that are not already live. */
 export default function Trends() {
   const [attempt, setAttempt] = useState(0);
   return <TrendsScreen key={attempt} onRetry={() => setAttempt((a) => a + 1)} />;
@@ -103,18 +113,45 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
   const { colors } = useTheme();
   const router = useRouter();
   const reduceMotion = useReducedMotion();
-  // The expenditure/weight range, remembered like the panel tabs below.
+  const { isPro } = useSubscription();
+  // The chart cap: `CHART_HISTORY_DAYS_FREE` says "Pro sees all-time", and v1
+  // forces `isPro` true — yet every chart stopped at 90 days, so 3M and All
+  // were usually the same chart while Body offered 1Y (review S20). A year is
+  // Body's reach.
+  const cap = isPro ? TDEE_SERIES_PRO_MAX_DAYS : TDEE_SERIES_MAX_DAYS;
+  // The expenditure/weight range, remembered like the panel tabs below. A
+  // stored 6M/1Y under a 90-day cap falls back to 3M rather than selecting a
+  // chip that is not drawn.
   const [rangeRaw, setRange] = usePersistedTab('trends.range', TREND_RANGES, '1m');
-  const range = rangeRaw as TrendRange;
+  const range: TrendRange = rangesFor(cap).includes(rangeRaw as TrendRange) ? (rangeRaw as TrendRange) : '3m';
   // `historyDays` is only known after the first pass; the hook clamps, so
   // asking for the cap on "All" and trimming at render is equivalent.
-  const requestedDays = range === '1m' ? 30 : TDEE_SERIES_MAX_DAYS;
+  const requestedDays = rangeDays(range, cap, cap);
+  // Pull-to-refresh: a generation number the hook re-fetches and re-replays
+  // on, and the spinner holds until it reports that generation settled.
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [pulling, setPulling] = useState(false);
   const {
     loading, error, insights, loggedThisWeek, proteinTarget, tdee, targetCalories, budget, basalKcal,
     activityLevel, sleep, fasting, water, composition, chartKeys, weightSeries, intakeSeries,
+    proteinSeries, historyClip, insightWindow, streak, settledKey,
     expenditure, historyDays, milestones, progress,
-  } = useTrends(requestedDays);
-  const shownDays = rangeDays(range, historyDays, TDEE_SERIES_MAX_DAYS);
+  } = useTrends(requestedDays, { maxDays: cap, refreshKey });
+  // Clipped to the days the cache covers in full when the older rows could
+  // not be fetched — "nothing logged" over logged days is worse than a
+  // shorter chart that says why.
+  const fullDays = rangeDays(range, historyDays, cap);
+  const shownDays = historyClip ? Math.min(fullDays, historyClip.days) : fullDays;
+  useEffect(() => {
+    if (!pulling || settledKey !== refreshKey) return;
+    setPulling(false);
+    // A screen reader heard nothing when the spinner went away.
+    announce(t('trends.refreshed'));
+  }, [pulling, settledKey, refreshKey, t]);
+  const onPullRefresh = useCallback(() => {
+    setPulling(true);
+    setRefreshKey((k) => k + 1);
+  }, []);
   const compUnits = useUnitSystem();
   // One `composition_view` per Trends focus in which the composition line is
   // actually on screen (ADR-0043) — the number that says whether anyone reads
@@ -185,7 +222,6 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
   const activeHabit = habitFaces.includes(habitTab as (typeof HABIT_TABS)[number])
     ? habitTab
     : habitFaces[0];
-  const { isPro } = useSubscription();
   const { user } = useAuth();
   const mode = TDEE_MODE[tdee.source];
 
@@ -232,11 +268,16 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
 
   // Body is a sibling TAB: `navigate`, not `push` — pushing a tab route stacks
   // a second copy of it (the reasoning `FastingTrendsCard` records for Today).
-  const openBody = () => router.navigate('/body' as Href);
-  const openDay = (dateKey: string) => {
-    haptics.tap();
-    router.push(`/history/${dateKey}` as Href);
-  };
+  // Both are stable: they go into the `memo`'d chart cards, and a fresh
+  // function per render re-rendered both charts on every Trends render.
+  const openBody = useCallback(() => router.navigate('/body' as Href), [router]);
+  const openDay = useCallback(
+    (dateKey: string) => {
+      haptics.tap();
+      router.push(`/history/${dateKey}` as Href);
+    },
+    [router],
+  );
 
   // The hero's uncertainty, in the words Today already uses for the same
   // states (`HeroRings`), so the two screens cannot describe one estimate two
@@ -278,8 +319,9 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
       ) : (
         <ScrollView
           ref={scrollRef}
+          testID="trends-scroll"
           contentContainerStyle={styles.body}
-          refreshControl={<RefreshControl refreshing={false} onRefresh={onRetry} tintColor={colors.muted} colors={[colors.accent]} />}
+          refreshControl={<RefreshControl refreshing={pulling} onRefresh={onPullRefresh} tintColor={colors.muted} colors={[colors.accent]} />}
         >
           {error ? (
             <View style={styles.errorRow} accessibilityRole="alert" accessibilityLiveRegion="polite">
@@ -390,10 +432,16 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
               milestones={milestones}
               range={range}
               onRange={setRange}
+              cap={cap}
               onOpenDay={openDay}
               t={t}
               locale={locale}
             />
+            {historyClip && shownDays < fullDays ? (
+              <Text style={styles.clipNote} testID="trends-history-clip">
+                {t('trends.chart.clipped', { n: historyClip.days })}
+              </Text>
+            ) : null}
           </Animated.View>
 
           {composition.enabled && composition.recomp ? (
@@ -496,6 +544,21 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
             />
           </Animated.View>
 
+          {/* 1e. Protein over time, on the same range — the half of the macro
+              story the calorie line cannot tell (review S20). */}
+          <Animated.View entering={enterUp(2)}>
+            <ProteinTrendCard
+              keys={chartKeys}
+              protein={proteinSeries}
+              days={shownDays}
+              target={proteinTarget}
+              milestones={milestones}
+              onOpenDay={openDay}
+              t={t}
+              locale={locale}
+            />
+          </Animated.View>
+
           {/* 2. WEEKLY PANEL — Last 7 days ⇄ Budget behind one tab strip.
               ADR-0034 decision 4: consolidation is the lever to reach for
               before configuration, and this is the mobile half of the merge the
@@ -527,6 +590,8 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
               <ThisWeek
                 insights={insights}
                 loggedThisWeek={loggedThisWeek}
+                window={insightWindow}
+                streak={streak}
                 proteinTarget={proteinTarget}
                 isPro={isPro}
                 onUpsell={() => router.push('/coach' as Href)}
@@ -750,6 +815,8 @@ function PanelTabs({
 function ThisWeek({
   insights,
   loggedThisWeek,
+  window,
+  streak,
   proteinTarget,
   isPro,
   onUpsell,
@@ -761,6 +828,10 @@ function ThisWeek({
 }: {
   insights: WeeklyInsights | null;
   loggedThisWeek: number;
+  /** The seven complete days the face reads — named, like the budget's week. */
+  window: { from: string; to: string };
+  /** Complete days in a row at or under target (`targetStreak`). */
+  streak: number;
   proteinTarget: number;
   isPro: boolean;
   onUpsell: () => void;
@@ -773,11 +844,19 @@ function ThisWeek({
   const unitSystem = useUnitSystem();
   const { fontScale } = useWindowDimensions();
   const stacked = fontScale > STACK_TILES_AT_FONT_SCALE;
+  // Names the window: seven COMPLETE days, ending yesterday — today joins once
+  // it is over (a half-logged day dragged every average down).
+  const windowLine = window?.from ? (
+    <Text style={styles.sub} testID="insights-window">
+      {t('trends.last7Window', { from: shortDay(window.from, locale), to: shortDay(window.to, locale) })}
+    </Text>
+  ) : null;
   // Below the 3-day insight gate: a preview skeleton + a "keep logging" nudge,
   // so day zero still says what the card will show and prompts the next log.
   if (!insights) {
     return (
       <View style={styles.card} testID="insights-card">
+        {windowLine}
         <View style={[styles.tileRow, stacked && styles.tileRowStacked]}>
           <StatTile label={t('trends.avgIntake')} faded styles={styles} />
           <View style={stacked ? styles.divider : styles.tileDivider} />
@@ -805,6 +884,7 @@ function ThisWeek({
   const targetColor = vsTarget.kind === 'over' ? colors.danger : colors.good;
   return (
     <View style={styles.card} testID="insights-card">
+      {windowLine}
       <View style={[styles.tileRow, stacked && styles.tileRowStacked]}>
         <StatTile
           label={t('trends.avgIntake')}
@@ -832,6 +912,14 @@ function ThisWeek({
 
       <View style={styles.divider} />
       <Text style={styles.sub}>{t('trends.daysLogged', { n: insights.loggedDays })}</Text>
+      {/* The panel's one celebratory line, and only when there is something
+          to celebrate — a run that ended says nothing (UX_AUDIT §S12). */}
+      {streak >= TARGET_STREAK_MIN_DAYS ? (
+        <View style={styles.streakRow} testID="insights-streak">
+          <Glyph ios="flame.fill" android="flame" size={14} color={colors.good} />
+          <Text style={styles.streakText}>{t('trends.targetStreak', { n: formatNumber(streak, locale) })}</Text>
+        </View>
+      ) : null}
 
       {/* Deeper insight rows — Pro. */}
       <View style={styles.divider} />
@@ -940,6 +1028,11 @@ function Budget({
   locale: Locale;
 }) {
   const [menuKey, setMenuKey] = useState<string | null>(null);
+  const menuLabel = menuKey ? t('trends.chart.openDay', { date: dayLabel(menuKey, locale) }) : null;
+  // The pill, announced — the same rule as the line charts' pill.
+  useEffect(() => {
+    if (menuLabel) announce(menuLabel);
+  }, [menuLabel]);
   const bars = budget?.bars ?? [];
   const todayIdx = budget ? budget.daysElapsed - 1 : -1;
   const labelAt = (i: number) => {
@@ -970,6 +1063,23 @@ function Budget({
       ],
     },
   );
+
+  // The audio graph the line charts have (iOS VoiceOver's rotor), from the
+  // stepper's own sentences. An assumed or future day is silence, not the
+  // target and not a zero — it was never eaten.
+  const budgetKeys = useMemo(() => bars.map((b) => b.dateKey), [bars]);
+  const budgetValues = useMemo(() => bars.map((b) => (b.elapsed && !b.assumed ? Math.round(b.calories) : null)), [bars]);
+  const budgetLabels = bars.map((_, i) => labelAt(i));
+  const descriptor = useStripAudioGraph({
+    title: t('trends.budgetTitle'),
+    summary: typeof stepper.a11y.accessibilityLabel === 'string' ? stepper.a11y.accessibilityLabel : '',
+    xTitle: t('entry.date'),
+    unit: 'kcal',
+    dateKeys: budgetKeys,
+    values: budgetValues,
+    pointLabels: budgetLabels,
+    locale,
+  });
 
   // No target/logs yet: faded 7-column placeholder — the bars ARE the
   // illustration of what this fills into.
@@ -1016,17 +1126,19 @@ function Budget({
           an outline and an underlined day letter as well as the red, so the
           cue survives colour-blindness; an unlogged past day is a dashed
           outline AT the target, because that is what the arithmetic assumed.
-          Long-press a day to open it in History. */}
+          Tap a day to open it in History (it was long-press only, and nothing
+          said so); long-press is the system context menu on iOS. */}
       <View style={styles.barArea}>
-        <View {...stepper.a11y} style={styles.barStrip} testID="budget-strip">
-          {bars.map((b) => {
+        <AccessibleChart {...stepper.a11y} descriptor={descriptor} style={styles.barStrip} testID="budget-strip">
+          {bars.map((b, i) => {
             const h = b.calories > 0 && budget.dailyTarget > 0 ? Math.max(6, Math.min(100, (b.calories / budget.dailyTarget) * 70)) : 0;
             const over = b.calories > budget.dailyTarget;
-            return (
+            const column = (
               <Pressable
                 key={b.dateKey}
                 style={styles.barCol}
-                onLongPress={() => { haptics.tap(); setMenuKey(b.dateKey); }}
+                onPress={() => onOpenDay(b.dateKey)}
+                onLongPress={CONTEXT_MENUS ? undefined : () => { haptics.tap(); setMenuKey(b.dateKey); }}
                 // Inside the adjustable element above, so never a separate stop.
                 accessible={false}
                 testID={`budget-bar-${b.dateKey}`}
@@ -1047,20 +1159,45 @@ function Budget({
                       testID={over ? `budget-bar-over-${b.dateKey}` : undefined}
                     />
                   )}
-                  <View style={styles.barTargetLine} pointerEvents="none" />
+                  {/* The target, as the habit strips draw their median: a full-
+                      strength ink line over a card-colour halo. `ink` at 55%
+                      measured 2.07:1 over a `good` bar — gone exactly where
+                      it mattered (WCAG 1.4.11). */}
+                  <MedianLine bottomPct={70} />
                 </View>
                 <Text style={[styles.barDay, over && styles.barDayOver]} maxFontSizeMultiplier={CHART_TEXT_MAX_SCALE}>
                   {weekdayNarrow(b.dateKey, locale)}
                 </Text>
               </Pressable>
             );
+            if (!CONTEXT_MENUS) return column;
+            // iOS: the system menu, the day's sentence as its preview. The
+            // outer View keeps the column's share of the row — the menu's
+            // native wrapper would otherwise size to its content.
+            return (
+              <View key={b.dateKey} style={styles.barSlot}>
+                <ContextMenu
+                  title={dayLabel(b.dateKey, locale)}
+                  actions={[{ key: 'open', title: t('trends.chart.openDayAction'), icon: 'calendar', onPress: () => onOpenDay(b.dateKey) }]}
+                  preview={
+                    <View style={styles.menuPreview}>
+                      <Text style={styles.menuPreviewText}>{labelAt(i)}</Text>
+                    </View>
+                  }
+                  previewSize={{ width: 300, height: 88 }}
+                  onPreviewPress={() => onOpenDay(b.dateKey)}
+                >
+                  {column}
+                </ContextMenu>
+              </View>
+            );
           })}
-        </View>
+        </AccessibleChart>
         <Text style={styles.barTargetLabel} maxFontSizeMultiplier={CHART_TEXT_MAX_SCALE} accessibilityElementsHidden importantForAccessibility="no">
           {t('trends.chart.targetLabel', { kcal: formatNumber(budget.dailyTarget, locale) })}
         </Text>
       </View>
-      {menuKey ? (
+      {menuKey && !CONTEXT_MENUS ? (
         <View style={styles.menu}>
           <PressScale
             style={styles.menuBtn}
@@ -1068,7 +1205,7 @@ function Budget({
             onPress={() => { const k = menuKey; setMenuKey(null); onOpenDay(k); }}
             testID="budget-open-day"
           >
-            <Text style={styles.menuText}>{t('trends.chart.openDay', { date: dayLabel(menuKey, locale) })}</Text>
+            <Text style={styles.menuText}>{menuLabel}</Text>
           </PressScale>
           <PressScale style={styles.menuClose} accessibilityRole="button" accessibilityLabel={t('a11y.close')} onPress={() => setMenuKey(null)}>
             <Svg width={12} height={12}>
@@ -1226,8 +1363,8 @@ const createStyles = ({ colors, shadow }: Theme) =>
     // An unlogged past day: an outline at the target height (70%), dashed —
     // "assumed", drawn as exactly what the arithmetic assumed.
     barAssumed: { width: '100%', height: '70%', borderRadius: radius.sm, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.lineStrong },
-    // 70% up the track = the daily target (see the bar height formula).
-    barTargetLine: { position: 'absolute', left: 0, right: 0, bottom: '70%', height: StyleSheet.hairlineWidth * 2, backgroundColor: colors.ink, opacity: 0.55 },
+    // A column's share of the row when it is wrapped in a native context menu.
+    barSlot: { flex: 1 },
     barTargetLabel: { alignSelf: 'flex-end', fontSize: font.tiny, color: colors.muted, fontWeight: '700', marginTop: 2 },
     barDayOver: { textDecorationLine: 'underline', fontWeight: '800', color: colors.ink },
     barDay: { fontSize: font.tiny, color: colors.faint, textTransform: 'uppercase' },
@@ -1235,4 +1372,9 @@ const createStyles = ({ colors, shadow }: Theme) =>
     menuBtn: { minHeight: 44, justifyContent: 'center', paddingHorizontal: space.md, borderRadius: radius.pill, backgroundColor: colors.ink },
     menuText: { color: colors.onInk, fontSize: font.small, fontWeight: '700' },
     menuClose: { minHeight: 44, minWidth: 44, alignItems: 'center', justifyContent: 'center' },
+    menuPreview: { flex: 1, justifyContent: 'center', padding: space.md, backgroundColor: colors.card },
+    menuPreviewText: { fontSize: font.small, color: colors.ink, fontWeight: '600' },
+    clipNote: { fontSize: font.tiny, color: colors.muted, marginTop: space.xs, paddingHorizontal: space.xs },
+    streakRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
+    streakText: { fontSize: font.small, color: colors.ink, fontWeight: '600', flexShrink: 1 },
   });

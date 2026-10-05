@@ -47,6 +47,25 @@ const ADD_SLOTS: readonly MealType[] = ['breakfast', 'lunch', 'dinner', 'snack']
 /** Lifts the 32dp "+ Add" pill to a 48dp target; vertical only, its row has
  *  the slot name beside it. */
 const SLOT_ADD_SLOP = { top: 8, bottom: 8 } as const;
+/**
+ * How long a context-menu action that PRESENTS something (the editor, the
+ * meal picker) waits for the menu to finish closing. `onSelected` fires while
+ * UIKit is still dismissing the menu, and presenting a sheet into that
+ * transition can be dropped; the preview's own tap already waits for
+ * `onPreviewTappedAnimationCompleted` (Today re-score, bug 7). An action that
+ * only writes (save preset, delete) runs at once.
+ */
+export const MENU_DISMISS_MS = 300;
+/** Text scale the context-menu preview grows to, and the cap on its text: the
+ *  preview's size is fixed up front (UIKit asks before it renders), so the
+ *  text must not outgrow the box it was given (Today re-score, bug 6). */
+const PREVIEW_MAX_SCALE = 1.3;
+
+/** The meals a row can be moved to: the four slots, minus the one it is in.
+ *  Exported for test. */
+export function moveTargets(log: Pick<DailyLog, 'mealType'>): MealType[] {
+  return ADD_SLOTS.filter((s) => s !== log.mealType);
+}
 
 /**
  * The cascade index each group's first row starts at — computed BEFORE the
@@ -88,6 +107,8 @@ const SLOT_KEY: Record<MealSlot, I18nKey> = {
   other: 'meal.other',
 };
 
+type MenuIcon = 'create-outline' | 'flash-outline' | 'swap-vertical-outline' | 'copy-outline' | 'trash-outline';
+
 function timeOf(d: Date, locale: Locale): string {
   return formatTime(d, locale);
 }
@@ -125,12 +146,17 @@ function EntryRow({
   onSavePreset,
   onDelete,
   onMenu,
+  onPickSlot,
+  onCopyToToday,
 }: {
   log: DailyLog;
   onPress: (log: DailyLog) => void;
   onSavePreset?: (log: DailyLog) => void;
   onDelete?: (log: DailyLog) => void;
   onMenu?: (log: DailyLog, remove: () => void) => void;
+  /** Ask which meal to move the row to (absent: the row cannot move). */
+  onPickSlot?: (log: DailyLog, remove: () => void) => void;
+  onCopyToToday?: (log: DailyLog) => void;
 }) {
   const t = useT();
   const locale = useLocale();
@@ -155,6 +181,8 @@ function EntryRow({
   const actions = [
     { name: 'activate', label: t('entry.editTitle') },
     ...(canSavePreset ? [{ name: 'savePreset', label: t('entry.savePresetShort') }] : []),
+    ...(onPickSlot ? [{ name: 'move', label: t('entry.moveTo') }] : []),
+    ...(onCopyToToday ? [{ name: 'copyToday', label: t('entry.copyToToday') }] : []),
     ...(onDelete ? [{ name: 'delete', label: t('entry.delete') }] : []),
   ];
   function onAction(e: AccessibilityActionEvent) {
@@ -164,6 +192,12 @@ function EntryRow({
         break;
       case 'savePreset':
         if (canSavePreset) onSavePreset?.(log);
+        break;
+      case 'move':
+        onPickSlot?.(log, remove);
+        break;
+      case 'copyToday':
+        onCopyToToday?.(log);
         break;
       case 'delete':
         if (onDelete) remove();
@@ -191,7 +225,7 @@ function EntryRow({
       // action sheet, a Material bottom menu) — rather than silently saving a
       // preset, which was a gesture nobody could discover or predict.
       onLongPress={
-        !contextMenu && (canSavePreset || onDelete)
+        !contextMenu && (canSavePreset || onDelete || onPickSlot || onCopyToToday)
           ? () => {
               haptics.tap();
               onMenu?.(log, remove);
@@ -220,16 +254,27 @@ function EntryRow({
     </PressScale>
   );
 
+  // The two actions that present something wait out the menu's dismissal
+  // (`MENU_DISMISS_MS`); the rest only write, and run at once.
+  const afterMenu = (run: () => void) => () => {
+    setTimeout(run, MENU_DISMISS_MS);
+  };
   const body = contextMenu ? (
     <ContextMenu
       title={label}
       preview={<EntryPreview log={log} />}
-      previewSize={{ width: PREVIEW_WIDTH, height: previewHeight(log) }}
+      previewSize={{ width: PREVIEW_WIDTH, height: previewHeight(log, fontScale) }}
       onPreviewPress={() => onPress(log)}
       actions={[
-        { key: 'edit', title: t('entry.editTitle'), icon: 'pencil', onPress: () => onPress(log) },
+        { key: 'edit', title: t('entry.editTitle'), icon: 'pencil', onPress: afterMenu(() => onPress(log)) },
         ...(canSavePreset
           ? [{ key: 'preset', title: t('entry.savePresetShort'), icon: 'bolt', onPress: () => onSavePreset?.(log) }]
+          : []),
+        ...(onPickSlot
+          ? [{ key: 'move', title: t('entry.moveTo'), icon: 'arrow.up.arrow.down', onPress: afterMenu(() => onPickSlot(log, remove)) }]
+          : []),
+        ...(onCopyToToday
+          ? [{ key: 'copy', title: t('entry.copyToToday'), icon: 'doc.on.doc', onPress: () => onCopyToToday(log) }]
           : []),
         ...(onDelete ? [{ key: 'delete', title: t('entry.delete'), icon: 'trash', destructive: true, onPress: remove }] : []),
       ]}
@@ -375,8 +420,16 @@ function SwipeAction({
 }
 
 const PREVIEW_WIDTH = 320;
-function previewHeight(log: DailyLog): number {
-  return 176 + (log.note ? 44 : 0);
+/**
+ * The preview's height, sized for the text it will draw: 176pt (+44 for a
+ * note) at 1×, grown with the text scale up to `PREVIEW_MAX_SCALE` — the same
+ * cap the preview's text carries, so the two cannot disagree. It was fixed,
+ * and at a large Dynamic Type the h1 calories and the macro row clipped off
+ * the bottom of the card. Exported for test.
+ */
+export function previewHeight(log: Pick<DailyLog, 'note'>, fontScale = 1): number {
+  const scale = Math.min(Math.max(fontScale, 1), PREVIEW_MAX_SCALE);
+  return Math.round((176 + (log.note ? 44 : 0)) * scale);
 }
 
 /**
@@ -395,21 +448,31 @@ function EntryPreview({ log }: { log: DailyLog }) {
   ];
   return (
     <View style={styles.preview}>
-      <Text style={styles.previewTime}>{timeOf(log.date, locale)}</Text>
-      <Text style={styles.previewLabel} numberOfLines={2}>{log.mealLabel || t('today.entry')}</Text>
-      <Text style={styles.previewKcal}>
+      <Text style={styles.previewTime} maxFontSizeMultiplier={PREVIEW_MAX_SCALE}>{timeOf(log.date, locale)}</Text>
+      <Text style={styles.previewLabel} numberOfLines={2} maxFontSizeMultiplier={PREVIEW_MAX_SCALE}>
+        {log.mealLabel || t('today.entry')}
+      </Text>
+      <Text style={styles.previewKcal} maxFontSizeMultiplier={PREVIEW_MAX_SCALE}>
         {formatNumber(log.calories, locale)}
         <Text style={styles.previewUnit}> {t('today.kcal')}</Text>
       </Text>
       <View style={styles.previewMacros}>
         {macros.map((m) => (
           <View key={m.key} style={styles.previewMacro}>
-            <Text style={styles.previewMacroValue}>{m.value != null ? `${formatNumber(m.value, locale)} g` : '—'}</Text>
-            <Text style={styles.previewMacroLabel}>{m.label}</Text>
+            {/* The localized gram figure, like every other one in the app —
+                a literal "g" here was the one hardcoded unit left. */}
+            <Text style={styles.previewMacroValue} maxFontSizeMultiplier={PREVIEW_MAX_SCALE}>
+              {m.value != null ? t('unit.grams', { n: formatNumber(m.value, locale) }) : '—'}
+            </Text>
+            <Text style={styles.previewMacroLabel} maxFontSizeMultiplier={PREVIEW_MAX_SCALE}>{m.label}</Text>
           </View>
         ))}
       </View>
-      {log.note ? <Text style={styles.previewNote} numberOfLines={2}>{log.note}</Text> : null}
+      {log.note ? (
+        <Text style={styles.previewNote} numberOfLines={2} maxFontSizeMultiplier={PREVIEW_MAX_SCALE}>
+          {log.note}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -432,6 +495,8 @@ export function MealEntries({
   onSavePreset,
   onDelete,
   onAddToSlot,
+  onMove,
+  onCopyToToday,
 }: {
   logs: DailyLog[];
   onPress: (log: DailyLog) => void;
@@ -454,6 +519,15 @@ export function MealEntries({
   /** Delete a row from the list itself (swipe, or the screen-reader action).
    *  Optional for the same reason as `onSavePreset`; the caller owns the Undo. */
   onDelete?: (log: DailyLog) => void;
+  /**
+   * Move a row to another meal of the same day — "Move to…" in the row's menu
+   * and its screen-reader action, then a pick of the meal (Today re-score,
+   * Usability: MyFitnessPal, Cronometer and MacroFactor all have it). The
+   * caller writes it and owns the Undo.
+   */
+  onMove?: (log: DailyLog, slot: MealType) => void;
+  /** Log this row again now — "Copy to today", offered on past days only. */
+  onCopyToToday?: (log: DailyLog) => void;
 }) {
   const t = useT();
   const locale = useLocale();
@@ -462,7 +536,32 @@ export function MealEntries({
   const groups = diarySlots(logs, !!onAddToSlot);
   const starts = groupStartIndexes(groups);
   // Android's menu target; iOS presents the system action sheet directly.
-  const [menu, setMenu] = useState<{ log: DailyLog; remove: () => void } | null>(null);
+  // `picking`: the same sheet, showing the meals a "Move to…" can go to.
+  const [menu, setMenu] = useState<{ log: DailyLog; remove: () => void; picking?: boolean } | null>(null);
+
+  /** "Move to…": which meal. iOS asks with the system action sheet (the
+   *  context menu has closed by now — see `MENU_DISMISS_MS`); Android turns
+   *  its row menu into the list of meals. */
+  function pickSlot(log: DailyLog, remove: () => void) {
+    if (!onMove) return;
+    const targets = moveTargets(log);
+    if (Platform.OS !== 'ios') {
+      setMenu({ log, remove, picking: true });
+      return;
+    }
+    ActionSheetIOS.showActionSheetWithOptions(
+      {
+        title: t('entry.moveToTitle'),
+        options: [...targets.map((s) => capitalizeFirst(t(SLOT_KEY[s]), locale)), t('common.cancel')],
+        cancelButtonIndex: targets.length,
+        userInterfaceStyle: scheme,
+      },
+      (i) => {
+        const slot = targets[i];
+        if (slot) onMove(log, slot);
+      },
+    );
+  }
 
   function openMenu(log: DailyLog, remove: () => void) {
     if (Platform.OS !== 'ios') {
@@ -483,14 +582,17 @@ export function MealEntries({
     );
   }
 
-  /** Edit always; Save preset for a named row; Delete where the screen allows. */
+  /** Edit always; Save preset for a named row; Move and Copy where the screen
+   *  offers them; Delete where the screen allows. */
   function menuItems(log: DailyLog, remove: () => void) {
-    const items: { key: string; label: string; icon: 'create-outline' | 'flash-outline' | 'trash-outline'; run: () => void; danger?: boolean }[] = [
+    const items: { key: string; label: string; icon: MenuIcon; run: () => void; danger?: boolean }[] = [
       { key: 'edit', label: t('entry.editTitle'), icon: 'create-outline', run: () => onPress(log) },
     ];
     if (onSavePreset && log.mealLabel?.trim()) {
       items.push({ key: 'preset', label: t('entry.savePresetShort'), icon: 'flash-outline', run: () => onSavePreset(log) });
     }
+    if (onMove) items.push({ key: 'move', label: t('entry.moveTo'), icon: 'swap-vertical-outline', run: () => pickSlot(log, remove) });
+    if (onCopyToToday) items.push({ key: 'copy', label: t('entry.copyToToday'), icon: 'copy-outline', run: () => onCopyToToday(log) });
     if (onDelete) items.push({ key: 'delete', label: t('entry.delete'), icon: 'trash-outline', run: remove, danger: true });
     return items;
   }
@@ -560,6 +662,8 @@ export function MealEntries({
                 onSavePreset={onSavePreset}
                 onDelete={onDelete}
                 onMenu={openMenu}
+                onPickSlot={onMove ? pickSlot : undefined}
+                onCopyToToday={onCopyToToday}
               />
             </Animated.View>
           ))}
@@ -571,7 +675,28 @@ export function MealEntries({
         // item, so anything it raised (a toast, a confirm) must go to the
         // screen's hosts, not to this sheet's, which unmount with it.
         <BottomSheet visible={menu != null} onClose={() => setMenu(null)} overlays={false}>
-          {menu ? (
+          {menu?.picking ? (
+            <View style={styles.menu}>
+              <Text style={styles.menuTitle} accessibilityRole="header" numberOfLines={1}>
+                {t('entry.moveToTitle')}
+              </Text>
+              {moveTargets(menu.log).map((slot) => (
+                <TouchableOpacity
+                  key={slot}
+                  style={styles.menuItem}
+                  onPress={() => {
+                    setMenu(null);
+                    onMove?.(menu.log, slot);
+                  }}
+                  accessibilityRole="button"
+                  testID={`entry-move-${slot}`}
+                >
+                  <Ionicons name="restaurant-outline" size={20} color={colors.ink} />
+                  <Text style={styles.menuText}>{capitalizeFirst(t(SLOT_KEY[slot]), locale)}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : menu ? (
             <View style={styles.menu}>
               <Text style={styles.menuTitle} accessibilityRole="header" numberOfLines={1}>
                 {menu.log.mealLabel || t('today.entry')}
@@ -581,7 +706,9 @@ export function MealEntries({
                   key={item.key}
                   style={styles.menuItem}
                   onPress={() => {
-                    setMenu(null);
+                    // "Move to…" keeps the sheet up and turns it into the
+                    // list of meals; everything else closes it.
+                    if (item.key !== 'move') setMenu(null);
                     item.run();
                   }}
                   accessibilityRole="button"

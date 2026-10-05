@@ -19,7 +19,7 @@ import Animated, {
   useSharedValue,
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
-import Svg, { Circle, Line, Path } from 'react-native-svg';
+import Svg, { Line, Path } from 'react-native-svg';
 import {
   type DatedWeight,
   type UnitSystem,
@@ -37,7 +37,7 @@ import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
 import { AccessibleChart } from '@/components/charts/AccessibleChart';
 import { audioGraphDescriptor } from '@/components/charts/audio-graph';
-import { type ChartFrame, nearestIndex, weightChartGeometry } from './weight-chart-geometry';
+import { type ChartFrame, dotsPath, nearestIndex, weightChartGeometry } from './weight-chart-geometry';
 
 /**
  * The Body tab's long-range weight chart (Body review, U4 + V1).
@@ -51,7 +51,10 @@ import { type ChartFrame, nearestIndex, weightChartGeometry } from './weight-cha
  * - **Dots are readings, the line is the trend** (`trendWeightSeries`, the
  *   Trends smoother), the dash is the 4-week projection, and a dashed rule
  *   marks the goal when it is near enough to draw without flattening the line.
- * - **Axis**: min and max on the left, first and last date underneath.
+ * - **Axis**: min, middle and max on the left with a faint mid gridline, and
+ *   first, middle and last date underneath (re-score: two numbers and two
+ *   dates left a 140 pt plot unreadable).
+ * - **One path for the dots** (`dotsPath`), not a `<Circle>` per reading.
  * - **Scrub**: drag across the plot and a cursor follows the finger with a
  *   readout above it and a selection tick per reading crossed. The finger
  *   position, the index and the readout text live in shared values and
@@ -347,16 +350,15 @@ function WeightChartImpl({
                     strokeDasharray="2 4"
                   />
                 ) : null}
-                {shown.map((p, i) => (
-                  <Circle
-                    key={p.dateKey}
-                    cx={geometry.xs[i]}
-                    cy={geometry.ys[i]}
-                    r={shown.length > 120 ? 1.5 : 2.5}
-                    fill={colors.heroText}
-                    opacity={0.45}
-                  />
-                ))}
+                <Line
+                  x1={PAD.padL}
+                  x2={width - PAD.padR}
+                  y1={geometry.midY}
+                  y2={geometry.midY}
+                  stroke={colors.heroTrack}
+                  strokeWidth={1}
+                />
+                <Path d={dotsPath(geometry.xs, geometry.ys, shown.length > 120 ? 1.5 : 2.5)} fill={colors.heroText} opacity={0.45} />
                 {geometry.trendPath ? (
                   <Path d={geometry.trendPath} stroke={colors.ring} strokeWidth={2.5} fill="none" strokeLinejoin="round" strokeLinecap="round" />
                 ) : null}
@@ -379,6 +381,14 @@ function WeightChartImpl({
               <Text style={[styles.axis, styles.axisBottom]} maxFontSizeMultiplier={1.3} importantForAccessibility="no" accessibilityElementsHidden>
                 {num(geometry.minLb)}
               </Text>
+              <Text
+                style={[styles.axis, styles.axisMid, { top: geometry.midY - 8 }]}
+                maxFontSizeMultiplier={1.3}
+                importantForAccessibility="no"
+                accessibilityElementsHidden
+              >
+                {num(geometry.midLb)}
+              </Text>
               {geometry.goalY != null && goalLb != null ? (
                 <Text
                   style={[styles.axis, styles.goalLabel, { top: Math.max(0, geometry.goalY - 16) }]}
@@ -400,6 +410,9 @@ function WeightChartImpl({
       {n > 0 ? (
         <View style={styles.xRow} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
           <Text style={styles.axis} maxFontSizeMultiplier={1.3}>{dayLong(shown[0].dateKey)}</Text>
+          {geometry?.midDateKey ? (
+            <Text style={styles.axis} maxFontSizeMultiplier={1.3}>{day(geometry.midDateKey)}</Text>
+          ) : null}
           <Text style={styles.axis} maxFontSizeMultiplier={1.3}>{day(shown[n - 1].dateKey)}</Text>
         </View>
       ) : null}
@@ -436,6 +449,7 @@ const createStyles = ({ colors }: Theme) =>
     axis: { fontSize: font.tiny, color: colors.heroMuted },
     axisTop: { position: 'absolute', left: 0, top: -2 },
     axisBottom: { position: 'absolute', left: 0, bottom: -4 },
+    axisMid: { position: 'absolute', left: 0 },
     goalLabel: { position: 'absolute', right: PAD.padR },
     xRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: PAD.padL },
     empty: { flex: 1, alignItems: 'center', justifyContent: 'center' },

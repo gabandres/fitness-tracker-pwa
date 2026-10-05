@@ -59,6 +59,9 @@ const PHRASES = {
   'End my fast in ${applicationName}': 'Termina mi ayuno en ${applicationName}',
   'End fast in ${applicationName}': 'Termina el ayuno en ${applicationName}',
   'Stop fasting in ${applicationName}': 'Deja de ayunar en ${applicationName}',
+  'Start my next workout in ${applicationName}': 'Empieza mi próximo entrenamiento en ${applicationName}',
+  'Start my workout in ${applicationName}': 'Empieza mi entrenamiento en ${applicationName}',
+  'Start a workout in ${applicationName}': 'Empieza un entrenamiento en ${applicationName}',
 };
 
 /**
@@ -88,6 +91,9 @@ const PHRASES_PT_BR = {
   'End my fast in ${applicationName}': 'Encerre meu jejum no ${applicationName}',
   'End fast in ${applicationName}': 'Encerre o jejum no ${applicationName}',
   'Stop fasting in ${applicationName}': 'Pare de jejuar no ${applicationName}',
+  'Start my next workout in ${applicationName}': 'Comece meu próximo treino no ${applicationName}',
+  'Start my workout in ${applicationName}': 'Comece meu treino no ${applicationName}',
+  'Start a workout in ${applicationName}': 'Comece um treino no ${applicationName}',
 };
 
 /**

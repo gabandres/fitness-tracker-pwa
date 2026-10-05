@@ -86,7 +86,7 @@ export default function SheetRoute() {
           padding it as well left a screen-tall sheet with a blank band. A
           sheet at a height detent stays put, and its content needs the room. */}
       <Reanimated.View style={[styles.pad, !fit && styles.root, !fit && padding]}>{entry.node}</Reanimated.View>
-      {entry.overlays ? <ToastSheetHost /> : null}
+      {entry.overlays ? <ToastSheetHost sheetId={id} /> : null}
       {entry.overlays ? <ConfirmHost /> : null}
     </View>
   );

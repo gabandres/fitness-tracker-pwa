@@ -3,9 +3,17 @@ import {
   type MutableRefObject, type ReactNode, startTransition, useDeferredValue, useEffect, useMemo, useRef, useState,
 } from 'react';
 import {
-  AccessibilityInfo, ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput,
-  TouchableOpacity, View,
+  AccessibilityInfo,
+  ActivityIndicator,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+import { SheetTextInput } from '@/components/SheetTextInput';
 import type { FoodSource } from '@macrolog/core';
 import { queryNamesRestaurantChain, trustForDataType } from '@macrolog/core';
 import {
@@ -130,6 +138,10 @@ interface Props {
   autoFocus?: boolean;
   /** Bump to focus the field again — "Search by name" from a barcode miss. */
   focusSignal?: number;
+  /** Bump to empty the box (and keep the keyboard): the sheet stayed open
+   *  after an add (multi-add), and the next food starts from nothing. A typed
+   *  "350" left in the box would be one Return from logging twice. */
+  resetSignal?: number;
   /**
    * The ⊕ on a result row (U3): log the hit's default portion in one tap,
    * skipping the portion step and the review form. The receipt that follows
@@ -190,6 +202,7 @@ export function FoodSearch({
   backHandlerRef,
   autoFocus = false,
   focusSignal,
+  resetSignal,
   onQuickLog,
   onQuickAdd,
 }: Props) {
@@ -205,6 +218,11 @@ export function FoodSearch({
     const timer = setTimeout(() => inputRef.current?.focus(), 350);
     return () => clearTimeout(timer);
   }, [focusSignal, inputRef]);
+  useEffect(() => {
+    if (!resetSignal) return;
+    onChange('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetSignal]);
   // A dictated bare food name arrives here rather than in the meal draft — see
   // `routeTranscript`. Keyed on the seed VALUE so typing afterwards is never
   // fought with. A restored search (`initial`) already contains whatever the
@@ -482,7 +500,7 @@ export function FoodSearch({
             item.name,
             item.tag,
             t('entry.caloriesA11y', { n: formatNumber(item.kcal, locale) }),
-            item.protein != null ? t('entry.proteinAmount', { n: item.protein }) : null,
+            item.protein != null ? t('entry.proteinAmount', { n: formatNumber(item.protein, locale) }) : null,
           ].filter(Boolean).join(', ')}
           testID={`search-lib-${item.key}`}
         >
@@ -493,7 +511,9 @@ export function FoodSearch({
           <View style={styles.hitMeta}>
             <Text style={styles.libTag} maxFontSizeMultiplier={2.2}>{item.tag}</Text>
             {item.protein != null ? (
-              <Text style={styles.hitServing} maxFontSizeMultiplier={2.2}>{t('entry.proteinAmount', { n: item.protein })}</Text>
+              <Text style={styles.hitServing} maxFontSizeMultiplier={2.2}>
+                {t('entry.proteinAmount', { n: formatNumber(item.protein, locale) })}
+              </Text>
             ) : null}
           </View>
         </Pressable>
@@ -569,7 +589,7 @@ export function FoodSearch({
     <View style={styles.wrap}>
       <View style={styles.searchRow}>
         <View style={styles.searchBox}>
-          <TextInput
+          <SheetTextInput
             ref={inputRef}
             placeholder={t('food.placeholder')}
             placeholderTextColor={colors.faint}
@@ -937,7 +957,7 @@ export function PortionPicker({
             style={styles.step}
             onPress={stepDown}
             accessibilityRole="button"
-            accessibilityLabel={t('settings.lower')}
+            accessibilityLabel={t('food.fewerServings')}
             // 44 circle + 2 slop = 48 (Android's target).
             hitSlop={2}
             testID="food-qty-minus"
@@ -945,7 +965,7 @@ export function PortionPicker({
             <Text style={styles.stepText}>−</Text>
           </TouchableOpacity>
           {qtyDraft != null ? (
-            <TextInput
+            <SheetTextInput
               style={[styles.multValue, styles.multInput]}
               value={qtyDraft}
               onChangeText={setQtyDraft}
@@ -986,7 +1006,7 @@ export function PortionPicker({
             style={styles.step}
             onPress={stepUp}
             accessibilityRole="button"
-            accessibilityLabel={t('settings.raise')}
+            accessibilityLabel={t('food.moreServings')}
             // 44 circle + 2 slop = 48 (Android's target).
             hitSlop={2}
             testID="food-qty-plus"

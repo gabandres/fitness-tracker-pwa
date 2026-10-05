@@ -182,7 +182,9 @@ export function RecompCard({
 
   return (
     <View style={styles.recompCard} testID="recomp-card">
-      <Text style={styles.recompTitle}>{t('recomp.title')}</Text>
+      {/* A header, so the rotor's Headings jump lands on it like every other
+          card title on Trends. */}
+      <Text style={styles.recompTitle} accessibilityRole="header">{t('recomp.title')}</Text>
       {body}
       <View style={styles.remindRow}>
         <View style={{ flex: 1 }}>

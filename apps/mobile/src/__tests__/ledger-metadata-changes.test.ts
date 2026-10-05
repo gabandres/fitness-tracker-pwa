@@ -30,13 +30,20 @@ jest.mock('firebase/firestore', () => ({
   query: jest.fn(() => ({ path: 'q' })),
   where: jest.fn(),
   Timestamp: class {
-    static now = () => ({ toDate: () => new Date(0) });
-    static fromDate = (d: Date) => ({ toDate: () => d });
+    static now(): { toDate: () => Date } {
+      return { toDate: () => new Date(0) };
+    }
+    static fromDate(d: Date): { toDate: () => Date } {
+      return { toDate: () => d };
+    }
   },
 }));
 
 jest.mock('@/lib/sentry', () => ({ addBreadcrumb: jest.fn() }));
 jest.mock('@/lib/firebase', () => ({ db: {}, auth: {} }));
+// The logs and profile readers double as the connectivity probe; its debounce
+// timer would otherwise outlive the run.
+jest.mock('@/lib/connectivity', () => ({ reportSnapshotMeta: jest.fn(), isOffline: () => false }));
 jest.mock('@/lib/health-sync', () => ({ exportDaily: jest.fn(), exportNutrition: jest.fn() }));
 
 import * as ledger from '@/lib/ledger';

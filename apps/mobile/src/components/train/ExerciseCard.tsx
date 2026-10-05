@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { memo, useCallback, useMemo } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import {
@@ -62,6 +62,8 @@ export interface ExerciseCardProps {
   onOpenSetSheet: (exerciseIndex: number, setIndex: number) => void;
   onOpenLift: (exerciseIndex: number) => void;
   onSetDone: (exerciseIndex: number, setIndex: number, info: { pr: boolean; complete: boolean }) => void;
+  /** Remove one set, with the session's Undo. */
+  onRemoveSet: (exerciseIndex: number, setIndex: number) => void;
 }
 
 /**
@@ -91,6 +93,7 @@ export const ExerciseCard = memo(function ExerciseCard({
   onOpenSetSheet,
   onOpenLift,
   onSetDone,
+  onRemoveSet,
 }: ExerciseCardProps) {
   const t = useT();
   const styles = useThemedStyles(createStyles);
@@ -163,15 +166,23 @@ export const ExerciseCard = memo(function ExerciseCard({
   // The haptic a tick deserves, decided where the whole exercise is in view:
   // a record, the last set of the lift, or just a tick (Train review items
   // 25, 35). The row reports the set as it now stands.
+  //
+  // The sets are read through a ref, not closed over: with `ex.sets` in the
+  // deps every keystroke made a new `onDone`, and every row of the open card
+  // re-rendered with it (Train re-score, performance).
+  const setsRef = useRef(ex.sets);
+  useEffect(() => {
+    setsRef.current = ex.sets;
+  });
   const onDone = useCallback(
     (setIndex: number, done: WorkoutSet) => {
-      const after = ex.sets.map((s, i) => (i === setIndex ? done : s));
+      const after = setsRef.current.map((s, i) => (i === setIndex ? done : s));
       onSetDone(exerciseIndex, setIndex, {
         pr: setBeatsBest(done, style, best),
         complete: after.length > 0 && after.every((s) => isLoggedSet(s, style)),
       });
     },
-    [ex.sets, exerciseIndex, onSetDone, style, best],
+    [exerciseIndex, onSetDone, style, best],
   );
 
   const countA11y = t('train.setCountA11y', { done: loggedCount, total: totalSets });
@@ -234,12 +245,20 @@ export const ExerciseCard = memo(function ExerciseCard({
                 haptics.tap();
                 // Same affordance the bump had: the accepted load lands on
                 // every working set that has no weight yet, so a cluster's
-                // minis inherit it too.
+                // minis inherit it too. Each patch is deferred and the lot
+                // committed ONCE: an immediate dispatch per set was N writes
+                // of the whole session for one tap (Train re-score bug 9).
+                let patched = false;
                 ex.sets.forEach((s, idx) => {
                   if (isWorkingSet(s) && (s.weight ?? 0) === 0) {
-                    void dispatch({ type: 'patchSet', exerciseIndex, setIndex: idx, patch: { weight: acceptLoad } });
+                    patched = true;
+                    void dispatch(
+                      { type: 'patchSet', exerciseIndex, setIndex: idx, patch: { weight: acceptLoad } },
+                      { defer: true },
+                    );
                   }
                 });
+                if (patched) void commitActive();
               }}
             />
           ) : bumpTo != null ? (
@@ -320,6 +339,7 @@ export const ExerciseCard = memo(function ExerciseCard({
               commitActive={commitActive}
               onDone={onDone}
               onOpenSheet={onOpenSetSheet}
+              onRemove={onRemoveSet}
               chain={chain}
             />
           ))}

@@ -38,8 +38,9 @@ import { useAddReceipt } from '@/hooks/useAddReceipt';
 import { useToday } from '@/hooks/useToday';
 import { announce } from '@/lib/a11y';
 import { isOffline, useIsOffline } from '@/lib/connectivity';
-import { parseDecimal } from '@/lib/entry-input';
+import { parseDecimal, settleWithin } from '@/lib/entry-input';
 import { captureError } from '@/lib/sentry';
+import { showToast } from '@/components/Toast';
 import { type I18nKey, type TFn, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import {
@@ -116,6 +117,11 @@ const TARGET = Platform.OS === 'android' ? 48 : 44;
  */
 type ReviewItem = ScannedFoodItem & {
   added?: boolean;
+  /** The row's identity for React, minted when it joins the list. Nothing
+   *  about the food itself is stable: a model estimate has no `fdcId`, and the
+   *  name is the thing being typed — keyed on either, every keystroke in a
+   *  name field remounted the row and dropped the keyboard after one letter. */
+  key?: string;
   /** The typed text of an added row's kcal/protein, so "12." keeps its point
    *  while the user is still typing (the number alone would drop it). */
   draft?: { calories?: string; protein?: string };
@@ -135,6 +141,16 @@ type ReviewItem = ScannedFoodItem & {
  */
 const SCAN_STEPS = ['preparing', 'reading', 'resolving'] as const;
 type ScanStep = (typeof SCAN_STEPS)[number];
+
+/** Review-row keys (`ReviewItem.key`). Module scope, minted in handlers only. */
+let itemSeq = 0;
+const nextItemKey = () => `item-${++itemSeq}`;
+
+/** Give every row that lacks one a key — a fresh scan, or a draft written
+ *  before rows carried them. A draft written since keeps its own. */
+function withKeys(items: readonly ReviewItem[]): ReviewItem[] {
+  return items.map((it) => (it.key ? it : { ...it, key: nextItemKey() }));
+}
 
 const STEP_LABEL: Record<ScanStep, I18nKey> = {
   preparing: 'scan.stepPreparing',
@@ -308,7 +324,7 @@ export default function Scan() {
       if (!d) return;
       draftAt.current = d.atMs;
       setFromDraft(true);
-      setItems(d.items);
+      setItems(withKeys(d.items));
       setMealName(d.mealName);
       setPortion(d.portion);
       setLowConf(d.lowConf);
@@ -586,7 +602,7 @@ export default function Scan() {
       if (!scan.items.length) throw new Error('empty');
 
       setStep('resolving');
-      setItems(scan.items);
+      setItems(withKeys(scan.items));
       setPortion(1);
       setMealName(defaultMealName(scan.items, t('scan.mealName')));
       setLowConf(scan.confidence === 'low');
@@ -717,9 +733,10 @@ export default function Scan() {
    */
   function addItem() {
     haptics.tap();
+    const key = nextItemKey();
     setItems((prev) => [
       ...prev,
-      { name: '', grams: 0, calories: 0, protein: 0, carbs: 0, fat: 0, confidence: 1, added: true },
+      { name: '', grams: 0, calories: 0, protein: 0, carbs: 0, fat: 0, confidence: 1, added: true, key },
     ]);
   }
 
@@ -848,7 +865,7 @@ export default function Scan() {
       const total = sumScannedMacros(items);
       const label = mealName.trim() || t('scan.mealName');
       const calories = Math.round(total.calories);
-      const r = await addEntry({
+      const write = addEntry({
         calories,
         protein: Math.round(total.protein),
         carbs: Math.round(total.carbs),
@@ -865,6 +882,36 @@ export default function Scan() {
         // never took one.
         source: 'photo',
       });
+      // Up to SAVE_WAIT_MS for the answer, then Today regardless (re-score
+      // bug 4): on a weak signal `addEntry` takes up to 8 s to decide, and Add
+      // spun for all of it. A late answer is reported by the receipt instead.
+      const early = await settleWithin(write);
+      if (!early.settled) {
+        leaveToToday();
+        void write
+          .then(async (late) => {
+            if (late?.outcome === 'rejected') {
+              // Nothing was saved and the review is gone from screen — but its
+              // draft is still on disk, so Edit reopens the scan on it (the
+              // restore path) rather than asking for a second photo.
+              haptics.warning();
+              showToast(t('entry.rejectedNamed', { label }), {
+                action: { label: t('common.edit'), onPress: () => router.navigate('/scan') },
+                testID: 'toast-rejected',
+              });
+              return;
+            }
+            await clearScanDraft();
+            haptics.success();
+            receipt.showAdded(late, { label, calories });
+          })
+          .catch((e) => {
+            haptics.warning();
+            captureError(e, { where: 'scan.addLate' });
+          });
+        return;
+      }
+      const r = early.value;
       // Refused by the rules: nothing was written, so the review — and the
       // draft protecting it — stays. Said here, where the user is looking.
       if (r?.outcome === 'rejected') throw new Error('add rejected');
@@ -1214,7 +1261,7 @@ export default function Scan() {
               <Text style={styles.section}>{t('scan.items')}</Text>
               {items.map((it, i) => (
                 <ItemRow
-                  key={`${i}-${it.fdcId ?? it.name}`}
+                  key={it.key ?? String(i)}
                   item={it}
                   index={i}
                   styles={styles}

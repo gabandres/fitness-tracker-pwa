@@ -28,6 +28,14 @@
  *
  * Storage failures are swallowed on purpose. A missing dot is a cosmetic loss;
  * a crashed tab bar is not.
+ *
+ * ## The rest deadline
+ *
+ * `restEndsAt` is the one field with a second producer: the live session's
+ * rest timer (`ActiveSession`, via {@link publishRestEndsAt}), so the pill can
+ * show the countdown the way Hevy's mini-bar does (Train re-score). It is a
+ * number, not a subscription, and it is in-memory only — a rest outlives
+ * neither the session nor the runtime, so it is never written to the cache.
  */
 import { useSyncExternalStore } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -40,9 +48,12 @@ export interface ActiveWorkoutSignal {
    *  "Workout · 12:34 · Resume" pill. Null on a cached hint written before
    *  the field existed. */
   startedAt: number | null;
+  /** When the running rest ends (epoch ms), or null when none is. Changes on
+   *  a rest's start, stop and run-out — never once a second. */
+  restEndsAt: number | null;
 }
 
-const EMPTY: ActiveWorkoutSignal = { active: false, name: null, startedAt: null };
+const EMPTY: ActiveWorkoutSignal = { active: false, name: null, startedAt: null, restEndsAt: null };
 
 let current: ActiveWorkoutSignal = EMPTY;
 let listeners: (() => void)[] = [];
@@ -56,6 +67,7 @@ function emit(next: ActiveWorkoutSignal) {
     next.active === current.active
     && next.name === current.name
     && next.startedAt === current.startedAt
+    && next.restEndsAt === current.restEndsAt
   ) return;
   current = next;
   for (const l of listeners) l();
@@ -75,15 +87,28 @@ export function publishActiveWorkout(
         active: true,
         name: live.templateName ?? null,
         startedAt: live.date instanceof Date ? live.date.getTime() : null,
+        // A set logged mid-rest must not clear the rest the pill is showing.
+        restEndsAt: current.active ? current.restEndsAt : null,
       }
     : EMPTY;
   emit(next);
   if (!uid) return;
   const k = keyFor(uid);
+  const { restEndsAt: _rest, ...cached } = next;
   const write = live
-    ? AsyncStorage.setItem(k, JSON.stringify(next))
+    ? AsyncStorage.setItem(k, JSON.stringify(cached))
     : AsyncStorage.removeItem(k);
   void write.catch(() => {});
+}
+
+/**
+ * The live session's rest deadline, for the pill (null = no rest running).
+ * Ignored while no workout is open: a rest cannot outlive its session, and a
+ * late call from an unmounting session must not light anything up.
+ */
+export function publishRestEndsAt(endsAt: number | null): void {
+  if (!current.active && endsAt != null) return;
+  emit({ ...current, restEndsAt: endsAt });
 }
 
 /**
@@ -112,6 +137,7 @@ export async function hydrateActiveWorkout(uid: string | undefined): Promise<voi
         active: true,
         name: parsed.name ?? null,
         startedAt: typeof parsed.startedAt === 'number' ? parsed.startedAt : null,
+        restEndsAt: null,
       });
     }
   } catch {

@@ -34,6 +34,7 @@ import {
 } from '@/lib/ledger';
 import {
   type SessionAction,
+  type SessionRemoval,
   applySessionAction,
   findDuplicateExercise,
   dayBoundaryOf,
@@ -45,6 +46,7 @@ import {
   recommend,
   recommendOptionsFor,
   toRecommendationSnapshot,
+  undoRemoval as applyUndoRemoval,
 } from '@macrolog/core';
 import {
   type Exercise,
@@ -136,6 +138,13 @@ export interface TrainState {
   addLibraryExerciseToActive: (seed: SeedExercise, replaceIndex?: number) => Promise<void>;
   /** Move one exercise of the live session (the ⋯ menu's Move up / Move down). */
   moveExerciseInActive: (from: number, to: number) => void;
+  /** Put back a set or exercise the live session just removed — the Undo on
+   *  the "Set removed" / "Exercise removed" toast. The restore itself is core's
+   *  `undoRemoval` (pure, tested there); this persists it. Not a
+   *  `SessionAction` for the same reason `moveExerciseInActive` is not: it is
+   *  the inverse of one, carrying the removed data, not an edit a screen
+   *  composes. A no-op when the exercise a set belonged to is gone. */
+  undoRemoval: (removal: SessionRemoval) => void;
   /** Edit a catalog exercise's fields (name / logStyle / muscles / cues /
    *  effort standard / band override — `targetRepBand: null` clears it). */
   editCatalogExercise: (id: string, patch: ExercisePatch) => Promise<void>;
@@ -870,6 +879,18 @@ export function useTrain(): TrainState {
     [setActive, persist],
   );
 
+  const undoRemoval = useCallback(
+    (removal: SessionRemoval) => {
+      const prev = activeRef.current;
+      if (!prev) return;
+      const next = applyUndoRemoval(prev, removal);
+      if (next === prev) return;
+      setActive(next);
+      void persist(next);
+    },
+    [setActive, persist],
+  );
+
   const addExerciseToActive = useCallback(
     async (
       name: string,
@@ -1124,6 +1145,7 @@ export function useTrain(): TrainState {
       mergeCatalogExercises,
       addExerciseToActive,
       moveExerciseInActive,
+      undoRemoval,
       dispatch,
       commitActive,
       finishWorkout,
@@ -1139,7 +1161,7 @@ export function useTrain(): TrainState {
       startWorkout, startFromTemplate, startCardioWorkout, saveTemplate, deleteTemplate,
       cloneStarterTemplate, addCatalogExercise, addLibraryExercise, addLibraryExerciseToActive,
       editCatalogExercise, deleteCatalogExercise, mergeCatalogExercises, addExerciseToActive,
-      moveExerciseInActive, dispatch, commitActive, finishWorkout, discardWorkout, deleteSession,
+      moveExerciseInActive, undoRemoval, dispatch, commitActive, finishWorkout, discardWorkout, deleteSession,
       editingExisting, reopenSession, finishEdit, cancelEdit,
     ],
   );

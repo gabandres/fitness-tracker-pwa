@@ -1,4 +1,4 @@
-import { memo, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
 import Svg, { Circle, Line, Path, Rect } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
@@ -6,6 +6,8 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedProps, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
+import { announce } from '@/lib/a11y';
+import { ContextMenu, CONTEXT_MENUS } from '@/components/ContextMenu';
 import { font, radius, space } from '@/theme';
 import {
   type Frame,
@@ -32,13 +34,17 @@ import { useAdjustableDays } from './useAdjustableDays';
  *   and first/last date under the axis.
  * - **Touch**: drag across the plot and a cursor, a dot and a value bubble
  *   follow the finger, with a selection haptic each time it crosses into a new
- *   day. Long-press a day to open it in History.
+ *   day. Long-press a day to open it in History — the system context menu on
+ *   iOS (`ContextMenu`, with the day's sentence as its preview), a pill under
+ *   the chart elsewhere.
  * - **Screen reader**: one adjustable element — the label is `summary`, the
  *   value is the day under the cursor, and increment/decrement step it
  *   (`useAdjustableDays`). "Open this day in History" is a custom action.
  *
- * The bubble and the screen reader read the SAME `pointLabel(i)`, so what a
- * sighted user scrubs to and what VoiceOver announces cannot disagree. That
+ * The bubble and the screen reader read the SAME day — `pointLabels[i]`, or
+ * its short form `bubbleLabels[i]` when the caller passes one (the full
+ * sentence needs ~380dp and the bubble has a phone's width), so what a sighted
+ * user scrubs to and what VoiceOver announces cannot disagree. That
  * array — one description per day plus a summary — is also exactly the input
  * an `AXChartDescriptor` (the audio graph) needs: with `audioGraph` set, the
  * adjustable element is an `AccessibleChart` and VoiceOver's rotor adds "Audio
@@ -50,9 +56,10 @@ import { useAdjustableDays } from './useAdjustableDays';
  * The scrub lives in Reanimated shared values on the UI thread: the gesture
  * writes an index, the cursor/dot/bubble read it in worklets, and the bubble's
  * text is an animated `TextInput` prop. The only JS hop is the haptic tick, once
- * per day crossed. Paths are memoised on the series and the measured width, and
- * the component is `memo`'d, so a parent re-render with the same data redraws
- * nothing.
+ * per day crossed. Paths are memoised on the series and the measured width, the
+ * gestures on the frame, and the component is `memo`'d — which only holds if
+ * the caller's props are stable too (`TrendsCharts` memoises every one), so a
+ * parent re-render with the same data redraws nothing.
  *
  * Reduce Motion: nothing here animates on its own. The cursor follows the
  * finger directly (direct manipulation is not decorative motion) and the
@@ -90,9 +97,13 @@ export interface TrendChartProps {
   height?: number;
   /** Chart-level text alternative ("Maintenance, last 30 days, 2,380 to 2,450 kcal"). */
   summary: string;
-  /** One sentence per day — the bubble text and the screen-reader value. */
+  /** One sentence per day — the screen-reader value (and the bubble text
+   *  unless `bubbleLabels` is given). */
   pointLabels: readonly string[];
-  /** Y tick formatter for the top/bottom gridline labels. */
+  /** A SHORT form per day for the scrub bubble — date and numbers, no prose.
+   *  Wraps to two lines at most. */
+  bubbleLabels?: readonly string[];
+  /** Y tick formatter for the top/middle/bottom gridline labels. */
   formatY: (v: number) => string;
   /** First / last x label (already localised). */
   xLabels?: readonly [string, string];
@@ -143,6 +154,7 @@ function TrendChartImpl({
   height = 132,
   summary,
   pointLabels,
+  bubbleLabels,
   formatY,
   xLabels,
   openDay,
@@ -153,6 +165,11 @@ function TrendChartImpl({
   const { colors } = useTheme();
   const [width, setWidth] = useState(0);
   const [menuIndex, setMenuIndex] = useState<number | null>(null);
+  // The day under the finger at touch-down — what the native context menu
+  // offers to open. Set at touch-down rather than at the long-press so its
+  // actions have re-rendered for this day before the menu reads them (~0.5 s).
+  const [pressIndex, setPressIndex] = useState<number | null>(null);
+  const nativeMenu = CONTEXT_MENUS && openDay != null;
   const n = dateKeys.length;
 
   const frame: Frame = useMemo(() => ({ width, height, ...PAD }), [width, height]);
@@ -213,35 +230,47 @@ function TrendChartImpl({
   const idx = useSharedValue(-1);
   const xs = geometry?.xs ?? [];
   const ys = geometry?.cursorYs ?? [];
-  const labels = pointLabels;
+  const labels = bubbleLabels ?? pointLabels;
   const f = frame;
+  const canOpen = openDay != null;
 
-  const pan = Gesture.Pan()
-    .activeOffsetX([-8, 8])
-    .failOffsetY([-14, 14])
-    .onBegin((e) => {
-      idx.value = indexAtX(e.x, n, f);
-    })
-    .onUpdate((e) => {
-      const next = indexAtX(e.x, n, f);
-      if (next !== idx.value) {
-        idx.value = next;
+  // Memoised: rebuilding both gestures on every render re-attached them to the
+  // detector each time the parent drew.
+  const gesture = useMemo(() => {
+    const pan = Gesture.Pan()
+      .activeOffsetX([-8, 8])
+      .failOffsetY([-14, 14])
+      .onBegin((e) => {
+        // Only remember the day here. Showing the cursor at touch-down flashed
+        // the bubble on every vertical scroll that happened to start on the
+        // chart; it appears once the drag is recognised as a scrub.
+        if (nativeMenu) scheduleOnRN(setPressIndex, indexAtX(e.x, n, f));
+      })
+      .onStart((e) => {
+        idx.value = indexAtX(e.x, n, f);
+      })
+      .onUpdate((e) => {
+        const next = indexAtX(e.x, n, f);
+        if (next !== idx.value) {
+          idx.value = next;
+          scheduleOnRN(tick);
+        }
+      })
+      .onFinalize(() => {
+        idx.value = -1;
+      });
+
+    // The native menu owns the long-press on iOS; this is the pill elsewhere.
+    const longPress = Gesture.LongPress()
+      .minDuration(450)
+      .enabled(canOpen && !nativeMenu)
+      .onStart((e) => {
+        scheduleOnRN(setMenuIndex, indexAtX(e.x, n, f));
         scheduleOnRN(tick);
-      }
-    })
-    .onFinalize(() => {
-      idx.value = -1;
-    });
+      });
 
-  const longPress = Gesture.LongPress()
-    .minDuration(450)
-    .enabled(openDay != null)
-    .onStart((e) => {
-      scheduleOnRN(setMenuIndex, indexAtX(e.x, n, f));
-      scheduleOnRN(tick);
-    });
-
-  const gesture = Gesture.Race(pan, longPress);
+    return Gesture.Race(pan, longPress);
+  }, [idx, n, f, canOpen, nativeMenu]);
 
   const cursorStyle = useAnimatedStyle(() => {
     const i = idx.value;
@@ -257,11 +286,9 @@ function TrendChartImpl({
   });
   const bubbleStyle = useAnimatedStyle(() => {
     const i = idx.value;
-    // Keep the bubble on the plot: centred on the cursor, clamped to the edges.
-    const w = f.width;
-    const bw = Math.min(220, w);
-    const x = i < 0 ? 0 : Math.max(0, Math.min(w - bw, (xs[i] ?? 0) - bw / 2));
-    return { opacity: i < 0 ? 0 : 1, width: bw, transform: [{ translateX: x }] };
+    // The plot's full width: a 220dp cap cut "maintenance 2,450 kcal · logged
+    // 1,980 kcal" off mid-number, worse in es-PR and pt-BR. Two lines at most.
+    return { opacity: i < 0 ? 0 : 1, width: f.width };
   });
   const bubbleProps = useAnimatedProps(() => {
     const i = idx.value;
@@ -280,12 +307,115 @@ function TrendChartImpl({
       </Text>
     ) : null;
 
+  // The pill, announced: a sighted VoiceOver user who long-pressed hears what
+  // appeared rather than nothing (screen-reader users proper have the rotor
+  // action, `useAdjustableDays`).
+  const openMenu = menuIndex != null && openDay && dateKeys[menuIndex] ? openDay.label(dateKeys[menuIndex]) : null;
+  useEffect(() => {
+    if (openMenu) announce(openMenu);
+  }, [openMenu]);
+
+  const pressKey = pressIndex != null ? dateKeys[pressIndex] : undefined;
+  const plot = (
+    <GestureDetector gesture={gesture}>
+      <AccessibleChart
+        {...stepper.a11y}
+        descriptor={descriptor}
+        style={{ height }}
+        onLayout={(e) => setWidth(Math.round(e.nativeEvent.layout.width))}
+        testID={testID ? `${testID}-plot` : undefined}
+      >
+        {geometry ? (
+          <Svg width={width} height={height}>
+            {/* Top, middle and bottom gridlines — named by the tick labels
+                below. Two labels left the middle of a 2,000-wide kcal axis
+                to guesswork. */}
+            <Line x1={0} x2={width} y1={PAD.padT} y2={PAD.padT} stroke={colors.line} strokeWidth={1} />
+            <Line x1={0} x2={width} y1={height / 2} y2={height / 2} stroke={colors.line} strokeWidth={1} />
+            <Line x1={0} x2={width} y1={height - PAD.padB} y2={height - PAD.padB} stroke={colors.line} strokeWidth={1} />
+            {geometry.refY != null ? (
+              <Line
+                x1={0}
+                x2={width}
+                y1={geometry.refY}
+                y2={geometry.refY}
+                stroke={reference?.color ?? colors.lineStrong}
+                // DOTTED, not dashed: a dashed accent segment already means
+                // "formula estimate" on this chart, and two dash styles on one
+                // plot asked the reader to tell 4/4 from 5/4.
+                strokeWidth={1.75}
+                strokeDasharray="0.1 4"
+                strokeLinecap="round"
+              />
+            ) : null}
+            {geometry.dotPoints.map(({ dots: d, pts }) =>
+              pts.map((p) => (
+                <Circle key={`${d.key}-${p.i}`} cx={p.x} cy={p.y} r={d.radius ?? 2.5} fill={d.color} />
+              )),
+            )}
+            {geometry.paths.map(({ line, solid, dashed, bridges }) => (
+              <GLine key={line.key} solid={solid} dashed={dashed} bridges={bridges} color={line.color} width={line.width ?? 2.25} faint={colors.lineStrong} />
+            ))}
+            {/* Today's point, so the line visibly ENDS on the hero figure. */}
+            {geometry.lastIdx >= 0 && geometry.cursorYs[geometry.lastIdx] >= 0 ? (
+              <Circle
+                cx={geometry.xs[geometry.lastIdx]}
+                cy={geometry.cursorYs[geometry.lastIdx]}
+                r={4}
+                fill={lines[cursorLine]?.color}
+                stroke={colors.card}
+                strokeWidth={2}
+              />
+            ) : null}
+            {markers.map((m) => (
+              <Rect
+                key={`m-${m.index}`}
+                x={(geometry.xs[m.index] ?? 0) - 3}
+                y={height - PAD.padB - 3}
+                width={6}
+                height={6}
+                rotation={45}
+                originX={geometry.xs[m.index] ?? 0}
+                originY={height - PAD.padB}
+                fill={colors.accent}
+              />
+            ))}
+          </Svg>
+        ) : null}
+        {geometry ? (
+          <>
+            <Text style={[styles.tick, styles.tickTop]} maxFontSizeMultiplier={1.3} importantForAccessibility="no" accessibilityElementsHidden>
+              {formatY(geometry.domain.max)}
+            </Text>
+            <Text
+              style={[styles.tick, { top: height / 2 - 8 }]}
+              maxFontSizeMultiplier={1.3}
+              importantForAccessibility="no"
+              accessibilityElementsHidden
+              testID={testID ? `${testID}-tick-mid` : undefined}
+            >
+              {formatY((geometry.domain.min + geometry.domain.max) / 2)}
+            </Text>
+            <Text style={[styles.tick, styles.tickBottom]} maxFontSizeMultiplier={1.3} importantForAccessibility="no" accessibilityElementsHidden>
+              {formatY(geometry.domain.min)}
+            </Text>
+            {lastLabel}
+          </>
+        ) : null}
+        <Animated.View style={[styles.cursor, { height }, cursorStyle]} pointerEvents="none" />
+        <Animated.View style={[styles.cursorDot, { borderColor: lines[cursorLine]?.color ?? colors.ink }, dotStyle]} pointerEvents="none" />
+      </AccessibleChart>
+    </GestureDetector>
+  );
+
   return (
     <View testID={testID}>
       {/* The bubble sits ABOVE the plot so the finger never covers it. */}
       <Animated.View style={[styles.bubble, bubbleStyle]} pointerEvents="none" importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
         <AnimatedTextInput
           editable={false}
+          multiline
+          scrollEnabled={false}
           underlineColorAndroid="transparent"
           style={styles.bubbleText}
           defaultValue=""
@@ -294,79 +424,31 @@ function TrendChartImpl({
         />
       </Animated.View>
 
-      <GestureDetector gesture={gesture}>
-        <AccessibleChart
-          {...stepper.a11y}
-          descriptor={descriptor}
-          style={{ height }}
-          onLayout={(e) => setWidth(Math.round(e.nativeEvent.layout.width))}
-          testID={testID ? `${testID}-plot` : undefined}
+      {nativeMenu && openDay ? (
+        // iOS: the system menu, lifted from the day under the finger, its
+        // sentence as the preview. Tapping the preview opens the day too.
+        <ContextMenu
+          title={pressKey ? openDay.label(pressKey) : undefined}
+          actions={
+            pressKey
+              ? [{ key: 'open', title: openDay.actionLabel, icon: 'calendar', onPress: () => openDay.onOpen(pressKey) }]
+              : []
+          }
+          preview={
+            pressKey && pressIndex != null ? (
+              <View style={styles.preview}>
+                <Text style={styles.previewText}>{pointLabels[pressIndex]}</Text>
+              </View>
+            ) : undefined
+          }
+          previewSize={{ width: 300, height: 88 }}
+          onPreviewPress={pressKey ? () => openDay.onOpen(pressKey) : undefined}
         >
-          {geometry ? (
-            <Svg width={width} height={height}>
-              {/* Top and bottom gridlines — named by the tick labels below. */}
-              <Line x1={0} x2={width} y1={PAD.padT} y2={PAD.padT} stroke={colors.line} strokeWidth={1} />
-              <Line x1={0} x2={width} y1={height - PAD.padB} y2={height - PAD.padB} stroke={colors.line} strokeWidth={1} />
-              {geometry.refY != null ? (
-                <Line
-                  x1={0}
-                  x2={width}
-                  y1={geometry.refY}
-                  y2={geometry.refY}
-                  stroke={reference?.color ?? colors.lineStrong}
-                  strokeWidth={1.25}
-                  strokeDasharray="5 4"
-                />
-              ) : null}
-              {geometry.dotPoints.map(({ dots: d, pts }) =>
-                pts.map((p) => (
-                  <Circle key={`${d.key}-${p.i}`} cx={p.x} cy={p.y} r={d.radius ?? 2.5} fill={d.color} />
-                )),
-              )}
-              {geometry.paths.map(({ line, solid, dashed, bridges }) => (
-                <GLine key={line.key} solid={solid} dashed={dashed} bridges={bridges} color={line.color} width={line.width ?? 2.25} faint={colors.lineStrong} />
-              ))}
-              {/* Today's point, so the line visibly ENDS on the hero figure. */}
-              {geometry.lastIdx >= 0 && geometry.cursorYs[geometry.lastIdx] >= 0 ? (
-                <Circle
-                  cx={geometry.xs[geometry.lastIdx]}
-                  cy={geometry.cursorYs[geometry.lastIdx]}
-                  r={4}
-                  fill={lines[cursorLine]?.color}
-                  stroke={colors.card}
-                  strokeWidth={2}
-                />
-              ) : null}
-              {markers.map((m) => (
-                <Rect
-                  key={`m-${m.index}`}
-                  x={(geometry.xs[m.index] ?? 0) - 3}
-                  y={height - PAD.padB - 3}
-                  width={6}
-                  height={6}
-                  rotation={45}
-                  originX={geometry.xs[m.index] ?? 0}
-                  originY={height - PAD.padB}
-                  fill={colors.accent}
-                />
-              ))}
-            </Svg>
-          ) : null}
-          {geometry ? (
-            <>
-              <Text style={[styles.tick, styles.tickTop]} maxFontSizeMultiplier={1.3} importantForAccessibility="no" accessibilityElementsHidden>
-                {formatY(geometry.domain.max)}
-              </Text>
-              <Text style={[styles.tick, styles.tickBottom]} maxFontSizeMultiplier={1.3} importantForAccessibility="no" accessibilityElementsHidden>
-                {formatY(geometry.domain.min)}
-              </Text>
-              {lastLabel}
-            </>
-          ) : null}
-          <Animated.View style={[styles.cursor, { height }, cursorStyle]} pointerEvents="none" />
-          <Animated.View style={[styles.cursorDot, { borderColor: lines[cursorLine]?.color ?? colors.ink }, dotStyle]} pointerEvents="none" />
-        </AccessibleChart>
-      </GestureDetector>
+          {plot}
+        </ContextMenu>
+      ) : (
+        plot
+      )}
 
       {xLabels ? (
         <View style={styles.xRow} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
@@ -375,9 +457,9 @@ function TrendChartImpl({
         </View>
       ) : null}
 
-      {/* The long-press menu. A JS pill rather than a native context menu: it
-          works the same on both platforms and needs no new native code. */}
-      {openDay && menuIndex != null && dateKeys[menuIndex] ? (
+      {/* The long-press menu off iOS (and on an iOS binary without the native
+          menu views): a JS pill under the chart. */}
+      {!nativeMenu && openDay && menuIndex != null && dateKeys[menuIndex] ? (
         <View style={styles.menu}>
           <Pressable
             style={styles.menuBtn}
@@ -426,15 +508,29 @@ const createStyles = ({ colors, shadow }: Theme) =>
     refLabel: { position: 'absolute', right: 2, fontSize: font.tiny, fontWeight: '700', backgroundColor: colors.card, paddingHorizontal: 3 },
     cursor: { position: 'absolute', top: 0, left: 0, width: 1.5, marginLeft: -0.75, backgroundColor: colors.ink },
     cursorDot: { position: 'absolute', top: 0, left: 0, width: 8, height: 8, borderRadius: 4, borderWidth: 2, backgroundColor: colors.card },
+    // Two lines tall, always — a bubble that grew with its text would shove
+    // the plot down mid-scrub.
     bubble: {
-      height: 26,
+      height: 40,
       marginBottom: space.xs,
       borderRadius: radius.sm,
       backgroundColor: colors.ink,
       justifyContent: 'center',
       ...shadow.e1,
     },
-    bubbleText: { color: colors.onInk, fontSize: font.tiny, fontWeight: '700', textAlign: 'center', paddingVertical: 0, paddingHorizontal: space.sm },
+    bubbleText: {
+      color: colors.onInk,
+      fontSize: font.tiny,
+      lineHeight: 15,
+      fontWeight: '700',
+      textAlign: 'center',
+      textAlignVertical: 'center',
+      paddingVertical: 0,
+      paddingTop: 0,
+      paddingHorizontal: space.sm,
+    },
+    preview: { flex: 1, justifyContent: 'center', padding: space.md, backgroundColor: colors.card },
+    previewText: { fontSize: font.small, color: colors.ink, fontWeight: '600' },
     xRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 },
     xLabel: { fontSize: font.tiny, color: colors.faint },
     menu: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: space.xs, marginTop: space.sm },

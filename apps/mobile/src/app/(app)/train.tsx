@@ -17,10 +17,13 @@ import { ActiveSession } from '@/components/train/ActiveSession';
 import { TrainFinishSheet } from '@/components/train/FinishSheet';
 import { StartView } from '@/components/train/StartView';
 import { createStyles } from '@/components/train/train-styles';
-import { useT } from '@/i18n';
+import { useWorkoutShare, workoutShareStats } from '@/components/train/WorkoutShareCard';
+import { useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { usePulse } from '@/lib/motion';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
+import { useUnitSystem } from '@/lib/use-unit-system';
+import type { WorkoutSession } from '@/lib/workout';
 
 /** Remount boundary for Retry — see Today for why a `key` bump is the
  *  mechanism (the feed hooks expose no reload; UX_AUDIT S18-7). */
@@ -38,6 +41,16 @@ function TrainScreen({ onRetry }: { onRetry: () => void }) {
   // On the SCREEN, not on the live session: finishing unmounts the session,
   // and a native sheet has to be closed by an owner that is still mounted.
   const [finishOpen, setFinishOpen] = useState(false);
+  // One share-card capture for the screen, used by the history detail, the
+  // history menu and the "Workout saved" receipt. Here because the screen is
+  // the one owner that outlives all three (finishing unmounts the session).
+  const locale = useLocale();
+  const unitSystem = useUnitSystem();
+  const workoutShare = useWorkoutShare();
+  const shareSession = (s: WorkoutSession) => {
+    haptics.tap();
+    workoutShare.share(workoutShareStats(s, train.recentSessions, t, locale, unitSystem));
+  };
 
   // Celebration (ADR-0014 §7): finishing a workout that beats a prior best
   // estimated-1RM bounces the idle hero once with a success haptic.
@@ -82,9 +95,15 @@ function TrainScreen({ onRetry }: { onRetry: () => void }) {
       ) : train.active ? (
         <ActiveSession train={train} bestByEx={bestByEx} onFinish={() => setFinishOpen(true)} />
       ) : (
-        <StartView train={train} heroPulse={prPulse} onRetry={onRetry} />
+        <StartView train={train} heroPulse={prPulse} onRetry={onRetry} onShare={shareSession} />
       )}
-      <TrainFinishSheet train={train} visible={finishOpen} onClose={() => setFinishOpen(false)} />
+      <TrainFinishSheet
+        train={train}
+        visible={finishOpen}
+        onClose={() => setFinishOpen(false)}
+        onShare={shareSession}
+      />
+      {workoutShare.host}
     </SafeAreaView>
   );
 }

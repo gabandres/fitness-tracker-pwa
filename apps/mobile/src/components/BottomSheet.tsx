@@ -4,7 +4,14 @@ import {
   StyleSheet, type StyleProp, View, type ViewStyle,
 } from 'react-native';
 import { router } from 'expo-router';
-import { clearSheetPortal, dismissSheet, isPresented, setSheetPortal } from '@/lib/sheet-portal';
+import {
+  clearSheetActive,
+  clearSheetPortal,
+  dismissSheet,
+  isPresented,
+  markSheetActive,
+  setSheetPortal,
+} from '@/lib/sheet-portal';
 import Reanimated, { useReducedMotion } from 'react-native-reanimated';
 import { ToastSheetHost } from '@/components/Toast';
 import { useT } from '@/i18n';
@@ -129,12 +136,17 @@ function NativeBottomSheet({
 
   useEffect(() => {
     if (visible && !isPresented(id)) {
+      // Before the push: the screen underneath blurs when the route lands, and
+      // must already know it is a sheet over it (`useFocusEffectThroughSheets`).
+      markSheetActive(id);
       router.push({
         pathname: '/sheet',
         params: { id, detents: detents === 'fit' ? 'fit' : detents.join(',') },
       });
     } else if (!visible) {
       dismissSheet(id);
+      // Closed before its route ever mounted: nothing will unregister it.
+      if (!isPresented(id)) clearSheetActive(id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, id]);

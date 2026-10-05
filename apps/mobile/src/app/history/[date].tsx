@@ -1,9 +1,11 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
+  addDays,
+  calendarDateKey,
   type Fast,
   fastHoursParts,
   fastLengthHours,
@@ -50,6 +52,19 @@ export function dayTitle(dateKey: string, locale: Locale, now: Date = new Date()
 }
 
 /**
+ * The days either side of `dateKey`, for the header's arrows — `next` is null
+ * once `dateKey` is today or later: a future day has nothing to log against
+ * and nothing to look back at. Exported for test.
+ */
+export function adjacentDays(dateKey: string, todayKey: string): { prev: string; next: string | null } {
+  const d = parseYmd(dateKey);
+  return {
+    prev: calendarDateKey(addDays(d, -1)),
+    next: dateKey < todayKey ? calendarDateKey(addDays(d, 1)) : null,
+  };
+}
+
+/**
  * One day of the diary. Since UX_AUDIT Today review U2 it is the SAME diary as
  * Today — the same `MealEntries` with swipe-delete, Save to Quick add and the
  * per-meal "+ Add", and the same `useDiaryActions` behind it — for a
@@ -61,6 +76,7 @@ export default function DayDetail() {
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const { date } = useLocalSearchParams<{ date: string }>();
   const dateKey = String(date);
   const router = useRouter();
@@ -154,24 +170,62 @@ export default function DayDetail() {
   }
 
   const title = dayTitle(dateKey, locale);
+  // Today by the day boundary — the arrows stop here, and a row on any other
+  // day can be copied to it.
+  const todayKey = dayKeyAt(new Date(), boundary);
+  const days = adjacentDays(dateKey, todayKey);
+  /** Step a day without stacking a screen per step: the route's own param
+   *  changes, so back still goes to the calendar (Today re-score — every
+   *  diary competitor has previous/next day; here it was back, find, tap). */
+  function goToDay(key: string) {
+    haptics.selection();
+    router.setParams({ date: key });
+  }
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => (router.canGoBack() ? router.back() : router.replace('/history'))}
-          hitSlop={12}
-          accessibilityRole="button"
-          accessibilityLabel={t('common.back')}
-          testID="back"
-        >
-          <Ionicons name="chevron-back" size={26} color={colors.ink} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1} accessibilityRole="header">
-          {title}
-        </Text>
-        <View style={{ width: 26 }} />
-      </View>
+    <View style={styles.screen}>
+      {/* The native stack header since the Today re-score (Platform): the
+          system back button — with its swipe, its long-press history and the
+          iOS 26 glass — instead of a drawn chevron. The title is flanked by
+          the day arrows, the diary convention (MyFitnessPal, Cronometer), so
+          they never sit beside the back chevron and read as a second one. */}
+      <Stack.Screen
+        options={{
+          headerShown: true,
+          headerBackButtonDisplayMode: 'minimal',
+          headerShadowVisible: false,
+          headerStyle: { backgroundColor: colors.paper },
+          headerTintColor: colors.ink,
+          title,
+          headerTitle: () => (
+            <View style={styles.headerTitleRow}>
+              <TouchableOpacity
+                onPress={() => goToDay(days.prev)}
+                style={styles.dayArrow}
+                accessibilityRole="button"
+                accessibilityLabel={t('history.prevDay')}
+                testID="day-prev"
+              >
+                <Ionicons name="chevron-back" size={20} color={colors.muted} />
+              </TouchableOpacity>
+              <Text style={styles.headerTitle} numberOfLines={1} accessibilityRole="header">
+                {title}
+              </Text>
+              <TouchableOpacity
+                onPress={() => days.next && goToDay(days.next)}
+                disabled={!days.next}
+                style={[styles.dayArrow, !days.next && styles.dayArrowOff]}
+                accessibilityRole="button"
+                accessibilityLabel={t('history.nextDay')}
+                accessibilityState={{ disabled: !days.next }}
+                testID="day-next"
+              >
+                <Ionicons name="chevron-forward" size={20} color={colors.muted} />
+              </TouchableOpacity>
+            </View>
+          ),
+        }}
+      />
 
       {/* The month fetch counts as loading here: a day behind the window would
           otherwise read "no entries" for the beat before its rows land. */}
@@ -180,7 +234,7 @@ export default function DayDetail() {
           <ActivityIndicator color={colors.accent} />
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.body}>
+        <ScrollView contentContainerStyle={[styles.body, { paddingBottom: FAB_CLEARANCE + insets.bottom }]}>
           <View style={styles.totals}>
             <Total label={t('today.calories')} value={formatNumber(summary.totalCalories, locale)} />
             <Total label={t('history.protein')} value={g(summary.totalProtein)} />
@@ -189,7 +243,7 @@ export default function DayDetail() {
           </View>
           {summary.weightLb != null ? (
             <Text style={styles.weight}>
-              {t('history.weight')}: {formatBodyWeight(summary.weightLb, unitSystem)}
+              {t('history.weightLine', { w: formatBodyWeight(summary.weightLb, unitSystem) })}
             </Text>
           ) : null}
 
@@ -205,6 +259,10 @@ export default function DayDetail() {
             onSavePreset={diary.savePresetFromLog}
             onDelete={diary.deleteFromList}
             onAddToSlot={diary.openSlot}
+            onMove={diary.moveToSlot}
+            // A past day's row can be logged again now — the "same lunch as
+            // Tuesday" case. Not on today itself, where it would be a duplicate.
+            onCopyToToday={dateKey !== todayKey ? diary.copyToToday : undefined}
           />
 
           {/* Fasting. Below the meals because meals are what this screen is
@@ -214,7 +272,7 @@ export default function DayDetail() {
               uses; an overnight fast therefore appears on the day it was
               broken and on no other, so editing it is unambiguous. */}
           <View style={styles.fastHead}>
-            <Text style={styles.sectionTitle}>{t('fast.sectionTitle')}</Text>
+            <Text style={styles.sectionTitle} accessibilityRole="header">{t('fast.sectionTitle')}</Text>
             <TouchableOpacity
               onPress={() => {
                 haptics.tap();
@@ -272,9 +330,11 @@ export default function DayDetail() {
       {/* The same coral + as Today's (review V4) — it was an ink circle, so
           the one action that means "log food" looked like two different
           buttons depending on the date. Same size, glyph and colour pair. */}
+      {/* Lifted by the home-indicator inset: at a flat 24pt its lower half sat
+          in the gesture area on every Face ID iPhone (Today re-score, bug 4). */}
       {!loading ? (
         <PressScale
-          style={styles.fab}
+          style={[styles.fab, { bottom: insets.bottom + space.lg }]}
           onPress={openAdd}
           testID="add-food-day"
           accessibilityRole="button"
@@ -327,34 +387,35 @@ export default function DayDetail() {
         }
         onClose={() => setFastSheet(null)}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
+/** One total, read as ONE stop — "Calories, 1,200" — where the number and its
+ *  label were two (Today re-score, Accessibility). */
 function Total({ label, value }: { label: string; value: string }) {
   const styles = useThemedStyles(createStyles);
   return (
-    <View style={styles.total}>
+    <View style={styles.total} accessible accessibilityLabel={`${label}, ${value}`}>
       <Text style={styles.totalValue}>{value}</Text>
       <Text style={styles.totalLabel}>{label}</Text>
     </View>
   );
 }
 
+/** The scroll's tail padding that clears the + button over the last row —
+ *  the home-indicator inset is added on top at render. */
+const FAB_CLEARANCE = 96;
+
 const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: space.lg,
-    paddingVertical: space.sm,
-    gap: space.sm,
-  },
-  headerTitle: { flex: 1, textAlign: 'center', fontSize: font.h3, fontWeight: '700', color: colors.ink },
+  // The native header's title slot: arrow · day · arrow.
+  headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
+  headerTitle: { flexShrink: 1, textAlign: 'center', fontSize: font.body, fontWeight: '700', color: colors.ink },
+  dayArrow: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  dayArrowOff: { opacity: 0.35 },
   fill: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  // The tail padding clears the + button over the last row.
-  body: { padding: space.xl, paddingBottom: 96, gap: space.lg },
+  body: { padding: space.xl, gap: space.lg },
   totals: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -391,7 +452,6 @@ const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   fab: {
     position: 'absolute',
     right: space.xl,
-    bottom: space.xl,
     width: 58,
     height: 58,
     borderRadius: radius.pill,

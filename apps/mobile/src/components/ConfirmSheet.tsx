@@ -89,7 +89,7 @@ export function ConfirmHost() {
     <BottomSheet visible={visible} onClose={close} backdropTestID="confirm-backdrop" overlays={false}>
       {opts ? (
         <View style={styles.wrap}>
-          <Text style={styles.title}>{opts.title}</Text>
+          <Text style={styles.title} accessibilityRole="header">{opts.title}</Text>
           {opts.body ? <Text style={styles.body}>{opts.body}</Text> : null}
           <View style={styles.row}>
             <TouchableOpacity style={styles.cancel} onPress={close} accessibilityRole="button" testID="confirm-cancel">
@@ -119,8 +119,11 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   title: { fontSize: font.h3, fontWeight: '800', color: colors.ink },
   body: { fontSize: font.small, color: colors.muted, lineHeight: 20 },
   row: { flexDirection: 'row', gap: space.md, marginTop: space.md },
+  // 48 high: Android's touch-target floor (the label alone measured ~45).
   cancel: {
     flex: 1,
+    minHeight: 48,
+    justifyContent: 'center',
     borderWidth: 1,
     borderColor: colors.line,
     borderRadius: radius.md,
@@ -131,6 +134,8 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   cancelText: { fontSize: font.body, fontWeight: '700', color: colors.ink },
   go: {
     flex: 1,
+    minHeight: 48,
+    justifyContent: 'center',
     borderRadius: radius.md,
     paddingVertical: space.md,
     alignItems: 'center',

@@ -20,7 +20,14 @@ import type { I18nKey, TFn } from '@/i18n';
 import { TrendChart } from '@/components/charts/TrendChart';
 import { domainOf, indexAtX, linePaths, xAt } from '@/components/charts/chart-geometry';
 import { maintenanceLine, slopeLabel, targetLine } from '@/components/charts/trend-copy';
-import { rangeDays } from '@/components/charts/TrendsCharts';
+import {
+  ExpenditureCard,
+  ProteinTrendCard,
+  rangeDays,
+  rangesFor,
+  trailingMean,
+} from '@/components/charts/TrendsCharts';
+import type { TdeeSeriesPoint } from '@macrolog/core';
 import { SleepTrendsCard } from '@/components/SleepTrendsCard';
 import type { SleepTrends } from '@/hooks/useSleepTrends';
 
@@ -97,6 +104,22 @@ describe('chart geometry', () => {
     expect(rangeDays('all', 400, 90)).toBe(90);
     expect(rangeDays('all', 2, 90)).toBe(7);
   });
+
+  it('reaches a year behind the Pro cap, with 6M/1Y chips only where the cap reaches them', () => {
+    expect(rangeDays('6m', 400, 365)).toBe(182);
+    expect(rangeDays('1y', 400, 365)).toBe(365);
+    expect(rangeDays('all', 400, 365)).toBe(365);
+    expect(rangeDays('1y', 400, 90)).toBe(90);
+    expect(rangesFor(90)).toEqual(['1m', '3m', 'all']);
+    expect(rangesFor(365)).toEqual(['1m', '3m', '6m', '1y', 'all']);
+  });
+});
+
+describe('trailingMean (the protein line)', () => {
+  it('averages the days that have a value, skipping gaps rather than counting them as zero', () => {
+    expect(trailingMean([null, 100, null, 140], 7)).toEqual([null, 100, 100, 120]);
+    expect(trailingMean([100, 200, 300], 2)).toEqual([100, 150, 250]);
+  });
 });
 
 describe('TrendChart accessibility', () => {
@@ -152,6 +175,95 @@ describe('TrendChart accessibility', () => {
   });
 });
 
+describe('TrendChart, sighted', () => {
+  const keys = ['2026-10-01', '2026-10-02', '2026-10-03'];
+
+  it('labels the middle of the axis too, not only its ends', async () => {
+    const view = await render(
+      <TrendChart
+        dateKeys={keys}
+        lines={[{ key: 'tdee', values: [2000, 2100, 2200], color: '#f00' }]}
+        summary="s"
+        pointLabels={['a', 'b', 'c']}
+        formatY={(v) => String(Math.round(v))}
+        testID="chart"
+      />,
+    );
+    // The plot has no width in jest, so no geometry and no ticks — but the
+    // element exists once laid out. Lay it out.
+    await fireEvent(view.getByTestId('chart-plot'), 'layout', { nativeEvent: { layout: { width: 300, height: 132 } } });
+    expect(view.getByTestId('chart-tick-mid', { includeHiddenElements: true })).toHaveTextContent('2100');
+  });
+});
+
+describe('the maintenance chart says what is actually drawn (review S20, bug 7)', () => {
+  const keys = ['2026-10-01', '2026-10-02', '2026-10-03'];
+  const pt = (dateKey: string, kcal: number | null, source: TdeeSeriesPoint['source']): TdeeSeriesPoint =>
+    ({ dateKey, kcal, source, ci95: null, holding: false }) as TdeeSeriesPoint;
+  const base = {
+    keys,
+    intake: [1800, null, null],
+    days: 3,
+    milestones: {},
+    range: '1m' as const,
+    onRange: jest.fn(),
+    cap: 365,
+    onOpenDay: jest.fn(),
+    t: tFor(en),
+    locale: 'en' as const,
+  };
+
+  it('does not promise a target line when no target is drawn, and names a formula stretch', async () => {
+    const series = [pt(keys[0], 2400, 'formula'), pt(keys[1], 2450, 'measured'), pt(keys[2], 2460, 'measured')];
+    const view = await render(<ExpenditureCard {...base} series={series} target={0} />);
+    const label = view.getByTestId('expenditure-chart-plot').props.accessibilityLabel as string;
+    expect(label).toMatch(/Dashed stretches are formula estimates/);
+    expect(label).not.toMatch(/daily target/);
+  });
+
+  it('a seed-only account hears "no estimate yet", not "formula estimate"', async () => {
+    const series = keys.map((k) => pt(k, null, 'seed'));
+    const view = await render(<ExpenditureCard {...base} series={series} target={1850} />);
+    const label = view.getByTestId('expenditure-chart-plot').props.accessibilityLabel as string;
+    expect(label).toMatch(/no estimate yet/);
+    expect(label).not.toMatch(/formula/);
+  });
+
+  it('hints that a day can be opened until one has been', async () => {
+    const series = keys.map((k) => pt(k, 2400, 'measured'));
+    const onOpenDay = jest.fn();
+    const view = await render(<ExpenditureCard {...base} onOpenDay={onOpenDay} series={series} target={1850} />);
+    expect(view.getByTestId('trends-open-day-hint', { includeHiddenElements: true })).toHaveTextContent('Touch and hold a day to open it in History.');
+    await fireEvent(view.getByTestId('expenditure-chart-plot'), 'accessibilityAction', { nativeEvent: { actionName: 'openDay' } });
+    expect(onOpenDay).toHaveBeenCalledWith('2026-10-03');
+    expect(view.queryByTestId('trends-open-day-hint', { includeHiddenElements: true })).toBeNull();
+  });
+});
+
+describe('the protein chart', () => {
+  it('leaves today out (a lunchtime total is not a day) and counts target days on logged days', async () => {
+    const keys = ['2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04'];
+    const view = await render(
+      <ProteinTrendCard
+        keys={keys}
+        protein={[150, null, 90, 20]}
+        days={4}
+        target={120}
+        milestones={{}}
+        onOpenDay={jest.fn()}
+        t={tFor(en)}
+        locale="en"
+      />,
+    );
+    const plot = view.getByTestId('protein-trend-chart-plot');
+    expect(plot.props.accessibilityLabel).toBe(
+      'Protein over the last 4 days, 120 g a day on average on logged days. The dotted line is your 120 g target; you reached it on 1 of 2 logged days.',
+    );
+    // Today, the newest stop, is "in progress", not 20 g.
+    expect(plot.props.accessibilityValue.text).toMatch(/today, still in progress/);
+  });
+});
+
 describe('habit strips are adjustable too', () => {
   const key = (i: number) => `2026-03-${String(i + 1).padStart(2, '0')}`;
   const keys = Array.from({ length: SLEEP_WINDOW_DAYS }, (_, i) => key(i));
@@ -170,5 +282,21 @@ describe('habit strips are adjustable too', () => {
       await fireEvent(view.getByTestId('sleep-strip'), 'accessibilityAction', { nativeEvent: { actionName: 'decrement' } });
     }
     expect(view.getByTestId('sleep-strip').props.accessibilityValue.text).toMatch(/: 6h 30m$/);
+  });
+
+  it('a night opens its day in History — by tap and by the rotor action — and the strip names its dates', async () => {
+    mockPush.mockClear();
+    const sleepByDay: Record<string, SleepEntry> = {};
+    for (let i = 0; i < 5; i++) sleepByDay[key(i)] = { hours: 6.5, source: 'import' };
+    const state: SleepTrends = { kind: 'card', window: sleepWindow(sleepByDay, keys), contrast: null };
+    const view = await render(<SleepTrendsCard sleep={state} />);
+    await fireEvent.press(view.getByTestId(`sleep-col-${key(2)}`));
+    expect(mockPush).toHaveBeenCalledWith(`/history/${key(2)}`);
+    const strip = view.getByTestId('sleep-strip');
+    expect(strip.props.accessibilityActions).toEqual(expect.arrayContaining([{ name: 'openDay', label: 'Open this day in History' }]));
+    await fireEvent(strip, 'accessibilityAction', { nativeEvent: { actionName: 'openDay' } });
+    expect(mockPush).toHaveBeenLastCalledWith(`/history/${key(SLEEP_WINDOW_DAYS - 1)}`);
+    expect(view.getByText('Mar 1', { includeHiddenElements: true })).toBeTruthy();
+    expect(view.getByText('Mar 14', { includeHiddenElements: true })).toBeTruthy();
   });
 });

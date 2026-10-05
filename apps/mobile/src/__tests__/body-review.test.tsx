@@ -130,17 +130,28 @@ describe('display precision (bug 3)', () => {
 });
 
 describe('the outlier check (U7)', () => {
-  it('asks once before saving a weight 12 lb from the previous weigh-in', async () => {
+  // Re-score bug 2: the note told people to "tap Save anyway" on a button that
+  // said "Save", and the first tap only relabelled it. The button now says
+  // what the note says the moment the value is typed, and one tap saves.
+  it('names the gap and saves on ONE tap of "Save anyway"', async () => {
     mockState = body({ weights: { '2026-09-20': 181.5 } });
     const s = await render(<BodyScreen />);
     await fireEvent.press(s.getByTestId('log-weight'));
     await fireEvent.changeText(s.getByTestId('weight-input'), '193.5');
     expect(noteOf(s)).toBe("That's 12 lb from your Sep 20 weigh-in. If it's right, tap Save anyway.");
-    await fireEvent.press(s.getByTestId('weight-save'));
-    expect(mockSetWeight).not.toHaveBeenCalled();
     expect(s.getByText('Save anyway')).toBeTruthy();
     await fireEvent.press(s.getByTestId('weight-save'));
     await waitFor(() => expect(mockSetWeight).toHaveBeenCalledWith(193.5, TODAY));
+    expect(mockSetWeight).toHaveBeenCalledTimes(1);
+  });
+
+  it('an ordinary weight keeps the plain Save label', async () => {
+    mockState = body({ weights: { '2026-09-20': 181.5 } });
+    const s = await render(<BodyScreen />);
+    await fireEvent.press(s.getByTestId('log-weight'));
+    await fireEvent.changeText(s.getByTestId('weight-input'), '181');
+    expect(s.queryByText('Save anyway')).toBeNull();
+    expect(s.getByText('Save')).toBeTruthy();
   });
 });
 
@@ -232,7 +243,8 @@ describe('copy', () => {
       ],
     });
     const s = await render(<BodyScreen />);
-    expect(s.getByTestId(`weighin-${TODAY}`).props.accessibilityValue).toEqual({ text: '180 lb, down 1.5 lb' });
+    // One fixed decimal, like the hero (re-score: "181 lb" over "180.4 lb").
+    expect(s.getByTestId(`weighin-${TODAY}`).props.accessibilityValue).toEqual({ text: '180.0 lb, down 1.5 lb' });
   });
 
   it('the Save buttons are buttons (A2)', async () => {

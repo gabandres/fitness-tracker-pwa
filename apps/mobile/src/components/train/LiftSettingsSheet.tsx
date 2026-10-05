@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Text, TouchableOpacity, View } from 'react-native';
+import { SheetTextInput } from '@/components/SheetTextInput';
 import { type Recommendation, formatLoad, repBandFrom } from '@macrolog/core';
 import { BottomSheet } from '@/components/BottomSheet';
 import { showToast } from '@/components/Toast';
@@ -126,7 +127,7 @@ export function LiftSettingsSheet({
         </Text>
         <View style={styles.liftBandRow}>
           <Text style={styles.liftBandUnit}>{t('train.lift.bandField')}</Text>
-          <TextInput
+          <SheetTextInput
             style={[styles.input, styles.liftBandInput]}
             keyboardType="number-pad"
             placeholder="—"

@@ -35,6 +35,13 @@ export interface WeightChartGeometry {
   /** The y domain actually drawn, in lb. */
   minLb: number;
   maxLb: number;
+  /** The middle of that domain and where it sits — the mid gridline and its
+   *  label (Body re-score: min and max alone left a 140 pt axis unreadable). */
+  midLb: number;
+  midY: number;
+  /** The day at the horizontal middle of the plot, for the middle x label.
+   *  null when the plot spans a single day (there is no middle to name). */
+  midDateKey: string | null;
 }
 
 const DAY_MS = 86_400_000;
@@ -103,6 +110,7 @@ export function weightChartGeometry(
     pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${xAt(p.dateKey).toFixed(2)} ${yAt(p.weightLb).toFixed(2)}`).join(' ');
 
   const trendByKey = new Map(trend.map((p) => [p.dateKey, p.weightLb]));
+  const midLb = (minLb + maxLb) / 2;
   return {
     xs: points.map((p) => xAt(p.dateKey)),
     ys: points.map((p) => yAt(p.weightLb)),
@@ -112,7 +120,28 @@ export function weightChartGeometry(
     goalY: goal != null && goal >= minLb && goal <= maxLb ? yAt(goal) : null,
     minLb,
     maxLb,
+    midLb,
+    midY: yAt(midLb),
+    midDateKey: spanDays >= 2 ? calendarDateKey(addDays(parseYmd(points[0].dateKey), Math.round(spanDays / 2))) : null,
   };
+}
+
+/**
+ * Every reading's dot as ONE path (Body re-score, Pf): two half-circle arcs
+ * per point. "All" on a four-year daily weigher was ~1,400 `<Circle>`
+ * elements, each its own native view on Fabric; one `<Path>` is one.
+ */
+export function dotsPath(xs: readonly number[], ys: readonly number[], r: number): string {
+  const parts: string[] = [];
+  const d = (2 * r).toFixed(2);
+  const rr = r.toFixed(2);
+  for (let i = 0; i < xs.length; i++) {
+    const x = xs[i];
+    const y = ys[i];
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    parts.push(`M ${(x - r).toFixed(2)} ${y.toFixed(2)} a ${rr} ${rr} 0 1 0 ${d} 0 a ${rr} ${rr} 0 1 0 -${d} 0`);
+  }
+  return parts.join(' ');
 }
 
 /** Nearest reading to `x`, by binary search over ascending `xs`. A worklet:

@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import { SectionList, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { BottomSheet } from '@/components/BottomSheet';
+import { BottomSheet, NATIVE_SHEETS } from '@/components/BottomSheet';
 import { useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, space } from '@/theme';
 
@@ -25,6 +25,13 @@ export interface HistorySection<T> {
  * Wrapped in its own `GestureHandlerRootView`: the rows are swipeable, and RNGH
  * cannot see the app root's view through a native modal (the template editor
  * learned this first).
+ *
+ * Height (Body re-score, bug 7): on iOS the list FILLS the sheet. The route at
+ * a height detent is `flex: 1` (`app/sheet.tsx`), so the list follows the
+ * detent — a fixed 72% of the window left the last rows under the edge at the
+ * 0.6 detent and a fifth of the sheet empty at full height. The JS sheet
+ * elsewhere is as tall as its content, where `flex: 1` measures as zero, so it
+ * keeps the fixed height.
  */
 export function HistorySheet<T>({
   visible,
@@ -47,7 +54,7 @@ export function HistorySheet<T>({
   const { height } = useWindowDimensions();
   return (
     <BottomSheet visible={visible} onClose={onClose} native detents={[0.6, 1]}>
-      <GestureHandlerRootView style={{ height: Math.round(height * 0.72) }}>
+      <GestureHandlerRootView style={NATIVE_SHEETS ? styles.fill : { height: Math.round(height * 0.72) }}>
         <Text style={styles.title} accessibilityRole="header">
           {title}
         </Text>
@@ -75,6 +82,7 @@ export function HistorySheet<T>({
 
 const createStyles = ({ colors }: Theme) =>
   StyleSheet.create({
+    fill: { flex: 1 },
     title: { fontSize: font.h2, fontWeight: '800', color: colors.ink, marginBottom: space.sm },
     section: {
       fontSize: font.small,

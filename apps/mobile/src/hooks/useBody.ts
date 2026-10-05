@@ -26,6 +26,7 @@ import {
   newLedgerId,
   projectWeight,
   sortedWeighIns,
+  trailingAverageLb,
   trendShift,
   trendWeightSeries,
   weighInConsistency,
@@ -77,6 +78,9 @@ const MEASUREMENT_ROWS = 500;
 /** "12 of the last 14 days" (D1). */
 const CONSISTENCY_DAYS = 14;
 
+/** The hero's "7-day avg" chip (Body re-score). */
+const AVERAGE_DAYS = 7;
+
 export interface WeighIn {
   dateKey: string;
   weight: number;
@@ -124,6 +128,13 @@ export interface BodyState {
   trendPoints: DatedWeight[];
   /** Weighed days in the last 14 (D1). */
   consistency: { logged: number; days: number };
+  /** Mean of the last 7 days' weigh-ins, or null under two readings. */
+  weekAverage: { avgLb: number; count: number } | null;
+  /** The weight everything "since you started" is measured from: the
+   *  earliest-ever weigh-in (the same start goal progress uses), else the
+   *  oldest loaded one. Stable — it does not slide with the 400-day window or
+   *  jump when "All" loads (Body re-score, bug 4). */
+  startLb: number | null;
   /** True when there is weigh-in history older than the listener's window
    *  that `loadAllHistory` has not fetched yet. */
   hasOlderHistory: boolean;
@@ -183,6 +194,39 @@ const PROJECTION_WINDOW_DAYS = 28;
 const FORECAST_DAYS = 7;
 
 const EMPTY_OVERLAY: PendingBodyOverlay = { weights: {}, added: [], updated: {}, deleted: [] };
+
+/**
+ * The "All" fetch merged under the live window (Body re-score, bug 3).
+ *
+ * `getAllDailyWeights` is a one-time read of EVERY day, recent ones included,
+ * so spreading it under the snapshot let a day deleted since the fetch come
+ * back the moment the delete landed and the overlay stopped hiding it. Only
+ * the days OLDER than the listener's window come from the fetch — inside the
+ * window the live snapshot is the only authority.
+ */
+export function mergeOlderWeights(
+  older: Readonly<Record<string, number>>,
+  snap: Readonly<Record<string, number>>,
+  sinceKey: string,
+): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const k of Object.keys(older)) if (k < sinceKey) out[k] = older[k];
+  return Object.assign(out, snap);
+}
+
+/** The day the hero weight was recorded: the newest weigh-in, else the newest
+ *  log carrying a weight — the same order `currentWeight` reads them in. */
+function latestWeightDateKey(
+  weightPoints: readonly DatedWeight[],
+  logs: readonly DailyLog[],
+  boundary: ReturnType<typeof dayBoundaryOf>,
+): string | null {
+  if (weightPoints.length) return weightPoints[weightPoints.length - 1].dateKey;
+  for (let i = logs.length - 1; i >= 0; i--) {
+    if (logs[i].weight != null) return dayKeyAt(logs[i].date, boundary);
+  }
+  return null;
+}
 
 /** Snapshot + parked ops. Parked wins: it is the user's newer word. */
 function overlayWeights(base: Record<string, number>, overlay: PendingBodyOverlay): Record<string, number> {
@@ -330,8 +374,8 @@ export function useBody(): BodyState {
   const todayKey = dayKeyAt(new Date(), boundary);
 
   const weights = useMemo(
-    () => overlayWeights(olderWeights ? { ...olderWeights, ...snapWeights } : snapWeights, overlay),
-    [snapWeights, olderWeights, overlay],
+    () => overlayWeights(olderWeights ? mergeOlderWeights(olderWeights, snapWeights, sinceKey) : snapWeights, overlay),
+    [snapWeights, olderWeights, overlay, sinceKey],
   );
   const measurements = useMemo(() => overlayMeasurements(snapMeasurements, overlay), [snapMeasurements, overlay]);
 
@@ -344,6 +388,10 @@ export function useBody(): BodyState {
   const trendWeight = trendPoints.length ? trendPoints[trendPoints.length - 1].weightLb : null;
   const consistency = useMemo(
     () => weighInConsistency(weights, CONSISTENCY_DAYS, new Date(), boundary),
+    [weights, boundary],
+  );
+  const weekAverage = useMemo(
+    () => trailingAverageLb(weights, AVERAGE_DAYS, new Date(), boundary),
     [weights, boundary],
   );
 
@@ -449,24 +497,48 @@ export function useBody(): BodyState {
 
   // Memoized (Pf2): both walk every key of the weights map, on every render.
   const currentWeight = useMemo(() => coreCurrentWeight(logs, weights), [logs, weights]);
-  const currentWeightDateKey = weightPoints.length ? weightPoints[weightPoints.length - 1].dateKey : null;
-  const goalProgress = useMemo(() => {
-    // The earliest-ever weigh-in rides along so the start line is the real
-    // one, not the oldest inside the 400-day window. A parked delete of that
-    // very day still wins — the overlay is applied to `weights`, and the
-    // start is only added when the day is not deleted.
-    const base =
+  // The day the hero number was recorded. `currentWeight` falls back to a
+  // log-embedded weight when there are no weigh-ins, and the caption has to
+  // name THAT day, not none (Body re-score, bug 10).
+  const currentWeightDateKey = latestWeightDateKey(weightPoints, logs, boundary);
+  // The earliest-ever weigh-in rides along so the start line is the real one,
+  // not the oldest inside the 400-day window. A parked delete of that very day
+  // still wins — the overlay is applied to `weights`, and the start is only
+  // added when the day is not deleted.
+  const startBase = useMemo(
+    () =>
       earliest && !(earliest.dateKey in weights) && overlay.weights[earliest.dateKey] !== null
         ? { [earliest.dateKey]: earliest.weight, ...weights }
-        : weights;
-    return computeGoalProgress(logs, base, goalWeight);
-  }, [logs, weights, earliest, overlay, goalWeight]);
+        : weights,
+    [weights, earliest, overlay],
+  );
+  const goalProgress = useMemo(
+    // Directional `remaining` (0 once past the goal) lives in core since S20.
+    () => computeGoalProgress(logs, startBase, goalWeight),
+    [logs, startBase, goalWeight],
+  );
+  // One start for goal progress AND the trend milestones (bug 4): the toast
+  // said "since you started" while measuring from the oldest reading in a
+  // window that slides forward a day at a time.
+  const startLb = useMemo(() => {
+    const first = sortedWeighIns(startBase)[0];
+    return first?.weightLb ?? null;
+  }, [startBase]);
+
+  // The trend preview reads the LATEST map, not the one this callback closed
+  // over: an Undo fires from a toast created before the delete it undoes was
+  // applied, and against that stale map "before" still held the deleted row,
+  // so the receipt said "trend unchanged" (bug 10).
+  const weightsRef = useRef(weights);
+  useEffect(() => {
+    weightsRef.current = weights;
+  }, [weights]);
 
   const setWeight = useCallback(
     async (weight: number, dateKey?: string): Promise<WeighInReceipt> => {
       const key = dateKey ?? todayKey;
       if (!uid) return { landed: Promise.resolve('saved'), trend: { beforeLb: null, afterLb: null } };
-      const trend = trendShift(weights, key, weight);
+      const trend = trendShift(weightsRef.current, key, weight);
       // Disk first, then the write (`pending-body.ts`): resolves once the
       // weigh-in is durable, which is what the sheet closes on (bug 2).
       const { landed } = await commitBodyOp({ kind: 'weight', uid, dateKey: key, weightLb: weight, atMs: Date.now() });
@@ -481,7 +553,7 @@ export function useBody(): BodyState {
       });
       return { landed, trend };
     },
-    [uid, todayKey, weights],
+    [uid, todayKey],
   );
 
   const deleteWeighIn = useCallback(
@@ -567,6 +639,8 @@ export function useBody(): BodyState {
     weightPoints,
     trendPoints,
     consistency,
+    weekAverage,
+    startLb,
     hasOlderHistory,
     loadAllHistory,
     setWeight,

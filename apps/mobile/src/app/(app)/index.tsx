@@ -6,8 +6,9 @@ import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { captureAndShare } from '@/lib/shareCapture';
 import type { DateKey, MealSlot } from '@macrolog/core';
-import { fastLengthHours, maintenanceView, parseYmd } from '@macrolog/core';
+import { addDays, calendarDateKey, fastLengthHours, maintenanceView, parseYmd } from '@macrolog/core';
 import { confirm } from '@/components/ConfirmSheet';
+import { CONTEXT_MENUS, ContextMenu } from '@/components/ContextMenu';
 import { Flame } from '@/components/Flame';
 import { useToast } from '@/components/Toast';
 import { useAddReceipt } from '@/hooks/useAddReceipt';
@@ -57,10 +58,6 @@ const MIN_STREAK_FOR_REVIEW = 3;
  *  Vertical only, because horizontally these controls have neighbours. */
 const ICON_SLOP = { top: 4, bottom: 4 } as const;
 
-/** The header's three icons are 38dp wide (the row has no more at 360dp —
- *  `iconBtn`); 3dp of side slop makes each a 44dp target, overlapping its
- *  neighbour's by under a dp of the 4dp gap. */
-const HEADER_ICON_SLOP = { top: 4, bottom: 4, left: 3, right: 3 } as const;
 
 /** The date line under the title grows with text size only this far — past
  *  it, it ellipsizes rather than pushing the header's controls off the row. */
@@ -99,6 +96,13 @@ const SLOT_LABEL: Record<MealSlot, I18nKey> = {
  */
 function todayLabel(dayKey: DateKey, locale: Locale): string {
   return formatDate(parseYmd(dayKey), locale, { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+/** The History day route for the day before `dayKey` — the calendar icon's
+ *  "Yesterday" shortcut. From the day KEY, so under a 01:00 boundary it is the
+ *  day before the one the ring describes. Exported for test. */
+export function yesterdayHref(dayKey: DateKey): Href {
+  return `/history/${calendarDateKey(addDays(parseYmd(dayKey), -1))}` as Href;
 }
 
 /**
@@ -361,9 +365,15 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
   // A draft carried in beside the nonce — the scan screen's repeat suggestion
   // (ADR-0029, settled 2026-09-08). Parsed once per nonce; a bad param opens
   // the sheet empty rather than not at all.
+  //
+  // Cleared once handled, like `fast` above (Today re-score, bug 3): the nonce
+  // stayed on the route, so Retry — which remounts this screen — and a
+  // pull-to-refresh from the error state both popped the sheet open again.
+  // The Log button mints a fresh nonce per tap, so clearing loses nothing.
   useEffect(() => {
     if (!openAddParam) return;
     diaryRef.current.openAdd(parseEntryPrefill(prefillParam));
+    router.setParams({ openAdd: undefined, prefill: undefined });
   }, [openAddParam, prefillParam]);
 
   // The Quick Settings tile's FALLBACK path (ADR-0020). Its tap normally logs
@@ -371,10 +381,21 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
   // the tile opens the app with this param instead, so the tap still lands. Not
   // the promised experience — but a visible slower one beats a silent dead tile,
   // which is exactly how the Android widget stayed broken for a month.
+  //
+  // The param is cleared once handled (Today re-score, bug 2). The ref alone
+  // guarded one MOUNT, but Retry remounts this screen with a new key while the
+  // param is still on the route — so the remount logged the tile's food a
+  // second time. Clearing it also means a later tile tap with the same slot
+  // is a change of param, and lands, where the ref would have swallowed it.
   const quickAddDone = useRef<string | null>(null);
   useEffect(() => {
-    if (!quickAddSlotParam || quickAddDone.current === quickAddSlotParam) return;
+    if (!quickAddSlotParam) {
+      quickAddDone.current = null;
+      return;
+    }
+    if (quickAddDone.current === quickAddSlotParam) return;
     quickAddDone.current = quickAddSlotParam;
+    router.setParams({ quickAddSlot: undefined });
     const slot = Number(quickAddSlotParam);
     if (!Number.isInteger(slot) || slot < 0) return;
     // Counted here and not in `performQuickAdd`, because that function's normal
@@ -692,35 +713,54 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
               </PressScale>
             </Animated.View>
           ) : null}
-          {/* The three icons do not grow with Dynamic Type (the row has no
-              room), so each offers iOS's large-content viewer instead — press
-              and hold at an accessibility text size (review A2). */}
-          <TouchableOpacity
-            onPress={() => { haptics.tap(); router.push('/history'); }}
-            testID="open-history"
-            style={styles.iconBtn}
-            hitSlop={HEADER_ICON_SLOP}
-            accessibilityRole="button"
-            accessibilityLabel={t('nav.history')}
-            accessibilityShowsLargeContentViewer
-            accessibilityLargeContentTitle={t('nav.history')}
+          {/* The icons do not grow with Dynamic Type (the row has no room), so
+              each offers iOS's large-content viewer instead — press and hold
+              at an accessibility text size (review A2). Two icons, not three,
+              since the re-score: Share moved onto the hero it shares, which
+              is what let these reach a full 44pt (`iconBtn`).
+
+              The calendar holds the "Yesterday" shortcut every diary has
+              (Today re-score, Usability): a long-press opens the system menu
+              on iOS (Yesterday · History), goes straight to yesterday on
+              Android, and is a named action for a screen reader. It gives up
+              the large-content viewer on iOS — both are a long-press, and the
+              menu's own text already scales with Dynamic Type. */}
+          <ContextMenu
+            actions={[
+              {
+                key: 'yesterday',
+                title: t('today.openYesterday'),
+                icon: 'arrow.uturn.backward',
+                onPress: () => router.push(yesterdayHref(todayKey)),
+              },
+              { key: 'history', title: t('nav.history'), icon: 'calendar', onPress: () => router.push('/history') },
+            ]}
           >
-            <Ionicons name="calendar-outline" size={22} color={colors.muted} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={onShare}
-            disabled={sharing}
-            testID="share-progress"
-            style={styles.iconBtn}
-            hitSlop={HEADER_ICON_SLOP}
-            accessibilityRole="button"
-            accessibilityLabel={t('today.shareA11y')}
-            accessibilityState={{ busy: sharing }}
-            accessibilityShowsLargeContentViewer
-            accessibilityLargeContentTitle={t('today.shareA11y')}
-          >
-            <Ionicons name="share-outline" size={22} color={colors.muted} />
-          </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => { haptics.tap(); router.push('/history'); }}
+              onLongPress={
+                CONTEXT_MENUS
+                  ? undefined
+                  : () => {
+                      haptics.tap();
+                      router.push(yesterdayHref(todayKey));
+                    }
+              }
+              testID="open-history"
+              style={styles.iconBtn}
+              hitSlop={ICON_SLOP}
+              accessibilityRole="button"
+              accessibilityLabel={t('nav.history')}
+              accessibilityActions={[{ name: 'yesterday', label: t('today.openYesterdayA11y') }]}
+              onAccessibilityAction={(e) => {
+                if (e.nativeEvent.actionName === 'yesterday') router.push(yesterdayHref(todayKey));
+              }}
+              accessibilityShowsLargeContentViewer={!CONTEXT_MENUS}
+              accessibilityLargeContentTitle={t('nav.history')}
+            >
+              <Ionicons name="calendar-outline" size={22} color={colors.muted} />
+            </TouchableOpacity>
+          </ContextMenu>
           {/* UX_AUDIT F6. The hero right below this reads `0 / 2,323 kcal` over
               `Maintenance 2,723` and the app defined neither word anywhere.
               Same icon, same place, same sheet as the Train tab's "?" — one
@@ -730,7 +770,7 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
             onPress={() => { haptics.tap(); setGlossaryOpen(true); }}
             testID="today-glossary-open"
             style={styles.iconBtn}
-            hitSlop={HEADER_ICON_SLOP}
+            hitSlop={ICON_SLOP}
             accessibilityRole="button"
             accessibilityLabel={t('numbers.glossaryOpen')}
             accessibilityShowsLargeContentViewer
@@ -815,6 +855,14 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
               fat={summary.totalFat}
               maintenance={maintenance}
               progress={measurement}
+              // The rings explain themselves on a tap, as Apple Fitness's
+              // drill in (Today re-score) — the same sheet as the header "?".
+              onPress={() => {
+                haptics.tap();
+                setGlossaryOpen(true);
+              }}
+              onShare={onShare}
+              sharing={sharing}
             />
           </Animated.View>
 
@@ -841,7 +889,9 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
               fastedTodayHours={fastedTodayHours}
               onAddWater={(v) => void setWater(v).catch((e) => metricFailed(e, 'today.water'))}
               onSetSleep={(v) => void setSleep(v).catch((e) => metricFailed(e, 'today.sleep'))}
-              onStartFast={startFast}
+              // Caught like water and sleep (Today re-score, bug 5): a refused
+              // write was an unhandled rejection with no word to the user.
+              onStartFast={() => void startFast().catch((e) => metricFailed(e, 'today.startFast'))}
               onBreakFast={onBreakFast}
             />
           </Animated.View>
@@ -913,6 +963,7 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
               onSavePreset={diary.savePresetFromLog}
               onDelete={diary.deleteFromList}
               onAddToSlot={diary.openSlot}
+              onMove={diary.moveToSlot}
             />
           </Animated.View>
           {/* Clears the + button at the foot of the list. */}
@@ -1027,7 +1078,8 @@ function createStyles({ colors }: Theme) {
     // block was handing it 80.7dp — the width of "Fri, Sep 4". 96dp clears the
     // title with room for a heavier face, and the row still fits: 96 + 203
     // (streak + 3 icons + avatar + gaps) + 48 (padding) = 347dp of 360dp —
-    // 355dp since 2026-10-04, when the icons became 38dp targets (`iconBtn`).
+    // 355dp since 2026-10-04, when the icons became 38dp targets, and 325dp
+    // since the re-score moved Share onto the hero and left two 44dp icons.
     //
     // `flexShrink` stays as the safety net for a locale wider than this one,
     // but it can no longer eat the title.
@@ -1046,12 +1098,11 @@ function createStyles({ colors }: Theme) {
     headerRight: { flexDirection: 'row', alignItems: 'center', gap: space.xs, flexShrink: 0 },
     // The header icons were 22dp glyphs with 10dp of slop — a 42dp target,
     // under both platforms' floor. 44 tall is iOS's; `ICON_SLOP` reaches
-    // Android's 48. WIDTH is 38, not 44, and that is the header's budget, not
-    // an oversight: the row measured 347 of 360dp before this (see
-    // `headerTitleBlock`), these three add 8dp net, and 44 would overflow it
-    // by 5dp and clip the avatar again. Horizontal slop cannot make up the
-    // rest without overlapping the neighbouring icon's target.
-    iconBtn: { minWidth: 38, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+    // Android's 48. They were 38 WIDE while there were three of them (the row
+    // had no more at 360dp); with Share moved onto the hero there are two, and
+    // both are a full 44 square — 30dp under the row's budget (see
+    // `headerTitleBlock`).
+    iconBtn: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
     shareCapture: { position: 'absolute', left: -10000, top: 0, opacity: 0 },
     streakChip: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.pill, paddingHorizontal: space.sm, paddingVertical: 3 },
     streakNum: { fontSize: font.small, fontWeight: '800', color: colors.ink },

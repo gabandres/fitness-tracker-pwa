@@ -52,6 +52,10 @@ function errorKeyFor(e: unknown): I18nKey {
   return 'barcode.failed';
 }
 
+/** How long a code that missed for a transient reason (offline, a server
+ *  error) rests before the camera may look it up again. */
+const MISS_RETRY_MS = 3000;
+
 /** Apple's 44pt / Material's 48dp floor for the Cancel and label buttons. */
 const TARGET = Platform.OS === 'android' ? 48 : 44;
 /** The glass behind overlay text: white on it is ≥ 7:1 whatever the feed shows. */
@@ -98,6 +102,10 @@ export function BarcodeScanner({ visible, onClose, onPick, onDenied, onEnterFrom
   const [offlineMiss, setOfflineMiss] = useState(false);
   const handled = useRef(false);
   const lastMiss = useRef('');
+  /** Whether the last miss can never resolve this session (the database lacks
+   *  the product), and until when a transient one (offline, a 5xx) rests. */
+  const missFinal = useRef(false);
+  const missUntil = useRef(0);
 
   useEffect(() => {
     if (visible) {
@@ -108,6 +116,8 @@ export function BarcodeScanner({ visible, onClose, onPick, onDenied, onEnterFrom
       setOfflineMiss(false);
       setTorch(false);
       lastMiss.current = '';
+      missFinal.current = false;
+      missUntil.current = 0;
     }
   }, [visible]);
 
@@ -132,9 +142,19 @@ export function BarcodeScanner({ visible, onClose, onPick, onDenied, onEnterFrom
 
   async function onScanned(barcode: string) {
     if (handled.current) return;
+    // The label that just missed is usually still in frame, and the camera
+    // reports it on every frame. Without this each report was a fresh lookup —
+    // a haptic tap, a `barcode_scan` event and a flicker of the miss panel,
+    // several times a second. A product the database lacks is not re-asked at
+    // all until a different code is read; a miss the network caused rests for
+    // MISS_RETRY_MS, since one bar of signal later it may resolve.
+    if (barcode === lastMiss.current && (missFinal.current || Date.now() < missUntil.current)) return;
+    const retry = barcode === lastMiss.current;
     handled.current = true;
     setBusy(true);
-    setError('');
+    // A retry of the same code keeps its miss on screen until it has an
+    // answer — clearing it blinked the panel and its buttons away under a thumb.
+    if (!retry) setError('');
     haptics.tap();
     try {
       track('barcode_scan');
@@ -165,6 +185,8 @@ export function BarcodeScanner({ visible, onClose, onPick, onDenied, onEnterFrom
       // label in frame would otherwise repeat the whole sentence every lookup.
       if (barcode !== lastMiss.current) announce(`${msg} ${next}`, { androidHasLiveRegion: true });
       lastMiss.current = barcode;
+      missFinal.current = e instanceof OffLookupError;
+      missUntil.current = Date.now() + MISS_RETRY_MS;
       setBusy(false);
       // Allow another scan after a miss.
       handled.current = false;
@@ -177,10 +199,9 @@ export function BarcodeScanner({ visible, onClose, onPick, onDenied, onEnterFrom
         {!permission?.granted ? (
           // Loading, the OS prompt is being presented (auto-requested above), or
           // denied — in which case onDenied() is already closing this modal.
-          // On the `ink` surface, so `onInk` (ADR-0014): `white` was invisible
-          // here in dark mode, where `ink` is off-white. The overlay below stays
-          // `white` on purpose — it sits on the camera feed, not a themed surface.
-          <View style={styles.center}><ActivityIndicator color={colors.onInk} /></View>
+          // On the black camera surface in both themes (see `screen`), so
+          // white, like the overlay below.
+          <View style={styles.center}><ActivityIndicator color={colors.white} /></View>
         ) : (
           <View style={styles.fill}>
             <CameraView
@@ -273,7 +294,9 @@ export function BarcodeScanner({ visible, onClose, onPick, onDenied, onEnterFrom
 }
 
 const createStyles = ({ colors }: Theme) => StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.ink },
+  // Black in both themes: this is a camera surface, and `ink` is off-white in
+  // dark mode — the screen flashed white before the feed arrived.
+  screen: { flex: 1, backgroundColor: '#000' },
   fill: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: space.xl, gap: space.md },
   overlay: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', gap: space.lg, paddingHorizontal: space.lg },

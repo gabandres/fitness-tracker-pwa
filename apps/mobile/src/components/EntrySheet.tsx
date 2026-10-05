@@ -1,7 +1,9 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  type AccessibilityActionEvent,
   ActivityIndicator,
   type LayoutChangeEvent,
   Linking,
@@ -14,6 +16,7 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
+import { SheetTextInput } from '@/components/SheetTextInput';
 import {
   LOG_LABEL_MAX,
   LOG_NOTE_MAX,
@@ -36,6 +39,7 @@ import {
 import { BarcodeScanner, type BarcodeEstimate } from '@/components/BarcodeScanner';
 import { BottomSheet, type SheetCloseVia } from '@/components/BottomSheet';
 import { confirm } from '@/components/ConfirmSheet';
+import { CONTEXT_MENUS, ContextMenu, type ContextMenuAction } from '@/components/ContextMenu';
 import { MealSlotChips, TimeOfDayRow } from '@/components/EntryWhen';
 import { Glyph } from '@/components/Glyph';
 import { MicButton } from './MicButton';
@@ -61,7 +65,16 @@ import * as haptics from '@/lib/haptics';
 import { captureError } from '@/lib/sentry';
 import { clearLogTimer, startLogTimer } from '@/lib/log-timer';
 import type { EntryPrefill } from '@/lib/entry-prefill';
-import { formatDecimal, kcalOutOfRange, LOG_KCAL_LIMIT, LOG_MACRO_LIMIT, macroOutOfRange, parseDecimal } from '@/lib/entry-input';
+import {
+  formatDecimal,
+  kcalOutOfRange,
+  LOG_KCAL_LIMIT,
+  LOG_MACRO_LIMIT,
+  macroOutOfRange,
+  parseDecimal,
+  settleWithin,
+} from '@/lib/entry-input';
+import { CountUpText } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
 import { formatDate, formatNumber } from '@/lib/date-format';
@@ -191,12 +204,6 @@ type MacroField = (typeof MACRO_CHAIN)[number];
 /** One bar PER field — an accessory links to a single input (KeyboardBar.tsx). */
 const kbId = (f: MacroField) => `entry-kb-${f}`;
 
-/** Search-first add-food sheet, on a plain RN <Modal> (animationType "slide"
- *  is OS-driven, so it doesn't stutter while typing — unlike the old custom
- *  Animated translateY). Adding opens on a BROWSE view (search + recents +
- *  scan/recipe icons); the manual macro form is a secondary CUSTOM mode
- *  (also used when editing). Search portion / recipe / barcode prefill CUSTOM
- *  for review. Recents/presets are one-tap relog. */
 /** How many rows the merged browse list shows. Recents used to cap at 5 and
  *  sat beside three other sections; one ranked list can afford more. */
 const BROWSE_ROW_CAP = 12;
@@ -205,6 +212,25 @@ const BROWSE_ROW_CAP = 12;
  *  never saw a saved food again without typing its name. */
 const MY_FOODS_RESERVED = 4;
 
+/** The "keep open after adding" choice, per device. A habit, not a setting
+ *  anyone goes looking for, so it lives where it is used (the browse list)
+ *  and is remembered rather than asked each time. */
+const KEEP_OPEN_KEY = 'ignia.entry.keepOpen.v1';
+
+/** How long the barcode scanner's own Modal takes to slide away. A library
+ *  hit logs at once, but the sheet under the scanner waits this long to close:
+ *  dismissing the native sheet while the Modal it presents is still leaving
+ *  asks UIKit to tear down both in one tick, and it can refuse one of them. */
+const SCANNER_EXIT_MS = 400;
+
+/**
+ * Search-first add-food sheet, presented natively on iOS (a formSheet through
+ * the root `sheet` route, `BottomSheet native`) and as the JS sheet elsewhere.
+ * Adding opens on a BROWSE view (search + recents + the in-field doors); the
+ * manual macro form is a secondary CUSTOM mode (also used when editing).
+ * Search portion / recipe / barcode prefill CUSTOM for review. Recents and
+ * presets are one-tap relog, with "Edit before logging" in their menus.
+ */
 export function EntrySheet({
   visible,
   editing,
@@ -348,6 +374,36 @@ export function EntrySheet({
   // `appliedCalories: null` = valid whatever the calories (a label-typed
   // product carrying only its barcode, no gram weight to go stale).
   const [pendingServing, setPendingServing] = useState<PendingServing | null>(null);
+  // Multi-add (re-score: a 4-item meal cost 8 taps against 6, because every
+  // one-tap log closed the sheet). With `keepOpen` on, an add from browse or
+  // the review form comes back to the search and `added` keeps the running
+  // tally the pinned bar shows; Done (or a swipe) closes. Off by default: one
+  // food per visit is still the common case, and it stays two taps.
+  const [keepOpen, setKeepOpen] = useState(false);
+  const [added, setAdded] = useState({ n: 0, kcal: 0 });
+  // Bumped after a keep-open add, so the search clears for the next food.
+  const [searchReset, setSearchReset] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    AsyncStorage.getItem(KEEP_OPEN_KEY)
+      .then((v) => {
+        if (alive && v === '1') setKeepOpen(true);
+      })
+      .catch(() => {
+        /* Unreadable: the default (close after adding) stands. */
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  function toggleKeepOpen() {
+    haptics.selection();
+    const next = !keepOpen;
+    setKeepOpen(next);
+    AsyncStorage.setItem(KEEP_OPEN_KEY, next ? '1' : '0').catch(() => {
+      /* Not remembered across launches; this visit still honours it. */
+    });
+  }
 
   // The mount-through-exit animation, the fade-in-place backdrop, the
   // drag-to-dismiss handle and the keyboard padding all live in
@@ -402,6 +458,7 @@ export function EntrySheet({
     scaleBase.current = null;
     setGramsDraft(null);
     setBlankOpen(false);
+    setAdded({ n: 0, kcal: 0 });
     setBaseline(formSig(opened.label, opened.calories, opened.protein, opened.carbs, opened.fat, editing?.note ?? ''));
     // A carried-in draft wins over the empty add form, never over an edit. A
     // prefill that carries only a slot (no numbers) opens the search instead.
@@ -547,32 +604,68 @@ export function EntrySheet({
    * nobody without haptics on, after the sheet that could have said so was gone.
    */
   function logNow(entry: LogEntry) {
-    Promise.resolve(onSave(entry)).catch((e) => {
-      haptics.warning();
-      captureError(e, { where: 'entry.quickLog' });
-      const label = entry.mealLabel?.trim();
-      showToast(label ? t('entry.quickLogFailedNamed', { label }) : t('entry.quickLogFailed'), {
-        action: { label: t('common.retry'), onPress: () => logNow(entry) },
-        testID: 'toast-quicklog-failed',
-      });
+    Promise.resolve(onSave(entry)).catch((e) => reportLateFailure(entry, e, 'entry.quickLog'));
+  }
+
+  /** A write that failed after the sheet stopped waiting for it — closed, or
+   *  back on the search. Said in a toast with Retry, since the form that could
+   *  have said it inline is gone. */
+  function reportLateFailure(entry: LogEntry, e: unknown, where: string) {
+    haptics.warning();
+    captureError(e, { where });
+    const label = entry.mealLabel?.trim();
+    showToast(label ? t('entry.quickLogFailedNamed', { label }) : t('entry.quickLogFailed'), {
+      action: { label: t('common.retry'), onPress: () => logNow(entry) },
+      testID: 'toast-quicklog-failed',
     });
   }
 
+  /**
+   * An ADD went out (one-tap, the review form, "Add all"). Normally the sheet
+   * closes. With keep-open on it comes back to a fresh search instead, and
+   * the pinned bar counts what this visit has added; an edit always closes.
+   */
+  function afterAdd(entries: readonly LogEntry[]) {
+    if (!keepOpen || editing) {
+      onClose();
+      return;
+    }
+    setAdded((a) => ({ n: a.n + entries.length, kcal: a.kcal + entries.reduce((sum, e) => sum + e.calories, 0) }));
+    searchSnap.current = undefined;
+    setSearchReset((n) => n + 1);
+    setMoreOpen(false);
+    setVoiceSeed(undefined);
+    setMode('browse');
+  }
+
+  /** The pinned bar's Done. */
+  function finishAdding() {
+    haptics.tap();
+    onClose();
+  }
+
   /** One-tap relog: log a known entry (recent / preset / search ⊕ / typed
-   *  kcal) and close. On a past day, restamp it to that day rather than keeping
-   *  the source's date; opened from a slot's row, file it in that slot. */
-  function quickLog(entry: LogEntry) {
+   *  kcal) and close — or stay, with keep-open on (`afterAdd`). On a past day,
+   *  restamp it to that day rather than keeping the source's date; opened from
+   *  a slot's row, file it in that slot. `deferClose` holds a close back by
+   *  that many ms (see SCANNER_EXIT_MS). */
+  function quickLog(entry: LogEntry, deferClose = 0) {
     // Not a success of its own: the screen's `onSave` buzzes success when the
     // row lands, and two successes for one tap read as two logs. The press
     // plays only if that outcome is slow to come (`tapThenOutcome`).
     haptics.tapThenOutcome();
-    logNow({
+    const out: LogEntry = {
       ...entry,
       mealLabel: cleanLogLabel(entry.mealLabel),
       ...(forDate ? { timestamp: forDate } : {}),
       ...(entry.mealType == null && presetSlot ? { mealType: presetSlot } : {}),
-    });
-    onClose();
+    };
+    logNow(out);
+    if (deferClose > 0 && (!keepOpen || editing)) {
+      setTimeout(onClose, deferClose);
+      return;
+    }
+    afterAdd([out]);
   }
 
   const calNum = num(calories);
@@ -645,8 +738,15 @@ export function EntrySheet({
     };
     setFormError(null);
     try {
-      await onSave(entry);
-      onClose();
+      // Up to SAVE_WAIT_MS for the write's answer, then on regardless (re-score
+      // bug 4): `addEntry` waits up to 8 s on a weak signal, and the button
+      // spun for all of it while a one-tap log had long since closed. A fast
+      // failure still lands inline below; a late one comes back as a toast
+      // with Retry (`reportLateFailure`), and the receipt reports the rest.
+      const write = Promise.resolve(onSave(entry));
+      const early = await settleWithin(write);
+      if (!early.settled) void write.catch((e) => reportLateFailure(entry, e, 'entry.saveLate'));
+      afterAdd([entry]);
     } catch (e) {
       // The sheet stays open with the typed values, so the user can retry.
       // The haptic alone said "the tap did not land" only to someone holding
@@ -1108,7 +1208,12 @@ export function EntrySheet({
       protein?: number;
       tag?: string;
       onLog: () => void;
+      /** "Edit before logging" — the same food on the review form, for the
+       *  day it was a bigger bowl. */
+      onEditFirst: () => void;
       onRemove?: () => void;
+      /** What `onRemove` does, as its menu item says it. */
+      removeLabel?: string;
     };
     const recentRows: Row[] = [];
     const foodRows: Row[] = [];
@@ -1131,7 +1236,16 @@ export function EntrySheet({
             fat: r.fat ?? undefined,
             mealLabel: r.mealLabel ?? undefined,
           }),
+        onEditFirst: () =>
+          prefill({
+            calories: r.calories,
+            protein: r.protein ?? undefined,
+            carbs: r.carbs ?? undefined,
+            fat: r.fat ?? undefined,
+            mealLabel: r.mealLabel ?? undefined,
+          }),
         onRemove: r.mealLabel && onHideRecent ? () => onHideRecent(r.mealLabel as string) : undefined,
+        removeLabel: t('entry.hideRecent'),
       });
     }
     for (const f of customFoods) {
@@ -1144,6 +1258,21 @@ export function EntrySheet({
         tag: t('entry.myFoods'),
         onLog: () =>
           quickLogRef.current({ calories: m.calories, protein: m.protein, carbs: m.carbs, fat: m.fat, mealLabel: f.name }),
+        // On the form with its weight, when it was saved by weight, so the
+        // grams field can say "I had 180 g, not 150".
+        onEditFirst: () =>
+          prefill({
+            calories: m.calories,
+            protein: m.protein,
+            carbs: m.carbs,
+            fat: m.fat,
+            mealLabel: f.name,
+            serving:
+              f.servingUnit === 'g'
+                ? { grams: f.servingSize, source: f.source, barcode: f.barcode, brand: f.brand, name: f.name }
+                : undefined,
+          }),
+        removeLabel: t('entry.removeMyFood'),
         // Removing a saved food is destructive and one tap away in Manage mode,
         // so it goes through the confirm sheet (S18-6). Hiding a recent is not
         // — it is a list preference, and the food itself is still in the diary.
@@ -1164,7 +1293,7 @@ export function EntrySheet({
     // MY_FOODS_RESERVED); any of the cap recents leave unused goes to them too.
     const recentsShown = recentRows.slice(0, BROWSE_ROW_CAP - Math.min(foodRows.length, MY_FOODS_RESERVED));
     return [...recentsShown, ...foodRows.slice(0, BROWSE_ROW_CAP - recentsShown.length)];
-  }, [recentEntries, customFoods, onHideRecent, onDeleteCustomFood, t]);
+  }, [recentEntries, customFoods, onHideRecent, onDeleteCustomFood, prefill, t]);
 
   /**
    * The same foods, offered to SEARCH. Typing a saved food's name found
@@ -1214,6 +1343,46 @@ export function EntrySheet({
     return out;
   }, [customFoods, recentEntries, t]);
 
+  /**
+   * A food's other commands, beyond the one-tap log: "Edit before logging"
+   * and its removal. iOS gets them in the system context menu (long-press,
+   * the gesture Today's diary rows use); every platform gets them as
+   * screen-reader actions; Android's long-press goes straight to the edit,
+   * the menu's first item. Manage mode stays as the visible way to remove.
+   */
+  function foodCommands(f: {
+    name: string;
+    onLog: () => void;
+    onEditFirst: () => void;
+    onRemove?: () => void;
+    removeLabel?: string;
+  }) {
+    const menu: ContextMenuAction[] = [
+      { key: 'log', title: t('entry.add'), icon: 'plus.circle', onPress: f.onLog },
+      { key: 'edit', title: t('entry.editFirst'), icon: 'pencil', onPress: f.onEditFirst },
+      ...(f.onRemove && f.removeLabel
+        ? [{ key: 'remove', title: f.removeLabel, icon: 'trash', destructive: true, onPress: f.onRemove }]
+        : []),
+    ];
+    const a11y = {
+      accessibilityActions: [
+        { name: 'editFirst', label: t('entry.editFirst') },
+        ...(f.onRemove && f.removeLabel ? [{ name: 'remove', label: f.removeLabel }] : []),
+      ],
+      onAccessibilityAction: (e: AccessibilityActionEvent) => {
+        if (e.nativeEvent.actionName === 'editFirst') f.onEditFirst();
+        else if (e.nativeEvent.actionName === 'remove') f.onRemove?.();
+      },
+    };
+    const onLongPress = CONTEXT_MENUS
+      ? undefined
+      : () => {
+          haptics.tap();
+          f.onEditFirst();
+        };
+    return { menu, a11y, onLongPress };
+  }
+
   const browseEmpty = (
     <View style={styles.browse}>
       {/* Quick add — pinned, one tap, no confirmation. */}
@@ -1242,49 +1411,62 @@ export function EntrySheet({
             ) : null}
           </View>
           <View style={styles.presetStrip}>
-            {presets.map((p) => (
-              <TouchableOpacity
-                key={p.id}
-                style={styles.presetChip}
-                testID={`preset-${p.id}`}
-                accessibilityRole="button"
-                accessibilityLabel={
-                  manageQuick
-                    ? `${t('common.remove')}: ${p.name}`
-                    : [
-                        p.name,
-                        t('entry.caloriesA11y', { n: formatNumber(p.calories, locale) }),
-                        p.protein != null ? t('entry.proteinAmount', { n: p.protein }) : null,
-                      ]
-                        .filter(Boolean)
-                        .join(', ')
-                }
-                onPress={() =>
-                  manageQuick
-                    ? p.id &&
+            {presets.map((p) => {
+              const entry = { calories: p.calories, protein: p.protein, carbs: p.carbs, fat: p.fat, mealLabel: p.name };
+              const remove =
+                p.id && onDeletePreset
+                  ? () =>
                       confirm({
                         title: t('entry.presetDeleteConfirm'),
                         body: p.name,
                         confirmText: t('common.remove'),
                         destructive: true,
-                        onConfirm: () => void onDeletePreset?.(p.id as string),
+                        onConfirm: () => void onDeletePreset(p.id as string),
                       })
-                    : quickLog({ calories: p.calories, protein: p.protein, carbs: p.carbs, fat: p.fat, mealLabel: p.name })
-                }
-              >
-                <Text style={styles.presetName} numberOfLines={1} maxFontSizeMultiplier={2.2}>{p.name}</Text>
-                {manageQuick ? (
-                  <Ionicons name="close" size={font.tiny + 2} color={colors.onInk} />
-                ) : (
-                  // Protein beside kcal: this app tracks the two together, and a
-                  // chip that showed one left the user guessing the other.
-                  <Text style={styles.presetKcal} maxFontSizeMultiplier={2.2}>
-                    {formatNumber(p.calories, locale)} {t('today.kcal')}
-                    {p.protein != null ? ` · ${t('entry.proteinAmount', { n: p.protein })}` : ''}
-                  </Text>
-                )}
-              </TouchableOpacity>
-            ))}
+                  : undefined;
+              const cmd = foodCommands({
+                name: p.name,
+                onLog: () => quickLog(entry),
+                onEditFirst: () => prefill(entry),
+                onRemove: remove,
+                removeLabel: t('entry.removePreset'),
+              });
+              return (
+                <ContextMenu key={p.id} title={p.name} actions={cmd.menu}>
+                  <TouchableOpacity
+                    style={styles.presetChip}
+                    testID={`preset-${p.id}`}
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      manageQuick
+                        ? `${t('common.remove')}: ${p.name}`
+                        : [
+                            p.name,
+                            t('entry.caloriesA11y', { n: formatNumber(p.calories, locale) }),
+                            p.protein != null ? t('entry.proteinAmount', { n: formatNumber(p.protein, locale) }) : null,
+                          ]
+                            .filter(Boolean)
+                            .join(', ')
+                    }
+                    {...(manageQuick ? null : cmd.a11y)}
+                    onLongPress={manageQuick ? undefined : cmd.onLongPress}
+                    onPress={() => (manageQuick ? remove?.() : quickLog(entry))}
+                  >
+                    <Text style={styles.presetName} numberOfLines={1} maxFontSizeMultiplier={2.2}>{p.name}</Text>
+                    {manageQuick ? (
+                      <Ionicons name="close" size={font.tiny + 2} color={colors.onInk} />
+                    ) : (
+                      // Protein beside kcal: this app tracks the two together, and a
+                      // chip that showed one left the user guessing the other.
+                      <Text style={styles.presetKcal} maxFontSizeMultiplier={2.2}>
+                        {formatNumber(p.calories, locale)} {t('today.kcal')}
+                        {p.protein != null ? ` · ${t('entry.proteinAmount', { n: formatNumber(p.protein, locale) })}` : ''}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                </ContextMenu>
+              );
+            })}
           </View>
         </View>
       ) : null}
@@ -1313,12 +1495,20 @@ export function EntrySheet({
               </TouchableOpacity>
             ) : null}
           </View>
-          {browseRows.map((row) => (
+          {browseRows.map((row) => {
+            const cmd = foodCommands(row);
+            // A row with nothing to remove (an unnamed recent: hiding is by
+            // name) is inert while managing, and looks it — it used to keep its
+            // normal look and swallow the tap.
+            const inert = manageRecent && !row.onRemove;
+            return (
+            <ContextMenu key={row.key} title={row.name} actions={cmd.menu}>
             <TouchableOpacity
-              key={row.key}
-              style={styles.row}
+              style={[styles.row, inert && styles.rowInert]}
               testID={row.key}
               accessibilityRole="button"
+              disabled={inert}
+              accessibilityState={{ disabled: inert }}
               accessibilityLabel={
                 manageRecent && row.onRemove
                   ? `${t('common.remove')}: ${row.name}`
@@ -1328,11 +1518,13 @@ export function EntrySheet({
                       row.name,
                       row.tag,
                       t('entry.caloriesA11y', { n: formatNumber(row.kcal, locale) }),
-                      row.protein != null ? t('entry.proteinAmount', { n: row.protein }) : null,
+                      row.protein != null ? t('entry.proteinAmount', { n: formatNumber(row.protein, locale) }) : null,
                     ]
                       .filter(Boolean)
                       .join(', ')
               }
+              {...(manageRecent ? null : cmd.a11y)}
+              onLongPress={manageRecent ? undefined : cmd.onLongPress}
               onPress={() => (manageRecent ? row.onRemove?.() : row.onLog())}
             >
               <Text style={styles.rowName} numberOfLines={1} maxFontSizeMultiplier={2.2}>{row.name}</Text>
@@ -1347,12 +1539,16 @@ export function EntrySheet({
                     {formatNumber(row.kcal, locale)} <Text style={styles.rowUnit}>{t('today.kcal')}</Text>
                   </Text>
                   {row.protein != null ? (
-                    <Text style={styles.rowProtein} maxFontSizeMultiplier={2.2}>{t('entry.proteinAmount', { n: row.protein })}</Text>
+                    <Text style={styles.rowProtein} maxFontSizeMultiplier={2.2}>
+                      {t('entry.proteinAmount', { n: formatNumber(row.protein, locale) })}
+                    </Text>
                   ) : null}
                 </View>
               )}
             </TouchableOpacity>
-          ))}
+            </ContextMenu>
+            );
+          })}
         </View>
       ) : null}
 
@@ -1378,6 +1574,23 @@ export function EntrySheet({
           </View>
         </View>
       ) : null}
+
+      {/* Multi-add's switch (see `keepOpen`). At the foot of the list: it is
+          a habit set once, not a step in logging. */}
+      <TouchableOpacity
+        style={styles.keepOpen}
+        onPress={toggleKeepOpen}
+        accessibilityRole="switch"
+        accessibilityState={{ checked: keepOpen }}
+        testID="entry-keep-open"
+      >
+        <Ionicons
+          name={keepOpen ? 'checkmark-circle' : 'ellipse-outline'}
+          size={font.body + 2}
+          color={keepOpen ? colors.teal : colors.muted}
+        />
+        <Text style={styles.keepOpenText} maxFontSizeMultiplier={2.2}>{t('entry.keepOpen')}</Text>
+      </TouchableOpacity>
     </View>
   );
 
@@ -1469,13 +1682,18 @@ export function EntrySheet({
     setScannerOpen(false);
     const code = est.serving?.barcode;
     if (code && customFoods.some((f) => f.barcode === code)) {
-      quickLog({
-        calories: Math.round(est.calories),
-        protein: est.protein != null ? round1(est.protein) : undefined,
-        carbs: est.carbs != null ? round1(est.carbs) : undefined,
-        fat: est.fat != null ? round1(est.fat) : undefined,
-        mealLabel: est.mealLabel,
-      });
+      // Logged now; the sheet's own close waits for the scanner to leave
+      // (SCANNER_EXIT_MS) — on iOS both dismissing in one tick can strand one.
+      quickLog(
+        {
+          calories: Math.round(est.calories),
+          protein: est.protein != null ? round1(est.protein) : undefined,
+          carbs: est.carbs != null ? round1(est.carbs) : undefined,
+          fat: est.fat != null ? round1(est.fat) : undefined,
+          mealLabel: est.mealLabel,
+        },
+        Platform.OS === 'ios' ? SCANNER_EXIT_MS : 0,
+      );
       return;
     }
     openBarcodeReview(est);
@@ -1500,7 +1718,13 @@ export function EntrySheet({
   return (
     <BottomSheet
       native
-     
+      // Full height from the first frame (re-score bug 1). The search field
+      // takes focus as the sheet opens, and at the default 0.6 detent the
+      // keyboard left about 100pt of sheet above it — the title and the field,
+      // with the browse list and the live results underneath the keyboard. A
+      // full-height iOS 26 sheet is also opaque, so the small muted labels are
+      // read against `paper`, not against whatever the glass shows through.
+      detents={[1]}
       guarded={dirty}
       visible={visible}
       onClose={onClose}
@@ -1527,6 +1751,7 @@ export function EntrySheet({
                 onSnapshot={(snap) => {
                   searchSnap.current = snap;
                 }}
+                resetSignal={searchReset}
                 backHandlerRef={searchBack}
                 libraryItems={libraryItems}
                 // The keyboard comes up with the sheet (U2): typing a food is
@@ -1564,6 +1789,37 @@ export function EntrySheet({
                 onPick={(est) => prefill(est)}
                 onCreateFromQuery={(q) => openCustomBlank(q)}
               />
+              {keepOpen && added.n > 0 ? (
+                // The running tally of this visit (multi-add), pinned under
+                // the list, with the way out. Each add still gets its own
+                // receipt and Undo; this is the total the receipts do not sum.
+                <View style={styles.addedBar} testID="entry-added-bar">
+                  <View
+                    style={styles.addedMain}
+                    accessible
+                    accessibilityLabel={t('entry.addedBarA11y', {
+                      n: formatNumber(added.n, locale),
+                      kcal: formatNumber(Math.round(added.kcal), locale),
+                    })}
+                  >
+                    <Text style={styles.addedCount} maxFontSizeMultiplier={1.6} testID="entry-added-count">
+                      {t('entry.addedCount', { n: formatNumber(added.n, locale) })}
+                    </Text>
+                    <View style={styles.addedKcalRow}>
+                      <CountUpText value={Math.round(added.kcal)} style={styles.addedKcal} testID="entry-added-kcal" />
+                      <Text style={styles.addedUnit} maxFontSizeMultiplier={1.6}> {t('today.kcal')}</Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.addedDone}
+                    onPress={finishAdding}
+                    accessibilityRole="button"
+                    testID="entry-added-done"
+                  >
+                    <Text style={styles.addedDoneText} maxFontSizeMultiplier={1.6}>{t('common.done')}</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
               </>
             ) : mode === 'recipe' ? (
               <RecipeBuilder onCancel={stepBackToBrowse} onApply={(est) => prefill(est)} onDirtyChange={setSubDirty} />
@@ -1576,9 +1832,20 @@ export function EntrySheet({
                 onDirtyChange={setSubDirty}
                 onCancel={stepBackToBrowse}
                 onAddMany={async (entries) => {
-                  if (onSaveMany) await onSaveMany(entries);
-                  else for (const entry of entries) await onSave(entry);
-                  onClose();
+                  // The same bounded wait as the form's Add (bug 4). A failure
+                  // inside it propagates to MealText as it always did; a later
+                  // one is a toast.
+                  const write = (async () => {
+                    if (onSaveMany) await onSaveMany(entries);
+                    else for (const entry of entries) await onSave(entry);
+                  })();
+                  const early = await settleWithin(write);
+                  if (!early.settled) {
+                    void write.catch((e) =>
+                      reportLateFailure({ calories: entries.reduce((sum, x) => sum + x.calories, 0) }, e, 'entry.addManyLate'),
+                    );
+                  }
+                  afterAdd(entries);
                 }}
               />
             ) : (
@@ -1743,7 +2010,7 @@ export function EntrySheet({
                         </TouchableOpacity>
                       ))}
                       {scaleDraft != null ? (
-                        <TextInput
+                        <SheetTextInput
                           style={[styles.scaleChip, styles.scaleInput]}
                           value={scaleDraft}
                           onChangeText={onScaleDraftChange}
@@ -1782,7 +2049,7 @@ export function EntrySheet({
                           field rescales as you type; see `onGramsChange`. */}
                       {gramCtx ? (
                         <View style={styles.gramsBox}>
-                          <TextInput
+                          <SheetTextInput
                             style={[styles.scaleChip, styles.scaleInput, styles.gramsInput]}
                             value={gramsDraft ?? fmt(gramCtx.grams ?? 0)}
                             onChangeText={onGramsChange}
@@ -1838,7 +2105,7 @@ export function EntrySheet({
                   {showDateRow ? (
                     <Field label={t('entry.date')}>
                       <View style={[styles.dateRow, fontScale > STACK_FONT_SCALE && styles.dateRowWrap]}>
-                        <TouchableOpacity style={styles.dateStep} onPress={() => shiftEntryDate(-1)} hitSlop={2} accessibilityRole="button" accessibilityLabel={t('settings.earlier')} testID="entry-date-prev">
+                        <TouchableOpacity style={styles.dateStep} onPress={() => shiftEntryDate(-1)} hitSlop={2} accessibilityRole="button" accessibilityLabel={t('entry.datePrevA11y')} testID="entry-date-prev">
                           <Text style={styles.dateStepText} maxFontSizeMultiplier={1.6}>−</Text>
                         </TouchableOpacity>
                         <Text style={styles.dateLabel} testID="entry-date" maxFontSizeMultiplier={2.2}>
@@ -1850,7 +2117,7 @@ export function EntrySheet({
                           disabled={isSameDay(entryDate, new Date())}
                           hitSlop={2}
                           accessibilityRole="button"
-                          accessibilityLabel={t('settings.later')}
+                          accessibilityLabel={t('entry.dateNextA11y')}
                           accessibilityState={{ disabled: isSameDay(entryDate, new Date()) }}
                           testID="entry-date-next"
                         >
@@ -2040,7 +2307,7 @@ function TextInputBase(props: React.ComponentProps<typeof TextInput> & { ref?: R
   // stop fitting side by side on a small phone, and a form that cannot be
   // completed is worse for the same user than one with slightly small text.
   return (
-    <TextInput
+    <SheetTextInput
       style={styles.input}
       placeholderTextColor={colors.faint}
       maxFontSizeMultiplier={1.4}
@@ -2140,6 +2407,29 @@ const createStyles = ({ scheme, colors, shadow }: Theme) => StyleSheet.create({
   rowNums: { alignItems: 'flex-end' },
   rowProtein: { fontSize: font.tiny, color: colors.muted },
   rowRemove: { fontSize: font.body, color: colors.danger, fontWeight: '700' },
+  // Manage mode, a row with nothing to remove (see `inert`).
+  rowInert: { opacity: 0.4 },
+  keepOpen: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 48, alignSelf: 'flex-start' },
+  keepOpenText: { fontSize: font.small, color: colors.ink, fontWeight: '600' },
+  // The multi-add tally: the form's Save colours, so Done reads as the way out.
+  addedBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    marginTop: space.sm,
+    paddingVertical: space.sm,
+    paddingLeft: space.lg,
+    paddingRight: space.sm,
+    borderRadius: radius.md,
+    backgroundColor: colors.ink,
+  },
+  addedMain: { flex: 1 },
+  addedCount: { fontSize: font.small, color: colors.onInk, fontWeight: '700' },
+  addedKcalRow: { flexDirection: 'row', alignItems: 'baseline' },
+  addedKcal: { fontSize: font.h3, color: colors.onInk, fontWeight: '800', padding: 0 },
+  addedUnit: { fontSize: font.small, color: colors.onInk, opacity: 0.8 },
+  addedDone: { minHeight: 48, minWidth: 72, justifyContent: 'center', alignItems: 'center', paddingHorizontal: space.lg, borderRadius: radius.md, backgroundColor: colors.paper },
+  addedDoneText: { fontSize: font.body, color: colors.ink, fontWeight: '700' },
   customLink: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingVertical: space.md },
   customLinkText: { fontSize: font.body, color: colors.teal, fontWeight: '700' },
   starterWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },

@@ -65,6 +65,19 @@ describe('computeGoalProgress', () => {
     expect(gp!.remaining).toBe(10);
   });
 
+  it('past the goal, nothing remains — not the distance back to it', () => {
+    // A cut from 200 to 180, standing at 178: reached, 0 to go.
+    const cut = computeGoalProgress([], { '2026-06-01': 200, '2026-06-20': 178 }, 180);
+    expect(cut!.pct).toBe(100);
+    expect(cut!.remaining).toBe(0);
+    // Moving AWAY from the goal still counts up.
+    const away = computeGoalProgress([], { '2026-06-01': 200, '2026-06-20': 203 }, 180);
+    expect(away!.remaining).toBe(23);
+    // A bulk past its goal, likewise.
+    const bulk = computeGoalProgress([], { '2026-06-01': 150, '2026-06-20': 172 }, 170);
+    expect(bulk!.remaining).toBe(0);
+  });
+
   it('computes bulk progress (current above start)', () => {
     const gp = computeGoalProgress([], { '2026-06-01': 150, '2026-06-20': 160 }, 170);
     expect(gp!.pct).toBe(50); // 10 of 20 lb gained
