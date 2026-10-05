@@ -151,7 +151,7 @@ import type { I18nKey } from '@/i18n';
 // are KEPT, against this file's rewrite-the-list rule: they are one day old
 // and fire on the second launch, so many users have not seen them yet, and a
 // bump would otherwise erase them unread.
-export const WHATS_NEW_VERSION = '2026-10-04-scan-door';
+export const WHATS_NEW_VERSION = '2026-10-05-native-1.2.5';
 
 const KEY = 'whatsNew.seen';
 
