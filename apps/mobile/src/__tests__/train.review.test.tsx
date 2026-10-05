@@ -294,6 +294,17 @@ describe('the live session (bugs 3, 5; items 5, 18)', () => {
     expect(haptics.success).toHaveBeenCalled();
   });
 
+  it('an empty, unprescribed set does not tick — it asks for the reps (S20, Maestro 22)', async () => {
+    mockTrain.active = session({
+      exercises: [{ exerciseId: 'e1', name: 'Bench', logStyle: 'weight-reps', cues: [], sets: [{ kind: 'working' }] }],
+    });
+    mockTrain.recentSessions = [];
+    const ui = await render(<TrainScreen />);
+    await fireEvent.press(ui.getByTestId('set-done-0-0'));
+    expect(ui.getByTestId('set-done-0-0').props.accessibilityState).toEqual({ checked: false });
+    expect(haptics.warning).toHaveBeenCalled();
+  });
+
   it('a tick starts the rest, and hands its deadline to the lock-screen seam (item 20)', async () => {
     const { __currentRestActivity, end } = jest.requireActual('@/lib/rest-timer-activity') as typeof import('@/lib/rest-timer-activity');
     end();

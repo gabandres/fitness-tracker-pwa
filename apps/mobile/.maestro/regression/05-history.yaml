@@ -37,9 +37,26 @@ env:
 # Tapped, not `back`: since 2026-10-04 History is a ROOT-stack screen pushed
 # over the tabs, and Maestro's iOS `back` is a no-op there (no hardware back;
 # the flow used to "pass" its back steps and then fail `Today` on the day
-# screen). The day screen's back is `back`, the calendar's is `history-back`.
-- tapOn:
-    id: 'back'
+# screen). The calendar's back is `history-back`. The DAY screen uses the
+# native stack header since 072d54ec — the system back button, labelled
+# "Back" on iOS, with no testID of its own (its old drawn `back` is gone).
+# Addressed by the native header's own `BackButton` identifier, not its label:
+# the first run on that build found the label reading "index" (the calendar
+# route's name), a VoiceOver defect fixed with `headerBackTitle` the same day.
+# Android keeps hardware back. `day-prev`/`day-next` flank the title.
+- assertVisible:
+    id: 'day-prev'
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          id: 'BackButton'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - back
 - extendedWaitUntil:
     visible:
       id: 'history-back'

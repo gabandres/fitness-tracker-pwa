@@ -26,6 +26,7 @@ import { font } from '@/theme';
 import type { ChainField, InputChain } from './input-chain';
 import { kindLabelKey, numOrUndef } from './train-shared';
 import { createStyles } from './train-styles';
+import { announce } from '@/lib/a11y';
 
 /** The fixed-width numeric cells stop scaling here, so the row still fits
  *  at the largest Dynamic Type sizes (Train review item 17). */
@@ -159,6 +160,7 @@ export const SetRow = memo(function SetRow({
   // Closed after a delete taken from the sheet, so the row that slides up into
   // this slot is not already swiped open.
   const swipeRef = useRef<SwipeableMethods>(null);
+  const countInputRef = useRef<TextInput | null>(null);
   const remove = () => {
     swipeRef.current?.close();
     onRemove(exerciseIndex, setIndex);
@@ -310,7 +312,10 @@ export const SetRow = memo(function SetRow({
       ) : null}
 
       <TextInput
-        ref={(r) => chain.register(countSlot, r)}
+        ref={(r) => {
+          chain.register(countSlot, r);
+          countInputRef.current = r;
+        }}
         style={[styles.setInput, styles.setInputCell]}
         placeholder={acceptCount != null ? String(acceptCount) : '0'}
         placeholderTextColor={colors.faint}
@@ -378,6 +383,15 @@ export const SetRow = memo(function SetRow({
         accessibilityLabel={t('train.setDoneA11y', { n: label })}
         onPress={() => {
           const nowDone = !set.done;
+          // Nothing typed and nothing to accept: a tick would mark the set done
+          // while logging nothing, and the card's "0/2" disagreed with two
+          // ticked boxes (Maestro 22). Ask for the number instead.
+          if (nowDone && acceptCount == null && numOrUndef(count) == null) {
+            haptics.warning();
+            announce(t(logStyle === 'time' ? 'train.enterTimeFirst' : 'train.enterRepsFirst'));
+            countInputRef.current?.focus();
+            return;
+          }
           let done: WorkoutSet = { ...set, done: nowDone };
           // Ticking a set you have not typed into ACCEPTS what was prescribed
           // — or, failing that, what you did last time. This is the one-tap

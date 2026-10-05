@@ -85,7 +85,18 @@ export default function SheetRoute() {
       {/* Keyboard: iOS lifts a `'fit'` sheet above the keyboard itself, so
           padding it as well left a screen-tall sheet with a blank band. A
           sheet at a height detent stays put, and its content needs the room. */}
-      <Reanimated.View style={[styles.pad, !fit && styles.root, !fit && padding]}>{entry.node}</Reanimated.View>
+      <Reanimated.View style={[styles.pad, !fit && styles.root, !fit && padding]}>
+        {/* react-native-screens pins the FIRST scroll view it finds down a
+            sheet's first-child chain to x = 0, which threw away the padding
+            whenever a sheet opened on a ScrollView: every Train sheet drew its
+            first letters off the left edge (Maestro 16, iOS 26). An empty native
+            view first means the chain ends here, not at the content's
+            ScrollView. `collapsable={false}`, or Fabric flattens it away.
+            (Wrapping the content in a box instead fixed the shift but lost the
+            meal form's typed name — Maestro 11 — so it is a sibling.) */}
+        <View collapsable={false} style={styles.chainStop} />
+        {entry.node}
+      </Reanimated.View>
       {entry.overlays ? <ToastSheetHost sheetId={id} /> : null}
       {entry.overlays ? <ConfirmHost /> : null}
     </View>
@@ -95,6 +106,7 @@ export default function SheetRoute() {
 const createStyles = ({ colors }: Theme) =>
   StyleSheet.create({
     root: { flex: 1 },
+    chainStop: { height: 0 },
     surface: {
       // iOS paints the sheet itself (Liquid Glass on 26); everywhere else the
       // route is the surface.

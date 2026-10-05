@@ -1074,6 +1074,8 @@ export const en = {
   'train.inProgress': 'Workout in progress',
   'train.progress': '{done} of {total} done',
   'train.editingSession': 'Editing past workout',
+  'train.enterRepsFirst': 'Enter the reps first.',
+  'train.enterTimeFirst': 'Enter the time first.',
   'train.editHint': 'Tap to open · hold for more',
   'train.doneEditing': 'Done',
   'train.addFirst': 'Add your first exercise to start logging sets.',

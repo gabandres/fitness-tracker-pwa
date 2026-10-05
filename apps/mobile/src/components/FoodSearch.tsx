@@ -10,6 +10,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -215,7 +216,10 @@ export function FoodSearch({
   useEffect(() => {
     if (!focusSignal) return;
     // Past the scanner's own dismissal, for the reason the open focus waits.
-    const timer = setTimeout(() => inputRef.current?.focus(), 350);
+    const timer = setTimeout(() => {
+      // Not over a field the user already tapped (see `useDeferredFocus`).
+      if (!TextInput.State.currentlyFocusedInput()) inputRef.current?.focus();
+    }, 350);
     return () => clearTimeout(timer);
   }, [focusSignal, inputRef]);
   useEffect(() => {

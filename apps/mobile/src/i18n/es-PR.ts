@@ -962,6 +962,8 @@ export const esPR: Record<I18nKey, string> = {
   'train.inProgress': 'Entreno en curso',
   'train.progress': '{done} de {total} hechos',
   'train.editingSession': 'Editando entrenamiento pasado',
+  'train.enterRepsFirst': 'Primero escribe las repeticiones.',
+  'train.enterTimeFirst': 'Primero escribe el tiempo.',
   'train.editHint': 'Toca para abrir · mantén presionado para más',
   'train.doneEditing': 'Listo',
   'train.addFirst': 'Añade tu primer ejercicio para registrar series.',

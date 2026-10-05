@@ -193,6 +193,10 @@ export default function DayDetail() {
         options={{
           headerShown: true,
           headerBackButtonDisplayMode: 'minimal',
+          // Hidden by `minimal`, but it is what VoiceOver reads: without it the
+          // back button took the calendar route's NAME and announced "index"
+          // (Maestro hierarchy, 2026-10-05).
+          headerBackTitle: t('common.back'),
           headerShadowVisible: false,
           headerStyle: { backgroundColor: colors.paper },
           headerTintColor: colors.ink,

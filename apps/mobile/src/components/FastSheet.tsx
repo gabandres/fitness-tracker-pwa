@@ -565,7 +565,10 @@ function TypedTimeField({ value, onChange, locale, testIDPrefix, focusOnMount = 
 
   useEffect(() => {
     if (!focusOnMount) return;
-    const timer = setTimeout(() => hourRef.current?.focus(), 300);
+    const timer = setTimeout(() => {
+      // Not over a field the user already tapped (see `useDeferredFocus`).
+      if (!TextInput.State.currentlyFocusedInput()) hourRef.current?.focus();
+    }, 300);
     return () => clearTimeout(timer);
   }, [focusOnMount]);
 

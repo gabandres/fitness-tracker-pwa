@@ -10,6 +10,124 @@ Update this file in the same commit as any flow change. If a surface ships
 that has no row here, the suite's "100%" claim is false until the row exists —
 add it as ✗ first, cover it second.
 
+## iOS sweep 2026-10-05 — after the S19/S20 UX overhaul: 3 of 21 → 21 of 21, and five real bugs
+
+`Ignia-QA-26` (iPhone 17, iOS 26), a Release build with the JS bundle swapped
+for the working tree at each step. The first post-overhaul run (2026-10-04,
+`regr1`) passed 02, 04 and 07 only. Most of that was a **cascade**, not 18
+separate faults: `09-locale-es` died at its `Agua` anchor, which left the
+ACCOUNT in Spanish, so 10–22 all ran in es-PR and failed on their first English
+anchor; `10` then died too and left the SANDBOX dark; and a Train flow left a
+workout live. Restore those three by hand before reading any red. **Same rule
+as ever: diagnose the first failure in order, then re-read the rest.**
+
+**Measured result: 21 of 21 in one directory run, twice** — on the bundle
+before `072d54ec` (26m 9s) and on the bundle carrying `4b760b90` plus the
+fixes below (see the run line at the end of this section). 17 excluded by its
+`manual` tag, as before.
+
+### Real app bugs the suite found (all fixed, each with a jest test where one can exist)
+
+1. **Scan's header drew under the status bar** (`app/scan.tsx`). Presented as a
+   root-stack `fullScreenModal`, `<SafeAreaView edges={['top']}>` measured a 0
+   top inset on iOS: "Scan a meal" overlapped the clock, and Back and the
+   avatar sat in the status-bar band where taps never reach the app — a user
+   could not leave the screen by its Back. Now `paddingTop` from
+   `useSafeAreaInsets()`. Found by 06 dying on `Today` after a "completed" Back
+   tap.
+2. **A value saved from a native sheet never reached the screen until a cold
+   start** (`lib/ledger.ts`). Sleep saved at 7.5 read "not logged" while
+   Firestore held 7.5. The sheet route blurs Today, so its focus-gated
+   listeners re-open on dismiss; the first snapshot is cache-only and
+   `useCachedState` drops it once it has painted from disk; the server's answer
+   is a metadata-only change, which Firestore does not send without
+   `includeMetadataChanges`. Only the logs and profile listeners carried it —
+   which is why a diary row never went stale. All 15 provenance-reporting
+   listeners now do (`ledger-metadata-changes.test.ts`). Found by 14's value
+   assert.
+3. **Typing in any native sheet could drop or reorder characters**
+   (`components/SheetTextInput.tsx`, new; swapped into every `BottomSheet
+   native` input). The portal publishes the owner's children one commit late,
+   so RN's controlled TextInput pushed the PREVIOUS value back to native on
+   every keystroke. "QA Term Check" was saved as "QA Term Chkc"; erase+retype
+   in Add exercise garbled 4 of 4 times, then 5 of 5 clean after the fix (the
+   Coach screen's ordinary input was clean 4 of 4 throughout). **This was also
+   `18-train-template`'s month-old red** — row 0 of the set table "never
+   filling" on iOS; 18 is green since (`sheet-text-input.test.tsx`).
+4. **The Train glossary's RIR copy named a column that no longer exists** — "the
+   column headed LEFT / FALTAN / SOBRA" (and the RPE entry's "LEFT/RIR") after
+   the header was renamed "RIR". All three locales.
+5. **The History day's back button announced "index" to VoiceOver** — the new
+   native header took the calendar route's NAME as its label. `headerBackTitle`
+   now supplies "Back" (hidden by `minimal`, spoken by VoiceOver). Found in the
+   hierarchy dump while re-anchoring 05.
+
+Plus one layout defect fixed from the captures: the set table's `#` header was
+a Text given the number cell's 44pt `minHeight`, so it drew ~13pt above
+PREV/LB/REPS/RIR and crowded the line above the table (`setNumHead`).
+
+### Flow drift — what changed and how each flow now anchors
+
+| Flow | Drift | Now |
+|---|---|---|
+| 01, 09, 10, 14 | metrics rows are one grouped a11y label ("Water, 0 fl oz") | `id: water-open` |
+| 03 | the weekly panel moved below three cards | scroll to `panel-tab-budget` first |
+| 04, 05 | History is a ROOT-stack screen; iOS `back` is a no-op | tap `settings-back` / `history-back`; the day screen's native `BackButton` |
+| 06 | a TAP on + opens the sheet since 2026-09-28; the dial is a LONG-press | `longPressOn: log-button` (the old tap deep-linked Scan over the open sheet) |
+| 08 | the hero is one grouped label; no "kcal left" node | `id: hero-rings` |
+| 09, 10 | the add sheet is native — no `entry-backdrop` | iOS: swipe the system `Sheet Grabber` down, then assert `entry-backdrop-native` gone |
+| 13 | meal-slot headers made the list taller; the 60% stop parks the row under the tab bar | `scroll` to the end before the tap (padding verified intact) |
+| 14 | value is "7.5 h" inside "Sleep, 7.5 h"; a prefilled field sometimes lost the "." | regex on `sleep-value`; verify-and-retype guard |
+| 15 | `.*Add.*` matched the sheet TITLE (rows end ", Review" now) | `food-qty-value`, `portion-0` |
+| 16, 19 | glossaries are native sheets opening at half height; Maestro's scroll starts ABOVE the sheet | expand with a drag inside the sheet, then scroll; dismiss by grabber |
+| 16, 18, 21, 22 | Discard moved into the sticky header's ⋯ menu, with a confirm | `session-menu` → `session-menu-discard` → `confirm-go` |
+| 16 | the new exercise is the LAST row; an end-of-list row cannot be centred | `visibilityPercentage: 60` |
+| 18 | deleting a template asks first | `confirm-go` |
+| 20 | the weigh-in is a native `'fit'` sheet | grabber swipe on iOS |
+| 21 | one run dropped the first keystroke after the session's first keyboard | verify-and-retype guard (value assert still gates) |
+| 22 | the first rest of an install asks about a rest-over notification | `when: visible: rest-notify-not-now` (not `optional`, which waits ~17s of a 20s timer) |
+
+### iOS mechanics learned this run
+
+- **A native sheet is dismissed by dragging its system grabber**:
+  `swipe: { from: { text: 'Sheet Grabber' }, direction: DOWN }`. Point taps
+  "above the sheet" are wrong once the sheet has grown to its large detent.
+  Prove the dismissal with `notVisible` on the sheet's `*-backdrop-native`
+  content root — a sheet that will not close is a real bug.
+- **At the half detent, scroll gestures miss the sheet.** Maestro starts them at
+  screen centre, which is above the sheet's top edge. Drag inside the sheet
+  (`50%,88%` → `50%,40%`) to expand it first.
+- **Taps in the status-bar band (y ≲ 55) never reach the app** on the
+  simulator. A control drawn there is a safe-area bug, not a harness problem.
+
+### The run line, and what the 86 captures show
+
+`21/21 Flows Passed in 22m 45s` — bundle at `4b760b90` + the back-label and
+`#` fixes, 2026-10-05. Captures collected and reviewed; 01's capture is light,
+so 10 restored the theme and the set is trustworthy.
+
+Defects visible in the captures and NOT fixed here (layout is owned elsewhere):
+
+- **`'fit'` native sheets are drawn shifted LEFT on iOS 26** — `16-rir-scale`,
+  `16-set-types` (SetRowSheet: the "S" of "Set 1" is clipped, every line is
+  flush to the sheet's edge) and the Train ⋯ menu sheet (ExerciseMenuSheet,
+  seen by hand: title at the edge, rows stopping ~45pt short of the right). The
+  half-detent glossaries and the keyboard-raised sleep/weigh-in sheets are
+  padded correctly, so it is the floating `fitToContents` presentation.
+- `12-e2e-edit` — with the keyboard up, Edit entry's Meal chips and its
+  Delete/Save row are cut off behind the keyboard bar.
+- `18-set-prescribed` — "+ Add continuation" runs off the right edge.
+- `09-es-sheet` — es-PR Quick-add chip truncates the MEAL NAME
+  ("Chicken + rice (meal pr…") to fit the longer "de proteína".
+- `22-rest-after-last-set` — both sets ticked while the chip reads 0/2 and the
+  header "0 of 1 done" (empty sets don't count — reads as a contradiction).
+
+### State this run leaves behind
+
+The suite's own state is restored (locale `en`, theme System, pounds, no live
+workout, e2e row deleted). Not restored: `QA E2E Sandwich` presets accumulate
+one per 12 run — clear with `qa-regression-verify.mjs cleanup`.
+
 ## iOS confirming sweep 2026-09-16 — 19 of 20 MEASURED, and why composing the number failed
 
 Same host, same `Ignia-QA` simulator, same Release build. Run after the two
@@ -755,21 +873,21 @@ prove the floor.
 | Screen | Flow | Android | iOS |
 |---|---|---|---|
 | sign-in | `../android-signin.yaml` | ✓ 2026-08-09 | ✓ 2026-08-18 |
-| (app)/index — Today | `01-today.yaml` | ✓ 2026-08-09 | ✓ 2026-08-18 |
-| (app)/train | `03-tabs.yaml` (full-depth) | ✓ 2026-08-09 | ✓ 2026-08-18 |
-| (app)/train — logging interactions | `16-train-terms.yaml` (glossary, RIR scale, set-type rows; starts + discards a workout) | ✓ 2026-08-12 | ✓ 2026-08-18 — first iOS run; took five platform fixes and exposed a false-positive assert |
-| (app)/train — template editor | `18-train-template.yaml` (build a template from a seeded exercise, set table + headers, collapsed card summary, More options, save → re-open → per-set targets still there) | — no Android host | ✓ 2026-08-18 — first run; the only flow that exercises the editor at all |
-| (app)/train — cardio blocks | `21-train-cardio.yaml` (add a block, pick a modality, type a duration, see the summary recompute, and prove it round-trips through Firestore by leaving Train and coming back; discards in its own tail) | ✓ 2026-08-24 — **first run, and it found a real data loss**: `useTrain.persist` wrote `{ exercises }` only, so a cardio block rendered, updated the summary and never reached Firestore — an omitted field, not a rejected write, so nothing errored. Confirmed by reading the doc back (`cardio: null` against a block on screen), fixed, re-published, re-run green end to end | ✓ 2026-08-24 — green end to end on a Release simulator build from `main`. **No platform-gated selector was needed**: the first iOS run died at `tapOn: id: tab-train` and looked like an iOS id problem, but the accessibility tree showed the **guided tour** covering the app (`tour-skip`, `STEP 1 OF 6`) — §3.12's documented trap. Dismiss the tour and the identical flow passes. One real harness fix came out of it: `hideKeyboard` is unsupported on the iOS simulator AND does not blur on Android, so the flow taps out instead |
-| (app)/trends | `03-tabs.yaml` (full-depth) | ✓ 2026-08-09 | ✓ 2026-08-18 |
-| (app)/body | `03-tabs.yaml` (full-depth) | ✓ 2026-08-09 | ✓ 2026-08-18 — **caught the body-fat overflow** |
-| Today / Trends / Train — the "?" glossaries | `19-glossary.yaml` (all three headers carry it, the sheet opens, and it scrolls to its last term rather than clipping at the panel ceiling) | ✗ authored 2026-08-22 | ✓ 2026-08-22 — first run, on a Release sim build from `9475676` |
-| Body weight in kilograms | `20-units-metric.yaml` (Body hero + weigh-in sheet follow the Units setting; restores pounds in its own tail) | ✗ authored 2026-08-22 | ✓ 2026-08-22 — first run, same build |
-| (app)/settings | `04-settings.yaml` | ✓ 2026-08-09 | ✓ 2026-08-18 |
-| history/index | `05-history.yaml` | ✓ 2026-08-09 | ✓ 2026-08-18 |
-| history/[date] | `05-history.yaml` (deep link, `-e DATE`) | ✓ 2026-08-09 | ✓ 2026-08-18 |
-| scan (intro only) | `06-scan-intro.yaml` | ✓ 2026-08-09 | ✓ 2026-08-18 |
-| coach (idle only) | `07-coach.yaml` | ✓ 2026-08-09 | ✓ 2026-08-18 |
-| refine-targets (render only) | `08-refine-targets.yaml` | ✓ 2026-08-09 | ✓ 2026-08-18 |
+| (app)/index — Today | `01-today.yaml` | ✓ 2026-08-09 | ✓ 2026-10-05 (post-S20 sweep, 21/21) · earlier: ✓ 2026-08-18 |
+| (app)/train | `03-tabs.yaml` (full-depth) | ✓ 2026-08-09 | ✓ 2026-10-05 (post-S20 sweep, 21/21) · earlier: ✓ 2026-08-18 |
+| (app)/train — logging interactions | `16-train-terms.yaml` (glossary, RIR scale, set-type rows; starts + discards a workout) | ✓ 2026-08-12 | ✓ 2026-10-05 (post-S20 sweep, 21/21) · earlier: ✓ 2026-08-18 — first iOS run; took five platform fixes and exposed a false-positive assert |
+| (app)/train — template editor | `18-train-template.yaml` (build a template from a seeded exercise, set table + headers, collapsed card summary, More options, save → re-open → per-set targets still there) | — no Android host | ✓ 2026-10-05 (post-S20 sweep, 21/21) · earlier: ✓ 2026-08-18 — first run; the only flow that exercises the editor at all |
+| (app)/train — cardio blocks | `21-train-cardio.yaml` (add a block, pick a modality, type a duration, see the summary recompute, and prove it round-trips through Firestore by leaving Train and coming back; discards in its own tail) | ✓ 2026-08-24 — **first run, and it found a real data loss**: `useTrain.persist` wrote `{ exercises }` only, so a cardio block rendered, updated the summary and never reached Firestore — an omitted field, not a rejected write, so nothing errored. Confirmed by reading the doc back (`cardio: null` against a block on screen), fixed, re-published, re-run green end to end | ✓ 2026-10-05 (post-S20 sweep, 21/21) · earlier: ✓ 2026-08-24 — green end to end on a Release simulator build from `main`. **No platform-gated selector was needed**: the first iOS run died at `tapOn: id: tab-train` and looked like an iOS id problem, but the accessibility tree showed the **guided tour** covering the app (`tour-skip`, `STEP 1 OF 6`) — §3.12's documented trap. Dismiss the tour and the identical flow passes. One real harness fix came out of it: `hideKeyboard` is unsupported on the iOS simulator AND does not blur on Android, so the flow taps out instead |
+| (app)/trends | `03-tabs.yaml` (full-depth) | ✓ 2026-08-09 | ✓ 2026-10-05 (post-S20 sweep, 21/21) · earlier: ✓ 2026-08-18 |
+| (app)/body | `03-tabs.yaml` (full-depth) | ✓ 2026-08-09 | ✓ 2026-10-05 (post-S20 sweep, 21/21) · earlier: ✓ 2026-08-18 — **caught the body-fat overflow** |
+| Today / Trends / Train — the "?" glossaries | `19-glossary.yaml` (all three headers carry it, the sheet opens, and it scrolls to its last term rather than clipping at the panel ceiling) | ✗ authored 2026-08-22 | ✓ 2026-10-05 (post-S20 sweep, 21/21) · earlier: ✓ 2026-08-22 — first run, on a Release sim build from `9475676` |
+| Body weight in kilograms | `20-units-metric.yaml` (Body hero + weigh-in sheet follow the Units setting; restores pounds in its own tail) | ✗ authored 2026-08-22 | ✓ 2026-10-05 (post-S20 sweep, 21/21) · earlier: ✓ 2026-08-22 — first run, same build |
+| (app)/settings | `04-settings.yaml` | ✓ 2026-08-09 | ✓ 2026-10-05 (post-S20 sweep, 21/21) · earlier: ✓ 2026-08-18 |
+| history/index | `05-history.yaml` | ✓ 2026-08-09 | ✓ 2026-10-05 (post-S20 sweep, 21/21) · earlier: ✓ 2026-08-18 |
+| history/[date] | `05-history.yaml` (deep link, `-e DATE`) | ✓ 2026-08-09 | ✓ 2026-10-05 (post-S20 sweep, 21/21) · earlier: ✓ 2026-08-18 |
+| scan (intro only) | `06-scan-intro.yaml` | ✓ 2026-08-09 | ✓ 2026-10-05 (post-S20 sweep, 21/21) · earlier: ✓ 2026-08-18 |
+| coach (idle only) | `07-coach.yaml` | ✓ 2026-08-09 | ✓ 2026-10-05 (post-S20 sweep, 21/21) · earlier: ✓ 2026-08-18 |
+| refine-targets (render only) | `08-refine-targets.yaml` | ✓ 2026-08-09 | ✓ 2026-10-05 (post-S20 sweep, 21/21) · earlier: ✓ 2026-08-18 |
 | verify-email | `empty/01-verify-email.yaml` | ✗ authored, unrun | ✓ 2026-08-18 — **first run ever, either platform** |
 | onboarding | `empty/02-onboarding-empty.yaml` | ✗ authored, unrun | ✓ 2026-08-18 — **first run ever, either platform** |
 
@@ -777,33 +895,33 @@ prove the floor.
 
 | Mode | Flow | Android | iOS |
 |---|---|---|---|
-| Browse (recency list + Quick add strip) | `02-add-sheet.yaml` | ✓ 2026-08-09 | ✓ 2026-08-18 |
-| Manual (Write it in) | `02` render · `11` real write | ✓ 2026-08-09 (both) | ✓ 2026-08-18 (both) |
-| Describe a meal | `02-add-sheet.yaml` | ✓ 2026-08-09 | ✓ 2026-08-18 |
-| Build a recipe | `02-add-sheet.yaml` | ✓ 2026-08-09 | ✓ 2026-08-18 |
-| Import from a link | `02-add-sheet.yaml` | ✓ 2026-08-09 | ✓ 2026-08-18 |
-| Search → results → serving detail | `15-search.yaml` | ✓ 2026-08-09 | ✓ 2026-08-18 |
+| Browse (recency list + Quick add strip) | `02-add-sheet.yaml` | ✓ 2026-08-09 | ✓ 2026-10-05 (post-S20 sweep, 21/21) · earlier: ✓ 2026-08-18 |
+| Manual (Write it in) | `02` render · `11` real write | ✓ 2026-08-09 (both) | ✓ 2026-10-05 (post-S20 sweep, 21/21) · earlier: ✓ 2026-08-18 (both) |
+| Describe a meal | `02-add-sheet.yaml` | ✓ 2026-08-09 | ✓ 2026-10-05 (post-S20 sweep, 21/21) · earlier: ✓ 2026-08-18 |
+| Build a recipe | `02-add-sheet.yaml` | ✓ 2026-08-09 | ✓ 2026-10-05 (post-S20 sweep, 21/21) · earlier: ✓ 2026-08-18 |
+| Import from a link | `02-add-sheet.yaml` | ✓ 2026-08-09 | ✓ 2026-10-05 (post-S20 sweep, 21/21) · earlier: ✓ 2026-08-18 |
+| Search → results → serving detail | `15-search.yaml` | ✓ 2026-08-09 | ✓ 2026-10-05 (post-S20 sweep, 21/21) · earlier: ✓ 2026-08-18 |
 | Barcode | — camera; asserted present in `02`, never opened | ✗ camera | ✗ camera |
 
 ## Interactions
 
 | Interaction | Flow | Android | iOS |
 |---|---|---|---|
-| Log → appears in Entries (Firestore-verified) | `11-e2e-log.yaml` + `qa-regression-verify.mjs snapshot` | ✓ 2026-08-09 | ✓ 2026-08-18 (123 kcal read back) |
-| Edit entry (Firestore-verified) | `12-e2e-edit.yaml` + snapshot | ✓ 2026-08-09 | ✓ 2026-08-18 (321 kcal / P 9g read back) |
-| Delete entry (Firestore-verified) | `13-e2e-delete.yaml` + snapshot | ✓ 2026-08-09 | ✓ 2026-08-18 (`entries: []` read back) — **closed after nine days red, and the old diagnosis was wrong twice over.** The tap never landed: the update Nudge re-rendered Today and returned the list to the top, so `tapOn` searched a tree the row had left. Under that sat a real app bug — Today's list had no bottom padding, so the row's centre fell on the tab bar. Both fixed |
-| Row long-press → save preset | `12-e2e-edit.yaml` + snapshot | ✓ 2026-08-09 (preset doc read back) | ✓ 2026-08-18 (preset doc read back) |
-| Water +8 / −8 | `14-metrics.yaml` | ✓ 2026-08-09 | ✓ 2026-08-18 |
-| Sleep log 7.5 h | `14-metrics.yaml` + snapshot | ✓ 2026-08-09 (`sleepHours: 7.5`) | ✓ 2026-08-18 (`sleepHours: 7.5`) |
+| Log → appears in Entries (Firestore-verified) | `11-e2e-log.yaml` + `qa-regression-verify.mjs snapshot` | ✓ 2026-08-09 | ✓ 2026-10-05 (post-S20 sweep, 21/21) · earlier: ✓ 2026-08-18 (123 kcal read back) |
+| Edit entry (Firestore-verified) | `12-e2e-edit.yaml` + snapshot | ✓ 2026-08-09 | ✓ 2026-10-05 (post-S20 sweep, 21/21) · earlier: ✓ 2026-08-18 (321 kcal / P 9g read back) |
+| Delete entry (Firestore-verified) | `13-e2e-delete.yaml` + snapshot | ✓ 2026-08-09 | ✓ 2026-10-05 (post-S20 sweep, 21/21) · earlier: ✓ 2026-08-18 (`entries: []` read back) — **closed after nine days red, and the old diagnosis was wrong twice over.** The tap never landed: the update Nudge re-rendered Today and returned the list to the top, so `tapOn` searched a tree the row had left. Under that sat a real app bug — Today's list had no bottom padding, so the row's centre fell on the tab bar. Both fixed |
+| Row long-press → save preset | `12-e2e-edit.yaml` + snapshot | ✓ 2026-08-09 (preset doc read back) | ✓ 2026-10-05 (post-S20 sweep, 21/21) · earlier: ✓ 2026-08-18 (preset doc read back) |
+| Water +8 / −8 | `14-metrics.yaml` | ✓ 2026-08-09 | ✓ 2026-10-05 (post-S20 sweep, 21/21) · earlier: ✓ 2026-08-18 |
+| Sleep log 7.5 h | `14-metrics.yaml` + snapshot | ✓ 2026-08-09 (`sleepHours: 7.5`) | ✓ 2026-10-05 (post-S20 sweep, 21/21) · earlier: ✓ 2026-08-18 (`sleepHours: 7.5`) |
 | Mic tap → listening state | `14-metrics.yaml` (conditional) | ✗ — button renders and the tap lands, but the emulator has no recognizer, so the state never appears. Closes on hardware only | ✗ same |
-| Month prev/next in History | `05-history.yaml` | ✓ 2026-08-09 | ✓ 2026-08-18 |
+| Month prev/next in History | `05-history.yaml` | ✓ 2026-08-09 | ✓ 2026-10-05 (post-S20 sweep, 21/21) · earlier: ✓ 2026-08-18 |
 
 ## State multipliers
 
 | State | Flow | Android | iOS |
 |---|---|---|---|
-| es-PR locale (Today, tabs, sheet, Settings) | `09-locale-es.yaml` | ✓ 2026-08-09 — **caught the `lb/wk` bug** | ✓ 2026-08-18 — **caught the body-fat overflow first, its copy being longer** |
-| Dark theme (same surfaces) | `10-theme-dark.yaml` | ✓ 2026-08-09 | ✓ 2026-08-18 |
+| es-PR locale (Today, tabs, sheet, Settings) | `09-locale-es.yaml` | ✓ 2026-08-09 — **caught the `lb/wk` bug** | ✓ 2026-10-05 (post-S20 sweep, 21/21) · earlier: ✓ 2026-08-18 — **caught the body-fat overflow first, its copy being longer** |
+| Dark theme (same surfaces) | `10-theme-dark.yaml` | ✓ 2026-08-09 | ✓ 2026-10-05 (post-S20 sweep, 21/21) · earlier: ✓ 2026-08-18 |
 | Boot / loading (BrandLoader splash) | `01-today.yaml`'s launch capture | ✓ 2026-08-09 — **caught the "Igni" wordmark** | ✓ 2026-08-18 (renders correctly there — the clipping was Android-only) |
 | Fresh account (onboarding funnel + every empty state) | `empty/02-onboarding-empty.yaml` | ✗ authored, unrun | ✓ 2026-08-18 — **first run ever**; the funnel saves and every empty state renders |
 

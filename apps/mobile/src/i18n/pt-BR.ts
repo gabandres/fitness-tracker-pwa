@@ -952,6 +952,8 @@ export const ptBR = {
   'train.inProgress': 'Treino em andamento',
   'train.progress': '{done} de {total} concluídos',
   'train.editingSession': 'Editando treino anterior',
+  'train.enterRepsFirst': 'Digite as repetições primeiro.',
+  'train.enterTimeFirst': 'Digite o tempo primeiro.',
   'train.editHint': 'Toque para abrir · segure para mais opções',
   'train.doneEditing': 'Pronto',
   'train.addFirst': 'Adicione o seu primeiro exercício para começar a registrar séries.',

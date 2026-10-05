@@ -1,4 +1,6 @@
-import { useAnimatedStyle } from 'react-native-reanimated';
+import { useEffect } from 'react';
+import { Keyboard, Platform } from 'react-native';
+import { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { useReanimatedKeyboardAnimation } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { space } from '@/theme';
@@ -53,11 +55,31 @@ import { space } from '@/theme';
 export function useKeyboardSheetPadding(rest: number, open: number = space.sm) {
   const insets = useSafeAreaInsets();
   const { height } = useReanimatedKeyboardAnimation();
+  // The iOS input accessory (`KeyboardBar`'s ‹ › Done row) is part of the
+  // keyboard frame UIKit reports, but not of the height the keyboard library
+  // animates — so with the bar up the last row (Edit entry's Save / Delete)
+  // sat under it, short by exactly the bar (Maestro 12, iOS 26). RN's own
+  // keyboard event carries the full frame; the difference is the accessory.
+  const accessory = useSharedValue(0);
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+    const measure = (e: { endCoordinates: { height: number } }) => {
+      accessory.value = Math.max(0, e.endCoordinates.height - -height.value);
+    };
+    const subs = [
+      Keyboard.addListener('keyboardDidShow', measure),
+      Keyboard.addListener('keyboardDidChangeFrame', measure),
+      Keyboard.addListener('keyboardWillHide', () => {
+        accessory.value = 0;
+      }),
+    ];
+    return () => subs.forEach((s) => s.remove());
+  }, [accessory, height]);
   return useAnimatedStyle(() => {
     // `height` is 0 closed and negative while the keyboard is open.
     const keyboard = -height.value;
     return keyboard > 0
-      ? { paddingBottom: open + keyboard }
+      ? { paddingBottom: open + keyboard + accessory.value }
       : { paddingBottom: rest + insets.bottom };
   });
 }

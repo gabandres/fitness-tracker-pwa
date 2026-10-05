@@ -1458,7 +1458,7 @@ export function EntrySheet({
                     ) : (
                       // Protein beside kcal: this app tracks the two together, and a
                       // chip that showed one left the user guessing the other.
-                      <Text style={styles.presetKcal} maxFontSizeMultiplier={2.2}>
+                      <Text style={styles.presetKcal} numberOfLines={1} maxFontSizeMultiplier={2.2}>
                         {formatNumber(p.calories, locale)} {t('today.kcal')}
                         {p.protein != null ? ` · ${t('entry.proteinAmount', { n: formatNumber(p.protein, locale) })}` : ''}
                       </Text>
@@ -2399,8 +2399,12 @@ const createStyles = ({ scheme, colors, shadow }: Theme) => StyleSheet.create({
   presetChip: { flexDirection: 'row', alignItems: 'center', gap: space.xs, paddingVertical: space.sm, paddingHorizontal: space.md, minHeight: 44, maxWidth: '100%', borderRadius: radius.pill, backgroundColor: colors.ink },
   // No fixed `maxWidth` (A1): 150pt cut a name to "Chi…" at a large text
   // size. The chip caps at the row, and the name gives way to the numbers.
-  presetName: { fontSize: font.small, fontWeight: '600', color: colors.onInk, flexShrink: 1 },
-  presetKcal: { fontSize: font.tiny, color: colors.onInk, opacity: 0.7 },
+  // The NAME keeps its room and the numbers give way: in Spanish ("g de
+  // proteína") the macro line was long enough to cut the meal's own name to
+  // "Chicken + rice (meal pr…" (Maestro 09). Capped so a very long name still
+  // leaves the kcal visible.
+  presetName: { fontSize: font.small, fontWeight: '600', color: colors.onInk, flexShrink: 0, maxWidth: '72%' },
+  presetKcal: { fontSize: font.tiny, color: colors.onInk, opacity: 0.7, flexShrink: 1 },
   rowTag: { fontSize: font.tiny, color: colors.muted, marginRight: space.sm },
   rowName: { fontSize: font.body, color: colors.ink, fontWeight: '600', flex: 1, marginRight: space.md },
   rowKcal: { fontSize: font.body, color: colors.muted, fontWeight: '700' },

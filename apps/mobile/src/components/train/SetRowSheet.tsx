@@ -70,8 +70,9 @@ export function SetRowSheet({
   // the moment a removed set left the index empty) would leave the system
   // sheet up and blank. One instance for the whole session now (Train review
   // item 31), native, sized to its rows.
+  // Seven set kinds, the RIR chips and Remove scroll at most text sizes, so a height detent with room to expand suits them better than sizing to content.
   return (
-    <BottomSheet native detents="fit" visible={visible && set != null} onClose={onClose} contentStyle={styles.sheetBody} maxHeight="80%">
+    <BottomSheet native detents={[0.75, 1]} visible={visible && set != null} onClose={onClose} contentStyle={styles.sheetBody} maxHeight="80%">
       {set ? (
       <>
       {/* `BottomSheet` CLAMPS height and does not scroll — every other sheet

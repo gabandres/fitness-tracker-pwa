@@ -222,7 +222,7 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   doneCheckOn: { color: colors.onInk },
   setDel: { paddingHorizontal: space.xs },
   setDelText: { color: colors.danger, fontSize: font.small, fontWeight: '700' },
-  addSetRow: { flexDirection: 'row', gap: space.xl },
+  addSetRow: { flexDirection: 'row', flexWrap: 'wrap', columnGap: space.xl },
   addSetBtn: { minHeight: 44, justifyContent: 'center', paddingVertical: space.sm },
   addSetText: { fontSize: font.small, color: colors.teal, fontWeight: '700' },
   addExBtn: {
@@ -455,7 +455,8 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
     color: colors.ink,
   },
   tplSetGroup: { flex: 1, fontSize: font.tiny, color: colors.muted },
-  tplSetBtns: { flexDirection: 'row', gap: space.lg, marginTop: space.xs },
+  // Wraps: three add buttons ran off the right edge on a 402pt phone (Maestro 18).
+  tplSetBtns: { flexDirection: 'row', flexWrap: 'wrap', columnGap: space.lg, marginTop: space.xs },
   // ADR-0040 structure picker. Wraps rather than scrolls: eight chips do not
   // fit one row at 360 dp, and a horizontal scroller hides the options that
   // matter most behind a gesture nobody discovers.

@@ -114,7 +114,15 @@ appId: fit.ignia.app
     timeout: 15000
 
 # Check the box on row 0. Row 1 is the continuation, so this is the rest-pause
-# pause — 0:20, not the 1:00 between-sets rest.
+# pause — 0:20, not the 1:00 between-sets rest. Reps first: an empty, unprescribed
+# set no longer ticks (it asks for the number — S20, the "0/2 beside two ticks"
+# defect this flow's screenshot showed).
+- tapOn:
+    id: 'set-count-0-0'
+- inputText: '5'
+# The keyboard bar's Done: `hideKeyboard` cannot close an iOS number pad.
+- tapOn:
+    text: 'Done'
 - tapOn:
     id: 'set-done-0-0'
 - waitForAnimationToEnd:
@@ -153,6 +161,11 @@ appId: fit.ignia.app
 # ── 2. Nothing coming next → the LONG rest, unchanged ─────────────
 # The over-correction guard. Pinning the continuation must not pin every rest:
 # row 1 is the last set of the exercise, which still takes the cluster rest.
+- tapOn:
+    id: 'set-count-0-1'
+- inputText: '3'
+- tapOn:
+    text: 'Done'
 - tapOn:
     id: 'set-done-0-1'
 - waitForAnimationToEnd:

@@ -60,8 +60,9 @@ export function ExerciseMenuSheet({
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
+  // Up to eight rows; on 1.2.5 binaries this sheet is only the fallback for the native pull-down menu.
   return (
-    <BottomSheet native detents="fit" visible={visible} onClose={onClose} contentStyle={styles.sheetBody} maxHeight="80%">
+    <BottomSheet native detents={[0.5, 1]} visible={visible} onClose={onClose} contentStyle={styles.sheetBody} maxHeight="80%">
       {/* Same reason as `SetRowSheet`: `BottomSheet` clamps and does not
           scroll. Five rows fit on any phone at default type, and do not at
           the largest accessibility text size. */}
