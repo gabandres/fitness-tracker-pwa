@@ -1,6 +1,6 @@
 # STATUS — what is true right now
 
-**Updated:** 2026-09-28 · **Owns:** current state only. Not history
+**Updated:** 2026-10-05 · **Owns:** current state only. Not history
 (`CHANGELOG.md`), not rationale (`docs/adr/`), not vocabulary (`CONTEXT.md`),
 not commands (`docs/COMMANDS.md`), not build tooling
 (`docs/build-infrastructure.md`).
@@ -24,22 +24,22 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 
 | Surface | State |
 |---|---|
-| **Public App Store (iOS)** | **1.2.4 / build 67, LIVE since 2026-09-28** (owner's word; `app-version.json` read `1.2.4` at 12:17 UTC — its `latestBuild` still says 64 because Apple's public lookup carries no build number). Runtime **`1b239e44…`**, which HEAD reproduces on `ignia-mac`; the first OTA on it is the 09-28 S18 ship (`b2d0205b…`). Build 64 / `52802bba…` users get 1.2.4 through the store update; no more build-64 OTAs. Carries the re-shot screenshots (en-US 5, es-MX 5) and `usesIdfa: false`. **Available in 175 of 175 territories** since 2026-08-28 (DSA trader declaration filed). Play matched on 2026-09-03: 158 of Play's attainable 158 |
+| **Public App Store (iOS)** | **1.2.4 / build 67, LIVE since 2026-09-28** (Apple's public lookup read `1.2.4` on 2026-10-05). Runtime **`1b239e44…`**. **1.2.5 / build 68 (runtime `489bf3b5…`) is SUBMITTED, `WAITING_FOR_REVIEW`, release automatic on approval** — owner's word; this Mac cannot read ASC (no `ASC_ISSUER_ID` in its `.env.local`). Carries the re-shot screenshots (en-US 5, es-MX 5) and `usesIdfa: false`. **Available in 175 of 175 territories** since 2026-08-28 (DSA trader declaration filed). Play matched on 2026-09-03: 158 of Play's attainable 158 |
 | **TestFlight** | **build 64 / 1.2.3 (runtime `52802bba…`) is in the EXTERNAL *Public Beta Testers* group, `IN_BETA_TESTING`** (read 2026-09-08 via `asc-testflight-external.mjs --build 64`; it was `WAITING_FOR_BETA_REVIEW` from 09-05). Build 63 is in the group but can never reach an external tester — a build of an already-released version stays `READY_FOR_BETA_SUBMISSION` forever. **Read the group's builds AND each build's `externalBuildState`, never assume:** `VALID` + in the group ≠ installable |
-| **Play production + alpha** | **vc 46 / 1.2.4 on BOTH alpha and production since 2026-09-28, sent for review (Mac-built); vc 45 stays what users run until Play clears it** — earlier text: **LIVE — vc 45 / 1.2.3 (runtime `15c1cfc8…`, the IGNIA-MOBILE-V fix, plus the Ember-on-Ink icon, feature graphic and five re-shot screenshots), production 100% + alpha, released 2026-09-07 ~22:46 UTC** (store page reads 1.2.3 / *Updated on Sep 7, 2026*, read 2026-09-08). The review took ~7.5 h from the 15:05 UTC restart. **Nothing is in review; the next submit can go whenever there is a change to ship.** **The tracks API cannot tell "in review" from "live"** — the Console app row or the store page is the read. The 09-03 Data safety amendment (*Device or other IDs*) is PUBLISHED — it rode the vc 45 review; Publishing overview read *nothing in review, last published Sep 7* on 2026-09-08. `eas submit` has failed and exited 0 three times (lost Play edit on bundles > 60 MB; a missing health declaration) — **`play-upload-bundle.mjs` is the upload path; confirm every submit against the tracks API** |
+| **Play production + alpha** | **Production: vc 46 / 1.2.4, LIVE** (store page *Updated on Sep 28, 2026*, read 2026-10-05). **Alpha: vc 47 / 1.2.5 uploaded 2026-10-05, sent for review; NOT promoted to production** — the owner's call. **The tracks API cannot tell "in review" from "live"** — the Console app row or the store page is the read. `eas submit` has failed and exited 0 three times (lost Play edit on bundles > 60 MB; a missing health declaration) — **`play-upload-bundle.mjs` is the upload path, then `play-production-release.mjs --complete --commit --vc N`; confirm every submit against the tracks API** |
 | **Web `ignia.fit`** | **Shell + `/admin` — the web logging app was RETIRED 2026-08-30 (ADR-0036).** 113 prerendered pages, EN + es-PR. Links BOTH stores with the official badges since 2026-09-08 (`PLAY_STORE_LIVE = true`; Google's en / es-419 badge artwork on the landing, `/vs`, `/calculator`, the retired and auth-action pages, and `/download`). **`/download` said "Android coming soon — email me" until 2026-09-08** — this row claimed no such copy remained; grep `public/` as well as `src/` before repeating that. `/app` and the old tabs render a "moved to the apps" page; a safety worker evicts old PWA installs. SEO pages and `/u/**` are KEPT, owner-ratified |
 | **Cloud Functions / rules** | Deployed, project `fitness-tracker-gb-1775407101` |
 | **Photo-scan** | **ON and free to everyone, both platforms** (ADR-0017), resolving macros against the bundled USDA database (ADR-0019). Tiering is server-side only: `dailyQuota` 3/day free · 30/day paid, plus the `photo` `spendCeiling` |
 | **Food search** | Bundled USDA DB, 13,272 foods, plus the restaurant corpus (25,126 items / 91 chains, ADR-0027). **Text search makes NO network call** (since 2026-08-19; Open Food Facts serves **barcode only** — its 10 req/min search cap cannot host typeahead behind one egress IP). Servings ship with each hit. `docs/research/off-branded-ingest.md` scopes getting branded text results back |
-| **OTA (EAS Update)** | Live. `runtimeVersion: {"policy":"fingerprint"}`, channels match build profiles. Free tier 1,000 MAU. **iOS OPEN** on `1b239e44…` (build 67) since 2026-09-28; newest group `dabeaffa…` (2026-10-04, S19). **Android OPEN** on `3e596c87…` (vc 46) since 2026-09-28; newest group `d13b2d5e…` (2026-10-04, S19) — published with `runtimeVersion` PINNED to the artifact value in `app.json` and reverted, because the Mac tree never reproduces the Android artifact hash (ledger row). vc 45 users (`15c1cfc8…`) are unreachable from here; the Play review of 46 is their delivery. Reminder: `app.json` is hashed whole, so a version string bump moves BOTH fingerprints (`437a90ce` did). **"Published" is not "delivered":** a user gets it on the launch AFTER the download. **This row is a POINTER: `apps/mobile/AGENTS.md` is the per-publish record and it wins.** Re-check with `npx eas update:list --branch production --limit 3` |
+| **OTA (EAS Update)** | Live. `runtimeVersion: {"policy":"fingerprint"}`, channels match build profiles. Free tier 1,000 MAU. **iOS**: build 67 / `1b239e44…` newest group `dabeaffa…` (2026-10-04, S19); **build 68 / `489bf3b5…` has its first group `440e81a0…` (2026-10-05, `b19d26b1`), published ahead of Apple's approval on the owner's word — it lands once 1.2.5 is released.** **Android**: vc 46 / `3e596c87…` newest group `d13b2d5e…` (2026-10-04) — publish with `runtimeVersion` PINNED to the artifact value and revert (ledger row); vc 47 / `ef607e85…` has no OTA yet (it embeds `b19d26b1`). 1.2.4 binaries get no 1.2.5 JS — `app.json` moved both runtimes. **"Published" is not "delivered":** a user gets it on the launch AFTER the download. **This row is a POINTER: `apps/mobile/docs/fingerprint-ledger.md` is the per-publish record and it wins.** Re-check with `npx eas update:list --branch production --limit 3` |
 | **`app-version.json`** | **Self-driving since 2026-09-05** — served from Firestore `public/appVersion` by the `appVersionJson` rewrite, refreshed hourly by `hourlyTasks` (Android from the Play tracks API as `647810616435-compute@…`, invited read-only to the org Play Console; iOS from Apple's public lookup) and on demand from `/admin` → System → **Sync now**. No static file, no deploy, no secret; `npm run doctor` compares the LIVE URL with both stores. See the Play row for the in-review wrinkle |
 
 **The runtime fingerprints, and the three traps around them.**
 
 | Platform | Tree now | Live binary | Channel |
 |---|---|---|---|
-| Android | **Mac-built since vc 46** — read it from the artifact, never the tree (`android/` is hashed whole and drifts with Gradle's leftovers; ledger row) | **vc 46 ships `3e596c87…`** (read from the `.aab`), on Play **alpha** since 2026-09-28, promoted to production 100% the same day, in review; first OTA on it `605679ee…` (pinned runtime); **vc 45 (`15c1cfc8…`, Windows-built) is what users run until Play clears 46** | **OPEN** (pin the runtime for every publish) |
-| iOS | `1b239e44…` since `7f25177c`, re-measured on `ignia-mac` 2026-09-28 at `cb4a287a` and MATCHED | **build 67 ships `1b239e44…`, LIVE as 1.2.4 since 2026-09-28** (read from the `.ipa`); OTAs on it `b2d0205b…` and `dbe26c08…` the same day | **OPEN** to the public — after an Android Gradle build, restore the masked-view manifest first (bullet below) |
+| Android | **Mac-built since vc 46** — read it from the artifact, never the tree (`android/` is hashed whole and drifts with Gradle's leftovers; ledger row). vc 47's tree DID compute its artifact value `ef607e85…` (no prebuild between) | **vc 46 ships `3e596c87…`, LIVE on production**; **vc 47 ships `ef607e85…`** (read from the `.aab`), on **alpha** in review | **OPEN** on both (pin the runtime for every publish) |
+| iOS | `489bf3b5…` (1.2.5) — re-measured on `ignia-mac` 2026-10-05 at `b19d26b1` and MATCHED build 68 | **build 67 ships `1b239e44…`, LIVE as 1.2.4**; **build 68 ships `489bf3b5…`** (read from the `.ipa`), in App Review | **OPEN** on both — after an Android Gradle build, restore the masked-view manifest first (bullet below) |
 
 - **Gate the COMMIT, not just the fingerprint. `eas update` prints a `Commit`
   line — read it.** The fingerprint is native-only, so a stale JS tree passes
@@ -73,18 +73,12 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 
 ## 2. Merged, on `main`, and not delivered anywhere
 
-**Everything on `main` is delivered on iOS** (build 67 / 1.2.4 runtime
-`1b239e44…`, newest OTA `dabeaffa…` at `4773b4b1`) **and published for Android
-vc 46** (runtime `3e596c87…`, newest OTA `d13b2d5e…` at `4773b4b1`). What
-Android production users actually run is still vc 45 (`15c1cfc8…`) until Play
-clears 46 — they hold neither `2227698c` nor either 09-28 ship, and **no OTA can
-reach them from this Mac** (the Windows-built runtime). Do not publish for vc 45;
-the 46 review is the delivery. Functions and rules are deployed.
-
-The 2026-09-30 and 2026-10-02 fixes went out as OTAs on 2026-10-02 (iOS
-`9a7146d1` on build 67, Android `df784c63` on vc 46; CHANGELOG). 10-03: notes +
-typed time, then ADR-0043's admin-only composition view (+ two 10-04 follow-ups); the
-groups are in CHANGELOG and the fingerprint ledger.
+**Everything on `main` (to `b19d26b1`) is in the 1.2.5 binaries or their first
+OTA** — vc 47 embeds it; build 68 gets it as OTA `440e81a0…`. **Neither has
+reached a user yet:** 1.2.5 is in review on both stores, and the S20 work since
+`4773b4b1` cannot reach 1.2.4 binaries (both runtimes moved). The newest 1.2.4
+OTAs are `dabeaffa…` (iOS) / `d13b2d5e…` (Android) at `4773b4b1`. Functions and
+rules are deployed.
 
 Re-derive rather than trust this line: `git log --oneline` against the newest
 OTA row in `apps/mobile/docs/fingerprint-ledger.md`, and
@@ -118,27 +112,29 @@ host setup and traps are in `.maestro/regression/README.md`.
 deleted and its outcome goes to `CHANGELOG.md`.
 
 
-### iOS 1.2.4 / build 67 — LIVE 2026-09-28; Android cutover in flight
+### 1.2.5 — in review on both stores (2026-10-05)
 
-1.2.4 carries the Dynamic Island fix and Expo scene support (iOS 27 launch);
-`CHANGELOG.md` 2026-09-23. Runtime `1b239e44…`. **Look at the island on a real
-iPhone** — `simctl` never drew it. The lockfile rewrite on the Mac stands:
-**Windows must `npm ci` before its next build.**
+S20: native sheets on both platforms (iOS `UISheetPresentationController`,
+Android Material `formSheet`), context menus, date/time pickers, the Lock Screen
+rest timer and App Intents (iOS), the iOS 26 Liquid Glass tab bar (OTA), and
+round 3's re-score fixes. `CHANGELOG.md` 2026-10-05.
 
-- **Android — CUTOVER DONE**: vc 46 (1.2.4, runtime `3e596c87…`) was built on
-  `ignia-mac` on 2026-09-28 (raw Gradle + `patch-android-release.mjs`; the
-  `eas build --local` route alone produced an unshippable artifact — ledger
-  row) and is on the **Play alpha track, sent for review**. `OWNER["android"]`
-  is `mac`; both platforms gate and publish from the Mac. **Promoted to Play
-  PRODUCTION at 100% the same day (~13:45 UTC, `play-production-release.mjs
-  --complete --vc 46 --commit`, track availability re-read at 158 countries),
-  sent for review.** Until Play finishes reviewing, production users still hold
-  vc 45; `app-version.json` flips by itself when the hourly sync sees 46 live.
-  EAS's remote Android versionCode is 46 (was 32).
+- **iOS**: build 68 waiting for review, release automatic; OTA `440e81a0…` rides
+  with it. The glass tab bar was checked on the `Ignia-QA-26` simulator only —
+  **look at it on a real iPhone on iOS 26** once 1.2.5 is out.
+- **Android**: vc 47 on alpha, in review. **Promote to production only on the
+  owner's word** (`play-production-release.mjs --complete --vc 47 --commit`);
+  `app-version.json` follows by itself once Play serves it.
+- **Predictive back is OFF on Android** despite `predictiveBackGestureEnabled:
+  true` in `app.json` — `patch-android-release.mjs` step 4e rewrites the
+  manifest, because with it on, back from History backgrounded the app
+  (OnePlus 8T, 2026-10-05). Leave `app.json` alone until the next binary of
+  BOTH platforms (it is hashed into both); revisit once React Native's
+  predictive-back path is proven on a device.
 - **Device QA host**: the OnePlus 8T is on adb over Tailscale from this Mac —
-  `apps/mobile/scripts/phone.sh` attaches, wakes and unlocks it and prints the
-  adb id (ported from PoolFlow 2026-09-28; same phone, serial `49bae1ea`).
-  It now holds the adb-installed vc 46 (`installerPackageName=pc`, data wiped by the reinstall); **reinstall it from Play once 46 is on a track it can see**, so the next Android OTA can be proven the PoolFlow way (`DownloadComplete` in logcat).
+  `apps/mobile/scripts/phone.sh` attaches, wakes and unlocks it. It holds an
+  adb-installed vc 47 (`installerPackageName=pc`); **reinstall it from Play**
+  once 47 is on a track it can see, so an Android OTA can be proven on it.
 
 ### `ExerciseLibrarySheet` rows are untappable on iOS — cause UNKNOWN
 

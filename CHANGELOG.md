@@ -4,6 +4,44 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-10-05 — 1.2.5 (S20): native sheets and menus, Lock Screen rest timer, charts over time — submitted to both stores
+
+- **Why**: S19 left Today and add-meal at 9+ but Train, Trends and Body at
+  67–71, and every sheet and menu was drawn in JS. S20 moved them onto the
+  platform's own controls and took the other three tabs through the same
+  independent re-score rounds.
+- **What** (highlights): native sheets on both platforms (iOS
+  `UISheetPresentationController` through a root `sheet` route + portal;
+  Android react-native-screens `formSheet`, a Material sheet with handle and
+  28 dp corners); native context menus with preview on diary, history and
+  weigh-in rows ("Move to…" as a submenu); native date/time pickers and
+  pull-down menus; rest-timer Live Activity + Dynamic Island, fasting End from
+  the Lock Screen, Siri/Shortcuts (log weight, start/end fast, start next
+  workout); Trends maintenance-over-time and Body trend-weight charts with
+  scrubbing and audio graphs (damped level+slope trend replaces the 0.1 EWMA);
+  offline-first workouts and a durable weigh-in queue; sheets no longer detach
+  the screen's listeners; previous-day arrow on Today, target beside History
+  totals. Later the same day, OTA-only: the iOS 26 Liquid Glass tab bar
+  (floating capsule, `lib/glass.ts`). Android-only fixes found on the OnePlus 8T:
+  back steps inside the add sheet (portion picker, form, review) before closing
+  it; **predictive back forced OFF** in the generated manifest
+  (`patch-android-release.mjs` step 4e) because with it on, back from History
+  backgrounded the app; the search placeholder ("Food or kcal") drawn on one
+  line, since the native hint wrapped and clipped beside the in-field doors.
+- **Delivery**: iOS build 68 / 1.2.5 (`489bf3b5…`) submitted, release
+  automatic on approval; first OTA on it `440e81a0-5014-47b8-bcab-842ba0a2597e`
+  at `b19d26b1`, published ahead of approval. Android vc 47 / 1.2.5
+  (`ef607e85…`, built at `b19d26b1`) on Play alpha, in review; production
+  stays vc 46 until the owner promotes. `app.json` moved both runtimes, so 1.2.4
+  users get none of this until the store update. No rules or functions change.
+- **Verified**: mobile tsc + jest 213 suites / 1,885; iOS + Android export
+  within perf-budget (re-baselined for S20 in `2d3cc145`); iOS Maestro
+  regression 21/21 on the pre-round-3 binary; `verify-mobile-artifact.mjs` on
+  the vc 47 `.aab`; vc 47 device QA on the OnePlus 8T (back paths, sheet
+  drag, placeholder); glass tab bar on the `Ignia-QA-26` simulator. **Not
+  verified**: the glass bar on a real iPhone, and 1.2.5 on any Android phone
+  other than the OnePlus.
+
 ## 2026-10-04 — Today + add-meal UX overhaul: every write undoable, in-app camera, accessibility (UX_AUDIT §S19)
 
 - **Why**: owner asked for UX reviews of Today and the add-meal flow and a score

@@ -238,15 +238,15 @@ artifact"; which version is *live* is `STATUS.md`'s question.
 
 | Platform | Binary | Runtime fingerprint | Read from |
 |---|---|---|---|
-| Android | vc 45 / 1.2.3 — Play production + alpha | `15c1cfc8aaa0951e882c278af5c1256de5836194` | the `.aab` |
-| iOS | build 64 / 1.2.3 — App Store | `52802bba95ac0ac3f4cfd053d6ee61c354cc18d9` | the `.ipa` |
+| Android | vc 47 / 1.2.5 — Play alpha, in review (production is still vc 46, `3e596c87…`) | `ef607e85e34dd7ea589479ed0d50da26f7f35b3a` | the `.aab` |
+| iOS | build 68 / 1.2.5 — in App Review (the App Store is still build 67, `1b239e44…`) | `489bf3b536f1fb3a831ce6b20cfefa2c4e08d45d` | the `.ipa` |
 
-Both channels are OPEN on those hashes. The newest iOS OTA is `2227698c`
-(2026-09-22 — the code + UX review, batches 1 and 2); the newest ANDROID OTA is
-still `ebbe0147` (2026-09-21), because 09-22 was published from `ignia-mac` and
-Android must go from Windows. **Android is owed `2227698c`.** This line lagged the ledger by two publishes on 2026-09-17; the ledger's
-top row is the authority. **Only a value read from the artifact is evidence** — a build
-log, a locally generated hash, or an old Windows-computed number is not.
+The 1.2.5 runtimes share nothing with 1.2.4's — `app.json` moved both — so a
+1.2.4 user gets 1.2.5's JS only through the store update. Which OTA is newest
+on which runtime is the ledger's top rows, not this paragraph: it named an OTA
+two publishes stale on 2026-09-17 and four on 2026-10-05. **Only a value read
+from the artifact is evidence** — a build log, a locally generated hash, or an
+old Windows-computed number is not.
 
 **What MOVES the fingerprint (⇒ a build per platform):**
 
