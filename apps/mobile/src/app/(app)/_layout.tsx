@@ -22,7 +22,7 @@ import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, space } from '@/theme';
 import { useWorkoutIntentRouter } from '@/hooks/useStartNextWorkoutIntent';
 import { sweepOrphans } from '@/lib/rest-timer-activity';
-import { GLASS_TAB_BAR } from '@/lib/glass';
+import { GLASS_BAR_HEIGHT, GLASS_TAB_BAR, glassBarGap } from '@/lib/glass';
 
 /** The glass material, loaded only where it is drawn (iOS 26). */
 const GlassBackground = GLASS_TAB_BAR
@@ -40,6 +40,7 @@ const TAB_ICONS: Record<string, { outline: keyof typeof Ionicons.glyphMap; fille
 };
 const LEFT_TABS = ['index', 'train'];
 const RIGHT_TABS = ['trends', 'body'];
+const TAB_ROUTES = [...LEFT_TABS, ...RIGHT_TABS];
 
 /** Tab labels grow with Dynamic Type only this far: four labels and the
  *  raised + share 360dp, and past ~1.2× "Entrenar"/"Tendências" collide.
@@ -136,12 +137,17 @@ function AppTabBar({ state, descriptors, navigation }: AppTabBarProps) {
   // A workout left running is one tap from every tab but its own (Train
   // review U11) — the dot on the Train icon says it exists, this says how long
   // and takes you back.
-  const onTrain = state.routes[state.index]?.name === 'train';
+  const current = state.routes[state.index]?.name;
+  const onTrain = current === 'train';
+  // iOS 26: a Liquid Glass capsule floating over the content, the way the
+  // system tab bar sits (owner-approved 2026-10-05). The content runs under
+  // it — every tab pads by `TAB_SCROLL_BAND`. Only on the four tabs: Settings,
+  // the targets screens and Feedback are routes in this navigator too, and
+  // none pads for a floating bar, so it covered their Save / Send / Delete
+  // account (Impeccable native audit, 2026-10-05). Elsewhere: the opaque bar.
+  const floating = GLASS_TAB_BAR && current != null && TAB_ROUTES.includes(current);
   return (
-    // iOS 26: a Liquid Glass capsule floating over the content, the way the
-    // system tab bar sits (owner-approved 2026-10-05). The content runs under
-    // it — every tab pads by `TAB_SCROLL_BAND`. Elsewhere: the opaque bar.
-    <View style={GLASS_TAB_BAR ? styles.floatWrap : undefined} pointerEvents="box-none">
+    <View style={floating ? styles.floatWrap : undefined} pointerEvents="box-none">
       {!onTrain && workout.active ? (
         <View style={styles.pillSlot}>
           <ActiveWorkoutPill onResume={() => navigation.navigate('train')} />
@@ -151,13 +157,13 @@ function AppTabBar({ state, descriptors, navigation }: AppTabBarProps) {
           "tab, 1 of 4" only inside one, and TalkBack announces the bar (review #8). */}
       <View
         style={
-          GLASS_TAB_BAR
-            ? [styles.barGlass, { marginBottom: Math.max(insets.bottom - 8, space.sm) }]
+          floating
+            ? [styles.barGlass, { marginBottom: glassBarGap(insets.bottom) }]
             : [styles.bar, { paddingBottom: Math.max(insets.bottom, space.sm) }]
         }
         accessibilityRole="tablist"
       >
-        {GlassBackground ? (
+        {floating && GlassBackground ? (
           <GlassBackground
             style={styles.glass}
             glassEffectStyle="regular"
@@ -340,7 +346,7 @@ function createStyles({ colors }: Theme) {
       flexDirection: 'row',
       alignItems: 'center',
       marginHorizontal: space.lg,
-      minHeight: 64,
+      minHeight: GLASS_BAR_HEIGHT,
       borderRadius: 32,
       paddingHorizontal: space.sm,
     },

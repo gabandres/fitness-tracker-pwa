@@ -1,6 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, ScrollView, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   addActionsFor,
   exerciseIsFullyDone,
@@ -26,6 +27,7 @@ import { SetRowSheet } from '@/components/train/SetRowSheet';
 import { ExerciseMenuSheet, type ExerciseMenuAction } from '@/components/train/ExerciseMenuSheet';
 import { type I18nKey, type TFn, useLocale, useT } from '@/i18n';
 import { announce } from '@/lib/a11y';
+import { tabBarOverlap } from '@/lib/glass';
 import { publishRestEndsAt } from '@/lib/active-workout-signal';
 import { useIsOffline } from '@/lib/connectivity';
 import { formatDate } from '@/lib/date-format';
@@ -1044,6 +1046,8 @@ function RestBar({
 }) {
   const t = useT();
   const styles = useThemedStyles(createStyles);
+  // Above the floating glass tab bar on iOS 26, which covers the tab's foot.
+  const lift = tabBarOverlap(useSafeAreaInsets().bottom);
   const { remaining, label } = useRestCountdown(endsAt);
   const progress = total > 0 ? Math.min(1, Math.max(0, 1 - remaining / total)) : 0;
   const prev = useRef(remaining);
@@ -1054,7 +1058,7 @@ function RestBar({
     prev.current = remaining;
   }, [remaining, t]);
   return (
-    <View style={styles.restBarFloat} testID="rest-bar">
+    <View style={[styles.restBarFloat, lift > 0 && { marginBottom: lift }]} testID="rest-bar">
       <View style={styles.restTrackWrap} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
         <View style={styles.restTrack} />
         <View style={[styles.restFill, { width: `${Math.round(progress * 100)}%` }]} testID="rest-progress" />

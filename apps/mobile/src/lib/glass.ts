@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import { FAB_BAND } from '@/theme';
+import { FAB_BAND, space } from '@/theme';
 
 /**
  * Whether this phone draws iOS 26 Liquid Glass. `expo-glass-effect` is in
@@ -31,3 +31,23 @@ export const GLASS_TAB_BAR = liquidGlass();
  * One constant, used by every tab, for the same reason `FAB_BAND` is one.
  */
 export const TAB_SCROLL_BAND = FAB_BAND + (GLASS_TAB_BAR ? 100 : 0);
+
+/** The glass capsule's height. */
+export const GLASS_BAR_HEIGHT = 64;
+
+/** How far the capsule floats above the screen's bottom edge: tucked 8 pt
+ *  into the home-indicator inset, never closer than `space.sm`. */
+export function glassBarGap(insetBottom: number): number {
+  return Math.max(insetBottom - 8, space.sm);
+}
+
+/**
+ * How much of a tab's bottom edge the bar covers. 0 under the opaque bar,
+ * which takes its own layout space; the capsule and its gap under glass,
+ * which floats over the tab. Anything pinned to a tab's bottom adds this: the
+ * rest bar kept its old `bottom` and sat under the capsule, with Skip over
+ * the Body tab (Impeccable native audit, 2026-10-05).
+ */
+export function tabBarOverlap(insetBottom: number): number {
+  return GLASS_TAB_BAR ? glassBarGap(insetBottom) + GLASS_BAR_HEIGHT : 0;
+}
