@@ -6,6 +6,7 @@ import * as haptics from '@/lib/haptics';
 import { PressScale } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
+import { NativeDateField, hasNativeDateField } from '@/components/NativeDatePicker';
 import { BodyIcon } from './BodyIcon';
 
 /**
@@ -74,20 +75,36 @@ export function DayStepper({
       >
         <BodyIcon sf="chevron.left" ion="chevron-back" size={18} color={colors.ink} />
       </PressScale>
-      <Text
-        style={styles.text}
-        accessible
-        accessibilityRole="adjustable"
-        // "Date, Today, adjustable" — the day is the VALUE, so the label is
-        // only what it is a value of (it read "Day: Today" before it moved).
-        accessibilityLabel={t('entry.date')}
-        accessibilityValue={{ text: label }}
-        accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
-        onAccessibilityAction={onAccessibilityAction}
-        testID={`${testIDPrefix}-day`}
-      >
-        {label}
-      </Text>
+      {/* The day itself: the platform's date picker where the binary has one
+          (S20) — a distant day is one pick, not thirty taps — with the ±1
+          steppers either side for the common yesterday. */}
+      {hasNativeDateField ? (
+        <NativeDateField
+          mode="date"
+          value={parseYmd(dateKey)}
+          onChange={(d) => onChange(calendarDateKey(d))}
+          maximumDate={parseYmd(maxKey)}
+          minimumDate={minKey ? parseYmd(minKey) : null}
+          accessibilityLabel={t('entry.date')}
+          testID={`${testIDPrefix}-day`}
+          style={styles.native}
+        />
+      ) : (
+        <Text
+          style={styles.text}
+          accessible
+          accessibilityRole="adjustable"
+          // "Date, Today, adjustable" — the day is the VALUE, so the label is
+          // only what it is a value of (it read "Day: Today" before it moved).
+          accessibilityLabel={t('entry.date')}
+          accessibilityValue={{ text: label }}
+          accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+          onAccessibilityAction={onAccessibilityAction}
+          testID={`${testIDPrefix}-day`}
+        >
+          {label}
+        </Text>
+      )}
       <PressScale
         scaleTo={0.9}
         style={[styles.btn, !canForward && styles.btnOff]}
@@ -117,5 +134,6 @@ const createStyles = ({ colors }: Theme) =>
       borderColor: colors.lineStrong,
     },
     btnOff: { opacity: 0.35 },
+    native: { flex: 1, alignItems: 'center' },
     text: { flexShrink: 1, textAlign: 'center', fontSize: font.body, color: colors.ink, fontWeight: '700' },
   });

@@ -39,6 +39,7 @@ import type { InputChain } from './input-chain';
 import { SetRow } from './SetRow';
 import { activationIssueKey, lastHint, recommendationFor } from './train-summary';
 import { createStyles } from './train-styles';
+import { MenuButton, type MenuButtonAction } from '@/components/MenuButton';
 
 export interface ExerciseCardProps {
   exercise: SessionExercise;
@@ -59,6 +60,9 @@ export interface ExerciseCardProps {
   chain: InputChain;
   onToggle: (exerciseIndex: number) => void;
   onOpenMenu: (exerciseIndex: number) => void;
+  /** The ⋯ rows as a native pull-down (S20). Only the open card gets them, so
+   *  the memoised closed cards are not re-rendered by a new array each pass. */
+  menuActions?: MenuButtonAction[];
   onOpenSetSheet: (exerciseIndex: number, setIndex: number) => void;
   onOpenLift: (exerciseIndex: number) => void;
   onSetDone: (exerciseIndex: number, setIndex: number, info: { pr: boolean; complete: boolean }) => void;
@@ -90,6 +94,7 @@ export const ExerciseCard = memo(function ExerciseCard({
   chain,
   onToggle,
   onOpenMenu,
+  menuActions,
   onOpenSetSheet,
   onOpenLift,
   onSetDone,
@@ -222,15 +227,16 @@ export const ExerciseCard = memo(function ExerciseCard({
         {/* One overflow control in place of four permanent inline ones. Only on
             an open card: a collapsed row is a list item, not a form. */}
         {collapsed ? null : (
-          <TouchableOpacity
+          <MenuButton
             style={[styles.exMoreBtn, styles.headerIconBtn]}
-            onPress={() => onOpenMenu(exerciseIndex)}
-            accessibilityRole="button"
+            title={ex.name}
+            actions={menuActions ?? []}
             accessibilityLabel={t('train.exMenuA11y', { name: ex.name })}
             testID={`exercise-menu-${exerciseIndex}`}
-          >
-            <Ionicons name="ellipsis-horizontal" size={20} color={colors.muted} />
-          </TouchableOpacity>
+            iconSize={20}
+            iconColor={colors.muted}
+            onFallbackPress={() => onOpenMenu(exerciseIndex)}
+          />
         )}
       </View>
 
@@ -295,7 +301,7 @@ export const ExerciseCard = memo(function ExerciseCard({
               cluster takes one set number with lettered sub-sets (2a/2b/2c).
               Hidden from screen readers — every cell below names itself. */}
           <View style={styles.setHeadRow} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
-            <Text style={[styles.setHeadCell, styles.setNumCell]} maxFontSizeMultiplier={1.6}>#</Text>
+            <Text style={[styles.setHeadCell, styles.setNumHead]} maxFontSizeMultiplier={1.6}>#</Text>
             {/* PREVIOUS. The single highest-leverage cell on the screen and the
                 one this app did not have: it turns logging from a decision into
                 a comparison — match it or beat it. At large text it is a line

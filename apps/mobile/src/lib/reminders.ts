@@ -11,7 +11,7 @@ import {
 } from '@macrolog/core';
 import type { I18nKey, TFn } from '@/i18n';
 import { track } from './analytics';
-import { REST_DONE_ID_PREFIX } from '@/hooks/useRestTimer';
+import { REST_DONE_ID_PREFIX } from '@/lib/rest-notification-id';
 
 // Local, on-device smart reminders. The *decision* of what to schedule lives in
 // the shared core `planReminders` (meal windows + streak-at-risk + weigh-in);

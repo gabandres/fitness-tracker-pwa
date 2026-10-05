@@ -1,4 +1,5 @@
 import {
+  endAllRestActivities,
   endRestActivity,
   getRestActivityStatus,
   startRestActivity,
@@ -136,6 +137,17 @@ export async function reconcileWithNative(
 }
 
 /** What the seam believes is on the lock screen — for tests. */
+/**
+ * End rest activities nobody owns. `current` lives in JS memory, so after an
+ * iOS memory kill or a reload mid-rest the Lock Screen kept a countdown the app
+ * no longer knew about — and `end()` returns early with nothing to end. Called
+ * once from the tab layout, AFTER a live session has had its chance to restore
+ * its own rest (that effect runs first), so a real rest is kept.
+ */
+export function sweepOrphans(): void {
+  if (!current) void endAllRestActivities();
+}
+
 export function __currentRestActivity(): RestActivityState | null {
   return current;
 }

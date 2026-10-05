@@ -20,6 +20,8 @@ import { track } from '@/lib/analytics';
 import { PressScale } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, space } from '@/theme';
+import { useWorkoutIntentRouter } from '@/hooks/useStartNextWorkoutIntent';
+import { sweepOrphans } from '@/lib/rest-timer-activity';
 
 /** The four tab destinations, in bar order. History is deliberately NOT here
  *  (ADR-0014): it's a lookup surface, reached from Today's calendar icon —
@@ -243,6 +245,12 @@ export default function AppTabsLayout() {
   // foreground for one that arrived mid-session. Mounted here rather than in
   // UpdateBanner so it does not depend on Today being the visible tab.
   useAutoApplyOta();
+  // A "Start my next workout" waiting from Siri sends the user to Train.
+  useWorkoutIntentRouter();
+  // A rest countdown left on the Lock Screen by a killed session is ended.
+  useEffect(() => {
+    sweepOrphans();
+  }, []);
   // Push-token registration + the silent OTA pre-download listener (#114).
   // Both are inert on today's binaries (no FCM config / push entitlement /
   // background modes) and silently no-op — see push-token.ts.

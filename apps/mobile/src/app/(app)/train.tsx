@@ -24,6 +24,7 @@ import { usePulse } from '@/lib/motion';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { useUnitSystem } from '@/lib/use-unit-system';
 import type { WorkoutSession } from '@/lib/workout';
+import { useStartNextWorkoutIntent } from '@/hooks/useStartNextWorkoutIntent';
 
 /** Remount boundary for Retry — see Today for why a `key` bump is the
  *  mechanism (the feed hooks expose no reload; UX_AUDIT S18-7). */
@@ -37,6 +38,8 @@ function TrainScreen({ onRetry }: { onRetry: () => void }) {
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const train = useTrain();
+  // Siri / Shortcuts "Start my next workout" and ignia://train?start=next.
+  useStartNextWorkoutIntent(train);
   const [glossaryOpen, setGlossaryOpen] = useState(false);
   // On the SCREEN, not on the live session: finishing unmounts the session,
   // and a native sheet has to be closed by an owner that is still mounted.

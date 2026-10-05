@@ -120,9 +120,28 @@ appId: fit.ignia.app
 - assertVisible:
     id: 'weight-note'
 - takeScreenshot: .maestro/regression/shots/20-units-sheet
-# Backdrop tap, not `back` — see 19-glossary for why.
-- tapOn:
-    point: '50%,8%'
+# The weigh-in is a NATIVE `'fit'` sheet since 2026-10-04: with the keyboard
+# up it sits high and a point tap at 8% can land on it. Drag the system
+# grabber down instead (unedited, so the sheet is not guarded), then prove it
+# went. Android keeps the JS sheet and its backdrop tap.
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - swipe:
+          from:
+            text: 'Sheet Grabber'
+          direction: DOWN
+      - extendedWaitUntil:
+          notVisible:
+            id: 'weight-input'
+          timeout: 5000
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - tapOn:
+          point: '50%,8%'
 
 # ── Lifted loads follow the same setting ──
 # A metric gym's bar is 20 kg and its smallest plate is 1.25 kg, so the plate

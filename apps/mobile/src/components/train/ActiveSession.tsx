@@ -49,6 +49,8 @@ import {
   recommendationFor,
 } from './train-summary';
 import { createStyles } from './train-styles';
+import { MenuButton } from '@/components/MenuButton';
+import { toMenuButtonActions } from './exercise-menu-native';
 
 /**
  * A native sheet cannot be presented while another is still dismissing, and a
@@ -674,15 +676,17 @@ export function ActiveSession({
             <Text style={styles.syncText}>{t('common.saving')}</Text>
           ) : null}
         </View>
-        <TouchableOpacity
+        {/* A pull-down menu on tap — the system menu where the binary has it
+            (S20); otherwise the session sheet below, from the same rows. */}
+        <MenuButton
           style={styles.headerIconBtn}
-          onPress={() => setMenu({ kind: 'session' })}
-          accessibilityRole="button"
+          title={session.templateName ?? undefined}
+          actions={toMenuButtonActions(sessionActions, t)}
           accessibilityLabel={t('train.sessionMenuA11y')}
           testID="session-menu"
-        >
-          <Ionicons name="ellipsis-horizontal" size={22} color={colors.muted} />
-        </TouchableOpacity>
+          iconColor={colors.muted}
+          onFallbackPress={() => setMenu({ kind: 'session' })}
+        />
         {train.editingExisting ? (
           <TouchableOpacity
             style={styles.headerPrimary}
@@ -761,6 +765,7 @@ export function ActiveSession({
             chain={chain}
             onToggle={onToggle}
             onOpenMenu={onOpenMenu}
+            menuActions={expanded === exIdx ? toMenuButtonActions(exerciseActions(exIdx), t) : undefined}
             onOpenSetSheet={onOpenSetSheet}
             onOpenLift={onOpenLift}
             onSetDone={onSetDone}

@@ -139,6 +139,21 @@ appId: fit.ignia.app
 - tapOn:
     id: 'cardio-duration-0'
 - inputText: '32'
+# Verify what landed and retype once if needed (2026-10-04): one suite run
+# read "2" here — the first keystroke after the session's first keyboard came
+# up was dropped — and three repeats by hand plus two full re-runs typed 32
+# cleanly. Harness, not the field; the value assert below still gates.
+- repeat:
+    times: 2
+    while:
+      notVisible:
+        id: 'cardio-duration-0'
+        text: '32'
+    commands:
+      - tapOn:
+          id: 'cardio-duration-0'
+      - eraseText
+      - inputText: '32'
 # Tap OUTSIDE the field to blur it, rather than `hideKeyboard`. Two reasons,
 # one per platform, and the Android one is the important one:
 #   - iOS: `hideKeyboard` is not supported on the simulator and fails outright.

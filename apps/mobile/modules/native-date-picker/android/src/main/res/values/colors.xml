@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The pickers' brand colours, light. Mirrors src/theme.ts: `accent` (#c62f27,
+  the AA coral used for text and selection on the light canvas) and
+  `accentSoft`. values-night/ carries the dark palette's values. Prefixed so
+  they cannot collide with any other library's resources in the merged app.
+-->
+<resources>
+  <color name="ignia_picker_primary">#C62F27</color>
+  <color name="ignia_picker_on_primary">#FFFFFF</color>
+  <color name="ignia_picker_primary_container">#FFDAD3</color>
+  <color name="ignia_picker_on_primary_container">#410001</color>
+</resources>

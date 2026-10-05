@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["NativeMenuButtonModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.nativemenubutton.NativeMenuButtonModule"]
+  }
+}

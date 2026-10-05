@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["NativeDatePickerModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.nativedatepicker.NativeDatePickerModule"]
+  }
+}

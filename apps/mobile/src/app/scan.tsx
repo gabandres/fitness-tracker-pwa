@@ -1335,6 +1335,7 @@ export default function Scan() {
                 onDraftChange={setTimeDraft}
                 onStep={(m) => applyTime(shiftTimeOfDay(eatenAt, m, new Date()))}
                 onCommit={commitTypedTime}
+                onSet={applyTime}
               />
             </Animated.View>
 

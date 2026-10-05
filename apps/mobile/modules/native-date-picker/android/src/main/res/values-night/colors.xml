@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dark: src/theme.ts dark `accent` (#ff8a5c) and an ember container. -->
+<resources>
+  <color name="ignia_picker_primary">#FF8A5C</color>
+  <color name="ignia_picker_on_primary">#2A1712</color>
+  <color name="ignia_picker_primary_container">#5C2414</color>
+  <color name="ignia_picker_on_primary_container">#FFDAD3</color>
+</resources>

@@ -2134,6 +2134,7 @@ export function EntrySheet({
                       onDraftChange={setTimeDraft}
                       onStep={shiftEntryTime}
                       onCommit={commitTypedTime}
+                      onSet={applyEntryTime}
                     />
                   </Field>
 

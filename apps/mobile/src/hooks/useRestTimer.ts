@@ -3,6 +3,7 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import * as haptics from '@/lib/haptics';
 import { useT, type I18nKey, type TFn } from '@/i18n';
+import { REST_DONE_ID_PREFIX } from '@/lib/rest-notification-id';
 
 export interface RestTimer {
   /**
@@ -56,18 +57,7 @@ export function formatMMSS(s: number): string {
 const secondsLeft = (endsAt: number | null, now: number) =>
   endsAt == null ? 0 : Math.max(0, Math.ceil((endsAt - now) / 1000));
 
-/**
- * Every rest notification's id starts with this, then a per-rest suffix.
- *
- * **Must equal `RestDoneNotification.idPrefix` in
- * `targets/_shared/RestActivity.swift`.** The rest Live Activity's "+30 s" and
- * "Skip" buttons run natively while JS may be suspended, and they move or
- * cancel this notification by matching the prefix — otherwise the phone buzzes
- * "rest over" 30 s early, or for a rest the lifter skipped. A prefix rather than
- * one fixed id because each rest still needs its OWN id: the stale-schedule
- * guard below cancels by id, and a shared one would cancel the next rest's.
- */
-export const REST_DONE_ID_PREFIX = 'ignia.restDone.';
+export { REST_DONE_ID_PREFIX } from '@/lib/rest-notification-id';
 /** Makes two rests with the same deadline (a replace inside one millisecond)
  *  still get distinct ids. */
 let restDoneSeq = 0;

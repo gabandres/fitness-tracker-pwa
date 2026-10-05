@@ -18,6 +18,7 @@ import * as haptics from '@/lib/haptics';
 import { PressScale } from '@/lib/motion';
 import { useThemedStyles, useTheme, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
+import { NativeDateField, hasNativeDateField } from '@/components/NativeDatePicker';
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -516,13 +517,7 @@ export function FastSheet({
  * answers (today, yesterday, the day before) and a stepper answers it in one
  * tap; "what time" has 1,440 and only typing answers it.
  */
-function TimeField({
-  value,
-  onChange,
-  locale,
-  testIDPrefix,
-  focusOnMount = false,
-}: {
+interface TimeFieldProps {
   value: Date;
   onChange: (next: Date) => void;
   locale: Locale;
@@ -530,7 +525,31 @@ function TimeField({
   /** Focus the hour once the sheet has settled (deferred like
    *  `useDeferredFocus`, so the keyboard does not race the sheet's spring). */
   focusOnMount?: boolean;
-}) {
+}
+
+/**
+ * The time half of a fast's start or end. Where the binary carries the
+ * platform picker (S20, `modules/native-date-picker`) it is that — the iOS
+ * compact time control, the Material clock on Android — beside the day
+ * stepper above it; the typed hour and minute below stay for older binaries.
+ * The choice is a module constant, so a mounted field never switches kind.
+ */
+function TimeField(props: TimeFieldProps) {
+  const t = useT();
+  if (!hasNativeDateField) return <TypedTimeField {...props} />;
+  return (
+    <NativeDateField
+      mode="time"
+      value={props.value}
+      onChange={props.onChange}
+      maximumDate={new Date()}
+      accessibilityLabel={t(props.testIDPrefix === 'fast-start' ? 'fast.started' : 'fast.ended')}
+      testID={`${props.testIDPrefix}-native`}
+    />
+  );
+}
+
+function TypedTimeField({ value, onChange, locale, testIDPrefix, focusOnMount = false }: TimeFieldProps) {
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();

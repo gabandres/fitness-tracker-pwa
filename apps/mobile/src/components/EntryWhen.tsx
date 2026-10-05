@@ -7,6 +7,7 @@ import { sentenceCase } from '@/lib/entry-input';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
+import { NativeDateField, hasNativeDateField } from '@/components/NativeDatePicker';
 
 /**
  * "Which meal, and when" — the two controls every way of logging needs and the
@@ -89,6 +90,7 @@ export function TimeOfDayRow({
   onDraftChange,
   onStep,
   onCommit,
+  onSet,
 }: {
   at: Date;
   /** The typed text while the field is open; null shows the label. */
@@ -97,6 +99,9 @@ export function TimeOfDayRow({
   onStep: (minutes: number) => void;
   /** Settle the typed text (blur / Done). */
   onCommit: () => void;
+  /** Set the time outright — given, the platform's own time picker replaces
+   *  the typed field where the binary has one (S20); the steps stay. */
+  onSet?: (next: Date) => void;
 }) {
   const t = useT();
   const locale = useLocale();
@@ -119,8 +124,24 @@ export function TimeOfDayRow({
     </TouchableOpacity>
   );
 
+  // Today only, never ahead of now: a meal logged at 23:00 for 23:30 is a typo.
+  const dayStart = new Date(at);
+  dayStart.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(at);
+  dayEnd.setHours(23, 59, 0, 0);
   const label =
-    draft != null ? (
+    onSet && hasNativeDateField ? (
+      <NativeDateField
+        mode="time"
+        value={at}
+        onChange={onSet}
+        minimumDate={dayStart}
+        maximumDate={new Date(Math.min(dayEnd.getTime(), Date.now()))}
+        accessibilityLabel={t('entry.time')}
+        testID="entry-time-native"
+        style={styles.label}
+      />
+    ) : draft != null ? (
       <SheetTextInput
         style={[styles.label, styles.input]}
         value={draft}

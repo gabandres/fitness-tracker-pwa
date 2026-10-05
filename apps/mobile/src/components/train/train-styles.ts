@@ -151,6 +151,11 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   // was a 24×20 target (Train review item 16). minWidth so a scaled "2a"
   // grows the cell instead of clipping (item 17).
   setNumCell: { minWidth: 28, minHeight: 44, justifyContent: 'center' },
+  // The "#" header over that column: the same width so the columns line up,
+  // but NOT the 44pt height — on a Text, `justifyContent` does not centre the
+  // glyph, so "#" drew at the top of a 44pt box, above PREV/LB/REPS/RIR and
+  // crowding the line over the table (Maestro captures, 2026-10-04).
+  setNumHead: { minWidth: 28 },
   setNum: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
   setNumCluster: { color: colors.teal, fontWeight: '800' },
   kindPicker: { paddingVertical: space.sm, gap: space.xs },

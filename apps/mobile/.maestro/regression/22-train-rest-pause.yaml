@@ -117,6 +117,20 @@ appId: fit.ignia.app
 # pause — 0:20, not the 1:00 between-sets rest.
 - tapOn:
     id: 'set-done-0-0'
+- waitForAnimationToEnd:
+    timeout: 3000
+# The first rest of an install asks about a rest-over notification first
+# (RestNotifySheet, 2026-10-04) — a sheet over the bar. "Not now" never raises
+# the system prompt and is remembered. A `when` branch, not `optional: true`:
+# an optional tap WAITS ~17s for an absent element, most of the 20s pause this
+# flow is about to read.
+- runFlow:
+    when:
+      visible:
+        id: 'rest-notify-not-now'
+    commands:
+      - tapOn:
+          id: 'rest-notify-not-now'
 - assertVisible:
     id: 'rest-bar'
 # Assert the LABEL, which is a child Text node - `rest-bar` is the container and
@@ -141,6 +155,20 @@ appId: fit.ignia.app
 # row 1 is the last set of the exercise, which still takes the cluster rest.
 - tapOn:
     id: 'set-done-0-1'
+- waitForAnimationToEnd:
+    timeout: 3000
+# The first rest of an install asks about a rest-over notification first
+# (RestNotifySheet, 2026-10-04) — a sheet over the bar. "Not now" never raises
+# the system prompt and is remembered. A `when` branch, not `optional: true`:
+# an optional tap WAITS ~17s for an absent element, most of the 20s pause this
+# flow is about to read.
+- runFlow:
+    when:
+      visible:
+        id: 'rest-notify-not-now'
+    commands:
+      - tapOn:
+          id: 'rest-notify-not-now'
 - assertVisible:
     id: 'rest-bar'
 # A MINUTE digit. This one survives the fetch latency on its own: 120 s still
