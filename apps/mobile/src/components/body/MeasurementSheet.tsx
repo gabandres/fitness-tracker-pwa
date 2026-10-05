@@ -67,6 +67,8 @@ function noonOf(key: string): Date {
  *   the method chips are radio buttons in a named group.
  * - **Guarded** while dirty: a swipe down asks before discarding typed values.
  * - **Closes on the local write** (`pending-body.ts`), like the weigh-in.
+ * - **Remove** under Save when editing a row (re-score 3), like the weigh-in
+ *   sheet; the caller's receipt carries Undo.
  */
 export function MeasurementSheet({
   visible,
@@ -74,6 +76,7 @@ export function MeasurementSheet({
   latest,
   todayKey,
   onSave,
+  onDelete,
   onClose,
   unitSystem,
   showBodyFat = false,
@@ -90,6 +93,9 @@ export function MeasurementSheet({
   todayKey: string;
   /** `date` is passed when the stepper moved the row (or for every add). */
   onSave: (entry: Omit<Measurement, 'id' | 'date'>, date: Date | undefined) => Promise<void> | void;
+  /** Remove the row being edited; the caller closes the sheet and shows the
+   *  Undo receipt. Absent, or adding, = no Remove button. */
+  onDelete?: (m: Measurement) => void;
   onClose: () => void;
   /** Measurements are STORED in inches; this decides what the user sees and
    *  what their typing means. */
@@ -331,6 +337,17 @@ export function MeasurementSheet({
       >
         {busy ? <ActivityIndicator color={colors.onInk} /> : <Text style={styles.saveText}>{t('common.save')}</Text>}
       </TouchableOpacity>
+      {initial?.id && onDelete ? (
+        <TouchableOpacity
+          style={styles.delete}
+          onPress={() => onDelete(initial)}
+          disabled={busy}
+          accessibilityRole="button"
+          testID="measure-delete"
+        >
+          <Text style={styles.deleteText}>{t('body.deleteMeasurement')}</Text>
+        </TouchableOpacity>
+      ) : null}
     </BottomSheet>
   );
 }
@@ -476,6 +493,8 @@ const createStyles = ({ colors }: Theme) =>
     save: { backgroundColor: colors.ink, borderRadius: radius.md, paddingVertical: space.lg, alignItems: 'center', marginTop: space.lg, minHeight: 56, justifyContent: 'center' },
     saveDisabled: { opacity: 0.4 },
     saveText: { color: colors.onInk, fontWeight: '700', fontSize: font.h3 },
+    delete: { alignItems: 'center', justifyContent: 'center', minHeight: 44, marginTop: space.xs },
+    deleteText: { color: colors.danger, fontWeight: '700', fontSize: font.small },
   });
 
 /** "Waist 33.3 in · Neck 15 in" — localized field names, in the user's unit. */

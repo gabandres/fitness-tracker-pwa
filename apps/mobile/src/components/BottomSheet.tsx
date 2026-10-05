@@ -8,6 +8,7 @@ import {
   clearSheetActive,
   clearSheetPortal,
   dismissSheet,
+  getSheetPortal,
   isPresented,
   markSheetActive,
   setSheetPortal,
@@ -113,8 +114,13 @@ function NativeBottomSheet({
     return true;
   };
 
-  // Republished every render so the route always shows current children.
+  // Republished every render so the route always shows current children —
+  // but only while there is a route to show them: a closed sheet published on
+  // every render of its screen (each Today snapshot), for nothing (round 3).
+  // Kept while the route is still up, so the content does not vanish during
+  // the dismiss animation.
   useLayoutEffect(() => {
+    if (!visible && !isPresented(id)) return;
     setSheetPortal(id, {
       node: children,
       requestClose: (via) => requestRef.current(via),
@@ -145,8 +151,14 @@ function NativeBottomSheet({
       });
     } else if (!visible) {
       dismissSheet(id);
-      // Closed before its route ever mounted: nothing will unregister it.
-      if (!isPresented(id)) clearSheetActive(id);
+      if (!isPresented(id)) {
+        // Closed before its route ever mounted: nothing will unregister it,
+        // and the route — if it still lands — must read `visible: false` and
+        // leave (the publish above skips a closed sheet).
+        clearSheetActive(id);
+        const last = getSheetPortal(id);
+        if (last?.visible) setSheetPortal(id, { ...last, visible: false });
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, id]);

@@ -22,8 +22,10 @@ import {
   dayKeyAt,
   latestNavyBodyFat,
   missingBodyFatInputs,
+  goalProgressAt,
   goalTrendCrossed,
   newLedgerId,
+  parseYmd,
   projectWeight,
   sortedWeighIns,
   trailingAverageLb,
@@ -140,7 +142,9 @@ export interface BodyState {
   hasOlderHistory: boolean;
   /** Fetch every weigh-in once, for the chart's "All" range. */
   loadAllHistory: () => void;
-  setWeight: (weight: number, dateKey?: string) => Promise<WeighInReceipt>;
+  /** `health: false` writes the weigh-in without mirroring it to Health —
+   *  the Undo of a delete whose value came FROM Health (see `setWeight`). */
+  setWeight: (weight: number, dateKey?: string, opts?: { health?: boolean }) => Promise<WeighInReceipt>;
   /** Delete a day's weigh-in, durably, and tell Health (bug 1). */
   deleteWeighIn: (dateKey: string) => Promise<DeleteReceipt>;
   /** Measurement rows, newest first. */
@@ -184,7 +188,8 @@ export interface BodyState {
    *  slope, or [] when there's no trend. */
   projectedSeries: number[];
   /** Progress from the starting weight toward the goal (cut/bulk-aware), or
-   *  null when there's no goal or no weight history. */
+   *  null when there's no goal or no weight history. Measured at the TREND
+   *  weight (`goalProgressAt`), not the latest scale reading. */
   goalProgress: GoalProgress | null;
   /** The goal weight (lb) the chart draws its line at, or null. */
   goalWeight: number | null;
@@ -287,8 +292,14 @@ export function useBody(): BodyState {
 
   // Anchored on the calendar, not the account's boundary: a window edge that
   // moves by a few hours once a profile lands would re-open the listener for
-  // a difference of at most one day out of 400.
-  const sinceKey = useMemo(() => calendarDateKey(addDays(new Date(), -WEIGHT_WINDOW_DAYS)), []);
+  // a difference of at most one day out of 400. Re-derived per calendar day
+  // (re-score 3): computed once at mount, a session left open for days slid
+  // the window by that many. A new day re-opens the listener once.
+  const calendarToday = calendarDateKey(new Date());
+  const sinceKey = useMemo(
+    () => calendarDateKey(addDays(parseYmd(calendarToday), -WEIGHT_WINDOW_DAYS)),
+    [calendarToday],
+  );
 
   const feed = useLedgerFeed({
     uid,
@@ -512,11 +523,14 @@ export function useBody(): BodyState {
         : weights,
     [weights, earliest, overlay],
   );
-  const goalProgress = useMemo(
+  const goalProgress = useMemo(() => {
     // Directional `remaining` (0 once past the goal) lives in core since S20.
-    () => computeGoalProgress(logs, startBase, goalWeight),
-    [logs, startBase, goalWeight],
-  );
+    const scale = computeGoalProgress(logs, startBase, goalWeight);
+    // Judged on the trend, not the morning's reading (re-score 3, bug 3): one
+    // light day said "Goal reached" and celebrated, the next said 0.6 lb to
+    // go. Needs two readings, like the trend headline it agrees with.
+    return scale && weightPoints.length >= 2 ? goalProgressAt(scale, trendWeight) : scale;
+  }, [logs, startBase, goalWeight, weightPoints.length, trendWeight]);
   // One start for goal progress AND the trend milestones (bug 4): the toast
   // said "since you started" while measuring from the oldest reading in a
   // window that slides forward a day at a time.
@@ -535,7 +549,7 @@ export function useBody(): BodyState {
   }, [weights]);
 
   const setWeight = useCallback(
-    async (weight: number, dateKey?: string): Promise<WeighInReceipt> => {
+    async (weight: number, dateKey?: string, opts?: { health?: boolean }): Promise<WeighInReceipt> => {
       const key = dateKey ?? todayKey;
       if (!uid) return { landed: Promise.resolve('saved'), trend: { beforeLb: null, afterLb: null } };
       const trend = trendShift(weightsRef.current, key, weight);
@@ -544,8 +558,11 @@ export function useBody(): BodyState {
       const { landed } = await commitBodyOp({ kind: 'weight', uid, dateKey: key, weightLb: weight, atMs: Date.now() });
       // Health is local, so it is mirrored now rather than when the server
       // answers — and the manual act is recorded so a scale's earlier sample
-      // for the day cannot "correct" this one back (bug 1).
-      void exportManualWeight(uid, key, weight);
+      // for the day cannot "correct" this one back (bug 1). Skipped for the
+      // Undo of a delete whose value was a scale's: the scale's own sample is
+      // still in Health, and exporting would put a duplicate beside it
+      // (re-score 3, bug 6). The delete already recorded the override.
+      if (opts?.health !== false) void exportManualWeight(uid, key, weight);
       // Counted once the weigh-in is either in the ledger or parked to land
       // there — both are a logged weight. A refusal is not.
       void landed.then((o) => {

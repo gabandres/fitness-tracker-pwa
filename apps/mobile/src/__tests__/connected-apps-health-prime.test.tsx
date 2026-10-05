@@ -22,6 +22,13 @@ let mockHealth = {
 jest.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { uid: 'u1' }, profile: null }) }));
 // The rationale is a native `fit` sheet on iOS (Body review P1); draw it in place.
 jest.mock('@/components/BottomSheet', () => require('./js-sheet').jsSheetModule());
+// The screen sets its native header through `Stack.Screen`, which needs a
+// navigator this test does not mount; its header-left fallback is drawn in place.
+jest.mock('expo-router', () => ({
+  ...jest.requireActual('expo-router'),
+  useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
+  Stack: { Screen: ({ options }: { options?: { headerLeft?: () => unknown } }) => options?.headerLeft?.() ?? null },
+}));
 jest.mock('@/lib/health-sync', () => ({ useHealthSync: () => mockHealth }));
 jest.mock('@/lib/oura', () => ({
   useOura: () => ({

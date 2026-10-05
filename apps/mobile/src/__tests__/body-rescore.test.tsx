@@ -307,7 +307,8 @@ describe('gaps', () => {
     const s = await render(<BodyScreen />);
     const row = s.getByTestId(`weighin-${TODAY}`);
     expect(row.props.accessibilityLabel).toBe('Mon, Sep 28 weigh-in');
-    expect(row.props.accessibilityHint).toBe('Opens it to edit. Remove is in the actions.');
+    // VoiceOver reaches Remove with a swipe up or down (re-score 3, Copy).
+    expect(row.props.accessibilityHint).toBe('Edits this entry. Swipe up or down to remove it.');
   });
 
   it('a missing sex/height offers the way to set it', async () => {

@@ -1,4 +1,4 @@
-import { type ReactNode, useId, useState } from 'react';
+import React, { type ReactNode, useId, useState } from 'react';
 import { Platform } from 'react-native';
 // expo-router's own native context-menu views, used directly rather than
 // through `<Link>` (UX_AUDIT S20). `Link` lays its wrapper out as
@@ -21,7 +21,27 @@ export interface ContextMenuAction {
   /** SF Symbol name. */
   icon?: string;
   destructive?: boolean;
-  onPress: () => void;
+  /** Omit for a submenu (`children`). */
+  onPress?: () => void;
+  /** A submenu: iOS opens it in place inside the same menu — "Move to ›
+   *  Lunch" in one gesture, not a menu that closes into a second sheet. */
+  children?: ContextMenuAction[];
+}
+
+/** One action, or a submenu of them, as expo-router's native menu views. */
+function renderAction(a: ContextMenuAction, prefix: string): React.ReactNode {
+  return (
+    <NativeLinkPreviewAction
+      key={a.key}
+      identifier={`${prefix}-${a.key}`}
+      title={a.title}
+      icon={a.icon}
+      destructive={a.destructive}
+      onSelected={a.onPress ?? (() => {})}
+    >
+      {a.children?.map((c) => renderAction(c, `${prefix}-${a.key}`))}
+    </NativeLinkPreviewAction>
+  );
 }
 
 /** Native context menus exist here: iOS, bridgeless — the same condition
@@ -77,16 +97,7 @@ export function ContextMenu({
         </NativeLinkPreviewContent>
       ) : null}
       <NativeLinkPreviewAction identifier={menuId} title={title ?? ''} onSelected={() => {}}>
-        {actions.map((a) => (
-          <NativeLinkPreviewAction
-            key={a.key}
-            identifier={`${menuId}-${a.key}`}
-            title={a.title}
-            icon={a.icon}
-            destructive={a.destructive}
-            onSelected={a.onPress}
-          />
-        ))}
+        {actions.map((a) => renderAction(a, menuId))}
       </NativeLinkPreviewAction>
     </NativeLinkPreview>
   );

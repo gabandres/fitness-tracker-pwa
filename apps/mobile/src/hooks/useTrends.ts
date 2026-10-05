@@ -100,6 +100,22 @@ export interface TrendsState {
   /** Protein (g) logged per chart day, null on a day with no food logged. */
   proteinSeries: (number | null)[];
   /**
+   * Carbs / fat (g) per chart day, null on a day without them. A logged day
+   * at ZERO reads as null too: both fields are optional on `DailyLog` (rows
+   * before 2026-06 lack them), so a zero is far likelier an entry that never
+   * carried the field than a zero-carb day — and a gap claims less than a
+   * false zero.
+   */
+  carbsSeries: (number | null)[];
+  fatSeries: (number | null)[];
+  /**
+   * The user's day in progress, under their day boundary — the key the charts
+   * must treat as "today, still going". Not always the last of `chartKeys`:
+   * those are calendar days (the estimator's), so between midnight and a
+   * later day start the live day is the second-to-last key (re-score 3, B4).
+   */
+  todayKey: DateKey;
+  /**
    * How many trailing days the intake and the replay are COMPLETE for, when
    * that is fewer than the chart asks for — or null when nothing is missing.
    * Set only when the older rows could not be fetched (`reason: 'failed'`);
@@ -298,22 +314,25 @@ export function useTrends(rangeDays: number = 30, opts: TrendsOptions = {}): Tre
   const oldestCacheKey = logs.length > 0 ? dayKeyAt(logs[0].date, MIDNIGHT) : null;
   const needsBackfill = loaded && cacheFull && oldestCacheKey != null && oldestCacheKey > needFromKey;
   const [backfill, setBackfill] = useState<Backfill | null>(null);
-  const backfillCovers =
-    backfill != null &&
-    backfill.status === 'done' &&
-    backfill.uid === uid &&
-    backfill.fromKey <= needFromKey &&
-    oldestCacheKey != null &&
-    backfill.toKey >= oldestCacheKey &&
-    backfill.refreshKey === refreshKey;
   const backfillFailed =
     backfill != null && backfill.status === 'failed' && backfill.uid === uid && backfill.refreshKey === refreshKey;
-  const backfillPending = needsBackfill && !backfillCovers && !backfillFailed;
+  // What is still to be read: nothing, the gap at either end of what is
+  // already held, or — first time, another account, a pull-to-refresh — the
+  // whole stretch. Re-reading the whole backfill every time the cache's oldest
+  // day moved forward (about once a day for a full-cache logger) cost up to
+  // ~3,000 reads per Trends focus, and blanked the old dots while it ran
+  // (re-score 3, B3).
+  const plan = useMemo(
+    () =>
+      needsBackfill && uid && oldestCacheKey && !backfillFailed
+        ? planBackfill(backfill, { uid, refreshKey, fromKey: needFromKey, toKey: oldestCacheKey })
+        : null,
+    [needsBackfill, uid, oldestCacheKey, backfillFailed, backfill, refreshKey, needFromKey],
+  );
+  const backfillPending = plan != null;
   useEffect(() => {
-    if (!backfillPending || !uid || !oldestCacheKey) return;
+    if (!plan) return;
     let cancelled = false;
-    const fromKey = needFromKey;
-    const toKey = oldestCacheKey;
     // Bounded in time as well as rows: a getDocs that never answers (a socket
     // the SDK still believes is up) would otherwise hold the chart on its
     // placeholder indefinitely. A timeout is a failure — the chart clips and
@@ -322,29 +341,36 @@ export function useTrends(rangeDays: number = 30, opts: TrendsOptions = {}): Tre
     const timeout = new Promise<never>((_, reject) => {
       timer = setTimeout(() => reject(new Error('backfill timeout')), BACKFILL_TIMEOUT_MS);
     });
-    Promise.race([getLogsForRange(uid, fromKey, toKey, MIDNIGHT, BACKFILL_MAX_ROWS), timeout])
-      .then((rows) => {
+    const fail: Backfill = { uid: plan.uid, fromKey: plan.fromKey, toKey: plan.toKey, refreshKey: plan.refreshKey, status: 'failed', rows: [] };
+    Promise.race([
+      Promise.all(plan.ranges.map((r) => getLogsForRange(plan.uid, r.fromKey, r.toKey, MIDNIGHT, BACKFILL_MAX_ROWS))),
+      timeout,
+    ])
+      .then((pages) => {
         if (cancelled) return;
         // A full page means the ascending read stopped short of the cache:
         // a hole in the middle is worse than an honest clip.
-        if (rows.length >= BACKFILL_MAX_ROWS) setBackfill({ uid, fromKey, toKey, refreshKey, status: 'failed', rows: [] });
-        else setBackfill({ uid, fromKey, toKey, refreshKey, status: 'done', rows });
+        if (pages.some((rows) => rows.length >= BACKFILL_MAX_ROWS)) setBackfill(fail);
+        else setBackfill(mergeBackfill(plan, pages));
       })
       .catch(() => {
-        if (!cancelled) setBackfill({ uid, fromKey, toKey, refreshKey, status: 'failed', rows: [] });
+        if (!cancelled) setBackfill(fail);
       });
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [backfillPending, uid, needFromKey, oldestCacheKey, refreshKey]);
+  }, [plan]);
 
   // The cache plus the older rows. Only rows strictly OLDER than the cache's
   // oldest row are taken from the backfill — at or after it, the live cache
   // is the authority (a row deleted since the fetch must not come back).
+  // The rows already held keep drawing while a gap or a refresh is read, so
+  // the old dots do not vanish and "All" does not shrink and snap back.
+  const heldRows = backfill != null && backfill.status === 'done' && backfill.uid === uid ? backfill.rows : null;
   const historyLogs = useMemo(
-    () => (backfillCovers && backfill ? withOlderRows(logs, backfill.rows) : logs),
-    [logs, backfill, backfillCovers],
+    () => (needsBackfill && heldRows ? withOlderRows(logs, heldRows) : logs),
+    [logs, heldRows, needsBackfill],
   );
   // The fallback when the older rows could not be had: clip the chart to the
   // days the cache covers in full (its oldest day may be partial) and say so.
@@ -365,8 +391,23 @@ export function useTrends(rangeDays: number = 30, opts: TrendsOptions = {}): Tre
     () => chartDays.map((d) => (d.totalCalories > 0 ? Math.round(d.totalProtein) : null)),
     [chartDays],
   );
+  const carbsSeries = useMemo(
+    () => chartDays.map((d) => (d.totalCalories > 0 && d.totalCarbs > 0 ? Math.round(d.totalCarbs) : null)),
+    [chartDays],
+  );
+  const fatSeries = useMemo(
+    () => chartDays.map((d) => (d.totalCalories > 0 && d.totalFat > 0 ? Math.round(d.totalFat) : null)),
+    [chartDays],
+  );
+  // The live day by the user's boundary. The chart keys are calendar days, so
+  // "drop the last key" dropped an empty calendar day between midnight and a
+  // 03:00 day start and counted the day still in progress as complete.
+  const todayKey = useMemo(() => dayKeyAt(focusDay, boundary), [focusDay, boundary]);
   // Complete days only — today's lunchtime total is under every target.
-  const streak = useMemo(() => targetStreak(chartDays.slice(0, -1), targets.calorieTarget), [chartDays, targets]);
+  const streak = useMemo(
+    () => targetStreak(chartDays.filter((d) => d.dateKey < todayKey), targets.calorieTarget),
+    [chartDays, targets, todayKey],
+  );
   const historyDays = useMemo(() => {
     let first: string | null = null;
     for (const l of historyLogs) {
@@ -481,6 +522,9 @@ export function useTrends(rangeDays: number = 30, opts: TrendsOptions = {}): Tre
     weightSeries,
     intakeSeries,
     proteinSeries,
+    carbsSeries,
+    fatSeries,
+    todayKey,
     historyClip,
     insightWindow: { from: weekKeys[0], to: weekKeys[weekKeys.length - 1] },
     streak,
@@ -499,13 +543,72 @@ export function useTrends(rangeDays: number = 30, opts: TrendsOptions = {}): Tre
   };
 }
 
-interface Backfill {
+/** The older rows held for the chart: every row whose MIDNIGHT day is in
+ *  `[fromKey, toKey]`, read for one account and one refresh generation. */
+export interface Backfill {
   uid: string | undefined;
   fromKey: DateKey;
   toKey: DateKey;
   refreshKey: number;
   status: 'done' | 'failed';
   rows: DailyLog[];
+}
+
+/** The stretch the chart needs read: the replay's first day to the cache's
+ *  oldest (partial) day, inclusive. */
+export interface BackfillNeed {
+  uid: string;
+  refreshKey: number;
+  fromKey: DateKey;
+  toKey: DateKey;
+}
+
+/** What to read for a need: one or two day ranges (inclusive), and the held
+ *  backfill they extend — null when it is a fresh read. */
+export interface BackfillPlan extends BackfillNeed {
+  base: Backfill | null;
+  ranges: { fromKey: DateKey; toKey: DateKey }[];
+}
+
+function dayBefore(key: DateKey): DateKey {
+  return calendarDateKey(addDays(parseYmd(key), -1));
+}
+
+/**
+ * Null when what is held already covers the need. Otherwise only the missing
+ * ends: older days when the range grew, newer days when the cache's oldest day
+ * moved forward — that newer read starts AT the old edge day, so a row deleted
+ * there since the first read does not survive the merge. A held backfill from
+ * another account, another refresh generation or a failed read is not
+ * extended; the whole stretch is read again.
+ */
+export function planBackfill(prev: Backfill | null, need: BackfillNeed): BackfillPlan | null {
+  const usable = prev != null && prev.status === 'done' && prev.uid === need.uid && prev.refreshKey === need.refreshKey;
+  if (!usable) return { ...need, base: null, ranges: [{ fromKey: need.fromKey, toKey: need.toKey }] };
+  const ranges: BackfillPlan['ranges'] = [];
+  if (need.fromKey < prev.fromKey) ranges.push({ fromKey: need.fromKey, toKey: dayBefore(prev.fromKey) });
+  if (need.toKey > prev.toKey) ranges.push({ fromKey: prev.toKey, toKey: need.toKey });
+  return ranges.length > 0 ? { ...need, base: prev, ranges } : null;
+}
+
+/** The held rows plus what a plan read, oldest first. Held rows inside a
+ *  range that was re-read are replaced by the read, and rows older than the
+ *  need are dropped, so the held set does not grow day after day. */
+export function mergeBackfill(plan: BackfillPlan, pages: readonly (readonly DailyLog[])[]): Backfill {
+  const reread = (l: DailyLog) => {
+    const k = dayKeyAt(l.date, MIDNIGHT);
+    return k < plan.fromKey || plan.ranges.some((r) => k >= r.fromKey && k <= r.toKey);
+  };
+  const kept = (plan.base?.rows ?? []).filter((l) => !reread(l));
+  const toKey = plan.base && plan.base.toKey > plan.toKey ? plan.base.toKey : plan.toKey;
+  return {
+    uid: plan.uid,
+    fromKey: plan.fromKey,
+    toKey,
+    refreshKey: plan.refreshKey,
+    status: 'done',
+    rows: [...kept, ...pages.flat()].sort(compareLogsOldestFirst),
+  };
 }
 
 /** The cache plus the backfilled rows older than its oldest row, oldest

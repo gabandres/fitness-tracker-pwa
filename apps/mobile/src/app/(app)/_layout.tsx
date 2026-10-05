@@ -249,7 +249,7 @@ export default function AppTabsLayout() {
   useWorkoutIntentRouter();
   // A rest countdown left on the Lock Screen by a killed session is ended.
   useEffect(() => {
-    sweepOrphans();
+    void sweepOrphans();
   }, []);
   // Push-token registration + the silent OTA pre-download listener (#114).
   // Both are inert on today's binaries (no FCM config / push entitlement /

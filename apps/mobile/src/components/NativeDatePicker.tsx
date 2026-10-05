@@ -108,8 +108,9 @@ export function NativeDateField({
           tintColor={colors.accent}
           pickerAccessibilityLabel={accessibilityLabel}
           pickerTestID={testID}
+          // No haptic of our own: UIDatePicker ticks natively as it turns, and a
+          // second one here doubled every change (round-3 review).
           onChange={(e) => {
-            haptics.selection();
             onChange(clampDate(new Date(e.nativeEvent.timestamp), minimumDate, maximumDate));
           }}
         />

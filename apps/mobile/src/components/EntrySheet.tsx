@@ -16,6 +16,7 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { SheetTextInput } from '@/components/SheetTextInput';
 import {
   LOG_LABEL_MAX,
@@ -42,6 +43,8 @@ import { confirm } from '@/components/ConfirmSheet';
 import { CONTEXT_MENUS, ContextMenu, type ContextMenuAction } from '@/components/ContextMenu';
 import { MealSlotChips, TimeOfDayRow } from '@/components/EntryWhen';
 import { Glyph } from '@/components/Glyph';
+import { MenuButton, hasNativeMenuButton, type MenuButtonAction } from '@/components/MenuButton';
+import { NativeDateField, hasNativeDateField } from '@/components/NativeDatePicker';
 import { MicButton } from './MicButton';
 import {
   FoodSearch,
@@ -68,22 +71,32 @@ import type { EntryPrefill } from '@/lib/entry-prefill';
 import {
   formatDecimal,
   kcalOutOfRange,
+  lastTimeGrams,
   LOG_KCAL_LIMIT,
   LOG_MACRO_LIMIT,
   macroOutOfRange,
+  moveToDay,
   parseDecimal,
   settleWithin,
 } from '@/lib/entry-input';
-import { CountUpText } from '@/lib/motion';
+import { isAnySheetActive, onSheetsIdle } from '@/lib/sheet-portal';
+import type { AddReceipt } from '@/hooks/useLogWrites';
+import { CountUpText, usePulse } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
 import { formatDate, formatNumber } from '@/lib/date-format';
+
+/** What a screen's `onSave` may answer with: the durable write's receipt.
+ *  Optional — a screen that resolves `void` is read as "landed". */
+type SaveOutcome = Pick<AddReceipt, 'outcome'>;
 
 interface Props {
   visible: boolean;
   /** The row being edited, or null when adding. */
   editing: DailyLog | null;
-  onSave: (entry: LogEntry) => Promise<void> | void;
+  /** Resolve with the add's receipt to let a server refusal keep the form
+   *  open (re-score bug 2); resolving `void` means the write landed. */
+  onSave: (entry: LogEntry) => Promise<void | SaveOutcome> | void;
   /** Several rows in one gesture ("Add all" from a described meal). When
    *  given, the screen writes them and shows ONE receipt with one Undo for the
    *  set; without it each row goes through `onSave` (and its own receipt). */
@@ -222,6 +235,26 @@ const KEEP_OPEN_KEY = 'ignia.entry.keepOpen.v1';
  *  dismissing the native sheet while the Modal it presents is still leaving
  *  asks UIKit to tear down both in one tick, and it can refuse one of them. */
 const SCANNER_EXIT_MS = 400;
+
+/** The longest the photo-scan door waits for this sheet to finish leaving
+ *  before it presents the scan screen anyway (see `openPhotoScan`) — a stuck
+ *  dismissal must not swallow the tap. Body's sheet handoff uses the same. */
+const PHOTO_SCAN_HANDOFF_MAX_MS = 1200;
+
+/** One-tap chips (Quick add, Suggested): Apple's 44pt, Material's 48dp
+ *  (re-score gap 6 — 44 was under Android's floor, with no slop). */
+const CHIP_TARGET = Platform.OS === 'android' ? 48 : 44;
+
+/** The food rows' context-menu preview (iOS): width, and the text scale it
+ *  grows to — its size is fixed before it renders, so the text is capped at
+ *  the same scale the box was sized for (MealEntries' preview, same rule). */
+const PREVIEW_WIDTH = 320;
+const PREVIEW_MAX_SCALE = 1.3;
+
+/** A refusal the screen reported through its receipt (see `SaveOutcome`). */
+function refused(v: unknown): boolean {
+  return (v as SaveOutcome | undefined)?.outcome === 'rejected';
+}
 
 /**
  * Search-first add-food sheet, presented natively on iOS (a formSheet through
@@ -381,6 +414,10 @@ export function EntrySheet({
   // food per visit is still the common case, and it stays two taps.
   const [keepOpen, setKeepOpen] = useState(false);
   const [added, setAdded] = useState({ n: 0, kcal: 0 });
+  // The tally's bounce on each add (re-score gap 15): the count-up said the
+  // total moved; this says "got it" where the eye already is. No haptic of its
+  // own — the screen's `onSave` already plays the add's success.
+  const [addedPulse, triggerAddedPulse] = usePulse(1.04);
   // Bumped after a keep-open add, so the search clears for the next food.
   const [searchReset, setSearchReset] = useState(0);
   useEffect(() => {
@@ -475,7 +512,17 @@ export function EntrySheet({
       setProtein(draft[2]);
       setCarbs(draft[3]);
       setFat(draft[4]);
-      setBaseline(formSig(...draft, ''));
+      // A draft coming BACK (a refused add) brings its note and its time —
+      // the reopen used to drop both and re-stamp the entry "now".
+      const draftNote = initialPrefill.note ?? '';
+      setNote(draftNote);
+      if (initialPrefill.at != null) {
+        const at = new Date(initialPrefill.at);
+        setEntryDate(at);
+        setRetimeOrigin({ mealType: slot, at });
+        setTimeTouched(true);
+      }
+      setBaseline(formSig(...draft, draftNote));
       setMode('custom');
     }
     // `fmt`/`presetSlot` derive from `locale`/`initialPrefill`, both listed.
@@ -506,6 +553,13 @@ export function EntrySheet({
     });
   }
 
+  /** The date picker's day (re-score gap 10), the time of day kept and never
+   *  in the future (`moveToDay`). */
+  function applyEntryDay(day: Date) {
+    if (Platform.OS !== 'ios') haptics.selection();
+    setEntryDate((prev) => moveToDay(prev, day, new Date()));
+  }
+
   /**
    * Move the entry's time of day (2026-10-02: a bar eaten ~4:15 PM sat at
    * the 12:00 a past-day add stamps, with no way to fix it). Stays on the
@@ -518,11 +572,14 @@ export function EntrySheet({
     applyEntryTime(shiftTimeOfDay(entryDate, deltaMinutes, new Date()));
   }
 
-  function applyEntryTime(next: Date) {
+  /** `ticked`: the change came from the iOS picker, which plays its own
+   *  selection tick (`NativeDateField`) — a second one here made every turn of
+   *  the wheel buzz twice (re-score bug 3). */
+  function applyEntryTime(next: Date, ticked = false) {
     setTimeTouched(true);
     if (next.getTime() === entryDate.getTime()) return;
     // Stepping through values, not pressing a button (D1).
-    haptics.selection();
+    if (!ticked) haptics.selection();
     if (!mealTouched) setMealType(mealTypeAfterRetime(retimeOrigin.mealType, retimeOrigin.at, next));
     setEntryDate(next);
   }
@@ -541,6 +598,23 @@ export function EntrySheet({
       return;
     }
     applyEntryTime(setTimeOfDay(entryDate, parsed.hours, parsed.minutes, new Date()));
+  }
+
+  /**
+   * A new pick starts at the time the sheet would have opened with, and on
+   * the clock's slot rule again (re-score bug 4): a time set on an abandoned
+   * "Write it in" form stamped the next search pick. Not with keep-open on —
+   * a multi-add is one meal, and its time carries from food to food on
+   * purpose. Adds only: an edit never reaches `prefill`/`openCustomBlank`.
+   */
+  function resetWhenFor(keep: boolean) {
+    if (keep) return;
+    const at = dateKey ? noonOf(dateKey) : new Date();
+    setEntryDate(at);
+    setTimeTouched(false);
+    setTimeDraft(null);
+    setMealTouched(presetSlot != null);
+    setRetimeOrigin({ mealType: presetSlot, at });
   }
 
   /** Prefill the manual form from an estimate (search portion, recipe,
@@ -580,6 +654,7 @@ export function EntrySheet({
       setBlankOpen(false);
       setMealType(presetSlot);
       setNote('');
+      resetWhenFor(keepOpen);
       // Remember the grams-first context so "Save to My Foods" can store a
       // gram-weighted, barcode-deduped food. Tied to these calories so a later
       // edit invalidates it (see saveAsCustomFood). The grams field's basis is
@@ -593,7 +668,9 @@ export function EntrySheet({
       setPendingServing(sv ? { ctx: { ...sv, basis }, appliedCalories: src.calories } : null);
       setMode('custom');
     },
-    [locale, presetSlot],
+    // `resetWhenFor` reads only `dateKey` and `presetSlot` besides setters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [locale, presetSlot, keepOpen, dateKey],
   );
 
   /**
@@ -631,6 +708,7 @@ export function EntrySheet({
       return;
     }
     setAdded((a) => ({ n: a.n + entries.length, kcal: a.kcal + entries.reduce((sum, e) => sum + e.calories, 0) }));
+    triggerAddedPulse();
     searchSnap.current = undefined;
     setSearchReset((n) => n + 1);
     setMoreOpen(false);
@@ -746,6 +824,13 @@ export function EntrySheet({
       const write = Promise.resolve(onSave(entry));
       const early = await settleWithin(write);
       if (!early.settled) void write.catch((e) => reportLateFailure(entry, e, 'entry.saveLate'));
+      else if (refused(early.value)) {
+        // Refused inside the wait (re-score bug 2): the form stays, holding
+        // what was typed, and says why above Add. The receipt has already
+        // played the warning, so no second haptic here.
+        setFormError(t('entry.rejected'));
+        return;
+      }
       afterAdd([entry]);
     } catch (e) {
       // The sheet stays open with the typed values, so the user can retry.
@@ -870,6 +955,7 @@ export function EntrySheet({
     setFat('');
     setMealType(presetSlot);
     setNote('');
+    resetWhenFor(keepOpen);
     // A label typed in after a barcode miss carries that barcode, so "Save to
     // My Foods" stores it under the barcode (`customFoodDocId`) and the next
     // scan of the same product matches it (`productFromLibrary`).
@@ -1044,6 +1130,26 @@ export function EntrySheet({
     );
   }
 
+  // "Last time · 180 g" (re-score gap 15): the same food logged before at
+  // another portion, offered as one tap on the weight it implies. Read from the
+  // recents by name — a log row keeps its kcal, not its grams — through the
+  // pick's basis (`lastTimeGrams`). Reviewing a weighed pick only, never an edit.
+  const lastSame =
+    !editing && gramCtx && label.trim()
+      ? recentEntries.find((r) => r.mealLabel && normalizeName(r.mealLabel) === normalizeName(label))
+      : undefined;
+  const usualGrams =
+    lastSame && gramCtx?.basis ? lastTimeGrams(gramCtx.basis, lastSame.calories, gramCtx.grams) : null;
+  const usual = usualGrams != null && lastSame ? { grams: usualGrams, kcal: lastSame.calories } : null;
+
+  function applyUsual() {
+    if (!usual) return;
+    haptics.selection();
+    onGramsChange(fmt(usual.grams));
+    // The field shows the context's own weight again, now the chosen one.
+    setGramsDraft(null);
+  }
+
   /**
    * A scanned product lands on the review form at ONE serving — or at 100 g
    * when the label gave no serving size — and nowhere else. + → barcode → Add
@@ -1098,11 +1204,33 @@ export function EntrySheet({
   // field — open only on Today: the scan screen logs to today, so from a past
   // day it would put the meal on the wrong date.
   const photoScanDoor = FEATURES.photoScan && Platform.OS !== 'web' && !dateKey;
+  /**
+   * Closes this sheet, THEN presents the scan screen (re-score gap 3). Both in
+   * one tick asked iOS to present a full-screen modal from a formSheet that
+   * was being dismissed — the race SCANNER_EXIT_MS and MENU_DISMISS_MS already
+   * paid for. So the navigation waits for the portal to report the last sheet
+   * gone, with a ceiling. The JS sheet (Android) never registers there; it
+   * navigates at once, as it always did.
+   */
   function openPhotoScan() {
     haptics.tap();
     setMoreOpen(false);
+    const sheetUp = Platform.OS === 'ios' && isAnySheetActive();
     onClose();
-    router.navigate('/scan');
+    if (!sheetUp) {
+      router.navigate('/scan');
+      return;
+    }
+    let done = false;
+    const go = () => {
+      if (done) return;
+      done = true;
+      off();
+      clearTimeout(timer);
+      router.navigate('/scan');
+    };
+    const off = onSheetsIdle(go);
+    const timer = setTimeout(go, PHOTO_SCAN_HANDOFF_MAX_MS);
   }
 
   function openScanner() {
@@ -1206,7 +1334,11 @@ export function EntrySheet({
       name: string;
       kcal: number;
       protein?: number;
+      carbs?: number;
+      fat?: number;
       tag?: string;
+      /** A saved food's portion ("150 g"), for the context-menu preview. */
+      serving?: string;
       onLog: () => void;
       /** "Edit before logging" — the same food on the review form, for the
        *  day it was a bigger bowl. */
@@ -1223,6 +1355,8 @@ export function EntrySheet({
         name: r.mealLabel ?? '',
         kcal: r.calories,
         protein: r.protein ?? undefined,
+        carbs: r.carbs ?? undefined,
+        fat: r.fat ?? undefined,
         // All four macros, not just kcal+protein. A recent row IS a DailyLog
         // and carries carbs and fat; dropping them here logged a row the user
         // believed was a copy of the original, under-reported the carb and fat
@@ -1255,7 +1389,10 @@ export function EntrySheet({
         name: f.name,
         kcal: m.calories,
         protein: m.protein,
+        carbs: m.carbs,
+        fat: m.fat,
         tag: t('entry.myFoods'),
+        serving: f.servingUnit === 'g' && f.servingSize ? t('unit.grams', { n: formatNumber(f.servingSize, locale) }) : undefined,
         onLog: () =>
           quickLogRef.current({ calories: m.calories, protein: m.protein, carbs: m.carbs, fat: m.fat, mealLabel: f.name }),
         // On the form with its weight, when it was saved by weight, so the
@@ -1293,7 +1430,7 @@ export function EntrySheet({
     // MY_FOODS_RESERVED); any of the cap recents leave unused goes to them too.
     const recentsShown = recentRows.slice(0, BROWSE_ROW_CAP - Math.min(foodRows.length, MY_FOODS_RESERVED));
     return [...recentsShown, ...foodRows.slice(0, BROWSE_ROW_CAP - recentsShown.length)];
-  }, [recentEntries, customFoods, onHideRecent, onDeleteCustomFood, prefill, t]);
+  }, [recentEntries, customFoods, onHideRecent, onDeleteCustomFood, prefill, t, locale]);
 
   /**
    * The same foods, offered to SEARCH. Typing a saved food's name found
@@ -1346,12 +1483,21 @@ export function EntrySheet({
   /**
    * A food's other commands, beyond the one-tap log: "Edit before logging"
    * and its removal. iOS gets them in the system context menu (long-press,
-   * the gesture Today's diary rows use); every platform gets them as
-   * screen-reader actions; Android's long-press goes straight to the edit,
-   * the menu's first item. Manage mode stays as the visible way to remove.
+   * the gesture Today's diary rows use), over a preview of the food; every
+   * platform gets them as screen-reader actions. On Android a browse row
+   * carries a ⋯ that opens the same list as the platform's anchored menu
+   * (`MenuButton`, re-score gap 8) — long-press alone went straight to the
+   * edit, a command nothing on screen showed; it still does, as a shortcut.
+   * Manage mode stays as the visible way to remove.
    */
   function foodCommands(f: {
     name: string;
+    kcal?: number;
+    protein?: number;
+    carbs?: number;
+    fat?: number;
+    tag?: string;
+    serving?: string;
     onLog: () => void;
     onEditFirst: () => void;
     onRemove?: () => void;
@@ -1380,7 +1526,31 @@ export function EntrySheet({
           haptics.tap();
           f.onEditFirst();
         };
-    return { menu, a11y, onLongPress };
+    const nativeMenu: MenuButtonAction[] = menu.map((a) => ({
+      key: a.key,
+      title: a.title,
+      sfSymbol: a.icon,
+      destructive: a.destructive,
+      onPress: a.onPress ?? (() => {}),
+    }));
+    // The preview: the row opened up — every macro, which the row has no room
+    // for. Tapping it is "Edit before logging", the menu's own next step.
+    const preview =
+      f.kcal != null ? (
+        <FoodPreview
+          name={f.name}
+          kcal={f.kcal}
+          protein={f.protein}
+          carbs={f.carbs}
+          fat={f.fat}
+          caption={[f.tag, f.serving].filter(Boolean).join(' · ') || undefined}
+        />
+      ) : undefined;
+    const previewSize = {
+      width: PREVIEW_WIDTH,
+      height: Math.round(176 * Math.min(Math.max(fontScale, 1), PREVIEW_MAX_SCALE)),
+    };
+    return { menu, nativeMenu, a11y, onLongPress, preview, previewSize };
   }
 
   const browseEmpty = (
@@ -1426,13 +1596,25 @@ export function EntrySheet({
                   : undefined;
               const cmd = foodCommands({
                 name: p.name,
+                kcal: p.calories,
+                protein: p.protein,
+                carbs: p.carbs,
+                fat: p.fat,
+                tag: t('entry.quickAdd'),
                 onLog: () => quickLog(entry),
                 onEditFirst: () => prefill(entry),
                 onRemove: remove,
                 removeLabel: t('entry.removePreset'),
               });
               return (
-                <ContextMenu key={p.id} title={p.name} actions={cmd.menu}>
+                <ContextMenu
+                  key={p.id}
+                  title={p.name}
+                  actions={cmd.menu}
+                  preview={cmd.preview}
+                  previewSize={cmd.previewSize}
+                  onPreviewPress={() => prefill(entry)}
+                >
                   <TouchableOpacity
                     style={styles.presetChip}
                     testID={`preset-${p.id}`}
@@ -1501,10 +1683,12 @@ export function EntrySheet({
             // name) is inert while managing, and looks it — it used to keep its
             // normal look and swallow the tap.
             const inert = manageRecent && !row.onRemove;
-            return (
-            <ContextMenu key={row.key} title={row.name} actions={cmd.menu}>
+            // Android's ⋯ (see `foodCommands`); not while managing, where the
+            // row itself is the remove button.
+            const withMore = !CONTEXT_MENUS && hasNativeMenuButton && !manageRecent;
+            const body = (
             <TouchableOpacity
-              style={[styles.row, inert && styles.rowInert]}
+              style={withMore ? styles.rowInner : [styles.row, inert && styles.rowInert]}
               testID={row.key}
               accessibilityRole="button"
               disabled={inert}
@@ -1546,6 +1730,34 @@ export function EntrySheet({
                 </View>
               )}
             </TouchableOpacity>
+            );
+            if (withMore) {
+              return (
+                <View key={row.key} style={styles.rowCard}>
+                  {body}
+                  <MenuButton
+                    style={styles.rowMore}
+                    title={row.name}
+                    actions={cmd.nativeMenu}
+                    accessibilityLabel={t('entry.foodMenuA11y', { name: row.name })}
+                    testID={`${row.key}-more`}
+                    iconSize={20}
+                    iconColor={colors.muted}
+                    onFallbackPress={row.onEditFirst}
+                  />
+                </View>
+              );
+            }
+            return (
+            <ContextMenu
+              key={row.key}
+              title={row.name}
+              actions={cmd.menu}
+              preview={cmd.preview}
+              previewSize={cmd.previewSize}
+              onPreviewPress={row.onEditFirst}
+            >
+              {body}
             </ContextMenu>
             );
           })}
@@ -1793,7 +2005,7 @@ export function EntrySheet({
                 // The running tally of this visit (multi-add), pinned under
                 // the list, with the way out. Each add still gets its own
                 // receipt and Undo; this is the total the receipts do not sum.
-                <View style={styles.addedBar} testID="entry-added-bar">
+                <Animated.View style={[styles.addedBar, addedPulse]} testID="entry-added-bar">
                   <View
                     style={styles.addedMain}
                     accessible
@@ -1818,7 +2030,7 @@ export function EntrySheet({
                   >
                     <Text style={styles.addedDoneText} maxFontSizeMultiplier={1.6}>{t('common.done')}</Text>
                   </TouchableOpacity>
-                </View>
+                </Animated.View>
               ) : null}
               </>
             ) : mode === 'recipe' ? (
@@ -2076,6 +2288,22 @@ export function EntrySheet({
                           </Text>
                         </View>
                       ) : null}
+                      {usual ? (
+                        <TouchableOpacity
+                          style={styles.scaleChip}
+                          onPress={applyUsual}
+                          accessibilityRole="button"
+                          accessibilityLabel={t('entry.usualPortionA11y', {
+                            g: formatNumber(usual.grams, locale),
+                            kcal: formatNumber(usual.kcal, locale),
+                          })}
+                          testID="entry-usual-portion"
+                        >
+                          <Text style={styles.scaleChipText} maxFontSizeMultiplier={2.2}>
+                            {t('entry.usualPortion', { g: formatNumber(usual.grams, locale) })}
+                          </Text>
+                        </TouchableOpacity>
+                      ) : null}
                     </View>
                   ) : null}
                   {macroMiss ? (
@@ -2108,9 +2336,25 @@ export function EntrySheet({
                         <TouchableOpacity style={styles.dateStep} onPress={() => shiftEntryDate(-1)} hitSlop={2} accessibilityRole="button" accessibilityLabel={t('entry.datePrevA11y')} testID="entry-date-prev">
                           <Text style={styles.dateStepText} maxFontSizeMultiplier={1.6}>−</Text>
                         </TouchableOpacity>
-                        <Text style={styles.dateLabel} testID="entry-date" maxFontSizeMultiplier={2.2}>
-                          {formatDate(entryDate, locale, { weekday: 'short', month: 'short', day: 'numeric' })}
-                        </Text>
+                        {/* The system date picker where the binary has one (re-score
+                            gap 10) — a day last week is one pick, not seven
+                            taps — with ±1 either side for the common
+                            yesterday, as the weigh-in day does. */}
+                        {hasNativeDateField ? (
+                          <NativeDateField
+                            mode="date"
+                            value={entryDate}
+                            onChange={applyEntryDay}
+                            maximumDate={new Date()}
+                            accessibilityLabel={t('entry.date')}
+                            testID="entry-date-native"
+                            style={styles.dateNative}
+                          />
+                        ) : (
+                          <Text style={styles.dateLabel} testID="entry-date" maxFontSizeMultiplier={2.2}>
+                            {formatDate(entryDate, locale, { weekday: 'short', month: 'short', day: 'numeric' })}
+                          </Text>
+                        )}
                         <TouchableOpacity
                           style={[styles.dateStep, isSameDay(entryDate, new Date()) && styles.dateStepDisabled]}
                           onPress={() => shiftEntryDate(1)}
@@ -2134,7 +2378,7 @@ export function EntrySheet({
                       onDraftChange={setTimeDraft}
                       onStep={shiftEntryTime}
                       onCommit={commitTypedTime}
-                      onSet={applyEntryTime}
+                      onSet={(next) => applyEntryTime(next, Platform.OS === 'ios')}
                     />
                   </Field>
 
@@ -2352,6 +2596,63 @@ function Field({
   );
 }
 
+/**
+ * A browse food's context-menu preview (iOS, re-score gap 11): the row opened
+ * up — the full name, the calories large and all three macros, which the row
+ * has room only for protein of. Where it came from (Recent, My Foods, Quick
+ * add) and a saved food's portion ride above the name.
+ */
+function FoodPreview({
+  name,
+  kcal,
+  protein,
+  carbs,
+  fat,
+  caption,
+}: {
+  name: string;
+  kcal: number;
+  protein?: number;
+  carbs?: number;
+  fat?: number;
+  caption?: string;
+}) {
+  const t = useT();
+  const locale = useLocale();
+  const styles = useThemedStyles(createStyles);
+  const macros = [
+    { key: 'p', label: t('history.protein'), value: protein },
+    { key: 'c', label: t('today.carbs'), value: carbs },
+    { key: 'f', label: t('today.fat'), value: fat },
+  ];
+  return (
+    <View style={styles.preview} testID="entry-food-preview">
+      {caption ? (
+        <Text style={styles.previewCaption} numberOfLines={1} maxFontSizeMultiplier={PREVIEW_MAX_SCALE}>
+          {caption}
+        </Text>
+      ) : null}
+      <Text style={styles.previewLabel} numberOfLines={2} maxFontSizeMultiplier={PREVIEW_MAX_SCALE}>
+        {name}
+      </Text>
+      <Text style={styles.previewKcal} maxFontSizeMultiplier={PREVIEW_MAX_SCALE}>
+        {formatNumber(kcal, locale)}
+        <Text style={styles.previewUnit}> {t('today.kcal')}</Text>
+      </Text>
+      <View style={styles.previewMacros}>
+        {macros.map((m) => (
+          <View key={m.key} style={styles.previewMacro}>
+            <Text style={styles.previewMacroValue} maxFontSizeMultiplier={PREVIEW_MAX_SCALE}>
+              {m.value != null ? t('unit.grams', { n: formatNumber(m.value, locale) }) : '—'}
+            </Text>
+            <Text style={styles.previewMacroLabel} maxFontSizeMultiplier={PREVIEW_MAX_SCALE}>{m.label}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 const createStyles = ({ scheme, colors, shadow }: Theme) => StyleSheet.create({
   fill: { flex: 1 },
   // The JS sheet's panel in dark mode (V1) — see the `contentStyle` above.
@@ -2395,8 +2696,8 @@ const createStyles = ({ scheme, colors, shadow }: Theme) => StyleSheet.create({
   moreRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingVertical: space.md, paddingHorizontal: space.md, minHeight: 48 },
   moreRowText: { fontSize: font.body, color: colors.ink },
   presetStrip: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
-  // 44 tall (was ~33): a one-tap log is the last control to make small.
-  presetChip: { flexDirection: 'row', alignItems: 'center', gap: space.xs, paddingVertical: space.sm, paddingHorizontal: space.md, minHeight: 44, maxWidth: '100%', borderRadius: radius.pill, backgroundColor: colors.ink },
+  // CHIP_TARGET tall (was ~33): a one-tap log is the last control to make small.
+  presetChip: { flexDirection: 'row', alignItems: 'center', gap: space.xs, paddingVertical: space.sm, paddingHorizontal: space.md, minHeight: CHIP_TARGET, maxWidth: '100%', borderRadius: radius.pill, backgroundColor: colors.ink },
   // No fixed `maxWidth` (A1): 150pt cut a name to "Chi…" at a large text
   // size. The chip caps at the row, and the name gives way to the numbers.
   // The NAME keeps its room and the numbers give way: in Spanish ("g de
@@ -2414,6 +2715,38 @@ const createStyles = ({ scheme, colors, shadow }: Theme) => StyleSheet.create({
   rowRemove: { fontSize: font.body, color: colors.danger, fontWeight: '700' },
   // Manage mode, a row with nothing to remove (see `inert`).
   rowInert: { opacity: 0.4 },
+  // Android's row with a ⋯ (gap 8): the card is the wrapper, so the tap
+  // target and the menu button share one edge; `row`'s look, split in two.
+  rowCard: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.lineStrong,
+    minHeight: 48,
+    overflow: 'hidden',
+  },
+  rowInner: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingLeft: space.lg,
+    paddingVertical: space.md,
+    minHeight: 48,
+  },
+  rowMore: { width: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
+  // The context-menu preview (iOS) — MealEntries' EntryPreview, for a food.
+  preview: { flex: 1, backgroundColor: colors.paper, padding: space.xl, gap: space.xs },
+  previewCaption: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
+  previewLabel: { fontSize: font.h3, fontWeight: '800', color: colors.ink },
+  previewKcal: { fontSize: font.h1, fontWeight: '800', color: colors.ink, marginTop: space.xs },
+  previewUnit: { fontSize: font.body, fontWeight: '600', color: colors.muted },
+  previewMacros: { flexDirection: 'row', gap: space.lg, marginTop: space.sm },
+  previewMacro: { gap: 2 },
+  previewMacroValue: { fontSize: font.body, fontWeight: '700', color: colors.ink },
+  previewMacroLabel: { fontSize: font.small, color: colors.muted },
   keepOpen: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 48, alignSelf: 'flex-start' },
   keepOpenText: { fontSize: font.small, color: colors.ink, fontWeight: '600' },
   // The multi-add tally: the form's Save colours, so Done reads as the way out.
@@ -2447,7 +2780,7 @@ const createStyles = ({ scheme, colors, shadow }: Theme) => StyleSheet.create({
     borderRadius: radius.pill,
     paddingHorizontal: space.md,
     paddingVertical: space.xs,
-    minHeight: 44,
+    minHeight: CHIP_TARGET,
     backgroundColor: colors.inputBg,
     maxWidth: '100%',
   },
@@ -2530,6 +2863,8 @@ const createStyles = ({ scheme, colors, shadow }: Theme) => StyleSheet.create({
   dateStepDisabled: { opacity: 0.4 },
   dateStepText: { fontSize: font.h3, color: colors.ink, fontWeight: '700' },
   dateLabel: { flex: 1, textAlign: 'center', fontSize: font.body, color: colors.ink, fontWeight: '700' },
+  // The native date pill between the steppers, centred where the label was.
+  dateNative: { flex: 1 },
   noteInput: { minHeight: 72, paddingTop: space.sm, paddingBottom: space.sm, textAlignVertical: 'top' },
   actions: { flexDirection: 'row', gap: space.md, paddingTop: space.md, alignItems: 'center' },
   delete: { minHeight: 48, justifyContent: 'center', paddingHorizontal: space.lg, paddingVertical: space.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.danger },

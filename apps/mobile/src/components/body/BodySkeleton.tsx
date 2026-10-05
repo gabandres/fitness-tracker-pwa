@@ -40,7 +40,7 @@ export function BodySkeleton() {
   );
 }
 
-const createStyles = ({ colors }: Theme) =>
+const createStyles = ({ colors, scheme }: Theme) =>
   StyleSheet.create({
     wrap: { padding: space.xl, gap: space.md },
     hero: {
@@ -56,5 +56,5 @@ const createStyles = ({ colors }: Theme) =>
     barCaption: { width: 120, height: 14 },
     chart: { alignSelf: 'stretch', height: 140, backgroundColor: colors.heroTrack, borderRadius: radius.md, opacity: 0.5 },
     button: { height: 56, borderRadius: radius.md, backgroundColor: colors.inputBg, marginTop: space.md },
-    row: { height: 52, borderRadius: radius.md, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line },
+    row: { height: 52, borderRadius: radius.md, backgroundColor: colors.card, borderWidth: 1, borderColor: scheme === 'dark' ? `${colors.lineStrong}80` : colors.line },
   });

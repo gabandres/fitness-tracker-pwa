@@ -19,6 +19,7 @@ jest.mock('../../modules/rest-timer-activity', () => ({
   updateRestActivity: (...a: unknown[]) => mockUpdate(...a),
   endRestActivity: () => mockEnd(),
   getRestActivityStatus: () => mockStatus(),
+  endAllRestActivities: () => mockEnd(),
 }));
 
 import {
@@ -29,6 +30,7 @@ import {
   end,
   reconcileWithNative,
   start,
+  sweepOrphans,
   update,
 } from '@/lib/rest-timer-activity';
 
@@ -163,5 +165,61 @@ describe('applyRestInboxAction — the Lock Screen → app direction', () => {
 
   it('and never resumes when this session never started a rest', () => {
     expect(applyRestInboxAction({ kind: 'rest', atMs: T0, endsAtMs: T0 + 30_000 }, T0 + 1)).toBeNull();
+  });
+});
+
+describe('sweepOrphans — the tab layout\'s cold-start sweep (re-score 3, bug 1)', () => {
+  afterEach(() => jest.useRealTimers());
+
+  it('leaves a rest still counting for the session to reclaim', async () => {
+    // The layout mounts before Train's journal read, so `current` is null for
+    // every cold start; ending on that alone killed the rest restore needs.
+    mockStatus.mockResolvedValueOnce(`running:${T0 + 60_000}`);
+    await sweepOrphans(T0);
+    expect(mockEnd).not.toHaveBeenCalled();
+    // …and the session's reconcile then adopts it.
+    mockStatus.mockResolvedValueOnce(`running:${T0 + 60_000}`);
+    expect(await reconcileWithNative('Bench', 'en', T0 + 1_000)).toEqual({ type: 'restore', endsAt: T0 + 60_000, seconds: 59 });
+  });
+
+  it('ends a face whose deadline has passed, and anything not running', async () => {
+    mockStatus.mockResolvedValueOnce(`running:${T0 - 1}`);
+    await sweepOrphans(T0);
+    expect(mockEnd).toHaveBeenCalledTimes(1);
+    mockStatus.mockResolvedValueOnce('stopped');
+    await sweepOrphans(T0);
+    expect(mockEnd).toHaveBeenCalledTimes(2);
+  });
+
+  it('never touches a rest this runtime owns', async () => {
+    start(T0 + 60_000, 'Bench', 'en', T0);
+    await sweepOrphans(T0);
+    expect(mockStatus).not.toHaveBeenCalled();
+    expect(mockEnd).not.toHaveBeenCalled();
+  });
+
+  it('looks again after a kept deadline, and ends it if nobody reclaimed it', async () => {
+    jest.useFakeTimers();
+    const now = Date.now();
+    mockStatus.mockResolvedValueOnce(`running:${now + 30_000}`);
+    await sweepOrphans(now);
+    expect(mockEnd).not.toHaveBeenCalled();
+    mockStatus.mockResolvedValueOnce(`running:${now + 30_000}`);
+    jest.setSystemTime(now + 33_000);
+    jest.advanceTimersByTime(33_000);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(mockEnd).toHaveBeenCalledTimes(1);
+  });
+
+  it('but leaves it alone when a restored session has adopted it meanwhile', async () => {
+    jest.useFakeTimers();
+    const now = Date.now();
+    mockStatus.mockResolvedValueOnce(`running:${now + 30_000}`);
+    await sweepOrphans(now);
+    start(now + 30_000, 'Bench', 'en', now);
+    jest.advanceTimersByTime(33_000);
+    await Promise.resolve();
+    expect(mockEnd).not.toHaveBeenCalled();
   });
 });

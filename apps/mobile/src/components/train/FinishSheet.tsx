@@ -19,7 +19,8 @@ import { confirm } from '@/components/ConfirmSheet';
 import { showToast } from '@/components/Toast';
 import type { TrainState } from '@/hooks/useTrain';
 import type { WorkoutSession } from '@/lib/workout';
-import { useT } from '@/i18n';
+import { useLocale, useT } from '@/i18n';
+import { plural } from '@/i18n/grammar';
 import { announce } from '@/lib/a11y';
 import { isOffline } from '@/lib/connectivity';
 import * as haptics from '@/lib/haptics';
@@ -60,6 +61,7 @@ export function FinishSheet({
   onClose: () => void;
 }) {
   const t = useT();
+  const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const doneKey = useDoneKeyProps();
@@ -213,10 +215,38 @@ export function FinishSheet({
             </Text>
           </View>
         ))}
+        {/* No record to lead with: name the best set instead — the one line
+            of a finished workout worth reading twice (Train re-score 3). */}
+        {prCount === 0 && summary.topSet ? (
+          <View style={styles.syncRow} testID="finish-top-set">
+            <Ionicons name="barbell-outline" size={16} color={colors.muted} />
+            <Text style={styles.summaryBest}>
+              {t('train.summaryTopSet', {
+                name: summary.topSet.name,
+                weight: formatLoad(summary.topSet.weight, unitSystem),
+                reps: summary.topSet.reps,
+              })}
+            </Text>
+          </View>
+        ) : null}
         {vsLast != null && vsLast !== 0 ? (
           <Text style={styles.summaryLine} testID="finish-vs-last">
             {t('train.summaryVsLast', { delta: `${vsLast > 0 ? '+' : '−'}${Math.abs(vsLast)}%` })}
           </Text>
+        ) : null}
+
+        {/* Lifts with nothing logged are dropped by the save. Said here, while
+            they can still be done, rather than letting a forgotten lift
+            vanish from the record (Train re-score 3). Never blocking. */}
+        {summary.unstarted.length > 0 ? (
+          <View style={styles.invalidBox} testID="finish-unstarted">
+            <Ionicons name="alert-circle-outline" size={18} color={colors.muted} />
+            <Text style={[styles.invalidHint, { flex: 1, marginTop: 0 }]}>
+              {plural(t, locale, 'train.unstarted', summary.unstarted.length, {
+                names: summary.unstarted.join(', '),
+              })}
+            </Text>
+          </View>
         ) : null}
 
         {invalid.length > 0 ? (

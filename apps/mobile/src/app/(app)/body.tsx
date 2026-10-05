@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   type Measurement,
   type UnitSystem,
   bodyWeightUnit,
+  extremeSince,
+  measureUnit,
   parseYmd,
+  toDisplayMeasure,
   toDisplayWeight,
   trendMilestoneCrossed,
   trendStepLb,
@@ -18,8 +21,10 @@ import { BodySkeleton } from '@/components/body/BodySkeleton';
 import { HealthFooter } from '@/components/body/HealthFooter';
 import { HistoryRow } from '@/components/body/HistoryRow';
 import { type HistorySection, HistorySheet } from '@/components/body/HistorySheet';
-import { MeasurementSheet, measureLine } from '@/components/body/MeasurementSheet';
+import { MEASURE_FIELDS, type MeasureKey, MeasurementSheet, measureLine } from '@/components/body/MeasurementSheet';
+import { MeasurementSiteSheet } from '@/components/body/MeasurementSiteSheet';
 import { MeasurementTrends } from '@/components/body/MeasurementTrends';
+import { ROW_PREVIEW_WIDTH, RowPreview, rowPreviewHeight } from '@/components/body/RowPreview';
 import { WeightChart } from '@/components/body/WeightChart';
 import { WeightSheet } from '@/components/body/WeightSheet';
 import { GoalMilestonePrompt } from '@/components/GoalMilestonePrompt';
@@ -211,6 +216,9 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
   // reads its initial values from this, so add and edit stay one component.
   const [editing, setEditing] = useState<Measurement | null>(null);
   const [howOpen, setHowOpen] = useState(false);
+  /** The tape site whose chart is open (`MeasurementSiteSheet`); null = none. */
+  const [site, setSite] = useState<MeasureKey | null>(null);
+  const { fontScale } = useWindowDimensions();
   const [allWeighIns, setAllWeighIns] = useState(false);
   const [allMeasures, setAllMeasures] = useState(false);
 
@@ -282,22 +290,29 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
   }
 
   // Celebration (ADR-0014): crossing the goal weight bounces the hero panel
-  // once with a success haptic. Crossing-only (null-first ref), so an
-  // already-reached goal doesn't celebrate every visit.
+  // once with a success haptic. Crossing-only (null-first ref, seeded once the
+  // screen has data), so an already-reached goal doesn't celebrate every
+  // visit. On the TREND crossing (`goalCrossed`), the same fact the milestone
+  // prompt asks about — it fired on one light scale reading, and the next
+  // morning said "0.6 lb to go" (re-score 3, bug 3).
   const [goalPulse, triggerGoalPulse] = usePulse(1.05);
-  const prevRemaining = useRef<number | null>(null);
+  const prevCrossed = useRef<boolean | null>(null);
   useEffect(() => {
-    const rem = goalProgress?.remaining;
-    if (rem == null) return;
-    if (prevRemaining.current !== null && prevRemaining.current > 0 && rem <= 0) {
+    if (loading) return;
+    if (prevCrossed.current === false && goalCrossed) {
       haptics.success();
       triggerGoalPulse();
     }
-    prevRemaining.current = rem;
-  }, [goalProgress?.remaining, triggerGoalPulse]);
+    prevCrossed.current = goalCrossed;
+  }, [loading, goalCrossed, triggerGoalPulse]);
 
-  /** "Saved · trend −0.2 lb", or the milestone it crossed (D2 + D3). */
-  function weighInReceipt(before: number | null, after: number | null): string {
+  /** "Saved · trend −0.2 lb", the milestone it crossed (D2 + D3), or "lowest
+   *  since Mar 4" (re-score 3, Delight) — in that order. */
+  function weighInReceipt(
+    before: number | null,
+    after: number | null,
+    extreme: { sinceKey: string | null } | null = null,
+  ): string {
     if (before != null && after != null) {
       // The start goal progress measures from (bug 4) — it was the oldest
       // reading in a window that slides a day at a time.
@@ -306,13 +321,21 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
       const step = trendStepLb(unitSystem);
       const crossed = start != null ? trendMilestoneCrossed(start, before, after, step, dir) : null;
       if (crossed != null) {
-        haptics.success();
+        // The pulse, not a second success haptic: the save already gave one
+        // when the sheet closed, and two in a row read as a stutter (re-score
+        // 3, Delight).
         triggerGoalPulse();
         const down = start != null && after < start;
         return t(down ? 'body.trendMilestoneDown' : 'body.trendMilestoneUp', {
           n: formatNumber(Math.round(toDisplayWeight(crossed * step, unitSystem)), locale),
           unit,
         });
+      }
+      if (extreme) {
+        const gain = profile?.goalDirection === 'gain';
+        if (extreme.sinceKey == null) return t(gain ? 'body.newHigh' : 'body.newLow');
+        const date = formatDate(parseYmd(extreme.sinceKey), locale, { month: 'short', day: 'numeric' });
+        return t(gain ? 'body.highestSince' : 'body.lowestSince', { date });
       }
       const d = toDisplayWeight(after, unitSystem) - toDisplayWeight(before, unitSystem);
       if (Math.abs(d) >= 0.05) {
@@ -327,10 +350,22 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
     return t('body.weightSaved');
   }
 
-  async function saveWeight(lb: number, dateKey: string) {
+  /**
+   * `restore` is the Undo of a delete: the value goes back without a "lowest
+   * since" claim, and `health` says whether to mirror it to Health — false
+   * when the deleted value was a scale's, whose own sample never left Health
+   * (re-score 3, bug 6; `setWeight`).
+   */
+  async function saveWeight(lb: number, dateKey: string, opts: { restore?: boolean; health?: boolean } = {}) {
+    // A new low is judged against the map BEFORE this write, and only claimed
+    // when the map is the whole history (an unloaded older year might hold a
+    // lower reading).
+    const dir = profile?.goalDirection === 'lose' || profile?.goalDirection === 'gain' ? profile.goalDirection : null;
+    const found = opts.restore ? null : extremeSince(weights, dateKey, lb, dir);
+    const extreme = found && (found.sinceKey != null || !body.hasOlderHistory) ? found : null;
     // Resolves once the weigh-in is parked on disk (bug 2); a throw here means
     // nothing was recorded and the sheet keeps the value.
-    const receipt = await setWeight(lb, dateKey);
+    const receipt = opts.health === false ? await setWeight(lb, dateKey, { health: false }) : await setWeight(lb, dateKey);
     haptics.success();
     setWeightOpen(false);
     const landed = receipt?.landed ?? Promise.resolve('saved' as const);
@@ -341,7 +376,9 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
       } else if (outcome === 'queued') {
         showToast(t('offline.queued'), { testID: 'body-toast' });
       } else {
-        showToast(weighInReceipt(receipt?.trend?.beforeLb ?? null, receipt?.trend?.afterLb ?? null), { testID: 'body-toast' });
+        showToast(weighInReceipt(receipt?.trend?.beforeLb ?? null, receipt?.trend?.afterLb ?? null, extreme), {
+          testID: 'body-toast',
+        });
       }
     });
   }
@@ -361,7 +398,13 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
         action: {
           label: t('common.undo'),
           onPress: () => {
-            void saveWeight(w.weight, w.dateKey).catch((e) => captureError(e, { where: 'body.undoDeleteWeighIn' }));
+            // Back into Health only if it came out of Health: when the delete
+            // removed no Ignia sample, the value was a scale's and its own
+            // sample is still there — re-exporting would duplicate it.
+            void r.fromHealth
+              .catch(() => false)
+              .then((removed) => saveWeight(w.weight, w.dateKey, { restore: true, health: removed }))
+              .catch((e) => captureError(e, { where: 'body.undoDeleteWeighIn' }));
           },
         },
         testID: 'body-toast',
@@ -444,11 +487,14 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
     // One fixed decimal, like the hero and the deltas: "181 lb" over
     // "180.4 lb" was a ragged column (re-score).
     const weight = `${wt(w.weight, unitSystem, locale)} ${unit}`;
+    const previewLines = delta ? [t('body.previewDelta', { delta: delta.short, unit })] : [];
     return (
       <HistoryRow
         key={w.dateKey}
         label={t('body.weighInRowA11y', { date: dayLabel(w.dateKey, locale) })}
         value={delta ? `${weight}, ${delta.spoken}` : weight}
+        preview={<RowPreview caption={dayLabel(w.dateKey, locale)} value={wt(w.weight, unitSystem, locale)} unit={unit} lines={previewLines} />}
+        previewSize={{ width: ROW_PREVIEW_WIDTH, height: rowPreviewHeight(true, previewLines.length, fontScale) }}
         onEdit={() => (inSheet ? fromSheet(() => setAllWeighIns(false), () => openWeighIn(w.dateKey)) : openWeighIn(w.dateKey))}
         onDelete={() => void removeWeighIn(w)}
         testID={`weighin-${w.dateKey}`}
@@ -466,14 +512,27 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
     );
   }
 
+  /** One line per site on a tape row — the preview's body. */
+  function measurePreviewLines(m: Measurement): string[] {
+    const lines = MEASURE_FIELDS.flatMap((f) => {
+      const v = m[f.key];
+      return v == null ? [] : [`${t(f.labelKey)}  ${formatNumber(toDisplayMeasure(v, unitSystem), locale)} ${measureUnit(unitSystem)}`];
+    });
+    if (showBodyFat && m.bodyFatPct != null) lines.push(`${t('measure.bodyFat')}  ${formatNumber(m.bodyFatPct, locale)}%`);
+    return lines.length ? lines : ['—'];
+  }
+
   function measurementRow(m: Measurement, inSheet: boolean) {
     const date = formatDate(m.date, locale, { month: 'short', day: 'numeric' });
     const line = measureLine(m, t, unitSystem, showBodyFat, locale);
+    const previewLines = measurePreviewLines(m);
     return (
       <HistoryRow
         key={m.id}
         label={t('body.measurementRowA11y', { date })}
         value={line}
+        preview={<RowPreview caption={formatDate(m.date, locale, { weekday: 'short', month: 'short', day: 'numeric' })} lines={previewLines} />}
+        previewSize={{ width: ROW_PREVIEW_WIDTH, height: rowPreviewHeight(false, previewLines.length, fontScale) }}
         onEdit={() => (inSheet ? fromSheet(() => setAllMeasures(false), () => openMeasure(m)) : openMeasure(m))}
         onDelete={() => void removeMeasurement(m)}
         testID={`measurement-${m.id}`}
@@ -536,7 +595,7 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
                 accessibilityValue={{
                   text:
                     currentWeight != null
-                      ? `${formatNumber(toDisplayWeight(currentWeight, unitSystem), locale)} ${unit}`
+                      ? `${wt(currentWeight, unitSystem, locale)} ${unit}`
                       : t('body.noWeightYet'),
                 }}
                 testID="body-hero-tap"
@@ -587,12 +646,8 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
                     onNeedAll={loadAllHistory}
                     testID="weight-chart-plot"
                   />
-                  {/* The line is the trend over every reading; the dash is
-                      fitted over 28 days (PROJECTION_WINDOW_DAYS in useBody — a
-                      14-day fit is dominated by water weight). Say so, or a
-                      flat-looking month sprouts a falling dash with nothing to
-                      explain it. */}
-                  {projection ? <Text style={styles.chartCaption}>{t('body.chartWindows')}</Text> : null}
+                  {/* The caption explaining the dash lives in the chart now,
+                      which knows when the dash is drawn (re-score 3, bug 4). */}
                 </View>
               ) : null}
 
@@ -705,7 +760,14 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
             </TouchableOpacity>
           </View>
           {/* Per-site trends once a site has two readings (re-score). */}
-          <MeasurementTrends measurements={measurements} unitSystem={unitSystem} />
+          <MeasurementTrends
+            measurements={measurements}
+            unitSystem={unitSystem}
+            onOpen={(k) => {
+              haptics.tap();
+              setSite(k);
+            }}
+          />
           {/* Says what a tape measurement is FOR before asking for one. */}
           <Text style={styles.sectionHint}>{t('body.measureIntro')}</Text>
           <TouchableOpacity
@@ -784,7 +846,12 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
         unitSystem={unitSystem}
         initialText={weighPrefill}
         onClose={() => setWeightOpen(false)}
-        onSave={saveWeight}
+        onSave={(lb, key) => saveWeight(lb, key)}
+        onDelete={(key) => {
+          const lb = weights[key];
+          setWeightOpen(false);
+          if (lb != null) void removeWeighIn({ dateKey: key, weight: lb });
+        }}
       />
 
       <MeasurementSheet
@@ -795,6 +862,10 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
         latest={measurements}
         todayKey={todayKey}
         onClose={() => setMeasureOpen(false)}
+        onDelete={(m) => {
+          setMeasureOpen(false);
+          void removeMeasurement(m);
+        }}
         onSave={async (entry, date) => {
           // `date` only when the stepper moved the row: an edit that did not
           // must not restate the row's timestamp.
@@ -815,6 +886,8 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
           });
         }}
       />
+
+      <MeasurementSiteSheet site={site} measurements={measurements} unitSystem={unitSystem} onClose={() => setSite(null)} />
 
       <HistorySheet
         visible={allWeighIns}
@@ -867,13 +940,6 @@ const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   trendHeadline: { textAlign: 'center', color: colors.heroMuted, fontSize: font.body },
   trendHeadlineValue: { color: colors.heroText, fontFamily: type.heading },
   chartWrap: { alignSelf: 'stretch', marginTop: space.xs },
-  chartCaption: {
-    textAlign: 'center',
-    color: colors.heroMuted,
-    fontSize: font.tiny,
-    marginTop: space.xs,
-    paddingHorizontal: space.md,
-  },
   consistency: { textAlign: 'center', color: colors.heroMuted, fontSize: font.small },
   trendChips: { flexDirection: 'row', gap: space.sm, flexWrap: 'wrap', justifyContent: 'center' },
   trendChip: {

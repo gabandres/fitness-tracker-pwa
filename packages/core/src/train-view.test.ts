@@ -345,6 +345,37 @@ describe('finishSummary', () => {
     expect(out.previousVolume).toBeNull();
     expect(out.prs).toEqual([]);
   });
+
+  it('names the lifts with nothing logged — the ones finishing will drop', () => {
+    const hold = ex('plank', [set({ durationSec: 45 })], { logStyle: 'time', name: 'Plank' });
+    const out = finishSummary(
+      live([
+        ex('bench', [set({ weight: 100, reps: 5 })], { name: 'Bench' }),
+        // A load typed with no reps is not a logged set.
+        ex('row', [set({ weight: 90 }), set({})], { name: 'Row' }),
+        hold,
+        ex('curl', [], { name: 'Curl' }),
+      ]),
+      [],
+      NOW,
+    );
+    expect(out.unstarted).toEqual(['Row', 'Curl']);
+  });
+
+  it('picks the heaviest working set by e1RM as the top set, warm-ups and holds aside', () => {
+    const out = finishSummary(
+      live([
+        ex('bench', [set({ kind: 'warmup', weight: 300, reps: 1 }), set({ weight: 100, reps: 10 })], { name: 'Bench' }),
+        ex('squat', [set({ weight: 140, reps: 3 }), set({ weight: 120, reps: 5 })], { name: 'Squat' }),
+        ex('plank', [set({ durationSec: 600 })], { logStyle: 'time', name: 'Plank' }),
+      ]),
+      [],
+      NOW,
+    );
+    // 100×10 ≈ 133 e1RM; 140×3 = 154 — the squat wins, the 300 warm-up does not count.
+    expect(out.topSet).toEqual({ exerciseId: 'squat', name: 'Squat', weight: 140, reps: 3 });
+    expect(finishSummary(live([ex('bench', [set({ reps: 8 })])]), [], NOW).topSet).toBeNull();
+  });
 });
 
 describe('exerciseSeriesPoints', () => {

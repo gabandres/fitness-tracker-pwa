@@ -134,7 +134,7 @@ describe('TrendChart accessibility', () => {
         summary="Maintenance, last 3 days"
         pointLabels={labels}
         formatY={(v) => String(Math.round(v))}
-        openDay={{ label: (k) => `Open ${k}`, actionLabel: 'Open this day in History', closeLabel: 'Close', onOpen }}
+        openDay={{ actionLabel: 'Open this day in History', onOpen }}
         testID="chart"
       />,
     );
@@ -233,7 +233,7 @@ describe('the maintenance chart says what is actually drawn (review S20, bug 7)'
     const series = keys.map((k) => pt(k, 2400, 'measured'));
     const onOpenDay = jest.fn();
     const view = await render(<ExpenditureCard {...base} onOpenDay={onOpenDay} series={series} target={1850} />);
-    expect(view.getByTestId('trends-open-day-hint', { includeHiddenElements: true })).toHaveTextContent('Touch and hold a day to open it in History.');
+    expect(view.getByTestId('trends-open-day-hint', { includeHiddenElements: true })).toHaveTextContent('Tap a day to open it in History. Touch and hold, then drag, to read each day.');
     await fireEvent(view.getByTestId('expenditure-chart-plot'), 'accessibilityAction', { nativeEvent: { actionName: 'openDay' } });
     expect(onOpenDay).toHaveBeenCalledWith('2026-10-03');
     expect(view.queryByTestId('trends-open-day-hint', { includeHiddenElements: true })).toBeNull();

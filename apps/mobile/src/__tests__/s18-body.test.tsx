@@ -131,6 +131,8 @@ describe('Body — Retry and hero value', () => {
 
   it('the hero exposes the weight as an accessibility value', async () => {
     const screen = await render(<BodyScreen />);
-    expect(screen.getByTestId('body-hero-tap').props.accessibilityValue).toEqual({ text: '180 lb' });
+    // One decimal, the way the screen draws it (re-score 3, bug 7): "180.0"
+    // on screen was read as "180 lb".
+    expect(screen.getByTestId('body-hero-tap').props.accessibilityValue).toEqual({ text: '180.0 lb' });
   });
 });

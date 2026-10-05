@@ -1,4 +1,4 @@
-import { nearestIndex, weightChartGeometry } from '@/components/body/weight-chart-geometry';
+import { dotsPath, nearestIndex, weightChartGeometry } from '@/components/body/weight-chart-geometry';
 
 /**
  * The Body chart's geometry (Body review, U4 / V1) — the one part of a chart
@@ -49,4 +49,13 @@ it('nearestIndex finds the closest reading to the finger', () => {
   expect(nearestIndex(xs, 20)).toBe(1);
   expect(nearestIndex(xs, 200)).toBe(2);
   expect(nearestIndex([], 5)).toBe(-1);
+});
+
+it('dotsPath thins dots closer than minGap to the last one drawn (re-score 3, Pf)', () => {
+  const xs = [0, 0.5, 1.0, 1.6, 10];
+  const ys = [5, 5, 5, 5, 5];
+  const count = (d: string) => (d.match(/M /g) ?? []).length;
+  expect(count(dotsPath(xs, ys, 1))).toBe(5);
+  // Measured from the last DRAWN dot: 0 → (0.5, 1.0 skipped) → 1.6 → 10.
+  expect(count(dotsPath(xs, ys, 1, 1.5))).toBe(3);
 });

@@ -1,7 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'expo-router';
 import {
+  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -149,8 +150,9 @@ const HABIT_SHORTCUT_LABEL: Record<HabitMetric, I18nKey> = {
  * If the face has no card yet the strip omits it and Trends falls back to the
  * stub row, which explains itself — still the right landing.
  *
- * Touch target: 32dp chip + 6dp hitSlop = 44pt, and the 12dp `leadGroup` gap
- * keeps the slop clear of the edit affordance beside it.
+ * Touch target: 32dp chip + 6dp hitSlop = 44pt on iOS, 8dp = 48dp on Android
+ * (`HABIT_SLOP`), and the 12dp `leadGroup` gap keeps either slop clear of the
+ * edit affordance beside it.
  */
 function HabitShortcut({ metric }: { metric: HabitMetric }) {
   const t = useT();
@@ -161,7 +163,7 @@ function HabitShortcut({ metric }: { metric: HabitMetric }) {
     <PressScale
       scaleTo={0.88}
       style={styles.habitChip}
-      hitSlop={6}
+      hitSlop={HABIT_SLOP}
       accessibilityRole="button"
       accessibilityLabel={t(HABIT_SHORTCUT_LABEL[metric])}
       accessibilityHint={t('metrics.trendHint')}
@@ -181,8 +183,57 @@ function HabitShortcut({ metric }: { metric: HabitMetric }) {
 }
 
 /** Vertical slop that lifts a 26dp pill / 30dp action to the 44pt target
- *  (S18-15). Vertical only: the water pills sit 4dp apart. */
-const PILL_SLOP = { top: 9, bottom: 9 } as const;
+ *  (S18-15) — and on Android to Material's 48dp, which 9 fell 4dp short of
+ *  (Today re-score 3, Accessibility 7). Vertical only: the water pills sit 4dp
+ *  apart. The row is ~52dp tall, so 11 still stays inside it. */
+const PILL_SLOP = Platform.select({
+  android: { top: 11, bottom: 11 },
+  default: { top: 9, bottom: 9 },
+});
+/** The Trends shortcut chip's slop: 32dp to 44pt (iOS) / 48dp (Android). */
+const HABIT_SLOP = Platform.select({ android: 8, default: 6 });
+
+/** How long a water total this component wrote stays the base for the next
+ *  tap while the snapshot catches up. Longer than any latency-compensated
+ *  echo; short enough that a refused write cannot haunt a later tap. */
+const WATER_PENDING_MS = 3000;
+
+/** The totals this component has written that the `water` prop may not show
+ *  yet: `stale` are values the prop can still be on, `latest` is the newest. */
+export interface PendingWater {
+  stale: number[];
+  latest: number;
+  at: number;
+}
+
+/**
+ * The total a water tap adds to (Today re-score 3, B3). Each tap writes an
+ * ABSOLUTE total computed from the `water` prop, so two taps landing before
+ * the snapshot re-renders both added to the same stale number and one
+ * increment was lost. While the prop still shows a value this component
+ * wrote over (or the one it started from), the base is the newest total it
+ * wrote instead; once the prop moves anywhere else — caught up, or changed
+ * by another device — the prop wins. Exported for test.
+ */
+export function waterBase(water: number, pending: PendingWater | null, now: number): number {
+  if (!pending || now - pending.at > WATER_PENDING_MS) return water;
+  return pending.stale.includes(water) ? pending.latest : water;
+}
+
+/** The pending record after a tap from `base` to `next`. */
+export function nextPendingWater(
+  water: number,
+  pending: PendingWater | null,
+  base: number,
+  next: number,
+  now: number,
+): PendingWater {
+  // A tap that built on the pending total keeps the values the prop can still
+  // echo, plus the total it just superseded; one that built on the prop
+  // starts over from it.
+  const stale = base !== water && pending ? [...pending.stale, pending.latest] : [water];
+  return { stale, latest: next, at: now };
+}
 
 /** Today's daily-metric strip: fasting timer, water quick-add, sleep. The
  *  fasting row re-renders every 30s while a fast is running so the elapsed
@@ -200,10 +251,20 @@ export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater
   const waterUnit = t(unitSystem === 'metric' ? 'water.unitMl' : 'water.unit');
   const waterShown = displayWater(water, unitSystem);
   const step = waterStep(unitSystem);
+  // The totals written that the prop may not show yet (`waterBase`). Read and
+  // written in the tap handler and the effect below — never during render.
+  const pendingWater = useRef<PendingWater | null>(null);
+  useEffect(() => {
+    // Caught up: the prop now shows the newest total written.
+    if (pendingWater.current && water === pendingWater.current.latest) pendingWater.current = null;
+  }, [water]);
   const addWater = (deltaDisplay: number) => {
     // A stepper moves through values; it is not a button press (review P6).
     haptics.selection();
-    const next = Math.max(0, water + toFlOz(deltaDisplay, unitSystem));
+    const now = Date.now();
+    const base = waterBase(water, pendingWater.current, now);
+    const next = Math.max(0, base + toFlOz(deltaDisplay, unitSystem));
+    pendingWater.current = nextPendingWater(water, pendingWater.current, base, next, now);
     onAddWater(next);
     // The pill's label says what a tap ADDS; nothing said what the total
     // became, so a screen-reader user tapped +250 and heard silence.

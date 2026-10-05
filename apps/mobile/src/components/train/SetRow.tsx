@@ -18,7 +18,9 @@ import {
 import type { LogStyle, WorkoutSet } from '@/lib/workout';
 import type { TrainState } from '@/hooks/useTrain';
 import { KeyboardBar, useKeyboardBarProps } from '@/components/KeyboardBar';
-import { useT } from '@/i18n';
+import { showToast } from '@/components/Toast';
+import { useLocale, useT } from '@/i18n';
+import { formatDecimal } from '@/lib/entry-input';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { useUnitSystem } from '@/lib/use-unit-system';
@@ -26,7 +28,9 @@ import { font } from '@/theme';
 import type { ChainField, InputChain } from './input-chain';
 import { kindLabelKey, numOrUndef } from './train-shared';
 import { createStyles } from './train-styles';
-import { announce } from '@/lib/a11y';
+
+/** The set number's extra reach, left and right — see `setNumCell`. */
+const SET_NUM_SLOP = { left: 8, right: 8 };
 
 /** The fixed-width numeric cells stop scaling here, so the row still fits
  *  at the largest Dynamic Type sizes (Train review item 17). */
@@ -36,6 +40,19 @@ const NUMERIC_FONT_CAP = 1.6;
  *  gym has (2 × 1.25 lb is not a thing; 2.5 lb and 1.25 kg are). Half of
  *  core's default progression increment, which is the same pair of plates. */
 const weightStep = (unitSystem: Parameters<typeof defaultIncrement>[0]) => defaultIncrement(unitSystem) / 2;
+
+/** How far PREVIOUS may shrink to fit its 56pt column. Below this a
+ *  "102.5 × 10" drew too small to read at arm's length (Train re-score 3);
+ *  past it the cell truncates, and its label still says the whole thing. */
+const PREV_MIN_FONT_SCALE = 0.85;
+
+/** A rep or second count as stored: whole. The pad has no decimal key, but a
+ *  paste or an Android keyboard can still bring "8.5", and 8.5 reps is not a
+ *  set anyone did (Train re-score 3). */
+const wholeCount = (text: string): number | undefined => {
+  const n = numOrUndef(text);
+  return n == null ? undefined : Math.round(n);
+};
 
 export interface SetRowProps {
   exerciseIndex: number;
@@ -95,8 +112,13 @@ export const SetRow = memo(function SetRow({
 }: SetRowProps) {
   const unitSystem = useUnitSystem();
   const t = useT();
+  const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
+  /** A load in the training unit as the field shows it — with the locale's
+   *  decimal mark. Every re-seed wrote `String(n)`, so a pt-BR lifter who
+   *  typed "102,5" saw it come back as "102.5" (Train re-score 3). */
+  const loadText = (lb: number) => formatDecimal(toDisplayLoad(lb, unitSystem), locale);
   // Local string buffers so partial decimal input binds cleanly; the parsed
   // value is pushed into the session state via a deferred dispatch, persisted
   // on blur.
@@ -104,9 +126,7 @@ export const SetRow = memo(function SetRow({
   // The BUFFER is in the training unit and the dispatch is in POUNDS — the one
   // conversion, at the one boundary. Everything downstream (volume, e1RM,
   // progression) keeps working on a single scale (UX_AUDIT F3).
-  const [weight, setWeight] = useState(
-    set.weight != null ? String(toDisplayLoad(set.weight, unitSystem)) : '',
-  );
+  const [weight, setWeight] = useState(set.weight != null ? loadText(set.weight) : '');
   const [count, setCount] = useState(
     logStyle === 'time'
       ? set.durationSec != null ? String(set.durationSec) : ''
@@ -126,7 +146,7 @@ export const SetRow = memo(function SetRow({
       typed == null || set.weight == null
         ? typed == null && set.weight == null
         : toDisplayLoad(typed, unitSystem) === toDisplayLoad(set.weight, unitSystem);
-    if (!same) setWeight(set.weight != null ? String(toDisplayLoad(set.weight, unitSystem)) : '');
+    if (!same) setWeight(set.weight != null ? loadText(set.weight) : '');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [set.weight, unitSystem]);
   useEffect(() => {
@@ -198,7 +218,7 @@ export const SetRow = memo(function SetRow({
 
   function writeCount(text: string) {
     setCount(text);
-    const n = numOrUndef(text);
+    const n = wholeCount(text);
     dispatch(
       {
         type: 'patchSet',
@@ -217,7 +237,7 @@ export const SetRow = memo(function SetRow({
     const from = numOrUndef(weight)
       ?? (previousSet?.weight != null ? toDisplayLoad(previousSet.weight, unitSystem) : 0);
     const next = Math.max(0, Math.round((from + dir * weightStep(unitSystem)) * 100) / 100);
-    writeWeight(String(next));
+    writeWeight(formatDecimal(next, locale));
   }
 
   function stepCount(dir: 1 | -1) {
@@ -227,7 +247,7 @@ export const SetRow = memo(function SetRow({
     writeCount(String(Math.max(0, from + dir * (logStyle === 'time' ? 5 : 1))));
   }
 
-  const step = weightStep(unitSystem);
+  const step = formatDecimal(weightStep(unitSystem), locale);
   const stepLabel = `${step} ${loadUnit(unitSystem)}`;
 
   const row = (
@@ -235,6 +255,7 @@ export const SetRow = memo(function SetRow({
       <TouchableOpacity
         style={styles.setNumCell}
         onPress={() => onOpenSheet(exerciseIndex, setIndex)}
+        hitSlop={SET_NUM_SLOP}
         accessibilityRole="button"
         accessibilityLabel={t('train.setTypeA11y', { n: label, kind: t(kindLabelKey(set.kind)) })}
         accessibilityHint={t('train.setSheetHint')}
@@ -269,6 +290,7 @@ export const SetRow = memo(function SetRow({
             style={[styles.setPrevText, !previous && styles.setPrevEmpty]}
             numberOfLines={1}
             adjustsFontSizeToFit
+            minimumFontScale={PREV_MIN_FONT_SCALE}
             maxFontSizeMultiplier={NUMERIC_FONT_CAP}
           >
             {previous ?? '—'}
@@ -281,11 +303,7 @@ export const SetRow = memo(function SetRow({
           <TextInput
             ref={(r) => chain.register(weightSlot, r)}
             style={[styles.setInput, styles.setInputCell]}
-            placeholder={
-              previousSet?.weight != null
-                ? String(toDisplayLoad(previousSet.weight, unitSystem))
-                : '0'
-            }
+            placeholder={previousSet?.weight != null ? loadText(previousSet.weight) : '0'}
             placeholderTextColor={colors.faint}
             keyboardType="numeric"
             value={weight}
@@ -319,7 +337,9 @@ export const SetRow = memo(function SetRow({
         style={[styles.setInput, styles.setInputCell]}
         placeholder={acceptCount != null ? String(acceptCount) : '0'}
         placeholderTextColor={colors.faint}
-        keyboardType="numeric"
+        // Whole numbers: reps and seconds are counts, and the decimal pad
+        // stored 8.5 reps (Train re-score 3).
+        keyboardType="number-pad"
         value={count}
         onChangeText={writeCount}
         onFocus={() => setFocused('count')}
@@ -386,9 +406,14 @@ export const SetRow = memo(function SetRow({
           // Nothing typed and nothing to accept: a tick would mark the set done
           // while logging nothing, and the card's "0/2" disagreed with two
           // ticked boxes (Maestro 22). Ask for the number instead.
+          // Said on screen too: a haptic and a focus move told a sighted
+          // lifter nothing about WHY the tick did not land (Train re-score
+          // 3). The toast is announced, so it replaces the old announce.
           if (nowDone && acceptCount == null && numOrUndef(count) == null) {
             haptics.warning();
-            announce(t(logStyle === 'time' ? 'train.enterTimeFirst' : 'train.enterRepsFirst'));
+            showToast(t(logStyle === 'time' ? 'train.enterTimeFirst' : 'train.enterRepsFirst'), {
+              testID: 'train-toast',
+            });
             countInputRef.current?.focus();
             return;
           }
@@ -420,7 +445,7 @@ export const SetRow = memo(function SetRow({
           // record of the set that was performed, and retyping the same 135
           // every session is the friction the PREVIOUS column exists to remove.
           if (nowDone && hasWeight && numOrUndef(weight) == null && previousSet?.weight != null) {
-            setWeight(String(toDisplayLoad(previousSet.weight, unitSystem)));
+            setWeight(loadText(previousSet.weight));
             done = { ...done, weight: previousSet.weight };
             dispatch(
               { type: 'patchSet', exerciseIndex, setIndex, patch: { weight: previousSet.weight } },

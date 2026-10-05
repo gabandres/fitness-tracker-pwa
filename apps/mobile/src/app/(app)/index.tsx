@@ -1,8 +1,14 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { type Href, router, useLocalSearchParams, useScrollToTop } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import Animated from 'react-native-reanimated';
+import { Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Animated, {
+  Extrapolation,
+  interpolate,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+} from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { captureAndShare } from '@/lib/shareCapture';
 import type { DateKey, MealSlot } from '@macrolog/core';
@@ -13,6 +19,7 @@ import { Flame } from '@/components/Flame';
 import { useToast } from '@/components/Toast';
 import { useAddReceipt } from '@/hooks/useAddReceipt';
 import { DailyMetrics } from '@/components/DailyMetrics';
+import { SkeletonMetricsCard, SkeletonRows } from '@/components/DaySkeleton';
 import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { NumbersGlossary } from '@/components/NumbersGlossary';
 import { EntrySheet } from '@/components/EntrySheet';
@@ -57,6 +64,27 @@ const MIN_STREAK_FOR_REVIEW = 3;
 /** Vertical-only slop that lifts a 40–44dp control to Android's 48dp target.
  *  Vertical only, because horizontally these controls have neighbours. */
 const ICON_SLOP = { top: 4, bottom: 4 } as const;
+
+/** The streak chip is 26dp tall (an 18dp flame, 3+3 padding, the border), so
+ *  `ICON_SLOP` left it a ~34dp target (Today re-score 3, Accessibility 6).
+ *  This lifts it to 44pt on iOS and 48dp on Android; the header row is 44 tall
+ *  with nothing above or below the chip, so the slop overlaps nothing. */
+const STREAK_SLOP = Platform.select({
+  android: { top: 11, bottom: 11 },
+  default: { top: 9, bottom: 9 },
+});
+
+/** The previous-day chevron beside the date: a 16dp glyph stretched to the
+ *  ~20dp date line (`prevDayBtn`), lifted to 44pt / 48dp by slop. The extra reach goes UP over the title,
+ *  which is not interactive, and left into the screen's margin. */
+const PREV_DAY_SLOP = Platform.select({
+  android: { top: 16, bottom: 12, left: 16, right: 6 },
+  default: { top: 14, bottom: 10, left: 14, right: 6 },
+});
+
+/** Scroll distance over which the header's hairline fades in — the iOS
+ *  scroll-edge cue that content is passing under a fixed bar. */
+const HEADER_EDGE_FADE = 12;
 
 
 /** The date line under the title grows with text size only this far — past
@@ -138,26 +166,8 @@ function TodaySkeleton({ inline = false }: { inline?: boolean }) {
       accessibilityElementsHidden={inline}
     >
       <HeroRingsSkeleton />
-      <View style={styles.skeletonCard} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
-        {[0, 1, 2].map((i) => (
-          <View key={i} style={[styles.skeletonMetric, i > 0 && styles.skeletonDivider]}>
-            <View style={styles.skeletonDot} />
-            <View style={styles.skeletonLines}>
-              <View style={[styles.skeletonBar, { width: 56 }]} />
-              <View style={[styles.skeletonBar, styles.skeletonBarStrong, { width: 96 }]} />
-            </View>
-          </View>
-        ))}
-      </View>
-      {[0, 1].map((i) => (
-        <View key={i} style={styles.skeletonRow} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
-          <View style={styles.skeletonLines}>
-            <View style={[styles.skeletonBar, styles.skeletonBarStrong, { width: '55%' }]} />
-            <View style={[styles.skeletonBar, { width: '35%' }]} />
-          </View>
-          <View style={[styles.skeletonBar, styles.skeletonBarStrong, { width: 48 }]} />
-        </View>
-      ))}
+      <SkeletonMetricsCard />
+      <SkeletonRows count={2} />
     </View>
   );
 }
@@ -315,6 +325,17 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
   // Re-tapping the focused Today tab scrolls back to the top — the platform
   // convention on both OSes (review A9). The tab bar announces it.
   useScrollToTop(scrollRef);
+  // The header is fixed and drawn here, not a native large-title bar, so the
+  // scroll-edge cue is ours to give (Today re-score 3, Platform 11): a
+  // hairline that fades in once the diary passes under the header, on the UI
+  // thread — the scroll never round-trips through JS.
+  const scrollY = useSharedValue(0);
+  const onScroll = useAnimatedScrollHandler((e) => {
+    scrollY.value = e.contentOffset.y;
+  });
+  const headerEdge = useAnimatedStyle(() => ({
+    opacity: interpolate(scrollY.value, [0, HEADER_EDGE_FADE], [0, 1], Extrapolation.CLAMP),
+  }));
 
   // Keep on-device smart reminders in sync with today's state (runs on Today
   // focus + after every log). No-op unless the user enabled reminders.
@@ -532,13 +553,20 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
    * a mis-tap used to close a 16-hour fast for good (the only repair was
    * re-typing both instants in History).
    *
-   * The toast waits for the commit: `breakFast` reads the profile first, and
-   * with no SDK persistence that read fails offline — an Undo offered up front
-   * would be a receipt for a fast that never ended.
+   * The start comes from the profile listener, so `breakFast` writes without
+   * reading and the toast appears at once, offline too; a refused commit
+   * still raises the failure toast (round-3 review B2).
    */
   function onBreakFast(endedAt?: Date) {
     return breakFast(endedAt)
       .then((fastReceipt) => {
+        // Local-first since round 3: the receipt is back before the server
+        // has it. A later refusal still says so.
+        fastReceipt?.committed?.catch((e) => {
+          haptics.warning();
+          toast.show(t('metrics.fastEndFailed'));
+          captureError(e, { where: 'today.breakFast.commit' });
+        });
         toast.show(t('metrics.fastEnded'), {
           action: fastReceipt?.startedAt
             ? {
@@ -598,7 +626,11 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
     ready: !loading,
     fastStartedAt,
     onEndFast: onBreakFast,
-    onStartFast: (at) => startFast(at),
+    // Caught here, like the Start button's (Today re-score 3, Accessibility
+    // 9): a Siri or Lock Screen start that the write refused was swallowed by
+    // the inbox's own catch, so the fast the user asked for silently never
+    // began.
+    onStartFast: (at) => startFast(at).catch((e) => metricFailed(e, 'today.intentStartFast')),
     onShowFast: () => setFastSheetOpen(true),
     onLogWeight: (value) =>
       router.navigate({
@@ -665,17 +697,39 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
           >
             {t('nav.today')}
           </Text>
-          {/* Ellipsizes rather than wraps, and stops growing at 1.35×: two
-              lines of date would push the hero down for no information the
-              title has not already given (review A1). */}
-          <Text
-            style={styles.date}
-            numberOfLines={1}
-            ellipsizeMode="tail"
-            maxFontSizeMultiplier={HEADER_DATE_MAX_SCALE}
-          >
-            {todayLabel(todayKey, locale)}
-          </Text>
+          {/* "‹ Sun, Oct 5": the step to the day before, where every diary
+              puts it (Today re-score 3, Usability 1 — MyFitnessPal,
+              Cronometer and MacroFactor all have it on the date). Yesterday
+              was a long-press on the calendar icon, which Android gave no
+              sign of. It opens the History day, whose own arrows carry on
+              from there; there is no "next" on Today, which is the last day
+              there is. */}
+          <View style={styles.dateRow}>
+            <TouchableOpacity
+              onPress={() => {
+                haptics.selection();
+                router.push(yesterdayHref(todayKey));
+              }}
+              style={styles.prevDayBtn}
+              hitSlop={PREV_DAY_SLOP}
+              accessibilityRole="button"
+              accessibilityLabel={t('history.prevDay')}
+              testID="today-prev-day"
+            >
+              <Ionicons name="chevron-back" size={16} color={colors.muted} />
+            </TouchableOpacity>
+            {/* Ellipsizes rather than wraps, and stops growing at 1.35×: two
+                lines of date would push the hero down for no information the
+                title has not already given (review A1). */}
+            <Text
+              style={styles.date}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+              maxFontSizeMultiplier={HEADER_DATE_MAX_SCALE}
+            >
+              {todayLabel(todayKey, locale)}
+            </Text>
+          </View>
         </View>
         <View style={styles.headerRight}>
           {streak > 0 ? (
@@ -687,7 +741,7 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
               <PressScale
                 scaleTo={0.92}
                 style={[styles.streakChip, streak >= 100 && styles.streakChipWide]}
-                hitSlop={ICON_SLOP}
+                hitSlop={STREAK_SLOP}
                 onPress={() => {
                   haptics.tap();
                   router.push('/milestones' as Href);
@@ -780,6 +834,7 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
           </TouchableOpacity>
           <HeaderAvatar />
         </View>
+        <Animated.View style={[styles.headerEdge, headerEdge]} />
       </View>
 
       <NumbersGlossary visible={glossaryOpen} onClose={() => setGlossaryOpen(false)} />
@@ -829,8 +884,10 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
           <TodaySkeleton inline />
         </ScrollView>
       ) : (
-        <ScrollView
+        <Animated.ScrollView
           ref={scrollRef}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
           contentContainerStyle={styles.body}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.muted} />}
         >
@@ -968,7 +1025,7 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
           </Animated.View>
           {/* Clears the + button at the foot of the list. */}
           <View style={{ height: FAB_BAND }} />
-        </ScrollView>
+        </Animated.ScrollView>
       )}
 
       <EntrySheet
@@ -1000,34 +1057,8 @@ function createStyles({ colors }: Theme) {
     screen: { flex: 1, backgroundColor: colors.paper },
     skeletonBody: { paddingHorizontal: space.xl, gap: space.lg },
     skeletonInline: { gap: space.lg },
-    // Placeholders in the shapes of DailyMetrics and a diary row, in the
-    // card colours they will have — so the first frame changes content, not
-    // layout (review V5).
-    skeletonCard: {
-      backgroundColor: colors.card,
-      borderRadius: radius.lg,
-      borderWidth: 1,
-      borderColor: colors.line,
-      paddingHorizontal: space.lg,
-      paddingVertical: space.sm,
-    },
-    skeletonMetric: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingVertical: space.md },
-    skeletonDivider: { borderTopWidth: 1, borderTopColor: colors.line },
-    skeletonDot: { width: 32, height: 32, borderRadius: radius.pill, backgroundColor: colors.line },
-    skeletonLines: { flex: 1, gap: space.xs },
-    skeletonBar: { height: 10, borderRadius: 5, backgroundColor: colors.line },
-    skeletonBarStrong: { height: 14, borderRadius: 7 },
-    skeletonRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: space.md,
-      backgroundColor: colors.card,
-      borderRadius: radius.md,
-      borderWidth: 1,
-      borderColor: colors.line,
-      paddingHorizontal: space.lg,
-      paddingVertical: space.md,
-    },
+    // The card and row placeholders themselves live in `DaySkeleton`, shared
+    // with the History day (Today re-score 3, Visual 14).
     header: {
       flexDirection: 'row',
       alignItems: 'flex-start',
@@ -1036,8 +1067,16 @@ function createStyles({ colors }: Theme) {
       paddingTop: space.md,
       paddingBottom: space.sm,
     },
+    // Pinned to the header's foot; its opacity follows the scroll (`headerEdge`).
+    // The tab bar's own top rule, so the diary scrolls between two matching
+    // edges.
+    headerEdge: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 1, backgroundColor: colors.line, pointerEvents: 'none' },
     title: { fontFamily: type.display, fontSize: font.h1, color: colors.ink },
-    date: { fontSize: font.body, color: colors.muted, marginTop: 2 },
+    // `flexShrink` so the date ellipsizes beside the chevron instead of
+    // pushing past the block's edge.
+    date: { flexShrink: 1, fontSize: font.body, color: colors.muted },
+    dateRow: { flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: 2 },
+    prevDayBtn: { alignSelf: 'stretch', justifyContent: 'center' },
     // paddingBottom is load-bearing, not cosmetic: without it the LAST diary
     // row ends flush with the tab bar and is clipped by the screen edge — the
     // newest entry, which is the one a user most wants to tap. Measured

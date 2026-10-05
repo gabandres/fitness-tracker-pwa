@@ -21,7 +21,7 @@ import { font, motion, radius, space } from '@/theme';
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 const CAM_RISE = -150;
 const MAN_RISE = -78;
-/** How long the native menu's "Search foods" waits before opening the sheet:
+/** How long the native menu's actions wait before presenting anything:
  *  `onSelected` fires while UIKit is still dismissing the menu, and a sheet
  *  presented into that transition can be dropped (Today re-score, bug 7 —
  *  the same wait as a diary row's menu, `MENU_DISMISS_MS` in MealEntries). */
@@ -195,7 +195,13 @@ export function LogSpeedDial() {
                 key: 'scan',
                 title: t('log.scan'),
                 icon: 'camera',
-                onPress: () => router.navigate('/scan'),
+                // Waits like "Search foods" below (Today re-score 3, B1): /scan
+                // is a full-screen modal, and presenting it while UIKit is
+                // still dismissing the menu is the same transition a sheet
+                // can be dropped into.
+                onPress: () => {
+                  setTimeout(() => router.navigate('/scan'), MENU_DISMISS_MS);
+                },
               },
               {
                 key: 'manual',

@@ -1,11 +1,12 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   addDays,
   calendarDateKey,
+  dailyTargets,
   type Fast,
   fastHoursParts,
   fastLengthHours,
@@ -15,13 +16,16 @@ import {
   summarizeDay,
 } from '@macrolog/core';
 import { confirm } from '@/components/ConfirmSheet';
+import { SkeletonRows, SkeletonTotals } from '@/components/DaySkeleton';
 import { EntrySheet } from '@/components/EntrySheet';
 import { FastSheet, type FastSheetMode } from '@/components/FastSheet';
 import { MealEntries } from '@/components/MealEntries';
+import { useToast } from '@/components/Toast';
 import { useDayFasts } from '@/hooks/useDayFasts';
 import { useDiaryActions } from '@/hooks/useDiaryActions';
 import { useHistory } from '@/hooks/useHistory';
 import { useUnitSystem } from '@/lib/use-unit-system';
+import { useAuth } from '@/lib/auth';
 import { type Locale, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { PressScale } from '@/lib/motion';
@@ -77,6 +81,8 @@ export default function DayDetail() {
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const toast = useToast();
+  const { profile } = useAuth();
   const { date } = useLocalSearchParams<{ date: string }>();
   const dateKey = String(date);
   const router = useRouter();
@@ -122,6 +128,26 @@ export default function DayDetail() {
         .filter((l) => dayKeyAt(l.date, boundary) === dateKey && l.calories > 0)
         .sort((a, b) => a.date.getTime() - b.date.getTime()),
     [logs, boundary, dateKey],
+  );
+
+  /**
+   * The calorie target under the day's total — "of 2,100" (Today re-score 3,
+   * Usability 4: a past day read as bare totals with nothing to hold them
+   * against; MyFitnessPal shows the goal on every day).
+   *
+   * The CURRENT effective target, through the same `dailyTargets` chain and
+   * the same inputs Today's hero uses — the profile off the auth context and
+   * this screen's own rows and weights, so it opens no listener (ADR-0016).
+   * There is no per-day target record to read instead: targets are derived,
+   * not stored. Rows this screen fetched for older months only ever reach
+   * further back than the estimator's 42-day window, so they cannot move it.
+   * Null until the profile is there: with no profile `dailyTargets` returns a
+   * plausible SEED target, which is the number `useDailyTargets` exists to
+   * keep off screen.
+   */
+  const calorieTarget = useMemo(
+    () => (profile ? dailyTargets(profile, logs, weights).calorieTarget : null),
+    [profile, logs, weights],
   );
 
   const diary = useDiaryActions({
@@ -183,7 +209,16 @@ export default function DayDetail() {
   }
 
   return (
-    <View style={styles.screen}>
+    <View
+      style={styles.screen}
+      testID="day-detail"
+      // VoiceOver's Magic Tap runs the live toast's action, as on Today (Today
+      // re-score 3, Accessibility 8): this diary posts the same receipts —
+      // "Deleted · Undo", "Moved · Undo" — and the Undo was a hunt here.
+      onMagicTap={() => {
+        toast.act();
+      }}
+    >
       {/* The native stack header since the Today re-score (Platform): the
           system back button — with its swipe, its long-press history and the
           iOS 26 glass — instead of a drawn chevron. The title is flanked by
@@ -232,15 +267,30 @@ export default function DayDetail() {
       />
 
       {/* The month fetch counts as loading here: a day behind the window would
-          otherwise read "no entries" for the beat before its rows land. */}
+          otherwise read "no entries" for the beat before its rows land. It
+          loads into the day's own shape — the totals card and diary rows —
+          rather than a centred spinner, so a step into a month not yet
+          fetched changes the numbers instead of blanking the screen (Today
+          re-score 3, Visual 14). One "loading" node for the reader. */}
       {loading || olderMonths.loading ? (
-        <View style={styles.fill}>
-          <ActivityIndicator color={colors.accent} />
+        <View
+          style={styles.body}
+          accessible
+          accessibilityLabel={t('a11y.loadingDay')}
+          accessibilityState={{ busy: true }}
+          testID="day-skeleton"
+        >
+          <SkeletonTotals />
+          <SkeletonRows count={3} />
         </View>
       ) : (
         <ScrollView contentContainerStyle={[styles.body, { paddingBottom: FAB_CLEARANCE + insets.bottom }]}>
           <View style={styles.totals}>
-            <Total label={t('today.calories')} value={formatNumber(summary.totalCalories, locale)} />
+            <Total
+              label={t('today.calories')}
+              value={formatNumber(summary.totalCalories, locale)}
+              sub={calorieTarget ? t('history.ofTarget', { n: formatNumber(calorieTarget, locale) }) : undefined}
+            />
             <Total label={t('history.protein')} value={g(summary.totalProtein)} />
             <Total label={t('today.carbs')} value={g(summary.totalCarbs)} />
             <Total label={t('today.fat')} value={g(summary.totalFat)} />
@@ -396,13 +446,21 @@ export default function DayDetail() {
 }
 
 /** One total, read as ONE stop — "Calories, 1,200" — where the number and its
- *  label were two (Today re-score, Accessibility). */
-function Total({ label, value }: { label: string; value: string }) {
+ *  label were two (Today re-score, Accessibility). `sub` is the target line
+ *  under the label ("of 2,100"), read in the same stop. */
+function Total({ label, value, sub }: { label: string; value: string; sub?: string }) {
   const styles = useThemedStyles(createStyles);
   return (
-    <View style={styles.total} accessible accessibilityLabel={`${label}, ${value}`}>
+    <View style={styles.total} accessible accessibilityLabel={[`${label}, ${value}`, sub].filter(Boolean).join(' ')}>
       <Text style={styles.totalValue}>{value}</Text>
       <Text style={styles.totalLabel}>{label}</Text>
+      {/* Under the label, so the four figures and the four labels still
+          line up across the card and only Calories grows a line. */}
+      {sub ? (
+        <Text style={styles.totalSub} numberOfLines={1} testID="day-calorie-target">
+          {sub}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -418,7 +476,6 @@ const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   headerTitle: { flexShrink: 1, textAlign: 'center', fontSize: font.body, fontWeight: '700', color: colors.ink },
   dayArrow: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   dayArrowOff: { opacity: 0.35 },
-  fill: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   body: { padding: space.xl, gap: space.lg },
   totals: {
     flexDirection: 'row',
@@ -432,6 +489,7 @@ const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   total: { alignItems: 'center', flex: 1 },
   totalValue: { fontSize: font.body, fontWeight: '700', color: colors.ink },
   totalLabel: { fontSize: font.tiny, color: colors.muted, marginTop: 2 },
+  totalSub: { fontSize: font.tiny, color: colors.faint, fontWeight: '600', marginTop: 2 },
   weight: { fontSize: font.body, color: colors.muted },
   sectionTitle: { fontSize: font.h3, fontWeight: '700', color: colors.ink },
   fastHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },

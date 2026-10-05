@@ -1,21 +1,23 @@
-import { memo, useEffect, useMemo, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
-import Svg, { Circle, Line, Path, Rect } from 'react-native-svg';
+import { memo, useCallback, useMemo, useState } from 'react';
+import { Platform, StyleSheet, Text, TextInput, View, useWindowDimensions, type TextInputProps } from 'react-native';
+import Svg, { Line, Path, Rect } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedProps, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { announce } from '@/lib/a11y';
-import { ContextMenu, CONTEXT_MENUS } from '@/components/ContextMenu';
 import { font, radius, space } from '@/theme';
 import {
   type Frame,
   domainOf,
+  dotsPath,
   indexAtX,
+  labelWidth,
   lastIndexWithValue,
   linePaths,
+  placeRefLabel,
   xAt,
+  xTickIndices,
   yAt,
   ysOf,
 } from './chart-geometry';
@@ -29,14 +31,16 @@ import { useAdjustableDays } from './useAdjustableDays';
  *
  * ## Three ways in, one set of strings
  *
- * - **Sight**: the drawn series, a reference line whose VALUE is printed at its
- *   right end (a dashed line with no number is a guess the reader has to make),
- *   and first/last date under the axis.
- * - **Touch**: drag across the plot and a cursor, a dot and a value bubble
+ * - **Sight**: the drawn series, a reference line whose VALUE is printed beside
+ *   it (a dashed line with no number is a guess the reader has to make), Y
+ *   ticks in their own gutter and three to five dates under the axis.
+ * - **Touch**: drag across the plot — or touch and hold, then drag, the way
+ *   Health and MacroFactor scrub — and a cursor, a dot and a value bubble
  *   follow the finger, with a selection haptic each time it crosses into a new
- *   day. Long-press a day to open it in History — the system context menu on
- *   iOS (`ContextMenu`, with the day's sentence as its preview), a pill under
- *   the chart elsewhere.
+ *   day. TAP a day to open it in History, the way the budget strip already
+ *   worked (re-score 3, U2: holding still used to raise the system context
+ *   menu instead of starting the scrub, and the scrub only began on an 8 dp
+ *   sideways drag; a hold cannot mean both).
  * - **Screen reader**: one adjustable element — the label is `summary`, the
  *   value is the day under the cursor, and increment/decrement step it
  *   (`useAdjustableDays`). "Open this day in History" is a custom action.
@@ -50,6 +54,16 @@ import { useAdjustableDays } from './useAdjustableDays';
  * adjustable element is an `AccessibleChart` and VoiceOver's rotor adds "Audio
  * Graph" and "Chart Details" on iOS (`audio-graph.ts`). The stepper is
  * unchanged — same element, same label, same actions.
+ *
+ * ## Nothing drawn over the data
+ *
+ * The Y ticks sit in a left gutter sized to their widest label, and the
+ * reference label takes whichever side of its line covers the fewest points
+ * (`placeRefLabel`) — both used to be opaque boxes on top of the plot, over
+ * the newest over-target days and, for a maintenance-goal user, over the
+ * endpoint dot the chart exists to show (re-score 3, B1). The scrub bubble
+ * floats over the card's header while a finger is down instead of reserving a
+ * 44 dp blank band above every chart (V2).
  *
  * ## No React render while dragging
  *
@@ -88,10 +102,12 @@ export interface TrendChartProps {
   dateKeys: readonly string[];
   lines: readonly ChartLine[];
   dots?: readonly ChartDots[];
-  /** A horizontal reference (the daily target), labelled at its right end. */
+  /** A horizontal reference (the daily target), labelled beside its line. */
   reference?: { value: number; label: string; color?: string };
   /** Milestone ticks along the baseline. */
   markers?: readonly { index: number }[];
+  /** A labelled vertical mark on a day (the day the estimate turned measured). */
+  annotations?: readonly { index: number; label: string }[];
   /** Index into `lines` the cursor dot rides (default 0). */
   cursorLine?: number;
   height?: number;
@@ -105,13 +121,12 @@ export interface TrendChartProps {
   bubbleLabels?: readonly string[];
   /** Y tick formatter for the top/middle/bottom gridline labels. */
   formatY: (v: number) => string;
-  /** First / last x label (already localised). */
-  xLabels?: readonly [string, string];
-  /** "Open this day in History" — long-press and a custom a11y action. */
+  /** The date under the axis for a day key (already localised, short). Three
+   *  to five evenly spaced days are labelled, always the first and last. */
+  xTickLabel?: (dateKey: string) => string;
+  /** "Open this day in History" — a tap on the plot and a custom a11y action. */
   openDay?: {
-    label: (dateKey: string) => string;
     actionLabel: string;
-    closeLabel: string;
     onOpen: (dateKey: string) => void;
   };
   /**
@@ -132,7 +147,18 @@ export interface TrendChartProps {
   testID?: string;
 }
 
+/** Plot padding before the tick gutter is added on the left. */
 const PAD: Omit<Frame, 'width' | 'height'> = { padL: 6, padR: 6, padT: 10, padB: 10 };
+/** Axis text scales with Dynamic Type, but only this far — it names a fixed-
+ *  size plot. */
+const AXIS_MAX_SCALE = 1.3;
+/** Hold still this long and the scrub starts without a sideways drag. Short
+ *  enough to read as "press and drag", long enough that a scroll starting on
+ *  the chart moves first and fails it. */
+const HOLD_TO_SCRUB_MS = 180;
+/** Roughly one date label per this many dp of plot. */
+const X_TICK_SPACING = 72;
+const X_TICK_BOX = 64;
 
 /** A selection tick per day crossed. Local, not `lib/haptics`: that module's
  *  three calls are impacts and notifications, and a scrub wants the lightest
@@ -150,54 +176,103 @@ function TrendChartImpl({
   dots = [],
   reference,
   markers = [],
+  annotations = [],
   cursorLine = 0,
   height = 132,
   summary,
   pointLabels,
   bubbleLabels,
   formatY,
-  xLabels,
+  xTickLabel,
   openDay,
   audioGraph,
   testID,
 }: TrendChartProps) {
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
+  const { fontScale } = useWindowDimensions();
   const [width, setWidth] = useState(0);
-  const [menuIndex, setMenuIndex] = useState<number | null>(null);
-  // The day under the finger at touch-down — what the native context menu
-  // offers to open. Set at touch-down rather than at the long-press so its
-  // actions have re-rendered for this day before the menu reads them (~0.5 s).
-  const [pressIndex, setPressIndex] = useState<number | null>(null);
-  const nativeMenu = CONTEXT_MENUS && openDay != null;
   const n = dateKeys.length;
+  // The size axis text actually renders at — what the gutter and the label
+  // boxes are sized from.
+  const axisFont = font.tiny * Math.min(fontScale || 1, AXIS_MAX_SCALE);
 
-  const frame: Frame = useMemo(() => ({ width, height, ...PAD }), [width, height]);
+  const domain = useMemo(
+    () =>
+      domainOf(
+        [...lines.map((l) => l.values), ...dots.map((d) => d.values), reference ? [reference.value] : []],
+        { minSpan: 2 },
+      ),
+    [lines, dots, reference],
+  );
+  const ticks = useMemo(
+    () => (domain ? { top: formatY(domain.max), mid: formatY((domain.min + domain.max) / 2), bottom: formatY(domain.min) } : null),
+    [domain, formatY],
+  );
+  // The left gutter: the widest tick label plus a gap — the ticks live there
+  // and the data starts after it.
+  const gutter = ticks ? Math.max(labelWidth(ticks.top, axisFont), labelWidth(ticks.mid, axisFont), labelWidth(ticks.bottom, axisFont)) + 4 : PAD.padL;
+
+  const frame: Frame = useMemo(() => ({ width, height, ...PAD, padL: gutter }), [width, height, gutter]);
 
   const geometry = useMemo(() => {
-    const domain = domainOf(
-      [...lines.map((l) => l.values), ...dots.map((d) => d.values), reference ? [reference.value] : []],
-      { minSpan: 2 },
-    );
     if (!domain || width <= 0) return null;
+    const dotPoints = dots.map((d) => ({
+      dots: d,
+      pts: d.values
+        .map((v, i) => (v == null ? null : { x: xAt(i, n, frame), y: yAt(v, domain, frame) }))
+        .filter((p): p is { x: number; y: number } => p != null),
+    }));
+    const xs = dateKeys.map((_, i) => xAt(i, n, frame));
+    const lineYs = lines.map((l) => ysOf(l.values, domain, frame));
+    const cursorYs = (lineYs[cursorLine] ?? []).map((y) => (y == null ? -1 : y));
+    const lastIdx = lastIndexWithValue(lines[cursorLine]?.values ?? []);
+    const refY = reference ? yAt(reference.value, domain, frame) : null;
+    let refBox = null;
+    if (reference && refY != null) {
+      const points = [
+        ...dotPoints.flatMap((d) => d.pts),
+        ...lineYs.flatMap((ys) => ys.map((y, i) => (y == null ? null : { x: xs[i], y })).filter((p): p is { x: number; y: number } => p != null)),
+      ];
+      const heavy = lastIdx >= 0 && cursorYs[lastIdx] >= 0 ? [{ x: xs[lastIdx], y: cursorYs[lastIdx] }] : [];
+      refBox = placeRefLabel({
+        refY,
+        labelW: labelWidth(reference.label, axisFont) + 6,
+        labelH: Math.ceil(axisFont * 1.35),
+        width,
+        height,
+        minLeft: frame.padL,
+        points,
+        heavy,
+      });
+    }
     return {
-      domain,
       paths: lines.map((l) => ({
         line: l,
         ...linePaths(l.values, domain, frame, { dashedAt: l.dashedAt, bridgeGaps: l.bridgeGaps }),
       })),
-      dotPoints: dots.map((d) => ({
-        dots: d,
-        pts: d.values
-          .map((v, i) => (v == null ? null : { i, x: xAt(i, n, frame), y: yAt(v, domain, frame) }))
-          .filter((p): p is { i: number; x: number; y: number } => p != null),
-      })),
-      refY: reference ? yAt(reference.value, domain, frame) : null,
-      xs: dateKeys.map((_, i) => xAt(i, n, frame)),
-      cursorYs: ysOf(lines[cursorLine]?.values ?? [], domain, frame).map((y) => (y == null ? -1 : y)),
-      lastIdx: lastIndexWithValue(lines[cursorLine]?.values ?? []),
+      dotPaths: dotPoints.map(({ dots: d, pts }) => ({ dots: d, d: dotsPath(pts, d.radius ?? 2.5) })),
+      refY,
+      refBox,
+      xs,
+      cursorYs,
+      lastIdx,
     };
-  }, [lines, dots, reference, width, frame, dateKeys, n, cursorLine]);
+  }, [domain, lines, dots, reference, width, height, frame, dateKeys, n, cursorLine, axisFont]);
+
+  const xTicks = useMemo(() => {
+    if (!xTickLabel || !geometry || n === 0) return [];
+    const plotW = Math.max(0, width - frame.padL - frame.padR);
+    const count = Math.max(2, Math.min(5, Math.floor(plotW / X_TICK_SPACING)));
+    return xTickIndices(n, count).map((i) => {
+      const x = geometry.xs[i];
+      const left = Math.max(0, Math.min(width - X_TICK_BOX, x - X_TICK_BOX / 2));
+      // A box pushed against an edge aligns its text to that edge, so the
+      // first and last dates sit under the first and last days.
+      const align: 'left' | 'right' | 'center' = left <= 0 ? 'left' : left >= width - X_TICK_BOX ? 'right' : 'center';
+      return { i, left, align, label: xTickLabel(dateKeys[i]) };
+    });
+  }, [xTickLabel, geometry, n, width, frame, dateKeys]);
 
   const descriptor = useMemo(
     () =>
@@ -233,19 +308,22 @@ function TrendChartImpl({
   const labels = bubbleLabels ?? pointLabels;
   const f = frame;
   const canOpen = openDay != null;
+  const openIndex = useCallback(
+    (i: number) => {
+      const key = dateKeys[i];
+      if (key && openDay) openDay.onOpen(key);
+    },
+    [dateKeys, openDay],
+  );
 
-  // Memoised: rebuilding both gestures on every render re-attached them to the
+  // Memoised: rebuilding the gestures on every render re-attached them to the
   // detector each time the parent drew.
   const gesture = useMemo(() => {
-    const pan = Gesture.Pan()
+    // A sideways drag scrubs at once. Showing the cursor at touch-down instead
+    // flashed the bubble on every vertical scroll that began on the chart.
+    const drag = Gesture.Pan()
       .activeOffsetX([-8, 8])
       .failOffsetY([-14, 14])
-      .onBegin((e) => {
-        // Only remember the day here. Showing the cursor at touch-down flashed
-        // the bubble on every vertical scroll that happened to start on the
-        // chart; it appears once the drag is recognised as a scrub.
-        if (nativeMenu) scheduleOnRN(setPressIndex, indexAtX(e.x, n, f));
-      })
       .onStart((e) => {
         idx.value = indexAtX(e.x, n, f);
       })
@@ -260,17 +338,37 @@ function TrendChartImpl({
         idx.value = -1;
       });
 
-    // The native menu owns the long-press on iOS; this is the pill elsewhere.
-    const longPress = Gesture.LongPress()
-      .minDuration(450)
-      .enabled(canOpen && !nativeMenu)
+    // Touch and hold, then drag: the scrub starts where the finger rests,
+    // with a tick to say so. Moving first (a scroll) fails it.
+    const hold = Gesture.Pan()
+      .activateAfterLongPress(HOLD_TO_SCRUB_MS)
+      .failOffsetY([-14, 14])
       .onStart((e) => {
-        scheduleOnRN(setMenuIndex, indexAtX(e.x, n, f));
+        idx.value = indexAtX(e.x, n, f);
         scheduleOnRN(tick);
+      })
+      .onUpdate((e) => {
+        const next = indexAtX(e.x, n, f);
+        if (next !== idx.value) {
+          idx.value = next;
+          scheduleOnRN(tick);
+        }
+      })
+      .onFinalize(() => {
+        idx.value = -1;
       });
 
-    return Gesture.Race(pan, longPress);
-  }, [idx, n, f, canOpen, nativeMenu]);
+    // A tap opens the day under the finger in History.
+    const tap = Gesture.Tap()
+      .enabled(canOpen)
+      .maxDuration(HOLD_TO_SCRUB_MS + 60)
+      .maxDistance(10)
+      .onEnd((e, success) => {
+        if (success) scheduleOnRN(openIndex, indexAtX(e.x, n, f));
+      });
+
+    return Gesture.Race(drag, hold, tap);
+  }, [idx, n, f, canOpen, openIndex]);
 
   const cursorStyle = useAnimatedStyle(() => {
     const i = idx.value;
@@ -284,38 +382,15 @@ function TrendChartImpl({
       transform: [{ translateX: i < 0 ? 0 : (xs[i] ?? 0) - 4 }, { translateY: y < 0 ? 0 : y - 4 }],
     };
   });
-  const bubbleStyle = useAnimatedStyle(() => {
-    const i = idx.value;
-    // The plot's full width: a 220dp cap cut "maintenance 2,450 kcal · logged
-    // 1,980 kcal" off mid-number, worse in es-PR and pt-BR. Two lines at most.
-    return { opacity: i < 0 ? 0 : 1, width: f.width };
-  });
+  const bubbleStyle = useAnimatedStyle(() => ({ opacity: idx.value < 0 ? 0 : 1 }));
   const bubbleProps = useAnimatedProps(() => {
     const i = idx.value;
     return { text: i < 0 ? '' : (labels[i] ?? '') } as unknown as TextInputProps;
   });
 
-  const lastLabel =
-    reference && geometry?.refY != null ? (
-      <Text
-        style={[styles.refLabel, { top: Math.max(0, geometry.refY - 16), color: reference.color ?? colors.muted }]}
-        maxFontSizeMultiplier={1.3}
-        importantForAccessibility="no"
-        accessibilityElementsHidden
-      >
-        {reference.label}
-      </Text>
-    ) : null;
+  const tickStyle = { width: gutter - 4 };
+  const plotLeft = frame.padL - 2;
 
-  // The pill, announced: a sighted VoiceOver user who long-pressed hears what
-  // appeared rather than nothing (screen-reader users proper have the rotor
-  // action, `useAdjustableDays`).
-  const openMenu = menuIndex != null && openDay && dateKeys[menuIndex] ? openDay.label(dateKeys[menuIndex]) : null;
-  useEffect(() => {
-    if (openMenu) announce(openMenu);
-  }, [openMenu]);
-
-  const pressKey = pressIndex != null ? dateKeys[pressIndex] : undefined;
   const plot = (
     <GestureDetector gesture={gesture}>
       <AccessibleChart
@@ -327,15 +402,15 @@ function TrendChartImpl({
       >
         {geometry ? (
           <Svg width={width} height={height}>
-            {/* Top, middle and bottom gridlines — named by the tick labels
-                below. Two labels left the middle of a 2,000-wide kcal axis
-                to guesswork. */}
-            <Line x1={0} x2={width} y1={PAD.padT} y2={PAD.padT} stroke={colors.line} strokeWidth={1} />
-            <Line x1={0} x2={width} y1={height / 2} y2={height / 2} stroke={colors.line} strokeWidth={1} />
-            <Line x1={0} x2={width} y1={height - PAD.padB} y2={height - PAD.padB} stroke={colors.line} strokeWidth={1} />
+            {/* Top, middle and bottom gridlines — named by the tick labels in
+                the gutter. Two labels left the middle of a 2,000-wide kcal
+                axis to guesswork. */}
+            <Line x1={plotLeft} x2={width} y1={PAD.padT} y2={PAD.padT} stroke={colors.line} strokeWidth={1} />
+            <Line x1={plotLeft} x2={width} y1={height / 2} y2={height / 2} stroke={colors.line} strokeWidth={1} />
+            <Line x1={plotLeft} x2={width} y1={height - PAD.padB} y2={height - PAD.padB} stroke={colors.line} strokeWidth={1} />
             {geometry.refY != null ? (
               <Line
-                x1={0}
+                x1={plotLeft}
                 x2={width}
                 y1={geometry.refY}
                 y2={geometry.refY}
@@ -348,20 +423,27 @@ function TrendChartImpl({
                 strokeLinecap="round"
               />
             ) : null}
-            {geometry.dotPoints.map(({ dots: d, pts }) =>
-              pts.map((p) => (
-                <Circle key={`${d.key}-${p.i}`} cx={p.x} cy={p.y} r={d.radius ?? 2.5} fill={d.color} />
-              )),
-            )}
+            {annotations.map((a) => (
+              <Line
+                key={`a-${a.index}`}
+                x1={geometry.xs[a.index] ?? 0}
+                x2={geometry.xs[a.index] ?? 0}
+                y1={PAD.padT}
+                y2={height - PAD.padB}
+                stroke={colors.lineStrong}
+                strokeWidth={1}
+                strokeDasharray="2 3"
+              />
+            ))}
+            {/* One path per dot series, not a Circle per day. */}
+            {geometry.dotPaths.map(({ dots: d, d: path }) => (path ? <Path key={d.key} d={path} fill={d.color} /> : null))}
             {geometry.paths.map(({ line, solid, dashed, bridges }) => (
               <GLine key={line.key} solid={solid} dashed={dashed} bridges={bridges} color={line.color} width={line.width ?? 2.25} faint={colors.lineStrong} />
             ))}
             {/* Today's point, so the line visibly ENDS on the hero figure. */}
             {geometry.lastIdx >= 0 && geometry.cursorYs[geometry.lastIdx] >= 0 ? (
-              <Circle
-                cx={geometry.xs[geometry.lastIdx]}
-                cy={geometry.cursorYs[geometry.lastIdx]}
-                r={4}
+              <Path
+                d={dotsPath([{ x: geometry.xs[geometry.lastIdx], y: geometry.cursorYs[geometry.lastIdx] }], 4)}
                 fill={lines[cursorLine]?.color}
                 stroke={colors.card}
                 strokeWidth={2}
@@ -382,24 +464,57 @@ function TrendChartImpl({
             ))}
           </Svg>
         ) : null}
-        {geometry ? (
+        {geometry && ticks ? (
           <>
-            <Text style={[styles.tick, styles.tickTop]} maxFontSizeMultiplier={1.3} importantForAccessibility="no" accessibilityElementsHidden>
-              {formatY(geometry.domain.max)}
+            <Text style={[styles.tick, tickStyle, { top: PAD.padT - axisFont * 0.65 }]} maxFontSizeMultiplier={AXIS_MAX_SCALE} numberOfLines={1} importantForAccessibility="no" accessibilityElementsHidden>
+              {ticks.top}
             </Text>
             <Text
-              style={[styles.tick, { top: height / 2 - 8 }]}
-              maxFontSizeMultiplier={1.3}
+              style={[styles.tick, tickStyle, { top: height / 2 - axisFont * 0.65 }]}
+              maxFontSizeMultiplier={AXIS_MAX_SCALE}
+              numberOfLines={1}
               importantForAccessibility="no"
               accessibilityElementsHidden
               testID={testID ? `${testID}-tick-mid` : undefined}
             >
-              {formatY((geometry.domain.min + geometry.domain.max) / 2)}
+              {ticks.mid}
             </Text>
-            <Text style={[styles.tick, styles.tickBottom]} maxFontSizeMultiplier={1.3} importantForAccessibility="no" accessibilityElementsHidden>
-              {formatY(geometry.domain.min)}
+            <Text style={[styles.tick, tickStyle, { top: height - PAD.padB - axisFont * 0.65 }]} maxFontSizeMultiplier={AXIS_MAX_SCALE} numberOfLines={1} importantForAccessibility="no" accessibilityElementsHidden>
+              {ticks.bottom}
             </Text>
-            {lastLabel}
+            {reference && geometry.refBox ? (
+              <Text
+                style={[
+                  styles.refLabel,
+                  { left: geometry.refBox.left, top: geometry.refBox.top, width: geometry.refBox.width, color: reference.color ?? colors.muted },
+                ]}
+                maxFontSizeMultiplier={AXIS_MAX_SCALE}
+                numberOfLines={1}
+                importantForAccessibility="no"
+                accessibilityElementsHidden
+                testID={testID ? `${testID}-ref-label` : undefined}
+              >
+                {reference.label}
+              </Text>
+            ) : null}
+            {annotations.map((a) => {
+              const x = geometry.xs[a.index] ?? 0;
+              // Beside the mark, on whichever side has the room.
+              const right = x > width / 2;
+              return (
+                <Text
+                  key={`al-${a.index}`}
+                  style={[styles.annotation, right ? { right: width - x + 3 } : { left: x + 3 }, { top: PAD.padT }]}
+                  maxFontSizeMultiplier={AXIS_MAX_SCALE}
+                  numberOfLines={1}
+                  importantForAccessibility="no"
+                  accessibilityElementsHidden
+                  testID={testID ? `${testID}-annotation` : undefined}
+                >
+                  {a.label}
+                </Text>
+              );
+            })}
           </>
         ) : null}
         <Animated.View style={[styles.cursor, { height }, cursorStyle]} pointerEvents="none" />
@@ -410,7 +525,29 @@ function TrendChartImpl({
 
   return (
     <View testID={testID}>
-      {/* The bubble sits ABOVE the plot so the finger never covers it. */}
+      {plot}
+
+      {xTickLabel ? (
+        <View style={styles.xRow} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+          {/* Holds the row's height before the plot has a width, so the card
+              does not grow when the dates land. */}
+          <Text style={[styles.xLabel, styles.xSizer]} maxFontSizeMultiplier={AXIS_MAX_SCALE}> </Text>
+          {xTicks.map((tk) => (
+            <Text
+              key={tk.i}
+              style={[styles.xLabel, styles.xTick, { left: tk.left, textAlign: tk.align }]}
+              maxFontSizeMultiplier={AXIS_MAX_SCALE}
+              numberOfLines={1}
+            >
+              {tk.label}
+            </Text>
+          ))}
+        </View>
+      ) : null}
+
+      {/* The bubble floats over the card's header while a finger is down —
+          above the plot, so the finger never covers it, and reserving no
+          blank band when nobody is scrubbing. */}
       <Animated.View style={[styles.bubble, bubbleStyle]} pointerEvents="none" importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
         <AnimatedTextInput
           editable={false}
@@ -420,70 +557,9 @@ function TrendChartImpl({
           style={styles.bubbleText}
           defaultValue=""
           animatedProps={bubbleProps}
-          maxFontSizeMultiplier={1.3}
+          maxFontSizeMultiplier={AXIS_MAX_SCALE}
         />
       </Animated.View>
-
-      {nativeMenu && openDay ? (
-        // iOS: the system menu, lifted from the day under the finger, its
-        // sentence as the preview. Tapping the preview opens the day too.
-        <ContextMenu
-          title={pressKey ? openDay.label(pressKey) : undefined}
-          actions={
-            pressKey
-              ? [{ key: 'open', title: openDay.actionLabel, icon: 'calendar', onPress: () => openDay.onOpen(pressKey) }]
-              : []
-          }
-          preview={
-            pressKey && pressIndex != null ? (
-              <View style={styles.preview}>
-                <Text style={styles.previewText}>{pointLabels[pressIndex]}</Text>
-              </View>
-            ) : undefined
-          }
-          previewSize={{ width: 300, height: 88 }}
-          onPreviewPress={pressKey ? () => openDay.onOpen(pressKey) : undefined}
-        >
-          {plot}
-        </ContextMenu>
-      ) : (
-        plot
-      )}
-
-      {xLabels ? (
-        <View style={styles.xRow} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
-          <Text style={styles.xLabel} maxFontSizeMultiplier={1.3}>{xLabels[0]}</Text>
-          <Text style={styles.xLabel} maxFontSizeMultiplier={1.3}>{xLabels[1]}</Text>
-        </View>
-      ) : null}
-
-      {/* The long-press menu off iOS (and on an iOS binary without the native
-          menu views): a JS pill under the chart. */}
-      {!nativeMenu && openDay && menuIndex != null && dateKeys[menuIndex] ? (
-        <View style={styles.menu}>
-          <Pressable
-            style={styles.menuBtn}
-            accessibilityRole="button"
-            onPress={() => {
-              const key = dateKeys[menuIndex];
-              setMenuIndex(null);
-              openDay.onOpen(key);
-            }}
-            testID={testID ? `${testID}-open-day` : undefined}
-          >
-            <Text style={styles.menuText}>{openDay.label(dateKeys[menuIndex])}</Text>
-          </Pressable>
-          <Pressable
-            style={styles.menuClose}
-            accessibilityRole="button"
-            accessibilityLabel={openDay.closeLabel}
-            onPress={() => setMenuIndex(null)}
-            hitSlop={8}
-          >
-            <Text style={styles.menuCloseText}>×</Text>
-          </Pressable>
-        </View>
-      ) : null}
     </View>
   );
 }
@@ -502,17 +578,42 @@ export const TrendChart = memo(TrendChartImpl);
 
 const createStyles = ({ colors, shadow }: Theme) =>
   StyleSheet.create({
-    tick: { position: 'absolute', left: 2, fontSize: font.tiny, color: colors.faint, backgroundColor: colors.card, paddingHorizontal: 2 },
-    tickTop: { top: 0 },
-    tickBottom: { bottom: 0 },
-    refLabel: { position: 'absolute', right: 2, fontSize: font.tiny, fontWeight: '700', backgroundColor: colors.card, paddingHorizontal: 3 },
+    // In the gutter, right-aligned against the plot — no background, nothing
+    // under them to hide.
+    tick: { position: 'absolute', left: 0, fontSize: font.tiny, color: colors.faint, textAlign: 'right' },
+    // A card-coloured halo instead of an opaque box: legible across the dotted
+    // line it names, and a dot it happens to touch still shows through.
+    refLabel: {
+      position: 'absolute',
+      fontSize: font.tiny,
+      fontWeight: '700',
+      textAlign: 'right',
+      textShadowColor: colors.card,
+      textShadowRadius: 3,
+      textShadowOffset: { width: 0, height: 0 },
+    },
+    annotation: {
+      position: 'absolute',
+      fontSize: font.tiny,
+      fontWeight: '700',
+      color: colors.muted,
+      textShadowColor: colors.card,
+      textShadowRadius: 3,
+      textShadowOffset: { width: 0, height: 0 },
+    },
     cursor: { position: 'absolute', top: 0, left: 0, width: 1.5, marginLeft: -0.75, backgroundColor: colors.ink },
     cursorDot: { position: 'absolute', top: 0, left: 0, width: 8, height: 8, borderRadius: 4, borderWidth: 2, backgroundColor: colors.card },
-    // Two lines tall, always — a bubble that grew with its text would shove
-    // the plot down mid-scrub.
+    // Two lines tall, always — a bubble that grew with its text would jump
+    // mid-scrub. Anchored to the chart's top edge and drawn upward over the
+    // header.
     bubble: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      bottom: '100%',
       height: 40,
       marginBottom: space.xs,
+      zIndex: 2,
       borderRadius: radius.sm,
       backgroundColor: colors.ink,
       justifyContent: 'center',
@@ -529,13 +630,8 @@ const createStyles = ({ colors, shadow }: Theme) =>
       paddingTop: 0,
       paddingHorizontal: space.sm,
     },
-    preview: { flex: 1, justifyContent: 'center', padding: space.md, backgroundColor: colors.card },
-    previewText: { fontSize: font.small, color: colors.ink, fontWeight: '600' },
-    xRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 },
+    xRow: { marginTop: 2 },
+    xSizer: { opacity: 0 },
+    xTick: { position: 'absolute', top: 0, width: X_TICK_BOX },
     xLabel: { fontSize: font.tiny, color: colors.faint },
-    menu: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: space.xs, marginTop: space.sm },
-    menuBtn: { minHeight: 44, justifyContent: 'center', paddingHorizontal: space.md, borderRadius: radius.pill, backgroundColor: colors.ink },
-    menuText: { color: colors.onInk, fontSize: font.small, fontWeight: '700' },
-    menuClose: { minHeight: 44, minWidth: 44, alignItems: 'center', justifyContent: 'center' },
-    menuCloseText: { color: colors.muted, fontSize: font.h3 },
   });

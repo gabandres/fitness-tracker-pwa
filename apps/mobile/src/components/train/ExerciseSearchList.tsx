@@ -1,3 +1,4 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Text, TouchableOpacity, View } from 'react-native';
 import {
   type SeedExercise,
@@ -7,8 +8,13 @@ import {
 import type { Exercise } from '@/lib/workout';
 import { type I18nKey, useLocale, useT } from '@/i18n';
 import { useThemedStyles } from '@/lib/theme-context';
+import { font } from '@/theme';
 import { createStyles } from './train-styles';
 import { logStyleKey } from './train-shared';
+
+/** One row's identity in a multi-pick, across both halves of the list. */
+export const catalogPickKey = (e: Exercise) => `c:${e.id ?? e.name}`;
+export const seedPickKey = (s: SeedExercise) => `s:${s.key}`;
 
 /**
  * Exercise search results — the user's own catalog first, then the shipped
@@ -45,11 +51,23 @@ export function ExerciseSearchList({
   catalogLimit = 6,
   libraryLimit = 6,
   testIDPrefix = 'ex-search',
+  selected,
+  onToggleCatalog,
+  onToggleSeed,
 }: {
   query: string;
   catalog: readonly Exercise[];
   onPickCatalog: (e: Exercise) => void;
   onPickSeed: (s: SeedExercise) => void;
+  /**
+   * Multi-pick, for a host that offers it (the in-session add sheet): the
+   * picked rows by {@link catalogPickKey} / {@link seedPickKey}. With the two
+   * toggles given, every row carries a tick box at its end; a host without
+   * them keeps the one-tap rows exactly as they were.
+   */
+  selected?: ReadonlySet<string>;
+  onToggleCatalog?: (e: Exercise) => void;
+  onToggleSeed?: (s: SeedExercise) => void;
   /** Catalog rows to show. The browse case (empty query) wants more. */
   catalogLimit?: number;
   libraryLimit?: number;
@@ -71,49 +89,86 @@ export function ExerciseSearchList({
   const muscleLine = (seed: SeedExercise): string =>
     seed.muscles.map((m) => t(`train.muscle.${m}` as I18nKey)).join(' · ');
 
+  /** The tick box at a row's end, when the host multi-picks. A sibling of the
+   *  row's own button, not inside it, so VoiceOver reaches both. */
+  const tick = (key: string, name: string, onToggle: () => void, testID: string) => {
+    const on = selected?.has(key) ?? false;
+    return (
+      <TouchableOpacity
+        style={styles.setDoneCell}
+        onPress={onToggle}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: on }}
+        accessibilityLabel={t('train.selectExerciseA11y', { name })}
+        testID={testID}
+      >
+        <View style={[styles.doneBox, on && styles.doneBoxOn]}>
+          <Ionicons name="checkmark" size={font.small + 2} style={[styles.doneCheck, on && styles.doneCheckOn]} />
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
   return (
     <>
       {mine.length > 0 ? (
         <>
           <Text style={styles.searchGroup}>{t('train.searchMine')}</Text>
-          {mine.map((e, i) => (
-            <TouchableOpacity
-              key={e.id ?? `mine-${i}`}
-              style={styles.catalogRow}
-              onPress={() => onPickCatalog(e)}
-              // Indexed, not keyed by doc id: a UI test can know "the first
-              // match" but never a Firestore id it did not create.
-              testID={`${testIDPrefix}-mine-${i}`}
-            >
-              <Text style={styles.catalogName}>{e.name}</Text>
-              <Text style={styles.catalogStyle}>{t(logStyleKey(e.logStyle))}</Text>
-            </TouchableOpacity>
-          ))}
+          {mine.map((e, i) => {
+            const row = (
+              <TouchableOpacity
+                key={e.id ?? `mine-${i}`}
+                style={[styles.catalogRow, onToggleCatalog && styles.pickRowMain]}
+                onPress={() => onPickCatalog(e)}
+                // Indexed, not keyed by doc id: a UI test can know "the first
+                // match" but never a Firestore id it did not create.
+                testID={`${testIDPrefix}-mine-${i}`}
+              >
+                <Text style={styles.catalogName}>{e.name}</Text>
+                <Text style={styles.catalogStyle}>{t(logStyleKey(e.logStyle))}</Text>
+              </TouchableOpacity>
+            );
+            return onToggleCatalog ? (
+              <View key={e.id ?? `mine-${i}`} style={styles.pickRow}>
+                {row}
+                {tick(catalogPickKey(e), e.name, () => onToggleCatalog(e), `${testIDPrefix}-mine-${i}-pick`)}
+              </View>
+            ) : row;
+          })}
         </>
       ) : null}
 
       {library.length > 0 ? (
         <>
           <Text style={styles.searchGroup}>{t('train.searchLibrary')}</Text>
-          {library.map((seed, i) => (
-            <TouchableOpacity
-              key={seed.key}
-              style={styles.catalogRow}
-              onPress={() => onPickSeed(seed)}
-              testID={`${testIDPrefix}-lib-${i}`}
-            >
-              <View style={styles.searchMain}>
-                <Text style={styles.catalogName}>{seedExerciseName(seed, locale)}</Text>
-                {/* The muscle line is the reason to pick the library row over
-                    typing the same name: it is the metadata the free-type path
-                    cannot produce, and the weekly cluster audit reads it. */}
-                {seed.muscles.length > 0 ? (
-                  <Text style={styles.searchMuscles}>{muscleLine(seed)}</Text>
-                ) : null}
+          {library.map((seed, i) => {
+            const name = seedExerciseName(seed, locale);
+            const row = (
+              <TouchableOpacity
+                key={seed.key}
+                style={[styles.catalogRow, onToggleSeed && styles.pickRowMain]}
+                onPress={() => onPickSeed(seed)}
+                testID={`${testIDPrefix}-lib-${i}`}
+              >
+                <View style={styles.searchMain}>
+                  <Text style={styles.catalogName}>{name}</Text>
+                  {/* The muscle line is the reason to pick the library row over
+                      typing the same name: it is the metadata the free-type path
+                      cannot produce, and the weekly cluster audit reads it. */}
+                  {seed.muscles.length > 0 ? (
+                    <Text style={styles.searchMuscles}>{muscleLine(seed)}</Text>
+                  ) : null}
+                </View>
+                <Text style={styles.catalogStyle}>{t(logStyleKey(seed.logStyle))}</Text>
+              </TouchableOpacity>
+            );
+            return onToggleSeed ? (
+              <View key={seed.key} style={styles.pickRow}>
+                {row}
+                {tick(seedPickKey(seed), name, () => onToggleSeed(seed), `${testIDPrefix}-lib-${i}-pick`)}
               </View>
-              <Text style={styles.catalogStyle}>{t(logStyleKey(seed.logStyle))}</Text>
-            </TouchableOpacity>
-          ))}
+            ) : row;
+          })}
         </>
       ) : null}
 

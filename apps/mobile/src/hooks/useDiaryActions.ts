@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { DailyLog, LogEntry, MealPreset, MealType } from '@macrolog/core';
 import { useToast } from '@/components/Toast';
 import { useAddReceipt } from '@/hooks/useAddReceipt';
+import type { AddReceipt } from '@/hooks/useLogWrites';
 import type { LogWrites } from '@/hooks/useLogWrites';
 import { type I18nKey, useLocale, useT } from '@/i18n';
 import { capitalizeFirst } from '@/i18n/grammar';
@@ -158,7 +159,7 @@ export function useDiaryActions({
     openEdit(live ?? { ...entry, id, date: entry.timestamp ?? new Date() });
   }
 
-  async function onSave(entry: LogEntry) {
+  async function onSave(entry: LogEntry): Promise<AddReceipt | void> {
     if (editing?.id) {
       const before = editing;
       // An untouched form's Save writes nothing and says nothing.
@@ -212,12 +213,15 @@ export function useDiaryActions({
           fat: entry.fat,
           mealLabel: entry.mealLabel,
           mealType: entry.mealType,
+          note: entry.note,
+          at: entry.timestamp?.getTime(),
         });
       }
-      return;
+      return r;
     }
     if (party) haptics.celebrate();
     else haptics.success();
+    return r;
   }
 
   /** "Add all" from a described meal: N rows, ONE receipt, one Undo for all. */

@@ -257,3 +257,80 @@ export function trendMilestoneCrossed(
   const after = stepOf(nextLb);
   return after > before && after >= 1 ? after : null;
 }
+
+// ─── "Lowest since" (the weigh-in receipt) ──────────────────────
+
+/** A new low (or high) has to beat at least this many days of history to be
+ *  worth saying — "lowest since Tuesday" is noise, not a moment. */
+export const EXTREME_MIN_GAP_DAYS = 14;
+
+/**
+ * Is a weigh-in the lowest (losing) or highest (gaining) reading in a while —
+ * Happy Scale's "lowest since Mar 4"?
+ *
+ * Returns `{ sinceKey }` — the most recent EARLIER reading at least as low
+ * (as high, for `gain`), at least `minGapDays` back — or `{ sinceKey: null }`
+ * when nothing in `weights` is as low and the history before it spans
+ * `minGapDays` or more ("a new low"). `null` otherwise: no direction (a
+ * maintainer has no low to chase), a reading that is not the newest (a
+ * correction three weeks back is not a moment), or not enough history behind
+ * it to mean anything.
+ *
+ * On the SCALE reading rather than the trend, deliberately: the trend of
+ * anyone losing steadily is a new low almost every morning, and a moment that
+ * fires daily is wallpaper. A scale low that beats two weeks of mornings is
+ * the one people notice and screenshot.
+ *
+ * `weights` is the map BEFORE the write; `dateKey`/`weightLb` are the write.
+ * Ties go against the claim: an earlier reading equal to this one means it is
+ * not lower than everything since.
+ */
+export function extremeSince(
+  weights: Readonly<Record<string, number>>,
+  dateKey: string,
+  weightLb: number,
+  direction: 'lose' | 'gain' | null | undefined,
+  minGapDays: number = EXTREME_MIN_GAP_DAYS,
+): { sinceKey: string | null } | null {
+  if (direction !== 'lose' && direction !== 'gain') return null;
+  if (!Number.isFinite(weightLb)) return null;
+  let earliest: string | null = null;
+  let match: string | null = null;
+  for (const [k, v] of Object.entries(weights ?? {})) {
+    if (k > dateKey) return null;
+    if (k === dateKey || typeof v !== 'number' || !Number.isFinite(v)) continue;
+    if (earliest == null || k < earliest) earliest = k;
+    const atLeastAsFar = direction === 'lose' ? v <= weightLb : v >= weightLb;
+    if (atLeastAsFar && (match == null || k > match)) match = k;
+  }
+  if (earliest == null) return null;
+  const gap = (k: string): number =>
+    Math.round((parseYmd(dateKey).getTime() - parseYmd(k).getTime()) / 86_400_000);
+  if (match != null) return gap(match) >= minGapDays ? { sinceKey: match } : null;
+  return gap(earliest) >= minGapDays ? { sinceKey: null } : null;
+}
+
+// ─── Goal progress, judged on the trend ─────────────────────────
+
+/**
+ * Goal progress re-stated at `currentLb` — the TREND weight — keeping the
+ * start and goal `computeGoalProgress` found (Body re-score, bug 3).
+ *
+ * The scale reading made "Goal reached" a coin-flip near the line: one light
+ * morning said reached, the next said 0.6 lb to go. Happy Scale and MacroFactor
+ * both judge the goal on the trend, and the trend is the number Body already
+ * prints under the hero. Same clamps and the same directional `remaining` as
+ * `computeGoalProgress` (0 once past the goal, never the distance back).
+ */
+export function goalProgressAt<
+  P extends { startWeight: number; currentWeight: number; goalWeight: number; pct: number; remaining: number },
+>(progress: P, currentLb: number | null | undefined): P {
+  if (currentLb == null || !Number.isFinite(currentLb)) return progress;
+  const { startWeight: start, goalWeight: goal } = progress;
+  const total = Math.abs(goal - start);
+  if (total === 0) return progress;
+  const progressed = start > goal ? start - currentLb : currentLb - start;
+  const pct = Math.min(100, Math.max(0, Math.round((progressed / total) * 100)));
+  const remaining = Math.max(0, +(start > goal ? currentLb - goal : goal - currentLb).toFixed(1));
+  return { ...progress, currentWeight: currentLb, pct, remaining };
+}

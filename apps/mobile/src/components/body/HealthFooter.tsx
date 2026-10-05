@@ -1,11 +1,27 @@
 import { useRouter } from 'expo-router';
 import { Platform, StyleSheet, Text, TouchableOpacity } from 'react-native';
-import { useLocale, useT } from '@/i18n';
+import { type Locale, useLocale, useT } from '@/i18n';
 import { formatDate, formatTime } from '@/lib/date-format';
 import { useHealthStatus } from '@/lib/health-status';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, space } from '@/theme';
 import { BodyIcon } from './BodyIcon';
+
+/**
+ * When an import last ran, as a line says it: the time alone today ("9:41"),
+ * the day and time before that ("Oct 3 9:41"). One formatter for Body's
+ * footer and the Connected apps cards — Connected apps printed the date even
+ * for a sync a minute ago while the footer printed only the time, so the two
+ * screens described the same run two ways (re-score 3, Copy).
+ *
+ * Here, not in `health-status.ts`: that module is AsyncStorage and nothing
+ * else on purpose (its header), and a formatter pulls in the i18n registry.
+ */
+export function syncWhen(at: Date, locale: Locale, now: Date = new Date()): string {
+  return at.toDateString() === now.toDateString()
+    ? formatTime(at, locale)
+    : `${formatDate(at, locale, { month: 'short', day: 'numeric' })} ${formatTime(at, locale)}`;
+}
 
 /**
  * "Weight syncs from Apple Health · 9:41" (Body review, U11).
@@ -30,13 +46,7 @@ export function HealthFooter() {
   if (!status || Platform.OS === 'web') return null;
 
   const store = t(Platform.OS === 'ios' ? 'health.storeIos' : 'health.storeAndroid');
-  const at = status.lastSync ? new Date(status.lastSync.atMs) : null;
-  const sameDay = at != null && at.toDateString() === new Date().toDateString();
-  const when = at
-    ? sameDay
-      ? formatTime(at, locale)
-      : `${formatDate(at, locale, { month: 'short', day: 'numeric' })} ${formatTime(at, locale)}`
-    : null;
+  const when = status.lastSync ? syncWhen(new Date(status.lastSync.atMs), locale) : null;
   const line = !status.connected
     ? t('body.healthFooterOff', { store })
     : when

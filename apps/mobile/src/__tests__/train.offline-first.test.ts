@@ -291,3 +291,62 @@ describe('a lost create caught by a later edit', () => {
     await unmount();
   });
 });
+
+describe('activePending (Train re-score 3, bug 2)', () => {
+  it('holds until the device journal has answered — never "answered" with its session missing', async () => {
+    // The cached sessions list can clear `loading` before the journal read
+    // lands; a Start (or Siri's start) in that window began a second workout.
+    // Pinned on every render, not just the last: the screen gates its Start
+    // buttons and the intent on exactly this pair.
+    await AsyncStorage.setItem('ignia.activeSession.v1.u1', encodeJournal({ savedAt: Date.now(), session: liveSession() }));
+    mockFromCache = true;
+    const seen: [boolean, string | null][] = [];
+    const { result, unmount } = await renderHook(() => {
+      const train = useTrain();
+      seen.push([train.activePending, train.active?.id ?? null]);
+      return train;
+    });
+    await waitFor(() => expect(result.current.activePending).toBe(false));
+    expect(seen[0]).toEqual([true, null]);
+    expect(seen.some(([pending, id]) => !pending && id == null)).toBe(false);
+    expect(result.current.active?.id).toBe('live-1');
+    await unmount();
+  });
+
+  it('clears with nothing on the device too, so an empty account can start', async () => {
+    const { result, unmount } = await renderHook(() => useTrain());
+    await waitFor(() => expect(result.current.activePending).toBe(false));
+    expect(result.current.active).toBeNull();
+    await unmount();
+  });
+});
+
+describe('addManyToActive (Train re-score 3, multi-add)', () => {
+  it('appends every pick in order with ONE session write', async () => {
+    const { EXERCISE_LIBRARY } = jest.requireActual('@macrolog/core') as typeof import('@macrolog/core');
+    const seed = EXERCISE_LIBRARY.find((s) => (s.logStyle ?? 'weight-reps') === 'weight-reps')!;
+    const { result, unmount } = await renderHook(() => useTrain());
+    await flush();
+    await act(async () => {
+      await result.current.startWorkout();
+    });
+    await flush();
+    mockUpdateSession.mockClear();
+    await act(async () => {
+      await result.current.addManyToActive([
+        {
+          kind: 'catalog',
+          exercise: { id: 'e9', name: 'Curl', muscles: [], defaultCues: [], logStyle: 'weight-reps', createdAt: new Date() },
+          logStyle: 'weight-reps',
+          setKind: 'working',
+        },
+        { kind: 'seed', seed },
+      ]);
+    });
+    const exercises = result.current.active?.exercises ?? [];
+    expect(exercises.map((e) => e.exerciseId)).toEqual(['e9', 'ex-1']);
+    expect(exercises.every((e) => e.sets.length === 1 && e.sets[0].kind === 'working')).toBe(true);
+    expect(mockUpdateSession).toHaveBeenCalledTimes(1);
+    await unmount();
+  });
+});

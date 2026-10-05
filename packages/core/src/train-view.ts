@@ -436,6 +436,14 @@ export interface FinishSummary {
   /** Volume of the last completed session of the SAME template, or null when
    *  there is none to compare with (ad-hoc, or the first time). */
   previousVolume: number | null;
+  /** Names of the lifts with no logged set, in session order. Finishing drops
+   *  them (`dropEmptyExercises`), so the sheet says so BEFORE the save rather
+   *  than letting a forgotten lift vanish from the record unannounced. */
+  unstarted: string[];
+  /** The session's heaviest working set by estimated 1RM, `weight-reps` only;
+   *  null when nothing loaded was logged. The line the sheet leads with when
+   *  there is no record to celebrate. */
+  topSet: SessionPr | null;
 }
 
 /**
@@ -456,8 +464,22 @@ export function finishSummary(
   const prior = completed.filter((s) => s.status === 'completed' && (!session.id || s.id !== session.id));
   const best = bestE1RMByExercise(prior);
   const prs: SessionPr[] = [];
+  const unstarted: string[] = [];
+  let topSet: SessionPr | null = null;
+  let topMetric = 0;
   for (const ex of session.exercises) {
     const style = ex.logStyle ?? DEFAULT_LOG_STYLE;
+    if (!ex.sets.some((s) => isLoggedSet(s, style))) unstarted.push(ex.name);
+    if (style === 'weight-reps') {
+      for (const s of ex.sets) {
+        if (!isWorkingSet(s) || !isLoggedSet(s, style) || s.weight == null || s.weight <= 0 || s.reps == null) continue;
+        const m = metricForSet(s, style);
+        if (m > topMetric) {
+          topMetric = m;
+          topSet = { exerciseId: ex.exerciseId, name: ex.name, weight: s.weight, reps: s.reps };
+        }
+      }
+    }
     let top: WorkoutSet | null = null;
     for (const s of ex.sets) {
       if (!setBeatsBest(s, style, best[ex.exerciseId])) continue;
@@ -477,5 +499,7 @@ export function finishSummary(
     sets: sessionCounts(session).sets,
     prs,
     previousVolume: last ? sessionVolume(last) : null,
+    unstarted,
+    topSet,
   };
 }

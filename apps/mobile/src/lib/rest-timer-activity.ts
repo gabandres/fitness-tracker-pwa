@@ -136,18 +136,50 @@ export async function reconcileWithNative(
   return { type: 'restore', endsAt, seconds };
 }
 
-/** What the seam believes is on the lock screen — for tests. */
 /**
  * End rest activities nobody owns. `current` lives in JS memory, so after an
  * iOS memory kill or a reload mid-rest the Lock Screen kept a countdown the app
- * no longer knew about — and `end()` returns early with nothing to end. Called
- * once from the tab layout, AFTER a live session has had its chance to restore
- * its own rest (that effect runs first), so a real rest is kept.
+ * no longer knew about — and `end()` returns early with nothing to end.
+ *
+ * Called once from the tab layout on mount, which is BEFORE any live session
+ * can have restored its rest: Train is a lazy tab, and `ActiveSession` mounts
+ * only after `useTrain`'s journal read. So `current` is always null here after
+ * a cold start, and ending on that alone killed every live rest before
+ * {@link reconcileWithNative} could adopt it — the restore path never ran
+ * (Train re-score 3, bug 1). It now asks native first and leaves a deadline
+ * still in the FUTURE for the session to reclaim; a past one is a stale
+ * "Rest over" face and goes. A kept rest is looked at again just after its
+ * deadline (or on the first foreground past it — JS timers wait out a
+ * suspension), so one that no session reclaimed does not leave its "Rest over"
+ * face up until iOS's eight-hour ceiling.
+ *
+ * `now` is injectable for tests. Resolves once the decision is made; never
+ * rejects (the module's calls never do).
  */
-export function sweepOrphans(): void {
-  if (!current) void endAllRestActivities();
+export async function sweepOrphans(now = Date.now()): Promise<void> {
+  if (current) return;
+  const status = await getRestActivityStatus();
+  // A rest started while the status was being read owns the Lock Screen.
+  if (current) return;
+  const m = /^running:(\d+(?:\.\d+)?)$/.exec(status);
+  const endsAt = m ? Math.round(Number(m[1])) : 0;
+  if (endsAt > now) {
+    if (recheck) clearTimeout(recheck);
+    recheck = setTimeout(() => {
+      recheck = null;
+      // Reclaimed (a restored session set `current`) or replaced: not ours.
+      if (!current) void sweepOrphans();
+    }, endsAt - now + SWEEP_RECHECK_GRACE_MS);
+    return;
+  }
+  void endAllRestActivities();
 }
 
+/** How long past a kept rest's deadline the sweep looks again. */
+const SWEEP_RECHECK_GRACE_MS = 2000;
+let recheck: ReturnType<typeof setTimeout> | null = null;
+
+/** What the seam believes is on the lock screen — for tests. */
 export function __currentRestActivity(): RestActivityState | null {
   return current;
 }
@@ -216,4 +248,6 @@ export function applyRestInboxAction(
 export function __resetRestActivity(): void {
   current = null;
   lastExercise = null;
+  if (recheck) clearTimeout(recheck);
+  recheck = null;
 }

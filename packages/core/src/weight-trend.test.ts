@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  extremeSince,
+  goalProgressAt,
   pointsInRange,
   previousWeighIn,
   sortedWeighIns,
@@ -238,5 +240,64 @@ describe('dropOverriddenSamples — a deleted weigh-in stays deleted', () => {
     const list = [s({})];
     expect(dropOverriddenSamples(list, {})).toEqual(list);
     expect(dropOverriddenSamples(list, null)).toEqual(list);
+  });
+});
+
+describe('extremeSince — "lowest since" on the weigh-in receipt', () => {
+  const w = { '2026-09-01': 182, '2026-09-10': 180.5, '2026-09-20': 181.2, '2026-09-28': 181.0 };
+
+  it('names the most recent earlier reading at least as low', () => {
+    // 180.4 beats everything since Sep 10 (180.5 is higher) — and nothing is as low → a new low.
+    expect(extremeSince(w, '2026-10-05', 180.4, 'lose')).toEqual({ sinceKey: null });
+    // 180.7 is lower than Sep 20 and Sep 28, not lower than Sep 10's 180.5.
+    expect(extremeSince(w, '2026-10-05', 180.7, 'lose')).toEqual({ sinceKey: '2026-09-10' });
+  });
+
+  it('stays quiet when the reading it beats is under two weeks old', () => {
+    // 181.1 is lower than Sep 20 only; Sep 28 (181.0) is lower and 7 days back.
+    expect(extremeSince(w, '2026-10-05', 181.1, 'lose')).toBeNull();
+  });
+
+  it('ties go against the claim', () => {
+    expect(extremeSince({ '2026-09-01': 180 }, '2026-10-05', 180, 'lose')).toEqual({ sinceKey: '2026-09-01' });
+    expect(extremeSince({ '2026-09-30': 180 }, '2026-10-05', 180, 'lose')).toBeNull();
+  });
+
+  it('mirrors for gain', () => {
+    expect(extremeSince(w, '2026-10-05', 182.5, 'gain')).toEqual({ sinceKey: null });
+    expect(extremeSince(w, '2026-10-05', 181.5, 'gain')).toEqual({ sinceKey: '2026-09-01' });
+  });
+
+  it('never fires without a direction, on a past-day correction, or on thin history', () => {
+    expect(extremeSince(w, '2026-10-05', 170, null)).toBeNull();
+    expect(extremeSince(w, '2026-10-05', 170, undefined)).toBeNull();
+    expect(extremeSince(w, '2026-09-15', 170, 'lose')).toBeNull();
+    expect(extremeSince({}, '2026-10-05', 170, 'lose')).toBeNull();
+    expect(extremeSince({ '2026-10-01': 181 }, '2026-10-05', 170, 'lose')).toBeNull();
+  });
+
+  it('ignores the day being written (an edit of today is judged against the rest)', () => {
+    expect(extremeSince({ ...w, '2026-10-05': 185 }, '2026-10-05', 180.4, 'lose')).toEqual({ sinceKey: null });
+  });
+});
+
+describe('goalProgressAt — goal progress on the trend (Body re-score, bug 3)', () => {
+  const scale = { startWeight: 200, currentWeight: 179.6, goalWeight: 180, pct: 100, remaining: 0 };
+
+  it('re-states pct and remaining at the trend weight', () => {
+    // One light morning put the SCALE past the goal; the trend is still 0.6 above it.
+    const p = goalProgressAt(scale, 180.6);
+    expect(p).toEqual({ startWeight: 200, currentWeight: 180.6, goalWeight: 180, pct: 97, remaining: 0.6 });
+  });
+
+  it('is directional for a gain and clamps past the goal', () => {
+    const gain = { startWeight: 150, currentWeight: 160, goalWeight: 165, pct: 67, remaining: 5 };
+    expect(goalProgressAt(gain, 166)).toEqual({ ...gain, currentWeight: 166, pct: 100, remaining: 0 });
+    expect(goalProgressAt(gain, 148).pct).toBe(0);
+  });
+
+  it('passes the progress through when there is no trend', () => {
+    expect(goalProgressAt(scale, null)).toBe(scale);
+    expect(goalProgressAt(scale, Number.NaN)).toBe(scale);
   });
 });

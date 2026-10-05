@@ -22,8 +22,8 @@ const WRAP_FONT_SCALE = 1.35;
 
 /** The time row's four steppers, earliest first. Hour and five-minute steps:
  *  12:00 → 4:15 PM is seven taps, where a single 15-minute step took
- *  seventeen. JS only on purpose — a native picker would move the runtime
- *  fingerprint and cost a store build for one control. */
+ *  seventeen. The row's whole control where the binary has no native picker;
+ *  beside one they step aside (see `TimeOfDayRow`). */
 export const TIME_STEPS = [
   { minutes: -60, label: 'entry.timeMinusHour', a11y: 'entry.timeEarlierHourA11y', testID: 'entry-time-minus-hour' },
   { minutes: -5, label: 'entry.timeMinusMin', a11y: 'entry.timeEarlierMinA11y', testID: 'entry-time-minus-min' },
@@ -100,7 +100,7 @@ export function TimeOfDayRow({
   /** Settle the typed text (blur / Done). */
   onCommit: () => void;
   /** Set the time outright — given, the platform's own time picker replaces
-   *  the typed field where the binary has one (S20); the steps stay. */
+   *  the typed field AND the steps where the binary has one (S20). */
   onSet?: (next: Date) => void;
 }) {
   const t = useT();
@@ -129,19 +129,28 @@ export function TimeOfDayRow({
   dayStart.setHours(0, 0, 0, 0);
   const dayEnd = new Date(at);
   dayEnd.setHours(23, 59, 0, 0);
+  // The system picker alone (re-score gap 12): its wheel sets any minute in
+  // one gesture, and four ± steppers around it were seven controls in one row
+  // doing one job. Without it (Expo Go, an older binary) the steps remain the
+  // fast way, and the label opens the typed field.
+  if (onSet && hasNativeDateField) {
+    return (
+      <View style={styles.row}>
+        <NativeDateField
+          mode="time"
+          value={at}
+          onChange={onSet}
+          minimumDate={dayStart}
+          maximumDate={new Date(Math.min(dayEnd.getTime(), Date.now()))}
+          accessibilityLabel={t('entry.time')}
+          testID="entry-time-native"
+          style={styles.nativeField}
+        />
+      </View>
+    );
+  }
   const label =
-    onSet && hasNativeDateField ? (
-      <NativeDateField
-        mode="time"
-        value={at}
-        onChange={onSet}
-        minimumDate={dayStart}
-        maximumDate={new Date(Math.min(dayEnd.getTime(), Date.now()))}
-        accessibilityLabel={t('entry.time')}
-        testID="entry-time-native"
-        style={styles.label}
-      />
-    ) : draft != null ? (
+    draft != null ? (
       <SheetTextInput
         style={[styles.label, styles.input]}
         value={draft}
@@ -230,6 +239,9 @@ const createStyles = ({ colors }: Theme) =>
     stepText: { fontSize: font.small, fontWeight: '700', color: colors.ink },
     label: { flex: 1, textAlign: 'center', fontSize: font.body, color: colors.ink, fontWeight: '700' },
     labelTap: { flex: 1, alignItems: 'center', minHeight: 48, justifyContent: 'center' },
+    // The compact pill sizes itself; it starts the row like the date pill
+    // above it rather than floating in the middle of an empty line.
+    nativeField: { alignItems: 'flex-start' },
     labelText: { flex: 0 },
     // `muted`, not `faint`: 12pt text, and on iOS it can sit on the sheet's
     // material rather than on `paper` — the margin is worth more than the step

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import {
   type DatedWeight,
@@ -53,13 +53,20 @@ export function measurementSeries(measurements: readonly Measurement[], key: Mea
  * Each card is ONE accessible element with the whole sentence; the line itself
  * is decoration to a screen reader, because the sentence already says what it
  * shows.
+ *
+ * With `onOpen` each card is a button that opens that site's full chart and
+ * readings (`MeasurementSiteSheet`, re-score 3) — the drill-down MacroFactor
+ * and Apple Health have, and the thing people tap a sparkline expecting.
  */
 export function MeasurementTrends({
   measurements,
   unitSystem,
+  onOpen,
 }: {
   measurements: readonly Measurement[];
   unitSystem: UnitSystem;
+  /** Open one site's chart. Absent = the cards are not buttons. */
+  onOpen?: (site: MeasureKey) => void;
 }) {
   const t = useT();
   const locale = useLocale();
@@ -84,11 +91,15 @@ export function MeasurementTrends({
         const value = formatNumber(shownLast, locale);
         const label = t(field.labelKey);
         return (
-          <View
+          <TouchableOpacity
             key={field.key}
             style={styles.card}
+            disabled={!onOpen}
+            onPress={onOpen ? () => onOpen(field.key) : undefined}
             accessible
+            accessibilityRole={onOpen ? 'button' : 'text'}
             accessibilityLabel={t('body.measureTrendA11y', { field: label, value, unit, change: spoken, date })}
+            accessibilityHint={onOpen ? t('body.measureTrendHint') : undefined}
             testID={`measure-trend-${field.key}`}
           >
             <Text style={styles.label} numberOfLines={1}>
@@ -101,7 +112,7 @@ export function MeasurementTrends({
             <Text style={styles.since} numberOfLines={2}>
               {t('body.measureTrendSince', { delta: `${short} ${unit}`, date })}
             </Text>
-          </View>
+          </TouchableOpacity>
         );
       })}
     </View>
@@ -135,7 +146,7 @@ function Spark({ series }: { series: DatedWeight[] }) {
   );
 }
 
-const createStyles = ({ colors }: Theme) =>
+const createStyles = ({ colors, scheme }: Theme) =>
   StyleSheet.create({
     grid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
     // Two to a row, like the sheet's fields; `flexGrow` lets an odd last card
@@ -146,7 +157,9 @@ const createStyles = ({ colors }: Theme) =>
       backgroundColor: colors.card,
       borderRadius: radius.md,
       borderWidth: 1,
-      borderColor: colors.line,
+      // Framed in dark like the history rows (re-score 3): card on paper is
+      // 1.09:1 there, and the hairline alone did not show the edge.
+      borderColor: scheme === 'dark' ? `${colors.lineStrong}80` : colors.line,
       paddingHorizontal: space.md,
       paddingVertical: space.sm,
       gap: 2,

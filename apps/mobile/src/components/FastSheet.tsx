@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useEffect, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { Alert, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { SheetTextInput } from '@/components/SheetTextInput';
 import {
@@ -146,19 +146,17 @@ function dayPeriodLabel(tag: string, hour: number): string {
  * is also what people already expect, because it is what every clock and alarm
  * on the phone does.
  *
- * ## Still no native date picker, and the reason has not changed
+ * ## The native picker, where the binary has one (S20)
  *
- * `@react-native-community/datetimepicker` is a NATIVE module: adopting one
- * moves the Expo fingerprint, so no later fix to this screen could reach a user
- * over the air — a correction to a feature people are already using would wait
- * on two store binaries. A pure-JS wheel is the other option and it is a
- * gesture surface with momentum, snapping and initial-offset bugs, shipped to
- * production on a control nobody here can test on both platforms first.
- *
- * Two number fields and a day stepper need neither. They are ordinary
- * `TextInput`s, which is what every other entry sheet in this app already uses
- * — water, sleep and the weigh-in are all a typed number — so this is the
- * interaction the user has already learned, not a new one.
+ * This said "still no native date picker" until 1.2.5: a native module moves
+ * the Expo fingerprint, and a correction to a screen people already use should
+ * not wait on two store binaries. The 1.2.5 binary was cut for other native
+ * work anyway and carries `modules/native-date-picker`, so on it the day and
+ * the time are the system's own controls (`NativeDateField`) — with the ±1 day
+ * buttons kept either side of the date, because "the fast began yesterday" is
+ * the correction this sheet exists for. Every older binary an OTA reaches
+ * keeps the typed fields below, which are ordinary `TextInput`s like the
+ * water, sleep and weigh-in sheets.
  *
  * ## The three modes are one component
  *
@@ -528,24 +526,133 @@ interface TimeFieldProps {
 }
 
 /**
- * The time half of a fast's start or end. Where the binary carries the
- * platform picker (S20, `modules/native-date-picker`) it is that — the iOS
- * compact time control, the Material clock on Android — beside the day
- * stepper above it; the typed hour and minute below stay for older binaries.
- * The choice is a module constant, so a mounted field never switches kind.
+ * A fast's start or end, where the binary carries the platform picker (S20,
+ * `modules/native-date-picker`): the day row — ±1 day either side of the
+ * system date control — over the system time control. The typed hour and
+ * minute stay for older binaries. The choice is a module constant, so a
+ * mounted field never switches kind.
+ *
+ * The day row is not optional here. The first 1.2.5 cut rendered the native
+ * TIME control alone, so a fast could not move to another day at all: "the
+ * timer started this morning, the fast began last night" and any 24 h+ fast
+ * were unreachable on the new binary, though the old one did both (Body
+ * re-score 3, bug 1).
  */
 function TimeField(props: TimeFieldProps) {
   const t = useT();
+  const styles = useThemedStyles(createStyles);
   if (!hasNativeDateField) return <TypedTimeField {...props} />;
+  const { value, onChange, locale, testIDPrefix } = props;
+  // The pickers' ceiling is the present: nobody started or ended a fast in
+  // the future, and a running fast's end is not set here at all.
+  const now = new Date();
+  const name = t(testIDPrefix === 'fast-start' ? 'fast.started' : 'fast.ended');
   return (
-    <NativeDateField
-      mode="time"
-      value={props.value}
-      onChange={props.onChange}
-      maximumDate={new Date()}
-      accessibilityLabel={t(props.testIDPrefix === 'fast-start' ? 'fast.started' : 'fast.ended')}
-      testID={`${props.testIDPrefix}-native`}
-    />
+    <View style={styles.editor}>
+      <DayRow
+        value={value}
+        onChange={onChange}
+        locale={locale}
+        testIDPrefix={testIDPrefix}
+        max={now}
+        center={
+          <NativeDateField
+            mode="date"
+            value={value}
+            // The date control answers "which day"; the time of day stays
+            // what the time control below says.
+            onChange={(d) => onChange(clampToNow(withDay(value, d)))}
+            maximumDate={now}
+            accessibilityLabel={`${name}, ${t('entry.date')}`}
+            testID={`${testIDPrefix}-date-native`}
+            style={styles.dayNative}
+          />
+        }
+      />
+      <NativeDateField
+        mode="time"
+        value={value}
+        onChange={onChange}
+        maximumDate={now}
+        accessibilityLabel={name}
+        testID={`${testIDPrefix}-native`}
+      />
+    </View>
+  );
+}
+
+/** `base` moved to `day`'s calendar date, keeping its clock time. */
+function withDay(base: Date, day: Date): Date {
+  const d = new Date(base);
+  d.setFullYear(day.getFullYear(), day.getMonth(), day.getDate());
+  return d;
+}
+
+function clampToNow(d: Date): Date {
+  const now = Date.now();
+  return d.getTime() > now ? new Date(now) : d;
+}
+
+/**
+ * The day an instant fell on, with a step either side. `center` is what sits
+ * between the steps — the typed path's plain label, or the native date
+ * control. `max` (native path) disables a step that would land in the future.
+ */
+function DayRow({
+  value,
+  onChange,
+  locale,
+  testIDPrefix,
+  center,
+  max,
+}: {
+  value: Date;
+  onChange: (next: Date) => void;
+  locale: Locale;
+  testIDPrefix: string;
+  center?: ReactNode;
+  max?: Date;
+}) {
+  const t = useT();
+  const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
+  const canForward = max == null || addDays(value, 1).getTime() <= max.getTime();
+
+  function stepDay(delta: number) {
+    haptics.tap();
+    onChange(addDays(value, delta));
+  }
+
+  return (
+    <View style={styles.dayRow}>
+      <PressScale
+        scaleTo={0.9}
+        style={styles.dayBtn}
+        onPress={() => stepDay(-1)}
+        accessibilityRole="button"
+        accessibilityLabel={t('fast.dayEarlier')}
+        testID={`${testIDPrefix}-day-prev`}
+      >
+        <Ionicons name="chevron-back" size={18} color={colors.ink} />
+      </PressScale>
+      {center ?? (
+        <Text style={styles.dayText} testID={`${testIDPrefix}-day`}>
+          {formatDate(value, locale, { weekday: 'short', month: 'short', day: 'numeric' })}
+        </Text>
+      )}
+      <PressScale
+        scaleTo={0.9}
+        style={[styles.dayBtn, !canForward && styles.dayBtnOff]}
+        onPress={() => canForward && stepDay(1)}
+        disabled={!canForward}
+        accessibilityRole="button"
+        accessibilityLabel={t('fast.dayLater')}
+        accessibilityState={{ disabled: !canForward }}
+        testID={`${testIDPrefix}-day-next`}
+      >
+        <Ionicons name="chevron-forward" size={18} color={colors.ink} />
+      </PressScale>
+    </View>
   );
 }
 
@@ -627,38 +734,9 @@ function TypedTimeField({ value, onChange, locale, testIDPrefix, focusOnMount = 
     onChange(withTime(value, value.getHours() + (nextPm ? 12 : -12), value.getMinutes()));
   }
 
-  function stepDay(delta: number) {
-    haptics.tap();
-    onChange(addDays(value, delta));
-  }
-
   return (
     <View style={styles.editor}>
-      <View style={styles.dayRow}>
-        <PressScale
-          scaleTo={0.9}
-          style={styles.dayBtn}
-          onPress={() => stepDay(-1)}
-          accessibilityRole="button"
-          accessibilityLabel={t('fast.dayEarlier')}
-          testID={`${testIDPrefix}-day-prev`}
-        >
-          <Ionicons name="chevron-back" size={18} color={colors.ink} />
-        </PressScale>
-        <Text style={styles.dayText} testID={`${testIDPrefix}-day`}>
-          {formatDate(value, locale, { weekday: 'short', month: 'short', day: 'numeric' })}
-        </Text>
-        <PressScale
-          scaleTo={0.9}
-          style={styles.dayBtn}
-          onPress={() => stepDay(1)}
-          accessibilityRole="button"
-          accessibilityLabel={t('fast.dayLater')}
-          testID={`${testIDPrefix}-day-next`}
-        >
-          <Ionicons name="chevron-forward" size={18} color={colors.ink} />
-        </PressScale>
-      </View>
+      <DayRow value={value} onChange={onChange} locale={locale} testIDPrefix={testIDPrefix} />
 
       <View style={styles.timeRow}>
         <SheetTextInput
@@ -793,7 +871,9 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.lineStrong,
   },
+  dayBtnOff: { opacity: 0.35 },
   dayText: { fontSize: font.body, color: colors.ink, fontWeight: '700' },
+  dayNative: { flex: 1, alignItems: 'center' },
   timeRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   timeInput: {
     flex: 1,

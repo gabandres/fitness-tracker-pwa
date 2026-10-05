@@ -147,6 +147,7 @@ function EntryRow({
   onDelete,
   onMenu,
   onPickSlot,
+  moveOptions,
   onCopyToToday,
 }: {
   log: DailyLog;
@@ -156,6 +157,9 @@ function EntryRow({
   onMenu?: (log: DailyLog, remove: () => void) => void;
   /** Ask which meal to move the row to (absent: the row cannot move). */
   onPickSlot?: (log: DailyLog, remove: () => void) => void;
+  /** The meals this row can move to, as one-tap choices — iOS shows them as a
+   *  submenu inside the row's context menu (round-3 review). */
+  moveOptions?: { slot: MealType; title: string; run: () => void }[];
   onCopyToToday?: (log: DailyLog) => void;
 }) {
   const t = useT();
@@ -270,8 +274,13 @@ function EntryRow({
         ...(canSavePreset
           ? [{ key: 'preset', title: t('entry.savePresetShort'), icon: 'bolt', onPress: () => onSavePreset?.(log) }]
           : []),
-        ...(onPickSlot
-          ? [{ key: 'move', title: t('entry.moveTo'), icon: 'arrow.up.arrow.down', onPress: afterMenu(() => onPickSlot(log, remove)) }]
+        ...(moveOptions?.length
+          ? [{
+              key: 'move',
+              title: t('entry.moveTo'),
+              icon: 'arrow.up.arrow.down',
+              children: moveOptions.map((m) => ({ key: m.slot, title: m.title, onPress: m.run })),
+            }]
           : []),
         ...(onCopyToToday
           ? [{ key: 'copy', title: t('entry.copyToToday'), icon: 'doc.on.doc', onPress: () => onCopyToToday(log) }]
@@ -663,6 +672,15 @@ export function MealEntries({
                 onDelete={onDelete}
                 onMenu={openMenu}
                 onPickSlot={onMove ? pickSlot : undefined}
+                moveOptions={
+                  onMove
+                    ? moveTargets(log).map((slot) => ({
+                        slot,
+                        title: capitalizeFirst(t(SLOT_KEY[slot]), locale),
+                        run: () => onMove(log, slot),
+                      }))
+                    : undefined
+                }
                 onCopyToToday={onCopyToToday}
               />
             </Animated.View>

@@ -5,17 +5,19 @@ import {
   type UnitSystem,
   type WeightSeriesPoint,
   bodyWeightUnit,
-  parseYmd,
   sortMilestones,
   toDisplayWeight,
 } from '@macrolog/core';
 import { type I18nKey, type Locale, type TFn } from '@/i18n';
 import { useDismissedStub } from '@/hooks/useDismissedStub';
-import { formatDate, formatNumber } from '@/lib/date-format';
+import { usePersistedTab } from '@/hooks/usePersistedTab';
+import { MenuButton, type MenuButtonAction } from '@/components/MenuButton';
 import { PressScale } from '@/lib/motion';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space, type } from '@/theme';
+import { chartDate, chartNumber as formatNumber, signedNumber } from './chart-format';
+import { Glyph } from './Glyph';
 import { TrendChart, type TrendChartProps } from './TrendChart';
 
 /**
@@ -64,12 +66,39 @@ const RANGE_LABEL: Record<TrendRange, { label: I18nKey; a11y: I18nKey }> = {
   all: { label: 'trends.rangeAll', a11y: 'trends.rangeAllA11y' },
 };
 
+// Cached (`chart-format.ts`, re-score 3 bug B2): a year of days is ~3,300
+// date strings across the three cards, re-written per replay chunk.
 function shortDate(key: string, locale: Locale): string {
-  return formatDate(parseYmd(key), locale, { month: 'short', day: 'numeric' });
+  return chartDate(key, locale, 'short');
 }
 
 function longDate(key: string, locale: Locale): string {
-  return formatDate(parseYmd(key), locale, { weekday: 'short', month: 'short', day: 'numeric' });
+  return chartDate(key, locale, 'long');
+}
+
+/** The x-axis date formatter a card hands its chart, stable per locale. */
+function useXTickLabel(locale: Locale): (key: string) => string {
+  return useCallback((key: string) => shortDate(key, locale), [locale]);
+}
+
+/**
+ * The index of the day still in progress inside a window — the user's own day
+ * (`todayKey`, under their day boundary), which is NOT always the last key:
+ * the chart keys are calendar days (the estimator's), so between midnight and
+ * a 03:00 day start the live day is the second-to-last key and the last one is
+ * an empty calendar day (re-score 3, B4). Without a `todayKey`, the last key.
+ * -1 when the live day is not in the window at all.
+ */
+export function liveIndex(keys: readonly string[], todayKey: string | undefined): number {
+  if (todayKey == null) return keys.length - 1;
+  return keys.indexOf(todayKey);
+}
+
+/** Per-day values with the live day and anything after it blanked — a
+ *  lunchtime total is not a day. */
+function completeDaysOnly<T>(values: readonly (T | null)[], live: number): (T | null)[] {
+  const cut = live >= 0 ? live : values.length;
+  return values.map((v, i) => (i >= cut ? null : v));
 }
 
 /** Milestone ticks inside a window: the archive's `earnedAt` dates, by day. */
@@ -102,18 +131,73 @@ function windowCaption(days: number, t: TFn): string {
 }
 
 /** The three cards' shared "open this day" wiring, stable across renders. */
-function useOpenDay(onOpenDay: (dateKey: string) => void, t: TFn, locale: Locale, onUsed?: () => void): NonNullable<TrendChartProps['openDay']> {
+function useOpenDay(onOpenDay: (dateKey: string) => void, t: TFn, onUsed?: () => void): NonNullable<TrendChartProps['openDay']> {
   return useMemo(
     () => ({
-      label: (key: string) => t('trends.chart.openDay', { date: longDate(key, locale) }),
       actionLabel: t('trends.chart.openDayAction'),
-      closeLabel: t('a11y.close'),
       onOpen: (key: string) => {
         onUsed?.();
         onOpenDay(key);
       },
     }),
-    [onOpenDay, t, locale, onUsed],
+    [onOpenDay, t, onUsed],
+  );
+}
+
+/**
+ * The window caption on the cards without chips, as a pull-down: the weight
+ * and protein cards follow the maintenance card's 1M/3M/All, and "Last 30
+ * days" said so but offered no way to change it short of scrolling back up
+ * (re-score 3, U4). A system menu on the caption itself keeps the card as
+ * quiet as it was. Where the binary has no native menu (Expo Go, web) a tap
+ * steps to the next range.
+ */
+function RangeMenu({
+  range,
+  onRange,
+  cap,
+  days,
+  t,
+  testID,
+}: {
+  range: TrendRange;
+  onRange: (r: TrendRange) => void;
+  cap: number;
+  /** The days actually drawn — what the caption names. */
+  days: number;
+  t: TFn;
+  testID: string;
+}) {
+  const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
+  const ranges = rangesFor(cap);
+  const caption = windowCaption(days, t);
+  const actions: MenuButtonAction[] = ranges.map((r) => ({
+    key: r,
+    title: t(RANGE_LABEL[r].a11y, { n: cap }),
+    sfSymbol: r === range ? 'checkmark' : undefined,
+    onPress: () => {
+      if (r !== range) onRange(r);
+    },
+  }));
+  return (
+    <MenuButton
+      actions={actions}
+      title={t('trends.chart.rangeMenuTitle')}
+      accessibilityLabel={t('trends.chart.rangeMenuA11y', { range: caption })}
+      accessibilityHint={t('trends.chart.rangeMenuHint')}
+      testID={`${testID}-menu`}
+      onFallbackPress={() => {
+        haptics.tap();
+        onRange(ranges[(ranges.indexOf(range) + 1) % ranges.length]);
+      }}
+      style={styles.rangeMenu}
+    >
+      <View style={styles.rangeFace} pointerEvents="none">
+        <Text style={styles.rangeFaceText} testID={testID} maxFontSizeMultiplier={1.6}>{caption}</Text>
+        <Glyph ios="chevron.down" android="chevron-down" size={11} color={colors.teal} />
+      </View>
+    </MenuButton>
   );
 }
 
@@ -189,19 +273,23 @@ export interface ExpenditureCardProps {
   /** The chart cap in days (which range chips exist). */
   cap: number;
   onOpenDay: (dateKey: string) => void;
+  /** The user's day in progress (`useTrends().todayKey`); defaults to the
+   *  last key. */
+  todayKey?: string;
   t: TFn;
   locale: Locale;
 }
 
-function ExpenditureCardImpl({ keys, intake, series, days, target, milestones, range, onRange, cap, onOpenDay, t, locale }: ExpenditureCardProps) {
+function ExpenditureCardImpl({ keys, intake, series, days, target, milestones, range, onRange, cap, onOpenDay, todayKey, t, locale }: ExpenditureCardProps) {
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
-  // "Touch and hold a day" — nothing said a day could be opened at all
-  // (review S20). Shown under this, the first chart, until a day has been
-  // opened from any chart once; device-local, like the stub dismissals.
+  // "Tap a day" — nothing said a day could be opened at all (review S20).
+  // Shown under this, the first chart, until a day has been opened from any
+  // chart once; device-local, like the stub dismissals.
   const [hintSeen, markHintSeen] = useDismissedStub('trends.hint.openDay.seen');
-  const openDay = useOpenDay(onOpenDay, t, locale, hintSeen ? undefined : markHintSeen);
+  const openDay = useOpenDay(onOpenDay, t, hintSeen ? undefined : markHintSeen);
   const formatY = useCallback((v: number) => formatNumber(Math.round(v / 10) * 10, locale), [locale]);
+  const xTickLabel = useXTickLabel(locale);
 
   const view = useMemo(() => {
     const k = keys.slice(-days);
@@ -213,6 +301,10 @@ function ExpenditureCardImpl({ keys, intake, series, days, target, milestones, r
     const kcal = aligned.map((p) => p?.kcal ?? null);
     const isFormula = aligned.map((p) => p?.source === 'formula');
     const eat = intake.slice(-days);
+    const live = liveIndex(k, todayKey);
+    // The day the dashed formula stretch turns solid — the estimate's first
+    // day measured from the user's own data, marked where it happened.
+    const flip = aligned.findIndex((p, i) => i > 0 && isFormula[i - 1] && p?.source === 'measured');
     const { marks, names } = milestoneMarks(milestones, k);
     const labels: string[] = [];
     const bubbles: string[] = [];
@@ -224,9 +316,15 @@ function ExpenditureCardImpl({ keys, intake, series, days, target, milestones, r
         p?.kcal == null
           ? t('trends.chart.expNone', { date })
           : t(p.source === 'formula' ? 'trends.chart.expFormula' : 'trends.chart.expMeasured', { date, kcal: kcalText });
-      const ate = eat[i] != null ? t('trends.chart.ate', { kcal: formatNumber(eat[i] as number, locale) }) : t('trends.chart.notLogged');
+      // The live day's intake is a running total, and is said as one — the
+      // audio graph and the dots leave it out (re-score 3, B6).
+      const ate =
+        eat[i] != null
+          ? t(i === live ? 'trends.chart.ateSoFar' : 'trends.chart.ate', { kcal: formatNumber(eat[i] as number, locale) })
+          : t('trends.chart.notLogged');
       const ms = milestoneWords(names[i], t);
-      labels.push([est, ate, ...ms].join(' · '));
+      const flipWords = i === flip ? [t('trends.chart.measuredFrom')] : [];
+      labels.push([est, ate, ...flipWords, ...ms].join(' · '));
       // The bubble's short form: date and numbers, the milestone named — a
       // diamond on the baseline is otherwise anonymous.
       const shortEst =
@@ -237,16 +335,15 @@ function ExpenditureCardImpl({ keys, intake, series, days, target, milestones, r
     });
     const measured = aligned.filter((p): p is TdeeSeriesPoint => p?.source === 'measured' && p.kcal != null);
     const hasFormula = isFormula.some(Boolean);
+    const dots = completeDaysOnly(eat, live);
     // Said by state (review S20, bug 7): it always promised a dashed target
     // line — even with no target drawn — never mentioned the dashed formula
     // stretch, and told a seed-only account it had a "formula estimate".
+    const from = measured.length >= 2 ? (measured[0].kcal as number) : null;
+    const to = measured.length >= 2 ? (measured[measured.length - 1].kcal as number) : null;
     const head =
-      measured.length >= 2
-        ? t('trends.chart.expSummary', {
-            days: k.length,
-            from: formatNumber(measured[0].kcal as number, locale),
-            to: formatNumber(measured[measured.length - 1].kcal as number, locale),
-          })
+      from != null && to != null
+        ? t('trends.chart.expSummary', { days: k.length, from: formatNumber(from, locale), to: formatNumber(to, locale) })
         : hasFormula
           ? t('trends.chart.expSummaryFormula', { days: k.length })
           : t('trends.chart.expSummarySeed', { days: k.length });
@@ -258,9 +355,19 @@ function ExpenditureCardImpl({ keys, intake, series, days, target, milestones, r
     ]
       .filter(Boolean)
       .join(' ');
-    const xLabels: [string, string] = [shortDate(k[0], locale), shortDate(k[k.length - 1], locale)];
-    return { k, kcal, isFormula, eat, labels, bubbles, summary, marks, hasFormula, xLabels };
-  }, [keys, intake, series, days, milestones, target, t, locale]);
+    // What the range did, in sight — it used to exist only as screen-reader
+    // text (re-score 3, U1). Without two measured days there is no change to
+    // state, so the visible line is the same head sentence VoiceOver hears:
+    // a seed-only account saw an empty box and no words at all (C2).
+    const readout =
+      from != null && to != null
+        ? t('trends.chart.expChange', { from: formatNumber(from, locale), to: formatNumber(to, locale), delta: signedNumber(to - from, locale) })
+        : head;
+    // Nothing to draw: no estimate on any day and nothing eaten.
+    const empty = kcal.every((v) => v == null) && dots.every((v) => v == null);
+    const annotations = flip > 0 ? [{ index: flip, label: t('trends.chart.measuredMark') }] : [];
+    return { k, kcal, isFormula, dots, labels, bubbles, summary, readout, readoutIsChange: from != null, empty, marks, hasFormula, annotations };
+  }, [keys, intake, series, days, milestones, target, todayKey, t, locale]);
 
   const lines = useMemo(
     () => [
@@ -276,9 +383,9 @@ function ExpenditureCardImpl({ keys, intake, series, days, target, milestones, r
   );
   // Today's dot is left off the plot: a half-logged day (lunch at 380 kcal)
   // stretched the axis down to it and flattened the estimate into a ruler line.
-  // Its value still reads in the per-day stepper.
+  // Its value still reads in the per-day stepper, as "so far".
   const dots = useMemo(
-    () => [{ key: 'intake', values: [...view.eat.slice(0, -1), null], color: colors.lineStrong, radius: 2.25 }],
+    () => [{ key: 'intake', values: view.dots, color: colors.lineStrong, radius: 2.25 }],
     [view, colors.lineStrong],
   );
   // The audio graph's words (iOS VoiceOver, `AccessibleChart`): the legend's
@@ -307,37 +414,53 @@ function ExpenditureCardImpl({ keys, intake, series, days, target, milestones, r
   return (
     <View style={styles.card} testID="expenditure-card">
       <View style={styles.head}>
-        <Text style={styles.title} accessibilityRole="header">{t('trends.expenditureTitle')}</Text>
+        <View style={styles.titleBlock}>
+          <Text style={styles.title} accessibilityRole="header">{t('trends.expenditureTitle')}</Text>
+          {/* Sighted-only: the chart's own label says the same thing. */}
+          {series != null ? (
+            <Text
+              style={view.readoutIsChange ? styles.readout : styles.caption}
+              accessibilityElementsHidden
+              importantForAccessibility="no"
+              testID="expenditure-readout"
+            >
+              {view.readout}
+            </Text>
+          ) : null}
+        </View>
         <RangeChips range={range} onChange={onRange} cap={cap} t={t} />
       </View>
       {series == null ? (
         <View style={styles.placeholder} testID="expenditure-pending" />
-      ) : (
+      ) : view.empty ? null : (
         <TrendChart
           dateKeys={view.k}
           lines={lines}
           dots={dots}
           reference={reference}
           markers={view.marks}
+          annotations={view.annotations}
           summary={view.summary}
           pointLabels={view.labels}
           bubbleLabels={view.bubbles}
           formatY={formatY}
-          xLabels={view.xLabels}
+          xTickLabel={xTickLabel}
           openDay={openDay}
           audioGraph={audioGraph}
           testID="expenditure-chart"
         />
       )}
-      <View style={styles.legend} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-        <LegendItem color={colors.accent} label={t('trends.legendMaintenance')} />
-        {view.hasFormula ? <LegendItem color={colors.accent} label={t('trends.legendFormula')} dashed /> : null}
-        <LegendItem color={colors.lineStrong} label={t('trends.legendIntake')} dot />
-        {target > 0 ? <LegendItem color={colors.muted} label={t('trends.legendTarget')} dotted /> : null}
-      </View>
+      {view.empty && series != null ? null : (
+        <View style={styles.legend} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          <LegendItem color={colors.accent} label={t('trends.legendMaintenance')} />
+          {view.hasFormula ? <LegendItem color={colors.accent} label={t('trends.legendFormula')} dashed /> : null}
+          <LegendItem color={colors.lineStrong} label={t('trends.legendIntake')} dot />
+          {target > 0 ? <LegendItem color={colors.muted} label={t('trends.legendTarget')} dotted /> : null}
+        </View>
+      )}
       {/* Sighted-only: VoiceOver and TalkBack users have "Open this day in
           History" as an action on the chart itself. */}
-      {series != null && !hintSeen ? (
+      {series != null && !view.empty && !hintSeen ? (
         <Text style={styles.hint} accessibilityElementsHidden importantForAccessibility="no" testID="trends-open-day-hint">
           {t('trends.chart.openDayHint')}
         </Text>
@@ -358,21 +481,27 @@ export interface WeightTrendCardProps {
   milestones: Record<string, Date>;
   onOpenBody: () => void;
   onOpenDay: (dateKey: string) => void;
+  /** The shared range. Without it the caption is static text. */
+  range?: TrendRange;
+  onRange?: (r: TrendRange) => void;
+  cap?: number;
   t: TFn;
   locale: Locale;
 }
 
-function WeightTrendCardImpl({ keys, series, days, unitSystem, milestones, onOpenBody, onOpenDay, t, locale }: WeightTrendCardProps) {
+function WeightTrendCardImpl({ keys, series, days, unitSystem, milestones, onOpenBody, onOpenDay, range, onRange, cap, t, locale }: WeightTrendCardProps) {
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const unit = bodyWeightUnit(unitSystem);
-  const openDay = useOpenDay(onOpenDay, t, locale);
+  const openDay = useOpenDay(onOpenDay, t);
   const formatY = useCallback((v: number) => formatNumber(v, locale, { maximumFractionDigits: 1 }), [locale]);
+  const xTickLabel = useXTickLabel(locale);
 
   const view = useMemo(() => {
     const k = keys.slice(-days);
     const s = series.slice(-days);
-    const show = (lb: number) => formatNumber(toDisplayWeight(lb, unitSystem), locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    const oneDecimal = { minimumFractionDigits: 1, maximumFractionDigits: 1 };
+    const show = (lb: number) => formatNumber(toDisplayWeight(lb, unitSystem), locale, oneDecimal);
     const scale = s.map((p) => (p.scale == null ? null : toDisplayWeight(p.scale, unitSystem)));
     const trend = s.map((p) => (p.trend == null ? null : toDisplayWeight(p.trend, unitSystem)));
     const { marks, names } = milestoneMarks(milestones, k);
@@ -402,20 +531,27 @@ function WeightTrendCardImpl({ keys, series, days, unitSystem, milestones, onOpe
     const first = trended[0];
     const last = trended[trended.length - 1];
     const delta = first != null && last != null ? last - first : 0;
-    const trendKey: I18nKey =
-      Math.abs(delta) < (unitSystem === 'metric' ? 0.2 : 0.5) ? 'a11y.trend.flat' : delta < 0 ? 'a11y.trend.down' : 'a11y.trend.up';
+    const flat = Math.abs(delta) < (unitSystem === 'metric' ? 0.2 : 0.5);
+    const trendKey: I18nKey = flat ? 'a11y.trend.flat' : delta < 0 ? 'a11y.trend.down' : 'a11y.trend.up';
     const summary =
       first != null && last != null
         ? t('a11y.chart.weight', {
             days: k.length,
-            from: formatNumber(first, locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
-            to: formatNumber(last, locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+            from: formatNumber(first, locale, oneDecimal),
+            to: formatNumber(last, locale, oneDecimal),
             unit,
             trend: t(trendKey),
           })
         : t('trends.chart.weightEmpty', { days: k.length });
-    const xLabels: [string, string] = [shortDate(k[0], locale), shortDate(k[k.length - 1], locale)];
-    return { k, scale, trend, labels, bubbles, summary, marks, weighIns, xLabels };
+    // The change over the window, in sight (re-score 3, U1) — on the same
+    // steady threshold the summary uses.
+    const readout =
+      first != null && last != null
+        ? flat
+          ? t('trends.chart.weightSteady')
+          : t('trends.chart.weightChange', { delta: signedNumber(delta, locale, oneDecimal), u: unit })
+        : null;
+    return { k, scale, trend, labels, bubbles, summary, readout, marks, weighIns };
   }, [keys, series, days, unitSystem, milestones, t, locale, unit]);
 
   const lines = useMemo(() => [{ key: 'trend', values: view.trend, color: colors.teal, width: 2.5 }], [view, colors.teal]);
@@ -440,7 +576,18 @@ function WeightTrendCardImpl({ keys, series, days, unitSystem, milestones, onOpe
       <View style={styles.head}>
         <View style={styles.titleBlock}>
           <Text style={styles.title} accessibilityRole="header">{t('trends.weightChartTitle')}</Text>
-          <Text style={styles.caption} testID="weight-trend-window">{windowCaption(view.k.length, t)}</Text>
+          <View style={styles.captionRow}>
+            {range && onRange && cap ? (
+              <RangeMenu range={range} onRange={onRange} cap={cap} days={view.k.length} t={t} testID="weight-trend-window" />
+            ) : (
+              <Text style={styles.caption} testID="weight-trend-window">{windowCaption(view.k.length, t)}</Text>
+            )}
+            {view.readout && view.weighIns > 0 ? (
+              <Text style={styles.readout} accessibilityElementsHidden importantForAccessibility="no" testID="weight-trend-readout">
+                {view.readout}
+              </Text>
+            ) : null}
+          </View>
         </View>
         <PressScale
           style={styles.link}
@@ -467,7 +614,7 @@ function WeightTrendCardImpl({ keys, series, days, unitSystem, milestones, onOpe
           pointLabels={view.labels}
           bubbleLabels={view.bubbles}
           formatY={formatY}
-          xLabels={view.xLabels}
+          xTickLabel={xTickLabel}
           openDay={openDay}
           audioGraph={audioGraph}
           testID="weight-trend-chart"
@@ -483,7 +630,7 @@ function WeightTrendCardImpl({ keys, series, days, unitSystem, milestones, onOpe
 
 export const WeightTrendCard = memo(WeightTrendCardImpl);
 
-// ─── Protein ─────────────────────────────────────────────────────────────────
+// ─── Macros (protein, carbs, fat) ────────────────────────────────────────────
 
 /** The protein line's smoothing: a trailing average over this many days. A
  *  single day's protein swings with one meal; a week is the unit the target
@@ -510,31 +657,66 @@ export function trailingMean(values: readonly (number | null)[], window: number)
   });
 }
 
+/**
+ * The macros the card can plot. Protein leads (it has a target and is the one
+ * the app coaches); carbs and fat were never drawn over time at all while
+ * Cronometer charts every nutrient (re-score 3, U3). Fibre is not here because
+ * Ignia does not record it — a `DailyLog` has no fibre field, and adding one
+ * is a rules change, not a chart.
+ */
+export const MACRO_TABS = ['protein', 'carbs', 'fat'] as const;
+export type MacroTab = (typeof MACRO_TABS)[number];
+
+const MACRO_LABEL: Record<MacroTab, I18nKey> = { protein: 'macro.protein', carbs: 'macro.carbs', fat: 'macro.fat' };
+/** The lower-case noun the per-day sentences use ("42 g carbs"). Protein
+ *  keeps its own, older strings. */
+const MACRO_NAME: Record<Exclude<MacroTab, 'protein'>, I18nKey> = { carbs: 'trends.chart.carbsName', fat: 'trends.chart.fatName' };
+
 export interface ProteinTrendCardProps {
   keys: readonly string[];
   /** Protein (g) per day, null on a day with no food logged. */
   protein: readonly (number | null)[];
+  /** Carbs / fat (g) per day, null on a day without them. Omit and the card
+   *  is protein-only, with no selector. */
+  carbs?: readonly (number | null)[];
+  fat?: readonly (number | null)[];
   days: number;
   target: number;
   milestones: Record<string, Date>;
   onOpenDay: (dateKey: string) => void;
+  /** The user's day in progress (`useTrends().todayKey`). */
+  todayKey?: string;
+  range?: TrendRange;
+  onRange?: (r: TrendRange) => void;
+  cap?: number;
   t: TFn;
   locale: Locale;
 }
 
-function ProteinTrendCardImpl({ keys, protein, days, target, milestones, onOpenDay, t, locale }: ProteinTrendCardProps) {
+function ProteinTrendCardImpl({ keys, protein, carbs, fat, days, target, milestones, onOpenDay, todayKey, range, onRange, cap, t, locale }: ProteinTrendCardProps) {
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
-  const openDay = useOpenDay(onOpenDay, t, locale);
+  const openDay = useOpenDay(onOpenDay, t);
   const formatY = useCallback((v: number) => formatNumber(Math.round(v), locale), [locale]);
+  const xTickLabel = useXTickLabel(locale);
+  const selectable = carbs != null && fat != null;
+  // Remembered per device, like the panel tabs on this screen.
+  const [macroRaw, setMacro] = usePersistedTab('trends.macro', MACRO_TABS, 'protein');
+  const macro: MacroTab = selectable ? (macroRaw as MacroTab) : 'protein';
+  const isProtein = macro === 'protein';
+  const goal = isProtein ? target : 0;
 
   const view = useMemo(() => {
+    const source = macro === 'carbs' ? (carbs ?? []) : macro === 'fat' ? (fat ?? []) : protein;
     const k = keys.slice(-days);
+    const live = liveIndex(k, todayKey);
     // Today is left out of the dots and the average, for the reason the
     // maintenance chart leaves today's intake dot out: a lunchtime total is
     // not a day's protein.
-    const g = [...protein.slice(-days).slice(0, -1), null];
-    const avg = trailingMean(g, PROTEIN_AVG_DAYS).map((v, i) => (i === g.length - 1 ? null : v));
+    const g = completeDaysOnly(source.slice(-days), live);
+    const avg = trailingMean(g, PROTEIN_AVG_DAYS).map((v, i) => (live >= 0 && i >= live ? null : v));
+    const name = isProtein ? '' : t(MACRO_NAME[macro as Exclude<MacroTab, 'protein'>]);
+    const title = t(isProtein ? 'trends.proteinChartTitle' : MACRO_LABEL[macro]);
     const { marks, names } = milestoneMarks(milestones, k);
     const labels: string[] = [];
     const bubbles: string[] = [];
@@ -544,29 +726,38 @@ function ProteinTrendCardImpl({ keys, protein, days, target, milestones, onOpenD
       const a = avg[i];
       const avgText = a != null ? t('trends.chart.proteinAvg', { g: formatNumber(Math.round(a), locale) }) : null;
       const ms = milestoneWords(names[i], t);
+      const grams = v != null ? formatNumber(v, locale) : '';
       const head =
         v != null
-          ? t('trends.chart.proteinPoint', { date, g: formatNumber(v, locale) })
-          : i === k.length - 1
+          ? isProtein
+            ? t('trends.chart.proteinPoint', { date, g: grams })
+            : t('trends.chart.macroPoint', { date, g: grams, name })
+          : i === live
             ? t('trends.chart.proteinToday', { date })
             : t('trends.chart.proteinNone', { date });
       labels.push([head, avgText, ...ms].filter(Boolean).join(' · '));
-      bubbles.push(
-        [shortDate(key, locale), v != null ? t('trends.chart.bubbleProtein', { g: formatNumber(v, locale) }) : t('trends.chart.notLogged'), avgText, ...ms]
-          .filter(Boolean)
-          .join(' · '),
-      );
+      const short =
+        v != null
+          ? isProtein
+            ? t('trends.chart.bubbleProtein', { g: grams })
+            : t('trends.chart.bubbleMacro', { g: grams, name })
+          : t('trends.chart.notLogged');
+      bubbles.push([shortDate(key, locale), short, avgText, ...ms].filter(Boolean).join(' · '));
     });
     const logged = g.filter((v): v is number => v != null);
     const mean = logged.length ? Math.round(logged.reduce((s, v) => s + v, 0) / logged.length) : 0;
-    const hit = target > 0 ? logged.filter((v) => v >= target).length : 0;
+    const hit = goal > 0 ? logged.filter((v) => v >= goal).length : 0;
     const summary = [
       logged.length
-        ? t('trends.chart.proteinSummary', { days: k.length, avg: formatNumber(mean, locale) })
-        : t('trends.chart.proteinEmpty', { days: k.length }),
-      target > 0 && logged.length
+        ? isProtein
+          ? t('trends.chart.proteinSummary', { days: k.length, avg: formatNumber(mean, locale) })
+          : t('trends.chart.macroSummary', { days: k.length, avg: formatNumber(mean, locale), title })
+        : isProtein
+          ? t('trends.chart.proteinEmpty', { days: k.length })
+          : t('trends.chart.macroEmpty', { days: k.length, name }),
+      goal > 0 && logged.length
         ? t('trends.chart.proteinSummaryTarget', {
-            g: formatNumber(target, locale),
+            g: formatNumber(goal, locale),
             hit: formatNumber(hit, locale),
             days: formatNumber(logged.length, locale),
           })
@@ -574,42 +765,95 @@ function ProteinTrendCardImpl({ keys, protein, days, target, milestones, onOpenD
     ]
       .filter(Boolean)
       .join(' ');
-    const xLabels: [string, string] = [shortDate(k[0], locale), shortDate(k[k.length - 1], locale)];
-    return { k, g, avg, labels, bubbles, summary, marks, logged: logged.length, xLabels };
-  }, [keys, protein, days, target, milestones, t, locale]);
+    // The average and days at target, in sight (re-score 3, U1) — the summary
+    // computed both and only VoiceOver heard them.
+    const readout = logged.length
+      ? [
+          t('trends.chart.macroAvgShort', { g: formatNumber(mean, locale) }),
+          goal > 0 ? t('trends.chart.macroHitShort', { hit: formatNumber(hit, locale), days: formatNumber(logged.length, locale) }) : null,
+        ]
+          .filter(Boolean)
+          .join(' · ')
+      : null;
+    return { k, g, avg, labels, bubbles, summary, readout, marks, logged: logged.length, title };
+  }, [keys, protein, carbs, fat, macro, isProtein, days, goal, milestones, todayKey, t, locale]);
 
   // `good`, not the macro `protein` green: that one is tuned for fills and
-  // measures under 3:1 as a thin line on light paper (UX_AUDIT S18-2).
-  const lines = useMemo(() => [{ key: 'avg', values: view.avg, color: colors.good, width: 2.5 }], [view, colors.good]);
+  // measures under 3:1 as a thin line on light paper (UX_AUDIT S18-2). Carbs
+  // take the ember amber for the same reason — `carbs` amber is a fill hue and
+  // falls under 3:1 as a line on light paper (`theme.ts`, habitFasting).
+  const lineColor = macro === 'carbs' ? colors.habitFasting : macro === 'fat' ? colors.fat : colors.good;
+  const lines = useMemo(() => [{ key: 'avg', values: view.avg, color: lineColor, width: 2.5 }], [view, lineColor]);
   const dots = useMemo(() => [{ key: 'protein', values: view.g, color: colors.lineStrong, radius: 2.5 }], [view, colors.lineStrong]);
   const reference = useMemo(
     () =>
-      target > 0
-        ? { value: target, label: t('trends.chart.proteinTargetLabel', { g: formatNumber(target, locale) }), color: colors.muted }
+      goal > 0
+        ? { value: goal, label: t('trends.chart.proteinTargetLabel', { g: formatNumber(goal, locale) }), color: colors.muted }
         : undefined,
-    [target, t, locale, colors.muted],
+    [goal, t, locale, colors.muted],
   );
+  const dailyLegend = isProtein ? t('trends.legendProtein') : t('trends.legendDaily');
   const audioGraph = useMemo(
     () => ({
-      title: t('trends.proteinChartTitle'),
+      title: view.title,
       xTitle: t('entry.date'),
       yTitle: 'g',
       unit: 'g',
       decimals: 0,
       xLabel: (key: string) => longDate(key, locale),
-      seriesNames: { avg: t('trends.legendProteinAvg'), protein: t('trends.legendProtein') },
+      seriesNames: { avg: t('trends.legendProteinAvg'), protein: dailyLegend },
     }),
-    [t, locale],
+    [t, locale, view.title, dailyLegend],
   );
 
   return (
     <View style={styles.card} testID="protein-trend-card">
       <View style={styles.titleBlock}>
-        <Text style={styles.title} accessibilityRole="header">{t('trends.proteinChartTitle')}</Text>
-        <Text style={styles.caption} testID="protein-trend-window">{windowCaption(view.k.length, t)}</Text>
+        <Text style={styles.title} accessibilityRole="header">{view.title}</Text>
+        <View style={styles.captionRow}>
+          {range && onRange && cap ? (
+            <RangeMenu range={range} onRange={onRange} cap={cap} days={view.k.length} t={t} testID="protein-trend-window" />
+          ) : (
+            <Text style={styles.caption} testID="protein-trend-window">{windowCaption(view.k.length, t)}</Text>
+          )}
+          {view.readout ? (
+            <Text style={styles.readout} accessibilityElementsHidden importantForAccessibility="no" testID="protein-trend-readout">
+              {view.readout}
+            </Text>
+          ) : null}
+        </View>
       </View>
+      {selectable ? (
+        <View style={styles.chips} accessibilityRole="tablist" testID="macro-tabs">
+          {MACRO_TABS.map((m) => {
+            const on = m === macro;
+            return (
+              <PressScale
+                key={m}
+                style={[styles.chip, on && styles.chipOn]}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: on }}
+                testID={`macro-tab-${m}`}
+                onPress={() => {
+                  if (on) return;
+                  haptics.tap();
+                  setMacro(m);
+                }}
+              >
+                <Text style={[styles.chipText, on && styles.chipTextOn]} maxFontSizeMultiplier={1.3}>
+                  {t(MACRO_LABEL[m])}
+                </Text>
+              </PressScale>
+            );
+          })}
+        </View>
+      ) : null}
       {view.logged === 0 ? (
-        <Text style={styles.empty}>{t('trends.chart.proteinEmpty', { days: view.k.length })}</Text>
+        <Text style={styles.empty}>
+          {isProtein
+            ? t('trends.chart.proteinEmpty', { days: view.k.length })
+            : t('trends.chart.macroEmpty', { days: view.k.length, name: t(MACRO_NAME[macro as Exclude<MacroTab, 'protein'>]) })}
+        </Text>
       ) : (
         <TrendChart
           dateKeys={view.k}
@@ -621,16 +865,16 @@ function ProteinTrendCardImpl({ keys, protein, days, target, milestones, onOpenD
           pointLabels={view.labels}
           bubbleLabels={view.bubbles}
           formatY={formatY}
-          xLabels={view.xLabels}
+          xTickLabel={xTickLabel}
           openDay={openDay}
           audioGraph={audioGraph}
           testID="protein-trend-chart"
         />
       )}
       <View style={styles.legend} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-        <LegendItem color={colors.good} label={t('trends.legendProteinAvg')} />
-        <LegendItem color={colors.lineStrong} label={t('trends.legendProtein')} dot />
-        {target > 0 ? <LegendItem color={colors.muted} label={t('trends.legendTarget')} dotted /> : null}
+        <LegendItem color={lineColor} label={t('trends.legendProteinAvg')} />
+        <LegendItem color={colors.lineStrong} label={dailyLegend} dot />
+        {goal > 0 ? <LegendItem color={colors.muted} label={t('trends.legendTarget')} dotted /> : null}
       </View>
     </View>
   );
@@ -645,17 +889,25 @@ const createStyles = ({ colors }: Theme) =>
     title: { fontFamily: type.heading, fontSize: font.body, color: colors.ink },
     titleBlock: { flexShrink: 1, gap: 2 },
     caption: { fontSize: font.tiny, color: colors.muted },
+    captionRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', columnGap: space.sm },
+    // The change over the range — a figure, so it reads in ink, not muted.
+    readout: { fontSize: font.small, color: colors.ink, fontWeight: '600', fontVariant: ['tabular-nums'] },
     hint: { fontSize: font.tiny, color: colors.muted },
-    // Same reserved height as the drawn chart (bubble + plot + x labels), so
-    // the card does not jump when the deferred series lands.
-    // The bubble is two lines (40) plus its 4dp margin since review S20.
-    placeholder: { height: 132 + 44 + 18, borderRadius: radius.sm, backgroundColor: colors.inputBg, opacity: 0.6 },
+    // Same reserved height as the drawn chart (plot + x labels), so the card
+    // does not jump when the deferred series lands. The scrub bubble floats
+    // over the header now and reserves nothing (re-score 3, V2).
+    placeholder: { height: 132 + 18, borderRadius: radius.sm, backgroundColor: colors.inputBg, opacity: 0.6 },
     empty: { fontSize: font.small, color: colors.muted },
     chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
     chip: { minHeight: 44, minWidth: 44, paddingHorizontal: space.md, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'transparent' },
     chipOn: { backgroundColor: colors.inputBg, borderColor: colors.lineStrong },
     chipText: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
     chipTextOn: { color: colors.ink, fontWeight: '700' },
+    // The caption-as-menu: 44 dp tall like every control here, its face the
+    // caption plus a chevron in the link colour.
+    rangeMenu: { minHeight: 44, justifyContent: 'center' },
+    rangeFace: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    rangeFaceText: { fontSize: font.small, color: colors.teal, fontWeight: '700' },
     legend: { flexDirection: 'row', flexWrap: 'wrap', gap: space.md },
     legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     legendLine: { width: 16, height: 0, borderTopWidth: 2 },

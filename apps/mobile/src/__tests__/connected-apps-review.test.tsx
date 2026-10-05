@@ -8,6 +8,13 @@ import React from 'react';
 import { fireEvent, renderWithProviders as render, waitFor } from '@/test-utils';
 
 jest.mock('@/components/BottomSheet', () => require('./js-sheet').jsSheetModule());
+// The screen sets its native header through `Stack.Screen`, which needs a
+// navigator this test does not mount; its header-left fallback is drawn in place.
+jest.mock('expo-router', () => ({
+  ...jest.requireActual('expo-router'),
+  useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
+  Stack: { Screen: ({ options }: { options?: { headerLeft?: () => unknown } }) => options?.headerLeft?.() ?? null },
+}));
 jest.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { uid: 'u1' }, profile: null }) }));
 
 const mockSyncNow = jest.fn();

@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Application from 'expo-application';
-import { useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   Platform,
@@ -12,13 +12,13 @@ import {
   View,
 } from 'react-native';
 import Animated, { FadeInUp, FadeOut, ReduceMotion } from 'react-native-reanimated';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { BottomSheet } from '@/components/BottomSheet';
 import { ConfirmHost, confirm } from '@/components/ConfirmSheet';
 import { useAuth } from '@/lib/auth';
 import { useLocale, useT } from '@/i18n';
 import { announce } from '@/lib/a11y';
-import { formatDate, formatNumber, formatTime } from '@/lib/date-format';
+import { formatNumber } from '@/lib/date-format';
+import { syncWhen } from '@/components/body/HealthFooter';
 import { openHealthPermissions, useHealthSync } from '@/lib/health-sync';
 import { useOura } from '@/lib/oura';
 import * as haptics from '@/lib/haptics';
@@ -230,41 +230,61 @@ export default function ConnectedAppsScreen() {
     announce(!r.linked ? t('oura.needsReconnect') : r.written > 0 ? t('oura.synced', { n: r.written }) : t('oura.syncedNone'));
   }, [oura.result, t]);
 
-  /** P2 is the lead's (a root-stack screen with a native back button); until
-   *  then the in-screen chevron must still lead somewhere on a cold deep
-   *  link, where there is nothing to go back TO. */
-  function goBack() {
-    const r = router as typeof router & { canGoBack?: () => boolean };
-    if (typeof r.canGoBack === 'function' && !r.canGoBack()) router.replace('/settings');
-    else router.back();
-  }
+  /** The native header's back button exists only when there is somewhere to
+   *  go back TO. A cold deep link has nothing beneath it, so there the header
+   *  gets a chevron to Settings instead — the one escape this screen needs. */
+  const r = router as typeof router & { canGoBack?: () => boolean };
+  const orphan = typeof r.canGoBack === 'function' && !r.canGoBack();
 
   const healthLast = healthSync.lastSync ?? null;
-  const healthWhen = healthLast
-    ? `${formatDate(new Date(healthLast.atMs), locale, { month: 'short', day: 'numeric' })} ${formatTime(new Date(healthLast.atMs), locale)}`
-    : null;
+  // One formatter with Body's footer: the time alone today, day + time before.
+  const healthWhen = healthLast ? syncWhen(new Date(healthLast.atMs), locale) : null;
   const syncedAt = oura.status.lastSyncedAt;
   const records = oura.status.lastRecordCount;
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={goBack}
-          hitSlop={10}
-          style={styles.backBtn}
-          accessibilityRole="button"
-          accessibilityLabel={t('common.back')}
-          testID="connected-apps-back"
-        >
-          <Ionicons name="chevron-back" size={26} color={colors.ink} />
-        </TouchableOpacity>
-        <Text style={styles.title} accessibilityRole="header">{t('connected.title')}</Text>
-        {/* Balances the back chevron so the title is optically centred. */}
-        <View style={styles.headerSpacer} />
-      </View>
+    <View style={styles.screen}>
+      {/* The native stack header (re-score 3, Platform), the way the History
+          day has it: the system back button with its swipe, its long-press
+          history and the iOS 26 glass, and a large title that collapses as
+          the cards scroll — instead of a drawn chevron and a centred title. */}
+      <Stack.Screen
+        options={{
+          headerShown: true,
+          title: t('connected.title'),
+          headerLargeTitle: true,
+          headerBackButtonDisplayMode: 'minimal',
+          // Hidden by `minimal`, but it is what VoiceOver reads for the button.
+          headerBackTitle: t('common.back'),
+          headerShadowVisible: false,
+          headerLargeTitleShadowVisible: false,
+          headerStyle: { backgroundColor: colors.paper },
+          headerTintColor: colors.ink,
+          headerTitleStyle: { color: colors.ink },
+          headerLargeTitleStyle: { color: colors.ink },
+          headerLeft: orphan
+            ? () => (
+                <TouchableOpacity
+                  onPress={() => router.replace('/settings')}
+                  hitSlop={10}
+                  style={styles.backBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('common.back')}
+                  testID="connected-apps-back"
+                >
+                  <Ionicons name="chevron-back" size={26} color={colors.ink} />
+                </TouchableOpacity>
+              )
+            : undefined,
+        }}
+      />
 
-      <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={styles.body}
+        keyboardShouldPersistTaps="handled"
+        // The large title needs the scroll view to own the inset under it.
+        contentInsetAdjustmentBehavior="automatic"
+      >
         <Text style={styles.subtitle}>{t('connected.intro')}</Text>
 
         {/* Health leads (re-score): it is where weigh-ins come from, and
@@ -406,9 +426,7 @@ export default function ConnectedAppsScreen() {
             <View style={styles.evidence} testID="oura-evidence">
               <Text style={styles.evidenceLine}>
                 {syncedAt
-                  ? t('connected.lastSynced', {
-                      when: `${formatDate(syncedAt, locale, { month: 'short', day: 'numeric' })} ${formatTime(syncedAt, locale)}`,
-                    })
+                  ? t('connected.lastSynced', { when: syncWhen(syncedAt, locale) })
                   : t('connected.lastSyncedNever')}
               </Text>
               <Text style={styles.evidenceLine}>
@@ -598,23 +616,15 @@ export default function ConnectedAppsScreen() {
           underneath it, so confirms raised here are drawn by this one (the
           same arrangement as `scan.tsx`). */}
       <ConfirmHost />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const makeStyles = ({ colors }: Theme) =>
   StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.paper },
-    header: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: space.lg,
-      paddingVertical: space.md,
-    },
-    title: { flex: 1, textAlign: 'center', fontSize: font.h2, fontWeight: '800', color: colors.ink },
-    headerSpacer: { width: 44 },
     backBtn: { width: 44, minHeight: 44, justifyContent: 'center' },
-    body: { paddingHorizontal: space.xl, paddingBottom: space.xl, gap: space.lg },
+    body: { paddingHorizontal: space.xl, paddingTop: space.md, paddingBottom: space.xl, gap: space.lg },
     subtitle: { fontSize: font.body, color: colors.muted },
 
     card: {

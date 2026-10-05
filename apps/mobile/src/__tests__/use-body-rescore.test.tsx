@@ -99,8 +99,26 @@ describe('useBody — re-score', () => {
 
   it('a goal passed in its own direction leaves nothing remaining (bug 1)', async () => {
     const hook = await mount();
-    await act(async () => live.weights?.({ [day(-20)]: 200, [day(0)]: 178 }));
+    // The TREND has to be past it (re-score 3, bug 3), so a run of readings
+    // under the goal rather than one.
+    await act(async () =>
+      live.weights?.({ [day(-20)]: 200, [day(-6)]: 178, [day(-5)]: 177.5, [day(-4)]: 177, [day(-3)]: 177, [day(-2)]: 176.5, [day(-1)]: 176.5, [day(0)]: 176 }),
+    );
     await waitFor(() => expect(hook.result.current.goalProgress?.remaining).toBe(0));
+  });
+
+  it('goal progress is judged on the trend, not one light morning (re-score 3, bug 3)', async () => {
+    const hook = await mount();
+    // Steady at ~181, then one 179.4 morning: the scale is past the 180 goal,
+    // the trend is not — so neither "Goal reached" nor 100%.
+    await act(async () =>
+      live.weights?.({ [day(-4)]: 181.2, [day(-3)]: 181, [day(-2)]: 181.1, [day(-1)]: 180.9, [day(0)]: 179.4 }),
+    );
+    await waitFor(() => expect(hook.result.current.goalProgress).not.toBeNull());
+    const p = hook.result.current.goalProgress!;
+    expect(p.currentWeight).toBeCloseTo(hook.result.current.trendWeight!, 5);
+    expect(p.remaining).toBeGreaterThan(0);
+    expect(p.pct).toBeLessThan(100);
   });
 
   it('a weight that came from a log names the log\'s day (bug 10)', async () => {

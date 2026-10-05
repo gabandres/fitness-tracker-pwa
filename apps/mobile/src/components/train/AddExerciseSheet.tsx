@@ -2,15 +2,16 @@ import { useEffect, useState } from 'react';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SheetTextInput } from '@/components/SheetTextInput';
 import { MOBILITY_SEED_KEYS, type SeedExercise } from '@macrolog/core';
+import type { Exercise } from '@/lib/workout';
 import { BottomSheet, NATIVE_SHEETS } from '@/components/BottomSheet';
 import { showToast } from '@/components/Toast';
-import type { TrainState } from '@/hooks/useTrain';
+import type { ActivePick, TrainState } from '@/hooks/useTrain';
 import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { captureError } from '@/lib/sentry';
 import { useDeferredFocus } from '@/lib/use-deferred-focus';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
-import { ExerciseSearchList } from './ExerciseSearchList';
+import { ExerciseSearchList, catalogPickKey, seedPickKey } from './ExerciseSearchList';
 import { CREATION_STYLES, type CreationStyle, logStyleFor, setKindFor } from './train-shared';
 import { createStyles } from './train-styles';
 
@@ -18,6 +19,12 @@ import { createStyles } from './train-styles';
  * Add an exercise to the live session — or, opened from the ⋯ menu's
  * "Replace exercise", put one in place of the exercise at `replaceIndex`
  * (Train review item 9). Same list either way; only the verb changes.
+ *
+ * Adding takes several at once (Train re-score 3): Hevy and Strong let you
+ * tick a few and "Add (3)", and building a session one sheet at a time was
+ * three round trips for three lifts. A tap on a row still adds that one and
+ * closes, as it always did; the tick at the row's end starts a pick, and once
+ * anything is ticked a tap on a row ticks it too. Replacing stays one-for-one.
  */
 export function AddExerciseSheet({
   visible,
@@ -26,7 +33,7 @@ export function AddExerciseSheet({
   onClose,
 }: {
   visible: boolean;
-  train: Pick<TrainState, 'catalog' | 'addExerciseToActive' | 'addLibraryExerciseToActive'>;
+  train: Pick<TrainState, 'catalog' | 'addExerciseToActive' | 'addLibraryExerciseToActive' | 'addManyToActive'>;
   /** Replacing rather than adding: the slot and the name it holds now. */
   replace?: { index: number; name: string } | null;
   onClose: () => void;
@@ -44,11 +51,14 @@ export function AddExerciseSheet({
   // fixing only one leaves a stretch added mid-session able to take a
   // duration PR (ADR-0028).
   const [logStyle, setLogStyle] = useState<CreationStyle>('weight-reps');
+  /** The multi-pick, in the order ticked — that is the order they are added. */
+  const [picked, setPicked] = useState<ReadonlyMap<string, ActivePick>>(new Map());
 
   useEffect(() => {
     if (visible) {
       setName('');
       setLogStyle('weight-reps');
+      setPicked(new Map());
     }
   }, [visible]);
 
@@ -86,6 +96,29 @@ export function AddExerciseSheet({
     return guarded(() => train.addLibraryExerciseToActive(seed, replaceIndex), 'train.addLibraryExerciseToActive');
   }
 
+  /** A catalog row's style: a seeded mobility movement stays mobility when
+   *  re-added from the catalog, whatever the chips happen to be showing. */
+  const catalogStyle = (e: Exercise): CreationStyle =>
+    e.seedKey != null && MOBILITY_SEED_KEYS.has(e.seedKey) ? 'mobility' : (e.logStyle ?? 'weight-reps');
+
+  function toggle(key: string, pick: ActivePick) {
+    haptics.selection();
+    setPicked((cur) => {
+      const next = new Map(cur);
+      if (next.has(key)) next.delete(key);
+      else next.set(key, pick);
+      return next;
+    });
+  }
+  const toggleCatalog = (e: Exercise) => {
+    const style = catalogStyle(e);
+    toggle(catalogPickKey(e), { kind: 'catalog', exercise: e, logStyle: logStyleFor(style), setKind: setKindFor(style) });
+  };
+  const toggleSeed = (seed: SeedExercise) => toggle(seedPickKey(seed), { kind: 'seed', seed });
+  /** Replacing is one-for-one; only adding offers the pick. */
+  const multi = !replace;
+  const picking = multi && picked.size > 0;
+
   return (
     <BottomSheet
       native
@@ -99,6 +132,7 @@ export function AddExerciseSheet({
         <Text style={styles.sheetTitle} accessibilityRole="header">
           {replace ? t('train.replaceTitle', { name: replace.name }) : t('train.addExerciseTitle')}
         </Text>
+        {multi ? <Text style={styles.sheetHint}>{t('train.addPickHint')}</Text> : null}
 
         <SheetTextInput
           ref={addExerciseInputRef}
@@ -150,18 +184,26 @@ export function AddExerciseSheet({
             testIDPrefix="add-ex"
             // A seeded mobility movement stays mobility when re-added from
             // the catalog, whatever the chips happen to be showing.
-            onPickCatalog={(e) =>
-              void add(
-                e.name,
-                e.seedKey != null && MOBILITY_SEED_KEYS.has(e.seedKey)
-                  ? 'mobility'
-                  : (e.logStyle ?? 'weight-reps'),
-                e.id,
-              )
-            }
-            onPickSeed={(seed) => void addSeed(seed)}
+            onPickCatalog={(e) => (picking ? toggleCatalog(e) : void add(e.name, catalogStyle(e), e.id))}
+            onPickSeed={(seed) => (picking ? toggleSeed(seed) : void addSeed(seed))}
+            selected={multi ? new Set(picked.keys()) : undefined}
+            onToggleCatalog={multi ? toggleCatalog : undefined}
+            onToggleSeed={multi ? toggleSeed : undefined}
           />
         </ScrollView>
+
+        {picking ? (
+          <TouchableOpacity
+            style={[styles.finishBtn, styles.addPickedBtn, adding && styles.btnDisabled]}
+            onPress={() => void guarded(() => train.addManyToActive([...picked.values()]), 'train.addManyToActive')}
+            disabled={adding}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: adding, busy: adding }}
+            testID="add-picked"
+          >
+            <Text style={styles.finishText}>{t('train.addSelected', { n: picked.size })}</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
     </BottomSheet>
   );

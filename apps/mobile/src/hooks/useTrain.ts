@@ -86,6 +86,12 @@ import { useLocale } from '@/i18n';
  *  `train.saveErr`). */
 export type TrainErrorKind = 'load' | 'save';
 
+/** One exercise picked in the add sheet: a catalog entry (with the log style
+ *  and set kind its row implies) or a shipped library movement. */
+export type ActivePick =
+  | { kind: 'catalog'; exercise: Exercise; logStyle: LogStyle; setKind: SetKind }
+  | { kind: 'seed'; seed: SeedExercise };
+
 export interface TrainState {
   loading: boolean;
   error: Error | null;
@@ -99,6 +105,17 @@ export interface TrainState {
   recentSessions: WorkoutSession[];
   /** The in-progress session held in local state, or null. */
   active: WorkoutSession | null;
+  /**
+   * True until the DEVICE has answered whether a workout is open — the
+   * journal and pending-finish reads `onOpen` starts. `loading` clears on the
+   * cached sessions list, which can win that race on a cold start, and in
+   * that window `active` is null for a workout that IS open: a Start button
+   * (or Siri's "Start my next workout") then began a second session over it,
+   * and the journal's answer lost to the new one (Train re-score 3, bug 2).
+   * The server's answer is not waited for: offline it can take seconds, and a
+   * session only the server knows was started on another device.
+   */
+  activePending: boolean;
   saving: boolean;
   /** Dismiss the current error (the screen's Retry/close on a save error). */
   clearError: () => void;
@@ -136,6 +153,11 @@ export interface TrainState {
   /** Add a shipped library movement straight to the active session — or, with
    *  `replaceIndex`, put it in place of the exercise there. */
   addLibraryExerciseToActive: (seed: SeedExercise, replaceIndex?: number) => Promise<void>;
+  /** Append several picks to the live session at once — the add sheet's
+   *  "Add (3)". Each library pick is resolved (and cloned into the catalog if
+   *  missing) first; the session then changes ONCE, with one write, so three
+   *  picks are not three whole-session writes racing each other. */
+  addManyToActive: (picks: readonly ActivePick[]) => Promise<void>;
   /** Move one exercise of the live session (the ⋯ menu's Move up / Move down). */
   moveExerciseInActive: (from: number, to: number) => void;
   /** Put back a set or exercise the live session just removed — the Undo on
@@ -242,6 +264,10 @@ export function useTrain(): TrainState {
     [],
   );
   const [active, setActiveState] = useState<WorkoutSession | null>(null);
+  // Per uid: a refocus re-reads the journal but never puts the screen back
+  // behind a spinner it already left.
+  const [activeResolvedFor, setActiveResolvedFor] = useState<string | null>(null);
+  const activePending = uid != null && activeResolvedFor !== uid;
   /**
    * Mirror of `active`, read by every mutation instead of a closed-over value.
    *
@@ -359,15 +385,24 @@ export function useTrain(): TrainState {
       // whole time — long enough to start a second workout over the one still
       // open (Train review bug 4). The journal is on the phone; show it now,
       // and let the server's answer correct it below.
-      void Promise.all([journalRead, finishes]).then(([journal, list]) => {
-        if (!alive() || editOriginal.current || activeRef.current || !journal) return;
-        if (list.some((f) => f.session.id === journal.session.id)) return;
-        // Carried forward, or the next journal write would forget that the
-        // server never got this session's create.
-        if (journal.created === false && journal.session.id) uncreated.current.add(journal.session.id);
-        provisional.current = journal.session;
-        setActive(journal.session);
-      });
+      void Promise.all([journalRead, finishes])
+        .then(([journal, list]) => {
+          if (!alive() || editOriginal.current || activeRef.current || !journal) return;
+          if (list.some((f) => f.session.id === journal.session.id)) return;
+          // Carried forward, or the next journal write would forget that the
+          // server never got this session's create.
+          if (journal.created === false && journal.session.id) uncreated.current.add(journal.session.id);
+          provisional.current = journal.session;
+          setActive(journal.session);
+        })
+        // A storage failure is an answer too ("nothing on the device"); the
+        // server read below still corrects it.
+        .catch(() => {})
+        // AFTER `setActive`, so no render sees "answered" with the journal's
+        // session still missing.
+        .finally(() => {
+          if (alive()) setActiveResolvedFor(u);
+        });
       Promise.all([
         // A failed read is an unreachable server, not an empty one.
         readActiveSession(u).catch(() => ({ session: null, fromCache: true })),
@@ -955,11 +990,12 @@ export function useTrain(): TrainState {
    * translation of the name happens to collide with a user-created exercise
    * would resolve to the wrong doc. The seed key is the identity here.
    */
-  const addLibraryExerciseToActive = useCallback(
-    async (seed: SeedExercise, replaceIndex?: number) => {
-      if (!uid || !activeRef.current) return;
+  /** The session exercise a library movement starts as, cloning the catalog
+   *  entry first if it is missing. */
+  const seedSessionExercise = useCallback(
+    async (seed: SeedExercise): Promise<SessionExercise> => {
       const { id, name, logStyle } = await ensureLibraryExercise(seed);
-      const exercise: SessionExercise = {
+      return {
         exerciseId: id,
         name,
         cues: seedExerciseCues(seed, locale),
@@ -968,9 +1004,45 @@ export function useTrain(): TrainState {
         // mid-session cannot take a duration PR (ADR-0028).
         sets: [newWorkoutSet(logStyle === 'time' ? 'mobility' : 'working')],
       };
-      await placeExercise(exercise, replaceIndex);
     },
-    [uid, locale, ensureLibraryExercise, placeExercise],
+    [locale, ensureLibraryExercise],
+  );
+
+  const addLibraryExerciseToActive = useCallback(
+    async (seed: SeedExercise, replaceIndex?: number) => {
+      if (!uid || !activeRef.current) return;
+      await placeExercise(await seedSessionExercise(seed), replaceIndex);
+    },
+    [uid, seedSessionExercise, placeExercise],
+  );
+
+  const addManyToActive = useCallback(
+    async (picks: readonly ActivePick[]) => {
+      if (!uid || !activeRef.current) return;
+      const built: SessionExercise[] = [];
+      // In order, not in parallel: two seeds resolving at once would both read
+      // the same `catalog` and could each clone a movement the other just did.
+      for (const pick of picks) {
+        if (pick.kind === 'seed') {
+          built.push(await seedSessionExercise(pick.seed));
+        } else if (pick.exercise.id) {
+          built.push({
+            exerciseId: pick.exercise.id,
+            name: pick.exercise.name,
+            cues: [],
+            logStyle: pick.logStyle,
+            sets: [newWorkoutSet(pick.setKind)],
+          });
+        }
+      }
+      // Read AFTER the awaits: an edit made while a clone was in flight stays.
+      const prev = activeRef.current;
+      if (!prev || built.length === 0) return;
+      const next = { ...prev, exercises: [...prev.exercises, ...built] };
+      setActive(next);
+      void persist(next);
+    },
+    [uid, seedSessionExercise, setActive, persist],
   );
 
 
@@ -1130,6 +1202,7 @@ export function useTrain(): TrainState {
       templates,
       recentSessions,
       active,
+      activePending,
       saving,
       startWorkout,
       startFromTemplate,
@@ -1140,6 +1213,7 @@ export function useTrain(): TrainState {
       addCatalogExercise,
       addLibraryExercise,
       addLibraryExerciseToActive,
+      addManyToActive,
       editCatalogExercise,
       deleteCatalogExercise,
       mergeCatalogExercises,
@@ -1157,9 +1231,9 @@ export function useTrain(): TrainState {
       cancelEdit,
     }),
     [
-      loading, error, errorKind, clearError, catalog, templates, recentSessions, active, saving,
+      loading, error, errorKind, clearError, catalog, templates, recentSessions, active, activePending, saving,
       startWorkout, startFromTemplate, startCardioWorkout, saveTemplate, deleteTemplate,
-      cloneStarterTemplate, addCatalogExercise, addLibraryExercise, addLibraryExerciseToActive,
+      cloneStarterTemplate, addCatalogExercise, addLibraryExercise, addLibraryExerciseToActive, addManyToActive,
       editCatalogExercise, deleteCatalogExercise, mergeCatalogExercises, addExerciseToActive,
       moveExerciseInActive, undoRemoval, dispatch, commitActive, finishWorkout, discardWorkout, deleteSession,
       editingExisting, reopenSession, finishEdit, cancelEdit,

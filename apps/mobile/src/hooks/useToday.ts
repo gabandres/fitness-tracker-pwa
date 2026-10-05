@@ -457,9 +457,11 @@ export function useToday(): TodayState {
   const startFast = useCallback(async (startedAt?: Date) => {
     if (uid) await startFastDoc(uid, startedAt);
   }, [uid]);
+  const knownFastStart = profile?.fastStartedAt ?? null;
   const breakFast = useCallback(
-    async (endedAt?: Date) => (uid ? breakFastDoc(uid, endedAt) : null),
-    [uid],
+    // The listener's start, so ending works offline (no read before the write).
+    async (endedAt?: Date) => (uid ? breakFastDoc(uid, endedAt, knownFastStart) : null),
+    [uid, knownFastStart],
   );
   const undoBreakFast = useCallback(
     async (receipt: BreakFastReceipt) => {

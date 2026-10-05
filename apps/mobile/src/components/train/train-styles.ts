@@ -150,12 +150,17 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   // 44pt tall, and a MIN width: the set number is the set sheet's trigger and
   // was a 24×20 target (Train review item 16). minWidth so a scaled "2a"
   // grows the cell instead of clipping (item 17).
-  setNumCell: { minWidth: 28, minHeight: 44, justifyContent: 'center' },
+  //
+  // 36 wide plus an 8pt slop each side: 52pt of target, past HIG's 44 on
+  // the axis that was short, without taking 16pt from the number fields
+  // (Train re-score 3). The slop's right edge lands on PREVIOUS, which has
+  // no target of its own.
+  setNumCell: { minWidth: 36, minHeight: 44, justifyContent: 'center' },
   // The "#" header over that column: the same width so the columns line up,
   // but NOT the 44pt height — on a Text, `justifyContent` does not centre the
   // glyph, so "#" drew at the top of a 44pt box, above PREV/LB/REPS/RIR and
   // crowding the line over the table (Maestro captures, 2026-10-04).
-  setNumHead: { minWidth: 28 },
+  setNumHead: { minWidth: 36 },
   setNum: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
   setNumCluster: { color: colors.teal, fontWeight: '800' },
   kindPicker: { paddingVertical: space.sm, gap: space.xs },
@@ -755,6 +760,18 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   },
   searchMain: { flex: 1, gap: 2 },
   searchMuscles: { fontSize: font.tiny, color: colors.muted },
+  // A search row with a multi-pick tick at its end (the in-session add
+  // sheet): the pair shares the row's rule, the row keeps its own target.
+  pickRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
+  },
+  pickRowMain: { flex: 1, borderBottomWidth: 0 },
+  // `finishBtn` is flex: 1 for a button row; alone in a column it must not grow.
+  addPickedBtn: { flex: 0, paddingVertical: space.md },
 
   // ── Per-exercise overflow menu ──
   menuRow: {

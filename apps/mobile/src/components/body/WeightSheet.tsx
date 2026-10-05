@@ -62,6 +62,10 @@ import { DayStepper } from './DayStepper';
  *   save no longer leaves a dead button. A failure to even park stays here.
  * - **Native sheet, guarded** (P1 / U10): `fit` detent on iOS, and a swipe
  *   down with typed digits asks before discarding them.
+ * - **Remove, here too** (re-score 3): a day that has a weigh-in offers a
+ *   destructive "Remove weigh-in" under Save, the way Apple Health's detail
+ *   view does — it was reachable only from the row's swipe or menu. No
+ *   confirm: the caller's receipt carries Undo, like every Body delete.
  */
 /** What the field shows for a stored weight: the display value in the user's
  *  own decimal mark, ungrouped so it parses straight back ("81,6", never
@@ -78,6 +82,7 @@ export function WeightSheet({
   unitSystem,
   initialText = null,
   onSave,
+  onDelete,
   onClose,
 }: {
   visible: boolean;
@@ -96,6 +101,9 @@ export function WeightSheet({
    *  anything is written. `null` (the default) opens on the stored value. */
   initialText?: string | null;
   onSave: (weightLb: number, dateKey: string) => Promise<void> | void;
+  /** Remove the selected day's weigh-in. The caller closes the sheet and
+   *  shows the Undo receipt. Absent = no Remove button. */
+  onDelete?: (dateKey: string) => void;
   onClose: () => void;
 }) {
   const t = useT();
@@ -311,6 +319,17 @@ export function WeightSheet({
           <Text style={styles.saveText}>{outlier ? t('body.saveAnyway') : t('common.save')}</Text>
         )}
       </TouchableOpacity>
+      {existing != null && onDelete ? (
+        <TouchableOpacity
+          style={styles.delete}
+          onPress={() => onDelete(dateKey)}
+          disabled={busy}
+          accessibilityRole="button"
+          testID="weight-delete"
+        >
+          <Text style={styles.deleteText}>{t('body.deleteWeighIn')}</Text>
+        </TouchableOpacity>
+      ) : null}
     </BottomSheet>
   );
 }
@@ -350,4 +369,7 @@ const createStyles = ({ colors }: Theme) =>
     },
     saveDisabled: { opacity: 0.4 },
     saveText: { color: colors.onInk, fontWeight: '700', fontSize: font.h3 },
+    // The fast editor's destructive text button, same weight and place.
+    delete: { alignItems: 'center', justifyContent: 'center', minHeight: 44, marginTop: space.xs },
+    deleteText: { color: colors.danger, fontWeight: '700', fontSize: font.small },
   });

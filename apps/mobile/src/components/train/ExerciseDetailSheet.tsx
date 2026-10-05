@@ -51,10 +51,15 @@ export function ExerciseDetailSheet({
   visible,
   exercise,
   train,
+  readOnly = false,
   onClose,
 }: {
   visible: boolean;
   exercise: Exercise | null;
+  /** Records, trend and history only — no Edit / Merge / Delete. How the
+   *  live session opens it from a lift's ⋯: managing the catalog is not a
+   *  mid-set job, and a delete there would orphan the card being logged. */
+  readOnly?: boolean;
   train: Pick<
     TrainState,
     'recentSessions' | 'catalog' | 'editCatalogExercise' | 'deleteCatalogExercise' | 'mergeCatalogExercises'
@@ -340,18 +345,20 @@ export function ExerciseDetailSheet({
               </>
             )}
 
-            <View style={styles.manageRow}>
-              <TouchableOpacity style={styles.manageBtn} onPress={() => setMode('edit')} accessibilityRole="button" testID="exercise-edit">
-                <Text style={styles.manageLink}>{t('train.edit')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.manageBtn} onPress={() => setMode('merge')} accessibilityRole="button" testID="exercise-merge">
-                <Text style={styles.manageLink}>{t('train.merge')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.manageBtn} onPress={() => setConfirmDel(true)} accessibilityRole="button" testID="exercise-delete">
-                <Text style={[styles.manageLink, styles.manageDanger]}>{t('train.delete')}</Text>
-              </TouchableOpacity>
-            </View>
-            {confirmDel ? (
+            {readOnly ? null : (
+              <View style={styles.manageRow}>
+                <TouchableOpacity style={styles.manageBtn} onPress={() => setMode('edit')} accessibilityRole="button" testID="exercise-edit">
+                  <Text style={styles.manageLink}>{t('train.edit')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.manageBtn} onPress={() => setMode('merge')} accessibilityRole="button" testID="exercise-merge">
+                  <Text style={styles.manageLink}>{t('train.merge')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.manageBtn} onPress={() => setConfirmDel(true)} accessibilityRole="button" testID="exercise-delete">
+                  <Text style={[styles.manageLink, styles.manageDanger]}>{t('train.delete')}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            {confirmDel && !readOnly ? (
               <View style={styles.confirmRow}>
                 <Text style={styles.panelHint}>{t('train.deleteExercise')}</Text>
                 <View style={styles.confirmBtns}>

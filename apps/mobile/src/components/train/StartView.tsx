@@ -15,6 +15,8 @@ import { BottomSheet, NATIVE_SHEETS } from '@/components/BottomSheet';
 import { confirm } from '@/components/ConfirmSheet';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { ExerciseLibrarySheet } from '@/components/train/ExerciseLibrarySheet';
+import { ExerciseMenuSheet, type ExerciseMenuAction } from '@/components/train/ExerciseMenuSheet';
+import { MenuButton } from '@/components/MenuButton';
 import { LiftSettingsSheet } from '@/components/train/LiftSettingsSheet';
 import { NextUpCard } from '@/components/train/NextUpCard';
 import { RecommendationNote } from '@/components/train/RecommendationNote';
@@ -30,6 +32,7 @@ import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { useUnitSystem } from '@/lib/use-unit-system';
 import type { Exercise, WorkoutSession, WorkoutTemplate } from '@/lib/workout';
 import { ExerciseDetailSheet } from './ExerciseDetailSheet';
+import { toMenuButtonActions } from './exercise-menu-native';
 import { SessionDetailSheet } from './SessionDetailSheet';
 import { StarterTemplatesSheet } from './StarterTemplatesSheet';
 import { logStyleKey } from './train-shared';
@@ -521,6 +524,10 @@ const TemplateCard = memo(function TemplateCard({
   const t = useT();
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
+  // The ⋯ fallback sheet, where neither the context menu nor the native
+  // pull-down exists (an older Android binary).
+  const [menuOpen, setMenuOpen] = useState(false);
   const names = templateExerciseNames(tpl, t);
   // "3 exercises · 12 sets · last Tue". The counts alone could not tell you
   // which of four templates you are due for, which is the question the list
@@ -563,6 +570,14 @@ const TemplateCard = memo(function TemplateCard({
       },
     });
   }
+  // Off iOS the context menu renders only its child, so Duplicate and Delete
+  // were buried in the editor again on Android (Train re-score 3). There they
+  // ride on a ⋯ beside Start — the system PopupMenu, or the menu sheet on a
+  // binary without it. Start and Edit are already the card's own buttons.
+  const menuActions: ExerciseMenuAction[] = [
+    { key: 'duplicate', icon: 'copy-outline', labelKey: 'train.duplicate', onPress: duplicate },
+    { key: 'delete', icon: 'trash-outline', labelKey: 'train.delete', destructive: true, onPress: askDelete },
+  ];
   // The whole card is the menu's target, as a row is in every other list
   // here: wrapping only the name button put a native view with no flex between
   // it and the row, and the Start button lost its place at the edge.
@@ -593,6 +608,17 @@ const TemplateCard = memo(function TemplateCard({
           {names ? <Text style={styles.tplExNames} numberOfLines={1}>{names}</Text> : null}
           <Text style={styles.histSub}>{sub}</Text>
         </Pressable>
+        {CONTEXT_MENUS ? null : (
+          <MenuButton
+            style={styles.headerIconBtn}
+            title={tpl.name}
+            actions={toMenuButtonActions(menuActions, t)}
+            accessibilityLabel={t('train.templateMenuA11y', { name: tpl.name })}
+            testID={`template-menu-${tpl.id}`}
+            iconColor={colors.muted}
+            onFallbackPress={() => setMenuOpen(true)}
+          />
+        )}
         <TouchableOpacity
           style={styles.tplStart}
           onPress={start}
@@ -620,6 +646,15 @@ const TemplateCard = memo(function TemplateCard({
       {open ? (
         <TemplateNextSession recentSessions={train.recentSessions} catalog={train.catalog} train={train} template={tpl} />
       ) : null}
+      {CONTEXT_MENUS ? null : (
+        <ExerciseMenuSheet
+          visible={menuOpen}
+          name={tpl.name}
+          actions={menuActions}
+          onClose={() => setMenuOpen(false)}
+          testIDPrefix={`template-menu-${tpl.id}`}
+        />
+      )}
     </View>
     </ContextMenu>
   );

@@ -302,6 +302,9 @@ export async function repeatYesterday(
     const ts = parseYmd(todayKey);
     ts.setHours(l.date.getHours(), l.date.getMinutes(), 0, 0);
     if (dayKeyAt(ts, boundary) !== todayKey) ts.setDate(ts.getDate() + 1);
+    // Not in the future: copying yesterday's dinner at lunch filed it at 19:00
+    // today, ahead of now (round-3 review B4). Now is still today's key.
+    if (ts.getTime() > Date.now()) ts.setTime(Date.now());
     // Minted here so the screen's "Copied N · Undo" can delete exactly these.
     const id = newLedgerId(Math.random);
     ids.push(id);

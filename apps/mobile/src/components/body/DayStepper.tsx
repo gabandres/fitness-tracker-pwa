@@ -29,6 +29,8 @@ import { BodyIcon } from './BodyIcon';
  * for a later day, down for an earlier one, the way VoiceOver steps a picker
  * — rather than three separate stops (back, an inert label, forward) to move
  * one day. The two buttons stay for everyone else and for Switch Control.
+ * On the native picker (1.2.5) the picker is the element instead: it is not
+ * adjustable, but the ±1 buttons either side remain, and its label says "Today".
  */
 export function DayStepper({
   dateKey,
@@ -85,7 +87,10 @@ export function DayStepper({
           onChange={(d) => onChange(calendarDateKey(d))}
           maximumDate={parseYmd(maxKey)}
           minimumDate={minKey ? parseYmd(minKey) : null}
-          accessibilityLabel={t('entry.date')}
+          // The compact picker speaks its own value ("Oct 5, 2026"), which
+          // lost the "Today" the stepped label says (re-score 3, A11y); the
+          // label carries it. A past day needs nothing — the value IS it.
+          accessibilityLabel={dateKey === maxKey ? `${t('entry.date')}, ${label}` : t('entry.date')}
           testID={`${testIDPrefix}-day`}
           style={styles.native}
         />

@@ -8,6 +8,21 @@ import React from 'react';
 import { fireEvent, renderWithProviders as render } from '@/test-utils';
 
 jest.mock('@/components/BottomSheet', () => require('./js-sheet').jsSheetModule());
+// The screen sets its native header through `Stack.Screen`, which needs a
+// navigator this test does not mount; its header-left fallback is drawn in place.
+const mockHeader: { options: Record<string, unknown> | null } = { options: null };
+let mockCanGoBack = true;
+const mockReplace = jest.fn();
+jest.mock('expo-router', () => ({
+  ...jest.requireActual('expo-router'),
+  useRouter: () => ({ push: jest.fn(), replace: mockReplace, back: jest.fn(), canGoBack: () => mockCanGoBack }),
+  Stack: {
+    Screen: ({ options }: { options?: { headerLeft?: () => unknown } }) => {
+      mockHeader.options = options ?? null;
+      return options?.headerLeft?.() ?? null;
+    },
+  },
+}));
 jest.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { uid: 'u1' }, profile: null }) }));
 const mockConfirm = jest.fn();
 jest.mock('@/components/ConfirmSheet', () => ({
@@ -51,6 +66,25 @@ import ConnectedAppsScreen from '@/app/connected-apps';
 beforeEach(() => {
   mockConfirm.mockClear();
   mockDisconnect.mockClear();
+  mockReplace.mockClear();
+  mockCanGoBack = true;
+});
+
+it('uses the native stack header with a large title, not a drawn chevron (re-score 3, Platform)', async () => {
+  const ui = await render(<ConnectedAppsScreen />);
+  expect(mockHeader.options).toEqual(
+    expect.objectContaining({ headerShown: true, headerLargeTitle: true, title: 'Connected apps' }),
+  );
+  // Pushed from Settings or Body: the system back button, nothing drawn.
+  expect(mockHeader.options?.headerLeft).toBeUndefined();
+  expect(ui.queryByTestId('connected-apps-back')).toBeNull();
+});
+
+it('a cold deep link, with nothing to go back to, still has a way out', async () => {
+  mockCanGoBack = false;
+  const ui = await render(<ConnectedAppsScreen />);
+  await fireEvent.press(ui.getByTestId('connected-apps-back'));
+  expect(mockReplace).toHaveBeenCalledWith('/settings');
 });
 
 it('Health is the first provider card', async () => {

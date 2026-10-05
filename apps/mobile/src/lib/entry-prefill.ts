@@ -29,6 +29,13 @@ export interface EntryPrefill {
   mealLabel?: string;
   /** The meal slot the add was started from. */
   mealType?: MealType;
+  /** A note typed into the form this draft came from. */
+  note?: string;
+  /** When the food was eaten, epoch ms — a draft that comes BACK to the form
+   *  (a refused add, re-score bug 2) keeps the time the user had set rather
+   *  than re-stamping it "now". Epoch ms, not a Date, so it survives the JSON
+   *  of a route param like every other field here. */
+  at?: number;
 }
 
 /** A prefill that fills the form (it has numbers), as opposed to a bare slot seed. */
@@ -68,5 +75,9 @@ export function parseEntryPrefill(raw: unknown): EntryPrefill | null {
   if (carbs !== undefined) out.carbs = carbs;
   if (fat !== undefined) out.fat = fat;
   if (typeof o['mealLabel'] === 'string' && o['mealLabel'].trim()) out.mealLabel = o['mealLabel'].slice(0, 100);
+  // LOG_NOTE_MAX, as the rules cap it.
+  if (typeof o['note'] === 'string' && o['note'].trim()) out.note = o['note'].slice(0, 500);
+  const at = o['at'];
+  if (typeof at === 'number' && Number.isFinite(at) && at > 0) out.at = at;
   return out;
 }

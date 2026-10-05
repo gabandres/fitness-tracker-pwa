@@ -35,7 +35,18 @@ import { BodyIcon } from './BodyIcon';
  *   gesture does the same thing on both platforms.
  *
  * Delete is undoable from the receipt (U5), so none of these asks first.
+ *
+ * The iOS menu's Edit waits `MENU_DISMISS_MS` before opening the editor: the
+ * action fires while UIKit is still dismissing the menu, and a sheet presented
+ * into that transition can be dropped — `weightOpen` true, no sheet, the next
+ * tap dead (Body re-score 3, bug 2; the same wait as Today's diary rows).
+ * Remove only writes, so it runs at once. A `preview` lifts above the menu
+ * like Today's rows and Train's templates do, and tapping it edits.
  */
+/** See `MENU_DISMISS_MS` in `MealEntries.tsx` — the same 300 ms, local so a
+ *  Body row does not pull in the diary to read one number. */
+const MENU_DISMISS_MS = 300;
+
 export function HistoryRow({
   label,
   value,
@@ -43,6 +54,8 @@ export function HistoryRow({
   onDelete,
   testID,
   deleteTestID,
+  preview,
+  previewSize,
   children,
 }: {
   /** What the row IS, spoken first ("Sep 28 weigh-in"). A noun, not an
@@ -55,6 +68,10 @@ export function HistoryRow({
   onDelete: () => void;
   testID?: string;
   deleteTestID?: string;
+  /** The iOS context menu's preview card, and its fixed size (UIKit asks for
+   *  the size before it renders). */
+  preview?: ReactNode;
+  previewSize?: { width: number; height: number };
   children: ReactNode;
 }) {
   const t = useT();
@@ -118,8 +135,11 @@ export function HistoryRow({
       {/* iOS long-press: the system context menu, beside the swipe. */}
       <ContextMenu
         title={label}
+        preview={preview}
+        previewSize={previewSize}
+        onPreviewPress={onEdit}
         actions={[
-          { key: 'edit', title: t('common.edit'), icon: 'pencil', onPress: onEdit },
+          { key: 'edit', title: t('common.edit'), icon: 'pencil', onPress: () => setTimeout(onEdit, MENU_DISMISS_MS) },
           { key: 'delete', title: t('common.remove'), icon: 'trash', destructive: true, onPress: onDelete },
         ]}
       >
@@ -137,7 +157,9 @@ export function HistoryRow({
         accessibilityRole="button"
         accessibilityLabel={label}
         accessibilityValue={value ? { text: value } : undefined}
-        accessibilityHint={t('body.rowHint')}
+        // Where Remove lives differs: VoiceOver's actions are a swipe up or
+        // down, TalkBack's are a menu. One sentence for both was jargon.
+        accessibilityHint={t(Platform.OS === 'android' ? 'body.rowHintAndroid' : 'body.rowHint')}
         accessibilityActions={[
           { name: 'activate' },
           { name: 'edit', label: t('common.edit') },
@@ -181,7 +203,7 @@ export function HistoryRow({
   );
 }
 
-const createStyles = ({ colors }: Theme) =>
+const createStyles = ({ colors, scheme }: Theme) =>
   StyleSheet.create({
     swipeContainer: { borderRadius: radius.md },
     row: {
@@ -191,7 +213,10 @@ const createStyles = ({ colors }: Theme) =>
       backgroundColor: colors.card,
       borderRadius: radius.md,
       borderWidth: 1,
-      borderColor: colors.line,
+      // Dark card on dark paper is 1.09:1, so the hairline left the rows
+      // unframed (re-score 3, Visual); half-strength `lineStrong` frames them
+      // without turning the list into a grid of boxes.
+      borderColor: scheme === 'dark' ? `${colors.lineStrong}80` : colors.line,
       paddingHorizontal: space.lg,
       paddingVertical: space.md,
       minHeight: 52,

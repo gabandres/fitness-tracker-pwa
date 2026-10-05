@@ -31,6 +31,7 @@ import {
   type ScannedFoodItem,
 } from '@macrolog/core';
 import { ConfirmHost, confirm } from '@/components/ConfirmSheet';
+import { useDoneKeyProps } from '@/components/KeyboardBar';
 import { MealSlotChips, TimeOfDayRow } from '@/components/EntryWhen';
 import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { ScanCamera } from '@/components/ScanCamera';
@@ -184,7 +185,7 @@ export default function Scan() {
   const t = useT();
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
-  const { colors } = useTheme();
+  const { colors, scheme } = useTheme();
   const router = useRouter();
   // The top inset comes from the root provider, NOT a native `SafeAreaView`:
   // presented as a root-stack `fullScreenModal`, `<SafeAreaView edges={['top']}>`
@@ -776,12 +777,15 @@ export default function Scan() {
     setTimeDraft(null);
   }
 
-  /** A stepper or a typed time. Today only, never the future (`shiftTimeOfDay`
-   *  clamps both) — the scan logs to today. */
-  function applyTime(next: Date) {
+  /** A stepper, a typed time or the native picker. Today only, never the
+   *  future (`shiftTimeOfDay` clamps both) — the scan logs to today. The iOS
+   *  picker plays its own selection tick (`NativeDateField`), so a change from
+   *  it passes `ticked` and this one stays quiet (re-score bug 3: two ticks per
+   *  turn of the wheel). */
+  function applyTime(next: Date, ticked = false) {
     setTimeTouched(true);
     if (next.getTime() === eatenAt.getTime()) return;
-    haptics.selection();
+    if (!ticked) haptics.selection();
     setEatenAt(next);
   }
 
@@ -1208,7 +1212,13 @@ export default function Scan() {
         // the Add footer: editing the last item's grams used to hide both the
         // field being typed in and the button that saves it.
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.kav}>
-          <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+          <ScrollView
+            contentContainerStyle={styles.body}
+            keyboardShouldPersistTaps="handled"
+            // A drag puts the number pad away (re-score gap 1): the per-item
+            // fields had no Return key and no toolbar, so nothing did.
+            keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+          >
             {fromDraft ? (
               <View style={styles.restored} testID="scan-restored">
                 <Ionicons name="time-outline" size={18} color={colors.ink} />
@@ -1235,10 +1245,12 @@ export default function Scan() {
             <Animated.View style={styles.heroPanel} entering={enterUp(lowConf ? 1 : 0)}>
               <View style={styles.hero}>
                 <CountUpText value={Math.round(total.calories)} style={styles.heroValue} testID="scan-calories" />
-                <Text style={styles.heroUnit}>{t('today.kcal')}</Text>
+                <Text style={styles.heroUnit} maxFontSizeMultiplier={1.6}>{t('today.kcal')}</Text>
               </View>
               <TextInput
                 style={styles.nameInput}
+                maxFontSizeMultiplier={1.4}
+                keyboardAppearance={scheme}
                 value={mealName}
                 onChangeText={setMealName}
                 placeholder={t('scan.mealName')}
@@ -1251,9 +1263,29 @@ export default function Scan() {
             {/* Read-only macro totals — the editable numbers are the per-item
                 grams below, since every macro is derived from them. */}
             <Animated.View style={styles.totalRow} entering={enterUp(2)}>
-              <TotalChip label={t('history.protein')} value={total.protein} styles={styles} testID="scan-protein" />
-              <TotalChip label={t('today.carbs')} value={total.carbs} styles={styles} testID="scan-carbs" />
-              <TotalChip label={t('today.fat')} value={total.fat} styles={styles} testID="scan-fat" />
+              {/* Each chip is read as one item with its unit (re-score gap 4):
+                  "Protein" and "32" were two stops, and the grams unsaid. */}
+              <TotalChip
+                label={t('history.protein')}
+                value={total.protein}
+                a11yLabel={t('entry.proteinAmount', { n: formatNumber(Math.round(total.protein), locale) })}
+                styles={styles}
+                testID="scan-protein"
+              />
+              <TotalChip
+                label={t('today.carbs')}
+                value={total.carbs}
+                a11yLabel={t('entry.carbsAmount', { n: formatNumber(Math.round(total.carbs), locale) })}
+                styles={styles}
+                testID="scan-carbs"
+              />
+              <TotalChip
+                label={t('today.fat')}
+                value={total.fat}
+                a11yLabel={t('entry.fatAmount', { n: formatNumber(Math.round(total.fat), locale) })}
+                styles={styles}
+                testID="scan-fat"
+              />
             </Animated.View>
 
             {/* Items */}
@@ -1335,7 +1367,7 @@ export default function Scan() {
                 onDraftChange={setTimeDraft}
                 onStep={(m) => applyTime(shiftTimeOfDay(eatenAt, m, new Date()))}
                 onCommit={commitTypedTime}
-                onSet={applyTime}
+                onSet={(next) => applyTime(next, Platform.OS === 'ios')}
               />
             </Animated.View>
 
@@ -1495,6 +1527,18 @@ function ItemRow({
   onRemove: (i: number) => void;
 }) {
   const locale = useLocale();
+  const { scheme } = useTheme();
+  // The number fields' way off the keyboard (re-score gap 1): a decimal pad
+  // has no Return key, and without a `returnKeyType` iOS drew no toolbar.
+  const doneKeyProps = useDoneKeyProps();
+  // Shared by the three number fields: decimal (B10 — Android's numeric pad
+  // can drop a pt-BR comma), capped where the row stops fitting (gap 5).
+  const numProps = {
+    ...doneKeyProps,
+    inputMode: 'decimal' as const,
+    maxFontSizeMultiplier: 1.4,
+    keyboardAppearance: scheme,
+  };
   const estimated = item.source === 'model';
   // Every label below names the item, so a screen reader moving through three
   // rows hears "Grams of rice", not "Grams" three times. A blank added row
@@ -1509,6 +1553,8 @@ function ItemRow({
           onChangeText={(v) => onName(index, v)}
           placeholder={item.added ? t('scan.itemNamePlaceholder') : undefined}
           placeholderTextColor={colors.faint}
+          maxFontSizeMultiplier={1.4}
+          keyboardAppearance={scheme}
           accessibilityLabel={t('scan.itemNameLabel', { n: index + 1 })}
           testID={`scan-item-name-${index}`}
         />
@@ -1523,25 +1569,25 @@ function ItemRow({
               onChangeText={(v) => onMacro(index, 'calories', v)}
               placeholder="0"
               placeholderTextColor={colors.faint}
-              keyboardType="numeric"
+              {...numProps}
               accessibilityLabel={t('scan.itemKcalLabel', { name: itemName })}
               testID={`scan-item-kcal-${index}`}
             />
-            <Text style={styles.itemGramsUnit}>{t('today.kcal')}</Text>
+            <Text style={styles.itemGramsUnit} maxFontSizeMultiplier={1.6}>{t('today.kcal')}</Text>
             <TextInput
               style={styles.itemGrams}
               value={item.draft?.protein ?? (item.protein ? String(item.protein) : '')}
               onChangeText={(v) => onMacro(index, 'protein', v)}
               placeholder="0"
               placeholderTextColor={colors.faint}
-              keyboardType="numeric"
+              {...numProps}
               accessibilityLabel={t('scan.itemProteinLabel', { name: itemName })}
               testID={`scan-item-protein-${index}`}
             />
-            <Text style={styles.itemGramsUnit}>{t('scan.gProtein')}</Text>
+            <Text style={styles.itemGramsUnit} maxFontSizeMultiplier={1.6}>{t('scan.gProtein')}</Text>
           </View>
         ) : (
-          <Text style={styles.itemMacros}>
+          <Text style={styles.itemMacros} maxFontSizeMultiplier={2.2}>
             {/* Spelled, not `P/C/F` — the letter codes were the only place in
                 the app that assumed the reader knew them (UX_AUDIT S18-17). */}
             {formatNumber(Math.round(item.calories), locale)} {t('today.kcal')} · {t('history.protein')} {Math.round(item.protein)} g · {t('today.carbs')} {Math.round(item.carbs)} g · {t('today.fat')} {Math.round(item.fat)} g
@@ -1578,12 +1624,12 @@ function ItemRow({
           style={styles.itemGrams}
           value={String(Math.round(item.grams))}
           onChangeText={(v) => onGrams(index, v)}
-          keyboardType="numeric"
+          {...numProps}
           selectTextOnFocus
           accessibilityLabel={t('scan.itemGramsLabel', { name: itemName })}
           testID={`scan-item-grams-${index}`}
         />
-        <Text style={styles.itemGramsUnit}>g</Text>
+        <Text style={styles.itemGramsUnit} maxFontSizeMultiplier={1.6}>g</Text>
       </View>
       )}
       <PressScale
@@ -1606,18 +1652,21 @@ function ItemRow({
 function TotalChip({
   label,
   value,
+  a11yLabel,
   styles,
   testID,
 }: {
   label: string;
   value: number;
+  /** The whole chip as one sentence, unit included ("32 g protein"). */
+  a11yLabel: string;
   styles: ReturnType<typeof createStyles>;
   testID: string;
 }) {
   return (
-    <View style={styles.totalChip}>
-      <Text style={styles.macroLabel}>{label}</Text>
-      <Text style={styles.totalValue} testID={testID}>
+    <View style={styles.totalChip} accessible accessibilityLabel={a11yLabel}>
+      <Text style={styles.macroLabel} maxFontSizeMultiplier={1.6}>{label}</Text>
+      <Text style={styles.totalValue} testID={testID} maxFontSizeMultiplier={1.6}>
         {Math.round(value)}
       </Text>
     </View>

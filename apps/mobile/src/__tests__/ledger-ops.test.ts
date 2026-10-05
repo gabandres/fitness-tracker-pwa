@@ -299,8 +299,10 @@ describe('finishWorkout', () => {
 });
 
 describe('repeatYesterday', () => {
-  // Fixed clock: "now" is 2026-09-14 12:00 local, so yesterday is the 13th.
-  const NOW = new Date(2026, 8, 14, 12, 0);
+  // Fixed clock: "now" is 2026-09-14 23:30 local, so yesterday is the 13th —
+  // late enough that every copied time of day is already past (a copy is never
+  // filed ahead of now; that case has its own test below).
+  const NOW = new Date(2026, 8, 14, 23, 30);
 
   beforeEach(() => {
     jest.useFakeTimers();
@@ -317,6 +319,13 @@ describe('repeatYesterday', () => {
     mealLabel: 'Oatmeal',
     mealType: 'breakfast',
     ...over,
+  });
+
+  it('never files a copy ahead of now: dinner copied at lunch lands at lunch (round-3 B4)', async () => {
+    jest.setSystemTime(new Date(2026, 8, 14, 12, 0));
+    await repeatYesterday(UID, [log({ id: 'd', date: new Date(2026, 8, 13, 19, 5), calories: 700 })], MIDNIGHT);
+    const ts = (mockAddLogDurably.mock.calls[0] as unknown as [string, { timestamp: Date }])[1].timestamp;
+    expect([ts.getHours(), ts.getMinutes()]).toEqual([12, 0]);
   });
 
   it("copies yesterday's rows onto today, keeping each row's time of day", async () => {
@@ -399,6 +408,9 @@ describe('repeatYesterday', () => {
   });
 
   it('asks the BOUNDARY which day yesterday was, not the calendar', async () => {
+    // 02:30 on the 15th: still the 14th for a 3am day, and late enough that
+    // the copied 01:00 is already past (copies are never filed ahead of now).
+    jest.setSystemTime(new Date(2026, 8, 15, 2, 30));
     // A 3am day start: a row logged at 01:00 on the 14th belongs to the 13th,
     // so it IS yesterday's and must be copied — and one at 04:00 on the 14th
     // is today's and must not be.
@@ -415,6 +427,9 @@ describe('repeatYesterday', () => {
   });
 
   it("files every copy onto TODAY's key under the boundary, not yesterday's again", async () => {
+    // 02:30 on the 15th: still the 14th for a 3am day, and late enough that
+    // the copied 01:00 is already past (copies are never filed ahead of now).
+    jest.setSystemTime(new Date(2026, 8, 15, 2, 30));
     // Same 3am boundary. Yesterday's 01:00 meal (logged on the 14th's calendar
     // date) must be copied to a timestamp that `dayKeyAt` files under TODAY —
     // which is 01:00 on the 15th's calendar date, not 01:00 on the 14th, which

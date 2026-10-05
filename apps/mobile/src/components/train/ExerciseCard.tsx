@@ -8,7 +8,6 @@ import {
   exerciseHistory,
   formatLoad,
   generateWarmup,
-  isWorkingSet,
   loadUnit,
   platesFor,
   previousCell,
@@ -29,7 +28,8 @@ import {
 } from '@/lib/workout';
 import type { TrainState } from '@/hooks/useTrain';
 import { RecommendationNote } from '@/components/train/RecommendationNote';
-import { useT } from '@/i18n';
+import { useLocale, useT } from '@/i18n';
+import { formatDecimal } from '@/lib/entry-input';
 import * as haptics from '@/lib/haptics';
 import { smoothLayout } from '@/lib/motion';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
@@ -37,7 +37,7 @@ import { useUnitSystem } from '@/lib/use-unit-system';
 import { space } from '@/theme';
 import type { InputChain } from './input-chain';
 import { SetRow } from './SetRow';
-import { activationIssueKey, lastHint, recommendationFor } from './train-summary';
+import { activationIssueKey, lastHint, loadTargetIndices, recommendationFor } from './train-summary';
 import { createStyles } from './train-styles';
 import { MenuButton, type MenuButtonAction } from '@/components/MenuButton';
 
@@ -101,6 +101,7 @@ export const ExerciseCard = memo(function ExerciseCard({
   onRemoveSet,
 }: ExerciseCardProps) {
   const t = useT();
+  const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const unitSystem = useUnitSystem();
   const { colors } = useTheme();
@@ -192,6 +193,21 @@ export const ExerciseCard = memo(function ExerciseCard({
 
   const countA11y = t('train.setCountA11y', { done: loggedCount, total: totalSets });
 
+  /**
+   * One load for the whole lift — an accepted recommendation or the bump chip
+   * — onto every set `loadTargetIndices` names. Each patch is deferred and the
+   * lot committed ONCE: an immediate dispatch per set was N writes of the
+   * whole session for one tap (Train re-score bug 9).
+   */
+  const applyLoad = (load: number) => {
+    haptics.tap();
+    const targets = loadTargetIndices(ex.sets);
+    for (const setIndex of targets) {
+      void dispatch({ type: 'patchSet', exerciseIndex, setIndex, patch: { weight: load } }, { defer: true });
+    }
+    if (targets.length > 0) void commitActive();
+  };
+
   return (
     <Animated.View style={styles.exCard} layout={smoothLayout}>
       <View style={styles.exHeadRow}>
@@ -247,42 +263,18 @@ export const ExerciseCard = memo(function ExerciseCard({
               rec={rec}
               testID={`recommendation-${exerciseIndex}`}
               onSettings={catalogEx ? () => onOpenLift(exerciseIndex) : undefined}
-              onAccept={(acceptLoad) => {
-                haptics.tap();
-                // Same affordance the bump had: the accepted load lands on
-                // every working set that has no weight yet, so a cluster's
-                // minis inherit it too. Each patch is deferred and the lot
-                // committed ONCE: an immediate dispatch per set was N writes
-                // of the whole session for one tap (Train re-score bug 9).
-                let patched = false;
-                ex.sets.forEach((s, idx) => {
-                  if (isWorkingSet(s) && (s.weight ?? 0) === 0) {
-                    patched = true;
-                    void dispatch(
-                      { type: 'patchSet', exerciseIndex, setIndex: idx, patch: { weight: acceptLoad } },
-                      { defer: true },
-                    );
-                  }
-                });
-                if (patched) void commitActive();
-              }}
+              // The accepted load lands on every working set that has no
+              // weight yet, so a cluster's minis inherit it too.
+              onAccept={applyLoad}
             />
           ) : bumpTo != null ? (
             <TouchableOpacity
               style={styles.bumpChip}
               hitSlop={{ top: 6, bottom: 6 }}
-              onPress={() => {
-                haptics.tap();
-                const idx = ex.sets.findIndex((s) => isWorkingSet(s));
-                if (idx >= 0) {
-                  void dispatch({
-                    type: 'patchSet',
-                    exerciseIndex,
-                    setIndex: idx,
-                    patch: { weight: bumpTo },
-                  });
-                }
-              }}
+              // Every unweighted working set, as an accepted call does — it
+              // filled only the first, and sets 2 and 3 were then ticked at
+              // last week's load (Train re-score 3, bug 4).
+              onPress={() => applyLoad(bumpTo)}
               accessibilityRole="button"
               testID={`bump-${exerciseIndex}`}
             >
@@ -373,18 +365,18 @@ export const ExerciseCard = memo(function ExerciseCard({
                   <Text style={styles.panelLabel}>{`${t('train.workingSet')} · ${formatLoad(keyWeight, unitSystem)}`}</Text>
                   <Text style={styles.plateText}>
                     {load && load.perSide.length
-                      ? `${load.perSide.map((p) => `${p.plate}×${p.count}`).join('   ')}  ${t('train.perSidePlates')}`
+                      ? `${load.perSide.map((p) => `${formatDecimal(p.plate, locale)}×${p.count}`).join('   ')}  ${t('train.perSidePlates')}`
                       : t('train.barOnly')}
                   </Text>
                   {load && load.remainder > 0 ? (
-                    <Text style={styles.panelHint}>{`+${load.remainder} ${t('train.short')}`}</Text>
+                    <Text style={styles.panelHint}>{`+${formatDecimal(load.remainder, locale)} ${t('train.short')}`}</Text>
                   ) : null}
                   {warm.length ? (
                     <>
                       <Text style={[styles.panelLabel, { marginTop: space.sm }]}>{t('train.warmupLabel')}</Text>
                       {warm.map((w, i) => (
                         <Text key={i} style={styles.warmRow}>
-                          {`${w.weight} × ${w.reps}${w.pct != null ? `   ${Math.round(w.pct * 100)}%` : ''}`}
+                          {`${formatDecimal(w.weight, locale)} × ${w.reps}${w.pct != null ? `   ${Math.round(w.pct * 100)}%` : ''}`}
                         </Text>
                       ))}
                     </>

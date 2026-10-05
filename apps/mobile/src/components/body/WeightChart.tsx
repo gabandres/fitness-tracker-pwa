@@ -1,6 +1,7 @@
 import * as Haptics from 'expo-haptics';
-import { memo, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import {
+  AccessibilityInfo,
   type AccessibilityActionEvent,
   Platform,
   StyleSheet,
@@ -32,6 +33,7 @@ import {
 } from '@macrolog/core';
 import { type I18nKey, useLocale, useT } from '@/i18n';
 import { formatDate, formatNumber } from '@/lib/date-format';
+import { isScreenReaderOn } from '@/lib/a11y';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
@@ -51,12 +53,19 @@ import { type ChartFrame, dotsPath, nearestIndex, weightChartGeometry } from './
  * - **Dots are readings, the line is the trend** (`trendWeightSeries`, the
  *   Trends smoother), the dash is the 4-week projection, and a dashed rule
  *   marks the goal when it is near enough to draw without flattening the line.
- * - **Axis**: min, middle and max on the left with a faint mid gridline, and
- *   first, middle and last date underneath (re-score: two numbers and two
- *   dates left a 140 pt plot unreadable).
+ * - **Axis**: min, middle and max in a gutter on the left with a faint mid
+ *   gridline, and first, middle and last date underneath (re-score: two
+ *   numbers and two dates left a 140 pt plot unreadable). The numbers sit in
+ *   their own `AXIS_GUTTER`, right-aligned, not over the plot — at `left: 0`
+ *   with an 8 pt pad they drew across the oldest dots (re-score 3).
+ * - **The caption** under the plot explains the dash, and is drawn only when
+ *   the dash is (1M and 3M with a projection). It lived on Body and showed on
+ *   every range, so 6M, 1Y and All described a line that was not there.
  * - **One path for the dots** (`dotsPath`), not a `<Circle>` per reading.
  * - **Scrub**: drag across the plot and a cursor follows the finger with a
- *   readout above it and a selection tick per reading crossed. The finger
+ *   readout over the range chips (they are not needed mid-drag, and a bubble
+ *   laid out in its own row left a dead band above the plot at rest) and a
+ *   selection tick per reading crossed. The finger
  *   position, the index and the readout text live in shared values and
  *   animated props — dragging re-renders NO React component (the same
  *   UI-thread pattern `CountUpText` and the Trends charts use). A vertical
@@ -66,13 +75,22 @@ import { type ChartFrame, dotsPath, nearestIndex, weightChartGeometry } from './
  *   value through readings, newest first — Apple Health's own chart pattern.
  *   On iOS that element is an `AccessibleChart`, so VoiceOver's rotor also
  *   offers an audio graph of the readings and the trend (`audio-graph.ts`) —
- *   additive; the stepper is unchanged.
+ *   additive; the stepper is unchanged. The descriptor is built only while a
+ *   screen reader is on: on "All" it is three arrays of ~1,400 entries, and
+ *   nobody else can hear it.
+ * - **Dots** are thinned past a year of readings: a dot within its own radius
+ *   of the last one drawn is skipped (`dotsPath`'s `minGap`), which is
+ *   invisible at that density and halves the path.
  * - **Reduce Motion**: the plot fades in only when motion is allowed; the
  *   cursor never animates, it is placed.
  */
 
 const HEIGHT = 140;
-const PAD: Omit<ChartFrame, 'width' | 'height'> = { padL: 8, padR: 8, padT: 12, padB: 12 };
+/** Room for "350.0" at the 1.3× text cap, right-aligned against the plot. */
+const AXIS_GUTTER = 40;
+const PAD: Omit<ChartFrame, 'width' | 'height'> = { padL: AXIS_GUTTER, padR: 8, padT: 12, padB: 12 };
+/** Above this many readings the dots are thinned (see the header). */
+const DOT_THIN_FROM = 365;
 const FORECAST_DAYS = 28;
 const AnimatedTextInput = Animated.createAnimatedComponent(TextInput);
 
@@ -81,6 +99,26 @@ const AnimatedTextInput = Animated.createAnimatedComponent(TextInput);
 function tick(): void {
   if (Platform.OS === 'web') return;
   Haptics.selectionAsync().catch(() => {});
+}
+
+/** Is a screen reader running? Tracked live, so turning VoiceOver on with
+ *  the chart on screen builds its audio graph. */
+function useScreenReaderOn(): boolean {
+  const [on, setOn] = useState(isScreenReaderOn);
+  useEffect(() => {
+    let alive = true;
+    AccessibilityInfo.isScreenReaderEnabled()
+      .then((v) => {
+        if (alive) setOn(v);
+      })
+      .catch(() => {});
+    const sub = AccessibilityInfo.addEventListener('screenReaderChanged', setOn);
+    return () => {
+      alive = false;
+      sub?.remove?.();
+    };
+  }, []);
+  return on;
 }
 
 const RANGE_LONG: Record<WeightRange, I18nKey> = {
@@ -139,6 +177,14 @@ function WeightChartImpl({
     [points, todayKey],
   );
   const range = picked ?? autoRange;
+  // "All" means all: asked for whenever the range IS All, picked or not. When
+  // the auto range landed on All (under two readings in a year) the fetch
+  // never ran and "All time" quietly showed the 400-day window (re-score 3,
+  // bug 5). `loadAllHistory` is idempotent, so a re-run costs nothing.
+  useEffect(() => {
+    if (range === 'All' && hasOlderHistory) onNeedAll();
+  }, [range, hasOlderHistory, onNeedAll]);
+  const screenReader = useScreenReaderOn();
   const [width, setWidth] = useState(0);
   const [a11yIndex, setA11yIndex] = useState<number | null>(null);
 
@@ -149,16 +195,17 @@ function WeightChartImpl({
   }, [trend, shown]);
 
   const frame: ChartFrame = useMemo(() => ({ width, height: HEIGHT, ...PAD }), [width]);
+  // The dash only means something on the short ranges, where four weeks
+  // ahead is a visible fraction of the axis. The caption follows it.
+  const dashed = slopeLbPerWeek != null && (range === '1M' || range === '3M');
   const geometry = useMemo(
     () =>
       weightChartGeometry(shown, shownTrend, frame, {
         goalLb,
         slopeLbPerWeek,
-        // The dash only means something on the short ranges, where four weeks
-        // ahead is a visible fraction of the axis.
-        forecastDays: range === '1M' || range === '3M' ? FORECAST_DAYS : 0,
+        forecastDays: dashed ? FORECAST_DAYS : 0,
       }),
-    [shown, shownTrend, frame, goalLb, slopeLbPerWeek, range],
+    [shown, shownTrend, frame, goalLb, slopeLbPerWeek, dashed],
   );
 
   const num = (lb: number) => formatNumber(toDisplayWeight(lb, unitSystem), locale, { maximumFractionDigits: 1, minimumFractionDigits: 1 });
@@ -201,7 +248,7 @@ function WeightChartImpl({
   // both in the display unit at the precision the labels read them. Built
   // inline for the same React Compiler reason `labels` is. ──
   const descriptor =
-    shown.length === 0
+    shown.length === 0 || !screenReader
       ? null
       : audioGraphDescriptor({
           title: t('trends.weightChartTitle'),
@@ -278,49 +325,51 @@ function WeightChartImpl({
     haptics.tap();
     setPicked(r);
     setA11yIndex(null);
-    if (r === 'All' && hasOlderHistory) onNeedAll();
   }
 
   return (
     <View style={styles.wrap} testID={testID}>
-      <View style={styles.chips} accessibilityRole="radiogroup" accessibilityLabel={t('body.rangeGroupA11y')}>
-        {WEIGHT_RANGES.map((r) => {
-          const on = r === range;
-          return (
-            <TouchableOpacity
-              key={r}
-              style={[styles.chip, on && styles.chipOn]}
-              onPress={() => pick(r)}
-              accessibilityRole="radio"
-              accessibilityState={{ checked: on }}
-              accessibilityLabel={t(RANGE_LONG[r])}
-              hitSlop={{ top: 6, bottom: 6 }}
-              testID={`weight-range-${r}`}
-            >
-              <Text style={[styles.chipText, on && styles.chipTextOn]} maxFontSizeMultiplier={1.3}>
-                {t(RANGE_SHORT[r])}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+      <View style={styles.chipsBand}>
+        <View style={styles.chips} accessibilityRole="radiogroup" accessibilityLabel={t('body.rangeGroupA11y')}>
+          {WEIGHT_RANGES.map((r) => {
+            const on = r === range;
+            return (
+              <TouchableOpacity
+                key={r}
+                style={[styles.chip, on && styles.chipOn]}
+                onPress={() => pick(r)}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: on }}
+                accessibilityLabel={t(RANGE_LONG[r])}
+                hitSlop={{ top: 6, bottom: 6 }}
+                testID={`weight-range-${r}`}
+              >
+                <Text style={[styles.chipText, on && styles.chipTextOn]} maxFontSizeMultiplier={1.3}>
+                  {t(RANGE_SHORT[r])}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
 
-      {/* The readout sits ABOVE the plot so the finger never covers it. */}
-      <Animated.View
-        style={[styles.bubble, bubbleStyle]}
-        pointerEvents="none"
-        importantForAccessibility="no-hide-descendants"
-        accessibilityElementsHidden
-      >
-        <AnimatedTextInput
-          editable={false}
-          underlineColorAndroid="transparent"
-          style={styles.bubbleText}
-          defaultValue=""
-          animatedProps={bubbleProps}
-          maxFontSizeMultiplier={1.3}
-        />
-      </Animated.View>
+        {/* The readout sits ABOVE the plot so the finger never covers it — over
+            the chips, which nobody needs mid-drag. */}
+        <Animated.View
+          style={[styles.bubble, bubbleStyle]}
+          pointerEvents="none"
+          importantForAccessibility="no-hide-descendants"
+          accessibilityElementsHidden
+        >
+          <AnimatedTextInput
+            editable={false}
+            underlineColorAndroid="transparent"
+            style={styles.bubbleText}
+            defaultValue=""
+            animatedProps={bubbleProps}
+            maxFontSizeMultiplier={1.3}
+          />
+        </Animated.View>
+      </View>
 
       <GestureDetector gesture={pan}>
         <AccessibleChart
@@ -358,7 +407,11 @@ function WeightChartImpl({
                   stroke={colors.heroTrack}
                   strokeWidth={1}
                 />
-                <Path d={dotsPath(geometry.xs, geometry.ys, shown.length > 120 ? 1.5 : 2.5)} fill={colors.heroText} opacity={0.45} />
+                <Path
+                  d={dotsPath(geometry.xs, geometry.ys, shown.length > 120 ? 1.5 : 2.5, shown.length > DOT_THIN_FROM ? 1.5 : 0)}
+                  fill={colors.heroText}
+                  opacity={0.45}
+                />
                 {geometry.trendPath ? (
                   <Path d={geometry.trendPath} stroke={colors.ring} strokeWidth={2.5} fill="none" strokeLinejoin="round" strokeLinecap="round" />
                 ) : null}
@@ -416,6 +469,15 @@ function WeightChartImpl({
           <Text style={styles.axis} maxFontSizeMultiplier={1.3}>{day(shown[n - 1].dateKey)}</Text>
         </View>
       ) : null}
+
+      {/* The line is the trend over every reading; the dash is fitted over 28
+          days (PROJECTION_WINDOW_DAYS in useBody — a 14-day fit is dominated
+          by water weight). Said only when the dash is drawn. */}
+      {dashed && n > 0 ? (
+        <Text style={styles.caption} testID={testID ? `${testID}-caption` : undefined}>
+          {t('body.chartWindows')}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -425,6 +487,7 @@ export const WeightChart = memo(WeightChartImpl);
 const createStyles = ({ colors }: Theme) =>
   StyleSheet.create({
     wrap: { alignSelf: 'stretch', gap: space.xs, marginTop: space.xs },
+    chipsBand: { minHeight: 32, justifyContent: 'center' },
     chips: { flexDirection: 'row', justifyContent: 'center', gap: space.xs, flexWrap: 'wrap' },
     chip: {
       minWidth: 44,
@@ -434,12 +497,19 @@ const createStyles = ({ colors }: Theme) =>
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: colors.heroTrack,
+      // heroTrack on heroPanel is 1.29:1, so an unselected chip had no
+      // visible edge; heroMuted is 6.8:1 (re-score 3, WCAG 1.4.11).
+      borderWidth: 1,
+      borderColor: colors.heroMuted,
     },
-    chipOn: { backgroundColor: colors.heroText },
+    chipOn: { backgroundColor: colors.heroText, borderColor: colors.heroText },
     chipText: { fontSize: font.small, color: colors.heroMuted, fontWeight: '700' },
     chipTextOn: { color: colors.heroPanel },
     bubble: {
-      height: 26,
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      height: 32,
       borderRadius: radius.sm,
       backgroundColor: colors.heroTrack,
       justifyContent: 'center',
@@ -447,11 +517,13 @@ const createStyles = ({ colors }: Theme) =>
     },
     bubbleText: { color: colors.heroText, fontSize: font.small, padding: 0, textAlign: 'center' },
     axis: { fontSize: font.tiny, color: colors.heroMuted },
-    axisTop: { position: 'absolute', left: 0, top: -2 },
-    axisBottom: { position: 'absolute', left: 0, bottom: -4 },
-    axisMid: { position: 'absolute', left: 0 },
+    // Right-aligned in the gutter, clear of the plot.
+    axisTop: { position: 'absolute', left: 0, width: AXIS_GUTTER - 6, textAlign: 'right', top: -2 },
+    axisBottom: { position: 'absolute', left: 0, width: AXIS_GUTTER - 6, textAlign: 'right', bottom: -4 },
+    axisMid: { position: 'absolute', left: 0, width: AXIS_GUTTER - 6, textAlign: 'right' },
     goalLabel: { position: 'absolute', right: PAD.padR },
-    xRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: PAD.padL },
+    xRow: { flexDirection: 'row', justifyContent: 'space-between', paddingLeft: PAD.padL, paddingRight: PAD.padR },
+    caption: { textAlign: 'center', color: colors.heroMuted, fontSize: font.tiny, marginTop: space.xs, paddingHorizontal: space.md },
     empty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     emptyText: { color: colors.heroMuted, fontSize: font.small },
     cursor: {

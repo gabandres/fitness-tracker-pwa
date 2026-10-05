@@ -24,7 +24,7 @@ import { RestNotifySheet } from '@/components/train/RestNotifySheet';
 import { decideRestNotifyPriming, markRestNotifyPrimed } from '@/components/train/rest-notify-priming';
 import { SetRowSheet } from '@/components/train/SetRowSheet';
 import { ExerciseMenuSheet, type ExerciseMenuAction } from '@/components/train/ExerciseMenuSheet';
-import { type I18nKey, useLocale, useT } from '@/i18n';
+import { type I18nKey, type TFn, useLocale, useT } from '@/i18n';
 import { announce } from '@/lib/a11y';
 import { publishRestEndsAt } from '@/lib/active-workout-signal';
 import { useIsOffline } from '@/lib/connectivity';
@@ -35,10 +35,11 @@ import * as restActivity from '@/lib/rest-timer-activity';
 import { subscribeIntentInbox, takeIntentInbox } from '../../../modules/intent-inbox';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { useUnitSystem } from '@/lib/use-unit-system';
-import type { SessionExercise } from '@/lib/workout';
+import type { Exercise, SessionExercise } from '@/lib/workout';
 import { AddExerciseSheet } from './AddExerciseSheet';
 import { CardioPickerSheet } from './CardioPickerSheet';
 import { ExerciseCard } from './ExerciseCard';
+import { ExerciseDetailSheet } from './ExerciseDetailSheet';
 import { chainOrder, useInputChain } from './input-chain';
 import { ReorderExercisesSheet } from './ReorderExercisesSheet';
 import { RestPickerSheet } from './RestPickerSheet';
@@ -47,9 +48,10 @@ import {
   DEFAULT_REST_MINI_SEC,
   clock,
   recommendationFor,
+  spokenDuration,
 } from './train-summary';
 import { createStyles } from './train-styles';
-import { MenuButton } from '@/components/MenuButton';
+import { MenuButton, hasNativeMenuButton } from '@/components/MenuButton';
 import { toMenuButtonActions } from './exercise-menu-native';
 
 /**
@@ -63,6 +65,86 @@ const handoff = (run: () => void) => {
   if (NATIVE_SHEETS) setTimeout(run, SHEET_HANDOFF_MS);
   else run();
 };
+/**
+ * The same, for a row picked from a ⋯ MENU. Where the binary has the system
+ * pull-down (`hasNativeMenuButton`) every ⋯ pick comes from it — the sheet is
+ * only its fallback — and a native menu has already closed when its pick fires
+ * (`MenuButton`), so there is nothing to wait out: those picks paid 350 ms for
+ * no reason (Train re-score 3, bug 5). A confirm still hands off with
+ * {@link handoff}: that one IS a sheet going away.
+ */
+const menuHandoff = (run: () => void) => {
+  if (hasNativeMenuButton) run();
+  else handoff(run);
+};
+
+/** The rows an exercise's ⋯ can carry. */
+type ExerciseMenuKey =
+  | 'move-up' | 'move-down' | 'history' | 'replace' | 'cluster' | 'block'
+  | 'plates' | 'rest' | 'lift' | 'remove';
+
+/**
+ * What one exercise's ⋯ offers, as plain values. The rows are built from this
+ * and nothing else, so the open card's native menu can be rebuilt only when
+ * one of these moves — it was a fresh array on every keystroke, which broke
+ * the open card's memo and re-sent the menu across the bridge each time
+ * (Train re-score 3, performance).
+ */
+interface ExerciseMenuShape {
+  index: number;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
+  /** The lift is in the catalog, so it has a history to show. */
+  history: boolean;
+  cluster: boolean;
+  block: boolean;
+  /** `null`: not a loaded lift, so no plate panel at all. */
+  platesOpen: boolean | null;
+  /** "1:30 after each set". */
+  restDesc: string;
+  /** The engine has a call to tune. */
+  lift: boolean;
+}
+
+/** The ⋯ rows for a shape, each pressing through `run`. */
+function exerciseMenuActions(shape: ExerciseMenuShape, run: (key: ExerciseMenuKey) => void): ExerciseMenuAction[] {
+  const row = (
+    key: ExerciseMenuKey,
+    icon: ExerciseMenuAction['icon'],
+    labelKey: I18nKey,
+    extra: Partial<ExerciseMenuAction> = {},
+  ): ExerciseMenuAction => ({ key, icon, labelKey, onPress: () => run(key), ...extra });
+  return [
+    ...(shape.canMoveUp ? [row('move-up', 'arrow-up-outline', 'train.moveUp')] : []),
+    ...(shape.canMoveDown ? [row('move-down', 'arrow-down-outline', 'train.moveDown')] : []),
+    // Strong's in-workout History tab, Hevy's tap on the name: what this lift
+    // did before, without leaving the workout (Train re-score 3).
+    ...(shape.history ? [row('history', 'stats-chart-outline', 'train.exHistoryMenu')] : []),
+    row('replace', 'swap-horizontal-outline', 'train.replaceExercise'),
+    ...(shape.cluster ? [row('cluster', 'layers-outline', 'train.addCluster', { descKey: 'train.addClusterDesc' })] : []),
+    ...(shape.block ? [row('block', 'layers-outline', 'train.addBlock', { descKey: 'train.addBlockDesc' })] : []),
+    ...(shape.platesOpen != null
+      ? [row('plates', 'barbell-outline', shape.platesOpen ? 'train.hidePanel' : 'train.platesWarmup')]
+      : []),
+    row('rest', 'timer-outline', 'train.restTimer', { desc: shape.restDesc }),
+    ...(shape.lift ? [row('lift', 'options-outline', 'train.lift.title')] : []),
+    row('remove', 'trash-outline', 'train.removeExercise', { destructive: true }),
+  ];
+}
+
+/** The open card's ⋯ as native rows, rebuilt only when its shape changes —
+ *  `shapeKey` is the shape as JSON, so the memo compares one string. */
+function useOpenMenuActions(
+  shapeKey: string | null,
+  run: (index: number, key: ExerciseMenuKey) => void,
+  t: TFn,
+) {
+  return useMemo(() => {
+    if (shapeKey == null) return undefined;
+    const shape = JSON.parse(shapeKey) as ExerciseMenuShape;
+    return toMenuButtonActions(exerciseMenuActions(shape, (key) => run(shape.index, key)), t);
+  }, [shapeKey, run, t]);
+}
 
 /** When a rest of `secs` started now will end, epoch ms. Out here because the
  *  clock is impure, and the compiler will not have it inside the component. */
@@ -122,6 +204,8 @@ export function ActiveSession({
   const [restPickerFor, setRestPickerFor] = useState<number | null>(null);
   const [platesOpen, setPlatesOpen] = useState<number | null>(null);
   const [reorderOpen, setReorderOpen] = useState(false);
+  /** The lift whose history the ⋯ menu opened, read-only. */
+  const [historyFor, setHistoryFor] = useState<Exercise | null>(null);
   /** Per-exercise rest for THIS workout, by exercise id (stable across a
    *  move), seconds. Set from the ⋯ menu's "Rest timer"; mirrored into
    *  {@link restOverridesBySession} so a remount keeps it. */
@@ -182,6 +266,13 @@ export function ActiveSession({
   });
   const doneCount = session.exercises.filter(exerciseIsFullyDone).length;
   const volume = sessionVolume(session);
+  /** The header's line after the clock: volume, then progress. */
+  const metaParts = [
+    ...(volume > 0 ? [formatLoad(volume, unitSystem, 0)] : []),
+    ...(session.exercises.length > 0
+      ? [t('train.progress', { done: doneCount, total: session.exercises.length })]
+      : []),
+  ];
 
   // Weight → reps → the next row, across the open card (`input-chain.ts`).
   const chain = useInputChain(() => chainOrder(train.active?.exercises ?? [], (i) => i === expanded));
@@ -466,7 +557,7 @@ export function ActiveSession({
         key: 'reorder',
         icon: 'reorder-three-outline',
         labelKey: 'train.reorderExercises',
-        onPress: () => handoff(() => setReorderOpen(true)),
+        onPress: () => menuHandoff(() => setReorderOpen(true)),
       }]
     : [];
   const sessionActions: ExerciseMenuAction[] = train.editingExisting
@@ -475,7 +566,7 @@ export function ActiveSession({
           key: 'add-exercise',
           icon: 'add-circle-outline',
           labelKey: 'train.addExerciseTitle',
-          onPress: () => handoff(() => setAddFor('add')),
+          onPress: () => menuHandoff(() => setAddFor('add')),
         },
         ...reorderAction,
         {
@@ -492,30 +583,33 @@ export function ActiveSession({
           key: 'add-exercise',
           icon: 'add-circle-outline',
           labelKey: 'train.addExerciseTitle',
-          onPress: () => handoff(() => setAddFor('add')),
+          onPress: () => menuHandoff(() => setAddFor('add')),
         },
         ...reorderAction,
         {
           key: 'add-cardio',
           icon: 'walk-outline',
           labelKey: 'cardio.add',
-          onPress: () => handoff(() => setCardioPickerOpen(true)),
+          onPress: () => menuHandoff(() => setCardioPickerOpen(true)),
         },
         {
           key: 'discard',
           icon: 'trash-outline',
           labelKey: 'train.discardWorkout',
           destructive: true,
-          onPress: () => handoff(confirmDiscard),
+          onPress: () => menuHandoff(confirmDiscard),
         },
       ];
 
-  function exerciseActions(index: number): ExerciseMenuAction[] {
+  /** The catalog entry behind a session exercise, if it has one. */
+  const catalogFor = (exerciseId: string): Exercise | null =>
+    train.catalog.find((e) => e.id === exerciseId) ?? null;
+
+  function exerciseMenuShape(index: number): ExerciseMenuShape | null {
     const ex = session.exercises[index];
-    if (!ex) return [];
+    if (!ex) return null;
     const templateRow = templateRowFor(ex.exerciseId);
-    const catalogEx = train.catalog.find((e) => e.id === ex.exerciseId) ?? null;
-    const style = ex.logStyle ?? 'weight-reps';
+    const catalogEx = catalogFor(ex.exerciseId);
     // Which add-actions this lift can use (ADR-0040), through core's
     // precedence (template -> catalog -> inference) so an undeclared legacy
     // template keeps every affordance it was written with.
@@ -524,97 +618,92 @@ export function ActiveSession({
         ?? catalogEx?.setStructure
         ?? (ex.sets.some((x) => x.kind === 'activation') ? undefined : 'straight'),
     );
-    const engineHasCall = catalogEx != null
-      && recommendationFor(train, ex.exerciseId, templateRow, ex).action !== 'none';
-    const n = session.exercises.length;
     const override = restOverride[ex.exerciseId];
-    return [
-      ...(index > 0
-        ? [{
-            key: 'move-up',
-            icon: 'arrow-up-outline' as const,
-            labelKey: 'train.moveUp' as I18nKey,
-            onPress: () => moveExercise(index, index - 1),
-          }]
-        : []),
-      ...(index < n - 1
-        ? [{
-            key: 'move-down',
-            icon: 'arrow-down-outline' as const,
-            labelKey: 'train.moveDown' as I18nKey,
-            onPress: () => moveExercise(index, index + 1),
-          }]
-        : []),
-      {
-        key: 'replace',
-        icon: 'swap-horizontal-outline',
-        labelKey: 'train.replaceExercise',
-        onPress: () =>
-          handoff(() => {
-            const open = () => setAddFor({ index, name: ex.name });
-            // Replacing throws the logged sets away; say so first.
-            if (ex.sets.some((s) => s.reps != null || s.durationSec != null)) {
-              confirm({
-                title: t('train.replaceLoggedTitle', { name: ex.name }),
-                body: t('train.replaceLoggedBody'),
-                confirmText: t('train.replace'),
-                destructive: true,
-                onConfirm: () => handoff(open),
-              });
-            } else open();
-          }),
-      },
-      ...(canAdd.cluster
-        ? [{
-            key: 'cluster',
-            icon: 'layers-outline' as const,
-            labelKey: 'train.addCluster' as I18nKey,
-            descKey: 'train.addClusterDesc' as I18nKey,
-            onPress: () => void dispatch({ type: 'addCluster', exerciseIndex: index }),
-          }]
-        : []),
-      ...(canAdd.block
-        ? [{
-            key: 'block',
-            icon: 'layers-outline' as const,
-            labelKey: 'train.addBlock' as I18nKey,
-            descKey: 'train.addBlockDesc' as I18nKey,
-            onPress: () => void dispatch({ type: 'addBlock', exerciseIndex: index }),
-          }]
-        : []),
-      ...(style === 'weight-reps'
-        ? [{
-            key: 'plates',
-            icon: 'barbell-outline' as const,
-            labelKey: (platesOpen === index ? 'train.hidePanel' : 'train.platesWarmup') as I18nKey,
-            onPress: () => setPlatesOpen((o) => (o === index ? null : index)),
-          }]
-        : []),
-      {
-        key: 'rest',
-        icon: 'timer-outline',
-        labelKey: 'train.restTimer',
-        desc: t('train.restTimerDesc', { time: clock(override ?? restFallback(index)) }),
-        onPress: () => handoff(() => setRestPickerFor(index)),
-      },
-      ...(engineHasCall
-        ? [{
-            key: 'lift',
-            icon: 'options-outline' as const,
-            labelKey: 'train.lift.title' as I18nKey,
-            onPress: () => handoff(() => setLiftFor(index)),
-          }]
-        : []),
-      {
-        key: 'remove',
-        icon: 'trash-outline',
-        labelKey: 'train.removeExercise',
-        destructive: true,
-        onPress: () => removeExercise(index),
-      },
-    ];
+    return {
+      index,
+      canMoveUp: index > 0,
+      canMoveDown: index < session.exercises.length - 1,
+      history: catalogEx != null,
+      cluster: canAdd.cluster,
+      block: canAdd.block,
+      platesOpen: (ex.logStyle ?? 'weight-reps') === 'weight-reps' ? platesOpen === index : null,
+      restDesc: t('train.restTimerDesc', { time: clock(override ?? restFallback(index)) }),
+      lift: catalogEx != null
+        && recommendationFor(
+          { recentSessions: train.recentSessions, catalog: train.catalog },
+          ex.exerciseId,
+          templateRow,
+          ex,
+        ).action !== 'none',
+    };
   }
 
+  /** What one ⋯ row does — for the exercise as it stands when it fires. */
+  function runExerciseAction(index: number, key: ExerciseMenuKey) {
+    const ex = session.exercises[index];
+    if (!ex) return;
+    switch (key) {
+      case 'move-up':
+        moveExercise(index, index - 1);
+        return;
+      case 'move-down':
+        moveExercise(index, index + 1);
+        return;
+      case 'history': {
+        const catalogEx = catalogFor(ex.exerciseId);
+        if (catalogEx) menuHandoff(() => setHistoryFor(catalogEx));
+        return;
+      }
+      case 'replace':
+        menuHandoff(() => {
+          const open = () => setAddFor({ index, name: ex.name });
+          // Replacing throws the logged sets away; say so first.
+          if (ex.sets.some((s) => s.reps != null || s.durationSec != null)) {
+            confirm({
+              title: t('train.replaceLoggedTitle', { name: ex.name }),
+              body: t('train.replaceLoggedBody'),
+              confirmText: t('train.replace'),
+              destructive: true,
+              onConfirm: () => handoff(open),
+            });
+          } else open();
+        });
+        return;
+      case 'cluster':
+        void dispatch({ type: 'addCluster', exerciseIndex: index });
+        return;
+      case 'block':
+        void dispatch({ type: 'addBlock', exerciseIndex: index });
+        return;
+      case 'plates':
+        setPlatesOpen((o) => (o === index ? null : index));
+        return;
+      case 'rest':
+        menuHandoff(() => setRestPickerFor(index));
+        return;
+      case 'lift':
+        menuHandoff(() => setLiftFor(index));
+        return;
+      case 'remove':
+        removeExercise(index);
+        return;
+    }
+  }
+  // One identity for the open card's memoized menu; each pick runs against
+  // THIS render's session, read through the ref.
+  const runExerciseActionRef = useRef(runExerciseAction);
+  useEffect(() => {
+    runExerciseActionRef.current = runExerciseAction;
+  });
+  const runStable = useCallback((index: number, key: ExerciseMenuKey) => runExerciseActionRef.current(index, key), []);
+  const openShape = expanded != null ? exerciseMenuShape(expanded) : null;
+  const openMenuActions = useOpenMenuActions(openShape ? JSON.stringify(openShape) : null, runStable, t);
+
+  /** The fallback sheet's rows for one exercise. */
+  const exerciseMenuActionsAt = (index: number): ExerciseMenuAction[] => {
+    const shape = exerciseMenuShape(index);
+    return shape ? exerciseMenuActions(shape, (key) => runExerciseAction(index, key)) : [];
+  };
   const menuEx = menu?.kind === 'exercise' ? session.exercises[menu.index] : undefined;
   const sheetEx = setSheet ? session.exercises[setSheet.exerciseIndex] : undefined;
   const sheetSet = setSheet ? sheetEx?.sets[setSheet.setIndex] ?? null : null;
@@ -658,15 +747,13 @@ export function ActiveSession({
             {train.editingExisting ? t('train.editingSession') : t('train.inProgress')}
           </Text>
           <Text style={styles.sessionTitle} numberOfLines={1}>{title}</Text>
-          <Text style={styles.sessionMeta} numberOfLines={1}>
-            {train.editingExisting
-              ? formatDate(session.date, locale, { weekday: 'short', month: 'short', day: 'numeric' })
-              : <ElapsedClock startedAt={session.date} />}
-            {volume > 0 ? ` · ${formatLoad(volume, unitSystem, 0)}` : ''}
-            {session.exercises.length > 0
-              ? ` · ${t('train.progress', { done: doneCount, total: session.exercises.length })}`
-              : ''}
-          </Text>
+          {train.editingExisting ? (
+            <Text style={styles.sessionMeta} numberOfLines={1}>
+              {[formatDate(session.date, locale, { weekday: 'short', month: 'short', day: 'numeric' }), ...metaParts].join(' · ')}
+            </Text>
+          ) : (
+            <ElapsedClock startedAt={session.date} parts={metaParts} />
+          )}
           {offline ? (
             <View style={styles.syncRow} testID="session-saved-offline">
               <Ionicons name="phone-portrait-outline" size={12} color={colors.muted} />
@@ -765,7 +852,7 @@ export function ActiveSession({
             chain={chain}
             onToggle={onToggle}
             onOpenMenu={onOpenMenu}
-            menuActions={expanded === exIdx ? toMenuButtonActions(exerciseActions(exIdx), t) : undefined}
+            menuActions={expanded === exIdx ? openMenuActions : undefined}
             onOpenSetSheet={onOpenSetSheet}
             onOpenLift={onOpenLift}
             onSetDone={onSetDone}
@@ -865,7 +952,11 @@ export function ActiveSession({
         visible={menu != null && (menu.kind === 'session' || menuEx != null)}
         name={menu?.kind === 'exercise' ? menuEx?.name ?? '' : title}
         onClose={() => setMenu(null)}
-        actions={menu?.kind === 'exercise' ? exerciseActions(menu.index) : menu ? sessionActions : []}
+        actions={
+          menu?.kind === 'exercise'
+            ? exerciseMenuActionsAt(menu.index)
+            : menu ? sessionActions : []
+        }
         testIDPrefix={menu?.kind === 'session' ? 'session-menu' : 'ex-menu'}
       />
 
@@ -896,6 +987,16 @@ export function ActiveSession({
             return next;
           });
         }}
+      />
+
+      {/* What this lift did before — the catalog sheet, read-only: editing,
+          merging or deleting an exercise is not a mid-set job. */}
+      <ExerciseDetailSheet
+        visible={historyFor != null}
+        exercise={historyFor}
+        train={train}
+        readOnly
+        onClose={() => setHistoryFor(null)}
       />
 
       <ReorderExercisesSheet
@@ -999,20 +1100,35 @@ function RestBar({
 const REST_WARN_SEC = 10;
 
 /**
- * The session's elapsed time, ticking once a second. Its own component so the
- * tick re-renders one Text, not the whole workout.
+ * The session header's meta line — elapsed time, then `parts` (volume,
+ * progress) — ticking once a second. Its own component so the tick re-renders
+ * one Text, not the whole workout.
+ *
+ * The WHOLE line, not just the clock: the clock used to be a Text nested in
+ * the header's Text, and iOS drops a nested Text's accessibility label, so
+ * VoiceOver read "12:34" — a time of day — instead of the elapsed label
+ * (Train re-score 3). One Text with one composed label says "Elapsed time:
+ * 12 minutes 34 seconds, 2,450 lb, 2 of 5 done".
  */
-function ElapsedClock({ startedAt }: { startedAt: Date }) {
+function ElapsedClock({ startedAt, parts }: { startedAt: Date; parts: readonly string[] }) {
   const t = useT();
+  const locale = useLocale();
+  const styles = useThemedStyles(createStyles);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
-  const time = clock((now - startedAt.getTime()) / 1000);
+  const secs = (now - startedAt.getTime()) / 1000;
+  const spoken = t('train.elapsedA11y', { time: spokenDuration(secs, t, locale) });
   return (
-    <Text accessibilityLabel={t('train.elapsedA11y', { time })} testID="session-elapsed">
-      {time}
+    <Text
+      style={styles.sessionMeta}
+      numberOfLines={1}
+      accessibilityLabel={[spoken, ...parts].join(', ')}
+      testID="session-elapsed"
+    >
+      {[clock(secs), ...parts].join(' · ')}
     </Text>
   );
 }

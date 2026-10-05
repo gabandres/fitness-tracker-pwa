@@ -2,6 +2,7 @@ import type { ActivationIssue, Recommendation, ProgressionSuggestion, UnitSystem
 import {
   exerciseHistory,
   formatLoad,
+  isWorkingSet,
   lastPerformed,
   recommend,
   recommendOptionsFor,
@@ -11,12 +12,14 @@ import {
   workingSetCells,
 } from '@macrolog/core';
 import type { CardioModality } from '@macrolog/core/cardio';
-import type { I18nKey, TFn } from '@/i18n';
+import type { I18nKey, Locale, TFn } from '@/i18n';
+import { plural } from '@/i18n/grammar';
 import type {
   Exercise,
   LogStyle,
   SessionExercise,
   WorkoutSession,
+  WorkoutSet,
   WorkoutTemplate,
 } from '@/lib/workout';
 
@@ -75,6 +78,40 @@ export const CARDIO_MODALITY_KEY: Record<CardioModality, I18nKey> = {
 export function clock(totalSec: number): string {
   const s = Math.max(0, Math.floor(totalSec));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+/**
+ * A duration as a screen reader should say it: "12 minutes 34 seconds", not
+ * the "12:34" {@link clock} draws, which VoiceOver reads as a time of day
+ * (Train re-score 3). Past an hour the seconds are dropped — nobody needs
+ * them read out on a 70-minute session.
+ */
+export function spokenDuration(totalSec: number, t: TFn, locale: Locale): string {
+  const s = Math.max(0, Math.floor(totalSec));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  const parts: string[] = [];
+  if (h > 0) parts.push(plural(t, locale, 'train.durHours', h));
+  if (m > 0) parts.push(plural(t, locale, 'train.durMinutes', m));
+  if (h === 0 && (sec > 0 || m === 0)) parts.push(plural(t, locale, 'train.durSeconds', sec));
+  return parts.join(' ');
+}
+
+/**
+ * The sets a load chosen for the whole lift lands on — an accepted
+ * recommendation and the "↑ Try X" bump chip both: every working set with no
+ * weight yet that has not been ticked. One rule for both; the bump used to
+ * fill only the FIRST working set, so the rest were ticked at last week's
+ * load without anyone noticing (Train re-score 3, bug 4). A ticked set is a
+ * record of what was lifted, and a typed weight is the lifter's own call.
+ */
+export function loadTargetIndices(sets: readonly WorkoutSet[]): number[] {
+  const out: number[] = [];
+  sets.forEach((s, i) => {
+    if (isWorkingSet(s) && (s.weight ?? 0) === 0 && !s.done) out.push(i);
+  });
+  return out;
 }
 
 /** Working-set summary line for one logged exercise, by logStyle. The cells

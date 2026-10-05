@@ -38,8 +38,13 @@ function TrainScreen({ onRetry }: { onRetry: () => void }) {
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const train = useTrain();
+  // Not until the device has said whether a workout is already open
+  // (`activePending`): `loading` alone can clear first on a cold start, and a
+  // Start pressed in that window began a second session over the open one
+  // (Train re-score 3, bug 2). The Start buttons wait behind the same flag.
+  const resolving = train.loading || train.activePending;
   // Siri / Shortcuts "Start my next workout" and ignia://train?start=next.
-  useStartNextWorkoutIntent(train);
+  useStartNextWorkoutIntent({ ...train, loading: resolving });
   const [glossaryOpen, setGlossaryOpen] = useState(false);
   // On the SCREEN, not on the live session: finishing unmounts the session,
   // and a native sheet has to be closed by an owner that is still mounted.
@@ -91,7 +96,7 @@ function TrainScreen({ onRetry }: { onRetry: () => void }) {
         <HeaderAvatar />
       </View>
       <TrainGlossary visible={glossaryOpen} onClose={() => setGlossaryOpen(false)} />
-      {train.loading ? (
+      {train.loading || (train.activePending && !train.active) ? (
         <View style={styles.fill}>
           <ActivityIndicator color={colors.accent} />
         </View>

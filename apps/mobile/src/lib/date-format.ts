@@ -21,12 +21,40 @@ export function localeTag(locale: Locale): string {
   return LOCALE_DEFS[locale].intlTag;
 }
 
+/**
+ * Formatters are built once per (locale, options) and reused. `toLocale*`
+ * constructs a fresh `Intl` formatter on every call, and a 90-day chart with a
+ * label per point, re-rendered on every scrub, was paying for hundreds of them
+ * (round-3 review). Keyed by tag + options; the set of distinct keys an app
+ * uses is small and fixed, so the cache needs no eviction.
+ */
+const dateFormatters = new Map<string, Intl.DateTimeFormat>();
+const numberFormatters = new Map<string, Intl.NumberFormat>();
+
+function dateFormatter(tag: string, options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+  const key = `${tag}|${JSON.stringify(options)}`;
+  let f = dateFormatters.get(key);
+  if (!f) dateFormatters.set(key, (f = new Intl.DateTimeFormat(tag, options)));
+  return f;
+}
+
+const DATE_FIELDS = ['weekday', 'era', 'year', 'month', 'day', 'dateStyle'] as const;
+const TIME_FIELDS = ['hour', 'minute', 'second', 'dayPeriod', 'timeStyle'] as const;
+const has = (o: Intl.DateTimeFormatOptions, keys: readonly string[]) =>
+  keys.some((k) => (o as Record<string, unknown>)[k] !== undefined);
+
 export function formatDate(
   date: Date,
   locale: Locale,
   options: Intl.DateTimeFormatOptions,
 ): string {
-  return date.toLocaleDateString(localeTag(locale), options);
+  // `toLocaleDateString` supplies date fields when none are asked for; a bare
+  // formatter would not, so only the explicit case is cached.
+  // An invalid Date reads "Invalid Date" there and THROWS from `format`.
+  if (!has(options, DATE_FIELDS) || Number.isNaN(date.getTime())) {
+    return date.toLocaleDateString(localeTag(locale), options);
+  }
+  return dateFormatter(localeTag(locale), options).format(date);
 }
 
 export function formatTime(
@@ -34,7 +62,10 @@ export function formatTime(
   locale: Locale,
   options: Intl.DateTimeFormatOptions = { hour: 'numeric', minute: '2-digit' },
 ): string {
-  return date.toLocaleTimeString(localeTag(locale), options);
+  if (!has(options, TIME_FIELDS) || Number.isNaN(date.getTime())) {
+    return date.toLocaleTimeString(localeTag(locale), options);
+  }
+  return dateFormatter(localeTag(locale), options).format(date);
 }
 
 /**
@@ -57,7 +88,11 @@ export function formatNumber(
   locale: Locale,
   options?: Intl.NumberFormatOptions,
 ): string {
-  return value.toLocaleString(localeTag(locale), options);
+  const tag = localeTag(locale);
+  const key = `${tag}|${options ? JSON.stringify(options) : ''}`;
+  let f = numberFormatters.get(key);
+  if (!f) numberFormatters.set(key, (f = new Intl.NumberFormat(tag, options)));
+  return f.format(value);
 }
 
 /**

@@ -106,9 +106,17 @@ export function BarcodeScanner({ visible, onClose, onPick, onDenied, onEnterFrom
    *  the product), and until when a transient one (offline, a 5xx) rests. */
   const missFinal = useRef(false);
   const missUntil = useRef(0);
+  /** The OS prompt was put up during this open — so a "denied" that comes
+   *  back is the user's answer to it, not a reason to ask again. */
+  const askedThisOpen = useRef(false);
+  /** The same, for rendering: the retry panel answers a prompt, so it waits
+   *  for one instead of flashing up before the OS dialog does. */
+  const [asked, setAsked] = useState(false);
 
   useEffect(() => {
     if (visible) {
+      askedThisOpen.current = false;
+      setAsked(false);
       handled.current = false;
       setBusy(false);
       setError('');
@@ -124,8 +132,15 @@ export function BarcodeScanner({ visible, onClose, onPick, onDenied, onEnterFrom
   // Auto-request on open — no custom pre-prompt before the OS dialog, per App
   // Review 5.1.1(iv). The scanner modal only opens after the user taps "Scan",
   // so intent is already established; fire the system prompt straight away.
+  // Android after one "Deny" still can ask (`denied` + `canAskAgain`): that
+  // open asks again too, once — the scanner used to wait on 'undetermined'
+  // alone and sat on a spinner with no way out but hardware back (re-score
+  // bug 1). iOS never reaches it: its first "Don't Allow" is final.
   useEffect(() => {
-    if (visible && permission?.status === 'undetermined') {
+    if (!visible || !permission || askedThisOpen.current) return;
+    if (permission.status === 'undetermined' || (permission.status === 'denied' && permission.canAskAgain)) {
+      askedThisOpen.current = true;
+      setAsked(true);
       requestPermission();
     }
   }, [visible, permission, requestPermission]);
@@ -196,12 +211,58 @@ export function BarcodeScanner({ visible, onClose, onPick, onDenied, onEnterFrom
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
-        {!permission?.granted ? (
+        {asked && !permission?.granted && permission?.status === 'denied' && permission.canAskAgain ? (
+          // Android, denied once and asked again this open, still denied — the
+          // OS will show its prompt again, but only when asked. Said plainly,
+          // with the ask and the way out. Never shown BEFORE an OS prompt (App
+          // Review 5.1.1(iv)): it only answers a "Deny" the user already gave.
+          <View style={styles.center} testID="barcode-perm-retry">
+            <Ionicons name="camera-outline" size={40} color={colors.white} />
+            <Text style={styles.permText} accessibilityRole="alert" maxFontSizeMultiplier={2}>
+              {t('barcode.permAsk')}
+            </Text>
+            <TouchableOpacity
+              style={styles.label}
+              onPress={() => {
+                haptics.tap();
+                requestPermission();
+              }}
+              accessibilityRole="button"
+              testID="barcode-perm-allow"
+            >
+              <Text style={styles.labelText} maxFontSizeMultiplier={2}>{t('barcode.permAllow')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.cancel, styles.glass]}
+              onPress={onClose}
+              accessibilityRole="button"
+              testID="barcode-cancel"
+            >
+              <Text style={styles.cancelText} maxFontSizeMultiplier={2}>{t('common.cancel')}</Text>
+            </TouchableOpacity>
+          </View>
+        ) : !permission?.granted ? (
           // Loading, the OS prompt is being presented (auto-requested above), or
-          // denied — in which case onDenied() is already closing this modal.
-          // On the black camera surface in both themes (see `screen`), so
-          // white, like the overlay below.
-          <View style={styles.center}><ActivityIndicator color={colors.white} /></View>
+          // denied for good — in which case onDenied() is already closing this
+          // modal. On the black camera surface in both themes (see `screen`),
+          // so white, like the overlay below. Android keeps a Cancel under the
+          // spinner: its permission dialog can be swiped away without an
+          // answer, and the screen behind it must not be a dead end. iOS shows
+          // the spinner only under its own prompt, and a button there is what
+          // App Review read as a pre-prompt.
+          <View style={styles.center}>
+            <ActivityIndicator color={colors.white} />
+            {Platform.OS === 'android' ? (
+              <TouchableOpacity
+                style={[styles.cancel, styles.glass]}
+                onPress={onClose}
+                accessibilityRole="button"
+                testID="barcode-cancel"
+              >
+                <Text style={styles.cancelText} maxFontSizeMultiplier={2}>{t('common.cancel')}</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
         ) : (
           <View style={styles.fill}>
             <CameraView
@@ -311,6 +372,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   },
   glassRound: { backgroundColor: SCRIM, borderRadius: 24, padding: space.sm },
   hint: { color: colors.white, fontSize: font.h3, fontWeight: '700' },
+  permText: { color: colors.white, fontSize: font.body, textAlign: 'center', maxWidth: 320 },
   reticle: {
     width: 240,
     height: 150,

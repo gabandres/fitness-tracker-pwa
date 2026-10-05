@@ -132,13 +132,14 @@ export function BodyFatCard({
   );
 }
 
-const createStyles = ({ colors }: Theme) =>
+const createStyles = ({ colors, scheme }: Theme) =>
   StyleSheet.create({
     card: {
       backgroundColor: colors.card,
       borderRadius: radius.lg,
       borderWidth: 1,
-      borderColor: colors.line,
+      // Framed in dark like the history rows (re-score 3, Visual).
+      borderColor: scheme === 'dark' ? `${colors.lineStrong}80` : colors.line,
       paddingHorizontal: space.lg,
       paddingVertical: space.md,
       marginTop: space.md,

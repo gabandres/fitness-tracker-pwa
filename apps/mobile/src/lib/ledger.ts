@@ -930,11 +930,20 @@ export async function startFast(uid: string, startedAt?: Date): Promise<void> {
  * Resolves with a {@link BreakFastReceipt} so Today can offer Undo
  * (`undoBreakFast`) without re-reading anything.
  */
-export async function breakFast(uid: string, endedAt?: Date): Promise<BreakFastReceipt> {
+export async function breakFast(uid: string, endedAt?: Date, knownStart?: Date | null): Promise<BreakFastReceipt> {
   const end = endedAt ?? new Date();
-  const snap = await getDoc(userDoc(uid));
-  const startedAt = snap.data()?.fastStartedAt as Timestamp | null | undefined;
-  const start = startedAt instanceof Timestamp ? startedAt.toDate() : null;
+  // The caller usually already holds the running fast's start (Today reads it
+  // from the profile listener). Then there is nothing to read, and with a
+  // memory-only cache that read was what failed offline: End and the Lock
+  // Screen's End did nothing without signal (round-3 review B2).
+  let start: Date | null;
+  if (knownStart !== undefined) {
+    start = knownStart;
+  } else {
+    const snap = await getDoc(userDoc(uid));
+    const startedAt = snap.data()?.fastStartedAt as Timestamp | null | undefined;
+    start = startedAt instanceof Timestamp ? startedAt.toDate() : null;
+  }
 
   const batch = writeBatch(db);
   let fastId: string | null = null;
@@ -950,8 +959,13 @@ export async function breakFast(uid: string, endedAt?: Date): Promise<BreakFastR
     });
   }
   batch.update(userDoc(uid), { fastStartedAt: null, lastSeenAt: Timestamp.now() });
-  await batch.commit();
-  return { fastId, startedAt: start };
+  const committed = batch.commit();
+  // With the start known the write is local-first: the batch lands in the
+  // cache at once and syncs later, so the receipt does not wait on a server
+  // ack that never comes offline. Callers attach to `committed` for failures.
+  if (knownStart !== undefined) return { fastId, startedAt: start, committed };
+  await committed;
+  return { fastId, startedAt: start, committed };
 }
 
 /**
@@ -963,6 +977,8 @@ export async function breakFast(uid: string, endedAt?: Date): Promise<BreakFastR
 export interface BreakFastReceipt {
   fastId: string | null;
   startedAt: Date | null;
+  /** The batch's commit — already settled unless the start was passed in. */
+  committed?: Promise<void>;
 }
 
 /**

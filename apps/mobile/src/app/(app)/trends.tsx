@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { type Href, useLocalSearchParams, useRouter } from 'expo-router';
+import { type Href, useLocalSearchParams, useRouter, useScrollToTop } from 'expo-router';
 import {
   ActivityIndicator,
   Pressable,
@@ -12,7 +12,14 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import Svg, { Line as SvgLine } from 'react-native-svg';
-import Animated, { useReducedMotion } from 'react-native-reanimated';
+import Animated, {
+  Extrapolation,
+  interpolate,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+} from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   type TdeeResult,
@@ -59,13 +66,15 @@ import * as haptics from '@/lib/haptics';
 import { announce } from '@/lib/a11y';
 import { CountUpText, enterUp, PressScale } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { FAB_BAND, font, radius, space, type } from '@/theme';
+import { FAB_BAND, font, headerTitle, radius, space, type } from '@/theme';
 import { formatDate, formatNumber } from '@/lib/date-format';
 import { CompositionLine, RecompCard } from '@/components/CompositionCards';
 import { useUnitSystem } from '@/lib/use-unit-system';
 import { useCountViewPerFocus } from '@/hooks/useCountViewPerFocus';
 
-function dayLabel(dateKey: string, locale: Locale): string {
+function dayLabel(dateKey: string | undefined, locale: Locale): string {
+  // A missing day reads as a dash, never as "Invalid Date".
+  if (!dateKey) return '—';
   return formatDate(parseYmd(dateKey), locale, { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
@@ -77,10 +86,17 @@ function shortDay(dateKey: string, locale: Locale): string {
   return formatDate(parseYmd(dateKey), locale, { month: 'short', day: 'numeric' });
 }
 
+/** Scroll distance over which the header's bottom hairline fades in. */
+const HEADER_EDGE_FADE = 12;
+
 /** Past this OS font scale the two stat tiles stack instead of sharing a row:
  *  two 30pt display numerals side by side stop fitting a phone well before
  *  the largest accessibility sizes. */
 const STACK_TILES_AT_FONT_SCALE = 1.5;
+/** The maintenance numeral is 52 pt; at 1.4× it is 73 pt, which "2,450 kcal"
+ *  still fits a phone's hero at. Uncapped, the unit alone reached ~70 pt at
+ *  the largest accessibility size and pushed the row past the panel. */
+const HERO_MAX_SCALE = 1.4;
 /** Axis numerals and day letters are glyphs in a fixed-size chart, not prose —
  *  they scale, but only this far, or they overrun the columns they name. */
 const CHART_TEXT_MAX_SCALE = 1.3;
@@ -134,7 +150,7 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
   const {
     loading, error, insights, loggedThisWeek, proteinTarget, tdee, targetCalories, budget, basalKcal,
     activityLevel, sleep, fasting, water, composition, chartKeys, weightSeries, intakeSeries,
-    proteinSeries, historyClip, insightWindow, streak, settledKey,
+    proteinSeries, carbsSeries, fatSeries, todayKey, historyClip, insightWindow, streak, settledKey,
     expenditure, historyDays, milestones, progress,
   } = useTrends(requestedDays, { maxDays: cap, refreshKey });
   // Clipped to the days the cache covers in full when the older rows could
@@ -163,6 +179,18 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
   // MOUNTED and `router.replace` re-focuses the live instance, so only a
   // changing value re-fires (the same contract as Today's `openAdd`).
   const scrollRef = useRef<ScrollView>(null);
+  // Re-tapping the focused Trends tab scrolls back to the top, and the fixed
+  // header gets the scroll-edge hairline Today has — the cue a native large-
+  // title bar gives when content passes under it (re-score 3, P2), on the UI
+  // thread so the scroll never round-trips through JS.
+  useScrollToTop(scrollRef);
+  const scrollY = useSharedValue(0);
+  const onScroll = useAnimatedScrollHandler((e) => {
+    scrollY.value = e.contentOffset.y;
+  });
+  const headerEdge = useAnimatedStyle(() => ({
+    opacity: interpolate(scrollY.value, [0, HEADER_EDGE_FADE], [0, 1], Extrapolation.CLAMP),
+  }));
   const habitsY = useRef(0);
   const pendingHabitsScroll = useRef<string | null>(null);
   const { habits: habitsNonce } = useLocalSearchParams<{ habits?: string }>();
@@ -295,7 +323,7 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.headerRow}>
-        <Text style={styles.title} accessibilityRole="header">{t('nav.trends')}</Text>
+        <Text style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={headerTitle.maxFontScale}>{t('nav.trends')}</Text>
         {/* UX_AUDIT F6. Same icon, same place, same sheet as the Train tab's
             "?" — this screen leads with a MEASURED badge, a maintenance
             estimate and a completeness percentage, and defined none of them. */}
@@ -310,6 +338,7 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
           <Glyph ios="questionmark.circle" android="help-circle-outline" size={24} color={colors.muted} />
         </TouchableOpacity>
         <HeaderAvatar />
+        <Animated.View style={[styles.headerEdge, headerEdge]} />
       </View>
       <NumbersGlossary visible={glossaryOpen} onClose={() => setGlossaryOpen(false)} composition={composition.enabled} />
       {loading ? (
@@ -317,9 +346,11 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
           <ActivityIndicator color={colors.accent} accessibilityLabel={t('a11y.loadingTrends')} />
         </View>
       ) : (
-        <ScrollView
+        <Animated.ScrollView
           ref={scrollRef}
           testID="trends-scroll"
+          onScroll={onScroll}
+          scrollEventThrottle={16}
           contentContainerStyle={styles.body}
           refreshControl={<RefreshControl refreshing={pulling} onRefresh={onPullRefresh} tintColor={colors.muted} colors={[colors.accent]} />}
         >
@@ -361,12 +392,16 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
               </View>
               <Text style={styles.heroCaption}>{t('trends.maintenance')}</Text>
               <View style={styles.hero}>
+                {/* Capped like every display numeral (`CountUpText` holds
+                    its own at 1.4×, on one line), and the row wraps the
+                    UNIT under the number rather than splitting "2,450" at
+                    the largest text sizes (re-score 3, A3). */}
                 {tdee.trueTdee > 0 ? (
-                  <CountUpText value={tdee.trueTdee} style={styles.heroValue} testID="tdee-value" />
+                  <CountUpText value={tdee.trueTdee} style={styles.heroValue} maxFontSizeMultiplier={HERO_MAX_SCALE} testID="tdee-value" />
                 ) : (
-                  <Text style={styles.heroValue} testID="tdee-value">—</Text>
+                  <Text style={styles.heroValue} maxFontSizeMultiplier={HERO_MAX_SCALE} numberOfLines={1} testID="tdee-value">—</Text>
                 )}
-                <Text style={styles.heroUnit}>kcal</Text>
+                <Text style={styles.heroUnit} maxFontSizeMultiplier={HERO_MAX_SCALE} numberOfLines={1}>kcal</Text>
               </View>
               {ci95 != null ? (
                 <Text style={styles.heroCi} testID="tdee-ci">{t('trends.ci95', { n: formatNumber(ci95, locale) })}</Text>
@@ -434,6 +469,7 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
               onRange={setRange}
               cap={cap}
               onOpenDay={openDay}
+              todayKey={todayKey}
               t={t}
               locale={locale}
             />
@@ -539,21 +575,31 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
               milestones={milestones}
               onOpenBody={openBody}
               onOpenDay={openDay}
+              range={range}
+              onRange={setRange}
+              cap={cap}
               t={t}
               locale={locale}
             />
           </Animated.View>
 
-          {/* 1e. Protein over time, on the same range — the half of the macro
-              story the calorie line cannot tell (review S20). */}
+          {/* 1e. Macros over time, on the same range — protein first, the half
+              of the macro story the calorie line cannot tell (review S20);
+              carbs and fat behind a selector (re-score 3, U3). */}
           <Animated.View entering={enterUp(2)}>
             <ProteinTrendCard
               keys={chartKeys}
               protein={proteinSeries}
+              carbs={carbsSeries}
+              fat={fatSeries}
               days={shownDays}
               target={proteinTarget}
               milestones={milestones}
               onOpenDay={openDay}
+              todayKey={todayKey}
+              range={range}
+              onRange={setRange}
+              cap={cap}
               t={t}
               locale={locale}
             />
@@ -727,7 +773,7 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
               <WeeklyReportCard />
             </Animated.View>
           ) : null}
-        </ScrollView>
+        </Animated.ScrollView>
       )}
     </SafeAreaView>
   );
@@ -992,8 +1038,12 @@ function StatTile({
   testID?: string;
   styles: ReturnType<typeof createStyles>;
 }) {
+  // One stop for a screen reader — "Avg intake, 1,849 kcal, 168 kcal/day
+  // under maintenance, On target" — not four or five fragments (re-score 3,
+  // A1).
+  const a11yLabel = [label, value != null ? (unit ? `${value} ${unit}` : value) : null, sub, sub2].filter(Boolean).join(', ');
   return (
-    <View style={styles.tile} testID={testID}>
+    <View style={styles.tile} testID={testID} accessible accessibilityLabel={a11yLabel}>
       <Text style={styles.tileLabel}>{label}</Text>
       {faded ? (
         <View style={styles.tileSkeleton} />
@@ -1100,10 +1150,21 @@ function Budget({
     );
   }
 
-  const used = t('trends.budgetUsedValue', {
-    used: formatNumber(Math.round(budget.consumed), locale),
-    total: formatNumber(budget.weeklyBudget, locale),
-  });
+  // "Used" names the assumed days too, so it and "Remaining" visibly add up
+  // to the week (re-score 3, C1): remaining already subtracts every unlogged
+  // day at the target, and "4,500 of 12,950" beside "6,600 remaining" did not
+  // sum.
+  const used =
+    budget.unloggedDays > 0
+      ? t('trends.budgetUsedAssumedValue', {
+          used: formatNumber(Math.round(budget.consumed), locale),
+          assumed: formatNumber(budget.unloggedDays * budget.dailyTarget, locale),
+          total: formatNumber(budget.weeklyBudget, locale),
+        })
+      : t('trends.budgetUsedValue', {
+          used: formatNumber(Math.round(budget.consumed), locale),
+          total: formatNumber(budget.weeklyBudget, locale),
+        });
   return (
     <View style={styles.card} testID="budget-card">
       {/* Names the window: this face is the Mon–Sun week, the other is the
@@ -1245,7 +1306,9 @@ function Budget({
 const createStyles = ({ colors, shadow }: Theme) =>
   StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.paper },
-    headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: space.xl },
+    headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: space.xl, paddingBottom: space.xs },
+    // Pinned to the header's foot; its opacity follows the scroll.
+    headerEdge: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 1, backgroundColor: colors.line, pointerEvents: 'none' },
     // Pushes the "?" up against the avatar instead of leaving it stranded in
     // the middle of the row, which `space-between` would otherwise do.
     headerHelp: { marginLeft: 'auto', marginRight: space.md },
@@ -1263,7 +1326,7 @@ const createStyles = ({ colors, shadow }: Theme) =>
     // Hero
     heroPanel: { backgroundColor: colors.heroPanel, borderRadius: radius.xl, paddingVertical: space.xl, paddingHorizontal: space.lg, alignItems: 'center', gap: space.xs, ...shadow.e2 },
     heroTop: { alignItems: 'center', gap: space.xs, alignSelf: 'stretch' },
-    hero: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: space.xs, marginTop: space.xs },
+    hero: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'center', gap: space.xs, marginTop: space.xs },
     heroValue: { fontFamily: type.display, fontSize: 52, color: colors.heroText, lineHeight: 56 },
     heroUnit: { fontSize: font.h2, color: colors.heroMuted, marginBottom: space.sm },
     heroCi: { textAlign: 'center', color: colors.heroMuted, fontSize: font.small, fontVariant: ['tabular-nums'] },

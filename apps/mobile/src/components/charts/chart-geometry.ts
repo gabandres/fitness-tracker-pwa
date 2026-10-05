@@ -149,3 +149,93 @@ export function lastIndexWithValue(values: readonly (number | null | undefined)[
   }
   return -1;
 }
+
+/**
+ * Every dot of one series as ONE filled path: a circle is two arcs. On 1Y the
+ * three Trends charts drew a `<Circle>` per day — over a thousand SVG nodes
+ * for three cards (re-score 3, Pf1). One node per series draws the same
+ * pixels.
+ */
+export function dotsPath(pts: readonly { x: number; y: number }[], r: number): string {
+  const d = fmt(2 * r);
+  return pts.map((p) => `M ${fmt(p.x - r)} ${fmt(p.y)} a ${fmt(r)} ${fmt(r)} 0 1 0 ${d} 0 a ${fmt(r)} ${fmt(r)} 0 1 0 -${d} 0`).join(' ');
+}
+
+/**
+ * Which days get a date under the axis: `count` evenly spaced indices, always
+ * the first and the last. First-and-last alone left a 90-day axis to
+ * guesswork (re-score 3, V3); Health labels its weeks and months.
+ */
+export function xTickIndices(n: number, count: number): number[] {
+  if (n <= 0) return [];
+  if (n === 1) return [0];
+  const c = Math.max(2, Math.min(count, n));
+  const out: number[] = [];
+  for (let i = 0; i < c; i++) {
+    const idx = Math.round((i * (n - 1)) / (c - 1));
+    if (out[out.length - 1] !== idx) out.push(idx);
+  }
+  return out;
+}
+
+/** Rough advance width of a short label at `fontSize` — tabular numerals and
+ *  short words; deliberately generous (a gutter a few dp too wide is harmless,
+ *  one too narrow lets the label touch the data again). */
+export function labelWidth(text: string, fontSize: number): number {
+  return Math.ceil(text.length * fontSize * 0.62) + 4;
+}
+
+export interface LabelBox {
+  /** Distance from the plot's left edge. */
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * Where the reference line's label goes. It used to sit opaque, right-aligned,
+ * directly ABOVE the line — over the newest days, which on an intake chart
+ * cluster at the target by design, and over the endpoint dot for anyone whose
+ * target is their maintenance (re-score 3, B1). Now four candidates — right
+ * above, right below, left above, left below — are scored by how many points
+ * fall inside each box, and the emptiest wins (ties keep that order, so an
+ * empty chart reads exactly as before). `points` are in plot coordinates;
+ * `minLeft` keeps the left candidates out of the tick gutter.
+ */
+export function placeRefLabel(opts: {
+  refY: number;
+  labelW: number;
+  labelH: number;
+  width: number;
+  height: number;
+  minLeft: number;
+  points: readonly { x: number; y: number }[];
+  /** Points that cost more to cover (the endpoint the line exists to show). */
+  heavy?: readonly { x: number; y: number }[];
+  pad?: number;
+}): LabelBox {
+  const { refY, labelW, labelH, width, height, minLeft, points, heavy = [], pad = 3 } = opts;
+  const clampTop = (t: number) => Math.max(0, Math.min(height - labelH, t));
+  const right = Math.max(minLeft, width - labelW - 2);
+  const candidates: LabelBox[] = [
+    { left: right, top: clampTop(refY - labelH), width: labelW, height: labelH },
+    { left: right, top: clampTop(refY + 1), width: labelW, height: labelH },
+    { left: minLeft, top: clampTop(refY - labelH), width: labelW, height: labelH },
+    { left: minLeft, top: clampTop(refY + 1), width: labelW, height: labelH },
+  ];
+  const inside = (b: LabelBox, p: { x: number; y: number }) =>
+    p.x >= b.left - pad && p.x <= b.left + b.width + pad && p.y >= b.top - pad && p.y <= b.top + b.height + pad;
+  let best = candidates[0];
+  let bestScore = Infinity;
+  for (const b of candidates) {
+    let score = 0;
+    for (const p of points) if (inside(b, p)) score++;
+    for (const p of heavy) if (inside(b, p)) score += 100;
+    if (score < bestScore) {
+      best = b;
+      bestScore = score;
+    }
+  }
+  return best;
+}

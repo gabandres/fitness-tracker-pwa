@@ -595,7 +595,9 @@ export function FoodSearch({
         <View style={styles.searchBox}>
           <SheetTextInput
             ref={inputRef}
-            placeholder={t('food.placeholder')}
+            // Where a typed number logs as kcal, the placeholder says so
+            // (re-score gap 2): the hint below reached screen readers only.
+            placeholder={t(onQuickAdd ? 'food.placeholderQuick' : 'food.placeholder')}
             placeholderTextColor={colors.faint}
             value={query}
             onChangeText={onChange}

@@ -10,6 +10,8 @@ jest.mock('expo-router', () => ({
   ...jest.requireActual('expo-router'),
   useRouter: () => ({ push: mockPush, navigate: mockNavigate, back: jest.fn(), replace: jest.fn() }),
   useLocalSearchParams: () => ({}),
+  // Needs a navigator's route; there is none in a screen test.
+  useScrollToTop: jest.fn(),
 }));
 
 jest.mock('@/lib/activity-suggestion', () => ({
@@ -139,6 +141,14 @@ describe('the last-7-days tile', () => {
     expect(tile).not.toHaveTextContent(/deficit/i);
   });
 
+  it('is one screen-reader stop per tile, not four fragments (re-score 3, A1)', async () => {
+    mockTrends.mockReturnValue(state());
+    const view = await render(<Trends />);
+    const tile = view.getByTestId('insights-intake');
+    expect(tile.props.accessible).toBe(true);
+    expect(tile.props.accessibilityLabel).toBe('Avg intake, 1,849 kcal, 168 kcal/day under maintenance, On target');
+  });
+
   it('falls back to a labelled vs-target line without a measured maintenance', async () => {
     mockTrends.mockReturnValue(
       state({ insights: computeWeeklyInsights([day('a', 1700), day('b', 1700), day('c', 1700)], 1850, [], 120, null) }),
@@ -259,7 +269,8 @@ describe('the budget face', () => {
     expect(view.getByTestId('budget-assumed')).toHaveTextContent('1 unlogged day counted at your target');
     // 12,950 − 4,500 logged − 1,850 assumed = 6,600 over Thu..Sun (4 days).
     expect(view.getByTestId('budget-per-day')).toHaveTextContent('1,650 kcal');
-    expect(view.getByText('4,500 of 12,950 kcal')).toBeTruthy();
+    // "Used" names the assumed day too, so it and "Remaining" add up (C1).
+    expect(view.getByText('4,500 + 1,850 assumed of 12,950 kcal')).toBeTruthy();
     expect(view.getByTestId('budget-strip').props.accessibilityRole).toBe('adjustable');
   });
 

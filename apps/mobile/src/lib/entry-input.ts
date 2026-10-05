@@ -1,5 +1,6 @@
 import type { Locale } from '@/i18n';
 import { localeTag, numberSeparators } from '@/lib/date-format';
+import { GRAMS_MAX } from '@/lib/grams-rescale';
 
 /**
  * The add-meal form's number handling, in one place and pure — the sheet, the
@@ -188,4 +189,38 @@ export async function settleWithin<T>(
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * `at` moved to the calendar day of `day`, its time of day kept — the entry
+ * date picker's pick (re-score gap 10). The picker reports an instant whose
+ * time is its own business (iOS keeps the old one, Android's calendar speaks
+ * UTC midnights and converts back); only the day is the user's answer. Never
+ * past `now`: an entry moved to today keeps its time only if that time has
+ * happened, as the ± steppers already refuse.
+ */
+export function moveToDay(at: Date, day: Date, now: Date): Date {
+  const next = new Date(at);
+  next.setFullYear(day.getFullYear(), day.getMonth(), day.getDate());
+  return next.getTime() > now.getTime() ? new Date(now) : next;
+}
+
+/**
+ * The weight the same food was eaten at last time, read back through the
+ * pick's own basis (re-score gap 15, "your usual: 180 g"). A log row stores no
+ * grams, but the last row under this name stores its kcal, and the basis says
+ * how many grams make how many kcal — so the weight follows. Null when there
+ * is nothing to offer: no last row, no density to read it through, a weight
+ * outside what the grams field accepts, or the form already at it.
+ */
+export function lastTimeGrams(
+  basis: { grams: number; kcal: number },
+  lastKcal: number | undefined,
+  currentGrams: number | undefined,
+): number | null {
+  if (!(lastKcal != null && lastKcal > 0) || !(basis.kcal > 0) || !(basis.grams > 0)) return null;
+  const g = Math.round((basis.grams * lastKcal) / basis.kcal);
+  if (g < 1 || g > GRAMS_MAX) return null;
+  if (currentGrams != null && Math.abs(g - currentGrams) < 1) return null;
+  return g;
 }

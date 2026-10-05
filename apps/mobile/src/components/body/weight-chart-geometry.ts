@@ -130,15 +130,27 @@ export function weightChartGeometry(
  * Every reading's dot as ONE path (Body re-score, Pf): two half-circle arcs
  * per point. "All" on a four-year daily weigher was ~1,400 `<Circle>`
  * elements, each its own native view on Fabric; one `<Path>` is one.
+ *
+ * `minGap` (pt, default 0 = every dot) skips a dot whose centre is closer than
+ * that to the last one DRAWN (re-score 3, Pf): past a year of daily readings
+ * neighbours overlap almost entirely, so the skipped ones were invisible and
+ * the path was twice the string it needed to be. Measured from the last drawn
+ * dot, not the last reading, so a run of near-identical days cannot chain
+ * into a gap.
  */
-export function dotsPath(xs: readonly number[], ys: readonly number[], r: number): string {
+export function dotsPath(xs: readonly number[], ys: readonly number[], r: number, minGap = 0): string {
   const parts: string[] = [];
   const d = (2 * r).toFixed(2);
   const rr = r.toFixed(2);
+  let lastX = Number.NaN;
+  let lastY = Number.NaN;
   for (let i = 0; i < xs.length; i++) {
     const x = xs[i];
     const y = ys[i];
     if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    if (minGap > 0 && Math.hypot(x - lastX, y - lastY) < minGap) continue;
+    lastX = x;
+    lastY = y;
     parts.push(`M ${(x - r).toFixed(2)} ${y.toFixed(2)} a ${rr} ${rr} 0 1 0 ${d} 0 a ${rr} ${rr} 0 1 0 -${d} 0`);
   }
   return parts.join(' ');
