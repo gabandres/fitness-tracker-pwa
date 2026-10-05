@@ -1,4 +1,5 @@
 import type { ComponentProps } from 'react';
+import { Platform } from 'react-native';
 import type { Stack } from 'expo-router';
 
 type ScreenOptions = NonNullable<ComponentProps<typeof Stack.Screen>['options']>;
@@ -24,6 +25,12 @@ export const sheetOptions: ScreenOptions = ({ route }: { route: { params?: objec
   sheetAllowedDetents: parseDetents((route.params as { detents?: unknown } | undefined)?.detents),
   sheetInitialDetentIndex: 0,
   sheetExpandsWhenScrolledToEdge: true,
-  // Transparent so iOS 26 can draw its own material behind the content.
+  // Transparent so iOS 26 can draw its own material behind the content (and
+  // on Android the route paints the rounded surface itself).
   contentStyle: { backgroundColor: 'transparent' },
+  // Android: Material's modal sheet — 28 dp corners, a low elevation (the
+  // scrim carries the depth), drawn below the status bar.
+  sheetCornerRadius: Platform.OS === 'android' ? 28 : undefined,
+  sheetElevation: 1,
+  sheetShouldOverflowTopInset: false,
 });

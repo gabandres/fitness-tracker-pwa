@@ -129,6 +129,10 @@ interface Props {
    *  picker back to the results and returns true, or returns false when there
    *  is nothing inside this component to step back from. */
   backHandlerRef?: MutableRefObject<(() => boolean) | null>;
+  /** Hears whether `backHandlerRef` has a step to take right now (the portion
+   *  picker is up). Android's native sheet dismisses on back unless its owner
+   *  says back is a step, and it cannot read a ref to find out. */
+  onBackStepChange?: (canStep: boolean) => void;
   /**
    * Put the keyboard up on open (U2), deferred past the sheet's own entrance
    * like the blank form's Calories field (`use-deferred-focus` says why not
@@ -201,6 +205,7 @@ export function FoodSearch({
   initial,
   onSnapshot,
   backHandlerRef,
+  onBackStepChange,
   autoFocus = false,
   focusSignal,
   resetSignal,
@@ -291,10 +296,11 @@ export function FoodSearch({
   }, [query, hits]);
 
   // Android back steps out of the picker before it closes anything.
+  const inPicker = phase === 'portion-pick' || phase === 'detail-loading';
   useEffect(() => {
     if (!backHandlerRef) return;
     backHandlerRef.current = () => {
-      if (phase !== 'portion-pick' && phase !== 'detail-loading') return false;
+      if (!inPicker) return false;
       reqId.current++;
       setPhase('results');
       return true;
@@ -302,7 +308,14 @@ export function FoodSearch({
     return () => {
       backHandlerRef.current = null;
     };
-  }, [backHandlerRef, phase]);
+  }, [backHandlerRef, inPicker]);
+  const onBackStepRef = useRef(onBackStepChange);
+  onBackStepRef.current = onBackStepChange;
+  useEffect(() => {
+    onBackStepRef.current?.(inPicker);
+  }, [inPicker]);
+  // Unmounted (on to the review form): nothing in here to step back from.
+  useEffect(() => () => onBackStepRef.current?.(false), []);
 
   // The user's own foods, matched on every keystroke with no debounce: a few
   // hundred names compare in well under a frame.

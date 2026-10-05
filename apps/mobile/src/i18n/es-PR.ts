@@ -531,7 +531,7 @@ export const esPR: Record<I18nKey, string> = {
 
   // ── food search ──
   'food.placeholder': 'Buscar comidas…',
-  'food.placeholderQuick': 'Busca comidas o escribe kcal (350)',
+  'food.placeholderQuick': 'Busca o escribe kcal',
   'food.typeMore': 'Escribe al menos 2 caracteres.',
   // Una búsqueda sin resultados casi siempre significa que la comida no está,
   // no que se buscó mal — decir el hecho y ofrecer la acción, sin culpar.

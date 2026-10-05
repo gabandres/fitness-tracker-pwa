@@ -62,7 +62,7 @@ export default function SheetRoute() {
 
   // A guarded sheet (typed content) refuses the native dismissal; the owner
   // decides — usually by asking. A programmatic close is always let through.
-  const guarded = !!entry?.guarded;
+  const guarded = !!entry?.guarded || (Platform.OS === 'android' && !!entry?.backSteps);
   usePreventRemove(guarded, ({ data }) => {
     if (!id) return;
     if (isClosing(id)) {
@@ -85,7 +85,15 @@ export default function SheetRoute() {
       {/* Keyboard: iOS lifts a `'fit'` sheet above the keyboard itself, so
           padding it as well left a screen-tall sheet with a blank band. A
           sheet at a height detent stays put, and its content needs the room. */}
-      <Reanimated.View style={[styles.pad, !fit && styles.root, !fit && padding]}>
+      {/* Android: the Material drag handle (32 × 4 dp). iOS draws its own
+          grabber (`sheetGrabberVisible`). Decorative — back and the scrim are
+          the accessible ways out. */}
+      {Platform.OS === 'android' ? (
+        <View style={styles.handleZone} importantForAccessibility="no-hide-descendants">
+          <View style={styles.handle} />
+        </View>
+      ) : null}
+      <Reanimated.View style={[styles.pad, Platform.OS === 'android' && styles.padAndroid, !fit && styles.root, !fit && padding]}>
         {/* react-native-screens pins the FIRST scroll view it finds down a
             sheet's first-child chain to x = 0, which threw away the padding
             whenever a sheet opened on a ScrollView: every Train sheet drew its
@@ -109,9 +117,16 @@ const createStyles = ({ colors }: Theme) =>
     chainStop: { height: 0 },
     surface: {
       // iOS paints the sheet itself (Liquid Glass on 26); everywhere else the
-      // route is the surface.
+      // route is the surface, with Material's 28 dp top corners.
       backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.paper,
+      ...(Platform.OS === 'android'
+        ? { borderTopLeftRadius: 28, borderTopRightRadius: 28, overflow: 'hidden' as const }
+        : null),
     },
+    handleZone: { alignItems: 'center', paddingTop: 16, paddingBottom: 6 },
+    handle: { width: 32, height: 4, borderRadius: 2, backgroundColor: colors.lineStrong },
+    // The handle zone already gives the top its room.
+    padAndroid: { paddingTop: space.sm },
     pad: {
       paddingHorizontal: space.xl,
       paddingTop: space.xl,

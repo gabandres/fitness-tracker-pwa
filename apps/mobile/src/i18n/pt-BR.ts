@@ -526,7 +526,7 @@ export const ptBR = {
 
   // ── food search ──
   'food.placeholder': 'Buscar alimentos…',
-  'food.placeholderQuick': 'Busque alimentos ou digite kcal (350)',
+  'food.placeholderQuick': 'Busque ou digite kcal',
   'food.typeMore': 'Digite pelo menos 2 caracteres.',
   'food.noMatches': 'Nenhum resultado para isso.',
   'food.addYourself': 'Adicionar “{query}” você mesmo',

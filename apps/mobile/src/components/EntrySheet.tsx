@@ -339,6 +339,8 @@ export function EntrySheet({
   const searchSnap = useRef<SearchSnapshot | undefined>(undefined);
   // FoodSearch's own step-back (portion picker → results), for Android back.
   const searchBack = useRef<(() => boolean) | null>(null);
+  // …and whether it has one to take, which the native sheet must know up front.
+  const [searchCanStep, setSearchCanStep] = useState(false);
   // What the form opened with (see `formSig`), and whether the recipe / meal
   // text sub-modes hold typed input — together, whether a close should ask.
   const [baseline, setBaseline] = useState('');
@@ -1938,6 +1940,10 @@ export function EntrySheet({
       // read against `paper`, not against whatever the glass shows through.
       detents={[1]}
       guarded={dirty}
+      // Android back steps out of a sub-screen (the form, a recipe, the
+      // search's portion picker) before it closes the sheet — the behaviour
+      // the JS sheet always had.
+      backSteps={mode !== 'browse' || searchCanStep}
       visible={visible}
       onClose={onClose}
       onRequestClose={requestClose}
@@ -1965,6 +1971,7 @@ export function EntrySheet({
                 }}
                 resetSignal={searchReset}
                 backHandlerRef={searchBack}
+                onBackStepChange={setSearchCanStep}
                 libraryItems={libraryItems}
                 // The keyboard comes up with the sheet (U2): typing a food is
                 // what most opens are for, and a tap into the field first was

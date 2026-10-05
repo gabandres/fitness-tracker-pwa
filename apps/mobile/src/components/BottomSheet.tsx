@@ -83,10 +83,17 @@ interface Props {
   guarded?: boolean;
   /** Native detents: fractions of the screen, or `'fit'` to the content. */
   detents?: number[] | 'fit';
+  /** Android back steps INSIDE the sheet right now (a sub-screen to leave
+   *  before closing): the native sheet then routes back to `onRequestClose`
+   *  instead of dismissing. iOS has no back key; ignored there. */
+  backSteps?: boolean;
 }
 
-/** Whether `native` sheets are presented natively on this platform. */
-export const NATIVE_SHEETS = Platform.OS === 'ios';
+/** Whether `native` sheets are presented natively on this platform: iOS
+ *  through `UISheetPresentationController`, Android through react-native-
+ *  screens' formSheet — a Material `BottomSheetBehavior` sheet with its drag,
+ *  scrim and predictive back (S20; owner-approved for Android 2026-10-05). */
+export const NATIVE_SHEETS = Platform.OS === 'ios' || Platform.OS === 'android';
 
 export function BottomSheet(props: Props) {
   return props.native && NATIVE_SHEETS ? <NativeBottomSheet {...props} /> : <JsBottomSheet {...props} />;
@@ -105,6 +112,7 @@ function NativeBottomSheet({
   guarded = false,
   detents = [0.6, 1],
   backdropTestID,
+  backSteps = false,
 }: Props) {
   const id = `sheet-${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
   const requestRef = useRef<(via: SheetCloseVia) => boolean>(() => true);
@@ -125,6 +133,7 @@ function NativeBottomSheet({
       node: children,
       requestClose: (via) => requestRef.current(via),
       guarded,
+      backSteps,
       overlays,
       visible,
       testID: backdropTestID ? `${backdropTestID}-native` : undefined,

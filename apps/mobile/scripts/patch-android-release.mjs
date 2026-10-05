@@ -441,6 +441,30 @@ const REJECTED_PERMISSIONS = ['android.permission.health.READ_STEPS'];
   }
 }
 
+// --- 4e. AndroidManifest.xml: predictive back OFF, whatever app.json says ---
+// `predictiveBackGestureEnabled: true` is in app.json for 1.2.5 (S20), and it
+// broke hardware back app-wide: measured 2026-10-05 on the OnePlus 8T
+// (Android 14, vc 47) — back from History, a pushed root-stack screen, sent the
+// app to the background instead of popping to Today. logcat: the system's own
+// default callback ran (`Activity$2 … will call navigateBack` →
+// `moveTaskToBack`) and React Native's OnBackPressedCallback, which hands back
+// to expo-router's handler, never did. With the attribute false, the same APK
+// popped to Today. The fix lives HERE and not in app.json because app.json is
+// hashed whole into BOTH fingerprints: editing it now would strand every iOS
+// OTA for build 68, which shipped with the key set. Gitignored prebuild output,
+// so neither runtime moves. Revisit when React Native's predictive-back path is
+// verified on a device.
+{
+  let m = readFileSync(manifestPath, 'utf8');
+  if (m.includes('android:enableOnBackInvokedCallback="true"')) {
+    m = m.replace('android:enableOnBackInvokedCallback="true"', 'android:enableOnBackInvokedCallback="false"');
+    writeFileSync(manifestPath, m);
+    console.log('AndroidManifest.xml: enableOnBackInvokedCallback forced to false (hardware back fix)');
+  } else {
+    console.log('AndroidManifest.xml: enableOnBackInvokedCallback already false');
+  }
+}
+
 // --- 5. MainActivity.kt: the Health Connect permission delegate ---
 // `react-native-health-connect` v3 keeps its permission launcher in a
 // `lateinit var` that is only assigned by

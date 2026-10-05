@@ -168,7 +168,7 @@ describe('the time of an abandoned form (bug 4)', () => {
 describe('search placeholder (gap 2)', () => {
   it('says a typed number logs kcal', async () => {
     const screen = await render(sheet());
-    expect(screen.getByTestId('food-search-input').props.placeholder).toBe('Search foods or type kcal (350)');
+    expect(screen.getByTestId('food-search-input').props.placeholder).toBe('Search or type kcal');
   });
 });
 

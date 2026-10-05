@@ -582,7 +582,7 @@ export const en = {
   'food.placeholder': 'Search foods…',
   // The add sheet's search, which also logs a typed number as kcal — said
   // where it is seen, not only in the screen-reader hint.
-  'food.placeholderQuick': 'Search foods or type kcal (350)',
+  'food.placeholderQuick': 'Search or type kcal',
   'food.typeMore': 'Type at least 2 characters.',
   // A miss usually means the food is absent, not that the user searched
   // badly — so state the fact and offer the action, don't assign blame.

@@ -42,6 +42,9 @@ export interface SheetPortalEntry {
   requestClose: (via: PortalCloseVia) => boolean;
   /** Refuse a native dismissal and route it through `requestClose`. */
   guarded: boolean;
+  /** Android only: back is a step inside the sheet, so route it to
+   *  `requestClose('back')` even when nothing is typed. */
+  backSteps?: boolean;
   /** Host toasts and confirms inside the sheet. */
   overlays: boolean;
   /** The owner's `visible`. A route that mounts after its owner already
