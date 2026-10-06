@@ -316,10 +316,8 @@ export const en = {
   'recalibration.cardTitle': 'Your target just recalibrated',
   // First disclosure, not an event. See RecalibrationCard for why these exist.
   'recalibration.firstTitle': 'Your measured burn is ready',
-  'recalibration.firstBody':
-    'Your last few weeks of data put your real burn at about {tdee} kcal/day. Your daily target is {target} kcal.',
-  'recalibration.cardBody':
-    'Your last few weeks of data put your real burn at about {tdee} kcal/day. We’ve set your daily target to {target} kcal.',
+  // No numbers on purpose: the hero above the card already shows them (S21).
+  'recalibration.basis': 'Measured from your last few weeks of weigh-ins and logged meals.',
   'recalibration.cardCta': 'Got it',
   'recalibration.trend.metabolism-slowed':
     'Your measured burn is running lower than expected — that is common, not a warning. Your target follows it so progress stays steady.',
@@ -2178,6 +2176,8 @@ export const en = {
   'entry.swipeQuickAdd': 'Quick add',
   'entry.saveQuickAddA11y': 'Save to Quick add',
   'unit.grams': '{n} g',
+  // The bare gram symbol, beside a field or as a chart's unit (S21 sweep).
+  'unit.g': 'g',
   'entry.updated': 'Entry updated',
   'entry.updatedNamed': 'Updated {label}',
   'entry.moveTo': 'Move to…',

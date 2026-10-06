@@ -23,6 +23,7 @@ export function ProUpsell({ feature }: { feature: string }) {
         haptics.tap();
         router.push('/settings');
       }}
+      accessibilityRole="button"
       testID="pro-upsell"
     >
       <View style={styles.badge}>

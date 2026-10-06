@@ -17,7 +17,8 @@ import { type I18nKey, useT } from '@/i18n';
 import { useAuth } from '@/lib/auth';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space } from '@/theme';
+import { font, radius, space, TARGET } from '@/theme';
+import { Touchable } from '@/components/Touchable';
 
 /**
  * In-app feedback.
@@ -112,7 +113,7 @@ export default function FeedbackScreen() {
       <SafeAreaView style={styles.screen} edges={['bottom']}>
         <View style={styles.doneWrap} testID="feedback-sent" accessibilityLiveRegion="polite">
           <Ionicons name="checkmark-circle" size={56} color={colors.ring} />
-          <Text style={styles.doneTitle}>{t('feedback.sent')}</Text>
+          <Text style={styles.doneTitle} accessibilityRole="header">{t('feedback.sent')}</Text>
           <Text style={styles.doneBody}>{t('feedback.sentBody')}</Text>
         </View>
       </SafeAreaView>
@@ -179,7 +180,7 @@ export default function FeedbackScreen() {
         </ScrollView>
 
         <View style={styles.footer}>
-          <TouchableOpacity
+          <Touchable
             style={[styles.send, !canSend && styles.sendDisabled]}
             disabled={!canSend}
             onPress={onSend}
@@ -193,7 +194,7 @@ export default function FeedbackScreen() {
             ) : (
               <Text style={styles.sendText}>{t('feedback.send')}</Text>
             )}
-          </TouchableOpacity>
+          </Touchable>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -216,7 +217,7 @@ const createStyles = ({ colors }: Theme) =>
       borderRadius: radius.pill,
       paddingVertical: space.sm,
       paddingHorizontal: space.md,
-      minHeight: 44,
+      minHeight: TARGET,
       backgroundColor: colors.inputBg,
     },
     chipOn: { backgroundColor: colors.ink, borderColor: colors.ink },

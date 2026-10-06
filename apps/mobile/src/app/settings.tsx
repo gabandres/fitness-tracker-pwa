@@ -55,7 +55,8 @@ import { LOCALES, LOCALE_DEFS, type I18nKey, type Locale, useLocale, useT } from
 import { formatNumber, formatTime } from '@/lib/date-format';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space } from '@/theme';
+import { font, radius, space, TARGET } from '@/theme';
+import { Touchable } from '@/components/Touchable';
 
 /** "8 PM" in English, "20" in pt-BR, "8 p. m." in es-PR — from a 0–23 hour.
  *  Through `formatTime` so the clock convention follows the app locale; the
@@ -433,7 +434,7 @@ export default function Settings() {
               because there was nowhere to tap (UX_AUDIT, Abdiel Medina). The
               mode is on the row itself, so "am I on automatic?" is answered
               without opening anything. */}
-          <TouchableOpacity
+          <Touchable
             style={styles.navRow}
             onPress={() => router.push('/daily-targets')}
             accessibilityRole="button"
@@ -450,8 +451,8 @@ export default function Settings() {
               {goalKey ? <Text style={styles.rowSub}>{t('settings.goalPrefix', { goal: t(goalKey) })}</Text> : null}
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.faint} />
-          </TouchableOpacity>
-          <TouchableOpacity
+          </Touchable>
+          <Touchable
             style={[styles.navRow, styles.navRowDivided]}
             onPress={() => router.push('/refine-targets')}
             accessibilityRole="button"
@@ -462,7 +463,7 @@ export default function Settings() {
               <Text style={styles.rowValue}>{t('settings.refineSub')}</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.faint} />
-          </TouchableOpacity>
+          </Touchable>
           {/* This pushes the WHOLE onboarding wizard, not a goal editor — the
               goal editor is the Daily targets row above. It was labelled "Edit
               goals" until 2026-09-04, which is how an established user ended up
@@ -471,7 +472,7 @@ export default function Settings() {
               on the way out (the write itself is fixed in
               `toOnboardingV2Patch`; this is the label half). Last of the three,
               because it is the heaviest. */}
-          <TouchableOpacity
+          <Touchable
             style={[styles.navRow, styles.navRowDivided]}
             onPress={() => router.push('/onboarding')}
             accessibilityRole="button"
@@ -482,7 +483,7 @@ export default function Settings() {
               <Text style={styles.rowValue}>{t('settings.redoSetupSub')}</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.faint} />
-          </TouchableOpacity>
+          </Touchable>
         </View>
 
         {/* ── Help & feedback ── one section; it was three (HELP, SEND
@@ -491,7 +492,7 @@ export default function Settings() {
             report box. */}
         <Text style={styles.section} accessibilityRole="header">{t('settings.helpFeedbackSection')}</Text>
         <View style={styles.card}>
-          <TouchableOpacity
+          <Touchable
             style={styles.navRow}
             onPress={() => router.push('/tour')}
             accessibilityRole="button"
@@ -502,8 +503,8 @@ export default function Settings() {
               <Text style={styles.rowValue}>{t('settings.tourSub')}</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.faint} />
-          </TouchableOpacity>
-          <TouchableOpacity
+          </Touchable>
+          <Touchable
             style={[styles.navRow, styles.navRowDivided]}
             onPress={() => router.push('/feedback')}
             accessibilityRole="button"
@@ -514,8 +515,8 @@ export default function Settings() {
               <Text style={styles.rowValue}>{t('feedback.settingsSub')}</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.faint} />
-          </TouchableOpacity>
-          <TouchableOpacity
+          </Touchable>
+          <Touchable
             style={[styles.linkRow, styles.navRowDivided]}
             onPress={() => void openExternal('https://ignia.fit/support', t)}
             accessibilityRole="link"
@@ -523,7 +524,7 @@ export default function Settings() {
           >
             <Text style={styles.rowLabel}>{t('settings.supportHelp')}</Text>
             <Ionicons name="open-outline" size={16} color={colors.muted} />
-          </TouchableOpacity>
+          </Touchable>
           {/* A permanent, un-throttled path to the listing for users who
               *want* to leave a rating. The in-app sheet (reviewPrompt.ts)
               can only fire a handful of times per year and never on demand,
@@ -531,7 +532,7 @@ export default function Settings() {
               listing with the review composer already up. iOS-only until
               the Play listing is live — there is nothing to link to yet. */}
           {Platform.OS === 'ios' ? (
-            <TouchableOpacity
+            <Touchable
               style={[styles.linkRow, styles.navRowDivided]}
               onPress={() => void openExternal(APP_STORE_REVIEW_URL, t)}
               accessibilityRole="link"
@@ -539,7 +540,7 @@ export default function Settings() {
             >
               <Text style={styles.rowLabel}>{t('settings.rateApp')}</Text>
               <Ionicons name="star-outline" size={16} color={colors.muted} />
-            </TouchableOpacity>
+            </Touchable>
           ) : null}
           {/* Tips (ADR-0015). App Review 3.1.1 (submission fe0a9963): a tip
               tied to a digital app must use In-App Purchase, not an external
@@ -550,7 +551,7 @@ export default function Settings() {
           {FEATURES.tips ? (
             <View style={styles.navRowDivided}>
               <Text style={styles.rowValue}>{t('settings.supportBody')}</Text>
-              <TouchableOpacity
+              <Touchable
                 style={[styles.exportBtn, styles.tipBtn]}
                 onPress={() =>
                   isTipIapAvailable()
@@ -562,7 +563,7 @@ export default function Settings() {
               >
                 <Ionicons name="heart-outline" size={16} color={colors.onInk} />
                 <Text style={styles.exportBtnText}>{t('settings.supportBtn')}</Text>
-              </TouchableOpacity>
+              </Touchable>
             </View>
           ) : null}
         </View>
@@ -877,7 +878,7 @@ export default function Settings() {
             what the group is instead. */}
         <Text style={styles.section} accessibilityRole="header">{t('settings.yourDataSection')}</Text>
         <View style={styles.card}>
-          <TouchableOpacity
+          <Touchable
             style={styles.navRow}
             onPress={() => router.push('/connected-apps')}
             accessibilityRole="button"
@@ -891,8 +892,8 @@ export default function Settings() {
               <Text style={styles.rowValue}>{t('settings.connectedAppsSub', { store: healthStore })}</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.faint} />
-          </TouchableOpacity>
-          <TouchableOpacity
+          </Touchable>
+          <Touchable
             style={[styles.navRow, styles.navRowDivided]}
             // `as Href` because `typedRoutes` regenerates its declaration from
             // a running dev server, not from `expo export` — a route added
@@ -907,7 +908,7 @@ export default function Settings() {
               <Text style={styles.rowValue}>{t('milestones.settingsSub')}</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.faint} />
-          </TouchableOpacity>
+          </Touchable>
         </View>
 
         <View style={styles.card}>
@@ -916,7 +917,7 @@ export default function Settings() {
               <Text style={styles.rowLabel}>{t('settings.exportTitle')}</Text>
               <Text style={styles.rowValue}>{t('settings.exportSub')}</Text>
             </View>
-            <TouchableOpacity
+            <Touchable
               style={[styles.exportBtn, exporting && styles.exportBtnDisabled]}
               onPress={onExport}
               disabled={exporting}
@@ -929,7 +930,7 @@ export default function Settings() {
               <Text style={styles.exportBtnText}>
                 {exporting ? t('settings.exportPreparing') : t('settings.exportButton')}
               </Text>
-            </TouchableOpacity>
+            </Touchable>
           </View>
           {exportMsg ? <Text style={styles.exportMsg} accessibilityLiveRegion="polite">{exportMsg}</Text> : null}
 
@@ -939,7 +940,7 @@ export default function Settings() {
               <Text style={styles.rowLabel}>{t('settings.importTitle')}</Text>
               <Text style={styles.rowValue}>{t('settings.importSub')}</Text>
             </View>
-            <TouchableOpacity
+            <Touchable
               style={styles.exportBtn}
               onPress={pickImport}
               accessibilityRole="button"
@@ -948,7 +949,7 @@ export default function Settings() {
             >
               <Ionicons name="cloud-upload-outline" size={16} color={colors.onInk} />
               <Text style={styles.exportBtnText}>{t('settings.importButton')}</Text>
-            </TouchableOpacity>
+            </Touchable>
           </View>
           {importPreview ? (
             <View style={styles.importPreview}>
@@ -964,7 +965,7 @@ export default function Settings() {
               ) : null}
               <Text style={[styles.rowValue, { color: colors.accent }]}>{t('settings.importDupWarning')}</Text>
               <View style={styles.importActions}>
-                <TouchableOpacity
+                <Touchable
                   style={[styles.exportBtn, importing && styles.exportBtnDisabled]}
                   onPress={confirmImport}
                   disabled={importing}
@@ -975,7 +976,7 @@ export default function Settings() {
                   <Text style={styles.exportBtnText}>
                     {importing ? t('settings.importImporting') : t('settings.importConfirm')}
                   </Text>
-                </TouchableOpacity>
+                </Touchable>
                 <TouchableOpacity
                   style={styles.textBtn}
                   onPress={() => setImportPreview(null)}
@@ -1012,7 +1013,7 @@ export default function Settings() {
                   </View>
                 ))}
               </View>
-              <TouchableOpacity
+              <Touchable
                 style={[styles.exportBtn, styles.proUnlockBtn]}
                 disabled
                 accessibilityRole="button"
@@ -1021,7 +1022,7 @@ export default function Settings() {
               >
                 <Ionicons name="lock-open-outline" size={16} color={colors.onInk} />
                 <Text style={styles.exportBtnText}>{t('pro.unlock')} · {t('pro.unlockSoon')}</Text>
-              </TouchableOpacity>
+              </Touchable>
             </>
           )}
           <View style={styles.importDivider} />
@@ -1049,7 +1050,7 @@ export default function Settings() {
             people come to read, ahead of what they come to change. */}
         <Text style={styles.section} accessibilityRole="header">{t('settings.aboutLegalSection')}</Text>
         <View style={styles.card}>
-          <TouchableOpacity
+          <Touchable
             style={styles.linkRow}
             onPress={() => void openExternal('https://ignia.fit/privacy', t)}
             accessibilityRole="link"
@@ -1057,8 +1058,8 @@ export default function Settings() {
           >
             <Text style={styles.rowLabel}>{t('settings.privacyPolicy')}</Text>
             <Ionicons name="open-outline" size={16} color={colors.muted} />
-          </TouchableOpacity>
-          <TouchableOpacity
+          </Touchable>
+          <Touchable
             style={styles.linkRow}
             onPress={() => void openExternal('https://ignia.fit/terms', t)}
             accessibilityRole="link"
@@ -1066,7 +1067,7 @@ export default function Settings() {
           >
             <Text style={styles.rowLabel}>{t('settings.termsOfUse')}</Text>
             <Ionicons name="open-outline" size={16} color={colors.muted} />
-          </TouchableOpacity>
+          </Touchable>
           <Text style={styles.legalNote}>{t('settings.medicalDisclaimer')}</Text>
           <Text style={styles.legalNote}>{t('settings.dataCredit')}</Text>
           {/* Which BUILD and which over-the-air BUNDLE this app is running.
@@ -1104,10 +1105,10 @@ export default function Settings() {
               {user?.email ?? '—'}
             </Text>
           </View>
-          <TouchableOpacity style={styles.signOut} onPress={confirmSignOut} accessibilityRole="button" testID="settings-signout">
+          <Touchable style={styles.signOut} onPress={confirmSignOut} accessibilityRole="button" testID="settings-signout">
             <Ionicons name="log-out-outline" size={18} color={colors.danger} />
             <Text style={styles.signOutText}>{t('settings.signOut')}</Text>
-          </TouchableOpacity>
+          </Touchable>
         </View>
 
         <View style={styles.card}>
@@ -1115,7 +1116,7 @@ export default function Settings() {
               Delete account is the ONLY row in its card — so the rule drew
               across the top of an otherwise empty card and read as a stray
               line. */}
-          <TouchableOpacity
+          <Touchable
             style={styles.deleteRow}
             onPress={confirmDeleteAccount}
             disabled={deleting}
@@ -1134,7 +1135,7 @@ export default function Settings() {
             ) : (
               <Ionicons name="trash-outline" size={16} color={colors.danger} />
             )}
-          </TouchableOpacity>
+          </Touchable>
         </View>
       </ScrollView>
       {/* A root-stack screen over the tabs since S21-1: the tab layout's
@@ -1173,17 +1174,17 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   /** A row that opens another screen — label, subtitle, chevron. Every one in
    *  the screen is this shape now (S21-4): the targets group mixed a row, an
    *  outlined button and a row, which read as three unrelated controls. */
-  navRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 44 },
+  navRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: TARGET },
   /** The second and later rows of a group card: a rule above, never on the
    *  first (a top rule on a card's first row is the stray line `soloRow` was
    *  invented to remove). */
   navRowDivided: { paddingTop: space.md, borderTopWidth: 1, borderTopColor: colors.line },
-  tipBtn: { marginTop: space.md, alignSelf: 'flex-start', minHeight: 44 },
-  textBtn: { minHeight: 44, justifyContent: 'center' },
+  tipBtn: { marginTop: space.md, alignSelf: 'flex-start', minHeight: TARGET },
+  textBtn: { minHeight: TARGET, justifyContent: 'center' },
   rowLabel: { fontSize: font.body, color: colors.ink, fontWeight: '600' },
   // 44 pt minimum (S18-15): three legal links stacked at ~34 pt each were the
   // smallest targets on the screen.
-  linkRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: space.sm, minHeight: 44 },
+  linkRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: space.sm, minHeight: TARGET },
   legalNote: { fontSize: font.tiny, color: colors.muted, marginTop: space.sm, lineHeight: font.tiny * 1.5 },
   rowValue: { fontSize: font.body, color: colors.muted, marginTop: 2 },
   rowSub: { fontSize: font.small, color: colors.faint, marginTop: 2 },
@@ -1196,7 +1197,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
     paddingVertical: space.sm,
     paddingHorizontal: space.md,
     // 44pt: these were ~33 (S21-2).
-    minHeight: 44,
+    minHeight: TARGET,
   },
   exportBtnDisabled: { opacity: 0.5 },
   exportBtnText: { color: colors.onInk, fontWeight: '700', fontSize: font.small },
@@ -1240,15 +1241,15 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   stepper: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   // 44, matching refine-targets' pace stepper (S18-15) — these were 36.
   step: {
-    width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: colors.lineStrong,
+    width: TARGET, height: TARGET, borderRadius: TARGET / 2, borderWidth: 1, borderColor: colors.lineStrong,
     alignItems: 'center', justifyContent: 'center', backgroundColor: colors.inputBg,
   },
   stepText: { fontSize: font.h3, color: colors.ink, fontWeight: '700' },
   hourValue: { fontSize: font.body, color: colors.ink, fontWeight: '700', minWidth: 56, textAlign: 'center' },
   accountHead: { gap: 2, marginBottom: space.md },
   accountEmail: { fontSize: font.small, color: colors.muted },
-  signOut: { flexDirection: 'row', alignItems: 'center', gap: space.sm, justifyContent: 'flex-start', minHeight: 44 },
+  signOut: { flexDirection: 'row', alignItems: 'center', gap: space.sm, justifyContent: 'flex-start', minHeight: TARGET },
   signOutText: { color: colors.danger, fontWeight: '700', fontSize: font.body },
-  deleteRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 44 },
+  deleteRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: TARGET },
   deleteLabel: { fontSize: font.body, color: colors.danger, fontWeight: '600' },
 });

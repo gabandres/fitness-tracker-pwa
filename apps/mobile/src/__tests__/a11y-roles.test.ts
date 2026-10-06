@@ -1,9 +1,9 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { openingTags, type OpeningTag } from './jsx-scan';
 
 /**
- * Every pressable in the logging sheets carries an `accessibilityRole`.
+ * Every pressable in the app carries an `accessibilityRole`.
  *
  * `a11y-labels.test.ts` covers icon-only controls — the ones with no text at
  * all. This is the other half (UX_AUDIT S18-1): a `<TouchableOpacity>` around
@@ -13,70 +13,41 @@ import { openingTags, type OpeningTag } from './jsx-scan';
  *
  * Same shape as its sibling — a source scan, not a render — and for the same
  * reason: it finds the controls behind conditional branches nobody has a
- * render test for. Scoped to the components the audit named rather than the
- * whole tree, so it can be strict; widen the list as screens are brought up.
+ * render test for.
+ *
+ * **Whole-app since 2026-10-06 (UX_AUDIT S21).** It began as a curated list
+ * of the files the S18 audit named, widened one screen at a time; the scan
+ * screen then mostly missed the S18 pass — exactly the drift a curated list
+ * invites. It now reads every non-test `.tsx` under `src/app` and
+ * `src/components`, so a new screen is strict the day it lands.
  *
  * A control is exempt if it is hidden from the tree (`accessible={false}`,
  * `accessibilityElementsHidden`, `importantForAccessibility="no…"`), which is
  * the right answer for a decorative wrapper. Nothing else is.
  *
- * The same list also gets a `<TextInput>` check (bottom of the file): every
+ * The same files also get a `<TextInput>` check (bottom of the file): every
  * field names itself. Same files, because a screen brought up to "every control
  * announces what it is" is not there while its fields announce only a value.
  */
 const SRC = join(__dirname, '..');
-const FILES = [
-  'components/EntrySheet.tsx',
-  'components/FoodSearch.tsx',
-  'components/ConfirmSheet.tsx',
-  'components/MealText.tsx',
-  'components/RecipeBuilder.tsx',
-  'components/RecipeImport.tsx',
-  'components/DailyMetrics.tsx',
-  'components/QuickAddCard.tsx',
-  'components/BottomSheet.tsx',
-  'components/MealEntries.tsx',
-  'components/HeaderAvatar.tsx',
-  'components/Toast.tsx',
-  // S18-15 follow-up: the two Train modals' buttons carry roles too.
-  'components/train/TemplateEditorModal.tsx',
-  'components/train/RestNotifySheet.tsx',
-  // The photo/barcode/voice doors into logging. Scan mostly missed the S18
-  // pass — six CTAs and the back chevron had no role — which is exactly the
-  // drift a curated list invites, so the logging doors are listed by name.
-  'components/BarcodeScanner.tsx',
-  'components/MicButton.tsx',
-  // S20: the meal-slot / time controls the sheet and the scan review share,
-  // and the viewfinder.
-  'components/EntryWhen.tsx',
-  'components/ScanCamera.tsx',
-  'app/scan.tsx',
-  // Screens that already pass, listed so they stay passing. The rest of
-  // `src/app` (settings, train, body, trends, onboarding, sign-in, …) still
-  // has role-less pressables; add each here as it is brought up.
-  'app/(app)/index.tsx',
-  'app/(app)/_layout.tsx',
-  'app/history/index.tsx',
-  'app/history/[date].tsx',
-  'app/_layout.tsx',
-  'app/coach.tsx',
-  'app/milestones.tsx',
-  'app/tour.tsx',
-  'app/whats-new.tsx',
-  // Body review (2026-10-04): Body, its sheets, Connected apps and the fast
-  // editor were brought up to "every control announces what it is".
-  'app/(app)/body.tsx',
-  'app/connected-apps.tsx',
-  'components/FastSheet.tsx',
-  'components/body/WeightSheet.tsx',
-  'components/body/MeasurementSheet.tsx',
-  'components/body/HistoryRow.tsx',
-  'components/body/WeightChart.tsx',
-  'components/body/BodyFatCard.tsx',
-  'components/body/HealthFooter.tsx',
-  'components/body/DayStepper.tsx',
-];
-const TOUCHABLES = ['TouchableOpacity', 'Pressable', 'PressScale', 'AnimatedPressable'];
+
+function tsxUnder(dir: string, out: string[] = []): string[] {
+  for (const entry of readdirSync(join(SRC, dir))) {
+    const rel = `${dir}/${entry}`;
+    if (statSync(join(SRC, rel)).isDirectory()) {
+      if (entry !== '__tests__') tsxUnder(rel, out);
+    } else if (entry.endsWith('.tsx') && !/\.test\.tsx$/.test(entry)) {
+      out.push(rel);
+    }
+  }
+  return out;
+}
+
+const FILES = [...tsxUnder('app'), ...tsxUnder('components')].sort();
+// `Touchable` (TouchableOpacity on iOS, a rippling Pressable on Android) and
+// EntrySheet's `Tappable` are pressables too — without them here every call
+// site of the wrappers would silently leave this check.
+const TOUCHABLES = ['TouchableOpacity', 'Pressable', 'PressScale', 'AnimatedPressable', 'Touchable', 'Tappable'];
 
 interface Offender {
   file: string;
@@ -94,7 +65,15 @@ function offender(tag: OpeningTag, file: string): Offender {
  *  hidden from the tree. */
 export function findRoleless(source: string, file: string): Offender[] {
   return openingTags(source, TOUCHABLES)
-    .filter((tag) => !tag.attrs.includes('accessibilityRole') && !HIDDEN.some((h) => tag.attrs.includes(h)))
+    .filter(
+      (tag) =>
+        !tag.attrs.includes('accessibilityRole') &&
+        // The ONE allowance: a wrapper that spreads its props (`Touchable`,
+        // `Tappable`) gets its role at the call site, which is scanned as a
+        // `Touchable`/`Tappable` in its own right.
+        !/\{\.\.\.\(?(rest|props)\b/.test(tag.attrs) &&
+        !HIDDEN.some((h) => tag.attrs.includes(h)),
+    )
     .map((tag) => offender(tag, file));
 }
 
@@ -128,7 +107,7 @@ function report(offenders: Offender[]): string {
   return offenders.length === 0 ? '' : `\n${lines}\n`;
 }
 
-describe('pressables in the logging sheets carry an accessibilityRole', () => {
+describe('pressables carry an accessibilityRole', () => {
   it.each(FILES)('%s', (file) => {
     expect(report(findRoleless(readFileSync(join(SRC, file), 'utf8'), file))).toBe('');
   });
@@ -155,7 +134,7 @@ describe('pressables in the logging sheets carry an accessibilityRole', () => {
 // RecipeImport.tsx left at 0 on 2026-10-06 (S21: its URL field is named).
 const INPUTS_PENDING: Record<string, number> = {};
 
-describe('text fields in the same files carry an accessibilityLabel', () => {
+describe('text fields carry an accessibilityLabel', () => {
   it.each(FILES)('%s', (file) => {
     const found = findUnlabelledInputs(readFileSync(join(SRC, file), 'utf8'), file);
     const allowed = INPUTS_PENDING[file];

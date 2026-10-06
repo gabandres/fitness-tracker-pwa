@@ -24,7 +24,8 @@ import { useOura } from '@/lib/oura';
 import * as haptics from '@/lib/haptics';
 import { captureError } from '@/lib/sentry';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space } from '@/theme';
+import { font, radius, space, TARGET } from '@/theme';
+import { Touchable } from '@/components/Touchable';
 
 /**
  * `READ_EXERCISE` first shipped in an Android manifest at vc 38
@@ -333,7 +334,7 @@ export default function ConnectedAppsScreen() {
                 </View>
 
                 <View style={styles.actions}>
-                  <TouchableOpacity
+                  <Touchable
                     onPress={healthSync.needsReauth ? onHealthReconnect : onHealthSyncNow}
                     disabled={healthSync.syncing}
                     style={[styles.btn, styles.btnPrimary, healthSync.syncing && styles.btnDisabled]}
@@ -348,7 +349,7 @@ export default function ConnectedAppsScreen() {
                           ? t('health.reconnect')
                           : t('settings.healthSyncNow')}
                     </Text>
-                  </TouchableOpacity>
+                  </Touchable>
                 </View>
               </>
             ) : null}
@@ -361,7 +362,7 @@ export default function ConnectedAppsScreen() {
             {/* Neither OS re-shows a declined permission prompt, so "denied"
                 with no way forward was a dead end (U11). */}
             {healthDenied ? (
-              <TouchableOpacity
+              <Touchable
                 onPress={() => {
                   haptics.tap();
                   void openHealthPermissions();
@@ -373,7 +374,7 @@ export default function ConnectedAppsScreen() {
                 <Text style={[styles.btnText, styles.btnTextQuiet]}>
                   {Platform.OS === 'ios' ? t('health.openSettingsIos') : t('health.openSettingsAndroid')}
                 </Text>
-              </TouchableOpacity>
+              </Touchable>
             ) : null}
           </View>
         ) : null}
@@ -445,7 +446,7 @@ export default function ConnectedAppsScreen() {
           <View style={styles.actions}>
             {/* The lock is shared, the words are not (bug 9 / C1): only the
                 button whose action is RUNNING says so. */}
-            <TouchableOpacity
+            <Touchable
               onPress={connected ? confirmOuraDisconnect : oura.connect}
               disabled={oura.busy || !oura.ready}
               style={[
@@ -466,10 +467,10 @@ export default function ConnectedAppsScreen() {
                       ? t('oura.disconnect')
                       : t('oura.connect')}
               </Text>
-            </TouchableOpacity>
+            </Touchable>
 
             {connected ? (
-              <TouchableOpacity
+              <Touchable
                 onPress={oura.syncNow}
                 disabled={oura.busy}
                 style={[styles.btn, styles.btnPrimary, oura.busy && styles.btnDisabled]}
@@ -480,7 +481,7 @@ export default function ConnectedAppsScreen() {
                 <Text style={[styles.btnText, styles.btnTextPrimary]}>
                   {oura.action === 'sync' ? t('connected.syncing') : t('oura.syncNow')}
                 </Text>
-              </TouchableOpacity>
+              </Touchable>
             ) : null}
           </View>
 
@@ -579,15 +580,15 @@ export default function ConnectedAppsScreen() {
             <Text style={styles.primeLine}>{t('connected.healthPrime.privacy')}</Text>
           </View>
           <View style={styles.primeRow}>
-            <TouchableOpacity
+            <Touchable
               style={[styles.btn, styles.btnQuiet, styles.primeBtn]}
               onPress={() => setHealthPrimeOpen(false)}
               accessibilityRole="button"
               testID="health-prime-not-now"
             >
               <Text style={[styles.btnText, styles.btnTextQuiet]}>{t('connected.healthPrime.notNow')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
+            </Touchable>
+            <Touchable
               style={[styles.btn, styles.btnPrimary, styles.primeBtn]}
               onPress={() => {
                 haptics.tap();
@@ -598,7 +599,7 @@ export default function ConnectedAppsScreen() {
               testID="health-prime-continue"
             >
               <Text style={[styles.btnText, styles.btnTextPrimary]}>{t('connected.healthPrime.continue')}</Text>
-            </TouchableOpacity>
+            </Touchable>
           </View>
         </View>
       </BottomSheet>
@@ -613,7 +614,7 @@ export default function ConnectedAppsScreen() {
 const makeStyles = ({ colors }: Theme) =>
   StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.paper },
-    backBtn: { width: 44, minHeight: 44, justifyContent: 'center' },
+    backBtn: { width: TARGET, minHeight: TARGET, justifyContent: 'center' },
     body: { paddingHorizontal: space.xl, paddingTop: space.md, paddingBottom: space.xl, gap: space.lg },
     subtitle: { fontSize: font.body, color: colors.muted },
 
@@ -661,7 +662,7 @@ const makeStyles = ({ colors }: Theme) =>
       paddingHorizontal: space.md,
       alignItems: 'center',
       justifyContent: 'center',
-      minHeight: 44,
+      minHeight: TARGET,
     },
     btnSolo: { flex: 0, alignSelf: 'stretch' },
     btnPrimary: { backgroundColor: colors.ink },
@@ -685,7 +686,7 @@ const makeStyles = ({ colors }: Theme) =>
     successText: { flex: 1, fontSize: font.body, fontWeight: '700', color: colors.tealSolid },
 
     disclosure: {
-      minHeight: 44,
+      minHeight: TARGET,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
@@ -709,5 +710,5 @@ const makeStyles = ({ colors }: Theme) =>
     primeRow: { flexDirection: 'row', gap: space.md, marginTop: space.md },
     /** Every card button has the 44-pt floor now; the sheet's two get more
      *  padding as well, because they are the real decision. */
-    primeBtn: { minHeight: 44, justifyContent: 'center', paddingVertical: space.md },
+    primeBtn: { minHeight: TARGET, justifyContent: 'center', paddingVertical: space.md },
   });

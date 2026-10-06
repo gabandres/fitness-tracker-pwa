@@ -63,7 +63,7 @@ export function GoalMilestonePrompt({
 
   return (
     <Animated.View entering={enterUp(0)} style={styles.card} testID="goal-milestone-prompt">
-      <Text style={styles.title}>{t('milestones.goalAsk')}</Text>
+      <Text style={styles.title} accessibilityRole="header">{t('milestones.goalAsk')}</Text>
       <View style={styles.row}>
         <PressScale
           style={styles.primary}

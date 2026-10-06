@@ -62,17 +62,23 @@ appId: fit.ignia.app
     timeout: 15000
 - assertVisible: 'Today'
 # ── into Settings (splash-proof gate, same pattern as flow 10) ──
+# Gated on Settings' first row: `settings-back` renders only on a cold open
+# since S21-1 (2026-10-06, `OrphanBack`). Every back below is the shared
+# native header's — iOS `BackButton`, Android hardware back (05-history) —
+# and each returns to Settings at the scroll position it was left at, hence
+# the UP/DOWN directions (rows in S21-4 order: Daily targets, Feedback,
+# Connected apps, Milestones).
 - repeat:
     times: 8
     while:
       notVisible:
-        id: 'settings-back'
+        id: 'settings-daily-targets'
     commands:
       - tapOn:
           id: 'settings-open'
           optional: true
 - assertVisible:
-    id: 'settings-back'
+    id: 'settings-daily-targets'
 # ── Daily targets ──
 - scrollUntilVisible:
     element:
@@ -83,7 +89,17 @@ appId: fit.ignia.app
 - tapOn:
     id: 'settings-daily-targets'
 - takeScreenshot: .maestro/capture/shots/g6-daily-targets
-- back
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          id: 'BackButton'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - back
 # ── Milestones ──
 - scrollUntilVisible:
     element:
@@ -94,18 +110,38 @@ appId: fit.ignia.app
 - tapOn:
     id: 'settings-milestones'
 - takeScreenshot: .maestro/capture/shots/g7-milestones
-- back
-# ── Feedback ──
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          id: 'BackButton'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - back
+# ── Feedback (ABOVE Milestones since S21-4) ──
 - scrollUntilVisible:
     element:
       id: 'settings-feedback'
-    direction: DOWN
+    direction: UP
     timeout: 60000
     centerElement: true
 - tapOn:
     id: 'settings-feedback'
 - takeScreenshot: .maestro/capture/shots/g8-feedback
-- back
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          id: 'BackButton'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - back
 # ── Connected apps ──
 - scrollUntilVisible:
     element:
@@ -116,9 +152,29 @@ appId: fit.ignia.app
 - tapOn:
     id: 'settings-connected-apps'
 - takeScreenshot: .maestro/capture/shots/g9-connected-apps
-- back
-- tapOn:
-    id: 'settings-back'
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          id: 'BackButton'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - back
+# …and Settings back to Today.
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          id: 'BackButton'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - back
 # ── Coach, via its route deep link ──
 - openLink: 'ignia://coach'
 - extendedWaitUntil:

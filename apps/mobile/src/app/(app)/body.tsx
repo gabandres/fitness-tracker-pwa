@@ -18,7 +18,6 @@ import {
 import { BodyFatCard, fieldList } from '@/components/body/BodyFatCard';
 import { BodyGlossary } from '@/components/body/BodyGlossary';
 import { Glyph } from '@/components/charts/Glyph';
-import { TOUCH_TARGET } from '@/components/charts/SegmentedControl';
 import { BodyIcon } from '@/components/body/BodyIcon';
 import { BodySkeleton } from '@/components/body/BodySkeleton';
 import { HealthFooter } from '@/components/body/HealthFooter';
@@ -50,9 +49,11 @@ import { track } from '@/lib/analytics';
 import { useUnitSystem } from '@/lib/use-unit-system';
 import { CountUpText, enterUp, usePulse } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, headerTitle, radius, space, type } from '@/theme';
+import { font, radius, space, TARGET, type } from '@/theme';
 import { formatDate, formatNumber, localeTag } from '@/lib/date-format';
 import { TAB_SCROLL_BAND } from '@/lib/glass';
+import { useLargeTitle } from '@/lib/font-scale';
+import { Touchable } from '@/components/Touchable';
 
 /**
  * Formatters cached per locale (Body review, Pf2). `toLocaleDateString` builds
@@ -207,6 +208,8 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
+  // Header wraps at accessibility sizes (`lib/font-scale.ts`, S21).
+  const largeTitle = useLargeTitle();
   const unitSystem = useUnitSystem();
   const unit = bodyWeightUnit(unitSystem);
   const store = t(Platform.OS === 'ios' ? 'health.storeIos' : 'health.storeAndroid');
@@ -572,10 +575,11 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
-      <View style={styles.headerRow}>
+      <View style={[styles.headerRow, largeTitle.rowStyle]}>
         {/* Capped like Today's title (A11): the display face at `font.h1`
-            clips rather than wraps past this scale. */}
-        <Text style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={headerTitle.maxFontScale}>
+            clips rather than wraps past this scale — until the accessibility
+            sizes, where the title takes the row and shrinks to fit. */}
+        <Text style={[styles.title, largeTitle.titleStyle]} accessibilityRole="header" {...largeTitle.titleProps}>
           {t('nav.body')}
         </Text>
         {/* The "?" Today, Trends and Train carry — same icon, same place —
@@ -607,7 +611,7 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
           {error ? (
             <View style={styles.errorRow} accessibilityRole="alert" accessibilityLiveRegion="polite">
               <Text style={styles.error}>{t('body.loadErr')}</Text>
-              <TouchableOpacity
+              <Touchable
                 onPress={onRetry}
                 style={styles.retryBtn}
                 accessibilityRole="button"
@@ -615,7 +619,7 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
                 testID="retry"
               >
                 <Text style={styles.retryText}>{t('common.retry')}</Text>
-              </TouchableOpacity>
+              </Touchable>
             </View>
           ) : null}
 
@@ -627,7 +631,7 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
               {/* The number is the thing people try to tap (2026-09-11), so it
                   opens the same sheet the button does; the counter says how
                   often that route is taken. */}
-              <TouchableOpacity
+              <Touchable
                 style={styles.hero}
                 onPress={() => {
                   track('body_hero_tap');
@@ -661,7 +665,7 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
                   </Text>
                 )}
                 <Text style={styles.heroUnit} maxFontSizeMultiplier={1.4}>{unit}</Text>
-              </TouchableOpacity>
+              </Touchable>
               <Text style={styles.heroCaption} testID="hero-caption">
                 {heroCaption}
               </Text>
@@ -787,14 +791,14 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
           />
 
           <Animated.View entering={enterUp(1)}>
-            <TouchableOpacity
+            <Touchable
               style={styles.logBtn}
               onPress={() => openWeighIn(null)}
               accessibilityRole="button"
               testID="log-weight"
             >
               <Text style={styles.logBtnText}>{todayWeight != null ? t('body.updateWeight') : t('body.logWeight')}</Text>
-            </TouchableOpacity>
+            </Touchable>
           </Animated.View>
 
           <BodyFatCard shown={bodyFatShown} navyPct={bodyFat} gap={bodyFatGap} missing={bodyFatMissing ?? []} />
@@ -803,7 +807,7 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
             <Text style={styles.sectionTitle} accessibilityRole="header">{t('body.measurements')}</Text>
             {/* A real bordered button with a 44 pt target (V3 / A7), not a
                 teal word with an 8 pt slop. */}
-            <TouchableOpacity
+            <Touchable
               onPress={() => openMeasure(null)}
               style={styles.addBtn}
               accessibilityRole="button"
@@ -812,7 +816,7 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
             >
               <BodyIcon sf="plus" ion="add" size={16} color={colors.ink} />
               <Text style={styles.addBtnText}>{t('body.add')}</Text>
-            </TouchableOpacity>
+            </Touchable>
           </View>
           {/* Per-site trends once a site has two readings (re-score). */}
           <MeasurementTrends
@@ -972,13 +976,13 @@ const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: space.xl },
   // Pushed against the avatar, as on Trends; a real 44/48 target rather than
   // a 24 pt glyph with slop.
-  headerHelp: { marginLeft: 'auto', marginRight: space.xs, minWidth: TOUCH_TARGET, minHeight: TOUCH_TARGET, alignItems: 'center', justifyContent: 'center' },
-  showMore: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  headerHelp: { marginLeft: 'auto', marginRight: space.xs, minWidth: TARGET, minHeight: TARGET, alignItems: 'center', justifyContent: 'center' },
+  showMore: { minHeight: TARGET, alignItems: 'center', justifyContent: 'center' },
   // See FAB_BAND — the + button overhangs every tab's scroll area.
   body: { padding: space.xl, paddingBottom: TAB_SCROLL_BAND, gap: space.md },
   error: { color: colors.danger, fontSize: font.small, flex: 1 },
   errorRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
-  retryBtn: { borderWidth: 1, borderColor: colors.ink, borderRadius: radius.pill, paddingHorizontal: space.md, minHeight: 44, justifyContent: 'center' },
+  retryBtn: { borderWidth: 1, borderColor: colors.ink, borderRadius: radius.pill, paddingHorizontal: space.md, minHeight: TARGET, justifyContent: 'center' },
   retryText: { fontSize: font.small, fontWeight: '700', color: colors.ink },
   // Hero panel — the Today skeleton (ADR-0014 §7): shared dark canvas so the
   // coral trend line glows identically in both themes.
@@ -1032,7 +1036,7 @@ const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.xs,
-    minHeight: 44,
+    minHeight: TARGET,
     paddingHorizontal: space.md,
     borderRadius: radius.pill,
     borderWidth: 1,
@@ -1042,7 +1046,7 @@ const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   addBtnText: { fontSize: font.small, color: colors.ink, fontWeight: '700' },
   empty: { fontSize: font.small, color: colors.muted },
   link: { fontSize: font.small, color: colors.teal, fontWeight: '700' },
-  disclosure: { flexDirection: 'row', alignItems: 'center', gap: space.xs, minHeight: 44, alignSelf: 'flex-start' },
+  disclosure: { flexDirection: 'row', alignItems: 'center', gap: space.xs, minHeight: TARGET, alignSelf: 'flex-start' },
   sectionHint: { fontSize: font.small, color: colors.muted, lineHeight: font.small * 1.5 },
   howBox: {
     backgroundColor: colors.card,

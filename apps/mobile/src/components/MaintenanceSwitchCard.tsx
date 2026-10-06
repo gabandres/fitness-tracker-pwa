@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useT } from '@/i18n';
 import { useDismissedStub } from '@/hooks/useDismissedStub';
 import * as haptics from '@/lib/haptics';
 import { enterUp, PressScale } from '@/lib/motion';
 import { useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space, type } from '@/theme';
+import { font, radius, space, TARGET, type } from '@/theme';
 
 /**
  * "Switch to maintenance?" — the one tap that follows reaching the goal
@@ -89,8 +89,6 @@ export function MaintenanceSwitchCard({
     </Animated.View>
   );
 }
-
-const TARGET = Platform.OS === 'android' ? 48 : 44;
 
 const createStyles = ({ colors }: Theme) =>
   StyleSheet.create({

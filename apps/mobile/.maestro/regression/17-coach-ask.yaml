@@ -77,8 +77,18 @@ tags:
 - takeScreenshot: .maestro/regression/shots/17-coach-answer
 
 # ── Teardown ──────────────────────────────────────────────────────
-# Leave the app where the suite expects to find it.
-- tapOn:
-    id: 'coach-back'
+# Leave the app where the suite expects to find it. Coach wears the shared
+# native header since S21-9 (2026-10-06); same back convention as 07-coach.
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          id: 'BackButton'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - back
 - tapOn: 'Today'
 - assertVisible: 'Today'

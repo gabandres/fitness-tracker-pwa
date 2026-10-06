@@ -17,7 +17,7 @@ import { formatDate, formatNumber, formatTime, localeTag } from '@/lib/date-form
 import * as haptics from '@/lib/haptics';
 import { PressScale } from '@/lib/motion';
 import { useThemedStyles, useTheme, type Theme } from '@/lib/theme-context';
-import { font, radius, space } from '@/theme';
+import { font, radius, space, TARGET } from '@/theme';
 import { NativeDateField, hasNativeDateField } from '@/components/NativeDatePicker';
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -862,8 +862,8 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   dayRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   // 44 pt (A7) — these were 28 pt tall, the smallest targets on the sheet.
   dayBtn: {
-    minWidth: 44,
-    minHeight: 44,
+    minWidth: TARGET,
+    minHeight: TARGET,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: space.md,
@@ -894,7 +894,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   periods: { flexDirection: 'row', gap: space.xs, marginLeft: space.xs },
   periodsStacked: { flexDirection: 'column' },
   period: {
-    minHeight: 44,
+    minHeight: TARGET,
     justifyContent: 'center',
     paddingHorizontal: space.md,
     paddingVertical: space.md,

@@ -120,6 +120,7 @@ export function ExerciseSearchList({
                 key={e.id ?? `mine-${i}`}
                 style={[styles.catalogRow, onToggleCatalog && styles.pickRowMain]}
                 onPress={() => onPickCatalog(e)}
+                accessibilityRole="button"
                 // Indexed, not keyed by doc id: a UI test can know "the first
                 // match" but never a Firestore id it did not create.
                 testID={`${testIDPrefix}-mine-${i}`}
@@ -148,6 +149,7 @@ export function ExerciseSearchList({
                 key={seed.key}
                 style={[styles.catalogRow, onToggleSeed && styles.pickRowMain]}
                 onPress={() => onPickSeed(seed)}
+                accessibilityRole="button"
                 testID={`${testIDPrefix}-lib-${i}`}
               >
                 <View style={styles.searchMain}>

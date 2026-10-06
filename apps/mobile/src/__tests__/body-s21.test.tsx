@@ -12,7 +12,7 @@ import React from 'react';
 import { Platform, StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { DatedWeight, Measurement } from '@macrolog/core';
-import { palettes } from '@/theme';
+import { palettes, TARGET } from '@/theme';
 import { act, fireEvent, renderWithProviders as render, waitFor } from '@/test-utils';
 
 jest.mock('@/lib/ledger', () => ({
@@ -46,7 +46,6 @@ jest.mock('@/hooks/useBody', () => ({
 import BodyScreen from '@/app/(app)/body';
 import { WeightChart } from '@/components/body/WeightChart';
 import { MaintenanceSwitchCard } from '@/components/MaintenanceSwitchCard';
-import { TOUCH_TARGET } from '@/components/charts/SegmentedControl';
 
 const TODAY = '2026-10-05';
 
@@ -115,8 +114,8 @@ describe('the weight chart range control', () => {
     const p = pts(['2026-09-28', '2026-10-01', '2026-10-05']);
     const s = await render(<WeightChart {...props} points={p} trend={p} />);
     const style = flat(s.getByTestId('weight-range-3M').props.style);
-    expect(style.minHeight).toBe(TOUCH_TARGET);
-    expect(TOUCH_TARGET).toBe(Platform.OS === 'android' ? 48 : 44);
+    expect(style.minHeight).toBe(TARGET);
+    expect(TARGET).toBe(Platform.OS === 'android' ? 48 : 44);
   });
 
   it('remembers the pick across mounts (persisted, like the Trends range)', async () => {
@@ -197,8 +196,8 @@ describe('the maintenance-switch card', () => {
   it('has a heading and two real targets', async () => {
     const s = await render(<MaintenanceSwitchCard visible onSwitch={async () => {}} />);
     expect(s.getByText('Switch to maintenance?').props.accessibilityRole).toBe('header');
-    expect(flat(s.getByTestId('maintenance-switch-yes').props.style).minHeight).toBe(TOUCH_TARGET);
-    expect(flat(s.getByTestId('maintenance-switch-no').props.style).minHeight).toBe(TOUCH_TARGET);
+    expect(flat(s.getByTestId('maintenance-switch-yes').props.style).minHeight).toBe(TARGET);
+    expect(flat(s.getByTestId('maintenance-switch-no').props.style).minHeight).toBe(TARGET);
   });
 });
 

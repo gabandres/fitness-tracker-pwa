@@ -21,7 +21,7 @@ import { announce } from '@/lib/a11y';
 import { formatDate, formatNumber } from '@/lib/date-format';
 import { useDeferredFocus } from '@/lib/use-deferred-focus';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space } from '@/theme';
+import { font, radius, space, TARGET } from '@/theme';
 import { DayStepper } from './DayStepper';
 
 /**
@@ -370,6 +370,6 @@ const createStyles = ({ colors }: Theme) =>
     saveDisabled: { opacity: 0.4 },
     saveText: { color: colors.onInk, fontWeight: '700', fontSize: font.h3 },
     // The fast editor's destructive text button, same weight and place.
-    delete: { alignItems: 'center', justifyContent: 'center', minHeight: 44, marginTop: space.xs },
+    delete: { alignItems: 'center', justifyContent: 'center', minHeight: TARGET, marginTop: space.xs },
     deleteText: { color: colors.danger, fontWeight: '700', fontSize: font.small },
   });

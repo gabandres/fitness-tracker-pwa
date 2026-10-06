@@ -3,7 +3,7 @@ import { InputAccessoryView, Keyboard, Platform, StyleSheet, Text, TouchableOpac
 import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, space } from '@/theme';
+import { font, space, TARGET } from '@/theme';
 
 /*
  * iOS number pads have no Return key (`keyboardType="numeric"` is
@@ -133,7 +133,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
     backgroundColor: colors.card,
   },
   fill: { flex: 1 },
-  btn: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  btn: { minWidth: TARGET, minHeight: TARGET, alignItems: 'center', justifyContent: 'center' },
   done: { paddingHorizontal: space.md },
   doneText: { fontSize: font.body, fontWeight: '700', color: colors.teal },
 });

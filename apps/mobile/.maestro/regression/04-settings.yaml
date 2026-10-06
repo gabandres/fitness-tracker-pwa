@@ -13,11 +13,13 @@ appId: fit.ignia.app
 # scroll gave up roughly two thirds of the way down and reported "Quick add"
 # missing, which reads as a deleted section rather than an unfinished scroll.
 #
-# It passed here for months because the settings ScrollView RETAINS ITS SCROLL
+# It passed here for months because the settings ScrollView RETAINED ITS SCROLL
 # POSITION between opens: whenever an earlier flow left the sheet part-way
 # down, the remaining distance fit inside 20s. So this was never flake — it was
 # a budget that only held when a previous flow happened to pay part of the
-# cost, and it broke the day the suite ran in a different order.
+# cost, and it broke the day the suite ran in a different order. (Since S21-1,
+# 2026-10-06, Settings is a pushed root-stack screen that mounts fresh at the
+# top on every open, so the full distance is now paid every time.)
 - scrollUntilVisible:
     element:
       text: 'Quick add'
@@ -26,21 +28,25 @@ appId: fit.ignia.app
 - takeScreenshot: .maestro/regression/shots/04-settings-quickadd
 - scroll
 - takeScreenshot: .maestro/regression/shots/04-settings-lower
-# Tapped, not `back` (2026-10-04): Maestro's iOS `back` is a no-op, so this
-# flow used to end ON Settings — the README asks every flow to hand the app
-# back on Today. Settings scrolls its header away, hence the relaunch-free
-# swipe back to the top before reaching for `settings-back`.
-- repeat:
-    times: 10
-    while:
-      notVisible:
-        id: 'settings-back'
+# Back to Today — the README asks every flow to hand the app back there.
+# Since S21-1 (2026-10-06) Settings is a ROOT-stack screen with the shared
+# native header, the same shape as 05-history's day screen: Maestro's iOS
+# `back` is a no-op, so iOS taps the header's `BackButton` identifier and
+# Android keeps hardware back. The drawn `settings-back` it replaced now
+# renders only when Settings is opened cold with nothing beneath it
+# (`OrphanBack`, app/_layout.tsx). The native header does not scroll away, so
+# the old swipe-to-the-top before reaching for it is gone too.
+- runFlow:
+    when:
+      platform: iOS
     commands:
-      - swipe:
-          start: 10%, 30%
-          end: 10%, 70%
-- tapOn:
-    id: 'settings-back'
+      - tapOn:
+          id: 'BackButton'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - back
 - extendedWaitUntil:
     visible:
       id: 'hero-rings'

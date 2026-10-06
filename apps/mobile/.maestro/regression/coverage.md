@@ -10,6 +10,21 @@ Update this file in the same commit as any flow change. If a surface ships
 that has no row here, the suite's "100%" claim is false until the row exists —
 add it as ✗ first, cover it second.
 
+## Re-anchored 2026-10-06 for S21 phase 1 (`622089d0`) — authored, NOT yet run on either platform
+
+The ✓ dates below were earned by the flows BEFORE these edits; until a run
+re-earns them, read them as "the old flow passed", not "this flow passes".
+
+| Flow | Drift | Now |
+|---|---|---|
+| 04, 07, 08, 09, 10, 17, 20, `capture/audit-gaps*` | Settings, Daily/Refine targets and Feedback left the hidden tabs for the ROOT stack, and they plus Coach/Milestones/Connected apps wear the shared native header. The drawn `*-back` testIDs render only on a cold open with nothing beneath (`OrphanBack`, `app/_layout.tsx`) | iOS `tapOn: id: BackButton`, Android `back` — 05's convention |
+| 10, 20, `capture/audit-gaps*` | `settings-back` was the "we are on Settings" gate | `settings-daily-targets` (first row; a pushed Settings mounts at its top). 20's `visible: 'Settings'` waits too — the tab avatars carry that label, so they passed on the tab |
+| 08 | one iOS tap may still pop Refine AND Settings | second back only `when: visible: settings-daily-targets` |
+| `empty/02`, `empty/03` | no "Welcome to Ignia" step; the 16+ attestation moved onto the goal step and gates Continue | wait on `onboarding-age-attest`, pick a goal, tick it, then `onboarding-next` |
+| `empty/02` | it had also drifted before: the body step, reminders and first-log steps all postdate its 2026-08-18 run | `onboarding-skip-body`, `onboarding-reminders-skip`, `onboarding-first-log-later`, optional `tour-skip` |
+| `empty/02`, `empty/03`, `capture/signout` | Sign out asks first (`confirmSignOut`) | `confirm-go` after `settings-signout` |
+| `capture/store-shots` | `whats-new-dismiss` died with the banner (287a80db); the optional tap matched nothing | `whats-new-continue` |
+
 ## iOS sweep 2026-10-05 — after the S19/S20 UX overhaul: 3 of 21 → 21 of 21, and five real bugs
 
 `Ignia-QA-26` (iPhone 17, iOS 26), a Release build with the JS bundle swapped
@@ -72,7 +87,7 @@ PREV/LB/REPS/RIR and crowded the line above the table (`setNumHead`).
 |---|---|---|
 | 01, 09, 10, 14 | metrics rows are one grouped a11y label ("Water, 0 fl oz") | `id: water-open` |
 | 03 | the weekly panel moved below three cards | scroll to `panel-tab-budget` first |
-| 04, 05 | History is a ROOT-stack screen; iOS `back` is a no-op | tap `settings-back` / `history-back`; the day screen's native `BackButton` |
+| 04, 05 | History is a ROOT-stack screen; iOS `back` is a no-op | tap `settings-back` / `history-back`; the day screen's native `BackButton` (Settings' half superseded 2026-10-06 — see the section above) |
 | 06 | a TAP on + opens the sheet since 2026-09-28; the dial is a LONG-press | `longPressOn: log-button` (the old tap deep-linked Scan over the open sheet) |
 | 08 | the hero is one grouped label; no "kcal left" node | `id: hero-rings` |
 | 09, 10 | the add sheet is native — no `entry-backdrop` | iOS: swipe the system `Sheet Grabber` down, then assert `entry-backdrop-native` gone |

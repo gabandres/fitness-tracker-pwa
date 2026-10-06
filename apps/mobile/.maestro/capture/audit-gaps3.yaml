@@ -9,17 +9,19 @@ appId: fit.ignia.app
       id: 'brand-loader'
     timeout: 15000
 - assertVisible: 'Today'
+# Gated on Settings' first row: `settings-back` renders only on a cold open
+# since S21-1 (2026-10-06, `OrphanBack`).
 - repeat:
     times: 8
     while:
       notVisible:
-        id: 'settings-back'
+        id: 'settings-daily-targets'
     commands:
       - tapOn:
           id: 'settings-open'
           optional: true
 - assertVisible:
-    id: 'settings-back'
+    id: 'settings-daily-targets'
 - scrollUntilVisible:
     element:
       id: 'settings-milestones'
@@ -29,23 +31,25 @@ appId: fit.ignia.app
 - tapOn:
     id: 'settings-milestones'
 - takeScreenshot: .maestro/capture/shots/h1-milestones
-- back
-# back may land on Settings or Today; re-enter through the same gate either way
-- repeat:
-    times: 8
-    while:
-      notVisible:
-        id: 'settings-back'
+# Milestones and Settings are both root-stack screens since S21-1, so back lands
+# on Settings every time — still scrolled to Milestones, and Feedback is ABOVE it
+# (S21-4 order), hence UP. Native header back: iOS `BackButton`, Android
+# hardware back (05-history's convention).
+- runFlow:
+    when:
+      platform: iOS
     commands:
       - tapOn:
-          id: 'settings-open'
-          optional: true
-- assertVisible:
-    id: 'settings-back'
+          id: 'BackButton'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - back
 - scrollUntilVisible:
     element:
       id: 'settings-feedback'
-    direction: DOWN
+    direction: UP
     timeout: 60000
     centerElement: true
 - tapOn:

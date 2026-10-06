@@ -6,7 +6,7 @@ import { formatTime } from '@/lib/date-format';
 import { sentenceCase } from '@/lib/entry-input';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space } from '@/theme';
+import { font, radius, space, TARGET } from '@/theme';
 import { NativeDateField, hasNativeDateField } from '@/components/NativeDatePicker';
 
 /**
@@ -228,7 +228,7 @@ const createStyles = ({ colors }: Theme) =>
     // 44 + the 2dp hitSlop on each = 48. Wider than a date ± so "+5 min" fits.
     step: {
       minWidth: 52,
-      minHeight: 44,
+      minHeight: TARGET,
       paddingHorizontal: space.xs,
       borderRadius: radius.md,
       borderWidth: 1,
@@ -248,7 +248,7 @@ const createStyles = ({ colors }: Theme) =>
     // of hierarchy (re-score, A).
     tapHint: { fontSize: font.tiny, color: colors.muted },
     input: {
-      minHeight: 44,
+      minHeight: TARGET,
       borderWidth: 1,
       borderColor: colors.lineStrong,
       borderRadius: radius.md,

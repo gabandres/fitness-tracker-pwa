@@ -19,6 +19,7 @@ import {
   computeProtein,
   isPlausibleAge,
   isPlausibleHeightIn,
+  measureUnit,
   onboardingPace,
   onboardingSeed,
   parseMeasureToIn,
@@ -44,7 +45,7 @@ import { captureError } from '@/lib/sentry';
 import { CountUpText, PressScale } from '@/lib/motion';
 import { deviceUnitSystem, useUnitSystem } from '@/lib/use-unit-system';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, motion, radius, space, type } from '@/theme';
+import { font, motion, radius, space, TARGET, type } from '@/theme';
 
 /** No 'welcome' step since 2026-10-06 (UX review S21 #11): `WelcomeIntro`
  *  already greets everyone in front of sign-in, so a second greeting here was
@@ -98,10 +99,6 @@ function numOrUndef(s: string): number | undefined {
 export function ageGateOpen(isRedo: boolean, ageConfirmed: boolean): boolean {
   return isRedo || ageConfirmed;
 }
-
-/** Touch target for the top-bar icon buttons: 44 pt (Apple HIG) / 48 dp
- *  (Material). They were 40×40 with no hitSlop. */
-const TOP_BUTTON = Platform.OS === 'android' ? 48 : 44;
 
 /** Height typed in the user's OWN unit → whole inches, or null when it is
  *  not a usable number. Metric is one `cm` field; US is feet + inches, where
@@ -702,8 +699,8 @@ export default function Onboarding() {
                   onChange={switchUnit}
                   label={t('onboarding.units')}
                   options={[
-                    { value: 'us', text: 'lb', a11y: t('onboarding.unitLb') },
-                    { value: 'metric', text: 'kg', a11y: t('onboarding.unitKg') },
+                    { value: 'us', text: bodyWeightUnit('us'), a11y: t('onboarding.unitLb') },
+                    { value: 'metric', text: bodyWeightUnit('metric'), a11y: t('onboarding.unitKg') },
                   ]}
                   styles={styles}
                   testID="onboarding-unit-weight"
@@ -776,7 +773,7 @@ export default function Onboarding() {
                       label={t('onboarding.units')}
                       options={[
                         { value: 'us', text: `${t('refine.feet')} / ${t('refine.inches')}`, a11y: t('onboarding.unitFtIn') },
-                        { value: 'metric', text: 'cm', a11y: t('onboarding.unitCm') },
+                        { value: 'metric', text: measureUnit('metric'), a11y: t('onboarding.unitCm') },
                       ]}
                       styles={styles}
                       testID="onboarding-unit-height"
@@ -797,7 +794,7 @@ export default function Onboarding() {
                         accessibilityLabel={t('onboarding.heightCm')}
                         testID="onboarding-height-cm"
                       />
-                      <Text style={styles.unit}>cm</Text>
+                      <Text style={styles.unit}>{measureUnit('metric')}</Text>
                     </View>
                   </View>
                 ) : (
@@ -1247,7 +1244,7 @@ const createStyles = ({ colors, shadow }: Theme) =>
     screen: { flex: 1, backgroundColor: colors.paper },
     fill: { flex: 1 },
     topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.xl, paddingTop: space.md, minHeight: 44 },
-    back: { width: TOP_BUTTON, height: TOP_BUTTON, alignItems: 'flex-start', justifyContent: 'center' },
+    back: { width: TARGET, height: TARGET, alignItems: 'flex-start', justifyContent: 'center' },
     // The right-hand button's glyph sits against the screen edge, as the
     // back chevron does on the left; the box grows inward.
     backEnd: { alignItems: 'flex-end' },
@@ -1265,7 +1262,7 @@ const createStyles = ({ colors, shadow }: Theme) =>
       flexDirection: 'row',
       alignItems: 'center',
       gap: space.md,
-      minHeight: 44,
+      minHeight: TARGET,
       borderWidth: 1,
       borderColor: colors.line,
       borderRadius: radius.md,
@@ -1321,7 +1318,7 @@ const createStyles = ({ colors, shadow }: Theme) =>
       padding: 2,
       backgroundColor: colors.inputBg,
     },
-    unitSeg: { minHeight: TOP_BUTTON, minWidth: TOP_BUTTON + space.md, paddingHorizontal: space.md, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
+    unitSeg: { minHeight: TARGET, minWidth: TARGET + space.md, paddingHorizontal: space.md, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
     unitSegOn: { backgroundColor: colors.ink },
     unitSegText: { fontSize: font.small, color: colors.muted, fontWeight: '700' },
     unitSegTextOn: { color: colors.onInk },

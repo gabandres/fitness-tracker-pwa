@@ -1,8 +1,8 @@
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { PressScale } from '@/lib/motion';
 import * as haptics from '@/lib/haptics';
 import { useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space } from '@/theme';
+import { font, radius, space, TARGET } from '@/theme';
 
 /**
  * The one segmented control Trends and Body use (sim review 2026-10-06).
@@ -28,9 +28,6 @@ import { font, radius, space } from '@/theme';
  * A segment may carry an identity `dot` (the habit hues) — colour as identity,
  * never as state: it keeps its hue whether or not the segment is selected.
  */
-
-/** The platform touch floor: Apple HIG 44 pt, Material 48 dp. */
-export const TOUCH_TARGET = Platform.OS === 'android' ? 48 : 44;
 
 export interface Segment<K extends string> {
   key: K;
@@ -129,8 +126,8 @@ const createStyles = ({ colors }: Theme) =>
       alignItems: 'center',
       justifyContent: 'center',
       gap: 6,
-      minHeight: TOUCH_TARGET,
-      minWidth: TOUCH_TARGET,
+      minHeight: TARGET,
+      minWidth: TARGET,
       paddingHorizontal: space.md,
       borderRadius: radius.sm,
       borderWidth: 1,

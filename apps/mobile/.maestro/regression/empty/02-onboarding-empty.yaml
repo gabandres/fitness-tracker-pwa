@@ -4,8 +4,9 @@
 # The relaunch makes the app re-read the token; a verified account with no
 # profile routes to onboarding.
 #
-# Walks the real first-run funnel — welcome → goal → weight → goal weight →
-# plan preview → save — then captures every tab in its never-logged-anything
+# Walks the real first-run funnel — goal (+ the 16+ attestation) → weight →
+# goal weight → body (skipped) → plan preview → save → reminders (skipped) →
+# first log (later) — then captures every tab in its never-logged-anything
 # state, which no other flow can reach (the main QA account has history by
 # design). Ends SIGNED OUT so the sandbox is in a known state for re-signin.
 appId: fit.ignia.app
@@ -61,17 +62,25 @@ tags:
       visible: 'Verify your email to continue.'
     commands:
       - tapOn: 'I verified — refresh'
+# No "Welcome to Ignia" step since 2026-10-06 (S21 #11): onboarding opens on
+# the GOAL step, which now carries the 16+ attestation. Its checkbox is the
+# anchor — it renders on a first run only (never on a Settings redo) — and
+# Continue (`onboarding-next`) stays disabled until it is ticked AND a goal is
+# picked, so a missed tick reads as a dead button, not a missing one.
 - extendedWaitUntil:
-    visible: 'Welcome to Ignia'
+    visible:
+      id: 'onboarding-age-attest'
     timeout: 30000
-- takeScreenshot: .maestro/regression/shots/empty-02-welcome
-- tapOn:
-    id: 'onboarding-next'
 # Trailing .* on these three: Maestro text is a full-match regex and the
 # question mark would otherwise quantify, not match.
 - assertVisible: "What's your goal.*"
 - tapOn:
     id: 'onboarding-goal-lose'
+- tapOn:
+    id: 'onboarding-age-attest'
+# The "You must be 16 or older" hint goes once the box is ticked.
+- assertNotVisible:
+    id: 'onboarding-age-attest-hint'
 - takeScreenshot: .maestro/regression/shots/empty-02-goal
 - tapOn:
     id: 'onboarding-next'
@@ -88,15 +97,49 @@ tags:
 - takeScreenshot: .maestro/regression/shots/empty-02-weights
 - tapOn:
     id: 'onboarding-next'
+# Body step (F1/F2) is skippable and skipping jumps straight to the plan —
+# same as 03. This flow predates that step and went straight to the preview.
+- tapOn:
+    id: 'onboarding-skip-body'
 - assertVisible:
     id: 'onboarding-preview'
 - takeScreenshot: .maestro/regression/shots/empty-02-plan
 - tapOn:
     id: 'onboarding-save'
+# Save no longer lands on Today: the reminders step (2026-08-30) and the
+# first-log step (2026-09-02) follow it on a first run. Decline both — this
+# flow is about the EMPTY states, so nothing may be logged (03 covers the
+# first-log path).
+- extendedWaitUntil:
+    visible:
+      id: 'onboarding-reminders'
+    timeout: 20000
+- tapOn:
+    id: 'onboarding-reminders-skip'
+- extendedWaitUntil:
+    visible:
+      id: 'onboarding-first-log'
+    timeout: 10000
+- tapOn:
+    id: 'onboarding-first-log-later'
 # ── the empty states ──
 - extendedWaitUntil:
     visible: 'Today'
     timeout: 30000
+# The guided tour may offer itself over a fresh account's Today; skip it so
+# the captures below are of the screens, not the tour (same as 03).
+- extendedWaitUntil:
+    visible:
+      id: 'tour-skip'
+    timeout: 10000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'tour-skip'
+    commands:
+      - tapOn:
+          id: 'tour-skip'
 # An empty day is the four meal slots, each with its own "+ Add" (the Today
 # review's U3) — there is no "No entries yet." line any more.
 - scrollUntilVisible:
@@ -120,6 +163,9 @@ tags:
 # ── leave the sandbox signed out ──
 - tapOn:
     id: 'settings-open'
+# (2026-10-06: since S21-4 Sign out sits at the BOTTOM of Settings, just above
+# Delete account, with Sign-in methods above it — the measurements below are
+# from the old layout; the speed/centring lessons still hold.)
 # Wait, do not scroll. Sign out sits high in Settings on a FRESH account —
 # measured 2026-08-18 at bounds [41,564][361,584] on a 874pt screen, well
 # clear of the tab bar, on the first screenful. `scrollUntilVisible` failed
@@ -156,8 +202,9 @@ tags:
     centerElement: true
 # Settle the tree before tapping. With the scroll alone, the tap landed on
 # a neighbour — the capture after it showed Settings still open and parked
-# on CALORIE FLOOR, and Sign out has no confirmation dialog (`onPress={signOut}`
-# in settings.tsx), so a tap that reached it could not have failed quietly.
+# on CALORIE FLOOR, and Sign out had no confirmation dialog then
+# (`onPress={signOut}` in settings.tsx), so a tap that reached it could not
+# have failed quietly.
 # Maestro taps layout bounds, and a list still settling from a swipe hands
 # it bounds that are one frame stale.
 - extendedWaitUntil:
@@ -166,6 +213,14 @@ tags:
     timeout: 10000
 - tapOn:
     id: 'settings-signout'
+# Sign out asks first since 2026-10-06 (S18-6, `confirmSignOut`): the branded
+# ConfirmSheet, whose confirm button is `confirm-go` (as in the Train flows).
+- extendedWaitUntil:
+    visible:
+      id: 'confirm-go'
+    timeout: 10000
+- tapOn:
+    id: 'confirm-go'
 - extendedWaitUntil:
     visible: 'Sign in to your account'
     timeout: 30000

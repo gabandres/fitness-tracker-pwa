@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { ActivityIndicator, AppState, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, AppState, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated from 'react-native-reanimated';
 import { BrandMark } from '@/components/BrandMark';
@@ -10,7 +10,7 @@ import { enterUp } from '@/lib/motion';
 import * as haptics from '@/lib/haptics';
 import { captureError } from '@/lib/sentry';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space, type } from '@/theme';
+import { font, radius, space, TARGET, type } from '@/theme';
 
 /** Email-verification gate for email/password signups (parity with the web
  *  app's verify screen). The rules block every write until the email is
@@ -272,6 +272,6 @@ const createStyles = ({ colors }: Theme) =>
     secondaryText: { color: colors.ink, fontSize: font.body, fontWeight: '700' },
     busy: { opacity: 0.7 },
     // A full tap target: it was ~34 pt tall (S21 #4).
-    ghost: { alignItems: 'center', justifyContent: 'center', minHeight: Platform.OS === 'android' ? 48 : 44 },
+    ghost: { alignItems: 'center', justifyContent: 'center', minHeight: TARGET },
     ghostText: { color: colors.muted, fontSize: font.small, fontWeight: '600' },
   });

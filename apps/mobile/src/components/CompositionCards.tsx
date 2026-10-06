@@ -201,7 +201,7 @@ export function RecompCard({
         <Switch
           value={reminder != null}
           onValueChange={(v) => void toggle(v)}
-          trackColor={{ true: colors.accent, false: colors.line }}
+          trackColor={{ true: colors.accent, false: colors.lineStrong }}
           accessibilityLabel={t('recomp.remind')}
           testID="recomp-remind"
         />

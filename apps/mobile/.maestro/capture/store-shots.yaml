@@ -65,10 +65,12 @@ appId: fit.ignia.app
 - tapOn:
     id: 'recalibration-ack'
     optional: true
-# And the What's New banner, which fires on the SECOND launch after install —
-# i.e. the second locale's run, never the first.
+# And What's New, which fires on the SECOND launch after install — i.e. the
+# second locale's run, never the first. A full screen with one Continue
+# button since 287a80db (2026-09-15); the banner's `whats-new-dismiss` went
+# with the banner, so this optional tap had been silently matching nothing.
 - tapOn:
-    id: 'whats-new-dismiss'
+    id: 'whats-new-continue'
     optional: true
 # Wait for the LOCALE, not just the rings: the profile snapshot that carries
 # `preferredLocale` lands a beat after first paint, and on the es-PR run the

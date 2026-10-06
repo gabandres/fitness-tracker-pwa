@@ -36,13 +36,12 @@ import React from 'react';
 import { StyleSheet } from 'react-native';
 import { type TdeeResult, type TdeeSeriesPoint, computeWeeklyInsights, type DaySummary } from '@macrolog/core';
 import { fireEvent, renderWithProviders as render } from '@/test-utils';
-import { palettes } from '@/theme';
+import { palettes, TARGET } from '@/theme';
 import Trends from '@/app/(app)/trends';
 import { RecalibrationCard } from '@/components/RecalibrationCard';
 import { fencesOf, niceTicks } from '@/components/charts/chart-geometry';
 import { maintenanceBreakdown } from '@/components/charts/trend-copy';
 import { fitsAllRange } from '@/components/charts/TrendsCharts';
-import { TOUCH_TARGET } from '@/components/charts/SegmentedControl';
 import { en } from '@/i18n/en';
 import type { TFn } from '@/i18n';
 
@@ -173,7 +172,7 @@ describe('one segmented control', () => {
     ]) {
       expect(view.getByTestId(list).props.accessibilityRole).toBe('tablist');
       expect(view.getByTestId(tab).props.accessibilityRole).toBe('tab');
-      expect(flat(view.getByTestId(tab).props.style).minHeight).toBe(TOUCH_TARGET);
+      expect(flat(view.getByTestId(tab).props.style).minHeight).toBe(TARGET);
     }
   });
 });
@@ -259,7 +258,7 @@ describe('the recalibration card', () => {
     expect(lines[1]).toHaveTextContent('Daily target: 1,950 → 1,880 kcal');
     // Calm, accurate wording — no "your metabolism has adapted".
     expect(view.queryByText(/metabolism has adapted/)).toBeNull();
-    expect(flat(view.getByTestId('recalibration-ack').props.style).minHeight).toBe(TOUCH_TARGET);
+    expect(flat(view.getByTestId('recalibration-ack').props.style).minHeight).toBe(TARGET);
   });
 
   it('a first showing names the profile estimate it replaces', async () => {

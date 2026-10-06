@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Animated as RNAnimated,
   Easing as RNEasing,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -28,7 +27,7 @@ import { formatNumber } from '@/lib/date-format';
 import * as haptics from '@/lib/haptics';
 import { CountUpText, PressScale } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, motion, radius, space, type } from '@/theme';
+import { font, motion, radius, space, TARGET, type } from '@/theme';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 const RNAnimatedCircle = RNAnimated.createAnimatedComponent(Circle);
@@ -52,9 +51,6 @@ const CENTER_MAX_W = 148;
 /** Text scale from which the legend stacks — the two entries no longer fit
  *  side by side in the panel at 360dp. */
 const STACK_AT_FONT_SCALE = 1.35;
-
-/** The platform's touch floor: 44pt on iOS, Material's 48dp on Android. */
-const TARGET = Platform.OS === 'android' ? 48 : 44;
 
 function rgb(hex: string): [number, number, number] {
   const n = parseInt(hex.replace('#', '').slice(0, 6), 16);

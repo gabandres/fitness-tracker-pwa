@@ -26,7 +26,7 @@ import * as haptics from '@/lib/haptics';
 import { PressScale } from '@/lib/motion';
 import { isClosing } from '@/lib/sheet-portal';
 import { useThemedStyles, type Theme } from '@/lib/theme-context';
-import { FAB_BAND, font, motion, radius, space } from '@/theme';
+import { FAB_BAND, font, motion, radius, space, TARGET } from '@/theme';
 
 /**
  * A bottom toast with one optional action (UX_AUDIT S18-6 / S18-12).
@@ -468,7 +468,7 @@ const createStyles = ({ colors, shadow }: Theme) =>
       paddingVertical: space.xs,
       // A 44pt target even for a short word ("Edit", "Undo") — the text box
       // alone measured ~40pt wide, under the floor.
-      minWidth: 44,
+      minWidth: TARGET,
       textAlign: 'center',
     },
   });

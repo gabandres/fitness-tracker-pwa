@@ -31,8 +31,13 @@ export function useUpdateVisible(): boolean {
  * banner filled Today's whole first screen (S21-8) — a prompt that hides the
  * thing it is prompting about. 1.6× is still well past the default size, and
  * the full sentence is in the accessibility label for a screen reader.
+ *
+ * With every line held to ONE (`numberOfLines`), that bounds the card at AX5
+ * to two ~22pt lines plus padding — about a tenth of the first screen
+ * (`fontscale-s21-ui.test.tsx` pins the cap, the line counts and the
+ * target). The icons are fixed-size glyphs and do not grow.
  */
-const BANNER_MAX_SCALE = 1.6;
+export const BANNER_MAX_SCALE = 1.6;
 
 export function UpdateBanner({ suppressed = false }: { suppressed?: boolean }) {
   const t = useT();
@@ -106,6 +111,8 @@ export function UpdateBanner({ suppressed = false }: { suppressed?: boolean }) {
       <TouchableOpacity
         // 44×44 on its own, not by `hitSlop` — a slop overlapping the card's
         // other button is ambiguous about which one a tap meant.
+        // (`settings-s21.test.tsx` pins the literal; moving it to `TARGET`
+        // — 48dp on Android — means updating that pin with it.)
         style={styles.dismiss}
         onPress={() => {
           haptics.tap();

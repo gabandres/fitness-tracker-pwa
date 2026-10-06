@@ -59,7 +59,7 @@ import { clearScanDraft, readScanDraft, saveScanDraft } from '@/lib/scan-draft';
 import { encodeEntryPrefill } from '@/lib/entry-prefill';
 import { CountUpText, enterUp, PressScale } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space, type } from '@/theme';
+import { font, radius, space, TARGET, type } from '@/theme';
 
 /**
  * `camera` is the in-app viewfinder (`ScanCamera`). The first shot of a meal
@@ -97,13 +97,6 @@ const PORTION_STEPS = [0.5, 1, 1.5, 2] as const;
  * copy exists to stop the user reaching that rejection, not to enforce it.
  */
 const MAX_PHOTOS = 3;
-
-/**
- * Minimum touch target: Apple's 44pt, Material's 48dp. The back chevron and
- * the two remove-X buttons on this screen were 22–30pt, which is a miss for
- * anyone with a tremor and a near-miss for everyone else on a moving bus.
- */
-const TARGET = Platform.OS === 'android' ? 48 : 44;
 
 /**
  * A review row, plus the one thing the server never sends: `added` marks an
@@ -1298,7 +1291,7 @@ export default function Scan() {
 
             {/* Items */}
             <Animated.View entering={enterUp(3)} style={styles.itemsBlock}>
-              <Text style={styles.section}>{t('scan.items')}</Text>
+              <Text style={styles.section} accessibilityRole="header">{t('scan.items')}</Text>
               {items.map((it, i) => (
                 <ItemRow
                   key={it.key ?? String(i)}
@@ -1341,7 +1334,7 @@ export default function Scan() {
 
             {/* Whole-plate portion */}
             <Animated.View entering={enterUp(5)}>
-              <Text style={styles.section}>{t('scan.portion')}</Text>
+              <Text style={styles.section} accessibilityRole="header">{t('scan.portion')}</Text>
               {/* One of four, so a radio group (A2) — "1.5×, radio button, 3
                   of 4, checked" rather than a row of unrelated buttons. */}
               <View style={styles.portionRow} accessibilityRole="radiogroup">
@@ -1366,9 +1359,9 @@ export default function Scan() {
 
             {/* Which meal, and when (U6) — the add sheet's own controls. */}
             <Animated.View entering={enterUp(6)} style={styles.whenBlock}>
-              <Text style={styles.section}>{t('entry.meal')}</Text>
+              <Text style={styles.section} accessibilityRole="header">{t('entry.meal')}</Text>
               <MealSlotChips value={slot} onChange={setSlot} />
-              <Text style={styles.section}>{t('entry.time')}</Text>
+              <Text style={styles.section} accessibilityRole="header">{t('entry.time')}</Text>
               <TimeOfDayRow
                 at={eatenAt}
                 draft={timeDraft}
@@ -1637,7 +1630,7 @@ function ItemRow({
           accessibilityLabel={t('scan.itemGramsLabel', { name: itemName })}
           testID={`scan-item-grams-${index}`}
         />
-        <Text style={styles.itemGramsUnit} maxFontSizeMultiplier={1.6}>g</Text>
+        <Text style={styles.itemGramsUnit} maxFontSizeMultiplier={1.6}>{t('unit.g')}</Text>
       </View>
       )}
       <PressScale
@@ -1783,7 +1776,7 @@ function createStyles({ colors, shadow }: Theme) {
     // review
     restored: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingVertical: space.sm, paddingHorizontal: space.md, borderRadius: radius.md, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line },
     restoredText: { flex: 1, fontSize: font.small, color: colors.ink, fontWeight: '600' },
-    restoredDiscard: { minHeight: 44, minWidth: 44, justifyContent: 'center', paddingHorizontal: space.sm },
+    restoredDiscard: { minHeight: TARGET, minWidth: TARGET, justifyContent: 'center', paddingHorizontal: space.sm },
     restoredDiscardText: { fontSize: font.small, fontWeight: '800', color: colors.danger },
     lowConf: { flexDirection: 'row', alignItems: 'center', gap: space.sm, backgroundColor: colors.inputBg, borderRadius: radius.md, paddingHorizontal: space.lg, paddingVertical: space.md },
     lowConfText: { flex: 1, fontSize: font.small, color: colors.ink },

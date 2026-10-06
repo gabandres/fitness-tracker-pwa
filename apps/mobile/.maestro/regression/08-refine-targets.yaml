@@ -48,21 +48,56 @@ appId: fit.ignia.app
     id: 'refine-save'
 - assertVisible: 'Save targets'
 - takeScreenshot: .maestro/regression/shots/08-refine-bottom
-# refine-back can pop ONE screen or TWO: Maestro re-taps when the hierarchy is
-# slow to confirm, and refine's chevron sits at the same coordinates as
-# Settings' — the retry lands on the next screen's back button (measured: the
-# first run ended on Today with the flow still expecting Settings). Tolerate
-# both landings. And never assert bare 'Settings' as proof of the Settings
-# SCREEN — the What's-new banner on Today contains the word.
-- tapOn:
-    id: 'refine-back'
+# Two screens back: Today → Settings → Refine are all on the ROOT stack since
+# S21-1 (2026-10-06), so one back returns to Settings and a second to Today.
+# Both wear the shared native header: iOS taps its `BackButton` identifier
+# (Maestro's iOS `back` is a no-op), Android keeps hardware back — 05-history's
+# convention. The drawn `refine-back` / `settings-back` render only on a cold
+# open with nothing beneath (`OrphanBack`, app/_layout.tsx).
+#
+# The FIRST iOS tap can still pop ONE screen or TWO: Maestro re-taps when the
+# hierarchy is slow to confirm, and the header back button sits at the same
+# coordinates on both screens (measured with the old drawn chevrons: the first
+# run ended on Today with the flow still expecting Settings). So the second
+# back is conditional on Settings actually being there. The anchor is
+# `settings-daily-targets`, the first row — this flow never scrolled Settings,
+# so it is on screen — and NOT bare 'Settings': Today's avatar is labelled
+# "Settings" too.
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          id: 'BackButton'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - back
+# Optional wait: lets the pop animation settle onto Settings before the
+# condition below reads the screen; costs 5s only when the tap already went
+# two deep.
+- extendedWaitUntil:
+    visible:
+      id: 'settings-daily-targets'
+    timeout: 5000
+    optional: true
 - runFlow:
     when:
       visible:
-        id: 'settings-back'
+        id: 'settings-daily-targets'
     commands:
-      - tapOn:
-          id: 'settings-back'
+      - runFlow:
+          when:
+            platform: iOS
+          commands:
+            - tapOn:
+                id: 'BackButton'
+      - runFlow:
+          when:
+            platform: Android
+          commands:
+            - back
 # `id: hero-rings`, 2026-10-04: the hero is one grouped a11y label now
 # ("380 of 2,265 kcal, 1,885 left, …"), so no standalone 'kcal left' node
 # exists to wait on. The rings' id is unique to Today and locale-free.

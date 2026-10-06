@@ -8,7 +8,7 @@ import { type I18nKey, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { enterUp, PressScale } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space, type } from '@/theme';
+import { font, radius, space, TARGET, type } from '@/theme';
 
 /** At most this many titles render; the rest are counted and live in the
  *  archive. Sized from the real first-run case rather than a guess — see the
@@ -197,5 +197,6 @@ const createStyles = ({ colors }: Theme) =>
     title: { fontSize: font.body, fontFamily: type.heading, color: colors.ink },
     more: { fontSize: font.small, color: colors.muted, marginTop: 2 },
     // Generous padding, small glyph — a one-way action beside a navigating one.
-    dismiss: { paddingLeft: space.sm, paddingRight: space.md, paddingVertical: space.xs },
+    // A full TARGET box (S21 sweep): the padding alone made it ~36x24.
+    dismiss: { paddingLeft: space.sm, paddingRight: space.md, paddingVertical: space.xs, minWidth: TARGET, minHeight: TARGET, alignItems: 'center', justifyContent: 'center' },
   });

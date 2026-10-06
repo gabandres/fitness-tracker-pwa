@@ -17,6 +17,7 @@ import { useIsOffline } from '@/lib/connectivity';
 import { assessRoute, shouldShowSplash } from '@/lib/onboarding-gate';
 import { DETAIL_ROUTES, reconcileRootRoutes } from '@/lib/root-stack';
 import { setSplashVisible } from '@/lib/splash-state';
+import { RELAYOUT_HOLD_ROUTES, RelayoutBoundary, RelayoutProvider, useRelayoutGeneration } from '@/lib/font-scale';
 import { BrandLoader } from '@/components/BrandLoader';
 import { type I18nKey, I18nProvider, useT } from '@/i18n';
 import { Sentry } from '@/lib/sentry';
@@ -167,6 +168,9 @@ function AuthGate({ fontsReady }: { fontsReady: boolean }) {
   const offline = useIsOffline();
   const segments = useSegments();
   const router = useRouter();
+  // Bumped when the OS font scale changes under a running app; each root
+  // route's content re-keys on it (`lib/font-scale.ts` has the Fabric reason).
+  const relayout = useRelayoutGeneration();
 
   // One `assessRoute` call feeding both the navigation and the splash — they
   // are the same question and used to be asked twice, which is how they drifted
@@ -299,7 +303,22 @@ function AuthGate({ fontsReady }: { fontsReady: boolean }) {
           routes get the native push, the swipe-back and the hardware back —
           that is the whole point of the stack (UX_AUDIT S18-14, S21-1). */}
       <ToastProvider>
-      <Stack screenOptions={{ headerShown: false, animation: 'none', gestureEnabled: false }}>
+      {/* `screenLayout` remounts each route's CONTENT when the font scale
+          changes — below the navigator, so the stack and its params survive
+          (`lib/font-scale.ts`: a Fabric text-layout staleness that otherwise
+          lasts until a cold start). Held routes keep their unsaved input. */}
+      <Stack
+        screenOptions={{ headerShown: false, animation: 'none', gestureEnabled: false }}
+        screenLayout={({ route, navigation, children }) => (
+          <RelayoutBoundary
+            generation={relayout}
+            hold={RELAYOUT_HOLD_ROUTES.has(route.name)}
+            focused={navigation.isFocused()}
+          >
+            {children}
+          </RelayoutBoundary>
+        )}
+      >
         {/* Written out one per line rather than mapped: `root-stack.test.ts`
             reads this file for a `<Stack.Screen name="…"` per detail route. */}
         <Stack.Screen name="settings" options={headerOptions('settings')} />
@@ -367,7 +386,9 @@ function RootLayout() {
           <ThemedStatusBar />
           <AuthProvider>
             <I18nProvider>
-              <AuthGate fontsReady={fontsLoaded || !!fontsError} />
+              <RelayoutProvider>
+                <AuthGate fontsReady={fontsLoaded || !!fontsError} />
+              </RelayoutProvider>
             </I18nProvider>
           </AuthProvider>
           </ThemeProvider>

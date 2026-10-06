@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ComponentProps } from 'react';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Tabs, useRouter, useSegments } from 'expo-router';
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { announce } from '@/lib/a11y';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ConfirmHost } from '@/components/ConfirmSheet';
@@ -23,6 +23,7 @@ import { font, space } from '@/theme';
 import { useWorkoutIntentRouter } from '@/hooks/useStartNextWorkoutIntent';
 import { sweepOrphans } from '@/lib/rest-timer-activity';
 import { GLASS_BAR_HEIGHT, GLASS_TAB_BAR, glassBarGap } from '@/lib/glass';
+import { ACCESSIBILITY_FONT_SCALE, RelayoutBoundary, useRelayoutGeneration } from '@/lib/font-scale';
 
 /** The glass material, loaded only where it is drawn (iOS 26). */
 const GlassBackground = GLASS_TAB_BAR
@@ -42,10 +43,21 @@ const LEFT_TABS = ['index', 'train'];
 const RIGHT_TABS = ['trends', 'body'];
 const TAB_ROUTES = [...LEFT_TABS, ...RIGHT_TABS];
 
-/** Tab labels grow with Dynamic Type only this far: four labels and the
- *  raised + share 360dp, and past ~1.2× "Entrenar"/"Tendências" collide.
- *  Each tab offers the large-content viewer instead (review A2). */
-const TAB_LABEL_MAX_SCALE = 1.2;
+/** Tab labels grow with Dynamic Type this far (S21: was 1.2, which left the
+ *  bar's words smaller than the body text from the second Larger Text step).
+ *  Four labels and the raised + share ~360dp, so past ~1.2× the long ones
+ *  ("Entrenar", "Tendências") would ellipsize — they shrink to fit their cell
+ *  instead (`TAB_LABEL_MIN_FIT`), which keeps the whole word. Each tab also
+ *  offers the large-content viewer (review A2). */
+const TAB_LABEL_MAX_SCALE = 1.4;
+/** How far a long label may shrink to fit its cell before it would ellipsize. */
+const TAB_LABEL_MIN_FIT = 0.75;
+/** At accessibility sizes a label cannot be both legible and inside a ~70dp
+ *  cell, so the bar shows larger icons alone — what the system tab bar does —
+ *  and the name stays on each tab's accessibility label, spoken and shown in
+ *  the large-content viewer. */
+const TAB_ICON_SIZE = 23;
+const TAB_ICON_SIZE_LARGE = 28;
 
 /** Material 3's active indicator — the pill behind the focused tab's icon —
  *  on Android only. iOS's tab bar marks the focused tab by tint and a filled
@@ -80,6 +92,7 @@ function AppTabBar({ state, descriptors, navigation }: AppTabBarProps) {
   // Log button actively pulls you to Today mid-session. One dot, from a signal
   // that opens no listener (`active-workout-signal.ts`).
   const workout = useActiveWorkout();
+  const iconsOnly = useWindowDimensions().fontScale >= ACCESSIBILITY_FONT_SCALE;
 
   function tab(name: string) {
     const route = state.routes.find((r) => r.name === name);
@@ -119,17 +132,25 @@ function AppTabBar({ state, descriptors, navigation }: AppTabBarProps) {
             Today re-score, Platform); the dot stays pinned to the glyph. */}
         <View style={TAB_INDICATOR ? [styles.indicator, focused && styles.indicatorOn] : undefined}>
           <View>
-            <Ionicons name={focused ? icons.filled : icons.outline} size={23} color={focused ? colors.ink : colors.faint} />
+            <Ionicons
+              name={focused ? icons.filled : icons.outline}
+              size={iconsOnly ? TAB_ICON_SIZE_LARGE : TAB_ICON_SIZE}
+              color={focused ? colors.ink : colors.faint}
+            />
             {inProgress ? <View style={styles.tabDot} testID="tab-train-active" /> : null}
           </View>
         </View>
-        <Text
-          style={[styles.tabLabel, { color: focused ? colors.ink : colors.faint }]}
-          maxFontSizeMultiplier={TAB_LABEL_MAX_SCALE}
-          numberOfLines={1}
-        >
-          {label}
-        </Text>
+        {iconsOnly ? null : (
+          <Text
+            style={[styles.tabLabel, { color: focused ? colors.ink : colors.faint }]}
+            maxFontSizeMultiplier={TAB_LABEL_MAX_SCALE}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={TAB_LABEL_MIN_FIT}
+          >
+            {label}
+          </Text>
+        )}
       </PressScale>
     );
   }
@@ -262,6 +283,11 @@ function useWhatsNewOnce() {
 export default function AppTabsLayout() {
   const t = useT();
   const { user } = useAuth();
+  // Font-scale relayout (`lib/font-scale.ts`): each tab's content re-keys on
+  // this, below the navigator, so the selected tab survives. Train holds off
+  // while a workout runs — a remount would cancel the live rest timer.
+  const relayout = useRelayoutGeneration();
+  const workoutActive = useActiveWorkout().active;
   useTourOnce();
   useWhatsNewOnce();
   // Pull weight/sleep/water from Apple Health / Health Connect on app-open and
@@ -306,7 +332,19 @@ export default function AppTabsLayout() {
   // sits on the root stack, above this navigator, and hosts toasts too.
   return (
     <>
-    <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <AppTabBar {...props} />}>
+    <Tabs
+      screenOptions={{ headerShown: false }}
+      screenLayout={({ route, navigation, children }) => (
+        <RelayoutBoundary
+          generation={relayout}
+          hold={route.name === 'train' && workoutActive}
+          focused={navigation.isFocused()}
+        >
+          {children}
+        </RelayoutBoundary>
+      )}
+      tabBar={(props) => <AppTabBar key={relayout} {...props} />}
+    >
       <Tabs.Screen name="index" options={{ title: t('nav.today') }} />
       <Tabs.Screen name="train" options={{ title: t('nav.train') }} />
       <Tabs.Screen name="trends" options={{ title: t('nav.trends') }} />

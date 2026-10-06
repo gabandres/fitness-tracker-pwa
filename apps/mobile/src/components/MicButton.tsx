@@ -14,15 +14,7 @@ import {
 import { track } from '@/lib/analytics';
 import { announce, isScreenReaderOn } from '@/lib/a11y';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space } from '@/theme';
-
-/**
- * Apple's 44pt / Material's 48dp. This was a 24pt glyph plus `hitSlop={8}` —
- * 40 on paper, and less on Android, which drops slop that reaches past the
- * parent's bounds (the row hugs the button). A real box is the only version of
- * the target that holds on both platforms.
- */
-const TARGET = Platform.OS === 'android' ? 48 : 44;
+import { font, radius, space, TARGET } from '@/theme';
 
 /**
  * Say "Listening" and, under a screen reader, let it finish before the mic
@@ -275,5 +267,7 @@ const createStyles = ({ colors }: Theme) =>
       borderRadius: radius.sm,
     },
     row: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
+    // A real box, not a 24pt glyph plus hitSlop: Android drops slop that
+    // reaches past the parent's bounds, and the row hugs the button.
     target: { minWidth: TARGET, minHeight: TARGET, alignItems: 'center', justifyContent: 'center' },
   });

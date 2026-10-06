@@ -5,7 +5,7 @@ import { formatDate } from '@/lib/date-format';
 import * as haptics from '@/lib/haptics';
 import { PressScale } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space } from '@/theme';
+import { font, radius, space, TARGET } from '@/theme';
 import { NativeDateField, hasNativeDateField } from '@/components/NativeDatePicker';
 import { BodyIcon } from './BodyIcon';
 
@@ -130,8 +130,8 @@ const createStyles = ({ colors }: Theme) =>
   StyleSheet.create({
     row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.sm },
     btn: {
-      minWidth: 44,
-      minHeight: 44,
+      minWidth: TARGET,
+      minHeight: TARGET,
       alignItems: 'center',
       justifyContent: 'center',
       borderRadius: radius.pill,

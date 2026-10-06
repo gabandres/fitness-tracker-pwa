@@ -64,7 +64,20 @@ appId: fit.ignia.app
       id: 'coach-remaining'
     timeout: 20000
 - takeScreenshot: .maestro/regression/shots/07-coach
-- tapOn:
-    id: 'coach-back'
+# Back to Trends through the shared native header (S21-9, 2026-10-06): iOS taps
+# its `BackButton` identifier (Maestro's iOS `back` is a no-op), Android keeps
+# hardware back — 05-history's convention. The drawn `coach-back` exists only
+# on a cold `ignia://coach` open with nothing beneath it (`OrphanBack`).
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          id: 'BackButton'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - back
 - tapOn: 'Today'
 - assertVisible: 'Today'

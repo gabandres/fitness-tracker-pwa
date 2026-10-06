@@ -42,7 +42,7 @@ export function WeeklyReportCard(): React.ReactElement {
   return (
     <View style={styles.wrap}>
       <View style={styles.head}>
-        <Text style={styles.section}>{t('report.title')}</Text>
+        <Text style={styles.section} accessibilityRole="header">{t('report.title')}</Text>
         <View style={styles.proTag}>
           <Ionicons name="sparkles" size={11} color={colors.onFill} />
           <Text style={styles.proText}>{t('report.pro')}</Text>
@@ -70,6 +70,8 @@ export function WeeklyReportCard(): React.ReactElement {
             style={[styles.btn, generating && styles.btnOff]}
             disabled={generating}
             onPress={() => { haptics.tap(); void generate(); }}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: generating, busy: generating }}
             testID="report-generate"
           >
             {generating ? (

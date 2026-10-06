@@ -1,6 +1,6 @@
-import { Platform, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { type Theme } from '@/lib/theme-context';
-import { font, radius, space, type } from '@/theme';
+import { font, radius, space, TARGET, type } from '@/theme';
 import { TAB_SCROLL_BAND } from '@/lib/glass';
 
 /**
@@ -21,21 +21,16 @@ import { TAB_SCROLL_BAND } from '@/lib/glass';
  * Exported as the factory rather than the built sheet: `useThemedStyles` calls
  * it per theme, and ADR-0014 forbids reading a static palette.
  */
-/**
- * The minimum touch target: HIG's 44pt on iOS, Material's 48dp on Android.
- * Every `minHeight`/`minWidth` that exists to make a control hittable reads
- * this, not a literal 44 — a literal 44 is 4dp short of the Android floor
- * (UX_AUDIT S20, Impeccable: "44 dp targets across Train"). Local to Train
- * until a cross-app token lands in `theme.ts`; rename the import then.
- */
-export const TARGET = Platform.OS === 'android' ? 48 : 44;
+/** The touch-target token, re-exported for Train's existing imports — it
+ *  lives in `theme.ts` since 2026-10-06 (it was Train-local before). */
+export { TARGET };
 
 export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
   title: { fontFamily: type.display, fontSize: font.h1, color: colors.ink, paddingHorizontal: space.xl, paddingTop: space.md },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: space.xl },
   // Pushed right so the title keeps the left edge and the help sits beside the avatar.
-  headerHelp: { marginLeft: 'auto', marginRight: space.md },
+  headerHelp: { marginLeft: 'auto', marginRight: space.xs, minWidth: TARGET, minHeight: TARGET, alignItems: 'center', justifyContent: 'center' },
   fill: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   // See FAB_BAND — the + button overhangs every tab's scroll area.
   body: { padding: space.xl, paddingBottom: TAB_SCROLL_BAND, gap: space.md },

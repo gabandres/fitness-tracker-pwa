@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   addDays,
@@ -31,8 +31,9 @@ import * as haptics from '@/lib/haptics';
 import { PressScale } from '@/lib/motion';
 import { captureError } from '@/lib/sentry';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space } from '@/theme';
+import { font, radius, space, TARGET } from '@/theme';
 import { formatDate, formatNumber, formatTime } from '@/lib/date-format';
+import { Touchable } from '@/components/Touchable';
 
 // Re-exported: the helper moved to `lib/` (Today imported it from this route),
 // and the undo tests still reach it here.
@@ -67,9 +68,6 @@ export function adjacentDays(dateKey: string, todayKey: string): { prev: string;
     next: dateKey < todayKey ? calendarDateKey(addDays(d, 1)) : null,
   };
 }
-
-/** The platform's touch floor: 44pt on iOS, Material's 48dp on Android. */
-const TARGET = Platform.OS === 'android' ? 48 : 44;
 
 /**
  * Remount boundary for Retry — the same mechanism as Today and the calendar
@@ -309,7 +307,7 @@ function DayDetailScreen({ onRetry }: { onRetry: () => void }) {
           {failed ? (
             <View style={styles.errorRow} accessibilityRole="alert" accessibilityLiveRegion="polite" testID="day-error">
               <Text style={styles.error}>{t('history.dayLoadErr')}</Text>
-              <TouchableOpacity
+              <Touchable
                 onPress={() => {
                   haptics.tap();
                   onRetry();
@@ -320,7 +318,7 @@ function DayDetailScreen({ onRetry }: { onRetry: () => void }) {
                 testID="day-retry"
               >
                 <Text style={styles.retryText}>{t('common.retry')}</Text>
-              </TouchableOpacity>
+              </Touchable>
             </View>
           ) : null}
           {blank ? (
@@ -374,7 +372,7 @@ function DayDetailScreen({ onRetry }: { onRetry: () => void }) {
               broken and on no other, so editing it is unambiguous. */}
           <View style={styles.fastHead}>
             <Text style={styles.sectionTitle} accessibilityRole="header">{t('fast.sectionTitle')}</Text>
-            <TouchableOpacity
+            <Touchable
               onPress={() => {
                 haptics.tap();
                 setFastSheet({ mode: 'add', fast: null });
@@ -384,14 +382,14 @@ function DayDetailScreen({ onRetry }: { onRetry: () => void }) {
               testID="fast-add"
             >
               <Text style={styles.fastAdd}>{t('fast.add')}</Text>
-            </TouchableOpacity>
+            </Touchable>
           </View>
           {dayFasts.length === 0 ? (
             <Text style={styles.empty}>{t('fast.none')}</Text>
           ) : (
             <View style={styles.list}>
               {dayFasts.map((f) => (
-                <TouchableOpacity
+                <Touchable
                   key={f.id}
                   style={styles.entry}
                   onPress={() => {
@@ -421,7 +419,7 @@ function DayDetailScreen({ onRetry }: { onRetry: () => void }) {
                     </Text>
                   </View>
                   <Ionicons name="chevron-forward" size={18} color={colors.faint} />
-                </TouchableOpacity>
+                </Touchable>
               ))}
             </View>
           )}

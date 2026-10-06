@@ -22,7 +22,7 @@ import { type I18nKey, type Locale, useLocale, useT } from '@/i18n';
 import { announce } from '@/lib/a11y';
 import { formatNumber } from '@/lib/date-format';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space } from '@/theme';
+import { font, radius, space, TARGET } from '@/theme';
 import { DayStepper } from './DayStepper';
 
 export type MeasureKey = 'waist' | 'neck' | 'hip' | 'chest' | 'bicep';
@@ -485,7 +485,7 @@ const createStyles = ({ colors }: Theme) =>
     bfRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, flexWrap: 'wrap' },
     bfInput: { flex: 1, minWidth: 96 },
     bfChips: { flexDirection: 'row', gap: space.sm },
-    bfChip: { paddingHorizontal: space.md, paddingVertical: space.sm, borderRadius: radius.md, borderWidth: 1, borderColor: colors.lineStrong, minHeight: 44, justifyContent: 'center' },
+    bfChip: { paddingHorizontal: space.md, paddingVertical: space.sm, borderRadius: radius.md, borderWidth: 1, borderColor: colors.lineStrong, minHeight: TARGET, justifyContent: 'center' },
     bfChipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
     bfChipText: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
     bfChipTextOn: { color: colors.onInk },
@@ -493,7 +493,7 @@ const createStyles = ({ colors }: Theme) =>
     save: { backgroundColor: colors.ink, borderRadius: radius.md, paddingVertical: space.lg, alignItems: 'center', marginTop: space.lg, minHeight: 56, justifyContent: 'center' },
     saveDisabled: { opacity: 0.4 },
     saveText: { color: colors.onInk, fontWeight: '700', fontSize: font.h3 },
-    delete: { alignItems: 'center', justifyContent: 'center', minHeight: 44, marginTop: space.xs },
+    delete: { alignItems: 'center', justifyContent: 'center', minHeight: TARGET, marginTop: space.xs },
     deleteText: { color: colors.danger, fontWeight: '700', fontSize: font.small },
   });
 

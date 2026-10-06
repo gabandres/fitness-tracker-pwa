@@ -39,16 +39,19 @@ env:
 # Settings testID on Today and fails there instead, which reads like the
 # Settings refactor broke a testID. It did not. Retry until the destination is
 # actually on screen — that is the only gate that cannot race the overlay.
-# The gate is `settings-back` and NOT the text 'Settings': Maestro matches text
-# as a substring against accessibility labels too, and Today's avatar IS
+# The gate is `settings-daily-targets` and NOT the text 'Settings': Maestro
+# matches text against accessibility labels too, and Today's avatar IS
 # labelled "Settings", so `notVisible: 'Settings'` is false on Today and the
 # whole repeat block reports SKIPPED — a gate that silently does nothing.
-# `settings-back` exists on the Settings screen and nowhere else.
+# `settings-daily-targets` is Settings' FIRST row and exists nowhere else; a
+# pushed Settings mounts fresh at the top, so it is on screen on arrival. (The
+# gate was `settings-back` until S21-1, 2026-10-06 — that drawn button now
+# renders only on a cold open with nothing beneath, `OrphanBack`.)
 - repeat:
     times: 8
     while:
       notVisible:
-        id: 'settings-back'
+        id: 'settings-daily-targets'
     commands:
       # optional: the loop re-checks its condition the instant the tap returns,
       # which on this device is mid-navigation — so a second iteration can start
@@ -64,7 +67,7 @@ env:
 # on the WRONG SCREEN, which is the exact misdirection the gate exists to remove.
 # Measured 2026-08-25: that is precisely what happened here on the relaunch.
 - assertVisible:
-    id: 'settings-back'
+    id: 'settings-daily-targets'
 # centerElement: true — scrollUntilVisible stops as soon as the element enters
 # the viewport, which on iOS routinely leaves it UNDER the tab bar; Maestro then
 # taps its layout bounds and the touch goes to whatever is on top. Measured
@@ -83,16 +86,26 @@ env:
 - tapOn:
     id: 'settings-theme-dark'
 - takeScreenshot: .maestro/regression/shots/10-dark-settings
-# Wait for the header to come back before reaching for it. Switching the theme
-# re-renders the whole screen, and on iOS the tap raced that re-render — flow
-# 09 taps this very ID successfully, so the button is addressable; it is the
-# repaint that is not instant.
-- extendedWaitUntil:
-    visible:
-      id: 'settings-back'
-    timeout: 15000
-- tapOn:
-    id: 'settings-back'
+# Back to Today through the shared native header (05-history's convention:
+# iOS taps its `BackButton` identifier, Android keeps hardware back). Wait for
+# the iOS button first: switching the theme re-renders the whole screen and
+# re-styles the header, and on iOS the tap raced that re-render back when this
+# was the drawn `settings-back`.
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - extendedWaitUntil:
+          visible:
+            id: 'BackButton'
+          timeout: 15000
+      - tapOn:
+          id: 'BackButton'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - back
 # ── Today, all three scroll positions ──
 - extendedWaitUntil:
     visible: 'Today'
@@ -194,7 +207,7 @@ env:
     times: 8
     while:
       notVisible:
-        id: 'settings-back'
+        id: 'settings-daily-targets'
     commands:
       # optional: the loop re-checks its condition the instant the tap returns,
       # which on this device is mid-navigation — so a second iteration can start
@@ -210,7 +223,7 @@ env:
 # on the WRONG SCREEN, which is the exact misdirection the gate exists to remove.
 # Measured 2026-08-25: that is precisely what happened here on the relaunch.
 - assertVisible:
-    id: 'settings-back'
+    id: 'settings-daily-targets'
 # centerElement: true — scrollUntilVisible stops as soon as the element enters
 # the viewport, which on iOS routinely leaves it UNDER the tab bar; Maestro then
 # taps its layout bounds and the touch goes to whatever is on top. Measured
@@ -228,6 +241,15 @@ env:
     centerElement: true
 - tapOn:
     id: 'settings-theme-system'
-- tapOn:
-    id: 'settings-back'
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          id: 'BackButton'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - back
 - assertVisible: 'Today'

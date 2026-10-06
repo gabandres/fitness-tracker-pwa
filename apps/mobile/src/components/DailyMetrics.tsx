@@ -31,7 +31,7 @@ import {
   waterUnitFor,
 } from '@/components/water-display';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space } from '@/theme';
+import { font, radius, space, TARGET } from '@/theme';
 
 interface Props {
   water: number;
@@ -214,8 +214,6 @@ const PILL_SLOP = Platform.select({
   android: { top: 11, bottom: 11 },
   default: { top: 9, bottom: 9 },
 });
-/** The platform's touch floor: 44pt on iOS, Material's 48dp on Android. */
-const TARGET = Platform.OS === 'android' ? 48 : 44;
 
 /** From this long, a running fast is more likely a forgotten End than a
  *  fast (S21 — the simulator showed "329h 33m" counting on). Past three
@@ -637,7 +635,7 @@ function WaterModal({
                 primary button is behind it, and a rare path nobody can see is
                 a rare path nobody uses. Costs no height. */}
             <View style={styles.sheetTitleRow}>
-              <Text style={styles.sheetTitle}>
+              <Text style={styles.sheetTitle} accessibilityRole="header">
                 {t(mode === 'add' ? 'water.addTitle' : 'water.setTitle')}
               </Text>
               <TouchableOpacity onPress={toggleMode} hitSlop={12} accessibilityRole="button" testID="water-mode-toggle">
@@ -721,7 +719,7 @@ function SleepModal({
 
   return (
     <BottomSheet native detents="fit" visible={visible} onClose={onClose}>
-      <Text style={styles.sheetTitle}>{t('metrics.hoursSlept')}</Text>
+      <Text style={styles.sheetTitle} accessibilityRole="header">{t('metrics.hoursSlept')}</Text>
       <View style={styles.inputRow}>
         <SheetTextInput
           ref={inputRef}

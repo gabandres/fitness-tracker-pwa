@@ -45,7 +45,7 @@ import { openingTags } from './jsx-scan';
 
 /** Same rule as `a11y-roles.test.ts` (not imported: importing a test file
  *  re-registers its suites here). */
-const TOUCHABLES = ['TouchableOpacity', 'Pressable', 'PressScale', 'AnimatedPressable'];
+const TOUCHABLES = ['TouchableOpacity', 'Pressable', 'PressScale', 'AnimatedPressable', 'Touchable'];
 const HIDDEN = ['accessible={false}', 'accessibilityElementsHidden', 'importantForAccessibility'];
 function findRoleless(source: string): number[] {
   return openingTags(source, TOUCHABLES)

@@ -176,6 +176,15 @@ export const space = {
  */
 export const FAB_BAND = 96;
 
+/**
+ * The minimum touch target: Apple HIG's 44pt on iOS, Material's 48dp on
+ * Android. Every `minHeight`/`minWidth`/`width`/`height` that exists to make a
+ * control hittable reads this, not a literal 44 — a literal 44 is 4dp short of
+ * the Android floor (UX_AUDIT S20/S21). Was a dozen local copies until
+ * 2026-10-06; one token so the next control is right by default.
+ */
+export const TARGET = Platform.OS === 'android' ? 48 : 44;
+
 export const radius = {
   sm: 8,
   md: 12,

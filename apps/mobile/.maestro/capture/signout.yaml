@@ -31,6 +31,13 @@ appId: fit.ignia.app
     centerElement: true
 - tapOn:
     id: 'settings-signout'
+# Sign out asks first since 2026-10-06 (S18-6): confirm the ConfirmSheet.
+- extendedWaitUntil:
+    visible:
+      id: 'confirm-go'
+    timeout: 10000
+- tapOn:
+    id: 'confirm-go'
 - extendedWaitUntil:
     visible:
       id: 'welcome-signin'

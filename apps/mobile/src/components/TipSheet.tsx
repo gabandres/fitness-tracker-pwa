@@ -62,15 +62,15 @@ export function TipSheet({ visible, onClose }: Props) {
       {thanks ? (
         <View style={styles.center}>
           <Ionicons name="heart" size={40} color={colors.accent} />
-          <Text style={styles.title}>{t('tip.thanksTitle')}</Text>
+          <Text style={styles.title} accessibilityRole="header">{t('tip.thanksTitle')}</Text>
           <Text style={styles.body}>{t('tip.thanksBody')}</Text>
-          <TouchableOpacity style={styles.done} onPress={onClose}>
+          <TouchableOpacity style={styles.done} onPress={onClose} accessibilityRole="button">
             <Text style={styles.doneText}>{t('common.done')}</Text>
           </TouchableOpacity>
         </View>
       ) : (
         <View style={styles.pad}>
-          <Text style={styles.title}>{t('tip.title')}</Text>
+          <Text style={styles.title} accessibilityRole="header">{t('tip.title')}</Text>
           <Text style={styles.body}>{t('tip.body')}</Text>
           {products === null ? (
             <ActivityIndicator color={colors.accent} style={{ marginVertical: space.xl }} />
@@ -83,6 +83,8 @@ export function TipSheet({ visible, onClose }: Props) {
                 style={styles.tier}
                 disabled={!!buying}
                 onPress={() => onTip(p)}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: !!buying, busy: buying === p.identifier }}
                 testID={`tip-${p.identifier}`}
               >
                 <Text style={styles.tierLabel}>{labels[i] ?? p.title}</Text>

@@ -28,6 +28,7 @@ import { saveTargetMode } from '@/lib/ledger';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
+import { Touchable } from '@/components/Touchable';
 
 /**
  * Daily targets — Automatic, or the user's own numbers.
@@ -214,7 +215,7 @@ export default function DailyTargetsScreen() {
           <Text style={styles.subtitle}>{t(custom ? 'targets.customBody' : 'targets.autoBody')}</Text>
 
           <View style={styles.field}>
-            <Text style={styles.label}>{t('targets.calories')}</Text>
+            <Text style={styles.label} accessibilityRole="header">{t('targets.calories')}</Text>
             {custom ? (
               <View style={styles.unitInput}>
                 <TextInput
@@ -255,7 +256,7 @@ export default function DailyTargetsScreen() {
           </View>
 
           <View style={styles.field}>
-            <Text style={styles.label}>{t('targets.protein')}</Text>
+            <Text style={styles.label} accessibilityRole="header">{t('targets.protein')}</Text>
             {custom ? (
               <View style={styles.unitInput}>
                 <TextInput
@@ -295,7 +296,7 @@ export default function DailyTargetsScreen() {
         </ScrollView>
 
         <View style={styles.footer}>
-          <TouchableOpacity
+          <Touchable
             style={[styles.save, (!canSave || busy) && styles.saveDisabled]}
             disabled={!canSave || busy}
             onPress={onSave}
@@ -310,7 +311,7 @@ export default function DailyTargetsScreen() {
             ) : (
               <Text style={styles.saveText}>{t('targets.save')}</Text>
             )}
-          </TouchableOpacity>
+          </Touchable>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>

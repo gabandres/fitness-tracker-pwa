@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -21,10 +20,7 @@ import { useAuth } from '@/lib/auth';
 import { type I18nKey, type TFn, useLocale, useT } from '@/i18n';
 import { enterUp } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space, type } from '@/theme';
-
-/** 44 pt (Apple HIG) / 48 dp (Material) — the floor for a tap target here. */
-const MIN_TAP = Platform.OS === 'android' ? 48 : 44;
+import { font, radius, space, TARGET, type } from '@/theme';
 
 /** Mirrors the Identity Platform policy the checklist below enforces, so the
  *  iOS strong-password generator proposes one that the server will accept. */
@@ -640,7 +636,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   },
   error: { color: colors.danger, fontSize: font.small },
   notice: { color: colors.good, fontSize: font.small },
-  forgot: { alignSelf: 'center', minHeight: MIN_TAP, justifyContent: 'center', paddingHorizontal: space.md },
+  forgot: { alignSelf: 'center', minHeight: TARGET, justifyContent: 'center', paddingHorizontal: space.md },
   forgotText: { color: colors.muted, fontSize: font.small, fontWeight: '600' },
   // Segmented Sign in / Sign up switch
   switchTrack: {
@@ -653,7 +649,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
     marginBottom: space.xs,
   },
   switchHl: { position: 'absolute', top: 4, bottom: 4, left: 4, borderRadius: radius.pill, backgroundColor: colors.ink },
-  switchSeg: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TAP, zIndex: 1 },
+  switchSeg: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: TARGET, zIndex: 1 },
   switchText: { fontSize: font.small, fontWeight: '700', color: colors.muted },
   switchTextOn: { color: colors.onInk },
   // Name row (sign-up)
@@ -662,7 +658,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   // Password field with show/hide eye
   pwWrap: { position: 'relative', justifyContent: 'center' },
   pwInput: { paddingRight: 48 },
-  eye: { position: 'absolute', right: 0, height: '100%', minWidth: MIN_TAP, paddingHorizontal: space.md, alignItems: 'center', justifyContent: 'center' },
+  eye: { position: 'absolute', right: 0, height: '100%', minWidth: TARGET, paddingHorizontal: space.md, alignItems: 'center', justifyContent: 'center' },
   // Live password checklist (sign-up)
   checklist: { gap: space.xs, marginTop: -space.xs, paddingHorizontal: space.xs },
   reqRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },

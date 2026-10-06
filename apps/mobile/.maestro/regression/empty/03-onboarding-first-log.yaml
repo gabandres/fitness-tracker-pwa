@@ -56,14 +56,17 @@ tags:
       visible: 'Verify your email to continue.'
     commands:
       - tapOn: 'I verified — refresh'
+# No welcome step since 2026-10-06 (S21 #11): onboarding opens on the goal
+# step, and its 16+ checkbox must be ticked before Continue enables — see 02.
 - extendedWaitUntil:
-    visible: 'Welcome to Ignia'
+    visible:
+      id: 'onboarding-age-attest'
     timeout: 30000
-- tapOn:
-    id: 'onboarding-next'
 - assertVisible: "What's your goal.*"
 - tapOn:
     id: 'onboarding-goal-lose'
+- tapOn:
+    id: 'onboarding-age-attest'
 - tapOn:
     id: 'onboarding-next'
 - assertVisible: 'What do you weigh now.*'
@@ -174,6 +177,13 @@ tags:
     timeout: 10000
 - tapOn:
     id: 'settings-signout'
+# Sign out asks first since 2026-10-06 (S18-6) — confirm the ConfirmSheet.
+- extendedWaitUntil:
+    visible:
+      id: 'confirm-go'
+    timeout: 10000
+- tapOn:
+    id: 'confirm-go'
 - extendedWaitUntil:
     visible: 'Sign in to your account'
     timeout: 30000

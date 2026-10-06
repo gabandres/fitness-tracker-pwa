@@ -11,7 +11,7 @@ import { track } from '@/lib/analytics';
 import { announce } from '@/lib/a11y';
 import { isOffline } from '@/lib/connectivity';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space } from '@/theme';
+import { font, radius, space, TARGET } from '@/theme';
 
 export interface BarcodeEstimate {
   calories: number;
@@ -56,8 +56,6 @@ function errorKeyFor(e: unknown): I18nKey {
  *  error) rests before the camera may look it up again. */
 const MISS_RETRY_MS = 3000;
 
-/** Apple's 44pt / Material's 48dp floor for the Cancel and label buttons. */
-const TARGET = Platform.OS === 'android' ? 48 : 44;
 /** The glass behind overlay text: white on it is ≥ 7:1 whatever the feed shows. */
 const SCRIM = 'rgba(0,0,0,0.62)';
 

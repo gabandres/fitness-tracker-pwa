@@ -10,7 +10,7 @@ import { subscribePresets } from '@/lib/ledger';
 import { getQuickAddSlots, readQuickAddOutcome, toggleQuickAddSlot } from '@/lib/quick-add';
 import { trackSubs } from '@/lib/sub-debug';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space } from '@/theme';
+import { font, radius, space, TARGET } from '@/theme';
 
 /**
  * Settings → which presets are quick-addable from outside the app (ADR-0020).
@@ -90,7 +90,7 @@ export function QuickAddCard() {
 
   return (
     <View style={styles.card}>
-      <Text style={styles.rowLabel}>{t('settings.quickAdd')}</Text>
+      <Text style={styles.rowLabel} accessibilityRole="header">{t('settings.quickAdd')}</Text>
       <Text style={styles.rowValue}>{t('settings.quickAddSub')}</Text>
 
       {presets.length === 0 ? (
@@ -171,7 +171,7 @@ const createStyles = ({ colors }: Theme) =>
       gap: space.sm,
       // 44pt floor (S18-15): the two-line text already reaches it; a one-line
       // name with no macros did not.
-      minHeight: 44,
+      minHeight: TARGET,
     },
     rowText: { flex: 1 },
     name: { fontSize: font.body, color: colors.ink },

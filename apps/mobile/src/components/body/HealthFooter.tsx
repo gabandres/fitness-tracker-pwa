@@ -4,7 +4,7 @@ import { type Locale, useLocale, useT } from '@/i18n';
 import { formatDate, formatTime } from '@/lib/date-format';
 import { useHealthStatus } from '@/lib/health-status';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, space } from '@/theme';
+import { font, space, TARGET } from '@/theme';
 import { BodyIcon } from './BodyIcon';
 
 /**
@@ -70,6 +70,6 @@ export function HealthFooter() {
 
 const createStyles = ({ colors }: Theme) =>
   StyleSheet.create({
-    row: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 44, marginTop: space.sm },
+    row: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: TARGET, marginTop: space.sm },
     text: { flex: 1, fontSize: font.small, color: colors.muted },
   });

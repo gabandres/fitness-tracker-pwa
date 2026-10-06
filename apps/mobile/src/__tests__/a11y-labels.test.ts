@@ -32,7 +32,7 @@ import { elementBody, openingTags } from './jsx-scan';
  */
 
 const SRC = join(__dirname, '..');
-const TOUCHABLES = ['TouchableOpacity', 'Pressable', 'PressScale', 'AnimatedPressable'];
+const TOUCHABLES = ['TouchableOpacity', 'Pressable', 'PressScale', 'AnimatedPressable', 'Touchable', 'Tappable'];
 
 function sourceFiles(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {

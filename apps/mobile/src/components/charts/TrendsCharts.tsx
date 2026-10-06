@@ -15,7 +15,7 @@ import { MenuButton, type MenuButtonAction } from '@/components/MenuButton';
 import { PressScale } from '@/lib/motion';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space, type } from '@/theme';
+import { font, radius, space, TARGET, type } from '@/theme';
 import { chartDate, chartNumber as formatNumber, signedNumber } from './chart-format';
 import { Glyph } from './Glyph';
 import { TrendChart, type TrendChartProps } from './TrendChart';
@@ -397,8 +397,8 @@ function ExpenditureCardImpl({ keys, intake, series, days, target, milestones, r
     () => ({
       title: t('trends.expenditureTitle'),
       xTitle: t('entry.date'),
-      yTitle: 'kcal',
-      unit: 'kcal',
+      yTitle: t('trends.kcalUnit'),
+      unit: t('trends.kcalUnit'),
       decimals: 0,
       xLabel: (key: string) => longDate(key, locale),
       seriesNames: { tdee: t('trends.legendMaintenance'), intake: t('trends.legendIntake') },
@@ -815,8 +815,8 @@ function ProteinTrendCardImpl({ keys, protein, carbs, fat, days, target, milesto
     () => ({
       title: view.title,
       xTitle: t('entry.date'),
-      yTitle: 'g',
-      unit: 'g',
+      yTitle: t('unit.g'),
+      unit: t('unit.g'),
       decimals: 0,
       xLabel: (key: string) => longDate(key, locale),
       seriesNames: { avg: t('trends.legendProteinAvg'), protein: dailyLegend },
@@ -908,7 +908,7 @@ const createStyles = ({ colors }: Theme) =>
     emptyText: { fontSize: font.small, color: colors.muted, textAlign: 'center' },
     // The caption-as-menu: 44 dp tall like every control here, its face the
     // caption plus a chevron in the link colour.
-    rangeMenu: { minHeight: 44, justifyContent: 'center' },
+    rangeMenu: { minHeight: TARGET, justifyContent: 'center' },
     rangeFace: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     rangeFaceText: { fontSize: font.small, color: colors.teal, fontWeight: '700' },
     legend: { flexDirection: 'row', flexWrap: 'wrap', gap: space.md },
@@ -916,6 +916,6 @@ const createStyles = ({ colors }: Theme) =>
     legendLine: { width: 16, height: 0, borderTopWidth: 2 },
     legendDot: { width: 6, height: 6, borderRadius: 3 },
     legendText: { fontSize: font.small, color: colors.muted },
-    link: { minHeight: 44, justifyContent: 'center', paddingHorizontal: space.xs },
+    link: { minHeight: TARGET, justifyContent: 'center', paddingHorizontal: space.xs },
     linkText: { fontSize: font.small, color: colors.teal, fontWeight: '700' },
   });

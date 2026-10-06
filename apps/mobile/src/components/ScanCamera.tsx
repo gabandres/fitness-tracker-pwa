@@ -1,17 +1,15 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { CameraView } from 'expo-camera';
 import { useEffect, useRef, useState } from 'react';
-import { Image, Platform, StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, View } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
 import { useT } from '@/i18n';
 import { announce } from '@/lib/a11y';
 import * as haptics from '@/lib/haptics';
 import { PressScale } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space } from '@/theme';
+import { font, radius, space, TARGET } from '@/theme';
 
-/** Apple's 44pt / Material's 48dp floor, as on the rest of the scan screen. */
-const TARGET = Platform.OS === 'android' ? 48 : 44;
 /** The shutter is the one control on this screen a thumb looks for without
  *  looking, so it is well past the floor — the size camera apps train. */
 const SHUTTER = 76;

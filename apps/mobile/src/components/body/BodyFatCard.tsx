@@ -7,7 +7,7 @@ import { type I18nKey, type TFn, useLocale, useT } from '@/i18n';
 import { formatDate, formatNumber } from '@/lib/date-format';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space, type } from '@/theme';
+import { font, radius, space, TARGET, type } from '@/theme';
 import { BodyIcon } from './BodyIcon';
 
 /** "waist and hip" / "cintura y cadera" — the missing tape inputs, named.
@@ -147,7 +147,7 @@ const createStyles = ({ colors, scheme }: Theme) =>
     },
     head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     label: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
-    info: { minWidth: 44, minHeight: 44, alignItems: 'flex-end', justifyContent: 'center' },
+    info: { minWidth: TARGET, minHeight: TARGET, alignItems: 'flex-end', justifyContent: 'center' },
     // `flexWrap` + `flexShrink` on the chip so a long es-PR source line wraps
     // under the value instead of pushing it off the card — the 2026-08-18
     // "15.1%" → "15." clip, from the other direction.
@@ -163,7 +163,7 @@ const createStyles = ({ colors, scheme }: Theme) =>
     // The same bordered 44 pt button as Body's "Add" (V3 / A7).
     fixBtn: {
       alignSelf: 'flex-start',
-      minHeight: 44,
+      minHeight: TARGET,
       justifyContent: 'center',
       paddingHorizontal: space.md,
       borderRadius: radius.pill,

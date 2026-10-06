@@ -85,7 +85,7 @@ import { isAnySheetActive, onSheetsIdle } from '@/lib/sheet-portal';
 import type { AddReceipt } from '@/hooks/useLogWrites';
 import { CountUpText, usePulse } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space } from '@/theme';
+import { font, radius, space, TARGET } from '@/theme';
 import { formatDate, formatNumber } from '@/lib/date-format';
 
 /** What a screen's `onSave` may answer with: the durable write's receipt.
@@ -260,10 +260,6 @@ function Tappable(props: React.ComponentProps<typeof TouchableOpacity>) {
   const { activeOpacity: _activeOpacity, ...rest } = props;
   return <Pressable accessibilityRole="button" android_ripple={ROW_RIPPLE} {...(rest as PressableProps)} />;
 }
-
-/** One-tap chips (Quick add, Suggested): Apple's 44pt, Material's 48dp
- *  (re-score gap 6 — 44 was under Android's floor, with no slop). */
-const CHIP_TARGET = Platform.OS === 'android' ? 48 : 44;
 
 /** The food rows' context-menu preview (iOS): width, and the text scale it
  *  grows to — its size is fixed before it renders, so the text is capped at
@@ -1111,7 +1107,6 @@ export function EntrySheet({
   function onNumBlur(f: NumField) {
     if (kbFieldRef.current === f) kbFieldRef.current = null;
   }
-
 
   /** A macro field's bar, ‹ › to its neighbours in MACRO_CHAIN. Rendered
    *  straight after its input (KeyboardBar.tsx says why the order matters). */
@@ -2751,8 +2746,8 @@ const createStyles = ({ scheme, colors, shadow }: Theme) => StyleSheet.create({
   moreRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingVertical: space.md, paddingHorizontal: space.md, minHeight: 48 },
   moreRowText: { fontSize: font.body, color: colors.ink },
   presetStrip: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
-  // CHIP_TARGET tall (was ~33): a one-tap log is the last control to make small.
-  presetChip: { flexDirection: 'row', alignItems: 'center', gap: space.xs, paddingVertical: space.sm, paddingHorizontal: space.md, minHeight: CHIP_TARGET, maxWidth: '100%', borderRadius: radius.pill, backgroundColor: colors.ink },
+  // TARGET tall (was ~33): a one-tap log is the last control to make small.
+  presetChip: { flexDirection: 'row', alignItems: 'center', gap: space.xs, paddingVertical: space.sm, paddingHorizontal: space.md, minHeight: TARGET, maxWidth: '100%', borderRadius: radius.pill, backgroundColor: colors.ink },
   // No fixed `maxWidth` (A1): 150pt cut a name to "Chi…" at a large text
   // size. The chip caps at the row, and the name gives way to the numbers.
   // The NAME keeps its room and the numbers give way: in Spanish ("g de
@@ -2835,7 +2830,7 @@ const createStyles = ({ scheme, colors, shadow }: Theme) => StyleSheet.create({
     borderRadius: radius.pill,
     paddingHorizontal: space.md,
     paddingVertical: space.xs,
-    minHeight: CHIP_TARGET,
+    minHeight: TARGET,
     backgroundColor: colors.inputBg,
     maxWidth: '100%',
   },
@@ -2855,7 +2850,7 @@ const createStyles = ({ scheme, colors, shadow }: Theme) => StyleSheet.create({
   // Camera-denied notice (shown in place, after the scan icon bows out).
   camDenied: { marginTop: space.sm, gap: 2 },
   camDeniedText: { fontSize: font.tiny, color: colors.muted },
-  camDeniedBtn: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' },
+  camDeniedBtn: { alignSelf: 'flex-start', minHeight: TARGET, justifyContent: 'center' },
   camDeniedLink: { fontSize: font.tiny, color: colors.ink, fontWeight: '700', textDecorationLine: 'underline' },
   // custom
   customWrap: { flexShrink: 1 },
@@ -2914,7 +2909,7 @@ const createStyles = ({ scheme, colors, shadow }: Theme) => StyleSheet.create({
   // squeezing them (A1).
   dateRowWrap: { flexWrap: 'wrap' },
   // 44 + the 2dp hitSlop on each = 48.
-  dateStep: { width: 44, height: 44, borderRadius: radius.md, borderWidth: 1, borderColor: colors.lineStrong, alignItems: 'center', justifyContent: 'center' },
+  dateStep: { width: TARGET, height: TARGET, borderRadius: radius.md, borderWidth: 1, borderColor: colors.lineStrong, alignItems: 'center', justifyContent: 'center' },
   dateStepDisabled: { opacity: 0.4 },
   dateStepText: { fontSize: font.h3, color: colors.ink, fontWeight: '700' },
   dateLabel: { flex: 1, textAlign: 'center', fontSize: font.body, color: colors.ink, fontWeight: '700' },

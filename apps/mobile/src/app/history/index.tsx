@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { type DaySummary, formatBodyWeight, dayKeyAt, monthGrid, parseYmd } from '@macrolog/core';
 import { OfflineBanner } from '@/components/OfflineBanner';
@@ -10,7 +10,7 @@ import { useUnitSystem } from '@/lib/use-unit-system';
 import { type Locale, useLocale, useT } from '@/i18n';
 import { capitalizeFirst } from '@/i18n/grammar';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space } from '@/theme';
+import { font, radius, space, TARGET } from '@/theme';
 import { formatDate, formatNumber } from '@/lib/date-format';
 
 // Narrow weekday letters (Jan 1 2023 was a Sunday). Built per locale, not
@@ -118,7 +118,7 @@ function HistoryCalendarScreen({ onRetry }: { onRetry: () => void }) {
           <View style={styles.monthNav}>
             <Pressable
               onPress={() => shiftMonth(-1)}
-              hitSlop={12}
+              style={[styles.monthArrow, styles.monthArrowStart]}
               testID="month-prev"
               accessibilityRole="button"
               accessibilityLabel={t('history.prevMonthA11y')}
@@ -128,7 +128,7 @@ function HistoryCalendarScreen({ onRetry }: { onRetry: () => void }) {
             <Text style={styles.monthLabel}>{monthLabel}</Text>
             <Pressable
               onPress={() => shiftMonth(1)}
-              hitSlop={12}
+              style={[styles.monthArrow, styles.monthArrowEnd]}
               testID="month-next"
               accessibilityRole="button"
               accessibilityLabel={t('history.nextMonthA11y')}
@@ -256,8 +256,6 @@ function HistoryCalendarScreen({ onRetry }: { onRetry: () => void }) {
 }
 
 const CELL = `${100 / 7}%`;
-/** The platform's touch floor: 44pt on iOS, Material's 48dp on Android. */
-const TARGET = Platform.OS === 'android' ? 48 : 44;
 
 const createStyles = ({ colors }: Theme) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
@@ -275,6 +273,12 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   partialNote: { fontSize: font.small, color: colors.muted, textAlign: 'center', marginTop: space.xs },
   partialRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.sm },
   monthNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.sm },
+  // A real TARGET box, glyph kept at the edge it sat on: `hitSlop={12}` made
+  // 46 on paper, and Android drops slop past the row's ~26dp bounds. The
+  // negative margin keeps the row its old height (S21 sweep).
+  monthArrow: { minWidth: TARGET, minHeight: TARGET, marginVertical: -(TARGET - 26) / 2, justifyContent: 'center' },
+  monthArrowStart: { alignItems: 'flex-start' },
+  monthArrowEnd: { alignItems: 'flex-end' },
   monthLabel: { fontSize: font.h3, fontWeight: '800', color: colors.ink },
   weekHead: { flexDirection: 'row' },
   weekHeadCell: { width: CELL, textAlign: 'center', fontSize: font.tiny, color: colors.faint, fontWeight: '700', textTransform: 'uppercase' },

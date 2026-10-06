@@ -160,7 +160,7 @@ export function MealText({ forDate, onAddMany, onCancel, seedText, onDirtyChange
 
   function gramsLabel(grams: number | null, servingLabel: string): string {
     const parts: string[] = [];
-    if (grams != null) parts.push(`≈${grams} g`);
+    if (grams != null) parts.push(`≈${t('unit.grams', { n: String(grams) })}`);
     // The per-100 g row is the scaling BASIS, not a serving anyone picked —
     // printing it renders "≈7.1 g · 100 g", which reads like a contradiction.
     if (servingLabel && !/^100\s*g$/i.test(servingLabel)) parts.push(servingLabel);

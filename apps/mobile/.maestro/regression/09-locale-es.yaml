@@ -54,8 +54,21 @@ env:
 # The whole screen re-renders in Spanish (title becomes Ajustes).
 - assertVisible: 'Ajustes'
 - takeScreenshot: .maestro/regression/shots/09-es-settings
-- tapOn:
-    id: 'settings-back'
+# Back to Today through the shared native header (Settings is a root-stack
+# screen since S21-1, 2026-10-06): iOS taps its `BackButton` identifier —
+# locale-free, unlike its label — and Android keeps hardware back, as in
+# 05-history. `settings-back` now renders only on a cold open (`OrphanBack`).
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          id: 'BackButton'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - back
 # ── Today ──
 - assertVisible: 'Hoy'
 - takeScreenshot: .maestro/regression/shots/09-es-today-top
@@ -183,6 +196,15 @@ env:
 - tapOn:
     id: 'settings-lang-en'
 - assertVisible: 'Settings'
-- tapOn:
-    id: 'settings-back'
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          id: 'BackButton'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - back
 - assertVisible: 'Today'

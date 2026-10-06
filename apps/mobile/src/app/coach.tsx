@@ -25,7 +25,8 @@ import { getConsultationQuota } from '@/lib/ledger';
 import { type I18nKey, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space } from '@/theme';
+import { font, radius, space, TARGET } from '@/theme';
+import { Touchable } from '@/components/Touchable';
 
 type Status = 'idle' | 'streaming' | 'done' | 'error';
 
@@ -282,7 +283,7 @@ export default function Coach() {
             accessibilityHint={t('coach.placeholder')}
             testID="coach-input"
           />
-          <TouchableOpacity
+          <Touchable
             style={[styles.askBtn, (streaming || offline || !question.trim()) && styles.askBtnOff]}
             onPress={() => ask()}
             disabled={streaming || offline || !question.trim()}
@@ -298,7 +299,7 @@ export default function Coach() {
             ) : (
               <Text style={styles.askText}>{t('coach.ask')}</Text>
             )}
-          </TouchableOpacity>
+          </Touchable>
 
           {/* Response */}
           {status !== 'idle' ? (
@@ -340,7 +341,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
     borderColor: colors.line,
     borderRadius: radius.pill,
     paddingHorizontal: space.md,
-    minHeight: 44,
+    minHeight: TARGET,
     justifyContent: 'center',
     backgroundColor: colors.inputBg,
   },

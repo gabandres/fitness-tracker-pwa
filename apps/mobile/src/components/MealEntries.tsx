@@ -27,7 +27,7 @@ import { capitalizeFirst } from '@/i18n/grammar';
 import * as haptics from '@/lib/haptics';
 import { enterUp, PressScale, springLayout } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space } from '@/theme';
+import { font, radius, space, TARGET } from '@/theme';
 import { formatNumber, formatTime } from '@/lib/date-format';
 
 /** Text scale from which a row puts its kcal under the label (review A1): at
@@ -45,8 +45,6 @@ const FULL_SWIPE = 168;
  *  appears only when a row is filed there — it is where untagged rows land,
  *  not a meal anyone sets out to log. */
 const ADD_SLOTS: readonly MealType[] = ['breakfast', 'lunch', 'dinner', 'snack'];
-/** The platform's touch floor: 44pt on iOS, Material's 48dp on Android. */
-const TARGET = Platform.OS === 'android' ? 48 : 44;
 /** The "+ Add" pill's drawn height. Slop lifts it to the platform target
  *  (S21: it was 32 + 8 + 8, which is 48 on both — fine — but the pill was
  *  also free to be narrower than a target; `minWidth` now says it is not).

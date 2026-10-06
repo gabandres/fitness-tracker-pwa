@@ -275,10 +275,8 @@ export const ptBR = {
   // ── adaptive-TDEE recalibration ──
   'recalibration.cardTitle': 'Sua meta acabou de ser recalibrada',
   'recalibration.firstTitle': 'Seu gasto medido está pronto',
-  'recalibration.firstBody':
-    'Suas últimas semanas de dados colocam seu gasto real em cerca de {tdee} kcal/dia. Sua meta diária é {target} kcal.',
-  'recalibration.cardBody':
-    'Suas últimas semanas de dados colocam o seu gasto real em cerca de {tdee} kcal/dia. Ajustamos a sua meta diária para {target} kcal.',
+  // No numbers on purpose: the hero above the card already shows them (S21).
+  'recalibration.basis': 'Medido a partir das suas últimas semanas de pesagens e refeições registradas.',
   'recalibration.cardCta': 'Entendi',
   'recalibration.trend.metabolism-slowed':
     'Seu gasto medido está mais baixo do que o esperado — é comum, não é um alerta. Sua meta acompanha para o progresso seguir constante.',
@@ -1968,6 +1966,8 @@ export const ptBR = {
   'entry.swipeQuickAdd': 'Registro rápido',
   'entry.saveQuickAddA11y': 'Salvar em Registro rápido',
   'unit.grams': '{n} g',
+  // The bare gram symbol, beside a field or as a chart's unit (S21 sweep).
+  'unit.g': 'g',
   'entry.updated': 'Registro atualizado',
   'entry.updatedNamed': 'Atualizado: {label}',
   'entry.moveTo': 'Mover para…',

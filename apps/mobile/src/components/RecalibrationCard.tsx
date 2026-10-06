@@ -1,11 +1,11 @@
-import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import type { RecalibrationTrend } from '@macrolog/core';
 import { type I18nKey, useLocale, useT } from '@/i18n';
 import { formatNumber } from '@/lib/date-format';
 import * as haptics from '@/lib/haptics';
 import { useRecalibration } from '@/hooks/useRecalibration';
 import { useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space } from '@/theme';
+import { font, radius, space, TARGET } from '@/theme';
 
 /** Trend bucket → i18n reason key (kept as a typed map so the dynamic lookup
  *  stays inside the I18nKey union). */
@@ -72,23 +72,33 @@ export function RecalibrationCard({ suppressed = false }: { suppressed?: boolean
     fromTo.push(t('recalibration.estimateFromTo', { from: kcal(digest.trueTdee - digest.deltaVsFormula), to: kcal(digest.trueTdee) }));
   }
 
+  // What is NEW, and nothing the hero already says (S21). The card sits right
+  // under the hero, which prints today's target and maintenance; the body used
+  // to restate both ("…your real burn at about 2,380 kcal/day. Your daily
+  // target is 1,880 kcal.") on top of the old → new lines, so the same two
+  // numbers appeared three times on one screen. Now: the change (old → new),
+  // then one line of why (`TREND_KEY`). When there is no "from" to show — no
+  // stored ack, or a profile estimate that matched — a number-free line says
+  // where the reading comes from, so the card never reduces to a title.
   return (
     <View style={styles.card} testID="recalibration-card">
       <Text style={styles.title} accessibilityRole="header">
         {t(firstDisclosure ? 'recalibration.firstTitle' : 'recalibration.cardTitle')}
       </Text>
-      <Text style={styles.body}>
-        {t(firstDisclosure ? 'recalibration.firstBody' : 'recalibration.cardBody', {
-          tdee: formatNumber(digest.trueTdee, locale),
-          target: formatNumber(digest.calorieTarget, locale),
-        })}
-      </Text>
-      {fromTo.map((line) => (
-        <Text key={line} style={styles.fromTo} testID="recalibration-from-to">
-          {line}
+      {fromTo.length > 0 ? (
+        fromTo.map((line) => (
+          <Text key={line} style={styles.fromTo} testID="recalibration-from-to">
+            {line}
+          </Text>
+        ))
+      ) : (
+        <Text style={styles.body} testID="recalibration-basis">
+          {t('recalibration.basis')}
         </Text>
-      ))}
-      <Text style={styles.trend}>{t(TREND_KEY[digest.trend])}</Text>
+      )}
+      <Text style={styles.trend} testID="recalibration-why">
+        {t(TREND_KEY[digest.trend])}
+      </Text>
       <TouchableOpacity
         style={styles.cta}
         onPress={() => {
@@ -119,16 +129,18 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   body: { fontSize: font.small, color: colors.muted, lineHeight: 20 },
   // The figures, in ink and tabular so "2,450 → 2,380" lines up.
   fromTo: { fontSize: font.small, color: colors.ink, fontWeight: '600', lineHeight: 20, fontVariant: ['tabular-nums'] },
-  trend: { fontSize: font.small, color: colors.faint, lineHeight: 20 },
-  // A real 44 pt / 48 dp button (it was ~33). The accent fill stays — a brand
-  // call — with `onFill` text, AA in both themes.
+  // The why. `muted`, not `faint`: it is the card's one sentence now, not a
+  // footnote under a paragraph.
+  trend: { fontSize: font.small, color: colors.muted, lineHeight: 20 },
+  // A real 44 pt / 48 dp button (it was ~33) — `TARGET`. The accent fill
+  // stays — a brand call — with `onFill` text, AA in both themes.
   cta: {
     alignSelf: 'flex-start',
     marginTop: space.sm,
     backgroundColor: colors.accent,
     borderRadius: radius.pill,
     paddingHorizontal: space.lg,
-    minHeight: Platform.OS === 'android' ? 48 : 44,
+    minHeight: TARGET,
     justifyContent: 'center',
   },
   ctaText: { fontSize: font.small, fontWeight: '800', color: colors.onFill },

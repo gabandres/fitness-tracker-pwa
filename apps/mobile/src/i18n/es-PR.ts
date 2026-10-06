@@ -279,10 +279,8 @@ export const esPR: Record<I18nKey, string> = {
   // ── adaptive-TDEE recalibration ──
   'recalibration.cardTitle': 'Tu meta se recalibró',
   'recalibration.firstTitle': 'Ya tenemos tu gasto medido',
-  'recalibration.firstBody':
-    'Tus últimas semanas de datos ponen tu gasto real en unas {tdee} kcal/día. Tu meta diaria es {target} kcal.',
-  'recalibration.cardBody':
-    'Tus últimas semanas de datos ponen tu gasto real en unas {tdee} kcal/día. Ajustamos tu meta diaria a {target} kcal.',
+  // No numbers on purpose: the hero above the card already shows them (S21).
+  'recalibration.basis': 'Medido con tus últimas semanas de pesajes y comidas registradas.',
   'recalibration.cardCta': 'Entendido',
   'recalibration.trend.metabolism-slowed':
     'Tu gasto medido está más bajo de lo esperado — es común, no es una alarma. Tu meta lo sigue para que el progreso se mantenga.',
@@ -1988,6 +1986,8 @@ export const esPR: Record<I18nKey, string> = {
   'entry.swipeQuickAdd': 'Añadir rápido',
   'entry.saveQuickAddA11y': 'Guardar en Añadir rápido',
   'unit.grams': '{n} g',
+  // The bare gram symbol, beside a field or as a chart's unit (S21 sweep).
+  'unit.g': 'g',
   'entry.updated': 'Entrada actualizada',
   'entry.updatedNamed': 'Actualizado: {label}',
   'entry.moveTo': 'Mover a…',

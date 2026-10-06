@@ -25,6 +25,7 @@ import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { useUnitSystem } from '@/lib/use-unit-system';
 import type { WorkoutSession } from '@/lib/workout';
 import { useStartNextWorkoutIntent } from '@/hooks/useStartNextWorkoutIntent';
+import { useLargeTitle } from '@/lib/font-scale';
 
 /** Remount boundary for Retry — see Today for why a `key` bump is the
  *  mechanism (the feed hooks expose no reload; UX_AUDIT S18-7). */
@@ -37,6 +38,9 @@ function TrainScreen({ onRetry }: { onRetry: () => void }) {
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
+  // The same title cap as Today/Trends/Body (it had none: "Entrenar" at AX5
+  // pushed the icons off-screen), wrapping at accessibility sizes (S21).
+  const largeTitle = useLargeTitle();
   const train = useTrain();
   // Not until the device has said whether a workout is already open
   // (`activePending`): `loading` alone can clear first on a cold start, and a
@@ -79,8 +83,10 @@ function TrainScreen({ onRetry }: { onRetry: () => void }) {
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
-      <View style={styles.headerRow}>
-        <Text style={styles.title} accessibilityRole="header">{t('nav.train')}</Text>
+      <View style={[styles.headerRow, largeTitle.rowStyle]}>
+        <Text style={[styles.title, largeTitle.titleStyle]} accessibilityRole="header" {...largeTitle.titleProps}>
+          {t('nav.train')}
+        </Text>
         {/* The tab is full of lifting vocabulary (RIR, cluster, e1RM); this is
             the always-available way to look any of it up. */}
         <TouchableOpacity

@@ -20,6 +20,7 @@ import {
   basalMifflinStJeor,
   bodyWeightUnit,
   lbToKg,
+  measureUnit,
   toDisplayMeasure,
   isPlausibleAge,
   isPlausibleHeightIn,
@@ -35,7 +36,8 @@ import { type I18nKey, useLocale, useT } from '@/i18n';
 import { formatNumber } from '@/lib/date-format';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space } from '@/theme';
+import { font, radius, space, TARGET } from '@/theme';
+import { Touchable } from '@/components/Touchable';
 
 const ACTIVITY: { value: ActivityLevel; labelKey: I18nKey }[] = [
   { value: 'sedentary', labelKey: 'activity.sedentary' },
@@ -248,7 +250,7 @@ export default function RefineTargets() {
           <Text style={styles.subtitle}>{t('refine.subtitle')}</Text>
 
           <View style={styles.field}>
-            <Text style={styles.label}>{t('refine.sex')}</Text>
+            <Text style={styles.label} accessibilityRole="header">{t('refine.sex')}</Text>
             <View style={styles.segment}>
               {(['male', 'female'] as Sex[]).map((s) => {
                 const on = sex === s;
@@ -269,12 +271,12 @@ export default function RefineTargets() {
           </View>
 
           <View style={styles.field}>
-            <Text style={styles.label}>{t('refine.height')}</Text>
+            <Text style={styles.label} accessibilityRole="header">{t('refine.height')}</Text>
             {metric ? (
               <View style={styles.row}>
                 <View style={styles.unitInput}>
                   <TextInput style={styles.input} placeholder="175" placeholderTextColor={colors.faint} keyboardType="numeric" value={heightCm} onChangeText={setHeightCm} maxLength={5} accessibilityLabel={t('onboarding.heightCm')} testID="refine-height-cm" />
-                  <Text style={styles.unit}>cm</Text>
+                  <Text style={styles.unit}>{measureUnit('metric')}</Text>
                 </View>
               </View>
             ) : (
@@ -297,12 +299,12 @@ export default function RefineTargets() {
           </View>
 
           <View style={styles.field}>
-            <Text style={styles.label}>{t('refine.age')}</Text>
+            <Text style={styles.label} accessibilityRole="header">{t('refine.age')}</Text>
             <TextInput style={[styles.input, styles.ageInput]} placeholder="30" placeholderTextColor={colors.faint} keyboardType="numeric" value={age} onChangeText={setAge} accessibilityLabel={t('refine.age')} testID="refine-age" />
           </View>
 
           <View style={styles.field}>
-            <Text style={styles.label}>{t('refine.activity')}</Text>
+            <Text style={styles.label} accessibilityRole="header">{t('refine.activity')}</Text>
             <View style={styles.activityCol}>
               {ACTIVITY.map((a) => {
                 const on = selected === a.value;
@@ -334,7 +336,7 @@ export default function RefineTargets() {
             {guidance.kind === 'connect' ? (
               <View style={styles.healthPrompt} testID="refine-activity-connect">
                 <Text style={styles.hint}>{t('refine.activityConnect')}</Text>
-                <TouchableOpacity
+                <Touchable
                   style={styles.healthBtn}
                   onPress={async () => { haptics.tap(); await connect(); }}
                   disabled={connecting}
@@ -348,7 +350,7 @@ export default function RefineTargets() {
                   ) : (
                     <Text style={styles.healthBtnText}>{t('refine.activityConnectCta')}</Text>
                   )}
-                </TouchableOpacity>
+                </Touchable>
               </View>
             ) : null}
 
@@ -369,7 +371,7 @@ export default function RefineTargets() {
           </View>
 
           <View style={styles.field}>
-            <Text style={styles.label}>{t('refine.pace')}</Text>
+            <Text style={styles.label} accessibilityRole="header">{t('refine.pace')}</Text>
             <View style={styles.paceRow}>
               <TouchableOpacity style={styles.step} onPress={() => setPace((p) => Math.max(0, Math.round((p - 0.25) * 100) / 100))} accessibilityRole="button" accessibilityLabel={t('settings.stepLower', { what: t('refine.pace') })} testID="refine-pace-minus">
                 <Text style={styles.stepText}>−</Text>
@@ -404,7 +406,7 @@ export default function RefineTargets() {
         </ScrollView>
 
         <View style={styles.footer}>
-          <TouchableOpacity
+          <Touchable
             style={[styles.save, !canSave && styles.saveDisabled]}
             onPress={onSave}
             disabled={!canSave}
@@ -415,7 +417,7 @@ export default function RefineTargets() {
             testID="refine-save"
           >
             {busy ? <ActivityIndicator color={colors.onInk} /> : <Text style={styles.saveText}>{t('refine.save')}</Text>}
-          </TouchableOpacity>
+          </Touchable>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -473,7 +475,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   activityText: { fontSize: font.body, color: colors.ink, fontWeight: '600' },
   activityTextOn: { color: colors.onInk },
   paceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  step: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: colors.lineStrong, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.inputBg },
+  step: { width: TARGET, height: TARGET, borderRadius: TARGET / 2, borderWidth: 1, borderColor: colors.lineStrong, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.inputBg },
   stepText: { fontSize: font.h2, color: colors.ink, fontWeight: '700' },
   paceValue: { fontSize: font.h3, color: colors.ink, fontWeight: '700' },
   paceNote: { fontSize: font.small, color: colors.ink, marginTop: space.sm },

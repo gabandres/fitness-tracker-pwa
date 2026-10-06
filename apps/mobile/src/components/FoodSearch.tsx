@@ -38,7 +38,7 @@ import { type I18nKey, type Locale, useLocale, useT } from '@/i18n';
 import { formatNumber } from '@/lib/date-format';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space } from '@/theme';
+import { font, radius, space, TARGET } from '@/theme';
 
 /** What the user picked — prefills the manual entry form. */
 export interface FoodEstimate {
@@ -865,7 +865,7 @@ function macroWords(q: QuickAddQuery, locale: Locale, t: ReturnType<typeof useT>
  *  Android) — the height is the field's own, ≥48. With both doors and the mic
  *  a 360dp phone keeps ~140dp of text; the padding guarantees typed text and
  *  the placeholder never run under a door (a long placeholder truncates). */
-const IN_FIELD_BTN = Platform.OS === 'android' ? 48 : 44;
+const IN_FIELD_BTN = TARGET;
 
 /** Round a quantity multiplier to two places — enough for "⅓" typed as 0.33. */
 const roundQty = (n: number) => Math.round(n * 100) / 100;
@@ -1186,7 +1186,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   muted: { fontSize: font.small, color: colors.muted },
   error: { fontSize: font.small, color: colors.danger, textAlign: 'center' },
   retry: { fontSize: font.small, color: colors.accent, fontWeight: '700' },
-  retryBtn: { minHeight: 44, minWidth: 64, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.md },
+  retryBtn: { minHeight: TARGET, minWidth: 64, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.md },
   // The in-field doors, pinned to the field's right edge and centred on it.
   inFieldRow: { position: 'absolute', right: 0, top: 0, bottom: 0, flexDirection: 'row', alignItems: 'center' },
   // A full-height target per door (the field is ≥48 tall); see IN_FIELD_BTN.
@@ -1262,14 +1262,14 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   // 44, not 36: the quantity stepper is the most-tapped control in the picker
   // and 36 is under both platforms' minimum target (S18-15).
   step: {
-    width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: colors.lineStrong,
+    width: TARGET, height: TARGET, borderRadius: TARGET / 2, borderWidth: 1, borderColor: colors.lineStrong,
     alignItems: 'center', justifyContent: 'center', backgroundColor: colors.inputBg,
   },
   stepText: { fontSize: font.h3, color: colors.ink, fontWeight: '700' },
   multValue: { fontSize: font.body, color: colors.ink, fontWeight: '700', minWidth: 44, textAlign: 'center' },
   multTap: { minHeight: 48, minWidth: 56, alignItems: 'center', justifyContent: 'center', borderBottomWidth: 1, borderBottomColor: colors.lineStrong },
   multInput: {
-    minHeight: 44, minWidth: 64, borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.md,
+    minHeight: TARGET, minWidth: 64, borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.md,
     backgroundColor: colors.inputBg, paddingVertical: 0,
   },
   // The row's rule is on the wrapper, so the ⊕ beside the tap target sits

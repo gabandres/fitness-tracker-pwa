@@ -69,12 +69,14 @@ import * as haptics from '@/lib/haptics';
 import { announce } from '@/lib/a11y';
 import { CountUpText, enterUp, PressScale } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, headerTitle, radius, space, type } from '@/theme';
+import { font, radius, space, TARGET, type } from '@/theme';
 import { formatDate, formatNumber } from '@/lib/date-format';
 import { CompositionLine, RecompCard } from '@/components/CompositionCards';
 import { useUnitSystem } from '@/lib/use-unit-system';
 import { useCountViewPerFocus } from '@/hooks/useCountViewPerFocus';
 import { TAB_SCROLL_BAND } from '@/lib/glass';
+import { useLargeTitle } from '@/lib/font-scale';
+import { Touchable } from '@/components/Touchable';
 
 function dayLabel(dateKey: string | undefined, locale: Locale): string {
   // A missing day reads as a dash, never as "Invalid Date".
@@ -131,6 +133,8 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
+  // Header wraps at accessibility sizes (`lib/font-scale.ts`, S21).
+  const largeTitle = useLargeTitle();
   const router = useRouter();
   const reduceMotion = useReducedMotion();
   const { isPro } = useSubscription();
@@ -344,8 +348,8 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
-      <View style={styles.headerRow}>
-        <Text style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={headerTitle.maxFontScale}>{t('nav.trends')}</Text>
+      <View style={[styles.headerRow, largeTitle.rowStyle]}>
+        <Text style={[styles.title, largeTitle.titleStyle]} accessibilityRole="header" {...largeTitle.titleProps}>{t('nav.trends')}</Text>
         {/* UX_AUDIT F6. Same icon, same place, same sheet as the Train tab's
             "?" — this screen leads with a MEASURED badge, a maintenance
             estimate and a completeness percentage, and defined none of them. */}
@@ -377,7 +381,7 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
           {error ? (
             <View style={styles.errorRow} accessibilityRole="alert" accessibilityLiveRegion="polite">
               <Text style={styles.error}>{t('trends.loadErr')}</Text>
-              <TouchableOpacity
+              <Touchable
                 onPress={onRetry}
                 style={styles.retryBtn}
                 accessibilityRole="button"
@@ -385,7 +389,7 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
                 testID="retry"
               >
                 <Text style={styles.retryText}>{t('common.retry')}</Text>
-              </TouchableOpacity>
+              </Touchable>
             </View>
           ) : null}
 
@@ -789,7 +793,7 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
                 </View>
                 <View style={styles.proPill}>
                   <Glyph ios="lock.fill" android="lock-closed" size={11} color={colors.onInk} />
-                  <Text style={styles.proPillText}>PRO</Text>
+                  <Text style={styles.proPillText}>{t('pro.badge')}</Text>
                 </View>
               </PressScale>
             )}
@@ -1026,7 +1030,7 @@ function ThisWeek({
           <Glyph ios="lock.fill" android="lock-closed" size={13} color={colors.muted} />
           <Text style={styles.proRowText}>{t('trends.deeperPro')}</Text>
           <View style={styles.proPill}>
-            <Text style={styles.proPillText}>PRO</Text>
+            <Text style={styles.proPillText}>{t('pro.badge')}</Text>
           </View>
         </PressScale>
       )}
@@ -1153,7 +1157,7 @@ function Budget({
     title: t('trends.budgetTitle'),
     summary: typeof stepper.a11y.accessibilityLabel === 'string' ? stepper.a11y.accessibilityLabel : '',
     xTitle: t('entry.date'),
-    unit: 'kcal',
+    unit: t('trends.kcalUnit'),
     dateKeys: budgetKeys,
     values: budgetValues,
     pointLabels: budgetLabels,
@@ -1350,7 +1354,7 @@ const createStyles = ({ colors, shadow }: Theme) =>
     body: { padding: space.xl, paddingBottom: TAB_SCROLL_BAND, gap: space.sm },
     error: { color: colors.danger, fontSize: font.small, flex: 1 },
     errorRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
-    retryBtn: { borderWidth: 1, borderColor: colors.ink, borderRadius: radius.pill, paddingHorizontal: space.md, minHeight: 44, justifyContent: 'center' },
+    retryBtn: { borderWidth: 1, borderColor: colors.ink, borderRadius: radius.pill, paddingHorizontal: space.md, minHeight: TARGET, justifyContent: 'center' },
     retryText: { fontSize: font.small, fontWeight: '700', color: colors.ink },
     // Hero
     heroPanel: { backgroundColor: colors.heroPanel, borderRadius: radius.xl, paddingVertical: space.xl, paddingHorizontal: space.lg, alignItems: 'center', gap: space.xs, ...shadow.e2 },
@@ -1392,13 +1396,13 @@ const createStyles = ({ colors, shadow }: Theme) =>
     weekHint: { fontSize: font.small, color: colors.muted },
     divider: { height: 1, backgroundColor: colors.line, marginVertical: space.xs },
     kv: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.sm },
-    kvLink: { minHeight: 44 },
+    kvLink: { minHeight: TARGET },
     kvLinkValue: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
     kvLabel: { fontSize: font.body, color: colors.muted, flexShrink: 1 },
     kvValue: { fontSize: font.body, color: colors.ink, fontWeight: '700', flexShrink: 1, textAlign: 'right' },
     sub: { fontSize: font.small, color: colors.faint },
     // Pro row / cards
-    proRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 44 },
+    proRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: TARGET },
     proRowText: { flex: 1, fontSize: font.small, color: colors.muted, fontWeight: '600' },
     activityProgress: { fontSize: font.small, color: colors.muted, marginTop: space.sm, paddingHorizontal: space.xs },
     // Activity-level correction card (sits directly under the hero it changes)
@@ -1408,18 +1412,19 @@ const createStyles = ({ colors, shadow }: Theme) =>
     correctionEvidence: { fontSize: font.small, color: colors.muted, marginTop: space.xs },
     correctionActions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.sm, marginTop: space.md },
     // Both 44pt — they were ~33.
-    correctionPrimary: { backgroundColor: colors.ink, borderRadius: radius.md, minHeight: 44, justifyContent: 'center', paddingHorizontal: space.lg },
+    correctionPrimary: { backgroundColor: colors.ink, borderRadius: radius.md, minHeight: TARGET, justifyContent: 'center', paddingHorizontal: space.lg },
     correctionPrimaryText: { color: colors.onInk, fontSize: font.small, fontWeight: '700' },
-    correctionDismiss: { minHeight: 44, justifyContent: 'center', paddingHorizontal: space.md },
+    correctionDismiss: { minHeight: TARGET, justifyContent: 'center', paddingHorizontal: space.md },
     correctionDismissText: { color: colors.muted, fontSize: font.small, fontWeight: '600' },
     proCard: { flexDirection: 'row', alignItems: 'center', gap: space.md, marginTop: space.lg, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, padding: space.lg },
     proIcon: { width: 38, height: 38, borderRadius: radius.md, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
     proCardTitle: { fontSize: font.body, fontWeight: '700', color: colors.ink },
     proCardSub: { fontSize: font.small, color: colors.muted, marginTop: 1 },
     proPill: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: colors.accent, borderRadius: radius.pill, paddingHorizontal: space.sm, paddingVertical: 3 },
-    proPillText: { color: colors.onInk, fontSize: font.tiny, fontWeight: '800', letterSpacing: 0.5 },
+    // Uppercase by style, not by a literal "PRO" in the JSX: the word is `pro.badge`.
+    proPillText: { color: colors.onInk, fontSize: font.tiny, fontWeight: '800', letterSpacing: 0.5, textTransform: 'uppercase' },
     // Coach button
-    coachBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.sm, marginTop: space.lg, backgroundColor: colors.ink, borderRadius: radius.md, paddingVertical: space.md, minHeight: 44 },
+    coachBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.sm, marginTop: space.lg, backgroundColor: colors.ink, borderRadius: radius.md, paddingVertical: space.md, minHeight: TARGET },
     coachBtnText: { color: colors.onInk, fontSize: font.body, fontWeight: '700' },
     // Budget bars. The strip grows with its day letters (no fixed outer
     // height) so a larger text size cannot clip them; the TRACK stays fixed,
@@ -1441,9 +1446,9 @@ const createStyles = ({ colors, shadow }: Theme) =>
     barDayOver: { textDecorationLine: 'underline', fontWeight: '800', color: colors.ink },
     barDay: { fontSize: font.tiny, color: colors.faint, textTransform: 'uppercase' },
     menu: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: space.xs },
-    menuBtn: { minHeight: 44, justifyContent: 'center', paddingHorizontal: space.md, borderRadius: radius.pill, backgroundColor: colors.ink },
+    menuBtn: { minHeight: TARGET, justifyContent: 'center', paddingHorizontal: space.md, borderRadius: radius.pill, backgroundColor: colors.ink },
     menuText: { color: colors.onInk, fontSize: font.small, fontWeight: '700' },
-    menuClose: { minHeight: 44, minWidth: 44, alignItems: 'center', justifyContent: 'center' },
+    menuClose: { minHeight: TARGET, minWidth: TARGET, alignItems: 'center', justifyContent: 'center' },
     menuPreview: { flex: 1, justifyContent: 'center', padding: space.md, backgroundColor: colors.card },
     menuPreviewText: { fontSize: font.small, color: colors.ink, fontWeight: '600' },
     clipNote: { fontSize: font.small, color: colors.muted, marginTop: space.xs, paddingHorizontal: space.xs },

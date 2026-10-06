@@ -28,7 +28,7 @@ const FILES = [
   'components/SignInMethodsCard.tsx',
   'components/UpdateBanner.tsx',
 ];
-const TOUCHABLES = ['TouchableOpacity', 'Pressable', 'PressScale'];
+const TOUCHABLES = ['TouchableOpacity', 'Pressable', 'PressScale', 'Touchable'];
 
 describe('S21-2 — every control announces what it is', () => {
   it.each(FILES)('%s: no touchable without an accessibilityRole', (file) => {
@@ -145,7 +145,7 @@ describe('S21-5 — Connected apps names the health store', () => {
 describe('S21-6 — the targets screens', () => {
   it.each(['app/daily-targets.tsx', 'app/refine-targets.tsx'])('%s: Save is a button with a disabled state', (file) => {
     const src = read(file);
-    const save = openingTags(src, ['TouchableOpacity']).find((tag) => /testID="(targets|refine)-save"/.test(tag.attrs));
+    const save = openingTags(src, ['TouchableOpacity', 'Touchable']).find((tag) => /testID="(targets|refine)-save"/.test(tag.attrs));
     expect(save?.attrs).toMatch(/accessibilityRole="button"/);
     expect(save?.attrs).toMatch(/accessibilityState=\{\{ disabled:/);
   });

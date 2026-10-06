@@ -54,9 +54,10 @@ import { useWidgetSync } from '@/hooks/useWidgetSync';
 import { enterUp, PressScale, usePulse } from '@/lib/motion';
 import { recordPositiveMoment } from '@/lib/reviewPrompt';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, headerTitle, radius, space, type } from '@/theme';
+import { font, headerTitle, radius, space, TARGET, type } from '@/theme';
 import { formatDate } from '@/lib/date-format';
 import { TAB_SCROLL_BAND } from '@/lib/glass';
+import { useLargeTitle } from '@/lib/font-scale';
 
 /** Streak length below which a streak extension is too early to read as
  *  "this app is working for me" — see reviewPrompt.ts for the full policy. */
@@ -74,9 +75,6 @@ const STREAK_SLOP = Platform.select({
   android: { top: 11, bottom: 11 },
   default: { top: 9, bottom: 9 },
 });
-
-/** The platform's touch floor: 44pt on iOS, Material's 48dp on Android. */
-const TARGET = Platform.OS === 'android' ? 48 : 44;
 
 /** The previous-day chevron beside the date (`prevDayBtn`): a 16dp glyph
  *  centred in a 24dp-wide box stretched to the ~20dp date line. Slop makes
@@ -97,7 +95,6 @@ const PREV_DAY_SLOP = {
 /** Scroll distance over which the header's hairline fades in — the iOS
  *  scroll-edge cue that content is passing under a fixed bar. */
 const HEADER_EDGE_FADE = 12;
-
 
 /** The date line under the title grows with text size only this far — past
  *  it, it ellipsizes rather than pushing the header's controls off the row. */
@@ -198,6 +195,9 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors, scheme } = useTheme();
+  // At accessibility sizes the header wraps: the title takes the first line
+  // at up to 2.1x, the icons the next (`lib/font-scale.ts`, S21).
+  const largeTitle = useLargeTitle();
   const { user } = useAuth();
   const {
     loading,
@@ -686,11 +686,11 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
         toast.act();
       }}
     >
-      <View style={styles.header}>
+      <View style={[styles.header, largeTitle.rowStyle]}>
         {/* Shrinkable, and the ONLY shrinkable thing in this row — see
             `headerTitleBlock`. The date is what makes the block wide (448px of
             a 1,080px screen on a OnePlus 8T), so it is what has to give. */}
-        <View style={styles.headerTitleBlock}>
+        <View style={[styles.headerTitleBlock, largeTitle.titleStyle]}>
           {/* The title deliberately carries NO `numberOfLines`. With it, Yoga
               sized this block to the date and ellipsized the title inside it —
               "Tod…" on the LG at 360dp, while the same 81dp block fit "Today"
@@ -701,10 +701,12 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
               floor is fixed dp and the text scales, so without it the title
               outgrows the floor and hard-clips. Both numbers live in
               `theme.headerTitle` and are pinned together by
-              `header-title-fit.test.ts`. */}
+              `header-title-fit.test.ts`. At accessibility sizes the block
+              takes the whole row instead and the cap rises to 2.1x
+              (`useLargeTitle`), so the floor no longer binds. */}
           <Text
             style={styles.title}
-            maxFontSizeMultiplier={headerTitle.maxFontScale}
+            {...largeTitle.titleProps}
             accessibilityRole="header"
           >
             {t('nav.today')}
@@ -743,7 +745,7 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
             </Text>
           </View>
         </View>
-        <View style={styles.headerRight}>
+        <View style={[styles.headerRight, largeTitle.trailingStyle]}>
           {streak > 0 ? (
             <Animated.View style={streakPulse}>
               {/* A button now (review U4): the streak is a milestone in the
@@ -1102,7 +1104,7 @@ function createStyles({ colors }: Theme) {
     error: { color: colors.danger, fontSize: font.small, flex: 1 },
     errorRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
     // 44pt tall (iOS); `ICON_SLOP` takes the hit area to 48dp (Android).
-    retryBtn: { borderWidth: 1, borderColor: colors.ink, borderRadius: radius.pill, paddingHorizontal: space.md, minHeight: 44, justifyContent: 'center' },
+    retryBtn: { borderWidth: 1, borderColor: colors.ink, borderRadius: radius.pill, paddingHorizontal: space.md, minHeight: TARGET, justifyContent: 'center' },
     retryText: { fontSize: font.small, fontWeight: '700', color: colors.ink },
     sectionTitle: { fontFamily: type.heading, fontSize: font.h3, color: colors.ink },
     // The header row overflowed and the overflow fell off the right edge,

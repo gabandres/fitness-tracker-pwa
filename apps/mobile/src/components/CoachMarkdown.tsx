@@ -39,7 +39,7 @@ export function CoachMarkdown({ text }: { text: string }): React.ReactElement {
         const heading = /^(#{1,3})\s+(.*)$/.exec(line);
         if (heading) {
           return (
-            <Text key={i} style={styles.heading}>
+            <Text key={i} style={styles.heading} accessibilityRole="header">
               {inline(heading[2], styles)}
             </Text>
           );
