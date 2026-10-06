@@ -4,6 +4,33 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-10-06 — S21 UX pass: whole-app accessibility, Settings on the native stack, text-size relayout (OTA on 1.2.5)
+
+- **Why**: a six-reviewer audit (UX_AUDIT §S21), including the first pass on
+  rendered screens, put the app at ~81/100 — lower than the per-tab S20
+  re-scores, with first run and Settings at 77 / 73 and a P0: onboarding's last
+  two panels were blank in dark mode.
+- **What**: dark-mode onboarding fixed; units default from the device region
+  with lb/kg and ft-in/cm toggles; Apple/Google above the email form; the
+  second welcome screen folded into the goal step. Settings, Daily targets,
+  Refine targets and Feedback moved off hidden tabs onto the root native stack
+  (swipe-back, back returns to the opener, no stray tab bar); Settings
+  regrouped. Whole app: every control has a role, every field a label, titles
+  are headers — `a11y-roles.test.ts` now scans every screen and component;
+  `TARGET` (44 pt / 48 dp) in `theme.ts`; Android ripple on primary controls.
+  Changing text size while the app runs no longer leaves half-cut glyphs
+  (`lib/font-scale.ts` re-keys screen content, not the navigators); headers
+  wrap at accessibility sizes. Train: labelled inputs, localized Done keys,
+  non-overlapping 44/48 chips, cardio Undo, "Start rest now". Today: History
+  error state, per-metric icons, long-fast nudge, More ways collapses while
+  searching, direct add per serving. Trends/Body: "why it changed" breakdown,
+  one segmented control, nice axis ticks, Body glossary / pull-to-refresh /
+  scrub that ignores vertical scrolls. Glass tab bar: the focused tab sits on
+  a capsule so it stays visible over the dark hero.
+- **Delivery**: OTA iOS `a1f83a15…` (build 68) and Android `429e9754…`
+  (vc 47, runtime pinned) at `8a4e6be1` — they reach users with 1.2.5.
+  Simulator-checked on iOS 26; **not run on Android**.
+
 ## 2026-10-05 — 1.2.5 (S20): native sheets and menus, Lock Screen rest timer, charts over time — submitted to both stores
 
 - **Why**: S19 left Today and add-meal at 9+ but Train, Trends and Body at

@@ -895,24 +895,62 @@ over Settings' Delete account — were fixed the same hour (`ae9d647b`), then
 the workout keyboard (`89a335ed`) and dark-mode text on fills (`445d1565`). Hand it
 the recorded-decision list (raised +, brand fonts, predictive back off, no
 iPad, no Material You) or ~9 of them come back as defects. **Open from it**
-(file:line as of `ae9d647b`):
+— **all closed by §S21 (2026-10-06) except two:** Android ⋯ menus drop item
+subtitles (`NativeMenuButtonModule.kt`, needs a binary) and Android 16 large
+screens ignore the portrait lock with no width cap on Today.
 
-- ~12 Train sheet inputs have no `accessibilityLabel` (placeholder "12" read as
-  a value): `FinishSheet.tsx:288,312`, `LiftSettingsSheet.tsx:130`,
-  `TemplateEditorModal.tsx:812,823,1388-1414`, `ExerciseDetailSheet.tsx:215`.
-- Android: 44 dp targets (48 is the floor) across Train and Today's header;
-  ⋯ menus drop item subtitles (`NativeMenuButtonModule.kt:94-104`, native);
-  no ripple on custom buttons.
-- Number pads without a Done key, or an English one in es-PR / pt-BR — template
-  editor, lift settings, cardio card (`useDoneKeyProps()`).
-- No Undo on removing a cardio block (`ActiveSession.tsx:873`); session detail
-  squeezes names into a 56 pt column (`SessionDetailSheet.tsx:115`); PREVIOUS
-  can shrink to 10.2 pt (`SetRow.tsx:47`); the + has no pressed state
-  (`LogSpeedDial.tsx:216,319`); the previous-day chevron is a 36 pt target
-  (`index.tsx:81`).
-- Settings is a hidden tab, so no iOS edge-swipe back (`HeaderAvatar.tsx:34`);
-  Android 16 large screens ignore the portrait lock at targetSdk 36 and Today
-  has no width cap.
+## 📏 S21 — whole-app audit, six reviewers incl. the first on-device pass (2026-10-06)
+
+Same rubric as §S18. Six independent reviewers on HEAD `932b4d71`: four per
+screen group (code), one cross-cutting measured audit (contrast computed,
+role/label/target counts, locale parity), and one on the `Ignia-QA-26`
+simulator (light, dark, AX5) — the first review to look at rendered screens.
+
+| Group (usage weight) | Score at `932b4d71` |
+|---|---|
+| Today + add-meal (40%) | 87.5 |
+| Train (15%) | 83.4 |
+| Body (12.5%) | 84.9 |
+| Trends (12.5%) | 83.1 |
+| First run (10%) | 76.6 |
+| Settings · Coach · Milestones · Connected apps · shell (10%) | 72.8 |
+| **Weighted, code** | **83.5** |
+
+Cross-cutting: Accessibility 7.6, Platform 7.4, visual-system consistency 8.6.
+The simulator pass scored Visual 6.8 / Delight 5.4 (code reviewers ~8.5);
+blending half of that gap put the app at **~81**. Lesson: per-tab code
+re-scores ran ~3–6 points hot against rendered screens, and the a11y-roles
+test passed only because it scanned a curated 38-file list.
+
+**Shipped the same day as OTA-only** (`622089d0`, `b240cf87`, `8a4e6be1`; iOS
+`a1f83a15…`, Android `429e9754…`, both on the 1.2.5 runtimes): the P0 blank
+dark-mode onboarding panels; units from the device region; Settings / Daily
+targets / Refine targets / Feedback on the root native stack; whole-app
+roles/labels/headers with `a11y-roles.test.ts` widened to every screen and
+component; `TARGET` (44/48) in `theme.ts`; Android ripple via
+`components/Touchable`; text-size relayout (`lib/font-scale.ts`) and AX5 header
+hierarchy; one `SegmentedControl`; "why it changed" on Trends; the full
+per-tab fix lists. `CHANGELOG.md` 2026-10-06.
+
+**Not re-scored.** Reviewers' JS-only ceilings put the app at ~90 with these
+fixes, ~92–93 with native work + a device a11y pass. Re-score before quoting a
+number.
+
+**Open**
+- [ ] Device QA on **Android** (nothing in S21 ran there): ripples on rounded
+  controls, 48 dp layouts at 360 dp, hardware back on the four moved screens,
+  dark native sheet surface, scan hand-off after the sheet closes.
+- [ ] Real VoiceOver / TalkBack pass (placeholder hints in Train, focus moves).
+- [ ] Owner's call: light `accent` (`#c62f27`) and `danger` (`#c42020`) are
+  nearly the same red, so benign CTAs ("Got it", "+ Add") read as destructive
+  (simulator review). A brand-colour decision, not changed.
+- [ ] Owner's call: the Train accordion (§S17-8) — reviewers' largest
+  remaining Train item.
+- [ ] Native (binary): Android ⋯ menu subtitles, Android ongoing rest
+  notification, native segmented controls; gram basis on logged rows needs a
+  rules change.
+- [ ] Native sheets: a thin translucent strip remains under the opaque content
+  at the bottom edge of fit-detent sheets (cosmetic).
 
 ## 5. Notes for future additions
 
