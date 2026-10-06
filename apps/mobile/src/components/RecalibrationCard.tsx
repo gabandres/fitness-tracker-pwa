@@ -1,4 +1,4 @@
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import type { RecalibrationTrend } from '@macrolog/core';
 import { type I18nKey, useLocale, useT } from '@/i18n';
 import { formatNumber } from '@/lib/date-format';
@@ -32,7 +32,7 @@ export function RecalibrationCard({ suppressed = false }: { suppressed?: boolean
   const t = useT();
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
-  const { digest, acknowledge } = useRecalibration();
+  const { digest, acknowledge, previous } = useRecalibration();
 
   if (!digest.shouldSurface || suppressed) return null;
 
@@ -56,9 +56,25 @@ export function RecalibrationCard({ suppressed = false }: { suppressed?: boolean
   // keeps the event wording, because there the event happened.
   const firstDisclosure = digest.deltaSinceAck == null;
 
+  // Old → new (review 2026-10-06: the card stated a new target and nothing it
+  // moved from). A drift names the maintenance last acknowledged and, when the
+  // ack carried it, the target then; a first showing names the profile
+  // estimate the measured number replaces. Every figure is one the digest or
+  // the stored ack already holds — nothing is recomputed.
+  const kcal = (n: number) => formatNumber(Math.round(n), locale);
+  const fromTo: string[] = [];
+  if (!firstDisclosure && previous) {
+    fromTo.push(t('recalibration.maintFromTo', { from: kcal(previous.tdee), to: kcal(digest.trueTdee) }));
+    if (previous.target != null && Math.round(previous.target) !== Math.round(digest.calorieTarget)) {
+      fromTo.push(t('recalibration.targetFromTo', { from: kcal(previous.target), to: kcal(digest.calorieTarget) }));
+    }
+  } else if (firstDisclosure && digest.deltaVsFormula != null && Math.abs(digest.deltaVsFormula) >= 1) {
+    fromTo.push(t('recalibration.estimateFromTo', { from: kcal(digest.trueTdee - digest.deltaVsFormula), to: kcal(digest.trueTdee) }));
+  }
+
   return (
     <View style={styles.card} testID="recalibration-card">
-      <Text style={styles.title}>
+      <Text style={styles.title} accessibilityRole="header">
         {t(firstDisclosure ? 'recalibration.firstTitle' : 'recalibration.cardTitle')}
       </Text>
       <Text style={styles.body}>
@@ -67,6 +83,11 @@ export function RecalibrationCard({ suppressed = false }: { suppressed?: boolean
           target: formatNumber(digest.calorieTarget, locale),
         })}
       </Text>
+      {fromTo.map((line) => (
+        <Text key={line} style={styles.fromTo} testID="recalibration-from-to">
+          {line}
+        </Text>
+      ))}
       <Text style={styles.trend}>{t(TREND_KEY[digest.trend])}</Text>
       <TouchableOpacity
         style={styles.cta}
@@ -75,6 +96,7 @@ export function RecalibrationCard({ suppressed = false }: { suppressed?: boolean
           acknowledge();
         }}
         accessibilityRole="button"
+        accessibilityLabel={t('recalibration.cardCta')}
         testID="recalibration-ack"
       >
         <Text style={styles.ctaText}>{t('recalibration.cardCta')}</Text>
@@ -94,15 +116,20 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
     gap: space.xs,
   },
   title: { fontSize: font.body, color: colors.ink, fontWeight: '800' },
-  body: { fontSize: font.small, color: colors.muted, lineHeight: 18 },
-  trend: { fontSize: font.small, color: colors.faint, lineHeight: 18 },
+  body: { fontSize: font.small, color: colors.muted, lineHeight: 20 },
+  // The figures, in ink and tabular so "2,450 → 2,380" lines up.
+  fromTo: { fontSize: font.small, color: colors.ink, fontWeight: '600', lineHeight: 20, fontVariant: ['tabular-nums'] },
+  trend: { fontSize: font.small, color: colors.faint, lineHeight: 20 },
+  // A real 44 pt / 48 dp button (it was ~33). The accent fill stays — a brand
+  // call — with `onFill` text, AA in both themes.
   cta: {
     alignSelf: 'flex-start',
     marginTop: space.sm,
     backgroundColor: colors.accent,
     borderRadius: radius.pill,
     paddingHorizontal: space.lg,
-    paddingVertical: space.sm,
+    minHeight: Platform.OS === 'android' ? 48 : 44,
+    justifyContent: 'center',
   },
   ctaText: { fontSize: font.small, fontWeight: '800', color: colors.onFill },
 });

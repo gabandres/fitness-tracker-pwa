@@ -1,5 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
+import { Touchable } from './Touchable';
 import { type I18nKey, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { BottomSheet } from '@/components/BottomSheet';
@@ -69,7 +70,7 @@ export function ExerciseMenuSheet({
       <ScrollView showsVerticalScrollIndicator={false}>
       <Text style={styles.sheetTitle} accessibilityRole="header">{name}</Text>
       {actions.map((a) => (
-        <TouchableOpacity
+        <Touchable
           key={a.key}
           style={styles.menuRow}
           onPress={() => {
@@ -96,7 +97,7 @@ export function ExerciseMenuSheet({
               <Text style={styles.menuDesc}>{a.desc ?? t(a.descKey as I18nKey)}</Text>
             ) : null}
           </View>
-        </TouchableOpacity>
+        </Touchable>
       ))}
       <View style={styles.setSheetTail} />
       </ScrollView>

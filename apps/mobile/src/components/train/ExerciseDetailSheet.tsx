@@ -70,7 +70,7 @@ export function ExerciseDetailSheet({
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const unitSystem = useUnitSystem();
-  const { colors } = useTheme();
+  const { colors, scheme } = useTheme();
   const [mode, setMode] = useState<'view' | 'edit' | 'merge'>('view');
   const [confirmDel, setConfirmDel] = useState(false);
   const [editName, setEditName] = useState('');
@@ -217,6 +217,7 @@ export function ExerciseDetailSheet({
               value={editName}
               onChangeText={setEditName}
               placeholderTextColor={colors.faint}
+              accessibilityLabel={t('train.exerciseName')}
               testID="edit-exercise-name"
             />
             <View style={styles.styleRow} accessibilityRole="radiogroup">
@@ -244,7 +245,6 @@ export function ExerciseDetailSheet({
                   <TouchableOpacity
                     key={m}
                     style={[styles.kindChip, on && styles.kindChipOn]}
-                    hitSlop={{ top: 11, bottom: 11, left: 4, right: 4 }}
                     onPress={() => {
                       haptics.tap();
                       setEditMuscles((cur) =>
@@ -328,7 +328,11 @@ export function ExerciseDetailSheet({
                       accessibilityLabel={chart.summary}
                       testID="exercise-chart"
                     >
-                      <Sparkline values={series} color={colors.ring} />
+                      {/* `ring` is a fill colour: as a 2pt stroke on the light
+                          sheet it measured 2.54:1, under WCAG 1.4.11's 3:1 for a
+                          graphic that carries meaning. `accent` is the same coral
+                          family at 4.9:1 there; dark keeps `ring` (6.0:1). */}
+                      <Sparkline values={series} color={scheme === 'light' ? colors.accent : colors.ring} />
                     </AccessibleChart>
                   </View>
                 ) : null}

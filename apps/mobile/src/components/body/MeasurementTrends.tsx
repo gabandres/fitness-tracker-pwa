@@ -90,6 +90,18 @@ export function MeasurementTrends({
         const date = formatDate(parseYmd(first.dateKey), locale, { month: 'short', day: 'numeric' });
         const value = formatNumber(shownLast, locale);
         const label = t(field.labelKey);
+        // The low and high the sparkline spans — a flat line said nothing
+        // about whether it was flat at a 0.1 or a 2-inch scale (review
+        // 2026-10-06).
+        let lo = Infinity;
+        let hi = -Infinity;
+        for (const p of series) {
+          if (p.weightLb < lo) lo = p.weightLb;
+          if (p.weightLb > hi) hi = p.weightLb;
+        }
+        const one = { minimumFractionDigits: 1, maximumFractionDigits: 1 };
+        const low = formatNumber(toDisplayMeasure(lo, unitSystem), locale, one);
+        const high = formatNumber(toDisplayMeasure(hi, unitSystem), locale, one);
         return (
           <TouchableOpacity
             key={field.key}
@@ -98,7 +110,7 @@ export function MeasurementTrends({
             onPress={onOpen ? () => onOpen(field.key) : undefined}
             accessible
             accessibilityRole={onOpen ? 'button' : 'text'}
-            accessibilityLabel={t('body.measureTrendA11y', { field: label, value, unit, change: spoken, date })}
+            accessibilityLabel={`${t('body.measureTrendA11y', { field: label, value, unit, change: spoken, date })}, ${t('body.measureTrendRange', { low, high, unit })}`}
             accessibilityHint={onOpen ? t('body.measureTrendHint') : undefined}
             testID={`measure-trend-${field.key}`}
           >
@@ -109,12 +121,18 @@ export function MeasurementTrends({
               {value} <Text style={styles.unit}>{unit}</Text>
             </Text>
             <Spark series={series} />
+            <Text style={styles.since} numberOfLines={1} testID={`measure-trend-range-${field.key}`}>
+              {t('body.measureTrendRange', { low, high, unit })}
+            </Text>
             <Text style={styles.since} numberOfLines={2}>
               {t('body.measureTrendSince', { delta: `${short} ${unit}`, date })}
             </Text>
           </TouchableOpacity>
         );
       })}
+      {/* An odd count keeps every card half width: the lone last card used to
+          stretch across the row under a two-column pair (review 2026-10-06). */}
+      {sites.length % 2 === 1 && sites.length > 1 ? <View style={[styles.card, styles.spacer]} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden /> : null}
     </View>
   );
 }
@@ -149,8 +167,8 @@ function Spark({ series }: { series: DatedWeight[] }) {
 const createStyles = ({ colors, scheme }: Theme) =>
   StyleSheet.create({
     grid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
-    // Two to a row, like the sheet's fields; `flexGrow` lets an odd last card
-    // take the full width instead of leaving a hole.
+    // Two to a row, like the sheet's fields. An odd count is padded with an
+    // invisible spacer (above) so the last card keeps its column.
     card: {
       flexGrow: 1,
       flexBasis: '45%',
@@ -167,5 +185,7 @@ const createStyles = ({ colors, scheme }: Theme) =>
     label: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
     value: { fontFamily: type.heading, fontSize: font.h3, color: colors.ink },
     unit: { fontSize: font.small, color: colors.muted },
-    since: { fontSize: font.tiny, color: colors.muted },
+    // `small`: these are sentences, and the theme keeps 12 pt for eyebrows.
+    since: { fontSize: font.small, color: colors.muted },
+    spacer: { backgroundColor: 'transparent', borderColor: 'transparent' },
   });

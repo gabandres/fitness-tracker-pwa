@@ -111,16 +111,27 @@ export default function SheetRoute() {
   );
 }
 
-const createStyles = ({ colors }: Theme) =>
+const createStyles = ({ colors, scheme }: Theme) =>
   StyleSheet.create({
     root: { flex: 1 },
     chainStop: { height: 0 },
     surface: {
       // iOS paints the sheet itself (Liquid Glass on 26); everywhere else the
       // route is the surface, with Material's 28 dp top corners.
-      backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.paper,
+      //
+      // Dark mode on Android takes the ELEVATED surface, `card`, plus a
+      // hairline (S21): `paper` is the canvas the sheet rises over, and under
+      // the scrim it measured 1.05:1 against it — the sheet's edge was a
+      // guess. It is the fix the JS sheet always carried for the meal sheet
+      // (`EntrySheet`'s `sheetDark` contentStyle), which this native path
+      // dropped when Android moved to native sheets (`2cee36b7`); here it
+      // covers every native sheet, not just that one.
+      backgroundColor: Platform.OS === 'ios' ? 'transparent' : scheme === 'dark' ? colors.card : colors.paper,
       ...(Platform.OS === 'android'
         ? { borderTopLeftRadius: 28, borderTopRightRadius: 28, overflow: 'hidden' as const }
+        : null),
+      ...(Platform.OS === 'android' && scheme === 'dark'
+        ? { borderTopWidth: StyleSheet.hairlineWidth, borderColor: colors.lineStrong }
         : null),
     },
     handleZone: { alignItems: 'center', paddingTop: 16, paddingBottom: 6 },

@@ -289,8 +289,15 @@ export function FoodSearch({
     warmFoodIndex();
   }, []);
 
+  // The callback props ride in refs so their identity does not re-fire the
+  // effects below. Each ref is written in its OWN effect, declared before
+  // the effect that reads it (effects run in order) — a render-time ref write
+  // makes the React Compiler skip the whole component (S21; Today's
+  // `diaryRef`, review #1).
   const onSnapshotRef = useRef(onSnapshot);
-  onSnapshotRef.current = onSnapshot;
+  useEffect(() => {
+    onSnapshotRef.current = onSnapshot;
+  });
   useEffect(() => {
     onSnapshotRef.current?.({ query, hits });
   }, [query, hits]);
@@ -310,7 +317,9 @@ export function FoodSearch({
     };
   }, [backHandlerRef, inPicker]);
   const onBackStepRef = useRef(onBackStepChange);
-  onBackStepRef.current = onBackStepChange;
+  useEffect(() => {
+    onBackStepRef.current = onBackStepChange;
+  });
   useEffect(() => {
     onBackStepRef.current?.(inPicker);
   }, [inPicker]);
@@ -458,6 +467,7 @@ export function FoodSearch({
         onBack={() => setPhase('results')}
         context={{ source: 'text' }}
         onPick={onPick}
+        onQuickLog={onQuickLog}
       />
     );
   }
@@ -912,6 +922,7 @@ export function PortionPicker({
   onBack,
   context,
   onPick,
+  onQuickLog,
 }: {
   title: string;
   brand?: string;
@@ -922,6 +933,14 @@ export function PortionPicker({
   /** Where the food came from, carried into the save context (ADR-0013). */
   context: { source: FoodSource; barcode?: string };
   onPick: (estimate: FoodEstimate) => void;
+  /**
+   * The ⊕ on a serving row (S21): log THAT portion × the quantity now, with
+   * the same receipt — Edit and Undo — as the ⊕ on a result row. The row's
+   * own tap still opens the review form. The picker path was four taps
+   * (result → serving → form → Add) for the case a portion was the only
+   * question. Omit to hide the buttons.
+   */
+  onQuickLog?: (estimate: FoodEstimate) => void;
 }) {
   const t = useT();
   const locale = useLocale();
@@ -1063,26 +1082,41 @@ export function PortionPicker({
           const kcal = formatNumber(Math.round(s.kcal * liveQty), locale);
           const protein = t('entry.proteinAmount', { n: Math.round(s.protein * liveQty) });
           return (
-            <Pressable
-              key={`${s.label}-${i}`}
-              style={({ pressed }) => [styles.serving, pressed && styles.pressed]}
-              onPress={() => pickServing(s)}
-              accessibilityRole="button"
-              // "calories" as a word (A5); the visible line keeps "kcal".
-              accessibilityLabel={[s.label, t('entry.caloriesA11y', { n: kcal }), protein, t('food.review')].join(', ')}
-              testID={`portion-${i}`}
-            >
-              <View style={styles.servingMain}>
-                <Text style={styles.servingLabel} maxFontSizeMultiplier={2.2}>{s.label}</Text>
-                {/* Words, not "P 12g" (S18-17), same as the diary rows. */}
-                <Text style={styles.servingMacros} maxFontSizeMultiplier={2.2}>
-                  {kcal} {t('today.kcal')} · {protein}
-                </Text>
-              </View>
-              {/* "Review", not "Add": this tap opens the form, whose own button
-                  is the one that adds. Two "Add"s in a row read as a double log. */}
-              <Text style={styles.servingPick} maxFontSizeMultiplier={2.2}>{t('food.review')}</Text>
-            </Pressable>
+            <View key={`${s.label}-${i}`} style={styles.servingRow}>
+              <Pressable
+                style={({ pressed }) => [styles.serving, pressed && styles.pressed]}
+                onPress={() => pickServing(s)}
+                accessibilityRole="button"
+                // "calories" as a word (A5); the visible line keeps "kcal".
+                accessibilityLabel={[s.label, t('entry.caloriesA11y', { n: kcal }), protein, t('food.review')].join(', ')}
+                testID={`portion-${i}`}
+              >
+                <View style={styles.servingMain}>
+                  <Text style={styles.servingLabel} maxFontSizeMultiplier={2.2}>{s.label}</Text>
+                  {/* Words, not "P 12g" (S18-17), same as the diary rows. */}
+                  <Text style={styles.servingMacros} maxFontSizeMultiplier={2.2}>
+                    {kcal} {t('today.kcal')} · {protein}
+                  </Text>
+                </View>
+                {/* "Review", not "Add": this tap opens the form, whose own button
+                    is the one that adds. Two "Add"s in a row read as a double log. */}
+                <Text style={styles.servingPick} maxFontSizeMultiplier={2.2}>{t('food.review')}</Text>
+              </Pressable>
+              {onQuickLog ? (
+                <Pressable
+                  style={({ pressed }) => [styles.servingAdd, pressed && styles.pressed]}
+                  onPress={() => onQuickLog(estimateFor(s, liveQty, title, brand, context))}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('food.quickLogA11y', {
+                    name: title,
+                    serving: [liveQty !== 1 ? `${formatNumber(liveQty, locale)}× ${s.label}` : s.label, t('entry.caloriesA11y', { n: kcal })].join(', '),
+                  })}
+                  testID={`portion-add-${i}`}
+                >
+                  <Glyph sf="plus.circle" ion="add-circle-outline" size={26} color={colors.teal} />
+                </Pressable>
+              ) : null}
+            </View>
           );
         })}
       </ScrollView>
@@ -1238,10 +1272,15 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
     minHeight: 44, minWidth: 64, borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.md,
     backgroundColor: colors.inputBg, paddingVertical: 0,
   },
+  // The row's rule is on the wrapper, so the ⊕ beside the tap target sits
+  // inside the same row.
+  servingRow: { flexDirection: 'row', alignItems: 'stretch', borderBottomWidth: 1, borderBottomColor: colors.line },
   serving: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingVertical: space.md, borderBottomWidth: 1, borderBottomColor: colors.line,
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: space.md,
   },
+  // The result row's ⊕, same size and place (`hitAdd`).
+  servingAdd: { width: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center', marginRight: -space.sm },
   servingMain: { flex: 1, gap: 2 },
   servingLabel: { fontSize: font.body, color: colors.ink, fontWeight: '600' },
   servingMacros: { fontSize: font.small, color: colors.muted },

@@ -19,9 +19,25 @@ const ACK_KEY = 'ignia.tdee-recal-ack';
  * intentional per-hook duplication (ADR-0016) — through the shared
  * `useCoreSnapshot` wiring, same as useDailyTargets.
  */
-export function useRecalibration(): { digest: RecalibrationDigest; acknowledge: () => void } {
+/** What the card can say the numbers moved FROM: the maintenance last
+ *  acknowledged and, for acks written since 2026-10-06, the target that was on
+ *  screen then. Null before any acknowledgement. */
+export interface RecalibrationPrevious {
+  tdee: number;
+  target: number | null;
+}
+
+/** The persisted ack. `target` rides alongside the core's `{ value, at }` so
+ *  the card can show old → new; an older ack without it still parses. */
+type StoredAck = RecalibrationAck & { target?: number };
+
+export function useRecalibration(): {
+  digest: RecalibrationDigest;
+  acknowledge: () => void;
+  previous: RecalibrationPrevious | null;
+} {
   const { logs, weights, profile } = useCoreSnapshot('Recalibration');
-  const [ack, setAck] = useState<RecalibrationAck | null>(null);
+  const [ack, setAck] = useState<StoredAck | null>(null);
 
   useEffect(() => {
     AsyncStorage.getItem(ACK_KEY)
@@ -29,7 +45,7 @@ export function useRecalibration(): { digest: RecalibrationDigest; acknowledge: 
         if (!raw) return;
         const p = JSON.parse(raw);
         if (typeof p?.value === 'number' && typeof p?.at === 'number') {
-          setAck({ value: p.value, at: p.at });
+          setAck({ value: p.value, at: p.at, ...(typeof p.target === 'number' ? { target: p.target } : {}) });
         }
       })
       .catch(() => {
@@ -44,12 +60,17 @@ export function useRecalibration(): { digest: RecalibrationDigest; acknowledge: 
 
   const acknowledge = useCallback(() => {
     if (!digest.available) return;
-    const next: RecalibrationAck = { value: digest.trueTdee, at: Date.now() };
+    const next: StoredAck = { value: digest.trueTdee, at: Date.now(), target: digest.calorieTarget };
     setAck(next);
     AsyncStorage.setItem(ACK_KEY, JSON.stringify(next)).catch(() => {
       /* best-effort; a failed persist just re-surfaces next launch */
     });
   }, [digest]);
 
-  return { digest, acknowledge };
+  const previous = useMemo<RecalibrationPrevious | null>(
+    () => (ack ? { tdee: ack.value, target: ack.target ?? null } : null),
+    [ack],
+  );
+
+  return { digest, acknowledge, previous };
 }

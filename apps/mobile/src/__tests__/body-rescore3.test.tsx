@@ -41,6 +41,7 @@ jest.mock('expo-router', () => ({
   useFocusEffect: () => {},
   useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
   useLocalSearchParams: () => ({}),
+  useScrollToTop: jest.fn(),
   router: { setParams: jest.fn(), push: jest.fn() },
 }));
 
@@ -312,9 +313,12 @@ describe('the weight chart', () => {
   it('bug 4: the dash caption shows only on the ranges that draw the dash', async () => {
     const p = pts(['2026-09-28', '2026-10-01', '2026-10-05']);
     const s = await render(<WeightChart {...props} points={p} trend={p} slopeLbPerWeek={-1} hasOlderHistory={false} testID="wc" />);
-    expect(s.getByTestId('wc-caption')).toBeTruthy();
+    expect(s.getByTestId('wc-caption')).toHaveTextContent(/the dash projects/);
     await fireEvent.press(s.getByTestId('weight-range-6M'));
-    expect(s.queryByTestId('wc-caption')).toBeNull();
+    // S21: the dots/line legend stays on every range; only the dash's half
+    // of the sentence goes with the dash.
+    expect(s.getByTestId('wc-caption')).toHaveTextContent('Dots are weigh-ins, the line is your trend');
+    expect(s.getByTestId('wc-caption')).not.toHaveTextContent(/dash/);
   });
 
   it('bug 5: an automatic "All" fetches all', async () => {

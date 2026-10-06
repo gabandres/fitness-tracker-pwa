@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Animated as RNAnimated,
   Easing as RNEasing,
+  Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -19,7 +21,8 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import type { MaintenanceView, MeasurementProgress } from '@macrolog/core';
-import { useLocale, useT } from '@/i18n';
+import { BottomSheet } from '@/components/BottomSheet';
+import { type TFn, useLocale, useT } from '@/i18n';
 import { plural } from '@/i18n/grammar';
 import { formatNumber } from '@/lib/date-format';
 import * as haptics from '@/lib/haptics';
@@ -50,10 +53,15 @@ const CENTER_MAX_W = 148;
  *  side by side in the panel at 360dp. */
 const STACK_AT_FONT_SCALE = 1.35;
 
-/** `#rrggbb` → `rgba(…, a)`. The ring tracks are each ring's own hue, faint. */
-function withAlpha(hex: string, a: number): string {
+/** The platform's touch floor: 44pt on iOS, Material's 48dp on Android. */
+const TARGET = Platform.OS === 'android' ? 48 : 44;
+
+function rgb(hex: string): [number, number, number] {
   const n = parseInt(hex.replace('#', '').slice(0, 6), 16);
-  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+function mix(a: [number, number, number], b: [number, number, number], t: number): [number, number, number] {
+  return [0, 1, 2].map((i) => Math.round(a[i] * (1 - t) + b[i] * t)) as [number, number, number];
 }
 
 /**
@@ -63,6 +71,22 @@ function withAlpha(hex: string, a: number): string {
  * the two rings distinguishable before either has any fill (review V2).
  */
 const TRACK_ALPHA = 0.22;
+/**
+ * How far each hue is lifted toward white before that wash (S21). A wash of
+ * the SATURATED hue on the near-black panel read as muddy brown (coral) and
+ * dark bottle-green (protein) on an empty day — seen on the simulator. Lifted
+ * 55% first, the tracks read as warm and cool neutrals that still tell the
+ * two rings apart, and they are brighter: coral 1.39 → 1.68:1, protein
+ * 1.37–1.56 → 1.66–1.77:1 against the panel. Progress keeps the full hue.
+ */
+const TRACK_LIFT = 0.55;
+
+/** The empty track for a ring of `hue` on `panel`: an opaque `#rrggbb`.
+ *  Exported for test. */
+export function ringTrack(hue: string, panel: string): string {
+  const [r, g, b] = mix(rgb(panel), mix(rgb(hue), [255, 255, 255], TRACK_LIFT), TRACK_ALPHA);
+  return `#${[r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+}
 
 /**
  * A ring change smaller than this (a fraction of the whole ring) jumps instead
@@ -96,6 +120,67 @@ export function enteredCalorieBand(prev: number | null, next: number, target: nu
   if (prev === null || !(target > 0)) return false;
   const inBand = (kcal: number) => Math.abs(kcal / target - 1) <= CALORIE_BAND;
   return !inBand(prev) && inBand(next);
+}
+
+/** What the maintenance footer says about its own certainty: one short line
+ *  for the panel and every caveat that applies, in full, for the ⓘ sheet. */
+export interface MaintenanceNotes {
+  short: string;
+  /** The short line's testID — which caveat it is naming. */
+  testID: string;
+  full: string[];
+}
+
+/**
+ * The caveats under the maintenance number, strongest first (S21). The rules
+ * are the ones the footer stacked until 2026-10-06:
+ *
+ * - `holding` REPLACES rough and provisional rather than stacking with them —
+ *   all three describe the same worry at different strengths, and holding is
+ *   the strongest (the answer is too wide to act on, patchy record or not).
+ * - rough only when the cause can be named (`loggedDays`/`spanDays` known);
+ *   the food count only when it differs from the row count — a weigh-in or a
+ *   finished workout writes a row too (`WORKOUT_MARKER_KCAL = 0`).
+ * - provisional states the blend and the direction it moves, never stasis.
+ * - dropped weigh-ins are NOT gated on `reliable`: a two-week break with a
+ *   real weight change drops every post-break weigh-in while the estimate
+ *   still calls itself reliable, so this is the only warning for that case.
+ *
+ * Null when there is nothing to hedge. Exported for test.
+ */
+export function maintenanceNotes(m: MaintenanceView, t: TFn): MaintenanceNotes | null {
+  const notes: { short: string; testID: string; full: string }[] = [];
+  if (m.holding) {
+    notes.push({ testID: 'maintenance-holding', short: t('today.maintenanceShortHolding'), full: t('today.maintenanceHolding') });
+  } else if (!m.reliable && m.loggedDays != null && m.spanDays != null) {
+    notes.push({
+      testID: 'maintenance-rough',
+      short: t('today.maintenanceShortRough', { logged: m.loggedDays, span: m.spanDays }),
+      full:
+        m.intakeDays != null && m.intakeDays < m.loggedDays
+          ? t('today.maintenanceRoughFood', { logged: m.loggedDays, span: m.spanDays, food: m.intakeDays })
+          : t('today.maintenanceRough', { logged: m.loggedDays, span: m.spanDays }),
+    });
+  }
+  if (m.provisional && !m.holding) {
+    notes.push({
+      testID: 'maintenance-provisional',
+      short: t('today.maintenanceShortProvisional'),
+      full: t('today.maintenanceProvisional'),
+    });
+  }
+  if (m.weighInsDropped) {
+    notes.push({
+      testID: 'maintenance-outliers',
+      short: t('today.maintenanceShortOutliers'),
+      full:
+        m.weighInsDropped === 1
+          ? t('today.maintenanceOutlier')
+          : t('today.maintenanceOutliers', { n: String(m.weighInsDropped) }),
+    });
+  }
+  if (notes.length === 0) return null;
+  return { short: notes[0].short, testID: notes[0].testID, full: notes.map((n) => n.full) };
 }
 
 interface RingProps {
@@ -276,6 +361,9 @@ export function HeroRings({
   }, [calConsumed, calTarget, reduce, calFlare]);
   const calFlareProps = useAnimatedProps(() => ({ opacity: calFlare.value * 0.25 }));
 
+  const notes = maintenance ? maintenanceNotes(maintenance, t) : null;
+  const [aboutOpen, setAboutOpen] = useState(false);
+
   const sentence = [
     t(over ? 'a11y.heroOver' : 'a11y.heroLeft', {
       kcal: formatNumber(calConsumed, locale),
@@ -330,7 +418,7 @@ export function HeroRings({
           <Ring
             r={OUTER_R}
             stroke={OUTER_STROKE}
-            trackColor={withAlpha(colors.ring, TRACK_ALPHA)}
+            trackColor={ringTrack(colors.ring, colors.heroPanel)}
             color={colors.ring}
             progress={calTarget ? calConsumed / calTarget : 0}
             delay={100}
@@ -347,7 +435,7 @@ export function HeroRings({
           <Ring
             r={INNER_R}
             stroke={INNER_STROKE}
-            trackColor={withAlpha(colors.protein, TRACK_ALPHA)}
+            trackColor={ringTrack(colors.protein, colors.heroPanel)}
             color={colors.protein}
             progress={protTarget ? protConsumed / protTarget : 0}
             delay={280}
@@ -383,7 +471,9 @@ export function HeroRings({
           header icon, which held all three to 38dp. The panel's corner is
           clear of the outer ring at every width — the ring is a 236dp circle
           centred in the panel, and even on a 320dp phone its arc (flare included)
-          stays ~5dp clear of this button's nearest corner. */}
+          stays ~5dp clear of this button's nearest corner at 44pt. Android's
+          48dp square (S21) just meets the flare's outer edge at 320dp — the
+          flare, for half a second, never the ring itself. */}
       {onShare ? (
         <TouchableOpacity
           onPress={onShare}
@@ -491,78 +581,51 @@ export function HeroRings({
               </Text>
             )}
           </Text>
-          {/* Only when we can name the cause. A caveat that just says "rough"
-              tells the user nothing they can act on. */}
-          {/* `holding` first, and it REPLACES the two lines below rather than
-              stacking with them. All three describe the same worry at different
-              strengths, and three caveats under one number reads as an app that
-              does not trust itself. Holding is the strongest: it says the answer
-              is too wide to act on, which is true whether or not the record is
-              patchy — an account can log every day and still land here if the
-              scale is noisy. */}
-          {maintenance.holding ? (
-            <Text style={styles.maintenanceCaveat} testID="maintenance-holding">
-              {t('today.maintenanceHolding')}
-            </Text>
-          ) : maintenance.reliable ||
-            maintenance.loggedDays == null ||
-            maintenance.spanDays == null ? null : (
-            <Text style={styles.maintenanceCaveat} testID="maintenance-rough">
-              {/* Two strings, not one with an optional clause: the food count
-                  is only worth saying when it DIFFERS from the row count, and
-                  "42 of 63 days logged (42 with food)" is noise. A row is
-                  written by a weigh-in or a finished workout too — a workout
-                  writes `WORKOUT_MARKER_KCAL = 0` — so the plain count read as
-                  more intake evidence than the estimate actually had. */}
-              {maintenance.intakeDays != null && maintenance.intakeDays < maintenance.loggedDays
-                ? t('today.maintenanceRoughFood', {
-                    logged: maintenance.loggedDays,
-                    span: maintenance.spanDays,
-                    food: maintenance.intakeDays,
-                  })
-                : t('today.maintenanceRough', {
-                    logged: maintenance.loggedDays,
-                    span: maintenance.spanDays,
-                  })}
-            </Text>
-          )}
-          {/* Says what the app DID about a patchy record, not just that it
-              noticed one. The caveat above has always said the number is
-              rough; until 2026-08-19 the rough number was still shipped as the
-              day's target at full strength. This line is the other half.
-
-              Reworded 2026-09-04, and the reason is the line's neighbours. It
-              read "Your target is held steady while the record fills in",
-              which (a) said "steady" while `today.maintenanceHolding` directly
-              above owns that word for a different condition, and (b) started
-              appearing next to "Your target just recalibrated" the moment
-              `tdee-recalibration.ts` stopped gating on `reliable` — so one
-              account could be told its target was frozen and had just moved,
-              in the same card. Seen on a real device the hour it shipped.
-
-              `provisional` itself did not change meaning: it is still
-              `confidence < 1`, still "part of this is the formula anchor
-              rather than your own measurement". Only the copy was wrong, and
-              only about stasis — so the new string states the blend and the
-              direction it moves, and claims nothing about the target holding
-              still. */}
-          {maintenance.provisional && !maintenance.holding ? (
-            <Text style={styles.maintenanceCaveat} testID="maintenance-provisional">
-              {t('today.maintenanceProvisional')}
-            </Text>
-          ) : null}
-          {/* NOT gated on `reliable`: a two-week break with a real weight
-              change makes the guard drop every post-break weigh-in while the
-              estimate still calls itself reliable, so this is the only
-              warning that fires for that case. */}
-          {maintenance.weighInsDropped ? (
-            <Text style={styles.maintenanceCaveat} testID="maintenance-outliers">
-              {maintenance.weighInsDropped === 1
-                ? t('today.maintenanceOutlier')
-                : t('today.maintenanceOutliers', { n: String(maintenance.weighInsDropped) })}
-            </Text>
+          {/* ONE short line of context and an ⓘ for the rest (S21). The
+              footer used to stack up to three lines of small hedging copy
+              under the number — "40 of 79 days logged — gaps make this less
+              certain / Part formula estimate for now — it shifts…" — which
+              crowded the hero and read as an app that does not trust itself.
+              The strongest caveat names itself here; every one that applies,
+              in full, is a tap away. Which caveats apply and in what order is
+              `maintenanceNotes`, unchanged from the stacked version. */}
+          {notes ? (
+            <View style={styles.caveatRow}>
+              <Text style={[styles.maintenanceCaveat, styles.caveatText]} testID={notes.testID} numberOfLines={2}>
+                {notes.short}
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  haptics.tap();
+                  setAboutOpen(true);
+                }}
+                style={styles.infoBtn}
+                accessibilityRole="button"
+                accessibilityLabel={t('today.maintenanceAboutA11y')}
+                testID="maintenance-info"
+              >
+                <Ionicons name="information-circle-outline" size={18} color={colors.heroMuted} />
+              </TouchableOpacity>
+            </View>
           ) : null}
         </View>
+      ) : null}
+
+      {notes ? (
+        <BottomSheet native detents="fit" visible={aboutOpen} onClose={() => setAboutOpen(false)}>
+          <Text style={styles.aboutTitle} accessibilityRole="header" testID="maintenance-about-title">
+            {t('today.maintenanceAboutTitle')}
+          </Text>
+          <ScrollView style={styles.aboutScroll} contentContainerStyle={styles.aboutBody}>
+            <Text style={styles.aboutText}>{t('numbers.glossary.maintenanceBody')}</Text>
+            {notes.full.map((line) => (
+              <View key={line} style={styles.aboutNote}>
+                <Ionicons name="ellipse" size={6} color={colors.muted} style={styles.aboutBullet} />
+                <Text style={[styles.aboutText, styles.aboutNoteText]}>{line}</Text>
+              </View>
+            ))}
+          </ScrollView>
+        </BottomSheet>
       ) : null}
     </View>
   );
@@ -589,8 +652,8 @@ export function HeroRingsSkeleton() {
       accessibilityState={{ busy: true }}
     >
       <Svg width={SIZE} height={SIZE}>
-        <Circle cx={SIZE / 2} cy={SIZE / 2} r={OUTER_R} stroke={withAlpha(colors.ring, TRACK_ALPHA)} strokeWidth={OUTER_STROKE} fill="none" />
-        <Circle cx={SIZE / 2} cy={SIZE / 2} r={INNER_R} stroke={withAlpha(colors.protein, TRACK_ALPHA)} strokeWidth={INNER_STROKE} fill="none" />
+        <Circle cx={SIZE / 2} cy={SIZE / 2} r={OUTER_R} stroke={ringTrack(colors.ring, colors.heroPanel)} strokeWidth={OUTER_STROKE} fill="none" />
+        <Circle cx={SIZE / 2} cy={SIZE / 2} r={INNER_R} stroke={ringTrack(colors.protein, colors.heroPanel)} strokeWidth={INNER_STROKE} fill="none" />
       </Svg>
     </View>
   );
@@ -610,6 +673,27 @@ function createStyles({ colors, shadow, scheme }: Theme) {
     maintenanceValue: { color: colors.heroText, fontWeight: '800' },
     maintenanceDelta: { color: colors.heroText, fontWeight: '700' },
     maintenanceCaveat: { fontSize: font.tiny, color: colors.heroMuted, textAlign: 'center' },
+    // The short caveat and its ⓘ, centred as one line. The button is a full
+    // platform target whose extra height is taken back by negative margins,
+    // so the footer is no taller than one line of text plus the panel's own
+    // padding — its reach falls into that padding, inside the panel.
+    caveatRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', alignSelf: 'stretch' },
+    caveatText: { flexShrink: 1 },
+    infoBtn: {
+      width: TARGET,
+      height: TARGET,
+      marginVertical: -(TARGET - 20) / 2,
+      marginRight: -(TARGET - 18) / 2,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    aboutTitle: { fontSize: font.h2, fontWeight: '800', color: colors.ink, marginBottom: space.sm },
+    aboutScroll: { maxHeight: 420 },
+    aboutBody: { gap: space.md, paddingBottom: space.md },
+    aboutText: { fontSize: font.small, color: colors.muted, lineHeight: 19 },
+    aboutNote: { flexDirection: 'row', alignItems: 'flex-start', gap: space.sm },
+    aboutBullet: { marginTop: 7 },
+    aboutNoteText: { flex: 1, color: colors.ink },
     // The measured-burn progress track: the ring's own track colour under a
     // fill in the hero's text colour, so it reads as part of the panel rather
     // than as a control. Width, not a percentage label — the label above
@@ -638,14 +722,15 @@ function createStyles({ colors, shadow, scheme }: Theme) {
       ...(scheme === 'dark' ? { borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.06)' } : null),
     },
     ringWrap: { width: SIZE, height: SIZE },
-    // 44pt square in the panel's top-right corner, over the hero's own
-    // padding — see the render for why the ring never reaches it.
+    // A platform-target square (44pt iOS, 48dp Android) in the panel's
+    // top-right corner, over the hero's own padding — see the render for why
+    // the ring never reaches it.
     shareBtn: {
       position: 'absolute',
       top: space.xs,
       right: space.xs,
-      width: 44,
-      height: 44,
+      width: TARGET,
+      height: TARGET,
       alignItems: 'center',
       justifyContent: 'center',
     },

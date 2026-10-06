@@ -1,4 +1,4 @@
-import { StyleSheet } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
 import { type Theme } from '@/lib/theme-context';
 import { font, radius, space, type } from '@/theme';
 import { TAB_SCROLL_BAND } from '@/lib/glass';
@@ -21,6 +21,15 @@ import { TAB_SCROLL_BAND } from '@/lib/glass';
  * Exported as the factory rather than the built sheet: `useThemedStyles` calls
  * it per theme, and ADR-0014 forbids reading a static palette.
  */
+/**
+ * The minimum touch target: HIG's 44pt on iOS, Material's 48dp on Android.
+ * Every `minHeight`/`minWidth` that exists to make a control hittable reads
+ * this, not a literal 44 — a literal 44 is 4dp short of the Android floor
+ * (UX_AUDIT S20, Impeccable: "44 dp targets across Train"). Local to Train
+ * until a cross-app token lands in `theme.ts`; rename the import then.
+ */
+export const TARGET = Platform.OS === 'android' ? 48 : 44;
+
 export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
   title: { fontFamily: type.display, fontSize: font.h1, color: colors.ink, paddingHorizontal: space.xl, paddingTop: space.md },
@@ -85,14 +94,14 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   savingText: { fontSize: font.tiny, color: colors.faint },
   progressText: { fontSize: font.small, color: colors.muted, fontWeight: '700' },
   exHeadRow: { flexDirection: 'row', alignItems: 'center' },
-  exHead: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 44 },
+  exHead: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: TARGET },
   exName: { fontFamily: type.heading, fontSize: font.h3, color: colors.ink },
   exCount: { backgroundColor: colors.inputBg, borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: 3, minWidth: 44, alignItems: 'center' },
   exCountText: { fontSize: font.small, fontWeight: '800', color: colors.muted },
   exDone: { width: 26, height: 26, borderRadius: 13, backgroundColor: colors.good, alignItems: 'center', justifyContent: 'center' },
   exChevron: { marginLeft: 2 },
   // 44-pt targets (UX_AUDIT S18-15) on the editor's text-only actions.
-  exRemoveRow: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center', paddingVertical: space.sm, marginTop: space.xs },
+  exRemoveRow: { alignSelf: 'flex-start', minHeight: TARGET, justifyContent: 'center', paddingVertical: space.sm, marginTop: space.xs },
   exCard: {
     backgroundColor: colors.card,
     borderRadius: radius.lg,
@@ -107,7 +116,7 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   // Shares `exCard`'s frame on purpose: a cardio block and an exercise are
   // peers inside one session, and giving cardio its own card treatment would
   // make it read as a different feature bolted on beside Train.
-  cardioHead: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 44 },
+  cardioHead: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: TARGET },
   cardioName: { fontFamily: type.heading, fontSize: font.h3, color: colors.ink, flexShrink: 1 },
   cardioSummary: { fontSize: font.small, color: colors.muted, marginTop: 2 },
   cardioFieldRow: { flexDirection: 'row', gap: space.sm, alignItems: 'flex-end' },
@@ -156,7 +165,7 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   // the axis that was short, without taking 16pt from the number fields
   // (Train re-score 3). The slop's right edge lands on PREVIOUS, which has
   // no target of its own.
-  setNumCell: { minWidth: 36, minHeight: 44, justifyContent: 'center' },
+  setNumCell: { minWidth: 36, minHeight: TARGET, justifyContent: 'center' },
   // The "#" header over that column: the same width so the columns line up,
   // but NOT the 44pt height — on a Text, `justifyContent` does not centre the
   // glyph, so "#" drew at the top of a 44pt box, above PREV/LB/REPS/RIR and
@@ -166,12 +175,20 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   setNumCluster: { color: colors.teal, fontWeight: '800' },
   kindPicker: { paddingVertical: space.sm, gap: space.xs },
   kindPickerLabel: { fontSize: font.tiny, color: colors.muted, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3 },
-  kindChips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
+  // The sheets' choice chips (RIR scale, rest picker, cardio modality,
+  // muscles). A full TARGET tall, in rows `space.sm` apart. They were ~24pt
+  // boxes lifted to 44 with 11pt of hitSlop in rows 4pt apart, so each chip's
+  // slop reached into the row above and below and a tap near the seam could
+  // land on the neighbour (UX_AUDIT S20). Real size, no slop: the targets
+  // tile without overlapping.
+  kindChips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   kindChip: {
+    minHeight: TARGET,
+    justifyContent: 'center',
     borderWidth: 1,
     borderColor: colors.line,
     borderRadius: radius.sm,
-    paddingHorizontal: space.sm,
+    paddingHorizontal: space.md,
     paddingVertical: space.xs,
     backgroundColor: colors.inputBg,
   },
@@ -182,7 +199,7 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   // rows rather than the compact chips the RIR scale uses.
   prHint: { fontSize: font.tiny, color: colors.faint, marginTop: 1, textAlign: 'center' },
   progRule: { fontSize: font.tiny, color: colors.muted, marginTop: space.xs, lineHeight: 16 },
-  kindRow: { minHeight: 44, justifyContent: 'center', paddingVertical: space.sm, paddingHorizontal: space.md, borderRadius: radius.sm },
+  kindRow: { minHeight: TARGET, justifyContent: 'center', paddingVertical: space.sm, paddingHorizontal: space.md, borderRadius: radius.sm },
   kindRowOn: { backgroundColor: colors.inputBg },
   kindRowName: { fontSize: font.small, fontWeight: '700', color: colors.ink },
   kindRowNameOn: { color: colors.teal },
@@ -212,7 +229,7 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
     color: colors.ink,
   },
   // The cell is the 44pt target; the box inside it is what is drawn.
-  setDoneCell: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  setDoneCell: { minWidth: TARGET, minHeight: TARGET, alignItems: 'center', justifyContent: 'center' },
   doneBox: {
     width: 30,
     height: 30,
@@ -229,10 +246,10 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   setDel: { paddingHorizontal: space.xs },
   setDelText: { color: colors.danger, fontSize: font.small, fontWeight: '700' },
   addSetRow: { flexDirection: 'row', flexWrap: 'wrap', columnGap: space.xl },
-  addSetBtn: { minHeight: 44, justifyContent: 'center', paddingVertical: space.sm },
+  addSetBtn: { minHeight: TARGET, justifyContent: 'center', paddingVertical: space.sm },
   addSetText: { fontSize: font.small, color: colors.teal, fontWeight: '700' },
   addExBtn: {
-    minHeight: 44,
+    minHeight: TARGET,
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: colors.line,
@@ -284,7 +301,7 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   styleRow: { flexDirection: 'row', gap: space.sm, marginTop: space.md },
   styleChip: {
     flex: 1,
-    minHeight: 44,
+    minHeight: TARGET,
     borderWidth: 1,
     borderColor: colors.line,
     borderRadius: radius.md,
@@ -304,7 +321,7 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   styleChipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
   styleChipText: { fontSize: font.tiny, color: colors.muted, fontWeight: '600' },
   styleChipTextOn: { color: colors.onInk },
-  createRow: { minHeight: 44, justifyContent: 'center', paddingVertical: space.sm },
+  createRow: { minHeight: TARGET, justifyContent: 'center', paddingVertical: space.sm },
   createText: { fontSize: font.body, color: colors.teal, fontWeight: '700' },
   catalogList: { maxHeight: 220 },
   catalogRow: {
@@ -333,7 +350,7 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   /** The touchable around a text action: 44pt tall whatever the text is
    *  (Train review item 16 — these measured ~18-34pt). Row, so an icon can
    *  lead the label where a "+" used to be typed into the string. */
-  textAction: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: space.xs },
+  textAction: { minHeight: TARGET, flexDirection: 'row', alignItems: 'center', gap: space.xs },
   tplRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -366,7 +383,7 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
     backgroundColor: colors.ink,
     borderRadius: radius.md,
     paddingHorizontal: space.lg,
-    minHeight: 44,
+    minHeight: TARGET,
     justifyContent: 'center',
   },
   tplStartText: { color: colors.onInk, fontWeight: '700', fontSize: font.body },
@@ -387,7 +404,7 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   tplExTop: { flexDirection: 'row', alignItems: 'flex-start', gap: space.sm },
   /** The tappable part of a card header: everything but the drag grip. Row, so
    *  the chevron rides at the far edge and is INSIDE the touchable. */
-  tplExTapRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 44 },
+  tplExTapRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: TARGET },
   /** Fills the modal so the sheet keeps its own absolute/backdrop layout. */
   // `flexShrink: 1`, NOT `flex: 1` — and the device is what proved it. This
   // root used to be the direct child of a full-screen `Modal`, where `flex: 1`
@@ -400,7 +417,7 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   tplReorder: { marginTop: -2 },
   /** The drag grip. 44pt tall so the gesture has a real target — the ▲▼ pair
    *  it replaced were 20pt each. */
-  tplDragHandle: { width: 32, minHeight: 44, alignItems: 'center', justifyContent: 'center', marginLeft: -4 },
+  tplDragHandle: { width: 32, minHeight: TARGET, alignItems: 'center', justifyContent: 'center', marginLeft: -4 },
   tplMoveBtn: { paddingHorizontal: 2, paddingVertical: 1 },
   tplExName: { fontFamily: type.heading, fontSize: font.body, color: colors.ink },
   tplExMeta: { fontSize: font.small, color: colors.muted, marginTop: 1 },
@@ -416,7 +433,7 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   // template editor — rest timers, progression, per-set rows
   restRow: { flexDirection: 'row', gap: space.md },
   restCell: { flex: 1 },
-  progToggle: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 44, paddingVertical: space.xs },
+  progToggle: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: TARGET, paddingVertical: space.xs },
   progToggleText: { fontSize: font.small, color: colors.ink, fontWeight: '600' },
   progRow: { flexDirection: 'row', gap: space.sm },
   progCell: { flex: 1, gap: space.xs },
@@ -450,8 +467,10 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   tplSetKindTag: { fontSize: font.tiny, color: colors.muted, marginTop: -1 },
   tplSetCell: { flex: 1 },
   tplSetDelCell: { width: 26, alignItems: 'center', justifyContent: 'center' },
+  // minHeight, not height: a fixed 44 clipped the digits at large Dynamic
+  // Type / Android font scale. Grows with the text instead.
   tplSetInput: {
-    height: 44,
+    minHeight: TARGET,
     backgroundColor: colors.inputBg,
     borderWidth: 1,
     borderColor: colors.lineStrong,
@@ -470,8 +489,10 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
     fontSize: font.small, color: colors.muted, fontWeight: '700',
     marginTop: space.md, marginBottom: space.xs,
   },
-  tplStructureRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
+  // Same rule as `kindChips`: real TARGET-tall chips, no overlapping slop.
+  tplStructureRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   tplStructureChip: {
+    minHeight: TARGET, justifyContent: 'center',
     paddingVertical: space.xs, paddingHorizontal: space.sm,
     borderRadius: radius.sm, backgroundColor: colors.inputBg,
   },
@@ -484,7 +505,7 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    minHeight: 44,
+    minHeight: TARGET,
     marginTop: space.xs,
     borderTopWidth: 1,
     borderTopColor: colors.line,
@@ -502,13 +523,13 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   prHero: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingVertical: space.sm },
   prHeroText: { flex: 1, fontFamily: type.heading, fontSize: font.h3, color: colors.ink },
   /** A checkbox row in a sheet — the rest picker's "Keep for this lift". */
-  checkRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 44, marginTop: space.xs },
+  checkRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: TARGET, marginTop: space.xs },
   moreBody: { gap: space.sm, paddingTop: space.xs },
   moreRemove: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.xs,
-    minHeight: 44,
+    minHeight: TARGET,
     marginTop: space.xs,
   },
   moreRemoveText: { fontSize: font.small, fontWeight: '700', color: colors.danger },
@@ -576,7 +597,7 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   recWarnRow: { flexDirection: 'row', alignItems: 'flex-start', gap: space.xs, marginTop: 2 },
   recWarnText: { flex: 1, fontSize: font.small, color: colors.ink, lineHeight: font.small * 1.4 },
   recCalib: { fontSize: font.small, color: colors.muted, lineHeight: font.small * 1.4 },
-  recGear: { marginLeft: 'auto', minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  recGear: { marginLeft: 'auto', minWidth: TARGET, minHeight: TARGET, alignItems: 'center', justifyContent: 'center' },
   // Lift settings sheet: effort standard chips + the band override field.
   liftSection: { marginTop: space.md, gap: space.xs },
   liftLabel: { fontSize: font.tiny, color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: '700' },
@@ -584,7 +605,7 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   liftBandRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   liftBandInput: { width: 84, textAlign: 'center' },
   liftBandUnit: { fontSize: font.small, color: colors.muted },
-  liftClear: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' },
+  liftClear: { alignSelf: 'flex-start', minHeight: TARGET, justifyContent: 'center' },
   // `accent`, the coral that is AA as text; `ring` is a fill colour and read
   // ~2.4:1 on the light sheet.
   liftClearText: { fontSize: font.small, color: colors.accent, fontWeight: '700' },
@@ -593,7 +614,7 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   tplNextToggle: { fontSize: font.small, color: colors.teal, fontWeight: '700' },
   /** "Next session" under a template row: a sibling of the row's edit button,
    *  not a control nested inside it, which VoiceOver could not reach. */
-  tplNextToggleBtn: { minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start', paddingHorizontal: space.lg },
+  tplNextToggleBtn: { minHeight: TARGET, justifyContent: 'center', alignSelf: 'flex-start', paddingHorizontal: space.lg },
   tplNext: { gap: space.sm, paddingTop: space.sm, paddingHorizontal: space.lg },
   tplNextRow: { gap: 1 },
   tplNextName: { fontSize: font.small, color: colors.ink, fontWeight: '700' },
@@ -675,7 +696,7 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   // Tabular figures, so the countdown does not jitter as 1:11 becomes 1:10.
   restLabel: { color: colors.onInk, fontWeight: '800', fontSize: font.body, fontVariant: ['tabular-nums'] },
   restActions: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
-  restBtn: { minHeight: 44, minWidth: 44, justifyContent: 'center', alignItems: 'center' },
+  restBtn: { minHeight: TARGET, minWidth: TARGET, justifyContent: 'center', alignItems: 'center' },
   restPlus: { color: colors.onInk, fontWeight: '700', fontSize: font.small, opacity: 0.85, fontVariant: ['tabular-nums'] },
   // onInk, not `ring`: coral on the light `ink` of the dark theme read 2.5:1.
   restSkip: { color: colors.onInk, fontWeight: '800', fontSize: font.small, textTransform: 'uppercase', letterSpacing: 0.5 },
@@ -711,9 +732,13 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   detailRow: { flexDirection: 'row', gap: space.md, paddingVertical: space.sm, borderBottomWidth: 1, borderBottomColor: colors.line },
   detailDate: { width: 56, fontSize: font.small, color: colors.muted, fontWeight: '700' },
   detailSets: { flex: 1, fontSize: font.small, color: colors.ink },
+  // A logged workout's exercise: the name on its own line (two at most), the
+  // sets under it — not the 56pt date column `detailDate` is sized for.
+  detailExRow: { gap: 2, paddingVertical: space.sm, borderBottomWidth: 1, borderBottomColor: colors.line },
+  detailExName: { fontSize: font.small, color: colors.ink, fontWeight: '700' },
   manageRow: { flexDirection: 'row', gap: space.xl, marginTop: space.lg, paddingTop: space.md, borderTopWidth: 1, borderTopColor: colors.line },
   manageLink: { fontSize: font.small, color: colors.teal, fontWeight: '700' },
-  manageBtn: { minHeight: 44, justifyContent: 'center' },
+  manageBtn: { minHeight: TARGET, justifyContent: 'center' },
   manageDanger: { color: colors.danger },
   confirmRow: { marginTop: space.md, gap: space.sm },
   confirmBtns: { flexDirection: 'row', gap: space.xl },
@@ -747,7 +772,7 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
     paddingVertical: space.sm,
   },
   secondaryLink: { fontSize: font.small, color: colors.teal, fontWeight: '700' },
-  secondaryBtn: { minHeight: 44, justifyContent: 'center', paddingHorizontal: space.sm },
+  secondaryBtn: { minHeight: TARGET, justifyContent: 'center', paddingHorizontal: space.sm },
 
   // ── Exercise search (catalog + shipped library) ──
   searchGroup: {
@@ -844,12 +869,12 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   sessionTitle: { fontFamily: type.heading, fontSize: font.h3, color: colors.ink },
   sessionMeta: { fontSize: font.small, color: colors.muted, fontVariant: ['tabular-nums'] },
   sessionEyebrow: { fontSize: font.tiny, color: colors.accent, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
-  headerIconBtn: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  headerIconBtn: { minWidth: TARGET, minHeight: TARGET, alignItems: 'center', justifyContent: 'center' },
   headerPrimary: {
     backgroundColor: colors.ink,
     borderRadius: radius.md,
     paddingHorizontal: space.lg,
-    minHeight: 44,
+    minHeight: TARGET,
     justifyContent: 'center',
   },
   headerPrimaryText: { color: colors.onInk, fontWeight: '700', fontSize: font.body },
@@ -859,7 +884,7 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   syncText: { fontSize: font.tiny, color: colors.muted },
   errorRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   errorBtn: {
-    minHeight: 44,
+    minHeight: TARGET,
     paddingHorizontal: space.lg,
     justifyContent: 'center',
     borderRadius: radius.md,
@@ -874,7 +899,7 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   stepRow: { flexDirection: 'row', justifyContent: 'flex-end', gap: space.sm, paddingVertical: space.xs },
   stepBtn: {
     minWidth: 64,
-    minHeight: 44,
+    minHeight: TARGET,
     borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: colors.lineStrong,
@@ -919,7 +944,7 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   // `sheetBody` is also needed inside the native sheet, which ignores
   // `contentStyle`. `flexShrink` so a ScrollView inside still clamps.
   sheetStack: { flexShrink: 1, gap: space.sm },
-  showAllBtn: { minHeight: 44, justifyContent: 'center', alignItems: 'center' },
+  showAllBtn: { minHeight: TARGET, justifyContent: 'center', alignItems: 'center' },
 
   // ── Collapsed cluster audit ──
   auditLine: {

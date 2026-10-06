@@ -89,6 +89,7 @@ export function ExerciseLibrarySheet({
         placeholderTextColor={colors.faint}
         value={query}
         onChangeText={setQuery}
+        accessibilityLabel={t('train.librarySearchPh')}
         testID="library-search"
       />
       <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>

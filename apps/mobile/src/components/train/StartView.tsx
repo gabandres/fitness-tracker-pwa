@@ -1,6 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { memo, useMemo, useState } from 'react';
-import { FlatList, Pressable, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { FlatList, Pressable, ScrollView, Text, View } from 'react-native';
+import { TRAIN_RIPPLE, Touchable } from './Touchable';
 import Animated from 'react-native-reanimated';
 import {
   formatLoad,
@@ -162,7 +163,7 @@ export function StartView({
               the write that failed (a template, a delete) is not replayable
               from this screen — so it says Dismiss, which is what it does
               (Train re-score bug 7). A load error really is retried. */}
-          <TouchableOpacity
+          <Touchable
             onPress={train.errorKind === 'save' ? train.clearError : onRetry}
             style={styles.errorBtn}
             accessibilityRole="button"
@@ -171,7 +172,7 @@ export function StartView({
             <Text style={styles.discardText}>
               {train.errorKind === 'save' ? t('common.dismiss') : t('common.retry')}
             </Text>
-          </TouchableOpacity>
+          </Touchable>
         </View>
       ) : null}
 
@@ -229,14 +230,14 @@ export function StartView({
         <View style={styles.nextCard} testID="next-up-empty">
           <Text style={styles.nextCaption} accessibilityRole="header">{t('train.nextUp')}</Text>
           <Text style={styles.nextMeta}>{t('train.noTemplates')}</Text>
-          <TouchableOpacity
+          <Touchable
             style={styles.startBtn}
             onPress={() => setStartersOpen(true)}
             accessibilityRole="button"
             testID="next-up-starters"
           >
             <Text style={styles.startBtnText}>{t('train.starters')}</Text>
-          </TouchableOpacity>
+          </Touchable>
         </View>
       )}
 
@@ -245,7 +246,7 @@ export function StartView({
           run" is the cardio-only start the hook had and nothing called
           (Train review item 8, ADR-0025). */}
       <View style={styles.secondaryRow}>
-        <TouchableOpacity
+        <Touchable
           style={styles.secondaryBtn}
           onPress={() => {
             haptics.tap();
@@ -255,8 +256,8 @@ export function StartView({
           testID="start-workout"
         >
           <Text style={styles.secondaryLink}>{t('train.startEmpty')}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
+        </Touchable>
+        <Touchable
           style={styles.secondaryBtn}
           onPress={() => {
             haptics.tap();
@@ -266,12 +267,12 @@ export function StartView({
           testID="start-run"
         >
           <Text style={styles.secondaryLink}>{t('train.logRun')}</Text>
-        </TouchableOpacity>
+        </Touchable>
       </View>
 
       {audit.clusters > 0 ? (
         <View style={styles.auditWrap} testID="cluster-audit">
-          <TouchableOpacity
+          <Touchable
             style={styles.auditLine}
             onPress={() => setAuditOpen((o) => !o)}
             accessibilityRole="button"
@@ -288,7 +289,7 @@ export function StartView({
               })}
             </Text>
             <Ionicons name={auditOpen ? 'chevron-up' : 'chevron-down'} size={16} color={colors.faint} />
-          </TouchableOpacity>
+          </Touchable>
           {auditOpen ? (
             <>
               <View style={styles.auditRow}>
@@ -318,15 +319,15 @@ export function StartView({
       <View style={styles.sectionHead}>
         <Text style={styles.sectionTitle} accessibilityRole="header">{t('train.templates')}</Text>
         <View style={styles.sectionActions}>
-          <TouchableOpacity
+          <Touchable
             style={styles.textAction}
             onPress={() => setStartersOpen(true)}
             accessibilityRole="button"
             testID="browse-starters"
           >
             <Text style={styles.sectionAction}>{t('train.starters')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
+          </Touchable>
+          <Touchable
             style={styles.textAction}
             onPress={() => setEditing({})}
             accessibilityRole="button"
@@ -335,7 +336,7 @@ export function StartView({
           >
             <Ionicons name="add" size={18} color={colors.teal} />
             <Text style={styles.sectionAction}>{t('train.newTemplate')}</Text>
-          </TouchableOpacity>
+          </Touchable>
         </View>
       </View>
       {train.templates.length > 0 ? (
@@ -373,14 +374,14 @@ export function StartView({
             />
           ))}
           {train.recentSessions.length > HISTORY_INLINE ? (
-            <TouchableOpacity
+            <Touchable
               style={styles.showAllBtn}
               onPress={() => setHistoryOpen(true)}
               accessibilityRole="button"
               testID="history-show-all"
             >
               <Text style={styles.sectionAction}>{t('train.showAll', { n: train.recentSessions.length })}</Text>
-            </TouchableOpacity>
+            </Touchable>
           ) : null}
         </View>
       )}
@@ -393,14 +394,14 @@ export function StartView({
           <View style={styles.sectionHead}>
             <Text style={styles.sectionTitle} accessibilityRole="header">{t('train.exercises')}</Text>
             {train.catalog.length > CATALOG_INLINE ? (
-              <TouchableOpacity
+              <Touchable
                 style={styles.textAction}
                 onPress={() => setLibraryOpen(true)}
                 accessibilityRole="button"
                 testID="browse-exercises"
               >
                 <Text style={styles.sectionAction}>{t('train.browseExercises', { n: train.catalog.length })}</Text>
-              </TouchableOpacity>
+              </Touchable>
             ) : null}
           </View>
           <View style={styles.list}>
@@ -408,6 +409,7 @@ export function StartView({
               <Pressable
                 key={e.id}
                 style={styles.exLibRow}
+                android_ripple={TRAIN_RIPPLE}
                 onPress={() => setDetailEx(e)}
                 accessibilityRole="button"
                 testID={`exercise-${e.id}`}
@@ -598,6 +600,7 @@ const TemplateCard = memo(function TemplateCard({
       <View style={styles.tplCardTop}>
         <Pressable
           style={styles.tplMain}
+          android_ripple={TRAIN_RIPPLE}
           onPress={() => onEdit(tpl)}
           accessibilityRole="button"
           accessibilityLabel={t('train.nextEditA11y', { name: tpl.name })}
@@ -619,7 +622,7 @@ const TemplateCard = memo(function TemplateCard({
             onFallbackPress={() => setMenuOpen(true)}
           />
         )}
-        <TouchableOpacity
+        <Touchable
           style={styles.tplStart}
           onPress={start}
           accessibilityRole="button"
@@ -627,13 +630,13 @@ const TemplateCard = memo(function TemplateCard({
           testID={`start-template-${tpl.id}`}
         >
           <Text style={styles.tplStartText}>{t('train.startTpl')}</Text>
-        </TouchableOpacity>
+        </Touchable>
       </View>
       {/* The engine's calls for this template, BEFORE the session starts —
           the spec's layer 6 surface. Collapsed by default so the list stays a
           list; one tap opens it. */}
       {tpl.id ? (
-        <TouchableOpacity
+        <Touchable
           style={styles.tplNextToggleBtn}
           onPress={() => onToggleNext(tpl.id as string)}
           accessibilityRole="button"
@@ -641,7 +644,7 @@ const TemplateCard = memo(function TemplateCard({
           testID={`next-session-${tpl.id}`}
         >
           <Text style={styles.tplNextToggle}>{open ? t('train.rec.hide') : t('train.rec.nextSession')}</Text>
-        </TouchableOpacity>
+        </Touchable>
       ) : null}
       {open ? (
         <TemplateNextSession recentSessions={train.recentSessions} catalog={train.catalog} train={train} template={tpl} />
@@ -807,6 +810,7 @@ const SessionRow = memo(function SessionRow({
   const row = (
     <Pressable
       style={styles.histRow}
+      android_ripple={TRAIN_RIPPLE}
       testID={`session-${s.id}`}
       onPress={() => onOpen(s)}
       // iOS: the system context menu takes the long-press (below).

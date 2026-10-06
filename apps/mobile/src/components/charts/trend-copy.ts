@@ -1,4 +1,4 @@
-import { type BalanceVerdict, type UnitSystem, bodyWeightUnit, toDisplayWeight } from '@macrolog/core';
+import { type BalanceVerdict, type TdeeResult, type UnitSystem, bodyWeightUnit, toDisplayWeight } from '@macrolog/core';
 import type { Locale, TFn } from '@/i18n';
 import { formatNumber } from '@/lib/date-format';
 
@@ -39,4 +39,38 @@ export function targetLine(v: BalanceVerdict, t: TFn, locale: Locale): string {
   return t(v.kind === 'under' ? 'trends.underTarget' : 'trends.overTarget', {
     n: formatNumber(v.kcal, locale),
   });
+}
+
+/**
+ * "You averaged 2,100 kcal/day while your trend moved −0.3 kg/wk — so you
+ * burn about 2,450 kcal/day." The hero's arithmetic, in the user's unit and
+ * locale (sim review 2026-10-06: the hero said only "From your logged intake +
+ * weight trend", which names the inputs and shows neither).
+ *
+ * Display only — every number is a field `calculateTdee` already produced
+ * (`avgDailyIntake`, `weightSlopeLbsPerDay`, `measuredTdee`); nothing is
+ * recomputed here. When the estimate was damped toward the profile anchor
+ * (`confidence` < 1) the raw sum and the hero differ, and a second sentence
+ * says so rather than printing an equation that does not add up. Null outside
+ * measured mode or without intake to quote.
+ */
+export function maintenanceBreakdown(
+  tdee: TdeeResult,
+  unitSystem: UnitSystem,
+  t: TFn,
+  locale: Locale,
+): { line: string; blended: string | null } | null {
+  if (tdee.source !== 'measured' || !(tdee.avgDailyIntake > 0) || !(tdee.measuredTdee > 0)) return null;
+  const slopeLbPerWeek = tdee.weightSlopeLbsPerDay * 7;
+  const intake = formatNumber(Math.round(tdee.avgDailyIntake), locale);
+  const burn = formatNumber(Math.round(tdee.measuredTdee), locale);
+  const line =
+    Math.abs(slopeLbPerWeek) < 0.1
+      ? t('trends.breakdownSteady', { intake, burn })
+      : t('trends.breakdown', { intake, rate: slopeLabel(slopeLbPerWeek, unitSystem, t, locale), burn });
+  const blended =
+    Math.abs(Math.round(tdee.trueTdee) - Math.round(tdee.measuredTdee)) >= 10
+      ? t('trends.breakdownBlended', { kcal: formatNumber(Math.round(tdee.trueTdee), locale) })
+      : null;
+  return { line, blended };
 }

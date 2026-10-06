@@ -7,6 +7,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { SheetTextInput } from '@/components/SheetTextInput';
+import { useDoneKeyProps } from '@/components/KeyboardBar';
 import Animated, { useAnimatedRef } from 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Sortable from 'react-native-sortables';
@@ -230,6 +231,10 @@ export function TemplateEditorModal({
   const styles = useThemedStyles(createStyles);
   const unitSystem = useUnitSystem();
   const { colors } = useTheme();
+  // Every number field here is a lone pad with no Return key on iOS and a
+  // bare one on Android: this gives both a Done, in the user's language
+  // (UX_AUDIT S20 — the editor had no way off the pad but tapping away).
+  const doneKey = useDoneKeyProps();
   // Sheets GROW for the keyboard, they do not move: `sheetWrap` is flex-end,
   // so extra bottom padding keeps the background on the screen edge and
   // pushes content up. Translating instead exposes whatever the keyboard
@@ -765,6 +770,7 @@ export function TemplateEditorModal({
               placeholderTextColor={colors.faint}
               value={name}
               onChangeText={setName}
+              accessibilityLabel={t('train.templateName')}
               testID="template-name"
             />
 
@@ -803,6 +809,7 @@ export function TemplateEditorModal({
               value={notes}
               onChangeText={setNotes}
               multiline
+              accessibilityLabel={t('train.templateNotes')}
               testID="template-notes"
             />
 
@@ -815,6 +822,8 @@ export function TemplateEditorModal({
                   placeholderTextColor={colors.faint}
                   value={restMini}
                   onChangeText={setRestMini}
+                  {...doneKey}
+                  accessibilityLabel={t('train.restMini')}
                   testID="template-rest-mini"
                 />
               </View>
@@ -826,6 +835,8 @@ export function TemplateEditorModal({
                   placeholderTextColor={colors.faint}
                   value={restCluster}
                   onChangeText={setRestCluster}
+                  {...doneKey}
+                  accessibilityLabel={t('train.restCluster')}
                   testID="template-rest-cluster"
                 />
               </View>
@@ -851,6 +862,7 @@ export function TemplateEditorModal({
                   placeholderTextColor={colors.faint}
                   value={b.label}
                   onChangeText={(v) => patchCardio(i, { label: v })}
+                  accessibilityLabel={`${t('cardio.blockNameA11y')}, ${t(TPL_MODALITY_KEY[b.modality])}`}
                   testID={`template-cardio-label-${i}`}
                 />
                 <View style={styles.cardioFieldRow}>
@@ -864,6 +876,8 @@ export function TemplateEditorModal({
                       placeholderTextColor={colors.faint}
                       value={b.minutes}
                       onChangeText={(v) => patchCardio(i, { minutes: v })}
+                      {...doneKey}
+                      accessibilityLabel={`${t('cardio.targetDuration')}, ${t(TPL_MODALITY_KEY[b.modality])}`}
                       testID={`template-cardio-minutes-${i}`}
                     />
                   </View>
@@ -879,6 +893,8 @@ export function TemplateEditorModal({
                       placeholderTextColor={colors.faint}
                       value={b.distance}
                       onChangeText={(v) => patchCardio(i, { distance: v })}
+                      {...doneKey}
+                      accessibilityLabel={`${t('cardio.targetDistance')} (${distanceUnit(unitSystem)}), ${t(TPL_MODALITY_KEY[b.modality])}`}
                       testID={`template-cardio-distance-${i}`}
                     />
                   </View>
@@ -895,8 +911,6 @@ export function TemplateEditorModal({
                   <TouchableOpacity
                     key={m}
                     style={styles.kindChip}
-                    // Compact chip; hitSlop lifts the ~22-pt box to 44.
-                    hitSlop={{ top: 11, bottom: 11, left: 4, right: 4 }}
                     accessibilityRole="button"
                     testID={`template-cardio-modality-${m}`}
                     onPress={() => {
@@ -934,6 +948,7 @@ export function TemplateEditorModal({
               placeholderTextColor={colors.faint}
               value={exName}
               onChangeText={setExName}
+              accessibilityLabel={t('train.addExerciseA11y')}
               testID="template-add-exercise"
             />
             {trimmedEx ? (
@@ -1106,8 +1121,6 @@ export function TemplateEditorModal({
                             key={st.value ?? 'auto'}
                             style={[styles.tplStructureChip, on && styles.tplStructureChipOn]}
                             onPress={() => setStructure(i, st.value)}
-                            // Compact chip; hitSlop lifts the ~24-pt box to 44.
-                            hitSlop={{ top: 10, bottom: 10, left: 4, right: 4 }}
                             accessibilityRole="button"
                             accessibilityState={{ selected: on }}
                             testID={`template-structure-${i}-${st.value ?? 'auto'}`}
@@ -1209,7 +1222,11 @@ export function TemplateEditorModal({
                               keyboardType="numeric"
                               value={ps.durationText}
                               onChangeText={(v) => patchSet(i, si, { durationText: v })}
-                              accessibilityLabel={t('train.setDurationA11y', { n: si + 1 })}
+                              {...doneKey}
+                              // The label the row SHOWS ("2a"), not its index:
+                              // the fourth row of a cluster is set 2b, and
+                              // VoiceOver said "set 4" (UX_AUDIT S20).
+                              accessibilityLabel={t('train.setDurationA11y', { n: setLabels[si] })}
                               testID={`template-set-duration-${i}-${si}`}
                             />
                           ) : (
@@ -1220,7 +1237,8 @@ export function TemplateEditorModal({
                                   keyboardType="numeric"
                                   value={ps.weightText}
                                   onChangeText={(v) => patchSet(i, si, { weightText: v })}
-                                  accessibilityLabel={t('train.setWeightA11y', { n: si + 1 })}
+                                  {...doneKey}
+                                  accessibilityLabel={t('train.setWeightA11y', { n: setLabels[si] })}
                                   testID={`template-set-weight-${i}-${si}`}
                                 />
                               ) : null}
@@ -1229,7 +1247,8 @@ export function TemplateEditorModal({
                                 keyboardType="numeric"
                                 value={ps.repsText}
                                 onChangeText={(v) => patchSet(i, si, { repsText: v })}
-                                accessibilityLabel={t('train.setRepsA11y', { n: si + 1 })}
+                                {...doneKey}
+                                accessibilityLabel={t('train.setRepsA11y', { n: setLabels[si] })}
                                 testID={`template-set-reps-${i}-${si}`}
                               />
                             </>
@@ -1331,6 +1350,8 @@ export function TemplateEditorModal({
                               keyboardType="numeric"
                               value={d.targetLoad}
                               onChangeText={(v) => patchEx(i, { targetLoad: v })}
+                              {...doneKey}
+                              accessibilityLabel={`${t('train.targetLoadA11y', { unit: loadUnit(unitSystem) })}, ${d.name}`}
                               testID={`template-load-${i}`}
                             />
                             <Text style={styles.tplLoadUnit}>{loadUnit(unitSystem)}</Text>
@@ -1350,7 +1371,8 @@ export function TemplateEditorModal({
                         placeholderTextColor={colors.faint}
                         value={d.restMiniSec}
                         onChangeText={(v) => patchEx(i, { restMiniSec: v })}
-                        accessibilityLabel={t('train.exRestMini')}
+                        {...doneKey}
+                        accessibilityLabel={`${t('train.exRestMini')}, ${d.name}`}
                         testID={`template-rest-mini-${i}`}
                       />
 
@@ -1361,6 +1383,7 @@ export function TemplateEditorModal({
                         value={d.cuesText}
                         onChangeText={(v) => patchEx(i, { cuesText: v })}
                         multiline
+                        accessibilityLabel={`${t('train.cues')}, ${d.name}`}
                         testID={`template-cues-${i}`}
                       />
 
@@ -1392,6 +1415,8 @@ export function TemplateEditorModal({
                               placeholderTextColor={colors.faint}
                               value={d.targetReps}
                               onChangeText={(v) => patchEx(i, { targetReps: v })}
+                              {...doneKey}
+                              accessibilityLabel={`${t('train.targetReps')}, ${d.name}`}
                               testID={`template-target-reps-${i}`}
                             />
                           </View>
@@ -1404,6 +1429,8 @@ export function TemplateEditorModal({
                               placeholderTextColor={colors.faint}
                               value={d.holdSessions}
                               onChangeText={(v) => patchEx(i, { holdSessions: v })}
+                              {...doneKey}
+                              accessibilityLabel={`${t('train.holdSessions')}, ${d.name}`}
                               testID={`template-hold-sessions-${i}`}
                             />
                           </View>
@@ -1418,6 +1445,8 @@ export function TemplateEditorModal({
                               placeholderTextColor={colors.faint}
                               value={d.incrementLb}
                               onChangeText={(v) => patchEx(i, { incrementLb: v })}
+                              {...doneKey}
+                              accessibilityLabel={`${t('train.incrementLb', { unit: loadUnit(unitSystem) })}, ${d.name}`}
                               testID={`template-increment-${i}`}
                             />
                           </View>

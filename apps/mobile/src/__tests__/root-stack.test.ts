@@ -63,6 +63,30 @@ describe('reconcileRootRoutes — the <Slot> contract on a native stack', () => 
     expect(reconcileRootRoutes([signIn], 0)).toBeNull();
   });
 
+  it('Settings → Daily targets: back lands on Settings, not Today (S21-1)', () => {
+    // As hidden tabs, both lived inside `(app)` and back went to the tab
+    // navigator's first route. As root stack routes they stack, and the
+    // reconcile leaves the chain alone — so a pop returns to Settings.
+    for (const name of ['settings', 'daily-targets', 'refine-targets', 'feedback']) {
+      expect(DETAIL_ROUTES.has(name)).toBe(true);
+    }
+    expect(reconcileRootRoutes([r(APP_ROUTE), r('settings'), r('daily-targets')], 2)).toBeNull();
+    expect(reconcileRootRoutes([r(APP_ROUTE), r('settings'), r('refine-targets')], 2)).toBeNull();
+  });
+
+  it('keeps one copy of a pushed route: Redo setup returning to Settings (rule 3)', () => {
+    // Settings → Redo setup pushes onboarding; onboarding leaves with
+    // replace('/settings'), which swaps itself for a SECOND Settings.
+    const first = r('settings', 'settings-1');
+    const second = r('settings', 'settings-2');
+    const app = r(APP_ROUTE);
+    expect(reconcileRootRoutes([app, first, second], 2)).toEqual([app, second]);
+    // What's New → Feedback is a replace too, and never duplicates anything.
+    expect(reconcileRootRoutes([app, r('feedback')], 1)).toBeNull();
+    // Everything between the two copies goes with the stale one.
+    expect(reconcileRootRoutes([app, first, r('daily-targets'), second], 3)).toEqual([app, second]);
+  });
+
   it('accepts a cold deep link straight onto a detail route', () => {
     // `ignia://coach` with nothing beneath it: nothing to fix, the screen's own
     // back button falls back to `replace('/(app)')`.
@@ -113,10 +137,12 @@ describe('detail routes resolve as root stack routes', () => {
     const hrefs = new Set<string>();
     for (const file of sourceFiles(SRC)) {
       const src = readFileSync(file, 'utf8');
-      for (const m of src.matchAll(/['"`]\/(coach|milestones|history)(?:[?/'"`])/g)) hrefs.add(m[1]);
+      for (const m of src.matchAll(/['"`]\/([a-z-]+)(?:[?/'"`])/g)) {
+        if (DETAIL_ROUTES.has(m[1])) hrefs.add(m[1]);
+      }
     }
     // The links exist — this is not vacuously green because nothing links.
-    expect([...hrefs].sort()).toEqual(['coach', 'history', 'milestones']);
+    expect([...hrefs].sort()).toEqual([...DETAIL_ROUTES].sort());
     for (const name of hrefs) expect(routeAtRoot(APP_DIR, name)).toBe(true);
   });
 
@@ -153,11 +179,16 @@ describe('detail routes resolve as root stack routes', () => {
     expect(readFileSync(join(APP_DIR, 'history', '_layout.tsx'), 'utf8')).toMatch(/initialRouteName: 'index'/);
   });
 
-  it('the Maestro flows still find the back buttons they tap', () => {
-    // 07-coach / 17-coach-ask leave the screen through `coach-back`; the
-    // capture flows open `ignia://milestones`. Both testIDs must survive the
-    // move — these drive real devices, and a rename here is a red suite there.
-    expect(readFileSync(join(APP_DIR, 'coach.tsx'), 'utf8')).toMatch(/testID="coach-back"/);
-    expect(readFileSync(join(APP_DIR, 'milestones.tsx'), 'utf8')).toMatch(/testID="milestones-back"/);
+  it('a cold-opened detail screen still has a testID\'d way back', () => {
+    // The capture flows open `ignia://milestones` cold and leave through
+    // `milestones-back`. Since S21-9 the back button is the native header's
+    // own (no testID) when there is something beneath; the cold-open escape
+    // the root layout draws keeps the old IDs. Flows that push a screen and
+    // then tap `coach-back` / `settings-back` / `refine-back` must use the
+    // system back now (Maestro `back`, or the "Back" label on iOS).
+    const root = readFileSync(join(APP_DIR, '_layout.tsx'), 'utf8');
+    for (const id of ['coach-back', 'milestones-back', 'settings-back', 'refine-back']) {
+      expect(root).toContain(`backTestID: '${id}'`);
+    }
   });
 });

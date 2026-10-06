@@ -1,4 +1,3 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
@@ -161,7 +160,11 @@ export default function DailyTargetsScreen() {
             {},
       );
       haptics.success();
-      router.back();
+      // Back to whoever opened this — Settings, since S21-1 made this a root
+      // stack route (as a hidden tab, back went to Today). A cold open has
+      // nothing beneath it.
+      if (router.canGoBack()) router.back();
+      else router.replace('/settings');
     } catch {
       setError(t('targets.saveErr'));
     } finally {
@@ -181,23 +184,13 @@ export default function DailyTargetsScreen() {
   const kcalBlocking = custom && !kcalCheck.ok;
   const proteinBad = custom && proteinCheck != null && !proteinCheck.ok;
 
+  // The header — title, back button, swipe-back — is the shared native one
+  // from the root layout (S21-9).
   return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          hitSlop={10}
-          accessibilityRole="button"
-          accessibilityLabel={t('common.back')}
-          testID="targets-back"
-        >
-          <Ionicons name="chevron-back" size={26} color={colors.ink} />
-        </TouchableOpacity>
-        <Text style={styles.title}>{t('targets.title')}</Text>
-        <View style={{ width: 26 }} />
-      </View>
-
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.fill}>
+    <SafeAreaView style={styles.screen} edges={['bottom']}>
+      {/* `automaticOffset`: under a native header the view no longer starts
+          at the top of the screen, and the library measures where it is. */}
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} automaticOffset style={styles.fill}>
         <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
           <View style={styles.segment}>
             {MODES.map((m) => {
@@ -306,6 +299,10 @@ export default function DailyTargetsScreen() {
             style={[styles.save, (!canSave || busy) && styles.saveDisabled]}
             disabled={!canSave || busy}
             onPress={onSave}
+            accessibilityRole="button"
+            // Named while the label is swapped for a spinner, too.
+            accessibilityLabel={t('targets.save')}
+            accessibilityState={{ disabled: !canSave || busy, busy }}
             testID="targets-save"
           >
             {busy ? (
@@ -324,15 +321,13 @@ const createStyles = ({ colors }: Theme) =>
   StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.paper },
     fill: { flex: 1 },
-    header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.lg, paddingVertical: space.md },
-    title: { flex: 1, textAlign: 'center', fontSize: font.h2, fontWeight: '800', color: colors.ink },
-    body: { paddingHorizontal: space.xl, paddingBottom: space.xl, gap: space.lg },
+    body: { paddingHorizontal: space.xl, paddingTop: space.md, paddingBottom: space.xl, gap: space.lg },
     subtitle: { fontSize: font.body, color: colors.muted },
     segment: { flexDirection: 'row', gap: space.sm },
     segBtn: {
       flex: 1,
       borderWidth: 1,
-      borderColor: colors.line,
+      borderColor: colors.lineStrong,
       borderRadius: radius.md,
       paddingVertical: space.md,
       alignItems: 'center',
@@ -347,7 +342,9 @@ const createStyles = ({ colors }: Theme) =>
     input: {
       backgroundColor: colors.inputBg,
       borderWidth: 1,
-      borderColor: colors.line,
+      // A field's edge is a control boundary (WCAG 1.4.11, 3:1): `line` was
+      // 1.26:1 (S21-6).
+      borderColor: colors.lineStrong,
       borderRadius: radius.md,
       paddingHorizontal: space.lg,
       paddingVertical: space.md,

@@ -1,10 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Glyph } from '@/components/charts/Glyph';
-import { type Href, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  BackHandler,
   Platform,
   ScrollView,
   StyleSheet,
@@ -20,6 +18,8 @@ import {
   type Sex,
   activityMultiplier as activityMultiplierFor,
   basalMifflinStJeor,
+  bodyWeightUnit,
+  lbToKg,
   toDisplayMeasure,
   isPlausibleAge,
   isPlausibleHeightIn,
@@ -70,25 +70,19 @@ export default function RefineTargets() {
   const { user, profile } = useAuth();
   // Set when the Trends correction card sends the user here: the screen opens
   // already on the suggested bucket, so accepting is just Save.
-  const { suggested, from } = useLocalSearchParams<{ suggested?: ActivityLevel; from?: string }>();
+  // (Trends still passes `from=trends`; nothing needs it any more.)
+  const { suggested } = useLocalSearchParams<{ suggested?: ActivityLevel }>();
 
-  // Where back AND save return to. This is a hidden TAB route, and a tab
-  // navigator's back goes to its first route — so `router.back()` landed on
-  // Today from both doors, and Save sent a user who came from Trends to
-  // Settings. The opener says which door it was (`from=trends`); anything else
-  // is the Settings row, the original door. `replace`, because the target is a
-  // sibling tab: pushing it would stack a second copy. Android's hardware back
-  // takes the same path while this screen is focused.
-  const returnTo: Href = from === 'trends' ? '/trends' : '/settings';
-  const leave = useCallback(() => router.replace(returnTo), [router, returnTo]);
-  useFocusEffect(
-    useCallback(() => {
-      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-        leave();
-        return true;
-      });
-      return () => sub.remove();
-    }, [leave]),
+  // Save returns to whichever screen opened this one — Settings, Trends' activity
+  // card or Body's body-fat card. Until S21-1 this was a hidden TAB route whose
+  // back went to the tab navigator's first route (Today), so it replaced its
+  // way back to an opener named in a `from` param and hooked Android's
+  // hardware back to do the same. It is a root stack route now: back — the
+  // header's, the edge-swipe, the hardware key — pops to the opener on its own,
+  // and Save does the same. A cold open has nothing beneath it: Today.
+  const leave = useCallback(
+    () => (router.canGoBack() ? router.back() : router.replace('/(app)')),
+    [router],
   );
 
   const unitSystem = useUnitSystem();
@@ -237,23 +231,19 @@ export default function RefineTargets() {
     }
   }
 
-  return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={leave}
-          hitSlop={10}
-          accessibilityRole="button"
-          accessibilityLabel={t('common.back')}
-          testID="refine-back"
-        >
-          <Glyph ios="chevron.left" android="chevron-back" size={26} color={colors.ink} />
-        </TouchableOpacity>
-        <Text style={styles.title} accessibilityRole="header">{t('refine.title')}</Text>
-        <View style={{ width: 26 }} />
-      </View>
+  // The pace as the user reads it: their weight unit, their decimal separator
+  // ("0,23 kg/sem", "0.50 lb/wk"). It printed `toFixed(2)` under a hardcoded
+  // "lb" to every user until S21-6. The stepper still moves in quarter-pounds —
+  // that is what is stored — only the display converts.
+  const paceText = (lb: number) =>
+    `${formatNumber(metric ? lbToKg(lb) : lb, locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${bodyWeightUnit(unitSystem)}/${t('body.perWeek')}`;
 
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.fill}>
+  // The header is the shared native one (root `_layout.tsx`, S21-9).
+  return (
+    <SafeAreaView style={styles.screen} edges={['bottom']}>
+      {/* `automaticOffset`: the view now sits under a native header, and the
+          library measures where it is on screen rather than assuming the top. */}
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} automaticOffset style={styles.fill}>
         <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
           <Text style={styles.subtitle}>{t('refine.subtitle')}</Text>
 
@@ -348,6 +338,9 @@ export default function RefineTargets() {
                   style={styles.healthBtn}
                   onPress={async () => { haptics.tap(); await connect(); }}
                   disabled={connecting}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('refine.activityConnectCta')}
+                  accessibilityState={{ disabled: connecting, busy: connecting }}
                   testID="refine-activity-connect-cta"
                 >
                   {connecting ? (
@@ -378,13 +371,13 @@ export default function RefineTargets() {
           <View style={styles.field}>
             <Text style={styles.label}>{t('refine.pace')}</Text>
             <View style={styles.paceRow}>
-              <TouchableOpacity style={styles.step} onPress={() => setPace((p) => Math.max(0, Math.round((p - 0.25) * 100) / 100))} accessibilityRole="button" accessibilityLabel={t('settings.lower')} testID="refine-pace-minus">
+              <TouchableOpacity style={styles.step} onPress={() => setPace((p) => Math.max(0, Math.round((p - 0.25) * 100) / 100))} accessibilityRole="button" accessibilityLabel={t('settings.stepLower', { what: t('refine.pace') })} testID="refine-pace-minus">
                 <Text style={styles.stepText}>−</Text>
               </TouchableOpacity>
               <Text style={styles.paceValue} testID="refine-pace">
-                {pace === 0 ? t('refine.maintain') : `${pace.toFixed(2)} ${t('refine.paceUnit')}`}
+                {pace === 0 ? t('refine.maintain') : paceText(pace)}
               </Text>
-              <TouchableOpacity style={styles.step} onPress={() => setPace((p) => Math.min(2, Math.round((p + 0.25) * 100) / 100))} accessibilityRole="button" accessibilityLabel={t('settings.raise')} testID="refine-pace-plus">
+              <TouchableOpacity style={styles.step} onPress={() => setPace((p) => Math.min(2, Math.round((p + 0.25) * 100) / 100))} accessibilityRole="button" accessibilityLabel={t('settings.stepRaise', { what: t('refine.pace') })} testID="refine-pace-plus">
                 <Text style={styles.stepText}>+</Text>
               </TouchableOpacity>
             </View>
@@ -393,7 +386,7 @@ export default function RefineTargets() {
                 {paceLimit.effectivePace > 0
                   ? t('refine.paceFloorCapped', {
                       floor: formatNumber(paceLimit.floor, locale),
-                      pace: paceLimit.effectivePace.toFixed(2),
+                      pace: paceText(paceLimit.effectivePace),
                     })
                   : t('refine.paceFloorNoDeficit', {
                       floor: formatNumber(paceLimit.floor, locale),
@@ -411,7 +404,16 @@ export default function RefineTargets() {
         </ScrollView>
 
         <View style={styles.footer}>
-          <TouchableOpacity style={[styles.save, !canSave && styles.saveDisabled]} onPress={onSave} disabled={!canSave} testID="refine-save">
+          <TouchableOpacity
+            style={[styles.save, !canSave && styles.saveDisabled]}
+            onPress={onSave}
+            disabled={!canSave}
+            accessibilityRole="button"
+            // Named while the label is swapped for a spinner, too.
+            accessibilityLabel={t('refine.save')}
+            accessibilityState={{ disabled: !canSave, busy }}
+            testID="refine-save"
+          >
             {busy ? <ActivityIndicator color={colors.onInk} /> : <Text style={styles.saveText}>{t('refine.save')}</Text>}
           </TouchableOpacity>
         </View>
@@ -423,14 +425,12 @@ export default function RefineTargets() {
 const createStyles = ({ colors }: Theme) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
   fill: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.lg, paddingVertical: space.md },
-  title: { flex: 1, textAlign: 'center', fontSize: font.h2, fontWeight: '800', color: colors.ink },
-  body: { paddingHorizontal: space.xl, paddingBottom: space.xl, gap: space.lg },
+  body: { paddingHorizontal: space.xl, paddingTop: space.md, paddingBottom: space.xl, gap: space.lg },
   subtitle: { fontSize: font.body, color: colors.muted, marginTop: space.xs },
   field: { gap: space.xs },
   label: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
   segment: { flexDirection: 'row', gap: space.sm },
-  segBtn: { flex: 1, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, paddingVertical: space.md, alignItems: 'center', backgroundColor: colors.inputBg },
+  segBtn: { flex: 1, borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.md, paddingVertical: space.md, alignItems: 'center', backgroundColor: colors.inputBg },
   segBtnOn: { backgroundColor: colors.ink, borderColor: colors.ink },
   segText: { fontSize: font.body, color: colors.muted, fontWeight: '600' },
   segTextOn: { color: colors.onInk },
@@ -439,7 +439,9 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   input: {
     backgroundColor: colors.inputBg,
     borderWidth: 1,
-    borderColor: colors.line,
+    // `lineStrong`: a field's edge is a control boundary (WCAG 1.4.11, 3:1) —
+    // `line` measured 1.26:1 (S21-6).
+    borderColor: colors.lineStrong,
     borderRadius: radius.md,
     paddingHorizontal: space.lg,
     paddingVertical: space.md,
@@ -455,7 +457,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: colors.lineStrong,
     borderRadius: radius.md,
     paddingHorizontal: space.lg,
     paddingVertical: space.md,
@@ -464,12 +466,14 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   activityRowOn: { backgroundColor: colors.ink, borderColor: colors.ink },
   hint: { fontSize: font.small, color: colors.muted, marginTop: space.xs },
   healthPrompt: { marginTop: space.xs, gap: space.sm, alignItems: 'flex-start' },
-  healthBtn: { backgroundColor: colors.ink, borderRadius: radius.md, paddingVertical: space.sm, paddingHorizontal: space.lg, minWidth: 140, alignItems: 'center' },
+  // 48 tall — it was ~33 (S21-6); 44pt iOS / 48dp Android is the floor, and
+  // one number clears both.
+  healthBtn: { backgroundColor: colors.ink, borderRadius: radius.md, minHeight: 48, justifyContent: 'center', paddingHorizontal: space.lg, minWidth: 140, alignItems: 'center' },
   healthBtnText: { color: colors.onInk, fontSize: font.small, fontWeight: '700' },
   activityText: { fontSize: font.body, color: colors.ink, fontWeight: '600' },
   activityTextOn: { color: colors.onInk },
   paceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  step: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.inputBg },
+  step: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: colors.lineStrong, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.inputBg },
   stepText: { fontSize: font.h2, color: colors.ink, fontWeight: '700' },
   paceValue: { fontSize: font.h3, color: colors.ink, fontWeight: '700' },
   paceNote: { fontSize: font.small, color: colors.ink, marginTop: space.sm },

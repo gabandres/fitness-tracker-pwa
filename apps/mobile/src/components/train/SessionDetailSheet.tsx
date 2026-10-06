@@ -1,6 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMemo } from 'react';
-import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
+import { Touchable } from './Touchable';
 import { finishSummary, formatLoad, sessionCounts } from '@macrolog/core';
 import { BottomSheet } from '@/components/BottomSheet';
 import { useLocale, useT } from '@/i18n';
@@ -111,39 +112,42 @@ export function SessionDetailSheet({
             {session.exercises.map((ex, i) => {
               const line = setLine(ex, ex.logStyle ?? DEFAULT_LOG_STYLE, unitSystem);
               return (
-                <View key={`${ex.exerciseId}-${i}`} style={styles.detailRow} accessible>
-                  <Text style={styles.detailDate}>{ex.name}</Text>
+                // Name over its sets, full width. The name used to borrow the
+                // history table's 56pt DATE column, so "Romanian deadlift"
+                // broke into four lines beside its numbers (UX_AUDIT S20).
+                <View key={`${ex.exerciseId}-${i}`} style={styles.detailExRow} accessible>
+                  <Text style={styles.detailExName} numberOfLines={2}>{ex.name}</Text>
                   <Text style={styles.detailSets}>{line || t('train.detailNoSets')}</Text>
                 </View>
               );
             })}
           </View>
 
-          <TouchableOpacity
+          <Touchable
             style={styles.finishBtn}
             onPress={() => onEdit(session)}
             accessibilityRole="button"
             testID="session-detail-edit"
           >
             <Text style={styles.finishText}>{t('train.detailEdit')}</Text>
-          </TouchableOpacity>
+          </Touchable>
           <View style={[styles.manageRow, { marginTop: space.xs }]}>
-            <TouchableOpacity
+            <Touchable
               style={styles.manageBtn}
               onPress={() => onShare(session)}
               accessibilityRole="button"
               testID="session-detail-share"
             >
               <Text style={styles.manageLink}>{t('train.share')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
+            </Touchable>
+            <Touchable
               style={styles.manageBtn}
               onPress={() => onDelete(session)}
               accessibilityRole="button"
               testID="session-detail-delete"
             >
               <Text style={[styles.manageLink, styles.manageDanger]}>{t('train.delete')}</Text>
-            </TouchableOpacity>
+            </Touchable>
           </View>
         </ScrollView>
       ) : null}

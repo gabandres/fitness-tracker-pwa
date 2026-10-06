@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { ActivityIndicator, AppState, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, AppState, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated from 'react-native-reanimated';
 import { BrandMark } from '@/components/BrandMark';
@@ -113,6 +113,16 @@ export default function VerifyEmail() {
 
   return (
     <SafeAreaView style={styles.screen}>
+      {/* Scrolls rather than clips (S21 #9): at the largest text sizes the
+          title, the card copy and three buttons outgrow a phone, and a
+          non-scrolling centred box pushed the buttons off the bottom with no
+          way to reach them — on the one screen between sign-up and the app.
+          `flexGrow` keeps it centred whenever it does fit. */}
+      <ScrollView
+        style={styles.fill}
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
       <View style={styles.body}>
         <Animated.View style={styles.hero} entering={enterUp(0)}>
           <BrandMark />
@@ -120,7 +130,7 @@ export default function VerifyEmail() {
         <Animated.Text style={styles.section} entering={enterUp(1)}>
           {t('verify.section')}
         </Animated.Text>
-        <Animated.Text style={styles.title} entering={enterUp(2)}>
+        <Animated.Text style={styles.title} entering={enterUp(2)} accessibilityRole="header">
           {t('verify.title')}
         </Animated.Text>
 
@@ -142,6 +152,8 @@ export default function VerifyEmail() {
             style={[styles.primary, checking && styles.busy]}
             onPress={onCheck}
             disabled={checking}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: checking, busy: checking }}
             testID="verify-check"
           >
             {checking ? (
@@ -156,7 +168,7 @@ export default function VerifyEmail() {
             onPress={onResend}
             disabled={resending || cooldownLeft > 0}
             accessibilityRole="button"
-            accessibilityState={{ disabled: resending || cooldownLeft > 0 }}
+            accessibilityState={{ disabled: resending || cooldownLeft > 0, busy: resending }}
             testID="verify-resend"
           >
             {/* An icon, not the `✓` dingbat it replaced (S18-17): the glyph
@@ -188,12 +200,14 @@ export default function VerifyEmail() {
             onPress={() => {
               signOut().catch((e) => captureError(e, { where: 'verifyEmail.signOut' }));
             }}
+            accessibilityRole="button"
             testID="verify-signout"
           >
             <Text style={styles.ghostText}>{t('verify.signOut')}</Text>
           </TouchableOpacity>
         </Animated.View>
       </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -201,9 +215,9 @@ export default function VerifyEmail() {
 const createStyles = ({ colors }: Theme) =>
   StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.paper },
+    fill: { flex: 1 },
+    scroll: { flexGrow: 1, justifyContent: 'center', paddingVertical: space.xl },
     body: {
-      flex: 1,
-      justifyContent: 'center',
       paddingHorizontal: space.xl,
       width: '100%',
       maxWidth: 480,
@@ -257,6 +271,7 @@ const createStyles = ({ colors }: Theme) =>
     secondaryRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
     secondaryText: { color: colors.ink, fontSize: font.body, fontWeight: '700' },
     busy: { opacity: 0.7 },
-    ghost: { alignItems: 'center', paddingVertical: space.sm },
+    // A full tap target: it was ~34 pt tall (S21 #4).
+    ghost: { alignItems: 'center', justifyContent: 'center', minHeight: Platform.OS === 'android' ? 48 : 44 },
     ghostText: { color: colors.muted, fontSize: font.small, fontWeight: '600' },
   });

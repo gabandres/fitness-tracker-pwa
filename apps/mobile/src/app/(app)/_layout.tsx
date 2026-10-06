@@ -142,9 +142,11 @@ function AppTabBar({ state, descriptors, navigation }: AppTabBarProps) {
   // iOS 26: a Liquid Glass capsule floating over the content, the way the
   // system tab bar sits (owner-approved 2026-10-05). The content runs under
   // it — every tab pads by `TAB_SCROLL_BAND`. Only on the four tabs: Settings,
-  // the targets screens and Feedback are routes in this navigator too, and
-  // none pads for a floating bar, so it covered their Save / Send / Delete
-  // account (Impeccable native audit, 2026-10-05). Elsewhere: the opaque bar.
+  // the targets screens and Feedback were hidden routes in this navigator
+  // until S21-1, none padded for a floating bar, and it covered their Save /
+  // Send / Delete account (Impeccable native audit, 2026-10-05). They are
+  // root stack routes now; the check stays so a route added here later gets
+  // the opaque bar until it pads for the capsule. Elsewhere: the opaque bar.
   const floating = GLASS_TAB_BAR && current != null && TAB_ROUTES.includes(current);
   return (
     <View style={floating ? styles.floatWrap : undefined} pointerEvents="box-none">
@@ -309,19 +311,12 @@ export default function AppTabsLayout() {
       <Tabs.Screen name="train" options={{ title: t('nav.train') }} />
       <Tabs.Screen name="trends" options={{ title: t('nav.trends') }} />
       <Tabs.Screen name="body" options={{ title: t('nav.body') }} />
-      {/* Routes without a tab button: */}
-      {/* Reachable via the Today header avatar; hidden from the tab bar. */}
-      <Tabs.Screen name="settings" options={{ href: null }} />
-      {/* Coach, Milestones and History are NOT here: they are root stack
-          routes pushed over this navigator (UX_AUDIT S18-14, Today review P1,
-          `lib/root-stack.ts`), so the tab bar and the raised + never cover
-          them and swipe-back works. */}
-      {/* Reachable via Settings → Refine targets; hidden from the tab bar. */}
-      <Tabs.Screen name="refine-targets" options={{ href: null }} />
-      {/* Reachable via Settings → Daily targets; hidden from the tab bar. */}
-      <Tabs.Screen name="daily-targets" options={{ href: null }} />
-      {/* Reachable via Settings → Send feedback and the What's-new card. */}
-      <Tabs.Screen name="feedback" options={{ href: null }} />
+      {/* No hidden tabs. Coach, Milestones, History — and since S21-1
+          Settings, Daily targets, Refine targets and Feedback — are root
+          stack routes pushed over this navigator (UX_AUDIT S18-14, Today
+          review P1, `lib/root-stack.ts`), so the tab bar and the raised +
+          never cover them, swipe-back works, and back returns to the screen
+          that opened them instead of the tab navigator's first route. */}
     </Tabs>
     {/* Branded confirm dialogs (UX_AUDIT S16-10) — one host for every
         `confirm()` call in the authed shell. */}

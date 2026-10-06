@@ -68,7 +68,7 @@ export default function WhatsNew() {
           style={styles.head}
         >
           <BrandMark size={72} />
-          <Text style={styles.title}>{t('whatsNew.title')}</Text>
+          <Text style={styles.title} accessibilityRole="header">{t('whatsNew.title')}</Text>
           <Text style={styles.subtitle}>{t('whatsNew.subtitle')}</Text>
         </Animated.View>
 

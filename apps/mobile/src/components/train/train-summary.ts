@@ -199,6 +199,48 @@ export function recommendationFor(
   templateRow: WorkoutTemplate['exercises'][number] | null | undefined,
   sessionEx?: SessionExercise,
 ): Recommendation {
+  // The live workout asks this twice per exercise per render — the card (for
+  // its note) and the session (for whether ⋯ offers "Lift settings") — with
+  // the SAME objects, and it walks the whole recent history each time
+  // (UX_AUDIT S20). Session state is immutable, so identical inputs are the
+  // identical answer: the second caller gets the first one's result. Keyed by
+  // the live exercise object, so a keystroke (a new `ex`) misses by
+  // construction and an abandoned one is collected with it.
+  if (sessionEx) {
+    const hit = recCache.get(sessionEx);
+    if (
+      hit &&
+      hit.recentSessions === data.recentSessions &&
+      hit.catalog === data.catalog &&
+      hit.exerciseId === exerciseId &&
+      hit.templateRow === templateRow
+    ) {
+      return hit.rec;
+    }
+    const rec = computeRecommendation(data, exerciseId, templateRow, sessionEx);
+    recCache.set(sessionEx, { recentSessions: data.recentSessions, catalog: data.catalog, exerciseId, templateRow, rec });
+    return rec;
+  }
+  return computeRecommendation(data, exerciseId, templateRow, sessionEx);
+}
+
+const recCache = new WeakMap<
+  SessionExercise,
+  {
+    recentSessions: readonly WorkoutSession[];
+    catalog: readonly Exercise[];
+    exerciseId: string;
+    templateRow: WorkoutTemplate['exercises'][number] | null | undefined;
+    rec: Recommendation;
+  }
+>();
+
+function computeRecommendation(
+  data: { recentSessions: readonly WorkoutSession[]; catalog: readonly Exercise[] },
+  exerciseId: string,
+  templateRow: WorkoutTemplate['exercises'][number] | null | undefined,
+  sessionEx?: SessionExercise,
+): Recommendation {
   const completed = data.recentSessions.filter((s) => s.status === 'completed');
   const history = exerciseHistory(completed, exerciseId);
   const catalogEx = data.catalog.find((e) => e.id === exerciseId) ?? null;

@@ -4,10 +4,11 @@
 import { Manrope_700Bold } from '@expo-google-fonts/manrope/700Bold';
 import { Manrope_800ExtraBold } from '@expo-google-fonts/manrope/800ExtraBold';
 import { useFonts } from '@expo-google-fonts/manrope/useFonts';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, useNavigationContainerRef, useRootNavigationState, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
-import { LogBox, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { LogBox, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -17,12 +18,12 @@ import { assessRoute, shouldShowSplash } from '@/lib/onboarding-gate';
 import { DETAIL_ROUTES, reconcileRootRoutes } from '@/lib/root-stack';
 import { setSplashVisible } from '@/lib/splash-state';
 import { BrandLoader } from '@/components/BrandLoader';
-import { I18nProvider, useT } from '@/i18n';
+import { type I18nKey, I18nProvider, useT } from '@/i18n';
 import { Sentry } from '@/lib/sentry';
 import { ThemeProvider, useTheme } from '@/lib/theme-context';
 import { ToastProvider } from '@/components/Toast';
 import { sheetOptions } from '@/lib/sheet-options';
-import { font, space } from '@/theme';
+import { font, space, type } from '@/theme';
 
 // Silence Expo Go's expo-notifications warnings: we use LOCAL notifications
 // (which work in Expo Go); remote push is deferred to a dev build (ADR-0015),
@@ -94,11 +95,75 @@ function useGaveUpWaiting(waiting: boolean): boolean {
   return gaveUp;
 }
 
+/**
+ * The detail routes that wear the shared native header, with their titles and
+ * the testID their cold-open back button carries (Maestro taps these).
+ *
+ * One header for every pushed screen (S21-9): Coach and Milestones drew their
+ * own chevron + centred title, Connected apps had a native large title, and
+ * Settings, the targets screens and Feedback were hidden tabs with a drawn
+ * header. Now each is the system header — the platform's back button with its
+ * swipe and long-press history, the iOS 26 glass, a centred title on iOS and a
+ * leading one on Android — set ONCE here so they cannot drift apart again.
+ */
+const HEADER_SCREENS: { name: string; titleKey: I18nKey; backTestID: string }[] = [
+  { name: 'settings', titleKey: 'nav.settings', backTestID: 'settings-back' },
+  { name: 'daily-targets', titleKey: 'targets.title', backTestID: 'targets-back' },
+  { name: 'refine-targets', titleKey: 'refine.title', backTestID: 'refine-back' },
+  { name: 'feedback', titleKey: 'feedback.title', backTestID: 'feedback-back' },
+  { name: 'coach', titleKey: 'coach.title', backTestID: 'coach-back' },
+  { name: 'milestones', titleKey: 'milestones.title', backTestID: 'milestones-back' },
+  { name: 'connected-apps', titleKey: 'connected.title', backTestID: 'connected-apps-back' },
+];
+
+/**
+ * The back button for a detail screen opened COLD (`ignia://coach`, a
+ * notification) with nothing beneath it — the native header shows no back
+ * button then, and the screen would be a dead end. Goes to Today.
+ */
+function OrphanBack({ testID }: { testID: string }) {
+  const t = useT();
+  const { colors } = useTheme();
+  const router = useRouter();
+  return (
+    <TouchableOpacity
+      onPress={() => router.replace('/(app)')}
+      hitSlop={10}
+      style={styles.orphanBack}
+      accessibilityRole="button"
+      accessibilityLabel={t('common.back')}
+      testID={testID}
+    >
+      <Ionicons name="chevron-back" size={26} color={colors.ink} />
+    </TouchableOpacity>
+  );
+}
+
 /** Redirects between the authed tab group and the sign-in screen as auth
  *  state settles. The `(app)` group holds every signed-in surface. */
 function AuthGate({ fontsReady }: { fontsReady: boolean }) {
   const { sessionUid, sessionPresumed, initializing, profile, profileLoading, profileConfirmed, emailVerified } =
     useAuth();
+  const t = useT();
+  const { colors } = useTheme();
+  // The shared native header (S21-9). `minimal` drops the back title beside
+  // the chevron; `headerBackTitle` is still what VoiceOver reads for it —
+  // without it the button announces the previous route's NAME ("(app)").
+  // Manrope for the title, without a weight (ADR-0014).
+  const detailHeader = useMemo(
+    () => ({
+      headerShown: true,
+      animation: 'default' as const,
+      gestureEnabled: true,
+      headerBackButtonDisplayMode: 'minimal' as const,
+      headerBackTitle: t('common.back'),
+      headerShadowVisible: false,
+      headerStyle: { backgroundColor: colors.paper },
+      headerTintColor: colors.ink,
+      headerTitleStyle: { color: colors.ink, fontFamily: type.heading },
+    }),
+    [t, colors],
+  );
   const offline = useIsOffline();
   const segments = useSegments();
   const router = useRouter();
@@ -118,9 +183,9 @@ function AuthGate({ fontsReady }: { fontsReady: boolean }) {
   useEffect(() => {
     if (initializing) return;
     const route = segments[0];
-    // Coach, Milestones and History are root routes pushed over the tabs
-    // (UX_AUDIT S18-14, Today review P1) — signed-in surfaces, so they count
-    // as "in the app" here.
+    // Coach, Milestones, History, Settings and the screens Settings opens are
+    // root routes pushed over the tabs (UX_AUDIT S18-14, Today review P1,
+    // S21-1) — signed-in surfaces, so they count as "in the app" here.
     // The native sheet route (UX_AUDIT S20) is presented over the tabs too —
     // missing from this list, it was "not in the app" and replaced away the
     // moment it opened.
@@ -194,6 +259,17 @@ function AuthGate({ fontsReady }: { fontsReady: boolean }) {
     navRef.resetRoot({ ...rootState, routes: keep, index: keep.length - 1 });
   }, [rootState, navRef]);
 
+  /** Header options for one detail route: the shared header, its title, and
+   *  a back button of our own only when the stack has nothing beneath it. */
+  function headerOptions(name: string) {
+    const screen = HEADER_SCREENS.find((s) => s.name === name)!;
+    return ({ navigation }: { navigation: { canGoBack: () => boolean } }) => ({
+      ...detailHeader,
+      title: t(screen.titleKey),
+      headerLeft: navigation.canGoBack() ? undefined : () => <OrphanBack testID={screen.backTestID} />,
+    });
+  }
+
   // Always mount the stack so the navigator exists when the redirect effect
   // fires; cover it with the splash while auth/profile/fonts settle.
   const gateSettled = !initializing && fontsReady && decision !== 'wait';
@@ -219,15 +295,21 @@ function AuthGate({ fontsReady }: { fontsReady: boolean }) {
     <>
       {/* `animation: 'none'` + no gesture is the `<Slot>` behaviour every root
           route had until 2026-09-28 (sign-in ⇄ app ⇄ onboarding are `replace`
-          swaps, and the tour/what's-new leave with one too). Only the two
-          detail routes get the native push, the swipe-back and the hardware
-          back — that is the whole point of the stack (UX_AUDIT S18-14). */}
+          swaps, and the tour/what's-new leave with one too). Only the detail
+          routes get the native push, the swipe-back and the hardware back —
+          that is the whole point of the stack (UX_AUDIT S18-14, S21-1). */}
       <ToastProvider>
       <Stack screenOptions={{ headerShown: false, animation: 'none', gestureEnabled: false }}>
-        <Stack.Screen name="coach" options={{ animation: 'default', gestureEnabled: true }} />
-        <Stack.Screen name="milestones" options={{ animation: 'default', gestureEnabled: true }} />
+        {/* Written out one per line rather than mapped: `root-stack.test.ts`
+            reads this file for a `<Stack.Screen name="…"` per detail route. */}
+        <Stack.Screen name="settings" options={headerOptions('settings')} />
+        <Stack.Screen name="daily-targets" options={headerOptions('daily-targets')} />
+        <Stack.Screen name="refine-targets" options={headerOptions('refine-targets')} />
+        <Stack.Screen name="feedback" options={headerOptions('feedback')} />
+        <Stack.Screen name="coach" options={headerOptions('coach')} />
+        <Stack.Screen name="milestones" options={headerOptions('milestones')} />
+        <Stack.Screen name="connected-apps" options={headerOptions('connected-apps')} />
         <Stack.Screen name="history" options={{ animation: 'default', gestureEnabled: true }} />
-        <Stack.Screen name="connected-apps" options={{ animation: 'default', gestureEnabled: true }} />
         {/* Meal-photo scan: a camera takes the whole screen, so it is presented
             as one — no tab bar, no raised + over the viewfinder, a modal's
             slide-up and Android back to leave. */}
@@ -263,6 +345,7 @@ const styles = StyleSheet.create({
     marginTop: space.lg,
     fontSize: font.small,
   },
+  orphanBack: { minWidth: 44, minHeight: 44, justifyContent: 'center' },
 });
 
 function RootLayout() {

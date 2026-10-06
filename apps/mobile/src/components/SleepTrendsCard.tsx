@@ -265,7 +265,9 @@ export function SleepTrendsCard({
           {/* The reference line is the user's OWN median, never a population
               7- or 8-hour standard — Ignia has no authority to assert one. */}
           {window.medianHours > 0 ? (
-            <MedianLine bottomPct={sleepBarFraction(window.medianHours) * 100} />
+            // In dp against the strip's own fixed height — the same box the
+            // bars are measured in.
+            <MedianLine bottomPx={sleepBarFraction(window.medianHours) * STRIP_H} />
           ) : null}
         </AccessibleChart>
           {/* The axis its two siblings already carry (fasting, water). Without
@@ -285,7 +287,19 @@ export function SleepTrendsCard({
         {window.nights.length > 0 ? (
           <StripDates first={window.nights[0].dateKey} last={window.nights[window.nights.length - 1].dateKey} locale={locale} />
         ) : null}
-        <Text style={styles.legend}>{t('trends.sleepLegend')}</Text>
+        {/* A legend with its marks: the line drawn as the line is, its value
+            printed (it was "your median" with no swatch and no number, and
+            the line was read as a target). */}
+        <View style={styles.legendRow} accessible testID="sleep-legend">
+          <View style={[styles.legendSwatch, { backgroundColor: colors.ink }]} />
+          <Text style={styles.legend}>
+            {t('trends.sleepLegendMedian', {
+              h: formatNumber(median.hours, locale),
+              m: formatNumber(median.minutes, locale),
+            })}
+          </Text>
+        </View>
+        <Text style={styles.legend}>{t('trends.sleepLegendGaps')}</Text>
 
         <View style={styles.divider} />
 
@@ -383,17 +397,21 @@ const createStyles = ({ colors }: Theme) =>
     // `lineHeight` equal to the font size, and NOT larger: the two labels are
     // pinned to the top and bottom of the strip, so any leading pushes them off
     // the gridline they are naming and the axis reads as approximate.
-    axisLabel: { fontSize: font.tiny, color: colors.faint, lineHeight: font.tiny },
+    // `muted`, not `faint`: "10h" and "0h" read poorly in the lighter grey
+    // beside the bars (sim review 2026-10-06).
+    axisLabel: { fontSize: font.tiny, color: colors.muted, lineHeight: font.tiny, fontWeight: '600', fontVariant: ['tabular-nums'] },
     bar: { width: '100%', borderRadius: 2 },
     barShort: { borderWidth: 1.5, borderColor: colors.ink },
     // Sentence-length copy reads in `muted`; `faint` (AA since S18-2) is kept
     // for the two-character axis numerals and glyphs.
-    legend: { fontSize: font.tiny, color: colors.muted },
+    legend: { fontSize: font.small, color: colors.muted, flexShrink: 1 },
+    legendRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+    legendSwatch: { width: 16, height: 2, borderRadius: 1 },
     divider: { height: 1, backgroundColor: colors.line, marginVertical: space.xs },
     claim: { fontSize: font.body, color: colors.ink, lineHeight: 22 },
     qualify: { fontSize: font.small, color: colors.muted },
     progress: { fontSize: font.small, color: colors.muted, lineHeight: 20 },
-    foot: { fontSize: font.tiny, color: colors.muted },
+    foot: { fontSize: font.small, color: colors.muted },
     // The 0–2 nights row: one line, hairline-bounded, no card.
     hairline: { height: 1, backgroundColor: colors.line },
     linkRow: {

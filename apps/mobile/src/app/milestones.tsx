@@ -1,6 +1,4 @@
-import { Glyph } from '@/components/charts/Glyph';
-import { useRouter } from 'expo-router';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { sortMilestones } from '@macrolog/core';
@@ -9,7 +7,7 @@ import { useMilestoneRecord } from '@/hooks/useMilestones';
 import { useAuth } from '@/lib/auth';
 import { formatDate } from '@/lib/date-format';
 import { enterUp } from '@/lib/motion';
-import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
+import { useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space, type } from '@/theme';
 
 /**
@@ -45,7 +43,12 @@ import { font, radius, space, type } from '@/theme';
  * Pushed over the tabs on the native stack (UX_AUDIT S18-14,
  * `lib/root-stack.ts`): no tab bar, no raised + over the last row, swipe-back
  * on iOS and hardware back on Android. It was `(app)/milestones.tsx` until
- * 2026-09-28.
+ * 2026-09-28. Its header is the shared native one from the root layout
+ * (S21-9), which also gives a cold `ignia://milestones` its way back.
+ *
+ * (S21-7 asked for an "Up next" section — the next unearned milestones with
+ * progress. Declined for the reason above: it is the ladder this screen was
+ * permitted on condition of not being.)
  */
 /**
  * Month + day + year, no weekday and no time.
@@ -61,34 +64,16 @@ const MILESTONE_DATE: Intl.DateTimeFormatOptions = {
 };
 
 export default function MilestonesScreen() {
-  const router = useRouter();
   const { user } = useAuth();
   const t = useT();
   const locale = useLocale();
-  const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
   const { earned, ready } = useMilestoneRecord(user?.uid);
   const rows = sortMilestones(Object.keys(earned));
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          // A cold deep link (`ignia://milestones`) has nothing beneath it to pop to.
-          onPress={() => (router.canGoBack() ? router.back() : router.replace('/(app)'))}
-          hitSlop={10}
-          accessibilityRole="button"
-          accessibilityLabel={t('common.back')}
-          testID="milestones-back"
-        >
-          <Glyph ios="chevron.left" android="chevron-back" size={26} color={colors.ink} />
-        </TouchableOpacity>
-        <Text style={styles.title} accessibilityRole="header">{t('milestones.title')}</Text>
-        {/* Balances the back chevron so the title is optically centred. */}
-        <View style={styles.headerSpacer} />
-      </View>
-
+    <SafeAreaView style={styles.screen} edges={['bottom']}>
       <ScrollView contentContainerStyle={styles.body}>
         <Text style={styles.subtitle}>{t('milestones.settingsSub')}</Text>
 
@@ -137,24 +122,10 @@ export default function MilestonesScreen() {
 const makeStyles = ({ colors }: Theme) =>
   StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.paper },
-    header: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: space.lg,
-      paddingVertical: space.md,
-    },
-    title: {
-      flex: 1,
-      textAlign: 'center',
-      fontSize: font.h2,
-      fontWeight: '800',
-      color: colors.ink,
-    },
-    headerSpacer: { width: 26 },
     // `space.xl` is enough here: nothing floats over this screen since it left
     // the tab group (S18-14). The `FAB_BAND` rule still applies to every tab —
     // `fab-band-clearance.test.ts` — this simply is not one any more.
-    body: { paddingHorizontal: space.xl, paddingBottom: space.xl, gap: space.md },
+    body: { paddingHorizontal: space.xl, paddingTop: space.md, paddingBottom: space.xl, gap: space.md },
     subtitle: { fontSize: font.body, color: colors.muted, marginBottom: space.sm },
     empty: { fontSize: font.body, color: colors.muted, lineHeight: 24 },
     row: {

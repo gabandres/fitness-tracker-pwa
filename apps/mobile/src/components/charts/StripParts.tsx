@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { type DimensionValue, StyleSheet, Text, View } from 'react-native';
 import { parseYmd } from '@macrolog/core';
 import type { Locale } from '@/i18n';
 import { formatDate } from '@/lib/date-format';
@@ -45,10 +45,15 @@ export function GapMarker() {
  * the card colour under a full-strength 1px ink line separates it from any
  * bar colour in either theme.
  */
-export function MedianLine({ bottomPct }: { bottomPct: number }) {
+export function MedianLine({ bottomPct, bottomPx }: { bottomPct?: number; bottomPx?: number }) {
   const { colors } = useTheme();
+  // `bottomPx` when the caller knows the strip's height: a percentage on an
+  // absolutely-placed child resolves against whatever box Yoga hands it, and
+  // the sleep strip's sat ABOVE every bar on a device (sim review 2026-10-06)
+  // while its bars, sized against their own fixed-height tracks, did not.
+  const bottom: DimensionValue = bottomPx != null ? bottomPx : `${bottomPct ?? 0}%`;
   return (
-    <View pointerEvents="none" style={[styles.median, { bottom: `${bottomPct}%` }]}>
+    <View pointerEvents="none" style={[styles.median, { bottom }]} testID="median-line">
       <View style={[styles.halo, { backgroundColor: colors.card }]} />
       <View style={[styles.ink, { backgroundColor: colors.ink }]} />
     </View>

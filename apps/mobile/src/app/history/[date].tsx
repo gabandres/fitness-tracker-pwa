@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   addDays,
@@ -68,6 +68,19 @@ export function adjacentDays(dateKey: string, todayKey: string): { prev: string;
   };
 }
 
+/** The platform's touch floor: 44pt on iOS, Material's 48dp on Android. */
+const TARGET = Platform.OS === 'android' ? 48 : 44;
+
+/**
+ * Remount boundary for Retry — the same mechanism as Today and the calendar
+ * (UX_AUDIT S18-7): the feed hooks expose no reload, so a `key` bump closes
+ * and reopens every listener with `error` back at null.
+ */
+export default function DayDetail() {
+  const [attempt, setAttempt] = useState(0);
+  return <DayDetailScreen key={attempt} onRetry={() => setAttempt((a) => a + 1)} />;
+}
+
 /**
  * One day of the diary. Since UX_AUDIT Today review U2 it is the SAME diary as
  * Today — the same `MealEntries` with swipe-delete, Save to Quick add and the
@@ -75,7 +88,7 @@ export function adjacentDays(dateKey: string, todayKey: string): { prev: string;
  * different date. It used to be a read-mostly copy whose save/delete/Undo
  * had been pasted from Today and had drifted.
  */
-export default function DayDetail() {
+function DayDetailScreen({ onRetry }: { onRetry: () => void }) {
   const t = useT();
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
@@ -93,7 +106,7 @@ export default function DayDetail() {
   useEffect(() => {
     if (!validKey) router.replace('/history');
   }, [validKey, router]);
-  const { loading, logs, weights, presets, customFoods, boundary, addEntry, updateEntry, deleteEntry, addPreset, deletePreset, addCustomFood, deleteCustomFood, ensureMonthLoaded, olderMonths } = useHistory();
+  const { loading, error, logs, weights, presets, customFoods, boundary, addEntry, updateEntry, deleteEntry, addPreset, deletePreset, addCustomFood, deleteCustomFood, ensureMonthLoaded, olderMonths } = useHistory();
   // A day behind the 400-row window (a tap-through from a paged-back month, or
   // a deep link) fetches its month once, the same way the calendar does
   // (S18-13). This route mounts its own `useHistory`, so the calendar's fetched
@@ -149,6 +162,14 @@ export default function DayDetail() {
     () => (profile ? dailyTargets(profile, logs, weights).calorieTarget : null),
     [profile, logs, weights],
   );
+
+  // A failed load is said, not drawn as an empty day (UX_AUDIT S21): the
+  // diary below used to render its four empty meal slots under "0" totals
+  // when the feed or this day's month fetch failed, which reads as a real,
+  // empty day. With rows from the disk cache the day still renders under
+  // the message — those rows are true, just possibly not the newest.
+  const failed = error ?? olderMonths.error;
+  const blank = !!failed && dayLogs.length === 0;
 
   const diary = useDiaryActions({
     where: 'history',
@@ -285,6 +306,32 @@ export default function DayDetail() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={[styles.body, { paddingBottom: FAB_CLEARANCE + insets.bottom }]}>
+          {failed ? (
+            <View style={styles.errorRow} accessibilityRole="alert" accessibilityLiveRegion="polite" testID="day-error">
+              <Text style={styles.error}>{t('history.dayLoadErr')}</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  haptics.tap();
+                  onRetry();
+                }}
+                style={styles.retryBtn}
+                accessibilityRole="button"
+                accessibilityLabel={t('common.retry')}
+                testID="day-retry"
+              >
+                <Text style={styles.retryText}>{t('common.retry')}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+          {blank ? (
+            // The day's shape, inert — a placeholder for rows that did not
+            // arrive, not an announcement that the day is empty.
+            <View importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+              <SkeletonTotals />
+              <SkeletonRows count={3} />
+            </View>
+          ) : (
+          <>
           <View style={styles.totals}>
             <Total
               label={t('today.calories')}
@@ -377,6 +424,8 @@ export default function DayDetail() {
                 </TouchableOpacity>
               ))}
             </View>
+          )}
+          </>
           )}
         </ScrollView>
       )}
@@ -474,7 +523,11 @@ const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   // The native header's title slot: arrow · day · arrow.
   headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   headerTitle: { flexShrink: 1, textAlign: 'center', fontSize: font.body, fontWeight: '700', color: colors.ink },
-  dayArrow: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  dayArrow: { width: TARGET, height: TARGET, alignItems: 'center', justifyContent: 'center' },
+  error: { color: colors.danger, fontSize: font.small, flex: 1 },
+  errorRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  retryBtn: { borderWidth: 1, borderColor: colors.ink, borderRadius: radius.pill, paddingHorizontal: space.md, minHeight: TARGET, justifyContent: 'center' },
+  retryText: { fontSize: font.small, fontWeight: '700', color: colors.ink },
   dayArrowOff: { opacity: 0.35 },
   body: { padding: space.xl, gap: space.lg },
   totals: {

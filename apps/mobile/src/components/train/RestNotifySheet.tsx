@@ -1,4 +1,6 @@
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { Touchable } from './Touchable';
+import { TARGET } from './train-styles';
 import { BottomSheet } from '@/components/BottomSheet';
 import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
@@ -32,15 +34,15 @@ export function RestNotifySheet({
         <Text style={styles.title} accessibilityRole="header">{t('train.restNotify.title')}</Text>
         <Text style={styles.body}>{t('train.restNotify.body')}</Text>
         <View style={styles.row}>
-          <TouchableOpacity
+          <Touchable
             style={styles.quiet}
             onPress={onNotNow}
             accessibilityRole="button"
             testID="rest-notify-not-now"
           >
             <Text style={styles.quietText}>{t('train.restNotify.notNow')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
+          </Touchable>
+          <Touchable
             style={styles.go}
             onPress={() => {
               haptics.tap();
@@ -50,7 +52,7 @@ export function RestNotifySheet({
             testID="rest-notify-allow"
           >
             <Text style={styles.goText}>{t('train.restNotify.allow')}</Text>
-          </TouchableOpacity>
+          </Touchable>
         </View>
       </View>
     </BottomSheet>
@@ -64,7 +66,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   row: { flexDirection: 'row', gap: space.md, marginTop: space.md },
   quiet: {
     flex: 1,
-    minHeight: 44,
+    minHeight: TARGET,
     borderWidth: 1,
     borderColor: colors.line,
     borderRadius: radius.md,
@@ -76,7 +78,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   quietText: { fontSize: font.body, fontWeight: '700', color: colors.ink },
   go: {
     flex: 1,
-    minHeight: 44,
+    minHeight: TARGET,
     borderRadius: radius.md,
     paddingVertical: space.md,
     alignItems: 'center',

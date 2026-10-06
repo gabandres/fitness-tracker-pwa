@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { router, useLocalSearchParams } from 'expo-router';
-import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { router, useLocalSearchParams, useScrollToTop } from 'expo-router';
+import { Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -16,6 +16,9 @@ import {
   trendStepLb,
 } from '@macrolog/core';
 import { BodyFatCard, fieldList } from '@/components/body/BodyFatCard';
+import { BodyGlossary } from '@/components/body/BodyGlossary';
+import { Glyph } from '@/components/charts/Glyph';
+import { TOUCH_TARGET } from '@/components/charts/SegmentedControl';
 import { BodyIcon } from '@/components/body/BodyIcon';
 import { BodySkeleton } from '@/components/body/BodySkeleton';
 import { HealthFooter } from '@/components/body/HealthFooter';
@@ -42,6 +45,7 @@ import { isMaintaining } from '@macrolog/core';
 import * as haptics from '@/lib/haptics';
 import { captureError } from '@/lib/sentry';
 import { isAnySheetActive, onSheetsIdle } from '@/lib/sheet-portal';
+import { announce } from '@/lib/a11y';
 import { track } from '@/lib/analytics';
 import { useUnitSystem } from '@/lib/use-unit-system';
 import { CountUpText, enterUp, usePulse } from '@/lib/motion';
@@ -222,6 +226,27 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
   const { fontScale } = useWindowDimensions();
   const [allWeighIns, setAllWeighIns] = useState(false);
   const [allMeasures, setAllMeasures] = useState(false);
+  const [glossaryOpen, setGlossaryOpen] = useState(false);
+
+  // Re-tapping the focused Body tab scrolls back to the top, as Today and
+  // Trends do (review 2026-10-06).
+  const scrollRef = useRef<ScrollView>(null);
+  useScrollToTop(scrollRef);
+  // Pull-to-refresh: the listeners are live, so this re-runs only what is not
+  // — the parked queue, a Health import, the goal's start line — and the
+  // spinner holds until those settle.
+  const [pulling, setPulling] = useState(false);
+  const bodyRefresh = body.refresh;
+  const onPullRefresh = useCallback(() => {
+    setPulling(true);
+    void (bodyRefresh ? bodyRefresh() : Promise.resolve())
+      .catch(() => {})
+      .finally(() => {
+        setPulling(false);
+        // A screen reader heard nothing when the spinner went away.
+        announce(t('body.refreshed'));
+      });
+  }, [bodyRefresh, t]);
 
   function openMeasure(m: Measurement | null) {
     haptics.tap();
@@ -553,12 +578,32 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
         <Text style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={headerTitle.maxFontScale}>
           {t('nav.body')}
         </Text>
+        {/* The "?" Today, Trends and Train carry — same icon, same place —
+            defining "Trend" and why it is not the latest weigh-in. */}
+        <TouchableOpacity
+          onPress={() => {
+            haptics.tap();
+            setGlossaryOpen(true);
+          }}
+          accessibilityRole="button"
+          accessibilityLabel={t('body.glossaryOpen')}
+          style={styles.headerHelp}
+          testID="body-glossary-open"
+        >
+          <Glyph ios="questionmark.circle" android="help-circle-outline" size={24} color={colors.muted} />
+        </TouchableOpacity>
         <HeaderAvatar />
       </View>
+      <BodyGlossary visible={glossaryOpen} onClose={() => setGlossaryOpen(false)} />
       {loading ? (
         <BodySkeleton />
       ) : (
-        <ScrollView contentContainerStyle={styles.body}>
+        <ScrollView
+          ref={scrollRef}
+          testID="body-scroll"
+          contentContainerStyle={styles.body}
+          refreshControl={<RefreshControl refreshing={pulling} onRefresh={onPullRefresh} tintColor={colors.muted} colors={[colors.accent]} />}
+        >
           {error ? (
             <View style={styles.errorRow} accessibilityRole="alert" accessibilityLiveRegion="polite">
               <Text style={styles.error}>{t('body.loadErr')}</Text>
@@ -624,14 +669,23 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
               {/* The trend weight beside the scale weight (U3): the scale says
                   what the water did overnight, the trend says what the body
                   did. Needs two readings before it says anything new. */}
+              {/* When the two print the same number, the second one says so in
+                  words instead of repeating it ("177.5" over "Trend 177.5 lb",
+                  review 2026-10-06). */}
               {trendWeight != null && weightPoints.length >= 2 ? (
-                <Text
-                  style={styles.trendHeadline}
-                  accessibilityLabel={t('body.trendWeightA11y', { n: wt(trendWeight, unitSystem, locale), unit })}
-                  testID="trend-weight"
-                >
-                  {t('body.trend')} <Text style={styles.trendHeadlineValue}>{wt(trendWeight, unitSystem, locale)} {unit}</Text>
-                </Text>
+                currentWeight != null && wt(trendWeight, unitSystem, locale) === wt(currentWeight, unitSystem, locale) ? (
+                  <Text style={styles.trendHeadline} testID="trend-weight">
+                    {t('body.trendSame')}
+                  </Text>
+                ) : (
+                  <Text
+                    style={styles.trendHeadline}
+                    accessibilityLabel={t('body.trendWeightA11y', { n: wt(trendWeight, unitSystem, locale), unit })}
+                    testID="trend-weight"
+                  >
+                    {t('body.trend')} <Text style={styles.trendHeadlineValue}>{wt(trendWeight, unitSystem, locale)} {unit}</Text>
+                  </Text>
+                )
               ) : null}
 
               {weightPoints.length >= 2 ? (
@@ -916,6 +970,9 @@ const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
   title: { fontFamily: type.display, fontSize: font.h1, color: colors.ink, paddingHorizontal: space.xl, paddingTop: space.md },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: space.xl },
+  // Pushed against the avatar, as on Trends; a real 44/48 target rather than
+  // a 24 pt glyph with slop.
+  headerHelp: { marginLeft: 'auto', marginRight: space.xs, minWidth: TOUCH_TARGET, minHeight: TOUCH_TARGET, alignItems: 'center', justifyContent: 'center' },
   showMore: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   // See FAB_BAND — the + button overhangs every tab's scroll area.
   body: { padding: space.xl, paddingBottom: TAB_SCROLL_BAND, gap: space.md },

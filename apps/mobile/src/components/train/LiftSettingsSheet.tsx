@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
+import { Text, View } from 'react-native';
+import { Touchable } from './Touchable';
 import { SheetTextInput } from '@/components/SheetTextInput';
 import { type Recommendation, formatLoad, repBandFrom } from '@macrolog/core';
 import { BottomSheet } from '@/components/BottomSheet';
+import { useDoneKeyProps } from '@/components/KeyboardBar';
 import { showToast } from '@/components/Toast';
 import { createStyles } from '@/components/train/train-styles';
 import { useT } from '@/i18n';
@@ -40,6 +42,7 @@ export function LiftSettingsSheet({
   const unitSystem = useUnitSystem();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
+  const doneKey = useDoneKeyProps();
   const [standard, setStandard] = useState<EffortStandard>('failure');
   const [bandText, setBandText] = useState('');
   const [saving, setSaving] = useState(false);
@@ -100,7 +103,7 @@ export function LiftSettingsSheet({
           {(['failure', 'rir1'] as const).map((s) => {
             const on = standard === s;
             return (
-              <TouchableOpacity
+              <Touchable
                 key={s}
                 style={[styles.styleChip, on && styles.styleChipOn]}
                 onPress={() => setStandard(s)}
@@ -111,7 +114,7 @@ export function LiftSettingsSheet({
                 <Text style={[styles.styleChipText, on && styles.styleChipTextOn]}>
                   {t(s === 'failure' ? 'train.lift.effortFailure' : 'train.lift.effortRir1')}
                 </Text>
-              </TouchableOpacity>
+              </Touchable>
             );
           })}
         </View>
@@ -135,19 +138,26 @@ export function LiftSettingsSheet({
             value={bandText}
             onChangeText={(v) => setBandText(v.replace(/[^\d]/g, ''))}
             maxLength={3}
+            // A lone number field: a localized Done above the iOS pad, a
+            // Done return key on Android (it had neither).
+            {...doneKey}
+            // Labelled by its words, not its placeholder dash, which is all a
+            // screen reader had to go on (UX_AUDIT S20).
+            accessibilityLabel={t('train.lift.bandFieldA11y')}
+            accessibilityHint={t('train.lift.bandHint')}
             testID="lift-band-input"
           />
           <Text style={styles.liftBandUnit}>{t('train.lift.bandReps')}</Text>
         </View>
         <Text style={styles.liftHint}>{t('train.lift.bandHint')}</Text>
         {bandText ? (
-          <TouchableOpacity style={styles.liftClear} onPress={() => setBandText('')} accessibilityRole="button" testID="lift-band-clear">
+          <Touchable style={styles.liftClear} onPress={() => setBandText('')} accessibilityRole="button" testID="lift-band-clear">
             <Text style={styles.liftClearText}>{t('train.lift.bandClear')}</Text>
-          </TouchableOpacity>
+          </Touchable>
         ) : null}
       </View>
 
-      <TouchableOpacity
+      <Touchable
         style={[styles.finishBtn, saving && styles.btnDisabled]}
         onPress={save}
         disabled={saving || !exercise?.id}
@@ -155,7 +165,7 @@ export function LiftSettingsSheet({
         testID="lift-save"
       >
         <Text style={styles.finishText}>{t('train.lift.save')}</Text>
-      </TouchableOpacity>
+      </Touchable>
       </View>
     </BottomSheet>
   );

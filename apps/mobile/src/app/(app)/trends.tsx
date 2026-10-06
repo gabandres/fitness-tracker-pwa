@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { type Href, useLocalSearchParams, useRouter, useScrollToTop } from 'expo-router';
 import {
-  ActivityIndicator,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -25,6 +24,7 @@ import {
   type TdeeResult,
   type WeeklyBudget,
   type WeeklyInsights,
+  MIN_INSIGHT_DAYS,
   TARGET_STREAK_MIN_DAYS,
   TDEE_SERIES_MAX_DAYS,
   TDEE_SERIES_PRO_MAX_DAYS,
@@ -49,10 +49,13 @@ import {
   TREND_RANGES,
   type TrendRange,
   WeightTrendCard,
+  fitsAllRange,
   rangeDays,
   rangesFor,
 } from '@/components/charts/TrendsCharts';
-import { maintenanceLine, slopeLabel, targetLine } from '@/components/charts/trend-copy';
+import { SegmentedControl } from '@/components/charts/SegmentedControl';
+import { TrendsSkeleton } from '@/components/charts/TrendsSkeleton';
+import { maintenanceBreakdown, maintenanceLine, slopeLabel, targetLine } from '@/components/charts/trend-copy';
 import { useAdjustableDays } from '@/components/charts/useAdjustableDays';
 import { useTrends } from '@/hooks/useTrends';
 import { usePersistedTab } from '@/hooks/usePersistedTab';
@@ -139,11 +142,23 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
   // The expenditure/weight range, remembered like the panel tabs below. A
   // stored 6M/1Y under a 90-day cap falls back to 3M rather than selecting a
   // chip that is not drawn.
-  const [rangeRaw, setRange] = usePersistedTab('trends.range', TREND_RANGES, '1m');
-  const range: TrendRange = rangesFor(cap).includes(rangeRaw as TrendRange) ? (rangeRaw as TrendRange) : '3m';
+  const [rangeRaw, setRangeStored] = usePersistedTab('trends.range', TREND_RANGES, '1m');
+  const storedRange: TrendRange = rangesFor(cap).includes(rangeRaw as TrendRange) ? (rangeRaw as TrendRange) : '3m';
+  // A chip tapped THIS session is honoured as tapped; until then a young
+  // account sees "All" (below).
+  const [rangePicked, setRangePicked] = useState(false);
+  const setRange = useCallback(
+    (r: TrendRange) => {
+      setRangePicked(true);
+      setRangeStored(r);
+    },
+    [setRangeStored],
+  );
   // `historyDays` is only known after the first pass; the hook clamps, so
-  // asking for the cap on "All" and trimming at render is equivalent.
-  const requestedDays = rangeDays(range, cap, cap);
+  // asking for the cap on "All" and trimming at render is equivalent. Every
+  // fixed range is ≥ a young account's "All", so asking for the stored one
+  // covers both.
+  const requestedDays = rangeDays(storedRange, cap, cap);
   // Pull-to-refresh: a generation number the hook re-fetches and re-replays
   // on, and the spinner holds until it reports that generation settled.
   const [refreshKey, setRefreshKey] = useState(0);
@@ -154,6 +169,11 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
     proteinSeries, carbsSeries, fatSeries, todayKey, historyClip, insightWindow, streak, settledKey,
     expenditure, historyDays, milestones, progress,
   } = useTrends(requestedDays, { maxDays: cap, refreshKey });
+  // A new account opened on "1M" and saw 27 blank days of a 30-day axis (sim
+  // review 2026-10-06). Under a month of history every fixed range is mostly
+  // empty, so the default is the range that fits the data — "All", which is
+  // what Body already does — until the user picks one.
+  const range: TrendRange = !rangePicked && !loading && fitsAllRange(historyDays) ? 'all' : storedRange;
   // Clipped to the days the cache covers in full when the older rows could
   // not be fetched — "nothing logged" over logged days is worse than a
   // shorter chart that says why.
@@ -253,6 +273,7 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
     : habitFaces[0];
   const { user } = useAuth();
   const mode = TDEE_MODE[tdee.source];
+  const breakdown = useMemo(() => maintenanceBreakdown(tdee, compUnits, t, locale), [tdee, compUnits, t, locale]);
 
   // Activity-level correction.
   //
@@ -343,9 +364,7 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
       </View>
       <NumbersGlossary visible={glossaryOpen} onClose={() => setGlossaryOpen(false)} composition={composition.enabled} />
       {loading ? (
-        <View style={styles.fill}>
-          <ActivityIndicator color={colors.accent} accessibilityLabel={t('a11y.loadingTrends')} />
-        </View>
+        <TrendsSkeleton />
       ) : (
         <Animated.ScrollView
           ref={scrollRef}
@@ -402,13 +421,24 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
                 ) : (
                   <Text style={styles.heroValue} maxFontSizeMultiplier={HERO_MAX_SCALE} numberOfLines={1} testID="tdee-value">—</Text>
                 )}
-                <Text style={styles.heroUnit} maxFontSizeMultiplier={HERO_MAX_SCALE} numberOfLines={1}>kcal</Text>
+                <Text style={styles.heroUnit} maxFontSizeMultiplier={HERO_MAX_SCALE} numberOfLines={1}>{t('trends.kcalUnit')}</Text>
               </View>
               {ci95 != null ? (
                 <Text style={styles.heroCi} testID="tdee-ci">{t('trends.ci95', { n: formatNumber(ci95, locale) })}</Text>
               ) : null}
             </PressScale>
-            <Text style={styles.heroHint}>{t(mode.hintKey)}</Text>
+            {/* Why the number is what it is — the arithmetic, from fields the
+                estimator already produced (sim review 2026-10-06: the hint
+                named the inputs and showed neither). Formula/seed keep the
+                one-line hint. */}
+            {breakdown ? (
+              <View style={styles.breakdown} accessible testID="tdee-breakdown">
+                <Text style={styles.heroHint}>{breakdown.line}</Text>
+                {breakdown.blended ? <Text style={styles.heroSub}>{breakdown.blended}</Text> : null}
+              </View>
+            ) : (
+              <Text style={styles.heroHint}>{t(mode.hintKey)}</Text>
+            )}
             {holding ? (
               <Text style={styles.heroSub} testID="tdee-holding">{t('today.maintenanceHolding')}</Text>
             ) : tdee.source === 'measured' && tdee.loggingCompletenessPct != null ? (
@@ -448,7 +478,7 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
               >
                 <Text style={styles.trendChipLabel}>{t('trends.dailyTarget')}</Text>
                 <Text style={styles.trendChipValue}>
-                  {targetCalories > 0 ? `${formatNumber(targetCalories, locale)} kcal` : '—'}
+                  {targetCalories > 0 ? `${formatNumber(targetCalories, locale)} ${t('trends.kcalUnit')}` : '—'}
                 </Text>
               </View>
             </View>
@@ -631,7 +661,6 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
               ]}
               active={weeklyTab}
               onSelect={setWeeklyTab}
-              styles={styles}
             />
             {weeklyTab === 'week' ? (
               <ThisWeek
@@ -696,7 +725,6 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
                   }))}
                   active={activeHabit}
                   onSelect={setHabitTab}
-                  styles={styles}
                 />
                 {activeHabit === 'sleep' ? (
                   <SleepTrendsCard sleep={sleep} hideHeader />
@@ -819,7 +847,6 @@ function PanelTabs({
   tabs,
   active,
   onSelect,
-  styles,
 }: {
   /** `dot` — an optional identity colour rendered as a small disc before the
    *  label (the Habits strip passes it; Weekly has no identities). Colour is
@@ -828,35 +855,23 @@ function PanelTabs({
   tabs: readonly { key: string; label: string; dot?: string }[];
   active: string;
   onSelect: (key: string) => void;
-  styles: ReturnType<typeof createStyles>;
 }) {
+  // The one segmented control (`charts/SegmentedControl`) — this strip, the
+  // range chips, the macro selector and Body's range were four styles of one
+  // control (sim review 2026-10-06).
+  const segments = useMemo(
+    () => tabs.map((tab) => ({ key: tab.key, label: tab.label, dot: tab.dot, testID: `panel-tab-${tab.key}` })),
+    [tabs],
+  );
   return (
-    // `tablist` so a screen reader announces "tab, 1 of 2" rather than a row of
-    // unrelated buttons; wraps rather than overflowing at large text sizes.
-    <View style={styles.tabs} accessibilityRole="tablist" testID="panel-tabs">
-      {tabs.map((tab) => {
-        const on = tab.key === active;
-        return (
-          <PressScale
-            key={tab.key}
-            style={[styles.tab, on && styles.tabOn]}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: on }}
-            testID={`panel-tab-${tab.key}`}
-            onPress={() => {
-              if (on) return;
-              haptics.tap();
-              onSelect(tab.key);
-            }}
-          >
-            {tab.dot ? <View style={[styles.tabDot, { backgroundColor: tab.dot }]} /> : null}
-            <Text style={[styles.tabText, on && styles.tabTextOn]}>{tab.label}</Text>
-          </PressScale>
-        );
-      })}
+    <View style={panelTabsWrap}>
+      <SegmentedControl segments={segments} value={active} onChange={onSelect} testID="panel-tabs" />
     </View>
   );
 }
+
+/** The strip sits in the slot the uppercase section label used to occupy. */
+const panelTabsWrap = { marginTop: space.lg, marginBottom: space.xs } as const;
 
 // ─── Last-7-days adherence ──────────────────────────────────────
 function ThisWeek({
@@ -901,13 +916,17 @@ function ThisWeek({
   // Below the 3-day insight gate: a preview skeleton + a "keep logging" nudge,
   // so day zero still says what the card will show and prompts the next log.
   if (!insights) {
+    // LOCKED, not loading: the faded bars read as a skeleton that never
+    // finished (sim review 2026-10-06). An outlined, dashed slot with the
+    // unlock condition in it says what the tile is waiting for.
+    const unlock = plural(t, locale, 'trends.unlocksAfter', Math.max(1, MIN_INSIGHT_DAYS - loggedThisWeek));
     return (
       <View style={styles.card} testID="insights-card">
         {windowLine}
         <View style={[styles.tileRow, stacked && styles.tileRowStacked]}>
-          <StatTile label={t('trends.avgIntake')} faded styles={styles} />
+          <StatTile label={t('trends.avgIntake')} locked={unlock} styles={styles} />
           <View style={stacked ? styles.divider : styles.tileDivider} />
-          <StatTile label={t('trends.avgProtein')} faded styles={styles} />
+          <StatTile label={t('trends.avgProtein')} locked={unlock} styles={styles} />
         </View>
         <View style={styles.divider} />
         <Text style={styles.weekNudge}>
@@ -936,7 +955,7 @@ function ThisWeek({
         <StatTile
           label={t('trends.avgIntake')}
           value={formatNumber(insights.avgCalories, locale)}
-          unit="kcal"
+          unit={t('trends.kcalUnit')}
           sub={vsMaint ? maintenanceLine(vsMaint, t, locale) : targetLine(vsTarget, t, locale)}
           subColor={vsMaint ? colors.ink : targetColor}
           sub2={vsMaint ? targetLine(vsTarget, t, locale) : undefined}
@@ -1023,7 +1042,7 @@ function StatTile({
   subColor,
   sub2,
   sub2Color,
-  faded,
+  locked,
   testID,
   styles,
 }: {
@@ -1035,19 +1054,23 @@ function StatTile({
   /** A second, independent line (the vs-target line under vs-maintenance). */
   sub2?: string;
   sub2Color?: string;
-  faded?: boolean;
+  /** The unlock condition, when the tile has no value yet ("Unlocks after
+   *  2 more logged days"). */
+  locked?: string;
   testID?: string;
   styles: ReturnType<typeof createStyles>;
 }) {
   // One stop for a screen reader — "Avg intake, 1,849 kcal, 168 kcal/day
   // under maintenance, On target" — not four or five fragments (re-score 3,
   // A1).
-  const a11yLabel = [label, value != null ? (unit ? `${value} ${unit}` : value) : null, sub, sub2].filter(Boolean).join(', ');
+  const a11yLabel = [label, value != null ? (unit ? `${value} ${unit}` : value) : null, locked, sub, sub2].filter(Boolean).join(', ');
   return (
     <View style={styles.tile} testID={testID} accessible accessibilityLabel={a11yLabel}>
       <Text style={styles.tileLabel}>{label}</Text>
-      {faded ? (
-        <View style={styles.tileSkeleton} />
+      {locked ? (
+        <View style={styles.tileLocked} testID="insights-locked">
+          <Text style={styles.tileLockedText}>{locked}</Text>
+        </View>
       ) : (
         <View style={styles.tileValueRow}>
           {/* One line, shrinking to fit rather than wrapping a numeral in
@@ -1056,7 +1079,7 @@ function StatTile({
           {unit ? <Text style={styles.tileUnit}>{unit}</Text> : null}
         </View>
       )}
-      {sub ? <Text style={[styles.tileSub, subColor ? { color: subColor } : null]}>{sub}</Text> : faded ? <View style={styles.tileSkeletonSub} /> : null}
+      {sub ? <Text style={[styles.tileSub, subColor ? { color: subColor } : null]}>{sub}</Text> : null}
       {sub2 ? <Text style={[styles.tileSub, sub2Color ? { color: sub2Color } : null]}>{sub2}</Text> : null}
     </View>
   );
@@ -1086,18 +1109,24 @@ function Budget({
   }, [menuLabel]);
   const bars = budget?.bars ?? [];
   const todayIdx = budget ? budget.daysElapsed - 1 : -1;
-  const labelAt = (i: number) => {
-    const b = bars[i];
-    if (!b || !budget) return '';
-    const date = dayLabel(b.dateKey, locale);
-    const kcal = formatNumber(Math.round(b.calories), locale);
-    if (!b.elapsed) return t('trends.chart.budgetPointFuture', { date });
-    if (b.assumed) return t('trends.chart.budgetPointAssumed', { date });
-    if (i === todayIdx) return t('trends.chart.budgetPointToday', { date, kcal });
-    return b.calories > budget.dailyTarget
-      ? t('trends.chart.budgetPointOver', { date, kcal })
-      : t('trends.chart.budgetPoint', { date, kcal });
-  };
+  // Memoised with the sentences it is built from — rebuilt per render, it
+  // re-ran the audio-graph descriptor every time anything on Trends changed.
+  const budgetLabels = useMemo(
+    () =>
+      bars.map((b, i) => {
+        if (!budget) return '';
+        const date = dayLabel(b.dateKey, locale);
+        const kcal = formatNumber(Math.round(b.calories), locale);
+        if (!b.elapsed) return t('trends.chart.budgetPointFuture', { date });
+        if (b.assumed) return t('trends.chart.budgetPointAssumed', { date });
+        if (i === todayIdx) return t('trends.chart.budgetPointToday', { date, kcal });
+        return b.calories > budget.dailyTarget
+          ? t('trends.chart.budgetPointOver', { date, kcal })
+          : t('trends.chart.budgetPoint', { date, kcal });
+      }),
+    [bars, budget, todayIdx, t, locale],
+  );
+  const labelAt = (i: number) => budgetLabels[i] ?? '';
   const stepper = useAdjustableDays(
     bars.length,
     budget
@@ -1120,7 +1149,6 @@ function Budget({
   // target and not a zero — it was never eaten.
   const budgetKeys = useMemo(() => bars.map((b) => b.dateKey), [bars]);
   const budgetValues = useMemo(() => bars.map((b) => (b.elapsed && !b.assumed ? Math.round(b.calories) : null)), [bars]);
-  const budgetLabels = bars.map((_, i) => labelAt(i));
   const descriptor = useStripAudioGraph({
     title: t('trends.budgetTitle'),
     summary: typeof stepper.a11y.accessibilityLabel === 'string' ? stepper.a11y.accessibilityLabel : '',
@@ -1132,16 +1160,17 @@ function Budget({
     locale,
   });
 
-  // No target/logs yet: faded 7-column placeholder — the bars ARE the
-  // illustration of what this fills into.
+  // No target/logs yet: seven EMPTY slots — dashed outlines in `lineStrong`
+  // on an open track. They were `line` bars on a `line` track (1:1, sim
+  // review 2026-10-06): invisible, or a loading skeleton that never finished.
   if (!budget) {
     return (
       <View style={styles.card} testID="budget-card">
-        <View style={styles.barStrip}>
+        <View style={styles.barStrip} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
           {Array.from({ length: 7 }).map((_, i) => (
             <View key={i} style={styles.barCol}>
-              <View style={styles.barTrack}>
-                <View style={[styles.barFill, { height: `${20 + (i % 3) * 12}%`, backgroundColor: colors.line }]} />
+              <View style={[styles.barTrack, styles.barTrackEmpty]}>
+                <View style={[styles.barPlaceholder, { height: `${30 + (i % 3) * 14}%` }]} testID="budget-placeholder-bar" />
               </View>
             </View>
           ))}
@@ -1289,7 +1318,7 @@ function Budget({
             `danger` — the sign glyph below is the non-colour cue. */}
         <Text style={[styles.kvValue, { color: budget.remaining < 0 ? colors.danger : colors.good }]}>
           {budget.remaining < 0 ? '−' : ''}
-          {formatNumber(Math.abs(Math.round(budget.remaining)), locale)} kcal
+          {formatNumber(Math.abs(Math.round(budget.remaining)), locale)} {t('trends.kcalUnit')}
         </Text>
       </View>
       {/* Today is IN the divisor (its intake is already in "remaining"), and
@@ -1297,7 +1326,7 @@ function Budget({
       <View style={styles.kv}>
         <Text style={styles.kvLabel}>{t('trends.budgetPerDayInclToday')}</Text>
         <Text style={styles.kvValue} testID="budget-per-day">
-          {budget.perDayInclToday < 0 ? t('trends.budgetOver') : `${formatNumber(budget.perDayInclToday, locale)} kcal`}
+          {budget.perDayInclToday < 0 ? t('trends.budgetOver') : `${formatNumber(budget.perDayInclToday, locale)} ${t('trends.kcalUnit')}`}
         </Text>
       </View>
     </View>
@@ -1314,7 +1343,6 @@ const createStyles = ({ colors, shadow }: Theme) =>
     // the middle of the row, which `space-between` would otherwise do.
     headerHelp: { marginLeft: 'auto', marginRight: space.md },
     title: { fontFamily: type.display, fontSize: font.h1, color: colors.ink, paddingHorizontal: space.xl, paddingTop: space.md },
-    fill: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     // `paddingBottom` is FAB_BAND, not `space.xl`: the floating + button
     // overhangs the scroll area, and 24 dp left the last element under it.
     // That is #96 — the Coach row was untappable — and it caught the fasting
@@ -1333,7 +1361,11 @@ const createStyles = ({ colors, shadow }: Theme) =>
     heroCi: { textAlign: 'center', color: colors.heroMuted, fontSize: font.small, fontVariant: ['tabular-nums'] },
     heroCaption: { textAlign: 'center', color: colors.heroMuted, fontSize: font.small },
     heroHint: { textAlign: 'center', color: colors.heroMuted, fontSize: font.small, marginTop: space.xs },
-    heroSub: { textAlign: 'center', color: colors.heroMuted, fontSize: font.tiny, opacity: 0.8 },
+    // `small`, not `tiny` — 12 pt is the theme's eyebrow size, and these are
+    // sentences (sim review 2026-10-06). Full `heroMuted`, no extra fade: at
+    // 0.8 it dropped under AA on the panel.
+    heroSub: { textAlign: 'center', color: colors.heroMuted, fontSize: font.small },
+    breakdown: { alignSelf: 'stretch', gap: 2 },
     heroChips: { flexDirection: 'row', gap: space.sm, flexWrap: 'wrap', justifyContent: 'center', marginTop: space.sm },
     trendChip: { flexDirection: 'row', alignItems: 'baseline', gap: space.sm, backgroundColor: colors.heroTrack, borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: space.xs },
     trendChipLabel: { fontSize: font.small, color: colors.heroMuted },
@@ -1342,34 +1374,6 @@ const createStyles = ({ colors, shadow }: Theme) =>
     badgeText: { color: colors.heroText, fontSize: font.tiny, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
     section: { fontSize: font.small, color: colors.muted, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: space.lg, marginBottom: space.xs },
     card: { backgroundColor: colors.card, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, padding: space.lg, gap: space.sm },
-    // Panel tabs. Sized to content and left-aligned rather than stretched, so
-    // the strip reads as a label for the card below it — which is the slot it
-    // replaced — rather than as a form control the user is being asked to
-    // operate. Full-width buttons (the Settings `segment` style) look like a
-    // question; these look like a heading. Wraps at large text sizes rather
-    // than running off the screen.
-    tabs: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      alignSelf: 'flex-start',
-      gap: space.xs,
-      marginTop: space.lg,
-      marginBottom: space.xs,
-      padding: 3,
-      borderRadius: radius.md,
-      backgroundColor: colors.inputBg,
-    },
-    // 44pt tall (WCAG 2.5.5 / Apple HIG). The transparent border keeps an
-    // inactive tab the same size as the active one, which carries a real one.
-    tab: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: space.md, minHeight: 44, borderRadius: radius.sm, borderWidth: 1, borderColor: 'transparent' },
-    // In dark mode `card` and `inputBg` are the SAME colour (#1d1b18), so the
-    // selected tab was invisible against its strip (1.00:1). The `lineStrong`
-    // border is the selection cue in both themes; the fill is a bonus in light.
-    tabOn: { backgroundColor: colors.card, borderColor: colors.lineStrong },
-    // Identity dot — sized to read as a mark beside the label, not a badge.
-    tabDot: { width: 7, height: 7, borderRadius: radius.pill },
-    tabText: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
-    tabTextOn: { color: colors.ink, fontWeight: '700' },
     // Stat tiles
     tileRow: { flexDirection: 'row', alignItems: 'stretch' },
     tileRowStacked: { flexDirection: 'column', gap: space.sm },
@@ -1380,8 +1384,10 @@ const createStyles = ({ colors, shadow }: Theme) =>
     tileValue: { fontFamily: type.display, fontSize: font.h1, color: colors.ink, flexShrink: 1 },
     tileUnit: { fontSize: font.small, color: colors.muted, marginBottom: 4 },
     tileSub: { fontSize: font.small, color: colors.muted },
-    tileSkeleton: { height: 30, width: '70%', borderRadius: radius.sm, backgroundColor: colors.line, marginVertical: 2 },
-    tileSkeletonSub: { height: 12, width: '50%', borderRadius: radius.sm, backgroundColor: colors.line, opacity: 0.6 },
+    // A locked tile: a dashed outline in `lineStrong` (3.3:1 on card) with the
+    // unlock condition inside — never a filled bar that reads as loading.
+    tileLocked: { minHeight: 44, justifyContent: 'center', borderRadius: radius.sm, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.lineStrong, paddingHorizontal: space.sm, paddingVertical: space.xs, marginVertical: 2 },
+    tileLockedText: { fontSize: font.small, color: colors.muted },
     weekNudge: { fontSize: font.body, color: colors.ink, fontWeight: '600' },
     weekHint: { fontSize: font.small, color: colors.muted },
     divider: { height: 1, backgroundColor: colors.line, marginVertical: space.xs },
@@ -1399,7 +1405,7 @@ const createStyles = ({ colors, shadow }: Theme) =>
     correctionCard: { flexDirection: 'row', gap: space.md, marginTop: space.md, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, padding: space.lg },
     correctionTitle: { fontSize: font.body, fontWeight: '700', color: colors.ink },
     correctionBody: { fontSize: font.small, color: colors.muted },
-    correctionEvidence: { fontSize: font.tiny, color: colors.muted, marginTop: space.xs, opacity: 0.85 },
+    correctionEvidence: { fontSize: font.small, color: colors.muted, marginTop: space.xs },
     correctionActions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.sm, marginTop: space.md },
     // Both 44pt — they were ~33.
     correctionPrimary: { backgroundColor: colors.ink, borderRadius: radius.md, minHeight: 44, justifyContent: 'center', paddingHorizontal: space.lg },
@@ -1423,6 +1429,8 @@ const createStyles = ({ colors, shadow }: Theme) =>
     barCol: { flex: 1, alignItems: 'center', gap: 4 },
     barTrack: { width: '55%', height: 64, borderRadius: radius.sm, backgroundColor: colors.line, justifyContent: 'flex-end', overflow: 'hidden' },
     barFill: { width: '100%', borderRadius: radius.sm },
+    barTrackEmpty: { backgroundColor: 'transparent' },
+    barPlaceholder: { width: '100%', borderRadius: radius.sm, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.lineStrong },
     barFillOver: { borderWidth: 1.5, borderColor: colors.ink },
     // An unlogged past day: an outline at the target height (70%), dashed —
     // "assumed", drawn as exactly what the arithmetic assumed.
@@ -1438,7 +1446,7 @@ const createStyles = ({ colors, shadow }: Theme) =>
     menuClose: { minHeight: 44, minWidth: 44, alignItems: 'center', justifyContent: 'center' },
     menuPreview: { flex: 1, justifyContent: 'center', padding: space.md, backgroundColor: colors.card },
     menuPreviewText: { fontSize: font.small, color: colors.ink, fontWeight: '600' },
-    clipNote: { fontSize: font.tiny, color: colors.muted, marginTop: space.xs, paddingHorizontal: space.xs },
+    clipNote: { fontSize: font.small, color: colors.muted, marginTop: space.xs, paddingHorizontal: space.xs },
     streakRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
     streakText: { fontSize: font.small, color: colors.ink, fontWeight: '600', flexShrink: 1 },
   });

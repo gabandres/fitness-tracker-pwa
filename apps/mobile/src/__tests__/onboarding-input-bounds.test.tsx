@@ -5,7 +5,7 @@ import type { Profile } from '@macrolog/core';
 /**
  * UX_AUDIT S18-8 / S18-9 / S18-11 — the three input gates onboarding lacked.
  *
- * - The 16+ attestation on the welcome step (S18-9): the CTA is disabled until
+ * - The 16+ attestation on the goal step (S18-9; on a welcome step of its own until 2026-10-06): the CTA is disabled until
  *   it is checked, and `ageConfirmedAt` is written after the save — after,
  *   because `isValidProfileInitial` in `firestore.rules` does not list the
  *   field and the save is what flips the profile to the Completed branch.
@@ -48,7 +48,7 @@ jest.mock('expo-router', () => ({
 }));
 
 import Onboarding, {
-  canLeaveWelcome,
+  ageGateOpen,
   heightBandFor,
   parseHeightInput,
   weightInBand,
@@ -63,11 +63,10 @@ beforeEach(() => {
 
 type Screen = Awaited<ReturnType<typeof render>>;
 
-/** attest → welcome → goal (lose) → weight, stopping ON the weight step. */
+/** attest → goal (lose) → weight, stopping ON the weight step. */
 async function walkToWeight(screen: Screen) {
   const { getByTestId } = screen;
   await fireEvent.press(getByTestId('onboarding-age-attest'));
-  await fireEvent.press(getByTestId('onboarding-next'));
   await fireEvent.press(getByTestId('onboarding-goal-lose'));
   await fireEvent.press(getByTestId('onboarding-next'));
 }
@@ -83,10 +82,10 @@ async function walkToBody(screen: Screen, weight: string, target: string) {
 }
 
 describe('pure gates', () => {
-  it('canLeaveWelcome: a first run needs the attestation, a redo never sees the step', () => {
-    expect(canLeaveWelcome(false, false)).toBe(false);
-    expect(canLeaveWelcome(false, true)).toBe(true);
-    expect(canLeaveWelcome(true, false)).toBe(true);
+  it('ageGateOpen: a first run needs the attestation, a redo never sees it', () => {
+    expect(ageGateOpen(false, false)).toBe(false);
+    expect(ageGateOpen(false, true)).toBe(true);
+    expect(ageGateOpen(true, false)).toBe(true);
   });
 
   it('parseHeightInput: metric cm → whole inches; US ft/in unchanged; 0 in is legal', () => {
@@ -116,22 +115,26 @@ describe('pure gates', () => {
 });
 
 describe('the 16+ attestation (S18-9)', () => {
-  it('is a checkbox that gates Continue on the welcome step', async () => {
+  it('is a checkbox on the goal step that gates Continue, even with a goal picked', async () => {
     const screen = await render(<Onboarding />);
+    // The first step IS the goal step — no separate welcome greeting.
+    expect(screen.getByTestId('onboarding-goal-lose')).toBeTruthy();
     const box = screen.getByTestId('onboarding-age-attest');
     expect(box.props.accessibilityRole).toBe('checkbox');
     expect(box.props.accessibilityState).toEqual({ checked: false });
     expect(screen.getByTestId('onboarding-age-attest-hint')).toBeTruthy();
 
-    // Unchecked: Continue does nothing, we stay on welcome.
+    // A goal but no attestation: Continue does nothing, we stay on goal.
+    await fireEvent.press(screen.getByTestId('onboarding-goal-lose'));
     await fireEvent.press(screen.getByTestId('onboarding-next'));
-    expect(screen.queryByTestId('onboarding-goal-lose')).toBeNull();
+    expect(screen.queryByTestId('onboarding-weight')).toBeNull();
+    expect(screen.getByTestId('onboarding-goal-lose')).toBeTruthy();
 
-    await fireEvent.press(box);
+    await fireEvent.press(screen.getByTestId('onboarding-age-attest'));
     expect(screen.getByTestId('onboarding-age-attest').props.accessibilityState).toEqual({ checked: true });
     expect(screen.queryByTestId('onboarding-age-attest-hint')).toBeNull();
     await fireEvent.press(screen.getByTestId('onboarding-next'));
-    expect(screen.getByTestId('onboarding-goal-lose')).toBeTruthy();
+    expect(screen.getByTestId('onboarding-weight')).toBeTruthy();
   });
 
   it('writes ageConfirmedAt AFTER the onboarding save, as a server timestamp', async () => {

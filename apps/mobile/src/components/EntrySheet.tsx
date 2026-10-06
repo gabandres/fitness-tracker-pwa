@@ -8,6 +8,8 @@ import {
   type LayoutChangeEvent,
   Linking,
   Platform,
+  Pressable,
+  type PressableProps,
   ScrollView,
   StyleSheet,
   Text,
@@ -241,6 +243,24 @@ const SCANNER_EXIT_MS = 400;
  *  dismissal must not swallow the tap. Body's sheet handoff uses the same. */
 const PHOTO_SCAN_HANDOFF_MAX_MS = 1200;
 
+/**
+ * The browse rows, the chips and the More-ways list (S21): iOS keeps
+ * `TouchableOpacity`'s dim exactly as it was; Android gets the Material ink
+ * ripple, which is what a Material user reads as "this is a button" — the
+ * Impeccable audit found none on these custom rows. The same neutral ink
+ * `PressScale` uses, drawn in the foreground so it shows over a filled chip.
+ * Not `PressScale` itself: a full-width row that springs smaller reads as
+ * the list jumping.
+ */
+const ROW_RIPPLE = { color: 'rgba(128, 128, 128, 0.22)', foreground: true } as const;
+function Tappable(props: React.ComponentProps<typeof TouchableOpacity>) {
+  // A button unless the caller says otherwise — every use here passes its
+  // own role, and the default keeps an omission from going silent.
+  if (Platform.OS !== 'android') return <TouchableOpacity accessibilityRole="button" {...props} />;
+  const { activeOpacity: _activeOpacity, ...rest } = props;
+  return <Pressable accessibilityRole="button" android_ripple={ROW_RIPPLE} {...(rest as PressableProps)} />;
+}
+
 /** One-tap chips (Quick add, Suggested): Apple's 44pt, Material's 48dp
  *  (re-score gap 6 — 44 was under Android's floor, with no slop). */
 const CHIP_TARGET = Platform.OS === 'android' ? 48 : 44;
@@ -455,6 +475,18 @@ export function EntrySheet({
   // its lower edge; `useKeyboardSheetPadding` has carried the fix since
   // 2026-08-22 and this sheet was not on it.
 
+  // A dismissal — a swipe, the scrim, back, an add — leaves nothing behind
+  // for the next open (S21). The open-reset below clears the search snapshot
+  // too, but in an effect: the first render of a reopen still carried the
+  // last visit's query into the search's `initial`. And the More-ways list
+  // was never reset at all (it is now, below) — the simulator reopened on
+  // the old menu, and a new search typed onto the old text ("greek greek
+  // yogurtgreek yogurt"). Cleared at close, there is nothing stale to read
+  // at open.
+  useEffect(() => {
+    if (!visible) searchSnap.current = undefined;
+  }, [visible]);
+
   // Reset form + mode whenever the sheet (re)opens.
   useEffect(() => {
     if (!visible) return;
@@ -486,6 +518,7 @@ export function EntrySheet({
     setManageRecent(false);
     setPendingServing(null);
     setMode(editing ? 'custom' : 'browse');
+    setMoreOpen(false);
     searchSnap.current = undefined;
     // A seed dictated in the last session must not re-run in this one.
     setSearchSeed(undefined);
@@ -1211,13 +1244,18 @@ export function EntrySheet({
    * one tick asked iOS to present a full-screen modal from a formSheet that
    * was being dismissed — the race SCANNER_EXIT_MS and MENU_DISMISS_MS already
    * paid for. So the navigation waits for the portal to report the last sheet
-   * gone, with a ceiling. The JS sheet (Android) never registers there; it
-   * navigates at once, as it always did.
+   * gone, with a ceiling.
+   *
+   * On BOTH platforms since S21: Android has presented this sheet natively
+   * too since `2cee36b7` (`NATIVE_SHEETS`), so it registers with the portal
+   * like iOS's and pushing /scan over a sheet still popping off the same
+   * stack is the same race. Only a JS sheet (tests, web) is absent from the
+   * portal, and then `isAnySheetActive()` is false and it navigates at once.
    */
   function openPhotoScan() {
     haptics.tap();
     setMoreOpen(false);
-    const sheetUp = Platform.OS === 'ios' && isAnySheetActive();
+    const sheetUp = isAnySheetActive();
     onClose();
     if (!sheetUp) {
       router.navigate('/scan');
@@ -1327,9 +1365,14 @@ export function EntrySheet({
    * they are onboarding, not a competing section.
    */
   // Through a ref: `quickLog` is a fresh function every render, and as a memo
-  // dependency it rebuilt the whole browse list on each one.
+  // dependency it rebuilt the whole browse list on each one. Written in an
+  // effect, not during render — a render-time ref write makes the React
+  // Compiler skip the component (Today's `diaryRef`, review #1). The ref is
+  // only read from a row's press, which runs after the commit.
   const quickLogRef = useRef(quickLog);
-  quickLogRef.current = quickLog;
+  useEffect(() => {
+    quickLogRef.current = quickLog;
+  });
   const browseRows = useMemo(() => {
     type Row = {
       key: string;
@@ -1617,7 +1660,7 @@ export function EntrySheet({
                   previewSize={cmd.previewSize}
                   onPreviewPress={() => prefill(entry)}
                 >
-                  <TouchableOpacity
+                  <Tappable
                     style={styles.presetChip}
                     testID={`preset-${p.id}`}
                     accessibilityRole="button"
@@ -1647,7 +1690,7 @@ export function EntrySheet({
                         {p.protein != null ? ` · ${t('entry.proteinAmount', { n: formatNumber(p.protein, locale) })}` : ''}
                       </Text>
                     )}
-                  </TouchableOpacity>
+                  </Tappable>
                 </ContextMenu>
               );
             })}
@@ -1689,7 +1732,7 @@ export function EntrySheet({
             // row itself is the remove button.
             const withMore = !CONTEXT_MENUS && hasNativeMenuButton && !manageRecent;
             const body = (
-            <TouchableOpacity
+            <Tappable
               style={withMore ? styles.rowInner : [styles.row, inert && styles.rowInert]}
               testID={row.key}
               accessibilityRole="button"
@@ -1731,7 +1774,7 @@ export function EntrySheet({
                   ) : null}
                 </View>
               )}
-            </TouchableOpacity>
+            </Tappable>
             );
             if (withMore) {
               return (
@@ -1771,7 +1814,7 @@ export function EntrySheet({
           <Text style={styles.groupLabel} accessibilityRole="header" maxFontSizeMultiplier={2.2}>{t('entry.suggested')}</Text>
           <View style={styles.starterWrap}>
             {starterFoods(locale).map((f) => (
-              <TouchableOpacity
+              <Tappable
                 key={f.label}
                 style={styles.starterChip}
                 testID={`starter-${f.label}`}
@@ -1783,7 +1826,7 @@ export function EntrySheet({
                 <Text style={styles.starterKcal} maxFontSizeMultiplier={2.2}>
                   {formatNumber(f.calories, locale)} {t('today.kcal')}
                 </Text>
-              </TouchableOpacity>
+              </Tappable>
             ))}
           </View>
         </View>
@@ -1843,7 +1886,7 @@ export function EntrySheet({
             (UX_AUDIT S18-18) the only other way in is a long-press on it,
             which nothing on screen shows. See `photoScanDoor`. */}
         {photoScanDoor ? (
-          <TouchableOpacity
+          <Tappable
             style={styles.moreRow}
             onPress={openPhotoScan}
             accessibilityRole="button"
@@ -1851,27 +1894,27 @@ export function EntrySheet({
           >
             {moreIcon('camera', 'camera-outline')}
             <Text style={styles.moreRowText} maxFontSizeMultiplier={2.2}>{t('log.scan')}</Text>
-          </TouchableOpacity>
+          </Tappable>
         ) : null}
-        <TouchableOpacity style={styles.moreRow} onPress={() => { haptics.tap(); setMoreOpen(false); setMode('meal'); }} accessibilityRole="button" testID="open-mealtext">
+        <Tappable style={styles.moreRow} onPress={() => { haptics.tap(); setMoreOpen(false); setMode('meal'); }} accessibilityRole="button" testID="open-mealtext">
           {moreIcon('text.bubble', 'chatbubble-ellipses-outline')}
           <Text style={styles.moreRowText} maxFontSizeMultiplier={2.2}>{t('entry.describeMeal')}</Text>
-        </TouchableOpacity>
+        </Tappable>
         {Platform.OS !== 'web' ? (
-          <TouchableOpacity style={styles.moreRow} onPress={openScanner} accessibilityRole="button" testID="open-barcode">
+          <Tappable style={styles.moreRow} onPress={openScanner} accessibilityRole="button" testID="open-barcode">
             {moreIcon('barcode.viewfinder', 'barcode-outline')}
             <Text style={styles.moreRowText} maxFontSizeMultiplier={2.2}>{t('entry.scanBarcode')}</Text>
-          </TouchableOpacity>
+          </Tappable>
         ) : null}
-        <TouchableOpacity style={styles.moreRow} onPress={() => { haptics.tap(); setMoreOpen(false); setMode('recipe'); }} accessibilityRole="button" testID="open-recipe">
+        <Tappable style={styles.moreRow} onPress={() => { haptics.tap(); setMoreOpen(false); setMode('recipe'); }} accessibilityRole="button" testID="open-recipe">
           {moreIcon('list.bullet.clipboard', 'calculator-outline')}
           <Text style={styles.moreRowText} maxFontSizeMultiplier={2.2}>{t('entry.recipeBuilder')}</Text>
-        </TouchableOpacity>
+        </Tappable>
         {Platform.OS !== 'web' ? (
-          <TouchableOpacity style={styles.moreRow} onPress={() => { haptics.tap(); setMoreOpen(false); setMode('recipeImport'); }} accessibilityRole="button" testID="open-recipe-import">
+          <Tappable style={styles.moreRow} onPress={() => { haptics.tap(); setMoreOpen(false); setMode('recipeImport'); }} accessibilityRole="button" testID="open-recipe-import">
             {moreIcon('link', 'link-outline')}
             <Text style={styles.moreRowText} maxFontSizeMultiplier={2.2}>{t('entry.importRecipe')}</Text>
-          </TouchableOpacity>
+          </Tappable>
         ) : null}
       </View>
     ) : null}
@@ -1968,6 +2011,11 @@ export function EntrySheet({
                 initial={searchSnap.current}
                 onSnapshot={(snap) => {
                   searchSnap.current = snap;
+                  // Typing is the answer to "which way?": More ways folds
+                  // away so the results own the space above the keyboard.
+                  // Open, its five rows sat over the list and left ONE result
+                  // visible (S21, simulator). A no-op when it is closed.
+                  if (snap.query.trim() !== '') setMoreOpen(false);
                 }}
                 resetSignal={searchReset}
                 backHandlerRef={searchBack}
@@ -2215,7 +2263,7 @@ export function EntrySheet({
                     <View style={styles.scaleRow} onLayout={(e) => (fieldBoxes.current.scale = e.nativeEvent.layout)}>
                       <Text style={styles.fieldLabel} maxFontSizeMultiplier={2.2}>{t('entry.scale')}</Text>
                       {SCALE_STEPS.map((st) => (
-                        <TouchableOpacity
+                        <Tappable
                           key={st.f}
                           style={styles.scaleChip}
                           onPress={() => scaleForm(st.f)}
@@ -2226,7 +2274,7 @@ export function EntrySheet({
                           <Text style={styles.scaleChipText} maxFontSizeMultiplier={2.2}>
                             {st.f === 0.5 ? '½' : formatNumber(st.f, locale)}×
                           </Text>
-                        </TouchableOpacity>
+                        </Tappable>
                       ))}
                       {scaleDraft != null ? (
                         <SheetTextInput
@@ -2253,7 +2301,7 @@ export function EntrySheet({
                           testID="entry-scale-input"
                         />
                       ) : (
-                        <TouchableOpacity
+                        <Tappable
                           style={styles.scaleChip}
                           onPress={openScaleDraft}
                           accessibilityRole="button"
@@ -2261,7 +2309,7 @@ export function EntrySheet({
                           testID="entry-scale-other"
                         >
                           <Text style={styles.scaleChipText} maxFontSizeMultiplier={2.2}>{t('entry.scaleOther')}</Text>
-                        </TouchableOpacity>
+                        </Tappable>
                       )}
                       {/* Edit in grams — only when the pick came with a weight
                           and the numbers still describe it (`gramCtx`). The
@@ -2296,7 +2344,7 @@ export function EntrySheet({
                         </View>
                       ) : null}
                       {usual ? (
-                        <TouchableOpacity
+                        <Tappable
                           style={styles.scaleChip}
                           onPress={applyUsual}
                           accessibilityRole="button"
@@ -2309,7 +2357,7 @@ export function EntrySheet({
                           <Text style={styles.scaleChipText} maxFontSizeMultiplier={2.2}>
                             {t('entry.usualPortion', { g: formatNumber(usual.grams, locale) })}
                           </Text>
-                        </TouchableOpacity>
+                        </Tappable>
                       ) : null}
                     </View>
                   ) : null}

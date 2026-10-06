@@ -1,5 +1,4 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
@@ -67,7 +66,6 @@ export default function FeedbackScreen() {
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const { user } = useAuth();
-  const router = useRouter();
 
   const [message, setMessage] = useState('');
   const [category, setCategory] = useState<FeedbackCategory | null>(null);
@@ -105,23 +103,14 @@ export default function FeedbackScreen() {
   // The confirmation replaces the composer rather than sitting under it. A
   // form still on screen after a successful send invites a second copy of the
   // same report.
+  //
+  // The header — title, back, swipe-back — is the shared native one from the
+  // root layout (S21-9); back returns to whoever opened this (Settings, or
+  // What's New), not to Today as it did while this was a hidden tab (S21-1).
   if (sent) {
     return (
-      <SafeAreaView style={styles.screen} edges={['top']}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            hitSlop={10}
-            accessibilityRole="button"
-            accessibilityLabel={t('common.back')}
-            testID="feedback-back"
-          >
-            <Ionicons name="chevron-back" size={26} color={colors.ink} />
-          </TouchableOpacity>
-          <Text style={styles.title}>{t('feedback.title')}</Text>
-          <View style={{ width: 26 }} />
-        </View>
-        <View style={styles.doneWrap} testID="feedback-sent">
+      <SafeAreaView style={styles.screen} edges={['bottom']}>
+        <View style={styles.doneWrap} testID="feedback-sent" accessibilityLiveRegion="polite">
           <Ionicons name="checkmark-circle" size={56} color={colors.ring} />
           <Text style={styles.doneTitle}>{t('feedback.sent')}</Text>
           <Text style={styles.doneBody}>{t('feedback.sentBody')}</Text>
@@ -131,22 +120,10 @@ export default function FeedbackScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          hitSlop={10}
-          accessibilityRole="button"
-          accessibilityLabel={t('common.back')}
-          testID="feedback-back"
-        >
-          <Ionicons name="chevron-back" size={26} color={colors.ink} />
-        </TouchableOpacity>
-        <Text style={styles.title}>{t('feedback.title')}</Text>
-        <View style={{ width: 26 }} />
-      </View>
-
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.fill}>
+    <SafeAreaView style={styles.screen} edges={['bottom']}>
+      {/* `automaticOffset`: under a native header the view no longer starts
+          at the top of the screen, and the library measures where it is. */}
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} automaticOffset style={styles.fill}>
         <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
           <Text style={styles.intro}>{t('feedback.intro')}</Text>
 
@@ -206,6 +183,9 @@ export default function FeedbackScreen() {
             style={[styles.send, !canSend && styles.sendDisabled]}
             disabled={!canSend}
             onPress={onSend}
+            accessibilityRole="button"
+            accessibilityLabel={t('feedback.send')}
+            accessibilityState={{ disabled: !canSend, busy }}
             testID="feedback-send"
           >
             {busy ? (
@@ -224,9 +204,7 @@ const createStyles = ({ colors }: Theme) =>
   StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.paper },
     fill: { flex: 1 },
-    header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.lg, paddingVertical: space.md },
-    title: { flex: 1, textAlign: 'center', fontSize: font.h2, fontWeight: '800', color: colors.ink },
-    body: { paddingHorizontal: space.xl, paddingBottom: space.xl, gap: space.md },
+    body: { paddingHorizontal: space.xl, paddingTop: space.md, paddingBottom: space.xl, gap: space.md },
     intro: { fontSize: font.body, color: colors.muted },
     chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
     chip: {
@@ -234,10 +212,11 @@ const createStyles = ({ colors }: Theme) =>
       alignItems: 'center',
       gap: space.xs,
       borderWidth: 1,
-      borderColor: colors.line,
+      borderColor: colors.lineStrong,
       borderRadius: radius.pill,
       paddingVertical: space.sm,
       paddingHorizontal: space.md,
+      minHeight: 44,
       backgroundColor: colors.inputBg,
     },
     chipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
@@ -246,7 +225,8 @@ const createStyles = ({ colors }: Theme) =>
     input: {
       backgroundColor: colors.inputBg,
       borderWidth: 1,
-      borderColor: colors.line,
+      // A field's edge is a control boundary (WCAG 1.4.11, 3:1).
+      borderColor: colors.lineStrong,
       borderRadius: radius.md,
       paddingHorizontal: space.lg,
       paddingVertical: space.md,

@@ -70,11 +70,12 @@ beforeEach(() => {
   mockCanGoBack = true;
 });
 
-it('uses the native stack header with a large title, not a drawn chevron (re-score 3, Platform)', async () => {
+it('uses the shared native stack header, not a drawn chevron (re-score 3, Platform; S21-9)', async () => {
   const ui = await render(<ConnectedAppsScreen />);
-  expect(mockHeader.options).toEqual(
-    expect.objectContaining({ headerShown: true, headerLargeTitle: true, title: 'Connected apps' }),
-  );
+  // The header's look and title come from the root layout's shared detail
+  // header now (S21-9) — the large title this screen alone had is gone, so
+  // every pushed screen wears one header. Only the cold-open escape is local.
+  expect(mockHeader.options).not.toHaveProperty('headerLargeTitle');
   // Pushed from Settings or Body: the system back button, nothing drawn.
   expect(mockHeader.options?.headerLeft).toBeUndefined();
   expect(ui.queryByTestId('connected-apps-back')).toBeNull();

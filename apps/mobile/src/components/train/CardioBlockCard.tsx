@@ -12,11 +12,13 @@ import {
   parseDistanceToM,
 } from '@macrolog/core';
 import type { CardioBlock } from '@macrolog/core/cardio';
+import { useDoneKeyProps } from '@/components/KeyboardBar';
 import { useT } from '@/i18n';
 import type { I18nKey } from '@/i18n';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { useUnitSystem } from '@/lib/use-unit-system';
 import { createStyles } from './train-styles';
+import { TRAIN_RIPPLE } from './Touchable';
 
 /**
  * One cardio block inside an active session (ADR-0025).
@@ -79,6 +81,9 @@ export interface CardioBlockCardProps {
 
 function CardioBlockCardInner({ block, index, onPatch, onCommit, onRemove, overlaps }: CardioBlockCardProps) {
   const t = useT();
+  // The localized Done: a bare `returnKeyType="done"` titled the iOS pad's
+  // toolbar in hardcoded English for es-PR and pt-BR (UX_AUDIT S20).
+  const doneKey = useDoneKeyProps();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const unitSystem = useUnitSystem();
@@ -162,7 +167,7 @@ function CardioBlockCardInner({ block, index, onPatch, onCommit, onRemove, overl
             keyboardType="numeric"
             inputMode="numeric"
             selectTextOnFocus
-            returnKeyType="done"
+            {...doneKey}
             defaultValue={block.durationSec > 0 ? String(Math.round(block.durationSec / 60)) : ''}
             placeholder={
               block.targetDurationSec != null ? String(Math.round(block.targetDurationSec / 60)) : '0'
@@ -183,7 +188,7 @@ function CardioBlockCardInner({ block, index, onPatch, onCommit, onRemove, overl
             keyboardType="numeric"
             inputMode="decimal"
             selectTextOnFocus
-            returnKeyType="done"
+            {...doneKey}
             defaultValue={
               block.distanceM != null
                 ? String(formatDistance(block.distanceM, unitSystem).split(' ')[0])
@@ -209,7 +214,7 @@ function CardioBlockCardInner({ block, index, onPatch, onCommit, onRemove, overl
             keyboardType="number-pad"
             inputMode="numeric"
             selectTextOnFocus
-            returnKeyType="done"
+            {...doneKey}
             defaultValue={block.avgHr != null ? String(block.avgHr) : ''}
             placeholder="—"
             placeholderTextColor={colors.faint}
@@ -225,7 +230,7 @@ function CardioBlockCardInner({ block, index, onPatch, onCommit, onRemove, overl
             keyboardType="number-pad"
             inputMode="numeric"
             selectTextOnFocus
-            returnKeyType="done"
+            {...doneKey}
             defaultValue={block.rpe != null ? String(block.rpe) : ''}
             placeholder={t('cardio.rpeHint')}
             placeholderTextColor={colors.faint}
@@ -259,8 +264,10 @@ function CardioBlockCardInner({ block, index, onPatch, onCommit, onRemove, overl
       <Pressable
         onPress={onRemove}
         style={styles.exRemoveRow}
+        android_ripple={TRAIN_RIPPLE}
         accessibilityRole="button"
         accessibilityLabel={t('cardio.remove')}
+        testID={`cardio-remove-${index}`}
       >
         <Text style={styles.exRemove}>{t('cardio.remove')}</Text>
       </Pressable>

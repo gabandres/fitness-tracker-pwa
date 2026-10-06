@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, usePathname } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { BackHandler, Pressable, StyleSheet, Text, View } from 'react-native';
+import { BackHandler, Platform, Pressable, type PressableStateCallbackType, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   interpolate,
   useAnimatedStyle,
@@ -26,6 +26,23 @@ const MAN_RISE = -78;
  *  presented into that transition can be dropped (Today re-score, bug 7 —
  *  the same wait as a diary row's menu, `MENU_DISMISS_MS` in MealEntries). */
 const MENU_DISMISS_MS = 300;
+
+/** The Material ink on the coral +: drawn in the
+ *  foreground so it shows over the fill, clipped to the circle by RN. Dark,
+ *  not the app's neutral grey — grey at 22% barely moves on coral. */
+const FAB_RIPPLE = Platform.OS === 'android' ? { color: 'rgba(0, 0, 0, 0.18)', foreground: true } : undefined;
+
+/**
+ * The +'s pressed look (Impeccable audit, S20: "the + has no pressed state").
+ * A press-in scale on the platform's own press timing, with a dimmed fill as
+ * the half that survives Reduce Motion — no movement then, still a visible
+ * change. Applied to the button's OWN style, so the raise and the shadow
+ * press down with it. Exported for test.
+ */
+export function fabPressedStyle(pressed: boolean, reduce: boolean) {
+  if (!pressed) return null;
+  return reduce ? { opacity: 0.8 } : { opacity: 0.9, transform: [{ scale: 0.93 }] };
+}
 
 /**
  * The raised center action. A **tap** on the + is the primary action and opens
@@ -214,7 +231,8 @@ export function LogSpeedDial() {
             ]}
           >
             <Pressable
-              style={styles.fabShape}
+              style={({ pressed }: PressableStateCallbackType) => [styles.fabShape, fabPressedStyle(pressed, reduce)]}
+              android_ripple={FAB_RIPPLE}
               accessibilityRole="button"
               accessibilityLabel={t('log.openA11y')}
               accessibilityHint={t('log.fabHint')}
@@ -244,7 +262,8 @@ export function LogSpeedDial() {
     return (
       <View style={styles.slot}>
         <Pressable
-          style={styles.fab}
+          style={({ pressed }: PressableStateCallbackType) => [styles.fab, fabPressedStyle(pressed, reduce)]}
+          android_ripple={FAB_RIPPLE}
           accessibilityRole="button"
           accessibilityLabel={t('log.manual')}
           testID="log-button"
@@ -317,7 +336,8 @@ export function LogSpeedDial() {
       </Animated.View>
 
       <Pressable
-        style={styles.fab}
+        style={({ pressed }: PressableStateCallbackType) => [styles.fab, fabPressedStyle(pressed, reduce)]}
+        android_ripple={FAB_RIPPLE}
         accessibilityRole="button"
         accessibilityLabel={t('log.openA11y')}
         // No hint while open: the button is the dial's close then, and the

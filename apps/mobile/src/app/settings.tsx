@@ -37,7 +37,7 @@ import { isTipIapAvailable } from '@/lib/purchases';
 import { FEATURES } from '@/lib/features';
 import { APP_STORE_REVIEW_URL } from '@/lib/reviewPrompt';
 import { openExternal } from '@/lib/open-external';
-import { confirm } from '@/components/ConfirmSheet';
+import { ConfirmHost, confirm } from '@/components/ConfirmSheet';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { useIsOffline } from '@/lib/connectivity';
 import { TipSheet } from '@/components/TipSheet';
@@ -397,27 +397,36 @@ export default function Settings() {
   }
 
 
+  // The VoiceOver name for a hidden-text Switch: what it turns on, not
+  // "switch, off" (S21-2).
+  const healthStore = Platform.OS === 'ios' ? t('health.storeIos') : t('health.storeAndroid');
+
+  // ## Order (S21-4)
+  //
+  // What a person came to change, most-asked first; what they came to READ
+  // (about, legal) after it; the account — Sign out, then Delete account — at
+  // the very bottom, where every platform's settings put it and where a store
+  // reviewer looks for deletion. The screen title is the native header since
+  // S21-1 (root `_layout.tsx`), so a section label never repeats a row's own
+  // title: a one-row section takes the heading of the GROUP it belongs to.
+  //
+  // Help & feedback is SECOND on purpose, against the reviewer's "near the
+  // bottom": it was moved up after a user named the barrier to sending one as
+  // social, not technical (UX_AUDIT, Abdiel Medina) — position is the feature.
   return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          hitSlop={10}
-          accessibilityRole="button"
-          accessibilityLabel={t('common.back')}
-          testID="settings-back"
-        >
-          <Ionicons name="chevron-back" size={26} color={colors.ink} />
-        </TouchableOpacity>
-        <Text style={styles.title}>{t('nav.settings')}</Text>
-        <View style={styles.headerSpacer} />
-      </View>
+    <SafeAreaView style={styles.screen} edges={['bottom']}>
       <View style={styles.bannerSlot}>
         <OfflineBanner />
       </View>
 
       <ScrollView contentContainerStyle={styles.body}>
-        <Text style={styles.section}>{t('settings.goals')}</Text>
+        {/* ── Profile & targets ──────────────────────────────────────────
+            Three doors to one subject, each saying what it actually touches:
+            the NUMBERS (Daily targets), the INPUTS behind the automatic number
+            (Refine), and the whole setup from scratch (Redo). They were three
+            differently-shaped controls — a row, an outlined button, a row —
+            which read as three unrelated things. */}
+        <Text style={styles.section} accessibilityRole="header">{t('settings.profileTargetsSection')}</Text>
         <View style={styles.card}>
           {/* The targets row is the ENTRY POINT to the editor, not a readout.
               A user asked for a custom calorie goal and could not find one
@@ -425,8 +434,9 @@ export default function Settings() {
               mode is on the row itself, so "am I on automatic?" is answered
               without opening anything. */}
           <TouchableOpacity
-            style={styles.rowBetween}
+            style={styles.navRow}
             onPress={() => router.push('/daily-targets')}
+            accessibilityRole="button"
             testID="settings-daily-targets"
           >
             <View style={{ flex: 1 }}>
@@ -441,25 +451,10 @@ export default function Settings() {
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.faint} />
           </TouchableOpacity>
-          {/* This pushes the WHOLE onboarding wizard, not a goal editor — the
-              goal editor is the Daily targets row above. It was labelled "Edit
-              goals" until 2026-09-04, which is how an established user ended up
-              re-answering every setup question to change one number and had
-              their measured target overwritten by the wizard's heuristic seed
-              on the way out (the write itself is fixed in
-              `toOnboardingV2Patch`; this is the label half). The name and the
-              caption both say what it actually does. */}
           <TouchableOpacity
-            style={styles.editBtn}
-            onPress={() => router.push('/onboarding')}
-            testID="settings-redo-setup"
-          >
-            <Text style={styles.editBtnText}>{t('settings.redoSetup')}</Text>
-            <Text style={styles.editBtnSub}>{t('settings.redoSetupSub')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.refineRow}
+            style={[styles.navRow, styles.navRowDivided]}
             onPress={() => router.push('/refine-targets')}
+            accessibilityRole="button"
             testID="settings-refine"
           >
             <View style={{ flex: 1 }}>
@@ -468,45 +463,38 @@ export default function Settings() {
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.faint} />
           </TouchableOpacity>
-        </View>
-
-        {/* Feedback sits SECOND, above everything except the user's own goals.
-            The channel already existed — Settings → Help opened
-            ignia.fit/support — filed under Legal, between Terms of Use and the
-            medical disclaimer, which is a place nobody goes to say "this is
-            confusing". The barrier a user named was social, not technical
-            (UX_AUDIT, Abdiel Medina), so position is the feature here. */}
-        {/* Help sits directly ABOVE feedback on purpose: someone who came to
-            Settings confused should meet the tour before the report box. */}
-        {/* Milestones — the retrospective record (#108/#109).
-            Its OWN card with a `soloRow`, not a second row inside Help: a row
-            style carrying a top divider, reused as the only row in a card,
-            draws a rule across the top of it. That shipped once and needed
-            OTA 16 to undo, so a one-row card takes `soloRow` here too. */}
-        <Text style={styles.section}>{t('milestones.title')}</Text>
-        <View style={styles.card}>
+          {/* This pushes the WHOLE onboarding wizard, not a goal editor — the
+              goal editor is the Daily targets row above. It was labelled "Edit
+              goals" until 2026-09-04, which is how an established user ended up
+              re-answering every setup question to change one number and had
+              their measured target overwritten by the wizard's heuristic seed
+              on the way out (the write itself is fixed in
+              `toOnboardingV2Patch`; this is the label half). Last of the three,
+              because it is the heaviest. */}
           <TouchableOpacity
-            style={styles.soloRow}
-            // `as Href` because `typedRoutes` regenerates its declaration from
-            // a running dev server, not from `expo export` — a route added
-            // without one being started is invisible to tsc until then. Same
-            // cast `trends.tsx` uses for `/coach`.
-            onPress={() => router.push('/milestones' as Href)}
-            testID="settings-milestones"
+            style={[styles.navRow, styles.navRowDivided]}
+            onPress={() => router.push('/onboarding')}
+            accessibilityRole="button"
+            testID="settings-redo-setup"
           >
             <View style={{ flex: 1 }}>
-              <Text style={styles.rowLabel}>{t('milestones.title')}</Text>
-              <Text style={styles.rowValue}>{t('milestones.settingsSub')}</Text>
+              <Text style={styles.rowLabel}>{t('settings.redoSetup')}</Text>
+              <Text style={styles.rowValue}>{t('settings.redoSetupSub')}</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.faint} />
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.section}>{t('settings.help')}</Text>
+        {/* ── Help & feedback ── one section; it was three (HELP, SEND
+            FEEDBACK, and the help link filed under ABOUT & HELP). The tour
+            leads: someone who came here confused should meet it before the
+            report box. */}
+        <Text style={styles.section} accessibilityRole="header">{t('settings.helpFeedbackSection')}</Text>
         <View style={styles.card}>
           <TouchableOpacity
-            style={styles.soloRow}
+            style={styles.navRow}
             onPress={() => router.push('/tour')}
+            accessibilityRole="button"
             testID="settings-tour"
           >
             <View style={{ flex: 1 }}>
@@ -515,13 +503,10 @@ export default function Settings() {
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.faint} />
           </TouchableOpacity>
-        </View>
-
-        <Text style={styles.section}>{t('feedback.title')}</Text>
-        <View style={styles.card}>
           <TouchableOpacity
-            style={styles.soloRow}
+            style={[styles.navRow, styles.navRowDivided]}
             onPress={() => router.push('/feedback')}
+            accessibilityRole="button"
             testID="settings-feedback"
           >
             <View style={{ flex: 1 }}>
@@ -530,85 +515,15 @@ export default function Settings() {
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.faint} />
           </TouchableOpacity>
-        </View>
-
-        {PRO_ENABLED ? (
-        <>
-        <Text style={styles.section}>{t('pro.title')}</Text>
-        <View style={styles.card}>
-          {isPro ? (
-            <View style={styles.proActiveRow}>
-              <Ionicons name="checkmark-circle" size={20} color={colors.good} />
-              <Text style={styles.proActive}>{t('pro.active')}</Text>
-            </View>
-          ) : (
-            <>
-              <Text style={styles.rowValue}>{t('pro.desc')}</Text>
-              <View style={styles.proFeatures}>
-                {[t('pro.featHistory'), t('pro.featLimits'), t('pro.featThemes'), t('pro.featTrends')].map((f) => (
-                  <View key={f} style={styles.proFeatRow}>
-                    <Ionicons name="checkmark" size={15} color={colors.accent} />
-                    <Text style={styles.proFeat}>{f}</Text>
-                  </View>
-                ))}
-              </View>
-              <TouchableOpacity style={[styles.exportBtn, styles.proUnlockBtn]} disabled testID="pro-unlock">
-                <Ionicons name="lock-open-outline" size={16} color={colors.onInk} />
-                <Text style={styles.exportBtnText}>{t('pro.unlock')} · {t('pro.unlockSoon')}</Text>
-              </TouchableOpacity>
-            </>
-          )}
-          <View style={styles.importDivider} />
-          <View style={styles.rowBetween}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.rowLabel}>{t('pro.preview')}</Text>
-              <Text style={styles.rowValue}>{t('pro.previewSub')}</Text>
-            </View>
-            <Switch
-              value={proPreview}
-              onValueChange={(v) => setProPreview(v)}
-              trackColor={{ true: colors.tealSolid, false: colors.line }}
-              testID="pro-preview-toggle"
-            />
-          </View>
-        </View>
-        </>
-        ) : null}
-
-
-        {/* Tips (ADR-0015). App Review 3.1.1 (submission fe0a9963): a tip tied to
-            a digital app must use In-App Purchase, not an external link — so on a
-            native iOS build we open the IAP TipSheet. Android (and Expo Go) keep
-            the external, no-cut altruistic link, which Play permits.
-            Gated by FEATURES.tips (off while operations transfer to the LLC —
-            see features.ts). The card stays on iOS for the Rate-app row. */}
-        {/* About & help — Support (tip + rate) and Legal merged under one
-            heading. They were two sections wrapping four rows, and one of
-            those rows is switched off (FEATURES.tips). The header is
-            UNCONDITIONAL while the block below it is not: the whole Support
-            card is hidden on Android with tips off, and a conditional header
-            would have taken Legal's heading with it. */}
-        <Text style={styles.section}>{t('settings.aboutSection')}</Text>
-        {FEATURES.tips || Platform.OS === 'ios' ? (
-        <>
-        <View style={styles.card}>
-          {FEATURES.tips ? (
-          <>
-          <Text style={styles.rowValue}>{t('settings.supportBody')}</Text>
           <TouchableOpacity
-            style={[styles.exportBtn, { marginTop: space.md }]}
-            onPress={() =>
-              isTipIapAvailable()
-                ? setShowTip(true)
-                : void openExternal('https://ignia.fit/tip', t)
-            }
-            testID="settings-support"
+            style={[styles.linkRow, styles.navRowDivided]}
+            onPress={() => void openExternal('https://ignia.fit/support', t)}
+            accessibilityRole="link"
+            testID="settings-help"
           >
-            <Ionicons name="heart-outline" size={16} color={colors.onInk} />
-            <Text style={styles.exportBtnText}>{t('settings.supportBtn')}</Text>
+            <Text style={styles.rowLabel}>{t('settings.supportHelp')}</Text>
+            <Ionicons name="open-outline" size={16} color={colors.muted} />
           </TouchableOpacity>
-          </>
-          ) : null}
           {/* A permanent, un-throttled path to the listing for users who
               *want* to leave a rating. The in-app sheet (reviewPrompt.ts)
               can only fire a handful of times per year and never on demand,
@@ -617,73 +532,50 @@ export default function Settings() {
               the Play listing is live — there is nothing to link to yet. */}
           {Platform.OS === 'ios' ? (
             <TouchableOpacity
-              style={styles.linkRow}
+              style={[styles.linkRow, styles.navRowDivided]}
               onPress={() => void openExternal(APP_STORE_REVIEW_URL, t)}
+              accessibilityRole="link"
               testID="settings-rate"
             >
               <Text style={styles.rowLabel}>{t('settings.rateApp')}</Text>
               <Ionicons name="star-outline" size={16} color={colors.muted} />
             </TouchableOpacity>
           ) : null}
+          {/* Tips (ADR-0015). App Review 3.1.1 (submission fe0a9963): a tip
+              tied to a digital app must use In-App Purchase, not an external
+              link — so on a native iOS build we open the IAP TipSheet. Android
+              (and Expo Go) keep the external, no-cut altruistic link, which
+              Play permits. Gated by FEATURES.tips (off while operations
+              transfer to the LLC — see features.ts). */}
+          {FEATURES.tips ? (
+            <View style={styles.navRowDivided}>
+              <Text style={styles.rowValue}>{t('settings.supportBody')}</Text>
+              <TouchableOpacity
+                style={[styles.exportBtn, styles.tipBtn]}
+                onPress={() =>
+                  isTipIapAvailable()
+                    ? setShowTip(true)
+                    : void openExternal('https://ignia.fit/tip', t)
+                }
+                accessibilityRole="button"
+                testID="settings-support"
+              >
+                <Ionicons name="heart-outline" size={16} color={colors.onInk} />
+                <Text style={styles.exportBtnText}>{t('settings.supportBtn')}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
         </View>
-        </>
-        ) : null}
         {FEATURES.tips ? (
           <TipSheet visible={showTip} onClose={() => setShowTip(false)} />
         ) : null}
 
-        {/* Legal — Apple 5.1.1(i) requires the privacy policy to be reachable
-            inside the app, and 1.4.1 wants a medical disclaimer on a health
-            app. The Open Food Facts credit satisfies ODbL attribution (5.2.2). */}
-        <View style={styles.card}>
-          <TouchableOpacity
-            style={styles.linkRow}
-            onPress={() => void openExternal('https://ignia.fit/privacy', t)}
-            testID="settings-privacy"
-          >
-            <Text style={styles.rowLabel}>{t('settings.privacyPolicy')}</Text>
-            <Ionicons name="open-outline" size={16} color={colors.muted} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.linkRow}
-            onPress={() => void openExternal('https://ignia.fit/terms', t)}
-            testID="settings-terms"
-          >
-            <Text style={styles.rowLabel}>{t('settings.termsOfUse')}</Text>
-            <Ionicons name="open-outline" size={16} color={colors.muted} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.linkRow}
-            onPress={() => void openExternal('https://ignia.fit/support', t)}
-            testID="settings-help"
-          >
-            <Text style={styles.rowLabel}>{t('settings.supportHelp')}</Text>
-            <Ionicons name="open-outline" size={16} color={colors.muted} />
-          </TouchableOpacity>
-          <Text style={styles.legalNote}>{t('settings.medicalDisclaimer')}</Text>
-          <Text style={styles.legalNote}>{t('settings.dataCredit')}</Text>
-          {/* Which BUILD and which over-the-air BUNDLE this app is running.
-              Not vanity: an OTA lands on the launch after it downloads, so
-              "is that bug fixed?" is unanswerable without it, and this repo has
-              already twice called a JS behaviour broken while measuring the
-              previous bundle. `updateId` is null on an embedded launch — that
-              is the honest answer, not a blank. */}
-          <Text style={styles.legalNote} selectable testID="settings-build">
-            {t('settings.buildLine', {
-              version: Application.nativeApplicationVersion ?? '?',
-              build: Application.nativeBuildVersion ?? '?',
-              bundle: Updates.isEmbeddedLaunch || !Updates.updateId
-                ? t('settings.bundleEmbedded')
-                : Updates.updateId.slice(0, 8),
-            })}
-          </Text>
-        </View>
-
-        <Text style={styles.section}>{t('settings.preferencesSection')}</Text>
+        {/* ── Preferences ── how everything else is shown. */}
+        <Text style={styles.section} accessibilityRole="header">{t('settings.preferencesSection')}</Text>
         <View style={styles.card}>
           <Text style={styles.rowLabel}>{t('settings.portionDisplay')}</Text>
           <Text style={styles.rowValue}>{t('settings.portionDisplaySub')}</Text>
-          <View style={styles.segment}>
+          <View style={styles.segment} accessibilityRole="radiogroup" accessibilityLabel={t('settings.portionDisplay')}>
             {(['us', 'metric'] as UnitSystem[]).map((u) => {
               const on = unit === u;
               return (
@@ -706,34 +598,8 @@ export default function Settings() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.rowLabel}>{t('settings.dayStart')}</Text>
-          <Text style={styles.rowValue}>{t('settings.dayStartSub')}</Text>
-          <View style={styles.segment}>
-            {DAY_START_HOURS.map((h) => {
-              const on = dayStartHour === h;
-              return (
-                <TouchableOpacity
-                  key={h}
-                  style={[styles.segmentBtn, on && styles.segmentBtnOn, offline && styles.segmentBtnOff]}
-                  onPress={() => pickDayStart(h)}
-                  disabled={offline || savingDayStart}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: on, disabled: offline || savingDayStart }}
-                  testID={`settings-day-start-${h}`}
-                >
-                  <Text style={[styles.segmentText, on && styles.segmentTextOn]}>
-                    {h === 0 ? t('settings.dayStartMidnight') : t('settings.dayStartHour', { n: h })}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-          <Text style={styles.rowValue}>{t('settings.dayStartNote')}</Text>
-        </View>
-
-        <View style={styles.card}>
           <Text style={styles.rowLabel}>{t('settings.theme')}</Text>
-          <View style={styles.segment}>
+          <View style={styles.segment} accessibilityRole="radiogroup" accessibilityLabel={t('settings.theme')}>
             {(
               [
                 { value: 'system', labelKey: 'settings.themeSystem' },
@@ -763,7 +629,7 @@ export default function Settings() {
 
         <View style={styles.card}>
           <Text style={styles.rowLabel}>{t('settings.language')}</Text>
-          <View style={styles.segment}>
+          <View style={styles.segment} accessibilityRole="radiogroup" accessibilityLabel={t('settings.language')}>
             {LANGUAGES.map((l) => {
               const on = locale === l.value;
               return (
@@ -783,17 +649,47 @@ export default function Settings() {
           </View>
         </View>
 
-        <Text style={styles.section}>{t('settings.reminders')}</Text>
+        {/* Day start sits last in Preferences: it is the rarest change here,
+            and the only one that rewrites how past days are bucketed. */}
+        <View style={styles.card}>
+          <Text style={styles.rowLabel}>{t('settings.dayStart')}</Text>
+          <Text style={styles.rowValue}>{t('settings.dayStartSub')}</Text>
+          <View style={styles.segment} accessibilityRole="radiogroup" accessibilityLabel={t('settings.dayStart')}>
+            {DAY_START_HOURS.map((h) => {
+              const on = dayStartHour === h;
+              return (
+                <TouchableOpacity
+                  key={h}
+                  style={[styles.segmentBtn, on && styles.segmentBtnOn, offline && styles.segmentBtnOff]}
+                  onPress={() => pickDayStart(h)}
+                  disabled={offline || savingDayStart}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: on, disabled: offline || savingDayStart }}
+                  testID={`settings-day-start-${h}`}
+                >
+                  <Text style={[styles.segmentText, on && styles.segmentTextOn]}>
+                    {h === 0 ? t('settings.dayStartMidnight') : t('settings.dayStartHour', { n: h })}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <Text style={styles.rowValue}>{t('settings.dayStartNote')}</Text>
+        </View>
+
+        {/* ── Reminders ── */}
+        <Text style={styles.section} accessibilityRole="header">{t('settings.reminders')}</Text>
         <View style={styles.card}>
           <View style={styles.rowBetween}>
-            <View style={{ flex: 1 }}>
+            <View style={styles.rowText}>
               <Text style={styles.rowLabel}>{t('settings.dailyReminder')}</Text>
               <Text style={styles.rowValue}>{t('settings.reminderSub')}</Text>
             </View>
             <Switch
               value={reminderEnabled}
               onValueChange={toggleReminder}
-              trackColor={{ true: colors.tealSolid, false: colors.line }}
+              trackColor={{ true: colors.tealSolid, false: colors.lineStrong }}
+              accessibilityLabel={t('settings.dailyReminder')}
               testID="reminder-toggle"
             />
           </View>
@@ -802,51 +698,55 @@ export default function Settings() {
               off switch anywhere in the UI. Each window the planner can
               schedule now has its own toggle and time. */}
           {reminderEnabled
-            ? MEAL_ROWS.map(({ key, labelKey }) => (
-                <View key={key} style={styles.rowBetween}>
-                  <Text style={styles.rowLabel}>{t(labelKey)}</Text>
-                  <View style={styles.mealControls}>
-                    {meals[key].enabled ? (
-                      <View style={styles.stepper}>
-                        <TouchableOpacity
-                          style={styles.step}
-                          onPress={() => bumpMealHour(key, -1)}
-                          accessibilityRole="button"
-                          accessibilityLabel={t('settings.earlier')}
-                          testID={`reminder-${key}-hour-minus`}
-                        >
-                          <Text style={styles.stepText}>−</Text>
-                        </TouchableOpacity>
-                        <Text style={styles.hourValue} testID={`reminder-${key}-hour`}>
-                          {hourLabel(meals[key].hour, locale)}
-                        </Text>
-                        <TouchableOpacity
-                          style={styles.step}
-                          onPress={() => bumpMealHour(key, 1)}
-                          accessibilityRole="button"
-                          accessibilityLabel={t('settings.later')}
-                          testID={`reminder-${key}-hour-plus`}
-                        >
-                          <Text style={styles.stepText}>+</Text>
-                        </TouchableOpacity>
-                      </View>
-                    ) : null}
-                    <Switch
-                      value={meals[key].enabled}
-                      onValueChange={() => toggleMeal(key)}
-                      trackColor={{ true: colors.tealSolid, false: colors.line }}
-                      testID={`reminder-${key}-toggle`}
-                    />
+            ? MEAL_ROWS.map(({ key, labelKey }) => {
+                const meal = t(labelKey);
+                return (
+                  <View key={key} style={styles.rowBetween}>
+                    <Text style={styles.rowLabel}>{meal}</Text>
+                    <View style={styles.mealControls}>
+                      {meals[key].enabled ? (
+                        <View style={styles.stepper}>
+                          <TouchableOpacity
+                            style={styles.step}
+                            onPress={() => bumpMealHour(key, -1)}
+                            accessibilityRole="button"
+                            accessibilityLabel={t('settings.stepEarlier', { what: meal })}
+                            testID={`reminder-${key}-hour-minus`}
+                          >
+                            <Text style={styles.stepText}>−</Text>
+                          </TouchableOpacity>
+                          <Text style={styles.hourValue} testID={`reminder-${key}-hour`}>
+                            {hourLabel(meals[key].hour, locale)}
+                          </Text>
+                          <TouchableOpacity
+                            style={styles.step}
+                            onPress={() => bumpMealHour(key, 1)}
+                            accessibilityRole="button"
+                            accessibilityLabel={t('settings.stepLater', { what: meal })}
+                            testID={`reminder-${key}-hour-plus`}
+                          >
+                            <Text style={styles.stepText}>+</Text>
+                          </TouchableOpacity>
+                        </View>
+                      ) : null}
+                      <Switch
+                        value={meals[key].enabled}
+                        onValueChange={() => toggleMeal(key)}
+                        trackColor={{ true: colors.tealSolid, false: colors.lineStrong }}
+                        accessibilityLabel={t('settings.mealReminderA11y', { what: meal })}
+                        testID={`reminder-${key}-toggle`}
+                      />
+                    </View>
                   </View>
-                </View>
-              ))
+                );
+              })
             : null}
           {reminderEnabled ? (
             <Text style={styles.rowValue}>{t('settings.reminderTimeHint')}</Text>
           ) : null}
 
           <View style={styles.digestRow}>
-            <View style={{ flex: 1 }}>
+            <View style={styles.rowText}>
               <Text style={styles.rowLabel}>{t('settings.weeklyDigest')}</Text>
               <Text style={styles.rowValue}>{t('settings.weeklyDigestSub')}</Text>
             </View>
@@ -854,7 +754,8 @@ export default function Settings() {
               value={!!profile?.weeklyDigestOptIn}
               onValueChange={toggleDigest}
               disabled={offline}
-              trackColor={{ true: colors.tealSolid, false: colors.line }}
+              trackColor={{ true: colors.tealSolid, false: colors.lineStrong }}
+              accessibilityLabel={t('settings.weeklyDigest')}
               testID="digest-toggle"
             />
           </View>
@@ -870,7 +771,7 @@ export default function Settings() {
             platforms. It was Android-only for exactly one release, while the iOS
             half did not exist — a setting that visibly does nothing is the same
             "merged reads as shipped" failure this repo already pays for. */}
-        <Text style={styles.section}>{t('settings.quickAddSection')}</Text>
+        <Text style={styles.section} accessibilityRole="header">{t('settings.quickAddSection')}</Text>
         <QuickAddCard />
 
         {/* Why the watch face is or is not current. Read straight off the live
@@ -881,60 +782,16 @@ export default function Settings() {
             and Android rendered an "Apple Watch" heading over empty space. */}
         {watchDiagnosticsAvailable ? (
           <>
-            <Text style={styles.section}>{t('settings.watchSection')}</Text>
+            <Text style={styles.section} accessibilityRole="header">{t('settings.watchSection')}</Text>
             <WatchDiagnosticsCard />
           </>
         ) : null}
 
-
-        {/*
-          Connected apps — the Oura Cloud API link (issue #72).
-
-          A SECOND transport for the same workouts the health store already
-          carries, and it exists because the health path had never actually
-          imported a real Oura record — see ADR-0026 Amendment 2. Both are
-          live; neither replaces the other.
-
-          Rendered unconditionally, unlike the health card above, because
-          `healthSync.available` gates on a native health store and this one
-          needs nothing but a network. It is the only Oura affordance on
-          Android until Health Connect's workout read ships in vc 38.
-        */}
-        {/*
-          Connected apps moved to their OWN SCREEN (`connected-apps.tsx`).
-
-          It used to be ~85 lines of card right here, and the owner's verdict was
-          that connecting to a third party "should be way better UX". The concrete
-          problem under the aesthetic one: nothing ever told the user the link had
-          worked — consent completes in a system browser, the user comes back, and
-          one line of text changed. The new screen answers that with a status pill,
-          a last-checked time and a record count, and it has room for Garmin or
-          Whoop without this file growing another card each time.
-        */}
-        <Text style={styles.section}>{t('oura.section')}</Text>
-        <TouchableOpacity
-          style={styles.card}
-          onPress={() => router.push('/connected-apps')}
-          testID="settings-connected-apps"
-        >
-          <View style={styles.rowBetween}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.rowLabel}>{t('settings.connectedApps')}</Text>
-              {/* Static, deliberately. Labelling this row with live status
-                  would mean Settings holding an Oura snapshot listener purely
-                  for one line of text — and ADR-0016 is explicit that a hook
-                  subscribes for a screen that needs it, not for a label. The
-                  screen one tap away shows the real state. */}
-              <Text style={styles.rowValue}>{t('settings.connectedAppsSub')}</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.faint} />
-          </View>
-        </TouchableOpacity>
-
-        <Text style={styles.section}>{t('settings.floorsSection')}</Text>
+        {/* ── Safety floors ── the clamps under the targets above. */}
+        <Text style={styles.section} accessibilityRole="header">{t('settings.floorsSection')}</Text>
         <View style={styles.card}>
           <View style={styles.rowBetween}>
-            <View style={{ flex: 1 }}>
+            <View style={styles.rowText}>
               <Text style={styles.rowLabel}>{t('settings.calorieFloor')}</Text>
               <Text style={styles.rowValue}>{t('settings.calorieFloorSub')}</Text>
             </View>
@@ -944,7 +801,8 @@ export default function Settings() {
                 disabled={offline || calorieFloor <= CALORIE_FLOOR_MIN}
                 onPress={() => bumpCalorieFloor(-50)}
                 accessibilityRole="button"
-                accessibilityLabel={t('settings.lower')}
+                accessibilityLabel={t('settings.stepLower', { what: t('settings.calorieFloor') })}
+                accessibilityState={{ disabled: offline || calorieFloor <= CALORIE_FLOOR_MIN }}
                 testID="calorie-floor-minus"
               >
                 <Text style={styles.stepText}>−</Text>
@@ -955,7 +813,8 @@ export default function Settings() {
                 disabled={offline || calorieFloor >= CALORIE_FLOOR_MAX}
                 onPress={() => bumpCalorieFloor(50)}
                 accessibilityRole="button"
-                accessibilityLabel={t('settings.raise')}
+                accessibilityLabel={t('settings.stepRaise', { what: t('settings.calorieFloor') })}
+                accessibilityState={{ disabled: offline || calorieFloor >= CALORIE_FLOOR_MAX }}
                 testID="calorie-floor-plus"
               >
                 <Text style={styles.stepText}>+</Text>
@@ -966,7 +825,7 @@ export default function Settings() {
 
         <View style={styles.card}>
           <View style={styles.rowBetween}>
-            <View style={{ flex: 1 }}>
+            <View style={styles.rowText}>
               <Text style={styles.rowLabel}>{t('settings.proteinFloor')}</Text>
               <Text style={styles.rowValue}>{t('settings.proteinFloorSub')}</Text>
             </View>
@@ -976,7 +835,8 @@ export default function Settings() {
                 disabled={offline || proteinFloor == null}
                 onPress={() => bumpProteinFloor(-5)}
                 accessibilityRole="button"
-                accessibilityLabel={t('settings.lower')}
+                accessibilityLabel={t('settings.stepLower', { what: t('settings.proteinFloor') })}
+                accessibilityState={{ disabled: offline || proteinFloor == null }}
                 testID="protein-floor-minus"
               >
                 <Text style={styles.stepText}>−</Text>
@@ -992,7 +852,8 @@ export default function Settings() {
                 disabled={offline || (proteinFloor ?? 0) >= PROTEIN_FLOOR_MAX}
                 onPress={() => bumpProteinFloor(5)}
                 accessibilityRole="button"
-                accessibilityLabel={t('settings.raise')}
+                accessibilityLabel={t('settings.stepRaise', { what: t('settings.proteinFloor') })}
+                accessibilityState={{ disabled: offline || (proteinFloor ?? 0) >= PROTEIN_FLOOR_MAX }}
                 testID="protein-floor-plus"
               >
                 <Text style={styles.stepText}>+</Text>
@@ -1001,10 +862,57 @@ export default function Settings() {
           </View>
         </View>
 
-        <Text style={styles.section}>{t('settings.data')}</Text>
+        {/* ── Your data ── what comes in (Connected apps), what it has added
+            up to (Milestones), and the file both ways (export / import).
+
+            Connected apps is its own SCREEN (`connected-apps.tsx`): ~85 lines
+            of card used to sit here, and nothing ever told the user a link had
+            worked. Its row is static, deliberately — live status here would
+            mean Settings holding an Oura snapshot listener for one line of
+            text, which ADR-0016 rules out. The screen one tap away shows it.
+
+            Milestones — the retrospective record (#108/#109). Each was a
+            one-row section whose heading repeated the row's own title
+            ("MILESTONES" over "Milestones"); grouped here, the heading says
+            what the group is instead. */}
+        <Text style={styles.section} accessibilityRole="header">{t('settings.yourDataSection')}</Text>
+        <View style={styles.card}>
+          <TouchableOpacity
+            style={styles.navRow}
+            onPress={() => router.push('/connected-apps')}
+            accessibilityRole="button"
+            testID="settings-connected-apps"
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowLabel}>{t('settings.connectedApps')}</Text>
+              {/* Names the platform's own health store first (S21-5): "Oura
+                  and other services" never said Apple Health / Health Connect
+                  lived behind this row, and that is the one most people want. */}
+              <Text style={styles.rowValue}>{t('settings.connectedAppsSub', { store: healthStore })}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.faint} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.navRow, styles.navRowDivided]}
+            // `as Href` because `typedRoutes` regenerates its declaration from
+            // a running dev server, not from `expo export` — a route added
+            // without one being started is invisible to tsc until then. Same
+            // cast `trends.tsx` uses for `/coach`.
+            onPress={() => router.push('/milestones' as Href)}
+            accessibilityRole="button"
+            testID="settings-milestones"
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowLabel}>{t('milestones.title')}</Text>
+              <Text style={styles.rowValue}>{t('milestones.settingsSub')}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.faint} />
+          </TouchableOpacity>
+        </View>
+
         <View style={styles.card}>
           <View style={styles.rowBetween}>
-            <View style={{ flex: 1 }}>
+            <View style={styles.rowText}>
               <Text style={styles.rowLabel}>{t('settings.exportTitle')}</Text>
               <Text style={styles.rowValue}>{t('settings.exportSub')}</Text>
             </View>
@@ -1012,6 +920,9 @@ export default function Settings() {
               style={[styles.exportBtn, exporting && styles.exportBtnDisabled]}
               onPress={onExport}
               disabled={exporting}
+              accessibilityRole="button"
+              accessibilityLabel={exporting ? t('settings.exportPreparing') : t('settings.exportTitle')}
+              accessibilityState={{ disabled: exporting, busy: exporting }}
               testID="settings-export"
             >
               <Ionicons name="download-outline" size={16} color={colors.onInk} />
@@ -1020,15 +931,21 @@ export default function Settings() {
               </Text>
             </TouchableOpacity>
           </View>
-          {exportMsg ? <Text style={styles.exportMsg}>{exportMsg}</Text> : null}
+          {exportMsg ? <Text style={styles.exportMsg} accessibilityLiveRegion="polite">{exportMsg}</Text> : null}
 
           <View style={styles.importDivider} />
           <View style={styles.rowBetween}>
-            <View style={{ flex: 1 }}>
+            <View style={styles.rowText}>
               <Text style={styles.rowLabel}>{t('settings.importTitle')}</Text>
               <Text style={styles.rowValue}>{t('settings.importSub')}</Text>
             </View>
-            <TouchableOpacity style={styles.exportBtn} onPress={pickImport} testID="settings-import">
+            <TouchableOpacity
+              style={styles.exportBtn}
+              onPress={pickImport}
+              accessibilityRole="button"
+              accessibilityLabel={t('settings.importTitle')}
+              testID="settings-import"
+            >
               <Ionicons name="cloud-upload-outline" size={16} color={colors.onInk} />
               <Text style={styles.exportBtnText}>{t('settings.importButton')}</Text>
             </TouchableOpacity>
@@ -1051,22 +968,133 @@ export default function Settings() {
                   style={[styles.exportBtn, importing && styles.exportBtnDisabled]}
                   onPress={confirmImport}
                   disabled={importing}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: importing, busy: importing }}
                   testID="settings-import-confirm"
                 >
                   <Text style={styles.exportBtnText}>
                     {importing ? t('settings.importImporting') : t('settings.importConfirm')}
                   </Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => setImportPreview(null)} disabled={importing}>
+                <TouchableOpacity
+                  style={styles.textBtn}
+                  onPress={() => setImportPreview(null)}
+                  disabled={importing}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: importing }}
+                  testID="settings-import-cancel"
+                >
                   <Text style={styles.importCancel}>{t('settings.importCancel')}</Text>
                 </TouchableOpacity>
               </View>
             </View>
           ) : null}
-          {importMsg ? <Text style={styles.exportMsg}>{importMsg}</Text> : null}
+          {importMsg ? <Text style={styles.exportMsg} accessibilityLiveRegion="polite">{importMsg}</Text> : null}
         </View>
 
-        <Text style={styles.section}>{t('settings.account')}</Text>
+        {PRO_ENABLED ? (
+        <>
+        <Text style={styles.section} accessibilityRole="header">{t('pro.title')}</Text>
+        <View style={styles.card}>
+          {isPro ? (
+            <View style={styles.proActiveRow}>
+              <Ionicons name="checkmark-circle" size={20} color={colors.good} />
+              <Text style={styles.proActive}>{t('pro.active')}</Text>
+            </View>
+          ) : (
+            <>
+              <Text style={styles.rowValue}>{t('pro.desc')}</Text>
+              <View style={styles.proFeatures}>
+                {[t('pro.featHistory'), t('pro.featLimits'), t('pro.featThemes'), t('pro.featTrends')].map((f) => (
+                  <View key={f} style={styles.proFeatRow}>
+                    <Ionicons name="checkmark" size={15} color={colors.accent} />
+                    <Text style={styles.proFeat}>{f}</Text>
+                  </View>
+                ))}
+              </View>
+              <TouchableOpacity
+                style={[styles.exportBtn, styles.proUnlockBtn]}
+                disabled
+                accessibilityRole="button"
+                accessibilityState={{ disabled: true }}
+                testID="pro-unlock"
+              >
+                <Ionicons name="lock-open-outline" size={16} color={colors.onInk} />
+                <Text style={styles.exportBtnText}>{t('pro.unlock')} · {t('pro.unlockSoon')}</Text>
+              </TouchableOpacity>
+            </>
+          )}
+          <View style={styles.importDivider} />
+          <View style={styles.rowBetween}>
+            <View style={styles.rowText}>
+              <Text style={styles.rowLabel}>{t('pro.preview')}</Text>
+              <Text style={styles.rowValue}>{t('pro.previewSub')}</Text>
+            </View>
+            <Switch
+              value={proPreview}
+              onValueChange={(v) => setProPreview(v)}
+              trackColor={{ true: colors.tealSolid, false: colors.lineStrong }}
+              accessibilityLabel={t('pro.preview')}
+              testID="pro-preview-toggle"
+            />
+          </View>
+        </View>
+        </>
+        ) : null}
+
+        {/* ── About & legal ── Apple 5.1.1(i) requires the privacy policy to
+            be reachable inside the app, and 1.4.1 wants a medical disclaimer on
+            a health app. The Open Food Facts credit satisfies ODbL attribution
+            (5.2.2). It sat ABOVE Units, Theme and Language until S21-4 — what
+            people come to read, ahead of what they come to change. */}
+        <Text style={styles.section} accessibilityRole="header">{t('settings.aboutLegalSection')}</Text>
+        <View style={styles.card}>
+          <TouchableOpacity
+            style={styles.linkRow}
+            onPress={() => void openExternal('https://ignia.fit/privacy', t)}
+            accessibilityRole="link"
+            testID="settings-privacy"
+          >
+            <Text style={styles.rowLabel}>{t('settings.privacyPolicy')}</Text>
+            <Ionicons name="open-outline" size={16} color={colors.muted} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.linkRow}
+            onPress={() => void openExternal('https://ignia.fit/terms', t)}
+            accessibilityRole="link"
+            testID="settings-terms"
+          >
+            <Text style={styles.rowLabel}>{t('settings.termsOfUse')}</Text>
+            <Ionicons name="open-outline" size={16} color={colors.muted} />
+          </TouchableOpacity>
+          <Text style={styles.legalNote}>{t('settings.medicalDisclaimer')}</Text>
+          <Text style={styles.legalNote}>{t('settings.dataCredit')}</Text>
+          {/* Which BUILD and which over-the-air BUNDLE this app is running.
+              Not vanity: an OTA lands on the launch after it downloads, so
+              "is that bug fixed?" is unanswerable without it, and this repo has
+              already twice called a JS behaviour broken while measuring the
+              previous bundle. `updateId` is null on an embedded launch — that
+              is the honest answer, not a blank. */}
+          <Text style={styles.legalNote} selectable testID="settings-build">
+            {t('settings.buildLine', {
+              version: Application.nativeApplicationVersion ?? '?',
+              build: Application.nativeBuildVersion ?? '?',
+              bundle: Updates.isEmbeddedLaunch || !Updates.updateId
+                ? t('settings.bundleEmbedded')
+                : Updates.updateId.slice(0, 8),
+            })}
+          </Text>
+        </View>
+
+        {/* ── Account ── last. Sign-in methods (its own heading, from the
+            card), then who you are signed in as and Sign out, then Delete
+            account — the very bottom of the screen, alone in its card, in the
+            danger colour, where a store reviewer looks for it. Deletion runs
+            IN-APP (Apple 5.1.1(v)); this used to open the web privacy page,
+            which does not satisfy the guideline. */}
+        <SignInMethodsCard />
+
+        <Text style={styles.section} accessibilityRole="header">{t('settings.account')}</Text>
         <View style={styles.card}>
           {/* Email on its own line, single-line + middle-ellipsis — a long
               address wrapped mid-word ("…@gm\nail.com") before. */}
@@ -1082,20 +1110,17 @@ export default function Settings() {
           </TouchableOpacity>
         </View>
 
-        <SignInMethodsCard />
-
         <View style={styles.card}>
           {/* No divider above this row. A separator separates two things, and
               Delete account is the ONLY row in its card — so the rule drew
               across the top of an otherwise empty card and read as a stray
-              line. Same defect the `refineRow` border had when it was reused
-              as a solo row; see `soloRow` above. */}
-          {/* Deletion runs IN-APP (Apple 5.1.1(v)) — this used to open the web
-              privacy page, which does not satisfy the guideline. */}
+              line. */}
           <TouchableOpacity
             style={styles.deleteRow}
             onPress={confirmDeleteAccount}
             disabled={deleting}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: deleting, busy: deleting }}
             testID="settings-delete-account"
           >
             <View style={{ flex: 1 }}>
@@ -1112,20 +1137,17 @@ export default function Settings() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+      {/* A root-stack screen over the tabs since S21-1: the tab layout's
+          confirm host is underneath it, so Sign out's and Sign-in methods'
+          confirms are drawn by this one (the arrangement `connected-apps.tsx`
+          and `scan.tsx` use). */}
+      <ConfirmHost />
     </SafeAreaView>
   );
 }
 
 const createStyles = ({ colors }: Theme) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: space.lg,
-    paddingVertical: space.md,
-  },
-  title: { flex: 1, textAlign: 'center', fontSize: font.h2, fontWeight: '800', color: colors.ink },
-  headerSpacer: { width: 26 },
   body: { paddingHorizontal: space.xl, paddingBottom: space.xxl, gap: space.sm },
   section: {
     fontSize: font.small,
@@ -1145,23 +1167,26 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
     gap: space.md,
   },
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  /** Text column beside a trailing control: yields width to it, and keeps a
+   *  gap once it does (the same shoving `digestRowText` below describes). */
+  rowText: { flex: 1, marginRight: space.md },
+  /** A row that opens another screen — label, subtitle, chevron. Every one in
+   *  the screen is this shape now (S21-4): the targets group mixed a row, an
+   *  outlined button and a row, which read as three unrelated controls. */
+  navRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 44 },
+  /** The second and later rows of a group card: a rule above, never on the
+   *  first (a top rule on a card's first row is the stray line `soloRow` was
+   *  invented to remove). */
+  navRowDivided: { paddingTop: space.md, borderTopWidth: 1, borderTopColor: colors.line },
+  tipBtn: { marginTop: space.md, alignSelf: 'flex-start', minHeight: 44 },
+  textBtn: { minHeight: 44, justifyContent: 'center' },
   rowLabel: { fontSize: font.body, color: colors.ink, fontWeight: '600' },
   // 44 pt minimum (S18-15): three legal links stacked at ~34 pt each were the
   // smallest targets on the screen.
   linkRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: space.sm, minHeight: 44 },
   legalNote: { fontSize: font.tiny, color: colors.muted, marginTop: space.sm, lineHeight: font.tiny * 1.5 },
   rowValue: { fontSize: font.body, color: colors.muted, marginTop: 2 },
-  rowValueRight: { fontSize: font.body, color: colors.muted, maxWidth: '60%', textAlign: 'right' },
   rowSub: { fontSize: font.small, color: colors.faint, marginTop: 2 },
-  editBtn: {
-    borderWidth: 1,
-    borderColor: colors.ink,
-    borderRadius: radius.md,
-    paddingVertical: space.md,
-    alignItems: 'center',
-  },
-  editBtnText: { color: colors.ink, fontWeight: '700', fontSize: font.body },
-  editBtnSub: { color: colors.faint, fontSize: font.small, marginTop: 2 },
   exportBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1170,6 +1195,8 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
     borderRadius: radius.md,
     paddingVertical: space.sm,
     paddingHorizontal: space.md,
+    // 44pt: these were ~33 (S21-2).
+    minHeight: 44,
   },
   exportBtnDisabled: { opacity: 0.5 },
   exportBtnText: { color: colors.onInk, fontWeight: '700', fontSize: font.small },
@@ -1184,12 +1211,6 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   importPreview: { marginTop: space.sm, gap: space.xs, backgroundColor: colors.paper, borderRadius: radius.md, padding: space.md },
   importActions: { flexDirection: 'row', alignItems: 'center', gap: space.lg, marginTop: space.sm },
   importCancel: { fontSize: font.body, color: colors.muted, fontWeight: '700' },
-  refineRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingTop: space.sm, borderTopWidth: 1, borderTopColor: colors.line },
-  // `refineRow` carries a top border because it sits UNDER another row in the
-  // Goals card. Reused as the only row in a card it draws a rule above the
-  // card's first line — a stray <hr> over 'How Ignia works' and 'Send
-  // feedback'. Same metrics, no divider.
-  soloRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingTop: space.sm },
   digestRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: space.sm, borderTopWidth: 1, borderTopColor: colors.line },
   /** Text column inside a {@link digestRow}. The row is `space-between`, so a
    *  bare <Text> sizes to its own content and shoves the trailing button off
@@ -1201,7 +1222,8 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   segmentBtn: {
     flex: 1,
     borderWidth: 1,
-    borderColor: colors.line,
+    // A control's edge (WCAG 1.4.11, 3:1) — `line` is ~1.2:1.
+    borderColor: colors.lineStrong,
     borderRadius: radius.md,
     paddingVertical: space.md,
     alignItems: 'center',
@@ -1218,15 +1240,15 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   stepper: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   // 44, matching refine-targets' pace stepper (S18-15) — these were 36.
   step: {
-    width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: colors.line,
+    width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: colors.lineStrong,
     alignItems: 'center', justifyContent: 'center', backgroundColor: colors.inputBg,
   },
   stepText: { fontSize: font.h3, color: colors.ink, fontWeight: '700' },
   hourValue: { fontSize: font.body, color: colors.ink, fontWeight: '700', minWidth: 56, textAlign: 'center' },
   accountHead: { gap: 2, marginBottom: space.md },
   accountEmail: { fontSize: font.small, color: colors.muted },
-  signOut: { flexDirection: 'row', alignItems: 'center', gap: space.sm, justifyContent: 'flex-start' },
+  signOut: { flexDirection: 'row', alignItems: 'center', gap: space.sm, justifyContent: 'flex-start', minHeight: 44 },
   signOutText: { color: colors.danger, fontWeight: '700', fontSize: font.body },
-  deleteRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  deleteRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 44 },
   deleteLabel: { fontSize: font.body, color: colors.danger, fontWeight: '600' },
 });

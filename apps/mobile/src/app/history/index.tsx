@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { type DaySummary, formatBodyWeight, dayKeyAt, monthGrid, parseYmd } from '@macrolog/core';
 import { OfflineBanner } from '@/components/OfflineBanner';
@@ -256,18 +256,21 @@ function HistoryCalendarScreen({ onRetry }: { onRetry: () => void }) {
 }
 
 const CELL = `${100 / 7}%`;
+/** The platform's touch floor: 44pt on iOS, Material's 48dp on Android. */
+const TARGET = Platform.OS === 'android' ? 48 : 44;
 
 const createStyles = ({ colors }: Theme) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
   title: { flexShrink: 1, fontSize: font.h1, fontWeight: '800', color: colors.ink },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs, paddingHorizontal: space.lg, paddingTop: space.md },
-  // 44pt tall, the chevron's 26dp plus `hitSlop` for the rest of the target.
-  backBtn: { minHeight: 44, justifyContent: 'center' },
+  // A full target in its own right — the chevron's 26dp plus `hitSlop` was 44
+  // tall at best, under Android's 48.
+  backBtn: { minHeight: TARGET, minWidth: TARGET, justifyContent: 'center' },
   fill: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.xs },
   body: { padding: space.xl, gap: space.md },
   error: { color: colors.danger, fontSize: font.small, flex: 1 },
   errorRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
-  retryBtn: { borderWidth: 1, borderColor: colors.ink, borderRadius: radius.pill, paddingHorizontal: space.md, minHeight: 36, justifyContent: 'center' },
+  retryBtn: { borderWidth: 1, borderColor: colors.ink, borderRadius: radius.pill, paddingHorizontal: space.md, minHeight: TARGET, justifyContent: 'center' },
   retryText: { fontSize: font.small, fontWeight: '700', color: colors.ink },
   partialNote: { fontSize: font.small, color: colors.muted, textAlign: 'center', marginTop: space.xs },
   partialRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.sm },

@@ -152,10 +152,8 @@ describe('pressables in the logging sheets carry an accessibilityRole', () => {
  * rise, and a file leaves this map — and becomes strict — the day it reaches 0.
  * None of them is a logging sheet; the sheets are strict from day one.
  */
-const INPUTS_PENDING: Record<string, number> = {
-  'components/RecipeImport.tsx': 1,
-  'components/train/TemplateEditorModal.tsx': 13,
-};
+// RecipeImport.tsx left at 0 on 2026-10-06 (S21: its URL field is named).
+const INPUTS_PENDING: Record<string, number> = {};
 
 describe('text fields in the same files carry an accessibilityLabel', () => {
   it.each(FILES)('%s', (file) => {

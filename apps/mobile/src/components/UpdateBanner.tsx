@@ -25,6 +25,15 @@ export function useUpdateVisible(): boolean {
   return ota.pending || store.available;
 }
 
+/**
+ * How far the banner's text grows with Dynamic Type / font scale. Uncapped, at
+ * the largest accessibility size the two lines wrapped to a dozen and the
+ * banner filled Today's whole first screen (S21-8) — a prompt that hides the
+ * thing it is prompting about. 1.6× is still well past the default size, and
+ * the full sentence is in the accessibility label for a screen reader.
+ */
+const BANNER_MAX_SCALE = 1.6;
+
 export function UpdateBanner({ suppressed = false }: { suppressed?: boolean }) {
   const t = useT();
   const styles = useThemedStyles(createStyles);
@@ -44,20 +53,28 @@ export function UpdateBanner({ suppressed = false }: { suppressed?: boolean }) {
         }}
         disabled={ota.applying}
         accessibilityRole="button"
-        accessibilityLabel={t('update.ota.title')}
+        // The whole sentence, since the visible lines may be truncated.
+        accessibilityLabel={`${t('update.ota.title')}. ${t('update.ota.body')}`}
+        accessibilityState={{ disabled: ota.applying, busy: ota.applying }}
         testID="ota-update"
       >
         <View style={styles.left}>
           <Ionicons name="arrow-down-circle" size={20} color={colors.accent} />
           <View style={styles.textCol}>
-            <Text style={styles.title}>{t('update.ota.title')}</Text>
-            <Text style={styles.body}>{t('update.ota.body')}</Text>
+            <Text style={styles.title} numberOfLines={1} maxFontSizeMultiplier={BANNER_MAX_SCALE}>
+              {t('update.ota.title')}
+            </Text>
+            <Text style={styles.body} numberOfLines={1} maxFontSizeMultiplier={BANNER_MAX_SCALE}>
+              {t('update.ota.body')}
+            </Text>
           </View>
         </View>
         {ota.applying ? (
           <ActivityIndicator color={colors.accent} />
         ) : (
-          <Text style={styles.action}>{t('update.ota.action')}</Text>
+          <Text style={styles.action} numberOfLines={1} maxFontSizeMultiplier={BANNER_MAX_SCALE}>
+            {t('update.ota.action')}
+          </Text>
         )}
       </TouchableOpacity>
     );
@@ -74,20 +91,26 @@ export function UpdateBanner({ suppressed = false }: { suppressed?: boolean }) {
           store.open();
         }}
         accessibilityRole="button"
-        accessibilityLabel={t('update.store.title')}
+        accessibilityLabel={`${t('update.store.title')}. ${t('update.store.body')}`}
       >
         <Ionicons name="cloud-download-outline" size={20} color={colors.accent} />
         <View style={styles.textCol}>
-          <Text style={styles.title}>{t('update.store.title')}</Text>
-          <Text style={styles.body}>{t('update.store.body')}</Text>
+          <Text style={styles.title} numberOfLines={1} maxFontSizeMultiplier={BANNER_MAX_SCALE}>
+            {t('update.store.title')}
+          </Text>
+          <Text style={styles.body} numberOfLines={1} maxFontSizeMultiplier={BANNER_MAX_SCALE}>
+            {t('update.store.body')}
+          </Text>
         </View>
       </TouchableOpacity>
       <TouchableOpacity
+        // 44×44 on its own, not by `hitSlop` — a slop overlapping the card's
+        // other button is ambiguous about which one a tap meant.
+        style={styles.dismiss}
         onPress={() => {
           haptics.tap();
           store.dismiss();
         }}
-        hitSlop={10}
         accessibilityRole="button"
         accessibilityLabel={t('common.dismiss')}
         testID="store-update-dismiss"
@@ -116,4 +139,5 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   title: { fontSize: font.small, color: colors.ink, fontWeight: '800' },
   body: { fontSize: font.small, color: colors.muted, lineHeight: 18 },
   action: { fontSize: font.small, color: colors.accent, fontWeight: '800' },
+  dismiss: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', marginRight: -space.sm },
 });

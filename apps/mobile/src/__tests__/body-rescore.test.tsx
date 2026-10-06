@@ -50,6 +50,7 @@ jest.mock('expo-router', () => {
     useFocusEffect: () => {},
     useRouter: () => ({ push: mockPush, replace: jest.fn(), back: jest.fn() }),
     useLocalSearchParams: () => ({}),
+    useScrollToTop: jest.fn(),
     router: { setParams: jest.fn(), push: jest.fn() },
   };
 });
@@ -284,7 +285,8 @@ describe('gaps', () => {
     ];
     mockState = body({ measurements: rows });
     const s = await render(<BodyScreen />);
-    expect(s.getByTestId('measure-trend-waist').props.accessibilityLabel).toBe('Waist 33 in, down 1.0 in since Aug 2');
+    // S21: the card also names the range its sparkline spans.
+    expect(s.getByTestId('measure-trend-waist').props.accessibilityLabel).toBe('Waist 33 in, down 1.0 in since Aug 2, Range 33.0–34.0 in');
     // One neck reading is not a trend.
     expect(s.queryByTestId('measure-trend-neck')).toBeNull();
   });

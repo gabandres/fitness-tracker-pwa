@@ -244,24 +244,14 @@ export default function ConnectedAppsScreen() {
 
   return (
     <View style={styles.screen}>
-      {/* The native stack header (re-score 3, Platform), the way the History
-          day has it: the system back button with its swipe, its long-press
-          history and the iOS 26 glass, and a large title that collapses as
-          the cards scroll — instead of a drawn chevron and a centred title. */}
+      {/* The native stack header (re-score 3, Platform): the system back
+          button with its swipe, its long-press history and the iOS 26 glass.
+          Its look and title are the shared detail header in the root layout
+          since S21-9 — this had a large title of its own, the one pushed
+          screen whose header differed from the rest. Only the cold-open
+          escape is this screen's own: it goes to Settings, not Today. */}
       <Stack.Screen
         options={{
-          headerShown: true,
-          title: t('connected.title'),
-          headerLargeTitle: true,
-          headerBackButtonDisplayMode: 'minimal',
-          // Hidden by `minimal`, but it is what VoiceOver reads for the button.
-          headerBackTitle: t('common.back'),
-          headerShadowVisible: false,
-          headerLargeTitleShadowVisible: false,
-          headerStyle: { backgroundColor: colors.paper },
-          headerTintColor: colors.ink,
-          headerTitleStyle: { color: colors.ink },
-          headerLargeTitleStyle: { color: colors.ink },
           headerLeft: orphan
             ? () => (
                 <TouchableOpacity
@@ -282,7 +272,6 @@ export default function ConnectedAppsScreen() {
       <ScrollView
         contentContainerStyle={styles.body}
         keyboardShouldPersistTaps="handled"
-        // The large title needs the scroll view to own the inset under it.
         contentInsetAdjustmentBehavior="automatic"
       >
         <Text style={styles.subtitle}>{t('connected.intro')}</Text>
@@ -293,10 +282,11 @@ export default function ConnectedAppsScreen() {
           <View style={styles.card} testID="provider-health">
             <View style={styles.cardHead}>
               <View style={styles.cardHeadText}>
+                {/* The provider's NAME, like Oura's card: the heading read
+                    "Connect Health Connect" until S21-5, an action label
+                    standing in for a name — the Switch beside it is the action. */}
                 <Text style={styles.provider} accessibilityRole="header">
-                  {Platform.OS === 'ios'
-                    ? t('settings.healthConnectIos')
-                    : t('settings.healthConnectAndroid')}
+                  {store}
                 </Text>
                 <Text style={styles.providerSub}>{t('settings.healthSub')}</Text>
               </View>

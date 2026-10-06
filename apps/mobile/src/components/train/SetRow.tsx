@@ -42,10 +42,13 @@ const NUMERIC_FONT_CAP = 1.6;
  *  core's default progression increment, which is the same pair of plates. */
 const weightStep = (unitSystem: Parameters<typeof defaultIncrement>[0]) => defaultIncrement(unitSystem) / 2;
 
-/** How far PREVIOUS may shrink to fit its 56pt column. Below this a
- *  "102.5 × 10" drew too small to read at arm's length (Train re-score 3);
- *  past it the cell truncates, and its label still says the whole thing. */
-const PREV_MIN_FONT_SCALE = 0.85;
+/** How far PREVIOUS may shrink to fit its 56pt column: to 11pt and no
+ *  further. 0.85 of `font.tiny` was 10.2pt — too small to read at arm's
+ *  length (Train re-score 3; UX_AUDIT S20). Past the floor the text wraps to
+ *  a second line ("102.5 ×" / "10") and then truncates, and the cell's label
+ *  still says the whole thing. */
+const PREV_MIN_PT = 11;
+const PREV_MIN_FONT_SCALE = Math.min(1, PREV_MIN_PT / font.tiny);
 
 /** A rep or second count as stored: whole. The pad has no decimal key, but a
  *  paste or an Android keyboard can still bring "8.5", and 8.5 reps is not a
@@ -251,6 +254,16 @@ export const SetRow = memo(function SetRow({
     writeCount(String(Math.max(0, from + dir * (logStyle === 'time' ? 5 : 1))));
   }
 
+  // What VoiceOver / TalkBack say for a live number field. The grey number
+  // in an empty field is a PLACEHOLDER — last time's load, or the target —
+  // and a screen reader reads a placeholder exactly as it reads a value, so
+  // "135" sounded logged when nothing was (UX_AUDIT S20). The label says
+  // "empty" outright, and the placeholder's meaning moves to the hint.
+  const weightHintValue = previousSet?.weight != null ? loadText(previousSet.weight) : null;
+  const countHintKey = target != null ? 'train.targetHintA11y' : 'train.lastTimeHintA11y';
+  const fieldA11y = (base: string, text: string) =>
+    text.trim() === '' ? `${base}, ${t('train.fieldEmptyA11y')}` : base;
+
   const step = formatDecimal(weightStep(unitSystem), locale);
   const stepLabel = `${step} ${loadUnit(unitSystem)}`;
 
@@ -292,7 +305,7 @@ export const SetRow = memo(function SetRow({
         >
           <Text
             style={[styles.setPrevText, !previous && styles.setPrevEmpty]}
-            numberOfLines={1}
+            numberOfLines={2}
             adjustsFontSizeToFit
             minimumFontScale={PREV_MIN_FONT_SCALE}
             maxFontSizeMultiplier={NUMERIC_FONT_CAP}
@@ -322,7 +335,12 @@ export const SetRow = memo(function SetRow({
             submitBehavior="submit"
             onSubmitEditing={() => chain.next(weightSlot)}
             {...weightBarProps}
-            accessibilityLabel={t('train.setWeightA11y', { n: label })}
+            accessibilityLabel={fieldA11y(t('train.liveWeightA11y', { n: label }), weight)}
+            accessibilityHint={
+              weightHintValue != null
+                ? t('train.lastTimeHintA11y', { value: `${weightHintValue} ${loadUnit(unitSystem)}` })
+                : undefined
+            }
             testID={`set-weight-${exerciseIndex}-${setIndex}`}
           />
           <KeyboardBar
@@ -357,10 +375,14 @@ export const SetRow = memo(function SetRow({
           if (countHasNext) chain.next(countSlot);
         }}
         {...countBarProps}
-        accessibilityLabel={
+        accessibilityLabel={fieldA11y(
           logStyle === 'time'
-            ? t('train.setDurationA11y', { n: label })
-            : t('train.setRepsA11y', { n: label })
+            ? t('train.liveDurationA11y', { n: label })
+            : t('train.liveRepsA11y', { n: label }),
+          count,
+        )}
+        accessibilityHint={
+          acceptCount != null ? t(countHintKey, { value: String(acceptCount) }) : undefined
         }
         testID={`set-count-${exerciseIndex}-${setIndex}`}
       />

@@ -4,6 +4,7 @@ import {
   type AccessibilityActionEvent,
   ActionSheetIOS,
   Platform,
+  Pressable,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -44,9 +45,17 @@ const FULL_SWIPE = 168;
  *  appears only when a row is filed there — it is where untagged rows land,
  *  not a meal anyone sets out to log. */
 const ADD_SLOTS: readonly MealType[] = ['breakfast', 'lunch', 'dinner', 'snack'];
-/** Lifts the 32dp "+ Add" pill to a 48dp target; vertical only, its row has
- *  the slot name beside it. */
-const SLOT_ADD_SLOP = { top: 8, bottom: 8 } as const;
+/** The platform's touch floor: 44pt on iOS, Material's 48dp on Android. */
+const TARGET = Platform.OS === 'android' ? 48 : 44;
+/** The "+ Add" pill's drawn height. Slop lifts it to the platform target
+ *  (S21: it was 32 + 8 + 8, which is 48 on both — fine — but the pill was
+ *  also free to be narrower than a target; `minWidth` now says it is not).
+ *  Vertical only, its row has the slot name beside it. */
+const SLOT_ADD_H = 36;
+const SLOT_ADD_SLOP = { top: (TARGET - SLOT_ADD_H) / 2, bottom: (TARGET - SLOT_ADD_H) / 2 } as const;
+/** The Android row menu's ink (S21 — Material reads a ripple as "this is a
+ *  button", and these rows had none). The neutral `PressScale` uses. */
+const MENU_RIPPLE = { color: 'rgba(128, 128, 128, 0.22)', foreground: true } as const;
 /**
  * How long a context-menu action that PRESENTS something (the editor, the
  * meal picker) waits for the menu to finish closing. `onSelected` fires while
@@ -700,9 +709,10 @@ export function MealEntries({
                 {t('entry.moveToTitle')}
               </Text>
               {moveTargets(menu.log).map((slot) => (
-                <TouchableOpacity
+                <Pressable
                   key={slot}
                   style={styles.menuItem}
+                  android_ripple={MENU_RIPPLE}
                   onPress={() => {
                     setMenu(null);
                     onMove?.(menu.log, slot);
@@ -712,7 +722,7 @@ export function MealEntries({
                 >
                   <Ionicons name="restaurant-outline" size={20} color={colors.ink} />
                   <Text style={styles.menuText}>{capitalizeFirst(t(SLOT_KEY[slot]), locale)}</Text>
-                </TouchableOpacity>
+                </Pressable>
               ))}
             </View>
           ) : menu ? (
@@ -721,9 +731,10 @@ export function MealEntries({
                 {menu.log.mealLabel || t('today.entry')}
               </Text>
               {menuItems(menu.log, menu.remove).map((item) => (
-                <TouchableOpacity
+                <Pressable
                   key={item.key}
                   style={styles.menuItem}
+                  android_ripple={MENU_RIPPLE}
                   onPress={() => {
                     // "Move to…" keeps the sheet up and turns it into the
                     // list of meals; everything else closes it.
@@ -735,7 +746,7 @@ export function MealEntries({
                 >
                   <Ionicons name={item.icon} size={20} color={item.danger ? colors.danger : colors.ink} />
                   <Text style={item.danger ? styles.menuDanger : styles.menuText}>{item.label}</Text>
-                </TouchableOpacity>
+                </Pressable>
               ))}
             </View>
           ) : null}
@@ -752,16 +763,26 @@ const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   // Name and subtotal read as one line that may wrap at large text; the add
   // pill keeps its size beside it.
   slotTitle: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: space.sm },
-  slotLabel: { fontSize: font.small, color: colors.muted, fontWeight: '700' },
-  slotTotal: { fontSize: font.small, color: colors.faint, fontWeight: '600' },
+  // The meal's name in ink and its kcal in muted (S21): name and subtotal
+  // were muted and FAINT, small, which read as no subtotal at all on the
+  // simulator — the one number that says what each meal came to.
+  slotLabel: { fontSize: font.small, color: colors.ink, fontWeight: '700' },
+  slotTotal: { fontSize: font.small, color: colors.muted, fontWeight: '700' },
   slotAdd: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 2,
-    minHeight: 32,
+    minHeight: SLOT_ADD_H,
+    minWidth: TARGET,
     paddingHorizontal: space.md,
     borderRadius: radius.pill,
     backgroundColor: colors.accentSoft,
+    // Light mode's coral wash is ~1.02:1 against the canvas, so the pill was
+    // its text and nothing else; a control-strength rule gives it an edge
+    // without turning four pills coral.
+    borderWidth: 1,
+    borderColor: colors.lineStrong,
   },
   slotAddText: { fontSize: font.small, fontWeight: '700', color: colors.accent },
   entry: {

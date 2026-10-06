@@ -87,14 +87,14 @@ jest.mock('@/lib/activity-suggestion', () => ({
 
 jest.mock('expo-router', () => ({
   ...jest.requireActual('expo-router'),
-  useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
+  useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn(), canGoBack: () => true }),
   useLocalSearchParams: () => ({}),
   // The screen scopes its Android back handler to focus; there is no
   // navigator here to focus it.
   useFocusEffect: jest.fn(),
 }));
 
-import RefineTargets from '@/app/(app)/refine-targets';
+import RefineTargets from '@/app/refine-targets';
 
 beforeEach(() => {
   mockCalorieFloor = 1850;

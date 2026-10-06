@@ -225,12 +225,15 @@ describe('the live session (bugs 3, 5; items 5, 18)', () => {
     expect(haptics.warning).toHaveBeenCalled();
   });
 
-  it('offline, says the writes are saved on the phone', async () => {
+  it('offline, says the writes are saved on the phone — once', async () => {
     mockTrain.active = session();
     mockOffline = true;
     const ui = await render(<TrainScreen />);
-    expect(ui.getByTestId('session-saved-offline')).toBeTruthy();
-    expect(ui.getByTestId('session-offline-note')).toHaveTextContent("Saved on this phone — syncs when you're back online.");
+    expect(ui.getByTestId('session-offline-note')).toHaveTextContent(/Saved on this phone — syncs when you're back online\./);
+    // One message, not three (UX_AUDIT S20): no header echo, and not the
+    // app-wide banner, whose copy is about meals.
+    expect(ui.queryByTestId('session-saved-offline')).toBeNull();
+    expect(ui.queryByTestId('offline-banner')).toBeNull();
   });
 
   it('the header carries the name, the clock, and Finish', async () => {

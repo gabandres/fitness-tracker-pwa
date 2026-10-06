@@ -1,4 +1,5 @@
-import { Text, TouchableOpacity, View } from 'react-native';
+import { Text, View } from 'react-native';
+import { Touchable } from './Touchable';
 import { CARDIO_MODALITIES } from '@macrolog/core';
 import type { CardioModality } from '@macrolog/core/cardio';
 import { BottomSheet } from '@/components/BottomSheet';
@@ -41,11 +42,9 @@ export function CardioPickerSheet({
         <Text style={styles.sheetTitle} accessibilityRole="header">{t('cardio.pickModality')}</Text>
         <View style={styles.modalityChips}>
           {CARDIO_MODALITIES.map((m) => (
-            <TouchableOpacity
+            <Touchable
               key={m}
               style={styles.kindChip}
-              // Compact chip; hitSlop lifts the ~22-pt box to 44.
-              hitSlop={{ top: 11, bottom: 11, left: 4, right: 4 }}
               accessibilityRole="button"
               testID={`cardio-modality-${m}`}
               onPress={() => {
@@ -55,7 +54,7 @@ export function CardioPickerSheet({
               }}
             >
               <Text style={styles.kindChipText}>{t(CARDIO_MODALITY_KEY[m])}</Text>
-            </TouchableOpacity>
+            </Touchable>
           ))}
         </View>
       </View>

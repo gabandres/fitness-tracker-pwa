@@ -34,7 +34,6 @@ import {
 } from '@/lib/ledger';
 import {
   type SessionAction,
-  type SessionRemoval,
   applySessionAction,
   findDuplicateExercise,
   dayBoundaryOf,
@@ -65,6 +64,7 @@ import {
   templateToSessionExercises,
 } from '@/lib/workout';
 import type { CardioModality } from '@macrolog/core/cardio';
+import { type TrainRemoval, undoCardioRemoval } from '@/lib/train-removal';
 import {
   type SeedExercise,
   type SeedTemplate,
@@ -165,8 +165,10 @@ export interface TrainState {
    *  `undoRemoval` (pure, tested there); this persists it. Not a
    *  `SessionAction` for the same reason `moveExerciseInActive` is not: it is
    *  the inverse of one, carrying the removed data, not an edit a screen
-   *  composes. A no-op when the exercise a set belonged to is gone. */
-  undoRemoval: (removal: SessionRemoval) => void;
+   *  composes. A no-op when the exercise a set belonged to is gone. Also
+   *  takes a removed cardio block (`TrainRemoval`) — an imported Health
+   *  block was one tap from gone with no way back (UX_AUDIT S20). */
+  undoRemoval: (removal: TrainRemoval) => void;
   /** Edit a catalog exercise's fields (name / logStyle / muscles / cues /
    *  effort standard / band override — `targetRepBand: null` clears it). */
   editCatalogExercise: (id: string, patch: ExercisePatch) => Promise<void>;
@@ -915,10 +917,10 @@ export function useTrain(): TrainState {
   );
 
   const undoRemoval = useCallback(
-    (removal: SessionRemoval) => {
+    (removal: TrainRemoval) => {
       const prev = activeRef.current;
       if (!prev) return;
-      const next = applyUndoRemoval(prev, removal);
+      const next = removal.kind === 'cardio' ? undoCardioRemoval(prev, removal) : applyUndoRemoval(prev, removal);
       if (next === prev) return;
       setActive(next);
       void persist(next);

@@ -1,4 +1,5 @@
-import { Text, TouchableOpacity, View } from 'react-native';
+import { Text, View } from 'react-native';
+import { Touchable } from './Touchable';
 import type { NextUp } from '@macrolog/core';
 import { useT } from '@/i18n';
 import { formatDate } from '@/lib/date-format';
@@ -63,7 +64,7 @@ export function NextUpCard({
   return (
     <View style={styles.nextCard} testID="next-up">
       <Text style={styles.nextCaption}>{t('train.nextUp')}</Text>
-      <TouchableOpacity
+      <Touchable
         onPress={onEdit}
         accessibilityRole="button"
         accessibilityLabel={t('train.nextEditA11y', { name: next.template.name })}
@@ -71,14 +72,14 @@ export function NextUpCard({
       >
         <Text style={styles.nextName}>{next.template.name}</Text>
         <Text style={styles.nextMeta}>{when}</Text>
-      </TouchableOpacity>
+      </Touchable>
       {/* Short label, named only to a screen reader. The template name is the
           card's heading two lines above, so repeating it inside the button said
           the same thing twice and wrapped to two lines at 360dp — measured on
           the OnePlus 8T (360x800dp) 2026-09-17. `startNamed` still carries the
           name where it is NOT redundant: an assistive user lands on the button
           without having read the heading. */}
-      <TouchableOpacity
+      <Touchable
         style={styles.startBtn}
         onPress={() => {
           haptics.tap();
@@ -89,7 +90,7 @@ export function NextUpCard({
         testID="next-up-start"
       >
         <Text style={styles.startBtnText}>{t('train.start')}</Text>
-      </TouchableOpacity>
+      </Touchable>
     </View>
   );
 }

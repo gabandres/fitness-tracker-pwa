@@ -19,6 +19,7 @@ import { font, radius, space, type } from '@/theme';
 import { chartDate, chartNumber as formatNumber, signedNumber } from './chart-format';
 import { Glyph } from './Glyph';
 import { TrendChart, type TrendChartProps } from './TrendChart';
+import { SegmentedControl } from './SegmentedControl';
 
 /**
  * The two lines Trends was missing (review 2026-10-04: "Trends draws no line
@@ -50,6 +51,15 @@ export function rangeDays(range: TrendRange, historyDays: number, cap: number): 
   // At least a week, so a brand-new account's "All" is still a chart.
   if (range === 'all') return Math.max(7, Math.min(cap, historyDays || 7));
   return Math.min(RANGE_NOMINAL[range], cap);
+}
+
+/**
+ * Whether an account's history is shorter than the shortest fixed range — in
+ * which case every fixed chip is mostly blank axis and the screen opens on
+ * "All" instead (sim review 2026-10-06: a new account's 1M was 27 empty days).
+ */
+export function fitsAllRange(historyDays: number): boolean {
+  return historyDays < RANGE_NOMINAL['1m'];
 }
 
 /** The chips a cap can honestly offer: a 6M chip under a 90-day cap would be a
@@ -213,32 +223,25 @@ export function RangeChips({
   cap: number;
   t: TFn;
 }) {
-  const styles = useThemedStyles(createStyles);
+  const segments = useMemo(
+    () =>
+      rangesFor(cap).map((r) => ({
+        key: r,
+        label: t(RANGE_LABEL[r].label),
+        a11yLabel: t(RANGE_LABEL[r].a11y, { n: cap }),
+        testID: `trend-range-${r}`,
+      })),
+    [cap, t],
+  );
   return (
-    <View style={styles.chips} accessibilityRole="tablist" testID="trend-range">
-      {rangesFor(cap).map((r) => {
-        const on = r === range;
-        return (
-          <PressScale
-            key={r}
-            style={[styles.chip, on && styles.chipOn]}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: on }}
-            accessibilityLabel={t(RANGE_LABEL[r].a11y, { n: cap })}
-            testID={`trend-range-${r}`}
-            onPress={() => {
-              if (on) return;
-              haptics.tap();
-              onChange(r);
-            }}
-          >
-            <Text style={[styles.chipText, on && styles.chipTextOn]} maxFontSizeMultiplier={1.3}>
-              {t(RANGE_LABEL[r].label)}
-            </Text>
-          </PressScale>
-        );
-      })}
-    </View>
+    <SegmentedControl
+      segments={segments}
+      value={range}
+      onChange={onChange}
+      accessibilityLabel={t('trends.chart.rangeMenuTitle')}
+      maxFontSizeMultiplier={1.3}
+      testID="trend-range"
+    />
   );
 }
 
@@ -385,7 +388,7 @@ function ExpenditureCardImpl({ keys, intake, series, days, target, milestones, r
   // stretched the axis down to it and flattened the estimate into a ruler line.
   // Its value still reads in the per-day stepper, as "so far".
   const dots = useMemo(
-    () => [{ key: 'intake', values: view.dots, color: colors.lineStrong, radius: 2.25 }],
+    () => [{ key: 'intake', values: view.dots, color: colors.lineStrong, radius: 2.25, clipOutliers: true }],
     [view, colors.lineStrong],
   );
   // The audio graph's words (iOS VoiceOver, `AccessibleChart`): the legend's
@@ -573,22 +576,11 @@ function WeightTrendCardImpl({ keys, series, days, unitSystem, milestones, onOpe
 
   return (
     <View style={styles.card} testID="weight-trend-card">
-      <View style={styles.head}>
-        <View style={styles.titleBlock}>
-          <Text style={styles.title} accessibilityRole="header">{t('trends.weightChartTitle')}</Text>
-          <View style={styles.captionRow}>
-            {range && onRange && cap ? (
-              <RangeMenu range={range} onRange={onRange} cap={cap} days={view.k.length} t={t} testID="weight-trend-window" />
-            ) : (
-              <Text style={styles.caption} testID="weight-trend-window">{windowCaption(view.k.length, t)}</Text>
-            )}
-            {view.readout && view.weighIns > 0 ? (
-              <Text style={styles.readout} accessibilityElementsHidden importantForAccessibility="no" testID="weight-trend-readout">
-                {view.readout}
-              </Text>
-            ) : null}
-          </View>
-        </View>
+      {/* The title and the link share one row, centred on each other — the
+          link used to centre on the title AND the caption below it, and sat
+          between the two lines (sim review 2026-10-06). */}
+      <View style={styles.titleRow}>
+        <Text style={[styles.title, styles.titleGrow]} accessibilityRole="header">{t('trends.weightChartTitle')}</Text>
         <PressScale
           style={styles.link}
           accessibilityRole="link"
@@ -602,28 +594,47 @@ function WeightTrendCardImpl({ keys, series, days, unitSystem, milestones, onOpe
           <Text style={styles.linkText} maxFontSizeMultiplier={1.3}>{t('trends.openBodyShort')}</Text>
         </PressScale>
       </View>
-      {view.weighIns === 0 ? (
-        <Text style={styles.empty}>{t('trends.chart.weightEmpty', { days: view.k.length })}</Text>
-      ) : (
-        <TrendChart
-          dateKeys={view.k}
-          lines={lines}
-          dots={dots}
-          markers={view.marks}
-          summary={view.summary}
-          pointLabels={view.labels}
-          bubbleLabels={view.bubbles}
-          formatY={formatY}
-          xTickLabel={xTickLabel}
-          openDay={openDay}
-          audioGraph={audioGraph}
-          testID="weight-trend-chart"
-        />
-      )}
-      <View style={styles.legend} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-        <LegendItem color={colors.teal} label={t('trends.legendTrend')} />
-        <LegendItem color={colors.lineStrong} label={t('trends.legendScale')} dot />
+      <View style={styles.captionRow}>
+        {range && onRange && cap ? (
+          <RangeMenu range={range} onRange={onRange} cap={cap} days={view.k.length} t={t} testID="weight-trend-window" />
+        ) : (
+          <Text style={styles.caption} testID="weight-trend-window">{windowCaption(view.k.length, t)}</Text>
+        )}
+        {view.readout && view.weighIns > 0 ? (
+          <Text style={styles.readout} accessibilityElementsHidden importantForAccessibility="no" testID="weight-trend-readout">
+            {view.readout}
+          </Text>
+        ) : null}
       </View>
+      {view.weighIns === 0 ? (
+        // A soft placeholder the size of the chart it stands in for, with the
+        // sentence inside it — a legend over no chart described lines that
+        // were not drawn.
+        <View style={styles.emptyBox} testID="weight-trend-empty">
+          <Text style={styles.emptyText}>{t('trends.chart.weightEmpty', { days: view.k.length })}</Text>
+        </View>
+      ) : (
+        <>
+          <TrendChart
+            dateKeys={view.k}
+            lines={lines}
+            dots={dots}
+            markers={view.marks}
+            summary={view.summary}
+            pointLabels={view.labels}
+            bubbleLabels={view.bubbles}
+            formatY={formatY}
+            xTickLabel={xTickLabel}
+            openDay={openDay}
+            audioGraph={audioGraph}
+            testID="weight-trend-chart"
+          />
+          <View style={styles.legend} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+            <LegendItem color={colors.teal} label={t('trends.legendTrend')} />
+            <LegendItem color={colors.lineStrong} label={t('trends.legendScale')} dot />
+          </View>
+        </>
+      )}
     </View>
   );
 }
@@ -695,7 +706,7 @@ export interface ProteinTrendCardProps {
 
 function ProteinTrendCardImpl({ keys, protein, carbs, fat, days, target, milestones, onOpenDay, todayKey, range, onRange, cap, t, locale }: ProteinTrendCardProps) {
   const styles = useThemedStyles(createStyles);
-  const { colors } = useTheme();
+  const { colors, scheme } = useTheme();
   const openDay = useOpenDay(onOpenDay, t);
   const formatY = useCallback((v: number) => formatNumber(Math.round(v), locale), [locale]);
   const xTickLabel = useXTickLabel(locale);
@@ -705,6 +716,10 @@ function ProteinTrendCardImpl({ keys, protein, carbs, fat, days, target, milesto
   const macro: MacroTab = selectable ? (macroRaw as MacroTab) : 'protein';
   const isProtein = macro === 'protein';
   const goal = isProtein ? target : 0;
+  const macroSegments = useMemo(
+    () => MACRO_TABS.map((m) => ({ key: m, label: t(MACRO_LABEL[m]), testID: `macro-tab-${m}` })),
+    [t],
+  );
 
   const view = useMemo(() => {
     const source = macro === 'carbs' ? (carbs ?? []) : macro === 'fat' ? (fat ?? []) : protein;
@@ -780,9 +795,12 @@ function ProteinTrendCardImpl({ keys, protein, carbs, fat, days, target, milesto
 
   // `good`, not the macro `protein` green: that one is tuned for fills and
   // measures under 3:1 as a thin line on light paper (UX_AUDIT S18-2). Carbs
-  // take the ember amber for the same reason — `carbs` amber is a fill hue and
-  // falls under 3:1 as a line on light paper (`theme.ts`, habitFasting).
-  const lineColor = macro === 'carbs' ? colors.habitFasting : macro === 'fat' ? colors.fat : colors.good;
+  // are an amber that clears 3:1 on the CARD the line is drawn on: the ember
+  // `habitFasting` measured 2.85:1 on light `card` (sim review 2026-10-06), so
+  // light mode takes `warn` (4.5:1, the same amber family, darker); dark keeps
+  // the ember, bright on near-black.
+  const lineColor =
+    macro === 'carbs' ? (scheme === 'light' ? colors.warn : colors.habitFasting) : macro === 'fat' ? colors.fat : colors.good;
   const lines = useMemo(() => [{ key: 'avg', values: view.avg, color: lineColor, width: 2.5 }], [view, lineColor]);
   const dots = useMemo(() => [{ key: 'protein', values: view.g, color: colors.lineStrong, radius: 2.5 }], [view, colors.lineStrong]);
   const reference = useMemo(
@@ -824,29 +842,13 @@ function ProteinTrendCardImpl({ keys, protein, carbs, fat, days, target, milesto
         </View>
       </View>
       {selectable ? (
-        <View style={styles.chips} accessibilityRole="tablist" testID="macro-tabs">
-          {MACRO_TABS.map((m) => {
-            const on = m === macro;
-            return (
-              <PressScale
-                key={m}
-                style={[styles.chip, on && styles.chipOn]}
-                accessibilityRole="tab"
-                accessibilityState={{ selected: on }}
-                testID={`macro-tab-${m}`}
-                onPress={() => {
-                  if (on) return;
-                  haptics.tap();
-                  setMacro(m);
-                }}
-              >
-                <Text style={[styles.chipText, on && styles.chipTextOn]} maxFontSizeMultiplier={1.3}>
-                  {t(MACRO_LABEL[m])}
-                </Text>
-              </PressScale>
-            );
-          })}
-        </View>
+        <SegmentedControl
+          segments={macroSegments}
+          value={macro}
+          onChange={setMacro}
+          maxFontSizeMultiplier={1.3}
+          testID="macro-tabs"
+        />
       ) : null}
       {view.logged === 0 ? (
         <Text style={styles.empty}>
@@ -888,21 +890,22 @@ const createStyles = ({ colors }: Theme) =>
     head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: space.sm },
     title: { fontFamily: type.heading, fontSize: font.body, color: colors.ink },
     titleBlock: { flexShrink: 1, gap: 2 },
-    caption: { fontSize: font.tiny, color: colors.muted },
+    // `small`, not `tiny`: the theme keeps 12 pt for uppercase eyebrows, and
+    // these are sentences (sim review 2026-10-06).
+    caption: { fontSize: font.small, color: colors.muted },
+    titleRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+    titleGrow: { flex: 1 },
     captionRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', columnGap: space.sm },
     // The change over the range — a figure, so it reads in ink, not muted.
     readout: { fontSize: font.small, color: colors.ink, fontWeight: '600', fontVariant: ['tabular-nums'] },
-    hint: { fontSize: font.tiny, color: colors.muted },
+    hint: { fontSize: font.small, color: colors.muted },
     // Same reserved height as the drawn chart (plot + x labels), so the card
     // does not jump when the deferred series lands. The scrub bubble floats
     // over the header now and reserves nothing (re-score 3, V2).
     placeholder: { height: 132 + 18, borderRadius: radius.sm, backgroundColor: colors.inputBg, opacity: 0.6 },
     empty: { fontSize: font.small, color: colors.muted },
-    chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
-    chip: { minHeight: 44, minWidth: 44, paddingHorizontal: space.md, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'transparent' },
-    chipOn: { backgroundColor: colors.inputBg, borderColor: colors.lineStrong },
-    chipText: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
-    chipTextOn: { color: colors.ink, fontWeight: '700' },
+    emptyBox: { minHeight: 132, borderRadius: radius.sm, backgroundColor: colors.inputBg, borderWidth: 1, borderColor: colors.line, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', padding: space.lg },
+    emptyText: { fontSize: font.small, color: colors.muted, textAlign: 'center' },
     // The caption-as-menu: 44 dp tall like every control here, its face the
     // caption plus a chevron in the link colour.
     rangeMenu: { minHeight: 44, justifyContent: 'center' },
@@ -912,7 +915,7 @@ const createStyles = ({ colors }: Theme) =>
     legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     legendLine: { width: 16, height: 0, borderTopWidth: 2 },
     legendDot: { width: 6, height: 6, borderRadius: 3 },
-    legendText: { fontSize: font.tiny, color: colors.muted },
+    legendText: { fontSize: font.small, color: colors.muted },
     link: { minHeight: 44, justifyContent: 'center', paddingHorizontal: space.xs },
     linkText: { fontSize: font.small, color: colors.teal, fontWeight: '700' },
   });

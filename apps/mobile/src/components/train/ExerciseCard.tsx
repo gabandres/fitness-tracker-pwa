@@ -1,6 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
+import { Text, View } from 'react-native';
+import { Touchable } from './Touchable';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import {
   barFor,
@@ -211,7 +212,7 @@ export const ExerciseCard = memo(function ExerciseCard({
   return (
     <Animated.View style={styles.exCard} layout={smoothLayout}>
       <View style={styles.exHeadRow}>
-        <TouchableOpacity
+        <Touchable
           style={styles.exHead}
           onPress={() => onToggle(exerciseIndex)}
           activeOpacity={0.7}
@@ -239,7 +240,7 @@ export const ExerciseCard = memo(function ExerciseCard({
             </View>
           ) : null}
           <Ionicons name={collapsed ? 'chevron-down' : 'chevron-up'} size={20} color={colors.faint} style={styles.exChevron} />
-        </TouchableOpacity>
+        </Touchable>
         {/* One overflow control in place of four permanent inline ones. Only on
             an open card: a collapsed row is a list item, not a form. */}
         {collapsed ? null : (
@@ -268,7 +269,7 @@ export const ExerciseCard = memo(function ExerciseCard({
               onAccept={applyLoad}
             />
           ) : bumpTo != null ? (
-            <TouchableOpacity
+            <Touchable
               style={styles.bumpChip}
               hitSlop={{ top: 6, bottom: 6 }}
               // Every unweighted working set, as an accepted call does — it
@@ -281,7 +282,7 @@ export const ExerciseCard = memo(function ExerciseCard({
               <Text style={styles.bumpText}>
                 {t('train.bumpTo', { weight: formatLoad(bumpTo, unitSystem) })}
               </Text>
-            </TouchableOpacity>
+            </Touchable>
           ) : blockedNote ? (
             <View style={styles.blockedRow} testID={`progression-blocked-${exerciseIndex}`}>
               <Ionicons name="information-circle-outline" size={16} color={colors.muted} />
@@ -345,7 +346,7 @@ export const ExerciseCard = memo(function ExerciseCard({
           {/* The ONE action taken mid-set stays on the card. Everything else
               moved into the overflow menu — burying the most frequent action to
               tidy the rarest ones is the same mistake in the other direction. */}
-          <TouchableOpacity
+          <Touchable
             style={[styles.addSetBtn, styles.textAction]}
             onPress={() => {
               haptics.tap();
@@ -356,7 +357,7 @@ export const ExerciseCard = memo(function ExerciseCard({
           >
             <Ionicons name="add" size={18} color={colors.teal} />
             <Text style={styles.addSetText}>{t('train.addSet')}</Text>
-          </TouchableOpacity>
+          </Touchable>
 
           {showPanel && platesOpen ? (
             <View style={styles.panel} testID={`plates-panel-${exerciseIndex}`}>

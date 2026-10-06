@@ -117,6 +117,9 @@ export function RecipeImport({ onApply, onCancel, onDirtyChange }: Props) {
           keyboardType="url"
           returnKeyType="go"
           onSubmitEditing={fetchRecipe}
+          // Named: the placeholder "https://…" was all a screen reader had
+          // to go on, and it is gone once anything is typed (S21).
+          accessibilityLabel={t('recipeImport.urlA11y')}
           testID="recipe-import-url"
         />
         <TouchableOpacity

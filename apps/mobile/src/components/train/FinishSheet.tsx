@@ -1,6 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
+import { Touchable } from './Touchable';
 import Animated from 'react-native-reanimated';
 import { SheetTextInput } from '@/components/SheetTextInput';
 import {
@@ -266,7 +267,7 @@ export function FinishSheet({
           </View>
         ) : null}
 
-        <TouchableOpacity
+        <Touchable
           style={styles.moreRow}
           onPress={() => setExtrasOpen((o) => !o)}
           accessibilityRole="button"
@@ -275,7 +276,7 @@ export function FinishSheet({
         >
           <Text style={styles.moreText}>{t('train.finishExtras')}</Text>
           <Ionicons name={extrasOpen ? 'chevron-up' : 'chevron-down'} size={16} color={colors.muted} />
-        </TouchableOpacity>
+        </Touchable>
 
         {extrasOpen ? (
           <>
@@ -294,6 +295,9 @@ export function FinishSheet({
                   onChangeText={setBodyweight}
                   selectTextOnFocus
                   {...doneKey}
+                  // The placeholder is a dash; without a label a screen
+                  // reader announced the field as "dash" (UX_AUDIT S20).
+                  accessibilityLabel={t('train.bodyweight', { unit: bodyWeightUnit(unitSystem) })}
                   testID="finish-bodyweight"
                 />
                 {weightErr ? (
@@ -318,6 +322,7 @@ export function FinishSheet({
                   onChangeText={setSleep}
                   selectTextOnFocus
                   {...doneKey}
+                  accessibilityLabel={t('train.sleepHoursA11y')}
                   testID="finish-sleep"
                 />
               </View>
@@ -339,7 +344,7 @@ export function FinishSheet({
         {/* The button IS the retry: a failed save leaves the sheet open with
             the typed values and the error line above, and tapping Complete
             again re-runs the same write (`s18-train-finish.test.tsx`). */}
-        <TouchableOpacity
+        <Touchable
           style={styles.finishBtn}
           onPress={finish}
           disabled={busy}
@@ -348,7 +353,7 @@ export function FinishSheet({
           testID="finish-confirm"
         >
           <Text style={styles.finishText}>{busy ? t('common.saving') : t('train.complete')}</Text>
-        </TouchableOpacity>
+        </Touchable>
       </ScrollView>
     </BottomSheet>
   );
@@ -376,11 +381,32 @@ export function TrainFinishSheet({
 }) {
   const t = useT();
   const live = train.active && !train.editingExisting ? train.active : null;
+  // What the sheet shows, followed ONLY while it is open. This component is
+  // mounted for the whole live session, and `train.active` is a new object on
+  // every keystroke — so following it while closed re-ran `finishSummary`
+  // and `sessionActivationIssues` (every set of every lift, plus the PR scan
+  // over recent sessions) on each digit typed into a set row, for a sheet
+  // nobody could see (UX_AUDIT S20). Held after close, so the content does
+  // not blank mid-animation, and null until the first open, so the sheet is
+  // not even mounted before then.
+  //
   // Derived during render (React's "previous value" pattern), not in an
   // effect: an effect would paint one frame of the stale session first.
-  const [held, setHeld] = useState<WorkoutSession | null>(live);
-  if (live && live !== held) setHeld(live);
-  const session = live ?? held;
+  const [held, setHeld] = useState<{
+    session: WorkoutSession;
+    recent: readonly WorkoutSession[];
+    templates: TrainState['templates'];
+  } | null>(null);
+  if (
+    visible &&
+    live &&
+    (held?.session !== live || held.recent !== train.recentSessions || held.templates !== train.templates)
+  ) {
+    setHeld({ session: live, recent: train.recentSessions, templates: train.templates });
+  }
+  const session = held?.session ?? null;
+  const recentSessions = held?.recent;
+  const templates = held?.templates;
   // Lifts whose activation set cannot be read as a progression input. Judged
   // against the template the session was STARTED from, which is the only way
   // "logged as straight sets where a cluster was prescribed" is detectable —
@@ -388,20 +414,20 @@ export function TrainFinishSheet({
   // still gets the RIR checks, just not that one.
   const invalid = useMemo(
     () =>
-      session
+      session && templates
         ? sessionActivationIssues(
             session.exercises,
-            train.templates.find((tpl) => tpl.id === session.templateId) ?? null,
+            templates.find((tpl) => tpl.id === session.templateId) ?? null,
           )
         : [],
-    [session, train.templates],
+    [session, templates],
   );
-  if (!session) return null;
+  if (!session || !recentSessions) return null;
   return (
     <FinishSheet
       visible={visible}
       session={session}
-      recentSessions={train.recentSessions}
+      recentSessions={recentSessions}
       onClose={onClose}
       // Reported at the finish boundary, where the whole session is in view
       // and a lift can still be repeated — not as a mid-set interruption.

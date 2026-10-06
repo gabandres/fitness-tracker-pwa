@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -21,6 +22,13 @@ import { type I18nKey, type TFn, useLocale, useT } from '@/i18n';
 import { enterUp } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space, type } from '@/theme';
+
+/** 44 pt (Apple HIG) / 48 dp (Material) — the floor for a tap target here. */
+const MIN_TAP = Platform.OS === 'android' ? 48 : 44;
+
+/** Mirrors the Identity Platform policy the checklist below enforces, so the
+ *  iOS strong-password generator proposes one that the server will accept. */
+const PASSWORD_RULES = 'minlength: 10; required: lower; required: upper; required: digit;';
 
 /**
  * Two steps: the welcome intro, then the form.
@@ -62,6 +70,11 @@ export default function SignIn() {
   const [appleBusy, setAppleBusy] = useState(false);
   const [resetBusy, setResetBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Where the error came from decides where it renders: a Google/Apple failure
+  // under the provider buttons that raised it, a password one by the submit
+  // button. One slot at the bottom left a provider error below the fold once
+  // the providers moved to the top (S21 #6).
+  const [errorFrom, setErrorFrom] = useState<'password' | 'federated'>('password');
   const [notice, setNotice] = useState<string | null>(null);
 
   // MUST mirror the Identity Platform password policy exactly (ENFORCE, min 10,
@@ -77,6 +90,7 @@ export default function SignIn() {
 
   async function onSubmit() {
     if (busy) return;
+    setErrorFrom('password');
     setError(null);
     setNotice(null);
     if (mode === 'signup') {
@@ -107,6 +121,7 @@ export default function SignIn() {
     // Guarded like the federated buttons: repeated taps sent several reset
     // emails and quickly hit `resource-exhausted`.
     if (resetBusy) return;
+    setErrorFrom('password');
     setError(null);
     setNotice(null);
     if (!email.trim()) {
@@ -135,6 +150,11 @@ export default function SignIn() {
     setMode(next);
   }
 
+  function failFederated(e: unknown): void {
+    setErrorFrom('federated');
+    setError(errorMessage(e, t, 'federated'));
+  }
+
   async function onGoogle() {
     if (googleBusy) return;
     setError(null);
@@ -143,7 +163,7 @@ export default function SignIn() {
       await signInWithGoogle();
       // AuthGate navigates once auth state flips.
     } catch (e: unknown) {
-      if (!isPendingLinkCollision(e)) setError(errorMessage(e, t, 'federated'));
+      if (!isPendingLinkCollision(e)) failFederated(e);
     } finally {
       setGoogleBusy(false);
     }
@@ -157,7 +177,7 @@ export default function SignIn() {
       await signInWithMicrosoft();
       // AuthGate navigates once auth state flips.
     } catch (e: unknown) {
-      if (!isPendingLinkCollision(e)) setError(errorMessage(e, t, 'federated'));
+      if (!isPendingLinkCollision(e)) failFederated(e);
     } finally {
       setMsBusy(false);
     }
@@ -171,7 +191,7 @@ export default function SignIn() {
       await signInWithApple();
       // AuthGate navigates once auth state flips.
     } catch (e: unknown) {
-      if (!isPendingLinkCollision(e)) setError(errorMessage(e, t, 'federated'));
+      if (!isPendingLinkCollision(e)) failFederated(e);
     } finally {
       setAppleBusy(false);
     }
@@ -208,7 +228,7 @@ export default function SignIn() {
           <Animated.View style={styles.hero} entering={enterUp(0)}>
             <BrandMark />
           </Animated.View>
-          <Animated.Text style={styles.brand} entering={enterUp(1)}>
+          <Animated.Text style={styles.brand} entering={enterUp(1)} accessibilityRole="header">
             Ignia
           </Animated.Text>
           <Animated.Text style={styles.tagline} entering={enterUp(2)}>
@@ -218,152 +238,18 @@ export default function SignIn() {
           <Animated.View style={styles.form} entering={enterUp(3)}>
             <ModeSwitch mode={mode} onChange={changeMode} styles={styles} colors={colors} t={t} />
 
-            {mode === 'signup' ? (
-              <Animated.View entering={FadeIn.duration(200)} style={styles.nameRow}>
-                <TextInput
-                  style={[styles.input, styles.nameInput]}
-                  placeholder={t('signIn.firstName')}
-                  placeholderTextColor={colors.faint}
-                  autoCapitalize="words"
-                  textContentType="givenName"
-                  value={firstName}
-                  onChangeText={setFirstName}
-                  accessibilityLabel={t('signIn.firstName')}
-                  testID="firstName"
-                />
-                <TextInput
-                  style={[styles.input, styles.nameInput]}
-                  placeholder={t('signIn.lastName')}
-                  placeholderTextColor={colors.faint}
-                  autoCapitalize="words"
-                  textContentType="familyName"
-                  value={lastName}
-                  onChangeText={setLastName}
-                  accessibilityLabel={t('signIn.lastName')}
-                  testID="lastName"
-                />
-              </Animated.View>
-            ) : null}
-
-            <TextInput
-              style={styles.input}
-              placeholder={t('signIn.email')}
-              placeholderTextColor={colors.faint}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="email-address"
-              textContentType="emailAddress"
-              value={email}
-              onChangeText={setEmail}
-              accessibilityLabel={t('signIn.email')}
-              testID="email"
-            />
-
-            <View style={styles.pwWrap}>
-              <TextInput
-                style={[styles.input, styles.pwInput]}
-                placeholder={t('signIn.password')}
-                placeholderTextColor={colors.faint}
-                secureTextEntry={!showPassword}
-                textContentType="password"
-                value={password}
-                onChangeText={setPassword}
-                accessibilityLabel={t('signIn.password')}
-                testID="password"
-                onSubmitEditing={onSubmit}
-              />
-              <TouchableOpacity
-                style={styles.eye}
-                onPress={() => setShowPassword((s) => !s)}
-                hitSlop={8}
-                testID="toggle-password"
-                accessibilityLabel={t(showPassword ? 'signIn.hidePassword' : 'signIn.showPassword')}
-              >
-                <Ionicons
-                  name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                  size={20}
-                  color={colors.muted}
-                />
-              </TouchableOpacity>
-            </View>
-
-            {mode === 'signup' ? (
-              <Animated.View entering={FadeIn.duration(200)} style={styles.checklist}>
-                <ReqRow met={reqLen} label={t('signIn.reqLen')} styles={styles} colors={colors} />
-                <ReqRow met={reqUpper} label={t('signIn.reqUpper')} styles={styles} colors={colors} />
-                <ReqRow met={reqLower} label={t('signIn.reqLower')} styles={styles} colors={colors} />
-                <ReqRow met={reqNum} label={t('signIn.reqNum')} styles={styles} colors={colors} />
-              </Animated.View>
-            ) : null}
-
-            {/* Collision prompt. The provider handed back an email that is
-                already a password account, so the credential is parked in the
-                auth context — signing in below attaches it automatically. This
-                has to outrank the raw error text, which only says "that email
-                already uses a different sign-in method" and leaves the user
-                with nowhere to go. */}
-            {pendingLink ? (
-              <Text style={styles.notice} testID="signin-pending-link">
-                {t('signIn.linkPrompt', { email: pendingLink.email })}
-              </Text>
-            ) : null}
-            {/* Its OWN slot, not the `else` of the prompt above. As a ternary,
-                one collision silenced the error line for the rest of the
-                session: the user followed the prompt, typed the wrong
-                password, and nothing changed on screen — and the same went for
-                every local validation, so a blank name on Sign up looked like
-                an inert button. Found 2026-09-22. */}
-            {error ? (
-              // Selectable so a tester can long-press → copy the native code
-              // tail and paste it to us; without a crash reporter that copy is
-              // the whole diagnostic channel.
-              <Text
-                selectable
-                style={styles.error}
-                accessibilityRole="alert"
-                accessibilityLiveRegion="polite"
-                testID="signin-error"
-              >
-                {error}
-              </Text>
-            ) : null}
-            {notice ? (
-              <Text style={styles.notice} testID="signin-notice">
-                {notice}
-              </Text>
-            ) : null}
-
-            <TouchableOpacity
-              style={[styles.button, busy && styles.buttonBusy]}
-              onPress={onSubmit}
-              disabled={busy}
-              testID="signin-submit"
-              accessibilityRole="button"
-            >
-              {busy ? (
-                <ActivityIndicator color={colors.onInk} />
-              ) : (
-                <Text style={styles.buttonText}>
-                  {t(mode === 'signup' ? 'signIn.createAccount' : 'signIn.submit')}
-                </Text>
-              )}
-            </TouchableOpacity>
-
-            {mode === 'signin' ? (
-              <TouchableOpacity onPress={onReset} style={styles.forgot} disabled={resetBusy} testID="signin-forgot">
-                <Text style={styles.forgotText}>{t('signIn.forgot')}</Text>
-              </TouchableOpacity>
-            ) : null}
-
-            <View style={styles.dividerRow}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>{t('common.or')}</Text>
-              <View style={styles.dividerLine} />
-            </View>
-
+            {/* Providers FIRST, in both modes (S21 #6). On sign-up they used
+                to come after four fields and the password checklist — below
+                the fold on a 360×720 phone, so the one-tap path was the one
+                nobody saw. Platform norm: Apple first on iOS (it only renders
+                there), then Google, then "or" and the email form. */}
             {appleAvailable ? (
               <AppleAuthentication.AppleAuthenticationButton
-                buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+                buttonType={
+                  mode === 'signup'
+                    ? AppleAuthentication.AppleAuthenticationButtonType.SIGN_UP
+                    : AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN
+                }
                 buttonStyle={
                   scheme === 'dark'
                     ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
@@ -381,6 +267,8 @@ export default function SignIn() {
               disabled={googleBusy}
               testID="signin-google"
               accessibilityRole="button"
+              accessibilityState={{ disabled: googleBusy, busy: googleBusy }}
+              accessibilityLabel={t('signIn.google')}
             >
               {googleBusy ? (
                 <ActivityIndicator color={colors.ink} />
@@ -401,6 +289,8 @@ export default function SignIn() {
                 disabled={msBusy}
                 testID="signin-microsoft"
                 accessibilityRole="button"
+                accessibilityState={{ disabled: msBusy, busy: msBusy }}
+                accessibilityLabel={t('signIn.microsoft')}
               >
                 {msBusy ? (
                   <ActivityIndicator color={colors.ink} />
@@ -410,6 +300,161 @@ export default function SignIn() {
                     <Text style={styles.googleButtonText}>{t('signIn.microsoft')}</Text>
                   </>
                 )}
+              </TouchableOpacity>
+            ) : null}
+
+            {error && errorFrom === 'federated' ? <ErrorText text={error} styles={styles} /> : null}
+
+            <View style={styles.dividerRow}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>{t('common.or')}</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            {/* Collision prompt. The provider handed back an email that is
+                already a password account, so the credential is parked in the
+                auth context — signing in below attaches it automatically. This
+                has to outrank the raw error text, which only says "that email
+                already uses a different sign-in method" and leaves the user
+                with nowhere to go. It sits ABOVE the fields it points at
+                ("sign in below") since the providers moved to the top. */}
+            {pendingLink ? (
+              <Text style={styles.notice} testID="signin-pending-link">
+                {t('signIn.linkPrompt', { email: pendingLink.email })}
+              </Text>
+            ) : null}
+
+            {mode === 'signup' ? (
+              <Animated.View entering={FadeIn.duration(200)} style={styles.nameRow}>
+                <TextInput
+                  style={[styles.input, styles.nameInput]}
+                  placeholder={t('signIn.firstName')}
+                  placeholderTextColor={colors.faint}
+                  autoCapitalize="words"
+                  textContentType="givenName"
+                  autoComplete="given-name"
+                  value={firstName}
+                  onChangeText={setFirstName}
+                  accessibilityLabel={t('signIn.firstName')}
+                  testID="firstName"
+                />
+                <TextInput
+                  style={[styles.input, styles.nameInput]}
+                  placeholder={t('signIn.lastName')}
+                  placeholderTextColor={colors.faint}
+                  autoCapitalize="words"
+                  textContentType="familyName"
+                  autoComplete="family-name"
+                  value={lastName}
+                  onChangeText={setLastName}
+                  accessibilityLabel={t('signIn.lastName')}
+                  testID="lastName"
+                />
+              </Animated.View>
+            ) : null}
+
+            {/* `username` (iOS) is what pairs this field with the password
+                below for Keychain save/fill — the email IS the account name;
+                `email` is the Android autofill hint. */}
+            <TextInput
+              style={styles.input}
+              placeholder={t('signIn.email')}
+              placeholderTextColor={colors.faint}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
+              textContentType="username"
+              autoComplete="email"
+              value={email}
+              onChangeText={setEmail}
+              accessibilityLabel={t('signIn.email')}
+              testID="email"
+            />
+
+            <View style={styles.pwWrap}>
+              {/* Sign-up offers a NEW password (iOS strong-password
+                  suggestion, Android "new password" autofill); sign-in asks
+                  for the saved one. One `password` type for both meant iOS
+                  offered to fill an old password into account creation. */}
+              <TextInput
+                style={[styles.input, styles.pwInput]}
+                placeholder={t('signIn.password')}
+                placeholderTextColor={colors.faint}
+                secureTextEntry={!showPassword}
+                textContentType={mode === 'signup' ? 'newPassword' : 'password'}
+                autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+                passwordRules={mode === 'signup' ? PASSWORD_RULES : undefined}
+                value={password}
+                onChangeText={setPassword}
+                accessibilityLabel={t('signIn.password')}
+                testID="password"
+                onSubmitEditing={onSubmit}
+              />
+              <TouchableOpacity
+                style={styles.eye}
+                onPress={() => setShowPassword((s) => !s)}
+                hitSlop={8}
+                testID="toggle-password"
+                accessibilityRole="button"
+                accessibilityLabel={t(showPassword ? 'signIn.hidePassword' : 'signIn.showPassword')}
+              >
+                <Ionicons
+                  name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                  size={20}
+                  color={colors.muted}
+                />
+              </TouchableOpacity>
+            </View>
+
+            {mode === 'signup' ? (
+              <Animated.View entering={FadeIn.duration(200)} style={styles.checklist}>
+                <ReqRow met={reqLen} label={t('signIn.reqLen')} styles={styles} colors={colors} />
+                <ReqRow met={reqUpper} label={t('signIn.reqUpper')} styles={styles} colors={colors} />
+                <ReqRow met={reqLower} label={t('signIn.reqLower')} styles={styles} colors={colors} />
+                <ReqRow met={reqNum} label={t('signIn.reqNum')} styles={styles} colors={colors} />
+              </Animated.View>
+            ) : null}
+
+            {/* Its OWN slot, not the `else` of the link prompt. As a ternary,
+                one collision silenced the error line for the rest of the
+                session: the user followed the prompt, typed the wrong
+                password, and nothing changed on screen — and the same went for
+                every local validation, so a blank name on Sign up looked like
+                an inert button. Found 2026-09-22. */}
+            {error && errorFrom === 'password' ? <ErrorText text={error} styles={styles} /> : null}
+            {notice ? (
+              <Text style={styles.notice} testID="signin-notice">
+                {notice}
+              </Text>
+            ) : null}
+
+            <TouchableOpacity
+              style={[styles.button, busy && styles.buttonBusy]}
+              onPress={onSubmit}
+              disabled={busy}
+              testID="signin-submit"
+              accessibilityRole="button"
+              accessibilityState={{ disabled: busy, busy }}
+            >
+              {busy ? (
+                <ActivityIndicator color={colors.onInk} />
+              ) : (
+                <Text style={styles.buttonText}>
+                  {t(mode === 'signup' ? 'signIn.createAccount' : 'signIn.submit')}
+                </Text>
+              )}
+            </TouchableOpacity>
+
+            {mode === 'signin' ? (
+              <TouchableOpacity
+                onPress={onReset}
+                style={styles.forgot}
+                disabled={resetBusy}
+                testID="signin-forgot"
+                accessibilityRole="button"
+                accessibilityState={{ disabled: resetBusy, busy: resetBusy }}
+              >
+                <Text style={styles.forgotText}>{t('signIn.forgot')}</Text>
               </TouchableOpacity>
             ) : null}
 
@@ -479,6 +524,23 @@ function errorKey(e: unknown, source: ErrSource = 'password'): I18nKey {
 
 type Styles = ReturnType<typeof createStyles>;
 
+/** The error line. Selectable so a tester can long-press → copy the native
+ *  code tail and paste it to us; without a crash reporter that copy is the
+ *  whole diagnostic channel. */
+function ErrorText({ text, styles }: { text: string; styles: Styles }) {
+  return (
+    <Text
+      selectable
+      style={styles.error}
+      accessibilityRole="alert"
+      accessibilityLiveRegion="polite"
+      testID="signin-error"
+    >
+      {text}
+    </Text>
+  );
+}
+
 /** Segmented Sign in / Sign up control with a sliding ink highlight. */
 function ModeSwitch({
   mode,
@@ -500,14 +562,28 @@ function ModeSwitch({
   }, [mode, x]);
   const highlight = useAnimatedStyle(() => ({ transform: [{ translateX: x.value * seg }] }));
   return (
-    <View style={styles.switchTrack} onLayout={(e) => setW(e.nativeEvent.layout.width)}>
+    // Tab semantics: a screen reader says "Sign up, tab, 2 of 2, selected"
+    // instead of reading two loose words (S21 #4).
+    <View style={styles.switchTrack} onLayout={(e) => setW(e.nativeEvent.layout.width)} accessibilityRole="tablist">
       {w > 0 ? <Animated.View style={[styles.switchHl, { width: seg }, highlight]} /> : null}
-      <Pressable style={styles.switchSeg} onPress={() => onChange('signin')} testID="switch-signin">
+      <Pressable
+        style={styles.switchSeg}
+        onPress={() => onChange('signin')}
+        accessibilityRole="tab"
+        accessibilityState={{ selected: mode === 'signin' }}
+        testID="switch-signin"
+      >
         <Text style={[styles.switchText, mode === 'signin' && styles.switchTextOn]}>
           {t('signIn.tabSignIn')}
         </Text>
       </Pressable>
-      <Pressable style={styles.switchSeg} onPress={() => onChange('signup')} testID="switch-signup">
+      <Pressable
+        style={styles.switchSeg}
+        onPress={() => onChange('signup')}
+        accessibilityRole="tab"
+        accessibilityState={{ selected: mode === 'signup' }}
+        testID="switch-signup"
+      >
         <Text style={[styles.switchText, mode === 'signup' && styles.switchTextOn]}>
           {t('signIn.tabSignUp')}
         </Text>
@@ -547,7 +623,9 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   input: {
     backgroundColor: colors.inputBg,
     borderWidth: 1,
-    borderColor: colors.line,
+    // `lineStrong` (3.7:1 light / 3.3:1 dark on inputBg), not `line` (~1.2:1):
+    // the edge is what identifies the field (WCAG 1.4.11).
+    borderColor: colors.lineStrong,
     borderRadius: radius.md,
     paddingHorizontal: space.lg,
     // A constrained height (not paddingVertical): iOS UITextView only centers
@@ -562,7 +640,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   },
   error: { color: colors.danger, fontSize: font.small },
   notice: { color: colors.good, fontSize: font.small },
-  forgot: { alignSelf: 'center', paddingVertical: space.xs },
+  forgot: { alignSelf: 'center', minHeight: MIN_TAP, justifyContent: 'center', paddingHorizontal: space.md },
   forgotText: { color: colors.muted, fontSize: font.small, fontWeight: '600' },
   // Segmented Sign in / Sign up switch
   switchTrack: {
@@ -575,7 +653,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
     marginBottom: space.xs,
   },
   switchHl: { position: 'absolute', top: 4, bottom: 4, left: 4, borderRadius: radius.pill, backgroundColor: colors.ink },
-  switchSeg: { flex: 1, alignItems: 'center', paddingVertical: space.sm, zIndex: 1 },
+  switchSeg: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TAP, zIndex: 1 },
   switchText: { fontSize: font.small, fontWeight: '700', color: colors.muted },
   switchTextOn: { color: colors.onInk },
   // Name row (sign-up)
@@ -584,7 +662,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   // Password field with show/hide eye
   pwWrap: { position: 'relative', justifyContent: 'center' },
   pwInput: { paddingRight: 48 },
-  eye: { position: 'absolute', right: 0, height: '100%', paddingHorizontal: space.md, justifyContent: 'center' },
+  eye: { position: 'absolute', right: 0, height: '100%', minWidth: MIN_TAP, paddingHorizontal: space.md, alignItems: 'center', justifyContent: 'center' },
   // Live password checklist (sign-up)
   checklist: { gap: space.xs, marginTop: -space.xs, paddingHorizontal: space.xs },
   reqRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },

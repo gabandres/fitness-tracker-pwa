@@ -182,7 +182,8 @@ describe('scan review', () => {
     expect(screen.getByLabelText('Name of item 1')).toBeTruthy();
     expect(screen.getByLabelText('Grams of Rice')).toBeTruthy();
     expect(screen.getByLabelText('Remove Rice')).toBeTruthy();
-    expect(screen.getByLabelText('Back')).toBeTruthy();
+    // A full-screen modal leaves by Cancel (iOS) / Close (Android), S21.
+    expect(screen.getByLabelText('Cancel')).toBeTruthy();
   });
 });
 

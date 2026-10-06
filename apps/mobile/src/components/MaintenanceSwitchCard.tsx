@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useT } from '@/i18n';
 import { useDismissedStub } from '@/hooks/useDismissedStub';
@@ -52,13 +52,14 @@ export function MaintenanceSwitchCard({
 
   return (
     <Animated.View entering={enterUp(0)} style={styles.card} testID="maintenance-switch-card">
-      <Text style={styles.title}>{t('maintenance.switchAsk')}</Text>
+      <Text style={styles.title} accessibilityRole="header">{t('maintenance.switchAsk')}</Text>
       <Text style={styles.body}>{t('maintenance.switchBody')}</Text>
       <View style={styles.row}>
         <PressScale
           style={[styles.primary, busy ? styles.primaryBusy : null]}
           testID="maintenance-switch-yes"
           accessibilityRole="button"
+          accessibilityState={{ disabled: busy, busy }}
           disabled={busy}
           onPress={() => {
             if (busy) return;
@@ -89,6 +90,8 @@ export function MaintenanceSwitchCard({
   );
 }
 
+const TARGET = Platform.OS === 'android' ? 48 : 44;
+
 const createStyles = ({ colors }: Theme) =>
   StyleSheet.create({
     card: {
@@ -100,15 +103,17 @@ const createStyles = ({ colors }: Theme) =>
     // Manrope — never paired with `fontWeight` (ADR-0014).
     title: { fontSize: font.body, fontFamily: type.heading, color: colors.ink, lineHeight: 24 },
     body: { fontSize: font.small, color: colors.muted, lineHeight: 20 },
-    row: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+    row: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.sm },
+    // Both a real 44 pt / 48 dp target — they were ~33.
     primary: {
       backgroundColor: colors.ink,
       borderRadius: radius.pill,
       paddingHorizontal: space.lg,
-      paddingVertical: space.sm,
+      minHeight: TARGET,
+      justifyContent: 'center',
     },
     primaryBusy: { opacity: 0.6 },
     primaryText: { fontSize: font.small, color: colors.onInk, fontWeight: '700' },
-    secondary: { paddingHorizontal: space.md, paddingVertical: space.sm },
+    secondary: { paddingHorizontal: space.md, minHeight: TARGET, justifyContent: 'center' },
     secondaryText: { fontSize: font.small, color: colors.muted },
   });

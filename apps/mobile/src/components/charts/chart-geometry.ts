@@ -78,6 +78,70 @@ export function domainOf(
   return { min: min - span * padFrac, max: max + span * padFrac };
 }
 
+/**
+ * Gridlines at "nice" values — multiples of one step from the 1 / 2 / 2.5 / 5
+ * × 10ⁿ ladder — and the domain they bound (sim review 2026-10-06: the protein
+ * axis printed 16 / 86 / 155, the padded data extent, and three fixed lines
+ * could only ever be that). The smallest step that covers the data in at most
+ * `maxIntervals` steps wins, so the data fills as much of the plot as a nice
+ * axis allows; the chart's own top/bottom padding keeps a line that touches
+ * the outer gridline off the card edge.
+ *
+ * `floor` (optional) keeps the bottom from crossing a physical minimum — a
+ * gram or kcal axis has no business reaching −50.
+ */
+export function niceTicks(
+  d: Domain,
+  opts: { floor?: number; maxIntervals?: number } = {},
+): { min: number; max: number; ticks: number[] } {
+  const maxIntervals = opts.maxIntervals ?? 4;
+  const span = d.max - d.min;
+  if (!(span > 0) || !Number.isFinite(span)) return { min: d.min, max: d.max, ticks: [d.min, d.max] };
+  // Strip float dust (0.1 × 3 = 0.30000000000000004) so a label never prints it.
+  const clean = (v: number) => Number(v.toPrecision(12));
+  const exp = Math.floor(Math.log10(span / maxIntervals));
+  for (let e = exp - 1; e <= exp + 2; e++) {
+    for (const m of [1, 2, 2.5, 5]) {
+      // 0.25 would need a second decimal the one-decimal labels do not print.
+      if (m === 2.5 && e < 0) continue;
+      const step = m * Math.pow(10, e);
+      let lo = Math.floor(clean(d.min / step)) * step;
+      if (opts.floor != null && lo < opts.floor) lo = opts.floor;
+      const hi = Math.ceil(clean(d.max / step)) * step;
+      const n = Math.round((hi - lo) / step);
+      if (n >= 1 && n <= maxIntervals) {
+        const ticks = Array.from({ length: n + 1 }, (_, i) => clean(lo + i * step));
+        return { min: clean(lo), max: clean(hi), ticks };
+      }
+    }
+  }
+  return { min: d.min, max: d.max, ticks: [d.min, d.max] };
+}
+
+/**
+ * The span a dot series may stretch the axis to: Tukey's fences (1.5 × IQR
+ * past the quartiles). A half-logged day — 200 kcal at lunchtime, a day the
+ * diary was abandoned — used to drag the maintenance axis from ~2,000 down to
+ * 200 and press the line the chart exists to show into a ruler (sim review
+ * 2026-10-06). Outside the fences a dot is drawn pinned to the edge, hollow,
+ * and still reads its true value in the bubble and to a screen reader. Null
+ * under four values (no quartiles worth the name).
+ */
+export function fencesOf(values: readonly (number | null | undefined)[]): Domain | null {
+  const xs = values.filter((v): v is number => typeof v === 'number' && Number.isFinite(v)).sort((a, b) => a - b);
+  if (xs.length < 4) return null;
+  const q = (p: number) => {
+    const i = (xs.length - 1) * p;
+    const lo = Math.floor(i);
+    const hi = Math.ceil(i);
+    return xs[lo] + (xs[hi] - xs[lo]) * (i - lo);
+  };
+  const q1 = q(0.25);
+  const q3 = q(0.75);
+  const iqr = q3 - q1;
+  return { min: q1 - 1.5 * iqr, max: q3 + 1.5 * iqr };
+}
+
 export function yAt(v: number, d: Domain, f: Frame): number {
   'worklet';
   const plotH = Math.max(0, f.height - f.padT - f.padB);

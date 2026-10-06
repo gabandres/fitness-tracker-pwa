@@ -1,5 +1,23 @@
 // ody.tsx now reaches milestones, which import @/lib/ledger -> firebase's
 // untranspiled ESM. Mocked for the same reason @/lib/auth already is here.
+// Body calls `useScrollToTop`, which needs a navigator's route — there is
+// none in a screen test. The rest mirrors `jest.setup.js`'s expo-router mock.
+jest.mock('expo-router', () => {
+  const actual = jest.requireActual('expo-router');
+  return {
+    ...actual,
+    useFocusEffect: (cb: () => void | (() => void)) => {
+      const React = require('react');
+      React.useEffect(() => {
+        const cleanup = cb();
+        return typeof cleanup === 'function' ? cleanup : undefined;
+      }, [cb]);
+    },
+    useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
+    useScrollToTop: jest.fn(),
+  };
+});
+
 jest.mock('@/lib/ledger', () => ({
   recordMilestone: jest.fn(),
   subscribeMilestones: () => () => {},

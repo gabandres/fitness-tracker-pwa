@@ -1,6 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, ScrollView, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { AppState, ScrollView, Text, View, useWindowDimensions } from 'react-native';
+import { Touchable } from './Touchable';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   addActionsFor,
@@ -17,7 +18,6 @@ import type { TrainState } from '@/hooks/useTrain';
 import { useRestCountdown, useRestTimer } from '@/hooks/useRestTimer';
 import { NATIVE_SHEETS } from '@/components/BottomSheet';
 import { confirm } from '@/components/ConfirmSheet';
-import { OfflineBanner } from '@/components/OfflineBanner';
 import { showToast } from '@/components/Toast';
 import { CardioBlockCard } from '@/components/train/CardioBlockCard';
 import { LiftSettingsSheet } from '@/components/train/LiftSettingsSheet';
@@ -84,7 +84,7 @@ const menuHandoff = (run: () => void) => {
 /** The rows an exercise's ⋯ can carry. */
 type ExerciseMenuKey =
   | 'move-up' | 'move-down' | 'history' | 'replace' | 'cluster' | 'block'
-  | 'plates' | 'rest' | 'lift' | 'remove';
+  | 'plates' | 'rest' | 'rest-now' | 'lift' | 'remove';
 
 /**
  * What one exercise's ⋯ offers, as plain values. The rows are built from this
@@ -105,6 +105,8 @@ interface ExerciseMenuShape {
   platesOpen: boolean | null;
   /** "1:30 after each set". */
   restDesc: string;
+  /** "1:30" — what "Start rest now" will run. */
+  restNow: string;
   /** The engine has a call to tune. */
   lift: boolean;
 }
@@ -129,6 +131,10 @@ function exerciseMenuActions(shape: ExerciseMenuShape, run: (key: ExerciseMenuKe
     ...(shape.platesOpen != null
       ? [row('plates', 'barbell-outline', shape.platesOpen ? 'train.hidePanel' : 'train.platesWarmup')]
       : []),
+    // A rest on demand. The countdown otherwise starts only from a ticked
+    // set, so a lifter who logs after the set (or rests between two lifts, or
+    // between attempts on one) had no way to time it (UX_AUDIT S20).
+    row('rest-now', 'hourglass-outline', 'train.startRestNow', { desc: shape.restNow }),
     row('rest', 'timer-outline', 'train.restTimer', { desc: shape.restDesc }),
     ...(shape.lift ? [row('lift', 'options-outline', 'train.lift.title')] : []),
     row('remove', 'trash-outline', 'train.removeExercise', { destructive: true }),
@@ -241,7 +247,10 @@ export function ActiveSession({
   // by the FIRST rest start on this device when the OS has not been asked
   // yet; both answers record it as shown (`rest-notify-priming.ts`).
   const [restNotifyOpen, setRestNotifyOpen] = useState(false);
-  const restNotifyAsked = useRef(false);
+  // State, not a ref: the rest path is reachable from the ⋯ menu's rows,
+  // which are built during render, and the compiler will not have a ref read
+  // anywhere a render-time closure can reach.
+  const [restNotifyAsked, setRestNotifyAsked] = useState(false);
 
   /**
    * Indices of blocks that overlap another block on this session in time.
@@ -308,15 +317,31 @@ export function ActiveSession({
     const override = restOverride[ex.exerciseId];
     const mini = override ?? templateRowFor(ex.exerciseId)?.restMiniSec ?? restMini;
     const secs = restAfterSet(ex.sets, setIndex, { mini, cluster: override ?? restCluster });
+    runRest(secs, ex.name);
+  };
+
+  /** "Start rest now" from an exercise's ⋯: the rest this lift's sets get —
+   *  its ⋯ override, else its template row's, else the template's. */
+  const startManualRest = (exerciseIndex: number) => {
+    const ex = train.active?.exercises[exerciseIndex];
+    if (!ex) return;
+    haptics.tap();
+    runRest(restOverride[ex.exerciseId] ?? restFallback(exerciseIndex), ex.name);
+  };
+
+  /** Run a rest of `secs`: the bar, the Lock Screen, the announcement and the
+   *  one-time notification priming — one path for a ticked set and a manual
+   *  start, so the two cannot drift. */
+  const runRest = (secs: number, name: string) => {
     rest.start(secs);
     setRestTotal(secs);
     // Lock-screen countdown (Train review item 20): the rest Live Activity on
     // iOS, a no-op wherever its native module is absent.
-    restActivity.start(restDeadline(secs), ex.name, locale);
+    restActivity.start(restDeadline(secs), name, locale);
     announce(t('train.restStartedA11y', { time: clock(secs) }));
     // Decided once per session mount; the stored flag makes it once per device.
-    if (!restNotifyAsked.current) {
-      restNotifyAsked.current = true;
+    if (!restNotifyAsked) {
+      setRestNotifyAsked(true);
       void decideRestNotifyPriming().then((show) => {
         if (show) setRestNotifyOpen(true);
       });
@@ -634,6 +659,7 @@ export function ActiveSession({
       block: canAdd.block,
       platesOpen: (ex.logStyle ?? 'weight-reps') === 'weight-reps' ? platesOpen === index : null,
       restDesc: t('train.restTimerDesc', { time: clock(override ?? restFallback(index)) }),
+      restNow: clock(override ?? restFallback(index)),
       lift: catalogEx != null
         && recommendationFor(
           { recentSessions: train.recentSessions, catalog: train.catalog },
@@ -686,6 +712,9 @@ export function ActiveSession({
         return;
       case 'rest':
         menuHandoff(() => setRestPickerFor(index));
+        return;
+      case 'rest-now':
+        startManualRest(index);
         return;
       case 'lift':
         menuHandoff(() => setLiftFor(index));
@@ -760,12 +789,12 @@ export function ActiveSession({
           ) : (
             <ElapsedClock startedAt={session.date} parts={metaParts} />
           )}
-          {offline ? (
-            <View style={styles.syncRow} testID="session-saved-offline">
-              <Ionicons name="phone-portrait-outline" size={12} color={colors.muted} />
-              <Text style={styles.syncText}>{t('train.savedOnPhoneShort')}</Text>
-            </View>
-          ) : train.saving ? (
+          {/* Offline is said ONCE, in the note at the top of the list below.
+              It was said three times — here, in that note, and in the app's
+              OfflineBanner (whose copy is about MEALS) — on one screen
+              (UX_AUDIT S20). "Saving…" stays: it is a different fact, and
+              offline it would never clear, so it is not shown then. */}
+          {!offline && train.saving ? (
             <Text style={styles.syncText}>{t('common.saving')}</Text>
           ) : null}
         </View>
@@ -781,23 +810,23 @@ export function ActiveSession({
           onFallbackPress={() => setMenu({ kind: 'session' })}
         />
         {train.editingExisting ? (
-          <TouchableOpacity
+          <Touchable
             style={styles.headerPrimary}
             onPress={() => void train.finishEdit()}
             accessibilityRole="button"
             testID="done-editing"
           >
             <Text style={styles.headerPrimaryText}>{t('train.doneEditing')}</Text>
-          </TouchableOpacity>
+          </Touchable>
         ) : (
-          <TouchableOpacity
+          <Touchable
             style={styles.headerPrimary}
             onPress={pressFinish}
             accessibilityRole="button"
             testID="finish-workout"
           >
             <Text style={styles.headerPrimaryText}>{t('train.finish')}</Text>
-          </TouchableOpacity>
+          </Touchable>
         )}
       </View>
 
@@ -826,7 +855,7 @@ export function ActiveSession({
               <Text style={[styles.error, { flex: 1 }]}>
                 {train.errorKind === 'save' ? t('train.workoutSaveErr') : t('train.loadErr')}
               </Text>
-              <TouchableOpacity
+              <Touchable
                 style={styles.errorBtn}
                 onPress={() => {
                   train.clearError();
@@ -836,17 +865,24 @@ export function ActiveSession({
                 testID="session-retry"
               >
                 <Text style={styles.discardText}>{t('common.retry')}</Text>
-              </TouchableOpacity>
+              </Touchable>
             </View>
           ) : null}
           {/* Offline, a queued write IS saved — on this phone, until the signal
-              comes back — and the banner says so in those words. */}
+              comes back — and this note says so in those words. The one
+              offline message on the screen: the generic OfflineBanner is not
+              mounted here, because its copy promises that MEALS are saved. */}
           {offline ? (
-            <View style={styles.syncRow} accessibilityRole="text" testID="session-offline-note">
-              <Text style={styles.sheetHint}>{t('train.savedOnPhone')}</Text>
+            <View
+              style={styles.syncRow}
+              accessibilityRole="alert"
+              accessibilityLiveRegion="polite"
+              testID="session-offline-note"
+            >
+              <Ionicons name="cloud-offline-outline" size={16} color={colors.muted} />
+              <Text style={[styles.sheetHint, { flex: 1 }]}>{t('train.savedOnPhone')}</Text>
             </View>
           ) : null}
-          <OfflineBanner />
 
           {session.exercises.length === 0 && (session.cardio ?? []).length === 0 ? (
             <Text style={styles.empty}>{t('train.addFirst')}</Text>
@@ -889,11 +925,21 @@ export function ActiveSession({
               onRemove={() => {
                 haptics.tap();
                 void dispatch({ type: 'removeCardio', blockIndex: i });
+                // The same Undo a set or an exercise gets: a block imported
+                // from Health, with its ring's numbers, was one stray tap from
+                // gone with no way back from the workout (UX_AUDIT S20).
+                showToast(t('cardio.removed'), {
+                  action: {
+                    label: t('common.undo'),
+                    onPress: () => undoRemoval({ kind: 'cardio', index: i, block }),
+                  },
+                  testID: 'train-toast',
+                });
               }}
             />
           ))}
 
-          <TouchableOpacity
+          <Touchable
             style={styles.addExBtn}
             onPress={() => setAddFor('add')}
             accessibilityRole="button"
@@ -903,9 +949,9 @@ export function ActiveSession({
               <Ionicons name="add" size={18} color={colors.muted} />
               <Text style={styles.addExText}>{t('train.addExercise')}</Text>
             </View>
-          </TouchableOpacity>
+          </Touchable>
 
-          <TouchableOpacity
+          <Touchable
             style={styles.addExBtn}
             onPress={() => setCardioPickerOpen(true)}
             accessibilityRole="button"
@@ -915,7 +961,7 @@ export function ActiveSession({
               <Ionicons name="add" size={18} color={colors.muted} />
               <Text style={styles.addExText}>{t('cardio.add')}</Text>
             </View>
-          </TouchableOpacity>
+          </Touchable>
           <View style={{ height: 40 }} />
         </RevealAboveKeyboardContext.Provider>
       </ScrollView>
@@ -1083,7 +1129,7 @@ function RestBar({
         <View style={styles.restActions}>
           {/* 44-pt targets (UX_AUDIT S18-15): the text is small on purpose
               inside a floating bar, so the box around it does the work. */}
-          <TouchableOpacity
+          <Touchable
             onPress={() => onAdjust(-30)}
             style={styles.restBtn}
             accessibilityRole="button"
@@ -1091,8 +1137,8 @@ function RestBar({
             testID="rest-minus"
           >
             <Text style={styles.restPlus}>{t('train.restMinusShort')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
+          </Touchable>
+          <Touchable
             onPress={() => onAdjust(30)}
             style={styles.restBtn}
             accessibilityRole="button"
@@ -1100,15 +1146,15 @@ function RestBar({
             testID="rest-plus"
           >
             <Text style={styles.restPlus}>{t('train.restPlusShort')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
+          </Touchable>
+          <Touchable
             onPress={onSkip}
             style={styles.restBtn}
             accessibilityRole="button"
             testID="rest-skip"
           >
             <Text style={styles.restSkip}>{t('train.skip')}</Text>
-          </TouchableOpacity>
+          </Touchable>
         </View>
       </View>
     </View>

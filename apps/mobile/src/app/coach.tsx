@@ -1,5 +1,3 @@
-import { Glyph } from '@/components/charts/Glyph';
-import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -71,13 +69,14 @@ function errorKey(code: string | undefined): I18nKey {
 // This is a ROOT route pushed over the tabs on the native stack (UX_AUDIT
 // S18-14, `lib/root-stack.ts`), not a tab: no tab bar, no raised + over the
 // composer, swipe-back on iOS and hardware back on Android come from the
-// navigator. It was `(app)/coach.tsx` until 2026-09-28.
+// navigator. It was `(app)/coach.tsx` until 2026-09-28. Its header — title,
+// back button, swipe-back — is the shared native one from the root layout
+// (S21-9), which also gives a cold `ignia://coach` its way back to Today.
 export default function Coach() {
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const locale = useLocale();
-  const router = useRouter();
   const { user } = useAuth();
   const { logs, tdee, profile, dailyWeights } = useCoach();
   // Every ask is a network call; offline it can only fail. Say so up front and
@@ -215,25 +214,14 @@ export default function Coach() {
   };
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          // A cold deep link (`ignia://coach`) has nothing beneath it to pop to.
-          onPress={() => (router.canGoBack() ? router.back() : router.replace('/(app)'))}
-          hitSlop={10}
-          accessibilityRole="button"
-          accessibilityLabel={t('common.back')}
-          testID="coach-back"
-        >
-          <Glyph ios="chevron.left" android="chevron-back" size={26} color={colors.ink} />
-        </TouchableOpacity>
-        <Text style={styles.title} accessibilityRole="header">{t('coach.title')}</Text>
-        <View style={{ width: 26 }} />
-      </View>
-
+    <SafeAreaView style={styles.screen} edges={['bottom']}>
+      {/* `automaticOffset`: under the native header this view no longer
+          starts at the top of the screen; the library measures where it is,
+          and the 8 stays as the extra breathing room it always was. */}
       <KeyboardAvoidingView
         style={styles.fill}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        automaticOffset
         keyboardVerticalOffset={8}
       >
         <ScrollView
@@ -337,17 +325,9 @@ export default function Coach() {
 const createStyles = ({ colors }: Theme) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
   fill: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: space.lg,
-    paddingVertical: space.md,
-  },
-  title: { fontSize: font.h2, fontWeight: '700', color: colors.ink },
   // `space.xl`, not `FAB_BAND`: nothing floats over this screen any more —
   // it is a root stack route, not a tab (UX_AUDIT S18-14).
-  body: { paddingHorizontal: space.lg, paddingBottom: space.xl },
+  body: { paddingHorizontal: space.lg, paddingTop: space.md, paddingBottom: space.xl },
   intro: { fontSize: font.body, color: colors.ink, lineHeight: 21 },
   counter: { fontSize: font.small, color: colors.teal, marginTop: space.xs, fontVariant: ['tabular-nums'] },
   disclaimer: { fontSize: font.tiny, color: colors.faint, marginTop: space.xs },
@@ -367,7 +347,8 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   chipText: { fontSize: font.small, color: colors.ink },
   input: {
     borderWidth: 1,
-    borderColor: colors.line,
+    // A field's edge is a control boundary (WCAG 1.4.11, 3:1).
+    borderColor: colors.lineStrong,
     borderRadius: radius.md,
     padding: space.md,
     marginTop: space.lg,

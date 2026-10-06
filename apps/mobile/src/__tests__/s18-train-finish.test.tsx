@@ -166,8 +166,10 @@ describe('Discard', () => {
 describe('Set row accessibility', () => {
   it('names the inputs and exposes Done as a checked checkbox', async () => {
     const screen = await render(<TrainScreen />);
-    expect(screen.getByTestId('set-weight-0-0').props.accessibilityLabel).toBe('Set 1 target weight');
-    expect(screen.getByTestId('set-count-0-0').props.accessibilityLabel).toBe('Set 1 target reps');
+    // A live set's own number, not a template target (UX_AUDIT S20) — and
+    // with a value in it, so no "empty".
+    expect(screen.getByTestId('set-weight-0-0').props.accessibilityLabel).toBe('Set 1 weight');
+    expect(screen.getByTestId('set-count-0-0').props.accessibilityLabel).toBe('Set 1 reps');
     const done = screen.getByTestId('set-done-0-0');
     expect(done.props.accessibilityRole).toBe('checkbox');
     expect(done.props.accessibilityState).toEqual({ checked: true });

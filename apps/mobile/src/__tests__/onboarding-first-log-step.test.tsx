@@ -63,11 +63,10 @@ beforeEach(() => {
 
 type Screen = Awaited<ReturnType<typeof render>>;
 
-/** welcome → goal → weight → goalWeight → body (skipped) → plan → save → reminders (not now). */
+/** goal → weight → goalWeight → body (skipped) → plan → save → reminders (not now). */
 async function walkToFirstLog(screen: Screen) {
   const { getByTestId } = screen;
-  await fireEvent.press(getByTestId('onboarding-age-attest')); // 16+ attestation (S18-9)
-  await fireEvent.press(getByTestId('onboarding-next')); // welcome
+  await fireEvent.press(getByTestId('onboarding-age-attest')); // 16+ attestation (S18-9), on the goal step
   await fireEvent.press(getByTestId('onboarding-goal-lose'));
   await fireEvent.press(getByTestId('onboarding-next'));
   await fireEvent.changeText(getByTestId('onboarding-weight'), '180');

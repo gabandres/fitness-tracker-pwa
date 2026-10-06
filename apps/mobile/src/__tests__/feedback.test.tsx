@@ -29,7 +29,7 @@ jest.mock('@/lib/feedback', () => ({
   sendFeedback: (...args: unknown[]) => mockSendFeedback(...args),
 }));
 
-import FeedbackScreen from '@/app/(app)/feedback';
+import FeedbackScreen from '@/app/feedback';
 
 beforeEach(() => mockSendFeedback.mockClear());
 

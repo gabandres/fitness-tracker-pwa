@@ -11,6 +11,8 @@ import {
   type Frame,
   domainOf,
   dotsPath,
+  fencesOf,
+  niceTicks,
   indexAtX,
   labelWidth,
   lastIndexWithValue,
@@ -96,6 +98,14 @@ export interface ChartDots {
   values: readonly (number | null)[];
   color: string;
   radius?: number;
+  /**
+   * Let this series stretch the y axis only as far as its outlier fences
+   * (`fencesOf`). A dot past them is pinned to the plot edge and drawn HOLLOW
+   * — "off the chart, this way" — and its real value still reads in the bubble
+   * and to a screen reader. For intake dots under a maintenance line, where
+   * one half-logged day used to squash the line flat.
+   */
+  clipOutliers?: boolean;
 }
 
 export interface TrendChartProps {
@@ -197,31 +207,49 @@ function TrendChartImpl({
   // boxes are sized from.
   const axisFont = font.tiny * Math.min(fontScale || 1, AXIS_MAX_SCALE);
 
-  const domain = useMemo(
-    () =>
-      domainOf(
-        [...lines.map((l) => l.values), ...dots.map((d) => d.values), reference ? [reference.value] : []],
-        { minSpan: 2 },
-      ),
-    [lines, dots, reference],
-  );
+  // Fitted to the data, then snapped to nice gridlines (sim review 2026-10-06:
+  // the maintenance axis ran 200 → 2,850 off one half-logged day, and the
+  // protein axis printed 16 / 86 / 155). A dot series that opts in stretches
+  // the axis only to its outlier fences; everything never goes below zero.
+  const scale = useMemo(() => {
+    const dotSeries = dots.map((d) => {
+      if (!d.clipOutliers) return d.values;
+      const fence = fencesOf(d.values);
+      return fence ? d.values.map((v) => (v == null || v < fence.min || v > fence.max ? null : v)) : d.values;
+    });
+    const all = [...lines.map((l) => l.values), ...dotSeries, reference ? [reference.value] : []];
+    const raw = domainOf(all, { minSpan: 2, padFrac: 0 });
+    if (!raw) return null;
+    const nonNegative = all.every((s) => s.every((v) => v == null || v >= 0));
+    return niceTicks(raw, { floor: nonNegative ? 0 : undefined });
+  }, [lines, dots, reference]);
+  const domain = useMemo(() => (scale ? { min: scale.min, max: scale.max } : null), [scale]);
+  // One label per gridline, top first.
   const ticks = useMemo(
-    () => (domain ? { top: formatY(domain.max), mid: formatY((domain.min + domain.max) / 2), bottom: formatY(domain.min) } : null),
-    [domain, formatY],
+    () => (scale ? scale.ticks.map((v) => ({ v, label: formatY(v) })).reverse() : null),
+    [scale, formatY],
   );
   // The left gutter: the widest tick label plus a gap — the ticks live there
   // and the data starts after it.
-  const gutter = ticks ? Math.max(labelWidth(ticks.top, axisFont), labelWidth(ticks.mid, axisFont), labelWidth(ticks.bottom, axisFont)) + 4 : PAD.padL;
+  const gutter = ticks ? Math.max(...ticks.map((tk) => labelWidth(tk.label, axisFont))) + 4 : PAD.padL;
 
   const frame: Frame = useMemo(() => ({ width, height, ...PAD, padL: gutter }), [width, height, gutter]);
 
   const geometry = useMemo(() => {
     if (!domain || width <= 0) return null;
+    const inside = (v: number) => v >= domain.min && v <= domain.max;
+    const clamp = (v: number) => Math.max(domain.min, Math.min(domain.max, v));
     const dotPoints = dots.map((d) => ({
       dots: d,
       pts: d.values
-        .map((v, i) => (v == null ? null : { x: xAt(i, n, frame), y: yAt(v, domain, frame) }))
+        .map((v, i) => (v == null || (d.clipOutliers && !inside(v)) ? null : { x: xAt(i, n, frame), y: yAt(v, domain, frame) }))
         .filter((p): p is { x: number; y: number } => p != null),
+      // Pinned to the edge they fell off, drawn hollow.
+      off: d.clipOutliers
+        ? d.values
+            .map((v, i) => (v == null || inside(v) ? null : { x: xAt(i, n, frame), y: yAt(clamp(v), domain, frame) }))
+            .filter((p): p is { x: number; y: number } => p != null)
+        : [],
     }));
     const xs = dateKeys.map((_, i) => xAt(i, n, frame));
     const lineYs = lines.map((l) => ysOf(l.values, domain, frame));
@@ -251,7 +279,7 @@ function TrendChartImpl({
         line: l,
         ...linePaths(l.values, domain, frame, { dashedAt: l.dashedAt, bridgeGaps: l.bridgeGaps }),
       })),
-      dotPaths: dotPoints.map(({ dots: d, pts }) => ({ dots: d, d: dotsPath(pts, d.radius ?? 2.5) })),
+      dotPaths: dotPoints.map(({ dots: d, pts, off }) => ({ dots: d, d: dotsPath(pts, d.radius ?? 2.5), off: dotsPath(off, (d.radius ?? 2.5) + 0.5) })),
       refY,
       refBox,
       xs,
@@ -402,12 +430,16 @@ function TrendChartImpl({
       >
         {geometry ? (
           <Svg width={width} height={height}>
-            {/* Top, middle and bottom gridlines — named by the tick labels in
-                the gutter. Two labels left the middle of a 2,000-wide kcal
-                axis to guesswork. */}
-            <Line x1={plotLeft} x2={width} y1={PAD.padT} y2={PAD.padT} stroke={colors.line} strokeWidth={1} />
-            <Line x1={plotLeft} x2={width} y1={height / 2} y2={height / 2} stroke={colors.line} strokeWidth={1} />
-            <Line x1={plotLeft} x2={width} y1={height - PAD.padB} y2={height - PAD.padB} stroke={colors.line} strokeWidth={1} />
+            {/* A gridline per nice tick — named by the labels in the gutter.
+                Two labels left the middle of a 2,000-wide kcal axis to
+                guesswork; three fixed ones printed whatever the padded data
+                extent happened to be. */}
+            {domain && ticks
+              ? ticks.map((tk) => {
+                  const y = yAt(tk.v, domain, frame);
+                  return <Line key={`g-${tk.v}`} x1={plotLeft} x2={width} y1={y} y2={y} stroke={colors.line} strokeWidth={1} />;
+                })
+              : null}
             {geometry.refY != null ? (
               <Line
                 x1={plotLeft}
@@ -436,7 +468,9 @@ function TrendChartImpl({
               />
             ))}
             {/* One path per dot series, not a Circle per day. */}
-            {geometry.dotPaths.map(({ dots: d, d: path }) => (path ? <Path key={d.key} d={path} fill={d.color} /> : null))}
+            {geometry.dotPaths.map(({ dots: d, d: path, off }) => (
+              <GDots key={d.key} path={path} off={off} color={d.color} />
+            ))}
             {geometry.paths.map(({ line, solid, dashed, bridges }) => (
               <GLine key={line.key} solid={solid} dashed={dashed} bridges={bridges} color={line.color} width={line.width ?? 2.25} faint={colors.lineStrong} />
             ))}
@@ -464,24 +498,21 @@ function TrendChartImpl({
             ))}
           </Svg>
         ) : null}
-        {geometry && ticks ? (
+        {geometry && ticks && domain ? (
           <>
-            <Text style={[styles.tick, tickStyle, { top: PAD.padT - axisFont * 0.65 }]} maxFontSizeMultiplier={AXIS_MAX_SCALE} numberOfLines={1} importantForAccessibility="no" accessibilityElementsHidden>
-              {ticks.top}
-            </Text>
-            <Text
-              style={[styles.tick, tickStyle, { top: height / 2 - axisFont * 0.65 }]}
-              maxFontSizeMultiplier={AXIS_MAX_SCALE}
-              numberOfLines={1}
-              importantForAccessibility="no"
-              accessibilityElementsHidden
-              testID={testID ? `${testID}-tick-mid` : undefined}
-            >
-              {ticks.mid}
-            </Text>
-            <Text style={[styles.tick, tickStyle, { top: height - PAD.padB - axisFont * 0.65 }]} maxFontSizeMultiplier={AXIS_MAX_SCALE} numberOfLines={1} importantForAccessibility="no" accessibilityElementsHidden>
-              {ticks.bottom}
-            </Text>
+            {ticks.map((tk, i) => (
+              <Text
+                key={`t-${tk.v}`}
+                style={[styles.tick, tickStyle, { top: yAt(tk.v, domain, frame) - axisFont * 0.65 }]}
+                maxFontSizeMultiplier={AXIS_MAX_SCALE}
+                numberOfLines={1}
+                importantForAccessibility="no"
+                accessibilityElementsHidden
+                testID={testID ? (i === Math.floor(ticks.length / 2) ? `${testID}-tick-mid` : `${testID}-tick-${i}`) : undefined}
+              >
+                {tk.label}
+              </Text>
+            ))}
             {reference && geometry.refBox ? (
               <Text
                 style={[
@@ -561,6 +592,15 @@ function TrendChartImpl({
         />
       </Animated.View>
     </View>
+  );
+}
+
+function GDots({ path, off, color }: { path: string; off: string; color: string }) {
+  return (
+    <>
+      {path ? <Path d={path} fill={color} /> : null}
+      {off ? <Path d={off} fill="none" stroke={color} strokeWidth={1.5} testID="trend-chart-offscale" /> : null}
+    </>
   );
 }
 

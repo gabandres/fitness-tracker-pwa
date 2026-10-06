@@ -24,7 +24,7 @@ const mockBack = jest.fn();
 let mockProfile: Record<string, unknown> = {};
 
 jest.mock('expo-router', () => ({
-  useRouter: () => ({ back: mockBack, push: jest.fn(), replace: jest.fn() }),
+  useRouter: () => ({ back: mockBack, push: jest.fn(), replace: jest.fn(), canGoBack: () => true }),
   usePathname: () => '/daily-targets',
 }));
 
@@ -62,7 +62,7 @@ jest.mock('@/hooks/useDailyTargets', () => ({
   }),
 }));
 
-import DailyTargetsScreen from '@/app/(app)/daily-targets';
+import DailyTargetsScreen from '@/app/daily-targets';
 
 beforeEach(() => {
   mockSaveTargetMode.mockClear();

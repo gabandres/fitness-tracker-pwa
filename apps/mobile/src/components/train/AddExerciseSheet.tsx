@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
+import { Touchable } from './Touchable';
 import { SheetTextInput } from '@/components/SheetTextInput';
 import { MOBILITY_SEED_KEYS, type SeedExercise } from '@macrolog/core';
 import type { Exercise } from '@/lib/workout';
@@ -142,6 +143,7 @@ export function AddExerciseSheet({
           value={name}
           onChangeText={setName}
           returnKeyType="done"
+          accessibilityLabel={t('train.exerciseName')}
           testID="exercise-name"
         />
 
@@ -149,7 +151,7 @@ export function AddExerciseSheet({
           {CREATION_STYLES.map((ls) => {
             const on = logStyle === ls.value;
             return (
-              <TouchableOpacity
+              <Touchable
                 key={ls.value}
                 style={[styles.styleChip, styles.styleChipHalf, on && styles.styleChipOn]}
                 onPress={() => setLogStyle(ls.value)}
@@ -158,20 +160,20 @@ export function AddExerciseSheet({
                 testID={`logstyle-${ls.value}`}
               >
                 <Text style={[styles.styleChipText, on && styles.styleChipTextOn]}>{t(ls.labelKey)}</Text>
-              </TouchableOpacity>
+              </Touchable>
             );
           })}
         </View>
 
         {trimmed ? (
-          <TouchableOpacity
+          <Touchable
             style={styles.createRow}
             onPress={() => add(trimmed, logStyle)}
             accessibilityRole="button"
             testID="create-exercise"
           >
             <Text style={styles.createText}>{t('train.addNamed', { name: trimmed })}</Text>
-          </TouchableOpacity>
+          </Touchable>
         ) : null}
 
         {/* The user's catalog AND the shipped library, one list. The
@@ -193,7 +195,7 @@ export function AddExerciseSheet({
         </ScrollView>
 
         {picking ? (
-          <TouchableOpacity
+          <Touchable
             style={[styles.finishBtn, styles.addPickedBtn, adding && styles.btnDisabled]}
             onPress={() => void guarded(() => train.addManyToActive([...picked.values()]), 'train.addManyToActive')}
             disabled={adding}
@@ -202,7 +204,7 @@ export function AddExerciseSheet({
             testID="add-picked"
           >
             <Text style={styles.finishText}>{t('train.addSelected', { n: picked.size })}</Text>
-          </TouchableOpacity>
+          </Touchable>
         ) : null}
       </View>
     </BottomSheet>

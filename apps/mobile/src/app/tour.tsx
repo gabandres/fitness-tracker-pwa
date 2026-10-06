@@ -78,6 +78,9 @@ const STEPS: Step[] = [
       { icon: 'trending-up-outline', labelKey: 'tour.map.trends', subKey: 'tour.map.trendsSub' },
       { icon: 'body-outline', labelKey: 'tour.map.bodyTab', subKey: 'tour.map.bodySub' },
       { icon: 'add-circle', labelKey: 'tour.map.add', subKey: 'tour.map.addSub' },
+      // The avatar is the only door to Settings, and later cards say
+      // "Settings →" — so the map has to say where Settings is (S21 #10).
+      { icon: 'person-circle-outline', labelKey: 'tour.map.settings', subKey: 'tour.map.settingsSub' },
     ],
   },
   {
@@ -182,7 +185,7 @@ export default function Tour() {
           <Text style={styles.counter}>
             {t('tour.progress', { n: index + 1, total: STEPS.length })}
           </Text>
-          <Text style={styles.title}>{t(step.titleKey)}</Text>
+          <Text style={styles.title} accessibilityRole="header">{t(step.titleKey)}</Text>
           {step.bodyKey ? <Text style={styles.body}>{t(step.bodyKey)}</Text> : null}
 
           {step.rows ? (

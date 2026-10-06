@@ -1,6 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { Touchable } from './Touchable';
 import { useRestCountdown } from '@/hooks/useRestTimer';
 import { useT } from '@/i18n';
 import { useActiveWorkout } from '@/lib/active-workout-signal';
@@ -8,6 +9,7 @@ import * as haptics from '@/lib/haptics';
 import { useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
 import { clock } from './train-summary';
+import { TARGET } from './train-styles';
 
 /**
  * "Workout · 12:34 · Resume" — the open workout, from any tab (Train review
@@ -46,7 +48,7 @@ export function ActiveWorkoutPill({ onResume }: { onResume: () => void }) {
   const time = workout.startedAt != null ? clock(Math.max(0, now - workout.startedAt) / 1000) : null;
 
   return (
-    <TouchableOpacity
+    <Touchable
       style={styles.pill}
       onPress={() => {
         haptics.tap();
@@ -70,7 +72,7 @@ export function ActiveWorkoutPill({ onResume }: { onResume: () => void }) {
       <View style={styles.fill} />
       <Text style={styles.resume}>{t('train.activeResume')}</Text>
       <Ionicons name="chevron-forward" size={16} style={styles.chevron} />
-    </TouchableOpacity>
+    </Touchable>
   );
 }
 
@@ -80,7 +82,7 @@ const createStyles = ({ colors, shadow }: Theme) =>
       flexDirection: 'row',
       alignItems: 'center',
       gap: space.sm,
-      minHeight: 44,
+      minHeight: TARGET,
       marginHorizontal: space.md,
       marginBottom: space.xs,
       paddingHorizontal: space.lg,

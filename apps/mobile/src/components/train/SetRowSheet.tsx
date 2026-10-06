@@ -1,4 +1,5 @@
-import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
+import { Touchable } from './Touchable';
 import { RIR_MAX, RIR_MIN, clampRir } from '@macrolog/core';
 import type { SetKind, WorkoutSet } from '@/lib/workout';
 import { type I18nKey, useT } from '@/i18n';
@@ -92,7 +93,7 @@ export function SetRowSheet({
       {SET_KINDS.map((k) => {
         const on = set.kind === k.value;
         return (
-          <TouchableOpacity
+          <Touchable
             key={k.value}
             style={[styles.kindRow, on && styles.kindRowOn]}
             onPress={() => {
@@ -107,7 +108,7 @@ export function SetRowSheet({
           >
             <Text style={[styles.kindRowName, on && styles.kindRowNameOn]}>{t(k.labelKey)}</Text>
             <Text style={styles.kindRowDesc}>{t(k.descKey)}</Text>
-          </TouchableOpacity>
+          </Touchable>
         );
       })}
       </View>
@@ -120,9 +121,8 @@ export function SetRowSheet({
               tab explains its own vocabulary. */}
           <Text style={styles.sheetHint}>{t('train.rirExplain')}</Text>
           <View style={styles.kindChips} accessibilityRole="radiogroup">
-            <TouchableOpacity
+            <Touchable
               style={[styles.kindChip, set.rir == null && styles.kindChipOn]}
-              hitSlop={{ top: 11, bottom: 11, left: 4, right: 4 }}
               onPress={() => {
                 haptics.tap();
                 onRir(undefined);
@@ -134,14 +134,13 @@ export function SetRowSheet({
               <Text style={[styles.kindChipText, set.rir == null && styles.kindChipTextOn]}>
                 {t('train.rirClear')}
               </Text>
-            </TouchableOpacity>
+            </Touchable>
             {RIR_CHOICES.map((v) => {
               const on = set.rir === v;
               return (
-                <TouchableOpacity
+                <Touchable
                   key={v}
                   style={[styles.kindChip, on && styles.kindChipOn]}
-                  hitSlop={{ top: 11, bottom: 11, left: 4, right: 4 }}
                   accessibilityRole="radio"
                   accessibilityState={{ selected: on, checked: on }}
                   onPress={() => {
@@ -155,14 +154,14 @@ export function SetRowSheet({
                   <Text style={[styles.kindChipText, on && styles.kindChipTextOn]}>
                     {t(`train.rirScale.${v}` as I18nKey)}
                   </Text>
-                </TouchableOpacity>
+                </Touchable>
               );
             })}
           </View>
         </>
       ) : null}
 
-      <TouchableOpacity
+      <Touchable
         style={styles.moreRemove}
         onPress={() => {
           haptics.tap();
@@ -172,7 +171,7 @@ export function SetRowSheet({
         testID="set-sheet-remove"
       >
         <Text style={styles.moreRemoveText}>{t('train.removeSet')}</Text>
-      </TouchableOpacity>
+      </Touchable>
       <View style={styles.setSheetTail} />
       </ScrollView>
       </>

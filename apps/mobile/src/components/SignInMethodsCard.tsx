@@ -15,7 +15,7 @@ import { useAuth } from '@/lib/auth';
 import { LinkError, type LinkableProvider } from '@/lib/link-error';
 import { type I18nKey, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
-import { useThemedStyles, type Theme } from '@/lib/theme-context';
+import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
 
 /**
@@ -31,6 +31,7 @@ import { font, radius, space } from '@/theme';
 export function SignInMethodsCard() {
   const t = useT();
   const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
   const { user, linkedProviders, linkProvider, linkPassword, unlinkProvider, appleAvailable } =
     useAuth();
   const [busy, setBusy] = useState<LinkableProvider | null>(null);
@@ -128,8 +129,14 @@ export function SignInMethodsCard() {
           <ActivityIndicator />
         ) : connected ? (
           <TouchableOpacity
+            style={styles.actionBtn}
             onPress={() => confirmDisconnect(provider, label)}
             disabled={isLast}
+            accessibilityRole="button"
+            // "Disconnect" alone, three times down the card, said nothing
+            // about which account (S21-2).
+            accessibilityLabel={t('settings.disconnectProviderA11y', { provider: label })}
+            accessibilityState={{ disabled: isLast }}
             testID={`signin-methods-disconnect-${provider}`}
           >
             <Text style={[styles.action, isLast && styles.actionDisabled]}>
@@ -138,7 +145,10 @@ export function SignInMethodsCard() {
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
+            style={styles.actionBtn}
             onPress={() => connect(provider)}
+            accessibilityRole="button"
+            accessibilityLabel={t('settings.connectProviderA11y', { provider: label })}
             testID={`signin-methods-connect-${provider}`}
           >
             <Text style={styles.action}>{t('signInMethods.connect')}</Text>
@@ -150,7 +160,7 @@ export function SignInMethodsCard() {
 
   return (
     <>
-      <Text style={styles.section}>{t('signInMethods.section')}</Text>
+      <Text style={styles.section} accessibilityRole="header">{t('signInMethods.section')}</Text>
       <View style={styles.card}>
         {/* Says what linking DOES before offering it — connecting a second
             method is meaningless to most people until you say it's the same
@@ -176,8 +186,12 @@ export function SignInMethodsCard() {
             <ActivityIndicator />
           ) : hasPassword ? (
             <TouchableOpacity
+              style={styles.actionBtn}
               onPress={() => confirmDisconnect('password', t('signInMethods.password'))}
               disabled={isLast}
+              accessibilityRole="button"
+              accessibilityLabel={t('settings.disconnectProviderA11y', { provider: t('signInMethods.password') })}
+              accessibilityState={{ disabled: isLast }}
               testID="signin-methods-disconnect-password"
             >
               <Text style={[styles.action, isLast && styles.actionDisabled]}>
@@ -186,7 +200,11 @@ export function SignInMethodsCard() {
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
+              style={styles.actionBtn}
               onPress={() => setPasswordOpen((v) => !v)}
+              accessibilityRole="button"
+              accessibilityLabel={t('settings.connectProviderA11y', { provider: t('signInMethods.password') })}
+              accessibilityState={{ expanded: passwordOpen }}
               testID="signin-methods-add-password"
             >
               <Text style={styles.action}>{t('signInMethods.connect')}</Text>
@@ -208,12 +226,17 @@ export function SignInMethodsCard() {
               autoComplete="new-password"
               textContentType="newPassword"
               placeholder={t('signInMethods.passwordPlaceholder')}
+              placeholderTextColor={colors.faint}
+              // A placeholder is gone once there is a value; the label is not.
+              accessibilityLabel={t('signInMethods.passwordPlaceholder')}
               testID="signin-methods-password-input"
             />
             <TouchableOpacity
               style={[styles.submit, password.length === 0 && styles.submitDisabled]}
               disabled={password.length === 0 || busy === 'password'}
               onPress={submitPassword}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: password.length === 0 || busy === 'password' }}
               testID="signin-methods-password-submit"
             >
               <Text style={styles.submitText}>{t('signInMethods.savePassword')}</Text>
@@ -251,12 +274,16 @@ const createStyles = ({ colors }: Theme) =>
     rowIcon: { color: colors.muted },
     rowLabel: { fontSize: font.body, color: colors.ink, fontWeight: '600' },
     rowSub: { fontSize: font.small, color: colors.faint, marginTop: 2 },
+    // 44pt iOS / 48dp Android: the text alone was a ~17pt target (S21-2).
+    // Padded rather than enlarged, so the row's look does not change.
+    actionBtn: { minHeight: 48, minWidth: 48, justifyContent: 'center', alignItems: 'flex-end', paddingHorizontal: space.sm },
     action: { fontSize: font.small, color: colors.accent, fontWeight: '700' },
     actionDisabled: { color: colors.faint },
     passwordBox: { gap: space.sm },
     input: {
       borderWidth: 1,
-      borderColor: colors.line,
+      // A field's edge is a control boundary (WCAG 1.4.11, 3:1).
+      borderColor: colors.lineStrong,
       borderRadius: radius.md,
       backgroundColor: colors.inputBg,
       color: colors.ink,
@@ -268,6 +295,8 @@ const createStyles = ({ colors }: Theme) =>
       backgroundColor: colors.ink,
       borderRadius: radius.md,
       paddingVertical: space.sm,
+      minHeight: 48,
+      justifyContent: 'center',
       alignItems: 'center',
     },
     submitDisabled: { opacity: 0.4 },

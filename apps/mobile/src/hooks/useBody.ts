@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useCachedState } from '@/hooks/useCachedState';
 import { feedChannel, useLedgerFeed } from '@/hooks/useLedgerFeed';
-import { exportDaily, exportManualWeight, forgetHealthWeight } from '@/lib/health-sync';
+import { exportDaily, exportManualWeight, forgetHealthWeight, importHealth } from '@/lib/health-sync';
 import { track } from '@/lib/analytics';
 import {
   type BodyFatInput,
@@ -193,6 +193,13 @@ export interface BodyState {
   goalProgress: GoalProgress | null;
   /** The goal weight (lb) the chart draws its line at, or null. */
   goalWeight: number | null;
+  /**
+   * Pull-to-refresh: everything on this screen that is NOT already live —
+   * parked offline writes, a fresh Health import (the scale reading the user
+   * is waiting on), and the goal-progress start line. The listeners are live
+   * anyway; this resolves when all three have settled, success or not.
+   */
+  refresh?: () => Promise<void>;
 }
 
 const PROJECTION_WINDOW_DAYS = 28;
@@ -643,6 +650,25 @@ export function useBody(): BodyState {
     [uid],
   );
 
+  const refresh = useCallback(async () => {
+    if (!uid) return;
+    // Each started inside a `then`, so one that throws synchronously cannot
+    // skip the others.
+    await Promise.allSettled(
+      [
+        async () => {
+          await flushPendingBody(uid);
+        },
+        async () => {
+          await importHealth(uid);
+        },
+        async () => {
+          setEarliest(await getEarliestDailyWeight(uid));
+        },
+      ].map((run) => Promise.resolve().then(run)),
+    );
+  }, [uid]);
+
   return {
     loading,
     error,
@@ -677,5 +703,6 @@ export function useBody(): BodyState {
     projectedSeries,
     goalProgress,
     goalWeight,
+    refresh,
   };
 }

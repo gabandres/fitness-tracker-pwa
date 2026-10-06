@@ -5,6 +5,24 @@
 import React from 'react';
 import { fireEvent, renderWithProviders as render, waitFor } from '@/test-utils';
 
+// Body calls `useScrollToTop`, which needs a navigator's route — there is
+// none in a screen test. The rest mirrors `jest.setup.js`'s expo-router mock.
+jest.mock('expo-router', () => {
+  const actual = jest.requireActual('expo-router');
+  return {
+    ...actual,
+    useFocusEffect: (cb: () => void | (() => void)) => {
+      const React = require('react');
+      React.useEffect(() => {
+        const cleanup = cb();
+        return typeof cleanup === 'function' ? cleanup : undefined;
+      }, [cb]);
+    },
+    useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
+    useScrollToTop: jest.fn(),
+  };
+});
+
 jest.mock('@/lib/ledger', () => ({
   recordMilestone: jest.fn(),
   switchToMaintenance: jest.fn(),

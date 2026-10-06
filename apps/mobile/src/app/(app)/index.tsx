@@ -75,13 +75,24 @@ const STREAK_SLOP = Platform.select({
   default: { top: 9, bottom: 9 },
 });
 
-/** The previous-day chevron beside the date: a 16dp glyph stretched to the
- *  ~20dp date line (`prevDayBtn`), lifted to 44pt / 48dp by slop. The extra reach goes UP over the title,
- *  which is not interactive, and left into the screen's margin. */
-const PREV_DAY_SLOP = Platform.select({
-  android: { top: 16, bottom: 12, left: 16, right: 6 },
-  default: { top: 14, bottom: 10, left: 14, right: 6 },
-});
+/** The platform's touch floor: 44pt on iOS, Material's 48dp on Android. */
+const TARGET = Platform.OS === 'android' ? 48 : 44;
+
+/** The previous-day chevron beside the date (`prevDayBtn`): a 16dp glyph
+ *  centred in a 24dp-wide box stretched to the ~20dp date line. Slop makes
+ *  up the rest of the platform target in BOTH directions — it measured
+ *  ~36x44 when the box was the bare glyph (Impeccable audit, S20). The
+ *  vertical reach goes up over the title, which is not interactive; the
+ *  horizontal reach goes left into the screen's margin and right over the
+ *  start of the date, whose text does nothing on a tap. */
+const PREV_DAY_W = 24;
+const PREV_DAY_H = 20;
+const PREV_DAY_SLOP = {
+  top: Math.ceil((TARGET - PREV_DAY_H) * 0.6),
+  bottom: Math.floor((TARGET - PREV_DAY_H) * 0.4),
+  left: (TARGET - PREV_DAY_W) / 2,
+  right: (TARGET - PREV_DAY_W) / 2,
+};
 
 /** Scroll distance over which the header's hairline fades in — the iOS
  *  scroll-edge cue that content is passing under a fixed bar. */
@@ -803,7 +814,6 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
               }
               testID="open-history"
               style={styles.iconBtn}
-              hitSlop={ICON_SLOP}
               accessibilityRole="button"
               accessibilityLabel={t('nav.history')}
               accessibilityActions={[{ name: 'yesterday', label: t('today.openYesterdayA11y') }]}
@@ -825,7 +835,6 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
             onPress={() => { haptics.tap(); setGlossaryOpen(true); }}
             testID="today-glossary-open"
             style={styles.iconBtn}
-            hitSlop={ICON_SLOP}
             accessibilityRole="button"
             accessibilityLabel={t('numbers.glossaryOpen')}
             accessibilityShowsLargeContentViewer
@@ -1077,7 +1086,7 @@ function createStyles({ colors }: Theme) {
     // pushing past the block's edge.
     date: { flexShrink: 1, fontSize: font.body, color: colors.muted },
     dateRow: { flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: 2 },
-    prevDayBtn: { alignSelf: 'stretch', justifyContent: 'center' },
+    prevDayBtn: { alignSelf: 'stretch', minWidth: PREV_DAY_W, minHeight: PREV_DAY_H, alignItems: 'center', justifyContent: 'center' },
     // paddingBottom is load-bearing, not cosmetic: without it the LAST diary
     // row ends flush with the tab bar and is clipped by the screen edge — the
     // newest entry, which is the one a user most wants to tap. Measured
@@ -1142,7 +1151,10 @@ function createStyles({ colors }: Theme) {
     // had no more at 360dp); with Share moved onto the hero there are two, and
     // both are a full 44 square — 30dp under the row's budget (see
     // `headerTitleBlock`).
-    iconBtn: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+    // Since S21 a full platform target on its own box — 48dp square on
+    // Android, where they were 44 wide with vertical-only slop. Two icons at
+    // +4dp each still leave the row ~22dp under budget at 360dp.
+    iconBtn: { minWidth: TARGET, minHeight: TARGET, alignItems: 'center', justifyContent: 'center' },
     shareCapture: { position: 'absolute', left: -10000, top: 0, opacity: 0 },
     streakChip: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.pill, paddingHorizontal: space.sm, paddingVertical: 3 },
     streakNum: { fontSize: font.small, fontWeight: '800', color: colors.ink },

@@ -33,7 +33,6 @@ import {
 import { ConfirmHost, confirm } from '@/components/ConfirmSheet';
 import { useDoneKeyProps } from '@/components/KeyboardBar';
 import { MealSlotChips, TimeOfDayRow } from '@/components/EntryWhen';
-import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { ScanCamera } from '@/components/ScanCamera';
 import { useAddReceipt } from '@/hooks/useAddReceipt';
 import { useToday } from '@/hooks/useToday';
@@ -973,19 +972,28 @@ export default function Scan() {
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]} testID="scan-screen">
+      {/* A full-screen modal leaves by Close, not Back, and carries no
+          account avatar (S21): the chevron read as a step back inside a
+          stack, and Settings from the middle of a scan is a door out of a
+          task nobody needs there. Each platform's own idiom — iOS's "Cancel"
+          in words, Material's ✕ for a full-screen dialog — on the same
+          `onBack`, which keeps a reviewed scan's draft exactly as before. */}
       <View style={styles.header}>
         <PressScale
-          style={styles.back}
+          style={Platform.OS === 'ios' ? styles.cancel : styles.back}
           onPress={onBack}
           scaleTo={0.9}
           testID="scan-back"
           accessibilityRole="button"
-          accessibilityLabel={t('common.back')}
+          accessibilityLabel={Platform.OS === 'ios' ? t('common.cancel') : t('a11y.close')}
         >
-          <Ionicons name="chevron-back" size={26} color={colors.ink} />
+          {Platform.OS === 'ios' ? (
+            <Text style={styles.cancelText} maxFontSizeMultiplier={1.6}>{t('common.cancel')}</Text>
+          ) : (
+            <Ionicons name="close" size={24} color={colors.ink} />
+          )}
         </PressScale>
         <Text style={styles.title} accessibilityRole="header">{t('scan.title')}</Text>
-        <HeaderAvatar />
       </View>
 
       {phase === 'camera' ? (
@@ -1735,7 +1743,11 @@ function createStyles({ colors, shadow }: Theme) {
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.lg, paddingTop: space.md, paddingBottom: space.sm, gap: space.sm },
     // A full target, pulled left by its own overhang so the chevron still sits
     // on the header's padding line where it always did.
-    back: { width: TARGET, height: TARGET, alignItems: 'center', justifyContent: 'center', marginLeft: -(TARGET - 26) / 2 },
+    back: { width: TARGET, height: TARGET, alignItems: 'center', justifyContent: 'center', marginLeft: -(TARGET - 24) / 2 },
+    // iOS's "Cancel": a text button at full target height, its words on the
+    // header's padding line.
+    cancel: { minHeight: TARGET, minWidth: TARGET, justifyContent: 'center' },
+    cancelText: { fontSize: font.body, fontWeight: '600', color: colors.teal },
     kav: { flex: 1 },
     title: { flex: 1, fontFamily: type.display, fontSize: font.h2, color: colors.ink },
     fill: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.xl, padding: space.xl },

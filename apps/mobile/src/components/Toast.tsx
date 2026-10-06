@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   FadeInDown,
@@ -23,6 +23,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useT } from '@/i18n';
 import { announce, primeScreenReaderState, recommendedTimeoutMs } from '@/lib/a11y';
 import * as haptics from '@/lib/haptics';
+import { PressScale } from '@/lib/motion';
 import { isClosing } from '@/lib/sheet-portal';
 import { useThemedStyles, type Theme } from '@/lib/theme-context';
 import { FAB_BAND, font, motion, radius, space } from '@/theme';
@@ -358,7 +359,9 @@ function ToastCard({
   const buttons = (
     <>
       {toast.action && secondary ? (
-        <TouchableOpacity
+        <PressScale
+          scaleTo={0.94}
+          style={styles.actionHit}
           onPress={() => {
             haptics.tap();
             onHide();
@@ -369,10 +372,12 @@ function ToastCard({
           testID="toast-secondary-action"
         >
           <Text style={styles.action}>{secondary.label}</Text>
-        </TouchableOpacity>
+        </PressScale>
       ) : null}
       {toast.action ? (
-        <TouchableOpacity
+        <PressScale
+          scaleTo={0.94}
+          style={styles.actionHit}
           onPress={() => {
             haptics.tap();
             onHide();
@@ -383,9 +388,11 @@ function ToastCard({
           testID="toast-action"
         >
           <Text style={styles.action}>{toast.action.label}</Text>
-        </TouchableOpacity>
+        </PressScale>
       ) : (
-        <TouchableOpacity
+        <PressScale
+          scaleTo={0.94}
+          style={styles.actionHit}
           onPress={onHide}
           hitSlop={10}
           accessibilityRole="button"
@@ -393,7 +400,7 @@ function ToastCard({
           testID="toast-dismiss"
         >
           <Text style={styles.action}>{t('common.dismiss')}</Text>
-        </TouchableOpacity>
+        </PressScale>
       )}
     </>
   );
@@ -449,6 +456,10 @@ const createStyles = ({ colors, shadow }: Theme) =>
     // `onInk`, not `accent`: accent is tuned for the CANVAS and lands near 2:1
     // on an ink fill in both themes. Weight + underline carry "this is the
     // button" instead of hue.
+    // The action's pressable box: `PressScale` gives it the press-in scale on
+    // both platforms and, on Android, the Material ripple these buttons never
+    // had (S21) — clipped to this radius.
+    actionHit: { borderRadius: radius.sm },
     action: {
       fontSize: font.small,
       fontWeight: '800',

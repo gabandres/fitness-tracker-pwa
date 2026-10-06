@@ -42,8 +42,10 @@ it('the rest bar lifts itself by the overlap', () => {
 
 it('floats only on the four tabs — the other routes in the navigator never padded for it', () => {
   const src = readFileSync(join(__dirname, '..', 'app/(app)/_layout.tsx'), 'utf8');
-  // Settings, the targets screens and Feedback are routes here too.
-  expect(src).toMatch(/Tabs\.Screen name="settings"/);
+  // Settings, the targets screens and Feedback WERE routes here (hidden tabs)
+  // until S21-1 moved them onto the root stack; the four-tab gate stays so a
+  // route added here later gets the opaque bar until it pads for the capsule.
+  expect(src).not.toMatch(/Tabs\.Screen name="settings"/);
   expect(src).toMatch(/const TAB_ROUTES = \[\.\.\.LEFT_TABS, \.\.\.RIGHT_TABS\]/);
   expect(src).toMatch(/const floating = GLASS_TAB_BAR && current != null && TAB_ROUTES\.includes\(current\)/);
   expect(src).toMatch(/style=\{floating \? styles\.floatWrap : undefined\}/);

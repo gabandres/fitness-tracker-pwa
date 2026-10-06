@@ -1,6 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useState } from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
+import { Text, View } from 'react-native';
+import { Touchable } from './Touchable';
 import { BottomSheet } from '@/components/BottomSheet';
 import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
@@ -58,10 +59,9 @@ export function RestPickerSheet({
   const chip = (value: number | null, text: string, testID: string) => {
     const on = current === value;
     return (
-      <TouchableOpacity
+      <Touchable
         key={testID}
         style={[styles.kindChip, on && styles.kindChipOn]}
-        hitSlop={{ top: 11, bottom: 11, left: 4, right: 4 }}
         onPress={() => {
           haptics.tap();
           onPick(value);
@@ -74,7 +74,7 @@ export function RestPickerSheet({
         testID={testID}
       >
         <Text style={[styles.kindChipText, on && styles.kindChipTextOn]}>{text}</Text>
-      </TouchableOpacity>
+      </Touchable>
     );
   };
   return (
@@ -87,7 +87,7 @@ export function RestPickerSheet({
           {REST_CHOICES_SEC.map((s) => chip(s, clock(s), `rest-pick-${s}`))}
         </View>
         {saveTo ? (
-          <TouchableOpacity
+          <Touchable
             style={styles.checkRow}
             onPress={() => {
               haptics.tap();
@@ -99,7 +99,7 @@ export function RestPickerSheet({
           >
             <Ionicons name={keep ? 'checkbox' : 'square-outline'} size={20} color={keep ? colors.teal : colors.muted} />
             <Text style={[styles.moreText, { flex: 1 }]}>{t('train.restSaveForLift', { template: saveTo })}</Text>
-          </TouchableOpacity>
+          </Touchable>
         ) : null}
       </View>
     </BottomSheet>

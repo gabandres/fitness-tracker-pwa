@@ -11,6 +11,7 @@ import {
 import { SheetTextInput } from '@/components/SheetTextInput';
 import { clampWaterFlOz, fastHoursParts, type UnitSystem } from '@macrolog/core';
 import { BottomSheet } from '@/components/BottomSheet';
+import { useDoneKeyProps } from '@/components/KeyboardBar';
 import { type I18nKey, type Locale, type TFn, useLocale, useT } from '@/i18n';
 import { formatNumber } from '@/lib/date-format';
 import { type HabitMetric, TRENDS_HABIT_TAB_KEY, habitColor } from '@/lib/habit-identity';
@@ -126,20 +127,45 @@ const HABIT_SHORTCUT_LABEL: Record<HabitMetric, I18nKey> = {
   water: 'metrics.waterTrend',
 };
 
+/** Each habit's own glyph, leading its row in the habit's identity colour
+ *  (S21). All three rows used to lead with the same "trending-up" — the
+ *  Trends shortcut — where a row's identity belongs, so the three looked like
+ *  one thing three times. */
+const HABIT_ICON: Record<HabitMetric, keyof typeof Ionicons.glyphMap> = {
+  fasting: 'hourglass-outline',
+  water: 'water-outline',
+  sleep: 'moon-outline',
+};
+
+/** The row's identity mark: decorative — the row's label already names it. */
+function HabitIcon({ metric }: { metric: HabitMetric }) {
+  const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
+  return (
+    <View
+      style={styles.habitIcon}
+      importantForAccessibility="no-hide-descendants"
+      accessibilityElementsHidden
+      testID={`metric-icon-${metric}`}
+    >
+      <Ionicons name={HABIT_ICON[metric]} size={16} color={habitColor(colors, metric)} />
+    </View>
+  );
+}
+
 /**
  * The Today → Trends shortcut a user asked for in as many words: *"Instead of
  * taping Trends > and scrolling … can we make somewhat a shortcut from
  * 'Today', I tap the icon and quickly goes to Trends and the appropriate
  * graph?"* (in-app feedback, 2026-08-30).
  *
- * A DEDICATED chip leading the row, not the row itself — every habit row's
- * label/value area is already an edit affordance (fasting → the fast editor,
- * water → the exact-amount sheet) and the right side holds the daily actions.
- * A shortcut sharing either would get hit by accident, the same reasoning that
- * split the fasting row's value from its timer button. The chip is the one
- * element on the row drawn in the habit's identity colour, and the Trends
- * Habits strip marks each face with a dot in the same colour — colour is the
- * thread that says these are the same thing.
+ * TRAILING the row since S21, as a chart glyph: it led the row until then,
+ * the same "trending-up" on all three rows, in the slot where each row's
+ * identity belongs (now `HabitIcon`). It is still its own control and never
+ * the row itself — the label/value area is the edit affordance and the
+ * middle holds the daily actions, and a shortcut sharing either would get
+ * hit by accident. It is named for screen readers per habit ("Fasting
+ * trend") and hinted as opening Trends on that chart.
  *
  * Lands on the right face by writing the strip's persisted tab BEFORE
  * navigating (`setPersistedTab` seeds the module memo for a fresh mount AND
@@ -150,9 +176,7 @@ const HABIT_SHORTCUT_LABEL: Record<HabitMetric, I18nKey> = {
  * If the face has no card yet the strip omits it and Trends falls back to the
  * stub row, which explains itself — still the right landing.
  *
- * Touch target: 32dp chip + 6dp hitSlop = 44pt on iOS, 8dp = 48dp on Android
- * (`HABIT_SLOP`), and the 12dp `leadGroup` gap keeps either slop clear of the
- * edit affordance beside it.
+ * Touch target: a full platform square (44pt / 48dp) on its own box.
  */
 function HabitShortcut({ metric }: { metric: HabitMetric }) {
   const t = useT();
@@ -162,8 +186,7 @@ function HabitShortcut({ metric }: { metric: HabitMetric }) {
   return (
     <PressScale
       scaleTo={0.88}
-      style={styles.habitChip}
-      hitSlop={HABIT_SLOP}
+      style={styles.trendBtn}
       accessibilityRole="button"
       accessibilityLabel={t(HABIT_SHORTCUT_LABEL[metric])}
       accessibilityHint={t('metrics.trendHint')}
@@ -177,21 +200,32 @@ function HabitShortcut({ metric }: { metric: HabitMetric }) {
         router.replace(`/(app)/trends?habits=${Date.now()}`);
       }}
     >
-      <Ionicons name="trending-up" size={16} color={habitColor(colors, metric)} />
+      <Ionicons name="stats-chart-outline" size={16} color={colors.muted} />
     </PressScale>
   );
 }
 
 /** Vertical slop that lifts a 26dp pill / 30dp action to the 44pt target
  *  (S18-15) — and on Android to Material's 48dp, which 9 fell 4dp short of
- *  (Today re-score 3, Accessibility 7). Vertical only: the water pills sit 4dp
+ *  (Today re-score 3, Accessibility 7). Vertical only: the pills' WIDTH is a
+ *  real `minWidth: TARGET` since S21 (they were ~32 wide), and they sit 4dp
  *  apart. The row is ~52dp tall, so 11 still stays inside it. */
 const PILL_SLOP = Platform.select({
   android: { top: 11, bottom: 11 },
   default: { top: 9, bottom: 9 },
 });
-/** The Trends shortcut chip's slop: 32dp to 44pt (iOS) / 48dp (Android). */
-const HABIT_SLOP = Platform.select({ android: 8, default: 6 });
+/** The platform's touch floor: 44pt on iOS, Material's 48dp on Android. */
+const TARGET = Platform.OS === 'android' ? 48 : 44;
+
+/** From this long, a running fast is more likely a forgotten End than a
+ *  fast (S21 — the simulator showed "329h 33m" counting on). Past three
+ *  days the row asks rather than just counting. Exported for test. */
+export const FAST_CHECK_HOURS = 72;
+
+/** Whether a fast that started at `since` has run long enough to ask about. */
+export function fastNeedsCheck(since: Date | null, now: number = Date.now()): boolean {
+  return since != null && now - since.getTime() >= FAST_CHECK_HOURS * 3_600_000;
+}
 
 /** How long a water total this component wrote stays the base for the next
  *  tap while the snapshot catches up. Longer than any latency-compensated
@@ -271,6 +305,8 @@ export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater
     announce(t('metrics.waterNowA11y', { n: displayWater(next, unitSystem), unit: waterUnit }));
   };
   const fastValue = fastingValue(fastStartedAt, fastedTodayHours, t, locale);
+  // Re-read on the row's own 30 s tick, like the elapsed label.
+  const longFast = fastNeedsCheck(fastStartedAt);
   // "7.5 h" / "7,5 h" — through the locale, not `${sleep}h`, which printed
   // "7.5h" to a Brazilian reader (review, Copy).
   const sleepValue =
@@ -307,7 +343,7 @@ export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater
           cannot share a line at 360dp (review A1). */}
       <View style={[styles.row, styles.rowWrap]}>
         <View style={styles.leadGroup}>
-          <HabitShortcut metric="fasting" />
+          <HabitIcon metric="fasting" />
           <PressScale
             scaleTo={onEditFast ? 0.96 : 1}
             style={styles.left}
@@ -327,25 +363,38 @@ export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater
             </View>
           </PressScale>
         </View>
-        <PressScale
-          scaleTo={0.92}
-          style={[styles.action, fastStartedAt ? styles.actionStop : null]}
-          onPress={() => {
-            haptics.tap();
-            fastStartedAt ? onBreakFast() : onStartFast();
-          }}
-          hitSlop={PILL_SLOP}
-          accessibilityRole="button"
-          // "End" alone does not say what ends; the visible word is short for
-          // the row's width, the spoken one need not be.
-          accessibilityLabel={fastStartedAt ? t('metrics.endFastA11y') : t('metrics.startFast')}
-          testID="fast-toggle"
-        >
-          <Text style={[styles.actionText, fastStartedAt && styles.actionTextStop]}>
-            {fastStartedAt ? t('metrics.end') : t('metrics.startFast')}
-          </Text>
-        </PressScale>
+        <View style={styles.trailGroup}>
+          <PressScale
+            scaleTo={0.92}
+            style={[styles.action, fastStartedAt ? styles.actionStop : null]}
+            onPress={() => {
+              haptics.tap();
+              fastStartedAt ? onBreakFast() : onStartFast();
+            }}
+            hitSlop={PILL_SLOP}
+            accessibilityRole="button"
+            // "End" alone does not say what ends; the visible word is short for
+            // the row's width, the spoken one need not be.
+            accessibilityLabel={fastStartedAt ? t('metrics.endFastA11y') : t('metrics.startFast')}
+            testID="fast-toggle"
+          >
+            <Text style={[styles.actionText, fastStartedAt && styles.actionTextStop]}>
+              {fastStartedAt ? t('metrics.end') : t('metrics.startFast')}
+            </Text>
+          </PressScale>
+          <HabitShortcut metric="fasting" />
+        </View>
       </View>
+      {/* A fast past three days is far more often a forgotten End than a
+          fast, and a counter reading "329h 33m" just keeps counting it (S21).
+          The row asks instead, gently — no colour of alarm, and both ways out
+          are the controls right above it: End, or tap the time to fix the
+          start. */}
+      {longFast ? (
+        <Text style={styles.fastCheck} testID="fast-check">
+          {t('metrics.fastCheck')}
+        </Text>
+      ) : null}
 
       <View style={styles.divider} />
 
@@ -361,7 +410,7 @@ export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater
           without `flexWrap` the lead group shrank until "473 ml" truncated. */}
       <View style={[styles.row, styles.rowWrap]}>
         <View style={styles.leadGroup}>
-          <HabitShortcut metric="water" />
+          <HabitIcon metric="water" />
           <PressScale
             scaleTo={0.96}
             style={styles.left}
@@ -411,6 +460,7 @@ export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater
               <Text style={styles.pillText}>+{n}</Text>
             </PressScale>
           ))}
+          <HabitShortcut metric="water" />
         </View>
       </View>
 
@@ -422,7 +472,7 @@ export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater
           than "Sleep" then a bare dash (review A4). */}
       <View style={[styles.row, styles.rowWrap]}>
         <View style={styles.leadGroup}>
-          <HabitShortcut metric="sleep" />
+          <HabitIcon metric="sleep" />
           <PressScale
             scaleTo={0.96}
             style={styles.left}
@@ -439,17 +489,20 @@ export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater
             </View>
           </PressScale>
         </View>
-        <PressScale
-          scaleTo={0.92}
-          style={styles.action}
-          hitSlop={PILL_SLOP}
-          accessibilityRole="button"
-          accessibilityLabel={sleep != null ? t('metrics.sleepEditA11y') : t('metrics.sleepLogA11y')}
-          onPress={() => { haptics.tap(); setSleepOpen(true); }}
-          testID="sleep-open"
-        >
-          <Text style={styles.actionText}>{sleep != null ? t('metrics.edit') : t('metrics.log')}</Text>
-        </PressScale>
+        <View style={styles.trailGroup}>
+          <PressScale
+            scaleTo={0.92}
+            style={styles.action}
+            hitSlop={PILL_SLOP}
+            accessibilityRole="button"
+            accessibilityLabel={sleep != null ? t('metrics.sleepEditA11y') : t('metrics.sleepLogA11y')}
+            onPress={() => { haptics.tap(); setSleepOpen(true); }}
+            testID="sleep-open"
+          >
+            <Text style={styles.actionText}>{sleep != null ? t('metrics.edit') : t('metrics.log')}</Text>
+          </PressScale>
+          <HabitShortcut metric="sleep" />
+        </View>
       </View>
 
       {/* Activity — imported from Apple Health / Health Connect, so there's no
@@ -542,6 +595,9 @@ function WaterModal({
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const inputRef = useDeferredFocus(visible);
+  // The number pad's own Done, in the user's language — it was RN's English
+  // default in es-PR and pt-BR (Impeccable audit, S20).
+  const doneKeyProps = useDoneKeyProps();
   const [mode, setMode] = useState<'add' | 'set'>('add');
   const [value, setValue] = useState('');
   const unit = t(unitSystem === 'metric' ? 'water.unitMl' : 'water.unit');
@@ -601,7 +657,7 @@ function WaterModal({
                 value={value}
                 onChangeText={setValue}
                 selectTextOnFocus
-                returnKeyType="done"
+                {...doneKeyProps}
                 onSubmitEditing={() => valid && onSave(clampWaterFlOz(nextTotal))}
                 accessibilityLabel={t(mode === 'add' ? 'water.addTitle' : 'water.setTitle')}
                 testID="water-input"
@@ -652,6 +708,7 @@ function SleepModal({
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const inputRef = useDeferredFocus(visible);
+  const doneKeyProps = useDoneKeyProps();
   const [value, setValue] = useState('');
 
   useEffect(() => {
@@ -677,7 +734,7 @@ function SleepModal({
           // REPLACE it rather than append to it — 7 becoming 78 is not an
           // edit anybody meant. Same rule as the water and weight sheets.
           selectTextOnFocus
-          returnKeyType="done"
+          {...doneKeyProps}
           onChangeText={setValue}
           onSubmitEditing={() => valid && onSave(n)}
           accessibilityLabel={t('metrics.hoursSlept')}
@@ -711,23 +768,33 @@ const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: space.sm },
   rowWrap: { flexWrap: 'wrap', rowGap: space.sm, columnGap: space.sm },
   left: { gap: 2 },
-  // The habit chip + the row's label/value, as one leading cluster. The 12dp
-  // gap is load-bearing: the chip carries 6dp of hitSlop on each side, so the
-  // gap keeps its 44pt target clear of the edit affordance beside it.
+  // The habit's identity mark + the row's label/value, as one leading cluster.
   leadGroup: { flexDirection: 'row', alignItems: 'center', gap: space.md, flexShrink: 1 },
-  // The Trends shortcut. A bordered circle so it reads as a BUTTON, distinct
-  // from the pencil (which marks the value as editable); the identity-coloured
-  // glyph inside is the only colour the row adds — an accent, not a repaint.
-  habitChip: {
+  // The row's action(s) and its Trends shortcut, kept on one line together.
+  trailGroup: { flexDirection: 'row', alignItems: 'center', gap: space.xs, marginLeft: 'auto' },
+  // The identity mark: a soft circle with the habit-coloured glyph — the only
+  // colour the row adds, an accent rather than a repaint. Borderless, so it
+  // reads as a mark and not as a button.
+  habitIcon: {
     width: 32,
     height: 32,
     borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.inputBg,
-    borderWidth: 1,
-    borderColor: colors.line,
   },
+  // The Trends shortcut, trailing: a full platform target, a muted chart
+  // glyph — secondary to the row's action beside it.
+  trendBtn: {
+    width: TARGET,
+    height: TARGET,
+    marginVertical: -(TARGET - 32) / 2,
+    marginRight: -space.sm,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fastCheck: { fontSize: font.small, color: colors.muted, marginTop: -space.xs, marginBottom: space.xs },
   label: { fontSize: font.tiny, color: colors.muted, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
   value: { fontSize: font.body, color: colors.ink, fontWeight: '700' },
   divider: { height: 1, backgroundColor: colors.line },
@@ -741,7 +808,7 @@ const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   actionStop: { borderColor: colors.danger },
   actionText: { fontSize: font.small, color: colors.ink, fontWeight: '700' },
   actionTextStop: { color: colors.danger },
-  waterBtns: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
+  waterBtns: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.xs, marginLeft: 'auto' },
   waterValueRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   sheetNote: { fontSize: font.small, color: colors.muted, marginTop: space.xs, textAlign: 'center' },
   sheetNoteBad: { color: colors.danger },
@@ -750,6 +817,8 @@ const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   sheetLink: { fontSize: font.small, color: colors.muted, textDecorationLine: 'underline' },
   waterValue: { color: colors.teal },
   pill: {
+    minWidth: TARGET,
+    alignItems: 'center',
     paddingHorizontal: space.md,
     paddingVertical: space.xs,
     borderRadius: radius.pill,
@@ -771,7 +840,9 @@ const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
     flex: 1,
     backgroundColor: colors.inputBg,
     borderWidth: 1,
-    borderColor: colors.line,
+    // `lineStrong`: `line` measured 1.19:1 (light) / 1.27:1 (dark) against
+    // the sheet — under WCAG 1.4.11's 3:1 for a field's boundary (S20).
+    borderColor: colors.lineStrong,
     borderRadius: radius.md,
     paddingHorizontal: space.lg,
     paddingVertical: space.md,

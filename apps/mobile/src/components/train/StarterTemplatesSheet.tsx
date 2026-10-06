@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
+import { Touchable } from './Touchable';
 import { STARTER_TEMPLATES, type SeedTemplate, seedTemplateName } from '@macrolog/core';
 import { BottomSheet } from '@/components/BottomSheet';
 import { showToast } from '@/components/Toast';
@@ -87,7 +88,7 @@ export function StarterTemplatesSheet({
                 {`${seed.exercises.length} ${seed.exercises.length === 1 ? t('train.exerciseOne') : t('train.exerciseMany')}`}
               </Text>
             </View>
-            <TouchableOpacity
+            <Touchable
               style={styles.tplStart}
               onPress={() => use(seed)}
               disabled={busyKey != null}
@@ -96,7 +97,7 @@ export function StarterTemplatesSheet({
               testID={`use-starter-${seed.key}`}
             >
               <Text style={styles.tplStartText}>{busyKey === seed.key ? t('common.saving') : t('train.use')}</Text>
-            </TouchableOpacity>
+            </Touchable>
           </View>
         ))}
         <View style={{ height: 24 }} />
