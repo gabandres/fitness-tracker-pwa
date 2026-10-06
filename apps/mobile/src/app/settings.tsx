@@ -446,7 +446,8 @@ export default function Settings() {
                 {t(profile?.targetMode === 'custom' ? 'targets.summaryCustom' : 'targets.summaryAuto')}
                 {'  ·  '}
                 {kcal != null ? `${formatNumber(kcal, locale)} ${t('settings.kcalUnit')}` : '—'}
-                {protein != null ? `  ·  ${protein}${t('settings.proteinUnit')}` : ''}
+                {/* "145 g", spaced and grouped like every other gram figure (S21 QA). */}
+                {protein != null ? `  ·  ${formatNumber(protein, locale)} ${t('settings.proteinUnit')}` : ''}
               </Text>
               {goalKey ? <Text style={styles.rowSub}>{t('settings.goalPrefix', { goal: t(goalKey) })}</Text> : null}
             </View>

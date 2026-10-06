@@ -22,7 +22,7 @@ import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, space } from '@/theme';
 import { useWorkoutIntentRouter } from '@/hooks/useStartNextWorkoutIntent';
 import { sweepOrphans } from '@/lib/rest-timer-activity';
-import { GLASS_BAR_HEIGHT, GLASS_TAB_BAR, glassBarGap } from '@/lib/glass';
+import { GLASS_BAR_HEIGHT, GLASS_TAB_BAR, TAB_PILL_ALPHA, glassBarGap, withAlpha } from '@/lib/glass';
 import { ACCESSIBILITY_FONT_SCALE, RelayoutBoundary, useRelayoutGeneration } from '@/lib/font-scale';
 
 /** The glass material, loaded only where it is drawn (iOS 26). */
@@ -93,6 +93,16 @@ function AppTabBar({ state, descriptors, navigation }: AppTabBarProps) {
   // that opens no listener (`active-workout-signal.ts`).
   const workout = useActiveWorkout();
   const iconsOnly = useWindowDimensions().fontScale >= ACCESSIBILITY_FONT_SCALE;
+  // iOS 26: a Liquid Glass capsule floating over the content, the way the
+  // system tab bar sits (owner-approved 2026-10-05). The content runs under
+  // it — every tab pads by `TAB_SCROLL_BAND`. Only on the four tabs: Settings,
+  // the targets screens and Feedback were hidden routes in this navigator
+  // until S21-1, none padded for a floating bar, and it covered their Save /
+  // Send / Delete account (Impeccable native audit, 2026-10-05). They are
+  // root stack routes now; the check stays so a route added here later gets
+  // the opaque bar until it pads for the capsule. Elsewhere: the opaque bar.
+  const current = state.routes[state.index]?.name;
+  const floating = GLASS_TAB_BAR && current != null && TAB_ROUTES.includes(current);
 
   function tab(name: string) {
     const route = state.routes.find((r) => r.name === name);
@@ -128,29 +138,39 @@ function AppTabBar({ state, descriptors, navigation }: AppTabBarProps) {
           if (focused && !event.defaultPrevented) announce(t('a11y.scrolledToTop', { screen: label }));
         }}
       >
-        {/* The pill is drawn behind the icon on Android (`TAB_INDICATOR`,
-            Today re-score, Platform); the dot stays pinned to the glyph. */}
-        <View style={TAB_INDICATOR ? [styles.indicator, focused && styles.indicatorOn] : undefined}>
-          <View>
-            <Ionicons
-              name={focused ? icons.filled : icons.outline}
-              size={iconsOnly ? TAB_ICON_SIZE_LARGE : TAB_ICON_SIZE}
-              color={focused ? colors.ink : colors.faint}
-            />
-            {inProgress ? <View style={styles.tabDot} testID="tab-train-active" /> : null}
+        {/* On the glass capsule the focused tab sits on its own opaque
+            capsule, as iOS 26's tab bar draws it: glass takes its tone from
+            what scrolls under it, and an `ink` glyph over the dark hero card
+            vanished in light mode (S21 QA). Static — nothing to animate, so
+            nothing for Reduce Motion to stop. */}
+        <View
+          style={floating ? [styles.glassItem, focused && styles.glassItemOn] : styles.plainItem}
+          testID={floating && focused ? `tab-${name}-selected-pill` : undefined}
+        >
+          {/* The pill is drawn behind the icon on Android (`TAB_INDICATOR`,
+              Today re-score, Platform); the dot stays pinned to the glyph. */}
+          <View style={TAB_INDICATOR ? [styles.indicator, focused && styles.indicatorOn] : undefined}>
+            <View>
+              <Ionicons
+                name={focused ? icons.filled : icons.outline}
+                size={iconsOnly ? TAB_ICON_SIZE_LARGE : TAB_ICON_SIZE}
+                color={focused ? colors.ink : colors.faint}
+              />
+              {inProgress ? <View style={styles.tabDot} testID="tab-train-active" /> : null}
+            </View>
           </View>
+          {iconsOnly ? null : (
+            <Text
+              style={[styles.tabLabel, { color: focused ? colors.ink : colors.faint }]}
+              maxFontSizeMultiplier={TAB_LABEL_MAX_SCALE}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={TAB_LABEL_MIN_FIT}
+            >
+              {label}
+            </Text>
+          )}
         </View>
-        {iconsOnly ? null : (
-          <Text
-            style={[styles.tabLabel, { color: focused ? colors.ink : colors.faint }]}
-            maxFontSizeMultiplier={TAB_LABEL_MAX_SCALE}
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={TAB_LABEL_MIN_FIT}
-          >
-            {label}
-          </Text>
-        )}
       </PressScale>
     );
   }
@@ -158,17 +178,7 @@ function AppTabBar({ state, descriptors, navigation }: AppTabBarProps) {
   // A workout left running is one tap from every tab but its own (Train
   // review U11) — the dot on the Train icon says it exists, this says how long
   // and takes you back.
-  const current = state.routes[state.index]?.name;
   const onTrain = current === 'train';
-  // iOS 26: a Liquid Glass capsule floating over the content, the way the
-  // system tab bar sits (owner-approved 2026-10-05). The content runs under
-  // it — every tab pads by `TAB_SCROLL_BAND`. Only on the four tabs: Settings,
-  // the targets screens and Feedback were hidden routes in this navigator
-  // until S21-1, none padded for a floating bar, and it covered their Save /
-  // Send / Delete account (Impeccable native audit, 2026-10-05). They are
-  // root stack routes now; the check stays so a route added here later gets
-  // the opaque bar until it pads for the capsule. Elsewhere: the opaque bar.
-  const floating = GLASS_TAB_BAR && current != null && TAB_ROUTES.includes(current);
   return (
     <View style={floating ? styles.floatWrap : undefined} pointerEvents="box-none">
       {!onTrain && workout.active ? (
@@ -388,7 +398,22 @@ function createStyles({ colors }: Theme) {
     glass: { ...StyleSheet.absoluteFill, borderRadius: 32 },
     // Clears the raised Log button, which stands ~26dp proud of the bar.
     pillSlot: { paddingBottom: 30 },
-    tab: { flex: 1, alignItems: 'center', gap: 2, paddingVertical: 2 },
+    tab: { flex: 1, alignItems: 'center', paddingVertical: 2 },
+    plainItem: { alignItems: 'center', gap: 2 },
+    // The selected capsule's box is on every glass tab, so the focused one
+    // does not shift its neighbours; only the fill marks it.
+    glassItem: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 2,
+      alignSelf: 'stretch',
+      marginHorizontal: 2,
+      paddingVertical: space.xs,
+      borderRadius: 999,
+    },
+    // `paper` near-opaque: `ink` on it is ≥ 12:1 in both themes whatever the
+    // glass shows (`theme-contrast.test.ts`).
+    glassItemOn: { backgroundColor: withAlpha(colors.paper, TAB_PILL_ALPHA) },
     tabLabel: { fontSize: font.tiny, fontWeight: '600' },
     // 56×30 rather than M3's 64×32: a cell is ~71dp wide at 360dp, and the
     // pill must not touch its neighbour's. `line` is the palette's quiet fill

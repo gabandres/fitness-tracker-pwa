@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import {
+  maintenanceView,
   TARGET_PROTEIN_MAX,
   TARGET_PROTEIN_MIN,
   type TargetIssue,
@@ -123,6 +124,15 @@ export default function DailyTargetsScreen() {
     if (!tdee || tdee.source !== 'measured' || !tdee.reliable) return null;
     return Math.round(tdee.trueTdee);
   }, [computed]);
+  // Measured but not yet reliable: the state Today's hero calls "Still
+  // settling — 40 of 79 days logged" and Trends labels MEASURED. This line
+  // said "Not enough data to measure your maintenance yet" there, contradicting
+  // both (S21 simulator QA). Read through the same `maintenanceView` Today
+  // reads, so the three screens cannot disagree about which state it is.
+  const settling = useMemo(
+    () => (computed && measured == null ? maintenanceView(computed.tdee, 0) : null),
+    [computed, measured],
+  );
 
   const kcalNum = numOrNull(kcal);
   const proteinNum = numOrNull(protein);
@@ -251,7 +261,15 @@ export default function DailyTargetsScreen() {
             <Text style={styles.note} testID="targets-measured">
               {measured != null
                 ? t('targets.measuredNote', { n: formatNumber(measured, locale) })
-                : t('targets.measuredNotYet')}
+                : settling
+                  ? settling.loggedDays != null && settling.spanDays != null && !settling.holding
+                    ? t('targets.measuredSettling', {
+                        n: formatNumber(Math.round(settling.maintenance), locale),
+                        logged: settling.loggedDays,
+                        span: settling.spanDays,
+                      })
+                    : t('targets.measuredSettlingPlain', { n: formatNumber(Math.round(settling.maintenance), locale) })
+                  : t('targets.measuredNotYet')}
             </Text>
           </View>
 

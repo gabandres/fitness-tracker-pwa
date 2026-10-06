@@ -51,3 +51,12 @@ it('floats only on the four tabs — the other routes in the navigator never pad
   expect(src).toMatch(/style=\{floating \? styles\.floatWrap : undefined\}/);
   expect(src).not.toMatch(/GLASS_TAB_BAR \? styles\.floatWrap/);
 });
+
+it('marks the focused tab with an opaque capsule on glass only — the opaque bar is unchanged', () => {
+  const src = readFileSync(join(__dirname, '..', 'app/(app)/_layout.tsx'), 'utf8');
+  // S21 QA: light-mode glass over the dark hero card left the focused `ink`
+  // glyph on near-black. The capsule (paper at TAB_PILL_ALPHA) is what keeps
+  // it readable; `theme-contrast.test.ts` measures it.
+  expect(src).toMatch(/floating \? \[styles\.glassItem, focused && styles\.glassItemOn\] : styles\.plainItem/);
+  expect(src).toMatch(/glassItemOn: \{ backgroundColor: withAlpha\(colors\.paper, TAB_PILL_ALPHA\) \}/);
+});

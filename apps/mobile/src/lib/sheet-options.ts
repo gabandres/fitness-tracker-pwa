@@ -25,8 +25,8 @@ export const sheetOptions: ScreenOptions = ({ route }: { route: { params?: objec
   sheetAllowedDetents: parseDetents((route.params as { detents?: unknown } | undefined)?.detents),
   sheetInitialDetentIndex: 0,
   sheetExpandsWhenScrolledToEdge: true,
-  // Transparent so iOS 26 can draw its own material behind the content (and
-  // on Android the route paints the rounded surface itself).
+  // Transparent: the route (`app/sheet.tsx`) paints the opaque surface itself
+  // on both platforms — on Android with its rounded corners.
   contentStyle: { backgroundColor: 'transparent' },
   // Android: Material's modal sheet — 28 dp corners, a low elevation (the
   // scrim carries the depth), drawn below the status bar.

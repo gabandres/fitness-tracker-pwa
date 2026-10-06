@@ -88,3 +88,11 @@ describe('every bottom sheet is the same component', () => {
     expect(callers).toEqual(['app/sheet.tsx', 'components/BottomSheet.tsx', 'lib/use-keyboard-sheet-style.ts']);
   });
 });
+
+it('the native sheet route paints an opaque surface on iOS too', () => {
+  // S21 simulator QA: transparent on iOS let Liquid Glass show the orange +
+  // and the dark hero card through every `fit` / half-height sheet's text.
+  const src = readFileSync(join(__dirname, '..', 'app/sheet.tsx'), 'utf8');
+  expect(src).toMatch(/backgroundColor: scheme === 'dark' \? colors\.card : colors\.paper,/);
+  expect(src).not.toMatch(/Platform\.OS === 'ios' \? 'transparent'/);
+});

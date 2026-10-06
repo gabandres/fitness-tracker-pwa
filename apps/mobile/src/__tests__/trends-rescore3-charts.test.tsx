@@ -69,6 +69,14 @@ describe('geometry', () => {
     const box = placeRefLabel({ ...base, points: crowded, heavy: endpoint });
     expect(box.left).toBe(34);
   });
+
+  it('placeRefLabel: never on the line when the target sits at the top of the plot', () => {
+    // S21 QA: protein target 145 on a 0–150 axis — "above" clamps to the
+    // plot's top edge and lands on the dotted line, so it goes below instead.
+    const box = placeRefLabel({ refY: 12, labelW: 80, labelH: 16, width: 300, height: 132, minLeft: 34, points: [] });
+    expect(box.top).toBe(13);
+    expect(box.top >= 12 || box.top + box.height <= 12).toBe(true);
+  });
 });
 
 describe('cached formatting matches the shared helpers exactly', () => {

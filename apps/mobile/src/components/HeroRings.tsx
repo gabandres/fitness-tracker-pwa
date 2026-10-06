@@ -51,6 +51,13 @@ const CENTER_MAX_W = 148;
 /** Text scale from which the legend stacks — the two entries no longer fit
  *  side by side in the panel at 360dp. */
 const STACK_AT_FONT_SCALE = 1.35;
+/** How far the legend and macro chips grow with Dynamic Type. Uncapped, at
+ *  AX5 "0 / 145 g" and "protein" split over two lines with the dot left
+ *  floating between them (S21 simulator QA). The ring's sentence carries the
+ *  same figures to the reader, and the large-content path is the a11y one. */
+export const LEGEND_MAX_FONT_SCALE = 1.5;
+/** How far a legend entry may shrink to stay on its one line. */
+const LEGEND_MIN_FIT = 0.7;
 
 function rgb(hex: string): [number, number, number] {
   const n = parseInt(hex.replace('#', '').slice(0, 6), 16);
@@ -497,13 +504,25 @@ export function HeroRings({
       >
         <View style={styles.legendItem}>
           <View style={[styles.dot, { backgroundColor: colors.ring }]} />
-          <Text style={styles.legendText}>
+          <Text
+            style={styles.legendText}
+            maxFontSizeMultiplier={LEGEND_MAX_FONT_SCALE}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={LEGEND_MIN_FIT}
+          >
             {formatNumber(calConsumed, locale)} / {formatNumber(calTarget, locale)} {t('today.kcal')}
           </Text>
         </View>
         <View style={styles.legendItem}>
           <View style={[styles.dot, { backgroundColor: colors.protein }]} />
-          <Text style={styles.legendText}>
+          <Text
+            style={styles.legendText}
+            maxFontSizeMultiplier={LEGEND_MAX_FONT_SCALE}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={LEGEND_MIN_FIT}
+          >
             {formatNumber(protConsumed, locale)} / {g(protTarget)} {t('today.protein').toLowerCase()}
           </Text>
         </View>
@@ -517,10 +536,10 @@ export function HeroRings({
         importantForAccessibility="no-hide-descendants"
         accessibilityElementsHidden
       >
-        <Text style={styles.macroChip}>
+        <Text style={styles.macroChip} maxFontSizeMultiplier={LEGEND_MAX_FONT_SCALE}>
           <Text style={{ color: colors.carbs }}>●</Text> {t('today.carbs')} {g(carbs)}
         </Text>
-        <Text style={styles.macroChip}>
+        <Text style={styles.macroChip} maxFontSizeMultiplier={LEGEND_MAX_FONT_SCALE}>
           <Text style={{ color: colors.fat }}>●</Text> {t('today.fat')} {g(fat)}
         </Text>
       </View>
@@ -751,9 +770,10 @@ function createStyles({ colors, shadow, scheme }: Theme) {
       rowGap: space.xs,
     },
     legendStacked: { flexDirection: 'column', alignItems: 'flex-start' },
-    legendItem: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
+    // One unit each: the row wraps whole entries, never the words inside one.
+    legendItem: { flexDirection: 'row', alignItems: 'center', gap: space.xs, maxWidth: '100%' },
     dot: { width: 8, height: 8, borderRadius: 4 },
-    legendText: { fontSize: font.small, color: colors.heroText, fontFamily: type.heading },
+    legendText: { fontSize: font.small, color: colors.heroText, fontFamily: type.heading, flexShrink: 1 },
     macroRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', columnGap: space.lg, rowGap: space.xs },
     macroChip: { fontSize: font.tiny, color: colors.heroMuted },
   });

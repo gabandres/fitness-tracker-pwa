@@ -84,3 +84,31 @@ describe('contrastRatio', () => {
     expect(contrastRatio('#a8a29e', '#faf9f6')).toBeCloseTo(2.4, 1);
   });
 });
+
+/**
+ * The iOS 26 glass tab bar's selected capsule (S21 simulator QA): in light mode
+ * the glass went dark over the hero card and the focused `ink` glyph vanished.
+ * The capsule is `paper` at `TAB_PILL_ALPHA` — composited here over the two
+ * extremes the glass can show, the focused glyph must keep ≥ 3:1 (1.4.11).
+ */
+describe('glass tab bar selected capsule', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { TAB_PILL_ALPHA, withAlpha } = require('@/lib/glass') as typeof import('@/lib/glass');
+
+  function over(hex: string, alpha: number, backdrop: string): string {
+    const ch = (h: string, i: number) => parseInt(h.slice(1 + i * 2, 3 + i * 2), 16);
+    const mix = [0, 1, 2].map((i) => Math.round(ch(hex, i) * alpha + ch(backdrop, i) * (1 - alpha)));
+    return `#${mix.map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+  }
+
+  it.each(['light', 'dark'] as const)('%s: the focused glyph reads on the capsule over any backdrop', (scheme) => {
+    const c = palettes[scheme].colors;
+    for (const backdrop of ['#000000', '#ffffff']) {
+      expect(contrastRatio(c.ink, over(c.paper, TAB_PILL_ALPHA, backdrop))).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it('withAlpha writes rgba()', () => {
+    expect(withAlpha('#faf9f6', 0.9)).toBe('rgba(250, 249, 246, 0.9)');
+  });
+});

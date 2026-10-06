@@ -223,3 +223,30 @@ describe('S21-2 — Sign-in methods', () => {
     expect(read('components/SignInMethodsCard.tsx')).toMatch(/actionBtn: \{ minHeight: 48, minWidth: 48/);
   });
 });
+
+describe('S21 simulator QA — cosmetic', () => {
+  it('Safety floors: the two rows have distinct titles in every locale', () => {
+    /* eslint-disable @typescript-eslint/no-require-imports */
+    const dicts = [require('@/i18n/en').en, require('@/i18n/es-PR').esPR, require('@/i18n/pt-BR').ptBR] as Record<string, string>[];
+    /* eslint-enable @typescript-eslint/no-require-imports */
+    for (const dict of dicts) {
+      expect(dict['settings.calorieFloor']).toBeTruthy();
+      expect(dict['settings.calorieFloor']).not.toBe(dict['settings.proteinFloor']);
+    }
+  });
+
+  it('the targets summary spaces its grams ("145 g"), like the rest of the app', () => {
+    const src = read('app/settings.tsx');
+    expect(src).toMatch(/\$\{formatNumber\(protein, locale\)\} \$\{t\('settings\.proteinUnit'\)\}/);
+    expect(src).not.toMatch(/\$\{protein\}\$\{t\('settings\.proteinUnit'\)\}/);
+  });
+
+  it.each(['app/(app)/trends.tsx', 'app/(app)/body.tsx', 'components/train/train-styles.ts'])(
+    '%s: the header row, not the title, carries the top padding — icons centre on the title line',
+    (file) => {
+      const src = read(file);
+      expect(src).toMatch(/headerRow: \{[^}]*paddingTop: space\.md/);
+      expect(src).not.toMatch(/title: \{ fontFamily: type\.display, fontSize: font\.h1[^}]*paddingTop/);
+    },
+  );
+});

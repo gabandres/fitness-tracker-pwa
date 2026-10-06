@@ -27,6 +27,7 @@ import {
   type WeightRange,
   WEIGHT_RANGES,
   bodyWeightUnit,
+  kgToLb,
   parseYmd,
   pointsInRange,
   toDisplayWeight,
@@ -55,8 +56,9 @@ import { type ChartFrame, dotsPath, nearestIndex, weightChartGeometry } from './
  * - **Dots are readings, the line is the trend** (`trendWeightSeries`, the
  *   Trends smoother), the dash is the 4-week projection, and a dashed rule
  *   marks the goal when it is near enough to draw without flattening the line.
- * - **Axis**: min, middle and max in a gutter on the left with a faint mid
- *   gridline, and first, middle and last date underneath (re-score: two
+ * - **Axis**: round values in the user's unit (0.5 / 1 / 2 / 5 steps, the
+ *   Trends charts' `niceTicks`; S21 QA) in a gutter on the left, a faint
+ *   gridline under every one, and first, middle and last date underneath (re-score: two
  *   numbers and two dates left a 140 pt plot unreadable). The numbers sit in
  *   their own `AXIS_GUTTER`, right-aligned, not over the plot — at `left: 0`
  *   with an 8 pt pad they drew across the oldest dots (re-score 3).
@@ -296,9 +298,17 @@ function WeightChartImpl({
         goalLb,
         slopeLbPerWeek,
         forecastDays: dashed ? FORECAST_DAYS : 0,
+        // Round gridlines in the user's unit (S21 QA: "184.6 / 181.0 /
+        // 177.5", the bottom one with no line under it).
+        axisUnitLb: unitSystem === 'metric' ? kgToLb(1) : 1,
       }),
-    [shown, shownTrend, frame, goalLb, slopeLbPerWeek, dashed],
+    [shown, shownTrend, frame, goalLb, slopeLbPerWeek, dashed, unitSystem],
   );
+  // One decimal only when a tick needs it (a 0.5 step) — "185" over "185.0",
+  // and never "180" beside "180.5".
+  const tickDecimals = geometry?.ticks.some((tk) => !Number.isInteger(tk.value)) ? 1 : 0;
+  const tickText = (v: number) =>
+    formatNumber(v, locale, { minimumFractionDigits: tickDecimals, maximumFractionDigits: tickDecimals });
 
   const num = (lb: number) => weightNum(lb, unitSystem, locale);
   const day = (key: string) => formatDate(parseYmd(key), locale, { month: 'short', day: 'numeric' });
@@ -486,14 +496,17 @@ function WeightChartImpl({
                     strokeDasharray="2 4"
                   />
                 ) : null}
-                <Line
-                  x1={gutter}
-                  x2={width - PAD.padR}
-                  y1={geometry.midY}
-                  y2={geometry.midY}
-                  stroke={colors.heroTrack}
-                  strokeWidth={1}
-                />
+                {geometry.ticks.map((tk) => (
+                  <Line
+                    key={`g-${tk.value}`}
+                    x1={gutter}
+                    x2={width - PAD.padR}
+                    y1={tk.y}
+                    y2={tk.y}
+                    stroke={colors.heroTrack}
+                    strokeWidth={1}
+                  />
+                ))}
                 <Path
                   d={dotsPath(geometry.xs, geometry.ys, shown.length > 120 ? 1.5 : 2.5, shown.length > DOT_THIN_FROM ? 1.5 : 0)}
                   fill={colors.heroText}
@@ -517,21 +530,19 @@ function WeightChartImpl({
             <>
               {/* One line each, in a gutter as wide as the widest label — never
                   wrapped mid-number. */}
-              <Text style={[styles.axis, styles.axisY, { width: gutter - 6, top: -2 }]} numberOfLines={1} maxFontSizeMultiplier={AXIS_MAX_SCALE} importantForAccessibility="no" accessibilityElementsHidden>
-                {num(geometry.maxLb)}
-              </Text>
-              <Text style={[styles.axis, styles.axisY, { width: gutter - 6, bottom: -4 }]} numberOfLines={1} maxFontSizeMultiplier={AXIS_MAX_SCALE} importantForAccessibility="no" accessibilityElementsHidden>
-                {num(geometry.minLb)}
-              </Text>
-              <Text
-                style={[styles.axis, styles.axisY, { width: gutter - 6, top: geometry.midY - axisFont * 0.7 }]}
-                numberOfLines={1}
-                maxFontSizeMultiplier={AXIS_MAX_SCALE}
-                importantForAccessibility="no"
-                accessibilityElementsHidden
-              >
-                {num(geometry.midLb)}
-              </Text>
+              {geometry.ticks.map((tk, i) => (
+                <Text
+                  key={`t-${tk.value}`}
+                  style={[styles.axis, styles.axisY, { width: gutter - 6, top: tk.y - axisFont * 0.7 }]}
+                  numberOfLines={1}
+                  maxFontSizeMultiplier={AXIS_MAX_SCALE}
+                  importantForAccessibility="no"
+                  accessibilityElementsHidden
+                  testID={testID ? `${testID}-tick-${i}` : undefined}
+                >
+                  {tickText(tk.value)}
+                </Text>
+              ))}
               {geometry.goalY != null && goalLb != null ? (
                 <Text
                   style={[styles.axis, styles.goalLabel, { top: Math.max(0, geometry.goalY - 16) }]}

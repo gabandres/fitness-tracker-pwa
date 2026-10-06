@@ -27,8 +27,11 @@ export { TARGET };
 
 export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
-  title: { fontFamily: type.display, fontSize: font.h1, color: colors.ink, paddingHorizontal: space.xl, paddingTop: space.md },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: space.xl },
+  title: { fontFamily: type.display, fontSize: font.h1, color: colors.ink, paddingHorizontal: space.xl },
+  // The top padding is the ROW's, not the title's: on the title it pushed the
+  // text's centre 6 pt below the icons' (`alignItems: 'center'`), where
+  // Today's sit on the title line (S21 simulator QA).
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: space.xl, paddingTop: space.md },
   // Pushed right so the title keeps the left edge and the help sits beside the avatar.
   headerHelp: { marginLeft: 'auto', marginRight: space.xs, minWidth: TARGET, minHeight: TARGET, alignItems: 'center', justifyContent: 'center' },
   fill: { flex: 1, alignItems: 'center', justifyContent: 'center' },

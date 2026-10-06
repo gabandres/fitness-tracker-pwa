@@ -59,3 +59,40 @@ it('dotsPath thins dots closer than minGap to the last one drawn (re-score 3, Pf
   // Measured from the last DRAWN dot: 0 → (0.5, 1.0 skipped) → 1.6 → 10.
   expect(count(dotsPath(xs, ys, 1, 1.5))).toBe(3);
 });
+
+describe('round axis ticks (S21 QA: "184.6 / 181.0 / 177.5")', () => {
+  const p = pts([['2026-07-12', 184.6], ['2026-08-02', 181], ['2026-08-22', 177.5]]);
+
+  it('snaps the domain to round pounds, one tick per gridline, top first', () => {
+    const g = weightChartGeometry(p, p, frame, { axisUnitLb: 1 })!;
+    expect(g.ticks.map((tk) => tk.value)).toEqual([185, 180, 175]);
+    expect(g.minLb).toBe(175);
+    expect(g.maxLb).toBe(185);
+    // The bottom tick has its line: it sits on the plot's bottom edge.
+    expect(g.ticks[2].y).toBe(frame.height);
+    expect(g.ticks[0].y).toBe(0);
+  });
+
+  it('rounds in KILOGRAMS for a metric user, never 2.5 steps', () => {
+    const kg = 2.20462;
+    const g = weightChartGeometry(p, p, frame, { axisUnitLb: kg })!;
+    for (const tk of g.ticks) expect(Number.isInteger(tk.value * 2)).toBe(true);
+    const step = g.ticks[0].value - g.ticks[1].value;
+    expect([0.5, 1, 2, 5, 10]).toContain(step);
+    expect(g.minLb / kg).toBeLessThanOrEqual(177.5 / kg);
+    expect(g.maxLb / kg).toBeGreaterThanOrEqual(184.6 / kg);
+  });
+
+  it('a narrow range gets half-unit steps', () => {
+    // The 2 lb span floor makes this 179.5–181.5.
+    const q = pts([['2026-09-01', 180], ['2026-09-05', 181]]);
+    const g = weightChartGeometry(q, q, frame, { axisUnitLb: 1 })!;
+    expect(g.ticks.map((tk) => tk.value)).toEqual([181.5, 181, 180.5, 180, 179.5]);
+  });
+
+  it('no ticks, and the data domain, when not asked (the measurement sparklines)', () => {
+    const g = weightChartGeometry(p, p, frame)!;
+    expect(g.ticks).toEqual([]);
+    expect(g.maxLb).toBe(184.6);
+  });
+});

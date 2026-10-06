@@ -1,4 +1,5 @@
 import { type DatedWeight, addDays, calendarDateKey, parseYmd } from '@macrolog/core';
+import { niceTicks } from '@/components/charts/chart-geometry';
 
 /**
  * The Body weight chart's geometry — pure, so the one part of a chart a unit
@@ -42,6 +43,9 @@ export interface WeightChartGeometry {
   /** The day at the horizontal middle of the plot, for the middle x label.
    *  null when the plot spans a single day (there is no middle to name). */
   midDateKey: string | null;
+  /** One gridline per round value, top first, when `axisUnitLb` asked for
+   *  them — `value` in the DISPLAY unit, `y` in the frame. Empty otherwise. */
+  ticks: { value: number; y: number }[];
 }
 
 const DAY_MS = 86_400_000;
@@ -62,7 +66,17 @@ export function weightChartGeometry(
   points: readonly DatedWeight[],
   trend: readonly DatedWeight[],
   frame: ChartFrame,
-  opts: { goalLb?: number | null; slopeLbPerWeek?: number | null; forecastDays?: number } = {},
+  opts: {
+    goalLb?: number | null;
+    slopeLbPerWeek?: number | null;
+    forecastDays?: number;
+    /** Pounds in one DISPLAY unit (1 for lb, 2.20462 for kg). Given, the y
+     *  domain snaps to round values in that unit — 0.5 / 1 / 2 / 5 steps, the
+     *  Trends charts' `niceTicks` — and `ticks` lists them. The Body chart's
+     *  axis read "184.6 / 181.0 / 177.5", the raw data extent and its middle
+     *  (S21 simulator QA). Omitted, the domain is the data's, as before. */
+    axisUnitLb?: number;
+  } = {},
 ): WeightChartGeometry | null {
   if (points.length === 0 || frame.width <= 0) return null;
   const forecastDays = opts.slopeLbPerWeek != null ? (opts.forecastDays ?? 0) : 0;
@@ -97,6 +111,15 @@ export function weightChartGeometry(
     maxLb = mid + 1;
   }
 
+  let tickValues: number[] = [];
+  const u = opts.axisUnitLb;
+  if (u != null && u > 0) {
+    const nice = niceTicks({ min: minLb / u, max: maxLb / u }, { steps: [1, 2, 5] });
+    minLb = nice.min * u;
+    maxLb = nice.max * u;
+    tickValues = nice.ticks;
+  }
+
   const first = dayIndex(points[0].dateKey);
   const lastKey = forecast.length ? forecast[forecast.length - 1].dateKey : points[points.length - 1].dateKey;
   const spanDays = Math.max(0, dayIndex(lastKey) - first);
@@ -123,6 +146,7 @@ export function weightChartGeometry(
     midLb,
     midY: yAt(midLb),
     midDateKey: spanDays >= 2 ? calendarDateKey(addDays(parseYmd(points[0].dateKey), Math.round(spanDays / 2))) : null,
+    ticks: tickValues.map((value) => ({ value, y: yAt(value * (u as number)) })).reverse(),
   };
 }
 

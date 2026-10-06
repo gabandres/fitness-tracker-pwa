@@ -1340,13 +1340,16 @@ function Budget({
 const createStyles = ({ colors, shadow }: Theme) =>
   StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.paper },
-    headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: space.xl, paddingBottom: space.xs },
+    // The top padding is the ROW's, not the title's: on the title it pushed the
+    // text's centre 6 pt below the icons' (`alignItems: 'center'`), where
+    // Today's sit on the title line (S21 simulator QA).
+    headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: space.xl, paddingTop: space.md, paddingBottom: space.xs },
     // Pinned to the header's foot; its opacity follows the scroll.
     headerEdge: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 1, backgroundColor: colors.line, pointerEvents: 'none' },
     // Pushes the "?" up against the avatar instead of leaving it stranded in
     // the middle of the row, which `space-between` would otherwise do.
     headerHelp: { marginLeft: 'auto', marginRight: space.md },
-    title: { fontFamily: type.display, fontSize: font.h1, color: colors.ink, paddingHorizontal: space.xl, paddingTop: space.md },
+    title: { fontFamily: type.display, fontSize: font.h1, color: colors.ink, paddingHorizontal: space.xl },
     // `paddingBottom` is FAB_BAND, not `space.xl`: the floating + button
     // overhangs the scroll area, and 24 dp left the last element under it.
     // That is #96 — the Coach row was untappable — and it caught the fasting

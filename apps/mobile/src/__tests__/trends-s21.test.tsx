@@ -40,7 +40,7 @@ import { palettes, TARGET } from '@/theme';
 import Trends from '@/app/(app)/trends';
 import { RecalibrationCard } from '@/components/RecalibrationCard';
 import { fencesOf, niceTicks } from '@/components/charts/chart-geometry';
-import { maintenanceBreakdown } from '@/components/charts/trend-copy';
+import { keepUnitsTogether, maintenanceBreakdown } from '@/components/charts/trend-copy';
 import { fitsAllRange } from '@/components/charts/TrendsCharts';
 import { en } from '@/i18n/en';
 import type { TFn } from '@/i18n';
@@ -111,6 +111,9 @@ function state(over: Record<string, unknown> = {}) {
 
 const t = ((key: string, p: Record<string, unknown> = {}) =>
   String((en as Record<string, string>)[key] ?? key).replace(/\{(\w+)\}/g, (_, k) => String(p[k] ?? `{${k}}`))) as unknown as TFn;
+/** The breakdown glues numbers to units (U+00A0) and units to "/day" (U+2060);
+ *  read it back as plain text. */
+const plain = (s: string | null | undefined) => s?.replace(/\u00a0/g, ' ').replace(/\u2060/g, '');
 const flat = (style: unknown) => StyleSheet.flatten(style as never) as Record<string, unknown>;
 
 beforeEach(() => {
@@ -120,15 +123,26 @@ beforeEach(() => {
 describe('why the maintenance number is what it is', () => {
   it('says the arithmetic in the user\'s unit — intake, trend, burn', () => {
     const b = maintenanceBreakdown(MEASURED as unknown as TdeeResult, 'us', t, 'en');
-    expect(b?.line).toBe('You averaged 1,850 kcal/day while your trend moved −0.3 lb/wk — so you burn about 2,017 kcal/day.');
+    expect(plain(b?.line)).toBe('You averaged 1,850 kcal/day while your trend moved −0.3 lb/wk — so you burn about 2,017 kcal/day.');
     expect(b?.blended).toBeNull();
     const kg = maintenanceBreakdown(MEASURED as unknown as TdeeResult, 'metric', t, 'en');
-    expect(kg?.line).toMatch(/moved −0\.2 kg\/wk/);
+    expect(plain(kg?.line)).toMatch(/moved −0\.2 kg\/wk/);
+  });
+
+  it('cannot wrap inside "2,017 kcal/day" — no-break space and word joiners (S21 QA)', () => {
+    const b = maintenanceBreakdown(MEASURED as unknown as TdeeResult, 'us', t, 'en');
+    expect(b?.line).toContain('2,017\u00a0kcal\u2060/\u2060day.');
+    expect(b?.line).toContain('0.3\u00a0lb\u2060/\u2060wk');
+    // Every locale's units: "kcal/día", "kg/sem", "kcal/dia".
+    expect(keepUnitsTogether('2.641 kcal/dia e 0,5 kg/sem')).toBe('2.641\u00a0kcal\u2060/\u2060dia e 0,5\u00a0kg\u2060/\u2060sem');
+    expect(keepUnitsTogether('2,641 kcal/día')).toBe('2,641\u00a0kcal\u2060/\u2060día');
+    // A word that merely starts like a unit is left alone.
+    expect(keepUnitsTogether('3 kgs, 2 grams')).toBe('3 kgs, 2 grams');
   });
 
   it('says so when a thin record was blended toward the profile estimate', () => {
     const b = maintenanceBreakdown({ ...MEASURED, trueTdee: 2100, confidence: 0.7 } as unknown as TdeeResult, 'us', t, 'en');
-    expect(b?.blended).toBe('While your record is still short, that is blended with your profile estimate: 2,100 kcal/day.');
+    expect(plain(b?.blended)).toBe('While your record is still short, that is blended with your profile estimate: 2,100 kcal/day.');
   });
 
   it('is absent outside measured mode', () => {
@@ -138,7 +152,7 @@ describe('why the maintenance number is what it is', () => {
   it('renders under the hero, with the unit from i18n', async () => {
     mockTrends.mockReturnValue(state());
     const view = await render(<Trends />);
-    expect(view.getByTestId('tdee-breakdown')).toHaveTextContent(/You averaged 1,850 kcal\/day/);
+    expect(view.getByTestId('tdee-breakdown')).toHaveTextContent(/You averaged 1,850\skcal\u2060\/\u2060day/);
   });
 });
 

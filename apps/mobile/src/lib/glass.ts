@@ -51,3 +51,25 @@ export function glassBarGap(insetBottom: number): number {
 export function tabBarOverlap(insetBottom: number): number {
   return GLASS_TAB_BAR ? glassBarGap(insetBottom) + GLASS_BAR_HEIGHT : 0;
 }
+
+/**
+ * How opaque the selected-tab capsule is over the glass. iOS 26's own tab bar
+ * draws a capsule behind the selected item for the same reason: glass takes
+ * its tone from whatever scrolls under it, so a tab bar in LIGHT mode over the
+ * dark hero card turns dark while the focused glyph stays `ink` — and vanished
+ * (S21 simulator QA, `zz-ax5-tabbar.png`). Over a `paper` capsule this opaque
+ * the focused glyph keeps its contrast whatever the backdrop is
+ * (`theme-contrast.test.ts` composites it over black and white).
+ */
+export const TAB_PILL_ALPHA = 0.9;
+
+/* No tint on the glass itself: a canvas-tone tint pulls a dark backdrop
+ * toward MID-grey, which is exactly where `faint` loses — over the raw
+ * near-black it is ~3.9:1 and over the light canvas 4.9:1, both past the 3:1
+ * a glyph needs, while a 40% paper tint over black measured ~1.2:1. */
+
+/** `#rrggbb` at `alpha` as an `rgba()` string. */
+export function withAlpha(hex: string, alpha: number): string {
+  const n = parseInt(hex.slice(1, 7), 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+}

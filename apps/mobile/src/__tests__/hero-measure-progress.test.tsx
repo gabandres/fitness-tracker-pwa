@@ -89,3 +89,18 @@ describe('HeroRings measured-burn progress', () => {
     expect(queryByTestId('maintenance-line')).toBeNull();
   });
 });
+
+describe('HeroRings legend at accessibility sizes', () => {
+  // S21 simulator QA, AX5: "0 / 145 g" and "protein" split over two lines with
+  // the dot floating. Each entry is one capped, single-line unit now.
+  it('keeps each entry on one capped line', async () => {
+    const { getByText } = await render(<HeroRings {...base} maintenance={null} progress={null} />);
+    const hidden = { includeHiddenElements: true };
+    const texts = [getByText(/^900 \/ 2,000 kcal$/, hidden), getByText(/^60 \/ 150 g protein$/, hidden)];
+    for (const node of texts) {
+      expect(node.props.numberOfLines).toBe(1);
+      expect(node.props.adjustsFontSizeToFit).toBe(true);
+      expect(node.props.maxFontSizeMultiplier).toBe(1.5);
+    }
+  });
+});

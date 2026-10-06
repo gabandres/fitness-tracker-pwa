@@ -42,6 +42,20 @@ export function targetLine(v: BalanceVerdict, t: TFn, locale: Locale): string {
 }
 
 /**
+ * Glue every number to its unit and every unit to its "/day" so a sentence
+ * can only wrap BETWEEN quantities: "2,641 kcal/day" broke as "kcal/" ↵
+ * "day." in the Trends breakdown (S21 simulator QA). A no-break space after
+ * the number (U+00A0) and a word joiner either side of the slash (U+2060 —
+ * iOS and Android both offer a break after "/" otherwise). Applies to every
+ * locale's units: kcal, kg, lb, g, and the "/día" / "/sem" / "/dia" suffixes.
+ */
+export function keepUnitsTogether(s: string): string {
+  return s
+    .replace(/(\d) (?=(?:kcal|kg|lb|g)(?![\p{L}]))/gu, '$1\u00a0')
+    .replace(/(\p{L})\/(?=\p{L})/gu, '$1\u2060/\u2060');
+}
+
+/**
  * "You averaged 2,100 kcal/day while your trend moved −0.3 kg/wk — so you
  * burn about 2,450 kcal/day." The hero's arithmetic, in the user's unit and
  * locale (sim review 2026-10-06: the hero said only "From your logged intake +
@@ -72,5 +86,5 @@ export function maintenanceBreakdown(
     Math.abs(Math.round(tdee.trueTdee) - Math.round(tdee.measuredTdee)) >= 10
       ? t('trends.breakdownBlended', { kcal: formatNumber(Math.round(tdee.trueTdee), locale) })
       : null;
-  return { line, blended };
+  return { line: keepUnitsTogether(line), blended: blended == null ? null : keepUnitsTogether(blended) };
 }

@@ -54,11 +54,13 @@ const measured: TdeeResult = {
   dailyDeficitAchieved: 400,
 };
 
+let mockTdee: TdeeResult = measured;
+
 jest.mock('@/hooks/useDailyTargets', () => ({
   useDailyTargets: () => ({
     loaded: true,
     error: null,
-    targets: { calorieTarget: 2100, proteinTarget: 150, proteinMinTarget: 150, currentWeight: 190, tdee: measured },
+    targets: { calorieTarget: 2100, proteinTarget: 150, proteinMinTarget: 150, currentWeight: 190, tdee: mockTdee },
   }),
 }));
 
@@ -68,6 +70,7 @@ beforeEach(() => {
   mockSaveTargetMode.mockClear();
   mockBack.mockClear();
   mockProfile = {};
+  mockTdee = measured;
 });
 
 describe('Daily targets editor', () => {
@@ -131,5 +134,22 @@ describe('Daily targets editor', () => {
     const { getByTestId } = await render(<DailyTargetsScreen />);
     await fireEvent.press(getByTestId('targets-mode-custom'));
     expect(getByTestId('targets-kcal').props.value).toBe('2100');
+  });
+
+  it('measured but still settling says so — the state Today calls "Still settling", not "not enough data"', async () => {
+    // S21 simulator QA: Trends said MEASURED, Today "Still settling — 40 of
+    // 79 days logged", and this line "Not enough data to measure your
+    // maintenance yet" — all about the same estimate.
+    mockTdee = { ...measured, reliable: false, trueTdee: 2665, windowDays: 40, spanDays: 79, confidence: 0.8 } as TdeeResult;
+    const { getByTestId } = await render(<DailyTargetsScreen />);
+    expect(getByTestId('targets-measured').props.children).toBe(
+      'Measured from your logs at about 2,665 kcal — still settling (40 of 79 days logged).',
+    );
+  });
+
+  it('says "not enough data" only when nothing is measured', async () => {
+    mockTdee = { trueTdee: 2400, newDailyTarget: 1900, source: 'formula' } as unknown as TdeeResult;
+    const { getByTestId } = await render(<DailyTargetsScreen />);
+    expect(getByTestId('targets-measured').props.children).toBe('Not enough data to measure your maintenance yet.');
   });
 });

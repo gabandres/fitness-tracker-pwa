@@ -92,16 +92,20 @@ export function domainOf(
  */
 export function niceTicks(
   d: Domain,
-  opts: { floor?: number; maxIntervals?: number } = {},
+  /** `steps`: the mantissa ladder, default 1 / 2 / 2.5 / 5. A body-weight
+   *  axis passes 1 / 2 / 5 — 0.5, 1, 2, 5, 10 — because "177.5 / 180 / 182.5"
+   *  is the unround axis it replaced. */
+  opts: { floor?: number; maxIntervals?: number; steps?: readonly number[] } = {},
 ): { min: number; max: number; ticks: number[] } {
   const maxIntervals = opts.maxIntervals ?? 4;
+  const steps = opts.steps ?? [1, 2, 2.5, 5];
   const span = d.max - d.min;
   if (!(span > 0) || !Number.isFinite(span)) return { min: d.min, max: d.max, ticks: [d.min, d.max] };
   // Strip float dust (0.1 × 3 = 0.30000000000000004) so a label never prints it.
   const clean = (v: number) => Number(v.toPrecision(12));
   const exp = Math.floor(Math.log10(span / maxIntervals));
   for (let e = exp - 1; e <= exp + 2; e++) {
-    for (const m of [1, 2, 2.5, 5]) {
+    for (const m of steps) {
       // 0.25 would need a second decimal the one-decimal labels do not print.
       if (m === 2.5 && e < 0) continue;
       const step = m * Math.pow(10, e);
@@ -265,7 +269,8 @@ export interface LabelBox {
  * above, right below, left above, left below — are scored by how many points
  * fall inside each box, and the emptiest wins (ties keep that order, so an
  * empty chart reads exactly as before). `points` are in plot coordinates;
- * `minLeft` keeps the left candidates out of the tick gutter.
+ * `minLeft` keeps the left candidates out of the tick gutter. A candidate the
+ * edge clamp would push onto the line itself loses to any that does not.
  */
 export function placeRefLabel(opts: {
   refY: number;
@@ -290,10 +295,15 @@ export function placeRefLabel(opts: {
   ];
   const inside = (b: LabelBox, p: { x: number; y: number }) =>
     p.x >= b.left - pad && p.x <= b.left + b.width + pad && p.y >= b.top - pad && p.y <= b.top + b.height + pad;
+  // A box the edge clamp pushed back ACROSS the line it names is never a
+  // choice while one exists on the other side: a target near the top of the
+  // domain (protein 145 on a 0–150 axis) clamped "above" to the plot's top
+  // and printed the label on the dotted line (S21 simulator QA).
+  const straddles = (b: LabelBox) => refY > b.top + 1 && refY < b.top + b.height - 1;
   let best = candidates[0];
   let bestScore = Infinity;
   for (const b of candidates) {
-    let score = 0;
+    let score = straddles(b) ? 10_000 : 0;
     for (const p of points) if (inside(b, p)) score++;
     for (const p of heavy) if (inside(b, p)) score += 100;
     if (score < bestScore) {
