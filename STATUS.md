@@ -84,14 +84,14 @@ Re-derive rather than trust this line: `git log --oneline` against the newest
 OTA row in `apps/mobile/docs/fingerprint-ledger.md`, and
 `node scripts/app-version-sync.mjs --check` for the live store numbers.
 
-**The thing that will still look like a fault (ADR-0040, shipped 2026-09-16).**
-An existing template opens showing its set structure as **Auto** with all three
-add-buttons, not as `myo-reps`; and every clustered lift reads "Calibrating —
-0 of 3 valid sessions logged" and makes no load call until three valid reads
-accumulate at one load. Both are the ADRs working: absence means "infer with
-the pre-0040 rule", and the band is derived per lift with the owner's 706
-pre-cutoff sets excluded by design. **If this row is still here after the owner
-has trained three times, delete it — it is a prediction, and it expires.**
+**Progression rules (ADR-0044, 2026-10-07) are merged and NOT delivered.**
+The derived band and "Calibrating — n of 3" are gone; every lift gets a call
+from its rep range. **Deploy `firestore:rules` BEFORE the OTA** — the catalog's
+new lift fields and the three Training settings are rejected by the live rules
+(rules specs pass, 793). Until the OTA, the live app's template editor drops
+`loadLog` and cluster labels on save (the L/R calf labels written 2026-10-07).
+The owner's volume gate (154 lb) is NOT written yet: a profile key the live
+rules reject would block every later profile write — set it after the deploy.
 
 **`drop` and `superset` are the only unread structures left, and they are NOT
 the next cheap thing.** `hit` was, and it shipped. `drop` needs within-set load

@@ -4,6 +4,32 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-10-07 — Progression engine: rep ranges, predicted loads, apply-to-template (ADR-0044); recomp labels; owner data
+
+- **Engine (core):** the myo-reps path reads a rep range per lift (category
+  default or override) on effective reps, increases only when Epley predicts
+  the next real step lands at or above `min`, builds to max + 5 then offers a
+  technique, drops back after a failed increase, and flags stalls with a
+  checklist. Validity now also fails a load change inside a cluster. New
+  `progression-apply.ts` (proposals, `loadLog`, auto-apply gate) and
+  `volumeCalls` (+1 cluster max, never in a cut). Backtest:
+  `scripts/progression-backtest-2026-10-07.mts`.
+- **Mobile:** card shows load / "Target: ≥ N" / reason; finish sheet lists
+  every call with Apply-to-template + per-lift toggles; Settings → Training
+  (phase, auto-apply off by default, volume gate); Lift settings carries the
+  per-lift config; exercise history lists load moves (engine vs you); cluster
+  labels (L/R). Fixed: Accept on a card did nothing over template-seeded loads.
+- **Recomp card:** hedged headline is "Possible recomposition" and gates on the
+  printed interval; both tape counts come from one `tapeDays()`.
+- **Owner data — APPLIED 2026-10-07 on the owner's go**
+  (`scripts/owner-data-2026-10-07.mts`, re-run reads "Nothing to do"): deleted
+  `dailyWeights/2026-10-06` (154.4, an in-app Body save at 08:16 — usage
+  `weight_logged` 1 that day; not the Health import); Leg Day Smith 15→30,
+  RDL 20→35, leg extension / leg curl 80→90, calf clusters labelled L/R;
+  Pull Day pulldown 80→90, incline curl 20→15; leg extension / curl steps
+  [70, 80, 90]. 10/7 breakfast SKIPPED (one existed, 640 / 73 at 9:30).
+- **Not deployed:** `firestore:rules` and the OTA are owner steps (STATUS §2).
+
 ## 2026-10-07 — Logged rows keep their gram weight; native segmented controls (1.2.6: iOS build 70, Android vc 50)
 
 - **Why**: two §S21 items the owner called today. A food logged at a weight

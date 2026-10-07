@@ -6,11 +6,16 @@ import Animated from 'react-native-reanimated';
 import { SheetTextInput } from '@/components/SheetTextInput';
 import {
   type ActivationFinding,
+  type Recommendation,
+  type TemplateLoadChange,
+  applyTemplateChanges,
   bodyWeightUnit,
   checkWeightEntry,
+  finishProgression,
   finishSummary,
   formatLoad,
   parseWeightToLb,
+  proposeTemplateChanges,
   sessionActivationIssues,
   weightBoundsFor,
 } from '@macrolog/core';
@@ -19,7 +24,7 @@ import { useDoneKeyProps } from '@/components/KeyboardBar';
 import { confirm } from '@/components/ConfirmSheet';
 import { showToast } from '@/components/Toast';
 import type { TrainState } from '@/hooks/useTrain';
-import type { WorkoutSession } from '@/lib/workout';
+import type { TemplateExercise, WorkoutSession, WorkoutTemplate } from '@/lib/workout';
 import { useLocale, useT } from '@/i18n';
 import { plural } from '@/i18n/grammar';
 import { announce } from '@/lib/a11y';
@@ -30,8 +35,9 @@ import { recordPositiveMoment } from '@/lib/reviewPrompt';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { useUnitSystem } from '@/lib/use-unit-system';
 import { numOrUndef } from './train-shared';
-import { activationIssueKey } from './train-summary';
+import { type FinishCall, activationIssueKey, finishCalls } from './train-summary';
 import { createStyles } from './train-styles';
+import { reasonText, recommendationText } from './recommendation-text';
 
 /**
  * Finish a workout: what it was (time, volume, sets, records, and how it
@@ -43,6 +49,14 @@ import { createStyles } from './train-styles';
  * resolves as soon as the finish is recorded on the device. It resolves
  * `false` only when that failed too, and then the sheet stays up with the
  * typed values and an error line, and Complete is the retry.
+ *
+ * "Next session" (2026-10-07) lists the engine's call for every lift that has
+ * one, read with this workout counted as the newest: the call, the new load,
+ * the reps to expect and the reason. When the session came from a template,
+ * the calls that would move its load can be applied — all of them, or the
+ * ones left switched on. With "Auto-apply progression" on they are applied
+ * at Complete instead, and the sheet says so; with it off the template never
+ * moves without the tap.
  */
 export function FinishSheet({
   visible,
@@ -51,12 +65,28 @@ export function FinishSheet({
   onFinish,
   onClose,
   invalid,
+  calls = [],
+  proposed = [],
+  templateName = null,
+  autoApply = false,
+  onApply,
 }: {
   visible: boolean;
   session: WorkoutSession;
   recentSessions: readonly WorkoutSession[];
-  /** Lifts whose activation could not be read. Reported, never blocking. */
+  /** Lifts whose activation could not be read. Reported, never blocking. A
+   *  lift that also has a call below is reported there, once. */
   invalid: ActivationFinding[];
+  /** The engine's call per lift, from the history including this session. */
+  calls?: FinishCall[];
+  /** The template moves those calls imply (empty without a template). */
+  proposed?: TemplateLoadChange[];
+  /** The template the session came from, when it still exists. */
+  templateName?: string | null;
+  /** The lifter's "Auto-apply progression": applied at Complete, no button. */
+  autoApply?: boolean;
+  /** Apply these changes to the template now. Resolves false on failure. */
+  onApply?: (changes: TemplateLoadChange[]) => Promise<boolean>;
   /** Resolves `false` when the save failed and the sheet should stay open. */
   onFinish: (extras: { bodyweight?: number; sleepHours?: number }) => Promise<boolean | void> | boolean | void;
   onClose: () => void;
@@ -75,6 +105,10 @@ export function FinishSheet({
   const [busy, setBusy] = useState(false);
   const [weightErr, setWeightErr] = useState('');
   const [saveErr, setSaveErr] = useState('');
+  // Per-lift Apply toggles (default on) and what has been applied this opening.
+  const [off, setOff] = useState<ReadonlySet<string>>(() => new Set());
+  const [applied, setApplied] = useState<ReadonlySet<string>>(() => new Set());
+  const [applying, setApplying] = useState(false);
   // The clock the summary is read at, taken when the sheet opens: a duration
   // that ticks while you decide whether to add your body weight is noise.
   const [openedAt, setOpenedAt] = useState(() => Date.now());
@@ -88,8 +122,34 @@ export function FinishSheet({
       setWeightErr('');
       setSaveErr('');
       setOpenedAt(Date.now());
+      setOff(new Set());
+      setApplied(new Set());
+      setApplying(false);
     }
   }, [visible]);
+
+  const changeFor = useMemo(() => new Map(proposed.map((c) => [c.exerciseId, c])), [proposed]);
+  // A lift with a call is reported in the call list; the old block keeps
+  // only the findings for lifts the engine had nothing to say about.
+  const called = useMemo(() => new Set(calls.map((c) => c.exerciseId)), [calls]);
+  const invalidRest = invalid.filter((f) => !called.has(f.exerciseId));
+  const pending = proposed.filter((c) => !applied.has(c.exerciseId));
+  const selected = pending.filter((c) => !off.has(c.exerciseId));
+  const canApply = templateName != null && !autoApply && onApply != null;
+
+  async function apply() {
+    if (!onApply || applying || selected.length === 0) return;
+    setApplying(true);
+    try {
+      const ok = await onApply(selected);
+      if (ok) {
+        haptics.success();
+        setApplied((cur) => new Set([...cur, ...selected.map((c) => c.exerciseId)]));
+      }
+    } finally {
+      setApplying(false);
+    }
+  }
 
   const summary = useMemo(
     () => finishSummary(session, recentSessions, openedAt),
@@ -250,12 +310,61 @@ export function FinishSheet({
           </View>
         ) : null}
 
-        {invalid.length > 0 ? (
+        {calls.length > 0 ? (
+          <View testID="finish-calls">
+            <Text style={styles.invalidHeading} accessibilityRole="header">{t('train.rec.finish.heading')}</Text>
+            {calls.map((c) => (
+              <FinishCallRow
+                key={c.exerciseId}
+                call={c}
+                change={changeFor.get(c.exerciseId)}
+                toggle={canApply && changeFor.has(c.exerciseId) && !applied.has(c.exerciseId)}
+                on={!off.has(c.exerciseId)}
+                applied={applied.has(c.exerciseId)}
+                onToggle={() =>
+                  setOff((cur) => {
+                    const next = new Set(cur);
+                    if (next.has(c.exerciseId)) next.delete(c.exerciseId);
+                    else next.add(c.exerciseId);
+                    return next;
+                  })
+                }
+              />
+            ))}
+            {calls.some((c) => c.rec.action === 'repeat-invalid') ? (
+              <Text style={styles.invalidHint}>{t('train.invalidHint')}</Text>
+            ) : null}
+            {templateName != null && autoApply && proposed.length > 0 ? (
+              <Text style={styles.sheetHint} testID="finish-auto-apply">
+                {t('train.rec.finish.auto', { template: templateName })}
+              </Text>
+            ) : null}
+            {canApply && pending.length > 0 ? (
+              <Touchable
+                style={[styles.callApplyBtn, (selected.length === 0 || applying) && styles.btnDisabled]}
+                onPress={apply}
+                disabled={selected.length === 0 || applying}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: selected.length === 0 || applying, busy: applying }}
+                testID="finish-apply"
+              >
+                <Text style={styles.callApplyText}>{t('train.rec.finish.apply', { n: selected.length })}</Text>
+              </Touchable>
+            ) : null}
+            {templateName != null && applied.size > 0 ? (
+              <Text style={styles.callApplied} testID="finish-applied">
+                {t('train.rec.finish.applied', { template: templateName })}
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
+
+        {invalidRest.length > 0 ? (
           <View style={styles.invalidBox} testID="finish-invalid-activations">
             <Ionicons name="information-circle-outline" size={18} color={colors.muted} />
             <View style={{ flex: 1 }}>
               <Text style={styles.invalidHeading}>{t('train.invalidHeading')}</Text>
-              {invalid.map((f) => (
+              {invalidRest.map((f) => (
                 <Text key={f.exerciseId} style={styles.invalidRow}>
                   <Text style={styles.invalidName}>{f.name}</Text>
                   {' — '}
@@ -360,12 +469,96 @@ export function FinishSheet({
 }
 
 /**
+ * One lift's call on the finish sheet: name and headline ("35 lb ·
+ * INCREASE"), the rep target, what to expect at a new load, the reason, and —
+ * when the call would move the template — the move itself with its toggle.
+ */
+function FinishCallRow({
+  call,
+  change,
+  toggle,
+  on,
+  applied,
+  onToggle,
+}: {
+  call: FinishCall;
+  change?: TemplateLoadChange;
+  /** Offer the per-lift Apply toggle. */
+  toggle: boolean;
+  on: boolean;
+  applied: boolean;
+  onToggle: () => void;
+}) {
+  const t = useT();
+  const unitSystem = useUnitSystem();
+  const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
+  const text = recommendationText(call.rec, unitSystem, t);
+  if (!text) return null;
+  const moves = text.call === 'increase' || text.call === 'drop';
+  const fmt = (lb: number) => formatLoad(lb, unitSystem);
+  return (
+    <View style={styles.callRow} testID={`finish-call-${call.exerciseId}`}>
+      <View style={styles.callMain}>
+        <View style={styles.callHead}>
+          <Text style={styles.callName}>{call.name}</Text>
+          <Text style={[styles.callChip, moves && styles.callChipMove]} testID={`finish-call-${call.exerciseId}-headline`}>
+            {text.headline}
+          </Text>
+        </View>
+        {text.target ? <Text style={styles.recTarget}>{text.target}</Text> : null}
+        {text.expect ? <Text style={styles.recNote}>{text.expect}</Text> : null}
+        <Text style={styles.recReason}>{text.reason}</Text>
+        {text.stall.length > 0 ? <Text style={styles.recNote}>{text.stall[0]}</Text> : null}
+        {change ? (
+          <Text style={styles.recNote} testID={`finish-change-${call.exerciseId}`}>
+            {change.from != null
+              ? t('train.rec.finish.change', { from: fmt(change.from), to: fmt(change.to) })
+              : t('train.rec.finish.changeNew', { to: fmt(change.to) })}
+          </Text>
+        ) : null}
+      </View>
+      {toggle ? (
+        <Touchable
+          style={styles.callToggle}
+          onPress={onToggle}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: on }}
+          accessibilityLabel={t('train.rec.finish.toggleA11y', { name: call.name })}
+          testID={`finish-toggle-${call.exerciseId}`}
+        >
+          <Ionicons name={on ? 'checkbox' : 'square-outline'} size={22} color={on ? colors.teal : colors.faint} />
+        </Touchable>
+      ) : applied ? (
+        <View style={styles.callToggle}>
+          <Ionicons name="checkmark-circle" size={22} color={colors.teal} />
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/** The template draft `saveTemplate` writes: the whole doc minus its id and
+ *  stamps, with `exercises` replaced whole — `loadLog` included, since the
+ *  write is a full overwrite of the array. */
+function templateDraftWith(tpl: WorkoutTemplate, exercises: TemplateExercise[]) {
+  const { id: _id, createdAt: _c, updatedAt: _u, ...draft } = tpl;
+  return { ...draft, exercises };
+}
+
+/**
  * The Finish sheet as the SCREEN mounts it, wired to the hook.
  *
  * Owned by the screen rather than by `ActiveSession` because finishing
  * unmounts the session, and a native sheet has to be closed by an owner that
  * is still mounted. It holds the last live session while it closes, so its
  * content does not blank mid-animation.
+ *
+ * It also owns the engine's calls at the finish boundary: computed here with
+ * the session counted as the newest completed one, applied to the template
+ * through the hook's `saveTemplate` (the same path the rest picker's "Keep
+ * for this lift" writes) — on the Apply tap, or at Complete when the lifter
+ * has auto-apply on. Never otherwise.
  */
 export function TrainFinishSheet({
   train,
@@ -373,13 +566,15 @@ export function TrainFinishSheet({
   onClose,
   onShare,
 }: {
-  train: Pick<TrainState, 'active' | 'editingExisting' | 'templates' | 'recentSessions' | 'finishWorkout'>;
+  train: Pick<TrainState, 'active' | 'editingExisting' | 'templates' | 'recentSessions' | 'finishWorkout'>
+    & Partial<Pick<TrainState, 'catalog' | 'saveTemplate' | 'trainingPhase' | 'autoApplyProgression'>>;
   visible: boolean;
   onClose: () => void;
   /** Share the workout just finished — offered on the "Workout saved" receipt. */
   onShare?: (session: WorkoutSession) => void;
 }) {
   const t = useT();
+  const unitSystem = useUnitSystem();
   const live = train.active && !train.editingExisting ? train.active : null;
   // What the sheet shows, followed ONLY while it is open. This component is
   // mounted for the whole live session, and `train.active` is a new object on
@@ -407,21 +602,50 @@ export function TrainFinishSheet({
   const session = held?.session ?? null;
   const recentSessions = held?.recent;
   const templates = held?.templates;
+  const template = session && templates ? templates.find((tpl) => tpl.id === session.templateId) ?? null : null;
   // Lifts whose activation set cannot be read as a progression input. Judged
   // against the template the session was STARTED from, which is the only way
   // "logged as straight sets where a cluster was prescribed" is detectable —
   // the session alone carries no prescription. An ad-hoc session (no template)
   // still gets the RIR checks, just not that one.
   const invalid = useMemo(
-    () =>
-      session && templates
-        ? sessionActivationIssues(
-            session.exercises,
-            templates.find((tpl) => tpl.id === session.templateId) ?? null,
-          )
-        : [],
-    [session, templates],
+    () => (session ? sessionActivationIssues(session.exercises, template) : []),
+    [session, template],
   );
+  const catalog = train.catalog;
+  const phase = train.trainingPhase ?? 'cut';
+  const calls = useMemo(
+    () =>
+      session && recentSessions
+        ? finishCalls({ session, recentSessions, catalog: catalog ?? [], template, phase, now: session.date.getTime() })
+        : [],
+    [session, recentSessions, catalog, template, phase],
+  );
+  const recs = useMemo(() => new Map<string, Recommendation>(calls.map((c) => [c.exerciseId, c.rec])), [calls]);
+  // The sentence the lifter read is the one the template's `loadLog` keeps.
+  const reasonFor = (rec: Recommendation) => reasonText(rec, unitSystem, t);
+  const proposed = useMemo(
+    () => (template ? proposeTemplateChanges(template.exercises, recs, reasonFor) : []),
+    // `reasonFor` closes over `t` and the unit only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [template, recs, t, unitSystem],
+  );
+  const autoApply = train.autoApplyProgression === true;
+  const canWrite = template?.id != null && train.saveTemplate != null;
+
+  /** Write a template's rows whole; false (and a toast) when it did not land. */
+  async function writeRows(tpl: WorkoutTemplate, rows: TemplateExercise[]): Promise<boolean> {
+    if (!tpl.id || !train.saveTemplate) return false;
+    try {
+      await train.saveTemplate(templateDraftWith(tpl, rows), tpl.id);
+      return true;
+    } catch {
+      haptics.warning();
+      showToast(t('train.rec.finish.applyErr'), { testID: 'train-toast' });
+      return false;
+    }
+  }
+
   if (!session || !recentSessions) return null;
   return (
     <FinishSheet
@@ -434,6 +658,16 @@ export function TrainFinishSheet({
       // Never gates the save: an unreadable set is still training that
       // happened, and refusing to store it would lose the evidence.
       invalid={invalid}
+      calls={calls}
+      proposed={canWrite ? proposed : []}
+      templateName={canWrite ? template?.name ?? null : null}
+      autoApply={autoApply}
+      onApply={(changes) => {
+        // The template as it stands NOW, not as the sheet opened on it.
+        const tpl = train.templates.find((x) => x.id === session.templateId);
+        if (!tpl) return Promise.resolve(false);
+        return writeRows(tpl, applyTemplateChanges(tpl.exercises, changes, { at: new Date(), by: 'engine' }));
+      }}
       onFinish={async (extras) => {
         // `finishWorkout` answers `false` when it could not record the
         // finish at all (the hook's boolean contract); a legacy void resolve
@@ -441,6 +675,21 @@ export function TrainFinishSheet({
         // values, says so, and does NOT spend a rating prompt.
         const ok: unknown = await train.finishWorkout(extras);
         if (ok === false) return false;
+        // Auto-apply: the one path that moves a template without a tap, and
+        // only because the lifter turned it on. `finishProgression` returns
+        // `applied: null` with it off — the template is left exactly as it is.
+        const tpl = canWrite ? train.templates.find((x) => x.id === session.templateId) : undefined;
+        let updated: string | null = null;
+        if (tpl) {
+          const { applied } = finishProgression({
+            rows: tpl.exercises, recs, autoApply, at: new Date(), reasonFor,
+          });
+          if (applied) {
+            updated = tpl.name;
+            // Behind the receipt, like the finish itself: a refusal toasts.
+            void writeRows(tpl, applied);
+          }
+        }
         onClose();
         haptics.success();
         // A finish recorded offline IS saved — on this phone, until the
@@ -448,8 +697,9 @@ export function TrainFinishSheet({
         // Share rides on the receipt — the moment a finished workout is worth
         // showing someone, and the one place it costs nothing to offer.
         const finished = session;
+        const saved = isOffline() ? t('train.savedOnPhone') : t('train.workoutSaved');
         showToast(
-          isOffline() ? t('train.savedOnPhone') : t('train.workoutSaved'),
+          updated ? `${saved} · ${t('train.rec.finish.updated', { template: updated })}` : saved,
           onShare
             ? { action: { label: t('train.share'), onPress: () => onShare(finished) }, testID: 'train-toast' }
             : undefined,

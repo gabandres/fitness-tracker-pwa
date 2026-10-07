@@ -49,4 +49,20 @@ describe('loadTargetIndices — one rule for the accept and the bump chip', () =
       ]),
     ).toEqual([1, 2, 5]);
   });
+
+  it('also names sets still holding the seeded template load (10/6: Accept did nothing)', () => {
+    expect(
+      loadTargetIndices(
+        [
+          { kind: 'activation', weight: 30 },
+          { kind: 'mini', weight: 30 },
+          { kind: 'mini', weight: 27.5 },
+          { kind: 'activation', weight: 30, reps: 8, done: true },
+          { kind: 'warmup', weight: 30 },
+          { kind: 'mini' },
+        ],
+        30,
+      ),
+    ).toEqual([0, 1, 5]);
+  });
 });

@@ -57,6 +57,7 @@ import {
   type SetKind,
   type TemplateDraft,
   type TemplateExercise,
+  type TrainingPhase,
   type WorkoutSession,
   type WorkoutTemplate,
   dropEmptySets,
@@ -117,6 +118,13 @@ export interface TrainState {
    */
   activePending: boolean;
   saving: boolean;
+  /** The diet phase the volume rules read (profile `trainingPhase`; absent →
+   *  `cut`, where no cluster is ever added). */
+  trainingPhase: TrainingPhase;
+  /** Apply the engine's calls to the template on finish without a tap
+   *  (profile `autoApplyProgression`; absent → false — a template is never
+   *  changed silently). Read by the finish sheet; set in Settings. */
+  autoApplyProgression: boolean;
   /** Dismiss the current error (the screen's Retry/close on a save error). */
   clearError: () => void;
   /** Begin a new empty active session. LOCAL-FIRST since 2026-10-04: the id
@@ -1189,6 +1197,11 @@ export function useTrain(): TrainState {
 
   const clearError = useCallback(() => setErrorState(null), []);
 
+  // Two profile reads, as values: the memo below then moves only when one of
+  // them does, not on every profile write.
+  const trainingPhase: TrainingPhase = profile?.trainingPhase ?? 'cut';
+  const autoApplyProgression = profile?.autoApplyProgression === true;
+
   // ONE object per change, not per render. Every screen component used to
   // receive a fresh `train` on each render of the tab, so nothing below it
   // could memoize — `TemplateNextSession`'s `useMemo([train, template])` never
@@ -1206,6 +1219,8 @@ export function useTrain(): TrainState {
       active,
       activePending,
       saving,
+      trainingPhase,
+      autoApplyProgression,
       startWorkout,
       startFromTemplate,
       startCardioWorkout,
@@ -1234,6 +1249,7 @@ export function useTrain(): TrainState {
     }),
     [
       loading, error, errorKind, clearError, catalog, templates, recentSessions, active, activePending, saving,
+      trainingPhase, autoApplyProgression,
       startWorkout, startFromTemplate, startCardioWorkout, saveTemplate, deleteTemplate,
       cloneStarterTemplate, addCatalogExercise, addLibraryExercise, addLibraryExerciseToActive, addManyToActive,
       editCatalogExercise, deleteCatalogExercise, mergeCatalogExercises, addExerciseToActive,

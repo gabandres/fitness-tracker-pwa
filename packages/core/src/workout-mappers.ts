@@ -43,6 +43,15 @@ export function toWorkoutExercise(id: string, data: Record<string, unknown>): Ex
     assisted: data['assisted'] as boolean | undefined,
     effortStandard: data['effortStandard'] as Exercise['effortStandard'],
     targetRepBand: data['targetRepBand'] as Exercise['targetRepBand'],
+    // Read since 2026-10-07. `setStructure` was written by the catalog editor
+    // since ADR-0040 but never mapped back, so the catalog default was
+    // invisible to every reader.
+    setStructure: data['setStructure'] as Exercise['setStructure'],
+    category: data['category'] as Exercise['category'],
+    repRange: data['repRange'] as Exercise['repRange'],
+    smithBarEffectiveLb: data['smithBarEffectiveLb'] as number | undefined,
+    loadable: data['loadable'] as boolean | undefined,
+    microplates: data['microplates'] as boolean | undefined,
     createdAt: toDate(data['createdAt']),
   };
 }

@@ -306,9 +306,20 @@ service cloud.firestore {
       // catalog-level default for templates that do not state one. Optional
       // and absent on every doc written before 2026-09-16; absent means the
       // engine infers with the pre-0040 rule, so nothing is backfilled.
+      // The rewritten engine's per-lift configuration (2026-10-07): the
+      // lifter's `category` (absent = inferred from the name), a `repRange`
+      // override of the category default ({min, max} whole reps, the same
+      // 1..100 bound as `isValidRepRange` in progression-engine.ts), a Smith
+      // machine's `smithBarEffectiveLb` (absent = predictions approximate),
+      // `loadable` (a bodyweight lift that can take added load) and
+      // `microplates`. All optional; absent on every doc written before then.
+      // `targetRepBand` is RETIRED — the engine no longer reads it — but stays
+      // allowed so a doc that already carries one can still be updated.
       return data.keys().hasOnly(['name', 'muscles', 'defaultCues', 'logStyle', 'seedKey',
                                   'availableLoads', 'assisted', 'effortStandard',
-                                  'targetRepBand', 'setStructure', 'createdAt'])
+                                  'targetRepBand', 'setStructure', 'category',
+                                  'repRange', 'smithBarEffectiveLb', 'loadable',
+                                  'microplates', 'createdAt'])
           && data.keys().hasAll(['name', 'createdAt'])
           && data.name is string && data.name.size() > 0 && data.name.size() <= 100
           && data.createdAt is timestamp
@@ -338,7 +349,24 @@ service cloud.firestore {
                && data.targetRepBand.holdLo >= 1
                && data.targetRepBand.holdLo <= data.targetRepBand.holdHi
                && data.targetRepBand.holdHi <= data.targetRepBand.addLoadAt
-               && data.targetRepBand.addLoadAt <= 100));
+               && data.targetRepBand.addLoadAt <= 100))
+          && (!('category' in data.keys()) ||
+              (data.category in ['compound', 'isolation', 'core', 'bodyweight']))
+          && (!('repRange' in data.keys()) ||
+              (data.repRange is map
+               && data.repRange.keys().hasOnly(['min', 'max'])
+               && data.repRange.keys().hasAll(['min', 'max'])
+               && data.repRange.min is int
+               && data.repRange.max is int
+               && data.repRange.min >= 1
+               && data.repRange.min <= data.repRange.max
+               && data.repRange.max <= 100))
+          && (!('smithBarEffectiveLb' in data.keys()) ||
+              (data.smithBarEffectiveLb is number
+               && data.smithBarEffectiveLb >= 0
+               && data.smithBarEffectiveLb <= 200))
+          && (!('loadable' in data.keys()) || data.loadable is bool)
+          && (!('microplates' in data.keys()) || data.microplates is bool);
     }
 
     // `cardioBlocks` is the PRESCRIPTION half of ADR-0025 — cardio a template
@@ -552,7 +580,12 @@ service cloud.firestore {
               // pinned immutable to clients on the update rule below, because a
               // user who could set it would silently remove themselves from
               // every cohort this project measures.
-              'syntheticAccount'
+              'syntheticAccount',
+              // Training settings (progression engine, 2026-10-07), written
+              // from Settings → Training, which only a completed profile
+              // reaches — so these are NOT listed on the Initial branch.
+              // Absent means cut / auto-apply off / no volume gate.
+              'trainingPhase', 'autoApplyProgression', 'volumeGateLb'
           ])
           && hasProfileBase(data)
           && data.profileCompleted == true
@@ -677,7 +710,17 @@ service cloud.firestore {
               (data.dayBoundary is list
                && data.dayBoundary.size() <= 24))
           && (!('syntheticAccount' in keys) ||
-              data.syntheticAccount is bool);
+              data.syntheticAccount is bool)
+          && (!('trainingPhase' in keys) ||
+              data.trainingPhase in ['cut', 'maintenance', 'bulk'])
+          && (!('autoApplyProgression' in keys) ||
+              data.autoApplyProgression is bool)
+          // Body weight in lb, the weigh-in sanity band widened to a gate
+          // somebody could actually set.
+          && (!('volumeGateLb' in keys) ||
+              (data.volumeGateLb is number
+               && data.volumeGateLb >= 50
+               && data.volumeGateLb <= 1000));
     }
 
     function isValidProfile(data) {

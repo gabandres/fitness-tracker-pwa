@@ -957,4 +957,72 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
     paddingVertical: space.sm,
   },
   auditLineText: { fontSize: font.small, color: colors.muted, flex: 1 },
+
+  // ── Progression engine, rep-range rules (2026-10-07) ──
+  // "Target: ≥ N reps" is the number the lifter aims at between sets, so it
+  // reads in ink beside the muted reason; the expectation and the notes
+  // (approximate, guessed step, techniques) are qualifiers and sit smaller.
+  recTarget: { fontSize: font.small, color: colors.ink, fontWeight: '700' },
+  recNote: { fontSize: font.tiny, color: colors.muted, lineHeight: font.tiny * 1.4 },
+  // Finish sheet: one row per lift with a call, toggle on the right when the
+  // call would move the template's load.
+  callRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: space.sm,
+    paddingVertical: space.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
+  },
+  callMain: { flex: 1, gap: 2 },
+  callHead: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: space.xs },
+  callName: { fontSize: font.small, color: colors.ink, fontWeight: '700' },
+  callChip: {
+    fontSize: font.tiny,
+    color: colors.muted,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  callChipMove: { color: colors.ink },
+  callToggle: { minWidth: TARGET, minHeight: TARGET, alignItems: 'center', justifyContent: 'center' },
+  callApplied: { fontSize: font.small, color: colors.teal, fontWeight: '700' },
+  // The Apply button: the session's secondary action, outlined so Complete
+  // stays the one filled button on the sheet.
+  callApplyBtn: {
+    alignSelf: 'flex-start',
+    minHeight: TARGET,
+    justifyContent: 'center',
+    paddingHorizontal: space.lg,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.lineStrong,
+    marginTop: space.xs,
+  },
+  callApplyText: { fontSize: font.small, color: colors.ink, fontWeight: '700' },
+  // ── Lift settings: the per-lift configuration sheet (2026-10-07) ──
+  liftToggleRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, marginTop: space.md },
+  liftToggleText: { flex: 1, gap: 2 },
+  liftToggleLabel: { fontSize: font.body, color: colors.ink, fontWeight: '600' },
+  // "What the engine uses": read-only, so a quiet inset rather than a card.
+  liftEffective: {
+    marginTop: space.md,
+    gap: 2,
+    padding: space.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.inputBg,
+  },
+  liftEffectiveLine: { fontSize: font.small, color: colors.ink, lineHeight: font.small * 1.4 },
+  // Template editor: the lift-settings entry on an open card, and a cluster's
+  // label field under its first row.
+  tplLiftBtn: { flexDirection: 'row', alignItems: 'center', gap: space.xs, alignSelf: 'flex-start', minHeight: TARGET },
+  tplClusterLabelRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingLeft: space.xl },
+  tplClusterLabelInput: { width: 72, textAlign: 'center', paddingVertical: space.xs },
+  // Exercise history: the template's load log, one move per row.
+  loadLogRow: { gap: 2, paddingVertical: space.sm, borderBottomWidth: 1, borderBottomColor: colors.line },
+  loadLogHead: { flexDirection: 'row', gap: space.md },
+  loadLogMove: { flex: 1, fontSize: font.small, color: colors.ink, fontWeight: '700' },
+  loadLogMeta: { fontSize: font.tiny, color: colors.muted },
+  // The volume panel's phase and volume-call lines, under the cluster chips.
+  volumeLine: { fontSize: font.small, color: colors.ink },
+  volumeNote: { fontSize: font.small, color: colors.muted },
 });

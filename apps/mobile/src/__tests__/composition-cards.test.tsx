@@ -20,6 +20,9 @@ import { NumbersGlossary } from '@/components/NumbersGlossary';
 import { fireEvent, waitFor } from '@testing-library/react-native';
 import { setTapeReminder } from '@/lib/reminders';
 import { FEATURES, isFeatureOn } from '@/lib/features';
+import { en } from '@/i18n/en';
+import { esPR } from '@/i18n/es-PR';
+import { ptBR } from '@/i18n/pt-BR';
 
 /**
  * ADR-0043 surfaces. The copy rules are the point: the composition number is
@@ -125,7 +128,9 @@ describe('RecompCard', () => {
 
   it('inside tape noise the headline hedges, so it agrees with its own caveat', async () => {
     const screen = await render(<RecompCard signal={signal} unitSystem="us" lastTapeAt={null} />);
-    expect(screen.getByTestId('recomp-class').props.children).toBe('Possible recomposition: waist down, weight stable');
+    // The interval (−0.24 ± 0.34) crosses zero, so the headline names no
+    // direction — not "waist down, weight stable".
+    expect(screen.getByTestId('recomp-class').props.children).toBe('Possible recomposition');
     expect(screen.getByTestId('recomp-slopes').props.children).toBe(
       'Weight −0.13 lb/wk · Waist −0.24 ± 0.34 in per 4 wk · 3 tapes in the last 42 days',
     );
@@ -138,6 +143,14 @@ describe('RecompCard', () => {
     );
     expect(screen.getByTestId('recomp-class').props.children).toBe('Recomposition signal: waist down, weight stable');
     expect(screen.queryByTestId('recomp-noise')).toBeNull();
+  });
+
+  it('the hedged recomp headline claims no waist direction in any locale', () => {
+    expect([en, esPR, ptBR].map((d) => d['recomp.clsPossible.recomp'])).toEqual([
+      'Possible recomposition',
+      'Posible recomposición',
+      'Possível recomposição',
+    ]);
   });
 
   it('a waist-flat class is not hedged — noise does not contradict "flat"', () => {

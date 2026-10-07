@@ -6,6 +6,7 @@ import {
   computeExercisePRs,
   exerciseSeriesPoints,
   formatLoad,
+  loadChangesFor,
   loadUnit,
   toDisplayLoad,
 } from '@macrolog/core';
@@ -63,7 +64,11 @@ export function ExerciseDetailSheet({
   train: Pick<
     TrainState,
     'recentSessions' | 'catalog' | 'editCatalogExercise' | 'deleteCatalogExercise' | 'mergeCatalogExercises'
-  >;
+  > & {
+    /** Read for the load log. Optional so a caller that never loaded
+     *  templates still renders the rest of the history. */
+    templates?: TrainState['templates'];
+  };
   onClose: () => void;
 }) {
   const t = useT();
@@ -153,6 +158,14 @@ export function ExerciseDetailSheet({
       })()
     : null;
   const prs = computeExercisePRs(history);
+  /**
+   * Every move of this lift's template load, newest first: when it moved,
+   * from what to what, whether the engine or the lifter moved it, why, and in
+   * which template. Read from the `loadLog` each template row carries
+   * (`progression-apply.ts`) — the sessions above say what was LIFTED, this
+   * says what was PLANNED and who changed the plan.
+   */
+  const loadChanges = exercise?.id ? loadChangesFor(train.templates ?? [], exercise.id).reverse() : [];
   const others = exercise ? train.catalog.filter((e) => e.id !== exercise.id) : [];
 
   /** Run one catalog write; a refusal is said, not swallowed. */
@@ -348,6 +361,37 @@ export function ExerciseDetailSheet({
                 ))}
               </>
             )}
+
+            {loadChanges.length > 0 ? (
+              <View testID="exercise-load-log">
+                <Text style={[styles.panelLabel, { marginTop: space.md }]} accessibilityRole="header">
+                  {t('train.loadLog.title')}
+                </Text>
+                {loadChanges.map((c, i) => (
+                  <View key={`${c.at}-${i}`} style={styles.loadLogRow} testID={`exercise-load-change-${i}`}>
+                    <View style={styles.loadLogHead}>
+                      <Text style={styles.detailDate}>
+                        {formatDate(new Date(c.at), locale, { month: 'short', day: 'numeric' })}
+                      </Text>
+                      <Text style={styles.loadLogMove}>
+                        {c.from != null
+                          ? t('train.loadLog.move', { from: formatLoad(c.from, unitSystem), to: formatLoad(c.to, unitSystem) })
+                          : t('train.loadLog.set', { to: formatLoad(c.to, unitSystem) })}
+                      </Text>
+                    </View>
+                    <Text style={styles.loadLogMeta}>
+                      {t('train.loadLog.meta', {
+                        by: t(c.by === 'engine' ? 'train.loadLog.byEngine' : 'train.loadLog.byUser'),
+                        template: c.template,
+                      })}
+                    </Text>
+                    {/* Stored as shown at the time, in the language of the
+                        time — a record, not a key to re-render. */}
+                    {c.reason ? <Text style={styles.loadLogMeta}>{c.reason}</Text> : null}
+                  </View>
+                ))}
+              </View>
+            ) : null}
 
             {readOnly ? null : (
               <View style={styles.manageRow}>

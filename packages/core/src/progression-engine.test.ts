@@ -5,30 +5,35 @@
  * 2026-09-15 (`users/…/workoutSessions`), not invented — the spec lists these
  * dates as the validation cases, and a rule that passes on synthetic clusters
  * and fails on the ones that were actually logged is the failure mode to
- * avoid. ADR-0039 amended the standard: RIR 0 is in band, the rep band is
- * derived per exercise after three valid sessions at one load, and sets
- * flagged legacy are excluded from that derivation.
+ * avoid. ADR-0039 amended the standard (RIR 0 is in band, legacy sets are
+ * excluded), and the 2026-10-07 rules replaced its derived band with a rep
+ * range per lift; the cases named in that spec are pinned below by date.
  */
 import { describe, expect, it } from 'vitest';
 import {
-  BUILD_REPS_EXTRA,
-  CALIBRATION_SESSIONS,
   FIRST_MINI_MAX,
   FIRST_MINI_MIN,
-  INTERVENTION_SESSIONS,
   MAX_JUMP_PCT,
+  REP_CAP_EXTRA,
   STALL_SESSIONS,
-  calibrationFor,
+  SWAP_SESSIONS,
+  type EngineCatalogFields,
   detectStall,
+  effectiveReps,
+  epleyE1rm,
   followedRecommendation,
+  inferCategory,
+  inferEquipment,
   nextLoad,
+  predictedRepsAt,
+  progressionCall,
   readExercise,
   recommend,
   recommendOptionsFor,
-  repBandFrom,
+  resolveEngineConfig,
   toRecommendationSnapshot,
 } from './progression-engine';
-import type { RepBand, SessionExercise, WorkoutSet } from './workout';
+import type { SessionExercise, WorkoutSet } from './workout';
 
 type Row = [group: number, kind: 'activation' | 'mini', reps: number, rir?: number, weight?: number];
 
@@ -57,10 +62,14 @@ const cluster = (g: number, w: number, act: number, rir: number, m1: number, m2:
 ];
 
 const clustered = { expectsCluster: true };
-/** The band the pre-amendment engine hardcoded, as an explicit override:
- *  12 adds load, 10-11 holds, under 10 builds. */
-const BAND_12: RepBand = { addLoadAt: 12, holdLo: 10, holdHi: 11 };
-const banded = { ...clustered, targetRepBand: BAND_12 };
+
+/** Engine options for a named lift, resolved the way the app resolves them. */
+const lift = (name: string, catalog: EngineCatalogFields = {}, incrementLb?: number) =>
+  ({
+    ...clustered,
+    structure: 'myoreps' as const,
+    config: resolveEngineConfig({ name, ...catalog }, incrementLb != null ? { progression: { incrementLb } } : null),
+  });
 
 // ─── Layer 1 — the historical cases the spec names ──────────────
 
@@ -114,6 +123,14 @@ describe('Layer 1 — validity gate on the logged sessions', () => {
     expect(r.load).toBeUndefined();
   });
 
+  it('a load change INSIDE a cluster is a load change too (9/30 hammer curl 20 → 15 → 20); a drop set is not', () => {
+    const hammer = ex([[1, 'activation', 8, 0, 20], [1, 'mini', 3, 0, 15], [1, 'mini', 2, 0, 20]]);
+    expect(readExercise(hammer, clustered)).toMatchObject({ valid: false, issue: 'load-changed' });
+    const withDrop = ex(cluster(1, 15, 11, 0, 4, 3));
+    withDrop.sets.push({ kind: 'drop', weight: 10, reps: 8 });
+    expect(readExercise(withDrop, clustered)).toMatchObject({ valid: true, load: 15 });
+  });
+
   it('the first-mini rule is unchanged: under 2 is too hard, over 5 too easy, 2-5 inclusive is valid', () => {
     expect(readExercise(ex(cluster(1, 50, 8, 0, 1, 1)), clustered).issue).toBe('first-mini-too-few');
     expect(readExercise(ex(cluster(1, 50, 8, 0, 4, 9)), clustered).issue).toBe('mini-exceeds-activation');
@@ -151,293 +168,337 @@ describe('Layer 1 — validity gate on the logged sessions', () => {
   });
 });
 
-// ─── Layer 2a — the band is derived, not hardcoded ──────────────
+// ─── Configuration ──────────────────────────────────────────────
 
-describe('Layer 2a — calibration derives the band from three valid sessions at one load', () => {
-  it('repBandFrom: add at max, hold max-2..max-1', () => {
-    expect(repBandFrom(12)).toEqual({ addLoadAt: 12, holdLo: 10, holdHi: 11 });
-    expect(repBandFrom(8)).toEqual({ addLoadAt: 8, holdLo: 6, holdHi: 7 });
-    expect(repBandFrom(1)).toEqual({ addLoadAt: 1, holdLo: 1, holdHi: 1 });
-    expect(CALIBRATION_SESSIONS).toBe(3);
+describe('per-lift configuration — category, rep range, steps', () => {
+  it('infers the spec\'s categories from the owner\'s lift names', () => {
+    const cat = (n: string) => inferCategory(n);
+    expect(['Smith squat', 'DB Romanian deadlift', 'Seated DB Shoulder Press', 'DB Flat Press', 'Seated Machine Row',
+      'Wide-grip lat pulldown', 'Chest-supported DB row', 'Leg Extensions', 'Leg Curls'].map(cat))
+      .toEqual(Array(9).fill('compound'));
+    expect(['DB Lateral Raise', 'Rear delt DB flye', 'Incline DB Curl 45°', 'DB hammer curl', 'Overhead DB Extension',
+      'Skull Crusher', 'Single-leg DB calf raise'].map(cat))
+      .toEqual(Array(7).fill('isolation'));
+    expect(cat('Weighted Floor Crunch')).toBe('core');
+    expect(['Neutral-grip pull-up', 'Deficit Push-up', 'Hanging Knee Raise', 'Chest Dip (forward lean)'].map(cat))
+      .toEqual(Array(4).fill('bodyweight'));
   });
 
-  it('no band until three VALID sessions at the load; each valid one moves the count', () => {
-    const s = (reps: number, m1 = 4) => ex(cluster(1, 20, reps, 0, m1, 3));
-    expect(calibrationFor([], clustered)).toMatchObject({ validSessions: 0, band: null, source: null });
-    expect(calibrationFor([s(10)], clustered)).toMatchObject({ load: 20, validSessions: 1, band: null });
-    expect(calibrationFor([s(11), s(10)], clustered)).toMatchObject({ validSessions: 2, band: null });
-    // An invalid session in the run does not count, and does not break the run.
-    expect(calibrationFor([s(11, 8), s(11), s(10)], clustered)).toMatchObject({ validSessions: 2, band: null });
-    const cal = calibrationFor([s(12), s(11), s(10)], clustered);
-    expect(cal).toEqual({ load: 20, validSessions: 3, needed: 3, maxReps: 12, band: repBandFrom(12), source: 'derived' });
+  it('category defaults: compound 6-12, isolation and core 8-15, bodyweight 6-15; an override wins', () => {
+    expect(resolveEngineConfig({ name: 'Leg Extensions' }).repRange).toEqual({ min: 6, max: 12 });
+    expect(resolveEngineConfig({ name: 'DB Lateral Raise' }).repRange).toEqual({ min: 8, max: 15 });
+    expect(resolveEngineConfig({ name: 'Weighted Floor Crunch' }).repRange).toEqual({ min: 8, max: 15 });
+    expect(resolveEngineConfig({ name: 'Neutral-grip pull-up' }).repRange).toEqual({ min: 6, max: 15 });
+    expect(resolveEngineConfig({ name: 'Leg Extensions', repRange: { min: 8, max: 10 } }))
+      .toMatchObject({ repRange: { min: 8, max: 10 }, repRangeSource: 'set' });
+    // A nonsense override is ignored rather than trusted.
+    expect(resolveEngineConfig({ name: 'Leg Extensions', repRange: { min: 12, max: 6 } }).repRange).toEqual({ min: 6, max: 12 });
   });
 
-  it('the max is across every activation of every valid session in the run', () => {
-    const two = (a1: number, a2: number) => ex([...cluster(1, 80, a1, 0, 4, 3), ...cluster(2, 80, a2, 0, 4, 3)]);
-    expect(calibrationFor([two(10, 9), two(12, 10), two(11, 10)], clustered).maxReps).toBe(12);
+  it('steps: dumbbells and Smith in 5 lb; a stack uses the entered steps, else guesses from the template', () => {
+    expect(inferEquipment('Incline DB Curl 45°')).toBe('dumbbell');
+    expect(inferEquipment('Smith squat')).toBe('smith');
+    expect(inferEquipment('Leg Extensions')).toBe('stack');
+    expect(resolveEngineConfig({ name: 'DB hammer curl' })).toMatchObject({ stepLb: 5, stepsUnknown: false });
+    expect(resolveEngineConfig({ name: 'Wide-grip lat pulldown' }, { progression: { incrementLb: 5 } }))
+      .toMatchObject({ equipment: 'stack', stepsUnknown: true, stepLb: 5 });
+    expect(resolveEngineConfig({ name: 'Leg Extensions', availableLoads: [90, 70, 80] }))
+      .toMatchObject({ loadSteps: [70, 80, 90], stepsUnknown: false });
   });
 
-  it('a load change restarts calibration — the run is the sessions at the CURRENT load', () => {
-    const at = (w: number, reps: number) => ex(cluster(1, w, reps, 0, 4, 3));
-    const calibrated = [at(20, 12), at(20, 11), at(20, 10)];
-    expect(calibrationFor(calibrated, clustered).band).toEqual(repBandFrom(12));
-    // Moved to 25: the three at 20 are behind the load change and do not count.
-    const moved = [at(25, 9), ...calibrated];
-    expect(calibrationFor(moved, clustered)).toMatchObject({ load: 25, validSessions: 1, band: null });
-    expect(recommend(moved, clustered)).toMatchObject({ action: 'calibrate', reason: { kind: 'calibrating', valid: 1, needed: 3 } });
-  });
-
-  it('legacy sessions are EXCLUDED from the derivation and do not break the run', () => {
-    const s = (reps: number) => ex(cluster(1, 20, reps, 0, 4, 3));
-    // Three legacy sessions at the same load: nothing to calibrate from.
-    expect(calibrationFor([s(12), s(11), s(10)].map(legacy), clustered)).toMatchObject({ validSessions: 0, band: null });
-    // Two new + one legacy between them: the legacy one is skipped, the new ones both count.
-    expect(calibrationFor([s(11), legacy(s(14)), s(10)], clustered)).toMatchObject({ validSessions: 2, maxReps: 11, band: null });
-    // Three new + a legacy 14: the max is 11, not 14.
-    expect(calibrationFor([s(11), s(10), legacy(s(14)), s(9)], clustered).band).toEqual(repBandFrom(11));
-  });
-
-  it('a legacy LATEST read is history, not evidence: calibrate, but still shown as last', () => {
-    const s = (reps: number) => ex(cluster(1, 20, reps, 0, 4, 3));
-    const rec = recommend([legacy(s(12)), s(12), s(11), s(10)], clustered);
-    expect(rec.action).toBe('calibrate');
-    expect(rec.load).toBe(20);
-    expect(rec.last).toEqual([{ group: 1, reps: 12, rir: 0, firstMini: 4 }]);
-    // Even with a manual band: the read predates the standard the band assumes.
-    expect(recommend([legacy(s(12))], banded).action).toBe('calibrate');
-  });
-
-  it('a bodyweight cluster calibrates like any other — "no load" is one load', () => {
-    const bw = (reps: number) => ex([[1, 'activation', reps, 0], [1, 'mini', 3, 0], [1, 'mini', 2, 0]]);
-    expect(calibrationFor([bw(6), bw(5), bw(5)], clustered)).toMatchObject({ validSessions: 3, band: repBandFrom(6) });
-    expect(calibrationFor([bw(6), bw(5), bw(5)], clustered).load).toBeUndefined();
-  });
-
-  it('a manual targetRepBand overrides the derivation at any count', () => {
-    const cal = calibrationFor([ex(cluster(1, 20, 10, 0, 4, 3))], banded);
-    expect(cal).toMatchObject({ validSessions: 1, band: BAND_12, source: 'override' });
-    expect(recommend([ex(cluster(1, 20, 10, 0, 4, 3))], banded).action).toBe('hold');
-  });
-
-  it('while calibrating the recommendation carries NO load change and says how far along it is', () => {
-    const s = (reps: number) => ex(cluster(1, 20, reps, 0, 4, 3));
-    const rec = recommend([s(11), s(10)], clustered);
-    expect(rec.action).toBe('calibrate');
-    expect(rec.load).toBe(20);
-    expect(rec.band).toBeNull();
-    expect(rec.reason).toEqual({ kind: 'calibrating', valid: 2, needed: 3 });
-    expect(rec.calibration).toMatchObject({ validSessions: 2, needed: 3, maxReps: 11 });
-  });
-
-  it('an invalid latest read during calibration is still REPEAT with the reason, and the count is on it', () => {
-    const s = (reps: number, m1 = 4) => ex(cluster(1, 70, reps, 0, m1, 3));
-    const rec = recommend([s(12, 10), s(11)], clustered);
-    expect(rec.action).toBe('repeat-invalid');
-    expect(rec.reason).toMatchObject({ kind: 'invalid', reason: 'first-mini-too-many', firstMini: 10 });
-    expect(rec.calibration.validSessions).toBe(1);
+  it('a Smith lift is approximate until its bar weight is entered; effort standard defaults to failure', () => {
+    expect(resolveEngineConfig({ name: 'Smith squat' })).toMatchObject({ approximate: true, effortStandard: 'failure' });
+    expect(resolveEngineConfig({ name: 'Smith squat', smithBarEffectiveLb: 15, effortStandard: 'rir1' }))
+      .toMatchObject({ approximate: false, smithBarEffectiveLb: 15, effortStandard: 'rir1' });
+    expect(resolveEngineConfig({ name: 'Neutral-grip pull-up' }).loadable).toBe(false);
   });
 });
 
-// ─── Layer 2 — progression on valid reads only ──────────────────
+// ─── Rule 2 + Epley ─────────────────────────────────────────────
 
-describe('Layer 2 — activation reps drive the call, minis never do', () => {
-  it('2026-09-15 Smith squat C1 11 @ RIR 1, C2 10 @ RIR 1 against a 12 band → HOLD 20, C2 blocked', () => {
-    const rec = recommend(
-      [ex([...cluster(1, 20, 11, 1, 5, 3), ...cluster(2, 20, 10, 1, 4, 2)])],
-      { ...banded, progression: { incrementLb: 5 } },
-    );
-    expect(rec.action).toBe('hold');
-    expect(rec.load).toBe(20);
-    expect(rec.reason).toEqual({ kind: 'below-band', reps: 10, group: 2, clusters: 2 });
-    expect(rec.last).toEqual([
-      { group: 1, reps: 11, rir: 1, firstMini: 5 },
-      { group: 2, reps: 10, rir: 1, firstMini: 4 },
-    ]);
+describe('rule 2 — effective reps, and the Epley prediction', () => {
+  it('effective reps = activation reps + logged RIR (Smith 13 @ RIR 1 = 14)', () => {
+    expect(effectiveReps({ reps: 13, rir: 1 })).toBe(14);
+    expect(effectiveReps({ reps: 13, rir: 0 })).toBe(13);
+    expect(effectiveReps({ reps: 13 })).toBe(13);
   });
 
-  it('…but the squat AS LOGGED had a first mini of 6, and layer 1 wins over layer 2', () => {
-    const rec = recommend(
-      [ex([...cluster(1, 20, 11, 1, 6, 3), ...cluster(2, 20, 10, 1, 4, 2)])],
-      { ...banded, progression: { incrementLb: 5 } },
-    );
-    expect(rec.action).toBe('repeat-invalid');
-    expect(rec.load).toBe(20);
-    expect(rec.reason).toMatchObject({ kind: 'invalid', reason: 'first-mini-too-many', group: 1, firstMini: 6 });
-  });
-
-  it('never advances load off an invalid read — the 9/15 leg curl repeats 70', () => {
-    const rec = recommend([ex(cluster(1, 70, 12, 2, 10, 9))], banded);
-    expect(rec.action).toBe('repeat-invalid');
-    expect(rec.load).toBe(70);
-    expect(rec.reason).toMatchObject({ kind: 'invalid', reason: 'first-mini-too-many', firstMini: 10 });
-  });
-
-  it('at the mark on every cluster → ADD LOAD by the increment', () => {
-    const rec = recommend(
-      [ex([...cluster(1, 20, 12, 0, 5, 3), ...cluster(2, 20, 12, 0, 4, 2)])],
-      { ...banded, progression: { incrementLb: 2.5 } },
-    );
-    expect(rec.action).toBe('add-load');
-    expect(rec.load).toBe(22.5);
-    expect(rec.reason).toEqual({ kind: 'at-target', reps: 12, rir: 0 });
-  });
-
-  it('the derived band drives the call end to end: hit your own max again and the load moves', () => {
-    const s = (reps: number) => ex(cluster(1, 20, reps, 0, 4, 3));
-    // 10, 11, 12: band 12 / 10-11. Latest IS the max → add load.
-    expect(recommend([s(12), s(11), s(10)], { ...clustered, progression: { incrementLb: 2.5 } }))
-      .toMatchObject({ action: 'add-load', load: 22.5, band: repBandFrom(12) });
-    // A fourth at 11: in the hold band.
-    expect(recommend([s(11), s(12), s(11), s(10)], clustered)).toMatchObject({ action: 'hold', reason: { kind: 'below-band', reps: 11 } });
-    // A fourth at 9: under the hold band → build back to 10.
-    expect(recommend([s(9), s(12), s(11), s(10)], clustered))
-      .toMatchObject({ action: 'build-reps', load: 20, reason: { kind: 'under-band', reps: 9, goal: 10, clusters: 1 } });
-    // A fourth at 13: a new max raises the mark to 13 and the latest read is at it.
-    expect(recommend([s(13), s(12), s(11), s(10)], { ...clustered, progression: { incrementLb: 2.5 } }))
-      .toMatchObject({ action: 'add-load', band: repBandFrom(13) });
-  });
-
-  it('over the mark is ADD LOAD (under-loaded); the hold band holds; under it builds, naming the cluster', () => {
-    expect(recommend([ex(cluster(1, 30, 20, 0, 5, 3))], banded).reason).toMatchObject({ kind: 'over-band', reps: 20 });
-    expect(recommend([ex(cluster(1, 30, 10, 0, 3, 2))], banded).action).toBe('hold');
-    expect(recommend([ex(cluster(1, 30, 11, 0, 3, 2))], banded).action).toBe('hold');
-    const two = recommend([ex([...cluster(1, 30, 12, 0, 4, 3), ...cluster(2, 30, 8, 0, 3, 2)])], banded);
-    expect(two.action).toBe('build-reps');
-    expect(two.reason).toEqual({ kind: 'under-band', reps: 8, group: 2, clusters: 2, goal: 10 });
-  });
-
-  it('no history → calibrate; straight sets → none; a bodyweight cluster at the mark → add load with no number', () => {
-    expect(recommend([], clustered)).toMatchObject({ action: 'calibrate', reason: { kind: 'no-history' } });
-    expect(recommend([ex([], { sets: [{ kind: 'working', reps: 8, weight: 100 }] })], {}).action).toBe('none');
-    const bw = recommend([ex([[1, 'activation', 12, 0], [1, 'mini', 4, 0], [1, 'mini', 3, 0]])], banded);
-    expect(bw.action).toBe('add-load');
-    expect(bw.load).toBeUndefined();
+  it('e1RM = w × (1 + reps/30); predicted = ⌊30 × (e1RM/w2 − 1)⌋', () => {
+    expect(epleyE1rm(80, 14)).toBeCloseTo(117.333, 3);
+    expect(predictedRepsAt(epleyE1rm(80, 14), 90)).toBe(9);
+    expect(predictedRepsAt(epleyE1rm(15, 15), 20)).toBe(3);
+    expect(predictedRepsAt(epleyE1rm(80, 12), 90)).toBe(7);
+    // Exact boundaries floor to the integer, not one under it.
+    expect(predictedRepsAt(epleyE1rm(25, 18), 30)).toBe(10);
+    expect(predictedRepsAt(100, 200)).toBe(0);
   });
 });
 
-// ─── Effort standard per lift ───────────────────────────────────
+// ─── The spec's real cases (2.6) ────────────────────────────────
 
-describe('effort standard — failure by default, rir1 warns on a failure activation', () => {
-  it('a rir1 lift logged at RIR 0 gets a soft warning and the read still stands', () => {
-    const rec = recommend([ex(cluster(1, 80, 10, 0, 4, 3))], { ...banded, effortStandard: 'rir1' });
+describe('the 2026-10-07 cases, one per rule', () => {
+  it('Leg extension 80 × 14 → increase to 90, predicting 9', () => {
+    const rec = recommend([ex(cluster(1, 80, 14, 0, 4, 3))], lift('Leg Extensions', { availableLoads: [70, 80, 90] }));
+    expect(rec).toMatchObject({ action: 'add-load', load: 90, predictedReps: 9, targetReps: 9 });
+    expect(rec.reason).toMatchObject({ kind: 'increase', reps: 14, max: 12, nextLoad: 90, predictedReps: 9 });
+    expect(progressionCall(rec)).toBe('increase');
+  });
+
+  it('Incline curl 15 × 15 → hold; 20 predicts 3 reps, below 8', () => {
+    const rec = recommend([ex(cluster(1, 15, 15, 0, 4, 2))], lift('Incline DB Curl 45°'));
+    expect(rec).toMatchObject({ action: 'build-reps', load: 15, targetReps: 16 });
+    expect(rec.reason).toMatchObject({ kind: 'step-too-big', nextLoad: 20, predictedReps: 3, min: 8, cap: 15 + REP_CAP_EXTRA });
+    expect(progressionCall(rec)).toBe('hold');
+  });
+
+  it('Single-leg calf raise 25 × 14 → hold; below the max of 15', () => {
+    const rec = recommend([ex(cluster(1, 25, 14, 0, 5, 4))], lift('Single-leg DB calf raise'));
+    expect(rec).toMatchObject({ action: 'hold', load: 25, targetReps: 15 });
+    expect(rec.reason).toEqual({ kind: 'below-max', reps: 14, max: 15, clusters: 1 });
+  });
+
+  it('Pulldown 80 × 12 → increase to 90, predicting 7 (on a stack that steps 80 → 90)', () => {
+    const rec = recommend([ex(cluster(1, 80, 12, 0, 5, 3))], lift('Wide-grip lat pulldown', { availableLoads: [70, 80, 90, 100] }));
+    expect(rec).toMatchObject({ action: 'add-load', load: 90, predictedReps: 7 });
+    // With no steps entered the engine guesses the template's 5 lb and says so.
+    const guess = recommend([ex(cluster(1, 80, 12, 0, 5, 3))], lift('Wide-grip lat pulldown', {}, 5));
+    expect(guess).toMatchObject({ action: 'add-load', load: 85, predictedReps: 9 });
+    expect(guess.config?.stepsUnknown).toBe(true);
+  });
+
+  it('Machine row 100 × 11/11 → hold, target 12', () => {
+    const rec = recommend(
+      [ex([...cluster(1, 100, 11, 0, 4, 2), ...cluster(2, 100, 11, 0, 3, 2)])],
+      lift('Seated Machine Row', { effortStandard: 'rir1' }),
+    );
+    expect(rec).toMatchObject({ action: 'hold', load: 100, targetReps: 12 });
+    expect(rec.reason).toMatchObject({ kind: 'below-max', reps: 11, max: 12, clusters: 2 });
+    // The row is a 1-in-reserve lift logged at RIR 0: warned, not invalidated.
     expect(rec.warnings).toEqual(['failure-on-rir1']);
-    expect(rec.action).toBe('hold');
-    // The warning rides on an invalid read too — it is about the effort, not the read.
-    expect(recommend([ex(cluster(1, 80, 10, 0, 8, 3))], { ...banded, effortStandard: 'rir1' }).warnings).toEqual(['failure-on-rir1']);
   });
 
-  it('a rir1 lift at RIR 1, and a failure lift at RIR 0, carry no warning', () => {
-    expect(recommend([ex(cluster(1, 80, 10, 1, 4, 3))], { ...banded, effortStandard: 'rir1' }).warnings).toEqual([]);
-    expect(recommend([ex(cluster(1, 80, 10, 0, 4, 3))], { ...banded, effortStandard: 'failure' }).warnings).toEqual([]);
-    expect(recommend([ex(cluster(1, 80, 10, 0, 4, 3))], banded).warnings).toEqual([]);
+  it('Smith squat 25 × 13/13 @ RIR 1 → effective 14 → increase (approximate until the bar is entered)', () => {
+    const sets = [...cluster(1, 25, 13, 1, 5, 4), ...cluster(2, 25, 13, 1, 4, 3)];
+    const rec = recommend([ex(sets)], lift('Smith squat', { effortStandard: 'rir1' }));
+    expect(rec).toMatchObject({ action: 'add-load', load: 30, predictedReps: 6, approximate: true });
+    expect(rec.reason).toMatchObject({ kind: 'increase', reps: 14 });
+    // A rir1 lift's target is stated in LOGGED reps: one under the prediction.
+    expect(rec.targetReps).toBe(5);
+    expect(rec.warnings).toEqual([]);
+    // With a 15 lb bar the total load moves the prediction, and it is no longer approximate.
+    const withBar = recommend([ex(sets)], lift('Smith squat', { effortStandard: 'rir1', smithBarEffectiveLb: 15 }));
+    expect(withBar).toMatchObject({ action: 'add-load', load: 30, predictedReps: 9, approximate: false });
+  });
+
+  it('an invalid first mini-set of 6 → repeat', () => {
+    const rec = recommend([ex(cluster(1, 25, 15, 0, 6, 4))], lift('Weighted Floor Crunch'));
+    expect(rec).toMatchObject({ action: 'repeat-invalid', load: 25 });
+    expect(rec.reason).toMatchObject({ kind: 'invalid', reason: 'first-mini-too-many', firstMini: 6 });
+    expect(rec.targetReps).toBeUndefined();
+    expect(progressionCall(rec)).toBe('repeat-invalid');
+  });
+
+  it('a load change mid-exercise → repeat', () => {
+    const rec = recommend([ex([...cluster(1, 25, 9, 0, 4, 3), [2, 'activation', 9, 0, 25], [2, 'mini', 4, 0, 25], [2, 'mini', 3, 0, 28]])], lift('Smith squat'));
+    expect(rec).toMatchObject({ action: 'repeat-invalid', reason: { kind: 'invalid', reason: 'load-changed' } });
+  });
+
+  it('bodyweight pull-up at 12 → build reps', () => {
+    const rec = recommend([ex([[1, 'activation', 12, 0, 0], [1, 'mini', 4, 0, 0], [1, 'mini', 2, 0, 0]])], lift('Neutral-grip pull-up'));
+    expect(rec).toMatchObject({ action: 'build-reps', targetReps: 13 });
+    expect(rec.reason).toEqual({ kind: 'bodyweight-build', reps: 12, max: 15 });
   });
 });
 
-// ─── Layer 3 — increments ───────────────────────────────────────
+// ─── Rule 3 — the cap and what comes after it ───────────────────
 
-describe('Layer 3 — the next load must exist and be a step, not a leap', () => {
-  it('Smith squat with 10/15/20 on the rack: 10 → 20 is +100%, so build reps instead', () => {
-    const rec = recommend([ex(cluster(1, 10, 12, 0, 5, 3))], { ...banded, availableLoads: [10, 20] });
-    expect(rec.action).toBe('build-reps');
-    expect(rec.load).toBe(10);
-    expect(rec.reason).toEqual({ kind: 'jump-too-big', nextLoad: 20, jumpPct: 1, repsGoal: 12 + BUILD_REPS_EXTRA });
+describe('rule 3 — build to max + 5, then a technique, never a guess', () => {
+  it('2026-10-02 DB flat press 20 × 15/13: 25 predicts 4, under 6 → hold at 20, build to 15', () => {
+    const rec = recommend(
+      [ex([...cluster(1, 20, 15, 0, 5, 4), ...cluster(2, 20, 13, 0, 4, 4)])],
+      lift('DB Flat Press'),
+    );
+    expect(rec).toMatchObject({ action: 'build-reps', load: 20, targetReps: 14 });
+    expect(rec.reason).toMatchObject({ kind: 'step-too-big', reps: 13, nextLoad: 25, predictedReps: 4, min: 6, cap: 17, repsForStep: 15 });
   });
 
-  it('a DB rack with only 20 and 25: +25% is flagged, not silently jumped', () => {
-    const rec = recommend([ex(cluster(1, 20, 12, 0, 4, 3))], { ...banded, availableLoads: [15, 20, 25, 30] });
-    expect(rec.action).toBe('build-reps');
-    expect(rec.reason).toMatchObject({ kind: 'jump-too-big', nextLoad: 25, jumpPct: 0.25 });
+  it('at the cap the step is still too big: tempo first, microplates if owned, a cluster only if volume allows', () => {
+    const capped = [ex(cluster(1, 15, 20, 0, 5, 3))];
+    expect(recommend(capped, lift('Incline DB Curl 45°')).reason)
+      .toMatchObject({ kind: 'at-rep-cap', cap: 20, nextLoad: 20, techniques: ['tempo'] });
+    expect(recommend(capped, lift('Incline DB Curl 45°', { microplates: true })).reason)
+      .toMatchObject({ techniques: ['tempo', 'microplates'] });
+    expect(recommend(capped, { ...lift('Incline DB Curl 45°', { microplates: true }), volumeAllowsCluster: true }).reason)
+      .toMatchObject({ techniques: ['tempo', 'microplates', 'add-cluster'] });
   });
 
-  it('a step at or under the cap goes through; a plainly under-loaded lift is never capped', () => {
-    expect(nextLoad(80, { incrementLb: 5 })).toEqual({ load: 85, jumpPct: 0.0625 });
-    expect(MAX_JUMP_PCT).toBe(0.15);
-    // Calf raise: 20 reps against a 15 mark, +50% to 30. Over the mark → add load anyway.
-    const rec = recommend([ex(cluster(1, 20, 20, 0, 5, 3))], {
-      ...clustered, targetRepBand: repBandFrom(15), availableLoads: [20, 30, 40],
-    });
-    expect(rec.action).toBe('add-load');
-    expect(rec.load).toBe(30);
+  it('the entered steps run out: build to the cap, then a technique', () => {
+    const top = lift('Leg Extensions', { availableLoads: [70, 80, 90] });
+    expect(recommend([ex(cluster(1, 90, 14, 0, 4, 3))], top))
+      .toMatchObject({ action: 'build-reps', load: 90, targetReps: 15, reason: { kind: 'no-next-step', cap: 17 } });
+    expect(recommend([ex(cluster(1, 90, 17, 0, 4, 3))], top).reason)
+      .toMatchObject({ kind: 'at-rep-cap', techniques: ['tempo'] });
   });
 
-  it('an assisted lift progresses by REDUCING assistance, floored at zero', () => {
+  it('every cluster must reach the top; the lowest one binds and is named', () => {
+    const rec = recommend([ex([...cluster(1, 80, 13, 0, 4, 3), ...cluster(2, 80, 10, 0, 3, 2)])], lift('Leg Curls', { availableLoads: [70, 80, 90] }));
+    expect(rec).toMatchObject({ action: 'hold', targetReps: 11, reason: { kind: 'below-max', reps: 10, group: 2, clusters: 2 } });
+  });
+
+  it('the e1RM comes from the LOWEST cluster', () => {
+    // 20/14 at 80: binding 14 → 90 predicts 9, not the 16 a 20 would claim.
+    const rec = recommend([ex([...cluster(1, 80, 20, 0, 4, 3), ...cluster(2, 80, 14, 0, 3, 2)])], lift('Leg Curls', { availableLoads: [70, 80, 90] }));
+    expect(rec.predictedReps).toBe(9);
+  });
+
+  it('an assisted lift moves to LESS assistance on the rep rule, floored at zero', () => {
     expect(nextLoad(40, { assisted: true, availableLoads: [20, 30, 40, 50] })).toEqual({ load: 30, jumpPct: 0.25 });
     expect(nextLoad(3, { assisted: true, incrementLb: 5 })).toEqual({ load: 0, jumpPct: 1 });
-    const rec = recommend([ex(cluster(1, 30, 12, 0, 4, 2))], { ...banded, assisted: true, progression: { incrementLb: 2.5 } });
-    expect(rec.action).toBe('add-load');
-    expect(rec.assisted).toBe(true);
-    expect(rec.load).toBe(27.5);
+    const rec = recommend([ex(cluster(1, 30, 15, 0, 4, 2))], lift('Chest Dip (forward lean)', { assisted: true }));
+    expect(rec).toMatchObject({ action: 'add-load', load: 25, assisted: true });
   });
 });
 
-// ─── Layer 4 — stalls ───────────────────────────────────────────
+// ─── Rule 5 — drop back ─────────────────────────────────────────
 
-describe('Layer 4 — stall detection with a diagnosis', () => {
-  const row = (act1: number, act2: number, m1 = 5, w = 80) => ex([...cluster(1, w, act1, 2, m1, 3), ...cluster(2, w, act2, 2, 4, 3)]);
+describe('rule 5 — the first session after an increase, under the range, drops back', () => {
+  const press = (w: number, act: number, m1 = 2, m2 = 2) => ex(cluster(1, w, act, 0, m1, m2));
 
-  it('Seated cable row at 80: five sessions, C2 never reached the mark → stalled, C2 blocks, interventions ranked', () => {
-    // Most-recent-first; C1 reached 12 once (9/02), C2 sat at 9-10 throughout.
-    const history = [row(10, 10, 8), row(12, 10), row(10, 10), row(10, 9), row(11, 10)];
-    const stall = detectStall(history, banded);
-    expect(stall).toMatchObject({ sessions: 5, load: 80, reps: [10, 10, 10, 9, 10], blockingGroup: 2 });
-    expect(stall?.easyActivations).toBe(1);
-    expect(stall?.invalidSessions).toBe(1);
-    expect(stall?.interventions).toEqual(['shorten-mini-rest', 'reduce-blocking-cluster', 'reduce-load-10pct']);
-    expect(INTERVENTION_SESSIONS).toBe(5);
+  it('20 → 25 and the activation comes in at 5 (< 6) → back to 20 and build', () => {
+    const rec = recommend([press(25, 5), press(20, 15, 5, 4)], lift('DB Flat Press'));
+    expect(rec).toMatchObject({ action: 'drop-back', load: 20, reason: { kind: 'drop-back', reps: 5, min: 6, previousLoad: 20 } });
+    expect(progressionCall(rec)).toBe('drop');
   });
 
-  it('the same run with a DERIVED band: the mark is the observed max (12), C2 still blocks', () => {
-    const history = [row(10, 10, 8), row(12, 10), row(10, 10), row(10, 9), row(11, 10)];
-    expect(detectStall(history, clustered)).toMatchObject({ sessions: 5, blockingGroup: 2 });
+  it('at or above min after the increase it is an ordinary hold; and not on a second session at the new load', () => {
+    expect(recommend([press(25, 6), press(20, 15, 5, 4)], lift('DB Flat Press')).action).toBe('hold');
+    expect(recommend([press(25, 5), press(25, 5), press(20, 15, 5, 4)], lift('DB Flat Press')).action).toBe('hold');
   });
+});
 
-  it('DB hammer curl at 20: activation exactly 9 four times → stalled', () => {
-    const h = [9, 9, 9, 8].map((r) => ex(cluster(1, 20, r, 1, 5, 4)));
-    const stall = detectStall(h, clustered);
-    expect(stall).toMatchObject({ sessions: 4, load: 20, reps: [9, 9, 9, 8] });
-    expect(stall?.interventions).toEqual([]);
-  });
+// ─── Rule 6 — stalls ────────────────────────────────────────────
 
-  it('Wide-grip lat pulldown at 80: 11, 11, 10 → stalled on the latest step', () => {
-    const h = [ex(cluster(1, 80, 11, 2, 7, 4)), ex(cluster(1, 80, 11, 1, 5, 3)), ex(cluster(1, 80, 10, 2, 4, 3))];
-    expect(detectStall(h, clustered)?.sessions).toBe(3);
+describe('rule 6 — stall detection with a checklist', () => {
+  const s = (reps: number, w = 20, m1 = 4) => ex(cluster(1, w, reps, 0, m1, 3));
+  const hammer = lift('DB hammer curl');
+
+  it('three valid sessions with no new best → stalled, with the three checks', () => {
+    const rec = recommend([s(10), s(10), s(10)], { ...hammer, stallContext: { sleepHours: 6.5, intakeBelowTarget: false, restMiniSec: 10 } });
+    expect(rec.action).toBe('hold');
+    expect(progressionCall(rec)).toBe('stalled');
+    expect(rec.stall).toEqual({
+      sessions: 3, load: 20, reps: [10, 10, 10], suggestSwap: false,
+      checks: [
+        { check: 'sleep', status: 'flag', value: 6.5 },
+        { check: 'intake', status: 'ok' },
+        { check: 'mini-rest', status: 'ok', value: 10 },
+      ],
+    });
     expect(STALL_SESSIONS).toBe(3);
   });
 
-  it('DB Flat Press at 20: three sessions, C2 blocks every time (given a band)', () => {
-    const h = [row(11, 10, 8, 20), row(12, 10, 8, 20), row(11, 10, 5, 20)];
-    expect(detectStall(h, banded)).toMatchObject({ sessions: 3, blockingGroup: 2 });
-    // Without a band (only one valid session in that run) there is no mark to
-    // block against, so the stall is reported without a blocking cluster.
-    expect(detectStall(h, clustered)).toMatchObject({ sessions: 3 });
-    expect(detectStall(h, clustered)?.blockingGroup).toBeUndefined();
+  it('a missing fact is "unknown", never "fine"; over 10 s of mini rest is flagged', () => {
+    const rec = recommend([s(10), s(10), s(10)], { ...hammer, stallContext: { restMiniSec: 15 } });
+    expect(rec.stall?.checks).toEqual([
+      { check: 'sleep', status: 'unknown' },
+      { check: 'intake', status: 'unknown' },
+      { check: 'mini-rest', status: 'flag', value: 15 },
+    ]);
   });
 
-  it('a load change ends the run, and rising reps are not a stall', () => {
-    const h = [ex(cluster(1, 40, 15, 2, 5, 3)), ex(cluster(1, 30, 20, 2, 5, 3)), ex(cluster(1, 20, 20, 1, 5, 3))];
-    expect(detectStall(h, clustered)).toBeNull();
-    const rising = [ex(cluster(1, 20, 11, 2, 5, 3)), ex(cluster(1, 20, 10, 2, 5, 3)), ex(cluster(1, 20, 9, 2, 5, 3))];
-    expect(detectStall(rising, clustered)).toBeNull();
+  it('five sessions → suggest swapping the exercise for a variation', () => {
+    expect(detectStall([s(10), s(9), s(10), s(10), s(10)], hammer)).toMatchObject({ sessions: 5, suggestSwap: true });
+    expect(SWAP_SESSIONS).toBe(5);
   });
 
-  it('the stall rides on the recommendation, calibrating or not', () => {
-    const h = [9, 9, 9].map((r) => ex(cluster(1, 20, r, 1, 5, 4)));
-    const rec = recommend(h, { ...clustered, progression: { incrementLb: 2.5 } });
-    expect(rec.stall?.sessions).toBe(3);
-    // 9, 9, 9: three valid sessions → band 9 / 7-8, latest at the mark.
+  it('a new best restarts the count; an invalid session is skipped, not counted; a load change ends the run', () => {
+    expect(detectStall([s(11), s(10), s(10)], hammer)).toBeNull();
+    expect(detectStall([s(10), s(11), s(10), s(10)], hammer)).toBeNull(); // 11 was the best two sessions ago
+    expect(detectStall([s(10), s(10, 20, 8), s(10)], hammer)).toBeNull(); // the middle one is invalid
+    expect(detectStall([s(10), s(10, 20, 8), s(10), s(10)], hammer)?.sessions).toBe(3);
+    expect(detectStall([s(10), s(10), s(10, 15)], hammer)).toBeNull();
+  });
+
+  it('no stall rides on a call that moves the load', () => {
+    const rec = recommend([s(12, 80), s(12, 80), s(12, 80)], lift('Leg Curls', { availableLoads: [70, 80, 90] }));
     expect(rec.action).toBe('add-load');
+    expect(rec.stall).toBeUndefined();
+  });
+});
+
+// ─── Rule 7 — bodyweight ────────────────────────────────────────
+
+describe('rule 7 — bodyweight lifts', () => {
+  const bw = (reps: number) => ex([[1, 'activation', reps, 0, 0], [1, 'mini', 4, 0, 0], [1, 'mini', 3, 0, 0]]);
+
+  it('Hanging knee raise at 8 → build toward 15', () => {
+    expect(recommend([bw(8)], lift('Hanging Knee Raise'))).toMatchObject({ action: 'build-reps', targetReps: 9 });
+  });
+
+  it('at the top of the range: add 5-10 lb if loadable, else a harder variation or slower tempo', () => {
+    expect(recommend([bw(15)], lift('Neutral-grip pull-up', { loadable: true })))
+      .toMatchObject({ action: 'add-load', load: 5, reason: { kind: 'bodyweight-add-load', startLb: [5, 10] } });
+    expect(recommend([bw(15)], lift('Neutral-grip pull-up')))
+      .toMatchObject({ action: 'build-reps', reason: { kind: 'bodyweight-variation', reps: 15, max: 15 } });
+  });
+
+  it('once loaded, the added load moves on the rep rule alone — no Epley off a load that excludes the body', () => {
+    const loaded = ex(cluster(1, 10, 15, 0, 4, 3));
+    const rec = recommend([loaded], lift('Neutral-grip pull-up', { loadable: true }));
+    expect(rec).toMatchObject({ action: 'add-load', load: 15 });
+    expect(rec.predictedReps).toBeUndefined();
+    expect(recommend([ex(cluster(1, 10, 12, 0, 4, 3))], lift('Neutral-grip pull-up', { loadable: true })))
+      .toMatchObject({ action: 'hold', targetReps: 13 });
+  });
+});
+
+// ─── Rule 8 + effort standard ───────────────────────────────────
+
+describe('rule 8 — a rir1 lift runs the same rules on effective reps', () => {
+  it('Smith 25 × 11/11 @ RIR 1 is 12/12 effective: a candidate — but 30 predicts 5, under 6, so build', () => {
+    const rec = recommend([ex([...cluster(1, 25, 11, 1, 4, 3), ...cluster(2, 25, 11, 1, 4, 3)])], lift('Smith squat', { effortStandard: 'rir1' }));
+    expect(rec.reason).toMatchObject({ kind: 'step-too-big', reps: 12, nextLoad: 30, predictedReps: 5, repsForStep: 14 });
+    expect(rec).toMatchObject({ action: 'build-reps', load: 25 });
+  });
+
+  it('the same log at RIR 0 is 11 effective: hold, and the RIR 0 is warned on', () => {
+    const rec = recommend([ex([...cluster(1, 25, 11, 0, 4, 3), ...cluster(2, 25, 11, 0, 4, 3)])], lift('Smith squat', { effortStandard: 'rir1' }));
+    expect(rec).toMatchObject({ action: 'hold', warnings: ['failure-on-rir1'], targetReps: 12 });
+  });
+});
+
+// ─── History handling ───────────────────────────────────────────
+
+describe('history — legacy sets, no history, straight sets', () => {
+  it('legacy sessions are skipped entirely: the call reads the newest standard-conforming one', () => {
+    const rec = recommend([legacy(ex(cluster(1, 80, 15, 2, 4, 3)))], lift('Leg Curls'));
+    expect(rec).toMatchObject({ action: 'calibrate', reason: { kind: 'no-history' } });
+    const mixed = recommend([ex(cluster(1, 80, 11, 0, 4, 3)), legacy(ex(cluster(1, 70, 12, 2, 4, 3)))], lift('Leg Curls'));
+    expect(mixed).toMatchObject({ action: 'hold', targetReps: 12 });
+  });
+
+  it('a legacy session before an increase is not "the previous load" for drop-back', () => {
+    const rec = recommend([ex(cluster(1, 25, 5, 0, 2, 2)), legacy(ex(cluster(1, 20, 15, 2, 5, 4)))], lift('DB Flat Press'));
+    expect(rec.action).toBe('hold');
+  });
+
+  it('no history → start; straight sets → none (double progression is untouched)', () => {
+    expect(recommend([], lift('Leg Curls'))).toMatchObject({ action: 'calibrate', reason: { kind: 'no-history' } });
+    expect(progressionCall(recommend([], lift('Leg Curls')))).toBe('start');
+    expect(recommend([ex([], { sets: [{ kind: 'working', reps: 8, weight: 100 }] })], {}).action).toBe('none');
+    expect(MAX_JUMP_PCT).toBe(0.15);
   });
 });
 
 // ─── Wiring ─────────────────────────────────────────────────────
 
 describe('wiring helpers', () => {
-  it('builds options from the template row and the catalog exercise', () => {
+  it('builds options from the template row and the catalog exercise, config included', () => {
     const opts = recommendOptionsFor(
-      { plannedSets: [{ kind: 'activation' }, { kind: 'mini' }], progression: { targetReps: 12, incrementLb: 5, holdSessions: 2 } },
-      { availableLoads: [10, 20], assisted: true, effortStandard: 'rir1', targetRepBand: BAND_12 },
+      { name: 'Smith squat', plannedSets: [{ kind: 'activation' }, { kind: 'mini' }], progression: { targetReps: 12, incrementLb: 5, holdSessions: 2 } },
+      { name: 'Smith squat', availableLoads: [10, 20], assisted: true, effortStandard: 'rir1' },
     );
-    expect(opts).toEqual({
+    expect(opts).toMatchObject({
       expectsCluster: true,
       // ADR-0040: resolved from the template's plannedSets when neither the
       // template nor the catalog declares one.
@@ -446,12 +507,10 @@ describe('wiring helpers', () => {
       availableLoads: [10, 20],
       assisted: true,
       effortStandard: 'rir1',
-      targetRepBand: BAND_12,
     });
+    expect(opts.config).toMatchObject({ category: 'compound', equipment: 'smith', loadSteps: [10, 20], effortStandard: 'rir1', approximate: true });
     expect(recommendOptionsFor({ plannedSets: [{ kind: 'working' }] }, null))
-      .toEqual({ expectsCluster: false, structure: 'straight' });
-    expect(recommendOptionsFor(null, { effortStandard: 'failure' }))
-      .toEqual({ expectsCluster: false, structure: 'straight', effortStandard: 'failure' });
+      .toMatchObject({ expectsCluster: false, structure: 'straight' });
     // A declared structure beats the set list it contradicts.
     expect(recommendOptionsFor({ plannedSets: [{ kind: 'working' }], setStructure: 'myoreps' }, null))
       .toMatchObject({ structure: 'myoreps' });
@@ -460,12 +519,12 @@ describe('wiring helpers', () => {
       .toMatchObject({ structure: 'hit' });
   });
 
-  it('freezes the storable subset and audits whether it was followed', () => {
-    const rec = recommend([ex(cluster(1, 20, 12, 0, 5, 3))], { ...banded, progression: { incrementLb: 2.5 } });
-    const snap = toRecommendationSnapshot(rec, new Date('2026-09-15T12:00:00Z'));
-    expect(snap).toEqual({ action: 'add-load', load: 22.5, basedOn: '2026-09-15T12:00:00.000Z' });
-    expect(followedRecommendation(ex(cluster(1, 22.5, 10, 2, 4, 3), { recommendation: snap }))).toBe(true);
-    expect(followedRecommendation(ex(cluster(1, 20, 10, 2, 4, 3), { recommendation: snap }))).toBe(false);
-    expect(followedRecommendation(ex(cluster(1, 20, 10, 2, 4, 3)))).toBeNull();
+  it('freezes the storable subset — target and prediction included — and audits whether it was followed', () => {
+    const rec = recommend([ex(cluster(1, 80, 14, 0, 4, 3))], lift('Leg Extensions', { availableLoads: [70, 80, 90] }));
+    const snap = toRecommendationSnapshot(rec, new Date('2026-10-06T12:00:00Z'));
+    expect(snap).toEqual({ action: 'add-load', load: 90, basedOn: '2026-10-06T12:00:00.000Z', targetReps: 9, predictedReps: 9 });
+    expect(followedRecommendation(ex(cluster(1, 90, 10, 0, 4, 3), { recommendation: snap }))).toBe(true);
+    expect(followedRecommendation(ex(cluster(1, 80, 10, 0, 4, 3), { recommendation: snap }))).toBe(false);
+    expect(followedRecommendation(ex(cluster(1, 80, 10, 0, 4, 3)))).toBeNull();
   });
 });

@@ -14,6 +14,13 @@ import type { WorkoutTemplate } from '@/lib/workout';
  */
 
 const mockSaveTemplate = jest.fn().mockResolvedValue(undefined);
+const mockEditCatalogExercise = jest.fn().mockResolvedValue(undefined);
+
+/** The engine's one logged move on exercise 2 — it must survive any save. */
+const ENGINE_MOVE = {
+  at: '2026-09-30T12:00:00.000Z', from: 35, to: 40, by: 'engine' as const,
+  reason: 'Both clusters reached 12; add load.',
+};
 
 const mockTemplate: WorkoutTemplate = {
   id: 't1',
@@ -39,11 +46,21 @@ const mockTemplate: WorkoutTemplate = {
     },
     // A second exercise exists so reordering has something to reorder. Every
     // other test indexes exercise 0, which this leaves untouched.
+    // Exercise 2 also carries what the editor shows nothing of, and so must
+    // carry through untouched: a load log and labelled clusters (a
+    // single-arm lift, L then R).
     {
       exerciseId: 'e2',
       name: 'Incline DB Press',
       logStyle: 'weight-reps',
-      plannedSets: [{ kind: 'working' }],
+      targetLoad: 40,
+      loadLog: [ENGINE_MOVE],
+      plannedSets: [
+        { kind: 'activation', group: 1, label: 'L' },
+        { kind: 'mini', group: 1, label: 'L' },
+        { kind: 'activation', group: 2, label: 'R' },
+        { kind: 'mini', group: 2, label: 'R' },
+      ],
     },
   ],
   createdAt: new Date('2026-07-05T02:51:12Z'),
@@ -65,8 +82,13 @@ jest.mock('@/hooks/useTrain', () => ({
   useTrain: () => ({
     loading: false,
     error: null,
-    catalog: [],
+    // e1 is in the catalog, so its card offers lift settings; e2 is not.
+    catalog: [{
+      id: 'e1', name: 'DB Flat Press', muscles: ['chest'], defaultCues: [], logStyle: 'weight-reps',
+      createdAt: new Date('2026-07-01T00:00:00Z'),
+    }],
     templates: [mockTemplate],
+    editCatalogExercise: mockEditCatalogExercise,
     recentSessions: [],
     active: null,
     editingExisting: false,
@@ -99,6 +121,7 @@ import TrainScreen from '@/app/(app)/train';
 
 beforeEach(() => {
   mockSaveTemplate.mockClear().mockResolvedValue(undefined);
+  mockEditCatalogExercise.mockClear().mockResolvedValue(undefined);
 });
 
 it('round-trips clusters, cues and progression when saved unedited', async () => {
@@ -252,4 +275,96 @@ it("reorders exercises through the drag handle's accessibility actions", async (
   await waitFor(() => expect(mockSaveTemplate).toHaveBeenCalledTimes(1));
   const names = mockSaveTemplate.mock.calls[0][0].exercises.map((e: { name: string }) => e.name);
   expect(names).toEqual(['Incline DB Press', 'DB Flat Press']);
+});
+
+/**
+ * The progression engine's template state (2026-10-07). `loadLog` and cluster
+ * `label`s are fields the editor's draft never modelled, and the save is a
+ * full overwrite of `exercises` — so before this, the first edit of a
+ * template erased its load history and its L/R names.
+ */
+describe('load log, cluster labels and lift settings', () => {
+  it('carries the load log and cluster labels through an unedited save', async () => {
+    const { getByTestId } = await render(<TrainScreen />);
+    await fireEvent.press(getByTestId('edit-template-t1'));
+    await fireEvent.press(getByTestId('save-template'));
+
+    await waitFor(() => expect(mockSaveTemplate).toHaveBeenCalledTimes(1));
+    const [e1, e2] = mockSaveTemplate.mock.calls[0][0].exercises;
+    // Nothing was edited, so nothing is logged — not even a "move" to the
+    // same load — and the existing entry is carried verbatim.
+    expect(e2.loadLog).toEqual([ENGINE_MOVE]);
+    expect(e2.targetLoad).toBe(40);
+    expect(e1.loadLog).toBeUndefined();
+    expect(e2.plannedSets.map((p: { label?: string }) => p.label)).toEqual(['L', 'L', 'R', 'R']);
+  });
+
+  it("logs a load changed by hand as the lifter's move", async () => {
+    const { getByTestId } = await render(<TrainScreen />);
+    await fireEvent.press(getByTestId('edit-template-t1'));
+    await fireEvent.press(getByTestId('template-ex-toggle-1'));
+    await fireEvent.press(getByTestId('template-more-1'));
+    await fireEvent.changeText(getByTestId('template-load-1'), '45');
+    await fireEvent.press(getByTestId('save-template'));
+
+    await waitFor(() => expect(mockSaveTemplate).toHaveBeenCalledTimes(1));
+    const e2 = mockSaveTemplate.mock.calls[0][0].exercises[1];
+    expect(e2.targetLoad).toBe(45);
+    expect(e2.loadLog).toHaveLength(2);
+    expect(e2.loadLog[0]).toEqual(ENGINE_MOVE);
+    expect(e2.loadLog[1]).toMatchObject({
+      from: 40, to: 45, by: 'user', reason: 'Edited by hand in the template editor',
+    });
+    expect(Number.isNaN(Date.parse(e2.loadLog[1].at))).toBe(false);
+    // The other row's load did not move, so it gains no log at all.
+    expect(mockSaveTemplate.mock.calls[0][0].exercises[0].loadLog).toBeUndefined();
+  });
+
+  it('names a cluster on every set of its group', async () => {
+    const { getByTestId, queryByTestId } = await render(<TrainScreen />);
+    await fireEvent.press(getByTestId('edit-template-t1'));
+    await fireEvent.press(getByTestId('template-ex-toggle-0'));
+    // One field per cluster, under its first row.
+    expect(getByTestId('template-cluster-label-0-1')).toBeTruthy();
+    expect(queryByTestId('template-cluster-label-0-2')).toBeNull();
+
+    await fireEvent.changeText(getByTestId('template-cluster-label-0-1'), 'L');
+    await fireEvent.press(getByTestId('save-template'));
+    await waitFor(() => expect(mockSaveTemplate).toHaveBeenCalledTimes(1));
+    expect(mockSaveTemplate.mock.calls[0][0].exercises[0].plannedSets).toEqual([
+      { kind: 'activation', group: 1, label: 'L' },
+      { kind: 'mini', group: 1, label: 'L' },
+      { kind: 'mini', group: 1, label: 'L' },
+    ]);
+  });
+
+  it('clears a label back off every set of the group', async () => {
+    const { getByTestId } = await render(<TrainScreen />);
+    await fireEvent.press(getByTestId('edit-template-t1'));
+    await fireEvent.press(getByTestId('template-ex-toggle-1'));
+    await fireEvent.changeText(getByTestId('template-cluster-label-1-2'), '');
+    await fireEvent.press(getByTestId('save-template'));
+
+    await waitFor(() => expect(mockSaveTemplate).toHaveBeenCalledTimes(1));
+    const sets = mockSaveTemplate.mock.calls[0][0].exercises[1].plannedSets;
+    expect(sets.map((p: { label?: string }) => p.label)).toEqual(['L', 'L', undefined, undefined]);
+    expect(sets[2]).not.toHaveProperty('label');
+  });
+
+  it("opens the catalog lift's settings from its card and saves to the catalog", async () => {
+    const { getByTestId, queryByTestId } = await render(<TrainScreen />);
+    await fireEvent.press(getByTestId('edit-template-t1'));
+    await fireEvent.press(getByTestId('template-ex-toggle-0'));
+    await fireEvent.press(getByTestId('template-lift-settings-0'));
+    await fireEvent.press(getByTestId('lift-category-isolation'));
+    await fireEvent.press(getByTestId('lift-save'));
+
+    await waitFor(() => expect(mockEditCatalogExercise).toHaveBeenCalledWith('e1', { category: 'isolation' }));
+    // The template itself was not saved by it.
+    expect(mockSaveTemplate).not.toHaveBeenCalled();
+
+    // A lift that is not in the catalog has no settings to open.
+    await fireEvent.press(getByTestId('template-ex-toggle-1'));
+    expect(queryByTestId('template-lift-settings-1')).toBeNull();
+  });
 });

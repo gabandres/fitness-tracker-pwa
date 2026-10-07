@@ -51,6 +51,9 @@ import {
   DEFAULT_REST_CLUSTER_SEC,
   DEFAULT_REST_MINI_SEC,
   clock,
+  liftAllowsCluster,
+  musclesAllowingCluster,
+  recentSleepHours,
   recommendationFor,
   spokenDuration,
 } from './train-summary';
@@ -305,6 +308,32 @@ export function ActiveSession({
   // Plain, not `useCallback`: the compiler memoizes it, and a manual memo
   // keyed on a value derived by `find` made it skip this whole component.
   const templateRowFor = (exerciseId: string) => tpl?.exercises.find((te) => te.exerciseId === exerciseId);
+  // What the engine reads beyond the log (2026-10-07): which muscles the
+  // weekly volume rules allow one more cluster, and the stall checklist's
+  // sleep and mini-rest facts. The volume audit walks the week's sessions, so
+  // it runs once here, not once per card; the cards get primitives.
+  const phase = train.trainingPhase ?? 'cut';
+  // The week is anchored on the session's start — pure, and close enough to
+  // "now" for a seven-day window.
+  const sessionStart = session.date.getTime();
+  const clusterMuscles = useMemo(
+    () => musclesAllowingCluster(train.recentSessions, train.catalog, phase, sessionStart),
+    [train.recentSessions, train.catalog, phase, sessionStart],
+  );
+  const sleepHours = useMemo(() => recentSleepHours(train.recentSessions), [train.recentSessions]);
+  /** The mini-set rest a lift is prescribed — its row's, else the template's.
+   *  Unknown on an ad-hoc session: the stall check then says "no data". */
+  const prescribedMiniRest = (exerciseId: string) => templateRowFor(exerciseId)?.restMiniSec ?? tpl?.restMiniSec;
+  const recExtrasFor = (exerciseId: string) => {
+    const restMiniSec = prescribedMiniRest(exerciseId);
+    return {
+      volumeAllowsCluster: liftAllowsCluster(clusterMuscles, train.catalog, exerciseId),
+      stallContext: {
+        ...(sleepHours != null ? { sleepHours } : {}),
+        ...(restMiniSec != null ? { restMiniSec } : {}),
+      },
+    };
+  };
   /** What a rest after this exercise's sets runs to with no override. */
   const restFallback = (exerciseIndex: number) => {
     const ex = session.exercises[exerciseIndex];
@@ -904,6 +933,9 @@ export function ActiveSession({
               catalog={train.catalog}
               templateRow={templateRowFor(ex.exerciseId)}
               best={bestByEx[ex.exerciseId]}
+              volumeAllowsCluster={liftAllowsCluster(clusterMuscles, train.catalog, ex.exerciseId)}
+              sleepHours={sleepHours}
+              restMiniSec={prescribedMiniRest(ex.exerciseId)}
               platesOpen={platesOpen === exIdx}
               largeText={largeText}
               dispatch={dispatch}
@@ -1033,7 +1065,9 @@ export function ActiveSession({
       <LiftSettingsSheet
         visible={liftCatalogEx != null}
         exercise={liftCatalogEx}
-        rec={liftEx ? recommendationFor(train, liftEx.exerciseId, templateRowFor(liftEx.exerciseId), liftEx) : null}
+        rec={liftEx
+          ? recommendationFor(train, liftEx.exerciseId, templateRowFor(liftEx.exerciseId), liftEx, recExtrasFor(liftEx.exerciseId))
+          : null}
         onClose={() => setLiftFor(null)}
         onSave={(patch) => (liftCatalogEx?.id ? train.editCatalogExercise(liftCatalogEx.id, patch) : Promise.resolve())}
       />

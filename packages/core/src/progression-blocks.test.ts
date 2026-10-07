@@ -219,12 +219,12 @@ describe('hit', () => {
       .toEqual({ kind: 'nothing-to-read' });
   });
 
-  it('never derives a myo-reps band', () => {
+  it('never runs the myo-reps rep-range rules', () => {
     const rec = recommend([hitSet(100, 8), hitSet(100, 8), hitSet(100, 8)], {
       structure: 'hit', progression: HIT_RULE,
     });
-    expect(rec.band).toBeNull();
-    expect(rec.calibration.validSessions).toBe(0);
+    expect(rec.repRange).toBeUndefined();
+    expect(rec.config).toBeUndefined();
   });
 });
 

@@ -1,6 +1,6 @@
 # ADR-0039: RIR 0 is the activation standard, the rep band is derived per lift, and pre-cutoff sets are legacy
 
-- **Status:** accepted 2026-09-15 — implemented; merged, not yet on any OTA
+- **Status:** accepted 2026-09-15 — implemented. **Decisions 2 and 3 (the derived band, `targetRepBand`) are replaced by ADR-0044 (2026-10-07).**
   (`STATUS.md` §2 owns where that stands). Amends ADR-0038.
 - **Date:** 2026-09-15
 - **Touches:** `packages/core/src/progression-engine.ts`,

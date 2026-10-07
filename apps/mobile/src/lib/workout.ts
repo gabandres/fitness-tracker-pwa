@@ -29,9 +29,12 @@ export type {
 } from '@macrolog/core/cardio';
 import type { CardioBlock, PlannedCardioBlock } from '@macrolog/core/cardio';
 import type {
-  EffortStandard, MuscleGroup, RecommendationSnapshot, RepBand, SetStructure,
+  EffortStandard, ExerciseCategory, LoadChange, MuscleGroup, RecommendationSnapshot, RepBand, RepRange, SetStructure,
 } from '@macrolog/core/workout';
 export type { EffortStandard, RepBand } from '@macrolog/core/workout';
+// The 2026-10-07 progression configuration, introduced after core existed:
+// re-exported, not re-declared.
+export type { ExerciseCategory, LoadChange, RepRange, TrainingPhase } from '@macrolog/core/workout';
 // ADR-0040, introduced after core existed: re-exported, not re-declared —
 // the rule this file's header states.
 export type { SetStructure } from '@macrolog/core/workout';
@@ -77,8 +80,18 @@ export interface Exercise {
   effortStandard?: EffortStandard;
   /** Default structure for this lift (ADR-0040); a template's own wins. */
   setStructure?: SetStructure;
-  /** Manual override of the derived activation rep band (ADR-0039). */
+  /** Retired 2026-10-07 — the engine reads `repRange` now. Kept so old docs map. */
   targetRepBand?: RepBand;
+  /** What kind of lift this is; absent → inferred from the name (core `inferCategory`). */
+  category?: ExerciseCategory;
+  /** The lifter's own activation rep range; absent → the category default. */
+  repRange?: RepRange;
+  /** Smith only: the bar's effective weight. Absent → predictions are approximate. */
+  smithBarEffectiveLb?: number;
+  /** Bodyweight lifts: added load is available (dumbbell, vest). */
+  loadable?: boolean;
+  /** Microplates are available for this lift. */
+  microplates?: boolean;
   createdAt: Date;
 }
 
@@ -99,6 +112,8 @@ export interface WorkoutSet {
    *  to the real fields only when the set is ticked `done`. */
   targetReps?: number;
   targetDurationSec?: number;
+  /** The template's cluster label ("L" / "R"), snapshotted at start. */
+  label?: string;
   /** Logged on or before 2026-09-15, under the uncalibrated RIR standard;
    *  excluded from the engine's band derivation, kept as history (ADR-0039).
    *  Written by `scripts/mark-legacy-effort-standard.mjs`, never by the app. */
@@ -155,6 +170,9 @@ export interface PlannedSet {
   weight?: number;
   /** Prescribed hold in seconds — `time` logStyle only. */
   durationSec?: number;
+  /** The cluster's name in place of its number ("L" / "R" on a single-leg
+   *  lift). Mirrors `packages/core`. */
+  label?: string;
 }
 
 export interface TemplateExercise {
@@ -171,6 +189,9 @@ export interface TemplateExercise {
   /** Exercise-level override of the template's `restMiniSec` (seconds). Mirrors
    *  `packages/core`; see the comment there for why it exists. */
   restMiniSec?: number;
+  /** Every move of `targetLoad`, oldest first (core `LoadChange`). The editor
+   *  writes `exercises` whole, so it must carry this across a save. */
+  loadLog?: LoadChange[];
 }
 
 export interface WorkoutTemplate {
@@ -234,6 +255,7 @@ export function templateToSessionExercises(template: WorkoutTemplate): SessionEx
         weight: style === 'time' ? undefined : (ps.weight ?? ex.targetLoad),
         targetReps: style === 'time' ? undefined : ps.reps,
         targetDurationSec: style === 'time' ? ps.durationSec : undefined,
+        ...(ps.label ? { label: ps.label } : {}),
         done: false,
       })),
     };
@@ -261,8 +283,16 @@ export interface WorkoutSession {
 }
 
 export type ExerciseDraft = Omit<Exercise, 'id' | 'createdAt'>;
-/** A catalog edit; `targetRepBand: null` clears the override (back to derived). */
-export type ExercisePatch = Omit<Partial<ExerciseDraft>, 'targetRepBand'> & { targetRepBand?: RepBand | null };
+/** The lift settings a catalog edit can CLEAR: `null` deletes the field, so
+ *  the engine falls back to its default (inferred category, the category's
+ *  rep range, no entered steps, approximate Smith predictions, off). */
+type ClearableExerciseField =
+  | 'targetRepBand' | 'category' | 'repRange' | 'availableLoads'
+  | 'smithBarEffectiveLb' | 'loadable' | 'microplates';
+/** A catalog edit; `null` on a {@link ClearableExerciseField} deletes it. */
+export type ExercisePatch = Omit<Partial<ExerciseDraft>, ClearableExerciseField> & {
+  [K in ClearableExerciseField]?: ExerciseDraft[K] | null;
+};
 export type SessionDraft = Omit<WorkoutSession, 'id' | 'createdAt' | 'updatedAt'>;
 
 // The types above stay local (the PWA's `models/workout.ts` holds a

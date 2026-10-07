@@ -151,7 +151,11 @@ import type { I18nKey } from '@/i18n';
 // are KEPT, against this file's rewrite-the-list rule: they are one day old
 // and fire on the second launch, so many users have not seen them yet, and a
 // bump would otherwise erase them unread.
-export const WHATS_NEW_VERSION = '2026-10-05-native-1.2.5';
+// Bumped 2026-10-07 for the progression rules (ADR-0044). The 09-16 bump's
+// reasoning again: every lifter meets it on the next session, and "Calibrating"
+// disappearing in favour of a call on every lift reads as a different engine —
+// which it is. The 1.2.5 rows are KEPT (one day live; the 10-04 precedent).
+export const WHATS_NEW_VERSION = '2026-10-07-progression';
 
 const KEY = 'whatsNew.seen';
 
@@ -181,6 +185,7 @@ export interface WhatsNewItem {
 }
 
 export const WHATS_NEW_ITEMS: readonly WhatsNewItem[] = [
+  { icon: 'trending-up-outline', titleKey: 'whatsNew.progression.title', bodyKey: 'whatsNew.progression.body' },
   { icon: 'hand-left-outline', titleKey: 'whatsNew.hold.title', bodyKey: 'whatsNew.hold.body' },
   { icon: 'analytics-outline', titleKey: 'whatsNew.charts.title', bodyKey: 'whatsNew.charts.body' },
   { icon: 'barbell-outline', titleKey: 'whatsNew.offlineTrain.title', bodyKey: 'whatsNew.offlineTrain.body' },

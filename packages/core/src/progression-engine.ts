@@ -14,81 +14,87 @@
  *     first mini < 2 reps  → the activation was too hard   → read INVALID
  *     first mini 2-5 reps  → read VALID
  *
- * That rule holds under any effort standard, which is why it is the primary
- * gate. The activation's RIR only invalidates at the top (RIR 4+); RIR 0 is
- * the intended standard since ADR-0039 — the owner's 85 logged clusters showed
- * only the RIR-0 activations passed the mini rule.
+ * A read is also invalid when a mini out-reps its activation, when the load
+ * moved anywhere inside the lift (activation or mini — a planned drop set is
+ * the one sanctioned load change and is not read), or when RIR is missing on
+ * a clustered lift. The activation's RIR only invalidates at the top (RIR
+ * 4+); RIR 0 is the standard since ADR-0039.
  *
  * An invalid read never produces a load recommendation. It produces "repeat
  * <load> — read invalid" and the specific reason. That is the single most
  * important rule in this module: advancing load off a read that cannot support
  * the claim corrupts every session that follows it.
  *
- * Layer 2 (progression) reads the ACTIVATION SET ONLY, against a rep band
- * that is DERIVED PER EXERCISE, not hardcoded. Thresholds calibrated to a
- * RIR 1-2 standard (11-12 / 9-10 / under 9) do not transfer to failure sets,
- * so the band is computed from what the lifter actually did: after
- * {@link CALIBRATION_SESSIONS} valid sessions at one load,
+ * ## Layer 2 — the rep-range rules (2026-10-07, replacing ADR-0039's band)
  *
- *     addLoadAt = max observed activation reps
- *     hold      = max-2 .. max-1
- *     build     = under max-2
+ * The derived band (`addLoadAt = max observed reps`) is gone: it moved its own
+ * goalposts — a new best raised the mark it had to beat — so a lift could only
+ * advance by repeating its record. Each lift now has a REP RANGE, from its
+ * category (compound/machine 6-12, isolation and core 8-15, bodyweight 6-15)
+ * or the lifter's override. On the ACTIVATION sets only:
  *
- * and it is recomputed whenever the load changes (the calibration run is the
- * consecutive sessions at the CURRENT load). Until then the engine says
- * "Calibrating — n of 3 valid sessions logged" and recommends NO load. A
- * manual `Exercise.targetRepBand` overrides the derivation. Minis never drive
- * load. A multi-cluster lift advances only when EVERY activation clears the
- * mark, and the blocking cluster is named.
+ *   effective reps = activation reps + logged RIR  (Smith 13 @ RIR 1 = 14)
+ *
+ *   every cluster ≥ max  → load-increase candidate. The next load w2 is the
+ *       next real step. e1RM = w × (1 + eff/30) from the LOWEST cluster
+ *       (Epley — a heuristic, weaker at high reps, so the number is
+ *       "expected", never "guaranteed"); predicted = ⌊30 × (e1RM/w2 − 1)⌋.
+ *       predicted ≥ min → increase to w2, "expect about N reps".
+ *       Otherwise hold and build reps, up to max + 5 (hypertrophy is similar
+ *       across moderate and high rep ranges when sets go to failure —
+ *       Schoenfeld 2017); at that cap, a 3 s eccentric or a pause rep, then
+ *       microplates if the lifter has them, then one more cluster only if the
+ *       volume rules allow it.
+ *   any cluster < max    → hold the load; target = last + 1 rep.
+ *   first session after an increase, and under min → drop back to the
+ *       previous load and build.
+ *
+ * Layer 3 is the load steps: the catalog's `availableLoads` when entered,
+ * else 5 lb for dumbbells, Smith, barbell and plates; a stack with no entered
+ * steps falls back to the template's increment and says it is guessing.
+ *
+ * Layer 4 is stalls: three consecutive valid sessions at one load with no new
+ * best is "Stalled", with three checks (sleep under 7 h, intake under target,
+ * mini-set rest over 10 s); five suggests swapping the exercise for a
+ * variation.
+ *
+ * Bodyweight lifts build reps to max, then add load (5-10 lb) when the lifter
+ * has a way to, else a harder variation or a slower tempo.
  *
  * Sets flagged `legacyEffortStandard` (logged on or before 2026-09-15, under
- * an inconsistent RIR standard) are EXCLUDED from the band derivation and are
- * never judged as the latest read; they remain history.
- *
- * Layer 3 (increments) refuses to recommend a load the equipment cannot be
- * set to, or a jump over {@link MAX_JUMP_PCT} — except on a lift that is
- * plainly under-loaded, where the cap would be the engine protecting a number
- * the lifter has already left behind.
- *
- * Layer 4 (stalls) counts consecutive sessions at one load and, at three,
- * says WHY rather than just that.
- *
- * ## Effort standard per lift
- *
- * `Exercise.effortStandard` is `failure` by default; `rir1` marks a lift that
- * deliberately stops one rep short (a restriction). On a `rir1` lift an
- * activation logged at RIR 0 is a WARNING on the recommendation, not an
- * invalid read — the mini rule still decides validity.
+ * an inconsistent RIR standard) are history, not evidence: the engine skips
+ * them entirely.
  *
  * ## What it deliberately does not do
  *
- * No soreness/pump prompts, no %1RM, no velocity, no deload scheduling, and it
- * NEVER mutates a template or a catalog exercise. It recommends; the lifter
- * accepts or overrides, and the recommendation is frozen on the session
- * (`SessionExercise.recommendation`) so the override can be audited later.
- * The derived band is computed on read and never written anywhere.
+ * No soreness/pump prompts, no velocity, no deload scheduling, and it NEVER
+ * mutates a template or a catalog exercise. It recommends; applying a call to
+ * a template is `progression-apply.ts`, behind the lifter's tap or their
+ * explicit auto-apply setting. The recommendation is frozen on the session
+ * (`SessionExercise.recommendation`) so an override can be audited later.
  *
  * ## Straight sets
  *
  * Everything above is a property of the cluster protocol. An exercise logged
- * as plain working sets has no activation to read, so the engine returns
- * `action: 'none'` and the caller keeps whatever it did before (double
- * progression via `suggestProgression`). Applying the RIR band or the mini
- * rule to a straight set would invert the rule for every straight-set user in
- * the app — the same boundary `activation-validity.ts` draws.
+ * as plain working sets has no activation to read, so the engine dispatches to
+ * double progression instead (ADR-0040). Applying the rep-range rules or the
+ * mini rule to a straight set would invert the rule for every straight-set
+ * user in the app — the same boundary `activation-validity.ts` draws.
  *
  * Pure, framework-free, shared by both apps (ADR-0012).
  */
 import type {
   EffortStandard,
+  ExerciseCategory,
   LogStyle,
   ProgressionRule,
   RepBand,
+  RepRange,
   SessionExercise,
   SetStructure,
   WorkoutSet,
 } from './workout';
-import { DEFAULT_EFFORT_STANDARD, DEFAULT_LOG_STYLE } from './workout';
+import { CATEGORY_REP_RANGES, DEFAULT_EFFORT_STANDARD, DEFAULT_LOG_STYLE } from './workout';
 import { ACTIVATION_RIR_MAX } from './activation-validity';
 import { DEFAULT_INCREMENT_LB } from './load-units';
 import { inferStructure, structureOf } from './set-structure';
@@ -98,36 +104,31 @@ import { inferStructure, structureOf } from './set-structure';
 /** The first mini-set's readable band, inclusive. */
 export const FIRST_MINI_MIN = 2;
 export const FIRST_MINI_MAX = 5;
-/** Valid (non-legacy) sessions at one load before a rep band is derived. */
-export const CALIBRATION_SESSIONS = 3;
-/** The hold band sits this many reps under the add-load mark: `max-2 .. max-1`. */
-export const HOLD_BAND_WIDTH = 2;
 /** Sets logged on or before this date (inclusive) carry
  *  `legacyEffortStandard: true` — see `WorkoutSet`. Informational here; the
  *  engine reads the flag, never the date. */
 export const LEGACY_EFFORT_CUTOFF = '2026-09-15';
 // The fallback load step is `DEFAULT_INCREMENT_LB` from ./load-units — the
-// same 5 lb the weight stepper assumes, one number for "the smallest step we
-// assume exists" when neither the equipment nor the template says.
-/** A load step larger than this fraction of the current load is not
- *  recommended; the engine asks for two more reps first. */
+// same 5 lb the weight stepper assumes.
+/** Straight-set double progression only (ADR-0040): a load step larger than
+ *  this fraction of the current load is not recommended. The myo-reps path
+ *  decides the same question with a rep prediction instead. */
 export const MAX_JUMP_PCT = 0.15;
-/** Extra reps to build before taking a too-large step. */
-export const BUILD_REPS_EXTRA = 2;
-/** Consecutive same-load sessions that make a stall. */
+/** Reps past `repRange.max` a lift may build before the engine stops asking
+ *  for more reps and offers a technique instead. */
+export const REP_CAP_EXTRA = 5;
+/** Epley's denominator: e1RM = w × (1 + reps / 30). */
+export const EPLEY_DIVISOR = 30;
+/** Consecutive valid sessions at one load with no new best that make a stall. */
 export const STALL_SESSIONS = 3;
-/** Consecutive same-load sessions that earn an intervention list. */
-export const INTERVENTION_SESSIONS = 5;
-
-/** The band a lift earns from its highest valid activation rep count. */
-export function repBandFrom(maxReps: number): RepBand {
-  const max = Math.max(1, Math.round(maxReps));
-  return {
-    addLoadAt: max,
-    holdLo: Math.max(1, max - HOLD_BAND_WIDTH),
-    holdHi: Math.max(1, max - 1),
-  };
-}
+/** …and that earn the suggestion to swap the exercise for a variation. */
+export const SWAP_SESSIONS = 5;
+/** Under this average sleep the stall checklist flags sleep. */
+export const STALL_SLEEP_MIN_H = 7;
+/** Over this mini-set rest the stall checklist flags the rest. */
+export const STALL_MINI_REST_MAX_SEC = 10;
+/** Added load a bodyweight lift starts at once it tops its range. */
+export const BODYWEIGHT_START_LB: readonly [number, number] = [5, 10];
 
 // ─── Layer 1: validity ──────────────────────────────────────────
 
@@ -146,7 +147,8 @@ export type InvalidReason =
   | 'first-mini-too-few'
   /** A mini out-repped its activation. */
   | 'mini-exceeds-activation'
-  /** Load differed between clusters of the same exercise. */
+  /** The load moved inside the lift — between clusters, or between an
+   *  activation and its minis. */
   | 'load-changed'
   /** The template prescribes a cluster; the session logged straight sets. */
   | 'not-clustered';
@@ -179,7 +181,7 @@ export interface ExerciseRead {
   /** True when there was an activation set to read at all. */
   clustered: boolean;
   /** Any performed activation was logged under the legacy effort standard.
-   *  Such a read is history, not evidence: excluded from band derivation. */
+   *  Such a read is history, not evidence. */
   legacy: boolean;
 }
 
@@ -238,7 +240,17 @@ export function readExercise(
   if (clusters.length === 0) return none(null, true);
   const legacy = clusters.some((c) => c.legacy);
 
-  const loads = new Set(clusters.map((c) => c.load).filter((w): w is number => w != null));
+  // The load must be one number across every PERFORMED activation and mini.
+  // A mini at a different weight (20 → 15 → 20) is a different lift's reps;
+  // the activation-only check this replaced let it through. Drop sets are the
+  // one sanctioned load change, and the engine never reads them.
+  const performedGroups = new Set(clusters.map((c) => c.group));
+  const loads = new Set(
+    exercise.sets
+      .filter((s) => (s.kind === 'activation' || s.kind === 'mini') && hasReps(s) && performedGroups.has(s.group ?? 1))
+      .map((s) => s.weight)
+      .filter((w): w is number => w != null),
+  );
   const load = loads.size === 1 ? [...loads][0] : undefined;
   if (loads.size > 1) {
     return { clusters, issue: 'load-changed', valid: false, clustered: true, legacy };
@@ -271,94 +283,168 @@ function clusterIssue(c: ClusterRead, strict: boolean): InvalidReason | null {
   return null;
 }
 
-// ─── Layer 2a: the band — calibration ───────────────────────────
+/** Reps to failure an activation stands for: logged reps + logged RIR.
+ *  Smith 13 @ RIR 1 is 14. A missing RIR adds nothing. */
+export function effectiveReps(c: Pick<ClusterRead, 'reps' | 'rir'>): number | undefined {
+  if (c.reps == null) return undefined;
+  return c.reps + (c.rir ?? 0);
+}
 
-export interface Calibration {
-  /** The load being calibrated: the most recent clustered read's load. */
-  load?: number;
-  /** Valid, non-legacy sessions in the consecutive run at that load. */
-  validSessions: number;
-  needed: number;
-  /** Highest activation reps across those sessions, once there is one. */
-  maxReps?: number;
-  /** The band in force, or null while calibrating. */
-  band: RepBand | null;
-  /** Where the band came from. */
-  source: 'override' | 'derived' | null;
+// ─── Per-lift configuration ─────────────────────────────────────
+
+/** What the lift is loaded with — it decides the default load step. */
+export type Equipment = 'dumbbell' | 'stack' | 'smith' | 'barbell' | 'plate' | 'bodyweight' | 'other';
+
+/** Everything the rep-range rules need to know about one lift, resolved once
+ *  by {@link resolveEngineConfig} so no caller re-derives a default. */
+export interface EngineConfig {
+  category: ExerciseCategory;
+  /** Whether {@link category} was set by the lifter or inferred from the name. */
+  categorySource: 'set' | 'inferred';
+  repRange: RepRange;
+  repRangeSource: 'set' | 'category';
+  equipment: Equipment;
+  /** The loads the equipment can be set to, ascending, when entered. */
+  loadSteps?: number[];
+  /** The step used when {@link loadSteps} is absent. */
+  stepLb: number;
+  /** A stack with no entered steps: the next load is a guess. */
+  stepsUnknown: boolean;
+  smithBarEffectiveLb?: number;
+  /** Predictions use the plate load alone — a Smith lift with no bar weight. */
+  approximate: boolean;
+  effortStandard: EffortStandard;
+  loadable: boolean;
+  microplates: boolean;
+  assisted: boolean;
+}
+
+const has = (re: RegExp, s: string) => re.test(s);
+
+/**
+ * The category a lift's name implies, for when the lifter has not set one.
+ * Matches the spec's own examples: the leg extension and leg curl are
+ * machine compounds (6-12), every other curl / extension / raise is an
+ * isolation (8-15), crunches are core, and pull-ups, push-ups, dips and
+ * knee raises are bodyweight.
+ */
+export function inferCategory(name: string): ExerciseCategory {
+  const n = name.toLowerCase();
+  if (has(/pull-?ups?\b|chin-?ups?\b|push-?ups?\b|knee raise|leg raise|\bdips?\b/, n)) return 'bodyweight';
+  if (has(/crunch|plank|twist|sit-?up|rollout|ab wheel|pallof|woodchop/, n)) return 'core';
+  if (has(/leg (extension|curl)/, n)) return 'compound';
+  if (has(/lateral raise|rear delt|fl(y|ye|yes|ies)\b|curl|tricep|extension|pushdown|kickback|calf raise|skull|face pull|shrug/, n)) return 'isolation';
+  return 'compound';
+}
+
+/** The equipment a lift's name implies. A stack is the one kind whose steps
+ *  cannot be assumed — they differ by machine. */
+export function inferEquipment(name: string): Equipment {
+  const n = name.toLowerCase();
+  if (has(/smith/, n)) return 'smith';
+  if (has(/pull-?ups?\b|chin-?ups?\b|push-?ups?\b|knee raise|leg raise|\bdips?\b/, n)) return 'bodyweight';
+  if (has(/\bdb\b|dumbbell/, n)) return 'dumbbell';
+  if (has(/barbell|\bbb\b/, n)) return 'barbell';
+  if (has(/machine|cable|pulldown|pushdown|leg (extension|curl)|stack|paramount/, n)) return 'stack';
+  if (has(/crunch|plate/, n)) return 'plate';
+  return 'other';
+}
+
+/** The catalog fields the engine reads, in the shape every caller has. */
+export interface EngineCatalogFields {
+  name?: string;
+  logStyle?: LogStyle;
+  availableLoads?: number[];
+  assisted?: boolean;
+  effortStandard?: EffortStandard;
+  category?: ExerciseCategory;
+  repRange?: RepRange;
+  smithBarEffectiveLb?: number;
+  loadable?: boolean;
+  microplates?: boolean;
+}
+
+/** A rep range a lifter could actually mean: whole, positive, min ≤ max. */
+export function isValidRepRange(r: unknown): r is RepRange {
+  if (!r || typeof r !== 'object') return false;
+  const { min, max } = r as RepRange;
+  return Number.isInteger(min) && Number.isInteger(max) && min >= 1 && min <= max && max <= 100;
 }
 
 /**
- * The calibration state for one exercise. `history` is most-recent-first.
- *
- * The run is the consecutive clustered reads at the CURRENT load, so a load
- * change restarts calibration by construction ("recalculate whenever the
- * load changes"). Legacy reads are skipped without breaking the run — they
- * are invisible to calibration, at any load. Reads whose load is unknown
- * (`load-changed`, a bodyweight cluster) neither count nor break the run.
+ * Resolve one lift's configuration: the lifter's catalog fields first, then
+ * the category default, then the equipment default. The template row only
+ * contributes `progression.incrementLb`, and only as a stack's fallback step.
  */
-export function calibrationFor(history: readonly SessionExercise[], opts: RecommendOptions = {}): Calibration {
-  return calibrationFrom(history.map((h) => readExercise(h, opts)), opts);
-}
-
-/** The load a read calibrates under: a bodyweight cluster (no weight on any
- *  set) is one load, "none", and calibrates like any other; a read whose
- *  clusters disagree about the load has no key at all. */
-function loadKey(r: ExerciseRead): number | undefined {
-  if (!r.clustered || r.issue === 'load-changed') return undefined;
-  return r.load ?? 0;
-}
-
-function calibrationFrom(reads: readonly ExerciseRead[], opts: RecommendOptions): Calibration {
-  const needed = CALIBRATION_SESSIONS;
-  const current = reads.find((r) => loadKey(r) != null && !r.legacy)
-    ?? reads.find((r) => loadKey(r) != null);
-  const key = current ? loadKey(current) : undefined;
-  const load = current?.load;
-  let validSessions = 0;
-  let maxReps: number | undefined;
-  if (key != null) {
-    for (const r of reads) {
-      if (!r.clustered || r.legacy) continue;
-      const k = loadKey(r);
-      if (k == null) continue;
-      if (k !== key) break;
-      if (!r.valid) continue;
-      const reps = r.clusters.map((c) => c.reps).filter((x): x is number => x != null);
-      if (reps.length === 0) continue;
-      validSessions += 1;
-      const m = Math.max(...reps);
-      maxReps = maxReps == null ? m : Math.max(maxReps, m);
-    }
-  }
-  if (opts.targetRepBand) {
-    return { load, validSessions, needed, maxReps, band: opts.targetRepBand, source: 'override' };
-  }
-  const derived = validSessions >= needed && maxReps != null;
+export function resolveEngineConfig(
+  catalog: EngineCatalogFields | null | undefined,
+  template?: { name?: string; progression?: Partial<ProgressionRule> } | null,
+): EngineConfig {
+  const name = catalog?.name ?? template?.name ?? '';
+  const category = catalog?.category ?? inferCategory(name);
+  const repRange = isValidRepRange(catalog?.repRange) ? catalog!.repRange! : CATEGORY_REP_RANGES[category];
+  const equipment: Equipment = catalog?.logStyle === 'bodyweight' ? 'bodyweight' : inferEquipment(name);
+  const steps = (catalog?.availableLoads ?? []).filter((x) => Number.isFinite(x)).sort((a, b) => a - b);
+  const loadSteps = steps.length > 0 ? steps : undefined;
+  const stack = equipment === 'stack';
+  const stepLb = stack ? (template?.progression?.incrementLb ?? DEFAULT_INCREMENT_LB) : DEFAULT_INCREMENT_LB;
+  const bar = catalog?.smithBarEffectiveLb;
   return {
-    load, validSessions, needed, maxReps,
-    band: derived ? repBandFrom(maxReps as number) : null,
-    source: derived ? 'derived' : null,
+    category,
+    categorySource: catalog?.category ? 'set' : 'inferred',
+    repRange,
+    repRangeSource: isValidRepRange(catalog?.repRange) ? 'set' : 'category',
+    equipment,
+    ...(loadSteps ? { loadSteps } : {}),
+    stepLb,
+    stepsUnknown: stack && !loadSteps,
+    ...(bar != null && bar >= 0 ? { smithBarEffectiveLb: bar } : {}),
+    approximate: equipment === 'smith' && (bar == null || bar < 0),
+    effortStandard: catalog?.effortStandard ?? DEFAULT_EFFORT_STANDARD,
+    loadable: catalog?.loadable === true,
+    microplates: catalog?.microplates === true,
+    assisted: catalog?.assisted === true,
   };
 }
 
-// ─── Layer 2 + 3: the recommendation ────────────────────────────
+/** Epley's estimated one-rep max: w × (1 + reps / 30). An estimate; it
+ *  over-reads at high rep counts. */
+export function epleyE1rm(load: number, reps: number): number {
+  return load * (1 + reps / EPLEY_DIVISOR);
+}
+
+/** Reps expected at `nextLoad` from an e1RM: ⌊30 × (e1RM / w2 − 1)⌋, never
+ *  negative. */
+export function predictedRepsAt(e1rm: number, nextLoad: number): number {
+  if (nextLoad <= 0) return 0;
+  return Math.max(0, Math.floor(EPLEY_DIVISOR * (e1rm / nextLoad - 1) + 1e-9));
+}
+
+// ─── Layer 2: the recommendation ────────────────────────────────
 
 export type RecommendAction =
-  /** Every activation reached the add-load mark (or passed it): take the next
-   *  load. On an `assisted` lift this means LESS assistance. */
+  /** Every activation reached the top of the range and the next step is
+   *  expected to land in range: take it. On an `assisted` lift this means
+   *  LESS assistance. */
   | 'add-load'
-  /** In the hold band on at least one cluster: same load, build reps. */
+  /** At least one cluster under the top of the range: same load, +1 rep. */
   | 'hold'
-  /** Same load, build reps first — either under the hold band on at least one
-   *  cluster, or the next available load is too big a step. */
+  /** Same load, build reps first — the next step is too big a jump, there is
+   *  no heavier step, or a bodyweight lift is building toward its range. */
   | 'build-reps'
+  /** The first session after an increase came in under the range: go back to
+   *  the previous load and build. */
+  | 'drop-back'
   /** The last read was invalid: repeat the load, fix the read. */
   | 'repeat-invalid'
-  /** No band yet: the session is a calibration, not a read. Also the state
-   *  before any history, and after a legacy latest read. */
+  /** No usable history yet: log a session at the planned load. */
   | 'calibrate'
-  /** Not a clustered lift; the engine has nothing to say. */
+  /** Not a lift the engine reads; nothing to say. */
   | 'none';
+
+/** What the lifter can do once reps are capped and the next step is still too
+ *  big, in the order offered. */
+export type CapTechnique = 'tempo' | 'microplates' | 'add-cluster';
 
 export type RecommendReason =
   | { kind: 'no-history' }
@@ -376,10 +462,7 @@ export type RecommendReason =
    *  Not a rep count against a band — cluster sets are not autoregulated. */
   | { kind: 'cluster-sets'; completed: number; blocks: number;
       sessionsAtTarget: number; holdSessions: number }
-  /** A HIT read (ADR-0040): the reps of the ONE set taken to failure. Shaped
-   *  like `straight-sets` because it is the same double progression over a
-   *  single set — kept a separate kind so the copy can name the structure the
-   *  user actually picked rather than call their HIT set "straight sets". */
+  /** A HIT read (ADR-0040): the reps of the ONE set taken to failure. */
   | { kind: 'hit'; reps: number; targetReps: number;
       sessionsAtTarget: number; holdSessions: number }
   /** No target to progress against: the prescription states no
@@ -392,18 +475,37 @@ export type RecommendReason =
   /** The exercise is programmed as a structure the engine has no reader for
    *  (ADR-0040). Never a fall-through to another structure's rule. */
   | { kind: 'unsupported-structure'; structure: SetStructure }
-  /** Band not yet derived: `valid` of `needed` sessions at the current load. */
-  | { kind: 'calibrating'; valid: number; needed: number }
   | { kind: 'invalid'; reason: InvalidReason; group?: number; firstMini?: number; rir?: number; reps?: number }
-  /** Every cluster at the add-load mark. */
-  | { kind: 'at-target'; reps: number; rir?: number }
-  /** Every cluster OVER the add-load mark — only possible under an override. */
-  | { kind: 'over-band'; reps: number; rir?: number }
-  /** At least one cluster in the hold band. */
-  | { kind: 'below-band'; reps: number; group?: number; clusters: number }
-  /** At least one cluster UNDER the hold band; `goal` is the band's floor. */
-  | { kind: 'under-band'; reps: number; group?: number; clusters: number; goal: number }
-  | { kind: 'jump-too-big'; nextLoad: number; jumpPct: number; repsGoal: number };
+  /** Straight-set double progression only: the next step is over
+   *  {@link MAX_JUMP_PCT}. */
+  | { kind: 'jump-too-big'; nextLoad: number; jumpPct: number; repsGoal: number }
+  // ── myo-reps, rep-range rules ──
+  /** Every cluster at or over the top of the range, and the next step is
+   *  expected to land in range. `reps` is the binding effective count. */
+  | { kind: 'increase'; reps: number; max: number; nextLoad: number; jumpPct: number;
+      /** Absent where Epley cannot speak: assistance, or added load on a
+       *  bodyweight lift (the body is most of the load and is not logged). */
+      predictedReps?: number; e1rm?: number }
+  /** A cluster sits under the top of the range. */
+  | { kind: 'below-max'; reps: number; max: number; group?: number; clusters: number }
+  /** At the top of the range, but the next step predicts fewer than `min`:
+   *  build reps (to `repsForStep` when that is within `cap`). */
+  | { kind: 'step-too-big'; reps: number; nextLoad: number; jumpPct: number; predictedReps: number;
+      min: number; cap: number; repsForStep?: number }
+  /** At the top of the range and there is no heavier step entered. */
+  | { kind: 'no-next-step'; reps: number; cap: number }
+  /** Reps are capped (max + 5) and the step is still too big (or absent):
+   *  try a technique instead of more reps. */
+  | { kind: 'at-rep-cap'; reps: number; cap: number; nextLoad?: number; jumpPct?: number;
+      predictedReps?: number; techniques: CapTechnique[] }
+  /** The first session after an increase came in under the range. */
+  | { kind: 'drop-back'; reps: number; min: number; previousLoad: number }
+  /** Bodyweight lift under the top of its range. */
+  | { kind: 'bodyweight-build'; reps: number; max: number }
+  /** Bodyweight lift at the top of its range, with added load available. */
+  | { kind: 'bodyweight-add-load'; reps: number; max: number; startLb: readonly [number, number] }
+  /** Bodyweight lift at the top of its range, with no way to add load. */
+  | { kind: 'bodyweight-variation'; reps: number; max: number };
 
 export type RecommendWarning =
   /** A `rir1` lift logged its activation at RIR 0. Soft: the read stands. */
@@ -419,8 +521,8 @@ export interface ActivationSummary {
 export interface Recommendation {
   action: RecommendAction;
   /** The load to use next session, pounds. Equals `currentLoad` on hold /
-   *  repeat / build-reps / calibrate; the next step on add-load. Absent when
-   *  unknown. */
+   *  repeat / build-reps / calibrate; the next step on add-load; the previous
+   *  load on drop-back. Absent when unknown. */
   load?: number;
   /** The load the last session used. */
   currentLoad?: number;
@@ -429,39 +531,57 @@ export interface Recommendation {
   reason: RecommendReason;
   /** True when the exercise's weight is assistance (less is progress). */
   assisted: boolean;
-  /** The rep band in force, or null while calibrating. */
-  band: RepBand | null;
-  /** Where the band stands: valid sessions so far, its source, its max. */
-  calibration: Calibration;
+  /** The activation reps to aim for next session, as LOGGED (a `rir1` lift's
+   *  target is one under its effective count). Absent when the call has no
+   *  rep target (an invalid read, a technique at the cap). */
+  targetReps?: number;
+  /** On an increase: reps expected at the new load (to failure). */
+  predictedReps?: number;
+  /** Predictions use the plate load alone — see {@link EngineConfig.approximate}. */
+  approximate: boolean;
+  /** The rep range the call was made against (myo-reps only). */
+  repRange?: RepRange;
+  /** The resolved configuration (myo-reps only). */
+  config?: EngineConfig;
   /** Soft flags that do not change the action. */
   warnings: RecommendWarning[];
-  /** Layer 4, when there is enough history. */
+  /** Layer 4, when the lift has stalled. */
   stall?: StallReport;
 }
 
+/** Facts outside the logged sets that the stall checklist reads. Every one is
+ *  optional; an absent fact reads as "unknown", never as fine. */
+export interface StallContext {
+  /** Average nightly sleep over the stalled sessions, hours. */
+  sleepHours?: number;
+  /** Whether intake ran under the calorie target over those sessions. */
+  intakeBelowTarget?: boolean;
+  /** The mini-set rest the template prescribes, seconds. */
+  restMiniSec?: number;
+}
+
 export interface RecommendOptions extends ReadOptions {
-  /** From the template's `progression`; only `incrementLb` is read now that
-   *  the band is derived. */
+  /** From the template's `progression`; `incrementLb` is a stack's fallback
+   *  step and the straight-set readers' increment. */
   progression?: Partial<ProgressionRule>;
   /** From the catalog exercise. */
   availableLoads?: number[];
   assisted?: boolean;
   /** From the catalog exercise; defaults to {@link DEFAULT_EFFORT_STANDARD}. */
   effortStandard?: EffortStandard;
-  /** From the catalog exercise: a manual band that skips calibration. */
+  /** Retired (2026-10-07). Accepted so old callers compile; never read. */
   targetRepBand?: RepBand;
   /** What the exercise is PROGRAMMED as (ADR-0040), resolved by `structureOf`
    *  from the template, then the catalog. Absent means "infer with the
-   *  pre-0040 rule" from the latest session's set list, which is exactly what
-   *  the engine did before this option existed — so an undeclared myo-reps
-   *  lift still reads as myo-reps and history is not reinterpreted. */
+   *  pre-0040 rule" from the latest session's set list. */
   structure?: SetStructure;
-}
-
-/** The activation reps that bind a multi-cluster read: the lowest. */
-function bindingReps(read: ExerciseRead): number | undefined {
-  const reps = read.clusters.map((c) => c.reps).filter((r): r is number => r != null);
-  return reps.length ? Math.min(...reps) : undefined;
+  /** The resolved per-lift configuration. Absent → resolved from the fields
+   *  above with an inferred (compound) category. */
+  config?: EngineConfig;
+  /** The weekly volume rules allow one more cluster for this lift's muscle
+   *  (`volumeCalls`). Offered at the rep cap only; never in a cut. */
+  volumeAllowsCluster?: boolean;
+  stallContext?: StallContext;
 }
 
 /**
@@ -489,11 +609,6 @@ export function nextLoad(
   const jumpPct = current > 0 ? Math.abs(load - current) / current : 0;
   return { load, jumpPct };
 }
-
-/** The calibration state for a structure that does not calibrate. The derived
- *  band is a myo-reps concept (ADR-0039); straight sets progress against the
- *  template's rep target, and an unreadable structure has no state at all. */
-const EMPTY_CALIBRATION: Calibration = { validSessions: 0, needed: CALIBRATION_SESSIONS, band: null, source: null };
 
 /** Working sets that were actually performed, in log order. */
 function workingReps(ex: SessionExercise): WorkoutSet[] {
@@ -567,7 +682,7 @@ function heldRun(
  * between structures.
  */
 function loadCall(
-  base: Pick<Recommendation, 'last' | 'assisted' | 'band' | 'calibration' | 'warnings'>,
+  base: Pick<Recommendation, 'last' | 'assisted' | 'approximate' | 'warnings'>,
   opts: RecommendOptions,
   currentLoad: number | undefined,
   sessionsAtTarget: number,
@@ -649,8 +764,7 @@ function clusterSetRead(
 function recommendRestPause(history: readonly SessionExercise[], opts: RecommendOptions): Recommendation {
   const assisted = opts.assisted ?? false;
   const base = {
-    last: [] as ActivationSummary[], assisted, band: null,
-    calibration: EMPTY_CALIBRATION, warnings: [] as RecommendWarning[],
+    last: [] as ActivationSummary[], assisted, approximate: false, warnings: [] as RecommendWarning[],
   };
   if (history.length === 0) return { ...base, action: 'calibrate', reason: { kind: 'no-history' } };
 
@@ -680,8 +794,7 @@ function recommendRestPause(history: readonly SessionExercise[], opts: Recommend
 function recommendCluster(history: readonly SessionExercise[], opts: RecommendOptions): Recommendation {
   const assisted = opts.assisted ?? false;
   const base = {
-    last: [] as ActivationSummary[], assisted, band: null,
-    calibration: EMPTY_CALIBRATION, warnings: [] as RecommendWarning[],
+    last: [] as ActivationSummary[], assisted, approximate: false, warnings: [] as RecommendWarning[],
   };
   if (history.length === 0) return { ...base, action: 'calibrate', reason: { kind: 'no-history' } };
 
@@ -745,8 +858,7 @@ function hitRead(ex: SessionExercise): { reps?: number; load?: number; rir?: num
 function recommendHit(history: readonly SessionExercise[], opts: RecommendOptions): Recommendation {
   const assisted = opts.assisted ?? false;
   const base = {
-    last: [] as ActivationSummary[], assisted, band: null,
-    calibration: EMPTY_CALIBRATION, warnings: [] as RecommendWarning[],
+    last: [] as ActivationSummary[], assisted, approximate: false, warnings: [] as RecommendWarning[],
   };
   if (history.length === 0) return { ...base, action: 'calibrate', reason: { kind: 'no-history' } };
 
@@ -777,8 +889,7 @@ function recommendHit(history: readonly SessionExercise[], opts: RecommendOption
 function recommendStraight(history: readonly SessionExercise[], opts: RecommendOptions): Recommendation {
   const assisted = opts.assisted ?? false;
   const base = {
-    last: [] as ActivationSummary[], assisted, band: null,
-    calibration: EMPTY_CALIBRATION, warnings: [] as RecommendWarning[],
+    last: [] as ActivationSummary[], assisted, approximate: false, warnings: [] as RecommendWarning[],
   };
   if (history.length === 0) return { ...base, action: 'calibrate', reason: { kind: 'no-history' } };
 
@@ -828,22 +939,32 @@ export function recommend(history: readonly SessionExercise[], opts: RecommendOp
   if (structure === 'hit') return recommendHit(history, opts);
   if (structure !== 'myoreps') {
     return {
-      last: [], assisted: opts.assisted ?? false, band: null,
-      calibration: EMPTY_CALIBRATION, warnings: [],
+      last: [], assisted: opts.assisted ?? false, approximate: false, warnings: [],
       action: 'none', reason: { kind: 'unsupported-structure', structure },
     };
   }
 
-  // ─── myo-reps: ADR-0038/0039, unchanged below this line ───────────
-  const assisted = opts.assisted ?? false;
+  // ─── myo-reps: the rep-range rules ────────────────────────────────
+  const config = opts.config ?? resolveEngineConfig(
+    {
+      availableLoads: opts.availableLoads,
+      assisted: opts.assisted,
+      effortStandard: opts.effortStandard,
+    },
+    { progression: opts.progression },
+  );
+  const assisted = opts.assisted ?? config.assisted;
   // A declared myo-reps lift DOES expect a cluster, which is what makes a
   // straight-set log of it read as `not-clustered` instead of being ignored.
   // An explicit caller value still wins.
   const readOpts: RecommendOptions = { ...opts, expectsCluster: opts.expectsCluster ?? true };
-  const reads = history.map((h) => readExercise(h, readOpts));
-  const calibration = calibrationFrom(reads, opts);
-  const band = calibration.band;
-  const base = { last: [] as ActivationSummary[], assisted, band, calibration, warnings: [] as RecommendWarning[] };
+  // Legacy reads (logged under the pre-2026-09-16 effort standard) are history,
+  // not evidence: every rule below runs as if they were never logged.
+  const reads = history.map((h) => readExercise(h, readOpts)).filter((r) => !r.legacy);
+  const base = {
+    last: [] as ActivationSummary[], assisted, approximate: config.approximate,
+    repRange: config.repRange, config, warnings: [] as RecommendWarning[],
+  };
   const read = reads[0];
 
   if (!read) return { ...base, action: 'calibrate', reason: { kind: 'no-history' } };
@@ -852,31 +973,25 @@ export function recommend(history: readonly SessionExercise[], opts: RecommendOp
     group: c.group, reps: c.reps, rir: c.rir, firstMini: c.minis[0],
   }));
   const currentLoad = read.load ?? read.clusters.find((c) => c.load != null)?.load;
-  const stall = stallFrom(reads, band);
-  const withStall = stall ? { stall } : {};
 
   if (!read.clustered) {
     if (read.issue === 'not-clustered') {
       return {
-        ...base, ...withStall, action: 'repeat-invalid', load: currentLoad, currentLoad, last: summaries,
+        ...base, action: 'repeat-invalid', load: currentLoad, currentLoad, last: summaries,
         reason: { kind: 'invalid', reason: 'not-clustered' },
       };
     }
-    // Reached only when there is no cluster to read AND no straight-set log
-    // to fault: a myo-reps lift whose latest session is a timed hold (the
-    // engine is a rep engine — wrong instrument, not a bad log), or one with
-    // nothing performed yet. Before ADR-0040 this returned `straight-sets`,
-    // which was a lie about a lift programmed as myo-reps, and it rendered as
-    // the empty string so nobody could see the lie.
+    // A myo-reps lift whose latest session is a timed hold, or one with
+    // nothing performed yet: nothing to read, which is not a bad log.
     return { ...base, action: 'none', currentLoad, reason: { kind: 'nothing-to-read' } };
   }
 
   // A `rir1` lift taken to failure: say so, but the mini rule decides validity.
-  const standard = opts.effortStandard ?? DEFAULT_EFFORT_STANDARD;
   const warnings: RecommendWarning[] =
-    standard === 'rir1' && read.clusters.some((c) => c.rir === 0) ? ['failure-on-rir1'] : [];
-  const judged = { ...base, warnings, last: summaries, currentLoad, ...withStall };
+    config.effortStandard === 'rir1' && read.clusters.some((c) => c.rir === 0) ? ['failure-on-rir1'] : [];
+  const judged = { ...base, warnings, last: summaries, currentLoad };
 
+  // Rule 1 — the validity gate. An invalid read repeats the load, always.
   if (!read.valid) {
     const bad = read.clusters.find((c) => c.group === read.issueGroup);
     return {
@@ -892,151 +1007,251 @@ export function recommend(history: readonly SessionExercise[], opts: RecommendOp
     };
   }
 
-  // A legacy latest read is history, not evidence — and no band means the
-  // engine has nothing to judge against yet. Both are "calibrate": repeat the
-  // load, log a clean session, and the count moves.
-  if (read.legacy || band == null) {
-    return {
-      ...judged, action: 'calibrate', load: currentLoad,
-      reason: { kind: 'calibrating', valid: calibration.validSessions, needed: calibration.needed },
-    };
+  const call = rangeCall(reads, read, config, assisted, opts);
+  const out: Recommendation = { ...judged, ...call };
+  // Rule 6 — a stall is reported on a call that keeps the load; a lift that
+  // is moving (or moving back) is not stalled.
+  if (out.action === 'hold' || out.action === 'build-reps') {
+    const stall = stallFrom(reads, opts.stallContext);
+    if (stall) out.stall = stall;
   }
+  return out;
+}
 
-  // Layer 2 — activation reps only; every cluster must clear the mark. The
-  // cluster named is the BINDING one (fewest reps), which on a two-cluster
-  // lift is the one the lifter has to move.
+/** The binding cluster of a read: fewest effective reps. */
+function bindingCluster(read: ExerciseRead): ClusterRead {
+  return [...read.clusters].sort((a, b) => (effectiveReps(a) as number) - (effectiveReps(b) as number))[0];
+}
+
+/** The load a read was performed at, as a key: a bodyweight cluster (no
+ *  weight on any set) is load 0; a read whose loads disagree has no key. */
+function loadKey(r: ExerciseRead): number | undefined {
+  if (!r.clustered || r.issue === 'load-changed') return undefined;
+  return r.load ?? 0;
+}
+
+/** The logged-rep form of an effective-rep count on this lift: a `rir1` lift
+ *  is meant to stop one short, so its target is one under. */
+function asLogged(effective: number, config: EngineConfig): number {
+  return config.effortStandard === 'rir1' ? Math.max(1, effective - 1) : effective;
+}
+
+/**
+ * Rules 2-5 and 7-8 on a VALID read. Returns the call without the shared
+ * fields (`last`, `warnings`, …), which the caller owns.
+ */
+function rangeCall(
+  reads: readonly ExerciseRead[],
+  read: ExerciseRead,
+  config: EngineConfig,
+  assisted: boolean,
+  opts: RecommendOptions,
+): Pick<Recommendation, 'action' | 'load' | 'reason' | 'targetReps' | 'predictedReps'> {
+  const { min, max } = config.repRange;
+  const cap = max + REP_CAP_EXTRA;
   const multi = read.clusters.length > 1;
-  const lowest = [...read.clusters].sort((a, b) => (a.reps as number) - (b.reps as number))[0];
-  const under = (lowest.reps as number) < band.holdLo ? lowest : undefined;
-  if (under) {
-    return {
-      ...judged, action: 'build-reps', load: currentLoad,
-      reason: {
-        kind: 'under-band', reps: under.reps as number, clusters: read.clusters.length, goal: band.holdLo,
-        ...(multi ? { group: under.group } : {}),
-      },
-    };
-  }
-  const below = (lowest.reps as number) < band.addLoadAt ? lowest : undefined;
-  if (below) {
-    return {
-      ...judged, action: 'hold', load: currentLoad,
-      reason: {
-        kind: 'below-band', reps: below.reps as number, clusters: read.clusters.length,
-        ...(multi ? { group: below.group } : {}),
-      },
-    };
-  }
-  const reps = bindingReps(read) as number;
-  const over = read.clusters.every((c) => (c.reps as number) > band.addLoadAt);
-  const lead = read.clusters[0];
-  const atMark: RecommendReason = over
-    ? { kind: 'over-band', reps: Math.max(...read.clusters.map((c) => c.reps as number)), ...(lead.rir != null ? { rir: lead.rir } : {}) }
-    : { kind: 'at-target', reps, ...(lead.rir != null ? { rir: lead.rir } : {}) };
+  const low = bindingCluster(read);
+  const eff = effectiveReps(low) as number;
+  const lowLogged = low.reps as number;
+  const loadNow = read.load ?? 0;
 
-  if (currentLoad == null) {
-    // Bodyweight cluster with no logged load: the call is still "add load",
-    // and what that means (a plate, a band) is the lifter's to decide.
-    return { ...judged, action: 'add-load', reason: atMark };
+  // Rule 7 — a bodyweight lift (no load on it) builds reps to the top of its
+  // range, then adds load if the lifter can, else gets harder another way.
+  if (loadNow === 0 && !assisted) {
+    if (eff < max) {
+      return {
+        action: 'build-reps', reason: { kind: 'bodyweight-build', reps: eff, max },
+        targetReps: lowLogged + 1,
+      };
+    }
+    if (config.loadable) {
+      return {
+        action: 'add-load', load: BODYWEIGHT_START_LB[0],
+        reason: { kind: 'bodyweight-add-load', reps: eff, max, startLb: BODYWEIGHT_START_LB },
+      };
+    }
+    return { action: 'build-reps', load: 0, reason: { kind: 'bodyweight-variation', reps: eff, max } };
   }
 
-  // Layer 3 — does the next step exist, and is it a step or a leap?
-  const next = nextLoad(currentLoad, {
-    availableLoads: opts.availableLoads, incrementLb: opts.progression?.incrementLb, assisted,
-  });
-  // The cap protects a lifter from a 100% Smith jump; it must not cap a lift
-  // that already reads over the mark — that one is under-loaded and the cap
-  // would freeze it there (the calf raise that returned 15-20 at three loads).
-  if (next.jumpPct > MAX_JUMP_PCT && !over) {
+  // Rule 5 — the first session after an increase, under the range: go back.
+  // "After an increase" is read off the log, not a stored flag: the session
+  // before this one was performed at a LOWER load.
+  const prev = reads.slice(1).find((r) => loadKey(r) != null);
+  const prevLoad = prev ? loadKey(prev) : undefined;
+  if (!assisted && prevLoad != null && prevLoad > 0 && loadNow > prevLoad && eff < min) {
     return {
-      ...judged, action: 'build-reps', load: currentLoad,
-      reason: { kind: 'jump-too-big', nextLoad: next.load, jumpPct: next.jumpPct, repsGoal: reps + BUILD_REPS_EXTRA },
+      action: 'drop-back', load: prevLoad,
+      reason: { kind: 'drop-back', reps: eff, min, previousLoad: prevLoad },
     };
   }
-  return { ...judged, action: 'add-load', load: next.load, reason: atMark };
+
+  // Rule 4 — any cluster under the top of the range: hold, one more rep.
+  if (eff < max) {
+    return {
+      action: 'hold', load: loadNow,
+      reason: { kind: 'below-max', reps: eff, max, clusters: read.clusters.length, ...(multi ? { group: low.group } : {}) },
+      targetReps: lowLogged + 1,
+    };
+  }
+
+  // Rule 3 — every cluster at or over the top: a load-increase candidate.
+  const next = nextStep(loadNow, config, assisted);
+  if (assisted || config.category === 'bodyweight') {
+    // Less assistance, or more added load on a bodyweight lift: Epley needs the
+    // TOTAL load and the body is most of it, unlogged. Take the step on the rep
+    // rule alone rather than predict off a number that is not the load.
+    return next
+      ? { action: 'add-load', load: next.load, reason: { kind: 'increase', reps: eff, max, nextLoad: next.load, jumpPct: next.jumpPct } }
+      : { action: 'build-reps', load: loadNow, reason: { kind: 'no-next-step', reps: eff, cap } };
+  }
+  const bar = config.smithBarEffectiveLb ?? 0;
+  const e1rm = epleyE1rm(loadNow + bar, eff);
+  const techniques = (): CapTechnique[] => [
+    'tempo',
+    ...(config.microplates ? ['microplates' as const] : []),
+    ...(opts.volumeAllowsCluster ? ['add-cluster' as const] : []),
+  ];
+  if (!next) {
+    return eff >= cap
+      ? { action: 'build-reps', load: loadNow, reason: { kind: 'at-rep-cap', reps: eff, cap, techniques: techniques() } }
+      : { action: 'build-reps', load: loadNow, reason: { kind: 'no-next-step', reps: eff, cap }, targetReps: lowLogged + 1 };
+  }
+  const predictedReps = predictedRepsAt(e1rm, next.load + bar);
+  if (predictedReps >= min) {
+    return {
+      action: 'add-load', load: next.load,
+      reason: { kind: 'increase', reps: eff, max, nextLoad: next.load, jumpPct: next.jumpPct, predictedReps, e1rm },
+      predictedReps,
+      targetReps: asLogged(predictedReps, config),
+    };
+  }
+  if (eff >= cap) {
+    return {
+      action: 'build-reps', load: loadNow,
+      reason: { kind: 'at-rep-cap', reps: eff, cap, nextLoad: next.load, jumpPct: next.jumpPct, predictedReps, techniques: techniques() },
+    };
+  }
+  // The effective reps at this load that would predict `min` at the next one:
+  // w(1 + r/30) ≥ w2(1 + min/30). Offered only when it is inside the cap.
+  const need = Math.ceil(EPLEY_DIVISOR * (((next.load + bar) * (1 + min / EPLEY_DIVISOR)) / (loadNow + bar) - 1) - 1e-9);
+  return {
+    action: 'build-reps', load: loadNow,
+    reason: {
+      kind: 'step-too-big', reps: eff, nextLoad: next.load, jumpPct: next.jumpPct, predictedReps, min, cap,
+      ...(need > eff && need <= cap ? { repsForStep: need } : {}),
+    },
+    targetReps: lowLogged + 1,
+  };
+}
+
+/** The next real step from `current`, or null when the entered steps run out. */
+function nextStep(current: number, config: EngineConfig, assisted: boolean): { load: number; jumpPct: number } | null {
+  if (config.loadSteps && !assisted && !config.loadSteps.some((x) => x > current)) return null;
+  if (config.loadSteps && assisted && !config.loadSteps.some((x) => x < current) && current <= 0) return null;
+  return nextLoad(current, { availableLoads: config.loadSteps, incrementLb: config.stepLb, assisted });
+}
+
+/** Back-compat: the engine's view of a lift's configuration with no catalog
+ *  doc — callers that want the full resolution use {@link resolveEngineConfig}. */
+export function configFromOptions(opts: RecommendOptions): EngineConfig {
+  return opts.config ?? resolveEngineConfig(
+    { availableLoads: opts.availableLoads, assisted: opts.assisted, effortStandard: opts.effortStandard },
+    { progression: opts.progression },
+  );
 }
 
 // ─── Layer 4: stalls ────────────────────────────────────────────
 
-export type StallIntervention =
-  | 'shorten-mini-rest'
-  | 'reduce-blocking-cluster'
-  | 'reduce-load-10pct';
+export type StallCheckKind = 'sleep' | 'intake' | 'mini-rest';
+
+export interface StallCheck {
+  check: StallCheckKind;
+  /** `flag` — this is a likely cause; `ok` — it is not; `unknown` — no data. */
+  status: 'flag' | 'ok' | 'unknown';
+  /** The number the status was judged on, when there is one. */
+  value?: number;
+}
 
 export interface StallReport {
-  /** Consecutive most-recent sessions at {@link load}. */
+  /** Valid sessions at {@link load} since the last new best, inclusive. */
   sessions: number;
   load: number;
-  /** Binding activation reps per session, most-recent-first. */
+  /** Binding effective reps per session in the run, most-recent-first. */
   reps: number[];
-  /** How many of those sessions were invalid reads — if most, that is the cause. */
-  invalidSessions: number;
-  /** Sessions whose first mini exceeded {@link FIRST_MINI_MAX}: activation too easy. */
-  easyActivations: number;
-  /** On a multi-cluster lift, the cluster that sat under the add-load mark in
-   *  EVERY session while another reached it at least once. Needs a band. */
-  blockingGroup?: number;
-  /** Ranked, present from {@link INTERVENTION_SESSIONS} sessions on. */
-  interventions: StallIntervention[];
+  /** The three things to rule out first, in order. */
+  checks: StallCheck[];
+  /** {@link SWAP_SESSIONS} or more: suggest a variation of the exercise. */
+  suggestSwap: boolean;
 }
 
 /**
- * Layer 4. Three consecutive sessions at one load with the binding activation
- * reps not rising on the latest step is a stall; the report says why.
- *
- * "Not increasing" is judged on the most recent step (`reps[0] <= reps[1]`),
- * which is what a lifter means by it: a run of 10, 11, 11 has stopped moving
- * even though it once moved. Legacy sessions count toward the run — a stall
- * is about the load not moving, whatever the effort standard was.
+ * Layer 4. Walk the valid reads at the CURRENT load (invalid ones are skipped,
+ * not counted — they say nothing about progress; a different load ends the
+ * run, because a load change IS progress or a reset). Counting forward from
+ * the oldest, every new best restarts the count; the count that is left is
+ * the sessions since the lift last improved. Three is a stall.
  */
-export function detectStall(history: readonly SessionExercise[], opts: RecommendOptions = {}): StallReport | null {
-  const reads = history.map((h) => readExercise(h, opts));
-  return stallFrom(reads, calibrationFrom(reads, opts).band);
+export function detectStall(
+  history: readonly SessionExercise[],
+  opts: RecommendOptions = {},
+): StallReport | null {
+  const reads = history
+    .map((h) => readExercise(h, { ...opts, expectsCluster: opts.expectsCluster ?? true }))
+    .filter((r) => !r.legacy);
+  return stallFrom(reads, opts.stallContext);
 }
 
-function stallFrom(reads: readonly ExerciseRead[], band: RepBand | null): StallReport | null {
-  const first = reads[0];
-  if (!first?.clustered || first.load == null) return null;
-  const load = first.load;
-
-  const run: ExerciseRead[] = [];
+function stallFrom(reads: readonly ExerciseRead[], ctx: StallContext = {}): StallReport | null {
+  const first = reads.find((r) => r.valid);
+  if (!first) return null;
+  const load = loadKey(first);
+  if (load == null) return null;
+  const run: number[] = [];
   for (const r of reads) {
-    if (!r.clustered || r.load !== load) break;
-    if (bindingReps(r) == null) break;
-    run.push(r);
+    if (!r.clustered) break;
+    const k = loadKey(r);
+    if (k == null) continue;
+    if (k !== load) break;
+    if (!r.valid) continue;
+    run.push(effectiveReps(bindingCluster(r)) as number);
   }
-  if (run.length < STALL_SESSIONS) return null;
-  const reps = run.map((r) => bindingReps(r) as number);
-  if (reps[0] > reps[1]) return null;
-
-  const invalidSessions = run.filter((r) => !r.valid).length;
-  const easyActivations = run.filter((r) => r.clusters.some((c) => (c.minis[0] ?? 0) > FIRST_MINI_MAX)).length;
-
-  let blockingGroup: number | undefined;
-  const groups = new Set(run.flatMap((r) => r.clusters.map((c) => c.group)));
-  if (band && groups.size > 1) {
-    const mark = band.addLoadAt;
-    for (const g of groups) {
-      const alwaysBelow = run.every((r) => {
-        const c = r.clusters.find((x) => x.group === g);
-        return c?.reps != null && c.reps < mark;
-      });
-      const otherCleared = run.some((r) => r.clusters.some((c) => c.group !== g && (c.reps ?? 0) >= mark));
-      if (alwaysBelow && otherCleared) { blockingGroup = g; break; }
-    }
+  // Oldest first: a new best restarts the count.
+  const oldestFirst = [...run].reverse();
+  let best = -Infinity;
+  let count = 0;
+  for (const reps of oldestFirst) {
+    if (reps > best) { best = reps; count = 1; } else count += 1;
   }
+  if (count < STALL_SESSIONS) return null;
+  const checks: StallCheck[] = [
+    ctx.sleepHours == null
+      ? { check: 'sleep', status: 'unknown' }
+      : { check: 'sleep', status: ctx.sleepHours < STALL_SLEEP_MIN_H ? 'flag' : 'ok', value: ctx.sleepHours },
+    ctx.intakeBelowTarget == null
+      ? { check: 'intake', status: 'unknown' }
+      : { check: 'intake', status: ctx.intakeBelowTarget ? 'flag' : 'ok' },
+    ctx.restMiniSec == null
+      ? { check: 'mini-rest', status: 'unknown' }
+      : { check: 'mini-rest', status: ctx.restMiniSec > STALL_MINI_REST_MAX_SEC ? 'flag' : 'ok', value: ctx.restMiniSec },
+  ];
+  return { sessions: count, load, reps: run.slice(0, count), checks, suggestSwap: count >= SWAP_SESSIONS };
+}
 
-  const interventions: StallIntervention[] = [];
-  if (run.length >= INTERVENTION_SESSIONS) {
-    interventions.push('shorten-mini-rest');
-    if (blockingGroup != null) interventions.push('reduce-blocking-cluster');
-    interventions.push('reduce-load-10pct');
+// ─── The call, as the finish sheet names it ─────────────────────
+
+/** The five calls the lifter sees on the finish sheet, plus the quiet ones. */
+export type ProgressionCall = 'increase' | 'hold' | 'drop' | 'repeat-invalid' | 'stalled' | 'start' | 'none';
+
+export function progressionCall(rec: Pick<Recommendation, 'action' | 'stall'>): ProgressionCall {
+  switch (rec.action) {
+    case 'add-load': return 'increase';
+    case 'drop-back': return 'drop';
+    case 'repeat-invalid': return 'repeat-invalid';
+    case 'hold':
+    case 'build-reps': return rec.stall ? 'stalled' : 'hold';
+    case 'calibrate': return 'start';
+    case 'none': return 'none';
   }
-  return {
-    sessions: run.length, load, reps, invalidSessions, easyActivations,
-    ...(blockingGroup != null ? { blockingGroup } : {}),
-    interventions,
-  };
 }
 
 // ─── Wiring helpers ─────────────────────────────────────────────
@@ -1044,23 +1259,21 @@ function stallFrom(reads: readonly ExerciseRead[], band: RepBand | null): StallR
 /**
  * The engine options for one template row — the prescription (cluster or
  * not, increment) from the template; the equipment (steps, assisted), the
- * effort standard and any band override from the catalog exercise. Both apps
- * build options through this so they cannot disagree about which field means
- * what.
+ * effort standard and the rep-range configuration from the catalog exercise.
+ * Both apps build options through this so they cannot disagree about which
+ * field means what.
  */
 export function recommendOptionsFor(
   templateExercise: {
+    name?: string;
     plannedSets: readonly { kind: string }[];
     progression?: Partial<ProgressionRule>;
     setStructure?: SetStructure;
   } | null | undefined,
-  catalogExercise: {
-    availableLoads?: number[];
-    assisted?: boolean;
-    effortStandard?: EffortStandard;
+  catalogExercise: (EngineCatalogFields & {
     targetRepBand?: RepBand;
     setStructure?: SetStructure;
-  } | null | undefined,
+  }) | null | undefined,
   /** The logged sets to infer from when there is no template row — an ad-hoc
    *  exercise, where the log is the only statement of intent there is. Never
    *  consulted when a template states a structure (ADR-0040). */
@@ -1079,7 +1292,7 @@ export function recommendOptionsFor(
     ...(catalogExercise?.availableLoads ? { availableLoads: catalogExercise.availableLoads } : {}),
     ...(catalogExercise?.assisted != null ? { assisted: catalogExercise.assisted } : {}),
     ...(catalogExercise?.effortStandard ? { effortStandard: catalogExercise.effortStandard } : {}),
-    ...(catalogExercise?.targetRepBand ? { targetRepBand: catalogExercise.targetRepBand } : {}),
+    config: resolveEngineConfig(catalogExercise, templateExercise),
   };
 }
 
@@ -1087,11 +1300,13 @@ export function recommendOptionsFor(
 export function toRecommendationSnapshot(
   rec: Recommendation,
   basedOn?: Date,
-): { action: string; load?: number; basedOn?: string } {
+): { action: string; load?: number; basedOn?: string; targetReps?: number; predictedReps?: number } {
   return {
     action: rec.action,
     ...(rec.load != null ? { load: rec.load } : {}),
     ...(basedOn ? { basedOn: basedOn.toISOString() } : {}),
+    ...(rec.targetReps != null ? { targetReps: rec.targetReps } : {}),
+    ...(rec.predictedReps != null ? { predictedReps: rec.predictedReps } : {}),
   };
 }
 

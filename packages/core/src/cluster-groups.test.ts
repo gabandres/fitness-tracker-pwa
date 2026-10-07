@@ -96,6 +96,26 @@ describe('setRowLabels', () => {
     expect(setRowLabels([])).toEqual([]);
   });
 
+  it('shows a cluster label in place of its number, and keeps the numbering after it', () => {
+    const sets = [
+      { kind: 'activation' as const, group: 1, label: 'L' },
+      { kind: 'mini' as const, group: 1, label: 'L' },
+      // A mini without its label still reads with its cluster.
+      { kind: 'mini' as const, group: 1 },
+      { kind: 'activation' as const, group: 2, label: 'R' },
+      { kind: 'mini' as const, group: 2, label: 'R' },
+      { kind: 'working' as const },
+    ];
+    expect(setRowLabels(sets)).toEqual(['La', 'Lb', 'Lc', 'Ra', 'Rb', '3']);
+  });
+
+  it('a labelled straight set shows its label; a blank label is no label', () => {
+    expect(setRowLabels([
+      { kind: 'working', label: 'L' },
+      { kind: 'working', label: '  ' },
+    ])).toEqual(['L', '2']);
+  });
+
   it('runs past z without colliding', () => {
     const long = setRowLabels(
       normalizeClusterGroups([s('activation'), ...Array.from({ length: 26 }, () => s('mini'))]),

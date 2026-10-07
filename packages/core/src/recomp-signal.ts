@@ -20,7 +20,7 @@
  * follows the brief's table unchanged.
  */
 import { TAPE_SD_IN } from './composition-maintenance';
-import { dayNumber } from './body-composition';
+import { dayNumber, tapeDays } from './body-composition';
 import { MIDNIGHT, dayKeyAt, type DayBoundary } from './day-boundary';
 import type { Measurement } from './types';
 import { weightSlopeLbPerWeek } from './weight-projection';
@@ -50,7 +50,8 @@ export type RecompSignal =
       waistInPer4Wk: number;
       /** 1σ of the waist slope from reading error alone, in/4 weeks. */
       waistSeInPer4Wk: number;
-      /** The waist slope is smaller than its own standard error. */
+      /** The waist interval the card prints (slope ± 1 SE) reaches zero — the
+       *  move cannot be told from tape noise. {@link waistIntervalExcludesZero}. */
       waistWithinNoise: boolean;
       tapes: number;
     };
@@ -58,6 +59,17 @@ export type RecompSignal =
 function shiftKey(key: string, days: number): string {
   const [y, m, d] = key.split('-').map(Number);
   return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
+
+/**
+ * Does the waist interval the card prints — `slope ± se`, the "−0.24 ± 0.34"
+ * beside the headline — leave zero out? Only then may a headline that rests
+ * on the waist MOVING state it outright; an interval that touches or crosses
+ * zero gets the "Possible …" wording. Gated on the printed interval, not a
+ * wider one, so the headline and the number under it can never disagree.
+ */
+export function waistIntervalExcludesZero(waistInPer4Wk: number, waistSeInPer4Wk: number): boolean {
+  return Number.isFinite(waistInPer4Wk) && Number.isFinite(waistSeInPer4Wk) && Math.abs(waistInPer4Wk) > waistSeInPer4Wk;
 }
 
 /** The brief's table, in its order — the first matching row wins. */
@@ -82,21 +94,12 @@ export function recompSignal(input: {
   const boundary = input.boundary ?? MIDNIGHT;
   const todayKey = dayKeyAt(input.now ?? new Date(), boundary);
 
-  const waistFrom = shiftKey(todayKey, -RECOMP_WAIST_DAYS);
-  const byDay = new Map<string, number[]>();
-  for (const m of input.measurements) {
-    if (m.waist == null) continue;
-    const k = dayKeyAt(m.date, boundary);
-    if (k < waistFrom || k > todayKey) continue;
-    const list = byDay.get(k);
-    if (list) list.push(m.waist);
-    else byDay.set(k, [m.waist]);
-  }
-  const tapes = [...byDay.entries()].map(([k, vs]) => {
-    const s = [...vs].sort((a, b) => a - b);
-    const mid = s.length >> 1;
-    return { x: dayNumber(k), y: s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2 };
-  });
+  // A tape is `tapeDays`' tape — the same per-day, median-of-readings unit the
+  // Navy points are built from — that carries a waist, in the last 42 days.
+  const tapes = tapeDays(input.measurements, boundary, {
+    fromKey: shiftKey(todayKey, -RECOMP_WAIST_DAYS),
+    toKey: todayKey,
+  }).flatMap((t) => (t.waistIn != null ? [{ x: dayNumber(t.dateKey), y: t.waistIn }] : []));
   if (tapes.length < RECOMP_MIN_TAPES) return { status: 'insufficient', reason: 'tapes', tapes: tapes.length };
 
   const weightFrom = shiftKey(todayKey, -RECOMP_WEIGHT_DAYS);
@@ -124,7 +127,7 @@ export function recompSignal(input: {
     weightLbPerWeek,
     waistInPer4Wk,
     waistSeInPer4Wk,
-    waistWithinNoise: Math.abs(waistInPer4Wk) < waistSeInPer4Wk,
+    waistWithinNoise: !waistIntervalExcludesZero(waistInPer4Wk, waistSeInPer4Wk),
     tapes: tapes.length,
   };
 }

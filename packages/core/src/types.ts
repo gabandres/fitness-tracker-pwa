@@ -360,6 +360,15 @@ export interface ProfileFields {
    *  numeric default — omitted means no floor at all, so an unset value leaves
    *  protein behaving exactly as it did before this field existed. */
   proteinFloor?: number;
+  /** The diet phase training runs in (2026-10-07). Absent → `cut`: the volume
+   *  rules never suggest an added cluster in a cut (`weekly-cluster-audit`). */
+  trainingPhase?: 'cut' | 'maintenance' | 'bulk';
+  /** Apply the progression engine's calls to the template on finish without a
+   *  tap. Absent → false: a template is never changed silently. */
+  autoApplyProgression?: boolean;
+  /** The lifter's own gate for the next volume phase, in pounds on the 7-day
+   *  average weight — shown in the volume panel. Absent → no gate line. */
+  volumeGateLb?: number;
   fastStartedAt?: Date | null; // when fasting — ISO timestamp of fast start
   webhookApiKey?: string;      // static UUID for Apple Shortcuts webhook auth
   fcmToken?: string;           // FCM push token

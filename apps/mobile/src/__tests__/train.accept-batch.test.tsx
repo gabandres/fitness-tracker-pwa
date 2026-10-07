@@ -79,3 +79,51 @@ it('defers one patch per empty working set, then commits once', async () => {
   expect(dispatch.mock.calls.map(([a]) => a.setIndex)).toEqual([1, 3]);
   expect(commitActive).toHaveBeenCalledTimes(1);
 });
+
+// 10/6: the card said "Repeat 25" over sets the template had pre-filled with
+// 30, and Accept did nothing — it only targeted sets with NO weight, and a
+// template start leaves none. Untouched now means "empty, or still at the
+// seeded targetLoad"; a typed weight and a ticked set are still never moved.
+it('overwrites sets still at the seeded template load, never a typed or ticked one', async () => {
+  const dispatch = jest.fn().mockResolvedValue(undefined);
+  const commitActive = jest.fn().mockResolvedValue(undefined);
+  const noop = () => {};
+  const seeded = {
+    exerciseId: 'e1',
+    name: 'Crunch',
+    logStyle: 'weight-reps',
+    cues: [],
+    targetLoad: 30,
+    sets: [
+      { kind: 'activation', group: 1, weight: 30 },
+      { kind: 'mini', group: 1, weight: 30 },
+      { kind: 'mini', group: 1, weight: 27.5 },
+      { kind: 'activation', group: 2, weight: 30, reps: 8, done: true },
+      { kind: 'mini', group: 2 },
+    ],
+  } as SessionExercise;
+  const ui = await render(
+    <ExerciseCard
+      exercise={seeded}
+      exerciseIndex={0}
+      collapsed={false}
+      recentSessions={[]}
+      catalog={[]}
+      templateRow={undefined}
+      platesOpen={false}
+      largeText={false}
+      dispatch={dispatch}
+      commitActive={commitActive}
+      chain={{ register: noop, next: noop, prev: noop } as never}
+      onToggle={noop}
+      onOpenMenu={noop}
+      onOpenSetSheet={noop}
+      onOpenLift={noop}
+      onSetDone={noop}
+      onRemoveSet={noop}
+    />,
+  );
+  await fireEvent.press(ui.getByTestId('accept-load'));
+  expect(dispatch.mock.calls.map(([a]) => a.setIndex)).toEqual([0, 1, 4]);
+  expect(commitActive).toHaveBeenCalledTimes(1);
+});

@@ -54,6 +54,14 @@ export interface ExerciseCardProps {
   templateRow: TemplateExercise | undefined;
   /** Best estimated-1RM on record, for the rows' "PR" badges. */
   best?: number;
+  /** The weekly volume rules allow one more cluster for this lift's muscle —
+   *  offered at the rep cap. Primitives, not an extras object, so the memo
+   *  holds across the session's renders. */
+  volumeAllowsCluster?: boolean;
+  /** The stall checklist's facts: recent average sleep, and the mini-set rest
+   *  this lift is prescribed. Absent → "no data". */
+  sleepHours?: number;
+  restMiniSec?: number;
   platesOpen: boolean;
   largeText: boolean;
   dispatch: TrainState['dispatch'];
@@ -88,6 +96,9 @@ export const ExerciseCard = memo(function ExerciseCard({
   catalog,
   templateRow,
   best,
+  volumeAllowsCluster,
+  sleepHours,
+  restMiniSec,
   platesOpen,
   largeText,
   dispatch,
@@ -131,13 +142,20 @@ export const ExerciseCard = memo(function ExerciseCard({
   const bumpTo = sug.bumped ? sug.suggestedWeight : undefined;
   // The progression engine's call. On a clustered lift it REPLACES the
   // double-progression bump and the blocked note below (it subsumes both: the
-  // RIR band is its layer 1, the bump its layer 2). A straight-set lift gets
+  // validity gate is its layer 1, the rep-range rules its layer 2). A straight-set lift gets
   // `action: 'none'` and keeps exactly what it had. `ex` is in the deps whole:
   // an ad-hoc lift's own sets decide whether it is clustered, and the memo
   // used to omit them and serve a stale call (Train review bug 11).
   const rec = useMemo(
-    () => recommendationFor({ recentSessions, catalog }, ex.exerciseId, templateRow, ex),
-    [recentSessions, catalog, ex, templateRow],
+    () =>
+      recommendationFor({ recentSessions, catalog }, ex.exerciseId, templateRow, ex, {
+        volumeAllowsCluster,
+        stallContext: {
+          ...(sleepHours != null ? { sleepHours } : {}),
+          ...(restMiniSec != null ? { restMiniSec } : {}),
+        },
+      }),
+    [recentSessions, catalog, ex, templateRow, volumeAllowsCluster, sleepHours, restMiniSec],
   );
   const engineHasCall = rec.action !== 'none';
   const catalogEx = catalog.find((e) => e.id === ex.exerciseId) ?? null;
@@ -196,13 +214,14 @@ export const ExerciseCard = memo(function ExerciseCard({
 
   /**
    * One load for the whole lift — an accepted recommendation or the bump chip
-   * — onto every set `loadTargetIndices` names. Each patch is deferred and the
-   * lot committed ONCE: an immediate dispatch per set was N writes of the
-   * whole session for one tap (Train re-score bug 9).
+   * — onto every set `loadTargetIndices` names: untouched ones, including
+   * those still holding the template's seeded `targetLoad`. Each patch is
+   * deferred and the lot committed ONCE: an immediate dispatch per set was N
+   * writes of the whole session for one tap (Train re-score bug 9).
    */
   const applyLoad = (load: number) => {
     haptics.tap();
-    const targets = loadTargetIndices(ex.sets);
+    const targets = loadTargetIndices(ex.sets, ex.targetLoad);
     for (const setIndex of targets) {
       void dispatch({ type: 'patchSet', exerciseIndex, setIndex, patch: { weight: load } }, { defer: true });
     }
@@ -264,8 +283,10 @@ export const ExerciseCard = memo(function ExerciseCard({
               rec={rec}
               testID={`recommendation-${exerciseIndex}`}
               onSettings={catalogEx ? () => onOpenLift(exerciseIndex) : undefined}
-              // The accepted load lands on every working set that has no
-              // weight yet, so a cluster's minis inherit it too.
+              // The accepted load lands on every untouched working set —
+              // empty, or still at the seeded template load — so a cluster's
+              // minis inherit it too.
+              seededLoad={ex.targetLoad}
               onAccept={applyLoad}
             />
           ) : bumpTo != null ? (

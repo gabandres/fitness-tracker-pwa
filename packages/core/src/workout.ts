@@ -72,6 +72,10 @@ export interface PlannedSet {
   weight?: number;
   /** Prescribed hold in seconds — `time` logStyle only. */
   durationSec?: number;
+  /** A name for the cluster this set belongs to, shown in place of its
+   *  number — "L" / "R" on a single-leg lift, where cluster 1 and cluster 2
+   *  are the two sides, not two efforts. Snapshotted onto the session set. */
+  label?: string;
 }
 
 /** How an exercise is logged. `weight-reps` (default) is load×reps;
@@ -180,6 +184,8 @@ export interface WorkoutSet {
    *  ticked `done`. */
   targetReps?: number;
   targetDurationSec?: number;
+  /** The template's cluster label ("L" / "R"), snapshotted at start. */
+  label?: string;
   /**
    * The set was logged BEFORE the effort standard was fixed (ADR-0039,
    * cutoff 2026-09-15 inclusive), when self-reported RIR was uncalibrated —
@@ -219,6 +225,10 @@ export interface RecommendationSnapshot {
   load?: number;
   /** ISO timestamp of the session the read came from. */
   basedOn?: string;
+  /** The activation rep target shown with the call ("Target: ≥ N reps"). */
+  targetReps?: number;
+  /** Expected reps at the new load (Epley), on an increase. */
+  predictedReps?: number;
 }
 
 export type SessionStatus = 'active' | 'completed';
@@ -319,6 +329,64 @@ export interface RepBand {
   holdHi: number;
 }
 
+/**
+ * What kind of lift this is, for its default rep range (2026-10-07 progression
+ * rules). A property of the movement, not of the programme.
+ */
+export type ExerciseCategory =
+  /** Squat, RDL, presses, rows, pulldown — and the leg extension / leg curl
+   *  machines, which progress like compounds on a stack. */
+  | 'compound'
+  /** Dumbbell or cable isolation: raises, flyes, curls, triceps extensions,
+   *  calf raises. */
+  | 'isolation'
+  | 'core'
+  /** Pull-up, push-up, knee raise — the body is the load. */
+  | 'bodyweight';
+
+export const EXERCISE_CATEGORIES: readonly ExerciseCategory[] = ['compound', 'isolation', 'core', 'bodyweight'];
+
+/** The activation-rep range a lift progresses through, inclusive. Reaching
+ *  `max` on every cluster makes it a load-increase candidate; a new load is
+ *  only taken when the lifter is expected to land at or above `min` on it. */
+export interface RepRange {
+  min: number;
+  max: number;
+}
+
+/** Category defaults. A lift's own `Exercise.repRange` overrides these. */
+export const CATEGORY_REP_RANGES: Readonly<Record<ExerciseCategory, RepRange>> = {
+  compound: { min: 6, max: 12 },
+  isolation: { min: 8, max: 15 },
+  core: { min: 8, max: 15 },
+  bodyweight: { min: 6, max: 15 },
+};
+
+/** The diet phase training runs in. Decides whether the engine may ever
+ *  suggest more weekly volume — never in a cut (`weekly-cluster-audit.ts`). */
+export type TrainingPhase = 'cut' | 'maintenance' | 'bulk';
+export const TRAINING_PHASES: readonly TrainingPhase[] = ['cut', 'maintenance', 'bulk'];
+export const DEFAULT_TRAINING_PHASE: TrainingPhase = 'cut';
+
+/**
+ * One move of a template row's `targetLoad`, appended whenever it changes so
+ * the lift's history can say when the load moved, by whom, and why.
+ * `reason` is the sentence the lifter was shown when it was applied, in their
+ * language at the time — it is a record, not a key to re-render.
+ */
+export interface LoadChange {
+  /** ISO timestamp of the change. */
+  at: string;
+  /** The load before, pounds; absent when the row had none. */
+  from?: number;
+  /** The load after, pounds. */
+  to: number;
+  /** The engine's call (applied by the lifter or by auto-apply), or the
+   *  lifter's own edit in the template editor. */
+  by: 'engine' | 'user';
+  reason: string;
+}
+
 export interface Exercise {
   id?: string;
   name: string;
@@ -347,9 +415,24 @@ export interface Exercise {
   assisted?: boolean;
   /** See {@link EffortStandard}. Absent reads as {@link DEFAULT_EFFORT_STANDARD}. */
   effortStandard?: EffortStandard;
-  /** Manual override of the derived rep band — see {@link RepBand}. Absent
-   *  means "derive it from three valid sessions at the current load". */
+  /** Retired by the 2026-10-07 rep-range rules: the engine no longer derives
+   *  or reads a band. Kept in the type so old docs still map. */
   targetRepBand?: RepBand;
+  /** What kind of lift this is. Absent → inferred from the name
+   *  (`inferCategory` in `progression-engine.ts`). */
+  category?: ExerciseCategory;
+  /** The lifter's own rep range; absent → the category default. */
+  repRange?: RepRange;
+  /** Smith machines only: what the empty bar weighs in effect (counterbalanced
+   *  bars differ by machine). Until it is entered, predicted reps for the lift
+   *  are labelled approximate — Epley needs the TOTAL load. */
+  smithBarEffectiveLb?: number;
+  /** Bodyweight lifts: added load is available (a dumbbell between the feet,
+   *  a vest). Absent → false. */
+  loadable?: boolean;
+  /** The lifter has microplates for this lift — offered when the next real
+   *  step is too big a jump. Absent → false. */
+  microplates?: boolean;
   /** The DEFAULT structure for this lift (ADR-0040) — used by templates that
    *  do not state one. A template's own `setStructure` wins. */
   setStructure?: SetStructure;
@@ -378,6 +461,8 @@ export interface TemplateExercise {
    *  the same day, so the template default must not move. Read through
    *  `restAfterSet`'s callers; nothing else. Absent means "use the template's". */
   restMiniSec?: number;
+  /** Every move of `targetLoad`, oldest first — see {@link LoadChange}. */
+  loadLog?: LoadChange[];
 }
 
 export interface WorkoutTemplate {

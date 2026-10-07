@@ -6,8 +6,11 @@ import {
   compositionPoints,
   navyBodyFatPct,
   storedEnergyChangeKcal,
+  tapeDays,
   trendWeightAt,
 } from './body-composition';
+import type { DateKey } from './date';
+import type { DayBoundary } from './day-boundary';
 import type { Measurement } from './types';
 
 const male = (waistIn: number, neckIn: number, heightIn = 68.5) =>
@@ -119,6 +122,45 @@ describe('compositionPoints — source priority per day', () => {
   it('skips a tape row that fails the guards (the 06-25 chest-15 row has no neck)', () => {
     const ms: Measurement[] = [{ date: at('2026-06-25'), waist: 32.3, chest: 15 }];
     expect(compositionPoints(ms, body)).toEqual([]);
+  });
+});
+
+describe('tapeDays — the one definition of "a tape"', () => {
+  it('one tape per day: three readings that day are one tape, each field its median', () => {
+    const ms: Measurement[] = [
+      { date: at('2026-09-01', 7), waist: 32.5, neck: 14.5 },
+      { date: at('2026-09-01', 8), waist: 32 },
+      { date: at('2026-09-01', 9), waist: 32.25, hip: 38 },
+      { date: at('2026-09-08'), waist: 32 },
+    ];
+    expect(tapeDays(ms)).toEqual([
+      { dateKey: '2026-09-01', waistIn: 32.25, neckIn: 14.5, hipIn: 38 },
+      { dateKey: '2026-09-08', waistIn: 32 },
+    ]);
+  });
+
+  it('a row with no tape field (chest only, a %BF, a weigh-in) is not a tape', () => {
+    const ms: Measurement[] = [
+      { date: at('2026-09-01'), chest: 40 },
+      { date: at('2026-09-02'), bodyFatPct: 17, bodyFatMethod: 'dxa' },
+      { date: at('2026-09-03'), neck: 14.5 },
+    ];
+    expect(tapeDays(ms).map((t) => t.dateKey)).toEqual(['2026-09-03']);
+  });
+
+  it('days follow the user\'s day boundary, and the window is inclusive at both ends', () => {
+    const ms: Measurement[] = [
+      { date: at('2026-09-02', 2), waist: 32 }, // 02:00 under a 4am boundary → 09-01
+      { date: at('2026-09-01', 9), waist: 33 },
+      { date: at('2026-09-10'), waist: 31 },
+    ];
+    const fourAm: DayBoundary = [{ from: '2026-01-01' as DateKey, hour: 4 }];
+    expect(tapeDays(ms, fourAm)).toEqual([
+      { dateKey: '2026-09-01', waistIn: 32.5 },
+      { dateKey: '2026-09-10', waistIn: 31 },
+    ]);
+    expect(tapeDays(ms, fourAm, { fromKey: '2026-09-02', toKey: '2026-09-10' }).map((t) => t.dateKey)).toEqual(['2026-09-10']);
+    expect(tapeDays(ms, fourAm, { toKey: '2026-09-01' }).map((t) => t.dateKey)).toEqual(['2026-09-01']);
   });
 });
 

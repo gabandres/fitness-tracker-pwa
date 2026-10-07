@@ -140,6 +140,56 @@ function median(values: number[]): number {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }
 
+/** One day's tape session: each field is the median of that day's readings of
+ *  it, absent when the day has none. */
+export interface TapeDay {
+  dateKey: string;
+  waistIn?: number;
+  neckIn?: number;
+  hipIn?: number;
+}
+
+/**
+ * THE definition of "a tape", shared by every count the app shows and every
+ * model that reads tapes (the Navy points below, the recomp waist slope in
+ * ./recomp-signal): one entry per DAY under the user's day boundary, oldest
+ * first. Several rows on one day are one tape — the reminder asks for three
+ * readings and their median — and fields combine per field across the day's
+ * rows, so a hip saved on its own row still completes a woman's set. A day
+ * with no tape field at all (a weigh-in or %BF-only row) is not a tape.
+ *
+ * `fromKey`/`toKey` bound the window, inclusive. Callers then require the
+ * fields their model needs (waist for the recomp slope; waist + neck, plus hip
+ * for women, for a Navy point) — that and the window are the only legitimate
+ * reasons two tape counts on screen may differ.
+ */
+export function tapeDays(
+  measurements: readonly Measurement[],
+  boundary: DayBoundary = MIDNIGHT,
+  window: { fromKey?: string; toKey?: string } = {},
+): TapeDay[] {
+  const byDay = new Map<string, { waist: number[]; neck: number[]; hip: number[] }>();
+  for (const m of measurements) {
+    if (m.waist == null && m.neck == null && m.hip == null) continue;
+    const key = dayKeyAt(m.date, boundary);
+    if ((window.fromKey && key < window.fromKey) || (window.toKey && key > window.toKey)) continue;
+    let day = byDay.get(key);
+    if (!day) byDay.set(key, (day = { waist: [], neck: [], hip: [] }));
+    if (m.waist != null) day.waist.push(m.waist);
+    if (m.neck != null) day.neck.push(m.neck);
+    if (m.hip != null) day.hip.push(m.hip);
+  }
+  const out: TapeDay[] = [];
+  for (const [dateKey, f] of byDay) {
+    const day: TapeDay = { dateKey };
+    if (f.waist.length) day.waistIn = median(f.waist);
+    if (f.neck.length) day.neckIn = median(f.neck);
+    if (f.hip.length) day.hipIn = median(f.hip);
+    out.push(day);
+  }
+  return out.sort((a, b) => (a.dateKey < b.dateKey ? -1 : a.dateKey > b.dateKey ? 1 : 0));
+}
+
 /**
  * One composition point per day, oldest first. Priority per day: a DXA %BF >
  * another measured %BF > the Navy estimate from that day's tapes > nothing.
@@ -161,6 +211,9 @@ export function compositionPoints(
     if (list) list.push(m);
     else byDay.set(key, [m]);
   }
+  // Tapes come from the one shared definition (`tapeDays`), so a Navy point
+  // and the recomp card's tape count can never disagree on what a tape is.
+  const tapesByDay = new Map(tapeDays(measurements, boundary).map((t) => [t.dateKey, t]));
   const out: CompositionPoint[] = [];
   for (const [dateKey, rows] of byDay) {
     const candidates: CompositionPoint[] = [];
@@ -168,15 +221,11 @@ export function compositionPoints(
       const vals = rows.filter((r) => r.bodyFatMethod === method && r.bodyFatPct != null).map((r) => r.bodyFatPct!);
       if (vals.length) candidates.push({ dateKey, bodyFatPct: median(vals), source: method });
     }
-    if (body.sex && body.heightIn) {
+    const tape = tapesByDay.get(dateKey);
+    if (body.sex && body.heightIn && tape) {
       const female = body.sex === 'female';
-      const field = (k: 'waist' | 'neck' | 'hip') => {
-        const vals = rows.map((r) => r[k]).filter((v): v is number => v != null);
-        return vals.length ? median(vals) : undefined;
-      };
-      const waistIn = field('waist');
-      const neckIn = field('neck');
-      const hipIn = female ? field('hip') : undefined;
+      const { waistIn, neckIn } = tape;
+      const hipIn = female ? tape.hipIn : undefined;
       if (waistIn != null && neckIn != null && (!female || hipIn != null)) {
         const tapes = { waistIn, neckIn, ...(female ? { hipIn } : {}) };
         const res = navyBodyFatPct({ sex: body.sex, heightIn: body.heightIn, ...tapes });

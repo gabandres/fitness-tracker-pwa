@@ -104,6 +104,7 @@ import type {
   SessionDraft,
   TemplateDraft,
   TemplateExercise,
+  TrainingPhase,
   WorkoutSession,
   WorkoutTemplate,
 } from './workout';
@@ -1448,6 +1449,26 @@ export async function hasAnyCompletedWorkout(uid: string): Promise<boolean> {
   return !snap.empty;
 }
 
+/** Settings → Training (progression engine, 2026-10-07). Only the keys
+ *  passed are written; `volumeGateLb: null` clears the gate. Absent fields
+ *  read as cut / auto-apply off / no gate (core `Profile`). */
+export async function setTrainingSettings(
+  uid: string,
+  patch: {
+    trainingPhase?: TrainingPhase;
+    autoApplyProgression?: boolean;
+    /** Body weight in lb; `null` deletes it. */
+    volumeGateLb?: number | null;
+  },
+): Promise<void> {
+  const body: Record<string, unknown> = {};
+  if (patch.trainingPhase !== undefined) body['trainingPhase'] = patch.trainingPhase;
+  if (patch.autoApplyProgression !== undefined) body['autoApplyProgression'] = patch.autoApplyProgression;
+  if (patch.volumeGateLb !== undefined) body['volumeGateLb'] = patch.volumeGateLb === null ? deleteField() : patch.volumeGateLb;
+  if (Object.keys(body).length === 0) return;
+  await updateDoc(userDoc(uid), body);
+}
+
 export async function setWeeklyDigestOptIn(uid: string, on: boolean): Promise<void> {
   await updateDoc(userDoc(uid), {
     weeklyDigestOptIn: on,
@@ -1757,16 +1778,25 @@ export async function editExercise(
   id: string,
   patch: ExercisePatch,
 ): Promise<void> {
-  // `null` on the band means "back to the derived band": a field delete, and
-  // it is attached AFTER pruning so the sentinel is never walked as a plain
+  // `null` on a lift setting means "back to the default" (the inferred
+  // category, the category's rep range, no entered steps, ...): a field
+  // delete, attached AFTER pruning so the sentinel is never walked as a plain
   // object.
-  const { targetRepBand, ...rest } = patch;
-  const body = pruneUndefined({ ...rest, ...(targetRepBand ? { targetRepBand } : {}) });
-  await ackOrQueued(updateDoc(
-    exerciseDoc(uid, id),
-    targetRepBand === null ? { ...body, targetRepBand: deleteField() } : body,
-  ));
+  const values: Record<string, unknown> = {};
+  const deletes: Record<string, ReturnType<typeof deleteField>> = {};
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === null && (CLEARABLE_EXERCISE_FIELDS as readonly string[]).includes(key)) deletes[key] = deleteField();
+    else values[key] = value;
+  }
+  await ackOrQueued(updateDoc(exerciseDoc(uid, id), { ...pruneUndefined(values), ...deletes }));
 }
+
+/** The catalog fields {@link editExercise} deletes on `null` — every one is
+ *  optional on the doc and has a default the engine falls back to. */
+const CLEARABLE_EXERCISE_FIELDS = [
+  'targetRepBand', 'category', 'repRange', 'availableLoads',
+  'smithBarEffectiveLb', 'loadable', 'microplates',
+] as const satisfies readonly (keyof ExercisePatch)[];
 
 export async function deleteExercise(uid: string, id: string): Promise<void> {
   await ackOrQueued(deleteDoc(exerciseDoc(uid, id)));

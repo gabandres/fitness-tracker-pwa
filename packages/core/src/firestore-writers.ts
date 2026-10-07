@@ -45,9 +45,11 @@ import {
 import type { CardioBlock, PlannedCardioBlock } from './cardio';
 import type {
   EffortStandard,
+  ExerciseCategory,
   LogStyle,
   MuscleGroup,
   RepBand,
+  RepRange,
   SessionExercise,
   SessionStatus,
   TemplateExercise,
@@ -431,8 +433,13 @@ export interface ExerciseDraftInput {
   assisted?: boolean;
   /** `failure` (default) or `rir1` — see `EffortStandard` in workout.ts. */
   effortStandard?: EffortStandard;
-  /** Manual override of the derived activation rep band. */
+  /** Retired 2026-10-07; still accepted so old drafts round-trip. */
   targetRepBand?: RepBand;
+  category?: ExerciseCategory;
+  repRange?: RepRange;
+  smithBarEffectiveLb?: number;
+  loadable?: boolean;
+  microplates?: boolean;
 }
 
 /** `users/{uid}/exercises/{id}` — `isValidExercise` in firestore.rules, which
@@ -464,6 +471,11 @@ export function toExerciseDoc<TS>(
     ...(draft.assisted !== undefined ? { assisted: draft.assisted } : {}),
     ...(draft.effortStandard !== undefined ? { effortStandard: draft.effortStandard } : {}),
     ...(draft.targetRepBand !== undefined ? { targetRepBand: draft.targetRepBand } : {}),
+    ...(draft.category !== undefined ? { category: draft.category } : {}),
+    ...(draft.repRange !== undefined ? { repRange: draft.repRange } : {}),
+    ...(draft.smithBarEffectiveLb !== undefined ? { smithBarEffectiveLb: draft.smithBarEffectiveLb } : {}),
+    ...(draft.loadable !== undefined ? { loadable: draft.loadable } : {}),
+    ...(draft.microplates !== undefined ? { microplates: draft.microplates } : {}),
   };
 }
 

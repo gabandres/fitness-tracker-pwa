@@ -19,6 +19,7 @@ import {
   defaultIncrement as defaultIncrementLb,
   isPristineScaffold,
   loadUnit,
+  logUserLoadEdits,
   normalizeClusterGroups,
   parseLoadToLb,
   scaffoldKindsFor,
@@ -33,6 +34,7 @@ import {
 import type { CardioModality, PlannedCardioBlock } from '@macrolog/core/cardio';
 import type {
   Exercise,
+  LoadChange,
   LogStyle,
   PlannedSet,
   SetKind,
@@ -55,6 +57,7 @@ import {
   kindLabelKey, logStyleFor, numOrUndef, setKindFor,
 } from './train-shared';
 import { ExerciseSearchList } from './ExerciseSearchList';
+import { LiftSettingsSheet } from './LiftSettingsSheet';
 import { mobilityDoseWarnings } from '@macrolog/core';
 import { BottomSheet } from '@/components/BottomSheet';
 import { useUnitSystem } from '@/lib/use-unit-system';
@@ -143,6 +146,24 @@ function toPlannedSet(d: DraftSet, unitSystem: UnitSystem): PlannedSet {
 
 const newDraftSet = (kind: SetKind): DraftSet => toDraftSet({ kind });
 
+/** A cluster's label ("L" / "R") lives on EVERY planned set of the cluster,
+ *  so a reader of any one row — the logger snapshots per set — sees it. The
+ *  field sits under the cluster's first row, so that row's label is the
+ *  cluster's; this copies it across the group after any reshuffle (a mini
+ *  added later, a kind change that regrouped the rows). Ungrouped rows keep
+ *  whatever they carry. */
+function spreadClusterLabels<T extends PlannedSet>(sets: readonly T[]): T[] {
+  const first = new Map<number, string | undefined>();
+  for (const ps of sets) if (ps.group != null && !first.has(ps.group)) first.set(ps.group, ps.label);
+  return sets.map((ps) => {
+    if (ps.group == null) return ps;
+    const label = first.get(ps.group);
+    if (label === ps.label) return ps;
+    const { label: _drop, ...rest } = ps;
+    return (label ? { ...rest, label } : rest) as T;
+  });
+}
+
 /** Everything the editor can change, as one comparable string — the
  *  "unsaved changes?" test. Text buffers, so a field typed and cleared again
  *  reads as unchanged. */
@@ -214,6 +235,14 @@ interface DraftEx {
   /** The real planned sets, not a count — a count cannot represent a cluster
    *  (activation/mini/mini) and rewriting one as N working sets destroys it. */
   sets: DraftSet[];
+  /** Every logged move of `targetLoad` (core `LoadChange`). Not editable here,
+   *  only carried: the save is a full overwrite, and dropping it would erase
+   *  the lift's load history on any edit. */
+  loadLog?: LoadChange[];
+  /** The stored load and the text it was shown as. Saved back VERBATIM while
+   *  the text is untouched: a metric user's 100 lb shows as 45.4 kg and would
+   *  otherwise come back as 100.09 lb — a "hand edit" nobody made, logged. */
+  loadAsOpened?: { text: string; lb: number };
 }
 
 export function TemplateEditorModal({
@@ -283,6 +312,9 @@ export function TemplateEditorModal({
     [exercises],
   );
   const [moreEx, setMoreEx] = useState<number | null>(null);
+  /** The card whose catalog lift the settings sheet is open for. An exercise
+   *  id, not an index: the list can be reordered under an open sheet. */
+  const [liftFor, setLiftFor] = useState<string | null>(null);
   /** Which card is showing the declared-but-unread structures (`drop`,
    *  `superset`). Null = every card shows the readable six. */
   const [structuresOpen, setStructuresOpen] = useState<number | null>(null);
@@ -349,6 +381,10 @@ export function TemplateEditorModal({
         sets: ex.plannedSets.length
           ? ex.plannedSets.map((ps) => toDraftSet(ps, unitSystem))
           : [newDraftSet('working')],
+        ...(ex.loadLog ? { loadLog: ex.loadLog } : {}),
+        ...(ex.targetLoad != null
+          ? { loadAsOpened: { text: String(toDisplayLoad(ex.targetLoad, unitSystem)), lb: ex.targetLoad } }
+          : {}),
       }));
     setName(initialName);
     setNotes(initialNotes);
@@ -360,6 +396,7 @@ export function TemplateEditorModal({
     setKindOpen(null);
     setOpenEx(null);
     setMoreEx(null);
+    setLiftFor(null);
     setStructuresOpen(null);
     setStructureKept(null);
     // Opened by DEFAULT when the template already uses any of it — an existing
@@ -554,6 +591,18 @@ export function TemplateEditorModal({
     mutateSets(index, (sets) => sets.map((s, i) => (i === setIdx ? { ...s, ...patch } : s)));
   }
 
+  /** Name one cluster ("L" / "R"), on every set of its group. Empty clears it. */
+  function setClusterLabel(index: number, group: number, text: string) {
+    const label = text.trim();
+    mutateSets(index, (sets) =>
+      sets.map((s) => {
+        if (s.group !== group) return s;
+        const { label: _old, ...rest } = s;
+        return label ? { ...rest, label } : rest;
+      }),
+    );
+  }
+
   /**
    * Declare what this lift is programmed as — and, when the rows are still
    * placeholders, rewrite them to match (ADR-0040 + `scaffoldKindsFor`).
@@ -667,7 +716,9 @@ export function TemplateEditorModal({
             exerciseId: d.exerciseId,
             name: d.name,
             logStyle: d.logStyle,
-            targetLoad: parseLoadToLb(d.targetLoad, unitSystem) ?? undefined,
+            targetLoad: d.loadAsOpened && d.targetLoad === d.loadAsOpened.text
+              ? d.loadAsOpened.lb
+              : parseLoadToLb(d.targetLoad, unitSystem) ?? undefined,
             cues: cues.length ? cues : undefined,
             progression: d.hasProgression
               ? {
@@ -679,12 +730,20 @@ export function TemplateEditorModal({
               : undefined,
             restMiniSec: numOrUndef(d.restMiniSec),
             setStructure: d.setStructure,
-            plannedSets: normalizeClusterGroups(
+            plannedSets: spreadClusterLabels(normalizeClusterGroups(
               d.sets.length ? d.sets : [newDraftSet('working')],
-            ).map((d) => toPlannedSet(d, unitSystem)),
+            ).map((d) => toPlannedSet(d, unitSystem))),
+            loadLog: d.loadLog,
           };
         }),
       };
+      // A load changed by hand is a move of the lift's load like any applied
+      // call, and is logged as the lifter's (`by: 'user'`) so the history can
+      // tell the two apart.
+      draft.exercises = logUserLoadEdits(template?.exercises ?? [], draft.exercises, {
+        at: new Date(),
+        reason: t('train.loadLog.userEdit'),
+      });
       await train.saveTemplate(draft, template?.id);
       onClose();
     } catch {
@@ -723,7 +782,11 @@ export function TemplateEditorModal({
     });
   }
 
+  const liftEx = liftFor ? train.catalog.find((c) => c.id === liftFor) ?? null : null;
+  const liftRow = liftFor ? exercises.find((d) => d.exerciseId === liftFor) : undefined;
+
   return (
+    <>
     <BottomSheet
       // Full height, native, and GUARDED while there are changes: a swipe
       // then asks instead of discarding (Train review items 8, 21).
@@ -1166,6 +1229,25 @@ export function TemplateEditorModal({
                       {structuresOpen === i ? t('train.structureFewer') : t('train.structureMore')}
                     </Text>
                   </TouchableOpacity>
+                  {/* The catalog lift's own configuration — category, rep
+                      range, load steps, Smith bar, effort — editable from
+                      here because the template is where a lift is planned.
+                      Saved straight to the catalog, not with this template. */}
+                  {train.catalog.some((c) => c.id === d.exerciseId) ? (
+                    <TouchableOpacity
+                      style={styles.tplLiftBtn}
+                      onPress={() => {
+                        haptics.tap();
+                        setLiftFor(d.exerciseId);
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('train.lift.openA11y', { name: d.name })}
+                      testID={`template-lift-settings-${i}`}
+                    >
+                      <Ionicons name="options-outline" size={16} color={colors.teal} />
+                      <Text style={styles.sectionAction}>{t('train.lift.title')}</Text>
+                    </TouchableOpacity>
+                  ) : null}
 
                   {/* Sets are a small TABLE: a row says what to do, and the
                       headers say what the numbers mean, so neither needs a
@@ -1271,6 +1353,26 @@ export function TemplateEditorModal({
                             <Ionicons name="close" size={16} color={colors.faint} />
                           </TouchableOpacity>
                         </View>
+                        {/* A cluster's name ("L" / "R" on a single-leg lift),
+                            under its FIRST row only and written to every row
+                            of the group — the logger shows it in place of
+                            the cluster's number. */}
+                        {ps.group != null && (si === 0 || d.sets[si - 1]?.group !== ps.group) ? (
+                          <View style={styles.tplClusterLabelRow}>
+                            <Text style={styles.tplSetsLabel}>{t('train.lift.clusterLabel')}</Text>
+                            <SheetTextInput
+                              style={[styles.tplSetInput, styles.tplClusterLabelInput]}
+                              placeholder={t('train.lift.clusterLabelPh')}
+                              placeholderTextColor={colors.faint}
+                              value={ps.label ?? ''}
+                              onChangeText={(v) => setClusterLabel(i, ps.group as number, v)}
+                              maxLength={8}
+                              autoCapitalize="characters"
+                              accessibilityLabel={t('train.lift.clusterLabelA11y', { n: setLabels[si] })}
+                              testID={`template-cluster-label-${i}-${ps.group}`}
+                            />
+                          </View>
+                        ) : null}
                         {kindOpen === openKey ? (
                           <View accessibilityRole="radiogroup">
                             {SET_KINDS.map((k) => {
@@ -1512,5 +1614,22 @@ export function TemplateEditorModal({
           </Animated.ScrollView>
       </GestureHandlerRootView>
     </BottomSheet>
+    {/* A SIBLING of the editor's sheet, not a child: its owner is this
+        component, which stays mounted under the editor, so the settings sheet
+        presents over the editor and closing it returns to the draft intact.
+        The stack fallback step reads the row's increment as typed. */}
+    <LiftSettingsSheet
+      visible={visible && liftEx != null}
+      exercise={liftEx}
+      templateRow={liftRow ? {
+        name: liftRow.name,
+        progression: liftRow.hasProgression
+          ? { incrementLb: parseLoadToLb(liftRow.incrementLb, unitSystem) ?? defaultIncrementLb(unitSystem) }
+          : undefined,
+      } : null}
+      onClose={() => setLiftFor(null)}
+      onSave={(patch) => (liftEx?.id ? train.editCatalogExercise(liftEx.id, patch) : Promise.resolve())}
+    />
+    </>
   );
 }

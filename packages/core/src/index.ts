@@ -195,6 +195,7 @@ export * from './workout-progression';
 // nothing about a straight-set lift.
 export * from './progression-engine';
 export * from './weekly-cluster-audit';
+export * from './progression-apply';
 // Function-only export (the ./workout types stay un-barreled — see note above).
 export { normalizeClusterGroups, setRowLabels } from './cluster-groups';
 // Finish-boundary guard: fill a logged set's missing load from its siblings

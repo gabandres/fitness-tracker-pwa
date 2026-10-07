@@ -1,16 +1,24 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { memo, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, ScrollView, Text, View } from 'react-native';
 import { TRAIN_RIPPLE, Touchable } from './Touchable';
 import Animated from 'react-native-reanimated';
 import {
+  dayBoundaryOf,
+  formatBodyWeight,
   formatLoad,
+  muscleSignals,
   nextTemplateUp,
   sessionVolume,
   templateLastPerformed,
+  trailingAverageLb,
   trainHeroStats,
+  type VolumeCall,
+  volumeCalls,
+  volumeGateMet,
   weeklyClusterAudit,
 } from '@macrolog/core';
+import { DEFAULT_TRAINING_PHASE } from '@macrolog/core/workout';
 import { CONTEXT_MENUS, ContextMenu } from '@/components/ContextMenu';
 import { BottomSheet, NATIVE_SHEETS } from '@/components/BottomSheet';
 import { confirm } from '@/components/ConfirmSheet';
@@ -24,6 +32,8 @@ import { RecommendationNote } from '@/components/train/RecommendationNote';
 import { TemplateEditorModal } from '@/components/train/TemplateEditorModal';
 import type { TrainState } from '@/hooks/useTrain';
 import { type I18nKey, useLocale, useT } from '@/i18n';
+import { useAuth } from '@/lib/auth';
+import { readCache } from '@/lib/offline-cache';
 import { formatDate } from '@/lib/date-format';
 import * as haptics from '@/lib/haptics';
 import { CountUpText, enterUp, rippleClip, type usePulse } from '@/lib/motion';
@@ -31,7 +41,7 @@ import { showToast } from '@/components/Toast';
 import { captureError } from '@/lib/sentry';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { useUnitSystem } from '@/lib/use-unit-system';
-import type { Exercise, WorkoutSession, WorkoutTemplate } from '@/lib/workout';
+import type { Exercise, TrainingPhase, WorkoutSession, WorkoutTemplate } from '@/lib/workout';
 import { ExerciseDetailSheet } from './ExerciseDetailSheet';
 import { toMenuButtonActions } from './exercise-menu-native';
 import { SessionDetailSheet } from './SessionDetailSheet';
@@ -117,6 +127,37 @@ export function StartView({
     () => weeklyClusterAudit(train.recentSessions, train.catalog, now),
     [train.recentSessions, train.catalog, now],
   );
+  // Whether to add a cluster, per muscle — never in a cut (recovery first),
+  // otherwise at most one, on a stalled main lift or an all-progressing
+  // fortnight (`volumeCalls`). The app says so; it never adds one itself.
+  const { user, profile } = useAuth();
+  const phase = profile?.trainingPhase ?? DEFAULT_TRAINING_PHASE;
+  const calls = useMemo(
+    () => volumeCalls(audit, phase, muscleSignals(train.recentSessions, train.catalog, now)),
+    [audit, phase, train.recentSessions, train.catalog, now],
+  );
+  const gateLb = profile?.volumeGateLb;
+  const boundary = dayBoundaryOf(profile);
+  // The 7-day average for the volume gate, from the weigh-ins Today already
+  // keeps on disk — ONE cache read when a gate is set, never a listener
+  // (ADR-0016: Train does not subscribe to weights for one line of text).
+  // Null when the cache holds fewer than two readings in the week; the line
+  // then omits the average and reads "not yet".
+  const [sevenDayAvgLb, setSevenDayAvgLb] = useState<number | null>(null);
+  const uid = user?.uid;
+  useEffect(() => {
+    if (!uid || gateLb == null) return;
+    let cancelled = false;
+    void readCache<Record<string, number>>(uid, 'weights').then((weights) => {
+      if (cancelled || !weights) return;
+      setSevenDayAvgLb(trailingAverageLb(weights, 7, new Date(now), boundary)?.avgLb ?? null);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // `boundary` is rebuilt per render from the profile; the hour is what matters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uid, gateLb, now, profile?.dayBoundary]);
   const [nextOpen, setNextOpen] = useState<string | null>(null);
   // Which template to offer, and when each was last completed. Both are pure
   // and live in core (`train-plan.ts`); this screen only renders them.
@@ -311,6 +352,12 @@ export function StartView({
                   ? t('train.audit.unattributed', { names: audit.unattributed.join(', ') })
                   : t('train.audit.hint')}
               </Text>
+              <VolumeCalls
+                phase={phase}
+                calls={calls}
+                gateLb={gateLb}
+                sevenDayAvgLb={sevenDayAvgLb}
+              />
             </>
           ) : null}
         </View>
@@ -719,6 +766,66 @@ function SessionPreview({ session: s, date, vol }: { session: WorkoutSession; da
   );
 }
 
+/**
+ * The volume panel's verdict lines, under the cluster chips: the training
+ * phase, then what the week's volume should do — held in a cut, otherwise a
+ * +1 cluster per muscle that earned one, with why — and, when the lifter has
+ * set a volume gate, the gate and whether it is met.
+ */
+function VolumeCalls({
+  phase,
+  calls,
+  gateLb,
+  sevenDayAvgLb,
+}: {
+  phase: TrainingPhase;
+  calls: readonly VolumeCall[];
+  gateLb: number | undefined;
+  sevenDayAvgLb: number | null;
+}) {
+  const t = useT();
+  const styles = useThemedStyles(createStyles);
+  const unitSystem = useUnitSystem();
+  const adds = calls.filter((c) => c.add === 1);
+  return (
+    <View testID="volume-calls">
+      <Text style={styles.volumeLine} testID="volume-phase">
+        {t('train.volume.phase', { phase: t(PHASE_KEY[phase]) })}
+      </Text>
+      {phase === 'cut' ? (
+        <Text style={styles.volumeNote} testID="volume-cut-hold">{t('train.volume.cutHold')}</Text>
+      ) : adds.length > 0 ? (
+        adds.map((c) => (
+          <Text key={c.muscle} style={styles.volumeLine} testID={`volume-add-${c.muscle}`}>
+            {t('train.volume.add', {
+              muscle: t(`train.muscle.${c.muscle}` as I18nKey),
+              reason: t(c.reason === 'main-lift-stalled' ? 'train.volume.reason.stalled' : 'train.volume.reason.progressing'),
+            })}
+          </Text>
+        ))
+      ) : (
+        <Text style={styles.volumeNote} testID="volume-no-add">{t('train.volume.noAdd')}</Text>
+      )}
+      {gateLb != null ? (
+        <Text style={styles.volumeNote} testID="volume-gate">
+          {t('train.volume.gate', { lb: formatBodyWeight(gateLb, unitSystem) })}
+          {'. '}
+          {sevenDayAvgLb != null
+            ? `${t('train.volume.gateAvg', { avg: formatBodyWeight(sevenDayAvgLb, unitSystem) })} · `
+            : ''}
+          {t(volumeGateMet(gateLb, sevenDayAvgLb, phase) ? 'train.volume.gateMet' : 'train.volume.gateNotMet')}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
+const PHASE_KEY: Record<TrainingPhase, I18nKey> = {
+  cut: 'train.phase.cut',
+  maintenance: 'train.phase.maintenance',
+  bulk: 'train.phase.bulk',
+};
+
 /** Every exercise of a template with its recommendation, one line each. */
 function TemplateNextSession({
   recentSessions,
@@ -766,7 +873,7 @@ function TemplateNextSession({
       <LiftSettingsSheet
         visible={openEx != null}
         exercise={openEx}
-        rec={open?.rec ?? null}
+        templateRow={open?.row ?? null}
         onClose={() => setSettingsFor(null)}
         onSave={(patch) => (openEx?.id ? train.editCatalogExercise(openEx.id, patch) : Promise.resolve())}
       />

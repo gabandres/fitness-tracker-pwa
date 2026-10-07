@@ -10,6 +10,7 @@ import {
   StyleSheet,
   Switch,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
   useWindowDimensions,
@@ -29,11 +30,19 @@ import {
   type MealKey,
   type MealReminderSettings,
   type UnitSystem,
+  bodyWeightUnit,
   parseImportCsv,
+  parseWeightToLb,
+  toDisplayWeight,
 } from '@macrolog/core';
+import { DEFAULT_TRAINING_PHASE, TRAINING_PHASES, type TrainingPhase } from '@macrolog/core/workout';
 import { useAuth } from '@/lib/auth';
 import { useDailyTargets } from '@/hooks/useDailyTargets';
-import { importLogs, setCalorieFloor, setDayStartHour, setPreferredLocale, setProteinFloor, setUnitSystem, setWeeklyDigestOptIn } from '@/lib/ledger';
+import {
+  importLogs, setCalorieFloor, setDayStartHour, setPreferredLocale, setProteinFloor, setTrainingSettings,
+  setUnitSystem, setWeeklyDigestOptIn,
+} from '@/lib/ledger';
+import { useDoneKeyProps } from '@/components/KeyboardBar';
 
 /**
  * The hours the segment offers (ADR-0030). 0 is "midnight" — the behaviour
@@ -101,6 +110,17 @@ const MEAL_ROWS: { key: MealKey; labelKey: I18nKey }[] = [
   { key: 'dinner', labelKey: 'settings.reminderDinner' },
 ];
 
+/** The volume gate's band in POUNDS — the bound `firestore.rules` enforces on
+ *  `volumeGateLb`. Shown to a metric user in kilograms. */
+const VOLUME_GATE_MIN_LB = 50;
+const VOLUME_GATE_MAX_LB = 1000;
+
+const PHASE_LABEL: Record<TrainingPhase, I18nKey> = {
+  cut: 'train.phase.cut',
+  maintenance: 'train.phase.maintenance',
+  bulk: 'train.phase.bulk',
+};
+
 const CALORIE_FLOOR_MIN = 1200;
 const CALORIE_FLOOR_MAX = 3000;
 const DEFAULT_CALORIE_FLOOR = 1500;
@@ -142,6 +162,7 @@ export default function Settings() {
   const offline = useIsOffline();
   const [savingUnit, setSavingUnit] = useState(false);
   const [savingDayStart, setSavingDayStart] = useState(false);
+  const doneKey = useDoneKeyProps();
   const [reminderEnabled, setReminderEnabled] = useState(false);
   const [meals, setMealsState] = useState<MealReminderSettings>(DEFAULT_MEAL_REMINDERS);
   // The current value, readable OUTSIDE the render closure. `bumpMealHour`
@@ -414,6 +435,59 @@ export default function Settings() {
     if (!user) return;
     haptics.tap();
     await setWeeklyDigestOptIn(user.uid, next);
+  }
+
+  // ── Training (progression engine, 2026-10-07) ──
+  // All three are absent on every profile written before then, and absent
+  // reads as cut / auto-apply OFF / no gate — so an untouched account changes
+  // nothing. The gate is typed in the user's unit and stored in pounds.
+  const trainingPhase: TrainingPhase = profile?.trainingPhase ?? DEFAULT_TRAINING_PHASE;
+  const gateLb = profile?.volumeGateLb ?? null;
+  const gateShown = gateLb != null ? String(toDisplayWeight(gateLb, unit)) : '';
+  const [gateText, setGateText] = useState(gateShown);
+  const [gateErr, setGateErr] = useState(false);
+  // Re-seed from the profile when the stored value changes under the field
+  // (another device, or this screen's own write coming back). Adjusted during
+  // render rather than in an effect, so the field never paints the old value.
+  const [gateSeed, setGateSeed] = useState(gateShown);
+  if (gateSeed !== gateShown) {
+    setGateSeed(gateShown);
+    setGateText(gateShown);
+    setGateErr(false);
+  }
+
+  async function pickPhase(next: TrainingPhase) {
+    if (!user || next === trainingPhase) return;
+    haptics.tap();
+    await setTrainingSettings(user.uid, { trainingPhase: next });
+  }
+
+  async function toggleAutoApply(next: boolean) {
+    if (!user) return;
+    haptics.tap();
+    await setTrainingSettings(user.uid, { autoApplyProgression: next });
+  }
+
+  /** Commit the typed gate: empty clears it, out of band says so and keeps
+   *  the text for fixing, unchanged text writes nothing (a metric round trip
+   *  must not nudge the stored pounds). */
+  async function commitGate() {
+    if (!user || gateText === gateShown) return;
+    const text = gateText.trim();
+    if (!text) {
+      setGateErr(false);
+      if (gateLb != null) await setTrainingSettings(user.uid, { volumeGateLb: null });
+      return;
+    }
+    const lb = parseWeightToLb(text, unit);
+    if (lb == null || lb < VOLUME_GATE_MIN_LB || lb > VOLUME_GATE_MAX_LB) {
+      haptics.warning();
+      setGateErr(true);
+      return;
+    }
+    setGateErr(false);
+    haptics.tap();
+    await setTrainingSettings(user.uid, { volumeGateLb: Math.round(lb * 10) / 10 });
   }
 
 
@@ -775,6 +849,76 @@ export default function Settings() {
             <WatchDiagnosticsCard />
           </>
         ) : null}
+
+        {/* ── Training ── what the progression engine may do with the
+            templates: the diet phase (a cut never adds volume), whether a
+            finished session's calls apply themselves (OFF: only Apply moves a
+            template), and the lifter's own gate for phase-2 volume. */}
+        <Text style={styles.section} accessibilityRole="header">{t('settings.trainingSection')}</Text>
+        <View style={styles.card}>
+          <Text style={styles.rowLabel}>{t('settings.trainingPhase')}</Text>
+          <Text style={styles.rowValue}>{t('settings.trainingPhaseSub')}</Text>
+          <ChoiceRow
+            label={t('settings.trainingPhase')}
+            options={TRAINING_PHASES.map((p) => ({
+              key: p,
+              label: t(PHASE_LABEL[p]),
+              testID: `settings-phase-${p}`,
+            }))}
+            value={trainingPhase}
+            onPick={pickPhase}
+            disabled={offline}
+            dimmed={offline}
+            stacked={stackFloors}
+          />
+          <View style={styles.digestRow}>
+            <View style={styles.rowText}>
+              <Text style={styles.rowLabel}>{t('settings.autoApply')}</Text>
+              <Text style={styles.rowValue}>{t('settings.autoApplySub')}</Text>
+            </View>
+            <Switch
+              value={profile?.autoApplyProgression === true}
+              onValueChange={toggleAutoApply}
+              disabled={offline}
+              trackColor={{ true: colors.tealSolid, false: colors.lineStrong }}
+              accessibilityLabel={t('settings.autoApply')}
+              testID="settings-auto-apply"
+            />
+          </View>
+          <View style={[stackFloors ? styles.floorStacked : styles.rowBetween, styles.digestRow]}>
+            <View style={stackFloors ? null : styles.rowText}>
+              <Text style={styles.rowLabel}>{t('settings.volumeGate')}</Text>
+              <Text style={styles.rowValue}>{t('settings.volumeGateSub')}</Text>
+            </View>
+            <View style={styles.stepper}>
+              <TextInput
+                style={[styles.gateInput, gateErr && styles.gateInputErr]}
+                value={gateText}
+                onChangeText={setGateText}
+                onEndEditing={commitGate}
+                onSubmitEditing={commitGate}
+                keyboardType="decimal-pad"
+                placeholder={t('settings.volumeGateOff')}
+                placeholderTextColor={colors.faint}
+                editable={!offline}
+                maxLength={6}
+                {...doneKey}
+                accessibilityLabel={t('settings.volumeGateA11y', { unit: bodyWeightUnit(unit) })}
+                testID="settings-volume-gate"
+              />
+              <Text style={styles.rowValue}>{bodyWeightUnit(unit)}</Text>
+            </View>
+          </View>
+          {gateErr ? (
+            <Text style={styles.gateErr} testID="settings-volume-gate-error">
+              {t('settings.volumeGateInvalid', {
+                min: Math.ceil(toDisplayWeight(VOLUME_GATE_MIN_LB, unit)),
+                max: Math.floor(toDisplayWeight(VOLUME_GATE_MAX_LB, unit)),
+                unit: bodyWeightUnit(unit),
+              })}
+            </Text>
+          ) : null}
+        </View>
 
         {/* ── Safety floors ── the clamps under the targets above. At large
             text the stepper drops under its description: side by side, the
@@ -1336,6 +1480,14 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   },
   stepText: { fontSize: font.h3, color: colors.ink, fontWeight: '700' },
   hourValue: { fontSize: font.body, color: colors.ink, fontWeight: '700', minWidth: 56, textAlign: 'center' },
+  // The volume gate: a short weight field, the stepper's footprint.
+  gateInput: {
+    minWidth: 88, minHeight: TARGET, paddingHorizontal: space.md, borderRadius: radius.md,
+    borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.inputBg,
+    fontSize: font.body, color: colors.ink, textAlign: 'center',
+  },
+  gateInputErr: { borderColor: colors.danger },
+  gateErr: { fontSize: font.small, color: colors.danger },
   accountHead: { gap: 2, marginBottom: space.md },
   accountEmail: { fontSize: font.small, color: colors.muted },
   signOut: { flexDirection: 'row', alignItems: 'center', gap: space.sm, justifyContent: 'flex-start', minHeight: TARGET },

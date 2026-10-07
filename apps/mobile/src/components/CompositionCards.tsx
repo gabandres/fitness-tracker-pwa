@@ -42,8 +42,11 @@ function signed(v: number, digits: number, locale: ReturnType<typeof useLocale>)
  *  not contradict flat. */
 const NOISE_HEDGED: ReadonlySet<string> = new Set(['recomp', 'fat_loss', 'gaining_fat']);
 
-/** The headline. When the waist change is inside tape noise the fine print
- *  says so, and a headline claiming "Recomposition signal" contradicted it. */
+/** The headline. Confident wording only when the printed waist interval
+ *  (slope ± 1 SE) excludes zero — `waistWithinNoise` is the negation of core's
+ *  `waistIntervalExcludesZero`. Otherwise the fine print says "within noise",
+ *  and a headline claiming "Recomposition signal: waist down" contradicted it;
+ *  the hedged recomp line is just "Possible recomposition". */
 export function recompHeadlineKey(cls: string, withinNoise: boolean): I18nKey {
   return (withinNoise && NOISE_HEDGED.has(cls) ? `recomp.clsPossible.${cls}` : `recomp.cls.${cls}`) as I18nKey;
 }
@@ -164,9 +167,11 @@ export function RecompCard({
             se: formatNumber(se, locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
             lu: metric ? 'cm' : 'in',
             n: signal.tapes,
-            // Says which window: the maintenance card above counts every tape
-            // since the first, this one only the recent ones, and "5 tapes"
-            // beside "3 tapes" read as a bug.
+            // Says which window. Both counts are `tapeDays` (core) — one tape
+            // per day — but the composition line above counts its whole
+            // first→last span (up to 84 days, waist + neck sets) and this one
+            // only the last 42 days' waists, so "5 tapes" beside "3 tapes" is
+            // two windows, not two definitions.
             days: RECOMP_WAIST_DAYS,
           })}
         </Text>

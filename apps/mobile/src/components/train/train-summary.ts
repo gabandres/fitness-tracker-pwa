@@ -1,14 +1,23 @@
-import type { ActivationIssue, Recommendation, ProgressionSuggestion, UnitSystem } from '@macrolog/core';
+import type {
+  ActivationIssue,
+  Recommendation,
+  ProgressionSuggestion,
+  StallContext,
+  UnitSystem,
+} from '@macrolog/core';
 import {
   exerciseHistory,
   formatLoad,
   isWorkingSet,
   lastPerformed,
+  muscleSignals,
   recommend,
   recommendOptionsFor,
   sessionCardioSec,
   sessionCounts,
   templateCounts,
+  volumeCalls,
+  weeklyClusterAudit,
   workingSetCells,
 } from '@macrolog/core';
 import type { CardioModality } from '@macrolog/core/cardio';
@@ -17,7 +26,9 @@ import { plural } from '@/i18n/grammar';
 import type {
   Exercise,
   LogStyle,
+  MuscleGroup,
   SessionExercise,
+  TrainingPhase,
   WorkoutSession,
   WorkoutSet,
   WorkoutTemplate,
@@ -100,16 +111,24 @@ export function spokenDuration(totalSec: number, t: TFn, locale: Locale): string
 
 /**
  * The sets a load chosen for the whole lift lands on — an accepted
- * recommendation and the "↑ Try X" bump chip both: every working set with no
- * weight yet that has not been ticked. One rule for both; the bump used to
- * fill only the FIRST working set, so the rest were ticked at last week's
- * load without anyone noticing (Train re-score 3, bug 4). A ticked set is a
- * record of what was lifted, and a typed weight is the lifter's own call.
+ * recommendation and the "↑ Try X" bump chip both: every working set that has
+ * not been ticked and still holds what the session was SEEDED with — no
+ * weight, or the template's `targetLoad` (`seededLoad`). One rule for both;
+ * the bump used to fill only the FIRST working set, so the rest were ticked at
+ * last week's load without anyone noticing (Train re-score 3, bug 4).
+ *
+ * The seeded load counts as untouched because a template start pre-fills
+ * every set with it: checking for an EMPTY weight only made Accept a silent
+ * no-op on every templated lift (10/6: "Repeat 25" over sets seeded at 30,
+ * typed by hand). A ticked set is a record of what was lifted, and a typed
+ * weight other than the seed is the lifter's own call — neither moves.
  */
-export function loadTargetIndices(sets: readonly WorkoutSet[]): number[] {
+export function loadTargetIndices(sets: readonly WorkoutSet[], seededLoad?: number): number[] {
   const out: number[] = [];
+  const seeded = (w: number) => seededLoad != null && Math.abs(w - seededLoad) < 0.01;
   sets.forEach((s, i) => {
-    if (isWorkingSet(s) && (s.weight ?? 0) === 0 && !s.done) out.push(i);
+    const w = s.weight ?? 0;
+    if (isWorkingSet(s) && !s.done && (w === 0 || seeded(w))) out.push(i);
   });
   return out;
 }
@@ -183,21 +202,41 @@ export function lastHint(sug: ProgressionSuggestion, style: LogStyle, t: TFn, un
 }
 
 /**
+ * What the engine needs beyond the log for one lift: whether the weekly
+ * volume rules allow one more cluster for its muscle (offered at the rep cap
+ * only), and the facts the stall checklist reads. Every field is optional —
+ * an absent fact is "no data" to the engine, never "fine".
+ */
+export interface RecommendationExtras {
+  volumeAllowsCluster?: boolean;
+  stallContext?: StallContext;
+}
+
+/** A cache key for {@link RecommendationExtras}: the extras arrive as a fresh
+ *  object each render, so the memo compares their VALUES. */
+const extrasKey = (x: RecommendationExtras | undefined): string =>
+  x
+    ? `${x.volumeAllowsCluster ? 1 : 0}|${x.stallContext?.sleepHours ?? ''}|${x.stallContext?.intakeBelowTarget ?? ''}|${x.stallContext?.restMiniSec ?? ''}`
+    : '';
+
+/**
  * The engine's call for one exercise, from the completed history the tab
  * already holds. The prescription (cluster or not, rep target, increment)
  * comes from the template row; the equipment (`availableLoads`, `assisted`)
- * from the catalog exercise. An ad-hoc session exercise has no template row,
- * so its own sets say whether it is clustered and its snapshotted
- * `progression` supplies the band.
+ * and the rep range from the catalog exercise. An ad-hoc session exercise has
+ * no template row, so its own sets say whether it is clustered and its
+ * snapshotted `progression` supplies the increment.
  *
  * Takes the two data fields rather than the whole hook result, so a memo
- * keyed on them actually hits.
+ * keyed on them actually hits. `extras` is compared by value for the same
+ * reason.
  */
 export function recommendationFor(
   data: { recentSessions: readonly WorkoutSession[]; catalog: readonly Exercise[] },
   exerciseId: string,
   templateRow: WorkoutTemplate['exercises'][number] | null | undefined,
   sessionEx?: SessionExercise,
+  extras?: RecommendationExtras,
 ): Recommendation {
   // The live workout asks this twice per exercise per render — the card (for
   // its note) and the session (for whether ⋯ offers "Lift settings") — with
@@ -207,21 +246,25 @@ export function recommendationFor(
   // the live exercise object, so a keystroke (a new `ex`) misses by
   // construction and an abandoned one is collected with it.
   if (sessionEx) {
+    const key = extrasKey(extras);
     const hit = recCache.get(sessionEx);
     if (
       hit &&
       hit.recentSessions === data.recentSessions &&
       hit.catalog === data.catalog &&
       hit.exerciseId === exerciseId &&
-      hit.templateRow === templateRow
+      hit.templateRow === templateRow &&
+      hit.extras === key
     ) {
       return hit.rec;
     }
-    const rec = computeRecommendation(data, exerciseId, templateRow, sessionEx);
-    recCache.set(sessionEx, { recentSessions: data.recentSessions, catalog: data.catalog, exerciseId, templateRow, rec });
+    const rec = computeRecommendation(data, exerciseId, templateRow, sessionEx, extras);
+    recCache.set(sessionEx, {
+      recentSessions: data.recentSessions, catalog: data.catalog, exerciseId, templateRow, extras: key, rec,
+    });
     return rec;
   }
-  return computeRecommendation(data, exerciseId, templateRow, sessionEx);
+  return computeRecommendation(data, exerciseId, templateRow, sessionEx, extras);
 }
 
 const recCache = new WeakMap<
@@ -231,6 +274,7 @@ const recCache = new WeakMap<
     catalog: readonly Exercise[];
     exerciseId: string;
     templateRow: WorkoutTemplate['exercises'][number] | null | undefined;
+    extras: string;
     rec: Recommendation;
   }
 >();
@@ -240,6 +284,7 @@ function computeRecommendation(
   exerciseId: string,
   templateRow: WorkoutTemplate['exercises'][number] | null | undefined,
   sessionEx?: SessionExercise,
+  extras?: RecommendationExtras,
 ): Recommendation {
   const completed = data.recentSessions.filter((s) => s.status === 'completed');
   const history = exerciseHistory(completed, exerciseId);
@@ -254,5 +299,112 @@ function computeRecommendation(
         expectsCluster: sessionEx?.sets.some((x) => x.kind === 'activation') ?? false,
         ...(sessionEx?.progression ? { progression: sessionEx.progression } : {}),
       };
-  return recommend(history, opts);
+  return recommend(history, {
+    ...opts,
+    ...(extras?.volumeAllowsCluster != null ? { volumeAllowsCluster: extras.volumeAllowsCluster } : {}),
+    ...(extras?.stallContext ? { stallContext: extras.stallContext } : {}),
+  });
+}
+
+/** Sessions the sleep average reads: the last few completed ones that logged it. */
+const SLEEP_SESSIONS = 3;
+
+/**
+ * Average sleep over the last {@link SLEEP_SESSIONS} completed sessions that
+ * logged one (newest first, as `recentSessions` is), for the stall
+ * checklist's sleep line. Undefined when none did — the check then reads
+ * "no data" rather than passing.
+ */
+export function recentSleepHours(recentSessions: readonly WorkoutSession[]): number | undefined {
+  const hours = recentSessions
+    .filter((s) => s.status === 'completed' && s.sleepHours != null)
+    .slice(0, SLEEP_SESSIONS)
+    .map((s) => s.sleepHours as number);
+  if (hours.length === 0) return undefined;
+  return hours.reduce((a, b) => a + b, 0) / hours.length;
+}
+
+/**
+ * The muscles the weekly volume rules (core `volumeCalls`) give one more
+ * cluster this week. Never any in a cut. Computed once per session render,
+ * not per lift — the audit walks every completed session in the week.
+ */
+export function musclesAllowingCluster(
+  recentSessions: readonly WorkoutSession[],
+  catalog: readonly Exercise[],
+  phase: TrainingPhase,
+  now: number,
+): ReadonlySet<MuscleGroup> {
+  // A cut never adds volume — skip the audit entirely.
+  if (phase === 'cut') return new Set();
+  const completed = recentSessions.filter((s) => s.status === 'completed');
+  const calls = volumeCalls(
+    weeklyClusterAudit(completed, catalog, now),
+    phase,
+    muscleSignals(completed, catalog, now),
+  );
+  return new Set(calls.filter((c) => c.add === 1).map((c) => c.muscle));
+}
+
+/** Whether one lift's PRIMARY muscle (catalog `muscles[0]`, the one the
+ *  weekly audit counts it toward) may take another cluster. */
+export function liftAllowsCluster(
+  allowed: ReadonlySet<MuscleGroup>,
+  catalog: readonly Exercise[],
+  exerciseId: string,
+): boolean {
+  const primary = catalog.find((e) => e.id === exerciseId)?.muscles[0];
+  return primary != null && allowed.has(primary);
+}
+
+/** One lift's call at the finish boundary. */
+export interface FinishCall {
+  exerciseId: string;
+  name: string;
+  rec: Recommendation;
+}
+
+/**
+ * The engine's call for every lift of a session being finished, read from
+ * the history INCLUDING that session — it is treated as the newest completed
+ * one, because it is what the next session's call will be made from. Lifts
+ * the engine has nothing to say about (`action: 'none'`) are left out; a lift
+ * logged twice is called once.
+ */
+export function finishCalls(input: {
+  session: WorkoutSession;
+  recentSessions: readonly WorkoutSession[];
+  catalog: readonly Exercise[];
+  template: WorkoutTemplate | null;
+  phase: TrainingPhase;
+  now: number;
+}): FinishCall[] {
+  const { session, catalog, template } = input;
+  const finished: WorkoutSession = { ...session, status: 'completed' };
+  const history = [
+    finished,
+    ...input.recentSessions.filter((s) => s.id == null || s.id !== session.id),
+  ];
+  const allowed = musclesAllowingCluster(history, catalog, input.phase, input.now);
+  // The session being finished has no sleep logged yet; the average reads the
+  // ones before it.
+  const sleepHours = recentSleepHours(input.recentSessions);
+  const out: FinishCall[] = [];
+  const seen = new Set<string>();
+  for (const ex of session.exercises) {
+    if (seen.has(ex.exerciseId)) continue;
+    seen.add(ex.exerciseId);
+    const row = template?.exercises.find((te) => te.exerciseId === ex.exerciseId);
+    const restMiniSec = row?.restMiniSec ?? template?.restMiniSec;
+    const rec = computeRecommendation({ recentSessions: history, catalog }, ex.exerciseId, row, ex, {
+      volumeAllowsCluster: liftAllowsCluster(allowed, catalog, ex.exerciseId),
+      stallContext: {
+        ...(sleepHours != null ? { sleepHours } : {}),
+        ...(restMiniSec != null ? { restMiniSec } : {}),
+      },
+    });
+    if (rec.action === 'none') continue;
+    out.push({ exerciseId: ex.exerciseId, name: ex.name, rec });
+  }
+  return out;
 }

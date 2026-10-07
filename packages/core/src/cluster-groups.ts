@@ -62,22 +62,31 @@ export function normalizeClusterGroups<T extends { kind: SetKind; group?: number
  * letters carry the same grouping with no vocabulary attached, and stay
  * legible in a 36pt-wide cell.
  *
+ * A cluster that carries a `label` (2026-10-07: "L" / "R" on a single-leg
+ * lift, where cluster 1 and cluster 2 are the two sides, not two efforts)
+ * shows the label in place of its number — `La, Lb, Ra, Rb`. The label is
+ * read off the cluster's FIRST set, so a mini that lost its label still reads
+ * with its cluster; the number is consumed either way, so the rows after a
+ * labelled cluster keep the numbers they had.
+ *
  * Presentation only: `group` remains the stored truth and is untouched.
  * Reads the CONSECUTIVE run of equal groups rather than the group number, so
  * it agrees with {@link normalizeClusterGroups} by construction and does not
  * depend on stored numbers being healed first.
  */
-export function setRowLabels(sets: readonly { kind: SetKind; group?: number }[]): string[] {
+export function setRowLabels(sets: readonly { kind: SetKind; group?: number; label?: string }[]): string[] {
   const out: string[] = [];
   let main = 0;
   let sub = 0;
   let openGroup: number | undefined;
+  let openLabel: string | undefined;
+  const named = (l: string | undefined) => (l != null && l.trim() !== '' ? l.trim() : undefined);
 
   for (const s of sets) {
     if (s.group == null) {
       main += 1;
       openGroup = undefined;
-      out.push(String(main));
+      out.push(named(s.label) ?? String(main));
       continue;
     }
     if (s.group !== openGroup) {
@@ -85,10 +94,11 @@ export function setRowLabels(sets: readonly { kind: SetKind; group?: number }[])
       main += 1;
       sub = 0;
       openGroup = s.group;
+      openLabel = named(s.label);
     } else {
       sub += 1;
     }
-    out.push(`${main}${subLetter(sub)}`);
+    out.push(`${openLabel ?? main}${subLetter(sub)}`);
   }
   return out;
 }

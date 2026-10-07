@@ -20,8 +20,7 @@ const t = ((key: string, vars?: Record<string, unknown>) => {
 }) as never;
 
 const base: Recommendation = {
-  action: 'none', last: [], assisted: false, band: null,
-  calibration: { validSessions: 0, needed: 3, band: null, source: null },
+  action: 'none', last: [], assisted: false, approximate: false,
   warnings: [], reason: { kind: 'no-history' },
 };
 
@@ -115,16 +114,24 @@ describe('ADR-0040 recommendation copy', () => {
     expect(lines({ kind: 'hit', reps: 1, targetReps: 2, sessionsAtTarget: 0, holdSessions: 1 }).reason).not.toBe('');
   });
 
-  it('never shows the myo-reps calibration count off the myo-reps path', () => {
-    // The derived band is an ADR-0039 concept. Counting sessions toward a band
-    // a straight-sets lift will never use is noise at best.
-    expect(lines({ kind: 'straight-sets', sessionsAtTarget: 1, holdSessions: 2, targetReps: 8 }).calibration).toBeNull();
-    expect(lines({ kind: 'no-rule' }).calibration).toBeNull();
-    expect(lines({ kind: 'nothing-to-read' }).calibration).toBeNull();
-    expect(lines({ kind: 'unsupported-structure', structure: 'drop' }).calibration).toBeNull();
-    expect(lines({ kind: 'hit', reps: 8, targetReps: 8, sessionsAtTarget: 1, holdSessions: 2 }).calibration).toBeNull();
-    expect(lines({ kind: 'rest-pause', total: 1, targetReps: 2, sessionsAtTarget: 0, holdSessions: 1 }).calibration).toBeNull();
-    expect(lines({ kind: 'cluster-sets', completed: 0, blocks: 1, sessionsAtTarget: 0, holdSessions: 1 }).calibration).toBeNull();
+  it('never shows the myo-reps rep target or expectation off the myo-reps path', () => {
+    // "Target: ≥ N reps" and "Expected: about N" are the rep-range rules'
+    // lines (2026-10-07). A straight-sets read carries neither, and inventing
+    // one would be a number the engine never produced.
+    for (const reason of [
+      { kind: 'straight-sets', sessionsAtTarget: 1, holdSessions: 2, targetReps: 8 },
+      { kind: 'no-rule' },
+      { kind: 'nothing-to-read' },
+      { kind: 'unsupported-structure', structure: 'drop' },
+      { kind: 'hit', reps: 8, targetReps: 8, sessionsAtTarget: 1, holdSessions: 2 },
+      { kind: 'rest-pause', total: 1, targetReps: 2, sessionsAtTarget: 0, holdSessions: 1 },
+      { kind: 'cluster-sets', completed: 0, blocks: 1, sessionsAtTarget: 0, holdSessions: 1 },
+    ] as Recommendation['reason'][]) {
+      const out = lines(reason);
+      expect(out.target).toBeNull();
+      expect(out.expect).toBeNull();
+      expect(out.notes).toEqual([]);
+    }
   });
 });
 

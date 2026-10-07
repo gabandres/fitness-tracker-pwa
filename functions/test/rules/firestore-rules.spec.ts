@@ -1222,6 +1222,42 @@ describe('firestore.rules', () => {
     );
   });
 
+  it('accepts the training settings on a completed profile', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    for (const trainingPhase of ['cut', 'maintenance', 'bulk']) {
+      await assertSucceeds(
+        setDoc(doc(db, 'users', 'alice'), {
+          ...completedProfile(), trainingPhase, autoApplyProgression: true, volumeGateLb: 185,
+        }),
+      );
+    }
+    // The band edges.
+    await assertSucceeds(setDoc(doc(db, 'users', 'alice'), { ...completedProfile(), volumeGateLb: 50 }));
+    await assertSucceeds(setDoc(doc(db, 'users', 'alice'), { ...completedProfile(), volumeGateLb: 1000 }));
+    await assertSucceeds(setDoc(doc(db, 'users', 'alice'), { ...completedProfile(), autoApplyProgression: false }));
+  });
+
+  it('rejects malformed training settings on a completed profile', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    for (const extra of [
+      { trainingPhase: 'recomp' },
+      { trainingPhase: 1 },
+      { autoApplyProgression: 'on' },
+      { volumeGateLb: 49 },
+      { volumeGateLb: 1001 },
+      { volumeGateLb: '185' },
+    ]) {
+      await assertFails(setDoc(doc(db, 'users', 'alice'), { ...completedProfile(), ...extra }));
+    }
+  });
+
+  it('rejects training settings on an incomplete profile (only Settings writes them)', async () => {
+    const db = authed('alice');
+    await assertFails(setDoc(doc(db, 'users', 'alice'), { ...baseProfile(), trainingPhase: 'cut' }));
+  });
+
   it('accepts an in-range proteinFloor on a completed profile', async () => {
     const db = authed('alice');
     await setDoc(doc(db, 'users', 'alice'), baseProfile());
@@ -1357,6 +1393,68 @@ describe('firestore.rules', () => {
     await bad({ targetRepBand: { addLoadAt: 9, holdLo: 10, holdHi: 11 } });
     await bad({ targetRepBand: { addLoadAt: 12, holdLo: 0, holdHi: 11 } });
     await bad({ targetRepBand: { addLoadAt: 101, holdLo: 99, holdHi: 100 } });
+  });
+
+  it('accepts the rewritten engine\'s per-lift configuration on a catalog exercise', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    for (const category of ['compound', 'isolation', 'core', 'bodyweight']) {
+      await assertSucceeds(
+        addDoc(collection(db, 'users', 'alice', 'exercises'), {
+          name: `Lift ${category}`, category, createdAt: Timestamp.now(),
+        }),
+      );
+    }
+    await assertSucceeds(
+      addDoc(collection(db, 'users', 'alice', 'exercises'), {
+        name: 'Smith squat',
+        category: 'compound',
+        repRange: { min: 6, max: 12 },
+        availableLoads: [5, 10, 15],
+        smithBarEffectiveLb: 15,
+        microplates: true,
+        createdAt: Timestamp.now(),
+      }),
+    );
+    // The edges: a one-rep range, 1..100, a bar that counts for nothing,
+    // and a bodyweight lift that takes added load.
+    await assertSucceeds(
+      addDoc(collection(db, 'users', 'alice', 'exercises'), {
+        name: 'Pull-up', category: 'bodyweight', repRange: { min: 1, max: 1 },
+        loadable: true, microplates: false, createdAt: Timestamp.now(),
+      }),
+    );
+    await assertSucceeds(
+      addDoc(collection(db, 'users', 'alice', 'exercises'), {
+        name: 'Edge', repRange: { min: 1, max: 100 }, smithBarEffectiveLb: 0, createdAt: Timestamp.now(),
+      }),
+    );
+    await assertSucceeds(
+      addDoc(collection(db, 'users', 'alice', 'exercises'), {
+        name: 'Edge high', smithBarEffectiveLb: 200, createdAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  it('rejects a malformed per-lift configuration', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    const bad = (extra: Record<string, unknown>) =>
+      assertFails(addDoc(collection(db, 'users', 'alice', 'exercises'), { name: 'X', createdAt: Timestamp.now(), ...extra }));
+    await bad({ category: 'accessory' });
+    await bad({ category: 1 });
+    await bad({ repRange: 8 });
+    await bad({ repRange: { min: 8 } });
+    await bad({ repRange: { min: 8, max: 12, extra: 1 } });
+    await bad({ repRange: { min: 8.5, max: 12 } });
+    await bad({ repRange: { min: 12, max: 8 } });
+    await bad({ repRange: { min: 0, max: 8 } });
+    await bad({ repRange: { min: 8, max: 101 } });
+    await bad({ smithBarEffectiveLb: -1 });
+    await bad({ smithBarEffectiveLb: 201 });
+    await bad({ smithBarEffectiveLb: '15' });
+    await bad({ loadable: 'yes' });
+    await bad({ microplates: 1 });
   });
 
   it('accepts every ADR-0040 set structure on a catalog exercise, and absence', async () => {

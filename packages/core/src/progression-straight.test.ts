@@ -26,7 +26,7 @@ describe('ADR-0040 dispatch', () => {
     // The myo-reps path calibrates against a derived band; it never reports a
     // straight-sets reason, whatever the template's targetReps says.
     expect(rec.reason.kind).not.toBe('straight-sets');
-    expect(['calibrating', 'invalid', 'at-target', 'below-band', 'under-band', 'over-band', 'jump-too-big'])
+    expect(['no-history', 'invalid', 'increase', 'below-max', 'step-too-big', 'no-next-step', 'at-rep-cap', 'drop-back', 'bodyweight-build', 'bodyweight-add-load', 'bodyweight-variation'])
       .toContain(rec.reason.kind);
   });
 
@@ -38,7 +38,7 @@ describe('ADR-0040 dispatch', () => {
       expect(rec.action).toBe('none');
       // The refusal must not smuggle a number in through another field.
       expect(rec.load).toBeUndefined();
-      expect(rec.band).toBeNull();
+      expect(rec.repRange).toBeUndefined();
     }
   });
 

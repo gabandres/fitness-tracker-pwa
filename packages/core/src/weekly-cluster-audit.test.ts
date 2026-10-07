@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CLUSTER_ADD_BELOW,
   CLUSTER_WEEK_MAX,
   CLUSTER_WEEK_MIN,
   clustersInExercise,
+  muscleSignals,
+  volumeCalls,
+  volumeGateMet,
   volumeStatus,
   weeklyClusterAudit,
 } from './weekly-cluster-audit';
@@ -97,5 +101,68 @@ describe('weekly cluster audit — clusters, never sets', () => {
   it('an ungrouped activation is one cluster; an unperformed activation is none', () => {
     expect(clustersInExercise([{ kind: 'activation', reps: 10 }, { kind: 'mini', reps: 4 }])).toBe(1);
     expect(clustersInExercise([{ kind: 'activation', group: 1 }, { kind: 'activation', group: 2, reps: 9 }])).toBe(1);
+  });
+});
+
+// ─── Volume calls (2026-10-07) ──────────────────────────────────
+
+describe('volumeCalls — at most one more cluster, never in a cut', () => {
+  const audit = (rows: Array<[MuscleGroupT, number]>) => ({ muscles: rows.map(([muscle, clusters]) => ({ muscle, clusters, status: volumeStatus(clusters) })) });
+  type MuscleGroupT = 'quads' | 'back' | 'chest' | 'calves';
+
+  it('Phase "cut" → never adds clusters, whatever the triggers say', () => {
+    const calls = volumeCalls(audit([['quads', 2], ['back', 3]]), 'cut', {
+      quads: { mainLiftStallSessions: 5, allProgressed: true },
+      back: { mainLiftStallSessions: 3 },
+    });
+    expect(calls.every((c) => c.add === 0 && c.reason === 'cut')).toBe(true);
+  });
+
+  it('maintenance / bulk: under 4 a week AND (main lift stalled 3+ OR every lift progressed) → +1', () => {
+    const calls = volumeCalls(audit([['quads', 3], ['back', 2], ['chest', 2], ['calves', 4]]), 'maintenance', {
+      quads: { mainLiftStallSessions: 3 },
+      back: { allProgressed: true },
+      chest: { mainLiftStallSessions: 2, allProgressed: false },
+      calves: { mainLiftStallSessions: 6 },
+    });
+    expect(calls.map((c) => [c.muscle, c.add, c.reason])).toEqual([
+      ['quads', 1, 'main-lift-stalled'],
+      ['back', 1, 'all-progressing'],
+      ['chest', 0, 'no-trigger'],
+      ['calves', 0, 'enough-volume'],
+    ]);
+    expect(CLUSTER_ADD_BELOW).toBe(4);
+  });
+
+  it('never more than +1 per muscle per week, never above the ceiling', () => {
+    const [once] = volumeCalls(audit([['quads', 3]]), 'bulk', { quads: { mainLiftStallSessions: 9 } }, new Set(['quads']));
+    expect(once).toMatchObject({ add: 0, reason: 'added-this-week' });
+    expect(volumeCalls(audit([['quads', 6]]), 'bulk', { quads: { allProgressed: true } })[0].add).toBe(0);
+  });
+});
+
+describe('muscleSignals — the triggers, read off the log', () => {
+  const lift = (w: number, reps: number, m1 = 4) => ({
+    exerciseId: 'squat', name: 'Smith squat', cues: [],
+    sets: [
+      { kind: 'activation' as const, group: 1, weight: w, reps, rir: 0 },
+      { kind: 'mini' as const, group: 1, weight: w, reps: m1, rir: 0 },
+    ],
+  });
+
+  it('a main lift flat for three sessions reports a 3-session stall; a rising one reports progress', () => {
+    const flat = [session(1, [lift(25, 11)]), session(4, [lift(25, 11)]), session(8, [lift(25, 11)])];
+    expect(muscleSignals(flat, catalog, NOW).quads).toEqual({ mainLiftStallSessions: 3, allProgressed: false });
+    const rising = [session(1, [lift(30, 9)]), session(5, [lift(25, 12)]), session(9, [lift(25, 10)])];
+    expect(muscleSignals(rising, catalog, NOW).quads).toEqual({ mainLiftStallSessions: 0, allProgressed: true });
+  });
+});
+
+describe('volumeGateMet — the lifter\'s own gate for the next phase', () => {
+  it('needs the 7-day average at or under the gate AND a non-cut phase', () => {
+    expect(volumeGateMet(154, 153.9, 'maintenance')).toBe(true);
+    expect(volumeGateMet(154, 153.9, 'cut')).toBe(false);
+    expect(volumeGateMet(154, 154.3, 'maintenance')).toBe(false);
+    expect(volumeGateMet(154, null, 'maintenance')).toBe(false);
   });
 });
