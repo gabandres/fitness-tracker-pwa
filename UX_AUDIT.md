@@ -937,20 +937,70 @@ fixes, ~92–93 with native work + a device a11y pass. Re-score before quoting a
 number.
 
 **Open**
-- [ ] Device QA on **Android** (nothing in S21 ran there): ripples on rounded
-  controls, 48 dp layouts at 360 dp, hardware back on the four moved screens,
-  dark native sheet surface, scan hand-off after the sheet closes.
+- [x] Device QA on **Android** — done on the emulator 2026-10-06, §S22
+  (what it found and what stays open is there; a hardware pass is still owed).
 - [ ] Real VoiceOver / TalkBack pass (placeholder hints in Train, focus moves).
 - [ ] Owner's call: light `accent` (`#c62f27`) and `danger` (`#c42020`) are
   nearly the same red, so benign CTAs ("Got it", "+ Add") read as destructive
   (simulator review). A brand-colour decision, not changed.
 - [ ] Owner's call: the Train accordion (§S17-8) — reviewers' largest
   remaining Train item.
-- [ ] Native (binary): Android ⋯ menu subtitles, Android ongoing rest
-  notification, native segmented controls; gram basis on logged rows needs a
-  rules change.
+- [x] Native (binary): Android ⋯ menu subtitles and the ongoing rest
+  notification — vc 48 (§S22).
+- [ ] Native segmented controls; gram basis on logged rows needs a rules
+  change.
 - [ ] Native sheets: a thin translucent strip remains under the opaque content
   at the bottom edge of fit-detent sheets (cosmetic).
+
+## 🤖 S22 — the first Android pass on the S21 work (2026-10-06)
+
+S21 never ran on Android. This pass did, on the `pixel_api36` emulator
+(1080×2400, API 36) with the Play vc 47 artifact and its OTA, then on vc 48:
+one reviewer agent (look-and-navigate, QA account) plus a hands-on re-check
+of every fix on the vc 48 build with the final JS re-embedded.
+
+**The finding that mattered: under `<KeyboardProvider>` Android does not
+resize the window for the keyboard.** Every input screen had been written on
+the premise that it does (`behavior` iOS-only, "Android relies on
+adjustResize"), so on Android the sign-in password was typed into a field
+hidden behind the keyboard, and Save/Send footers sat under it on Daily
+targets, Refine targets, Feedback and Body's weight sheet. The S21 move of
+the providers above the form is what pushed sign-in's fields low enough to
+show it.
+
+**Fixed** (`fab2be42`, `e88428a9`; vc 48 + OTAs, verified on the emulator):
+sign-in and the live workout use `KeyboardAwareScrollView` on Android; the
+`KeyboardAvoidingView` screens pad on both platforms; Android `fit` sheets
+keep their content off the gesture bar (the sheet itself rises with the
+keyboard); the tab focus pill keeps its radius after a tab switch; ⋯ menu
+faces centred and item subtitles shown (native, vc 48); an ongoing rest
+countdown notification (native, vc 48, `modules/rest-timer-notification`);
+Safety floors stack at large text; TalkBack no longer reads icon glyphs into
+labels; sign-in's email action key moves to the password; the template
+empty-state copy points at the search above it.
+
+**Checked and fine:** back on the four moved screens returns to the opener;
+dark native sheets are opaque; ⋯ menus elsewhere; Coach and the add-sheet
+search keep their fields above the keyboard.
+
+**Open**
+- [ ] Ripples are square on rounded controls (+, Trends chips, Settings
+  rows) — foreground AND background ripples, RN 0.86 Fabric; needs a
+  clipping wrapper or a native ripple mask. Tried and reverted.
+- [ ] Focused field not scrolled into view: add-sheet "Check and add" Note,
+  Train template editor's last set (reachable by scrolling), recipe builder's
+  "Use this" half-covered with 6+ ingredients.
+- [ ] Body title's descender overlaps content scrolled under the header.
+- [ ] Large text: "Templates" runs into "Starters"; the "Metric (g, kg)" chip
+  text touches its border; add-sheet recent names cut at ~8 characters;
+  icons-only tab cells 34 dp tall.
+- [ ] Small targets: recipe ✕ (24×17 dp), "Cancel" text buttons (~19 dp).
+- [ ] Coach side margins 16 dp vs 24 dp elsewhere; light-mode Quick add
+  widget radio circles nearly invisible.
+- [ ] Changing the system font size while in Settings lands on Today (the
+  S21 relayout re-keys the tree).
+- [ ] Real device: the OnePlus was offline; ripples, notifications and the
+  keyboard should be seen on hardware once.
 
 ## 5. Notes for future additions
 
