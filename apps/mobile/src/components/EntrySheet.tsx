@@ -83,7 +83,7 @@ import {
 } from '@/lib/entry-input';
 import { isAnySheetActive, onSheetsIdle } from '@/lib/sheet-portal';
 import type { AddReceipt } from '@/hooks/useLogWrites';
-import { CountUpText, usePulse } from '@/lib/motion';
+import { CountUpText, rippleClip, usePulse } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space, TARGET } from '@/theme';
 import { formatDate, formatNumber } from '@/lib/date-format';
@@ -257,8 +257,8 @@ function Tappable(props: React.ComponentProps<typeof TouchableOpacity>) {
   // A button unless the caller says otherwise — every use here passes its
   // own role, and the default keeps an omission from going silent.
   if (Platform.OS !== 'android') return <TouchableOpacity accessibilityRole="button" {...props} />;
-  const { activeOpacity: _activeOpacity, ...rest } = props;
-  return <Pressable accessibilityRole="button" android_ripple={ROW_RIPPLE} {...(rest as PressableProps)} />;
+  const { activeOpacity: _activeOpacity, style, ...rest } = props;
+  return <Pressable accessibilityRole="button" android_ripple={ROW_RIPPLE} style={[style, rippleClip(style)]} {...(rest as PressableProps)} />;
 }
 
 /** The food rows' context-menu preview (iOS): width, and the text scale it

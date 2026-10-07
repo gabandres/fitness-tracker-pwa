@@ -1171,6 +1171,17 @@ export default function Settings() {
   );
 }
 
+/**
+ * Android: a row reaches the card's edges (and a little above and below its
+ * text), so its ripple is a band across the card rather than a square box
+ * flush against the label (UX_AUDIT S22). The card's padding is `space.lg`;
+ * the negative margins keep the text exactly where it was, and iOS — whose
+ * press feedback is an opacity dip on the contents — is untouched.
+ */
+const ROW_BLEED = Platform.select({
+  android: { marginHorizontal: -space.lg, paddingHorizontal: space.lg, marginVertical: -space.sm, paddingVertical: space.sm },
+});
+
 const createStyles = ({ colors }: Theme) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
   body: { paddingHorizontal: space.xl, paddingBottom: space.xxl, gap: space.sm },
@@ -1199,17 +1210,29 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   /** A row that opens another screen — label, subtitle, chevron. Every one in
    *  the screen is this shape now (S21-4): the targets group mixed a row, an
    *  outlined button and a row, which read as three unrelated controls. */
-  navRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: TARGET },
+  navRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: TARGET, ...ROW_BLEED },
   /** The second and later rows of a group card: a rule above, never on the
    *  first (a top rule on a card's first row is the stray line `soloRow` was
    *  invented to remove). */
-  navRowDivided: { paddingTop: space.md, borderTopWidth: 1, borderTopColor: colors.line },
+  navRowDivided: {
+    paddingTop: space.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
+    ...Platform.select({ android: { marginTop: 0 } }),
+  },
   tipBtn: { marginTop: space.md, alignSelf: 'flex-start', minHeight: TARGET },
   textBtn: { minHeight: TARGET, justifyContent: 'center' },
   rowLabel: { fontSize: font.body, color: colors.ink, fontWeight: '600' },
   // 44 pt minimum (S18-15): three legal links stacked at ~34 pt each were the
   // smallest targets on the screen.
-  linkRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: space.sm, minHeight: TARGET },
+  linkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: space.sm,
+    minHeight: TARGET,
+    ...Platform.select({ android: { marginHorizontal: -space.lg, paddingHorizontal: space.lg } }),
+  },
   legalNote: { fontSize: font.tiny, color: colors.muted, marginTop: space.sm, lineHeight: font.tiny * 1.5 },
   rowValue: { fontSize: font.body, color: colors.muted, marginTop: 2 },
   rowSub: { fontSize: font.small, color: colors.faint, marginTop: 2 },

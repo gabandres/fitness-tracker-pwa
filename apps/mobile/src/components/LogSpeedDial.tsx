@@ -15,6 +15,7 @@ import { CONTEXT_MENUS, ContextMenu } from '@/components/ContextMenu';
 import { useT } from '@/i18n';
 import { FEATURES } from '@/lib/features';
 import * as haptics from '@/lib/haptics';
+import { rippleClip } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, motion, radius, space } from '@/theme';
 
@@ -231,7 +232,7 @@ export function LogSpeedDial() {
             ]}
           >
             <Pressable
-              style={({ pressed }: PressableStateCallbackType) => [styles.fabShape, fabPressedStyle(pressed, reduce)]}
+              style={({ pressed }: PressableStateCallbackType) => [styles.fabShape, rippleClip(styles.fabShape), fabPressedStyle(pressed, reduce)]}
               android_ripple={FAB_RIPPLE}
               accessibilityRole="button"
               accessibilityLabel={t('log.openA11y')}
@@ -262,7 +263,7 @@ export function LogSpeedDial() {
     return (
       <View style={styles.slot}>
         <Pressable
-          style={({ pressed }: PressableStateCallbackType) => [styles.fab, fabPressedStyle(pressed, reduce)]}
+          style={({ pressed }: PressableStateCallbackType) => [styles.fab, rippleClip(styles.fab), fabPressedStyle(pressed, reduce)]}
           android_ripple={FAB_RIPPLE}
           accessibilityRole="button"
           accessibilityLabel={t('log.manual')}
@@ -336,7 +337,7 @@ export function LogSpeedDial() {
       </Animated.View>
 
       <Pressable
-        style={({ pressed }: PressableStateCallbackType) => [styles.fab, fabPressedStyle(pressed, reduce)]}
+        style={({ pressed }: PressableStateCallbackType) => [styles.fab, rippleClip(styles.fab), fabPressedStyle(pressed, reduce)]}
         android_ripple={FAB_RIPPLE}
         accessibilityRole="button"
         accessibilityLabel={t('log.openA11y')}

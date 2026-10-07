@@ -26,7 +26,7 @@ import type { TrainState } from '@/hooks/useTrain';
 import { type I18nKey, useLocale, useT } from '@/i18n';
 import { formatDate } from '@/lib/date-format';
 import * as haptics from '@/lib/haptics';
-import { CountUpText, enterUp, type usePulse } from '@/lib/motion';
+import { CountUpText, enterUp, rippleClip, type usePulse } from '@/lib/motion';
 import { showToast } from '@/components/Toast';
 import { captureError } from '@/lib/sentry';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
@@ -408,7 +408,7 @@ export function StartView({
             {train.catalog.slice(0, CATALOG_INLINE).map((e) => (
               <Pressable
                 key={e.id}
-                style={styles.exLibRow}
+                style={[styles.exLibRow, rippleClip(styles.exLibRow)]}
                 android_ripple={TRAIN_RIPPLE}
                 onPress={() => setDetailEx(e)}
                 accessibilityRole="button"
@@ -809,7 +809,7 @@ const SessionRow = memo(function SessionRow({
   const vol = volume > 0 ? formatLoad(volume, unitSystem, 0) : null;
   const row = (
     <Pressable
-      style={styles.histRow}
+      style={[styles.histRow, rippleClip(styles.histRow)]}
       android_ripple={TRAIN_RIPPLE}
       testID={`session-${s.id}`}
       onPress={() => onOpen(s)}

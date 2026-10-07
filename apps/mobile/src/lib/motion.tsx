@@ -96,6 +96,29 @@ type PressScaleProps = Omit<ComponentProps<typeof Pressable>, 'style'> & {
  */
 const RIPPLE = { color: 'rgba(128, 128, 128, 0.22)', foreground: true } as const;
 
+const RIPPLE_CLIP = { overflow: 'hidden' } as const;
+
+/**
+ * `overflow: 'hidden'` for a rippling control with rounded corners, on
+ * Android — or nothing. RN 0.86 Fabric draws `android_ripple` (foreground AND
+ * background) as a square over a rounded control; the clip is what rounds it
+ * (measured on the emulator 2026-10-07, UX_AUDIT S22). Only when a radius is
+ * set: a square row needs no clip, and some controls let a child hang outside
+ * their box on purpose.
+ */
+export function rippleClip(style: StyleProp<ViewStyle>): typeof RIPPLE_CLIP | null {
+  if (Platform.OS !== 'android') return null;
+  const s = StyleSheet.flatten(style);
+  if (!s) return null;
+  const rounded =
+    s.borderRadius ||
+    s.borderTopLeftRadius ||
+    s.borderTopRightRadius ||
+    s.borderBottomLeftRadius ||
+    s.borderBottomRightRadius;
+  return rounded ? RIPPLE_CLIP : null;
+}
+
 /** Pressable that springs down while pressed — the app's standard tactile CTA.
  *  On Android it also ripples, which is what a Material user reads as "this
  *  is a button"; the scale alone is an iOS idiom. */
@@ -120,7 +143,7 @@ export function PressScale({
     <AnimatedPressable
       android_ripple={Platform.OS === 'android' && ripple ? RIPPLE : undefined}
       {...rest}
-      style={[style, animatedStyle]}
+      style={[style, ripple && rippleClip(style), animatedStyle]}
       onPressIn={(e) => {
         if (!reduce) scale.set(withSpring(scaleTo, motion.spring.press));
         onPressIn?.(e);

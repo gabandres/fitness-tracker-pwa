@@ -1,5 +1,6 @@
 import type { ComponentProps } from 'react';
 import { Platform, Pressable, TouchableOpacity } from 'react-native';
+import { rippleClip } from '@/lib/motion';
 
 /**
  * The Android ink ripple — the same neutral grey `PressScale` uses
@@ -26,5 +27,6 @@ export const RIPPLE = { color: 'rgba(128, 128, 128, 0.22)', foreground: true } a
  */
 export function Touchable({ activeOpacity, ...rest }: ComponentProps<typeof TouchableOpacity>) {
   if (Platform.OS !== 'android') return <TouchableOpacity activeOpacity={activeOpacity} {...rest} />;
-  return <Pressable android_ripple={RIPPLE} {...(rest as ComponentProps<typeof Pressable>)} />;
+  const { style, ...props } = rest;
+  return <Pressable android_ripple={RIPPLE} style={[style, rippleClip(style)]} {...(props as ComponentProps<typeof Pressable>)} />;
 }
