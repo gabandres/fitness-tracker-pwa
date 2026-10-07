@@ -26,6 +26,27 @@ export function contrastRatio(a: string, b: string): number {
 
 const AA_TEXT = 4.5;
 
+/** sRGB hex → CIELAB (D65). */
+function lab(hex: string): [number, number, number] {
+  const n = parseInt(hex.slice(1), 16);
+  const lin = (v: number) => {
+    const c = v / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  const [r, g, b] = [lin((n >> 16) & 255), lin((n >> 8) & 255), lin(n & 255)];
+  const f = (t: number) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+  const x = f((0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047);
+  const y = f(0.2126 * r + 0.7152 * g + 0.0722 * b);
+  const z = f((0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883);
+  return [116 * y - 16, 500 * (x - y), 200 * (y - z)];
+}
+
+function deltaE76(a: string, b: string): number {
+  const [l1, a1, b1] = lab(a);
+  const [l2, a2, b2] = lab(b);
+  return Math.hypot(l1 - l2, a1 - a2, b1 - b2);
+}
+
 describe.each(['light', 'dark'] as const)('%s palette contrast', (scheme) => {
   const c = palettes[scheme].colors;
 
@@ -44,6 +65,14 @@ describe.each(['light', 'dark'] as const)('%s palette contrast', (scheme) => {
   it.each(['good', 'warn', 'info', 'danger'] as const)('%s is AA text on paper and on card', (token) => {
     expect(contrastRatio(c[token], c.paper)).toBeGreaterThanOrEqual(AA_TEXT);
     expect(contrastRatio(c[token], c.card)).toBeGreaterThanOrEqual(AA_TEXT);
+  });
+
+  // A benign accent CTA ("Got it", "+ Add") read as destructive in light mode,
+  // where `accent` #c62f27 and `danger` #c42020 were ΔE76 4.2 apart — the
+  // same red to an eye (S21 simulator review). ≥ 20 is the floor; both
+  // palettes measure ~26.
+  it('danger is told apart from accent (CIELAB ΔE76 ≥ 20)', () => {
+    expect(deltaE76(c.danger, c.accent)).toBeGreaterThanOrEqual(20);
   });
 
   it('lineStrong is a visible control boundary on the input fill and on card (1.4.11)', () => {

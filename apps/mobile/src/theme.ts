@@ -55,7 +55,7 @@ const light = {
   good: '#1e7b62', // success text (jade) — 4.9:1 paper, 4.6:1 card (was #208368, 4.4:1)
   warn: '#a25f00', // warning text (amber) — 4.8:1 paper, 4.5:1 card; bright amber fails on white
   info: '#0a66b8', // info text (blue) — 5.2:1 on card (was #0d74ce, 4.3)
-  danger: '#c42020', // danger red — distinct from the coral brand; 5.2:1 on card (was #dc2626, 4.3)
+  danger: '#a3173b', // danger crimson — 6.9:1 on card. Was #c42020, ΔE 4 from `accent`: "Got it" and "+ Add" read as destructive (S21, owner's call 2026-10-07)
   white: '#ffffff',
   onInk: '#ffffff', // text/icons on an `ink` surface (inverts with the theme)
   /** Text/icons on a saturated fill — `accent`, `danger`, `tealSolid`. White
