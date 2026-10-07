@@ -1183,7 +1183,7 @@ export const en = {
   'train.templateNotes': 'Notes',
   'train.templateNotesPh': 'Optional protocol notes',
   'train.templateExercises': 'Exercises',
-  'train.templateNoEx': 'No exercises yet — add some below.',
+  'train.templateNoEx': 'No exercises yet — search above to add some.',
   'train.target': 'lb',
   'train.addExercisePh': 'Add exercise…',
   'train.last': 'Last',
@@ -2068,6 +2068,9 @@ export const en = {
   // interpolation; every locale carries every one (i18n-parity.test.ts). ──
   'common.undo': 'Undo',
   'train.restDoneTitle': 'Rest over',
+  'train.restOngoing.title': 'Rest · {name}',
+  'train.restOngoing.body': 'Tap to go back to your workout.',
+  'train.restOngoing.channel': 'Rest timer',
   'train.restDoneBody': 'Time for your next set',
   // `train.saveErr` is the TEMPLATE editor's copy; this one is the live workout.
   'train.workoutSaveErr': "Couldn't save your workout. It's still here — try again.",

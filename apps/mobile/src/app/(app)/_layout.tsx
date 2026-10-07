@@ -418,7 +418,18 @@ function createStyles({ colors }: Theme) {
     // 56×30 rather than M3's 64×32: a cell is ~71dp wide at 360dp, and the
     // pill must not touch its neighbour's. `line` is the palette's quiet fill
     // that still reads on the canvas in both themes.
-    indicator: { width: 56, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+    // `transparent` at rest is load-bearing on Android (Fabric): a view whose
+    // background first appears on a later render drew it with square corners
+    // — the pill was round only right after a mount, then a hard rectangle
+    // after any tab switch (Android emulator QA, 2026-10-06).
+    indicator: {
+      width: 56,
+      height: 30,
+      borderRadius: 15,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'transparent',
+    },
     indicatorOn: { backgroundColor: colors.line },
     // Sits on the icon, not beside the label: the label is already the widest
     // thing in the cell and a dot after it reads as punctuation.

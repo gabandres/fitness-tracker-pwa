@@ -1,7 +1,19 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { type Href, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, Platform, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Linking,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TouchableOpacity,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Application from 'expo-application';
@@ -304,6 +316,7 @@ export default function Settings() {
   // Calorie floor (kcal safety clamp). Seeded from the profile (1500 default
   // when unset); each ± step persists to Firestore. Bounds match the PWA.
   const calorieFloor = profile?.calorieFloor ?? DEFAULT_CALORIE_FLOOR;
+  const stackFloors = useWindowDimensions().fontScale >= 1.5;
   async function bumpCalorieFloor(delta: number) {
     if (!user) return;
     const next = Math.max(CALORIE_FLOOR_MIN, Math.min(CALORIE_FLOOR_MAX, calorieFloor + delta));
@@ -521,6 +534,7 @@ export default function Settings() {
             style={[styles.linkRow, styles.navRowDivided]}
             onPress={() => void openExternal('https://ignia.fit/support', t)}
             accessibilityRole="link"
+            accessibilityLabel={t('settings.supportHelp')}
             testID="settings-help"
           >
             <Text style={styles.rowLabel}>{t('settings.supportHelp')}</Text>
@@ -789,11 +803,14 @@ export default function Settings() {
           </>
         ) : null}
 
-        {/* ── Safety floors ── the clamps under the targets above. */}
+        {/* ── Safety floors ── the clamps under the targets above. At large
+            text the stepper drops under its description: side by side, the
+            description column shrank to a word per line and split words
+            mid-word (Android, font scale 2.0, 2026-10-06). */}
         <Text style={styles.section} accessibilityRole="header">{t('settings.floorsSection')}</Text>
         <View style={styles.card}>
-          <View style={styles.rowBetween}>
-            <View style={styles.rowText}>
+          <View style={stackFloors ? styles.floorStacked : styles.rowBetween}>
+            <View style={stackFloors ? null : styles.rowText}>
               <Text style={styles.rowLabel}>{t('settings.calorieFloor')}</Text>
               <Text style={styles.rowValue}>{t('settings.calorieFloorSub')}</Text>
             </View>
@@ -826,8 +843,8 @@ export default function Settings() {
         </View>
 
         <View style={styles.card}>
-          <View style={styles.rowBetween}>
-            <View style={styles.rowText}>
+          <View style={stackFloors ? styles.floorStacked : styles.rowBetween}>
+            <View style={stackFloors ? null : styles.rowText}>
               <Text style={styles.rowLabel}>{t('settings.proteinFloor')}</Text>
               <Text style={styles.rowValue}>{t('settings.proteinFloorSub')}</Text>
             </View>
@@ -1106,7 +1123,13 @@ export default function Settings() {
               {user?.email ?? '—'}
             </Text>
           </View>
-          <Touchable style={styles.signOut} onPress={confirmSignOut} accessibilityRole="button" testID="settings-signout">
+          <Touchable
+            style={styles.signOut}
+            onPress={confirmSignOut}
+            accessibilityRole="button"
+            accessibilityLabel={t('settings.signOut')}
+            testID="settings-signout"
+          >
             <Ionicons name="log-out-outline" size={18} color={colors.danger} />
             <Text style={styles.signOutText}>{t('settings.signOut')}</Text>
           </Touchable>
@@ -1172,6 +1195,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   /** Text column beside a trailing control: yields width to it, and keeps a
    *  gap once it does (the same shoving `digestRowText` below describes). */
   rowText: { flex: 1, marginRight: space.md },
+  floorStacked: { gap: space.md, alignItems: 'flex-start' },
   /** A row that opens another screen — label, subtitle, chevron. Every one in
    *  the screen is this shape now (S21-4): the targets group mixed a row, an
    *  outlined button and a row, which read as three unrelated controls. */

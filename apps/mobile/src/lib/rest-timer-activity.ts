@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import {
   endAllRestActivities,
   endRestActivity,
@@ -5,7 +6,14 @@ import {
   startRestActivity,
   updateRestActivity,
 } from '../../modules/rest-timer-activity';
+import {
+  endRestNotification,
+  getRestNotificationStatus,
+  startRestNotification,
+  updateRestNotification,
+} from '../../modules/rest-timer-notification';
 import type { IntentInboxAction } from '../../modules/intent-inbox';
+import { DEFAULT_LOCALE, LOCALE_DEFS, normalizeLocale } from '@/i18n/registry';
 
 /**
  * The rest countdown on the lock screen and in the Dynamic Island (Train review
@@ -16,9 +24,11 @@ import type { IntentInboxAction } from '../../modules/intent-inbox';
  * LEFT, which is what Strong and Hevy put on the lock screen through a Live
  * Activity. On iOS that is `modules/rest-timer-activity` →
  * `targets/_shared/RestActivity.swift` → `targets/widget/RestActivityWidget.swift`.
- * Android has no Live Activity and the module is absent there, so every call
- * below is a no-op on Android, in Expo Go, on web, and in iOS binaries older
- * than the one that introduced the module (an OTA can still reach them).
+ * Android has no Live Activity; there the same calls drive an ongoing
+ * notification whose header counts down (`modules/rest-timer-notification`,
+ * vc 48+). Each module is absent on the other platform, in Expo Go, on web and
+ * in binaries older than the one that introduced it (an OTA can still reach
+ * them), and an absent module is a silent no-op — so every call goes to both.
  *
  * Called from the right places in `ActiveSession`:
  *
@@ -65,11 +75,34 @@ let current: RestActivityState | null = null;
  *  re-arms the Activity with (see `applyRestInboxAction`). */
 let lastExercise: { name: string; locale: string } | null = null;
 
+/** The Android notification's copy, in the profile's locale. Pure — tested. */
+export function restNotificationCopy(
+  exerciseName: string,
+  locale: string,
+): { title: string; body: string; channel: string } {
+  const dict = LOCALE_DEFS[normalizeLocale(locale) ?? DEFAULT_LOCALE].dict;
+  return {
+    title: dict['train.restOngoing.title'].replace('{name}', exerciseName),
+    body: dict['train.restOngoing.body'],
+    channel: dict['train.restOngoing.channel'],
+  };
+}
+
+/** What native reports is showing: the Live Activity on iOS, the ongoing
+ *  notification on Android. */
+function nativeStatus(): Promise<string> {
+  return Platform.OS === 'android' ? getRestNotificationStatus() : getRestActivityStatus();
+}
+
 /** Start (or retarget) the lock-screen countdown. */
 export function start(endsAt: number, exerciseName: string, locale = 'en', now = Date.now()): void {
   current = { endsAt, exerciseName, startedAt: now, locale };
   lastExercise = { name: exerciseName, locale };
   void startRestActivity(endsAt, exerciseName, locale);
+  if (Platform.OS === 'android') {
+    const copy = restNotificationCopy(exerciseName, locale);
+    void startRestNotification(endsAt, copy.title, copy.body, copy.channel);
+  }
 }
 
 /** Move the deadline of the countdown already showing. No-op when none is. */
@@ -77,6 +110,7 @@ export function update(endsAt: number): void {
   if (!current) return;
   current = { ...current, endsAt };
   void updateRestActivity(endsAt);
+  void updateRestNotification(endsAt);
 }
 
 /**
@@ -92,6 +126,7 @@ export function update(endsAt: number): void {
 export function end(): void {
   current = null;
   void endRestActivity();
+  void endRestNotification();
 }
 
 /** What {@link reconcileWithNative} found on the Lock Screen. */
@@ -120,7 +155,7 @@ export async function reconcileWithNative(
   now = Date.now(),
 ): Promise<RestReconcileOutcome> {
   if (current) return null;
-  const status = await getRestActivityStatus();
+  const status = await nativeStatus();
   const m = /^running:(\d+(?:\.\d+)?)$/.exec(status);
   if (!m) return null;
   const endsAt = Math.round(Number(m[1]));
@@ -129,6 +164,7 @@ export async function reconcileWithNative(
   const seconds = Math.round((endsAt - now) / 1000);
   if (seconds <= 0) {
     void endRestActivity();
+    void endRestNotification();
     return null;
   }
   current = { endsAt, exerciseName, startedAt: now, locale };
@@ -158,7 +194,7 @@ export async function reconcileWithNative(
  */
 export async function sweepOrphans(now = Date.now()): Promise<void> {
   if (current) return;
-  const status = await getRestActivityStatus();
+  const status = await nativeStatus();
   // A rest started while the status was being read owns the Lock Screen.
   if (current) return;
   const m = /^running:(\d+(?:\.\d+)?)$/.exec(status);
@@ -173,6 +209,7 @@ export async function sweepOrphans(now = Date.now()): Promise<void> {
     return;
   }
   void endAllRestActivities();
+  void endRestNotification();
 }
 
 /** How long past a kept rest's deadline the sweep looks again. */

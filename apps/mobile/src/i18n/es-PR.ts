@@ -1061,7 +1061,7 @@ export const esPR: Record<I18nKey, string> = {
   'train.templateNotes': 'Notas',
   'train.templateNotesPh': 'Notas de protocolo (opcional)',
   'train.templateExercises': 'Ejercicios',
-  'train.templateNoEx': 'Aún no hay ejercicios — añade abajo.',
+  'train.templateNoEx': 'Aún no hay ejercicios — búscalos arriba para añadirlos.',
   'train.target': 'lb',
   'train.addExercisePh': 'Añadir ejercicio…',
   'train.last': 'Última',
@@ -1880,6 +1880,9 @@ export const esPR: Record<I18nKey, string> = {
   // ── S18 (2026-09-28) ──
   'common.undo': 'Deshacer',
   'train.restDoneTitle': 'Descanso terminado',
+  'train.restOngoing.title': 'Descanso · {name}',
+  'train.restOngoing.body': 'Toca para volver a tu entrenamiento.',
+  'train.restOngoing.channel': 'Temporizador de descanso',
   'train.restDoneBody': 'Hora de tu próxima serie',
   'train.workoutSaveErr': 'No se pudo guardar tu entrenamiento. Sigue aquí — inténtalo de nuevo.',
   'train.discardConfirm': '¿Descartar este entrenamiento? Se perderán las series registradas hasta ahora.',

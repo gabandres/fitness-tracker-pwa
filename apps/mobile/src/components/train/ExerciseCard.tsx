@@ -353,6 +353,7 @@ export const ExerciseCard = memo(function ExerciseCard({
               void dispatch({ type: 'addSet', exerciseIndex });
             }}
             accessibilityRole="button"
+            accessibilityLabel={t('train.addSet')}
             testID={`add-set-${exerciseIndex}`}
           >
             <Ionicons name="add" size={18} color={colors.teal} />

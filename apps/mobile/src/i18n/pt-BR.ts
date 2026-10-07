@@ -1051,7 +1051,7 @@ export const ptBR = {
   'train.templateNotes': 'Observações',
   'train.templateNotesPh': 'Observações de protocolo (opcional)',
   'train.templateExercises': 'Exercícios',
-  'train.templateNoEx': 'Nenhum exercício ainda — adicione alguns abaixo.',
+  'train.templateNoEx': 'Nenhum exercício ainda — busque acima para adicionar.',
   'train.target': 'lb',
   'train.addExercisePh': 'Adicionar exercício…',
   'train.last': 'Último',
@@ -1860,6 +1860,9 @@ export const ptBR = {
   // ── S18 (2026-09-28) ──
   'common.undo': 'Desfazer',
   'train.restDoneTitle': 'Descanso encerrado',
+  'train.restOngoing.title': 'Descanso · {name}',
+  'train.restOngoing.body': 'Toque para voltar ao seu treino.',
+  'train.restOngoing.channel': 'Timer de descanso',
   'train.restDoneBody': 'Hora da próxima série',
   'train.workoutSaveErr': 'Não foi possível salvar seu treino. Ele continua aqui — tente de novo.',
   'train.discardConfirm': 'Descartar este treino? As séries registradas até agora serão perdidas.',

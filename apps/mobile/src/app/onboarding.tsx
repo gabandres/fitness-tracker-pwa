@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, { FadeInLeft, FadeInRight, ReduceMotion } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
@@ -149,9 +149,10 @@ export function weightInBand(weightLbs: number | null | undefined): weightLbs is
 // (Apple forums 800310 / 814154) — that is the "spacing is much larger" the
 // input screens were showing. The library normalises the frame across both
 // platforms and is already a dependency, with <KeyboardProvider> mounted at the
-// app root, so this costs nothing new. Same props, so `behavior` stays
-// iOS-only: Android relies on windowSoftInputMode=adjustResize and must not
-// also be padded.
+// app root, so this costs nothing new. `behavior="padding"` on BOTH
+// platforms: under <KeyboardProvider> Android does not resize the window for
+// the IME, so adjustResize alone left fields and footers behind the keyboard
+// (emulator, 2026-10-06).
 export default function Onboarding() {
   const t = useT();
   const locale = useLocale();
@@ -552,10 +553,12 @@ export default function Onboarding() {
           MEASURED FROM THE SCREEN BOTTOM — a span that already contains those
           same points. The two stack and the content lifts an inset too far.
           This screen is the only one of the five carrying the 'bottom' edge,
-          which is why it is the worst of them. Zero on Android, where the
-          behavior is undefined and nothing is added in the first place. */}
+          which is why it is the worst of them. The same geometry holds on
+          Android: under <KeyboardProvider> the window does not resize for the
+          IME (it did nothing there until 2026-10-06, and the keyboard covered
+          the fields), so padding is the behavior on both platforms. */}
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior="padding"
         keyboardVerticalOffset={-insets.bottom}
         style={styles.fill}
       >

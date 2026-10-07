@@ -1,6 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, ScrollView, Text, View, useWindowDimensions } from 'react-native';
+import { AppState, Platform, ScrollView, Text, View, useWindowDimensions } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { Touchable } from './Touchable';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -181,6 +182,10 @@ type MenuFor = { kind: 'exercise'; index: number } | { kind: 'session' } | null;
  * The live workout: a sticky header, the exercise cards, cardio, the rest bar
  * and every sheet the session opens — ONE of each (Train review item 31).
  */
+/** The workout list: a plain ScrollView on iOS (see `automaticallyAdjustKeyboardInsets`
+ *  where it is used), keyboard-aware on Android. Same ref and props either way. */
+const SessionScroll = (Platform.OS === 'android' ? KeyboardAwareScrollView : ScrollView) as typeof ScrollView;
+
 export function ActiveSession({
   train,
   bestByEx,
@@ -830,7 +835,7 @@ export function ActiveSession({
         )}
       </View>
 
-      <ScrollView
+      <SessionScroll
         ref={scrollRef}
         onScroll={keyboardReveal.onScroll}
         scrollEventThrottle={32}
@@ -843,7 +848,9 @@ export function ActiveSession({
         // (and above its ‹ › Done bar, which iOS counts as keyboard). Without
         // it a low set's field opened under the number pad, and dragging to
         // reveal it put the keyboard away (Impeccable audit, 2026-10-05).
-        // Same prop as sign-in; a no-op on Android, which resizes the window.
+        // Same prop as sign-in. iOS-only: under <KeyboardProvider> Android does
+        // NOT resize the window for the IME, so there the list is
+        // KeyboardAwareScrollView (`SessionScroll`), which does the same job.
         automaticallyAdjustKeyboardInsets
       >
         <RevealAboveKeyboardContext.Provider value={keyboardReveal.reveal}>
@@ -964,7 +971,7 @@ export function ActiveSession({
           </Touchable>
           <View style={{ height: 40 }} />
         </RevealAboveKeyboardContext.Provider>
-      </ScrollView>
+      </SessionScroll>
 
       {/* Rest countdown — floats above the tab bar AND clear of the raised
           Log button, so it stays visible while the session scrolls. Its own

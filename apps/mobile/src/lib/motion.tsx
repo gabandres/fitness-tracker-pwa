@@ -94,7 +94,7 @@ type PressScaleProps = Omit<ComponentProps<typeof Pressable>, 'style'> & {
  * hook here would make every `PressScale` depend on `ThemeProvider` (tests
  * render some of them bare). Clipped to the control's `borderRadius` by RN.
  */
-const RIPPLE = { color: 'rgba(128, 128, 128, 0.22)', foreground: true } as const;
+const RIPPLE = { color: 'rgba(128, 128, 128, 0.22)', foreground: false } as const;
 
 /** Pressable that springs down while pressed — the app's standard tactile CTA.
  *  On Android it also ripples, which is what a Material user reads as "this

@@ -2,7 +2,6 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useState } from 'react';
 import {
   ActivityIndicator,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -59,9 +58,10 @@ const CATEGORIES: { key: FeedbackCategory; labelKey: I18nKey; icon: keyof typeof
 // (Apple forums 800310 / 814154) — that is the "spacing is much larger" the
 // input screens were showing. The library normalises the frame across both
 // platforms and is already a dependency, with <KeyboardProvider> mounted at the
-// app root, so this costs nothing new. Same props, so `behavior` stays
-// iOS-only: Android relies on windowSoftInputMode=adjustResize and must not
-// also be padded.
+// app root, so this costs nothing new. `behavior="padding"` on BOTH
+// platforms: under <KeyboardProvider> Android does not resize the window for
+// the IME, so adjustResize alone left fields and footers behind the keyboard
+// (emulator, 2026-10-06).
 export default function FeedbackScreen() {
   const t = useT();
   const styles = useThemedStyles(createStyles);
@@ -124,7 +124,7 @@ export default function FeedbackScreen() {
     <SafeAreaView style={styles.screen} edges={['bottom']}>
       {/* `automaticOffset`: under a native header the view no longer starts
           at the top of the screen, and the library measures where it is. */}
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} automaticOffset style={styles.fill}>
+      <KeyboardAvoidingView behavior="padding" automaticOffset style={styles.fill}>
         <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
           <Text style={styles.intro}>{t('feedback.intro')}</Text>
 
@@ -139,6 +139,7 @@ export default function FeedbackScreen() {
                   // optional, so it has to be un-choosable.
                   onPress={() => { haptics.tap(); setCategory(on ? null : c.key); }}
                   accessibilityRole="button"
+                  accessibilityLabel={t(c.labelKey)}
                   accessibilityState={{ selected: on }}
                   testID={`feedback-cat-${c.key}`}
                 >

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,6 +14,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import Animated, { FadeIn, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { BrandMark } from '@/components/BrandMark';
 import { GoogleIcon, MicrosoftIcon } from '@/components/BrandIcons';
 import { WelcomeIntro } from '@/components/WelcomeIntro';
@@ -35,6 +37,10 @@ const PASSWORD_RULES = 'minlength: 10; required: lower; required: upper; require
  * sign-UP mode — a brand-new install is the one case where that default is
  * right — and the link under it lands in sign-in mode for everyone else.
  */
+/** The form's scroller: plain on iOS (see the comment where it is used),
+ *  keyboard-aware on Android. */
+const FormScroll = Platform.OS === 'android' ? KeyboardAwareScrollView : ScrollView;
+
 export default function SignIn() {
   const t = useT();
   const locale = useLocale();
@@ -211,8 +217,15 @@ export default function SignIn() {
           the Google button off the bottom on iPad — App Review 4 (Design),
           submission 5ba1c7f5. `automaticallyAdjustKeyboardInsets` replaces the
           old KeyboardAvoidingView (see the mobile-modal keyboard convention).
-          Taps on empty space still dismiss the keyboard via keyboardShouldPersistTaps. */}
-      <ScrollView
+          Taps on empty space still dismiss the keyboard via keyboardShouldPersistTaps.
+          `automaticallyAdjustKeyboardInsets` is iOS-only, and under
+          <KeyboardProvider> Android no longer resizes the window for the IME —
+          so on Android the email and password fields sat behind the keyboard
+          (emulator, 2026-10-06, once the providers moved above the form). There
+          the ScrollView is keyboard-controller's KeyboardAwareScrollView, which
+          scrolls the focused field above the keyboard. */}
+      <FormScroll
+        bottomOffset={space.lg}
         style={styles.fill}
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
@@ -456,7 +469,7 @@ export default function SignIn() {
 
           </Animated.View>
         </View>
-      </ScrollView>
+      </FormScroll>
     </SafeAreaView>
   );
 }

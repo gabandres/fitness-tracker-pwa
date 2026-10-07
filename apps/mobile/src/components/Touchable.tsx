@@ -7,7 +7,7 @@ import { Platform, Pressable, TouchableOpacity } from 'react-native';
  * card and the paper alike, in both themes. For a `Pressable` that sets
  * `android_ripple` itself.
  */
-export const RIPPLE = { color: 'rgba(128, 128, 128, 0.22)', foreground: true } as const;
+export const RIPPLE = { color: 'rgba(128, 128, 128, 0.22)', foreground: false } as const;
 
 /**
  * `TouchableOpacity` on iOS, a rippling `Pressable` on Android — for primary

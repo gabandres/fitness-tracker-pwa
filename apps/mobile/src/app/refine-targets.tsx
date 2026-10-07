@@ -60,9 +60,10 @@ function intOrNull(s: string): number | null {
 // (Apple forums 800310 / 814154) — that is the "spacing is much larger" the
 // input screens were showing. The library normalises the frame across both
 // platforms and is already a dependency, with <KeyboardProvider> mounted at the
-// app root, so this costs nothing new. Same props, so `behavior` stays
-// iOS-only: Android relies on windowSoftInputMode=adjustResize and must not
-// also be padded.
+// app root, so this costs nothing new. `behavior="padding"` on BOTH
+// platforms: under <KeyboardProvider> Android does not resize the window for
+// the IME, so adjustResize alone left fields and footers behind the keyboard
+// (emulator, 2026-10-06).
 export default function RefineTargets() {
   const t = useT();
   const locale = useLocale();
@@ -245,7 +246,7 @@ export default function RefineTargets() {
     <SafeAreaView style={styles.screen} edges={['bottom']}>
       {/* `automaticOffset`: the view now sits under a native header, and the
           library measures where it is on screen rather than assuming the top. */}
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} automaticOffset style={styles.fill}>
+      <KeyboardAvoidingView behavior="padding" automaticOffset style={styles.fill}>
         <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
           <Text style={styles.subtitle}>{t('refine.subtitle')}</Text>
 

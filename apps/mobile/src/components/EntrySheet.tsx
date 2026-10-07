@@ -1860,7 +1860,13 @@ export function EntrySheet({
           The label stays "Write it in": the icon carries the action, the words
           carry which of the four ways in this is. `testID` is unchanged on
           purpose — four Maestro flows and a unit test drive this button by it. */}
-      <TouchableOpacity style={styles.primaryBtn} onPress={() => openCustomBlank()} accessibilityRole="button" testID="open-manual">
+      <TouchableOpacity
+        style={styles.primaryBtn}
+        onPress={() => openCustomBlank()}
+        accessibilityRole="button"
+        accessibilityLabel={t('entry.writeItYourself')}
+        testID="open-manual"
+      >
         <Glyph sf="plus" ion="add" size={20} color={colors.ink} />
         <Text style={styles.primaryBtnText} maxFontSizeMultiplier={2.2}>{t('entry.writeItYourself')}</Text>
       </TouchableOpacity>
@@ -1868,6 +1874,7 @@ export function EntrySheet({
         style={styles.primaryBtn}
         onPress={() => { haptics.tap(); setMoreOpen((v) => !v); }}
         accessibilityRole="button"
+        accessibilityLabel={t('entry.moreWays')}
         accessibilityState={{ expanded: moreOpen }}
         testID="open-more"
       >

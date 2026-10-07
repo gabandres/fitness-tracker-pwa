@@ -93,7 +93,7 @@ export default function SheetRoute() {
           <View style={styles.handle} />
         </View>
       ) : null}
-      <Reanimated.View style={[styles.pad, Platform.OS === 'android' && styles.padAndroid, !fit && styles.root, !fit && padding]}>
+      <Reanimated.View style={[styles.pad, Platform.OS === 'android' && styles.padAndroid, !fit && styles.root, (!fit || Platform.OS === 'android') && padding]}>
         {/* react-native-screens pins the FIRST scroll view it finds down a
             sheet's first-child chain to x = 0, which threw away the padding
             whenever a sheet opened on a ScrollView: every Train sheet drew its

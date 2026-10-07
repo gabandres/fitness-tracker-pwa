@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Keyboard,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -63,9 +62,10 @@ function errorKey(code: string | undefined): I18nKey {
 // (Apple forums 800310 / 814154) — that is the "spacing is much larger" the
 // input screens were showing. The library normalises the frame across both
 // platforms and is already a dependency, with <KeyboardProvider> mounted at the
-// app root, so this costs nothing new. Same props, so `behavior` stays
-// iOS-only: Android relies on windowSoftInputMode=adjustResize and must not
-// also be padded.
+// app root, so this costs nothing new. `behavior="padding"` on BOTH
+// platforms: under <KeyboardProvider> Android does not resize the window for
+// the IME, so adjustResize alone left fields and footers behind the keyboard
+// (emulator, 2026-10-06).
 //
 // This is a ROOT route pushed over the tabs on the native stack (UX_AUDIT
 // S18-14, `lib/root-stack.ts`), not a tab: no tab bar, no raised + over the
@@ -221,7 +221,7 @@ export default function Coach() {
           and the 8 stays as the extra breathing room it always was. */}
       <KeyboardAvoidingView
         style={styles.fill}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior="padding"
         automaticOffset
         keyboardVerticalOffset={8}
       >

@@ -1012,7 +1012,7 @@ export default function Scan() {
         // KeyboardAvoidingView from react-native-keyboard-controller, as on the
         // other input screens (feedback.tsx says why not RN's): the note field
         // sits under the photo and the keyboard covered it and Analyze both.
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.kav}>
+        <KeyboardAvoidingView behavior="padding" style={styles.kav}>
         <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
           {notice ? <ScanNotice notice={notice} styles={styles} t={t} /> : null}
           {/* One photo fills the width; several become a strip. A single
@@ -1212,7 +1212,7 @@ export default function Scan() {
         // Same keyboard handling as the describe step, and here it also lifts
         // the Add footer: editing the last item's grams used to hide both the
         // field being typed in and the button that saves it.
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.kav}>
+        <KeyboardAvoidingView behavior="padding" style={styles.kav}>
           <ScrollView
             contentContainerStyle={styles.body}
             keyboardShouldPersistTaps="handled"

@@ -1297,7 +1297,7 @@ export function TemplateEditorModal({
                       offer to break the declaration directly above it. */}
                   <View style={styles.tplSetBtns}>
                     {canAdd.set ? (
-                      <TouchableOpacity onPress={() => addSet(i)} style={[styles.addSetBtn, styles.textAction]} accessibilityRole="button" testID={`template-add-set-${i}`}>
+                      <TouchableOpacity onPress={() => addSet(i)} style={[styles.addSetBtn, styles.textAction]} accessibilityRole="button" accessibilityLabel={t('train.addSet')} testID={`template-add-set-${i}`}>
                         <Ionicons name="add" size={18} color={colors.teal} />
                         <Text style={styles.sectionAction}>{t('train.addSet')}</Text>
                       </TouchableOpacity>

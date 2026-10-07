@@ -771,6 +771,7 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
               <PressScale
                 style={styles.coachBtn}
                 accessibilityRole="button"
+                accessibilityLabel={t('coach.entry')}
                 onPress={() => { haptics.tap(); router.push('/coach' as Href); }}
                 testID="coach-entry"
               >
