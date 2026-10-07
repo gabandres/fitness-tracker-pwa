@@ -107,9 +107,9 @@ class NativeMenuButtonView(context: Context, appContext: AppContext) : ExpoView(
   private fun isNight(): Boolean =
     (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
 
-  // `danger` from src/theme.ts — light #c42020, dark #f2555a.
+  // `danger` from src/theme.ts — light #a3173b (was #c42020 until 2026-10-07), dark #f2555a.
   private fun dangerColor(): Int =
-    if (isNight()) Color.parseColor("#F2555A") else Color.parseColor("#C42020")
+    if (isNight()) Color.parseColor("#F2555A") else Color.parseColor("#A3173B")
 
   private fun styledTitle(action: MenuAction): CharSequence =
     if (action.destructive) {

@@ -1,8 +1,10 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { ACCESSIBILITY_FONT_SCALE } from '@/lib/font-scale';
 import { PressScale } from '@/lib/motion';
 import * as haptics from '@/lib/haptics';
-import { useThemedStyles, type Theme } from '@/lib/theme-context';
+import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space, TARGET } from '@/theme';
+import { NativeSegmentedControlView } from '../../../modules/native-segmented-control';
 
 /**
  * The one segmented control Trends and Body use (sim review 2026-10-06).
@@ -27,6 +29,14 @@ import { font, radius, space, TARGET } from '@/theme';
  *
  * A segment may carry an identity `dot` (the habit hues) — colour as identity,
  * never as state: it keeps its hue whether or not the segment is selected.
+ *
+ * **Native where it can be (2026-10-07).** On a binary that carries
+ * `modules/native-segmented-control` it is the platform's own control — a
+ * `UISegmentedControl` on iOS, Material 3 segmented buttons on Android — full
+ * width, `TARGET` tall. The JS control above stays for three cases: a binary
+ * without the module (an OTA reaching an older install, jest), a segment with
+ * a `dot` (neither native control draws one beside a title), and accessibility
+ * text sizes, where it wraps and the native controls truncate.
  */
 
 export interface Segment<K extends string> {
@@ -39,6 +49,9 @@ export interface Segment<K extends string> {
   testID?: string;
 }
 
+/** Whether this binary draws the platform's own segmented control. */
+export const NATIVE_SEGMENTED_CONTROL = NativeSegmentedControlView != null;
+
 export function SegmentedControl<K extends string>({
   segments,
   value,
@@ -47,6 +60,9 @@ export function SegmentedControl<K extends string>({
   accessibilityLabel,
   maxFontSizeMultiplier,
   stretch = false,
+  role = 'tab',
+  disabled = false,
+  haptic = true,
   testID,
 }: {
   segments: readonly Segment<K>[];
@@ -59,14 +75,50 @@ export function SegmentedControl<K extends string>({
   maxFontSizeMultiplier?: number;
   /** Fill the row, segments sharing it equally, instead of sizing to content. */
   stretch?: boolean;
+  /** What a screen reader calls it: `tab` swaps the card below (Trends,
+   *  Body); `radio` sets a preference (Settings). */
+  role?: 'tab' | 'radio';
+  disabled?: boolean;
+  /** Off when `onChange` plays its own (Settings' pickers do). */
+  haptic?: boolean;
   testID?: string;
 }) {
   const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
+  const { fontScale } = useWindowDimensions();
   const hero = tone === 'hero';
+  const NativeView = NativeSegmentedControlView;
+  if (NativeView && fontScale < ACCESSIBILITY_FONT_SCALE && !segments.some((s) => s.dot)) {
+    const selectedIndex = Math.max(0, segments.findIndex((s) => s.key === value));
+    return (
+      <View style={styles.native} accessibilityLabel={accessibilityLabel} testID={testID}>
+        <NativeView
+          style={styles.nativeFill}
+          segments={segments.map((s) => ({ label: s.label, a11yLabel: s.a11yLabel, testID: s.testID }))}
+          selectedIndex={selectedIndex}
+          enabled={!disabled}
+          fontSize={font.small * Math.min(fontScale, maxFontSizeMultiplier ?? fontScale)}
+          forceDark={hero}
+          cornerRadius={radius.md}
+          colors={
+            hero
+              ? { text: colors.heroMuted, selectedText: colors.heroPanel, selectedBackground: colors.heroText, border: colors.heroMuted }
+              : { text: colors.muted, selectedText: colors.ink, selectedBackground: colors.tealSoft, border: colors.lineStrong }
+          }
+          onChange={(e) => {
+            const next = segments[e.nativeEvent.index];
+            if (!next || next.key === value) return;
+            if (haptic) haptics.tap();
+            onChange(next.key);
+          }}
+        />
+      </View>
+    );
+  }
   return (
     <View
-      style={[styles.well, hero && styles.wellHero, stretch && styles.wellStretch]}
-      accessibilityRole="tablist"
+      style={[styles.well, hero && styles.wellHero, stretch && styles.wellStretch, disabled && styles.wellOff]}
+      accessibilityRole={role === 'radio' ? 'radiogroup' : 'tablist'}
       accessibilityLabel={accessibilityLabel}
       testID={testID}
     >
@@ -76,13 +128,14 @@ export function SegmentedControl<K extends string>({
           <PressScale
             key={s.key}
             style={[styles.segment, stretch && styles.segmentStretch, on && (hero ? styles.segmentOnHero : styles.segmentOn)]}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: on }}
+            accessibilityRole={role}
+            accessibilityState={disabled ? { selected: on, disabled } : { selected: on }}
+            disabled={disabled || undefined}
             accessibilityLabel={s.a11yLabel}
             testID={s.testID}
             onPress={() => {
               if (on) return;
-              haptics.tap();
+              if (haptic) haptics.tap();
               onChange(s.key);
             }}
           >
@@ -119,6 +172,10 @@ const createStyles = ({ colors }: Theme) =>
     // heroTrack on heroPanel is 1.29:1 — the edge is what shows the well.
     wellHero: { backgroundColor: colors.heroTrack, borderColor: colors.heroTrack, alignSelf: 'center' },
     wellStretch: { alignSelf: 'stretch', flexWrap: 'nowrap' },
+    wellOff: { opacity: 0.5 },
+    // The native control fills its row and is a real target tall.
+    native: { alignSelf: 'stretch', height: TARGET },
+    nativeFill: { flex: 1 },
     // The transparent border keeps an unselected segment the same size as the
     // selected one, which carries a real one.
     segment: {

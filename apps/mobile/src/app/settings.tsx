@@ -69,6 +69,7 @@ import { formatNumber, formatTime } from '@/lib/date-format';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space, TARGET } from '@/theme';
+import { NATIVE_SEGMENTED_CONTROL, SegmentedControl } from '@/components/charts/SegmentedControl';
 import { Touchable } from '@/components/Touchable';
 
 /** "8 PM" in English, "20" in pt-BR, "8 p. m." in es-PR — from a 0–23 hour.
@@ -596,78 +597,52 @@ export default function Settings() {
         <View style={styles.card}>
           <Text style={styles.rowLabel}>{t('settings.portionDisplay')}</Text>
           <Text style={styles.rowValue}>{t('settings.portionDisplaySub')}</Text>
-          <View style={[styles.segment, stackFloors && styles.segmentStacked]} accessibilityRole="radiogroup" accessibilityLabel={t('settings.portionDisplay')}>
-            {(['us', 'metric'] as UnitSystem[]).map((u) => {
-              const on = unit === u;
-              return (
-                <TouchableOpacity
-                  key={u}
-                  style={[styles.segmentBtn, stackFloors && styles.segmentBtnStacked, on && styles.segmentBtnOn, offline && styles.segmentBtnOff]}
-                  onPress={() => pickUnit(u)}
-                  disabled={offline || savingUnit}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: on, disabled: offline || savingUnit }}
-                  testID={`settings-unit-${u}`}
-                >
-                  <Text style={[styles.segmentText, on && styles.segmentTextOn]}>
-                    {u === 'us' ? t('settings.unitUs') : t('settings.unitMetric')}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+          <ChoiceRow
+            label={t('settings.portionDisplay')}
+            options={(['us', 'metric'] as UnitSystem[]).map((u) => ({
+              key: u,
+              label: u === 'us' ? t('settings.unitUs') : t('settings.unitMetric'),
+              testID: `settings-unit-${u}`,
+            }))}
+            value={unit}
+            onPick={pickUnit}
+            disabled={offline || savingUnit}
+            dimmed={offline}
+            stacked={stackFloors}
+          />
         </View>
 
         <View style={styles.card}>
           <Text style={styles.rowLabel}>{t('settings.theme')}</Text>
-          <View style={[styles.segment, stackFloors && styles.segmentStacked]} accessibilityRole="radiogroup" accessibilityLabel={t('settings.theme')}>
-            {(
+          <ChoiceRow
+            label={t('settings.theme')}
+            options={(
               [
                 { value: 'system', labelKey: 'settings.themeSystem' },
                 { value: 'light', labelKey: 'settings.themeLight' },
                 { value: 'dark', labelKey: 'settings.themeDark' },
               ] as const
-            ).map((opt) => {
-              const on = preference === opt.value;
-              return (
-                <TouchableOpacity
-                  key={opt.value}
-                  style={[styles.segmentBtn, stackFloors && styles.segmentBtnStacked, on && styles.segmentBtnOn]}
-                  onPress={() => {
-                    haptics.tap();
-                    setPreference(opt.value);
-                  }}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: on }}
-                  testID={`settings-theme-${opt.value}`}
-                >
-                  <Text style={[styles.segmentText, on && styles.segmentTextOn]}>{t(opt.labelKey)}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+            ).map((opt) => ({ key: opt.value, label: t(opt.labelKey), testID: `settings-theme-${opt.value}` }))}
+            value={preference}
+            onPick={(v) => {
+              haptics.tap();
+              setPreference(v);
+            }}
+            stacked={stackFloors}
+          />
         </View>
 
         <View style={styles.card}>
           <Text style={styles.rowLabel}>{t('settings.language')}</Text>
-          <View style={[styles.segment, stackFloors && styles.segmentStacked]} accessibilityRole="radiogroup" accessibilityLabel={t('settings.language')}>
-            {LANGUAGES.map((l) => {
-              const on = locale === l.value;
-              return (
-                <TouchableOpacity
-                  key={l.value}
-                  style={[styles.segmentBtn, stackFloors && styles.segmentBtnStacked, on && styles.segmentBtnOn, offline && styles.segmentBtnOff]}
-                  onPress={() => pickLanguage(l.value)}
-                  disabled={offline}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: on, disabled: offline }}
-                  testID={`settings-lang-${l.value}`}
-                >
-                  <Text style={[styles.segmentText, on && styles.segmentTextOn]}>{l.label}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+          <ChoiceRow
+            label={t('settings.language')}
+            options={LANGUAGES.map((l) => ({ key: l.value, label: l.label, testID: `settings-lang-${l.value}` }))}
+            value={locale}
+            onPick={pickLanguage}
+            disabled={offline}
+            dimmed={offline}
+            stacked={stackFloors}
+          />
         </View>
 
         {/* Day start sits last in Preferences: it is the rarest change here,
@@ -675,26 +650,19 @@ export default function Settings() {
         <View style={styles.card}>
           <Text style={styles.rowLabel}>{t('settings.dayStart')}</Text>
           <Text style={styles.rowValue}>{t('settings.dayStartSub')}</Text>
-          <View style={[styles.segment, stackFloors && styles.segmentStacked]} accessibilityRole="radiogroup" accessibilityLabel={t('settings.dayStart')}>
-            {DAY_START_HOURS.map((h) => {
-              const on = dayStartHour === h;
-              return (
-                <TouchableOpacity
-                  key={h}
-                  style={[styles.segmentBtn, stackFloors && styles.segmentBtnStacked, on && styles.segmentBtnOn, offline && styles.segmentBtnOff]}
-                  onPress={() => pickDayStart(h)}
-                  disabled={offline || savingDayStart}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: on, disabled: offline || savingDayStart }}
-                  testID={`settings-day-start-${h}`}
-                >
-                  <Text style={[styles.segmentText, on && styles.segmentTextOn]}>
-                    {h === 0 ? t('settings.dayStartMidnight') : t('settings.dayStartHour', { n: h })}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+          <ChoiceRow
+            label={t('settings.dayStart')}
+            options={DAY_START_HOURS.map((h) => ({
+              key: String(h),
+              label: h === 0 ? t('settings.dayStartMidnight') : t('settings.dayStartHour', { n: h }),
+              testID: `settings-day-start-${h}`,
+            }))}
+            value={String(dayStartHour)}
+            onPick={(k) => pickDayStart(Number(k))}
+            disabled={offline || savingDayStart}
+            dimmed={offline}
+            stacked={stackFloors}
+          />
           <Text style={styles.rowValue}>{t('settings.dayStartNote')}</Text>
         </View>
 
@@ -1173,6 +1141,68 @@ export default function Settings() {
           and `scan.tsx` use). */}
       <ConfirmHost />
     </SafeAreaView>
+  );
+}
+
+/**
+ * One preference choice — units, theme, language, day start. On a binary with
+ * the native segmented control it IS that control (`UISegmentedControl` /
+ * Material 3 segmented buttons, UX_AUDIT S21); elsewhere, and at
+ * accessibility text sizes where the native controls truncate, the row of
+ * buttons this screen always drew (stacked into full-width options then).
+ */
+function ChoiceRow<K extends string>({
+  label,
+  options,
+  value,
+  onPick,
+  disabled = false,
+  dimmed = false,
+  stacked,
+}: {
+  label: string;
+  options: readonly { key: K; label: string; testID: string }[];
+  value: K;
+  onPick: (key: K) => void;
+  disabled?: boolean;
+  /** Greyed (offline) — `disabled` alone also covers a save in flight. */
+  dimmed?: boolean;
+  stacked: boolean;
+}) {
+  const styles = useThemedStyles(createStyles);
+  if (NATIVE_SEGMENTED_CONTROL && !stacked) {
+    return (
+      <SegmentedControl
+        segments={options}
+        value={value}
+        onChange={onPick}
+        role="radio"
+        stretch
+        disabled={disabled}
+        haptic={false}
+        accessibilityLabel={label}
+      />
+    );
+  }
+  return (
+    <View style={[styles.segment, stacked && styles.segmentStacked]} accessibilityRole="radiogroup" accessibilityLabel={label}>
+      {options.map((opt) => {
+        const on = value === opt.key;
+        return (
+          <TouchableOpacity
+            key={opt.key}
+            style={[styles.segmentBtn, stacked && styles.segmentBtnStacked, on && styles.segmentBtnOn, dimmed && styles.segmentBtnOff]}
+            onPress={() => onPick(opt.key)}
+            disabled={disabled}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: on, disabled }}
+            testID={opt.testID}
+          >
+            <Text style={[styles.segmentText, on && styles.segmentTextOn]}>{opt.label}</Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
   );
 }
 
