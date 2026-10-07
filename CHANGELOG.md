@@ -4,7 +4,7 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
-## 2026-10-07 — Logged rows keep their gram weight; native segmented controls (1.2.6: iOS build 69, Android vc 50)
+## 2026-10-07 — Logged rows keep their gram weight; native segmented controls (1.2.6: iOS build 70, Android vc 50)
 
 - **Why**: two §S21 items the owner called today. A food logged at a weight
   could not be re-weighed later ("it was 180 g, not 150") because the row kept
@@ -23,7 +23,9 @@ ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
   control. The Android ⋯ menu's destructive red follows the new light `danger`.
 - **Shipped**: OTAs `962274ec…` (iOS build 68), `20abfce6…` (vc 47),
   `6ae7580e…` (vc 48/49). vc 50 (`a4b78806…`) on Play alpha + production 100%,
-  sent for review; build 69 (`ede55900…`) uploaded to App Store Connect.
+  sent for review; iOS build 70 (`60000098…`) submitted for review — build 69
+  was replaced after the simulator showed its segments without their spoken
+  labels and testIDs (on iOS 26 the segments are not views).
 
 ## 2026-10-07 — S22 closed: rounded ripples, keyboard reveals, large text, crimson danger, opaque iOS sheets; vc 49 (font size)
 

@@ -236,7 +236,7 @@ Ignia is not a medical device and does not provide medical advice.
 > page written to convert a store visitor, and it carries the browser fallback
 > for anyone who bounces off the install.
 
-### What's New — 1.2.6 · for build 69 (native segmented controls, gram weight on logged rows)
+### What's New — 1.2.6 · submitted with build 70 (native segmented controls, gram weight on logged rows)
 
 `scripts/asc-release-version.mjs` carries this copy; keep the two in step.
 

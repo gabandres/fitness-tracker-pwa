@@ -952,8 +952,8 @@ number.
   `UISegmentedControl` in system colours on iOS, Material 3 segmented buttons
   (`MaterialButtonToggleGroup`, app palette) on Android. Trends, Body and
   Settings' four choices; the JS control stays for older binaries, identity
-  dots and accessibility text sizes (`1a1f601e`, `10f7ddc6`; iOS 1.2.6 /
-  Android vc 50).
+  dots and accessibility text sizes (`1a1f601e`, `10f7ddc6`, `3202b4cf`; iOS 1.2.6
+  build 70 / Android vc 50).
 - [x] Gram basis on logged rows (owner, 2026-10-07) — `DailyLog.grams`,
   rules deployed first; an edit of a weighed row opens with its grams field
   and re-weighs from the row's own numbers (`1ebd474f`; OTA on every live

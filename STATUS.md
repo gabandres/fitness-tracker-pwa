@@ -31,7 +31,7 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 | **Cloud Functions / rules** | Deployed, project `fitness-tracker-gb-1775407101` |
 | **Photo-scan** | **ON and free to everyone, both platforms** (ADR-0017), resolving macros against the bundled USDA database (ADR-0019). Tiering is server-side only: `dailyQuota` 3/day free · 30/day paid, plus the `photo` `spendCeiling` |
 | **Food search** | Bundled USDA DB, 13,272 foods, plus the restaurant corpus (25,126 items / 91 chains, ADR-0027). **Text search makes NO network call** (since 2026-08-19; Open Food Facts serves **barcode only** — its 10 req/min search cap cannot host typeahead behind one egress IP). Servings ship with each hit. `docs/research/off-branded-ingest.md` scopes getting branded text results back |
-| **OTA (EAS Update)** | Live. `runtimeVersion: {"policy":"fingerprint"}`, channels match build profiles. Free tier 1,000 MAU. **iOS**: build 67 / `1b239e44…` newest group `dabeaffa…` (2026-10-04, S19); **build 68 / `489bf3b5…` newest group `962274ec…` (2026-10-07, `1ebd474f`); build 69 / 1.2.6 / `ede55900…` embeds `10f7ddc6`, no OTA yet.** **Android** (publish with `runtimeVersion` PINNED to the artifact value and revert — ledger row): vc 46 / `3e596c87…` newest group `d13b2d5e…` (2026-10-04); vc 47 / `ef607e85…` newest group `20abfce6…` (2026-10-07, `1ebd474f`); **vc 48 (and vc 49) `c87935bf…`** newest group `6ae7580e…` (2026-10-07, `1ebd474f`); **vc 50 / `a4b78806…`** embeds `10f7ddc6`, no OTA yet. 1.2.4 binaries get no 1.2.5 JS — `app.json` moved both runtimes. **"Published" is not "delivered":** a user gets it on the launch AFTER the download. **This row is a POINTER: `apps/mobile/docs/fingerprint-ledger.md` is the per-publish record and it wins.** Re-check with `npx eas update:list --branch production --limit 3` |
+| **OTA (EAS Update)** | Live. `runtimeVersion: {"policy":"fingerprint"}`, channels match build profiles. Free tier 1,000 MAU. **iOS**: build 67 / `1b239e44…` newest group `dabeaffa…` (2026-10-04, S19); **build 68 / `489bf3b5…` newest group `962274ec…` (2026-10-07, `1ebd474f`); build 70 / 1.2.6 / `60000098…` embeds `41a05ace`, no OTA yet (build 69 was superseded before review).** **Android** (publish with `runtimeVersion` PINNED to the artifact value and revert — ledger row): vc 46 / `3e596c87…` newest group `d13b2d5e…` (2026-10-04); vc 47 / `ef607e85…` newest group `20abfce6…` (2026-10-07, `1ebd474f`); **vc 48 (and vc 49) `c87935bf…`** newest group `6ae7580e…` (2026-10-07, `1ebd474f`); **vc 50 / `a4b78806…`** embeds `10f7ddc6`, no OTA yet. 1.2.4 binaries get no 1.2.5 JS — `app.json` moved both runtimes. **"Published" is not "delivered":** a user gets it on the launch AFTER the download. **This row is a POINTER: `apps/mobile/docs/fingerprint-ledger.md` is the per-publish record and it wins.** Re-check with `npx eas update:list --branch production --limit 3` |
 | **`app-version.json`** | **Self-driving since 2026-09-05** — served from Firestore `public/appVersion` by the `appVersionJson` rewrite, refreshed hourly by `hourlyTasks` (Android from the Play tracks API as `647810616435-compute@…`, invited read-only to the org Play Console; iOS from Apple's public lookup) and on demand from `/admin` → System → **Sync now**. No static file, no deploy, no secret; `npm run doctor` compares the LIVE URL with both stores. See the Play row for the in-review wrinkle |
 
 **The runtime fingerprints, and the three traps around them.**
@@ -39,7 +39,7 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 | Platform | Tree now | Live binary | Channel |
 |---|---|---|---|
 | Android | **Mac-built since vc 46** — read it from the artifact, never the tree (`android/` is hashed whole and drifts with Gradle's leftovers; ledger row). vc 47's tree DID compute its artifact value `ef607e85…` (no prebuild between) | vc 47 ships `ef607e85…`; **vc 48 ships `c87935bf…`, LIVE on production**; **vc 50 ships `a4b78806…`** (read from the `.aab`), alpha + production, in review | **OPEN** on both (pin the runtime for every publish) |
-| iOS | `ede55900…` (1.2.6, build 69's artifact) — the 1.2.5 tree value `489bf3b5…` is gone from `main` (new module + version); publish to build 68 by pinning, like Android | **build 68 ships `489bf3b5…`, LIVE as 1.2.5**; **build 69 ships `ede55900…`** (read from the `.ipa`), uploaded to ASC | **OPEN** on both — after an Android Gradle build, restore the masked-view manifest first (bullet below) |
+| iOS | `60000098…` (1.2.6, build 70's artifact) — the 1.2.5 tree value `489bf3b5…` is gone from `main` (new module + version); publish to build 68 by pinning, like Android | **build 68 ships `489bf3b5…`, LIVE as 1.2.5**; **build 70 ships `60000098…`** (read from the `.ipa`), submitted for review | **OPEN** on both — after an Android Gradle build, restore the masked-view manifest first (bullet below) |
 
 - **Gate the COMMIT, not just the fingerprint. `eas update` prints a `Commit`
   line — read it.** The fingerprint is native-only, so a stale JS tree passes
@@ -76,7 +76,7 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 **Everything on `main` is in an OTA or a 1.2.6 binary.** Live binaries got
 the gram weight on 2026-10-07 (build 68 `962274ec…`, vc 47 `20abfce6…`, vc 48
 `6ae7580e…`, all at `1ebd474f`). The native segmented controls (`1a1f601e`,
-`10f7ddc6`) are native and reach users only with **iOS build 69 / Android
+`10f7ddc6`) are native and reach users only with **iOS build 70 / Android
 vc 50** (1.2.6, both in review); on older binaries the same JS draws the old
 control. Functions and rules are deployed (rules 2026-10-07: `grams`).
 
@@ -114,9 +114,8 @@ deleted and its outcome goes to `CHANGELOG.md`.
 
 ### 1.2.6 — native segmented controls; both binaries submitted 2026-10-07
 
-- **iOS**: build 69 uploaded to ASC; App Review submission follows the
-  simulator check (`asc-release-version.mjs --version 1.2.6 --build 69
-  --submit`, What's New in `docs/app-store-metadata.md`). Build 68 (1.2.5) is
+- **iOS**: build 70 submitted for review (AFTER_APPROVAL; What's New in
+  `docs/app-store-metadata.md`). Build 69 is superseded and unused. Build 68 (1.2.5) is
   live. **iOS OTAs to build 68 now need `runtimeVersion` PINNED to
   `489bf3b5…`** — the tree computes 1.2.6's hash.
 - **Android**: vc 50 on alpha + production 100%, in review; vc 48 is live.
