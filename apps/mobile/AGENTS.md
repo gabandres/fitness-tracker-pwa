@@ -238,8 +238,8 @@ artifact"; which version is *live* is `STATUS.md`'s question.
 
 | Platform | Binary | Runtime fingerprint | Read from |
 |---|---|---|---|
-| Android | vc 49 / 1.2.5 — Play production + alpha, IN REVIEW from 2026-10-07 (vc 48 is live and shares this runtime, so one publish reaches both; vc 47 `ef607e85…` users still need their own pinned publish) | `c87935bf27ff20433d3abbdd908562068107c4f1` | the `.aab` |
-| iOS | build 68 / 1.2.5 — App Store, `READY_FOR_SALE` (ASC, 2026-10-06) | `489bf3b536f1fb3a831ce6b20cfefa2c4e08d45d` | the `.ipa` |
+| Android | vc 50 / 1.2.6 — Play production + alpha, IN REVIEW from 2026-10-07 (live users are on vc 48 `c87935bf…`, which vc 49 shared; vc 47 is `ef607e85…` — each needs its own pinned publish until vc 50 is live) | `a4b78806576be676ca859fc830091e987457c9e5` | the `.aab` |
+| iOS | build 69 / 1.2.6 — uploaded to ASC 2026-10-07 (live users are on build 68 `489bf3b5…` until 1.2.6 is released) | `ede559008d16b58fbf1a94b1bbc84f6809628d08` | the `.ipa` |
 
 The 1.2.5 runtimes share nothing with 1.2.4's — `app.json` moved both — so a
 1.2.4 user gets 1.2.5's JS only through the store update. Which OTA is newest

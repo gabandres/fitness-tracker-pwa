@@ -860,9 +860,8 @@ fix a serving just logged 3 / 3, barcode 3 / 3, quick add 3–4 / 3–4, saved m
 **The remaining gap to 9.5 is native, not JS** (every reviewer agreed): native
 iOS 26 sheet detents / Liquid Glass, `UIContextMenu` with a row preview, Android
 predictive back (`predictiveBackGestureEnabled` in `app.json` — moves both
-fingerprints). These cap Platform at ~8.6. Open, owner's call: storing a gram
-basis on logged rows (needs a rules deploy) so an edit can re-weigh; a
-what's-new for this ship.
+fingerprints). These cap Platform at ~8.6. The gram basis on logged rows
+shipped 2026-10-07 (§S21).
 
 **Device-QA first** (nothing here was run on a phone): in-app camera
 (`onCameraReady` + 2 s fallback), the per-field iOS KeyboardBar, a confirm
@@ -948,10 +947,17 @@ number.
 - [x] The Train accordion (§S17-8) — owner's call 2026-10-07: kept.
 - [x] Native (binary): Android ⋯ menu subtitles and the ongoing rest
   notification — vc 48 (§S22).
-- [ ] Native segmented controls — needs a native dependency (`@expo/ui`, an
-  `npm install` only the Windows workstation may run) or a two-platform
-  module; not a polish item. Gram basis on logged rows needs a rules change
-  and is still an owner's call.
+- [x] Native segmented controls (owner, 2026-10-07) — a local two-platform
+  module, `modules/native-segmented-control` (no `npm install`):
+  `UISegmentedControl` in system colours on iOS, Material 3 segmented buttons
+  (`MaterialButtonToggleGroup`, app palette) on Android. Trends, Body and
+  Settings' four choices; the JS control stays for older binaries, identity
+  dots and accessibility text sizes (`1a1f601e`, `10f7ddc6`; iOS 1.2.6 /
+  Android vc 50).
+- [x] Gram basis on logged rows (owner, 2026-10-07) — `DailyLog.grams`,
+  rules deployed first; an edit of a weighed row opens with its grams field
+  and re-weighs from the row's own numbers (`1ebd474f`; OTA on every live
+  runtime, verified end to end on the emulator against prod).
 - [x] Native sheets: a thin translucent strip under the opaque content at the
   bottom edge of fit-detent sheets — the home-indicator band, drawn as the
   sheet's own glass. An opaque underlap below the surface (`6f15ec22`, iOS

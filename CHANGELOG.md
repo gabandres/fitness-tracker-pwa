@@ -4,6 +4,27 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-10-07 — Logged rows keep their gram weight; native segmented controls (1.2.6: iOS build 69, Android vc 50)
+
+- **Why**: two §S21 items the owner called today. A food logged at a weight
+  could not be re-weighed later ("it was 180 g, not 150") because the row kept
+  kcal but not grams; and the segmented controls were the reviewers' largest
+  remaining Platform gap.
+- **Gram weight (OTA, every live runtime, `1ebd474f`)**: `DailyLog.grams`
+  (≤ 5000). Rules deployed FIRST and read back. A pick at a known weight saves
+  it; an edit of a weighed row opens with its grams field and rescales from the
+  row's own numbers; hand-editing kcal drops it; recents, My Foods, repeat-
+  yesterday, undo/move and the offline queue carry it. Photo scans do not set
+  it (one weight for a mixed plate). Verified against prod on the emulator.
+- **Native segmented controls (binaries)**: `modules/native-segmented-control`
+  — `UISegmentedControl` (system colours) on iOS, Material 3 segmented buttons
+  on Android — on Trends, Body and Settings' units / theme / language / day
+  start. Older binaries, identity dots and accessibility text sizes keep the JS
+  control. The Android ⋯ menu's destructive red follows the new light `danger`.
+- **Shipped**: OTAs `962274ec…` (iOS build 68), `20abfce6…` (vc 47),
+  `6ae7580e…` (vc 48/49). vc 50 (`a4b78806…`) on Play alpha + production 100%,
+  sent for review; build 69 (`ede55900…`) uploaded to App Store Connect.
+
 ## 2026-10-07 — S22 closed: rounded ripples, keyboard reveals, large text, crimson danger, opaque iOS sheets; vc 49 (font size)
 
 - **Why**: the open half of UX_AUDIT §S22 (the first Android pass) and two
