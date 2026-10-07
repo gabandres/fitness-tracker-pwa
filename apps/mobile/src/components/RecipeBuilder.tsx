@@ -8,7 +8,7 @@ import * as haptics from '@/lib/haptics';
 import { useA11yFocus } from '@/lib/use-a11y-focus';
 import { useDoneKeyProps } from '@/components/KeyboardBar';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space } from '@/theme';
+import { font, radius, space, TARGET } from '@/theme';
 
 export interface RecipeEstimate {
   calories: number;
@@ -119,7 +119,7 @@ export function RecipeBuilder({ onApply, onCancel, onDirtyChange }: Props) {
     <View style={styles.wrap}>
       <View style={styles.head}>
         <Text ref={titleRef} style={styles.title} accessibilityRole="header">{t('recipe.title')}</Text>
-        <TouchableOpacity onPress={onCancel} hitSlop={12} accessibilityRole="button">
+        <TouchableOpacity onPress={onCancel} style={styles.cancelBtn} hitSlop={{ left: 12, right: 12 }} accessibilityRole="button">
           <Text style={styles.cancel}>{t('common.cancel')}</Text>
         </TouchableOpacity>
       </View>
@@ -178,10 +178,11 @@ export function RecipeBuilder({ onApply, onCancel, onDirtyChange }: Props) {
               accessibilityLabel={t('recipe.proteinA11y', { n: i + 1 })}
             />
             <TouchableOpacity
-              style={styles.colDel}
+              style={[styles.colDel, styles.delBtn]}
               onPress={() => removeIng(i)}
-              // 24dp column + 10 each side = 44 (S18-15); the row is ~44 tall.
-              hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}
+              // The column is the target now; a hitSlop-only 24 dp ✕ measured
+              // 24×17 to TalkBack (UX_AUDIT S22). The slop just spans the gaps.
+              hitSlop={{ left: space.xs, right: space.xs }}
               accessibilityRole="button"
               accessibilityLabel={t('common.remove')}
             >
@@ -232,6 +233,10 @@ export function RecipeBuilder({ onApply, onCancel, onDirtyChange }: Props) {
 }
 
 const createStyles = ({ colors }: Theme) => StyleSheet.create({
+  /** A real 44/48 target around the text (it measured ~19 dp with only a
+   *  hitSlop, which TalkBack and Switch Access do not see — UX_AUDIT S22);
+   *  the negative margin keeps the header row its old height. */
+  cancelBtn: { minHeight: TARGET, minWidth: TARGET, justifyContent: 'center', alignItems: 'flex-end', marginVertical: -space.sm },
   // `flexShrink` here and on `scroll`: with the keyboard up the sheet is
   // shorter than the builder, and a fixed-height list pushed "Use this" half
   // under the keyboard at six ingredients (Android QA, UX_AUDIT S22). The list
@@ -245,7 +250,8 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   colLabel: { fontSize: font.tiny, color: colors.muted, fontWeight: '600', textTransform: 'uppercase' },
   colName: { flex: 1 },
   colNum: { width: 56, textAlign: 'center' },
-  colDel: { width: 24, alignItems: 'center' },
+  colDel: { width: TARGET, alignItems: 'center' },
+  delBtn: { minHeight: TARGET, justifyContent: 'center' },
   ingRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs, marginBottom: space.xs },
   input: {
     backgroundColor: colors.inputBg,

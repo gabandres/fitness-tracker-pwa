@@ -707,7 +707,7 @@ export function FoodSearch({
         </View>
         {micSlot}
         {onCancel ? (
-          <TouchableOpacity onPress={onCancel} hitSlop={12} accessibilityRole="button">
+          <TouchableOpacity onPress={onCancel} style={styles.cancelBtn} hitSlop={{ left: 12, right: 12 }} accessibilityRole="button">
             <Text style={styles.cancel}>{t('common.cancel')}</Text>
           </TouchableOpacity>
         ) : null}
@@ -1155,6 +1155,10 @@ function messageKey(e: unknown, fallback: I18nKey): I18nKey {
 }
 
 const createStyles = ({ colors }: Theme) => StyleSheet.create({
+  /** A real 44/48 target around the text (it measured ~19 dp with only a
+   *  hitSlop, which TalkBack and Switch Access do not see — UX_AUDIT S22);
+   *  the negative margin keeps the header row its old height. */
+  cancelBtn: { minHeight: TARGET, minWidth: TARGET, justifyContent: 'center', alignItems: 'flex-end', marginVertical: -space.sm },
   // `flexShrink`, no floor and no cap on the list below (B2): a fixed 320
   // floor plus a 360 cap put the bottom of the results under the keyboard
   // padding on a small phone. The sheet's container is the one height that

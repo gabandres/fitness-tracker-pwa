@@ -20,7 +20,7 @@ import * as haptics from '@/lib/haptics';
 import { useA11yFocus } from '@/lib/use-a11y-focus';
 import { useDoneKeyProps } from '@/components/KeyboardBar';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space } from '@/theme';
+import { font, radius, space, TARGET } from '@/theme';
 
 /** One resolved, editable draft row. Numeric fields stay strings so partial
  *  input binds cleanly (the decimal-input gotcha); parsed only on add. */
@@ -266,7 +266,7 @@ export function MealText({ forDate, onAddMany, onCancel, seedText, onDirtyChange
           every EntrySheet mode dismisses from one place (UX_AUDIT S16-7). */}
       <View style={styles.head}>
         <Text ref={titleRef} style={styles.title} accessibilityRole="header">{t('entry.describeMeal')}</Text>
-        <TouchableOpacity onPress={onCancel} hitSlop={12} accessibilityRole="button">
+        <TouchableOpacity onPress={onCancel} style={styles.cancelBtn} hitSlop={{ left: 12, right: 12 }} accessibilityRole="button">
           <Text style={styles.back}>{t('common.cancel')}</Text>
         </TouchableOpacity>
       </View>
@@ -325,6 +325,10 @@ function MacroField({ label, food, value, onChange }: { label: string; food: str
 }
 
 const createStyles = ({ colors }: Theme) => StyleSheet.create({
+  /** A real 44/48 target around the text (it measured ~19 dp with only a
+   *  hitSlop, which TalkBack and Switch Access do not see — UX_AUDIT S22);
+   *  the negative margin keeps the header row its old height. */
+  cancelBtn: { minHeight: TARGET, minWidth: TARGET, justifyContent: 'center', alignItems: 'flex-end', marginVertical: -space.sm },
   wrap: { minHeight: 320, gap: space.sm },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   title: { fontSize: font.h3, fontWeight: '800', color: colors.ink },

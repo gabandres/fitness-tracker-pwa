@@ -6,7 +6,7 @@ import { useLocale, useT } from '@/i18n';
 import { formatNumber } from '@/lib/date-format';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space } from '@/theme';
+import { font, radius, space, TARGET } from '@/theme';
 import type { RecipeEstimate } from '@/components/RecipeBuilder';
 
 interface Props {
@@ -99,7 +99,7 @@ export function RecipeImport({ onApply, onCancel, onDirtyChange }: Props) {
     <View style={styles.wrap}>
       <View style={styles.head}>
         <Text style={styles.title} accessibilityRole="header">{t('recipeImport.title')}</Text>
-        <TouchableOpacity onPress={onCancel} hitSlop={12} accessibilityRole="button">
+        <TouchableOpacity onPress={onCancel} style={styles.cancelBtn} hitSlop={{ left: 12, right: 12 }} accessibilityRole="button">
           <Text style={styles.cancel}>{t('common.cancel')}</Text>
         </TouchableOpacity>
       </View>
@@ -176,6 +176,10 @@ export function RecipeImport({ onApply, onCancel, onDirtyChange }: Props) {
 }
 
 const createStyles = ({ colors }: Theme) => StyleSheet.create({
+  /** A real 44/48 target around the text (it measured ~19 dp with only a
+   *  hitSlop, which TalkBack and Switch Access do not see — UX_AUDIT S22);
+   *  the negative margin keeps the header row its old height. */
+  cancelBtn: { minHeight: TARGET, minWidth: TARGET, justifyContent: 'center', alignItems: 'flex-end', marginVertical: -space.sm },
   wrap: { minHeight: 320, gap: space.sm },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   title: { fontSize: font.h3, color: colors.ink, fontWeight: '800' },
