@@ -132,7 +132,10 @@ export function QuickAddCard() {
                   <Text style={styles.badgeText}>{slot + 1}</Text>
                 </View>
               ) : (
-                <Ionicons name="ellipse-outline" size={22} color={colors.line} />
+                // `lineStrong`: an empty checkbox is a control's edge (3:1,
+                // WCAG 1.4.11); `line` is ~1.2:1 and all but vanished in
+                // light mode (Android QA, UX_AUDIT S22).
+                <Ionicons name="ellipse-outline" size={22} color={colors.lineStrong} />
               )}
             </TouchableOpacity>
           );

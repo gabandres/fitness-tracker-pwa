@@ -327,8 +327,9 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
   fill: { flex: 1 },
   // `space.xl`, not `FAB_BAND`: nothing floats over this screen any more —
-  // it is a root stack route, not a tab (UX_AUDIT S18-14).
-  body: { paddingHorizontal: space.lg, paddingTop: space.md, paddingBottom: space.xl },
+  // it is a root stack route, not a tab (UX_AUDIT S18-14). Sides `space.xl`,
+  // the gutter every other screen uses (it was 16 dp against 24, S22).
+  body: { paddingHorizontal: space.xl, paddingTop: space.md, paddingBottom: space.xl },
   intro: { fontSize: font.body, color: colors.ink, lineHeight: 21 },
   counter: { fontSize: font.small, color: colors.teal, marginTop: space.xs, fontVariant: ['tabular-nums'] },
   disclaimer: { fontSize: font.tiny, color: colors.faint, marginTop: space.xs },
