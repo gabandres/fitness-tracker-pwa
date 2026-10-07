@@ -236,6 +236,26 @@ Ignia is not a medical device and does not provide medical advice.
 > page written to convert a store visitor, and it carries the browser fallback
 > for anyone who bounces off the install.
 
+### What's New — 1.2.6 · for build 69 (native segmented controls, gram weight on logged rows)
+
+`scripts/asc-release-version.mjs` carries this copy; keep the two in step.
+
+**en-US**
+
+```
+• Choices look and feel like the rest of your phone: the ranges on Trends and Body, and units, theme and language in Settings, now use the system's own segmented control.
+• Fix a weighed food later: a food you logged by weight remembers it, so changing it to 180 g instead of 150 redoes the numbers for you.
+• Fields stay above the keyboard, large text reads better, half-height sheets are solid to the bottom, and delete has its own red so it no longer looks like every other button.
+```
+
+**es-MX**
+
+```
+• Las opciones se ven y se sienten como el resto de tu teléfono: los rangos en Tendencias y Cuerpo, y las unidades, el tema y el idioma en Ajustes, usan ahora el control segmentado del sistema.
+• Corrige después una comida pesada: lo que registraste por peso lo recuerda, así que cambiarlo a 180 g en vez de 150 recalcula los números por ti.
+• Los campos se quedan sobre el teclado, el texto grande se lee mejor, las hojas a media altura son sólidas hasta abajo y borrar tiene su propio rojo para no parecerse a los demás botones.
+```
+
 ### What's New — 1.2.3 · submitted 2026-09-05 (the re-shot screenshots ship with it)
 
 Written against App Store 1.2.2 / build 63. Everything listed already reached

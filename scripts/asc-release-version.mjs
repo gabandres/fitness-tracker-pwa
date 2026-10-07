@@ -31,25 +31,18 @@ if (!versionString || !buildNumber) {
   process.exit(2);
 }
 
-// 1.2.3 — the wording lives in docs/app-store-metadata.md ("What's New — 1.2.3");
-// this copy must match it. 1.2.2's text is in git history (48ab27cc..).
+// 1.2.6 — the wording lives in docs/app-store-metadata.md ("What's New — 1.2.6");
+// this copy must match it. Earlier versions' text is in git history (this
+// block said 1.2.3 while carrying 1.2.5's copy until 2026-10-07).
 const WHATS_NEW = {
   'en-US':
-    '• Logging feels native: the food sheet is a real iOS sheet you can pull up or swipe away, and pressing and holding any meal shows a preview with Edit, Add to Quick add and Delete.\n' +
-    '• Every meal of the day has its own + Add, and quick-logged foods show what is left: "Logged Oatmeal · 300 kcal · 1,050 left".\n' +
-    '• Trends now charts your maintenance estimate over time, and Body draws your weight with a trend line that follows a steady loss instead of lagging behind it. Drag across a chart to read any day.\n' +
-    '• Workouts work without signal: start, log and finish offline, and it syncs when you are back. A rest timer counts down on your Lock Screen.\n' +
-    '• Weigh-ins: log a day you missed, undo a delete, and get a heads-up when a number looks like a typo.\n' +
-    '• Fixed: foods with very long names could be lost after showing "saved offline", and a deleted weigh-in could come back from Apple Health.\n' +
-    '• Better with VoiceOver and large text across Today, Train, Trends and Body.',
+    '• Choices look and feel like the rest of your phone: the ranges on Trends and Body, and units, theme and language in Settings, now use the system\'s own segmented control.\n' +
+    '• Fix a weighed food later: a food you logged by weight remembers it, so changing it to 180 g instead of 150 redoes the numbers for you.\n' +
+    '• Fields stay above the keyboard, large text reads better, half-height sheets are solid to the bottom, and delete has its own red so it no longer looks like every other button.',
   'es-MX':
-    '• Registrar se siente nativo: la hoja de comidas es una hoja real de iOS que puedes subir o deslizar para cerrar, y al mantener presionada cualquier comida ves una vista previa con Editar, Añadir a Registro rápido y Borrar.\n' +
-    '• Cada comida del día tiene su propio + Añadir, y lo que registras rápido te dice cuánto te queda: «Registrado Avena · 300 kcal · quedan 1,050».\n' +
-    '• Tendencias ahora grafica tu mantenimiento estimado a lo largo del tiempo, y Cuerpo dibuja tu peso con una línea de tendencia que sigue una bajada constante en vez de quedarse atrás. Desliza el dedo por una gráfica para ver cada día.\n' +
-    '• Los entrenamientos funcionan sin señal: empieza, registra y termina sin conexión, y se sincroniza cuando vuelvas. Un temporizador de descanso cuenta en tu pantalla bloqueada.\n' +
-    '• Pesajes: registra un día que se te pasó, deshaz un borrado y recibe un aviso cuando un número parece un error de tecleo.\n' +
-    '• Arreglado: las comidas con nombres muy largos podían perderse después de decir «guardado sin conexión», y un pesaje borrado podía volver desde Salud de Apple.\n' +
-    '• Mejor con VoiceOver y texto grande en Hoy, Entrenar, Tendencias y Cuerpo.',
+    '• Las opciones se ven y se sienten como el resto de tu teléfono: los rangos en Tendencias y Cuerpo, y las unidades, el tema y el idioma en Ajustes, usan ahora el control segmentado del sistema.\n' +
+    '• Corrige después una comida pesada: lo que registraste por peso lo recuerda, así que cambiarlo a 180 g en vez de 150 recalcula los números por ti.\n' +
+    '• Los campos se quedan sobre el teclado, el texto grande se lee mejor, las hojas a media altura son sólidas hasta abajo y borrar tiene su propio rojo para no parecerse a los demás botones.',
 };
 
 const OPEN = ['READY_FOR_REVIEW', 'WAITING_FOR_REVIEW', 'IN_REVIEW', 'UNRESOLVED_ISSUES'];
