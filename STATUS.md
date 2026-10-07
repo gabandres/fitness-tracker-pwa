@@ -73,7 +73,7 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 
 ## 2. Merged, on `main`, and not delivered anywhere
 
-**Everything on `main` is in an OTA or a 1.2.6 binary.** Live binaries got
+**Everything on `main` is in an OTA or a 1.2.6 binary** (newest OTAs `a3f164e7`, ADR-0044 below). Live binaries got
 the gram weight on 2026-10-07 (build 68 `962274ec…`, vc 47 `20abfce6…`, vc 48
 `6ae7580e…`, all at `1ebd474f`). The native segmented controls (`1a1f601e`,
 `10f7ddc6`) are native and reach users only with **iOS build 70 / Android
@@ -84,14 +84,12 @@ Re-derive rather than trust this line: `git log --oneline` against the newest
 OTA row in `apps/mobile/docs/fingerprint-ledger.md`, and
 `node scripts/app-version-sync.mjs --check` for the live store numbers.
 
-**Progression rules (ADR-0044, 2026-10-07) are merged and NOT delivered.**
-The derived band and "Calibrating — n of 3" are gone; every lift gets a call
-from its rep range. **Deploy `firestore:rules` BEFORE the OTA** — the catalog's
-new lift fields and the three Training settings are rejected by the live rules
-(rules specs pass, 793). Until the OTA, the live app's template editor drops
-`loadLog` and cluster labels on save (the L/R calf labels written 2026-10-07).
-The owner's volume gate (154 lb) is NOT written yet: a profile key the live
-rules reject would block every later profile write — set it after the deploy.
+**Progression rules (ADR-0044) shipped 2026-10-07** — rules deployed 16:31 UTC
+(read back identical), then OTAs at `a3f164e7` on every runtime: iOS build 68
+`3e14f75e` / build 70 `63c32b4b`; Android vc 47 `b3dbc307` / vc 48-49
+`514c29c9` / vc 50 `35b070e8`. Owner's volume gate written (154 lb; phase and
+auto-apply left at their defaults, cut / off). **Not device-QA'd.** Anyone on a
+pre-OTA bundle who edits a template drops `loadLog` and cluster labels.
 
 **`drop` and `superset` are the only unread structures left, and they are NOT
 the next cheap thing.** `hit` was, and it shipped. `drop` needs within-set load

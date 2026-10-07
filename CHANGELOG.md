@@ -28,7 +28,9 @@ ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
   RDL 20→35, leg extension / leg curl 80→90, calf clusters labelled L/R;
   Pull Day pulldown 80→90, incline curl 20→15; leg extension / curl steps
   [70, 80, 90]. 10/7 breakfast SKIPPED (one existed, 640 / 73 at 9:30).
-- **Not deployed:** `firestore:rules` and the OTA are owner steps (STATUS §2).
+- **Delivery:** rules deployed 16:31 UTC (read back identical); OTAs from
+  `ignia-mac` at `a3f164e7` on all five live runtimes (ledger rows); volume gate
+  154 lb written to the owner's profile.
 
 ## 2026-10-07 — Logged rows keep their gram weight; native segmented controls (1.2.6: iOS build 70, Android vc 50)
 
