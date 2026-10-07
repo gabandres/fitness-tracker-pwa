@@ -120,6 +120,13 @@ export default function SheetRoute() {
         <View collapsable={false} style={styles.chainStop} />
         {entry.node}
       </Reanimated.View>
+      {/* iOS `fit`: UIKit sizes the sheet to the content PLUS the home-
+          indicator band, and that band is the sheet's own Liquid Glass — a
+          translucent strip under the opaque surface, with the orange + reading
+          through it (S21 simulator QA). Padding cannot close it (the sheet
+          grows and keeps the band), so the surface hangs an opaque underlap
+          below itself; the sheet's rounded shape clips it. */}
+      {fit && Platform.OS === 'ios' ? <View style={styles.underlap} pointerEvents="none" /> : null}
       {entry.overlays ? <ToastSheetHost sheetId={id} /> : null}
       {entry.overlays ? <ConfirmHost /> : null}
     </View>
@@ -155,6 +162,16 @@ const createStyles = ({ colors, scheme }: Theme) =>
       ...(Platform.OS === 'android' && scheme === 'dark'
         ? { borderTopWidth: StyleSheet.hairlineWidth, borderColor: colors.lineStrong }
         : null),
+    },
+    // Taller than any home-indicator band; whatever is past the sheet's
+    // bottom edge is clipped with it.
+    underlap: {
+      position: 'absolute',
+      top: '100%',
+      left: 0,
+      right: 0,
+      height: 120,
+      backgroundColor: scheme === 'dark' ? colors.card : colors.paper,
     },
     handleZone: { alignItems: 'center', paddingTop: 16, paddingBottom: 6 },
     handle: { width: 32, height: 4, borderRadius: 2, backgroundColor: colors.lineStrong },
