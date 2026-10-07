@@ -4,6 +4,14 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-10-06 — 1.2.5 live on both stores
+
+- iOS 1.2.5 / build 68 released 2026-10-06 13:23 UTC (Apple's public lookup);
+  Play vc 47 / 1.2.5 live on production (store page *Updated on Oct 5, 2026*).
+  The S21 OTAs (`a1f83a15…` iOS, `429e9754…` Android) are those binaries'
+  newest groups, so the S21 pass below is now delivered. No new binary was
+  needed.
+
 ## 2026-10-06 — S21 UX pass: whole-app accessibility, Settings on the native stack, text-size relayout (OTA on 1.2.5)
 
 - **Why**: a six-reviewer audit (UX_AUDIT §S21), including the first pass on
