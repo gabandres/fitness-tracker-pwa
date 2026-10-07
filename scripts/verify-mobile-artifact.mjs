@@ -209,6 +209,16 @@ function verifyAab(path) {
       if (manifest.includes(str)) ok(`manifest ${str.split('.').pop()}`);
       else bad(`manifest ${str}`, 'MISSING — Health Connect will not resolve this app (patch step 4d / library plugin)');
     }
+    // MainActivity's configChanges (patch step 4f). The protobuf manifest keeps
+    // the attribute's source string; MainActivity's is the first, the one that
+    // starts with "keyboard|" — the library activities' lists come after it.
+    if (EXPECT.android.mainActivityConfigChanges?.length) {
+      const changes = (manifest.match(/keyboard\|[A-Za-z|]*/) ?? [''])[0].split('|');
+      for (const flag of EXPECT.android.mainActivityConfigChanges) {
+        if (changes.includes(flag)) ok(`MainActivity configChanges ${flag}`);
+        else bad(`MainActivity configChanges ${flag}`, 'MISSING — patch-android-release.mjs step 4f did not run');
+      }
+    }
     for (const perm of EXPECT.android.forbiddenPermissions ?? []) {
       if (manifest.includes(perm)) bad(`permission ${perm}`, 'PRESENT — Play rejected it; patch-android-release.mjs step 4c did not run');
       else ok(`no ${perm.split('.').pop()}`);

@@ -58,6 +58,10 @@
       "android.intent.action.VIEW_PERMISSION_USAGE",
       "android.intent.category.HEALTH_PERMISSIONS"
     ],
-    "_manifestStringsComment": "Health Connect resolves the app through two intent filters: ACTION_SHOW_PERMISSIONS_RATIONALE (pre-14, added by the library plugin) and the VIEW_PERMISSION_USAGE + HEALTH_PERMISSIONS activity-alias (Android 14+, added by patch-android-release.mjs step 4d). Both must be in the shipped manifest."
+    "_manifestStringsComment": "Health Connect resolves the app through two intent filters: ACTION_SHOW_PERMISSIONS_RATIONALE (pre-14, added by the library plugin) and the VIEW_PERMISSION_USAGE + HEALTH_PERMISSIONS activity-alias (Android 14+, added by patch-android-release.mjs step 4d). Both must be in the shipped manifest.",
+    "mainActivityConfigChanges": [
+      "fontScale"
+    ],
+    "_configChangesComment": "patch-android-release.mjs step 4f adds fontScale to MainActivity's configChanges, so a system font-size change is handled in-process instead of recreating the activity — which restarted the app on Today (measured 2026-10-07, UX_AUDIT S22). Prebuild output, so only this check sees it."
   }
 }

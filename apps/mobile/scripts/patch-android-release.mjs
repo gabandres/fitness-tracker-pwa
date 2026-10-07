@@ -465,6 +465,39 @@ const REJECTED_PERMISSIONS = ['android.permission.health.READ_STEPS'];
   }
 }
 
+// --- 4f. AndroidManifest.xml: MainActivity handles a font-size change itself ---
+// Without `fontScale` in `configChanges`, Android RECREATES the activity when
+// the system font size changes, and React Native starts the app over
+// ("Running main" again in logcat): navigation state is lost and the app
+// lands on Today. Measured 2026-10-07 on the pixel_api36 emulator (vc 48) from
+// Settings and from Trends (UX_AUDIT S22 — blamed then on the S21 relayout).
+// Handled in-process instead, `ReactHostImpl.onConfigurationChanged` re-reads
+// the display metrics and relayouts every surface, and `DeviceInfoModule`
+// emits the new `fontScale` on resume — which is what `lib/font-scale.ts`'s
+// RelayoutBoundary keys on, below the navigators. Same home and reason as 4b:
+// gitignored prebuild output, so neither runtime moves.
+{
+  let m = readFileSync(manifestPath, 'utf8');
+  const tag = m.match(/<activity android:name="\.MainActivity"[^>]*>/);
+  if (!tag) {
+    console.error('No .MainActivity in AndroidManifest.xml — prebuild output is not what this expects.');
+    process.exit(1);
+  }
+  const changes = tag[0].match(/android:configChanges="([^"]*)"/);
+  if (!changes) {
+    console.error('MainActivity has no android:configChanges — prebuild output is not what this expects.');
+    process.exit(1);
+  }
+  if (changes[1].split('|').includes('fontScale')) {
+    console.log('AndroidManifest.xml: MainActivity already handles fontScale');
+  } else {
+    const patched = tag[0].replace(changes[0], `android:configChanges="${changes[1]}|fontScale"`);
+    m = m.replace(tag[0], patched);
+    writeFileSync(manifestPath, m);
+    console.log('AndroidManifest.xml: fontScale added to MainActivity configChanges');
+  }
+}
+
 // --- 5. MainActivity.kt: the Health Connect permission delegate ---
 // `react-native-health-connect` v3 keeps its permission launcher in a
 // `lateinit var` that is only assigned by
