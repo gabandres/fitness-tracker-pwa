@@ -4,6 +4,34 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-10-07 — S22 closed: rounded ripples, keyboard reveals, large text, crimson danger, opaque iOS sheets; vc 49 (font size)
+
+- **Why**: the open half of UX_AUDIT §S22 (the first Android pass) and two
+  owner's calls from §S21, decided today: keep the brand accent and move
+  light `danger` off it; keep the Train accordion (§S17-8).
+- **What (OTA, both platforms, `b96207a3`)**: rounded Android ripples —
+  `overflow: 'hidden'` on the pressable itself clips Fabric's square ripple
+  (`rippleClip()`), Settings rows bleed to the card edge; the add sheet's Note,
+  the template editor's last set and the recipe builder's "Use this" stay
+  above the keyboard (`useRevealFocusedInput`, new); Body's title descender;
+  large text — Train's section head wraps, Settings' choices stack instead of
+  breaking words, recent names take two lines, 48 dp tab cells; 48 dp recipe
+  ✕ and sub-screen Cancels; Coach's 24 dp gutter; visible Quick add circles;
+  light `danger` `#c42020` → `#a3173b` (ΔE76 4 → 26 from `accent`, pinned by
+  `theme-contrast.test.ts`).
+- **What (OTA, iOS, `6f15ec22`)**: `fit` sheets are opaque to their bottom
+  edge — the home-indicator band was the sheet's own Liquid Glass (the S21
+  "translucent strip"); an opaque underlap now hangs below the surface.
+- **What (vc 49, Android binary)**: a system font-size change no longer
+  restarts the app on Today — Android was recreating MainActivity (no
+  `fontScale` in `configChanges`); `patch-android-release.mjs` step 4f, and
+  `verify-mobile-artifact.mjs` now checks it.
+- **Shipped**: OTAs `9d06da01…` then `d475121f…` (iOS, build 68),
+  `13bc338e…` (Android vc 47), `1f65db68…` (vc 48, which cleared Play review
+  — production since 2026-10-06 — and vc 49, same runtime `c87935bf…`). vc 49
+  on Play alpha + production 100%, sent for review. First hardware pass on
+  the OnePlus 8T: ripples, keyboard and the rest notification as intended.
+
 ## 2026-10-06 — Android pass on S21: keyboard everywhere, vc 48 (menu subtitles, rest notification)
 
 - **Why**: S21 never ran on Android. The first emulator pass (UX_AUDIT §S22)

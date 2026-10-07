@@ -796,8 +796,9 @@ header's glossary button was the tell.
 
 ### Open, deliberately not done in this pass
 
-- [ ] **S17-8 · Continuous scroll instead of the accordion in a live session**
-      (what Strong and Hevy do). The accordion is load-bearing for a
+- [x] **S17-8 · Continuous scroll instead of the accordion in a live session**
+      (what Strong and Hevy do). **Decided 2026-10-07 (owner): keep the
+      accordion.** The accordion is load-bearing for a
       nine-exercise session at 360dp, and PREVIOUS + `⋯` address most of what
       it was hiding. Revisit only if the complaint survives a few sessions on
       the new build.
@@ -940,17 +941,21 @@ number.
 - [x] Device QA on **Android** — done on the emulator 2026-10-06, §S22
   (what it found and what stays open is there; a hardware pass is still owed).
 - [ ] Real VoiceOver / TalkBack pass (placeholder hints in Train, focus moves).
-- [ ] Owner's call: light `accent` (`#c62f27`) and `danger` (`#c42020`) are
-  nearly the same red, so benign CTAs ("Got it", "+ Add") read as destructive
-  (simulator review). A brand-colour decision, not changed.
-- [ ] Owner's call: the Train accordion (§S17-8) — reviewers' largest
-  remaining Train item.
+- [x] Light `accent` (`#c62f27`) and `danger` (`#c42020`) were nearly the
+  same red (ΔE76 4.2), so benign CTAs read as destructive. Owner's call
+  2026-10-07: keep the accent, move danger — now `#a3173b`, ΔE76 26, pinned
+  by `theme-contrast.test.ts` (`b96207a3`, OTA).
+- [x] The Train accordion (§S17-8) — owner's call 2026-10-07: kept.
 - [x] Native (binary): Android ⋯ menu subtitles and the ongoing rest
   notification — vc 48 (§S22).
-- [ ] Native segmented controls; gram basis on logged rows needs a rules
-  change.
-- [ ] Native sheets: a thin translucent strip remains under the opaque content
-  at the bottom edge of fit-detent sheets (cosmetic).
+- [ ] Native segmented controls — needs a native dependency (`@expo/ui`, an
+  `npm install` only the Windows workstation may run) or a two-platform
+  module; not a polish item. Gram basis on logged rows needs a rules change
+  and is still an owner's call.
+- [x] Native sheets: a thin translucent strip under the opaque content at the
+  bottom edge of fit-detent sheets — the home-indicator band, drawn as the
+  sheet's own glass. An opaque underlap below the surface (`6f15ec22`, iOS
+  OTA `d475121f…`; simulator-verified).
 
 ## 🤖 S22 — the first Android pass on the S21 work (2026-10-06)
 
@@ -983,24 +988,27 @@ empty-state copy points at the search above it.
 dark native sheets are opaque; ⋯ menus elsewhere; Coach and the add-sheet
 search keep their fields above the keyboard.
 
-**Open**
-- [ ] Ripples are square on rounded controls (+, Trends chips, Settings
-  rows) — foreground AND background ripples, RN 0.86 Fabric; needs a
-  clipping wrapper or a native ripple mask. Tried and reverted.
-- [ ] Focused field not scrolled into view: add-sheet "Check and add" Note,
-  Train template editor's last set (reachable by scrolling), recipe builder's
-  "Use this" half-covered with 6+ ingredients.
-- [ ] Body title's descender overlaps content scrolled under the header.
-- [ ] Large text: "Templates" runs into "Starters"; the "Metric (g, kg)" chip
-  text touches its border; add-sheet recent names cut at ~8 characters;
-  icons-only tab cells 34 dp tall.
-- [ ] Small targets: recipe ✕ (24×17 dp), "Cancel" text buttons (~19 dp).
-- [ ] Coach side margins 16 dp vs 24 dp elsewhere; light-mode Quick add
-  widget radio circles nearly invisible.
-- [ ] Changing the system font size while in Settings lands on Today (the
-  S21 relayout re-keys the tree).
-- [ ] Real device: the OnePlus was offline; ripples, notifications and the
-  keyboard should be seen on hardware once.
+**Closed 2026-10-07** (`0f6a8976`…`9656ce54`; OTA on all three runtimes,
+verified on the emulator and on the OnePlus 8T — `CHANGELOG.md`):
+- [x] Square ripples — `overflow: 'hidden'` on the pressable ITSELF clips
+  the Fabric ripple to its radius (no wrapper needed; `rippleClip()` in
+  `lib/motion`). Settings rows bleed to the card edge on Android.
+- [x] Focused fields under the keyboard — the Note rides `revealField`; the
+  template editor uses `useRevealFocusedInput`; the recipe list shrinks.
+- [x] Body title's descender — header `paddingBottom`.
+- [x] Large text — Train section head wraps; Settings choices stack (they
+  also broke words, "Espa/ñol"); recent names take two lines; tab cells
+  48 dp.
+- [x] Small targets — recipe ✕ and the four sub-screen Cancels are 48 dp.
+- [x] Coach gutter 24 dp; Quick add's empty circles `lineStrong`.
+- [x] Font size change → Today. NOT the S21 relayout: Android recreated
+  MainActivity (no `fontScale` in `configChanges`) and RN restarted the app.
+  `patch-android-release.mjs` step 4f — native, vc 49 (in Play review
+  2026-10-07; verified on the emulator with the vc 49 artifact).
+- [x] Hardware pass (OnePlus 8T, Android 14, vc 48 + this JS): rounded
+  ripples, keyboard reveal on the live workout, the rest countdown
+  notification (it sits in the shade's **Silent** section — importance LOW,
+  by design: no sound per rest).
 
 ## 5. Notes for future additions
 
