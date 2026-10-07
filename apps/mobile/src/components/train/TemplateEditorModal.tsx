@@ -48,6 +48,7 @@ import { type TFn, useLocale, useT, type I18nKey} from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { smoothLayout } from '@/lib/motion';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
+import { useRevealFocusedInput } from '@/lib/use-reveal-focused-input';
 import { space } from '@/theme';
 import {
   CREATION_STYLES, PRIMARY_STRUCTURES, SET_KINDS, SET_STRUCTURES, type CreationStyle,
@@ -297,6 +298,8 @@ export function TemplateEditorModal({
    *  a Reanimated AnimatedRef on an Animated.ScrollView — a plain ref is
    *  accepted by the types and simply never auto-scrolls. */
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
+  /** Android: the last set's field went under the keyboard (UX_AUDIT S22). */
+  const onEditorScroll = useRevealFocusedInput(scrollRef);
   /** Exercise cards need an explicit PIXEL width. They are children of
    *  `Sortable.Flex`, which wraps each one in a container it measures from the
    *  child — so there is no definite parent width for `100%` to resolve
@@ -747,6 +750,8 @@ export function TemplateEditorModal({
       <GestureHandlerRootView style={styles.ghRoot}>
           <Animated.ScrollView
             ref={scrollRef}
+            onScroll={onEditorScroll}
+            scrollEventThrottle={32}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             /* Bottom slack is REQUIRED, not cosmetic. The exercise cards live in

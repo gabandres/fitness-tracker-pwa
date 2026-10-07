@@ -232,11 +232,15 @@ export function RecipeBuilder({ onApply, onCancel, onDirtyChange }: Props) {
 }
 
 const createStyles = ({ colors }: Theme) => StyleSheet.create({
-  wrap: { minHeight: 320, gap: space.sm },
+  // `flexShrink` here and on `scroll`: with the keyboard up the sheet is
+  // shorter than the builder, and a fixed-height list pushed "Use this" half
+  // under the keyboard at six ingredients (Android QA, UX_AUDIT S22). The list
+  // is what gives up the height; the footer and the button stay whole.
+  wrap: { minHeight: 320, gap: space.sm, flexShrink: 1 },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   title: { fontSize: font.h3, color: colors.ink, fontWeight: '800' },
   cancel: { fontSize: font.small, color: colors.muted, fontWeight: '700' },
-  scroll: { maxHeight: 280 },
+  scroll: { maxHeight: 280, flexShrink: 1 },
   colHead: { flexDirection: 'row', alignItems: 'center', gap: space.xs, marginBottom: space.xs },
   colLabel: { fontSize: font.tiny, color: colors.muted, fontWeight: '600', textTransform: 'uppercase' },
   colName: { flex: 1 },

@@ -393,7 +393,7 @@ export function EntrySheet({
   const macroRefs = { calories: calRef, protein: proteinRef, carbs: carbsRef, fat: fatRef };
   // Which numeric field holds the keyboard, so it stays in view while the
   // keyboard shrinks the form (`revealField`). Nothing renders from it.
-  const kbFieldRef = useRef<NumField | null>(null);
+  const kbFieldRef = useRef<NumField | 'note' | null>(null);
   const kbBarProps = {
     calories: useKeyboardBarProps(kbId('calories')),
     protein: useKeyboardBarProps(kbId('protein')),
@@ -403,7 +403,7 @@ export function EntrySheet({
   const doneKeyProps = useDoneKeyProps();
   const formScrollRef = useRef<ScrollView>(null);
   const formScroll = useRef({ y: 0, h: 0 });
-  const fieldBoxes = useRef<Partial<Record<'calories' | 'macros' | 'scale', { y: number; height: number }>>>({});
+  const fieldBoxes = useRef<Partial<Record<'calories' | 'macros' | 'scale' | 'note', { y: number; height: number }>>>({});
   // Raised by MicButton; rendered full-width under the search row rather than
   // beside the field, which used to collapse it. See MicButton.onFailedChange.
   const [micFailed, setMicFailed] = useState(false);
@@ -1090,8 +1090,9 @@ export function EntrySheet({
    * button. Runs on focus, and again on every layout of the scroll area while a
    * field is focused: the area shrinks as the keyboard rises AFTER the focus.
    */
-  function revealField(f: NumField, animated: boolean) {
-    const box = fieldBoxes.current[f === 'calories' ? 'calories' : f === 'grams' || f === 'scale' ? 'scale' : 'macros'];
+  function revealField(f: NumField | 'note', animated: boolean) {
+    const box =
+      fieldBoxes.current[f === 'calories' || f === 'note' ? f : f === 'grams' || f === 'scale' ? 'scale' : 'macros'];
     const { y, h } = formScroll.current;
     if (!box || h <= 0) return;
     const top = box.y - space.sm;
@@ -1100,11 +1101,11 @@ export function EntrySheet({
     else if (bottom > y + h) formScrollRef.current?.scrollTo({ y: bottom - h, animated });
   }
 
-  function onNumFocus(f: NumField) {
+  function onNumFocus(f: NumField | 'note') {
     kbFieldRef.current = f;
     revealField(f, true);
   }
-  function onNumBlur(f: NumField) {
+  function onNumBlur(f: NumField | 'note') {
     if (kbFieldRef.current === f) kbFieldRef.current = null;
   }
 
@@ -2439,13 +2440,19 @@ export function EntrySheet({
                     />
                   </Field>
 
-                  <Field label={t('entry.note')} labelled>
+                  {/* The last field in the form, so the one the keyboard
+                      covers first: it rides `revealField` like the numbers
+                      (Android QA, UX_AUDIT S22 — "Check and add" left it
+                      under the keyboard). */}
+                  <Field label={t('entry.note')} labelled onLayout={(e) => (fieldBoxes.current.note = e.nativeEvent.layout)}>
                     <TextInputBase
                       style={[styles.input, styles.noteInput]}
                       accessibilityLabel={t('entry.note')}
                       placeholder={t('entry.notePlaceholder')}
                       value={note}
                       onChangeText={setNote}
+                      onFocus={() => onNumFocus('note')}
+                      onBlur={() => onNumBlur('note')}
                       multiline
                       maxLength={LOG_NOTE_MAX}
                       testID="entry-note"
