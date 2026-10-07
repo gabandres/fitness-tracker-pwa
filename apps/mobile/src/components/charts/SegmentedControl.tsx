@@ -173,8 +173,10 @@ const createStyles = ({ colors }: Theme) =>
     wellHero: { backgroundColor: colors.heroTrack, borderColor: colors.heroTrack, alignSelf: 'center' },
     wellStretch: { alignSelf: 'stretch', flexWrap: 'nowrap' },
     wellOff: { opacity: 0.5 },
-    // The native control fills its row and is a real target tall.
-    native: { alignSelf: 'stretch', height: TARGET },
+    // The native control has no intrinsic width: it takes the whole line
+    // (in a wrapping header row too — `alignSelf: 'stretch'` there means
+    // height, and left it zero wide on Trends) and is a real target tall.
+    native: { width: '100%', height: TARGET },
     nativeFill: { flex: 1 },
     // The transparent border keeps an unselected segment the same size as the
     // selected one, which carries a real one.
