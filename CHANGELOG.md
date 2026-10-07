@@ -4,6 +4,15 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-10-07 — Today's Water row keeps one shape
+
+- The first tap added the −8 pill, and four 44pt pills + the Trends shortcut
+  + "48 fl oz" do not fit one line on a 402pt iPhone, so the whole tray
+  wrapped to a right-aligned second line under an orphaned value (owner
+  screenshot). The row is now two lines at every amount — label/value +
+  shortcut, then the pills, right-aligned so +8 never moves under a repeat
+  tap (`5abbcea7`). OTA on iOS 68/70 and Android vc 47/48/50 (ledger rows).
+
 ## 2026-10-07 — Progression engine: rep ranges, predicted loads, apply-to-template (ADR-0044); recomp labels; owner data
 
 - **Engine (core):** the myo-reps path reads a rep range per lift (category
