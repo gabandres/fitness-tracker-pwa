@@ -4,14 +4,21 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
-## 2026-10-07 — Today's Water row keeps one shape
+## 2026-10-07 — A day opened from Today had no way back; Water row keeps one shape
 
-- The first tap added the −8 pill, and four 44pt pills + the Trends shortcut
-  + "48 fl oz" do not fit one line on a 402pt iPhone, so the whole tray
-  wrapped to a right-aligned second line under an orphaned value (owner
-  screenshot). The row is now two lines at every amount — label/value +
-  shortcut, then the pills, right-aligned so +8 never moves under a repeat
-  tap (`5abbcea7`). OTA on iOS 68/70 and Android vc 47/48/50 (ledger rows).
+- **Back from a day (owner: "a serious issue").** Today's "‹ yesterday"
+  pushes the day as the FIRST screen of History's nested stack —
+  `initialRouteName` is not applied to a push — and the native header only
+  shows back when a screen sits beneath in the same stack, so the day had
+  none. It now draws its own (`leaveDay`): back to the calendar when the day
+  came from it, to Today when it came from Today (`37ebd578`).
+- **Water row.** The first tap added the −8 pill and wrapped the whole tray
+  under an orphaned value. `5abbcea7` right-aligned the pills on their own
+  line, which still read as a fragment; `ffe3a5ae` makes them one tray of four
+  equal pills under the label, −8 always in its slot and disabled at 0, so
+  nothing moves under a repeat tap.
+- Both verified on the `Ignia-QA-26` simulator; OTAs on iOS 68/70 and
+  Android vc 47/48/50 (ledger rows).
 
 ## 2026-10-07 — Progression engine: rep ranges, predicted loads, apply-to-template (ADR-0044); recomp labels; owner data
 
