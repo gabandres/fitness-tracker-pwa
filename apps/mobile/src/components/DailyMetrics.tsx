@@ -403,14 +403,14 @@ export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater
           right: +8/+16/+24 cover the common glass and nothing else. Same shape
           as the Sleep row directly below, so it is one interaction to learn
           rather than two. */}
-      {/* Two lines, always: label/value + Trends shortcut, then the pills.
-          Four 44pt pills, the shortcut and "48 fl oz" do not fit one line on
-          a 402pt iPhone, so the row used to WRAP the moment −8 appeared
-          (water > 0) — the whole tray, shortcut included, dropped to a
-          right-aligned second line under an orphaned value (owner, 10/07).
-          A layout that changes shape on the first tap is the bug; this one
-          has the same shape at 0 and at 48. The pills stay right-aligned so
-          −8 appears to their LEFT and +8 never moves under a repeat tap. */}
+      {/* Two lines, always: label/value + Trends shortcut, then a tray of
+          four equal pills that starts under the label and ends under the
+          shortcut. Four 44pt pills, the shortcut and "48 fl oz" do not fit
+          one line on a 402pt iPhone; the row used to wrap the moment −8
+          appeared, and its first fix (5abbcea7) right-aligned the pills on
+          their own line, which still read as a stray fragment (owner, 10/07).
+          −8 is always in its slot and disabled at 0, so no pill moves or
+          resizes under a repeat tap — +8 cannot become −8 on the second tap. */}
       <View style={styles.waterRow}>
         <View style={styles.waterHead}>
           <View style={styles.leadGroup}>
@@ -439,24 +439,24 @@ export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater
               the 26dp pill to the 44pt target without widening the row
               (S18-15) — vertical only, the pills sit 4dp apart. testIDs keep
               the US numbers: four flows drive the row by them. */}
-          {water > 0 ? (
-            <PressScale
-              scaleTo={0.88}
-              style={styles.pill}
-              hitSlop={PILL_SLOP}
-              accessibilityRole="button"
-              accessibilityLabel={t('water.removeA11y', { n: step, unit: waterUnit })}
-              onPress={() => addWater(-step)}
-              testID="water-minus"
-            >
-              <Text style={styles.pillText}>−{step}</Text>
-            </PressScale>
-          ) : null}
+          <PressScale
+            scaleTo={0.88}
+            style={[styles.pill, styles.trayPill, water <= 0 && styles.pillDisabled]}
+            hitSlop={PILL_SLOP}
+            disabled={water <= 0}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: water <= 0 }}
+            accessibilityLabel={t('water.removeA11y', { n: step, unit: waterUnit })}
+            onPress={() => addWater(-step)}
+            testID="water-minus"
+          >
+            <Text style={styles.pillText}>−{step}</Text>
+          </PressScale>
           {WATER_PILLS[unitSystem].map((n, i) => (
             <PressScale
               key={n}
               scaleTo={0.88}
-              style={styles.pill}
+              style={[styles.pill, styles.trayPill]}
               hitSlop={PILL_SLOP}
               accessibilityRole="button"
               accessibilityLabel={t('water.addA11y', { n, unit: waterUnit })}
@@ -818,8 +818,11 @@ const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   // a tap near +24's top edge land on the chart.
   waterRow: { paddingVertical: space.sm, gap: space.md },
   waterHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.sm },
-  // Wraps only at a large font scale; right-aligned when it does, too.
-  waterBtns: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center', gap: space.xs },
+  // Indented by the habit icon (32) + the lead group's gap, so the tray
+  // lines up under the label; each pill takes an equal share of the rest.
+  waterBtns: { flexDirection: 'row', alignItems: 'center', gap: space.xs, marginLeft: 32 + space.md },
+  trayPill: { flexGrow: 1, flexBasis: 0 },
+  pillDisabled: { opacity: 0.4 },
   waterValueRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   sheetNote: { fontSize: font.small, color: colors.muted, marginTop: space.xs, textAlign: 'center' },
   sheetNoteBad: { color: colors.danger },

@@ -120,4 +120,23 @@ describe('Water entry', () => {
     await fireEvent.press(getByTestId('water-plus-8'));
     expect(onAddWater).toHaveBeenCalledWith(24);
   });
+
+  // The owner's screenshot (2026-10-07): −8 only rendered at water > 0, so the
+  // first tap reflowed the tray. It now holds its slot at every amount and is
+  // disabled at 0 — the tray is the same four pills before and after a tap.
+  it('keeps the −8 pill in its slot at 0, disabled, and enables it once there is water', async () => {
+    const { onAddWater, view } = setup({ water: 0 });
+    const { getByTestId, rerender } = await view;
+    const minus = getByTestId('water-minus');
+    expect(minus).toBeDisabled();
+    await fireEvent.press(minus);
+    expect(onAddWater).not.toHaveBeenCalled();
+    await rerender(
+      <DailyMetrics water={8} sleep={null} activity={undefined} fastStartedAt={null}
+        onAddWater={onAddWater} onSetSleep={noop} onStartFast={noop} onBreakFast={noop} />,
+    );
+    expect(getByTestId('water-minus')).toBeEnabled();
+    await fireEvent.press(getByTestId('water-minus'));
+    expect(onAddWater).toHaveBeenCalledWith(0);
+  });
 });

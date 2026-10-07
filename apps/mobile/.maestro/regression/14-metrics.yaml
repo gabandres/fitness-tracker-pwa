@@ -2,8 +2,9 @@
 # state.
 #
 # Water: +8 then −8, net zero — the QA account's water must not creep up a run
-# at a time. The assert is water-minus APPEARING, which only renders when
-# water > 0: that is the state change, not a screenshot of a number.
+# at a time. The assert is water-minus becoming ENABLED, which it is only when
+# water > 0 (it is always rendered since 2026-10-07, disabled at 0, so the
+# tray never reflows): that is the state change, not a screenshot of a number.
 #
 # Sleep: writes a fixed 7.5 h — idempotent across runs by construction.
 #
@@ -48,6 +49,7 @@ env:
     id: 'water-plus-8'
 - assertVisible:
     id: 'water-minus'
+    enabled: true
 - takeScreenshot: .maestro/regression/shots/14-water-bumped
 - tapOn:
     id: 'water-minus'
