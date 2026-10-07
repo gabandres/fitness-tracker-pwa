@@ -23,6 +23,7 @@
  * `normalizeClusterGroups` where mobile does not, so that one asymmetry stays
  * at the call site rather than baked into the shared mapper.
  */
+import { cleanLogGrams } from './firestore-writers';
 import type { ProfileDateField } from './types';
 import type { CustomFood, DailyLog, Measurement, Profile, WeeklyReport } from './types';
 
@@ -73,6 +74,7 @@ export function toDailyLog(id: string, data: Record<string, unknown>): DailyLog 
     mealType: data['mealType'] as DailyLog['mealType'],
     source: data['source'] as DailyLog['source'],
     note: typeof data['note'] === 'string' ? data['note'] : undefined,
+    grams: cleanLogGrams(data['grams']),
     createdAt: isTimestampLike(data['createdAt']) || data['createdAt'] instanceof Date
       ? toDate(data['createdAt'])
       : undefined,

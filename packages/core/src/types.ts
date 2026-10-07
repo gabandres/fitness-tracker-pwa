@@ -70,6 +70,13 @@ export interface DailyLog {
   /** Free text the user attached ("weighed", "logged high"). At most
    *  {@link LOG_NOTE_MAX} characters; absent when there is none. */
   note?: string;
+  /** The weight eaten, in grams, that the row's numbers describe — set when
+   *  the food was picked at a known weight (search, scan, My Foods) and its
+   *  numbers were not hand-edited away from it. With it an edit can re-weigh
+   *  the row ("it was 180 g, not 150") from the row's own numbers. Absent on
+   *  typed meals and on rows older than 2026-10-07. At most
+   *  {@link LOG_GRAMS_MAX}. */
+  grams?: number;
   /** When the row was CREATED, as opposed to `date`, the time the food was
    *  eaten. Only a tie-break: rows sharing a minute list in the order they were
    *  logged ({@link compareLogsOldestFirst}). Absent on rows older than
@@ -79,6 +86,10 @@ export interface DailyLog {
 
 /** Longest note a log row may carry — `isValidLog` in firestore.rules says the same. */
 export const LOG_NOTE_MAX = 500;
+
+/** Heaviest gram weight a log row may carry (5 kg of anything is a typo) —
+ *  `isValidLog` in firestore.rules says the same. */
+export const LOG_GRAMS_MAX = 5000;
 
 /** Longest `mealLabel` a log row may carry — `isValidLog` caps it at 100.
  *  619 bundled food names are longer, and an uncapped one was rejected by the
@@ -111,6 +122,11 @@ export interface LogEntry {
   /** See {@link DailyLog.note}. On an EDIT, absent means "no note" and clears
    *  a stored one — the entry sheet always passes the field. */
   note?: string;
+  /** See {@link DailyLog.grams}. On an EDIT, absent clears a stored weight,
+   *  as {@link note} does — every edit path passes a whole entry (the sheet's,
+   *  or `entryFromLog` for undo and move), and a weight that no longer
+   *  describes the numbers must not survive the edit that changed them. */
+  grams?: number;
   /** Creation instant to keep — passed only by undo-restore, so a restored
    *  row returns to its old place among same-minute rows. New rows are
    *  stamped by the serializer. */

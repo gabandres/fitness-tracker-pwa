@@ -21,6 +21,7 @@ export function entryFromLog(log: DailyLog): LogEntry {
     mealType: log.mealType,
     source: log.source,
     note: log.note,
+    grams: log.grams,
     // Undo puts the row back where it was among same-minute rows.
     createdAt: log.createdAt,
   };
@@ -41,6 +42,7 @@ export function isNoopEdit(before: DailyLog, entry: LogEntry): boolean {
     (entry.mealLabel || null) === (before.mealLabel || null) &&
     (entry.mealType ?? null) === (before.mealType ?? null) &&
     (entry.note || null) === (before.note || null) &&
+    (entry.grams ?? null) === (before.grams ?? null) &&
     ts.getTime() === before.date.getTime()
   );
 }

@@ -512,7 +512,27 @@ export function EntrySheet({
     setBusy(false);
     setManageQuick(false);
     setManageRecent(false);
-    setPendingServing(null);
+    // A row logged at a known weight opens with its grams field (2026-10-07):
+    // "it was 180 g, not 150" is the edit people make most, and the row's own
+    // numbers at its own weight are a valid basis to rescale from.
+    setPendingServing(
+      editing?.grams != null
+        ? {
+            ctx: {
+              grams: editing.grams,
+              source: 'manual',
+              basis: {
+                grams: editing.grams,
+                kcal: editing.calories,
+                protein: editing.protein,
+                carbs: editing.carbs,
+                fat: editing.fat,
+              },
+            },
+            appliedCalories: editing.calories,
+          }
+        : null,
+    );
     setMode(editing ? 'custom' : 'browse');
     setMoreOpen(false);
     searchSnap.current = undefined;
@@ -843,6 +863,10 @@ export function EntrySheet({
       // Always passed, empty or not: on an edit, absent CLEARS the stored note
       // (`toLogPatch`), which is what emptying the field means.
       note: note.trim() || undefined,
+      // The weight the numbers describe, while they still do (`gramCtx` drops
+      // the moment kcal is hand-edited). Like the note, absent on an edit
+      // clears a stored one — a weight that no longer fits must not survive.
+      grams: gramCtx?.grams ?? undefined,
       timestamp: showDateRow || retimed ? at : forDate,
     };
     setFormError(null);
@@ -1169,8 +1193,14 @@ export function EntrySheet({
     !editing && gramCtx && label.trim()
       ? recentEntries.find((r) => r.mealLabel && normalizeName(r.mealLabel) === normalizeName(label))
       : undefined;
+  // A row that stored its weight says it outright; an older one is inferred
+  // from its kcal through the pick's basis.
   const usualGrams =
-    lastSame && gramCtx?.basis ? lastTimeGrams(gramCtx.basis, lastSame.calories, gramCtx.grams) : null;
+    lastSame && gramCtx?.basis
+      ? lastSame.grams != null && lastSame.grams !== gramCtx.grams
+        ? lastSame.grams
+        : lastTimeGrams(gramCtx.basis, lastSame.calories, gramCtx.grams)
+      : null;
   const usual = usualGrams != null && lastSame ? { grams: usualGrams, kcal: lastSame.calories } : null;
 
   function applyUsual() {
@@ -1403,6 +1433,8 @@ export function EntrySheet({
         // believed was a copy of the original, under-reported the carb and fat
         // rings, and mirrored the same gap to Apple Health. The My Foods branch
         // below always passed all four — this one did not. Fixed 2026-09-22.
+        // The weight travels with the copy, and "Edit first" opens with the
+        // grams field when the original was weighed.
         onLog: () =>
           quickLogRef.current({
             calories: r.calories,
@@ -1410,6 +1442,7 @@ export function EntrySheet({
             carbs: r.carbs ?? undefined,
             fat: r.fat ?? undefined,
             mealLabel: r.mealLabel ?? undefined,
+            grams: r.grams,
           }),
         onEditFirst: () =>
           prefill({
@@ -1418,6 +1451,7 @@ export function EntrySheet({
             carbs: r.carbs ?? undefined,
             fat: r.fat ?? undefined,
             mealLabel: r.mealLabel ?? undefined,
+            serving: r.grams != null ? { grams: r.grams, source: 'manual' } : undefined,
           }),
         onRemove: r.mealLabel && onHideRecent ? () => onHideRecent(r.mealLabel as string) : undefined,
         removeLabel: t('entry.hideRecent'),
@@ -1435,7 +1469,15 @@ export function EntrySheet({
         tag: t('entry.myFoods'),
         serving: f.servingUnit === 'g' && f.servingSize ? t('unit.grams', { n: formatNumber(f.servingSize, locale) }) : undefined,
         onLog: () =>
-          quickLogRef.current({ calories: m.calories, protein: m.protein, carbs: m.carbs, fat: m.fat, mealLabel: f.name }),
+          quickLogRef.current({
+            calories: m.calories,
+            protein: m.protein,
+            carbs: m.carbs,
+            fat: m.fat,
+            mealLabel: f.name,
+            // One serving of a food saved by weight IS that weight.
+            grams: f.servingUnit === 'g' && f.servingSize ? f.servingSize : undefined,
+          }),
         // On the form with its weight, when it was saved by weight, so the
         // grams field can say "I had 180 g, not 150".
         onEditFirst: () =>

@@ -14,6 +14,7 @@ const row: DailyLog = {
   mealLabel: 'Oatmeal',
   mealType: 'breakfast',
   note: 'with berries',
+  grams: 80,
 };
 
 describe('isNoopEdit', () => {
@@ -27,6 +28,8 @@ describe('isNoopEdit', () => {
     ['label', { mealLabel: 'Porridge' }],
     ['slot', { mealType: 'snack' as const }],
     ['note cleared', { note: undefined }],
+    ['weight', { grams: 100 }],
+    ['weight cleared', { grams: undefined }],
     ['time', { timestamp: new Date(2026, 9, 4, 9, 0) }],
   ])('is false when the %s changes', (_n, change) => {
     expect(isNoopEdit(row, { ...entryFromLog(row), ...change })).toBe(false);

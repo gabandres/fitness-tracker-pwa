@@ -364,6 +364,59 @@ describe('edit in grams', () => {
   });
 });
 
+describe('the gram weight on the logged row (2026-10-07)', () => {
+  it('saves the weight a pick was logged at, and none once kcal is hand-edited', async () => {
+    mockSearchFoods.mockResolvedValue([bananaHit]);
+    const onSave = jest.fn();
+    const screen = await render(<EntrySheet visible editing={null} onSave={onSave} onClose={jest.fn()} />);
+    await fireEvent.changeText(screen.getByTestId('food-search-input'), 'banana');
+    await fireEvent.press(await waitFor(() => screen.getByText('Banana, raw')));
+    await fireEvent.press(screen.getByTestId('portion-0'));
+    await fireEvent.changeText(screen.getByTestId('entry-grams'), '236');
+    await fireEvent.press(screen.getByTestId('entry-save'));
+    expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ calories: 210, grams: 236 }));
+  });
+
+  it('drops the weight when the numbers stop describing it', async () => {
+    mockSearchFoods.mockResolvedValue([bananaHit]);
+    const onSave = jest.fn();
+    const screen = await render(<EntrySheet visible editing={null} onSave={onSave} onClose={jest.fn()} />);
+    await fireEvent.changeText(screen.getByTestId('food-search-input'), 'banana');
+    await fireEvent.press(await waitFor(() => screen.getByText('Banana, raw')));
+    await fireEvent.press(screen.getByTestId('portion-0'));
+    await fireEvent.changeText(screen.getByTestId('entry-calories'), '300');
+    await fireEvent.press(screen.getByTestId('entry-save'));
+    expect(onSave.mock.calls.at(-1)[0].grams).toBeUndefined();
+  });
+
+  it('opens a weighed row with its grams field, and re-weighs it from its own numbers', async () => {
+    const onSave = jest.fn();
+    const row = {
+      id: 'w1',
+      calories: 300,
+      protein: 20,
+      carbs: 40,
+      fat: 6,
+      grams: 150,
+      mealLabel: 'Rice and chicken',
+      date: new Date('2026-10-07T12:00:00'),
+    } as DailyLog;
+    const screen = await render(<EntrySheet visible editing={row} onSave={onSave} onClose={jest.fn()} />);
+    expect(screen.getByTestId('entry-grams').props.value).toBe('150');
+    await fireEvent.changeText(screen.getByTestId('entry-grams'), '180');
+    expect(screen.getByTestId('entry-calories').props.value).toBe('360');
+    expect(screen.getByTestId('entry-protein').props.value).toBe('24');
+    await fireEvent.press(screen.getByTestId('entry-save'));
+    expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ calories: 360, protein: 24, carbs: 48, grams: 180 }));
+  });
+
+  it('opens an unweighed row without a grams field', async () => {
+    const row = { id: 'w2', calories: 300, mealLabel: 'Typed', date: new Date('2026-10-07T12:00:00') } as DailyLog;
+    const screen = await render(<EntrySheet visible editing={row} onSave={jest.fn()} onClose={jest.fn()} />);
+    expect(screen.queryByTestId('entry-grams')).toBeNull();
+  });
+});
+
 describe('quick add focus', () => {
   it('focuses the search on open, Calories on a blank form, and neither on a reviewed pick', async () => {
     mockSearchFoods.mockResolvedValue([bananaHit]);

@@ -15,7 +15,7 @@ import {
   toTemplateDoc,
   toTemplatePatch,
 } from './firestore-writers';
-import { LOG_LABEL_MAX, LOG_NOTE_MAX, cleanLogLabel } from './types';
+import { LOG_GRAMS_MAX, LOG_LABEL_MAX, LOG_NOTE_MAX, cleanLogLabel } from './types';
 import type { SessionExercise } from './workout';
 
 /**
@@ -125,6 +125,17 @@ describe('toLogDoc — note + createdAt (2026-10-03)', () => {
   it('omits a blank note — isValidLog rejects an empty string', () => {
     expect('note' in toLogDoc({ calories: 1, note: '   ' }, codec, NOW)).toBe(false);
     expect('note' in toLogDoc({ calories: 1 }, codec, NOW)).toBe(false);
+  });
+
+  it('writes the gram weight to one decimal, and drops one the rules would reject (2026-10-07)', () => {
+    expect(toLogDoc({ calories: 1, grams: 150.04 }, codec, NOW).grams).toBe(150);
+    expect(toLogDoc({ calories: 1, grams: 12.35 }, codec, NOW).grams).toBe(12.4);
+    for (const grams of [0, -5, LOG_GRAMS_MAX + 1, Number.NaN]) {
+      expect('grams' in toLogDoc({ calories: 1, grams }, codec, NOW)).toBe(false);
+    }
+    expect(toLogPatch({ calories: 1, grams: 180 }, codec)['grams']).toBe(180);
+    // An edit with no weight clears the stored one — like the note.
+    expect(toLogPatch({ calories: 1 }, codec)['grams']).toBe(REMOVE);
   });
 
   it('an edit sets, clears, and never touches createdAt', () => {

@@ -318,6 +318,7 @@ export async function repeatYesterday(
       // The note is part of the meal ("no rice, extra beans") — copying the
       // meal without it was copying half of it.
       note: l.note,
+      grams: l.grams,
       timestamp: ts,
     }, id));
   }

@@ -139,6 +139,15 @@ describe('buildPendingLog / pendingLogEntry', () => {
     expect(parsePendingLogs(bad)).toEqual([]);
   });
 
+  it('carries the gram weight through park → flush, and rejects a corrupted one (2026-10-07)', () => {
+    const p = buildPendingLog('g1', 'u1', { calories: 300, grams: 180 }, 0);
+    expect(p.grams).toBe(180);
+    expect(pendingLogEntry(p).grams).toBe(180);
+    expect(buildPendingLog('g2', 'u1', { calories: 300, grams: 0 }, 0)).not.toHaveProperty('grams');
+    expect(parsePendingLogs(serializePendingLogs([p]))).toHaveLength(1);
+    expect(parsePendingLogs(serializePendingLogs([{ ...p, grams: 9000 }]))).toEqual([]);
+  });
+
   const entry = {
     calories: 180,
     protein: 32,

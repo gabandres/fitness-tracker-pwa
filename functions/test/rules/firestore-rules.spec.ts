@@ -216,6 +216,29 @@ describe('firestore.rules', () => {
     await assertSucceeds(updateDoc(ref, { calories: 620, note: deleteField() }));
   });
 
+  // ── grams: the weight a row's numbers describe (2026-10-07) ──
+  it('allows a dailyLog carrying a gram weight up to 5000, and an edit that re-weighs or clears it', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    const ref = doc(db, 'users', 'alice', 'dailyLogs', 'weighed-row');
+    await assertSucceeds(setDoc(ref, { ...validLog(), grams: 150 }));
+    await assertSucceeds(updateDoc(ref, { calories: 640, grams: 180.5 }));
+    await assertSucceeds(updateDoc(ref, { calories: 600, grams: deleteField() }));
+    await assertSucceeds(
+      addDoc(collection(db, 'users', 'alice', 'dailyLogs'), { ...validLog(), grams: 5000 }),
+    );
+  });
+
+  it('rejects a zero, negative, over-5000 or non-number gram weight', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    const logs = collection(db, 'users', 'alice', 'dailyLogs');
+    await assertFails(addDoc(logs, { ...validLog(), grams: 0 }));
+    await assertFails(addDoc(logs, { ...validLog(), grams: -10 }));
+    await assertFails(addDoc(logs, { ...validLog(), grams: 5001 }));
+    await assertFails(addDoc(logs, { ...validLog(), grams: '150' }));
+  });
+
   // ── measurements: tape bands + the body-fat pair (ADR-0043) ──
   it('accepts tapes, a DXA %BF with its method, and both on one row', async () => {
     const db = authed('alice');

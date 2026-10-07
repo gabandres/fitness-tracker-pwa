@@ -28,7 +28,7 @@ service cloud.firestore {
     // ─── Log schema ─────────────────────────────────────────────
     // Required: calories, timestamp
     // Optional: weight, protein, carbs, fat, exerciseCompleted, mealLabel,
-    //           mealType, source
+    //           mealType, source, note, grams, createdAt
     // Legacy (read-only, may exist on historic docs): liftCompleted, cardioCompleted
     function isValidLog(data) {
       return data.keys().hasAll(['calories', 'timestamp'])
@@ -36,7 +36,7 @@ service cloud.firestore {
               'weight', 'calories', 'timestamp',
               'protein', 'carbs', 'fat', 'exerciseCompleted',
               'liftCompleted', 'cardioCompleted',
-              'mealLabel', 'mealType', 'source', 'note', 'createdAt'
+              'mealLabel', 'mealType', 'source', 'note', 'grams', 'createdAt'
           ])
           && (!('weight' in data.keys()) ||
               (data.weight is number && data.weight > 0 && data.weight < 1000))
@@ -71,6 +71,11 @@ service cloud.firestore {
           // Free text the user attached; LOG_NOTE_MAX in packages/core.
           && (!('note' in data.keys()) ||
               (data.note is string && data.note.size() > 0 && data.note.size() <= 500))
+          // The weight eaten, when the food was picked at a known weight
+          // (2026-10-07) — what lets an edit re-weigh the row. LOG_GRAMS_MAX
+          // in packages/core.
+          && (!('grams' in data.keys()) ||
+              (data.grams is number && data.grams > 0 && data.grams <= 5000))
           // Creation instant, the same-minute ordering tie-break
           // (`compareLogsOldestFirst`). Client clock, so only typed.
           && (!('createdAt' in data.keys()) || data.createdAt is timestamp);

@@ -29,6 +29,7 @@
  */
 import { hasFormulaInputs } from './onboarding-seed';
 import {
+  LOG_GRAMS_MAX,
   LOG_NOTE_MAX,
   cleanLogLabel,
   type BodyFatMethod,
@@ -95,6 +96,8 @@ export interface LogDoc<TS> {
   source?: LogSource;
   /** Trimmed, at most {@link LOG_NOTE_MAX} characters, never empty. */
   note?: string;
+  /** See {@link cleanLogGrams}. */
+  grams?: number;
   /** Creation instant — the same-minute tie-break. Every row this serializer
    *  creates carries it; {@link toLogPatch} never names it, so an edit keeps it. */
   createdAt: TS;
@@ -106,6 +109,15 @@ export function cleanLogNote(note: string | undefined): string | undefined {
   return t ? t.slice(0, LOG_NOTE_MAX) : undefined;
 }
 
+/** A gram weight as stored: a finite number in (0, {@link LOG_GRAMS_MAX}],
+ *  to one decimal, or absent. Anything else is dropped rather than written —
+ *  the rules would reject the whole row for it. */
+export function cleanLogGrams(grams: unknown): number | undefined {
+  if (typeof grams !== 'number' || !Number.isFinite(grams)) return undefined;
+  const g = Math.round(grams * 10) / 10;
+  return g > 0 && g <= LOG_GRAMS_MAX ? g : undefined;
+}
+
 /** Serialize a log for creation (`addLog`, and each row of `importLogs`).
  *  An entry with no timestamp is stamped `now` — the undo-restore path passes
  *  the original instant instead. */
@@ -115,6 +127,7 @@ export function toLogDoc<TS>(
   now: Date = new Date(),
 ): LogDoc<TS> {
   const note = cleanLogNote(entry.note);
+  const grams = cleanLogGrams(entry.grams);
   const mealLabel = cleanLogLabel(entry.mealLabel);
   return {
     calories: entry.calories,
@@ -129,6 +142,7 @@ export function toLogDoc<TS>(
     ...(entry.mealType ? { mealType: entry.mealType } : {}),
     ...(entry.source ? { source: entry.source } : {}),
     ...(note ? { note } : {}),
+    ...(grams != null ? { grams } : {}),
   };
 }
 
@@ -159,6 +173,7 @@ export function toLogPatch<TS>(entry: LogEntry, codec: DocCodec<TS>): Record<str
     mealLabel: cleanLogLabel(entry.mealLabel) ?? codec.remove(),
     mealType: entry.mealType ? entry.mealType : codec.remove(),
     note: cleanLogNote(entry.note) ?? codec.remove(),
+    grams: cleanLogGrams(entry.grams) ?? codec.remove(),
   };
   if (entry.weight != null) patch['weight'] = entry.weight;
   if (entry.timestamp != null) patch['timestamp'] = codec.timestamp(entry.timestamp);

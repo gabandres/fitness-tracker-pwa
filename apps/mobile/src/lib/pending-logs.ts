@@ -203,5 +203,6 @@ function toRow(p: PendingLog): DailyLog {
     // has already failed.
     ...(p.source ? { source: p.source } : {}),
     ...(p.note ? { note: p.note } : {}),
+    ...(p.grams != null ? { grams: p.grams } : {}),
   };
 }

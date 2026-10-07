@@ -34,6 +34,7 @@
  * The caller injects `nowMs`, `at` and `rand`.
  */
 
+import { cleanLogGrams } from './firestore-writers';
 import { LOG_NOTE_MAX, MEAL_TYPES, cleanLogLabel, type LogEntry, type LogSource, type MealPreset, type MealType } from './types';
 
 /** How many quick-add slots a user can designate. Slot 1 is the one a blind
@@ -196,6 +197,10 @@ export interface PendingLog {
    * from the landed row even though the user had typed it.
    */
   note?: string;
+  /** The entry's gram weight (`DailyLog.grams`), for the same reason as the
+   *  note: a parked add or edit flushes as a whole-doc `setDoc`. Absent on
+   *  every native tap. */
+  grams?: number;
   /** Tap time, epoch ms. Becomes the log's timestamp on flush. */
   atMs: number;
 }
@@ -216,6 +221,7 @@ export function buildPendingLog(id: string, uid: string, entry: LogEntry, atMs: 
     ...(entry.mealType ? { mealType: entry.mealType } : {}),
     ...(entry.source ? { source: entry.source } : {}),
     ...(entry.note?.trim() ? { note: entry.note.trim().slice(0, LOG_NOTE_MAX) } : {}),
+    ...(cleanLogGrams(entry.grams) != null ? { grams: cleanLogGrams(entry.grams) } : {}),
     atMs: Number.isFinite(at) ? Math.round(at) : atMs,
   };
 }
@@ -231,6 +237,7 @@ export function pendingLogEntry(p: PendingLog): LogEntry {
     ...(p.mealType ? { mealType: p.mealType } : {}),
     ...(p.source ? { source: p.source } : {}),
     ...(p.note ? { note: p.note } : {}),
+    ...(p.grams != null ? { grams: p.grams } : {}),
     timestamp: new Date(p.atMs),
   };
 }
@@ -261,6 +268,8 @@ function isPendingLog(x: unknown): x is PendingLog {
   ) {
     return false;
   }
+  // And the weight: the rules take (0, LOG_GRAMS_MAX].
+  if (o['grams'] !== undefined && cleanLogGrams(o['grams']) !== o['grams']) return false;
   return true;
 }
 

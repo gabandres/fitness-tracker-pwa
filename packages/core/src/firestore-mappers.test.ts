@@ -67,6 +67,12 @@ describe('toDailyLog', () => {
     expect(bad.createdAt).toBeUndefined();
   });
 
+  it('reads a gram weight, and ignores one out of range or not a number', () => {
+    expect(toDailyLog('g', { calories: 1, timestamp: stamp(date), grams: 180 }).grams).toBe(180);
+    expect(toDailyLog('h', { calories: 1, timestamp: stamp(date), grams: '180' }).grams).toBeUndefined();
+    expect(toDailyLog('i', { calories: 1, timestamp: stamp(date), grams: 0 }).grams).toBeUndefined();
+  });
+
   it('maps every field and converts timestamp → date', () => {
     const log = toDailyLog('abc', {
       calories: 500,
