@@ -9,6 +9,7 @@ import { fireEvent, renderWithProviders as render } from '@/test-utils';
 import { type DailyLog, dayBoundaryOf } from '@macrolog/core';
 
 const mockSetParams = jest.fn();
+const mockBack = jest.fn();
 const mockShow = jest.fn();
 // iOS presents this sheet natively, through a route this test does not mount.
 jest.mock('@/components/BottomSheet', () => require('./js-sheet').jsSheetModule());
@@ -19,11 +20,16 @@ jest.mock('@/components/Toast', () => ({
 }));
 jest.mock('expo-router', () => ({
   ...jest.requireActual('expo-router'),
-  useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn(), setParams: mockSetParams }),
+  useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: mockBack, canGoBack: () => true, setParams: mockSetParams }),
   useLocalSearchParams: () => ({ date: '2026-09-20' }),
   // The day sets its native header through `Stack.Screen`, which needs a
-  // navigator this test does not mount; its title row is drawn in place.
-  Stack: { Screen: ({ options }: { options?: { headerTitle?: () => React.ReactNode } }) => options?.headerTitle?.() ?? null },
+  // navigator this test does not mount; its back button and title row are
+  // drawn in place.
+  Stack: {
+    Screen: ({ options }: { options?: { headerLeft?: () => React.ReactNode; headerTitle?: () => React.ReactNode } }) => (
+      <>{options?.headerLeft?.()}{options?.headerTitle?.()}</>
+    ),
+  },
 }));
 jest.mock('@/lib/auth', () => ({
   useAuth: () => ({ user: { uid: 'u1' }, profile: null }),
@@ -90,7 +96,7 @@ jest.mock('@/hooks/useHistory', () => ({
   }),
 }));
 
-import DayDetail, { adjacentDays } from '@/app/history/[date]';
+import DayDetail, { adjacentDays, leaveDay } from '@/app/history/[date]';
 
 beforeEach(() => {
   mockShow.mockClear();
@@ -103,6 +109,30 @@ describe('adjacentDays', () => {
     expect(adjacentDays('2026-10-04', '2026-10-04')).toEqual({ prev: '2026-10-03', next: null });
     // Across a month and a year boundary.
     expect(adjacentDays('2026-01-01', '2026-10-04')).toEqual({ prev: '2025-12-31', next: '2026-01-02' });
+  });
+});
+
+// The owner, 2026-10-07: Today's "‹ yesterday" pushes the day as the FIRST
+// screen of History's stack, where the system header shows no back button —
+// there was no way back to Today. The day now draws its own.
+describe('History day — back', () => {
+  it('draws a back button that goes one step back', async () => {
+    mockBack.mockClear();
+    const screen = await render(<DayDetail />);
+    await fireEvent.press(screen.getByTestId('day-back'));
+    expect(mockBack).toHaveBeenCalledTimes(1);
+    expect(screen.getByLabelText('Back')).toBeTruthy();
+  });
+
+  it('back pops when something is beneath, and lands on Today when nothing is', () => {
+    const back = jest.fn();
+    const replace = jest.fn();
+    leaveDay({ back, replace, canGoBack: () => true });
+    expect(back).toHaveBeenCalledTimes(1);
+    expect(replace).not.toHaveBeenCalled();
+    leaveDay({ back, replace, canGoBack: () => false });
+    expect(replace).toHaveBeenCalledWith('/(app)');
+    expect(back).toHaveBeenCalledTimes(1);
   });
 });
 

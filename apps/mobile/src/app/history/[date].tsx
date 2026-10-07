@@ -70,6 +70,17 @@ export function adjacentDays(dateKey: string, todayKey: string): { prev: string;
 }
 
 /**
+ * The day's back button: one step back — to the calendar when the day was
+ * opened from it, to Today when it was opened from Today's "‹ yesterday" —
+ * and Today itself when nothing is beneath (a cold deep link), the same
+ * fallback as the calendar's own back. Exported for test.
+ */
+export function leaveDay(router: Pick<ReturnType<typeof useRouter>, 'back' | 'canGoBack' | 'replace'>): void {
+  if (router.canGoBack()) router.back();
+  else router.replace('/(app)');
+}
+
+/**
  * Remount boundary for Retry — the same mechanism as Today and the calendar
  * (UX_AUDIT S18-7): the feed hooks expose no reload, so a `key` bump closes
  * and reopens every listener with `error` back at null.
@@ -238,14 +249,35 @@ function DayDetailScreen({ onRetry }: { onRetry: () => void }) {
         toast.act();
       }}
     >
-      {/* The native stack header since the Today re-score (Platform): the
-          system back button — with its swipe, its long-press history and the
-          iOS 26 glass — instead of a drawn chevron. The title is flanked by
-          the day arrows, the diary convention (MyFitnessPal, Cronometer), so
-          they never sit beside the back chevron and read as a second one. */}
+      {/* The native stack header since the Today re-score (Platform). The
+          title is flanked by the day arrows, the diary convention
+          (MyFitnessPal, Cronometer), so they never sit beside the back
+          chevron and read as a second one.
+
+          The back button is DRAWN (`headerLeft`), not the system one. The
+          system button only appears when a screen sits beneath the day in
+          History's own stack — true from the calendar, false from Today's
+          "‹ yesterday", which pushes the day as that stack's FIRST screen
+          (`initialRouteName` is not applied to a push). So a day opened from
+          Today had no back at all and the owner was stranded on it
+          (2026-10-07). `router.back()` is right from both: it pops to the
+          calendar when the calendar is beneath, and bubbles to the root stack
+          — back to Today — when it is not. The edge swipe and Android's
+          hardware back are the navigator's and are unchanged. */}
       <Stack.Screen
         options={{
           headerShown: true,
+          headerLeft: () => (
+            <TouchableOpacity
+              onPress={() => leaveDay(router)}
+              style={styles.dayArrow}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.back')}
+              testID="day-back"
+            >
+              <Ionicons name="chevron-back" size={26} color={colors.ink} />
+            </TouchableOpacity>
+          ),
           headerBackButtonDisplayMode: 'minimal',
           // Hidden by `minimal`, but it is what VoiceOver reads: without it the
           // back button took the calendar route's NAME and announced "index"

@@ -10,13 +10,15 @@ import { Stack } from 'expo-router';
  * at all: a hidden tab is not on any stack, so there was nothing to go back
  * to and nothing for the edge-swipe to do.
  *
- * `initialRouteName` puts the calendar beneath a day opened cold (a deep
- * link straight to `/history/2026-08-09`), so back from that day lands on the
- * month, not out of History.
+ * `initialRouteName` is meant to put the calendar beneath a day opened cold
+ * (a deep link straight to `/history/2026-08-09`). It is NOT applied to a
+ * push: Today's "‹ yesterday" lands the day as this stack's only screen, so
+ * the system header has no back button to show (owner stranded, 2026-10-07).
+ * The day therefore draws its own back (`leaveDay` in `[date].tsx`).
  *
  * Headers are off by default — the calendar draws its own — and the day
- * turns the native header on for itself (`[date].tsx`, Today re-score), so it
- * gets the system back button and its title can carry the day arrows.
+ * turns the native header on for itself (`[date].tsx`, Today re-score) so
+ * its title can carry the day arrows.
  */
 export const unstable_settings = { initialRouteName: 'index' };
 
