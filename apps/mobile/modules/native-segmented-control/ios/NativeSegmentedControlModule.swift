@@ -18,10 +18,10 @@ import UIKit
  * first made the segment flicker until JS answered); a caller that cannot
  * take a change says so with `enabled: false` (Settings while offline).
  *
- * Accessibility: VoiceOver reads a segment as "1M, button, 1 of 5" with
- * "selected" on the current one. `a11yLabel` and `testID` land on the segment
- * views themselves (the public API has no per-segment label), matched by
- * x-position after layout.
+ * Accessibility: this view is the container, with one element per segment
+ * (the label JS gives — "3 months" for "3M" — the testID, `.selected` on the
+ * current one); activating an element selects its segment. See the note at
+ * `accessibilityElements` for why the control's own elements are hidden.
  */
 public class NativeSegmentedControlModule: Module {
   public func definition() -> ModuleDefinition {
@@ -103,21 +103,70 @@ public final class NativeSegmentedControlView: ExpoView {
   public override func layoutSubviews() {
     super.layoutSubviews()
     control.frame = bounds
-    control.layoutIfNeeded()
-    labelSegments()
   }
 
-  /// The per-segment label and identifier, on the private segment views,
-  /// matched left to right. Best effort: if the hierarchy ever stops having
-  /// one view per segment the labels are simply the titles again.
-  private func labelSegments() {
-    let views = control.subviews
-      .filter { String(describing: type(of: $0)).contains("Segment") && !($0 is UIImageView) }
-      .sorted { $0.frame.minX < $1.frame.minX }
-    guard views.count == segments.count else { return }
-    for (view, segment) in zip(views, segments) {
-      if let label = segment.a11yLabel, !label.isEmpty { view.accessibilityLabel = label }
-      if let id = segment.testID, !id.isEmpty { view.accessibilityIdentifier = id }
+  /// Select from VoiceOver / Switch Control, as a tap would.
+  func select(_ index: Int) {
+    guard index >= 0, index < control.numberOfSegments else { return }
+    control.selectedSegmentIndex = index
+    changed()
+  }
+
+  // ── Accessibility ──────────────────────────────────────────────────────
+  // One element per segment, owned by this view. The control's own segments
+  // are not views on iOS 26 (its subviews are plain UIViews and UIImageViews),
+  // so there is nothing to hang a per-segment label or identifier on; and the
+  // labels matter — "3M" was read "3 M" where the JS control said "3 months",
+  // and the testIDs are what Maestro taps. The elements sit over the segments
+  // (equal widths, as UISegmentedControl lays them out by default), so a tap
+  // by id still lands on the real control underneath.
+  public override var isAccessibilityElement: Bool {
+    get { false }
+    set {}
+  }
+
+  /// Kept across reads: assistive tech (and XCUITest) holds on to element
+  /// identity between queries, and fresh objects on every read surfaced only
+  /// the last segment. Rebuilt when the segments change; traits and frames are
+  /// refreshed on each read.
+  private var a11yElements: [SegmentAccessibilityElement] = []
+
+  public override var accessibilityElements: [Any]? {
+    get {
+      control.accessibilityElementsHidden = true
+      let n = segments.count
+      if a11yElements.count != n {
+        a11yElements = (0..<n).map { i in
+          let element = SegmentAccessibilityElement(accessibilityContainer: self)
+          element.owner = self
+          element.index = i
+          return element
+        }
+      }
+      let w = n > 0 ? bounds.width / CGFloat(n) : 0
+      for (i, segment) in segments.enumerated() {
+        let element = a11yElements[i]
+        element.accessibilityLabel = (segment.a11yLabel?.isEmpty == false ? segment.a11yLabel : nil) ?? segment.label
+        element.accessibilityIdentifier = (segment.testID?.isEmpty == false) ? segment.testID : nil
+        var traits: UIAccessibilityTraits = .button
+        if i == control.selectedSegmentIndex { traits.insert(.selected) }
+        if !control.isEnabled { traits.insert(.notEnabled) }
+        element.accessibilityTraits = traits
+        element.accessibilityFrameInContainerSpace = CGRect(x: w * CGFloat(i), y: 0, width: w, height: bounds.height)
+      }
+      return a11yElements
     }
+    set {}
+  }
+}
+
+final class SegmentAccessibilityElement: UIAccessibilityElement {
+  weak var owner: NativeSegmentedControlView?
+  var index = 0
+
+  override func accessibilityActivate() -> Bool {
+    guard let owner, owner.control.isEnabled else { return false }
+    owner.select(index)
+    return true
   }
 }
