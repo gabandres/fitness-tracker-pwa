@@ -238,7 +238,7 @@ artifact"; which version is *live* is `STATUS.md`'s question.
 
 | Platform | Binary | Runtime fingerprint | Read from |
 |---|---|---|---|
-| Android | vc 47 / 1.2.5 — Play production + alpha, LIVE (store page 2026-10-06) | `ef607e85e34dd7ea589479ed0d50da26f7f35b3a` | the `.aab` |
+| Android | vc 48 / 1.2.5 — Play production + alpha, IN REVIEW from 2026-10-06 (users run vc 47, `ef607e85…`, until it clears — publish for them with that pinned runtime) | `c87935bf27ff20433d3abbdd908562068107c4f1` | the `.aab` |
 | iOS | build 68 / 1.2.5 — App Store, `READY_FOR_SALE` (ASC, 2026-10-06) | `489bf3b536f1fb3a831ce6b20cfefa2c4e08d45d` | the `.ipa` |
 
 The 1.2.5 runtimes share nothing with 1.2.4's — `app.json` moved both — so a

@@ -26,19 +26,19 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 |---|---|
 | **Public App Store (iOS)** | **1.2.5 / build 68, LIVE since 2026-10-06** (Apple's public lookup: `1.2.5`, `currentVersionReleaseDate` 2026-10-06T13:23Z, read 2026-10-06). Runtime **`489bf3b5…`**. 1.2.4 / build 67 (`1b239e44…`) is the previous release. ASC confirms `READY_FOR_SALE`; this Mac reads ASC since 2026-10-06 (`ASC_ISSUER_ID` + `ASC_KEY_PATH` in its `.env.local`). Carries the re-shot screenshots (en-US 5, es-MX 5) and `usesIdfa: false`. **Available in 175 of 175 territories** since 2026-08-28 (DSA trader declaration filed). Play matched on 2026-09-03: 158 of Play's attainable 158 |
 | **TestFlight** | **build 64 / 1.2.3 (runtime `52802bba…`) is in the EXTERNAL *Public Beta Testers* group, `IN_BETA_TESTING`** (read 2026-09-08 via `asc-testflight-external.mjs --build 64`; it was `WAITING_FOR_BETA_REVIEW` from 09-05). Build 63 is in the group but can never reach an external tester — a build of an already-released version stays `READY_FOR_BETA_SUBMISSION` forever. **Read the group's builds AND each build's `externalBuildState`, never assume:** `VALID` + in the group ≠ installable |
-| **Play production + alpha** | **Production: vc 47 / 1.2.5, LIVE** (store page *Updated on Oct 5, 2026* and version `1.2.5`, read 2026-10-06); also on alpha. vc 46 / 1.2.4 is the previous release. **The tracks API cannot tell "in review" from "live"** — the Console app row or the store page is the read. `eas submit` has failed and exited 0 three times (lost Play edit on bundles > 60 MB; a missing health declaration) — **`play-upload-bundle.mjs` is the upload path, then `play-production-release.mjs --complete --commit --vc N`; confirm every submit against the tracks API** |
+| **Play production + alpha** | **Production: vc 47 / 1.2.5, LIVE** (store page *Updated on Oct 5, 2026* and version `1.2.5`, read 2026-10-06). **vc 48 / 1.2.5 on alpha AND production (100%) since 2026-10-06, sent for review** — vc 47 is what users run until Play clears it. **The tracks API cannot tell "in review" from "live"** — the Console app row or the store page is the read. `eas submit` has failed and exited 0 three times (lost Play edit on bundles > 60 MB; a missing health declaration) — **`play-upload-bundle.mjs` is the upload path, then `play-production-release.mjs --complete --commit --vc N`; confirm every submit against the tracks API** |
 | **Web `ignia.fit`** | **Shell + `/admin` — the web logging app was RETIRED 2026-08-30 (ADR-0036).** 113 prerendered pages, EN + es-PR. Links BOTH stores with the official badges since 2026-09-08 (`PLAY_STORE_LIVE = true`; Google's en / es-419 badge artwork on the landing, `/vs`, `/calculator`, the retired and auth-action pages, and `/download`). **`/download` said "Android coming soon — email me" until 2026-09-08** — this row claimed no such copy remained; grep `public/` as well as `src/` before repeating that. `/app` and the old tabs render a "moved to the apps" page; a safety worker evicts old PWA installs. SEO pages and `/u/**` are KEPT, owner-ratified |
 | **Cloud Functions / rules** | Deployed, project `fitness-tracker-gb-1775407101` |
 | **Photo-scan** | **ON and free to everyone, both platforms** (ADR-0017), resolving macros against the bundled USDA database (ADR-0019). Tiering is server-side only: `dailyQuota` 3/day free · 30/day paid, plus the `photo` `spendCeiling` |
 | **Food search** | Bundled USDA DB, 13,272 foods, plus the restaurant corpus (25,126 items / 91 chains, ADR-0027). **Text search makes NO network call** (since 2026-08-19; Open Food Facts serves **barcode only** — its 10 req/min search cap cannot host typeahead behind one egress IP). Servings ship with each hit. `docs/research/off-branded-ingest.md` scopes getting branded text results back |
-| **OTA (EAS Update)** | Live. `runtimeVersion: {"policy":"fingerprint"}`, channels match build profiles. Free tier 1,000 MAU. **iOS**: build 67 / `1b239e44…` newest group `dabeaffa…` (2026-10-04, S19); **build 68 / `489bf3b5…` newest group `a1f83a15…` (2026-10-06, `8a4e6be1`, S21 UX pass; supersedes `9eae6aa3…`), delivered since 1.2.5 went live 2026-10-06.** **Android**: vc 46 / `3e596c87…` newest group `d13b2d5e…` (2026-10-04) — publish with `runtimeVersion` PINNED to the artifact value and revert (ledger row); vc 47 / `ef607e85…` newest group `429e9754…` (2026-10-06, `8a4e6be1`, S21, runtime pinned). 1.2.4 binaries get no 1.2.5 JS — `app.json` moved both runtimes. **"Published" is not "delivered":** a user gets it on the launch AFTER the download. **This row is a POINTER: `apps/mobile/docs/fingerprint-ledger.md` is the per-publish record and it wins.** Re-check with `npx eas update:list --branch production --limit 3` |
+| **OTA (EAS Update)** | Live. `runtimeVersion: {"policy":"fingerprint"}`, channels match build profiles. Free tier 1,000 MAU. **iOS**: build 67 / `1b239e44…` newest group `dabeaffa…` (2026-10-04, S19); **build 68 / `489bf3b5…` newest group `b0ebfe73…` (2026-10-06, `e88428a9`; supersedes `a1f83a15…`).** **Android**: vc 46 / `3e596c87…` newest group `d13b2d5e…` (2026-10-04) — publish with `runtimeVersion` PINNED to the artifact value and revert (ledger row); vc 47 / `ef607e85…` newest group `06855ab8…` (2026-10-06, `e88428a9`, runtime pinned); vc 48 / `c87935bf…` embeds `e88428a9`, no OTA yet. 1.2.4 binaries get no 1.2.5 JS — `app.json` moved both runtimes. **"Published" is not "delivered":** a user gets it on the launch AFTER the download. **This row is a POINTER: `apps/mobile/docs/fingerprint-ledger.md` is the per-publish record and it wins.** Re-check with `npx eas update:list --branch production --limit 3` |
 | **`app-version.json`** | **Self-driving since 2026-09-05** — served from Firestore `public/appVersion` by the `appVersionJson` rewrite, refreshed hourly by `hourlyTasks` (Android from the Play tracks API as `647810616435-compute@…`, invited read-only to the org Play Console; iOS from Apple's public lookup) and on demand from `/admin` → System → **Sync now**. No static file, no deploy, no secret; `npm run doctor` compares the LIVE URL with both stores. See the Play row for the in-review wrinkle |
 
 **The runtime fingerprints, and the three traps around them.**
 
 | Platform | Tree now | Live binary | Channel |
 |---|---|---|---|
-| Android | **Mac-built since vc 46** — read it from the artifact, never the tree (`android/` is hashed whole and drifts with Gradle's leftovers; ledger row). vc 47's tree DID compute its artifact value `ef607e85…` (no prebuild between) | **vc 47 ships `ef607e85…`** (read from the `.aab`), **LIVE on production** + alpha; vc 46 (`3e596c87…`) is the previous release | **OPEN** on both (pin the runtime for every publish) |
+| Android | **Mac-built since vc 46** — read it from the artifact, never the tree (`android/` is hashed whole and drifts with Gradle's leftovers; ledger row). vc 47's tree DID compute its artifact value `ef607e85…` (no prebuild between) | **vc 47 ships `ef607e85…`** (read from the `.aab`), **LIVE on production**; **vc 48 ships `c87935bf…`**, alpha + production, in review | **OPEN** on both (pin the runtime for every publish) |
 | iOS | `489bf3b5…` (1.2.5) — re-measured on `ignia-mac` 2026-10-05 at `b19d26b1` and MATCHED build 68 | **build 68 ships `489bf3b5…`** (read from the `.ipa`), **LIVE as 1.2.5**; build 67 (`1b239e44…`) is the previous release | **OPEN** on both — after an Android Gradle build, restore the masked-view manifest first (bullet below) |
 
 - **Gate the COMMIT, not just the fingerprint. `eas update` prints a `Commit`
@@ -73,10 +73,11 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 
 ## 2. Merged, on `main`, and not delivered anywhere
 
-**Everything on `main` (to `8a4e6be1`) is in the 1.2.5 binaries or their OTAs** —
-vc 47 embeds `b19d26b1` and gets the rest as OTA `429e9754…`; build 68 gets it
-as OTA `a1f83a15…` (both 2026-10-06, the S21 UX pass, UX_AUDIT §S21). **1.2.5 is live on
-both stores** (iOS 2026-10-06, Play 2026-10-05), so this is delivered; the S20 work since
+**Everything on `main` (to `e88428a9`) is in the 1.2.5 binaries or their OTAs** —
+vc 47 gets it as OTA `06855ab8…`, build 68 as OTA `b0ebfe73…` (both 2026-10-06,
+the S21 pass + the Android pass, UX_AUDIT §S21/§S22), and vc 48 (in Play review)
+embeds it. **1.2.5 is live on both stores** (iOS 2026-10-06, Play vc 47
+2026-10-05), so this is delivered except vc 48's two native items; the S20 work since
 `4773b4b1` cannot reach 1.2.4 binaries (both runtimes moved). The newest 1.2.4
 OTAs are `dabeaffa…` (iOS) / `d13b2d5e…` (Android) at `4773b4b1`. Functions and
 rules are deployed.
@@ -120,11 +121,14 @@ Android Material `formSheet`), context menus, date/time pickers, the Lock Screen
 rest timer and App Intents (iOS), the iOS 26 Liquid Glass tab bar (OTA), and
 round 3's re-score fixes. `CHANGELOG.md` 2026-10-05.
 
-- **iOS**: build 68 LIVE 2026-10-06; OTA `a1f83a15…` (S21) is its newest group. The glass tab bar was checked on the `Ignia-QA-26` simulator only —
+- **iOS**: build 68 LIVE 2026-10-06; OTA `b0ebfe73…` is its newest group. The glass tab bar was checked on the `Ignia-QA-26` simulator only —
   **look at it on a real iPhone on iOS 26**.
-- **Android**: vc 47 LIVE on production (store page read 2026-10-06); OTA
-  `429e9754…` (S21) is its newest group. The S21 Android checks (ripples, 48 dp,
-  back on the moved screens) are still owed — UX_AUDIT §S21.
+- **Android**: vc 47 LIVE on production; OTA `06855ab8…` is its newest group
+  (runtime pinned to `ef607e85…`). **vc 48 (`c87935bf…`) is on alpha AND
+  production 100%, sent for review 2026-10-06** — ⋯ menu subtitles and the
+  ongoing rest notification are native and reach users only with it. Its JS is
+  `e88428a9`, so it needs no OTA until `main` moves. The first Android pass ran
+  on the emulator (UX_AUDIT §S22, open list there); hardware is still owed.
 - **Predictive back is OFF on Android** despite `predictiveBackGestureEnabled:
   true` in `app.json` — `patch-android-release.mjs` step 4e rewrites the
   manifest, because with it on, back from History backgrounded the app

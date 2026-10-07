@@ -4,6 +4,25 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-10-06 — Android pass on S21: keyboard everywhere, vc 48 (menu subtitles, rest notification)
+
+- **Why**: S21 never ran on Android. The first emulator pass (UX_AUDIT §S22)
+  found that under `<KeyboardProvider>` Android does not resize the window for
+  the keyboard — every input screen assumed it did, so sign-in's password was
+  typed into a hidden field and Save/Send footers sat behind the keyboard.
+- **What (OTA, both platforms, `e88428a9`)**: keyboard-aware scrolling on
+  sign-in and the live workout; padding on the targets / feedback / coach /
+  scan / onboarding screens; Android `fit` sheets off the gesture bar; tab
+  pill radius; icon glyphs hidden from TalkBack; Safety floors stack at large
+  text; sign-in's email action key moves to the password.
+- **What (vc 48, Android binary)**: ⋯ menu item subtitles and a centred face;
+  an ongoing notification counting down each rest
+  (`modules/rest-timer-notification`), driven by the same seam as the iOS
+  Live Activity. iOS fingerprint unchanged — no iOS binary needed.
+- **Shipped**: OTAs `b0ebfe73…` (iOS, build 68) and `06855ab8…` (Android,
+  vc 47); vc 48 on Play alpha + production 100%, in review. Verified on the
+  `pixel_api36` emulator; no hardware pass yet. Open items: UX_AUDIT §S22.
+
 ## 2026-10-06 — 1.2.5 live on both stores
 
 - iOS 1.2.5 / build 68 released 2026-10-06 13:23 UTC (Apple's public lookup);
