@@ -464,7 +464,7 @@ export default function Settings() {
               </Text>
               {goalKey ? <Text style={styles.rowSub}>{t('settings.goalPrefix', { goal: t(goalKey) })}</Text> : null}
             </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.faint} />
+            <Ionicons importantForAccessibility="no-hide-descendants" accessibilityElementsHidden name="chevron-forward" size={18} color={colors.faint} />
           </Touchable>
           <Touchable
             style={[styles.navRow, styles.navRowDivided]}
@@ -476,7 +476,7 @@ export default function Settings() {
               <Text style={styles.rowLabel}>{t('settings.refine')}</Text>
               <Text style={styles.rowValue}>{t('settings.refineSub')}</Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.faint} />
+            <Ionicons importantForAccessibility="no-hide-descendants" accessibilityElementsHidden name="chevron-forward" size={18} color={colors.faint} />
           </Touchable>
           {/* This pushes the WHOLE onboarding wizard, not a goal editor — the
               goal editor is the Daily targets row above. It was labelled "Edit
@@ -496,7 +496,7 @@ export default function Settings() {
               <Text style={styles.rowLabel}>{t('settings.redoSetup')}</Text>
               <Text style={styles.rowValue}>{t('settings.redoSetupSub')}</Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.faint} />
+            <Ionicons importantForAccessibility="no-hide-descendants" accessibilityElementsHidden name="chevron-forward" size={18} color={colors.faint} />
           </Touchable>
         </View>
 
@@ -516,7 +516,7 @@ export default function Settings() {
               <Text style={styles.rowLabel}>{t('settings.tour')}</Text>
               <Text style={styles.rowValue}>{t('settings.tourSub')}</Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.faint} />
+            <Ionicons importantForAccessibility="no-hide-descendants" accessibilityElementsHidden name="chevron-forward" size={18} color={colors.faint} />
           </Touchable>
           <Touchable
             style={[styles.navRow, styles.navRowDivided]}
@@ -528,7 +528,7 @@ export default function Settings() {
               <Text style={styles.rowLabel}>{t('feedback.settingsRow')}</Text>
               <Text style={styles.rowValue}>{t('feedback.settingsSub')}</Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.faint} />
+            <Ionicons importantForAccessibility="no-hide-descendants" accessibilityElementsHidden name="chevron-forward" size={18} color={colors.faint} />
           </Touchable>
           <Touchable
             style={[styles.linkRow, styles.navRowDivided]}
@@ -909,7 +909,7 @@ export default function Settings() {
                   lived behind this row, and that is the one most people want. */}
               <Text style={styles.rowValue}>{t('settings.connectedAppsSub', { store: healthStore })}</Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.faint} />
+            <Ionicons importantForAccessibility="no-hide-descendants" accessibilityElementsHidden name="chevron-forward" size={18} color={colors.faint} />
           </Touchable>
           <Touchable
             style={[styles.navRow, styles.navRowDivided]}
@@ -925,7 +925,7 @@ export default function Settings() {
               <Text style={styles.rowLabel}>{t('milestones.title')}</Text>
               <Text style={styles.rowValue}>{t('milestones.settingsSub')}</Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.faint} />
+            <Ionicons importantForAccessibility="no-hide-descendants" accessibilityElementsHidden name="chevron-forward" size={18} color={colors.faint} />
           </Touchable>
         </View>
 

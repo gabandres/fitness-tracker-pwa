@@ -133,7 +133,7 @@ function HistoryCalendarScreen({ onRetry }: { onRetry: () => void }) {
               accessibilityRole="button"
               accessibilityLabel={t('history.nextMonthA11y')}
             >
-              <Ionicons name="chevron-forward" size={22} color={colors.ink} />
+              <Ionicons importantForAccessibility="no-hide-descendants" accessibilityElementsHidden name="chevron-forward" size={22} color={colors.ink} />
             </Pressable>
           </View>
 
@@ -243,7 +243,7 @@ function HistoryCalendarScreen({ onRetry }: { onRetry: () => void }) {
                       </Text>
                     </View>
                     <Text style={styles.recentKcal}>{formatNumber(d.totalCalories, locale)}</Text>
-                    <Ionicons name="chevron-forward" size={16} color={colors.faint} />
+                    <Ionicons importantForAccessibility="no-hide-descendants" accessibilityElementsHidden name="chevron-forward" size={16} color={colors.faint} />
                   </Pressable>
                 ))}
               </View>

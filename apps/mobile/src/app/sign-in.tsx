@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -65,6 +65,7 @@ export default function SignIn() {
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const passwordRef = useRef<TextInput>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
@@ -378,6 +379,11 @@ export default function SignIn() {
               onChangeText={setEmail}
               accessibilityLabel={t('signIn.email')}
               testID="email"
+              // The keyboard's action key goes on to the password, as every
+              // sign-in form does; it closed the keyboard instead.
+              returnKeyType="next"
+              submitBehavior="submit"
+              onSubmitEditing={() => passwordRef.current?.focus()}
             />
 
             <View style={styles.pwWrap}>
@@ -386,6 +392,7 @@ export default function SignIn() {
                   for the saved one. One `password` type for both meant iOS
                   offered to fill an old password into account creation. */}
               <TextInput
+                ref={passwordRef}
                 style={[styles.input, styles.pwInput]}
                 placeholder={t('signIn.password')}
                 placeholderTextColor={colors.faint}

@@ -71,7 +71,7 @@ export function ActiveWorkoutPill({ onResume }: { onResume: () => void }) {
       ) : null}
       <View style={styles.fill} />
       <Text style={styles.resume}>{t('train.activeResume')}</Text>
-      <Ionicons name="chevron-forward" size={16} style={styles.chevron} />
+      <Ionicons importantForAccessibility="no-hide-descendants" accessibilityElementsHidden name="chevron-forward" size={16} style={styles.chevron} />
     </Touchable>
   );
 }

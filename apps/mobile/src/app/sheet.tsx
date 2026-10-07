@@ -3,6 +3,7 @@ import { Platform, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
 import { usePreventRemove } from 'expo-router/react-navigation';
 import Reanimated from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ConfirmHost } from '@/components/ConfirmSheet';
 import { ToastSheetHost } from '@/components/Toast';
 import { useKeyboardSheetPadding } from '@/lib/use-keyboard-sheet-style';
@@ -36,6 +37,7 @@ export default function SheetRoute() {
   const entry = useSheetPortal(id);
   const styles = useThemedStyles(createStyles);
   const padding = useKeyboardSheetPadding(space.lg);
+  const insets = useSafeAreaInsets();
 
   // Registered for the route's lifetime. `dismiss` pops THIS route — the
   // navigation object is the screen's own, so `goBack` targets its key.
@@ -93,7 +95,20 @@ export default function SheetRoute() {
           <View style={styles.handle} />
         </View>
       ) : null}
-      <Reanimated.View style={[styles.pad, Platform.OS === 'android' && styles.padAndroid, !fit && styles.root, (!fit || Platform.OS === 'android') && padding]}>
+      <Reanimated.View
+        style={[
+          styles.pad,
+          Platform.OS === 'android' && styles.padAndroid,
+          !fit && styles.root,
+          !fit && padding,
+          // Android `fit`: the Material sheet rises with the keyboard by
+          // itself (padding it for the keyboard as well left a keyboard-tall
+          // gap under Save), but it does not keep its content off the gesture
+          // bar — Body's Save sat under the handle, and behind the keyboard's
+          // top edge once it opened (emulator QA, 2026-10-06).
+          fit && Platform.OS === 'android' && { paddingBottom: space.lg + insets.bottom },
+        ]}
+      >
         {/* react-native-screens pins the FIRST scroll view it finds down a
             sheet's first-child chain to x = 0, which threw away the padding
             whenever a sheet opened on a ScrollView: every Train sheet drew its

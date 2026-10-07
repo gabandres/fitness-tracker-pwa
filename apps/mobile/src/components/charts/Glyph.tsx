@@ -25,7 +25,13 @@ export function Glyph({
   size: number;
   color: string;
 }) {
-  if (Platform.OS !== 'ios') return <Ionicons name={android} size={size} color={color} />;
+  if (Platform.OS !== 'ios') {
+    // Hidden on Android too: an Ionicons glyph is a Text, and TalkBack read its
+    // private-use character into the control's label (2026-10-06).
+    return (
+      <Ionicons name={android} size={size} color={color} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />
+    );
+  }
   // No `fallback` prop: every name passed here exists in SF Symbols 1 (iOS 13),
   // so it could never render — and a React element held as a native prop
   // makes the rendered tree circular, which breaks any test that serialises it.

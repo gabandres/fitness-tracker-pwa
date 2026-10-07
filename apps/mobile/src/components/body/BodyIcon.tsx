@@ -29,7 +29,11 @@ export function BodyIcon({
   size: number;
   color: string;
 }) {
-  const fallback = <Ionicons name={ion} size={size} color={color} />;
+  // Hidden on Android too: an Ionicons glyph is a Text, and TalkBack read its
+  // private-use character into the control's label (2026-10-06).
+  const fallback = (
+    <Ionicons name={ion} size={size} color={color} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />
+  );
   if (Platform.OS !== 'ios') return fallback;
   return (
     <SymbolView

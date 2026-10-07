@@ -34,7 +34,7 @@ export function ProUpsell({ feature }: { feature: string }) {
       <Text style={styles.sub}>{t('pro.upsellSub')}</Text>
       <View style={styles.cta}>
         <Text style={styles.ctaText}>{t('pro.learnMore')}</Text>
-        <Ionicons name="chevron-forward" size={15} color={colors.accent} />
+        <Ionicons importantForAccessibility="no-hide-descendants" accessibilityElementsHidden name="chevron-forward" size={15} color={colors.accent} />
       </View>
     </TouchableOpacity>
   );

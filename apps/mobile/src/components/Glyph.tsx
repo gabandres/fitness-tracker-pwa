@@ -25,7 +25,12 @@ export function Glyph({
   size: number;
   color: string;
 }) {
-  const fallback = <Ionicons name={ion} size={size} color={color} />;
+  // Decorative: the control around it carries the label. On Android an
+  // Ionicons glyph is a Text, and TalkBack read its private-use character into
+  // the button's label (", Write it in") until it was hidden here (2026-10-06).
+  const fallback = (
+    <Ionicons name={ion} size={size} color={color} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />
+  );
   if (Platform.OS !== 'ios') return fallback;
   return <SymbolView name={sf} size={size} tintColor={color} weight="medium" fallback={fallback} />;
 }

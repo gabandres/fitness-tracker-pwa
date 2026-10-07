@@ -30,7 +30,7 @@ const MENU_DISMISS_MS = 300;
 /** The Material ink on the coral +: drawn in the
  *  foreground so it shows over the fill, clipped to the circle by RN. Dark,
  *  not the app's neutral grey — grey at 22% barely moves on coral. */
-const FAB_RIPPLE = Platform.OS === 'android' ? { color: 'rgba(0, 0, 0, 0.18)', foreground: false } : undefined;
+const FAB_RIPPLE = Platform.OS === 'android' ? { color: 'rgba(0, 0, 0, 0.18)', foreground: true } : undefined;
 
 /**
  * The +'s pressed look (Impeccable audit, S20: "the + has no pressed state").

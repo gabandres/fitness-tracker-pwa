@@ -650,7 +650,7 @@ function DayRow({
         accessibilityState={{ disabled: !canForward }}
         testID={`${testIDPrefix}-day-next`}
       >
-        <Ionicons name="chevron-forward" size={18} color={colors.ink} />
+        <Ionicons importantForAccessibility="no-hide-descendants" accessibilityElementsHidden name="chevron-forward" size={18} color={colors.ink} />
       </PressScale>
     </View>
   );

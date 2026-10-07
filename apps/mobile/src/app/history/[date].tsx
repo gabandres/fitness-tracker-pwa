@@ -278,7 +278,7 @@ function DayDetailScreen({ onRetry }: { onRetry: () => void }) {
                 accessibilityState={{ disabled: !days.next }}
                 testID="day-next"
               >
-                <Ionicons name="chevron-forward" size={20} color={colors.muted} />
+                <Ionicons importantForAccessibility="no-hide-descendants" accessibilityElementsHidden name="chevron-forward" size={20} color={colors.muted} />
               </TouchableOpacity>
             </View>
           ),
@@ -418,7 +418,7 @@ function DayDetailScreen({ onRetry }: { onRetry: () => void }) {
                       {f.source === 'manual' ? ` · ${t('fast.byHand')}` : ''}
                     </Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={18} color={colors.faint} />
+                  <Ionicons importantForAccessibility="no-hide-descendants" accessibilityElementsHidden name="chevron-forward" size={18} color={colors.faint} />
                 </Touchable>
               ))}
             </View>
