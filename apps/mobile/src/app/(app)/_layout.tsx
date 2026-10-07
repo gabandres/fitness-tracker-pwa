@@ -19,7 +19,7 @@ import { useOuraAutoImport } from '@/lib/oura';
 import { track } from '@/lib/analytics';
 import { PressScale } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, space } from '@/theme';
+import { font, space, TARGET } from '@/theme';
 import { useWorkoutIntentRouter } from '@/hooks/useStartNextWorkoutIntent';
 import { sweepOrphans } from '@/lib/rest-timer-activity';
 import { GLASS_BAR_HEIGHT, GLASS_TAB_BAR, TAB_PILL_ALPHA, glassBarGap, withAlpha } from '@/lib/glass';
@@ -399,7 +399,9 @@ function createStyles({ colors }: Theme) {
     glass: { ...StyleSheet.absoluteFill, borderRadius: 32 },
     // Clears the raised Log button, which stands ~26dp proud of the bar.
     pillSlot: { paddingBottom: 30 },
-    tab: { flex: 1, alignItems: 'center', paddingVertical: 2 },
+    // `minHeight`: at accessibility sizes the labels go and the icons-only
+    // cell measured 34 dp (Android QA, UX_AUDIT S22).
+    tab: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 2, minHeight: TARGET },
     plainItem: { alignItems: 'center', gap: 2 },
     // The selected capsule's box is on every glass tab, so the focused one
     // does not shift its neighbours; only the fill marks it.

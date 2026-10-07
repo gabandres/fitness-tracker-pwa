@@ -337,13 +337,18 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   finishField: { flex: 1, gap: space.xs },
   fieldLabel: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
   // templates
+  // Wraps at large text: "Templates" ran into "Starters" at 200% (Android
+  // QA, UX_AUDIT S22). The actions then take their own line, still at the
+  // right (`marginLeft: 'auto'`).
   sectionHead: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     justifyContent: 'space-between',
+    columnGap: space.md,
     marginTop: space.sm,
   },
-  sectionActions: { flexDirection: 'row', gap: space.lg },
+  sectionActions: { flexDirection: 'row', gap: space.lg, marginLeft: 'auto' },
   sectionAction: { fontSize: font.small, color: colors.teal, fontWeight: '700' },
   /** The touchable around a text action: 44pt tall whatever the text is
    *  (Train review item 16 — these measured ~18-34pt). Row, so an icon can

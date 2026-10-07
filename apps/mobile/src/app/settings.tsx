@@ -47,6 +47,7 @@ import { exportDataCsv } from '@/lib/dataExport';
 import { deleteAccountForever } from '@/lib/deleteAccount';
 import { isTipIapAvailable } from '@/lib/purchases';
 import { FEATURES } from '@/lib/features';
+import { ACCESSIBILITY_FONT_SCALE } from '@/lib/font-scale';
 import { APP_STORE_REVIEW_URL } from '@/lib/reviewPrompt';
 import { openExternal } from '@/lib/open-external';
 import { ConfirmHost, confirm } from '@/components/ConfirmSheet';
@@ -316,7 +317,11 @@ export default function Settings() {
   // Calorie floor (kcal safety clamp). Seeded from the profile (1500 default
   // when unset); each ± step persists to Firestore. Bounds match the PWA.
   const calorieFloor = profile?.calorieFloor ?? DEFAULT_CALORIE_FLOOR;
-  const stackFloors = useWindowDimensions().fontScale >= 1.5;
+  // Accessibility text sizes: the floors stack under their labels, and the
+  // two- and three-way choices (units, theme, language, day start) become a
+  // column of full-width options — side by side they broke words in half at
+  // 200%, "Espa/ñol" and "Midnig/ht" (Android QA, UX_AUDIT S22).
+  const stackFloors = useWindowDimensions().fontScale >= ACCESSIBILITY_FONT_SCALE;
   async function bumpCalorieFloor(delta: number) {
     if (!user) return;
     const next = Math.max(CALORIE_FLOOR_MIN, Math.min(CALORIE_FLOOR_MAX, calorieFloor + delta));
@@ -591,13 +596,13 @@ export default function Settings() {
         <View style={styles.card}>
           <Text style={styles.rowLabel}>{t('settings.portionDisplay')}</Text>
           <Text style={styles.rowValue}>{t('settings.portionDisplaySub')}</Text>
-          <View style={styles.segment} accessibilityRole="radiogroup" accessibilityLabel={t('settings.portionDisplay')}>
+          <View style={[styles.segment, stackFloors && styles.segmentStacked]} accessibilityRole="radiogroup" accessibilityLabel={t('settings.portionDisplay')}>
             {(['us', 'metric'] as UnitSystem[]).map((u) => {
               const on = unit === u;
               return (
                 <TouchableOpacity
                   key={u}
-                  style={[styles.segmentBtn, on && styles.segmentBtnOn, offline && styles.segmentBtnOff]}
+                  style={[styles.segmentBtn, stackFloors && styles.segmentBtnStacked, on && styles.segmentBtnOn, offline && styles.segmentBtnOff]}
                   onPress={() => pickUnit(u)}
                   disabled={offline || savingUnit}
                   accessibilityRole="radio"
@@ -615,7 +620,7 @@ export default function Settings() {
 
         <View style={styles.card}>
           <Text style={styles.rowLabel}>{t('settings.theme')}</Text>
-          <View style={styles.segment} accessibilityRole="radiogroup" accessibilityLabel={t('settings.theme')}>
+          <View style={[styles.segment, stackFloors && styles.segmentStacked]} accessibilityRole="radiogroup" accessibilityLabel={t('settings.theme')}>
             {(
               [
                 { value: 'system', labelKey: 'settings.themeSystem' },
@@ -627,7 +632,7 @@ export default function Settings() {
               return (
                 <TouchableOpacity
                   key={opt.value}
-                  style={[styles.segmentBtn, on && styles.segmentBtnOn]}
+                  style={[styles.segmentBtn, stackFloors && styles.segmentBtnStacked, on && styles.segmentBtnOn]}
                   onPress={() => {
                     haptics.tap();
                     setPreference(opt.value);
@@ -645,13 +650,13 @@ export default function Settings() {
 
         <View style={styles.card}>
           <Text style={styles.rowLabel}>{t('settings.language')}</Text>
-          <View style={styles.segment} accessibilityRole="radiogroup" accessibilityLabel={t('settings.language')}>
+          <View style={[styles.segment, stackFloors && styles.segmentStacked]} accessibilityRole="radiogroup" accessibilityLabel={t('settings.language')}>
             {LANGUAGES.map((l) => {
               const on = locale === l.value;
               return (
                 <TouchableOpacity
                   key={l.value}
-                  style={[styles.segmentBtn, on && styles.segmentBtnOn, offline && styles.segmentBtnOff]}
+                  style={[styles.segmentBtn, stackFloors && styles.segmentBtnStacked, on && styles.segmentBtnOn, offline && styles.segmentBtnOff]}
                   onPress={() => pickLanguage(l.value)}
                   disabled={offline}
                   accessibilityRole="radio"
@@ -670,13 +675,13 @@ export default function Settings() {
         <View style={styles.card}>
           <Text style={styles.rowLabel}>{t('settings.dayStart')}</Text>
           <Text style={styles.rowValue}>{t('settings.dayStartSub')}</Text>
-          <View style={styles.segment} accessibilityRole="radiogroup" accessibilityLabel={t('settings.dayStart')}>
+          <View style={[styles.segment, stackFloors && styles.segmentStacked]} accessibilityRole="radiogroup" accessibilityLabel={t('settings.dayStart')}>
             {DAY_START_HOURS.map((h) => {
               const on = dayStartHour === h;
               return (
                 <TouchableOpacity
                   key={h}
-                  style={[styles.segmentBtn, on && styles.segmentBtnOn, offline && styles.segmentBtnOff]}
+                  style={[styles.segmentBtn, stackFloors && styles.segmentBtnStacked, on && styles.segmentBtnOn, offline && styles.segmentBtnOff]}
                   onPress={() => pickDayStart(h)}
                   disabled={offline || savingDayStart}
                   accessibilityRole="radio"
@@ -1268,6 +1273,10 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
    *  gap keeps it off the button once it does. */
   digestRowText: { flex: 1, marginRight: space.md },
   segment: { flexDirection: 'row', gap: space.sm },
+  segmentStacked: { flexDirection: 'column' },
+  // `flex: 1` shares a row's width; in a column it would share a height
+  // the container does not have.
+  segmentBtnStacked: { flex: 0 },
   segmentBtn: {
     flex: 1,
     borderWidth: 1,
@@ -1275,13 +1284,16 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
     borderColor: colors.lineStrong,
     borderRadius: radius.md,
     paddingVertical: space.md,
+    // Large text fills the button: "Metric (g, kg)" sat on its border at 200%
+    // (Android QA, UX_AUDIT S22).
+    paddingHorizontal: space.sm,
     alignItems: 'center',
     backgroundColor: colors.inputBg,
   },
   segmentBtnOn: { backgroundColor: colors.ink, borderColor: colors.ink },
   segmentBtnOff: { opacity: 0.5 },
   bannerSlot: { paddingHorizontal: space.xl },
-  segmentText: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
+  segmentText: { fontSize: font.small, color: colors.muted, fontWeight: '600', textAlign: 'center' },
   segmentTextOn: { color: colors.onInk },
   // Stepper + switch share a row; the stepper is hidden when the meal is off,
   // so the switch stays put and the row doesn't reflow as it collapses.

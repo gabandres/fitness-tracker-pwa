@@ -1752,7 +1752,12 @@ export function EntrySheet({
               onLongPress={manageRecent ? undefined : cmd.onLongPress}
               onPress={() => (manageRecent ? row.onRemove?.() : row.onLog())}
             >
-              <Text style={styles.rowName} numberOfLines={1} maxFontSizeMultiplier={2.2}>{row.name}</Text>
+              {/* Two lines once the text is large: the numbers column keeps
+                  its width, and one line left "3 eggs + to…" (Android QA at
+                  200%, UX_AUDIT S22). */}
+              <Text style={styles.rowName} numberOfLines={fontScale > STACK_FONT_SCALE ? 2 : 1} maxFontSizeMultiplier={2.2}>
+                {row.name}
+              </Text>
               {row.tag ? <Text style={styles.rowTag} maxFontSizeMultiplier={2.2}>{row.tag}</Text> : null}
               {manageRecent && row.onRemove ? (
                 <Ionicons name="close" size={font.body} color={colors.danger} />
