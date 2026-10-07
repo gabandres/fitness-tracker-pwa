@@ -403,27 +403,35 @@ export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater
           right: +8/+16/+24 cover the common glass and nothing else. Same shape
           as the Sleep row directly below, so it is one interaction to learn
           rather than two. */}
-      {/* Wraps rather than squeezes: at 360dp in ml (four pills) or at a large
-          font scale, the pills and the label/value cannot share one line, and
-          without `flexWrap` the lead group shrank until "473 ml" truncated. */}
-      <View style={[styles.row, styles.rowWrap]}>
-        <View style={styles.leadGroup}>
-          <HabitIcon metric="water" />
-          <PressScale
-            scaleTo={0.96}
-            style={styles.left}
-            onPress={() => { haptics.tap(); setWaterOpen(true); }}
-            accessibilityRole="button"
-            accessibilityLabel={`${t('water.title')}, ${waterShown} ${waterUnit}`}
-            accessibilityHint={t('water.amount')}
-            testID="water-open"
-          >
-            <Text style={styles.label}>{t('metrics.water')}</Text>
-            <View style={styles.waterValueRow}>
-              <Text style={[styles.value, styles.waterValue]}>{waterShown} {waterUnit}</Text>
-              <Ionicons name="pencil" size={12} color={colors.faint} />
-            </View>
-          </PressScale>
+      {/* Two lines, always: label/value + Trends shortcut, then the pills.
+          Four 44pt pills, the shortcut and "48 fl oz" do not fit one line on
+          a 402pt iPhone, so the row used to WRAP the moment −8 appeared
+          (water > 0) — the whole tray, shortcut included, dropped to a
+          right-aligned second line under an orphaned value (owner, 10/07).
+          A layout that changes shape on the first tap is the bug; this one
+          has the same shape at 0 and at 48. The pills stay right-aligned so
+          −8 appears to their LEFT and +8 never moves under a repeat tap. */}
+      <View style={styles.waterRow}>
+        <View style={styles.waterHead}>
+          <View style={styles.leadGroup}>
+            <HabitIcon metric="water" />
+            <PressScale
+              scaleTo={0.96}
+              style={styles.left}
+              onPress={() => { haptics.tap(); setWaterOpen(true); }}
+              accessibilityRole="button"
+              accessibilityLabel={`${t('water.title')}, ${waterShown} ${waterUnit}`}
+              accessibilityHint={t('water.amount')}
+              testID="water-open"
+            >
+              <Text style={styles.label}>{t('metrics.water')}</Text>
+              <View style={styles.waterValueRow}>
+                <Text style={[styles.value, styles.waterValue]}>{waterShown} {waterUnit}</Text>
+                <Ionicons name="pencil" size={12} color={colors.faint} />
+              </View>
+            </PressScale>
+          </View>
+          <HabitShortcut metric="water" />
         </View>
         <View style={styles.waterBtns}>
           {/* The pill text is a bare number; the label says what it is and in
@@ -458,7 +466,6 @@ export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater
               <Text style={styles.pillText}>+{n}</Text>
             </PressScale>
           ))}
-          <HabitShortcut metric="water" />
         </View>
       </View>
 
@@ -806,7 +813,13 @@ const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   actionStop: { borderColor: colors.danger },
   actionText: { fontSize: font.small, color: colors.ink, fontWeight: '700' },
   actionTextStop: { color: colors.danger },
-  waterBtns: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.xs, marginLeft: 'auto' },
+  // `gap: md`, not `sm`: the shortcut's target hangs 6dp below its line and a
+  // pill's vertical slop reaches 9-11dp above its own, so a tighter gap lets
+  // a tap near +24's top edge land on the chart.
+  waterRow: { paddingVertical: space.sm, gap: space.md },
+  waterHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.sm },
+  // Wraps only at a large font scale; right-aligned when it does, too.
+  waterBtns: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center', gap: space.xs },
   waterValueRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   sheetNote: { fontSize: font.small, color: colors.muted, marginTop: space.xs, textAlign: 'center' },
   sheetNoteBad: { color: colors.danger },
