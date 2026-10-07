@@ -976,7 +976,10 @@ const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   // The top padding is the ROW's, not the title's: on the title it pushed the
   // text's centre 6 pt below the icons' (`alignItems: 'center'`), where
   // Today's sit on the title line (S21 simulator QA).
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: space.xl, paddingTop: space.md },
+  // `paddingBottom` holds the descender of "Body" (and "Corpo") clear of the
+  // list scrolling under the header — it reached the edge and the cards cut
+  // its tail (Android QA, UX_AUDIT S22). Today's header carries the same.
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: space.xl, paddingTop: space.md, paddingBottom: space.sm },
   // Pushed against the avatar, as on Trends; a real 44/48 target rather than
   // a 24 pt glyph with slop.
   headerHelp: { marginLeft: 'auto', marginRight: space.xs, minWidth: TARGET, minHeight: TARGET, alignItems: 'center', justifyContent: 'center' },
