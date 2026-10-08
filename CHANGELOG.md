@@ -4,6 +4,25 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-10-08 — Performance: screens repaint from memory, Add closes at once
+
+- **Owner: slow moving between screens and adding food (iPhone 16 Pro).** The
+  biggest cause was Firestore's default memory cache, which garbage-collects
+  EAGERLY: every focus-gated listener (ADR-0016) dropped its documents on blur,
+  so each refocus re-fetched its whole query — 400 log rows per return to
+  Today, billed as reads — and waited on the network. It now uses the LRU
+  collector (`lib/firebase.ts`).
+- Listener events with no document changes (a write's ack, a re-open's
+  cache/server pair) no longer rebuild the value and re-render the screen
+  (`onChangedData`); tabs freeze on blur; screens pushed over Today mount
+  painted from this session's in-memory cache (`peekCache`).
+- The entry form's Add closes at dispatch instead of waiting up to 1.5 s for
+  the server's ack — a refusal reopens the form, a failure is a toast with
+  Retry. The food index decodes in idle time after Today mounts, not as the
+  add sheet opens (`cddba933`). OTA on iOS 68/70 and Android vc 47/48/50
+  (ledger rows). Next: the React Compiler skips 52 components (EntrySheet,
+  FoodSearch, BodyScreen, Settings…).
+
 ## 2026-10-07 — A day opened from Today had no way back; Water row keeps one shape
 
 - **Back from a day (owner: "a serious issue").** Today's "‹ yesterday"
