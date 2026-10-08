@@ -413,6 +413,151 @@ async function acquireAppleCredential(): Promise<{
   };
 }
 
+// ---- Async bodies that live OUTSIDE AuthProvider ---------------------------
+// The React Compiler skips any component holding a `try/finally`, a `throw`
+// inside `try/catch`, or a conditional inside a `try` — and AuthProvider is
+// the root of the app, so a skip there left every auth-state render
+// unmemoized. The try statements below are the provider's own, moved out
+// verbatim; anything they need from the component (state setters, the
+// pending-link closures) is passed in.
+
+/** Email/password sign-in. A failure that looks like "no password on this
+ *  account" is turned into the owning provider's hint where one exists. */
+async function signInWithEmailBody(
+  email: string,
+  password: string,
+  completeLinkIfPending: (u: User) => Promise<void>,
+): Promise<void> {
+  try {
+    const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
+    // This is the second half of the collision flow: the user tapped
+    // Google/Apple, got bounced because the email is password-owned, and
+    // has now proved ownership. Attach the credential they came with.
+    await completeLinkIfPending(cred.user);
+  } catch (e) {
+    // A Google/Apple-only account has no password credential, so this
+    // comes back invalid-credential/wrong-password even though the email
+    // exists. Probe the owning provider and steer the user there instead
+    // of the dead-end "wrong email or password".
+    const code = (e as { code?: string })?.code ?? '';
+    if (
+      code.includes('invalid-credential') ||
+      code.includes('wrong-password') ||
+      code.includes('user-not-found')
+    ) {
+      const hint = await providerHintForEmail(email);
+      if (hint) throw new AuthHintError(hint);
+    }
+    throw e;
+  }
+}
+
+async function signUpWithEmailBody(
+  email: string,
+  password: string,
+  displayName?: string,
+  locale?: Locale,
+): Promise<void> {
+  let cred;
+  try {
+    cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
+  } catch (e) {
+    // Email already owned — if by a federated provider, route the user to
+    // that provider rather than telling them to "sign in instead" (which
+    // fails: they never set a password).
+    if ((e as { code?: string })?.code === 'auth/email-already-in-use') {
+      const hint = await providerHintForEmail(email);
+      if (hint) throw new AuthHintError(hint);
+    }
+    throw e;
+  }
+  // Recorded here rather than at form submit: an account has to exist
+  // before a count can be addressed to it, and a failed attempt is not a
+  // signup. `onAuthStateChanged` has already bound the uid by this point.
+  //
+  // Email/password only. A first-time Google/Apple sign-in is
+  // indistinguishable from a returning one without `getAdditionalUserInfo`
+  // on every federated path, and `onboarding_complete` — which every new
+  // account passes through exactly once — answers the funnel question
+  // without that. So `signup` under-counts federated arrivals ON PURPOSE;
+  // read it against `onboarding_complete`, never as a total.
+  track('signup');
+  // Set displayName before the profile subscription resolves so greetings
+  // have a name on first render. Best-effort — never fail the sign-up.
+  const name = displayName?.trim();
+  if (name) {
+    try {
+      await updateProfile(cred.user, { displayName: name });
+    } catch (e) {
+      console.warn('updateProfile(displayName) failed', e);
+    }
+  }
+  try {
+    await sendOwnedVerificationEmail(locale);
+  } catch (e) {
+    console.warn('sendVerificationEmail failed', e);
+  }
+}
+
+/**
+ * Signs in to Firebase with a provider credential the caller already holds,
+ * then attaches any pending collision credential. On failure `toThrow` sees the
+ * error first (to capture a pending link, to log) and returns what to throw —
+ * the error itself, or a coded wrapper of it.
+ */
+async function signInWithProviderCredential(
+  credential: AuthCredential,
+  completeLinkIfPending: (u: User) => Promise<void>,
+  toThrow: (e: unknown) => unknown,
+): Promise<void> {
+  try {
+    const result = await signInWithCredential(auth, credential);
+    await completeLinkIfPending(result.user);
+  } catch (e) {
+    throw toThrow(e);
+  }
+}
+
+/** Runs the named provider's native flow for linking, mapping every failure
+ *  onto a LinkError. */
+async function acquireLinkCredential(
+  provider: Exclude<LinkableProvider, 'password'>,
+  microsoftAvailable: boolean,
+  acquireMicrosoftCredential: () => Promise<AuthCredential>,
+): Promise<{ credential: AuthCredential; appleAuthorizationCode: string | null }> {
+  let credential: AuthCredential;
+  let appleAuthorizationCode: string | null = null;
+  try {
+    if (provider === 'google.com') {
+      credential = await acquireGoogleCredential('linkGoogle');
+    } else if (provider === 'apple.com') {
+      const acquired = await acquireAppleCredential();
+      credential = acquired.credential;
+      appleAuthorizationCode = acquired.authorizationCode;
+    } else {
+      if (!microsoftAvailable) throw new LinkError('unavailable');
+      credential = await acquireMicrosoftCredential();
+    }
+  } catch (e) {
+    // The provider flows throw their own coded errors; a user-cancelled
+    // picker is not a failure worth an alert.
+    const code = (e as { code?: string })?.code ?? '';
+    if (code === 'cancelled') throw new LinkError('cancelled');
+    if (code === 'expo-go' || code === 'play-services') throw new LinkError('unavailable');
+    throw toLinkError(e);
+  }
+  return { credential, appleAuthorizationCode };
+}
+
+/** `await run()`, with any failure re-thrown as a LinkError. */
+async function asLinkError<T>(run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (e) {
+    throw toLinkError(e);
+  }
+}
+
 interface AuthState {
   /** The signed-in Firebase user, or null when signed out. */
   user: User | null;
@@ -594,17 +739,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearPendingLink();
       return;
     }
-    try {
-      await linkWithCredential(signedIn, credential);
-      setUser(auth.currentUser);
-    } catch (e) {
-      // The user IS signed in at this point, so a failed link is a degraded
-      // outcome, not a failed sign-in — never rethrow into the sign-in path.
-      console.warn('completeLinkIfPending failed', e);
-      captureError(e, { where: 'auth.completeLinkIfPending' });
-    } finally {
-      clearPendingLink();
-    }
+    // A promise chain, not `try/catch/finally` — see the note above
+    // `signInWithEmailBody`. Same order: link, then the error path, then the
+    // pending credential is dropped either way.
+    await linkWithCredential(signedIn, credential)
+      .then(() => setUser(auth.currentUser))
+      .catch((e: unknown) => {
+        // The user IS signed in at this point, so a failed link is a degraded
+        // outcome, not a failed sign-in — never rethrow into the sign-in path.
+        console.warn('completeLinkIfPending failed', e);
+        captureError(e, { where: 'auth.completeLinkIfPending' });
+      })
+      .finally(clearPendingLink);
   }
 
   // Native Google Sign-In (Play Services on Android / the Google SDK on iOS).
@@ -672,21 +818,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // unverified user, so for an email/password signup the doc is created later
     // by reloadUser() the moment verification completes.
     if (u.emailVerified) {
-      try {
-        await ensureProfile(u.uid);
-      } catch (e) {
-        console.warn('ensureProfile failed', e);
-      }
+      await ensureProfile(u.uid).catch((e: unknown) => console.warn('ensureProfile failed', e));
     }
-    try {
-      const token = await u.getIdTokenResult();
-      // Mirrors the PWA's SubscriptionService: Pro = stripeRole "paid".
-      setIsPro(token.claims['stripeRole'] === 'paid' || token.claims['pro'] === true);
-      setIsAdmin(token.claims['admin'] === true);
-    } catch {
-      setIsPro(false);
-      setIsAdmin(false);
-    }
+    await u
+      .getIdTokenResult()
+      .then((token) => {
+        // Mirrors the PWA's SubscriptionService: Pro = stripeRole "paid".
+        setIsPro(token.claims['stripeRole'] === 'paid' || token.claims['pro'] === true);
+        setIsAdmin(token.claims['admin'] === true);
+      })
+      .catch(() => {
+        setIsPro(false);
+        setIsAdmin(false);
+      });
   }
 
   // #83 — adopt the on-disk session if Firebase is too slow to answer.
@@ -952,323 +1096,203 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [user],
   );
 
-  const value = useMemo<AuthState>(
-    () => ({
-      user,
-      sessionUid,
-      sessionPresumed,
-      initializing,
-      isPro,
-      isAdmin,
-      profile,
-      profileLoading,
-      profileConfirmed,
-      // Follows the presumed session too (#83), or a verified returning user
-      // gets bounced to /verify-email for the whole window.
-      emailVerified: user ? emailVerified : (presumed?.emailVerified ?? emailVerified),
-      reloadUser: async () => {
-        const u = auth.currentUser;
-        if (!u) return false;
-        await u.reload();
-        const fresh = auth.currentUser;
-        const verified = fresh?.emailVerified ?? false;
-        if (verified && fresh) {
-          // Force a new ID token so the Firestore rules see email_verified:true
-          // on the very next write (the cached token still says false).
-          try {
-            await fresh.getIdToken(true);
-          } catch {
-            // Non-fatal — the token refreshes on its own within the hour.
-          }
-          // The profile-doc create was rejected while unverified; now it passes.
-          try {
-            await ensureProfile(fresh.uid);
-          } catch (e) {
-            console.warn('ensureProfile failed', e);
-          }
-          setUser(fresh);
-        }
-        setEmailVerified(verified);
-        return verified;
-      },
-      resendVerification: async (locale) => {
-        const u = auth.currentUser;
-        if (!u) throw new Error('no-user');
-        await sendOwnedVerificationEmail(locale);
-      },
-      googleAvailable,
-      signIn: async (email, password) => {
+  // A plain object, not `useMemo`: the React Compiler memoizes it on exactly
+  // what it reads — including `pendingLink` through `completeLinkIfPending`
+  // and the Microsoft request through `acquireMicrosoftCredential` — and it
+  // refused to compile this provider at all while a hand-written dependency
+  // list named the values behind those two functions instead of the
+  // functions themselves. Consumers see a new value on the same changes.
+  const value: AuthState = {
+    user,
+    sessionUid,
+    sessionPresumed,
+    initializing,
+    isPro,
+    isAdmin,
+    profile,
+    profileLoading,
+    profileConfirmed,
+    // Follows the presumed session too (#83), or a verified returning user
+    // gets bounced to /verify-email for the whole window.
+    emailVerified: user ? emailVerified : (presumed?.emailVerified ?? emailVerified),
+    reloadUser: async () => {
+      const u = auth.currentUser;
+      if (!u) return false;
+      await u.reload();
+      const fresh = auth.currentUser;
+      const verified = fresh?.emailVerified ?? false;
+      if (verified && fresh) {
+        // Force a new ID token so the Firestore rules see email_verified:true
+        // on the very next write (the cached token still says false).
         try {
-          const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
-          // This is the second half of the collision flow: the user tapped
-          // Google/Apple, got bounced because the email is password-owned, and
-          // has now proved ownership. Attach the credential they came with.
-          await completeLinkIfPending(cred.user);
-        } catch (e) {
-          // A Google/Apple-only account has no password credential, so this
-          // comes back invalid-credential/wrong-password even though the email
-          // exists. Probe the owning provider and steer the user there instead
-          // of the dead-end "wrong email or password".
-          const code = (e as { code?: string })?.code ?? '';
-          if (
-            code.includes('invalid-credential') ||
-            code.includes('wrong-password') ||
-            code.includes('user-not-found')
-          ) {
-            const hint = await providerHintForEmail(email);
-            if (hint) throw new AuthHintError(hint);
-          }
-          throw e;
+          await fresh.getIdToken(true);
+        } catch {
+          // Non-fatal — the token refreshes on its own within the hour.
         }
-      },
-      signUp: async (email, password, displayName, locale) => {
-        let cred;
+        // The profile-doc create was rejected while unverified; now it passes.
         try {
-          cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
+          await ensureProfile(fresh.uid);
         } catch (e) {
-          // Email already owned — if by a federated provider, route the user to
-          // that provider rather than telling them to "sign in instead" (which
-          // fails: they never set a password).
-          if ((e as { code?: string })?.code === 'auth/email-already-in-use') {
-            const hint = await providerHintForEmail(email);
-            if (hint) throw new AuthHintError(hint);
-          }
-          throw e;
+          console.warn('ensureProfile failed', e);
         }
-        // Recorded here rather than at form submit: an account has to exist
-        // before a count can be addressed to it, and a failed attempt is not a
-        // signup. `onAuthStateChanged` has already bound the uid by this point.
-        //
-        // Email/password only. A first-time Google/Apple sign-in is
-        // indistinguishable from a returning one without `getAdditionalUserInfo`
-        // on every federated path, and `onboarding_complete` — which every new
-        // account passes through exactly once — answers the funnel question
-        // without that. So `signup` under-counts federated arrivals ON PURPOSE;
-        // read it against `onboarding_complete`, never as a total.
-        track('signup');
-        // Set displayName before the profile subscription resolves so greetings
-        // have a name on first render. Best-effort — never fail the sign-up.
-        const name = displayName?.trim();
-        if (name) {
-          try {
-            await updateProfile(cred.user, { displayName: name });
-          } catch (e) {
-            console.warn('updateProfile(displayName) failed', e);
-          }
-        }
-        try {
-          await sendOwnedVerificationEmail(locale);
-        } catch (e) {
-          console.warn('sendVerificationEmail failed', e);
-        }
-      },
-      // Routed through our own callable instead of Firebase's client SDK:
-      // Firebase sends from `noreply@<project>.firebaseapp.com`, which is
-      // unaligned with ignia.fit (fails DMARC) and unbrandable. The callable
-      // mints the same action link server-side and delivers it via Resend.
-      // It answers ok for any well-formed address, present or not, so this
-      // cannot report "no account with that email" — that was an enumeration
-      // oracle, and the UI already showed a neutral confirmation either way.
-      resetPassword: async (email, locale) => {
-        const call = httpsCallable<{ email: string; locale: string }, { ok: true }>(
-          functions,
-          'sendPasswordReset',
+        setUser(fresh);
+      }
+      setEmailVerified(verified);
+      return verified;
+    },
+    resendVerification: async (locale) => {
+      const u = auth.currentUser;
+      if (!u) throw new Error('no-user');
+      await sendOwnedVerificationEmail(locale);
+    },
+    googleAvailable,
+    signIn: (email, password) => signInWithEmailBody(email, password, completeLinkIfPending),
+    signUp: signUpWithEmailBody,
+    // Routed through our own callable instead of Firebase's client SDK:
+    // Firebase sends from `noreply@<project>.firebaseapp.com`, which is
+    // unaligned with ignia.fit (fails DMARC) and unbrandable. The callable
+    // mints the same action link server-side and delivers it via Resend.
+    // It answers ok for any well-formed address, present or not, so this
+    // cannot report "no account with that email" — that was an enumeration
+    // oracle, and the UI already showed a neutral confirmation either way.
+    resetPassword: async (email, locale) => {
+      const call = httpsCallable<{ email: string; locale: string }, { ok: true }>(
+        functions,
+        'sendPasswordReset',
+      );
+      await call({ email: email.trim(), locale: locale ?? 'en' });
+    },
+    signInWithGoogle: async () => {
+      const credential = await acquireGoogleCredential('signInWithGoogle');
+      await signInWithProviderCredential(credential, completeLinkIfPending, (e) => {
+        // Rethrow Firebase's own coded errors untouched — the screen maps
+        // account-exists-with-different-credential and friends by code. Only
+        // annotate, so an unmapped one (user-disabled, operation-not-allowed,
+        // internal-error) still reaches us with its code attached.
+        capturePendingLink(e, 'google.com');
+        console.warn('[google-signin] signInWithCredential failed', e);
+        captureError(e, {
+          where: 'signInWithGoogle.firebase',
+          extra: { firebaseCode: (e as { code?: string })?.code ?? null },
+        });
+        return new GoogleSignInError(
+          (e as { code?: string })?.code ?? 'failed',
+          describeNativeError(e),
         );
-        await call({ email: email.trim(), locale: locale ?? 'en' });
-      },
-      signInWithGoogle: async () => {
-        const credential = await acquireGoogleCredential('signInWithGoogle');
-        try {
-          const result = await signInWithCredential(auth, credential);
-          await completeLinkIfPending(result.user);
-        } catch (e) {
-          // Rethrow Firebase's own coded errors untouched — the screen maps
-          // account-exists-with-different-credential and friends by code. Only
-          // annotate, so an unmapped one (user-disabled, operation-not-allowed,
-          // internal-error) still reaches us with its code attached.
-          capturePendingLink(e, 'google.com');
-          console.warn('[google-signin] signInWithCredential failed', e);
-          captureError(e, {
-            where: 'signInWithGoogle.firebase',
-            extra: { firebaseCode: (e as { code?: string })?.code ?? null },
-          });
-          throw new GoogleSignInError(
-            (e as { code?: string })?.code ?? 'failed',
-            describeNativeError(e),
-          );
-        }
-      },
-      appleAvailable: appleSignInAvailable,
-      signInWithApple: async () => {
-        const { credential, authorizationCode } = await acquireAppleCredential();
-        try {
-          const result = await signInWithCredential(auth, credential);
-          await completeLinkIfPending(result.user);
-        } catch (e) {
-          capturePendingLink(e, 'apple.com');
-          throw e;
-        }
-        // Hand Apple's auth code to the server so deletion can revoke the token
-        // later (5.1.1(v)). Fire-and-forget — never block sign-in on this.
-        if (authorizationCode) {
-          registerAppleRefreshToken(authorizationCode).catch((e: unknown) =>
-            console.warn('apple refresh-token register failed', e),
-          );
-        }
-      },
-      // ---- Account linking --------------------------------------------------
-      linkedProviders,
-      linkProvider: async (provider) => {
-        const u = auth.currentUser;
-        if (!u) throw new LinkError('no-user');
-        if (linkedProviders.includes(provider)) throw new LinkError('already-linked');
-        let credential: AuthCredential;
-        let appleAuthorizationCode: string | null = null;
-        try {
-          if (provider === 'google.com') {
-            credential = await acquireGoogleCredential('linkGoogle');
-          } else if (provider === 'apple.com') {
-            const acquired = await acquireAppleCredential();
-            credential = acquired.credential;
-            appleAuthorizationCode = acquired.authorizationCode;
-          } else {
-            if (!microsoftAvailable) throw new LinkError('unavailable');
-            credential = await acquireMicrosoftCredential();
-          }
-        } catch (e) {
-          // The provider flows throw their own coded errors; a user-cancelled
-          // picker is not a failure worth an alert.
-          const code = (e as { code?: string })?.code ?? '';
-          if (code === 'cancelled') throw new LinkError('cancelled');
-          if (code === 'expo-go' || code === 'play-services') throw new LinkError('unavailable');
-          throw toLinkError(e);
-        }
-        try {
-          await linkWithCredential(u, credential);
-        } catch (e) {
-          throw toLinkError(e);
-        }
-        // Apple deletion revocation needs the code regardless of whether Apple
-        // arrived via sign-in or linking.
-        if (appleAuthorizationCode) {
-          registerAppleRefreshToken(appleAuthorizationCode).catch((e: unknown) =>
-            console.warn('apple refresh-token register failed', e),
-          );
-        }
-        // providerData is a snapshot on the User object, so re-read it or the
-        // row the user just connected keeps rendering as "not connected".
-        await u.reload();
-        setUser(auth.currentUser);
-      },
-      linkPassword: async (password) => {
-        const u = auth.currentUser;
-        if (!u) throw new LinkError('no-user');
-        const email = u.email;
-        // A federated account always has an email here; Apple relay addresses
-        // included (they are real, deliverable addresses).
-        if (!email) throw new LinkError('failed', 'no-email');
-        try {
-          await linkWithCredential(u, EmailAuthProvider.credential(email, password));
-        } catch (e) {
-          throw toLinkError(e);
-        }
-        await u.reload();
-        setUser(auth.currentUser);
-      },
-      unlinkProvider: async (provider) => {
-        const u = auth.currentUser;
-        if (!u) throw new LinkError('no-user');
-        // Firebase will cheerfully strip the only provider and leave an account
-        // nobody can sign into again. Refuse before that call, not after.
-        if (linkedProviders.length <= 1) throw new LinkError('last-provider');
-        try {
-          await fbUnlink(u, provider);
-        } catch (e) {
-          throw toLinkError(e);
-        }
-        await u.reload();
-        setUser(auth.currentUser);
-      },
-      pendingLink,
-      clearPendingLink,
-      // ---- end account linking ---------------------------------------------
-      microsoftAvailable,
-      signInWithMicrosoft: async () => {
-        const fbCredential = await acquireMicrosoftCredential();
-        try {
-          const result = await signInWithCredential(auth, fbCredential);
-          await completeLinkIfPending(result.user);
-        } catch (e) {
-          capturePendingLink(e, 'oidc.microsoft');
-          // Surface the real Firebase code in Metro logs for diagnosis (the UI
-          // maps it to a friendly message).
-          console.warn('[microsoft] signInWithCredential failed:', (e as { code?: string })?.code, (e as Error)?.message);
-          throw e;
-        }
-      },
-      // Blank the home-screen widget before dropping the session — its
-      // snapshot lives outside the app sandbox (iOS App Group) and would
-      // otherwise keep the previous account's numbers on the home screen.
-      signOut: async () => {
-        await clearWidget();
-        // Same obligation, different store: the parked quick-add queue holds
-        // what this account ate, addressed to its uid, and the slot list names
-        // its presets. Both are dropped before the session is, for the reason
-        // above (ADR-0020). `clearQuickAdd` never throws, so it cannot strand
-        // the sign-out.
-        await clearQuickAdd();
-        // The parked weigh-ins and measurements — same reason, same store kind.
-        await clearPendingBody();
-        // The weekly tape reminder is device-stored but the account's own
-        // (ADR-0043). `clearTapeReminder` never throws.
-        await clearTapeReminder();
-        // And the read cache — the third store holding this account's food off
-        // the network. Namespaced by uid, so the risk it removes is not the next
-        // account seeing it but this one's day surviving on a shared or sold
-        // phone after the session is gone.
-        // Counts belong to whoever was signed in when they happened, so the
-        // buffer is written out before the uid it is addressed to disappears.
-        await flushAnalytics();
-        setAnalyticsUser(null);
-        // In-memory "workout in progress" dot — module state, so it would
-        // otherwise survive into the next account's session.
-        clearActiveWorkoutSignal();
-        await clearOfflineCache(user?.uid);
-        // The Block Store copy of the session is a REFRESH TOKEN in Google's
-        // backup. Signing out has to take it with everything else, or a sold or
-        // shared phone would carry this account onto its next owner's device
-        // (#107). Cleared before `fbSignOut`, while there is still a session to
-        // reason about.
-        await clearStoredSession();
-        resetConnectivity();
-        await fbSignOut(auth);
-      },
-    }),
-    [
-      user,
-      sessionUid,
-      sessionPresumed,
-      initializing,
-      isPro,
-      isAdmin,
-      profile,
-      profileLoading,
-      profileConfirmed,
-      emailVerified,
-      presumed,
-      googleAvailable,
-      microsoftAvailable,
-      msRequest,
-      msPromptAsync,
-      msRedirectUri,
-      msNonce,
-      // Both are read inside the linking closures — omit them and
-      // completeLinkIfPending compares against a stale pendingLink, and the
-      // last-provider guard reads a stale provider list.
-      linkedProviders,
-      pendingLink,
-    ],
-  );
+      });
+    },
+    appleAvailable: appleSignInAvailable,
+    signInWithApple: async () => {
+      const { credential, authorizationCode } = await acquireAppleCredential();
+      await signInWithProviderCredential(credential, completeLinkIfPending, (e) => {
+        capturePendingLink(e, 'apple.com');
+        return e;
+      });
+      // Hand Apple's auth code to the server so deletion can revoke the token
+      // later (5.1.1(v)). Fire-and-forget — never block sign-in on this.
+      if (authorizationCode) {
+        registerAppleRefreshToken(authorizationCode).catch((e: unknown) =>
+          console.warn('apple refresh-token register failed', e),
+        );
+      }
+    },
+    // ---- Account linking --------------------------------------------------
+    linkedProviders,
+    linkProvider: async (provider) => {
+      const u = auth.currentUser;
+      if (!u) throw new LinkError('no-user');
+      if (linkedProviders.includes(provider)) throw new LinkError('already-linked');
+      const { credential, appleAuthorizationCode } = await acquireLinkCredential(
+        provider,
+        microsoftAvailable,
+        acquireMicrosoftCredential,
+      );
+      await asLinkError(() => linkWithCredential(u, credential));
+      // Apple deletion revocation needs the code regardless of whether Apple
+      // arrived via sign-in or linking.
+      if (appleAuthorizationCode) {
+        registerAppleRefreshToken(appleAuthorizationCode).catch((e: unknown) =>
+          console.warn('apple refresh-token register failed', e),
+        );
+      }
+      // providerData is a snapshot on the User object, so re-read it or the
+      // row the user just connected keeps rendering as "not connected".
+      await u.reload();
+      setUser(auth.currentUser);
+    },
+    linkPassword: async (password) => {
+      const u = auth.currentUser;
+      if (!u) throw new LinkError('no-user');
+      const email = u.email;
+      // A federated account always has an email here; Apple relay addresses
+      // included (they are real, deliverable addresses).
+      if (!email) throw new LinkError('failed', 'no-email');
+      await asLinkError(() => linkWithCredential(u, EmailAuthProvider.credential(email, password)));
+      await u.reload();
+      setUser(auth.currentUser);
+    },
+    unlinkProvider: async (provider) => {
+      const u = auth.currentUser;
+      if (!u) throw new LinkError('no-user');
+      // Firebase will cheerfully strip the only provider and leave an account
+      // nobody can sign into again. Refuse before that call, not after.
+      if (linkedProviders.length <= 1) throw new LinkError('last-provider');
+      await asLinkError(() => fbUnlink(u, provider));
+      await u.reload();
+      setUser(auth.currentUser);
+    },
+    pendingLink,
+    clearPendingLink,
+    // ---- end account linking ---------------------------------------------
+    microsoftAvailable,
+    signInWithMicrosoft: async () => {
+      const fbCredential = await acquireMicrosoftCredential();
+      await signInWithProviderCredential(fbCredential, completeLinkIfPending, (e) => {
+        capturePendingLink(e, 'oidc.microsoft');
+        // Surface the real Firebase code in Metro logs for diagnosis (the UI
+        // maps it to a friendly message).
+        console.warn('[microsoft] signInWithCredential failed:', (e as { code?: string })?.code, (e as Error)?.message);
+        return e;
+      });
+    },
+    // Blank the home-screen widget before dropping the session — its
+    // snapshot lives outside the app sandbox (iOS App Group) and would
+    // otherwise keep the previous account's numbers on the home screen.
+    signOut: async () => {
+      await clearWidget();
+      // Same obligation, different store: the parked quick-add queue holds
+      // what this account ate, addressed to its uid, and the slot list names
+      // its presets. Both are dropped before the session is, for the reason
+      // above (ADR-0020). `clearQuickAdd` never throws, so it cannot strand
+      // the sign-out.
+      await clearQuickAdd();
+      // The parked weigh-ins and measurements — same reason, same store kind.
+      await clearPendingBody();
+      // The weekly tape reminder is device-stored but the account's own
+      // (ADR-0043). `clearTapeReminder` never throws.
+      await clearTapeReminder();
+      // And the read cache — the third store holding this account's food off
+      // the network. Namespaced by uid, so the risk it removes is not the next
+      // account seeing it but this one's day surviving on a shared or sold
+      // phone after the session is gone.
+      // Counts belong to whoever was signed in when they happened, so the
+      // buffer is written out before the uid it is addressed to disappears.
+      await flushAnalytics();
+      setAnalyticsUser(null);
+      // In-memory "workout in progress" dot — module state, so it would
+      // otherwise survive into the next account's session.
+      clearActiveWorkoutSignal();
+      await clearOfflineCache(user?.uid);
+      // The Block Store copy of the session is a REFRESH TOKEN in Google's
+      // backup. Signing out has to take it with everything else, or a sold or
+      // shared phone would carry this account onto its next owner's device
+      // (#107). Cleared before `fbSignOut`, while there is still a session to
+      // reason about.
+      await clearStoredSession();
+      resetConnectivity();
+      await fbSignOut(auth);
+    },
+  };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

@@ -1,4 +1,3 @@
-import { useRecalibrationVisible } from '@/components/RecalibrationCard';
 import { useUpdateVisible } from '@/components/UpdateBanner';
 
 /**
@@ -43,12 +42,12 @@ import { useUpdateVisible } from '@/components/UpdateBanner';
  */
 export type TodayNudge = 'update' | 'recalibration' | null;
 
-export function useTodayNudge(): TodayNudge {
-  // Both are called unconditionally — they are hooks, and skipping one
-  // behind an early return would break the rules of hooks the moment the
-  // higher-priority Nudge appeared.
+/** `recalibration` is `digest.shouldSurface` from the screen's own
+ *  `useRecalibration()`, passed in so the digest is subscribed once. */
+export function useTodayNudge(recalibration: boolean): TodayNudge {
+  // Called before any return — it is a hook, and skipping it behind an early
+  // return would break the rules of hooks the moment the priority changed.
   const update = useUpdateVisible();
-  const recalibration = useRecalibrationVisible();
 
   if (update) return 'update';
   if (recalibration) return 'recalibration';

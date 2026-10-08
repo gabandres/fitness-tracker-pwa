@@ -159,36 +159,40 @@ export default function DailyTargetsScreen() {
     if (busy || !user || !canSave) return;
     setError(null);
     setBusy(true);
-    try {
-      await saveTargetMode(
-        user.uid,
-        mode,
-        custom
-          ? { calories: kcalNum, protein: protein.trim() === '' ? null : proteinNum }
-          : // Automatic: the MODE alone changes. The stored numbers are left
-            // exactly where they are, which is what makes this switch
-            // reversible without retyping anything.
-            {},
-      );
-      haptics.success();
-      // Back to whoever opened this — Settings, since S21-1 made this a root
-      // stack route (as a hidden tab, back went to Today). A cold open has
-      // nothing beneath it.
-      if (router.canGoBack()) router.back();
-      else router.replace('/settings');
-    } catch {
-      setError(t('targets.saveErr'));
-    } finally {
-      // ALWAYS, not just on the error path. Clearing `busy` only in `catch`
-      // relies on `router.back()` unmounting this screen, and when it does not
-      // the button is left spinning and `disabled` forever — every later tap
-      // silently ignored, with the save never re-issued. Seen on the LG VS988
-      // on 2026-08-21: the mode toggle moved to Automatic, the button showed a
-      // spinner, and Firestore still read `custom` because no write was ever
-      // sent. `setBusy` on an unmounted component is a no-op in React 19, so
-      // the unmount case costs nothing.
-      setBusy(false);
-    }
+    // A promise chain, not `try/catch/finally`: the React Compiler skips any
+    // component holding a `finally` (and any conditional inside a `try`), so
+    // the statement form left this whole screen unmemoized. Same order —
+    // success path, else the error, then `busy` cleared either way.
+    await saveTargetMode(
+      user.uid,
+      mode,
+      custom
+        ? { calories: kcalNum, protein: protein.trim() === '' ? null : proteinNum }
+        : // Automatic: the MODE alone changes. The stored numbers are left
+          // exactly where they are, which is what makes this switch
+          // reversible without retyping anything.
+          {},
+    )
+      .then(() => {
+        haptics.success();
+        // Back to whoever opened this — Settings, since S21-1 made this a root
+        // stack route (as a hidden tab, back went to Today). A cold open has
+        // nothing beneath it.
+        if (router.canGoBack()) router.back();
+        else router.replace('/settings');
+      })
+      .catch(() => setError(t('targets.saveErr')))
+      .finally(() => {
+        // ALWAYS, not just on the error path. Clearing `busy` only in `catch`
+        // relies on `router.back()` unmounting this screen, and when it does not
+        // the button is left spinning and `disabled` forever — every later tap
+        // silently ignored, with the save never re-issued. Seen on the LG VS988
+        // on 2026-08-21: the mode toggle moved to Automatic, the button showed a
+        // spinner, and Firestore still read `custom` because no write was ever
+        // sent. `setBusy` on an unmounted component is a no-op in React 19, so
+        // the unmount case costs nothing.
+        setBusy(false);
+      });
   }
 
   const kcalMsg = custom ? issueText(kcalCheck.issue, t, locale) : null;

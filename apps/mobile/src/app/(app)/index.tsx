@@ -51,6 +51,7 @@ import { performQuickAdd } from '@/lib/quick-add';
 import { useMilestones } from '@/hooks/useMilestones';
 import { useToday } from '@/hooks/useToday';
 import { useTodayNudge } from '@/hooks/useTodayNudge';
+import { useRecalibration } from '@/hooks/useRecalibration';
 import { useWidgetSync } from '@/hooks/useWidgetSync';
 import { enterUp, PressScale, usePulse } from '@/lib/motion';
 import { recordPositiveMoment } from '@/lib/reviewPrompt';
@@ -243,8 +244,10 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
     hasPhotoScan,
     measurement,
   } = useToday();
-  // The single Nudge slot this screen is allowed to fill.
-  const nudge = useTodayNudge();
+  // The single Nudge slot this screen is allowed to fill. One digest feeds both
+  // the slot and the card (`RecalibrationCard`).
+  const recalibration = useRecalibration();
+  const nudge = useTodayNudge(recalibration.digest.shouldSurface);
   // Milestones are evaluated here because this is where the streak already
   // exists. Deliberately NOT part of `useTodayNudge`'s union — the note asks
   // for nothing, so it is a state readout and does not compete for that slot.
@@ -974,7 +977,7 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
             onOpen={() => router.push('/milestones' as Href)}
           />
 
-          <RecalibrationCard suppressed={nudge !== 'recalibration'} />
+          <RecalibrationCard recalibration={recalibration} suppressed={nudge !== 'recalibration'} />
 
           <Animated.View entering={enterUp(1)}>
             <DailyMetrics

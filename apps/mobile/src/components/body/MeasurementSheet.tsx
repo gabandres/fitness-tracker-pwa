@@ -225,18 +225,23 @@ export function MeasurementSheet({
     // an offline one never settled at all. `onSave` now resolves once the row
     // is parked on disk, so the only failure that reaches here is one where
     // nothing at all was recorded — the typed values stay to retry.
+    //
+    // An edit passes a date only when the stepper moved it; an add only
+    // when it is for ANOTHER day — today's add keeps "now", so two tapes
+    // taken today still order by when they were taken. Worked out before the
+    // `try`: React Compiler cannot lower a conditional inside a try block.
+    const moved = initial ? dateKey !== initialKey : dateKey !== todayKey;
+    const at = moved ? noonOf(dateKey) : undefined;
     try {
-      // An edit passes a date only when the stepper moved it; an add only
-      // when it is for ANOTHER day — today's add keeps "now", so two tapes
-      // taken today still order by when they were taken.
-      const moved = initial ? dateKey !== initialKey : dateKey !== todayKey;
-      await onSave({ ...entry, ...bodyFatEntry } as Omit<Measurement, 'id' | 'date'>, moved ? noonOf(dateKey) : undefined);
+      await onSave({ ...entry, ...bodyFatEntry } as Omit<Measurement, 'id' | 'date'>, at);
     } catch {
       setSaveErr(true);
       announce(t('body.saveErr'));
-    } finally {
-      setBusy(false);
     }
+    // After the try/catch, not in a `finally`: React Compiler cannot lower a
+    // `finally` and skips the whole component. Nothing above can throw past
+    // the catch, so this still runs on both paths.
+    setBusy(false);
   }
 
   function requestClose(_via: SheetCloseVia): boolean {

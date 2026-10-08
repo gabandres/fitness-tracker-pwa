@@ -345,7 +345,10 @@ function TrendChartImpl({
   );
 
   // Memoised: rebuilding the gestures on every render re-attached them to the
-  // detector each time the parent drew.
+  // detector each time the parent drew. `idx.get()` / `idx.set()` in here, not
+  // `idx.value`: an assignment to `.value` inside a hook's callback reads to
+  // React Compiler as mutating a frozen value, and it skipped the whole chart
+  // (Reanimated's documented accessors for compiled code; same effect).
   const gesture = useMemo(() => {
     // A sideways drag scrubs at once. Showing the cursor at touch-down instead
     // flashed the bubble on every vertical scroll that began on the chart.
@@ -353,17 +356,17 @@ function TrendChartImpl({
       .activeOffsetX([-8, 8])
       .failOffsetY([-14, 14])
       .onStart((e) => {
-        idx.value = indexAtX(e.x, n, f);
+        idx.set(indexAtX(e.x, n, f));
       })
       .onUpdate((e) => {
         const next = indexAtX(e.x, n, f);
-        if (next !== idx.value) {
-          idx.value = next;
+        if (next !== idx.get()) {
+          idx.set(next);
           scheduleOnRN(tick);
         }
       })
       .onFinalize(() => {
-        idx.value = -1;
+        idx.set(-1);
       });
 
     // Touch and hold, then drag: the scrub starts where the finger rests,
@@ -372,18 +375,18 @@ function TrendChartImpl({
       .activateAfterLongPress(HOLD_TO_SCRUB_MS)
       .failOffsetY([-14, 14])
       .onStart((e) => {
-        idx.value = indexAtX(e.x, n, f);
+        idx.set(indexAtX(e.x, n, f));
         scheduleOnRN(tick);
       })
       .onUpdate((e) => {
         const next = indexAtX(e.x, n, f);
-        if (next !== idx.value) {
-          idx.value = next;
+        if (next !== idx.get()) {
+          idx.set(next);
           scheduleOnRN(tick);
         }
       })
       .onFinalize(() => {
-        idx.value = -1;
+        idx.set(-1);
       });
 
     // A tap opens the day under the finger in History.

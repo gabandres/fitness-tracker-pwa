@@ -87,18 +87,22 @@ export default function FeedbackScreen() {
     if (!canSend || !user) return;
     setError(null);
     setBusy(true);
-    try {
+    // An async body with `.catch`/`.finally` chained on, not a try statement:
+    // the React Compiler skips a component holding `try/finally`. Same order.
+    await (async () => {
       await sendFeedback(user.uid, { message: message.trim(), category });
       haptics.success();
       setSent(true);
-    } catch {
-      setError(t('feedback.err'));
-    } finally {
-      // Same reason as the targets editor: clearing this only on the error
-      // path leaves the button permanently disabled in any case where the
-      // screen stays mounted.
-      setBusy(false);
-    }
+    })()
+      .catch(() => {
+        setError(t('feedback.err'));
+      })
+      .finally(() => {
+        // Same reason as the targets editor: clearing this only on the error
+        // path leaves the button permanently disabled in any case where the
+        // screen stays mounted.
+        setBusy(false);
+      });
   }
 
   // The confirmation replaces the composer rather than sitting under it. A

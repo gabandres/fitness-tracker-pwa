@@ -1,6 +1,6 @@
-import { type ReactNode, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useEffectEvent, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
-  Animated, type DimensionValue, Dimensions, Modal, PanResponder, Platform, Pressable,
+  Animated, type DimensionValue, Dimensions, Modal, PanResponder, type PanResponderInstance, Platform, Pressable,
   StyleSheet, type StyleProp, View, type ViewStyle,
 } from 'react-native';
 import { router } from 'expo-router';
@@ -115,12 +115,19 @@ function NativeBottomSheet({
   backSteps = false,
 }: Props) {
   const id = `sheet-${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
-  const requestRef = useRef<(via: SheetCloseVia) => boolean>(() => true);
-  requestRef.current = (via) => {
+  const request = (via: SheetCloseVia): boolean => {
     if (onRequestClose) return onRequestClose(via) !== false;
     onClose();
     return true;
   };
+  // The route holds `requestClose` across renders, so it calls through a ref.
+  // Written in a layout effect — never during render, which made the React
+  // Compiler skip this component — and declared before the publish below, so
+  // the route has the current handler by the time it can call it.
+  const requestRef = useRef(request);
+  useLayoutEffect(() => {
+    requestRef.current = request;
+  });
 
   // Republished every render so the route always shows current children —
   // but only while there is a route to show them: a closed sheet published on
@@ -149,15 +156,21 @@ function NativeBottomSheet({
     [id],
   );
 
+  // `detents` is read when the route is pushed but is not a trigger: a new
+  // array (the default is one per render) must not re-run the open/close below.
+  const pushRoute = useEffectEvent(() => {
+    router.push({
+      pathname: '/sheet',
+      params: { id, detents: detents === 'fit' ? 'fit' : detents.join(',') },
+    });
+  });
+
   useEffect(() => {
     if (visible && !isPresented(id)) {
       // Before the push: the screen underneath blurs when the route lands, and
       // must already know it is a sheet over it (`useFocusEffectThroughSheets`).
       markSheetActive(id);
-      router.push({
-        pathname: '/sheet',
-        params: { id, detents: detents === 'fit' ? 'fit' : detents.join(',') },
-      });
+      pushRoute();
     } else if (!visible) {
       dismissSheet(id);
       if (!isPresented(id)) {
@@ -169,10 +182,33 @@ function NativeBottomSheet({
         if (last?.visible) setSheetPortal(id, { ...last, visible: false });
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, id]);
 
   return null;
+}
+
+/**
+ * Drag-to-dismiss on the handle strip: follow the finger down, release past
+ * the threshold (or a flick) asks `release` to close; otherwise — or when it
+ * returns false — spring back into place. The responder is created once, so
+ * `release` is the first render's and must read anything that changes through
+ * a ref. A hook of its own so the React Compiler can see `release` is only
+ * called from the gesture: built inline, the same `useState` initializer reads
+ * to the compiler as a ref passed to a render-time call, and it skipped
+ * `JsBottomSheet` for it.
+ */
+function useHandleDrag(drag: Animated.Value, release: () => boolean): PanResponderInstance {
+  const [pan] = useState(() =>
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, g) => g.dy > 4 && Math.abs(g.dy) > Math.abs(g.dx),
+      onPanResponderMove: (_, g) => drag.setValue(Math.max(0, g.dy)),
+      onPanResponderRelease: (_, g) => {
+        if ((g.dy > 120 || g.vy > 0.8) && release()) return;
+        Animated.spring(drag, { toValue: 0, stiffness: 300, damping: 26, useNativeDriver: true }).start();
+      },
+    }),
+  );
+  return pan;
 }
 
 /**
@@ -203,8 +239,8 @@ function JsBottomSheet({
   // Reduce Motion: the sheet appears and disappears in place, no spring.
   const reduceMotion = useReducedMotion();
   const [mounted, setMounted] = useState(visible);
-  const anim = useRef(new Animated.Value(0)).current;
-  const drag = useRef(new Animated.Value(0)).current;
+  const [anim] = useState(() => new Animated.Value(0));
+  const [drag] = useState(() => new Animated.Value(0));
 
   // The sheet GROWS for the keyboard rather than moving: `wrap` is flex-end,
   // so extra bottom padding keeps the background pinned to the screen edge
@@ -213,8 +249,11 @@ function JsBottomSheet({
   // system's floating "Done" pill — showing the page behind. See the hook.
   const sheetPadding = useKeyboardSheetPadding(space.xxl);
 
-  useEffect(() => {
-    if (visible) {
+  // Open/close runs on `visible` alone. `mounted` and `reduceMotion` are read,
+  // not triggers — an effect event keeps a Reduce Motion flip or the exit
+  // animation's own `setMounted(false)` from re-running it.
+  const onVisible = useEffectEvent((show: boolean) => {
+    if (show) {
       setMounted(true);
       drag.setValue(0);
       if (reduceMotion) {
@@ -239,28 +278,29 @@ function JsBottomSheet({
         if (finished) setMounted(false);
       });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  });
+  useEffect(() => {
+    // `setMounted` is the Modal half of an animation this effect drives on an
+    // external system (RN Animated); the rule below has nothing to say about
+    // that. Suppressing THIS rule does not make the compiler skip — only
+    // `exhaustive-deps` and `rules-of-hooks` suppressions do.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    onVisible(visible);
   }, [visible]);
 
-  // Drag-to-dismiss on the handle strip: follow the finger down, release past
-  // the threshold (or a flick) closes; otherwise spring back into place.
-  // (Through a ref — the responder is created once, the props aren't.)
-  const requestRef = useRef<(via: SheetCloseVia) => boolean>(() => true);
-  requestRef.current = (via) => {
+  const request = (via: SheetCloseVia): boolean => {
     if (onRequestClose) return onRequestClose(via) !== false;
     onClose();
     return true;
   };
-  const pan = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_, g) => g.dy > 4 && Math.abs(g.dy) > Math.abs(g.dx),
-      onPanResponderMove: (_, g) => drag.setValue(Math.max(0, g.dy)),
-      onPanResponderRelease: (_, g) => {
-        if ((g.dy > 120 || g.vy > 0.8) && requestRef.current('drag')) return;
-        Animated.spring(drag, { toValue: 0, stiffness: 300, damping: 26, useNativeDriver: true }).start();
-      },
-    }),
-  ).current;
+  // The drag responder is created once and the props are not, so it calls
+  // through a ref — written in a layout effect, not during render (a
+  // render-time write made the React Compiler skip this component).
+  const requestRef = useRef(request);
+  useLayoutEffect(() => {
+    requestRef.current = request;
+  });
+  const pan = useHandleDrag(drag, () => requestRef.current('drag'));
 
   const backdropStyle = useMemo(() => [styles.backdrop, { opacity: anim }], [anim, styles.backdrop]);
   // Transform only. The painted surface (background, radius, padding) is the
@@ -280,14 +320,14 @@ function JsBottomSheet({
   );
 
   return (
-    <Modal visible={mounted} transparent animationType="none" onRequestClose={() => requestRef.current('back')}>
+    <Modal visible={mounted} transparent animationType="none" onRequestClose={() => request('back')}>
       {/* The backdrop is a real control — it closes the sheet — so it says so
           (S18-5). Without a role and a label VoiceOver reads it as an unnamed
           button the size of the screen. */}
       <Animated.View style={backdropStyle}>
         <Pressable
           style={StyleSheet.absoluteFill}
-          onPress={() => requestRef.current('backdrop')}
+          onPress={() => request('backdrop')}
           accessibilityRole="button"
           accessibilityLabel={t('a11y.close')}
           testID={backdropTestID}

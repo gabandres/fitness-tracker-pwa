@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useMemo, useState } from 'react';
 import { AppState } from 'react-native';
 import {
   type DailyTargets,
@@ -101,11 +101,17 @@ export function useWidgetSync(
   // to disappear from the blob, or the button outlives what it logs.
   const quickAdd = useMemo(() => resolveQuickAddTargets(slots, presets), [slots, presets]);
 
-  // Read through a ref inside the AppState listener so the subscription is
-  // registered once instead of being torn down and rebuilt on every keystroke
-  // that moves a total.
-  const latest = useRef({ summary, targets, locale, quickAdd, uid, boundary });
-  latest.current = { summary, targets, locale, quickAdd, uid, boundary };
+  // An effect event, so the AppState listener below is registered once instead
+  // of being torn down and rebuilt on every keystroke that moves a total, and
+  // still reads the latest inputs. (It was a ref written during render, which
+  // made the React Compiler skip this hook.) After a rollover this summary can
+  // still be yesterday's — `dayStamp` labels it as such, and Today's re-key
+  // re-runs the effect below with the new day.
+  const onForeground = useEffectEvent(() => {
+    const { key, endsMs } = dayStamp(boundary, summary);
+    void syncWidget(summary, targets, key, locale, Date.now(), quickAdd, endsMs);
+    if (uid) void flushPendingLogs(uid);
+  });
 
   useEffect(() => {
     const { key, endsMs } = dayStamp(boundary, summary);
@@ -143,13 +149,7 @@ export function useWidgetSync(
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
       if (state !== 'active') return;
-      const { summary: s, targets: tg, locale: l, quickAdd: qa, uid: u, boundary: b } = latest.current;
-      // Read from `latest` rather than captured at mount. After a rollover
-      // this summary can still be yesterday's — `dayStamp` labels it as such,
-      // and Today's re-key re-runs the effect above with the new day.
-      const { key, endsMs } = dayStamp(b, s);
-      void syncWidget(s, tg, key, l, Date.now(), qa, endsMs);
-      if (u) void flushPendingLogs(u);
+      onForeground();
     });
     return () => sub.remove();
   }, []);

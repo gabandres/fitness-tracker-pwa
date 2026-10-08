@@ -266,6 +266,23 @@ const PREVIEW_WIDTH = 320;
 const PREVIEW_MAX_SCALE = 1.3;
 
 /**
+ * A ref holding this render's `value`, written in an effect and never during
+ * render (a render-time ref write makes the React Compiler skip the
+ * component). Read it only from a press or an effect, which run after the
+ * commit. A hook rather than inline `useRef` + `useEffect`: a hook's argument
+ * is frozen where it is passed, so the compiler stops tracing the value into
+ * every memo that reads the ref — inline, that tracing failed the sheet's
+ * `useMemo`s and it was skipped whole.
+ */
+function useLatestRef<T>(value: T) {
+  const ref = useRef(value);
+  useEffect(() => {
+    ref.current = value;
+  });
+  return ref;
+}
+
+/**
  * Search-first add-food sheet, presented natively on iOS (a formSheet through
  * the root `sheet` route, `BottomSheet native`) and as the JS sheet elsewhere.
  * Adding opens on a BROWSE view (search + recents + the in-field doors); the
@@ -478,6 +495,9 @@ export function EntrySheet({
   // Reset form + mode whenever the sheet (re)opens.
   useEffect(() => {
     if (!visible) return;
+    // Local, not the render's `fmt`: that one is a fresh closure every render,
+    // and as a dependency it would re-fire this reset on every keystroke.
+    const fmt = (n: number) => formatDecimal(n, locale);
     const opened = {
       label: editing?.mealLabel ?? '',
       calories: editing?.calories != null ? fmt(editing.calories) : '',
@@ -567,9 +587,8 @@ export function EntrySheet({
       setBaseline(formSig(...draft, draftNote));
       setMode('custom');
     }
-    // `fmt`/`presetSlot` derive from `locale`/`initialPrefill`, both listed.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, editing, dateKey, initialPrefill, locale]);
+    // `presetSlot` is read off `initialPrefill`, so listing it adds no firing.
+  }, [visible, editing, dateKey, initialPrefill, presetSlot, locale]);
 
   // The recipe / meal-text dirty flag belongs to the sub-mode that raised it.
   useEffect(() => {
@@ -602,18 +621,6 @@ export function EntrySheet({
     setEntryDate((prev) => moveToDay(prev, day, new Date()));
   }
 
-  /**
-   * Move the entry's time of day (2026-10-02: a bar eaten ~4:15 PM sat at
-   * the 12:00 a past-day add stamps, with no way to fix it). Stays on the
-   * date row's day and out of the future (`shiftTimeOfDay`), and carries a
-   * clock-defaulted meal slot along — 12:00 Lunch → 4:15 PM Snack — so the
-   * entry re-files where the diary would have put it. A slot picked by hand,
-   * here or when it was logged, stays put.
-   */
-  function shiftEntryTime(deltaMinutes: number) {
-    applyEntryTime(shiftTimeOfDay(entryDate, deltaMinutes, new Date()));
-  }
-
   /** `ticked`: the change came from the iOS picker, which plays its own
    *  selection tick (`NativeDateField`) — a second one here made every turn of
    *  the wheel buzz twice (re-score bug 3). */
@@ -624,6 +631,19 @@ export function EntrySheet({
     if (!ticked) haptics.selection();
     if (!mealTouched) setMealType(mealTypeAfterRetime(retimeOrigin.mealType, retimeOrigin.at, next));
     setEntryDate(next);
+  }
+
+  /**
+   * Move the entry's time of day (2026-10-02: a bar eaten ~4:15 PM sat at
+   * the 12:00 a past-day add stamps, with no way to fix it). Stays on the
+   * date row's day and out of the future (`shiftTimeOfDay`), and carries a
+   * clock-defaulted meal slot along — 12:00 Lunch → 4:15 PM Snack — so the
+   * entry re-files where the diary would have put it. A slot picked by hand,
+   * here or when it was logged, stays put. Below `applyEntryTime` on purpose:
+   * a call to a function declared later makes the React Compiler skip the sheet.
+   */
+  function shiftEntryTime(deltaMinutes: number) {
+    applyEntryTime(shiftTimeOfDay(entryDate, deltaMinutes, new Date()));
   }
 
   /** Commit the typed time (`parseTimeOfDay`: 8:15, 815, 6:30pm). Unreadable
@@ -649,15 +669,18 @@ export function EntrySheet({
    * a multi-add is one meal, and its time carries from food to food on
    * purpose. Adds only: an edit never reaches `prefill`/`openCustomBlank`.
    */
-  function resetWhenFor(keep: boolean) {
-    if (keep) return;
-    const at = dateKey ? noonOf(dateKey) : new Date();
-    setEntryDate(at);
-    setTimeTouched(false);
-    setTimeDraft(null);
-    setMealTouched(presetSlot != null);
-    setRetimeOrigin({ mealType: presetSlot, at });
-  }
+  const resetWhenFor = useCallback(
+    (keep: boolean) => {
+      if (keep) return;
+      const at = dateKey ? noonOf(dateKey) : new Date();
+      setEntryDate(at);
+      setTimeTouched(false);
+      setTimeDraft(null);
+      setMealTouched(presetSlot != null);
+      setRetimeOrigin({ mealType: presetSlot, at });
+    },
+    [dateKey, presetSlot],
+  );
 
   /** Prefill the manual form from an estimate (search portion, recipe,
    *  barcode) and move to CUSTOM for review before saving. */
@@ -710,9 +733,10 @@ export function EntrySheet({
       setPendingServing(sv ? { ctx: { ...sv, basis }, appliedCalories: src.calories } : null);
       setMode('custom');
     },
-    // `resetWhenFor` reads only `dateKey` and `presetSlot` besides setters.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [locale, presetSlot, keepOpen, dateKey],
+    // `resetWhenFor` changes exactly when `dateKey` or `presetSlot` does.
+    // `setMode` never changes; it is listed because the compiler infers it,
+    // and skips the sheet when this list disagrees with what it infers.
+    [locale, presetSlot, keepOpen, resetWhenFor, setMode],
   );
 
   /**
@@ -884,17 +908,21 @@ export function EntrySheet({
     haptics.tap();
     setLibBusy(kind);
     setFormError(null);
+    // Chosen before the `try` and released after it, not in a `finally`: the
+    // React Compiler skips a function holding a `finally` or a conditional
+    // inside a `try` (this whole sheet, once). The catch cannot throw.
+    const savedKey = kind === 'preset' ? 'entry.presetSaved' : 'entry.myFoodSaved';
+    const where = kind === 'preset' ? 'entry.savePreset' : 'entry.saveCustomFood';
     try {
       await write();
       setLibSaved((s) => ({ ...s, [kind]: currentSig }));
-      showToast(t(kind === 'preset' ? 'entry.presetSaved' : 'entry.myFoodSaved'));
+      showToast(t(savedKey));
     } catch (e) {
       haptics.warning();
       setFormError(t('entry.librarySaveFailed'));
-      captureError(e, { where: kind === 'preset' ? 'entry.savePreset' : 'entry.saveCustomFood' });
-    } finally {
-      setLibBusy(null);
+      captureError(e, { where });
     }
+    setLibBusy(null);
   }
 
   function saveAsPreset() {
@@ -1159,10 +1187,17 @@ export function EntrySheet({
   // another portion, offered as one tap on the weight it implies. Read from the
   // recents by name — a log row keeps its kcal, not its grams — through the
   // pick's basis (`lastTimeGrams`). Reviewing a weighed pick only, never an edit.
-  const lastSame =
-    !editing && gramCtx && label.trim()
-      ? recentEntries.find((r) => r.mealLabel && normalizeName(r.mealLabel) === normalizeName(label))
-      : undefined;
+  // A memo for the compiler's sake more than the lookup's: a row found here is
+  // part of `recentEntries`, and read later in this render it marked the
+  // recents as mutated after the browse memos, which skipped the sheet.
+  const wantsLastSame = !editing && !!gramCtx && label.trim() !== '';
+  const lastSame = useMemo(
+    () =>
+      wantsLastSame
+        ? recentEntries.find((r) => r.mealLabel && normalizeName(r.mealLabel) === normalizeName(label))
+        : undefined,
+    [wantsLastSame, recentEntries, label],
+  );
   // A row that stored its weight says it outright; an older one is inferred
   // from its kcal through the pick's basis.
   const usualGrams =
@@ -1361,14 +1396,9 @@ export function EntrySheet({
    * they are onboarding, not a competing section.
    */
   // Through a ref: `quickLog` is a fresh function every render, and as a memo
-  // dependency it rebuilt the whole browse list on each one. Written in an
-  // effect, not during render — a render-time ref write makes the React
-  // Compiler skip the component (Today's `diaryRef`, review #1). The ref is
-  // only read from a row's press, which runs after the commit.
-  const quickLogRef = useRef(quickLog);
-  useEffect(() => {
-    quickLogRef.current = quickLog;
-  });
+  // dependency it rebuilt the whole browse list on each one. The ref is the
+  // same object every render, so listing it below re-runs nothing.
+  const quickLogRef = useLatestRef(quickLog);
   const browseRows = useMemo(() => {
     type Row = {
       key: string;
@@ -1388,10 +1418,10 @@ export function EntrySheet({
       /** What `onRemove` does, as its menu item says it. */
       removeLabel?: string;
     };
-    const recentRows: Row[] = [];
-    const foodRows: Row[] = [];
-    for (const r of recentEntries) {
-      recentRows.push({
+    // Built with `map`, not `push`: the compiler reads an object holding a
+    // ref-reading closure, handed to `push`, as a ref read during render.
+    const recentRows = recentEntries.map(
+      (r): Row => ({
         key: `recent-${r.id}`,
         name: r.mealLabel ?? '',
         kcal: r.calories,
@@ -1425,11 +1455,11 @@ export function EntrySheet({
           }),
         onRemove: r.mealLabel && onHideRecent ? () => onHideRecent(r.mealLabel as string) : undefined,
         removeLabel: t('entry.hideRecent'),
-      });
-    }
-    for (const f of customFoods) {
+      }),
+    );
+    const foodRows = customFoods.map((f): Row => {
       const m = scaleCustomFood(f, 1);
-      foodRows.push({
+      return {
         key: `customfood-${f.id}`,
         name: f.name,
         kcal: m.calories,
@@ -1477,13 +1507,13 @@ export function EntrySheet({
                   onConfirm: () => void onDeleteCustomFood(f.id as string),
                 })
             : undefined,
-      });
-    }
+      };
+    });
     // Recency still leads, but My Foods keep their reserved rows (see
     // MY_FOODS_RESERVED); any of the cap recents leave unused goes to them too.
     const recentsShown = recentRows.slice(0, BROWSE_ROW_CAP - Math.min(foodRows.length, MY_FOODS_RESERVED));
     return [...recentsShown, ...foodRows.slice(0, BROWSE_ROW_CAP - recentsShown.length)];
-  }, [recentEntries, customFoods, onHideRecent, onDeleteCustomFood, prefill, t, locale]);
+  }, [recentEntries, customFoods, onHideRecent, onDeleteCustomFood, prefill, t, locale, quickLogRef]);
 
   /**
    * The same foods, offered to SEARCH. Typing a saved food's name found
@@ -1494,12 +1524,13 @@ export function EntrySheet({
   // Through a ref so the memo below can key on the data alone and still log
   // with this render's onSave / onClose / date.
   const libraryItems = useMemo<LibraryItem[]>(() => {
+    // `map`/`flatMap`, not `push` — see `browseRows`. Every food is in `seen`
+    // before the first recent is checked, as in the loops this replaced.
     const seen = new Set<string>();
-    const out: LibraryItem[] = [];
-    for (const f of customFoods) {
+    const foods = customFoods.map((f): LibraryItem => {
       const m = scaleCustomFood(f, 1);
       seen.add(normalizeName(f.name));
-      out.push({
+      return {
         key: `customfood-${f.id ?? f.name}`,
         name: f.name,
         kcal: m.calories,
@@ -1507,14 +1538,14 @@ export function EntrySheet({
         tag: t('entry.myFoods'),
         onPick: () =>
           quickLogRef.current({ calories: m.calories, protein: m.protein, carbs: m.carbs, fat: m.fat, mealLabel: f.name }),
-      });
-    }
-    for (const r of recentEntries) {
-      if (!r.mealLabel) continue;
+      };
+    });
+    const recents = recentEntries.flatMap((r): LibraryItem[] => {
+      if (!r.mealLabel) return [];
       const k = normalizeName(r.mealLabel);
-      if (seen.has(k)) continue;
+      if (seen.has(k)) return [];
       seen.add(k);
-      out.push({
+      return [{
         key: `recent-${r.id ?? r.mealLabel}`,
         name: r.mealLabel,
         kcal: r.calories,
@@ -1528,10 +1559,44 @@ export function EntrySheet({
             fat: r.fat ?? undefined,
             mealLabel: r.mealLabel ?? undefined,
           }),
-      });
-    }
-    return out;
-  }, [customFoods, recentEntries, t]);
+      }];
+    });
+    return [...foods, ...recents];
+  }, [customFoods, recentEntries, t, quickLogRef]);
+
+  // The Quick add strip's rows, built here like `browseRows` and logging
+  // through the same ref. Built inline in the JSX map, their closures over
+  // `quickLog`/`prefill` read to the compiler as a ref read during render.
+  const presetRows = useMemo(
+    () =>
+      presets.map((p) => {
+        const entry = { calories: p.calories, protein: p.protein, carbs: p.carbs, fat: p.fat, mealLabel: p.name };
+        return {
+          preset: p,
+          name: p.name,
+          kcal: p.calories,
+          protein: p.protein,
+          carbs: p.carbs,
+          fat: p.fat,
+          tag: t('entry.quickAdd'),
+          onLog: () => quickLogRef.current(entry),
+          onEditFirst: () => prefill(entry),
+          onRemove:
+            p.id && onDeletePreset
+              ? () =>
+                  confirm({
+                    title: t('entry.presetDeleteConfirm'),
+                    body: p.name,
+                    confirmText: t('common.remove'),
+                    destructive: true,
+                    onConfirm: () => void onDeletePreset(p.id as string),
+                  })
+              : undefined,
+          removeLabel: t('entry.removePreset'),
+        };
+      }),
+    [presets, onDeletePreset, prefill, t, quickLogRef],
+  );
 
   /**
    * A food's other commands, beyond the one-tap log: "Edit before logging"
@@ -1634,31 +1699,9 @@ export function EntrySheet({
             ) : null}
           </View>
           <View style={styles.presetStrip}>
-            {presets.map((p) => {
-              const entry = { calories: p.calories, protein: p.protein, carbs: p.carbs, fat: p.fat, mealLabel: p.name };
-              const remove =
-                p.id && onDeletePreset
-                  ? () =>
-                      confirm({
-                        title: t('entry.presetDeleteConfirm'),
-                        body: p.name,
-                        confirmText: t('common.remove'),
-                        destructive: true,
-                        onConfirm: () => void onDeletePreset(p.id as string),
-                      })
-                  : undefined;
-              const cmd = foodCommands({
-                name: p.name,
-                kcal: p.calories,
-                protein: p.protein,
-                carbs: p.carbs,
-                fat: p.fat,
-                tag: t('entry.quickAdd'),
-                onLog: () => quickLog(entry),
-                onEditFirst: () => prefill(entry),
-                onRemove: remove,
-                removeLabel: t('entry.removePreset'),
-              });
+            {presetRows.map((row) => {
+              const p = row.preset;
+              const cmd = foodCommands(row);
               return (
                 <ContextMenu
                   key={p.id}
@@ -1666,7 +1709,7 @@ export function EntrySheet({
                   actions={cmd.menu}
                   preview={cmd.preview}
                   previewSize={cmd.previewSize}
-                  onPreviewPress={() => prefill(entry)}
+                  onPreviewPress={row.onEditFirst}
                 >
                   <Tappable
                     style={styles.presetChip}
@@ -1685,7 +1728,7 @@ export function EntrySheet({
                     }
                     {...(manageQuick ? null : cmd.a11y)}
                     onLongPress={manageQuick ? undefined : cmd.onLongPress}
-                    onPress={() => (manageQuick ? remove?.() : quickLog(entry))}
+                    onPress={() => (manageQuick ? row.onRemove?.() : row.onLog())}
                   >
                     <Text style={styles.presetName} numberOfLines={1} maxFontSizeMultiplier={2.2}>{p.name}</Text>
                     {manageQuick ? (
@@ -2028,7 +2071,9 @@ export function EntrySheet({
               <FoodSearch
                 unitSystem={unitSystem}
                 seedQuery={searchSeed}
-                initial={searchSnap.current}
+                // A getter, read once at FoodSearch's mount: a ref read here
+                // would be during render, and the compiler skips the sheet.
+                initial={() => searchSnap.current}
                 onSnapshot={(snap) => {
                   searchSnap.current = snap;
                   // Typing is the answer to "which way?": More ways folds

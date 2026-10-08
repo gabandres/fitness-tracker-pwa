@@ -15,9 +15,6 @@ const mockRecal = { value: false };
 jest.mock('@/components/UpdateBanner', () => ({
   useUpdateVisible: () => mockUpdate.value,
 }));
-jest.mock('@/components/RecalibrationCard', () => ({
-  useRecalibrationVisible: () => mockRecal.value,
-}));
 
 import { useTodayNudge } from '@/hooks/useTodayNudge';
 
@@ -29,7 +26,7 @@ beforeEach(() => {
 // `renderHook` is async in this RNTL version — the same shape `log-writes`
 // uses.
 async function activeNudge() {
-  const { result } = await renderHook(() => useTodayNudge());
+  const { result } = await renderHook(() => useTodayNudge(mockRecal.value));
   return result.current;
 }
 

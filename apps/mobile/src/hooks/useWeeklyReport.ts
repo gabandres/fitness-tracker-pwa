@@ -77,7 +77,9 @@ export function useWeeklyReport(): WeeklyReportState {
     if (generating) return;
     setGenerating(true);
     setErrorCode(null);
-    try {
+    // An async body with `.catch`/`.finally` chained on, not a try statement:
+    // the React Compiler skips a hook holding `try/finally`.
+    await (async () => {
       const streak = computeStreak(logs).streak;
       // One bounded all-time read; a failure falls back to the window.
       const stats = await getLogStats(uid!).catch(() => null);
@@ -85,11 +87,13 @@ export function useWeeklyReport(): WeeklyReportState {
       const payload = buildWeeklyReportPayload({ logs, tdee, profile, dailyWeights, milestone, locale });
       // The server writes the doc; subscribeLatestReport delivers the update.
       await requestWeeklyReport(payload);
-    } catch (err) {
-      setErrorCode(reportErrorCode(err) ?? 'REPORT_GENERATE_FAILED');
-    } finally {
-      setGenerating(false);
-    }
+    })()
+      .catch((err: unknown) => {
+        setErrorCode(reportErrorCode(err) ?? 'REPORT_GENERATE_FAILED');
+      })
+      .finally(() => {
+        setGenerating(false);
+      });
   }, [generating, uid, logs, tdee, profile, dailyWeights, locale]);
 
   const isStale = !report || Date.now() - report.generatedAt.getTime() > SEVEN_DAYS_MS;

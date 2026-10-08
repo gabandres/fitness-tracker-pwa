@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useCameraPermissions } from 'expo-camera';
 import { useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   AppState,
@@ -145,6 +145,11 @@ function withKeys(items: readonly ReviewItem[]): ReviewItem[] {
   return items.map((it) => (it.key ? it : { ...it, key: nextItemKey() }));
 }
 
+/** The `openAdd` nonce for a repeat prefill. A function at module scope so
+ *  the React Compiler's purity lint, which cannot see that `logRepeat` only
+ *  runs from a tap, does not read the clock as a render-time call. */
+const repeatNonce = () => `repeat-${Date.now()}`;
+
 const STEP_LABEL: Record<ScanStep, I18nKey> = {
   preparing: 'scan.stepPreparing',
   reading: 'scan.stepReading',
@@ -252,6 +257,17 @@ export default function Scan() {
   const [eatenAt, setEatenAt] = useState<Date>(() => new Date());
   const [timeTouched, setTimeTouched] = useState(false);
   const [timeDraft, setTimeDraft] = useState<string | null>(null);
+  // Declared beside its state rather than further down: the draft restore
+  // below calls it, and the React Compiler refuses to compile a component
+  // that reads a function before its declaration.
+  /** "Which meal, and when" back to untouched: now, and the clock's slot. */
+  function resetWhen() {
+    setSlot(undefined);
+    setEatenAt(new Date());
+    setTimeTouched(false);
+    setTimeDraft(null);
+  }
+
   /** Known-offline (U9): photo scan is a model call, so say it BEFORE the
    *  photo is encoded and sent, and offer the search, which works offline. */
   const offline = useIsOffline();
@@ -389,17 +405,22 @@ export default function Scan() {
    * (intro → review on mount) does not claim a scan just finished.
    */
   const prevPhase = useRef<Phase>(phase);
+  // `items` (and `t`/`locale`) are read for the result line only; re-running
+  // on an edit would re-announce nothing (the phase guard), but it is still not
+  // a trigger. An Effect Event reads them without making them dependencies —
+  // it used to be an `eslint-disable`, which makes the React Compiler skip the
+  // whole screen.
+  const announceProgress = useEffectEvent((now: Phase, was: Phase, current: ScanStep) => {
+    if (now === 'analyzing') {
+      announce(t(STEP_LABEL[current]));
+    } else if (now === 'review' && was === 'analyzing' && items.length) {
+      announce(t('scan.reviewReady', { kcal: formatNumber(Math.round(sumScannedMacros(items).calories), locale) }));
+    }
+  });
   useEffect(() => {
     const was = prevPhase.current;
     prevPhase.current = phase;
-    if (phase === 'analyzing') {
-      announce(t(STEP_LABEL[step]));
-    } else if (phase === 'review' && was === 'analyzing' && items.length) {
-      announce(t('scan.reviewReady', { kcal: formatNumber(Math.round(sumScannedMacros(items).calories), locale) }));
-    }
-    // `items` is read for the result line only; re-running on an edit would
-    // re-announce nothing (the phase guard), but it is still not a trigger.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    announceProgress(phase, was, step);
   }, [phase, step]);
 
   /**
@@ -434,6 +455,20 @@ export default function Scan() {
     // away without a word while Retake, beside Add, asked first.
     if (!items.length) void clearScanDraft();
     router.back();
+  }
+
+  /**
+   * A photo joins the viewfinder's strip, and says so.
+   *
+   * There is no "Use Photo" confirm any more, so this announcement is the only
+   * thing telling a VoiceOver user the shutter worked — and "2 of 3" is the
+   * part of the strip they cannot see.
+   */
+  function addPhoto(uri: string) {
+    setError(null);
+    if (pendingUris.length >= MAX_PHOTOS) return;
+    setPendingUris((prev) => (prev.length >= MAX_PHOTOS ? prev : [...prev, uri]));
+    announce(t('scan.photoAdded', { n: pendingUris.length + 1, max: MAX_PHOTOS }));
   }
 
   /**
@@ -473,32 +508,6 @@ export default function Scan() {
     setPhase('describe');
   }
 
-  /**
-   * A photo joins the viewfinder's strip, and says so.
-   *
-   * There is no "Use Photo" confirm any more, so this announcement is the only
-   * thing telling a VoiceOver user the shutter worked — and "2 of 3" is the
-   * part of the strip they cannot see.
-   */
-  function addPhoto(uri: string) {
-    setError(null);
-    if (pendingUris.length >= MAX_PHOTOS) return;
-    setPendingUris((prev) => (prev.length >= MAX_PHOTOS ? prev : [...prev, uri]));
-    announce(t('scan.photoAdded', { n: pendingUris.length + 1, max: MAX_PHOTOS }));
-  }
-
-  /**
-   * The shutter. The FIRST shot of a meal goes straight to analysis — one
-   * photo is the overwhelmingly common scan, and an Analyze tap after every
-   * shutter press was a tap that asked nothing (+ → Scan meal → shutter → Add).
-   * Cancel on the wait is the way back if the shot was wrong. A shot taken
-   * with photos already in the strip (after a Cancel, or "Add another angle"
-   * from the review) joins them, and Analyze sends them together.
-   */
-  function onShutter(uri: string) {
-    if (pendingUris.length === 0) void onAnalyze([uri]);
-    else addPhoto(uri);
-  }
 
   /** "Search instead" — the add sheet's search works offline (the food index
    *  is on the device), where a photo scan cannot. */
@@ -579,7 +588,12 @@ export default function Scan() {
     setStep('preparing');
     setPhase('analyzing');
 
-    try {
+    // The try statement as an async body with `.catch`/`.finally` chained on:
+    // the React Compiler skips a component holding `try/finally` or a `throw`
+    // inside `try`, and this is the whole scan screen. Same order, same
+    // outcomes — an early `return` leaves the body exactly as it left the
+    // `try`, and the cleanup still runs on every path.
+    await (async () => {
       track('photo_scan');
       // Encoded in parallel — three sequential resizes on a mid device is
       // three times the dead air, and they do not depend on each other.
@@ -605,25 +619,39 @@ export default function Scan() {
       resetWhen();
       setPhase('review');
       haptics.success();
-    } catch (e) {
-      if (run !== analyzeRun.current) return;
-      // Say what actually went wrong. This used to be a bare `catch {}` that
-      // rendered "Couldn't read that photo" for every failure — including the
-      // daily quota, which is not about the photo and which retaking it can
-      // only make worse. See `scanErrorMessage`. A connection lost mid-call is
-      // said as that, not as a bad photo.
-      const { key, params } = isOffline() ? { key: 'scan.errOffline' as const, params: {} } : scanErrorMessage(e);
-      setError(t(key, { ...params, time: quotaResetLabel(locale) }));
-      setPhase('intro');
-      haptics.warning();
-    } finally {
-      if (run === analyzeRun.current) {
-        setPreview(null);
-        setPendingUris([]);
-      }
-    }
+    })()
+      .catch((e: unknown) => {
+        if (run !== analyzeRun.current) return;
+        // Say what actually went wrong. This used to be a bare `catch {}` that
+        // rendered "Couldn't read that photo" for every failure — including the
+        // daily quota, which is not about the photo and which retaking it can
+        // only make worse. See `scanErrorMessage`. A connection lost mid-call is
+        // said as that, not as a bad photo.
+        const { key, params } = isOffline() ? { key: 'scan.errOffline' as const, params: {} } : scanErrorMessage(e);
+        setError(t(key, { ...params, time: quotaResetLabel(locale) }));
+        setPhase('intro');
+        haptics.warning();
+      })
+      .finally(() => {
+        if (run === analyzeRun.current) {
+          setPreview(null);
+          setPendingUris([]);
+        }
+      });
   }
 
+  /**
+   * The shutter. The FIRST shot of a meal goes straight to analysis — one
+   * photo is the overwhelmingly common scan, and an Analyze tap after every
+   * shutter press was a tap that asked nothing (+ → Scan meal → shutter → Add).
+   * Cancel on the wait is the way back if the shot was wrong. A shot taken
+   * with photos already in the strip (after a Cancel, or "Add another angle"
+   * from the review) joins them, and Analyze sends them together.
+   */
+  function onShutter(uri: string) {
+    if (pendingUris.length === 0) void onAnalyze([uri]);
+    else addPhoto(uri);
+  }
   /**
    * Cancel on the wait (U9). The call cannot be recalled — the server may
    * still count it — but the user is not held hostage by a 7 s cold start for
@@ -662,7 +690,7 @@ export default function Scan() {
     const mult = c.quantity != null && c.quantity > 0 ? c.quantity : 1;
     const f = c.food;
     leaveToToday({
-      openAdd: `repeat-${Date.now()}`,
+      openAdd: repeatNonce(),
       prefill: encodeEntryPrefill({
         calories: Math.round(f.calories * mult),
         protein: Math.round((f.protein ?? 0) * mult),
@@ -750,6 +778,23 @@ export default function Scan() {
     );
   }
 
+  /** Throw the reviewed scan away and start over. */
+  function discardScan() {
+    draftAt.current = null;
+    setFromDraft(false);
+    setAnalyzedUris([]);
+    setAddError(null);
+    setPhase(restartPhase);
+    setItems([]);
+    setPortion(1);
+    // The old scan's note would otherwise ride along with the next photo.
+    setNote('');
+    // Retake is leaving on purpose too: with `items` empty the save
+    // effect stops writing but never removes what it wrote, so the
+    // thrown-away scan came back as a "restored" review next mount.
+    void clearScanDraft();
+  }
+
   /** A restored review's way out that is not "retake": just let it go. */
   function onDiscardRestored() {
     haptics.tap();
@@ -759,14 +804,6 @@ export default function Scan() {
       destructive: true,
       onConfirm: discardScan,
     });
-  }
-
-  /** "Which meal, and when" back to untouched: now, and the clock's slot. */
-  function resetWhen() {
-    setSlot(undefined);
-    setEatenAt(new Date());
-    setTimeTouched(false);
-    setTimeDraft(null);
   }
 
   /** A stepper, a typed time or the native picker. Today only, never the
@@ -815,23 +852,6 @@ export default function Scan() {
     });
   }
 
-  /** Throw the reviewed scan away and start over. */
-  function discardScan() {
-    draftAt.current = null;
-    setFromDraft(false);
-    setAnalyzedUris([]);
-    setAddError(null);
-    setPhase(restartPhase);
-    setItems([]);
-    setPortion(1);
-    // The old scan's note would otherwise ride along with the next photo.
-    setNote('');
-    // Retake is leaving on purpose too: with `items` empty the save
-    // effect stops writing but never removes what it wrote, so the
-    // thrown-away scan came back as a "restored" review next mount.
-    void clearScanDraft();
-  }
-
   /**
    * Retake sits beside Add, a thumb's width from it, and the scan behind it
    * has already been charged to the daily quota — a free user has three. One
@@ -857,7 +877,9 @@ export default function Scan() {
     // does not blur the field (the same rule as the add sheet's form).
     const typed = timeDraft != null && timeDraft.trim() !== '' ? parseTimeOfDay(timeDraft) : null;
     const at = typed ? setTimeOfDay(eatenAt, typed.hours, typed.minutes, new Date()) : eatenAt;
-    try {
+    // Body / `.catch` / `.finally` rather than the statement form, for the
+    // React Compiler — see `onAnalyze`.
+    await (async () => {
       const total = sumScannedMacros(items);
       const label = mealName.trim() || t('scan.mealName');
       const calories = Math.round(total.calories);
@@ -922,17 +944,19 @@ export default function Scan() {
       // left the user to infer from the rings whether it had landed.
       receipt.showAdded(r, { label, calories });
       leaveToToday(); // back to Today — rings re-sweep to the new total
-    } catch (e) {
-      // It used to be try/finally with no catch: a failed add was an
-      // unhandled rejection and a button that simply stopped saying "Saving…"
-      // (B3). The review stays, the draft with it, and the line says why.
-      haptics.warning();
-      setAddError(t('scan.addFailed'));
-      announce(t('scan.addFailed'), { androidHasLiveRegion: true });
-      captureError(e, { where: 'scan.add' });
-    } finally {
-      setSaving(false);
-    }
+    })()
+      .catch((e: unknown) => {
+        // It used to be try/finally with no catch: a failed add was an
+        // unhandled rejection and a button that simply stopped saying "Saving…"
+        // (B3). The review stays, the draft with it, and the line says why.
+        haptics.warning();
+        setAddError(t('scan.addFailed'));
+        announce(t('scan.addFailed'), { androidHasLiveRegion: true });
+        captureError(e, { where: 'scan.add' });
+      })
+      .finally(() => {
+        setSaving(false);
+      });
   }
 
   const total = sumScannedMacros(items);

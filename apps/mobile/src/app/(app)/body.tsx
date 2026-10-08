@@ -141,6 +141,7 @@ function within<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {
 /** A stable stand-in for a missing `loadAllHistory` (stale mocks, partial
  *  cached state), so the chart's memo is not defeated by a fresh closure. */
 const NO_OP = () => {};
+const NO_WEIGH_INS: WeighIn[] = [];
 
 /** The longest a history-sheet → editor hand-off waits for the first sheet to
  *  finish dismissing before opening anyway (see `fromSheet`). */
@@ -179,7 +180,10 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
   } = body;
   // Defaults for every field added by the 2026-10-04 review, so a stale mock or
   // a partial cached state renders the old screen rather than throwing.
-  const weighIns = body.weighIns ?? [];
+  // A module constant, not a fresh `[]`: React Compiler reads a new array
+  // as one that may still be mutated, and then could not keep the
+  // `weighInSections` memo below — it skipped the whole screen.
+  const weighIns = body.weighIns ?? NO_WEIGH_INS;
   const weights = body.weights ?? {};
   const weightPoints = body.weightPoints ?? [];
   const trendPoints = body.trendPoints ?? [];
@@ -412,6 +416,34 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
     });
   }
 
+  /** `removeWeighIn`'s receipt and Undo. A function of its own, called inside
+   *  the `try`, because React Compiler cannot lower a conditional inside a try
+   *  block and skipped the whole screen; a throw here still lands in the
+   *  caller's catch. */
+  function weighInRemoved(w: WeighIn, r: Awaited<ReturnType<typeof body.deleteWeighIn>>, fromHealth: boolean) {
+    showToast(fromHealth ? t('body.weighInDeletedHealth', { store }) : t('body.weighInDeleted'), {
+      action: {
+        label: t('common.undo'),
+        onPress: () => {
+          // Back into Health only if it came out of Health: when the delete
+          // removed no Ignia sample, the value was a scale's and its own
+          // sample is still there — re-exporting would duplicate it.
+          void r.fromHealth
+            .catch(() => false)
+            .then((removed) => saveWeight(w.weight, w.dateKey, { restore: true, health: removed }))
+            .catch((e) => captureError(e, { where: 'body.undoDeleteWeighIn' }));
+        },
+      },
+      testID: 'body-toast',
+    });
+    void r.landed.then((o) => {
+      if (o === 'rejected') {
+        haptics.warning();
+        showToast(t('body.deleteFailed'), { testID: 'body-toast' });
+      }
+    });
+  }
+
   /**
    * Delete, then offer Undo (U5) — no confirm in front of it. A weigh-in is
    * one number; the receipt says what was removed and from where (C4:
@@ -423,27 +455,7 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
     try {
       const r = await body.deleteWeighIn(w.dateKey);
       const fromHealth = await within(r.fromHealth, 800, false);
-      showToast(fromHealth ? t('body.weighInDeletedHealth', { store }) : t('body.weighInDeleted'), {
-        action: {
-          label: t('common.undo'),
-          onPress: () => {
-            // Back into Health only if it came out of Health: when the delete
-            // removed no Ignia sample, the value was a scale's and its own
-            // sample is still there — re-exporting would duplicate it.
-            void r.fromHealth
-              .catch(() => false)
-              .then((removed) => saveWeight(w.weight, w.dateKey, { restore: true, health: removed }))
-              .catch((e) => captureError(e, { where: 'body.undoDeleteWeighIn' }));
-          },
-        },
-        testID: 'body-toast',
-      });
-      void r.landed.then((o) => {
-        if (o === 'rejected') {
-          haptics.warning();
-          showToast(t('body.deleteFailed'), { testID: 'body-toast' });
-        }
-      });
+      weighInRemoved(w, r, fromHealth);
     } catch (e) {
       // Bug 10: this failed silently.
       haptics.warning();
@@ -452,26 +464,32 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
     }
   }
 
+  /** `removeMeasurement`'s receipt and Undo — out of the `try` for the same
+   *  reason as {@link weighInRemoved}. */
+  function measurementRemoved(m: Measurement, r: Awaited<ReturnType<typeof deleteMeasurement>>) {
+    showToast(t('body.measurementDeleted'), {
+      action: {
+        label: t('common.undo'),
+        onPress: () => {
+          void body.restoreMeasurement?.(m).catch((e) => captureError(e, { where: 'body.undoDeleteMeasurement' }));
+        },
+      },
+      testID: 'body-toast',
+    });
+    void r?.landed?.then((o) => {
+      if (o === 'rejected') {
+        haptics.warning();
+        showToast(t('body.deleteFailed'), { testID: 'body-toast' });
+      }
+    });
+  }
+
   async function removeMeasurement(m: Measurement) {
     if (!m.id) return;
     haptics.tap();
     try {
       const r = await deleteMeasurement(m.id);
-      showToast(t('body.measurementDeleted'), {
-        action: {
-          label: t('common.undo'),
-          onPress: () => {
-            void body.restoreMeasurement?.(m).catch((e) => captureError(e, { where: 'body.undoDeleteMeasurement' }));
-          },
-        },
-        testID: 'body-toast',
-      });
-      void r?.landed?.then((o) => {
-        if (o === 'rejected') {
-          haptics.warning();
-          showToast(t('body.deleteFailed'), { testID: 'body-toast' });
-        }
-      });
+      measurementRemoved(m, r);
     } catch (e) {
       haptics.warning();
       showToast(t('body.deleteFailed'), { testID: 'body-toast' });

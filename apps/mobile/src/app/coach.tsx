@@ -146,12 +146,16 @@ export default function Coach() {
     setErrorMsg('');
     setOverLimit(false);
 
-    // Hoisted out of the `try` so the `catch` can tell "failed before a word
-    // arrived" from "dropped mid-answer", and keep what did arrive.
+    // Hoisted out of the async body so the `.catch` can tell "failed before a
+    // word arrived" from "dropped mid-answer", and keep what did arrive.
     let streamed = false;
     let buffer = '';
 
-    try {
+    // The try statement as an async body with `.catch`/`.finally` chained on:
+    // the React Compiler skips a component holding `try/finally` or a `throw`
+    // inside `try`. Same paths: the throw lands in the same handler, and the
+    // re-entry guard still drops on every outcome.
+    await (async () => {
       if (!user) throw Object.assign(new Error('auth'), { code: CoachErrorCode.UNAUTHENTICATED });
       const idToken = await user.getIdToken();
       const systemInstruction = buildCoachSystemInstruction({ logs, tdee, profile, dailyWeights, locale });
@@ -188,30 +192,32 @@ export default function Coach() {
       flush();
       setStatus('done');
       announce(t('coach.replied'));
-    } catch (err) {
-      const code = (err as CoachError)?.code;
-      if (code === CoachErrorCode.CONSULTATION_QUOTA_EXCEEDED) setOverLimit(true);
-      // Whatever arrived before the failure stays on screen.
-      if (streamed) setAnswer(buffer);
-      // A lost connection is the one failure whose cause we can name — but
-      // the `offline` above was captured when the ask STARTED, and the guard at
-      // the top already returned if it was true, so this branch never ran.
-      // Read the live verdict instead (`connectivity.ts` — NetInfo is
-      // deliberately not a dependency: native code moves the fingerprint), and
-      // treat a code-less failure AFTER chunks arrived as the stream dropping:
-      // the server reports its own failures as a typed `error` frame, so an
-      // untyped one mid-answer is the transport.
-      const msg = isOffline()
-        ? t('coach.offline')
-        : code == null && streamed
-          ? t('coach.lostMidStream')
-          : t(errorKey(code));
-      setErrorMsg(msg);
-      setStatus('error');
-      announce(msg);
-    } finally {
-      asking.current = false;
-    }
+    })()
+      .catch((err: unknown) => {
+        const code = (err as CoachError)?.code;
+        if (code === CoachErrorCode.CONSULTATION_QUOTA_EXCEEDED) setOverLimit(true);
+        // Whatever arrived before the failure stays on screen.
+        if (streamed) setAnswer(buffer);
+        // A lost connection is the one failure whose cause we can name — but
+        // the `offline` above was captured when the ask STARTED, and the guard at
+        // the top already returned if it was true, so this branch never ran.
+        // Read the live verdict instead (`connectivity.ts` — NetInfo is
+        // deliberately not a dependency: native code moves the fingerprint), and
+        // treat a code-less failure AFTER chunks arrived as the stream dropping:
+        // the server reports its own failures as a typed `error` frame, so an
+        // untyped one mid-answer is the transport.
+        const msg = isOffline()
+          ? t('coach.offline')
+          : code == null && streamed
+            ? t('coach.lostMidStream')
+            : t(errorKey(code));
+        setErrorMsg(msg);
+        setStatus('error');
+        announce(msg);
+      })
+      .finally(() => {
+        asking.current = false;
+      });
   };
 
   return (

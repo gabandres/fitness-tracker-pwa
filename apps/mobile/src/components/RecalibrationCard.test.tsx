@@ -51,7 +51,7 @@ import { RecalibrationCard } from './RecalibrationCard';
 describe('RecalibrationCard', () => {
   it('a first showing states the number, and does NOT claim a recalibration', async () => {
     mockDigest = digest({ deltaSinceAck: null });
-    const screen = await render(<RecalibrationCard />);
+    const screen = await render(<RecalibrationCard recalibration={{ digest: mockDigest, acknowledge: jest.fn(), previous: null }} />);
 
     expect(screen.getByText('Your measured burn is ready')).toBeTruthy();
     // The regression: this account's target did not move, so the event wording
@@ -61,7 +61,7 @@ describe('RecalibrationCard', () => {
 
   it('a drift away from an acknowledged number keeps the event wording', async () => {
     mockDigest = digest({ deltaSinceAck: -200 });
-    const screen = await render(<RecalibrationCard />);
+    const screen = await render(<RecalibrationCard recalibration={{ digest: mockDigest, acknowledge: jest.fn(), previous: null }} />);
 
     expect(screen.getByText('Your target just recalibrated')).toBeTruthy();
     expect(screen.queryByText('Your measured burn is ready')).toBeNull();
@@ -69,7 +69,7 @@ describe('RecalibrationCard', () => {
 
   it('renders nothing when the digest has nothing worth surfacing', async () => {
     mockDigest = digest({ shouldSurface: false });
-    const screen = await render(<RecalibrationCard />);
+    const screen = await render(<RecalibrationCard recalibration={{ digest: mockDigest, acknowledge: jest.fn(), previous: null }} />);
     expect(screen.queryByTestId('recalibration-card')).toBeNull();
   });
 });

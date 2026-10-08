@@ -196,42 +196,46 @@ export default function RefineTargets() {
     if (!canSave || !user || sex == null || heightIn == null || ageNum == null || selected == null) return;
     setError(null);
     setBusy(true);
-    try {
-      // Saving a suggested bucket IS the accept.
-      const accepting = selected === suggestion || selected === suggested;
-      // When the user accepts, store the CONTINUOUS multiplier their own
-      // device window implies rather than the bucket's rung. The bucket is
-      // still saved — it is their stated answer and what copy says — but the
-      // ladder cannot express the value the data supports, and on a real
-      // account the nearest rung was 17.9% out where the continuous value is
-      // 4.2% (ADR-0024). `undefined` on any other save leaves the stored
-      // multiplier untouched; a manual bucket change clears it, because the
-      // user has just overridden the measurement on purpose.
-      const activityMultiplier = accepting
-        ? evidence?.meanActiveKcal
-          ? activityMultiplierFor(evidence.meanActiveKcal, basalKcal)
-          : undefined
-        : touched
-          ? null
-          : undefined;
+    // Saving a suggested bucket IS the accept.
+    const accepting = selected === suggestion || selected === suggested;
+    // When the user accepts, store the CONTINUOUS multiplier their own
+    // device window implies rather than the bucket's rung. The bucket is
+    // still saved — it is their stated answer and what copy says — but the
+    // ladder cannot express the value the data supports, and on a real
+    // account the nearest rung was 17.9% out where the continuous value is
+    // 4.2% (ADR-0024). `undefined` on any other save leaves the stored
+    // multiplier untouched; a manual bucket change clears it, because the
+    // user has just overridden the measurement on purpose.
+    // Computed ahead of the write rather than inside a `try`: the React
+    // Compiler skips a component with a conditional inside a try/catch, and
+    // nothing here can throw (pure math that returns null on bad input).
+    const activityMultiplier = accepting
+      ? evidence?.meanActiveKcal
+        ? activityMultiplierFor(evidence.meanActiveKcal, basalKcal)
+        : undefined
+      : touched
+        ? null
+        : undefined;
 
-      await saveRefinedTargets(user.uid, {
-        heightIn,
-        age: ageNum,
-        sex,
-        activityLevel: selected,
-        activityMultiplier,
-        targetPaceLbsPerWeek: pace,
+    await saveRefinedTargets(user.uid, {
+      heightIn,
+      age: ageNum,
+      sex,
+      activityLevel: selected,
+      activityMultiplier,
+      targetPaceLbsPerWeek: pace,
+    })
+      .then(() => {
+        // Drop any remembered "no" so a future window is free to suggest that
+        // bucket again.
+        if (accepting) accept();
+        haptics.success();
+        leave();
+      })
+      .catch(() => {
+        setError(t('refine.saveErr'));
+        setBusy(false);
       });
-      // Drop any remembered "no" so a future window is free to suggest that
-      // bucket again.
-      if (accepting) accept();
-      haptics.success();
-      leave();
-    } catch {
-      setError(t('refine.saveErr'));
-      setBusy(false);
-    }
   }
 
   // The pace as the user reads it: their weight unit, their decimal separator

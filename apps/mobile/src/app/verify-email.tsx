@@ -59,7 +59,9 @@ export default function VerifyEmail() {
     if (checking) return;
     setError(null);
     setChecking(true);
-    try {
+    // Async bodies with `.catch`/`.finally` here and in `onResend`, not try
+    // statements: the React Compiler skips a component holding `try/finally`.
+    await (async () => {
       const verified = await reloadUser();
       if (verified) {
         haptics.success();
@@ -67,11 +69,13 @@ export default function VerifyEmail() {
       } else {
         setError(t('verify.notYet'));
       }
-    } catch {
-      setError(t('verify.checkFailed'));
-    } finally {
-      setChecking(false);
-    }
+    })()
+      .catch(() => {
+        setError(t('verify.checkFailed'));
+      })
+      .finally(() => {
+        setChecking(false);
+      });
   }
 
   /** Firebase throttles link generation tightly; a minute matches it. */
@@ -93,22 +97,24 @@ export default function VerifyEmail() {
     if (resending || cooldownLeft > 0) return;
     setError(null);
     setResending(true);
-    try {
+    await (async () => {
       await resendVerification(locale);
       setResentAt(Date.now());
-    } catch (e) {
-      // `RATE_LIMITED` is not a failure. Firebase Auth throttles link
-      // generation far tighter than our own per-uid budget, so tapping Resend
-      // seconds after the automatic sign-up send lands here with an email
-      // already on its way (production, 2026-09-14). "Couldn't resend" would
-      // be false, and "try again" is the one instruction that keeps it
-      // failing — so this case gets its own copy. The button stays enabled,
-      // because a minute later it will work.
-      const code = (e as { details?: { code?: string } } | null)?.details?.code;
-      setError(t(code === 'RATE_LIMITED' ? 'verify.resendTooSoon' : 'verify.resendFailed'));
-    } finally {
-      setResending(false);
-    }
+    })()
+      .catch((e: unknown) => {
+        // `RATE_LIMITED` is not a failure. Firebase Auth throttles link
+        // generation far tighter than our own per-uid budget, so tapping Resend
+        // seconds after the automatic sign-up send lands here with an email
+        // already on its way (production, 2026-09-14). "Couldn't resend" would
+        // be false, and "try again" is the one instruction that keeps it
+        // failing — so this case gets its own copy. The button stays enabled,
+        // because a minute later it will work.
+        const code = (e as { details?: { code?: string } } | null)?.details?.code;
+        setError(t(code === 'RATE_LIMITED' ? 'verify.resendTooSoon' : 'verify.resendFailed'));
+      })
+      .finally(() => {
+        setResending(false);
+      });
   }
 
   return (

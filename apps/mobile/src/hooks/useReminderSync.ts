@@ -83,7 +83,6 @@ export function useReminderSync(): void {
   // goes away with the flag, so the flag has to reach the scheduler from here.
   const tapeAllowed = isFeatureOn(FEATURES.compositionMaintenance, { isAdmin });
   const tapeAllowedRef = useRef(tapeAllowed);
-  tapeAllowedRef.current = tapeAllowed;
   const recomputeRef = useRef<(() => void) | null>(null);
   const t = useT();
   const logsRef = useRef<DailyLog[]>([]);
@@ -95,7 +94,14 @@ export function useReminderSync(): void {
   // reason. `profile` itself comes from the already-shared auth context, so
   // this adds no subscription.
   const profileRef = useRef(profile);
-  profileRef.current = profile;
+  // Both mirrors are written here rather than during render (a render-time ref
+  // write made the React Compiler skip this hook). Declared BEFORE the focus
+  // effect and the flag effect below, so in any one commit it has run before
+  // either of them reads the refs.
+  useEffect(() => {
+    tapeAllowedRef.current = tapeAllowed;
+    profileRef.current = profile;
+  });
 
   useFocusEffect(
     useCallback(() => {

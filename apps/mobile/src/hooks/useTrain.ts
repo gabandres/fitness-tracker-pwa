@@ -260,6 +260,31 @@ export function __resetFinishesInFlight(): void {
   finishesInFlight.clear();
 }
 
+/**
+ * `try { return await work(); } finally { done(); }`, out here at module
+ * level. React Compiler cannot lower a `finally` (nor a `try` without a
+ * `catch`) and skips the WHOLE function containing one — inside `useTrain`
+ * that cost every callback the hook returns its memoization. Same contract as
+ * the inline form: `done` runs on success, on a rejection and on a sync
+ * throw, and the error still propagates.
+ */
+async function withFinally<T>(work: () => Promise<T>, done: () => void): Promise<T> {
+  try {
+    return await work();
+  } finally {
+    done();
+  }
+}
+
+/** {@link withFinally} for synchronous work. */
+function withFinallySync<T>(work: () => T, done: () => void): T {
+  try {
+    return work();
+  } finally {
+    done();
+  }
+}
+
 export function useTrain(): TrainState {
   const { user, profile } = useAuth();
   const uid = user?.uid;
@@ -371,6 +396,80 @@ export function useTrain(): TrainState {
   const setLoadError = useCallback(
     (e: Error | null) => setErrorState(e ? { error: e, kind: 'load' } : null),
     [],
+  );
+
+  // `writeWhole` and `persist` are declared ABOVE the feed, whose `onOpen`
+  // calls both: a closure naming a binding declared further down made it a
+  // reassignable one to React Compiler, which then could not keep
+  // `persist`'s memoization and skipped the whole hook.
+  /** The whole document for a session, for a create that has to be (re)sent.
+   *  The id names the doc; the timestamps are the writer's. */
+  const writeWhole = useCallback(
+    async (session: WorkoutSession) => {
+      if (!uid || !session.id) return;
+      const { id, createdAt: _createdAt, updatedAt: _updatedAt, ...draft } = session;
+      try {
+        await startSession(uid, draft as SessionDraft, id);
+        uncreated.current.delete(id);
+      } catch (e) {
+        setError(asError(e, 'Save failed'));
+      }
+    },
+    [uid, setError],
+  );
+
+  /**
+   * How many session writes are waiting on the server. A counter, not a
+   * boolean: two overlapping writes used to clear `saving` when the FIRST one
+   * landed, while the second was still out.
+   */
+  const inFlight = useRef(0);
+
+  /** Persist the current local active session. */
+  const persist = useCallback(
+    async (session: WorkoutSession) => {
+      if (!uid || !session.id) return;
+      inFlight.current += 1;
+      setSaving(true);
+      // Narrowed above; a closure would lose that.
+      const sessionId = session.id;
+      // Built before the `try`: React Compiler cannot lower a conditional
+      // inside a try block.
+      const patch = {
+        exercises: session.exercises,
+        // Absent stays ABSENT. `toSessionPatch` writes the key only when it
+        // is present, so a strength-only session never gains an empty array
+        // — but a session that HAS cardio must carry it, and omitting it
+        // here is a silent data loss rather than a rejected write: the block
+        // renders, the summary updates, and Firestore never hears about it.
+        // Measured on the LG G6 on 2026-08-24, by Maestro flow 21.
+        ...(session.cardio !== undefined ? { cardio: session.cardio } : {}),
+      };
+      const write = async () => {
+        try {
+          await updateSession(uid, sessionId, patch);
+        } catch (e) {
+          // `not-found` on the session still on screen means its create never
+          // reached the server (started offline, then a restart) — not that it
+          // was deleted: a discard or finish clears `activeRef` before it
+          // writes. So send the whole document instead of losing the workout.
+          const code = (e as { code?: string } | null)?.code;
+          if (code === 'not-found' && session.status === 'active' && activeRef.current?.id === sessionId) {
+            await writeWhole(activeRef.current);
+          } else {
+            setError(asError(e, 'Save failed'));
+          }
+        }
+      };
+      // `.finally()` on the promise, not a `finally` block: React Compiler
+      // cannot lower one and skipped the whole hook. Runs on a resolve and a
+      // reject alike, and a rejection still propagates.
+      await write().finally(() => {
+        inFlight.current -= 1;
+        if (inFlight.current === 0) setSaving(false);
+      });
+    },
+    [uid, setError, writeWhole],
   );
 
   // Focus-gated so the Train tab drops its live listeners when it blurs
@@ -509,65 +608,6 @@ export function useTrain(): TrainState {
   // a cache hit, or an error — mirroring useToday.
   const loading = !feed.answered.sessions && !sessionsFromCache && !feed.failed;
 
-  /** The whole document for a session, for a create that has to be (re)sent.
-   *  The id names the doc; the timestamps are the writer's. */
-  const writeWhole = useCallback(
-    async (session: WorkoutSession) => {
-      if (!uid || !session.id) return;
-      const { id, createdAt: _createdAt, updatedAt: _updatedAt, ...draft } = session;
-      try {
-        await startSession(uid, draft as SessionDraft, id);
-        uncreated.current.delete(id);
-      } catch (e) {
-        setError(asError(e, 'Save failed'));
-      }
-    },
-    [uid, setError],
-  );
-
-  /**
-   * How many session writes are waiting on the server. A counter, not a
-   * boolean: two overlapping writes used to clear `saving` when the FIRST one
-   * landed, while the second was still out.
-   */
-  const inFlight = useRef(0);
-
-  /** Persist the current local active session. */
-  const persist = useCallback(
-    async (session: WorkoutSession) => {
-      if (!uid || !session.id) return;
-      inFlight.current += 1;
-      setSaving(true);
-      try {
-        await updateSession(uid, session.id, {
-          exercises: session.exercises,
-          // Absent stays ABSENT. `toSessionPatch` writes the key only when it
-          // is present, so a strength-only session never gains an empty array
-          // — but a session that HAS cardio must carry it, and omitting it
-          // here is a silent data loss rather than a rejected write: the block
-          // renders, the summary updates, and Firestore never hears about it.
-          // Measured on the LG G6 on 2026-08-24, by Maestro flow 21.
-          ...(session.cardio !== undefined ? { cardio: session.cardio } : {}),
-        });
-      } catch (e) {
-        // `not-found` on the session still on screen means its create never
-        // reached the server (started offline, then a restart) — not that it
-        // was deleted: a discard or finish clears `activeRef` before it
-        // writes. So send the whole document instead of losing the workout.
-        const code = (e as { code?: string } | null)?.code;
-        if (code === 'not-found' && session.status === 'active' && activeRef.current?.id === session.id) {
-          await writeWhole(activeRef.current);
-        } else {
-          setError(asError(e, 'Save failed'));
-        }
-      } finally {
-        inFlight.current -= 1;
-        if (inFlight.current === 0) setSaving(false);
-      }
-    },
-    [uid, setError, writeWhole],
-  );
-
   // One in-flight guard for every starter. `activeRef` alone is not one: it
   // was set only AFTER the create's round trip, so each tap on a slow or dead
   // connection queued another `status: 'active'` document (Train review
@@ -591,25 +631,28 @@ export function useTrain(): TrainState {
     (draft: SessionDraft) => {
       if (!uid || activeRef.current || starting.current) return;
       starting.current = true;
-      try {
-        // A Firestore-shaped id (20 chars of [A-Za-z0-9]) from core, the same
-        // minting the durable food queue uses — no SDK call, so no network.
-        const id = newLedgerId(Math.random);
-        const now = new Date();
-        uncreated.current.add(id);
-        setActive({ ...draft, id, createdAt: now, updatedAt: now });
-        // The session's birth is not a keystroke: written now, not debounced.
-        void journal.flush();
-        startSession(uid, draft, id)
-          .then(() => {
-            uncreated.current.delete(id);
-            const current = activeRef.current;
-            if (current?.id === id) journal.write(uid, current);
-          })
-          .catch((e) => setError(asError(e, 'Start failed')));
-      } finally {
-        starting.current = false;
-      }
+      withFinallySync(
+        () => {
+          // A Firestore-shaped id (20 chars of [A-Za-z0-9]) from core, the same
+          // minting the durable food queue uses — no SDK call, so no network.
+          const id = newLedgerId(Math.random);
+          const now = new Date();
+          uncreated.current.add(id);
+          setActive({ ...draft, id, createdAt: now, updatedAt: now });
+          // The session's birth is not a keystroke: written now, not debounced.
+          void journal.flush();
+          startSession(uid, draft, id)
+            .then(() => {
+              uncreated.current.delete(id);
+              const current = activeRef.current;
+              if (current?.id === id) journal.write(uid, current);
+            })
+            .catch((e) => setError(asError(e, 'Start failed')));
+        },
+        () => {
+          starting.current = false;
+        },
+      );
     },
     [uid, setActive, journal, setError],
   );
@@ -776,13 +819,22 @@ export function useTrain(): TrainState {
         // the same movement twice would mint it twice. The memo is that
         // within-call dedupe, and it is why this loop cannot just call the
         // helper blind.
+        //
+        // Three plain assignments, not `({ id, name, logStyle } = …)`: `name`
+        // is read by the `catalog.find` closure below and the other two are
+        // not, and React Compiler cannot lower one destructuring that mixes
+        // the two kinds of binding — it skipped the whole hook.
         const madeHere = made.get(se.key);
         if (madeHere) {
-          ({ id, name, logStyle } = madeHere);
+          id = madeHere.id;
+          name = madeHere.name;
+          logStyle = madeHere.logStyle;
         } else if (lib) {
           const entry = await ensureLibraryExercise(lib);
           made.set(se.key, entry);
-          ({ id, name, logStyle } = entry);
+          id = entry.id;
+          name = entry.name;
+          logStyle = entry.logStyle;
         } else {
           // A template referencing a key the library does not carry. Nothing
           // to inherit; keep the pre-existing behaviour of minting by key.
@@ -1065,44 +1117,47 @@ export function useTrain(): TrainState {
       if (!uid || !active?.id || finishing.current) return false;
       finishing.current = true;
       setSaving(true);
-      try {
-        const entry: PendingFinish = { savedAt: Date.now(), session: active, extras };
-        try {
-          // On the device FIRST — this is what the screen moving on rests on.
-          await recordPendingFinish(uid, entry);
-        } catch {
-          // No durable copy (storage full or unavailable): fall back to the
-          // old contract and wait on the network, so a failure keeps the
-          // sheet open with the typed values instead of losing the workout.
+      return withFinally(
+        async () => {
+          const entry: PendingFinish = { savedAt: Date.now(), session: active, extras };
           try {
-            await finishWorkoutOp(uid, active, dayBoundaryOf(profileRef.current), extras);
-          } catch (e) {
-            // `false`, not a rethrow: the screen used to `await` this inside a
-            // handler that then closed the Finish sheet and fired the review
-            // prompt regardless. A boolean makes "did it land" a value the
-            // handler has to look at; the error itself still surfaces.
-            setError(asError(e, 'Finish failed'));
-            return false;
+            // On the device FIRST — this is what the screen moving on rests on.
+            await recordPendingFinish(uid, entry);
+          } catch {
+            // No durable copy (storage full or unavailable): fall back to the
+            // old contract and wait on the network, so a failure keeps the
+            // sheet open with the typed values instead of losing the workout.
+            try {
+              await finishWorkoutOp(uid, active, dayBoundaryOf(profileRef.current), extras);
+            } catch (e) {
+              // `false`, not a rethrow: the screen used to `await` this inside a
+              // handler that then closed the Finish sheet and fired the review
+              // prompt regardless. A boolean makes "did it land" a value the
+              // handler has to look at; the error itself still surfaces.
+              setError(asError(e, 'Finish failed'));
+              return false;
+            }
+            journal.cancel();
+            void clearActiveSessionJournal(uid);
+            setActive(null);
+            return true;
           }
+          // The pending finish IS the durable copy now: drop any queued journal
+          // write (it would bring the active session back) and the journal.
           journal.cancel();
           void clearActiveSessionJournal(uid);
           setActive(null);
+          // The six-step sequence itself lives in `ledger-ops.ts`, where it is
+          // reachable without a renderer — the pruning order, the weight
+          // backstop and which half is fire-and-forget are asserted there.
+          runFinish(uid, entry);
           return true;
-        }
-        // The pending finish IS the durable copy now: drop any queued journal
-        // write (it would bring the active session back) and the journal.
-        journal.cancel();
-        void clearActiveSessionJournal(uid);
-        setActive(null);
-        // The six-step sequence itself lives in `ledger-ops.ts`, where it is
-        // reachable without a renderer — the pruning order, the weight
-        // backstop and which half is fire-and-forget are asserted there.
-        runFinish(uid, entry);
-        return true;
-      } finally {
-        finishing.current = false;
-        setSaving(inFlight.current > 0);
-      }
+        },
+        () => {
+          finishing.current = false;
+          setSaving(inFlight.current > 0);
+        },
+      );
     },
     [uid, setActive, setError, journal, runFinish],
   );

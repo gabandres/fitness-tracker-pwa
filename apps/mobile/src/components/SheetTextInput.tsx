@@ -36,11 +36,16 @@ export const SheetTextInput = forwardRef<TextInput, Props>(function SheetTextInp
   ref,
 ) {
   const [text, setText] = useState(value);
-  // Latest of each, for the deferred rejection check below.
+  // Latest committed of each, for the deferred rejection check below. Written
+  // in a layout effect, not during render (a render-time ref write makes the
+  // React Compiler skip the component): the keystroke's renders all commit
+  // inside the event, so they are current long before that check's macrotask.
   const propRef = useRef(value);
-  propRef.current = value;
   const textRef = useRef(text);
-  textRef.current = text;
+  useLayoutEffect(() => {
+    propRef.current = value;
+    textRef.current = text;
+  });
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // The owner said something new (a reset, a prefill, a sanitised value).

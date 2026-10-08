@@ -171,12 +171,41 @@ interface FeedState {
 
 const NO_MARKS: Record<string, boolean> = Object.freeze({});
 
+/** React's own dep comparison: same length, every slot `Object.is`. */
+function sameDeps(a: readonly unknown[], b: readonly unknown[]): boolean {
+  return a.length === b.length && a.every((d, i) => Object.is(d, b[i]));
+}
+
+/**
+ * `useMemo(factory, deps)` for a dep array the CALLER owns.
+ *
+ * `useMemo(opts.channels, opts.deps)` said exactly this, and it made the React
+ * Compiler skip this hook — and with it every reading hook, since they all run
+ * through here: the compiler only accepts an inline factory and an array-literal
+ * dep list. This is the same contract held in state instead — the "store what
+ * the last render saw" pattern — so `factory` runs only when a dep changes and
+ * the returned identity is otherwise stable. That stability is the point: a new
+ * `channels` re-opens every Firestore listener the caller owns.
+ *
+ * `factory` is called ONLY inside a state initializer/updater, never in the
+ * render body. In the body the compiler would memoize the call on `factory`'s
+ * identity alone, and a caller whose deps moved while its closure did not would
+ * get the old channels back. A dep change costs one extra render pass before
+ * commit: the update below is render-phase, so React re-runs this component at
+ * once and discards the pass that returned the stale value — nothing from it is
+ * committed, and no effect sees it.
+ */
+function useCallerMemo<T>(factory: () => T, deps: readonly unknown[]): T {
+  const [held, setHeld] = useState(() => ({ deps, value: factory() }));
+  if (!sameDeps(held.deps, deps)) setHeld(() => ({ deps, value: factory() }));
+  return held.value;
+}
+
 export function useLedgerFeed<K extends string>(opts: LedgerFeedOptions<K>): LedgerFeed<K> {
   const { uid, label, gate, enabled = true, retryOnOpen = false } = opts;
   // The caller's `deps` are its own — this is the `useCallback` dep array every
   // migrated hook already carried, moved one level up rather than invented.
-  // eslint-disable-next-line react-hooks/use-memo, react-hooks/exhaustive-deps
-  const channels = useMemo(opts.channels, opts.deps);
+  const channels = useCallerMemo(opts.channels, opts.deps);
 
   // Held in refs so a caller need not memoize them; both are read only inside
   // an open cycle, where the latest closure is the right one. Synced in an

@@ -265,7 +265,7 @@ describe('the recalibration card', () => {
 
   it('a drift shows old → new for maintenance and target, under a heading', async () => {
     mockRecal = { digest, acknowledge: jest.fn(), previous: { tdee: 2450, target: 1950 } };
-    const view = await render(<RecalibrationCard />);
+    const view = await render(<RecalibrationCard recalibration={mockRecal as never} />);
     expect(view.getByText('Your target just recalibrated').props.accessibilityRole).toBe('header');
     const lines = view.getAllByTestId('recalibration-from-to');
     expect(lines[0]).toHaveTextContent('Maintenance: 2,450 → 2,380 kcal/day');
@@ -277,7 +277,7 @@ describe('the recalibration card', () => {
 
   it('a first showing names the profile estimate it replaces', async () => {
     mockRecal = { digest: { ...digest, deltaSinceAck: null }, acknowledge: jest.fn(), previous: null };
-    const view = await render(<RecalibrationCard />);
+    const view = await render(<RecalibrationCard recalibration={mockRecal as never} />);
     expect(view.getByTestId('recalibration-from-to')).toHaveTextContent('Profile estimate 2,680 → measured 2,380 kcal/day');
   });
 });

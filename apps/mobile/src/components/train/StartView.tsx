@@ -137,7 +137,6 @@ export function StartView({
     [audit, phase, train.recentSessions, train.catalog, now],
   );
   const gateLb = profile?.volumeGateLb;
-  const boundary = dayBoundaryOf(profile);
   // The 7-day average for the volume gate, from the weigh-ins Today already
   // keeps on disk — ONE cache read when a gate is set, never a listener
   // (ADR-0016: Train does not subscribe to weights for one line of text).
@@ -145,19 +144,22 @@ export function StartView({
   // then omits the average and reads "not yet".
   const [sevenDayAvgLb, setSevenDayAvgLb] = useState<number | null>(null);
   const uid = user?.uid;
+  // Keyed on the profile's own `dayBoundary` and derived from it in the
+  // effect. It used a per-render `dayBoundaryOf(profile)` under an
+  // eslint-disable (the object is rebuilt every render; the hour is what
+  // matters), and the disable alone made React Compiler skip the whole view.
+  const dayBoundary = profile?.dayBoundary;
   useEffect(() => {
     if (!uid || gateLb == null) return;
     let cancelled = false;
     void readCache<Record<string, number>>(uid, 'weights').then((weights) => {
       if (cancelled || !weights) return;
-      setSevenDayAvgLb(trailingAverageLb(weights, 7, new Date(now), boundary)?.avgLb ?? null);
+      setSevenDayAvgLb(trailingAverageLb(weights, 7, new Date(now), dayBoundaryOf({ dayBoundary }))?.avgLb ?? null);
     });
     return () => {
       cancelled = true;
     };
-    // `boundary` is rebuilt per render from the profile; the hour is what matters.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uid, gateLb, now, profile?.dayBoundary]);
+  }, [uid, gateLb, now, dayBoundary]);
   const [nextOpen, setNextOpen] = useState<string | null>(null);
   // Which template to offer, and when each was last completed. Both are pure
   // and live in core (`train-plan.ts`); this screen only renders them.

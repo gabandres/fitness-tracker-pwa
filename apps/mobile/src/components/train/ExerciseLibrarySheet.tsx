@@ -73,9 +73,15 @@ export function ExerciseLibrarySheet({
     try {
       await onAddSeed(seed);
       onClose();
-    } finally {
+    } catch (e) {
+      // A catch that resets and rethrows, then the same reset after it: the
+      // `finally` this was cannot be lowered by React Compiler, which skips
+      // the whole component. Same effect — reset on both paths, the error
+      // still propagates to the caller.
       setBusy(false);
+      throw e;
     }
+    setBusy(false);
   }
 
   return (

@@ -182,6 +182,24 @@ const restOverridesBySession = new Map<string, Record<string, number>>();
 type MenuFor = { kind: 'exercise'; index: number } | { kind: 'session' } | null;
 
 /**
+ * A ref that holds the latest `value`, written after each commit — for a
+ * callback that keeps one identity but must act on this render's closure.
+ * The same `useRef` + effect the screen wrote inline, behind a hook boundary:
+ * inline, the effect's `ref.current = fn` made React Compiler treat a call
+ * through the ref as a call of `fn` itself, so it could not keep the
+ * callback's `useCallback` and skipped the whole session screen. The ref is
+ * one object for the life of the component, so listing it as a dependency
+ * changes nothing.
+ */
+function useLatest<T>(value: T) {
+  const ref = useRef(value);
+  useEffect(() => {
+    ref.current = value;
+  });
+  return ref;
+}
+
+/**
  * The live workout: a sticky header, the exercise cards, cardio, the rest bar
  * and every sheet the session opens — ONE of each (Train review item 31).
  */
@@ -497,10 +515,7 @@ export function ActiveSession({
   const onOpenLift = useCallback((index: number) => setLiftFor(index), []);
   // Read through a ref: the callback keeps one identity for the memoized
   // cards, and the rest it starts reads the overrides of THIS render.
-  const startRestRef = useRef(startRest);
-  useEffect(() => {
-    startRestRef.current = startRest;
-  });
+  const startRestRef = useLatest(startRest);
   // The live session, for callbacks that keep one identity for the memoized
   // cards but must act on the exercises as they stand when they fire.
   const exercisesRef = useRef(session.exercises);
@@ -531,7 +546,7 @@ export function ActiveSession({
         }, AUTO_ADVANCE_MS);
       }
     },
-    [],
+    [startRestRef],
   );
 
   // Removals come with an Undo, as Today's do (Train re-score bug 3 and the
@@ -760,11 +775,11 @@ export function ActiveSession({
   }
   // One identity for the open card's memoized menu; each pick runs against
   // THIS render's session, read through the ref.
-  const runExerciseActionRef = useRef(runExerciseAction);
-  useEffect(() => {
-    runExerciseActionRef.current = runExerciseAction;
-  });
-  const runStable = useCallback((index: number, key: ExerciseMenuKey) => runExerciseActionRef.current(index, key), []);
+  const runExerciseActionRef = useLatest(runExerciseAction);
+  const runStable = useCallback(
+    (index: number, key: ExerciseMenuKey) => runExerciseActionRef.current(index, key),
+    [runExerciseActionRef],
+  );
   const openShape = expanded != null ? exerciseMenuShape(expanded) : null;
   const openMenuActions = useOpenMenuActions(openShape ? JSON.stringify(openShape) : null, runStable, t);
 

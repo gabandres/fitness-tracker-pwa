@@ -146,6 +146,12 @@ function toPlannedSet(d: DraftSet, unitSystem: UnitSystem): PlannedSet {
 
 const newDraftSet = (kind: SetKind): DraftSet => toDraftSet({ kind });
 
+/** The set kind a shipped library movement is added with. Out here, not
+ *  inline in `addFromLibrary`'s `try`: React Compiler cannot lower a
+ *  conditional inside a try block and would skip the whole editor. */
+const seedSetKind = (seed: SeedExercise, logStyle: LogStyle): SetKind =>
+  logStyle === 'time' && MOBILITY_SEED_KEYS.has(seed.key) ? 'mobility' : 'working';
+
 /** A cluster's label ("L" / "R") lives on EVERY planned set of the cluster,
  *  so a reader of any one row — the logger snapshots per set — sees it. The
  *  field sits under the cluster's first row, so that row's label is the
@@ -473,11 +479,17 @@ export function TemplateEditorModal({
           logStyle,
           cuesText: seedExerciseCues(seed, locale).join('\n'),
         },
-        logStyle === 'time' && MOBILITY_SEED_KEYS.has(seed.key) ? 'mobility' : 'working',
+        seedSetKind(seed, logStyle),
       );
-    } finally {
+    } catch (e) {
+      // A catch that resets and rethrows, then the same reset after it: the
+      // `finally` this was cannot be lowered by React Compiler, which skips
+      // the whole component. Same effect — reset on both paths, the error
+      // still propagates to the caller.
       setBusy(false);
+      throw e;
     }
+    setBusy(false);
   }
 
   async function addFreeType() {
@@ -488,9 +500,12 @@ export function TemplateEditorModal({
       const style = logStyleFor(exStyle);
       const id = await train.addCatalogExercise(trimmedEx, style);
       appendEx({ exerciseId: id, name: trimmedEx, logStyle: style }, setKindFor(exStyle));
-    } finally {
+    } catch (e) {
+      // Reset and rethrow, then reset after: see `addFromLibrary`.
       setBusy(false);
+      throw e;
     }
+    setBusy(false);
   }
 
   function addCardio(modality: CardioModality) {
@@ -685,7 +700,11 @@ export function TemplateEditorModal({
     if (!canSave) return;
     setBusy(true);
     setErr('');
-    try {
+    // Built by a nested function and only CALLED inside the try: React
+    // Compiler cannot lower the conditionals and `?.` below inside a try
+    // block and would skip the whole editor. A throw while building still
+    // lands in the catch, as before.
+    const buildDraft = (): TemplateDraft => {
       const draft: TemplateDraft = {
         name: name.trim(),
         notes: notes.trim() || undefined,
@@ -744,15 +763,21 @@ export function TemplateEditorModal({
         at: new Date(),
         reason: t('train.loadLog.userEdit'),
       });
-      await train.saveTemplate(draft, template?.id);
+      return draft;
+    };
+    const templateId = template?.id;
+    try {
+      await train.saveTemplate(buildDraft(), templateId);
       onClose();
     } catch {
       // Without this the sheet just sat there on a rejected write and the
       // save looked like a no-op — the failure mode that hid this bug.
       setErr(t('train.saveErr'));
-    } finally {
-      setBusy(false);
     }
+    // After the try/catch, not in a `finally`: React Compiler cannot lower a
+    // `finally` and skips the whole component. Nothing above can throw past
+    // the catch, so this still runs on both paths.
+    setBusy(false);
   }
 
   /** Delete, after asking — it was one tap, unconfirmed, with no catch
@@ -774,9 +799,10 @@ export function TemplateEditorModal({
           } catch {
             haptics.warning();
             showToast(t('train.templateDeleteErr'));
-          } finally {
-            setBusy(false);
           }
+          // After the try/catch, not in a `finally`: React Compiler cannot
+          // lower one and skips the whole component.
+          setBusy(false);
         })();
       },
     });

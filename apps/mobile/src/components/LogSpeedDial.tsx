@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, usePathname } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { BackHandler, Platform, Pressable, type PressableStateCallbackType, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   interpolate,
@@ -128,17 +128,19 @@ export function LogSpeedDial() {
 
   function animate(next: boolean) {
     const to = next ? 1 : 0;
+    // `.set()`, not `.value =`: the React Compiler reads an assignment to a
+    // hook's return value as a mutation and skips the whole component.
     if (reduce) {
-      p.value = to;
-      cam.value = to;
-      man.value = to;
+      p.set(to);
+      cam.set(to);
+      man.set(to);
       return;
     }
-    p.value = withTiming(to, { duration: motion.dur.fast });
+    p.set(withTiming(to, { duration: motion.dur.fast }));
     const spring = motion.spring.gentle;
     // Opening: camera leads, manual follows. Closing: reverse (retract top-down).
-    cam.value = withDelay(next ? 0 : 70, withSpring(to, spring));
-    man.value = withDelay(next ? 70 : 0, withSpring(to, spring));
+    cam.set(withDelay(next ? 0 : 70, withSpring(to, spring)));
+    man.set(withDelay(next ? 70 : 0, withSpring(to, spring)));
   }
 
   function setDial(next: boolean) {
@@ -180,23 +182,27 @@ export function LogSpeedDial() {
     else openSheet();
   }
 
+  // `close` for the two effects below: they fire on their own triggers and
+  // read the rest (`reduce`, through `animate`) as it is when they fire.
+  const closeFromEffect = useEffectEvent(close);
+
   // Every route change closes the dial. `choose()` already does for the two
   // taps it owns; this covers everything else that can move the app while the
   // dial is open — a deep link, hardware back, a tab press that beats the
   // backdrop — none of which the dial can otherwise hear.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(close, [pathname]);
+  useEffect(() => {
+    closeFromEffect();
+  }, [pathname]);
 
   // Android: back dismisses the dial instead of navigating out from under it.
   // No-op on iOS, where BackHandler never fires.
   useEffect(() => {
     if (!open) return;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      close();
+      closeFromEffect();
       return true;
     });
     return () => sub.remove();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   // iOS: the system context menu on long-press, no fan (see the header).

@@ -169,7 +169,9 @@ export function BarcodeScanner({ visible, onClose, onPick, onDenied, onEnterFrom
     // answer — clearing it blinked the panel and its buttons away under a thumb.
     if (!retry) setError('');
     haptics.tap();
-    try {
+    // An async body with `.catch` chained on, not a try statement: the React
+    // Compiler skips a component holding a conditional inside `try/catch`.
+    await (async () => {
       track('barcode_scan');
       const { calories, protein, carbs, fat, productName, serving } = await lookupProduct(barcode);
       haptics.success();
@@ -182,28 +184,29 @@ export function BarcodeScanner({ visible, onClose, onPick, onDenied, onEnterFrom
         // Assembled by the resolver so both frontends emit the same shape.
         serving,
       });
-    } catch (e) {
-      const key = errorKeyFor(e);
-      const offline = key === 'barcode.offline';
-      const msg = t(key);
-      const next = t(offline ? 'barcode.offlineNext' : onEnterFromLabel ? 'barcode.missRetry' : 'barcode.missNext');
-      setError(msg);
-      setMissed(barcode);
-      setOfflineMiss(offline);
-      // Spoken, not just drawn: the camera view gives VoiceOver nothing to land
-      // on, so a miss was silence followed by more silence. The next step rides
-      // along so the announcement is something to act on, not only a verdict.
-      // The text below is an Android live region, hence the flag.
-      // Once per code: the camera keeps reading after a miss, so the same
-      // label in frame would otherwise repeat the whole sentence every lookup.
-      if (barcode !== lastMiss.current) announce(`${msg} ${next}`, { androidHasLiveRegion: true });
-      lastMiss.current = barcode;
-      missFinal.current = e instanceof OffLookupError;
-      missUntil.current = Date.now() + MISS_RETRY_MS;
-      setBusy(false);
-      // Allow another scan after a miss.
-      handled.current = false;
-    }
+    })()
+      .catch((e: unknown) => {
+        const key = errorKeyFor(e);
+        const offline = key === 'barcode.offline';
+        const msg = t(key);
+        const next = t(offline ? 'barcode.offlineNext' : onEnterFromLabel ? 'barcode.missRetry' : 'barcode.missNext');
+        setError(msg);
+        setMissed(barcode);
+        setOfflineMiss(offline);
+        // Spoken, not just drawn: the camera view gives VoiceOver nothing to land
+        // on, so a miss was silence followed by more silence. The next step rides
+        // along so the announcement is something to act on, not only a verdict.
+        // The text below is an Android live region, hence the flag.
+        // Once per code: the camera keeps reading after a miss, so the same
+        // label in frame would otherwise repeat the whole sentence every lookup.
+        if (barcode !== lastMiss.current) announce(`${msg} ${next}`, { androidHasLiveRegion: true });
+        lastMiss.current = barcode;
+        missFinal.current = e instanceof OffLookupError;
+        missUntil.current = Date.now() + MISS_RETRY_MS;
+        setBusy(false);
+        // Allow another scan after a miss.
+        handled.current = false;
+      });
   }
 
   return (

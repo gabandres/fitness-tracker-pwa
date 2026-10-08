@@ -214,7 +214,10 @@ export function useActivitySuggestion(params: {
 
   const connect = useCallback(async (): Promise<boolean> => {
     setConnecting(true);
-    try {
+    // An async body with `.catch`/`.finally` chained on, not a try statement:
+    // the React Compiler skips a hook holding `try/finally`. Same result —
+    // `ok`, or false on any failure — and `connecting` clears either way.
+    return (async () => {
       // `connectHealth` prompts, persists the flag, and the caller's import
       // pulls history — so re-reading after it can already find days.
       const ok = await connectHealth();
@@ -224,11 +227,9 @@ export function useActivitySuggestion(params: {
         await load();
       }
       return ok;
-    } catch {
-      return false;
-    } finally {
-      setConnecting(false);
-    }
+    })()
+      .catch(() => false)
+      .finally(() => setConnecting(false));
   }, [uid, load]);
 
   const evidence = useMemo<ActivityEvidence | null>(() => {

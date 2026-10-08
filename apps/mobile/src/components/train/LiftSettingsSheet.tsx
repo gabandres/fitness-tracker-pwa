@@ -222,9 +222,11 @@ export function LiftSettingsSheet({
       // sheet that does nothing (Train review bug 7's twin).
       haptics.warning();
       showToast(t('train.exerciseSaveErr'));
-    } finally {
-      setSaving(false);
     }
+    // After the try/catch, not in a `finally`: React Compiler cannot lower a
+    // `finally` and skips the whole component. Nothing above can throw past
+    // the catch, so this still runs on both paths.
+    setSaving(false);
   }
 
   const fmt = (lb: number) => formatLoad(lb, unitSystem);

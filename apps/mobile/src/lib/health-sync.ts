@@ -584,11 +584,10 @@ export function useHealthSync(uid: string | undefined) {
     setConnected(ok);
     if (ok && uid) {
       setSyncing(true);
-      try {
-        await importAll(uid);
-      } finally {
-        setSyncing(false);
-      }
+      // `.finally`, not `try/finally` (here and in `syncNow`): the React
+      // Compiler skips a hook holding the statement form. Same outcome — the
+      // flag clears either way and a rejection still propagates.
+      await importAll(uid).finally(() => setSyncing(false));
     }
     setNeedsReauth(await needsHealthReauth());
     return ok;
@@ -603,11 +602,7 @@ export function useHealthSync(uid: string | undefined) {
   const syncNow = useCallback(async () => {
     if (!uid) return 0;
     setSyncing(true);
-    try {
-      return await importAll(uid);
-    } finally {
-      setSyncing(false);
-    }
+    return await importAll(uid).finally(() => setSyncing(false));
   }, [uid]);
 
   return { available, connected, syncing, needsReauth, lastSync, connect, disconnect, syncNow };

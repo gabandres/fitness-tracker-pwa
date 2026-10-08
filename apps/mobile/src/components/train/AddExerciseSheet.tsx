@@ -81,9 +81,11 @@ export function AddExerciseSheet({
       haptics.warning();
       showToast(t('train.exerciseSaveErr'));
       captureError(e, { where });
-    } finally {
-      setAdding(false);
     }
+    // After the try/catch, not in a `finally`: React Compiler cannot lower a
+    // `finally` and skips the whole component. Nothing above can throw past
+    // the catch, so this still runs on both paths.
+    setAdding(false);
   }
 
   function add(exName: string, style: CreationStyle, exerciseId?: string) {

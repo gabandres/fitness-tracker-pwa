@@ -20,6 +20,19 @@ const FETCH_TIMEOUT_MS = 8000;
 // A browser-ish UA — some recipe sites 403 the default RN agent.
 const UA = 'Mozilla/5.0 (compatible; IgniaRecipeImporter/1.0; +https://ignia.fit)';
 
+/** The URL to fetch, or null for anything that is not an http(s) URL. Out of
+ *  the component because the React Compiler skips one holding a `throw`
+ *  inside `try`. */
+function httpHref(raw: string): string | null {
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new Error('scheme');
+    return u.href;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Recipe-URL import (mobile). Unlike the web, React Native's fetch is not
  * CORS-bound, so the app fetches the recipe page directly and parses its
@@ -49,12 +62,8 @@ export function RecipeImport({ onApply, onCancel, onDirtyChange }: Props) {
   async function fetchRecipe() {
     const raw = url.trim();
     if (!raw || loading) return;
-    let href: string;
-    try {
-      const u = new URL(raw);
-      if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new Error('scheme');
-      href = u.href;
-    } catch {
+    const href = httpHref(raw);
+    if (href == null) {
       setError(t('recipeImport.errInvalidUrl'));
       return;
     }
@@ -63,7 +72,11 @@ export function RecipeImport({ onApply, onCancel, onDirtyChange }: Props) {
     setResult(null);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-    try {
+    // An async body with `.catch`/`.finally` chained on, not a try statement:
+    // the React Compiler skips a component holding `try/finally` or a `throw`
+    // inside `try`. The early `return` still ends the body; the timer and the
+    // spinner are still cleared on every path.
+    await (async () => {
       const res = await fetch(href, {
         headers: { 'User-Agent': UA, Accept: 'text/html,application/xhtml+xml' },
         signal: controller.signal,
@@ -77,12 +90,14 @@ export function RecipeImport({ onApply, onCancel, onDirtyChange }: Props) {
       }
       haptics.success();
       setResult(parsed);
-    } catch {
-      setError(t('recipeImport.errFetch'));
-    } finally {
-      clearTimeout(timer);
-      setLoading(false);
-    }
+    })()
+      .catch(() => {
+        setError(t('recipeImport.errFetch'));
+      })
+      .finally(() => {
+        clearTimeout(timer);
+        setLoading(false);
+      });
   }
 
   function apply() {

@@ -108,15 +108,19 @@ export default function ConnectedAppsScreen() {
    *  Sentry unhandled. The denied copy is the honest fallback: whatever the
    *  cause, Health is not connected. */
   async function connectHealthNow() {
-    try {
-      const ok = await healthSync.connect();
-      setHealthDenied(!ok);
-      setHealthMsg(ok ? t('settings.healthConnected') : deniedMsg);
-    } catch (e) {
-      setHealthDenied(true);
-      setHealthMsg(deniedMsg);
-      captureError(e, { where: 'connectedApps.toggleHealth' });
-    }
+    // `.then/.catch` rather than `try/catch` in these handlers: a conditional
+    // inside a try statement makes the React Compiler skip the whole screen.
+    await healthSync
+      .connect()
+      .then((ok) => {
+        setHealthDenied(!ok);
+        setHealthMsg(ok ? t('settings.healthConnected') : deniedMsg);
+      })
+      .catch((e: unknown) => {
+        setHealthDenied(true);
+        setHealthMsg(deniedMsg);
+        captureError(e, { where: 'connectedApps.toggleHealth' });
+      });
   }
 
   async function toggleHealth(next: boolean) {
@@ -142,15 +146,17 @@ export default function ConnectedAppsScreen() {
    *  declined prompt leaves the banner up rather than silently clearing it. */
   async function onHealthReconnect() {
     haptics.tap();
-    try {
-      const ok = await healthSync.connect();
-      setHealthDenied(!ok);
-      setHealthMsg(ok ? t('settings.healthConnected') : deniedMsg);
-    } catch (e) {
-      setHealthDenied(true);
-      setHealthMsg(deniedMsg);
-      captureError(e, { where: 'connectedApps.reconnect' });
-    }
+    await healthSync
+      .connect()
+      .then((ok) => {
+        setHealthDenied(!ok);
+        setHealthMsg(ok ? t('settings.healthConnected') : deniedMsg);
+      })
+      .catch((e: unknown) => {
+        setHealthDenied(true);
+        setHealthMsg(deniedMsg);
+        captureError(e, { where: 'connectedApps.reconnect' });
+      });
   }
 
   async function onHealthSyncNow() {

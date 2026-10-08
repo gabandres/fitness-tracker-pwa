@@ -144,19 +144,31 @@ export const SetRow = memo(function SetRow({
   // buffer already parses to the stored value, so a half-typed "12." is never
   // rewritten to "12" under the user's thumb. Compared in the DISPLAY unit,
   // which is what survives the lb↔kg round trip.
+  //
+  //
+  // Only the STORED set (and the unit, the log style) fire a re-seed; the
+  // buffers it compares against and `loadText` are read, never followed — a
+  // keystroke must not re-seed. They are read through `latest`, written by
+  // the effect declared just before the re-seeds, so on any commit it runs
+  // first and they see THIS render's values, as the closure did. The effects
+  // used to name them under an eslint-disable, and the disable alone made
+  // React Compiler skip the whole row. (Not `useEffectEvent`: under the test
+  // renderer its closure was one render stale here, and a re-seed missed.)
+  const latest = useRef({ weight, count, loadText });
   useEffect(() => {
-    const typed = clampSetLoad(parseLoadToLb(weight, unitSystem));
+    latest.current = { weight, count, loadText };
+  });
+  useEffect(() => {
+    const typed = clampSetLoad(parseLoadToLb(latest.current.weight, unitSystem));
     const same =
       typed == null || set.weight == null
         ? typed == null && set.weight == null
         : toDisplayLoad(typed, unitSystem) === toDisplayLoad(set.weight, unitSystem);
-    if (!same) setWeight(set.weight != null ? loadText(set.weight) : '');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!same) setWeight(set.weight != null ? latest.current.loadText(set.weight) : '');
   }, [set.weight, unitSystem]);
   useEffect(() => {
     const stored = logStyle === 'time' ? set.durationSec : set.reps;
-    if (numOrUndef(count) !== stored) setCount(stored != null ? String(stored) : '');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (numOrUndef(latest.current.count) !== stored) setCount(stored != null ? String(stored) : '');
   }, [set.reps, set.durationSec, logStyle]);
   /** Which of this row's fields has the keyboard — it shows the ± steppers. */
   const [focused, setFocused] = useState<ChainField | null>(null);

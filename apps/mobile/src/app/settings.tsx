@@ -227,14 +227,13 @@ export default function Settings() {
     haptics.tap();
     setExporting(true);
     setExportMsg(null);
-    try {
-      const { rows } = await exportDataCsv(user.uid);
-      setExportMsg(t('settings.exportDone', { n: rows }));
-    } catch {
-      setExportMsg(t('settings.exportError'));
-    } finally {
-      setExporting(false);
-    }
+    // Promise chains rather than `try/catch/finally` here and in the busy-flag
+    // handlers below: the React Compiler skips the whole screen over the
+    // statement form. `.then → .catch → .finally` is the same order.
+    await exportDataCsv(user.uid)
+      .then(({ rows }) => setExportMsg(t('settings.exportDone', { n: rows })))
+      .catch(() => setExportMsg(t('settings.exportError')))
+      .finally(() => setExporting(false));
   }
 
   const [importPreview, setImportPreview] = useState<ImportParseResult | null>(null);
@@ -265,15 +264,13 @@ export default function Settings() {
   async function confirmImport() {
     if (!user || !importPreview || importing) return;
     setImporting(true);
-    try {
-      const n = await importLogs(user.uid, importPreview.entries);
-      setImportPreview(null);
-      setImportMsg(t('settings.importDone', { n }));
-    } catch {
-      setImportMsg(t('settings.importErrGeneric'));
-    } finally {
-      setImporting(false);
-    }
+    await importLogs(user.uid, importPreview.entries)
+      .then((n) => {
+        setImportPreview(null);
+        setImportMsg(t('settings.importDone', { n }));
+      })
+      .catch(() => setImportMsg(t('settings.importErrGeneric')))
+      .finally(() => setImporting(false));
   }
 
   useEffect(() => {
@@ -392,22 +389,16 @@ export default function Settings() {
     if (!user || savingDayStart) return;
     haptics.tap();
     setSavingDayStart(true);
-    try {
-      await setDayStartHour(user.uid, dayBoundary, next);
-    } finally {
-      setSavingDayStart(false);
-    }
+    // `.finally` with no catch: the flag resets on success and failure alike
+    // and a rejection still propagates, as the old `try/finally` did.
+    await setDayStartHour(user.uid, dayBoundary, next).finally(() => setSavingDayStart(false));
   }
 
   async function pickUnit(next: UnitSystem) {
     if (next === unit || !user || savingUnit) return;
     haptics.tap();
     setSavingUnit(true);
-    try {
-      await setUnitSystem(user.uid, next);
-    } finally {
-      setSavingUnit(false);
-    }
+    await setUnitSystem(user.uid, next).finally(() => setSavingUnit(false));
   }
 
   async function pickLanguage(next: Locale) {

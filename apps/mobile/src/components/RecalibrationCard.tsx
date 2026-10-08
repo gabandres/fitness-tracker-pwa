@@ -3,7 +3,7 @@ import type { RecalibrationTrend } from '@macrolog/core';
 import { type I18nKey, useLocale, useT } from '@/i18n';
 import { formatNumber } from '@/lib/date-format';
 import * as haptics from '@/lib/haptics';
-import { useRecalibration } from '@/hooks/useRecalibration';
+import type { useRecalibration } from '@/hooks/useRecalibration';
 import { useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space, TARGET } from '@/theme';
 
@@ -22,17 +22,23 @@ const TREND_KEY: Record<RecalibrationTrend, I18nKey> = {
  * reading drifts meaningfully again. Renders nothing when there's nothing
  * fresh to show.
  */
-/** Whether the digest has a fresh shift worth surfacing. Exported for
- *  `useTodayNudge`. */
-export function useRecalibrationVisible(): boolean {
-  return useRecalibration().digest.shouldSurface;
-}
-
-export function RecalibrationCard({ suppressed = false }: { suppressed?: boolean }) {
+/**
+ * Takes the screen's `useRecalibration()` rather than calling it: Today needs
+ * the same digest for `useTodayNudge`, and each call opens its own three
+ * listeners (`useCoreSnapshot`) over the 400-row log window — so the card and
+ * the nudge used to cost six for one answer.
+ */
+export function RecalibrationCard({
+  recalibration,
+  suppressed = false,
+}: {
+  recalibration: ReturnType<typeof useRecalibration>;
+  suppressed?: boolean;
+}) {
   const t = useT();
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
-  const { digest, acknowledge, previous } = useRecalibration();
+  const { digest, acknowledge, previous } = recalibration;
 
   if (!digest.shouldSurface || suppressed) return null;
 

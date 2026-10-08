@@ -70,7 +70,9 @@ export function WelcomeIntro({ onContinue }: { onContinue: (mode: 'signin' | 'si
   const splashVisible = useSplashVisible();
   // Captured once: did a loader precede us? Decides whether the flame starts
   // at the loader's spot (and travels) or simply appears at its hero place.
-  const fromSplash = useRef(splashVisible).current;
+  // State's initial value rather than `useRef(...).current`: same capture, but
+  // a ref read during render makes the React Compiler skip the component.
+  const [fromSplash] = useState(splashVisible);
   const started = !splashVisible;
 
   // Window-space tops of the loader-twin column and of the ghost in the layout.
@@ -100,22 +102,24 @@ export function WelcomeIntro({ onContinue }: { onContinue: (mode: 'signin' | 'si
   // it at once because "at once" is exactly where the loader left it.
   const placed = useSharedValue(fromSplash ? 1 : 0);
 
+  // `.set()`, not `.value =`: the React Compiler reads an assignment to a
+  // value an earlier effect captured as a mutation and skips the component.
   useEffect(() => {
     if (delta === null || fromSplash) return;
-    travel.value = delta;
-    placed.value = 1;
+    travel.set(delta);
+    placed.set(1);
   }, [delta, fromSplash, travel, placed]);
 
   useEffect(() => {
     if (!started || delta === null) return;
     if (reduce) {
-      travel.value = delta;
-      grow.value = HERO_SCALE;
+      travel.set(delta);
+      grow.set(HERO_SCALE);
       return;
     }
-    travel.value = withSpring(delta, motion.spring.hero);
-    grow.value = withSpring(HERO_SCALE, motion.spring.hero);
-    bloom.value = withTiming(1, { duration: BLOOM_MS, easing: Easing.out(Easing.cubic) });
+    travel.set(withSpring(delta, motion.spring.hero));
+    grow.set(withSpring(HERO_SCALE, motion.spring.hero));
+    bloom.set(withTiming(1, { duration: BLOOM_MS, easing: Easing.out(Easing.cubic) }));
   }, [started, delta, reduce, travel, grow, bloom]);
 
   const columnStyle = useAnimatedStyle(() => ({

@@ -11,8 +11,14 @@ import type { UsageEvent } from '@macrolog/core';
  * nothing.
  */
 export function useCountViewPerFocus(event: UsageEvent, shown: boolean): void {
+  // Mirrored for the focus callback, which runs outside render. Written in an
+  // effect, not during render (the React Compiler skips a hook that touches a
+  // ref while rendering), and declared FIRST so it has run before either
+  // trigger below reads it in the same commit.
   const shownRef = useRef(shown);
-  shownRef.current = shown;
+  useEffect(() => {
+    shownRef.current = shown;
+  });
   const focused = useRef(false);
   const counted = useRef(false);
 

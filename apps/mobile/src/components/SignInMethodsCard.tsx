@@ -64,14 +64,19 @@ export function SignInMethodsCard() {
 
   async function connect(provider: Exclude<LinkableProvider, 'password'>) {
     setBusy(provider);
-    try {
+    // Async bodies with `.catch`/`.finally` chained on, here and in the two
+    // handlers below, not try statements: the React Compiler skips a component
+    // holding `try/finally`. `busy` still clears on every path.
+    await (async () => {
       await linkProvider(provider);
       haptics.success();
-    } catch (e) {
-      reportLinkError(e);
-    } finally {
-      setBusy(null);
-    }
+    })()
+      .catch((e: unknown) => {
+        reportLinkError(e);
+      })
+      .finally(() => {
+        setBusy(null);
+      });
   }
 
   function confirmDisconnect(provider: LinkableProvider, label: string) {
@@ -83,13 +88,15 @@ export function SignInMethodsCard() {
       onConfirm: () => {
         void (async () => {
           setBusy(provider);
-          try {
+          await (async () => {
             await unlinkProvider(provider);
-          } catch (e) {
-            reportLinkError(e);
-          } finally {
-            setBusy(null);
-          }
+          })()
+            .catch((e: unknown) => {
+              reportLinkError(e);
+            })
+            .finally(() => {
+              setBusy(null);
+            });
         })();
       },
     });
@@ -97,16 +104,18 @@ export function SignInMethodsCard() {
 
   async function submitPassword() {
     setBusy('password');
-    try {
+    await (async () => {
       await linkPassword(password);
       setPassword('');
       setPasswordOpen(false);
       haptics.success();
-    } catch (e) {
-      reportLinkError(e);
-    } finally {
-      setBusy(null);
-    }
+    })()
+      .catch((e: unknown) => {
+        reportLinkError(e);
+      })
+      .finally(() => {
+        setBusy(null);
+      });
   }
 
   function renderRow(

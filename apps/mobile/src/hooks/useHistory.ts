@@ -131,9 +131,10 @@ export function useHistory(): HistoryState {
   const fetched = fetchedRaw.uid === uid ? fetchedRaw.months : EMPTY_MONTHS;
   const [inFlight, setInFlight] = useState(0);
   const [olderError, setOlderError] = useState<Error | null>(null);
-  /** Months requested this mount — in flight or done. Both count. */
+  /** Months requested this mount — in flight or done. Both count. Keyed to the
+   *  account like `fetched`, but re-keyed where it is used (`ensureMonthLoaded`)
+   *  rather than during render, which made the React Compiler skip this hook. */
   const requested = useRef<{ uid: string | undefined; months: Set<string> }>({ uid, months: new Set() });
-  if (requested.current.uid !== uid) requested.current = { uid, months: new Set() };
   const alive = useRef(true);
   useEffect(() => {
     alive.current = true;
@@ -148,9 +149,11 @@ export function useHistory(): HistoryState {
   const ensureMonthLoaded = useCallback(
     (view: Date) => {
       if (!uid) return;
-      const month = monthToFetch({ view, oldestWindowKey, windowRows, requested: requested.current.months });
+      if (requested.current.uid !== uid) requested.current = { uid, months: new Set() };
+      const months = requested.current.months;
+      const month = monthToFetch({ view, oldestWindowKey, windowRows, requested: months });
       if (!month) return;
-      requested.current.months.add(month);
+      months.add(month);
       const { fromKey, toKey } = monthRange(month);
       setInFlight((n) => n + 1);
       getLogsForRange(uid, fromKey as DateKey, toKey as DateKey, boundary)
@@ -165,7 +168,7 @@ export function useHistory(): HistoryState {
         .catch((e: unknown) => {
           if (!alive.current) return;
           // Let a retry happen: the month is no longer "requested".
-          requested.current.months.delete(month);
+          months.delete(month);
           setOlderError(asError(e, 'History: older month fetch failed'));
         })
         .finally(() => {

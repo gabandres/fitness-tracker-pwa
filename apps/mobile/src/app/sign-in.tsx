@@ -107,17 +107,22 @@ export default function SignIn() {
       }
     }
     setBusy(true);
-    try {
+    // The handlers on this screen run their try statements as an async body
+    // with `.catch`/`.finally` chained on: the React Compiler skips a component
+    // holding `try/finally` or a conditional inside `try`. Same order, same
+    // outcomes.
+    await (async () => {
       if (mode === 'signup') {
         await signUp(email, password, `${firstName.trim()} ${lastName.trim()}`.trim(), locale);
       } else {
         await signIn(email, password);
       }
       // Navigation handled by the root AuthGate once auth state flips.
-    } catch (e: unknown) {
-      setError(errorMessage(e, t, 'password'));
-      setBusy(false);
-    }
+    })()
+      .catch((e: unknown) => {
+        setError(errorMessage(e, t, 'password'));
+        setBusy(false);
+      });
   }
 
   async function onReset() {
@@ -132,14 +137,16 @@ export default function SignIn() {
       return;
     }
     setResetBusy(true);
-    try {
+    await (async () => {
       await resetPassword(email, locale);
       setNotice(t('signIn.resetSent'));
-    } catch (e: unknown) {
-      setError(errorMessage(e, t, 'password'));
-    } finally {
-      setResetBusy(false);
-    }
+    })()
+      .catch((e: unknown) => {
+        setError(errorMessage(e, t, 'password'));
+      })
+      .finally(() => {
+        setResetBusy(false);
+      });
   }
 
   function changeMode(next: 'signin' | 'signup') {
@@ -162,42 +169,48 @@ export default function SignIn() {
     if (googleBusy) return;
     setError(null);
     setGoogleBusy(true);
-    try {
+    await (async () => {
       await signInWithGoogle();
       // AuthGate navigates once auth state flips.
-    } catch (e: unknown) {
-      if (!isPendingLinkCollision(e)) failFederated(e);
-    } finally {
-      setGoogleBusy(false);
-    }
+    })()
+      .catch((e: unknown) => {
+        if (!isPendingLinkCollision(e)) failFederated(e);
+      })
+      .finally(() => {
+        setGoogleBusy(false);
+      });
   }
 
   async function onMicrosoft() {
     if (msBusy) return;
     setError(null);
     setMsBusy(true);
-    try {
+    await (async () => {
       await signInWithMicrosoft();
       // AuthGate navigates once auth state flips.
-    } catch (e: unknown) {
-      if (!isPendingLinkCollision(e)) failFederated(e);
-    } finally {
-      setMsBusy(false);
-    }
+    })()
+      .catch((e: unknown) => {
+        if (!isPendingLinkCollision(e)) failFederated(e);
+      })
+      .finally(() => {
+        setMsBusy(false);
+      });
   }
 
   async function onApple() {
     if (appleBusy) return;
     setError(null);
     setAppleBusy(true);
-    try {
+    await (async () => {
       await signInWithApple();
       // AuthGate navigates once auth state flips.
-    } catch (e: unknown) {
-      if (!isPendingLinkCollision(e)) failFederated(e);
-    } finally {
-      setAppleBusy(false);
-    }
+    })()
+      .catch((e: unknown) => {
+        if (!isPendingLinkCollision(e)) failFederated(e);
+      })
+      .finally(() => {
+        setAppleBusy(false);
+      });
   }
 
   if (step === 'intro') {

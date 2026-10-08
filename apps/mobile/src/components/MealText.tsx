@@ -104,20 +104,21 @@ export function MealText({ forDate, onAddMany, onCancel, seedText, onDirtyChange
       return;
     }
     setPhase('resolving');
-    try {
-      const resolved = await Promise.all(items.map(resolveItem));
-      setRows(resolved);
-      setPhase('review');
-    } catch {
-      setPhase('error');
-    }
+    await Promise.all(items.map(resolveItem))
+      .then((resolved) => {
+        setRows(resolved);
+        setPhase('review');
+      })
+      .catch(() => setPhase('error'));
   }
 
   /** Resolve one item; a miss yields a blank, flagged row rather than a drop.
    *  The resolution policy itself lives in `lib/mealResolution.ts`, where it
    *  can be tested against the real shipped index without React. */
   async function resolveItem(item: ParsedFoodItem): Promise<DraftRow> {
-    try {
+    // `.catch` on an async body rather than `try/catch`: the conditionals in
+    // here, inside a try statement, made the React Compiler skip MealText.
+    return (async (): Promise<DraftRow> => {
       const r = await resolveOneItem(item, { search: searchFoods, detail: getFoodDetail });
       // 0-calorie resolution = degenerate DB entry (e.g. a milligram serving);
       // show an honest "enter values" row, not a fake-precise zero.
@@ -133,9 +134,7 @@ export function MealText({ forDate, onAddMany, onCancel, seedText, onDirtyChange
         assumed: r.assumed,
         matched: true,
       };
-    } catch {
-      return blankRow(item);
-    }
+    })().catch(() => blankRow(item));
   }
 
   function blankRow(item: ParsedFoodItem): DraftRow {
@@ -179,7 +178,10 @@ export function MealText({ forDate, onAddMany, onCancel, seedText, onDirtyChange
     if (busy || rows.length === 0) return;
     setBusy(true);
     haptics.success();
-    try {
+    // An async body with `.finally`, not `try/finally`: the React Compiler
+    // skips a component holding the statement form. `busy` still clears on
+    // success and failure, and a rejection still reaches the caller.
+    await (async () => {
       // Build each entry through the shared core seam so macro coercion,
       // label, and timestamp match the PWA byte-for-byte. Blank calories
       // coerce to 0 so an unmatched-but-labelled row still logs (the user
@@ -197,9 +199,7 @@ export function MealText({ forDate, onAddMany, onCancel, seedText, onDirtyChange
         if (res.ok) entries.push(res.draft.entry);
       }
       await onAddMany(entries);
-    } finally {
-      setBusy(false);
-    }
+    })().finally(() => setBusy(false));
   }
 
   // ── Review + edit ──

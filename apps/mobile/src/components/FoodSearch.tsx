@@ -120,9 +120,11 @@ interface Props {
   /**
    * Restored ONCE, at mount. The sheet unmounts this component when the user
    * moves on to review a pick, so without it "back" from the review form
-   * landed on an empty box and the query had to be typed again.
+   * landed on an empty box and the query had to be typed again. A getter is
+   * called once, at mount: an owner keeping the snapshot in a ref hands that
+   * over without reading the ref during its render (a React Compiler skip).
    */
-  initial?: SearchSnapshot;
+  initial?: SearchSnapshot | (() => SearchSnapshot | undefined);
   /** Hears every query/results change, so the owner can hand it back in `initial`. */
   onSnapshot?: (snapshot: SearchSnapshot) => void;
   /** Set to a function the owner calls on Android back: it steps the portion
@@ -202,7 +204,7 @@ export function FoodSearch({
   onScanBarcode,
   onScanMeal,
   libraryItems,
-  initial,
+  initial: initialProp,
   onSnapshot,
   backHandlerRef,
   onBackStepChange,
@@ -216,6 +218,7 @@ export function FoodSearch({
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
+  const [initial] = useState(initialProp);
   const [query, setQuery] = useState(initial?.query ?? '');
   const inputRef = useDeferredFocus(autoFocus && !initial?.query);
   useEffect(() => {
@@ -227,22 +230,6 @@ export function FoodSearch({
     }, 350);
     return () => clearTimeout(timer);
   }, [focusSignal, inputRef]);
-  useEffect(() => {
-    if (!resetSignal) return;
-    onChange('');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resetSignal]);
-  // A dictated bare food name arrives here rather than in the meal draft — see
-  // `routeTranscript`. Keyed on the seed VALUE so typing afterwards is never
-  // fought with. A restored search (`initial`) already contains whatever the
-  // seed did, so a remount must not re-apply a stale seed over it.
-  const seedApplied = useRef(initial ? seedQuery : undefined);
-  useEffect(() => {
-    if (!seedQuery || seedQuery === seedApplied.current) return;
-    seedApplied.current = seedQuery;
-    onChange(seedQuery);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [seedQuery]);
   const [phase, setPhase] = useState<Phase>(
     initial && initial.query.trim().length >= 2 ? 'results' : 'idle',
   );
@@ -347,6 +334,29 @@ export function FoodSearch({
     return () => clearTimeout(timer);
   }, [phase, pendingQuery, hitsQuery, hits.length, libraryHits.length, t]);
 
+  async function runSearch(q: string) {
+    const id = ++reqId.current;
+    try {
+      const results = await searchFoods(q);
+      if (id !== reqId.current) return; // stale
+      // A transition: the list is the non-urgent half of a keystroke, and the
+      // field must never wait on it.
+      startTransition(() => {
+        setHits(results);
+        setHitsQuery(q);
+        setPendingQuery(null);
+        setPhase('results');
+      });
+    } catch (e) {
+      if (id !== reqId.current) return;
+      setPendingQuery(null);
+      // Offline is said as offline (C3): "didn't work, try again" invites the
+      // retry that cannot work until the connection is back.
+      setErrorMsg(t(messageKey(e, isOffline() ? 'food.failedOffline' : 'food.failed')));
+      setPhase('error');
+    }
+  }
+
   function onChange(text: string) {
     setQuery(text);
     if (debounce.current) clearTimeout(debounce.current);
@@ -374,38 +384,38 @@ export function FoodSearch({
     }
   }
 
+  // The three effects below fire on a signal or a value, never on `onChange` /
+  // `runSearch` — fresh closures every render — so those ride in a ref,
+  // written in its own effect like the callback props above. All four sit
+  // below both declarations (a use-before-declare makes the compiler skip
+  // the component) and keep their old relative order: a reset or seed
+  // rewinds `lastRun` before the deferred search reads it.
+  const actions = useRef({ onChange, runSearch });
+  useEffect(() => {
+    actions.current = { onChange, runSearch };
+  });
+  useEffect(() => {
+    if (!resetSignal) return;
+    actions.current.onChange('');
+  }, [resetSignal]);
+  // A dictated bare food name arrives here rather than in the meal draft — see
+  // `routeTranscript`. Keyed on the seed VALUE so typing afterwards is never
+  // fought with. A restored search (`initial`) already contains whatever the
+  // seed did, so a remount must not re-apply a stale seed over it.
+  const seedApplied = useRef(initial ? seedQuery : undefined);
+  useEffect(() => {
+    if (!seedQuery || seedQuery === seedApplied.current) return;
+    seedApplied.current = seedQuery;
+    actions.current.onChange(seedQuery);
+  }, [seedQuery]);
   // The local search, off the deferred query (F2). A chain query is the
   // debounce's; a query under two characters is `onChange`'s reset.
   useEffect(() => {
     const q = deferredQuery.trim();
     if (q.length < 2 || q === lastRun.current || queryNamesRestaurantChain(q)) return;
     lastRun.current = q;
-    void runSearch(q);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    void actions.current.runSearch(q);
   }, [deferredQuery]);
-
-  async function runSearch(q: string) {
-    const id = ++reqId.current;
-    try {
-      const results = await searchFoods(q);
-      if (id !== reqId.current) return; // stale
-      // A transition: the list is the non-urgent half of a keystroke, and the
-      // field must never wait on it.
-      startTransition(() => {
-        setHits(results);
-        setHitsQuery(q);
-        setPendingQuery(null);
-        setPhase('results');
-      });
-    } catch (e) {
-      if (id !== reqId.current) return;
-      setPendingQuery(null);
-      // Offline is said as offline (C3): "didn't work, try again" invites the
-      // retry that cannot work until the connection is back.
-      setErrorMsg(t(messageKey(e, isOffline() ? 'food.failedOffline' : 'food.failed')));
-      setPhase('error');
-    }
-  }
 
   /**
    * Open the portion step — unless there is only one portion, which leaves it

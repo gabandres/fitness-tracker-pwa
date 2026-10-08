@@ -132,7 +132,7 @@ describe('RecalibrationCard says what changed, not what the hero says', () => {
 
   it('a drift: old → new lines and the why — no sentence restating today’s numbers', async () => {
     mockRecal = { digest, acknowledge: jest.fn(), previous: { tdee: 2450, target: 1950 } };
-    const view = await render(<RecalibrationCard />);
+    const view = await render(<RecalibrationCard recalibration={mockRecal as never} />);
     const text = allText(view);
     expect(text).toContain('Maintenance: 2,450 → 2,380 kcal/day');
     expect(text).toContain('Daily target: 1,950 → 1,880 kcal');
@@ -148,7 +148,7 @@ describe('RecalibrationCard says what changed, not what the hero says', () => {
 
   it('no "from" to show: a number-free basis line, never the hero numbers', async () => {
     mockRecal = { digest: { ...digest, deltaSinceAck: null, deltaVsFormula: null }, acknowledge: jest.fn(), previous: null };
-    const view = await render(<RecalibrationCard />);
+    const view = await render(<RecalibrationCard recalibration={mockRecal as never} />);
     const text = allText(view);
     expect(text).not.toMatch(/2,380|1,880/);
     expect(view.getByTestId('recalibration-basis')).toHaveTextContent('Measured from your last few weeks of weigh-ins and logged meals.');
@@ -156,7 +156,7 @@ describe('RecalibrationCard says what changed, not what the hero says', () => {
 
   it('"Got it" is a labelled button at full target size', async () => {
     mockRecal = { digest, acknowledge: jest.fn(), previous: { tdee: 2450, target: 1950 } };
-    const view = await render(<RecalibrationCard />);
+    const view = await render(<RecalibrationCard recalibration={mockRecal as never} />);
     const ack = view.getByTestId('recalibration-ack');
     expect(ack.props.accessibilityRole).toBe('button');
     expect(ack.props.accessibilityLabel).toBe('Got it');

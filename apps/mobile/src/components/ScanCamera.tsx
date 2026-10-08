@@ -81,23 +81,29 @@ export function ScanCamera({ photos, max, hasNote, footnote, notice, onShot, onR
   const full = photos.length >= max;
 
   async function shoot() {
-    if (busy || full || !ready || !camera.current) return;
+    const cam = camera.current;
+    if (busy || full || !ready || !cam) return;
     setBusy(true);
     setFailed(false);
     haptics.tap();
-    try {
-      const pic = await camera.current.takePictureAsync({ quality: 1 });
+    // An async body with `.catch`/`.finally` chained on, not a try statement:
+    // the React Compiler skips a component holding `try/finally` or a `throw`
+    // inside `try`. Same paths, and `busy` still clears on every one.
+    await (async () => {
+      const pic = await cam.takePictureAsync({ quality: 1 });
       if (!pic?.uri) throw new Error('no-uri');
       onShot(pic.uri);
-    } catch {
-      // Not ready yet, or the session dropped (a call came in). Said, not
-      // swallowed: a shutter that silently does nothing reads as broken.
-      setFailed(true);
-      haptics.warning();
-      announce(t('scan.shotFailed'), { androidHasLiveRegion: true });
-    } finally {
-      setBusy(false);
-    }
+    })()
+      .catch(() => {
+        // Not ready yet, or the session dropped (a call came in). Said, not
+        // swallowed: a shutter that silently does nothing reads as broken.
+        setFailed(true);
+        haptics.warning();
+        announce(t('scan.shotFailed'), { androidHasLiveRegion: true });
+      })
+      .finally(() => {
+        setBusy(false);
+      });
   }
 
   return (

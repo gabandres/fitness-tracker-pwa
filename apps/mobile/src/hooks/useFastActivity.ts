@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useEffectEvent } from 'react';
 import { AppState } from 'react-native';
 import { useLocale } from '@/i18n';
 import { reconcileFastActivity } from '@/lib/fast-activity';
@@ -27,11 +27,13 @@ import { reconcileFastActivity } from '@/lib/fast-activity';
 export function useFastActivity(fastStartedAt: Date | null): void {
   const locale = useLocale();
 
-  // Read through a ref inside the AppState listener so the subscription is
-  // registered once, rather than torn down and rebuilt whenever the fast or the
-  // locale moves.
-  const latest = useRef({ fastStartedAt, locale });
-  latest.current = { fastStartedAt, locale };
+  // An effect event, so the AppState subscription is registered once rather
+  // than torn down and rebuilt whenever the fast or the locale moves, and still
+  // reads the latest of both. (It was a ref written during render, which made
+  // the React Compiler skip this hook.)
+  const onForeground = useEffectEvent(() => {
+    void reconcileFastActivity(fastStartedAt, locale);
+  });
 
   useEffect(() => {
     void reconcileFastActivity(fastStartedAt, locale);
@@ -40,7 +42,7 @@ export function useFastActivity(fastStartedAt: Date | null): void {
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
       if (state !== 'active') return;
-      void reconcileFastActivity(latest.current.fastStartedAt, latest.current.locale);
+      onForeground();
     });
     return () => sub.remove();
   }, []);

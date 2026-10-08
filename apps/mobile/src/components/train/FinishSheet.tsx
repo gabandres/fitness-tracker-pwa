@@ -146,9 +146,15 @@ export function FinishSheet({
         haptics.success();
         setApplied((cur) => new Set([...cur, ...selected.map((c) => c.exerciseId)]));
       }
-    } finally {
+    } catch (e) {
+      // A catch that resets and rethrows, then the same reset after it: the
+      // `finally` this was cannot be lowered by React Compiler, which skipped
+      // the whole sheet. Same effect — reset on both paths, the error still
+      // propagates.
       setApplying(false);
+      throw e;
     }
+    setApplying(false);
   }
 
   const summary = useMemo(
@@ -195,15 +201,20 @@ export function FinishSheet({
     setWeightErr('');
     setSaveErr('');
     setBusy(true);
+    // Built before the `try`: React Compiler cannot lower the `??` inside one.
+    const extras = {
+      bodyweight: lb ?? undefined,
+      sleepHours: numOrUndef(sleep),
+    };
     try {
-      const ok = await onFinish({
-        bodyweight: lb ?? undefined,
-        sleepHours: numOrUndef(sleep),
-      });
+      const ok = await onFinish(extras);
       if (ok === false) setSaveErr(t('train.workoutSaveErr'));
-    } finally {
+    } catch (e) {
+      // Reset and rethrow, then reset after: see `apply`.
       setBusy(false);
+      throw e;
     }
+    setBusy(false);
   }
 
   return (
@@ -624,10 +635,14 @@ export function TrainFinishSheet({
   const recs = useMemo(() => new Map<string, Recommendation>(calls.map((c) => [c.exerciseId, c.rec])), [calls]);
   // The sentence the lifter read is the one the template's `loadLog` keeps.
   const reasonFor = (rec: Recommendation) => reasonText(rec, unitSystem, t);
+  // The same sentence as `reasonFor`, built in here from `t` and the unit it
+  // closes over: naming the per-render `reasonFor` needed an eslint-disable,
+  // and that alone made React Compiler skip the whole screen.
   const proposed = useMemo(
-    () => (template ? proposeTemplateChanges(template.exercises, recs, reasonFor) : []),
-    // `reasonFor` closes over `t` and the unit only.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    () =>
+      template
+        ? proposeTemplateChanges(template.exercises, recs, (rec) => reasonText(rec, unitSystem, t))
+        : [],
     [template, recs, t, unitSystem],
   );
   const autoApply = train.autoApplyProgression === true;

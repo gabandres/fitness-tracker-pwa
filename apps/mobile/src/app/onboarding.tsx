@@ -420,7 +420,11 @@ export default function Onboarding() {
     }
     setError(null);
     setBusy(true);
-    try {
+    // The try statement as an async body with `.catch` chained on: the React
+    // Compiler skips a component holding conditionals inside a `try`, and
+    // this is the whole onboarding flow. The redo's early `return` still ends
+    // the body, and any failure in it still lands in the same handler.
+    await (async () => {
       await saveOnboardingV2(user.uid, {
         weightLbs,
         goalDirection: goal,
@@ -476,7 +480,7 @@ export default function Onboarding() {
       setBusy(false);
       setDir(1);
       setStep('reminders');
-    } catch (e) {
+    })().catch((e: unknown) => {
       // A permission-denied here means the email isn't verified (the rules
       // block the write) — surface that instead of blaming the connection.
       // With the verify-email gate in place this is a rare fallback, but the
@@ -484,7 +488,7 @@ export default function Onboarding() {
       const code = (e as { code?: string })?.code;
       setError(t(code === 'permission-denied' ? 'onboarding.saveErrVerify' : 'onboarding.saveErr'));
       setBusy(false);
-    }
+    });
   }
 
   /** Locale-formatted wall-clock time for the reminder preview rows. */
@@ -513,15 +517,17 @@ export default function Onboarding() {
    *  the user lands where they were going anyway. */
   async function onEnableReminders(): Promise<void> {
     setBusy(true);
-    try {
-      const granted = await setRemindersEnabled(true);
-      if (granted) haptics.success();
-    } catch {
-      // Permission prompt failing must never trap someone in onboarding.
-    } finally {
-      setBusy(false);
-      goFirstLog();
-    }
+    await setRemindersEnabled(true)
+      .then((granted) => {
+        if (granted) haptics.success();
+      })
+      .catch(() => {
+        // Permission prompt failing must never trap someone in onboarding.
+      })
+      .finally(() => {
+        setBusy(false);
+        goFirstLog();
+      });
   }
 
   /** Land on Today with the add sheet already open (the `openAdd` nonce the

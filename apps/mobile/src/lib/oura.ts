@@ -338,16 +338,21 @@ export function useOura(uid: string | undefined) {
     setBusy(true);
     setAction('connect');
     setFailed(false);
-    try {
+    // Async bodies with `.catch`/`.finally` chained on, here and in the two
+    // actions below, not try statements: the React Compiler skips a hook
+    // holding `try/finally`. Same order, and the lock clears on every path.
+    await (async () => {
       await connectOura();
       // Deliberately no optimistic "connected". The status doc is the only
       // thing that knows, and the listener above will say so within a moment.
-    } catch {
-      setFailed(true);
-    } finally {
-      setBusy(false);
-      setAction(null);
-    }
+    })()
+      .catch(() => {
+        setFailed(true);
+      })
+      .finally(() => {
+        setBusy(false);
+        setAction(null);
+      });
   }, [busy]);
 
   const disconnect = useCallback(async () => {
@@ -355,16 +360,18 @@ export function useOura(uid: string | undefined) {
     setBusy(true);
     setAction('disconnect');
     setFailed(false);
-    try {
+    await (async () => {
       await disconnectOura();
       setResult(null);
       setDaily(null);
-    } catch {
-      setFailed(true);
-    } finally {
-      setBusy(false);
-      setAction(null);
-    }
+    })()
+      .catch(() => {
+        setFailed(true);
+      })
+      .finally(() => {
+        setBusy(false);
+        setAction(null);
+      });
   }, [busy]);
 
   const syncNow = useCallback(async () => {
@@ -372,7 +379,7 @@ export function useOura(uid: string | undefined) {
     setBusy(true);
     setAction('sync');
     setFailed(false);
-    try {
+    await (async () => {
       // Workouts first: they are the reason the integration exists, and a
       // failure importing daily totals should not cost the user their cardio.
       const workouts = await importOuraWorkouts(uid);
@@ -384,12 +391,14 @@ export function useOura(uid: string | undefined) {
           // Non-fatal — the workout half already landed and is already shown.
         }
       }
-    } catch {
-      setFailed(true);
-    } finally {
-      setBusy(false);
-      setAction(null);
-    }
+    })()
+      .catch(() => {
+        setFailed(true);
+      })
+      .finally(() => {
+        setBusy(false);
+        setAction(null);
+      });
   }, [busy, uid]);
 
   /**
@@ -430,6 +439,31 @@ export function useOura(uid: string | undefined) {
 const AUTO_IMPORT_MIN_GAP_MS = 60 * 60 * 1000;
 
 /**
+ * One automatic import, if one is due: skipped when not connected, when the
+ * grant predates a scope, or inside the throttle window. Never throws. Out of
+ * `useOuraAutoImport` because the React Compiler skips a hook holding
+ * `try/finally` or conditionals inside a `try`.
+ */
+async function autoImportOnce(uid: string): Promise<void> {
+  try {
+    const snap = await getDoc(statusDoc(uid));
+    const d = snap.data();
+    if (d?.['connected'] !== true) return;
+    // A grant that predates a scope cannot import what the app now reads;
+    // stamping a fresh sync would disguise that.
+    if (needsOuraScopeUpgrade(typeof d['scope'] === 'string' ? d['scope'] : undefined)) return;
+
+    const last = d['lastSyncedAt']?.toDate?.()?.getTime?.() ?? 0;
+    if (last && Date.now() - last < AUTO_IMPORT_MIN_GAP_MS) return;
+
+    await importOuraWorkouts(uid);
+    await importOuraDaily(uid);
+  } catch {
+    // Silent by design — see the note on `useOuraAutoImport`.
+  }
+}
+
+/**
  * Import Oura in the background, without anyone tapping anything.
  *
  * **Why this exists.** The first version had one button, and it produced
@@ -463,24 +497,9 @@ export function useOuraAutoImport(uid: string | undefined): void {
     const run = async (): Promise<void> => {
       if (running.current) return;
       running.current = true;
-      try {
-        const snap = await getDoc(statusDoc(uid));
-        const d = snap.data();
-        if (d?.['connected'] !== true) return;
-        // A grant that predates a scope cannot import what the app now reads;
-        // stamping a fresh sync would disguise that.
-        if (needsOuraScopeUpgrade(typeof d['scope'] === 'string' ? d['scope'] : undefined)) return;
-
-        const last = d['lastSyncedAt']?.toDate?.()?.getTime?.() ?? 0;
-        if (last && Date.now() - last < AUTO_IMPORT_MIN_GAP_MS) return;
-
-        await importOuraWorkouts(uid);
-        await importOuraDaily(uid);
-      } catch {
-        // Silent by design — see the note above.
-      } finally {
+      await autoImportOnce(uid).finally(() => {
         running.current = false;
-      }
+      });
     };
 
     void run();

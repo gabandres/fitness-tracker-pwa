@@ -56,9 +56,11 @@ export function StarterTemplatesSheet({
       haptics.warning();
       showToast(t('train.starterErr'));
       captureError(e, { where: 'train.cloneStarterTemplate' });
-    } finally {
-      setBusyKey(null);
     }
+    // After the try/catch, not in a `finally`: React Compiler cannot lower a
+    // `finally` and skips the whole component. Nothing above can throw past
+    // the catch, so this still runs on both paths.
+    setBusyKey(null);
   }
 
   return (

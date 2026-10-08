@@ -281,6 +281,29 @@ function installedIdentity(): InstalledIdentity {
 }
 
 /**
+ * Fetch the published manifest and pick this install's target from it, or
+ * null on any failure. Out of `useStoreUpdate` because the React Compiler
+ * skips a hook holding a `try/finally`.
+ */
+async function fetchStoreTarget(): Promise<{ current: number | null; latest: number | null } | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(VERSION_URL, { signal: controller.signal });
+    if (!res.ok) return null;
+    const manifest = (await res.json()) as VersionManifest;
+    return pickStoreTarget(manifest, Platform.OS, installedIdentity());
+  } catch {
+    // Offline, timed out, or the file is missing/malformed. Staying silent
+    // is the correct failure mode: a version check that cannot reach the
+    // network must never imply the user is up to date OR out of date.
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
  * Should the store banner show? Pure so the decision is testable without a
  * network or AsyncStorage — every guard here is a case that produced a wrong
  * banner during development.
@@ -338,25 +361,12 @@ export function useStoreUpdate(): StoreUpdateState {
       if (!alive) return;
       setDismissed(stored == null ? null : Number(stored));
 
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-      try {
-        const res = await fetch(VERSION_URL, { signal: controller.signal });
-        if (!res.ok) return;
-        const manifest = (await res.json()) as VersionManifest;
-        const { current, latest: value } = pickStoreTarget(manifest, Platform.OS, installedIdentity());
-        if (alive && value != null) {
-          setCurrent(current);
-          setLatest(value);
-        }
-      } catch {
-        // Offline, timed out, or the file is missing/malformed. Staying silent
-        // is the correct failure mode: a version check that cannot reach the
-        // network must never imply the user is up to date OR out of date.
-      } finally {
-        clearTimeout(timer);
-        if (alive) setReady(true);
+      const target = await fetchStoreTarget();
+      if (alive && target != null && target.latest != null) {
+        setCurrent(target.current);
+        setLatest(target.latest);
       }
+      if (alive) setReady(true);
     })();
 
     return () => {

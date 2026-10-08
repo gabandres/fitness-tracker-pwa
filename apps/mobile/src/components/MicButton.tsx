@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { routeTranscript, parseMealUtterance } from '@macrolog/core';
 import { useLocale, useT } from '@/i18n';
@@ -41,6 +41,34 @@ function announceBeforeListening(message: string): Promise<void> {
     const cap = setTimeout(finish, 1500);
     announce(message);
   });
+}
+
+type SpeechSub = { remove(): void } | undefined;
+type SpeechResultEvent = { results?: { transcript?: string }[]; isFinal?: boolean };
+
+/**
+ * Subscribes to the recognizer's `result`, `end` and `error` events, in that
+ * order, and returns the subscriptions for cleanup. Required lazily so the
+ * module's absence cannot throw at import time; whatever subscribed before a
+ * throw is still returned. Out of the component because the React Compiler
+ * skips one holding optional calls inside a `try`.
+ */
+function addSpeechListeners(on: {
+  result: (ev: SpeechResultEvent) => void;
+  end: () => void;
+  error: () => void;
+}): SpeechSub[] {
+  const subs: SpeechSub[] = [];
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const mod = require('expo-speech-recognition');
+    subs.push(mod.ExpoSpeechRecognitionModule.addListener?.('result', on.result));
+    subs.push(mod.ExpoSpeechRecognitionModule.addListener?.('end', on.end));
+    subs.push(mod.ExpoSpeechRecognitionModule.addListener?.('error', on.error));
+  } catch {
+    /* no module in this binary — the button is not rendered anyway */
+  }
+  return subs;
 }
 
 /**
@@ -112,19 +140,22 @@ export function MicButton({
   // the service is busy.
   const [failed, setFailed] = useState(false);
 
+  // `listening`, readable from the recognizer's listeners and the unmount
+  // cleanup below (why a ref: see there). Declared ahead of the listener
+  // effect that reads it, and synced in a layout effect — on every commit,
+  // before any event can see it — rather than written during render: the
+  // React Compiler skips a component that writes a ref during render or
+  // mutates a value an earlier effect captured.
+  const listeningRef = useRef(listening);
+  useLayoutEffect(() => {
+    listeningRef.current = listening;
+  });
+
   // Subscribed lazily so the module's absence cannot throw at import time.
   useEffect(() => {
     if (!isSpeechAvailable()) return;
-    let sub: { remove(): void } | undefined;
-    let end: { remove(): void } | undefined;
-    let err: { remove(): void } | undefined;
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const mod = require('expo-speech-recognition');
-      sub = mod.ExpoSpeechRecognitionModule.addListener?.('result', (ev: {
-        results?: { transcript?: string }[];
-        isFinal?: boolean;
-      }) => {
+    const subs = addSpeechListeners({
+      result: (ev) => {
         if (!ev.isFinal) return;
         const text = ev.results?.[0]?.transcript ?? '';
         if (!text.trim()) return;
@@ -132,31 +163,27 @@ export function MicButton({
         haptics.success();
         if (routed.to === 'meal') onMeal(routed.text);
         else onSearch(routed.text);
-      });
-      end = mod.ExpoSpeechRecognitionModule.addListener?.('end', () => {
+      },
+      end: () => {
         // The recogniser ends on its own after a pause. Said aloud only if we
         // were still listening, so the user's own Stop tap (which flips state
         // first and announces itself) is not read twice.
         if (listeningRef.current) announce(t('voice.stopped'));
-        // Flipped here as well as by the render: a second `end` (or the Stop
+        // Flipped here as well as on commit: a second `end` (or the Stop
         // tap's own) can arrive before React re-renders, and read it twice.
         listeningRef.current = false;
         setListening(false);
-      });
-      err = mod.ExpoSpeechRecognitionModule.addListener?.('error', () => {
+      },
+      error: () => {
         setListening(false);
         setFailed(true);
         // The parent draws the message (see `onFailedChange`) with no live
         // region, so it is spoken from here, where the failure is known.
         announce(t('voice.failed'));
-      });
-    } catch {
-      /* no module in this binary — the button is not rendered anyway */
-    }
+      },
+    });
     return () => {
-      sub?.remove();
-      end?.remove();
-      err?.remove();
+      for (const sub of subs) sub?.remove();
     };
     // `t` is stable per locale; listed so a language switch mid-session still
     // announces in the right one.
@@ -164,11 +191,9 @@ export function MicButton({
 
   // Closing the sheet mid-dictation used to leave the recognizer — and the
   // microphone — running with nobody listening for the result. Unmount-only,
-  // through a ref: the listener effect above re-runs whenever the parent's
-  // inline callbacks change identity, and stopping there would cut a
-  // dictation short on every re-render.
-  const listeningRef = useRef(listening);
-  listeningRef.current = listening;
+  // through a ref (`listeningRef`, above): the listener effect above re-runs
+  // whenever the parent's inline callbacks change identity, and stopping there
+  // would cut a dictation short on every re-render.
   /** Cleared by a Stop tap or unmount — read after the "Listening" wait below,
    *  where `listeningRef` still holds the pre-render value. */
   const wantMic = useRef(false);
