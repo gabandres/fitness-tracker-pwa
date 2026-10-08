@@ -20,8 +20,15 @@ ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
   the server's ack — a refusal reopens the form, a failure is a toast with
   Retry. The food index decodes in idle time after Today mounts, not as the
   add sheet opens (`cddba933`). OTA on iOS 68/70 and Android vc 47/48/50
-  (ledger rows). Next: the React Compiler skips 52 components (EntrySheet,
-  FoodSearch, BodyScreen, Settings…).
+  (ledger rows).
+- **React Compiler now compiles every component (308 / 308)** — 55 had been
+  skipped silently (an eslint-disable of a hooks rule, a `try/finally`, a ref
+  read in render), among them EntrySheet, FoodSearch, both sheets, the +
+  button, Body, Train's live session and `useLedgerFeed`; a skipped component
+  re-renders with nothing memoized. `node scripts/react-compiler-report.mjs`
+  (in `apps/mobile`) lists any new skip. Today also subscribes the
+  recalibration digest once instead of twice (`a9db9497`, OTA on the same five
+  runtimes).
 
 ## 2026-10-07 — A day opened from Today had no way back; Water row keeps one shape
 
