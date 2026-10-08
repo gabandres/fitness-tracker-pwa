@@ -41,6 +41,7 @@ import { captureError } from '@/lib/sentry';
 import { releaseTour } from '@/lib/tour';
 import { parseEntryPrefill } from '@/lib/entry-prefill';
 import { refreshImports } from '@/lib/today-refresh';
+import { warmFoodIndex } from '@/lib/foodSearch';
 import { useDayFasts } from '@/hooks/useDayFasts';
 import { useDiaryActions } from '@/hooks/useDiaryActions';
 import { useFastActivity } from '@/hooks/useFastActivity';
@@ -58,6 +59,10 @@ import { font, headerTitle, radius, space, TARGET, type } from '@/theme';
 import { formatDate } from '@/lib/date-format';
 import { TAB_SCROLL_BAND } from '@/lib/glass';
 import { useLargeTitle } from '@/lib/font-scale';
+
+/** After Today mounts, before the food index is decoded in idle time — long
+ *  enough for the first paint and the listeners' first answers to land. */
+const FOOD_INDEX_WARM_DELAY_MS = 2500;
 
 /** Streak length below which a streak extension is too early to read as
  *  "this app is working for me" — see reviewPrompt.ts for the full policy. */
@@ -484,6 +489,29 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
     });
     return () => cancelAnimationFrame(id);
   }, [sharing, t]);
+
+  // Decode the bundled food index once Today has settled, in idle time. Left
+  // to `FoodSearch`'s mount it landed in the add sheet's opening frames — the
+  // first add of every session paid a 1.4 MB decode on the JS thread while the
+  // sheet presented and the keyboard waited. Logging food is what this screen
+  // is for, so the user who never searches is not the case to optimise.
+  useEffect(() => {
+    let cancelIdle: (() => void) | undefined;
+    const delay = setTimeout(() => {
+      const g = globalThis as {
+        requestIdleCallback?: (cb: () => void) => number;
+        cancelIdleCallback?: (h: number) => void;
+      };
+      if (g.requestIdleCallback && g.cancelIdleCallback) {
+        const h = g.requestIdleCallback(warmFoodIndex);
+        cancelIdle = () => g.cancelIdleCallback?.(h);
+      } else warmFoodIndex();
+    }, FOOD_INDEX_WARM_DELAY_MS);
+    return () => {
+      clearTimeout(delay);
+      cancelIdle?.();
+    };
+  }, []);
 
   // Pull to refresh runs the Health / Oura imports — the only part of Today
   // that is not already live (`lib/today-refresh.ts`, review U7). From the

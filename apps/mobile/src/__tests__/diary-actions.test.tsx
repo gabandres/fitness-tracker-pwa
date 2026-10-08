@@ -62,6 +62,19 @@ describe('useDiaryActions', () => {
     expect(mockAddLogDurably).toHaveBeenCalledWith('u1', expect.objectContaining({ calories: 300 }), 'r1');
   });
 
+  it('reopens the form holding a refused add — the sheet has already closed', async () => {
+    // The add sheet closes at dispatch, so this is where a refusal is
+    // recovered: what was typed comes back for the one wrong value to be fixed.
+    const { ref, render: r } = setup({ addEntry: jest.fn().mockResolvedValue({ outcome: 'rejected', id: 'x' }) });
+    await r();
+    await act(async () => {
+      await ref.current!.onSave({ calories: 300, mealLabel: 'Oatmeal', note: 'with milk' });
+    });
+    expect(ref.current!.sheetOpen).toBe(true);
+    expect(ref.current!.prefill).toEqual(expect.objectContaining({ calories: 300, mealLabel: 'Oatmeal', note: 'with milk' }));
+    expect(haptics.success).not.toHaveBeenCalled();
+  });
+
   it('says how much of the day is left in the add receipt', async () => {
     const { ref, render: r } = setup({ remainingAfter: (e: LogEntry) => 2000 - 650 - e.calories });
     await r();

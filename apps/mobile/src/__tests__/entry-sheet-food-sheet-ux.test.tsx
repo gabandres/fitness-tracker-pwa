@@ -204,7 +204,7 @@ it('confirms a My Foods save once, and a second tap does not write a duplicate',
   expect(onSaveCustomFood).toHaveBeenCalledTimes(1);
 });
 
-it('says so on the form when a save fails, not just with a haptic', async () => {
+it('says so in a toast with Retry when a save fails, not just with a haptic', async () => {
   const onSave = jest.fn().mockRejectedValue(new Error('boom'));
   const onClose = jest.fn();
   const screen = await render(
@@ -215,8 +215,12 @@ it('says so on the form when a save fails, not just with a haptic', async () => 
 
   await fireEvent.press(screen.getByTestId('entry-save'));
 
-  expect(await waitFor(() => screen.getByTestId('entry-form-error'))).toBeTruthy();
-  expect(onClose).not.toHaveBeenCalled();
+  // The sheet closes at dispatch (perf, 2026-10-08), so the failure is said
+  // by a toast carrying Retry rather than inline on a form that is gone.
+  expect(onClose).toHaveBeenCalledTimes(1);
+  await waitFor(() =>
+    expect(mockShowToast).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ action: expect.anything() })),
+  );
 });
 
 it('asks before a backdrop tap discards typed input, and closes outright when there is none', async () => {

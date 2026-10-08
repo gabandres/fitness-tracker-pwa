@@ -73,6 +73,11 @@ jest.mock('@/lib/ledger', () => ({
 }));
 
 import { useTrain } from '@/hooks/useTrain';
+import { clearOfflineCache } from '@/lib/offline-cache';
+
+// The cache keeps this session's copy in memory (`peekCache`), so one test's
+// answer would otherwise paint the next test's first render.
+beforeEach(() => clearOfflineCache());
 
 describe('useTrain loading', () => {
   it('clears when a snapshot arrives', async () => {

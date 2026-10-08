@@ -279,12 +279,10 @@ export function FoodSearch({
     };
   }, []);
 
-  // Decode the bundled food index while the user is still reaching for the
-  // field. Search is on-device now (Tier D), and the one-time decode is
-  // ~70–140 ms on the LG G6 — small, but it would otherwise land on the first
-  // keystroke, which is the one moment the user is watching. Deliberately here
-  // and not at app start: this component mounts only when a search surface
-  // opens, so a user who never searches never pays it.
+  // Decode the bundled food index if Today's idle warm (`(app)/index.tsx`)
+  // has not already — a no-op when it has. Search is on-device (Tier D), and
+  // the one-time decode would otherwise land on the first keystroke, which is
+  // the one moment the user is watching.
   useEffect(() => {
     warmFoodIndex();
   }, []);

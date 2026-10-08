@@ -87,8 +87,8 @@ function getIndex(): IndexedFood[] {
 /**
  * Warm the index without blocking anything.
  *
- * Call when a search surface is about to open (the add sheet mounting), NOT at
- * app start. `InteractionManager` is deliberately not used here — the caller
+ * Called in idle time once Today has settled, and again when a search surface
+ * mounts in case that has not happened yet. Never at module load: the caller
  * decides when idle time exists; this only guarantees the work happens at most
  * once and never throws into a render.
  */

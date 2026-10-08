@@ -109,7 +109,11 @@ describe('parseEntryPrefill', () => {
 });
 
 describe('a refused Add (bug 2)', () => {
-  it('keeps the form open, holding the entry, when the refusal is fast', async () => {
+  it('closes at dispatch, refused or not — the screen reopens the form holding it', async () => {
+    // The sheet no longer waits for the server's answer (perf, 2026-10-08), so
+    // a refusal arrives after the close. `useDiaryActions.onSave` reopens the
+    // form on the typed values (diary-actions.test.tsx); the sheet only has to
+    // let go and not report a refusal as a failure.
     const onClose = jest.fn();
     const onSave = jest.fn(async () => ({ outcome: 'rejected' as const }));
     const screen = await render(sheet({ onSave, onClose }));
@@ -117,10 +121,9 @@ describe('a refused Add (bug 2)', () => {
     await fireEvent.changeText(screen.getByTestId('entry-label'), 'Oatmeal');
     await fireEvent.changeText(screen.getByTestId('entry-calories'), '300');
     await fireEvent.press(screen.getByTestId('entry-save'));
-    await waitFor(() => expect(screen.getByTestId('entry-form-error')).toBeTruthy());
-    expect(screen.getByTestId('entry-form-error').props.children).toMatch(/refused/);
-    expect(onClose).not.toHaveBeenCalled();
-    expect(screen.getByTestId('entry-calories').props.value).toBe('300');
+    expect(onClose).toHaveBeenCalledTimes(1);
+    await act(async () => {});
+    expect(screen.queryByTestId('entry-form-error')).toBeNull();
   });
 
   it('a draft that comes back keeps its note and its time', async () => {

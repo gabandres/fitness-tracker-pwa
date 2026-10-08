@@ -98,8 +98,8 @@ describe('settleWithin', () => {
   });
 });
 
-describe('the form Add does not wait out a slow write (bug 4)', () => {
-  it('closes after the bounded wait while the write is still out', async () => {
+describe('the form Add closes at dispatch (bug 4; perf 2026-10-08)', () => {
+  it('closes at once while the write is still out', async () => {
     const onClose = jest.fn();
     const onSave = jest.fn(() => new Promise<void>(() => {}));
     const screen = await render(sheet({ onSave, onClose }));
@@ -107,7 +107,7 @@ describe('the form Add does not wait out a slow write (bug 4)', () => {
     await fireEvent.changeText(screen.getByTestId('entry-calories'), '420');
     await fireEvent.press(screen.getByTestId('entry-save'));
     expect(onSave).toHaveBeenCalledTimes(1);
-    await waitFor(() => expect(onClose).toHaveBeenCalled(), { timeout: 4000 });
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it('reports a write that fails after the sheet let go, with Retry', async () => {
@@ -131,15 +131,15 @@ describe('the form Add does not wait out a slow write (bug 4)', () => {
     expect(onSave).toHaveBeenCalledTimes(2);
   });
 
-  it('keeps the form and says so when the write fails at once', async () => {
+  it('reports a write that fails at once the same way, after the close', async () => {
     const onClose = jest.fn();
     const onSave = jest.fn().mockRejectedValue(new Error('nope'));
     const screen = await render(sheet({ onSave, onClose }));
     await fireEvent.press(screen.getByTestId('open-manual'));
     await fireEvent.changeText(screen.getByTestId('entry-calories'), '420');
     await fireEvent.press(screen.getByTestId('entry-save'));
-    await waitFor(() => expect(screen.getByTestId('entry-form-error')).toBeTruthy());
-    expect(onClose).not.toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(mockShowToast).toHaveBeenCalled());
   });
 });
 

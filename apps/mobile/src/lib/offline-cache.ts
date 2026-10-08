@@ -115,13 +115,38 @@ function reviver(_key: string, value: unknown): unknown {
  * identically because there is nothing else useful to do with the difference.
  */
 export async function readCache<T>(uid: string, slice: CacheSlice): Promise<T | null> {
+  const key = cacheKey(uid, slice);
+  if (memory.has(key)) return memory.get(key) as T;
   try {
-    const raw = await AsyncStorage.getItem(cacheKey(uid, slice));
+    const raw = await AsyncStorage.getItem(key);
     if (!raw) return null;
-    return JSON.parse(raw, reviver) as T;
+    const value = JSON.parse(raw, reviver) as T;
+    memory.set(key, value);
+    return value;
   } catch {
     return null;
   }
+}
+
+/**
+ * This session's copy of every slice read or written so far.
+ *
+ * Disk is what survives the process; this is what lets a screen pushed in the
+ * SAME session start painted. Without it every newly mounted reader (a History
+ * day, Settings, the first visit to Trends or Body) rendered empty, then parsed
+ * the 400-row logs blob back off disk, then rendered again — while Today, open
+ * underneath, held the same value in memory. Same contents as the disk copy
+ * minus the write debounce, so nothing here can paint what disk could not.
+ */
+const memory = new Map<string, unknown>();
+
+/**
+ * The slice as this session last saw it, synchronously — for a `useState`
+ * initializer — or `null` when this session has not read or written it yet.
+ */
+export function peekCache<T>(uid: string, slice: CacheSlice): T | null {
+  const key = cacheKey(uid, slice);
+  return memory.has(key) ? (memory.get(key) as T) : null;
 }
 
 /**
@@ -145,6 +170,7 @@ const latest = new Map<string, unknown>();
  */
 export function writeCache<T>(uid: string, slice: CacheSlice, value: T): void {
   const key = cacheKey(uid, slice);
+  memory.set(key, value);
   latest.set(key, value);
   const existing = timers.get(key);
   if (existing) clearTimeout(existing);
@@ -181,6 +207,9 @@ export async function clearOfflineCache(uid?: string): Promise<void> {
         timers.delete(key);
         latest.delete(key);
       }
+    }
+    for (const key of [...memory.keys()]) {
+      if (uid == null || key.startsWith(`${CACHE_PREFIX}.${uid}.`)) memory.delete(key);
     }
     const keys = await AsyncStorage.getAllKeys();
     const mine = keys.filter((k) =>

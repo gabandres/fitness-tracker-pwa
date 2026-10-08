@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { DailyLog, Measurement, Profile } from '@macrolog/core';
-import { writeCache } from '@/lib/offline-cache';
+import { clearOfflineCache, writeCache } from '@/lib/offline-cache';
 
 /**
  * Cached paint for History, Trends and Body (UX_AUDIT S18-13).
@@ -95,6 +95,8 @@ function row(id: string, iso: string, calories = 500): DailyLog {
 const PROFILE = { sex: 'male', heightIn: 70, age: 30 } as unknown as Profile;
 
 beforeEach(async () => {
+  // Clears the in-memory copy too (`peekCache`), which outlives AsyncStorage.clear().
+  await clearOfflineCache();
   await AsyncStorage.clear();
   delete live.logs;
   delete live.weights;

@@ -4,7 +4,6 @@ import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   type AccessibilityActionEvent,
-  ActivityIndicator,
   type LayoutChangeEvent,
   Linking,
   Platform,
@@ -79,7 +78,6 @@ import {
   macroOutOfRange,
   moveToDay,
   parseDecimal,
-  settleWithin,
 } from '@/lib/entry-input';
 import { isAnySheetActive, onSheetsIdle } from '@/lib/sheet-portal';
 import type { AddReceipt } from '@/hooks/useLogWrites';
@@ -267,11 +265,6 @@ function Tappable(props: React.ComponentProps<typeof TouchableOpacity>) {
 const PREVIEW_WIDTH = 320;
 const PREVIEW_MAX_SCALE = 1.3;
 
-/** A refusal the screen reported through its receipt (see `SaveOutcome`). */
-function refused(v: unknown): boolean {
-  return (v as SaveOutcome | undefined)?.outcome === 'rejected';
-}
-
 /**
  * Search-first add-food sheet, presented natively on iOS (a formSheet through
  * the root `sheet` route, `BottomSheet native`) and as the JS sheet elsewhere.
@@ -344,7 +337,6 @@ export function EntrySheet({
   // time passes through the snack band, and a per-step rule would turn a
   // deliberate noon Snack into Dinner on the way.
   const [retimeOrigin, setRetimeOrigin] = useState<{ mealType?: MealType; at: Date }>({ at: new Date() });
-  const [busy, setBusy] = useState(false);
   // One per section (B6): a single flag put Quick add AND Recent into remove
   // mode together, from a button that named neither.
   const [manageQuick, setManageQuick] = useState(false);
@@ -509,7 +501,6 @@ export function EntrySheet({
     const openedAt = editing?.date ?? (dateKey ? noonOf(dateKey) : new Date());
     setEntryDate(openedAt);
     setRetimeOrigin({ mealType: slot, at: openedAt });
-    setBusy(false);
     setManageQuick(false);
     setManageRecent(false);
     // A row logged at a known weight opens with its grams field (2026-10-07):
@@ -836,9 +827,8 @@ export function EntrySheet({
   const canSavePreset = onSavePreset != null && label.trim().length > 0 && calNum != null;
   const canSaveCustomFood = onSaveCustomFood != null && label.trim().length > 0 && calNum != null;
 
-  async function save() {
-    if (!canSave || busy) return;
-    setBusy(true);
+  function save() {
+    if (!canSave) return;
     // A typed time still open counts. Add is outside the form's scroll area,
     // so tapping it does not blur the time field and `commitTypedTime` never
     // ran: the entry saved at the old time while the field showed the new one.
@@ -870,34 +860,14 @@ export function EntrySheet({
       timestamp: showDateRow || retimed ? at : forDate,
     };
     setFormError(null);
-    try {
-      // Up to SAVE_WAIT_MS for the write's answer, then on regardless (re-score
-      // bug 4): `addEntry` waits up to 8 s on a weak signal, and the button
-      // spun for all of it while a one-tap log had long since closed. A fast
-      // failure still lands inline below; a late one comes back as a toast
-      // with Retry (`reportLateFailure`), and the receipt reports the rest.
-      const write = Promise.resolve(onSave(entry));
-      const early = await settleWithin(write);
-      if (!early.settled) void write.catch((e) => reportLateFailure(entry, e, 'entry.saveLate'));
-      else if (refused(early.value)) {
-        // Refused inside the wait (re-score bug 2): the form stays, holding
-        // what was typed, and says why above Add. The receipt has already
-        // played the warning, so no second haptic here.
-        setFormError(t('entry.rejected'));
-        return;
-      }
-      afterAdd([entry]);
-    } catch (e) {
-      // The sheet stays open with the typed values, so the user can retry.
-      // The haptic alone said "the tap did not land" only to someone holding
-      // the phone with haptics on; the line above the button says it to
-      // everyone, and is spoken.
-      haptics.warning();
-      setFormError(t('entry.saveFailed'));
-      captureError(e, { where: 'entry.save' });
-    } finally {
-      setBusy(false);
-    }
+    // Closes at dispatch, as a one-tap relog always has. This waited up to
+    // SAVE_WAIT_MS for the server's ack first, so on any real network Add spun
+    // for a full round trip with nothing to show for it: the row is on Today
+    // from the local write at once. What the wait bought is still covered
+    // after the close — a refused add reopens this form holding what was typed
+    // (`useDiaryActions.onSave`), and a failed one is a toast with Retry.
+    Promise.resolve(onSave(entry)).catch((e) => reportLateFailure(entry, e, 'entry.saveLate'));
+    afterAdd([entry]);
   }
 
   // The values a library save would store; equal to `libSaved.*` once saved.
@@ -2149,19 +2119,15 @@ export function EntrySheet({
                 onDirtyChange={setSubDirty}
                 onCancel={stepBackToBrowse}
                 onAddMany={async (entries) => {
-                  // The same bounded wait as the form's Add (bug 4). A failure
-                  // inside it propagates to MealText as it always did; a later
-                  // one is a toast.
+                  // Closes at dispatch, like the form's Add (see `save`); a
+                  // failure is a toast.
                   const write = (async () => {
                     if (onSaveMany) await onSaveMany(entries);
                     else for (const entry of entries) await onSave(entry);
                   })();
-                  const early = await settleWithin(write);
-                  if (!early.settled) {
-                    void write.catch((e) =>
-                      reportLateFailure({ calories: entries.reduce((sum, x) => sum + x.calories, 0) }, e, 'entry.addManyLate'),
-                    );
-                  }
+                  void write.catch((e) =>
+                    reportLateFailure({ calories: entries.reduce((sum, x) => sum + x.calories, 0) }, e, 'entry.addManyLate'),
+                  );
                   afterAdd(entries);
                 }}
               />
@@ -2587,17 +2553,13 @@ export function EntrySheet({
                   <TouchableOpacity
                     style={[styles.save, !canSave && styles.saveDisabled]}
                     onPress={save}
-                    disabled={!canSave || busy}
+                    disabled={!canSave}
                     accessibilityRole="button"
-                    accessibilityState={{ disabled: !canSave || busy, busy }}
+                    accessibilityState={{ disabled: !canSave }}
                     accessibilityHint={saveBlocker ?? undefined}
                     testID="entry-save"
                   >
-                    {busy ? (
-                      <ActivityIndicator color={colors.onInk} testID="entry-save-busy" />
-                    ) : (
-                      <Text style={styles.saveText} maxFontSizeMultiplier={1.6}>{editing ? t('common.save') : t('entry.add')}</Text>
-                    )}
+                    <Text style={styles.saveText} maxFontSizeMultiplier={1.6}>{editing ? t('common.save') : t('entry.add')}</Text>
                   </TouchableOpacity>
                 </View>
                 {/* Zero calories is the one rule nobody can guess (U7), so it
@@ -2980,7 +2942,6 @@ const createStyles = ({ scheme, colors, shadow }: Theme) => StyleSheet.create({
   actions: { flexDirection: 'row', gap: space.md, paddingTop: space.md, alignItems: 'center' },
   delete: { minHeight: 48, justifyContent: 'center', paddingHorizontal: space.lg, paddingVertical: space.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.danger },
   deleteText: { color: colors.danger, fontWeight: '700', fontSize: font.body },
-  // `minHeight` so the busy spinner (A6) does not shrink the button under the thumb.
   save: { flex: 1, minHeight: 56, backgroundColor: colors.ink, borderRadius: radius.md, paddingVertical: space.lg, alignItems: 'center', justifyContent: 'center' },
   saveDisabled: { opacity: 0.4 },
   saveText: { color: colors.onInk, fontWeight: '700', fontSize: font.h3 },

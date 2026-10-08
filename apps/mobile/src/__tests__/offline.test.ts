@@ -53,6 +53,8 @@ beforeEach(async () => {
   jest.clearAllTimers();
   mockAddLogWithId.mockReset();
   resetConnectivity();
+  // Clears the in-memory copy too (`peekCache`), which outlives AsyncStorage.clear().
+  await clearOfflineCache();
   await AsyncStorage.clear();
   // `jest-expo` reports iOS, where the parked queue deliberately lives in the
   // App Group rather than AsyncStorage (a Swift App Intent cannot reach the

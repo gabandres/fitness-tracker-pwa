@@ -9,7 +9,14 @@ import {
   getReactNativePersistence,
   initializeAuth,
 } from 'firebase/auth';
-import { type Firestore, connectFirestoreEmulator, getFirestore } from 'firebase/firestore';
+import {
+  type Firestore,
+  connectFirestoreEmulator,
+  getFirestore,
+  initializeFirestore,
+  memoryLocalCache,
+  memoryLruGarbageCollector,
+} from 'firebase/firestore';
 import { type Functions, connectFunctionsEmulator, getFunctions } from 'firebase/functions';
 import { type FirebaseStorage, connectStorageEmulator, getStorage } from 'firebase/storage';
 import { connectAuthEmulator, onIdTokenChanged } from 'firebase/auth';
@@ -32,7 +39,27 @@ try {
   auth = getAuth(app);
 }
 
-const db: Firestore = getFirestore(app);
+// Memory-only either way (RN has no IndexedDB — `offline-cache.ts`), but NOT
+// the SDK default. The default memory cache garbage-collects EAGERLY: a
+// document is dropped the moment no listener holds it, and every screen here
+// closes its listeners on blur (ADR-0016). So each refocus re-fetched its whole
+// query from the server — 400 log rows on every return to Today, billed as 400
+// reads — and waited on the network to repaint. The LRU collector keeps them,
+// with their resume tokens, until the cache passes `cacheSizeBytes`: a
+// re-opened listener answers from memory at once and the server sends only
+// what changed. 40 MB is two orders of magnitude above this app's working set
+// (one 400-row window, a profile, and a few small collections).
+let db: Firestore;
+try {
+  db = initializeFirestore(app, {
+    localCache: memoryLocalCache({
+      garbageCollector: memoryLruGarbageCollector({ cacheSizeBytes: 40 * 1024 * 1024 }),
+    }),
+  });
+} catch {
+  // Fast Refresh re-runs this module against an already-initialised instance.
+  db = getFirestore(app);
+}
 // Callables default to us-central1 — same region the PWA uses (getFunctions()
 // with no arg in app.config.ts), so searchFoods/getFoodDetail resolve.
 const functions: Functions = getFunctions(app);

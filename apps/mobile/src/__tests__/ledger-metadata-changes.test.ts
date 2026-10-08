@@ -92,3 +92,65 @@ describe.each(Object.entries(READERS))('%s', (_name, call) => {
     expect(cb.mock.calls[0][1]).toEqual(expect.objectContaining({ fromCache: true }));
   });
 });
+
+/**
+ * The flag above makes every listener fire for events that change nothing on
+ * screen — a write's server ack, a re-opened listener's cache-then-server pair.
+ * Each used to be a fresh array and a full re-render of the screen (perf,
+ * 2026-10-08). An event with no document changes now passes nothing new: it is
+ * dropped, or — when the provenance flipped — re-delivers the SAME value.
+ */
+describe('events with no document changes', () => {
+  const snap = (fromCache: boolean, changes: number, docs: { id: string; data: () => object }[] = []) => ({
+    metadata: { fromCache },
+    docs,
+    docChanges: () => Array.from({ length: changes }),
+  });
+  const handlerOf = () => {
+    const next = (mockOnSnapshot.mock.calls[0] as unknown[])[2];
+    return typeof next === 'function' ? next : (next as { next: (s: unknown) => void }).next;
+  };
+
+  it.each([
+    ['subscribePresets', READERS.subscribePresets],
+    ['subscribeRecentLogs', READERS.subscribeRecentLogs],
+  ])('%s: a server ack is dropped, a cache → server flip re-delivers the same value', (_n, call) => {
+    const cb = jest.fn();
+    call(cb);
+    const handler = handlerOf();
+
+    handler(snap(true, 0)); // first answer: always delivered, even empty
+    handler(snap(true, 0)); // nothing new
+    expect(cb).toHaveBeenCalledTimes(1);
+
+    handler(snap(false, 0)); // the server confirms what the cache showed
+    expect(cb).toHaveBeenCalledTimes(2);
+    expect(cb.mock.calls[1][0]).toBe(cb.mock.calls[0][0]);
+    expect(cb.mock.calls[1][1]).toEqual({ fromCache: false });
+
+    handler(snap(false, 0)); // a write's ack: metadata only
+    expect(cb).toHaveBeenCalledTimes(2);
+  });
+
+  it('a real change is mapped and delivered as a new value', () => {
+    const cb = jest.fn();
+    READERS.subscribeMilestones(cb);
+    const handler = handlerOf();
+    handler(snap(false, 0));
+    handler(snap(false, 1, [{ id: 'first-log', data: () => ({}) }]));
+    expect(cb).toHaveBeenCalledTimes(2);
+    expect(cb.mock.calls[1][0]).not.toBe(cb.mock.calls[0][0]);
+  });
+
+  it('subscribeProfile drops an event whose document and provenance are unchanged', () => {
+    const cb = jest.fn();
+    READERS.subscribeProfile(cb);
+    const handler = handlerOf();
+    const doc = (fromCache: boolean, data: object) => ({ metadata: { fromCache }, exists: () => true, data: () => data });
+    handler(doc(false, { goal: 'lose' }));
+    handler(doc(false, { goal: 'lose' })); // the ack of a write already shown
+    expect(cb).toHaveBeenCalledTimes(1);
+    handler(doc(false, { goal: 'gain' }));
+    expect(cb).toHaveBeenCalledTimes(2);
+  });
+});

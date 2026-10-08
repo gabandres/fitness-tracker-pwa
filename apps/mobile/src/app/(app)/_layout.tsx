@@ -344,7 +344,14 @@ export default function AppTabsLayout() {
   return (
     <>
     <Tabs
-      screenOptions={{ headerShown: false }}
+      // `freezeOnBlur`: a tab you have visited stays mounted, and without this
+      // every tab switch re-rendered all of them, not just the one shown — and
+      // Body, Train and the closed sheets they hold are not memoized. A blurred
+      // tab has already closed its listeners (ADR-0016), so there is nothing
+      // for it to show; its state updates apply when it is focused again.
+      // Timers keep running while frozen (the rest-over buzz fires from its
+      // interval, not from a render — `useRestTimer`).
+      screenOptions={{ headerShown: false, freezeOnBlur: true }}
       screenLayout={({ route, navigation, children }) => (
         <RelayoutBoundary
           generation={relayout}

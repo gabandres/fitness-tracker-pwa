@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { type CacheSlice, readCache, writeCache } from '@/lib/offline-cache';
+import { type CacheSlice, peekCache, readCache, writeCache } from '@/lib/offline-cache';
 
 /**
  * `useState`, but the last value survives the process and paints the next cold
@@ -29,18 +29,35 @@ export function useCachedState<T>(
   slice: CacheSlice,
   initial: T,
 ): [T, (next: T, opts?: { authoritative?: boolean }) => void, boolean] {
-  const [value, setValue] = useState<T>(initial);
-  const [paintedFromCache, setPainted] = useState(false);
+  // Seeded from this session's in-memory copy when there is one, so a screen
+  // pushed over Today mounts painted instead of rendering empty first and
+  // waiting on the disk read below (`peekCache`).
+  const [seed] = useState(() => (uid ? peekCache<T>(uid, slice) : null));
+  const [value, setValue] = useState<T>(() => seed ?? initial);
+  const [paintedFromCache, setPainted] = useState(seed != null);
   /** Set by the first live write. Guards the late-hydration case above. */
   const live = useRef(false);
   /** Mirror of `paintedFromCache` readable synchronously from `set`. */
-  const painted = useRef(false);
+  const painted = useRef(seed != null);
 
   useEffect(() => {
     live.current = false;
+    if (!uid) {
+      painted.current = false;
+      setPainted(false);
+      return;
+    }
+    const hit = peekCache<T>(uid, slice);
+    if (hit != null) {
+      // On mount this is what the initializer already applied, and both
+      // setters bail out; on an account switch it is the new account's value.
+      painted.current = true;
+      setValue(hit);
+      setPainted(true);
+      return;
+    }
     painted.current = false;
     setPainted(false);
-    if (!uid) return;
     let cancelled = false;
     void readCache<T>(uid, slice).then((cached) => {
       if (cancelled || live.current || cached == null) return;

@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCachedState } from '@/hooks/useCachedState';
-import { writeCache } from '@/lib/offline-cache';
+import { clearOfflineCache, writeCache } from '@/lib/offline-cache';
 
 /**
  * `useCachedState` provenance — the rule that took three publishes to land.
@@ -29,6 +29,8 @@ async function seed(uid: string, slice: 'templates' | 'presets' | 'exercises' | 
 }
 
 beforeEach(async () => {
+  // Clears the in-memory copy too (`peekCache`), which outlives AsyncStorage.clear().
+  await clearOfflineCache();
   await AsyncStorage.clear();
 });
 
@@ -82,5 +84,22 @@ describe('useCachedState provenance', () => {
     await new Promise((r) => setTimeout(r, 600));
     const second = await renderHook(() => useCachedState<string[]>('u1', 'logs', []));
     await waitFor(() => expect(second.result.current[0]).toEqual(['x']));
+  });
+
+  it('a reader mounted after another one\'s server answer paints on its FIRST render', async () => {
+    // A screen pushed over Today (a History day, Settings) used to render empty
+    // and wait on the disk read, while Today held the value in memory (perf,
+    // 2026-10-08). Same contents as disk; no wait.
+    const first = await renderHook(() => useCachedState<string[]>('u1', 'logs', []));
+    await act(async () => first.result.current[1](['live'], { authoritative: true }));
+
+    const renders: string[][] = [];
+    const second = await renderHook(() => {
+      const s = useCachedState<string[]>('u1', 'logs', []);
+      renders.push(s[0]);
+      return s;
+    });
+    expect(renders[0]).toEqual(['live']);
+    expect(second.result.current[2]).toBe(true);
   });
 });
