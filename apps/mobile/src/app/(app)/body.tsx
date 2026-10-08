@@ -47,6 +47,7 @@ import { isAnySheetActive, onSheetsIdle } from '@/lib/sheet-portal';
 import { announce } from '@/lib/a11y';
 import { track } from '@/lib/analytics';
 import { useUnitSystem } from '@/lib/use-unit-system';
+import { useSetParamsWhenReady } from '@/lib/route-params';
 import { CountUpText, enterUp, usePulse } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space, TARGET, type } from '@/theme';
@@ -277,6 +278,7 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
     weigh?: string;
     weighValue?: string;
   }>();
+  const setParamsWhenReady = useSetParamsWhenReady();
   // Held until the first paint (re-score, bug 10): on a Siri cold start the
   // profile has not landed, and `todayKey` under the default boundary is
   // tomorrow's-yesterday between midnight and a 3 AM day start.
@@ -292,8 +294,8 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
     );
     setWeightDay(todayKey);
     setWeightOpen(true);
-    router.setParams({ weigh: undefined, weighValue: undefined });
-  }, [weighParam, weighValueParam, todayKey, loading, locale]);
+    setParamsWhenReady({ weigh: undefined, weighValue: undefined });
+  }, [weighParam, weighValueParam, todayKey, loading, locale, setParamsWhenReady]);
 
   /**
    * From inside a history sheet: close it first, then open the editor, so two

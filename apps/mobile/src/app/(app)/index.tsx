@@ -18,6 +18,7 @@ import { CONTEXT_MENUS, ContextMenu } from '@/components/ContextMenu';
 import { Flame } from '@/components/Flame';
 import { useToast } from '@/components/Toast';
 import { useAddReceipt } from '@/hooks/useAddReceipt';
+import { useSetParamsWhenReady } from '@/lib/route-params';
 import { DailyMetrics } from '@/components/DailyMetrics';
 import { SkeletonMetricsCard, SkeletonRows } from '@/components/DaySkeleton';
 import { HeaderAvatar } from '@/components/HeaderAvatar';
@@ -393,6 +394,9 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
     prefill?: string;
     fast?: string;
   }>();
+  // Clearing a one-shot param waits for the root navigator: on a cold start
+  // from the widget these effects run before it is ready (lib/route-params).
+  const setParamsWhenReady = useSetParamsWhenReady();
   // A tap on the fasting Live Activity (`ignia://?fast=1`, FastActivityWidget):
   // open the fast sheet, where a running fast's start can be corrected — the
   // one thing the Lock Screen cannot do. The param is a constant, not a nonce,
@@ -401,8 +405,8 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
   useEffect(() => {
     if (!fastParam) return;
     setFastSheetOpen(true);
-    router.setParams({ fast: undefined });
-  }, [fastParam]);
+    setParamsWhenReady({ fast: undefined });
+  }, [fastParam, setParamsWhenReady]);
   // A draft carried in beside the nonce — the scan screen's repeat suggestion
   // (ADR-0029, settled 2026-09-08). Parsed once per nonce; a bad param opens
   // the sheet empty rather than not at all.
@@ -414,8 +418,8 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
   useEffect(() => {
     if (!openAddParam) return;
     diaryRef.current.openAdd(parseEntryPrefill(prefillParam));
-    router.setParams({ openAdd: undefined, prefill: undefined });
-  }, [openAddParam, prefillParam]);
+    setParamsWhenReady({ openAdd: undefined, prefill: undefined });
+  }, [openAddParam, prefillParam, setParamsWhenReady]);
 
   // The Quick Settings tile's FALLBACK path (ADR-0020). Its tap normally logs
   // without opening anything; when Android refuses the background service start
@@ -436,7 +440,7 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
     }
     if (quickAddDone.current === quickAddSlotParam) return;
     quickAddDone.current = quickAddSlotParam;
-    router.setParams({ quickAddSlot: undefined });
+    setParamsWhenReady({ quickAddSlot: undefined });
     const slot = Number(quickAddSlotParam);
     if (!Number.isInteger(slot) || slot < 0) return;
     // Counted here and not in `performQuickAdd`, because that function's normal
@@ -447,7 +451,7 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
     // of logging silently.
     track('quick_add');
     performQuickAdd(slot).catch((e) => captureError(e, { where: 'today.quickAddFallback' }));
-  }, [quickAddSlotParam]);
+  }, [quickAddSlotParam, setParamsWhenReady]);
 
   // Celebration: the flame chip bounces when the streak extends mid-session
   // (null-first ref so it doesn't fire on mount). The bounce is skipped under
