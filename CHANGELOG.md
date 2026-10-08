@@ -4,6 +4,20 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-10-08 — Tapping the widget with the app closed crashed it
+
+- **Owner: tapping the widget crashes.** Only from a cold start. The widget
+  opens `ignia://?openAdd=1`; Today opened the sheet and cleared the param with
+  `router.setParams` before the root navigator was ready, expo-router threw
+  "Attempted to navigate before mounting the Root Layout component", and
+  expo-updates' error recovery killed the app — before Sentry could send, so
+  no issue exists. Regression from `072d54ec` (2026-10-05), live with the
+  2026-10-07 OTAs. The clear now waits for the container's `ready` event
+  (`lib/route-params.ts`); the same fix covers the fasting Live Activity
+  (`?fast=1`), the Quick Settings tile fallback (`quickAddSlot`) and Siri's
+  weigh-in (`weigh`). Reproduced and verified on `Ignia-QA-26` (`f8a374ad`,
+  OTA on iOS 68/70 and Android vc 47/48/50, ledger rows).
+
 ## 2026-10-08 — Performance: screens repaint from memory, Add closes at once
 
 - **Owner: slow moving between screens and adding food (iPhone 16 Pro).** The
