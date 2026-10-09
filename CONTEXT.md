@@ -335,12 +335,31 @@ These three windows look similar and are NOT interchangeable. See
   targets. Invariant: **`targetsRefinedAt` present ⟺ manual targets
   absent** — re-running onboarding clears the stamp.
 - **ProteinTarget** — `FitnessStore.proteinTarget()`, same projection.
-  Resolution order: `profile.proteinPerKg` live off current weight →
+  Resolution order: a `user` target (custom mode + `manualProteinTarget`) →
+  `profile.proteinPerKg` live off current weight →
   frozen `manualProteinTarget` snapshot → the **1.6 g/kg** default. Clamped
   up to **`profile.proteinFloor`** if set; unlike the calorie floor it has
   no default, so unset means no floor. `proteinMinTarget()` is the
   1.6 g/kg muscle-retention reference and is deliberately NOT clamped —
   it is a physiological minimum, not a user preference.
+- **Target source** — `user` or `auto`, per field (`DailyTargets.calorieSource`
+  / `proteinSource`). `user` means `targetMode: 'custom'` plus a manual value:
+  the number the user typed, **never moved by recalculation**. Everything else
+  is `auto` — including the live g/kg protein basis, which follows every
+  weigh-in in 5 g steps. The automatic value is always computed as the
+  **suggestion** (`calorieSuggestion` / `proteinSuggestion`) and shown beside a
+  user target, never applied to it (ADR-0045).
+- **Target record** — `users/{uid}/dailyTargets/{YYYY-MM-DD}`: the targets
+  **in effect on that day**, their sources, the inputs they were computed from
+  (`basis`) and, on a day they moved, the `change` (old → new + reasons).
+  Written from Today (`useTargetHistory`), only from server answers; a past
+  day's screen reads it. A day with no record is **unknown** — nothing
+  reconstructs one, and the CSV leaves its target columns blank.
+  `packages/core/src/target-history.ts`.
+- **Target change notice** — the Today card every AUTOMATIC change of a target
+  owes: old value, new value, reason. Not a **Nudge** (it is not queued); it
+  sits under the hero it explains until dismissed (`noticeAckAt`). A change the
+  user made is recorded, not announced back to them.
 - **Streak** — `FitnessStore.streak()`. Consecutive days with at least
   one log. Pro users get `STREAK_FREEZE_MAX_GAP_PRO = 7` consecutive
   missed days tolerated mid-streak; `streakFreezeUsed()` is true when

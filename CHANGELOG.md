@@ -4,6 +4,35 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-10-08 — Targets: a typed target is yours, every automatic move is announced; the programme matches the plan
+
+- **Owner: protein dropped 135 → 130 g on its own.** `proteinPerKg: 1.9` follows
+  the newest weigh-in in 5 g steps; 153.8 → 153.6 lb crossed the edge at
+  153.74 lb. Not the tape, not the recomp estimate (display-only, ADR-0043), not
+  the 10/7 deploy. Calories (1,850) are pinned by the floor: measured
+  maintenance ~2,030 − 400 for 0.8 lb/week = ~1,630 < 1,850; they would move
+  only if maintenance passed ~2,250. ADR-0045: a typed target (custom mode) is
+  never recalculated — the computed value is a suggestion; every automatic
+  change is recorded per day (`dailyTargets/{day}`) with old → new + reason and
+  shown on Today until dismissed; a past day shows its own target. The owner's
+  protein is 140 g (user) from 10/9; 10/8 keeps 130 g (auto), captured that
+  evening. Days before 10/8 have no record and export blank.
+- **Templates now match the written programme** (`scripts/owner-data-2026-10-09.mts`,
+  backup in `~/ignia-backups`): Push leads with DB Flat Press, Seated DB
+  Shoulder Press 1st → 3rd with a progression baseline marker (drop back to 60
+  only if the next activation is under 5); rest before the next exercise per
+  row (90–120 s same muscle, 60 s on a switch); the pull-up's 50 s mini-rest
+  override removed; Seated Machine Row to failure. Drop sets kept (owner).
+  10/6's crunch at 25 was the engine's `repeat-invalid` call off 9/29's 25, not
+  a failed template change; the calf's second cluster was left empty and dropped
+  at finish.
+- **Template notes cap 2,000 → 10,000 in `firestore.rules`.** The three
+  templates' notes (2.8–4.1k chars, grown by admin edits) had made every
+  in-app save of them fail.
+- **Export:** `template` and `target` row types, new columns appended.
+  `64b127b8`, rules + `exportUserData`/`deleteAccount` deployed first, OTA on
+  iOS 68/70 and Android vc 47/48/50 (ledger rows).
+
 ## 2026-10-08 — No meal reminder for a meal already logged
 
 - **Owner: logging breakfast, lunch or dinner should mean no notification

@@ -130,6 +130,10 @@ let writes = 0;
 const say = (s: string) => console.log(`${apply ? 'SET  ' : 'WOULD'} ${s}`);
 /** Admin SDK rejects `undefined`; a removed field is an absent key. */
 const clean = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
+/** Key-order-independent equality — Firestore does not return map keys in the
+ *  order they were written, so a plain stringify called every re-run a change. */
+const canon = (v: unknown): string => JSON.stringify(v, (_k, x) =>
+  x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.keys(x).sort().map((k) => [k, x[k]])) : x);
 const activations = (r: TemplateExercise) => r.plannedSets.filter((p) => p.kind === 'activation');
 const labelsOf = (r: TemplateExercise) => {
   const out: string[] = [];
@@ -202,8 +206,8 @@ for (const [name, spec] of Object.entries(PROGRAMME)) {
   const notes = (data.notes as string | undefined) ?? '';
   const nextNotes = notes.includes(spec.note) ? notes : `${notes}\n\n${spec.note}`;
   if (nextNotes.length > 10000) refusals.push(`${name}: notes would be ${nextNotes.length} chars (> 10,000 cap)`);
-  if (JSON.stringify(after) === JSON.stringify(before) && nextNotes === notes) { console.log(`${name}: nothing to do`); continue; }
-  say(`${name}: rows rewritten (${after.filter((r) => r.lastModifiedAt === AT.toISOString()).length} stamped prompt), notes +1 dated line`);
+  if (canon(after) === canon(before) && nextNotes === notes) { console.log(`${name}: nothing to do`); continue; }
+  say(`${name}: rows rewritten (${after.filter((r) => r.lastModifiedAt === AT.toISOString()).length} stamped prompt)${nextNotes === notes ? '' : ', notes +1 dated line'}`);
   batch.update(doc.ref, clean({ exercises: after, notes: nextNotes, updatedAt: Timestamp.fromDate(AT) }));
   writes++;
 }
