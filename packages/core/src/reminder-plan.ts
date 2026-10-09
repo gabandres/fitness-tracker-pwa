@@ -6,13 +6,18 @@
  * adapter that cancels everything and schedules whatever this returns — so all
  * the behavior lives here and is unit-tested without a device.
  *
- * The split (why two `kind`s): a repeating OS notification can't be made
- * conditional, so meal-window nudges are **daily-repeating** and tail-timed
- * (they fire even for a lapsed user who never opens the app; the late time
- * makes "did you log?" rarely fire after you already did). The streak-at-risk
- * nudge is the **smart** one — a one-shot for *today* that's simply omitted
- * (i.e. the adapter cancels it) once you've logged, so it never nags you after
- * you've saved your streak.
+ * Every nudge is a one-shot the adapter re-plans on each log and app open, so
+ * any of them can be omitted the moment it stops being true. Meal windows were
+ * **daily-repeating** until 2026-10-08, on the bet that a tail-timed nudge
+ * would "rarely fire after you already did" — but a repeating OS notification
+ * cannot skip a day, and the owner kept being told to log a breakfast they had
+ * logged. They are now one-shots for today and the next
+ * {@link MEAL_REMINDER_HORIZON_DAYS} days, and today's is dropped once that
+ * meal is logged ({@link ReminderInput.mealsLoggedToday}). The cost: someone
+ * who never opens the app again hears the meal nudges for two weeks, not
+ * forever — the lapsed nudges below already cap what a lapsed user should
+ * hear from us at a week. The streak-at-risk nudge works the same way — a
+ * one-shot for *today* omitted (the adapter cancels it) once you've logged.
  */
 
 export type MealKey = 'breakfast' | 'lunch' | 'dinner';
@@ -33,6 +38,14 @@ export const DEFAULT_MEAL_REMINDERS: MealReminderSettings = {
   lunch: { enabled: true, hour: 13, minute: 30 },
   dinner: { enabled: true, hour: 20, minute: 0 },
 };
+
+/**
+ * How many days AFTER today the meal windows are scheduled. Re-armed on every
+ * app open, so this only bounds a user who stops opening the app. Sized under
+ * iOS's 64-pending-notification cap: 3 meals × 15 days = 45, plus streak,
+ * weigh-in, two lapsed, tape and the rest timer = 51.
+ */
+export const MEAL_REMINDER_HORIZON_DAYS = 14;
 
 /** Streak-at-risk fires at 8:30pm, only for a streak worth protecting. */
 export const STREAK_RISK_HOUR = 20;
@@ -105,9 +118,10 @@ export type ReminderPlan =
     }
   | {
       id: `meal-${MealKey}`;
-      kind: 'daily';
-      hour: number;
-      minute: number;
+      kind: 'dates';
+      /** One-shot local times, ascending: today's (unless logged or passed)
+       *  then one per day for {@link MEAL_REMINDER_HORIZON_DAYS} days. */
+      fireAts: Date[];
       titleKey: string;
       bodyKey: string;
     }
@@ -137,6 +151,9 @@ export interface ReminderInput {
   meals: MealReminderSettings;
   /** Has the user logged anything today? (Streak survives on any log.) */
   loggedToday: boolean;
+  /** Meal windows already logged on today's CALENDAR date — today's nudge for
+   *  each is omitted. Omitted means none. */
+  mealsLoggedToday?: readonly MealKey[];
   /** Current consecutive-day logging streak. */
   streak: number;
   /** Whole days since the last recorded weigh-in, or null when never weighed /
@@ -166,18 +183,24 @@ const MEAL_ORDER: MealKey[] = ['breakfast', 'lunch', 'dinner'];
  * previously-scheduled nudges and (re)schedules exactly this list.
  */
 export function planReminders(
-  { now, meals, loggedToday, streak, daysSinceWeighIn, daysSinceLastLog, maintaining }: ReminderInput,
+  { now, meals, loggedToday, mealsLoggedToday = [], streak, daysSinceWeighIn, daysSinceLastLog, maintaining }: ReminderInput,
 ): ReminderPlan[] {
   const plans: ReminderPlan[] = [];
 
   for (const key of MEAL_ORDER) {
     const m = meals[key];
     if (m?.enabled) {
+      const fireAts: Date[] = [];
+      // Day 0 is today: skipped once the meal is logged or its time has passed.
+      for (let day = mealsLoggedToday.includes(key) ? 1 : 0; day <= MEAL_REMINDER_HORIZON_DAYS; day++) {
+        const fireAt = atToday(now, m.hour, m.minute);
+        fireAt.setDate(fireAt.getDate() + day);
+        if (fireAt.getTime() > now.getTime()) fireAts.push(fireAt);
+      }
       plans.push({
         id: `meal-${key}`,
-        kind: 'daily',
-        hour: m.hour,
-        minute: m.minute,
+        kind: 'dates',
+        fireAts,
         titleKey: MEAL_TITLE_KEY,
         bodyKey: MEAL_BODY_KEY[key],
       });

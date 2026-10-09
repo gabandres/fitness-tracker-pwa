@@ -59,8 +59,8 @@ describe('syncReminders', () => {
   it('does not interleave two concurrent syncs (the double-notification race)', async () => {
     await Promise.all([syncReminders(live, t), syncReminders(live, t)]);
 
-    // Default plan with daysSinceLastLog 0 at any daytime: lunch + dinner
-    // dailies plus the two lapsed one-shots = 4 schedules per sync.
+    // Default plan with daysSinceLastLog 0: lunch + dinner one-shots for
+    // today and the next two weeks plus the two lapsed ones, per sync.
     const perSync = mockEvents.indexOf('cancel', 1);
     expect(perSync).toBeGreaterThan(1);
     const batch = ['cancel', ...Array<string>(perSync - 1).fill('schedule')];
@@ -75,6 +75,34 @@ describe('syncReminders', () => {
     await syncReminders(live, t);
     await syncReminders(live, t);
     expect(mockEvents.filter((e) => e === 'schedule').length).toBeGreaterThan(0);
+  });
+});
+
+describe('a meal already logged today (owner, 2026-10-08)', () => {
+  const lunchToday = new Date(2026, 9, 8, 13, 30).getTime();
+  const scheduledDates = () =>
+    (jest.requireMock('expo-notifications').scheduleNotificationAsync as jest.Mock).mock.calls.map(
+      ([req]: [{ trigger: { date?: Date } }]) => req.trigger.date?.getTime(),
+    );
+
+  beforeEach(() => {
+    jest.useFakeTimers({ now: new Date(2026, 9, 8, 9, 0), doNotFake: ['setTimeout', 'setImmediate', 'nextTick'] });
+    (jest.requireMock('expo-notifications').scheduleNotificationAsync as jest.Mock).mockClear();
+  });
+  afterEach(() => jest.useRealTimers());
+
+  it("is not nudged today — and a Settings re-sync (neutral state) keeps it that way", async () => {
+    await syncReminders(live, t);
+    expect(scheduledDates()).toContain(lunchToday);
+
+    (jest.requireMock('expo-notifications').scheduleNotificationAsync as jest.Mock).mockClear();
+    await syncReminders({ ...live, mealsLoggedToday: ['lunch'] }, t);
+    expect(scheduledDates()).not.toContain(lunchToday);
+    expect(scheduledDates()).toContain(new Date(2026, 9, 9, 13, 30).getTime());
+
+    (jest.requireMock('expo-notifications').scheduleNotificationAsync as jest.Mock).mockClear();
+    await syncReminders({ loggedToday: false, streak: 0, daysSinceWeighIn: null, daysSinceLastLog: null }, t);
+    expect(scheduledDates()).not.toContain(lunchToday);
   });
 });
 

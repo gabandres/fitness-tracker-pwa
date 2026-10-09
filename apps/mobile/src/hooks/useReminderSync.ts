@@ -3,7 +3,11 @@ import { useFocusEffect } from 'expo-router';
 import {
   type DailyLog,
   LOG_WINDOW_ROWS,
+  type MealKey,
+  calendarDateKey,
   computeStreak,
+  isMealRow,
+  slotForTime,
   dayBoundaryOf,
   dayKeyAt,
   isMaintaining,
@@ -46,6 +50,32 @@ function daysSinceLastLog(logs: DailyLog[], boundary: DayBoundary): number | nul
     if (latestKey == null || k > latestKey) latestKey = k;
   }
   return latestKey ? daysSinceKey(latestKey, boundary) : null;
+}
+
+/**
+ * The meal windows with a food log on today's CALENDAR date, so today's nudge
+ * for each can be skipped (owner, 2026-10-08: "when I log a breakfast, lunch
+ * or dinner, I shouldn't get a notification").
+ *
+ * Calendar date, not the boundary-aware day key: the nudges fire at wall-clock
+ * times on calendar days. Between midnight and a 3 AM day start the day key is
+ * still yesterday's, and yesterday's breakfast must not silence this morning's.
+ * Keying each log by `dayKeyAt` and comparing to the calendar date gets both
+ * sides right — a 1 AM log belongs to yesterday and matches nothing.
+ *
+ * An untagged row is slotted by its time, the same default the write path
+ * applies (`withDefaultMealSlot`) — the widget's quick-add writes none. Snacks
+ * have no reminder and are not counted.
+ */
+function mealsLoggedOn(logs: DailyLog[], boundary: DayBoundary, now: Date): MealKey[] {
+  const today = calendarDateKey(now);
+  const meals = new Set<MealKey>();
+  for (const l of logs) {
+    if (!isMealRow(l) || dayKeyAt(l.date, boundary) !== today) continue;
+    const slot = l.mealType ?? slotForTime(l.date);
+    if (slot === 'breakfast' || slot === 'lunch' || slot === 'dinner') meals.add(slot);
+  }
+  return [...meals].sort();
 }
 
 /**
@@ -110,7 +140,8 @@ export function useReminderSync(): void {
         const logs = logsRef.current;
         const weights = weightsRef.current;
         const boundary = dayBoundaryOf(profileRef.current);
-        const todayKey = dayKeyAt(new Date(), boundary);
+        const now = new Date();
+        const todayKey = dayKeyAt(now, boundary);
         const loggedToday =
           weights[todayKey] != null || logs.some((l) => dayKeyAt(l.date, boundary) === todayKey);
         const streak = computeStreak(logs, { freezeMaxGap: 0, boundary }).streak;
@@ -120,12 +151,16 @@ export function useReminderSync(): void {
         // the next snapshot rather than re-rendering Today.
         const maintaining = isMaintaining(profileRef.current);
         const tape = { allowed: tapeAllowedRef.current, female: profileRef.current?.sex === 'female' };
+        const mealsLoggedToday = mealsLoggedOn(logs, boundary, now);
 
-        const sig = `${loggedToday}|${streak}|${sinceWeigh}|${sinceLog}|${maintaining}|${tape.allowed}|${tape.female}`;
+        // The calendar date is in the signature because the meal windows are
+        // one-shots counted from today: the first open of a new day re-arms
+        // them even when nothing else moved.
+        const sig = `${calendarDateKey(now)}|${loggedToday}|${mealsLoggedToday.join(',')}|${streak}|${sinceWeigh}|${sinceLog}|${maintaining}|${tape.allowed}|${tape.female}`;
         if (sig === lastSig.current) return;
         lastSig.current = sig;
         void syncReminders(
-          { loggedToday, streak, daysSinceWeighIn: sinceWeigh, daysSinceLastLog: sinceLog, maintaining, tape },
+          { loggedToday, mealsLoggedToday, streak, daysSinceWeighIn: sinceWeigh, daysSinceLastLog: sinceLog, maintaining, tape },
           t,
         );
       };

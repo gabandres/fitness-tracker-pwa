@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_MEAL_REMINDERS,
   DEFAULT_REMINDER_HOUR,
+  MEAL_REMINDER_HORIZON_DAYS,
   defaultTapeReminder,
   planTapeReminder,
   planReminders,
@@ -19,7 +20,41 @@ describe('planReminders — meal windows', () => {
     const plans = planReminders({ now: noon(), meals: DEFAULT_MEAL_REMINDERS, loggedToday: true, streak: 0 });
     // defaults: lunch + dinner on, breakfast off; streak 0 → no streak nudge.
     expect(ids(plans)).toEqual(['meal-dinner', 'meal-lunch']);
-    expect(plans.every((p) => p.kind === 'daily')).toBe(true);
+    expect(plans.every((p) => p.kind === 'dates')).toBe(true);
+  });
+
+  const fireAts = (plans: ReminderPlan[], id: string) => {
+    const p = plans.find((x) => x.id === id);
+    return p && p.kind === 'dates' ? p.fireAts : [];
+  };
+
+  it('schedules today and the next MEAL_REMINDER_HORIZON_DAYS days at the window time', () => {
+    const plans = planReminders({ now: noon(), meals: DEFAULT_MEAL_REMINDERS, loggedToday: false, streak: 0 });
+    const lunch = fireAts(plans, 'meal-lunch');
+    expect(lunch).toHaveLength(MEAL_REMINDER_HORIZON_DAYS + 1);
+    expect(lunch[0]).toEqual(new Date(2026, 6, 4, 13, 30));
+    expect(lunch[1]).toEqual(new Date(2026, 6, 5, 13, 30));
+    expect(lunch[MEAL_REMINDER_HORIZON_DAYS]).toEqual(new Date(2026, 6, 4 + MEAL_REMINDER_HORIZON_DAYS, 13, 30));
+  });
+
+  it('a logged meal gets no nudge today, and resumes tomorrow (owner, 2026-10-08)', () => {
+    const plans = planReminders({
+      now: noon(),
+      meals: DEFAULT_MEAL_REMINDERS,
+      loggedToday: true,
+      mealsLoggedToday: ['lunch'],
+      streak: 0,
+    });
+    const lunch = fireAts(plans, 'meal-lunch');
+    expect(lunch[0]).toEqual(new Date(2026, 6, 5, 13, 30));
+    expect(lunch).toHaveLength(MEAL_REMINDER_HORIZON_DAYS);
+    // Dinner was not logged: tonight's still fires.
+    expect(fireAts(plans, 'meal-dinner')[0]).toEqual(new Date(2026, 6, 4, 20, 0));
+  });
+
+  it("a window whose time has passed today starts tomorrow (one-shots can't fire in the past)", () => {
+    const plans = planReminders({ now: new Date(2026, 6, 4, 14, 0), meals: DEFAULT_MEAL_REMINDERS, loggedToday: false, streak: 0 });
+    expect(fireAts(plans, 'meal-lunch')[0]).toEqual(new Date(2026, 6, 5, 13, 30));
   });
 
   it('honors per-window enable/disable', () => {

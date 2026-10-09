@@ -2,9 +2,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import {
+  calendarDateKey,
   planReminders,
   planTapeReminder,
   resolveMealReminders,
+  type MealKey,
   type MealReminderSettings,
   type ReminderPlan,
   type TapeReminderSetting,
@@ -34,6 +36,10 @@ export interface ReminderState {
 /** Live signals the smart planner needs, gathered by `useReminderSync`. */
 export interface ReminderLiveState {
   loggedToday: boolean;
+  /** Meal windows already logged on today's calendar date; their nudge is
+   *  skipped today. Absent (Settings' neutral state) → the last list a live
+   *  sync passed today, see {@link loggedMealsToday}. */
+  mealsLoggedToday?: readonly MealKey[];
   streak: number;
   daysSinceWeighIn: number | null;
   /** Whole days since the newest food log; null when none in the window. */
@@ -201,8 +207,24 @@ function enqueue(work: () => Promise<void>, { rethrow = false } = {}): Promise<v
   return rethrow ? run : run.catch(() => undefined);
 }
 
+/** The last live `mealsLoggedToday` and the calendar day it was true for, so a
+ *  Settings edit (which re-syncs from a neutral state) does not re-arm today's
+ *  nudge for a meal already logged. */
+let lastLoggedMeals: { day: string; meals: readonly MealKey[] } | undefined;
+
+function loggedMealsToday(state: ReminderLiveState, now: Date): readonly MealKey[] {
+  const day = calendarDateKey(now);
+  if (state.mealsLoggedToday) {
+    lastLoggedMeals = { day, meals: state.mealsLoggedToday };
+    return state.mealsLoggedToday;
+  }
+  return lastLoggedMeals?.day === day ? lastLoggedMeals.meals : [];
+}
+
 async function syncOnce(state: ReminderLiveState, t: TFn): Promise<void> {
   const { enabled, meals } = await getReminderSettings();
+  const now = new Date();
+  const mealsLoggedToday = loggedMealsToday(state, now);
 
   await Notifications.cancelAllScheduledNotificationsAsync();
   // The weekly tape reminder is its own opt-in (Trends recomp card), so it is
@@ -213,35 +235,34 @@ async function syncOnce(state: ReminderLiveState, t: TFn): Promise<void> {
   if (!enabled) return;
 
   const plans = planReminders({
-    now: new Date(),
+    now,
     meals,
     loggedToday: state.loggedToday,
+    mealsLoggedToday,
     streak: state.streak,
     daysSinceWeighIn: state.daysSinceWeighIn,
     daysSinceLastLog: state.daysSinceLastLog,
     maintaining: state.maintaining,
   });
 
-  await Promise.all(plans.map((plan) => scheduleOne(plan, t)));
+  await Promise.all(plans.flatMap((plan) => scheduleOne(plan, t)));
 }
 
-function scheduleOne(plan: ReminderPlan, t: TFn): Promise<string> {
+/** One OS notification per fire time — a meal window is up to 15 of them. */
+function scheduleOne(plan: ReminderPlan, t: TFn): Promise<string>[] {
   const title = t(plan.titleKey as I18nKey);
   const body =
-    plan.kind === 'daily'
+    plan.kind === 'dates'
       ? t(plan.bodyKey as I18nKey)
       : t(plan.bodyKey as I18nKey, plan.bodyParams);
+  const fireAts = plan.kind === 'dates' ? plan.fireAts : [plan.fireAt];
 
-  const trigger: Notifications.NotificationTriggerInput =
-    plan.kind === 'daily'
-      ? {
-          type: Notifications.SchedulableTriggerInputTypes.DAILY,
-          hour: plan.hour,
-          minute: plan.minute,
-        }
-      : { type: Notifications.SchedulableTriggerInputTypes.DATE, date: plan.fireAt };
-
-  return Notifications.scheduleNotificationAsync({ content: { title, body }, trigger });
+  return fireAts.map((date) =>
+    Notifications.scheduleNotificationAsync({
+      content: { title, body },
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date },
+    }),
+  );
 }
 
 // ─── Weekly tape reminder (ADR-0043) ────────────────────────────

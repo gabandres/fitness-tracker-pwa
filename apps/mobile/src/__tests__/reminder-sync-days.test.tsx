@@ -114,3 +114,60 @@ it('passes the tape gate (ADR-0043), and re-plans when a late admin claim flips 
   expect(lastState()).toMatchObject({ tape: { allowed: true, female: true } });
   mockAdmin.current = false;
 });
+
+describe('mealsLoggedToday (owner, 2026-10-08: no nudge for a meal already logged)', () => {
+  it('names the logged windows, slotting untagged rows by time and ignoring snacks, weights and workouts', async () => {
+    mockProfile.current = null;
+    jest.setSystemTime(new Date(2026, 9, 8, 15, 0));
+    await act(async () => {
+      await renderHook(() => useReminderSync());
+    });
+    await act(async () => {
+      subs.weights?.({});
+      subs.logs?.([
+        { id: 'a', date: new Date(2026, 9, 8, 8, 0), calories: 400 }, // untagged, 08:00 → breakfast
+        { id: 'b', date: new Date(2026, 9, 8, 12, 0), calories: 200, mealType: 'snack' },
+        { id: 'c', date: new Date(2026, 9, 8, 12, 30), calories: 0, weight: 180 },
+        { id: 'd', date: new Date(2026, 9, 7, 13, 0), calories: 700, mealType: 'lunch' }, // yesterday
+      ]);
+    });
+    expect(lastState()).toMatchObject({ mealsLoggedToday: ['breakfast'] });
+  });
+
+  it("before a 3 AM day start, yesterday's breakfast does not silence this morning's", async () => {
+    mockProfile.current = { dayBoundary: [{ from: '2026-01-01', hour: 3 }] };
+    jest.setSystemTime(new Date(2026, 9, 8, 1, 0));
+    await act(async () => {
+      await renderHook(() => useReminderSync());
+    });
+    await act(async () => {
+      subs.weights?.({});
+      subs.logs?.([
+        { id: 'a', date: new Date(2026, 9, 7, 8, 0), calories: 400, mealType: 'breakfast' },
+        { id: 'b', date: new Date(2026, 9, 8, 0, 30), calories: 300, mealType: 'dinner' }, // still the 7th
+      ]);
+    });
+    expect(lastState()).toMatchObject({ mealsLoggedToday: [] });
+  });
+
+  it('logging a second meal the same day re-plans (the signature carries the meals)', async () => {
+    mockProfile.current = null;
+    jest.setSystemTime(new Date(2026, 9, 8, 13, 0));
+    await act(async () => {
+      await renderHook(() => useReminderSync());
+    });
+    await act(async () => {
+      subs.weights?.({});
+      subs.logs?.([{ id: 'a', date: new Date(2026, 9, 8, 8, 0), calories: 400, mealType: 'breakfast' }]);
+    });
+    const calls = mockSync.mock.calls.length;
+    await act(async () => {
+      subs.logs?.([
+        { id: 'a', date: new Date(2026, 9, 8, 8, 0), calories: 400, mealType: 'breakfast' },
+        { id: 'b', date: new Date(2026, 9, 8, 12, 45), calories: 650, mealType: 'lunch' },
+      ]);
+    });
+    expect(mockSync.mock.calls.length).toBe(calls + 1);
+    expect(lastState()).toMatchObject({ mealsLoggedToday: ['breakfast', 'lunch'] });
+  });
+});
