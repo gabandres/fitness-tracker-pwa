@@ -4,6 +4,17 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-10-08 — No meal reminder for a meal already logged
+
+- **Owner: logging breakfast, lunch or dinner should mean no notification
+  for it.** The meal nudges were DAILY repeating triggers, which cannot skip
+  a day, so "time to log lunch" came at 1:30 after lunch was logged. They are
+  now one-shots for today and the next 14 days, re-planned on every log and
+  app open, and today's is dropped once that meal is logged (untagged rows
+  count by their time; snacks never silence anything). Trade-off: a user who
+  stops opening the app hears meal nudges for two weeks, not indefinitely.
+  `ba11fad4`, OTA on iOS 68/70 and Android vc 47/48/50 (ledger rows).
+
 ## 2026-10-08 — Tapping the widget with the app closed crashed it
 
 - **Owner: tapping the widget crashes.** Only from a cold start. The widget
