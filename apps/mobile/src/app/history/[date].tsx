@@ -22,6 +22,7 @@ import { FastSheet, type FastSheetMode } from '@/components/FastSheet';
 import { MealEntries } from '@/components/MealEntries';
 import { useToast } from '@/components/Toast';
 import { useDayFasts } from '@/hooks/useDayFasts';
+import { useDayTargetRecord } from '@/hooks/useDayTargetRecord';
 import { useDiaryActions } from '@/hooks/useDiaryActions';
 import { useHistory } from '@/hooks/useHistory';
 import { useUnitSystem } from '@/lib/use-unit-system';
@@ -157,19 +158,21 @@ function DayDetailScreen({ onRetry }: { onRetry: () => void }) {
    * Usability 4: a past day read as bare totals with nothing to hold them
    * against; MyFitnessPal shows the goal on every day).
    *
-   * The CURRENT effective target, through the same `dailyTargets` chain and
-   * the same inputs Today's hero uses — the profile off the auth context and
-   * this screen's own rows and weights, so it opens no listener (ADR-0016).
-   * There is no per-day target record to read instead: targets are derived,
-   * not stored. Rows this screen fetched for older months only ever reach
-   * further back than the estimator's 42-day window, so they cannot move it.
-   * Null until the profile is there: with no profile `dailyTargets` returns a
-   * plausible SEED target, which is the number `useDailyTargets` exists to
-   * keep off screen.
+   * The target IN EFFECT THAT DAY when a record was stored for it (since
+   * 2026-10-08, `useDayTargetRecord`); before then there was no per-day
+   * record, so a day without one falls back to the CURRENT effective target,
+   * through the same `dailyTargets` chain and inputs Today's hero uses — the
+   * profile off the auth context and this screen's own rows and weights.
+   * Rows this screen fetched for older months only ever reach further back
+   * than the estimator's 42-day window, so they cannot move it. Null until
+   * the profile is there: with no profile `dailyTargets` returns a plausible
+   * SEED target, which is the number `useDailyTargets` exists to keep off
+   * screen.
    */
+  const dayRecord = useDayTargetRecord(validKey ? dateKey : null);
   const calorieTarget = useMemo(
-    () => (profile ? dailyTargets(profile, logs, weights).calorieTarget : null),
-    [profile, logs, weights],
+    () => dayRecord?.kcalTarget ?? (profile ? dailyTargets(profile, logs, weights).calorieTarget : null),
+    [dayRecord, profile, logs, weights],
   );
 
   // A failed load is said, not drawn as an empty day (UX_AUDIT S21): the

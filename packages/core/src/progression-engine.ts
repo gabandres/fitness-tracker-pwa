@@ -87,6 +87,7 @@ import type {
   EffortStandard,
   ExerciseCategory,
   LogStyle,
+  ProgressionBaseline,
   ProgressionRule,
   RepBand,
   RepRange,
@@ -505,7 +506,14 @@ export type RecommendReason =
   /** Bodyweight lift at the top of its range, with added load available. */
   | { kind: 'bodyweight-add-load'; reps: number; max: number; startLb: readonly [number, number] }
   /** Bodyweight lift at the top of its range, with no way to add load. */
-  | { kind: 'bodyweight-variation'; reps: number; max: number };
+  | { kind: 'bodyweight-variation'; reps: number; max: number }
+  // ── baseline marker (`TemplateExercise.baseline`) ──
+  /** No session since the marker yet: this one sets the baseline. */
+  | { kind: 'baseline-pending'; since: string; note: string }
+  /** The first read since the marker IS the baseline: hold and build from it. */
+  | { kind: 'baseline-set'; reps: number; note: string }
+  /** The baseline read came in under the floor the marker set: drop back. */
+  | { kind: 'baseline-drop-back'; reps: number; below: number; to: number; note: string };
 
 export type RecommendWarning =
   /** A `rir1` lift logged its activation at RIR 0. Soft: the read stands. */
@@ -582,6 +590,9 @@ export interface RecommendOptions extends ReadOptions {
    *  (`volumeCalls`). Offered at the rep cap only; never in a cut. */
   volumeAllowsCluster?: boolean;
   stallContext?: StallContext;
+  /** The row's baseline marker. The caller must ALSO pass history filtered to
+   *  it (`engineHistory`); this only changes how the first read is judged. */
+  baseline?: ProgressionBaseline;
 }
 
 /**
@@ -967,7 +978,11 @@ export function recommend(history: readonly SessionExercise[], opts: RecommendOp
   };
   const read = reads[0];
 
-  if (!read) return { ...base, action: 'calibrate', reason: { kind: 'no-history' } };
+  if (!read) {
+    return opts.baseline
+      ? { ...base, action: 'calibrate', reason: { kind: 'baseline-pending', since: opts.baseline.since, note: opts.baseline.reason } }
+      : { ...base, action: 'calibrate', reason: { kind: 'no-history' } };
+  }
 
   const summaries: ActivationSummary[] = read.clusters.map((c) => ({
     group: c.group, reps: c.reps, rir: c.rir, firstMini: c.minis[0],
@@ -1004,6 +1019,27 @@ export function recommend(history: readonly SessionExercise[], opts: RecommendOp
         ...(bad?.rir != null ? { rir: bad.rir } : {}),
         ...(bad?.reps != null ? { reps: bad.reps } : {}),
       },
+    };
+  }
+
+  // A baseline marker: the first read since it is the new baseline, not a
+  // step in the old progression. Hold it — unless the marker set a floor and
+  // the activation came in under it, which is the one case for going back.
+  // From the second read on, the ordinary rules run over post-marker reads.
+  if (opts.baseline && reads.length === 1) {
+    const low = bindingCluster(read);
+    const eff = effectiveReps(low) as number;
+    const b = opts.baseline;
+    if (b.dropBackTo != null && b.dropBackBelowReps != null && eff < b.dropBackBelowReps) {
+      return {
+        ...judged, action: 'drop-back', load: b.dropBackTo,
+        reason: { kind: 'baseline-drop-back', reps: eff, below: b.dropBackBelowReps, to: b.dropBackTo, note: b.reason },
+      };
+    }
+    return {
+      ...judged, action: 'hold', load: read.load ?? currentLoad,
+      reason: { kind: 'baseline-set', reps: eff, note: b.reason },
+      targetReps: (low.reps as number) + 1,
     };
   }
 
@@ -1269,6 +1305,7 @@ export function recommendOptionsFor(
     plannedSets: readonly { kind: string }[];
     progression?: Partial<ProgressionRule>;
     setStructure?: SetStructure;
+    baseline?: ProgressionBaseline;
   } | null | undefined,
   catalogExercise: (EngineCatalogFields & {
     targetRepBand?: RepBand;
@@ -1289,6 +1326,7 @@ export function recommendOptionsFor(
     expectsCluster,
     structure,
     ...(templateExercise?.progression ? { progression: templateExercise.progression } : {}),
+    ...(templateExercise?.baseline ? { baseline: templateExercise.baseline } : {}),
     ...(catalogExercise?.availableLoads ? { availableLoads: catalogExercise.availableLoads } : {}),
     ...(catalogExercise?.assisted != null ? { assisted: catalogExercise.assisted } : {}),
     ...(catalogExercise?.effortStandard ? { effortStandard: catalogExercise.effortStandard } : {}),

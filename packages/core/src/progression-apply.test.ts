@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   applyTemplateChanges,
+  carryAndStampRows,
   finishProgression,
   loadChangesFor,
   logUserLoadEdits,
@@ -108,5 +109,40 @@ describe('loadChangesFor', () => {
   it('merges an exercise\'s moves across templates, oldest first', () => {
     const t = (name: string, at: string) => ({ name, exercises: [{ exerciseId: 'x', loadLog: [{ at, to: 1, by: 'user' as const, reason: '' }] }] });
     expect(loadChangesFor([t('B', '2026-10-05T00:00:00Z'), t('A', '2026-10-01T00:00:00Z')], 'x').map((c) => c.template)).toEqual(['A', 'B']);
+  });
+});
+
+describe('carryAndStampRows — who last changed a template row', () => {
+  const at = new Date('2026-10-09T12:00:00Z');
+  const row = (id: string, over: Partial<TemplateExercise> = {}): TemplateExercise => ({
+    exerciseId: id, name: id, targetLoad: 20,
+    plannedSets: [{ kind: 'activation', group: 1 }, { kind: 'mini', group: 1 }], ...over,
+  });
+
+  it('carries the fields an editor cannot see across a full-overwrite save', () => {
+    const before = [row('sp', {
+      restAfterSec: 60, baseline: { since: '2026-10-09', reason: 'position changed 10/9' },
+      lastModifiedAt: '2026-10-09T04:00:00.000Z', lastModifiedBy: 'prompt',
+    })];
+    const editorRebuilt = [row('sp', { cues: undefined })]; // what the editor writes back
+    const [out] = carryAndStampRows(before, editorRebuilt, { at, by: 'user' });
+    expect(out.restAfterSec).toBe(60);
+    expect(out.baseline?.since).toBe('2026-10-09');
+    // Nothing the lifter can see changed → the old stamp stands.
+    expect([out.lastModifiedAt, out.lastModifiedBy]).toEqual(['2026-10-09T04:00:00.000Z', 'prompt']);
+  });
+
+  it('stamps a changed row, a moved row and a new row — and only those', () => {
+    const before = [row('a'), row('b'), row('c')];
+    const after = [row('b'), row('a'), row('c', { targetLoad: 25 }), row('d')];
+    const out = carryAndStampRows(before, after, { at, by: 'user' });
+    expect(out.map((r) => r.lastModifiedBy ?? null)).toEqual(['user', 'user', 'user', 'user']);
+    const same = carryAndStampRows(before, before, { at, by: 'user' });
+    expect(same.map((r) => r.lastModifiedBy ?? null)).toEqual([null, null, null]);
+  });
+
+  it("an engine apply stamps the row it moved as the engine's", () => {
+    const [out] = applyTemplateChanges([row('x')], [{ exerciseId: 'x', name: 'x', to: 25, call: 'increase', reason: 'r' }], { at, by: 'engine' });
+    expect([out.lastModifiedAt, out.lastModifiedBy]).toEqual([at.toISOString(), 'engine']);
   });
 });

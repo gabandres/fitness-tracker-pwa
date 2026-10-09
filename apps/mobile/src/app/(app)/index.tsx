@@ -32,6 +32,7 @@ import { OfflineBanner } from '@/components/OfflineBanner';
 import { track } from '@/lib/analytics';
 import { useAuth } from '@/lib/auth';
 import { RecalibrationCard } from '@/components/RecalibrationCard';
+import { TargetChangeNotice } from '@/components/TargetChangeNotice';
 import { ShareCard } from '@/components/ShareCard';
 import { UpdateBanner } from '@/components/UpdateBanner';
 import { type I18nKey, type Locale, useLocale, useT } from '@/i18n';
@@ -53,6 +54,7 @@ import { useMilestones } from '@/hooks/useMilestones';
 import { useToday } from '@/hooks/useToday';
 import { useTodayNudge } from '@/hooks/useTodayNudge';
 import { useRecalibration } from '@/hooks/useRecalibration';
+import { useTargetHistory } from '@/hooks/useTargetHistory';
 import { useWidgetSync } from '@/hooks/useWidgetSync';
 import { enterUp, PressScale, usePulse } from '@/lib/motion';
 import { recordPositiveMoment } from '@/lib/reviewPrompt';
@@ -244,7 +246,17 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
     hasWeighIn,
     hasPhotoScan,
     measurement,
+    targetsAuthoritative,
+    profile: todayProfile,
   } = useToday();
+  // What the targets were each day and why they moved: records today's, and
+  // surfaces any automatic change the user has not dismissed (2026-10-08).
+  const targetHistory = useTargetHistory({
+    todayKey,
+    targets,
+    profile: todayProfile,
+    authoritative: targetsAuthoritative,
+  });
   // The single Nudge slot this screen is allowed to fill. One digest feeds both
   // the slot and the card (`RecalibrationCard`).
   const recalibration = useRecalibration();
@@ -969,6 +981,15 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
               sharing={sharing}
             />
           </Animated.View>
+
+          {/* Directly under the number it explains — not a Nudge: an automatic
+              move of the target is announced, never queued behind another. */}
+          <TargetChangeNotice
+            record={targetHistory.notice}
+            unitSystem={unitSystem}
+            onAck={targetHistory.ack}
+            onSetOwn={() => router.push('/daily-targets' as Href)}
+          />
 
           {/* Below the hero on purpose. It is not in the Nudge queue, so
               placing it above would let a milestone visually outrank an update

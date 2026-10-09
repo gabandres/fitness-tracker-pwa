@@ -373,6 +373,7 @@ export * from './weekly-report-prompt';
 // Retention nudge planner (ADR-0015). Pure; the expo-notifications layer is a
 // dumb adapter over what this returns.
 export * from './reminder-plan';
+export * from './target-history';
 export * from './maintenance-mode';
 // Home-screen widget snapshot contract (apps/mobile/WIDGET.md). A widget
 // can't hold our onSnapshot listeners, so the app writes a blob to shared

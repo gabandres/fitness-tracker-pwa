@@ -8,7 +8,8 @@
 import type { DailyLog, Measurement } from './types';
 import { fastLengthHours, type Fast } from './fasting-history';
 import { isLoggedCardioBlock } from './cardio';
-import { type WorkoutSession, isLoggedSet } from './workout';
+import { type WorkoutSession, type WorkoutTemplate, DEFAULT_EFFORT_STANDARD, type EffortStandard, isLoggedSet } from './workout';
+import { type DailyTargetRecord, describeTargetChange } from './target-history';
 import { normalizeClusterGroups } from './cluster-groups';
 import { MIDNIGHT, dayKeyAt, type DayBoundary } from './day-boundary';
 import { compareLogsOldestFirst } from './firestore-mappers';
@@ -42,6 +43,15 @@ const COLS = [
   // Measured body fat — 'measurement' rows only (ADR-0043). Appended, not
   // placed beside the tapes, so no existing column moves.
   'bodyFatPct', 'bodyFatMethod',
+  // ── 2026-10-08, appended so no existing column moves (older readers index
+  // by position as well as by name) ──
+  // 'template' rows: the programme as it stands, one row per exercise (and one
+  // per cardio slot), so a coach can check it against what was logged.
+  'position', 'load', 'clusters', 'clusterLabels', 'miniRestSec', 'restBetweenSec',
+  'effortStandard', 'lastModifiedAt', 'lastModifiedBy',
+  // 'target' rows: the targets in effect on each day, from stored records only.
+  'kcalTarget', 'kcalTargetSource', 'proteinTarget', 'proteinTargetSource',
+  'maintenanceEstimate', 'compositionAdjustedMaintenance', 'targetChangeReason',
 ] as const;
 type Col = typeof COLS[number];
 
@@ -69,6 +79,12 @@ export interface ExportData {
    *  silently incomplete — a user who asked for "their data" got none of their
    *  fasting, because ending a fast deleted it. */
   fasts?: Fast[];
+  /** Workout templates, for `template` rows. Optional like the others. */
+  templates?: WorkoutTemplate[];
+  /** The catalog's effort standard per exercise id (absent → failure). */
+  effortStandards?: Record<string, EffortStandard | undefined>;
+  /** Stored per-day target records (`target-history.ts`), for `target` rows. */
+  targetRecords?: DailyTargetRecord[];
 }
 
 /**
@@ -235,5 +251,92 @@ export function buildCsv(data: ExportData, boundary: DayBoundary = MIDNIGHT): st
     }));
   }
 
+  rows.push(...templateRows(data));
+  rows.push(...targetRows(data, boundary));
+
   return rows.join('\r\n');
+}
+
+/** `90-120` for a range, `60` for a single value. */
+function secRange(sec: number | undefined, maxSec?: number): string | undefined {
+  if (sec == null) return undefined;
+  return maxSec != null && maxSec !== sec ? `${sec}-${maxSec}` : String(sec);
+}
+
+/**
+ * One `template` row per exercise per template, in programme order, then one
+ * per cardio slot. `clusters` counts activation sets; `clusterLabels` lists the
+ * clusters' labels in order ("L,R"). A drop set is not a cluster and is named
+ * in `notes`. `lastModified*` is the row's own stamp, else its newest load
+ * move, else blank — never a guess.
+ */
+function templateRows(data: ExportData): string[] {
+  const out: string[] = [];
+  const templates = [...(data.templates ?? [])].sort((a, b) => a.name.localeCompare(b.name));
+  for (const t of templates) {
+    t.exercises.forEach((ex, i) => {
+      const acts = ex.plannedSets.filter((p) => p.kind === 'activation');
+      const labels: string[] = [];
+      for (const p of acts) if (p.label && !labels.includes(p.label)) labels.push(p.label);
+      const drops = ex.plannedSets.filter((p) => p.kind === 'drop');
+      const lastLoad = ex.loadLog?.[ex.loadLog.length - 1];
+      const notes = [
+        ...drops.map((d) => `+ drop set${d.weight != null ? ` at ${d.weight}` : ''}`),
+        ...(ex.baseline ? [`baseline since ${ex.baseline.since}: ${ex.baseline.reason}`] : []),
+      ].join('; ');
+      out.push(row({
+        type: 'template',
+        template: t.name,
+        position: i + 1,
+        exercise: ex.name,
+        load: ex.targetLoad,
+        clusters: acts.length > 0 ? acts.length : undefined,
+        clusterLabels: labels.join(','),
+        miniRestSec: ex.restMiniSec ?? t.restMiniSec,
+        restBetweenSec: secRange(ex.restAfterSec ?? t.restClusterSec, ex.restAfterSec != null ? ex.restAfterMaxSec : undefined),
+        effortStandard: data.effortStandards?.[ex.exerciseId] ?? DEFAULT_EFFORT_STANDARD,
+        notes,
+        lastModifiedAt: ex.lastModifiedAt ?? lastLoad?.at,
+        lastModifiedBy: ex.lastModifiedBy ?? lastLoad?.by,
+      }));
+    });
+    (t.cardioBlocks ?? []).forEach((b, j) => {
+      out.push(row({
+        type: 'template',
+        template: t.name,
+        position: t.exercises.length + j + 1,
+        exercise: b.label ?? b.modality,
+        durationMin: b.targetDurationSec != null ? Math.round(b.targetDurationSec / 60) : undefined,
+      }));
+    });
+  }
+  return out;
+}
+
+/**
+ * One `target` row per date: every date that has a stored target record or
+ * any other row in this file. Values come ONLY from stored records — a date
+ * with none has blank target columns, because a target recomputed today from
+ * today's inputs is not the target that was in effect then.
+ */
+function targetRows(data: ExportData, boundary: DayBoundary): string[] {
+  const records = new Map((data.targetRecords ?? []).map((r) => [r.date, r]));
+  const dates = new Set<string>(records.keys());
+  for (const l of data.logs) dates.add(dayKeyAt(l.date, boundary));
+  for (const k of Object.keys(data.dailyWeights)) dates.add(k);
+  if (dates.size === 0) return [];
+  return [...dates].sort().map((date) => {
+    const r = records.get(date);
+    return row(r ? {
+      type: 'target',
+      date,
+      kcalTarget: r.kcalTarget,
+      kcalTargetSource: r.kcalSource,
+      proteinTarget: r.proteinTarget,
+      proteinTargetSource: r.proteinSource,
+      maintenanceEstimate: r.maintenanceEstimate,
+      compositionAdjustedMaintenance: r.compositionAdjustedMaintenance,
+      targetChangeReason: r.change ? describeTargetChange(r.change) : undefined,
+    } : { type: 'target', date });
+  });
 }

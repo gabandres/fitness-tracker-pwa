@@ -233,6 +233,14 @@ export function reasonText(rec: Recommendation, unitSystem: UnitSystem, t: TFn):
     }
     case 'bodyweight-variation':
       return t('train.rec.reason.bodyweightVariation', { reps: r.reps, max: r.max });
+    // A row's baseline marker (owner, 2026-10-09). `note` is the stored reason
+    // ("position changed 10/9"), a record in the language it was written in.
+    case 'baseline-pending':
+      return t('train.rec.reason.baselinePending', { note: r.note });
+    case 'baseline-set':
+      return t('train.rec.reason.baselineSet', { note: r.note, reps: r.reps });
+    case 'baseline-drop-back':
+      return t('train.rec.reason.baselineDropBack', { note: r.note, reps: r.reps, below: r.below, load: fmt(r.to) });
   }
 }
 

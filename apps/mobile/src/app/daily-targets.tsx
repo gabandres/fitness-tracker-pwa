@@ -249,6 +249,11 @@ export default function DailyTargetsScreen() {
                 {computed ? `${formatNumber(computed.calorieTarget, locale)} ${t('targets.caloriesUnit')}` : '—'}
               </Text>
             )}
+            {custom && computed ? (
+              <Text style={styles.note} testID="targets-kcal-suggestion">
+                {t('targets.suggestedCalories', { n: formatNumber(computed.calorieSuggestion, locale) })}
+              </Text>
+            ) : null}
             {kcalMsg ? (
               <Text
                 style={[styles.note, kcalBlocking && styles.noteBad]}
@@ -286,7 +291,7 @@ export default function DailyTargetsScreen() {
                   keyboardType="number-pad"
                   value={protein}
                   onChangeText={setProtein}
-                  placeholder={computed ? String(computed.proteinTarget) : '150'}
+                  placeholder={computed ? String(computed.proteinSuggestion) : '150'}
                   placeholderTextColor={colors.faint}
                   accessibilityLabel={t('targets.protein')}
                   testID="targets-protein"
@@ -307,6 +312,13 @@ export default function DailyTargetsScreen() {
               // The per-field escape hatch, said in words rather than left to
               // be discovered: an empty box is a choice here, not a mistake.
               <Text style={styles.note}>{t('targets.autoProtein')}</Text>
+            ) : null}
+            {custom && computed ? (
+              // What the automatic chain would set — a SUGGESTION beside the
+              // user's own number, never applied to it (owner, 2026-10-08).
+              <Text style={styles.note} testID="targets-protein-suggestion">
+                {t('targets.suggestedProtein', { n: computed.proteinSuggestion })}
+              </Text>
             ) : null}
           </View>
 

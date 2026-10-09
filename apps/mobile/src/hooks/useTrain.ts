@@ -37,7 +37,7 @@ import {
   applySessionAction,
   findDuplicateExercise,
   dayBoundaryOf,
-  exerciseHistory,
+  engineHistory,
   moveExercise,
   newCardioBlock,
   newLedgerId,
@@ -692,13 +692,12 @@ export function useTrain(): TrainState {
       // no snapshot: the engine has nothing to say about it.
       const completed = recentSessions.filter((s) => s.status === 'completed');
       const exercises = templateToSessionExercises(template).map((se) => {
-        const history = exerciseHistory(completed, se.exerciseId);
+        const row = template.exercises.find((e) => e.exerciseId === se.exerciseId) ?? null;
+        // The same history the card reads: a baseline marker cuts it off.
+        const history = engineHistory(completed, se.exerciseId, row);
         const rec = recommend(
           history,
-          recommendOptionsFor(
-            template.exercises.find((e) => e.exerciseId === se.exerciseId) ?? null,
-            catalog.find((e) => e.id === se.exerciseId) ?? null,
-          ),
+          recommendOptionsFor(row, catalog.find((e) => e.id === se.exerciseId) ?? null),
         );
         if (rec.action === 'none') return se;
         const basedOn = completed.find((s) => s.exercises.includes(history[0]))?.date;

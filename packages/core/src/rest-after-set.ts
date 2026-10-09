@@ -7,6 +7,9 @@ export interface RestSeconds {
   mini: number;
   /** Between clusters and between exercises (`WorkoutTemplate.restClusterSec`). */
   cluster: number;
+  /** After the exercise's LAST set, before the next exercise — the row's
+   *  `TemplateExercise.restAfterSec`. Absent → `cluster`. */
+  afterExercise?: number;
 }
 
 /**
@@ -74,6 +77,7 @@ export function restAfterSet(
   const next = sets[index + 1];
   if (next?.kind === 'drop') return REST_INTO_DROP_SEC;
   if (next?.kind === 'continuation') return REST_INTO_CONTINUATION_SEC;
-  if (!next || next.kind === 'activation') return rest.cluster;
+  if (!next) return rest.afterExercise ?? rest.cluster;
+  if (next.kind === 'activation') return rest.cluster;
   return rest.mini;
 }

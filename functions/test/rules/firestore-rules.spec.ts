@@ -1718,6 +1718,67 @@ describe('firestore.rules', () => {
     );
   });
 
+  // ── workoutTemplates notes cap (2026-10-08) ──
+  // The owner's templates carry 2.8–4.1k chars of dated history; at a 2,000
+  // cap every client save of them was refused.
+  const tplDoc = (notes: string) => ({
+    name: 'Push Day', notes, exercises: [], restMiniSec: 10, restClusterSec: 150,
+    createdAt: new Date(), updatedAt: new Date(),
+  });
+  it('accepts a template whose notes are 4,095 chars (the owner\'s Push Day)', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertSucceeds(setDoc(doc(db, 'users', 'alice', 'workoutTemplates', 't1'), tplDoc('x'.repeat(4095))));
+  });
+  it('still rejects template notes over 10,000 chars', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertFails(setDoc(doc(db, 'users', 'alice', 'workoutTemplates', 't1'), tplDoc('x'.repeat(10001))));
+  });
+
+  // ── dailyTargets (2026-10-08): the targets in effect each day ──
+  const targetDoc = (over: Record<string, unknown> = {}) => ({
+    date: '2026-10-09', kcalTarget: 1850, kcalSource: 'auto', proteinTarget: 140, proteinSource: 'user',
+    maintenanceEstimate: 2023, maintenanceSource: 'measured',
+    basis: { weightLb: 153.6, proteinPerKg: 1.9, paceLbPerWeek: 0.8, calorieFloor: 1850 },
+    change: { protein: { from: 130, to: 140, fromSource: 'auto', toSource: 'user' }, reasons: [{ kind: 'user-set', field: 'protein' }] },
+    recordedBy: 'app', recordedAt: new Date(), updatedAt: new Date(),
+    ...over,
+  });
+
+  it('accepts a dailyTargets record filed under its own date, and its notice ack', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertSucceeds(setDoc(doc(db, 'users', 'alice', 'dailyTargets', '2026-10-09'), targetDoc()));
+    await assertSucceeds(setDoc(doc(db, 'users', 'alice', 'dailyTargets', '2026-10-09'), targetDoc({ noticeAckAt: new Date() })));
+    await assertSucceeds(getDoc(doc(db, 'users', 'alice', 'dailyTargets', '2026-10-09')));
+  });
+
+  it('rejects a dailyTargets record filed under another day', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertFails(setDoc(doc(db, 'users', 'alice', 'dailyTargets', '2026-10-08'), targetDoc()));
+  });
+
+  it.each([
+    ['a source outside the enum', { proteinSource: 'coach' }],
+    ['an unknown field', { note: 'x' }],
+    ['a protein target out of range', { proteinTarget: 5000 }],
+    ['a missing source', { kcalSource: undefined }],
+  ])('rejects a dailyTargets record with %s', async (_label, over) => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    const data = Object.fromEntries(Object.entries(targetDoc(over)).filter(([, v]) => v !== undefined));
+    await assertFails(setDoc(doc(db, 'users', 'alice', 'dailyTargets', '2026-10-09'), data));
+  });
+
+  it("does not let another user read someone's targets", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users', 'alice', 'dailyTargets', '2026-10-09'), targetDoc());
+    });
+    await assertFails(getDoc(doc(authed('bob'), 'users', 'alice', 'dailyTargets', '2026-10-09')));
+  });
+
   // ── dailyActivity (Health steps / active-energy import) ──
   // The dev app talks to PROD Firestore, so these rules must be deployed
   // before any client writes the new collection.

@@ -367,8 +367,17 @@ export function ActiveSession({
     const ex = train.active?.exercises[exerciseIndex];
     if (!ex) return;
     const override = restOverride[ex.exerciseId];
-    const mini = override ?? templateRowFor(ex.exerciseId)?.restMiniSec ?? restMini;
-    const secs = restAfterSet(ex.sets, setIndex, { mini, cluster: override ?? restCluster });
+    const row = templateRowFor(ex.exerciseId);
+    const mini = override ?? row?.restMiniSec ?? restMini;
+    // After the lift's last set, the row's rest before the NEXT exercise (90 s
+    // into the same muscle, 60 s across, 2026-10-09) — the template's cluster
+    // rest when the row states none.
+    const afterExercise = override ?? row?.restAfterSec;
+    const secs = restAfterSet(ex.sets, setIndex, {
+      mini,
+      cluster: override ?? restCluster,
+      ...(afterExercise != null ? { afterExercise } : {}),
+    });
     runRest(secs, ex.name);
   };
 

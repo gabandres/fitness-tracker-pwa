@@ -278,3 +278,126 @@ describe('cardio in the CSV export', () => {
     });
   });
 });
+
+// ─── 2026-10-08: template + target rows ────────────────────────────────
+import type { DailyTargetRecord } from './target-history';
+import type { WorkoutTemplate } from './workout';
+
+/** The header as it stood before 2026-10-08 — what an older reader expects. */
+const OLD_COLS = [
+  'type', 'date', 'timestamp', 'calories', 'protein', 'carbs', 'fat', 'weight',
+  'exerciseCompleted', 'liftCompleted', 'cardioCompleted', 'mealLabel', 'mealType', 'waterFlOz',
+  'waist', 'chest', 'bicep', 'hip', 'neck', 'template', 'exercise', 'setKind', 'setGroup',
+  'setWeight', 'setReps', 'setDurationSec', 'setRir', 'durationMin', 'sleepHours', 'modality',
+  'cardioLabel', 'cardioDurationSec', 'cardioDistanceM', 'cardioAvgHr', 'cardioMaxHr', 'cardioKcal',
+  'cardioRpe', 'cardioSource', 'cardioProvider', 'cardioStartedAt', 'notes', 'fastEndedAt',
+  'fastHours', 'bodyFatPct', 'bodyFatMethod',
+];
+const KNOWN_OLD_TYPES = new Set(['meal', 'weight', 'water', 'sleep', 'measurement', 'workout', 'workout_set', 'cardio', 'fast']);
+
+/** A minimal RFC-4180 line splitter (quoted fields, doubled quotes). */
+function splitLine(line: string): string[] {
+  const out: string[] = [];
+  let cur = ''; let q = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (q) { if (c === '"' && line[i + 1] === '"') { cur += '"'; i++; } else if (c === '"') q = false; else cur += c; }
+    else if (c === '"') q = true; else if (c === ',') { out.push(cur); cur = ''; } else cur += c;
+  }
+  out.push(cur);
+  return out;
+}
+
+/** An OLD-format reader: positional, over the pre-2026-10-08 columns only,
+ *  skipping row types it does not know — how a reader written before this
+ *  change consumes the file. */
+function oldParse(csv: string): Record<string, string>[] {
+  const [, ...lines] = csv.split('\r\n');
+  return lines.map(splitLine).filter((f) => KNOWN_OLD_TYPES.has(f[0]))
+    .map((f) => Object.fromEntries(OLD_COLS.map((c, i) => [c, f[i] ?? ''])));
+}
+
+const at = new Date('2026-10-09T04:00:00Z');
+const records: DailyTargetRecord[] = [
+  { date: '2026-10-08', kcalTarget: 1850, kcalSource: 'auto', proteinTarget: 130, proteinSource: 'auto',
+    maintenanceEstimate: 2030, maintenanceSource: 'measured', recordedBy: 'prompt', recordedAt: at, updatedAt: at },
+  { date: '2026-10-09', kcalTarget: 1850, kcalSource: 'auto', proteinTarget: 140, proteinSource: 'user',
+    maintenanceEstimate: 2023, maintenanceSource: 'measured', recordedBy: 'prompt', recordedAt: at, updatedAt: at,
+    change: { protein: { from: 130, to: 140, fromSource: 'auto', toSource: 'user' }, reasons: [{ kind: 'user-set', field: 'protein' }] } },
+];
+const legDay: WorkoutTemplate = {
+  name: 'Leg Day', restMiniSec: 10, restClusterSec: 150, createdAt: at, updatedAt: at,
+  exercises: [
+    { exerciseId: 'smith', name: 'Smith squat', targetLoad: 30, restAfterSec: 60,
+      plannedSets: [{ kind: 'activation', group: 1 }, { kind: 'mini', group: 1 }, { kind: 'activation', group: 2 }, { kind: 'mini', group: 2 }],
+      lastModifiedAt: '2026-10-09T04:00:00.000Z', lastModifiedBy: 'prompt' },
+    { exerciseId: 'calf', name: 'Single-leg DB calf raise', targetLoad: 25, restAfterSec: 60,
+      plannedSets: [{ kind: 'activation', group: 1, label: 'L' }, { kind: 'mini', group: 1, label: 'L' },
+        { kind: 'activation', group: 2, label: 'R' }, { kind: 'mini', group: 2, label: 'R' }],
+      loadLog: [{ at: '2026-10-02T18:00:00.000Z', from: 40, to: 25, by: 'user', reason: 'x' }] },
+    { exerciseId: 'crunch', name: 'Weighted Floor Crunch', targetLoad: 30, restAfterSec: 90, restAfterMaxSec: 120,
+      plannedSets: [{ kind: 'activation', group: 1 }, { kind: 'mini', group: 1 }] },
+  ],
+  cardioBlocks: [{ modality: 'walk', label: 'Zone 2', targetDurationSec: 1200 }],
+};
+
+describe('buildCsv — template and target rows (2026-10-08)', () => {
+  const data = {
+    ...emptyData(),
+    logs: [{ calories: 500, date: new Date(2026, 9, 1, 12) }] as DailyLog[],
+    dailyWeights: { '2026-10-07': 153.8, '2026-10-08': 153.6 },
+    templates: [legDay],
+    effortStandards: { smith: 'rir1' as const },
+    targetRecords: records,
+  };
+  const csv = buildCsv(data);
+  const header = csv.split('\r\n')[0].split(',');
+  const rows = csv.split('\r\n').slice(1).map(splitLine).map((f) => Object.fromEntries(header.map((c, i) => [c, f[i] ?? ''])));
+
+  it('includes both new row types', () => {
+    expect(rows.some((r) => r.type === 'template')).toBe(true);
+    expect(rows.some((r) => r.type === 'target')).toBe(true);
+  });
+
+  it('every old column keeps its name and position; the new ones are appended', () => {
+    expect(header.slice(0, OLD_COLS.length)).toEqual(OLD_COLS);
+  });
+
+  it('an old-format parser still reads the file — same rows, same values, new types skipped', () => {
+    const before = buildCsv({ ...emptyData(), logs: data.logs, dailyWeights: data.dailyWeights });
+    expect(oldParse(csv)).toEqual(oldParse(before));
+    expect(oldParse(csv).map((r) => r.type)).toEqual(['meal', 'weight', 'weight']);
+  });
+
+  it('template rows: position, load, clusters, labels, rests, effort, provenance; cardio as one row', () => {
+    const t = rows.filter((r) => r.type === 'template');
+    expect(t.map((r) => [r.position, r.exercise, r.load, r.clusters, r.clusterLabels, r.miniRestSec, r.restBetweenSec, r.effortStandard]))
+      .toEqual([
+        ['1', 'Smith squat', '30', '2', '', '10', '60', 'rir1'],
+        ['2', 'Single-leg DB calf raise', '25', '2', 'L,R', '10', '60', 'failure'],
+        ['3', 'Weighted Floor Crunch', '30', '1', '', '10', '90-120', 'failure'],
+        ['4', 'Zone 2', '', '', '', '', '', ''],
+      ]);
+    expect(t[3].durationMin).toBe('20');
+    expect([t[0].lastModifiedAt, t[0].lastModifiedBy]).toEqual(['2026-10-09T04:00:00.000Z', 'prompt']);
+    // No row stamp → the newest load move; neither → blank.
+    expect([t[1].lastModifiedAt, t[1].lastModifiedBy]).toEqual(['2026-10-02T18:00:00.000Z', 'user']);
+    expect([t[2].lastModifiedAt, t[2].lastModifiedBy]).toEqual(['', '']);
+  });
+
+  it('target rows: 10/8 = 130 (auto), 10/9 = 140 (user) with the reason; earlier days blank, never reconstructed', () => {
+    const t = Object.fromEntries(rows.filter((r) => r.type === 'target').map((r) => [r.date, r]));
+    expect(Object.keys(t)).toEqual(['2026-10-01', '2026-10-07', '2026-10-08', '2026-10-09']);
+    expect([t['2026-10-08'].proteinTarget, t['2026-10-08'].proteinTargetSource, t['2026-10-08'].kcalTarget]).toEqual(['130', 'auto', '1850']);
+    expect(t['2026-10-08'].targetChangeReason).toBe('');
+    expect([t['2026-10-09'].proteinTarget, t['2026-10-09'].proteinTargetSource]).toEqual(['140', 'user']);
+    expect(t['2026-10-09'].targetChangeReason).toBe('protein 130 g (auto) -> 140 g (user): user set the protein target');
+    for (const d of ['2026-10-01', '2026-10-07']) {
+      expect([t[d].kcalTarget, t[d].proteinTarget, t[d].kcalTargetSource, t[d].maintenanceEstimate]).toEqual(['', '', '', '']);
+    }
+  });
+
+  it('no templates and no records → no new rows at all for a file with no dated data', () => {
+    expect(buildCsv(emptyData()).split('\r\n')).toHaveLength(1);
+  });
+});

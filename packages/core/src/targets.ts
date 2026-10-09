@@ -99,9 +99,24 @@ export function toProfileFields(p?: Profile | null): ProfileFields | null {
   return { ...p } as ProfileFields;
 }
 
+/** Who set a target: the user typed it (`targetMode: 'custom'` plus a manual
+ *  value), or it is computed and may move on its own. */
+export type TargetSource = 'user' | 'auto';
+
 export interface DailyTargets {
   calorieTarget: number;
   proteinTarget: number;
+  /** `user`: a number the user typed, never moved by recalculation. */
+  calorieSource: TargetSource;
+  proteinSource: TargetSource;
+  /** What the automatic chain computes right now, floor applied. Equal to the
+   *  target when the source is `auto`; beside a user target it is only a
+   *  SUGGESTION and nothing applies it (owner, 2026-10-08). */
+  calorieSuggestion: number;
+  proteinSuggestion: number;
+  /** The live g/kg basis behind an automatic protein target, when there is
+   *  one — the inputs a change notice names. */
+  proteinBasis: { weightLb: number; perKg: number } | null;
   /** The 1.6 g/kg muscle-retention floor. */
   proteinMinTarget: number;
   currentWeight: number | null;
@@ -184,9 +199,10 @@ export function dailyTargets(
   let calorieTarget: number;
   const manualKcal = profile?.manualCaloriesTarget;
   const hasManualKcal = manualKcal != null && manualKcal > 0;
-  if (custom && hasManualKcal) {
-    calorieTarget = manualKcal;
-  } else if (tdee.source === 'measured') {
+  // The automatic answer is computed whether or not the user overrides it, so
+  // the UI can show it beside their own number as a suggestion.
+  let autoKcal: number;
+  if (tdee.source === 'measured') {
     // ── Deliberately NOT `&& tdee.reliable`, since 2026-09-04 ──
     //
     // `reliable` used to gate this, and that made 70% logging completeness a
@@ -235,32 +251,39 @@ export function dailyTargets(
     //
     // If that trade is ever revisited, revisit it HERE and not by restoring
     // `reliable`, which fixes nothing about the silence and brings the cliff back.
-    calorieTarget = tdee.newDailyTarget;
+    autoKcal = tdee.newDailyTarget;
   } else {
     // Formula and seed modes, where there is no measured estimate to prefer.
     // Unchanged on purpose: stripping the seed here drops the account to
     // `SEED_RESULT.newDailyTarget`, a hardcoded 1800 — which is not "what
     // happens at 70%", and on a 22-account replay it moved 20 accounts by up to
     // 1,720 kcal. That is the artifact this branch exists to avoid.
-    calorieTarget = hasManualKcal ? manualKcal : tdee.newDailyTarget;
+    autoKcal = hasManualKcal ? manualKcal : tdee.newDailyTarget;
   }
+  const kcalIsUser = custom && hasManualKcal;
+  calorieTarget = kcalIsUser ? manualKcal : autoKcal;
 
   const w = currentWeight(logs, dailyWeights);
 
-  let proteinTarget: number;
   const perKg = profile?.proteinPerKg;
   const manualProtein = profile?.manualProteinTarget;
   const hasManualProtein = manualProtein != null && manualProtein > 0;
   // Same rule as calories: an explicit custom number outranks the g/kg basis,
   // which is itself a derived value. Outside custom mode the order is
   // unchanged — perKg first, then the frozen onboarding snapshot.
-  if (custom && hasManualProtein) {
-    proteinTarget = manualProtein;
-  } else if (perKg != null && perKg > 0 && w) {
-    proteinTarget = computeProtein(w, perKg);
-  } else {
-    proteinTarget = hasManualProtein ? manualProtein : w ? computeProtein(w) : 0;
-  }
+  //
+  // The g/kg branch is LIVE: it re-reads the newest weight, and the result is
+  // rounded to 5 g, so a 0.2 lb move across a rounding edge moves the target
+  // 5 g (153.8 → 153.6 lb at 1.9 g/kg: 132.55 → 135, 132.38 → 130 — the
+  // owner's 2026-10-08 drop). That stays automatic by design; what changed is
+  // that such a move is now recorded and announced (`target-history.ts`), and
+  // a user-typed number is never subject to it.
+  const liveBasis = perKg != null && perKg > 0 && w ? { weightLb: w, perKg } : null;
+  const autoProtein = liveBasis
+    ? computeProtein(liveBasis.weightLb, liveBasis.perKg)
+    : hasManualProtein ? manualProtein : w ? computeProtein(w) : 0;
+  const proteinIsUser = custom && hasManualProtein;
+  const proteinTarget = proteinIsUser ? manualProtein : autoProtein;
 
   const proteinMinTarget = w ? computeProtein(w) : 0;
 
@@ -287,6 +310,11 @@ export function dailyTargets(
     // expression; `finalCalorieTarget` is the entry point for callers that
     // hold only a `TdeeResult`.
     proteinTarget: Math.max(proteinFloor(profile), proteinTarget),
+    calorieSource: kcalIsUser ? 'user' : 'auto',
+    proteinSource: proteinIsUser ? 'user' : 'auto',
+    calorieSuggestion: Math.max(calorieFloor(profile), autoKcal),
+    proteinSuggestion: Math.max(proteinFloor(profile), autoProtein),
+    proteinBasis: proteinIsUser ? null : liveBasis,
     proteinMinTarget,
     currentWeight: w,
     tdee,

@@ -381,10 +381,35 @@ export interface LoadChange {
   from?: number;
   /** The load after, pounds. */
   to: number;
-  /** The engine's call (applied by the lifter or by auto-apply), or the
-   *  lifter's own edit in the template editor. */
-  by: 'engine' | 'user';
+  /** The engine's call (applied by the lifter or by auto-apply), the
+   *  lifter's own edit in the template editor, or a change made on the
+   *  owner's instruction by a one-off data script (`scripts/owner-data-*`). */
+  by: TemplateChangeBy;
   reason: string;
+}
+
+/** Who changed a template row: the lifter in the editor, the progression
+ *  engine, or a data script run on the owner's written instruction. */
+export type TemplateChangeBy = 'engine' | 'user' | 'prompt';
+
+/**
+ * A progression BASELINE marker on a template row: history before `since` is
+ * not evidence for the engine, and the first session on or after it sets a
+ * new baseline instead of being judged against the old reads.
+ *
+ * For a change that invalidates the old reads without changing the lift — a
+ * lift moved in the order is performed fresher or more fatigued than every
+ * read before it (owner, 2026-10-09: Seated DB Shoulder Press 1st → 3rd).
+ */
+export interface ProgressionBaseline {
+  /** `YYYY-MM-DD`: sessions on this day or later are read. */
+  since: string;
+  /** Why, as shown to the lifter ("position changed 10/9"). A record, not a key. */
+  reason: string;
+  /** On the baseline read, drop back to this load — but only when the
+   *  activation came in under {@link dropBackBelowReps}. Both or neither. */
+  dropBackTo?: number;
+  dropBackBelowReps?: number;
 }
 
 export interface Exercise {
@@ -461,6 +486,22 @@ export interface TemplateExercise {
    *  the same day, so the template default must not move. Read through
    *  `restAfterSet`'s callers; nothing else. Absent means "use the template's". */
   restMiniSec?: number;
+  /**
+   * Rest AFTER this exercise's last set, before the next exercise, seconds.
+   * Overrides the template's `restClusterSec` for that one gap only — the
+   * rest between this lift's own clusters is unchanged. Exists because the
+   * owner's rule depends on the PAIR: 90–120 s when the next exercise hits the
+   * same muscle, 60 s when it switches (2026-10-09). Absent → the template's.
+   */
+  restAfterSec?: number;
+  /** Upper end when the prescription is a range ("90–120 s"); the timer runs
+   *  {@link restAfterSec}. Display and export only. */
+  restAfterMaxSec?: number;
+  /** See {@link ProgressionBaseline}. */
+  baseline?: ProgressionBaseline;
+  /** When and by whom this row last changed — any field, not only the load. */
+  lastModifiedAt?: string;
+  lastModifiedBy?: TemplateChangeBy;
   /** Every move of `targetLoad`, oldest first — see {@link LoadChange}. */
   loadLog?: LoadChange[];
 }

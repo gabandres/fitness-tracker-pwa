@@ -29,7 +29,7 @@ export type {
 } from '@macrolog/core/cardio';
 import type { CardioBlock, PlannedCardioBlock } from '@macrolog/core/cardio';
 import type {
-  EffortStandard, ExerciseCategory, LoadChange, MuscleGroup, RecommendationSnapshot, RepBand, RepRange, SetStructure,
+  EffortStandard, ExerciseCategory, LoadChange, MuscleGroup, ProgressionBaseline, TemplateChangeBy, RecommendationSnapshot, RepBand, RepRange, SetStructure,
 } from '@macrolog/core/workout';
 export type { EffortStandard, RepBand } from '@macrolog/core/workout';
 // The 2026-10-07 progression configuration, introduced after core existed:
@@ -189,6 +189,15 @@ export interface TemplateExercise {
   /** Exercise-level override of the template's `restMiniSec` (seconds). Mirrors
    *  `packages/core`; see the comment there for why it exists. */
   restMiniSec?: number;
+  /** Rest after this exercise, before the next one, seconds (and the upper
+   *  end of a range). Mirrors `packages/core`; see the comment there. */
+  restAfterSec?: number;
+  restAfterMaxSec?: number;
+  /** Progression baseline marker — mirrors `packages/core` `ProgressionBaseline`. */
+  baseline?: ProgressionBaseline;
+  /** When and by whom this row last changed (core `carryAndStampRows`). */
+  lastModifiedAt?: string;
+  lastModifiedBy?: TemplateChangeBy;
   /** Every move of `targetLoad`, oldest first (core `LoadChange`). The editor
    *  writes `exercises` whole, so it must carry this across a save. */
   loadLog?: LoadChange[];

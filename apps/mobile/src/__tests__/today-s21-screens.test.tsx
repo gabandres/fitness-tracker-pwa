@@ -8,6 +8,13 @@ import { fireEvent, renderWithProviders as render } from '@/test-utils';
 import { dayBoundaryOf } from '@macrolog/core';
 
 // iOS presents sheets natively, through a route these tests do not mount.
+// The per-day target record hooks (2026-10-08) open their own focus-gated
+// listeners; these screens are tested without a navigator, so they read none.
+jest.mock('@/hooks/useTargetHistory', () => ({
+  useTargetHistory: () => ({ notice: null, ack: jest.fn() }),
+}));
+jest.mock('@/hooks/useDayTargetRecord', () => ({ useDayTargetRecord: () => null }));
+
 jest.mock('@/components/BottomSheet', () => require('./js-sheet').jsSheetModule());
 jest.mock('@/components/Toast', () => ({
   ToastSheetHost: () => null,

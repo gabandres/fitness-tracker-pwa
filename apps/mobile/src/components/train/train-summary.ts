@@ -6,7 +6,7 @@ import type {
   UnitSystem,
 } from '@macrolog/core';
 import {
-  exerciseHistory,
+  engineHistory,
   formatLoad,
   isWorkingSet,
   lastPerformed,
@@ -287,7 +287,8 @@ function computeRecommendation(
   extras?: RecommendationExtras,
 ): Recommendation {
   const completed = data.recentSessions.filter((s) => s.status === 'completed');
-  const history = exerciseHistory(completed, exerciseId);
+  // Engine history honours the row's baseline marker; charts keep the full log.
+  const history = engineHistory(completed, exerciseId, templateRow);
   const catalogEx = data.catalog.find((e) => e.id === exerciseId) ?? null;
   const opts = templateRow
     ? recommendOptionsFor(templateRow, catalogEx)

@@ -19,6 +19,7 @@ import {
   defaultIncrement as defaultIncrementLb,
   isPristineScaffold,
   loadUnit,
+  carryAndStampRows,
   logUserLoadEdits,
   normalizeClusterGroups,
   parseLoadToLb,
@@ -759,10 +760,15 @@ export function TemplateEditorModal({
       // A load changed by hand is a move of the lift's load like any applied
       // call, and is logged as the lifter's (`by: 'user'`) so the history can
       // tell the two apart.
+      const at = new Date();
       draft.exercises = logUserLoadEdits(template?.exercises ?? [], draft.exercises, {
-        at: new Date(),
+        at,
         reason: t('train.loadLog.userEdit'),
       });
+      // Carry what this editor does not show (rest before the next exercise, a
+      // baseline marker) and stamp the rows the lifter actually changed — a
+      // save of an untouched row keeps its old stamp.
+      draft.exercises = carryAndStampRows(template?.exercises ?? [], draft.exercises, { at, by: 'user' });
       return draft;
     };
     const templateId = template?.id;

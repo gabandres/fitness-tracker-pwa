@@ -528,3 +528,56 @@ describe('wiring helpers', () => {
     expect(followedRecommendation(ex(cluster(1, 80, 10, 0, 4, 3)))).toBeNull();
   });
 });
+
+// ─── Baseline marker (owner, 2026-10-09) ────────────────────────
+// Seated DB Shoulder Press moved 1st → 3rd on Push Day. The reads at 1st are
+// not evidence for the lift at 3rd: the next read is a new baseline, and the
+// engine recommends going back to 60 only if that activation is under 5.
+describe('baseline marker — a position change starts a new baseline', () => {
+  const baseline = { since: '2026-10-09', reason: 'position changed 10/9', dropBackTo: 60, dropBackBelowReps: 5 };
+  const opts = { ...lift('Seated DB Shoulder Press'), baseline };
+
+  it('no session since the marker → calibrate at the planned load, naming the reason', () => {
+    const r = recommend([], opts);
+    expect(r.action).toBe('calibrate');
+    expect(r.reason).toEqual({ kind: 'baseline-pending', since: '2026-10-09', note: 'position changed 10/9' });
+  });
+
+  it('the first read since the marker is HELD as the baseline, even at the top of the range', () => {
+    const r = recommend([ex(cluster(1, 70, 12, 0, 4, 3))], opts);
+    expect(r.action).toBe('hold');
+    expect(r.load).toBe(70);
+    expect(r.reason).toEqual({ kind: 'baseline-set', reps: 12, note: 'position changed 10/9' });
+  });
+
+  it('activation under 5 reps → drop back to 60', () => {
+    const r = recommend([ex(cluster(1, 70, 4, 0, 2, 2))], opts);
+    expect(r.action).toBe('drop-back');
+    expect(r.load).toBe(60);
+    expect(r.reason).toMatchObject({ kind: 'baseline-drop-back', reps: 4, below: 5, to: 60 });
+  });
+
+  it('activation of exactly 5 is not under 5: hold, no drop', () => {
+    const r = recommend([ex(cluster(1, 70, 5, 0, 3, 2))], opts);
+    expect(r.action).toBe('hold');
+    expect(r.load).toBe(70);
+  });
+
+  it('from the second read on, the ordinary rules run (here: under the top of the range → hold +1)', () => {
+    const r = recommend([ex(cluster(1, 70, 8, 0, 3, 2)), ex(cluster(1, 70, 7, 0, 3, 2))], opts);
+    expect(r.reason.kind).toBe('below-max');
+  });
+
+  it('an invalid baseline read still repeats the load (the validity gate runs first)', () => {
+    const r = recommend([ex(cluster(1, 70, 10, 2, 8, 5))], opts);
+    expect(r.action).toBe('repeat-invalid');
+  });
+
+  it('recommendOptionsFor carries the row marker', () => {
+    const o = recommendOptionsFor(
+      { plannedSets: [{ kind: 'activation' }, { kind: 'mini' }, { kind: 'mini' }], baseline },
+      { name: 'Seated DB Shoulder Press' },
+    );
+    expect(o.baseline).toEqual(baseline);
+  });
+});

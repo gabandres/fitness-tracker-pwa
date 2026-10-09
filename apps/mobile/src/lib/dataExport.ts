@@ -14,6 +14,9 @@ import {
   getAllLogs,
   getAllMeasurements,
   getAllSessions,
+  getAllTemplates,
+  getAllExercises,
+  getAllDailyTargets,
   getFasts,
 } from './ledger';
 
@@ -38,7 +41,7 @@ export interface ExportResult {
  * is prepended so Excel renders accented meal labels correctly.
  */
 export async function exportDataCsv(uid: string): Promise<ExportResult> {
-  const [logs, measurements, dailyWeights, dailyWater, dailySleep, workoutSessions, fasts] =
+  const [logs, measurements, dailyWeights, dailyWater, dailySleep, workoutSessions, fasts, templates, exercises, targetRecords] =
     await Promise.all([
       getAllLogs(uid),
       getAllMeasurements(uid),
@@ -50,6 +53,13 @@ export async function exportDataCsv(uid: string): Promise<ExportResult> {
       // it, so "all of the user's data" silently excluded every fast they had
       // ever completed.
       getFasts(uid),
+      // 2026-10-08: the programme and the targets, so a coach can check what
+      // was prescribed and what the day's targets were — not only what was
+      // logged. Records are stored history only; a day without one exports
+      // blank target columns, never a recomputed value.
+      getAllTemplates(uid),
+      getAllExercises(uid),
+      getAllDailyTargets(uid),
     ]);
 
   const csv = '﻿' + buildCsv({
@@ -60,6 +70,9 @@ export async function exportDataCsv(uid: string): Promise<ExportResult> {
     dailySleep,
     workoutSessions,
     fasts,
+    templates,
+    effortStandards: Object.fromEntries(exercises.map((e) => [e.id ?? '', e.effortStandard])),
+    targetRecords,
   });
   const rows = logs.length + measurements.length + workoutSessions.length + fasts.length;
   const filename = `ignia-export-${stamp()}.csv`;

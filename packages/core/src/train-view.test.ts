@@ -3,6 +3,7 @@ import type { SessionExercise, WorkoutSession, WorkoutSet, WorkoutTemplate } fro
 import {
   bestE1RMByExercise,
   dropEmptyExercises,
+  engineHistory,
   exerciseHistory,
   exerciseIsFullyDone,
   exerciseSeries,
@@ -452,5 +453,20 @@ describe('undoRemoval', () => {
   it('returns the same session when the exercise is gone', () => {
     const s = live([ex('b', [])]);
     expect(undoRemoval(s, { kind: 'set', exerciseIndex: 0, exerciseId: 'a', setIndex: 0, set: set() })).toBe(s);
+  });
+});
+
+describe('engineHistory — reads stop at the baseline marker', () => {
+  const mk = (iso: string, reps: number) => ({
+    status: 'completed' as const, date: new Date(iso), createdAt: new Date(iso), updatedAt: new Date(iso),
+    exercises: [{ exerciseId: 'sp', name: 'Seated DB Shoulder Press', cues: [], sets: [{ kind: 'activation' as const, reps, weight: 70 }] }],
+  });
+  const sessions = [mk('2026-10-12T15:00:00', 9), mk('2026-10-05T15:00:00', 8), mk('2026-09-28T15:00:00', 7)];
+
+  it('without a marker it is exerciseHistory', () => {
+    expect(engineHistory(sessions, 'sp').map((e) => e.sets[0].reps)).toEqual([9, 8, 7]);
+  });
+  it('with one, only sessions on or after its day', () => {
+    expect(engineHistory(sessions, 'sp', { baseline: { since: '2026-10-09' } }).map((e) => e.sets[0].reps)).toEqual([9]);
   });
 });

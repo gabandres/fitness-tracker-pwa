@@ -60,6 +60,11 @@ import { isTodayLoading } from '@/lib/today-gate';
 export interface TodayState extends LogWrites {
   loading: boolean;
   error: Error | null;
+  /** `targets` came from server answers for logs, weights AND the profile —
+   *  the only state a per-day target record may be written from. */
+  targetsAuthoritative: boolean;
+  /** The profile the targets were computed from. */
+  profile: Profile | null;
   /**
    * Whether the day's rows came from SOMEWHERE — the server or the disk cache.
    * `loading` also releases when the feed fails with neither (so the error can
@@ -162,6 +167,16 @@ export function useToday(): TodayState {
   );
   /** Rows parked on disk by an offline add, not yet in Firestore. */
   const [pending, setPending] = useState<DailyLog[]>([]);
+  // Whether weights and the profile have answered from the SERVER this
+  // session. Neither gates the spinner (see below), but a per-day target
+  // record (`useTargetHistory`) must never be written from a cache-only
+  // answer: a stale weight would "change" the target and announce it.
+  const [weightsServer, setWeightsServer] = useState(false);
+  const [profileServer, setProfileServer] = useState(false);
+  useEffect(() => {
+    setWeightsServer(false);
+    setProfileServer(false);
+  }, [uid]);
 
   // Focus-gated (not mount-gated): the tab detaches its Firestore listeners
   // when it blurs, so background tabs stop holding live onSnapshot channels
@@ -194,23 +209,29 @@ export function useToday(): TodayState {
               open: (deliver, fail) => subscribeRecentLogs(uid, LOG_WINDOW_ROWS, deliver, fail),
               apply: setLogs,
             }),
-            feedChannel({
+            feedChannel<Profile | null, 'profile'>({
               key: 'profile',
               // Any answer settles it — see the `loading` note. Requiring a
               // server answer here would hang a cold-cache offline start.
               settles: 'any',
               open: (deliver) => subscribeProfile(uid, deliver),
-              apply: setProfile,
+              apply: (v: Profile | null, p) => {
+                setProfile(v, p);
+                if (p.authoritative) setProfileServer(true);
+              },
             }),
             // The six below feed the screen but nothing waits on them, and none
             // wires `fail` — exactly as before, because a dropped weights
             // listener must not put Today into the error state that belongs to
             // the logs channel.
-            feedChannel({
+            feedChannel<Record<string, number>, 'weights'>({
               key: 'weights',
               settles: 'none',
               open: (deliver) => subscribeDailyWeights(uid, deliver),
-              apply: setWeights,
+              apply: (v: Record<string, number>, p) => {
+                setWeights(v, p);
+                if (p.authoritative) setWeightsServer(true);
+              },
             }),
             feedChannel({
               key: 'presets',
@@ -476,6 +497,10 @@ export function useToday(): TodayState {
     hasData: logsReady,
     summary,
     targets,
+    /** `targets` was computed from server answers for logs, weights and the
+     *  profile — the only state a per-day target record may be written from. */
+    targetsAuthoritative: feed.answered.logs && weightsServer && profileServer && !!profile,
+    profile,
     // Exposed so Today can open a day-scoped fasting editor without deriving
     // the boundary a second time — two derivations of "which day is it" on one
     // screen is how Trends ended up keying two cards to two calendars.

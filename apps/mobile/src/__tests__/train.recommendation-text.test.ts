@@ -226,6 +226,9 @@ describe('every reason kind has a sentence', () => {
     'bodyweight-build': { kind: 'bodyweight-build', reps: 10, max: 15 },
     'bodyweight-add-load': { kind: 'bodyweight-add-load', reps: 15, max: 15, startLb: [5, 10] },
     'bodyweight-variation': { kind: 'bodyweight-variation', reps: 15, max: 15 },
+    'baseline-pending': { kind: 'baseline-pending', since: '2026-10-09', note: 'position changed 10/9' },
+    'baseline-set': { kind: 'baseline-set', reps: 9, note: 'position changed 10/9' },
+    'baseline-drop-back': { kind: 'baseline-drop-back', reps: 4, below: 5, to: 60, note: 'position changed 10/9' },
   };
   const base: Recommendation = {
     action: 'hold', load: 100, currentLoad: 100, last: [], assisted: false, approximate: false, warnings: [],

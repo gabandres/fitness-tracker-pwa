@@ -95,6 +95,9 @@ import {
   toWorkoutExercise as toExercise,
   toWorkoutTemplate as toTemplate,
   toWorkoutSession as toSession,
+  type DailyTargetRecord,
+  type PlannedTargetRecord,
+  toDailyTargetRecord,
 } from '@macrolog/core';
 import { db } from './firebase';
 import type {
@@ -2047,6 +2050,93 @@ export async function getAllDailySleep(uid: string): Promise<Record<string, numb
 export async function getAllSessions(uid: string): Promise<WorkoutSession[]> {
   const snap = await getDocs(query(sessionsCol(uid), orderBy('timestamp', 'asc')));
   return snap.docs.map((d) => toSession(d.id, d.data()));
+}
+
+export async function getAllTemplates(uid: string): Promise<WorkoutTemplate[]> {
+  const snap = await getDocs(templatesCol(uid));
+  return snap.docs.map((d) => toTemplate(d.id, d.data()));
+}
+
+export async function getAllExercises(uid: string): Promise<Exercise[]> {
+  const snap = await getDocs(exercisesCol(uid));
+  return snap.docs.map((d) => toExercise(d.id, d.data()));
+}
+
+export async function getAllDailyTargets(uid: string): Promise<DailyTargetRecord[]> {
+  const snap = await getDocs(targetsCol(uid));
+  return snap.docs.map((d) => toDailyTargetRecord(d.id, d.data())).filter((r): r is DailyTargetRecord => r != null);
+}
+
+// ─── Per-day target records (2026-10-08) ────────────────────────
+// `users/{uid}/dailyTargets/{YYYY-MM-DD}` — what the targets WERE each day and
+// why they moved (`packages/core/src/target-history.ts`). Written from Today,
+// read by Today (the change notice) and by a past day's screen.
+const targetsCol = (uid: string) => collection(db, 'users', uid, 'dailyTargets');
+const targetDoc = (uid: string, date: string) => doc(db, 'users', uid, 'dailyTargets', date);
+
+/** The newest `max` records, newest first — enough to find the last stored
+ *  day before today, however long the gap. */
+export function subscribeDailyTargets(
+  uid: string,
+  max: number,
+  cb: (records: DailyTargetRecord[], meta?: SnapshotMeta) => void,
+  onError?: (e: Error) => void,
+): Unsub {
+  return onSnapshot(
+    query(targetsCol(uid), orderBy('date', 'desc'), limit(max)),
+    { includeMetadataChanges: true },
+    onChangedData(
+      (snap) => snap.docs.map((d) => toDailyTargetRecord(d.id, d.data())).filter((r): r is DailyTargetRecord => r != null),
+      cb,
+    ),
+    onError,
+  );
+}
+
+/** One day's record, or null when that day has none. */
+export function subscribeDailyTargetRecord(
+  uid: string,
+  date: string,
+  cb: (record: DailyTargetRecord | null, meta?: SnapshotMeta) => void,
+  onError?: (e: Error) => void,
+): Unsub {
+  return onSnapshot(
+    targetDoc(uid, date),
+    { includeMetadataChanges: true },
+    (snap) => cb(snap.exists() ? toDailyTargetRecord(snap.id, snap.data()) : null, { fromCache: snap.metadata.fromCache }),
+    onError,
+  );
+}
+
+/**
+ * Store today's record — a FULL overwrite, so a change from earlier today that
+ * has since been undone does not linger, and a new change re-arms the notice
+ * (no `noticeAckAt`). `recordedAt` survives from the day's first write.
+ */
+export async function writeDailyTargetRecord(
+  uid: string,
+  plan: PlannedTargetRecord,
+  existing: DailyTargetRecord | null,
+): Promise<void> {
+  const now = Timestamp.now();
+  const clean = (v: unknown): unknown =>
+    Array.isArray(v) ? v.map(clean)
+      : v && typeof v === 'object' && !(v instanceof Timestamp)
+        ? Object.fromEntries(Object.entries(v).filter(([, x]) => x !== undefined).map(([k, x]) => [k, clean(x)]))
+        : v;
+  const keepAck = existing?.noticeAckAt && JSON.stringify(existing.change) === JSON.stringify(plan.change);
+  await setDoc(targetDoc(uid, plan.date), clean({
+    ...plan,
+    ...(keepAck ? { noticeAckAt: Timestamp.fromDate(existing!.noticeAckAt!) } : {}),
+    recordedBy: 'app',
+    recordedAt: existing ? Timestamp.fromDate(existing.recordedAt) : now,
+    updatedAt: now,
+  }) as object);
+}
+
+/** Dismiss a day's change notice. */
+export async function ackTargetNotice(uid: string, date: string): Promise<void> {
+  await updateDoc(targetDoc(uid, date), { noticeAckAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 
 /** Stamp `date` as an exercise day (a 0-kcal DailyLog with

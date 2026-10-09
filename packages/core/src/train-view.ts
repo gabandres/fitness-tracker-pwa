@@ -39,6 +39,7 @@ import type { ProgressionSuggestion } from './workout-progression';
 import { computeExercisePRs, isWorkingSet, metricForSet } from './workout-progression';
 import { isLoggedCardioBlock } from './cardio';
 import { normalizeClusterGroups } from './cluster-groups';
+import { calendarDateKey } from './date';
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -148,6 +149,23 @@ export function exerciseHistory(
     if (match) out.push(match);
   }
   return out;
+}
+
+/**
+ * The history the progression ENGINE reads for a template row: {@link
+ * exerciseHistory}, minus every session before the row's baseline marker
+ * (`TemplateExercise.baseline`). Sessions are compared by calendar day, the
+ * unit the marker is written in. Charts and PRs keep reading the full
+ * history — a baseline says the old reads are not evidence for the NEXT
+ * load, not that they did not happen.
+ */
+export function engineHistory(
+  sessions: readonly WorkoutSession[],
+  exerciseId: string,
+  row?: { baseline?: { since: string } } | null,
+): SessionExercise[] {
+  const since = row?.baseline?.since;
+  return exerciseHistory(since ? sessions.filter((s) => calendarDateKey(s.date) >= since) : sessions, exerciseId);
 }
 
 /**

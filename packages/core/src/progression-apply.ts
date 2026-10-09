@@ -17,7 +17,7 @@
  * Pure, framework-free (ADR-0012).
  */
 import { type ProgressionCall, type Recommendation, progressionCall } from './progression-engine';
-import type { LoadChange, TemplateExercise } from './workout';
+import type { LoadChange, TemplateChangeBy, TemplateExercise } from './workout';
 
 export interface TemplateLoadChange {
   exerciseId: string;
@@ -94,6 +94,8 @@ export function applyTemplateChanges(
     };
     return {
       ...row,
+      lastModifiedAt: entry.at,
+      lastModifiedBy: opts.by,
       targetLoad: c.to,
       plannedSets: row.plannedSets.map((p) =>
         (p.kind === 'activation' || p.kind === 'mini') && p.weight != null && same(p.weight, row.targetLoad)
@@ -145,6 +147,54 @@ export function logUserLoadEdits(
       ...carried,
       loadLog: [...(log ?? []), { at: opts.at.toISOString(), from: old.targetLoad, to: row.targetLoad, by: 'user', reason: opts.reason }],
     };
+  });
+}
+
+/** Row fields no editor screen shows, carried across a full-overwrite save
+ *  exactly like `loadLog` — dropping one would erase it on any edit. */
+const CARRIED_ROW_FIELDS = ['restAfterSec', 'restAfterMaxSec', 'baseline', 'lastModifiedAt', 'lastModifiedBy'] as const;
+
+/** The fields that make a row's PRESCRIPTION — what a change stamp is about. */
+function rowContent(row: TemplateExercise, position: number): string {
+  const canon = (v: unknown): unknown =>
+    Array.isArray(v) ? v.map(canon)
+      : v && typeof v === 'object'
+        ? Object.fromEntries(Object.keys(v as object).sort()
+            .filter((k) => (v as Record<string, unknown>)[k] !== undefined)
+            .map((k) => [k, canon((v as Record<string, unknown>)[k])]))
+        : v;
+  const { loadLog: _l, lastModifiedAt: _a, lastModifiedBy: _b, name: _n, ...content } = row;
+  return JSON.stringify(canon({ ...content, position }));
+}
+
+/**
+ * Carry the fields an editor cannot see from `before` onto `after`, and stamp
+ * `lastModifiedAt` / `lastModifiedBy` on every row whose prescription or
+ * position changed (or that is new). Rows that did not change keep their old
+ * stamp, so saving an untouched template stamps nothing.
+ *
+ * One helper for every writer of template rows — the editor (`user`), the
+ * engine's apply (`engine`, via {@link applyTemplateChanges}) and the owner's
+ * data scripts (`prompt`) — so "who last changed this row" has one meaning.
+ */
+export function carryAndStampRows(
+  before: readonly TemplateExercise[],
+  after: readonly TemplateExercise[],
+  opts: { at: Date; by: TemplateChangeBy },
+): TemplateExercise[] {
+  const prev = new Map(before.map((r, i) => [r.exerciseId, { row: r, position: i }]));
+  return after.map((row, i) => {
+    const old = prev.get(row.exerciseId);
+    let next: TemplateExercise = row;
+    if (old) {
+      const carried: Partial<TemplateExercise> = {};
+      for (const k of CARRIED_ROW_FIELDS) {
+        if (next[k] === undefined && old.row[k] !== undefined) (carried as Record<string, unknown>)[k] = old.row[k];
+      }
+      next = { ...next, ...carried };
+    }
+    const changed = !old || rowContent({ ...old.row }, old.position) !== rowContent(next, i);
+    return changed ? { ...next, lastModifiedAt: opts.at.toISOString(), lastModifiedBy: opts.by } : next;
   });
 }
 

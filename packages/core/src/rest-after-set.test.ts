@@ -100,3 +100,19 @@ describe('restAfterSet — into a continuation set', () => {
     expect(restAfterSet(cluster, 1, longRest)).toBe(90);
   });
 });
+
+describe('restAfterSet — rest before the NEXT exercise (owner, 2026-10-09)', () => {
+  const two = [{ kind: 'activation' as const }, { kind: 'mini' as const }, { kind: 'mini' as const },
+    { kind: 'activation' as const }, { kind: 'mini' as const }, { kind: 'mini' as const }];
+
+  it("the row's restAfterSec applies after the LAST set only", () => {
+    const rest = { mini: 10, cluster: 150, afterExercise: 60 };
+    expect(restAfterSet(two, 5, rest)).toBe(60); // → next exercise
+    expect(restAfterSet(two, 2, rest)).toBe(150); // cluster 1 → cluster 2: unchanged
+    expect(restAfterSet(two, 0, rest)).toBe(10);
+  });
+
+  it('absent → the template rest, exactly as before', () => {
+    expect(restAfterSet(two, 5, { mini: 10, cluster: 150 })).toBe(150);
+  });
+});

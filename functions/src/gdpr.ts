@@ -75,6 +75,10 @@ export const USER_SUBCOLLECTIONS = [
   // bearer-token argument that applies to `private` and does not apply here.
   "integrations",
   "private",
+  // The calorie/protein targets in effect each day, and why they moved
+  // (2026-10-08, `packages/core/src/target-history.ts`). Derived from the
+  // user's own data and goals — personal, so erasable and portable.
+  "dailyTargets",
 ] as const;
 
 /**

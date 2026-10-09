@@ -33,6 +33,11 @@ function targets(over: Partial<DailyTargets> = {}): DailyTargets {
     proteinMinTarget: 120,
     currentWeight: 180,
     tdee: {} as DailyTargets['tdee'],
+    calorieSource: 'auto',
+    proteinSource: 'auto',
+    calorieSuggestion: 2000,
+    proteinSuggestion: 160,
+    proteinBasis: null,
     ...over,
   };
 }

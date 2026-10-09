@@ -419,3 +419,50 @@ describe('dailyTargets — protein floor', () => {
  * That invariant is now owned and tested where it is enforced: see
  * `toOnboardingV2Patch` in ./firestore-writers.test.ts.
  */
+
+describe('dailyTargets — a user-set target is never recalculated (owner, 2026-10-08)', () => {
+  // The owner's case: 1.9 g/kg, live off the newest weight. 154.4 lb read 135,
+  // 153.6 lb read 130 — across the 5 g rounding edge at 153.74 lb.
+  const owner = (p: Partial<Profile> = {}) => fullProfile({ proteinPerKg: 1.9, ...p });
+  const weights = (lb: number) => ({ '2026-10-08': lb });
+
+  it('reproduces the automatic drop: 135 at 154.4 / 153.8 lb, 130 at 153.6 lb', () => {
+    expect(dailyTargets(owner(), [], weights(154.4)).proteinTarget).toBe(135);
+    expect(dailyTargets(owner(), [], weights(153.8)).proteinTarget).toBe(135);
+    const t = dailyTargets(owner(), [], weights(153.6));
+    expect(t.proteinTarget).toBe(130);
+    expect(t.proteinSource).toBe('auto');
+    expect(t.proteinBasis).toEqual({ weightLb: 153.6, perKg: 1.9 });
+  });
+
+  it('a 140 g override holds through weight changes, a new g/kg basis, and body-composition inputs', () => {
+    const override = { targetMode: 'custom' as const, manualProteinTarget: 140 };
+    for (const lb of [154.4, 153.6, 150, 160]) {
+      const t = dailyTargets(owner(override), [], weights(lb));
+      expect(t.proteinTarget).toBe(140);
+      expect(t.proteinSource).toBe('user');
+      expect(t.proteinBasis).toBeNull();
+      // The automatic number is still computed — shown only as a suggestion.
+      expect(t.proteinSuggestion).toBe(computeProtein(lb, 1.9));
+    }
+    expect(dailyTargets(owner({ ...override, proteinPerKg: 2.2 }), [], weights(153.6)).proteinTarget).toBe(140);
+    // Tape and body fat are not inputs to the target chain at all: a profile
+    // carrying them (as a measurement would) changes nothing.
+    const withComposition = { ...owner(override), waist: 31.5, neck: 14.25, bodyFatPct: 14 } as unknown as Profile;
+    expect(dailyTargets(withComposition, [], weights(153.6)).proteinTarget).toBe(140);
+  });
+
+  it('the override is per field: calories stay automatic beside a user protein target', () => {
+    const t = dailyTargets(owner({ targetMode: 'custom', manualProteinTarget: 140, calorieFloor: 1850 }), [], weights(153.6));
+    expect(t.proteinSource).toBe('user');
+    expect(t.calorieSource).toBe('auto');
+    expect(t.calorieTarget).toBe(t.calorieSuggestion);
+  });
+
+  it('a typed calorie target is the user\'s; the computed one is the suggestion', () => {
+    const t = dailyTargets(owner({ targetMode: 'custom', manualCaloriesTarget: 2000, calorieFloor: 1850 }), [], weights(153.6));
+    expect(t.calorieTarget).toBe(2000);
+    expect(t.calorieSource).toBe('user');
+    expect(t.calorieSuggestion).toBeGreaterThanOrEqual(1850);
+  });
+});
