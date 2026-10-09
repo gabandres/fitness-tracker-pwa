@@ -4,7 +4,7 @@
 // isValidExercise / isValidWorkoutSession). Mobile-local copy (same
 // documented dup pattern as body-fat / weight-projection).
 
-import { normalizeClusterGroups } from '@macrolog/core';
+import { isWorkingSet, normalizeClusterGroups } from '@macrolog/core';
 import { isLoggedSet as isLoggedSetCore } from '@macrolog/core/workout';
 import { isLoggedCardioBlock } from '@macrolog/core/cardio';
 
@@ -269,6 +269,36 @@ export function templateToSessionExercises(template: WorkoutTemplate): SessionEx
       })),
     };
   });
+}
+
+/**
+ * Re-seed one lift's sets with the engine's call, so the boxes hold the load
+ * the card tells the lifter to use. Owner, 2026-10-09: the card said
+ * "20 lb · HOLD" over six sets pre-filled at the template's 25 — when the two
+ * disagree, the card wins and the template's load stays one tap away on it.
+ *
+ * Only WORKING sets the template seeded move — those holding the template's
+ * load, or nothing — the same sets a tap on the card moves
+ * (`loadTargetIndices`). A warm-up or drop set is its own prescription, and so
+ * is a planned set with a weight of its own. Only a `weight-reps` lift is
+ * seeded: a bodyweight lift has no weight box, so a seeded load (an engine
+ * "add 5 lb" on a pull-up) would be saved without the lifter ever seeing it.
+ *
+ * The template's load is its `targetLoad`, else the weight its first working
+ * set prescribes (the editor writes per-set weights); either way it is
+ * recorded as `targetLoad`, the session's note of what the template said that
+ * day, which the card's "Template: X" line reads.
+ */
+export function seedCallLoad(se: SessionExercise, load: number | undefined): SessionExercise {
+  if (load == null || (se.logStyle ?? DEFAULT_LOG_STYLE) !== 'weight-reps') return se;
+  const templateLoad = se.targetLoad ?? se.sets.find((s) => isWorkingSet(s) && s.weight != null)?.weight;
+  const fromTemplate = (w: number | undefined) =>
+    w == null || (templateLoad != null && Math.abs(w - templateLoad) < 0.01);
+  return {
+    ...se,
+    ...(templateLoad != null ? { targetLoad: templateLoad } : {}),
+    sets: se.sets.map((s) => (isWorkingSet(s) && !s.done && fromTemplate(s.weight) ? { ...s, weight: load } : s)),
+  };
 }
 
 export interface WorkoutSession {

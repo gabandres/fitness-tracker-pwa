@@ -4,6 +4,32 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-10-09 — Train: the sets start at the load the card names
+
+- **Owner: "it says HOLD but added 25 on each set."** DB Flat Press: the card
+  said "20 lb · HOLD" (10/1 at 20 lb: 15 and 13 reps; 25 lb predicts ~4) while
+  the template's `targetLoad` 25 pre-filled all six sets. Owner's call: the
+  card wins. `startFromTemplate` now seeds the sets the template filled with
+  the engine's load (`seedCallLoad`); a set with its own planned weight (a drop
+  at 10) keeps it, and `targetLoad` stays the template's. The card shows
+  "Template: 25 lb" when the template disagrees — tap it to move the untouched
+  sets there, tap the headline chip to move them back. The chip is offered only
+  when the untouched sets hold something other than the call
+  (`untouchedLoad`), so an increase the sets already carry is no longer a chip.
+  Only working sets of a `weight-reps` lift are seeded (a bodyweight lift has no
+  weight box to show a seeded load in); a template that prescribes per-set
+  weights instead of `targetLoad` is read too.
+- **A load the lifter set after the newest read wins** (`honourLifterLoad`,
+  core). The replay of the owner's 10/9 start caught it: Wide-grip lat
+  pulldown was moved 80 → 90 by the owner on 10/7, after a session at 80 × 12
+  the engine reads as "add load: 85" — it never sees `loadLog`, so seeding the
+  call would have undone the owner's 90. When the row's newest `loadLog` entry
+  is a person's (`user`/`prompt`), still matches `targetLoad` and postdates the
+  read, the call is a hold at that load with no rep target ("You set 90 lb
+  after your last session…"). Replayed against all 21 rows of the three
+  templates: only DB Flat Press changes (25 → 20); the pulldown holds 90, the
+  Shoulder Press baseline stays 70, the drop sets keep their own weights.
+
 ## 2026-10-08 — Targets: a typed target is yours, every automatic move is announced; the programme matches the plan
 
 - **Owner: protein dropped 135 → 130 g on its own.** `proteinPerKg: 1.9` follows

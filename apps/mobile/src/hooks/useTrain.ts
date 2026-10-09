@@ -45,6 +45,7 @@ import {
   recommend,
   recommendOptionsFor,
   toRecommendationSnapshot,
+  honourLifterLoad,
   undoRemoval as applyUndoRemoval,
 } from '@macrolog/core';
 import {
@@ -62,6 +63,7 @@ import {
   type WorkoutTemplate,
   dropEmptySets,
   templateToSessionCardio,
+  seedCallLoad,
   templateToSessionExercises,
 } from '@/lib/workout';
 import type { CardioModality } from '@macrolog/core/cardio';
@@ -688,20 +690,25 @@ export function useTrain(): TrainState {
       // The engine's call for each lift is FROZEN onto the session at start
       // (progression engine: "every override must be logged"). It is computed
       // from the same completed history the card reads, so what the session
-      // stores is exactly what the lifter was shown. A straight-set lift gets
-      // no snapshot: the engine has nothing to say about it.
+      // stores is exactly what the lifter was shown. A lift the engine has
+      // nothing to say about (`none`) gets no snapshot.
       const completed = recentSessions.filter((s) => s.status === 'completed');
       const exercises = templateToSessionExercises(template).map((se) => {
         const row = template.exercises.find((e) => e.exerciseId === se.exerciseId) ?? null;
         // The same history the card reads: a baseline marker cuts it off.
         const history = engineHistory(completed, se.exerciseId, row);
-        const rec = recommend(
-          history,
-          recommendOptionsFor(row, catalog.find((e) => e.id === se.exerciseId) ?? null),
+        const basedOn = completed.find((s) => s.exercises.includes(history[0]))?.date;
+        // A load the lifter set after that session is the plan (10/7: lat
+        // pulldown 80 → 90, which the read alone would call "add load: 85").
+        const rec = honourLifterLoad(
+          recommend(history, recommendOptionsFor(row, catalog.find((e) => e.id === se.exerciseId) ?? null)),
+          row,
+          basedOn,
         );
         if (rec.action === 'none') return se;
-        const basedOn = completed.find((s) => s.exercises.includes(history[0]))?.date;
-        return { ...se, recommendation: toRecommendationSnapshot(rec, basedOn) };
+        // The sets hold the card's load, not the template's, when the two
+        // differ (owner, 2026-10-09: "says HOLD 20, filled 25").
+        return { ...seedCallLoad(se, rec.load), recommendation: toRecommendationSnapshot(rec, basedOn) };
       });
       begin({
         status: 'active',

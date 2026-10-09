@@ -11,7 +11,7 @@
  * So the targets ride on `targetReps`/`targetDurationSec`, and these tests
  * pin that separation down.
  */
-import { dropEmptySets, isLoggedSet, templateToSessionExercises } from '@/lib/workout';
+import { dropEmptySets, isLoggedSet, seedCallLoad, templateToSessionExercises } from '@/lib/workout';
 import type { WorkoutTemplate } from '@/lib/workout';
 
 function template(over: Partial<WorkoutTemplate['exercises'][number]> = {}): WorkoutTemplate {
@@ -103,5 +103,78 @@ describe('templateToSessionExercises — per-set targets', () => {
       expect(s.targetReps).toBeUndefined();
       expect(s.reps).toBeUndefined();
     }
+  });
+});
+
+describe('seedCallLoad — the sets hold the card\'s load (owner, 2026-10-09)', () => {
+  // The 10/9 Push: "20 lb · HOLD" on the card, every set pre-filled at the
+  // template's 25.
+  const flat = () =>
+    templateToSessionExercises(
+      template({
+        targetLoad: 25,
+        plannedSets: [
+          { kind: 'activation', group: 1 },
+          { kind: 'mini', group: 1 },
+          { kind: 'activation', group: 2 },
+          { kind: 'mini', group: 2 },
+          { kind: 'drop', weight: 10 },
+        ],
+      }),
+    )[0];
+
+  it('moves every set the template seeded to the call\'s load', () => {
+    const ex = seedCallLoad(flat(), 20);
+    expect(ex.sets.map((s) => s.weight)).toEqual([20, 20, 20, 20, 10]);
+  });
+
+  it('keeps the template\'s load as the record of what it said', () => {
+    expect(seedCallLoad(flat(), 20).targetLoad).toBe(25);
+  });
+
+  it('leaves a planned set with its own weight alone (the drop at 10)', () => {
+    expect(seedCallLoad(flat(), 20).sets[4].weight).toBe(10);
+  });
+
+  it('fills sets the template left empty', () => {
+    const [ex] = templateToSessionExercises(template({ plannedSets: [{ kind: 'working' }, { kind: 'working' }] }));
+    expect(seedCallLoad(ex, 95).sets.map((s) => s.weight)).toEqual([95, 95]);
+  });
+
+  it('moves only working sets — a warm-up the template left empty stays empty', () => {
+    const [ex] = templateToSessionExercises(
+      template({ plannedSets: [{ kind: 'warmup' }, { kind: 'working' }, { kind: 'drop' }] }),
+    );
+    expect(seedCallLoad(ex, 95).sets.map((s) => s.weight)).toEqual([undefined, 95, undefined]);
+  });
+
+  it('reads a template that prescribes per-set weights instead of a targetLoad', () => {
+    const [ex] = templateToSessionExercises(
+      template({
+        plannedSets: [
+          { kind: 'activation', group: 1, weight: 25 },
+          { kind: 'mini', group: 1, weight: 25 },
+        ],
+      }),
+    );
+    const seeded = seedCallLoad(ex, 20);
+    expect(seeded.sets.map((s) => s.weight)).toEqual([20, 20]);
+    expect(seeded.targetLoad).toBe(25);
+  });
+
+  it('never seeds a bodyweight lift: it has no weight box to show the load in', () => {
+    const [pullUp] = templateToSessionExercises(
+      template({ logStyle: 'bodyweight', plannedSets: [{ kind: 'activation', group: 1 }] }),
+    );
+    expect(seedCallLoad(pullUp, 5)).toBe(pullUp);
+  });
+
+  it('changes nothing without a load, or on a timed lift', () => {
+    const ex = flat();
+    expect(seedCallLoad(ex, undefined)).toBe(ex);
+    const [plank] = templateToSessionExercises(
+      template({ logStyle: 'time', plannedSets: [{ kind: 'working', durationSec: 60 }] }),
+    );
+    expect(seedCallLoad(plank, 20)).toBe(plank);
   });
 });

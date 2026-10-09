@@ -8,6 +8,7 @@ import type {
 import {
   engineHistory,
   formatLoad,
+  honourLifterLoad,
   isWorkingSet,
   lastPerformed,
   muscleSignals,
@@ -111,26 +112,44 @@ export function spokenDuration(totalSec: number, t: TFn, locale: Locale): string
 
 /**
  * The sets a load chosen for the whole lift lands on — an accepted
- * recommendation and the "↑ Try X" bump chip both: every working set that has
- * not been ticked and still holds what the session was SEEDED with — no
- * weight, or the template's `targetLoad` (`seededLoad`). One rule for both;
+ * recommendation, the card's "Template: X" line and the "↑ Try X" bump chip
+ * alike: every working set that has not been ticked and still holds what the
+ * session was SEEDED with — no weight, or one of `seededLoads` (the template's
+ * `targetLoad`, the engine's call frozen at start). One rule for all three;
  * the bump used to fill only the FIRST working set, so the rest were ticked at
  * last week's load without anyone noticing (Train re-score 3, bug 4).
  *
- * The seeded load counts as untouched because a template start pre-fills
- * every set with it: checking for an EMPTY weight only made Accept a silent
- * no-op on every templated lift (10/6: "Repeat 25" over sets seeded at 30,
- * typed by hand). A ticked set is a record of what was lifted, and a typed
- * weight other than the seed is the lifter's own call — neither moves.
+ * A seeded load counts as untouched because a template start pre-fills every
+ * set with it: checking for an EMPTY weight only made Accept a silent no-op on
+ * every templated lift (10/6: "Repeat 25" over sets seeded at 30, typed by
+ * hand). Both seeds count so the lifter can move between the card's load and
+ * the template's and back. A ticked set is a record of what was lifted, and a
+ * typed weight other than a seed is the lifter's own call — neither moves.
  */
-export function loadTargetIndices(sets: readonly WorkoutSet[], seededLoad?: number): number[] {
+export function loadTargetIndices(
+  sets: readonly WorkoutSet[],
+  seededLoads: readonly (number | undefined)[] = [],
+): number[] {
   const out: number[] = [];
-  const seeded = (w: number) => seededLoad != null && Math.abs(w - seededLoad) < 0.01;
+  const seeded = (w: number) => seededLoads.some((l) => l != null && Math.abs(w - l) < 0.01);
   sets.forEach((s, i) => {
     const w = s.weight ?? 0;
     if (isWorkingSet(s) && !s.done && (w === 0 || seeded(w))) out.push(i);
   });
   return out;
+}
+
+/**
+ * The load the lift's untouched sets hold right now (0 when they are empty),
+ * or `undefined` when every working set is ticked or typed over — nothing a
+ * tap could still move. The card offers a load only when it differs from this.
+ */
+export function untouchedLoad(
+  sets: readonly WorkoutSet[],
+  seededLoads: readonly (number | undefined)[] = [],
+): number | undefined {
+  const first = loadTargetIndices(sets, seededLoads)[0];
+  return first == null ? undefined : (sets[first].weight ?? 0);
 }
 
 /** Working-set summary line for one logged exercise, by logStyle. The cells
@@ -300,11 +319,15 @@ function computeRecommendation(
         expectsCluster: sessionEx?.sets.some((x) => x.kind === 'activation') ?? false,
         ...(sessionEx?.progression ? { progression: sessionEx.progression } : {}),
       };
-  return recommend(history, {
+  const rec = recommend(history, {
     ...opts,
     ...(extras?.volumeAllowsCluster != null ? { volumeAllowsCluster: extras.volumeAllowsCluster } : {}),
     ...(extras?.stallContext ? { stallContext: extras.stallContext } : {}),
   });
+  // The same rule `startFromTemplate` seeds the sets with, so the card and
+  // the boxes cannot name two loads.
+  const basedOn = completed.find((s) => s.exercises.includes(history[0]))?.date;
+  return honourLifterLoad(rec, templateRow, basedOn);
 }
 
 /** Sessions the sleep average reads: the last few completed ones that logged it. */

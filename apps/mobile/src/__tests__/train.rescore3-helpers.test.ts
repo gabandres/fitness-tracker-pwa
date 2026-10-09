@@ -1,7 +1,7 @@
 import type { TFn } from '@/i18n';
 import { en } from '@/i18n/en';
 import { LOCALE_DEFS, type Locale } from '@/i18n/registry';
-import { loadTargetIndices, spokenDuration } from '@/components/train/train-summary';
+import { loadTargetIndices, spokenDuration, untouchedLoad } from '@/components/train/train-summary';
 
 /**
  * Train re-score 3 — the two pure rules behind its fixes: what a screen
@@ -61,8 +61,30 @@ describe('loadTargetIndices — one rule for the accept and the bump chip', () =
           { kind: 'warmup', weight: 30 },
           { kind: 'mini' },
         ],
-        30,
+        [30],
       ),
     ).toEqual([0, 1, 5]);
+  });
+
+  it('counts the card\'s load and the template\'s alike, so either tap can undo the other', () => {
+    const sets = [
+      { kind: 'activation' as const, weight: 20 },
+      { kind: 'mini' as const, weight: 25 },
+      { kind: 'mini' as const, weight: 22.5 },
+    ];
+    expect(loadTargetIndices(sets, [25, 20])).toEqual([0, 1]);
+  });
+});
+
+describe('untouchedLoad — what a tap on the card would replace', () => {
+  it('is the load the first untouched set holds', () => {
+    expect(untouchedLoad([{ kind: 'activation', weight: 20, reps: 15, done: true }, { kind: 'mini', weight: 20 }], [20, 25]))
+      .toBe(20);
+  });
+
+  it('is 0 for empty sets, and undefined when nothing is left to move', () => {
+    expect(untouchedLoad([{ kind: 'working' }])).toBe(0);
+    expect(untouchedLoad([{ kind: 'working', weight: 20, reps: 8, done: true }, { kind: 'working', weight: 22.5 }], [20]))
+      .toBeUndefined();
   });
 });

@@ -58,8 +58,6 @@ export interface RecommendationText {
   warnings: string[];
   /** Stall diagnosis lines, in order; empty when there is no stall. */
   stall: string[];
-  /** Whether the call moves the load (a chip the user can tap to take it). */
-  tappable: boolean;
 }
 
 /** Reason kinds that are NOT on the myo-reps path. Their `none` still speaks
@@ -241,6 +239,9 @@ export function reasonText(rec: Recommendation, unitSystem: UnitSystem, t: TFn):
       return t('train.rec.reason.baselineSet', { note: r.note, reps: r.reps });
     case 'baseline-drop-back':
       return t('train.rec.reason.baselineDropBack', { note: r.note, reps: r.reps, below: r.below, load: fmt(r.to) });
+    // A load the lifter set after the newest read (owner, 2026-10-09).
+    case 'lifter-load':
+      return t('train.rec.reason.lifterLoad', { load: fmt(r.load), engine: fmt(r.engineLoad) });
   }
 }
 
@@ -351,6 +352,5 @@ export function recommendationText(
     last: lastText(rec, t),
     warnings: rec.warnings.map((w) => t(WARNING_KEYS[w])),
     stall: rec.stall ? stallLines(rec.stall, unitSystem, t) : [],
-    tappable: (rec.action === 'add-load' || rec.action === 'drop-back') && rec.load != null,
   };
 }

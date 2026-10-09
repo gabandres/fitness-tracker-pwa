@@ -86,6 +86,7 @@
 import type {
   EffortStandard,
   ExerciseCategory,
+  LoadChange,
   LogStyle,
   ProgressionBaseline,
   ProgressionRule,
@@ -513,7 +514,11 @@ export type RecommendReason =
   /** The first read since the marker IS the baseline: hold and build from it. */
   | { kind: 'baseline-set'; reps: number; note: string }
   /** The baseline read came in under the floor the marker set: drop back. */
-  | { kind: 'baseline-drop-back'; reps: number; below: number; to: number; note: string };
+  | { kind: 'baseline-drop-back'; reps: number; below: number; to: number; note: string }
+  // ── a load the lifter set (`honourLifterLoad`) ──
+  /** The lifter moved the template's load after the newest read: that load is
+   *  the plan, and `engineLoad` is what the read alone would have said. */
+  | { kind: 'lifter-load'; load: number; engineLoad: number };
 
 export type RecommendWarning =
   /** A `rir1` lift logged its activation at RIR 0. Soft: the read stands. */
@@ -1291,6 +1296,37 @@ export function progressionCall(rec: Pick<Recommendation, 'action' | 'stall'>): 
 }
 
 // ─── Wiring helpers ─────────────────────────────────────────────
+
+/**
+ * A load the LIFTER put on the template after the engine's newest read wins
+ * over the engine's call (owner, 2026-10-09). The engine reads only logged
+ * sessions, so a load the lifter confirmed between sessions — Wide-grip lat
+ * pulldown 80 → 90 on 10/7, after 80 × 12 — is invisible to it, and it would
+ * call "add load: 85" over the 90 the lifter chose. Since the session's sets
+ * start at the call's load, that call would undo the choice.
+ *
+ * Only the lifter's own move counts: the row's newest `loadLog` entry, made by
+ * a person (`user` or `prompt`, never `engine`), that still matches
+ * `targetLoad` and is newer than the session the call was read from. The
+ * result is a hold at that load with no rep target — the old read says
+ * nothing about reps at a load it was not lifted at — and the session after
+ * it is read like any other. `none` and a call with no load pass through.
+ */
+export function honourLifterLoad(
+  rec: Recommendation,
+  row: { targetLoad?: number; loadLog?: readonly LoadChange[] } | null | undefined,
+  lastReadAt: Date | undefined,
+): Recommendation {
+  const load = row?.targetLoad;
+  const last = row?.loadLog?.[row.loadLog.length - 1];
+  if (rec.action === 'none' || rec.load == null || load == null || !last) return rec;
+  if (last.by === 'engine' || Math.abs(last.to - load) >= 0.01 || Math.abs(rec.load - load) < 0.01) return rec;
+  const at = Date.parse(last.at);
+  if (Number.isNaN(at) || (lastReadAt != null && at <= lastReadAt.getTime())) return rec;
+  const { targetReps: _t, predictedReps: _p, ...rest } = rec;
+  return { ...rest, action: 'hold', load, reason: { kind: 'lifter-load', load, engineLoad: rec.load } };
+}
+
 
 /**
  * The engine options for one template row — the prescription (cluster or

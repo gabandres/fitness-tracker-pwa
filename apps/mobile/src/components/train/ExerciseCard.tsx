@@ -38,7 +38,7 @@ import { useUnitSystem } from '@/lib/use-unit-system';
 import { space } from '@/theme';
 import type { InputChain } from './input-chain';
 import { SetRow } from './SetRow';
-import { activationIssueKey, lastHint, loadTargetIndices, recommendationFor } from './train-summary';
+import { activationIssueKey, lastHint, loadTargetIndices, recommendationFor, untouchedLoad } from './train-summary';
 import { createStyles } from './train-styles';
 import { MenuButton, type MenuButtonAction } from '@/components/MenuButton';
 
@@ -212,16 +212,21 @@ export const ExerciseCard = memo(function ExerciseCard({
 
   const countA11y = t('train.setCountA11y', { done: loggedCount, total: totalSets });
 
+  // What a start may have seeded the sets with: the template's load, the
+  // engine's call frozen at start (`seedCallLoad`), and the call as the card
+  // shows it now — a set still holding any of them is untouched.
+  const seeds = [ex.targetLoad, ex.recommendation?.load, engineHasCall ? rec.load : undefined];
+
   /**
-   * One load for the whole lift — an accepted recommendation or the bump chip
-   * — onto every set `loadTargetIndices` names: untouched ones, including
-   * those still holding the template's seeded `targetLoad`. Each patch is
+   * One load for the whole lift — an accepted recommendation, the template's
+   * load, or the bump chip — onto every set `loadTargetIndices` names:
+   * untouched ones, including those still holding a seeded load. Each patch is
    * deferred and the lot committed ONCE: an immediate dispatch per set was N
    * writes of the whole session for one tap (Train re-score bug 9).
    */
   const applyLoad = (load: number) => {
     haptics.tap();
-    const targets = loadTargetIndices(ex.sets, ex.targetLoad);
+    const targets = loadTargetIndices(ex.sets, seeds);
     for (const setIndex of targets) {
       void dispatch({ type: 'patchSet', exerciseIndex, setIndex, patch: { weight: load } }, { defer: true });
     }
@@ -284,9 +289,10 @@ export const ExerciseCard = memo(function ExerciseCard({
               testID={`recommendation-${exerciseIndex}`}
               onSettings={catalogEx ? () => onOpenLift(exerciseIndex) : undefined}
               // The accepted load lands on every untouched working set —
-              // empty, or still at the seeded template load — so a cluster's
-              // minis inherit it too.
-              seededLoad={ex.targetLoad}
+              // empty, or still at a seeded load — so a cluster's minis
+              // inherit it too.
+              currentLoad={untouchedLoad(ex.sets, seeds)}
+              templateLoad={ex.targetLoad}
               onAccept={applyLoad}
             />
           ) : bumpTo != null ? (

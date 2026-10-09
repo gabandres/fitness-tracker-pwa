@@ -1,16 +1,11 @@
 import { Text, TouchableOpacity, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import type { Recommendation } from '@macrolog/core';
+import { type Recommendation, formatLoad } from '@macrolog/core';
 import { useT } from '@/i18n';
 import { useUnitSystem } from '@/lib/use-unit-system';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { createStyles } from '@/components/train/train-styles';
 import { recommendationText } from '@/components/train/recommendation-text';
-
-/** Calls whose load is worth a tap even when it does not move: a hold or a
- *  repeat at a load the session was NOT pre-filled with (the 10/6 crunch —
- *  "Repeat 25" over sets seeded at the template's 30). */
-const ACCEPTABLE_WHEN_DIFFERENT = new Set<Recommendation['action']>(['hold', 'build-reps', 'repeat-invalid']);
 
 /**
  * The engine's call for one exercise: load · ACTION, "Target: ≥ N reps", the
@@ -18,11 +13,14 @@ const ACCEPTABLE_WHEN_DIFFERENT = new Set<Recommendation['action']>(['hold', 'bu
  * diagnosis when there is one. Rendered on the active-session card and under
  * a template before the session starts (progression engine layer 6).
  *
- * `onAccept` is offered when the call names a load to take: an increase or a
- * drop-back always, and a hold or repeat when its load differs from the
- * `seededLoad` the session's sets were pre-filled with. Taking it lands on
- * every untouched set of the LIVE session (`loadTargetIndices`). A hold at
- * the seeded load is a sentence, not a chip: there is nothing to accept.
+ * The sets start at the call's load (`seedCallLoad`), so the headline is a
+ * chip only when the untouched sets hold something else (`currentLoad`) —
+ * the lifter switched to the template's load, or a mid-session add — and
+ * tapping it puts the call's load back. When the template prescribes a
+ * different load, a "Template: X" line under the headline is the other half
+ * of that switch (owner, 2026-10-09: the card said HOLD 20 over sets at the
+ * template's 25, with nothing saying where the 25 came from). Either tap
+ * lands on every untouched set of the LIVE session (`loadTargetIndices`).
  *
  * `onSettings` opens the lift's settings (effort standard, rep range). It sits
  * on the note because the note is where the call is read, which is where the
@@ -31,7 +29,8 @@ const ACCEPTABLE_WHEN_DIFFERENT = new Set<Recommendation['action']>(['hold', 'bu
 export function RecommendationNote({
   rec,
   compact = false,
-  seededLoad,
+  currentLoad,
+  templateLoad,
   onAccept,
   onSettings,
   testID,
@@ -39,8 +38,11 @@ export function RecommendationNote({
   rec: Recommendation;
   /** Headline, target and reason only — for the template list. */
   compact?: boolean;
-  /** The load the live session's sets were seeded with (template targetLoad). */
-  seededLoad?: number;
+  /** What the live session's untouched sets hold now (`untouchedLoad`);
+   *  absent when no set is left to move. */
+  currentLoad?: number;
+  /** The template's load for this lift (`SessionExercise.targetLoad`). */
+  templateLoad?: number;
   onAccept?: (load: number) => void;
   onSettings?: () => void;
   testID?: string;
@@ -53,9 +55,13 @@ export function RecommendationNote({
   if (!text) return null;
 
   const invalid = rec.action === 'repeat-invalid';
-  const differsFromSeed = rec.load != null && seededLoad != null && Math.abs(rec.load - seededLoad) >= 0.01;
-  const canAccept = onAccept != null && rec.load != null
-    && (text.tappable || (ACCEPTABLE_WHEN_DIFFERENT.has(rec.action) && differsFromSeed));
+  const differs = (a: number | undefined, b: number | undefined) => a != null && b != null && Math.abs(a - b) >= 0.01;
+  const canAccept = onAccept != null && differs(rec.load, currentLoad);
+  // Only beside a call that names a different load: a template that agrees
+  // with the card has nothing to add.
+  const showTemplate = !compact && templateLoad != null && differs(templateLoad, rec.load);
+  const canUseTemplate = showTemplate && onAccept != null && differs(templateLoad, currentLoad);
+  const templateLine = showTemplate ? t('train.rec.templateLoad', { load: formatLoad(templateLoad, unitSystem) }) : null;
 
   return (
     <View style={compact ? styles.recCompact : styles.recBlock} testID={testID}>
@@ -86,6 +92,21 @@ export function RecommendationNote({
           </TouchableOpacity>
         ) : null}
       </View>
+      {templateLine ? (
+        canUseTemplate ? (
+          <TouchableOpacity
+            onPress={() => onAccept?.(templateLoad as number)}
+            hitSlop={{ top: 6, bottom: 6 }}
+            accessibilityRole="button"
+            accessibilityHint={t('train.rec.templateLoadHint')}
+            testID={testID ? `${testID}-template` : undefined}
+          >
+            <Text style={[styles.recNote, styles.recTemplateLink]}>{templateLine}</Text>
+          </TouchableOpacity>
+        ) : (
+          <Text style={styles.recNote} testID={testID ? `${testID}-template` : undefined}>{templateLine}</Text>
+        )
+      ) : null}
       {text.target ? (
         <Text style={styles.recTarget} testID={testID ? `${testID}-target` : undefined}>{text.target}</Text>
       ) : null}

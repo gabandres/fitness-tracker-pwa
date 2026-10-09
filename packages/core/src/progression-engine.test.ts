@@ -11,6 +11,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
+  honourLifterLoad,
   FIRST_MINI_MAX,
   FIRST_MINI_MIN,
   MAX_JUMP_PCT,
@@ -18,6 +19,7 @@ import {
   STALL_SESSIONS,
   SWAP_SESSIONS,
   type EngineCatalogFields,
+  type Recommendation,
   detectStall,
   effectiveReps,
   epleyE1rm,
@@ -579,5 +581,52 @@ describe('baseline marker — a position change starts a new baseline', () => {
       { name: 'Seated DB Shoulder Press' },
     );
     expect(o.baseline).toEqual(baseline);
+  });
+});
+
+describe('honourLifterLoad — a load the lifter set after the newest read wins', () => {
+  // 10/7: lat pulldown 80 → 90 by the owner, after a session at 80 × 12 that
+  // the engine alone reads as "add load: 85".
+  const addTo85: Recommendation = {
+    action: 'add-load', load: 85, currentLoad: 80, last: [], assisted: false, approximate: false, warnings: [],
+    targetReps: 10, predictedReps: 10, reason: { kind: 'no-history' },
+  };
+  const lastRead = new Date('2026-10-06T11:00:00Z');
+  const row = (by: 'user' | 'prompt' | 'engine', at = '2026-10-07T16:24:00Z', targetLoad = 90) => ({
+    targetLoad,
+    loadLog: [{ at, from: 80, to: 90, by, reason: 'Owner-confirmed load for the next session' }],
+  });
+
+  it('holds at the lifter\'s load, keeps the engine\'s for the reason, and drops the stale rep target', () => {
+    const rec = honourLifterLoad(addTo85, row('user'), lastRead);
+    expect(rec.action).toBe('hold');
+    expect(rec.load).toBe(90);
+    expect(rec.reason).toEqual({ kind: 'lifter-load', load: 90, engineLoad: 85 });
+    expect(rec.targetReps).toBeUndefined();
+    expect(rec.predictedReps).toBeUndefined();
+  });
+
+  it('counts a change made on the owner\'s instruction (prompt) the same', () => {
+    expect(honourLifterLoad(addTo85, row('prompt'), lastRead).load).toBe(90);
+  });
+
+  it('an engine-applied move is the engine\'s own call, not the lifter\'s', () => {
+    expect(honourLifterLoad(addTo85, row('engine'), lastRead)).toBe(addTo85);
+  });
+
+  it('a change older than the read is already in the read', () => {
+    expect(honourLifterLoad(addTo85, row('user', '2026-10-05T10:00:00Z'), lastRead)).toBe(addTo85);
+  });
+
+  it('a log entry the template has since moved away from no longer speaks', () => {
+    expect(honourLifterLoad(addTo85, row('user', '2026-10-07T16:24:00Z', 95), lastRead)).toBe(addTo85);
+  });
+
+  it('nothing to do when the call already names that load, or names none', () => {
+    const at90 = { ...addTo85, load: 90 };
+    expect(honourLifterLoad(at90, row('user'), lastRead)).toBe(at90);
+    const noLoad = { ...addTo85, load: undefined };
+    expect(honourLifterLoad(noLoad, row('user'), lastRead)).toBe(noLoad);
+    expect(honourLifterLoad(addTo85, { targetLoad: 90 }, lastRead)).toBe(addTo85);
   });
 });

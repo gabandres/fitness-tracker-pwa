@@ -23,18 +23,66 @@ const hold25: Recommendation = {
 };
 
 describe('RecommendationNote — Accept', () => {
-  it('offers the load when it differs from the seeded one (10/6: "Repeat 25" over sets at 30)', async () => {
+  it('offers the load when the untouched sets hold another (10/6: "Repeat 25" over sets at 30)', async () => {
     const onAccept = jest.fn();
-    const ui = await render(<RecommendationNote rec={hold25} seededLoad={30} onAccept={onAccept} testID="rec" />);
+    const ui = await render(<RecommendationNote rec={hold25} currentLoad={30} onAccept={onAccept} testID="rec" />);
     await fireEvent.press(ui.getByTestId('rec-accept'));
     expect(onAccept).toHaveBeenCalledWith(25);
   });
 
-  it('a hold at the seeded load is a sentence, not a chip', async () => {
-    const ui = await render(<RecommendationNote rec={hold25} seededLoad={25} onAccept={jest.fn()} testID="rec" />);
+  it('a call the sets already hold is a sentence, not a chip', async () => {
+    const ui = await render(<RecommendationNote rec={hold25} currentLoad={25} onAccept={jest.fn()} testID="rec" />);
     expect(ui.queryByTestId('rec-accept')).toBeNull();
   });
 
+  it('an increase the sets were seeded with is not offered again', async () => {
+    const up: Recommendation = { ...hold25, action: 'add-load', load: 30, reason: hold25.reason };
+    const ui = await render(<RecommendationNote rec={up} currentLoad={30} onAccept={jest.fn()} testID="rec" />);
+    expect(ui.queryByTestId('rec-accept')).toBeNull();
+  });
+
+  it('nothing to offer once every set is ticked', async () => {
+    const ui = await render(<RecommendationNote rec={hold25} onAccept={jest.fn()} testID="rec" />);
+    expect(ui.queryByTestId('rec-accept')).toBeNull();
+  });
+});
+
+describe('RecommendationNote — the template\'s load (owner, 2026-10-09)', () => {
+  const hold20: Recommendation = {
+    action: 'build-reps', load: 20, currentLoad: 20, last: [], assisted: false, approximate: false, warnings: [],
+    targetReps: 14, reason: { kind: 'below-max', reps: 13, max: 15, clusters: 2 },
+  };
+
+  it('names the template\'s load beside a call for another, and taking it moves the sets', async () => {
+    const onAccept = jest.fn();
+    const ui = await render(
+      <RecommendationNote rec={hold20} currentLoad={20} templateLoad={25} onAccept={onAccept} testID="rec" />,
+    );
+    expect(ui.getByText('Template: 25 lb')).toBeTruthy();
+    expect(ui.queryByTestId('rec-accept')).toBeNull();
+    await fireEvent.press(ui.getByTestId('rec-template'));
+    expect(onAccept).toHaveBeenCalledWith(25);
+  });
+
+  it('after switching to the template, the call is the chip that switches back', async () => {
+    const onAccept = jest.fn();
+    const ui = await render(
+      <RecommendationNote rec={hold20} currentLoad={25} templateLoad={25} onAccept={onAccept} testID="rec" />,
+    );
+    expect(ui.getByTestId('rec-template').props.accessibilityRole).not.toBe('button');
+    await fireEvent.press(ui.getByTestId('rec-accept'));
+    expect(onAccept).toHaveBeenCalledWith(20);
+  });
+
+  it('says nothing when the template agrees with the call', async () => {
+    const ui = await render(
+      <RecommendationNote rec={hold20} currentLoad={20} templateLoad={20} onAccept={jest.fn()} testID="rec" />,
+    );
+    expect(ui.queryByTestId('rec-template')).toBeNull();
+  });
+});
+
+describe('RecommendationNote — target and reason', () => {
   it('shows the target and the one-line reason', async () => {
     const rec: Recommendation = {
       action: 'hold', load: 100, currentLoad: 100, last: [], assisted: false, approximate: false, warnings: [],

@@ -56,7 +56,6 @@ describe('recommendation text — the rep-range rules on real engine output', ()
     expect(out.target).toBe('Target: ≥ 11 reps');
     expect(out.reason).toBe('10 reps — under the top of the range (12). Same load, one more rep.');
     expect(out.expect).toBeNull();
-    expect(out.tappable).toBe(false);
   });
 
   it('two clusters, one short: names the cluster that holds the load', () => {
@@ -73,7 +72,6 @@ describe('recommendation text — the rep-range rules on real engine output', ()
     expect(out.target).toBe('Target: ≥ 10 reps');
     expect(out.expect).toBe('Expected: about 10 reps at the new load — an estimate, not a guarantee.');
     expect(out.expect).not.toMatch(/guaranteed/i);
-    expect(out.tappable).toBe(true);
   });
 
   it('a rir1 lift: the expectation is to failure, and the target is where to stop', () => {
@@ -114,7 +112,6 @@ describe('recommendation text — the rep-range rules on real engine output', ()
     expect(out.headline).toBe('100 lb · DROP BACK');
     expect(out.call).toBe('drop');
     expect(out.reason).toBe('5 reps after the increase — under 6. Drop back to 100 lb and build.');
-    expect(out.tappable).toBe(true);
   });
 
   it('bodyweight: build to the top, then add 5-10 lb, else a harder variation', () => {
@@ -229,6 +226,7 @@ describe('every reason kind has a sentence', () => {
     'baseline-pending': { kind: 'baseline-pending', since: '2026-10-09', note: 'position changed 10/9' },
     'baseline-set': { kind: 'baseline-set', reps: 9, note: 'position changed 10/9' },
     'baseline-drop-back': { kind: 'baseline-drop-back', reps: 4, below: 5, to: 60, note: 'position changed 10/9' },
+    'lifter-load': { kind: 'lifter-load', load: 90, engineLoad: 85 },
   };
   const base: Recommendation = {
     action: 'hold', load: 100, currentLoad: 100, last: [], assisted: false, approximate: false, warnings: [],

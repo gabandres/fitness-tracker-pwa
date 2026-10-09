@@ -964,6 +964,8 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   // (approximate, guessed step, techniques) are qualifiers and sit smaller.
   recTarget: { fontSize: font.small, color: colors.ink, fontWeight: '700' },
   recNote: { fontSize: font.tiny, color: colors.muted, lineHeight: font.tiny * 1.4 },
+  // "Template: 25 lb" when it can still be taken — a link, like Add set.
+  recTemplateLink: { color: colors.teal, fontWeight: '700' },
   // Finish sheet: one row per lift with a call, toggle on the right when the
   // call would move the template's load.
   callRow: {
