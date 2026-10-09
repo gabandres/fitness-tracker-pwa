@@ -206,6 +206,8 @@ function parseFactor(text: string, locale: Locale): number | null {
 
 /** The form's numeric fields, for the iOS keyboard bar and scroll-into-view. */
 type NumField = 'calories' | 'protein' | 'carbs' | 'fat' | 'grams' | 'scale';
+/** A form field `revealField` keeps on screen while it has the keyboard. */
+type RevealField = NumField | 'note' | 'name';
 /** The ‹ › order of the iOS keyboard bar (`KeyboardBar`). Grams and the Scale
  *  factor sit outside it: they are a different question ("how much") from the
  *  four numbers, and a Next from fat into a weight field would be a surprise.
@@ -400,9 +402,9 @@ export function EntrySheet({
   const carbsRef = useRef<TextInput>(null);
   const fatRef = useRef<TextInput>(null);
   const macroRefs = { calories: calRef, protein: proteinRef, carbs: carbsRef, fat: fatRef };
-  // Which numeric field holds the keyboard, so it stays in view while the
+  // Which form field holds the keyboard, so it stays in view while the
   // keyboard shrinks the form (`revealField`). Nothing renders from it.
-  const kbFieldRef = useRef<NumField | 'note' | null>(null);
+  const kbFieldRef = useRef<RevealField | null>(null);
   const kbBarProps = {
     calories: useKeyboardBarProps(kbId('calories')),
     protein: useKeyboardBarProps(kbId('protein')),
@@ -412,7 +414,7 @@ export function EntrySheet({
   const doneKeyProps = useDoneKeyProps();
   const formScrollRef = useRef<ScrollView>(null);
   const formScroll = useRef({ y: 0, h: 0 });
-  const fieldBoxes = useRef<Partial<Record<'calories' | 'macros' | 'scale' | 'note', { y: number; height: number }>>>({});
+  const fieldBoxes = useRef<Partial<Record<'name' | 'calories' | 'macros' | 'scale' | 'note', { y: number; height: number }>>>({});
   // Raised by MicButton; rendered full-width under the search row rather than
   // beside the field, which used to collapse it. See MicButton.onFailedChange.
   const [micFailed, setMicFailed] = useState(false);
@@ -1111,10 +1113,17 @@ export function EntrySheet({
    * ~170 — so kcal → Next → protein put protein half under the pinned Add
    * button. Runs on focus, and again on every layout of the scroll area while a
    * field is focused: the area shrinks as the keyboard rises AFTER the focus.
+   *
+   * The name field is one of them (owner, 2026-10-09). The blank form focuses
+   * Calories once the sheet settles, and keeping Calories in view under the
+   * keyboard scrolls the form past the name field; with no reveal of its own,
+   * tapping Name then typed into a field above the top edge of the sheet.
    */
-  function revealField(f: NumField | 'note', animated: boolean) {
+  function revealField(f: RevealField, animated: boolean) {
     const box =
-      fieldBoxes.current[f === 'calories' || f === 'note' ? f : f === 'grams' || f === 'scale' ? 'scale' : 'macros'];
+      fieldBoxes.current[
+        f === 'calories' || f === 'note' || f === 'name' ? f : f === 'grams' || f === 'scale' ? 'scale' : 'macros'
+      ];
     const { y, h } = formScroll.current;
     if (!box || h <= 0) return;
     const top = box.y - space.sm;
@@ -1123,11 +1132,11 @@ export function EntrySheet({
     else if (bottom > y + h) formScrollRef.current?.scrollTo({ y: bottom - h, animated });
   }
 
-  function onNumFocus(f: NumField | 'note') {
+  function onNumFocus(f: RevealField) {
     kbFieldRef.current = f;
     revealField(f, true);
   }
-  function onNumBlur(f: NumField | 'note') {
+  function onNumBlur(f: RevealField) {
     if (kbFieldRef.current === f) kbFieldRef.current = null;
   }
 
@@ -2228,7 +2237,7 @@ export function EntrySheet({
                       sibling Text, so without it a screen reader announced the
                       placeholder — "0, text field" — for all four numbers.
                       Return walks name → kcal → protein → carbs → fat. */}
-                  <Field label={t('entry.name')} labelled>
+                  <Field label={t('entry.name')} labelled onLayout={(e) => (fieldBoxes.current.name = e.nativeEvent.layout)}>
                     <TextInputBase
                       ref={nameRef}
                       placeholder={t('entry.namePlaceholder')}
@@ -2241,6 +2250,8 @@ export function EntrySheet({
                       returnKeyType="next"
                       submitBehavior="submit"
                       onSubmitEditing={() => calRef.current?.focus()}
+                      onFocus={() => onNumFocus('name')}
+                      onBlur={() => onNumBlur('name')}
                       testID="entry-label"
                     />
                   </Field>

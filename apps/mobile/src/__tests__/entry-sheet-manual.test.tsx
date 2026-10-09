@@ -65,3 +65,32 @@ it('offers to create the food when a search finds nothing, keeping what was type
   // The typed query becomes the food's name — retyping it would be pure loss.
   expect(screen.getByTestId('entry-label').props.value).toBe("abuela's arroz");
 });
+
+it('brings the name field back into view when it takes the keyboard (owner, 2026-10-09)', async () => {
+  // The blank form focuses Calories once the sheet settles, and keeping
+  // Calories in view under the keyboard scrolls the form past the name field.
+  // Tapping Name then typed into a field above the sheet's top edge.
+  const { ScrollView } = require('react-native');
+  const screen = await setup();
+  await fireEvent.press(screen.getByTestId('open-manual'));
+
+  const name = screen.getByTestId('entry-label');
+  let form = name.parent;
+  while (form && !form.props.onScroll) form = form.parent;
+  // The jest ScrollView mock renders but has no scroll methods.
+  const scrollTo = jest.fn();
+  ScrollView.prototype.scrollTo = scrollTo;
+
+  // Lay the form out: name at the top, the area shrunk by the keyboard, and
+  // the form scrolled to Calories, as in the owner's screenshot.
+  let field = name.parent;
+  while (field && !field.props.onLayout) field = field.parent;
+  if (!form || !field) throw new Error('form layout not found');
+  await fireEvent(field, 'layout', { nativeEvent: { layout: { x: 0, y: 0, width: 360, height: 80 } } });
+  await fireEvent(form, 'layout', { nativeEvent: { layout: { x: 0, y: 0, width: 360, height: 300 } } });
+  await fireEvent.scroll(form, { nativeEvent: { contentOffset: { x: 0, y: 96 } } });
+
+  await fireEvent(name, 'focus');
+  expect(scrollTo).toHaveBeenCalledWith({ y: 0, animated: true });
+  delete ScrollView.prototype.scrollTo;
+});

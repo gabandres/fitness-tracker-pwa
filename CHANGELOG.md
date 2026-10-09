@@ -4,6 +4,16 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-10-09 — Write it in: the name field stays in view while typing
+
+- **Owner: tapping Name on the blank "Write it in" form, the field sat above
+  the top of the sheet while typing.** The blank form focuses Calories once
+  the sheet settles, and `revealField` keeps the focused field clear of the
+  keyboard by scrolling — past the name field above it. Every number and the
+  note had a reveal; the name had none, so focusing it left the form where
+  Calories had put it. The name field now reveals like the others, on focus and
+  on every layout while the keyboard rises.
+
 ## 2026-10-09 — Train: the sets start at the load the card names
 
 - **Owner: "it says HOLD but added 25 on each set."** DB Flat Press: the card
