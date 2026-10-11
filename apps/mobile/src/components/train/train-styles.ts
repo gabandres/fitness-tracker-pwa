@@ -905,6 +905,8 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
     backgroundColor: colors.paper,
   },
   sessionHeaderMain: { flex: 1, gap: 2 },
+  sessionHeaderWrap: { flexWrap: 'wrap', justifyContent: 'flex-end' },
+  sessionHeaderMainFull: { flexBasis: '100%' },
   sessionTitle: { fontFamily: type.heading, fontSize: font.h3, color: colors.ink },
   sessionMeta: { fontSize: font.small, color: colors.muted, fontVariant: ['tabular-nums'] },
   sessionEyebrow: { fontSize: font.tiny, color: colors.accent, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },

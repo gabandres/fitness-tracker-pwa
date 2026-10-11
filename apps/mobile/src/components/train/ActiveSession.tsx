@@ -1100,8 +1100,11 @@ export function ActiveSession({
           lifted, where the writes are, and Finish where every other tracker
           keeps it. Discard moved into ⋯: a destructive action does not sit
           beside the one you came to press. */}
-      <View style={styles.sessionHeader} testID="session-header">
-        <View style={styles.sessionHeaderMain}>
+      {/* At accessibility text sizes the buttons wrap under the title: beside
+          it, they squeezed "IN PROGRESS" into one letter column and the
+          title to "Q…" (device pass, 2026-10-11). */}
+      <View style={[styles.sessionHeader, largeText && styles.sessionHeaderWrap]} testID="session-header">
+        <View style={[styles.sessionHeaderMain, largeText && styles.sessionHeaderMainFull]}>
           <Text style={styles.sessionEyebrow} accessibilityRole="header">
             {train.editingExisting ? t('train.editingSession') : t('train.inProgress')}
           </Text>

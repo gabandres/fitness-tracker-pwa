@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { BottomSheet } from '@/components/BottomSheet';
 import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
@@ -68,6 +68,10 @@ export function confirm(opts: ConfirmOptions): void {
 export function ConfirmHost() {
   const t = useT();
   const styles = useThemedStyles(createStyles);
+  // At accessibility text sizes two buttons side by side broke their labels
+  // mid-word ("Cancela / r"); stacked, each gets the full width — the main
+  // action on top, Cancel last.
+  const stacked = useWindowDimensions().fontScale > 1.3;
   const [opts, setOpts] = useState<ConfirmOptions | null>(null);
   const [visible, setVisible] = useState(false);
 
@@ -115,12 +119,12 @@ export function ConfirmHost() {
               <Text style={styles.cancelText}>{opts.secondaryText}</Text>
             </TouchableOpacity>
           ) : null}
-          <View style={styles.row}>
-            <TouchableOpacity style={styles.cancel} onPress={close} accessibilityRole="button" testID="confirm-cancel">
+          <View style={[styles.row, stacked && styles.rowStacked]}>
+            <TouchableOpacity style={[styles.cancel, stacked && styles.flat]} onPress={close} accessibilityRole="button" testID="confirm-cancel">
               <Text style={styles.cancelText}>{opts.cancelText ?? t('common.cancel')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.go, opts.destructive && styles.goDanger]}
+              style={[styles.go, opts.destructive && styles.goDanger, stacked && styles.flat]}
               accessibilityRole="button"
               testID="confirm-go"
               onPress={() => {
@@ -144,6 +148,8 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   body: { fontSize: font.small, color: colors.muted, lineHeight: 20 },
   bodyScroll: { flexGrow: 0, flexShrink: 1, maxHeight: 360 },
   row: { flexDirection: 'row', gap: space.md, marginTop: space.md },
+  rowStacked: { flexDirection: 'column-reverse' },
+  flat: { flex: 0 },
   // 48 high: Android's touch-target floor (the label alone measured ~45).
   cancel: {
     flex: 1,
@@ -156,7 +162,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
     alignItems: 'center',
     backgroundColor: colors.inputBg,
   },
-  cancelText: { fontSize: font.body, fontWeight: '700', color: colors.ink },
+  cancelText: { fontSize: font.body, fontWeight: '700', color: colors.ink, textAlign: 'center' },
   go: {
     flex: 1,
     minHeight: 48,
@@ -167,7 +173,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
     backgroundColor: colors.ink,
   },
   goDanger: { backgroundColor: colors.danger },
-  goText: { fontSize: font.body, fontWeight: '700', color: colors.onInk },
+  goText: { fontSize: font.body, fontWeight: '700', color: colors.onInk, textAlign: 'center' },
   // `onFill`: white on light's deep red, the dark canvas on dark's light red —
   // white there measured 3.37:1, under AA (it was white until 2026-10-05).
   goDangerText: { color: colors.onFill },

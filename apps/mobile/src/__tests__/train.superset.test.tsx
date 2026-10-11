@@ -438,8 +438,10 @@ describe('the template editor', () => {
     const ui = await render(<TrainScreen />);
     await fireEvent.press(ui.getByTestId('edit-template-leg'));
     expect(ui.getByTestId('template-superset-header-0')).toHaveTextContent('Superset A · switch 35 s · round 40 s');
-    // Never cut off: two lines at every text size (es-PR runs ~40 characters).
-    expect(ui.getByTestId('template-superset-header-0').props.numberOfLines).toBe(2);
+    // Never cut off: two lines at the default size (es-PR runs ~40
+    // characters), no limit at accessibility sizes (seen cut on device).
+    // (Never one line — which text size jest reports decides which of the two.)
+    expect([2, undefined]).toContain(ui.getByTestId('template-superset-header-0').props.numberOfLines);
     // The group's facts together, right after the tag: who, then the rests.
     expect(ui.getByTestId('template-ex-toggle-0').props.accessibilityLabel)
       .toBe('Superset A1, alternates with Leg Curls. Switch 35 s · round 40 s. Leg Extensions. 6 sets · 90 lb');

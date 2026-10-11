@@ -1436,7 +1436,7 @@ export function TemplateEditorModal({
                     >
                       <View style={{ flex: 1 }}>
                         {tags[i] && d.pairPosition === 1 && d.supersetGroup ? (
-                          <Text style={styles.supersetHeader} numberOfLines={2} testID={`template-superset-header-${i}`}>
+                          <Text style={styles.supersetHeader} numberOfLines={fontScale > 1.3 ? undefined : 2} testID={`template-superset-header-${i}`}>
                             {t('train.superset.groupHeaderShort', {
                               group: d.supersetGroup,
                               switch: `${groupRest(exercises, d.supersetGroup).transitionRestSec} s`,
