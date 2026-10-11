@@ -4,6 +4,27 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-10-11 — Supersets, then Program v2 (Push supersets, Lateral ×2, volume report, Zone 2 band, sleep)
+
+- **Supersets** (`ba1fc694`, UX review rounds 1–6 to `2375989b`): rows
+  grouped as A1/A2 with the alternating flow, guardrails (same-muscle,
+  agonist–antagonist, load test pending), context-change baselines, drafts
+  with one-batch switch and lossless revert, and the superset report. Six
+  review rounds took the four surfaces from 5–6/10 to 9.5; a simulator pass at
+  AX-XL in es-PR found and fixed ConfirmSheet's mid-word button labels and the
+  session header's letter column.
+- **Program v2** (`3ad9008f`): versioned program drafts switched together
+  (automatically once after the next Push, or Settings → Program version);
+  Push-only supersets, Lateral Raise 1 → 2 clusters (drop on the last only,
+  engine reads cluster 1 against the whole history), crunch and calf raise to
+  Push, Leg without them; L/R lifts are two progression tracks (`sideLoads`);
+  A1/B1 rest ≥ 90 s between their own clusters; computed straight rests
+  (105 s same muscle / 60 s switch); weekly fractional volume sheet; duration
+  estimate (week v1 134 → v2 128 min); Zone 2 HR band 120–130 with "outside
+  Zone 2 band" / "RPE too high"; sleep in tenths with optional bedtime/wake
+  and a 7-day average on Body; CSV appended columns + `weeklyVolume` rows,
+  historical rows proven byte-identical against the pre-change exporter.
+
 ## 2026-10-10 — Cardio: an Effort above 10 is no longer stored as 10
 
 - **Owner: the Zone 2 rows of 10/7 and 10/9 saved RPE 10.** Not a default and

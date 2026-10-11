@@ -91,11 +91,16 @@ OTA row in `apps/mobile/docs/fingerprint-ledger.md`, and
 auto-apply left at their defaults, cut / off). **Not device-QA'd.** Anyone on a
 pre-OTA bundle who edits a template drops `loadLog` and cluster labels.
 
-**`drop` and `superset` are the only unread structures left, and they are NOT
-the next cheap thing.** `hit` was, and it shipped. `drop` needs within-set load
-reduction and `superset` needs a pairing between two exercises; the model
-carries neither (ADR-0040 §Consequences). Do not read "two structures left" as
-"two slices left".
+**Supersets and Program v2 shipped 2026-10-11** (OTAs on every runtime, groups
+in `apps/mobile/docs/fingerprint-ledger.md`; rules deployed first). A superset
+is a GROUPING of template rows (`superset.ts`), not a set structure — `drop`
+is still the one unread structure. The owner's account holds three
+**Program v2 drafts** (`templateDrafts`, `program: 'v2'`), armed to switch
+Push/Pull/Leg on together, once, after the next completed Push Day; Settings →
+Program version overrides. **Not device-QA'd on the owner's account** — check
+after that Push that all three switched and the notes line reads "Program v2:
+Push supersets, Lateral ×2". A pre-OTA bundle lists the v2 drafts as plain
+superset drafts (switching one there skips the program's rules).
 
 **The iOS regression suite is at 21 of 21** (2026-09-22, `ignia-mac`, simulator
 **`Ignia-QA-26`**; since 1.2.4 enabled scene support the iOS 27 `Ignia-QA` runs
