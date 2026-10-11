@@ -372,18 +372,21 @@ export function StartView({
               />
             </>
           ) : null}
-          {/* Program v2: fractional volume (primary 1.0, secondary 0.5) beside
-              the plan, and each session's totals. */}
-          <Touchable
-            style={styles.textAction}
-            onPress={() => setVolumeOpen(true)}
-            accessibilityRole="button"
-            testID="weekly-volume-open"
-          >
-            <Ionicons name="stats-chart-outline" size={16} color={colors.teal} />
-            <Text style={styles.sectionAction}>{t('train.volume.open')}</Text>
-          </Touchable>
         </View>
+      ) : null}
+      {/* Program v2: fractional volume (primary 1.0, secondary 0.5) beside
+          the plan, and each session's totals — reachable on an empty week
+          too, where it says so. */}
+      {train.recentSessions.length > 0 || train.templates.length > 0 ? (
+        <Touchable
+          style={styles.textAction}
+          onPress={() => setVolumeOpen(true)}
+          accessibilityRole="button"
+          testID="weekly-volume-open"
+        >
+          <Ionicons name="stats-chart-outline" size={16} color={colors.teal} />
+          <Text style={styles.sectionAction}>{t('train.volume.open')}</Text>
+        </Touchable>
       ) : null}
       <WeeklyVolumeSheet
         visible={volumeOpen}
