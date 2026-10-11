@@ -4,6 +4,23 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-10-10 — Cardio: an Effort above 10 is no longer stored as 10
+
+- **Owner: the Zone 2 rows of 10/7 and 10/9 saved RPE 10.** Not a default and
+  not a pre-fill — a session's cardio starts with no `rpe` and the field is
+  empty with a placeholder. `clampRpe` pinned any whole number above 10 to 10,
+  and the Effort field is a number pad patched per keystroke, so "34" for
+  "3–4" (or a heart rate typed one field over) was stored as an all-out
+  effort. 9/30's Zone 2 reads 10 too. Above 10 is now rejected (the field
+  stores nothing), the rule the measured fields already follow. Existing rows
+  are not rewritten. Test: `cardio.test.ts`, red on the old clamp.
+- **Owner data 10/10** (`scripts/owner-data-2026-10-10.mts`): six food rows,
+  three skipped as already logged (day 1,745 kcal / 177 g, as confirmed); the
+  weight was already 152.8. Templates: drop sets off both curls (the lateral
+  raise keeps its drop at 10); rest before the next exercise 90–120 s into the
+  same muscle group and 60 s on a switch, the last lift into Zone 2 60 s (was
+  the template's 150); between a lift's own clusters 150 → 90.
+
 ## 2026-10-09 — Write it in: the name field stays in view while typing
 
 - **Owner: tapping Name on the blank "Write it in" form, the field sat above

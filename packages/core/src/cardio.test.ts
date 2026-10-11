@@ -22,9 +22,22 @@ describe('clampRpe', () => {
     for (let n = RPE_MIN; n <= RPE_MAX; n++) expect(clampRpe(n)).toBe(n);
   });
 
-  it('clamps above the ceiling, because "as hard as I could" is unambiguous', () => {
-    expect(clampRpe(11)).toBe(RPE_MAX);
-    expect(clampRpe(99)).toBe(RPE_MAX);
+  // The 2026-10-10 bug: the Effort field is a number pad patched per
+  // keystroke, so "3–4" arrives as '34' and a heart rate typed one field over
+  // as '135'. Both used to clamp to 10, and three Zone 2 sessions were stored
+  // as all-out efforts. Above the ceiling is a typo, not an intent.
+  it('rejects above the ceiling instead of storing an all-out effort', () => {
+    expect(clampRpe(11)).toBeUndefined();
+    expect(clampRpe(99)).toBeUndefined();
+    expect(clampRpe('34')).toBeUndefined();
+    expect(clampRpe('135')).toBeUndefined();
+  });
+
+  it('a Zone 2 effort typed key by key stores what was typed, never 10', () => {
+    // onChangeText hands over the field's whole text after each key.
+    expect(['3'].map(clampRpe)).toEqual([3]);
+    expect(['3', '34'].map(clampRpe)).toEqual([3, undefined]);
+    expect(['1', '10'].map(clampRpe)).toEqual([1, 10]);
   });
 
   it('rejects below the floor rather than clamping up — RPE 0 is not a thing', () => {
@@ -58,9 +71,9 @@ describe('clampRpe', () => {
   });
 });
 
-// The measured fields DROP out-of-range values rather than clamping them, and
-// that difference from clampRpe is deliberate: pinning 4,000 bpm to 250 would
-// launder a broken sensor into a number that charts smoothly and looks real.
+// The measured fields DROP out-of-range values rather than clamping them (and
+// so does clampRpe since 2026-10-10): pinning 4,000 bpm to 250 would launder a
+// broken sensor into a number that charts smoothly and looks real.
 describe('measured fields reject rather than clamp', () => {
   it('clampHr keeps a plausible band and drops the rest', () => {
     expect(clampHr(148)).toBe(148);

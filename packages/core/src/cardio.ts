@@ -180,25 +180,32 @@ export const CARDIO_KCAL_MAX = 10_000;
  * `Number(null)` are both `0`. Non-numeric, out-of-range-low and non-integer
  * input becomes `undefined` rather than a silently rounded value — half a
  * point of perceived exertion is not something the user meant, and guessing
- * which whole number they intended is worse than asking again. Values above
- * the ceiling clamp to it, since "as hard as I could go" is the one intent
- * that IS unambiguous.
+ * which whole number they intended is worse than asking again.
+ *
+ * Values above the ceiling are rejected too, not pinned to 10. Until
+ * 2026-10-10 they clamped, on the theory that "harder than 10" can only mean
+ * "as hard as I could go" — but the Effort field is a number pad written per
+ * keystroke, so what arrives above 10 is far more likely "34" for "3–4" or a
+ * heart rate typed one field over, and every such entry was stored as an
+ * all-out effort. The owner's Zone 2 walks/runs of 9/30, 10/7 and 10/9 all
+ * read RPE 10 (which keys were typed is not recorded).
+ * Same rule as the measured fields now: dropping the value loses one number,
+ * clamping it fabricates one.
  */
 export function clampRpe(value: unknown): number | undefined {
   if (value == null || value === '') return undefined;
   const n = typeof value === 'number' ? value : Number(value);
-  if (!Number.isFinite(n) || !Number.isInteger(n) || n < RPE_MIN) return undefined;
-  return Math.min(RPE_MAX, n);
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < RPE_MIN || n > RPE_MAX) return undefined;
+  return n;
 }
 
 /**
  * Shared shape for the measured fields: reject anything non-finite or outside
  * the band rather than clamping into it.
  *
- * This is deliberately NOT `clampRpe`'s behaviour, and the difference is the
- * point. RPE is a judgement the user is making, so "harder than 10" still
- * means 10. A distance, a duration or a heart rate is a *measurement*: a value
- * outside the band is a broken sensor or a unit mix-up, and silently pinning
+ * `clampRpe` follows the same rule since 2026-10-10 (it used to pin anything
+ * above 10 to 10). A distance, a duration or a heart rate is a *measurement*:
+ * a value outside the band is a broken sensor or a unit mix-up, and silently pinning
  * 4,000 bpm to 250 would launder corrupt data into something that looks real
  * and charts smoothly. Dropping the field loses one number; clamping it
  * fabricates one.
