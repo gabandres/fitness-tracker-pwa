@@ -1339,7 +1339,6 @@ export const esPR: Record<I18nKey, string> = {
   'train.superset.switchRestLabel': 'Al cambiar de ejercicio',
   'train.superset.restPickerHint': 'Para este entrenamiento. El descanso entre mini-series dentro de un cluster no cambia.',
   'train.superset.restPickerTitle': 'Descansos de la superserie {group}',
-  'train.superset.roundAloneA11y': 'Ronda {n} de {total}, solo {tag}',
   'train.superset.upNext': 'Sigue',
   'train.superset.restA11y': '{heading}, {time} de descanso. Sigue: {next}',
   'train.superset.restOverA11y': 'Terminó el descanso. {next}',

@@ -459,9 +459,8 @@ export function ActiveSession({
         : null;
     // Spoken: "Round 2 of 3" — "2/3" can be read as a fraction or a date.
     const spokenHeading = flow.round && heading && flow.kind !== 'transition'
-      ? flow.kind === 'cluster' && nextTag
-        ? t('train.superset.roundAloneA11y', { n: flow.round.n, total: flow.round.total, tag: nextTag })
-        : t('train.superset.roundA11y', { n: flow.round.n, total: flow.round.total })
+      // A leftover round says "its partner is done" in the Next line — once.
+      ? t('train.superset.roundA11y', { n: flow.round.n, total: flow.round.total })
       : heading;
     runRest(flow.seconds, ex.name, nextLabel, heading, into && nextLabel ? flow.next!.exerciseIndex : null, spokenHeading);
     return flow;
@@ -1110,7 +1109,7 @@ export function ActiveSession({
           </Text>
           <Text style={styles.sessionTitle} numberOfLines={1}>{title}</Text>
           {train.editingExisting ? (
-            <Text style={styles.sessionMeta} numberOfLines={1}>
+            <Text style={styles.sessionMeta} numberOfLines={2}>
               {[formatDate(session.date, locale, { weekday: 'short', month: 'short', day: 'numeric' }), ...metaParts].join(' · ')}
             </Text>
           ) : (
@@ -1596,7 +1595,8 @@ function ElapsedClock({ startedAt, parts }: { startedAt: Date; parts: readonly s
   return (
     <Text
       style={styles.sessionMeta}
-      numberOfLines={1}
+      // Two lines: in es-PR the progress at the end was cut ("0 de 5 hec…").
+      numberOfLines={2}
       accessibilityLabel={[spoken, ...parts].join(', ')}
       testID="session-elapsed"
     >

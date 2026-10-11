@@ -272,7 +272,10 @@ describe('the alternating flow', () => {
     expect(mockRestStart).toHaveBeenLastCalledWith(90, 'Next: A1 · Leg Extensions — its partner is done');
     expect(ui.getByTestId('rest-label')).toHaveTextContent('Round 2/2', { exact: false });
     expect(ui.getByTestId('rest-next')).toHaveTextContent('Next: A1 · Leg Extensions — its partner is done');
-    expect(mockAnnounce).toHaveBeenLastCalledWith(expect.stringContaining('Round 2 of 2, A1 only'));
+    // Said once — on the Next part, not again in the heading.
+    expect(mockAnnounce).toHaveBeenLastCalledWith(expect.stringContaining('Round 2 of 2'));
+    expect(mockAnnounce.mock.calls.at(-1)?.[0]).toContain('its partner is done');
+    expect(mockAnnounce.mock.calls.at(-1)?.[0]).not.toContain('A1 only');
   });
 
   it('A2 already done (A1\'s station was taken): A1\'s cluster gets its own rest and stays put', async () => {

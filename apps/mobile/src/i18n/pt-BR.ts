@@ -1329,7 +1329,6 @@ export const ptBR = {
   'train.superset.switchRestLabel': 'Na troca de exercício',
   'train.superset.restPickerHint': 'Para este treino. O descanso entre mini-séries dentro de um cluster não muda.',
   'train.superset.restPickerTitle': 'Descansos da supersérie {group}',
-  'train.superset.roundAloneA11y': 'Rodada {n} de {total}, só {tag}',
   'train.superset.upNext': 'Próximo',
   'train.superset.restA11y': '{heading}, {time} de descanso. Próximo: {next}',
   'train.superset.restOverA11y': 'Fim do descanso. {next}',

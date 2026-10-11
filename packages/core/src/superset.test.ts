@@ -402,3 +402,14 @@ describe('undoMoveRows — Undo a move, keep what was logged since', () => {
     expect(undoMoveRows(before, now)).toEqual(now);
   });
 });
+
+describe('undoMoveRows — the same lift twice', () => {
+  it('two copies of one lift get their own sets back, matched by the sets array', () => {
+    const a = { exerciseId: 'curl', sets: [{ reps: 1 }] };
+    const b = { exerciseId: 'curl', sets: [{ reps: 2 }] };
+    const x = { exerciseId: 'row', sets: [] as { reps: number }[] };
+    const undone = undoMoveRows([a, x, b], [b, x, a]);
+    expect(undone.map((r) => r.sets)).toEqual([a.sets, x.sets, b.sets]);
+    expect(undone[0].sets).toBe(a.sets);
+  });
+});

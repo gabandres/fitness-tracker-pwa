@@ -91,6 +91,21 @@ export function ConfirmHost() {
     setVisible(false);
   }
 
+  const goButton = opts ? (
+    <TouchableOpacity
+      style={[styles.go, opts.destructive && styles.goDanger, stacked && styles.flat]}
+      accessibilityRole="button"
+      testID="confirm-go"
+      onPress={() => {
+        haptics.tap();
+        close();
+        opts.onConfirm();
+      }}
+    >
+      <Text style={[styles.goText, opts.destructive && styles.goDangerText]}>{opts.confirmText}</Text>
+    </TouchableOpacity>
+  ) : null;
+
   return (
     // `overlays={false}`: the confirm's own sheet hosts no nested confirm or
     // toast — it is the overlay.
@@ -119,22 +134,15 @@ export function ConfirmHost() {
               <Text style={styles.cancelText}>{opts.secondaryText}</Text>
             </TouchableOpacity>
           ) : null}
+          {/* Stacked, the children are in SCREEN order (main action, then
+              Cancel): a reversed flex layout would show one order and have a
+              screen reader read the other. */}
           <View style={[styles.row, stacked && styles.rowStacked]}>
+            {stacked ? goButton : null}
             <TouchableOpacity style={[styles.cancel, stacked && styles.flat]} onPress={close} accessibilityRole="button" testID="confirm-cancel">
               <Text style={styles.cancelText}>{opts.cancelText ?? t('common.cancel')}</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.go, opts.destructive && styles.goDanger, stacked && styles.flat]}
-              accessibilityRole="button"
-              testID="confirm-go"
-              onPress={() => {
-                haptics.tap();
-                close();
-                opts.onConfirm();
-              }}
-            >
-              <Text style={[styles.goText, opts.destructive && styles.goDangerText]}>{opts.confirmText}</Text>
-            </TouchableOpacity>
+            {stacked ? null : goButton}
           </View>
         </View>
       ) : null}
@@ -148,7 +156,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   body: { fontSize: font.small, color: colors.muted, lineHeight: 20 },
   bodyScroll: { flexGrow: 0, flexShrink: 1, maxHeight: 360 },
   row: { flexDirection: 'row', gap: space.md, marginTop: space.md },
-  rowStacked: { flexDirection: 'column-reverse' },
+  rowStacked: { flexDirection: 'column' },
   flat: { flex: 0 },
   // 48 high: Android's touch-target floor (the label alone measured ~45).
   cancel: {

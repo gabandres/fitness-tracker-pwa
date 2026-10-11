@@ -768,10 +768,16 @@ export function undoMoveRows<T extends SupersetFields & { exerciseId: string }>(
   now: readonly T[],
 ): T[] {
   if (!canUndoMove(before, now)) return [...now];
-  const pool = new Map<string, T[]>();
-  for (const r of now) pool.set(r.exerciseId, [...(pool.get(r.exerciseId) ?? []), r]);
+  // Each row is found by its own sets array first (Undo keeps it when nothing
+  // was logged), so two copies of one lift never swap; then by occurrence.
+  const left = [...now];
+  const take = (b: T): T => {
+    const bySets = 'sets' in b ? left.findIndex((r) => 'sets' in r && (r as { sets: unknown }).sets === (b as { sets: unknown }).sets) : -1;
+    const at = bySets >= 0 ? bySets : left.findIndex((r) => r.exerciseId === b.exerciseId);
+    return left.splice(at, 1)[0];
+  };
   return before.map((b) => {
-    const cur = pool.get(b.exerciseId)!.shift()!;
+    const cur = take(b);
     const { supersetGroup: _g, pairPosition: _p, transitionRestSec: _t, roundRestSec: _r, ...rest } = cur;
     return {
       ...rest,

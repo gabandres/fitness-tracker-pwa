@@ -1489,7 +1489,6 @@ export const en = {
   'train.superset.switchRestLabel': 'Switching to the partner',
   'train.superset.restPickerHint': 'For this workout. The rest between mini-sets inside a cluster stays as it is.',
   'train.superset.restPickerTitle': 'Rests for superset {group}',
-  'train.superset.roundAloneA11y': 'Round {n} of {total}, {tag} only',
   'train.superset.upNext': 'Up next',
   'train.superset.restA11y': '{heading}, {time} of rest. Next: {next}',
   'train.superset.restOverA11y': 'Rest over. {next}',
