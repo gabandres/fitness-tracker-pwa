@@ -48,6 +48,12 @@ import {
 import { OWNER_SUPERSET_LAYOUTS } from '../packages/core/src/__fixtures__/owner-templates-2026-10-11.ts';
 
 const PROJECT_ID = 'fitness-tracker-gb-1775407101';
+// Admin Timestamps are kept as they are: `pruneUndefined` rebuilds every object
+// it is not told is opaque, and a rebuilt Timestamp is stored as a plain
+// {_seconds, _nanoseconds} map — which the rules' `is timestamp` refuses, so
+// the app could never switch the drafts (found 2026-10-11 on the owner's
+// Program v2 drafts; repaired in place).
+const keepTs = (v: object) => v instanceof Timestamp;
 const args = process.argv.slice(2);
 const email = args[args.indexOf('--email') + 1];
 const APPLY = args.includes('--apply');
@@ -168,7 +174,7 @@ const now = Timestamp.now();
 for (const d of toWrite) {
   const body: TemplateBody = d.body;
   const ref = userRef.collection('templateDrafts').doc();
-  await ref.set(pruneUndefined({ draftOf: d.draftOf, label: d.layout.label, status: 'draft', template: body, createdAt: now, updatedAt: now }));
+  await ref.set(pruneUndefined({ draftOf: d.draftOf, label: d.layout.label, status: 'draft', template: body, createdAt: now, updatedAt: now }, keepTs));
   console.log(`created templateDrafts/${ref.id}  (${d.layout.label})`);
 }
 const liveAfter = JSON.stringify((await userRef.collection('workoutTemplates').get()).docs.map((d) => [d.id, d.data()]));

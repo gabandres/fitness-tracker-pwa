@@ -51,6 +51,12 @@ import {
 import { PROGRAM_V2_LAYOUTS } from '../packages/core/src/__fixtures__/owner-program-v2.ts';
 
 const PROJECT_ID = 'fitness-tracker-gb-1775407101';
+// Admin Timestamps are kept as they are: `pruneUndefined` rebuilds every object
+// it is not told is opaque, and a rebuilt Timestamp is stored as a plain
+// {_seconds, _nanoseconds} map — which the rules' `is timestamp` refuses, so
+// the app could never switch the drafts (found 2026-10-11 on the owner's
+// Program v2 drafts; repaired in place).
+const keepTs = (v: object) => v instanceof Timestamp;
 const args = process.argv.slice(2);
 const email = args[args.indexOf('--email') + 1];
 const APPLY = args.includes('--apply');
@@ -186,7 +192,7 @@ for (const b of built) {
     keepBaselines: b.keepBaselines,
     ...(b.draftOf === push.id ? { autoActivate: { afterTemplateId: push.id, after: armedAt } } : {}),
     updatedAt: now,
-  });
+  }, keepTs);
   const prior = existing.get(b.draftOf);
   if (prior) {
     // Replaced whole (set, not merge), so nothing of the superset draft —

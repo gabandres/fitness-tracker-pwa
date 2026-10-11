@@ -199,7 +199,9 @@ function ProgramVersionCard({ stacked, offline }: { stacked: boolean; offline: b
         {p.version === 'mixed' ? <Text style={styles.rowValue} testID="settings-program-mixed">{t('settings.programMixed')}</Text> : null}
         {status ? <Text style={styles.rowValue} testID="settings-program-status">{status}</Text> : null}
         {p.rows.length ? (
-          <View style={styles.digestRow} accessible testID="settings-program-durations">
+          // A column, not `digestRow` (a row): beside the label the lines ran
+          // off the card's edge (device, 2026-10-11).
+          <View style={styles.programDurations} accessible testID="settings-program-durations">
             <Text style={styles.rowLabel}>{t('settings.programDuration')}</Text>
             {p.rows.map((r) => (
               <Text key={r.templateId} style={styles.rowValue}>
@@ -1503,6 +1505,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   importPreview: { marginTop: space.sm, gap: space.xs, backgroundColor: colors.paper, borderRadius: radius.md, padding: space.md },
   importActions: { flexDirection: 'row', alignItems: 'center', gap: space.lg, marginTop: space.sm },
   importCancel: { fontSize: font.body, color: colors.muted, fontWeight: '700' },
+  programDurations: { marginTop: space.md, paddingTop: space.md, borderTopWidth: 1, borderTopColor: colors.line, gap: 2 },
   digestRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: space.sm, borderTopWidth: 1, borderTopColor: colors.line },
   /** Text column inside a {@link digestRow}. The row is `space-between`, so a
    *  bare <Text> sizes to its own content and shoves the trailing button off
