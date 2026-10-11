@@ -97,7 +97,7 @@ export function ConfirmHost() {
           {/* Scrolls when a long body meets a large text size, so the buttons
               are never pushed off the sheet. */}
           {opts.body ? (
-            <ScrollView style={styles.bodyScroll} showsVerticalScrollIndicator={false}>
+            <ScrollView style={styles.bodyScroll} showsVerticalScrollIndicator>
               <Text style={styles.body}>{opts.body}</Text>
             </ScrollView>
           ) : null}

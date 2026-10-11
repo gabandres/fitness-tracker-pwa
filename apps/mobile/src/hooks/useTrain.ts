@@ -50,6 +50,7 @@ import {
   rowPendingLoadTest,
   sessionDurationMin,
   reorderWithSupersets,
+  moveBlockAware,
   sessionCall,
   type SwapPlan,
   type TemplateDraftDoc,
@@ -119,7 +120,7 @@ export interface TrainState {
   /** Switch one or several drafts on or back, in ONE batch. Drafts already in
    *  the target state are skipped — a stale second tap never overwrites the
    *  way back. */
-  switchDrafts: (drafts: readonly TemplateDraftDoc[], mode: 'activate' | 'revert') => Promise<void>;
+  switchDrafts: (drafts: readonly TemplateDraftDoc[], mode: 'activate' | 'revert', onLateFailure?: (e: unknown) => void) => Promise<void>;
   /** Delete a draft (an orphan, or one the lifter no longer wants). */
   deleteDraft: (draft: TemplateDraftDoc) => Promise<void>;
   /** The load test pending on a template row, judged on the load the
@@ -189,8 +190,15 @@ export interface TrainState {
    *  missing) first; the session then changes ONCE, with one write, so three
    *  picks are not three whole-session writes racing each other. */
   addManyToActive: (picks: readonly ActivePick[]) => Promise<void>;
-  /** Move one exercise of the live session (the ⋯ menu's Move up / Move down). */
-  moveExerciseInActive: (from: number, to: number) => void;
+  /** Move one exercise of the live session. A one-step move (the ⋯ menu's
+   *  Move up / Move down, a screen reader's actions, a one-slot drag) treats a
+   *  superset as one unit; a longer drag can take a member out of its pair,
+   *  reported in `left` so the screen can say so and offer `undoMove`. Returns
+   *  where the moved exercise now sits. */
+  moveExerciseInActive: (from: number, to: number) => { newIndex: number; left?: { name: string; group: string; before: SessionExercise[] } };
+  /** Put the session's exercises back as they were before a move — only when
+   *  nothing else changed the list since (same exercises). */
+  undoMove: (before: SessionExercise[]) => void;
   /** Put back a set or exercise the live session just removed — the Undo on
    *  the "Set removed" / "Exercise removed" toast. The restore itself is core's
    *  `undoRemoval` (pure, tested there); this persists it. Not a
@@ -317,6 +325,12 @@ export function useTrain(): TrainState {
   const [catalog, setCatalog] = useCachedState<Exercise[]>(uid, 'exercises', []);
   const [templates, setTemplates] = useCachedState<WorkoutTemplate[]>(uid, 'templates', []);
   const [drafts, setDrafts] = useState<TemplateDraftDoc[]>([]);
+  /** The drafts as the listener last delivered them — read at the moment a
+   *  switch is written, not as the confirm sheet's render saw them. */
+  const draftsRef = useRef<TemplateDraftDoc[]>([]);
+  useEffect(() => {
+    draftsRef.current = drafts;
+  }, [drafts]);
   const [recentSessions, setRecentSessions, sessionsFromCache] = useCachedState<WorkoutSession[]>(
     uid,
     'workoutSessions',
@@ -823,21 +837,21 @@ export function useTrain(): TrainState {
     [templates, swapContext],
   );
   const switchDrafts = useCallback(
-    async (list: readonly TemplateDraftDoc[], mode: 'activate' | 'revert') => {
+    async (list: readonly TemplateDraftDoc[], mode: 'activate' | 'revert', onLateFailure?: (e: unknown) => void) => {
       if (!uid) return;
       const target = mode === 'activate' ? 'active' : 'draft';
       // Read the LATEST state, not the one the confirm was opened on.
       const todo = list
-        .map((d) => drafts.find((x) => x.id === d.id) ?? d)
+        .map((d) => draftsRef.current.find((x) => x.id === d.id) ?? d)
         .filter((d) => d.id && d.status !== target && (mode === 'activate' || d.previous));
       if (todo.length === 0) return;
       const ctx = swapContext(todo.map((d) => d.draftOf));
       const plans = planSwaps(swapItems(todo, mode), ctx);
       await commitDraftSwaps(uid, todo.map((d, k) => ({
         mode, draftId: d.id!, templateId: d.draftOf, body: plans[k].body, kept: plans[k].replaced,
-      })), ctx.now);
+      })), ctx.now, onLateFailure);
     },
-    [uid, drafts, swapContext],
+    [uid, swapContext],
   );
   const deleteDraft = useCallback(
     async (draft: TemplateDraftDoc) => {
@@ -1064,16 +1078,42 @@ export function useTrain(): TrainState {
   const moveExerciseInActive = useCallback(
     (from: number, to: number) => {
       const prev = activeRef.current;
-      if (!prev) return;
-      // With a superset in the session, a move keeps it honest (core
-      // `reorderWithSupersets`): a member moved away from its partner runs
-      // straight, and the tags and rests follow — the same rule as the editor.
-      if (from === to) return;
-      const exercises = prev.exercises.some((e) => e.supersetGroup)
-        ? reorderWithSupersets(prev.exercises, from, to).rows
-        : moveExercise(prev.exercises, from, to);
-      if (exercises === prev.exercises) return;
+      if (!prev || from === to) return { newIndex: from };
+      let exercises: SessionExercise[];
+      let newIndex = to;
+      let left: { name: string; group: string; before: SessionExercise[] } | undefined;
+      if (!prev.exercises.some((e) => e.supersetGroup)) {
+        exercises = moveExercise(prev.exercises, from, to);
+      } else if (Math.abs(to - from) === 1) {
+        // One step: a superset moves as one unit and is never dissolved.
+        const r = moveBlockAware(prev.exercises, from, to > from ? 1 : -1);
+        exercises = r.rows;
+        newIndex = r.newIndex;
+      } else {
+        // A drag: a member dragged away from its partner leaves the pair.
+        // Letters and the snapshot's rests stay as the lifter has read them.
+        const moved = prev.exercises[from];
+        const r = reorderWithSupersets(prev.exercises, from, to, { keepLetters: true, restsOnEveryMember: true });
+        exercises = r.rows;
+        newIndex = Math.max(0, exercises.findIndex((e) => e.exerciseId === moved?.exerciseId && e.sets === moved.sets));
+        if (r.left) left = { name: r.left.row.name, group: r.left.group, before: prev.exercises };
+      }
+      if (exercises === prev.exercises || exercises.every((e, i) => e === prev.exercises[i])) return { newIndex: from };
       const next = { ...prev, exercises };
+      setActive(next);
+      void persist(next);
+      return { newIndex, ...(left ? { left } : {}) };
+    },
+    [setActive, persist],
+  );
+
+  const undoMove = useCallback(
+    (before: SessionExercise[]) => {
+      const prev = activeRef.current;
+      if (!prev) return;
+      const key = (xs: readonly SessionExercise[]) => xs.map((e) => e.exerciseId).sort().join('|');
+      if (key(before) !== key(prev.exercises)) return;
+      const next = { ...prev, exercises: before };
       setActive(next);
       void persist(next);
     },
@@ -1405,6 +1445,7 @@ export function useTrain(): TrainState {
       mergeCatalogExercises,
       addExerciseToActive,
       moveExerciseInActive,
+      undoMove,
       undoRemoval,
       dispatch,
       commitActive,
@@ -1423,7 +1464,7 @@ export function useTrain(): TrainState {
       startWorkout, startFromTemplate, startCardioWorkout, saveTemplate, deleteTemplate,
       cloneStarterTemplate, addCatalogExercise, addLibraryExercise, addLibraryExerciseToActive, addManyToActive,
       editCatalogExercise, deleteCatalogExercise, mergeCatalogExercises, addExerciseToActive,
-      moveExerciseInActive, undoRemoval, dispatch, commitActive, finishWorkout, discardWorkout, deleteSession,
+      moveExerciseInActive, undoMove, undoRemoval, dispatch, commitActive, finishWorkout, discardWorkout, deleteSession,
       editingExisting, reopenSession, finishEdit, cancelEdit,
     ],
   );

@@ -305,6 +305,11 @@ export const ExerciseCard = memo(function ExerciseCard({
           {engineHasCall ? (
             <RecommendationNote
               rec={rec}
+              // Once the lift is under way, the call shrinks to one line (the
+              // detail stays a tap away on its settings button): reopened twice
+              // a round in a superset, the full note pushed the sets to log
+              // under the rest bar.
+              compact={loggedCount > 0}
               testID={`recommendation-${exerciseIndex}`}
               onSettings={catalogEx ? () => onOpenLift(exerciseIndex) : undefined}
               // The accepted load lands on every untouched working set —

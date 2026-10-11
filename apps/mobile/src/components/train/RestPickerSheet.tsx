@@ -9,6 +9,9 @@ import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { REST_CHOICES_SEC, clock } from './train-summary';
 import { createStyles } from './train-styles';
 
+/** Superset rests on offer, seconds — the 30–45 s prescription and a little either side. */
+const SUPERSET_REST_CHOICES_SEC = [15, 30, 45, 60, 90] as const;
+
 /**
  * Rest after each set, for ONE exercise of the live workout (Train review
  * item 7) — the ⋯ menu's "Rest timer".
@@ -22,6 +25,7 @@ import { createStyles } from './train-styles';
  */
 export function RestPickerSheet({
   visible,
+  superset,
   name,
   current,
   fallback,
@@ -43,6 +47,19 @@ export function RestPickerSheet({
   /** Write a picked rest onto the template row (only with `saveTo`). */
   onSave?: (seconds: number) => void;
   onClose: () => void;
+  /** A superset member: the picker sets the GROUP's two rests — switching to
+   *  the partner and between rounds — for this workout, and "Keep" writes
+   *  them on the template's leader row. The mini-set rest is not offered: a
+   *  60 s rest between myo-reps minis is a different protocol. */
+  superset?: {
+    group: string;
+    transition: number | null;
+    round: number | null;
+    transitionFallback: number;
+    roundFallback: number;
+    onPick: (field: 'transition' | 'round', seconds: number | null) => void;
+    onSave: (field: 'transition' | 'round', seconds: number) => void;
+  };
 }) {
   const t = useT();
   const styles = useThemedStyles(createStyles);
@@ -77,6 +94,61 @@ export function RestPickerSheet({
       </Touchable>
     );
   };
+  if (superset) {
+    const row = (field: 'transition' | 'round', current: number | null, fallback: number, label: string) => (
+      <View style={{ gap: 8 }} accessibilityRole="radiogroup" accessibilityLabel={label}>
+        <Text style={styles.fieldLabel}>{label}</Text>
+        <View style={styles.kindChips}>
+          {[null, ...SUPERSET_REST_CHOICES_SEC].map((value) => {
+            const on = current === value;
+            return (
+              <Touchable
+                key={`${field}-${value ?? 'default'}`}
+                style={[styles.kindChip, on && styles.kindChipOn]}
+                onPress={() => {
+                  haptics.tap();
+                  superset.onPick(field, value);
+                  if (keep && saveTo && value != null) superset.onSave(field, value);
+                }}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: on, checked: on }}
+                testID={`rest-pick-${field}-${value ?? 'default'}`}
+              >
+                <Text style={[styles.kindChipText, on && styles.kindChipTextOn]}>
+                  {value == null ? t('train.restDefault', { time: clock(fallback) }) : clock(value)}
+                </Text>
+              </Touchable>
+            );
+          })}
+        </View>
+      </View>
+    );
+    return (
+      <BottomSheet native detents="fit" visible={visible} onClose={onClose} contentStyle={styles.sheetBody} maxHeight="80%">
+        <View style={styles.sheetStack}>
+          <Text style={styles.sheetTitle} accessibilityRole="header">{t('train.superset.restPickerTitle', { group: superset.group })}</Text>
+          <Text style={styles.sheetHint}>{t('train.superset.restPickerHint')}</Text>
+          {row('transition', superset.transition, superset.transitionFallback, t('train.superset.switchRestLabel'))}
+          {row('round', superset.round, superset.roundFallback, t('train.superset.roundRestLabel'))}
+          {saveTo ? (
+            <Touchable
+              style={styles.checkRow}
+              onPress={() => setKeep((k) => !k)}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: keep }}
+              testID="rest-keep-superset"
+            >
+              <Ionicons name={keep ? 'checkbox' : 'square-outline'} size={20} color={keep ? colors.teal : colors.muted} />
+              <Text style={styles.progToggleText}>{t('train.superset.keepForGroup', { group: superset.group, template: saveTo })}</Text>
+            </Touchable>
+          ) : null}
+          <Touchable style={styles.tplStart} onPress={onClose} accessibilityRole="button" testID="rest-picker-done">
+            <Text style={styles.tplStartText}>{t('common.done')}</Text>
+          </Touchable>
+        </View>
+      </BottomSheet>
+    );
+  }
   return (
     <BottomSheet native detents="fit" visible={visible} onClose={onClose} contentStyle={styles.sheetBody} maxHeight="80%">
       <View style={styles.sheetStack}>

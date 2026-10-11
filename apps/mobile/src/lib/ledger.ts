@@ -1988,15 +1988,33 @@ export interface DraftSwapWrite {
  * Commit one or more draft swaps in ONE batch — "switch Push and Leg
  * together" lands whole or not at all, so the week is never half-switched.
  */
-export async function commitDraftSwaps(uid: string, swaps: readonly DraftSwapWrite[], at: Date): Promise<void> {
+export async function commitDraftSwaps(
+  uid: string,
+  swaps: readonly DraftSwapWrite[],
+  at: Date,
+  /** A refusal that arrives AFTER the wait window (the screen has already
+   *  said "switched") — so the lifter hears it instead of watching the switch
+   *  quietly undo itself. */
+  onLateFailure?: (e: unknown) => void,
+): Promise<void> {
   const batch = writeBatch(db);
   for (const w of swaps) {
     batch.set(templateDoc(uid, w.templateId), pruneUndefined(toTemplatePatch(w.body, CODEC, at)), { merge: true });
-    batch.update(draftDoc(uid, w.draftId), pruneUndefined(w.mode === 'activate'
-      ? { status: 'active', template: w.body, previous: w.kept, activatedAt: at.toISOString(), updatedAt: Timestamp.fromDate(at) }
-      : { status: 'draft', template: w.kept, previous: deleteField(), revertedAt: at.toISOString(), updatedAt: Timestamp.fromDate(at) }));
+    // The `deleteField()` sentinel goes in AFTER pruning: `pruneUndefined`
+    // rebuilds every object it does not know is opaque, and a rebuilt
+    // sentinel is a plain object Firestore refuses — which is how the first
+    // revert failed on the simulator (2026-10-11).
+    batch.update(draftDoc(uid, w.draftId), w.mode === 'activate'
+      ? pruneUndefined({ status: 'active', template: w.body, previous: w.kept, activatedAt: at.toISOString(), updatedAt: Timestamp.fromDate(at) })
+      : { ...pruneUndefined({ status: 'draft', template: w.kept, revertedAt: at.toISOString(), updatedAt: Timestamp.fromDate(at) }), previous: deleteField() });
   }
-  await ackOrQueued(batch.commit());
+  const write = batch.commit();
+  let answered = false;
+  write.catch((e) => {
+    if (answered) onLateFailure?.(e);
+  });
+  await ackOrQueued(write);
+  answered = true;
 }
 
 /** Delete a draft. The templates are not touched. */

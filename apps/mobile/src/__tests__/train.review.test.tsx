@@ -49,7 +49,8 @@ const mockTrain = {
   deleteCatalogExercise: jest.fn().mockResolvedValue(undefined),
   mergeCatalogExercises: jest.fn().mockResolvedValue(undefined),
   addExerciseToActive: jest.fn(),
-  moveExerciseInActive: jest.fn(),
+  moveExerciseInActive: jest.fn((_from: number, to: number) => ({ newIndex: to })),
+  undoMove: jest.fn(),
   dispatch: jest.fn().mockResolvedValue(undefined),
   // Never resolves — what a commit is with no signal. Finish must not wait on it.
   commitActive: jest.fn(() => new Promise<void>(() => {})),
@@ -332,7 +333,7 @@ describe('the live session (bugs 3, 5; items 5, 18)', () => {
     expect(ui.getByTestId('rest-plus').props.accessibilityLabel).toBe('Add 30 seconds');
     expect(ui.getByTestId('rest-minus').props.accessibilityLabel).toBe('Subtract 30 seconds');
     await fireEvent.press(ui.getByTestId('rest-minus'));
-    expect(mockRestStart).toHaveBeenCalledWith(30);
+    expect(mockRestStart).toHaveBeenCalledWith(30, undefined);
   });
 
   it('Discard is in the session menu, behind a confirm', async () => {

@@ -71,6 +71,7 @@ export function NextUpCard({
         onPress={onEdit}
         accessibilityRole="button"
         accessibilityLabel={t('train.nextEditA11y', { name: next.template.name })}
+        accessibilityHint={supersets ? t('train.drafts.activeTag') : undefined}
         testID="next-up-edit"
       >
         <Text style={styles.nextName}>{next.template.name}</Text>

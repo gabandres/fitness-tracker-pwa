@@ -621,6 +621,9 @@ const TemplateCard = memo(function TemplateCard({
       confirmText: t('train.delete'),
       destructive: true,
       onConfirm: () => {
+        // Its active draft goes too — otherwise it lives on, invisible, with
+        // no template to show it on.
+        if (activeDraft) void train.deleteDraft(activeDraft).catch(() => {});
         train.deleteTemplate(id).catch((e) => {
           haptics.warning();
           showToast(t('train.templateDeleteErr'), { testID: 'train-toast' });
@@ -663,7 +666,11 @@ const TemplateCard = memo(function TemplateCard({
           onPress={() => onEdit(tpl)}
           accessibilityRole="button"
           accessibilityLabel={t('train.nextEditA11y', { name: tpl.name })}
-          accessibilityHint={[names, sub].filter(Boolean).join('. ')}
+          accessibilityHint={[activeDraft ? t('train.drafts.activeTag') : null, names, sub].filter(Boolean).join('. ')}
+          accessibilityActions={activeDraft ? [{ name: 'revert', label: t('train.drafts.revertA11y', { name: tpl.name }) }] : undefined}
+          onAccessibilityAction={(e) => {
+            if (e.nativeEvent.actionName === 'revert' && activeDraft) draftActions.revert(activeDraft);
+          }}
           testID={`edit-template-${tpl.id}`}
         >
           <Text style={styles.histDate}>{tpl.name}</Text>
@@ -698,6 +705,19 @@ const TemplateCard = memo(function TemplateCard({
           <Text style={styles.tplStartText}>{t('train.startTpl')}</Text>
         </Touchable>
       </View>
+      {/* The way back from supersets, visible on every platform — on iOS the
+          card's menu is a long-press nobody finds. */}
+      {activeDraft ? (
+        <Touchable
+          style={styles.tplNextToggleBtn}
+          onPress={() => draftActions.revert(activeDraft)}
+          accessibilityRole="button"
+          accessibilityLabel={t('train.drafts.revertA11y', { name: tpl.name })}
+          testID={`template-switch-back-${tpl.id}`}
+        >
+          <Text style={styles.tplNextToggle}>{t('train.drafts.revert')}</Text>
+        </Touchable>
+      ) : null}
       {/* The engine's calls for this template, BEFORE the session starts —
           the spec's layer 6 surface. Collapsed by default so the list stays a
           list; one tap opens it. */}

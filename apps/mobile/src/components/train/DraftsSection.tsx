@@ -12,6 +12,7 @@ import { captureError } from '@/lib/sentry';
 import { useThemedStyles } from '@/lib/theme-context';
 import { Touchable } from './Touchable';
 import { createStyles } from './train-styles';
+import { space } from '@/theme';
 
 type DraftTrain = Pick<TrainState, 'drafts' | 'templates' | 'planDraftSwaps' | 'switchDrafts' | 'deleteDraft' | 'pendingLoadTestFor'>;
 
@@ -65,7 +66,12 @@ export function useDraftActions(train: DraftTrain) {
   const run = (list: readonly TemplateDraftDoc[], mode: 'activate' | 'revert') => {
     const key = list.map((d) => d.id).join('+');
     setBusy(key);
-    train.switchDrafts(list, mode)
+    const late = (e: unknown) => {
+      haptics.warning();
+      showToast(t('train.drafts.err'), { testID: 'train-toast' });
+      captureError(e, { where: 'train.switchDrafts.late' });
+    };
+    train.switchDrafts(list, mode, late)
       .then(() => {
         // Feedback once the write has landed (or is queued offline) — never
         // before, so a refusal cannot play "success" then "warning".
@@ -86,13 +92,20 @@ export function useDraftActions(train: DraftTrain) {
     const single = train.planDraftSwaps([draft], mode);
     if (!single) return;
     const plan = single[0];
-    const partner = partnerFor(draft, plan, mode);
-    const both = partner ? train.planDraftSwaps([draft, partner], mode) : null;
+    const maybePartner = partnerFor(draft, plan, mode);
+    const maybeBoth = maybePartner ? train.planDraftSwaps([draft, maybePartner], mode) : null;
+    // "Switch both" only when switching both actually settles the week.
+    const settles = maybeBoth?.every((p) => p.overlap.doubled.length + p.overlap.dropped.length === 0) ?? false;
+    const partner = settles ? maybePartner : undefined;
+    const both = settles ? maybeBoth : null;
     const name = nameOf(draft.draftOf);
+    // The load tests of EVERY draft the primary action switches.
     const pending = mode === 'activate'
-      ? draft.template.exercises.filter((row) => row.supersetGroup != null && train.pendingLoadTestFor(row) != null)
+      ? [draft, ...(partner ? [partner] : [])].flatMap((d) => d.template.exercises)
+        .filter((row) => row.supersetGroup != null && train.pendingLoadTestFor(row) != null)
       : [];
-    const changed = (both ?? single).reduce((n, p) => n + p.changes.size, 0);
+    const changedOne = single.reduce((n, p) => n + p.changes.size, 0);
+    const changedBoth = both ? both.reduce((n, p) => n + p.changes.size, 0) : changedOne;
     const stamped = (both ?? single).reduce(
       (n, p) => n + p.body.exercises.filter((e) => e.baseline?.reason.includes('context changed')
         && !p.replaced.exercises.some((r) => r.exerciseId === e.exerciseId && r.baseline?.since === e.baseline?.since)).length,
@@ -102,7 +115,11 @@ export function useDraftActions(train: DraftTrain) {
       ? [
           ...(pending.length ? [t('train.drafts.pending', { names: names(pending) })] : []),
           ...overlapLines(draft, plan, mode, partner),
-          plural(t, locale, 'train.drafts.effect', changed),
+          // Both counts when there are two ways forward, so "Only …" is not a
+          // surprise.
+          both
+            ? t('train.drafts.effectBoth', { both: changedBoth, one: changedOne, name })
+            : plural(t, locale, 'train.drafts.effect', changedOne),
           t('train.drafts.undoLine'),
         ]
       : [
@@ -122,15 +139,18 @@ export function useDraftActions(train: DraftTrain) {
             onSecondary: one,
           }
         : {
-            confirmText: t(mode === 'activate' ? 'train.drafts.activate' : 'train.drafts.revert'),
+            // Short: the long "Revert to the version without supersets" wrapped
+            // to two lines inside the button on the simulator.
+            confirmText: t(mode === 'activate' ? 'train.drafts.activate' : 'train.drafts.switchBack'),
             onConfirm: one,
           }),
     });
   };
 
   const askDelete = (draft: TemplateDraftDoc) => {
+    const live = nameOf(draft.draftOf);
     confirm({
-      title: t('train.drafts.deleteTitle', { label: draft.label }),
+      title: t('train.drafts.deleteTitle', { label: live ? t('train.drafts.label', { name: live }) : draft.label }),
       body: t('train.drafts.deleteBody'),
       confirmText: t('train.drafts.delete'),
       destructive: true,
@@ -186,17 +206,20 @@ export function DraftsSection({ train }: { train: DraftTrain }) {
           const rows = draft.template.exercises;
           const groups = supersetGroups(rows).size;
           const movedIn = live ? rows.filter((r) => !live.exercises.some((e) => e.exerciseId === r.exerciseId)) : [];
-          const from = movedIn.length
-            ? train.templates.find((x) => x.id !== draft.draftOf && x.exercises.some((e) => e.exerciseId === movedIn[0].exerciseId))?.name
-            : undefined;
+          // Moved lifts, grouped by the template each comes from.
+          const bySource = new Map<string, string[]>();
+          for (const r of movedIn) {
+            const src = train.templates.find((x) => x.id !== draft.draftOf && x.exercises.some((e) => e.exerciseId === r.exerciseId))?.name;
+            if (src) bySource.set(src, [...(bySource.get(src) ?? []), r.name]);
+          }
           const summary = [
             plural(t, locale, 'train.drafts.liftCount', rows.length),
             plural(t, locale, 'train.drafts.supersetCount', groups),
-            ...(movedIn.length && from ? [t('train.drafts.movedFrom', { names: movedIn.map((r) => r.name).join(', '), other: from })] : []),
+            ...[...bySource].map(([other, list]) => t('train.drafts.movedFrom', { names: list.join(', '), other })),
           ].join(' · ');
           const pending = pendingByDraft.get(draft.id) ?? [];
           const expanded = open === draft.id;
-          const order = rows.map((r) => `${supersetLabel(r) ?? '·'}  ${r.name}`);
+          const order = rows.map((r) => (supersetLabel(r) ? `${supersetLabel(r)} ${r.name}` : r.name));
           const isBusy = actions.busy?.split('+').includes(draft.id ?? '') ?? false;
           return (
             <View key={draft.id} style={styles.tplCard} testID={`draft-${draft.id}`}>
@@ -209,7 +232,7 @@ export function DraftsSection({ train }: { train: DraftTrain }) {
                     <Text style={styles.draftSummary}>{t('train.drafts.orphan')}</Text>
                   )}
                   {pending.length ? (
-                    <Text style={styles.draftSummary} numberOfLines={expanded ? undefined : 2}>
+                    <Text style={styles.draftSummary}>
                       {t('train.drafts.pending', { names: pending.map((r) => r.name).join(', ') })}
                     </Text>
                   ) : null}
@@ -228,17 +251,22 @@ export function DraftsSection({ train }: { train: DraftTrain }) {
                   </Touchable>
                   {expanded ? (
                     <View
-                      style={{ paddingHorizontal: 16 }}
+                      style={{ paddingHorizontal: space.lg }}
                       accessible
-                      accessibilityLabel={t('train.drafts.orderA11y', { list: order.map((o) => o.replace('·', '').trim()).join(', ') })}
+                      accessibilityLabel={t('train.drafts.orderA11y', { list: order.join(', ') })}
                       testID={`draft-order-list-${draft.id}`}
                     >
-                      {order.map((line, i) => <Text key={`${rows[i].exerciseId}-${i}`} style={styles.tplExNames}>{line}</Text>)}
+                      {rows.map((r, i) => (
+                        <View key={`${r.exerciseId}-${i}`} style={{ flexDirection: 'row' }}>
+                          <Text style={[styles.supersetTag, { width: 32, lineHeight: 20 }]}>{supersetLabel(r) ?? ''}</Text>
+                          <Text style={styles.tplExNames}>{r.name}</Text>
+                        </View>
+                      ))}
                     </View>
                   ) : null}
                 </>
               ) : null}
-              <View style={[styles.tplCardTop, { marginTop: 8, flexWrap: 'wrap' }]}>
+              <View style={[styles.tplCardTop, { marginTop: space.sm, flexWrap: 'wrap' }]}>
                 {live ? (
                   <Touchable
                     style={[styles.tplStart, isBusy && { opacity: 0.5 }]}
@@ -246,7 +274,7 @@ export function DraftsSection({ train }: { train: DraftTrain }) {
                     disabled={isBusy}
                     accessibilityRole="button"
                     accessibilityState={{ busy: isBusy, disabled: isBusy }}
-                    accessibilityLabel={t('train.drafts.activateA11y', { name: live.name })}
+                    accessibilityLabel={`${t('train.drafts.activate')}, ${live.name}`}
                     testID={`draft-activate-${draft.id}`}
                   >
                     <Text style={styles.tplStartText}>{t('train.drafts.activate')}</Text>

@@ -178,9 +178,9 @@ describe('the alternating flow', () => {
   it('labels the stations A1 / A2 under one group header, and names the partner to a screen reader', async () => {
     mockTrain.active = live();
     const ui = await render(<TrainScreen />);
-    expect(ui.getByTestId('superset-header-A')).toHaveTextContent('Superset A · switch 0:35 · round 0:40');
-    expect(ui.getByTestId('superset-tag-0')).toHaveTextContent('A1 · Superset');
-    expect(ui.getByTestId('superset-tag-1')).toHaveTextContent('A2 · Superset');
+    expect(ui.getByTestId('superset-header-A')).toHaveTextContent('Superset A · switch 35 s · round 40 s');
+    expect(ui.getByTestId('superset-tag-0')).toHaveTextContent('A1');
+    expect(ui.getByTestId('superset-tag-1')).toHaveTextContent('A2');
     expect(ui.queryByTestId('superset-tag-2')).toBeNull();
     expect(ui.getByTestId('exercise-head-0').props.accessibilityLabel).toContain('Superset A1, alternates with Leg Curls');
   });
@@ -192,7 +192,7 @@ describe('the alternating flow', () => {
     expect(ui.queryByTestId('superset-tag-0')).toBeNull();
   });
 
-  it('A1 cluster done → "Switch to A2", the next station named on the bar, the Lock Screen and to VoiceOver, and A2 opens', async () => {
+  it('A1 cluster done → "Switch", the next station named on the bar, the Lock Screen and to VoiceOver, and A2 opens', async () => {
     jest.useFakeTimers();
     try {
       mockTrain.active = live();
@@ -204,9 +204,10 @@ describe('the alternating flow', () => {
       // The cluster's last mini hands over to A2.
       await fireEvent.press(ui.getByTestId('set-done-0-2'));
       expect(mockRestStart).toHaveBeenLastCalledWith(35, 'Next: A2 · Leg Curls');
-      expect(ui.getByTestId('rest-label')).toHaveTextContent('Switch to A2 · 0:35');
+      expect(ui.getByTestId('rest-label')).toHaveTextContent('Switch · 0:35');
       expect(ui.getByTestId('rest-next')).toHaveTextContent('Next: A2 · Leg Curls');
-      expect(mockAnnounce).toHaveBeenLastCalledWith('Switch to A2, 0:35 of rest. Next: A2 · Leg Curls');
+      // A duration, spoken as one — not "0:35", which VoiceOver reads as a time of day.
+      expect(mockAnnounce.mock.calls.at(-1)?.[0]).toMatch(/^Switch, 35 seconds of rest\. Next: A2 · Leg Curls$/);
       expect(ui.getByTestId('up-next-1')).toBeTruthy();
       await act(async () => {
         jest.advanceTimersByTime(450);
@@ -217,7 +218,7 @@ describe('the alternating flow', () => {
     }
   });
 
-  it('A2 cluster done → "Round 2 of 2", back to A1', async () => {
+  it('A2 cluster done → "Round 2/2", back to A1', async () => {
     jest.useFakeTimers();
     try {
       mockTrain.active = live();
@@ -226,7 +227,7 @@ describe('the alternating flow', () => {
       await fireEvent.press(ui.getByTestId('exercise-head-1'));
       await fireEvent.press(ui.getByTestId('set-done-1-2'));
       expect(mockRestStart).toHaveBeenLastCalledWith(40, 'Next: A1 · Leg Extensions');
-      expect(ui.getByTestId('rest-label')).toHaveTextContent('Round 2 of 2 · 0:40');
+      expect(ui.getByTestId('rest-label')).toHaveTextContent('Round 2/2 · 0:40');
       await act(async () => {
         jest.advanceTimersByTime(450);
       });
@@ -266,14 +267,40 @@ describe('the alternating flow', () => {
     }
   });
 
-  it('"Unpair for today" in the lift\'s ⋯ runs the superset straight for this workout only', async () => {
+  it('"Unpair for today" in the lift\'s ⋯ runs the superset straight for this workout only, with an Undo', async () => {
     mockTrain.active = live();
     const ui = await render(<TrainScreen />);
     await fireEvent.press(ui.getByTestId('exercise-menu-0'));
     await fireEvent.press(ui.getByTestId('ex-menu-unpair-today'));
     expect(mockTrain.dispatch).toHaveBeenCalledWith({ type: 'unpairGroup', group: 'A' });
-    expect(mockShowToast).toHaveBeenCalledWith('Superset A runs unpaired today', expect.anything());
+    const [msg, opts] = mockShowToast.mock.calls.at(-1)!;
+    expect(msg).toBe('Superset A runs unpaired today');
+    opts.action.onPress();
+    expect(mockTrain.dispatch).toHaveBeenLastCalledWith({
+      type: 'restoreSuperset',
+      fields: {
+        ext: { supersetGroup: 'A', pairPosition: 1, transitionRestSec: 35, roundRestSec: 40 },
+        curl: { supersetGroup: 'A', pairPosition: 2, transitionRestSec: 35, roundRestSec: 40 },
+      },
+    });
     expect(mockTrain.saveTemplate).not.toHaveBeenCalled();
+  });
+
+  it('the ⋯ rest picker on a superset lift sets the GROUP\'s switch and round rests — never the mini-set rest', async () => {
+    mockTrain.active = live();
+    const ui = await render(<TrainScreen />);
+    await fireEvent.press(ui.getByTestId('exercise-menu-0'));
+    await fireEvent.press(ui.getByTestId('ex-menu-rest'));
+    expect(ui.getByText('Rests for superset A')).toBeTruthy();
+    expect(ui.queryByTestId('rest-pick-default')).toBeNull();
+    await fireEvent.press(ui.getByTestId('rest-pick-transition-45'));
+    await fireEvent.press(ui.getByTestId('rest-picker-done'));
+    // The mini-set rest inside A1's cluster is untouched…
+    await fireEvent.press(ui.getByTestId('set-done-0-0'));
+    expect(mockRestStart).toHaveBeenLastCalledWith(10, undefined);
+    // …and the switch to A2 is the picked 45 s.
+    await fireEvent.press(ui.getByTestId('set-done-0-2'));
+    expect(mockRestStart).toHaveBeenLastCalledWith(45, 'Next: A2 · Leg Curls');
   });
 });
 
@@ -281,7 +308,8 @@ describe('the template editor', () => {
   it('labels an opposing-muscle pair "best supported", outside the tap target, and reads the tag to a screen reader', async () => {
     const ui = await render(<TrainScreen />);
     await fireEvent.press(ui.getByTestId('edit-template-leg'));
-    expect(ui.getByTestId('template-superset-header-0')).toHaveTextContent('Superset A · switch 35 s · round 40 s');
+    expect(ui.getByTestId('template-superset-header-0')).toHaveTextContent('Superset A · 35 s / 40 s');
+    expect(ui.getByTestId('template-ex-toggle-0').props.accessibilityLabel).toContain('Superset A · switch 35 s · round 40 s');
     expect(ui.getByTestId('template-pair-agonist-antagonist-1')).toHaveTextContent('Opposing muscles — best supported (more total reps)', { exact: false });
     expect(ui.getByTestId('template-ex-toggle-0').props.accessibilityLabel).toContain('Superset A1, alternates with Leg Curls');
   });
@@ -297,8 +325,14 @@ describe('the template editor', () => {
     const ui = await render(<TrainScreen />);
     await fireEvent.press(ui.getByTestId('edit-template-push'));
     expect(ui.getByTestId('template-pair-same-muscle-1'))
-      .toHaveTextContent('Both lead with chest — expect fewer total reps and less volume (Zhang 2025). Pair one with an opposing muscle, or unpair.', { exact: false });
-    expect(ui.getByTestId('template-fix-muscles-1')).toBeTruthy();
+      .toHaveTextContent('Same primary muscle: chest — expect fewer total reps and less volume (Zhang 2025). Pair one with a back exercise instead, or unpair.', { exact: false });
+    // One fix per lift, and the line carries them as screen-reader actions.
+    // The visible buttons are hidden from a screen reader on purpose: the line
+    // above carries them as its actions, one stop instead of three.
+    expect(ui.getByTestId('template-fix-muscles-flat', { includeHiddenElements: true })).toHaveTextContent('Fix DB Flat Press');
+    expect(ui.getByTestId('template-fix-muscles-incline', { includeHiddenElements: true })).toHaveTextContent('Fix Incline DB Press');
+    expect(ui.getByTestId('template-pair-same-muscle-1').props.accessibilityActions.map((a: { label: string }) => a.label))
+      .toEqual(['Fix DB Flat Press', 'Fix Incline DB Press']);
     await fireEvent.press(ui.getByTestId('save-template'));
     await waitFor(() => expect(mockTrain.saveTemplate).toHaveBeenCalledTimes(1));
   });
@@ -307,8 +341,8 @@ describe('the template editor', () => {
     mockTrain.pendingLoadTestFor.mockImplementation((row) => (row.exerciseId === 'curl' ? { from: 80, to: 90 } : null));
     const ui = await render(<TrainScreen />);
     await fireEvent.press(ui.getByTestId('edit-template-leg'));
-    expect(ui.getByTestId('template-load-test-1')).toHaveTextContent(
-      'Leg Curls moves up to 90 lb next session (last time 80 lb). Keep it unpaired that day so the new load gets a fair test — "Unpair for today" is in the workout\'s ⋯ menu.', { exact: false });
+    expect(ui.getByTestId('template-load-test-1')).toHaveTextContent('Leg Curls: 80 lb → 90 lb next session', { exact: false });
+    expect(ui.getByTestId('template-load-test-1')).toHaveTextContent('"Unpair for today" is in the workout\'s ⋯ menu.', { exact: false });
   });
 
   it('pairs from the collapsed card in one tap, and saves group, position, the leader\'s rests and fresh baselines', async () => {
@@ -317,7 +351,8 @@ describe('the template editor', () => {
     await fireEvent.press(ui.getByTestId('edit-template-leg'));
     expect(ui.getByTestId('template-link-0').props.accessibilityLabel).toBe('Superset Leg Extensions with Leg Curls');
     await fireEvent.press(ui.getByTestId('template-link-0'));
-    expect(mockAnnounce).toHaveBeenLastCalledWith('Leg Extensions and Leg Curls are now superset A');
+    expect(mockAnnounce).toHaveBeenLastCalledWith('Leg Extensions and Leg Curls are now superset A. Both start a fresh baseline.');
+    expect(mockShowToast.mock.calls.at(-1)?.[1].action.label).toBe('Undo');
     await fireEvent.press(ui.getByTestId('save-template'));
     await waitFor(() => expect(mockTrain.saveTemplate).toHaveBeenCalledTimes(1));
     const [draft] = mockTrain.saveTemplate.mock.calls[0];
@@ -329,17 +364,25 @@ describe('the template editor', () => {
     expect(draft.exercises[2].baseline).toBeUndefined();
   });
 
-  it('a member moved away from its partner leaves the superset, with an Undo', async () => {
+  it('a one-step move (VoiceOver\'s Move down) moves the whole pair — it never dissolves it', async () => {
     const ui = await render(<TrainScreen />);
     await fireEvent.press(ui.getByTestId('edit-template-leg'));
     await fireEvent(ui.getByTestId('template-drag-1'), 'accessibilityAction', { nativeEvent: { actionName: 'moveDown' } });
-    const [msg, opts] = mockShowToast.mock.calls[mockShowToast.mock.calls.length - 1];
-    expect(msg).toBe('Leg Curls left superset A');
-    expect(opts.action.label).toBe('Undo');
     await fireEvent.press(ui.getByTestId('save-template'));
     await waitFor(() => expect(mockTrain.saveTemplate).toHaveBeenCalledTimes(1));
     const [draft] = mockTrain.saveTemplate.mock.calls[0];
-    expect(draft.exercises.every((e: { supersetGroup?: string }) => e.supersetGroup === undefined)).toBe(true);
+    expect(draft.exercises.map((e: { exerciseId: string; supersetGroup?: string }) => `${e.exerciseId}${e.supersetGroup ?? ''}`))
+      .toEqual(['knee', 'extA', 'curlA']);
+  });
+
+  it('a straight lift moved up hops over the whole pair', async () => {
+    const ui = await render(<TrainScreen />);
+    await fireEvent.press(ui.getByTestId('edit-template-leg'));
+    await fireEvent(ui.getByTestId('template-drag-2'), 'accessibilityAction', { nativeEvent: { actionName: 'moveUp' } });
+    await fireEvent.press(ui.getByTestId('save-template'));
+    await waitFor(() => expect(mockTrain.saveTemplate).toHaveBeenCalledTimes(1));
+    const [draft] = mockTrain.saveTemplate.mock.calls[0];
+    expect(draft.exercises.map((e: { exerciseId: string }) => e.exerciseId)).toEqual(['knee', 'ext', 'curl']);
   });
 
   it('no longer offers the dead "supersets" structure chip', async () => {
@@ -384,14 +427,18 @@ describe('drafts', () => {
     expect(ui.getByTestId('draft-summary-d-push')).toHaveTextContent('2 lifts · 1 superset · Hanging Knee Raise from Leg Day');
     expect(ui.queryByTestId('draft-order-list-d-push')).toBeNull();
     await fireEvent.press(ui.getByTestId('draft-order-d-push'));
-    expect(within(ui.getByTestId('draft-order-list-d-push')).getByText(/A1\s+DB Flat Press/)).toBeTruthy();
-    expect(ui.getByTestId('draft-activate-d-push').props.accessibilityLabel).toBe('Switch Push Day to its superset version');
+    expect(ui.getByTestId('draft-order-list-d-push').props.accessibilityLabel).toBe('Order: A1 DB Flat Press, A2 Hanging Knee Raise');
+    // The spoken name starts with the visible text (Voice Control can say it).
+    expect(ui.getByTestId('draft-activate-d-push').props.accessibilityLabel).toBe('Switch to supersets, Push Day');
   });
 
   it('when a lift moves between two drafted templates, the confirm offers "Switch both" first', async () => {
     mockTrain.templates = [legTemplate, pushTemplate];
     mockTrain.drafts = [pushDraft, legDraft];
-    mockTrain.planDraftSwaps.mockImplementation((list: unknown[]) => list.map(() => plan([{ exerciseId: 'knee', name: 'Hanging Knee Raise', alsoIn: 'Leg Day' }])));
+    // Alone, Push doubles the knee raise; switched together, the week is settled.
+    mockTrain.planDraftSwaps.mockImplementation((list: unknown[]) => (list.length === 1
+      ? [plan([{ exerciseId: 'knee', name: 'Hanging Knee Raise', alsoIn: 'Leg Day' }])]
+      : list.map(() => plan())));
     const ui = await render(<TrainScreen />);
     await fireEvent.press(ui.getByTestId('draft-activate-d-push'));
     const opts = mockConfirm.mock.calls[0][0];
@@ -401,9 +448,34 @@ describe('drafts', () => {
     expect(opts.confirmText).toBe('Switch both');
     expect(opts.secondaryText).toBe('Only Push Day');
     expect(mockTrain.switchDrafts).not.toHaveBeenCalled();
+    expect(opts.body).toContain('4 lifts start a fresh baseline if you switch both (2 if you switch only Push Day).');
     opts.onConfirm();
-    expect(mockTrain.switchDrafts).toHaveBeenCalledWith([pushDraft, legDraft], 'activate');
+    expect(mockTrain.switchDrafts).toHaveBeenCalledWith([pushDraft, legDraft], 'activate', expect.any(Function));
     await waitFor(() => expect(mockShowToast).toHaveBeenCalledWith('Push Day now runs supersets. Leg Day now runs supersets.', expect.anything()));
+  });
+
+  it('"Switch both" is not offered when switching both would not settle the week', async () => {
+    mockTrain.templates = [legTemplate, pushTemplate];
+    mockTrain.drafts = [pushDraft, legDraft];
+    mockTrain.planDraftSwaps.mockImplementation((list: unknown[]) => list.map(() => plan([{ exerciseId: 'knee', name: 'Hanging Knee Raise', alsoIn: 'Leg Day' }])));
+    const ui = await render(<TrainScreen />);
+    await fireEvent.press(ui.getByTestId('draft-activate-d-push'));
+    const opts = mockConfirm.mock.calls[0][0];
+    expect(opts.confirmText).toBe('Switch to supersets');
+    expect(opts.secondaryText).toBeUndefined();
+  });
+
+  it('the way back is a visible button on the template card, on every platform', async () => {
+    const active = { ...legDraft, status: 'active', previous: { name: 'Leg Day', exercises: [] }, activatedAt: '2026-10-11T15:00:00.000Z' };
+    mockTrain.drafts = [active];
+    mockTrain.planDraftSwaps.mockReturnValue([plan()]);
+    const ui = await render(<TrainScreen />);
+    expect(ui.getByTestId('edit-template-leg').props.accessibilityHint).toMatch(/^Supersets\./);
+    await fireEvent.press(ui.getByTestId('template-switch-back-leg'));
+    const opts = mockConfirm.mock.calls[0][0];
+    expect(opts.title).toBe('Switch Leg Day back?');
+    opts.onConfirm();
+    expect(mockTrain.switchDrafts).toHaveBeenCalledWith([active], 'revert', expect.any(Function));
   });
 
   it('an active draft lives on its template card — tag, date, and the way back in its menu', async () => {
@@ -418,7 +490,7 @@ describe('drafts', () => {
     const opts = mockConfirm.mock.calls[0][0];
     expect(opts.title).toBe('Switch Leg Day back?');
     opts.onConfirm();
-    expect(mockTrain.switchDrafts).toHaveBeenCalledWith([active], 'revert');
+    expect(mockTrain.switchDrafts).toHaveBeenCalledWith([active], 'revert', expect.any(Function));
   });
 
   it('a draft whose template was deleted says so and can be deleted', async () => {
@@ -450,10 +522,12 @@ describe('the superset report', () => {
   it('leads with the warning when it applies, compares one load, and labels each row for a screen reader', async () => {
     const ui = await render(<ExerciseSupersetReport sessions={sessions} exerciseId="ext" />);
     expect(ui.getByTestId('superset-report-flag')).toHaveTextContent(
-      'Activation reps fell 2+ at the same load in 2 of your last 3 superset sessions. Try this lift unpaired: edit the template, open More options, tap Unpair.', { exact: false });
-    expect(ui.getByTestId('superset-report-same-load')).toHaveTextContent('At 90 lb: 11 unpaired · 8.5 superset (−2.5)');
+      'Activation reps fell 2+ at the same load in 2 of your last 2 superset sessions. Try this lift unpaired: in the template, tap the unlink icon beside it.', { exact: false });
+    // Every session here was at 90 lb: the same-load line would only repeat the averages.
+    expect(ui.queryByTestId('superset-report-same-load')).toBeNull();
+    expect(ui.getByText('Unpaired: last 3 sessions · Superset: 2 sessions')).toBeTruthy();
     expect(ui.getByLabelText('Activation reps (average): 11 unpaired, 8.5 in a superset, change −2.5')).toBeTruthy();
-    expect(ui.getByLabelText('Session time (min): not recorded unpaired, 49 in a superset, change —')).toBeTruthy();
+    expect(ui.getByLabelText('Session time (min): not recorded unpaired, 49 in a superset, change not recorded')).toBeTruthy();
   });
 
   it('the session report says plainly when there is no timed unpaired session — never "— min"', async () => {

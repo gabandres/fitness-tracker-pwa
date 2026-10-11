@@ -16,6 +16,7 @@ import {
   supersetWarnings,
   canPairWithNext,
   reorderWithSupersets,
+  moveBlockAware,
   unpair,
   type SupersetFields,
 } from './superset';
@@ -264,5 +265,44 @@ describe('dragging keeps supersets honest', () => {
   it('moving the whole pair (dragging A1 next to A2) keeps it', () => {
     const r = reorderWithSupersets(base(), 0, 1);
     expect(r.rows.map((x) => `${x.exerciseId}:${supersetLabel(x) ?? '-'}`)).toEqual(['b:A1', 'a:A2', 'c:-', 'd:-']);
+  });
+});
+
+describe('one-step moves treat a superset as one unit', () => {
+  const rows = () => [
+    row('y', myo(1)),
+    row('a1', myo(1), { supersetGroup: 'B', pairPosition: 1 }),
+    row('a2', myo(1), { supersetGroup: 'B', pairPosition: 2 }),
+    row('x', myo(1)),
+  ];
+  const show = (rs: { exerciseId: string; supersetGroup?: string }[]) => rs.map((r) => `${r.exerciseId}${r.supersetGroup ?? ''}`);
+  it('a straight row below the pair moves up OVER the whole pair', () => {
+    const r = moveBlockAware(rows(), 3, -1);
+    expect(show(r.rows)).toEqual(['y', 'x', 'a1B', 'a2B']);
+    expect(r.newIndex).toBe(1);
+  });
+  it('moving a member moves the whole pair — it never dissolves it', () => {
+    const r = moveBlockAware(rows(), 1, -1);
+    expect(show(r.rows)).toEqual(['a1B', 'a2B', 'y', 'x']);
+    expect(r.newIndex).toBe(0);
+  });
+  it('at either end nothing moves', () => {
+    expect(moveBlockAware(rows(), 0, -1).newIndex).toBe(0);
+    expect(show(moveBlockAware(rows(), 3, 1).rows)).toEqual(['y', 'a1B', 'a2B', 'x']);
+  });
+  it('a session drag keeps its letters and the rests on every member', () => {
+    const r = reorderWithSupersets(
+      [row('a', myo(1), { supersetGroup: 'B', pairPosition: 1, transitionRestSec: 30, roundRestSec: 45 }),
+        row('b', myo(1), { supersetGroup: 'B', pairPosition: 2, transitionRestSec: 30, roundRestSec: 45 }), row('c', myo(1))],
+      2, 0, { keepLetters: true, restsOnEveryMember: true },
+    );
+    expect(r.rows.map((x) => [x.exerciseId, x.supersetGroup, x.roundRestSec])).toEqual([['c', undefined, undefined], ['a', 'B', 45], ['b', 'B', 45]]);
+  });
+});
+
+describe('a leftover round still says which round it is', () => {
+  it('A1 alone in round 2 of 2', () => {
+    const rows = [row('a', myo(2), { supersetGroup: 'A', pairPosition: 1 }), row('b', myo(1), { supersetGroup: 'A', pairPosition: 2 })];
+    expect(restAfterSetInFlow(rows, 1, 2, restFor)).toMatchObject({ kind: 'cluster', round: { n: 2, total: 2 } });
   });
 });

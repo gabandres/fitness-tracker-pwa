@@ -108,6 +108,12 @@ export interface ExerciseSupersetReport {
   sameLoad?: { load: number; straight: number; superset: number; delta: number };
   /** "Superset may be costing reps — consider straight sets." */
   flag: boolean;
+  /** How many superset sessions the flag looked at (≤ {@link SUPERSET_RECENT_SESSIONS}) —
+   *  the "of your last N" the warning states. */
+  recentSessions: number;
+  /** Every compared session used one load: the same-load line would only
+   *  repeat the averages, so it is not shown. */
+  oneLoad: boolean;
 }
 
 /**
@@ -155,6 +161,8 @@ export function exerciseSupersetReport(
     },
     costlySessions,
     flag: costlySessions.length >= SUPERSET_COST_SESSIONS,
+    recentSessions: Math.min(sup.length, SUPERSET_RECENT_SESSIONS),
+    oneLoad: new Set([...straight, ...sup].map((o) => o.load ?? -1)).size <= 1,
   };
 }
 

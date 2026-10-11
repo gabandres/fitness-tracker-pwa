@@ -28,6 +28,8 @@ export type SessionAction =
    *  their group here, never on the template. The session then records what
    *  was done, so the superset report counts it as unpaired. */
   | { type: 'unpairGroup'; group: string }
+  /** Undo `unpairGroup`: put each member's superset fields back, by exercise id. */
+  | { type: 'restoreSuperset'; fields: Record<string, { supersetGroup?: string; pairPosition?: 1 | 2 | 3; transitionRestSec?: number; roundRestSec?: number }> }
   /** Append one empty working set. Does NOT re-derive cluster groups — a
    *  working set appended after a cluster starts a new plain row. */
   | { type: 'addSet'; exerciseIndex: number }
@@ -151,6 +153,15 @@ export function applySessionAction(
           const { supersetGroup: _g, pairPosition: _p, transitionRestSec: _t, roundRestSec: _r, ...rest } = e;
           return rest;
         }),
+      };
+    }
+
+    case 'restoreSuperset': {
+      const ids = new Set(Object.keys(action.fields));
+      if (!session.exercises.some((e) => ids.has(e.exerciseId))) return session;
+      return {
+        ...session,
+        exercises: session.exercises.map((e) => (ids.has(e.exerciseId) ? { ...e, ...action.fields[e.exerciseId] } : e)),
       };
     }
 

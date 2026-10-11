@@ -31,6 +31,11 @@ function useNumbers() {
     pct: (x: number | undefined) => (x == null ? '—' : formatNumber(x, locale, { style: 'percent', maximumFractionDigits: 0 })),
     points: (x: number | undefined) =>
       x == null ? '—' : t('train.supersetReport.points', { n: `${x > 0 ? '+' : x < 0 ? '−' : ''}${fmt(Math.abs(Math.round(x * 100)))}` }),
+    /** Spoken twins of the three above: "not recorded", never a dash. */
+    saySigned: (x: number | undefined) => (x == null ? t('train.supersetReport.none') : `${x > 0 ? '+' : x < 0 ? '−' : ''}${fmt(Math.abs(x))}`),
+    sayPct: (x: number | undefined) => (x == null ? t('train.supersetReport.none') : formatNumber(x, locale, { style: 'percent', maximumFractionDigits: 0 })),
+    sayPoints: (x: number | undefined) =>
+      x == null ? t('train.supersetReport.none') : t('train.supersetReport.points', { n: `${x > 0 ? '+' : x < 0 ? '−' : ''}${fmt(Math.abs(Math.round(x * 100)))}` }),
   };
 }
 
@@ -53,6 +58,9 @@ export function ExerciseSupersetReport({ sessions, exerciseId }: { sessions: rea
   const n = useNumbers();
   const r = useMemo(() => exerciseSupersetReport(sessions, exerciseId), [sessions, exerciseId]);
   if (!r) return null;
+  const sameLoad = r.sameLoad && !r.oneLoad ? r.sameLoad : undefined;
+  const sides = [r.straight, r.superset];
+  const anyMissing = sides.some((x) => x.activationRepsAvg == null || x.firstMiniRepsAvg == null || x.validityRate == null || x.durationMinAvg == null);
 
   const metric = (
     label: string,
@@ -60,12 +68,13 @@ export function ExerciseSupersetReport({ sessions, exerciseId }: { sessions: rea
     delta: string,
     format: (x: number | undefined) => string,
     say: (x: number | undefined) => string,
+    sayDelta: string,
   ) => (
     <View
       style={styles.reportMetric}
       accessible
       accessibilityLabel={t('train.supersetReport.rowA11y', {
-        metric: label, a: say(pick(r.straight)), b: say(pick(r.superset)), delta,
+        metric: label, a: say(pick(r.straight)), b: say(pick(r.superset)), delta: sayDelta,
       })}
     >
       <Text style={styles.reportMetricLabel}>{label}</Text>
@@ -82,7 +91,7 @@ export function ExerciseSupersetReport({ sessions, exerciseId }: { sessions: rea
         <View style={styles.reportFlag} testID="superset-report-flag" accessible>
           <Ionicons name="alert-circle-outline" size={18} color={colors.accent} />
           <Text style={[styles.reportFlagText, { flex: 1 }]}>
-            {plural(t, locale, 'train.supersetReport.flag', r.costlySessions.length)}
+            {plural(t, locale, 'train.supersetReport.flag', r.costlySessions.length, { total: r.recentSessions })}
           </Text>
         </View>
       ) : null}
@@ -90,23 +99,32 @@ export function ExerciseSupersetReport({ sessions, exerciseId }: { sessions: rea
         <Text style={styles.sheetHint} testID="superset-report-no-base">{t('train.supersetReport.noBase')}</Text>
       ) : (
         <>
-          <Text style={styles.sheetHint}>{t('train.supersetReport.sides', { a: r.straight.sessions, b: r.superset.sessions })}</Text>
-          {r.sameLoad ? (
-            <Text style={styles.reportMetricValue} testID="superset-report-same-load">
-              {t('train.supersetReport.sameLoad', {
-                load: formatLoad(r.sameLoad.load, unitSystem),
-                a: n.show(r.sameLoad.straight),
-                b: n.show(r.sameLoad.superset),
-                delta: n.signed(r.sameLoad.delta),
-              })}
-            </Text>
+          <Text style={styles.sheetHint}>
+            {`${plural(t, locale, 'train.supersetReport.sidesUnpaired', r.straight.sessions)} · ${plural(t, locale, 'train.supersetReport.sidesSuperset', r.superset.sessions)}`}
+          </Text>
+          {/* Only when loads differ: at one load it would repeat the averages. */}
+          {sameLoad ? (
+            <View style={styles.reportMetric} accessible testID="superset-report-same-load">
+              <Text style={styles.reportMetricLabel}>{t('train.supersetReport.sameLoadLabel')}</Text>
+              <Text style={styles.reportMetricValue}>
+                {t('train.supersetReport.sameLoad', {
+                  load: formatLoad(sameLoad.load, unitSystem),
+                  a: n.show(sameLoad.straight),
+                  b: n.show(sameLoad.superset),
+                  delta: n.signed(sameLoad.delta),
+                })}
+              </Text>
+            </View>
           ) : null}
-          {metric(t('train.supersetReport.activation'), (s) => s.activationRepsAvg, n.signed(r.delta.activationReps), n.show, n.say)}
-          {metric(t('train.supersetReport.firstMini'), (s) => s.firstMiniRepsAvg, n.signed(r.delta.firstMiniReps), n.show, n.say)}
-          {metric(t('train.supersetReport.validity'), (s) => s.validityRate, n.points(r.delta.validityRate), n.pct, n.pct)}
-          {metric(t('train.supersetReport.duration'), (s) => s.durationMinAvg, n.signed(r.delta.durationMin), n.show, n.say)}
-          <Text style={styles.reportNote}>{t('train.supersetReport.mixNote')}</Text>
-          <Text style={styles.reportNote}>{t('train.supersetReport.legend')}</Text>
+          {metric(t('train.supersetReport.activation'), (x) => x.activationRepsAvg, n.signed(r.delta.activationReps), n.show, n.say, n.saySigned(r.delta.activationReps))}
+          {metric(t('train.supersetReport.firstMini'), (x) => x.firstMiniRepsAvg, n.signed(r.delta.firstMiniReps), n.show, n.say, n.saySigned(r.delta.firstMiniReps))}
+          {metric(t('train.supersetReport.validity'), (x) => x.validityRate, n.points(r.delta.validityRate), n.pct, n.sayPct, n.sayPoints(r.delta.validityRate))}
+          {metric(t('train.supersetReport.duration'), (x) => x.durationMinAvg, n.signed(r.delta.durationMin), n.show, n.say, n.saySigned(r.delta.durationMin))}
+          {sameLoad ? (
+            <Text style={styles.reportNote}>{t('train.supersetReport.mixNote', { load: formatLoad(sameLoad.load, unitSystem) })}</Text>
+          ) : null}
+          {/* The legend explains a "—" — only when one is on screen. */}
+          {anyMissing ? <Text style={styles.reportNote}>{t('train.supersetReport.legend')}</Text> : null}
         </>
       )}
     </View>
@@ -149,7 +167,19 @@ export function SessionSupersetReport({ sessions, session }: { sessions: readonl
             ? t('train.supersetReport.liftNoBase')
             : t('train.supersetReport.liftDelta', { delta: n.signed(e.deltaAtLoad) });
         return (
-          <View key={e.exerciseId} style={styles.reportMetric} accessible>
+          <View
+            key={e.exerciseId}
+            style={styles.reportMetric}
+            accessible
+            accessibilityLabel={t('train.supersetReport.liftA11y', {
+              label: e.label ?? '',
+              name: e.name,
+              load: e.load != null ? formatLoad(e.load, unitSystem) : t('train.supersetReport.none'),
+              reps: n.say(e.activationRepsAvg),
+              mini: n.say(e.firstMiniRepsAvg),
+              status: [status, e.flag ? t('train.supersetReport.flagShort', { name: e.name }) : null].filter(Boolean).join('. '),
+            })}
+          >
             <Text style={styles.reportMetricValue}>
               {`${t('train.supersetReport.liftLine', {
                 label: e.label ?? '',

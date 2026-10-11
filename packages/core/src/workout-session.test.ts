@@ -300,3 +300,15 @@ describe('unpairGroup — straight sets for this workout only', () => {
     expect(applySessionAction(session, { type: 'unpairGroup', group: 'Z' })).toBe(session);
   });
 });
+
+describe('restoreSuperset — Undo for "Unpair for today"', () => {
+  it('puts the members\' group back exactly', () => {
+    const fields = { a: { supersetGroup: 'A', pairPosition: 1 as const, transitionRestSec: 30, roundRestSec: 30 }, b: { supersetGroup: 'A', pairPosition: 2 as const, transitionRestSec: 30, roundRestSec: 30 } };
+    const paired = {
+      status: 'active' as const, date: new Date(), createdAt: new Date(), updatedAt: new Date(),
+      exercises: [{ exerciseId: 'a', name: 'A', cues: [], sets: [], ...fields.a }, { exerciseId: 'b', name: 'B', cues: [], sets: [], ...fields.b }],
+    };
+    const off = applySessionAction(paired, { type: 'unpairGroup', group: 'A' });
+    expect(applySessionAction(off, { type: 'restoreSuperset', fields })).toEqual(paired);
+  });
+});

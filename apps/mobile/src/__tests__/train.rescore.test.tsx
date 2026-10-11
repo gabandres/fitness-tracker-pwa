@@ -56,7 +56,8 @@ const mockTrain = {
   deleteCatalogExercise: jest.fn().mockResolvedValue(undefined),
   mergeCatalogExercises: jest.fn().mockResolvedValue(undefined),
   addExerciseToActive: jest.fn(),
-  moveExerciseInActive: jest.fn(),
+  moveExerciseInActive: jest.fn((_from: number, to: number) => ({ newIndex: to })),
+  undoMove: jest.fn(),
   undoRemoval: jest.fn(),
   dispatch: jest.fn().mockResolvedValue(undefined),
   commitActive: jest.fn().mockResolvedValue(undefined),
@@ -259,7 +260,7 @@ describe('the live session', () => {
     expect(within(ui.getByTestId('rest-plus')).getByText('+30s')).toBeTruthy();
     expect(ui.getByTestId('rest-label')).toHaveTextContent('Rest · 0:45');
     await fireEvent.press(ui.getByTestId('rest-minus'));
-    expect(mockRestStart).toHaveBeenCalledWith(15);
+    expect(mockRestStart).toHaveBeenCalledWith(15, undefined);
   });
 
   it('says "10 seconds of rest left" once on the way down', async () => {

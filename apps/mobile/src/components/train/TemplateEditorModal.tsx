@@ -35,6 +35,8 @@ import {
   applyContextBaselines,
   baselineSince,
   canPairWithNext,
+  ANTAGONIST_PAIRS,
+  moveBlockAware,
   contextChanges,
   formatLoad,
   groupRest,
@@ -68,7 +70,7 @@ import * as haptics from '@/lib/haptics';
 import { smoothLayout } from '@/lib/motion';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { useRevealFocusedInput } from '@/lib/use-reveal-focused-input';
-import { space } from '@/theme';
+import { space, TARGET } from '@/theme';
 import {
   CREATION_STYLES, PRIMARY_STRUCTURES, SET_KINDS, SET_STRUCTURES, type CreationStyle,
   kindLabelKey, logStyleFor, numOrUndef, setKindFor,
@@ -283,7 +285,14 @@ function muscleWord(m: string | undefined, t: TFn): string {
 /** The pair-type line under a superset (core `classifyPair`). */
 function pairText(j: PairJudgement, t: TFn, names: { untagged: string }): string {
   switch (j.kind) {
-    case 'same-muscle': return t('train.superset.sameMuscle', { muscle: muscleWord(j.muscle, t) });
+    case 'same-muscle': {
+      // Name the muscle to pair with instead, when the taxonomy has one.
+      const pair = ANTAGONIST_PAIRS.find(([x, y]) => x === j.muscle || y === j.muscle);
+      const opposite = pair ? (pair[0] === j.muscle ? pair[1] : pair[0]) : undefined;
+      return opposite
+        ? t('train.superset.sameMuscleOpposite', { muscle: muscleWord(j.muscle, t), opposite: muscleWord(opposite, t) })
+        : t('train.superset.sameMuscle', { muscle: muscleWord(j.muscle, t) });
+    }
     case 'agonist-antagonist': return t('train.superset.agonist');
     case 'overlapping': return t('train.superset.overlap', { muscle: muscleWord(j.muscle, t) });
     case 'non-competing': return t('train.superset.nonCompeting');
@@ -392,10 +401,15 @@ export function TemplateEditorModal({
     const b = exercises[i + 1];
     if (!a || !b) return;
     haptics.tap();
+    const before = exercises;
     const next = pairWithNext(exercises, i);
     setExercises(next);
     const group = next[i + 1]?.supersetGroup ?? '';
-    announce(t('train.superset.pairedA11y', { a: a.name, b: b.name, group }));
+    // The fast path says what the More-options path shows: both lifts start a
+    // fresh baseline. With an Undo, like unpairing.
+    const msg = t('train.superset.pairedToast', { a: a.name, b: b.name, group });
+    announce(msg);
+    showToast(msg, { action: { label: t('common.undo'), onPress: () => setExercises(before) } });
   }
   /** Take row `i` out of its superset — with an Undo, because a pair's custom
    *  rests go with it. */
@@ -408,7 +422,22 @@ export function TemplateEditorModal({
     const msg = t('train.superset.leftGroup', { name: d?.name ?? '', group });
     announce(msg);
     showToast(msg, { action: { label: t('common.undo'), onPress: () => setExercises(before) } });
+  }  /** The paired card's link control: what to do with this superset. */
+  function askSuperset(i: number) {
+    const d = exercises[i];
+    if (!d?.supersetGroup) return;
+    const addable = canPairWithNext(exercises, i) ? exercises[i + 1] : undefined;
+    confirm({
+      title: t('train.superset.manageTitle', { group: d.supersetGroup }),
+      confirmText: t('train.superset.unpairName', { name: d.name }),
+      onConfirm: () => unpairRow(i),
+      ...(addable ? {
+        secondaryText: t('train.superset.addTo', { name: addable.name, group: d.supersetGroup }),
+        onSecondary: () => pairNext(i),
+      } : {}),
+    });
   }
+
 
   const doseWarnings = useMemo(
     () => new Set(mobilityDoseWarnings(
@@ -643,10 +672,13 @@ export function TemplateEditorModal({
   // Reorder by one position (array order IS the saved template order). Robust
   // ▲▼ controls; true drag-to-reorder is a follow-up (needs on-device tuning).
   function moveEx(from: number, dir: -1 | 1) {
-    const to = from + dir;
-    if (to < 0 || to >= exercises.length) return;
-    applyReorder(from, to);
-    setOpenEx((o) => (o === from ? to : o === to ? from : o));
+    // One step treats a superset as a unit: a lift hops over a whole block,
+    // and moving a member moves the block. Leaving a pair is "Unpair".
+    const r = moveBlockAware(exercises, from, dir);
+    if (r.newIndex === from) return;
+    setExercises(r.rows);
+    const openRow = openEx != null ? exercises[openEx] : undefined;
+    setOpenEx(openRow ? r.rows.indexOf(openRow) : null);
     setMoreEx(null);
     haptics.tap();
   }
@@ -1252,7 +1284,14 @@ export function TemplateEditorModal({
                 return (
                 <Animated.View
                   key={`${d.exerciseId}-${i}`}
-                  style={[styles.tplExCard, { width: cardWidth }, tags[i] ? styles.supersetRail : null]}
+                  style={[
+                    styles.tplExCard,
+                    { width: cardWidth },
+                    tags[i] ? styles.supersetRail : null,
+                    // Inside a group the cards sit 2pt apart, so A1+A2 read as
+                    // one block and B1 visibly starts a new one.
+                    tags[i] && tags[i + 1] && exercises[i + 1]?.supersetGroup === d.supersetGroup ? { marginBottom: 2 } : null,
+                  ]}
                   layout={smoothLayout}
                 >
                   <View style={styles.tplExTop}>
@@ -1312,14 +1351,19 @@ export function TemplateEditorModal({
                         }) : null,
                         d.name,
                         exSummary(d, t, loadUnit(unitSystem)),
+                        tags[i] && d.pairPosition === 1 && d.supersetGroup ? t('train.superset.groupHeader', {
+                          group: d.supersetGroup,
+                          switch: `${groupRest(exercises, d.supersetGroup).transitionRestSec} s`,
+                          round: `${groupRest(exercises, d.supersetGroup).roundRestSec} s`,
+                        }) : null,
                         doseWarnings.has(i) ? t('train.mobilityDoseNote') : null,
                       ].filter(Boolean).join('. ')}
                       testID={`template-ex-toggle-${i}`}
                     >
                       <View style={{ flex: 1 }}>
                         {tags[i] && d.pairPosition === 1 && d.supersetGroup ? (
-                          <Text style={styles.supersetHeader} testID={`template-superset-header-${i}`}>
-                            {t('train.superset.groupHeader', {
+                          <Text style={styles.supersetHeader} numberOfLines={1} testID={`template-superset-header-${i}`}>
+                            {t('train.superset.groupHeaderShort', {
                               group: d.supersetGroup,
                               switch: `${groupRest(exercises, d.supersetGroup).transitionRestSec} s`,
                               round: `${groupRest(exercises, d.supersetGroup).roundRestSec} s`,
@@ -1346,16 +1390,19 @@ export function TemplateEditorModal({
                       />
                     </TouchableOpacity>
                     {/* One tap to pair, from the collapsed list — it used to be
-                        three taps and a scroll deep, under More options. */}
+                        three taps and a scroll deep, under More options. On a
+                        paired card the glyph is the STATE (linked, filled teal)
+                        and a tap asks what to do with the superset, so one stray
+                        tap beside the chevron cannot break a pair. */}
                     {tags[i] ? (
                       <TouchableOpacity
                         style={styles.supersetLinkBtn}
-                        onPress={() => unpairRow(i)}
+                        onPress={() => askSuperset(i)}
                         accessibilityRole="button"
-                        accessibilityLabel={t('train.superset.unpairA11y', { name: d.name, group: d.supersetGroup ?? '' })}
+                        accessibilityLabel={t('train.superset.manageA11y', { group: d.supersetGroup ?? '', name: d.name })}
                         testID={`template-unlink-${i}`}
                       >
-                        <Ionicons name="unlink-outline" size={20} color={colors.teal} />
+                        <Ionicons name="link" size={20} color={colors.teal} />
                       </TouchableOpacity>
                     ) : canPairWithNext(exercises, i) ? (
                       <TouchableOpacity
@@ -1370,56 +1417,81 @@ export function TemplateEditorModal({
                     ) : null}
                   </View>
                   {/* The group's guardrails, under its LAST member and outside
-                      the card's tap target, so a screen reader reads them as
-                      their own stop and each line can carry its own action. */}
+                      the card's tap target. Each line is one screen-reader stop
+                      whose "Fix muscles" is an accessibility ACTION as well as a
+                      visible button — a button inside an accessible row cannot
+                      be focused on its own. */}
                   {pairWarnings.get(i) ? (
-                    <View testID={`template-superset-warnings-${i}`} style={{ paddingHorizontal: space.lg, paddingBottom: space.sm }} accessible={false}>
+                    <View testID={`template-superset-warnings-${i}`} style={{ paddingHorizontal: space.lg, paddingBottom: space.sm }}>
                       {pairWarnings.get(i)!.judgements.map(({ a, b, judgement }) => {
                         const attention = judgement.kind === 'same-muscle' || judgement.kind === 'unknown';
-                        const fixId = judgement.kind === 'unknown'
-                          ? [exercises[a], exercises[b]].find((x) => (train.catalog.find((c) => c.id === x?.exerciseId)?.muscles ?? []).length === 0)?.exerciseId
-                          : judgement.kind === 'same-muscle' || judgement.kind === 'overlapping' ? exercises[b]?.exerciseId : undefined;
+                        const muscles = (x?: DraftEx) => train.catalog.find((c) => c.id === x?.exerciseId)?.muscles ?? [];
+                        const fixable = (judgement.kind === 'unknown'
+                          ? [exercises[a], exercises[b]].filter((x) => muscles(x).length === 0)
+                          : judgement.kind === 'same-muscle' || judgement.kind === 'overlapping'
+                            ? [exercises[a], exercises[b]]
+                            : []).filter((x): x is DraftEx => x != null && train.catalog.some((c) => c.id === x.exerciseId));
                         const text = pairText(judgement, t, {
-                          untagged: judgement.kind === 'unknown'
-                            ? (exercises.find((x) => x.exerciseId === fixId)?.name ?? '')
-                            : '',
+                          untagged: judgement.kind === 'unknown' ? (fixable[0]?.name ?? '') : '',
                         });
                         const line = pairWarnings.get(i)!.size > 2
                           ? t('train.superset.pairPrefix', { a: exercises[a]?.name ?? '', b: exercises[b]?.name ?? '', text })
                           : text;
                         return (
-                          <View key={`${a}-${b}`} style={styles.supersetWarnRow} accessible testID={`template-pair-${judgement.kind}-${i}`}>
-                            <Ionicons
-                              name={attention ? 'alert-circle-outline' : judgement.kind === 'agonist-antagonist' ? 'checkmark-circle-outline' : 'information-circle-outline'}
-                              size={16}
-                              color={attention ? colors.accent : colors.muted}
-                            />
-                            <Text style={attention ? styles.supersetWarn : [styles.tplDoseNote, { marginTop: 0, flexShrink: 1 }]}>{line}</Text>
-                            {fixId && train.catalog.some((c) => c.id === fixId) ? (
-                              <TouchableOpacity
-                                onPress={() => setLiftFor(fixId)}
-                                accessibilityRole="button"
-                                hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
-                                testID={`template-fix-muscles-${i}`}
-                              >
-                                <Text style={styles.sectionAction}>{t('train.superset.fixMuscles')}</Text>
-                              </TouchableOpacity>
+                          <View key={`${a}-${b}`} style={{ gap: 2 }}>
+                            <View
+                              style={styles.supersetWarnRow}
+                              accessible
+                              accessibilityLabel={line}
+                              accessibilityActions={fixable.map((x) => ({ name: `fix-${x.exerciseId}`, label: t('train.superset.fixMusclesOf', { name: x.name }) }))}
+                              onAccessibilityAction={(e) => {
+                                const id = e.nativeEvent.actionName.replace(/^fix-/, '');
+                                if (fixable.some((x) => x.exerciseId === id)) setLiftFor(id);
+                              }}
+                              testID={`template-pair-${judgement.kind}-${i}`}
+                            >
+                              <Ionicons
+                                name={attention ? 'alert-circle-outline' : judgement.kind === 'agonist-antagonist' ? 'checkmark-circle-outline' : 'information-circle-outline'}
+                                size={16}
+                                color={attention ? colors.accent : colors.muted}
+                              />
+                              <Text style={attention ? styles.supersetWarn : [styles.tplDoseNote, { marginTop: 0, flexShrink: 1 }]}>{line}</Text>
+                            </View>
+                            {fixable.length ? (
+                              <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: space.md, paddingLeft: 22 }} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+                                {fixable.map((x) => (
+                                  <TouchableOpacity
+                                    key={x.exerciseId}
+                                    onPress={() => setLiftFor(x.exerciseId)}
+                                    style={{ minHeight: TARGET, justifyContent: 'center' }}
+                                    accessibilityRole="button"
+                                    testID={`template-fix-muscles-${x.exerciseId}`}
+                                  >
+                                    <Text style={styles.sectionAction}>{t('train.superset.fixMusclesOf', { name: x.name })}</Text>
+                                  </TouchableOpacity>
+                                ))}
+                              </View>
                             ) : null}
                           </View>
                         );
                       })}
-                      {pairWarnings.get(i)!.pending.map((p) => (
-                        <View key={`lt-${p.index}`} style={styles.supersetWarnRow} accessible testID={`template-load-test-${p.index}`}>
-                          <Ionicons name="alert-circle-outline" size={16} color={colors.accent} />
-                          <Text style={styles.supersetWarn}>
-                            {t('train.superset.loadTest', {
-                              name: exercises[p.index]?.name ?? '',
-                              from: formatLoad(p.from, unitSystem),
-                              to: formatLoad(p.to, unitSystem),
-                            })}
-                          </Text>
-                        </View>
-                      ))}
+                      {pairWarnings.get(i)!.pending.map((p) => {
+                        const ex = exercises[p.index];
+                        const assisted = train.catalog.find((c) => c.id === ex?.exerciseId)?.assisted === true;
+                        const head = t(assisted ? 'train.superset.loadTestHeadAssisted' : 'train.superset.loadTestHead', {
+                          name: ex?.name ?? '', from: formatLoad(p.from, unitSystem), to: formatLoad(p.to, unitSystem),
+                        });
+                        const how = t('train.superset.loadTestHow');
+                        return (
+                          <View key={`lt-${p.index}`} style={styles.supersetWarnRow} accessible accessibilityLabel={`${head} ${how}`} testID={`template-load-test-${p.index}`}>
+                            <Ionicons name="alert-circle-outline" size={16} color={colors.accent} />
+                            <View style={{ flexShrink: 1, gap: 2 }}>
+                              <Text style={styles.supersetWarn}>{head}</Text>
+                              <Text style={[styles.tplDoseNote, { marginTop: 0 }]}>{how}</Text>
+                            </View>
+                          </View>
+                        );
+                      })}
                     </View>
                   ) : null}
                   {open ? (
@@ -1792,7 +1864,7 @@ export function TemplateEditorModal({
                             style={styles.progToggle}
                             onPress={() => unpairRow(i)}
                             accessibilityRole="button"
-                            accessibilityLabel={t('train.superset.unpairA11y', { name: d.name, group: d.supersetGroup })}
+                            accessibilityLabel={`${t('train.superset.unpair')}, ${d.name}`}
                             testID={`template-unpair-${i}`}
                           >
                             <Ionicons name="unlink-outline" size={16} color={colors.muted} />

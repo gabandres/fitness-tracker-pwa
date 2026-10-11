@@ -253,7 +253,6 @@ export function ExerciseDetailSheet({
               })}
             </View>
             <Text style={[styles.fieldLabel, { marginTop: space.md }]}>{t('train.musclesLabel')}</Text>
-            <Text style={styles.sheetHint}>{t('train.musclesHint')}</Text>
             <Text style={styles.sheetHint}>{t('train.musclesPrimaryHint')}</Text>
             <MuscleChips value={editMuscles} onChange={setEditMuscles} />
             <View style={styles.editorBtns}>

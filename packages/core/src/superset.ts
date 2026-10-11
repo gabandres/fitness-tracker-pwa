@@ -132,7 +132,16 @@ export function groupRest(
  *
  * Rows that are already canonical come back by reference.
  */
-export function normalizeSupersets<T extends SupersetFields>(rows: readonly T[]): T[] {
+/** How a SESSION is normalized: its group letters stay what the lifter has
+ *  been reading all workout (re-lettering B to A mid-session renames a
+ *  station), and every member keeps the group's rests, as the start snapshot
+ *  wrote them. Templates use the defaults: re-lettered, rests on the leader. */
+export interface NormalizeOptions {
+  keepLetters?: boolean;
+  restsOnEveryMember?: boolean;
+}
+
+export function normalizeSupersets<T extends SupersetFields>(rows: readonly T[], opts: NormalizeOptions = {}): T[] {
   const groups = supersetGroups(rows);
   const strip = (r: T): T => {
     if (r.supersetGroup == null && r.pairPosition == null && r.transitionRestSec == null && r.roundRestSec == null) return r;
@@ -152,12 +161,12 @@ export function normalizeSupersets<T extends SupersetFields>(rows: readonly T[])
     }
     const kept = members.slice(0, MAX_SUPERSET_SIZE);
     const rest = groupRest(rows, row.supersetGroup!);
-    const name = SUPERSET_LETTERS[letter++ % SUPERSET_LETTERS.length];
+    const name = opts.keepLetters ? row.supersetGroup! : SUPERSET_LETTERS[letter++ % SUPERSET_LETTERS.length];
     kept.forEach((m, k) => {
       placed.add(m.index);
       const src = rows[m.index];
       const pos = (k + 1) as PairPosition;
-      const want: SupersetFields = k === 0
+      const want: SupersetFields = k === 0 || opts.restsOnEveryMember
         ? { supersetGroup: name, pairPosition: pos, transitionRestSec: rest.transitionRestSec, roundRestSec: rest.roundRestSec }
         : { supersetGroup: name, pairPosition: pos };
       const same = src.supersetGroup === want.supersetGroup && src.pairPosition === want.pairPosition
@@ -216,7 +225,7 @@ export function pairWithNext<T extends SupersetFields>(rows: readonly T[], index
 
 /** Take the row at `index` out of its group; a partner left alone goes
  *  straight too. Returns the canonical list. */
-export function unpair<T extends SupersetFields>(rows: readonly T[], index: number): T[] {
+export function unpair<T extends SupersetFields>(rows: readonly T[], index: number, opts: NormalizeOptions = {}): T[] {
   const next = rows.map((r, i) => {
     if (i !== index) return r;
     const { supersetGroup: _g, pairPosition: _p, transitionRestSec, roundRestSec, ...rest } = r;
@@ -236,7 +245,7 @@ export function unpair<T extends SupersetFields>(rows: readonly T[], index: numb
       };
     }
   }
-  return normalizeSupersets(next);
+  return normalizeSupersets(next, opts);
 }
 
 // ─── The alternating flow ───────────────────────────────────────
@@ -444,7 +453,10 @@ export function restAfterSetInFlow(
       const total = Math.max(...groupSteps.map((s) => s.unit)) + 1;
       return { seconds: roundRestSec, kind: 'round', round: { n: nextStep.unit + 1, total }, ...(next ? { next } : {}) };
     }
-    return { seconds: restFor(nextStep.exerciseIndex).cluster, kind: 'cluster', ...(next ? { next } : {}) };
+    // A leftover unit: the exercise's own rest, but still a round of the
+    // superset — "A1 alone · round 3 of 3".
+    const total = Math.max(...groupSteps.map((s) => s.unit)) + 1;
+    return { seconds: restFor(nextStep.exerciseIndex).cluster, kind: 'cluster', round: { n: nextStep.unit + 1, total }, ...(next ? { next } : {}) };
   }
   return { seconds: own.afterExercise ?? own.cluster, kind: 'after-exercise', ...(next ? { next } : {}) };
 }
@@ -628,6 +640,7 @@ export function reorderWithSupersets<T extends SupersetFields>(
   rows: readonly T[],
   from: number,
   to: number,
+  opts: NormalizeOptions = {},
 ): { rows: T[]; left?: { row: T; group: string } } {
   if (from === to || !rows[from] || to < 0 || to >= rows.length) return { rows: [...rows] };
   const next = [...rows];
@@ -637,7 +650,7 @@ export function reorderWithSupersets<T extends SupersetFields>(
   if (g && supersetGroups(rows).has(g)) {
     const nearMate = [next[to - 1], next[to + 1]].some((r) => r != null && r !== moved && r.supersetGroup === g);
     if (!nearMate) {
-      const solo = unpair(next, to);
+      const solo = unpair(next, to, opts);
       return { rows: solo, left: { row: moved, group: g } };
     }
   }
@@ -650,5 +663,40 @@ export function reorderWithSupersets<T extends SupersetFields>(
     seen.set(r.supersetGroup, k);
     return r.pairPosition === k ? r : { ...r, pairPosition: k as PairPosition };
   });
-  return { rows: normalizeSupersets(renumbered) };
+  return { rows: normalizeSupersets(renumbered, opts) };
+}
+
+/**
+ * A ONE-STEP move (▲ / ▼, VoiceOver's move up / down) that treats a superset
+ * as one unit: a straight row next to a block hops over the whole block, and
+ * moving any member moves the whole block. Leaving a superset is never a
+ * side effect of a one-step move — that is "Unpair", said out loud. (A
+ * one-step move used to swap a row INTO a block, which normalizing then
+ * undid — the move did nothing — or left a member with no adjacent partner,
+ * which dissolved the pair without a word.)
+ *
+ * Returns the new list and where the moved row now sits; the list comes back
+ * unchanged at either end. Letters and rests are untouched.
+ */
+export function moveBlockAware<T extends SupersetFields>(
+  rows: readonly T[],
+  from: number,
+  dir: -1 | 1,
+): { rows: T[]; newIndex: number } {
+  const real = supersetGroups(rows);
+  // Contiguous units, in list order.
+  const blocks: number[][] = [];
+  rows.forEach((r, i) => {
+    const last = blocks[blocks.length - 1];
+    const g = r.supersetGroup && real.has(r.supersetGroup) ? r.supersetGroup : undefined;
+    if (g && last && rows[last[0]].supersetGroup === g) last.push(i);
+    else blocks.push([i]);
+  });
+  const at = blocks.findIndex((b) => b.includes(from));
+  const to = at + dir;
+  if (at < 0 || to < 0 || to >= blocks.length) return { rows: [...rows], newIndex: from };
+  const order = [...blocks];
+  [order[at], order[to]] = [order[to], order[at]];
+  const flat = order.flat();
+  return { rows: flat.map((i) => rows[i]), newIndex: flat.indexOf(from) };
 }
