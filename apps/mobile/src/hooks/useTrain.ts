@@ -48,6 +48,11 @@ import {
   undoRemoval as applyUndoRemoval,
   planSwaps,
   rowPendingLoadTest,
+  programAutoActivation,
+  programVersion as programVersionOf,
+  templateVersionFor,
+  seedSideLoads,
+  type ProgramVersion,
   sessionDurationMin,
   moveInSession,
   canUndoMove,
@@ -75,7 +80,9 @@ import {
   templateToSessionExercises,
 } from '@/lib/workout';
 import type { CardioModality } from '@macrolog/core/cardio';
+import type { RecommendationSnapshot, Side } from '@macrolog/core/workout';
 import { type TrainRemoval, undoCardioRemoval } from '@/lib/train-removal';
+import { programSwitchWrites } from '@/lib/program-switch';
 import {
   type SeedExercise,
   type SeedTemplate,
@@ -124,6 +131,13 @@ export interface TrainState {
   switchDrafts: (drafts: readonly TemplateDraftDoc[], mode: 'activate' | 'revert', onLateFailure?: (e: unknown) => void) => Promise<void>;
   /** Delete a draft (an orphan, or one the lifter no longer wants). */
   deleteDraft: (draft: TemplateDraftDoc) => Promise<void>;
+  /** Program v2 (`program.ts`): which version is live — undefined when there
+   *  is no program — and the switch for all of its templates together. */
+  programVersion: ProgramVersion | 'mixed' | undefined;
+  switchProgram: (version: ProgramVersion, opts?: { onLateFailure?: (e: unknown) => void }) => Promise<void>;
+  /** After a finish: the one automatic switch to v2, when this session is the
+   *  one it waits for. `live` = the template as the finish left it. */
+  maybeAutoSwitchProgram: (session: WorkoutSession, live?: WorkoutTemplate) => Promise<boolean>;
   /** The load test pending on a template row, judged on the load the
    *  session would seed; null when none. */
   pendingLoadTestFor: (row: TemplateExercise) => { from: number; to: number } | null;
@@ -746,12 +760,29 @@ export function useTrain(): TrainState {
         // The same history the card reads (a baseline marker cuts it off),
         // and a load the lifter set after that session is the plan (10/7: lat
         // pulldown 80 → 90, which the read alone would call "add load: 85").
-        const { rec, basedOn } = sessionCall(row, completed, catalog.find((e) => e.id === se.exerciseId) ?? null);
+        const { rec, basedOn, sides } = sessionCall(row, completed, catalog.find((e) => e.id === se.exerciseId) ?? null);
+        // An L/R lift: each side is its own track — its own call, its own
+        // load (Program v2, core `side-tracks.ts`).
+        if (sides) {
+          const loads: Partial<Record<Side, number>> = {};
+          const snaps: Partial<Record<Side, RecommendationSnapshot>> = {};
+          for (const side of ['L', 'R'] as const) {
+            const call = sides[side];
+            if (!call) continue;
+            const load = call.rec.action !== 'none' && call.rec.load != null ? call.rec.load : (row.sideLoads?.[side] ?? row.targetLoad);
+            if (load != null) loads[side] = load;
+            if (call.rec.action !== 'none') snaps[side] = toRecommendationSnapshot(call.rec, call.basedOn);
+          }
+          const seeded = seedSideLoads(se, loads);
+          return Object.keys(snaps).length ? { ...seeded, sideRecommendations: snaps } : seeded;
+        }
         if (rec.action === 'none') return se;
         // The sets hold the card's load, not the template's, when the two
         // differ (owner, 2026-10-09: "says HOLD 20, filled 25").
         return { ...seedCallLoad(se, rec.load), recommendation: toRecommendationSnapshot(rec, basedOn) };
       });
+      // Program v2: the version this template runs as, frozen on the session.
+      const templateVersion = templateVersionFor(template.id, draftsRef.current);
       begin({
         status: 'active',
         date: new Date(),
@@ -759,6 +790,7 @@ export function useTrain(): TrainState {
         templateName: template.name,
         exercises,
         cardio: templateToSessionCardio(template),
+        ...(templateVersion ? { templateVersion } : {}),
       });
     },
     [uid, begin, recentSessions, catalog],
@@ -858,6 +890,59 @@ export function useTrain(): TrainState {
     },
     [uid, swapContext],
   );
+  /**
+   * Program v2: switch EVERY v2 draft to `version` together, in one batch
+   * (`program.ts`). Any switch disarms the automatic one; the automatic one
+   * also stamps `autoActivatedAt`, so it runs once.
+   */
+  const programSwitching = useRef(false);
+  const switchProgram = useCallback(
+    async (
+      version: ProgramVersion,
+      opts: { auto?: boolean; sessions?: readonly WorkoutSession[]; live?: WorkoutTemplate; onLateFailure?: (e: unknown) => void } = {},
+    ) => {
+      if (!uid || programSwitching.current) return;
+      const now = new Date();
+      const extra = opts.sessions ?? [];
+      const plan = programSwitchWrites(version, {
+        templates: opts.live ? templates.map((t) => (t.id === opts.live!.id ? opts.live! : t)) : templates,
+        catalog,
+        sessions: [...extra, ...recentSessions.filter((r) => !extra.some((x) => x.id === r.id))],
+        drafts: draftsRef.current,
+        now,
+      }, { auto: opts.auto });
+      if (!plan) return;
+      programSwitching.current = true;
+      await commitDraftSwaps(uid, plan.writes, now, opts.onLateFailure, plan.patches).finally(() => {
+        programSwitching.current = false;
+      });
+    },
+    [uid, templates, catalog, recentSessions],
+  );
+  /** After a finish: Program v2's one automatic switch, if this session is
+   *  the one it waits for. `live` is the template as the finish left it (the
+   *  auto-applied loads), so the switch carries them. True when it switched. */
+  const maybeAutoSwitchProgram = useCallback(
+    async (session: WorkoutSession, live?: WorkoutTemplate): Promise<boolean> => {
+      const done = { ...session, status: 'completed' as const };
+      if (programAutoActivation(draftsRef.current, done).length === 0) return false;
+      await switchProgram('v2', { auto: true, sessions: [done], live });
+      return true;
+    },
+    [switchProgram],
+  );
+  const programVersion = useMemo(() => programVersionOf(drafts), [drafts]);
+  // A missed automatic switch (the app closed before the finish's own call
+  // ran) is caught up once the finished session is on the server and no
+  // finish is in flight: only a session saved over two minutes ago counts, so
+  // this never races the finish sheet's progression write.
+  useEffect(() => {
+    if (!uid || active || saving) return;
+    const done = recentSessions.find((x) => x.status === 'completed'
+      && Date.now() - x.updatedAt.getTime() > 120_000
+      && programAutoActivation(drafts, x).length > 0);
+    if (done) void switchProgram('v2', { auto: true, sessions: [done] }).catch(() => undefined);
+  }, [uid, active, saving, drafts, recentSessions, switchProgram]);
   const deleteDraft = useCallback(
     async (draft: TemplateDraftDoc) => {
       if (uid && draft.id) await deleteTemplateDraft(uid, draft.id);
@@ -1410,6 +1495,9 @@ export function useTrain(): TrainState {
       planDraftSwaps,
       switchDrafts,
       deleteDraft,
+      programVersion,
+      switchProgram,
+      maybeAutoSwitchProgram,
       pendingLoadTestFor,
       recentSessions,
       active,
@@ -1446,7 +1534,7 @@ export function useTrain(): TrainState {
     }),
     [
       loading, error, errorKind, clearError, catalog, templates, drafts, planDraftSwaps, switchDrafts,
-      deleteDraft, pendingLoadTestFor, recentSessions, active, activePending, saving,
+      deleteDraft, programVersion, switchProgram, maybeAutoSwitchProgram, pendingLoadTestFor, recentSessions, active, activePending, saving,
       trainingPhase, autoApplyProgression,
       startWorkout, startFromTemplate, startCardioWorkout, saveTemplate, deleteTemplate,
       cloneStarterTemplate, addCatalogExercise, addLibraryExercise, addLibraryExerciseToActive, addManyToActive,

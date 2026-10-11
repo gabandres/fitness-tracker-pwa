@@ -85,6 +85,7 @@ export function toWorkoutSession(id: string, data: Record<string, unknown>): Wor
     bodyweight: data['bodyweight'] as number | undefined,
     sleepHours: data['sleepHours'] as number | undefined,
     durationMin: data['durationMin'] as number | undefined,
+    ...(data['templateVersion'] === 'v1' || data['templateVersion'] === 'v2' ? { templateVersion: data['templateVersion'] } : {}),
     exercises: ((data['exercises'] as SessionExercise[] | undefined) ?? []).map((ex) => ({
       ...ex,
       sets: ex.sets ?? [],

@@ -13,6 +13,9 @@ import { type DailyTargetRecord, describeTargetChange } from './target-history';
 import { normalizeClusterGroups } from './cluster-groups';
 import { snapshotSupersets } from './superset';
 import { MIDNIGHT, dayKeyAt, type DayBoundary } from './day-boundary';
+import { zone2Check } from './cardio';
+import { volumeBetween } from './volume-credits';
+import type { MuscleGroup } from './workout';
 import { compareLogsOldestFirst } from './firestore-mappers';
 
 const COLS = [
@@ -58,6 +61,18 @@ const COLS = [
   // 'workout_set' rows: group and position, from the session's snapshot.
   // Session duration was already here as `durationMin` on 'workout' rows.
   'supersetGroup', 'pairPosition', 'transitionRestSec', 'roundRestSec',
+  // ── Program v2 (2026-10-11), appended for the same reason ──
+  // `templateVersion` on 'workout', 'workout_set', 'cardio' and 'template'
+  // rows (the session's snapshot; blank before versions existed).
+  // `supersetBlock` / `supersetOrder` / `transitionSec` carry the same values
+  // as `supersetGroup` / `pairPosition` / `transitionRestSec` under the names
+  // the program spec uses — both stay, because nothing is removed or renamed.
+  // `side` is a set's L/R; `avgHR` and `zone2InBand` are on 'cardio' rows;
+  // `bedtime` / `wakeTime` beside `sleepHours` on 'sleep' rows; and one
+  // 'weeklyVolume' row per week per muscle (`volume-credits.ts`).
+  'templateVersion', 'supersetBlock', 'supersetOrder', 'side', 'transitionSec',
+  'avgHR', 'zone2InBand', 'bedtime', 'wakeTime',
+  'weekStart', 'muscle', 'directClusters', 'fractionalClusters',
 ] as const;
 type Col = typeof COLS[number];
 
@@ -91,6 +106,13 @@ export interface ExportData {
   effortStandards?: Record<string, EffortStandard | undefined>;
   /** Stored per-day target records (`target-history.ts`), for `target` rows. */
   targetRecords?: DailyTargetRecord[];
+  /** Bedtime / wake time per date ("HH:MM"), for `sleep` rows. */
+  dailySleepTimes?: Record<string, { bedtime?: string; wakeTime?: string }>;
+  /** The program version each template runs as (`programVersion`), by id. */
+  templateVersions?: Record<string, 'v1' | 'v2'>;
+  /** Catalog muscles by exercise id, for `weeklyVolume` rows. Absent → the
+   *  credit table alone decides (exercises it does not know are left out). */
+  catalogMuscles?: readonly { id?: string; muscles: readonly MuscleGroup[] }[];
 }
 
 /**
@@ -141,7 +163,8 @@ export function buildCsv(data: ExportData, boundary: DayBoundary = MIDNIGHT): st
 
   const sleepKeys = Object.keys(data.dailySleep).sort();
   for (const date of sleepKeys) {
-    rows.push(row({ type: 'sleep', date, sleepHours: data.dailySleep[date] }));
+    const times = data.dailySleepTimes?.[date];
+    rows.push(row({ type: 'sleep', date, sleepHours: data.dailySleep[date], bedtime: times?.bedtime, wakeTime: times?.wakeTime }));
   }
 
   const sortedMeasurements = [...data.measurements].sort((a, b) => a.date.getTime() - b.date.getTime());
@@ -174,6 +197,7 @@ export function buildCsv(data: ExportData, boundary: DayBoundary = MIDNIGHT): st
       weight: s.bodyweight,
       durationMin: s.durationMin,
       sleepHours: s.sleepHours,
+      templateVersion: s.templateVersion,
     }));
     for (const ex of s.exercises) {
       // Drop unfilled scaffold rows (no rep/duration count — phantom clusters
@@ -181,6 +205,11 @@ export function buildCsv(data: ExportData, boundary: DayBoundary = MIDNIGHT): st
       // already-saved sessions export cleanly: no blank rows, and every
       // exported cluster set carries its group.
       const logged = ex.sets.filter((set) => isLoggedSet(set, ex.logStyle));
+      // A mini carries no label; its cluster's activation does ("L" / "R").
+      const sideOf = (group: number | undefined) => {
+        const l = ex.sets.find((x) => x.kind === 'activation' && (x.group ?? 1) === (group ?? 1))?.label?.trim();
+        return l === 'L' || l === 'R' ? l : undefined;
+      };
       for (const set of normalizeClusterGroups(logged)) {
         rows.push(row({
           type: 'workout_set',
@@ -196,6 +225,11 @@ export function buildCsv(data: ExportData, boundary: DayBoundary = MIDNIGHT): st
           setRir: set.rir,
           supersetGroup: ex.supersetGroup,
           pairPosition: ex.pairPosition,
+          templateVersion: s.templateVersion,
+          supersetBlock: ex.supersetGroup,
+          supersetOrder: ex.pairPosition,
+          side: set.kind === 'activation' || set.kind === 'mini' ? sideOf(set.group) : undefined,
+          transitionSec: ex.supersetGroup ? ex.transitionRestSec : undefined,
         }));
       }
     }
@@ -226,6 +260,9 @@ export function buildCsv(data: ExportData, boundary: DayBoundary = MIDNIGHT): st
         cardioProvider: b.provider,
         cardioStartedAt: b.startedAt?.toISOString(),
         notes: b.notes,
+        templateVersion: s.templateVersion,
+        avgHR: b.avgHr,
+        zone2InBand: inBandCell(zone2Check(b).inBand),
       }));
     }
   }
@@ -261,8 +298,42 @@ export function buildCsv(data: ExportData, boundary: DayBoundary = MIDNIGHT): st
 
   rows.push(...templateRows(data));
   rows.push(...targetRows(data, boundary));
+  rows.push(...weeklyVolumeRows(data, boundary));
 
   return rows.join('\r\n');
+}
+
+const inBandCell = (v: boolean | undefined) => (v == null ? undefined : v ? 'true' : 'false');
+
+/** The Monday a date key's week starts on (weeks run Monday–Sunday). */
+function weekStartOf(dateKey: string): string {
+  const [y, m, d] = dateKey.split('-').map(Number);
+  const at = new Date(y, m - 1, d);
+  at.setDate(at.getDate() - ((at.getDay() + 6) % 7));
+  return `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, '0')}-${String(at.getDate()).padStart(2, '0')}`;
+}
+
+/**
+ * One `weeklyVolume` row per calendar week (Monday start) per muscle with any
+ * credit: direct clusters (primary muscle) and fractional (primary 1.0 +
+ * secondary 0.5), from COMPLETED sessions — the same numbers the weekly
+ * volume view shows, in clusters (myo-rep), never sets.
+ */
+function weeklyVolumeRows(data: ExportData, boundary: DayBoundary): string[] {
+  const done = (data.workoutSessions ?? []).filter((s) => s.status === 'completed');
+  const weeks = new Map<string, WorkoutSession[]>();
+  for (const s of done) {
+    const w = weekStartOf(dayKeyAt(s.date, boundary));
+    weeks.set(w, [...(weeks.get(w) ?? []), s]);
+  }
+  const out: string[] = [];
+  for (const w of [...weeks.keys()].sort()) {
+    const v = volumeBetween(weeks.get(w) ?? [], data.catalogMuscles ?? [], -Infinity, Infinity);
+    for (const m of v.week.filter((x) => x.fractional > 0)) {
+      out.push(row({ type: 'weeklyVolume', date: w, weekStart: w, muscle: m.muscle, directClusters: m.direct, fractionalClusters: m.fractional }));
+    }
+  }
+  return out;
 }
 
 /** `90-120` for a range, `60` for a single value. */
@@ -289,9 +360,11 @@ function templateRows(data: ExportData): string[] {
       for (const p of acts) if (p.label && !labels.includes(p.label)) labels.push(p.label);
       const drops = ex.plannedSets.filter((p) => p.kind === 'drop');
       const lastLoad = ex.loadLog?.[ex.loadLog.length - 1];
+      const ccc = ex.clusterCountChange;
       const notes = [
         ...drops.map((d) => `+ drop set${d.weight != null ? ` at ${d.weight}` : ''}`),
         ...(ex.baseline ? [`baseline since ${ex.baseline.since}: ${ex.baseline.reason}`] : []),
+        ...(ccc ? [`cluster count changed ${ccc.from}→${ccc.to}${ccc.since ? ` on ${ccc.since}` : ''}; baseline`] : []),
       ].join('; ');
       out.push(row({
         type: 'template',
@@ -308,6 +381,10 @@ function templateRows(data: ExportData): string[] {
         lastModifiedAt: ex.lastModifiedAt ?? lastLoad?.at,
         lastModifiedBy: ex.lastModifiedBy ?? lastLoad?.by,
         ...supersets[i],
+        templateVersion: t.id ? data.templateVersions?.[t.id] : undefined,
+        supersetBlock: supersets[i].supersetGroup,
+        supersetOrder: supersets[i].pairPosition,
+        transitionSec: supersets[i].transitionRestSec,
       }));
     });
     (t.cardioBlocks ?? []).forEach((b, j) => {
@@ -317,6 +394,7 @@ function templateRows(data: ExportData): string[] {
         position: t.exercises.length + j + 1,
         exercise: b.label ?? b.modality,
         durationMin: b.targetDurationSec != null ? Math.round(b.targetDurationSec / 60) : undefined,
+        templateVersion: t.id ? data.templateVersions?.[t.id] : undefined,
       }));
     });
   }

@@ -191,3 +191,35 @@ describe('auto-apply ON: Complete applies every proposed move as the engine', ()
     expect(train.saveTemplate).not.toHaveBeenCalled();
   });
 });
+
+describe('Program v2: the one automatic switch runs AFTER the progression write, with its loads', () => {
+  it('auto-apply on: the template write lands first, then the switch gets the applied rows and this session', async () => {
+    const order: string[] = [];
+    let release!: () => void;
+    const train = {
+      ...makeTrain(true),
+      saveTemplate: jest.fn(() => new Promise<void>((r) => { release = () => { order.push('save'); r(); }; })),
+      maybeAutoSwitchProgram: jest.fn(async () => { order.push('switch'); return true; }),
+    };
+    const ui = await open(train);
+    await fireEvent.press(ui.getByTestId('finish-confirm'));
+    await waitFor(() => expect(train.saveTemplate).toHaveBeenCalledTimes(1));
+    // The switch waits for the write.
+    expect(train.maybeAutoSwitchProgram).not.toHaveBeenCalled();
+    release();
+    await waitFor(() => expect(train.maybeAutoSwitchProgram).toHaveBeenCalledTimes(1));
+    expect(order).toEqual(['save', 'switch']);
+    const [s, live] = train.maybeAutoSwitchProgram.mock.calls[0] as unknown as [WorkoutSession, WorkoutTemplate];
+    expect(s.id).toBe('live');
+    expect(live.exercises[0].targetLoad).toBe(105);
+  });
+
+  it('auto-apply off: the switch is asked with the template as it stands', async () => {
+    const train = { ...makeTrain(false), maybeAutoSwitchProgram: jest.fn().mockResolvedValue(false) };
+    const ui = await open(train);
+    await fireEvent.press(ui.getByTestId('finish-confirm'));
+    await waitFor(() => expect(train.maybeAutoSwitchProgram).toHaveBeenCalledTimes(1));
+    expect(train.saveTemplate).not.toHaveBeenCalled();
+    expect((train.maybeAutoSwitchProgram.mock.calls[0] as unknown as [WorkoutSession, WorkoutTemplate])[1].exercises[0].targetLoad).toBe(100);
+  });
+});

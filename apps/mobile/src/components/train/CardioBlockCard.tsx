@@ -7,6 +7,9 @@ import {
   clampDistanceM,
   clampHr,
   clampRpe,
+  hrBand,
+  zone2Check,
+  ZONE2_BAND,
   distanceUnit,
   formatDistance,
   parseDistanceToM,
@@ -90,6 +93,8 @@ function CardioBlockCardInner({ block, index, onPatch, onCommit, onRemove, overl
 
   const imported = block.source === 'health';
   const cells = cardioSummaryCells(block, unitSystem);
+  const band = hrBand(block);
+  const z2 = zone2Check(block);
 
   const patchNum = useCallback(
     (key: 'durationSec' | 'distanceM' | 'avgHr' | 'rpe', raw: string) => {
@@ -219,6 +224,7 @@ function CardioBlockCardInner({ block, index, onPatch, onCommit, onRemove, overl
             placeholder="—"
             placeholderTextColor={colors.faint}
             accessibilityLabel={t('cardio.avgHr')}
+            testID={`cardio-hr-${index}`}
             onChangeText={(v) => patchNum('avgHr', v)}
             onBlur={onCommit}
           />
@@ -235,11 +241,27 @@ function CardioBlockCardInner({ block, index, onPatch, onCommit, onRemove, overl
             placeholder={t('cardio.rpeHint')}
             placeholderTextColor={colors.faint}
             accessibilityLabel={t('cardio.rpe')}
+            testID={`cardio-rpe-${index}`}
             onChangeText={(v) => patchNum('rpe', v)}
             onBlur={onCommit}
           />
         </View>
       </View>
+
+      {/* Program v2: the Zone 2 band and its two flags (core `zone2Check`). */}
+      {band ? (
+        <Text style={styles.cardioTarget} testID={`cardio-band-${index}`}>
+          {t('cardio.hrBand', { min: band.min, max: band.max })}
+        </Text>
+      ) : null}
+      {z2.inBand === false ? (
+        <Text style={styles.cardioWarn} testID={`cardio-out-of-band-${index}`}>
+          {t('cardio.outsideZone2', { min: band?.min ?? ZONE2_BAND.min, max: band?.max ?? ZONE2_BAND.max })}
+        </Text>
+      ) : null}
+      {z2.rpeTooHigh ? (
+        <Text style={styles.cardioWarn} testID={`cardio-rpe-high-${index}`}>{t('cardio.rpeTooHighZone2')}</Text>
+      ) : null}
 
       <TextInput
         style={styles.input}

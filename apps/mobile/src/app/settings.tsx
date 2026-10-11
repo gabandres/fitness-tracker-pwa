@@ -60,6 +60,8 @@ import { ACCESSIBILITY_FONT_SCALE } from '@/lib/font-scale';
 import { APP_STORE_REVIEW_URL } from '@/lib/reviewPrompt';
 import { openExternal } from '@/lib/open-external';
 import { ConfirmHost, confirm } from '@/components/ConfirmSheet';
+import { showToast } from '@/components/Toast';
+import { useProgram } from '@/hooks/useProgram';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { useIsOffline } from '@/lib/connectivity';
 import { TipSheet } from '@/components/TipSheet';
@@ -143,6 +145,73 @@ async function readCsvText(uri: string): Promise<string> {
   }
   const { File } = await import('expo-file-system');
   return new File(uri).text();
+}
+
+/**
+ * Settings → Program version (Program v2, `useProgram`): v1 / v2 for every
+ * template the program changes, together; whether the one automatic switch
+ * is still waiting; and the duration estimate per template, v1 vs v2, with
+ * the week's total. Nothing renders for an account without a program.
+ */
+function ProgramVersionCard({ stacked, offline }: { stacked: boolean; offline: boolean }) {
+  const t = useT();
+  const locale = useLocale();
+  const styles = useThemedStyles(createStyles);
+  const p = useProgram();
+  if (!p.version) return null;
+  const pick = (to: 'v1' | 'v2') => {
+    if (to === p.version) return;
+    confirm({
+      title: t(to === 'v2' ? 'settings.programToV2Title' : 'settings.programToV1Title'),
+      body: t(to === 'v2' ? 'settings.programToV2Body' : 'settings.programToV1Body'),
+      confirmText: t(to === 'v2' ? 'settings.programToV2' : 'settings.programToV1'),
+      onConfirm: () => {
+        void p.switchTo(to)
+          .then(() => showToast(t(to === 'v2' ? 'settings.programNowV2' : 'settings.programNowV1')))
+          .catch(() => showToast(t('settings.programErr')));
+      },
+    });
+  };
+  const week = p.rows.reduce((acc, r) => ({ v1: acc.v1 + r.v1, v2: acc.v2 + r.v2 }), { v1: 0, v2: 0 });
+  const status = p.armedTemplate
+    ? t('settings.programAuto', { template: p.armedTemplate })
+    : p.autoActivatedAt
+      ? t('settings.programAutoDone', { date: new Date(p.autoActivatedAt).toLocaleDateString(locale, { month: 'short', day: 'numeric' }) })
+      : null;
+  return (
+    <>
+      <Text style={styles.section} accessibilityRole="header">{t('settings.programSection')}</Text>
+      <View style={styles.card} testID="settings-program">
+        <Text style={styles.rowLabel}>{t('settings.programVersion')}</Text>
+        <Text style={styles.rowValue}>{t('settings.programSub')}</Text>
+        <ChoiceRow
+          label={t('settings.programVersion')}
+          options={[
+            { key: 'v1', label: t('settings.programV1'), testID: 'settings-program-v1' },
+            { key: 'v2', label: t('settings.programV2'), testID: 'settings-program-v2' },
+          ]}
+          value={(p.version === 'mixed' ? '' : p.version) as 'v1' | 'v2'}
+          onPick={pick}
+          disabled={offline || p.busy}
+          dimmed={offline}
+          stacked={stacked}
+        />
+        {p.version === 'mixed' ? <Text style={styles.rowValue} testID="settings-program-mixed">{t('settings.programMixed')}</Text> : null}
+        {status ? <Text style={styles.rowValue} testID="settings-program-status">{status}</Text> : null}
+        {p.rows.length ? (
+          <View style={styles.digestRow} accessible testID="settings-program-durations">
+            <Text style={styles.rowLabel}>{t('settings.programDuration')}</Text>
+            {p.rows.map((r) => (
+              <Text key={r.templateId} style={styles.rowValue}>
+                {t('settings.programDurationRow', { name: r.name, v1: formatNumber(r.v1, locale), v2: formatNumber(r.v2, locale) })}
+              </Text>
+            ))}
+            <Text style={styles.rowValue}>{t('settings.programDurationWeek', { v1: formatNumber(week.v1, locale), v2: formatNumber(week.v2, locale) })}</Text>
+          </View>
+        ) : null}
+      </View>
+    </>
+  );
 }
 
 export default function Settings() {
@@ -910,6 +979,10 @@ export default function Settings() {
             </Text>
           ) : null}
         </View>
+
+        {/* ── Program version ── Program v2 (2026-10-11): all its templates
+            switch together; shown only when the account has one. */}
+        <ProgramVersionCard stacked={stackFloors} offline={offline} />
 
         {/* ── Safety floors ── the clamps under the targets above. At large
             text the stepper drops under its description: side by side, the

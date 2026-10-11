@@ -458,13 +458,13 @@ describe('buildCsv — superset columns (2026-10-11)', () => {
   it('appends the four columns after every existing one', () => {
     const header = paired.split('\r\n')[0].split(',');
     expect(header.slice(0, PRE_SUPERSET_COLS.length)).toEqual(PRE_SUPERSET_COLS);
-    expect(header.slice(PRE_SUPERSET_COLS.length)).toEqual(['supersetGroup', 'pairPosition', 'transitionRestSec', 'roundRestSec']);
+    expect(header.slice(PRE_SUPERSET_COLS.length, PRE_SUPERSET_COLS.length + 4)).toEqual(['supersetGroup', 'pairPosition', 'transitionRestSec', 'roundRestSec']);
   });
 
   it('myo-reps logged inside a pair export the same set rows as straight sets, plus group and position', () => {
     const sets = (csv: string) => read(csv).filter((r) => r.type === 'workout_set');
     const strip = (r: Record<string, string>) => {
-      const { supersetGroup: _g, pairPosition: _p, ...rest } = r;
+      const { supersetGroup: _g, pairPosition: _p, supersetBlock: _b, supersetOrder: _o, transitionSec: _t, ...rest } = r;
       return rest;
     };
     expect(sets(paired).map(strip)).toEqual(sets(straight).map(strip));
@@ -496,5 +496,78 @@ describe('buildCsv — superset columns (2026-10-11)', () => {
     const r = parseImportCsv(paired);
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.result.entries.map((e) => e.calories)).toEqual([500]);
+  });
+});
+
+// ─── Program v2 (2026-10-11): appended columns + weeklyVolume rows ─────
+import { HISTORICAL } from './__fixtures__/csv-historical';
+import { HISTORICAL_GOLDEN_CSV } from './__fixtures__/csv-historical.golden';
+
+describe('buildCsv — Program v2 columns (test 10)', () => {
+  const NEW = [
+    'templateVersion', 'supersetBlock', 'supersetOrder', 'side', 'transitionSec',
+    'avgHR', 'zone2InBand', 'bedtime', 'wakeTime',
+    'weekStart', 'muscle', 'directClusters', 'fractionalClusters',
+  ];
+  const csv = buildCsv(HISTORICAL);
+  const lines = csv.split('\r\n');
+  const golden = HISTORICAL_GOLDEN_CSV.split('\r\n');
+  const header = lines[0].split(',');
+  const read = (text: string) => {
+    const [h, ...rest] = text.split('\r\n');
+    const cols = h.split(',');
+    return rest.map(splitLine).map((f) => Object.fromEntries(cols.map((c, i) => [c, f[i] ?? ''])));
+  };
+
+  it('appends the new columns after every existing one, in order', () => {
+    const before = golden[0].split(',');
+    expect(header.slice(0, before.length)).toEqual(before);
+    expect(header.slice(before.length)).toEqual(NEW);
+  });
+
+  it('historical rows are byte-for-byte unchanged in every existing column (the pre-v2 exporter\'s own output)', () => {
+    const old = lines.filter((l) => !l.startsWith('weeklyVolume,'));
+    expect(old).toHaveLength(golden.length);
+    old.slice(1).forEach((line, i) => {
+      expect(line.startsWith(`${golden[i + 1]},`)).toBe(true);
+    });
+  });
+
+  it('fills the new columns from what was stored, and leaves templateVersion / bedtime blank where nothing says it', () => {
+    const rows = read(csv);
+    const calfR = rows.find((r) => r.type === 'workout_set' && r.exercise === 'Single-leg DB calf raise' && r.setGroup === '2' && r.setKind === 'mini');
+    expect(calfR).toMatchObject({ side: 'R', supersetBlock: '', templateVersion: '' });
+    const flat = rows.find((r) => r.type === 'workout_set' && r.exercise === 'DB Flat Press');
+    expect(flat).toMatchObject({ supersetBlock: 'A', supersetOrder: '1', transitionSec: '30', side: '' });
+    const cardio = rows.filter((r) => r.type === 'cardio').map((r) => [r.avgHR, r.zone2InBand]);
+    expect(cardio).toEqual([['128', 'true'], ['141', 'false']]);
+    expect(rows.filter((r) => r.type === 'sleep').every((r) => r.bedtime === '' && r.wakeTime === '')).toBe(true);
+  });
+
+  it('a stored version, bedtime and wake time are exported', () => {
+    const v2 = buildCsv({
+      ...HISTORICAL,
+      workoutSessions: HISTORICAL.workoutSessions.map((s) => ({ ...s, templateVersion: 'v2' as const })),
+      dailySleepTimes: { '2026-10-07': { bedtime: '23:40', wakeTime: '06:10' } },
+      templateVersions: { 't-push': 'v2' },
+    });
+    const rows = read(v2);
+    expect(rows.find((r) => r.type === 'sleep' && r.date === '2026-10-07')).toMatchObject({ sleepHours: '6.5', bedtime: '23:40', wakeTime: '06:10' });
+    expect(rows.filter((r) => r.type === 'workout').map((r) => r.templateVersion)).toEqual(['v2', 'v2']);
+    expect(rows.filter((r) => r.type === 'template').every((r) => r.templateVersion === 'v2')).toBe(true);
+  });
+
+  it('weeklyVolume rows: one per week per credited muscle, an L+R calf pair counted once', () => {
+    const rows = read(csv).filter((r) => r.type === 'weeklyVolume');
+    const byMuscle = Object.fromEntries(rows.map((r) => [`${r.weekStart} ${r.muscle}`, [r.directClusters, r.fractionalClusters]]));
+    // Week of Mon 2026-10-05: Smith ×2, calf L+R (=1), flat ×2, crunch ×1, lateral ×1.
+    expect(byMuscle['2026-10-05 quads']).toEqual(['2', '2']);
+    expect(byMuscle['2026-10-05 glutes']).toEqual(['0', '1']);
+    expect(byMuscle['2026-10-05 calves']).toEqual(['1', '1']);
+    expect(byMuscle['2026-10-05 chest']).toEqual(['2', '2']);
+    expect(byMuscle['2026-10-05 triceps']).toEqual(['0', '1']);
+    expect(byMuscle['2026-10-05 sideDelt']).toEqual(['1', '1']);
+    expect(byMuscle['2026-10-05 abs']).toEqual(['1', '1']);
+    expect(rows.every((r) => r.date === r.weekStart)).toBe(true);
   });
 });

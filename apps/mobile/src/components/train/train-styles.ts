@@ -109,6 +109,8 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   supersetWarnRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginTop: 4 },
   /** A superset action on a collapsed editor card: 44pt, icon only. */
   supersetLinkBtn: { width: TARGET, height: TARGET, alignItems: 'center', justifyContent: 'center' },
+  /** An L/R lift's side above its own call (Program v2). */
+  sideLabel: { fontSize: font.tiny, color: colors.muted, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 2 },
   // superset report
   reportMetric: { gap: 2 },
   reportMetricLabel: { fontSize: font.small, fontWeight: '700', color: colors.muted },

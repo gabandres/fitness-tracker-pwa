@@ -44,6 +44,8 @@ import {
   undoBreakFast as undoBreakFastDoc,
   subscribeDailyActivity,
   subscribeDailySleep,
+  subscribeSleepTimes,
+  updateSleepTimes,
   subscribeDailyWater,
   subscribeDailyWeights,
   subscribePresets,
@@ -98,7 +100,11 @@ export interface TodayState extends LogWrites {
   sleep: number | null;
   activity: DailyActivity | undefined;
   setWater: (flOz: number) => Promise<void>;
-  setSleep: (hours: number) => Promise<void>;
+  /** Hours slept, and optionally the night's bedtime / wake time ("HH:MM";
+   *  `null` clears one). */
+  setSleep: (hours: number, times?: { bedtime?: string | null; wakeTime?: string | null }) => Promise<void>;
+  /** Tonight's — today's — bedtime / wake time, for the sleep sheet. */
+  sleepTimes: { bedtime?: string; wakeTime?: string };
   /** Fast start time (Date) or null when not fasting. */
   fastStartedAt: Date | null;
   /** Omit `startedAt` to begin now; pass one to correct a running fast. */
@@ -160,6 +166,7 @@ export function useToday(): TodayState {
   const [customFoods, setCustomFoods] = useCachedState<CustomFood[]>(uid, 'customFoods', []);
   const [water, setWaterMap] = useCachedState<Record<string, number>>(uid, 'water', {});
   const [sleep, setSleepMap] = useCachedState<Record<string, number>>(uid, 'sleep', {});
+  const [sleepTimes, setSleepTimes] = useState<{ bedtime?: string; wakeTime?: string }>({});
   const [activity, setActivityMap] = useCachedState<Record<string, DailyActivity>>(
     uid,
     'activity',
@@ -257,6 +264,7 @@ export function useToday(): TodayState {
               open: (deliver) => subscribeDailySleep(uid, deliver),
               apply: setSleepMap,
             }),
+
             // Health-imported steps / active energy. Read-only here — the
             // device measures these and the app never writes them back.
             feedChannel({
@@ -328,6 +336,18 @@ export function useToday(): TodayState {
   // re-rendered, so an app resumed the next morning kept showing yesterday as
   // "Today". `useDayKey` re-keys at the boundary instant and on foreground.
   const todayKey = useDayKey(boundary);
+  // Today's night only: the sleep sheet's optional bedtime / wake time
+  // (Program v2). Its own feed because it follows the day key.
+  useLedgerFeed({
+    uid,
+    label: 'Today sleep times',
+    gate: 'focus',
+    channels: () =>
+      uid
+        ? [feedChannel({ key: 'sleepTimes', settles: 'none', open: (deliver) => subscribeSleepTimes(uid, todayKey, deliver), apply: setSleepTimes })]
+        : [],
+    deps: [uid, todayKey],
+  });
   const summary = useMemo(
     () => summarizeDay(todayKey, logs, weights, boundary),
     [todayKey, logs, weights, boundary],
@@ -460,9 +480,10 @@ export function useToday(): TodayState {
     [uid, todayKey],
   );
   const setSleep = useCallback(
-    async (hours: number) => {
+    async (hours: number, times?: { bedtime?: string | null; wakeTime?: string | null }) => {
       if (!uid) return;
       await writeDailyMetric(uid, 'sleep', todayKey, hours);
+      if (times) await updateSleepTimes(uid, todayKey, times);
     },
     [uid, todayKey],
   );
@@ -515,6 +536,7 @@ export function useToday(): TodayState {
     unitSystem: profile?.unitSystem === 'metric' ? 'metric' : 'us',
     water: water[todayKey] ?? 0,
     sleep: sleep[todayKey] ?? null,
+    sleepTimes,
     activity: activity[todayKey],
     setWater,
     setSleep,

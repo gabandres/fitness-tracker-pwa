@@ -97,3 +97,22 @@ export function readActivity(data: unknown): DailyActivity {
     activeKcal: num(d?.activeKcal) ?? undefined,
   };
 }
+
+/** A clock time "HH:MM" (24 h), as `dailySleep.bedtime` / `wakeTime` store
+ *  it (Program v2, 2026-10-11; both optional, both the user's own entry). */
+export const CLOCK_TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/** Bedtime or wake time from a `dailySleep/{dateKey}` doc; undefined when
+ *  absent or not a clock time. */
+export function readSleepClock(data: unknown, field: 'bedtime' | 'wakeTime'): string | undefined {
+  const v = (data as Record<string, unknown> | null | undefined)?.[field];
+  return typeof v === 'string' && CLOCK_TIME.test(v) ? v : undefined;
+}
+
+/** "7:05" / "0705" / "23:05" → "07:05" / "07:05" / "23:05"; anything else → undefined. */
+export function normalizeClockTime(input: string): string | undefined {
+  const m = input.trim().match(/^(\d{1,2})(?::?(\d{2}))$/);
+  if (!m) return undefined;
+  const t = `${m[1].padStart(2, '0')}:${m[2]}`;
+  return CLOCK_TIME.test(t) ? t : undefined;
+}

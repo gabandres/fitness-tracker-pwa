@@ -29,6 +29,7 @@ import type {
   ProgressionBaseline,
   SessionExercise,
   SetStructure,
+  Side,
   TemplateExercise,
   WorkoutSession,
   WorkoutTemplate,
@@ -46,6 +47,8 @@ import { engineHistory, exerciseHistory } from './train-view';
 import { stampChangedRows } from './progression-apply';
 import { normalizeSupersets, pendingLoadTest, supersetGroups } from './superset';
 import { calendarDateKey } from './date';
+import { readableHistory, sideLoad, sidesOf } from './side-tracks';
+import { isZone2 } from './cardio';
 
 export type ContextChange = 'superset' | 'day' | 'position';
 const CHANGE_ORDER: readonly ContextChange[] = ['superset', 'day', 'position'];
@@ -210,6 +213,19 @@ export interface TemplateDraftDoc {
   previous?: TemplateBody;
   activatedAt?: string;
   revertedAt?: string;
+  /** A versioned program draft (Program v2, 2026-10-11): `program.ts`. */
+  program?: 'v2';
+  /** The change's reason, logged on the template's notes when it switches. */
+  reason?: string;
+  /** Rows whose existing baseline the switch must NOT replace with a
+   *  context-change one (exercise ids) — the shoulder press keeps its
+   *  "baseline since 2026-10-09". */
+  keepBaselines?: string[];
+  /** Switch on by itself once, after a completed session of this template
+   *  that started after `after` (ISO) — `programAutoActivation`. */
+  autoActivate?: { afterTemplateId: string; after: string };
+  /** When the automatic switch ran. Set once; it never runs again. */
+  autoActivatedAt?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -321,18 +337,41 @@ interface SwapContext {
   retired?: readonly TemplateRows[];
 }
 
-function plan(id: string, incoming: TemplateBody, ctx: SwapContext, mode: 'activate' | 'revert', stampBaselines: boolean): SwapPlan {
+function plan(
+  id: string,
+  incoming: TemplateBody,
+  ctx: SwapContext,
+  mode: 'activate' | 'revert',
+  stampBaselines: boolean,
+  program?: Pick<TemplateDraftDoc, 'program' | 'reason' | 'keepBaselines'>,
+): SwapPlan {
   const current = ctx.live.find((t) => t.id === id);
   if (!current) throw new Error(`template ${id} is not live`);
-  const fields = mode === 'activate' ? ACTIVATION_FIELDS : PROGRESS_FIELDS;
+  // A program version states its own cues (the calf raise's pause), so they
+  // are not taken from the live row like a superset draft's are.
+  const fields = mode === 'activate'
+    ? (program?.program ? ACTIVATION_FIELDS.filter((f) => f !== 'cues') : ACTIVATION_FIELDS)
+    : PROGRESS_FIELDS;
   const retired = (ctx.retired ?? []).filter((t) => t.id !== id);
   let rows = normalizeSupersets(refreshFromLive(incoming.exercises, ctx.live, id, fields, retired));
   const changes = contextChanges(ctx.live, { id, exercises: rows }, retired);
+  // Program v2: a row whose cluster count changed is judged on its first
+  // clusters against its whole history (`side-tracks.ts`), so a context
+  // baseline — which would cut that history off — is not stamped on it, and
+  // a row the program says keeps its baseline keeps it.
+  const keep = new Set(program?.keepBaselines ?? []);
+  for (const r of rows) if (r.clusterCountChange || keep.has(r.exerciseId)) changes.delete(r.exerciseId);
   if (stampBaselines) {
     rows = applyContextBaselines(rows, changes, {
       since: (eid) => baselineSince(eid, ctx.sessions, ctx.now),
       catalog: ctx.catalog,
     });
+  }
+  // The cluster-count change is dated the day it takes effect.
+  if (mode === 'activate') {
+    rows = rows.map((r) => (r.clusterCountChange && !r.clusterCountChange.since
+      ? { ...r, clusterCountChange: { ...r.clusterCountChange, since: baselineSince(r.exerciseId, ctx.sessions, ctx.now) } }
+      : r));
   }
   // An activation is the lifter's change to every row it moves. A revert
   // restores rows with their own old stamps — only a row that gets a new
@@ -347,6 +386,14 @@ function plan(id: string, incoming: TemplateBody, ctx: SwapContext, mode: 'activ
   // record, and its cardio is not part of the superset decision.
   const replaced = bodyOf(current);
   const body: TemplateBody = { ...replaced, exercises: rows };
+  // A program switch is logged on the template's dated record (its notes),
+  // the way every programme change has been since 2026-10-09; and the
+  // program's cardio prescription (the Zone 2 HR band) comes with it.
+  if (program?.program) {
+    const line = `${calendarDateKey(ctx.now)}: ${mode === 'activate' ? (program.reason ?? 'program switched') : `back to v1 (${program.reason ?? 'program'})`}`;
+    body.notes = replaced.notes ? `${replaced.notes}\n${line}` : line;
+    if (incoming.cardioBlocks !== undefined) body.cardioBlocks = incoming.cardioBlocks;
+  }
   return { body, replaced, changes, overlap: weekOverlap(ctx.live, id, body) };
 }
 
@@ -356,8 +403,11 @@ function plan(id: string, incoming: TemplateBody, ctx: SwapContext, mode: 'activ
  * re-paired row), and the straight-set body it replaces is returned for the
  * draft to keep.
  */
-export function planActivation(draft: Pick<TemplateDraftDoc, 'draftOf' | 'template'>, ctx: SwapContext): SwapPlan {
-  return plan(draft.draftOf, draft.template, ctx, 'activate', true);
+export function planActivation(
+  draft: Pick<TemplateDraftDoc, 'draftOf' | 'template'> & Partial<Pick<TemplateDraftDoc, 'program' | 'reason' | 'keepBaselines'>>,
+  ctx: SwapContext,
+): SwapPlan {
+  return plan(draft.draftOf, draft.template, ctx, 'activate', true, draft);
 }
 
 /**
@@ -371,7 +421,7 @@ export function planActivation(draft: Pick<TemplateDraftDoc, 'draftOf' | 'templa
  * that change get a baseline again.
  */
 export function planRevert(
-  draft: Pick<TemplateDraftDoc, 'draftOf' | 'previous' | 'activatedAt'>,
+  draft: Pick<TemplateDraftDoc, 'draftOf' | 'previous' | 'activatedAt'> & Partial<Pick<TemplateDraftDoc, 'program' | 'reason' | 'keepBaselines'>>,
   ctx: SwapContext,
 ): SwapPlan {
   if (!draft.previous) throw new Error('draft has no straight-set body to restore');
@@ -379,7 +429,7 @@ export function planRevert(
   const loggedOnSuperset = ctx.sessions.some((s) => s.status === 'completed'
     && (Number.isNaN(since) || s.date.getTime() >= since)
     && s.exercises.some((e) => e.supersetGroup != null));
-  return plan(draft.draftOf, draft.previous, ctx, 'revert', loggedOnSuperset);
+  return plan(draft.draftOf, draft.previous, ctx, 'revert', loggedOnSuperset, draft);
 }
 
 /**
@@ -391,8 +441,8 @@ export function planRevert(
  * every plan in one batch. Overlap is judged against the FINAL week.
  */
 export function planSwaps(
-  items: readonly ({ mode: 'activate'; draft: Pick<TemplateDraftDoc, 'draftOf' | 'template'> }
-    | { mode: 'revert'; draft: Pick<TemplateDraftDoc, 'draftOf' | 'previous' | 'activatedAt'> })[],
+  items: readonly ({ mode: 'activate'; draft: Parameters<typeof planActivation>[0] }
+    | { mode: 'revert'; draft: Parameters<typeof planRevert>[0] })[],
   ctx: SwapContext,
 ): SwapPlan[] {
   // Order does not matter: a body an earlier item replaced becomes `retired`,
@@ -456,6 +506,30 @@ export interface DraftLayoutRow {
    *  rest-after is the rest after a whole superset). */
   restAfterSec?: number;
   restAfterMaxSec?: number;
+  /** A new cluster count (Program v2: the lateral raise 1 → 2). The planned
+   *  sets are rebuilt as that many copies of cluster 1, a drop set stays on
+   *  the LAST cluster only, and the row is marked `clusterCountChange`. */
+  clusters?: number;
+  /** See `TemplateExercise.restClusterSec` / `minClusterRestSec`. */
+  restClusterSec?: number;
+  minClusterRestSec?: number;
+  /** The switch must not replace this row's existing baseline. */
+  keepBaseline?: boolean;
+  /** A cue the version adds — unless an existing cue already says it
+   *  (`cueAlreadyIf`, else the exact text). */
+  addCue?: string;
+  cueAlreadyIf?: RegExp;
+}
+
+/** Rest defaults for STRAIGHT rows (Program v2): the rest after a row is
+ *  `same` when the next row's primary muscle is this row's, else `switch`;
+ *  between a row's own clusters it is always `same`. */
+export interface StraightRestRule {
+  sameSec: number;
+  sameMaxSec?: number;
+  switchSec: number;
+  /** The rest after a whole superset block. */
+  afterBlockSec?: number;
 }
 
 export interface DraftLayout {
@@ -466,6 +540,33 @@ export interface DraftLayout {
   /** Group rests, seconds; absent → the defaults. */
   transitionRestSec?: number;
   roundRestSec?: number;
+  /** Computed rests for every row a row-level value does not set. */
+  straightRest?: StraightRestRule;
+  /** The cardio prescription the version carries (absent → the live one). */
+  cardioBlocks?: WorkoutTemplate['cardioBlocks'];
+  /** Copy the live cardio and prescribe this HR band on its Zone 2 blocks. */
+  zone2Band?: { min: number; max: number };
+}
+
+/** A cluster count change: `n` copies of cluster 1's activation and minis,
+ *  with any drop set placed once, after the LAST cluster (and numbered as
+ *  it). Explicit per-set weights equal to the row's load are dropped so the
+ *  row's load — refreshed at every switch — is the one the sets use. */
+export function withClusterCount(row: TemplateExercise, n: number): TemplateExercise {
+  const first = Math.min(...row.plannedSets.filter((p) => p.kind === 'activation').map((p) => p.group ?? 1));
+  const cluster = row.plannedSets.filter((p) => (p.kind === 'activation' || p.kind === 'mini') && (p.group ?? 1) === first);
+  const drops = row.plannedSets.filter((p) => p.kind === 'drop');
+  const plain = (p: (typeof cluster)[number]) => {
+    const { weight, ...rest } = p;
+    return weight != null && row.targetLoad != null && Math.abs(weight - row.targetLoad) < 0.01 ? rest : p;
+  };
+  const sets = Array.from({ length: n }, (_, k) => cluster.map((p) => ({ ...plain(p), group: k + 1 }))).flat();
+  const from = new Set(row.plannedSets.filter((p) => p.kind === 'activation').map((p) => p.group ?? 1)).size;
+  return {
+    ...row,
+    plannedSets: [...sets, ...drops.map((d) => ({ ...d, group: n }))],
+    ...(from !== n ? { clusterCountChange: { from, to: n, since: '' } } : {}),
+  };
 }
 
 /**
@@ -475,15 +576,29 @@ export interface DraftLayout {
  * the live templates: a draft that silently drops a lift is the failure mode
  * the weekly parity check exists for, and it should not get that far.
  */
-export function buildDraftBody(live: readonly WorkoutTemplate[], layout: DraftLayout): { draftOf: string; body: TemplateBody } {
+export function buildDraftBody(
+  live: readonly WorkoutTemplate[],
+  layout: DraftLayout,
+  /** The primary muscle of a row, for `layout.straightRest`. */
+  primaryOf?: (row: TemplateExercise) => string | undefined,
+): { draftOf: string; body: TemplateBody; keepBaselines: string[] } {
   const home = live.find((t) => t.name === layout.draftOf);
   if (!home?.id) throw new Error(`no live template named "${layout.draftOf}"`);
+  const keepBaselines: string[] = [];
   const rows = layout.rows.map((r): TemplateExercise => {
     const src = live.find((t) => t.name === (r.from ?? layout.draftOf));
     const row = src?.exercises.find((e) => e.name === r.exercise);
     if (!row) throw new Error(`"${r.exercise}" is not in "${r.from ?? layout.draftOf}"`);
     const { supersetGroup: _g, pairPosition: _p, transitionRestSec: _t, roundRestSec: _r, ...plain } = row;
-    const copy: TemplateExercise = JSON.parse(JSON.stringify(plain));
+    let copy: TemplateExercise = JSON.parse(JSON.stringify(plain));
+    if (r.clusters != null) copy = withClusterCount(copy, r.clusters);
+    if (r.keepBaseline) keepBaselines.push(copy.exerciseId);
+    const said = (c: string) => (r.cueAlreadyIf ? r.cueAlreadyIf.test(c) : c.trim().toLowerCase() === r.addCue!.trim().toLowerCase());
+    if (r.addCue && !(copy.cues ?? []).some(said)) {
+      copy.cues = [...(copy.cues ?? []), r.addCue];
+    }
+    if (r.restClusterSec !== undefined) copy.restClusterSec = r.restClusterSec;
+    if (r.minClusterRestSec !== undefined) copy.minClusterRestSec = r.minClusterRestSec;
     if (r.restAfterSec !== undefined) copy.restAfterSec = r.restAfterSec;
     if (r.restAfterMaxSec !== undefined) copy.restAfterMaxSec = r.restAfterMaxSec;
     if (r.group) {
@@ -496,7 +611,52 @@ export function buildDraftBody(live: readonly WorkoutTemplate[], layout: DraftLa
     }
     return copy;
   });
-  return { draftOf: home.id, body: { ...bodyOf(home), exercises: normalizeSupersets(rows) } };
+  const rule = layout.straightRest;
+  if (rule) applyStraightRest(rows, layout, rule, primaryOf);
+  const body: TemplateBody = { ...bodyOf(home), exercises: normalizeSupersets(rows) };
+  if (layout.cardioBlocks !== undefined) body.cardioBlocks = layout.cardioBlocks;
+  else if (layout.zone2Band && body.cardioBlocks) {
+    const band = layout.zone2Band;
+    body.cardioBlocks = body.cardioBlocks.map((b) => (isZone2(b) ? { ...b, targetHrMin: band.min, targetHrMax: band.max } : b));
+  }
+  return { draftOf: home.id, body, keepBaselines };
+}
+
+/**
+ * Fill the rests a layout row does not set (Program v2): between a straight
+ * row's own clusters `sameSec`; after a row, `sameSec`–`sameMaxSec` into the
+ * same primary muscle, `switchSec` on a switch; after a superset block,
+ * `afterBlockSec` on its last member. In place.
+ */
+function applyStraightRest(
+  rows: TemplateExercise[],
+  layout: DraftLayout,
+  rule: StraightRestRule,
+  primaryOf: ((row: TemplateExercise) => string | undefined) | undefined,
+): void {
+  rows.forEach((row, i) => {
+    const lr = layout.rows[i];
+    const clusters = new Set(row.plannedSets.filter((p) => p.kind === 'activation').map((p) => p.group ?? 1)).size;
+    if (!row.supersetGroup && clusters > 1 && lr.restClusterSec === undefined) row.restClusterSec = rule.sameSec;
+    if (lr.restAfterSec !== undefined) return;
+    const next = rows[i + 1];
+    const endsBlock = row.supersetGroup != null && next?.supersetGroup !== row.supersetGroup;
+    const inBlock = row.supersetGroup != null && !endsBlock;
+    if (inBlock) {
+      delete row.restAfterSec;
+      delete row.restAfterMaxSec;
+      return;
+    }
+    if (endsBlock && rule.afterBlockSec != null) {
+      row.restAfterSec = rule.afterBlockSec;
+      delete row.restAfterMaxSec;
+      return;
+    }
+    const same = next != null && primaryOf != null && primaryOf(row) != null && primaryOf(row) === primaryOf(next);
+    row.restAfterSec = same ? rule.sameSec : rule.switchSec;
+    if (same && rule.sameMaxSec != null) row.restAfterMaxSec = rule.sameMaxSec;
+    else delete row.restAfterMaxSec;
+  });
 }
 
 // ─── The call a session starts with ─────────────────────────────
@@ -511,11 +671,38 @@ export function sessionCall(
   row: TemplateExercise,
   completed: readonly WorkoutSession[],
   catalogExercise: (EngineCatalogFields & { setStructure?: SetStructure }) | null | undefined,
-): { rec: Recommendation; basedOn?: Date; history: SessionExercise[] } {
+): {
+  rec: Recommendation;
+  basedOn?: Date;
+  history: SessionExercise[];
+  /** An L/R lift: each side's own call (`side-tracks.ts`). */
+  sides?: Partial<Record<Side, { rec: Recommendation; basedOn?: Date }>>;
+} {
   const history = engineHistory(completed, row.exerciseId, row);
-  const basedOn = completed.find((s) => s.exercises.includes(history[0]))?.date;
-  const rec = honourLifterLoad(recommend(history, recommendOptionsFor(row, catalogExercise ?? null)), row, basedOn);
-  return { rec, ...(basedOn ? { basedOn } : {}), history };
+  // The session the newest READ came from: the first (newest) session on or
+  // after the baseline marker whose sets survive the read rules.
+  const readFrom = (side?: Side): Date | undefined => {
+    const since = row.baseline?.since;
+    for (const s of completed) {
+      if (since && calendarDateKey(s.date) < since) continue;
+      const e = s.exercises.find((x) => x.exerciseId === row.exerciseId);
+      if (e && readableHistory([e], row, side).length > 0) return s.date;
+    }
+    return undefined;
+  };
+  const basedOn = readFrom();
+  const opts = recommendOptionsFor(row, catalogExercise ?? null);
+  const rec = honourLifterLoad(recommend(history, opts), row, basedOn);
+  const sideList = sidesOf(row);
+  if (sideList.length < 2) return { rec, ...(basedOn ? { basedOn } : {}), history };
+  const sides: Partial<Record<Side, { rec: Recommendation; basedOn?: Date }>> = {};
+  for (const side of sideList) {
+    const h = engineHistory(completed, row.exerciseId, row, side);
+    const at = readFrom(side);
+    const sideRow = { targetLoad: sideLoad(row, side), loadLog: row.loadLog?.filter((c) => !c.side || c.side === side) };
+    sides[side] = { rec: honourLifterLoad(recommend(h, opts), sideRow, at), ...(at ? { basedOn: at } : {}) };
+  }
+  return { rec, ...(basedOn ? { basedOn } : {}), history, sides };
 }
 
 /** The pending load test for a row, judged on the load the session will

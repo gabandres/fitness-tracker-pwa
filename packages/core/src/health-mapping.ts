@@ -85,10 +85,12 @@ export function clampWaterFlOz(flOz: number): number {
   return Math.max(0, Math.min(WATER_MAX_FLOZ, Math.round(flOz)));
 }
 
-/** Clamp a day's sleep to `[0, 24]` hours, snapped to the half hour the UI
- *  offers. Same four write paths as {@link clampWaterFlOz}. */
+/** Clamp a day's sleep to `[0, 24]` hours, to the tenth (six minutes). Same
+ *  four write paths as {@link clampWaterFlOz}. It snapped to the HALF hour
+ *  until 2026-10-11, when Program v2 asked for decimal hours of actual sleep
+ *  (7.1 h is under 7, and a half-hour snap read it as 7.0). */
 export function clampSleepHours(hours: number): number {
-  return Math.max(0, Math.min(SLEEP_MAX_HOURS, Math.round(hours * 2) / 2));
+  return Math.max(0, Math.min(SLEEP_MAX_HOURS, Math.round(hours * 10) / 10));
 }
 
 /** Activity clamps. Both are generous by design — the point is to reject

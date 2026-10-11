@@ -201,6 +201,12 @@ export * from './progression-apply';
 export * from './superset';
 export * from './superset-context';
 export * from './superset-report';
+// Program v2 (2026-10-11): versioned program drafts, side tracks and the
+// cluster-count rule, fractional weekly volume, and the duration estimate.
+export * from './program';
+export * from './side-tracks';
+export * from './volume-credits';
+export * from './session-duration';
 // Function-only export (the ./workout types stay un-barreled — see note above).
 export { normalizeClusterGroups, setRowLabels } from './cluster-groups';
 // Finish-boundary guard: fill a logged set's missing load from its siblings
@@ -275,6 +281,12 @@ export {
   // cross into the estimator is named and tested.
   WORKOUT_MARKER_KCAL,
   workoutMarkerEntry,
+  // Zone 2 (Program v2, 2026-10-11): the HR band and the two flags.
+  ZONE2_BAND,
+  ZONE2_RPE_MAX,
+  hrBand,
+  isZone2,
+  zone2Check,
 } from './cardio';
 // Health WORKOUTS — the event-stream sibling of ./health-mapping's daily
 // scalars (ADR-0026). Modality + provider normalization, import filtering and

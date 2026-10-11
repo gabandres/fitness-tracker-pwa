@@ -1768,6 +1768,46 @@ describe('firestore.rules', () => {
     await assertFails(setDoc(doc(db, 'users', 'alice', 'templateDrafts', 'd2'), draftDoc()));
   });
 
+  // ── Program v2 (2026-10-11) ──
+  it('accepts a Program v2 draft: program, reason, kept baselines, the one-time automatic switch', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    const ref = doc(db, 'users', 'alice', 'templateDrafts', 'v2push');
+    await assertSucceeds(setDoc(ref, draftDoc({
+      program: 'v2', reason: 'Program v2: Push supersets, Lateral ×2', keepBaselines: ['e9'],
+      autoActivate: { afterTemplateId: 't1', after: '2026-10-11T22:00:00.000Z' },
+    })));
+    await assertSucceeds(setDoc(ref, draftDoc({
+      program: 'v2', reason: 'Program v2: Push supersets, Lateral ×2', status: 'active', previous: body('Push Day'),
+      activatedAt: '2026-10-13T19:00:00.000Z', autoActivatedAt: '2026-10-13T19:00:00.000Z',
+    })));
+  });
+  it('rejects a draft with an unknown program, or an autoActivate with stray keys', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    const ref = doc(db, 'users', 'alice', 'templateDrafts', 'v2push');
+    await assertFails(setDoc(ref, draftDoc({ program: 'v3' })));
+    await assertFails(setDoc(ref, draftDoc({ autoActivate: { afterTemplateId: 't1', after: 'x', by: 'me' } })));
+  });
+  it('accepts a session templateVersion of v1 or v2 and nothing else', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    const col = collection(db, 'users', 'alice', 'workoutSessions');
+    await assertSucceeds(addDoc(col, validSession({ templateVersion: 'v2' })));
+    await assertSucceeds(addDoc(col, validSession({ templateVersion: 'v1' })));
+    await assertFails(addDoc(col, validSession({ templateVersion: '2' })));
+  });
+  it('accepts bedtime / wake time on a dailySleep doc as HH:MM, and refuses anything else', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    const ref = doc(db, 'users', 'alice', 'dailySleep', '2026-10-11');
+    await assertSucceeds(setDoc(ref, { hours: 6.8, source: 'manual', bedtime: '23:40', wakeTime: '06:25' }));
+    await assertSucceeds(setDoc(ref, { hours: 7.1, wakeTime: '07:05' }));
+    await assertFails(setDoc(ref, { hours: 7.1, bedtime: '24:10' }));
+    await assertFails(setDoc(ref, { hours: 7.1, wakeTime: '7:5' }));
+    await assertFails(setDoc(ref, { hours: 7.1, bedtime: 2340 }));
+  });
+
   // ── dailyTargets (2026-10-08): the targets in effect each day ──
   const targetDoc = (over: Record<string, unknown> = {}) => ({
     date: '2026-10-09', kcalTarget: 1850, kcalSource: 'auto', proteinTarget: 140, proteinSource: 'user',

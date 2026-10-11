@@ -232,6 +232,7 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
     sleep,
     setWater,
     setSleep,
+    sleepTimes,
     fastStartedAt,
     startFast,
     breakFast,
@@ -1013,7 +1014,8 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
               onEditFast={() => setFastSheetOpen(true)}
               fastedTodayHours={fastedTodayHours}
               onAddWater={(v) => void setWater(v).catch((e) => metricFailed(e, 'today.water'))}
-              onSetSleep={(v) => void setSleep(v).catch((e) => metricFailed(e, 'today.sleep'))}
+              sleepTimes={sleepTimes}
+              onSetSleep={(v, times) => void setSleep(v, times).catch((e) => metricFailed(e, 'today.sleep'))}
               // Caught like water and sleep (Today re-score, bug 5): a refused
               // write was an unhandled rejection with no word to the user.
               onStartFast={() => void startFast().catch((e) => metricFailed(e, 'today.startFast'))}

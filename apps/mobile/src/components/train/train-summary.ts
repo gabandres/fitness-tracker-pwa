@@ -14,6 +14,12 @@ import {
   muscleSignals,
   recommend,
   recommendOptionsFor,
+  sideRecKey,
+  sidesOf,
+  zone2Check,
+  isLoggedCardioBlock,
+  readableHistory,
+  calendarDateKey,
   sessionCardioSec,
   sessionCounts,
   templateCounts,
@@ -22,6 +28,7 @@ import {
   workingSetCells,
 } from '@macrolog/core';
 import type { CardioModality } from '@macrolog/core/cardio';
+import type { Side } from '@macrolog/core/workout';
 import type { I18nKey, Locale, TFn } from '@/i18n';
 import { plural } from '@/i18n/grammar';
 import type {
@@ -182,10 +189,18 @@ export function sessionSummary(s: WorkoutSession, t: TFn): string {
   const cardio = minutes > 0
     ? `${minutes} ${t('cardio.durationUnit')} ${t('cardio.title').toLowerCase()}`
     : '';
+  // Program v2: a logged Zone 2 block whose average HR left its band, and one
+  // logged too hard for Zone 2, are said in the summary as well as on the block.
+  const logged = (s.cardio ?? []).filter((b) => isLoggedCardioBlock(b));
+  const flags = [
+    ...(logged.some((b) => zone2Check(b).inBand === false) ? [t('cardio.outsideZone2Short')] : []),
+    ...(logged.some((b) => zone2Check(b).rpeTooHigh) ? [t('cardio.rpeTooHighZone2')] : []),
+  ];
+  const withCardio = cardio && flags.length ? `${cardio} · ${flags.join(' · ')}` : cardio;
   const counts = sessionCounts(s);
-  if (counts.exercises === 0 && cardio) return cardio;
+  if (counts.exercises === 0 && withCardio) return withCardio;
   const line = countsLine(counts, t);
-  return cardio ? `${line} · ${cardio}` : line;
+  return withCardio ? `${line} · ${withCardio}` : line;
 }
 
 export function templateSummary(tpl: WorkoutTemplate, t: TFn): string {
@@ -304,10 +319,14 @@ function computeRecommendation(
   templateRow: WorkoutTemplate['exercises'][number] | null | undefined,
   sessionEx?: SessionExercise,
   extras?: RecommendationExtras,
+  /** An L/R lift's side — its own track (core `side-tracks.ts`). */
+  side?: Side,
 ): Recommendation {
   const completed = data.recentSessions.filter((s) => s.status === 'completed');
-  // Engine history honours the row's baseline marker; charts keep the full log.
-  const history = engineHistory(completed, exerciseId, templateRow);
+  // Engine history honours the row's baseline marker (and Program v2's read
+  // rules: a cluster-count change, one side of an L/R lift); charts keep the
+  // full log.
+  const history = engineHistory(completed, exerciseId, templateRow, side);
   const catalogEx = data.catalog.find((e) => e.id === exerciseId) ?? null;
   const opts = templateRow
     ? recommendOptionsFor(templateRow, catalogEx)
@@ -326,8 +345,30 @@ function computeRecommendation(
   });
   // The same rule `startFromTemplate` seeds the sets with, so the card and
   // the boxes cannot name two loads.
-  const basedOn = completed.find((s) => s.exercises.includes(history[0]))?.date;
-  return honourLifterLoad(rec, templateRow, basedOn);
+  // The session the newest read came from: the first one on or after the
+  // baseline marker whose sets survive the read rules (core `sessionCall`).
+  const since = templateRow?.baseline?.since;
+  const basedOn = completed.find((s) => {
+    if (since && calendarDateKey(s.date) < since) return false;
+    const e = s.exercises.find((x) => x.exerciseId === exerciseId);
+    return e != null && readableHistory([e], templateRow, side).length > 0;
+  })?.date;
+  const row = side && templateRow
+    ? { targetLoad: templateRow.sideLoads?.[side] ?? templateRow.targetLoad, loadLog: templateRow.loadLog?.filter((c) => !c.side || c.side === side) }
+    : templateRow;
+  return honourLifterLoad(rec, row, basedOn);
+}
+
+/** Each side's call on an L/R lift, for the card (undefined otherwise). */
+export function sideRecommendationsFor(
+  data: { recentSessions: readonly WorkoutSession[]; catalog: readonly Exercise[] },
+  exerciseId: string,
+  templateRow: WorkoutTemplate['exercises'][number] | null | undefined,
+  sessionEx?: SessionExercise,
+): Partial<Record<Side, Recommendation>> | undefined {
+  const sides = sidesOf(templateRow);
+  if (sides.length < 2) return undefined;
+  return Object.fromEntries(sides.map((sd) => [sd, computeRecommendation(data, exerciseId, templateRow, sessionEx, undefined, sd)]));
 }
 
 /** Sessions the sleep average reads: the last few completed ones that logged it. */
@@ -383,9 +424,12 @@ export function liftAllowsCluster(
 
 /** One lift's call at the finish boundary. */
 export interface FinishCall {
+  /** The exercise id — or, for one side of an L/R lift, `sideRecKey(id, side)`
+   *  (the key the template's progression reads). */
   exerciseId: string;
   name: string;
   rec: Recommendation;
+  side?: Side;
 }
 
 /**
@@ -420,13 +464,23 @@ export function finishCalls(input: {
     seen.add(ex.exerciseId);
     const row = template?.exercises.find((te) => te.exerciseId === ex.exerciseId);
     const restMiniSec = row?.restMiniSec ?? template?.restMiniSec;
-    const rec = computeRecommendation({ recentSessions: history, catalog }, ex.exerciseId, row, ex, {
+    const extras = {
       volumeAllowsCluster: liftAllowsCluster(allowed, catalog, ex.exerciseId),
       stallContext: {
         ...(sleepHours != null ? { sleepHours } : {}),
         ...(restMiniSec != null ? { restMiniSec } : {}),
       },
-    });
+    };
+    // An L/R lift: one call per side, each its own track.
+    const sides = sidesOf(row);
+    if (sides.length > 1) {
+      for (const side of sides) {
+        const rec = computeRecommendation({ recentSessions: history, catalog }, ex.exerciseId, row, ex, extras, side);
+        if (rec.action !== 'none') out.push({ exerciseId: sideRecKey(ex.exerciseId, side), name: `${ex.name} · ${side}`, rec, side });
+      }
+      continue;
+    }
+    const rec = computeRecommendation({ recentSessions: history, catalog }, ex.exerciseId, row, ex, extras);
     if (rec.action === 'none') continue;
     out.push({ exerciseId: ex.exerciseId, name: ex.name, rec });
   }

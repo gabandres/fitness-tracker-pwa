@@ -28,6 +28,8 @@
 import type {
   LogStyle,
   SessionExercise,
+  Side,
+  TemplateExercise,
   WorkoutSession,
   WorkoutSet,
   WorkoutTemplate,
@@ -40,6 +42,7 @@ import { computeExercisePRs, isWorkingSet, metricForSet } from './workout-progre
 import { isLoggedCardioBlock } from './cardio';
 import { normalizeClusterGroups } from './cluster-groups';
 import { calendarDateKey } from './date';
+import { readableHistory } from './side-tracks';
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -162,10 +165,14 @@ export function exerciseHistory(
 export function engineHistory(
   sessions: readonly WorkoutSession[],
   exerciseId: string,
-  row?: { baseline?: { since: string } } | null,
+  row?: Pick<TemplateExercise, 'clusterCountChange'> & { baseline?: { since: string } } | null,
+  side?: Side,
 ): SessionExercise[] {
   const since = row?.baseline?.since;
-  return exerciseHistory(since ? sessions.filter((s) => calendarDateKey(s.date) >= since) : sessions, exerciseId);
+  const history = exerciseHistory(since ? sessions.filter((s) => calendarDateKey(s.date) >= since) : sessions, exerciseId);
+  // Program v2: a cluster-count change reads cluster 1 only; an L/R lift
+  // reads one side at a time (`side-tracks.ts`).
+  return readableHistory(history, row, side);
 }
 
 /**

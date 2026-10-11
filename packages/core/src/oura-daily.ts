@@ -93,19 +93,12 @@ function instantMs(raw: unknown): number | undefined {
 /**
  * Seconds → hours, rounded to the quarter hour.
  *
- * **The quarter is NOT what gets stored, and a comment here claimed it was
- * until 2026-08-25.** `clampSleepHours` snaps to the HALF hour
- * (`Math.round(hours * 2) / 2`, `health-mapping.ts`), so an Oura night of
- * 7h45m quarter-rounds to 7.75 here and is then stored as 8.0. This step is
- * therefore precision that never survives the write.
- *
- * It is kept anyway, and the real reason is the weaker one: it collapses the
- * seconds, so two sources reporting the same night agree *before* the clamp
- * rather than relying on the clamp to agree for them. The equality the old
- * comment claimed does hold — both paths land on halves — but it is
- * `clampSleepHours` that makes it hold, not this function. Do not "fix" the
- * Health importer's `sleep: 0.25` tolerance to match this; that tolerance is
- * compared against stored values, which are halves.
+ * Since 2026-10-11 `clampSleepHours` keeps tenths (it snapped to the HALF
+ * hour before, so a 7h45m night was stored as 8.0), so a quarter-rounded value
+ * is now stored as its nearest tenth (7.75 → 7.8). The quarter step is kept
+ * because it collapses the seconds, so two sources reporting the same night
+ * agree before the clamp. The Health importer's `sleep: 0.25` tolerance still
+ * compares stored values and still stops two sources ping-ponging a night.
  */
 export function sleepSecondsToHours(seconds: unknown): number | undefined {
   const s = positive(seconds);

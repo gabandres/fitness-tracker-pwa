@@ -14,6 +14,9 @@ import {
   isSupersetted,
   moveBlockAware,
   restAfterSetInFlow,
+  roundRestWithFloor,
+  CLUSTER_ESTIMATE_SEC,
+  DEFAULT_TRANSITION_REST_SEC,
   supersetGroups,
   supersetTags,
   sessionHasLoggedWork,
@@ -34,6 +37,7 @@ import { ExerciseMenuSheet, type ExerciseMenuAction } from '@/components/train/E
 import { type I18nKey, type TFn, useLocale, useT } from '@/i18n';
 import { announce, isScreenReaderOn } from '@/lib/a11y';
 import { tabBarOverlap } from '@/lib/glass';
+import { nowMs } from '@/lib/clock';
 import { RevealAboveKeyboardContext, useRevealAboveKeyboard } from './reveal-above-keyboard';
 import { publishRestEndsAt } from '@/lib/active-workout-signal';
 import { useIsOffline } from '@/lib/connectivity';
@@ -258,6 +262,8 @@ export function ActiveSession({
   /** Per-exercise rest for THIS workout, by exercise id (stable across a
    *  move), seconds. Set from the ⋯ menu's "Rest timer"; mirrored into
    *  {@link restOverridesBySession} so a remount keeps it. */
+  /** When each lift's last set was ticked this workout (exercise id → ms). */
+  const [lastSetAt, setLastSetAt] = useState<Record<string, number>>({});
   const [restOverride, setRestOverrideState] = useState<Record<string, number>>(
     () => (session.id ? restOverridesBySession.get(session.id) : undefined) ?? {},
   );
@@ -411,7 +417,9 @@ export function ActiveSession({
     const afterExercise = override ?? row?.restAfterSec;
     return {
       mini: override ?? row?.restMiniSec ?? restMini,
-      cluster: override ?? restCluster,
+      // Program v2: a row may rest its own clusters differently (the lateral
+      // raise's 60 s into its second cluster on a 105 s day).
+      cluster: override ?? ex?.restClusterSec ?? row?.restClusterSec ?? restCluster,
       ...(afterExercise != null ? { afterExercise } : {}),
     };
   };
@@ -430,6 +438,11 @@ export function ActiveSession({
     const exercises = train.active?.exercises;
     const ex = exercises?.[exerciseIndex];
     if (!exercises || !ex) return null;
+    // When each lift's last set was ticked — what the minimum-rest rule below
+    // measures from (in memory only: a set carries no timestamp).
+    // Only ever reached from a tap (set done), never from render.
+    const now = nowMs();
+    setLastSetAt((m) => ({ ...m, [ex.exerciseId]: now }));
     const rows = flowRows(exercises);
     const flow = restAfterSetInFlow(
       rows, exerciseIndex, setIndex, restSecondsFor,
@@ -462,8 +475,19 @@ export function ActiveSession({
       // A leftover round says "its partner is done" in the Next line — once.
       ? t('train.superset.roundA11y', { n: flow.round.n, total: flow.round.total })
       : heading;
-    runRest(flow.seconds, ex.name, nextLabel, heading, into && nextLabel ? flow.next!.exerciseIndex : null, spokenHeading);
-    return flow;
+    // Program v2: a member with a minimum rest between its OWN clusters
+    // (A1/B1, 90 s) gets the round rest stretched when the partner's cluster
+    // and the transition took less — measured from when its last set was
+    // ticked, else estimated as the transition plus one 70 s cluster.
+    let seconds = flow.seconds;
+    const back = flow.kind === 'round' && nextEx ? nextEx : undefined;
+    if (back?.minClusterRestSec != null) {
+      const at = lastSetAt[back.exerciseId];
+      const since = at != null ? (now - at) / 1000 : (rows[exerciseIndex].transitionRestSec ?? DEFAULT_TRANSITION_REST_SEC) + CLUSTER_ESTIMATE_SEC;
+      seconds = roundRestWithFloor(flow.seconds, back.minClusterRestSec, since);
+    }
+    runRest(seconds, ex.name, nextLabel, heading, into && nextLabel ? flow.next!.exerciseIndex : null, spokenHeading);
+    return { ...flow, seconds };
   };
 
   /** "Start rest now" from an exercise's ⋯. After a lift's cluster ends,

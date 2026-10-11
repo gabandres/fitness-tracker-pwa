@@ -798,3 +798,19 @@ export function canUndoMove(before: readonly { exerciseId: string }[], now: read
   const key = (xs: readonly { exerciseId: string }[]) => xs.map((e) => e.exerciseId).sort().join('|');
   return key(before) === key(now);
 }
+
+/** The partner cluster's length when it was not timed (Program v2's
+ *  estimate, seconds). */
+export const CLUSTER_ESTIMATE_SEC = 70;
+
+/**
+ * The round rest into a member with a minimum rest between its OWN clusters
+ * (`minClusterRestSec`, Program v2: 90 s on A1/B1). The member's last cluster
+ * ended `sinceOwnClusterSec` ago (measured, or estimated as the transition
+ * plus one partner cluster); if that plus the round rest falls short of the
+ * minimum, the rest grows by the difference. Never shorter than the round rest.
+ */
+export function roundRestWithFloor(roundSec: number, minSec: number | undefined, sinceOwnClusterSec: number): number {
+  if (minSec == null) return roundSec;
+  return Math.max(roundSec, Math.ceil(minSec - sinceOwnClusterSec));
+}

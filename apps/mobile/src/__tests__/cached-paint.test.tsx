@@ -59,6 +59,7 @@ jest.mock('@/lib/ledger', () => ({
     return () => {};
   },
   // Body's weights listener is date-bounded (Body review Pf1); same channel.
+  subscribeDailySleepSince: () => () => {},
   subscribeDailyWeightsSince: (_uid: string, _since: string, cb: Deliver<Record<string, number>>) => {
     live.weights = cb;
     return () => {};

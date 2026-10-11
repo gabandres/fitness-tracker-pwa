@@ -582,6 +582,8 @@ export interface SessionDraftInput {
   sleepHours?: number;
   /** Whole-session minutes. Its cardio sibling below is per-effort SECONDS. */
   durationMin?: number;
+  /** Program v2: the version the template ran as, snapshotted at start. */
+  templateVersion?: 'v1' | 'v2';
   exercises?: SessionExercise[];
   /** Logged cardio (ADR-0025). Blocks carry a Date, so they are serialized
    *  through {@link cardioFields} rather than passed straight down. */
@@ -631,6 +633,7 @@ export function toSessionDoc<TS>(
       : {}),
     ...(draft.sleepHours !== undefined ? { sleepHours: draft.sleepHours } : {}),
     ...(draft.durationMin !== undefined ? { durationMin: draft.durationMin } : {}),
+    ...(draft.templateVersion !== undefined ? { templateVersion: draft.templateVersion } : {}),
     // Absent stays absent — a strength-only session must not gain an empty
     // array it never had, which would rewrite every session doc on next save.
     ...(draft.cardio !== undefined ? { cardio: cardioFields(draft.cardio, codec) } : {}),
@@ -656,6 +659,7 @@ export function toSessionPatch<TS>(
   if (patch.bodyweight !== undefined && isStorableWeight(patch.bodyweight)) data['bodyweight'] = patch.bodyweight;
   if (patch.sleepHours !== undefined) data['sleepHours'] = patch.sleepHours;
   if (patch.durationMin !== undefined) data['durationMin'] = patch.durationMin;
+  if (patch.templateVersion !== undefined) data['templateVersion'] = patch.templateVersion;
   if (patch.exercises !== undefined) data['exercises'] = sanitizeSessionExercises(patch.exercises);
   // Like `exercises`, this is a whole-array overwrite rather than a merge:
   // Firestore unions arrays on merge, so a sparse patch would append blocks

@@ -49,6 +49,7 @@ import {
   STEPS_MAX,
   clampCutPace,
   clampSleepHours,
+  readSleepClock,
   clampWaterFlOz,
   compareLogsOldestFirst,
   MIDNIGHT,
@@ -732,7 +733,44 @@ export async function setDailySleep(
   hours: number,
   source: SleepSource = 'manual',
 ): Promise<void> {
-  await setDoc(sleepDoc(uid, dateKey), { hours: clampSleepHours(hours), source });
+  // Merged, so the night's optional bedtime / wake time (Program v2) survive
+  // a change of the hours.
+  await setDoc(sleepDoc(uid, dateKey), { hours: clampSleepHours(hours), source }, { merge: true });
+}
+
+/** A night's bedtime / wake time ("HH:MM"), each optional; `null` clears one.
+ *  The night's doc must exist — written with its hours first (rules require
+ *  `hours`). */
+export async function updateSleepTimes(
+  uid: string,
+  dateKey: string,
+  times: { bedtime?: string | null; wakeTime?: string | null },
+): Promise<void> {
+  const fields: Record<string, unknown> = {};
+  for (const k of ['bedtime', 'wakeTime'] as const) {
+    if (times[k] === null) fields[k] = deleteField();
+    else if (times[k] !== undefined) fields[k] = times[k];
+  }
+  if (Object.keys(fields).length) await updateDoc(sleepDoc(uid, dateKey), fields);
+}
+
+/** One night's bedtime / wake time, live (Today's sleep sheet prefills them). */
+export function subscribeSleepTimes(
+  uid: string,
+  dateKey: string,
+  cb: (times: { bedtime?: string; wakeTime?: string }) => void,
+  onError?: (e: Error) => void,
+): Unsub {
+  return onSnapshot(
+    sleepDoc(uid, dateKey),
+    (snap) => {
+      const data = snap.data();
+      const bedtime = readSleepClock(data, 'bedtime');
+      const wakeTime = readSleepClock(data, 'wakeTime');
+      cb({ ...(bedtime ? { bedtime } : {}), ...(wakeTime ? { wakeTime } : {}) });
+    },
+    onError,
+  );
 }
 
 /**
@@ -1935,6 +1973,11 @@ function toBody(v: unknown): TemplateBody | undefined {
   return { ...b, exercises: (b.exercises ?? []).map((e) => ({ ...e, plannedSets: e.plannedSets ?? [] })) };
 }
 
+function isAutoActivate(v: unknown): v is { afterTemplateId: string; after: string } {
+  const a = v as { afterTemplateId?: unknown; after?: unknown } | null | undefined;
+  return typeof a?.afterTemplateId === 'string' && typeof a?.after === 'string';
+}
+
 function toTemplateDraftDoc(id: string, data: Record<string, unknown>): TemplateDraftDoc {
   const at = (v: unknown) => (v instanceof Timestamp ? v.toDate() : new Date(0));
   const previous = toBody(data['previous']);
@@ -1947,6 +1990,12 @@ function toTemplateDraftDoc(id: string, data: Record<string, unknown>): Template
     ...(previous ? { previous } : {}),
     ...(typeof data['activatedAt'] === 'string' ? { activatedAt: data['activatedAt'] } : {}),
     ...(typeof data['revertedAt'] === 'string' ? { revertedAt: data['revertedAt'] } : {}),
+    // Program v2 (2026-10-11): `program.ts`.
+    ...(data['program'] === 'v2' ? { program: 'v2' as const } : {}),
+    ...(typeof data['reason'] === 'string' ? { reason: data['reason'] } : {}),
+    ...(Array.isArray(data['keepBaselines']) ? { keepBaselines: (data['keepBaselines'] as unknown[]).filter((x): x is string => typeof x === 'string') } : {}),
+    ...(isAutoActivate(data['autoActivate']) ? { autoActivate: data['autoActivate'] } : {}),
+    ...(typeof data['autoActivatedAt'] === 'string' ? { autoActivatedAt: data['autoActivatedAt'] } : {}),
     createdAt: at(data['createdAt']),
     updatedAt: at(data['updatedAt']),
   };
@@ -1996,6 +2045,10 @@ export async function commitDraftSwaps(
    *  said "switched") — so the lifter hears it instead of watching the switch
    *  quietly undo itself. */
   onLateFailure?: (e: unknown) => void,
+  /** Program v2: per-draft fields to set or remove in the SAME batch — the
+   *  automatic switch's `autoActivatedAt`, and `autoActivate` removed by any
+   *  switch, so it can never run after the lifter chose by hand. */
+  draftPatches: readonly { draftId: string; set?: Record<string, string>; remove?: readonly string[] }[] = [],
 ): Promise<void> {
   const batch = writeBatch(db);
   for (const w of swaps) {
@@ -2007,6 +2060,11 @@ export async function commitDraftSwaps(
     batch.update(draftDoc(uid, w.draftId), w.mode === 'activate'
       ? pruneUndefined({ status: 'active', template: w.body, previous: w.kept, activatedAt: at.toISOString(), updatedAt: Timestamp.fromDate(at) })
       : { ...pruneUndefined({ status: 'draft', template: w.kept, revertedAt: at.toISOString(), updatedAt: Timestamp.fromDate(at) }), previous: deleteField() });
+  }
+  for (const p of draftPatches) {
+    const fields: Record<string, unknown> = { ...(p.set ?? {}), updatedAt: Timestamp.fromDate(at) };
+    for (const k of p.remove ?? []) fields[k] = deleteField();
+    batch.update(draftDoc(uid, p.draftId), fields);
   }
   const write = batch.commit();
   let answered = false;
@@ -2025,6 +2083,13 @@ export async function deleteTemplateWithDraft(uid: string, templateId: string, d
   batch.delete(templateDoc(uid, templateId));
   batch.delete(draftDoc(uid, draftId));
   await ackOrQueued(batch.commit());
+}
+
+/** Every template draft, once (the export reads which program version each
+ *  template runs as). */
+export async function getAllTemplateDrafts(uid: string): Promise<TemplateDraftDoc[]> {
+  const snap = await getDocs(draftsCol(uid));
+  return snap.docs.map((d) => toTemplateDraftDoc(d.id, d.data()));
 }
 
 /** Delete a draft. The templates are not touched. */
@@ -2156,6 +2221,18 @@ export async function getAllDailySleep(uid: string): Promise<Record<string, numb
   for (const d of snap.docs) {
     const h = readSleepHours(d.data());
     if (h != null) out[d.id] = h;
+  }
+  return out;
+}
+
+/** Every night's bedtime / wake time, for the export (`sleep` rows). */
+export async function getAllDailySleepTimes(uid: string): Promise<Record<string, { bedtime?: string; wakeTime?: string }>> {
+  const snap = await getDocs(sleepCol(uid));
+  const out: Record<string, { bedtime?: string; wakeTime?: string }> = {};
+  for (const d of snap.docs) {
+    const bedtime = readSleepClock(d.data(), 'bedtime');
+    const wakeTime = readSleepClock(d.data(), 'wakeTime');
+    if (bedtime || wakeTime) out[d.id] = { ...(bedtime ? { bedtime } : {}), ...(wakeTime ? { wakeTime } : {}) };
   }
   return out;
 }

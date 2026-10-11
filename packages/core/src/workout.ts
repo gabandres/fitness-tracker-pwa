@@ -221,7 +221,19 @@ export interface SessionExercise {
   /** The group's rests, resolved onto every member at start, seconds. */
   transitionRestSec?: number;
   roundRestSec?: number;
+  /** Snapshotted from the template row (Program v2, 2026-10-11) — see
+   *  {@link TemplateExercise.restClusterSec}. */
+  restClusterSec?: number;
+  /** See {@link TemplateExercise.minClusterRestSec}. */
+  minClusterRestSec?: number;
+  /** Per-side calls on an L/R lift — each side is its own progression track
+   *  (`side-tracks.ts`). `recommendation` is absent on such a row. */
+  sideRecommendations?: Partial<Record<Side, RecommendationSnapshot>>;
 }
+
+/** The two sides of a single-leg / single-arm lift, as the planned sets label
+ *  them (`PlannedSet.label`). */
+export type Side = 'L' | 'R';
 
 /** The frozen half of a recommendation — enough to tell, later, whether the
  *  session followed it. The live object is `Recommendation` in
@@ -256,6 +268,11 @@ export interface WorkoutSession {
   /** Logged bodyweight; the store mirrors this into dailyWeights on finish. */
   bodyweight?: number;
   sleepHours?: number;
+  /** Which program version the template ran as when this session started
+   *  (Program v2, 2026-10-11): `v2` when its v2 draft was active, `v1` when a
+   *  v2 draft existed but was not. Absent for every other session. A snapshot —
+   *  switching versions later never rewrites it. */
+  templateVersion?: 'v1' | 'v2';
   /**
    * How long the whole SESSION took, in minutes.
    *
@@ -394,6 +411,8 @@ export interface LoadChange {
    *  owner's instruction by a one-off data script (`scripts/owner-data-*`). */
   by: TemplateChangeBy;
   reason: string;
+  /** On an L/R lift, the side whose load moved (`TemplateExercise.sideLoads`). */
+  side?: Side;
 }
 
 /** Who changed a template row: the lifter in the editor, the progression
@@ -523,6 +542,25 @@ export interface TemplateExercise {
   /** The group's rest after its last member, before the first again, seconds.
    *  Leader only, like {@link transitionRestSec}. */
   roundRestSec?: number;
+  /** Rest between THIS lift's own clusters, seconds — overrides the
+   *  template's `restClusterSec` for this row (Program v2: the lateral raise
+   *  rests 60 s into its second cluster while the day's default is 105). */
+  restClusterSec?: number;
+  /** A superset member must rest at least this long between its OWN
+   *  clusters, seconds (Program v2: 90 on A1/B1). When the partner's cluster
+   *  and the transitions took less, the round rest grows by the difference
+   *  (`roundRestWithFloor` in `superset.ts`). */
+  minClusterRestSec?: number;
+  /**
+   * The lift's cluster count changed (Program v2: the lateral raise 1 → 2).
+   * While set, the engine judges only the first `from` clusters — the ones
+   * that have a history — so the added cluster cannot read as a failed
+   * session; it starts its own baseline. `since` is the change's date key.
+   */
+  clusterCountChange?: { from: number; to: number; since: string };
+  /** Per-side loads on an L/R lift, pounds — each side is its own progression
+   *  track (`side-tracks.ts`). A side absent here uses `targetLoad`. */
+  sideLoads?: Partial<Record<Side, number>>;
 }
 
 export interface WorkoutTemplate {

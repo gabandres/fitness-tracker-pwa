@@ -38,7 +38,7 @@ import { useUnitSystem } from '@/lib/use-unit-system';
 import { space } from '@/theme';
 import type { InputChain } from './input-chain';
 import { SetRow } from './SetRow';
-import { activationIssueKey, lastHint, loadTargetIndices, recommendationFor, untouchedLoad } from './train-summary';
+import { activationIssueKey, lastHint, loadTargetIndices, recommendationFor, sideRecommendationsFor, untouchedLoad } from './train-summary';
 import { createStyles } from './train-styles';
 import { MenuButton, type MenuButtonAction } from '@/components/MenuButton';
 
@@ -166,6 +166,11 @@ export const ExerciseCard = memo(function ExerciseCard({
         },
       }),
     [recentSessions, catalog, ex, templateRow, volumeAllowsCluster, sleepHours, restMiniSec],
+  );
+  // Program v2: an L/R lift is two tracks — each side's own call.
+  const sideRecs = useMemo(
+    () => sideRecommendationsFor({ recentSessions, catalog }, ex.exerciseId, templateRow, ex),
+    [recentSessions, catalog, ex, templateRow],
   );
   const engineHasCall = rec.action !== 'none';
   const catalogEx = catalog.find((e) => e.id === ex.exerciseId) ?? null;
@@ -302,7 +307,16 @@ export const ExerciseCard = memo(function ExerciseCard({
 
       {collapsed ? null : (
         <Animated.View entering={FadeIn.duration(160)} exiting={FadeOut.duration(120)}>
-          {engineHasCall ? (
+          {sideRecs ? (
+            <View style={{ gap: space.xs }} testID={`side-recommendations-${exerciseIndex}`}>
+              {(['L', 'R'] as const).map((side) => (sideRecs[side] && sideRecs[side]!.action !== 'none' ? (
+                <View key={side}>
+                  <Text style={styles.sideLabel}>{t(side === 'L' ? 'train.sideLeft' : 'train.sideRight')}</Text>
+                  <RecommendationNote rec={sideRecs[side]!} compact testID={`recommendation-${exerciseIndex}-${side}`} />
+                </View>
+              ) : null))}
+            </View>
+          ) : engineHasCall ? (
             <RecommendationNote
               rec={rec}
               // Once the lift is under way, the call shrinks to one line (the

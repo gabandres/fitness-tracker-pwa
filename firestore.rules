@@ -434,9 +434,14 @@ service cloud.firestore {
     // cannot validate field by field — the client writes them through core's
     // `bodyOf`, under ADR-0007's single-user trust model for nested lists.
     function isValidTemplateDraft(data) {
+      // Program v2 (2026-10-11): a versioned program draft carries `program`,
+      // the `reason` logged when it switches, the rows whose baseline the
+      // switch keeps, and the one-time automatic switch (`autoActivate`, then
+      // `autoActivatedAt` once it ran) — `packages/core/src/program.ts`.
       return data.keys().hasOnly([
               'draftOf', 'label', 'status', 'template', 'previous',
-              'activatedAt', 'revertedAt', 'createdAt', 'updatedAt'
+              'activatedAt', 'revertedAt', 'createdAt', 'updatedAt',
+              'program', 'reason', 'keepBaselines', 'autoActivate', 'autoActivatedAt'
           ])
           && data.keys().hasAll(['draftOf', 'label', 'status', 'template', 'createdAt', 'updatedAt'])
           && data.draftOf is string && data.draftOf.size() > 0 && data.draftOf.size() <= 100
@@ -449,6 +454,15 @@ service cloud.firestore {
                && data.previous.exercises is list && data.previous.exercises.size() <= 40))
           && (!('activatedAt' in data.keys()) || data.activatedAt is string)
           && (!('revertedAt' in data.keys()) || data.revertedAt is string)
+          && (!('program' in data.keys()) || data.program == 'v2')
+          && (!('reason' in data.keys()) || (data.reason is string && data.reason.size() <= 200))
+          && (!('keepBaselines' in data.keys()) || (data.keepBaselines is list && data.keepBaselines.size() <= 40))
+          && (!('autoActivate' in data.keys()) ||
+              (data.autoActivate is map
+               && data.autoActivate.keys().hasOnly(['afterTemplateId', 'after'])
+               && data.autoActivate.afterTemplateId is string && data.autoActivate.afterTemplateId.size() <= 100
+               && data.autoActivate.after is string && data.autoActivate.after.size() <= 40))
+          && (!('autoActivatedAt' in data.keys()) || data.autoActivatedAt is string)
           && data.createdAt is timestamp && data.updatedAt is timestamp;
     }
 
@@ -528,7 +542,9 @@ service cloud.firestore {
       return data.keys().hasOnly([
               'status', 'templateId', 'templateName', 'timestamp',
               'bodyweight', 'sleepHours', 'durationMin',
-              'exercises', 'cardio', 'nextNotes', 'createdAt', 'updatedAt'
+              'exercises', 'cardio', 'nextNotes', 'createdAt', 'updatedAt',
+              // Program v2 (2026-10-11): the version the template ran as.
+              'templateVersion'
           ])
           && data.keys().hasAll(['status', 'timestamp', 'exercises', 'createdAt', 'updatedAt'])
           && (data.status == 'active' || data.status == 'completed')
@@ -547,6 +563,7 @@ service cloud.firestore {
               (data.sleepHours is number && data.sleepHours >= 0 && data.sleepHours <= 24))
           && (!('durationMin' in data.keys()) ||
               (data.durationMin is number && data.durationMin >= 0 && data.durationMin <= 1440))
+          && (!('templateVersion' in data.keys()) || data.templateVersion in ['v1', 'v2'])
           && (!('nextNotes' in data.keys()) ||
               (data.nextNotes is string && data.nextNotes.size() <= 2000));
     }
@@ -974,12 +991,19 @@ service cloud.firestore {
       match /dailySleep/{dateKey} {
         allow read:   if isOwner(uid) || isAdmin();
         allow write:  if isOwner(uid)
-            && request.resource.data.keys().hasOnly(['hours', 'source'])
+            && request.resource.data.keys().hasOnly(['hours', 'source', 'bedtime', 'wakeTime'])
             && request.resource.data.hours is number
             && request.resource.data.hours >= 0
             && request.resource.data.hours <= 24
             && (!('source' in request.resource.data.keys())
-                || request.resource.data.source in ['manual', 'import']);
+                || request.resource.data.source in ['manual', 'import'])
+            // Program v2 (2026-10-11): optional bedtime / wake time, "HH:MM".
+            && (!('bedtime' in request.resource.data.keys())
+                || (request.resource.data.bedtime is string
+                    && request.resource.data.bedtime.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$')))
+            && (!('wakeTime' in request.resource.data.keys())
+                || (request.resource.data.wakeTime is string
+                    && request.resource.data.wakeTime.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$')));
       }
 
       // Daily activity — steps + active energy imported FROM the OS health

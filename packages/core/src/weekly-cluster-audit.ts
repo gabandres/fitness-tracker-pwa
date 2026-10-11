@@ -36,6 +36,7 @@
  */
 import type { MuscleGroup, SessionExercise, TrainingPhase, WorkoutSession } from './workout';
 import { detectStall, effectiveReps, readExercise } from './progression-engine';
+import { clusterCount } from './volume-credits';
 
 export const CLUSTER_WEEK_MIN = 2;
 export const CLUSTER_WEEK_MAX = 6;
@@ -68,12 +69,10 @@ export function volumeStatus(clusters: number): VolumeStatus {
 
 /** Clusters performed in one session exercise: distinct groups with a logged
  *  activation. An activation with no group is one cluster. */
-export function clustersInExercise(sets: readonly { kind: string; group?: number; reps?: number }[]): number {
-  const groups = new Set<number>();
-  for (const s of sets) {
-    if (s.kind === 'activation' && s.reps != null) groups.add(s.group ?? 1);
-  }
-  return groups.size;
+export function clustersInExercise(sets: readonly { kind: string; group?: number; reps?: number; label?: string }[]): number {
+  // One rule for every weekly count (`volume-credits.ts`): a performed
+  // activation group is a cluster, and an L + R pair is ONE (Program v2).
+  return clusterCount(sets);
 }
 
 export function weeklyClusterAudit(

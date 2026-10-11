@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 import { SheetTextInput } from '@/components/SheetTextInput';
-import { clampWaterFlOz, fastHoursParts, type UnitSystem } from '@macrolog/core';
+import { clampWaterFlOz, fastHoursParts, normalizeClockTime, type UnitSystem } from '@macrolog/core';
 import { BottomSheet } from '@/components/BottomSheet';
 import { useDoneKeyProps } from '@/components/KeyboardBar';
 import { type I18nKey, type Locale, type TFn, useLocale, useT } from '@/i18n';
@@ -36,11 +36,15 @@ import { font, radius, space, TARGET } from '@/theme';
 interface Props {
   water: number;
   sleep: number | null;
+  /** Today's optional bedtime / wake time ("HH:MM"), for the sleep sheet. */
+  sleepTimes?: { bedtime?: string; wakeTime?: string };
   /** Today's imported activity, or undefined when Health isn't connected. */
   activity?: DailyActivity;
   fastStartedAt: Date | null;
   onAddWater: (flOz: number) => void;
-  onSetSleep: (hours: number) => void;
+  /** Hours slept; with the bedtime / wake time when the sheet shows them
+   *  (`null` clears one the user emptied). */
+  onSetSleep: (hours: number, times?: { bedtime: string | null; wakeTime: string | null }) => void;
   onStartFast: () => void;
   onBreakFast: () => void;
   /** Open the fasting editor: correct a running fast's start, edit the one
@@ -270,7 +274,7 @@ export function nextPendingWater(
 /** Today's daily-metric strip: fasting timer, water quick-add, sleep. The
  *  fasting row re-renders every 30s while a fast is running so the elapsed
  *  clock stays live without a global timer. */
-export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater, onSetSleep, onStartFast, onBreakFast, onEditFast, fastedTodayHours }: Props) {
+export function DailyMetrics({ water, sleep, sleepTimes, activity, fastStartedAt, onAddWater, onSetSleep, onStartFast, onBreakFast, onEditFast, fastedTodayHours }: Props) {
   const t = useT();
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
@@ -548,9 +552,10 @@ export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater
       <SleepModal
         visible={sleepOpen}
         initial={sleep}
+        initialTimes={sleepTimes}
         onClose={() => setSleepOpen(false)}
-        onSave={(h) => {
-          onSetSleep(h);
+        onSave={(h, times) => {
+          onSetSleep(h, times);
           haptics.success();
           setSleepOpen(false);
         }}
@@ -701,12 +706,14 @@ function WaterModal({
 function SleepModal({
   visible,
   initial,
+  initialTimes,
   onSave,
   onClose,
 }: {
   visible: boolean;
   initial: number | null;
-  onSave: (hours: number) => void;
+  initialTimes?: { bedtime?: string; wakeTime?: string };
+  onSave: (hours: number, times: { bedtime: string | null; wakeTime: string | null }) => void;
   onClose: () => void;
 }) {
   const t = useT();
@@ -715,14 +722,26 @@ function SleepModal({
   const inputRef = useDeferredFocus(visible);
   const doneKeyProps = useDoneKeyProps();
   const [value, setValue] = useState('');
+  // Program v2: optional bedtime / wake time, "HH:MM". Hours are what counts —
+  // actual sleep, not time in bed — so these never compute the hours.
+  const [bed, setBed] = useState('');
+  const [wake, setWake] = useState('');
 
   useEffect(() => {
-    if (visible) setValue(initial != null ? String(initial) : '');
-  }, [visible, initial]);
+    if (visible) {
+      setValue(initial != null ? String(initial) : '');
+      setBed(initialTimes?.bedtime ?? '');
+      setWake(initialTimes?.wakeTime ?? '');
+    }
+  }, [visible, initial, initialTimes]);
 
   // Comma accepted as the decimal point (pt-BR keyboards) — see EntrySheet.
   const n = Number(value.trim().replace(',', '.'));
-  const valid = value.trim() !== '' && Number.isFinite(n) && n >= 0 && n <= 24;
+  const bedTime = bed.trim() === '' ? null : normalizeClockTime(bed);
+  const wakeTime = wake.trim() === '' ? null : normalizeClockTime(wake);
+  const timesValid = bedTime !== undefined && wakeTime !== undefined;
+  const valid = value.trim() !== '' && Number.isFinite(n) && n >= 0 && n <= 24 && timesValid;
+  const save = () => valid && onSave(n, { bedtime: bedTime ?? null, wakeTime: wakeTime ?? null });
 
   return (
     <BottomSheet native detents="fit" visible={visible} onClose={onClose}>
@@ -741,15 +760,41 @@ function SleepModal({
           selectTextOnFocus
           {...doneKeyProps}
           onChangeText={setValue}
-          onSubmitEditing={() => valid && onSave(n)}
+          onSubmitEditing={save}
           accessibilityLabel={t('metrics.hoursSlept')}
           testID="sleep-input"
         />
         <Text style={styles.inputUnit}>{t('metrics.hoursUnit')}</Text>
       </View>
+      <Text style={styles.sheetNote}>{t('metrics.sleepActualHint')}</Text>
+      <View style={styles.inputRow}>
+        <SheetTextInput
+          style={styles.input}
+          placeholder={t('metrics.bedtimePlaceholder')}
+          placeholderTextColor={colors.faint}
+          keyboardType="numbers-and-punctuation"
+          value={bed}
+          onChangeText={setBed}
+          {...doneKeyProps}
+          accessibilityLabel={t('metrics.bedtime')}
+          testID="sleep-bedtime"
+        />
+        <SheetTextInput
+          style={styles.input}
+          placeholder={t('metrics.wakePlaceholder')}
+          placeholderTextColor={colors.faint}
+          keyboardType="numbers-and-punctuation"
+          value={wake}
+          onChangeText={setWake}
+          {...doneKeyProps}
+          accessibilityLabel={t('metrics.wakeTime')}
+          testID="sleep-wake"
+        />
+      </View>
+      {!timesValid ? <Text style={[styles.sheetNote, styles.sheetNoteBad]} testID="sleep-times-invalid">{t('metrics.clockInvalid')}</Text> : null}
       <TouchableOpacity
         style={[styles.save, !valid && styles.saveDisabled]}
-        onPress={() => valid && onSave(n)}
+        onPress={save}
         disabled={!valid}
         accessibilityRole="button"
         testID="sleep-save"

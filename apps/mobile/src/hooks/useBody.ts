@@ -29,6 +29,7 @@ import {
   projectWeight,
   sortedWeighIns,
   trailingAverageLb,
+  sleepWeekAverage,
   trendShift,
   trendWeightSeries,
   weighInConsistency,
@@ -41,6 +42,7 @@ import {
   getAllDailyWeights,
   getEarliestDailyWeight,
   subscribeDailyWeightsSince,
+  subscribeDailySleepSince,
   subscribeMeasurements,
   subscribeProfile,
   subscribeRecentLogs,
@@ -132,6 +134,9 @@ export interface BodyState {
   consistency: { logged: number; days: number };
   /** Mean of the last 7 days' weigh-ins, or null under two readings. */
   weekAverage: { avgLb: number; count: number } | null;
+  /** Program v2: mean of the nights LOGGED in the last 7 days (a missing night
+   *  is left out, never filled), and whether it is under 7 h. Display only. */
+  sleepWeek: { average?: number; nights: number; flag: boolean };
   /** The weight everything "since you started" is measured from: the
    *  earliest-ever weigh-in (the same start goal progress uses), else the
    *  oldest loaded one. Stable — it does not slide with the 400-day window or
@@ -289,6 +294,7 @@ export function useBody(): BodyState {
   // derives from weights older than 400 days except goal progress, which every
   // screen recomputes from its live snapshot.
   const [snapWeights, setSnapWeights, weightsFromCache] = useCachedState<Record<string, number>>(uid, 'weights', {});
+  const [sleepByDay, setSleepByDay] = useState<Record<string, { hours: number }>>({});
   const [profile, setProfile, profileFromCache] = useCachedState<Profile | null>(uid, 'profile', null);
   // Cached like the core three (UX_AUDIT S18-13): a cold open of Body should
   // show the last body-fat estimate rather than "no measurements" for a second.
@@ -327,6 +333,13 @@ export function useBody(): BodyState {
               key: 'weights',
               open: (deliver, fail) => subscribeDailyWeightsSince(uid, sinceKey, deliver, fail),
               apply: setSnapWeights,
+            }),
+            // Program v2: the 7-day sleep average beside the weight trend.
+            feedChannel({
+              key: 'sleep',
+              settles: 'none',
+              open: (deliver, fail) => subscribeDailySleepSince(uid, sinceKey, deliver, fail),
+              apply: setSleepByDay,
             }),
             feedChannel({
               key: 'profile',
@@ -411,6 +424,10 @@ export function useBody(): BodyState {
   const weekAverage = useMemo(
     () => trailingAverageLb(weights, AVERAGE_DAYS, new Date(), boundary),
     [weights, boundary],
+  );
+  const sleepWeek = useMemo(
+    () => sleepWeekAverage(sleepByDay, todayKey),
+    [sleepByDay, todayKey],
   );
 
   const hasOlderHistory = !olderWeights && earliest != null && earliest.dateKey < sinceKey;
@@ -683,6 +700,7 @@ export function useBody(): BodyState {
     trendPoints,
     consistency,
     weekAverage,
+    sleepWeek,
     startLb,
     hasOlderHistory,
     loadAllHistory,

@@ -29,7 +29,7 @@ export type {
 } from '@macrolog/core/cardio';
 import type { CardioBlock, PlannedCardioBlock } from '@macrolog/core/cardio';
 import type {
-  EffortStandard, ExerciseCategory, LoadChange, MuscleGroup, ProgressionBaseline, TemplateChangeBy, RecommendationSnapshot, RepBand, RepRange, SetStructure,
+  EffortStandard, ExerciseCategory, LoadChange, MuscleGroup, ProgressionBaseline, TemplateChangeBy, RecommendationSnapshot, RepBand, RepRange, SetStructure, Side,
 } from '@macrolog/core/workout';
 export type { EffortStandard, RepBand } from '@macrolog/core/workout';
 // The 2026-10-07 progression configuration, introduced after core existed:
@@ -139,6 +139,11 @@ export interface SessionExercise {
   pairPosition?: 1 | 2 | 3;
   transitionRestSec?: number;
   roundRestSec?: number;
+  /** Program v2 rests, snapshotted from the template row (core). */
+  restClusterSec?: number;
+  minClusterRestSec?: number;
+  /** An L/R lift: each side's call, frozen at start (core `side-tracks.ts`). */
+  sideRecommendations?: Partial<Record<Side, RecommendationSnapshot>>;
 }
 
 // ─── Templates ──────────────────────────────────────────────────
@@ -214,6 +219,14 @@ export interface TemplateExercise {
   /** The group's rests, seconds — on the leader (`pairPosition` 1) only. */
   transitionRestSec?: number;
   roundRestSec?: number;
+  /** Program v2 (core): rest between this row's own clusters, the minimum a
+   *  superset member rests between them, a cluster-count change the engine
+   *  reads around, and per-side loads on an L/R lift. No editor screen shows
+   *  these; core's carried fields keep them across an editor save. */
+  restClusterSec?: number;
+  minClusterRestSec?: number;
+  clusterCountChange?: { from: number; to: number; since: string };
+  sideLoads?: Partial<Record<Side, number>>;
 }
 
 export interface WorkoutTemplate {
@@ -284,6 +297,8 @@ export function templateToSessionExercises(template: WorkoutTemplate): SessionEx
         done: false,
       })),
       ...supersets[i],
+      ...(ex.restClusterSec != null ? { restClusterSec: ex.restClusterSec } : {}),
+      ...(ex.minClusterRestSec != null ? { minClusterRestSec: ex.minClusterRestSec } : {}),
     };
   });
 }
@@ -326,6 +341,8 @@ export interface WorkoutSession {
   date: Date;
   bodyweight?: number;
   sleepHours?: number;
+  /** The program version the template ran as (core `templateVersionFor`). */
+  templateVersion?: 'v1' | 'v2';
   /** How long the whole SESSION took, in minutes. Not `CardioBlock.durationSec`,
    *  which is how long one run was — different unit, different question. */
   durationMin?: number;
@@ -396,6 +413,8 @@ export function templateToSessionCardio(template: WorkoutTemplate): CardioBlock[
     ...(pb.notes !== undefined ? { notes: pb.notes } : {}),
     ...(pb.targetDurationSec !== undefined ? { targetDurationSec: pb.targetDurationSec } : {}),
     ...(pb.targetDistanceM !== undefined ? { targetDistanceM: pb.targetDistanceM } : {}),
+    ...(pb.targetHrMin !== undefined ? { targetHrMin: pb.targetHrMin } : {}),
+    ...(pb.targetHrMax !== undefined ? { targetHrMax: pb.targetHrMax } : {}),
     source: 'manual' as const,
   }));
 }

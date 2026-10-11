@@ -258,6 +258,38 @@ describe('the alternating flow', () => {
     }
   });
 
+  it('Program v2 (test 6): A2 and the switch took 10 s — A1\'s round rest grows so A1 rests at least 90 s between its clusters', async () => {
+    jest.useFakeTimers();
+    try {
+      const t0 = new Date('2026-10-13T18:00:00Z').getTime();
+      jest.setSystemTime(t0);
+      const s0 = live();
+      s0.exercises[0] = { ...s0.exercises[0], minClusterRestSec: 90 };
+      mockTrain.active = s0;
+      const ui = await render(<TrainScreen />);
+      // A1's cluster ends at t0…
+      await fireEvent.press(ui.getByTestId('set-done-0-2'));
+      // …and A2's 10 s later: 10 s since A1, so the 40 s round rest becomes 80.
+      jest.setSystemTime(t0 + 10_000);
+      await fireEvent.press(ui.getByTestId('exercise-head-1'));
+      await fireEvent.press(ui.getByTestId('set-done-1-2'));
+      expect(mockRestStart).toHaveBeenLastCalledWith(80, 'Next: A1 · Leg Extensions');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('Program v2 (test 6): untimed (A1 ticked before this screen) — estimated as the switch plus a 70 s cluster, so no delay', async () => {
+    const s0 = live();
+    s0.exercises[0] = { ...s0.exercises[0], minClusterRestSec: 90 };
+    mockTrain.active = s0;
+    const ui = await render(<TrainScreen />);
+    await fireEvent.press(ui.getByTestId('exercise-head-1'));
+    await fireEvent.press(ui.getByTestId('set-done-1-2'));
+    // 35 s switch + 70 s cluster = 105 s ≥ 90: the 40 s round rest as set.
+    expect(mockRestStart).toHaveBeenLastCalledWith(40, 'Next: A1 · Leg Extensions');
+  });
+
   it('a leftover cluster runs alone on the exercise\'s normal rest (2 clusters ↔ 1)', async () => {
     const session = live();
     session.exercises[1] = { ...session.exercises[1], sets: session.exercises[1].sets.slice(0, 3) };
@@ -715,7 +747,7 @@ describe('the superset report', () => {
   it('leads with the warning when it applies, compares one load, and labels each row for a screen reader', async () => {
     const ui = await render(<ExerciseSupersetReport sessions={sessions} exerciseId="ext" />);
     expect(ui.getByTestId('superset-report-flag')).toHaveTextContent(
-      'Activation reps fell 2+ at the same load in 2 of your last 2 superset sessions. Try this lift unpaired: in the template, tap the link icon beside Leg Extensions, then Unpair Leg Extensions.', { exact: false });
+      'Consider unpairing Leg Extensions: activation reps down vs straight-set baseline. In the template, tap the link icon beside Leg Extensions, then Unpair Leg Extensions.', { exact: false });
     // Every session here was at 90 lb: the same-load line would only repeat the averages.
     expect(ui.queryByTestId('superset-report-same-load')).toBeNull();
     expect(ui.getByText('Unpaired: last 3 sessions · Superset: 2 sessions')).toBeTruthy();

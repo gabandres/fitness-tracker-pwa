@@ -302,8 +302,8 @@ describe('write-path clamps', () => {
 
   it('clamps sleep to [0, 24] and snaps to the half hour', () => {
     expect(clampSleepHours(-1)).toBe(0);
-    expect(clampSleepHours(7.3)).toBe(7.5);
-    expect(clampSleepHours(7.1)).toBe(7);
+    expect(clampSleepHours(7.34)).toBe(7.3);
+    expect(clampSleepHours(7.1)).toBe(7.1);
     expect(clampSleepHours(SLEEP_MAX_HOURS + 3)).toBe(SLEEP_MAX_HOURS);
   });
 });

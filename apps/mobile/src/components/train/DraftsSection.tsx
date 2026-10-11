@@ -191,7 +191,9 @@ export function DraftsSection({ train }: { train: DraftTrain }) {
   const styles = useThemedStyles(createStyles);
   const actions = useDraftActions(train);
   const [open, setOpen] = useState<string | null>(null);
-  const waiting = useMemo(() => train.drafts.filter((d) => d.status === 'draft'), [train.drafts]);
+  // Program v2 drafts switch together from Settings → Program version, so
+  // they are not listed here one by one.
+  const waiting = useMemo(() => train.drafts.filter((d) => d.status === 'draft' && !d.program), [train.drafts]);
   // The engine walk per paired row runs once per change, not per render.
   const pendingFor = train.pendingLoadTestFor;
   const pendingByDraft = useMemo(() => new Map(waiting.map((d) => [

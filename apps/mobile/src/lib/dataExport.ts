@@ -6,7 +6,7 @@
 import { Platform } from 'react-native';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
-import { buildCsv } from '@macrolog/core';
+import { buildCsv, programDrafts } from '@macrolog/core';
 import {
   getAllDailySleep,
   getAllDailyWater,
@@ -17,6 +17,8 @@ import {
   getAllTemplates,
   getAllExercises,
   getAllDailyTargets,
+  getAllDailySleepTimes,
+  getAllTemplateDrafts,
   getFasts,
 } from './ledger';
 
@@ -41,7 +43,7 @@ export interface ExportResult {
  * is prepended so Excel renders accented meal labels correctly.
  */
 export async function exportDataCsv(uid: string): Promise<ExportResult> {
-  const [logs, measurements, dailyWeights, dailyWater, dailySleep, workoutSessions, fasts, templates, exercises, targetRecords] =
+  const [logs, measurements, dailyWeights, dailyWater, dailySleep, workoutSessions, fasts, templates, exercises, targetRecords, dailySleepTimes, drafts] =
     await Promise.all([
       getAllLogs(uid),
       getAllMeasurements(uid),
@@ -60,6 +62,10 @@ export async function exportDataCsv(uid: string): Promise<ExportResult> {
       getAllTemplates(uid),
       getAllExercises(uid),
       getAllDailyTargets(uid),
+      // Program v2 (2026-10-11): bedtime / wake time, and which version each
+      // template runs as. A failed drafts read exports blank versions.
+      getAllDailySleepTimes(uid),
+      getAllTemplateDrafts(uid).catch(() => []),
     ]);
 
   const csv = '﻿' + buildCsv({
@@ -73,6 +79,9 @@ export async function exportDataCsv(uid: string): Promise<ExportResult> {
     templates,
     effortStandards: Object.fromEntries(exercises.map((e) => [e.id ?? '', e.effortStandard])),
     targetRecords,
+    dailySleepTimes,
+    templateVersions: Object.fromEntries(programDrafts(drafts).map((d) => [d.draftOf, d.status === 'active' ? 'v2' : 'v1'] as const)),
+    catalogMuscles: exercises.map((e) => ({ id: e.id, muscles: e.muscles })),
   });
   const rows = logs.length + measurements.length + workoutSessions.length + fasts.length;
   const filename = `ignia-export-${stamp()}.csv`;

@@ -309,3 +309,40 @@ function median(xs: readonly number[]): number {
   const mid = sorted.length >> 1;
   return sorted.length % 2 === 1 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2;
 }
+
+// ─── The 7-day sleep average (Program v2, 2026-10-11) ────────────
+
+/** The window of the sleep average shown beside the 7-day weight trend. */
+export const SLEEP_AVERAGE_DAYS = 7;
+/** A 7-day average under this many hours is flagged. */
+export const SLEEP_FLAG_UNDER_HOURS = 7;
+
+/**
+ * The mean of the nights LOGGED in the 7 days ending `todayKey` (date keys,
+ * inclusive). A missing night is not a zero and is never filled from the night
+ * before — it is left out, the same rule weight follows. `flag` when the mean
+ * is under {@link SLEEP_FLAG_UNDER_HOURS} (Nedeltcheva 2010: in a deficit,
+ * short sleep shifted the loss from fat toward lean mass).
+ *
+ * Display only: like everything in this module, it never reaches a target.
+ */
+export function sleepWeekAverage(
+  byDay: Readonly<Record<string, number | { hours: number }>>,
+  todayKey: string,
+  days = SLEEP_AVERAGE_DAYS,
+): { average?: number; nights: number; flag: boolean } {
+  const [y, m, d] = todayKey.split('-').map(Number);
+  const hours: number[] = [];
+  for (let i = 0; i < days; i++) {
+    const at = new Date(y, m - 1, d - i);
+    const key = `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, '0')}-${String(at.getDate()).padStart(2, '0')}`;
+    const v = byDay[key];
+    const h = typeof v === 'number' ? v : v?.hours;
+    if (h != null && Number.isFinite(h)) hours.push(h);
+  }
+  if (hours.length === 0) return { nights: 0, flag: false };
+  const mean = hours.reduce((a, b) => a + b, 0) / hours.length;
+  // Judged on the exact mean, and shown rounded DOWN to the tenth so a
+  // flagged 6.96 never reads "7.0".
+  return { average: Math.floor(mean * 10 + 1e-9) / 10, nights: hours.length, flag: mean < SLEEP_FLAG_UNDER_HOURS };
+}

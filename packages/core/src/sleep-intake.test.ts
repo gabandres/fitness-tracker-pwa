@@ -189,8 +189,8 @@ describe('the evidence bar — every reason there is no sentence', () => {
 
   it('needs SLEEP_MIN_GROUP nights on each side', () => {
     // A median split over DISTINCT values is always ~half and half, so this
-    // gate only ever bites on ties — which are the common case here, because
-    // `clampSleepHours` snaps every night to the half hour. A very regular
+    // gate only ever bites on ties — which are common: imports land on
+    // quarters and most typed nights are whole or half hours. A very regular
     // sleeper with two outlying nights either way has 14 nights of evidence
     // and four nights of contrast, and four is a coin flip.
     const sleepByDay: Record<string, SleepEntry> = {};

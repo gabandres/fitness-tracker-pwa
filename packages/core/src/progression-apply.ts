@@ -17,7 +17,12 @@
  * Pure, framework-free (ADR-0012).
  */
 import { type ProgressionCall, type Recommendation, progressionCall } from './progression-engine';
-import type { LoadChange, TemplateChangeBy, TemplateExercise } from './workout';
+import type { LoadChange, Side, TemplateChangeBy, TemplateExercise } from './workout';
+import { sideLoad, sidesOf } from './side-tracks';
+
+/** The key a side's call is stored under in a `recs` map (an L/R lift has
+ *  two calls, one per side — `side-tracks.ts`). */
+export const sideRecKey = (exerciseId: string, side: Side): string => `${exerciseId}#${side}`;
 
 export interface TemplateLoadChange {
   exerciseId: string;
@@ -28,6 +33,8 @@ export interface TemplateLoadChange {
   call: ProgressionCall;
   /** The sentence shown for the call — stored on the log as given. */
   reason: string;
+  /** On an L/R lift, the side this change moves. */
+  side?: Side;
 }
 
 /** Calls that may move a template's load. An invalid read says nothing about
@@ -45,7 +52,7 @@ const same = (a: number | undefined, b: number | undefined) =>
  * template had drifted from it (a template at 15 for a lift done at 25).
  */
 export function proposeTemplateChanges(
-  rows: readonly Pick<TemplateExercise, 'exerciseId' | 'name' | 'targetLoad'>[],
+  rows: readonly (Pick<TemplateExercise, 'exerciseId' | 'name' | 'targetLoad'> & Partial<Pick<TemplateExercise, 'plannedSets' | 'sideLoads'>>)[],
   recs: ReadonlyMap<string, Recommendation>,
   reasonFor: (rec: Recommendation) => string,
 ): TemplateLoadChange[] {
@@ -53,6 +60,24 @@ export function proposeTemplateChanges(
   const seen = new Set<string>();
   for (const row of rows) {
     if (seen.has(row.exerciseId)) continue;
+    // An L/R lift moves each side on its own call.
+    const sides = row.plannedSets ? sidesOf({ plannedSets: row.plannedSets }) : [];
+    if (sides.length > 1) {
+      seen.add(row.exerciseId);
+      for (const side of sides) {
+        const rec = recs.get(sideRecKey(row.exerciseId, side));
+        const from = sideLoad({ targetLoad: row.targetLoad, sideLoads: row.sideLoads }, side);
+        if (!rec || rec.load == null) continue;
+        const call = progressionCall(rec);
+        if (!MOVES.has(call) || same(rec.load, from)) continue;
+        out.push({
+          exerciseId: row.exerciseId, name: row.name, side,
+          ...(from != null ? { from } : {}),
+          to: rec.load, call, reason: reasonFor(rec),
+        });
+      }
+      continue;
+    }
     const rec = recs.get(row.exerciseId);
     if (!rec || rec.load == null) continue;
     const call = progressionCall(rec);
@@ -81,8 +106,10 @@ export function applyTemplateChanges(
   opts: { at: Date; by: LoadChange['by'] },
 ): TemplateExercise[] {
   if (changes.length === 0) return [...rows];
-  const byId = new Map(changes.map((c) => [c.exerciseId, c]));
+  const byId = new Map(changes.filter((c) => !c.side).map((c) => [c.exerciseId, c]));
   return rows.map((row) => {
+    const sideChanges = changes.filter((c) => c.side && c.exerciseId === row.exerciseId);
+    if (sideChanges.length) return applySideChanges(row, sideChanges, opts);
     const c = byId.get(row.exerciseId);
     if (!c) return row;
     const entry: LoadChange = {
@@ -105,6 +132,36 @@ export function applyTemplateChanges(
       loadLog: [...(row.loadLog ?? []), entry],
     };
   });
+}
+
+/** {@link applyTemplateChanges} for an L/R lift: each side's load moves in
+ *  `sideLoads` (and on that side's planned sets that carried it), one log
+ *  entry per side. `targetLoad` is left as it was. */
+function applySideChanges(
+  row: TemplateExercise,
+  changes: readonly TemplateLoadChange[],
+  opts: { at: Date; by: LoadChange['by'] },
+): TemplateExercise {
+  const at = opts.at.toISOString();
+  const sideLoads = { ...(row.sideLoads ?? {}) };
+  const entries: LoadChange[] = [];
+  let plannedSets = row.plannedSets;
+  for (const c of changes) {
+    const side = c.side as Side;
+    const from = sideLoad(row, side);
+    sideLoads[side] = c.to;
+    entries.push({ at, ...(from != null ? { from } : {}), to: c.to, by: opts.by, reason: c.reason, side });
+    const groups = new Set(plannedSets.filter((p) => p.kind === 'activation' && p.label?.trim() === side).map((p) => p.group ?? 1));
+    plannedSets = plannedSets.map((p) =>
+      (p.kind === 'activation' || p.kind === 'mini') && groups.has(p.group ?? 1) && p.weight != null && same(p.weight, from)
+        ? { ...p, weight: c.to }
+        : p,
+    );
+  }
+  return {
+    ...row, lastModifiedAt: at, lastModifiedBy: opts.by, sideLoads, plannedSets,
+    loadLog: [...(row.loadLog ?? []), ...entries],
+  };
 }
 
 /**
@@ -152,7 +209,11 @@ export function logUserLoadEdits(
 
 /** Row fields no editor screen shows, carried across a full-overwrite save
  *  exactly like `loadLog` — dropping one would erase it on any edit. */
-const CARRIED_ROW_FIELDS = ['restAfterSec', 'restAfterMaxSec', 'baseline', 'lastModifiedAt', 'lastModifiedBy'] as const;
+const CARRIED_ROW_FIELDS = [
+  'restAfterSec', 'restAfterMaxSec', 'baseline', 'lastModifiedAt', 'lastModifiedBy',
+  // Program v2 (2026-10-11): no editor screen shows these either.
+  'restClusterSec', 'minClusterRestSec', 'clusterCountChange', 'sideLoads',
+] as const;
 
 /** The fields that make a row's PRESCRIPTION — what a change stamp is about. */
 function rowContent(row: TemplateExercise, position: number): string {

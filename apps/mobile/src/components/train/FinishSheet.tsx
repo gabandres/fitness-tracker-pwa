@@ -578,7 +578,7 @@ export function TrainFinishSheet({
   onShare,
 }: {
   train: Pick<TrainState, 'active' | 'editingExisting' | 'templates' | 'recentSessions' | 'finishWorkout'>
-    & Partial<Pick<TrainState, 'catalog' | 'saveTemplate' | 'trainingPhase' | 'autoApplyProgression'>>;
+    & Partial<Pick<TrainState, 'catalog' | 'saveTemplate' | 'trainingPhase' | 'autoApplyProgression' | 'maybeAutoSwitchProgram'>>;
   visible: boolean;
   onClose: () => void;
   /** Share the workout just finished — offered on the "Workout saved" receipt. */
@@ -695,15 +695,27 @@ export function TrainFinishSheet({
         // `applied: null` with it off — the template is left exactly as it is.
         const tpl = canWrite ? train.templates.find((x) => x.id === session.templateId) : undefined;
         let updated: string | null = null;
+        let wrote: Promise<boolean> = Promise.resolve(true);
+        let after = tpl;
         if (tpl) {
           const { applied } = finishProgression({
             rows: tpl.exercises, recs, autoApply, at: new Date(), reasonFor,
           });
           if (applied) {
             updated = tpl.name;
+            after = { ...tpl, exercises: applied };
             // Behind the receipt, like the finish itself: a refusal toasts.
-            void writeRows(tpl, applied);
+            wrote = writeRows(tpl, applied);
           }
+        }
+        // Program v2's one automatic switch waits for this session — AFTER
+        // the progression write, and carrying its loads, so the switch never
+        // lands under a write of the old body (`program.ts`).
+        const auto = train.maybeAutoSwitchProgram;
+        if (auto) {
+          void wrote.then(() => auto(session, after)).then((switched) => {
+            if (switched) showToast(t('train.program.autoSwitched'), { testID: 'train-toast-program' });
+          }).catch(() => undefined);
         }
         onClose();
         haptics.success();

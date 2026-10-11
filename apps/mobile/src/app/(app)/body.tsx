@@ -193,6 +193,7 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
   const todayKey = body.todayKey ?? weighIns[0]?.dateKey ?? '';
   const latestKey = body.currentWeightDateKey ?? weighIns[0]?.dateKey ?? null;
   const weekAverage = body.weekAverage ?? null;
+  const sleepWeek = body.sleepWeek ?? { nights: 0, flag: false };
   // The chart is memoized; an inline `() => body.loadAllHistory?.()` was a new
   // prop every render and rebuilt its labels and audio graph each time a sheet
   // opened (Body re-score, bug 5).
@@ -730,13 +731,24 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
                 </View>
               ) : null}
 
-              {projection || weekAverage ? (
+              {projection || weekAverage || sleepWeek.average != null ? (
                 <View style={styles.trendChips} testID="trend-card">
                   {/* The week's plain average (re-score): the number people
                       check a week against, which the lagging trend is not. */}
                   {weekAverage ? (
                     <Text style={styles.trendChip} testID="week-average">
                       {t('body.weekAvg')}  <Text style={styles.trendChipValue}>{wt(weekAverage.avgLb, unitSystem, locale)} {unit}</Text>
+                    </Text>
+                  ) : null}
+                  {/* Program v2: the week's sleep, beside the week's weight —
+                      the nights logged, never a filled-in one. */}
+                  {sleepWeek.average != null ? (
+                    <Text
+                      style={styles.trendChip}
+                      accessibilityLabel={t('body.sleepAvgA11y', { n: formatNumber(sleepWeek.average, locale, { maximumFractionDigits: 1 }), nights: sleepWeek.nights })}
+                      testID="week-sleep-average"
+                    >
+                      {t('body.sleepAvg')}  <Text style={styles.trendChipValue}>{t('metrics.sleepValue', { n: formatNumber(sleepWeek.average, locale, { maximumFractionDigits: 1 }) })}</Text>
                     </Text>
                   ) : null}
                   {projection ? (
@@ -750,6 +762,10 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
                     </Text>
                   ) : null}
                 </View>
+              ) : null}
+
+              {sleepWeek.flag ? (
+                <Text style={styles.consistency} testID="week-sleep-flag">{t('body.sleepFlag')}</Text>
               ) : null}
 
               {/* D1: a count, never a streak — a streak punishes one missed

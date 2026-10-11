@@ -134,6 +134,10 @@ export interface CardioBlock {
   /** Prescription snapshotted from the template — see the interface note. */
   targetDurationSec?: number;
   targetDistanceM?: number;
+  /** The heart-rate band the block is prescribed in, bpm (Program v2: Zone 2
+   *  at 120–130). Prescription, like the targets above. */
+  targetHrMin?: number;
+  targetHrMax?: number;
 }
 
 /** What a template tells you to do. The cardio analogue of `PlannedSet`. */
@@ -142,7 +146,45 @@ export interface PlannedCardioBlock {
   label?: string;
   targetDurationSec?: number;
   targetDistanceM?: number;
+  /** See {@link CardioBlock.targetHrMin}. */
+  targetHrMin?: number;
+  targetHrMax?: number;
   notes?: string;
+}
+
+// ─── Zone 2 (Program v2, 2026-10-11) ────────────────────────────
+
+/** The Zone 2 heart-rate band, bpm, when a block names none. */
+export const ZONE2_BAND = { min: 120, max: 130 } as const;
+/** RPE at or above this is not Zone 2 work. */
+export const ZONE2_RPE_MAX = 7;
+
+/** A Zone 2 block: one whose label says so ("Zone 2", "Z2 walk"). */
+export function isZone2(block: Pick<CardioBlock, 'label'>): boolean {
+  return /\bzone\s*2\b|\bz2\b/i.test(block.label ?? '');
+}
+
+/** The band a block is held to: its own prescription, else the Zone 2 default
+ *  for a Zone 2 block, else none. */
+export function hrBand(block: Pick<CardioBlock, 'label' | 'targetHrMin' | 'targetHrMax'>): { min: number; max: number } | undefined {
+  if (block.targetHrMin != null && block.targetHrMax != null) return { min: block.targetHrMin, max: block.targetHrMax };
+  return isZone2(block) ? { ...ZONE2_BAND } : undefined;
+}
+
+export interface Zone2Check {
+  /** Whether the logged average HR is inside the band; undefined when there
+   *  is no band or no HR to judge. */
+  inBand?: boolean;
+  /** RPE {@link ZONE2_RPE_MAX}+ on a Zone 2 block. A blank RPE is never high. */
+  rpeTooHigh: boolean;
+}
+
+/** The two Zone 2 flags for one logged block. */
+export function zone2Check(block: Pick<CardioBlock, 'label' | 'targetHrMin' | 'targetHrMax' | 'avgHr' | 'rpe'>): Zone2Check {
+  const band = hrBand(block);
+  const inBand = band && block.avgHr != null ? block.avgHr >= band.min && block.avgHr <= band.max : undefined;
+  const rpeTooHigh = isZone2(block) && block.rpe != null && block.rpe >= ZONE2_RPE_MAX;
+  return { ...(inBand !== undefined ? { inBand } : {}), rpeTooHigh };
 }
 
 // ─── Bounds ─────────────────────────────────────────────────────

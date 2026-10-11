@@ -42,6 +42,7 @@ import { captureError } from '@/lib/sentry';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { useUnitSystem } from '@/lib/use-unit-system';
 import type { Exercise, TrainingPhase, WorkoutSession, WorkoutTemplate } from '@/lib/workout';
+import { WeeklyVolumeSheet } from './WeeklyVolumeSheet';
 import { DraftsSection, useDraftActions } from './DraftsSection';
 import { ExerciseDetailSheet } from './ExerciseDetailSheet';
 import { toMenuButtonActions } from './exercise-menu-native';
@@ -107,6 +108,7 @@ export function StartView({
   // The cluster audit is a six-chip block that used to sit ABOVE the primary
   // action. Collapsed to its one-line verdict, with the chips one tap away.
   const [auditOpen, setAuditOpen] = useState(false);
+  const [volumeOpen, setVolumeOpen] = useState(false);
   /**
    * ONE render clock for the three windows below.
    *
@@ -138,6 +140,12 @@ export function StartView({
     [audit, phase, train.recentSessions, train.catalog, now],
   );
   const gateLb = profile?.volumeGateLb;
+  // What the week PLANS: the program's templates when there is one (each
+  // done once a week), else every template.
+  const plannedTemplates = useMemo(() => {
+    const ids = new Set(train.drafts.filter((d) => d.program === 'v2').map((d) => d.draftOf));
+    return ids.size ? train.templates.filter((tp) => tp.id && ids.has(tp.id)) : train.templates;
+  }, [train.drafts, train.templates]);
   // The 7-day average for the volume gate, from the weigh-ins Today already
   // keeps on disk — ONE cache read when a gate is set, never a listener
   // (ADR-0016: Train does not subscribe to weights for one line of text).
@@ -265,7 +273,7 @@ export function StartView({
       {nextUp ? (
         <NextUpCard
           next={nextUp}
-          supersets={train.drafts.some((d) => d.status === 'active' && d.draftOf === nextUp.template.id)}
+          supersets={nextUp.template.exercises.some((e) => e.supersetGroup != null)}
           onStart={() => train.startFromTemplate(nextUp.template)}
           onEdit={() => setEditing(nextUp.template)}
         />
@@ -364,8 +372,27 @@ export function StartView({
               />
             </>
           ) : null}
+          {/* Program v2: fractional volume (primary 1.0, secondary 0.5) beside
+              the plan, and each session's totals. */}
+          <Touchable
+            style={styles.textAction}
+            onPress={() => setVolumeOpen(true)}
+            accessibilityRole="button"
+            testID="weekly-volume-open"
+          >
+            <Ionicons name="stats-chart-outline" size={16} color={colors.teal} />
+            <Text style={styles.sectionAction}>{t('train.volume.open')}</Text>
+          </Touchable>
         </View>
       ) : null}
+      <WeeklyVolumeSheet
+        visible={volumeOpen}
+        onClose={() => setVolumeOpen(false)}
+        sessions={train.recentSessions}
+        catalog={train.catalog}
+        templates={plannedTemplates}
+        now={now}
+      />
 
       <View style={styles.sectionHead}>
         <Text style={styles.sectionTitle} accessibilityRole="header">{t('train.templates')}</Text>
@@ -586,7 +613,10 @@ const TemplateCard = memo(function TemplateCard({
   const names = templateExerciseNames(tpl, t);
   // A superset draft running on this template (2026-10-11): said on the card,
   // with the way back in its menu — not only in a Drafts list further down.
-  const activeDraft = train.drafts.find((d) => d.status === 'active' && d.draftOf === tpl.id);
+  // A superset draft switched on here — not a Program v2 one: a program's
+  // templates switch together, from Settings, never one card at a time.
+  const activeDraft = train.drafts.find((d) => d.status === 'active' && d.draftOf === tpl.id && !d.program);
+  const programDraft = train.drafts.find((d) => d.status === 'active' && d.draftOf === tpl.id && d.program === 'v2');
   const draftActions = useDraftActions(train);
   // "3 exercises · 12 sets · last Tue". The counts alone could not tell you
   // which of four templates you are due for, which is the question the list
@@ -679,6 +709,12 @@ const TemplateCard = memo(function TemplateCard({
               {activeDraft.activatedAt
                 ? t('train.drafts.activeSince', { date: formatDate(new Date(activeDraft.activatedAt), locale, { month: 'short', day: 'numeric' }) })
                 : t('train.drafts.activeTag')}
+            </Text>
+          ) : programDraft ? (
+            <Text style={styles.supersetTag} testID={`template-program-${tpl.id}`}>
+              {programDraft.activatedAt
+                ? t('train.program.since', { date: formatDate(new Date(programDraft.activatedAt), locale, { month: 'short', day: 'numeric' }) })
+                : t('train.program.tag')}
             </Text>
           ) : null}
           {names ? <Text style={styles.tplExNames} numberOfLines={1}>{names}</Text> : null}

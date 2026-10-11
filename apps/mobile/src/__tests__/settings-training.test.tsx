@@ -30,6 +30,8 @@ jest.mock('@/lib/ledger', () => ({
   setWeeklyDigestOptIn: jest.fn(),
 }));
 jest.mock('@/hooks/useDailyTargets', () => ({ useDailyTargets: () => ({ loaded: false, error: null }) }));
+const mockProgram = { version: undefined as 'v1' | 'v2' | 'mixed' | undefined, rows: [] as { templateId: string; name: string; v1: number; v2: number }[], armedTemplate: undefined as string | undefined, autoActivatedAt: undefined as string | undefined, switchTo: jest.fn().mockResolvedValue(undefined), busy: false };
+jest.mock('@/hooks/useProgram', () => ({ useProgram: () => mockProgram }));
 jest.mock('@/lib/connectivity', () => ({ useIsOffline: () => false, isOffline: () => false }));
 jest.mock('@/lib/reminders', () => ({
   getReminderSettings: jest.fn().mockResolvedValue({ enabled: false, meals: undefined }),
@@ -119,4 +121,43 @@ it('writes nothing when the gate text is unchanged', async () => {
   const ui = await renderSettings();
   await fireEvent(ui.getByTestId('settings-volume-gate'), 'endEditing');
   expect(mockSetTrainingSettings).not.toHaveBeenCalled();
+});
+
+describe('Program version (Program v2, 2026-10-11)', () => {
+  afterEach(() => {
+    mockProgram.version = undefined;
+    mockProgram.rows = [];
+    mockProgram.armedTemplate = undefined;
+  });
+
+  it('is not shown to an account without a program', async () => {
+    const ui = await renderSettings();
+    expect(ui.queryByTestId('settings-program')).toBeNull();
+  });
+
+  it('shows v1 selected, the waiting automatic switch, and the duration estimate v1 vs v2 with the week', async () => {
+    mockProgram.version = 'v1';
+    mockProgram.armedTemplate = 'Push Day';
+    mockProgram.rows = [
+      { templateId: 'p', name: 'Push Day', v1: 45, v2: 49 },
+      { templateId: 'l', name: 'Leg Day', v1: 47, v2: 36 },
+    ];
+    const ui = await renderSettings();
+    expect(ui.getByTestId('settings-program-v1')).toBeSelected();
+    expect(ui.getByTestId('settings-program-status')).toHaveTextContent('v2 starts by itself once your next Push Day is finished. Choosing here cancels that.');
+    const d = ui.getByTestId('settings-program-durations');
+    expect(d).toHaveTextContent('Push Day: v1 45 min · v2 49 min', { exact: false });
+    expect(d).toHaveTextContent('Week: v1 92 min · v2 85 min', { exact: false });
+  });
+
+  it('switches all templates to v2 after a confirm — never on the tap alone', async () => {
+    mockProgram.version = 'v1';
+    mockProgram.rows = [{ templateId: 'p', name: 'Push Day', v1: 45, v2: 49 }];
+    mockProgram.switchTo.mockClear();
+    const ui = await renderSettings();
+    await fireEvent.press(ui.getByTestId('settings-program-v2'));
+    expect(mockProgram.switchTo).not.toHaveBeenCalled();
+    await fireEvent.press(ui.getByTestId('confirm-go'));
+    expect(mockProgram.switchTo).toHaveBeenCalledWith('v2');
+  });
 });

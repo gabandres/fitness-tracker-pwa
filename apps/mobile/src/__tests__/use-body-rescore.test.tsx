@@ -50,6 +50,7 @@ jest.mock('@/lib/ledger', () => ({
     live.logs = cb;
     return () => {};
   },
+  subscribeDailySleepSince: () => () => {},
   subscribeDailyWeightsSince: (_u: string, _s: string, cb: Deliver<Record<string, number>>) => {
     live.weights = cb;
     return () => {};

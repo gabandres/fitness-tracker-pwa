@@ -11,8 +11,12 @@
  *
  * The flag is deliberately narrow: activation reps down by
  * {@link SUPERSET_COST_REPS}+ against the straight-set sessions AT THE SAME
- * LOAD, in {@link SUPERSET_COST_SESSIONS}+ superset sessions. A drop at a new
- * load is the load, not the superset, and one bad day is one bad day.
+ * LOAD, in the {@link SUPERSET_COST_SESSIONS} most recent judgeable superset
+ * sessions IN A ROW (Program v2, 2026-10-11 — it was "2 of the last 3" until
+ * then). A drop at a new load is the load, not the superset, and such a
+ * session is not judgeable; one bad day is one bad day; and a good session in
+ * between breaks the run. It only ever suggests — nothing is changed
+ * automatically.
  *
  * Pure; no I/O. Reads only what was logged; a metric with nothing to average
  * is `undefined`, never 0.
@@ -106,7 +110,9 @@ export interface ExerciseSupersetReport {
    *  sides, so the comparison never mixes loads. Absent when no straight
    *  session in the baseline used that load. */
   sameLoad?: { load: number; straight: number; superset: number; delta: number };
-  /** "Superset may be costing reps — consider straight sets." */
+  /** "Consider unpairing …: activation reps down vs straight-set baseline" —
+   *  the latest {@link SUPERSET_COST_SESSIONS} superset sessions were BOTH
+   *  costly. */
   flag: boolean;
   /** How many superset sessions the flag looked at (≤ {@link SUPERSET_RECENT_SESSIONS}) —
    *  the "of your last N" the warning states. */
@@ -132,12 +138,19 @@ export function exerciseSupersetReport(
   if (sup.length === 0) return null;
   const straight = occ.filter((o) => !o.superset).slice(0, STRAIGHT_BASELINE_SESSIONS);
 
-  const costlySessions = sup.slice(0, SUPERSET_RECENT_SESSIONS).filter((o) => {
-    if (o.load == null || o.activationRepsAvg == null) return false;
+  // A superset session is JUDGEABLE when a straight session in the baseline
+  // used its load; only those can be costly or not.
+  const baseAt = (o: ExerciseOccurrence): number | undefined => {
+    if (o.load == null || o.activationRepsAvg == null) return undefined;
     const atLoad = straight.filter((b) => b.load != null && Math.abs(b.load - (o.load as number)) < 0.01 && b.activationRepsAvg != null);
-    const base = avg(atLoad.map((b) => b.activationRepsAvg as number));
-    return base != null && base - o.activationRepsAvg >= SUPERSET_COST_REPS;
-  }).map((o) => o.date);
+    return avg(atLoad.map((b) => b.activationRepsAvg as number));
+  };
+  const isCostly = (o: ExerciseOccurrence) => {
+    const base = baseAt(o);
+    return base != null && base - (o.activationRepsAvg as number) >= SUPERSET_COST_REPS;
+  };
+  const costlySessions = sup.slice(0, SUPERSET_RECENT_SESSIONS).filter(isCostly).map((o) => o.date);
+  const judged = sup.filter((o) => baseAt(o) != null);
 
   const s = side(straight);
   const p = side(sup);
@@ -160,7 +173,10 @@ export function exerciseSupersetReport(
       durationMin: diff(p.durationMinAvg, s.durationMinAvg),
     },
     costlySessions,
-    flag: costlySessions.length >= SUPERSET_COST_SESSIONS,
+    // Consecutive: the newest N JUDGEABLE superset sessions, every one costly.
+    // A session at a load no straight session used says nothing either way,
+    // so it neither breaks the run nor extends it; a good one breaks it.
+    flag: judged.length >= SUPERSET_COST_SESSIONS && judged.slice(0, SUPERSET_COST_SESSIONS).every(isCostly),
     recentSessions: Math.min(sup.length, SUPERSET_RECENT_SESSIONS),
     oneLoad: new Set([...straight, ...sup].map((o) => o.load ?? -1)).size <= 1,
   };
