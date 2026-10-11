@@ -74,11 +74,16 @@ function partnersOf(rows: readonly TemplateExercise[], index: number): string[] 
 export function contextChanges(
   active: readonly TemplateRows[],
   next: TemplateRows,
+  /** Bodies no longer live but recently were — the straight-set versions an
+   *  active draft replaced. A lift that left its day with ANOTHER draft's
+   *  activation (Leg switched first, so the crunch is in no live template when
+   *  Push switches) is judged against where it last lived, not treated as new. */
+  retired: readonly TemplateRows[] = [],
 ): Map<string, ContextChange[]> {
   const out = new Map<string, ContextChange[]>();
   next.exercises.forEach((row, i) => {
-    const home = active.find((t) => t.id === next.id && t.exercises.some((e) => e.exerciseId === row.exerciseId))
-      ?? active.find((t) => t.exercises.some((e) => e.exerciseId === row.exerciseId));
+    const has = (t: TemplateRows) => t.exercises.some((e) => e.exerciseId === row.exerciseId);
+    const home = active.find((t) => t.id === next.id && has(t)) ?? active.find(has) ?? retired.find(has);
     if (!home) return;
     const j = home.exercises.findIndex((e) => e.exerciseId === row.exerciseId);
     const changes: ContextChange[] = [];
@@ -249,10 +254,13 @@ export function refreshFromLive(
   live: readonly TemplateRows[],
   ownId?: string,
   fields: readonly (keyof TemplateExercise)[] = ACTIVATION_FIELDS,
+  /** Fallback sources — see `contextChanges`. */
+  retired: readonly TemplateRows[] = [],
 ): TemplateExercise[] {
   return rows.map((row) => {
     const src = (live.find((t) => t.id === ownId)?.exercises.find((e) => e.exerciseId === row.exerciseId))
-      ?? live.flatMap((t) => t.exercises).find((e) => e.exerciseId === row.exerciseId);
+      ?? live.flatMap((t) => t.exercises).find((e) => e.exerciseId === row.exerciseId)
+      ?? retired.flatMap((t) => t.exercises).find((e) => e.exerciseId === row.exerciseId);
     if (!src) return row;
     const next = { ...row } as Record<string, unknown>;
     for (const k of fields) {
@@ -265,20 +273,29 @@ export function refreshFromLive(
   });
 }
 
-/** Exercises that would be programmed in two live templates at once, and
- *  exercises that would vanish from the week, if `nextBody` replaced the
- *  template `id`. */
+/**
+ * What a swap does to the WEEK: exercises it newly puts in two live templates
+ * at once (they move in from a day that still has them), and exercises it
+ * takes out of every template, if `nextBody` replaced the template `id`.
+ *
+ * Only the CHANGE counts. A lift already programmed on two days before the
+ * swap is the lifter's own choice, not something this swap does — warning
+ * "it moves here from …" about it is false (found on a QA account whose two
+ * templates share three lifts).
+ */
 export function weekOverlap(
   live: readonly TemplateRows[],
   id: string,
   nextBody: Pick<TemplateBody, 'exercises'>,
 ): { doubled: { exerciseId: string; name: string; alsoIn: string }[]; dropped: { exerciseId: string; name: string }[] } {
   const others = live.filter((t) => t.id !== id);
+  const current = live.find((t) => t.id === id)?.exercises ?? [];
+  const had = new Set(current.map((e) => e.exerciseId));
   const doubled = nextBody.exercises.flatMap((e) => {
+    if (had.has(e.exerciseId)) return [];
     const other = others.find((t) => t.exercises.some((x) => x.exerciseId === e.exerciseId));
     return other ? [{ exerciseId: e.exerciseId, name: e.name, alsoIn: other.name ?? other.id ?? '' }] : [];
   });
-  const current = live.find((t) => t.id === id)?.exercises ?? [];
   const after = new Set([...others.flatMap((t) => t.exercises), ...nextBody.exercises].map((e) => e.exerciseId));
   const dropped = current.filter((e) => !after.has(e.exerciseId)).map((e) => ({ exerciseId: e.exerciseId, name: e.name }));
   return { doubled, dropped };
@@ -299,14 +316,18 @@ interface SwapContext {
   catalog: (exerciseId: string) => EngineCatalogFields | null | undefined;
   sessions: readonly Pick<WorkoutSession, 'status' | 'date' | 'exercises'>[];
   now: Date;
+  /** The straight-set bodies OTHER active drafts replaced (id = their live
+   *  template's) — where a lift moved by one of them last lived. */
+  retired?: readonly TemplateRows[];
 }
 
 function plan(id: string, incoming: TemplateBody, ctx: SwapContext, mode: 'activate' | 'revert', stampBaselines: boolean): SwapPlan {
   const current = ctx.live.find((t) => t.id === id);
   if (!current) throw new Error(`template ${id} is not live`);
   const fields = mode === 'activate' ? ACTIVATION_FIELDS : PROGRESS_FIELDS;
-  let rows = normalizeSupersets(refreshFromLive(incoming.exercises, ctx.live, id, fields));
-  const changes = contextChanges(ctx.live, { id, exercises: rows });
+  const retired = (ctx.retired ?? []).filter((t) => t.id !== id);
+  let rows = normalizeSupersets(refreshFromLive(incoming.exercises, ctx.live, id, fields, retired));
+  const changes = contextChanges(ctx.live, { id, exercises: rows }, retired);
   if (stampBaselines) {
     rows = applyContextBaselines(rows, changes, {
       since: (eid) => baselineSince(eid, ctx.sessions, ctx.now),
@@ -359,6 +380,36 @@ export function planRevert(
     && (Number.isNaN(since) || s.date.getTime() >= since)
     && s.exercises.some((e) => e.supersetGroup != null));
   return plan(draft.draftOf, draft.previous, ctx, 'revert', loggedOnSuperset);
+}
+
+/**
+ * Several swaps as ONE change — "switch Push and Leg together" (or back).
+ *
+ * Each plan is made against the templates as the previous ones leave them, so
+ * a lift moving from Leg to Push is judged from Leg (where it lives until the
+ * Leg swap) and the week is consistent once all are written. The caller writes
+ * every plan in one batch. Overlap is judged against the FINAL week.
+ */
+export function planSwaps(
+  items: readonly ({ mode: 'activate'; draft: Pick<TemplateDraftDoc, 'draftOf' | 'template'> }
+    | { mode: 'revert'; draft: Pick<TemplateDraftDoc, 'draftOf' | 'previous' | 'activatedAt'> })[],
+  ctx: SwapContext,
+): SwapPlan[] {
+  // Order does not matter: a body an earlier item replaced becomes `retired`,
+  // which is where a lift it moved is judged from.
+  let live = [...ctx.live];
+  let retired = [...(ctx.retired ?? [])];
+  const plans: { id: string; plan: SwapPlan }[] = [];
+  for (const item of items) {
+    const step = { ...ctx, live, retired };
+    const p = item.mode === 'activate' ? planActivation(item.draft, step) : planRevert(item.draft, step);
+    plans.push({ id: item.draft.draftOf, plan: p });
+    live = live.map((t) => (t.id === item.draft.draftOf ? { ...t, ...p.body } : t));
+    retired = item.mode === 'activate'
+      ? [...retired.filter((t) => t.id !== item.draft.draftOf), { id: item.draft.draftOf, ...p.replaced }]
+      : retired.filter((t) => t.id !== item.draft.draftOf);
+  }
+  return plans.map(({ id, plan }) => ({ ...plan, overlap: weekOverlap(live, id, plan.body) }));
 }
 
 // ─── Weekly volume parity ───────────────────────────────────────

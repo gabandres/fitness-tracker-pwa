@@ -1953,66 +1953,55 @@ function toTemplateDraftDoc(id: string, data: Record<string, unknown>): Template
 }
 
 /**
- * Drafts, oldest first. A read the rules refuse (a build that reaches a user
- * before `templateDrafts` is deployed) delivers an empty list instead of an
- * error: drafts are optional, and a failure here must not read as Train
- * failing to load.
+ * Drafts, oldest first. A refused or failed read never blanks a list already
+ * delivered — while a draft is active that list is the way back — and before
+ * the first answer it delivers an empty list rather than an error: drafts are
+ * optional, and a failure here must not read as Train failing to load.
  */
 export function subscribeTemplateDrafts(uid: string, cb: (drafts: TemplateDraftDoc[]) => void): Unsub {
+  let delivered = false;
   return onSnapshot(
     query(draftsCol(uid), orderBy('createdAt', 'asc')),
-    (snap) => cb(snap.docs.map((d) => toTemplateDraftDoc(d.id, d.data()))),
-    () => cb([]),
+    (snap) => {
+      delivered = true;
+      cb(snap.docs.map((d) => toTemplateDraftDoc(d.id, d.data())));
+    },
+    () => {
+      if (!delivered) cb([]);
+    },
   );
 }
 
-/**
- * Activate a draft: the superset body replaces the live template's body, and
- * the straight-set body it replaced is kept on the draft — one batch, so the
- * live template and the way back can never disagree.
- */
-export async function activateTemplateDraft(
-  uid: string,
-  draftId: string,
-  templateId: string,
-  body: TemplateBody,
-  replaced: TemplateBody,
-  at: Date,
-): Promise<void> {
-  const batch = writeBatch(db);
-  batch.set(templateDoc(uid, templateId), pruneUndefined(toTemplatePatch(body, CODEC, at)), { merge: true });
-  batch.update(draftDoc(uid, draftId), pruneUndefined({
-    status: 'active',
-    template: body,
-    previous: replaced,
-    activatedAt: at.toISOString(),
-    updatedAt: Timestamp.fromDate(at),
-  }));
-  await ackOrQueued(batch.commit());
+/** One draft swap: the body that goes into the live template, and what the
+ *  draft keeps — the replaced straight-set body on activation, the superset
+ *  body (as it stood) on revert. */
+export interface DraftSwapWrite {
+  mode: 'activate' | 'revert';
+  draftId: string;
+  templateId: string;
+  body: TemplateBody;
+  /** activate: the replaced body (kept for the way back); revert: the superset body. */
+  kept: TemplateBody;
 }
 
 /**
- * Revert: the straight-set body goes back into the live template, and the
- * superset version as it stood (loads included) goes back to being a draft.
+ * Commit one or more draft swaps in ONE batch — "switch Push and Leg
+ * together" lands whole or not at all, so the week is never half-switched.
  */
-export async function revertTemplateDraft(
-  uid: string,
-  draftId: string,
-  templateId: string,
-  body: TemplateBody,
-  supersetBody: TemplateBody,
-  at: Date,
-): Promise<void> {
+export async function commitDraftSwaps(uid: string, swaps: readonly DraftSwapWrite[], at: Date): Promise<void> {
   const batch = writeBatch(db);
-  batch.set(templateDoc(uid, templateId), pruneUndefined(toTemplatePatch(body, CODEC, at)), { merge: true });
-  batch.update(draftDoc(uid, draftId), pruneUndefined({
-    status: 'draft',
-    template: supersetBody,
-    previous: deleteField(),
-    revertedAt: at.toISOString(),
-    updatedAt: Timestamp.fromDate(at),
-  }));
+  for (const w of swaps) {
+    batch.set(templateDoc(uid, w.templateId), pruneUndefined(toTemplatePatch(w.body, CODEC, at)), { merge: true });
+    batch.update(draftDoc(uid, w.draftId), pruneUndefined(w.mode === 'activate'
+      ? { status: 'active', template: w.body, previous: w.kept, activatedAt: at.toISOString(), updatedAt: Timestamp.fromDate(at) }
+      : { status: 'draft', template: w.kept, previous: deleteField(), revertedAt: at.toISOString(), updatedAt: Timestamp.fromDate(at) }));
+  }
   await ackOrQueued(batch.commit());
+}
+
+/** Delete a draft. The templates are not touched. */
+export async function deleteTemplateDraft(uid: string, draftId: string): Promise<void> {
+  await ackOrQueued(deleteDoc(draftDoc(uid, draftId)));
 }
 
 // ── Sessions ──

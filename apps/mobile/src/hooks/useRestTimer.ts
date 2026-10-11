@@ -19,8 +19,10 @@ export interface RestTimer {
   /** Seconds left right now, read off the clock — for event handlers (the
    *  ±30 s buttons). 0 when idle. */
   remainingNow: () => number;
-  /** Start (or replace) a countdown for `seconds`. No-op for ≤ 0. */
-  start: (seconds: number) => void;
+  /** Start (or replace) a countdown for `seconds`. No-op for ≤ 0. `body`
+   *  replaces the "rest over" notification's text — a superset names the next
+   *  station ("Next: A2 · Leg Curls"), the screen the lifter actually sees. */
+  start: (seconds: number, body?: string) => void;
   /** Cancel the countdown and go idle. Idempotent. */
   stop: () => void;
   /**
@@ -75,7 +77,7 @@ let restDoneSeq = 0;
  *
  * Exported for the test; the hook is the only production caller.
  */
-export async function scheduleRestDoneNotification(at: Date, t: TFn): Promise<string | null> {
+export async function scheduleRestDoneNotification(at: Date, t: TFn, body?: string): Promise<string | null> {
   if (Platform.OS === 'web') return null;
   try {
     const { status } = await Notifications.getPermissionsAsync();
@@ -85,7 +87,7 @@ export async function scheduleRestDoneNotification(at: Date, t: TFn): Promise<st
       identifier: `${REST_DONE_ID_PREFIX}${at.getTime()}.${++restDoneSeq}`,
       content: {
         title: t('train.restDoneTitle' as I18nKey),
-        body: t('train.restDoneBody' as I18nKey),
+        body: body ?? t('train.restDoneBody' as I18nKey),
         // Through a gym Focus mode, which is where this buzz is wanted most.
         // Honoured only once the binary carries the time-sensitive
         // entitlement (`com.apple.developer.usernotifications.time-sensitive`);
@@ -156,6 +158,8 @@ export function useRestTimer(opts: RestTimerOptions = {}): RestTimer {
   /** Bumped on every start/stop so a schedule that resolves AFTER the
    *  countdown it belonged to was cancelled is itself cancelled, not kept. */
   const generation = useRef(0);
+  /** The current countdown's notification text, for `rearm`. */
+  const body = useRef<string | undefined>(undefined);
   /** Read through a ref so the interval set up by `start` calls the latest. */
   const onElapsed = useRef(opts.onElapsed);
   useEffect(() => {
@@ -180,7 +184,8 @@ export function useRestTimer(opts: RestTimerOptions = {}): RestTimer {
   }, [cancelNotification]);
 
   const start = useCallback(
-    (seconds: number) => {
+    (seconds: number, text?: string) => {
+      body.current = text;
       if (handle.current) clearInterval(handle.current);
       cancelNotification();
       if (!(seconds > 0)) {
@@ -195,7 +200,7 @@ export function useRestTimer(opts: RestTimerOptions = {}): RestTimer {
       setEndsAt(end);
 
       const gen = generation.current;
-      void scheduleRestDoneNotification(new Date(end), t).then((id) => {
+      void scheduleRestDoneNotification(new Date(end), t, text).then((id) => {
         if (!id) return;
         if (generation.current !== gen) {
           // Stopped or replaced while this was in flight.
@@ -236,7 +241,7 @@ export function useRestTimer(opts: RestTimerOptions = {}): RestTimer {
     const end = deadline.current;
     if (end == null || notifId.current) return;
     const gen = generation.current;
-    void scheduleRestDoneNotification(new Date(end), t).then((id) => {
+    void scheduleRestDoneNotification(new Date(end), t, body.current).then((id) => {
       if (!id) return;
       if (generation.current !== gen || deadline.current !== end) {
         void Notifications.cancelScheduledNotificationAsync(id).catch(() => {});

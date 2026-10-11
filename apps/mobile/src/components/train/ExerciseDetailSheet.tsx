@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SheetTextInput } from '@/components/SheetTextInput';
 import {
-  MUSCLE_GROUPS,
   computeExercisePRs,
   exerciseSeriesPoints,
   formatLoad,
@@ -17,7 +16,7 @@ import { confirm } from '@/components/ConfirmSheet';
 import { Sparkline } from '@/components/Sparkline';
 import { showToast } from '@/components/Toast';
 import type { TrainState } from '@/hooks/useTrain';
-import { type I18nKey, useLocale, useT } from '@/i18n';
+import { useLocale, useT } from '@/i18n';
 import { isOffline } from '@/lib/connectivity';
 import { formatDate } from '@/lib/date-format';
 import * as haptics from '@/lib/haptics';
@@ -35,6 +34,7 @@ import { space } from '@/theme';
 import { LOG_STYLES, logStyleKey } from './train-shared';
 import { setLine } from './train-summary';
 import { ExerciseSupersetReport } from './SupersetReport';
+import { MuscleChips } from './MuscleChips';
 import { createStyles } from './train-styles';
 
 /**
@@ -254,30 +254,8 @@ export function ExerciseDetailSheet({
             </View>
             <Text style={[styles.fieldLabel, { marginTop: space.md }]}>{t('train.musclesLabel')}</Text>
             <Text style={styles.sheetHint}>{t('train.musclesHint')}</Text>
-            <View style={styles.kindChips}>
-              {MUSCLE_GROUPS.map((m) => {
-                const on = editMuscles.includes(m);
-                return (
-                  <TouchableOpacity
-                    key={m}
-                    style={[styles.kindChip, on && styles.kindChipOn]}
-                    onPress={() => {
-                      haptics.tap();
-                      setEditMuscles((cur) =>
-                        cur.includes(m) ? cur.filter((x) => x !== m) : [...cur, m],
-                      );
-                    }}
-                    accessibilityRole="checkbox"
-                    accessibilityState={{ checked: on }}
-                    testID={`edit-muscle-${m}`}
-                  >
-                    <Text style={[styles.kindChipText, on && styles.kindChipTextOn]}>
-                      {t(`train.muscle.${m}` as I18nKey)}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            <Text style={styles.sheetHint}>{t('train.musclesPrimaryHint')}</Text>
+            <MuscleChips value={editMuscles} onChange={setEditMuscles} />
             <View style={styles.editorBtns}>
               <TouchableOpacity style={styles.discardBtn} onPress={() => setMode('view')} accessibilityRole="button">
                 <Text style={styles.discardText}>{t('common.cancel')}</Text>
@@ -353,6 +331,10 @@ export function ExerciseDetailSheet({
                   </View>
                 ) : null}
 
+                {/* Above History, not below it: the history list runs to every
+                    session in the window, and a report under it went unseen. */}
+                {exercise?.id ? <ExerciseSupersetReport sessions={train.recentSessions} exerciseId={exercise.id} /> : null}
+
                 <Text style={[styles.panelLabel, { marginTop: space.md }]} accessibilityRole="header">{t('train.history')}</Text>
                 {rows.map((r, i) => (
                   <View key={i} style={styles.detailRow}>
@@ -364,8 +346,6 @@ export function ExerciseDetailSheet({
                 ))}
               </>
             )}
-
-            {exercise?.id ? <ExerciseSupersetReport sessions={train.recentSessions} exerciseId={exercise.id} /> : null}
 
             {loadChanges.length > 0 ? (
               <View testID="exercise-load-log">

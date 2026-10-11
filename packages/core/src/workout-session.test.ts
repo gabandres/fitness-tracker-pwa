@@ -283,3 +283,20 @@ describe('newWorkoutSet', () => {
     expect(newWorkoutSet('mobility')).toEqual({ kind: 'mobility', done: false });
   });
 });
+
+describe('unpairGroup — straight sets for this workout only', () => {
+  it('strips the group from its members and leaves everything else alone', () => {
+    const session = {
+      status: 'active' as const, date: new Date(), createdAt: new Date(), updatedAt: new Date(),
+      exercises: [
+        { exerciseId: 'a', name: 'A', cues: [], sets: [], supersetGroup: 'A', pairPosition: 1 as const, transitionRestSec: 30, roundRestSec: 30 },
+        { exerciseId: 'b', name: 'B', cues: [], sets: [], supersetGroup: 'A', pairPosition: 2 as const, transitionRestSec: 30, roundRestSec: 30 },
+        { exerciseId: 'c', name: 'C', cues: [], sets: [], supersetGroup: 'B', pairPosition: 1 as const },
+      ],
+    };
+    const out = applySessionAction(session, { type: 'unpairGroup', group: 'A' });
+    expect(out.exercises.map((e) => e.supersetGroup)).toEqual([undefined, undefined, 'B']);
+    expect(out.exercises[0]).toEqual({ exerciseId: 'a', name: 'A', cues: [], sets: [] });
+    expect(applySessionAction(session, { type: 'unpairGroup', group: 'Z' })).toBe(session);
+  });
+});

@@ -35,10 +35,13 @@ import { createStyles } from './train-styles';
  */
 export function NextUpCard({
   next,
+  supersets,
   onStart,
   onEdit,
 }: {
   next: NextUp;
+  /** The template runs a superset draft (2026-10-11): said here too. */
+  supersets?: boolean;
   onStart: () => void;
   onEdit: () => void;
 }) {
@@ -71,6 +74,7 @@ export function NextUpCard({
         testID="next-up-edit"
       >
         <Text style={styles.nextName}>{next.template.name}</Text>
+        {supersets ? <Text style={styles.supersetTag} testID="next-up-supersets">{t('train.drafts.activeTag')}</Text> : null}
         <Text style={styles.nextMeta}>{when}</Text>
       </Touchable>
       {/* Short label, named only to a screen reader. The template name is the

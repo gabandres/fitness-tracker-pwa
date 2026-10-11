@@ -320,7 +320,7 @@ describe('the live session (bugs 3, 5; items 5, 18)', () => {
     const ui = await render(<TrainScreen />);
     await fireEvent.press(ui.getByTestId('set-done-0-0'));
     // An ad-hoc session: the named default, not a literal buried in the logic.
-    expect(mockRestStart).toHaveBeenCalledWith(60);
+    expect(mockRestStart).toHaveBeenCalledWith(60, undefined);
     expect(__currentRestActivity()).toEqual(expect.objectContaining({ endsAt: expect.any(Number), exerciseName: 'Bench' }));
     end();
   });

@@ -12,7 +12,10 @@ import {
   snapshotSupersets,
   supersetFlow,
   supersetLabel,
+  supersetTags,
   supersetWarnings,
+  canPairWithNext,
+  reorderWithSupersets,
   unpair,
   type SupersetFields,
 } from './superset';
@@ -197,5 +200,69 @@ describe('guardrails — a pending load test', () => {
   });
   it('skips sessions where the lift has no loaded set to read', () => {
     expect(pendingLoadTest(90, [{ sets: [{ kind: 'activation' as K, reps: 10 }] }, at(80)])).toEqual({ from: 80, to: 90 });
+  });
+});
+
+describe('the flow follows what is logged, not only the plan', () => {
+  const rows = [
+    row('ext', myo(2), { supersetGroup: 'A', pairPosition: 1 }),
+    row('curl', myo(2), { supersetGroup: 'A', pairPosition: 2 }),
+    row('knee', myo(1)),
+  ];
+  it('A2 already done (A1 station was taken): after A1 cluster 1 → A1\'s own cluster rest, staying on A1', () => {
+    const done = (e: number) => e === 1;
+    expect(restAfterSetInFlow(rows, 0, 2, restFor, done)).toMatchObject({ kind: 'cluster', seconds: 90, next: { exerciseIndex: 0, setIndex: 3 } });
+  });
+  it('after the group\'s last open unit → the rest after the exercise, into the next lift', () => {
+    const done = (e: number, s: number) => e === 1 || (e === 0 && s < 3);
+    expect(restAfterSetInFlow(rows, 0, 5, restFor, done)).toMatchObject({ kind: 'after-exercise', next: { exerciseIndex: 2 } });
+  });
+  it('a round rest says which round comes next, of how many', () => {
+    expect(restAfterSetInFlow(rows, 1, 2, restFor)).toMatchObject({ kind: 'round', round: { n: 2, total: 2 } });
+  });
+});
+
+describe('tags come from the real groups', () => {
+  it('a lone member (partner removed) is untagged; a tri-set missing its middle renumbers', () => {
+    expect(supersetTags([{ supersetGroup: 'A', pairPosition: 1 }, {}])).toEqual([undefined, undefined]);
+    expect(supersetTags([
+      { supersetGroup: 'A', pairPosition: 1 }, { supersetGroup: 'A', pairPosition: 3 }, {},
+    ])).toEqual(['A1', 'A2', undefined]);
+  });
+});
+
+describe('pairing never steals a row from another pair', () => {
+  it('"Superset with next" leaves a next row that is already paired alone', () => {
+    const rows = [row('a', myo(1)), row('b', myo(1), { supersetGroup: 'B', pairPosition: 1 }), row('c', myo(1), { supersetGroup: 'B', pairPosition: 2 })];
+    expect(canPairWithNext(rows, 0)).toBe(false);
+    expect(pairWithNext(rows, 0).map((r) => supersetLabel(r) ?? '-')).toEqual(['-', 'B1', 'B2']);
+  });
+  it('the last member of a pair can add the next straight row as a third', () => {
+    const rows = [row('a', myo(1), { supersetGroup: 'A', pairPosition: 1 }), row('b', myo(1), { supersetGroup: 'A', pairPosition: 2 }), row('c', myo(1))];
+    expect(canPairWithNext(rows, 1)).toBe(true);
+    expect(pairWithNext(rows, 1).map((r) => supersetLabel(r))).toEqual(['A1', 'A2', 'A3']);
+  });
+});
+
+describe('dragging keeps supersets honest', () => {
+  const base = () => [
+    row('a', myo(1), { supersetGroup: 'A', pairPosition: 1 }),
+    row('b', myo(1), { supersetGroup: 'A', pairPosition: 2 }),
+    row('c', myo(1)),
+    row('d', myo(1)),
+  ];
+  it('a member dragged away from its partner leaves the superset, and says so', () => {
+    const r = reorderWithSupersets(base(), 1, 3);
+    expect(r.rows.map((x) => `${x.exerciseId}:${supersetLabel(x) ?? '-'}`)).toEqual(['a:-', 'c:-', 'd:-', 'b:-']);
+    expect(r.left?.group).toBe('A');
+  });
+  it('a straight row dropped between A1 and A2 is moved out, after the block', () => {
+    const r = reorderWithSupersets(base(), 3, 1);
+    expect(r.rows.map((x) => `${x.exerciseId}:${supersetLabel(x) ?? '-'}`)).toEqual(['a:A1', 'b:A2', 'd:-', 'c:-']);
+    expect(r.left).toBeUndefined();
+  });
+  it('moving the whole pair (dragging A1 next to A2) keeps it', () => {
+    const r = reorderWithSupersets(base(), 0, 1);
+    expect(r.rows.map((x) => `${x.exerciseId}:${supersetLabel(x) ?? '-'}`)).toEqual(['b:A1', 'a:A2', 'c:-', 'd:-']);
   });
 });

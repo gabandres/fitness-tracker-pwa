@@ -32,8 +32,8 @@ import {
   subscribeTemplates,
   updateSession,
   updateTemplate as updateTemplateDoc,
-  activateTemplateDraft,
-  revertTemplateDraft,
+  commitDraftSwaps,
+  deleteTemplateDraft,
 } from '@/lib/ledger';
 import {
   type SessionAction,
@@ -46,10 +46,10 @@ import {
   newWorkoutSet,
   toRecommendationSnapshot,
   undoRemoval as applyUndoRemoval,
-  planActivation,
-  planRevert,
+  planSwaps,
   rowPendingLoadTest,
   sessionDurationMin,
+  reorderWithSupersets,
   sessionCall,
   type SwapPlan,
   type TemplateDraftDoc,
@@ -112,14 +112,16 @@ export interface TrainState {
   templates: WorkoutTemplate[];
   /** Superset drafts of the templates (2026-10-11), oldest first. */
   drafts: TemplateDraftDoc[];
-  /** What activating a draft would write and warn about — pure, no write. */
-  planDraftActivation: (draft: TemplateDraftDoc) => SwapPlan | null;
-  /** What reverting an active draft would write — pure, no write. */
-  planDraftRevert: (draft: TemplateDraftDoc) => SwapPlan | null;
-  /** Activate a draft (the superset body into the live template). */
-  activateDraft: (draft: TemplateDraftDoc) => Promise<void>;
-  /** Revert an active draft to the straight-set template it replaced. */
-  revertDraft: (draft: TemplateDraftDoc) => Promise<void>;
+  /** What switching these drafts on (`activate`) or back (`revert`) would
+   *  write and warn about, one plan per draft — pure, no write. Null when a
+   *  draft's live template no longer exists. */
+  planDraftSwaps: (drafts: readonly TemplateDraftDoc[], mode: 'activate' | 'revert') => SwapPlan[] | null;
+  /** Switch one or several drafts on or back, in ONE batch. Drafts already in
+   *  the target state are skipped — a stale second tap never overwrites the
+   *  way back. */
+  switchDrafts: (drafts: readonly TemplateDraftDoc[], mode: 'activate' | 'revert') => Promise<void>;
+  /** Delete a draft (an orphan, or one the lifter no longer wants). */
+  deleteDraft: (draft: TemplateDraftDoc) => Promise<void>;
   /** The load test pending on a template row, judged on the load the
    *  session would seed; null when none. */
   pendingLoadTestFor: (row: TemplateExercise) => { from: number; to: number } | null;
@@ -791,51 +793,57 @@ export function useTrain(): TrainState {
   );
 
   // ── Superset drafts (2026-10-11, core `superset-context.ts`) ──
-  // The plan is pure and is what the confirm sheet shows; the write commits
-  // exactly the plan the lifter confirmed, recomputed at the tap so it reads
-  // the templates as they stand then.
+  // The plan is pure and is what the confirm sheet shows; the write commits the
+  // plan recomputed at the tap, so it reads the templates as they stand then.
+  // `retired` is every OTHER active draft's straight-set body: where a lift one
+  // of them moved last lived (Leg switched first → the crunch is in no live
+  // template when Push switches, and is judged from Leg's old body).
   const swapContext = useCallback(
-    () => ({
+    (forIds: readonly string[]) => ({
       live: templates,
       catalog: (id: string) => catalog.find((e) => e.id === id) ?? null,
       sessions: recentSessions,
       now: new Date(),
+      retired: drafts
+        .filter((d) => d.status === 'active' && d.previous && !forIds.includes(d.draftOf))
+        .map((d) => ({ id: d.draftOf, ...d.previous! })),
     }),
-    [templates, catalog, recentSessions],
+    [templates, catalog, recentSessions, drafts],
   );
-  const planDraftActivation = useCallback(
-    (draft: TemplateDraftDoc) => {
-      if (!templates.some((t) => t.id === draft.draftOf)) return null;
-      return planActivation(draft, swapContext());
+  const swapItems = (list: readonly TemplateDraftDoc[], mode: 'activate' | 'revert') =>
+    list.map((draft) => (mode === 'activate'
+      ? { mode: 'activate' as const, draft }
+      : { mode: 'revert' as const, draft: { draftOf: draft.draftOf, previous: draft.previous, activatedAt: draft.activatedAt } }));
+  const planDraftSwaps = useCallback(
+    (list: readonly TemplateDraftDoc[], mode: 'activate' | 'revert') => {
+      if (list.length === 0 || list.some((d) => !templates.some((t) => t.id === d.draftOf))) return null;
+      if (mode === 'revert' && list.some((d) => !d.previous)) return null;
+      return planSwaps(swapItems(list, mode), swapContext(list.map((d) => d.draftOf)));
     },
     [templates, swapContext],
   );
-  const planDraftRevert = useCallback(
-    (draft: TemplateDraftDoc) => {
-      if (!draft.previous || !templates.some((t) => t.id === draft.draftOf)) return null;
-      return planRevert(draft, swapContext());
+  const switchDrafts = useCallback(
+    async (list: readonly TemplateDraftDoc[], mode: 'activate' | 'revert') => {
+      if (!uid) return;
+      const target = mode === 'activate' ? 'active' : 'draft';
+      // Read the LATEST state, not the one the confirm was opened on.
+      const todo = list
+        .map((d) => drafts.find((x) => x.id === d.id) ?? d)
+        .filter((d) => d.id && d.status !== target && (mode === 'activate' || d.previous));
+      if (todo.length === 0) return;
+      const ctx = swapContext(todo.map((d) => d.draftOf));
+      const plans = planSwaps(swapItems(todo, mode), ctx);
+      await commitDraftSwaps(uid, todo.map((d, k) => ({
+        mode, draftId: d.id!, templateId: d.draftOf, body: plans[k].body, kept: plans[k].replaced,
+      })), ctx.now);
     },
-    [templates, swapContext],
+    [uid, drafts, swapContext],
   );
-  const activateDraft = useCallback(
+  const deleteDraft = useCallback(
     async (draft: TemplateDraftDoc) => {
-      if (!uid || !draft.id) return;
-      const ctx = swapContext();
-      const plan = planActivation(draft, ctx);
-      await activateTemplateDraft(uid, draft.id, draft.draftOf, plan.body, plan.replaced, ctx.now);
+      if (uid && draft.id) await deleteTemplateDraft(uid, draft.id);
     },
-    [uid, swapContext],
-  );
-  const revertDraft = useCallback(
-    async (draft: TemplateDraftDoc) => {
-      if (!uid || !draft.id || !draft.previous) return;
-      const ctx = swapContext();
-      const plan = planRevert(draft, ctx);
-      // The superset version goes back to being a draft AS IT STANDS — with
-      // the loads it reached — so re-activating it later loses nothing.
-      await revertTemplateDraft(uid, draft.id, draft.draftOf, plan.body, plan.replaced, ctx.now);
-    },
-    [uid, swapContext],
+    [uid],
   );
   const pendingLoadTestFor = useCallback(
     (row: TemplateExercise) => rowPendingLoadTest(
@@ -1037,6 +1045,11 @@ export function useTrain(): TrainState {
       const placed: SessionExercise = {
         ...exercise,
         sets: old.sets.map(() => newWorkoutSet(kind)),
+        // A replacement is the same STATION on another machine (the usual
+        // reason to swap mid-workout): it keeps the superset it stood in.
+        ...(old.supersetGroup
+          ? { supersetGroup: old.supersetGroup, pairPosition: old.pairPosition, transitionRestSec: old.transitionRestSec, roundRestSec: old.roundRestSec }
+          : {}),
       };
       const next = {
         ...prev,
@@ -1052,7 +1065,13 @@ export function useTrain(): TrainState {
     (from: number, to: number) => {
       const prev = activeRef.current;
       if (!prev) return;
-      const exercises = moveExercise(prev.exercises, from, to);
+      // With a superset in the session, a move keeps it honest (core
+      // `reorderWithSupersets`): a member moved away from its partner runs
+      // straight, and the tags and rests follow — the same rule as the editor.
+      if (from === to) return;
+      const exercises = prev.exercises.some((e) => e.supersetGroup)
+        ? reorderWithSupersets(prev.exercises, from, to).rows
+        : moveExercise(prev.exercises, from, to);
       if (exercises === prev.exercises) return;
       const next = { ...prev, exercises };
       setActive(next);
@@ -1361,10 +1380,9 @@ export function useTrain(): TrainState {
       catalog,
       templates,
       drafts,
-      planDraftActivation,
-      planDraftRevert,
-      activateDraft,
-      revertDraft,
+      planDraftSwaps,
+      switchDrafts,
+      deleteDraft,
       pendingLoadTestFor,
       recentSessions,
       active,
@@ -1399,8 +1417,8 @@ export function useTrain(): TrainState {
       cancelEdit,
     }),
     [
-      loading, error, errorKind, clearError, catalog, templates, drafts, planDraftActivation, planDraftRevert,
-      activateDraft, revertDraft, pendingLoadTestFor, recentSessions, active, activePending, saving,
+      loading, error, errorKind, clearError, catalog, templates, drafts, planDraftSwaps, switchDrafts,
+      deleteDraft, pendingLoadTestFor, recentSessions, active, activePending, saving,
       trainingPhase, autoApplyProgression,
       startWorkout, startFromTemplate, startCardioWorkout, saveTemplate, deleteTemplate,
       cloneStarterTemplate, addCatalogExercise, addLibraryExercise, addLibraryExerciseToActive, addManyToActive,

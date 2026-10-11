@@ -3,7 +3,7 @@ import { Text, View, useWindowDimensions } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { useAnimatedRef } from 'react-native-reanimated';
 import Sortable from 'react-native-sortables';
-import { exerciseIsFullyDone } from '@macrolog/core';
+import { exerciseIsFullyDone, supersetTags } from '@macrolog/core';
 import { BottomSheet } from '@/components/BottomSheet';
 import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
@@ -46,6 +46,7 @@ export function ReorderExercisesSheet({
   // width to fill the sheet (the template editor's finding).
   const { width: windowWidth } = useWindowDimensions();
   const rowWidth = windowWidth - space.xl * 2;
+  const tags = supersetTags(exercises);
   // Keys that survive a reorder: the exercise id, plus its occurrence, for a
   // lift that appears twice.
   const seen = new Map<string, number>();
@@ -75,15 +76,16 @@ export function ReorderExercisesSheet({
               onDragEnd={({ fromIndex, toIndex }: { fromIndex: number; toIndex: number }) => move(fromIndex, toIndex)}
             >
               {exercises.map((ex, i) => {
+                const tag = tags[i];
                 const style = ex.logStyle ?? 'weight-reps';
                 const logged = ex.sets.filter((s) => isLoggedSet(s, style)).length;
                 const done = exerciseIsFullyDone(ex);
                 return (
                   <View
                     key={keys[i]}
-                    style={[styles.tplExCard, styles.tplExTop, { width: rowWidth, alignItems: 'center' }]}
+                    style={[styles.tplExCard, styles.tplExTop, { width: rowWidth, alignItems: 'center' }, tag ? styles.supersetRail : null]}
                     accessible
-                    accessibilityLabel={`${ex.name}, ${t('train.setCountA11y', { done: logged, total: ex.sets.length })}`}
+                    accessibilityLabel={`${tag ? `${t('train.superset.tag', { label: tag })}, ` : ''}${ex.name}, ${t('train.setCountA11y', { done: logged, total: ex.sets.length })}`}
                     accessibilityActions={[
                       ...(i > 0 ? [{ name: 'moveUp', label: t('train.moveUp') }] : []),
                       ...(i < exercises.length - 1 ? [{ name: 'moveDown', label: t('train.moveDown') }] : []),
@@ -99,7 +101,10 @@ export function ReorderExercisesSheet({
                         <Ionicons name="reorder-two-outline" size={22} color={colors.faint} />
                       </View>
                     </Sortable.Handle>
-                    <Text style={[styles.exName, { flex: 1 }]} numberOfLines={1}>{ex.name}</Text>
+                    <View style={{ flex: 1 }}>
+                      {tag ? <Text style={styles.supersetTag}>{t('train.superset.tag', { label: tag })}</Text> : null}
+                      <Text style={styles.exName} numberOfLines={1}>{ex.name}</Text>
+                    </View>
                     {done ? (
                       <Ionicons name="checkmark-circle" size={18} color={colors.teal} />
                     ) : ex.sets.length > 0 ? (

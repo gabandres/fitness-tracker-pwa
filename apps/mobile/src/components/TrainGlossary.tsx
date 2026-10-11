@@ -8,7 +8,7 @@ const SECTIONS: GlossarySection[] = [
   // every future session of that lift. The picker explains each option
   // inline; this is the same answer for someone who arrived at the word
   // from the logger instead.
-  { title: 'train.glossary.sectionLogging', terms: ['rir', 'setTypes', 'structure', 'cluster', 'rest'] },
+  { title: 'train.glossary.sectionLogging', terms: ['rir', 'setTypes', 'structure', 'cluster', 'superset', 'rest'] },
   {
     title: 'train.glossary.sectionProgress',
     terms: ['progression', 'suggest', 'last', 'pr', 'e1rm', 'volume', 'topSet'],

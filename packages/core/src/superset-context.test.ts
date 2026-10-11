@@ -9,8 +9,10 @@ import {
   contextChanges,
   planActivation,
   planRevert,
+  planSwaps,
   rowPendingLoadTest,
   templateClustersByMuscle,
+  weekOverlap,
 } from './superset-context';
 import { sessionDurationMin } from './train-view';
 import { plannedRestSec, supersetLabel } from './superset';
@@ -302,5 +304,67 @@ describe('session duration, start to finish', () => {
     expect(sessionDurationMin(NOW, NOW)).toBeUndefined();
     expect(sessionDurationMin(NOW, new Date(NOW.getTime() - 60_000))).toBeUndefined();
     expect(sessionDurationMin(NOW, new Date(NOW.getTime() + 25 * 3_600_000))).toBeUndefined();
+  });
+});
+
+describe('switching Push and Leg — in either order, or together', () => {
+  const push = draftOf('Push Day');
+  const leg = draftOf('Leg Day');
+  const crunchId = idOf('Weighted Floor Crunch');
+  const crunchIn = (p: { body: { exercises: TemplateExercise[] } }) => p.body.exercises.find((e) => e.exerciseId === crunchId)!;
+  const liveAfter = (live: WorkoutTemplate[], id: string, body: object) => live.map((t) => (t.id === id ? { ...t, ...body } : t));
+
+  it('Leg first, then Push: the moved crunch still gets its baseline and the live load', () => {
+    const legPlan = planActivation({ draftOf: leg.draftOf, template: leg.body }, ctx());
+    const live = liveAfter(OWNER_TEMPLATES, leg.draftOf, legPlan.body);
+    const retired = [{ id: leg.draftOf, ...legPlan.replaced }];
+    const pushPlan = planActivation({ draftOf: push.draftOf, template: push.body }, { ...ctx(live), retired });
+    expect(crunchIn(pushPlan).baseline?.reason).toBe('context changed: superset/day');
+    expect(crunchIn(pushPlan).targetLoad).toBe(30);
+  });
+
+  it('together: one plan per draft, the same baselines, and no lift doubled or dropped in the final week', () => {
+    const plans = planSwaps([
+      { mode: 'activate', draft: { draftOf: push.draftOf, template: push.body } },
+      { mode: 'activate', draft: { draftOf: leg.draftOf, template: leg.body } },
+    ], ctx());
+    expect(crunchIn(plans[0]).baseline?.reason).toBe('context changed: superset/day');
+    expect(plans.every((p) => p.overlap.doubled.length === 0 && p.overlap.dropped.length === 0)).toBe(true);
+  });
+
+  it('together, the other way round, gives the same week', () => {
+    const plans = planSwaps([
+      { mode: 'activate', draft: { draftOf: leg.draftOf, template: leg.body } },
+      { mode: 'activate', draft: { draftOf: push.draftOf, template: push.body } },
+    ], ctx());
+    expect(crunchIn(plans[1]).baseline?.reason).toBe('context changed: superset/day');
+    expect(plans.every((p) => p.overlap.doubled.length === 0 && p.overlap.dropped.length === 0)).toBe(true);
+  });
+
+  it('switching both back restores both straight-set templates exactly', () => {
+    const on = planSwaps([
+      { mode: 'activate', draft: { draftOf: push.draftOf, template: push.body } },
+      { mode: 'activate', draft: { draftOf: leg.draftOf, template: leg.body } },
+    ], ctx());
+    let live = liveAfter(OWNER_TEMPLATES, push.draftOf, on[0].body);
+    live = liveAfter(live, leg.draftOf, on[1].body);
+    const back = planSwaps([
+      { mode: 'revert', draft: { draftOf: push.draftOf, previous: on[0].replaced, activatedAt: NOW.toISOString() } },
+      { mode: 'revert', draft: { draftOf: leg.draftOf, previous: on[1].replaced, activatedAt: NOW.toISOString() } },
+    ], ctx(live));
+    expect(back[0].body).toEqual(bodyOf(tpl('Push Day')));
+    expect(back[1].body).toEqual(bodyOf(tpl('Leg Day')));
+  });
+});
+
+describe('week overlap reports only what the swap changes', () => {
+  it('a lift already on two days before the swap is not "moved here"', () => {
+    const shared = { exerciseId: 'bench', name: 'Bench Press', plannedSets: [] };
+    const live = [
+      { id: 'upper', name: 'Upper A', exercises: [shared] },
+      { id: 'qa', name: 'QA Superset', exercises: [shared] },
+    ];
+    const next = { exercises: [{ ...shared, supersetGroup: 'A', pairPosition: 1 as const }] };
+    expect(weekOverlap(live, 'upper', next)).toEqual({ doubled: [], dropped: [] });
   });
 });

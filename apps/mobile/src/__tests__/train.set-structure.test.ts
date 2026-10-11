@@ -38,8 +38,10 @@ describe('ADR-0040 recommendation copy', () => {
       const { reason } = lines({ kind: 'unsupported-structure', structure });
       expect(reason).not.toBe('');
       // The user picked this structure; the copy must say which one it is.
+      // `superset` is no longer OFFERED by the picker (supersets are a pairing
+      // since 2026-10-11) but a stored one still reads, so it keeps its label.
       const label = (en as Record<string, string>)[
-        SET_STRUCTURES.find((s) => s.value === structure)!.labelKey
+        SET_STRUCTURES.find((s) => s.value === structure)?.labelKey ?? `train.structure.${structure}`
       ];
       expect(reason).toContain(label);
     }

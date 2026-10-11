@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { BottomSheet } from '@/components/BottomSheet';
 import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
@@ -38,6 +38,10 @@ export interface ConfirmOptions {
   /** Paints the affirmative button danger — for deletes and disconnects. */
   destructive?: boolean;
   onConfirm: () => void;
+  /** A SECOND way forward, shown under the primary — "Only Push Day" beside
+   *  "Switch both". Optional; most confirms have one action. */
+  secondaryText?: string;
+  onSecondary?: () => void;
 }
 
 /**
@@ -90,7 +94,27 @@ export function ConfirmHost() {
       {opts ? (
         <View style={styles.wrap}>
           <Text style={styles.title} accessibilityRole="header">{opts.title}</Text>
-          {opts.body ? <Text style={styles.body}>{opts.body}</Text> : null}
+          {/* Scrolls when a long body meets a large text size, so the buttons
+              are never pushed off the sheet. */}
+          {opts.body ? (
+            <ScrollView style={styles.bodyScroll} showsVerticalScrollIndicator={false}>
+              <Text style={styles.body}>{opts.body}</Text>
+            </ScrollView>
+          ) : null}
+          {opts.secondaryText && opts.onSecondary ? (
+            <TouchableOpacity
+              style={[styles.cancel, { flex: 0, marginTop: space.md }]}
+              accessibilityRole="button"
+              testID="confirm-secondary"
+              onPress={() => {
+                haptics.tap();
+                close();
+                opts.onSecondary?.();
+              }}
+            >
+              <Text style={styles.cancelText}>{opts.secondaryText}</Text>
+            </TouchableOpacity>
+          ) : null}
           <View style={styles.row}>
             <TouchableOpacity style={styles.cancel} onPress={close} accessibilityRole="button" testID="confirm-cancel">
               <Text style={styles.cancelText}>{opts.cancelText ?? t('common.cancel')}</Text>
@@ -118,6 +142,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   wrap: { gap: space.sm, paddingTop: space.xs },
   title: { fontSize: font.h3, fontWeight: '800', color: colors.ink },
   body: { fontSize: font.small, color: colors.muted, lineHeight: 20 },
+  bodyScroll: { flexGrow: 0, flexShrink: 1, maxHeight: 360 },
   row: { flexDirection: 'row', gap: space.md, marginTop: space.md },
   // 48 high: Android's touch-target floor (the label alone measured ~45).
   cancel: {

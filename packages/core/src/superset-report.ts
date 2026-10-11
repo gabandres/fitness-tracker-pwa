@@ -24,6 +24,9 @@ import { supersetLabel } from './superset';
 export const STRAIGHT_BASELINE_SESSIONS = 3;
 export const SUPERSET_COST_REPS = 2;
 export const SUPERSET_COST_SESSIONS = 2;
+/** The flag reads only this many most recent superset sessions: two bad days
+ *  in week 1 must not keep warning after six good ones. */
+export const SUPERSET_RECENT_SESSIONS = 3;
 
 /** One exercise in one session, reduced to the four numbers. */
 export interface ExerciseOccurrence {
@@ -65,6 +68,8 @@ export function occurrenceOf(session: Pick<WorkoutSession, 'id' | 'date' | 'dura
 
 export interface ReportSide {
   sessions: number;
+  /** Sessions with a recorded duration — what `durationMinAvg` averages. */
+  timedSessions: number;
   activationRepsAvg?: number;
   firstMiniRepsAvg?: number;
   /** 0–1. */
@@ -76,6 +81,7 @@ function side(occ: readonly ExerciseOccurrence[]): ReportSide {
   const judged = occ.filter((o) => o.valid != null);
   return {
     sessions: occ.length,
+    timedSessions: occ.filter((o) => o.durationMin != null).length,
     activationRepsAvg: round1(avg(occ.flatMap((o) => (o.activationRepsAvg != null ? [o.activationRepsAvg] : [])))),
     firstMiniRepsAvg: round1(avg(occ.flatMap((o) => (o.firstMiniRepsAvg != null ? [o.firstMiniRepsAvg] : [])))),
     validityRate: judged.length ? judged.filter((o) => o.valid).length / judged.length : undefined,
@@ -92,9 +98,14 @@ export interface ExerciseSupersetReport {
   superset: ReportSide;
   /** superset − straight, per metric. */
   delta: { activationReps?: number; firstMiniReps?: number; validityRate?: number; durationMin?: number };
-  /** Superset sessions whose activation average fell
-   *  {@link SUPERSET_COST_REPS}+ under the straight-set average at the same load. */
+  /** Of the last {@link SUPERSET_RECENT_SESSIONS} superset sessions, those
+   *  whose activation average fell {@link SUPERSET_COST_REPS}+ under the
+   *  straight-set average at the same load. */
   costlySessions: Date[];
+  /** Activation reps at ONE load — the latest superset session's — on both
+   *  sides, so the comparison never mixes loads. Absent when no straight
+   *  session in the baseline used that load. */
+  sameLoad?: { load: number; straight: number; superset: number; delta: number };
   /** "Superset may be costing reps — consider straight sets." */
   flag: boolean;
 }
@@ -115,7 +126,7 @@ export function exerciseSupersetReport(
   if (sup.length === 0) return null;
   const straight = occ.filter((o) => !o.superset).slice(0, STRAIGHT_BASELINE_SESSIONS);
 
-  const costlySessions = sup.filter((o) => {
+  const costlySessions = sup.slice(0, SUPERSET_RECENT_SESSIONS).filter((o) => {
     if (o.load == null || o.activationRepsAvg == null) return false;
     const atLoad = straight.filter((b) => b.load != null && Math.abs(b.load - (o.load as number)) < 0.01 && b.activationRepsAvg != null);
     const base = avg(atLoad.map((b) => b.activationRepsAvg as number));
@@ -124,10 +135,18 @@ export function exerciseSupersetReport(
 
   const s = side(straight);
   const p = side(sup);
+  const latestLoad = sup.find((o) => o.load != null)?.load;
+  const at = (xs: readonly ExerciseOccurrence[]) => avg(xs
+    .filter((o) => latestLoad != null && o.load != null && Math.abs(o.load - latestLoad) < 0.01 && o.activationRepsAvg != null)
+    .map((o) => o.activationRepsAvg as number));
+  const sl = { straight: at(straight), superset: at(sup) };
   return {
     exerciseId,
     straight: s,
     superset: p,
+    ...(latestLoad != null && sl.straight != null && sl.superset != null
+      ? { sameLoad: { load: latestLoad, straight: round1(sl.straight)!, superset: round1(sl.superset)!, delta: round1(sl.superset - sl.straight)! } }
+      : {}),
     delta: {
       activationReps: diff(p.activationRepsAvg, s.activationRepsAvg),
       firstMiniReps: diff(p.firstMiniRepsAvg, s.firstMiniRepsAvg),
@@ -149,17 +168,24 @@ export interface SessionSupersetReport {
   /** The last three straight sessions of the same template. */
   straightDurationMinAvg?: number;
   straightSessions: number;
+  /** Of `straightSessions`, how many have a recorded duration. */
+  straightTimedSessions: number;
   durationDeltaMin?: number;
   /** One line per supersetted exercise in the session. */
   exercises: {
     exerciseId: string;
     name: string;
     label?: string;
+    load?: number;
     activationRepsAvg?: number;
+    firstMiniRepsAvg?: number;
+    valid?: boolean;
     straightActivationRepsAvg?: number;
     /** session − straight average AT THE SAME LOAD; undefined when no
      *  straight session was at this load. */
     deltaAtLoad?: number;
+    /** The exercise's report flag, as of this session. */
+    flag: boolean;
   }[];
 }
 
@@ -189,13 +215,18 @@ export function sessionSupersetReport(
       .slice(0, STRAIGHT_BASELINE_SESSIONS);
     const atLoad = base.filter((b) => o.load != null && b.load != null && Math.abs(b.load - o.load) < 0.01 && b.activationRepsAvg != null);
     const baseAvg = avg(atLoad.map((b) => b.activationRepsAvg as number));
+    const upTo = sessions.filter((s) => s.date.getTime() <= session.date.getTime());
     return {
       exerciseId: e.exerciseId,
       name: e.name,
       ...(o.label ? { label: o.label } : {}),
+      ...(o.load != null ? { load: o.load } : {}),
       activationRepsAvg: round1(o.activationRepsAvg),
+      firstMiniRepsAvg: round1(o.firstMiniRepsAvg),
+      ...(o.valid != null ? { valid: o.valid } : {}),
       straightActivationRepsAvg: round1(baseAvg),
       deltaAtLoad: diff(o.activationRepsAvg, baseAvg),
+      flag: exerciseSupersetReport(upTo, e.exerciseId)?.flag ?? false,
     };
   });
 
@@ -203,6 +234,7 @@ export function sessionSupersetReport(
     ...(session.durationMin != null ? { durationMin: session.durationMin } : {}),
     straightDurationMinAvg: round1(straightDur),
     straightSessions: straightSessions.length,
+    straightTimedSessions: straightSessions.filter((s) => s.durationMin != null).length,
     durationDeltaMin: diff(session.durationMin, straightDur),
     exercises,
   };

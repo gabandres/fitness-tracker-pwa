@@ -24,6 +24,10 @@ export type SessionAction =
   /** Append an exercise, already resolved against the catalog by the caller. */
   | { type: 'addExercise'; exercise: SessionExercise }
   | { type: 'removeExercise'; exerciseIndex: number }
+  /** Run a superset as straight sets for THIS workout only: its members lose
+   *  their group here, never on the template. The session then records what
+   *  was done, so the superset report counts it as unpaired. */
+  | { type: 'unpairGroup'; group: string }
   /** Append one empty working set. Does NOT re-derive cluster groups — a
    *  working set appended after a cluster starts a new plain row. */
   | { type: 'addSet'; exerciseIndex: number }
@@ -137,6 +141,18 @@ export function applySessionAction(
         ...session,
         exercises: session.exercises.filter((_, i) => i !== action.exerciseIndex),
       };
+
+    case 'unpairGroup': {
+      if (!session.exercises.some((e) => e.supersetGroup === action.group)) return session;
+      return {
+        ...session,
+        exercises: session.exercises.map((e) => {
+          if (e.supersetGroup !== action.group) return e;
+          const { supersetGroup: _g, pairPosition: _p, transitionRestSec: _t, roundRestSec: _r, ...rest } = e;
+          return rest;
+        }),
+      };
+    }
 
     case 'addSet':
       return mapExercise(session, action.exerciseIndex, (ex) =>

@@ -16,7 +16,6 @@ import {
   setBeatsBest,
   setRowLabels,
   suggestProgression,
-  supersetLabel,
   toDisplayLoad,
 } from '@macrolog/core';
 import {
@@ -46,6 +45,13 @@ import { MenuButton, type MenuButtonAction } from '@/components/MenuButton';
 export interface ExerciseCardProps {
   exercise: SessionExercise;
   exerciseIndex: number;
+  /** "A1", from the session's REAL groups (core `supersetTags`) — absent when
+   *  straight, or when a partner was removed and this lift now runs alone. */
+  supersetTag?: string;
+  /** The other members' names, for the screen-reader label. */
+  supersetPartners?: string;
+  /** The running rest leads into this card. */
+  upNext?: boolean;
   collapsed: boolean;
   /** The two data fields the history and the engine read — passed as data,
    *  not as the whole hook result, so this card can be memoized. */
@@ -92,6 +98,9 @@ export interface ExerciseCardProps {
 export const ExerciseCard = memo(function ExerciseCard({
   exercise: ex,
   exerciseIndex,
+  supersetTag: pairTag,
+  supersetPartners,
+  upNext,
   collapsed,
   recentSessions,
   catalog,
@@ -234,10 +243,9 @@ export const ExerciseCard = memo(function ExerciseCard({
     if (targets.length > 0) void commitActive();
   };
 
-  const pairTag = supersetLabel(ex);
 
   return (
-    <Animated.View style={styles.exCard} layout={smoothLayout}>
+    <Animated.View style={[styles.exCard, pairTag ? styles.supersetRail : null]} layout={smoothLayout}>
       <View style={styles.exHeadRow}>
         <Touchable
           style={styles.exHead}
@@ -245,7 +253,7 @@ export const ExerciseCard = memo(function ExerciseCard({
           activeOpacity={0.7}
           accessibilityRole="button"
           accessibilityState={{ expanded: !collapsed }}
-          accessibilityLabel={[pairTag ? t('train.superset.tagA11y', { label: pairTag }) : null, ex.name, totalSets > 0 ? countA11y : null, collapsed ? ghost : null]
+          accessibilityLabel={[upNext ? t('train.superset.upNext') : null, pairTag ? t('train.superset.tagA11y', { label: pairTag, partners: supersetPartners ?? '' }) : null, ex.name, totalSets > 0 ? countA11y : null, collapsed ? ghost : null]
             .filter(Boolean)
             .join(', ')}
           testID={`exercise-head-${exerciseIndex}`}
@@ -253,6 +261,11 @@ export const ExerciseCard = memo(function ExerciseCard({
           <View style={{ flex: 1 }}>
             {/* "A1 · SUPERSET": which station this is, so the alternation
                 reads at a glance down a collapsed list. */}
+            {upNext ? (
+              <View style={styles.upNextBadge} testID={`up-next-${exerciseIndex}`}>
+                <Text style={styles.upNextText}>{t('train.superset.upNext')}</Text>
+              </View>
+            ) : null}
             {pairTag ? <Text style={styles.supersetTag} testID={`superset-tag-${exerciseIndex}`}>{t('train.superset.tag', { label: pairTag })}</Text> : null}
             <Text style={styles.exName}>{ex.name}</Text>
             {/* Only while collapsed: an open card shows last session per ROW,

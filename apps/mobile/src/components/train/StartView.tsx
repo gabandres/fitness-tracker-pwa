@@ -42,7 +42,7 @@ import { captureError } from '@/lib/sentry';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { useUnitSystem } from '@/lib/use-unit-system';
 import type { Exercise, TrainingPhase, WorkoutSession, WorkoutTemplate } from '@/lib/workout';
-import { DraftsSection } from './DraftsSection';
+import { DraftsSection, useDraftActions } from './DraftsSection';
 import { ExerciseDetailSheet } from './ExerciseDetailSheet';
 import { toMenuButtonActions } from './exercise-menu-native';
 import { SessionDetailSheet } from './SessionDetailSheet';
@@ -265,6 +265,7 @@ export function StartView({
       {nextUp ? (
         <NextUpCard
           next={nextUp}
+          supersets={train.drafts.some((d) => d.status === 'active' && d.draftOf === nextUp.template.id)}
           onStart={() => train.startFromTemplate(nextUp.template)}
           onEdit={() => setEditing(nextUp.template)}
         />
@@ -583,6 +584,10 @@ const TemplateCard = memo(function TemplateCard({
   // pull-down exists (an older Android binary).
   const [menuOpen, setMenuOpen] = useState(false);
   const names = templateExerciseNames(tpl, t);
+  // A superset draft running on this template (2026-10-11): said on the card,
+  // with the way back in its menu — not only in a Drafts list further down.
+  const activeDraft = train.drafts.find((d) => d.status === 'active' && d.draftOf === tpl.id);
+  const draftActions = useDraftActions(train);
   // "3 exercises · 12 sets · last Tue". The counts alone could not tell you
   // which of four templates you are due for, which is the question the list
   // is actually being scanned for.
@@ -612,7 +617,7 @@ const TemplateCard = memo(function TemplateCard({
     const id = tpl.id;
     confirm({
       title: t('train.deleteTemplateTitle'),
-      body: t('train.deleteTemplateBody'),
+      body: [t('train.deleteTemplateBody'), ...(activeDraft ? [t('train.drafts.deleteActiveWarn', { name: tpl.name })] : [])].join('\n\n'),
       confirmText: t('train.delete'),
       destructive: true,
       onConfirm: () => {
@@ -629,6 +634,7 @@ const TemplateCard = memo(function TemplateCard({
   // ride on a ⋯ beside Start — the system PopupMenu, or the menu sheet on a
   // binary without it. Start and Edit are already the card's own buttons.
   const menuActions: ExerciseMenuAction[] = [
+    ...(activeDraft ? [{ key: 'revert-supersets', icon: 'arrow-undo-outline' as const, labelKey: 'train.drafts.revert' as const, onPress: () => draftActions.revert(activeDraft) }] : []),
     { key: 'duplicate', icon: 'copy-outline', labelKey: 'train.duplicate', onPress: duplicate },
     { key: 'delete', icon: 'trash-outline', labelKey: 'train.delete', destructive: true, onPress: askDelete },
   ];
@@ -644,6 +650,7 @@ const TemplateCard = memo(function TemplateCard({
       actions={[
         { key: 'start', title: t('train.startTpl'), icon: 'play', onPress: start },
         { key: 'edit', title: t('common.edit'), icon: 'pencil', onPress: () => onEdit(tpl) },
+        ...(activeDraft ? [{ key: 'revert-supersets', title: t('train.drafts.revert'), icon: 'arrow.uturn.backward', onPress: () => draftActions.revert(activeDraft) }] : []),
         { key: 'duplicate', title: t('train.duplicate'), icon: 'plus.square.on.square', onPress: duplicate },
         { key: 'delete', title: t('train.delete'), icon: 'trash', destructive: true, onPress: askDelete },
       ]}
@@ -660,6 +667,13 @@ const TemplateCard = memo(function TemplateCard({
           testID={`edit-template-${tpl.id}`}
         >
           <Text style={styles.histDate}>{tpl.name}</Text>
+          {activeDraft ? (
+            <Text style={styles.supersetTag} testID={`template-supersets-${tpl.id}`}>
+              {activeDraft.activatedAt
+                ? t('train.drafts.activeSince', { date: formatDate(new Date(activeDraft.activatedAt), locale, { month: 'short', day: 'numeric' }) })
+                : t('train.drafts.activeTag')}
+            </Text>
+          ) : null}
           {names ? <Text style={styles.tplExNames} numberOfLines={1}>{names}</Text> : null}
           <Text style={styles.histSub}>{sub}</Text>
         </Pressable>

@@ -94,7 +94,32 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   exHeadRow: { flexDirection: 'row', alignItems: 'center' },
   exHead: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: TARGET },
   exName: { fontFamily: type.heading, fontSize: font.h3, color: colors.ink },
-  supersetTag: { fontSize: font.tiny, color: colors.accent, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  // Teal, not accent: a LABEL ("A1 · SUPERSET") must not look like the accent
+  // warnings beside it (`supersetWarn`). Teal is AA as text in both themes.
+  supersetTag: { fontSize: font.tiny, color: colors.teal, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  /** The superset's members in the workout and the editor: one rail down the
+   *  left of every member card, so a pair reads as one block. */
+  supersetRail: { borderLeftWidth: 3, borderLeftColor: colors.teal },
+  /** "Superset A · switch 0:30 · round 0:30", above the block's first card. */
+  supersetHeader: { fontSize: font.small, fontWeight: '700', color: colors.teal, marginTop: space.sm, marginBottom: space.xs },
+  /** The card the running rest leads into. A filled chip: `onFill` on `tealSolid`. */
+  upNextBadge: { alignSelf: 'flex-start', backgroundColor: colors.tealSolid, borderRadius: radius.pill, paddingHorizontal: space.sm, paddingVertical: 2, marginBottom: 2 },
+  upNextText: { fontSize: font.tiny, fontWeight: '800', color: colors.onFill, textTransform: 'uppercase', letterSpacing: 0.5 },
+  /** One warning line under a superset: icon + text, wrapping. */
+  supersetWarnRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginTop: 4 },
+  /** A superset action on a collapsed editor card: 44pt, icon only. */
+  supersetLinkBtn: { width: TARGET, height: TARGET, alignItems: 'center', justifyContent: 'center' },
+  // superset report
+  reportMetric: { gap: 2 },
+  reportMetricLabel: { fontSize: font.small, fontWeight: '700', color: colors.muted },
+  reportMetricValue: { fontSize: font.body, color: colors.ink, lineHeight: 22 },
+  reportFlag: { flexDirection: 'row', alignItems: 'flex-start', gap: space.sm, backgroundColor: colors.inputBg, borderRadius: radius.md, padding: space.md },
+  reportFlagText: { fontSize: font.small, color: colors.ink, lineHeight: 20 },
+  reportNote: { fontSize: font.small, color: colors.muted, lineHeight: 20 },
+  // drafts
+  draftSummary: { fontSize: font.small, color: colors.muted, lineHeight: 20 },
+  draftSecondaryBtn: { borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, paddingHorizontal: space.lg, minHeight: TARGET, justifyContent: 'center' },
+  draftSecondaryText: { color: colors.ink, fontWeight: '700', fontSize: font.body },
   exCount: { backgroundColor: colors.inputBg, borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: 3, minWidth: 44, alignItems: 'center' },
   exCountText: { fontSize: font.small, fontWeight: '800', color: colors.muted },
   exDone: { width: 26, height: 26, borderRadius: 13, backgroundColor: colors.good, alignItems: 'center', justifyContent: 'center' },
@@ -431,7 +456,7 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   tplDoseNote: { fontSize: font.small, color: colors.muted, marginTop: 4, lineHeight: 16 },
   /** A superset warning that asks for attention (same-muscle pair, a load
    *  test pending): the accent, never danger — saving is still allowed. */
-  supersetWarn: { fontSize: font.small, color: colors.accent, fontWeight: '600', marginTop: 4, lineHeight: 16 },
+  supersetWarn: { fontSize: font.small, color: colors.accent, fontWeight: '600', lineHeight: 20, flexShrink: 1 },
   tplDel: { padding: space.xs },
   tplExControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.md },
   tplLoadWrap: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
@@ -684,6 +709,11 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   // Lifted clear of the raised Log button: it overhangs the screen by
   // `space.xl + 2` (LogSpeedDial's negative margin), and at `bottom: 12` it sat
   // on the bar's centre — over the countdown itself (Train review item 27).
+  /** The rest bar's "Switch to A2 / Next: A2 · Leg Curls" line: its own
+   *  full-width row, `onInk` on the `ink` bar (`muted` measured ~2:1 there),
+   *  allowed two lines so the station name is never the part cut off. */
+  restHeading: { color: colors.onInk, fontSize: font.small, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  restNext: { color: colors.onInk, fontSize: font.body, fontWeight: '700' },
   restBarFloat: {
     position: 'absolute',
     left: space.xl,

@@ -44,8 +44,8 @@ describe('exercise superset report', () => {
   const r = exerciseSupersetReport([...sup, ...straight], 'ext')!;
 
   it('compares the last three straight sessions with the superset sessions', () => {
-    expect(r.straight).toEqual({ sessions: 3, activationRepsAvg: 11, firstMiniRepsAvg: 3.7, validityRate: 1, durationMinAvg: 60 });
-    expect(r.superset).toEqual({ sessions: 3, activationRepsAvg: 8, firstMiniRepsAvg: 4.3, validityRate: 2 / 3, durationMinAvg: 50 });
+    expect(r.straight).toEqual({ sessions: 3, timedSessions: 3, activationRepsAvg: 11, firstMiniRepsAvg: 3.7, validityRate: 1, durationMinAvg: 60 });
+    expect(r.superset).toEqual({ sessions: 3, timedSessions: 3, activationRepsAvg: 8, firstMiniRepsAvg: 4.3, validityRate: 2 / 3, durationMinAvg: 50 });
     expect(r.delta).toEqual({ activationReps: -3, firstMiniReps: 0.6, validityRate: 2 / 3 - 1, durationMin: -10 });
   });
 
@@ -77,7 +77,11 @@ describe('session superset report', () => {
     expect(r.straightSessions).toBe(3);
     expect(r.straightDurationMinAvg).toBe(60);
     expect(r.durationDeltaMin).toBe(-12);
-    expect(r.exercises[0]).toEqual({ exerciseId: 'ext', name: 'Leg Extensions', label: 'A1', activationRepsAvg: 9, straightActivationRepsAvg: 11, deltaAtLoad: -2 });
+    expect(r.exercises[0]).toEqual({
+      exerciseId: 'ext', name: 'Leg Extensions', label: 'A1', load: 90, activationRepsAvg: 9, firstMiniRepsAvg: 3,
+      valid: true, straightActivationRepsAvg: 11, deltaAtLoad: -2, flag: false,
+    });
+    expect(r.straightTimedSessions).toBe(3);
     expect(r.exercises[1]).toMatchObject({ label: 'A2', activationRepsAvg: 10, straightActivationRepsAvg: 10, deltaAtLoad: 0 });
   });
 
@@ -89,5 +93,21 @@ describe('session superset report', () => {
   it('null for a straight session', () => {
     expect(isSupersetSession(straight[0])).toBe(false);
     expect(sessionSupersetReport(straight, straight[0])).toBeNull();
+  });
+});
+
+describe('the report never mixes loads, and forgets old bad days', () => {
+  it('sameLoad compares activation reps at the latest superset load only', () => {
+    const r = exerciseSupersetReport([...sup, ...straight], 'ext')!;
+    // Latest superset session is at 85 lb; no straight session at 85 → absent.
+    expect(r.sameLoad).toBeUndefined();
+    const r2 = exerciseSupersetReport([sup[1], sup[0], ...straight], 'ext')!;
+    expect(r2.sameLoad).toEqual({ load: 90, straight: 11, superset: 8.5, delta: -2.5 });
+  });
+  it('two costly sessions followed by three good ones no longer flag', () => {
+    const good = (d: string) => session(d, 50, ext(cluster(1, 90, 11, 3, 2), true));
+    const r = exerciseSupersetReport([good('2026-11-10'), good('2026-11-03'), good('2026-10-27'), sup[1], sup[0], ...straight], 'ext')!;
+    expect(r.flag).toBe(false);
+    expect(r.costlySessions).toEqual([]);
   });
 });

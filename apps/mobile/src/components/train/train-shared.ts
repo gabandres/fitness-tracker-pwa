@@ -101,14 +101,17 @@ export const SET_STRUCTURES: {
   { value: 'cluster', labelKey: 'train.structure.cluster', descKey: 'train.structureDesc.cluster', readable: true },
   { value: 'hit', labelKey: 'train.structure.hit', descKey: 'train.structureDesc.hit', readable: true },
   { value: 'drop', labelKey: 'train.structure.drop', descKey: 'train.structureDesc.drop', readable: false },
-  { value: 'superset', labelKey: 'train.structure.superset', descKey: 'train.structureDesc.superset', readable: false },
+  // `superset` is NOT offered (2026-10-11): supersets are made by pairing two
+  // exercises ("Superset with…"), not by a structure on one. The chip said
+  // "not read yet" and paired nothing, beside the real control. A template
+  // that stored it reads as Auto here, which is how the engine reads it too.
 ];
 
 /**
  * How many of {@link SET_STRUCTURES} the picker shows before "More".
  *
  * The first six are every structure the engine can actually read, in the order
- * ADR-0040 ranks them. `drop` and `superset` are declared-but-unread: they are
+ * ADR-0040 ranks them. `drop` is declared-but-unread (`superset` is a pairing now, not offered): it is
  * kept, and NAMED as unread when chosen, but putting them in the default row
  * gave two dead ends equal billing with the five live ones on every card.
  */

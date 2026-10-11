@@ -19,6 +19,8 @@ import { BottomSheet } from '@/components/BottomSheet';
 import { useDoneKeyProps } from '@/components/KeyboardBar';
 import { showToast } from '@/components/Toast';
 import { createStyles } from '@/components/train/train-styles';
+import { MuscleChips } from '@/components/train/MuscleChips';
+import type { MuscleGroup } from '@macrolog/core/workout';
 import { type I18nKey, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
@@ -135,6 +137,10 @@ export function LiftSettingsSheet({
   const [standard, setStandard] = useState<EffortStandard>('failure');
   const [loadable, setLoadable] = useState(false);
   const [microplates, setMicroplates] = useState(false);
+  /** The catalog's muscle tags, primary first (`muscles[0]`) — editable here
+   *  since 2026-10-11 so a superset warning built on a wrong tag can be fixed
+   *  from the template editor that shows it. */
+  const [muscles, setMuscles] = useState<MuscleGroup[]>([]);
   const [initial, setInitial] = useState({ min: '', max: '', steps: '', bar: '' });
   const [saving, setSaving] = useState(false);
 
@@ -156,6 +162,7 @@ export function LiftSettingsSheet({
     setStandard(exercise?.effortStandard ?? 'failure');
     setLoadable(exercise?.loadable === true);
     setMicroplates(exercise?.microplates === true);
+    setMuscles(exercise?.muscles ?? []);
     setSaving(false);
   }, [visible, exercise, unitSystem]);
 
@@ -202,6 +209,7 @@ export function LiftSettingsSheet({
     // Absent reads as false, so OFF is a delete rather than a stored `false`.
     if (loadable !== (exercise?.loadable === true)) patch.loadable = loadable ? true : null;
     if (microplates !== (exercise?.microplates === true)) patch.microplates = microplates ? true : null;
+    if (muscles.join(',') !== (exercise?.muscles ?? []).join(',')) patch.muscles = muscles;
     return patch;
   }
 
@@ -238,6 +246,13 @@ export function LiftSettingsSheet({
       <View style={styles.sheetStack}>
       <Text style={styles.sheetTitle} accessibilityRole="header">{t('train.lift.title')}</Text>
       {name ? <Text style={styles.sheetHint}>{name}</Text> : null}
+
+      {/* ── Muscles: primary first. Superset pairings and the weekly count read it. ── */}
+      <View style={styles.liftSection} testID="lift-muscles">
+        <Text style={styles.fieldLabel}>{t('train.musclesLabel')}</Text>
+        <Text style={styles.sheetHint}>{t('train.musclesPrimaryHint')}</Text>
+        <MuscleChips value={muscles} onChange={setMuscles} testIDPrefix="lift-muscle" />
+      </View>
 
       {/* ── Category: "Auto" clears the field and says what it inferred ── */}
       <View style={styles.liftSection}>

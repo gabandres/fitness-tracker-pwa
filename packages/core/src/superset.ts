@@ -175,9 +175,20 @@ export function normalizeSupersets<T extends SupersetFields>(rows: readonly T[])
 
 /**
  * Pair the row at `index` with the row after it. When `index` is already in a
- * group, the next row joins that group (a tri-set) if there is room. Returns
- * the canonical list.
+ * group, the next row joins that group (a tri-set) if there is room. A next row
+ * already in ANOTHER group is left alone (the list comes back unchanged).
+ * Returns the canonical list.
  */
+export function canPairWithNext(rows: readonly SupersetFields[], index: number): boolean {
+  const a = rows[index];
+  const b = rows[index + 1];
+  if (!a || !b) return false;
+  const groups = supersetGroups(rows);
+  const own = a.supersetGroup && groups.has(a.supersetGroup) ? a.supersetGroup : undefined;
+  if (b.supersetGroup && groups.has(b.supersetGroup)) return false;
+  return !own || (groups.get(own)?.length ?? 0) < MAX_SUPERSET_SIZE;
+}
+
 export function pairWithNext<T extends SupersetFields>(rows: readonly T[], index: number): T[] {
   const a = rows[index];
   const b = rows[index + 1];
@@ -189,6 +200,9 @@ export function pairWithNext<T extends SupersetFields>(rows: readonly T[], index
     : [...SUPERSET_LETTERS].find((l) => !used.has(l)) ?? 'Z';
   const size = groups.get(group)?.length ?? 1;
   if (size >= MAX_SUPERSET_SIZE) return [...rows];
+  // Never take the next row out of a pair of its own: that would dissolve a
+  // choice the lifter made, silently. They unpair it first.
+  if (b.supersetGroup && groups.has(b.supersetGroup) && b.supersetGroup !== group) return [...rows];
   const next = rows.map((r, i) => {
     if (i === index && !groups.has(group)) return { ...r, supersetGroup: group, pairPosition: 1 as PairPosition };
     if (i === index + 1) {
@@ -349,6 +363,8 @@ export interface FlowRest {
   kind: RestKind;
   /** The set that comes next in the flow, if any. */
   next?: { exerciseIndex: number; setIndex: number; label?: string };
+  /** On a `round` rest: which round comes next, of how many ("Round 2 of 3"). */
+  round?: { n: number; total: number };
 }
 
 /**
@@ -364,6 +380,11 @@ export interface FlowRest {
  *   ordinary between-cluster rest, because it runs as a straight set;
  * - after the group's last unit → the rest after the exercise.
  *
+ * "Next" skips what is already logged when `isDone` is given: a lifter whose
+ * A1 station was taken and who did all of A2 first is not sent back to A2
+ * after A1's cluster, and gets A1's own between-cluster rest instead of a
+ * 30-second switch to a finished exercise.
+ *
  * `restFor` gives an exercise's ordinary rests (template, row and ⋯ override
  * already resolved by the caller). The group's rests come from the rows.
  */
@@ -372,15 +393,18 @@ export function restAfterSetInFlow(
   exerciseIndex: number,
   setIndex: number,
   restFor: (exerciseIndex: number) => RestSeconds,
+  isDone?: (exerciseIndex: number, setIndex: number) => boolean,
 ): FlowRest {
   const row = rows[exerciseIndex];
   const own = restFor(exerciseIndex);
   const flow = supersetFlow(rows);
   const at = flow.findIndex((s) => s.exerciseIndex === exerciseIndex && s.setIndices.includes(setIndex));
   const step = flow[at];
-  const nextStep = at >= 0 ? flow[at + 1] : undefined;
+  const open = (s: FlowStep) => !isDone || s.setIndices.some((i) => !isDone(s.exerciseIndex, i));
+  const nextStep = at >= 0 ? flow.slice(at + 1).find(open) : undefined;
   const nextOf = (s: FlowStep | undefined) =>
-    s ? { exerciseIndex: s.exerciseIndex, setIndex: s.setIndices[0], ...(s.label ? { label: s.label } : {}) } : undefined;
+    s ? { exerciseIndex: s.exerciseIndex, setIndex: firstOpen(s), ...(s.label ? { label: s.label } : {}) } : undefined;
+  const firstOpen = (s: FlowStep) => s.setIndices.find((i) => !isDone?.(s.exerciseIndex, i)) ?? s.setIndices[0];
 
   // Mid-unit, or a set the flow does not know: the per-exercise rule decides.
   const lastOfUnit = step != null && step.setIndices[step.setIndices.length - 1] === setIndex;
@@ -408,12 +432,37 @@ export function restAfterSetInFlow(
 
   const { transitionRestSec, roundRestSec } = groupRest(rows, step.group);
   if (nextStep?.group === step.group) {
+    // The next open unit is this exercise's own (its partner is finished): an
+    // ordinary between-cluster rest, as for a straight lift.
+    if (nextStep.exerciseIndex === exerciseIndex) {
+      return { seconds: own.cluster, kind: 'cluster', ...(next ? { next } : {}) };
+    }
     if (nextStep.unit === step.unit) return { seconds: transitionRestSec, kind: 'transition', ...(next ? { next } : {}) };
-    const inNextRound = flow.filter((s) => s.group === step.group && s.unit === nextStep.unit).length;
-    if (inNextRound >= 2) return { seconds: roundRestSec, kind: 'round', ...(next ? { next } : {}) };
+    const groupSteps = flow.filter((s) => s.group === step.group);
+    const inNextRound = groupSteps.filter((s) => s.unit === nextStep.unit && open(s)).length;
+    if (inNextRound >= 2) {
+      const total = Math.max(...groupSteps.map((s) => s.unit)) + 1;
+      return { seconds: roundRestSec, kind: 'round', round: { n: nextStep.unit + 1, total }, ...(next ? { next } : {}) };
+    }
     return { seconds: restFor(nextStep.exerciseIndex).cluster, kind: 'cluster', ...(next ? { next } : {}) };
   }
   return { seconds: own.afterExercise ?? own.cluster, kind: 'after-exercise', ...(next ? { next } : {}) };
+}
+
+/**
+ * The tag each row shows ("A1"), derived from the REAL groups — so a card never
+ * claims a pairing the flow does not run (a partner removed or replaced
+ * mid-session leaves a lone member, which runs straight and is untagged), and a
+ * tri-set that lost its middle member renumbers A1, A2 rather than A1, A3.
+ */
+export function supersetTags(rows: readonly SupersetFields[]): (string | undefined)[] {
+  const out: (string | undefined)[] = rows.map(() => undefined);
+  for (const [group, members] of supersetGroups(rows)) {
+    members.forEach((m, k) => {
+      out[m.index] = `${group}${k + 1}`;
+    });
+  }
+  return out;
 }
 
 /** Resolve a template's superset fields onto each of its session exercises at
@@ -564,4 +613,42 @@ export function plannedRestSec(rows: readonly FlowRow[], restFor: (exerciseIndex
     total += restAfterSetInFlow(rows, s.exerciseIndex, s.setIndices[s.setIndices.length - 1], restFor).seconds;
   }
   return total;
+}
+
+/**
+ * Move a row from `from` to `to` (a drag) and keep the supersets honest.
+ *
+ * A member dragged away from every group-mate LEAVES its group (returned as
+ * `left`, so the screen can say so); a straight row dropped inside a block is
+ * moved out to just after it; the result is canonical. Without this the tag
+ * kept saying "A2" on a row nowhere near A1 and save snapped it back — what
+ * was shown was not what got saved.
+ */
+export function reorderWithSupersets<T extends SupersetFields>(
+  rows: readonly T[],
+  from: number,
+  to: number,
+): { rows: T[]; left?: { row: T; group: string } } {
+  if (from === to || !rows[from] || to < 0 || to >= rows.length) return { rows: [...rows] };
+  const next = [...rows];
+  const [moved] = next.splice(from, 1);
+  next.splice(to, 0, moved);
+  const g = moved.supersetGroup;
+  if (g && supersetGroups(rows).has(g)) {
+    const nearMate = [next[to - 1], next[to + 1]].some((r) => r != null && r !== moved && r.supersetGroup === g);
+    if (!nearMate) {
+      const solo = unpair(next, to);
+      return { rows: solo, left: { row: moved, group: g } };
+    }
+  }
+  // Inside a block the LIST order is the alternation order now: dragging A1
+  // below A2 makes it A2.
+  const seen = new Map<string, number>();
+  const renumbered = next.map((r) => {
+    if (!r.supersetGroup) return r;
+    const k = (seen.get(r.supersetGroup) ?? 0) + 1;
+    seen.set(r.supersetGroup, k);
+    return r.pairPosition === k ? r : { ...r, pairPosition: k as PairPosition };
+  });
+  return { rows: normalizeSupersets(renumbered) };
 }
