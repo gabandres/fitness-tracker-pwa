@@ -41,6 +41,9 @@ export const USER_SUBCOLLECTIONS = [
   "workoutSessions",
   "workoutTemplates",
   "exercises",
+  // Superset drafts of templates (2026-10-11) — the user's own programme, so
+  // erasable and portable like `workoutTemplates`. Added with the collection.
+  "templateDrafts",
   // Completed fasts (ADR-0032, #97). Added in the same change that created the
   // collection, which is the point of `gdpr-collection-parity.spec.ts`: the
   // workout trio was erasable for months before anyone made it portable,

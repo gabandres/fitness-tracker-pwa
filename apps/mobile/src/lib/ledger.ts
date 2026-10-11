@@ -98,6 +98,8 @@ import {
   type DailyTargetRecord,
   type PlannedTargetRecord,
   toDailyTargetRecord,
+  type TemplateBody,
+  type TemplateDraftDoc,
 } from '@macrolog/core';
 import { db } from './firebase';
 import type {
@@ -1917,6 +1919,100 @@ export async function updateTemplate(uid: string, id: string, draft: TemplateDra
 
 export async function deleteTemplate(uid: string, id: string): Promise<void> {
   await ackOrQueued(deleteDoc(templateDoc(uid, id)));
+}
+
+// ── Template drafts (2026-10-11) ──
+// users/{uid}/templateDrafts/{id} — { draftOf, label, status, template,
+// previous?, activatedAt?, revertedAt?, createdAt, updatedAt } (rules
+// isValidTemplateDraft). A superset version of a live template, kept OUT of
+// `workoutTemplates` so binaries that list that collection never show it.
+const draftsCol = (uid: string) => collection(db, 'users', uid, 'templateDrafts');
+const draftDoc = (uid: string, id: string) => doc(db, 'users', uid, 'templateDrafts', id);
+
+function toBody(v: unknown): TemplateBody | undefined {
+  if (!v || typeof v !== 'object') return undefined;
+  const b = v as TemplateBody;
+  return { ...b, exercises: (b.exercises ?? []).map((e) => ({ ...e, plannedSets: e.plannedSets ?? [] })) };
+}
+
+function toTemplateDraftDoc(id: string, data: Record<string, unknown>): TemplateDraftDoc {
+  const at = (v: unknown) => (v instanceof Timestamp ? v.toDate() : new Date(0));
+  const previous = toBody(data['previous']);
+  return {
+    id,
+    draftOf: String(data['draftOf'] ?? ''),
+    label: String(data['label'] ?? ''),
+    status: data['status'] === 'active' ? 'active' : 'draft',
+    template: toBody(data['template']) ?? { name: '', exercises: [] },
+    ...(previous ? { previous } : {}),
+    ...(typeof data['activatedAt'] === 'string' ? { activatedAt: data['activatedAt'] } : {}),
+    ...(typeof data['revertedAt'] === 'string' ? { revertedAt: data['revertedAt'] } : {}),
+    createdAt: at(data['createdAt']),
+    updatedAt: at(data['updatedAt']),
+  };
+}
+
+/**
+ * Drafts, oldest first. A read the rules refuse (a build that reaches a user
+ * before `templateDrafts` is deployed) delivers an empty list instead of an
+ * error: drafts are optional, and a failure here must not read as Train
+ * failing to load.
+ */
+export function subscribeTemplateDrafts(uid: string, cb: (drafts: TemplateDraftDoc[]) => void): Unsub {
+  return onSnapshot(
+    query(draftsCol(uid), orderBy('createdAt', 'asc')),
+    (snap) => cb(snap.docs.map((d) => toTemplateDraftDoc(d.id, d.data()))),
+    () => cb([]),
+  );
+}
+
+/**
+ * Activate a draft: the superset body replaces the live template's body, and
+ * the straight-set body it replaced is kept on the draft — one batch, so the
+ * live template and the way back can never disagree.
+ */
+export async function activateTemplateDraft(
+  uid: string,
+  draftId: string,
+  templateId: string,
+  body: TemplateBody,
+  replaced: TemplateBody,
+  at: Date,
+): Promise<void> {
+  const batch = writeBatch(db);
+  batch.set(templateDoc(uid, templateId), pruneUndefined(toTemplatePatch(body, CODEC, at)), { merge: true });
+  batch.update(draftDoc(uid, draftId), pruneUndefined({
+    status: 'active',
+    template: body,
+    previous: replaced,
+    activatedAt: at.toISOString(),
+    updatedAt: Timestamp.fromDate(at),
+  }));
+  await ackOrQueued(batch.commit());
+}
+
+/**
+ * Revert: the straight-set body goes back into the live template, and the
+ * superset version as it stood (loads included) goes back to being a draft.
+ */
+export async function revertTemplateDraft(
+  uid: string,
+  draftId: string,
+  templateId: string,
+  body: TemplateBody,
+  supersetBody: TemplateBody,
+  at: Date,
+): Promise<void> {
+  const batch = writeBatch(db);
+  batch.set(templateDoc(uid, templateId), pruneUndefined(toTemplatePatch(body, CODEC, at)), { merge: true });
+  batch.update(draftDoc(uid, draftId), pruneUndefined({
+    status: 'draft',
+    template: supersetBody,
+    previous: deleteField(),
+    revertedAt: at.toISOString(),
+    updatedAt: Timestamp.fromDate(at),
+  }));
+  await ackOrQueued(batch.commit());
 }
 
 // ── Sessions ──

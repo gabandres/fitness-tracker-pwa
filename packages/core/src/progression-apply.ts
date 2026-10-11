@@ -182,19 +182,36 @@ export function carryAndStampRows(
   after: readonly TemplateExercise[],
   opts: { at: Date; by: TemplateChangeBy },
 ): TemplateExercise[] {
+  const prev = new Map(before.map((r) => [r.exerciseId, r]));
+  const carriedRows = after.map((row) => {
+    const old = prev.get(row.exerciseId);
+    if (!old) return row;
+    const carried: Partial<TemplateExercise> = {};
+    for (const k of CARRIED_ROW_FIELDS) {
+      if (row[k] === undefined && old[k] !== undefined) (carried as Record<string, unknown>)[k] = old[k];
+    }
+    return { ...row, ...carried };
+  });
+  return stampChangedRows(before, carriedRows, opts);
+}
+
+/**
+ * The stamping half of {@link carryAndStampRows}, for a writer whose rows are
+ * already complete — one that must be able to REMOVE a field (a superset
+ * revert dropping the baseline its activation added), which a carry would
+ * silently put back. Rows whose prescription and position are unchanged keep
+ * their stamp.
+ */
+export function stampChangedRows(
+  before: readonly TemplateExercise[],
+  after: readonly TemplateExercise[],
+  opts: { at: Date; by: TemplateChangeBy },
+): TemplateExercise[] {
   const prev = new Map(before.map((r, i) => [r.exerciseId, { row: r, position: i }]));
   return after.map((row, i) => {
     const old = prev.get(row.exerciseId);
-    let next: TemplateExercise = row;
-    if (old) {
-      const carried: Partial<TemplateExercise> = {};
-      for (const k of CARRIED_ROW_FIELDS) {
-        if (next[k] === undefined && old.row[k] !== undefined) (carried as Record<string, unknown>)[k] = old.row[k];
-      }
-      next = { ...next, ...carried };
-    }
-    const changed = !old || rowContent({ ...old.row }, old.position) !== rowContent(next, i);
-    return changed ? { ...next, lastModifiedAt: opts.at.toISOString(), lastModifiedBy: opts.by } : next;
+    const changed = !old || rowContent({ ...old.row }, old.position) !== rowContent(row, i);
+    return changed ? { ...row, lastModifiedAt: opts.at.toISOString(), lastModifiedBy: opts.by } : row;
   });
 }
 

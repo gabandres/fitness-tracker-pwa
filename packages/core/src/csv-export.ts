@@ -11,6 +11,7 @@ import { isLoggedCardioBlock } from './cardio';
 import { type WorkoutSession, type WorkoutTemplate, DEFAULT_EFFORT_STANDARD, type EffortStandard, isLoggedSet } from './workout';
 import { type DailyTargetRecord, describeTargetChange } from './target-history';
 import { normalizeClusterGroups } from './cluster-groups';
+import { snapshotSupersets } from './superset';
 import { MIDNIGHT, dayKeyAt, type DayBoundary } from './day-boundary';
 import { compareLogsOldestFirst } from './firestore-mappers';
 
@@ -52,6 +53,11 @@ const COLS = [
   // 'target' rows: the targets in effect on each day, from stored records only.
   'kcalTarget', 'kcalTargetSource', 'proteinTarget', 'proteinTargetSource',
   'maintenanceEstimate', 'compositionAdjustedMaintenance', 'targetChangeReason',
+  // ── 2026-10-11, appended for the same reason (`superset.ts`) ──
+  // 'template' rows: all four (the group's rests resolved onto every member).
+  // 'workout_set' rows: group and position, from the session's snapshot.
+  // Session duration was already here as `durationMin` on 'workout' rows.
+  'supersetGroup', 'pairPosition', 'transitionRestSec', 'roundRestSec',
 ] as const;
 type Col = typeof COLS[number];
 
@@ -188,6 +194,8 @@ export function buildCsv(data: ExportData, boundary: DayBoundary = MIDNIGHT): st
           setReps: set.reps,
           setDurationSec: set.durationSec,
           setRir: set.rir,
+          supersetGroup: ex.supersetGroup,
+          pairPosition: ex.pairPosition,
         }));
       }
     }
@@ -274,6 +282,7 @@ function templateRows(data: ExportData): string[] {
   const out: string[] = [];
   const templates = [...(data.templates ?? [])].sort((a, b) => a.name.localeCompare(b.name));
   for (const t of templates) {
+    const supersets = snapshotSupersets(t.exercises);
     t.exercises.forEach((ex, i) => {
       const acts = ex.plannedSets.filter((p) => p.kind === 'activation');
       const labels: string[] = [];
@@ -298,6 +307,7 @@ function templateRows(data: ExportData): string[] {
         notes,
         lastModifiedAt: ex.lastModifiedAt ?? lastLoad?.at,
         lastModifiedBy: ex.lastModifiedBy ?? lastLoad?.by,
+        ...supersets[i],
       }));
     });
     (t.cardioBlocks ?? []).forEach((b, j) => {

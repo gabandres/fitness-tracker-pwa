@@ -88,6 +88,8 @@ jest.mock('@/hooks/useTrain', () => ({
       createdAt: new Date('2026-07-01T00:00:00Z'),
     }],
     templates: [mockTemplate],
+    drafts: [],
+    pendingLoadTestFor: () => null,
     editCatalogExercise: mockEditCatalogExercise,
     recentSessions: [],
     active: null,

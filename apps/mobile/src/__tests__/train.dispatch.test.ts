@@ -34,6 +34,7 @@ jest.mock('@/lib/sub-debug', () => ({
 jest.mock('@/lib/ledger', () => ({
   subscribeExercises: () => mockNoop,
   subscribeTemplates: () => mockNoop,
+  subscribeTemplateDrafts: () => mockNoop,
   subscribeRecentSessions: (
     _uid: string,
     _n: number,

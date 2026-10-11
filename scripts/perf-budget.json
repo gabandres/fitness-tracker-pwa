@@ -1,20 +1,20 @@
 {
   "platforms": {
     "android": {
-      "bundleRaw": 14407309,
-      "bundleGzip": 5940804,
+      "bundleRaw": 15042609,
+      "bundleGzip": 6244525,
       "assetBytes": 1573342,
       "headroomPct": 5,
-      "measuredAt": "2026-10-05",
-      "measuredAtCommit": "4b760b90"
+      "measuredAt": "2026-10-11",
+      "measuredAtCommit": "824d9a80"
     },
     "ios": {
-      "bundleRaw": 14207281,
-      "bundleGzip": 5827756,
+      "bundleRaw": 14846889,
+      "bundleGzip": 6133335,
       "assetBytes": 607184,
       "headroomPct": 5,
-      "measuredAt": "2026-10-05",
-      "measuredAtCommit": "4b760b90"
+      "measuredAt": "2026-10-11",
+      "measuredAtCommit": "824d9a80"
     }
   },
   "note": "Baselines for scripts/perf-budget.mjs. Regenerate with `npm run perf:budget -- --update`. A change here is someone accepting the growth on the record — say why in the commit message."

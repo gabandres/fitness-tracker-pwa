@@ -94,6 +94,7 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   exHeadRow: { flexDirection: 'row', alignItems: 'center' },
   exHead: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: TARGET },
   exName: { fontFamily: type.heading, fontSize: font.h3, color: colors.ink },
+  supersetTag: { fontSize: font.tiny, color: colors.accent, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
   exCount: { backgroundColor: colors.inputBg, borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: 3, minWidth: 44, alignItems: 'center' },
   exCountText: { fontSize: font.small, fontWeight: '800', color: colors.muted },
   exDone: { width: 26, height: 26, borderRadius: 13, backgroundColor: colors.good, alignItems: 'center', justifyContent: 'center' },
@@ -428,6 +429,9 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   // cites evidence and does not cap the number, so dressing it as an error
   // would overstate what it knows about this particular movement.
   tplDoseNote: { fontSize: font.small, color: colors.muted, marginTop: 4, lineHeight: 16 },
+  /** A superset warning that asks for attention (same-muscle pair, a load
+   *  test pending): the accent, never danger — saving is still allowed. */
+  supersetWarn: { fontSize: font.small, color: colors.accent, fontWeight: '600', marginTop: 4, lineHeight: 16 },
   tplDel: { padding: space.xs },
   tplExControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.md },
   tplLoadWrap: { flexDirection: 'row', alignItems: 'center', gap: space.xs },

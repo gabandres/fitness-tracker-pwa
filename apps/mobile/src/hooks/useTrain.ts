@@ -28,25 +28,31 @@ import {
   startSession,
   subscribeExercises,
   subscribeRecentSessions,
+  subscribeTemplateDrafts,
   subscribeTemplates,
   updateSession,
   updateTemplate as updateTemplateDoc,
+  activateTemplateDraft,
+  revertTemplateDraft,
 } from '@/lib/ledger';
 import {
   type SessionAction,
   applySessionAction,
   findDuplicateExercise,
   dayBoundaryOf,
-  engineHistory,
   moveExercise,
   newCardioBlock,
   newLedgerId,
   newWorkoutSet,
-  recommend,
-  recommendOptionsFor,
   toRecommendationSnapshot,
-  honourLifterLoad,
   undoRemoval as applyUndoRemoval,
+  planActivation,
+  planRevert,
+  rowPendingLoadTest,
+  sessionDurationMin,
+  sessionCall,
+  type SwapPlan,
+  type TemplateDraftDoc,
 } from '@macrolog/core';
 import {
   type Exercise,
@@ -104,6 +110,19 @@ export interface TrainState {
   catalog: Exercise[];
   /** Reusable workout templates, most-recently-updated first. */
   templates: WorkoutTemplate[];
+  /** Superset drafts of the templates (2026-10-11), oldest first. */
+  drafts: TemplateDraftDoc[];
+  /** What activating a draft would write and warn about — pure, no write. */
+  planDraftActivation: (draft: TemplateDraftDoc) => SwapPlan | null;
+  /** What reverting an active draft would write — pure, no write. */
+  planDraftRevert: (draft: TemplateDraftDoc) => SwapPlan | null;
+  /** Activate a draft (the superset body into the live template). */
+  activateDraft: (draft: TemplateDraftDoc) => Promise<void>;
+  /** Revert an active draft to the straight-set template it replaced. */
+  revertDraft: (draft: TemplateDraftDoc) => Promise<void>;
+  /** The load test pending on a template row, judged on the load the
+   *  session would seed; null when none. */
+  pendingLoadTestFor: (row: TemplateExercise) => { from: number; to: number } | null;
   /** Completed sessions, newest first. */
   recentSessions: WorkoutSession[];
   /** The in-progress session held in local state, or null. */
@@ -295,6 +314,7 @@ export function useTrain(): TrainState {
   // ones `onSnapshot` already calls, so the write-through is invisible here.
   const [catalog, setCatalog] = useCachedState<Exercise[]>(uid, 'exercises', []);
   const [templates, setTemplates] = useCachedState<WorkoutTemplate[]>(uid, 'templates', []);
+  const [drafts, setDrafts] = useState<TemplateDraftDoc[]>([]);
   const [recentSessions, setRecentSessions, sessionsFromCache] = useCachedState<WorkoutSession[]>(
     uid,
     'workoutSessions',
@@ -573,6 +593,14 @@ export function useTrain(): TrainState {
               open: (deliver) => subscribeTemplates(uid, deliver),
               apply: setTemplates,
             }),
+            // Superset drafts: optional, so a refused read delivers [] rather
+            // than failing the feed (`subscribeTemplateDrafts`).
+            feedChannel({
+              key: 'templateDrafts',
+              settles: 'none',
+              open: (deliver) => subscribeTemplateDrafts(uid, deliver),
+              apply: setDrafts,
+            }),
             feedChannel<WorkoutSession[], 'sessions'>({
               key: 'sessions',
               // Only a SERVER answer ends the spinner on its own. An offline
@@ -694,17 +722,12 @@ export function useTrain(): TrainState {
       // nothing to say about (`none`) gets no snapshot.
       const completed = recentSessions.filter((s) => s.status === 'completed');
       const exercises = templateToSessionExercises(template).map((se) => {
-        const row = template.exercises.find((e) => e.exerciseId === se.exerciseId) ?? null;
-        // The same history the card reads: a baseline marker cuts it off.
-        const history = engineHistory(completed, se.exerciseId, row);
-        const basedOn = completed.find((s) => s.exercises.includes(history[0]))?.date;
-        // A load the lifter set after that session is the plan (10/7: lat
+        const row = template.exercises.find((e) => e.exerciseId === se.exerciseId);
+        if (!row) return se;
+        // The same history the card reads (a baseline marker cuts it off),
+        // and a load the lifter set after that session is the plan (10/7: lat
         // pulldown 80 → 90, which the read alone would call "add load: 85").
-        const rec = honourLifterLoad(
-          recommend(history, recommendOptionsFor(row, catalog.find((e) => e.id === se.exerciseId) ?? null)),
-          row,
-          basedOn,
-        );
+        const { rec, basedOn } = sessionCall(row, completed, catalog.find((e) => e.id === se.exerciseId) ?? null);
         if (rec.action === 'none') return se;
         // The sets hold the card's load, not the template's, when the two
         // differ (owner, 2026-10-09: "says HOLD 20, filled 25").
@@ -765,6 +788,62 @@ export function useTrain(): TrainState {
       if (uid) await deleteTemplateDoc(uid, id);
     },
     [uid],
+  );
+
+  // ── Superset drafts (2026-10-11, core `superset-context.ts`) ──
+  // The plan is pure and is what the confirm sheet shows; the write commits
+  // exactly the plan the lifter confirmed, recomputed at the tap so it reads
+  // the templates as they stand then.
+  const swapContext = useCallback(
+    () => ({
+      live: templates,
+      catalog: (id: string) => catalog.find((e) => e.id === id) ?? null,
+      sessions: recentSessions,
+      now: new Date(),
+    }),
+    [templates, catalog, recentSessions],
+  );
+  const planDraftActivation = useCallback(
+    (draft: TemplateDraftDoc) => {
+      if (!templates.some((t) => t.id === draft.draftOf)) return null;
+      return planActivation(draft, swapContext());
+    },
+    [templates, swapContext],
+  );
+  const planDraftRevert = useCallback(
+    (draft: TemplateDraftDoc) => {
+      if (!draft.previous || !templates.some((t) => t.id === draft.draftOf)) return null;
+      return planRevert(draft, swapContext());
+    },
+    [templates, swapContext],
+  );
+  const activateDraft = useCallback(
+    async (draft: TemplateDraftDoc) => {
+      if (!uid || !draft.id) return;
+      const ctx = swapContext();
+      const plan = planActivation(draft, ctx);
+      await activateTemplateDraft(uid, draft.id, draft.draftOf, plan.body, plan.replaced, ctx.now);
+    },
+    [uid, swapContext],
+  );
+  const revertDraft = useCallback(
+    async (draft: TemplateDraftDoc) => {
+      if (!uid || !draft.id || !draft.previous) return;
+      const ctx = swapContext();
+      const plan = planRevert(draft, ctx);
+      // The superset version goes back to being a draft AS IT STANDS — with
+      // the loads it reached — so re-activating it later loses nothing.
+      await revertTemplateDraft(uid, draft.id, draft.draftOf, plan.body, plan.replaced, ctx.now);
+    },
+    [uid, swapContext],
+  );
+  const pendingLoadTestFor = useCallback(
+    (row: TemplateExercise) => rowPendingLoadTest(
+      row,
+      recentSessions.filter((s) => s.status === 'completed'),
+      catalog.find((e) => e.id === row.exerciseId) ?? null,
+    ),
+    [recentSessions, catalog],
   );
 
   /**
@@ -1125,7 +1204,12 @@ export function useTrain(): TrainState {
       setSaving(true);
       return withFinally(
         async () => {
-          const entry: PendingFinish = { savedAt: Date.now(), session: active, extras };
+          // Duration is stamped at the TAP, not when the write lands: a finish
+          // replayed on the next launch must not count the hours in between.
+          const finishedAt = new Date();
+          const durationMin = active.durationMin ?? sessionDurationMin(active.date, finishedAt);
+          const done = durationMin != null ? { ...active, durationMin } : active;
+          const entry: PendingFinish = { savedAt: finishedAt.getTime(), session: done, extras };
           try {
             // On the device FIRST — this is what the screen moving on rests on.
             await recordPendingFinish(uid, entry);
@@ -1134,7 +1218,7 @@ export function useTrain(): TrainState {
             // old contract and wait on the network, so a failure keeps the
             // sheet open with the typed values instead of losing the workout.
             try {
-              await finishWorkoutOp(uid, active, dayBoundaryOf(profileRef.current), extras);
+              await finishWorkoutOp(uid, done, dayBoundaryOf(profileRef.current), extras);
             } catch (e) {
               // `false`, not a rethrow: the screen used to `await` this inside a
               // handler that then closed the Finish sheet and fired the review
@@ -1276,6 +1360,12 @@ export function useTrain(): TrainState {
       clearError,
       catalog,
       templates,
+      drafts,
+      planDraftActivation,
+      planDraftRevert,
+      activateDraft,
+      revertDraft,
+      pendingLoadTestFor,
       recentSessions,
       active,
       activePending,
@@ -1309,7 +1399,8 @@ export function useTrain(): TrainState {
       cancelEdit,
     }),
     [
-      loading, error, errorKind, clearError, catalog, templates, recentSessions, active, activePending, saving,
+      loading, error, errorKind, clearError, catalog, templates, drafts, planDraftActivation, planDraftRevert,
+      activateDraft, revertDraft, pendingLoadTestFor, recentSessions, active, activePending, saving,
       trainingPhase, autoApplyProgression,
       startWorkout, startFromTemplate, startCardioWorkout, saveTemplate, deleteTemplate,
       cloneStarterTemplate, addCatalogExercise, addLibraryExercise, addLibraryExerciseToActive, addManyToActive,

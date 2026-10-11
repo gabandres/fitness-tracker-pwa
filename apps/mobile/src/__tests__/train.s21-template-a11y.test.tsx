@@ -63,6 +63,8 @@ jest.mock('@/hooks/useTrain', () => ({
     error: null,
     catalog: [],
     templates: [mockTemplate],
+    drafts: [],
+    pendingLoadTestFor: () => null,
     recentSessions: [],
     active: null,
     editingExisting: false,

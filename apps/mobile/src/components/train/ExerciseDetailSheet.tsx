@@ -34,6 +34,7 @@ import {
 import { space } from '@/theme';
 import { LOG_STYLES, logStyleKey } from './train-shared';
 import { setLine } from './train-summary';
+import { ExerciseSupersetReport } from './SupersetReport';
 import { createStyles } from './train-styles';
 
 /**
@@ -363,6 +364,8 @@ export function ExerciseDetailSheet({
                 ))}
               </>
             )}
+
+            {exercise?.id ? <ExerciseSupersetReport sessions={train.recentSessions} exerciseId={exercise.id} /> : null}
 
             {loadChanges.length > 0 ? (
               <View testID="exercise-load-log">

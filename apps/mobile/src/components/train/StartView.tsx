@@ -42,6 +42,7 @@ import { captureError } from '@/lib/sentry';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { useUnitSystem } from '@/lib/use-unit-system';
 import type { Exercise, TrainingPhase, WorkoutSession, WorkoutTemplate } from '@/lib/workout';
+import { DraftsSection } from './DraftsSection';
 import { ExerciseDetailSheet } from './ExerciseDetailSheet';
 import { toMenuButtonActions } from './exercise-menu-native';
 import { SessionDetailSheet } from './SessionDetailSheet';
@@ -403,6 +404,8 @@ export function StartView({
           ))}
         </View>
       ) : null}
+
+      <DraftsSection train={train} />
 
       <Text style={styles.sectionTitle} accessibilityRole="header">{t('train.history')}</Text>
       {train.recentSessions.length === 0 ? (

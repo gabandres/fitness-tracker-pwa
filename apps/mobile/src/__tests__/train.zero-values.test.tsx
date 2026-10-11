@@ -64,6 +64,8 @@ jest.mock('@/hooks/useTrain', () => ({
       { id: 'pullup', name: 'Neutral-grip pull-up', muscles: ['back'], defaultCues: [], logStyle: 'weight-reps', createdAt: new Date() },
     ],
     templates: [],
+    drafts: [],
+    pendingLoadTestFor: () => null,
     recentSessions: [],
     active: mockActive,
     saving: false,

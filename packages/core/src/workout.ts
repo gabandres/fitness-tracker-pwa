@@ -213,6 +213,14 @@ export interface SessionExercise {
    * it is a snapshot on the session, not on the template.
    */
   recommendation?: RecommendationSnapshot;
+  /** Superset group and position, snapshotted from the template row at start
+   *  (`superset.ts`). Absent on a straight exercise and on every session
+   *  logged before supersets existed. */
+  supersetGroup?: string;
+  pairPosition?: 1 | 2 | 3;
+  /** The group's rests, resolved onto every member at start, seconds. */
+  transitionRestSec?: number;
+  roundRestSec?: number;
 }
 
 /** The frozen half of a recommendation — enough to tell, later, whether the
@@ -504,6 +512,17 @@ export interface TemplateExercise {
   lastModifiedBy?: TemplateChangeBy;
   /** Every move of `targetLoad`, oldest first — see {@link LoadChange}. */
   loadLog?: LoadChange[];
+  /** Superset group letter ("A", "B"…) — see `superset.ts`. Changes ORDER and
+   *  REST only; the row keeps its own load, clusters and history. */
+  supersetGroup?: string;
+  /** 1, 2 or 3: the order the group's members alternate in. */
+  pairPosition?: 1 | 2 | 3;
+  /** The group's rest from one member to the next, seconds. Stored on the
+   *  group's leader (`pairPosition` 1) only; read through `groupRest`. */
+  transitionRestSec?: number;
+  /** The group's rest after its last member, before the first again, seconds.
+   *  Leader only, like {@link transitionRestSec}. */
+  roundRestSec?: number;
 }
 
 export interface WorkoutTemplate {

@@ -401,3 +401,100 @@ describe('buildCsv — template and target rows (2026-10-08)', () => {
     expect(buildCsv(emptyData()).split('\r\n')).toHaveLength(1);
   });
 });
+
+// ─── 2026-10-11: superset columns ─────────────────────────────────────
+import { parseImportCsv } from './import-csv';
+
+/** The header as it stood before supersets — every 2026-10-08 column included. */
+const PRE_SUPERSET_COLS = [
+  ...OLD_COLS,
+  'position', 'load', 'clusters', 'clusterLabels', 'miniRestSec', 'restBetweenSec',
+  'effortStandard', 'lastModifiedAt', 'lastModifiedBy',
+  'kcalTarget', 'kcalTargetSource', 'proteinTarget', 'proteinTargetSource',
+  'maintenanceEstimate', 'compositionAdjustedMaintenance', 'targetChangeReason',
+];
+/** A reader written against the 2026-10-08 file: positional, every row type it knew. */
+function preSupersetParse(csv: string): Record<string, string>[] {
+  const [, ...lines] = csv.split('\r\n');
+  return lines.map(splitLine).map((f) => Object.fromEntries(PRE_SUPERSET_COLS.map((c, i) => [c, f[i] ?? ''])));
+}
+
+describe('buildCsv — superset columns (2026-10-11)', () => {
+  const myo = (w: number, act: number) => [
+    { kind: 'activation' as const, group: 1, weight: w, reps: act, rir: 0 },
+    { kind: 'mini' as const, group: 1, weight: w, reps: 4, rir: 0 },
+    { kind: 'mini' as const, group: 1, weight: w, reps: 3, rir: 0 },
+  ];
+  const session = (paired: boolean): WorkoutSession => ({
+    status: 'completed', templateName: 'Leg Day', date: at, createdAt: at, updatedAt: at, durationMin: 52,
+    exercises: [
+      { exerciseId: 'ext', name: 'Leg Extensions', cues: [], logStyle: 'weight-reps', sets: myo(90, 10),
+        ...(paired ? { supersetGroup: 'A', pairPosition: 1 as const, transitionRestSec: 30, roundRestSec: 30 } : {}) },
+      { exerciseId: 'curl', name: 'Leg Curls', cues: [], logStyle: 'weight-reps', sets: myo(90, 11),
+        ...(paired ? { supersetGroup: 'A', pairPosition: 2 as const, transitionRestSec: 30, roundRestSec: 30 } : {}) },
+    ],
+  });
+  const pairedTemplate: WorkoutTemplate = {
+    ...legDay,
+    exercises: [
+      { ...legDay.exercises[0] },
+      { ...legDay.exercises[1], supersetGroup: 'A', pairPosition: 1, transitionRestSec: 40, roundRestSec: 45 },
+      { ...legDay.exercises[2], supersetGroup: 'A', pairPosition: 2 },
+    ],
+  };
+  const data = (paired: boolean) => ({
+    ...emptyData(),
+    logs: [{ calories: 500, protein: 40, date: new Date(2026, 9, 1, 12) }] as DailyLog[],
+    workoutSessions: [session(paired)],
+    templates: [paired ? pairedTemplate : legDay],
+  });
+  const read = (csv: string) => {
+    const header = csv.split('\r\n')[0].split(',');
+    return csv.split('\r\n').slice(1).map(splitLine).map((f) => Object.fromEntries(header.map((c, i) => [c, f[i] ?? ''])));
+  };
+  const paired = buildCsv(data(true));
+  const straight = buildCsv(data(false));
+
+  it('appends the four columns after every existing one', () => {
+    const header = paired.split('\r\n')[0].split(',');
+    expect(header.slice(0, PRE_SUPERSET_COLS.length)).toEqual(PRE_SUPERSET_COLS);
+    expect(header.slice(PRE_SUPERSET_COLS.length)).toEqual(['supersetGroup', 'pairPosition', 'transitionRestSec', 'roundRestSec']);
+  });
+
+  it('myo-reps logged inside a pair export the same set rows as straight sets, plus group and position', () => {
+    const sets = (csv: string) => read(csv).filter((r) => r.type === 'workout_set');
+    const strip = (r: Record<string, string>) => {
+      const { supersetGroup: _g, pairPosition: _p, ...rest } = r;
+      return rest;
+    };
+    expect(sets(paired).map(strip)).toEqual(sets(straight).map(strip));
+    expect(sets(paired).map((r) => `${r.exercise} ${r.setKind} ${r.supersetGroup}${r.pairPosition}`)).toEqual([
+      'Leg Extensions activation A1', 'Leg Extensions mini A1', 'Leg Extensions mini A1',
+      'Leg Curls activation A2', 'Leg Curls mini A2', 'Leg Curls mini A2',
+    ]);
+    expect(sets(straight).every((r) => r.supersetGroup === '' && r.pairPosition === '')).toBe(true);
+  });
+
+  it('template rows carry the group, position and the group\'s rests on every member; workout rows keep durationMin', () => {
+    const t = read(paired).filter((r) => r.type === 'template' && r.exercise !== 'Zone 2');
+    expect(t.map((r) => [r.exercise, r.supersetGroup, r.pairPosition, r.transitionRestSec, r.roundRestSec])).toEqual([
+      ['Smith squat', '', '', '', ''],
+      ['Single-leg DB calf raise', 'A', '1', '40', '45'],
+      ['Weighted Floor Crunch', 'A', '2', '40', '45'],
+    ]);
+    expect(read(paired).find((r) => r.type === 'workout')!.durationMin).toBe('52');
+  });
+
+  it('a reader written before supersets reads the same values from the new file', () => {
+    // The straight file and the paired file differ ONLY in the new columns:
+    // every pre-superset column of every row is identical.
+    expect(preSupersetParse(paired)).toEqual(preSupersetParse(straight));
+    expect(oldParse(paired)).toEqual(oldParse(straight));
+  });
+
+  it('the import parser still reads the export\'s meal rows', () => {
+    const r = parseImportCsv(paired);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.result.entries.map((e) => e.calories)).toEqual([500]);
+  });
+});

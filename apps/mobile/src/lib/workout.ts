@@ -4,7 +4,7 @@
 // isValidExercise / isValidWorkoutSession). Mobile-local copy (same
 // documented dup pattern as body-fat / weight-projection).
 
-import { isWorkingSet, normalizeClusterGroups } from '@macrolog/core';
+import { isWorkingSet, normalizeClusterGroups, snapshotSupersets } from '@macrolog/core';
 import { isLoggedSet as isLoggedSetCore } from '@macrolog/core/workout';
 import { isLoggedCardioBlock } from '@macrolog/core/cardio';
 
@@ -133,6 +133,12 @@ export interface SessionExercise {
   /** The engine's call for this exercise, frozen at session start so the
    *  session can be audited against it. Mirrors `packages/core`. */
   recommendation?: RecommendationSnapshot;
+  /** Superset group, position and the group's rests, snapshotted from the
+   *  template at start (core `snapshotSupersets`). Absent when straight. */
+  supersetGroup?: string;
+  pairPosition?: 1 | 2 | 3;
+  transitionRestSec?: number;
+  roundRestSec?: number;
 }
 
 // ─── Templates ──────────────────────────────────────────────────
@@ -201,6 +207,13 @@ export interface TemplateExercise {
   /** Every move of `targetLoad`, oldest first (core `LoadChange`). The editor
    *  writes `exercises` whole, so it must carry this across a save. */
   loadLog?: LoadChange[];
+  /** Superset group ("A"…) and position — mirrors `packages/core`. The editor
+   *  shows and writes all four, so they are NOT in core's carried fields. */
+  supersetGroup?: string;
+  pairPosition?: 1 | 2 | 3;
+  /** The group's rests, seconds — on the leader (`pairPosition` 1) only. */
+  transitionRestSec?: number;
+  roundRestSec?: number;
 }
 
 export interface WorkoutTemplate {
@@ -248,7 +261,10 @@ export type TemplateDraft = Omit<WorkoutTemplate, 'id' | 'createdAt' | 'updatedA
  *  Unfilled scaffold rows are dropped by {@link dropEmptySets} on finish. An
  *  exercise with no planned sets gets one empty working set so it's loggable. */
 export function templateToSessionExercises(template: WorkoutTemplate): SessionExercise[] {
-  return template.exercises.map((ex) => {
+  // A superset changes order and rest only: the sets below are built exactly
+  // as for a straight exercise, and the group rides alongside.
+  const supersets = snapshotSupersets(template.exercises);
+  return template.exercises.map((ex, i) => {
     const style = ex.logStyle ?? DEFAULT_LOG_STYLE;
     const planned = ex.plannedSets.length ? ex.plannedSets : [{ kind: 'working' as SetKind }];
     return {
@@ -267,6 +283,7 @@ export function templateToSessionExercises(template: WorkoutTemplate): SessionEx
         ...(ps.label ? { label: ps.label } : {}),
         done: false,
       })),
+      ...supersets[i],
     };
   });
 }

@@ -11,6 +11,7 @@ import { useUnitSystem } from '@/lib/use-unit-system';
 import { DEFAULT_LOG_STYLE, type WorkoutSession } from '@/lib/workout';
 import { space } from '@/theme';
 import { sessionSummary, setLine } from './train-summary';
+import { SessionSupersetReport } from './SupersetReport';
 import { createStyles } from './train-styles';
 
 /**
@@ -122,6 +123,8 @@ export function SessionDetailSheet({
               );
             })}
           </View>
+
+          <SessionSupersetReport sessions={history} session={session} />
 
           <Touchable
             style={styles.finishBtn}

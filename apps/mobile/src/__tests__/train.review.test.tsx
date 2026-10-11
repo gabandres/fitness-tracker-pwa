@@ -30,6 +30,8 @@ const mockTrain = {
     { id: 'e2', name: 'Row', muscles: ['back'], defaultCues: [], logStyle: 'weight-reps', createdAt: day(1) },
   ],
   templates: [] as WorkoutTemplate[],
+  drafts: [],
+  pendingLoadTestFor: () => null,
   recentSessions: [] as WorkoutSession[],
   active: null as WorkoutSession | null,
   saving: false,

@@ -41,7 +41,7 @@ const SESSIONS = [session('s2', 2, 25), session('s1', 5, 20)];
 
 const mockTrain = {
   loading: false, error: null, errorKind: null, clearError: jest.fn(),
-  catalog: [bench], templates: [], recentSessions: SESSIONS, active: null,
+  catalog: [bench], templates: [], drafts: [], pendingLoadTestFor: () => null, recentSessions: SESSIONS, active: null,
   saving: false, editingExisting: false,
   startWorkout: jest.fn(), startFromTemplate: jest.fn(), startCardioWorkout: jest.fn(),
   saveTemplate: jest.fn(), cloneStarterTemplate: jest.fn(), deleteTemplate: jest.fn(),

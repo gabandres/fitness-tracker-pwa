@@ -155,7 +155,11 @@ import type { I18nKey } from '@/i18n';
 // reasoning again: every lifter meets it on the next session, and "Calibrating"
 // disappearing in favour of a call on every lift reads as a different engine —
 // which it is. The 1.2.5 rows are KEPT (one day live; the 10-04 precedent).
-export const WHATS_NEW_VERSION = '2026-10-07-progression';
+// Bumped 2026-10-11 for supersets: a new way to run a template, a new control
+// in the editor, and drafts on the Train tab that do nothing until the lifter
+// activates one — none of it findable by accident. The 10-07 progression row is
+// KEPT (four days live, fires on the second launch); the older three go.
+export const WHATS_NEW_VERSION = '2026-10-11-supersets';
 
 const KEY = 'whatsNew.seen';
 
@@ -185,10 +189,8 @@ export interface WhatsNewItem {
 }
 
 export const WHATS_NEW_ITEMS: readonly WhatsNewItem[] = [
+  { icon: 'swap-vertical-outline', titleKey: 'whatsNew.supersets.title', bodyKey: 'whatsNew.supersets.body' },
   { icon: 'trending-up-outline', titleKey: 'whatsNew.progression.title', bodyKey: 'whatsNew.progression.body' },
-  { icon: 'hand-left-outline', titleKey: 'whatsNew.hold.title', bodyKey: 'whatsNew.hold.body' },
-  { icon: 'analytics-outline', titleKey: 'whatsNew.charts.title', bodyKey: 'whatsNew.charts.body' },
-  { icon: 'barbell-outline', titleKey: 'whatsNew.offlineTrain.title', bodyKey: 'whatsNew.offlineTrain.body' },
 ];
 
 /**

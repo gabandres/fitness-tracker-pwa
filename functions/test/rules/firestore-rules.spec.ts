@@ -1736,6 +1736,38 @@ describe('firestore.rules', () => {
     await assertFails(setDoc(doc(db, 'users', 'alice', 'workoutTemplates', 't1'), tplDoc('x'.repeat(10001))));
   });
 
+  // ── templateDrafts (2026-10-11): superset drafts ──
+  const body = (name: string) => ({ name, exercises: [{ exerciseId: 'e1', name: 'DB Flat Press', plannedSets: [], supersetGroup: 'A', pairPosition: 1 }] });
+  const draftDoc = (over: Record<string, unknown> = {}) => ({
+    draftOf: 't1', label: 'Push Day — superset draft', status: 'draft', template: body('Push Day'),
+    createdAt: new Date(), updatedAt: new Date(), ...over,
+  });
+  it('lets the owner create, activate and delete a template draft', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    const ref = doc(db, 'users', 'alice', 'templateDrafts', 'd1');
+    await assertSucceeds(setDoc(ref, draftDoc()));
+    await assertSucceeds(setDoc(ref, draftDoc({ status: 'active', previous: body('Push Day'), activatedAt: '2026-10-11T15:00:00.000Z' })));
+    await assertSucceeds(deleteDoc(ref));
+  });
+  it('rejects a draft with an unknown status, a stray field, or no template', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    const ref = doc(db, 'users', 'alice', 'templateDrafts', 'd1');
+    await assertFails(setDoc(ref, draftDoc({ status: 'live' })));
+    await assertFails(setDoc(ref, draftDoc({ owner: 'x' })));
+    const { template: _t, ...noTemplate } = draftDoc();
+    await assertFails(setDoc(ref, noTemplate));
+  });
+  it('keeps another user out of a template draft', async () => {
+    const owner = authed('alice');
+    await setDoc(doc(owner, 'users', 'alice'), baseProfile());
+    await setDoc(doc(owner, 'users', 'alice', 'templateDrafts', 'd1'), draftDoc());
+    const db = authed('mallory');
+    await assertFails(getDoc(doc(db, 'users', 'alice', 'templateDrafts', 'd1')));
+    await assertFails(setDoc(doc(db, 'users', 'alice', 'templateDrafts', 'd2'), draftDoc()));
+  });
+
   // ── dailyTargets (2026-10-08): the targets in effect each day ──
   const targetDoc = (over: Record<string, unknown> = {}) => ({
     date: '2026-10-09', kcalTarget: 1850, kcalSource: 'auto', proteinTarget: 140, proteinSource: 'user',

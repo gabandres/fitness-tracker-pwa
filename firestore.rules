@@ -425,6 +425,33 @@ service cloud.firestore {
               (data.seedKey is string && data.seedKey.size() <= 100));
     }
 
+    // A superset DRAFT of a live template (2026-10-11, `superset-context.ts`).
+    // Its own collection rather than a `status` on `workoutTemplates`: every
+    // binary already in users' hands lists that collection whole, so a draft
+    // stored there would show up as a fourth template on 1.2.5 / 1.2.6.
+    // `template` is the superset body, `previous` the straight-set body an
+    // activation replaced (present only while active). Both are maps rules
+    // cannot validate field by field — the client writes them through core's
+    // `bodyOf`, under ADR-0007's single-user trust model for nested lists.
+    function isValidTemplateDraft(data) {
+      return data.keys().hasOnly([
+              'draftOf', 'label', 'status', 'template', 'previous',
+              'activatedAt', 'revertedAt', 'createdAt', 'updatedAt'
+          ])
+          && data.keys().hasAll(['draftOf', 'label', 'status', 'template', 'createdAt', 'updatedAt'])
+          && data.draftOf is string && data.draftOf.size() > 0 && data.draftOf.size() <= 100
+          && data.label is string && data.label.size() > 0 && data.label.size() <= 100
+          && data.status in ['draft', 'active']
+          && data.template is map && data.template.keys().hasAll(['name', 'exercises'])
+          && data.template.exercises is list && data.template.exercises.size() <= 40
+          && (!('previous' in data.keys()) ||
+              (data.previous is map && data.previous.keys().hasAll(['name', 'exercises'])
+               && data.previous.exercises is list && data.previous.exercises.size() <= 40))
+          && (!('activatedAt' in data.keys()) || data.activatedAt is string)
+          && (!('revertedAt' in data.keys()) || data.revertedAt is string)
+          && data.createdAt is timestamp && data.updatedAt is timestamp;
+    }
+
     // `cardio` carries the logged cardio blocks (ADR-0025). Like the set/
     // exercise arrays above it, rules validate only that it is a list within a
     // size cap — rules cannot iterate a list, so per-block field validity is
@@ -1014,6 +1041,16 @@ service cloud.firestore {
         allow read:   if isOwner(uid) || isAdmin();
         allow create: if isOwner(uid) && isValidWorkoutTemplate(request.resource.data);
         allow update: if isOwner(uid) && isValidWorkoutTemplate(request.resource.data);
+        allow delete: if isOwner(uid);
+      }
+
+      // Superset drafts of live templates (2026-10-11). Owner-only, like the
+      // templates they shadow; activation writes the template AND the draft
+      // in one batch, so both must be writable by the same rules.
+      match /templateDrafts/{draftId} {
+        allow read:   if isOwner(uid) || isAdmin();
+        allow create: if isOwner(uid) && isValidTemplateDraft(request.resource.data);
+        allow update: if isOwner(uid) && isValidTemplateDraft(request.resource.data);
         allow delete: if isOwner(uid);
       }
 

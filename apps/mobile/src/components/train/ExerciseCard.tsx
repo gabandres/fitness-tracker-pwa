@@ -16,6 +16,7 @@ import {
   setBeatsBest,
   setRowLabels,
   suggestProgression,
+  supersetLabel,
   toDisplayLoad,
 } from '@macrolog/core';
 import {
@@ -233,6 +234,8 @@ export const ExerciseCard = memo(function ExerciseCard({
     if (targets.length > 0) void commitActive();
   };
 
+  const pairTag = supersetLabel(ex);
+
   return (
     <Animated.View style={styles.exCard} layout={smoothLayout}>
       <View style={styles.exHeadRow}>
@@ -242,12 +245,15 @@ export const ExerciseCard = memo(function ExerciseCard({
           activeOpacity={0.7}
           accessibilityRole="button"
           accessibilityState={{ expanded: !collapsed }}
-          accessibilityLabel={[ex.name, totalSets > 0 ? countA11y : null, collapsed ? ghost : null]
+          accessibilityLabel={[pairTag ? t('train.superset.tagA11y', { label: pairTag }) : null, ex.name, totalSets > 0 ? countA11y : null, collapsed ? ghost : null]
             .filter(Boolean)
             .join(', ')}
           testID={`exercise-head-${exerciseIndex}`}
         >
           <View style={{ flex: 1 }}>
+            {/* "A1 · SUPERSET": which station this is, so the alternation
+                reads at a glance down a collapsed list. */}
+            {pairTag ? <Text style={styles.supersetTag} testID={`superset-tag-${exerciseIndex}`}>{t('train.superset.tag', { label: pairTag })}</Text> : null}
             <Text style={styles.exName}>{ex.name}</Text>
             {/* Only while collapsed: an open card shows last session per ROW,
                 and repeating an aggregate above it is two answers to one

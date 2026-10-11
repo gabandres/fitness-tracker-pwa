@@ -34,6 +34,7 @@ jest.mock('@/lib/ledger', () => ({
     return mockNoop;
   },
   subscribeTemplates: () => mockNoop,
+  subscribeTemplateDrafts: () => mockNoop,
   subscribeRecentSessions: (_uid: string, _n: number, cb: (s: unknown[]) => void) => {
     cb([]);
     return mockNoop;

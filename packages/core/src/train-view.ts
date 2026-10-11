@@ -442,6 +442,22 @@ export interface SessionPr {
   reps: number;
 }
 
+/** The longest session `durationMin` records (rules: 0–1440). */
+const MAX_SESSION_MIN = 24 * 60;
+
+/**
+ * How long a session took, start to finish, in whole minutes — what Finish
+ * writes to `WorkoutSession.durationMin` (2026-10-11; nothing wrote it from the
+ * app before, so 41 of the owner's 48 sessions have none). Undefined when the
+ * interval is not a plausible session — a start date edited to another day, a
+ * clock that moved backwards — rather than a number that would poison every
+ * average it enters.
+ */
+export function sessionDurationMin(start: Date, end: Date): number | undefined {
+  const min = Math.round((end.getTime() - start.getTime()) / 60_000);
+  return Number.isFinite(min) && min > 0 && min <= MAX_SESSION_MIN ? min : undefined;
+}
+
 export interface FinishSummary {
   /** Whole minutes from the session's start to `now`; never negative. */
   durationMin: number;

@@ -10,7 +10,7 @@ import {
   formatLoad,
   looksLikeSameEffort,
   nextUnfinishedExercise,
-  restAfterSet,
+  restAfterSetInFlow,
   sessionHasLoggedWork,
   sessionVolume,
   setRowLabels,
@@ -269,6 +269,9 @@ export function ActiveSession({
   });
   /** Length of the countdown running now, for the progress track. */
   const [restTotal, setRestTotal] = useState(0);
+  /** What the running rest leads into, inside a superset ("A2 · Leg Curls"),
+   *  so both stations can be set up during it. Null outside one. */
+  const [restNext, setRestNext] = useState<string | null>(null);
   // The one-time "buzz when rest is over" priming (UX_AUDIT S18-10). Opened
   // by the FIRST rest start on this device when the OS has not been asked
   // yet; both answers record it as shown (`rest-notify-priming.ts`).
@@ -363,22 +366,38 @@ export function ActiveSession({
   // bodyweight cluster cannot shed load between efforts, so its intra-cluster
   // rest is longer than a loaded lift's without moving the template default.
   // A rest chosen from the ⋯ menu for this workout wins over both.
-  const startRest = (exerciseIndex: number, setIndex: number) => {
+  //
+  // Inside a superset the flow decides instead (core `restAfterSetInFlow`):
+  // A1 → transition → A2 → round → A1, a leftover cluster on its own rest, and
+  // the mini-set rest inside a cluster unchanged. The group's two rests were
+  // snapshotted onto the session at start, so the template is not consulted.
+  /** One exercise's ordinary rests, every override already applied. */
+  const restSecondsFor = (exerciseIndex: number) => {
     const ex = train.active?.exercises[exerciseIndex];
-    if (!ex) return;
-    const override = restOverride[ex.exerciseId];
-    const row = templateRowFor(ex.exerciseId);
-    const mini = override ?? row?.restMiniSec ?? restMini;
+    const override = ex ? restOverride[ex.exerciseId] : undefined;
+    const row = ex ? templateRowFor(ex.exerciseId) : undefined;
     // After the lift's last set, the row's rest before the NEXT exercise (90 s
     // into the same muscle, 60 s across, 2026-10-09) — the template's cluster
     // rest when the row states none.
     const afterExercise = override ?? row?.restAfterSec;
-    const secs = restAfterSet(ex.sets, setIndex, {
-      mini,
+    return {
+      mini: override ?? row?.restMiniSec ?? restMini,
       cluster: override ?? restCluster,
       ...(afterExercise != null ? { afterExercise } : {}),
-    });
-    runRest(secs, ex.name);
+    };
+  };
+  const startRest = (exerciseIndex: number, setIndex: number) => {
+    const exercises = train.active?.exercises;
+    const ex = exercises?.[exerciseIndex];
+    if (!exercises || !ex) return null;
+    const flow = restAfterSetInFlow(exercises, exerciseIndex, setIndex, restSecondsFor);
+    const into = flow.next && flow.next.exerciseIndex !== exerciseIndex ? exercises[flow.next.exerciseIndex] : undefined;
+    // Name the next station during a superset rest, so both can be set up.
+    const nextLabel = into && (ex.supersetGroup != null || into.supersetGroup != null)
+      ? (flow.next?.label ? `${flow.next.label} · ${into.name}` : into.name)
+      : null;
+    runRest(flow.seconds, ex.name, nextLabel);
+    return flow;
   };
 
   /** "Start rest now" from an exercise's ⋯: the rest this lift's sets get —
@@ -387,15 +406,16 @@ export function ActiveSession({
     const ex = train.active?.exercises[exerciseIndex];
     if (!ex) return;
     haptics.tap();
-    runRest(restOverride[ex.exerciseId] ?? restFallback(exerciseIndex), ex.name);
+    runRest(restOverride[ex.exerciseId] ?? restFallback(exerciseIndex), ex.name, null);
   };
 
   /** Run a rest of `secs`: the bar, the Lock Screen, the announcement and the
    *  one-time notification priming — one path for a ticked set and a manual
    *  start, so the two cannot drift. */
-  const runRest = (secs: number, name: string) => {
+  const runRest = (secs: number, name: string, next: string | null) => {
     rest.start(secs);
     setRestTotal(secs);
+    setRestNext(next);
     // Lock-screen countdown (Train review item 20): the rest Live Activity on
     // iOS, a no-op wherever its native module is absent.
     restActivity.start(restDeadline(secs), name, locale);
@@ -541,7 +561,23 @@ export function ActiveSession({
       // a tick (Train review items 25, 35).
       if (info.pr || info.complete) haptics.success();
       else haptics.tap();
-      startRestRef.current(exerciseIndex, setIndex);
+      const flow = startRestRef.current(exerciseIndex, setIndex);
+      // Inside a superset, the cluster just finished hands over to the
+      // partner: open its card (A1 → A2 → A1), on the same beat and with the
+      // same courtesy as below.
+      const partner = flow?.next && flow.next.exerciseIndex !== exerciseIndex
+        && (flow.kind === 'transition' || flow.kind === 'round'
+          || (flow.kind === 'cluster' && exercisesRef.current[exerciseIndex]?.supersetGroup != null))
+        ? flow.next.exerciseIndex
+        : null;
+      if (partner != null) {
+        if (advanceTimer.current) clearTimeout(advanceTimer.current);
+        advanceTimer.current = setTimeout(() => {
+          advanceTimer.current = null;
+          setExpanded((cur) => (cur === exerciseIndex ? partner : cur));
+        }, AUTO_ADVANCE_MS);
+        return;
+      }
       // The lift is done: open the next unfinished one, the way Strong and
       // Hevy move on by themselves — it used to take a collapse and a tap.
       // Only if this card is still the open one when the beat is up; a lifter
@@ -1037,6 +1073,7 @@ export function ActiveSession({
         <RestBar
           endsAt={rest.endsAt}
           total={restTotal}
+          next={restNext}
           onAdjust={adjustRest}
           onSkip={rest.stop}
         />
@@ -1161,12 +1198,15 @@ export function ActiveSession({
 function RestBar({
   endsAt,
   total,
+  next,
   onAdjust,
   onSkip,
 }: {
   endsAt: number;
   /** Length of the whole countdown, seconds — the progress track's 100%. */
   total: number;
+  /** The superset station this rest leads into ("A2 · Leg Curls"), if any. */
+  next?: string | null;
   onAdjust: (deltaSec: number) => void;
   onSkip: () => void;
 }) {
@@ -1190,7 +1230,12 @@ function RestBar({
         <View style={[styles.restFill, { width: `${Math.round(progress * 100)}%` }]} testID="rest-progress" />
       </View>
       <View style={styles.restBarRow}>
-        <Text style={styles.restLabel} testID="rest-label">{`${t('train.rest')} · ${label}`}</Text>
+        <View style={{ flexShrink: 1 }}>
+          <Text style={styles.restLabel} testID="rest-label">{`${t('train.rest')} · ${label}`}</Text>
+          {next ? (
+            <Text style={styles.sheetHint} numberOfLines={1} testID="rest-next">{t('train.superset.nextUp', { next })}</Text>
+          ) : null}
+        </View>
         <View style={styles.restActions}>
           {/* 44-pt targets (UX_AUDIT S18-15): the text is small on purpose
               inside a floating bar, so the box around it does the work. */}

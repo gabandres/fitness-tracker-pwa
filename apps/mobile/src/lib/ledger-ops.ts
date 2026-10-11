@@ -211,6 +211,9 @@ export async function finishWorkout(
     ...(cardio !== undefined ? { cardio } : {}),
     bodyweight: extras.bodyweight,
     sleepHours: extras.sleepHours,
+    // Start to finish, stamped by the caller at the tap (`useTrain`); the
+    // superset report compares it across sessions.
+    ...(session.durationMin != null ? { durationMin: session.durationMin } : {}),
   };
   try {
     await updateSession(uid, id, patch);

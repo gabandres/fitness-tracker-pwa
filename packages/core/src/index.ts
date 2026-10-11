@@ -196,6 +196,11 @@ export * from './workout-progression';
 export * from './progression-engine';
 export * from './weekly-cluster-audit';
 export * from './progression-apply';
+// Supersets (2026-10-11): grouping, the alternating flow, guardrails, the
+// context-change baseline, drafts, and the "is it working" report.
+export * from './superset';
+export * from './superset-context';
+export * from './superset-report';
 // Function-only export (the ./workout types stay un-barreled — see note above).
 export { normalizeClusterGroups, setRowLabels } from './cluster-groups';
 // Finish-boundary guard: fill a logged set's missing load from its siblings
