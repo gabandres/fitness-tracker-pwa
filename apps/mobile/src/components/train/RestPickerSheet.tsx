@@ -58,7 +58,8 @@ export function RestPickerSheet({
     transitionFallback: number;
     roundFallback: number;
     onPick: (field: 'transition' | 'round', seconds: number | null) => void;
-    onSave: (field: 'transition' | 'round', seconds: number) => void;
+    /** Write the picked rests onto the template's leader row, together. */
+    onSave: (rests: { transition?: number; round?: number }) => void;
   };
 }) {
   const t = useT();
@@ -108,14 +109,13 @@ export function RestPickerSheet({
                 onPress={() => {
                   haptics.tap();
                   superset.onPick(field, value);
-                  if (keep && saveTo && value != null) superset.onSave(field, value);
                 }}
                 accessibilityRole="radio"
                 accessibilityState={{ selected: on, checked: on }}
                 testID={`rest-pick-${field}-${value ?? 'default'}`}
               >
                 <Text style={[styles.kindChipText, on && styles.kindChipTextOn]}>
-                  {value == null ? t('train.restDefault', { time: clock(fallback) }) : clock(value)}
+                  {value == null ? t('train.restDefault', { time: `${fallback} s` }) : `${value} s`}
                 </Text>
               </Touchable>
             );
@@ -133,7 +133,10 @@ export function RestPickerSheet({
           {saveTo ? (
             <Touchable
               style={styles.checkRow}
-              onPress={() => setKeep((k) => !k)}
+              onPress={() => {
+                haptics.tap();
+                setKeep((k) => !k);
+              }}
               accessibilityRole="checkbox"
               accessibilityState={{ checked: keep }}
               testID="rest-keep-superset"
@@ -142,7 +145,23 @@ export function RestPickerSheet({
               <Text style={styles.progToggleText}>{t('train.superset.keepForGroup', { group: superset.group, template: saveTo })}</Text>
             </Touchable>
           ) : null}
-          <Touchable style={styles.tplStart} onPress={onClose} accessibilityRole="button" testID="rest-picker-done">
+          {/* "Keep" is applied on Done, in ONE template write — ticking it after
+              picking used to save nothing, and every chip tap with it on
+              saved again. */}
+          <Touchable
+            style={styles.tplStart}
+            onPress={() => {
+              if (keep && saveTo && (superset.transition != null || superset.round != null)) {
+                superset.onSave({
+                  ...(superset.transition != null ? { transition: superset.transition } : {}),
+                  ...(superset.round != null ? { round: superset.round } : {}),
+                });
+              }
+              onClose();
+            }}
+            accessibilityRole="button"
+            testID="rest-picker-done"
+          >
             <Text style={styles.tplStartText}>{t('common.done')}</Text>
           </Touchable>
         </View>

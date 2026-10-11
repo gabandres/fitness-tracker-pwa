@@ -242,6 +242,10 @@ function exSummary(d: DraftEx, t: TFn, unit: string): string {
 // field the next save deletes — which is how mobile edits used to flatten
 // clusters and wipe cues/progression written on the web.
 interface DraftEx {
+  /** A key for this card that survives reorders — never saved. Keyed by
+   *  index, every one-step move remounted the moved cards and dropped
+   *  VoiceOver's focus off the handle. */
+  uid: string;
   exerciseId: string;
   name: string;
   logStyle: LogStyle;
@@ -276,6 +280,10 @@ interface DraftEx {
    *  otherwise come back as 100.09 lb — a "hand edit" nobody made, logged. */
   loadAsOpened?: { text: string; lb: number };
 }
+
+let uidSeq = 0;
+/** A card key that survives reorders (`DraftEx.uid`). */
+const nextUid = () => `ex-${++uidSeq}`;
 
 /** A muscle's name mid-sentence: lower-cased in the reader's language. */
 function muscleWord(m: string | undefined, t: TFn): string {
@@ -408,7 +416,7 @@ export function TemplateEditorModal({
     // The fast path says what the More-options path shows: both lifts start a
     // fresh baseline. With an Undo, like unpairing.
     const msg = t('train.superset.pairedToast', { a: a.name, b: b.name, group });
-    announce(msg);
+    // The toast speaks it (with its Undo) — announcing too said it twice.
     showToast(msg, { action: { label: t('common.undo'), onPress: () => setExercises(before) } });
   }
   /** Take row `i` out of its superset — with an Undo, because a pair's custom
@@ -420,21 +428,27 @@ export function TemplateEditorModal({
     haptics.tap();
     setExercises(unpair(exercises, i));
     const msg = t('train.superset.leftGroup', { name: d?.name ?? '', group });
-    announce(msg);
     showToast(msg, { action: { label: t('common.undo'), onPress: () => setExercises(before) } });
   }  /** The paired card's link control: what to do with this superset. */
   function askSuperset(i: number) {
     const d = exercises[i];
     if (!d?.supersetGroup) return;
-    const addable = canPairWithNext(exercises, i) ? exercises[i + 1] : undefined;
+    const group = d.supersetGroup;
+    const members = (groups.get(group) ?? []).map((m) => exercises[m.index]);
+    const leader = (groups.get(group) ?? [])[0]?.index ?? i;
+    const rests = groupRest(exercises, group);
+    // What is in the superset, said; the default is the harmless "Edit rests",
+    // and breaking the pair is the outlined second choice (it has an Undo).
     confirm({
-      title: t('train.superset.manageTitle', { group: d.supersetGroup }),
-      confirmText: t('train.superset.unpairName', { name: d.name }),
-      onConfirm: () => unpairRow(i),
-      ...(addable ? {
-        secondaryText: t('train.superset.addTo', { name: addable.name, group: d.supersetGroup }),
-        onSecondary: () => pairNext(i),
-      } : {}),
+      title: t('train.superset.manageTitle', { group }),
+      body: `${members.map((m) => m.name).join(' + ')} · ${t('train.superset.restDesc', { switch: `${rests.transitionRestSec} s`, round: `${rests.roundRestSec} s` })}`,
+      confirmText: t('train.superset.editRests'),
+      onConfirm: () => {
+        setOpenEx(leader);
+        setMoreEx(leader);
+      },
+      secondaryText: t('train.superset.unpairName', { name: d.name }),
+      onSecondary: () => unpairRow(i),
     });
   }
 
@@ -505,6 +519,7 @@ export function TemplateEditorModal({
           : '',
     }));
     const initialExercises: DraftEx[] = (template?.exercises ?? []).map((ex) => ({
+        uid: nextUid(),
         exerciseId: ex.exerciseId,
         name: ex.name,
         logStyle: ex.logStyle ?? 'weight-reps',
@@ -566,6 +581,7 @@ export function TemplateEditorModal({
     setExercises((prev) => [
       ...prev,
       {
+        uid: nextUid(),
         ...exercise,
         targetLoad: '',
         cuesText: exercise.cuesText ?? '',
@@ -677,6 +693,12 @@ export function TemplateEditorModal({
     const r = moveBlockAware(exercises, from, dir);
     if (r.newIndex === from) return;
     setExercises(r.rows);
+    // Where it landed, said — a screen-reader user moving twice in a row
+    // needs to hear the new position, not silence.
+    const moved = exercises[from];
+    announce(moved?.supersetGroup && tags[from]
+      ? t('train.superset.blockMovedA11y', { group: moved.supersetGroup, n: r.newIndex + 1, total: exercises.length })
+      : t('train.movedToA11y', { name: moved?.name ?? '', n: r.newIndex + 1, total: exercises.length }));
     const openRow = openEx != null ? exercises[openEx] : undefined;
     setOpenEx(openRow ? r.rows.indexOf(openRow) : null);
     setMoreEx(null);
@@ -704,7 +726,6 @@ export function TemplateEditorModal({
     setExercises(r.rows);
     if (r.left) {
       const msg = t('train.superset.leftGroup', { name: r.left.row.name, group: r.left.group });
-      announce(msg);
       showToast(msg, { action: { label: t('common.undo'), onPress: () => setExercises(exercises) } });
     }
   }
@@ -1283,14 +1304,18 @@ export function TemplateEditorModal({
                 const canAdd = addActionsFor(d.setStructure);
                 return (
                 <Animated.View
-                  key={`${d.exerciseId}-${i}`}
+                  key={d.uid}
                   style={[
                     styles.tplExCard,
                     { width: cardWidth },
                     tags[i] ? styles.supersetRail : null,
                     // Inside a group the cards sit 2pt apart, so A1+A2 read as
                     // one block and B1 visibly starts a new one.
-                    tags[i] && tags[i + 1] && exercises[i + 1]?.supersetGroup === d.supersetGroup ? { marginBottom: 2 } : null,
+                    tags[i] && tags[i + 1] && exercises[i + 1]?.supersetGroup === d.supersetGroup
+                      ? { marginBottom: 2, borderBottomLeftRadius: 0, borderBottomRightRadius: 0 } : null,
+                    // …and squared where they meet, so the rail reads as one bar.
+                    tags[i] && tags[i - 1] && exercises[i - 1]?.supersetGroup === d.supersetGroup
+                      ? { borderTopLeftRadius: 0, borderTopRightRadius: 0 } : null,
                   ]}
                   layout={smoothLayout}
                 >
@@ -1316,11 +1341,21 @@ export function TemplateEditorModal({
                         { name: 'decrement', label: t('train.moveDown') },
                         { name: 'moveUp', label: t('train.moveUp') },
                         { name: 'moveDown', label: t('train.moveDown') },
+                        // Order INSIDE a superset — a one-step move moves the
+                        // whole block, so without these only a drag could swap
+                        // A1 and A2.
+                        ...(tags[i] && exercises[i - 1]?.supersetGroup === d.supersetGroup ? [{ name: 'earlier', label: t('train.superset.moveEarlier') }] : []),
+                        ...(tags[i] && exercises[i + 1]?.supersetGroup === d.supersetGroup ? [{ name: 'later', label: t('train.superset.moveLater') }] : []),
                       ]}
                       onAccessibilityAction={(e) => {
                         const action = e.nativeEvent.actionName;
                         if (action === 'moveUp' || action === 'increment') moveEx(i, -1);
                         if (action === 'moveDown' || action === 'decrement') moveEx(i, 1);
+                        if (action === 'earlier' || action === 'later') {
+                          const to = action === 'earlier' ? i - 1 : i + 1;
+                          setExercises(reorderWithSupersets(exercises, i, to).rows);
+                          announce(t('train.superset.positionA11y', { name: d.name, label: `${d.supersetGroup}${action === 'earlier' ? (d.pairPosition ?? 2) - 1 : (d.pairPosition ?? 1) + 1}` }));
+                        }
                       }}
                       testID={`template-drag-${i}`}
                     >
@@ -1349,20 +1384,21 @@ export function TemplateEditorModal({
                           label: tags[i]!,
                           partners: (groups.get(d.supersetGroup ?? '') ?? []).filter((m) => m.index !== i).map((m) => exercises[m.index].name).join(', '),
                         }) : null,
-                        d.name,
-                        exSummary(d, t, loadUnit(unitSystem)),
-                        tags[i] && d.pairPosition === 1 && d.supersetGroup ? t('train.superset.groupHeader', {
-                          group: d.supersetGroup,
+                        // The group's rests right after the tag: the group's
+                        // facts together, then the lift's.
+                        tags[i] && d.pairPosition === 1 && d.supersetGroup ? t('train.superset.restDesc', {
                           switch: `${groupRest(exercises, d.supersetGroup).transitionRestSec} s`,
                           round: `${groupRest(exercises, d.supersetGroup).roundRestSec} s`,
                         }) : null,
+                        d.name,
+                        exSummary(d, t, loadUnit(unitSystem)),
                         doseWarnings.has(i) ? t('train.mobilityDoseNote') : null,
                       ].filter(Boolean).join('. ')}
                       testID={`template-ex-toggle-${i}`}
                     >
                       <View style={{ flex: 1 }}>
                         {tags[i] && d.pairPosition === 1 && d.supersetGroup ? (
-                          <Text style={styles.supersetHeader} numberOfLines={1} testID={`template-superset-header-${i}`}>
+                          <Text style={styles.supersetHeader} numberOfLines={fontScale > 1.3 ? 2 : 1} testID={`template-superset-header-${i}`}>
                             {t('train.superset.groupHeaderShort', {
                               group: d.supersetGroup,
                               switch: `${groupRest(exercises, d.supersetGroup).transitionRestSec} s`,

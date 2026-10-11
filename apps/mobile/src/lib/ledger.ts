@@ -2017,6 +2017,16 @@ export async function commitDraftSwaps(
   answered = true;
 }
 
+/** Delete a template AND its active superset draft in one batch — two writes
+ *  could leave the template on its superset version with the way back gone
+ *  (template delete failed after the draft's), or an invisible orphan draft. */
+export async function deleteTemplateWithDraft(uid: string, templateId: string, draftId: string): Promise<void> {
+  const batch = writeBatch(db);
+  batch.delete(templateDoc(uid, templateId));
+  batch.delete(draftDoc(uid, draftId));
+  await ackOrQueued(batch.commit());
+}
+
 /** Delete a draft. The templates are not touched. */
 export async function deleteTemplateDraft(uid: string, draftId: string): Promise<void> {
   await ackOrQueued(deleteDoc(draftDoc(uid, draftId)));

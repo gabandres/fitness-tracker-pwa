@@ -59,6 +59,7 @@ export function ExerciseSupersetReport({ sessions, exerciseId }: { sessions: rea
   const r = useMemo(() => exerciseSupersetReport(sessions, exerciseId), [sessions, exerciseId]);
   if (!r) return null;
   const sameLoad = r.sameLoad && !r.oneLoad ? r.sameLoad : undefined;
+  const liftName = sessions.flatMap((x) => x.exercises).find((e) => e.exerciseId === exerciseId)?.name ?? '';
   const sides = [r.straight, r.superset];
   const anyMissing = sides.some((x) => x.activationRepsAvg == null || x.firstMiniRepsAvg == null || x.validityRate == null || x.durationMinAvg == null);
 
@@ -91,7 +92,7 @@ export function ExerciseSupersetReport({ sessions, exerciseId }: { sessions: rea
         <View style={styles.reportFlag} testID="superset-report-flag" accessible>
           <Ionicons name="alert-circle-outline" size={18} color={colors.accent} />
           <Text style={[styles.reportFlagText, { flex: 1 }]}>
-            {plural(t, locale, 'train.supersetReport.flag', r.costlySessions.length, { total: r.recentSessions })}
+            {plural(t, locale, 'train.supersetReport.flag', r.costlySessions.length, { total: r.recentSessions, name: liftName })}
           </Text>
         </View>
       ) : null}

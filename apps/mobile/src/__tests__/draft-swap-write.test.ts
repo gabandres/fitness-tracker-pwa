@@ -105,3 +105,31 @@ describe('commitDraftSwaps', () => {
     expect(mockBatchUpdate).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('a refusal after the wait window is still heard', () => {
+  it('late: the screen already said "switched", so onLateFailure fires once', async () => {
+    jest.useFakeTimers();
+    try {
+      let reject!: (e: Error) => void;
+      mockCommit.mockReturnValue(new Promise<void>((_, r) => { reject = r; }));
+      const late = jest.fn();
+      const done = commitDraftSwaps('u1', [{ mode: 'revert', draftId: 'd1', templateId: 't1', body: body('A'), kept: body('A') }], AT, late);
+      await jest.advanceTimersByTimeAsync(4100);
+      await done;
+      reject(new Error('permission-denied'));
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(late).toHaveBeenCalledTimes(1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('in the window: the call itself rejects, and onLateFailure stays quiet', async () => {
+    mockCommit.mockRejectedValue(new Error('permission-denied'));
+    const late = jest.fn();
+    await expect(commitDraftSwaps('u1', [{ mode: 'revert', draftId: 'd1', templateId: 't1', body: body('A'), kept: body('A') }], AT, late)).rejects.toThrow();
+    await Promise.resolve();
+    expect(late).not.toHaveBeenCalled();
+  });
+});

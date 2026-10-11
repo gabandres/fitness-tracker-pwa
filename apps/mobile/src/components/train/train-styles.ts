@@ -118,6 +118,11 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   reportNote: { fontSize: font.small, color: colors.muted, lineHeight: 20 },
   // drafts
   draftSummary: { fontSize: font.small, color: colors.muted, lineHeight: 20 },
+  draftTop: { alignItems: 'flex-start' },
+  draftOrderRow: { flexDirection: 'row' },
+  /** The "A1" column of a draft's order: grows at large text, never clips. */
+  draftOrderLabel: { minWidth: 32, paddingRight: space.xs, lineHeight: 20 },
+  draftDeleteLink: { minHeight: TARGET, justifyContent: 'center', paddingHorizontal: space.sm },
   draftSecondaryBtn: { borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, paddingHorizontal: space.lg, minHeight: TARGET, justifyContent: 'center' },
   draftSecondaryText: { color: colors.ink, fontWeight: '700', fontSize: font.body },
   exCount: { backgroundColor: colors.inputBg, borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: 3, minWidth: 44, alignItems: 'center' },

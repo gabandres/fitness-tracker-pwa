@@ -621,10 +621,9 @@ const TemplateCard = memo(function TemplateCard({
       confirmText: t('train.delete'),
       destructive: true,
       onConfirm: () => {
-        // Its active draft goes too — otherwise it lives on, invisible, with
-        // no template to show it on.
-        if (activeDraft) void train.deleteDraft(activeDraft).catch(() => {});
-        train.deleteTemplate(id).catch((e) => {
+        // Its active draft goes too, in the SAME batch — otherwise it lives on,
+        // invisible, or (if the template delete failed) the way back is gone.
+        train.deleteTemplate(id, activeDraft?.id).catch((e) => {
           haptics.warning();
           showToast(t('train.templateDeleteErr'), { testID: 'train-toast' });
           captureError(e, { where: 'train.deleteTemplate' });
@@ -665,8 +664,9 @@ const TemplateCard = memo(function TemplateCard({
           android_ripple={TRAIN_RIPPLE}
           onPress={() => onEdit(tpl)}
           accessibilityRole="button"
-          accessibilityLabel={t('train.nextEditA11y', { name: tpl.name })}
-          accessibilityHint={[activeDraft ? t('train.drafts.activeTag') : null, names, sub].filter(Boolean).join('. ')}
+          // State belongs in the label (a hint says what an action does).
+          accessibilityLabel={activeDraft ? `${t('train.nextEditA11y', { name: tpl.name })}, ${t('train.drafts.activeTag')}` : t('train.nextEditA11y', { name: tpl.name })}
+          accessibilityHint={[names, sub].filter(Boolean).join('. ')}
           accessibilityActions={activeDraft ? [{ name: 'revert', label: t('train.drafts.revertA11y', { name: tpl.name }) }] : undefined}
           onAccessibilityAction={(e) => {
             if (e.nativeEvent.actionName === 'revert' && activeDraft) draftActions.revert(activeDraft);

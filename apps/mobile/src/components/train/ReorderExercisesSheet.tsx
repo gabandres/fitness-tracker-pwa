@@ -3,7 +3,7 @@ import { Text, View, useWindowDimensions } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { useAnimatedRef } from 'react-native-reanimated';
 import Sortable from 'react-native-sortables';
-import { exerciseIsFullyDone, supersetTags } from '@macrolog/core';
+import { exerciseIsFullyDone, moveBlockAware, supersetTags } from '@macrolog/core';
 import { BottomSheet } from '@/components/BottomSheet';
 import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
@@ -87,8 +87,9 @@ export function ReorderExercisesSheet({
                     accessible
                     accessibilityLabel={`${tag ? `${t('train.superset.tag', { label: tag })}, ` : ''}${ex.name}, ${t('train.setCountA11y', { done: logged, total: ex.sets.length })}`}
                     accessibilityActions={[
-                      ...(i > 0 ? [{ name: 'moveUp', label: t('train.moveUp') }] : []),
-                      ...(i < exercises.length - 1 ? [{ name: 'moveDown', label: t('train.moveDown') }] : []),
+                      // Only when it moves something: a superset moves as a block.
+                      ...(moveBlockAware(exercises, i, -1).newIndex !== i ? [{ name: 'moveUp', label: t('train.moveUp') }] : []),
+                      ...(moveBlockAware(exercises, i, 1).newIndex !== i ? [{ name: 'moveDown', label: t('train.moveDown') }] : []),
                     ]}
                     onAccessibilityAction={(e) => {
                       if (e.nativeEvent.actionName === 'moveUp') move(i, i - 1);

@@ -11,6 +11,8 @@ import {
   looksLikeSameEffort,
   nextUnfinishedExercise,
   groupRest,
+  isSupersetted,
+  moveBlockAware,
   restAfterSetInFlow,
   supersetGroups,
   supersetTags,
@@ -61,6 +63,7 @@ import {
   spokenDuration,
 } from './train-summary';
 import { createStyles } from './train-styles';
+import { space } from '@/theme';
 import { MenuButton, hasNativeMenuButton } from '@/components/MenuButton';
 import { toMenuButtonActions } from './exercise-menu-native';
 
@@ -396,7 +399,11 @@ export function ActiveSession({
    *  never the mini-set rest, which would break the myo-rep protocol. */
   const restSecondsFor = (exerciseIndex: number) => {
     const ex = train.active?.exercises[exerciseIndex];
-    const override = ex && !ex.supersetGroup ? restOverride[ex.exerciseId] : undefined;
+    // Real membership (a partner removed leaves the field behind on the lift
+    // that stays): a lone lift's override applies to its own rests again.
+    const exercises = train.active?.exercises ?? [];
+    const paired = ex != null && isSupersetted(exercises, exerciseIndex);
+    const override = ex && !paired ? restOverride[ex.exerciseId] : undefined;
     const row = ex ? templateRowFor(ex.exerciseId) : undefined;
     // After the lift's last set, the row's rest before the NEXT exercise (90 s
     // into the same muscle, 60 s across, 2026-10-09) — the template's cluster
@@ -444,7 +451,11 @@ export function ActiveSession({
         : flow.kind === 'cluster' && flow.round && nextTag
           ? t('train.superset.roundAlone', { n: flow.round.n, total: flow.round.total })
           : null;
-    runRest(flow.seconds, ex.name, nextLabel, heading, into && nextLabel ? flow.next!.exerciseIndex : null);
+    // Spoken: "Round 2 of 3" — "2/3" can be read as a fraction or a date.
+    const spokenHeading = flow.round && heading && flow.kind !== 'transition'
+      ? t('train.superset.roundA11y', { n: flow.round.n, total: flow.round.total })
+      : heading;
+    runRest(flow.seconds, ex.name, nextLabel, heading, into && nextLabel ? flow.next!.exerciseIndex : null, spokenHeading);
     return flow;
   };
 
@@ -457,7 +468,8 @@ export function ActiveSession({
     if (!ex) return;
     haptics.tap();
     const lastDone = ex.sets.reduce((acc, x, i) => (x.done ? i : acc), -1);
-    if (lastDone >= 0 && ex.supersetGroup) {
+    const paired = isSupersetted(train.active!.exercises, exerciseIndex);
+    if (lastDone >= 0 && paired) {
       const flow = restAfterSetInFlow(flowRows(train.active!.exercises), exerciseIndex, lastDone, restSecondsFor);
       if (flow.kind !== 'intra') {
         startRest(exerciseIndex, lastDone);
@@ -466,18 +478,19 @@ export function ActiveSession({
     }
     // A superset member's mini-set rest is never the ⋯ override (that is the
     // group's rest now).
-    runRest((ex.supersetGroup ? undefined : restOverride[ex.exerciseId]) ?? restFallback(exerciseIndex), ex.name, null, null, null);
+    runRest((paired ? undefined : restOverride[ex.exerciseId]) ?? restFallback(exerciseIndex), ex.name, null, null, null);
   };
   /** What "Start rest now" will run for this lift, as the ⋯ row says it. */
   const manualRestSeconds = (exerciseIndex: number) => {
     const ex = session.exercises[exerciseIndex];
     if (!ex) return restMini;
     const lastDone = ex.sets.reduce((acc, x, i) => (x.done ? i : acc), -1);
-    if (lastDone >= 0 && ex.supersetGroup) {
+    const paired = sessionTags[exerciseIndex] != null;
+    if (lastDone >= 0 && paired) {
       const flow = restAfterSetInFlow(flowRows(session.exercises), exerciseIndex, lastDone, restSecondsFor);
       if (flow.kind !== 'intra') return flow.seconds;
     }
-    return (ex.supersetGroup ? undefined : restOverride[ex.exerciseId]) ?? restFallback(exerciseIndex);
+    return (paired ? undefined : restOverride[ex.exerciseId]) ?? restFallback(exerciseIndex);
   };
 
   /** Run a rest of `secs`: the bar, the Lock Screen, the notification, the
@@ -485,7 +498,7 @@ export function ActiveSession({
    *  ticked set and a manual start, so the two cannot drift. In a superset the
    *  Lock Screen, the notification and the announcement name the NEXT station
    *  — with the phone on a bench, that is the screen the lifter sees. */
-  const runRest = (secs: number, name: string, next: string | null, heading: string | null, target: number | null) => {
+  const runRest = (secs: number, name: string, next: string | null, heading: string | null, target: number | null, spokenHeading?: string | null) => {
     const nextLine = next ? t('train.superset.nextUp', { next }) : undefined;
     rest.start(secs, nextLine);
     setRestTotal(secs);
@@ -496,7 +509,7 @@ export function ActiveSession({
     // iOS, a no-op wherever its native module is absent.
     restActivity.start(restDeadline(secs), nextLine ?? name, locale);
     announce(next
-      ? t('train.superset.restA11y', { heading: heading ?? t('train.rest'), time: spokenDuration(secs, t, locale), next })
+      ? t('train.superset.restA11y', { heading: spokenHeading ?? heading ?? t('train.rest'), time: spokenDuration(secs, t, locale), next })
       : t('train.restStartedA11y', { time: clock(secs) }));
     // Decided once per session mount; the stored flag makes it once per device.
     if (!restNotifyAsked) {
@@ -775,7 +788,6 @@ export function ActiveSession({
     if (r.left) {
       const { name, group, before: prev } = r.left;
       const msg = t('train.superset.leftGroup', { name, group });
-      announce(msg);
       showToast(msg, { testID: 'train-toast', action: { label: t('common.undo'), onPress: () => train.undoMove(prev) } });
     }
   }
@@ -866,14 +878,15 @@ export function ActiveSession({
     return {
       index,
       unpairToday: group ? t('train.superset.unpairTodayDesc', { names: members.join(', ') }) : null,
-      canMoveUp: index > 0,
-      canMoveDown: index < session.exercises.length - 1,
+      // Only when the move does something: a superset moves as one block.
+      canMoveUp: moveBlockAware(session.exercises, index, -1).newIndex !== index,
+      canMoveDown: moveBlockAware(session.exercises, index, 1).newIndex !== index,
       history: catalogEx != null,
       cluster: canAdd.cluster,
       block: canAdd.block,
       platesOpen: (ex.logStyle ?? 'weight-reps') === 'weight-reps' ? platesOpen === index : null,
       restDesc: rests
-        ? t('train.superset.restDesc', { switch: clock(rests.transitionRestSec), round: clock(rests.roundRestSec) })
+        ? t('train.superset.restDesc', { switch: `${rests.transitionRestSec} s`, round: `${rests.roundRestSec} s` })
         : t('train.restTimerDesc', { time: clock(override ?? restFallback(index)) }),
       restNow: clock(manualRestSeconds(index)),
       lift: catalogEx != null
@@ -946,6 +959,9 @@ export function ActiveSession({
         const fields = Object.fromEntries(session.exercises.filter((e) => e.supersetGroup === group).map((e) => [e.exerciseId, {
           supersetGroup: e.supersetGroup, pairPosition: e.pairPosition, transitionRestSec: e.transitionRestSec, roundRestSec: e.roundRestSec,
         }]));
+        const keyTr = groupKey(group, 'transition');
+        const keyRo = groupKey(group, 'round');
+        const picked = { tr: restOverride[keyTr], ro: restOverride[keyRo] };
         void dispatch({ type: 'unpairGroup', group });
         // The group's picked rests go with it — they would otherwise become
         // the lifts' own mini-set rest.
@@ -958,9 +974,19 @@ export function ActiveSession({
         const msg = t('train.superset.unpairedToday', { group });
         showToast(msg, {
           testID: 'train-toast',
-          action: { label: t('common.undo'), onPress: () => void dispatch({ type: 'restoreSuperset', fields }) },
+          action: {
+            label: t('common.undo'),
+            onPress: () => {
+              void dispatch({ type: 'restoreSuperset', fields });
+              // …and so do the rests picked for it.
+              setRestOverride((cur) => ({
+                ...cur,
+                ...(picked.tr != null ? { [keyTr]: picked.tr } : {}),
+                ...(picked.ro != null ? { [keyRo]: picked.ro } : {}),
+              }));
+            },
+          },
         });
-        announce(msg);
         return;
       }
     }
@@ -994,7 +1020,7 @@ export function ActiveSession({
   const restTemplateRow = restEx && tpl?.id ? templateRowFor(restEx.exerciseId) : undefined;
   /** "Keep for this superset": the group's rest on the template's LEADER row
    *  (`transitionRestSec` / `roundRestSec`) — never a lift's `restMiniSec`. */
-  async function saveGroupRest(group: string, field: 'transition' | 'round', seconds: number) {
+  async function saveGroupRest(group: string, rests: { transition?: number; round?: number }) {
     if (!tpl?.id) return;
     const leaderId = (supersetGroups(session.exercises).get(group) ?? [])
       .map((m) => session.exercises[m.index].exerciseId)
@@ -1006,7 +1032,11 @@ export function ActiveSession({
         {
           ...draft,
           exercises: tpl.exercises.map((te) => (te.exerciseId === leaderId
-            ? { ...te, ...(field === 'transition' ? { transitionRestSec: seconds } : { roundRestSec: seconds }) }
+            ? {
+              ...te,
+              ...(rests.transition != null ? { transitionRestSec: rests.transition } : {}),
+              ...(rests.round != null ? { roundRestSec: rests.round } : {}),
+            }
             : te)),
         },
         id,
@@ -1165,7 +1195,7 @@ export function ActiveSession({
               key={`${ex.exerciseId}-${exIdx}`}
               // Inside a superset the cards sit close (3pt), so a pair reads as
               // one block and the next group starts visibly apart.
-              style={group && sessionTags[exIdx + 1] && session.exercises[exIdx + 1]?.supersetGroup === group ? { marginBottom: -9 } : undefined}
+              style={group && sessionTags[exIdx + 1] && session.exercises[exIdx + 1]?.supersetGroup === group ? { marginBottom: -(space.md - 3) } : undefined}
               onLayout={(e) => {
                 const y = e.nativeEvent.layout.y;
                 cardY.current.set(exIdx, y);
@@ -1352,7 +1382,7 @@ export function ActiveSession({
               else next[groupKey(group, field)] = seconds;
               return next;
             }),
-            onSave: (field: 'transition' | 'round', seconds: number) => void saveGroupRest(group, field, seconds),
+            onSave: (rests: { transition?: number; round?: number }) => void saveGroupRest(group, rests),
           };
         })() : undefined}
         name={restEx?.name ?? ''}
@@ -1441,6 +1471,7 @@ function RestBar({
   const styles = useThemedStyles(createStyles);
   // Above the floating glass tab bar on iOS 26, which covers the tab's foot.
   const lift = tabBarOverlap(useSafeAreaInsets().bottom);
+  const locale = useLocale();
   const { remaining, label } = useRestCountdown(endsAt);
   const progress = total > 0 ? Math.min(1, Math.max(0, 1 - remaining / total)) : 0;
   const prev = useRef(remaining);
@@ -1463,7 +1494,12 @@ function RestBar({
       ) : null}
       <View style={[styles.restBarRow, stacked ? { flexDirection: 'column', alignItems: 'flex-start', gap: 4 } : null]}>
         {/* The countdown never wraps or truncates: the heading gives way first. */}
-        <View style={{ flexDirection: 'row', flexShrink: 1, alignItems: 'baseline' }} testID="rest-label">
+        <View
+          style={{ flexDirection: 'row', flexShrink: 1, alignItems: 'baseline' }}
+          accessible
+          accessibilityLabel={`${heading ?? t('train.rest')}, ${spokenDuration(remaining, t, locale)}`}
+          testID="rest-label"
+        >
           <Text style={[styles.restLabel, { flexShrink: 1 }]} numberOfLines={1}>{`${heading ?? t('train.rest')} · `}</Text>
           <Text style={styles.restLabel}>{label}</Text>
         </View>

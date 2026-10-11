@@ -70,8 +70,7 @@ export function NextUpCard({
       <Touchable
         onPress={onEdit}
         accessibilityRole="button"
-        accessibilityLabel={t('train.nextEditA11y', { name: next.template.name })}
-        accessibilityHint={supersets ? t('train.drafts.activeTag') : undefined}
+        accessibilityLabel={supersets ? `${t('train.nextEditA11y', { name: next.template.name })}, ${t('train.drafts.activeTag')}` : t('train.nextEditA11y', { name: next.template.name })}
         testID="next-up-edit"
       >
         <Text style={styles.nextName}>{next.template.name}</Text>

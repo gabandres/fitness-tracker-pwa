@@ -34,6 +34,7 @@ import {
   updateTemplate as updateTemplateDoc,
   commitDraftSwaps,
   deleteTemplateDraft,
+  deleteTemplateWithDraft,
 } from '@/lib/ledger';
 import {
   type SessionAction,
@@ -168,7 +169,9 @@ export interface TrainState {
   /** Clone a shipped starter template: ensure its library exercises exist in
    *  the catalog (create the missing ones), then add the template. */
   cloneStarterTemplate: (seed: SeedTemplate) => Promise<void>;
-  deleteTemplate: (id: string) => Promise<void>;
+  /** Delete a template; with `draftId`, its active superset draft goes in the
+   *  same batch. */
+  deleteTemplate: (id: string, draftId?: string) => Promise<void>;
   /** Create a catalog exercise, returning its id (used by the template
    *  editor when adding a free-typed exercise).
    *
@@ -800,8 +803,10 @@ export function useTrain(): TrainState {
   );
 
   const deleteTemplate = useCallback(
-    async (id: string) => {
-      if (uid) await deleteTemplateDoc(uid, id);
+    async (id: string, draftId?: string) => {
+      if (!uid) return;
+      if (draftId) await deleteTemplateWithDraft(uid, id, draftId);
+      else await deleteTemplateDoc(uid, id);
     },
     [uid],
   );

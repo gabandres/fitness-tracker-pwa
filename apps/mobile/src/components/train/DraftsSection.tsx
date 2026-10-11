@@ -118,7 +118,11 @@ export function useDraftActions(train: DraftTrain) {
           // Both counts when there are two ways forward, so "Only …" is not a
           // surprise.
           both
-            ? t('train.drafts.effectBoth', { both: changedBoth, one: changedOne, name })
+            ? t('train.drafts.effectBoth', {
+              both: plural(t, locale, 'train.drafts.liftCount', changedBoth),
+              one: plural(t, locale, 'train.drafts.liftCount', changedOne),
+              name,
+            })
             : plural(t, locale, 'train.drafts.effect', changedOne),
           t('train.drafts.undoLine'),
         ]
@@ -223,7 +227,7 @@ export function DraftsSection({ train }: { train: DraftTrain }) {
           const isBusy = actions.busy?.split('+').includes(draft.id ?? '') ?? false;
           return (
             <View key={draft.id} style={styles.tplCard} testID={`draft-${draft.id}`}>
-              <View style={[styles.tplCardTop, { alignItems: 'flex-start' }]}>
+              <View style={[styles.tplCardTop, styles.draftTop]}>
                 <View style={styles.tplMain}>
                   <Text style={styles.histDate}>{live ? t('train.drafts.label', { name: live.name }) : draft.label}</Text>
                   {live ? (
@@ -257,8 +261,8 @@ export function DraftsSection({ train }: { train: DraftTrain }) {
                       testID={`draft-order-list-${draft.id}`}
                     >
                       {rows.map((r, i) => (
-                        <View key={`${r.exerciseId}-${i}`} style={{ flexDirection: 'row' }}>
-                          <Text style={[styles.supersetTag, { width: 32, lineHeight: 20 }]}>{supersetLabel(r) ?? ''}</Text>
+                        <View key={`${r.exerciseId}-${i}`} style={styles.draftOrderRow}>
+                          <Text style={[styles.supersetTag, styles.draftOrderLabel]}>{supersetLabel(r) ?? ''}</Text>
                           <Text style={styles.tplExNames}>{r.name}</Text>
                         </View>
                       ))}
@@ -281,13 +285,15 @@ export function DraftsSection({ train }: { train: DraftTrain }) {
                   </Touchable>
                 ) : null}
                 <Touchable
-                  style={styles.draftSecondaryBtn}
+                  // A text action, not a second button: two buttons wrapped
+                  // onto two rows at the default text size.
+                  style={styles.draftDeleteLink}
                   onPress={() => actions.askDelete(draft)}
                   accessibilityRole="button"
                   accessibilityLabel={`${t('train.drafts.delete')}, ${live ? t('train.drafts.label', { name: live.name }) : draft.label}`}
                   testID={`draft-delete-${draft.id}`}
                 >
-                  <Text style={styles.draftSecondaryText}>{t('train.drafts.delete')}</Text>
+                  <Text style={styles.discardText}>{t('train.drafts.delete')}</Text>
                 </Touchable>
               </View>
             </View>
