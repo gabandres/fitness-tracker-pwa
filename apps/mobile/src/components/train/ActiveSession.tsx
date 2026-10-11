@@ -441,18 +441,22 @@ export function ActiveSession({
     const tagsNow = supersetTags(rows);
     const nextTag = flow.next ? tagsNow[flow.next.exerciseIndex] : undefined;
     // Name the next station during a superset rest, so both can be set up.
-    const nextLabel = into && (tagsNow[exerciseIndex] != null || nextTag != null)
-      ? (nextTag ? `${nextTag} · ${into.name}` : into.name)
-      : null;
+    // A leftover round (the partner has no clusters left): say so, or
+    // "Round 3/3" reads like an ordinary round and the lifter walks to a
+    // station that is done. Said on the two-line Next row — the heading is
+    // one line beside the timer and would cut it off.
+    const alone = flow.kind === 'cluster' && flow.round != null && nextTag != null;
+    const nextEx = flow.next ? exercises[flow.next.exerciseIndex] : undefined;
+    const nextLabel = alone && nextEx
+      ? t('train.superset.nextAlone', { next: `${nextTag} · ${nextEx.name}` })
+      : into && (tagsNow[exerciseIndex] != null || nextTag != null)
+        ? (nextTag ? `${nextTag} · ${into.name}` : into.name)
+        : null;
     const heading = flow.kind === 'transition' && nextTag
       ? t('train.superset.switchTo')
-      : flow.kind === 'round' && flow.round
+      : (flow.kind === 'round' || alone) && flow.round
         ? t('train.superset.roundNext', { n: flow.round.n, total: flow.round.total })
-        : flow.kind === 'cluster' && flow.round && nextTag
-          // The partner is finished: say so, or "Round 3/3" reads like an
-          // ordinary round and the lifter walks to a station that is done.
-          ? t('train.superset.roundAlone', { n: flow.round.n, total: flow.round.total, tag: nextTag })
-          : null;
+        : null;
     // Spoken: "Round 2 of 3" — "2/3" can be read as a fraction or a date.
     const spokenHeading = flow.round && heading && flow.kind !== 'transition'
       ? flow.kind === 'cluster' && nextTag
@@ -792,7 +796,13 @@ export function ActiveSession({
     if (r.left) {
       const { name, group, before: prev } = r.left;
       const msg = t('train.superset.leftGroup', { name, group });
-      showToast(msg, { testID: 'train-toast', action: { label: t('common.undo'), onPress: () => train.undoMove(prev) } });
+      showToast(msg, { testID: 'train-toast', action: {
+        label: t('common.undo'),
+        onPress: () => {
+          setFollowOpen(true);
+          train.undoMove(prev);
+        },
+      } });
     }
   }
   /** The sets array of the card to keep open across a move. State, not a ref:
@@ -805,6 +815,19 @@ export function ActiveSession({
     const i = session.exercises.findIndex((e) => e.sets === pendingOpen.sets);
     setPendingOpen(null);
     if (i >= 0 && i !== expanded) setExpanded(i);
+  }
+  /** An Undo of a move: the open card follows its lift by identity — the
+   *  Undo keeps each lift's sets array, so it can be re-found. */
+  const [followOpen, setFollowOpen] = useState(false);
+  const [listSeen, setListSeen] = useState(session.exercises);
+  if (listSeen !== session.exercises) {
+    if (followOpen) {
+      const sets = expanded != null ? listSeen[expanded]?.sets : undefined;
+      const i = sets ? session.exercises.findIndex((e) => e.sets === sets) : -1;
+      if (i >= 0 && i !== expanded) setExpanded(i);
+      setFollowOpen(false);
+    }
+    setListSeen(session.exercises);
   }
 
   // ── The ⋯ menus ──

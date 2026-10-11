@@ -20,6 +20,7 @@ import {
   moveInSession,
   canUndoMove,
   orderBlocks,
+  undoMoveRows,
   unpair,
   type SupersetFields,
 } from './superset';
@@ -370,5 +371,34 @@ describe('orderBlocks — positions counted in units', () => {
   it('a superset is one place in the order; a stale lone letter is not a block', () => {
     const rows = [{}, { supersetGroup: 'A', pairPosition: 1 as const }, { supersetGroup: 'A', pairPosition: 2 as const }, { supersetGroup: 'B', pairPosition: 1 as const }];
     expect(orderBlocks(rows)).toEqual([[0], [1, 2], [3]]);
+  });
+});
+
+describe('undoMoveRows — Undo a move, keep what was logged since', () => {
+  type R = { exerciseId: string; supersetGroup?: string; pairPosition?: 1 | 2; transitionRestSec?: number; roundRestSec?: number; sets: { reps?: number }[] };
+  const before: R[] = [
+    { exerciseId: 'press', sets: [{}] },
+    { exerciseId: 'ext', supersetGroup: 'A', pairPosition: 1, transitionRestSec: 30, roundRestSec: 45, sets: [{}] },
+    { exerciseId: 'curl', supersetGroup: 'A', pairPosition: 2, sets: [{}] },
+    { exerciseId: 'row', sets: [{}] },
+  ];
+
+  it('a set logged after the move survives the Undo, and the pair comes back', () => {
+    // A drag takes A1 out of its pair, to the end.
+    const moved = moveInSession(before, 1, 3).rows;
+    expect(moved.map((r) => r.exerciseId)).toEqual(['press', 'curl', 'row', 'ext']);
+    expect(moved.every((r) => !r.supersetGroup)).toBe(true);
+    const logged = moved.map((r) => (r.exerciseId === 'curl' ? { ...r, sets: [{ reps: 10 }] } : r));
+    const undone = undoMoveRows(before, logged);
+    expect(undone.map((r) => r.exerciseId)).toEqual(['press', 'ext', 'curl', 'row']);
+    expect(undone[2].sets).toEqual([{ reps: 10 }]);
+    expect(undone[2].sets).toBe(logged.find((r) => r.exerciseId === 'curl')!.sets);
+    expect(undone[1]).toMatchObject({ supersetGroup: 'A', pairPosition: 1, transitionRestSec: 30, roundRestSec: 45 });
+    expect(undone[2]).toMatchObject({ supersetGroup: 'A', pairPosition: 2 });
+  });
+
+  it('a lift added since makes the Undo a no-op', () => {
+    const now = [...before, { exerciseId: 'fly', sets: [] }];
+    expect(undoMoveRows(before, now)).toEqual(now);
   });
 });

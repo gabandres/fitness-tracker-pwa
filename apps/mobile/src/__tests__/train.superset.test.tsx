@@ -85,6 +85,7 @@ const mockTrain = {
   mergeCatalogExercises: jest.fn().mockResolvedValue(undefined),
   addExerciseToActive: jest.fn(),
   moveExerciseInActive: jest.fn(),
+  undoMove: jest.fn(),
   undoRemoval: jest.fn(),
   dispatch: jest.fn().mockResolvedValue(undefined),
   commitActive: jest.fn().mockResolvedValue(undefined),
@@ -266,9 +267,11 @@ describe('the alternating flow', () => {
     await fireEvent.press(ui.getByTestId('exercise-head-1'));
     await fireEvent.press(ui.getByTestId('set-done-1-2'));
     // Not the 40 s round rest: the template's 90 s between clusters.
-    expect(mockRestStart).toHaveBeenLastCalledWith(90, 'Next: A1 · Leg Extensions');
-    // …and the heading says the partner is finished.
-    expect(ui.getByTestId('rest-label')).toHaveTextContent('Round 2/2 · A1 only', { exact: false });
+    // …and the two-line Next row says the partner is finished (the one-line
+    // heading beside the timer would cut it off).
+    expect(mockRestStart).toHaveBeenLastCalledWith(90, 'Next: A1 · Leg Extensions — its partner is done');
+    expect(ui.getByTestId('rest-label')).toHaveTextContent('Round 2/2', { exact: false });
+    expect(ui.getByTestId('rest-next')).toHaveTextContent('Next: A1 · Leg Extensions — its partner is done');
     expect(mockAnnounce).toHaveBeenLastCalledWith(expect.stringContaining('Round 2 of 2, A1 only'));
   });
 
@@ -379,6 +382,35 @@ describe('round 4: rests and moves in the live session', () => {
     expect(ui.getByTestId('ex-menu-move-down')).toBeTruthy();
   });
 
+  it('Undo after a move keeps the open card on its lift (real undo rule)', async () => {
+    const { moveInSession, undoMoveRows } = jest.requireActual('@macrolog/core');
+    mockTrain.active = live();
+    mockTrain.moveExerciseInActive.mockImplementation((from: number, to: number) => {
+      const before = mockTrain.active!.exercises;
+      const r = moveInSession(before, from, to);
+      mockTrain.active = { ...mockTrain.active!, exercises: r.rows };
+      // As if the move had taken a lift out of its pair: the Undo is offered.
+      return { newIndex: r.newIndex, left: { name: 'Leg Extensions', group: 'A', before } };
+    });
+    mockTrain.undoMove.mockImplementation((before: WorkoutSession['exercises']) => {
+      mockTrain.active = { ...mockTrain.active!, exercises: undoMoveRows(before, mockTrain.active!.exercises) };
+    });
+    const ui = await render(<TrainScreen />);
+    await fireEvent.press(ui.getByTestId('exercise-head-2'));
+    await fireEvent.press(ui.getByTestId('exercise-menu-2'));
+    await fireEvent.press(ui.getByTestId('ex-menu-move-up'));
+    await ui.rerender(<TrainScreen />);
+    expect(ui.getByTestId('set-done-0-0')).toBeTruthy();
+    const undo = mockShowToast.mock.calls.at(-1)?.[1]?.action;
+    expect(undo?.label).toBe('Undo');
+    await act(async () => undo.onPress());
+    await ui.rerender(<TrainScreen />);
+    expect(mockTrain.active!.exercises.map((e) => e.exerciseId)).toEqual(['ext', 'curl', 'knee']);
+    // The knee raise is back at the end — and still the open card.
+    expect(ui.getByTestId('set-done-2-0')).toBeTruthy();
+    expect(ui.queryByTestId('set-done-0-0')).toBeNull();
+  });
+
   it('the open card follows its lift when a one-step move hops it over the superset (real move rule)', async () => {
     const { moveInSession } = jest.requireActual('@macrolog/core');
     mockTrain.active = live();
@@ -406,6 +438,8 @@ describe('the template editor', () => {
     const ui = await render(<TrainScreen />);
     await fireEvent.press(ui.getByTestId('edit-template-leg'));
     expect(ui.getByTestId('template-superset-header-0')).toHaveTextContent('Superset A · switch 35 s · round 40 s');
+    // Never cut off: two lines at every text size (es-PR runs ~40 characters).
+    expect(ui.getByTestId('template-superset-header-0').props.numberOfLines).toBe(2);
     // The group's facts together, right after the tag: who, then the rests.
     expect(ui.getByTestId('template-ex-toggle-0').props.accessibilityLabel)
       .toBe('Superset A1, alternates with Leg Curls. Switch 35 s · round 40 s. Leg Extensions. 6 sets · 90 lb');

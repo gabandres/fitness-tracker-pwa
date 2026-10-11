@@ -459,9 +459,11 @@ export function TemplateEditorModal({
         // has rendered — the keyboard rises, `useRevealFocusedInput` scrolls
         // it into view and VoiceOver lands on it.
         const uid = exercises[leader]?.uid;
-        setTimeout(() => {
+        // The map only holds MOUNTED inputs, so an editor closed meanwhile
+        // focuses nothing; the frame waits for the card's layout.
+        setTimeout(() => requestAnimationFrame(() => {
           if (uid) restInputs.current.get(uid)?.focus();
-        }, EDIT_RESTS_FOCUS_DELAY_MS);
+        }), EDIT_RESTS_FOCUS_DELAY_MS);
       },
       secondaryText: t('train.superset.unpairName', { name: d.name }),
       onSecondary: () => unpairRow(i),
@@ -1434,7 +1436,7 @@ export function TemplateEditorModal({
                     >
                       <View style={{ flex: 1 }}>
                         {tags[i] && d.pairPosition === 1 && d.supersetGroup ? (
-                          <Text style={styles.supersetHeader} numberOfLines={fontScale > 1.3 ? 2 : 1} testID={`template-superset-header-${i}`}>
+                          <Text style={styles.supersetHeader} numberOfLines={2} testID={`template-superset-header-${i}`}>
                             {t('train.superset.groupHeaderShort', {
                               group: d.supersetGroup,
                               switch: `${groupRest(exercises, d.supersetGroup).transitionRestSec} s`,

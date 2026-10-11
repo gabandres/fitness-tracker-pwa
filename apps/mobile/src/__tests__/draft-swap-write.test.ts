@@ -140,8 +140,8 @@ describe('deleteTemplateWithDraft', () => {
     await deleteTemplateWithDraft('u1', 'leg', 'd-leg');
     expect(mockBatchDelete).toHaveBeenCalledTimes(2);
     expect(mockBatchDelete.mock.calls.map(([ref]) => ref.path)).toEqual([
-      expect.stringContaining('leg'),
-      expect.stringContaining('templateDrafts/d-leg'),
+      expect.stringMatching(/workoutTemplates\/leg$/),
+      expect.stringMatching(/templateDrafts\/d-leg$/),
     ]);
     expect(mockCommit).toHaveBeenCalledTimes(1);
   });

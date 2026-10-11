@@ -757,6 +757,33 @@ export function moveInSession<T extends SupersetFields & { exerciseId: string }>
 }
 
 /**
+ * Undo a move WITHOUT undoing anything logged since: the CURRENT rows, put
+ * back in `before`'s order (matched by exercise and occurrence), with
+ * `before`'s superset fields. Sets logged between the move and the Undo tap
+ * stay logged — restoring the whole old copy used to erase them. Returns
+ * `now` unchanged when the lifts differ ({@link canUndoMove}).
+ */
+export function undoMoveRows<T extends SupersetFields & { exerciseId: string }>(
+  before: readonly T[],
+  now: readonly T[],
+): T[] {
+  if (!canUndoMove(before, now)) return [...now];
+  const pool = new Map<string, T[]>();
+  for (const r of now) pool.set(r.exerciseId, [...(pool.get(r.exerciseId) ?? []), r]);
+  return before.map((b) => {
+    const cur = pool.get(b.exerciseId)!.shift()!;
+    const { supersetGroup: _g, pairPosition: _p, transitionRestSec: _t, roundRestSec: _r, ...rest } = cur;
+    return {
+      ...rest,
+      ...(b.supersetGroup != null ? { supersetGroup: b.supersetGroup } : {}),
+      ...(b.pairPosition != null ? { pairPosition: b.pairPosition } : {}),
+      ...(b.transitionRestSec != null ? { transitionRestSec: b.transitionRestSec } : {}),
+      ...(b.roundRestSec != null ? { roundRestSec: b.roundRestSec } : {}),
+    } as T;
+  });
+}
+
+/**
  * Whether an Undo of a move can still apply: the session holds exactly the
  * same exercises as before it (only their order differs). A lift added or
  * removed since makes the old order wrong, so the Undo does nothing.

@@ -51,6 +51,7 @@ import {
   sessionDurationMin,
   moveInSession,
   canUndoMove,
+  undoMoveRows,
   sessionCall,
   type SwapPlan,
   type TemplateDraftDoc,
@@ -1098,7 +1099,8 @@ export function useTrain(): TrainState {
     (before: SessionExercise[]) => {
       const prev = activeRef.current;
       if (!prev || !canUndoMove(before, prev.exercises)) return;
-      const next = { ...prev, exercises: before };
+      // The order and pairing from before; the sets as they are NOW.
+      const next = { ...prev, exercises: undoMoveRows(before, prev.exercises) };
       setActive(next);
       void persist(next);
     },
