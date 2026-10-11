@@ -49,7 +49,7 @@ function useNumbers() {
  * ONE screen-reader stop that names both sides. The warning leads, because it
  * is the one thing on the sheet that asks for an action.
  */
-export function ExerciseSupersetReport({ sessions, exerciseId }: { sessions: readonly WorkoutSession[]; exerciseId: string }) {
+export function ExerciseSupersetReport({ sessions, exerciseId, name }: { sessions: readonly WorkoutSession[]; exerciseId: string; name?: string }) {
   const t = useT();
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
@@ -59,7 +59,9 @@ export function ExerciseSupersetReport({ sessions, exerciseId }: { sessions: rea
   const r = useMemo(() => exerciseSupersetReport(sessions, exerciseId), [sessions, exerciseId]);
   if (!r) return null;
   const sameLoad = r.sameLoad && !r.oneLoad ? r.sameLoad : undefined;
-  const liftName = sessions.flatMap((x) => x.exercises).find((e) => e.exerciseId === exerciseId)?.name ?? '';
+  // The CURRENT name (the template row says it); a session's snapshot can be
+  // an old one if the lift was renamed since.
+  const liftName = name ?? sessions.flatMap((x) => x.exercises).find((e) => e.exerciseId === exerciseId)?.name ?? '';
   const sides = [r.straight, r.superset];
   const anyMissing = sides.some((x) => x.activationRepsAvg == null || x.firstMiniRepsAvg == null || x.validityRate == null || x.durationMinAvg == null);
 

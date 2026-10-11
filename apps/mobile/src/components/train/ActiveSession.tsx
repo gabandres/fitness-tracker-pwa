@@ -449,11 +449,15 @@ export function ActiveSession({
       : flow.kind === 'round' && flow.round
         ? t('train.superset.roundNext', { n: flow.round.n, total: flow.round.total })
         : flow.kind === 'cluster' && flow.round && nextTag
-          ? t('train.superset.roundAlone', { n: flow.round.n, total: flow.round.total })
+          // The partner is finished: say so, or "Round 3/3" reads like an
+          // ordinary round and the lifter walks to a station that is done.
+          ? t('train.superset.roundAlone', { n: flow.round.n, total: flow.round.total, tag: nextTag })
           : null;
     // Spoken: "Round 2 of 3" — "2/3" can be read as a fraction or a date.
     const spokenHeading = flow.round && heading && flow.kind !== 'transition'
-      ? t('train.superset.roundA11y', { n: flow.round.n, total: flow.round.total })
+      ? flow.kind === 'cluster' && nextTag
+        ? t('train.superset.roundAloneA11y', { n: flow.round.n, total: flow.round.total, tag: nextTag })
+        : t('train.superset.roundA11y', { n: flow.round.n, total: flow.round.total })
       : heading;
     runRest(flow.seconds, ex.name, nextLabel, heading, into && nextLabel ? flow.next!.exerciseIndex : null, spokenHeading);
     return flow;
@@ -510,7 +514,7 @@ export function ActiveSession({
     restActivity.start(restDeadline(secs), nextLine ?? name, locale);
     announce(next
       ? t('train.superset.restA11y', { heading: spokenHeading ?? heading ?? t('train.rest'), time: spokenDuration(secs, t, locale), next })
-      : t('train.restStartedA11y', { time: clock(secs) }));
+      : t('train.restStartedA11y', { time: spokenDuration(secs, t, locale) }));
     // Decided once per session mount; the stored flag makes it once per device.
     if (!restNotifyAsked) {
       setRestNotifyAsked(true);

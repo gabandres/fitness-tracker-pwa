@@ -17,6 +17,9 @@ import {
   canPairWithNext,
   reorderWithSupersets,
   moveBlockAware,
+  moveInSession,
+  canUndoMove,
+  orderBlocks,
   unpair,
   type SupersetFields,
 } from './superset';
@@ -304,5 +307,68 @@ describe('a leftover round still says which round it is', () => {
   it('A1 alone in round 2 of 2', () => {
     const rows = [row('a', myo(2), { supersetGroup: 'A', pairPosition: 1 }), row('b', myo(1), { supersetGroup: 'A', pairPosition: 2 })];
     expect(restAfterSetInFlow(rows, 1, 2, restFor)).toMatchObject({ kind: 'cluster', round: { n: 2, total: 2 } });
+  });
+});
+
+describe('moveInSession — the live session move (▲ / ▼ and drag)', () => {
+  type R = { exerciseId: string; name: string; supersetGroup?: string; pairPosition?: 1 | 2 | 3; transitionRestSec?: number; roundRestSec?: number };
+  const s = (id: string): R => ({ exerciseId: id, name: id });
+  const m = (id: string, g: string, p: 1 | 2): R => ({ exerciseId: id, name: id, supersetGroup: g, pairPosition: p, transitionRestSec: 30, roundRestSec: 45 });
+  const rows = (): R[] => [s('press'), m('ext', 'A', 1), m('curl', 'A', 2), s('row')];
+  const ids = (xs: readonly R[]) => xs.map((x) => x.exerciseId);
+
+  it('a straight lift moved one step next to a pair hops the whole pair', () => {
+    const r = moveInSession(rows(), 0, 1);
+    expect(ids(r.rows)).toEqual(['ext', 'curl', 'press', 'row']);
+    expect(r.newIndex).toBe(2);
+    expect(r.changed).toBe(true);
+    expect(r.left).toBeUndefined();
+  });
+
+  it('a member moved one step moves the block, never dissolves it', () => {
+    const r = moveInSession(rows(), 2, 3);
+    expect(ids(r.rows)).toEqual(['press', 'row', 'ext', 'curl']);
+    expect(r.newIndex).toBe(3);
+    expect(r.rows.filter((x) => x.supersetGroup === 'A')).toHaveLength(2);
+  });
+
+  it('a drag that takes a member out of its pair reports it, and the old order can be restored', () => {
+    const before = rows();
+    const r = moveInSession(before, 1, 3);
+    expect(ids(r.rows)).toEqual(['press', 'curl', 'row', 'ext']);
+    expect(r.left).toMatchObject({ group: 'A', row: { exerciseId: 'ext' } });
+    expect(r.rows.every((x) => !x.supersetGroup)).toBe(true);
+    expect(r.newIndex).toBe(3);
+    expect(canUndoMove(before, r.rows)).toBe(true);
+  });
+
+  it('a straight lift dragged into the middle of a pair lands just after it', () => {
+    const r = moveInSession([s('press'), m('ext', 'A', 1), m('curl', 'A', 2), s('row'), s('fly')], 4, 2);
+    expect(ids(r.rows)).toEqual(['press', 'ext', 'curl', 'fly', 'row']);
+    expect(r.rows[1]).toMatchObject({ supersetGroup: 'A', pairPosition: 1 });
+    expect(r.rows[2]).toMatchObject({ supersetGroup: 'A', pairPosition: 2 });
+    expect(r.newIndex).toBe(3);
+  });
+
+  it('a move at either end, or onto itself, changes nothing', () => {
+    expect(moveInSession(rows(), 0, -1).changed).toBe(false);
+    expect(moveInSession(rows(), 1, 0).changed).toBe(true);
+    expect(moveInSession(rows(), 3, 3).changed).toBe(false);
+    // The pair is already first: ▲ on A1 has nowhere to go.
+    expect(moveInSession([m('ext', 'A', 1), m('curl', 'A', 2), s('row')], 1, 0).changed).toBe(false);
+  });
+
+  it('Undo applies only while the session holds the same lifts', () => {
+    const before = rows();
+    expect(canUndoMove(before, [...before].reverse())).toBe(true);
+    expect(canUndoMove(before, [...before, s('fly')])).toBe(false);
+    expect(canUndoMove(before, before.slice(1))).toBe(false);
+  });
+});
+
+describe('orderBlocks — positions counted in units', () => {
+  it('a superset is one place in the order; a stale lone letter is not a block', () => {
+    const rows = [{}, { supersetGroup: 'A', pairPosition: 1 as const }, { supersetGroup: 'A', pairPosition: 2 as const }, { supersetGroup: 'B', pairPosition: 1 as const }];
+    expect(orderBlocks(rows)).toEqual([[0], [1, 2], [3]]);
   });
 });

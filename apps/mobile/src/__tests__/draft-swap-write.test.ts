@@ -12,6 +12,7 @@
 const mockCommit = jest.fn();
 const mockBatchSet = jest.fn();
 const mockBatchUpdate = jest.fn();
+const mockBatchDelete = jest.fn();
 
 jest.mock('firebase/firestore', () => {
   class Ts {
@@ -44,7 +45,7 @@ jest.mock('firebase/firestore', () => {
       return { path: parts.join('/'), id: parts[parts.length - 1] };
     },
     collection: (...a: unknown[]) => ({ path: (a as unknown[]).slice(1).map(String).join('/') }),
-    writeBatch: () => ({ set: mockBatchSet, update: mockBatchUpdate, commit: mockCommit }),
+    writeBatch: () => ({ set: mockBatchSet, update: mockBatchUpdate, delete: mockBatchDelete, commit: mockCommit }),
     deleteField: () => sentinel,
     documentId: () => '__name__',
     getDoc: jest.fn(),
@@ -64,7 +65,7 @@ jest.mock('@/lib/firebase', () => ({ db: {}, auth: {} }));
 jest.mock('@/lib/connectivity', () => ({ reportSnapshotMeta: jest.fn(), isOffline: () => false }));
 jest.mock('@/lib/health-sync', () => ({ exportDaily: jest.fn(), exportNutrition: jest.fn() }));
 
-import { commitDraftSwaps } from '@/lib/ledger';
+import { commitDraftSwaps, deleteTemplateWithDraft } from '@/lib/ledger';
 
 const { deleteField } = jest.requireMock('firebase/firestore') as { deleteField: () => unknown };
 const body = (name: string) => ({ name, exercises: [{ exerciseId: 'e1', name: 'Bench', plannedSets: [], supersetGroup: undefined }] });
@@ -131,5 +132,17 @@ describe('a refusal after the wait window is still heard', () => {
     await expect(commitDraftSwaps('u1', [{ mode: 'revert', draftId: 'd1', templateId: 't1', body: body('A'), kept: body('A') }], AT, late)).rejects.toThrow();
     await Promise.resolve();
     expect(late).not.toHaveBeenCalled();
+  });
+});
+
+describe('deleteTemplateWithDraft', () => {
+  it('deletes the template and its draft in ONE commit — never a template gone with its draft left behind', async () => {
+    await deleteTemplateWithDraft('u1', 'leg', 'd-leg');
+    expect(mockBatchDelete).toHaveBeenCalledTimes(2);
+    expect(mockBatchDelete.mock.calls.map(([ref]) => ref.path)).toEqual([
+      expect.stringContaining('leg'),
+      expect.stringContaining('templateDrafts/d-leg'),
+    ]);
+    expect(mockCommit).toHaveBeenCalledTimes(1);
   });
 });

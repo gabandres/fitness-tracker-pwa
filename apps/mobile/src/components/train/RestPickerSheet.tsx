@@ -123,8 +123,20 @@ export function RestPickerSheet({
         </View>
       </View>
     );
+    // "Keep" is applied on ANY close — Done, a swipe down or a backdrop tap —
+    // in ONE template write. Ticking it after picking used to save nothing,
+    // every chip tap with it on saved again, and a swipe dropped it silently.
+    const commitAndClose = () => {
+      if (keep && saveTo && (superset.transition != null || superset.round != null)) {
+        superset.onSave({
+          ...(superset.transition != null ? { transition: superset.transition } : {}),
+          ...(superset.round != null ? { round: superset.round } : {}),
+        });
+      }
+      onClose();
+    };
     return (
-      <BottomSheet native detents="fit" visible={visible} onClose={onClose} contentStyle={styles.sheetBody} maxHeight="80%">
+      <BottomSheet native detents="fit" visible={visible} onClose={commitAndClose} backdropTestID="rest-picker-backdrop" contentStyle={styles.sheetBody} maxHeight="80%">
         <View style={styles.sheetStack}>
           <Text style={styles.sheetTitle} accessibilityRole="header">{t('train.superset.restPickerTitle', { group: superset.group })}</Text>
           <Text style={styles.sheetHint}>{t('train.superset.restPickerHint')}</Text>
@@ -145,20 +157,9 @@ export function RestPickerSheet({
               <Text style={styles.progToggleText}>{t('train.superset.keepForGroup', { group: superset.group, template: saveTo })}</Text>
             </Touchable>
           ) : null}
-          {/* "Keep" is applied on Done, in ONE template write — ticking it after
-              picking used to save nothing, and every chip tap with it on
-              saved again. */}
           <Touchable
             style={styles.tplStart}
-            onPress={() => {
-              if (keep && saveTo && (superset.transition != null || superset.round != null)) {
-                superset.onSave({
-                  ...(superset.transition != null ? { transition: superset.transition } : {}),
-                  ...(superset.round != null ? { round: superset.round } : {}),
-                });
-              }
-              onClose();
-            }}
+            onPress={commitAndClose}
             accessibilityRole="button"
             testID="rest-picker-done"
           >

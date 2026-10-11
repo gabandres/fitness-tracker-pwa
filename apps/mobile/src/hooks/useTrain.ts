@@ -41,7 +41,6 @@ import {
   applySessionAction,
   findDuplicateExercise,
   dayBoundaryOf,
-  moveExercise,
   newCardioBlock,
   newLedgerId,
   newWorkoutSet,
@@ -50,8 +49,8 @@ import {
   planSwaps,
   rowPendingLoadTest,
   sessionDurationMin,
-  reorderWithSupersets,
-  moveBlockAware,
+  moveInSession,
+  canUndoMove,
   sessionCall,
   type SwapPlan,
   type TemplateDraftDoc,
@@ -1083,31 +1082,14 @@ export function useTrain(): TrainState {
   const moveExerciseInActive = useCallback(
     (from: number, to: number) => {
       const prev = activeRef.current;
-      if (!prev || from === to) return { newIndex: from };
-      let exercises: SessionExercise[];
-      let newIndex = to;
-      let left: { name: string; group: string; before: SessionExercise[] } | undefined;
-      if (!prev.exercises.some((e) => e.supersetGroup)) {
-        exercises = moveExercise(prev.exercises, from, to);
-      } else if (Math.abs(to - from) === 1) {
-        // One step: a superset moves as one unit and is never dissolved.
-        const r = moveBlockAware(prev.exercises, from, to > from ? 1 : -1);
-        exercises = r.rows;
-        newIndex = r.newIndex;
-      } else {
-        // A drag: a member dragged away from its partner leaves the pair.
-        // Letters and the snapshot's rests stay as the lifter has read them.
-        const moved = prev.exercises[from];
-        const r = reorderWithSupersets(prev.exercises, from, to, { keepLetters: true, restsOnEveryMember: true });
-        exercises = r.rows;
-        newIndex = Math.max(0, exercises.findIndex((e) => e.exerciseId === moved?.exerciseId && e.sets === moved.sets));
-        if (r.left) left = { name: r.left.row.name, group: r.left.group, before: prev.exercises };
-      }
-      if (exercises === prev.exercises || exercises.every((e, i) => e === prev.exercises[i])) return { newIndex: from };
-      const next = { ...prev, exercises };
+      if (!prev) return { newIndex: from };
+      // The rule is core's (`moveInSession`); this only writes it.
+      const r = moveInSession(prev.exercises, from, to);
+      if (!r.changed) return { newIndex: from };
+      const next = { ...prev, exercises: r.rows };
       setActive(next);
       void persist(next);
-      return { newIndex, ...(left ? { left } : {}) };
+      return { newIndex: r.newIndex, ...(r.left ? { left: { name: r.left.row.name, group: r.left.group, before: prev.exercises } } : {}) };
     },
     [setActive, persist],
   );
@@ -1115,9 +1097,7 @@ export function useTrain(): TrainState {
   const undoMove = useCallback(
     (before: SessionExercise[]) => {
       const prev = activeRef.current;
-      if (!prev) return;
-      const key = (xs: readonly SessionExercise[]) => xs.map((e) => e.exerciseId).sort().join('|');
-      if (key(before) !== key(prev.exercises)) return;
+      if (!prev || !canUndoMove(before, prev.exercises)) return;
       const next = { ...prev, exercises: before };
       setActive(next);
       void persist(next);

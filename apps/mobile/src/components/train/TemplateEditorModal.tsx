@@ -1,7 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Text,
+  type TextInput,
   TouchableOpacity,
   View,
   useWindowDimensions,
@@ -37,6 +38,7 @@ import {
   canPairWithNext,
   ANTAGONIST_PAIRS,
   moveBlockAware,
+  orderBlocks,
   contextChanges,
   formatLoad,
   groupRest,
@@ -200,7 +202,8 @@ function draftKey(
   exercises: readonly DraftEx[],
   cardio: readonly DraftCardio[],
 ): string {
-  return JSON.stringify([name, notes, restMini, restCluster, exercises, cardio]);
+  // The card key is not a change: strip it, so new uids never read as edits.
+  return JSON.stringify([name, notes, restMini, restCluster, exercises.map(({ uid: _uid, ...e }) => e), cardio]);
 }
 
 /** The one line a collapsed card shows — "3 × 8 · 20 lb". It answers the
@@ -280,6 +283,9 @@ interface DraftEx {
    *  otherwise come back as 100.09 lb — a "hand edit" nobody made, logged. */
   loadAsOpened?: { text: string; lb: number };
 }
+
+/** "Edit rests": after the confirm sheet's dismiss animation. */
+const EDIT_RESTS_FOCUS_DELAY_MS = 400;
 
 let uidSeq = 0;
 /** A card key that survives reorders (`DraftEx.uid`). */
@@ -402,6 +408,8 @@ export function TemplateEditorModal({
   /** Tags from the REAL groups (a lone member is untagged). */
   const tags = useMemo(() => supersetTags(exercises), [exercises]);
   const groups = useMemo(() => supersetGroups(exercises), [exercises]);
+  /** Positions in UNITS — a superset is one place, the way a move moves it. */
+  const blocks = useMemo(() => orderBlocks(exercises), [exercises]);
 
   /** Pair row `i` with the next, or add the next to `i`'s superset. */
   function pairNext(i: number) {
@@ -441,11 +449,19 @@ export function TemplateEditorModal({
     // and breaking the pair is the outlined second choice (it has an Undo).
     confirm({
       title: t('train.superset.manageTitle', { group }),
-      body: `${members.map((m) => m.name).join(' + ')} · ${t('train.superset.restDesc', { switch: `${rests.transitionRestSec} s`, round: `${rests.roundRestSec} s` })}`,
+      body: `${members.map((m) => m.name).join(' + ')} · ${t('train.superset.restDescInline', { switch: `${rests.transitionRestSec} s`, round: `${rests.roundRestSec} s` })}`,
       confirmText: t('train.superset.editRests'),
       onConfirm: () => {
         setOpenEx(leader);
         setMoreEx(leader);
+        // The rest fields sit at the bottom of the leader's options, far below
+        // its header: focus the first one once the sheet is gone and the card
+        // has rendered — the keyboard rises, `useRevealFocusedInput` scrolls
+        // it into view and VoiceOver lands on it.
+        const uid = exercises[leader]?.uid;
+        setTimeout(() => {
+          if (uid) restInputs.current.get(uid)?.focus();
+        }, EDIT_RESTS_FOCUS_DELAY_MS);
       },
       secondaryText: t('train.superset.unpairName', { name: d.name }),
       onSecondary: () => unpairRow(i),
@@ -482,6 +498,8 @@ export function TemplateEditorModal({
    *  a Reanimated AnimatedRef on an Animated.ScrollView — a plain ref is
    *  accepted by the types and simply never auto-scrolls. */
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
+  /** The leaders' switch-rest inputs by card key — "Edit rests" focuses one. */
+  const restInputs = useRef(new Map<string, TextInput>());
   /** Android: the last set's field went under the keyboard (UX_AUDIT S22). */
   const onEditorScroll = useRevealFocusedInput(scrollRef);
   /** Exercise cards need an explicit PIXEL width. They are children of
@@ -687,7 +705,7 @@ export function TemplateEditorModal({
 
   // Reorder by one position (array order IS the saved template order). Robust
   // ▲▼ controls; true drag-to-reorder is a follow-up (needs on-device tuning).
-  function moveEx(from: number, dir: -1 | 1) {
+  function moveEx(from: number, dir: -1 | 1, announceMove = true) {
     // One step treats a superset as a unit: a lift hops over a whole block,
     // and moving a member moves the block. Leaving a pair is "Unpair".
     const r = moveBlockAware(exercises, from, dir);
@@ -695,10 +713,15 @@ export function TemplateEditorModal({
     setExercises(r.rows);
     // Where it landed, said — a screen-reader user moving twice in a row
     // needs to hear the new position, not silence.
+    // Counted in units — a superset is ONE place in the order, as it moves.
     const moved = exercises[from];
-    announce(moved?.supersetGroup && tags[from]
-      ? t('train.superset.blockMovedA11y', { group: moved.supersetGroup, n: r.newIndex + 1, total: exercises.length })
-      : t('train.movedToA11y', { name: moved?.name ?? '', n: r.newIndex + 1, total: exercises.length }));
+    const units = orderBlocks(r.rows);
+    const unitAt = units.findIndex((u) => u.includes(r.newIndex)) + 1;
+    if (announceMove) {
+      announce(moved?.supersetGroup && tags[from]
+        ? t('train.superset.blockMovedA11y', { group: moved.supersetGroup, n: unitAt, total: units.length })
+        : t('train.movedToA11y', { name: moved?.name ?? '', n: unitAt, total: units.length }));
+    }
     const openRow = openEx != null ? exercises[openEx] : undefined;
     setOpenEx(openRow ? r.rows.indexOf(openRow) : null);
     setMoreEx(null);
@@ -1335,7 +1358,13 @@ export function TemplateEditorModal({
                       accessible
                       accessibilityRole="adjustable"
                       accessibilityLabel={t('train.reorderA11y', { name: d.name })}
-                      accessibilityValue={{ min: 1, max: exercises.length, now: i + 1 }}
+                      // `text`, or iOS reads min/max/now as a percent ("25 percent").
+                      accessibilityValue={{
+                        min: 1,
+                        max: blocks.length,
+                        now: blocks.findIndex((b) => b.includes(i)) + 1,
+                        text: t('train.positionOf', { n: blocks.findIndex((b) => b.includes(i)) + 1, total: blocks.length }),
+                      }}
                       accessibilityActions={[
                         { name: 'increment', label: t('train.moveUp') },
                         { name: 'decrement', label: t('train.moveDown') },
@@ -1349,11 +1378,18 @@ export function TemplateEditorModal({
                       ]}
                       onAccessibilityAction={(e) => {
                         const action = e.nativeEvent.actionName;
-                        if (action === 'moveUp' || action === 'increment') moveEx(i, -1);
-                        if (action === 'moveDown' || action === 'decrement') moveEx(i, 1);
+                        // A swipe on an adjustable reads its new value by
+                        // itself — announcing too said the position twice.
+                        if (action === 'moveUp' || action === 'increment') moveEx(i, -1, action === 'moveUp');
+                        if (action === 'moveDown' || action === 'decrement') moveEx(i, 1, action === 'moveDown');
                         if (action === 'earlier' || action === 'later') {
                           const to = action === 'earlier' ? i - 1 : i + 1;
-                          setExercises(reorderWithSupersets(exercises, i, to).rows);
+                          const next = reorderWithSupersets(exercises, i, to).rows;
+                          // The open card stays with its lift, not its slot.
+                          const openRow = openEx != null ? exercises[openEx] : undefined;
+                          setExercises(next);
+                          setOpenEx(openRow ? next.indexOf(openRow) : null);
+                          setMoreEx(null);
                           announce(t('train.superset.positionA11y', { name: d.name, label: `${d.supersetGroup}${action === 'earlier' ? (d.pairPosition ?? 2) - 1 : (d.pairPosition ?? 1) + 1}` }));
                         }
                       }}
@@ -1852,6 +1888,10 @@ export function TemplateEditorModal({
                                     onChangeText={(v) => patchEx(i, { transitionRestSec: clampRest(v) })}
                                     {...doneKey}
                                     accessibilityLabel={`${t('train.superset.transitionRest')}, ${d.name}`}
+                                    ref={(el) => {
+                                      if (el) restInputs.current.set(d.uid, el);
+                                      else restInputs.current.delete(d.uid);
+                                    }}
                                     testID={`template-transition-rest-${i}`}
                                   />
                                 </View>

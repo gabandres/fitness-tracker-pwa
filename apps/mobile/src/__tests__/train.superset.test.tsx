@@ -101,6 +101,26 @@ jest.mock('@/components/BottomSheet', () => {
   return { ...actual, NATIVE_SHEETS: false, BottomSheet: (p: object) => actual.BottomSheet({ ...p, native: false }) };
 });
 jest.mock('@/components/ConfirmSheet', () => ({ confirm: (o: unknown) => mockConfirm(o) }));
+const mockFocus = jest.fn();
+// The real input, with `focus()` observed: "Edit rests" must land on a field.
+jest.mock('@/components/SheetTextInput', () => {
+  const R = jest.requireActual('react');
+  const actual = jest.requireActual('@/components/SheetTextInput');
+  return {
+    ...actual,
+    SheetTextInput: R.forwardRef((p: { testID?: string }, ref: unknown) => {
+      const inner = R.useRef(null);
+      R.useImperativeHandle(ref, () => new Proxy({}, {
+        get: (_t, k: string) => {
+          if (k === 'focus') return () => mockFocus(p.testID);
+          const v = inner.current?.[k];
+          return typeof v === 'function' ? v.bind(inner.current) : v;
+        },
+      }));
+      return R.createElement(actual.SheetTextInput, { ...p, ref: inner });
+    }),
+  };
+});
 jest.mock('@/components/Toast', () => ({
   ...jest.requireActual('@/components/Toast'),
   showToast: (...a: unknown[]) => mockShowToast(...a),
@@ -241,11 +261,15 @@ describe('the alternating flow', () => {
     const session = live();
     session.exercises[1] = { ...session.exercises[1], sets: session.exercises[1].sets.slice(0, 3) };
     mockTrain.active = session;
+    mockRestRemaining = 90;
     const ui = await render(<TrainScreen />);
     await fireEvent.press(ui.getByTestId('exercise-head-1'));
     await fireEvent.press(ui.getByTestId('set-done-1-2'));
     // Not the 40 s round rest: the template's 90 s between clusters.
     expect(mockRestStart).toHaveBeenLastCalledWith(90, 'Next: A1 · Leg Extensions');
+    // …and the heading says the partner is finished.
+    expect(ui.getByTestId('rest-label')).toHaveTextContent('Round 2/2 · A1 only', { exact: false });
+    expect(mockAnnounce).toHaveBeenLastCalledWith(expect.stringContaining('Round 2 of 2, A1 only'));
   });
 
   it('A2 already done (A1\'s station was taken): A1\'s cluster gets its own rest and stays put', async () => {
@@ -323,6 +347,18 @@ describe('round 4: rests and moves in the live session', () => {
     expect(draft.exercises.every((e: { restMiniSec?: number }) => e.restMiniSec === undefined)).toBe(true);
   });
 
+  it('"Keep" also saves when the picker is dismissed instead of Done (swipe / backdrop)', async () => {
+    mockTrain.active = live();
+    const ui = await render(<TrainScreen />);
+    await fireEvent.press(ui.getByTestId('exercise-menu-0'));
+    await fireEvent.press(ui.getByTestId('ex-menu-rest'));
+    await fireEvent.press(ui.getByTestId('rest-pick-round-60'));
+    await fireEvent.press(ui.getByTestId('rest-keep-superset'));
+    await fireEvent.press(ui.getByTestId('rest-picker-backdrop'));
+    await waitFor(() => expect(mockTrain.saveTemplate).toHaveBeenCalledTimes(1));
+    expect(mockTrain.saveTemplate.mock.calls[0][0].exercises[0]).toMatchObject({ exerciseId: 'ext', roundRestSec: 60 });
+  });
+
   it('a lift whose partner was removed gets its own ⋯ rest again', async () => {
     const s0 = live();
     mockTrain.active = { ...s0, exercises: [s0.exercises[0], s0.exercises[2]] };
@@ -342,13 +378,34 @@ describe('round 4: rests and moves in the live session', () => {
     expect(ui.queryByTestId('ex-menu-move-up')).toBeNull();
     expect(ui.getByTestId('ex-menu-move-down')).toBeTruthy();
   });
+
+  it('the open card follows its lift when a one-step move hops it over the superset (real move rule)', async () => {
+    const { moveInSession } = jest.requireActual('@macrolog/core');
+    mockTrain.active = live();
+    mockTrain.moveExerciseInActive.mockImplementation((from: number, to: number) => {
+      const r = moveInSession(mockTrain.active!.exercises, from, to);
+      mockTrain.active = { ...mockTrain.active!, exercises: r.rows };
+      return { newIndex: r.newIndex };
+    });
+    const ui = await render(<TrainScreen />);
+    await fireEvent.press(ui.getByTestId('exercise-head-2'));
+    await fireEvent.press(ui.getByTestId('exercise-menu-2'));
+    await fireEvent.press(ui.getByTestId('ex-menu-move-up'));
+    expect(mockTrain.moveExerciseInActive).toHaveBeenCalledWith(2, 1);
+    await ui.rerender(<TrainScreen />);
+    // The knee raise hopped the whole pair, and its card is still the open one.
+    expect(mockTrain.active!.exercises.map((e) => e.exerciseId)).toEqual(['knee', 'ext', 'curl']);
+    expect(ui.getByTestId('set-done-0-0')).toBeTruthy();
+    expect(ui.queryByTestId('set-done-1-0')).toBeNull();
+    expect(ui.queryByTestId('set-done-2-0')).toBeNull();
+  });
 });
 
 describe('the template editor', () => {
   it('labels an opposing-muscle pair "best supported", outside the tap target, and reads the tag to a screen reader', async () => {
     const ui = await render(<TrainScreen />);
     await fireEvent.press(ui.getByTestId('edit-template-leg'));
-    expect(ui.getByTestId('template-superset-header-0')).toHaveTextContent('A · switch 35 s · round 40 s');
+    expect(ui.getByTestId('template-superset-header-0')).toHaveTextContent('Superset A · switch 35 s · round 40 s');
     // The group's facts together, right after the tag: who, then the rests.
     expect(ui.getByTestId('template-ex-toggle-0').props.accessibilityLabel)
       .toBe('Superset A1, alternates with Leg Curls. Switch 35 s · round 40 s. Leg Extensions. 6 sets · 90 lb');
@@ -435,11 +492,34 @@ describe('the template editor', () => {
     const ui = await render(<TrainScreen />);
     await fireEvent.press(ui.getByTestId('edit-template-leg'));
     await fireEvent(ui.getByTestId('template-drag-2'), 'accessibilityAction', { nativeEvent: { actionName: 'moveUp' } });
-    expect(mockAnnounce).toHaveBeenLastCalledWith('Hanging Knee Raise moved to 1 of 3');
+    // Counted in units: the pair is one place, so the order has 2.
+    expect(mockAnnounce).toHaveBeenLastCalledWith('Hanging Knee Raise moved to 1 of 2');
+    expect(ui.getByTestId('template-drag-0').props.accessibilityValue).toMatchObject({ now: 1, max: 2, text: '1 of 2' });
     await fireEvent.press(ui.getByTestId('save-template'));
     await waitFor(() => expect(mockTrain.saveTemplate).toHaveBeenCalledTimes(1));
     const [draft] = mockTrain.saveTemplate.mock.calls[0];
     expect(draft.exercises.map((e: { exerciseId: string }) => e.exerciseId)).toEqual(['knee', 'ext', 'curl']);
+  });
+
+  it('"Edit rests" from A2\'s link opens the leader and focuses its switch rest — the field is on screen, not somewhere below', async () => {
+    jest.useFakeTimers();
+    try {
+      const ui = await render(<TrainScreen />);
+      await fireEvent.press(ui.getByTestId('edit-template-leg'));
+      await fireEvent.press(ui.getByTestId('template-unlink-1'));
+      const opts = mockConfirm.mock.calls[0][0];
+      expect(opts.confirmText).toBe('Edit rests');
+      expect(opts.body).toBe('Leg Extensions + Leg Curls · switch 35 s · round 40 s');
+      await act(async () => opts.onConfirm());
+      expect(ui.getByTestId('template-transition-rest-0')).toBeTruthy();
+      expect(mockFocus).not.toHaveBeenCalled();
+      await act(async () => {
+        jest.advanceTimersByTime(450);
+      });
+      expect(mockFocus).toHaveBeenCalledWith('template-transition-rest-0');
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('no longer offers the dead "supersets" structure chip', async () => {

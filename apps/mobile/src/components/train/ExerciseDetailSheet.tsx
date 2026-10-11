@@ -332,7 +332,7 @@ export function ExerciseDetailSheet({
 
                 {/* Above History, not below it: the history list runs to every
                     session in the window, and a report under it went unseen. */}
-                {exercise?.id ? <ExerciseSupersetReport sessions={train.recentSessions} exerciseId={exercise.id} /> : null}
+                {exercise?.id ? <ExerciseSupersetReport sessions={train.recentSessions} exerciseId={exercise.id} name={exercise.name} /> : null}
 
                 <Text style={[styles.panelLabel, { marginTop: space.md }]} accessibilityRole="header">{t('train.history')}</Text>
                 {rows.map((r, i) => (

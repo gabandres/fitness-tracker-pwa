@@ -113,7 +113,7 @@ export function useDraftActions(train: DraftTrain) {
     );
     const body = mode === 'activate'
       ? [
-          ...(pending.length ? [t('train.drafts.pending', { names: names(pending) })] : []),
+          ...(pending.length ? [t('train.drafts.pendingConfirm', { names: names(pending) })] : []),
           ...overlapLines(draft, plan, mode, partner),
           // Both counts when there are two ways forward, so "Only …" is not a
           // surprise.

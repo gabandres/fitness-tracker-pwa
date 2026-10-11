@@ -667,6 +667,23 @@ export function reorderWithSupersets<T extends SupersetFields>(
 }
 
 /**
+ * The list's order in UNITS: each superset is one block of its row indices,
+ * each straight row a block of one. What a one-step move moves, and how a
+ * position is counted out loud ("Superset A moved to 2 of 4").
+ */
+export function orderBlocks(rows: readonly SupersetFields[]): number[][] {
+  const real = supersetGroups(rows);
+  const blocks: number[][] = [];
+  rows.forEach((r, i) => {
+    const last = blocks[blocks.length - 1];
+    const g = r.supersetGroup && real.has(r.supersetGroup) ? r.supersetGroup : undefined;
+    if (g && last && rows[last[0]].supersetGroup === g) last.push(i);
+    else blocks.push([i]);
+  });
+  return blocks;
+}
+
+/**
  * A ONE-STEP move (▲ / ▼, VoiceOver's move up / down) that treats a superset
  * as one unit: a straight row next to a block hops over the whole block, and
  * moving any member moves the whole block. Leaving a superset is never a
@@ -683,15 +700,7 @@ export function moveBlockAware<T extends SupersetFields>(
   from: number,
   dir: -1 | 1,
 ): { rows: T[]; newIndex: number } {
-  const real = supersetGroups(rows);
-  // Contiguous units, in list order.
-  const blocks: number[][] = [];
-  rows.forEach((r, i) => {
-    const last = blocks[blocks.length - 1];
-    const g = r.supersetGroup && real.has(r.supersetGroup) ? r.supersetGroup : undefined;
-    if (g && last && rows[last[0]].supersetGroup === g) last.push(i);
-    else blocks.push([i]);
-  });
+  const blocks = orderBlocks(rows);
   const at = blocks.findIndex((b) => b.includes(from));
   const to = at + dir;
   if (at < 0 || to < 0 || to >= blocks.length) return { rows: [...rows], newIndex: from };
@@ -699,4 +708,60 @@ export function moveBlockAware<T extends SupersetFields>(
   [order[at], order[to]] = [order[to], order[at]];
   const flat = order.flat();
   return { rows: flat.map((i) => rows[i]), newIndex: flat.indexOf(from) };
+}
+
+/**
+ * The live session's move, one rule for ▲ / ▼ and for a drag
+ * (`useTrain.moveExerciseInActive` is a thin wrapper around it).
+ *
+ * - No superset in the list: a plain move.
+ * - One step: block-aware ({@link moveBlockAware}) — a superset moves as one
+ *   unit and is never dissolved.
+ * - A drag: {@link reorderWithSupersets} with the letters and the snapshot's
+ *   rests kept as the lifter has read them; a member dragged away from its
+ *   partner leaves the pair and is reported in `left`.
+ *
+ * `newIndex` is where the MOVED row now sits (the open card follows it).
+ * `changed` is false when nothing moved — at an end, or a drop on itself —
+ * so the caller can skip the write.
+ */
+export function moveInSession<T extends SupersetFields & { exerciseId: string }>(
+  rows: readonly T[],
+  from: number,
+  to: number,
+): { rows: T[]; newIndex: number; changed: boolean; left?: { row: T; group: string } } {
+  const same = { rows: [...rows], newIndex: from, changed: false };
+  if (from === to || !rows[from] || to < 0 || to >= rows.length) return same;
+  let next: T[];
+  let newIndex = to;
+  let left: { row: T; group: string } | undefined;
+  if (!rows.some((r) => r.supersetGroup)) {
+    next = [...rows];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+  } else if (Math.abs(to - from) === 1) {
+    const r = moveBlockAware(rows, from, to > from ? 1 : -1);
+    next = r.rows;
+    newIndex = r.newIndex;
+  } else {
+    const moved = rows[from];
+    const r = reorderWithSupersets(rows, from, to, { keepLetters: true, restsOnEveryMember: true });
+    next = r.rows;
+    // Unpairing rebuilds the row, so find it by what it IS, not by identity.
+    const at = next.indexOf(moved);
+    newIndex = at >= 0 ? at : Math.max(0, next.findIndex((e) => e.exerciseId === moved.exerciseId && !e.supersetGroup));
+    left = r.left;
+  }
+  if (next.every((e, i) => e === rows[i])) return same;
+  return { rows: next, newIndex, changed: true, ...(left ? { left } : {}) };
+}
+
+/**
+ * Whether an Undo of a move can still apply: the session holds exactly the
+ * same exercises as before it (only their order differs). A lift added or
+ * removed since makes the old order wrong, so the Undo does nothing.
+ */
+export function canUndoMove(before: readonly { exerciseId: string }[], now: readonly { exerciseId: string }[]): boolean {
+  const key = (xs: readonly { exerciseId: string }[]) => xs.map((e) => e.exerciseId).sort().join('|');
+  return key(before) === key(now);
 }
