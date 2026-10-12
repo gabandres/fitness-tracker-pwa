@@ -1,6 +1,6 @@
 # STATUS — what is true right now
 
-**Updated:** 2026-10-07 · **Owns:** current state only. Not history
+**Updated:** 2026-10-12 · **Owns:** current state only. Not history
 (`CHANGELOG.md`), not rationale (`docs/adr/`), not vocabulary (`CONTEXT.md`),
 not commands (`docs/COMMANDS.md`), not build tooling
 (`docs/build-infrastructure.md`).
@@ -73,6 +73,8 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 
 ## 2. Merged, on `main`, and not delivered anywhere
 
+**2026-10-12: Train UX round 2 (`da898de7`) is in an OTA on all five live runtimes** (ledger). Its native half — the lock-screen Done set and the Android Live Update (S23-8) — reaches users only with **1.2.7** (§3); on older binaries the same JS feature-detects and behaves as before.
+
 **Everything on `main` is in an OTA or a 1.2.6 binary** (newest OTAs `a3f164e7`, ADR-0044 below). Live binaries got
 the gram weight on 2026-10-07 (build 68 `962274ec…`, vc 47 `20abfce6…`, vc 48
 `6ae7580e…`, all at `1ebd474f`). The native segmented controls (`1a1f601e`,
@@ -122,13 +124,20 @@ host setup and traps are in `.maestro/regression/README.md`.
 deleted and its outcome goes to `CHANGELOG.md`.
 
 
-### 1.2.6 — native segmented controls; both binaries submitted 2026-10-07
+### 1.2.7 — lock-screen sets (S23-8); TestFlight + Play alpha 2026-10-12, NOT submitted for review
 
-- **iOS**: build 70 submitted for review (AFTER_APPROVAL; What's New in
-  `docs/app-store-metadata.md`). Build 69 is superseded and unused. Build 68 (1.2.5) is
-  live. **iOS OTAs to build 68 now need `runtimeVersion` PINNED to
-  `489bf3b5…`** — the tree computes 1.2.6's hash.
-- **Android**: vc 50 on alpha + production 100%, in review; vc 48 is live.
+- **1.2.6 is LIVE on both stores** (Apple lookup `1.2.6` since 2026-10-07;
+  `app-version.json` reads vc 50 / build 70, 2026-10-12).
+- **iOS**: build 71 / 1.2.7 `VALID` in TestFlight (runtime `705652e8…`).
+  **Not submitted for App Store review — the owner confirms first.**
+- **Android**: vc 51 / 1.2.7 on the Play ALPHA track (runtime `21d90a2c…`).
+  **Production not touched — the owner confirms first.**
+- **Before either goes further**: the device script in `FIX-N2.md` (on
+  `ignia-mac`, `apps/mobile/.maestro/capture/train-ux/reviews/`) — lock-screen
+  Done set on an iPhone and on the OnePlus 8T (Android 14); the Android 16
+  promoted chip on the `pixel_api36` emulator (the 8T has no official
+  Android 16, 2026-10-12 owner call). Plus the owner's VoiceOver/TalkBack pass
+  (`DEVICE-A11Y-CHECKLIST.md`, same folder).
 - **Still simulator/emulator-only**: the glass tab bar and the fit-sheet
   underlap on a real iPhone; `UISegmentedControl` on a device.
 - **Predictive back is OFF on Android** despite `predictiveBackGestureEnabled:
