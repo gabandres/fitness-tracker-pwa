@@ -102,6 +102,13 @@ after that Push that all three switched and the notes line reads "Program v2:
 Push supersets, Lateral ×2". A pre-OTA bundle lists the v2 drafts as plain
 superset drafts (switching one there skips the program's rules).
 
+**Train UX pass shipped 2026-10-12** (`f6ba36ee`; OTAs on all five runtimes,
+groups in the ledger). Scored 72.3 → 81.6 on rendered captures; the open list
+— JS, native, device a11y pass, and four owner calls — is `UX_AUDIT.md` §S23.
+**Not device-QA'd**: simulator + emulator only. The Android guarded-sheet fix
+(a dragged-away sheet re-presents and asks) touches every guarded sheet in the
+app, not only Train.
+
 **The iOS regression suite is at 21 of 21** (2026-09-22, `ignia-mac`, simulator
 **`Ignia-QA-26`**; since 1.2.4 enabled scene support the iOS 27 `Ignia-QA` runs
 the app too, and the 2026-09-23 sweep ran there). That sweep ran on the 10:46
