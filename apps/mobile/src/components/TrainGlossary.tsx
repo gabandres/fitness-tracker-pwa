@@ -8,10 +8,13 @@ const SECTIONS: GlossarySection[] = [
   // every future session of that lift. The picker explains each option
   // inline; this is the same answer for someone who arrived at the word
   // from the logger instead.
-  { title: 'train.glossary.sectionLogging', terms: ['rir', 'setTypes', 'structure', 'cluster', 'superset', 'rest'] },
+  // `myoRep` follows `cluster`: "Myo-rep clusters by muscle" counts only
+  // these, and a straight-set lifter needs the word to know why it reads empty
+  // (train-ux H12). `repRange` follows `progression`, which reads against it.
+  { title: 'train.glossary.sectionLogging', terms: ['rir', 'setTypes', 'structure', 'cluster', 'myoRep', 'superset', 'rest'] },
   {
     title: 'train.glossary.sectionProgress',
-    terms: ['progression', 'suggest', 'last', 'pr', 'e1rm', 'volume', 'topSet'],
+    terms: ['progression', 'repRange', 'suggest', 'last', 'pr', 'e1rm', 'volume', 'topSet'],
   },
   { title: 'train.glossary.sectionPlates', terms: ['perSide', 'short', 'warmupPct'] },
   // ADR-0025. Last, because it is the newest vocabulary and the smallest — but

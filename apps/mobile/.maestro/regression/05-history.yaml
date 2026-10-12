@@ -46,17 +46,11 @@ env:
 # Android keeps hardware back. `day-prev`/`day-next` flank the title.
 - assertVisible:
     id: 'day-prev'
-- runFlow:
-    when:
-      platform: iOS
-    commands:
-      - tapOn:
-          id: 'BackButton'
-- runFlow:
-    when:
-      platform: Android
-    commands:
-      - back
+# 2026-10-12: the day draws its OWN back since 37ebd578 (`day-back`, `leaveDay`)
+# — the native header's `BackButton` is gone, so the iOS tap failed "Id matching
+# regex: BackButton". One id on both platforms now; no platform split needed.
+- tapOn:
+    id: 'day-back'
 - extendedWaitUntil:
     visible:
       id: 'history-back'

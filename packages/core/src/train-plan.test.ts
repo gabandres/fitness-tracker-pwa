@@ -5,6 +5,8 @@ import {
   nextTemplateUp,
   previousCell,
   previousSets,
+  previousToAccept,
+  countToAccept,
   scaffoldKindsFor,
   templateLastPerformed,
 } from './train-plan';
@@ -93,6 +95,60 @@ describe('nextTemplateUp', () => {
     const logged = [session('a', day(14)), session('b', day(9))];
     expect(nextTemplateUp([tpl('a'), tpl('b')], logged, NOW)?.template.id).toBe('b');
     expect(nextTemplateUp([tpl('b'), tpl('a')], logged, NOW)?.template.id).toBe('b');
+  });
+});
+
+describe('previousToAccept', () => {
+  it('accepts last time\'s row when it was the same kind', () => {
+    const prev = set({ kind: 'working', weight: 190, reps: 8 });
+    expect(previousToAccept(prev, set({ kind: 'working' }))).toBe(prev);
+    const warm = set({ kind: 'warmup', weight: 95, reps: 8 });
+    expect(previousToAccept(warm, set({ kind: 'warmup' }))).toBe(warm);
+  });
+
+  it('never hands a warm-up\'s numbers to an effort row, or the reverse (RDL 1a ← 105 × 8 warm-up)', () => {
+    expect(previousToAccept(set({ kind: 'warmup', weight: 105, reps: 8 }), set({ kind: 'activation' }))).toBeUndefined();
+    expect(previousToAccept(set({ kind: 'warmup', weight: 105, reps: 8 }), set({ kind: 'working' }))).toBeUndefined();
+    expect(previousToAccept(set({ kind: 'working', weight: 190, reps: 8 }), set({ kind: 'warmup' }))).toBeUndefined();
+  });
+
+  it('a different effort kind is not the same set either (straight 190 × 8 → a myo mini)', () => {
+    expect(previousToAccept(set({ kind: 'working', weight: 190, reps: 8 }), set({ kind: 'mini' }))).toBeUndefined();
+  });
+
+  it('nothing at that position stays nothing', () => {
+    expect(previousToAccept(undefined, set({ kind: 'working' }))).toBeUndefined();
+  });
+});
+
+describe('countToAccept', () => {
+  const warm = set({ kind: 'warmup', weight: 61, reps: 8 });
+  it('a row whose PREVIOUS was a warm-up offers the exercise target, never nothing (Upper A Bench row 1, v3 QA)', () => {
+    const row = set({ kind: 'working' });
+    expect(countToAccept(row, previousToAccept(warm, row), 'weight-reps', 8)).toBe(8);
+  });
+
+  it('the set\'s own prescription wins, then last time\'s same-kind row, then the exercise target', () => {
+    expect(countToAccept(set({ kind: 'working', targetReps: 10 }), set({ reps: 6 }), 'weight-reps', 8)).toBe(10);
+    expect(countToAccept(set({ kind: 'working' }), set({ reps: 6 }), 'weight-reps', 8)).toBe(6);
+    expect(countToAccept(set({ kind: 'working' }), undefined, 'weight-reps', 8)).toBe(8);
+    expect(countToAccept(set({ kind: undefined }), undefined, 'bodyweight', 12)).toBe(12);
+  });
+
+  it('the exercise target is a WORKING-set number: a warm-up, mini or drop row does not borrow it', () => {
+    for (const kind of ['warmup', 'mini', 'drop', 'activation'] as const) {
+      expect(countToAccept(set({ kind }), undefined, 'weight-reps', 8)).toBeUndefined();
+    }
+  });
+
+  it('a timed row reads seconds and ignores the rep target', () => {
+    expect(countToAccept(set({ kind: 'working', targetDurationSec: 45 }), set({ durationSec: 30 }), 'time', 8)).toBe(45);
+    expect(countToAccept(set({ kind: 'working' }), set({ durationSec: 30 }), 'time', 8)).toBe(30);
+    expect(countToAccept(set({ kind: 'working' }), undefined, 'time', 8)).toBeUndefined();
+  });
+
+  it('nothing to offer stays undefined', () => {
+    expect(countToAccept(set({ kind: 'working' }), undefined, 'weight-reps', undefined)).toBeUndefined();
   });
 });
 

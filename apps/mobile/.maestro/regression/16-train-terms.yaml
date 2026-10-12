@@ -27,12 +27,27 @@ appId: fit.ignia.app
     id: 'tab-train'
 - extendedWaitUntil:
     visible:
-      id: 'train-glossary-open'
+      id: 'train-glossary-open|session-menu'
     timeout: 60000
 
 # ── 1. The glossary, straight off the tab header ──────────────────
-- tapOn:
-    id: 'train-glossary-open'
+# Since the Train UX pass (L4, 2026-10-11) the Train header — and its "?" —
+# is hidden while a workout runs; the session's ⋯ is the anchor then.
+- runFlow:
+    when:
+      visible:
+        id: 'session-menu'
+    commands:
+      - tapOn:
+          id: 'session-menu'
+      - tapOn: 'Glossary'
+- runFlow:
+    when:
+      visible:
+        id: 'train-glossary-open'
+    commands:
+      - tapOn:
+          id: 'train-glossary-open'
 - assertVisible: 'Training terms'
 # The term a user actually asked about, spelled out rather than abbreviated.
 # Both headings lead with what the COLUMN says and keep the jargon in
@@ -40,7 +55,9 @@ appId: fit.ignia.app
 # cluster's rows are numbered 1a/1b/1c rather than C1/C2.
 # 2026-10-04: the column header is "RIR" now (the Train review found "LEFT"
 # read as a side, not a count), and the heading follows it.
-- assertVisible: 'RIR — reps in reserve'
+# 2026-10-11 (H12): each glossary term is now ONE a11y element, "Name. Body",
+# so the heading alone no longer full-matches — prefix-match it.
+- assertVisible: 'RIR — reps in reserve\..*'
 - takeScreenshot: .maestro/regression/shots/16-glossary-top
 # Scrolled to, not asserted in place: the native sheet opens at its half
 # detent (2026-10-04), so this term starts below the fold. Expand it FIRST
@@ -53,7 +70,7 @@ appId: fit.ignia.app
 - waitForAnimationToEnd
 - scrollUntilVisible:
     element:
-      text: 'Cluster \(1a, 1b, 1c\)'
+      text: 'Cluster \(1a, 1b, 1c\)\..*'
     direction: DOWN
     timeout: 10000
     visibilityPercentage: 60
@@ -69,7 +86,7 @@ appId: fit.ignia.app
 # glossary rendering perfectly both times.
 - scrollUntilVisible:
     element:
-      text: 'e1RM'
+      text: 'e1RM\..*'
     direction: DOWN
     timeout: 10000
     visibilityPercentage: 60
@@ -77,7 +94,7 @@ appId: fit.ignia.app
 # scrolls rather than clipping at its maxHeight.
 - scrollUntilVisible:
     element:
-      text: 'Warm-up %'
+      text: 'Warm-up %\..*'
     direction: DOWN
     timeout: 10000
     visibilityPercentage: 60
@@ -126,11 +143,11 @@ appId: fit.ignia.app
           notVisible:
             id: 'glossary-backdrop-native'
           timeout: 5000
-# The Train header, not the tab label: `train-glossary-open` is present in both
+# The Train header, not the tab label: `train-glossary-open` (idle) or `session-menu` (mid-workout, L4) is present in both
 # of this tab's states, while the text 'Train' disappears the moment a session
 # goes live (the tab reads "Train, Workout in progress").
 - assertVisible:
-    id: 'train-glossary-open'
+    id: 'train-glossary-open|session-menu'
 
 # ── 2. A set row, and the two pickers on it ───────────────────────
 # A previous run that died mid-flow leaves a session in progress, and then
@@ -162,8 +179,9 @@ appId: fit.ignia.app
       # to confirm. The header is always on screen, so no scroll is needed.
       - tapOn:
           id: 'session-menu'
-      - tapOn:
-          id: 'session-menu-discard'
+      # iOS: the session ⋯ is a native menu, whose rows carry no testID
+      # (`session-menu-discard` exists only on the JS fallback sheet). 2026-10-11.
+      - tapOn: 'Discard workout'
       - tapOn:
           id: 'confirm-go'
       - extendedWaitUntil:
@@ -187,6 +205,19 @@ appId: fit.ignia.app
 - tapOn: 'Add exercise'
 - tapOn:
     id: 'create-exercise'
+# With a leftover library/catalog match for the name, the FIRST tap only
+# unfolds the log-style chips (`ExerciseSearchList`, L10); the second creates.
+# No match: the one tap already created and the sheet closed, so the chips are
+# gone and this is skipped. (`set-done-0-0` guards a slow close.)
+- runFlow:
+    when:
+      visible:
+        id: 'logstyle-weight-reps'
+      notVisible:
+        id: 'set-done-0-0'
+    commands:
+      - tapOn:
+          id: 'create-exercise'
 # A new exercise arrives with exactly one set, kind `working`, so the RIR cell
 # is on screen without adding anything.
 - extendedWaitUntil:
@@ -278,7 +309,11 @@ appId: fit.ignia.app
 # of its row's label. Android keeps the two Texts separate, and `.*…` still
 # matches there, so one regex serves both platforms.
 - assertVisible: '.*A real, hard set.*'
-- assertVisible: '.*First hard set of a cluster.*'
+# 2026-10-11 (L9): the sheet offers the cluster kinds (Activation / Mini)
+# only where a cluster can be added. A fresh, undeclared lift in a live
+# session counts as straight sets, so Activation is gone by design. Assert
+# the Drop row's description instead.
+- assertVisible: '.*Back-off set at a lighter weight.*'
 - takeScreenshot: .maestro/regression/shots/16-set-types
 # `set-sheet-kind-working`, NOT `set-kind-0-0-working`. ADR-0041 moved the
 # set-kind OPTIONS into the shared sheet, which renders them once and so drops
@@ -296,8 +331,9 @@ appId: fit.ignia.app
 # to confirm. The header is always on screen, so no scroll is needed.
 - tapOn:
     id: 'session-menu'
-- tapOn:
-    id: 'session-menu-discard'
+# iOS: the session ⋯ is a native menu, whose rows carry no testID
+# (`session-menu-discard` exists only on the JS fallback sheet). 2026-10-11.
+- tapOn: 'Discard workout'
 - tapOn:
     id: 'confirm-go'
 - extendedWaitUntil:
@@ -347,6 +383,20 @@ appId: fit.ignia.app
     timeout: 20000
 - tapOn:
     id: 'exercise-delete'
-- tapOn:
-    id: 'exercise-delete-confirm'
+# Delete asks through the named confirm sheet since the 2026-10-11 Train UX
+# pass (X11); a bundle from before it still shows the inline confirm row.
+- runFlow:
+    when:
+      visible:
+        id: 'confirm-go'
+    commands:
+      - tapOn:
+          id: 'confirm-go'
+- runFlow:
+    when:
+      visible:
+        id: 'exercise-delete-confirm'
+    commands:
+      - tapOn:
+          id: 'exercise-delete-confirm'
 - takeScreenshot: .maestro/regression/shots/16-teardown

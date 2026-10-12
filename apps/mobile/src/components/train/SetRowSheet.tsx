@@ -1,3 +1,4 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { ScrollView, Text, View } from 'react-native';
 import { Touchable } from './Touchable';
 import { RIR_MAX, RIR_MIN, clampRir } from '@macrolog/core';
@@ -5,7 +6,8 @@ import type { SetKind, WorkoutSet } from '@/lib/workout';
 import { type I18nKey, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { BottomSheet } from '@/components/BottomSheet';
-import { useThemedStyles } from '@/lib/theme-context';
+import { SheetHeader } from '@/components/SheetHeader';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { SET_KINDS } from './train-shared';
 import { createStyles } from './train-styles';
 
@@ -37,6 +39,9 @@ const RIR_CHOICES: number[] = Array.from(
  * category uses for this, and it is wired on the row; this row is the
  * discoverable and screen-reader-reachable path to the same thing.
  */
+/** A kind row's name and description beside its check. */
+const KIND_ROW_LINE = { flexDirection: 'row', alignItems: 'center', gap: 8 } as const;
+
 export function SetRowSheet({
   visible,
   set,
@@ -45,9 +50,14 @@ export function SetRowSheet({
   onKind,
   onRir,
   onRemove,
+  kinds,
 }: {
   visible: boolean;
   set: WorkoutSet | null;
+  /** The set kinds this lift can use — a straight lift gets Warm-up, Working
+   *  and Drop, not the cluster vocabulary that pushed RIR and Remove below
+   *  the detent (L9). The set's own kind is always shown. Absent: all. */
+  kinds?: readonly SetKind[];
   /** The row label — "2" for a straight set, "2a/2b/2c" for a cluster. */
   label: string;
   onClose: () => void;
@@ -57,6 +67,7 @@ export function SetRowSheet({
 }) {
   const t = useT();
   const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
 
   // RIR is meaningful on real working effort, not warmups/back-offs.
   // `continuation` carries it too: a rest-pause continuation is taken to
@@ -71,7 +82,7 @@ export function SetRowSheet({
   // the moment a removed set left the index empty) would leave the system
   // sheet up and blank. One instance for the whole session now (Train review
   // item 31), native, sized to its rows.
-  // Seven set kinds, the RIR chips and Remove scroll at most text sizes, so a height detent with room to expand suits them better than sizing to content.
+  // Up to seven set kinds, the RIR chips and Remove scroll at most text sizes, so a height detent with room to expand suits them better than sizing to content.
   return (
     <BottomSheet native detents={[0.75, 1]} visible={visible && set != null} onClose={onClose} contentStyle={styles.sheetBody} maxHeight="80%">
       {set ? (
@@ -83,14 +94,19 @@ export function SetRowSheet({
           720dp screen, and without this the RIR half and Remove sit below
           the fold with nothing able to reach them. Exactly the failure
           `BottomSheet`'s own `flexShrink` comment documents. */}
+      {/* A visible way out (v3 QA item 6). Every choice here applies on
+          tap, so it is Done. Outside the scroll, so it never leaves. */}
+      <SheetHeader
+        title={t('train.setSheetTitle', { n: label })}
+        trailing={{ label: t('common.done'), onPress: onClose, testID: 'set-sheet-done' }}
+      />
       <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-      <Text style={styles.sheetTitle} accessibilityRole="header">{t('train.setSheetTitle', { n: label })}</Text>
 
       <Text style={styles.fieldLabel}>{t('train.setType')}</Text>
       {/* Rows, not a chip wrap: "Activation" and "Mini" are cluster-training
           vocabulary, and a bare chip label teaches nobody what they are. */}
       <View accessibilityRole="radiogroup">
-      {SET_KINDS.map((k) => {
+      {SET_KINDS.filter((k) => !kinds || kinds.includes(k.value) || k.value === set.kind).map((k) => {
         const on = set.kind === k.value;
         return (
           <Touchable
@@ -106,8 +122,24 @@ export function SetRowSheet({
             accessibilityState={{ selected: on, checked: on }}
             testID={`set-sheet-kind-${k.value}`}
           >
-            <Text style={[styles.kindRowName, on && styles.kindRowNameOn]}>{t(k.labelKey)}</Text>
-            <Text style={styles.kindRowDesc}>{t(k.descKey)}</Text>
+            {/* A check on the chosen kind, not colour and a faint fill alone
+                (L-N13, R16/R18). The radio state already says it aloud. */}
+            <View style={KIND_ROW_LINE}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.kindRowName, on && styles.kindRowNameOn]}>{t(k.labelKey)}</Text>
+                <Text style={styles.kindRowDesc}>{t(k.descKey)}</Text>
+              </View>
+              {on ? (
+                <Ionicons
+                  name="checkmark"
+                  size={20}
+                  color={colors.ink}
+                  accessibilityElementsHidden
+                  importantForAccessibility="no"
+                  testID={`set-sheet-kind-${k.value}-check`}
+                />
+              ) : null}
+            </View>
           </Touchable>
         );
       })}

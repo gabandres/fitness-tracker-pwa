@@ -10,6 +10,20 @@ Update this file in the same commit as any flow change. If a surface ships
 that has no row here, the suite's "100%" claim is false until the row exists —
 add it as ✗ first, cover it second.
 
+## Train UX pass, 2026-10-12 (UX_AUDIT §S23) — full iOS suite RUN and reviewed
+
+**iOS 21/21 on `Ignia-QA-26` (iOS 26)**, first run, on the final JS of this
+commit (bundle swapped into build 70; screenshots reviewed by agent). Flow
+edits in this commit: 03/16/18/19/21/22 re-anchored to
+`train-glossary-open|session-menu` (the Train header hides during a live
+workout; the glossary moves into the session ⋯), glossary terms matched by
+label prefix (one combined a11y label per term), iOS Discard by text (the
+menu is native), 18 types reps (they are placeholders now), 22 accepts
+"Rest, N seconds" and types a weight on both rows, 05 taps `day-back`.
+**Android** (emulator, vc 50 re-signed with this JS): 03, 16, 21,
+android-smoke pass; 22 passes on retry (rest timing); 18 fails on a Maestro
+scroll overshoot, not the app (§S23-7).
+
 ## Re-anchored 2026-10-06 for S21 phase 1 (`622089d0`) — authored, NOT yet run on either platform
 
 The ✓ dates below were earned by the flows BEFORE these edits; until a run

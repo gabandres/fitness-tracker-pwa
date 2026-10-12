@@ -309,6 +309,119 @@ describe('a leftover round still says which round it is', () => {
     const rows = [row('a', myo(2), { supersetGroup: 'A', pairPosition: 1 }), row('b', myo(1), { supersetGroup: 'A', pairPosition: 2 })];
     expect(restAfterSetInFlow(rows, 1, 2, restFor)).toMatchObject({ kind: 'cluster', round: { n: 2, total: 2 } });
   });
+
+  // The 2026-10-11 capture: A1 RDL is ONE cluster (1a/1b/1c), A2 Back Squat is
+  // three straight sets. A2's rounds 2 and 3 are leftovers of A2 itself.
+  const straight = (n: number): { kind: K }[] => Array.from({ length: n }, () => ({ kind: 'working' as K }));
+  const rdlSquat = [
+    row('rdl', myo(1), { supersetGroup: 'A', pairPosition: 1 }),
+    row('squat', straight(3), { supersetGroup: 'A', pairPosition: 2 }),
+  ];
+
+  it('a leftover unit of the SAME exercise says which round it is (1 cluster ↔ 3 straight sets)', () => {
+    expect(supersetFlow(rdlSquat).map((s) => `${s.label}:${s.unit + 1}`)).toEqual(['A1:1', 'A2:1', 'A2:2', 'A2:3']);
+    const done = (e: number, s: number) => e === 0 || (e === 1 && s === 0);
+    expect(restAfterSetInFlow(rdlSquat, 1, 0, restFor, done)).toEqual({
+      seconds: 90, kind: 'cluster', round: { n: 2, total: 3 }, next: { exerciseIndex: 1, setIndex: 1, label: 'A2' },
+    });
+    expect(restAfterSetInFlow(rdlSquat, 1, 1, restFor, (e, s) => e === 0 || s <= 1)).toMatchObject({ kind: 'cluster', round: { n: 3, total: 3 } });
+  });
+
+  it('a partner unit the lifter skipped comes first: A1 1a, then A2 set 1 → back to A1 1b on the switch rest', () => {
+    const done = (e: number, s: number) => (e === 0 && s === 0) || (e === 1 && s === 0);
+    expect(restAfterSetInFlow(rdlSquat, 1, 0, restFor, done)).toEqual({
+      seconds: 30, kind: 'transition', next: { exerciseIndex: 0, setIndex: 1, label: 'A1' },
+    });
+  });
+
+  it('without a logged-state reader nothing counts as skipped (the plan alone)', () => {
+    expect(restAfterSetInFlow(rdlSquat, 1, 0, restFor)).toMatchObject({ kind: 'cluster', round: { n: 2, total: 3 }, next: { exerciseIndex: 1, setIndex: 1 } });
+  });
+
+  it('an UNTOUCHED partner unit behind is a choice (station taken): the flow carries on forward', () => {
+    const done = (e: number, s: number) => e === 1 && s === 0;
+    expect(restAfterSetInFlow(rdlSquat, 1, 0, restFor, done)).toMatchObject({ kind: 'cluster', round: { n: 2, total: 3 }, next: { exerciseIndex: 1, setIndex: 1 } });
+  });
+
+  it('this exercise twice in a row while the partner still has that round open → its cluster rest, no "partner done"', () => {
+    // A2 cluster 1 was done first; A1 cluster 1 just ended. Round 2 has both
+    // members open, so it is NOT a leftover: HEAD's own-cluster rest, and no
+    // `round` (the bar would otherwise claim "its partner is done").
+    const rows = [row('a', myo(3), { supersetGroup: 'A', pairPosition: 1 }), row('b', myo(3), { supersetGroup: 'A', pairPosition: 2 })];
+    const done = (e: number, s: number) => s <= 2;
+    expect(restAfterSetInFlow(rows, 0, 2, restFor, done)).toEqual({ seconds: 90, kind: 'cluster', next: { exerciseIndex: 0, setIndex: 3, label: 'A1' } });
+  });
+
+  it('a skipped partner unit of a LATER round is not pulled forward', () => {
+    // A1 ×2 clusters ↔ A2 ×2 clusters; the lifter is on round 1 — A1's round-2
+    // cluster is ahead in the flow, not behind, so it is the round rest as ever.
+    const rows = [row('a', myo(2), { supersetGroup: 'A', pairPosition: 1 }), row('b', myo(2), { supersetGroup: 'A', pairPosition: 2 })];
+    const done = (e: number, s: number) => s <= 2;
+    expect(restAfterSetInFlow(rows, 1, 2, restFor, done)).toMatchObject({ kind: 'round', next: { exerciseIndex: 0, setIndex: 3 } });
+  });
+});
+
+describe('a partner unit left open is offered once, never as a loop', () => {
+  const straight = (n: number, lead: K[] = []): { kind: K }[] => [
+    ...lead.map((kind) => ({ kind })),
+    ...Array.from({ length: n }, () => ({ kind: 'working' as K })),
+  ];
+
+  it('(a) an unticked warm-up in A1 unit 0 never sends A2 back to it', () => {
+    // A1 = [warm-up, 3 working], A2 = 3 working. The warm-up was skipped; every
+    // working set of round 1 is ticked, so round 2 is a plain round rest.
+    const rows = [row('a', straight(3, ['warmup']), { supersetGroup: 'A', pairPosition: 1 }), row('b', straight(3), { supersetGroup: 'A', pairPosition: 2 })];
+    expect(supersetFlow(rows)[0].setIndices).toEqual([0, 1]);
+    const r1 = (e: number, s: number) => (e === 0 ? s === 1 : s === 0);
+    expect(restAfterSetInFlow(rows, 1, 0, restFor, r1)).toMatchObject({ kind: 'round', next: { exerciseIndex: 0, setIndex: 2 } });
+    const r2 = (e: number, s: number) => (e === 0 ? s === 1 || s === 2 : s <= 1);
+    expect(restAfterSetInFlow(rows, 1, 1, restFor, r2)).toMatchObject({ kind: 'round', next: { exerciseIndex: 0, setIndex: 3 } });
+  });
+
+  it('(a) a mobility hold rides in unit 0 the same way', () => {
+    const rows = [row('a', straight(2, ['mobility']), { supersetGroup: 'A', pairPosition: 1 }), row('b', straight(2), { supersetGroup: 'A', pairPosition: 2 })];
+    const done = (e: number, s: number) => (e === 0 ? s === 1 : s === 0);
+    expect(restAfterSetInFlow(rows, 1, 0, restFor, done)).toMatchObject({ kind: 'round', next: { exerciseIndex: 0, setIndex: 2 } });
+  });
+
+  it('(a) a warm-up open BEFORE a working set left open: the offer resumes at the working set, not the warm-up', () => {
+    const rows = [row('a', [{ kind: 'warmup' as K }, ...myo(1)], { supersetGroup: 'A', pairPosition: 1 }), row('b', straight(2), { supersetGroup: 'A', pairPosition: 2 })];
+    const done = (e: number, s: number) => (e === 0 ? s === 1 : s === 0);
+    expect(restAfterSetInFlow(rows, 1, 0, restFor, done)).toEqual({ seconds: 30, kind: 'transition', next: { exerciseIndex: 0, setIndex: 2, label: 'A1' } });
+  });
+
+  it('(b) a myo cluster stopped one mini early is offered in its own round only, not for the rest of the superset', () => {
+    // A1 = 2 clusters, A2 = 3 straight sets. A1 cluster 1 stopped after 1 mini.
+    const rows = [row('a', myo(2), { supersetGroup: 'A', pairPosition: 1 }), row('b', straight(3), { supersetGroup: 'A', pairPosition: 2 })];
+    const early = (s: number) => s === 0 || s === 1;
+    // Round 1, A2 set 1: the open mini of this round is offered once …
+    expect(restAfterSetInFlow(rows, 1, 0, restFor, (e, s) => (e === 0 ? early(s) : s === 0))).toMatchObject({ kind: 'transition', next: { exerciseIndex: 0, setIndex: 2 } });
+    // … the lifter declines and runs A1 cluster 2: round 2's A2 tick goes on, not back.
+    const r2 = (e: number, s: number) => (e === 0 ? early(s) || s >= 3 : s <= 1);
+    expect(restAfterSetInFlow(rows, 1, 1, restFor, r2)).toMatchObject({ kind: 'cluster', round: { n: 3, total: 3 }, next: { exerciseIndex: 1, setIndex: 2 } });
+    // Round 2 A2 tick BEFORE A1 cluster 2: still a forward step (A1 round 2), never round 1's mini.
+    const r2b = (e: number, s: number) => (e === 0 ? early(s) : s <= 1);
+    expect(restAfterSetInFlow(rows, 1, 1, restFor, r2b)).toMatchObject({ next: { exerciseIndex: 1, setIndex: 2 } });
+  });
+
+  it('(b) a stopped-early cluster is not offered once that exercise has a later unit ticked', () => {
+    // A1 = 2 clusters ↔ A2 = 2 clusters, A1 cluster 1 stopped early, the lifter
+    // already ran A1 cluster 2, and now finishes A2 cluster 1 (same round as the
+    // stopped cluster) — moved on, so forward to A2's round 2.
+    const rows = [row('a', myo(2), { supersetGroup: 'A', pairPosition: 1 }), row('b', myo(2), { supersetGroup: 'A', pairPosition: 2 })];
+    const done = (e: number, s: number) => (e === 0 ? s !== 2 : s <= 2);
+    expect(restAfterSetInFlow(rows, 1, 2, restFor, done)).toMatchObject({ kind: 'cluster', next: { exerciseIndex: 1, setIndex: 3 } });
+  });
+
+  it('(c) A1 round-1 drop skipped, A2\'s last set ticked → the rest after the exercise, into exercise B', () => {
+    const rows = [
+      row('a', [{ kind: 'working' as K }, { kind: 'drop' as K }, { kind: 'working' as K }, { kind: 'working' as K }], { supersetGroup: 'A', pairPosition: 1 }),
+      row('b', straight(3), { supersetGroup: 'A', pairPosition: 2 }),
+      row('c', straight(2)),
+    ];
+    const done = (e: number, s: number) => (e === 0 ? s !== 1 : e === 1);
+    expect(restAfterSetInFlow(rows, 1, 2, restFor, done)).toEqual({ seconds: 60, kind: 'after-exercise', next: { exerciseIndex: 2, setIndex: 0 } });
+  });
 });
 
 describe('moveInSession — the live session move (▲ / ▼ and drag)', () => {

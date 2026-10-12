@@ -2,6 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Platform, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
+import { useReducedMotion } from 'react-native-reanimated';
 import { Touchable } from './Touchable';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -22,12 +23,14 @@ import {
   sessionHasLoggedWork,
   sessionVolume,
   setRowLabels,
+  structureOf,
+  type RestKind,
 } from '@macrolog/core';
 import type { TrainState } from '@/hooks/useTrain';
 import { useRestCountdown, useRestTimer } from '@/hooks/useRestTimer';
 import { NATIVE_SHEETS } from '@/components/BottomSheet';
 import { confirm } from '@/components/ConfirmSheet';
-import { showToast } from '@/components/Toast';
+import { UNDO_TOAST_MS, showToast } from '@/components/Toast';
 import { CardioBlockCard } from '@/components/train/CardioBlockCard';
 import { LiftSettingsSheet } from '@/components/train/LiftSettingsSheet';
 import { RestNotifySheet } from '@/components/train/RestNotifySheet';
@@ -35,7 +38,9 @@ import { decideRestNotifyPriming, markRestNotifyPrimed } from '@/components/trai
 import { SetRowSheet } from '@/components/train/SetRowSheet';
 import { ExerciseMenuSheet, type ExerciseMenuAction } from '@/components/train/ExerciseMenuSheet';
 import { type I18nKey, type TFn, useLocale, useT } from '@/i18n';
+import { plural } from '@/i18n/grammar';
 import { announce, isScreenReaderOn } from '@/lib/a11y';
+import { noteFocusTrigger, useReturnFocusOnClose } from '@/lib/return-focus';
 import { tabBarOverlap } from '@/lib/glass';
 import { nowMs } from '@/lib/clock';
 import { RevealAboveKeyboardContext, useRevealAboveKeyboard } from './reveal-above-keyboard';
@@ -48,7 +53,7 @@ import * as restActivity from '@/lib/rest-timer-activity';
 import { subscribeIntentInbox, takeIntentInbox } from '../../../modules/intent-inbox';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { useUnitSystem } from '@/lib/use-unit-system';
-import type { Exercise, SessionExercise } from '@/lib/workout';
+import { DEFAULT_LOG_STYLE, isLoggedSet, type Exercise, type SessionExercise, type SetKind } from '@/lib/workout';
 import { AddExerciseSheet } from './AddExerciseSheet';
 import { CardioPickerSheet } from './CardioPickerSheet';
 import { ExerciseCard } from './ExerciseCard';
@@ -64,6 +69,7 @@ import {
   musclesAllowingCluster,
   recentSleepHours,
   recommendationFor,
+  sideRecommendationsFor,
   spokenDuration,
 } from './train-summary';
 import { createStyles } from './train-styles';
@@ -181,6 +187,14 @@ const restDeadline = (secs: number) => Date.now() + secs * 1000;
 /** Large text: at 1.5× and up the set row's cells cannot share one line. */
 const LARGE_TEXT_SCALE = 1.5;
 
+/** The sticky session header's title and meta stop growing here. Uncapped,
+ *  at accessibility sizes the header alone took a third of the screen and,
+ *  with the rest bar, left about one and a half set rows (L-N8 / J-N5, R12).
+ *  The set list below keeps growing; the chrome around it does not. */
+const HEADER_FONT_CAP = 1.4;
+/** Its buttons stop a little later, as the sheet headers' do. */
+const HEADER_BUTTON_CAP = 1.6;
+
 /** How long after a lift's last set is ticked its card hands over to the next
  *  unfinished one — long enough to see the tick land and feel the haptic. */
 const AUTO_ADVANCE_MS = 400;
@@ -226,6 +240,7 @@ export function ActiveSession({
   train,
   bestByEx,
   onFinish,
+  onOpenGlossary,
 }: {
   train: TrainState;
   /** Best estimated-1RM per exercise, from completed history. */
@@ -234,6 +249,9 @@ export function ActiveSession({
    *  unmounts this component, and a native sheet must be dismissed by an
    *  owner that is still mounted. */
   onFinish: () => void;
+  /** The Train glossary — in the session ⋯ while a workout runs, because the
+   *  page header that carried its "?" is not shown then (L4). */
+  onOpenGlossary: () => void;
 }) {
   const t = useT();
   const locale = useLocale();
@@ -243,6 +261,7 @@ export function ActiveSession({
   const offline = useIsOffline();
   const { fontScale } = useWindowDimensions();
   const largeText = fontScale >= LARGE_TEXT_SCALE;
+  const reduceMotion = useReducedMotion();
   const session = train.active!;
   const { dispatch, commitActive, undoRemoval } = train;
   // Set rows reveal their ± steppers above the keyboard through this.
@@ -250,6 +269,13 @@ export function ActiveSession({
   const keyboardReveal = useRevealAboveKeyboard(scrollRef);
 
   const [addFor, setAddFor] = useState<{ index: number; name: string } | 'add' | null>(null);
+  /** How many exercises the session had when Add opened: an add appends, so
+   *  the first new card lands at this index (L-N10). */
+  const [addBase, setAddBase] = useState(0);
+  const openAdd = () => {
+    setAddBase(session.exercises.length);
+    setAddFor('add');
+  };
   const [cardioPickerOpen, setCardioPickerOpen] = useState(false);
   const [setSheet, setSetSheet] = useState<{ exerciseIndex: number; setIndex: number } | null>(null);
   const [menu, setMenu] = useState<MenuFor>(null);
@@ -287,6 +313,16 @@ export function ActiveSession({
   const [restHeading, setRestHeading] = useState<string | null>(null);
   /** The card the running rest leads into — it carries the "Up next" badge. */
   const [restTarget, setRestTarget] = useState<number | null>(null);
+  /** The lift whose set started the running rest — a tap on the countdown
+   *  opens ITS rest picker (L16). */
+  const [restFrom, setRestFrom] = useState<number | null>(null);
+  /** Which rest is running, and whose: a superset's switch or round rest, or
+   *  one lift's own rest between its clusters / after it (`owner`). A tap on
+   *  the countdown opens the picker on THAT rest, so it can say which one it
+   *  edits and show the value running (L16 follow-up). */
+  const [restRunning, setRestRunning] = useState<{ kind: RestKind; owner: number } | null>(null);
+  /** The picker was opened from the countdown: mark the running rest's row. */
+  const [restPickerRunning, setRestPickerRunning] = useState<{ kind: RestKind; owner: number } | null>(null);
   const rest = useRestTimer({
     onElapsed: ({ late }) => {
       if (!late) {
@@ -409,14 +445,16 @@ export function ActiveSession({
     // that stays): a lone lift's override applies to its own rests again.
     const exercises = train.active?.exercises ?? [];
     const paired = ex != null && isSupersetted(exercises, exerciseIndex);
-    const override = ex && !paired ? restOverride[ex.exerciseId] : undefined;
+    // A paired lift's own between-cluster / after-exercise rest, picked from
+    // the countdown (its leftover round runs on it) — never its mini rest.
+    const override = ex ? (paired ? restOverride[ownKey(ex.exerciseId)] : restOverride[ex.exerciseId]) : undefined;
     const row = ex ? templateRowFor(ex.exerciseId) : undefined;
     // After the lift's last set, the row's rest before the NEXT exercise (90 s
     // into the same muscle, 60 s across, 2026-10-09) — the template's cluster
     // rest when the row states none.
     const afterExercise = override ?? row?.restAfterSec;
     return {
-      mini: override ?? row?.restMiniSec ?? restMini,
+      mini: (paired ? undefined : override) ?? row?.restMiniSec ?? restMini,
       // Program v2: a row may rest its own clusters differently (the lateral
       // raise's 60 s into its second cluster on a 105 s day).
       cluster: override ?? ex?.restClusterSec ?? row?.restClusterSec ?? restCluster,
@@ -427,6 +465,16 @@ export function ActiveSession({
    *  the same per-session override map under reserved keys, so they survive
    *  a remount the same way a lift's own override does. */
   const groupKey = (group: string, field: 'transition' | 'round') => `~${group}.${field}`;
+  /** A superset member's own between-cluster rest (same map, reserved key). */
+  const ownKey = (exerciseId: string) => `~own.${exerciseId}`;
+  /** A lift's between-cluster rest and its rest after the lift, with no
+   *  override — what the picker's "Default" names. */
+  const baseOwnRest = (exerciseIndex: number) => {
+    const ex = session.exercises[exerciseIndex];
+    const row = ex ? templateRowFor(ex.exerciseId) : undefined;
+    const cluster = ex?.restClusterSec ?? row?.restClusterSec ?? restCluster;
+    return { cluster, afterExercise: row?.restAfterSec ?? cluster };
+  };
   /** The session's exercises as the flow reads them: group overrides applied. */
   const flowRows = (exercises: readonly SessionExercise[]) => exercises.map((e) => {
     if (!e.supersetGroup) return e;
@@ -434,7 +482,10 @@ export function ActiveSession({
     const ro = restOverride[groupKey(e.supersetGroup, 'round')];
     return tr == null && ro == null ? e : { ...e, ...(tr != null ? { transitionRestSec: tr } : {}), ...(ro != null ? { roundRestSec: ro } : {}) };
   });
-  const startRest = (exerciseIndex: number, setIndex: number) => {
+  /** `lead`: what the tick logged ("Set 2 logged, 190 lb, 8 reps."), spoken
+   *  in the same announcement as the rest — two announcements cancel each
+   *  other on iOS. */
+  const startRest = (exerciseIndex: number, setIndex: number, lead?: string) => {
     const exercises = train.active?.exercises;
     const ex = exercises?.[exerciseIndex];
     if (!exercises || !ex) return null;
@@ -486,7 +537,12 @@ export function ActiveSession({
       const since = at != null ? (now - at) / 1000 : (rows[exerciseIndex].transitionRestSec ?? DEFAULT_TRANSITION_REST_SEC) + CLUSTER_ESTIMATE_SEC;
       seconds = roundRestWithFloor(flow.seconds, back.minClusterRestSec, since);
     }
-    runRest(seconds, ex.name, nextLabel, heading, into && nextLabel ? flow.next!.exerciseIndex : null, spokenHeading);
+    runRest(seconds, ex.name, nextLabel, heading, into && nextLabel ? flow.next!.exerciseIndex : null, {
+      spokenHeading, from: exerciseIndex, lead,
+      // A between-cluster rest is the NEXT unit's lift's own (core: a leftover
+      // unit of the partner runs on the partner's cluster rest).
+      running: { kind: flow.kind, owner: flow.kind === 'cluster' ? flow.next?.exerciseIndex ?? exerciseIndex : exerciseIndex },
+    });
     return { ...flow, seconds };
   };
 
@@ -509,7 +565,7 @@ export function ActiveSession({
     }
     // A superset member's mini-set rest is never the ⋯ override (that is the
     // group's rest now).
-    runRest((paired ? undefined : restOverride[ex.exerciseId]) ?? restFallback(exerciseIndex), ex.name, null, null, null);
+    runRest((paired ? undefined : restOverride[ex.exerciseId]) ?? restFallback(exerciseIndex), ex.name, null, null, null, { from: exerciseIndex });
   };
   /** What "Start rest now" will run for this lift, as the ⋯ row says it. */
   const manualRestSeconds = (exerciseIndex: number) => {
@@ -529,19 +585,30 @@ export function ActiveSession({
    *  ticked set and a manual start, so the two cannot drift. In a superset the
    *  Lock Screen, the notification and the announcement name the NEXT station
    *  — with the phone on a bench, that is the screen the lifter sees. */
-  const runRest = (secs: number, name: string, next: string | null, heading: string | null, target: number | null, spokenHeading?: string | null) => {
+  const runRest = (
+    secs: number,
+    name: string,
+    next: string | null,
+    heading: string | null,
+    target: number | null,
+    opts: { spokenHeading?: string | null; from: number; lead?: string; running?: { kind: RestKind; owner: number } },
+  ) => {
+    const { spokenHeading } = opts;
     const nextLine = next ? t('train.superset.nextUp', { next }) : undefined;
     rest.start(secs, nextLine);
     setRestTotal(secs);
     setRestNext(next);
     setRestHeading(heading);
     setRestTarget(target);
+    setRestFrom(opts.from);
+    setRestRunning(opts.running ?? null);
     // Lock-screen countdown (Train review item 20): the rest Live Activity on
     // iOS, a no-op wherever its native module is absent.
     restActivity.start(restDeadline(secs), nextLine ?? name, locale);
-    announce(next
+    const restText = next
       ? t('train.superset.restA11y', { heading: spokenHeading ?? heading ?? t('train.rest'), time: spokenDuration(secs, t, locale), next })
-      : t('train.restStartedA11y', { time: spokenDuration(secs, t, locale) }));
+      : t('train.restStartedA11y', { time: spokenDuration(secs, t, locale) });
+    announce(opts.lead ? `${opts.lead} ${restText}` : restText);
     // Decided once per session mount; the stored flag makes it once per device.
     if (!restNotifyAsked) {
       setRestNotifyAsked(true);
@@ -687,12 +754,12 @@ export function ActiveSession({
     if (advanceTimer.current) clearTimeout(advanceTimer.current);
   }, []);
   const onSetDone = useCallback(
-    (exerciseIndex: number, setIndex: number, info: { pr: boolean; complete: boolean }) => {
+    (exerciseIndex: number, setIndex: number, info: { pr: boolean; complete: boolean; logged?: string }) => {
       // A record or the last set of the lift is a success; any other tick is
       // a tick (Train review items 25, 35).
       if (info.pr || info.complete) haptics.success();
       else haptics.tap();
-      const flow = startRestRef.current(exerciseIndex, setIndex);
+      const flow = startRestRef.current(exerciseIndex, setIndex, info.logged);
       // Inside a superset, the cluster just finished hands over to the
       // partner: open its card (A1 → A2 → A1), on the same beat and with the
       // same courtesy as below.
@@ -729,7 +796,14 @@ export function ActiveSession({
         advanceTimer.current = setTimeout(() => {
           advanceTimer.current = null;
           const next = nextUnfinishedExercise(exercisesRef.current, exerciseIndex);
-          if (next != null) setExpanded((cur) => (cur === exerciseIndex ? next : cur));
+          if (next == null) return;
+          setExpanded((cur) => {
+            if (cur !== exerciseIndex) return cur;
+            // Into view, as the superset hand-off above does (L7): the next
+            // lift opened below the fold and the lifter had to go find it.
+            scrollTo.current = next;
+            return next;
+          });
         }, AUTO_ADVANCE_MS);
       }
     },
@@ -746,12 +820,16 @@ export function ActiveSession({
       const ex = exercisesRef.current[exerciseIndex];
       const removed = ex?.sets[setIndex];
       if (!ex || !removed) return;
+      // Which set, of which lift — read before the removal relabels the rest
+      // (L-N14: "Set removed" named neither).
+      const n = setRowLabels(ex.sets)[setIndex] ?? String(setIndex + 1);
       void dispatch({ type: 'removeSet', exerciseIndex, setIndex });
-      showToast(t('train.setRemoved'), {
+      showToast(t('train.setRemovedNamed', { n, name: ex.name }), {
         action: {
           label: t('common.undo'),
           onPress: () => undoRemoval({ kind: 'set', exerciseIndex, exerciseId: ex.exerciseId, setIndex, set: removed }),
         },
+        durationMs: UNDO_TOAST_MS,
         testID: 'train-toast',
       });
     },
@@ -770,6 +848,7 @@ export function ActiveSession({
           setExpanded(index);
         },
       },
+      durationMs: UNDO_TOAST_MS,
       testID: 'train-toast',
     });
   }
@@ -796,10 +875,15 @@ export function ActiveSession({
 
   function confirmDiscard() {
     // Confirmed, like deleting a logged session: Discard deletes the
-    // in-progress doc and nothing brings it back (UX_AUDIT S18-6).
+    // in-progress doc and nothing brings it back (UX_AUDIT S18-6). The
+    // question names the workout and what goes with it (L12, R43).
+    const logged = session.exercises.reduce(
+      (n, ex) => n + ex.sets.filter((x) => isLoggedSet(x, ex.logStyle ?? DEFAULT_LOG_STYLE)).length,
+      0,
+    );
     confirm({
-      title: t('train.discard'),
-      body: t('train.discardConfirm'),
+      title: t('train.discardWorkoutNamedTitle', { name: title }),
+      body: logged > 0 ? plural(t, locale, 'train.discardWorkoutLost', logged) : t('train.discardConfirm'),
       confirmText: t('train.discard'),
       destructive: true,
       onConfirm: () => void train.discardWorkout(),
@@ -819,7 +903,7 @@ export function ActiveSession({
     if (r.left) {
       const { name, group, before: prev } = r.left;
       const msg = t('train.superset.leftGroup', { name, group });
-      showToast(msg, { testID: 'train-toast', action: {
+      showToast(msg, { testID: 'train-toast', durationMs: UNDO_TOAST_MS, action: {
         label: t('common.undo'),
         onPress: () => {
           setFollowOpen(true);
@@ -862,15 +946,23 @@ export function ActiveSession({
         onPress: () => menuHandoff(() => setReorderOpen(true)),
       }]
     : [];
+  // The page header's "?" is hidden during a workout (L4); this is its home.
+  const glossaryAction: ExerciseMenuAction = {
+    key: 'glossary',
+    icon: 'help-circle-outline',
+    labelKey: 'train.glossaryMenu',
+    onPress: () => menuHandoff(onOpenGlossary),
+  };
   const sessionActions: ExerciseMenuAction[] = train.editingExisting
     ? [
         {
           key: 'add-exercise',
           icon: 'add-circle-outline',
           labelKey: 'train.addExerciseTitle',
-          onPress: () => menuHandoff(() => setAddFor('add')),
+          onPress: () => menuHandoff(openAdd),
         },
         ...reorderAction,
+        glossaryAction,
         {
           // Editing a past workout: no destructive Discard (that deletes the
           // whole session). Cancel reverts to the pre-edit state.
@@ -885,7 +977,7 @@ export function ActiveSession({
           key: 'add-exercise',
           icon: 'add-circle-outline',
           labelKey: 'train.addExerciseTitle',
-          onPress: () => menuHandoff(() => setAddFor('add')),
+          onPress: () => menuHandoff(openAdd),
         },
         ...reorderAction,
         {
@@ -894,6 +986,7 @@ export function ActiveSession({
           labelKey: 'cardio.add',
           onPress: () => menuHandoff(() => setCardioPickerOpen(true)),
         },
+        glossaryAction,
         {
           key: 'discard',
           icon: 'trash-outline',
@@ -912,22 +1005,16 @@ export function ActiveSession({
     if (!ex) return null;
     const templateRow = templateRowFor(ex.exerciseId);
     const catalogEx = catalogFor(ex.exerciseId);
-    // Which add-actions this lift can use (ADR-0040), through core's
-    // precedence (template -> catalog -> inference) so an undeclared legacy
-    // template keeps every affordance it was written with.
-    const canAdd = addActionsFor(
-      templateRow?.setStructure
-        ?? catalogEx?.setStructure
-        ?? (ex.sets.some((x) => x.kind === 'activation') ? undefined : 'straight'),
-    );
+    const canAdd = canAddFor(index);
     const override = restOverride[ex.exerciseId];
     const tagsNow = supersetTags(session.exercises);
     const group = tagsNow[index] ? ex.supersetGroup : undefined;
     const rests = group ? groupRest(flowRows(session.exercises), group) : undefined;
-    const members = group ? (supersetGroups(session.exercises).get(group) ?? []).map((m) => session.exercises[m.index].name) : [];
     return {
       index,
-      unpairToday: group ? t('train.superset.unpairTodayDesc', { names: members.join(', ') }) : null,
+      // The card already names the pair; the row's subtitle no longer
+      // repeats it and truncates (L8).
+      unpairToday: group ? t('train.superset.unpairTodayDesc') : null,
       // Only when the move does something: a superset moves as one block.
       canMoveUp: moveBlockAware(session.exercises, index, -1).newIndex !== index,
       canMoveDown: moveBlockAware(session.exercises, index, 1).newIndex !== index,
@@ -939,14 +1026,60 @@ export function ActiveSession({
         ? t('train.superset.restDesc', { switch: `${rests.transitionRestSec} s`, round: `${rests.roundRestSec} s` })
         : t('train.restTimerDesc', { time: clock(override ?? restFallback(index)) }),
       restNow: clock(manualRestSeconds(index)),
+      // Only where the card has no gear of its own: a single call's note
+      // carries one, the per-side notes do not (L8 — the row duplicated the
+      // gear and pushed Remove below the fold).
       lift: catalogEx != null
-        && recommendationFor(
-          { recentSessions: train.recentSessions, catalog: train.catalog },
-          ex.exerciseId,
-          templateRow,
-          ex,
-        ).action !== 'none',
+        && (() => {
+          const sides = sideRecommendationsFor(
+            { recentSessions: train.recentSessions, catalog: train.catalog },
+            ex.exerciseId,
+            templateRow,
+            ex,
+          );
+          return sides != null && (['L', 'R'] as const).some((k) => sides[k] != null && sides[k]!.action !== 'none');
+        })(),
     };
+  }
+
+  /** The structure this lift DECLARES (ADR-0040): template row, then
+   *  catalog. `undefined` = undeclared — nothing inferred here. */
+  function declaredStructureFor(index: number) {
+    const ex = session.exercises[index];
+    if (!ex) return undefined;
+    return templateRowFor(ex.exerciseId)?.setStructure ?? catalogFor(ex.exerciseId)?.setStructure;
+  }
+
+  /** Which add-actions this lift can use (ADR-0040), through core's
+   *  precedence (template -> catalog -> inference) so an undeclared legacy
+   *  template keeps every affordance it was written with. */
+  function canAddFor(index: number) {
+    const ex = session.exercises[index];
+    return addActionsFor(
+      declaredStructureFor(index)
+        ?? (ex?.sets.some((x) => x.kind === 'activation') ? undefined : 'straight'),
+    );
+  }
+
+  /** The set kinds the set sheet offers for this lift (L9): the cluster
+   *  vocabulary only where a DECLARED structure can add a cluster or block,
+   *  a mobility hold only on a timed lift. The set's own kind is always kept
+   *  by the sheet. An undeclared lift keeps the cluster vocabulary: the set
+   *  sheet is the only path that turns a lift added mid-workout into a
+   *  rest-pause or myo-rep lift (ADR-0040/0041 — undeclared means "infer",
+   *  and inference reads exactly the kinds picked here; Maestro flow 22). */
+  function setKindsFor(index: number): SetKind[] {
+    const ex = session.exercises[index];
+    if (!ex) return [];
+    const declared = declaredStructureFor(index);
+    const canAdd = declared === undefined ? { cluster: true, block: true } : addActionsFor(declared);
+    return [
+      'warmup',
+      'working',
+      ...(canAdd.cluster || canAdd.block ? (['activation', 'mini', 'continuation'] as const) : []),
+      'drop',
+      ...((ex.logStyle ?? DEFAULT_LOG_STYLE) === 'time' ? (['mobility'] as const) : []),
+    ];
   }
 
   /** What one ⋯ row does — for the exercise as it stands when it fires. */
@@ -990,7 +1123,10 @@ export function ActiveSession({
         setPlatesOpen((o) => (o === index ? null : index));
         return;
       case 'rest':
-        menuHandoff(() => setRestPickerFor(index));
+        menuHandoff(() => {
+          setRestPickerRunning(null);
+          setRestPickerFor(index);
+        });
         return;
       case 'rest-now':
         startManualRest(index);
@@ -1024,6 +1160,7 @@ export function ActiveSession({
         const msg = t('train.superset.unpairedToday', { group });
         showToast(msg, {
           testID: 'train-toast',
+          durationMs: UNDO_TOAST_MS,
           action: {
             label: t('common.undo'),
             onPress: () => {
@@ -1063,8 +1200,17 @@ export function ActiveSession({
   const liftEx = liftFor != null ? session.exercises[liftFor] : undefined;
   const liftCatalogEx = liftEx ? train.catalog.find((e) => e.id === liftEx.exerciseId) ?? null : null;
   const restEx = restPickerFor != null ? session.exercises[restPickerFor] : undefined;
+  // VoiceOver / TalkBack go back to the control that opened each sheet once
+  // it has gone (J10; `lib/return-focus.ts`).
+  useReturnFocusOnClose(sheetSet != null);
+  useReturnFocusOnClose(restEx != null);
+  useReturnFocusOnClose(addFor != null);
 
-  const title = session.templateName || t('train.workout');
+  // "Log a run" is a session holding one cardio block and nothing else: say
+  // "Run", not "Workout" (L11).
+  const soleCardio = session.exercises.length === 0 && session.cardio?.length === 1 ? session.cardio[0] : undefined;
+  const title = session.templateName
+    || (soleCardio ? t(`cardio.modality.${soleCardio.modality}` as I18nKey) : t('train.workout'));
   // "Keep for this lift" writes the rest onto the template row this lift came
   // from — only offered when there is one to write to.
   const restTemplateRow = restEx && tpl?.id ? templateRowFor(restEx.exerciseId) : undefined;
@@ -1128,16 +1274,29 @@ export function ActiveSession({
           title to "Q…" (device pass, 2026-10-11). */}
       <View style={[styles.sessionHeader, largeText && styles.sessionHeaderWrap]} testID="session-header">
         <View style={[styles.sessionHeaderMain, largeText && styles.sessionHeaderMainFull]}>
-          <Text style={styles.sessionEyebrow} accessibilityRole="header">
-            {train.editingExisting ? t('train.editingSession') : t('train.inProgress')}
+          {/* At large text the eyebrow goes (L-N8): Finish / Done editing
+              beside it already says what state this is, and the title takes
+              the header role in its place. */}
+          {largeText ? null : (
+            <Text style={styles.sessionEyebrow} accessibilityRole="header" testID="session-eyebrow">
+              {train.editingExisting ? t('train.editingSession') : t('train.inProgress')}
+            </Text>
+          )}
+          <Text
+            style={styles.sessionTitle}
+            numberOfLines={1}
+            maxFontSizeMultiplier={HEADER_FONT_CAP}
+            accessibilityRole={largeText ? 'header' : undefined}
+            testID="session-title"
+          >
+            {title}
           </Text>
-          <Text style={styles.sessionTitle} numberOfLines={1}>{title}</Text>
           {train.editingExisting ? (
-            <Text style={styles.sessionMeta} numberOfLines={2}>
+            <Text style={styles.sessionMeta} numberOfLines={largeText ? 1 : 2} adjustsFontSizeToFit={largeText} maxFontSizeMultiplier={HEADER_FONT_CAP}>
               {[formatDate(session.date, locale, { weekday: 'short', month: 'short', day: 'numeric' }), ...metaParts].join(' · ')}
             </Text>
           ) : (
-            <ElapsedClock startedAt={session.date} parts={metaParts} />
+            <ElapsedClock startedAt={session.date} parts={metaParts} compact={largeText} />
           )}
           {/* Offline is said ONCE, in the note at the top of the list below.
               It was said three times — here, in that note, and in the app's
@@ -1166,7 +1325,7 @@ export function ActiveSession({
             accessibilityRole="button"
             testID="done-editing"
           >
-            <Text style={styles.headerPrimaryText}>{t('train.doneEditing')}</Text>
+            <Text style={styles.headerPrimaryText} maxFontSizeMultiplier={HEADER_BUTTON_CAP}>{t('train.doneEditing')}</Text>
           </Touchable>
         ) : (
           <Touchable
@@ -1175,7 +1334,7 @@ export function ActiveSession({
             accessibilityRole="button"
             testID="finish-workout"
           >
-            <Text style={styles.headerPrimaryText}>{t('train.finish')}</Text>
+            <Text style={styles.headerPrimaryText} maxFontSizeMultiplier={HEADER_BUTTON_CAP}>{t('train.finish')}</Text>
           </Touchable>
         )}
       </View>
@@ -1254,13 +1413,13 @@ export function ActiveSession({
                 cardY.current.set(exIdx, y);
                 if (scrollTo.current === exIdx) {
                   scrollTo.current = null;
-                  scrollRef.current?.scrollTo({ y: Math.max(0, y - 8), animated: true });
+                  scrollRef.current?.scrollTo({ y: Math.max(0, y - 8), animated: !reduceMotion });
                 }
               }}
             >
             {rests && group ? (
               <Text style={styles.supersetHeader} accessibilityRole="header" testID={`superset-header-${group}`}>
-                {t('train.superset.groupHeader', { group, switch: `${rests.transitionRestSec} s`, round: `${rests.roundRestSec} s` })}
+                {t('train.superset.groupHeader', { group, switch: clock(rests.transitionRestSec), round: clock(rests.roundRestSec) })}
               </Text>
             ) : null}
             <ExerciseCard
@@ -1315,6 +1474,7 @@ export function ActiveSession({
                     label: t('common.undo'),
                     onPress: () => undoRemoval({ kind: 'cardio', index: i, block }),
                   },
+                  durationMs: UNDO_TOAST_MS,
                   testID: 'train-toast',
                 });
               }}
@@ -1323,7 +1483,10 @@ export function ActiveSession({
 
           <Touchable
             style={styles.addExBtn}
-            onPress={() => setAddFor('add')}
+            onPress={(e) => {
+              noteFocusTrigger(e?.currentTarget);
+              openAdd();
+            }}
             accessibilityRole="button"
             testID="add-exercise"
           >
@@ -1361,6 +1524,10 @@ export function ActiveSession({
           stacked={largeText}
           onAdjust={adjustRest}
           onSkip={rest.stop}
+          onChangeRest={restFrom != null && session.exercises[restFrom] ? () => {
+            setRestPickerRunning(restRunning);
+            setRestPickerFor(restFrom);
+          } : undefined}
         />
       ) : null}
 
@@ -1374,6 +1541,7 @@ export function ActiveSession({
         visible={sheetSet != null}
         set={sheetSet}
         label={sheetLabel}
+        kinds={setSheet ? setKindsFor(setSheet.exerciseIndex) : undefined}
         onClose={() => setSetSheet(null)}
         onKind={(kind) => {
           if (setSheet) void dispatch({ type: 'setSetKind', exerciseIndex: setSheet.exerciseIndex, setIndex: setSheet.setIndex, kind });
@@ -1411,6 +1579,8 @@ export function ActiveSession({
       <LiftSettingsSheet
         visible={liftCatalogEx != null}
         exercise={liftCatalogEx}
+        // The row the recommendation read, so the sheet's step matches it.
+        templateRow={liftEx ? templateRowFor(liftEx.exerciseId) ?? null : null}
         rec={liftEx
           ? recommendationFor(train, liftEx.exerciseId, templateRowFor(liftEx.exerciseId), liftEx, recExtrasFor(liftEx.exerciseId))
           : null}
@@ -1436,9 +1606,44 @@ export function ActiveSession({
               return next;
             }),
             onSave: (rests: { transition?: number; round?: number }) => void saveGroupRest(group, rests),
+            // Opened from the countdown: mark the rest running, and offer the
+            // lift's OWN rest when that is what runs (a leftover round / the
+            // rest after the superset) — the group's two rests never set it.
+            running: restPickerRunning
+              ? restPickerRunning.kind === 'transition' || restPickerRunning.kind === 'round'
+                ? restPickerRunning.kind
+                : restPickerRunning.kind === 'intra' ? null : 'own'
+              : null,
+            own: (() => {
+              const r = restPickerRunning;
+              const ownerEx = r ? session.exercises[r.owner] : undefined;
+              if (!r || !ownerEx || (r.kind !== 'cluster' && r.kind !== 'after-exercise')) return null;
+              const base = baseOwnRest(r.owner);
+              const key = ownKey(ownerEx.exerciseId);
+              // "Next cluster" only where the lift IS clustered; a straight
+              // lift's own rest comes before its next SET (v3 QA item 4).
+              const row = templateRowFor(ownerEx.exerciseId);
+              const structure = structureOf(row, catalogFor(ownerEx.exerciseId) ?? undefined, row?.plannedSets ?? ownerEx.sets);
+              const clustered = structure === 'myoreps' || structure === 'rest-pause' || structure === 'cluster';
+              const beforeKey = clustered ? 'train.superset.ownClusterRestLabel' : 'train.superset.ownSetRestLabel';
+              return {
+                label: r.kind === 'cluster'
+                  ? t(beforeKey, { name: ownerEx.name })
+                  : t('train.superset.ownAfterRestLabel', { name: ownerEx.name }),
+                current: restOverride[key] ?? null,
+                fallback: r.kind === 'cluster' ? base.cluster : base.afterExercise,
+                onPick: (seconds: number | null) => setRestOverride((cur) => {
+                  const next = { ...cur };
+                  if (seconds == null) delete next[key];
+                  else next[key] = seconds;
+                  return next;
+                }),
+              };
+            })(),
           };
         })() : undefined}
         name={restEx?.name ?? ''}
+        running={restPickerRunning != null}
         current={restEx ? restOverride[restEx.exerciseId] ?? null : null}
         fallback={restPickerFor != null ? restFallback(restPickerFor) : restMini}
         saveTo={restTemplateRow && tpl ? tpl.name : null}
@@ -1478,6 +1683,15 @@ export function ActiveSession({
         visible={addFor != null}
         train={train}
         replace={addFor && addFor !== 'add' ? addFor : null}
+        // The lift just added (the first, of several) opens, and scrolls into
+        // view once it has laid out — as Strong and Hevy land you on it. It
+        // arrived collapsed below the fold: a tap and a scroll to reach its
+        // first set (L-N10 / J-N8). A replacement opens in its own slot.
+        onAdded={() => {
+          const at = addFor && addFor !== 'add' ? addFor.index : addBase;
+          scrollTo.current = at;
+          setExpanded(at);
+        }}
         onClose={() => setAddFor(null)}
       />
       <CardioPickerSheet
@@ -1506,6 +1720,7 @@ function RestBar({
   stacked,
   onAdjust,
   onSkip,
+  onChangeRest,
 }: {
   endsAt: number;
   /** Length of the whole countdown, seconds — the progress track's 100%. */
@@ -1519,6 +1734,9 @@ function RestBar({
   stacked?: boolean;
   onAdjust: (deltaSec: number) => void;
   onSkip: () => void;
+  /** Open the rest picker of the lift whose set started this rest — one tap
+   *  on the countdown, as Strong does (L16). */
+  onChangeRest?: () => void;
 }) {
   const t = useT();
   const styles = useThemedStyles(createStyles);
@@ -1547,16 +1765,26 @@ function RestBar({
       ) : null}
       <View style={[styles.restBarRow, stacked ? { flexDirection: 'column', alignItems: 'flex-start', gap: 4 } : null]}>
         {/* The countdown never wraps or truncates: the heading gives way first. */}
-        <View
-          style={{ flexDirection: 'row', flexShrink: 1, alignItems: 'baseline' }}
-          accessible
+        <Touchable
+          style={[styles.restLabelBtn, { flexDirection: 'row', flexShrink: 1 }]}
+          onPress={(e) => {
+            if (!onChangeRest) return;
+            haptics.tap();
+            noteFocusTrigger(e?.currentTarget);
+            onChangeRest();
+          }}
+          disabled={!onChangeRest}
+          accessibilityRole={onChangeRest ? 'button' : undefined}
           accessibilityLabel={`${heading ?? t('train.rest')}, ${spokenDuration(remaining, t, locale)}`}
+          accessibilityHint={onChangeRest ? t('train.restChangeHint') : undefined}
           testID="rest-label"
         >
           <Text style={[styles.restLabel, { flexShrink: 1 }]} numberOfLines={1}>{`${heading ?? t('train.rest')} · `}</Text>
           <Text style={styles.restLabel}>{label}</Text>
-        </View>
-        <View style={styles.restActions}>
+        </Touchable>
+        {/* Stacked, the three spread across the bar: 4pt apart they read as
+            one string, "−30s+30sSKIP" (L-N9, R3). */}
+        <View style={[styles.restActions, stacked ? { alignSelf: 'stretch', justifyContent: 'space-between', gap: space.md } : null]}>
           {/* 44-pt targets (UX_AUDIT S18-15): the text is small on purpose
               inside a floating bar, so the box around it does the work. */}
           <Touchable
@@ -1605,7 +1833,12 @@ const REST_WARN_SEC = 10;
  * (Train re-score 3). One Text with one composed label says "Elapsed time:
  * 12 minutes 34 seconds, 2,450 lb, 2 of 5 done".
  */
-function ElapsedClock({ startedAt, parts }: { startedAt: Date; parts: readonly string[] }) {
+function ElapsedClock({ startedAt, parts, compact }: {
+  startedAt: Date;
+  parts: readonly string[];
+  /** Large text: one line that shrinks to fit, not two (L-N8). */
+  compact?: boolean;
+}) {
   const t = useT();
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
@@ -1620,7 +1853,10 @@ function ElapsedClock({ startedAt, parts }: { startedAt: Date; parts: readonly s
     <Text
       style={styles.sessionMeta}
       // Two lines: in es-PR the progress at the end was cut ("0 de 5 hec…").
-      numberOfLines={2}
+      // At large text one line that shrinks instead — the header is chrome.
+      numberOfLines={compact ? 1 : 2}
+      adjustsFontSizeToFit={compact}
+      maxFontSizeMultiplier={HEADER_FONT_CAP}
       accessibilityLabel={[spoken, ...parts].join(', ')}
       testID="session-elapsed"
     >

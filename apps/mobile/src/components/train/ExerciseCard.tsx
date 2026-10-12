@@ -13,6 +13,7 @@ import {
   platesFor,
   previousCell,
   previousSets,
+  previousToAccept,
   setBeatsBest,
   setRowLabels,
   suggestProgression,
@@ -30,6 +31,7 @@ import {
 import type { TrainState } from '@/hooks/useTrain';
 import { RecommendationNote } from '@/components/train/RecommendationNote';
 import { useLocale, useT } from '@/i18n';
+import { plural } from '@/i18n/grammar';
 import { formatDecimal } from '@/lib/entry-input';
 import * as haptics from '@/lib/haptics';
 import { smoothLayout } from '@/lib/motion';
@@ -38,7 +40,7 @@ import { useUnitSystem } from '@/lib/use-unit-system';
 import { space } from '@/theme';
 import type { InputChain } from './input-chain';
 import { SetRow } from './SetRow';
-import { activationIssueKey, lastHint, loadTargetIndices, recommendationFor, sideRecommendationsFor, untouchedLoad } from './train-summary';
+import { activationIssueKey, lastHint, loadTargetIndices, recommendationFor, sideRecommendationsFor, spokenDuration, untouchedLoad } from './train-summary';
 import { createStyles } from './train-styles';
 import { MenuButton, type MenuButtonAction } from '@/components/MenuButton';
 
@@ -81,7 +83,8 @@ export interface ExerciseCardProps {
   menuActions?: MenuButtonAction[];
   onOpenSetSheet: (exerciseIndex: number, setIndex: number) => void;
   onOpenLift: (exerciseIndex: number) => void;
-  onSetDone: (exerciseIndex: number, setIndex: number, info: { pr: boolean; complete: boolean }) => void;
+  /** `logged`: "Set 2 logged, 190 lb, 8 reps." — spoken with the rest. */
+  onSetDone: (exerciseIndex: number, setIndex: number, info: { pr: boolean; complete: boolean; logged?: string }) => void;
   /** Remove one set, with the session's Undo. */
   onRemoveSet: (exerciseIndex: number, setIndex: number) => void;
 }
@@ -217,12 +220,31 @@ export const ExerciseCard = memo(function ExerciseCard({
   const onDone = useCallback(
     (setIndex: number, done: WorkoutSet) => {
       const after = setsRef.current.map((s, i) => (i === setIndex ? done : s));
+      // What was logged, said once with the rest that follows it: a tick that
+      // ACCEPTED "190 × 8" announced only "Rest, 1 minute", and a blind
+      // lifter never heard the values the empty fields had stood for (L6).
+      const value = [
+        style === 'weight-reps' && done.weight != null ? formatLoad(done.weight, unitSystem) : null,
+        style === 'time'
+          ? done.durationSec != null ? spokenDuration(done.durationSec, t, locale) : null
+          : done.reps != null ? plural(t, locale, 'train.repsCount', done.reps) : null,
+      ].filter(Boolean).join(', ');
+      const pr = setBeatsBest(done, style, best);
+      // A record is said in the same breath (L-N4, R26): the badge appeared
+      // on screen, and a blind lifter heard a tick like any other. One
+      // announcement with the rest that follows, never a second one — iOS
+      // cancels the first.
+      const logged = [
+        value ? t('train.setLoggedA11y', { n: setRowLabels(after)[setIndex] ?? String(setIndex + 1), value }) : null,
+        pr ? `${t('train.prBadgeA11y')}.` : null,
+      ].filter(Boolean).join(' ');
       onSetDone(exerciseIndex, setIndex, {
-        pr: setBeatsBest(done, style, best),
+        pr,
         complete: after.length > 0 && after.every((s) => isLoggedSet(s, style)),
+        ...(logged ? { logged } : {}),
       });
     },
-    [exerciseIndex, onSetDone, style, best],
+    [exerciseIndex, onSetDone, style, best, unitSystem, t, locale],
   );
 
   const countA11y = t('train.setCountA11y', { done: loggedCount, total: totalSets });
@@ -253,7 +275,7 @@ export const ExerciseCard = memo(function ExerciseCard({
     <Animated.View style={[styles.exCard, pairTag ? styles.supersetRail : null]} layout={smoothLayout}>
       <View style={styles.exHeadRow}>
         <Touchable
-          style={styles.exHead}
+          style={[styles.exHead, largeText && styles.exHeadWrap]}
           onPress={() => onToggle(exerciseIndex)}
           activeOpacity={0.7}
           accessibilityRole="button"
@@ -263,7 +285,7 @@ export const ExerciseCard = memo(function ExerciseCard({
             .join(', ')}
           testID={`exercise-head-${exerciseIndex}`}
         >
-          <View style={{ flex: 1 }}>
+          <View style={largeText ? styles.exNameWrap : { flex: 1 }}>
             {/* "A1 · SUPERSET": which station this is, so the alternation
                 reads at a glance down a collapsed list. */}
             {upNext ? (
@@ -278,22 +300,24 @@ export const ExerciseCard = memo(function ExerciseCard({
                 question. */}
             {collapsed && ghost ? <Text style={styles.ghost}>{ghost}</Text> : null}
           </View>
-          {allDone ? (
-            <View style={styles.exDone}>
-              <Ionicons name="checkmark" size={15} color={colors.onInk} />
-            </View>
-          ) : totalSets > 0 ? (
-            <View style={styles.exCount}>
-              <Text style={styles.exCountText} maxFontSizeMultiplier={1.6}>{loggedCount}/{totalSets}</Text>
-            </View>
-          ) : null}
-          <Ionicons name={collapsed ? 'chevron-down' : 'chevron-up'} size={20} color={colors.faint} style={styles.exChevron} />
+          <View style={[styles.exHeadTail, largeText && styles.exHeadTailWrap]}>
+            {allDone ? (
+              <View style={styles.exDone}>
+                <Ionicons name="checkmark" size={15} color={colors.onInk} />
+              </View>
+            ) : totalSets > 0 ? (
+              <View style={styles.exCount}>
+                <Text style={styles.exCountText} maxFontSizeMultiplier={1.6}>{loggedCount}/{totalSets}</Text>
+              </View>
+            ) : null}
+            <Ionicons name={collapsed ? 'chevron-down' : 'chevron-up'} size={20} color={colors.faint} style={styles.exChevron} />
+          </View>
         </Touchable>
         {/* One overflow control in place of four permanent inline ones. Only on
             an open card: a collapsed row is a list item, not a form. */}
         {collapsed ? null : (
           <MenuButton
-            style={[styles.exMoreBtn, styles.headerIconBtn]}
+            style={[styles.exMoreBtn, styles.headerIconBtn, largeText && styles.exMoreBtnWrap]}
             title={ex.name}
             actions={menuActions ?? []}
             accessibilityLabel={t('train.exMenuA11y', { name: ex.name })}
@@ -312,13 +336,14 @@ export const ExerciseCard = memo(function ExerciseCard({
               {(['L', 'R'] as const).map((side) => (sideRecs[side] && sideRecs[side]!.action !== 'none' ? (
                 <View key={side}>
                   <Text style={styles.sideLabel}>{t(side === 'L' ? 'train.sideLeft' : 'train.sideRight')}</Text>
-                  <RecommendationNote rec={sideRecs[side]!} compact testID={`recommendation-${exerciseIndex}-${side}`} />
+                  <RecommendationNote rec={sideRecs[side]!} name={ex.name} compact testID={`recommendation-${exerciseIndex}-${side}`} />
                 </View>
               ) : null))}
             </View>
           ) : engineHasCall ? (
             <RecommendationNote
               rec={rec}
+              name={ex.name}
               // Once the lift is under way, the call shrinks to one line (the
               // detail stays a tap away on its settings button): reopened twice
               // a round in a superset, the full note pushed the sets to log
@@ -395,7 +420,13 @@ export const ExerciseCard = memo(function ExerciseCard({
               // warm-up is added or dropped, and a comparison that moves is
               // worse than none.
               previous={previousCell(prevSets[setIdx], style, unitSystem)}
-              previousSet={prevSets[setIdx]}
+              // What a tick accepts (and the placeholder offers) is that row
+              // only when it was the same kind: a warm-up's 105 × 8 never
+              // lands in a working or activation row (core `previousToAccept`).
+              previousSet={previousToAccept(prevSets[setIdx], set)}
+              // …and with no same-kind row there, a working set offers the
+              // lift's own target rather than 0 (core `countToAccept`).
+              exerciseTargetReps={ex.progression?.targetReps}
               isLastSet={setIdx === ex.sets.length - 1}
               best={best}
               largeText={largeText}
@@ -432,7 +463,7 @@ export const ExerciseCard = memo(function ExerciseCard({
                   <Text style={styles.panelLabel}>{`${t('train.workingSet')} · ${formatLoad(keyWeight, unitSystem)}`}</Text>
                   <Text style={styles.plateText}>
                     {load && load.perSide.length
-                      ? `${load.perSide.map((p) => `${formatDecimal(p.plate, locale)}×${p.count}`).join('   ')}  ${t('train.perSidePlates')}`
+                      ? `${load.perSide.map((p) => (p.count > 1 ? `${formatDecimal(p.plate, locale)} ×${p.count}` : formatDecimal(p.plate, locale))).join(' + ')} ${t('train.perSidePlates')}`
                       : t('train.barOnly')}
                   </Text>
                   {load && load.remainder > 0 ? (

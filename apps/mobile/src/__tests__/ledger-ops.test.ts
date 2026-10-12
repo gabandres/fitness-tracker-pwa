@@ -204,6 +204,14 @@ describe('finishWorkout', () => {
     expect(mockSetDailySleep).not.toHaveBeenCalled();
   });
 
+  it('never files an out-of-range sleep as a daily metric, and the finish still lands (train-ux F3)', async () => {
+    // "75" typed for 7.5: the session writer drops it (core backstop) and so
+    // must the daily metric — the rest of the sequence runs as normal.
+    await finishWorkout(UID, session(), MIDNIGHT, { sleepHours: 75 });
+    expect(mockSetDailySleep).not.toHaveBeenCalled();
+    expect(calls).toEqual(['updateSession', 'markExercised', 'track:workout_finished', 'exportWorkout']);
+  });
+
   it('prunes unlogged sets and leaves `cardio` absent when the session had none', async () => {
     await finishWorkout(
       UID,

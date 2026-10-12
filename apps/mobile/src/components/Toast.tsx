@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Keyboard, Platform, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   FadeInDown,
@@ -80,6 +80,16 @@ import { FAB_BAND, font, motion, radius, space, TARGET } from '@/theme';
  * actions take their own row under the message, so neither is squeezed into
  * a sliver (UX_AUDIT Today review A7).
  */
+/**
+ * How long an UNDO stays on screen: 10 s, for anything that took a logged
+ * record away (a set, an exercise, a cardio block mid-workout). 5 s — the
+ * floor for any timed control — was too short for a lifter between sets with
+ * chalk on their hands (Train re-score L-N14 / J-N6, R28). `recommendedTimeoutMs`
+ * still lengthens it for a screen reader and for Android's "time to take
+ * action" setting; it never shortens it. Pass as `durationMs`.
+ */
+export const UNDO_TOAST_MS = 10_000;
+
 export interface ToastAction {
   label: string;
   onPress: () => void;
@@ -138,10 +148,18 @@ let portalSeq = 0;
 const nextPortalId = () => ++portalSeq;
 
 let notify: ((message: string, opts?: ToastOptions) => void) | null = null;
+let hideById: ((testID: string) => void) | null = null;
 
 /** Imperative form for non-component code. No provider mounted → nothing shown. */
 export function showToast(message: string, opts?: ToastOptions): void {
   notify?.(message, opts);
+}
+
+/** Dismiss the live toast only if it is the one shown with this `testID` —
+ *  for a surface whose Undo stops meaning anything when it closes (the
+ *  template editor), without taking down a receipt someone else raised. */
+export function hideToast(testID: string): void {
+  hideById?.(testID);
 }
 
 export function ToastProvider({ children }: { children: ReactNode }) {
@@ -214,8 +232,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     primeScreenReaderState();
     notify = show;
+    hideById = (testID) => {
+      if (currentRef.current?.testID === testID) hide();
+    };
     return () => {
       notify = null;
+      hideById = null;
       if (timer.current) clearTimeout(timer.current);
     };
   }, [show, hide]);
@@ -265,14 +287,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
  * ~300 ms of dismissal means it appears once, where it will stay. The JS
  * sheet gets the same result by unmounting this host as `visible` drops.
  */
-export function ToastSheetHost({ sheetId }: { sheetId?: string } = {}) {
+export function ToastSheetHost({ sheetId, at = 'top' }: { sheetId?: string; at?: 'top' | 'bottom' } = {}) {
   const ctx = useContext(ToastStateContext);
   const [id] = useState(nextPortalId);
   const register = ctx?.register;
   useEffect(() => register?.(id), [register, id]);
   if (!ctx || ctx.portals[ctx.portals.length - 1] !== id) return null;
   if (sheetId && isClosing(sheetId)) return null;
-  return <ToastHost toast={ctx.current} onHide={ctx.hide} placement="sheet" />;
+  return <ToastHost toast={ctx.current} onHide={ctx.hide} placement="sheet" sheetAt={at} />;
 }
 
 export function useToast(): ToastApi {
@@ -281,10 +303,33 @@ export function useToast(): ToastApi {
   return ctx;
 }
 
+/**
+ * The keyboard's height while it is up, else 0 — for a toast pinned to a
+ * sheet's BOTTOM, which the keyboard otherwise covers. A sheet at a height
+ * detent stays put for the keyboard (its content pads instead), so the toast
+ * has to climb by itself. Read at mount too: the toast this is for is raised
+ * while a field is focused. The reported frame includes iOS 26's floating
+ * Done band, so the toast clears that as well.
+ */
+function useKeyboardHeight(active: boolean): number {
+  const [height, setHeight] = useState(() => Keyboard.metrics()?.height ?? 0);
+  useEffect(() => {
+    if (!active) return;
+    const ios = Platform.OS === 'ios';
+    const subs = [
+      Keyboard.addListener(ios ? 'keyboardWillShow' : 'keyboardDidShow', (e) => setHeight(e.endCoordinates.height)),
+      Keyboard.addListener(ios ? 'keyboardWillHide' : 'keyboardDidHide', () => setHeight(0)),
+    ];
+    return () => subs.forEach((s) => s.remove());
+  }, [active]);
+  return active ? height : 0;
+}
+
 function ToastHost({
   toast,
   onHide,
   placement = 'bottom',
+  sheetAt = 'top',
 }: {
   toast: ActiveToast | null;
   onHide: () => void;
@@ -292,13 +337,22 @@ function ToastHost({
    *  the keyboard and the sheet's own action row, and a toast over either is
    *  covered or covering. */
   placement?: 'bottom' | 'sheet';
+  /** In a sheet: its top (default) or bottom — per host, `BottomSheet toastAt`. */
+  sheetAt?: 'top' | 'bottom';
 }) {
   const insets = useSafeAreaInsets();
-  if (!toast) return null;
   const inSheet = placement === 'sheet';
+  const keyboard = useKeyboardHeight(inSheet && sheetAt === 'bottom');
+  if (!toast) return null;
   // In a sheet the wrapper sits beside the panel (elevation 6 on Android); a
   // higher elevation keeps it drawn above the panel if Fabric keeps the node.
-  const at = inSheet ? { top: space.sm, elevation: 8 } : { bottom: insets.bottom + FAB_BAND };
+  const at = inSheet
+    ? sheetAt === 'bottom'
+      // Above the keyboard while it is up: the template editor raises its
+      // Undo while you type, and the number pad covered it (v3 QA).
+      ? { bottom: (keyboard > 0 ? keyboard : insets.bottom) + space.md, elevation: 8 }
+      : { top: space.sm, elevation: 8 }
+    : { bottom: insets.bottom + FAB_BAND };
   return (
     // Keyed by the toast, so a replacement starts from rest rather than
     // inheriting a half-finished swipe.

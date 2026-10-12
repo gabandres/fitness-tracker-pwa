@@ -43,6 +43,7 @@ import {
   dayKeyAt,
   dropEmptyExercises,
   fillMissingClusterLoads,
+  isStorableSleepHours,
   isStorableWeight,
   newLedgerId,
   parseYmd,
@@ -227,7 +228,9 @@ export async function finishWorkout(
   if (extras.bodyweight != null && isStorableWeight(extras.bodyweight)) {
     await writeDailyMetric(uid, 'weight', dateKey, extras.bodyweight);
   }
-  if (extras.sleepHours != null && extras.sleepHours > 0) {
+  // The session writer drops an out-of-range value (train-ux F3); the daily
+  // metric must not take it either.
+  if (extras.sleepHours != null && extras.sleepHours > 0 && isStorableSleepHours(extras.sleepHours)) {
     await writeDailyMetric(uid, 'sleep', dateKey, extras.sleepHours);
   }
   // An empty session is still stored (it is what the user finished), but it is

@@ -408,6 +408,21 @@ describe('sessions', () => {
     expect(toSessionDoc({ ...draft, bodyweight: 157.7 }, codec, NOW).bodyweight).toBe(157.7);
   });
 
+  it('drops sleep and duration the rules would refuse, on both write paths (train-ux F3)', () => {
+    // "75" typed for 7.5 h: the rules allow 0–24, and a refused finish put the
+    // workout back on screen as unsaved. The rest of the finish must land.
+    const draft = { status: 'completed' as const, date: NOW, exercises: [], sleepHours: 75, durationMin: 1441 };
+    const doc = toSessionDoc(draft, codec, NOW);
+    expect('sleepHours' in doc).toBe(false);
+    expect('durationMin' in doc).toBe(false);
+    const patch = toSessionPatch({ status: 'completed', sleepHours: 75, durationMin: -1 }, codec, NOW);
+    expect('sleepHours' in patch).toBe(false);
+    expect('durationMin' in patch).toBe(false);
+    expect(patch['status']).toBe('completed');
+    expect(toSessionPatch({ sleepHours: 24, durationMin: 1440 }, codec, NOW)).toMatchObject({ sleepHours: 24, durationMin: 1440 });
+    expect(toSessionPatch({ sleepHours: Number.NaN }, codec, NOW)).not.toHaveProperty('sleepHours');
+  });
+
   it('distinguishes an absent field from a falsy one', () => {
     // The live logger writes one field at a time, so a key the caller did not
     // mention must survive the write — but 0 / '' are real values.

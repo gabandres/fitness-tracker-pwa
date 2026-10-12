@@ -19,6 +19,8 @@ import type { WorkoutTemplate } from '@/lib/workout';
  */
 
 const mockSaveTemplate = jest.fn().mockResolvedValue(undefined);
+/** Logged sessions the editor seeds a new card from (T7). Per test. */
+const mockRecent: unknown[] = [];
 
 const mockTemplate: WorkoutTemplate = {
   id: 't1',
@@ -54,7 +56,7 @@ jest.mock('@/hooks/useTrain', () => ({
     templates: [mockTemplate],
     drafts: [],
     pendingLoadTestFor: () => null,
-    recentSessions: [],
+    recentSessions: mockRecent,
     active: null,
     editingExisting: false,
     saveTemplate: mockSaveTemplate,
@@ -80,6 +82,7 @@ import TrainScreen from '@/app/(app)/train';
 
 beforeEach(() => {
   mockSaveTemplate.mockClear().mockResolvedValue(undefined);
+  mockRecent.length = 0;
 });
 
 /** Open the editor on the fixture template and expand its one exercise. */
@@ -88,6 +91,10 @@ async function openCard() {
   await fireEvent.press(ui.getByTestId('edit-template-t1'));
   await waitFor(() => expect(ui.getByTestId('template-ex-toggle-0')).toBeTruthy());
   await fireEvent.press(ui.getByTestId('template-ex-toggle-0'));
+  // A saved card opens with its structure folded to one line (train-ux T6);
+  // "Change" unfolds the picker, still above the sets.
+  await waitFor(() => expect(ui.getByTestId('template-structure-compact-0')).toBeTruthy());
+  await fireEvent.press(ui.getByTestId('template-structure-compact-0'));
   await waitFor(() => expect(ui.getByTestId('template-structure-0-straight')).toBeTruthy());
   return ui;
 }
@@ -114,7 +121,8 @@ describe('the structure picker', () => {
     const ui = await openCard();
     await fireEvent.press(ui.getByTestId('template-structure-more-0'));
     await waitFor(() => expect(ui.getByTestId('template-structure-0-drop')).toBeTruthy());
-    expect(ui.getAllByText(/not read yet/).length).toBeGreaterThan(0);
+    // In gym words, not engine words (E-N11).
+    expect(ui.getAllByText(/weights not auto-adjusted yet/).length).toBeGreaterThan(0);
   });
 });
 
@@ -200,5 +208,119 @@ describe('the template form itself', () => {
     expect(ui.queryByTestId('template-notes')).toBeNull();
     await fireEvent.press(ui.getByTestId('template-options'));
     await waitFor(() => expect(ui.getByTestId('template-rest-mini')).toBeTruthy());
+  });
+});
+
+/** Open the editor and create a new lift by name (no library match, so the
+ *  create row leads). It lands at index 1, open. */
+async function addNewLift(name = 'Zqx Curl') {
+  const ui = await render(<TrainScreen />);
+  await fireEvent.press(ui.getByTestId('edit-template-t1'));
+  await fireEvent.changeText(ui.getByTestId('template-add-exercise'), name);
+  await fireEvent.press(ui.getByTestId('template-create-exercise'));
+  await waitFor(() => expect(ui.getByTestId('template-ex-toggle-1')).toBeTruthy());
+  return ui;
+}
+
+describe('a lift added in this session (train-ux T6, T7, T9)', () => {
+  it('opens on the full picker — structure first — and offers only "+ Add set" until declared', async () => {
+    const ui = await addNewLift();
+    await waitFor(() => expect(ui.getByTestId('template-structure-1-straight')).toBeTruthy());
+    expect(ui.queryByTestId('template-structure-compact-1')).toBeNull();
+    // ADR-0041's all-three rule is for LEGACY undeclared templates only.
+    expect(ui.getByTestId('template-add-set-1')).toBeTruthy();
+    expect(ui.queryByTestId('template-add-cluster-1')).toBeNull();
+    expect(ui.queryByTestId('template-add-block-1')).toBeNull();
+  });
+
+  it('folds the picker to one line once a structure is chosen; "Change" unfolds it', async () => {
+    const ui = await addNewLift();
+    await fireEvent.press(await waitFor(() => ui.getByTestId('template-structure-1-myoreps')));
+    await waitFor(() => expect(ui.getByTestId('template-structure-compact-1')).toBeTruthy());
+    expect(ui.queryByTestId('template-structure-1-straight')).toBeNull();
+    expect(ui.getByText('Set structure: Myo-reps')).toBeTruthy();
+    await fireEvent.press(ui.getByTestId('template-structure-compact-1'));
+    await waitFor(() => expect(ui.getByTestId('template-structure-1-straight')).toBeTruthy());
+  });
+
+  const curlHistory = () => mockRecent.push({
+    id: 's1', date: new Date('2026-10-01T12:00:00Z'), status: 'completed',
+    exercises: [{
+      exerciseId: 'new-id', name: 'Zqx Curl', cues: [], logStyle: 'weight-reps',
+      sets: [
+        { kind: 'warmup', weight: 45, reps: 10, done: true },
+        { kind: 'working', weight: 60, reps: 9, done: true },
+        { kind: 'working', weight: 60, reps: 8, done: true },
+      ],
+    }],
+  });
+
+  it('shows last session as GHOST text by kind, and a ghosted row still rescaffolds', async () => {
+    curlHistory();
+    const ui = await addNewLift();
+    // Ghosts, not values: the boxes are empty, the numbers are placeholders.
+    // The warm-up's 45 × 10 does NOT show over working row 1: matched by kind.
+    await waitFor(() => expect(ui.getByTestId('template-set-reps-1-0').props.placeholder).toBe('9'));
+    expect(ui.getByTestId('template-set-reps-1-0').props.value).toBe('');
+    expect(ui.getByTestId('template-set-reps-1-1').props.placeholder).toBe('8');
+    // Row 3 has no same-kind ghost; it shows what the session will offer
+    // there — last time's row 3, a working 8 (core `countToAccept`, E-N1).
+    expect(ui.getByTestId('template-set-reps-1-2').props.placeholder).toBe('8');
+    expect(ui.getByTestId('template-set-weight-1-0').props.value).toBe('');
+    // The weight ghost is the lift's load (what the session pre-fills).
+    expect(ui.getByTestId('template-set-weight-1-0').props.placeholder).toBe('60');
+    // Ghost text is not a typed number: myo-reps still scaffolds, no note.
+    await fireEvent.press(ui.getByTestId('template-structure-1-myoreps'));
+    expect(ui.queryByTestId('template-structure-kept-1')).toBeNull();
+    await fireEvent.press(ui.getByTestId('save-template'));
+    await waitFor(() => expect(mockSaveTemplate).toHaveBeenCalled());
+    const added = mockSaveTemplate.mock.calls.at(-1)![0].exercises[1];
+    expect(added.plannedSets.map((p: { kind: string }) => p.kind)).toEqual(['activation', 'mini', 'mini']);
+  });
+
+  it('an UNTOUCHED new card saves no per-set weight or reps — the load goes in targetLoad, which progression moves (fix R)', async () => {
+    curlHistory();
+    const ui = await addNewLift();
+    await waitFor(() => expect(ui.getByTestId('template-set-reps-1-0').props.placeholder).toBe('9'));
+    await fireEvent.press(ui.getByTestId('save-template'));
+    await waitFor(() => expect(mockSaveTemplate).toHaveBeenCalled());
+    const added = mockSaveTemplate.mock.calls.at(-1)![0].exercises[1];
+    expect(added.targetLoad).toBe(60);
+    expect(added.plannedSets).toHaveLength(3);
+    for (const p of added.plannedSets) {
+      expect(p.weight).toBeUndefined();
+      expect(p.reps).toBeUndefined();
+    }
+  });
+
+  it('a new card with no history starts with no load and blank rows', async () => {
+    const ui = await addNewLift();
+    await waitFor(() => expect(ui.getByTestId('template-set-reps-1-0')).toBeTruthy());
+    expect(ui.getByTestId('template-set-reps-1-0').props.placeholder).toBeUndefined();
+    await fireEvent.press(ui.getByTestId('save-template'));
+    await waitFor(() => expect(mockSaveTemplate).toHaveBeenCalled());
+    const added = mockSaveTemplate.mock.calls.at(-1)![0].exercises[1];
+    expect(added.targetLoad).toBeUndefined();
+  });
+
+  it('a TYPED row over a ghosted one is kept through a structure change', async () => {
+    mockRecent.push({
+      id: 's1', date: new Date('2026-10-01T12:00:00Z'), status: 'completed',
+      exercises: [{ exerciseId: 'new-id', name: 'Zqx Curl', cues: [], sets: [{ kind: 'working', weight: 60, reps: 9, done: true }] }],
+    });
+    const ui = await addNewLift();
+    await fireEvent.changeText(await waitFor(() => ui.getByTestId('template-set-reps-1-0')), '12');
+    await fireEvent.press(ui.getByTestId('template-structure-1-myoreps'));
+    await waitFor(() => expect(ui.getByTestId('template-structure-kept-1')).toBeTruthy());
+  });
+
+  it('"+ Add set" copies the last working row, and "Copy set 1 to all sets" fills the blanks', async () => {
+    const ui = await addNewLift();
+    await fireEvent.changeText(await waitFor(() => ui.getByTestId('template-set-reps-1-0')), '10');
+    await fireEvent.press(ui.getByTestId('template-copy-first-1'));
+    expect(ui.getByTestId('template-set-reps-1-2').props.value).toBe('10');
+    await fireEvent.press(ui.getByTestId('template-add-set-1'));
+    expect(ui.getByTestId('template-set-reps-1-3').props.value).toBe('10');
+    expect(ui.queryByTestId('template-copy-first-1')).toBeNull();
   });
 });

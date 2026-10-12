@@ -79,10 +79,13 @@ beforeEach(() => {
   mockAddCatalogExercise.mockClear().mockResolvedValue('new-ex-id');
 });
 
-/** Open the editor, type a name, pick a chip by its visible label, create. */
+/** Open the editor, type a name, pick a chip by its visible label, create.
+ *  With library matches the create row sits after them and its chips are
+ *  folded (train-ux T1/L10): its first tap unfolds them. */
 async function createExercise(ui: any, name: string, chipLabel: string) {
   await fireEvent.press(ui.getByTestId('edit-template-t1'));
   await fireEvent.changeText(ui.getByTestId('template-add-exercise'), name);
+  if (!ui.queryByText(chipLabel)) await fireEvent.press(ui.getByTestId('template-create-exercise'));
   await fireEvent.press(ui.getByText(chipLabel));
   await fireEvent.press(ui.getByTestId('template-create-exercise'));
   await fireEvent.press(ui.getByTestId('save-template'));
@@ -125,4 +128,26 @@ it('still creates a TIMED exercise with working sets — a plank is not mobility
   const added = draft.exercises[draft.exercises.length - 1];
   expect(added.logStyle).toBe('time');
   expect(added.plannedSets.every((s: { kind: string }) => s.kind === 'working')).toBe(true);
+});
+
+it('puts finding before creating: with matches, the create row follows them and its chips stay folded', async () => {
+  // "Couch" matches the library's Couch Stretch.
+  const ui = await render(<TrainScreen />);
+  await fireEvent.press(ui.getByTestId('edit-template-t1'));
+  await fireEvent.changeText(ui.getByTestId('template-add-exercise'), 'Couch');
+  expect(ui.getByTestId('template-match-lib-0')).toBeTruthy();
+  expect(ui.queryByTestId('template-logstyle-mobility')).toBeNull();
+  await fireEvent.press(ui.getByTestId('template-create-exercise'));
+  // The first tap unfolds the chips; it does not create.
+  expect(mockAddCatalogExercise).not.toHaveBeenCalled();
+  expect(ui.getByTestId('template-logstyle-mobility').props.accessibilityRole).toBe('radio');
+});
+
+it('with no match, the create row and its chips lead and one tap creates', async () => {
+  const ui = await render(<TrainScreen />);
+  await fireEvent.press(ui.getByTestId('edit-template-t1'));
+  await fireEvent.changeText(ui.getByTestId('template-add-exercise'), 'Zqxv');
+  expect(ui.getByTestId('template-logstyle-weight-reps')).toBeTruthy();
+  await fireEvent.press(ui.getByTestId('template-create-exercise'));
+  await waitFor(() => expect(mockAddCatalogExercise).toHaveBeenCalledWith('Zqxv', 'weight-reps'));
 });

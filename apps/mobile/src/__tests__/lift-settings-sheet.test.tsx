@@ -116,6 +116,16 @@ it('refuses an inverted rep range and a load that is not a number', async () => 
   expect(onSave).not.toHaveBeenCalled();
 });
 
+it('prompts for the other end while only one is typed, without flagging an error', async () => {
+  const { ui } = renderSheet(lift());
+  const r = await ui;
+  await fireEvent.changeText(r.getByTestId('lift-range-min'), '7');
+  expect(r.getByTestId('lift-range-hint')).toHaveTextContent(/^Enter both ends of the range/);
+  expect(r.getByTestId('lift-save')).toBeDisabled();
+  await fireEvent.changeText(r.getByTestId('lift-range-max'), '10');
+  expect(r.getByTestId('lift-range-hint')).toHaveTextContent(/^Category default/);
+});
+
 it('reads load steps comma or space separated, ascending, and says a stack has no default', async () => {
   const { ui, onSave } = renderSheet(lift());
   const r = await ui;

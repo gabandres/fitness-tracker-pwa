@@ -9,6 +9,7 @@ import { Text, TextInput, TouchableOpacity, View } from 'react-native';
 import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import {
   clampSetLoad,
+  countToAccept,
   defaultIncrement,
   loadUnit,
   parseLoadToLb,
@@ -22,6 +23,7 @@ import { showToast } from '@/components/Toast';
 import { useLocale, useT } from '@/i18n';
 import { formatDecimal } from '@/lib/entry-input';
 import * as haptics from '@/lib/haptics';
+import { noteFocusTrigger } from '@/lib/return-focus';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { useUnitSystem } from '@/lib/use-unit-system';
 import { font } from '@/theme';
@@ -58,6 +60,22 @@ const wholeCount = (text: string): number | undefined => {
   return n == null ? undefined : Math.round(n);
 };
 
+/** An empty field with nothing to offer. A dash, never "0": a grey 0 beside
+ *  PREVIOUS "190×8" read as a value the tick would log, and it was not one
+ *  (Train re-score L-N1 / J-N3, R14). */
+const NOTHING_TO_OFFER = '–';
+
+/** Ticking would log a weighted set with no load: nothing typed, and no load
+ *  last time to take. Exported for the test. */
+export function needsLoad(hasWeight: boolean, typed: string, previousSet: WorkoutSet | undefined): boolean {
+  return hasWeight && numOrUndef(typed) == null && previousSet?.weight == null;
+}
+
+/** The PR badge inside the set-number cell: tighter than the standalone one. */
+const PR_IN_CELL = { alignSelf: 'flex-start', paddingHorizontal: 4, marginTop: 1 } as const;
+/** The swipe action's icon over its label, ~72pt wide. */
+const SWIPE_DELETE_BODY = { alignItems: 'center', gap: 2, minWidth: 56 } as const;
+
 export interface SetRowProps {
   exerciseIndex: number;
   setIndex: number;
@@ -71,6 +89,10 @@ export interface SetRowProps {
   /** The same set, unformatted — the source for the one-tap "repeat last
    *  time". Passing both avoids re-parsing the string the cell just rendered. */
   previousSet?: WorkoutSet;
+  /** The lift's own rep target (its progression rule) — what a working row
+   *  with no prescription and no same-kind PREVIOUS offers (core
+   *  `countToAccept`). */
+  exerciseTargetReps?: number;
   /** The last row of the card: its reps field ends the keyboard chain. */
   isLastSet: boolean;
   /** Best estimated-1RM on record for this lift, for the "PR" badge. */
@@ -104,6 +126,7 @@ export const SetRow = memo(function SetRow({
   label,
   previous,
   previousSet,
+  exerciseTargetReps,
   isLastSet,
   best,
   largeText,
@@ -179,13 +202,16 @@ export const SetRow = memo(function SetRow({
   // What the template prescribed for this set, if it came from one. Shown as
   // the placeholder rather than the value: a target the lifter has not
   // confirmed is not a logged set (see WorkoutSet.targetReps).
-  const target = logStyle === 'time' ? set.targetDurationSec : set.targetReps;
   // Falls back to what was actually done last time. This is the half the
   // one-tap path was missing: a PRESCRIBED set could be accepted with a tick,
   // but an ad-hoc or unprescribed one had nothing to accept and had to be
-  // typed — which is most rows, for most users, on most sessions.
-  const acceptCount =
-    target ?? (logStyle === 'time' ? previousSet?.durationSec : previousSet?.reps);
+  // typed — which is most rows, for most users, on most sessions. Then, on a
+  // working row, to the lift's own target: a row whose PREVIOUS was a warm-up
+  // offered 0 beside rows offering 8 (v3 QA).
+  const acceptCount = countToAccept(set, previousSet, logStyle, exerciseTargetReps);
+  /** The offer is last time's numbers, not a target (the a11y hint says which). */
+  const fromLastTime = set.targetReps == null && set.targetDurationSec == null
+    && (logStyle === 'time' ? previousSet?.durationSec : previousSet?.reps) != null;
   // RIR is meaningful on real working effort, not warmups/back-offs.
   // `continuation` carries RIR too: a rest-pause continuation is taken to
   // failure, so the reading is as meaningful there as on the activation.
@@ -200,6 +226,7 @@ export const SetRow = memo(function SetRow({
   // this slot is not already swiped open.
   const swipeRef = useRef<SwipeableMethods>(null);
   const countInputRef = useRef<TextInput | null>(null);
+  const weightInputRef = useRef<TextInput | null>(null);
   const remove = () => {
     swipeRef.current?.close();
     onRemove(exerciseIndex, setIndex);
@@ -219,7 +246,20 @@ export const SetRow = memo(function SetRow({
   const weightHasPrev = setIndex > 0;
   const countHasPrev = hasWeight || setIndex > 0;
 
+  /**
+   * What the last accepting tick put into this set that the lifter never
+   * typed — last session's reps (or the target) and load. An untick takes it
+   * back out: "logged" means a stored count, not `done`, so a tick-then-untick
+   * left a phantom set on the card's count and in Finish (L2, ADR-0041:
+   * nothing is stored as a value until the lifter confirms it). Any typing
+   * clears it, so the untick never erases what was typed. A ref, so it lives
+   * as long as the row does — a collapse unmounts the row and forgets it,
+   * which errs toward keeping the set.
+   */
+  const accepted = useRef<{ count?: number; weight?: number } | null>(null);
+
   function writeWeight(text: string) {
+    accepted.current = null;
     setWeight(text);
     dispatch(
       {
@@ -236,6 +276,7 @@ export const SetRow = memo(function SetRow({
   }
 
   function writeCount(text: string) {
+    accepted.current = null;
     setCount(text);
     const n = wholeCount(text);
     dispatch(
@@ -272,21 +313,47 @@ export const SetRow = memo(function SetRow({
   // "135" sounded logged when nothing was (UX_AUDIT S20). The label says
   // "empty" outright, and the placeholder's meaning moves to the hint.
   const weightHintValue = previousSet?.weight != null ? loadText(previousSet.weight) : null;
-  const countHintKey = target != null ? 'train.targetHintA11y' : 'train.lastTimeHintA11y';
+  const countHintKey = fromLastTime ? 'train.lastTimeHintA11y' : 'train.targetHintA11y';
   const fieldA11y = (base: string, text: string) =>
     text.trim() === '' ? `${base}, ${t('train.fieldEmptyA11y')}` : base;
 
   const step = formatDecimal(weightStep(unitSystem), locale);
   const stepLabel = `${step} ${loadUnit(unitSystem)}`;
 
+  /** Untick: `done` off, and what the tick accepted — still unchanged —
+   *  back out, in the same write. */
+  function untick() {
+    haptics.tap();
+    const took = accepted.current;
+    accepted.current = null;
+    const patch: Partial<WorkoutSet> = { done: false };
+    const storedCount = logStyle === 'time' ? set.durationSec : set.reps;
+    if (took?.count != null && storedCount === took.count) {
+      if (logStyle === 'time') patch.durationSec = undefined;
+      else patch.reps = undefined;
+      setCount('');
+    }
+    if (took?.weight != null && set.weight === took.weight) {
+      patch.weight = undefined;
+      setWeight('');
+    }
+    void dispatch({ type: 'patchSet', exerciseIndex, setIndex, patch });
+  }
+
   const row = (
     <View style={styles.setRow}>
       <TouchableOpacity
         style={styles.setNumCell}
-        onPress={() => onOpenSheet(exerciseIndex, setIndex)}
+        onPress={(e) => {
+          // VoiceOver comes back here when the sheet closes (J10).
+          noteFocusTrigger(e?.currentTarget);
+          onOpenSheet(exerciseIndex, setIndex);
+        }}
         hitSlop={SET_NUM_SLOP}
         accessibilityRole="button"
-        accessibilityLabel={t('train.setTypeA11y', { n: label, kind: t(kindLabelKey(set.kind)) })}
+        accessibilityLabel={isPr
+          ? `${t('train.setTypeA11y', { n: label, kind: t(kindLabelKey(set.kind)) })}, ${t('train.prBadgeA11y')}`
+          : t('train.setTypeA11y', { n: label, kind: t(kindLabelKey(set.kind)) })}
         accessibilityHint={t('train.setSheetHint')}
         // The sheet's three jobs, reachable without opening it (Train review
         // item 14): VoiceOver's actions rotor, TalkBack's actions menu.
@@ -300,19 +367,33 @@ export const SetRow = memo(function SetRow({
         }}
         testID={`set-kind-${exerciseIndex}-${setIndex}`}
       >
-        <Text style={[styles.setNum, set.group != null && styles.setNumCluster]} maxFontSizeMultiplier={NUMERIC_FONT_CAP}>
+        <Text style={[styles.setNum, set.group != null && styles.setNumCluster, set.done && styles.setNumDone]} maxFontSizeMultiplier={NUMERIC_FONT_CAP}>
           {label}
         </Text>
+        {/* The record badge lives INSIDE the row, under the set number: as a
+            line of its own between rows it pushed every later row's tick box
+            down ~20pt at the moment of the next tick (L-N3). The cell is 44pt
+            tall and the number ~17, so the badge fits without growing it. Its
+            words ride on the cell's label above. */}
+        {isPr ? (
+          <View style={[styles.prBadge, PR_IN_CELL]} testID={`set-pr-${exerciseIndex}-${setIndex}`}>
+            <Text style={styles.prBadgeText} maxFontSizeMultiplier={1.2}>{t('train.prBadge')}</Text>
+          </View>
+        ) : null}
       </TouchableOpacity>
 
       {/* PREVIOUS — read-only on purpose. It is the number to match or beat,
           and making it a field would invite typing into last week. At large
           text it moves to its own line above the row instead. */}
       {largeText ? null : (
+        // Not a focus stop: the weight and reps fields' hints already say
+        // "Last time …", so a screen reader heard PREVIOUS twice and walked
+        // six stops per set (L6). Five now.
         <View
           style={styles.setPrevCell}
-          accessible
-          accessibilityLabel={`${t('train.prevA11y')} ${previous ?? t('train.prevNone')}`}
+          accessible={false}
+          importantForAccessibility="no-hide-descendants"
+          accessibilityElementsHidden
           testID={`set-prev-${exerciseIndex}-${setIndex}`}
         >
           <Text
@@ -330,9 +411,12 @@ export const SetRow = memo(function SetRow({
       {hasWeight ? (
         <>
           <TextInput
-            ref={(r) => chain.register(weightSlot, r)}
-            style={[styles.setInput, styles.setInputCell]}
-            placeholder={previousSet?.weight != null ? loadText(previousSet.weight) : '0'}
+            ref={(r) => {
+              chain.register(weightSlot, r);
+              weightInputRef.current = r;
+            }}
+            style={[styles.setInput, styles.setInputCell, set.done && styles.setInputDone]}
+            placeholder={previousSet?.weight != null ? loadText(previousSet.weight) : NOTHING_TO_OFFER}
             placeholderTextColor={colors.faint}
             keyboardType="numeric"
             value={weight}
@@ -368,8 +452,8 @@ export const SetRow = memo(function SetRow({
           chain.register(countSlot, r);
           countInputRef.current = r;
         }}
-        style={[styles.setInput, styles.setInputCell]}
-        placeholder={acceptCount != null ? String(acceptCount) : '0'}
+        style={[styles.setInput, styles.setInputCell, set.done && styles.setInputDone]}
+        placeholder={acceptCount != null ? String(acceptCount) : NOTHING_TO_OFFER}
         placeholderTextColor={colors.faint}
         // Whole numbers: reps and seconds are counts, and the decimal pad
         // stored 8.5 reps (Train re-score 3).
@@ -410,7 +494,10 @@ export const SetRow = memo(function SetRow({
         // the set sheet, so the scale explains itself.
         <TouchableOpacity
           style={[styles.setInput, styles.setRirCell, styles.setRirBtn]}
-          onPress={() => onOpenSheet(exerciseIndex, setIndex)}
+          onPress={(e) => {
+            noteFocusTrigger(e?.currentTarget);
+            onOpenSheet(exerciseIndex, setIndex);
+          }}
           accessibilityRole="button"
           // The label carries the CURRENT VALUE, not just the prompt. Before
           // 2026-08-18 it was the prompt alone, so VoiceOver announced the
@@ -455,16 +542,34 @@ export const SetRow = memo(function SetRow({
             countInputRef.current?.focus();
             return;
           }
+          // The same for the LOAD of a weighted lift: no weight typed and none
+          // to take from last time logged "0 × 8" for a barbell lift on the
+          // first session of a starter, and for a lift whose PREVIOUS row was
+          // another kind (L-N2 / J-N4, R50). Typing 0 is still a deliberate
+          // entry; bodyweight and timed lifts have no load to ask for.
+          if (nowDone && needsLoad(hasWeight, weight, previousSet)) {
+            haptics.warning();
+            showToast(t('train.enterWeightFirst'), { testID: 'train-toast' });
+            weightInputRef.current?.focus();
+            return;
+          }
+          if (!nowDone) {
+            untick();
+            return;
+          }
           let done: WorkoutSet = { ...set, done: nowDone };
+          const inserted: { count?: number; weight?: number } = {};
           // Ticking a set you have not typed into ACCEPTS what was prescribed
           // — or, failing that, what you did last time. This is the one-tap
           // path Strong and Hevy use, and the reason neither number is
           // pre-filled as a VALUE: nothing is logged until this tap, so
           // abandoning a session mid-way records only what was actually done.
-          // Typed input always wins; untick never erases.
+          // Typed input always wins; an untick takes back only what this tick
+          // accepted (`untick`), never what was typed.
           const accept = nowDone && acceptCount != null && numOrUndef(count) == null;
           if (accept) {
             setCount(String(acceptCount));
+            inserted.count = acceptCount;
             done = logStyle === 'time' ? { ...done, durationSec: acceptCount } : { ...done, reps: acceptCount };
             // Deferred: the `done` patch below persists, and it reads the same
             // ref this one just updated, so one write carries both. Two
@@ -484,17 +589,18 @@ export const SetRow = memo(function SetRow({
           // every session is the friction the PREVIOUS column exists to remove.
           if (nowDone && hasWeight && numOrUndef(weight) == null && previousSet?.weight != null) {
             setWeight(loadText(previousSet.weight));
+            inserted.weight = previousSet.weight;
             done = { ...done, weight: previousSet.weight };
             dispatch(
               { type: 'patchSet', exerciseIndex, setIndex, patch: { weight: previousSet.weight } },
               { defer: true },
             );
           }
-          void dispatch({ type: 'patchSet', exerciseIndex, setIndex, patch: { done: nowDone } });
+          accepted.current = inserted.count != null || inserted.weight != null ? inserted : null;
+          void dispatch({ type: 'patchSet', exerciseIndex, setIndex, patch: { done: true } });
           // The haptic is the card's call: a tick, a record, or the last set
           // of the exercise each feel different (Train review item 25).
-          if (nowDone) onDone(setIndex, done);
-          else haptics.tap();
+          onDone(setIndex, done);
         }}
         testID={`set-done-${exerciseIndex}-${setIndex}`}
       >
@@ -508,7 +614,14 @@ export const SetRow = memo(function SetRow({
   return (
     <View>
       {largeText && previous ? (
-        <Text style={styles.setPrevLine} accessibilityLabel={`${t('train.prevA11y')} ${previous}`}>
+        // Hidden from screen readers like the column (L6): the fields' hints
+        // say "Last time …".
+        <Text
+          style={styles.setPrevLine}
+          importantForAccessibility="no-hide-descendants"
+          accessibilityElementsHidden
+          testID={`set-prev-line-${exerciseIndex}-${setIndex}`}
+        >
           {`${t('train.prevA11y')}: `}
           <Text testID={`set-prev-${exerciseIndex}-${setIndex}`}>{previous}</Text>
         </Text>
@@ -539,26 +652,23 @@ export const SetRow = memo(function SetRow({
               remove();
             }}
             accessibilityRole="button"
-            accessibilityLabel={t('train.removeSet')}
+            accessibilityLabel={t('train.removeSetNamedA11y', { n: label })}
             testID={`set-swipe-delete-${exerciseIndex}-${setIndex}`}
           >
-            <Ionicons name="trash-outline" size={18} color={colors.onInk} />
+            {/* Words as well as the bin, and the set's own label: the swipe
+                slides "1c" off-screen, so the action names what it deletes
+                (L-N15, R69). */}
+            <View style={SWIPE_DELETE_BODY}>
+              <Ionicons name="trash-outline" size={18} color={colors.onFill} />
+              <Text style={[styles.prBadgeText, { color: colors.onFill }]} maxFontSizeMultiplier={1.4} numberOfLines={1}>
+                {t('train.deleteSetShort', { n: label })}
+              </Text>
+            </View>
           </TouchableOpacity>
         )}
       >
         {row}
       </ReanimatedSwipeable>
-
-      {isPr ? (
-        <View
-          style={[styles.prBadge, { alignSelf: 'flex-end' }]}
-          accessible
-          accessibilityLabel={t('train.prBadgeA11y')}
-          testID={`set-pr-${exerciseIndex}-${setIndex}`}
-        >
-          <Text style={styles.prBadgeText}>{t('train.prBadge')}</Text>
-        </View>
-      ) : null}
 
       {/* ± steppers for the field that has the keyboard — 2.5 lb / 1.25 kg,
           one rep. Under the row rather than in it: the row is already the

@@ -98,7 +98,7 @@ it('the fixture is what it claims: outside a cut, chest earns +1 because everyth
 it('reads an unset phase as a cut, and says volume is held — even where a cluster was earned', async () => {
   const ui = await openPanel();
   expect(ui.getByTestId('volume-phase')).toHaveTextContent('Phase: Cut');
-  expect(ui.getByTestId('volume-cut-hold')).toHaveTextContent('Volume is held in a cut — recovery comes first.');
+  expect(ui.getByTestId('volume-cut-hold')).toHaveTextContent('No clusters are added in a cut — recovery comes first.');
   expect(ui.queryByTestId('volume-add-chest')).toBeNull();
   // The existing 2-6 audit is still there above it.
   expect(ui.getByTestId('cluster-audit-chest')).toBeTruthy();
@@ -122,7 +122,7 @@ it('states the volume gate with the 7-day average, met outside a cut', async () 
   const ui = await openPanel();
   await waitFor(() => expect(ui.getByTestId('volume-gate')).toHaveTextContent(/7-day average: 185 lb/));
   expect(ui.getByTestId('volume-gate')).toHaveTextContent(
-    /^Phase 2 volume unlocks at 185 lb on the 7-day average AND maintenance calories\. 7-day average: 185 lb · Unlocked\.$/,
+    /^More clusters unlock at 185 lb on the 7-day average AND maintenance calories\. 7-day average: 185 lb · Unlocked\.$/,
   );
 });
 
@@ -132,4 +132,34 @@ it('is never met in a cut, and omits the average when there is none', async () =
   const ui = await openPanel();
   await waitFor(() => expect(ui.getByTestId('volume-gate')).toHaveTextContent(/Not yet\.$/));
   expect(ui.getByTestId('volume-gate')).not.toHaveTextContent(/7-day average:/);
+});
+
+describe('the clusters-by-muscle link and the history rows (train-ux H1, H2)', () => {
+  const straight = (id: string, ago: number): WorkoutSession => ({
+    id, status: 'completed', templateName: 'Upper A', date: daysAgo(ago), createdAt: daysAgo(ago), updatedAt: daysAgo(ago),
+    exercises: [{
+      exerciseId: 'e1', name: 'DB Bench Press', logStyle: 'weight-reps', cues: [],
+      sets: [{ kind: 'working', weight: 50, reps: 8, done: true }],
+    }],
+  } as WorkoutSession);
+  afterEach(() => {
+    mockTrain.recentSessions = SESSIONS;
+  });
+
+  it('shows the link when the week has clusters', async () => {
+    const ui = await render(<TrainScreen />);
+    expect(ui.getByTestId('weekly-volume-open')).toHaveTextContent('Myo-rep clusters by muscle', { exact: false });
+  });
+
+  it('hides it for a straight-set lifter with no clusters planned — it could only ever read zero', async () => {
+    mockTrain.recentSessions = [straight('s9', 1)];
+    const ui = await render(<TrainScreen />);
+    expect(ui.queryByTestId('weekly-volume-open')).toBeNull();
+  });
+
+  it('leads a history row with the workout it was, the date under it', async () => {
+    mockTrain.recentSessions = [straight('s9', 1)];
+    const ui = await render(<TrainScreen />);
+    expect(ui.getByTestId('session-s9')).toHaveTextContent(/^Upper A.* · 1 exercise · 1 set/);
+  });
 });

@@ -134,6 +134,51 @@ export function previousSets(
 }
 
 /**
+ * Last time's row at this position, if a tick may ACCEPT its numbers into
+ * `current` — i.e. it was the same kind of set. `undefined` otherwise.
+ *
+ * The PREVIOUS cell stays positional (row 1 shows row 1, ADR-0041); what a
+ * tick or a placeholder offers must not. Last session's warm-up at row 1
+ * pre-filled 105 lb into a working / activation row 1, which then read as
+ * "load changed between clusters" at Finish (Train UX v2 QA item 10). A
+ * row with no match falls back to the prescription (the target reps) or to
+ * nothing, which is what a row with no history already does.
+ */
+export function previousToAccept(
+  previous: WorkoutSet | undefined,
+  current: Pick<WorkoutSet, 'kind'>,
+): WorkoutSet | undefined {
+  if (!previous) return undefined;
+  return (previous.kind ?? 'working') === (current.kind ?? 'working') ? previous : undefined;
+}
+
+/**
+ * The count a row offers as its placeholder and a tick accepts: the set's own
+ * prescription, else last time's same-kind row (`previousToAccept`), else —
+ * on a working set only — the exercise-level target (the progression rule's
+ * `targetReps`, "Target reps 8" in Lift settings). `undefined` when there is
+ * nothing to offer, which the row reads as "ask".
+ *
+ * The last step is what `previousToAccept` left out: a working row 1 whose
+ * PREVIOUS was a warm-up offered 0 while rows 2 and 3 offered 8, on a lift
+ * whose target is 8 (v3 QA). A warm-up, activation, mini or drop row does not
+ * borrow it — that number describes a working set.
+ *
+ * @param previous last time's row, ALREADY filtered by `previousToAccept`
+ */
+export function countToAccept(
+  set: Pick<WorkoutSet, 'kind' | 'targetReps' | 'targetDurationSec'>,
+  previous: Pick<WorkoutSet, 'reps' | 'durationSec'> | undefined,
+  style: LogStyle,
+  exerciseTargetReps: number | undefined,
+): number | undefined {
+  if (style === 'time') return set.targetDurationSec ?? previous?.durationSec;
+  const own = set.targetReps ?? previous?.reps;
+  if (own != null) return own;
+  return (set.kind ?? 'working') === 'working' ? exerciseTargetReps : undefined;
+}
+
+/**
  * One PREVIOUS cell — "135 × 8", "8", "45s" — or `null` when that row has no
  * comparable record.
  *

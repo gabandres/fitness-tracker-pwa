@@ -91,6 +91,19 @@ export const CARDIO_MODALITY_KEY: Record<CardioModality, I18nKey> = {
   other: 'cardio.modality.other',
 };
 
+/**
+ * The planned cardio blocks of a workout that hold nothing logged, by name —
+ * the label the plan gave them, else the modality ("Run"). Complete drops
+ * them (`ledger-ops` → `dropEmptyCardio`, the same `isLoggedCardioBlock`), so
+ * the Finish sheet says so beside "not started" lifts instead of letting a
+ * planned run vanish silently (L-N12, R44).
+ */
+export function unloggedCardioNames(session: Pick<WorkoutSession, 'cardio'>, t: TFn): string[] {
+  return (session.cardio ?? [])
+    .filter((b) => !isLoggedCardioBlock(b))
+    .map((b) => b.label?.trim() || t(CARDIO_MODALITY_KEY[b.modality]));
+}
+
 /** `m:ss`, for the session clock and the rest picker. Hours roll into the
  *  minutes on purpose — "74:10" reads as a long session, "1:14:10" as a time
  *  of day. */

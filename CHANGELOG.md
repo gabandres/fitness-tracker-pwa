@@ -4,6 +4,43 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-10-12 — Train tab UX pass: 72.3 → 81.6 (scored), five real bugs fixed
+
+Owner ask: "send out UX reviews on Train… use agents… consult verified up to
+date sources." Standards fetched 2026-10-11 into
+`docs/research/train-ux-standards-2026.md` (72 cited rules, S18 weights). Six
+scored reviews on 107 simulator captures, four fix rounds, an independent code
+review, three simulator QA rounds (iOS regression 21/21 on the final round;
+Android verified on the emulator by re-signing vc 50 with the current JS), then
+an independent final score. Detail and the remaining path: `UX_AUDIT.md` §S23.
+
+- **Bugs fixed:** a superset's leftover round ran the lift's 2:00 rest with no
+  heading, and one skipped warm-up/drop set pulled every later rest back to it
+  (core `superset.ts`); tick→untick left a phantom logged set; a sleep value over
+  24 h made the whole finish fail after "Workout saved" (writers now drop
+  out-of-range sleep/duration; rules unchanged); "Complete" was off-screen when
+  Finish opened on any template workout; on Android a dragged-away sheet with
+  unsaved edits lost the draft and could not reopen until restart
+  (`preventNativeDismiss` is iOS-only in react-native-screens 4.26 — the sheet
+  now re-presents with its draft and asks). Also: Apply-then-discard moved the
+  template (it now asks once at Finish and writes only after the workout
+  saves); ticks imported a warm-up's load into working set 1; rest-pause was
+  unreachable on a lift added mid-workout.
+- **Shared:** `SheetHeader` (visible Done/Cancel/Save on every Train sheet),
+  ConfirmSheet stacks 3-button confirms, per-sheet toast placement above the
+  keyboard, 10 s Undo, the active-workout pill no longer covers other tabs on
+  the iOS 26 glass bar.
+- **Template editor (68 → 79):** Cancel/Save header, search results above the
+  keyboard, Undo on every removal, last session as placeholders (never saved),
+  Lift settings as a page instead of a second sheet, cluster-aware counts.
+- **Home / progression:** history rows lead with the workout name, session
+  detail counts match the sets shown, weekly-volume link only with cluster data,
+  engine wording replaced, named delete confirms, VoiceOver labels.
+- **Live / Finish:** one verb ("Finish"), "–" placeholders, empty-load guard on
+  weighted sets, PR announced, added lifts open in view, rest picker shows the
+  running rest, reorder sheet has move buttons.
+- **Not done (owner calls):** listed in `UX_AUDIT.md` §S23.
+
 ## 2026-10-11 — Supersets, then Program v2 (Push supersets, Lateral ×2, volume report, Zone 2 band, sleep)
 
 - **Supersets** (`ba1fc694`, UX review rounds 1–6 to `2375989b`): rows

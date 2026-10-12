@@ -20,6 +20,7 @@ import {
   templateCounts,
   trainHeroStats,
   undoRemoval,
+  otherSetCells,
   workingSetCells,
 } from './train-view';
 
@@ -58,18 +59,20 @@ describe('sessionVolume', () => {
 });
 
 describe('trainHeroStats', () => {
-  it('counts only the trailing seven days, but takes the top set from all time', () => {
+  it('counts, sums and picks the top set from the trailing seven days only (train-ux H-N4)', () => {
     const stats = trainHeroStats(
       [
         session(1, [ex('bench', [set({ weight: 135, reps: 8 })])]),
-        session(6, [ex('bench', [set({ weight: 145, reps: 5 })])]),
-        session(40, [ex('bench', [set({ weight: 225, reps: 1 })])]), // outside the week
+        session(6, [ex('squat', [set({ weight: 185, reps: 5 })], { name: 'Back Squat' })]),
+        session(40, [ex('deadlift', [set({ weight: 225, reps: 1 })])]), // outside the week
       ],
       NOW,
     );
     expect(stats.count).toBe(2);
-    expect(stats.volume).toBe(135 * 8 + 145 * 5);
-    expect(stats.topSet).toBe(225);
+    expect(stats.volume).toBe(135 * 8 + 185 * 5);
+    // The chip sits under "Last 7 days": a 40-day-old 225 is not this week's
+    // number, and a bare "225 lb" did not say which lift it was.
+    expect(stats.topSet).toEqual({ exerciseId: 'squat', name: 'Back Squat', weight: 185 });
   });
 
   it('excludes warm-ups from the top set — a heavy warm-up is not a PR', () => {
@@ -77,16 +80,40 @@ describe('trainHeroStats', () => {
       [session(1, [ex('squat', [set({ kind: 'warmup', weight: 315, reps: 1 }), set({ weight: 185, reps: 5 })])])],
       NOW,
     );
-    expect(stats.topSet).toBe(185);
+    expect(stats.topSet?.weight).toBe(185);
+  });
+
+  it('has no top set when the week logged no load, even with heavy sets before it', () => {
+    const stats = trainHeroStats(
+      [
+        session(2, [ex('pullup', [set({ reps: 10 })], { logStyle: 'bodyweight' })]),
+        session(20, [ex('bench', [set({ weight: 225, reps: 3 })])]),
+      ],
+      NOW,
+    );
+    expect(stats.count).toBe(1);
+    expect(stats.topSet).toBeNull();
+  });
+
+  it('keeps the first of two equal tops — the newest, as sessions arrive newest first', () => {
+    const stats = trainHeroStats(
+      [
+        session(1, [ex('row', [set({ weight: 155, reps: 8 })])]),
+        session(3, [ex('bench', [set({ weight: 155, reps: 5 })])]),
+      ],
+      NOW,
+    );
+    expect(stats.topSet?.exerciseId).toBe('row');
   });
 
   it('is all zeros with no sessions', () => {
-    expect(trainHeroStats([], NOW)).toEqual({ count: 0, volume: 0, topSet: 0 });
+    expect(trainHeroStats([], NOW)).toEqual({ count: 0, volume: 0, topSet: null });
   });
 
   it('includes a session exactly on the seven-day edge', () => {
     const stats = trainHeroStats([session(7, [ex('row', [set({ weight: 100, reps: 10 })])])], NOW);
     expect(stats.count).toBe(1);
+    expect(stats.topSet?.weight).toBe(100);
   });
 });
 
@@ -170,6 +197,38 @@ describe('workingSetCells', () => {
 
   it('formats seconds for time', () => {
     expect(workingSetCells(ex('plank', [set({ durationSec: 45 })]), 'time')).toEqual(['45s']);
+  });
+});
+
+describe('otherSetCells', () => {
+  it('lists the logged warm-up, drop and mobility sets workingSetCells skips', () => {
+    const rows = ex('bench', [
+      set({ kind: 'warmup', weight: 95, reps: 8 }),
+      set({ weight: 135, reps: 8 }),
+      set({ kind: 'drop', weight: 115, reps: 6 }),
+      set({ kind: 'mobility', reps: 10 }),
+    ]);
+    expect(otherSetCells(rows, 'weight-reps')).toEqual([
+      { kind: 'warmup', cell: '95×8' },
+      { kind: 'drop', cell: '115×6' },
+      { kind: 'mobility', cell: '10' },
+    ]);
+  });
+
+  it('skips unlogged sets, so the two lines together match sessionCounts', () => {
+    const rows = ex('bench', [
+      set({ kind: 'warmup', weight: 95 }),
+      set({ weight: 135, reps: 8 }),
+      set({ kind: 'drop', weight: 115, reps: 6 }),
+    ]);
+    const s = session(0, [rows]);
+    expect(otherSetCells(rows, 'weight-reps')).toHaveLength(1);
+    expect(workingSetCells(rows, 'weight-reps').length + otherSetCells(rows, 'weight-reps').length).toBe(sessionCounts(s).sets);
+  });
+
+  it('formats by log style and unit', () => {
+    expect(otherSetCells(ex('plank', [set({ kind: 'warmup', durationSec: 20 })]), 'time')).toEqual([{ kind: 'warmup', cell: '20s' }]);
+    expect(otherSetCells(ex('bench', [set({ kind: 'warmup', weight: 100, reps: 5 })]), 'weight-reps', 'metric')[0]?.cell).toMatch(/^45(\.\d+)?×5$/);
   });
 });
 
@@ -376,6 +435,55 @@ describe('finishSummary', () => {
     // 100×10 ≈ 133 e1RM; 140×3 = 154 — the squat wins, the 300 warm-up does not count.
     expect(out.topSet).toEqual({ exerciseId: 'squat', name: 'Squat', weight: 140, reps: 3 });
     expect(finishSummary(live([ex('bench', [set({ reps: 8 })])]), [], NOW).topSet).toBeNull();
+  });
+
+  it('compares volume over the lifts this session logged only (train-ux F4)', () => {
+    const last = {
+      ...session(4, [
+        ex('bench', [set({ weight: 100, reps: 5 })]),
+        ex('row', [set({ weight: 100, reps: 10 })]),
+        ex('curl', [set({ weight: 30, reps: 10 })]),
+      ]),
+      templateId: 'push',
+    };
+    // Row and Curl not started: the comparison is Bench against Bench.
+    const out = finishSummary(
+      live([ex('bench', [set({ weight: 100, reps: 6 })]), ex('row', [set({})]), ex('curl', [])], { templateId: 'push' }),
+      [last],
+      NOW,
+    );
+    expect(out.previousVolume).toBe(500);
+    expect(out.previousSameLiftsOnly).toBe(true);
+    // Every lift logged again: the whole of last time, and no qualifier.
+    const full = finishSummary(
+      live(
+        [
+          ex('bench', [set({ weight: 100, reps: 5 })]),
+          ex('row', [set({ weight: 100, reps: 10 })]),
+          ex('curl', [set({ weight: 30, reps: 10 })]),
+        ],
+        { templateId: 'push' },
+      ),
+      [last],
+      NOW,
+    );
+    expect(full.previousVolume).toBe(1800);
+    expect(full.previousSameLiftsOnly).toBe(false);
+  });
+
+  it('counts planned sets skipped in a started lift and typed sets never ticked (train-ux F9)', () => {
+    const out = finishSummary(
+      live([
+        ex('bench', [set({ weight: 100, reps: 5, done: true }), set({ weight: 100, reps: 5 }), set({}), set({ weight: 100 })]),
+        // Not started at all: reported as unstarted, not as skipped sets.
+        ex('row', [set({}), set({})]),
+      ]),
+      [],
+      NOW,
+    );
+    expect(out.untickedSets).toBe(1);
+    expect(out.skippedSets).toBe(2);
+    expect(out.unstarted).toEqual(['row']);
   });
 });
 

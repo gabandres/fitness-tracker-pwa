@@ -18,6 +18,8 @@ export const IONICON_TO_SF: Readonly<Record<string, string>> = {
   'arrow-undo-outline': 'arrow.uturn.backward',
   'barbell-outline': 'dumbbell',
   'copy-outline': 'plus.square.on.square',
+  'git-branch-outline': 'arrow.triangle.branch',
+  'help-circle-outline': 'questionmark.circle',
   'hourglass-outline': 'hourglass',
   'layers-outline': 'square.stack.3d.up',
   'options-outline': 'slider.horizontal.3',

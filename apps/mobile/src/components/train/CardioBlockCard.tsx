@@ -1,4 +1,4 @@
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import {
@@ -17,6 +17,7 @@ import {
 import type { CardioBlock } from '@macrolog/core/cardio';
 import { useDoneKeyProps } from '@/components/KeyboardBar';
 import { useT } from '@/i18n';
+import * as haptics from '@/lib/haptics';
 import type { I18nKey } from '@/i18n';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { useUnitSystem } from '@/lib/use-unit-system';
@@ -95,6 +96,12 @@ function CardioBlockCardInner({ block, index, onPatch, onCommit, onRemove, overl
   const cells = cardioSummaryCells(block, unitSystem);
   const band = hrBand(block);
   const z2 = zone2Check(block);
+  // The duration field is uncontrolled (`defaultValue`); a one-tap accept
+  // remounts it so it shows the minutes it just logged.
+  const [accepted, setAccepted] = useState(0);
+  /** Nothing logged yet against a duration target: one tap logs the target,
+   *  the cardio twin of a set's accepting tick (L11). */
+  const canAcceptTarget = block.targetDurationSec != null && !(block.durationSec > 0);
 
   const patchNum = useCallback(
     (key: 'durationSec' | 'distanceM' | 'avgHr' | 'rpe', raw: string) => {
@@ -156,6 +163,27 @@ function CardioBlockCardInner({ block, index, onPatch, onCommit, onRemove, overl
           })}
         </Text>
       ) : null}
+      {canAcceptTarget ? (
+        <Pressable
+          style={styles.bumpChip}
+          hitSlop={{ top: 6, bottom: 6 }}
+          android_ripple={TRAIN_RIPPLE}
+          onPress={() => {
+            onPatch({ durationSec: block.targetDurationSec }, { defer: true });
+            onCommit();
+            setAccepted((n) => n + 1);
+            haptics.success();
+          }}
+          accessibilityRole="button"
+          testID={`cardio-accept-target-${index}`}
+        >
+          <Text style={styles.bumpText}>
+            {t('cardio.acceptTarget', {
+              value: `${Math.round(block.targetDurationSec! / 60)} ${t('cardio.durationUnit')}`,
+            })}
+          </Text>
+        </Pressable>
+      ) : null}
       {block.targetDistanceM != null ? (
         <Text style={styles.cardioTarget}>
           {t('cardio.target', { value: formatDistance(block.targetDistanceM, unitSystem) })}
@@ -168,6 +196,7 @@ function CardioBlockCardInner({ block, index, onPatch, onCommit, onRemove, overl
             {t('cardio.duration')} ({t('cardio.durationUnit')})
           </Text>
           <TextInput
+            key={`duration-${accepted}`}
             style={styles.cardioInput}
             keyboardType="numeric"
             inputMode="numeric"

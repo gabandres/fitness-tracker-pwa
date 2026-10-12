@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
-import { Touchable } from './Touchable';
 import { SheetTextInput } from '@/components/SheetTextInput';
 import { MOBILITY_SEED_KEYS, type SeedExercise } from '@macrolog/core';
 import type { Exercise } from '@/lib/workout';
 import { BottomSheet, NATIVE_SHEETS } from '@/components/BottomSheet';
+import { SheetHeader } from '@/components/SheetHeader';
 import { showToast } from '@/components/Toast';
 import type { ActivePick, TrainState } from '@/hooks/useTrain';
 import { useT } from '@/i18n';
@@ -13,7 +13,7 @@ import { captureError } from '@/lib/sentry';
 import { useDeferredFocus } from '@/lib/use-deferred-focus';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { ExerciseSearchList, catalogPickKey, seedPickKey } from './ExerciseSearchList';
-import { CREATION_STYLES, type CreationStyle, logStyleFor, setKindFor } from './train-shared';
+import { type CreationStyle, logStyleFor, setKindFor } from './train-shared';
 import { createStyles } from './train-styles';
 
 /**
@@ -31,12 +31,15 @@ export function AddExerciseSheet({
   visible,
   train,
   replace,
+  onAdded,
   onClose,
 }: {
   visible: boolean;
   train: Pick<TrainState, 'catalog' | 'addExerciseToActive' | 'addLibraryExerciseToActive' | 'addManyToActive'>;
   /** Replacing rather than adding: the slot and the name it holds now. */
   replace?: { index: number; name: string } | null;
+  /** The add landed — the session opens the new card. Not called on failure. */
+  onAdded?: () => void;
   onClose: () => void;
 }) {
   const t = useT();
@@ -74,9 +77,10 @@ export function AddExerciseSheet({
     if (adding) return;
     haptics.tap();
     setAdding(true);
+    let added = false;
     try {
       await run();
-      onClose();
+      added = true;
     } catch (e) {
       haptics.warning();
       showToast(t('train.exerciseSaveErr'));
@@ -84,8 +88,13 @@ export function AddExerciseSheet({
     }
     // After the try/catch, not in a `finally`: React Compiler cannot lower a
     // `finally` and skips the whole component. Nothing above can throw past
-    // the catch, so this still runs on both paths.
+    // the catch, so this still runs on both paths. The success path is out
+    // here too: no conditional may sit inside the `try` either.
     setAdding(false);
+    if (added) {
+      onAdded?.();
+      onClose();
+    }
   }
 
   function add(exName: string, style: CreationStyle, exerciseId?: string) {
@@ -132,9 +141,19 @@ export function AddExerciseSheet({
       maxHeight="80%"
     >
       <View style={styles.sheetStack}>
-        <Text style={styles.sheetTitle} accessibilityRole="header">
-          {replace ? t('train.replaceTitle', { name: replace.name }) : t('train.addExerciseTitle')}
-        </Text>
+        {/* A visible way out (v3 QA item 6), and the multi-pick's commit
+            where the keyboard cannot cover it: Cancel drops the ticks, "Add
+            (n)" adds them. A single pick adds on tap, so there is no Done. */}
+        <SheetHeader
+          title={replace ? t('train.replaceTitle', { name: replace.name }) : t('train.addExerciseTitle')}
+          leading={{ label: t('common.cancel'), onPress: onClose, testID: 'add-exercise-cancel' }}
+          trailing={picking ? {
+            label: t('train.addSelected', { n: picked.size }),
+            onPress: () => void guarded(() => train.addManyToActive([...picked.values()]), 'train.addManyToActive'),
+            disabled: adding,
+            testID: 'add-picked',
+          } : undefined}
+        />
         {multi ? <Text style={styles.sheetHint}>{t('train.addPickHint')}</Text> : null}
 
         <SheetTextInput
@@ -148,35 +167,6 @@ export function AddExerciseSheet({
           accessibilityLabel={t('train.exerciseName')}
           testID="exercise-name"
         />
-
-        <View style={[styles.styleRow, styles.styleRowWrap]} accessibilityRole="radiogroup">
-          {CREATION_STYLES.map((ls) => {
-            const on = logStyle === ls.value;
-            return (
-              <Touchable
-                key={ls.value}
-                style={[styles.styleChip, styles.styleChipHalf, on && styles.styleChipOn]}
-                onPress={() => setLogStyle(ls.value)}
-                accessibilityRole="radio"
-                accessibilityState={{ selected: on, checked: on }}
-                testID={`logstyle-${ls.value}`}
-              >
-                <Text style={[styles.styleChipText, on && styles.styleChipTextOn]}>{t(ls.labelKey)}</Text>
-              </Touchable>
-            );
-          })}
-        </View>
-
-        {trimmed ? (
-          <Touchable
-            style={styles.createRow}
-            onPress={() => add(trimmed, logStyle)}
-            accessibilityRole="button"
-            testID="create-exercise"
-          >
-            <Text style={styles.createText}>{t('train.addNamed', { name: trimmed })}</Text>
-          </Touchable>
-        ) : null}
 
         {/* The user's catalog AND the shipped library, one list. The
             library half is the fix for the free-type path minting a
@@ -193,21 +183,20 @@ export function AddExerciseSheet({
             selected={multi ? new Set(picked.keys()) : undefined}
             onToggleCatalog={multi ? toggleCatalog : undefined}
             onToggleSeed={multi ? toggleSeed : undefined}
+            // Finding before creating (L10, shared with the editor's T1): with
+            // matches, "Add “Press”" follows them and its style chips stay
+            // folded until it is tapped; with none, it leads.
+            create={trimmed ? {
+              name: trimmed,
+              style: logStyle,
+              onStyleChange: setLogStyle,
+              onCreate: () => void add(trimmed, logStyle),
+              testID: 'create-exercise',
+              styleTestIDPrefix: 'logstyle',
+            } : undefined}
           />
         </ScrollView>
 
-        {picking ? (
-          <Touchable
-            style={[styles.finishBtn, styles.addPickedBtn, adding && styles.btnDisabled]}
-            onPress={() => void guarded(() => train.addManyToActive([...picked.values()]), 'train.addManyToActive')}
-            disabled={adding}
-            accessibilityRole="button"
-            accessibilityState={{ disabled: adding, busy: adding }}
-            testID="add-picked"
-          >
-            <Text style={styles.finishText}>{t('train.addSelected', { n: picked.size })}</Text>
-          </Touchable>
-        ) : null}
       </View>
     </BottomSheet>
   );

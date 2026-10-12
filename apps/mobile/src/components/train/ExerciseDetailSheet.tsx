@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { SheetTextInput } from '@/components/SheetTextInput';
 import {
   computeExercisePRs,
@@ -13,6 +13,7 @@ import { BottomSheet } from '@/components/BottomSheet';
 import { AccessibleChart } from '@/components/charts/AccessibleChart';
 import { audioGraphDescriptor } from '@/components/charts/audio-graph';
 import { confirm } from '@/components/ConfirmSheet';
+import { SheetHeader } from '@/components/SheetHeader';
 import { Sparkline } from '@/components/Sparkline';
 import { showToast } from '@/components/Toast';
 import type { TrainState } from '@/hooks/useTrain';
@@ -34,7 +35,8 @@ import { space } from '@/theme';
 import { LOG_STYLES, logStyleKey } from './train-shared';
 import { setLine } from './train-summary';
 import { ExerciseSupersetReport } from './SupersetReport';
-import { MuscleChips } from './MuscleChips';
+import { MuscleChips, MuscleCreditLine } from './MuscleChips';
+import { liftPlansClusters } from './LiftSettingsSheet';
 import { createStyles } from './train-styles';
 
 /**
@@ -77,8 +79,8 @@ export function ExerciseDetailSheet({
   const styles = useThemedStyles(createStyles);
   const unitSystem = useUnitSystem();
   const { colors, scheme } = useTheme();
+  const stackChips = useWindowDimensions().fontScale >= 1.3;
   const [mode, setMode] = useState<'view' | 'edit' | 'merge'>('view');
-  const [confirmDel, setConfirmDel] = useState(false);
   const [editName, setEditName] = useState('');
   const [editStyle, setEditStyle] = useState<LogStyle>('weight-reps');
   // Muscle groups were WRITE-ONCE and only by `cloneStarterTemplate`: every
@@ -93,7 +95,6 @@ export function ExerciseDetailSheet({
   useEffect(() => {
     if (visible && exercise) {
       setMode('view');
-      setConfirmDel(false);
       setEditName(exercise.name);
       setEditStyle(exercise.logStyle ?? 'weight-reps');
       setEditMuscles(exercise.muscles ?? []);
@@ -202,6 +203,43 @@ export function ExerciseDetailSheet({
     void run(() => train.deleteCatalogExercise(id), 'train.deleteCatalogExercise');
   }
 
+  /** The same confirm sheet Merge uses, naming the lift and what goes with it
+   *  — it was an inline "Delete this exercise?" link pair (train-ux X11). */
+  function askDelete() {
+    if (!exercise?.id) return;
+    confirm({
+      title: t('train.deleteExerciseTitle', { name: exercise.name }),
+      body: t('train.deleteExerciseBody'),
+      confirmText: t('train.delete'),
+      destructive: true,
+      onConfirm: doDelete,
+    });
+  }
+
+  // Edits typed in edit mode and not saved — what a swipe-down would lose.
+  const dirty =
+    visible &&
+    mode === 'edit' &&
+    exercise != null &&
+    (editName !== exercise.name ||
+      editStyle !== (exercise.logStyle ?? 'weight-reps') ||
+      editMuscles.join(',') !== (exercise.muscles ?? []).join(','));
+
+  /** Close, asking first over unsaved edits (train-ux X5). `false` = stay. */
+  function requestClose(): boolean {
+    if (!dirty) {
+      onClose();
+      return true;
+    }
+    confirm({
+      title: t('train.lift.discardTitle', { name: exercise?.name ?? '' }),
+      confirmText: t('train.discard'),
+      destructive: true,
+      onConfirm: onClose,
+    });
+    return false;
+  }
+
   function askMerge(target: Exercise) {
     if (!exercise?.id || !target.id) return;
     if (isOffline()) {
@@ -221,9 +259,31 @@ export function ExerciseDetailSheet({
   }
 
   return (
-    <BottomSheet native detents={[0.6, 1]} visible={visible} onClose={onClose} contentStyle={styles.sheetBody} maxHeight="80%">
+    <BottomSheet
+      native
+      detents={[0.6, 1]}
+      visible={visible}
+      onClose={onClose}
+      guarded={dirty}
+      onRequestClose={() => requestClose()}
+      contentStyle={styles.sheetBody}
+      maxHeight="80%"
+    >
+      <View style={styles.sheetStack}>
+      {/* Pinned, with a visible way out in every mode (train-ux H7/X5): Done
+          while viewing; Cancel + Save while editing; Cancel while merging. */}
+      <SheetHeader
+        title={exercise?.name ?? ''}
+        leading={mode === 'view' ? undefined : { label: t('common.cancel'), onPress: () => setMode('view'), testID: 'exercise-cancel-header' }}
+        trailing={
+          mode === 'view'
+            ? { label: t('common.done'), onPress: onClose, testID: 'exercise-done' }
+            : mode === 'edit'
+              ? { label: busy ? t('common.saving') : t('common.save'), onPress: saveEdit, disabled: !editName.trim() || busy, testID: 'save-exercise' }
+              : undefined
+        }
+      />
       <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-        <Text style={styles.sheetTitle} accessibilityRole="header">{exercise?.name}</Text>
 
         {mode === 'edit' ? (
           <>
@@ -236,7 +296,9 @@ export function ExerciseDetailSheet({
               accessibilityLabel={t('train.exerciseName')}
               testID="edit-exercise-name"
             />
-            <View style={styles.styleRow} accessibilityRole="radiogroup">
+            {/* Stacked at large text: three chips in one row broke
+                "Bodyweight" mid-word (train-ux v5 QA). */}
+            <View style={[styles.styleRow, stackChips && { flexDirection: 'column' }]} accessibilityRole="radiogroup">
               {LOG_STYLES.map((ls) => {
                 const on = editStyle === ls.value;
                 return (
@@ -255,20 +317,13 @@ export function ExerciseDetailSheet({
             <Text style={[styles.fieldLabel, { marginTop: space.md }]}>{t('train.musclesLabel')}</Text>
             <Text style={styles.sheetHint}>{t('train.musclesPrimaryHint')}</Text>
             <MuscleChips value={editMuscles} onChange={setEditMuscles} />
-            <View style={styles.editorBtns}>
-              <TouchableOpacity style={styles.discardBtn} onPress={() => setMode('view')} accessibilityRole="button">
-                <Text style={styles.discardText}>{t('common.cancel')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.finishBtn, (!editName.trim() || busy) && styles.btnDisabled]}
-                onPress={saveEdit}
-                disabled={!editName.trim() || busy}
-                accessibilityRole="button"
-                testID="save-exercise"
-              >
-                <Text style={styles.finishText}>{busy ? t('common.saving') : t('common.save')}</Text>
-              </TouchableOpacity>
-            </View>
+            {/* Only where the weekly cluster count can read it (train-ux
+                re-score J-N1) — the same rule Lift settings uses. Cancel and
+                Save live in the header alone (J-N9): two of each read as two
+                different actions. */}
+            {liftPlansClusters(exercise, null) ? (
+              <MuscleCreditLine name={editName.trim() || (exercise?.name ?? '')} muscles={editMuscles} testID="exercise-muscle-credit" />
+            ) : null}
           </>
         ) : mode === 'merge' ? (
           <>
@@ -290,9 +345,6 @@ export function ExerciseDetailSheet({
                 </TouchableOpacity>
               ))
             )}
-            <TouchableOpacity style={[styles.discardBtn, { marginTop: space.md }]} onPress={() => setMode('view')} accessibilityRole="button">
-              <Text style={styles.discardText}>{t('common.cancel')}</Text>
-            </TouchableOpacity>
           </>
         ) : (
           <>
@@ -323,10 +375,27 @@ export function ExerciseDetailSheet({
                     >
                       {/* `ring` is a fill colour: as a 2pt stroke on the light
                           sheet it measured 2.54:1, under WCAG 1.4.11's 3:1 for a
-                          graphic that carries meaning. `accent` is the same coral
-                          family at 4.9:1 there; dark keeps `ring` (6.0:1). */}
-                      <Sparkline values={series} color={scheme === 'light' ? colors.accent : colors.ring} />
+                          graphic that carries meaning. Light uses teal (4.9:1 on
+                          card) — it was `accent`, the brand red the PR trophy
+                          and the warnings also wore (train-ux J8); dark keeps
+                          `ring` (6.0:1). */}
+                      <Sparkline values={series} color={scheme === 'light' ? colors.teal : colors.ring} />
                     </AccessibleChart>
+                    {/* The numbers the line is drawn from, for sighted readers
+                        too (train-ux X14); the chart's label already says them
+                        to a screen reader. */}
+                    <Text
+                      style={styles.liftHint}
+                      importantForAccessibility="no"
+                      accessibilityElementsHidden
+                      testID="exercise-trend-range"
+                    >
+                      {t('train.trendRange', {
+                        from: fmtPoint(series[0] as number),
+                        to: fmtPoint(series[series.length - 1] as number),
+                        n: series.length,
+                      })}
+                    </Text>
                   </View>
                 ) : null}
 
@@ -335,14 +404,18 @@ export function ExerciseDetailSheet({
                 {exercise?.id ? <ExerciseSupersetReport sessions={train.recentSessions} exerciseId={exercise.id} name={exercise.name} /> : null}
 
                 <Text style={[styles.panelLabel, { marginTop: space.md }]} accessibilityRole="header">{t('train.history')}</Text>
-                {rows.map((r, i) => (
-                  <View key={i} style={styles.detailRow}>
-                    <Text style={styles.detailDate}>
-                      {formatDate(r.date, locale, { month: 'short', day: 'numeric' })}
-                    </Text>
-                    <Text style={styles.detailSets}>{setLine(r.ex, style, unitSystem)}</Text>
-                  </View>
-                ))}
+                {rows.map((r, i) => {
+                  const date = formatDate(r.date, locale, { month: 'short', day: 'numeric' });
+                  const sets = setLine(r.ex, style, unitSystem);
+                  // One screen-reader stop per session, date then sets
+                  // (train-ux X15).
+                  return (
+                    <View key={i} style={styles.detailRow} accessible accessibilityLabel={`${date}: ${sets}`}>
+                      <Text style={styles.detailDate}>{date}</Text>
+                      <Text style={styles.detailSets}>{sets}</Text>
+                    </View>
+                  );
+                })}
               </>
             )}
 
@@ -385,34 +458,16 @@ export function ExerciseDetailSheet({
                 <TouchableOpacity style={styles.manageBtn} onPress={() => setMode('merge')} accessibilityRole="button" testID="exercise-merge">
                   <Text style={styles.manageLink}>{t('train.merge')}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.manageBtn} onPress={() => setConfirmDel(true)} accessibilityRole="button" testID="exercise-delete">
+                <TouchableOpacity style={styles.manageBtn} onPress={askDelete} disabled={busy} accessibilityRole="button" testID="exercise-delete">
                   <Text style={[styles.manageLink, styles.manageDanger]}>{t('train.delete')}</Text>
                 </TouchableOpacity>
               </View>
             )}
-            {confirmDel && !readOnly ? (
-              <View style={styles.confirmRow}>
-                <Text style={styles.panelHint}>{t('train.deleteExercise')}</Text>
-                <View style={styles.confirmBtns}>
-                  <TouchableOpacity style={styles.manageBtn} onPress={() => setConfirmDel(false)} accessibilityRole="button">
-                    <Text style={styles.manageLink}>{t('common.cancel')}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.manageBtn}
-                    onPress={doDelete}
-                    disabled={busy}
-                    accessibilityRole="button"
-                    testID="exercise-delete-confirm"
-                  >
-                    <Text style={[styles.manageLink, styles.manageDanger]}>{t('train.delete')}</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ) : null}
           </>
         )}
         <View style={{ height: 24 }} />
       </ScrollView>
+      </View>
     </BottomSheet>
   );
 }

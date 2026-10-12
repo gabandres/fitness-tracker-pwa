@@ -112,14 +112,18 @@ it('names a cluster row by its shown label, and gives the number pads a Done', a
 });
 
 it('labels the template and per-exercise fields, with the exercise named', async () => {
-  const { getByTestId } = await render(<TrainScreen />);
+  const { getByTestId, getByText } = await render(<TrainScreen />);
   await fireEvent.press(getByTestId('edit-template-t1'));
   expect(getByTestId('template-name').props.accessibilityLabel).toBe('Name');
   expect(getByTestId('template-add-exercise').props.accessibilityLabel).toBe('Add an exercise by name');
   await fireEvent.press(getByTestId('template-ex-toggle-0'));
   await fireEvent.press(getByTestId('template-more-0'));
   const load = getByTestId('template-load-0');
-  expect(load.props.accessibilityLabel).toBe('Target weight (lb), DB Flat Press');
+  // v3 QA item 7: the unit once, a visible label, and no "lb" placeholder
+  // beside the "lb" unit ("lb lb").
+  expect(load.props.accessibilityLabel).toBe('Target weight, in lb, DB Flat Press');
+  expect(load.props.placeholder).toBeUndefined();
+  expect(getByText('Target weight')).toBeTruthy();
   expect(load.props.returnKeyType).toBe('done');
   expect(getByTestId('template-cues-0').props.accessibilityLabel).toBe('Cues (one per line), DB Flat Press');
   expect(getByTestId('template-target-reps-0').props.accessibilityLabel).toBe('Target reps, DB Flat Press');

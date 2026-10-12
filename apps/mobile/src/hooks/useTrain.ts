@@ -276,7 +276,9 @@ export interface TrainState {
    *  device could not record it AND the network write failed — so the screen
    *  keeps the Finish sheet open and does not fire the review prompt on a
    *  failure. Never rejects. */
-  finishWorkout: (extras: { bodyweight?: number; sleepHours?: number }) => Promise<boolean>;
+  /** `extras.durationMin` is the real length the lifter typed for a workout
+   *  left open (train-ux F15); it wins over the start-to-tap interval. */
+  finishWorkout: (extras: { bodyweight?: number; sleepHours?: number; durationMin?: number }) => Promise<boolean>;
   /** Abandon the active session (delete the doc). */
   discardWorkout: () => Promise<void>;
   deleteSession: (id: string) => Promise<void>;
@@ -1328,7 +1330,7 @@ export function useTrain(): TrainState {
   const finishing = useRef(false);
 
   const finishWorkout = useCallback(
-    async (extras: { bodyweight?: number; sleepHours?: number }): Promise<boolean> => {
+    async (input: { bodyweight?: number; sleepHours?: number; durationMin?: number }): Promise<boolean> => {
       const active = activeRef.current;
       if (!uid || !active?.id || finishing.current) return false;
       finishing.current = true;
@@ -1338,7 +1340,9 @@ export function useTrain(): TrainState {
           // Duration is stamped at the TAP, not when the write lands: a finish
           // replayed on the next launch must not count the hours in between.
           const finishedAt = new Date();
-          const durationMin = active.durationMin ?? sessionDurationMin(active.date, finishedAt);
+          // A typed length (F15) beats both: the lifter said what it was.
+          const { durationMin: typedMin, ...extras } = input;
+          const durationMin = typedMin ?? active.durationMin ?? sessionDurationMin(active.date, finishedAt);
           const done = durationMin != null ? { ...active, durationMin } : active;
           const entry: PendingFinish = { savedAt: finishedAt.getTime(), session: done, extras };
           try {

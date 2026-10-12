@@ -53,7 +53,7 @@ appId: fit.ignia.app
     id: 'tab-train'
 - extendedWaitUntil:
     visible:
-      id: 'train-glossary-open'
+      id: 'train-glossary-open|session-menu'
     timeout: 60000
 
 # A session left in progress by an earlier flow's death hides the whole idle
@@ -85,8 +85,9 @@ appId: fit.ignia.app
       # to confirm. The header is always on screen, so no scroll is needed.
       - tapOn:
           id: 'session-menu'
-      - tapOn:
-          id: 'session-menu-discard'
+      # iOS: the session ⋯ is a native menu, whose rows carry no testID
+      # (`session-menu-discard` exists only on the JS fallback sheet). 2026-10-11.
+      - tapOn: 'Discard workout'
       - tapOn:
           id: 'confirm-go'
       - extendedWaitUntil:
@@ -153,6 +154,11 @@ appId: fit.ignia.app
 # into the catalog and would leave a doc behind for the tail to delete.
 - tapOn:
     id: 'template-match-mine-0'
+# 2026-10-11 (T18 multi-pick): the adder keeps focus after a pick, so the
+# keyboard stays up over the new card and a tap on its header lands on a key.
+# Return closes it (the query is empty again after the add).
+- pressKey: Enter
+- waitForAnimationToEnd
 
 # ── 3. The card opens COLLAPSED — the readability change ──────────
 # A freshly added exercise opens itself (you added it to edit it), so collapse
@@ -165,7 +171,9 @@ appId: fit.ignia.app
     id: 'template-ex-toggle-0'
 # Three working sets, nothing prescribed yet: the summary degrades to a count
 # rather than inventing numbers.
-- assertVisible: '.*3 sets.*'
+# 2026-10-11 (T7): a new card may be seeded from the lift's history
+# ("3 × 8 · 170 lb") instead of reading a bare count — accept either.
+- assertVisible: '.*3 (sets|×).*'
 - assertNotVisible:
     id: 'template-add-set-0'
 - assertNotVisible:
@@ -251,7 +259,13 @@ appId: fit.ignia.app
           end: 10%, 45%
 - tapOn:
     id: 'template-set-weight-0-0'
+- eraseText: 6
 - inputText: '20'
+# 2026-10-11 (T1/T3): the focused row is revealed under the header; close
+# the number pad (its Done bar) so the next field is found where it lies.
+- tapOn:
+    text: 'Done'
+    optional: true
 - scrollUntilVisible:
     element:
       id: 'template-set-reps-0-0'
@@ -268,9 +282,21 @@ appId: fit.ignia.app
       - swipe:
           start: 10%, 80%
           end: 10%, 45%
+# 2026-10-11 (T7): a seeded row may already read 8 reps; a centre tap on a
+# one-character value puts the cursor BEFORE it, so erase-then-type gave "88".
+# Type only when the field does not already hold 8.
+# 2026-10-12 (FIX-R #3): rows are no longer SEEDED — last session's "8" is a
+# placeholder (ghost) that is never saved, and the iOS tree reports a
+# placeholder as the field's text, so the old "already reads 8" guard skipped
+# the entry and the template saved with no reps ("3 sets · 20 lb"). The field
+# is empty now, so erase-then-type is safe again: always type.
 - tapOn:
     id: 'template-set-reps-0-0'
+- eraseText: 6
 - inputText: '8'
+- tapOn:
+    text: 'Done'
+    optional: true
 - scrollUntilVisible:
     element:
       id: 'template-set-weight-0-1'
@@ -289,7 +315,13 @@ appId: fit.ignia.app
           end: 10%, 45%
 - tapOn:
     id: 'template-set-weight-0-1'
+- eraseText: 6
 - inputText: '20'
+# 2026-10-11 (T1/T3): the focused row is revealed under the header; close
+# the number pad (its Done bar) so the next field is found where it lies.
+- tapOn:
+    text: 'Done'
+    optional: true
 - scrollUntilVisible:
     element:
       id: 'template-set-reps-0-1'
@@ -306,9 +338,21 @@ appId: fit.ignia.app
       - swipe:
           start: 10%, 80%
           end: 10%, 45%
+# 2026-10-11 (T7): a seeded row may already read 8 reps; a centre tap on a
+# one-character value puts the cursor BEFORE it, so erase-then-type gave "88".
+# Type only when the field does not already hold 8.
+# 2026-10-12 (FIX-R #3): rows are no longer SEEDED — last session's "8" is a
+# placeholder (ghost) that is never saved, and the iOS tree reports a
+# placeholder as the field's text, so the old "already reads 8" guard skipped
+# the entry and the template saved with no reps ("3 sets · 20 lb"). The field
+# is empty now, so erase-then-type is safe again: always type.
 - tapOn:
     id: 'template-set-reps-0-1'
+- eraseText: 6
 - inputText: '8'
+- tapOn:
+    text: 'Done'
+    optional: true
 - scrollUntilVisible:
     element:
       id: 'template-set-weight-0-2'
@@ -327,7 +371,13 @@ appId: fit.ignia.app
           end: 10%, 45%
 - tapOn:
     id: 'template-set-weight-0-2'
+- eraseText: 6
 - inputText: '20'
+# 2026-10-11 (T1/T3): the focused row is revealed under the header; close
+# the number pad (its Done bar) so the next field is found where it lies.
+- tapOn:
+    text: 'Done'
+    optional: true
 - scrollUntilVisible:
     element:
       id: 'template-set-reps-0-2'
@@ -344,9 +394,21 @@ appId: fit.ignia.app
       - swipe:
           start: 10%, 80%
           end: 10%, 45%
+# 2026-10-11 (T7): a seeded row may already read 8 reps; a centre tap on a
+# one-character value puts the cursor BEFORE it, so erase-then-type gave "88".
+# Type only when the field does not already hold 8.
+# 2026-10-12 (FIX-R #3): rows are no longer SEEDED — last session's "8" is a
+# placeholder (ghost) that is never saved, and the iOS tree reports a
+# placeholder as the field's text, so the old "already reads 8" guard skipped
+# the entry and the template saved with no reps ("3 sets · 20 lb"). The field
+# is empty now, so erase-then-type is safe again: always type.
 - tapOn:
     id: 'template-set-reps-0-2'
+- eraseText: 6
 - inputText: '8'
+- tapOn:
+    text: 'Done'
+    optional: true
 # NOT `hideKeyboard`: iOS exposes no native dismiss action, so Maestro fakes it
 # and throws "Couldn't hide the keyboard" — measured here, and its own error
 # prescribes this workaround. `Sets` is the plain field label above the table;
@@ -598,6 +660,13 @@ appId: fit.ignia.app
 # and the scroll variant failed here twice while a capture of that very step
 # showed the button rendered in full. Scrolling to something already visible
 # is a no-op that Maestro reports as "no visible element found".
+# T2 (2026-10-11): Delete is a lone row at the END of the editor now.
+- scrollUntilVisible:
+    element:
+      id: 'delete-template'
+    direction: DOWN
+    timeout: 20000
+    visibilityPercentage: 60
 - tapOn:
     id: 'delete-template'
 # Deleting asks first since 2026-10-04 ("Delete this template? Workouts you

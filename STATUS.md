@@ -137,31 +137,18 @@ deleted and its outcome goes to `CHANGELOG.md`.
   2026-10-07; not a user-facing fault). OTAs do land on it. To prove a Play
   update on it, uninstall and reinstall from Play (re-sign in as `qa-test@`).
 
-### `ExerciseLibrarySheet` rows are untappable on iOS — cause UNKNOWN
+### `ExerciseLibrarySheet` — revived, needs one real-finger check on an iPhone
 
-Nothing inside that sheet's ScrollView fires `onPress`. The list scrolls, the
-search field above it takes taps, both list halves are dead, and the identical
-`ExerciseSearchList` works inside `TemplateEditorModal`. Not a harness
-artifact: verified 2026-09-17 with a REAL macOS click at the row's own centre
-(mapping calibrated against the search field first) and with an instrumented
-handler whose marker was confirmed present in the installed `main.jsbundle`.
-
-**Eight causes tested and DISPROVEN — do not retry them:** `flexShrink: 1` on
-the ScrollView, `keyboardShouldPersistTaps="always"`, the `useDeferredFocus`
-autofocus, content height (one filtered row still fails), a modal-presentation
-conflict (ruled out — `onPress` never fires), synthetic-tap timing /
-`delaysContentTouches` (a long press fails too), `GestureHandlerRootView` as
-`TemplateEditorModal` carries, and making the ScrollView the sheet's only child
-to match `SetRowSheet` exactly.
-
-**Not user-facing today** — the sheet was reverted out of the Train tab on
-2026-09-17 and the catalog is an inline list again, so nothing renders it. The
-component is kept for this work. The cost of leaving it: no way to browse the
-shipped seed library from Train (it stays reachable mid-session via
-add-exercise, where it lived before ADR-0041).
-
-Unit tests cannot see this class of bug — RNTL presses a TouchableOpacity
-directly and never runs a native hit-test. Only the Maestro sweep caught it.
+Its rows were dead on iOS inside the JS sheet's RN `Modal` (2026-09-17, cause
+never found; eight candidates disproven — `git log -S` this heading for the
+list). It was revived on 2026-10-04 as a **native** sheet
+(`UISheetPresentationController`, no RN Modal) and **is rendered**: Train
+home shows "Browse all" once the catalog has more than 5 exercises. On
+2026-10-11 (train-ux J15, `Ignia-QA-26`) a Maestro tap on a row opened the
+exercise detail, unfiltered and with a search typed and the keyboard up. A
+synthetic tap is what passed; the original failure was proven with a real
+click, so **one finger on an iPhone** closes this. The home screen keeps 5
+inline rows as the fallback if it fails. RNTL cannot see this class of bug.
 
 ### Retention — the standing focus (owner's call, 2026-09-02)
 

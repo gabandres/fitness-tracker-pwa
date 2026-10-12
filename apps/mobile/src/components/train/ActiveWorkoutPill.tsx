@@ -5,6 +5,7 @@ import { Touchable } from './Touchable';
 import { useRestCountdown } from '@/hooks/useRestTimer';
 import { useT } from '@/i18n';
 import { useActiveWorkout } from '@/lib/active-workout-signal';
+import { GLASS_BAR_HEIGHT, glassBarGap } from '@/lib/glass';
 import * as haptics from '@/lib/haptics';
 import { useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
@@ -23,12 +24,38 @@ import { TARGET } from './train-styles';
  * Reads the same signal as the dot (`active-workout-signal.ts`, ADR-0016 — no
  * listener, no documents). Renders nothing when no workout is open, so the
  * caller can mount it unconditionally; the tab layout does, above the tab bar
- * on every tab but Train (which shows the session itself).
+ * on every tab but Train (which shows the session itself), and insets those
+ * tabs' content by {@link pillSceneInset} so it covers nothing.
  *
  * While a rest is running the pill shows the REST instead of the elapsed time
  * ("Workout · Rest 1:12") — the number a lifter who stepped over to Today is
  * actually waiting on, and what Hevy's mini-bar carries (Train re-score).
  */
+/** The gap under the pill that clears the raised Log button, which stands
+ *  ~26 pt proud of the tab bar. The tab layout's pill slot pads by this. */
+export const PILL_TAB_CLEARANCE = 30;
+
+/**
+ * How far a tab's content must stop short of the screen's bottom edge while
+ * the pill shows — so the pill never sits over a control (Train re-score
+ * L-N11 / H-N3 / J-N7: on Body it covered "Log weight" at rest and took the
+ * tap meant for it; on Today, the fasting card's button).
+ *
+ * Under the OPAQUE bar this is 0: the bar and the pill above it are laid out
+ * in flow below the content, which already ends at the pill's top. Under the
+ * iOS 26 glass capsule the bar floats OVER the content, and the pill with it,
+ * so the content is inset by the whole stack — pill, clearance, capsule and
+ * its gap. `measured` is that stack as last laid out; until it is, the sum of
+ * its parts at default text size.
+ *
+ * Scroll padding alone could not do this: the overlap is at rest, before any
+ * scroll, wherever a short screen happens to put its last button.
+ */
+export function pillSceneInset(glass: boolean, measured: number | null, insetBottom: number): number {
+  if (!glass) return 0;
+  return measured ?? TARGET + space.xs + PILL_TAB_CLEARANCE + GLASS_BAR_HEIGHT + glassBarGap(insetBottom);
+}
+
 export function ActiveWorkoutPill({ onResume }: { onResume: () => void }) {
   const t = useT();
   const styles = useThemedStyles(createStyles);

@@ -12,6 +12,7 @@ import {
   getSheetPortal,
   isClosing,
   registerPresenter,
+  takePendingAsk,
   useSheetPortal,
   type PortalCloseVia,
 } from '@/lib/sheet-portal';
@@ -42,6 +43,9 @@ export default function SheetRoute() {
   // Registered for the route's lifetime. `dismiss` pops THIS route — the
   // navigation object is the screen's own, so `goBack` targets its key.
   const userDismissed = useRef(true);
+  // Android: set when the system took this GUARDED sheet down anyway (see the
+  // `usePreventRemove` below). The owner then presents it again and asks.
+  const restoreVia = useRef<PortalCloseVia | null>(null);
   useEffect(() => {
     if (!id) return;
     const unregister = registerPresenter(id, {
@@ -50,15 +54,40 @@ export default function SheetRoute() {
         navigation.goBack();
       },
     });
+    // Consumed on every mount, so a stale ask never outlives its route.
+    const ask = takePendingAsk(id);
     if (getSheetPortal(id)?.visible === false) {
       // The owner closed between the push and this mount.
       dismissSheet(id);
+    } else if (ask) {
+      // Back up after Android dismissed it while guarded: ask now. The
+      // confirm lands in THIS route's host — mounted, as a child, before
+      // this effect runs.
+      getSheetPortal(id)?.requestClose(ask);
     }
     return () => {
-      unregister();
+      const entry = getSheetPortal(id);
+      if (userDismissed.current && restoreVia.current && entry?.restore) {
+        // BEFORE unregistering: the restore queues its ask, and a queued ask
+        // keeps the sheet counted as active across the swap. Counted idle
+        // for that instant, the screen underneath let go of its listeners
+        // and re-subscribed, and the fresh catalog objects reset the Lift
+        // settings draft the sheet was coming back to (emulator, v5).
+        entry.restore(restoreVia.current);
+        unregister();
+        return;
+      }
+      if (!userDismissed.current) {
+        unregister();
+        return;
+      }
       // Gone without the owner asking: a swipe-down, a tap on the dimmed area,
-      // or Android back on an unguarded sheet. Let the owner catch up.
-      if (userDismissed.current) getSheetPortal(id)?.requestClose('drag');
+      // or Android back on an unguarded sheet. Let the owner catch up. An
+      // owner that refuses (it asked, or stepped back) still wants its sheet,
+      // and nothing else would ever present it again: put it back rather
+      // than leave the owner `visible` with no route.
+      if (entry?.requestClose('drag') === false) entry.restore?.('drag');
+      unregister();
     };
   }, [id, navigation]);
 
@@ -72,6 +101,22 @@ export default function SheetRoute() {
       return;
     }
     const via: PortalCloseVia = data.action.type === 'GO_BACK' ? 'back' : 'drag';
+    if (Platform.OS === 'android' && data.action.type === 'POP') {
+      // Android: a `POP` here is react-native-screens reporting a drag or a
+      // scrim tap that ALREADY took the sheet off screen — its formSheet
+      // cannot refuse one (`preventNativeDismiss` is iOS-only). Holding the
+      // route left a route with no screen: the owner stayed `visible`, its
+      // confirm drew into a host nobody could see or was cancelled into
+      // nothing, and the sheet could not be opened again until a restart
+      // (train-ux INDEX-v4 E1). So let navigation catch up; the unmount
+      // above has the owner present it again and ask (`restore`). Back
+      // arrives as `GO_BACK` and the sheet is still up, so it asks in place.
+      // Held only for `backSteps` (nothing typed), the owner just closes —
+      // put back first, the sheet would bounce up and down again.
+      if (getSheetPortal(id)?.guarded) restoreVia.current = via;
+      navigation.dispatch(data.action);
+      return;
+    }
     const closed = getSheetPortal(id)?.requestClose(via) !== false;
     // The owner closed (it will dismiss through `dismissSheet`, which sets
     // `closing`) — nothing to do here. Otherwise the sheet stays put.
@@ -127,7 +172,7 @@ export default function SheetRoute() {
           grows and keeps the band), so the surface hangs an opaque underlap
           below itself; the sheet's rounded shape clips it. */}
       {fit && Platform.OS === 'ios' ? <View style={styles.underlap} pointerEvents="none" /> : null}
-      {entry.overlays ? <ToastSheetHost sheetId={id} /> : null}
+      {entry.overlays ? <ToastSheetHost sheetId={id} at={entry.toastAt} /> : null}
       {entry.overlays ? <ConfirmHost /> : null}
     </View>
   );

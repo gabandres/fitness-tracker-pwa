@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { memo, useEffect, useMemo, useState } from 'react';
-import { FlatList, Pressable, ScrollView, Text, View } from 'react-native';
+import { memo, type ReactNode, useEffect, useMemo, useState } from 'react';
+import { FlatList, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { TRAIN_RIPPLE, Touchable } from './Touchable';
 import Animated from 'react-native-reanimated';
 import {
@@ -9,9 +9,11 @@ import {
   formatLoad,
   muscleSignals,
   nextTemplateUp,
+  sessionCounts,
   sessionVolume,
   templateLastPerformed,
   trailingAverageLb,
+  type TemplateDraftDoc,
   trainHeroStats,
   type VolumeCall,
   volumeCalls,
@@ -21,6 +23,7 @@ import {
 import { DEFAULT_TRAINING_PHASE } from '@macrolog/core/workout';
 import { CONTEXT_MENUS, ContextMenu } from '@/components/ContextMenu';
 import { BottomSheet, NATIVE_SHEETS } from '@/components/BottomSheet';
+import { SheetHeader } from '@/components/SheetHeader';
 import { confirm } from '@/components/ConfirmSheet';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { ExerciseLibrarySheet } from '@/components/train/ExerciseLibrarySheet';
@@ -31,7 +34,7 @@ import { NextUpCard } from '@/components/train/NextUpCard';
 import { RecommendationNote } from '@/components/train/RecommendationNote';
 import { TemplateEditorModal } from '@/components/train/TemplateEditorModal';
 import type { TrainState } from '@/hooks/useTrain';
-import { type I18nKey, useLocale, useT } from '@/i18n';
+import { type I18nKey, type Locale, type TFn, useLocale, useT } from '@/i18n';
 import { useAuth } from '@/lib/auth';
 import { readCache } from '@/lib/offline-cache';
 import { formatDate } from '@/lib/date-format';
@@ -42,14 +45,18 @@ import { captureError } from '@/lib/sentry';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { useUnitSystem } from '@/lib/use-unit-system';
 import type { Exercise, TrainingPhase, WorkoutSession, WorkoutTemplate } from '@/lib/workout';
+import { space } from '@/theme';
+import { recommendationText } from './recommendation-text';
 import { WeeklyVolumeSheet } from './WeeklyVolumeSheet';
 import { DraftsSection, useDraftActions } from './DraftsSection';
 import { ExerciseDetailSheet } from './ExerciseDetailSheet';
 import { toMenuButtonActions } from './exercise-menu-native';
 import { SessionDetailSheet } from './SessionDetailSheet';
+import { setCountText } from './template-draft';
 import { StarterTemplatesSheet } from './StarterTemplatesSheet';
 import { logStyleKey } from './train-shared';
 import {
+  countsLine,
   recommendationFor,
   sessionSummary,
   setLine,
@@ -73,18 +80,54 @@ const afterSheet = (run: () => void) => {
   else run();
 };
 
+/** From this font scale a template card stacks: its exercise names wrap in
+ *  full and Start takes its own row under them — the same step at which
+ *  `SheetHeader` stacks (train-ux H-N10). */
+const CARD_STACK_FONT_SCALE = 1.6;
+
+/**
+ * The one tag a template wears, on its card AND on Next up. They used two
+ * rules — Next up any superset row, the card only an active superset draft —
+ * so one template read SUPERSETS in the hero and nothing on its own card
+ * (train-ux H-N7). A superset draft names when it went on; a Program v2 draft
+ * says so; a template built with supersets says that.
+ */
+function templateTag(
+  tpl: WorkoutTemplate,
+  drafts: readonly TemplateDraftDoc[],
+  t: TFn,
+  locale: Locale,
+): { kind: 'supersets' | 'program'; text: string } | null {
+  const active = drafts.filter((d) => d.status === 'active' && d.draftOf === tpl.id);
+  const superset = active.find((d) => !d.program);
+  const day = (at: string) => formatDate(new Date(at), locale, { month: 'short', day: 'numeric' });
+  if (superset) {
+    return { kind: 'supersets', text: superset.activatedAt ? t('train.drafts.activeSince', { date: day(superset.activatedAt) }) : t('train.drafts.activeTag') };
+  }
+  const program = active.find((d) => d.program === 'v2');
+  if (program) {
+    return { kind: 'program', text: program.activatedAt ? t('train.program.since', { date: day(program.activatedAt) }) : t('train.program.tag') };
+  }
+  if (tpl.exercises.some((e) => e.supersetGroup != null)) return { kind: 'supersets', text: t('train.drafts.activeTag') };
+  return null;
+}
+
 // ─── Idle: hero summary + start button + templates + history ────
 export function StartView({
   train,
   heroPulse,
   onRetry,
   onShare,
+  header,
 }: {
   train: TrainState;
   heroPulse: ReturnType<typeof usePulse>[0];
   onRetry: () => void;
   /** Share one logged workout as an image (the screen owns the capture). */
   onShare: (s: WorkoutSession) => void;
+  /** The screen's title row, when it should scroll away with the content
+   *  rather than stay pinned — accessibility text sizes (train-ux H-N11). */
+  header?: ReactNode;
 }) {
   const t = useT();
   const locale = useLocale();
@@ -146,6 +189,14 @@ export function StartView({
     const ids = new Set(train.drafts.filter((d) => d.program === 'v2').map((d) => d.draftOf));
     return ids.size ? train.templates.filter((tp) => tp.id && ids.has(tp.id)) : train.templates;
   }, [train.drafts, train.templates]);
+  // Whether the week PLANS any myo-rep cluster. The clusters-by-muscle link
+  // shows only when there is something for it to count — logged or planned —
+  // since it counts clusters and nothing else: for a straight-set lifter it was
+  // a home-screen link to twelve rows of zeros, forever (train-ux H1/X2/J3).
+  const plansClusters = useMemo(
+    () => plannedTemplates.some((tp) => tp.exercises.some((e) => e.plannedSets?.some((x) => x.kind === 'activation'))),
+    [plannedTemplates],
+  );
   // The 7-day average for the volume gate, from the weigh-ins Today already
   // keeps on disk — ONE cache read when a gate is set, never a listener
   // (ADR-0016: Train does not subscribe to weights for one line of text).
@@ -181,12 +232,14 @@ export function StartView({
     [train.recentSessions],
   );
 
-  function confirmDeleteSession(id: string, label: string) {
+  function confirmDeleteSession(id: string, s: WorkoutSession) {
     // Long-press used to delete a logged workout outright — undiscoverable
     // AND unconfirmed, on the one surface where the data cannot be recovered.
+    // The body names the workout and what goes with it — "Upper A · Fri, Aug
+    // 7 (3 exercises · 12 sets)" — not just a date (train-ux H10, R43).
     confirm({
       title: t('train.deleteSessionTitle'),
-      body: t('train.deleteSessionBody', { name: label }),
+      body: t('train.deleteSessionBody', { name: sessionLabel(s), sets: countsLine(sessionCounts(s), t) }),
       confirmText: t('train.delete'),
       destructive: true,
       onConfirm: () => {
@@ -200,10 +253,13 @@ export function StartView({
     });
   }
 
-  const sessionLabel = (s: WorkoutSession) => formatDate(s.date, locale, { month: 'short', day: 'numeric' });
+  const sessionLabel = (s: WorkoutSession) =>
+    [s.templateName || t('train.workout'), formatDate(s.date, locale, { weekday: 'short', month: 'short', day: 'numeric' })].join(' · ');
 
   return (
-    <ScrollView contentContainerStyle={styles.body}>
+    <ScrollView contentContainerStyle={styles.body} testID="train-start-scroll">
+      {/* Outside the body's padding, so the row sits where the pinned one did. */}
+      {header ? <View style={{ marginHorizontal: -space.xl, marginTop: -space.xl }}>{header}</View> : null}
       {train.error ? (
         <View style={styles.errorRow} accessibilityRole="alert" accessibilityLiveRegion="polite">
           {/* A failed write is not a failed load: the tab still has its data
@@ -235,7 +291,9 @@ export function StartView({
           the one big number; volume + top set live inside as chips. */}
       <Animated.View entering={enterUp(0)}>
         <Animated.View style={[styles.heroPanel, heroPulse]} testID="train-hero">
-          <Text style={styles.heroCaption} accessibilityRole="header">{t('train.thisWeek')}</Text>
+          {/* A rolling window, named as one: it said "This week" over
+              `now - 7 days` (train-ux H-N5), as Trends did until it changed. */}
+          <Text style={styles.heroCaption} accessibilityRole="header">{t('train.last7Days')}</Text>
           <View style={styles.hero}>
             <CountUpText
               value={stats.count}
@@ -243,7 +301,10 @@ export function StartView({
               accessibilityLabel={`${stats.count} ${stats.count === 1 ? t('train.workoutUnit') : t('train.workoutsUnit')}`}
               testID="week-workouts"
             />
-            <Text style={styles.heroUnit}>
+            {/* Capped like the number beside it (CountUpText, 1.4×): at AX5 the
+                uncapped word reached ~62 pt in a row that does not wrap
+                (train-ux H11). Trends caps the same element. */}
+            <Text style={styles.heroUnit} maxFontSizeMultiplier={1.4} numberOfLines={1}>
               {stats.count === 1 ? t('train.workoutUnit') : t('train.workoutsUnit')}
             </Text>
           </View>
@@ -256,9 +317,12 @@ export function StartView({
                   {t('train.weekVolume')}  <Text style={styles.trendChipValue}>{formatLoad(stats.volume, unitSystem, 0)}</Text>
                 </Text>
               ) : null}
-              {stats.topSet > 0 ? (
-                <Text style={styles.trendChip}>
-                  {t('train.topSet')}  <Text style={styles.trendChipValue}>{formatLoad(stats.topSet, unitSystem, 0)}</Text>
+              {/* The week's heaviest working set AND whose it was: a bare
+                  "Top set 235 lb" did not say which lift, and it was the
+                  all-time number inside a 7-day panel (train-ux H-N4). */}
+              {stats.topSet ? (
+                <Text style={styles.trendChip} testID="hero-top-set">
+                  {t('train.topSet')} · {stats.topSet.name}  <Text style={styles.trendChipValue}>{formatLoad(stats.topSet.weight, unitSystem, 0)}</Text>
                 </Text>
               ) : null}
             </View>
@@ -273,7 +337,7 @@ export function StartView({
       {nextUp ? (
         <NextUpCard
           next={nextUp}
-          supersets={nextUp.template.exercises.some((e) => e.supersetGroup != null)}
+          tag={templateTag(nextUp.template, train.drafts, t, locale)?.text}
           onStart={() => train.startFromTemplate(nextUp.template)}
           onEdit={() => setEditing(nextUp.template)}
         />
@@ -290,6 +354,16 @@ export function StartView({
             testID="next-up-starters"
           >
             <Text style={styles.startBtnText}>{t('train.starters')}</Text>
+          </Touchable>
+          {/* The other way in, beside the starters (J4): someone who already
+              has a plan should not have to clone one to delete it. */}
+          <Touchable
+            style={[styles.textAction, { alignSelf: 'center' }]}
+            onPress={() => setEditing({})}
+            accessibilityRole="button"
+            testID="next-up-build-own"
+          >
+            <Text style={styles.sectionAction}>{t('train.buildOwn')}</Text>
           </Touchable>
         </View>
       )}
@@ -333,7 +407,7 @@ export function StartView({
             testID="cluster-audit-toggle"
           >
             <Text style={styles.auditTitle}>{t('train.audit.title')}</Text>
-            <Text style={styles.auditLineText} numberOfLines={1}>
+            <Text style={styles.auditLineText}>
               {'  '}
               {t('train.audit.summary', {
                 n: audit.clusters,
@@ -374,10 +448,10 @@ export function StartView({
           ) : null}
         </View>
       ) : null}
-      {/* Program v2: fractional volume (primary 1.0, secondary 0.5) beside
+      {/* Program v2: clusters per muscle (primary 1.0, secondary 0.5) beside
           the plan, and each session's totals — reachable on an empty week
-          too, where it says so. */}
-      {train.recentSessions.length > 0 || train.templates.length > 0 ? (
+          too when the plan has clusters, where it says so. */}
+      {audit.clusters > 0 || plansClusters ? (
         <Touchable
           style={styles.textAction}
           onPress={() => setVolumeOpen(true)}
@@ -395,6 +469,7 @@ export function StartView({
         catalog={train.catalog}
         templates={plannedTemplates}
         now={now}
+        straightSets={audit.straightSets}
       />
 
       <View style={styles.sectionHead}>
@@ -438,39 +513,10 @@ export function StartView({
 
       <DraftsSection train={train} />
 
-      <Text style={styles.sectionTitle} accessibilityRole="header">{t('train.history')}</Text>
-      {train.recentSessions.length === 0 ? (
-        <Text style={styles.empty}>{t('train.noWorkouts')}</Text>
-      ) : (
-        <View style={styles.list}>
-          <Text style={styles.histHint} importantForAccessibility="no" accessibilityElementsHidden>
-            {t('train.editHint')}
-          </Text>
-          {train.recentSessions.slice(0, HISTORY_INLINE).map((s) => (
-            <SessionRow
-              key={s.id}
-              session={s}
-              onOpen={openDetail}
-              onEdit={train.reopenSession}
-              onShare={onShare}
-              onDelete={(id) => confirmDeleteSession(id, sessionLabel(s))}
-            />
-          ))}
-          {train.recentSessions.length > HISTORY_INLINE ? (
-            <Touchable
-              style={styles.showAllBtn}
-              onPress={() => setHistoryOpen(true)}
-              accessibilityRole="button"
-              testID="history-show-all"
-            >
-              <Text style={styles.sectionAction}>{t('train.showAll', { n: train.recentSessions.length })}</Text>
-            </Touchable>
-          ) : null}
-        </View>
-      )}
-
       {/* The catalog: a few rows inline, the rest in the library sheet (Train
-          review item 32). The inline rows are also the fallback if the
+          review item 32). Above History, not under it: each lift's records and
+          e1RM trend are the progress view, and ten history rows buried them
+          at the very bottom of the tab (train-ux J16). The inline rows are also the fallback if the
           revived sheet misbehaves on a device — see `ExerciseLibrarySheet`. */}
       {train.catalog.length ? (
         <>
@@ -505,6 +551,37 @@ export function StartView({
         </>
       ) : null}
 
+      <Text style={styles.sectionTitle} accessibilityRole="header">{t('train.history')}</Text>
+      {train.recentSessions.length === 0 ? (
+        <Text style={styles.empty}>{t('train.noWorkouts')}</Text>
+      ) : (
+        <View style={styles.list}>
+          <Text style={styles.histHint} importantForAccessibility="no" accessibilityElementsHidden>
+            {t('train.editHint')}
+          </Text>
+          {train.recentSessions.slice(0, HISTORY_INLINE).map((s) => (
+            <SessionRow
+              key={s.id}
+              session={s}
+              onOpen={openDetail}
+              onEdit={train.reopenSession}
+              onShare={onShare}
+              onDelete={(id) => confirmDeleteSession(id, s)}
+            />
+          ))}
+          {train.recentSessions.length > HISTORY_INLINE ? (
+            <Touchable
+              style={styles.showAllBtn}
+              onPress={() => setHistoryOpen(true)}
+              accessibilityRole="button"
+              testID="history-show-all"
+            >
+              <Text style={styles.sectionAction}>{t('train.showAll', { n: train.recentSessions.length })}</Text>
+            </Touchable>
+          ) : null}
+        </View>
+      )}
+
       <TemplateEditorModal
         visible={editing !== null}
         train={train}
@@ -521,6 +598,8 @@ export function StartView({
         visible={startersOpen}
         train={train}
         onClose={() => setStartersOpen(false)}
+        // The toast's "Edit" opens the clone straight in the editor (H9/T19).
+        onEditTemplate={(tpl) => setEditing(tpl)}
       />
       <ExerciseLibrarySheet
         visible={libraryOpen}
@@ -551,7 +630,7 @@ export function StartView({
           if (!s.id) return;
           const id = s.id;
           setDetailOpen(false);
-          afterSheet(() => confirmDeleteSession(id, sessionLabel(s)));
+          afterSheet(() => confirmDeleteSession(id, s));
         }}
       />
       <HistorySheet
@@ -574,7 +653,7 @@ export function StartView({
           if (!s.id) return;
           const id = s.id;
           setHistoryOpen(false);
-          afterSheet(() => confirmDeleteSession(id, sessionLabel(s)));
+          afterSheet(() => confirmDeleteSession(id, s));
         }}
       />
     </ScrollView>
@@ -619,8 +698,9 @@ const TemplateCard = memo(function TemplateCard({
   // A superset draft switched on here — not a Program v2 one: a program's
   // templates switch together, from Settings, never one card at a time.
   const activeDraft = train.drafts.find((d) => d.status === 'active' && d.draftOf === tpl.id && !d.program);
-  const programDraft = train.drafts.find((d) => d.status === 'active' && d.draftOf === tpl.id && d.program === 'v2');
+  const tag = templateTag(tpl, train.drafts, t, locale);
   const draftActions = useDraftActions(train);
+  const stacked = useWindowDimensions().fontScale >= CARD_STACK_FONT_SCALE;
   // "3 exercises · 12 sets · last Tue". The counts alone could not tell you
   // which of four templates you are due for, which is the question the list
   // is actually being scanned for.
@@ -649,7 +729,8 @@ const TemplateCard = memo(function TemplateCard({
     if (!tpl.id) return;
     const id = tpl.id;
     confirm({
-      title: t('train.deleteTemplateTitle'),
+      // Named (train-ux H10): "Delete Upper A?", not "Delete this template?".
+      title: t('train.deleteTemplateTitle', { name: tpl.name }),
       body: [t('train.deleteTemplateBody'), ...(activeDraft ? [t('train.drafts.deleteActiveWarn', { name: tpl.name })] : [])].join('\n\n'),
       confirmText: t('train.delete'),
       destructive: true,
@@ -673,6 +754,28 @@ const TemplateCard = memo(function TemplateCard({
     { key: 'duplicate', icon: 'copy-outline', labelKey: 'train.duplicate', onPress: duplicate },
     { key: 'delete', icon: 'trash-outline', labelKey: 'train.delete', destructive: true, onPress: askDelete },
   ];
+  const menuBtn = CONTEXT_MENUS ? null : (
+    <MenuButton
+      style={styles.headerIconBtn}
+      title={tpl.name}
+      actions={toMenuButtonActions(menuActions, t)}
+      accessibilityLabel={t('train.templateMenuA11y', { name: tpl.name })}
+      testID={`template-menu-${tpl.id}`}
+      iconColor={colors.muted}
+      onFallbackPress={() => setMenuOpen(true)}
+    />
+  );
+  const startBtn = (
+    <Touchable
+      style={styles.tplStart}
+      onPress={start}
+      accessibilityRole="button"
+      accessibilityLabel={t('train.startNamed', { name: tpl.name })}
+      testID={`start-template-${tpl.id}`}
+    >
+      <Text style={styles.tplStartText}>{t('train.startTpl')}</Text>
+    </Touchable>
+  );
   // The whole card is the menu's target, as a row is in every other list
   // here: wrapping only the name button put a native view with no flex between
   // it and the row, and the Start button lost its place at the edge.
@@ -697,9 +800,13 @@ const TemplateCard = memo(function TemplateCard({
           android_ripple={TRAIN_RIPPLE}
           onPress={() => onEdit(tpl)}
           accessibilityRole="button"
-          // State belongs in the label (a hint says what an action does).
-          accessibilityLabel={activeDraft ? `${t('train.nextEditA11y', { name: tpl.name })}, ${t('train.drafts.activeTag')}` : t('train.nextEditA11y', { name: tpl.name })}
-          accessibilityHint={[names, sub].filter(Boolean).join('. ')}
+          // State AND content belong in the label; a hint only says what the
+          // action does. The counts, exercises and last date sat in the hint,
+          // so anyone with hints off never heard them (train-ux H8).
+          accessibilityLabel={[t('train.nextEditA11y', { name: tpl.name }), tag?.text, sub, names]
+            .filter(Boolean)
+            .join(', ')}
+          accessibilityHint={t('train.tplEditHint')}
           accessibilityActions={activeDraft ? [{ name: 'revert', label: t('train.drafts.revertA11y', { name: tpl.name }) }] : undefined}
           onAccessibilityAction={(e) => {
             if (e.nativeEvent.actionName === 'revert' && activeDraft) draftActions.revert(activeDraft);
@@ -707,43 +814,26 @@ const TemplateCard = memo(function TemplateCard({
           testID={`edit-template-${tpl.id}`}
         >
           <Text style={styles.histDate}>{tpl.name}</Text>
-          {activeDraft ? (
-            <Text style={styles.supersetTag} testID={`template-supersets-${tpl.id}`}>
-              {activeDraft.activatedAt
-                ? t('train.drafts.activeSince', { date: formatDate(new Date(activeDraft.activatedAt), locale, { month: 'short', day: 'numeric' }) })
-                : t('train.drafts.activeTag')}
-            </Text>
-          ) : programDraft ? (
-            <Text style={styles.supersetTag} testID={`template-program-${tpl.id}`}>
-              {programDraft.activatedAt
-                ? t('train.program.since', { date: formatDate(new Date(programDraft.activatedAt), locale, { month: 'short', day: 'numeric' }) })
-                : t('train.program.tag')}
-            </Text>
+          {tag ? (
+            <Text style={styles.supersetTag} testID={`template-${tag.kind}-${tpl.id}`}>{tag.text}</Text>
           ) : null}
-          {names ? <Text style={styles.tplExNames} numberOfLines={1}>{names}</Text> : null}
+          {/* One line beside Start; in full once Start has its own row. */}
+          {names ? <Text style={styles.tplExNames} numberOfLines={stacked ? undefined : 1} testID={`template-names-${tpl.id}`}>{names}</Text> : null}
           <Text style={styles.histSub}>{sub}</Text>
         </Pressable>
-        {CONTEXT_MENUS ? null : (
-          <MenuButton
-            style={styles.headerIconBtn}
-            title={tpl.name}
-            actions={toMenuButtonActions(menuActions, t)}
-            accessibilityLabel={t('train.templateMenuA11y', { name: tpl.name })}
-            testID={`template-menu-${tpl.id}`}
-            iconColor={colors.muted}
-            onFallbackPress={() => setMenuOpen(true)}
-          />
-        )}
-        <Touchable
-          style={styles.tplStart}
-          onPress={start}
-          accessibilityRole="button"
-          accessibilityLabel={t('train.startNamed', { name: tpl.name })}
-          testID={`start-template-${tpl.id}`}
-        >
-          <Text style={styles.tplStartText}>{t('train.startTpl')}</Text>
-        </Touchable>
+        {stacked ? null : menuBtn}
+        {stacked ? null : startBtn}
       </View>
+      {/* Accessibility sizes: Start (and the ⋯) under the text, not beside
+          it — beside a fixed button "Romanian De…" was all that fit
+          (train-ux H-N10, R12). */}
+      {stacked ? (
+        <View style={[styles.tplCardTop, { marginTop: space.sm }]} testID={`template-actions-row-${tpl.id}`}>
+          {startBtn}
+          <View style={{ flex: 1 }} />
+          {menuBtn}
+        </View>
+      ) : null}
       {/* The way back from supersets, visible on every platform — on iOS the
           card's menu is a long-press nobody finds. */}
       {activeDraft ? (
@@ -765,6 +855,9 @@ const TemplateCard = memo(function TemplateCard({
           style={styles.tplNextToggleBtn}
           onPress={() => onToggleNext(tpl.id as string)}
           accessibilityRole="button"
+          // Named: every card's toggle read "Next weights, button, collapsed"
+          // — the X16 problem on a new control (train-ux H-N9).
+          accessibilityLabel={`${t('train.rec.nextSession')}, ${tpl.name}`}
           accessibilityState={{ expanded: open }}
           testID={`next-session-${tpl.id}`}
         >
@@ -800,6 +893,7 @@ const sessionPreviewHeight = (s: WorkoutSession) =>
 /** A template, opened up: every exercise with its planned set count. */
 function TemplatePreview({ tpl, sub }: { tpl: WorkoutTemplate; sub: string }) {
   const t = useT();
+  const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const shown = tpl.exercises.slice(0, PREVIEW_LINES);
   const more = tpl.exercises.length - shown.length;
@@ -811,7 +905,9 @@ function TemplatePreview({ tpl, sub }: { tpl: WorkoutTemplate; sub: string }) {
         <View key={`${e.exerciseId}-${i}`} style={styles.previewRow}>
           <Text style={styles.previewName} numberOfLines={1}>{e.name}</Text>
           <Text style={styles.previewMeta}>
-            {`${e.plannedSets?.length ?? 0} ${(e.plannedSets?.length ?? 0) === 1 ? t('train.setOne') : t('train.setMany')}`}
+            {/* Counted the way the editor's card counts them: a myo-reps
+                block is one cluster, not three sets (train-ux E-N2). */}
+            {setCountText(t, locale, e.plannedSets ?? [])}
           </Text>
         </View>
       ))}
@@ -833,7 +929,10 @@ function SessionPreview({ session: s, date, vol }: { session: WorkoutSession; da
       <Text style={styles.histSub}>{[date, vol].filter(Boolean).join(' · ')}</Text>
       {shown.map((e, i) => (
         <View key={`${e.exerciseId}-${i}`} style={styles.previewBlock}>
-          <Text style={styles.previewName} numberOfLines={1}>{e.name}</Text>
+          {/* Not `previewName` alone: its `flex: 1` is for the template
+              preview's ROW; in this column it sized every name to 0 and the
+              menu preview listed numbers with no lifts (train-ux H-N1). */}
+          <Text style={[styles.previewName, styles.previewBlockName]} numberOfLines={1} testID={`session-preview-name-${i}`}>{e.name}</Text>
           <Text style={styles.previewMeta} numberOfLines={1}>
             {setLine(e, e.logStyle ?? 'weight-reps', unitSystem) || t('train.detailNoSets')}
           </Text>
@@ -916,16 +1015,24 @@ function TemplateNextSession({
   train: Pick<TrainState, 'editCatalogExercise'>;
   template: WorkoutTemplate;
 }) {
+  const t = useT();
+  const unitSystem = useUnitSystem();
   const styles = useThemedStyles(createStyles);
   // Keyed on the DATA it reads. It was `[train, template]`, and the hook
   // returned a new object every render, so this never cached once (Train
   // review bug 12).
+  //
+  // Kept: every row the note itself would render. The filter was
+  // `action !== 'none'`, which dropped the refusals ADR-0040 makes speak — a
+  // straight-set Row and Overhead Press said nothing under "Next weights"
+  // while Bench said INCREASE (train-ux H-N2). The note's own null (a
+  // myo-reps `none` with nothing to say) is the one row left out.
   const rows = useMemo(
     () =>
       template.exercises
         .map((row) => ({ row, rec: recommendationFor({ recentSessions, catalog }, row.exerciseId, row) }))
-        .filter((r) => r.rec.action !== 'none'),
-    [recentSessions, catalog, template],
+        .filter((r) => recommendationText(r.rec, unitSystem, t) != null),
+    [recentSessions, catalog, template, unitSystem, t],
   );
   // One lift-settings sheet for the list, keyed on the exercise it is open
   // for — the effort standard and the band override are catalog properties,
@@ -943,6 +1050,7 @@ function TemplateNextSession({
           <RecommendationNote
             rec={rec}
             compact
+            name={row.name}
             testID={`rec-${template.id}-${row.exerciseId}`}
             onSettings={catalog.some((e) => e.id === row.exerciseId) ? () => setSettingsFor(row.exerciseId) : undefined}
           />
@@ -987,11 +1095,27 @@ const SessionRow = memo(function SessionRow({
   const t = useT();
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
   const unitSystem = useUnitSystem();
+  // The Android ⋯ fallback sheet, where the system pull-down is missing.
+  const [menuOpen, setMenuOpen] = useState(false);
   const volume = sessionVolume(s);
   const date = formatDate(s.date, locale, { weekday: 'short', month: 'short', day: 'numeric' });
   const summary = sessionSummary(s, t);
   const vol = volume > 0 ? formatLoad(volume, unitSystem, 0) : null;
+  // The workout's NAME leads, the date goes under it: "Fri, Aug 7 / 3
+  // exercises" could not say which of four templates it was (train-ux H2).
+  const title = s.templateName || date;
+  const sub = [s.templateName ? date : null, summary].filter(Boolean).join(' · ');
+  // Off iOS there is no context menu, so the row carries a ⋯ with the same
+  // three actions — the template cards already did — and a long-press opens
+  // it, so "hold for more" is true on both platforms. It used to open Delete
+  // (train-ux H6).
+  const menuActions: ExerciseMenuAction[] = [
+    { key: 'edit', icon: 'pencil-outline', labelKey: 'common.edit', onPress: () => onEdit(s) },
+    { key: 'share', icon: 'share-outline', labelKey: 'train.share', onPress: () => onShare(s) },
+    { key: 'delete', icon: 'trash-outline', labelKey: 'train.delete', destructive: true, onPress: () => s.id && onDelete(s.id) },
+  ];
   const row = (
     <Pressable
       style={[styles.histRow, rippleClip(styles.histRow)]}
@@ -999,27 +1123,54 @@ const SessionRow = memo(function SessionRow({
       testID={`session-${s.id}`}
       onPress={() => onOpen(s)}
       // iOS: the system context menu takes the long-press (below).
-      onLongPress={CONTEXT_MENUS ? undefined : () => s.id && onDelete(s.id)}
+      onLongPress={CONTEXT_MENUS ? undefined : () => setMenuOpen(true)}
       accessibilityRole="button"
-      accessibilityLabel={[date, s.templateName, summary, vol].filter(Boolean).join(', ')}
+      accessibilityLabel={[s.templateName, date, summary, vol].filter(Boolean).join(', ')}
       accessibilityHint={t('train.sessionRowHint')}
       accessibilityActions={[
         { name: 'activate' },
         { name: 'edit', label: t('common.edit') },
+        // The context menu offers Share; the actions now do too (train-ux H8).
+        { name: 'share', label: t('train.share') },
         { name: 'delete', label: t('train.delete') },
       ]}
       onAccessibilityAction={(e) => {
         if (e.nativeEvent.actionName === 'activate') onOpen(s);
         if (e.nativeEvent.actionName === 'edit') onEdit(s);
+        if (e.nativeEvent.actionName === 'share') onShare(s);
         if (e.nativeEvent.actionName === 'delete' && s.id) onDelete(s.id);
       }}
     >
       <View style={styles.histMain}>
-        <Text style={styles.histDate}>{date}</Text>
-        <Text style={styles.histSub}>{summary}</Text>
+        <Text style={styles.histDate}>{title}</Text>
+        <Text style={styles.histSub}>{sub}</Text>
       </View>
       {vol ? <Text style={styles.histVol}>{vol}</Text> : null}
     </Pressable>
+  );
+  // Wrapped in the context menu either way, as the template card is: off iOS
+  // it renders only its child.
+  const name = [s.templateName || t('train.workout'), date].join(' · ');
+  const content = CONTEXT_MENUS ? row : (
+    <View style={styles.histRowWrap}>
+      <View style={{ flex: 1 }}>{row}</View>
+      <MenuButton
+        style={styles.headerIconBtn}
+        title={name}
+        actions={toMenuButtonActions(menuActions, t)}
+        accessibilityLabel={t('train.templateMenuA11y', { name })}
+        testID={`session-menu-${s.id}`}
+        iconColor={colors.muted}
+        onFallbackPress={() => setMenuOpen(true)}
+      />
+      <ExerciseMenuSheet
+        visible={menuOpen}
+        name={name}
+        actions={menuActions}
+        onClose={() => setMenuOpen(false)}
+        testIDPrefix={`session-menu-${s.id}`}
+      />
+    </View>
   );
   return (
     <ContextMenu
@@ -1033,7 +1184,7 @@ const SessionRow = memo(function SessionRow({
         { key: 'delete', title: t('train.delete'), icon: 'trash', destructive: true, onPress: () => s.id && onDelete(s.id) },
       ]}
     >
-      {row}
+      {content}
     </ContextMenu>
   );
 });
@@ -1061,7 +1212,10 @@ function HistorySheet({
   return (
     <BottomSheet native detents={[0.6, 1]} visible={visible} onClose={onClose} contentStyle={styles.sheetBody} maxHeight="80%">
       <View style={styles.sheetStack}>
-        <Text style={styles.sheetTitle} accessibilityRole="header">{t('train.historyTitle')}</Text>
+        <SheetHeader
+          title={t('train.historyTitle')}
+          trailing={{ label: t('common.done'), onPress: onClose, testID: 'history-done' }}
+        />
         <FlatList
           data={sessions as WorkoutSession[]}
           keyExtractor={(s, i) => s.id ?? String(i)}

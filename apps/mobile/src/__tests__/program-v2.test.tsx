@@ -108,14 +108,40 @@ describe('weekly volume (clusters, myo-rep)', () => {
     ],
   }] as unknown as WorkoutSession[];
 
-  it('lists every muscle lowest first, labels clusters (myo-rep), counts an L+R pair once, flags the plateau', async () => {
+  it('lists the muscles with clusters lowest first, counts an L+R pair once, flags the plateau', async () => {
     const ui = await render(
       <WeeklyVolumeSheet visible onClose={noop} sessions={sessions} catalog={[]} templates={[]} now={at.getTime() + 1000} />,
     );
-    expect(ui.getByText('Muscle — clusters (myo-rep), lowest first')).toBeTruthy();
-    expect(ui.getByTestId('weekly-volume-calves')).toHaveTextContent('1 direct · 1 fractional · plan 0', { exact: false });
-    expect(ui.getByTestId('weekly-volume-sideDelt')).toHaveTextContent('1 direct · 1 fractional', { exact: false });
-    expect(ui.getByTestId('weekly-volume-triceps')).toHaveTextContent('0 direct · 6.5 fractional', { exact: false });
-    expect(ui.getByTestId('weekly-volume-plateau-chest')).toHaveTextContent('above per-session plateau (Pelland preprint)', { exact: false });
+    expect(ui.getByText('Muscle — lowest total first')).toBeTruthy();
+    expect(ui.getByTestId('weekly-volume-calves')).toHaveTextContent('1 total · 1 as main muscle · 0 planned', { exact: false });
+    expect(ui.getByTestId('weekly-volume-sideDelt')).toHaveTextContent('1 total · 1 as main muscle', { exact: false });
+    expect(ui.getByTestId('weekly-volume-triceps')).toHaveTextContent('6.5 total · 0 as main muscle', { exact: false });
+    expect(ui.getByTestId('weekly-volume-plateau-chest')).toHaveTextContent('clusters in one session — past the point', { exact: false });
+    // Muscles with nothing logged or planned are one line, not rows of zeros
+    // (train-ux X2).
+    expect(ui.queryByTestId('weekly-volume-quads')).toBeNull();
+    expect(ui.getByTestId('weekly-volume-idle')).toHaveTextContent(/^No clusters in the last 7 days: .*Quads/);
+  });
+
+  it('a straight-set week says so in one line instead of twelve zero rows (train-ux H1/X2)', async () => {
+    const straight = [{
+      id: 's2', status: 'completed', templateName: 'Upper A', date: at, createdAt: at, updatedAt: at,
+      exercises: [{ exerciseId: 'b', name: 'Bench Press', cues: [], sets: [{ kind: 'working', weight: 135, reps: 8 }] }],
+    }] as unknown as WorkoutSession[];
+    const ui = await render(
+      <WeeklyVolumeSheet visible onClose={noop} sessions={straight} catalog={[]} templates={[]} now={at.getTime() + 1000} straightSets={9} />,
+    );
+    expect(ui.getByTestId('weekly-volume-empty')).toHaveTextContent(/^No myo-rep clusters logged or planned/);
+    expect(ui.queryByTestId('weekly-volume-chest')).toBeNull();
+    expect(ui.getByTestId('weekly-volume-straight')).toHaveTextContent('Straight working sets in the last 7 days: 9', { exact: false });
+  });
+
+  it('has a visible Done that closes it (train-ux H7)', async () => {
+    const close = jest.fn();
+    const ui = await render(
+      <WeeklyVolumeSheet visible onClose={close} sessions={sessions} catalog={[]} templates={[]} now={at.getTime() + 1000} />,
+    );
+    await fireEvent.press(ui.getByTestId('weekly-volume-done'));
+    expect(close).toHaveBeenCalled();
   });
 });

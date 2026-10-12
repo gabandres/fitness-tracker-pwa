@@ -92,7 +92,9 @@ export function ExerciseSupersetReport({ sessions, exerciseId, name }: { session
       <Text style={[styles.panelLabel, { marginTop: space.md }]} accessibilityRole="header">{t('train.supersetReport.title')}</Text>
       {r.flag ? (
         <View style={styles.reportFlag} testID="superset-report-flag" accessible>
-          <Ionicons name="alert-circle-outline" size={18} color={colors.accent} />
+          {/* The warning colour, not the brand red the PR trophy wears
+              (train-ux J8). Same below. */}
+          <Ionicons name="alert-circle-outline" size={18} color={colors.warn} />
           <Text style={[styles.reportFlagText, { flex: 1 }]}>
             {plural(t, locale, 'train.supersetReport.flag', r.costlySessions.length, { total: r.recentSessions, name: liftName })}
           </Text>
@@ -194,7 +196,7 @@ export function SessionSupersetReport({ sessions, session }: { sessions: readonl
             </Text>
             {e.flag ? (
               <View style={styles.reportFlag}>
-                <Ionicons name="alert-circle-outline" size={16} color={colors.accent} />
+                <Ionicons name="alert-circle-outline" size={16} color={colors.warn} />
                 <Text style={[styles.reportFlagText, { flex: 1 }]}>{t('train.supersetReport.flagShort', { name: e.name })}</Text>
               </View>
             ) : null}

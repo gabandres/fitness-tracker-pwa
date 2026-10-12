@@ -2,10 +2,11 @@
  * The finish sheet's "Next session" calls, and the one rule about them that
  * matters most: a template's load NEVER moves without the lifter's say-so.
  *
- * With "Auto-apply progression" off (the default — absent is off), finishing
- * leaves the template untouched; only the Apply tap writes it, and only the
- * lifts left switched on. With it on, Complete applies every proposed move as
- * the engine's, and there is no button to tap. Either way the write goes
+ * With "Auto-apply progression" off (the default — absent is off), Complete
+ * asks once when any lift's box is ticked (train-ux F2) — "Update and
+ * complete" writes the ticked moves AFTER the workout is recorded, "Complete
+ * only" leaves the template untouched. With it on, Complete applies every
+ * proposed move as the engine's, and there is nothing to answer. Either way the write goes
  * through the hook's `saveTemplate` with the template's `exercises` whole —
  * `loadLog` included, carrying the sentence the lifter read.
  */
@@ -118,24 +119,36 @@ describe('finish sheet — the engine calls, read with this session as the newes
 });
 
 describe('auto-apply OFF (the default): the template moves only on the tap', () => {
-  it('finishing leaves the template untouched', async () => {
+  it('Complete asks once; "Complete only" leaves the template untouched', async () => {
     const train = makeTrain(undefined);
     const ui = await open(train);
     expect(ui.queryByTestId('finish-auto-apply')).toBeNull();
+    // No separate Apply button any more (train-ux F2): Complete asks.
+    expect(ui.queryByTestId('finish-apply')).toBeNull();
     await fireEvent.press(ui.getByTestId('finish-confirm'));
+    await waitFor(() => expect(ui.getByText('Update Push A?')).toBeTruthy());
+    expect(ui.getByText('Press: 100 lb → 105 lb')).toBeTruthy();
+    // Nothing is recorded while the question is open.
+    expect(train.finishWorkout).not.toHaveBeenCalled();
+    await fireEvent.press(ui.getByTestId('confirm-secondary'));
     await waitFor(() => expect(train.finishWorkout).toHaveBeenCalledTimes(1));
     expect(train.saveTemplate).not.toHaveBeenCalled();
   });
 
-  it('Apply writes the template whole, with the engine entry on the load log', async () => {
+  it('"Update and complete" records the workout FIRST, then writes the template whole with the engine entry', async () => {
+    const order: string[] = [];
     const train = makeTrain(false);
+    train.finishWorkout.mockImplementation(async () => { order.push('finish'); return true; });
+    train.saveTemplate.mockImplementation(async () => { order.push('save'); });
     const ui = await open(train);
     expect(train.saveTemplate).not.toHaveBeenCalled();
-    await fireEvent.press(ui.getByTestId('finish-apply'));
+    await fireEvent.press(ui.getByTestId('finish-confirm'));
+    await fireEvent.press(await waitFor(() => ui.getByTestId('confirm-go')));
     await waitFor(() => expect(train.saveTemplate).toHaveBeenCalledTimes(1));
-    const [draft, id] = train.saveTemplate.mock.calls[0];
+    expect(order).toEqual(['finish', 'save']);
+    const [draft, id] = train.saveTemplate.mock.calls[0] as unknown as [WorkoutTemplate, string];
     expect(id).toBe('t1');
-    expect(draft.id).toBeUndefined();
+    expect((draft as { id?: string }).id).toBeUndefined();
     expect(draft.name).toBe('Push A');
     expect(draft.exercises).toHaveLength(2);
     const press = draft.exercises[0];
@@ -152,15 +165,26 @@ describe('auto-apply OFF (the default): the template moves only on the tap', () 
     ]);
     // The row that did not move is written back as it was.
     expect(draft.exercises[1]).toEqual(template.exercises[1]);
-    await waitFor(() => expect(ui.getByTestId('finish-applied')).toBeTruthy());
   });
 
-  it('a lift switched off is not applied', async () => {
+  it('a failed finish writes nothing, even after "Update and complete"', async () => {
+    const train = makeTrain(false);
+    train.finishWorkout.mockResolvedValue(false);
+    const ui = await open(train);
+    await fireEvent.press(ui.getByTestId('finish-confirm'));
+    await fireEvent.press(await waitFor(() => ui.getByTestId('confirm-go')));
+    await waitFor(() => expect(ui.getByTestId('finish-save-error')).toBeTruthy());
+    expect(train.saveTemplate).not.toHaveBeenCalled();
+  });
+
+  it('a lift switched off is not offered — with nothing ticked, Complete does not ask', async () => {
     const train = makeTrain(false);
     const ui = await open(train);
     await fireEvent.press(ui.getByTestId('finish-toggle-press'));
-    expect(ui.getByTestId('finish-apply').props.accessibilityState.disabled).toBe(true);
-    await fireEvent.press(ui.getByTestId('finish-apply'));
+    expect(ui.getByTestId('finish-toggle-press').props.accessibilityState).toEqual({ checked: false });
+    await fireEvent.press(ui.getByTestId('finish-confirm'));
+    await waitFor(() => expect(train.finishWorkout).toHaveBeenCalledTimes(1));
+    expect(ui.queryByText('Update Push A?')).toBeNull();
     expect(train.saveTemplate).not.toHaveBeenCalled();
   });
 });
@@ -214,10 +238,11 @@ describe('Program v2: the one automatic switch runs AFTER the progression write,
     expect(live.exercises[0].targetLoad).toBe(105);
   });
 
-  it('auto-apply off: the switch is asked with the template as it stands', async () => {
+  it('auto-apply off, "Complete only": the switch is asked with the template as it stands', async () => {
     const train = { ...makeTrain(false), maybeAutoSwitchProgram: jest.fn().mockResolvedValue(false) };
     const ui = await open(train);
     await fireEvent.press(ui.getByTestId('finish-confirm'));
+    await fireEvent.press(await waitFor(() => ui.getByTestId('confirm-secondary')));
     await waitFor(() => expect(train.maybeAutoSwitchProgram).toHaveBeenCalledTimes(1));
     expect(train.saveTemplate).not.toHaveBeenCalled();
     expect((train.maybeAutoSwitchProgram.mock.calls[0] as unknown as [WorkoutSession, WorkoutTemplate])[1].exercises[0].targetLoad).toBe(100);

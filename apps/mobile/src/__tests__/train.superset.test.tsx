@@ -199,7 +199,8 @@ describe('the alternating flow', () => {
   it('labels the stations A1 / A2 under one group header, and names the partner to a screen reader', async () => {
     mockTrain.active = live();
     const ui = await render(<TrainScreen />);
-    expect(ui.getByTestId('superset-header-A')).toHaveTextContent('Superset A · switch 35 s · round 40 s');
+    // Rests read as a clock everywhere in the session (fix S, L-N16).
+    expect(ui.getByTestId('superset-header-A')).toHaveTextContent('Superset A · switch 0:35 · round 0:40');
     expect(ui.getByTestId('superset-tag-0')).toHaveTextContent('A1');
     expect(ui.getByTestId('superset-tag-1')).toHaveTextContent('A2');
     expect(ui.queryByTestId('superset-tag-2')).toBeNull();
@@ -228,7 +229,8 @@ describe('the alternating flow', () => {
       expect(ui.getByTestId('rest-label')).toHaveTextContent('Switch · 0:35');
       expect(ui.getByTestId('rest-next')).toHaveTextContent('Next: A2 · Leg Curls');
       // A duration, spoken as one — not "0:35", which VoiceOver reads as a time of day.
-      expect(mockAnnounce.mock.calls.at(-1)?.[0]).toMatch(/^Switch, 35 seconds of rest\. Next: A2 · Leg Curls$/);
+      // Led by what the tick logged, in the same announcement (L6).
+      expect(mockAnnounce.mock.calls.at(-1)?.[0]).toMatch(/^Set 1c logged, 90 lb, 10 reps\. Switch, 35 seconds of rest\. Next: A2 · Leg Curls$/);
       expect(ui.getByTestId('up-next-1')).toBeTruthy();
       await act(async () => {
         jest.advanceTimersByTime(450);
@@ -310,6 +312,65 @@ describe('the alternating flow', () => {
     expect(mockAnnounce.mock.calls.at(-1)?.[0]).not.toContain('A1 only');
   });
 
+  it('a tap on a running leftover-round rest opens the picker ON that rest: its value selected, "running now", and a pick sets the next one (L16 follow-up)', async () => {
+    // Its own session id: the per-session rest overrides outlive a remount.
+    const session = live({ id: 'live-l16' });
+    session.exercises[1] = { ...session.exercises[1], sets: session.exercises[1].sets.slice(0, 3) };
+    mockTrain.active = session;
+    mockRestRemaining = 90;
+    const ui = await render(<TrainScreen />);
+    await fireEvent.press(ui.getByTestId('exercise-head-1'));
+    await fireEvent.press(ui.getByTestId('set-done-1-2'));
+    expect(mockRestStart).toHaveBeenLastCalledWith(90, 'Next: A1 · Leg Extensions — its partner is done');
+    await fireEvent.press(ui.getByTestId('rest-label'));
+    // The rest that runs is A1's own between-cluster rest — not the 35 s
+    // switch or the 40 s round rest the picker used to show alone.
+    expect(ui.getByText('Before Leg Extensions’s next cluster')).toBeTruthy();
+    expect(ui.getByTestId('rest-pick-own-running')).toBeTruthy();
+    expect(ui.queryByTestId('rest-pick-round-running')).toBeNull();
+    expect(ui.queryByTestId('rest-pick-transition-running')).toBeNull();
+    expect(ui.getByTestId('rest-pick-own-default')).toHaveTextContent('Default · 1:30');
+    expect(ui.getByTestId('rest-pick-own-default').props.accessibilityState).toEqual({ selected: true, checked: true });
+    await fireEvent.press(ui.getByTestId('rest-pick-own-120'));
+    expect(ui.getByTestId('rest-pick-own-120').props.accessibilityState).toEqual({ selected: true, checked: true });
+    await fireEvent.press(ui.getByTestId('rest-picker-done'));
+    // Untick + tick again: the same leftover rest now runs on the pick.
+    await fireEvent.press(ui.getByTestId('set-done-1-2'));
+    await fireEvent.press(ui.getByTestId('set-done-1-2'));
+    expect(mockRestStart).toHaveBeenLastCalledWith(120, 'Next: A1 · Leg Extensions — its partner is done');
+    // The mini-set rest inside a cluster stays the template's 10 s.
+    expect(mockTrain.saveTemplate).not.toHaveBeenCalled();
+  });
+
+  it('v3 QA: a lift declared STRAIGHT says "next set", not "next cluster", on its own rest row', async () => {
+    mockTrain.templates = [{
+      ...legTemplate,
+      exercises: [{ ...legTemplate.exercises[0], setStructure: 'straight' }, ...legTemplate.exercises.slice(1)],
+    } as WorkoutTemplate];
+    const session = live({ id: 'live-straight-copy' });
+    session.exercises[1] = { ...session.exercises[1], sets: session.exercises[1].sets.slice(0, 3) };
+    mockTrain.active = session;
+    mockRestRemaining = 90;
+    const ui = await render(<TrainScreen />);
+    await fireEvent.press(ui.getByTestId('exercise-head-1'));
+    await fireEvent.press(ui.getByTestId('set-done-1-2'));
+    await fireEvent.press(ui.getByTestId('rest-label'));
+    expect(ui.getByText('Before Leg Extensions’s next set')).toBeTruthy();
+    expect(ui.queryByText('Before Leg Extensions’s next cluster')).toBeNull();
+  });
+
+  it('a running switch rest opens the picker with the switch row marked', async () => {
+    mockTrain.active = live();
+    mockRestRemaining = 30;
+    const ui = await render(<TrainScreen />);
+    await fireEvent.press(ui.getByTestId('set-done-0-2'));
+    expect(mockRestStart).toHaveBeenLastCalledWith(35, 'Next: A2 · Leg Curls');
+    await fireEvent.press(ui.getByTestId('rest-label'));
+    expect(ui.getByTestId('rest-pick-transition-running')).toBeTruthy();
+    expect(ui.getByTestId('rest-pick-transition-default')).toHaveTextContent('Default · 0:35');
+    expect(ui.queryByTestId('rest-pick-own-default')).toBeNull();
+  });
+
   it('A2 already done (A1\'s station was taken): A1\'s cluster gets its own rest and stays put', async () => {
     jest.useFakeTimers();
     try {
@@ -317,9 +378,12 @@ describe('the alternating flow', () => {
       s.exercises[1] = { ...s.exercises[1], sets: s.exercises[1].sets.map((x) => ({ ...x, reps: 10, done: true })) };
       mockTrain.active = s;
       const ui = await render(<TrainScreen />);
-      // A1 is the first unfinished lift, so it opens on its own.
+      // A1 is the first unfinished lift, so it opens on its own. Its next
+      // cluster is still a round of the superset, and the bar says so — the
+      // partner is done (Train UX pass L1: it was a bare 1:30 with no heading).
       await fireEvent.press(ui.getByTestId('set-done-0-2'));
-      expect(mockRestStart).toHaveBeenLastCalledWith(90, undefined);
+      expect(mockRestStart).toHaveBeenLastCalledWith(90, 'Next: A1 · Leg Extensions — its partner is done');
+      expect(mockAnnounce.mock.calls.at(-1)?.[0]).toContain('Round 2 of 2');
       await act(async () => {
         jest.advanceTimersByTime(450);
       });
@@ -479,7 +543,8 @@ describe('the template editor', () => {
     expect([2, undefined]).toContain(ui.getByTestId('template-superset-header-0').props.numberOfLines);
     // The group's facts together, right after the tag: who, then the rests.
     expect(ui.getByTestId('template-ex-toggle-0').props.accessibilityLabel)
-      .toBe('Superset A1, alternates with Leg Curls. Switch 35 s · round 40 s. Leg Extensions. 6 sets · 90 lb');
+      // Two myo-rep clusters, not "6 sets" of rows (E-N2).
+      .toBe('Superset A1, alternates with Leg Curls. Switch 35 s · round 40 s. Leg Extensions. 2 clusters · 90 lb');
     expect(ui.getByTestId('template-pair-agonist-antagonist-1')).toHaveTextContent('Opposing muscles — best supported (more total reps)', { exact: false });
     expect(ui.getByTestId('template-ex-toggle-0').props.accessibilityLabel).toContain('Superset A1, alternates with Leg Curls');
   });
@@ -512,7 +577,7 @@ describe('the template editor', () => {
     const ui = await render(<TrainScreen />);
     await fireEvent.press(ui.getByTestId('edit-template-leg'));
     expect(ui.getByTestId('template-load-test-1')).toHaveTextContent('Leg Curls: 80 lb → 90 lb next session', { exact: false });
-    expect(ui.getByTestId('template-load-test-1')).toHaveTextContent('"Unpair for today" is in the workout\'s ⋯ menu.', { exact: false });
+    expect(ui.getByTestId('template-load-test-1')).toHaveTextContent('in the workout, tap ••• on the lift, then "Unpair for today".', { exact: false });
   });
 
   it('pairs from the collapsed card in one tap, and saves group, position, the leader\'s rests and fresh baselines', async () => {
@@ -522,9 +587,9 @@ describe('the template editor', () => {
     expect(ui.getByTestId('template-link-0').props.accessibilityLabel).toBe('Superset Leg Extensions with Leg Curls');
     await fireEvent.press(ui.getByTestId('template-link-0'));
     // Said once, by the toast (with its Undo) — not also announced.
-    expect(mockShowToast.mock.calls.at(-1)?.[0]).toBe('Leg Extensions and Leg Curls are now superset A. Both start a fresh baseline.');
+    expect(mockShowToast.mock.calls.at(-1)?.[0]).toBe('Leg Extensions + Leg Curls are now superset A.');
     expect(mockShowToast.mock.calls.at(-1)?.[1].action.label).toBe('Undo');
-    expect(mockAnnounce).not.toHaveBeenCalledWith('Leg Extensions and Leg Curls are now superset A. Both start a fresh baseline.');
+    expect(mockAnnounce).not.toHaveBeenCalledWith('Leg Extensions + Leg Curls are now superset A.');
     await fireEvent.press(ui.getByTestId('save-template'));
     await waitFor(() => expect(mockTrain.saveTemplate).toHaveBeenCalledTimes(1));
     const [draft] = mockTrain.saveTemplate.mock.calls[0];
@@ -678,8 +743,8 @@ describe('drafts', () => {
     mockTrain.drafts = [active];
     mockTrain.planDraftSwaps.mockReturnValue([plan()]);
     const ui = await render(<TrainScreen />);
-    // State in the label, not the hint.
-    expect(ui.getByTestId('edit-template-leg').props.accessibilityLabel).toMatch(/, Supersets$/);
+    // State in the label, not the hint — the tag's own visible text (H-N7).
+    expect(ui.getByTestId('edit-template-leg').props.accessibilityLabel).toMatch(/^Edit Leg Day, Supersets since Oct 11, /);
     // …and a screen-reader action for the way back.
     await fireEvent(ui.getByTestId('edit-template-leg'), 'accessibilityAction', { nativeEvent: { actionName: 'revert' } });
     expect(mockConfirm.mock.calls[0][0].title).toBe('Switch Leg Day back?');

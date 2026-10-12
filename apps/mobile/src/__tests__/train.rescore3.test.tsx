@@ -261,6 +261,9 @@ describe('add several exercises at once', () => {
     mockTrain.active = session();
     const ui = await render(<TrainScreen />);
     await fireEvent.press(ui.getByTestId('add-exercise'));
+    // v3 QA item 6: a visible Cancel, and no "Add (n)" until something is ticked.
+    expect(ui.getByTestId('add-exercise-cancel')).toHaveTextContent('Cancel');
+    expect(ui.queryByTestId('add-picked')).toBeNull();
     await fireEvent.press(ui.getByTestId('add-ex-mine-0-pick'));
     // Once picking, a tap on a row ticks it rather than adding it alone.
     await fireEvent.press(ui.getByTestId('add-ex-mine-1'));

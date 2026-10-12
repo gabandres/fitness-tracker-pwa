@@ -7,7 +7,7 @@
  * the idle tab, with their bodyweight and sleep already gone.
  */
 import React from 'react';
-import { fireEvent, renderWithProviders as render, waitFor } from '@/test-utils';
+import { fireEvent, renderWithProviders as render, waitFor, within } from '@/test-utils';
 import type { WorkoutSession } from '@/lib/workout';
 
 const day = (n: number) => new Date(2026, 8, n);
@@ -151,6 +151,62 @@ describe('Finish sheet', () => {
     const screen = await openFinish();
     await fireEvent.press(screen.getByTestId('finish-confirm'));
     await waitFor(() => expect(mockRecordPositiveMoment).toHaveBeenCalledTimes(1));
+  });
+});
+
+describe('Finish sheet — layout and ways out (train-ux F1, F14, F7)', () => {
+  it('pins Complete in a footer outside the scroll, so it is on screen when the sheet opens', async () => {
+    const screen = await openFinish();
+    const footer = screen.getByTestId('finish-footer');
+    expect(within(footer).getByTestId('finish-confirm')).toBeTruthy();
+    // The summary scrolls; the footer does not hold it.
+    expect(within(footer).queryByTestId('finish-summary')).toBeNull();
+  });
+
+  it('offers a visible "Keep training" and asks before dropping typed extras', async () => {
+    const screen = await openFinish();
+    const keep = screen.getByTestId('finish-keep-training');
+    expect(keep.props.accessibilityRole).toBe('button');
+    await fireEvent.press(screen.getByTestId('finish-extras'));
+    await fireEvent.changeText(screen.getByTestId('finish-bodyweight'), '180');
+    await fireEvent.press(keep);
+    await waitFor(() => expect(screen.getByText('Drop what you typed here?')).toBeTruthy());
+    expect(screen.getByText('Your workout stays open.')).toBeTruthy();
+  });
+
+  it('Discard on the sheet names the workout and what is lost, and deletes only on the confirm', async () => {
+    const screen = await openFinish();
+    await fireEvent.press(screen.getByTestId('finish-discard'));
+    await waitFor(() => expect(screen.getByText('Discard Workout?')).toBeTruthy());
+    expect(screen.getByText("1 logged set will be lost. This can't be undone.")).toBeTruthy();
+    expect(mockDiscardWorkout).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByTestId('confirm-go'));
+    await waitFor(() => expect(mockDiscardWorkout).toHaveBeenCalledTimes(1));
+    expect(mockFinishWorkout).not.toHaveBeenCalled();
+  });
+
+  it('says a planned set left empty in a started lift will not be saved (F9)', async () => {
+    const screen = await openFinish();
+    expect(screen.getByTestId('finish-skipped')).toHaveTextContent('1 planned set not done — it won’t be saved.');
+    expect(screen.queryByTestId('finish-unticked')).toBeNull();
+  });
+});
+
+describe('Finish sheet — sleep out of range (train-ux F3)', () => {
+  it('rejects sleep over 24 h in the sheet, before anything is recorded', async () => {
+    mockFinishWorkout.mockResolvedValue(true);
+    const screen = await openFinish();
+    await fireEvent.press(screen.getByTestId('finish-extras'));
+    await fireEvent.changeText(screen.getByTestId('finish-sleep'), '75');
+    await fireEvent.press(screen.getByTestId('finish-confirm'));
+    expect(screen.getByTestId('finish-sleep-error')).toHaveTextContent('Enter between 0 and 24 hours of sleep.');
+    expect(mockFinishWorkout).not.toHaveBeenCalled();
+
+    await fireEvent.changeText(screen.getByTestId('finish-sleep'), '7,5');
+    await fireEvent.press(screen.getByTestId('finish-confirm'));
+    await waitFor(() => expect(mockFinishWorkout).toHaveBeenCalledTimes(1));
+    expect(mockFinishWorkout.mock.calls[0][0]).toEqual(expect.objectContaining({ sleepHours: 7.5 }));
+    expect(screen.queryByTestId('finish-sleep-error')).toBeNull();
   });
 });
 

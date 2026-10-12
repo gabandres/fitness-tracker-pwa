@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import {
+  askWhenPresented,
   clearSheetActive,
   clearSheetPortal,
   dismissSheet,
@@ -68,6 +69,10 @@ interface Props {
   /** Host toasts and confirms inside this sheet's Modal while it is open
    *  (default true). The confirm's own sheet passes false — it IS the overlay. */
   overlays?: boolean;
+  /** Where a toast draws inside this sheet (default `top`). `bottom` for a
+   *  sheet whose header carries its actions (the template editor's Cancel /
+   *  Save), which a top toast hid for its whole 4–5 s. */
+  toastAt?: 'top' | 'bottom';
   /**
    * Present as a NATIVE sheet where the platform has one worth using (iOS:
    * `UISheetPresentationController` through the root `sheet` route — real
@@ -109,6 +114,7 @@ function NativeBottomSheet({
   children,
   onRequestClose,
   overlays = true,
+  toastAt,
   guarded = false,
   detents = [0.6, 1],
   backdropTestID,
@@ -120,13 +126,29 @@ function NativeBottomSheet({
     onClose();
     return true;
   };
-  // The route holds `requestClose` across renders, so it calls through a ref.
+  const present = () => {
+    router.push({
+      pathname: '/sheet',
+      params: { id, detents: detents === 'fit' ? 'fit' : detents.join(',') },
+    });
+  };
+  /** Android took this sheet down although it was guarded (it cannot refuse
+   *  a drag or a scrim tap): put it back and ask once it is up. The typed
+   *  content is this owner's state, so it returns as it was. Closed in the
+   *  meantime: nothing to put back. */
+  const restore = (via: SheetCloseVia) => {
+    if (!visible) return;
+    askWhenPresented(id, via);
+    markSheetActive(id);
+    present();
+  };
+  // The route holds these across renders, so it calls through a ref.
   // Written in a layout effect — never during render, which made the React
   // Compiler skip this component — and declared before the publish below, so
-  // the route has the current handler by the time it can call it.
-  const requestRef = useRef(request);
+  // the route has the current handlers by the time it can call them.
+  const ownerRef = useRef({ request, restore });
   useLayoutEffect(() => {
-    requestRef.current = request;
+    ownerRef.current = { request, restore };
   });
 
   // Republished every render so the route always shows current children —
@@ -138,10 +160,12 @@ function NativeBottomSheet({
     if (!visible && !isPresented(id)) return;
     setSheetPortal(id, {
       node: children,
-      requestClose: (via) => requestRef.current(via),
+      requestClose: (via) => ownerRef.current.request(via),
+      restore: (via) => ownerRef.current.restore(via),
       guarded,
       backSteps,
       overlays,
+      toastAt,
       visible,
       testID: backdropTestID ? `${backdropTestID}-native` : undefined,
     });
@@ -158,12 +182,7 @@ function NativeBottomSheet({
 
   // `detents` is read when the route is pushed but is not a trigger: a new
   // array (the default is one per render) must not re-run the open/close below.
-  const pushRoute = useEffectEvent(() => {
-    router.push({
-      pathname: '/sheet',
-      params: { id, detents: detents === 'fit' ? 'fit' : detents.join(',') },
-    });
-  });
+  const pushRoute = useEffectEvent(present);
 
   useEffect(() => {
     if (visible && !isPresented(id)) {
@@ -233,6 +252,7 @@ function JsBottomSheet({
   backdropTestID,
   onRequestClose,
   overlays = true,
+  toastAt,
 }: Props) {
   const t = useT();
   const styles = useThemedStyles(createStyles);
@@ -357,7 +377,7 @@ function JsBottomSheet({
           {/* The toast lives INSIDE the modal panel: `accessibilityViewIsModal`
               hides every sibling from VoiceOver, so a toast drawn beside the
               panel was announced but its Undo could not be reached. */}
-          {visible && overlays ? <ToastSheetHost /> : null}
+          {visible && overlays ? <ToastSheetHost at={toastAt} /> : null}
         </Animated.View>
       </View>
       {/* Confirms raised while this sheet is open are presented from here:

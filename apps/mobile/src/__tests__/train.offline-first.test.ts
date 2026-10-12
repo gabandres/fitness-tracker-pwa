@@ -200,6 +200,23 @@ describe('finish (bug 2)', () => {
     await unmount();
   });
 
+  it('a typed length (train-ux F15) is the session length saved, and is not an extra', async () => {
+    mockServer = liveSession();
+    const { result, unmount } = await renderHook(() => useTrain());
+    await waitFor(() => expect(result.current.active?.id).toBe('live-1'));
+
+    mockNetwork = 'queued';
+    await act(async () => {
+      await result.current.finishWorkout({ sleepHours: 7, durationMin: 55 });
+    });
+
+    expect(mockUpdateSession).toHaveBeenCalledWith('u1', 'live-1', expect.objectContaining({ durationMin: 55 }));
+    const finishes = await readPendingFinishes('u1');
+    expect(finishes[0].session.durationMin).toBe(55);
+    expect(finishes[0].extras).toEqual({ sleepHours: 7 });
+    await unmount();
+  });
+
   it('a finish that never landed is replayed on the next mount, then forgotten', async () => {
     mockServer = liveSession();
     const first = await renderHook(() => useTrain());

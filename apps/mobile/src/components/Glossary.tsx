@@ -1,8 +1,9 @@
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { BottomSheet, NATIVE_SHEETS } from './BottomSheet';
+import { Touchable } from './Touchable';
 import { useT, type I18nKey } from '@/i18n';
 import { useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, space } from '@/theme';
+import { font, space, TARGET } from '@/theme';
 
 /**
  * Plain-language definitions for one screen's vocabulary, in a bottom sheet
@@ -69,7 +70,22 @@ export function Glossary({
   // inside a full-height detent would leave half the sheet empty.
   return (
     <BottomSheet visible={visible} onClose={onClose} backdropTestID="glossary-backdrop" native detents={[0.5, 1]}>
-      <Text style={styles.title} testID={testID} accessibilityRole="header">{t(titleKey)}</Text>
+      {/* A visible Done beside the title (train-ux H7): the sheet drags to a
+          full-height detent where the grabber was the only way out. The same
+          trailing slot `SheetHeader` draws; the title keeps its own testID,
+          which the glossary flows and tests read. */}
+      <View style={styles.titleRow}>
+        <Text style={styles.title} testID={testID} accessibilityRole="header">{t(titleKey)}</Text>
+        <Touchable
+          style={styles.done}
+          onPress={onClose}
+          accessibilityRole="button"
+          hitSlop={4}
+          testID={testID ? `${testID}-done` : undefined}
+        >
+          <Text style={styles.doneText} maxFontSizeMultiplier={1.6} numberOfLines={1}>{t('common.done')}</Text>
+        </Touchable>
+      </View>
       <Text style={styles.intro}>{t(introKey)}</Text>
       <ScrollView style={NATIVE_SHEETS ? styles.scrollNative : styles.scroll} contentContainerStyle={styles.scrollBody}>
         {sections.map((section) => (
@@ -79,12 +95,18 @@ export function Glossary({
             {sections.length > 1 ? (
               <Text style={styles.sectionLabel} accessibilityRole="header">{t(section.title)}</Text>
             ) : null}
-            {section.terms.map((term) => (
-              <View key={term} style={styles.term}>
-                <Text style={styles.termName}>{t(`${prefix}.${term}` as I18nKey)}</Text>
-                <Text style={styles.termBody}>{t(`${prefix}.${term}Body` as I18nKey)}</Text>
-              </View>
-            ))}
+            {section.terms.map((term) => {
+              const name = t(`${prefix}.${term}` as I18nKey);
+              const body = t(`${prefix}.${term}Body` as I18nKey);
+              // One screen-reader stop per term, name then definition — it
+              // was two swipes, the name alone first (train-ux H12).
+              return (
+                <View key={term} style={styles.term} accessible accessibilityLabel={`${name}. ${body}`}>
+                  <Text style={styles.termName}>{name}</Text>
+                  <Text style={styles.termBody}>{body}</Text>
+                </View>
+              );
+            })}
           </View>
         ))}
       </ScrollView>
@@ -93,7 +115,10 @@ export function Glossary({
 }
 
 const createStyles = ({ colors }: Theme) => StyleSheet.create({
-  title: { fontSize: font.h2, fontWeight: '800', color: colors.ink },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: TARGET },
+  title: { flex: 1, fontSize: font.h2, fontWeight: '800', color: colors.ink },
+  done: { minWidth: TARGET, minHeight: TARGET, justifyContent: 'center', alignItems: 'flex-end' },
+  doneText: { fontSize: font.body, color: colors.teal, fontWeight: '800' },
   intro: { fontSize: font.small, color: colors.muted, marginTop: space.xs },
   // Capped so a long glossary scrolls inside the sheet instead of pushing the
   // sheet past its own maxHeight and clipping the last terms.

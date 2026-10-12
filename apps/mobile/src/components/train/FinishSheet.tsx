@@ -1,8 +1,9 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { Touchable } from './Touchable';
 import Animated from 'react-native-reanimated';
+import { SheetHeader } from '@/components/SheetHeader';
 import { SheetTextInput } from '@/components/SheetTextInput';
 import {
   type ActivationFinding,
@@ -14,9 +15,12 @@ import {
   finishProgression,
   finishSummary,
   formatLoad,
+  isStorableDurationMin,
+  isStorableSleepHours,
   parseWeightToLb,
   proposeTemplateChanges,
   sessionActivationIssues,
+  sessionCounts,
   weightBoundsFor,
 } from '@macrolog/core';
 import { BottomSheet } from '@/components/BottomSheet';
@@ -25,7 +29,7 @@ import { confirm } from '@/components/ConfirmSheet';
 import { showToast } from '@/components/Toast';
 import type { TrainState } from '@/hooks/useTrain';
 import type { TemplateExercise, WorkoutSession, WorkoutTemplate } from '@/lib/workout';
-import { useLocale, useT } from '@/i18n';
+import { type TFn, useLocale, useT } from '@/i18n';
 import { plural } from '@/i18n/grammar';
 import { announce } from '@/lib/a11y';
 import { isOffline } from '@/lib/connectivity';
@@ -34,16 +38,45 @@ import { enterUp, usePulse } from '@/lib/motion';
 import { recordPositiveMoment } from '@/lib/reviewPrompt';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { useUnitSystem } from '@/lib/use-unit-system';
+import { space } from '@/theme';
 import { numOrUndef } from './train-shared';
-import { type FinishCall, activationIssueKey, finishCalls } from './train-summary';
+import { type FinishCall, activationIssueKey, finishCalls, unloggedCardioNames } from './train-summary';
 import { createStyles } from './train-styles';
 import { reasonText, recommendationText } from './recommendation-text';
+
+/** What Complete hands the owner besides the session itself. */
+export interface FinishExtras {
+  bodyweight?: number;
+  sleepHours?: number;
+  /** The real length, typed when the workout was left open (F15). Wins over
+   *  the start-to-tap interval `useTrain` would otherwise stamp. */
+  durationMin?: number;
+}
+
+/** A workout open this long is more likely forgotten than finished (F15). */
+const LONG_OPEN_MIN = 180;
+/** From this text size (iOS AX1 and up) the footer ends the scroll instead
+ *  of being pinned under it (QA v2: ~40% of the sheet at AX-large). */
+const FOOTER_INLINE_FONT_SCALE = 1.6;
+
+/** "47 min", or "14 h 0 min" from an hour up — "840 min" read as a typo. */
+export function durationText(min: number, t: TFn): string {
+  return min >= 60
+    ? t('train.summaryHoursMinutes', { h: Math.floor(min / 60), m: min % 60 })
+    : t('train.summaryMinutes', { n: min });
+}
 
 /**
  * Finish a workout: what it was (time, volume, sets, records, and how it
  * compares with last time), then Complete. Body weight and sleep are behind
  * one optional row (Train review item 34) — they were the sheet's whole
  * content, and they are the least of what finishing a workout is about.
+ *
+ * Complete is PINNED under the scroll (train-ux F1/J1, 2026-10-11): it was the
+ * scroll's last child and opened below the fold on every template workout,
+ * where the calls fill the sheet. The header carries the visible way back
+ * ("Keep training"), and Discard sits under Complete (F14) — finish, discard
+ * or keep going, all on the sheet.
  *
  * Complete no longer waits on the network (Train review bug 2): `onFinish`
  * resolves as soon as the finish is recorded on the device. It resolves
@@ -53,10 +86,12 @@ import { reasonText, recommendationText } from './recommendation-text';
  * "Next session" (2026-10-07) lists the engine's call for every lift that has
  * one, read with this workout counted as the newest: the call, the new load,
  * the reps to expect and the reason. When the session came from a template,
- * the calls that would move its load can be applied — all of them, or the
- * ones left switched on. With "Auto-apply progression" on they are applied
- * at Complete instead, and the sheet says so; with it off the template never
- * moves without the tap.
+ * each call that would move its load carries a box (on by default). There is
+ * no separate Apply button any more (F2): Complete asks ONCE, when any box is
+ * ticked — "Update and complete" / "Complete only" — and the template moves
+ * only on that tap, after the workout itself is recorded (ADR-0044). With
+ * "Auto-apply progression" on they are applied at Complete without asking,
+ * and the sheet says so.
  */
 export function FinishSheet({
   visible,
@@ -64,12 +99,12 @@ export function FinishSheet({
   recentSessions,
   onFinish,
   onClose,
+  onDiscard,
   invalid,
   calls = [],
   proposed = [],
   templateName = null,
   autoApply = false,
-  onApply,
 }: {
   visible: boolean;
   session: WorkoutSession;
@@ -83,32 +118,44 @@ export function FinishSheet({
   proposed?: TemplateLoadChange[];
   /** The template the session came from, when it still exists. */
   templateName?: string | null;
-  /** The lifter's "Auto-apply progression": applied at Complete, no button. */
+  /** The lifter's "Auto-apply progression": applied at Complete, no question. */
   autoApply?: boolean;
-  /** Apply these changes to the template now. Resolves false on failure. */
-  onApply?: (changes: TemplateLoadChange[]) => Promise<boolean>;
-  /** Resolves `false` when the save failed and the sheet should stay open. */
-  onFinish: (extras: { bodyweight?: number; sleepHours?: number }) => Promise<boolean | void> | boolean | void;
+  /** Resolves `false` when the save failed and the sheet should stay open.
+   *  `changes` are the template moves the lifter chose to make — empty unless
+   *  they answered "Update and complete". */
+  onFinish: (
+    extras: FinishExtras,
+    changes: TemplateLoadChange[],
+  ) => Promise<boolean | void> | boolean | void;
   onClose: () => void;
+  /** Discard the workout instead; the owner confirms first. */
+  onDiscard?: () => void;
 }) {
   const t = useT();
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const doneKey = useDoneKeyProps();
+  // Three tiles side by side clip at accessibility sizes; they stack (F17).
+  const { fontScale } = useWindowDimensions();
+  const largeText = fontScale >= 1.5;
+  // At accessibility sizes the pinned footer took ~40% of the sheet and left
+  // a slot to scroll the calls through; there it closes the scroll instead.
+  const inlineFooter = fontScale >= FOOTER_INLINE_FONT_SCALE;
   // Body weight only — the LOADS on this screen (volume, PRs, plate math) are
   // converted where they are shown. F3 is about the weight of the person.
   const unitSystem = useUnitSystem();
   const [bodyweight, setBodyweight] = useState('');
   const [sleep, setSleep] = useState('');
+  const [length, setLength] = useState('');
   const [extrasOpen, setExtrasOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [weightErr, setWeightErr] = useState('');
+  const [sleepErr, setSleepErr] = useState('');
+  const [lengthErr, setLengthErr] = useState('');
   const [saveErr, setSaveErr] = useState('');
-  // Per-lift Apply toggles (default on) and what has been applied this opening.
+  // Per-lift template-update boxes (default on).
   const [off, setOff] = useState<ReadonlySet<string>>(() => new Set());
-  const [applied, setApplied] = useState<ReadonlySet<string>>(() => new Set());
-  const [applying, setApplying] = useState(false);
   // The clock the summary is read at, taken when the sheet opens: a duration
   // that ticks while you decide whether to add your body weight is noise.
   const [openedAt, setOpenedAt] = useState(() => Date.now());
@@ -117,14 +164,15 @@ export function FinishSheet({
     if (visible) {
       setBodyweight('');
       setSleep('');
+      setLength('');
       setExtrasOpen(false);
       setBusy(false);
       setWeightErr('');
+      setSleepErr('');
+      setLengthErr('');
       setSaveErr('');
       setOpenedAt(Date.now());
       setOff(new Set());
-      setApplied(new Set());
-      setApplying(false);
     }
   }, [visible]);
 
@@ -133,29 +181,10 @@ export function FinishSheet({
   // only the findings for lifts the engine had nothing to say about.
   const called = useMemo(() => new Set(calls.map((c) => c.exerciseId)), [calls]);
   const invalidRest = invalid.filter((f) => !called.has(f.exerciseId));
-  const pending = proposed.filter((c) => !applied.has(c.exerciseId));
-  const selected = pending.filter((c) => !off.has(c.exerciseId));
-  const canApply = templateName != null && !autoApply && onApply != null;
-
-  async function apply() {
-    if (!onApply || applying || selected.length === 0) return;
-    setApplying(true);
-    try {
-      const ok = await onApply(selected);
-      if (ok) {
-        haptics.success();
-        setApplied((cur) => new Set([...cur, ...selected.map((c) => c.exerciseId)]));
-      }
-    } catch (e) {
-      // A catch that resets and rethrows, then the same reset after it: the
-      // `finally` this was cannot be lowered by React Compiler, which skipped
-      // the whole sheet. Same effect — reset on both paths, the error still
-      // propagates.
-      setApplying(false);
-      throw e;
-    }
-    setApplying(false);
-  }
+  const selected = proposed.filter((c) => !off.has(c.exerciseId));
+  // The boxes are offered whenever the template can move on a tap: there is
+  // a template, and auto-apply is not already moving it.
+  const canOffer = templateName != null && !autoApply;
 
   const summary = useMemo(
     () => finishSummary(session, recentSessions, openedAt),
@@ -164,13 +193,23 @@ export function FinishSheet({
   const vsLast = summary.previousVolume && summary.previousVolume > 0 && summary.volume > 0
     ? Math.round(((summary.volume - summary.previousVolume) / summary.previousVolume) * 100)
     : null;
-  const typed = bodyweight.trim() !== '' || sleep.trim() !== '';
+  // The real length a forgotten workout was given (F15) is typed too: a swipe
+  // must not throw it away unasked (fix R).
+  const typed = bodyweight.trim() !== '' || sleep.trim() !== '' || length.trim() !== '';
+  const longOpen = summary.durationMin > LONG_OPEN_MIN;
+  // A valid typed length is what will be saved, so it is what the tile says.
+  const typedLength = numOrUndef(length);
+  const shownMin = typedLength != null && typedLength >= 1 && isStorableDurationMin(typedLength)
+    ? Math.round(typedLength)
+    : summary.durationMin;
 
   // A record is the best thing a workout can end on, and it was one trophy
   // line among the stats (Train re-score, delight). It now leads the sheet: a
   // heading, a trophy that bounces once (skipped under reduce motion — the
-  // haptic carries it), a success haptic. Once per opening.
+  // haptic carries it), a success haptic, and the heading SPOKEN (F12: a
+  // screen reader user heard none of it). Once per opening.
   const prCount = summary.prs.length;
+  const prHead = prCount === 1 ? t('train.prHeadOne') : t('train.prHeadMany', { n: prCount });
   const [trophyPulse, triggerTrophy] = usePulse(1.3);
   const celebrated = useRef(false);
   useEffect(() => {
@@ -182,102 +221,246 @@ export function FinishSheet({
       celebrated.current = true;
       triggerTrophy();
       haptics.success();
+      announce(prHead);
     }
-  }, [visible, prCount, triggerTrophy]);
+  }, [visible, prCount, prHead, triggerTrophy]);
 
-  async function finish() {
+  /** The close every way out shares — the swipe, Android back and "Keep
+   *  training". Typed extras are asked about first (F7: it read as "discard
+   *  the workout", which it never did). */
+  function requestClose(): boolean {
+    if (!typed) {
+      onClose();
+      return true;
+    }
+    confirm({
+      title: t('train.finishDropExtrasTitle'),
+      body: t('train.finishDropExtrasBody'),
+      confirmText: t('train.finishDropExtrasConfirm'),
+      destructive: true,
+      onConfirm: onClose,
+    });
+    return false;
+  }
+
+  /** Validate, then — when any template box is ticked — ask once (F2). */
+  function finish() {
     if (busy) return;
     // Same gate the Body tab applies (`checkWeightEntry`): this sheet mirrors
     // its value into `dailyWeights`, and it accepted 11 lb once. A typo is
     // rejected here, in the sheet, rather than silently dropped by the writer.
     const lb = parseWeightToLb(bodyweight, unitSystem);
-    if (lb != null && !checkWeightEntry(lb).ok) {
-      const b = weightBoundsFor(unitSystem);
-      const msg = t('body.weightRange', { min: b.min, max: b.max, unit: bodyWeightUnit(unitSystem) });
-      setWeightErr(msg);
-      announce(msg, { androidHasLiveRegion: true });
+    const b = weightBoundsFor(unitSystem);
+    const wErr = lb != null && !checkWeightEntry(lb).ok
+      ? t('body.weightRange', { min: b.min, max: b.max, unit: bodyWeightUnit(unitSystem) })
+      : '';
+    // Sleep the rules refuse (0–24 h) failed the WHOLE finish, after the
+    // receipt had said "Workout saved" (F3): "75" typed for 7.5.
+    const sh = numOrUndef(sleep);
+    const sErr = sh != null && !isStorableSleepHours(sh) ? t('train.sleepRange') : '';
+    const len = numOrUndef(length);
+    const lErr = len != null && (len < 1 || !isStorableDurationMin(len)) ? t('train.finishLengthRange') : '';
+    setWeightErr(wErr);
+    setSleepErr(sErr);
+    setLengthErr(lErr);
+    const firstErr = wErr || sErr || lErr;
+    if (firstErr) {
+      // The extras row may have been folded away after typing.
+      if (wErr || sErr) setExtrasOpen(true);
+      announce(firstErr, { androidHasLiveRegion: true });
       return;
     }
-    setWeightErr('');
     setSaveErr('');
-    setBusy(true);
-    // Built before the `try`: React Compiler cannot lower the `??` inside one.
-    const extras = {
+    const extras: FinishExtras = {
       bodyweight: lb ?? undefined,
-      sleepHours: numOrUndef(sleep),
+      sleepHours: sh,
+      durationMin: len != null ? Math.round(len) : undefined,
     };
+    const chosen = canOffer ? selected : [];
+    if (chosen.length === 0) {
+      void complete(extras, []);
+      return;
+    }
+    const fmt = (lbs: number) => formatLoad(lbs, unitSystem);
+    confirm({
+      title: t('train.rec.finish.askTitle', { template: templateName ?? '' }),
+      body: chosen
+        .map((c) => t('train.rec.finish.askLine', { name: c.name, from: c.from != null ? fmt(c.from) : '—', to: fmt(c.to) }))
+        .join('\n'),
+      confirmText: t('train.rec.finish.askUpdate'),
+      secondaryText: t('train.rec.finish.askKeep'),
+      onConfirm: () => void complete(extras, chosen),
+      onSecondary: () => void complete(extras, []),
+    });
+  }
+
+  async function complete(extras: FinishExtras, changes: TemplateLoadChange[]) {
+    setBusy(true);
     try {
-      const ok = await onFinish(extras);
+      const ok = await onFinish(extras, changes);
       if (ok === false) setSaveErr(t('train.workoutSaveErr'));
     } catch (e) {
-      // Reset and rethrow, then reset after: see `apply`.
+      // A catch that resets and rethrows, then the same reset after it: a
+      // `finally` cannot be lowered by React Compiler, which skipped the
+      // whole sheet. Same effect — reset on both paths, the error propagates.
       setBusy(false);
       throw e;
     }
     setBusy(false);
   }
 
+  const notes = [
+    summary.unstarted.length > 0
+      ? { id: 'finish-unstarted', text: plural(t, locale, 'train.unstarted', summary.unstarted.length, { names: summary.unstarted.join(', ') }) }
+      : null,
+    summary.skippedSets > 0
+      ? { id: 'finish-skipped', text: plural(t, locale, 'train.skippedSets', summary.skippedSets) }
+      : null,
+    summary.untickedSets > 0
+      ? { id: 'finish-unticked', text: plural(t, locale, 'train.untickedSets', summary.untickedSets) }
+      : null,
+    // A planned run left unlogged is dropped at Complete, like a lift never
+    // started — said, not silent (L-N12).
+    ...unloggedCardioNames(session, t).map((name, i) => ({ id: `finish-unlogged-cardio-${i}`, text: t('train.unloggedCardio', { name }) })),
+  ].filter((n): n is { id: string; text: string } => n != null);
+
+  const tile = (key: string, value: string, label: string, shrink = false) => (
+    <View
+      key={key}
+      style={[styles.summaryTile, largeText && styles.summaryTileRow]}
+      accessible
+      accessibilityLabel={`${label}: ${value}`}
+    >
+      {largeText ? <Text style={styles.summaryLabel}>{label}</Text> : null}
+      <Text style={styles.summaryValue} numberOfLines={1} adjustsFontSizeToFit={shrink}>
+        {value}
+      </Text>
+      {largeText ? null : <Text style={styles.summaryLabel}>{label}</Text>}
+    </View>
+  );
+
+  // Pinned below the scroll: the one action the sheet exists for is always on
+  // screen — except at accessibility sizes, where it ends the scroll.
+  const footer = (
+    <View style={styles.finishFooter} testID="finish-footer">
+      {saveErr ? (
+        <Text
+          style={[styles.sheetHint, { color: colors.danger }]}
+          accessibilityRole="alert"
+          accessibilityLiveRegion="polite"
+          testID="finish-save-error"
+        >
+          {saveErr}
+        </Text>
+      ) : null}
+
+      {/* The button IS the retry: a failed save leaves the sheet open with
+          the typed values and the error line above, and tapping Complete
+          again re-runs the same write (`s18-train-finish.test.tsx`). */}
+      <Touchable
+        style={[styles.finishBtn, styles.finishFooterBtn]}
+        onPress={finish}
+        disabled={busy}
+        accessibilityRole="button"
+        accessibilityState={{ disabled: busy, busy }}
+        testID="finish-confirm"
+      >
+        <Text style={styles.finishText}>{busy ? t('common.saving') : t('train.complete')}</Text>
+      </Touchable>
+      {onDiscard ? (
+        <Touchable
+          style={styles.finishDiscardBtn}
+          onPress={onDiscard}
+          disabled={busy}
+          accessibilityRole="button"
+          testID="finish-discard"
+        >
+          <Text style={styles.discardText}>{t('train.discardWorkout')}</Text>
+        </Touchable>
+      ) : null}
+    </View>
+  );
+
   return (
     <BottomSheet
       native
-      detents={[0.5, 1]}
+      // Full height on both platforms (F1): at the old 0.5 detent the calls
+      // filled the sheet and the pinned footer would sit below the fold of a
+      // half-height sheet whose content is laid out at full height. M3 allows
+      // a full-height sheet for long content; EntrySheet and the template
+      // editor already open this way.
+      detents={[1]}
       // Guarded once something is typed: a swipe then asks instead of
       // throwing the number away.
       guarded={typed}
-      onRequestClose={() => {
-        if (!typed) {
-          onClose();
-          return true;
-        }
-        confirm({
-          title: t('train.discardChangesTitle'),
-          confirmText: t('train.discard'),
-          destructive: true,
-          onConfirm: onClose,
-        });
-        return false;
-      }}
+      onRequestClose={requestClose}
       visible={visible}
       onClose={onClose}
       contentStyle={styles.sheetBody}
       maxHeight="80%"
     >
-      {/* Scroll so the numeric keyboard can't hide the Complete button
-          (KeyboardAvoidingView under-lifts inside a bottom-sheet Modal). */}
+      <SheetHeader
+        title={t('train.finishTitle')}
+        leading={{ label: t('train.keepTraining'), onPress: requestClose, testID: 'finish-keep-training' }}
+      />
+      {/* Scroll so the numeric keyboard can't hide the fields (the sheet
+          route pads a height-detent sheet for the keyboard, so the footer
+          rides above it). */}
       <ScrollView
+        style={styles.finishScrollFill}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.finishScroll}
+        testID="finish-scroll"
       >
-        <Text style={styles.sheetTitle} accessibilityRole="header">{t('train.finishTitle')}</Text>
-
         {prCount > 0 ? (
           <Animated.View entering={enterUp(0)} style={styles.prHero} testID="finish-pr-hero">
             <Animated.View style={trophyPulse}>
               <Ionicons name="trophy" size={34} color={colors.accent} />
             </Animated.View>
-            <Text style={styles.prHeroText} accessibilityRole="header">
-              {prCount === 1 ? t('train.prHeadOne') : t('train.prHeadMany', { n: prCount })}
-            </Text>
+            <Text style={styles.prHeroText} accessibilityRole="header">{prHead}</Text>
           </Animated.View>
         ) : null}
 
-        <View style={styles.summaryGrid} testID="finish-summary">
-          <View style={styles.summaryTile} accessible accessibilityLabel={`${t('train.summaryTime')}: ${t('train.summaryMinutes', { n: summary.durationMin })}`}>
-            <Text style={styles.summaryValue}>{t('train.summaryMinutes', { n: summary.durationMin })}</Text>
-            <Text style={styles.summaryLabel}>{t('train.summaryTime')}</Text>
-          </View>
-          <View style={styles.summaryTile} accessible accessibilityLabel={`${t('train.summaryVolume')}: ${formatLoad(summary.volume, unitSystem, 0)}`}>
-            <Text style={styles.summaryValue} numberOfLines={1} adjustsFontSizeToFit>
-              {formatLoad(summary.volume, unitSystem, 0)}
-            </Text>
-            <Text style={styles.summaryLabel}>{t('train.summaryVolume')}</Text>
-          </View>
-          <View style={styles.summaryTile} accessible accessibilityLabel={`${t('train.summarySets')}: ${summary.sets}`}>
-            <Text style={styles.summaryValue}>{summary.sets}</Text>
-            <Text style={styles.summaryLabel}>{t('train.summarySets')}</Text>
-          </View>
+        <View style={[styles.summaryGrid, largeText && styles.summaryGridStacked]} testID="finish-summary">
+          {tile('time', durationText(shownMin, t), t('train.summaryTime'), true)}
+          {tile('volume', formatLoad(summary.volume, unitSystem, 0), t('train.summaryVolume'), true)}
+          {tile('sets', String(summary.sets), t('train.summarySets'))}
         </View>
+
+        {/* Open for hours: more likely forgotten than finished. The interval
+            would be saved as the session's length, and the superset report
+            compares it — so ask for the real one (F15). Optional. */}
+        {longOpen ? (
+          <View style={styles.finishField} testID="finish-long-open">
+            <Text style={styles.summaryLine}>
+              {t('train.finishLongOpen', { time: durationText(summary.durationMin, t) })}
+            </Text>
+            <Text style={styles.fieldLabel}>{t('train.finishLengthLabel')}</Text>
+            <SheetTextInput
+              style={styles.input}
+              placeholder="—"
+              placeholderTextColor={colors.faint}
+              keyboardType="number-pad"
+              value={length}
+              onChangeText={setLength}
+              selectTextOnFocus
+              {...doneKey}
+              accessibilityLabel={t('train.finishLengthLabel')}
+              testID="finish-length"
+            />
+            {lengthErr ? (
+              <Text
+                style={[styles.sheetHint, { color: colors.danger }]}
+                accessibilityRole="alert"
+                accessibilityLiveRegion="polite"
+                testID="finish-length-error"
+              >
+                {lengthErr}
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
 
         {summary.prs.map((pr) => (
           <View key={pr.exerciseId} style={styles.syncRow} testID={`finish-pr-${pr.exerciseId}`}>
@@ -301,23 +484,30 @@ export function FinishSheet({
             </Text>
           </View>
         ) : null}
+        {/* Like for like (F4): the lifts this session logged, against the
+            same lifts last time — and said so when last time had more. */}
         {vsLast != null && vsLast !== 0 ? (
           <Text style={styles.summaryLine} testID="finish-vs-last">
-            {t('train.summaryVsLast', { delta: `${vsLast > 0 ? '+' : '−'}${Math.abs(vsLast)}%` })}
+            {t(summary.previousSameLiftsOnly ? 'train.summaryVsLastSame' : 'train.summaryVsLast', {
+              delta: `${vsLast > 0 ? '+' : '−'}${Math.abs(vsLast)}%`,
+            })}
           </Text>
         ) : null}
 
-        {/* Lifts with nothing logged are dropped by the save. Said here, while
-            they can still be done, rather than letting a forgotten lift
-            vanish from the record (Train re-score 3). Never blocking. */}
-        {summary.unstarted.length > 0 ? (
-          <View style={styles.invalidBox} testID="finish-unstarted">
+        {/* What the save will drop or keep without being asked, said here
+            while it can still be done (Train re-score 3; F9): lifts not
+            started, planned sets skipped inside a started lift, and sets
+            with numbers but no tick. Never blocking. */}
+        {notes.length > 0 ? (
+          <View style={styles.invalidBox} testID="finish-unsaved">
             <Ionicons name="alert-circle-outline" size={18} color={colors.muted} />
-            <Text style={[styles.invalidHint, { flex: 1, marginTop: 0 }]}>
-              {plural(t, locale, 'train.unstarted', summary.unstarted.length, {
-                names: summary.unstarted.join(', '),
-              })}
-            </Text>
+            <View style={{ flex: 1, gap: space.xs }}>
+              {notes.map((n) => (
+                <Text key={n.id} style={[styles.invalidHint, { marginTop: 0 }]} testID={n.id}>
+                  {n.text}
+                </Text>
+              ))}
+            </View>
           </View>
         ) : null}
 
@@ -329,9 +519,8 @@ export function FinishSheet({
                 key={c.exerciseId}
                 call={c}
                 change={changeFor.get(c.exerciseId)}
-                toggle={canApply && changeFor.has(c.exerciseId) && !applied.has(c.exerciseId)}
+                toggle={canOffer && changeFor.has(c.exerciseId)}
                 on={!off.has(c.exerciseId)}
-                applied={applied.has(c.exerciseId)}
                 onToggle={() =>
                   setOff((cur) => {
                     const next = new Set(cur);
@@ -348,23 +537,6 @@ export function FinishSheet({
             {templateName != null && autoApply && proposed.length > 0 ? (
               <Text style={styles.sheetHint} testID="finish-auto-apply">
                 {t('train.rec.finish.auto', { template: templateName })}
-              </Text>
-            ) : null}
-            {canApply && pending.length > 0 ? (
-              <Touchable
-                style={[styles.callApplyBtn, (selected.length === 0 || applying) && styles.btnDisabled]}
-                onPress={apply}
-                disabled={selected.length === 0 || applying}
-                accessibilityRole="button"
-                accessibilityState={{ disabled: selected.length === 0 || applying, busy: applying }}
-                testID="finish-apply"
-              >
-                <Text style={styles.callApplyText}>{t('train.rec.finish.apply', { n: selected.length })}</Text>
-              </Touchable>
-            ) : null}
-            {templateName != null && applied.size > 0 ? (
-              <Text style={styles.callApplied} testID="finish-applied">
-                {t('train.rec.finish.applied', { template: templateName })}
               </Text>
             ) : null}
           </View>
@@ -445,36 +617,24 @@ export function FinishSheet({
                   accessibilityLabel={t('train.sleepHoursA11y')}
                   testID="finish-sleep"
                 />
+                {sleepErr ? (
+                  <Text
+                    style={[styles.sheetHint, { color: colors.danger }]}
+                    accessibilityRole="alert"
+                    accessibilityLiveRegion="polite"
+                    testID="finish-sleep-error"
+                  >
+                    {sleepErr}
+                  </Text>
+                ) : null}
               </View>
             </View>
           </>
         ) : null}
-
-        {saveErr ? (
-          <Text
-            style={[styles.sheetHint, { color: colors.danger }]}
-            accessibilityRole="alert"
-            accessibilityLiveRegion="polite"
-            testID="finish-save-error"
-          >
-            {saveErr}
-          </Text>
-        ) : null}
-
-        {/* The button IS the retry: a failed save leaves the sheet open with
-            the typed values and the error line above, and tapping Complete
-            again re-runs the same write (`s18-train-finish.test.tsx`). */}
-        <Touchable
-          style={styles.finishBtn}
-          onPress={finish}
-          disabled={busy}
-          accessibilityRole="button"
-          accessibilityState={{ disabled: busy, busy }}
-          testID="finish-confirm"
-        >
-          <Text style={styles.finishText}>{busy ? t('common.saving') : t('train.complete')}</Text>
-        </Touchable>
+        {inlineFooter ? footer : null}
       </ScrollView>
+
+      {inlineFooter ? null : footer}
     </BottomSheet>
   );
 }
@@ -482,22 +642,20 @@ export function FinishSheet({
 /**
  * One lift's call on the finish sheet: name and headline ("35 lb ·
  * INCREASE"), the rep target, what to expect at a new load, the reason, and —
- * when the call would move the template — the move itself with its toggle.
+ * when the call would move the template — the move itself with its box.
  */
 function FinishCallRow({
   call,
   change,
   toggle,
   on,
-  applied,
   onToggle,
 }: {
   call: FinishCall;
   change?: TemplateLoadChange;
-  /** Offer the per-lift Apply toggle. */
+  /** Offer the per-lift template-update box. */
   toggle: boolean;
   on: boolean;
-  applied: boolean;
   onToggle: () => void;
 }) {
   const t = useT();
@@ -508,6 +666,14 @@ function FinishCallRow({
   if (!text) return null;
   const moves = text.call === 'increase' || text.call === 'drop';
   const fmt = (lb: number) => formatLoad(lb, unitSystem);
+  // A HOLD whose template still names another load moves the template to the
+  // weight actually lifted. "175 lb · HOLD" beside "Template 170 → 175" read
+  // as a contradiction, so the line says why (F16).
+  const changeKey = change?.from == null
+    ? 'train.rec.finish.changeNew'
+    : !moves && change.to !== change.from
+      ? 'train.rec.finish.changeMatch'
+      : 'train.rec.finish.change';
   return (
     <View style={styles.callRow} testID={`finish-call-${call.exerciseId}`}>
       <View style={styles.callMain}>
@@ -523,9 +689,7 @@ function FinishCallRow({
         {text.stall.length > 0 ? <Text style={styles.recNote}>{text.stall[0]}</Text> : null}
         {change ? (
           <Text style={styles.recNote} testID={`finish-change-${call.exerciseId}`}>
-            {change.from != null
-              ? t('train.rec.finish.change', { from: fmt(change.from), to: fmt(change.to) })
-              : t('train.rec.finish.changeNew', { to: fmt(change.to) })}
+            {t(changeKey, { from: change.from != null ? fmt(change.from) : '', to: fmt(change.to) })}
           </Text>
         ) : null}
       </View>
@@ -540,10 +704,6 @@ function FinishCallRow({
         >
           <Ionicons name={on ? 'checkbox' : 'square-outline'} size={22} color={on ? colors.teal : colors.faint} />
         </Touchable>
-      ) : applied ? (
-        <View style={styles.callToggle}>
-          <Ionicons name="checkmark-circle" size={22} color={colors.teal} />
-        </View>
       ) : null}
     </View>
   );
@@ -568,8 +728,10 @@ function templateDraftWith(tpl: WorkoutTemplate, exercises: TemplateExercise[]) 
  * It also owns the engine's calls at the finish boundary: computed here with
  * the session counted as the newest completed one, applied to the template
  * through the hook's `saveTemplate` (the same path the rest picker's "Keep
- * for this lift" writes) — on the Apply tap, or at Complete when the lifter
- * has auto-apply on. Never otherwise.
+ * for this lift" writes) — AFTER the workout is recorded, either because the
+ * lifter answered "Update and complete" or because auto-apply is on. Never
+ * otherwise, and never for a workout that was then discarded (F2: the old
+ * Apply button wrote the template before the session existed).
  */
 export function TrainFinishSheet({
   train,
@@ -578,13 +740,14 @@ export function TrainFinishSheet({
   onShare,
 }: {
   train: Pick<TrainState, 'active' | 'editingExisting' | 'templates' | 'recentSessions' | 'finishWorkout'>
-    & Partial<Pick<TrainState, 'catalog' | 'saveTemplate' | 'trainingPhase' | 'autoApplyProgression' | 'maybeAutoSwitchProgram'>>;
+    & Partial<Pick<TrainState, 'catalog' | 'saveTemplate' | 'trainingPhase' | 'autoApplyProgression' | 'maybeAutoSwitchProgram' | 'discardWorkout'>>;
   visible: boolean;
   onClose: () => void;
   /** Share the workout just finished — offered on the "Workout saved" receipt. */
   onShare?: (session: WorkoutSession) => void;
 }) {
   const t = useT();
+  const locale = useLocale();
   const unitSystem = useUnitSystem();
   const live = train.active && !train.editingExisting ? train.active : null;
   // What the sheet shows, followed ONLY while it is open. This component is
@@ -661,6 +824,26 @@ export function TrainFinishSheet({
     }
   }
 
+  // Discard from the sheet (F14), confirmed from INSIDE it (a confirm host
+  // nested in the sheet, which iOS can present): Cancel leaves the lifter on
+  // the summary they were reading. Same words as the session's ⋯ Discard.
+  const discard = train.discardWorkout;
+  const onDiscard = discard && session
+    ? () => {
+        const n = sessionCounts(session).sets;
+        confirm({
+          title: t('train.discardWorkoutNamedTitle', { name: session.templateName || t('train.workout') }),
+          body: n > 0 ? plural(t, locale, 'train.discardWorkoutLost', n) : t('train.discardConfirm'),
+          confirmText: t('train.discardWorkout'),
+          destructive: true,
+          onConfirm: () => {
+            onClose();
+            void discard();
+          },
+        });
+      }
+    : undefined;
+
   if (!session || !recentSessions) return null;
   return (
     <FinishSheet
@@ -668,6 +851,7 @@ export function TrainFinishSheet({
       session={session}
       recentSessions={recentSessions}
       onClose={onClose}
+      onDiscard={onDiscard}
       // Reported at the finish boundary, where the whole session is in view
       // and a lift can still be repeated — not as a mid-set interruption.
       // Never gates the save: an unreadable set is still training that
@@ -677,35 +861,34 @@ export function TrainFinishSheet({
       proposed={canWrite ? proposed : []}
       templateName={canWrite ? template?.name ?? null : null}
       autoApply={autoApply}
-      onApply={(changes) => {
-        // The template as it stands NOW, not as the sheet opened on it.
-        const tpl = train.templates.find((x) => x.id === session.templateId);
-        if (!tpl) return Promise.resolve(false);
-        return writeRows(tpl, applyTemplateChanges(tpl.exercises, changes, { at: new Date(), by: 'engine' }));
-      }}
-      onFinish={async (extras) => {
+      onFinish={async (extras, changes) => {
         // `finishWorkout` answers `false` when it could not record the
         // finish at all (the hook's boolean contract); a legacy void resolve
         // reads as success. On failure the sheet stays up with the typed
-        // values, says so, and does NOT spend a rating prompt.
+        // values, says so, and does NOT spend a rating prompt — and the
+        // template is not touched.
         const ok: unknown = await train.finishWorkout(extras);
         if (ok === false) return false;
-        // Auto-apply: the one path that moves a template without a tap, and
-        // only because the lifter turned it on. `finishProgression` returns
-        // `applied: null` with it off — the template is left exactly as it is.
+        // The template moves only here, after the workout is recorded: the
+        // changes the lifter just said yes to, or — with auto-apply on, the
+        // one path without a question — every proposed move.
+        // `finishProgression` returns `applied: null` with auto-apply off.
         const tpl = canWrite ? train.templates.find((x) => x.id === session.templateId) : undefined;
         let updated: string | null = null;
         let wrote: Promise<boolean> = Promise.resolve(true);
         let after = tpl;
         if (tpl) {
+          const at = new Date();
           const { applied } = finishProgression({
-            rows: tpl.exercises, recs, autoApply, at: new Date(), reasonFor,
+            rows: tpl.exercises, recs, autoApply, at, reasonFor,
           });
-          if (applied) {
+          // The template as it stands NOW, not as the sheet opened on it.
+          const rows = applied ?? (changes.length > 0 ? applyTemplateChanges(tpl.exercises, changes, { at, by: 'engine' }) : null);
+          if (rows) {
             updated = tpl.name;
-            after = { ...tpl, exercises: applied };
+            after = { ...tpl, exercises: rows };
             // Behind the receipt, like the finish itself: a refusal toasts.
-            wrote = writeRows(tpl, applied);
+            wrote = writeRows(tpl, rows);
           }
         }
         // Program v2's one automatic switch waits for this session — AFTER

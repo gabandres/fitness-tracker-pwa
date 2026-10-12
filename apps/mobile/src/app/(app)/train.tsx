@@ -65,7 +65,7 @@ function TrainScreen({ onRetry }: { onRetry: () => void }) {
   };
 
   // Celebration (ADR-0014 §7): finishing a workout that beats a prior best
-  // estimated-1RM bounces the idle hero once with a success haptic.
+  // estimated-1RM bounces the idle hero once.
   // Crossing-only (null-first ref), computed here in the always-mounted parent
   // so it survives the active→idle remount when a session is saved.
   const [prPulse, triggerPrPulse] = usePulse(1.05);
@@ -74,42 +74,66 @@ function TrainScreen({ onRetry }: { onRetry: () => void }) {
   useEffect(() => {
     if (train.loading) return;
     const prev = prevBest.current;
-    if (prev && improvedExercises(prev, bestByEx).length > 0) {
-      haptics.success();
-      triggerPrPulse();
-    }
+    // No haptic here (train-ux F13): the Finish sheet already fired one on
+    // opening with a record and one on Complete — a third read as noise.
+    if (prev && improvedExercises(prev, bestByEx).length > 0) triggerPrPulse();
     prevBest.current = bestByEx;
   }, [bestByEx, train.loading, triggerPrPulse]);
 
+  const idle = !(train.loading || (train.activePending && !train.active)) && !train.active;
+  const header = (
+    <View style={[styles.headerRow, largeTitle.rowStyle]} testID="train-header">
+      <Text style={[styles.title, largeTitle.titleStyle]} accessibilityRole="header" {...largeTitle.titleProps}>
+        {t('nav.train')}
+      </Text>
+      {/* The tab is full of lifting vocabulary (RIR, cluster, e1RM); this is
+          the always-available way to look any of it up. */}
+      <TouchableOpacity
+        onPress={() => setGlossaryOpen(true)}
+        hitSlop={10}
+        accessibilityRole="button"
+        accessibilityLabel={t('train.glossaryOpen')}
+        style={styles.headerHelp}
+        testID="train-glossary-open"
+      >
+        <Ionicons name="help-circle-outline" size={24} color={colors.muted} />
+      </TouchableOpacity>
+      <HeaderAvatar />
+    </View>
+  );
+  // At accessibility sizes the stacked title row (title, then "?" and the
+  // avatar) held about a quarter of the screen, pinned, while the list
+  // scrolled under it. There it scrolls away with the content, as an iOS
+  // large title collapses (train-ux H-N11). Smaller sizes keep it pinned.
+  const headerInScroll = idle && largeTitle.stacked;
+
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
-      <View style={[styles.headerRow, largeTitle.rowStyle]}>
-        <Text style={[styles.title, largeTitle.titleStyle]} accessibilityRole="header" {...largeTitle.titleProps}>
-          {t('nav.train')}
-        </Text>
-        {/* The tab is full of lifting vocabulary (RIR, cluster, e1RM); this is
-            the always-available way to look any of it up. */}
-        <TouchableOpacity
-          onPress={() => setGlossaryOpen(true)}
-          hitSlop={10}
-          accessibilityRole="button"
-          accessibilityLabel={t('train.glossaryOpen')}
-          style={styles.headerHelp}
-          testID="train-glossary-open"
-        >
-          <Ionicons name="help-circle-outline" size={24} color={colors.muted} />
-        </TouchableOpacity>
-        <HeaderAvatar />
-      </View>
+      {/* Not during a workout: the title, "?" and avatar took ~100pt above the
+          session's own header, and with the tab bar and the rest bar the sets
+          got about half the screen (Train UX pass L4). The tab bar already
+          says "Train"; the glossary moves into the session ⋯. */}
+      {train.active || headerInScroll ? null : header}
       <TrainGlossary visible={glossaryOpen} onClose={() => setGlossaryOpen(false)} />
       {train.loading || (train.activePending && !train.active) ? (
         <View style={styles.fill}>
           <ActivityIndicator color={colors.accent} />
         </View>
       ) : train.active ? (
-        <ActiveSession train={train} bestByEx={bestByEx} onFinish={() => setFinishOpen(true)} />
+        <ActiveSession
+          train={train}
+          bestByEx={bestByEx}
+          onFinish={() => setFinishOpen(true)}
+          onOpenGlossary={() => setGlossaryOpen(true)}
+        />
       ) : (
-        <StartView train={train} heroPulse={prPulse} onRetry={onRetry} onShare={shareSession} />
+        <StartView
+          train={train}
+          heroPulse={prPulse}
+          onRetry={onRetry}
+          onShare={shareSession}
+          header={headerInScroll ? header : undefined}
+        />
       )}
       <TrainFinishSheet
         train={train}

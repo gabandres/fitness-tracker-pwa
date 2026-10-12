@@ -1,10 +1,11 @@
-import { ScrollView, Text, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { SheetTextInput } from '@/components/SheetTextInput';
 import { useEffect, useState } from 'react';
 import type { SeedExercise } from '@macrolog/core';
 import type { Exercise } from '@/lib/workout';
 import { useT } from '@/i18n';
 import { BottomSheet, NATIVE_SHEETS } from '@/components/BottomSheet';
+import { SheetHeader } from '@/components/SheetHeader';
 import { useDeferredFocus } from '@/lib/use-deferred-focus';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { createStyles } from './train-styles';
@@ -87,7 +88,13 @@ export function ExerciseLibrarySheet({
   return (
     <BottomSheet native detents={[0.6, 1]} visible={visible} onClose={onClose} contentStyle={styles.sheetBody} maxHeight="80%">
       <View style={styles.sheetStack}>
-      <Text style={styles.sheetTitle} accessibilityRole="header">{t('train.libraryTitle')}</Text>
+      {/* A visible way out, like every other home sheet (train-ux H-N6): it
+          opened with only a grabber. Header only — the ScrollView and its rows
+          below are untouched (see "Revived 2026-10-04" above). */}
+      <SheetHeader
+        title={t('train.libraryTitle')}
+        trailing={{ label: t('common.done'), onPress: onClose, testID: 'library-done' }}
+      />
       <SheetTextInput
         ref={inputRef}
         style={styles.input}

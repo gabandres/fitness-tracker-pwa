@@ -60,8 +60,9 @@ describe('recommendation text — the rep-range rules on real engine output', ()
 
   it('two clusters, one short: names the cluster that holds the load', () => {
     const out = text(rec([ex([...cluster(1, 100, 12), ...cluster(2, 100, 10)])], PRESS));
-    expect(out.reason).toBe('C2 gave 10 — all 2 clusters need 12 to add load. Same load, one more rep.');
-    expect(out.last).toBe('Last: C1 12 @ RIR 0 · C2 10 @ RIR 0');
+    // "Set 2", the logger's own numbering — not an engine-only "C2" (train-ux X17).
+    expect(out.reason).toBe('Set 2 gave 10 — all 2 clusters need 12 to add load. Same load, one more rep.');
+    expect(out.last).toBe('Last: Set 1 — 12 @ RIR 0 · Set 2 — 10 @ RIR 0');
   });
 
   it('every cluster at the top: INCREASE, the next step, and what to EXPECT there', () => {
@@ -130,9 +131,10 @@ describe('recommendation text — the rep-range rules on real engine output', ()
     expect(vary.reason).toBe('15 reps at bodyweight — the top of the range (15). Move to a harder variation or a slower tempo.');
   });
 
-  it('an invalid read: REPEAT — invalid read, and the mini reason', () => {
+  it("an invalid read: REPEAT — couldn't judge last time, and the mini reason", () => {
     const out = text(rec([ex(cluster(1, 70, 12, 2, 10, 9))], PRESS));
-    expect(out.headline).toBe('70 lb · REPEAT — invalid read');
+    // Gym words, not engine words (train-ux L15/F5/J2/X17).
+    expect(out.headline).toBe("70 lb · REPEAT — couldn't judge last time");
     expect(out.call).toBe('repeat-invalid');
     expect(out.reason).toBe('First mini was 10 reps; above 5 means the activation was not close enough to failure.');
     expect(out.target).toBeNull();

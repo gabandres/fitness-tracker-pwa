@@ -215,9 +215,12 @@ describe('the PREVIOUS column', () => {
   it('shows last session per ROW, positionally', async () => {
     mockActive = activeSession;
     const ui = await render(<TrainScreen />);
-    await waitFor(() => expect(ui.getByTestId('set-prev-0-0')).toBeTruthy());
-    expect(ui.getByTestId('set-prev-0-0')).toHaveTextContent('135×8');
-    expect(ui.getByTestId('set-prev-0-1')).toHaveTextContent('135×6');
+    // Hidden from screen readers since the Train UX pass (L6) — the fields'
+    // hints say "Last time …" — so the query includes hidden elements.
+    const hidden = { includeHiddenElements: true };
+    await waitFor(() => expect(ui.getByTestId('set-prev-0-0', hidden)).toBeTruthy());
+    expect(ui.getByTestId('set-prev-0-0', hidden)).toHaveTextContent('135×8');
+    expect(ui.getByTestId('set-prev-0-1', hidden)).toHaveTextContent('135×6');
   });
 
   it('ticking an untyped set accepts last session’s reps AND load', async () => {

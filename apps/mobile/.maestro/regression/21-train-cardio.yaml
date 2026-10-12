@@ -50,7 +50,7 @@ appId: fit.ignia.app
 - assertVisible: 'Today'
 - tapOn:
     id: 'tab-train'
-# Prove we actually LEFT Today. `train-glossary-open` is in the Train header
+# Prove we actually LEFT Today. `train-glossary-open` (idle) / `session-menu` (live, L4) is in the Train header
 # and is present in both of that tab's states (idle and mid-session), so it is
 # the one anchor that says "navigation worked" without also saying which state
 # we landed in. Without it a failed tab tap surfaces three steps later as a
@@ -62,7 +62,7 @@ appId: fit.ignia.app
 # flake rather than a defect.
 - extendedWaitUntil:
     visible:
-      id: 'train-glossary-open'
+      id: 'train-glossary-open|session-menu'
     timeout: 60000
 
 # Let Train SETTLE before the guard reads it. `runFlow: when:` is a condition
@@ -88,8 +88,9 @@ appId: fit.ignia.app
       # to confirm. The header is always on screen, so no scroll is needed.
       - tapOn:
           id: 'session-menu'
-      - tapOn:
-          id: 'session-menu-discard'
+      # iOS: the session ⋯ is a native menu, whose rows carry no testID
+      # (`session-menu-discard` exists only on the JS fallback sheet). 2026-10-11.
+      - tapOn: 'Discard workout'
       - tapOn:
           id: 'confirm-go'
       - extendedWaitUntil:
@@ -163,7 +164,21 @@ appId: fit.ignia.app
 #     the block was stored with `durationSec: 0` while the screen showed 32:00.
 # The session ScrollView sets `keyboardShouldPersistTaps="handled"`, so a tap on
 # the card's own title dismisses the keyboard AND blurs the field.
-- tapOn: 'Run'
+# 2026-10-12 (v4 QA): an empty workout with only a Run block is now TITLED "Run"
+# in the session header, so 'Run' matches the header too. Android's Maestro took
+# the header (outside the ScrollView): no blur, the number pad stayed over the
+# tab bar, and `tab-index` failed. Android taps the card's own AVG HR label
+# instead; the iOS path is unchanged (it passed 2026-10-12).
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: 'Run'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - tapOn: '(?i)avg hr \(bpm\)'
 
 # 32 minutes through `formatDuration` in core: unpadded minutes under an hour.
 # If this reads 0:00 the deferred dispatch never committed on blur.
@@ -181,7 +196,7 @@ appId: fit.ignia.app
     id: 'tab-train'
 - extendedWaitUntil:
     visible:
-      id: 'train-glossary-open'
+      id: 'train-glossary-open|session-menu'
     timeout: 60000
 # SCROLL before asserting. Returning to Train resets the session ScrollView to
 # the top and the cardio card sits below the exercise list, so a bare assert
@@ -201,8 +216,9 @@ appId: fit.ignia.app
 # to confirm. The header is always on screen, so no scroll is needed.
 - tapOn:
     id: 'session-menu'
-- tapOn:
-    id: 'session-menu-discard'
+# iOS: the session ⋯ is a native menu, whose rows carry no testID
+# (`session-menu-discard` exists only on the JS fallback sheet). 2026-10-11.
+- tapOn: 'Discard workout'
 - tapOn:
     id: 'confirm-go'
 - extendedWaitUntil:

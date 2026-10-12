@@ -4,6 +4,7 @@ import { type Recommendation, formatLoad } from '@macrolog/core';
 import { useT } from '@/i18n';
 import { useUnitSystem } from '@/lib/use-unit-system';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
+import { TARGET } from '@/theme';
 import { createStyles } from '@/components/train/train-styles';
 import { recommendationText } from '@/components/train/recommendation-text';
 
@@ -33,6 +34,7 @@ export function RecommendationNote({
   templateLoad,
   onAccept,
   onSettings,
+  name,
   testID,
 }: {
   rec: Recommendation;
@@ -45,6 +47,9 @@ export function RecommendationNote({
   templateLoad?: number;
   onAccept?: (load: number) => void;
   onSettings?: () => void;
+  /** The lift's name, for the gear's label: "Lift settings" alone was the
+   *  same on every row of a template list (train-ux X16). */
+  name?: string;
   testID?: string;
 }) {
   const t = useT();
@@ -71,8 +76,10 @@ export function RecommendationNote({
           <TouchableOpacity
             style={styles.bumpChip}
             onPress={() => onAccept(rec.load as number)}
-            hitSlop={{ top: 6, bottom: 6 }}
+            // 32 pt chip + 8 + 8 = 48: Android's floor, not only iOS's 44.
+            hitSlop={{ top: 8, bottom: 8 }}
             accessibilityRole="button"
+            accessibilityHint={text.load ? t('train.rec.acceptHint', { load: text.load }) : undefined}
             testID={testID ? `${testID}-accept` : undefined}
           >
             <Text style={styles.bumpText}>{text.headline}</Text>
@@ -85,7 +92,7 @@ export function RecommendationNote({
             style={styles.recGear}
             onPress={onSettings}
             accessibilityRole="button"
-            accessibilityLabel={t('train.rec.settings')}
+            accessibilityLabel={name ? t('train.lift.openA11y', { name }) : t('train.rec.settings')}
             testID={testID ? `${testID}-settings` : undefined}
           >
             <Ionicons name="options-outline" size={16} color={colors.faint} />
@@ -96,7 +103,9 @@ export function RecommendationNote({
         canUseTemplate ? (
           <TouchableOpacity
             onPress={() => onAccept?.(templateLoad as number)}
-            hitSlop={{ top: 6, bottom: 6 }}
+            // A full target: the ~30 pt line under the headline was the
+            // smallest button in the session (train-ux L3).
+            style={{ minHeight: TARGET, justifyContent: 'center' }}
             accessibilityRole="button"
             accessibilityHint={t('train.rec.templateLoadHint')}
             testID={testID ? `${testID}-template` : undefined}

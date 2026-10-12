@@ -1,25 +1,28 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Keyboard,
   Text,
   type TextInput,
   TouchableOpacity,
   View,
   useWindowDimensions,
 } from 'react-native';
+import { SheetHeader } from '@/components/SheetHeader';
+import { MenuButton } from '@/components/MenuButton';
 import { SheetTextInput } from '@/components/SheetTextInput';
 import { useDoneKeyProps } from '@/components/KeyboardBar';
-import Animated, { useAnimatedRef } from 'react-native-reanimated';
+import Animated, { useAnimatedRef, useReducedMotion } from 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Sortable from 'react-native-sortables';
 import {
   type SeedExercise,
   type UnitSystem,
   MOBILITY_SEED_KEYS,
-  addActionsFor,
   defaultIncrement as defaultIncrementLb,
-  isPristineScaffold,
+  exerciseHistory,
   loadUnit,
+  previousSets,
   carryAndStampRows,
   logUserLoadEdits,
   normalizeClusterGroups,
@@ -66,21 +69,38 @@ import type {
 } from '@/lib/workout';
 import type { useTrain } from '@/hooks/useTrain';
 import { confirm } from '@/components/ConfirmSheet';
-import { showToast } from '@/components/Toast';
+import { hideToast, showToast } from '@/components/Toast';
 import { type TFn, useLocale, useT, type I18nKey} from '@/i18n';
+import { capitalizeFirst, plural } from '@/i18n/grammar';
 import * as haptics from '@/lib/haptics';
 import { smoothLayout } from '@/lib/motion';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { useRevealFocusedInput } from '@/lib/use-reveal-focused-input';
-import { space, TARGET } from '@/theme';
+import { font, space, TARGET } from '@/theme';
 import {
-  CREATION_STYLES, PRIMARY_STRUCTURES, SET_KINDS, SET_STRUCTURES, type CreationStyle,
+  PRIMARY_STRUCTURES, SET_KINDS, SET_STRUCTURES, type CreationStyle,
   kindLabelKey, logStyleFor, numOrUndef, setKindFor,
 } from './train-shared';
-import { ExerciseSearchList } from './ExerciseSearchList';
-import { LiftSettingsSheet } from './LiftSettingsSheet';
+import { ExerciseSearchList, catalogPickKey, seedPickKey } from './ExerciseSearchList';
+import {
+  type SetBuffers,
+  addActionsForDraft,
+  cardSummary,
+  copyFirstTargets,
+  kindsForPicker,
+  nextSetRow,
+  ghostBuffers,
+  offeredCount,
+  reinsertAt,
+  reinsertCard,
+  rowsUntouched,
+  seedTargetLoad,
+  setCountText,
+} from './template-draft';
+import { DEFAULT_REST_CLUSTER_SEC, DEFAULT_REST_MINI_SEC } from './train-summary';
+import { LiftSettingsForm, useLiftSettingsDraft } from './LiftSettingsSheet';
 import { mobilityDoseWarnings } from '@macrolog/core';
-import { BottomSheet } from '@/components/BottomSheet';
+import { BottomSheet, type SheetCloseVia } from '@/components/BottomSheet';
 import { useUnitSystem } from '@/lib/use-unit-system';
 import { createStyles } from './train-styles';
 
@@ -108,6 +128,10 @@ interface DraftSet extends PlannedSet {
   weightText: string;
   repsText: string;
   durationText: string;
+  /** Last session's numbers for this row (`template-draft.ts`
+   *  `ghostBuffers`), shown as placeholders only. Never saved and never put in
+   *  the buffers: a per-set value would override `targetLoad` for good. */
+  ghost?: SetBuffers;
 }
 
 const numText = (n: number | undefined): string => (n != null ? String(n) : '');
@@ -154,7 +178,7 @@ function toDraftSet(ps: PlannedSet, unitSystem: UnitSystem = 'us'): DraftSet {
  *  editor never showed (`repsMax`) is carried through untouched — a field the
  *  editor cannot see must not be a field the next save deletes. */
 function toPlannedSet(d: DraftSet, unitSystem: UnitSystem): PlannedSet {
-  const { weightText, repsText, durationText, ...ps } = d;
+  const { weightText, repsText, durationText, ghost: _ghost, ...ps } = d;
   return {
     ...ps,
     // The draft buffer is in the TRAINING unit; the stored set is pounds
@@ -203,41 +227,15 @@ function draftKey(
   cardio: readonly DraftCardio[],
 ): string {
   // The card key is not a change: strip it, so new uids never read as edits.
-  return JSON.stringify([name, notes, restMini, restCluster, exercises.map(({ uid: _uid, ...e }) => e), cardio]);
-}
-
-/** The one line a collapsed card shows — "3 × 8 · 20 lb". It answers the
- *  question the old card made you expand it to answer, and it degrades
- *  honestly: reps or load that differ across sets collapse to a set count
- *  rather than picking one row's number and implying it holds for all. */
-function exSummary(d: DraftEx, t: TFn, unit: string): string {
-  const n = d.sets.length;
-  const sets = n === 1 ? t('train.setCountOne') : t('train.setCount', { n });
-  /** The value every set shares, or null if they differ — or if ANY set
-   *  leaves it blank, because "3 × 8" must not describe a template where only
-   *  the first row says 8. Compare the FILLED count to the set count: an
-   *  earlier version compared the deduped Set's `size` to it, which is 1 for
-   *  any uniform run and so could only ever be true for a single set. */
-  const one = (vals: string[]): string | null => {
-    const filled = vals.map((v) => v.trim()).filter(Boolean);
-    if (filled.length !== vals.length) return null;
-    return new Set(filled).size === 1 ? filled[0] : null;
-  };
-
-  if (d.logStyle === 'time') {
-    const secs = one(d.sets.map((x) => x.durationText));
-    return secs ? `${n} × ${secs}s` : sets;
-  }
-
-  const reps = one(d.sets.map((x) => x.repsText));
-  const head = reps ? `${n} × ${reps}` : sets;
-  if (d.logStyle === 'bodyweight') return head;
-
-  // Per-set weight wins; the exercise-level default is the fallback it always was.
-  const load = one(d.sets.map((x) => x.weightText)) ?? d.targetLoad.trim();
-  // `unit` is passed in rather than read here: this is a pure formatter and
-  // the draft buffers are already in the training unit.
-  return load ? `${head} · ${load} ${unit}` : head;
+  // Same for the editor-only `isNew` and per-row `ghost` markers.
+  return JSON.stringify([
+    name, notes, restMini, restCluster,
+    exercises.map(({ uid: _uid, isNew: _new, ...e }) => ({
+      ...e,
+      sets: e.sets.map(({ ghost: _ghost, ...s }) => s),
+    })),
+    cardio,
+  ]);
 }
 
 // carries EVERY field the stored TemplateExercise has, because the editor
@@ -249,6 +247,10 @@ interface DraftEx {
    *  index, every one-step move remounted the moved cards and dropped
    *  VoiceOver's focus off the handle. */
   uid: string;
+  /** Added in THIS editing session — never saved. A new card with no
+   *  declared structure gets only "+ Add set" (ADR-0041's all-three rule is
+   *  for legacy templates), and opens with the full structure picker. */
+  isNew?: true;
   exerciseId: string;
   name: string;
   logStyle: LogStyle;
@@ -284,8 +286,20 @@ interface DraftEx {
   loadAsOpened?: { text: string; lb: number };
 }
 
+/** One ticked row in the editor's adder (T18). */
+type AdderPick =
+  | { kind: 'catalog'; exercise: Exercise }
+  | { kind: 'seed'; seed: SeedExercise };
+
+/** The testID every editor Undo toast carries, so closing the editor can
+ *  dismiss its own toast and nobody else's (`hideToast`). */
+const EDITOR_UNDO_TOAST = 'template-undo-toast';
+
 /** "Edit rests": after the confirm sheet's dismiss animation. */
 const EDIT_RESTS_FOCUS_DELAY_MS = 400;
+/** After a pick: the result list folds and the card list re-lays out (the
+ *  Sortable animates it) before the new card is measured and scrolled to. */
+const REVEAL_DELAY_MS = 350;
 
 let uidSeq = 0;
 /** A card key that survives reorders (`DraftEx.uid`). */
@@ -379,15 +393,19 @@ export function TemplateEditorModal({
   // Supersets (2026-10-11): the pair type of every pairing, and which members
   // have a load test pending — advisory, shown under each group, never a
   // block on saving. Muscles come from the catalog (`muscles[0]` is primary).
+  // Depends on the two members it reads, not the whole `train` object, which
+  // is a new identity on every hook render — this ran a load-test read per
+  // superset member on every keystroke anywhere in the sheet (review T25).
+  const { catalog: trainCatalog, pendingLoadTestFor } = train;
   const pairWarnings = useMemo(() => {
-    const muscles = (id: string) => train.catalog.find((e) => e.id === id)?.muscles ?? [];
+    const muscles = (id: string) => trainCatalog.find((e) => e.id === id)?.muscles ?? [];
     /** The load test a row would face next session, judged on the load the
      *  session will seed (the editor's typed load, else the stored row's). */
     const pendingOf = (i: number) => {
       const d = exercises[i];
       const stored = template?.exercises.find((x) => x.exerciseId === d.exerciseId);
       const load = d.loadAsOpened && d.targetLoad === d.loadAsOpened.text ? d.loadAsOpened.lb : parseLoadToLb(d.targetLoad, unitSystem) ?? undefined;
-      return train.pendingLoadTestFor({ ...(stored ?? { exerciseId: d.exerciseId, name: d.name, plannedSets: [] }), targetLoad: load });
+      return pendingLoadTestFor({ ...(stored ?? { exerciseId: d.exerciseId, name: d.name, plannedSets: [] }), targetLoad: load });
     };
     const byLast = new Map<number, {
       group: string;
@@ -404,7 +422,7 @@ export function TemplateEditorModal({
       byLast.set(Math.max(...members), { group: w.group, judgements: w.pairs, pending, size: members.length });
     }
     return byLast;
-  }, [exercises, train, template, unitSystem]);
+  }, [exercises, trainCatalog, pendingLoadTestFor, template, unitSystem]);
   /** Tags from the REAL groups (a lone member is untagged). */
   const tags = useMemo(() => supersetTags(exercises), [exercises]);
   const groups = useMemo(() => supersetGroups(exercises), [exercises]);
@@ -425,7 +443,7 @@ export function TemplateEditorModal({
     // fresh baseline. With an Undo, like unpairing.
     const msg = t('train.superset.pairedToast', { a: a.name, b: b.name, group });
     // The toast speaks it (with its Undo) — announcing too said it twice.
-    showToast(msg, { action: { label: t('common.undo'), onPress: () => setExercises(before) } });
+    showToast(msg, undoAction(() => setExercises(before)));
   }
   /** Take row `i` out of its superset — with an Undo, because a pair's custom
    *  rests go with it. */
@@ -436,14 +454,42 @@ export function TemplateEditorModal({
     haptics.tap();
     setExercises(unpair(exercises, i));
     const msg = t('train.superset.leftGroup', { name: d?.name ?? '', group });
-    showToast(msg, { action: { label: t('common.undo'), onPress: () => setExercises(before) } });
-  }  /** The paired card's link control: what to do with this superset. */
+    showToast(msg, undoAction(() => setExercises(before)));
+  }
+  /** Open the group leader's rest fields and focus the first one. */
+  function editRests(i: number) {
+    const d = exercises[i];
+    if (!d?.supersetGroup) return;
+    const leader = (groups.get(d.supersetGroup) ?? [])[0]?.index ?? i;
+    setOpenEx(leader);
+    setMoreEx(leader);
+    // The rest fields sit at the bottom of the leader's options, far below
+    // its header: focus the first one once any menu/sheet is gone and the
+    // card has rendered — the keyboard rises, `useRevealFocusedInput`
+    // scrolls it into view (both platforms since T3) and VoiceOver lands on it.
+    const uid = exercises[leader]?.uid;
+    // The map only holds MOUNTED inputs, so an editor closed meanwhile
+    // focuses nothing; the frame waits for the card's layout.
+    setTimeout(() => requestAnimationFrame(() => {
+      if (uid) restInputs.current.get(uid)?.focus();
+    }), EDIT_RESTS_FOCUS_DELAY_MS);
+  }
+  /** The superset's two actions — the native menu's rows (J7), and the
+   *  fallback sheet's two buttons where there is no native menu. */
+  function supersetActions(i: number) {
+    const d = exercises[i];
+    return [
+      { key: 'edit-rests', title: t('train.superset.editRests'), sfSymbol: 'timer', onPress: () => editRests(i) },
+      { key: 'unpair', title: t('train.superset.unpairName', { name: d?.name ?? '' }), destructive: true, onPress: () => unpairRow(i) },
+    ];
+  }
+  /** The paired card's link control, where there is no native menu (Expo Go,
+   *  an older binary): the same two choices in a sheet. */
   function askSuperset(i: number) {
     const d = exercises[i];
     if (!d?.supersetGroup) return;
     const group = d.supersetGroup;
     const members = (groups.get(group) ?? []).map((m) => exercises[m.index]);
-    const leader = (groups.get(group) ?? [])[0]?.index ?? i;
     const rests = groupRest(exercises, group);
     // What is in the superset, said; the default is the harmless "Edit rests",
     // and breaking the pair is the outlined second choice (it has an Undo).
@@ -451,20 +497,7 @@ export function TemplateEditorModal({
       title: t('train.superset.manageTitle', { group }),
       body: `${members.map((m) => m.name).join(' + ')} · ${t('train.superset.restDescInline', { switch: `${rests.transitionRestSec} s`, round: `${rests.roundRestSec} s` })}`,
       confirmText: t('train.superset.editRests'),
-      onConfirm: () => {
-        setOpenEx(leader);
-        setMoreEx(leader);
-        // The rest fields sit at the bottom of the leader's options, far below
-        // its header: focus the first one once the sheet is gone and the card
-        // has rendered — the keyboard rises, `useRevealFocusedInput` scrolls
-        // it into view and VoiceOver lands on it.
-        const uid = exercises[leader]?.uid;
-        // The map only holds MOUNTED inputs, so an editor closed meanwhile
-        // focuses nothing; the frame waits for the card's layout.
-        setTimeout(() => requestAnimationFrame(() => {
-          if (uid) restInputs.current.get(uid)?.focus();
-        }), EDIT_RESTS_FOCUS_DELAY_MS);
-      },
+      onConfirm: () => editRests(i),
       secondaryText: t('train.superset.unpairName', { name: d.name }),
       onSecondary: () => unpairRow(i),
     });
@@ -482,28 +515,57 @@ export function TemplateEditorModal({
     [exercises],
   );
   const [moreEx, setMoreEx] = useState<number | null>(null);
-  /** The card whose catalog lift the settings sheet is open for. An exercise
-   *  id, not an index: the list can be reordered under an open sheet. */
+  /** The card whose catalog lift the settings PAGE is open for. An exercise
+   *  id, not an index: the list can be reordered under an open page. */
   const [liftFor, setLiftFor] = useState<string | null>(null);
+  /** The editor's scroll offset when the settings page opened, restored on
+   *  the way back so the lifter lands on the card they left (X6). */
+  const editorScrollY = useRef(0);
+  const liftReturnY = useRef<number | null>(null);
   /** Which card is showing the declared-but-unread structures (`drop`,
    *  `superset`). Null = every card shows the readable six. */
   const [structuresOpen, setStructuresOpen] = useState<number | null>(null);
   /** Which card just kept its typed rows through a structure change, so the
    *  card can SAY it did rather than look like the choice did nothing. */
   const [structureKept, setStructureKept] = useState<number | null>(null);
+  /** Cards (by uid) whose cluster-name fields were asked for (E-N7). A card
+   *  that already names a cluster shows them anyway. */
+  const [clusterNamesFor, setClusterNamesFor] = useState<ReadonlySet<string>>(new Set());
   /** Notes, rest defaults and prescribed cardio, behind one row. A new
    *  template's first four fields used to be Name, Notes, "Rest (mini)" and
    *  "Rest (cluster)" — two of the four being myo-reps vocabulary, asked
    *  before a single exercise existed. */
   const [optionsOpen, setOptionsOpen] = useState(false);
+  /** The card (by uid) whose full structure picker was opened from its
+   *  compact "Set structure: … · Change" row (T6). */
+  const [structurePick, setStructurePick] = useState<string | null>(null);
+  /** Save pressed with no name: said under the field, not by a grey button
+   *  that gives no reason (T10). */
+  const [nameErr, setNameErr] = useState(false);
+  const nameRef = useRef<TextInput>(null);
+  /** The adder's multi-pick, in the order ticked (T18) — the order added. */
+  const [picked, setPicked] = useState<ReadonlyMap<string, AdderPick>>(new Map());
+  /** The adder is focused: an empty query then browses the catalog (T18). */
+  const [adderFocused, setAdderFocused] = useState(false);
+  /** The adder's y in the scroll content, so focusing it can lift it to the
+   *  top and leave the results room above the keyboard (T1). */
+  const adderY = useRef(0);
+  /** The adder's box and each card's, for scrolling a just-added card into
+   *  view (both measured in the window, the offset is the difference). */
+  const adderRef = useRef<View>(null);
+  const cardRefs = useRef(new Map<string, View>());
+  /** The card to bring into view once the adder has folded away. */
+  const [revealUid, setRevealUid] = useState<string | null>(null);
+  const reduceMotion = useReducedMotion();
   /** Handed to Sortable so a drag near the sheet's edge scrolls it. It must be
    *  a Reanimated AnimatedRef on an Animated.ScrollView — a plain ref is
    *  accepted by the types and simply never auto-scrolls. */
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
   /** The leaders' switch-rest inputs by card key — "Edit rests" focuses one. */
   const restInputs = useRef(new Map<string, TextInput>());
-  /** Android: the last set's field went under the keyboard (UX_AUDIT S22). */
-  const onEditorScroll = useRevealFocusedInput(scrollRef);
+  /** The focused field, lifted above the keyboard once it is up — Android
+   *  (UX_AUDIT S22) and, since T3, iOS. */
+  const { onScroll: onEditorScroll, contentTopRef } = useRevealFocusedInput(scrollRef);
   /** Exercise cards need an explicit PIXEL width. They are children of
    *  `Sortable.Flex`, which wraps each one in a container it measures from the
    *  child — so there is no definite parent width for `100%` to resolve
@@ -522,6 +584,36 @@ export function TemplateEditorModal({
    * question (Train review bug 8); with changes, they now ask first.
    */
   const [pristine, setPristine] = useState('');
+
+  /**
+   * The editing session an Undo belongs to (fix R). Bumped on every open,
+   * close and template switch: an Undo toast still on screen after the editor
+   * closed used to write template A's list into template B when B opened.
+   * Closing also dismisses the editor's own toast.
+   */
+  const editorSession = useRef(0);
+  useEffect(() => {
+    editorSession.current += 1;
+    if (!visible) hideToast(EDITOR_UNDO_TOAST);
+  }, [visible, template]);
+  /** The list as last rendered — what a removal's Undo re-inserts into. */
+  const exercisesNow = useRef(exercises);
+  useEffect(() => {
+    exercisesNow.current = exercises;
+  });
+  /** An Undo for a toast raised now: runs `fn` only in this editing session. */
+  function undoAction(fn: () => void) {
+    const session = editorSession.current;
+    return {
+      testID: EDITOR_UNDO_TOAST,
+      action: {
+        label: t('common.undo'),
+        onPress: () => {
+          if (editorSession.current === session) fn();
+        },
+      },
+    };
+  }
 
   useEffect(() => {
     if (!visible) return;
@@ -576,6 +668,7 @@ export function TemplateEditorModal({
     setLiftFor(null);
     setStructuresOpen(null);
     setStructureKept(null);
+    setClusterNamesFor(new Set());
     // Opened by DEFAULT when the template already uses any of it — an existing
     // template's notes and rests must not become invisible on the next edit.
     setOptionsOpen(
@@ -588,9 +681,71 @@ export function TemplateEditorModal({
     setExName('');
     setExStyle('weight-reps');
     setBusy(false);
+    setStructurePick(null);
+    setNameErr(false);
+    setPicked(new Map());
+    setAdderFocused(false);
   }, [visible, template]);
 
   const trimmedEx = exName.trim();
+
+  // After the list folds and the keyboard starts down (a frame is not enough
+  // for the Sortable's layout pass), scroll the added card to just under the
+  // top of the sheet. Measured against the adder, whose content offset is known.
+  useEffect(() => {
+    if (!revealUid) return;
+    const timer = setTimeout(() => {
+      setRevealUid(null);
+      const card = cardRefs.current.get(revealUid);
+      const adder = adderRef.current;
+      if (!card || !adder) return;
+      adder.measureInWindow((_ax, ay) => {
+        card.measureInWindow((_cx, cy) => {
+          if (!Number.isFinite(ay) || !Number.isFinite(cy)) return;
+          scrollRef.current?.scrollTo({ y: Math.max(0, adderY.current + (cy - ay) - space.sm), animated: !reduceMotion });
+        });
+      });
+    }, REVEAL_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [revealUid, reduceMotion, scrollRef]);
+
+  /** The lift's sets from its last session — what a new card's ghosts and
+   *  starting load come from (T7). */
+  const lastSets = (exerciseId: string) => previousSets(exerciseHistory(train.recentSessions, exerciseId));
+
+  /** Blank rows for `kinds`, each showing what the lifter did in it last time
+   *  as ghost text (T7, `ghostBuffers`). Nothing is put in the buffers, so an
+   *  untouched card saves no per-set weight or reps (fix R): those would
+   *  override the lift's `targetLoad` and stall progression for good. */
+  function seededRows(exerciseId: string, logStyle: LogStyle, kinds: readonly SetKind[]): DraftSet[] {
+    const prev = lastSets(exerciseId);
+    const ghosts = prev.length ? ghostBuffers(kinds, prev, logStyle, unitSystem) : [];
+    return normalizeClusterGroups(kinds.map((k, i) => {
+      const ghost = ghosts[i];
+      return ghost ? { ...newDraftSet(k), ghost } : newDraftSet(k);
+    }));
+  }
+
+  function buildEx(
+    exercise: Pick<DraftEx, 'exerciseId' | 'name' | 'logStyle'> & { cuesText?: string },
+    kind: SetKind,
+  ): DraftEx {
+    return {
+      uid: nextUid(),
+      isNew: true,
+      ...exercise,
+      // The lift's load starts at last session's working load, in the field
+      // progression moves — not copied onto each row (fix R).
+      targetLoad: seedTargetLoad(lastSets(exercise.exerciseId), exercise.logStyle, unitSystem),
+      cuesText: exercise.cuesText ?? '',
+      hasProgression: false,
+      targetReps: '',
+      holdSessions: '',
+      incrementLb: '',
+      restMiniSec: '',
+      sets: seededRows(exercise.exerciseId, exercise.logStyle, [kind, kind, kind]),
+    };
+  }
 
   function appendEx(
     exercise: Pick<DraftEx, 'exerciseId' | 'name' | 'logStyle'> & { cuesText?: string },
@@ -598,24 +753,30 @@ export function TemplateEditorModal({
     // and cardio paths read unchanged; only mobility ever passes anything.
     kind: SetKind = 'working',
   ) {
-    setExercises((prev) => [
-      ...prev,
-      {
-        uid: nextUid(),
-        ...exercise,
-        targetLoad: '',
-        cuesText: exercise.cuesText ?? '',
-        hasProgression: false,
-        targetReps: '',
-        holdSessions: '',
-        incrementLb: '',
-        restMiniSec: '',
-        sets: [newDraftSet(kind), newDraftSet(kind), newDraftSet(kind)],
-      },
-    ]);
-    setOpenEx(exercises.length); // the index the new card lands on
+    appendMany([buildEx(exercise, kind)]);
+  }
+
+  /** Append built cards; the first one opens (you added it to edit it). */
+  function appendMany(added: DraftEx[]) {
+    if (!added.length) return;
+    setExercises((prev) => [...prev, ...added]);
+    setOpenEx(exercises.length); // the index the first new card lands on
     setMoreEx(null);
     setExName('');
+    setPicked(new Map());
+    // The pick is made: the keyboard and the result list go, and the new card
+    // is brought into view — it used to sit under both, so the next tap
+    // landed on a key (Train UX v2 QA; regression 18 needed a return press).
+    Keyboard.dismiss();
+    setAdderFocused(false);
+    setRevealUid(added[0].uid);
+    // Structure first (ADR-0041 §5): the new card opens on the full picker.
+    setStructurePick(added[0].uid);
+    // Said, because the card lands below the adder, out of a screen reader's
+    // current position (T13).
+    announce(added.length === 1
+      ? t('train.exAddedA11y', { name: added[0].name, count: setCountText(t, locale, added[0].sets) })
+      : added.map((d) => d.name).join(', '));
   }
 
   function addFromCatalog(c: Exercise) {
@@ -680,6 +841,56 @@ export function TemplateEditorModal({
     setBusy(false);
   }
 
+  /** Tick or untick one adder row (T18) — the in-session sheet's pick. */
+  function togglePick(key: string, pick: AdderPick) {
+    haptics.selection();
+    setPicked((cur) => {
+      const next = new Map(cur);
+      if (next.has(key)) next.delete(key);
+      else next.set(key, pick);
+      return next;
+    });
+  }
+
+  /** "Add (n)": every ticked row, in the order ticked. Library rows mint
+   *  their catalog entry first, as a single pick does. */
+  async function addPicked() {
+    if (busy || picked.size === 0) return;
+    haptics.tap();
+    setBusy(true);
+    const picks = [...picked.values()];
+    // Built by a nested function and only CALLED inside the try: React
+    // Compiler cannot lower the conditionals below inside a try block.
+    const resolve = async (p: AdderPick): Promise<DraftEx> => {
+      if (p.kind === 'catalog') {
+        const c = p.exercise;
+        const mobility = exStyle === 'mobility' || (c.seedKey != null && MOBILITY_SEED_KEYS.has(c.seedKey));
+        return buildEx(
+          { exerciseId: c.id!, name: c.name, logStyle: c.logStyle ?? 'weight-reps', cuesText: (c.defaultCues ?? []).join('\n') },
+          mobility ? 'mobility' : 'working',
+        );
+      }
+      const { id, name: canonical, logStyle } = await train.addLibraryExercise(p.seed);
+      return buildEx(
+        { exerciseId: id, name: canonical, logStyle, cuesText: seedExerciseCues(p.seed, locale).join('\n') },
+        seedSetKind(p.seed, logStyle),
+      );
+    };
+    const run = async () => {
+      const built: DraftEx[] = [];
+      for (const p of picks) built.push(await resolve(p));
+      return built;
+    };
+    try {
+      appendMany(await run());
+    } catch (e) {
+      // Reset and rethrow, then reset after: see `addFromLibrary`.
+      setBusy(false);
+      throw e;
+    }
+    setBusy(false);
+  }
+
   function addCardio(modality: CardioModality) {
     setCardioBlocks((cur) => [...cur, { modality, label: '', minutes: '', distance: '' }]);
   }
@@ -688,8 +899,18 @@ export function TemplateEditorModal({
     setCardioBlocks((cur) => cur.map((b, i) => (i === index ? { ...b, ...patch } : b)));
   }
 
+  /** With an Undo, like every removal here (T5). */
   function removeCardio(index: number) {
-    setCardioBlocks((cur) => cur.filter((_, i) => i !== index));
+    const b = cardioBlocks[index];
+    if (!b) return;
+    haptics.tap();
+    setCardioBlocks(cardioBlocks.filter((_, i) => i !== index));
+    // Undo puts back THIS block into the list as it is then — not a snapshot
+    // that would undo every edit made while the toast was up (fix R).
+    showToast(
+      t('train.exRemovedToast', { name: b.label.trim() || t(TPL_MODALITY_KEY[b.modality]) }),
+      undoAction(() => setCardioBlocks((cur) => reinsertAt(cur, b, index))),
+    );
   }
 
   function patchEx(index: number, patch: Partial<DraftEx>) {
@@ -697,12 +918,27 @@ export function TemplateEditorModal({
   }
 
   function removeEx(index: number) {
+    const before = exercises;
+    const d = exercises[index];
+    if (!d) return;
+    haptics.tap();
     // A partner left alone runs straight: normalize, so its tag goes too.
-    setExercises((prev) => normalizeSupersets(prev.filter((_, i) => i !== index)));
+    setExercises(normalizeSupersets(exercises.filter((_, i) => i !== index)));
     // The flags are INDICES into a list that just shifted; stale ones would
     // expand whichever exercise slid into the removed slot.
     setOpenEx(null);
     setMoreEx(null);
+    // A whole card's sets, cues and progression went with that one tap, so it
+    // comes back with one (T5). Undo re-inserts THIS card into the list as it
+    // is then, with the superset it broke (`reinsertCard`) — not the list as
+    // it was, which dropped every edit made while the toast was up (fix R).
+    showToast(t('train.exRemovedToast', { name: d.name }), undoAction(() => {
+      const next = reinsertCard(exercisesNow.current, d, index, before);
+      setExercises(next);
+      const at = next.findIndex((x) => x.uid === d.uid);
+      setOpenEx(at >= 0 ? at : null);
+      setMoreEx(null);
+    }));
   }
 
   // Reorder by one position (array order IS the saved template order). Robust
@@ -751,7 +987,7 @@ export function TemplateEditorModal({
     setExercises(r.rows);
     if (r.left) {
       const msg = t('train.superset.leftGroup', { name: r.left.row.name, group: r.left.group });
-      showToast(msg, { action: { label: t('common.undo'), onPress: () => setExercises(exercises) } });
+      showToast(msg, undoAction(() => setExercises(exercises)));
     }
   }
 
@@ -764,9 +1000,22 @@ export function TemplateEditorModal({
     );
   }
 
+  /** A new row copies the last working row's numbers (T7): set 4 of a
+   *  3 × 8 @ 135 is not a blank form. */
   function addSet(index: number) {
     haptics.tap();
-    mutateSets(index, (sets) => [...sets, newDraftSet('working')]);
+    mutateSets(index, (sets) => [...sets, { ...newDraftSet('working'), ...nextSetRow(sets) }]);
+  }
+
+  /** "Copy set 1 to all sets": row 1's numbers into the blank rows of its
+   *  kind (T7). Rows with numbers already are left alone. */
+  function copyFirstToAll(index: number) {
+    haptics.tap();
+    mutateSets(index, (sets) => {
+      const targets = new Set(copyFirstTargets(sets));
+      const { weightText, repsText, durationText } = sets[0];
+      return sets.map((s, i) => (targets.has(i) ? { ...s, weightText, repsText, durationText } : s));
+    });
   }
 
   function addCluster(index: number) {
@@ -786,8 +1035,21 @@ export function TemplateEditorModal({
     );
   }
 
-  function removeSet(index: number, setIdx: number) {
+  /** With an Undo (T5, rubric R42): the ✕ sits beside the reps field. */
+  function removeSet(index: number, setIdx: number, label: string) {
+    const d = exercises[index];
+    const removed = d?.sets[setIdx];
+    if (!d || !removed) return;
+    const uid = d.uid;
+    haptics.tap();
     mutateSets(index, (sets) => sets.filter((_, i) => i !== setIdx));
+    showToast(t('train.setRemovedToast', { n: label }), undoAction(() =>
+      // By card key, not index: the list may have been reordered since. Only
+      // the removed row goes back, so the card's other edits stay (fix R).
+      setExercises((prev) => prev.map((x) => (
+        x.uid === uid ? { ...x, sets: normalizeClusterGroups(reinsertAt(x.sets, removed, setIdx)) } : x
+      ))),
+    ));
   }
 
   /** Edit one set's target buffers. No haptic — this fires per keystroke. */
@@ -826,13 +1088,9 @@ export function TemplateEditorModal({
     const current = exercises[index];
     if (!current) return;
     const kinds = scaffoldKindsFor(value);
-    const pristine = isPristineScaffold(
-      current.sets.map((x) => ({
-        reps: numOrUndef(x.repsText),
-        weight: numOrUndef(x.weightText),
-        durationSec: numOrUndef(x.durationText),
-      })),
-    );
+    // `isPristineScaffold`, with rows the editor SEEDED from history counting
+    // as placeholders: a number nobody typed must not block the scaffold.
+    const pristine = rowsUntouched(current.sets);
     // Both decisions are made HERE, out of the updater. Calling `setState`
     // from inside another `setState`'s updater makes the updater impure, and
     // React is free to run it twice or discard the result — which it did: the
@@ -841,14 +1099,18 @@ export function TemplateEditorModal({
     // Only a notice when there was a scaffold to apply and it was withheld.
     // "Auto" declares nothing and rewrites nothing, by design.
     setStructureKept(kinds.length > 0 && !pristine ? index : null);
+    // A choice made: the picker folds back to its one-line summary (T6).
+    setStructurePick(null);
     setExercises((prev) =>
       prev.map((d, i) =>
         i === index
           ? {
               ...d,
               setStructure: value,
+              // The new rows get ghosts again, by kind: last session's
+              // working sets show over working rows, never a myo-rep's minis.
               ...(rescaffold
-                ? { sets: normalizeClusterGroups(kinds.map((k) => newDraftSet(k))) }
+                ? { sets: seededRows(d.exerciseId, d.logStyle, kinds) }
                 : {}),
             }
           : d,
@@ -858,11 +1120,18 @@ export function TemplateEditorModal({
 
   function setSetKind(index: number, setIdx: number, kind: SetKind) {
     haptics.tap();
-    mutateSets(index, (sets) => sets.map((s, i) => (i === setIdx ? { ...s, kind } : s)));
+    // A row's ghost belongs to its old kind's counterpart: dropped with it.
+    mutateSets(index, (sets) => sets.map((s, i) => {
+      if (i !== setIdx) return s;
+      const { ghost: _ghost, ...rest } = s;
+      return { ...rest, kind };
+    }));
     setKindOpen(null);
   }
 
-  const canSave = name.trim().length > 0 && !busy;
+  // Enabled unless a write is in flight: a nameless Save is answered with a
+  // reason under the Name field, not a grey button that gives none (T10).
+  const canSave = !busy;
   const dirty = useMemo(
     () => visible && draftKey(name, notes, restMini, restCluster, exercises, cardioBlocks) !== pristine,
     [visible, name, notes, restMini, restCluster, exercises, cardioBlocks, pristine],
@@ -875,9 +1144,14 @@ export function TemplateEditorModal({
       onClose();
       return true;
     }
+    // Named (T16): which template, and what happens to the saved version.
+    // A new template has no saved version, and says so.
+    const savedName = template?.name.trim();
     confirm({
-      title: t('train.discardChangesTitle'),
-      body: t('train.discardChangesBody'),
+      title: template
+        ? t('train.discardTplTitle', { name: savedName || t('train.editTemplate') })
+        : t('train.discardNewTplTitle'),
+      body: template ? t('train.discardTplBody') : t('train.discardNewTplBody'),
       confirmText: t('train.discard'),
       destructive: true,
       onConfirm: onClose,
@@ -887,6 +1161,16 @@ export function TemplateEditorModal({
 
   async function save() {
     if (!canSave) return;
+    if (!name.trim()) {
+      setNameErr(true);
+      haptics.warning();
+      announce(t('train.templateNameRequired'));
+      // The Name field sits above the scroll's top once the user is deep in
+      // the cards: bring it back, then put the cursor in it.
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+      nameRef.current?.focus();
+      return;
+    }
     setBusy(true);
     setErr('');
     // Built by a nested function and only CALLED inside the try: React
@@ -981,8 +1265,12 @@ export function TemplateEditorModal({
       onClose();
     } catch {
       // Without this the sheet just sat there on a rejected write and the
-      // save looked like a no-op — the failure mode that hid this bug.
+      // save looked like a no-op — the failure mode that hid this bug. Felt
+      // and spoken too, and shown under the header the Save was pressed in:
+      // at the end of the content it sat under every card (E-N3).
       setErr(t('train.saveErr'));
+      haptics.warning();
+      announce(t('train.saveErr'));
     }
     // After the try/catch, not in a `finally`: React Compiler cannot lower a
     // `finally` and skips the whole component. Nothing above can throw past
@@ -996,7 +1284,9 @@ export function TemplateEditorModal({
     if (!template?.id || busy) return;
     const id = template.id;
     confirm({
-      title: t('train.deleteTemplateTitle'),
+      // `{name}`: the key reads "Delete {name}?" (review H10/T16, key owned by
+      // the home-screen pass); a key still without the slot ignores it.
+      title: t('train.deleteTemplateTitle', { name: template.name }),
       body: t('train.deleteTemplateBody'),
       confirmText: t('train.delete'),
       destructive: true,
@@ -1020,17 +1310,69 @@ export function TemplateEditorModal({
 
   const liftEx = liftFor ? train.catalog.find((c) => c.id === liftFor) ?? null : null;
   const liftRow = liftFor ? exercises.find((d) => d.exerciseId === liftFor) : undefined;
+  /**
+   * Lift settings, as a PAGE of this sheet rather than a second sheet stacked
+   * on it (train-ux X6/T26/J7, R30/R34) — the in-sheet mode ExerciseDetail
+   * uses. The editor's draft is this component's state, untouched while the
+   * page shows, so Back returns to it exactly as left. The stack fallback step
+   * reads the row's increment as typed.
+   */
+  const liftOpen = visible && liftEx != null;
+  const lift = useLiftSettingsDraft({
+    active: liftOpen,
+    exercise: liftEx,
+    templateRow: liftRow ? {
+      name: liftRow.name,
+      progression: liftRow.hasProgression
+        ? { incrementLb: parseLoadToLb(liftRow.incrementLb, unitSystem) ?? defaultIncrementLb(unitSystem) }
+        : undefined,
+      // As drafted, so the cluster-credit line follows the card (J-N1).
+      setStructure: liftRow.setStructure,
+      plannedSets: liftRow.sets,
+    } : null,
+    onClose: () => setLiftFor(null),
+    onSave: (patch) => (liftEx?.id ? train.editCatalogExercise(liftEx.id, patch) : Promise.resolve()),
+  });
+  const backName = name.trim() || (template ? t('train.editTemplate') : t('train.newTemplateTitle'));
+
+  // Into the page: from its top. Back out: where the lifter was. The frame
+  // lets the swapped content lay out before the offset is applied.
+  useEffect(() => {
+    if (liftOpen) {
+      if (liftReturnY.current == null) liftReturnY.current = editorScrollY.current;
+      scrollRef.current?.scrollTo({ y: 0, animated: false });
+    } else if (liftReturnY.current != null) {
+      const y = liftReturnY.current;
+      liftReturnY.current = null;
+      requestAnimationFrame(() => scrollRef.current?.scrollTo({ y, animated: false }));
+    }
+  }, [liftOpen, scrollRef]);
+
+  /** Every dismissal while the page shows. Android back steps out of the page
+   *  (`backSteps`), asking first over unsaved settings; a swipe or backdrop
+   *  with unsaved settings asks about THOSE before the editor can close. */
+  function requestDismiss(via: SheetCloseVia): boolean {
+    if (liftOpen && (via === 'back' || lift.dirty)) {
+      lift.requestClose();
+      return false;
+    }
+    return requestClose();
+  }
 
   return (
-    <>
     <BottomSheet
       // Full height, native, and GUARDED while there are changes: a swipe
       // then asks instead of discarding (Train review items 8, 21).
       native
       detents={[1]}
-      guarded={dirty}
-      onRequestClose={requestClose}
+      guarded={dirty || (liftOpen && lift.dirty)}
+      // Android back leaves the Lift settings page before the editor (X6).
+      backSteps={liftOpen}
+      onRequestClose={requestDismiss}
       backdropTestID="template-backdrop"
+      // Its Cancel / Save live in the header; a top toast (Undo, "paired")
+      // covered them for 4–5 s (Train UX v2 QA). Bottom here only.
+      toastAt="bottom"
       visible={visible}
       onClose={onClose}
       contentStyle={styles.sheetBody}
@@ -1047,10 +1389,50 @@ export function TemplateEditorModal({
           the JS sheet — an RN Modal — and the drag there needs it. A nested
           root inside the native sheet is the harmless case above. */}
       <GestureHandlerRootView style={styles.ghRoot}>
+          {/* Cancel and Save in the header, OUTSIDE the scroll (T2): Save was
+              the last thing on a long page, under every card, and the only
+              way out without saving was a swipe. Cancel runs the same
+              dirty-check a swipe does. */}
+          {liftOpen ? (
+            // The page's header: its own Save, and no Cancel — the Back row
+            // under it is the way out, named after where it goes. The
+            // template's Save is not offered from inside another form. The
+            // title is the lift; "Lift settings" is the form's first line
+            // (H-N15), and the form drops its own foot (E-N4).
+            <SheetHeader
+              title={lift.name || t('train.lift.title')}
+              trailing={{ label: t('common.save'), onPress: () => void lift.save(), disabled: !lift.canSave, testID: 'lift-save-header' }}
+            />
+          ) : (
+            <SheetHeader
+              title={template ? t('train.editTemplate') : t('train.newTemplateTitle')}
+              leading={{ label: t('common.cancel'), onPress: () => void requestClose(), testID: 'template-cancel' }}
+              trailing={{
+                label: busy ? t('common.saving') : t('common.save'),
+                onPress: () => void save(),
+                disabled: !canSave,
+                testID: 'save-template',
+              }}
+            />
+          )}
+          {err && !liftOpen ? (
+            <Text style={[styles.error, { marginBottom: space.sm }]} accessibilityLiveRegion="polite" testID="template-save-error">
+              {err}
+            </Text>
+          ) : null}
           <Animated.ScrollView
             ref={scrollRef}
-            onScroll={onEditorScroll}
+            onScroll={(e) => {
+              if (!liftOpen) editorScrollY.current = e.nativeEvent.contentOffset.y;
+              onEditorScroll(e);
+            }}
             scrollEventThrottle={32}
+            // NOT `automaticallyAdjustKeyboardInsets` (regression 18, iOS 26,
+            // 2026-10-12). The sheet route already pads for the keyboard on
+            // both platforms, which shrinks this ScrollView so every field
+            // stays reachable, and `useRevealFocusedInput` places the focused
+            // one. With the prop on, focusing set row 1 scrolled it 282pt —
+            // under the Cancel / Save header — against ~220 without it.
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             /* Bottom slack is REQUIRED, not cosmetic. The exercise cards live in
@@ -1063,20 +1445,47 @@ export function TemplateEditorModal({
                and auto-progression permanently off-screen with no way to scroll
                to them. Padding adds real contentSize, which is what restores
                the scroll range. */
-            contentContainerStyle={{ paddingBottom: 360 }}
+            contentContainerStyle={{ paddingBottom: liftOpen ? space.xl : 360 }}
           >
-            <Text style={styles.sheetTitle} accessibilityRole="header">{template ? t('train.editTemplate') : t('train.newTemplateTitle')}</Text>
-
-            <Text style={styles.fieldLabel}>{t('train.templateName')}</Text>
+            {/* Content y = 0, measured beside the focused field so the reveal
+                reads the offset off the same layout (regression 18). */}
+            <View ref={contentTopRef} collapsable={false} style={{ height: 0 }} />
+            {liftOpen ? (
+              <View>
+                <TouchableOpacity
+                  style={styles.liftBackRow}
+                  onPress={() => void lift.requestClose()}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('train.lift.backTo', { name: backName })}
+                  testID="lift-back"
+                >
+                  <Ionicons name="chevron-back" size={20} color={colors.teal} />
+                  <Text style={styles.liftBackText} numberOfLines={1}>{backName}</Text>
+                </TouchableOpacity>
+                <LiftSettingsForm draft={lift} mode="page" />
+              </View>
+            ) : (
+            <>
+            <Text style={[styles.fieldLabel, { marginTop: space.sm }]}>{t('train.templateName')}</Text>
             <SheetTextInput
-              style={styles.input}
+              ref={nameRef}
+              style={[styles.input, nameErr && { borderColor: colors.danger }]}
               placeholder={t('train.templateNamePh')}
               placeholderTextColor={colors.faint}
               value={name}
-              onChangeText={setName}
+              onChangeText={(v) => {
+                setName(v);
+                if (nameErr && v.trim()) setNameErr(false);
+              }}
               accessibilityLabel={t('train.templateName')}
+              accessibilityHint={nameErr ? t('train.templateNameRequired') : undefined}
               testID="template-name"
             />
+            {nameErr ? (
+              <Text style={[styles.error, { marginTop: space.xs }]} testID="template-name-error">
+                {t('train.templateNameRequired')}
+              </Text>
+            ) : null}
 
             {/* Notes, rest defaults and prescribed cardio, behind one row.
                 A new template's first four fields were Name, Notes, "Rest
@@ -1095,7 +1504,7 @@ export function TemplateEditorModal({
               accessibilityState={{ expanded: optionsOpen }}
               testID="template-options"
             >
-              <Text style={styles.tplOptionsText}>{t('train.templateOptions')}</Text>
+              <Text style={[styles.tplOptionsText, { flex: 1, flexShrink: 1 }]}>{t('train.templateOptions')}</Text>
               <Ionicons
                 name={optionsOpen ? 'chevron-up' : 'chevron-down'}
                 size={16}
@@ -1122,7 +1531,9 @@ export function TemplateEditorModal({
                 <Text style={[styles.fieldLabel, { marginTop: space.sm }]}>{t('train.restMini')}</Text>
                 <SheetTextInput
                   style={styles.input}
-                  keyboardType="numeric"
+                  keyboardType="number-pad"
+                  // The rest the session uses while this is blank (E-N8).
+                  placeholder={String(DEFAULT_REST_MINI_SEC)}
                   placeholderTextColor={colors.faint}
                   value={restMini}
                   onChangeText={setRestMini}
@@ -1135,7 +1546,8 @@ export function TemplateEditorModal({
                 <Text style={[styles.fieldLabel, { marginTop: space.sm }]}>{t('train.restCluster')}</Text>
                 <SheetTextInput
                   style={styles.input}
-                  keyboardType="numeric"
+                  keyboardType="number-pad"
+                  placeholder={String(DEFAULT_REST_CLUSTER_SEC)}
                   placeholderTextColor={colors.faint}
                   value={restCluster}
                   onChangeText={setRestCluster}
@@ -1145,6 +1557,11 @@ export function TemplateEditorModal({
                 />
               </View>
             </View>
+            {/* "Rest between exercises" is also the rest between clusters —
+                said only where a cluster exists to be rested between (T14). */}
+            {exercises.some((d) => d.sets.some((x) => x.kind === 'activation')) ? (
+              <Text style={styles.tplDoseNote} testID="template-rest-cluster-hint">{t('train.restClusterHint')}</Text>
+            ) : null}
 
             {/* ── Prescribed cardio (ADR-0025) ──
                 Above the exercise list rather than below it: a cardio-only
@@ -1203,7 +1620,14 @@ export function TemplateEditorModal({
                     />
                   </View>
                 </View>
-                <TouchableOpacity onPress={() => removeCardio(i)} style={styles.exRemoveRow} accessibilityRole="button">
+                <TouchableOpacity
+                  onPress={() => removeCardio(i)}
+                  style={styles.exRemoveRow}
+                  accessibilityRole="button"
+                  // The object, not just the verb: every block's button read "Remove" (T13).
+                  accessibilityLabel={`${t('cardio.remove')}, ${b.label.trim() || t(TPL_MODALITY_KEY[b.modality])}`}
+                  testID={`template-cardio-remove-${i}`}
+                >
                   <Text style={styles.exRemove}>{t('cardio.remove')}</Text>
                 </TouchableOpacity>
               </View>
@@ -1245,47 +1669,70 @@ export function TemplateEditorModal({
             <Text style={[styles.fieldLabel, { marginTop: space.md }]}>{t('train.templateExercises')}</Text>
 
             {/* Adder at the TOP so it's reachable without scrolling past every
-                exercise. Type → pick a catalog match, or create a new one. */}
-            <SheetTextInput
-              style={[styles.input, { marginTop: space.sm }]}
-              placeholder={t('train.addExercisePh')}
-              placeholderTextColor={colors.faint}
-              value={exName}
-              onChangeText={setExName}
-              accessibilityLabel={t('train.addExerciseA11y')}
-              testID="template-add-exercise"
-            />
-            {trimmedEx ? (
+                exercise. Type → pick a catalog match, or create a new one.
+                Focusing it lifts it to the top of the sheet, so the results
+                under it have the room above the keyboard (T1). */}
+            <View ref={adderRef} onLayout={(e) => { adderY.current = e.nativeEvent.layout.y; }}>
+              <SheetTextInput
+                style={[styles.input, { marginTop: space.sm }]}
+                placeholder={t('train.addExercisePh')}
+                placeholderTextColor={colors.faint}
+                value={exName}
+                onChangeText={setExName}
+                onFocus={() => {
+                  setAdderFocused(true);
+                  scrollRef.current?.scrollTo({ y: Math.max(0, adderY.current - space.sm), animated: true });
+                }}
+                onBlur={() => setAdderFocused(false)}
+                returnKeyType="done"
+                accessibilityLabel={t('train.addExerciseA11y')}
+                testID="template-add-exercise"
+              />
+            </View>
+            {trimmedEx || adderFocused || picked.size > 0 ? (
               <>
-                <View style={[styles.styleRow, styles.styleRowWrap]}>
-                  {CREATION_STYLES.map((ls) => {
-                    const on = exStyle === ls.value;
-                    return (
-                      <TouchableOpacity
-                        key={ls.value}
-                        style={[styles.styleChip, styles.styleChipHalf, on && styles.styleChipOn]}
-                        onPress={() => setExStyle(ls.value)}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected: on }}
-                      >
-                        <Text style={[styles.styleChipText, on && styles.styleChipTextOn]}>{t(ls.labelKey)}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
                 {/* Catalog AND shipped library. The library half is what
                     stops a typed name minting a movement with `muscles: []`
-                    that no screen could then edit. */}
+                    that no screen could then edit. An empty query browses
+                    (T18): the catalog first, the library filling to eight —
+                    a new account's catalog is empty, and a novice who does
+                    not know what to type needs something to pick from. */}
                 <ExerciseSearchList
                   query={exName}
                   catalog={train.catalog}
                   testIDPrefix="template-match"
-                  onPickCatalog={addFromCatalog}
-                  onPickSeed={addFromLibrary}
+                  catalogLimit={trimmedEx ? 6 : 8}
+                  libraryLimit={trimmedEx ? 6 : Math.max(0, 8 - Math.min(train.catalog.length, 8))}
+                  // Several at once, like the in-session sheet (T18): the tick
+                  // starts a pick, and once anything is ticked a row tap ticks too.
+                  onPickCatalog={(c) => (picked.size > 0 ? togglePick(catalogPickKey(c), { kind: 'catalog', exercise: c }) : addFromCatalog(c))}
+                  onPickSeed={(seed) => (picked.size > 0 ? togglePick(seedPickKey(seed), { kind: 'seed', seed }) : void addFromLibrary(seed))}
+                  selected={new Set(picked.keys())}
+                  // Lifts already on a card say so; still pickable (E-N5).
+                  inTemplate={new Set(exercises.map((d) => d.exerciseId))}
+                  onToggleCatalog={(c) => togglePick(catalogPickKey(c), { kind: 'catalog', exercise: c })}
+                  onToggleSeed={(seed) => togglePick(seedPickKey(seed), { kind: 'seed', seed })}
+                  create={trimmedEx ? {
+                    name: trimmedEx,
+                    style: exStyle,
+                    onStyleChange: setExStyle,
+                    onCreate: () => void addFreeType(),
+                    testID: 'template-create-exercise',
+                    styleTestIDPrefix: 'template-logstyle',
+                  } : undefined}
                 />
-                <TouchableOpacity style={styles.createRow} onPress={addFreeType} accessibilityRole="button" testID="template-create-exercise">
-                  <Text style={styles.createText}>{t('train.addNamed', { name: trimmedEx })}</Text>
-                </TouchableOpacity>
+                {picked.size > 0 ? (
+                  <TouchableOpacity
+                    style={[styles.finishBtn, styles.addPickedBtn, { marginTop: space.sm }, busy && styles.btnDisabled]}
+                    onPress={() => void addPicked()}
+                    disabled={busy}
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: busy, busy }}
+                    testID="template-add-picked"
+                  >
+                    <Text style={styles.finishText}>{t('train.addSelected', { n: picked.size })}</Text>
+                  </TouchableOpacity>
+                ) : null}
               </>
             ) : null}
 
@@ -1326,10 +1773,71 @@ export function TemplateEditorModal({
                 const more = moreEx === i;
                 // Undeclared keeps every affordance a legacy template was
                 // written with; a declared structure gets only its own.
-                const canAdd = addActionsFor(d.setStructure);
+                // A card added in this session gets only its own: no legacy
+                // "Add cluster" on a lift nobody has declared anything for (T9).
+                const canAdd = addActionsForDraft(d.setStructure, d.isNew);
+                /** At large text the name needs the card's full width (T11). */
+                const big = fontScale > 1.3;
+                /** The structure picker in full: a card just added, or opened
+                 *  while still new, undeclared and untouched (structure is
+                 *  asked FIRST, ADR-0041 §5), or one whose compact row was
+                 *  tapped. Otherwise one line (T6). Decided when the card
+                 *  opens, not per keystroke: typing the first number must not
+                 *  fold the picker away from under the user. */
+                const structureFull = structurePick === d.uid;
+                /** The structure as the picker knows it — a stored one it does
+                 *  not offer (`superset`) reads as Auto, as the engine reads it. */
+                const declared = SET_STRUCTURES.find((st) => st.value === d.setStructure && st.value !== undefined);
+                const structureName = capitalizeFirst(t((declared ?? SET_STRUCTURES[0]).labelKey), locale);
+                const copyTargets = copyFirstTargets(d.sets);
+                /** "L" / "R" fields under each cluster: chrome most lifters
+                 *  never use, so behind one text action until asked for or
+                 *  already used (E-N7). */
+                const hasClusters = d.sets.some((x) => x.group != null);
+                const clusterNamesShown = clusterNamesFor.has(d.uid) || d.sets.some((x) => x.group != null && !!x.label?.trim());
+                // What each row will offer in the session — typed, else last
+                // time's same-kind row, else the progression's target reps on
+                // a working row (core `countToAccept`, E-N1). The reps
+                // placeholder and the summary both read it; nothing is saved.
+                const prevSets = lastSets(d.exerciseId);
+                const exTargetReps = d.hasProgression ? numOrUndef(d.targetReps) ?? 12 : undefined;
+                const counts = d.sets.map((ps, si) => offeredCount(ps, prevSets[si], d.logStyle, exTargetReps));
+                const summary = cardSummary(d, counts, t, locale, loadUnit(unitSystem));
+                /* One tap to pair, from the collapsed list — it used to be
+                   three taps and a scroll deep, under More options. On a
+                   paired card the glyph is the STATE (linked, filled teal)
+                   and a tap opens the superset's menu (native where the
+                   binary has it — J7 — the sheet otherwise), so one stray
+                   tap beside the chevron cannot break a pair. */
+                const linkCtl = tags[i] ? (
+                  <MenuButton
+                    actions={supersetActions(i)}
+                    title={t('train.superset.manageTitle', { group: d.supersetGroup ?? '' })}
+                    style={styles.supersetLinkBtn}
+                    accessibilityLabel={t('train.superset.manageA11y', { group: d.supersetGroup ?? '', name: d.name })}
+                    onFallbackPress={() => askSuperset(i)}
+                    testID={`template-unlink-${i}`}
+                  >
+                    <Ionicons name="link" size={20} color={colors.teal} />
+                  </MenuButton>
+                ) : canPairWithNext(exercises, i) ? (
+                  <TouchableOpacity
+                    style={styles.supersetLinkBtn}
+                    onPress={() => pairNext(i)}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('train.superset.pairA11y', { a: d.name, b: exercises[i + 1].name })}
+                    testID={`template-link-${i}`}
+                  >
+                    <Ionicons name="link-outline" size={20} color={colors.muted} />
+                  </TouchableOpacity>
+                ) : null;
                 return (
                 <Animated.View
                   key={d.uid}
+                  ref={(v: View | null) => {
+                    if (v) cardRefs.current.set(d.uid, v);
+                    else cardRefs.current.delete(d.uid);
+                  }}
                   style={[
                     styles.tplExCard,
                     { width: cardWidth },
@@ -1351,7 +1859,8 @@ export function TemplateEditorModal({
                         same `moveEx` the chevrons used to — the reorder logic
                         is unchanged, only its sighted affordance is. */}
                     <View
-                      style={styles.tplDragHandle}
+                      // TARGET wide (was 32): the grip is a gesture's only handle (T4).
+                      style={[styles.tplDragHandle, { width: TARGET, marginLeft: -space.sm }]}
                       // `adjustable` is a promise of increment/decrement — a
                       // swipe up/down in VoiceOver — and it carried neither,
                       // so the swipe did nothing (Train review bug 14). Up the
@@ -1377,6 +1886,8 @@ export function TemplateEditorModal({
                         // A1 and A2.
                         ...(tags[i] && exercises[i - 1]?.supersetGroup === d.supersetGroup ? [{ name: 'earlier', label: t('train.superset.moveEarlier') }] : []),
                         ...(tags[i] && exercises[i + 1]?.supersetGroup === d.supersetGroup ? [{ name: 'later', label: t('train.superset.moveLater') }] : []),
+                        // From the list, without opening the card (E-N10).
+                        { name: 'remove', label: `${t('train.removeExercise')}, ${d.name}` },
                       ]}
                       onAccessibilityAction={(e) => {
                         const action = e.nativeEvent.actionName;
@@ -1384,6 +1895,7 @@ export function TemplateEditorModal({
                         // itself — announcing too said the position twice.
                         if (action === 'moveUp' || action === 'increment') moveEx(i, -1, action === 'moveUp');
                         if (action === 'moveDown' || action === 'decrement') moveEx(i, 1, action === 'moveDown');
+                        if (action === 'remove') removeEx(i);
                         if (action === 'earlier' || action === 'later') {
                           const to = action === 'earlier' ? i - 1 : i + 1;
                           const next = reorderWithSupersets(exercises, i, to).rows;
@@ -1410,10 +1922,13 @@ export function TemplateEditorModal({
                         the gesture. One open exercise at a time, so a
                         six-exercise template is six readable lines. */}
                     <TouchableOpacity
-                      style={styles.tplExTapRow}
+                      style={[styles.tplExTapRow, big && { flexDirection: 'column', alignItems: 'stretch' }]}
                       onPress={() => {
                         haptics.tap();
                         setOpenEx(open ? null : i);
+                        if (!open && d.isNew && d.setStructure === undefined && rowsUntouched(d.sets)) {
+                          setStructurePick(d.uid);
+                        }
                       }}
                       accessibilityRole="button"
                       accessibilityState={{ expanded: open }}
@@ -1429,12 +1944,12 @@ export function TemplateEditorModal({
                           round: `${groupRest(exercises, d.supersetGroup).roundRestSec} s`,
                         }) : null,
                         d.name,
-                        exSummary(d, t, loadUnit(unitSystem)),
+                        summary,
                         doseWarnings.has(i) ? t('train.mobilityDoseNote') : null,
                       ].filter(Boolean).join('. ')}
                       testID={`template-ex-toggle-${i}`}
                     >
-                      <View style={{ flex: 1 }}>
+                      <View style={big ? undefined : { flex: 1 }}>
                         {tags[i] && d.pairPosition === 1 && d.supersetGroup ? (
                           <Text style={styles.supersetHeader} numberOfLines={fontScale > 1.3 ? undefined : 2} testID={`template-superset-header-${i}`}>
                             {t('train.superset.groupHeaderShort', {
@@ -1450,7 +1965,7 @@ export function TemplateEditorModal({
                           </Text>
                         ) : null}
                         <Text style={styles.tplExName}>{d.name}</Text>
-                        <Text style={styles.tplExMeta}>{exSummary(d, t, loadUnit(unitSystem))}</Text>
+                        <Text style={styles.tplExMeta}>{summary}</Text>
                         {doseWarnings.has(i) ? (
                           <Text style={styles.tplDoseNote} testID={`template-dose-note-${i}`}>
                             {t('train.mobilityDoseNote')}
@@ -1461,35 +1976,15 @@ export function TemplateEditorModal({
                         name={open ? 'chevron-up' : 'chevron-down'}
                         size={18}
                         color={colors.muted}
+                        style={big ? { alignSelf: 'flex-end' } : undefined}
                       />
                     </TouchableOpacity>
-                    {/* One tap to pair, from the collapsed list — it used to be
-                        three taps and a scroll deep, under More options. On a
-                        paired card the glyph is the STATE (linked, filled teal)
-                        and a tap asks what to do with the superset, so one stray
-                        tap beside the chevron cannot break a pair. */}
-                    {tags[i] ? (
-                      <TouchableOpacity
-                        style={styles.supersetLinkBtn}
-                        onPress={() => askSuperset(i)}
-                        accessibilityRole="button"
-                        accessibilityLabel={t('train.superset.manageA11y', { group: d.supersetGroup ?? '', name: d.name })}
-                        testID={`template-unlink-${i}`}
-                      >
-                        <Ionicons name="link" size={20} color={colors.teal} />
-                      </TouchableOpacity>
-                    ) : canPairWithNext(exercises, i) ? (
-                      <TouchableOpacity
-                        style={styles.supersetLinkBtn}
-                        onPress={() => pairNext(i)}
-                        accessibilityRole="button"
-                        accessibilityLabel={t('train.superset.pairA11y', { a: d.name, b: exercises[i + 1].name })}
-                        testID={`template-link-${i}`}
-                      >
-                        <Ionicons name="link-outline" size={20} color={colors.muted} />
-                      </TouchableOpacity>
-                    ) : null}
+                    {/* An empty slot the link button's width when there is no
+                        link control, so every card's chevron sits in one
+                        column (T20). */}
+                    {big ? null : linkCtl ?? <View style={{ width: TARGET }} />}
                   </View>
+                  {big && linkCtl ? <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>{linkCtl}</View> : null}
                   {/* The group's guardrails, under its LAST member and outside
                       the card's tap target. Each line is one screen-reader stop
                       whose "Fix muscles" is an accessibility ACTION as well as a
@@ -1527,7 +2022,7 @@ export function TemplateEditorModal({
                               <Ionicons
                                 name={attention ? 'alert-circle-outline' : judgement.kind === 'agonist-antagonist' ? 'checkmark-circle-outline' : 'information-circle-outline'}
                                 size={16}
-                                color={attention ? colors.accent : colors.muted}
+                                color={attention ? colors.warn : colors.muted}
                               />
                               <Text style={attention ? styles.supersetWarn : [styles.tplDoseNote, { marginTop: 0, flexShrink: 1 }]}>{line}</Text>
                             </View>
@@ -1558,7 +2053,7 @@ export function TemplateEditorModal({
                         const how = t('train.superset.loadTestHow');
                         return (
                           <View key={`lt-${p.index}`} style={styles.supersetWarnRow} accessible accessibilityLabel={`${head} ${how}`} testID={`template-load-test-${p.index}`}>
-                            <Ionicons name="alert-circle-outline" size={16} color={colors.accent} />
+                            <Ionicons name="alert-circle-outline" size={16} color={colors.warn} />
                             <View style={{ flexShrink: 1, gap: 2 }}>
                               <Text style={styles.supersetWarn}>{head}</Text>
                               <Text style={[styles.tplDoseNote, { marginTop: 0 }]}>{how}</Text>
@@ -1581,8 +2076,10 @@ export function TemplateEditorModal({
                       decision and its consequence in the wrong order.
                       Choosing one scaffolds the rows (`scaffoldKindsFor`),
                       unless they already carry typed numbers. */}
+                  {structureFull ? (
+                  <>
                   <Text style={styles.tplStructureLabel}>{t('train.structureLabel')}</Text>
-                  <View style={styles.tplStructureRow}>
+                  <View style={styles.tplStructureRow} accessibilityRole="radiogroup" accessibilityLabel={t('train.structureLabel')}>
                     {(structuresOpen === i ? SET_STRUCTURES : SET_STRUCTURES.slice(0, PRIMARY_STRUCTURES))
                       .map((st) => {
                         const on = d.setStructure === st.value;
@@ -1591,12 +2088,15 @@ export function TemplateEditorModal({
                             key={st.value ?? 'auto'}
                             style={[styles.tplStructureChip, on && styles.tplStructureChipOn]}
                             onPress={() => setStructure(i, st.value)}
-                            accessibilityRole="button"
-                            accessibilityState={{ selected: on }}
+                            accessibilityRole="radio"
+                            accessibilityState={{ selected: on, checked: on }}
                             testID={`template-structure-${i}-${st.value ?? 'auto'}`}
                           >
+                            {/* Capitalised for display, so "Auto" does not
+                                sit beside lowercase "straight sets" (T20); the
+                                keys stay lowercase for mid-sentence use. */}
                             <Text style={[styles.tplStructureText, on && styles.tplStructureTextOn]}>
-                              {t(st.labelKey)}
+                              {capitalizeFirst(t(st.labelKey), locale)}
                             </Text>
                             {/* Named, not hidden: a user may legitimately want
                                 to program drop sets today and should be told
@@ -1604,7 +2104,7 @@ export function TemplateEditorModal({
                                 given a number computed by another
                                 structure's rule. */}
                             {!st.readable ? (
-                              <Text style={styles.tplStructureNote}>{t('train.structureUnread')}</Text>
+                              <Text style={[styles.tplStructureNote, on && styles.tplStructureTextOn]}>{t('train.structureUnread')}</Text>
                             ) : null}
                           </TouchableOpacity>
                         );
@@ -1616,11 +2116,6 @@ export function TemplateEditorModal({
                   <Text style={styles.tplStructureDesc}>
                     {t((SET_STRUCTURES.find((st) => st.value === d.setStructure) ?? SET_STRUCTURES[0]).descKey)}
                   </Text>
-                  {structureKept === i ? (
-                    <Text style={styles.tplStructureKept} testID={`template-structure-kept-${i}`}>
-                      {t('train.structureKept')}
-                    </Text>
-                  ) : null}
                   <TouchableOpacity
                     style={styles.tplStructureMore}
                     onPress={() => setStructuresOpen(structuresOpen === i ? null : i)}
@@ -1631,13 +2126,45 @@ export function TemplateEditorModal({
                       {structuresOpen === i ? t('train.structureFewer') : t('train.structureMore')}
                     </Text>
                   </TouchableOpacity>
+                  </>
+                  ) : (
+                    /* Still FIRST and still the declaration (ADR-0041 §5),
+                       folded to one line once it is made or the rows carry
+                       numbers: the picker in full put ~450pt between the
+                       card's name and its sets on every expand (T6, J5). */
+                    <TouchableOpacity
+                      style={styles.tplStructureCompact}
+                      onPress={() => {
+                        haptics.tap();
+                        setStructurePick(d.uid);
+                      }}
+                      accessibilityRole="button"
+                      accessibilityState={{ expanded: false }}
+                      accessibilityLabel={`${t('train.structureLabel')}: ${structureName}`}
+                      accessibilityHint={t('train.structureChange')}
+                      testID={`template-structure-compact-${i}`}
+                    >
+                      <Text style={styles.tplStructureCompactText}>
+                        {`${t('train.structureLabel')}: ${structureName}`}
+                      </Text>
+                      <Text style={styles.sectionAction}>{t('train.structureChange')}</Text>
+                    </TouchableOpacity>
+                  )}
+                  {structureKept === i ? (
+                    <Text style={[styles.tplStructureKept, { fontSize: font.small }]} testID={`template-structure-kept-${i}`}>
+                      {t('train.structureKept')}
+                    </Text>
+                  ) : null}
                   {/* The catalog lift's own configuration — category, rep
                       range, load steps, Smith bar, effort — editable from
                       here because the template is where a lift is planned.
                       Saved straight to the catalog, not with this template. */}
                   {train.catalog.some((c) => c.id === d.exerciseId) ? (
                     <TouchableOpacity
-                      style={styles.tplLiftBtn}
+                      // Under the one-line structure row, the card's gap on top
+                      // of two 44pt rows' own centring read as a ~40pt hole
+                      // (v3 QA item 5): the rows' heights are the spacing.
+                      style={[styles.tplLiftBtn, !structureFull && structureKept !== i && { marginTop: -space.md }]}
                       onPress={() => {
                         haptics.tap();
                         setLiftFor(d.exerciseId);
@@ -1660,25 +2187,42 @@ export function TemplateEditorModal({
                       name under the number. */}
                   <Text style={styles.fieldLabel}>{t('train.sets')}</Text>
                   <View style={styles.tplSetHead}>
-                    <Text style={[styles.tplSetHeadCell, styles.tplSetNumCell]}>{t('train.setShort')}</Text>
+                    {/* "#", as the live session's table: "SET" broke to "SE T"
+                        at large text (J9). Read as the word. */}
+                    <Text style={[styles.tplSetHeadCell, styles.tplSetNumCell, { minHeight: 0 }]} maxFontSizeMultiplier={1.6} accessibilityLabel={t('train.setShort')}>#</Text>
                     {d.logStyle === 'weight-reps' ? (
                       <Text style={[styles.tplSetHeadCell, styles.tplSetCell]}>{loadUnit(unitSystem)}</Text>
                     ) : null}
                     <Text style={[styles.tplSetHeadCell, styles.tplSetCell]}>
                       {d.logStyle === 'time' ? t('train.secShort') : t('train.repsShort')}
                     </Text>
-                    <View style={styles.tplSetDelCell} />
+                    <View style={[styles.tplSetDelCell, { minHeight: 0 }]} />
                   </View>
                   {d.sets.map((ps, si) => {
                     const openKey = `${i}:${si}`;
+                    // At the largest text the row cannot hold a number, a kind
+                    // name, two fields and a ✕ on one line: it stacks (T11).
+                    const stack = fontScale > 1.6;
+                    const delCell = (
+                      <TouchableOpacity
+                        onPress={() => removeSet(i, si, setLabels[si])}
+                        // A TARGET-square cell, no slop: slop reached into
+                        // the reps field beside it (T4).
+                        style={styles.tplSetDelCell}
+                        accessibilityRole="button"
+                        // Which set — every row's ✕ read "Remove set" (T13).
+                        accessibilityLabel={t('train.removeSetA11y', { n: setLabels[si] })}
+                        testID={`template-set-remove-${i}-${si}`}
+                      >
+                        <Ionicons name="close" size={16} color={colors.faint} />
+                      </TouchableOpacity>
+                    );
                     return (
                       <View key={si}>
-                        <View style={styles.tplSetRow}>
+                        <View style={[styles.tplSetRow, stack && { flexWrap: 'wrap' }]}>
                           <TouchableOpacity
-                            style={styles.tplSetNumCell}
+                            style={[styles.tplSetNumCell, stack && { flex: 1, alignItems: 'flex-start' }]}
                             onPress={() => setKindOpen(kindOpen === openKey ? null : openKey)}
-                            // The set row is ~32 pt tall (S18-3 precedent); hitSlop lifts it to 44.
-                            hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
                             accessibilityRole="button"
                             accessibilityState={{ expanded: kindOpen === openKey }}
                             accessibilityLabel={t('train.setTypeA11y', {
@@ -1688,27 +2232,40 @@ export function TemplateEditorModal({
                             testID={`template-set-kind-${i}-${si}`}
                           >
                             <Text style={styles.tplSetNum}>{setLabels[si]}</Text>
+                            {/* Whole, not "Activ…" (T11): the cell is 76 wide
+                                and the tag may wrap rather than truncate. */}
                             {ps.kind !== 'working' ? (
-                              <Text style={styles.tplSetKindTag} numberOfLines={1}>
+                              <Text style={[styles.tplSetKindTag, { textAlign: 'center' }]}>
                                 {t(kindLabelKey(ps.kind))}
                               </Text>
                             ) : null}
                           </TouchableOpacity>
 
+                          {stack ? delCell : null}
                           {/* The prescription. A template that cannot say
                               "8 @ 135" makes the logger a blank form the
                               lifter retypes every session.
-                              NO placeholders on these cells: the column
+                              No UNIT placeholders on these cells: the column
                               headers above already say lb / reps / sec, and
-                              repeating the unit inside every empty box was
-                              just noise — three rows of an exercise showed the
-                              word "reps" four times. The header labels the
-                              column; the cell stays empty until it has a
-                              number. */}
+                              three rows of an exercise showed the word "reps"
+                              four times. The only ghost text is a NUMBER:
+                              the lift's load, else what this row was last
+                              session (`ghost`, T7 / fix R) — shown, never
+                              saved. Wrapped so a stacked row (largest
+                              text) puts both fields on their own line; the
+                              wrapper's flex is its cell count, so the columns
+                              still sit under their headers. */}
+                          <View style={stack
+                            ? { flexBasis: '100%', flexDirection: 'row', gap: space.sm }
+                            : { flex: d.logStyle === 'weight-reps' ? 2 : 1, flexDirection: 'row', gap: space.sm }}
+                          >
                           {d.logStyle === 'time' ? (
                             <SheetTextInput
                               style={[styles.tplSetInput, styles.tplSetCell]}
-                              keyboardType="numeric"
+                              // Whole seconds: the number pad, not the decimal pad (T22).
+                              keyboardType="number-pad"
+                              placeholder={counts[si] || undefined}
+                              placeholderTextColor={colors.faint}
                               value={ps.durationText}
                               onChangeText={(v) => patchSet(i, si, { durationText: v })}
                               {...doneKey}
@@ -1724,6 +2281,13 @@ export function TemplateEditorModal({
                                 <SheetTextInput
                                   style={[styles.tplSetInput, styles.tplSetCell]}
                                   keyboardType="numeric"
+                                  // The lift's inherited load, shown where the
+                                  // number would go: "3 sets · 170 lb" with
+                                  // every cell empty hid where 170 lives (T8).
+                                  // The load wins over last session's row: it
+                                  // is what the session will pre-fill.
+                                  placeholder={d.targetLoad.trim() || ps.ghost?.weightText || undefined}
+                                  placeholderTextColor={colors.faint}
                                   value={ps.weightText}
                                   onChangeText={(v) => patchSet(i, si, { weightText: v })}
                                   {...doneKey}
@@ -1733,7 +2297,12 @@ export function TemplateEditorModal({
                               ) : null}
                               <SheetTextInput
                                 style={[styles.tplSetInput, styles.tplSetCell]}
-                                keyboardType="numeric"
+                                keyboardType="number-pad"
+                                // What the session will offer here (E-N1): last
+                                // time's same-kind row, else — on a working
+                                // row — the lift's target reps.
+                                placeholder={counts[si] || undefined}
+                                placeholderTextColor={colors.faint}
                                 value={ps.repsText}
                                 onChangeText={(v) => patchSet(i, si, { repsText: v })}
                                 {...doneKey}
@@ -1742,24 +2311,15 @@ export function TemplateEditorModal({
                               />
                             </>
                           )}
+                          </View>
 
-                          <TouchableOpacity
-                            onPress={() => removeSet(i, si)}
-                            // 26-pt cell + 16-pt glyph: 9/14 of slop reach 44 on both axes.
-                            hitSlop={{ top: 14, bottom: 14, left: 9, right: 9 }}
-                            style={styles.tplSetDelCell}
-                            accessibilityRole="button"
-                            accessibilityLabel={t('train.removeSet')}
-                            testID={`template-set-remove-${i}-${si}`}
-                          >
-                            <Ionicons name="close" size={16} color={colors.faint} />
-                          </TouchableOpacity>
+                          {stack ? null : delCell}
                         </View>
                         {/* A cluster's name ("L" / "R" on a single-leg lift),
                             under its FIRST row only and written to every row
                             of the group — the logger shows it in place of
                             the cluster's number. */}
-                        {ps.group != null && (si === 0 || d.sets[si - 1]?.group !== ps.group) ? (
+                        {clusterNamesShown && ps.group != null && (si === 0 || d.sets[si - 1]?.group !== ps.group) ? (
                           <View style={styles.tplClusterLabelRow}>
                             <Text style={styles.tplSetsLabel}>{t('train.lift.clusterLabel')}</Text>
                             <SheetTextInput
@@ -1767,7 +2327,12 @@ export function TemplateEditorModal({
                               placeholder={t('train.lift.clusterLabelPh')}
                               placeholderTextColor={colors.faint}
                               value={ps.label ?? ''}
-                              onChangeText={(v) => setClusterLabel(i, ps.group as number, v)}
+                              onChangeText={(v) => {
+                                // Pinned open, so clearing the last label does
+                                // not fold the field away mid-edit.
+                                setClusterNamesFor((cur) => (cur.has(d.uid) ? cur : new Set(cur).add(d.uid)));
+                                setClusterLabel(i, ps.group as number, v);
+                              }}
                               maxLength={8}
                               autoCapitalize="characters"
                               accessibilityLabel={t('train.lift.clusterLabelA11y', { n: setLabels[si] })}
@@ -1777,7 +2342,9 @@ export function TemplateEditorModal({
                         ) : null}
                         {kindOpen === openKey ? (
                           <View accessibilityRole="radiogroup">
-                            {SET_KINDS.map((k) => {
+                            {/* The declared structure's own kinds first; the
+                                rest stay pickable, marked (E-N6, ADR-0041). */}
+                            {kindsForPicker(SET_KINDS, declared?.value).map(({ kind: k, fits }) => {
                               const on = ps.kind === k.value;
                               return (
                                 <TouchableOpacity
@@ -1791,7 +2358,12 @@ export function TemplateEditorModal({
                                   <Text style={[styles.kindRowName, on && styles.kindRowNameOn]}>
                                     {t(k.labelKey)}
                                   </Text>
-                                  <Text style={styles.kindRowDesc}>{t(k.descKey)}</Text>
+                                  <Text style={[styles.kindRowDesc, { fontSize: font.small }]}>{t(k.descKey)}</Text>
+                                  {!fits && declared ? (
+                                    <Text style={[styles.kindRowDesc, { fontSize: font.small }]} testID={`template-set-kind-off-${i}-${si}-${k.value}`}>
+                                      {t('train.kindOffStructure', { structure: t(declared.labelKey) })}
+                                    </Text>
+                                  ) : null}
                                 </TouchableOpacity>
                               );
                             })}
@@ -1800,10 +2372,37 @@ export function TemplateEditorModal({
                       </View>
                     );
                   })}
+                  {hasClusters && !clusterNamesShown ? (
+                    <TouchableOpacity
+                      onPress={() => {
+                        haptics.tap();
+                        setClusterNamesFor((cur) => new Set(cur).add(d.uid));
+                      }}
+                      style={styles.textAction}
+                      accessibilityRole="button"
+                      testID={`template-name-clusters-${i}`}
+                    >
+                      <Ionicons name="pricetag-outline" size={16} color={colors.teal} />
+                      <Text style={styles.sectionAction}>{t('train.lift.nameClusters')}</Text>
+                    </TouchableOpacity>
+                  ) : null}
                   {/* Only the buttons this structure can use. The three-button
                       row was the union of every structure's needs, on every
                       card - "+ Add cluster" under a straight-set lift is an
                       offer to break the declaration directly above it. */}
+                  {/* Row 1 typed, two or more rows of its kind still blank:
+                      one tap fills them rather than four fields each (T7). */}
+                  {copyTargets.length > 0 ? (
+                    <TouchableOpacity
+                      onPress={() => copyFirstToAll(i)}
+                      style={styles.textAction}
+                      accessibilityRole="button"
+                      testID={`template-copy-first-${i}`}
+                    >
+                      <Ionicons name="copy-outline" size={16} color={colors.teal} />
+                      <Text style={styles.sectionAction}>{t('train.copyToAllSets')}</Text>
+                    </TouchableOpacity>
+                  ) : null}
                   <View style={styles.tplSetBtns}>
                     {canAdd.set ? (
                       <TouchableOpacity onPress={() => addSet(i)} style={[styles.addSetBtn, styles.textAction]} accessibilityRole="button" accessibilityLabel={t('train.addSet')} testID={`template-add-set-${i}`}>
@@ -1851,19 +2450,26 @@ export function TemplateEditorModal({
                     <View style={styles.moreBody}>
                       <View style={styles.tplExControls}>
                         {d.logStyle !== 'bodyweight' ? (
-                          <View style={styles.tplLoadWrap}>
-                            <SheetTextInput
-                              style={styles.tplLoadInput}
-                              placeholder={t('train.target')}
-                              placeholderTextColor={colors.faint}
-                              keyboardType="numeric"
-                              value={d.targetLoad}
-                              onChangeText={(v) => patchEx(i, { targetLoad: v })}
-                              {...doneKey}
-                              accessibilityLabel={`${t('train.targetLoadA11y', { unit: loadUnit(unitSystem) })}, ${d.name}`}
-                              testID={`template-load-${i}`}
-                            />
-                            <Text style={styles.tplLoadUnit}>{loadUnit(unitSystem)}</Text>
+                          // A visible label (v3 QA item 7): the field had none,
+                          // and its "lb" placeholder beside the "lb" unit read
+                          // "lb lb" — on screen and to VoiceOver. The label
+                          // names the unit once; the unit Text is visual only.
+                          <View>
+                            <Text style={styles.fieldLabel}>{t('train.targetLoadLabel')}</Text>
+                            <View style={styles.tplLoadWrap}>
+                              <SheetTextInput
+                                style={styles.tplLoadInput}
+                                keyboardType="numeric"
+                                value={d.targetLoad}
+                                onChangeText={(v) => patchEx(i, { targetLoad: v })}
+                                {...doneKey}
+                                accessibilityLabel={`${t('train.targetLoadA11y', { unit: loadUnit(unitSystem) })}, ${d.name}`}
+                                testID={`template-load-${i}`}
+                              />
+                              <Text style={styles.tplLoadUnit} accessibilityElementsHidden importantForAccessibility="no">
+                                {loadUnit(unitSystem)}
+                              </Text>
+                            </View>
                           </View>
                         ) : (
                           <View style={{ flex: 1 }} />
@@ -1912,7 +2518,13 @@ export function TemplateEditorModal({
                                   />
                                 </View>
                               </View>
-                              <Text style={styles.tplDoseNote}>{t('train.superset.restHint')}</Text>
+                              {/* The mini-set sentence only where a member has
+                                  mini-sets to rest between (T14). */}
+                              <Text style={styles.tplDoseNote}>
+                                {(groups.get(d.supersetGroup) ?? []).some((m) => exercises[m.index]?.sets.some((x) => x.kind === 'mini'))
+                                  ? t('train.superset.restHint')
+                                  : t('train.superset.restHintPlain')}
+                              </Text>
                               {(d.transitionRestSec ?? 0) > 120 || (d.roundRestSec ?? 0) > 120 ? (
                                 <Text style={styles.supersetWarn}>{t('train.superset.restLong')}</Text>
                               ) : null}
@@ -1969,8 +2581,8 @@ export function TemplateEditorModal({
                       <Text style={styles.fieldLabel}>{t('train.exRestMini')}</Text>
                       <SheetTextInput
                         style={styles.tplLoadInput}
-                        keyboardType="numeric"
-                        placeholder={restMini || '—'}
+                        keyboardType="number-pad"
+                        placeholder={restMini || String(DEFAULT_REST_MINI_SEC)}
                         placeholderTextColor={colors.faint}
                         value={d.restMiniSec}
                         onChangeText={(v) => patchEx(i, { restMiniSec: v })}
@@ -2008,12 +2620,12 @@ export function TemplateEditorModal({
                         <Text style={styles.progToggleText}>{t('train.progression')}</Text>
                       </TouchableOpacity>
                       {d.hasProgression ? (
-                        <View style={styles.progRow}>
+                        <View style={fontScale > 1.3 ? { gap: space.sm } : styles.progRow}>
                           <View style={styles.progCell}>
                             <Text style={styles.tplSetsLabel}>{t('train.targetReps')}</Text>
                             <SheetTextInput
                               style={styles.tplLoadInput}
-                              keyboardType="numeric"
+                              keyboardType="number-pad"
                               placeholder="12"
                               placeholderTextColor={colors.faint}
                               value={d.targetReps}
@@ -2027,7 +2639,7 @@ export function TemplateEditorModal({
                             <Text style={styles.tplSetsLabel}>{t('train.holdSessions')}</Text>
                             <SheetTextInput
                               style={styles.tplLoadInput}
-                              keyboardType="numeric"
+                              keyboardType="number-pad"
                               placeholder="2"
                               placeholderTextColor={colors.faint}
                               value={d.holdSessions}
@@ -2059,25 +2671,29 @@ export function TemplateEditorModal({
                         /* The three numbers ARE the rule, but nobody reads them as
                            one. Echoing them back as a sentence is the explanation. */
                         <Text style={styles.progRule}>
-                          {t('train.progressionRule', {
+                          {/* A real plural, not "workout(s)" (T23). */}
+                          {plural(t, locale, 'train.progressionRule', numOrUndef(d.holdSessions) ?? 2, {
                             reps: d.targetReps || 12,
-                            sessions: d.holdSessions || 2,
                             lb: `${d.incrementLb || defaultIncrementLb(unitSystem)} ${loadUnit(unitSystem)}`,
                           })}
                         </Text>
                       ) : null}
-                      <TouchableOpacity
-                        onPress={() => removeEx(i)}
-                        style={styles.moreRemove}
-                        testID={`template-remove-${i}`}
-                        accessibilityRole="button"
-                        accessibilityLabel={t('common.remove')}
-                      >
-                        <Ionicons name="trash-outline" size={16} color={colors.danger} />
-                        <Text style={styles.moreRemoveText}>{t('train.removeExercise')}</Text>
-                      </TouchableOpacity>
                     </View>
                   ) : null}
+                  {/* The card's last row, outside More options: open the card,
+                      Remove — two taps, not three levels and a scroll (E-N10).
+                      With an Undo (T5). */}
+                  <TouchableOpacity
+                    onPress={() => removeEx(i)}
+                    style={styles.moreRemove}
+                    testID={`template-remove-${i}`}
+                    accessibilityRole="button"
+                    // The visible text AND the object (T13): it read "Remove".
+                    accessibilityLabel={`${t('train.removeExercise')}, ${d.name}`}
+                  >
+                    <Ionicons name="trash-outline" size={16} color={colors.danger} />
+                    <Text style={styles.moreRemoveText}>{t('train.removeExercise')}</Text>
+                  </TouchableOpacity>
                   </>
                   ) : null}
                 </Animated.View>
@@ -2087,45 +2703,27 @@ export function TemplateEditorModal({
               </View>
             )}
 
-            {err ? <Text style={[styles.error, { marginTop: space.sm }]}>{err}</Text> : null}
-
-            <View style={styles.editorBtns}>
-              {template ? (
-                <TouchableOpacity style={styles.discardBtn} onPress={remove} disabled={busy} accessibilityRole="button" testID="delete-template">
-                  <Text style={styles.discardText}>{t('train.delete')}</Text>
-                </TouchableOpacity>
-              ) : null}
+            {/* Save lives in the header now (T2). Delete stays at the END
+                of the content, alone on its row and never beside Save — the
+                one destructive action, for a saved template only (J6). */}
+            {template ? (
               <TouchableOpacity
-                style={[styles.finishBtn, !canSave && styles.btnDisabled]}
-                onPress={save}
-                disabled={!canSave}
+                style={[styles.moreRemove, { marginTop: space.xl }]}
+                onPress={remove}
+                disabled={busy}
                 accessibilityRole="button"
-                accessibilityState={{ disabled: !canSave, busy }}
-                testID="save-template"
+                accessibilityLabel={`${t('train.delete')}, ${template.name}`}
+                testID="delete-template"
               >
-                <Text style={styles.finishText}>{busy ? t('common.saving') : t('common.save')}</Text>
+                <Ionicons name="trash-outline" size={16} color={colors.danger} />
+                <Text style={styles.moreRemoveText}>{t('train.delete')}</Text>
               </TouchableOpacity>
-            </View>
+            ) : null}
             <View style={{ height: 24 }} />
+            </>
+            )}
           </Animated.ScrollView>
       </GestureHandlerRootView>
     </BottomSheet>
-    {/* A SIBLING of the editor's sheet, not a child: its owner is this
-        component, which stays mounted under the editor, so the settings sheet
-        presents over the editor and closing it returns to the draft intact.
-        The stack fallback step reads the row's increment as typed. */}
-    <LiftSettingsSheet
-      visible={visible && liftEx != null}
-      exercise={liftEx}
-      templateRow={liftRow ? {
-        name: liftRow.name,
-        progression: liftRow.hasProgression
-          ? { incrementLb: parseLoadToLb(liftRow.incrementLb, unitSystem) ?? defaultIncrementLb(unitSystem) }
-          : undefined,
-      } : null}
-      onClose={() => setLiftFor(null)}
-      onSave={(patch) => (liftEx?.id ? train.editCatalogExercise(liftEx.id, patch) : Promise.resolve())}
-    />
-    </>
   );
 }

@@ -101,7 +101,7 @@ describe('cardio cannot reach the strength math', () => {
 
     // Guard the guard: a baseline of all zeroes would make this vacuous.
     expect(baseline.volume).toBeGreaterThan(0);
-    expect(baseline.hero.topSet).toBeGreaterThan(0);
+    expect(baseline.hero.topSet?.weight).toBeGreaterThan(0);
 
     for (const count of [1, 5, 20]) {
       expect(strengthNumbers(session(count))).toEqual(baseline);
@@ -130,7 +130,7 @@ describe('cardio cannot reach the strength math', () => {
     expect(sessionVolume(run)).toBe(0);
     expect(sessionCounts(run)).toEqual({ exercises: 0, sets: 0 });
     expect(bestE1RMByExercise([run])).toEqual({});
-    expect(trainHeroStats([run], NOW).topSet).toBe(0);
+    expect(trainHeroStats([run], NOW).topSet).toBeNull();
   });
 });
 

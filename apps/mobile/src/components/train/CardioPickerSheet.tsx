@@ -3,6 +3,7 @@ import { Touchable } from './Touchable';
 import { CARDIO_MODALITIES } from '@macrolog/core';
 import type { CardioModality } from '@macrolog/core/cardio';
 import { BottomSheet } from '@/components/BottomSheet';
+import { SheetHeader } from '@/components/SheetHeader';
 import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { useThemedStyles } from '@/lib/theme-context';
@@ -39,7 +40,12 @@ export function CardioPickerSheet({
       maxHeight="80%"
     >
       <View style={styles.sheetStack}>
-        <Text style={styles.sheetTitle} accessibilityRole="header">{t('cardio.pickModality')}</Text>
+        {/* A visible way out (v3 QA item 6). Closing picks nothing, so it
+            is Cancel — a chip both picks and closes. */}
+        <SheetHeader
+          title={t('cardio.pickModality')}
+          leading={{ label: t('common.cancel'), onPress: onClose, testID: 'cardio-picker-cancel' }}
+        />
         <View style={styles.modalityChips}>
           {CARDIO_MODALITIES.map((m) => (
             <Touchable

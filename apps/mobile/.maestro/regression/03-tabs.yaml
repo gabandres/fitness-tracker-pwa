@@ -14,7 +14,7 @@ appId: fit.ignia.app
     id: 'tab-train'
 - extendedWaitUntil:
     visible:
-      id: 'train-glossary-open'
+      id: 'train-glossary-open|session-menu'
     timeout: 60000
 - takeScreenshot: .maestro/regression/shots/03-train
 - scroll

@@ -2,9 +2,10 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMemo } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { Touchable } from './Touchable';
-import { finishSummary, formatLoad, sessionCounts } from '@macrolog/core';
+import { finishSummary, formatLoad, otherSetCells, sessionCounts } from '@macrolog/core';
 import { BottomSheet } from '@/components/BottomSheet';
-import { useLocale, useT } from '@/i18n';
+import { SheetHeader } from '@/components/SheetHeader';
+import { type I18nKey, useLocale, useT } from '@/i18n';
 import { formatDate } from '@/lib/date-format';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { useUnitSystem } from '@/lib/use-unit-system';
@@ -72,13 +73,20 @@ export function SessionDetailSheet({
       maxHeight="85%"
     >
       {session && summary ? (
+        <View style={styles.sheetStack}>
+        {/* A visible Done, pinned above the scroll (train-ux H7): the sheet
+            opens to a full-height detent where the grabber was the only way
+            out. */}
+        <SheetHeader
+          title={session.templateName || t('train.workout')}
+          trailing={{ label: t('common.done'), onPress: onClose, testID: 'session-detail-done' }}
+        />
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.finishScroll} testID="session-detail">
           <View>
-            <Text style={styles.sessionEyebrow}>
+            {/* The date, in teal: in the light theme's red it read as an
+                alert beside the danger-red Delete (train-ux J8). */}
+            <Text style={[styles.sessionEyebrow, { color: colors.teal }]}>
               {formatDate(session.date, locale, { weekday: 'long', month: 'short', day: 'numeric' })}
-            </Text>
-            <Text style={styles.sheetTitle} accessibilityRole="header">
-              {session.templateName || t('train.workout')}
             </Text>
             <Text style={styles.sheetHint}>{sessionSummary(session, t)}</Text>
           </View>
@@ -111,14 +119,24 @@ export function SessionDetailSheet({
 
           <View>
             {session.exercises.map((ex, i) => {
-              const line = setLine(ex, ex.logStyle ?? DEFAULT_LOG_STYLE, unitSystem);
+              const style = ex.logStyle ?? DEFAULT_LOG_STYLE;
+              const line = setLine(ex, style, unitSystem);
+              // Warm-up, drop and mobility sets, on a muted line of their own:
+              // the "12 sets" tile counts every logged set, and a list of the
+              // working ones alone showed nine under it (train-ux H3).
+              const others = otherSetCells(ex, style, unitSystem)
+                .map((c) => `${t(OTHER_KIND_KEY[c.kind])} ${c.cell}`)
+                .join(' · ');
               return (
                 // Name over its sets, full width. The name used to borrow the
                 // history table's 56pt DATE column, so "Romanian deadlift"
                 // broke into four lines beside its numbers (UX_AUDIT S20).
                 <View key={`${ex.exerciseId}-${i}`} style={styles.detailExRow} accessible>
                   <Text style={styles.detailExName} numberOfLines={2}>{ex.name}</Text>
-                  <Text style={styles.detailSets}>{line || t('train.detailNoSets')}</Text>
+                  {line || !others ? <Text style={styles.detailSets}>{line || t('train.detailNoSets')}</Text> : null}
+                  {others ? (
+                    <Text style={[styles.detailSets, { color: colors.muted }]} testID={`detail-other-sets-${i}`}>{others}</Text>
+                  ) : null}
                 </View>
               );
             })}
@@ -153,7 +171,14 @@ export function SessionDetailSheet({
             </Touchable>
           </View>
         </ScrollView>
+        </View>
       ) : null}
     </BottomSheet>
   );
 }
+
+const OTHER_KIND_KEY: Record<'warmup' | 'drop' | 'mobility', I18nKey> = {
+  warmup: 'train.kind.warmup',
+  drop: 'train.kind.drop',
+  mobility: 'train.kind.mobility',
+};

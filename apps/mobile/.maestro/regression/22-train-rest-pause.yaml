@@ -38,7 +38,7 @@ appId: fit.ignia.app
     id: 'tab-train'
 - extendedWaitUntil:
     visible:
-      id: 'train-glossary-open'
+      id: 'train-glossary-open|session-menu'
     timeout: 60000
 - waitForAnimationToEnd:
     timeout: 5000
@@ -57,8 +57,9 @@ appId: fit.ignia.app
       # to confirm. The header is always on screen, so no scroll is needed.
       - tapOn:
           id: 'session-menu'
-      - tapOn:
-          id: 'session-menu-discard'
+      # iOS: the session ⋯ is a native menu, whose rows carry no testID
+      # (`session-menu-discard` exists only on the JS fallback sheet). 2026-10-11.
+      - tapOn: 'Discard workout'
       - tapOn:
           id: 'confirm-go'
       - extendedWaitUntil:
@@ -83,6 +84,19 @@ appId: fit.ignia.app
 - tapOn: 'Add exercise'
 - tapOn:
     id: 'create-exercise'
+# With a leftover library/catalog match for the name, the FIRST tap only
+# unfolds the log-style chips (`ExerciseSearchList`, L10); the second creates.
+# No match: the one tap already created and the sheet closed, so the chips are
+# gone and this is skipped. (`set-done-0-0` guards a slow close.)
+- runFlow:
+    when:
+      visible:
+        id: 'logstyle-weight-reps'
+      notVisible:
+        id: 'set-done-0-0'
+    commands:
+      - tapOn:
+          id: 'create-exercise'
 # An ad-hoc exercise arrives with exactly ONE set, kind `working`
 # (`useTrain.addExerciseToActive`). The rest before a set is decided by the set
 # AFTER it, so this flow needs a second row before it can say anything.
@@ -116,13 +130,32 @@ appId: fit.ignia.app
 # Check the box on row 0. Row 1 is the continuation, so this is the rest-pause
 # pause — 0:20, not the 1:00 between-sets rest. Reps first: an empty, unprescribed
 # set no longer ticks (it asks for the number — S20, the "0/2 beside two ticks"
-# defect this flow's screenshot showed).
+# defect this flow's screenshot showed). The LOAD too, since 2026-10-12: a
+# weight-reps tick with no weight and no last-time load asks for the weight
+# (fix S, L-N2 — this flow used to log "0 kg × 5", REG-20-run1). Weight first,
+# then reps: the weight field's keyboard stays up across the hop.
+- tapOn:
+    id: 'set-weight-0-0'
+- inputText: '20'
 - tapOn:
     id: 'set-count-0-0'
 - inputText: '5'
 # The keyboard bar's Done: `hideKeyboard` cannot close an iOS number pad.
-- tapOn:
-    text: 'Done'
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          text: 'Done'
+# 2026-10-12 (v4 QA): Android's number pad has no 'Done' bar, so this step
+# failed there (the flow had only run on iOS since the Done tap was added
+# 2026-10-05). Blur by tapping the set table's REPS header inside the session
+# ScrollView (keyboardShouldPersistTaps="handled"), as 21 does with its label.
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - tapOn: '(?i)reps'
 - tapOn:
     id: 'set-done-0-0'
 - waitForAnimationToEnd:
@@ -145,7 +178,11 @@ appId: fit.ignia.app
 # its own accessible text is EMPTY, so an `id: rest-bar` + `text:` selector can
 # never match however right the regex is (measured 2026-09-17; it reads as the
 # timer showing the wrong value when in fact nothing was compared).
-- assertVisible: '.*Rest . 0:.*'
+# 2026-10-12: the countdown is a BUTTON now (L16: tap it to open the rest
+# picker), and iOS collapses a touchable's children into its one label — the
+# spoken "Rest, 20 seconds" (`spokenDuration`), not the drawn "Rest · 0:20".
+# Either form is accepted so the flow also runs on a build from before.
+- assertVisible: '.*Rest(, [0-9]+ seconds?| . 0:[0-9][0-9]).*'
 # The real discriminator, and it is a DISAPPEARANCE, not a value. Maestro's iOS
 # hierarchy fetch costs ~15 s per assertion and the timer ticks once a second,
 # so by the time any value assertion runs, 20 s has become 0:03 and the
@@ -161,11 +198,28 @@ appId: fit.ignia.app
 # ── 2. Nothing coming next → the LONG rest, unchanged ─────────────
 # The over-correction guard. Pinning the continuation must not pin every rest:
 # row 1 is the last set of the exercise, which still takes the cluster rest.
+# A load first, as on row 0 (L-N2).
+- tapOn:
+    id: 'set-weight-0-1'
+- inputText: '20'
 - tapOn:
     id: 'set-count-0-1'
 - inputText: '3'
-- tapOn:
-    text: 'Done'
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          text: 'Done'
+# 2026-10-12 (v4 QA): Android's number pad has no 'Done' bar, so this step
+# failed there (the flow had only run on iOS since the Done tap was added
+# 2026-10-05). Blur by tapping the set table's REPS header inside the session
+# ScrollView (keyboardShouldPersistTaps="handled"), as 21 does with its label.
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - tapOn: '(?i)reps'
 - tapOn:
     id: 'set-done-0-1'
 - waitForAnimationToEnd:
@@ -187,7 +241,11 @@ appId: fit.ignia.app
 # A MINUTE digit. This one survives the fetch latency on its own: 120 s still
 # reads 1:4x a full 15 s later, while the short rest could never show a minute
 # digit at all. (Again the label, not the container - see above.)
-- assertVisible: '.*Rest . [12]:[0-5][0-9].*'
+# 2026-10-12: the countdown is a BUTTON now (L16: tap it to open the rest
+# picker), and iOS collapses a touchable's children into its one label — the
+# spoken "Rest, 20 seconds" (`spokenDuration`), not the drawn "Rest · 0:20".
+# Either form is accepted so the flow also runs on a build from before.
+- assertVisible: '.*Rest(, [12] minutes?.*| . [12]:[0-5][0-9]).*'
 - takeScreenshot: .maestro/regression/shots/22-rest-after-last-set
 - tapOn:
     id: 'rest-skip'
@@ -198,8 +256,9 @@ appId: fit.ignia.app
 # to confirm. The header is always on screen, so no scroll is needed.
 - tapOn:
     id: 'session-menu'
-- tapOn:
-    id: 'session-menu-discard'
+# iOS: the session ⋯ is a native menu, whose rows carry no testID
+# (`session-menu-discard` exists only on the JS fallback sheet). 2026-10-11.
+- tapOn: 'Discard workout'
 - tapOn:
     id: 'confirm-go'
 - extendedWaitUntil:
@@ -227,6 +286,20 @@ appId: fit.ignia.app
     timeout: 20000
 - tapOn:
     id: 'exercise-delete'
-- tapOn:
-    id: 'exercise-delete-confirm'
+# Delete asks through the named confirm sheet since the 2026-10-11 Train UX
+# pass (X11); a bundle from before it still shows the inline confirm row.
+- runFlow:
+    when:
+      visible:
+        id: 'confirm-go'
+    commands:
+      - tapOn:
+          id: 'confirm-go'
+- runFlow:
+    when:
+      visible:
+        id: 'exercise-delete-confirm'
+    commands:
+      - tapOn:
+          id: 'exercise-delete-confirm'
 - takeScreenshot: .maestro/regression/shots/22-teardown

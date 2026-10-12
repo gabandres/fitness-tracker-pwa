@@ -35,13 +35,14 @@ import { createStyles } from './train-styles';
  */
 export function NextUpCard({
   next,
-  supersets,
+  tag,
   onStart,
   onEdit,
 }: {
   next: NextUp;
-  /** The template runs a superset draft (2026-10-11): said here too. */
-  supersets?: boolean;
+  /** The template's tag — "Supersets since Oct 11", "Program v2" — the SAME
+   *  text its card wears (StartView `templateTag`, train-ux H-N7). */
+  tag?: string;
   onStart: () => void;
   onEdit: () => void;
 }) {
@@ -66,15 +67,21 @@ export function NextUpCard({
 
   return (
     <View style={styles.nextCard} testID="next-up">
-      <Text style={styles.nextCaption}>{t('train.nextUp')}</Text>
+      <Text style={styles.nextCaption} accessibilityRole="header">{t('train.nextUp')}</Text>
+      {/* The label replaces the children for a screen reader, so "last done
+          65 days ago" — the card's whole case for this template — has to be
+          in it (train-ux H8). */}
       <Touchable
         onPress={onEdit}
         accessibilityRole="button"
-        accessibilityLabel={supersets ? `${t('train.nextEditA11y', { name: next.template.name })}, ${t('train.drafts.activeTag')}` : t('train.nextEditA11y', { name: next.template.name })}
+        accessibilityLabel={[t('train.nextEditA11y', { name: next.template.name }), tag, when]
+          .filter(Boolean)
+          .join(', ')}
+        accessibilityHint={t('train.tplEditHint')}
         testID="next-up-edit"
       >
         <Text style={styles.nextName}>{next.template.name}</Text>
-        {supersets ? <Text style={styles.supersetTag} testID="next-up-supersets">{t('train.drafts.activeTag')}</Text> : null}
+        {tag ? <Text style={styles.supersetTag} testID="next-up-tag">{tag}</Text> : null}
         <Text style={styles.nextMeta}>{when}</Text>
       </Touchable>
       {/* Short label, named only to a screen reader. The template name is the

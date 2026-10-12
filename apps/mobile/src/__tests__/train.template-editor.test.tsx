@@ -230,10 +230,18 @@ it('round-trips per-set targets typed into the table', async () => {
  * `size` to the set COUNT, which is 1 for any uniform run, so the numbers
  * never appeared for more than one set and every card read "3 sets".
  */
+/** Exercise 0 is a myo-reps cluster; declare it straight sets (its rows are
+ *  untouched, so they rescaffold to three working sets). */
+async function straightCard0(getByTestId: (id: string) => Parameters<typeof fireEvent.press>[0]) {
+  await fireEvent.press(getByTestId('template-structure-compact-0'));
+  await fireEvent.press(getByTestId('template-structure-0-straight'));
+}
+
 it('summarises a uniformly prescribed exercise with its numbers', async () => {
   const { getByTestId, getByText } = await render(<TrainScreen />);
   await fireEvent.press(getByTestId('edit-template-t1'));
   await fireEvent.press(getByTestId('template-ex-toggle-0'));
+  await straightCard0(getByTestId);
 
   for (const i of [0, 1, 2]) {
     await fireEvent.changeText(getByTestId(`template-set-weight-0-${i}`), '20');
@@ -249,13 +257,35 @@ it('falls back to a set count when the sets do not agree', async () => {
   await fireEvent.press(getByTestId('edit-template-t1'));
   await fireEvent.press(getByTestId('template-ex-toggle-0'));
 
-  // Only the first row prescribes anything — "3 × 8" would be a lie about the
-  // other two, so the summary must not claim it.
+  await straightCard0(getByTestId);
+  // Only the first row prescribes 8; the other two will be offered the
+  // progression's 12 — "3 × 8" would be a lie about them.
   await fireEvent.changeText(getByTestId('template-set-reps-0-0'), '8');
   await fireEvent.press(getByTestId('template-ex-toggle-0'));
 
   // The template's own targetLoad (25) still stands in as the exercise default.
   expect(getByText('3 sets · 25 lb')).toBeTruthy();
+});
+
+it('a cluster card counts the cluster, not its rows (E-N2)', async () => {
+  const { getByTestId, getByText } = await render(<TrainScreen />);
+  await fireEvent.press(getByTestId('edit-template-t1'));
+  // 1a/1b/1c is ONE cluster; the L and R lift is two.
+  expect(getByText('1 cluster · 25 lb')).toBeTruthy();
+  expect(getByText('2 clusters · 40 lb')).toBeTruthy();
+});
+
+it('the reps placeholder is what the session will offer: the target reps on a working row (E-N1)', async () => {
+  const { getByTestId, getByText } = await render(<TrainScreen />);
+  await fireEvent.press(getByTestId('edit-template-t1'));
+  await fireEvent.press(getByTestId('template-ex-toggle-0'));
+  await straightCard0(getByTestId);
+  const reps = getByTestId('template-set-reps-0-1');
+  expect(reps.props.value).toBe('');
+  expect(reps.props.placeholder).toBe('12');
+  await fireEvent.press(getByTestId('template-ex-toggle-0'));
+  // …and the card says it, while nothing per-set is stored.
+  expect(getByText('3 × 12 · 25 lb')).toBeTruthy();
 });
 
 /**
@@ -326,7 +356,10 @@ describe('load log, cluster labels and lift settings', () => {
     const { getByTestId, queryByTestId } = await render(<TrainScreen />);
     await fireEvent.press(getByTestId('edit-template-t1'));
     await fireEvent.press(getByTestId('template-ex-toggle-0'));
-    // One field per cluster, under its first row.
+    // Folded behind one text action until asked for (E-N7)…
+    expect(queryByTestId('template-cluster-label-0-1')).toBeNull();
+    await fireEvent.press(getByTestId('template-name-clusters-0'));
+    // …then one field per cluster, under its first row.
     expect(getByTestId('template-cluster-label-0-1')).toBeTruthy();
     expect(queryByTestId('template-cluster-label-0-2')).toBeNull();
 
@@ -359,7 +392,9 @@ describe('load log, cluster labels and lift settings', () => {
     await fireEvent.press(getByTestId('template-ex-toggle-0'));
     await fireEvent.press(getByTestId('template-lift-settings-0'));
     await fireEvent.press(getByTestId('lift-category-isolation'));
-    await fireEvent.press(getByTestId('lift-save'));
+    // The page's one Save is its header's (E-N4).
+    expect(queryByTestId('lift-save')).toBeNull();
+    await fireEvent.press(getByTestId('lift-save-header'));
 
     await waitFor(() => expect(mockEditCatalogExercise).toHaveBeenCalledWith('e1', { category: 'isolation' }));
     // The template itself was not saved by it.

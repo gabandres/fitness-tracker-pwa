@@ -71,8 +71,14 @@ export function ConfirmHost() {
   // At accessibility text sizes two buttons side by side broke their labels
   // mid-word ("Cancela / r"); stacked, each gets the full width — the main
   // action on top, Cancel last.
-  const stacked = useWindowDimensions().fontScale > 1.3;
+  const largeText = useWindowDimensions().fontScale > 1.3;
   const [opts, setOpts] = useState<ConfirmOptions | null>(null);
+  const hasSecondary = !!(opts?.secondaryText && opts.onSecondary);
+  // Three actions always stack, in the order the doc promises — main action,
+  // the second way forward under it, Cancel last. Side by side, "Update and
+  // complete" wrapped at the DEFAULT text size beside Cancel, with the
+  // secondary above both (Train UX v2 QA).
+  const stacked = largeText || hasSecondary;
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -120,25 +126,25 @@ export function ConfirmHost() {
               <Text style={styles.body}>{opts.body}</Text>
             </ScrollView>
           ) : null}
-          {opts.secondaryText && opts.onSecondary ? (
-            <TouchableOpacity
-              style={[styles.cancel, { flex: 0, marginTop: space.md }]}
-              accessibilityRole="button"
-              testID="confirm-secondary"
-              onPress={() => {
-                haptics.tap();
-                close();
-                opts.onSecondary?.();
-              }}
-            >
-              <Text style={styles.cancelText}>{opts.secondaryText}</Text>
-            </TouchableOpacity>
-          ) : null}
-          {/* Stacked, the children are in SCREEN order (main action, then
-              Cancel): a reversed flex layout would show one order and have a
-              screen reader read the other. */}
+          {/* Stacked, the children are in SCREEN order (main action, the
+              secondary, then Cancel): a reversed flex layout would show one
+              order and have a screen reader read the other. */}
           <View style={[styles.row, stacked && styles.rowStacked]}>
             {stacked ? goButton : null}
+            {hasSecondary ? (
+              <TouchableOpacity
+                style={[styles.cancel, styles.flat]}
+                accessibilityRole="button"
+                testID="confirm-secondary"
+                onPress={() => {
+                  haptics.tap();
+                  close();
+                  opts.onSecondary?.();
+                }}
+              >
+                <Text style={styles.cancelText}>{opts.secondaryText}</Text>
+              </TouchableOpacity>
+            ) : null}
             <TouchableOpacity style={[styles.cancel, stacked && styles.flat]} onPress={close} accessibilityRole="button" testID="confirm-cancel">
               <Text style={styles.cancelText}>{opts.cancelText ?? t('common.cancel')}</Text>
             </TouchableOpacity>

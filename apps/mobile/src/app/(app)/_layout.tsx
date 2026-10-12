@@ -6,7 +6,7 @@ import { announce } from '@/lib/a11y';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ConfirmHost } from '@/components/ConfirmSheet';
 import { LogSpeedDial } from '@/components/LogSpeedDial';
-import { ActiveWorkoutPill } from '@/components/train/ActiveWorkoutPill';
+import { ActiveWorkoutPill, PILL_TAB_CLEARANCE, pillSceneInset } from '@/components/train/ActiveWorkoutPill';
 import { useT } from '@/i18n';
 import { useAuth } from '@/lib/auth';
 import { useAutoApplyOta } from '@/lib/app-update';
@@ -80,7 +80,16 @@ type AppTabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>['tabBar
  * with the hero ring re-sweeping to the new total (the built-in
  * celebration).
  */
-function AppTabBar({ state, descriptors, navigation }: AppTabBarProps) {
+function AppTabBar({
+  state,
+  descriptors,
+  navigation,
+  onPillBand,
+}: AppTabBarProps & {
+  /** The floating stack's height (pill + capsule) as laid out while the pill
+   *  shows — what the tabs' content is inset by under glass. */
+  onPillBand: (height: number) => void;
+}) {
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors, scheme } = useTheme();
@@ -180,9 +189,16 @@ function AppTabBar({ state, descriptors, navigation }: AppTabBarProps) {
   // review U11) — the dot on the Train icon says it exists, this says how long
   // and takes you back.
   const onTrain = current === 'train';
+  const pillShown = !onTrain && workout.active;
   return (
-    <View style={floating ? styles.floatWrap : undefined} pointerEvents="box-none">
-      {!onTrain && workout.active ? (
+    <View
+      style={floating ? styles.floatWrap : undefined}
+      pointerEvents="box-none"
+      // Measured only with the pill in it: on Train the stack is the capsule
+      // alone, and the other tabs keep the inset they will need on return.
+      onLayout={floating && pillShown ? (e) => onPillBand(e.nativeEvent.layout.height) : undefined}
+    >
+      {pillShown ? (
         <View style={styles.pillSlot}>
           <ActiveWorkoutPill onResume={() => navigation.navigate('train')} />
         </View>
@@ -299,6 +315,14 @@ export default function AppTabsLayout() {
   // while a workout runs — a remount would cancel the live rest timer.
   const relayout = useRelayoutGeneration();
   const workoutActive = useActiveWorkout().active;
+  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+  // While a workout is open the "Workout · Resume" pill sits above the tab bar
+  // on every tab but Train. Under glass it floats, so those tabs' content
+  // stops at its top instead of running under it (`pillSceneInset`); the
+  // padded strip is painted the canvas, not the navigator's default grey.
+  const [pillBand, setPillBand] = useState<number | null>(null);
+  const pillInset = workoutActive ? pillSceneInset(GLASS_TAB_BAR, pillBand, insets.bottom) : 0;
   useTourOnce();
   useWhatsNewOnce();
   // Pull weight/sleep/water from Apple Health / Health Connect on app-open and
@@ -351,7 +375,15 @@ export default function AppTabsLayout() {
       // for it to show; its state updates apply when it is focused again.
       // Timers keep running while frozen (the rest-over buzz fires from its
       // interval, not from a render — `useRestTimer`).
-      screenOptions={{ headerShown: false, freezeOnBlur: true }}
+      screenOptions={({ route }) => ({
+        headerShown: false,
+        freezeOnBlur: true,
+        // Style only — no remount, so a frozen tab keeps its state and Train
+        // (never inset: it shows the session, not the pill) is untouched.
+        ...(pillInset > 0 && route.name !== 'train'
+          ? { sceneStyle: { paddingBottom: pillInset, backgroundColor: colors.paper } }
+          : {}),
+      })}
       screenLayout={({ route, navigation, children }) => (
         <RelayoutBoundary
           generation={relayout}
@@ -361,7 +393,7 @@ export default function AppTabsLayout() {
           {children}
         </RelayoutBoundary>
       )}
-      tabBar={(props) => <AppTabBar key={relayout} {...props} />}
+      tabBar={(props) => <AppTabBar key={relayout} {...props} onPillBand={setPillBand} />}
     >
       <Tabs.Screen name="index" options={{ title: t('nav.today') }} />
       <Tabs.Screen name="train" options={{ title: t('nav.train') }} />
@@ -405,7 +437,7 @@ function createStyles({ colors }: Theme) {
     // bar: that would clip the raised + .
     glass: { ...StyleSheet.absoluteFill, borderRadius: 32 },
     // Clears the raised Log button, which stands ~26dp proud of the bar.
-    pillSlot: { paddingBottom: 30 },
+    pillSlot: { paddingBottom: PILL_TAB_CLEARANCE },
     // `minHeight`: at accessibility sizes the labels go and the icons-only
     // cell measured 34 dp (Android QA, UX_AUDIT S22).
     tab: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 2, minHeight: TARGET },

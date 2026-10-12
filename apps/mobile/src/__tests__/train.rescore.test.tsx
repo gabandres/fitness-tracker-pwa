@@ -177,7 +177,7 @@ const pushA = {
 
 /** The last toast's options. */
 const lastToast = () =>
-  mockShowToast.mock.calls[mockShowToast.mock.calls.length - 1] as [string, { action?: { label: string; onPress: () => void } }?];
+  mockShowToast.mock.calls[mockShowToast.mock.calls.length - 1] as [string, { action?: { label: string; onPress: () => void }; durationMs?: number }?];
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -200,7 +200,9 @@ describe('removals come with an Undo (bug 3, the set-delete gap)', () => {
     await fireEvent(ui.getByTestId('set-kind-0-0'), 'accessibilityAction', { nativeEvent: { actionName: 'delete' } });
     expect(mockTrain.dispatch).toHaveBeenCalledWith({ type: 'removeSet', exerciseIndex: 0, setIndex: 0 });
     const [msg, opts] = lastToast();
-    expect(msg).toBe('Set removed');
+    // Which set, of which lift (fix S, L-N14), for 10 s.
+    expect(msg).toBe('Set 1 removed · Bench');
+    expect(opts?.durationMs).toBe(10_000);
     expect(opts?.action?.label).toBe('Undo');
     opts?.action?.onPress();
     expect(mockTrain.undoRemoval).toHaveBeenCalledWith({
@@ -216,7 +218,7 @@ describe('removals come with an Undo (bug 3, the set-delete gap)', () => {
     mockTrain.active = session();
     const ui = await render(<TrainScreen />);
     await fireEvent.press(ui.getByTestId('set-swipe-delete-0-1'));
-    expect(lastToast()[0]).toBe('Set removed');
+    expect(lastToast()[0]).toBe('Set 2 removed · Bench');
   });
 
   it('Remove exercise — which used to drop logged sets with no confirm and no undo — is undoable', async () => {
@@ -241,6 +243,8 @@ describe('the live session', () => {
       mockTrain.active = session();
       const ui = await render(<TrainScreen />);
       expect(ui.getByTestId('exercise-head-0').props.accessibilityState).toEqual({ expanded: true });
+      // A load first: a weighted tick with none asks for it (fix S, L-N2).
+      await fireEvent.changeText(ui.getByTestId('set-weight-0-1'), '100');
       await fireEvent.press(ui.getByTestId('set-done-0-1'));
       await act(async () => {
         jest.advanceTimersByTime(450);
@@ -293,6 +297,8 @@ describe('the live session', () => {
     expect(ui.getByTestId('rest-keep-for-lift').props.accessibilityState).toEqual({ checked: false });
     await fireEvent.press(ui.getByTestId('rest-keep-for-lift'));
     await fireEvent.press(ui.getByTestId('rest-pick-180'));
+    // A pick no longer closes the sheet; Done applies it (fix S, L-N6).
+    await fireEvent.press(ui.getByTestId('rest-picker-done'));
     await waitFor(() => expect(mockTrain.saveTemplate).toHaveBeenCalled());
     const [draft, id] = mockTrain.saveTemplate.mock.calls[0] as [WorkoutTemplate, string];
     expect(id).toBe('t1');
@@ -377,7 +383,7 @@ describe('the idle screen', () => {
     await waitFor(() => expect(mockShowToast).toHaveBeenCalledWith('Template duplicated', expect.anything()));
 
     await fireEvent.press(ui.getByTestId('menu-Push A-delete'));
-    expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ destructive: true, title: 'Delete this template?' }));
+    expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ destructive: true, title: 'Delete Push A?' }));
     expect(mockTrain.deleteTemplate).not.toHaveBeenCalled();
   });
 

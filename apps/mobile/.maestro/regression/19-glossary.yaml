@@ -31,8 +31,10 @@ appId: fit.ignia.app
     timeout: 10000
 # The two words the finding named. "kcal" is the one that appears in 20+
 # strings where most people would read "calories".
-- assertVisible: 'kcal'
-- assertVisible: 'Maintenance'
+# 2026-10-11 (H12): each glossary term is ONE a11y element, "Name. Body",
+# so the bare term no longer full-matches — prefix-match it (all four below).
+- assertVisible: 'kcal\..*'
+- assertVisible: 'Maintenance\..*'
 - takeScreenshot: .maestro/regression/shots/19-glossary-today
 
 # The Trends half lives below the fold — scroll INSIDE the sheet. If the cap is
@@ -65,11 +67,11 @@ appId: fit.ignia.app
       - waitForAnimationToEnd
 - scrollUntilVisible:
     element:
-      text: 'Weight trend'
+      text: 'Weight trend\..*'
     direction: DOWN
     timeout: 30000
-- assertVisible: 'Weight trend'
-- assertVisible: 'Logging completeness'
+- assertVisible: 'Weight trend\..*'
+- assertVisible: 'Logging completeness\..*'
 - takeScreenshot: .maestro/regression/shots/19-glossary-scrolled
 # Dismiss by tapping the BACKDROP, not `back`. iOS has no hardware back, and
 # Maestro's `back` there is an edge swipe, which a modal bottom sheet does not
@@ -184,10 +186,25 @@ appId: fit.ignia.app
     id: 'tab-train'
 - extendedWaitUntil:
     visible:
-      id: 'train-glossary-open'
+      id: 'train-glossary-open|session-menu'
     timeout: 15000
-- tapOn:
-    id: 'train-glossary-open'
+# Since the Train UX pass (L4, 2026-10-11) the Train header — and its "?" —
+# is hidden while a workout runs; the session's ⋯ is the anchor then.
+- runFlow:
+    when:
+      visible:
+        id: 'session-menu'
+    commands:
+      - tapOn:
+          id: 'session-menu'
+      - tapOn: 'Glossary'
+- runFlow:
+    when:
+      visible:
+        id: 'train-glossary-open'
+    commands:
+      - tapOn:
+          id: 'train-glossary-open'
 - extendedWaitUntil:
     visible:
       id: 'train-glossary-title'

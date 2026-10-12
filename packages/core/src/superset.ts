@@ -38,6 +38,9 @@
 import type { MuscleGroup, SetKind } from './workout';
 import { restAfterSet, type RestSeconds } from './rest-after-set';
 
+/** Sets done at the station before the effort — never "a unit left open". */
+const NON_EFFORT_KINDS: ReadonlySet<SetKind | undefined> = new Set<SetKind | undefined>(['warmup', 'mobility']);
+
 /** Group letters, in the order new groups are named. */
 export const SUPERSET_LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 /** A pair, or a tri-set. A fourth member is dropped by {@link normalizeSupersets}. */
@@ -386,7 +389,12 @@ export interface FlowRest {
  * - to the next member in the same round → the group's transition rest;
  * - to the next round, when that round has two or more members → the round rest;
  * - to a LEFTOVER unit (the next round has one member) → that exercise's
- *   ordinary between-cluster rest, because it runs as a straight set;
+ *   ordinary between-cluster rest, because it runs as a straight set, still
+ *   carrying `round` — also when the leftover is this same exercise's;
+ * - to this exercise's own next unit while its partner still has that round
+ *   open → its between-cluster rest, without `round`;
+ * - back to a partner unit of THIS round that was started and left open (the
+ *   lifter jumped ahead mid-cluster) → the transition rest, into it;
  * - after the group's last unit → the rest after the exercise.
  *
  * "Next" skips what is already logged when `isDone` is given: a lifter whose
@@ -440,22 +448,58 @@ export function restAfterSetInFlow(
   }
 
   const { transitionRestSec, roundRestSec } = groupRest(rows, step.group);
+  const groupSteps = flow.filter((s) => s.group === step.group);
+  const total = Math.max(...groupSteps.map((s) => s.unit)) + 1;
+  // A partner unit of THIS round that the lifter STARTED and left open sits
+  // BEHIND this step in the flow, so a forward search never offers it: the
+  // lifter who did A1 1a and then jumped to A2 is sent back to A1 1b on the
+  // switch rest, not on to A2 set 2 (Train UX pass L1). Narrow on purpose, so
+  // a set skipped by choice never bounces every later tick back to it:
+  // - effort sets only — a warm-up or mobility hold rides in unit 0 and an
+  //   unticked one is a choice, not a station left mid-way;
+  // - "left open" = an open effort set AFTER a ticked one in that unit (an
+  //   untouched unit behind is a choice too: the station was taken);
+  // - this round only, and never once that exercise has a later unit ticked —
+  //   the lifter moved on. Only with a logged-state reader.
+  const resumeAt = (s: FlowStep): number | undefined => {
+    const effort = s.setIndices.filter((i) => !NON_EFFORT_KINDS.has(rows[s.exerciseIndex]?.sets[i]?.kind));
+    const first = effort.findIndex((i) => isDone!(s.exerciseIndex, i));
+    return first < 0 ? undefined : effort.slice(first + 1).find((i) => !isDone!(s.exerciseIndex, i));
+  };
+  const movedOn = (s: FlowStep) =>
+    groupSteps.some((g) => g.exerciseIndex === s.exerciseIndex && g.unit > s.unit && g.setIndices.some((i) => isDone!(g.exerciseIndex, i)));
+  const behind = isDone
+    ? flow.slice(0, at).find((s) => s.group === step.group && s.exerciseIndex !== exerciseIndex && s.unit === step.unit && resumeAt(s) != null && !movedOn(s))
+    : undefined;
+  if (behind) {
+    return {
+      seconds: transitionRestSec,
+      kind: 'transition',
+      next: { exerciseIndex: behind.exerciseIndex, setIndex: resumeAt(behind)!, ...(behind.label ? { label: behind.label } : {}) },
+    };
+  }
   if (nextStep?.group === step.group) {
-    // The next open unit is this exercise's own (its partner is finished): an
-    // ordinary between-cluster rest, as for a straight lift.
     if (nextStep.exerciseIndex === exerciseIndex) {
-      return { seconds: own.cluster, kind: 'cluster', ...(next ? { next } : {}) };
+      // The next open unit is this exercise's own: an ordinary between-cluster
+      // rest, as for a straight lift. It is a leftover round — "its partner is
+      // done · Round 2/3" — only when the partner has nothing open in that
+      // round; otherwise the partner is still to come and saying so is false.
+      const partnerOpen = groupSteps.some((s) => s.unit === nextStep.unit && s.exerciseIndex !== exerciseIndex && open(s));
+      return {
+        seconds: own.cluster,
+        kind: 'cluster',
+        ...(partnerOpen ? {} : { round: { n: nextStep.unit + 1, total } }),
+        ...(next ? { next } : {}),
+      };
     }
     if (nextStep.unit === step.unit) return { seconds: transitionRestSec, kind: 'transition', ...(next ? { next } : {}) };
-    const groupSteps = flow.filter((s) => s.group === step.group);
     const inNextRound = groupSteps.filter((s) => s.unit === nextStep.unit && open(s)).length;
     if (inNextRound >= 2) {
-      const total = Math.max(...groupSteps.map((s) => s.unit)) + 1;
       return { seconds: roundRestSec, kind: 'round', round: { n: nextStep.unit + 1, total }, ...(next ? { next } : {}) };
     }
-    // A leftover unit: the exercise's own rest, but still a round of the
-    // superset — "A1 alone · round 3 of 3".
-    const total = Math.max(...groupSteps.map((s) => s.unit)) + 1;
+    // A leftover unit of another member (this exercise has none left in that
+    // round): that exercise's ordinary between-cluster rest, as for a straight
+    // lift, but still a round of the superset — "A1 alone · round 3 of 3".
     return { seconds: restFor(nextStep.exerciseIndex).cluster, kind: 'cluster', round: { n: nextStep.unit + 1, total }, ...(next ? { next } : {}) };
   }
   return { seconds: own.afterExercise ?? own.cluster, kind: 'after-exercise', ...(next ? { next } : {}) };

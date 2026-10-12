@@ -286,7 +286,9 @@ describe('the live session (bugs 3, 5; items 5, 18)', () => {
     const bench = (sets: WorkoutSession['exercises'][number]['sets']) =>
       session({ exercises: [{ exerciseId: 'e1', name: 'Bench', logStyle: 'weight-reps', cues: [], sets }] });
 
-    mockTrain.active = bench([{ kind: 'working', targetReps: 5 }, { kind: 'working', targetReps: 5 }]);
+    // Loaded (seeded from the template): a weighted tick with no load at all
+    // asks for it first (fix S, L-N2).
+    mockTrain.active = bench([{ kind: 'working', weight: 100, targetReps: 5 }, { kind: 'working', weight: 100, targetReps: 5 }]);
     const first = await render(<TrainScreen />);
     await fireEvent.press(first.getByTestId('set-done-0-0'));
     expect(haptics.tap).toHaveBeenCalled();
@@ -294,7 +296,7 @@ describe('the live session (bugs 3, 5; items 5, 18)', () => {
     await first.unmount();
 
     jest.clearAllMocks();
-    mockTrain.active = bench([{ kind: 'working', reps: 5, done: true }, { kind: 'working', targetReps: 5 }]);
+    mockTrain.active = bench([{ kind: 'working', weight: 100, reps: 5, done: true }, { kind: 'working', weight: 100, targetReps: 5 }]);
     const last = await render(<TrainScreen />);
     await fireEvent.press(last.getByTestId('set-done-0-1'));
     expect(haptics.success).toHaveBeenCalled();
@@ -316,7 +318,7 @@ describe('the live session (bugs 3, 5; items 5, 18)', () => {
     end();
     mockTrain.active = session({
       templateId: undefined,
-      exercises: [{ exerciseId: 'e1', name: 'Bench', logStyle: 'weight-reps', cues: [], sets: [{ kind: 'working', targetReps: 5 }, { kind: 'working' }] }],
+      exercises: [{ exerciseId: 'e1', name: 'Bench', logStyle: 'weight-reps', cues: [], sets: [{ kind: 'working', weight: 100, targetReps: 5 }, { kind: 'working' }] }],
     });
     const ui = await render(<TrainScreen />);
     await fireEvent.press(ui.getByTestId('set-done-0-0'));
@@ -371,7 +373,10 @@ describe('the home screen (bugs 6, 7, 9; items 8, 10, 14, 32)', () => {
     const ui = await render(<TrainScreen />);
     const edit = ui.getByTestId('edit-template-t1');
     expect(edit.props.accessibilityRole).toBe('button');
-    expect(edit.props.accessibilityLabel).toBe('Edit Push A');
+    // Name first, then what is in it — the counts and lifts were a hint, lost
+    // with hints off (train-ux H8).
+    expect(edit.props.accessibilityLabel).toMatch(/^Edit Push A, .*Bench · Row$/);
+    expect(edit.props.accessibilityHint).toBe('Opens the template editor.');
     expect(within(edit).queryByTestId('next-session-t1')).toBeNull();
     expect(ui.getByTestId('next-session-t1')).toBeTruthy();
     expect(ui.getByTestId('start-template-t1').props.accessibilityLabel).toBe('Start Push A');
@@ -396,7 +401,7 @@ describe('the home screen (bugs 6, 7, 9; items 8, 10, 14, 32)', () => {
     await fireEvent.press(ui.getByTestId('edit-template-t1'));
     await fireEvent.press(await waitFor(() => ui.getByTestId('delete-template')));
     expect(mockTrain.deleteTemplate).not.toHaveBeenCalled();
-    expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Delete this template?' }));
+    expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Delete Push A?' }));
     answerConfirm();
     await waitFor(() => expect(mockTrain.deleteTemplate).toHaveBeenCalledWith('t1'));
   });
@@ -420,13 +425,38 @@ describe('the home screen (bugs 6, 7, 9; items 8, 10, 14, 32)', () => {
 
     await fireEvent.changeText(ui.getByTestId('template-name'), 'Push B');
     await fireEvent.press(ui.getByTestId('template-backdrop'));
-    expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Discard changes?' }));
+    // Named, with what happens to the saved version (train-ux T16).
+    expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'Discard changes to Push A?', body: 'The saved version stays as it was.',
+    }));
     expect(ui.getByTestId('template-name')).toBeTruthy();
+
+    // The header's visible Cancel runs the same check (train-ux T2).
+    mockConfirm.mockClear();
+    await fireEvent.press(ui.getByTestId('template-cancel'));
+    expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Discard changes to Push A?' }));
 
     await fireEvent.changeText(ui.getByTestId('template-name'), 'Push A');
     mockConfirm.mockClear();
     await fireEvent.press(ui.getByTestId('template-backdrop'));
     expect(mockConfirm).not.toHaveBeenCalled();
+  });
+
+  it('a nameless Save says why, under the field, instead of a grey button (train-ux T10)', async () => {
+    const ui = await render(<TrainScreen />);
+    await fireEvent.press(ui.getByTestId('new-template'));
+    await waitFor(() => expect(ui.getByTestId('save-template')).toBeTruthy());
+    expect(ui.getByTestId('save-template').props.accessibilityState).toEqual(expect.objectContaining({ disabled: false }));
+    await fireEvent.press(ui.getByTestId('save-template'));
+    expect(ui.getByTestId('template-name-error')).toBeTruthy();
+    expect(mockTrain.saveTemplate).not.toHaveBeenCalled();
+    // A new template has no saved version, and the confirm says so.
+    await fireEvent.changeText(ui.getByTestId('template-name'), 'Legs');
+    expect(ui.queryByTestId('template-name-error')).toBeNull();
+    await fireEvent.press(ui.getByTestId('template-cancel'));
+    expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'Discard this new template?', body: 'Nothing has been saved yet.',
+    }));
   });
 
   it('merging an exercise asks first — and refuses offline', async () => {

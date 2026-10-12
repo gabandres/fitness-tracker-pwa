@@ -40,6 +40,21 @@ describe('ConfirmSheet', () => {
     expect(onConfirm).not.toHaveBeenCalled();
   });
 
+  it('three actions stack full-width in screen order: main, secondary, Cancel (Finish prompt, QA v2)', async () => {
+    const onSecondary = jest.fn();
+    const screen = await render(<ConfirmHost />);
+    confirm({ title: 'Update Upper A?', confirmText: 'Update and complete', secondaryText: 'Complete only', onConfirm: jest.fn(), onSecondary });
+    await waitFor(() => expect(screen.getByText('Update Upper A?')).toBeTruthy());
+    const order = screen.getAllByRole('button').map((b) => b.props.testID as string | undefined)
+      .filter((id) => id === 'confirm-go' || id === 'confirm-secondary' || id === 'confirm-cancel');
+    expect(order).toEqual(['confirm-go', 'confirm-secondary', 'confirm-cancel']);
+    // Full width each (no flex row splitting the main action beside Cancel).
+    const flat = (st: unknown) => Object.assign({}, ...[st].flat(Infinity).filter(Boolean));
+    expect(flat(screen.getByTestId('confirm-go').props.style).flex).toBe(0);
+    await fireEvent.press(screen.getByTestId('confirm-secondary'));
+    expect(onSecondary).toHaveBeenCalledTimes(1);
+  });
+
   it('fails closed with no host mounted', () => {
     const onConfirm = jest.fn();
     expect(() => confirm({ title: 'x', confirmText: 'y', onConfirm })).not.toThrow();

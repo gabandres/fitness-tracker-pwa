@@ -1,4 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { useState } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import {
   type SeedExercise,
@@ -10,11 +11,24 @@ import { type I18nKey, useLocale, useT } from '@/i18n';
 import { useThemedStyles } from '@/lib/theme-context';
 import { font } from '@/theme';
 import { createStyles } from './train-styles';
-import { logStyleKey } from './train-shared';
+import { CREATION_STYLES, type CreationStyle, logStyleKey } from './train-shared';
 
 /** One row's identity in a multi-pick, across both halves of the list. */
 export const catalogPickKey = (e: Exercise) => `c:${e.id ?? e.name}`;
 export const seedPickKey = (s: SeedExercise) => `s:${s.key}`;
+
+/** The "Add “<typed>”" row and its log-style chips, when the host offers
+ *  creating a new exercise from the typed name. */
+export interface SearchCreate {
+  /** The trimmed typed name. */
+  name: string;
+  style: CreationStyle;
+  onStyleChange: (s: CreationStyle) => void;
+  onCreate: () => void;
+  testID?: string;
+  /** Each chip is `${prefix}-${style}`. */
+  styleTestIDPrefix?: string;
+}
 
 /**
  * Exercise search results — the user's own catalog first, then the shipped
@@ -54,6 +68,8 @@ export function ExerciseSearchList({
   selected,
   onToggleCatalog,
   onToggleSeed,
+  create,
+  inTemplate,
 }: {
   query: string;
   catalog: readonly Exercise[];
@@ -72,10 +88,28 @@ export function ExerciseSearchList({
   catalogLimit?: number;
   libraryLimit?: number;
   testIDPrefix?: string;
+  /**
+   * Finding comes before creating (train-ux review T1/L10, 2026-10-11). With
+   * matches, the "Add “<typed>”" row sits AFTER them and its four style chips
+   * stay folded until it is tapped — the chips only matter to that path, and
+   * above the results they pushed every match under the keyboard. With no
+   * match, the row and chips lead, because creating is then the only path.
+   */
+  create?: SearchCreate;
+  /**
+   * Catalog ids already in the host's list (the template editor's cards).
+   * Their rows say "In template" and stay pickable — a second slot of one
+   * lift is legitimate — so a browse tap no longer adds a silent duplicate
+   * (train-ux E-N5).
+   */
+  inTemplate?: ReadonlySet<string>;
 }) {
   const t = useT();
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
+  /** The create row's chips, unfolded by a first tap when matches exist.
+   *  Stays unfolded for the life of the list once asked for. */
+  const [stylesOpen, setStylesOpen] = useState(false);
 
   const q = query.trim().toLowerCase();
   const mine = (q ? catalog.filter((e) => e.name.toLowerCase().includes(q)) : catalog)
@@ -102,15 +136,59 @@ export function ExerciseSearchList({
         accessibilityLabel={t('train.selectExerciseA11y', { name })}
         testID={testID}
       >
+        {/* The mark only when ticked: a faint check in an empty box read as
+            "lightly selected" (train-ux E-N12). */}
         <View style={[styles.doneBox, on && styles.doneBoxOn]}>
-          <Ionicons name="checkmark" size={font.small + 2} style={[styles.doneCheck, on && styles.doneCheckOn]} />
+          {on ? <Ionicons name="checkmark" size={font.small + 2} style={[styles.doneCheck, styles.doneCheckOn]} /> : null}
         </View>
       </TouchableOpacity>
     );
   };
 
+  const hasMatches = mine.length > 0 || library.length > 0;
+  const chipsShown = create != null && (!hasMatches || stylesOpen);
+
+  const createBlock = create ? (
+    <>
+      <TouchableOpacity
+        style={styles.createRow}
+        onPress={() => {
+          // With matches, the first tap unfolds the chips (pick how it is
+          // logged); the second creates. Without, there is nothing to fold.
+          if (hasMatches && !stylesOpen) setStylesOpen(true);
+          else create.onCreate();
+        }}
+        accessibilityRole="button"
+        accessibilityState={hasMatches ? { expanded: stylesOpen } : undefined}
+        testID={create.testID}
+      >
+        <Text style={styles.createText}>{t('train.addNamed', { name: create.name })}</Text>
+      </TouchableOpacity>
+      {chipsShown ? (
+        <View style={[styles.styleRow, styles.styleRowWrap, { marginTop: 0 }]} accessibilityRole="radiogroup">
+          {CREATION_STYLES.map((ls) => {
+            const on = create.style === ls.value;
+            return (
+              <TouchableOpacity
+                key={ls.value}
+                style={[styles.styleChip, styles.styleChipHalf, on && styles.styleChipOn]}
+                onPress={() => create.onStyleChange(ls.value)}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: on, checked: on }}
+                testID={create.styleTestIDPrefix ? `${create.styleTestIDPrefix}-${ls.value}` : undefined}
+              >
+                <Text style={[styles.styleChipText, on && styles.styleChipTextOn]}>{t(ls.labelKey)}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      ) : null}
+    </>
+  ) : null;
+
   return (
     <>
+      {!hasMatches ? createBlock : null}
       {mine.length > 0 ? (
         <>
           <Text style={styles.searchGroup}>{t('train.searchMine')}</Text>
@@ -125,7 +203,12 @@ export function ExerciseSearchList({
                 // match" but never a Firestore id it did not create.
                 testID={`${testIDPrefix}-mine-${i}`}
               >
-                <Text style={styles.catalogName}>{e.name}</Text>
+                <View style={styles.searchMain}>
+                  <Text style={styles.catalogName}>{e.name}</Text>
+                  {e.id && inTemplate?.has(e.id) ? (
+                    <Text style={styles.searchMuscles} testID={`${testIDPrefix}-mine-${i}-in`}>{t('train.inTemplate')}</Text>
+                  ) : null}
+                </View>
                 <Text style={styles.catalogStyle}>{t(logStyleKey(e.logStyle))}</Text>
               </TouchableOpacity>
             );
@@ -174,9 +257,10 @@ export function ExerciseSearchList({
         </>
       ) : null}
 
-      {mine.length === 0 && library.length === 0 ? (
+      {mine.length === 0 && library.length === 0 && !create ? (
         <Text style={styles.empty}>{q ? t('train.searchNone') : t('train.noSaved')}</Text>
       ) : null}
+      {hasMatches ? createBlock : null}
     </>
   );
 }

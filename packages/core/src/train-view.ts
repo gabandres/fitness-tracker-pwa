@@ -69,37 +69,49 @@ export function sessionVolume(session: Pick<WorkoutSession, 'exercises'>): numbe
 
 // ─── Idle hero ──────────────────────────────────────────────────
 
+/** The heaviest working set of the hero's week, with the lift it belongs to. */
+export interface HeroTopSet {
+  exerciseId: string;
+  name: string;
+  /** Pounds, as stored. The screen converts. */
+  weight: number;
+}
+
 export interface TrainHeroStats {
   /** Sessions in the trailing 7 days. */
   count: number;
   /** Σ volume over those sessions. */
   volume: number;
-  /** Heaviest WORKING set ever logged, across every session given. Warm-ups
-   *  are excluded — a heavy warm-up is not a top set. */
-  topSet: number;
+  /** Heaviest WORKING set in those same 7 days, and whose it was; null when
+   *  the week logged no load. Warm-ups are excluded — a heavy warm-up is not
+   *  a top set.
+   *
+   *  It was the heaviest set EVER, as a bare number, printed inside the panel
+   *  headed "Last 7 days": a 40-day-old deadlift read as this week's, under
+   *  no lift name at all (train-ux H-N4, 2026-10-12). */
+  topSet: HeroTopSet | null;
 }
 
 /**
- * The three idle-hero numbers. `now` is passed in rather than read so the
- * seven-day window is testable and so a screen that already knows the render
- * time does not disagree with itself mid-frame.
+ * The three idle-hero numbers, all over ONE window. `now` is passed in rather
+ * than read so the seven-day window is testable and so a screen that already
+ * knows the render time does not disagree with itself mid-frame.
  *
  * Pass only the sessions that should count — both frontends pass completed
- * ones.
+ * ones, newest first; of two equal tops the first one seen wins.
  */
 export function trainHeroStats(sessions: readonly WorkoutSession[], now: number): TrainHeroStats {
   const weekAgo = now - WEEK_MS;
   let count = 0;
   let volume = 0;
-  let topSet = 0;
+  let topSet: HeroTopSet | null = null;
   for (const s of sessions) {
-    if (s.date.getTime() >= weekAgo) {
-      count += 1;
-      volume += sessionVolume(s);
-    }
+    if (s.date.getTime() < weekAgo) continue;
+    count += 1;
+    volume += sessionVolume(s);
     for (const ex of s.exercises) {
-      const pr = computeExercisePRs([ex]);
-      if (pr.maxWeight > topSet) topSet = pr.maxWeight;
+      const { maxWeight } = computeExercisePRs([ex]);
+      if (maxWeight > (topSet?.weight ?? 0)) topSet = { exerciseId: ex.exerciseId, name: ex.name, weight: maxWeight };
     }
   }
   return { count, volume, topSet };
@@ -249,6 +261,37 @@ export function workingSetCells(
     }
   }
   return cells;
+}
+
+/** A logged set {@link workingSetCells} leaves out, with its kind for the
+ *  label ("Warm-up 95×8"). */
+export interface OtherSetCell {
+  kind: 'warmup' | 'drop' | 'mobility';
+  cell: string;
+}
+
+/**
+ * The LOGGED warm-up, drop and mobility sets of one exercise, in order — the
+ * other half of {@link workingSetCells}. A session's set count
+ * (`sessionCounts`) counts every logged set, so a detail view that listed only
+ * the working ones said "12 sets" over nine (train-ux review H3, 2026-10-11).
+ * A weight-reps set with no weight still shows its reps; the caller labels
+ * each cell by `kind`.
+ */
+export function otherSetCells(
+  ex: Pick<SessionExercise, 'sets'>,
+  style: LogStyle,
+  unitSystem?: UnitSystem,
+): OtherSetCell[] {
+  const out: OtherSetCell[] = [];
+  for (const s of ex.sets) {
+    if (isWorkingSet(s) || !isLoggedSet(s, style)) continue;
+    const kind = s.kind as OtherSetCell['kind'];
+    if (style === 'time') out.push({ kind, cell: `${s.durationSec}s` });
+    else if (style === 'bodyweight' || s.weight == null) out.push({ kind, cell: `${s.reps}` });
+    else out.push({ kind, cell: `${toDisplayLoad(s.weight, unitSystem)}×${s.reps}` });
+  }
+  return out;
 }
 
 /** What the user last did on this exercise, or null when there is no
@@ -475,8 +518,14 @@ export interface FinishSummary {
   /** Lifts whose best set this session beats every prior session. */
   prs: SessionPr[];
   /** Volume of the last completed session of the SAME template, or null when
-   *  there is none to compare with (ad-hoc, or the first time). */
+   *  there is none to compare with (ad-hoc, or the first time) — summed over
+   *  only the lifts THIS session logged (train-ux F4, 2026-10-11): a session
+   *  with two lifts not started read "−67% volume vs last time" under its own
+   *  record, which compared one lift with three. */
   previousVolume: number | null;
+  /** The last session had lifts this one did not log, so `previousVolume`
+   *  leaves them out and the sheet says "on the same lifts". */
+  previousSameLiftsOnly: boolean;
   /** Names of the lifts with no logged set, in session order. Finishing drops
    *  them (`dropEmptyExercises`), so the sheet says so BEFORE the save rather
    *  than letting a forgotten lift vanish from the record unannounced. */
@@ -485,6 +534,13 @@ export interface FinishSummary {
    *  null when nothing loaded was logged. The line the sheet leads with when
    *  there is no record to celebrate. */
   topSet: SessionPr | null;
+  /** Sets not logged inside a lift that WAS started — the save drops them
+   *  (`dropEmptySets`). Lifts not started at all are `unstarted` instead. */
+  skippedSets: number;
+  /** Sets with their numbers typed but never ticked done. The save keeps
+   *  them as performed (`isLoggedSet` reads the count, not the tick), so
+   *  the sheet says so while it can still be fixed (train-ux F9). */
+  untickedSets: number;
 }
 
 /**
@@ -506,11 +562,20 @@ export function finishSummary(
   const best = bestE1RMByExercise(prior);
   const prs: SessionPr[] = [];
   const unstarted: string[] = [];
+  const loggedIds = new Set<string>();
+  let skippedSets = 0;
+  let untickedSets = 0;
   let topSet: SessionPr | null = null;
   let topMetric = 0;
   for (const ex of session.exercises) {
     const style = ex.logStyle ?? DEFAULT_LOG_STYLE;
-    if (!ex.sets.some((s) => isLoggedSet(s, style))) unstarted.push(ex.name);
+    const logged = ex.sets.filter((s) => isLoggedSet(s, style));
+    if (logged.length === 0) unstarted.push(ex.name);
+    else {
+      loggedIds.add(ex.exerciseId);
+      skippedSets += ex.sets.length - logged.length;
+      untickedSets += logged.filter((s) => !s.done).length;
+    }
     if (style === 'weight-reps') {
       for (const s of ex.sets) {
         if (!isWorkingSet(s) || !isLoggedSet(s, style) || s.weight == null || s.weight <= 0 || s.reps == null) continue;
@@ -534,13 +599,17 @@ export function finishSummary(
     ? prior.find((s) => s.templateId === session.templateId)
     : undefined;
   const started = session.date instanceof Date ? session.date.getTime() : now;
+  const lastSame = last ? last.exercises.filter((e) => loggedIds.has(e.exerciseId)) : [];
   return {
     durationMin: Math.max(0, Math.round((now - started) / 60_000)),
     volume: sessionVolume(session),
     sets: sessionCounts(session).sets,
     prs,
-    previousVolume: last ? sessionVolume(last) : null,
+    previousVolume: last ? sessionVolume({ exercises: lastSame }) : null,
+    previousSameLiftsOnly: last != null && lastSame.length < last.exercises.length,
     unstarted,
     topSet,
+    skippedSets,
+    untickedSets,
   };
 }

@@ -573,6 +573,18 @@ export function toTemplatePatch<TS>(
 
 // ─── Workout: sessions ──────────────────────────────────────────
 
+/** Hours of sleep a session doc may carry — `firestore.rules`
+ *  `isValidWorkoutSession`: a number in 0–24. The Finish sheet rejects at the
+ *  input; this drops what still gets through, so the rest of the finish lands. */
+export function isStorableSleepHours(h: number): boolean {
+  return Number.isFinite(h) && h >= 0 && h <= 24;
+}
+
+/** Whole-session minutes a session doc may carry — the rules' 0–1440. */
+export function isStorableDurationMin(min: number): boolean {
+  return Number.isFinite(min) && min >= 0 && min <= 24 * 60;
+}
+
 export interface SessionDraftInput {
   status: SessionStatus;
   date: Date;
@@ -631,8 +643,15 @@ export function toSessionDoc<TS>(
     ...(draft.bodyweight !== undefined && isStorableWeight(draft.bodyweight)
       ? { bodyweight: draft.bodyweight }
       : {}),
-    ...(draft.sleepHours !== undefined ? { sleepHours: draft.sleepHours } : {}),
-    ...(draft.durationMin !== undefined ? { durationMin: draft.durationMin } : {}),
+    // Same backstop for sleep and duration (train-ux F3): the rules refuse a
+    // session carrying either out of range, and a refused FINISH put the
+    // workout back on screen as unsaved — hours later, if it replayed offline.
+    ...(draft.sleepHours !== undefined && isStorableSleepHours(draft.sleepHours)
+      ? { sleepHours: draft.sleepHours }
+      : {}),
+    ...(draft.durationMin !== undefined && isStorableDurationMin(draft.durationMin)
+      ? { durationMin: draft.durationMin }
+      : {}),
     ...(draft.templateVersion !== undefined ? { templateVersion: draft.templateVersion } : {}),
     // Absent stays absent — a strength-only session must not gain an empty
     // array it never had, which would rewrite every session doc on next save.
@@ -657,8 +676,8 @@ export function toSessionPatch<TS>(
   if (patch.templateName !== undefined) data['templateName'] = patch.templateName;
   if (patch.date !== undefined) data['timestamp'] = codec.timestamp(patch.date);
   if (patch.bodyweight !== undefined && isStorableWeight(patch.bodyweight)) data['bodyweight'] = patch.bodyweight;
-  if (patch.sleepHours !== undefined) data['sleepHours'] = patch.sleepHours;
-  if (patch.durationMin !== undefined) data['durationMin'] = patch.durationMin;
+  if (patch.sleepHours !== undefined && isStorableSleepHours(patch.sleepHours)) data['sleepHours'] = patch.sleepHours;
+  if (patch.durationMin !== undefined && isStorableDurationMin(patch.durationMin)) data['durationMin'] = patch.durationMin;
   if (patch.templateVersion !== undefined) data['templateVersion'] = patch.templateVersion;
   if (patch.exercises !== undefined) data['exercises'] = sanitizeSessionExercises(patch.exercises);
   // Like `exercises`, this is a whole-array overwrite rather than a merge:

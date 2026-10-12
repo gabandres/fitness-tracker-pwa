@@ -31,6 +31,15 @@ import { type ReactNode, useCallback, useSyncExternalStore } from 'react';
  *      dismissal is refused, the route asks `requestClose`, and the caller
  *      decides — usually a "Discard this entry?" confirm drawn inside the
  *      sheet.
+ *   4. **Android, same gesture on a `guarded` sheet**: react-native-screens'
+ *      formSheet cannot refuse a drag or a scrim tap (`preventNativeDismiss`
+ *      is iOS-only; its `SheetDelegate` makes every sheet hideable), so the
+ *      sheet is already off screen when the route hears of it. The route lets
+ *      navigation catch up, and the owner presents it again (`restore`) and
+ *      asks on arrival (`askWhenPresented`). Its state lives in the owner, so
+ *      the typed content comes back with it. Holding the route instead left a
+ *      route with no screen: the owner stayed `visible`, and the sheet could
+ *      not be opened again until a restart (train-ux INDEX-v4 E1).
  */
 
 /** Which dismissal the user made without aiming at a button. */
@@ -47,9 +56,15 @@ export interface SheetPortalEntry {
   backSteps?: boolean;
   /** Host toasts and confirms inside the sheet. */
   overlays: boolean;
+  /** Where a toast draws in the sheet (`BottomSheet` `toastAt`). */
+  toastAt?: 'top' | 'bottom';
   /** The owner's `visible`. A route that mounts after its owner already
    *  closed (a fast open-then-close) dismisses itself on sight. */
   visible: boolean;
+  /** Android only: the system took a GUARDED sheet down anyway (a drag or a
+   *  scrim tap cannot be refused there). Present it again and ask `via` once
+   *  it is back up. Optional so a hand-built entry (tests) may omit it. */
+  restore?: (via: PortalCloseVia) => void;
   testID?: string;
 }
 
@@ -59,6 +74,9 @@ interface Presenter {
 }
 
 const entries = new Map<string, SheetPortalEntry>();
+/** Sheets re-presented after Android dismissed them while guarded: the route
+ *  asks its owner `requestClose(via)` as soon as it is back up. */
+const pendingAsks = new Map<string, PortalCloseVia>();
 const presenters = new Map<string, Presenter>();
 const closing = new Set<string>();
 /** Per-id subscribers: a sheet republishing on every render of its owner must
@@ -111,8 +129,23 @@ export function registerPresenter(id: string, presenter: Presenter): () => void 
   return () => {
     if (presenters.get(id) === presenter) presenters.delete(id);
     closing.delete(id);
-    clearSheetActive(id);
+    // A sheet being put back (`askWhenPresented`) stays active through the
+    // swap, so the screen underneath keeps its listeners.
+    if (!pendingAsks.has(id)) clearSheetActive(id);
   };
+}
+
+/** The next route presented for `id` asks its owner `requestClose(via)` on
+ *  mount (`restore`). */
+export function askWhenPresented(id: string, via: PortalCloseVia): void {
+  pendingAsks.set(id, via);
+}
+
+/** The ask queued for `id`, consumed: the route calls this once on mount. */
+export function takePendingAsk(id: string): PortalCloseVia | undefined {
+  const via = pendingAsks.get(id);
+  pendingAsks.delete(id);
+  return via;
 }
 
 export function isPresented(id: string): boolean {
@@ -172,6 +205,7 @@ export function __resetSheetPortal(): void {
   entries.clear();
   presenters.clear();
   closing.clear();
+  pendingAsks.clear();
   listeners.clear();
   active.clear();
   idleListeners.clear();
