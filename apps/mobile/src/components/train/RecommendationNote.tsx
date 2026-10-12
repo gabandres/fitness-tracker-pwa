@@ -27,6 +27,16 @@ import { recommendationText } from '@/components/train/recommendation-text';
  * on the note because the note is where the call is read, which is where the
  * question arises.
  */
+/**
+ * The headline (or its chip) gives way to the gear, not the other way round.
+ * A row child's default `flexShrink: 0` let a long headline at accessibility
+ * text sizes ("REPEAT — couldn't judge last time" at xxl) claim the whole row
+ * and push the 44 pt gear past the card's edge, where it could not be seen or
+ * tapped (FINAL-SCORE F3, shot 30-session-top-superset-xxl). Shrinking makes
+ * the headline wrap inside what the gear leaves.
+ */
+const SHRINK = { flexShrink: 1 } as const;
+
 export function RecommendationNote({
   rec,
   compact = false,
@@ -74,7 +84,7 @@ export function RecommendationNote({
         {invalid ? <Ionicons name="alert-circle-outline" size={15} color={colors.muted} /> : null}
         {canAccept ? (
           <TouchableOpacity
-            style={styles.bumpChip}
+            style={[styles.bumpChip, SHRINK]}
             onPress={() => onAccept(rec.load as number)}
             // 32 pt chip + 8 + 8 = 48: Android's floor, not only iOS's 44.
             hitSlop={{ top: 8, bottom: 8 }}
@@ -85,7 +95,7 @@ export function RecommendationNote({
             <Text style={styles.bumpText}>{text.headline}</Text>
           </TouchableOpacity>
         ) : (
-          <Text style={[styles.recHeadline, invalid && styles.recHeadlineInvalid]}>{text.headline}</Text>
+          <Text style={[styles.recHeadline, invalid && styles.recHeadlineInvalid, SHRINK]}>{text.headline}</Text>
         )}
         {onSettings ? (
           <TouchableOpacity

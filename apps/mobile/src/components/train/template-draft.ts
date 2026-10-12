@@ -120,6 +120,29 @@ export function rowsUntouched(rows: readonly SetBuffers[]): boolean {
 }
 
 /**
+ * {@link rowsUntouched} for a card REOPENED after S23-11: a new card saves the
+ * grey reps it showed ({@link repsToSave}), so on the next edit those rows
+ * read as typed and a later structure declaration kept them, saying "your
+ * typed rows were kept" about numbers nobody typed (review R2 P2-4). A row
+ * counts as seeded when nothing but reps is filled and the reps are exactly
+ * what history offers in its position. Conservative by construction: if the
+ * history moved since the save (another workout logged), the rows read as
+ * typed again — the pre-fix behaviour, never a lost number.
+ */
+export function rowsSeededFromHistory(
+  rows: readonly DraftRowLike[],
+  previous: readonly Pick<WorkoutSet, 'kind' | 'reps' | 'durationSec'>[],
+  logStyle: LogStyle,
+): boolean {
+  return rows.every((row, i) => {
+    if (rowUntouched(row)) return true;
+    if (row.weightText.trim() || row.durationText.trim()) return false;
+    const offered = offeredCount({ ...row, repsText: '', ghost: undefined }, previous[i], logStyle, undefined);
+    return offered !== '' && offered === row.repsText.trim();
+  });
+}
+
+/**
  * The count a row will OFFER in the live session, as text — what the
  * editor's reps (or seconds) placeholder shows and what the collapsed card's
  * summary reads (train-ux E-N1). The session's own order, core
@@ -245,17 +268,61 @@ export function kindsForPicker<T extends { value: SetKind }>(
 }
 
 /**
- * Which add-buttons a card offers (T9). ADR-0041 keeps all three for an
- * undeclared LEGACY template — it was written with them. A card added in this
- * editing session has no such history: offering "Add cluster" under a lift
- * nobody has declared anything for is the legacy rule leaking onto new rows.
+ * Which add-buttons a card offers (T9, S23-5). A declared structure decides
+ * (core `addActionsFor`). An undeclared card offers "+ Add set" and, beyond
+ * it, only the buttons its rows ALREADY use: "+ Add cluster" where it has a
+ * myo-rep cluster (activation/mini rows), "+ Add continuation" where it has
+ * continuations. ADR-0041 used to keep all three on every undeclared legacy
+ * card, which put "Add cluster" and "Add continuation" under a plain 3 × 8
+ * Bench Press (final score F8) — an offer to break the lift. A lifter who
+ * wants clusters on a straight-set lift declares the structure first, which
+ * is one tap on the line above (ADR-0041 amendment, 2026-10-12). A card
+ * added in this session is undeclared with working rows, so it gets "+ Add
+ * set" alone, as before.
  */
 export function addActionsForDraft(
   structure: SetStructure | undefined,
   isNew: boolean | undefined,
+  kinds: readonly SetKind[],
 ): { set: boolean; cluster: boolean; block: boolean } {
-  if (isNew && structure === undefined) return { set: true, cluster: false, block: false };
-  return addActionsFor(structure);
+  if (structure !== undefined) return addActionsFor(structure);
+  if (isNew) return { set: true, cluster: false, block: false };
+  return {
+    set: true,
+    cluster: kinds.some((k) => k === 'mini') || (kinds.includes('activation') && !kinds.includes('continuation')),
+    block: kinds.some((k) => k === 'continuation'),
+  };
+}
+
+/**
+ * The reps a row SAVES as its target (`PlannedSet.reps`) — train-ux S23-11,
+ * owner decision 2026-10-12: "the editor saves the grey reps it shows". A
+ * template built in the editor used to store no reps at all, because the grey
+ * numbers were placeholders only (fix R).
+ *
+ * - Typed reps are saved as typed, on any card.
+ * - On a card added in THIS editing session, a blank row saves the grey count
+ *   it shows from history: its ghost (last session's same-kind row), else last
+ *   time's row in its position when that row was the same kind — the
+ *   {@link offeredCount} order WITHOUT its last step.
+ * - NOT the progression target (the last step): that grey number follows the
+ *   lift's "Target reps" live, and a stored copy would stop following it.
+ * - NOT on an existing card: an unrelated save (a rename) must not restate
+ *   every row of every lift from whatever was logged last.
+ * - Reps only. Grey per-set WEIGHTS are never saved: the session seeds
+ *   `ps.weight ?? ex.targetLoad` and progression moves only `targetLoad`, so a
+ *   stored per-set weight would freeze the lift's load for good (fix R). Grey
+ *   seconds on a timed lift stay placeholders too (the decision was reps).
+ */
+export function repsToSave(
+  row: DraftRowLike,
+  previous: Pick<WorkoutSet, 'kind' | 'reps' | 'durationSec'> | undefined,
+  logStyle: LogStyle,
+  isNew: boolean | undefined,
+): number | undefined {
+  const typed = numOrUndef(row.repsText);
+  if (typed != null || !isNew || logStyle === 'time') return typed;
+  return numOrUndef(offeredCount(row, previous, logStyle, undefined));
 }
 
 /**

@@ -159,7 +159,18 @@ import type { I18nKey } from '@/i18n';
 // in the editor, and drafts on the Train tab that do nothing until the lifter
 // activates one — none of it findable by accident. The 10-07 progression row is
 // KEPT (four days live, fires on the second launch); the older three go.
-export const WHATS_NEW_VERSION = '2026-10-11-supersets';
+// Bumped 2026-10-12 for Train UX round 2, a day after the supersets bump, and
+// the list KEEPS the supersets item — deliberately against "the previous
+// release's items do not carry over". Two reasons: (1) a banner shows on the
+// SECOND launch, so most people have not reached yesterday's yet; replacing it
+// would drop supersets for them; (2) yesterday's progression copy promised an
+// "Update and finish" button that no longer exists (Finish now asks "Update
+// {template}" / "Keep original" and also covers lifts added or removed), so
+// leaving it up would describe the wrong button. Whoever dismissed it hours ago
+// sees supersets twice — the accepted cost. The lock-screen Done set is NOT
+// listed: this copy also reaches old binaries by OTA, where it does not exist;
+// the store release notes carry it.
+export const WHATS_NEW_VERSION = '2026-10-12-train-round2';
 
 const KEY = 'whatsNew.seen';
 
@@ -191,6 +202,7 @@ export interface WhatsNewItem {
 export const WHATS_NEW_ITEMS: readonly WhatsNewItem[] = [
   { icon: 'swap-vertical-outline', titleKey: 'whatsNew.supersets.title', bodyKey: 'whatsNew.supersets.body' },
   { icon: 'trending-up-outline', titleKey: 'whatsNew.progression.title', bodyKey: 'whatsNew.progression.body' },
+  { icon: 'stats-chart-outline', titleKey: 'whatsNew.weeklySets.title', bodyKey: 'whatsNew.weeklySets.body' },
 ];
 
 /**

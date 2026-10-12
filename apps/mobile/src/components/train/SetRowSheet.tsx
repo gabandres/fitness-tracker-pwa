@@ -100,7 +100,7 @@ export function SetRowSheet({
         title={t('train.setSheetTitle', { n: label })}
         trailing={{ label: t('common.done'), onPress: onClose, testID: 'set-sheet-done' }}
       />
-      <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
       <Text style={styles.fieldLabel}>{t('train.setType')}</Text>
       {/* Rows, not a chip wrap: "Activation" and "Mini" are cluster-training

@@ -189,11 +189,14 @@ describe('the add-set buttons follow the declaration', () => {
     expect(ui.queryByTestId('template-add-cluster-0')).toBeNull();
   });
 
-  it('an UNDECLARED template keeps all three — legacy data loses nothing', async () => {
+  it('an UNDECLARED straight-set card offers only "+ Add set" — the add-buttons its rows use, not all three (S23-5, ADR-0041 amended)', async () => {
     const ui = await openCard();
     expect(ui.getByTestId('template-add-set-0')).toBeTruthy();
-    expect(ui.getByTestId('template-add-cluster-0')).toBeTruthy();
-    expect(ui.getByTestId('template-add-block-0')).toBeTruthy();
+    expect(ui.queryByTestId('template-add-cluster-0')).toBeNull();
+    expect(ui.queryByTestId('template-add-block-0')).toBeNull();
+    // Declaring the structure is the way to clusters, one tap away.
+    await fireEvent.press(ui.getByTestId('template-structure-0-myoreps'));
+    await waitFor(() => expect(ui.getByTestId('template-add-cluster-0')).toBeTruthy());
   });
 });
 
@@ -278,7 +281,7 @@ describe('a lift added in this session (train-ux T6, T7, T9)', () => {
     expect(added.plannedSets.map((p: { kind: string }) => p.kind)).toEqual(['activation', 'mini', 'mini']);
   });
 
-  it('an UNTOUCHED new card saves no per-set weight or reps — the load goes in targetLoad, which progression moves (fix R)', async () => {
+  it('an UNTOUCHED new card saves the grey REPS it shows as targets, never a per-set weight — the load goes in targetLoad, which progression moves (S23-11, fix R)', async () => {
     curlHistory();
     const ui = await addNewLift();
     await waitFor(() => expect(ui.getByTestId('template-set-reps-1-0').props.placeholder).toBe('9'));
@@ -286,11 +289,12 @@ describe('a lift added in this session (train-ux T6, T7, T9)', () => {
     await waitFor(() => expect(mockSaveTemplate).toHaveBeenCalled());
     const added = mockSaveTemplate.mock.calls.at(-1)![0].exercises[1];
     expect(added.targetLoad).toBe(60);
-    expect(added.plannedSets).toHaveLength(3);
-    for (const p of added.plannedSets) {
-      expect(p.weight).toBeUndefined();
-      expect(p.reps).toBeUndefined();
-    }
+    // What the three rows showed in grey: 9, 8, and last time's row 3 (8).
+    expect(added.plannedSets.map((p: { reps?: number }) => p.reps)).toEqual([9, 8, 8]);
+    for (const p of added.plannedSets) expect(p.weight).toBeUndefined();
+    // The existing card is not restated by an unrelated save.
+    const bench = mockSaveTemplate.mock.calls.at(-1)![0].exercises[0];
+    for (const p of bench.plannedSets) expect(p.reps).toBeUndefined();
   });
 
   it('a new card with no history starts with no load and blank rows', async () => {

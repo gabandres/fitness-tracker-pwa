@@ -1,14 +1,6 @@
 package expo.modules.resttimernotification
 
-import android.Manifest
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
 import android.content.Context
-import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Build
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 
@@ -29,6 +21,11 @@ import expo.modules.kotlin.modules.ModuleDefinition
  * Every function resolves with `null` on success or a reason string, and none
  * throws — a countdown that fails must not be able to fail a ticked set.
  * Strings arrive from JS already localised (`src/lib/rest-timer-activity.ts`).
+ *
+ * Since S23-8 the drawing and the lock-screen actions live in
+ * {@link RestNotifier} (shared with {@link RestActionReceiver}); this class is
+ * only the JS bridge. `workout(json)` is new in that binary — JS checks for it
+ * before calling, so an older binary keeps the four functions above.
  */
 class RestTimerNotificationModule : Module() {
   private val context: Context
@@ -38,119 +35,24 @@ class RestTimerNotificationModule : Module() {
     Name("RestTimerNotification")
 
     AsyncFunction("start") { endsAtMs: Double, title: String, body: String, channelName: String ->
-      prefs().edit()
-        .putLong(KEY_ENDS_AT, endsAtMs.toLong())
-        .putString(KEY_TITLE, title)
-        .putString(KEY_BODY, body)
-        .putString(KEY_CHANNEL, channelName)
-        .apply()
-      post(endsAtMs.toLong(), title, body, channelName)
+      RestNotifier.startLegacy(context, endsAtMs.toLong(), title, body, channelName)
     }
 
     AsyncFunction("update") { endsAtMs: Double ->
-      val p = prefs()
-      val title = p.getString(KEY_TITLE, null) ?: return@AsyncFunction "not-running"
-      p.edit().putLong(KEY_ENDS_AT, endsAtMs.toLong()).apply()
-      post(endsAtMs.toLong(), title, p.getString(KEY_BODY, "") ?: "", p.getString(KEY_CHANNEL, "") ?: "")
+      RestNotifier.startLegacy(context, endsAtMs.toLong(), null, null, null)
     }
 
     AsyncFunction("end") {
-      try {
-        manager().cancel(NOTIFICATION_ID)
-        prefs().edit().clear().apply()
-        null
-      } catch (e: Exception) {
-        e.toString()
-      }
+      RestNotifier.end(context)
     }
 
     AsyncFunction("status") {
-      try {
-        if (!canPost()) return@AsyncFunction "disabled"
-        val showing = manager().activeNotifications.any { it.id == NOTIFICATION_ID }
-        val endsAt = prefs().getLong(KEY_ENDS_AT, 0L)
-        if (showing && endsAt > 0) "running:$endsAt" else "stopped"
-      } catch (e: Exception) {
-        "unavailable"
-      }
+      RestNotifier.status(context)
     }
-  }
 
-  private fun prefs() = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-
-  private fun manager() = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-
-  private fun canPost(): Boolean {
-    if (Build.VERSION.SDK_INT >= 33 &&
-      context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-    ) {
-      return false
+    /** The whole workout picture (S23-8) — see `RestNotifier.workout`. */
+    AsyncFunction("workout") { json: String ->
+      RestNotifier.workout(context, json)
     }
-    return manager().areNotificationsEnabled()
-  }
-
-  private fun post(endsAtMs: Long, title: String, body: String, channelName: String): String? {
-    return try {
-      if (!canPost()) return "disabled"
-      val remaining = endsAtMs - System.currentTimeMillis()
-      if (remaining <= 0) {
-        manager().cancel(NOTIFICATION_ID)
-        return "past"
-      }
-      val m = manager()
-      if (m.getNotificationChannel(CHANNEL_ID) == null || channelName.isNotBlank()) {
-        m.createNotificationChannel(
-          NotificationChannel(
-            CHANNEL_ID,
-            channelName.ifBlank { "Rest timer" },
-            NotificationManager.IMPORTANCE_LOW,
-          ).apply {
-            setShowBadge(false)
-            enableVibration(false)
-            setSound(null, null)
-          },
-        )
-      }
-      val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
-        addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-      }
-      val tap = launch?.let {
-        PendingIntent.getActivity(
-          context,
-          NOTIFICATION_ID,
-          it,
-          PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-        )
-      }
-      val notification = Notification.Builder(context, CHANNEL_ID)
-        .setSmallIcon(R.drawable.ignia_rest_timer)
-        .setContentTitle(title)
-        .setContentText(body)
-        .setCategory(Notification.CATEGORY_STOPWATCH)
-        .setOngoing(true)
-        .setOnlyAlertOnce(true)
-        .setShowWhen(true)
-        .setWhen(endsAtMs)
-        .setUsesChronometer(true)
-        .setChronometerCountDown(true)
-        .setTimeoutAfter(remaining)
-        .setVisibility(Notification.VISIBILITY_PUBLIC)
-        .apply { if (tap != null) setContentIntent(tap) }
-        .build()
-      m.notify(NOTIFICATION_ID, notification)
-      null
-    } catch (e: Exception) {
-      e.toString()
-    }
-  }
-
-  companion object {
-    private const val CHANNEL_ID = "rest-timer-ongoing"
-    private const val NOTIFICATION_ID = 7301
-    private const val PREFS = "ignia_rest_timer_notification"
-    private const val KEY_ENDS_AT = "endsAt"
-    private const val KEY_TITLE = "title"
-    private const val KEY_BODY = "body"
-    private const val KEY_CHANNEL = "channel"
   }
 }

@@ -1,0 +1,17 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!--
+    Android 16 Live Updates (R64): an app must hold this to have its ongoing
+    notification promoted to the status-bar chip / lock-screen top slot.
+    Install-time ("normal"); older Android versions do not know it and ignore it.
+  -->
+  <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
+
+  <application>
+    <!-- The rest notification's −30 s / +30 s / Skip / Done set and its
+         deadline alarm (RestActionReceiver.kt). Only reached through this app's
+         own explicit, immutable PendingIntents. -->
+    <receiver
+      android:name="expo.modules.resttimernotification.RestActionReceiver"
+      android:exported="false" />
+  </application>
+</manifest>

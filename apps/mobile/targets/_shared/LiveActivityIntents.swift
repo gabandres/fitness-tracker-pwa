@@ -3,7 +3,8 @@ import Foundation
 
 //
 //  Ignia — the buttons ON the Live Activities: the rest timer's "+30 s" and
-//  "Skip" (or "Done" once the rest is over), and the fast's "End".
+//  "Skip" (or "Done" once the rest is over), "Done set" inside a workout
+//  (S23-8), and the fast's "End".
 //
 //  ## Why `LiveActivityIntent`, and why here
 //
@@ -56,19 +57,26 @@ import Foundation
     init() {}
 
     func perform() async throws -> some IntentResult {
-      guard let live = RestActivityStore.current else { return .result() }
+      // In line behind every other change to the Activity (RestActivityLane):
+      // two quick taps cannot both read the same state (review P2-9).
+      await RestActivityLane.run { await Self.apply() }.value
+      return .result()
+    }
+
+    private static func apply() async {
+      guard let live = RestActivityStore.current else { return }
       let now = Date()
       // From the deadline while the rest is running; from NOW once it has run
       // out, so +30 s on a stale "Rest over" face is a fresh 30 s, not a
       // deadline still in the past — and `retarget` restarts `startedAt` with
       // it, or the progress bar would draw those 30 s as a nearly-empty bar.
       let current = live.content.state
-      let state = RestActivityStore.retarget(
+      var state = RestActivityStore.retarget(
         current, to: max(current.endsAt, now).addingTimeInterval(Self.step), now: now)
+      state.idle = false
       IntentInbox.post("rest", ["endsAtMs": IntentInbox.ms(state.endsAt)])
       await live.update(RestActivityStore.content(state))
       await RestDoneNotification.move(to: state.endsAt)
-      return .result()
     }
   }
 
@@ -88,13 +96,96 @@ import Foundation
     /// app the rest is closed (silent; ignored when its own tick already closed
     /// it) — so it stays one type rather than a twin with the same body.
     func perform() async throws -> some IntentResult {
+      // In line behind every other change to the Activity (RestActivityLane):
+      // two quick taps cannot both read the same state (review P2-9).
+      await RestActivityLane.run { await Self.apply() }.value
+      return .result()
+    }
+
+    private static func apply() async {
       // `endsAtMs: 0` is the inbox's word for "the rest is over, by choice" —
       // `applyRestInboxAction` in `src/lib/rest-timer-activity.ts` reads it as
       // a skip (silent), not as a rest that ran out (which buzzes).
       IntentInbox.post("rest", ["endsAtMs": 0])
-      await RestActivityStore.endAll()
+      // Inside a workout (S23-8) the face stays, on the next set; otherwise
+      // the rest was all it showed.
+      if let live = RestActivityStore.current, let idle = RestActivityStore.idle(live.content.state) {
+        await live.update(RestActivityStore.content(idle))
+      } else {
+        await RestActivityStore.endAll()
+      }
       await RestDoneNotification.cancel()
+    }
+  }
+
+  /// "Done set" — log the next planned set without unlocking (S23-8, Hevy
+  /// parity).
+  ///
+  /// The set's identity and numbers come from the face itself (`upcoming`,
+  /// built by JS with what a tick in the app would log), so what is logged is
+  /// exactly what the lifter read. Natively this only moves the face: the
+  /// rest that follows the set starts counting, the queue advances, and a
+  /// "rest over" is scheduled for it. Ticking the set is the app's job —
+  /// a Firestore write with the session's own rules — so the entry goes to
+  /// the inbox and `applySetInboxAction` (`src/lib/rest-timer-activity.ts`)
+  /// ticks that exact set, or ignores it if the workout moved on meanwhile.
+  @available(iOS 17.0, *)
+  struct SetDoneIntent: LiveActivityIntent {
+    static var title: LocalizedStringResource = "Log next set"
+    static var isDiscoverable: Bool = false
+    static var openAppWhenRun: Bool = false
+
+    init() {}
+
+    func perform() async throws -> some IntentResult {
+      // In line behind every other change to the Activity (RestActivityLane):
+      // two quick taps cannot both read the same state (review P2-9).
+      await RestActivityLane.run { await Self.apply() }.value
       return .result()
+    }
+
+    private static func apply() async {
+      guard let live = RestActivityStore.current else { return }
+      var state = live.content.state
+      guard var queue = state.upcoming, !queue.isEmpty else { return }
+      let set = queue.removeFirst()
+      let now = Date()
+      let resting = set.restSec > 0
+      let endsAt = now.addingTimeInterval(resting ? set.restSec : 0)
+
+      var fields: [String: Any] = [
+        "sessionId": state.sessionId ?? "",
+        "exerciseId": set.exerciseId,
+        "exerciseIndex": set.exerciseIndex,
+        "setIndex": set.setIndex,
+        "endsAtMs": resting ? IntentInbox.ms(endsAt) : 0,
+      ]
+      if let w = set.weight { fields["weight"] = w }
+      if let r = set.reps { fields["reps"] = r }
+      if let d = set.durationSec { fields["durationSec"] = d }
+      if let k = set.setKind { fields["setKind"] = k }
+      if let g = set.group { fields["group"] = g }
+      if let c = set.setCount { fields["setCount"] = c }
+      // Inbox first, as every button here: a process suspended mid-perform
+      // still leaves the app knowing which set the lifter confirmed.
+      IntentInbox.post("set", fields, at: now)
+
+      state.upcoming = queue
+      state.exerciseName = set.name
+      state.startedAt = now
+      state.endsAt = endsAt
+      state.idle = !resting
+      if !resting && queue.isEmpty {
+        await RestActivityStore.endAll()
+        await RestDoneNotification.cancel()
+        return
+      }
+      await live.update(RestActivityStore.content(state))
+      if resting {
+        await RestDoneNotification.schedule(at: endsAt)
+      } else {
+        await RestDoneNotification.cancel()
+      }
     }
   }
 

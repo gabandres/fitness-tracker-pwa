@@ -10,6 +10,20 @@ Update this file in the same commit as any flow change. If a surface ships
 that has no row here, the suite's "100%" claim is false until the row exists —
 add it as ✗ first, cover it second.
 
+## Train UX round 2, 2026-10-12 (uncommitted tree) — full iOS suite RUN, 21/21 after flow edits
+
+**iOS on `Ignia-QA-26`**, working-tree JS swapped into build 70
+(`capture/train-ux/reviews/QA-R2-IOS.md`). First pass 19/21: `07-coach` failed
+only because the Android emulator, signed into the same account, had a live
+workout that the iOS app adopted (the pill covered "Ask the Coach"; passed on
+re-run), and `18-train-template` died at `confirm-go` — the template delete
+confirm is the iOS system action sheet since S23-2/F2. Flow edits (QA-R2):
+18 taps "Delete" by text on iOS; **16 and 22's teardowns** gained a branch for
+the exercise-delete system dialog (`native: true`, both platforms) — before it
+they PASSED while leaking "QA Term Check" / "QA Rest Pause" into the catalog.
+16, 18 and 22 re-run green; catalog verified clean. The 16/22 Android branch
+of that teardown is unverified.
+
 ## Train UX pass, 2026-10-12 (UX_AUDIT §S23) — full iOS suite RUN and reviewed
 
 **iOS 21/21 on `Ignia-QA-26` (iOS 26)**, first run, on the final JS of this

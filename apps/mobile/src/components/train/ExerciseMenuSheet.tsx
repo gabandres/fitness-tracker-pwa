@@ -67,7 +67,7 @@ export function ExerciseMenuSheet({
       {/* Same reason as `SetRowSheet`: `BottomSheet` clamps and does not
           scroll. Five rows fit on any phone at default type, and do not at
           the largest accessibility text size. */}
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false}>
       <Text style={styles.sheetTitle} accessibilityRole="header">{name}</Text>
       {actions.map((a) => (
         <Touchable

@@ -189,12 +189,13 @@ export function StartView({
     const ids = new Set(train.drafts.filter((d) => d.program === 'v2').map((d) => d.draftOf));
     return ids.size ? train.templates.filter((tp) => tp.id && ids.has(tp.id)) : train.templates;
   }, [train.drafts, train.templates]);
-  // Whether the week PLANS any myo-rep cluster. The clusters-by-muscle link
-  // shows only when there is something for it to count — logged or planned —
-  // since it counts clusters and nothing else: for a straight-set lifter it was
-  // a home-screen link to twelve rows of zeros, forever (train-ux H1/X2/J3).
-  const plansClusters = useMemo(
-    () => plannedTemplates.some((tp) => tp.exercises.some((e) => e.plannedSets?.some((x) => x.kind === 'activation'))),
+  // Whether the week PLANS anything the by-muscle sheet counts — a myo-rep
+  // cluster or a working set. The link shows only when there is something to
+  // count, logged or planned: it was once a home-screen link to twelve rows
+  // of zeros, forever (train-ux H1/X2/J3). Since S23-13 the sheet counts hard
+  // sets too, so a straight-set lifter gets it as well.
+  const plansVolume = useMemo(
+    () => plannedTemplates.some((tp) => tp.exercises.some((e) => e.plannedSets?.some((x) => x.kind === 'activation' || x.kind === 'working'))),
     [plannedTemplates],
   );
   // The 7-day average for the volume gate, from the weigh-ins Today already
@@ -448,10 +449,10 @@ export function StartView({
           ) : null}
         </View>
       ) : null}
-      {/* Program v2: clusters per muscle (primary 1.0, secondary 0.5) beside
-          the plan, and each session's totals — reachable on an empty week
-          too when the plan has clusters, where it says so. */}
-      {audit.clusters > 0 || plansClusters ? (
+      {/* This week by muscle — hard sets or myo-rep clusters (primary 1.0,
+          secondary 0.5) beside the plan, and each session's totals; reachable
+          on an empty week too when the plan has work, where it says so. */}
+      {audit.clusters > 0 || audit.straightSets > 0 || plansVolume ? (
         <Touchable
           style={styles.textAction}
           onPress={() => setVolumeOpen(true)}
@@ -469,7 +470,6 @@ export function StartView({
         catalog={train.catalog}
         templates={plannedTemplates}
         now={now}
-        straightSets={audit.straightSets}
       />
 
       <View style={styles.sectionHead}>
@@ -1217,6 +1217,7 @@ function HistorySheet({
           trailing={{ label: t('common.done'), onPress: onClose, testID: 'history-done' }}
         />
         <FlatList
+          nestedScrollEnabled
           data={sessions as WorkoutSession[]}
           keyExtractor={(s, i) => s.id ?? String(i)}
           contentContainerStyle={styles.list}

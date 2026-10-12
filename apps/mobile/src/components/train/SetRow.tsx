@@ -23,6 +23,7 @@ import { showToast } from '@/components/Toast';
 import { useLocale, useT } from '@/i18n';
 import { formatDecimal } from '@/lib/entry-input';
 import * as haptics from '@/lib/haptics';
+import { takeLockScreenAccepted } from '@/lib/lock-screen-ticks';
 import { noteFocusTrigger } from '@/lib/return-focus';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { useUnitSystem } from '@/lib/use-unit-system';
@@ -44,7 +45,7 @@ const NUMERIC_FONT_CAP = 1.6;
  *  core's default progression increment, which is the same pair of plates. */
 const weightStep = (unitSystem: Parameters<typeof defaultIncrement>[0]) => defaultIncrement(unitSystem) / 2;
 
-/** How far PREVIOUS may shrink to fit its 56pt column: to 11pt and no
+/** How far PREVIOUS may shrink to fit its 52pt column: to 11pt and no
  *  further. 0.85 of `font.tiny` was 10.2pt — too small to read at arm's
  *  length (Train re-score 3; UX_AUDIT S20). Past the floor the text wraps to
  *  a second line ("102.5 ×" / "10") and then truncates, and the cell's label
@@ -95,6 +96,9 @@ export interface SetRowProps {
   exerciseTargetReps?: number;
   /** The last row of the card: its reps field ends the keyboard chain. */
   isLastSet: boolean;
+  /** The card shows an RIR column (`liftUsesRir`). Off: no RIR cell and no
+   *  spacer — the number fields take the room; the set sheet still logs RIR. */
+  rirColumn: boolean;
   /** Best estimated-1RM on record for this lift, for the "PR" badge. */
   best?: number;
   /** Large text (font scale ≥ 1.5): PREVIOUS moves to its own line. */
@@ -128,6 +132,7 @@ export const SetRow = memo(function SetRow({
   previousSet,
   exerciseTargetReps,
   isLastSet,
+  rirColumn,
   best,
   largeText,
   dispatch,
@@ -260,6 +265,7 @@ export const SetRow = memo(function SetRow({
 
   function writeWeight(text: string) {
     accepted.current = null;
+    takeLockScreenAccepted(exerciseIndex, setIndex, set);
     setWeight(text);
     dispatch(
       {
@@ -277,6 +283,7 @@ export const SetRow = memo(function SetRow({
 
   function writeCount(text: string) {
     accepted.current = null;
+    takeLockScreenAccepted(exerciseIndex, setIndex, set);
     setCount(text);
     const n = wholeCount(text);
     dispatch(
@@ -324,7 +331,9 @@ export const SetRow = memo(function SetRow({
    *  back out, in the same write. */
   function untick() {
     haptics.tap();
-    const took = accepted.current;
+    // A Lock Screen "Done set" (S23-8) keeps its note outside the row.
+    const lockScreen = takeLockScreenAccepted(exerciseIndex, setIndex, set);
+    const took = accepted.current ?? lockScreen;
     accepted.current = null;
     const patch: Partial<WorkoutSet> = { done: false };
     const storedCount = logStyle === 'time' ? set.durationSec : set.reps;
@@ -488,7 +497,7 @@ export const SetRow = memo(function SetRow({
         onNext={countHasNext ? () => chain.next(countSlot) : undefined}
       />
 
-      {showRir ? (
+      {!rirColumn ? null : showRir ? (
         // A bare numeric box asked the user to know both the acronym and that
         // 0 is the hard end of the scale. Tapping opens the labelled picker in
         // the set sheet, so the scale explains itself.

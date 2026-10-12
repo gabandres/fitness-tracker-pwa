@@ -156,10 +156,19 @@ appId: fit.ignia.app
       platform: Android
     commands:
       - tapOn: '(?i)reps'
+# FIX-M2 (2026-10-12): the tick must not wait for the screen to SETTLE. It
+# starts the countdown, which redraws every second, so the screen never
+# settles. On the Android emulator Maestro then held this tap for its whole
+# settle timeout (12.6 s, measured). Add the 3 s animation wait that followed
+# and the ~7 s the `when` lookup below spends on an absent sheet, and the
+# assertion ran 22.7 s after the tick. The 20 s rest had already ended, so
+# `assertVisible rest-bar` failed on a correct app (runs 1-2 of INDEX-v5).
+# One second of settle is enough for the tap to land. The animation wait is
+# gone too: the `when` lookup below already waits for the notify sheet to
+# slide in.
 - tapOn:
     id: 'set-done-0-0'
-- waitForAnimationToEnd:
-    timeout: 3000
+    waitToSettleTimeoutMs: 1000
 # The first rest of an install asks about a rest-over notification first
 # (RestNotifySheet, 2026-10-04) — a sheet over the bar. "Not now" never raises
 # the system prompt and is remembered. A `when` branch, not `optional: true`:
@@ -220,10 +229,10 @@ appId: fit.ignia.app
       platform: Android
     commands:
       - tapOn: '(?i)reps'
+# Same un-settled tick as row 0 (FIX-M2): a 2:00 countdown starts here too.
 - tapOn:
     id: 'set-done-0-1'
-- waitForAnimationToEnd:
-    timeout: 3000
+    waitToSettleTimeoutMs: 1000
 # The first rest of an install asks about a rest-over notification first
 # (RestNotifySheet, 2026-10-04) — a sheet over the bar. "Not now" never raises
 # the system prompt and is remembered. A `when` branch, not `optional: true`:
@@ -302,4 +311,17 @@ appId: fit.ignia.app
     commands:
       - tapOn:
           id: 'exercise-delete-confirm'
+# QA-R2 (2026-10-12): since round 2 (S23-2/F2) ExerciseDetailSheet asks with the
+# SYSTEM dialog on both platforms (`confirm({ native: true })`): an iOS action
+# sheet / Android Alert with no testIDs, so both conditionals above skip and
+# this teardown silently LEAKED "QA Rest Pause" into the catalog (found on iOS: the
+# flow still passed). Keyed on the dialog's title; while it is up the sheet
+# underneath is not in the hierarchy, so the button text is unambiguous.
+# '(?i)' because an Android Alert may draw the button in caps. Verified on
+# iOS only (Ignia-QA-26).
+- runFlow:
+    when:
+      visible: 'Delete QA Rest Pause\?'
+    commands:
+      - tapOn: '(?i)delete'
 - takeScreenshot: .maestro/regression/shots/22-teardown

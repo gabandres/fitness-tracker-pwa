@@ -1,9 +1,19 @@
-import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import {
+  ActionSheetIOS,
+  Alert,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import { BottomSheet } from '@/components/BottomSheet';
 import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
-import { useThemedStyles, type Theme } from '@/lib/theme-context';
+import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
 
 /**
@@ -26,6 +36,21 @@ import { font, radius, space } from '@/theme';
  * dialog for an irreversible, support-adjacent action is a trust signal, and
  * chaining two sheets invites a mis-tap), and plain error notices (no choice
  * to make).
+ *
+ * ## `native: true` — the system dialog, for a confirm asked OVER a native sheet
+ *
+ * A branded sheet drawn on top of a native formSheet is sheet-on-sheet (R30),
+ * and iOS asks for an ACTION SHEET to confirm leaving unsaved changes (R31;
+ * train-ux FINAL-SCORE F2). With `native: true` the newest host presents the
+ * platform's own dialog instead: iOS `ActionSheetIOS` (title + message, the
+ * main action first and red when `destructive`, the secondary under it,
+ * Cancel last in its own group); Android `Alert.alert`, whose three slots are
+ * neutral / negative / positive — the secondary, Cancel, the main action. The
+ * Android back key and a tap outside cancel. Same callbacks, same fail-closed
+ * rule: no host mounted, nothing runs. Use it from inside a `BottomSheet
+ * native` (the Finish prompt, discard-changes over the template editor,
+ * delete exercise); keep the branded sheet everywhere else. `confirmNative`
+ * is the same call with the option set.
  */
 export interface ConfirmOptions {
   title: string;
@@ -42,6 +67,9 @@ export interface ConfirmOptions {
    *  "Switch both". Optional; most confirms have one action. */
   secondaryText?: string;
   onSecondary?: () => void;
+  /** Present the platform's own dialog instead of the branded sheet — for a
+   *  confirm asked from inside a native sheet (R30/R31). See the header. */
+  native?: boolean;
 }
 
 /**
@@ -65,9 +93,74 @@ export function confirm(opts: ConfirmOptions): void {
   hosts[hosts.length - 1]?.(opts);
 }
 
+/** {@link confirm} as the platform's own dialog — the call for a confirm
+ *  asked from inside a `BottomSheet native` (R30/R31). */
+export function confirmNative(opts: Omit<ConfirmOptions, 'native'>): void {
+  confirm({ ...opts, native: true });
+}
+
+/**
+ * The system dialog for a `native` confirm. iOS: an action sheet — the main
+ * action first (red when destructive), the secondary next, Cancel last.
+ * Android: an alert — neutral / negative / positive = secondary, Cancel, main.
+ * Exported for the tests; callers go through {@link confirm}.
+ */
+export function presentNativeConfirm(
+  opts: ConfirmOptions,
+  cancelLabel: string,
+  scheme?: 'light' | 'dark',
+): void {
+  const secondary = opts.secondaryText && opts.onSecondary ? opts.secondaryText : null;
+  const cancel = opts.cancelText ?? cancelLabel;
+  const go = () => {
+    haptics.tap();
+    opts.onConfirm();
+  };
+  const second = () => {
+    haptics.tap();
+    opts.onSecondary?.();
+  };
+  if (Platform.OS === 'ios') {
+    const options = secondary ? [opts.confirmText, secondary, cancel] : [opts.confirmText, cancel];
+    ActionSheetIOS.showActionSheetWithOptions(
+      {
+        title: opts.title,
+        ...(opts.body ? { message: opts.body } : {}),
+        options,
+        cancelButtonIndex: options.length - 1,
+        ...(opts.destructive ? { destructiveButtonIndex: 0 } : {}),
+        ...(scheme ? { userInterfaceStyle: scheme } : {}),
+      },
+      (i) => {
+        if (i === 0) go();
+        else if (secondary && i === 1) second();
+      },
+    );
+    return;
+  }
+  Alert.alert(
+    opts.title,
+    opts.body,
+    [
+      ...(secondary ? [{ text: secondary, onPress: second }] : []),
+      { text: cancel, style: 'cancel' as const },
+      { text: opts.confirmText, style: opts.destructive ? ('destructive' as const) : ('default' as const), onPress: go },
+    ],
+    { cancelable: true },
+  );
+}
+
 export function ConfirmHost() {
   const t = useT();
+  const { scheme } = useTheme();
   const styles = useThemedStyles(createStyles);
+  // The host's registration outlives renders (it is pushed once, so its place
+  // in the stack holds); the native path reads the current language and
+  // scheme through a ref, written in an effect.
+  const nativeRef = useRef({ cancel: t('common.cancel'), scheme });
+  useEffect(() => {
+    nativeRef.current = { cancel: t('common.cancel'), scheme };
+  }, [t, scheme]);
   // At accessibility text sizes two buttons side by side broke their labels
   // mid-word ("Cancela / r"); stacked, each gets the full width — the main
   // action on top, Cancel last.
@@ -83,6 +176,10 @@ export function ConfirmHost() {
 
   useEffect(() => {
     const host = (o: ConfirmOptions) => {
+      if (o.native && (Platform.OS === 'ios' || Platform.OS === 'android')) {
+        presentNativeConfirm(o, nativeRef.current.cancel, nativeRef.current.scheme);
+        return;
+      }
       setOpts(o);
       setVisible(true);
     };

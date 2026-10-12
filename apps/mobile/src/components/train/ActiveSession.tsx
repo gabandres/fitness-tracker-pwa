@@ -50,7 +50,14 @@ import { formatDate } from '@/lib/date-format';
 import * as haptics from '@/lib/haptics';
 import { requestNotificationPermission } from '@/lib/reminders';
 import * as restActivity from '@/lib/rest-timer-activity';
-import { subscribeIntentInbox, takeIntentInbox } from '../../../modules/intent-inbox';
+import { noteLockScreenAccepted } from '@/lib/lock-screen-ticks';
+import {
+  ackTrainInbox,
+  canAckIntentInbox,
+  peekTrainInbox,
+  subscribeIntentInbox,
+  takeTrainInbox,
+} from '../../../modules/intent-inbox';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { useUnitSystem } from '@/lib/use-unit-system';
 import { DEFAULT_LOG_STYLE, isLoggedSet, type Exercise, type SessionExercise, type SetKind } from '@/lib/workout';
@@ -334,6 +341,10 @@ export function ActiveSession({
   });
   /** Length of the countdown running now, for the progress track. */
   const [restTotal, setRestTotal] = useState(0);
+  /** The floating rest bar's measured height, so the list can pad its end
+   *  clear of it. Its offset from the bottom is already inside the list's
+   *  bottom band (`TAB_SCROLL_BAND`, which also covers the glass bar). */
+  const [restBarHeight, setRestBarHeight] = useState(0);
   // The one-time "buzz when rest is over" priming (UX_AUDIT S18-10). Opened
   // by the FIRST rest start on this device when the OS has not been asked
   // yet; both answers record it as shown (`rest-notify-priming.ts`).
@@ -370,7 +381,17 @@ export function ActiveSession({
     const i = session.exercises.findIndex((ex) => !exerciseIsFullyDone(ex));
     return i >= 0 ? i : 0;
   });
-  const doneCount = session.exercises.filter(exerciseIsFullyDone).length;
+  /** Sets logged / sets planned, across the workout — the same unit the
+   *  cards' "1/3" badges count, so the header and a card never disagree on
+   *  what "done" means (S23-6 / F9: the header counted LIFTS, "0 of 2 done",
+   *  beside a card's "1/3" SETS). */
+  const setTotals = session.exercises.reduce(
+    (acc, ex) => ({
+      done: acc.done + ex.sets.filter((x) => isLoggedSet(x, ex.logStyle ?? DEFAULT_LOG_STYLE)).length,
+      total: acc.total + ex.sets.length,
+    }),
+    { done: 0, total: 0 },
+  );
   /** "A1" per card from the REAL groups — a partner removed or replaced leaves
    *  no stale tag, and the rest bar and the cards always agree. */
   const sessionTags = useMemo(() => supersetTags(session.exercises), [session.exercises]);
@@ -378,8 +399,8 @@ export function ActiveSession({
   /** The header's line after the clock: volume, then progress. */
   const metaParts = [
     ...(volume > 0 ? [formatLoad(volume, unitSystem, 0)] : []),
-    ...(session.exercises.length > 0
-      ? [t('train.progress', { done: doneCount, total: session.exercises.length })]
+    ...(setTotals.total > 0
+      ? [plural(t, locale, 'train.progressSets', setTotals.total, { done: setTotals.done })]
       : []),
   ];
 
@@ -484,15 +505,26 @@ export function ActiveSession({
   });
   /** `lead`: what the tick logged ("Set 2 logged, 190 lb, 8 reps."), spoken
    *  in the same announcement as the rest — two announcements cancel each
-   *  other on iOS. */
-  const startRest = (exerciseIndex: number, setIndex: number, lead?: string) => {
+   *  other on iOS.
+   *
+   *  `lockScreen`: the set was confirmed with "Done set" on the Lock Screen
+   *  (S23-8) at `atMs`, and native already runs its rest to `endsAt` (0 = no
+   *  rest). The bar, its heading, Next line, Up-next badge and owner come from
+   *  the same flow as an in-app tick; only the deadline is native's, and
+   *  nothing is announced or primed (review P1-1). */
+  const startRest = (
+    exerciseIndex: number,
+    setIndex: number,
+    lead?: string,
+    lockScreen?: { atMs: number; endsAt: number },
+  ) => {
     const exercises = train.active?.exercises;
     const ex = exercises?.[exerciseIndex];
     if (!exercises || !ex) return null;
     // When each lift's last set was ticked — what the minimum-rest rule below
     // measures from (in memory only: a set carries no timestamp).
     // Only ever reached from a tap (set done), never from render.
-    const now = nowMs();
+    const now = lockScreen?.atMs ?? nowMs();
     setLastSetAt((m) => ({ ...m, [ex.exerciseId]: now }));
     const rows = flowRows(exercises);
     const flow = restAfterSetInFlow(
@@ -537,8 +569,11 @@ export function ActiveSession({
       const since = at != null ? (now - at) / 1000 : (rows[exerciseIndex].transitionRestSec ?? DEFAULT_TRANSITION_REST_SEC) + CLUSTER_ESTIMATE_SEC;
       seconds = roundRestWithFloor(flow.seconds, back.minClusterRestSec, since);
     }
+    // Native's rest already ran out (or none followed): nothing to show.
+    if (lockScreen && lockScreen.endsAt <= nowMs()) return { ...flow, seconds };
     runRest(seconds, ex.name, nextLabel, heading, into && nextLabel ? flow.next!.exerciseIndex : null, {
       spokenHeading, from: exerciseIndex, lead,
+      ...(lockScreen ? { lockScreen } : {}),
       // A between-cluster rest is the NEXT unit's lift's own (core: a leftover
       // unit of the partner runs on the partner's cluster rest).
       running: { kind: flow.kind, owner: flow.kind === 'cluster' ? flow.next?.exerciseIndex ?? exerciseIndex : exerciseIndex },
@@ -591,11 +626,19 @@ export function ActiveSession({
     next: string | null,
     heading: string | null,
     target: number | null,
-    opts: { spokenHeading?: string | null; from: number; lead?: string; running?: { kind: RestKind; owner: number } },
+    opts: {
+      spokenHeading?: string | null;
+      from: number;
+      lead?: string;
+      running?: { kind: RestKind; owner: number };
+      /** A Lock Screen "Done set": native's deadline, and when it was tapped. */
+      lockScreen?: { atMs: number; endsAt: number };
+    },
   ) => {
-    const { spokenHeading } = opts;
+    const { spokenHeading, lockScreen } = opts;
     const nextLine = next ? t('train.superset.nextUp', { next }) : undefined;
-    rest.start(secs, nextLine);
+    const endsAt = lockScreen ? lockScreen.endsAt : restDeadline(secs);
+    rest.start(lockScreen ? Math.round((lockScreen.endsAt - nowMs()) / 1000) : secs, nextLine);
     setRestTotal(secs);
     setRestNext(next);
     setRestHeading(heading);
@@ -604,7 +647,9 @@ export function ActiveSession({
     setRestRunning(opts.running ?? null);
     // Lock-screen countdown (Train review item 20): the rest Live Activity on
     // iOS, a no-op wherever its native module is absent.
-    restActivity.start(restDeadline(secs), nextLine ?? name, locale);
+    restActivity.start(endsAt, nextLine ?? name, locale, lockScreen?.atMs, nextLine);
+    // From the Lock Screen: the lifter is not looking at this screen.
+    if (lockScreen) return;
     const restText = next
       ? t('train.superset.restA11y', { heading: spokenHeading ?? heading ?? t('train.rest'), time: spokenDuration(secs, t, locale), next })
       : t('train.restStartedA11y', { time: spokenDuration(secs, t, locale) });
@@ -629,7 +674,8 @@ export function ActiveSession({
     publishRestEndsAt(rest.endsAt);
   }, [rest.endsAt]);
   useEffect(() => () => {
-    restActivity.end();
+    // The whole Lock Screen face goes with the workout (S23-8), not just a rest.
+    restActivity.endWorkout();
     publishRestEndsAt(null);
   }, []);
 
@@ -649,6 +695,11 @@ export function ActiveSession({
   // `applyRestInboxAction` decides; `targets/_shared/IntentInbox.swift` has the
   // hand-off). Read through a ref so the listeners register once.
   const restRef = useRef(rest);
+  /** The session and dispatch as they stand when a Lock Screen "Done set" is drained. */
+  const lockScreen = useLatest({ session, dispatch });
+  // Read through a ref: the callback keeps one identity for the memoized
+  // cards, and the rest it starts reads the overrides of THIS render.
+  const startRestRef = useLatest(startRest);
   /** The running rest's notification text, for the Lock Screen's +30 s (read
    *  in an effect, never during render). */
   const restNextLine = useRef<string | undefined>(undefined);
@@ -671,11 +722,29 @@ export function ActiveSession({
         restRef.current.start(out.seconds);
         setRestTotal(out.seconds);
       });
+    // Read, apply, THEN remove (review P2-11): a process reclaimed mid-drain
+    // leaves the entries for the next one; the seam applies each entry once.
+    // A binary without `remove` takes them up front, as before.
+    const readInbox = canAckIntentInbox ? peekTrainInbox : takeTrainInbox;
     const drain = () => {
-      void takeIntentInbox(['rest']).then((actions) => {
+      void readInbox().then(async (actions) => {
         if (!alive) return;
         for (const action of actions) {
-          if (action.kind !== 'rest') continue;
+          if (action.kind === 'set') {
+            // "Done set" on the Lock Screen (S23-8): tick exactly that set with
+            // the numbers the face showed, through the same rest path as an
+            // in-app tick (labels, owner, minimum rest, completion time) with
+            // native's deadline. Stale or mismatched entries come back null.
+            const live = lockScreen.current;
+            const tick = restActivity.applySetInboxAction(action, live.session.exercises, live.session.id);
+            if (!tick) continue;
+            const set = live.session.exercises[tick.exerciseIndex]?.sets[tick.setIndex];
+            if (set) noteLockScreenAccepted(tick.exerciseIndex, tick.setIndex, set, tick.accepted);
+            await live.dispatch({ type: 'patchSet', exerciseIndex: tick.exerciseIndex, setIndex: tick.setIndex, patch: tick.patch });
+            if (!alive) return;
+            startRestRef.current(tick.exerciseIndex, tick.setIndex, undefined, { atMs: action.atMs, endsAt: action.endsAtMs });
+            continue;
+          }
           const out = restActivity.applyRestInboxAction(action);
           if (!out) continue;
           if (out.type === 'skip') {
@@ -689,12 +758,17 @@ export function ActiveSession({
           // before the drain ran — put the Lock Screen countdown back too.
           if (out.type === 'resume') restActivity.start(out.endsAt, out.exerciseName, out.locale);
         }
+        void ackTrainInbox(actions);
       });
     };
     void reconciled.then(drain);
     const unsubscribe = subscribeIntentInbox(drain);
     const appState = AppState.addEventListener('change', (state) => {
-      if (state === 'active') drain();
+      if (state !== 'active') return;
+      // A picture native refused in the background (an Activity cannot be
+      // requested there) goes again now (review P2-5).
+      restActivity.resyncNative();
+      drain();
     });
     return () => {
       alive = false;
@@ -702,6 +776,25 @@ export function ActiveSession({
       appState.remove();
     };
   }, [restoreTitle]);
+  // The next planned sets ride on the Live Activity / Android notification,
+  // with the numbers a tick here would log (S23-8). Planned in render so the
+  // compiler memoizes it on what it reads (review JS-P2-8); the seam sends
+  // native only what changed, and is a no-op on older binaries. Never while
+  // editing a past session — that is not a workout being done (JS-P2-2).
+  const lockScreenPlan = train.editingExisting
+    ? null
+    : restActivity.planUpcomingSets({
+      exercises: flowRows(session.exercises),
+      restFor: restSecondsFor,
+      recentSessions: train.recentSessions,
+      unitSystem,
+      locale,
+      lastSetAt,
+    });
+  const sessionId = session.id ?? '';
+  useEffect(() => {
+    if (lockScreenPlan) restActivity.armWorkout(sessionId, lockScreenPlan, locale);
+  }, [lockScreenPlan, sessionId, locale]);
 
   function adjustRest(delta: number) {
     haptics.tap();
@@ -736,9 +829,6 @@ export function ActiveSession({
     [],
   );
   const onOpenLift = useCallback((index: number) => setLiftFor(index), []);
-  // Read through a ref: the callback keeps one identity for the memoized
-  // cards, and the rest it starts reads the overrides of THIS render.
-  const startRestRef = useLatest(startRest);
   // The live session, for callbacks that keep one identity for the memoized
   // cards but must act on the exercises as they stand when they fire.
   const exercisesRef = useRef(session.exercises);
@@ -1050,15 +1140,18 @@ export function ActiveSession({
     return templateRowFor(ex.exerciseId)?.setStructure ?? catalogFor(ex.exerciseId)?.setStructure;
   }
 
-  /** Which add-actions this lift can use (ADR-0040), through core's
-   *  precedence (template -> catalog -> inference) so an undeclared legacy
-   *  template keeps every affordance it was written with. */
+  /** Which add-actions this lift can use (ADR-0040): the declared structure
+   *  (template -> catalog), else what the sets say. An undeclared lift offers
+   *  "Add cluster" only once it HAS a cluster, and "Add continuation" only
+   *  once it has a continuation — a straight lift gets neither, and a myo-rep
+   *  lift is not offered the rest-pause row (S23-5 / F8). */
   function canAddFor(index: number) {
     const ex = session.exercises[index];
-    return addActionsFor(
-      declaredStructureFor(index)
-        ?? (ex?.sets.some((x) => x.kind === 'activation') ? undefined : 'straight'),
-    );
+    const kinds = new Set(ex?.sets.map((x) => x.kind) ?? []);
+    const inferred = kinds.has('continuation') ? 'rest-pause' as const
+      : kinds.has('activation') || kinds.has('mini') ? 'myoreps' as const
+        : 'straight' as const;
+    return addActionsFor(declaredStructureFor(index) ?? inferred);
   }
 
   /** The set kinds the set sheet offers for this lift (L9): the cluster
@@ -1507,7 +1600,11 @@ export function ActiveSession({
               <Text style={styles.addExText}>{t('cardio.add')}</Text>
             </View>
           </Touchable>
-          <View style={{ height: 40 }} />
+          {/* The end of the list clears the floating rest bar while it runs, so
+              the last card and Add exercise can always be scrolled out from
+              under it (S23-3 / F7, R27) — on Android it sat over them with no
+              way to reach them but Skip. */}
+          <View style={{ height: 40 + (rest.endsAt != null ? restBarHeight : 0) }} testID="session-end-pad" />
         </RevealAboveKeyboardContext.Provider>
       </SessionScroll>
 
@@ -1521,7 +1618,8 @@ export function ActiveSession({
           total={restTotal}
           next={restNext}
           heading={restHeading}
-          stacked={largeText}
+          compact={largeText}
+          onHeight={setRestBarHeight}
           onAdjust={adjustRest}
           onSkip={rest.stop}
           onChangeRest={restFrom != null && session.exercises[restFrom] ? () => {
@@ -1703,6 +1801,13 @@ export function ActiveSession({
   );
 }
 
+/** Compact (accessibility text sizes): the bar's words stop growing here, so
+ *  the whole bar stays ONE line, under a tenth of the screen. Uncapped and
+ *  stacked it took about a third at iOS XXL with the session header, and the
+ *  set being rested for sat under it (S23-3 / F7, R12, R27). */
+const REST_COMPACT_LABEL_CAP = 1.4;
+const REST_COMPACT_BUTTON_CAP = 1.3;
+
 /**
  * The floating rest bar: progress, `Rest · 1:23`, −30 s / +30 s / Skip.
  *
@@ -1717,7 +1822,8 @@ function RestBar({
   total,
   next,
   heading,
-  stacked,
+  compact,
+  onHeight,
   onAdjust,
   onSkip,
   onChangeRest,
@@ -1729,9 +1835,12 @@ function RestBar({
   next?: string | null;
   /** "Switch stations" / "Round 2 of 3" — replaces the plain "Rest" label. */
   heading?: string | null;
-  /** Large text: the buttons get their own row, so the label never pushes
-   *  Skip off the bar. */
-  stacked?: boolean;
+  /** Large text: one line — the countdown and −30 s / +30 s / Skip — with the
+   *  words capped. The "Next:" line is dropped from view and said in the
+   *  countdown's spoken label instead; the heading gives way before the time. */
+  compact?: boolean;
+  /** The bar's measured height, so the list can pad its end clear of it. */
+  onHeight?: (height: number) => void;
   onAdjust: (deltaSec: number) => void;
   onSkip: () => void;
   /** Open the rest picker of the lift whose set started this rest — one tap
@@ -1752,18 +1861,30 @@ function RestBar({
     }
     prev.current = remaining;
   }, [remaining, t]);
+  const nextLine = next ? t('train.superset.nextUp', { next }) : null;
+  // Compact, the next station is not drawn — so it is said here.
+  const spoken = [
+    `${heading ?? t('train.rest')}, ${spokenDuration(remaining, t, locale)}`,
+    ...(compact && nextLine ? [nextLine] : []),
+  ].join(', ');
+  const labelCap = compact ? REST_COMPACT_LABEL_CAP : undefined;
+  const buttonCap = compact ? REST_COMPACT_BUTTON_CAP : undefined;
   return (
-    <View style={[styles.restBarFloat, lift > 0 && { marginBottom: lift }]} testID="rest-bar">
+    <View
+      style={[styles.restBarFloat, lift > 0 && { marginBottom: lift }]}
+      onLayout={(e) => onHeight?.(Math.ceil(e.nativeEvent.layout.height))}
+      testID="rest-bar"
+    >
       <View style={styles.restTrackWrap} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
         <View style={styles.restTrack} />
         <View style={[styles.restFill, { width: `${Math.round(progress * 100)}%` }]} testID="rest-progress" />
       </View>
       {/* Its own full-width row: beside three 44pt buttons the station name
-          was the part cut off at large text. */}
-      {next ? (
-        <Text style={styles.restNext} numberOfLines={2} testID="rest-next">{t('train.superset.nextUp', { next })}</Text>
+          was the part cut off at large text. Not drawn when compact. */}
+      {nextLine && !compact ? (
+        <Text style={styles.restNext} numberOfLines={2} testID="rest-next">{nextLine}</Text>
       ) : null}
-      <View style={[styles.restBarRow, stacked ? { flexDirection: 'column', alignItems: 'flex-start', gap: 4 } : null]}>
+      <View style={styles.restBarRow}>
         {/* The countdown never wraps or truncates: the heading gives way first. */}
         <Touchable
           style={[styles.restLabelBtn, { flexDirection: 'row', flexShrink: 1 }]}
@@ -1775,16 +1896,16 @@ function RestBar({
           }}
           disabled={!onChangeRest}
           accessibilityRole={onChangeRest ? 'button' : undefined}
-          accessibilityLabel={`${heading ?? t('train.rest')}, ${spokenDuration(remaining, t, locale)}`}
+          accessibilityLabel={spoken}
           accessibilityHint={onChangeRest ? t('train.restChangeHint') : undefined}
           testID="rest-label"
         >
-          <Text style={[styles.restLabel, { flexShrink: 1 }]} numberOfLines={1}>{`${heading ?? t('train.rest')} · `}</Text>
-          <Text style={styles.restLabel}>{label}</Text>
+          <Text style={[styles.restLabel, { flexShrink: 1 }]} numberOfLines={1} maxFontSizeMultiplier={labelCap}>{`${heading ?? t('train.rest')} · `}</Text>
+          <Text style={styles.restLabel} numberOfLines={1} maxFontSizeMultiplier={labelCap} testID="rest-time">{label}</Text>
         </Touchable>
-        {/* Stacked, the three spread across the bar: 4pt apart they read as
-            one string, "−30s+30sSKIP" (L-N9, R3). */}
-        <View style={[styles.restActions, stacked ? { alignSelf: 'stretch', justifyContent: 'space-between', gap: space.md } : null]}>
+        {/* 4pt apart the three read as one string, "−30s+30sSKIP" (L-N9, R3):
+            compact, a little more air between them. */}
+        <View style={[styles.restActions, compact ? { gap: space.sm } : null]}>
           {/* 44-pt targets (UX_AUDIT S18-15): the text is small on purpose
               inside a floating bar, so the box around it does the work. */}
           <Touchable
@@ -1794,7 +1915,7 @@ function RestBar({
             accessibilityLabel={t('train.restMinusA11y')}
             testID="rest-minus"
           >
-            <Text style={styles.restPlus}>{t('train.restMinusShort')}</Text>
+            <Text style={styles.restPlus} numberOfLines={1} maxFontSizeMultiplier={buttonCap}>{t('train.restMinusShort')}</Text>
           </Touchable>
           <Touchable
             onPress={() => onAdjust(30)}
@@ -1803,7 +1924,7 @@ function RestBar({
             accessibilityLabel={t('train.restPlusA11y')}
             testID="rest-plus"
           >
-            <Text style={styles.restPlus}>{t('train.restPlusShort')}</Text>
+            <Text style={styles.restPlus} numberOfLines={1} maxFontSizeMultiplier={buttonCap}>{t('train.restPlusShort')}</Text>
           </Touchable>
           <Touchable
             onPress={onSkip}
@@ -1811,7 +1932,7 @@ function RestBar({
             accessibilityRole="button"
             testID="rest-skip"
           >
-            <Text style={styles.restSkip}>{t('train.skip')}</Text>
+            <Text style={styles.restSkip} numberOfLines={1} maxFontSizeMultiplier={buttonCap}>{t('train.skip')}</Text>
           </Touchable>
         </View>
       </View>

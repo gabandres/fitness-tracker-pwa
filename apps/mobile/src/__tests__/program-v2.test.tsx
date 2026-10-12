@@ -91,7 +91,7 @@ describe('Zone 2 on a cardio block (test 8)', () => {
   });
 });
 
-describe('weekly volume (clusters, myo-rep)', () => {
+describe('this week by muscle — Sets | Clusters (S23-13, ADR-0046)', () => {
   const at = new Date('2026-10-12T18:00:00Z');
   const act = (g: number, label?: string) => [
     { kind: 'activation' as const, group: g, weight: 20, reps: 12, ...(label ? { label } : {}) },
@@ -113,6 +113,12 @@ describe('weekly volume (clusters, myo-rep)', () => {
       <WeeklyVolumeSheet visible onClose={noop} sessions={sessions} catalog={[]} templates={[]} now={at.getTime() + 1000} />,
     );
     expect(ui.getByText('Muscle — lowest total first')).toBeTruthy();
+    // A week with performed clusters opens on Clusters.
+    expect(ui.getByTestId('weekly-volume-view-clusters').props.accessibilityState).toMatchObject({ selected: true });
+    expect(ui.getByTestId('weekly-volume-hint')).toHaveTextContent(/^Myo-rep clusters from the last 7 days/);
+    // F5: the chip vocabulary — "Shoulders (side)", never "Side delt".
+    expect(ui.getByTestId('weekly-volume-sideDelt')).toHaveTextContent(/^Shoulders \(side\)/);
+    expect(ui.queryByText(/delt/i)).toBeNull();
     expect(ui.getByTestId('weekly-volume-calves')).toHaveTextContent('1 total · 1 as main muscle · 0 planned', { exact: false });
     expect(ui.getByTestId('weekly-volume-sideDelt')).toHaveTextContent('1 total · 1 as main muscle', { exact: false });
     expect(ui.getByTestId('weekly-volume-triceps')).toHaveTextContent('6.5 total · 0 as main muscle', { exact: false });
@@ -123,17 +129,37 @@ describe('weekly volume (clusters, myo-rep)', () => {
     expect(ui.getByTestId('weekly-volume-idle')).toHaveTextContent(/^No clusters in the last 7 days: .*Quads/);
   });
 
-  it('a straight-set week says so in one line instead of twelve zero rows (train-ux H1/X2)', async () => {
-    const straight = [{
-      id: 's2', status: 'completed', templateName: 'Upper A', date: at, createdAt: at, updatedAt: at,
-      exercises: [{ exerciseId: 'b', name: 'Bench Press', cues: [], sets: [{ kind: 'working', weight: 135, reps: 8 }] }],
-    }] as unknown as WorkoutSession[];
+  const straight = [{
+    id: 's2', status: 'completed', templateName: 'Upper A', date: at, createdAt: at, updatedAt: at,
+    exercises: [{ exerciseId: 'b', name: 'Bench Press', cues: [], sets: [
+      { kind: 'warmup', weight: 45, reps: 10 },
+      { kind: 'working', weight: 135, reps: 8 },
+      { kind: 'working', weight: 135, reps: 8 },
+      { kind: 'working', weight: 135, targetReps: 8 },
+    ] }],
+  }] as unknown as WorkoutSession[];
+
+  it('a straight-set week opens on Sets: hard sets per muscle, warm-ups and unticked sets left out', async () => {
     const ui = await render(
-      <WeeklyVolumeSheet visible onClose={noop} sessions={straight} catalog={[]} templates={[]} now={at.getTime() + 1000} straightSets={9} />,
+      <WeeklyVolumeSheet visible onClose={noop} sessions={straight} catalog={[]} templates={[]} now={at.getTime() + 1000} />,
     );
+    expect(ui.getByTestId('weekly-volume-view-sets').props.accessibilityState).toMatchObject({ selected: true });
+    expect(ui.getByTestId('weekly-volume-hint')).toHaveTextContent(/^Hard sets from the last 7 days/);
+    expect(ui.getByTestId('weekly-volume-chest')).toHaveTextContent('2 total · 2 as main muscle · 0 planned', { exact: false });
+    expect(ui.getByTestId('weekly-volume-triceps')).toHaveTextContent('1 total · 0 as main muscle', { exact: false });
+    expect(ui.getByTestId('weekly-volume-idle')).toHaveTextContent(/^No sets in the last 7 days: .*Core/);
+    // No clusters this week: nothing to point at.
+    expect(ui.queryByTestId('weekly-volume-clusters-note')).toBeNull();
+  });
+
+  it('the Clusters face of a straight-set week says so in one line, and names the sets it does not count (train-ux H1/X2)', async () => {
+    const ui = await render(
+      <WeeklyVolumeSheet visible onClose={noop} sessions={straight} catalog={[]} templates={[]} now={at.getTime() + 1000} />,
+    );
+    await fireEvent.press(ui.getByTestId('weekly-volume-view-clusters'));
     expect(ui.getByTestId('weekly-volume-empty')).toHaveTextContent(/^No myo-rep clusters logged or planned/);
     expect(ui.queryByTestId('weekly-volume-chest')).toBeNull();
-    expect(ui.getByTestId('weekly-volume-straight')).toHaveTextContent('Straight working sets in the last 7 days: 9', { exact: false });
+    expect(ui.getByTestId('weekly-volume-straight')).toHaveTextContent('Straight working sets in the last 7 days: 2 — counted under Sets', { exact: false });
   });
 
   it('has a visible Done that closes it (train-ux H7)', async () => {
@@ -143,5 +169,33 @@ describe('weekly volume (clusters, myo-rep)', () => {
     );
     await fireEvent.press(ui.getByTestId('weekly-volume-done'));
     expect(close).toHaveBeenCalled();
+  });
+
+  it('the Sets face of a cluster week: an empty face says so, and names the clusters it does not convert', async () => {
+    const clustersOnly = sessions.map((x) => ({ ...x, exercises: x.exercises.slice(0, 2) })) as WorkoutSession[];
+    const ui = await render(
+      <WeeklyVolumeSheet visible onClose={noop} sessions={clustersOnly} catalog={[]} templates={[]} now={at.getTime() + 1000} />,
+    );
+    await fireEvent.press(ui.getByTestId('weekly-volume-view-sets'));
+    expect(ui.getByTestId('weekly-volume-empty')).toHaveTextContent(/^No working sets logged or planned/);
+    expect(ui.getByTestId('weekly-volume-clusters-note')).toHaveTextContent("Myo-rep clusters in the last 7 days: 3 — counted under Clusters. There's no validated way to turn a cluster into sets.");
+  });
+
+  // A press is remembered (module memo + AsyncStorage) for every later render
+  // in this file — so the tests that read the AUTOMATIC default come first,
+  // and this one is last.
+  it('remembers the face the user picks, on the device, over the automatic default', async () => {
+    const AsyncStorage = jest.requireMock('@react-native-async-storage/async-storage');
+    const ui = await render(
+      <WeeklyVolumeSheet visible onClose={noop} sessions={sessions} catalog={[]} templates={[]} now={at.getTime() + 1000} />,
+    );
+    await fireEvent.press(ui.getByTestId('weekly-volume-view-sets'));
+    expect(await AsyncStorage.getItem('train.volume.view')).toBe('sets');
+    ui.unmount();
+    // A cluster week would default to Clusters; the pick wins.
+    const again = await render(
+      <WeeklyVolumeSheet visible onClose={noop} sessions={sessions} catalog={[]} templates={[]} now={at.getTime() + 1000} />,
+    );
+    expect(again.getByTestId('weekly-volume-view-sets').props.accessibilityState).toMatchObject({ selected: true });
   });
 });

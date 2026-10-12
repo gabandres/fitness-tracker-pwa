@@ -134,7 +134,7 @@ it('is never met in a cut, and omits the average when there is none', async () =
   expect(ui.getByTestId('volume-gate')).not.toHaveTextContent(/7-day average:/);
 });
 
-describe('the clusters-by-muscle link and the history rows (train-ux H1, H2)', () => {
+describe('the by-muscle link and the history rows (train-ux H1, H2, S23-13)', () => {
   const straight = (id: string, ago: number): WorkoutSession => ({
     id, status: 'completed', templateName: 'Upper A', date: daysAgo(ago), createdAt: daysAgo(ago), updatedAt: daysAgo(ago),
     exercises: [{
@@ -148,11 +148,17 @@ describe('the clusters-by-muscle link and the history rows (train-ux H1, H2)', (
 
   it('shows the link when the week has clusters', async () => {
     const ui = await render(<TrainScreen />);
-    expect(ui.getByTestId('weekly-volume-open')).toHaveTextContent('Myo-rep clusters by muscle', { exact: false });
+    expect(ui.getByTestId('weekly-volume-open')).toHaveTextContent('This week by muscle', { exact: false });
   });
 
-  it('hides it for a straight-set lifter with no clusters planned — it could only ever read zero', async () => {
+  it('shows it for a straight-set lifter too — the sheet counts hard sets since S23-13', async () => {
     mockTrain.recentSessions = [straight('s9', 1)];
+    const ui = await render(<TrainScreen />);
+    expect(ui.getByTestId('weekly-volume-open')).toBeTruthy();
+  });
+
+  it('hides it when nothing was logged this week and nothing is planned — it could only ever read zero', async () => {
+    mockTrain.recentSessions = [straight('s9', 10)];
     const ui = await render(<TrainScreen />);
     expect(ui.queryByTestId('weekly-volume-open')).toBeNull();
   });

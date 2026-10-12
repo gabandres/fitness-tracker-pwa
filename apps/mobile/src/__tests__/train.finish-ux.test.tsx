@@ -25,6 +25,7 @@ const mockConfirm = jest.fn();
 jest.mock('@/components/ConfirmSheet', () => ({
   ...jest.requireActual('@/components/ConfirmSheet'),
   confirm: (o: unknown) => mockConfirm(o),
+  confirmNative: (o: object) => mockConfirm({ ...o, native: true }),
 }));
 jest.mock('@/lib/a11y', () => ({ ...jest.requireActual('@/lib/a11y'), announce: (...a: unknown[]) => mockAnnounce(...a) }));
 
@@ -98,7 +99,8 @@ describe('a workout left open (F15)', () => {
     await fireEvent.changeText(ui.getByTestId('finish-length'), '55');
     await fireEvent.press(ui.getByTestId('finish-keep-training'));
     expect(onClose).not.toHaveBeenCalled();
-    expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ title: en['train.finishDropExtrasTitle'] }));
+    // The system dialog, not a branded sheet over the native sheet (S23-2).
+    expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ title: en['train.finishDropExtrasTitle'], native: true }));
     // Whitespace alone is not a typed value.
     mockConfirm.mockClear();
     await fireEvent.changeText(ui.getByTestId('finish-length'), '  ');
@@ -222,5 +224,44 @@ describe('the share card (F10, F11, J13)', () => {
     for (const label of ['Push A', 'Tue, Oct 7', '12,648 lb', 'Volume', '14', 'Sets', 'Records', 'Logged with Ignia']) {
       expect(ui.getByText(label).props.allowFontScaling).toBe(false);
     }
+  });
+});
+
+/** Round 2 (FIX-PLAN-3, agent F): F4 copy, F8 at Finish, F12 detent. */
+describe('round 2 — one coherent statement (F4) and the Android partial detent (F12)', () => {
+  const { esPR } = jest.requireActual('@/i18n/es-PR') as { esPR: Record<string, string> };
+  const { ptBR } = jest.requireActual('@/i18n/pt-BR') as { ptBR: Record<string, string> };
+
+  it('F4: what is left out never says "won\'t be saved" beside "your sets are saved"', () => {
+    const dropped = ['train.unstarted.one', 'train.unstarted.other', 'train.skippedSets.one', 'train.skippedSets.other', 'train.unloggedCardio'] as const;
+    for (const k of dropped) expect(en[k]).not.toMatch(/saved/i);
+    expect(en['train.invalidHint']).not.toMatch(/saved/i);
+    for (const dict of [esPR, ptBR]) {
+      for (const k of dropped) expect(dict[k]).not.toMatch(/guard|salv/i);
+      expect(dict['train.invalidHint']).not.toMatch(/guard|salv/i);
+    }
+  });
+
+  it('F8: the RIR notes at Finish say it in plain words, with the term in brackets, never "activation"', () => {
+    for (const k of ['train.rec.invalid.rirMissing', 'train.invalidRirMissing', 'train.invalidRirEasy'] as const) {
+      expect(en[k]).not.toMatch(/activation/i);
+      expect(en[k]).toMatch(/reps in reserve \(RIR\)/);
+    }
+  });
+
+  it('F12: under the sheet route\'s hidden band (Android, lower detent) the sheet pads its bottom so Complete is on screen', async () => {
+    const { SheetHiddenBelowContext } = jest.requireActual('@/lib/sheet-detent') as typeof import('@/lib/sheet-detent');
+    const sheet = (hidden: number) => (
+      <SheetHiddenBelowContext.Provider value={hidden}>
+        <FinishSheet visible session={live([ex('bench', [set(100, 5)])])} recentSessions={[]} invalid={[]} onFinish={jest.fn()} onClose={jest.fn()} />
+      </SheetHiddenBelowContext.Provider>
+    );
+    const ui = await render(sheet(320));
+    const flat = (st: unknown) => Object.assign({}, ...[st].flat(Infinity).filter(Boolean));
+    expect(flat(ui.getByTestId('finish-below-fold').props.style).height).toBe(320);
+    // At the top detent (or on iOS) there is no band and no spacer.
+    await ui.rerender(sheet(0));
+    expect(ui.queryByTestId('finish-below-fold')).toBeNull();
+    expect(ui.getByTestId('finish-confirm')).toBeTruthy();
   });
 });

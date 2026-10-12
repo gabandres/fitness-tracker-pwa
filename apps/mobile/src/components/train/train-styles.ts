@@ -208,16 +208,16 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   // was a 24×20 target (Train review item 16). minWidth so a scaled "2a"
   // grows the cell instead of clipping (item 17).
   //
-  // 36 wide plus an 8pt slop each side: 52pt of target, past HIG's 44 on
+  // 30 wide plus an 8pt slop each side: 46pt of target, past HIG's 44 on
   // the axis that was short, without taking 16pt from the number fields
   // (Train re-score 3). The slop's right edge lands on PREVIOUS, which has
-  // no target of its own.
-  setNumCell: { minWidth: 36, minHeight: TARGET, justifyContent: 'center' },
+  // no target of its own. Was 36: the 6pt went to the RIR cell (F13).
+  setNumCell: { minWidth: 30, minHeight: TARGET, justifyContent: 'center' },
   // The "#" header over that column: the same width so the columns line up,
   // but NOT the 44pt height — on a Text, `justifyContent` does not centre the
   // glyph, so "#" drew at the top of a 44pt box, above PREV/LB/REPS/RIR and
   // crowding the line over the table (Maestro captures, 2026-10-04).
-  setNumHead: { minWidth: 36 },
+  setNumHead: { minWidth: 30 },
   setNum: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
   setNumCluster: { color: colors.teal, fontWeight: '800' },
   kindPicker: { paddingVertical: space.sm, gap: space.xs },
@@ -263,7 +263,10 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   // Flexing the two number cells makes the row fit any width by construction
   // instead of by a measurement that only held on one phone.
   setInputCell: { flex: 1, minWidth: 44, textAlign: 'center' },
-  setRirCell: { minWidth: 38, textAlign: 'center' },
+  // A full target WIDE as well as tall (R1; it was 37-38pt and passed only on
+  // the WCAG spacing exception, F13). Paid for by the set number (−6) and
+  // PREVIOUS (−4), so the row's fixed width did not grow on either platform.
+  setRirCell: { minWidth: TARGET, textAlign: 'center' },
   // `lineStrong`, not `line`: a field's boundary has to meet WCAG 1.4.11's
   // 3:1, and `line` on the input fill measured 1.17:1 dark / 1.27:1 light —
   // the boxes were invisible in a bright gym (Train review item 13).
@@ -929,7 +932,7 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   // Non-interactive, and styled to say so: it is the number to match or beat,
   // not a field. Right-aligned against the input beside it so the two read as
   // a comparison rather than as two entries.
-  setPrevCell: { width: 56, paddingHorizontal: 2 },
+  setPrevCell: { width: 52, paddingHorizontal: 2 },
   setPrevText: { fontSize: font.tiny, color: colors.muted, textAlign: 'center' },
   setPrevEmpty: { color: colors.faint },
   // Swipe-left reveal behind a set row.

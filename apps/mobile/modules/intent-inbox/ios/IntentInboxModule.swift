@@ -68,6 +68,14 @@ public class IntentInboxModule: Module {
     AsyncFunction("peek") { (kinds: [String]) -> String in
       Self.transact(kinds: Set(kinds), remove: false)
     }
+
+    /// Remove the entries of these kinds stamped with exactly these `atMs` —
+    /// the second half of a peek-then-apply drain (S23-8 round 2b, review
+    /// P2-11): an entry leaves the list only once the app has applied it.
+    /// Returns how many went, as a string.
+    AsyncFunction("remove") { (kinds: [String], atMs: [Double]) -> String in
+      Self.remove(kinds: Set(kinds), atMs: Set(atMs.map { Int($0.rounded()) }))
+    }
   }
 
   private static func transact(kinds: Set<String>, remove: Bool) -> String {
@@ -90,6 +98,26 @@ public class IntentInboxModule: Module {
           let out = String(data: data, encoding: .utf8)
     else { return "[]" }
     return out
+  }
+
+  private static func remove(kinds: Set<String>, atMs: Set<Int>) -> String {
+    guard let defaults = UserDefaults(suiteName: APP_GROUP),
+          let json = defaults.string(forKey: KEY),
+          let list = try? JSONSerialization.jsonObject(with: Data(json.utf8)) as? [[String: Any]]
+    else { return "0" }
+    let keep = list.filter { entry in
+      guard kinds.contains((entry["kind"] as? String) ?? "") else { return true }
+      let at = (entry["atMs"] as? NSNumber)?.doubleValue.rounded()
+      return !(at.map { atMs.contains(Int($0)) } ?? false)
+    }
+    if keep.count == list.count { return "0" }
+    if keep.isEmpty {
+      defaults.removeObject(forKey: KEY)
+    } else if let data = try? JSONSerialization.data(withJSONObject: keep),
+              let out = String(data: data, encoding: .utf8) {
+      defaults.set(out, forKey: KEY)
+    }
+    return String(list.count - keep.count)
   }
 
   private func startDoorbell() {

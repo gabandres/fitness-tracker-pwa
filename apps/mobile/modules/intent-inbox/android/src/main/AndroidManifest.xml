@@ -1,0 +1,12 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application>
+    <!--
+      The inbox's one writer entry point (IntentInboxPostReceiver.kt). Not
+      exported: only this app's own explicit broadcasts reach it — today the rest
+      notification's lock-screen actions (modules/rest-timer-notification).
+    -->
+    <receiver
+      android:name="expo.modules.intentinbox.IntentInboxPostReceiver"
+      android:exported="false" />
+  </application>
+</manifest>

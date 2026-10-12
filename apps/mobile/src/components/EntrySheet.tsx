@@ -2217,6 +2217,7 @@ export function EntrySheet({
                     and the native sheet's container already does — two
                     paddings for one keyboard. */}
                 <ScrollView
+                  nestedScrollEnabled
                   ref={formScrollRef}
                   style={styles.formScroll}
                   contentContainerStyle={styles.form}

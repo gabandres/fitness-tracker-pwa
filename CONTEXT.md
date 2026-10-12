@@ -571,6 +571,13 @@ collections + a `WorkoutStore` facet back the Train tab.
   is wrong in a way the type system cannot catch, which is why
   [ADR-0028](docs/adr/0028-stretching-mobility-model.md) rules that **RAMP's
   letters are never identifiers.**
+- **Hard set** — a `working` set that was *performed* (`isLoggedSet`), the
+  unit of the weekly by-muscle sheet's **Sets** face (`hardSetCount`,
+  `weeklyHardSets`). NOT a warm-up, drop, mobility set, or any set of a
+  cluster — a cluster is counted only on the **Clusters** face, and the two
+  counts are never converted or summed. Credits per muscle follow
+  `creditsFor`, where a lift's muscle **tags win** over its name.
+  ([ADR-0046](docs/adr/0046-weekly-volume-hard-sets-view-and-tags-win.md))
 - **Effort standard** — how close to failure the *activation* set of a cluster
   is taken: `failure` (RIR 0, the default since ADR-0039) or `rir1` (one rep
   in reserve, for a lift where failure under load conflicts with a

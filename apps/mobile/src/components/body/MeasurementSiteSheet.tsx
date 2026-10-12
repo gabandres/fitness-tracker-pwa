@@ -142,6 +142,7 @@ export function MeasurementSiteSheet({
     <BottomSheet visible={site != null} onClose={onClose} native detents={[0.6, 1]}>
       <View style={NATIVE_SHEETS ? styles.fill : { height: Math.round(windowH * 0.72) }} testID="measure-site-sheet">
         <FlatList
+          nestedScrollEnabled
           data={rows}
           keyExtractor={(r) => r.dateKey}
           ListHeaderComponent={header}

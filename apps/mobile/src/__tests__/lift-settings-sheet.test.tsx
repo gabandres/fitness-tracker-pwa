@@ -116,14 +116,28 @@ it('refuses an inverted rep range and a load that is not a number', async () => 
   expect(onSave).not.toHaveBeenCalled();
 });
 
-it('prompts for the other end while only one is typed, without flagging an error', async () => {
-  const { ui } = renderSheet(lift());
+it('a blank end is the category default, not an error: one typed end saves (F6)', async () => {
+  const { ui, onSave } = renderSheet(lift());
   const r = await ui;
   await fireEvent.changeText(r.getByTestId('lift-range-min'), '7');
-  expect(r.getByTestId('lift-range-hint')).toHaveTextContent(/^Enter both ends of the range/);
-  expect(r.getByTestId('lift-save')).toBeDisabled();
+  // Seated Cable Row: compound, 6–12 by default. "auto" in the max box means 12.
+  expect(r.getByTestId('lift-range-hint')).toHaveTextContent('7–12 reps — the empty end uses the category default.');
+  expect(r.queryByTestId('lift-range-error')).toBeNull();
+  expect(r.getByTestId('lift-effective')).toHaveTextContent(/7–12 reps — your range/);
+  expect(r.getByTestId('lift-save')).not.toBeDisabled();
+  await fireEvent.press(r.getByTestId('lift-save'));
+  await waitFor(() => expect(onSave).toHaveBeenCalledWith({ repRange: { min: 7, max: 12 } }));
+});
+
+it('a blank low end takes the default low end; a typed end past the default is still refused', async () => {
+  const { ui } = renderSheet(lift());
+  const r = await ui;
   await fireEvent.changeText(r.getByTestId('lift-range-max'), '10');
-  expect(r.getByTestId('lift-range-hint')).toHaveTextContent(/^Category default/);
+  expect(r.getByTestId('lift-range-hint')).toHaveTextContent(/^6–10 reps/);
+  await fireEvent.changeText(r.getByTestId('lift-range-max'), '');
+  await fireEvent.changeText(r.getByTestId('lift-range-min'), '14');
+  expect(r.getByTestId('lift-range-hint')).toHaveTextContent(/1 to 100/);
+  expect(r.getByTestId('lift-save')).toBeDisabled();
 });
 
 it('reads load steps comma or space separated, ascending, and says a stack has no default', async () => {

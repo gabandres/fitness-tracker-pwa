@@ -180,8 +180,10 @@ describe('the header clock (a11y)', () => {
     mockTrain.active = session({ date: new Date(Date.now() - 754_000) });
     const ui = await render(<TrainScreen />);
     const meta = ui.getByTestId('session-elapsed');
-    expect(meta.props.accessibilityLabel).toMatch(/^12 minutes 3\d seconds elapsed, 500 lb, 0 of 1 done$/);
-    expect(meta).toHaveTextContent(/^12:3\d · 500 lb · 0 of 1 done$/);
+    // Progress counts SETS since round 2 (S23-6 / F9) — the unit the card's
+    // "1/2" badge counts; it said "0 of 1 done" (lifts) beside it.
+    expect(meta.props.accessibilityLabel).toMatch(/^12 minutes 3\d seconds elapsed, 500 lb, 1 of 2 sets$/);
+    expect(meta).toHaveTextContent(/^12:3\d · 500 lb · 1 of 2 sets$/);
   });
 });
 
@@ -296,7 +298,7 @@ describe('Finish names what will not be saved, and the best set', () => {
     const ui = await render(<TrainScreen />);
     await fireEvent.press(ui.getByTestId('finish-workout'));
     await waitFor(() => expect(ui.getByTestId('finish-unstarted')).toBeTruthy());
-    expect(ui.getByText('Not started: Row. It won’t be saved.')).toBeTruthy();
+    expect(ui.getByText('Not started: Row. It’s left out of this workout.')).toBeTruthy();
     expect(ui.getByText('Top set: Bench 100 lb × 5')).toBeTruthy();
   });
 });

@@ -81,7 +81,7 @@ export function SessionDetailSheet({
           title={session.templateName || t('train.workout')}
           trailing={{ label: t('common.done'), onPress: onClose, testID: 'session-detail-done' }}
         />
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.finishScroll} testID="session-detail">
+        <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false} contentContainerStyle={styles.finishScroll} testID="session-detail">
           <View>
             {/* The date, in teal: in the light theme's red it read as an
                 alert beside the danger-red Delete (train-ux J8). */}

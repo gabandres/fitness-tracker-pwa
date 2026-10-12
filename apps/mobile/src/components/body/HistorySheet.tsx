@@ -59,6 +59,7 @@ export function HistorySheet<T>({
           {title}
         </Text>
         <SectionList
+          nestedScrollEnabled
           sections={sections}
           keyExtractor={keyOf}
           renderItem={({ item }) => <View style={styles.item}>{renderItem(item)}</View>}

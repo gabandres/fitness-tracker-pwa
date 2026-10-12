@@ -113,6 +113,7 @@ export function StarterTemplatesSheet({
           to `tplRow`: putting a margin on the row would double the spacing
           in the list that is already correct. */}
       <ScrollView
+        nestedScrollEnabled
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.starterList}

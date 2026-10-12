@@ -1016,7 +1016,7 @@ verified on the emulator and on the OnePlus 8T — `CHANGELOG.md`):
   notification (it sits in the shade's **Silent** section — importance LOW,
   by design: no sound per rest).
 
-## 🏋️ S23 — Train tab scored against 2026 standards, four fix rounds (2026-10-12)
+## 🏋️ S23 — Train tab scored against 2026 standards, two passes (2026-10-12): 72.3 → 81.6 → 83.9
 
 Rubric: `docs/research/train-ux-standards-2026.md` (fetched 2026-10-11; HIG,
 M3, WCAG 2.2, NN/g, Hevy/Strong help docs), S18 weights. Every score below is
@@ -1043,26 +1043,31 @@ the per-round reviews live on `ignia-mac` only, in
 needs all of: the JS items below, a native build, a real-device VoiceOver +
 TalkBack pass, and the owner calls below.
 
-### Open — JS (next pass)
-- [ ] **S23-1** Template-editor reorder is drag-only for sighted users (R24, AA); add visible move up/down as the session's reorder sheet has.
-- [ ] **S23-2** Confirms open as sheets on top of native sheets (discard over the editor, update prompt over Finish, delete exercise) — R30/R31.
-- [ ] **S23-3** AX-large: reorder names truncate; the recommendation note's gear is pushed past the card edge; the rest bar takes ~⅓ of the screen (and floats over Add exercise on Android).
-- [ ] **S23-4** Finish says both "won't be saved" and "Your sets are saved" on one screen.
-- [ ] **S23-5** Engine terms on default screens: the RIR column on every card, Activation/Mini/Continuation, "Add cluster/continuation" on a straight-set lift, "To failure (RIR 0)".
-- [ ] **S23-6** Header "0 of 2 done" counts lifts while the card's "1/3" counts sets; the editor is 3 disclosure levels deep; Android Finish opens full height with the grabber under the status bar; the RIR cell is 37 pt wide.
-- [ ] **S23-7** Maestro 18 (scroll overshoot) and 22 (rest timing) are flaky on the Android emulator.
+### Round 2 (2026-10-12, same day) — 81.6 → **83.9**
+Independent re-score `FINAL-SCORE-R2.md` (iOS renders; A11y capped at 8, no
+screen reader). Closed: S23-1 (editor ↑↓), S23-4 (one Finish line), S23-7
+(Maestro 18/22 — 18's "overshoot" was a real Android bug, every native sheet
+could not scroll back up; fixed, see CHANGELOG), S23-10/11/12/13 (owner calls,
+shipped), plus most of S23-2/3/5/6. S23-8 is code-complete and ships in 1.2.7
+(+~0.9 once on a device). JS-only ceiling is still ~87.
+
+### Open — JS
+- [ ] **S23-2** Android keeps the branded confirm over native sheets (the drag-dismiss re-present was only verified with it) — a device check decides whether it moves to the system dialog too.
+- [ ] **S23-3** AX5: "Sets | Clust…" switch label; "TOP WEIGH/T"; home hero pills overflow; at AX the one-line rest bar still sits over a card. Re-capture the post-capture fixes (Finish tiles, exercise-detail Delete row, card title cap).
+- [ ] **S23-5** Myo-rep rows still read 1a/1b/1c on the row (the set words are in the set sheet + VoiceOver); "REPEAT — couldn't judge last time" shows twice.
+- [ ] **S23-6** Editor: ↑↓ on their own row roughly double a collapsed card's height; More options is still a third level; title close to Cancel. The set row is 5 focus stops (grouping waits on S23-9).
+- [ ] **S23-7b** Android regression flows (emulator, round-2 JS): 16/22 teardown cannot find their lift once the catalog passes the 5-row inline list (`CATALOG_INLINE`, `StartView.tsx`) — go through Browse all; 18's keyboard-dismiss tap on the "New template" title now expands Template options. Flow maintenance, not app regressions (`QA-R2-ANDROID.md`). 18's Android drag workaround can go now that sheets scroll.
+- [ ] **S23-14** After collapsing and re-expanding a card, the ‹ › Done keyboard bar no longer attaches (iOS falls back to an English "Next") — predates round 2 (`KeyboardBar.tsx`, `SetRow.tsx`).
+- [ ] **S23-15** Deleting a finished workout leaves that day's "exercise completed" food-log entry (`ledger.ts` ~2183) — not checked whether it predates round 2.
 
 ### Open — native build
-- [ ] **S23-8** Android promoted rest notification with ±/Skip actions; ticking a set from the lock screen (Hevy does).
+- [ ] **S23-8** In 1.2.7: whole-workout Live Activity / Android notification with lock-screen **Done set**, Android 16 promoted Live Update with −30/+30/Skip. Needs the device script in `FIX-N2.md`.
 
 ### Open — device
-- [ ] **S23-9** VoiceOver + TalkBack over the set row, rest announcements, focus return, reorder, the Android sheet re-present after a drag, toast Undo; Android at 200 % / 360 dp; measure tick feedback and cold paint on a mid-range Android.
+- [ ] **S23-9** The owner's VoiceOver + TalkBack pass — checklist `apps/mobile/.maestro/capture/train-ux/DEVICE-A11Y-CHECKLIST.md` (on `ignia-mac`); then group the set row; measure tick feedback and cold paint on a mid-range Android.
 
-### Owner calls (not scored against)
-- [ ] **S23-10** Ask "Update template / Keep original" at Finish when lifts were added or removed (Hevy/Strong do).
-- [ ] **S23-11** Should the editor save the reps it shows in grey as targets? (Today it never stores them, so a template built in the editor has no reps.)
-- [ ] **S23-12** Two muscle vocabularies (chip taxonomy vs volume credits; X1) and which counting rule wins.
-- [ ] **S23-13** A volume view for straight-set lifters; red on status surfaces ("WORKOUT IN PROGRESS"); "Next up" always picks never-done templates first, so adding a starter displaces a 65-day-stale one.
+### Owner calls still open
+- [ ] **S23-13 (rest)** Red on status surfaces ("WORKOUT IN PROGRESS"); "Next up" picks never-done templates first. Not answered — left alone.
 
 ## 5. Notes for future additions
 

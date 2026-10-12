@@ -630,3 +630,21 @@ describe('honourLifterLoad — a load the lifter set after the newest read wins'
     expect(honourLifterLoad(addTo85, { targetLoad: 90 }, lastRead)).toBe(addTo85);
   });
 });
+
+describe('an unstarted myo-reps scaffold (round-2 Finish crash)', () => {
+  // Activation + minis planned, none performed: the read is clustered with no
+  // clusters. That is nothing to read — never an `invalid` call with no reason
+  // (the Finish sheet crashed rendering one).
+  it('reads as nothing-to-read, not invalid', () => {
+    const scaffold: SessionExercise = {
+      exerciseId: 'x', name: 'X', cues: [], logStyle: 'weight-reps',
+      sets: [
+        { kind: 'activation', group: 1, weight: 100 },
+        { kind: 'mini', group: 1, weight: 100 },
+      ] as WorkoutSet[],
+    };
+    const rec = recommend([scaffold], { structure: 'myoreps' });
+    expect(rec.reason.kind).toBe('nothing-to-read');
+    expect(rec.action).toBe('none');
+  });
+});

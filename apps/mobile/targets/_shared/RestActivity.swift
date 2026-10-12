@@ -39,7 +39,7 @@ import Foundation
 //
 //  ## The `@objc` contract
 //
-//  `IgniaRestActivity` and its four selectors are pinned with explicit names and
+//  `IgniaRestActivity` and its five selectors are pinned with explicit names and
 //  mirrored in `modules/rest-timer-activity/ios/RestTimerActivityModule.swift`.
 //  Change one, change both — `src/__tests__/rest-activity-contract.test.ts`
 //  greps the two files, because disagreeing is a silent no-op.
@@ -64,12 +64,32 @@ import Foundation
       /// next set ticked on a different exercise updates the same Activity
       /// rather than replacing it.
       public var exerciseName: String
+      /// S23-8 — the next planned sets, head first, while a workout is open:
+      /// what the face names ("Bench · Set 3 of 4 · 80 kg × 8") and what
+      /// "Done set" (`SetDoneIntent`) confirms. Optional, like the two below,
+      /// so a state encoded before they existed still decodes.
+      public var upcoming: [RestPlannedSet]?
+      /// True between rests: no countdown, the face shows the next set.
+      public var idle: Bool?
+      /// The workout the queue belongs to; echoed into the inbox entry.
+      public var sessionId: String?
 
-      public init(startedAt: Date, endsAt: Date, exerciseName: String) {
+      public init(
+        startedAt: Date, endsAt: Date, exerciseName: String,
+        upcoming: [RestPlannedSet]? = nil, idle: Bool? = nil, sessionId: String? = nil
+      ) {
         self.startedAt = startedAt
         self.endsAt = endsAt
         self.exerciseName = exerciseName
+        self.upcoming = upcoming
+        self.idle = idle
+        self.sessionId = sessionId
       }
+
+      /// No rest running — the "next set" face.
+      public var isIdle: Bool { idle ?? false }
+      /// The set "Done set" would log.
+      public var nextSet: RestPlannedSet? { upcoming?.first }
     }
 
     /// `"en"`, `"es-PR"` or `"pt-BR"`, matching `RestActivityWidget.swift`.
@@ -80,8 +100,99 @@ import Foundation
     }
   }
 
+  /// One planned set the Lock Screen can confirm (S23-8). Built by JS
+  /// (`planUpcomingSets` in `src/lib/rest-timer-activity.ts`) with the values a
+  /// tick in the app would log; native only ever shows it and hands it back.
+  public struct RestPlannedSet: Codable, Hashable {
+    public var exerciseId: String
+    public var exerciseIndex: Int
+    public var setIndex: Int
+    /// The exercise name — the rest that follows this set is titled with it.
+    public var name: String
+    /// "Bench · Set 3 of 4 · 80 kg × 8", already localised.
+    public var label: String
+    /// The rest that follows this set, seconds; 0 = none.
+    public var restSec: Double
+    /// Stored unit (lb), as the session stores it.
+    public var weight: Double?
+    public var reps: Double?
+    public var durationSec: Double?
+    /// The set's identity beyond its index (round 2b), echoed into the inbox
+    /// entry so the app can refuse a slot that now holds another set.
+    public var setKind: String?
+    public var group: Int?
+    public var setCount: Int?
+  }
+
+  /// What `IgniaRestActivity.workout` decodes — the JSON JS builds in
+  /// `syncNative` (`src/lib/rest-timer-activity.ts`). Unknown keys ignored.
+  struct RestWorkoutPayload: Decodable {
+    struct Rest: Decodable {
+      var startedAtMs: Double
+      var endsAtMs: Double
+      var title: String
+    }
+    struct Copy: Decodable {
+      var restOverTitle: String?
+      var restOverBody: String?
+    }
+    var sessionId: String
+    var locale: String
+    var rest: Rest?
+    var upcoming: [RestPlannedSet]
+    var copy: Copy?
+    /// Increasing per picture (JS: `Math.max(Date.now(), seq + 1)`).
+    var seq: Double?
+  }
+
+  /// One lane for every change to the rest Activity (S23-8 round 2b, review
+  /// P2-9 / P2-10). `Activity.update` is async, and the bridge used to fire a
+  /// fresh `Task` per call: unstructured Tasks are not FIFO, so two syncs in a
+  /// row (a tick's rest, then the re-planned queue) could land in the wrong
+  /// order and leave "Next: <the set just done>" on the face. Every bridge call
+  /// and every Lock Screen button now queues its read-modify-update here, each
+  /// waiting for the one before — which also serialises two quick "Done set"
+  /// taps, so both cannot pop the same head.
+  enum RestActivityLane {
+    private static let lock = NSLock()
+    nonisolated(unsafe) private static var tail: Task<Void, Never>?
+    nonisolated(unsafe) private static var newestSeq: Double = 0
+
+    @discardableResult
+    static func run(_ work: @escaping () async -> Void) -> Task<Void, Never> {
+      lock.lock()
+      defer { lock.unlock() }
+      let previous = tail
+      let next = Task {
+        await previous?.value
+        await work()
+      }
+      tail = next
+      return next
+    }
+
+    /// JS stamps each picture with an increasing `seq`; one older than the
+    /// newest already accepted is dropped. A payload without one is accepted.
+    static func accept(seq: Double?) -> Bool {
+      guard let seq else { return true }
+      lock.lock()
+      defer { lock.unlock() }
+      if seq < newestSeq { return false }
+      newestSeq = seq
+      return true
+    }
+  }
+
   @available(iOS 16.2, *)
   enum RestActivityStore {
+    /// An idle "next set" face goes stale this long after the app last
+    /// touched it (review P2-8): an abandoned workout — the app killed and
+    /// never reopened — stops offering "Done set" instead of sitting on the
+    /// Lock Screen until iOS's eight-hour ceiling. Every sync refreshes it,
+    /// and a real workout syncs on every set. Mirrors `ABANDON_MS` in
+    /// `RestNotifier.kt`.
+    static let abandonAfter: TimeInterval = 3 * 60 * 60
+
     /// The one live rest, if any — running OR stale ("Rest over" is still
     /// on screen and still ours to retarget). There is never more than one by
     /// construction (`start` ends extras), but `first` keeps a stray from
@@ -113,8 +224,24 @@ import Foundation
     static func content(_ state: RestActivityAttributes.ContentState)
       -> ActivityContent<RestActivityAttributes.ContentState>
     {
-      // `staleDate` IS the auto-end: see the header.
-      ActivityContent(state: state, staleDate: state.endsAt)
+      // `staleDate` IS the auto-end: see the header. An idle face (between
+      // sets) goes stale only when abandoned (`abandonAfter`).
+      ActivityContent(
+        state: state,
+        staleDate: state.isIdle ? Date().addingTimeInterval(abandonAfter) : state.endsAt)
+    }
+
+    /// The "next set" face: no countdown, the queue kept. `nil` when nothing
+    /// is left to confirm — the caller ends the Activity instead.
+    static func idle(_ state: RestActivityAttributes.ContentState, now: Date = Date())
+      -> RestActivityAttributes.ContentState?
+    {
+      guard state.nextSet != nil else { return nil }
+      var next = state
+      next.startedAt = now
+      next.endsAt = now
+      next.idle = true
+      return next
     }
 
     /// End every rest Activity, immediately — a skipped or finished rest left
@@ -172,6 +299,37 @@ import Foundation
         .filter { $0.hasPrefix(idPrefix) }
       if !ids.isEmpty { center.removePendingNotificationRequests(withIdentifiers: ids) }
     }
+
+    /// App Group key for the "Rest over" words JS last sent (`workout`), so a
+    /// rest started by "Done set" — with no JS running — can still buzz.
+    static let copyKey = "ignia.restDoneCopy.v1"
+
+    static func storeCopy(title: String, body: String) {
+      UserDefaults(suiteName: Glance.appGroup)?.set([title, body], forKey: copyKey)
+    }
+
+    /// A NEW rest-over request for `date` (S23-8 "Done set"): any pending one
+    /// is for a rest that is over now. The id keeps JS's prefix, so the app's
+    /// own next schedule sweeps it (`cancelStaleRestNotifications`) instead of
+    /// buzzing twice. No permission → `add` fails quietly, as JS's would.
+    static func schedule(at date: Date) async {
+      await cancel()
+      let interval = date.timeIntervalSinceNow
+      guard interval >= 1,
+            let words = UserDefaults(suiteName: Glance.appGroup)?.stringArray(forKey: copyKey),
+            words.count == 2
+      else { return }
+      let content = UNMutableNotificationContent()
+      content.title = words[0]
+      content.body = words[1]
+      content.sound = .default
+      if #available(iOS 15.0, *) { content.interruptionLevel = .timeSensitive }
+      let request = UNNotificationRequest(
+        identifier: "\(idPrefix)native.\(IntentInbox.ms(date))",
+        content: content,
+        trigger: UNTimeIntervalNotificationTrigger(timeInterval: interval, repeats: false))
+      try? await UNUserNotificationCenter.current().add(request)
+    }
   }
 #endif
 
@@ -204,14 +362,19 @@ public final class IgniaRestActivity: NSObject {
       }
       let name = (payload["exerciseName"] as? String) ?? ""
       let locale = (payload["locale"] as? String) ?? "en"
+      // A workout's queue (S23-8) rides along: this call only moves the rest.
+      let carried = RestActivityStore.current?.content.state
       let state = RestActivityAttributes.ContentState(
         startedAt: Date(),
         endsAt: Date(timeIntervalSince1970: endsAtMs / 1000),
-        exerciseName: name)
+        exerciseName: name,
+        upcoming: carried?.upcoming,
+        idle: false,
+        sessionId: carried?.sessionId)
 
       if let live = RestActivityStore.current, live.attributes.locale == locale {
         let extras = Activity<RestActivityAttributes>.activities.filter { $0.id != live.id }
-        Task {
+        RestActivityLane.run {
           for extra in extras { await extra.end(nil, dismissalPolicy: .immediate) }
           await live.update(RestActivityStore.content(state))
         }
@@ -234,7 +397,7 @@ public final class IgniaRestActivity: NSObject {
           content: RestActivityStore.content(state),
           // Never a push token — every update is local. See the header.
           pushType: nil)
-        Task {
+        RestActivityLane.run {
           for old in superseded where old.id != fresh.id {
             await old.end(nil, dismissalPolicy: .immediate)
           }
@@ -244,7 +407,94 @@ public final class IgniaRestActivity: NSObject {
         // The request failed (rate limit, Activities switched off mid-call):
         // a superseded face would now show a deadline that is no longer true,
         // so it goes too. No timer beats a wrong one.
-        Task {
+        RestActivityLane.run {
+          for old in superseded { await old.end(nil, dismissalPolicy: .immediate) }
+        }
+        return String(describing: error) as NSString
+      }
+    #else
+      return "unsupported" as NSString
+    #endif
+  }
+
+  /// The whole workout picture from JS (S23-8) — one JSON string:
+  /// `{ sessionId, locale, rest: { startedAtMs, endsAtMs, title } | null,
+  ///    upcoming: [RestPlannedSet], copy: { restOverTitle, restOverBody, … } }`.
+  ///
+  /// A rest → the countdown face, the queue riding along for "Next: …". No
+  /// rest but a next set → the idle face with "Done set". Neither → every rest
+  /// Activity ends and any pending "rest over" goes (JS has no rest running,
+  /// so a pending one is a native "Done set" rest the app did not adopt).
+  ///
+  /// Updates in place when one is live in the same locale — `Activity.request`
+  /// is rate-limited and a workout syncs on every tick.
+  @objc(workoutWithPayload:)
+  public static func workout(_ json: NSString) -> NSString? {
+    #if canImport(ActivityKit)
+      guard #available(iOS 16.2, *) else { return "unsupported" as NSString }
+      guard let payload = try? JSONDecoder().decode(RestWorkoutPayload.self, from: Data((json as String).utf8))
+      else { return "bad-payload" as NSString }
+      // Older than a picture already taken: drawing it would go backwards.
+      guard RestActivityLane.accept(seq: payload.seq) else { return "stale" as NSString }
+      if let copy = payload.copy {
+        RestDoneNotification.storeCopy(title: copy.restOverTitle ?? "", body: copy.restOverBody ?? "")
+      }
+      let now = Date()
+      let live = RestActivityStore.current
+      var state: RestActivityAttributes.ContentState
+      if let rest = payload.rest, rest.endsAtMs / 1000 > now.timeIntervalSince1970 {
+        let endsAt = Date(timeIntervalSince1970: rest.endsAtMs / 1000)
+        // The same rest already showing keeps its own start: the Lock Screen
+        // +30 s restarts a finished rest's bar natively, and JS's older
+        // `startedAt` would stretch it back out.
+        let liveState = live?.content.state
+        let same = liveState.map { !$0.isIdle && abs($0.endsAt.timeIntervalSince(endsAt)) < 1 } ?? false
+        state = RestActivityAttributes.ContentState(
+          startedAt: same ? liveState!.startedAt : Date(timeIntervalSince1970: rest.startedAtMs / 1000),
+          endsAt: endsAt,
+          exerciseName: rest.title,
+          upcoming: payload.upcoming,
+          idle: false,
+          sessionId: payload.sessionId)
+      } else {
+        guard !payload.upcoming.isEmpty else {
+          RestActivityLane.run {
+            await RestActivityStore.endAll()
+            await RestDoneNotification.cancel()
+          }
+          return nil
+        }
+        state = RestActivityAttributes.ContentState(
+          startedAt: now, endsAt: now, exerciseName: payload.upcoming[0].name,
+          upcoming: payload.upcoming, idle: true, sessionId: payload.sessionId)
+        RestActivityLane.run { await RestDoneNotification.cancel() }
+      }
+
+      if let live, live.attributes.locale == payload.locale {
+        let extras = Activity<RestActivityAttributes>.activities.filter { $0.id != live.id }
+        let content = RestActivityStore.content(state)
+        RestActivityLane.run {
+          for extra in extras { await extra.end(nil, dismissalPolicy: .immediate) }
+          await live.update(content)
+        }
+        return nil
+      }
+      guard ActivityAuthorizationInfo().areActivitiesEnabled else { return "disabled" as NSString }
+      // Snapshot before the request, as `start` does (its comment says why).
+      let superseded = Activity<RestActivityAttributes>.activities
+      do {
+        let fresh = try Activity.request(
+          attributes: RestActivityAttributes(locale: payload.locale),
+          content: RestActivityStore.content(state),
+          pushType: nil)
+        RestActivityLane.run {
+          for old in superseded where old.id != fresh.id {
+            await old.end(nil, dismissalPolicy: .immediate)
+          }
+        }
+        return nil
+      } catch {
+        RestActivityLane.run {
           for old in superseded { await old.end(nil, dismissalPolicy: .immediate) }
         }
         return String(describing: error) as NSString
@@ -260,8 +510,9 @@ public final class IgniaRestActivity: NSObject {
     #if canImport(ActivityKit)
       guard #available(iOS 16.2, *) else { return "unsupported" as NSString }
       guard let live = RestActivityStore.current else { return "stopped" as NSString }
-      let state = RestActivityStore.retarget(live.content.state, to: endsAt as Date)
-      Task { await live.update(RestActivityStore.content(state)) }
+      var state = RestActivityStore.retarget(live.content.state, to: endsAt as Date)
+      state.idle = false
+      RestActivityLane.run { await live.update(RestActivityStore.content(state)) }
       return nil
     #else
       return "unsupported" as NSString
@@ -278,7 +529,7 @@ public final class IgniaRestActivity: NSObject {
   public static func end() -> NSString? {
     #if canImport(ActivityKit)
       guard #available(iOS 16.2, *) else { return "unsupported" as NSString }
-      Task { await RestActivityStore.endAll() }
+      RestActivityLane.run { await RestActivityStore.endAll() }
       return nil
     #else
       return "unsupported" as NSString
@@ -293,6 +544,7 @@ public final class IgniaRestActivity: NSObject {
       guard #available(iOS 16.2, *) else { return "unsupported" }
       guard ActivityAuthorizationInfo().areActivitiesEnabled else { return "disabled" }
       guard let live = RestActivityStore.current else { return "stopped" }
+      if live.content.state.isIdle { return "idle" }
       return "running:\(IntentInbox.ms(live.content.state.endsAt))" as NSString
     #else
       return "unsupported"

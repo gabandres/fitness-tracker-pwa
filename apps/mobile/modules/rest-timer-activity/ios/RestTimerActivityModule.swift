@@ -14,7 +14,7 @@ import ExpoModulesCore
  *
  * ## The contract
  *
- * `IgniaRestActivity` and the four selectors below are pinned with explicit
+ * `IgniaRestActivity` and the five selectors below are pinned with explicit
  * `@objc(...)` names in `targets/_shared/RestActivity.swift`. **Change one,
  * change both in the same commit.** Disagreeing is a silent no-op — the rest
  * still counts in the app, the Lock Screen stays empty — so
@@ -31,6 +31,9 @@ public class RestTimerActivityModule: Module {
   private static let SEL_UPDATE = "updateWithEndsAt:"
   private static let SEL_END = "endActivity"
   private static let SEL_STATUS = "activityStatus"
+  /// S23-8. Shipped in the same binary as the `workout` function below, so
+  /// JS's "is `workout` defined" check is also the bridge check.
+  private static let SEL_WORKOUT = "workoutWithPayload:"
 
   public func definition() -> ModuleDefinition {
     Name("RestTimerActivity")
@@ -56,6 +59,13 @@ public class RestTimerActivityModule: Module {
 
     AsyncFunction("end") { () -> String? in
       Self.call(Self.SEL_END)
+    }
+
+    /// The whole workout picture as one JSON string (S23-8): the rest, if
+    /// any, and the next planned sets the Lock Screen's "Done set" confirms.
+    /// See `IgniaRestActivity.workout` in `_shared/RestActivity.swift`.
+    AsyncFunction("workout") { (json: String) -> String? in
+      Self.call(Self.SEL_WORKOUT, with: json as NSString)
     }
 
     /// `"running:<endsAtEpochMillis>"`, `"stopped"`, `"disabled"`,

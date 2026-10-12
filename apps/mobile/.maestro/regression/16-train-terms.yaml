@@ -218,11 +218,15 @@ appId: fit.ignia.app
     commands:
       - tapOn:
           id: 'create-exercise'
-# A new exercise arrives with exactly one set, kind `working`, so the RIR cell
-# is on screen without adding anything.
+# A new exercise arrives with exactly one set, kind `working`.
+# FIX-M2 (2026-10-12): wait on the set's NUMBER cell (`set-kind-0-0`), not the
+# RIR cell. Since the S23 logger pass a straight lift with no RIR logged draws
+# NO RIR column (`liftUsesRir`), so `set-rir-0-0` does not exist on a fresh
+# lift and this wait would time out on a correct app. The number cell exists
+# on every build, before and after.
 - extendedWaitUntil:
     visible:
-      id: 'set-rir-0-0'
+      id: 'set-kind-0-0'
     timeout: 15000
 - takeScreenshot: .maestro/regression/shots/16-set-row
 
@@ -231,8 +235,15 @@ appId: fit.ignia.app
 # which is the half users get backwards. Since ADR-0041 the scale lives in a
 # bottom sheet rather than expanding inline, so the rows BELOW the tapped set
 # no longer move while it is open.
+#
+# FIX-M2 (2026-10-12): opened from the set's NUMBER (`set-kind-0-0`), not the
+# RIR cell. The RIR cell is not drawn until a lift has an RIR (see the wait
+# above), and the number opens the same `SetRowSheet`, whose RIR half is
+# shown for a `working` set on every build. So "tap the number, pick RIR" is
+# the path a user has on a fresh straight lift. The cell then appears holding
+# the value, which the containsChild/text assertions below check.
 - tapOn:
-    id: 'set-rir-0-0'
+    id: 'set-kind-0-0'
 # Anchor on a chip that exists ONLY while the picker is open.
 #
 # This line used to read `assertVisible: 'How many more reps could you have
@@ -399,4 +410,17 @@ appId: fit.ignia.app
     commands:
       - tapOn:
           id: 'exercise-delete-confirm'
+# QA-R2 (2026-10-12): since round 2 (S23-2/F2) ExerciseDetailSheet asks with the
+# SYSTEM dialog on both platforms (`confirm({ native: true })`): an iOS action
+# sheet / Android Alert with no testIDs, so both conditionals above skip and
+# this teardown silently LEAKED "QA Term Check" into the catalog (found on iOS: the
+# flow still passed). Keyed on the dialog's title; while it is up the sheet
+# underneath is not in the hierarchy, so the button text is unambiguous.
+# '(?i)' because an Android Alert may draw the button in caps. Verified on
+# iOS only (Ignia-QA-26).
+- runFlow:
+    when:
+      visible: 'Delete QA Term Check\?'
+    commands:
+      - tapOn: '(?i)delete'
 - takeScreenshot: .maestro/regression/shots/16-teardown

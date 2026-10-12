@@ -12,12 +12,14 @@ import {
   orderStarters,
   reinsertAt,
   reinsertCard,
+  repsToSave,
   rowUntouched,
   rowsUntouched,
   ghostBuffers,
   seedTargetLoad,
   starterPreview,
   starterPreviewParts,
+  rowsSeededFromHistory,
 } from '@/components/train/template-draft';
 import type { SetKind, WorkoutSet } from '@/lib/workout';
 import type { I18nKey, TFn } from '@/i18n';
@@ -92,15 +94,81 @@ describe('rowUntouched / rowsUntouched — a ghost is not a value', () => {
   });
 });
 
-describe('addActionsForDraft (T9)', () => {
+describe('addActionsForDraft (T9, S23-5)', () => {
   it('a NEW undeclared card offers only "+ Add set"', () => {
-    expect(addActionsForDraft(undefined, true)).toEqual({ set: true, cluster: false, block: false });
+    expect(addActionsForDraft(undefined, true, ['working'])).toEqual({ set: true, cluster: false, block: false });
   });
-  it('a legacy undeclared card keeps all three (ADR-0041)', () => {
-    expect(addActionsForDraft(undefined, undefined)).toEqual({ set: true, cluster: true, block: true });
+  it('a legacy undeclared card of straight sets offers only "+ Add set" — no cluster rows on a straight-set lift (S23-5)', () => {
+    expect(addActionsForDraft(undefined, undefined, ['working', 'working', 'working'])).toEqual({ set: true, cluster: false, block: false });
+    expect(addActionsForDraft(undefined, undefined, ['warmup', 'working', 'drop'])).toEqual({ set: true, cluster: false, block: false });
   });
-  it('a declared structure decides, new or not', () => {
-    expect(addActionsForDraft('myoreps', true)).toEqual({ set: true, cluster: true, block: false });
+  it('a legacy undeclared card keeps the add-buttons its rows already use (ADR-0041 amended)', () => {
+    expect(addActionsForDraft(undefined, undefined, ['activation', 'mini', 'mini'])).toEqual({ set: true, cluster: true, block: false });
+    expect(addActionsForDraft(undefined, undefined, ['activation', 'continuation'])).toEqual({ set: true, cluster: false, block: true });
+    expect(addActionsForDraft(undefined, undefined, ['activation', 'mini', 'activation', 'continuation'])).toEqual({ set: true, cluster: true, block: true });
+  });
+  it('a declared structure decides, new or not, whatever the rows', () => {
+    expect(addActionsForDraft('myoreps', true, ['working'])).toEqual({ set: true, cluster: true, block: false });
+    expect(addActionsForDraft('straight', undefined, ['activation', 'mini'])).toEqual({ set: true, cluster: false, block: false });
+  });
+});
+
+describe('rowsSeededFromHistory — saved grey reps do not block a rescaffold on the next edit (S23-11, review R2 P2-4)', () => {
+  const r = (kind: SetKind, repsText = '', extra: object = {}) => ({ kind, ...blank, repsText, ...extra });
+  const prev: WorkoutSet[] = [{ kind: 'working', reps: 8 }, { kind: 'working', reps: 7 }];
+
+  it('rows whose reps are exactly what history offers, nothing else typed, count as seeded', () => {
+    expect(rowsSeededFromHistory([r('working', '8'), r('working', '7')], prev, 'weight-reps')).toBe(true);
+    expect(rowsSeededFromHistory([r('working'), r('working', '7')], prev, 'weight-reps')).toBe(true);
+  });
+
+  it('a count history would not offer is typed', () => {
+    expect(rowsSeededFromHistory([r('working', '10'), r('working', '7')], prev, 'weight-reps')).toBe(false);
+    expect(rowsSeededFromHistory([r('working', '8'), r('working', '7'), r('working', '7')], prev, 'weight-reps')).toBe(false);
+  });
+
+  it('a typed weight or duration is typed, whatever the reps', () => {
+    expect(rowsSeededFromHistory([r('working', '8', { weightText: '135' }), r('working', '7')], prev, 'weight-reps')).toBe(false);
+  });
+
+  it('no history: only blank rows are seeded', () => {
+    expect(rowsSeededFromHistory([r('working'), r('working')], [], 'weight-reps')).toBe(true);
+    expect(rowsSeededFromHistory([r('working', '8')], [], 'weight-reps')).toBe(false);
+  });
+});
+
+describe('repsToSave — the grey reps a new card shows are saved as its targets (S23-11)', () => {
+  const r = (kind: SetKind, repsText = '', extra: object = {}) => ({ kind, ...blank, repsText, ...extra });
+  const ghost = { weightText: '135', repsText: '7', durationText: '' };
+
+  it('typed reps are saved as typed, on any card', () => {
+    expect(repsToSave(r('working', '10'), undefined, 'weight-reps', false)).toBe(10);
+    expect(repsToSave(r('working', '10', { ghost }), undefined, 'weight-reps', true)).toBe(10);
+  });
+
+  it("a new card saves the grey reps it shows: its ghost, else last time's same-kind row", () => {
+    expect(repsToSave(r('working', '', { ghost }), undefined, 'weight-reps', true)).toBe(7);
+    expect(repsToSave(r('working'), { kind: 'working', reps: 8 }, 'weight-reps', true)).toBe(8);
+    expect(repsToSave(r('mini', '', { ghost: { ...ghost, repsText: '4' } }), undefined, 'weight-reps', true)).toBe(4);
+  });
+
+  it("never saves a different kind's count, and never invents one", () => {
+    expect(repsToSave(r('working'), { kind: 'warmup', reps: 12 }, 'weight-reps', true)).toBeUndefined();
+    expect(repsToSave(r('working'), undefined, 'weight-reps', true)).toBeUndefined();
+  });
+
+  it('an existing card saves only what was typed — an unrelated save restates nothing', () => {
+    expect(repsToSave(r('working', '', { ghost }), { kind: 'working', reps: 8 }, 'weight-reps', false)).toBeUndefined();
+    expect(repsToSave(r('working', '', { ghost }), { kind: 'working', reps: 8 }, 'weight-reps', undefined)).toBeUndefined();
+  });
+
+  it('reps only: a timed lift saves no grey seconds', () => {
+    const timed = { kind: 'working' as const, ...blank, ghost: { ...blank, durationText: '40' } };
+    expect(repsToSave(timed, { kind: 'working', durationSec: 40 }, 'time', true)).toBeUndefined();
+  });
+
+  it('a bodyweight lift saves its grey reps like any other', () => {
+    expect(repsToSave(r('working', '', { ghost: { ...blank, repsText: '12' } }), undefined, 'bodyweight', true)).toBe(12);
   });
 });
 

@@ -77,6 +77,14 @@ enum ActivityCopy {
     /// The fast's End button.
     let endFast: String
     let endFastA11y: String
+    /// S23-8 — the idle face's label ("Up next") and the line under a running
+    /// rest ("Next: Bench · Set 3 of 4 · 80 kg × 8"). Mirrors
+    /// `train.lockSet.upNext` / `train.lockSet.nextLine` / `train.lockSet.doneSet`
+    /// / `train.lockSet.doneSetA11y` — `live-activity-contracts.test.ts` checks.
+    let upNext: String
+    let nextLine: String
+    let doneSet: String
+    let doneSetA11y: String
   }
 
   static func words(_ locale: String) -> Words {
@@ -87,21 +95,27 @@ enum ActivityCopy {
         addThirty: "+30 s", addThirtyA11y: "Añadir 30 segundos al descanso",
         skip: "Saltar", skipA11y: "Saltar el descanso",
         done: "Listo", doneA11y: "Cerrar el temporizador de descanso",
-        endFast: "Terminar", endFastA11y: "Terminar el ayuno")
+        endFast: "Terminar", endFastA11y: "Terminar el ayuno",
+        upNext: "A continuación", nextLine: "Siguiente: {label}",
+        doneSet: "Serie hecha", doneSetA11y: "Registrar la próxima serie como está planificada")
     case "pt-BR":
       return Words(
         rest: "Descanso", restOver: "Descanso encerrado",
         addThirty: "+30 s", addThirtyA11y: "Adicionar 30 segundos ao descanso",
         skip: "Pular", skipA11y: "Pular o descanso",
         done: "Pronto", doneA11y: "Fechar o timer de descanso",
-        endFast: "Encerrar", endFastA11y: "Encerrar o jejum")
+        endFast: "Encerrar", endFastA11y: "Encerrar o jejum",
+        upNext: "A seguir", nextLine: "Próxima: {label}",
+        doneSet: "Série feita", doneSetA11y: "Registrar a próxima série como planejada")
     default:
       return Words(
         rest: "Rest", restOver: "Rest over",
         addThirty: "+30 s", addThirtyA11y: "Add 30 seconds to rest",
         skip: "Skip", skipA11y: "Skip rest",
         done: "Done", doneA11y: "Clear rest timer",
-        endFast: "End", endFastA11y: "End fast")
+        endFast: "End", endFastA11y: "End fast",
+        upNext: "Up next", nextLine: "Next: {label}",
+        doneSet: "Done set", doneSetA11y: "Log the next set as planned")
     }
   }
 }
@@ -152,19 +166,36 @@ private struct RestCountdown: View {
 /// rest runs; "+30 s" and "Done" once it is over (the stale face). "Skip" on a
 /// finished rest offered to skip nothing. "Done" runs the same
 /// `RestSkipIntent` (end the face, drop the buzz) under the truthful label.
+///
+/// Inside a workout with a next planned set (S23-8): the over-rest face's
+/// prominent button is "Done set" instead (the face stays for the workout, so
+/// there is nothing to clear), and the idle face — between rests — offers
+/// "Done set" alone.
 private struct RestButtons: View {
   let words: ActivityCopy.Words
   let stale: Bool
+  var idle: Bool = false
+  var canTick: Bool = false
 
   var body: some View {
     HStack(spacing: 8) {
-      Button(intent: RestAddTimeIntent()) {
-        ActivityPillLabel(text: words.addThirty)
+      if !idle {
+        Button(intent: RestAddTimeIntent()) {
+          ActivityPillLabel(text: words.addThirty)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(words.addThirtyA11y)
       }
-      .buttonStyle(.plain)
-      .accessibilityLabel(words.addThirtyA11y)
 
-      if stale {
+      if (idle || stale) && canTick {
+        Button(intent: SetDoneIntent()) {
+          ActivityPillLabel(text: words.doneSet, prominent: true)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(words.doneSetA11y)
+      } else if idle {
+        EmptyView()
+      } else if stale {
         Button(intent: RestSkipIntent()) {
           ActivityPillLabel(text: words.done, prominent: true)
         }
@@ -189,18 +220,28 @@ private struct RestLockScreenView: View {
     let words = ActivityCopy.words(context.attributes.locale)
     let state = context.state
 
+    let idle = state.isIdle
+    let next = state.nextSet
+
     VStack(alignment: .leading, spacing: 10) {
       HStack(alignment: .center, spacing: 12) {
-        Image(systemName: "timer")
+        Image(systemName: idle ? "figure.strengthtraining.traditional" : "timer")
           .font(.system(size: 24, weight: .semibold))
           .foregroundStyle(Color.restAccent)
 
         VStack(alignment: .leading, spacing: 1) {
-          Text(words.rest)
+          Text(idle ? words.upNext : words.rest)
             .font(.caption)
             .textCase(.uppercase)
             .foregroundStyle(Color.restMuted)
-          if !state.exerciseName.isEmpty {
+          if idle, let next {
+            // The idle face's whole message: the set "Done set" will log.
+            Text(next.label)
+              .font(.subheadline.weight(.semibold))
+              .foregroundStyle(Color.restText)
+              .lineLimit(2)
+              .minimumScaleFactor(0.8)
+          } else if !state.exerciseName.isEmpty {
             Text(state.exerciseName)
               .font(.subheadline.weight(.semibold))
               .foregroundStyle(Color.restText)
@@ -210,7 +251,9 @@ private struct RestLockScreenView: View {
 
         Spacer(minLength: 8)
 
-        if context.isStale {
+        if idle {
+          EmptyView()
+        } else if context.isStale {
           Text(words.restOver)
             .font(.system(size: 20, weight: .semibold))
             .foregroundStyle(Color.restAccent)
@@ -223,7 +266,7 @@ private struct RestLockScreenView: View {
         }
       }
 
-      if !context.isStale {
+      if !idle && !context.isStale {
         // The bar empties as the rest runs down — drawn by the system from the
         // same two dates, so it needs no update either.
         ProgressView(
@@ -235,9 +278,19 @@ private struct RestLockScreenView: View {
         .tint(Color.restAccent)
       }
 
-      HStack {
+      HStack(spacing: 8) {
+        if !idle, let next {
+          // What comes after this rest — set it up while resting.
+          Text(words.nextLine.replacingOccurrences(of: "{label}", with: next.label))
+            .font(.caption)
+            .foregroundStyle(Color.restMuted)
+            .lineLimit(2)
+            .minimumScaleFactor(0.8)
+        }
         Spacer(minLength: 0)
-        RestButtons(words: words, stale: context.isStale)
+        // An idle face that went stale is an abandoned workout (three hours
+        // untouched, `RestActivityStore.abandonAfter`): no button to log into it.
+        RestButtons(words: words, stale: context.isStale, idle: idle, canTick: next != nil && !(idle && context.isStale))
       }
     }
     .padding(.horizontal, 18)
@@ -286,9 +339,10 @@ struct RestActivityWidget: Widget {
       return DynamicIsland {
         DynamicIslandExpandedRegion(.leading) {
           Label {
-            Text(words.rest).foregroundStyle(Color.restMuted)
+            Text(state.isIdle ? words.upNext : words.rest).foregroundStyle(Color.restMuted)
           } icon: {
-            Image(systemName: "timer").foregroundStyle(Color.restAccent)
+            Image(systemName: state.isIdle ? "figure.strengthtraining.traditional" : "timer")
+              .foregroundStyle(Color.restAccent)
           }
           .font(.caption)
           .padding(.leading, 4)
@@ -296,7 +350,9 @@ struct RestActivityWidget: Widget {
 
         DynamicIslandExpandedRegion(.trailing) {
           Group {
-            if context.isStale {
+            if state.isIdle {
+              EmptyView()
+            } else if context.isStale {
               Text(words.restOver)
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(Color.restAccent)
@@ -314,12 +370,14 @@ struct RestActivityWidget: Widget {
 
         DynamicIslandExpandedRegion(.bottom) {
           HStack(spacing: 8) {
-            Text(state.exerciseName)
+            Text(state.nextSet?.label ?? state.exerciseName)
               .font(.caption)
-              .foregroundStyle(Color.restMuted)
-              .lineLimit(1)
+              .foregroundStyle(state.isIdle ? Color.restText : Color.restMuted)
+              .lineLimit(2)
             Spacer(minLength: 4)
-            RestButtons(words: words, stale: context.isStale)
+            RestButtons(
+              words: words, stale: context.isStale, idle: state.isIdle,
+              canTick: state.nextSet != nil && !(state.isIdle && context.isStale))
           }
           .padding(.horizontal, 4)
         }
@@ -329,7 +387,12 @@ struct RestActivityWidget: Widget {
           .foregroundStyle(Color.restAccent)
           .padding(.leading, 3)
       } compactTrailing: {
-        if context.isStale {
+        if state.isIdle {
+          Image(systemName: "figure.strengthtraining.traditional")
+            .font(.system(size: 13, weight: .bold))
+            .foregroundStyle(Color.restAccent)
+            .padding(.trailing, 3)
+        } else if context.isStale {
           Image(systemName: "checkmark")
             .font(.system(size: 13, weight: .bold))
             .foregroundStyle(Color.restAccent)
@@ -341,6 +404,12 @@ struct RestActivityWidget: Widget {
       } minimal: {
         // A circle barely wider than a glyph: a ring that empties with the rest
         // says "resting, this much left" without digits that would not fit.
+        // Between rests (S23-8) there is nothing counting: the glyph alone.
+        if state.isIdle {
+          Image(systemName: "figure.strengthtraining.traditional")
+            .font(.system(size: 12, weight: .bold))
+            .foregroundStyle(Color.restAccent)
+        } else {
         ProgressView(
           timerInterval: min(state.startedAt, state.endsAt)...state.endsAt,
           countsDown: true,
@@ -351,6 +420,7 @@ struct RestActivityWidget: Widget {
         )
         .progressViewStyle(.circular)
         .tint(Color.restAccent)
+        }
       }
       .keylineTint(Color.restAccent)
       .widgetURL(URL(string: "ignia://train"))

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
 import { usePreventRemove } from 'expo-router/react-navigation';
@@ -7,6 +7,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ConfirmHost } from '@/components/ConfirmSheet';
 import { ToastSheetHost } from '@/components/Toast';
 import { useKeyboardSheetPadding } from '@/lib/use-keyboard-sheet-style';
+import { SheetHiddenBelowContext, hiddenBelowDetent } from '@/lib/sheet-detent';
+import { parseDetents } from '@/lib/sheet-options';
 import {
   dismissSheet,
   getSheetPortal,
@@ -123,12 +125,39 @@ export default function SheetRoute() {
     void closed;
   });
 
+  // Android, two or more detents (train-ux F12): the content is laid out at
+  // the TALLEST detent and only its top shows at a lower one, so the band
+  // below the fold is published (`lib/sheet-detent.ts`) for a sheet that pins
+  // a footer — Finish opens at 60 % with its button on screen. Stable detents
+  // only: mid-drag the footer stays put, then settles. Sheets that do not
+  // read it are unchanged.
+  const detentList = parseDetents(params.detents);
+  const tracksDetent = Platform.OS === 'android' && Array.isArray(detentList) && detentList.length > 1;
+  const [detentIndex, setDetentIndex] = useState(0);
+  const [contentHeight, setContentHeight] = useState(0);
+  useEffect(() => {
+    const nav = navigation as unknown as {
+      addListener?: (type: 'sheetDetentChange', cb: (e: { data?: { index: number; stable: boolean } }) => void) => () => void;
+    };
+    if (!tracksDetent || typeof nav.addListener !== 'function') return undefined;
+    return nav.addListener('sheetDetentChange', (e) => {
+      if (e.data?.stable) setDetentIndex(e.data.index);
+    });
+  }, [tracksDetent, navigation]);
+  const hiddenBelow = tracksDetent && Array.isArray(detentList)
+    ? hiddenBelowDetent(detentList, detentIndex, contentHeight)
+    : 0;
+
   // A `'fit'` sheet is as tall as its content: iOS measures the content, so
   // nothing here may stretch to fill (`flex: 1` would measure as zero).
   const fit = params.detents === 'fit';
   if (!entry) return <View style={fit ? null : styles.root} />;
   return (
-    <View style={[styles.surface, !fit && styles.root]} testID={entry.testID}>
+    <View
+      style={[styles.surface, !fit && styles.root]}
+      testID={entry.testID}
+      onLayout={tracksDetent ? (e) => setContentHeight(Math.round(e.nativeEvent.layout.height)) : undefined}
+    >
       {/* Keyboard: iOS lifts a `'fit'` sheet above the keyboard itself, so
           padding it as well left a screen-tall sheet with a blank band. A
           sheet at a height detent stays put, and its content needs the room. */}
@@ -163,7 +192,7 @@ export default function SheetRoute() {
             (Wrapping the content in a box instead fixed the shift but lost the
             meal form's typed name — Maestro 11 — so it is a sibling.) */}
         <View collapsable={false} style={styles.chainStop} />
-        {entry.node}
+        <SheetHiddenBelowContext.Provider value={hiddenBelow}>{entry.node}</SheetHiddenBelowContext.Provider>
       </Reanimated.View>
       {/* iOS `fit`: UIKit sizes the sheet to the content PLUS the home-
           indicator band, and that band is the sheet's own Liquid Glass — a

@@ -103,17 +103,26 @@ describe('lift settings', () => {
 
   it('says what the cluster count really credits, and where it came from (X1)', async () => {
     const r = await sheet(lift({ name: 'Romanian Deadlift', muscles: ['glutes'], setStructure: 'myoreps' })).ui;
-    // The name table wins over the tag — said, not hidden.
-    expect(r.getByTestId('lift-muscle-credit')).toHaveTextContent(
-      'Myo-rep clusters by muscle counts it as: Hamstrings 1 · Glutes ½ (from the exercise name)',
-    );
+    // The TAGS win (S23-12, owner 2026-10-12, ADR-0046): a Romanian deadlift
+    // tagged Glutes counts glutes only — the name table no longer overrides
+    // the tag, so no hamstrings. (It said "Hamstrings 1 · Glutes ½" until then.)
+    expect(r.getByTestId('lift-muscle-credit')).toHaveTextContent('This week by muscle counts it as: Glutes 1', { exact: false });
+    expect(r.getByTestId('lift-muscle-credit')).not.toHaveTextContent(/Hamstrings/);
+    // The tags decided, so the line no longer says it came from the name.
+    expect(r.getByTestId('lift-muscle-credit')).not.toHaveTextContent(/from the exercise name/);
     expect(r.getByText('The first one you tap is the primary muscle; superset pairing uses it. Long-press a tag to make it primary.')).toBeTruthy();
+  });
+
+  it('an UNTAGGED lift is credited from its name, and the line says so (S23-12)', async () => {
+    const r = await sheet(lift({ name: 'Romanian Deadlift', muscles: [], setStructure: 'myoreps' })).ui;
+    expect(r.getByTestId('lift-muscle-credit')).toHaveTextContent(/Hamstrings 1/);
+    expect(r.getByTestId('lift-muscle-credit')).toHaveTextContent(/from the exercise name/);
   });
 
   it('a lift with no cluster planned gets no cluster-credit line, and the hint does not name the metric (J-N1)', async () => {
     const r = await sheet(lift({ name: 'Bench Press', muscles: ['chest'] })).ui;
     expect(r.queryByTestId('lift-muscle-credit')).toBeNull();
-    expect(r.queryByText(/Myo-rep clusters by muscle/)).toBeNull();
+    expect(r.queryByText(/This week by muscle/)).toBeNull();
   });
 
   it('the template row decides it: an activation set in the plan shows the line (J-N1)', async () => {
@@ -136,7 +145,8 @@ describe('lift settings', () => {
   });
 
   it('names a finer muscle by the chip it sits under — "Shoulders (front)", never "Front delt" (QA v2 item 6)', async () => {
-    const r = await sheet(lift({ name: 'Bench Press', muscles: ['chest'], setStructure: 'myoreps' })).ui;
+    // Tagged with all three: since S23-12 an untagged muscle is not credited.
+    const r = await sheet(lift({ name: 'Bench Press', muscles: ['chest', 'triceps', 'shoulders'], setStructure: 'myoreps' })).ui;
     expect(r.getByTestId('lift-muscle-credit')).toHaveTextContent('counts it as: Chest 1 · Triceps ½ · Shoulders (front) ½', { exact: false });
     expect(r.getByTestId('lift-muscle-credit')).not.toHaveTextContent(/delt/i);
   });
@@ -209,7 +219,9 @@ describe('exercise detail', () => {
 
   it('shows the cluster credit while editing tags, and Done closes the view (X1, H7)', async () => {
     const onClose = jest.fn();
-    const ui = await render(<ExerciseDetailSheet visible exercise={lift({ setStructure: 'myoreps' })} train={train} onClose={onClose} />);
+    // Tagged Back, Shoulders, Biceps: the row table refines Shoulders to the
+    // rear delt (S23-12 — only tagged muscles count).
+    const ui = await render(<ExerciseDetailSheet visible exercise={lift({ setStructure: 'myoreps', muscles: ['back', 'shoulders', 'biceps'] })} train={train} onClose={onClose} />);
     await fireEvent.press(ui.getByTestId('exercise-edit'));
     expect(ui.getByTestId('exercise-muscle-credit')).toHaveTextContent('counts it as: Back 1 · Shoulders (rear) ½ · Biceps ½', { exact: false });
     await fireEvent.press(ui.getByTestId('exercise-cancel-header'));

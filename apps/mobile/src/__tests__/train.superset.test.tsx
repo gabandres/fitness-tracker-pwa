@@ -227,7 +227,11 @@ describe('the alternating flow', () => {
       await fireEvent.press(ui.getByTestId('set-done-0-2'));
       expect(mockRestStart).toHaveBeenLastCalledWith(35, 'Next: A2 · Leg Curls');
       expect(ui.getByTestId('rest-label')).toHaveTextContent('Switch · 0:35');
-      expect(ui.getByTestId('rest-next')).toHaveTextContent('Next: A2 · Leg Curls');
+      // jest reports fontScale 2, so this is the COMPACT bar (S23-3 / F7): the
+      // Next line is not drawn, and the countdown says it. Drawn at default
+      // text size — the test after this one.
+      expect(ui.queryByTestId('rest-next')).toBeNull();
+      expect(ui.getByTestId('rest-label').props.accessibilityLabel).toBe('Switch, 35 seconds, Next: A2 · Leg Curls');
       // A duration, spoken as one — not "0:35", which VoiceOver reads as a time of day.
       // Led by what the tick logged, in the same announcement (L6).
       expect(mockAnnounce.mock.calls.at(-1)?.[0]).toMatch(/^Set 1c logged, 90 lb, 10 reps\. Switch, 35 seconds of rest\. Next: A2 · Leg Curls$/);
@@ -238,6 +242,22 @@ describe('the alternating flow', () => {
       expect(ui.getByTestId('exercise-head-1').props.accessibilityState).toEqual({ expanded: true });
     } finally {
       jest.useRealTimers();
+    }
+  });
+
+  it('at default text size the bar draws the Next line under the countdown', async () => {
+    const rn = jest.requireActual('react-native');
+    const spy = jest.spyOn(rn, 'useWindowDimensions').mockReturnValue({ width: 390, height: 844, scale: 3, fontScale: 1 });
+    try {
+      mockTrain.active = live();
+      mockRestRemaining = 35;
+      const ui = await render(<TrainScreen />);
+      await fireEvent.press(ui.getByTestId('set-done-0-0'));
+      await fireEvent.press(ui.getByTestId('set-done-0-2'));
+      expect(ui.getByTestId('rest-next')).toHaveTextContent('Next: A2 · Leg Curls');
+      expect(ui.getByTestId('rest-label').props.accessibilityLabel).toBe('Switch, 35 seconds');
+    } finally {
+      spy.mockRestore();
     }
   });
 
@@ -305,7 +325,9 @@ describe('the alternating flow', () => {
     // heading beside the timer would cut it off).
     expect(mockRestStart).toHaveBeenLastCalledWith(90, 'Next: A1 · Leg Extensions — its partner is done');
     expect(ui.getByTestId('rest-label')).toHaveTextContent('Round 2/2', { exact: false });
-    expect(ui.getByTestId('rest-next')).toHaveTextContent('Next: A1 · Leg Extensions — its partner is done');
+    // Compact at jest's fontScale 2 (S23-3 / F7): said by the countdown, not drawn.
+    expect(ui.queryByTestId('rest-next')).toBeNull();
+    expect(ui.getByTestId('rest-label').props.accessibilityLabel).toContain('Next: A1 · Leg Extensions — its partner is done');
     // Said once — on the Next part, not again in the heading.
     expect(mockAnnounce).toHaveBeenLastCalledWith(expect.stringContaining('Round 2 of 2'));
     expect(mockAnnounce.mock.calls.at(-1)?.[0]).toContain('its partner is done');

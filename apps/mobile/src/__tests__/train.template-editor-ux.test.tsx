@@ -406,3 +406,70 @@ describe('final round (train-ux E-N3/N5/N6/N8/N10/N12)', () => {
     expect(mockShowToast.mock.calls.at(-1)?.[0]).toBe('Removed Row');
   });
 });
+
+describe('round 2 (train-ux S23-1/F1, S23-5/F8, S23-6/F10, F11)', () => {
+  it('every card has visible move up / move down, named, disabled at the ends, and a move is said (S23-1, R24)', async () => {
+    const ui = await openEditor();
+    const up0 = ui.getByTestId('template-move-up-0');
+    const down0 = ui.getByTestId('template-move-down-0');
+    expect(up0.props.accessibilityLabel).toBe('Move Bench up');
+    expect(down0.props.accessibilityLabel).toBe('Move Bench down');
+    expect(up0).toBeDisabled();
+    expect(down0).not.toBeDisabled();
+    expect(ui.getByTestId('template-move-down-1')).toBeDisabled();
+    await fireEvent.press(down0);
+    await waitFor(() => expect(ui.getByTestId('template-ex-toggle-0').props.accessibilityLabel).toMatch(/^Row/));
+    expect(mockAnnounce).toHaveBeenCalledWith('Bench moved to 2 of 2');
+    // The drag handle and its accessibility actions stay.
+    expect(ui.getByTestId('template-drag-0')).toBeTruthy();
+    const draft = await savedDraft(ui);
+    expect(draft.exercises.map((e: { name: string }) => e.name)).toEqual(['Row', 'Bench']);
+  });
+
+  it('a straight-set lift offers no cluster or continuation rows (S23-5/F8)', async () => {
+    const ui = await openEditor();
+    await fireEvent.press(ui.getByTestId('template-ex-toggle-0'));
+    expect(ui.getByTestId('template-add-set-0')).toBeTruthy();
+    expect(ui.queryByTestId('template-add-cluster-0')).toBeNull();
+    expect(ui.queryByTestId('template-add-block-0')).toBeNull();
+  });
+
+  it("the lift's target weight is on the open card, not behind More options (S23-6/F10, R52)", async () => {
+    const ui = await openEditor();
+    await fireEvent.press(ui.getByTestId('template-ex-toggle-0'));
+    expect(ui.getByTestId('template-load-0').props.value).toBe('170');
+    await fireEvent.changeText(ui.getByTestId('template-load-0'), '175');
+    const draft = await savedDraft(ui);
+    expect(draft.exercises[0].targetLoad).toBe(175);
+  });
+
+  it('on iOS, discarding changes asks with the system action sheet, not a sheet on the sheet (F2, R30/R31)', async () => {
+    const { ActionSheetIOS } = jest.requireActual('react-native') as typeof import('react-native');
+    const spy = jest.spyOn(ActionSheetIOS, 'showActionSheetWithOptions').mockImplementation(() => {});
+    const ui = await openEditor();
+    await fireEvent.changeText(ui.getByTestId('template-name'), 'Push Day 2');
+    await fireEvent.press(ui.getByTestId('template-cancel'));
+    expect(spy).toHaveBeenCalledTimes(1);
+    const [opts, onPick] = spy.mock.calls[0];
+    expect(opts.title).toBe('Discard changes to Push Day?');
+    expect(opts.destructiveButtonIndex).toBe(0);
+    expect(ui.queryByTestId('confirm-go')).toBeNull();
+    // Cancel (the last option) keeps editing.
+    await act(async () => onPick(opts.options.length - 1));
+    expect(ui.getByTestId('template-name').props.value).toBe('Push Day 2');
+    // Discard (the first option) closes it.
+    await fireEvent.press(ui.getByTestId('template-cancel'));
+    const [again, pickAgain] = spy.mock.calls[1];
+    expect(again.options[0]).toBe('Discard');
+    await act(async () => pickAgain(0));
+    spy.mockRestore();
+  });
+
+  it('the template rests read as one heading over two short labels (F11)', async () => {
+    const ui = await openEditor();
+    expect(ui.getByTestId('template-rest-heading')).toHaveTextContent('Rest, in seconds');
+    expect(ui.getByText('Between sets')).toBeTruthy();
+    expect(ui.getByText('Between exercises')).toBeTruthy();
+    expect(ui.getByTestId('template-rest-cluster').props.accessibilityLabel).toBe('Rest between exercises, in seconds');
+  });
+});

@@ -196,6 +196,7 @@ export * from './workout-progression';
 export * from './progression-engine';
 export * from './weekly-cluster-audit';
 export * from './progression-apply';
+export * from './template-structure';
 // Supersets (2026-10-11): grouping, the alternating flow, guardrails, the
 // context-change baseline, drafts, and the "is it working" report.
 export * from './superset';

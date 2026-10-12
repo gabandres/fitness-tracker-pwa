@@ -171,7 +171,7 @@ export function AddExerciseSheet({
         {/* The user's catalog AND the shipped library, one list. The
             library half is the fix for the free-type path minting a
             movement with `muscles: []` that no screen could then edit. */}
-        <ScrollView style={NATIVE_SHEETS ? { flexShrink: 1 } : styles.catalogList} keyboardShouldPersistTaps="handled">
+        <ScrollView nestedScrollEnabled style={NATIVE_SHEETS ? { flexShrink: 1 } : styles.catalogList} keyboardShouldPersistTaps="handled">
           <ExerciseSearchList
             query={name}
             catalog={train.catalog}

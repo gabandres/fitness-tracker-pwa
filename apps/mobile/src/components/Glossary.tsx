@@ -87,7 +87,7 @@ export function Glossary({
         </Touchable>
       </View>
       <Text style={styles.intro}>{t(introKey)}</Text>
-      <ScrollView style={NATIVE_SHEETS ? styles.scrollNative : styles.scroll} contentContainerStyle={styles.scrollBody}>
+      <ScrollView nestedScrollEnabled style={NATIVE_SHEETS ? styles.scrollNative : styles.scroll} contentContainerStyle={styles.scrollBody}>
         {sections.map((section) => (
           <View key={section.title} style={styles.section}>
             {/* A single-section glossary does not need a heading telling the

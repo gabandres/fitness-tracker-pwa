@@ -4,6 +4,7 @@ import { Platform } from 'react-native';
 import * as haptics from '@/lib/haptics';
 import { useT, type I18nKey, type TFn } from '@/i18n';
 import { REST_DONE_ID_PREFIX } from '@/lib/rest-notification-id';
+import { nativeOwnsRestAlert } from '@/lib/rest-timer-activity';
 
 export interface RestTimer {
   /**
@@ -83,6 +84,11 @@ export async function scheduleRestDoneNotification(at: Date, t: TFn, body?: stri
     const { status } = await Notifications.getPermissionsAsync();
     if (status !== 'granted') return null;
     await cancelStaleRestNotifications();
+    // Android inside an armed workout (S23-8): the rest notification's own
+    // receiver owns the "Rest over" buzz, so the lock-screen −30 s / +30 s /
+    // Skip move it even with the process dead. A second, JS-owned alarm here
+    // would buzz at the old deadline (review P1-2).
+    if (nativeOwnsRestAlert()) return null;
     return await Notifications.scheduleNotificationAsync({
       identifier: `${REST_DONE_ID_PREFIX}${at.getTime()}.${++restDoneSeq}`,
       content: {

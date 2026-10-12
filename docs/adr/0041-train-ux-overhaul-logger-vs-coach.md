@@ -211,3 +211,32 @@ reopening on Today still shows the dot; the cached value is a hint that
   Rejected: the unreachable library and the unfixable attribution are the same
   problem as the crowding — a surface built for one user's protocol, where the
   general path was never walked.
+
+## Amendment, 2026-10-12: the editor saves the reps it shows; undeclared cards offer only the add-buttons their rows use
+
+**Saved reps (train-ux S23-11, owner decision).** A card added in an editing
+session saves the grey REPS its rows show as each planned set's `reps` (the
+session's `targetReps`): the row's ghost (last session's same-kind row), else
+last time's row in that position when it was the same kind
+(`template-draft.ts` `repsToSave`). Before this, the grey numbers were
+placeholders only (fix R) and a template built in the editor stored no reps.
+Three limits, each for a reason: **never a grey per-set weight** — the session
+seeds `ps.weight ?? ex.targetLoad` and progression moves only `targetLoad`, so
+a stored per-set weight would freeze the lift's load (the load still goes to
+`targetLoad`); **never the progression target** — that grey number follows the
+row's "Target reps" live and a stored copy would stop following it; **never on
+an existing card** — an unrelated save (a rename) must not restate every row
+from whatever was logged last. Typed reps save as typed, as before. Grey
+seconds on a timed lift stay placeholders (the decision was reps). The scaffold
+gate is unchanged: the buffers stay empty until Save, so `isPristineScaffold`
+still reads a ghosted row as untouched and a structure change still
+rescaffolds it. Consequence: a cluster-set lift added this way is now read as
+*prescribed* by the engine (`clusterSetRead` uses per-set `targetReps`).
+
+**Add-buttons (S23-5).** §5's "an undeclared legacy template still gets all
+three add-buttons" is narrowed: an undeclared card offers `+ Add set` plus only
+the buttons its rows already use — `+ Add cluster` where it has myo-rep rows,
+`+ Add continuation` where it has continuations (`addActionsForDraft`). A plain
+3 × 8 Bench Press offered both, an invitation to break the lift. Nothing is
+migrated and no row is lost; clusters on a straight-set lift are one tap away
+by declaring the structure on the line above the sets.

@@ -105,7 +105,7 @@ export function ExerciseLibrarySheet({
         accessibilityLabel={t('train.librarySearchPh')}
         testID="library-search"
       />
-      <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <ExerciseSearchList
           query={query}
           catalog={catalog}

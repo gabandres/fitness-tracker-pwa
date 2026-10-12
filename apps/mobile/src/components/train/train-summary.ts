@@ -36,6 +36,7 @@ import type {
   LogStyle,
   MuscleGroup,
   SessionExercise,
+  SetStructure,
   TrainingPhase,
   WorkoutSession,
   WorkoutSet,
@@ -90,6 +91,32 @@ export const CARDIO_MODALITY_KEY: Record<CardioModality, I18nKey> = {
   sport: 'cardio.modality.sport',
   other: 'cardio.modality.other',
 };
+
+/** The set kinds of a myo-rep / rest-pause / cluster lift — where the engine
+ *  reads RIR (the activation's effort gate, ADR-0039/0040). */
+const CLUSTER_KINDS: ReadonlySet<WorkoutSet['kind']> = new Set(['activation', 'mini', 'continuation']);
+const CLUSTER_STRUCTURES: ReadonlySet<SetStructure> = new Set(['myoreps', 'rest-pause', 'cluster']);
+
+/**
+ * Whether a live lift shows the RIR column (S23-5 / F8). A straight-set lift
+ * with no RIR anywhere carried an empty "RIR" column on every card — engine
+ * vocabulary on the default path for a number nothing reads there. Shown when:
+ * - any set of the lift already HOLDS an RIR — a logged value is never hidden;
+ * - the lift is clustered (its sets, or its declared structure): the
+ *   activation's RIR is what the progression engine gates on;
+ * - last session logged an RIR on it — this lifter tracks it here.
+ * Otherwise hidden. The set sheet (tap the set number) still offers the RIR
+ * scale on every effort row, and logging one there brings the column back.
+ */
+export function liftUsesRir(
+  sets: readonly WorkoutSet[],
+  previous: readonly (WorkoutSet | undefined)[],
+  structure: SetStructure | undefined,
+): boolean {
+  if (sets.some((s) => s.rir != null || CLUSTER_KINDS.has(s.kind))) return true;
+  if (structure != null && CLUSTER_STRUCTURES.has(structure)) return true;
+  return previous.some((s) => s?.rir != null);
+}
 
 /**
  * The planned cardio blocks of a workout that hold nothing logged, by name —

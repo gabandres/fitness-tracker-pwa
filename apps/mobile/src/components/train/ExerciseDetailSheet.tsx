@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { Platform, ScrollView, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { SheetTextInput } from '@/components/SheetTextInput';
 import {
   computeExercisePRs,
@@ -212,6 +212,9 @@ export function ExerciseDetailSheet({
       body: t('train.deleteExerciseBody'),
       confirmText: t('train.delete'),
       destructive: true,
+      // Asked over this native sheet: the system dialog, not a sheet on a
+      // sheet (R30/R31, train-ux F2).
+      native: true,
       onConfirm: doDelete,
     });
   }
@@ -235,6 +238,9 @@ export function ExerciseDetailSheet({
       title: t('train.lift.discardTitle', { name: exercise?.name ?? '' }),
       confirmText: t('train.discard'),
       destructive: true,
+      // iOS only, like the template editor's discard: the Android re-present
+      // after a drag-dismiss has only been verified with the branded confirm.
+      native: Platform.OS === 'ios',
       onConfirm: onClose,
     });
     return false;
@@ -254,6 +260,7 @@ export function ExerciseDetailSheet({
       body: t('train.mergeConfirmBody', { from: exercise.name, name: target.name }),
       confirmText: t('train.merge'),
       destructive: true,
+      native: true,
       onConfirm: () => void run(() => train.mergeCatalogExercises(fromId, toId), 'train.mergeCatalogExercises'),
     });
   }
@@ -283,7 +290,7 @@ export function ExerciseDetailSheet({
               : undefined
         }
       />
-      <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
         {mode === 'edit' ? (
           <>
@@ -451,7 +458,9 @@ export function ExerciseDetailSheet({
             ) : null}
 
             {readOnly ? null : (
-              <View style={styles.manageRow}>
+              // Wraps at large text: in one row "Delete" ran off the sheet as
+              // "Del" and could not be tapped (QA R2 iOS, AX5).
+              <View style={[styles.manageRow, stackChips && { flexWrap: 'wrap' }]}>
                 <TouchableOpacity style={styles.manageBtn} onPress={() => setMode('edit')} accessibilityRole="button" testID="exercise-edit">
                   <Text style={styles.manageLink}>{t('train.edit')}</Text>
                 </TouchableOpacity>

@@ -58,6 +58,8 @@ public enum IntentInbox {
   /// IS, not a history of taps to replay.
   static let latestWins: Set<String> = ["rest"]
 
+  private static let lock = NSLock()
+
   /**
    * Append one action and ring the doorbell.
    *
@@ -68,6 +70,10 @@ public enum IntentInbox {
    */
   public static func post(_ kind: String, _ fields: [String: Any] = [:], at: Date = Date()) {
     guard let defaults = UserDefaults(suiteName: Glance.appGroup) else { return }
+    // One writer at a time in this process (review P2-9): the list is a
+    // read-modify-write, and two Lock Screen taps can run concurrently.
+    lock.lock()
+    defer { lock.unlock() }
     var list: [[String: Any]] = []
     if let json = defaults.string(forKey: key),
        let parsed = try? JSONSerialization.jsonObject(with: Data(json.utf8)) as? [[String: Any]] {

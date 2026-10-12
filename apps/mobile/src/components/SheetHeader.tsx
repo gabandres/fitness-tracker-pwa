@@ -109,7 +109,9 @@ const createStyles = ({ colors }: Theme) =>
     titleStacked: { flex: 0 },
     title: { flex: 1, fontSize: font.h2, fontWeight: '800', color: colors.ink },
     slot: { minWidth: TARGET, minHeight: TARGET, justifyContent: 'center' },
-    slotLeading: { alignItems: 'flex-start' },
+    // A second gap after Cancel: at 8pt the title read as its continuation
+    // ("Cancel Edit template", train-ux F11). Rows stay 8pt everywhere else.
+    slotLeading: { alignItems: 'flex-start', marginRight: space.sm },
     slotTrailing: { alignItems: 'flex-end' },
     btnText: { fontSize: font.body, color: colors.teal, fontWeight: '600' },
     btnTextStrong: { fontWeight: '800' },

@@ -7,6 +7,7 @@
  * the idle tab, with their bodyweight and sleep already gone.
  */
 import React from 'react';
+import { ActionSheetIOS } from 'react-native';
 import { fireEvent, renderWithProviders as render, waitFor, within } from '@/test-utils';
 import type { WorkoutSession } from '@/lib/workout';
 
@@ -169,25 +170,42 @@ describe('Finish sheet — layout and ways out (train-ux F1, F14, F7)', () => {
     expect(keep.props.accessibilityRole).toBe('button');
     await fireEvent.press(screen.getByTestId('finish-extras'));
     await fireEvent.changeText(screen.getByTestId('finish-bodyweight'), '180');
+    // The system action sheet over the native Finish sheet (S23-2, R31).
+    const sheet = jest.spyOn(ActionSheetIOS, 'showActionSheetWithOptions').mockImplementation(() => {});
     await fireEvent.press(keep);
-    await waitFor(() => expect(screen.getByText('Drop what you typed here?')).toBeTruthy());
-    expect(screen.getByText('Your workout stays open.')).toBeTruthy();
+    await waitFor(() => expect(sheet).toHaveBeenCalledTimes(1));
+    expect(sheet.mock.calls[0][0]).toMatchObject({
+      title: 'Drop what you typed here?',
+      message: 'Your workout stays open.',
+      destructiveButtonIndex: 0,
+    });
+    sheet.mockRestore();
   });
 
   it('Discard on the sheet names the workout and what is lost, and deletes only on the confirm', async () => {
     const screen = await openFinish();
+    const sheet = jest.spyOn(ActionSheetIOS, 'showActionSheetWithOptions').mockImplementation(() => {});
     await fireEvent.press(screen.getByTestId('finish-discard'));
-    await waitFor(() => expect(screen.getByText('Discard Workout?')).toBeTruthy());
-    expect(screen.getByText("1 logged set will be lost. This can't be undone.")).toBeTruthy();
+    await waitFor(() => expect(sheet).toHaveBeenCalledTimes(1));
+    const [opts, pick] = sheet.mock.calls[0];
+    expect(opts).toMatchObject({
+      title: 'Discard Workout?',
+      message: "1 logged set will be lost. This can't be undone.",
+      options: ['Discard workout', 'Cancel'],
+      destructiveButtonIndex: 0,
+      cancelButtonIndex: 1,
+    });
+    pick(1);
     expect(mockDiscardWorkout).not.toHaveBeenCalled();
-    await fireEvent.press(screen.getByTestId('confirm-go'));
+    pick(0);
+    sheet.mockRestore();
     await waitFor(() => expect(mockDiscardWorkout).toHaveBeenCalledTimes(1));
     expect(mockFinishWorkout).not.toHaveBeenCalled();
   });
 
   it('says a planned set left empty in a started lift will not be saved (F9)', async () => {
     const screen = await openFinish();
-    expect(screen.getByTestId('finish-skipped')).toHaveTextContent('1 planned set not done — it won’t be saved.');
+    expect(screen.getByTestId('finish-skipped')).toHaveTextContent('1 planned set not done — it’s left out.');
     expect(screen.queryByTestId('finish-unticked')).toBeNull();
   });
 });

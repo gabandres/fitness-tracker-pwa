@@ -42,6 +42,27 @@ appId: fit.ignia.app
 #     precisely the Android failure.
 #   * `times:` bounds it, so a genuinely missing element still fails the flow —
 #     later, on the command that needed it — rather than hanging.
+#
+# ── FIX-M2 (2026-10-12): on Android the editor is never DRAGGED DOWNWARD. ──
+# Measured on pixel_api36 with HEAD JS (capture/train-ux/m2/probe18*.yaml): any
+# downward drag on the editor sheet's content dismisses the formSheet. That
+# includes a slow 240 px drag from mid-content. The guarded-sheet fix then
+# re-presents the editor at scroll 0 and asks "Discard this new template?".
+# That is the "overshoot" v4/v5 recorded at `tapOn: 'Sets'` and at the second
+# `template-more-0`: every UP scroll landed at the TOP with a confirm up. It is
+# an app defect (reported, not fixed here), so the flow works around it:
+#   * `scrollUntilVisible` in the editor runs on iOS only, where it passed
+#     21/21. On Android the loops below do the scrolling: SLOW finger-up drags
+#     (1500 ms over 25% of the height, ~400 px/s, so almost no fling, each step
+#     shorter than the visible sheet) between 30% and 55% of the height. That
+#     band stays above an open number pad.
+#   * The number pad is closed with Enter on Android (it has no Done bar), so
+#     the iOS-only blur on 'Sets' is not needed there.
+#   * The only two steps that must scroll UP (the 'Sets' blur and closing
+#     "More options" again) run on iOS only. On Android, Save is in the sheet
+#     header and the More-options state is not saved, so the assertions do not
+#     depend on either step.
+# Every assertion is unchanged on both platforms.
 - launchApp:
     clearState: false
 - assertVisible: 'Today'
@@ -190,12 +211,16 @@ appId: fit.ignia.app
 # a missing element. Measured on the LG G6 (API 28) 2026-08-20: a manual swipe
 # showed all three rows, both inputs, +Add set/+Add cluster and Save at full
 # height.
-- scrollUntilVisible:
-    element:
-      id: 'template-set-weight-0-0'
-    timeout: 15000
-    visibilityPercentage: 20
-    optional: true
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - scrollUntilVisible:
+          element:
+            id: 'template-set-weight-0-0'
+          timeout: 15000
+          visibilityPercentage: 20
+          optional: true
 - repeat:
     times: 10
     while:
@@ -203,8 +228,9 @@ appId: fit.ignia.app
         id: 'template-set-weight-0-0'
     commands:
       - swipe:
-          start: 10%, 80%
-          end: 10%, 45%
+          start: 10%, 55%
+          end: 10%, 30%
+          duration: 1500
 # The column headers are the whole point of the table — they are what makes a
 # row readable without a legend. Regex, not bare strings: iOS merges sibling
 # Texts inside one row into a single label (flow 16 measured this three times),
@@ -218,12 +244,16 @@ appId: fit.ignia.app
 # the fold once the card expands, so a bare assertVisible fails on a control
 # that is present and correct. Measured on Android 2026-08-19 (iOS viewports
 # are tall enough that it happened to be on-screen there).
-- scrollUntilVisible:
-    element:
-      id: 'template-set-kind-0-0'
-    direction: DOWN
-    timeout: 20000
-    optional: true
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - scrollUntilVisible:
+          element:
+            id: 'template-set-kind-0-0'
+          direction: DOWN
+          timeout: 20000
+          optional: true
 - repeat:
     times: 10
     while:
@@ -231,8 +261,9 @@ appId: fit.ignia.app
         id: 'template-set-kind-0-0'
     commands:
       - swipe:
-          start: 10%, 80%
-          end: 10%, 45%
+          start: 10%, 55%
+          end: 10%, 30%
+          duration: 1500
 - assertVisible:
     id: 'template-set-kind-0-0'
 - takeScreenshot: .maestro/regression/shots/18-set-table
@@ -241,13 +272,17 @@ appId: fit.ignia.app
 # All three, deliberately: the summary only prints numbers when every set
 # agrees, because "3 × 8" must not describe a template where one row says 8
 # and two say nothing. Filling one row is the OTHER case, covered in jest.
-- scrollUntilVisible:
-    element:
-      id: 'template-set-weight-0-0'
-    direction: DOWN
-    timeout: 15000
-    centerElement: true
-    optional: true
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - scrollUntilVisible:
+          element:
+            id: 'template-set-weight-0-0'
+          direction: DOWN
+          timeout: 15000
+          centerElement: true
+          optional: true
 - repeat:
     times: 10
     while:
@@ -255,24 +290,38 @@ appId: fit.ignia.app
         id: 'template-set-weight-0-0'
     commands:
       - swipe:
-          start: 10%, 80%
-          end: 10%, 45%
+          start: 10%, 55%
+          end: 10%, 30%
+          duration: 1500
 - tapOn:
     id: 'template-set-weight-0-0'
 - eraseText: 6
 - inputText: '20'
 # 2026-10-11 (T1/T3): the focused row is revealed under the header; close
 # the number pad (its Done bar) so the next field is found where it lies.
-- tapOn:
-    text: 'Done'
-    optional: true
-- scrollUntilVisible:
-    element:
-      id: 'template-set-reps-0-0'
-    direction: DOWN
-    timeout: 15000
-    centerElement: true
-    optional: true
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          text: 'Done'
+          optional: true
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - pressKey: Enter
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - scrollUntilVisible:
+          element:
+            id: 'template-set-reps-0-0'
+          direction: DOWN
+          timeout: 15000
+          centerElement: true
+          optional: true
 - repeat:
     times: 10
     while:
@@ -280,8 +329,9 @@ appId: fit.ignia.app
         id: 'template-set-reps-0-0'
     commands:
       - swipe:
-          start: 10%, 80%
-          end: 10%, 45%
+          start: 10%, 55%
+          end: 10%, 30%
+          duration: 1500
 # 2026-10-11 (T7): a seeded row may already read 8 reps; a centre tap on a
 # one-character value puts the cursor BEFORE it, so erase-then-type gave "88".
 # Type only when the field does not already hold 8.
@@ -294,16 +344,29 @@ appId: fit.ignia.app
     id: 'template-set-reps-0-0'
 - eraseText: 6
 - inputText: '8'
-- tapOn:
-    text: 'Done'
-    optional: true
-- scrollUntilVisible:
-    element:
-      id: 'template-set-weight-0-1'
-    direction: DOWN
-    timeout: 15000
-    centerElement: true
-    optional: true
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          text: 'Done'
+          optional: true
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - pressKey: Enter
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - scrollUntilVisible:
+          element:
+            id: 'template-set-weight-0-1'
+          direction: DOWN
+          timeout: 15000
+          centerElement: true
+          optional: true
 - repeat:
     times: 10
     while:
@@ -311,24 +374,38 @@ appId: fit.ignia.app
         id: 'template-set-weight-0-1'
     commands:
       - swipe:
-          start: 10%, 80%
-          end: 10%, 45%
+          start: 10%, 55%
+          end: 10%, 30%
+          duration: 1500
 - tapOn:
     id: 'template-set-weight-0-1'
 - eraseText: 6
 - inputText: '20'
 # 2026-10-11 (T1/T3): the focused row is revealed under the header; close
 # the number pad (its Done bar) so the next field is found where it lies.
-- tapOn:
-    text: 'Done'
-    optional: true
-- scrollUntilVisible:
-    element:
-      id: 'template-set-reps-0-1'
-    direction: DOWN
-    timeout: 15000
-    centerElement: true
-    optional: true
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          text: 'Done'
+          optional: true
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - pressKey: Enter
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - scrollUntilVisible:
+          element:
+            id: 'template-set-reps-0-1'
+          direction: DOWN
+          timeout: 15000
+          centerElement: true
+          optional: true
 - repeat:
     times: 10
     while:
@@ -336,8 +413,9 @@ appId: fit.ignia.app
         id: 'template-set-reps-0-1'
     commands:
       - swipe:
-          start: 10%, 80%
-          end: 10%, 45%
+          start: 10%, 55%
+          end: 10%, 30%
+          duration: 1500
 # 2026-10-11 (T7): a seeded row may already read 8 reps; a centre tap on a
 # one-character value puts the cursor BEFORE it, so erase-then-type gave "88".
 # Type only when the field does not already hold 8.
@@ -350,16 +428,29 @@ appId: fit.ignia.app
     id: 'template-set-reps-0-1'
 - eraseText: 6
 - inputText: '8'
-- tapOn:
-    text: 'Done'
-    optional: true
-- scrollUntilVisible:
-    element:
-      id: 'template-set-weight-0-2'
-    direction: DOWN
-    timeout: 15000
-    centerElement: true
-    optional: true
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          text: 'Done'
+          optional: true
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - pressKey: Enter
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - scrollUntilVisible:
+          element:
+            id: 'template-set-weight-0-2'
+          direction: DOWN
+          timeout: 15000
+          centerElement: true
+          optional: true
 - repeat:
     times: 10
     while:
@@ -367,24 +458,38 @@ appId: fit.ignia.app
         id: 'template-set-weight-0-2'
     commands:
       - swipe:
-          start: 10%, 80%
-          end: 10%, 45%
+          start: 10%, 55%
+          end: 10%, 30%
+          duration: 1500
 - tapOn:
     id: 'template-set-weight-0-2'
 - eraseText: 6
 - inputText: '20'
 # 2026-10-11 (T1/T3): the focused row is revealed under the header; close
 # the number pad (its Done bar) so the next field is found where it lies.
-- tapOn:
-    text: 'Done'
-    optional: true
-- scrollUntilVisible:
-    element:
-      id: 'template-set-reps-0-2'
-    direction: DOWN
-    timeout: 15000
-    centerElement: true
-    optional: true
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          text: 'Done'
+          optional: true
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - pressKey: Enter
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - scrollUntilVisible:
+          element:
+            id: 'template-set-reps-0-2'
+          direction: DOWN
+          timeout: 15000
+          centerElement: true
+          optional: true
 - repeat:
     times: 10
     while:
@@ -392,8 +497,9 @@ appId: fit.ignia.app
         id: 'template-set-reps-0-2'
     commands:
       - swipe:
-          start: 10%, 80%
-          end: 10%, 45%
+          start: 10%, 55%
+          end: 10%, 30%
+          duration: 1500
 # 2026-10-11 (T7): a seeded row may already read 8 reps; a centre tap on a
 # one-character value puts the cursor BEFORE it, so erase-then-type gave "88".
 # Type only when the field does not already hold 8.
@@ -406,30 +512,43 @@ appId: fit.ignia.app
     id: 'template-set-reps-0-2'
 - eraseText: 6
 - inputText: '8'
-- tapOn:
-    text: 'Done'
-    optional: true
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          text: 'Done'
+          optional: true
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - pressKey: Enter
 # NOT `hideKeyboard`: iOS exposes no native dismiss action, so Maestro fakes it
 # and throws "Couldn't hide the keyboard" — measured here, and its own error
 # prescribes this workaround. `Sets` is the plain field label above the table;
 # scroll it into view first, because the last cell tapped was row 3 and the
 # label may have gone off the top.
-- scrollUntilVisible:
-    element:
-      text: 'Sets'
-    direction: UP
-    timeout: 10000
-    optional: true
-- repeat:
-    times: 10
-    while:
-      notVisible:
-        text: 'Sets'
+- runFlow:
+    when:
+      platform: iOS
     commands:
-      - swipe:
-          start: 10%, 45%
-          end: 10%, 80%
-- tapOn: 'Sets'
+      - scrollUntilVisible:
+          element:
+            text: 'Sets'
+          direction: UP
+          timeout: 10000
+          optional: true
+      - repeat:
+          times: 10
+          while:
+            notVisible:
+              text: 'Sets'
+          commands:
+            - swipe:
+                start: 10%, 45%
+                end: 10%, 80%
+      - tapOn: 'Sets'
 - waitForAnimationToEnd:
     timeout: 5000
 - takeScreenshot: .maestro/regression/shots/18-set-prescribed
@@ -439,13 +558,17 @@ appId: fit.ignia.app
 # They must NOT be visible until this row is tapped.
 - assertNotVisible:
     id: 'template-cues-0'
-- scrollUntilVisible:
-    element:
-      id: 'template-more-0'
-    direction: DOWN
-    timeout: 15000
-    centerElement: true
-    optional: true
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - scrollUntilVisible:
+          element:
+            id: 'template-more-0'
+          direction: DOWN
+          timeout: 15000
+          centerElement: true
+          optional: true
 - repeat:
     times: 10
     while:
@@ -453,8 +576,9 @@ appId: fit.ignia.app
         id: 'template-more-0'
     commands:
       - swipe:
-          start: 10%, 80%
-          end: 10%, 45%
+          start: 10%, 55%
+          end: 10%, 30%
+          duration: 1500
 - tapOn:
     id: 'template-more-0'
 # Same 360x720dp problem as the set-kind control above: tapping "More options"
@@ -484,28 +608,32 @@ appId: fit.ignia.app
 # box requires guessing a distance that changes with how many sets exist.
 # Searching UP from a known end is deterministic; searching DOWN from an
 # unknown middle is what stalled.
-- scrollUntilVisible:
-    element:
-      id: 'template-cues-0'
-    direction: UP
-    timeout: 20000
-    # visibilityPercentage must be RELAXED here. It defaults to 100, and the
-    # cues box is the last thing in the sheet: it sits clipped against the nav
-    # bar with nothing below it to scroll into, so 100% is unreachable and the
-    # scroll times out on a control that is visibly on screen and expanded.
-    # Measured on Android 2026-08-19 — the capture shows "More options" open
-    # with "Cues (one per line)" half-drawn at the bottom edge.
-    visibilityPercentage: 20
-    optional: true
-- repeat:
-    times: 10
-    while:
-      notVisible:
-        id: 'template-cues-0'
+- runFlow:
+    when:
+      platform: iOS
     commands:
-      - swipe:
-          start: 10%, 45%
-          end: 10%, 80%
+      - scrollUntilVisible:
+          element:
+            id: 'template-cues-0'
+          direction: UP
+          timeout: 20000
+          # visibilityPercentage must be RELAXED here. It defaults to 100, and the
+          # cues box is the last thing in the sheet: it sits clipped against the nav
+          # bar with nothing below it to scroll into, so 100% is unreachable and the
+          # scroll times out on a control that is visibly on screen and expanded.
+          # Measured on Android 2026-08-19 — the capture shows "More options" open
+          # with "Cues (one per line)" half-drawn at the bottom edge.
+          visibilityPercentage: 20
+          optional: true
+      - repeat:
+          times: 10
+          while:
+            notVisible:
+              id: 'template-cues-0'
+          commands:
+            - swipe:
+                start: 10%, 45%
+                end: 10%, 80%
 - assertVisible:
     id: 'template-cues-0'
 - takeScreenshot: .maestro/regression/shots/18-more-options
@@ -529,36 +657,44 @@ appId: fit.ignia.app
 # it is where the flow died with *element not found* while every earlier step
 # passed. The x=10% swipe is the same precaution as above: dead centre lands on
 # the cues TextInput, which scrolls itself and not the sheet.
-- scrollUntilVisible:
-    element:
-      id: 'template-more-0'
-    direction: UP
-    timeout: 15000
-    centerElement: true
-    optional: true
-- repeat:
-    times: 10
-    while:
-      notVisible:
-        id: 'template-more-0'
+- runFlow:
+    when:
+      platform: iOS
     commands:
-      - swipe:
-          start: 10%, 45%
-          end: 10%, 80%
-- tapOn:
-    id: 'template-more-0'
-- waitForAnimationToEnd:
-    timeout: 5000
+      - scrollUntilVisible:
+          element:
+            id: 'template-more-0'
+          direction: UP
+          timeout: 15000
+          centerElement: true
+          optional: true
+      - repeat:
+          times: 10
+          while:
+            notVisible:
+              id: 'template-more-0'
+          commands:
+            - swipe:
+                start: 10%, 45%
+                end: 10%, 80%
+      - tapOn:
+          id: 'template-more-0'
+      - waitForAnimationToEnd:
+          timeout: 5000
 
 # ── 7. Save, and prove the round-trip through Firestore ───────────
-- scrollUntilVisible:
-    element:
-      id: 'save-template'
-    direction: DOWN
-    timeout: 15000
-    visibilityPercentage: 60
-    centerElement: true
-    optional: true
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - scrollUntilVisible:
+          element:
+            id: 'save-template'
+          direction: DOWN
+          timeout: 15000
+          visibilityPercentage: 60
+          centerElement: true
+          optional: true
 - repeat:
     times: 10
     while:
@@ -566,8 +702,9 @@ appId: fit.ignia.app
         id: 'save-template'
     commands:
       - swipe:
-          start: 10%, 80%
-          end: 10%, 45%
+          start: 10%, 55%
+          end: 10%, 30%
+          duration: 1500
 - tapOn:
     id: 'save-template'
 # 60s, not 15s, for the reason this file already gives at the `new-template`
@@ -582,31 +719,46 @@ appId: fit.ignia.app
       id: 'start-workout'
     timeout: 60000
 # The saved template's own row, back on the Train tab.
-- scrollUntilVisible:
-    element:
-      text: '.*QA Tpl Check.*'
-    direction: DOWN
-    timeout: 15000
-    centerElement: true
-    optional: true
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - scrollUntilVisible:
+          element:
+            id: 'edit-template-.*'
+            text: '.*QA Tpl Check.*'
+          direction: DOWN
+          timeout: 15000
+          centerElement: true
+          optional: true
 - repeat:
     times: 10
     while:
       notVisible:
+        id: 'edit-template-.*'
         text: '.*QA Tpl Check.*'
     commands:
       - swipe:
-          start: 10%, 80%
-          end: 10%, 45%
+          start: 10%, 55%
+          end: 10%, 30%
+          duration: 1500
 - takeScreenshot: .maestro/regression/shots/18-template-saved
 
 # Re-open it: the per-set targets must come back off the doc. This is the
 # assertion that a new optional field on `plannedSets` survives a real write
 # and a real read — the rules validate `exercises` as an opaque list, so
 # nothing else in the stack would notice if it did not.
-# By TEXT, not by testID: `edit-template-<id>` carries the Firestore doc id,
-# which a flow that just created the template cannot know.
-- tapOn: '.*QA Tpl Check.*'
+# By TEXT, scoped to a template ROW by a testID PATTERN. `edit-template-<id>`
+# carries the Firestore doc id, which a flow that just created the template
+# cannot know, so the id alone cannot be used, and the text alone is ambiguous.
+# FIX-M2 (2026-10-12): a just-saved template can become the Next-up card, and
+# that card's Start button is labelled "Start QA Tpl Check". The bare regex
+# matched it, and this tap STARTED A WORKOUT instead of opening the editor
+# (pixel_api36, `next-up-start` in maestro.log). The row's own label reads
+# "Edit QA Tpl Check, …" on both platforms, so id + text matches the row only.
+- tapOn:
+    id: 'edit-template-.*'
+    text: '.*QA Tpl Check.*'
 - extendedWaitUntil:
     visible:
       id: 'template-ex-toggle-0'
@@ -625,13 +777,17 @@ appId: fit.ignia.app
 # the expand in step 4; measured on the LG G6 2026-08-20, where the capture
 # showed "Edit template" scrolled to the top with the Set/lb/reps header just
 # reaching the bottom edge.
-- scrollUntilVisible:
-    element:
-      id: 'template-set-weight-0-0'
-    direction: DOWN
-    timeout: 15000
-    visibilityPercentage: 20
-    optional: true
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - scrollUntilVisible:
+          element:
+            id: 'template-set-weight-0-0'
+          direction: DOWN
+          timeout: 15000
+          visibilityPercentage: 20
+          optional: true
 - repeat:
     times: 10
     while:
@@ -639,8 +795,9 @@ appId: fit.ignia.app
         id: 'template-set-weight-0-0'
     commands:
       - swipe:
-          start: 10%, 80%
-          end: 10%, 45%
+          start: 10%, 55%
+          end: 10%, 30%
+          duration: 1500
 - takeScreenshot: .maestro/regression/shots/18-reopened-table
 
 # ── 8. Teardown: leave the account as we found it ─────────────────
@@ -672,8 +829,22 @@ appId: fit.ignia.app
 # Deleting asks first since 2026-10-04 ("Delete this template? Workouts you
 # logged from it are kept.") — the flow waited on `start-workout` with the
 # confirm still up.
-- tapOn:
-    id: 'confirm-go'
+# QA-R2 (2026-10-12): on iOS the ask is the SYSTEM action sheet since the
+# round-2 S23-2/F2 change (`native: Platform.OS === 'ios'` in
+# TemplateEditorModal `remove()`), whose buttons carry no testID — tap its
+# "Delete" by text (an exact match: the editor's own row reads "Delete
+# template"). Android keeps the branded confirm and its `confirm-go`.
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: 'Delete'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - tapOn:
+          id: 'confirm-go'
 # 60s, not 15s, for the reason this file already gives at the `new-template`
 # scroll: the Train tab re-subscribes to templates, history, exercises and the
 # week summary, and on the LG G6 (API 28) that has taken ~2 minutes. 15s

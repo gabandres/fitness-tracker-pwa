@@ -631,7 +631,7 @@ export function HeroRings({
           <Text style={styles.aboutTitle} accessibilityRole="header" testID="maintenance-about-title">
             {t('today.maintenanceAboutTitle')}
           </Text>
-          <ScrollView style={styles.aboutScroll} contentContainerStyle={styles.aboutBody}>
+          <ScrollView nestedScrollEnabled style={styles.aboutScroll} contentContainerStyle={styles.aboutBody}>
             <Text style={styles.aboutText}>{t('numbers.glossary.maintenanceBody')}</Text>
             {notes.full.map((line) => (
               <View key={line} style={styles.aboutNote}>

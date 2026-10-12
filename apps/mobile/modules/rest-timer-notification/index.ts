@@ -18,6 +18,8 @@ interface RestTimerNotificationNativeModule {
   update(endsAtMs: number): Promise<string | null>;
   end(): Promise<string | null>;
   status(): Promise<string>;
+  /** S23-8; absent from binaries older than the one that added the actions. */
+  workout?(json: string): Promise<string | null>;
 }
 
 const native = requireOptionalNativeModule<RestTimerNotificationNativeModule>('RestTimerNotification');
@@ -55,11 +57,32 @@ export async function endRestNotification(): Promise<string | null> {
   }
 }
 
-/** `running:<endsAtMs>` / `stopped` / `disabled` / `unavailable`. */
+/** `running:<endsAtMs>` / `idle` (between sets, S23-8) / `stopped` / `disabled` / `unavailable`. */
 export async function getRestNotificationStatus(): Promise<string> {
   try {
     return (await native?.status()) ?? 'unavailable';
   } catch {
     return 'unavailable';
+  }
+}
+
+/**
+ * True when this binary's module has `workout` (S23-8: the next planned set and
+ * "Done set" on the ongoing notification). Checked BEFORE calling, because an older binary's
+ * module rejects an unknown function — and an OTA reaches older binaries.
+ */
+export const isRestNotificationWorkoutAvailable = typeof native?.workout === 'function';
+
+/**
+ * Send the whole workout picture — the rest, if any, and the next planned sets
+ * — as one JSON string (built by `syncNative` in `src/lib/rest-timer-activity.ts`).
+ * `'unavailable'` where the function is absent; never rejects.
+ */
+export async function syncRestNotificationWorkout(json: string): Promise<string | null> {
+  try {
+    if (typeof native?.workout !== 'function') return 'unavailable';
+    return (await native.workout(json)) ?? null;
+  } catch (e) {
+    return String(e);
   }
 }

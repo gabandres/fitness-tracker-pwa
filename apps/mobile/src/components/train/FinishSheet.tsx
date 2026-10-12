@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, Text, View, useWindowDimensions } from 'react-native';
+import { Platform, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { Touchable } from './Touchable';
 import Animated from 'react-native-reanimated';
 import { SheetHeader } from '@/components/SheetHeader';
@@ -9,6 +9,8 @@ import {
   type ActivationFinding,
   type Recommendation,
   type TemplateLoadChange,
+  type TemplateStructureChange,
+  applyStructureChanges,
   applyTemplateChanges,
   bodyWeightUnit,
   checkWeightEntry,
@@ -18,6 +20,7 @@ import {
   isStorableDurationMin,
   isStorableSleepHours,
   parseWeightToLb,
+  proposeStructureChanges,
   proposeTemplateChanges,
   sessionActivationIssues,
   sessionCounts,
@@ -25,10 +28,10 @@ import {
 } from '@macrolog/core';
 import { BottomSheet } from '@/components/BottomSheet';
 import { useDoneKeyProps } from '@/components/KeyboardBar';
-import { confirm } from '@/components/ConfirmSheet';
+import { confirmNative } from '@/components/ConfirmSheet';
 import { showToast } from '@/components/Toast';
 import type { TrainState } from '@/hooks/useTrain';
-import type { TemplateExercise, WorkoutSession, WorkoutTemplate } from '@/lib/workout';
+import { DEFAULT_LOG_STYLE, isLoggedSet, type TemplateExercise, type WorkoutSession, type WorkoutTemplate } from '@/lib/workout';
 import { type TFn, useLocale, useT } from '@/i18n';
 import { plural } from '@/i18n/grammar';
 import { announce } from '@/lib/a11y';
@@ -36,6 +39,7 @@ import { isOffline } from '@/lib/connectivity';
 import * as haptics from '@/lib/haptics';
 import { enterUp, usePulse } from '@/lib/motion';
 import { recordPositiveMoment } from '@/lib/reviewPrompt';
+import { useSheetHiddenBelow } from '@/lib/sheet-detent';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { useUnitSystem } from '@/lib/use-unit-system';
 import { space } from '@/theme';
@@ -51,6 +55,24 @@ export interface FinishExtras {
   /** The real length, typed when the workout was left open (F15). Wins over
    *  the start-to-tap interval `useTrain` would otherwise stamp. */
   durationMin?: number;
+}
+
+/**
+ * Detents per platform. iOS opens full height (F1: its sheet resizes the
+ * content per detent, and at a half detent the calls filled it). Android opens
+ * at 60 % — M3's partial first height, with the grabber well below the status
+ * bar (F12, R33) — and goes full height on a drag; the content is laid out at
+ * full height there, so {@link BelowFoldSpacer} lifts the pinned footer onto
+ * the visible part.
+ */
+const FINISH_DETENTS = Platform.OS === 'android' ? [0.6, 1] : [1];
+
+/** Android at the lower detent: the band below the fold, taken from the
+ *  bottom of the sheet so Complete sits on screen (`lib/sheet-detent.ts`).
+ *  Renders under the sheet route, where that context lives. */
+function BelowFoldSpacer() {
+  const hidden = useSheetHiddenBelow();
+  return hidden > 0 ? <View style={{ height: hidden }} testID="finish-below-fold" /> : null;
 }
 
 /** A workout open this long is more likely forgotten than finished (F15). */
@@ -88,10 +110,21 @@ export function durationText(min: number, t: TFn): string {
  * the reps to expect and the reason. When the session came from a template,
  * each call that would move its load carries a box (on by default). There is
  * no separate Apply button any more (F2): Complete asks ONCE, when any box is
- * ticked — "Update and complete" / "Complete only" — and the template moves
+ * ticked — "Update {template}" / "Keep original" — and the template moves
  * only on that tap, after the workout itself is recorded (ADR-0044). With
  * "Auto-apply progression" on they are applied at Complete without asking,
  * and the sheet says so.
+ *
+ * The same question carries the template's SHAPE (S23-10, owner 2026-10-12):
+ * a lift added mid-session ("Add Cable Fly") or removed from it ("Remove
+ * Row") — core `template-structure.ts` says what counts. "Update {template}"
+ * takes the ticked load moves and the shape; "Keep original" finishes and
+ * leaves the template alone. Auto-apply never applies structure, so with it on
+ * the question still comes up when the shape changed, listing only that.
+ *
+ * Every confirm on this sheet is the SYSTEM dialog (`confirmNative`; S23-2,
+ * R30/R31): the sheet is native, and a branded sheet drawn over it was
+ * sheet-on-sheet.
  */
 export function FinishSheet({
   visible,
@@ -103,6 +136,7 @@ export function FinishSheet({
   invalid,
   calls = [],
   proposed = [],
+  structure = [],
   templateName = null,
   autoApply = false,
 }: {
@@ -116,16 +150,20 @@ export function FinishSheet({
   calls?: FinishCall[];
   /** The template moves those calls imply (empty without a template). */
   proposed?: TemplateLoadChange[];
+  /** Lifts added to / removed from the template this session (S23-10). Offered
+   *  only on an explicit "Update" — auto-apply never applies them. */
+  structure?: TemplateStructureChange[];
   /** The template the session came from, when it still exists. */
   templateName?: string | null;
   /** The lifter's "Auto-apply progression": applied at Complete, no question. */
   autoApply?: boolean;
   /** Resolves `false` when the save failed and the sheet should stay open.
-   *  `changes` are the template moves the lifter chose to make — empty unless
-   *  they answered "Update and complete". */
+   *  `changes` are the template moves the lifter chose to make and `shape` the
+   *  structure changes — both empty unless they answered "Update {template}". */
   onFinish: (
     extras: FinishExtras,
     changes: TemplateLoadChange[],
+    shape: TemplateStructureChange[],
   ) => Promise<boolean | void> | boolean | void;
   onClose: () => void;
   /** Discard the workout instead; the owner confirms first. */
@@ -233,7 +271,7 @@ export function FinishSheet({
       onClose();
       return true;
     }
-    confirm({
+    confirmNative({
       title: t('train.finishDropExtrasTitle'),
       body: t('train.finishDropExtrasBody'),
       confirmText: t('train.finishDropExtrasConfirm'),
@@ -277,27 +315,34 @@ export function FinishSheet({
       durationMin: len != null ? Math.round(len) : undefined,
     };
     const chosen = canOffer ? selected : [];
-    if (chosen.length === 0) {
-      void complete(extras, []);
+    // Structure is asked whenever there is a template to write, auto-apply or
+    // not: auto-apply moves loads, never the template's shape (S23-10).
+    const shape = templateName != null ? structure : [];
+    if (chosen.length === 0 && shape.length === 0) {
+      void complete(extras, [], []);
       return;
     }
     const fmt = (lbs: number) => formatLoad(lbs, unitSystem);
-    confirm({
+    const lines = [
+      ...chosen.map((c) => t('train.rec.finish.askLine', { name: c.name, from: c.from != null ? fmt(c.from) : '—', to: fmt(c.to) })),
+      ...shape.map((c) => t(c.kind === 'add' ? 'train.rec.finish.askAdd' : 'train.rec.finish.askRemove', { name: c.name })),
+    ];
+    // The system dialog (S23-2): this sheet is native, and the branded
+    // confirm drawn over it was a sheet on a sheet (R30/R31).
+    confirmNative({
       title: t('train.rec.finish.askTitle', { template: templateName ?? '' }),
-      body: chosen
-        .map((c) => t('train.rec.finish.askLine', { name: c.name, from: c.from != null ? fmt(c.from) : '—', to: fmt(c.to) }))
-        .join('\n'),
-      confirmText: t('train.rec.finish.askUpdate'),
+      body: lines.join('\n'),
+      confirmText: t('train.rec.finish.askUpdate', { template: templateName ?? '' }),
       secondaryText: t('train.rec.finish.askKeep'),
-      onConfirm: () => void complete(extras, chosen),
-      onSecondary: () => void complete(extras, []),
+      onConfirm: () => void complete(extras, chosen, shape),
+      onSecondary: () => void complete(extras, [], []),
     });
   }
 
-  async function complete(extras: FinishExtras, changes: TemplateLoadChange[]) {
+  async function complete(extras: FinishExtras, changes: TemplateLoadChange[], shape: TemplateStructureChange[]) {
     setBusy(true);
     try {
-      const ok = await onFinish(extras, changes);
+      const ok = await onFinish(extras, changes, shape);
       if (ok === false) setSaveErr(t('train.workoutSaveErr'));
     } catch (e) {
       // A catch that resets and rethrows, then the same reset after it: a
@@ -332,7 +377,13 @@ export function FinishSheet({
       accessibilityLabel={`${label}: ${value}`}
     >
       {largeText ? <Text style={styles.summaryLabel}>{label}</Text> : null}
-      <Text style={styles.summaryValue} numberOfLines={1} adjustsFontSizeToFit={shrink}>
+      {/* Stacked rows (large text): the value shrinks and wraps beside its
+          label instead of clipping — "1,14" for 1,140 lb (QA R2 iOS, AX5). */}
+      <Text
+        style={[styles.summaryValue, largeText && { flexShrink: 1, textAlign: 'right' }]}
+        numberOfLines={largeText ? undefined : 1}
+        adjustsFontSizeToFit={shrink && !largeText}
+      >
         {value}
       </Text>
       {largeText ? null : <Text style={styles.summaryLabel}>{label}</Text>}
@@ -384,12 +435,9 @@ export function FinishSheet({
   return (
     <BottomSheet
       native
-      // Full height on both platforms (F1): at the old 0.5 detent the calls
-      // filled the sheet and the pinned footer would sit below the fold of a
-      // half-height sheet whose content is laid out at full height. M3 allows
-      // a full-height sheet for long content; EntrySheet and the template
-      // editor already open this way.
-      detents={[1]}
+      // iOS full height (F1); Android 60 % then full on a drag (F12) — see
+      // FINISH_DETENTS and BelowFoldSpacer.
+      detents={FINISH_DETENTS}
       // Guarded once something is typed: a swipe then asks instead of
       // throwing the number away.
       guarded={typed}
@@ -407,6 +455,7 @@ export function FinishSheet({
           route pads a height-detent sheet for the keyboard, so the footer
           rides above it). */}
       <ScrollView
+        nestedScrollEnabled
         style={styles.finishScrollFill}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -475,7 +524,7 @@ export function FinishSheet({
         {prCount === 0 && summary.topSet ? (
           <View style={styles.syncRow} testID="finish-top-set">
             <Ionicons name="barbell-outline" size={16} color={colors.muted} />
-            <Text style={styles.summaryBest}>
+            <Text style={[styles.summaryBest, { flexShrink: 1 }]}>
               {t('train.summaryTopSet', {
                 name: summary.topSet.name,
                 weight: formatLoad(summary.topSet.weight, unitSystem),
@@ -635,6 +684,7 @@ export function FinishSheet({
       </ScrollView>
 
       {inlineFooter ? null : footer}
+      <BelowFoldSpacer />
     </BottomSheet>
   );
 }
@@ -740,7 +790,7 @@ export function TrainFinishSheet({
   onShare,
 }: {
   train: Pick<TrainState, 'active' | 'editingExisting' | 'templates' | 'recentSessions' | 'finishWorkout'>
-    & Partial<Pick<TrainState, 'catalog' | 'saveTemplate' | 'trainingPhase' | 'autoApplyProgression' | 'maybeAutoSwitchProgram' | 'discardWorkout'>>;
+    & Partial<Pick<TrainState, 'catalog' | 'saveTemplate' | 'trainingPhase' | 'autoApplyProgression' | 'maybeAutoSwitchProgram' | 'discardWorkout' | 'programVersion'>>;
   visible: boolean;
   onClose: () => void;
   /** Share the workout just finished — offered on the "Workout saved" receipt. */
@@ -782,18 +832,28 @@ export function TrainFinishSheet({
   // "logged as straight sets where a cluster was prescribed" is detectable —
   // the session alone carries no prescription. An ad-hoc session (no template)
   // still gets the RIR checks, just not that one.
+  // The engine reads the session as the save will store it: a lift with
+  // nothing logged is dropped there, so it is not read here either. Read as
+  // it was, an unstarted myo-reps lift came back `repeat-invalid` with no
+  // reason, and its row threw rendering the sheet (S23-10 tests, 2026-10-12).
+  const performed = useMemo(
+    () => (session
+      ? { ...session, exercises: session.exercises.filter((e) => e.sets.some((x) => isLoggedSet(x, e.logStyle ?? DEFAULT_LOG_STYLE))) }
+      : null),
+    [session],
+  );
   const invalid = useMemo(
-    () => (session ? sessionActivationIssues(session.exercises, template) : []),
-    [session, template],
+    () => (performed ? sessionActivationIssues(performed.exercises, template) : []),
+    [performed, template],
   );
   const catalog = train.catalog;
   const phase = train.trainingPhase ?? 'cut';
   const calls = useMemo(
     () =>
-      session && recentSessions
-        ? finishCalls({ session, recentSessions, catalog: catalog ?? [], template, phase, now: session.date.getTime() })
+      performed && recentSessions
+        ? finishCalls({ session: performed, recentSessions, catalog: catalog ?? [], template, phase, now: performed.date.getTime() })
         : [],
-    [session, recentSessions, catalog, template, phase],
+    [performed, recentSessions, catalog, template, phase],
   );
   const recs = useMemo(() => new Map<string, Recommendation>(calls.map((c) => [c.exerciseId, c.rec])), [calls]);
   // The sentence the lifter read is the one the template's `loadLog` keeps.
@@ -807,6 +867,19 @@ export function TrainFinishSheet({
         ? proposeTemplateChanges(template.exercises, recs, (rec) => reasonText(rec, unitSystem, t))
         : [],
     [template, recs, t, unitSystem],
+  );
+  // Lifts added to / removed from the template mid-session (S23-10), read off
+  // the LIVE session — before the save prunes unstarted lifts, which are not
+  // "removed" (core `template-structure.ts`).
+  // Not when the program version moved since the session started (a Settings
+  // switch mid-workout swaps the template's body under the same id): the
+  // "differences" would be the other version's lifts, and Update would undo
+  // the switch (review R2 P2-7). `templateVersion` is the start's snapshot.
+  const programVersion = train.programVersion;
+  const versionMoved = session?.templateVersion != null && programVersion !== session.templateVersion;
+  const structure = useMemo(
+    () => (template && session && !versionMoved ? proposeStructureChanges(template.exercises, session) : []),
+    [template, session, versionMoved],
   );
   const autoApply = train.autoApplyProgression === true;
   const canWrite = template?.id != null && train.saveTemplate != null;
@@ -831,7 +904,7 @@ export function TrainFinishSheet({
   const onDiscard = discard && session
     ? () => {
         const n = sessionCounts(session).sets;
-        confirm({
+        confirmNative({
           title: t('train.discardWorkoutNamedTitle', { name: session.templateName || t('train.workout') }),
           body: n > 0 ? plural(t, locale, 'train.discardWorkoutLost', n) : t('train.discardConfirm'),
           confirmText: t('train.discardWorkout'),
@@ -859,9 +932,10 @@ export function TrainFinishSheet({
       invalid={invalid}
       calls={calls}
       proposed={canWrite ? proposed : []}
+      structure={canWrite ? structure : []}
       templateName={canWrite ? template?.name ?? null : null}
       autoApply={autoApply}
-      onFinish={async (extras, changes) => {
+      onFinish={async (extras, changes, shape) => {
         // `finishWorkout` answers `false` when it could not record the
         // finish at all (the hook's boolean contract); a legacy void resolve
         // reads as success. On failure the sheet stays up with the typed
@@ -883,7 +957,12 @@ export function TrainFinishSheet({
             rows: tpl.exercises, recs, autoApply, at, reasonFor,
           });
           // The template as it stands NOW, not as the sheet opened on it.
-          const rows = applied ?? (changes.length > 0 ? applyTemplateChanges(tpl.exercises, changes, { at, by: 'engine' }) : null);
+          const loads = applied ?? (changes.length > 0 ? applyTemplateChanges(tpl.exercises, changes, { at, by: 'engine' }) : null);
+          // Then its shape, only when the lifter said "Update" (S23-10) —
+          // the lifter's change, so stamped `user`. One write for both.
+          const rows = shape.length > 0
+            ? applyStructureChanges(loads ?? tpl.exercises, shape, { at, by: 'user' })
+            : loads;
           if (rows) {
             updated = tpl.name;
             after = { ...tpl, exercises: rows };

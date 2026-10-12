@@ -123,11 +123,11 @@ export function MuscleChips({
 
 /**
  * What "Myo-rep clusters by muscle" will actually credit for one cluster of
- * this lift — core `creditsFor`, the same call the sheet makes. The name table
- * wins over the tags there, so a tagged "Romanian deadlift" still counts as
- * hamstrings 1 · glutes ½; the line says so instead of letting the tags look
- * like they decide it (train-ux X1, parts 1–2; whether tags should win is an
- * owner call, not made here).
+ * this lift — core `creditsFor`, the same call the sheet makes. The TAGS decide
+ * which muscles count (owner decision S23-12, ADR-0046); the name table only
+ * refines a tagged muscle where it agrees (Shoulders + "lateral raise" → side
+ * delt, Core → abs). Only an UNTAGGED lift is credited from its name, and only
+ * then does the line say "(from the exercise name)".
  */
 /** A credit's name in the CHIP taxonomy the line sits under: the chips offer
  *  "Shoulders", never "Front delt", so a finer muscle is named as its chip
@@ -152,7 +152,8 @@ export function MuscleCreditLine({ name, muscles, testID }: { name: string; musc
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const credits = creditsFor(name, muscles);
-  const fromName = creditsFor(name).length > 0;
+  // The name decides only when there are no tags (S23-12, tags win).
+  const fromName = muscles.length === 0 && credits.length > 0;
   if (credits.length === 0) {
     return <Text style={styles.liftHint} testID={testID}>{t('train.musclesVolumeNone')}</Text>;
   }

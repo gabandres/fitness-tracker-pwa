@@ -1005,6 +1005,12 @@ export function recommend(history: readonly SessionExercise[], opts: RecommendOp
     // nothing performed yet: nothing to read, which is not a bad log.
     return { ...base, action: 'none', currentLoad, reason: { kind: 'nothing-to-read' } };
   }
+  // Clustered, but no cluster performed (an unstarted scaffold): `readExercise`
+  // answers `valid: false` with NO issue, which the gate below would turn into
+  // an `invalid` call with no reason — it crashed the Finish sheet once.
+  if (read.clusters.length === 0) {
+    return { ...base, action: 'none', ...(currentLoad != null ? { currentLoad } : {}), reason: { kind: 'nothing-to-read' } };
+  }
 
   // A `rir1` lift taken to failure: say so, but the mini rule decides validity.
   const warnings: RecommendWarning[] =

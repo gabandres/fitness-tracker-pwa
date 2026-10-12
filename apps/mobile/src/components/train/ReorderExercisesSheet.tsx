@@ -35,6 +35,16 @@ import { createStyles } from './train-styles';
 /** A move arrow: a full target, not a glyph-sized one. */
 const ARROW_BTN = { minWidth: TARGET, minHeight: TARGET, alignItems: 'center', justifyContent: 'center' } as const;
 
+/** Large text: the name gets the row's whole width and the count and arrows
+ *  drop to a line of their own — beside two 44pt arrows a name at AX sizes
+ *  was cut to "Rom…" (S23-3 / F3, R12). It also wraps to two lines and stops
+ *  growing at 2×, so a long name reads whole rather than mid-word. */
+const LARGE_TEXT_SCALE = 1.5;
+const NAME_FONT_CAP = 2;
+const ROW_STACKED = { flexDirection: 'column', alignItems: 'stretch' } as const;
+const ROW_LINE = { flexDirection: 'row', alignItems: 'center', gap: space.sm } as const;
+const ROW_TAIL = { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: space.sm } as const;
+
 export function ReorderExercisesSheet({
   visible,
   exercises,
@@ -53,7 +63,8 @@ export function ReorderExercisesSheet({
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
   // Sortable's children are measured from themselves, so a row needs a pixel
   // width to fill the sheet (the template editor's finding).
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth, fontScale } = useWindowDimensions();
+  const largeText = fontScale >= LARGE_TEXT_SCALE;
   const rowWidth = windowWidth - space.xl * 2;
   const tags = supersetTags(exercises);
   // Keys that survive a reorder: the exercise id, plus its occurrence, for a
@@ -79,7 +90,7 @@ export function ReorderExercisesSheet({
           title={t('train.reorderExercises')}
           trailing={{ label: t('common.done'), onPress: onClose, testID: 'reorder-done' }}
         />
-        <Animated.ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: space.xl }}>
+        <Animated.ScrollView nestedScrollEnabled ref={scrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: space.xl }}>
           <Text style={styles.sheetHint}>{t('train.reorderHint')}</Text>
           <View style={{ marginTop: space.md }}>
             <Sortable.Flex
@@ -109,10 +120,34 @@ export function ReorderExercisesSheet({
                     <Ionicons name={dir === 'up' ? 'chevron-up' : 'chevron-down'} size={20} color={colors.muted} />
                   </Touchable>
                 );
+                const count = done ? (
+                  <Ionicons name="checkmark-circle" size={18} color={colors.teal} />
+                ) : ex.sets.length > 0 ? (
+                  <Text style={styles.histSub}>{`${logged}/${ex.sets.length}`}</Text>
+                ) : null;
+                const arrows = exercises.length > 1 ? (
+                  <View style={{ flexDirection: 'row' }}>
+                    {arrow('up', canUp)}
+                    {arrow('down', canDown)}
+                  </View>
+                ) : null;
+                const handle = (
+                  <Sortable.Handle>
+                    <View style={styles.tplDragHandle}>
+                      <Ionicons name="reorder-two-outline" size={22} color={colors.faint} />
+                    </View>
+                  </Sortable.Handle>
+                );
+                const name = (
+                  <View style={{ flex: 1 }}>
+                    {tag ? <Text style={styles.supersetTag}>{t('train.superset.tag', { label: tag })}</Text> : null}
+                    <Text style={styles.exName} numberOfLines={2} maxFontSizeMultiplier={NAME_FONT_CAP} testID={`reorder-name-${i}`}>{ex.name}</Text>
+                  </View>
+                );
                 return (
                   <View
                     key={keys[i]}
-                    style={[styles.tplExCard, styles.tplExTop, { width: rowWidth, alignItems: 'center' }, tag ? styles.supersetRail : null]}
+                    style={[styles.tplExCard, styles.tplExTop, { width: rowWidth, alignItems: 'center' }, largeText && ROW_STACKED, tag ? styles.supersetRail : null]}
                     accessible
                     accessibilityLabel={`${tag ? `${t('train.superset.tag', { label: tag })}, ` : ''}${ex.name}, ${t('train.setCountA11y', { done: logged, total: ex.sets.length })}`}
                     accessibilityActions={[
@@ -126,26 +161,25 @@ export function ReorderExercisesSheet({
                     }}
                     testID={`reorder-row-${i}`}
                   >
-                    <Sortable.Handle>
-                      <View style={styles.tplDragHandle}>
-                        <Ionicons name="reorder-two-outline" size={22} color={colors.faint} />
-                      </View>
-                    </Sortable.Handle>
-                    <View style={{ flex: 1 }}>
-                      {tag ? <Text style={styles.supersetTag}>{t('train.superset.tag', { label: tag })}</Text> : null}
-                      <Text style={styles.exName} numberOfLines={1}>{ex.name}</Text>
-                    </View>
-                    {done ? (
-                      <Ionicons name="checkmark-circle" size={18} color={colors.teal} />
-                    ) : ex.sets.length > 0 ? (
-                      <Text style={styles.histSub}>{`${logged}/${ex.sets.length}`}</Text>
-                    ) : null}
-                    {exercises.length > 1 ? (
-                      <View style={{ flexDirection: 'row' }}>
-                        {arrow('up', canUp)}
-                        {arrow('down', canDown)}
-                      </View>
-                    ) : null}
+                    {largeText ? (
+                      <>
+                        <View style={ROW_LINE}>
+                          {handle}
+                          {name}
+                        </View>
+                        <View style={ROW_TAIL} testID={`reorder-tail-${i}`}>
+                          {count}
+                          {arrows}
+                        </View>
+                      </>
+                    ) : (
+                      <>
+                        {handle}
+                        {name}
+                        {count}
+                        {arrows}
+                      </>
+                    )}
                   </View>
                 );
               })}

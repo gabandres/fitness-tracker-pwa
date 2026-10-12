@@ -58,3 +58,23 @@ weeks in, the owner was still taking load calls from an outside coach.
   pulldown, which needs its stack steps entered (85 by fallback vs 90).
 - `targetRepBand` stays readable and rules-valid so old docs still update; no
   reader uses it.
+
+## Amendment 2026-10-12 — the template's shape is asked at Finish too (S23-10)
+
+Decision 5 ("templates change only by a tap or an explicit setting") now also
+covers **structure**. A session started from a template whose lifts were added
+or removed mid-session gets ONE question at Finish (the system action sheet):
+the ticked load moves plus "Add {lift}" / "Remove {lift}" lines, answered
+"Update {template}" or "Keep original". The template is written only on that
+tap, only after `finishWorkout` resolves true, in one write with the load
+moves. **Auto-apply never applies structure** — with it on, the question still
+appears when the shape changed and lists only the shape. Rules live in core
+`template-structure.ts`: *added* = a session lift the template lacks with at
+least one logged set; *removed* = a template lift absent from the live session
+(an **unstarted** lift — present, nothing logged — is not removed; a row
+stamped after the session started is not either). An added lift's row comes
+from what was performed: its logged sets with their reps (or hold), the load on
+`targetLoad` only (per-set weights would freeze progression), warm-ups and drop
+sets keeping their own weight. It goes after the lift it followed in the
+session, never inside a superset block; removing a superset member goes through
+`unpair`. Structure rows are stamped `by: 'user'`; load moves stay `engine`.

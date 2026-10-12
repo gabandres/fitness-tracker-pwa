@@ -2,6 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Keyboard,
+  Platform,
   Text,
   type TextInput,
   TouchableOpacity,
@@ -93,6 +94,8 @@ import {
   offeredCount,
   reinsertAt,
   reinsertCard,
+  repsToSave,
+  rowsSeededFromHistory,
   rowsUntouched,
   seedTargetLoad,
   setCountText,
@@ -500,6 +503,7 @@ export function TemplateEditorModal({
       onConfirm: () => editRests(i),
       secondaryText: t('train.superset.unpairName', { name: d.name }),
       onSecondary: () => unpairRow(i),
+      native: Platform.OS === 'ios',
     });
   }
 
@@ -1090,7 +1094,10 @@ export function TemplateEditorModal({
     const kinds = scaffoldKindsFor(value);
     // `isPristineScaffold`, with rows the editor SEEDED from history counting
     // as placeholders: a number nobody typed must not block the scaffold.
-    const pristine = rowsUntouched(current.sets);
+    // Reps a new card saved from its grey numbers (S23-11) are seeded too,
+    // when they still match what history offers (review R2 P2-4).
+    const pristine =
+      rowsUntouched(current.sets) || rowsSeededFromHistory(current.sets, lastSets(current.exerciseId), current.logStyle);
     // Both decisions are made HERE, out of the updater. Calling `setState`
     // from inside another `setState`'s updater makes the updater impure, and
     // React is free to run it twice or discard the result — which it did: the
@@ -1155,6 +1162,11 @@ export function TemplateEditorModal({
       confirmText: t('train.discard'),
       destructive: true,
       onConfirm: onClose,
+      // Over the editor's native sheet, iOS asks with the system action
+      // sheet, not a sheet on a sheet (R30/R31, F2). Android keeps the branded
+      // confirm: its dragged-away editor is re-presented and asks on arrival
+      // (native-sheet-android-dismiss), a flow the system Alert is untested in.
+      native: Platform.OS === 'ios',
     });
     return false;
   }
@@ -1222,8 +1234,12 @@ export function TemplateEditorModal({
               : undefined,
             restMiniSec: numOrUndef(d.restMiniSec),
             setStructure: d.setStructure,
+            // A new card's rows save the grey REPS they show (S23-11,
+            // `repsToSave`); a grey per-set weight never is (fix R).
             plannedSets: spreadClusterLabels(normalizeClusterGroups(
-              d.sets.length ? d.sets : [newDraftSet('working')],
+              d.sets.length
+                ? d.sets.map((s, si) => ({ ...s, repsText: numText(repsToSave(s, lastSets(d.exerciseId)[si], d.logStyle, d.isNew)) }))
+                : [newDraftSet('working')],
             ).map((d) => toPlannedSet(d, unitSystem))),
             loadLog: d.loadLog,
             supersetGroup: d.supersetGroup,
@@ -1290,6 +1306,7 @@ export function TemplateEditorModal({
       body: t('train.deleteTemplateBody'),
       confirmText: t('train.delete'),
       destructive: true,
+      native: Platform.OS === 'ios',
       onConfirm: () => {
         void (async () => {
           setBusy(true);
@@ -1421,6 +1438,14 @@ export function TemplateEditorModal({
             </Text>
           ) : null}
           <Animated.ScrollView
+            // Android: the native formSheet is a Material BottomSheetBehavior,
+            // which lets a child scroll first ONLY if it has nested scrolling
+            // on (off by default in RN). Without it every downward drag went
+            // to the sheet — the editor could not scroll back up and a slow
+            // drag dismissed it (Maestro 18's "overshoot", round 2). Every
+            // scroller inside a native sheet carries it;
+            // `native-sheet-nested-scroll.test.ts` holds that.
+            nestedScrollEnabled
             ref={scrollRef}
             onScroll={(e) => {
               if (!liftOpen) editorScrollY.current = e.nativeEvent.contentOffset.y;
@@ -1526,9 +1551,13 @@ export function TemplateEditorModal({
               testID="template-notes"
             />
 
+            {/* One heading, two short labels (F11): "Rest between exercises
+                (s)" wrapped beside its one-line twin and the pair read out
+                of line. */}
+            <Text style={[styles.fieldLabel, { marginTop: space.md }]} testID="template-rest-heading">{t('train.restHeading')}</Text>
             <View style={styles.restRow}>
               <View style={styles.restCell}>
-                <Text style={[styles.fieldLabel, { marginTop: space.sm }]}>{t('train.restMini')}</Text>
+                <Text style={[styles.tplSetsLabel, { marginTop: space.xs }]}>{t('train.restMini')}</Text>
                 <SheetTextInput
                   style={styles.input}
                   keyboardType="number-pad"
@@ -1538,12 +1567,12 @@ export function TemplateEditorModal({
                   value={restMini}
                   onChangeText={setRestMini}
                   {...doneKey}
-                  accessibilityLabel={t('train.restMini')}
+                  accessibilityLabel={t('train.restMiniA11y')}
                   testID="template-rest-mini"
                 />
               </View>
               <View style={styles.restCell}>
-                <Text style={[styles.fieldLabel, { marginTop: space.sm }]}>{t('train.restCluster')}</Text>
+                <Text style={[styles.tplSetsLabel, { marginTop: space.xs }]}>{t('train.restCluster')}</Text>
                 <SheetTextInput
                   style={styles.input}
                   keyboardType="number-pad"
@@ -1552,7 +1581,7 @@ export function TemplateEditorModal({
                   value={restCluster}
                   onChangeText={setRestCluster}
                   {...doneKey}
-                  accessibilityLabel={t('train.restCluster')}
+                  accessibilityLabel={t('train.restClusterA11y')}
                   testID="template-rest-cluster"
                 />
               </View>
@@ -1775,7 +1804,7 @@ export function TemplateEditorModal({
                 // written with; a declared structure gets only its own.
                 // A card added in this session gets only its own: no legacy
                 // "Add cluster" on a lift nobody has declared anything for (T9).
-                const canAdd = addActionsForDraft(d.setStructure, d.isNew);
+                const canAdd = addActionsForDraft(d.setStructure, d.isNew, d.sets.map((x) => x.kind));
                 /** At large text the name needs the card's full width (T11). */
                 const big = fontScale > 1.3;
                 /** The structure picker in full: a card just added, or opened
@@ -1831,6 +1860,30 @@ export function TemplateEditorModal({
                     <Ionicons name="link-outline" size={20} color={colors.muted} />
                   </TouchableOpacity>
                 ) : null;
+                /* Move up / move down, visible (S23-1, R24 AA): the drag
+                   grip was the only way a sighted lifter could reorder, with
+                   the moves an accessibility action only. The same `moveEx`
+                   as those actions — a superset moves as one block, and the
+                   new position is announced. Arrows, not chevrons: a chevron
+                   on this card already means expand. Disabled at the ends;
+                   not drawn when there is only one place to be. */
+                const moveBtn = (dir: -1 | 1) => {
+                  const can = moveBlockAware(exercises, i, dir).newIndex !== i;
+                  return (
+                    <TouchableOpacity
+                      key={dir}
+                      style={styles.supersetLinkBtn}
+                      onPress={() => moveEx(i, dir)}
+                      disabled={!can}
+                      accessibilityRole="button"
+                      accessibilityLabel={t(dir < 0 ? 'train.moveExUpA11y' : 'train.moveExDownA11y', { name: d.name })}
+                      accessibilityState={{ disabled: !can }}
+                      testID={`template-move-${dir < 0 ? 'up' : 'down'}-${i}`}
+                    >
+                      <Ionicons name={dir < 0 ? 'arrow-up' : 'arrow-down'} size={20} color={can ? colors.muted : colors.line} />
+                    </TouchableOpacity>
+                  );
+                };
                 return (
                 <Animated.View
                   key={d.uid}
@@ -1853,11 +1906,10 @@ export function TemplateEditorModal({
                   layout={smoothLayout}
                 >
                   <View style={styles.tplExTop}>
-                    {/* One grip in place of the old ▲▼ pair. Dragging is
-                        invisible to VoiceOver, so the handle carries explicit
-                        move-up / move-down accessibility ACTIONS that run the
-                        same `moveEx` the chevrons used to — the reorder logic
-                        is unchanged, only its sighted affordance is. */}
+                    {/* The drag grip. Dragging is invisible to VoiceOver, so
+                        the handle carries move-up / move-down accessibility
+                        ACTIONS running the same `moveEx` as the visible ↑ ↓
+                        at the card's end (S23-1). */}
                     <View
                       // TARGET wide (was 32): the grip is a gesture's only handle (T4).
                       style={[styles.tplDragHandle, { width: TARGET, marginLeft: -space.sm }]}
@@ -1983,8 +2035,17 @@ export function TemplateEditorModal({
                         link control, so every card's chevron sits in one
                         column (T20). */}
                     {big ? null : linkCtl ?? <View style={{ width: TARGET }} />}
+                    {/* One TARGET column, up over down: side by side they
+                        took 88pt from the name at 360dp. */}
+                    {big || blocks.length < 2 ? null : <View>{moveBtn(-1)}{moveBtn(1)}</View>}
                   </View>
-                  {big && linkCtl ? <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>{linkCtl}</View> : null}
+                  {/* Large text: the name has the card's width, and the
+                      controls share a row under it. */}
+                  {big && (linkCtl || blocks.length > 1) ? (
+                    <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
+                      {blocks.length < 2 ? null : <>{moveBtn(-1)}{moveBtn(1)}</>}{linkCtl}
+                    </View>
+                  ) : null}
                   {/* The group's guardrails, under its LAST member and outside
                       the card's tap target. Each line is one screen-reader stop
                       whose "Fix muscles" is an accessibility ACTION as well as a
@@ -2185,6 +2246,30 @@ export function TemplateEditorModal({
                       full-width button from every row without hiding
                       anything, because a non-working kind still prints its
                       name under the number. */}
+                  {/* The lift's load, on the card (S23-6/F10, R52): the most
+                      used setting sat a disclosure deeper, under More
+                      options, while every row's grey weight came from it.
+                      It is what progression moves (`targetLoad`). A visible
+                      label (v3 QA item 7): the unit Text is visual only. */}
+                  {d.logStyle !== 'bodyweight' ? (
+                    <View style={[styles.tplLoadWrap, { flexWrap: 'wrap' }]}>
+                      <Text style={[styles.fieldLabel, { flexShrink: 1 }]}>{t('train.targetLoadLabel')}</Text>
+                      <View style={styles.tplLoadWrap}>
+                        <SheetTextInput
+                          style={styles.tplLoadInput}
+                          keyboardType="numeric"
+                          value={d.targetLoad}
+                          onChangeText={(v) => patchEx(i, { targetLoad: v })}
+                          {...doneKey}
+                          accessibilityLabel={`${t('train.targetLoadA11y', { unit: loadUnit(unitSystem) })}, ${d.name}`}
+                          testID={`template-load-${i}`}
+                        />
+                        <Text style={styles.tplLoadUnit} accessibilityElementsHidden importantForAccessibility="no">
+                          {loadUnit(unitSystem)}
+                        </Text>
+                      </View>
+                    </View>
+                  ) : null}
                   <Text style={styles.fieldLabel}>{t('train.sets')}</Text>
                   <View style={styles.tplSetHead}>
                     {/* "#", as the live session's table: "SET" broke to "SE T"
@@ -2234,7 +2319,11 @@ export function TemplateEditorModal({
                             <Text style={styles.tplSetNum}>{setLabels[si]}</Text>
                             {/* Whole, not "Activ…" (T11): the cell is 76 wide
                                 and the tag may wrap rather than truncate. */}
-                            {ps.kind !== 'working' ? (
+                            {/* Plain words on the default row (S23-5/F8): an
+                                activation row is the cluster's own set, "1a",
+                                so it carries no tag; its engine name stays in
+                                the label read out and in the kind picker. */}
+                            {ps.kind !== 'working' && ps.kind !== 'activation' ? (
                               <Text style={[styles.tplSetKindTag, { textAlign: 'center' }]}>
                                 {t(kindLabelKey(ps.kind))}
                               </Text>
@@ -2448,34 +2537,6 @@ export function TemplateEditorModal({
 
                   {more ? (
                     <View style={styles.moreBody}>
-                      <View style={styles.tplExControls}>
-                        {d.logStyle !== 'bodyweight' ? (
-                          // A visible label (v3 QA item 7): the field had none,
-                          // and its "lb" placeholder beside the "lb" unit read
-                          // "lb lb" — on screen and to VoiceOver. The label
-                          // names the unit once; the unit Text is visual only.
-                          <View>
-                            <Text style={styles.fieldLabel}>{t('train.targetLoadLabel')}</Text>
-                            <View style={styles.tplLoadWrap}>
-                              <SheetTextInput
-                                style={styles.tplLoadInput}
-                                keyboardType="numeric"
-                                value={d.targetLoad}
-                                onChangeText={(v) => patchEx(i, { targetLoad: v })}
-                                {...doneKey}
-                                accessibilityLabel={`${t('train.targetLoadA11y', { unit: loadUnit(unitSystem) })}, ${d.name}`}
-                                testID={`template-load-${i}`}
-                              />
-                              <Text style={styles.tplLoadUnit} accessibilityElementsHidden importantForAccessibility="no">
-                                {loadUnit(unitSystem)}
-                              </Text>
-                            </View>
-                          </View>
-                        ) : (
-                          <View style={{ flex: 1 }} />
-                        )}
-                      </View>
-
                       {/* Superset (2026-10-11): pair with the next row, or
                           unpair. Order and rest only — this row keeps its own
                           load, clusters and history. The leader holds the

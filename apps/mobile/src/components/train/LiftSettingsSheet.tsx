@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ScrollView, Switch, Text, useWindowDimensions, View } from 'react-native';
+import { Platform, ScrollView, Switch, Text, useWindowDimensions, View } from 'react-native';
 import { Touchable } from './Touchable';
 import { SheetTextInput } from '@/components/SheetTextInput';
 import {
@@ -182,11 +182,15 @@ export function useLiftSettingsDraft({ active, exercise, templateRow, onClose, o
 
   // Parse the draft once; the effective block and save() both read it.
   const rangeTyped = minText.trim() !== '' || maxText.trim() !== '';
-  const typedRange = { min: intOrNull(minText) ?? NaN, max: intOrNull(maxText) ?? NaN };
+  // A blank end is the category default's end — what its "auto" placeholder
+  // says (train-ux F6). A typed 7 over a blank max used to be flagged in red
+  // and then held Save disabled behind "enter both ends"; it is 7–12 on a
+  // compound, said in the hint and saved as such.
+  const typedRange = {
+    min: minText.trim() === '' ? categoryRange.min : intOrNull(minText) ?? NaN,
+    max: maxText.trim() === '' ? categoryRange.max : intOrNull(maxText) ?? NaN,
+  };
   const rangeOk = !rangeTyped || isValidRepRange(typedRange);
-  // One end typed is a range still being entered, not a mistake: said as a
-  // prompt, not in red, while the other end is empty (train-ux v5 QA). Save
-  // still waits for both — a half range has no meaning to the engine.
   const rangeHalf = rangeTyped && (minText.trim() === '' || maxText.trim() === '');
   const parsedSteps = useMemo(() => parseLoadSteps(steps, unitSystem), [steps, unitSystem]);
   const barLb = bar.trim() ? parseLoadToLb(bar, unitSystem) : null;
@@ -241,6 +245,10 @@ export function useLiftSettingsDraft({ active, exercise, templateRow, onClose, o
       confirmText: t('train.discard'),
       destructive: true,
       onConfirm: onClose,
+      // Both hosts are native sheets (the editor's page, the stand-alone
+      // sheet): on iOS the system action sheet, not a sheet on a sheet
+      // (R30/R31, F2). Android keeps the branded confirm, as the editor does.
+      native: Platform.OS === 'ios',
     });
     return false;
   }
@@ -273,7 +281,7 @@ export function useLiftSettingsDraft({ active, exercise, templateRow, onClose, o
     exercise, templateRow, name, inferred, effectiveCategory, categoryRange, config,
     category, setCategory, minText, setMinText, maxText, setMaxText, steps, setSteps,
     bar, setBar, standard, setStandard, loadable, setLoadable, microplates, setMicroplates,
-    muscles, setMuscles, rangeTyped, rangeOk, rangeHalf, parsedSteps, barOk,
+    muscles, setMuscles, rangeTyped, typedRange, rangeOk, rangeHalf, parsedSteps, barOk,
     saving, canSave, dirty, requestClose, save,
   };
 }
@@ -307,12 +315,16 @@ export function LiftSettingsForm({ draft, mode }: { draft: LiftSettingsDraft; mo
   // digits at AX5 (train-ux X9). Capped at 2× so the row still fits.
   const { fontScale } = useWindowDimensions();
   const bandWidth = Math.round(84 * Math.min(Math.max(fontScale, 1), 2));
+  /** At accessibility sizes the chips take a row each: two to a row, a
+   *  one-word label wider than its chip ("Bodyweight") broke mid-word
+   *  (train-ux F3, the Exercise-edit precedent). */
+  const stackChips = fontScale >= 1.6;
   const page = mode === 'page';
   const {
     exercise, templateRow, name, inferred, effectiveCategory, categoryRange, config,
     category, setCategory, minText, setMinText, maxText, setMaxText, steps, setSteps,
     bar, setBar, standard, setStandard, loadable, setLoadable, microplates, setMicroplates,
-    muscles, setMuscles, rangeTyped, rangeOk, rangeHalf, parsedSteps, barOk,
+    muscles, setMuscles, rangeTyped, typedRange, rangeOk, rangeHalf, parsedSteps, barOk,
     saving, canSave, save,
   } = draft;
   const showCredit = liftPlansClusters(exercise, templateRow);
@@ -340,13 +352,13 @@ export function LiftSettingsForm({ draft, mode }: { draft: LiftSettingsDraft; mo
     {/* ── Category: "Auto" clears the field and says what it inferred ── */}
     <View style={styles.liftSection}>
       <Text style={styles.liftLabel}>{t('train.lift.category')}</Text>
-      <View style={[styles.styleRow, styles.styleRowWrap, { marginTop: 0 }]} accessibilityRole="radiogroup">
+      <View style={[styles.styleRow, stackChips ? { flexDirection: 'column' } : styles.styleRowWrap, { marginTop: 0 }]} accessibilityRole="radiogroup">
         {([null, ...EXERCISE_CATEGORIES] as const).map((c) => {
           const on = category === c;
           return (
             <Touchable
               key={c ?? 'auto'}
-              style={[styles.styleChip, styles.styleChipHalf, on && styles.styleChipOn]}
+              style={[styles.styleChip, !stackChips && styles.styleChipHalf, on && styles.styleChipOn]}
               onPress={() => setCategory(c)}
               accessibilityRole="radio"
               accessibilityState={{ selected: on, checked: on }}
@@ -395,12 +407,12 @@ export function LiftSettingsForm({ draft, mode }: { draft: LiftSettingsDraft; mo
           testID="lift-range-max"
         />
       </View>
-      <Text style={rangeOk || rangeHalf ? styles.liftHint : styles.error} testID="lift-range-hint">
-        {rangeOk
-          ? t('train.lift.repRangeDefault', { min: categoryRange.min, max: categoryRange.max })
+      <Text style={rangeOk ? styles.liftHint : styles.error} testID="lift-range-hint">
+        {!rangeOk
+          ? t('train.lift.repRangeInvalid')
           : rangeHalf
-            ? t('train.lift.repRangeBoth')
-            : t('train.lift.repRangeInvalid')}
+            ? t('train.lift.repRangeFilled', { min: typedRange.min, max: typedRange.max })
+            : t('train.lift.repRangeDefault', { min: categoryRange.min, max: categoryRange.max })}
       </Text>
       {rangeTyped ? (
         <Touchable
@@ -466,7 +478,7 @@ export function LiftSettingsForm({ draft, mode }: { draft: LiftSettingsDraft; mo
     {/* ── Effort standard of the activation set (ADR-0039) ── */}
     <View style={styles.liftSection}>
       <Text style={styles.liftLabel}>{t('train.lift.effort')}</Text>
-      <View style={[styles.styleRow, { marginTop: 0 }]} accessibilityRole="radiogroup">
+      <View style={[styles.styleRow, stackChips && { flexDirection: 'column' }, { marginTop: 0 }]} accessibilityRole="radiogroup">
         {(['failure', 'rir1'] as const).map((s) => {
           const on = standard === s;
           return (
@@ -653,7 +665,7 @@ export function LiftSettingsSheet({
         leading={{ label: t('common.cancel'), onPress: () => void draft.requestClose(), testID: 'lift-cancel' }}
         trailing={{ label: t('common.save'), onPress: () => void draft.save(), disabled: !draft.canSave, testID: 'lift-save-header' }}
       />
-      <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <LiftSettingsForm draft={draft} />
       </ScrollView>
       </View>

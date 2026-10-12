@@ -40,7 +40,7 @@ import { useUnitSystem } from '@/lib/use-unit-system';
 import { space } from '@/theme';
 import type { InputChain } from './input-chain';
 import { SetRow } from './SetRow';
-import { activationIssueKey, lastHint, loadTargetIndices, recommendationFor, sideRecommendationsFor, spokenDuration, untouchedLoad } from './train-summary';
+import { activationIssueKey, lastHint, liftUsesRir, loadTargetIndices, recommendationFor, sideRecommendationsFor, spokenDuration, untouchedLoad } from './train-summary';
 import { createStyles } from './train-styles';
 import { MenuButton, type MenuButtonAction } from '@/components/MenuButton';
 
@@ -181,6 +181,9 @@ export const ExerciseCard = memo(function ExerciseCard({
   // the PREVIOUS column every competitor puts on every row and this app had
   // only as one aggregate line at the card head.
   const prevSets = useMemo(() => previousSets(history), [history]);
+  // The RIR column only where this lift uses RIR (S23-5 / F8) — never hiding
+  // a value already logged (`liftUsesRir`).
+  const rirColumn = liftUsesRir(ex.sets, prevSets, templateRow?.setStructure ?? catalogEx?.setStructure);
   // When core withheld a recommendation because the last activation was
   // unreadable, SAY so. Silence and "no bump today" look identical otherwise,
   // and the second one is a claim about the training rather than about the data.
@@ -294,7 +297,10 @@ export const ExerciseCard = memo(function ExerciseCard({
               </View>
             ) : null}
             {pairTag ? <Text style={styles.supersetTag} testID={`superset-tag-${exerciseIndex}`}>{t('train.superset.tag', { label: pairTag })}</Text> : null}
-            <Text style={styles.exName}>{ex.name}</Text>
+            {/* Capped at 2×: uncapped at AX5 one word outgrew the card and
+                broke mid-word ("Overhea/d Press"), and with the rest bar up
+                the title filled the screen (round-2 re-score). */}
+            <Text style={styles.exName} maxFontSizeMultiplier={2}>{ex.name}</Text>
             {/* Only while collapsed: an open card shows last session per ROW,
                 and repeating an aggregate above it is two answers to one
                 question. */}
@@ -401,9 +407,11 @@ export const ExerciseCard = memo(function ExerciseCard({
             <Text style={[styles.setHeadCell, styles.setInputCell]} maxFontSizeMultiplier={1.6}>
               {style === 'time' ? t('train.sec') : t('train.reps')}
             </Text>
-            <Text style={[styles.setHeadCell, styles.setRirCell]} numberOfLines={1} adjustsFontSizeToFit maxFontSizeMultiplier={1.6}>
-              {t('train.rirShort')}
-            </Text>
+            {rirColumn ? (
+              <Text style={[styles.setHeadCell, styles.setRirCell]} numberOfLines={1} adjustsFontSizeToFit maxFontSizeMultiplier={1.6} testID={`set-head-rir-${exerciseIndex}`}>
+                {t('train.rirShort')}
+              </Text>
+            ) : null}
             <View style={styles.setDoneCell} />
           </View>
 
@@ -428,6 +436,7 @@ export const ExerciseCard = memo(function ExerciseCard({
               // lift's own target rather than 0 (core `countToAccept`).
               exerciseTargetReps={ex.progression?.targetReps}
               isLastSet={setIdx === ex.sets.length - 1}
+              rirColumn={rirColumn}
               best={best}
               largeText={largeText}
               dispatch={dispatch}

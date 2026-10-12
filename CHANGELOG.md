@@ -4,6 +4,42 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-10-12 — Train UX round 2: 81.6 → 83.9 (scored); owner calls S23-10…13; lock-screen sets (1.2.7)
+
+Six fix agents (`FIX-PLAN-3.md` on `ignia-mac`), two independent code reviews
+(2 P1 + ~15 P2 fixed), iOS simulator QA (regression 21/21) and Android
+emulator QA, then an independent re-score (`FINAL-SCORE-R2.md`). Detail and
+what is left: `UX_AUDIT.md` §S23.
+
+- **Owner calls shipped:** Finish asks "Update {template} / Keep original" for
+  lifts added or removed mid-session as well as load moves — written only
+  after the save, on the tap, never by auto-apply, and not when the program
+  version switched mid-workout (core `template-structure.ts`; ADR-0044 note).
+  The editor saves the grey reps it shows as targets, never per-set weights
+  (ADR-0041 note). Muscle tags now decide what a lift counts toward; the name
+  table only refines a delt head (core `volume-credits.ts`). The weekly sheet
+  has a Sets | Clusters switch — hard working sets per muscle for straight-set
+  training, never mixed with clusters, auto default + remembered (ADR-0046).
+- **Bug — Android sheets could not scroll back up.** A native formSheet on
+  Android is a Material `BottomSheetBehavior`; without `nestedScrollEnabled`
+  on the scroller, every downward drag went to the sheet, so the template
+  editor (and 17 other sheets) could not be scrolled up and a slow drag
+  dismissed it. Round 1 read this as a flaky Maestro 18. Fixed everywhere;
+  `native-sheet-nested-scroll.test.ts` holds it.
+- **Bug — engine:** an unstarted myo-rep scaffold read as `invalid` with no
+  reason and crashed Finish; it is now nothing-to-read.
+- **UX:** visible ↑↓ reorder in the template editor; system action sheets
+  (iOS) / dialogs (Android) for confirms over native sheets; one coherent
+  Finish line; plain set words (First set / Mini-set / Short-rest set) and no
+  RIR column on lifts that don't use RIR; header counts sets like the cards;
+  one-line rest bar at large text that never covers the last card; Android
+  Finish opens at 60 %; muscle names match the tag chips.
+- **Native (1.2.7 only):** the Live Activity / Android notification stays up
+  for the whole workout with **Done set** from the lock screen; Android 16
+  promoted Live Update with −30 / +30 / Skip; native owns Android's "Rest
+  over" buzz in a workout.
+- **What's new** bumped to `2026-10-12-train-round2` (reason in `whatsNew.ts`).
+
 ## 2026-10-12 — Train tab UX pass: 72.3 → 81.6 (scored), five real bugs fixed
 
 Owner ask: "send out UX reviews on Train… use agents… consult verified up to

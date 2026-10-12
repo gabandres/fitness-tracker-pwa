@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useState } from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
+import { Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import {
   type SeedExercise,
   searchExerciseLibrary,
@@ -107,6 +107,9 @@ export function ExerciseSearchList({
   const t = useT();
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
+  /** At accessibility sizes the four style chips take a row each: two to a
+   *  row broke "Bodyweight" mid-word (train-ux F3). */
+  const stackChips = useWindowDimensions().fontScale >= 1.6;
   /** The create row's chips, unfolded by a first tap when matches exist.
    *  Stays unfolded for the life of the list once asked for. */
   const [stylesOpen, setStylesOpen] = useState(false);
@@ -165,13 +168,13 @@ export function ExerciseSearchList({
         <Text style={styles.createText}>{t('train.addNamed', { name: create.name })}</Text>
       </TouchableOpacity>
       {chipsShown ? (
-        <View style={[styles.styleRow, styles.styleRowWrap, { marginTop: 0 }]} accessibilityRole="radiogroup">
+        <View style={[styles.styleRow, stackChips ? { flexDirection: 'column' } : styles.styleRowWrap, { marginTop: 0 }]} accessibilityRole="radiogroup">
           {CREATION_STYLES.map((ls) => {
             const on = create.style === ls.value;
             return (
               <TouchableOpacity
                 key={ls.value}
-                style={[styles.styleChip, styles.styleChipHalf, on && styles.styleChipOn]}
+                style={[styles.styleChip, !stackChips && styles.styleChipHalf, on && styles.styleChipOn]}
                 onPress={() => create.onStyleChange(ls.value)}
                 accessibilityRole="radio"
                 accessibilityState={{ selected: on, checked: on }}

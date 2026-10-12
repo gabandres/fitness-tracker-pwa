@@ -46,7 +46,8 @@
       "expo.modules.quickaddtile.QuickAddTileTaskService"
     ],
     "requiredPermissions": [
-      "android.permission.health.READ_EXERCISE"
+      "android.permission.health.READ_EXERCISE",
+      "android.permission.POST_PROMOTED_NOTIFICATIONS"
     ],
     "_permissionsComment": "Android-only permissions are declared in patch-android-release.mjs step 4b, NOT in app.json — app.json is hashed as a whole, so a one-sided key moves the OTHER platform's fingerprint (measured 2026-08-25: READ_EXERCISE alone shut the iOS channel off build 60). That rehoming moves the declaration into gitignored prebuild output, where nothing else checks it — which is exactly why it is listed here.",
     "forbiddenPermissions": [
