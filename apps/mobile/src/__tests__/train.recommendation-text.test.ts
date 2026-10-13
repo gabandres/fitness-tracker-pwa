@@ -89,9 +89,21 @@ describe('recommendation text — the rep-range rules on real engine output', ()
     expect(out.target).toBe('Target: ≥ 13 reps');
   });
 
-  it('no heavier step entered: build reps up to the cap', () => {
-    const out = text(rec([ex(cluster(1, 100, 12))], { ...PRESS, availableLoads: [100] }));
-    expect(out.reason).toBe('12 reps and no heavier step entered — build reps, up to 17.');
+  it('past the last entered step: the next is assumed at the list\'s spacing, and the note says so (2026-10-13)', () => {
+    // The 10/13 Leg Curls: 90 × 15 with 90 the last pin entered.
+    const out = text(rec([ex(cluster(1, 90, 15, 0, 5, 5))], { name: 'Leg Curls', availableLoads: [70, 80, 90] }));
+    expect(out.headline).toBe('100 lb · INCREASE');
+    expect(out.notes).toContain('Past the last step entered — assuming +10 lb.');
+    // A one-entry list has no spacing: the 5 lb default.
+    expect(text(rec([ex(cluster(1, 100, 12))], { ...PRESS, availableLoads: [100] })).notes)
+      .toContain('Past the last step entered — assuming +5 lb.');
+  });
+
+  it('a blank RIR is read as 0 and says so, and the lift still moves (2026-10-13 DB RDL)', () => {
+    const blank: Row[] = [[1, 'activation', 13, undefined, 35], [1, 'mini', 4, 0, 35], [1, 'mini', 4, 0, 35]];
+    const out = text(rec([ex(blank)], { name: 'DB Romanian deadlift' }));
+    expect(out.headline).toBe('40 lb · INCREASE');
+    expect(out.warnings).toEqual(['RIR missing, assumed 0.']);
   });
 
   it('at the rep cap with the step still too big: the techniques, in order', () => {
@@ -100,12 +112,6 @@ describe('recommendation text — the rep-range rules on real engine output', ()
     expect(out.reason).toBe('17 reps — at the 17-rep cap, and 150 lb (+50%) still predicts only 1.');
     expect(out.target).toBeNull();
     expect(out.notes).toContain('Try instead: a 3 s eccentric or a pause rep · microplates · one more cluster.');
-  });
-
-  it('at the rep cap with no heavier step at all', () => {
-    const out = text(rec([ex(cluster(1, 100, 17))], { ...PRESS, availableLoads: [100] }));
-    expect(out.reason).toBe('17 reps — at the 17-rep cap with no heavier step.');
-    expect(out.notes).toEqual(['Try instead: a 3 s eccentric or a pause rep.']);
   });
 
   it('under the range after an increase: DROP BACK to the previous load and build', () => {

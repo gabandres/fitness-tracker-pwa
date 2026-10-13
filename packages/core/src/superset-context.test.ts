@@ -81,9 +81,9 @@ describe('context changes', () => {
 
 describe('the context baseline', () => {
   it('drops only at two or more reps under the range minimum, one step down', () => {
-    // Leg Extensions: a stack with 70/80/90 entered; compound range 6–12.
+    // Leg Extensions: a stack with 70/80/90 entered; isolation range 8–15.
     const b = contextBaseline(['superset'], { since: '2026-10-11', load: 90, catalog: catalog(idOf('Leg Extensions')) });
-    expect(b).toEqual({ since: '2026-10-11', reason: 'context changed: superset', dropBackTo: 80, dropBackBelowReps: 5 });
+    expect(b).toEqual({ since: '2026-10-11', reason: 'context changed: superset', dropBackTo: 80, dropBackBelowReps: 7 });
   });
 
   it('a bodyweight lift at 0 has nothing to drop: its first read just holds', () => {
@@ -120,16 +120,16 @@ describe('context-changed reads are not failures (engine integration)', () => {
 
   it('with it, the same read (1 under the minimum) is the new baseline: hold, no drop', () => {
     // `engineHistory` cuts history at the marker, so only the superset read remains.
-    const r = recommend([sx(id, cluster(1, 90, 5, 2, 2))], opts(marker));
+    const r = recommend([sx(id, cluster(1, 90, 7, 2, 2))], opts(marker));
     expect(r.action).toBe('hold');
-    expect(r.reason).toMatchObject({ kind: 'baseline-set', reps: 5, note: 'context changed: superset' });
+    expect(r.reason).toMatchObject({ kind: 'baseline-set', reps: 7, note: 'context changed: superset' });
   });
 
-  it('two or more under the minimum (4 vs 6) → drop one step, to 80', () => {
-    const r = recommend([sx(id, cluster(1, 90, 4, 2, 2))], opts(marker));
+  it('two or more under the minimum (6 vs 8) → drop one step, to 80', () => {
+    const r = recommend([sx(id, cluster(1, 90, 6, 2, 2))], opts(marker));
     expect(r.action).toBe('drop-back');
     expect(r.load).toBe(80);
-    expect(r.reason).toMatchObject({ kind: 'baseline-drop-back', below: 5, to: 80 });
+    expect(r.reason).toMatchObject({ kind: 'baseline-drop-back', below: 7, to: 80 });
   });
 
   it('the validity gate still runs first and is unchanged', () => {

@@ -222,6 +222,12 @@ export const SetRow = memo(function SetRow({
   // failure, so the reading is as meaningful there as on the activation.
   const showRir = set.kind === 'working' || set.kind === 'activation'
     || set.kind === 'mini' || set.kind === 'continuation';
+  // A ticked WORKING set (straight `working`, or a cluster's `activation` —
+  // the set the engine reads) with no RIR. The engine reads the blank as 0
+  // rather than refusing the lift (2026-10-13), so this only asks: it never
+  // blocks the tick, the rest timer or Finish.
+  const rirMissing = rirColumn && !!set.done && set.rir == null
+    && (set.kind === 'working' || set.kind === 'activation');
   const hasWeight = logStyle === 'weight-reps';
   // A ticked set that beats every prior session — derived, not stored, so an
   // untick or an edit takes the badge away with it (Train review item 35).
@@ -678,6 +684,21 @@ export const SetRow = memo(function SetRow({
       >
         {row}
       </ReanimatedSwipeable>
+
+      {rirMissing ? (
+        <TouchableOpacity
+          onPress={(e) => {
+            noteFocusTrigger(e?.currentTarget);
+            onOpenSheet(exerciseIndex, setIndex);
+          }}
+          hitSlop={{ top: 12, bottom: 12 }}
+          accessibilityRole="button"
+          accessibilityLabel={t('train.rirMissingPrompt')}
+          testID={`set-rir-missing-${exerciseIndex}-${setIndex}`}
+        >
+          <Text style={styles.setRirMissing}>{t('train.rirMissingPrompt')}</Text>
+        </TouchableOpacity>
+      ) : null}
 
       {/* ± steppers for the field that has the keyboard — 2.5 lb / 1.25 kg,
           one rep. Under the row rather than in it: the row is already the

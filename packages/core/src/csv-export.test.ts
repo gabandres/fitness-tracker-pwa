@@ -58,6 +58,23 @@ describe('buildCsv', () => {
     expect(mealRow[cols.indexOf('cardioCompleted')]).toBe('true');
   });
 
+  it('a finished workout\'s 0-kcal marker exports as workout_marker, not as a meal (2026-10-13)', () => {
+    const at = new Date('2026-10-13T11:44:11.899Z');
+    const csv = buildCsv({
+      ...emptyData(),
+      logs: [
+        { calories: 0, date: at, exerciseCompleted: true },
+        { calories: 325, date: new Date('2026-10-13T00:23:15Z'), mealLabel: 'Casein Full', mealType: 'dinner' },
+      ] as DailyLog[],
+    });
+    const cols = csv.split('\r\n')[0].split(',');
+    const rows = csv.split('\r\n').slice(1).map((r) => r.split(',')).filter((r) => r[0] === 'meal' || r[0] === 'workout_marker');
+    expect(rows.map((r) => [r[0], r[cols.indexOf('calories')], r[cols.indexOf('exerciseCompleted')]])).toEqual([
+      ['meal', '325', ''],
+      ['workout_marker', '0', 'true'],
+    ]);
+  });
+
   it("emits a meal's note in the notes column, and same-minute meals in logged order", () => {
     const at = new Date('2026-10-03T12:15:00Z');
     const logs: DailyLog[] = [

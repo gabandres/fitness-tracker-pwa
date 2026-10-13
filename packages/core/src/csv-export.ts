@@ -117,8 +117,13 @@ export interface ExportData {
 
 /**
  * Long-format CSV: every row carries a `type` discriminator
- * (meal | weight | water | sleep | measurement | workout | workout_set | cardio)
- * and only fills the columns relevant to that type. Workout sessions emit one
+ * (meal | workout_marker | weight | water | sleep | measurement | workout |
+ * workout_set | cardio) and only fills the columns relevant to that type.
+ *
+ * `workout_marker` is the 0-kcal `dailyLogs` row a finished session writes so
+ * the day counts toward the streak (`workoutMarkerEntry`). Until 2026-10-13 it
+ * was exported as `meal`, and a 0-kcal, unlabeled "meal" at the exact second a
+ * workout was saved reads as junk — the owner asked for it to be deleted. Workout sessions emit one
  * `workout` summary row, one `workout_set` row per logged set, and one `cardio`
  * row per logged cardio block (ADR-0025).
  *
@@ -131,8 +136,11 @@ export function buildCsv(data: ExportData, boundary: DayBoundary = MIDNIGHT): st
 
   const sortedLogs = [...data.logs].sort(compareLogsOldestFirst);
   for (const l of sortedLogs) {
+    // A marker is the flag on NO food. Before ADR-0007 the flags rode on real
+    // meals (500 kcal + `liftCompleted`), and those stay meals.
+    const marker = !!(l.exerciseCompleted || l.liftCompleted || l.cardioCompleted) && !(l.calories > 0) && !l.mealLabel;
     rows.push(row({
-      type: 'meal',
+      type: marker ? 'workout_marker' : 'meal',
       date: dayKeyAt(l.date, boundary),
       timestamp: l.date.toISOString(),
       calories: l.calories,

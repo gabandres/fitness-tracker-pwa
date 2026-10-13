@@ -92,6 +92,7 @@ const INVALID_KEYS: Record<InvalidReason, I18nKey> = {
 
 const WARNING_KEYS: Record<RecommendWarning, I18nKey> = {
   'failure-on-rir1': 'train.rec.warn.failureOnRir1',
+  'rir-missing-assumed-0': 'train.rec.warn.rirMissingAssumed0',
 };
 
 /** One label per call — the same five words on the card and the finish sheet. */
@@ -277,6 +278,9 @@ function notesText(rec: Recommendation, unitSystem: UnitSystem, t: TFn): string[
   if (rec.approximate && citesNextStep(rec)) out.push(t('train.rec.approximate'));
   if (rec.config?.stepsUnknown && citesNextStep(rec)) {
     out.push(t('train.rec.stepsUnknown', { step: formatLoad(rec.config.stepLb, unitSystem) }));
+  }
+  if (rec.assumedStepLb != null && citesNextStep(rec)) {
+    out.push(t('train.rec.stepAssumed', { step: formatLoad(rec.assumedStepLb, unitSystem) }));
   }
   if (rec.reason.kind === 'at-rep-cap' && rec.reason.techniques.length > 0) {
     out.push(t('train.rec.techniques', {

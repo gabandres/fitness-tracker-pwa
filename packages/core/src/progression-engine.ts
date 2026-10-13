@@ -14,11 +14,18 @@
  *     first mini < 2 reps  → the activation was too hard   → read INVALID
  *     first mini 2-5 reps  → read VALID
  *
- * A read is also invalid when a mini out-reps its activation, when the load
- * moved anywhere inside the lift (activation or mini — a planned drop set is
- * the one sanctioned load change and is not read), or when RIR is missing on
- * a clustered lift. The activation's RIR only invalidates at the top (RIR
- * 4+); RIR 0 is the standard since ADR-0039.
+ * A read is also invalid when a mini out-reps its activation, or when the
+ * load moved anywhere inside the lift (activation or mini — a planned drop set
+ * is the one sanctioned load change and is not read). The activation's RIR
+ * only invalidates at the top (RIR 4+); RIR 0 is the standard since ADR-0039.
+ *
+ * A MISSING RIR is read as 0 and flagged (`rir-missing-assumed-0`), never
+ * blocked (2026-10-13). It used to make a clustered read invalid, which is
+ * how the 10/13 DB RDL — 35 × 13, past the top of its range, RIR left blank —
+ * repeated 35 with no visible cause. Assuming 0 is the conservative reading:
+ * it gives the FEWEST effective reps the set can stand for, so it can never
+ * advance a lift a logged RIR would have held. The mini rule still judges the
+ * set, and the app prompts for the RIR on the row.
  *
  * An invalid read never produces a load recommendation. It produces "repeat
  * <load> — read invalid" and the specific reason. That is the single most
@@ -51,7 +58,10 @@
  *
  * Layer 3 is the load steps: the catalog's `availableLoads` when entered,
  * else 5 lb for dumbbells, Smith, barbell and plates; a stack with no entered
- * steps falls back to the template's increment and says it is guessing.
+ * steps falls back to the template's increment and says it is guessing. Past
+ * the LAST entered step the next one is assumed at the list's own spacing
+ * (70/80/90 → 100), and the call says so (2026-10-13: the 10/13 Leg Curls hit
+ * 90 × 15 with 90 as the last entered pin and were told to build reps).
  *
  * Layer 4 is stalls: three consecutive valid sessions at one load with no new
  * best is "Stalled", with three checks (sleep under 7 h, intake under target,
@@ -137,7 +147,9 @@ export const BODYWEIGHT_START_LB: readonly [number, number] = [5, 10];
 export type InvalidReason =
   /** The activation has no rep count. */
   | 'reps-missing'
-  /** No RIR on the activation. Blocks only in strict mode (clustered lifts). */
+  /** No RIR on the activation. Retained for stored/rendered compatibility;
+   *  never produced since 2026-10-13 — a missing RIR is read as 0 and flagged
+   *  with the `rir-missing-assumed-0` warning instead. */
   | 'rir-missing'
   /** Activation at RIR {@link ACTIVATION_RIR_MAX}+ — not proximate to failure. */
   | 'rir-too-easy'
@@ -166,6 +178,8 @@ export interface ClusterRead {
   issue: InvalidReason | null;
   /** The activation carries `legacyEffortStandard`. */
   legacy: boolean;
+  /** Reps were logged but RIR was not: the read assumes RIR 0. */
+  rirAssumed: boolean;
 }
 
 export interface ExerciseRead {
@@ -189,9 +203,10 @@ export interface ExerciseRead {
 
 export interface ReadOptions {
   /** The template prescribed a cluster for this exercise. Turns a straight-set
-   *  log into `not-clustered` and makes a missing RIR blocking. */
+   *  log into `not-clustered`. */
   expectsCluster?: boolean;
-  /** Override for the missing-RIR policy. Defaults to `expectsCluster`. */
+  /** Retired (2026-10-13): a missing RIR no longer blocks in any mode.
+   *  Accepted so old callers compile; never read. */
   strictRir?: boolean;
 }
 
@@ -210,7 +225,6 @@ export function readExercise(
   opts: ReadOptions = {},
 ): ExerciseRead {
   const style: LogStyle = exercise.logStyle ?? DEFAULT_LOG_STYLE;
-  const strict = opts.strictRir ?? opts.expectsCluster ?? false;
   const none = (issue: InvalidReason | null, clustered = false): ExerciseRead => ({
     clusters: [], issue, valid: false, clustered, legacy: false,
   });
@@ -235,8 +249,9 @@ export function readExercise(
     const read: ClusterRead = {
       group, load: a.weight, reps: a.reps, rir: a.rir, minis, issue: null,
       legacy: a.legacyEffortStandard === true,
+      rirAssumed: a.reps != null && a.rir == null,
     };
-    read.issue = clusterIssue(read, strict);
+    read.issue = clusterIssue(read);
     clusters.push(read);
   }
   if (clusters.length === 0) return none(null, true);
@@ -269,14 +284,11 @@ export function readExercise(
   };
 }
 
-function clusterIssue(c: ClusterRead, strict: boolean): InvalidReason | null {
+function clusterIssue(c: ClusterRead): InvalidReason | null {
   if (c.reps == null) return 'reps-missing';
-  if (c.rir == null) {
-    if (strict) return 'rir-missing';
-  } else if (c.rir > ACTIVATION_RIR_MAX) {
-    // RIR 0 is the standard, not an error (ADR-0039); only the top edge blocks.
-    return 'rir-too-easy';
-  }
+  // RIR 0 is the standard, not an error (ADR-0039); only the top edge blocks.
+  // A missing RIR is read as 0 (`effectiveReps`) and flagged by `recommend`.
+  if (c.rir != null && c.rir > ACTIVATION_RIR_MAX) return 'rir-too-easy';
   if (c.minis.length === 0) return 'minis-missing';
   const first = c.minis[0];
   if (first > FIRST_MINI_MAX) return 'first-mini-too-many';
@@ -286,7 +298,7 @@ function clusterIssue(c: ClusterRead, strict: boolean): InvalidReason | null {
 }
 
 /** Reps to failure an activation stands for: logged reps + logged RIR.
- *  Smith 13 @ RIR 1 is 14. A missing RIR adds nothing. */
+ *  Smith 13 @ RIR 1 is 14. A missing RIR adds nothing — it is read as 0. */
 export function effectiveReps(c: Pick<ClusterRead, 'reps' | 'rir'>): number | undefined {
   if (c.reps == null) return undefined;
   return c.reps + (c.rir ?? 0);
@@ -325,16 +337,16 @@ const has = (re: RegExp, s: string) => re.test(s);
 
 /**
  * The category a lift's name implies, for when the lifter has not set one.
- * Matches the spec's own examples: the leg extension and leg curl are
- * machine compounds (6-12), every other curl / extension / raise is an
- * isolation (8-15), crunches are core, and pull-ups, push-ups, dips and
- * knee raises are bodyweight.
+ * Curls, extensions and raises are isolations (8-15) — the machine leg
+ * extension and leg curl included, which are single-joint knee movements
+ * (owner, 2026-10-13; the 10/07 spec had filed them as compounds, 6-12, so a
+ * 14-rep leg extension read as "past the top"). Crunches are core, and
+ * pull-ups, push-ups, dips and knee raises are bodyweight.
  */
 export function inferCategory(name: string): ExerciseCategory {
   const n = name.toLowerCase();
   if (has(/pull-?ups?\b|chin-?ups?\b|push-?ups?\b|knee raise|leg raise|\bdips?\b/, n)) return 'bodyweight';
   if (has(/crunch|plank|twist|sit-?up|rollout|ab wheel|pallof|woodchop/, n)) return 'core';
-  if (has(/leg (extension|curl)/, n)) return 'compound';
   if (has(/lateral raise|rear delt|fl(y|ye|yes|ies)\b|curl|tricep|extension|pushdown|kickback|calf raise|skull|face pull|shrug/, n)) return 'isolation';
   return 'compound';
 }
@@ -522,7 +534,10 @@ export type RecommendReason =
 
 export type RecommendWarning =
   /** A `rir1` lift logged its activation at RIR 0. Soft: the read stands. */
-  | 'failure-on-rir1';
+  | 'failure-on-rir1'
+  /** An activation was logged with reps and no RIR: the call read it as RIR 0
+   *  (the fewest effective reps it can stand for). Soft: the read stands. */
+  | 'rir-missing-assumed-0';
 
 export interface ActivationSummary {
   group: number;
@@ -552,6 +567,9 @@ export interface Recommendation {
   predictedReps?: number;
   /** Predictions use the plate load alone — see {@link EngineConfig.approximate}. */
   approximate: boolean;
+  /** The call cites a next step past the last entered `availableLoads` entry,
+   *  assumed at this spacing (lb). Absent when the step was entered. */
+  assumedStepLb?: number;
   /** The rep range the call was made against (myo-reps only). */
   repRange?: RepRange;
   /** The resolved configuration (myo-reps only). */
@@ -606,24 +624,36 @@ export interface RecommendOptions extends ReadOptions {
  * `availableLoads` wins when present (a rack, a stack); otherwise the
  * template's increment; otherwise {@link DEFAULT_INCREMENT_LB}. On an
  * assisted lift "next" is the next LOWER assistance, floored at 0.
+ *
+ * Past the end of the entered steps, the next one is assumed at the list's
+ * own spacing — the gap between its last two entries going up (70/80/90 →
+ * 100), its first two going down — and `beyondSteps` says it was assumed. A
+ * stack's pins are evenly spaced far more often than not, and "no heavier
+ * step entered" stalled a lift that had earned one (10/13 Leg Curls, 90 × 15).
+ * A one-entry list has no spacing and falls back to the increment.
  */
 export function nextLoad(
   current: number,
   opts: { availableLoads?: number[]; incrementLb?: number; assisted?: boolean },
-): { load: number; jumpPct: number } {
+): { load: number; jumpPct: number; beyondSteps?: true } {
   const step = opts.incrementLb ?? DEFAULT_INCREMENT_LB;
-  const steps = (opts.availableLoads ?? []).filter((x) => Number.isFinite(x)).sort((a, b) => a - b);
+  const steps = [...new Set((opts.availableLoads ?? []).filter((x) => Number.isFinite(x)))].sort((a, b) => a - b);
   let load: number;
+  let beyond = false;
   if (opts.assisted) {
     const lower = steps.filter((x) => x < current);
-    load = lower.length ? lower[lower.length - 1] : Math.max(0, current - step);
+    const gap = steps.length >= 2 ? steps[1] - steps[0] : step;
+    beyond = lower.length === 0 && steps.length > 0;
+    load = lower.length ? lower[lower.length - 1] : Math.max(0, current - gap);
   } else {
     const higher = steps.filter((x) => x > current);
-    load = higher.length ? higher[0] : current + step;
+    const gap = steps.length >= 2 ? steps[steps.length - 1] - steps[steps.length - 2] : step;
+    beyond = higher.length === 0 && steps.length > 0;
+    load = higher.length ? higher[0] : current + gap;
   }
   load = +load.toFixed(2);
   const jumpPct = current > 0 ? Math.abs(load - current) / current : 0;
-  return { load, jumpPct };
+  return { load, jumpPct, ...(beyond ? { beyondSteps: true as const } : {}) };
 }
 
 /** Working sets that were actually performed, in log order. */
@@ -1013,8 +1043,11 @@ export function recommend(history: readonly SessionExercise[], opts: RecommendOp
   }
 
   // A `rir1` lift taken to failure: say so, but the mini rule decides validity.
-  const warnings: RecommendWarning[] =
-    config.effortStandard === 'rir1' && read.clusters.some((c) => c.rir === 0) ? ['failure-on-rir1'] : [];
+  const warnings: RecommendWarning[] = [
+    ...(config.effortStandard === 'rir1' && read.clusters.some((c) => c.rir === 0) ? ['failure-on-rir1' as const] : []),
+    // A blank RIR is read as 0, never as a reason to stop (2026-10-13).
+    ...(read.clusters.some((c) => c.rirAssumed) ? ['rir-missing-assumed-0' as const] : []),
+  ];
   const judged = { ...base, warnings, last: summaries, currentLoad };
 
   // Rule 1 — the validity gate. An invalid read repeats the load, always.
@@ -1093,7 +1126,7 @@ function rangeCall(
   config: EngineConfig,
   assisted: boolean,
   opts: RecommendOptions,
-): Pick<Recommendation, 'action' | 'load' | 'reason' | 'targetReps' | 'predictedReps'> {
+): Pick<Recommendation, 'action' | 'load' | 'reason' | 'targetReps' | 'predictedReps' | 'assumedStepLb'> {
   const { min, max } = config.repRange;
   const cap = max + REP_CAP_EXTRA;
   const multi = read.clusters.length > 1;
@@ -1143,12 +1176,14 @@ function rangeCall(
 
   // Rule 3 — every cluster at or over the top: a load-increase candidate.
   const next = nextStep(loadNow, config, assisted);
+  // A step past the entered list is a guess; every call that cites it says so.
+  const assumed = next?.beyondSteps ? { assumedStepLb: +Math.abs(next.load - loadNow).toFixed(2) } : {};
   if (assisted || config.category === 'bodyweight') {
     // Less assistance, or more added load on a bodyweight lift: Epley needs the
     // TOTAL load and the body is most of it, unlogged. Take the step on the rep
     // rule alone rather than predict off a number that is not the load.
     return next
-      ? { action: 'add-load', load: next.load, reason: { kind: 'increase', reps: eff, max, nextLoad: next.load, jumpPct: next.jumpPct } }
+      ? { action: 'add-load', load: next.load, reason: { kind: 'increase', reps: eff, max, nextLoad: next.load, jumpPct: next.jumpPct }, ...assumed }
       : { action: 'build-reps', load: loadNow, reason: { kind: 'no-next-step', reps: eff, cap } };
   }
   const bar = config.smithBarEffectiveLb ?? 0;
@@ -1170,12 +1205,14 @@ function rangeCall(
       reason: { kind: 'increase', reps: eff, max, nextLoad: next.load, jumpPct: next.jumpPct, predictedReps, e1rm },
       predictedReps,
       targetReps: asLogged(predictedReps, config),
+      ...assumed,
     };
   }
   if (eff >= cap) {
     return {
       action: 'build-reps', load: loadNow,
       reason: { kind: 'at-rep-cap', reps: eff, cap, nextLoad: next.load, jumpPct: next.jumpPct, predictedReps, techniques: techniques() },
+      ...assumed,
     };
   }
   // The effective reps at this load that would predict `min` at the next one:
@@ -1188,13 +1225,19 @@ function rangeCall(
       ...(need > eff && need <= cap ? { repsForStep: need } : {}),
     },
     targetReps: lowLogged + 1,
+    ...assumed,
   };
 }
 
-/** The next real step from `current`, or null when the entered steps run out. */
-function nextStep(current: number, config: EngineConfig, assisted: boolean): { load: number; jumpPct: number } | null {
-  if (config.loadSteps && !assisted && !config.loadSteps.some((x) => x > current)) return null;
-  if (config.loadSteps && assisted && !config.loadSteps.some((x) => x < current) && current <= 0) return null;
+/** The next step from `current` — past the entered steps it is assumed at
+ *  their spacing ({@link nextLoad}). Null only for an assisted lift already at
+ *  no assistance: there is nothing lighter to take away. */
+function nextStep(
+  current: number,
+  config: EngineConfig,
+  assisted: boolean,
+): { load: number; jumpPct: number; beyondSteps?: true } | null {
+  if (assisted && current <= 0) return null;
   return nextLoad(current, { availableLoads: config.loadSteps, incrementLb: config.stepLb, assisted });
 }
 

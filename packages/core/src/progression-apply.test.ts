@@ -27,9 +27,11 @@ const row = (id: string, targetLoad: number | undefined, extra: Partial<Template
 const rec = (name: string, sets: SessionExercise['sets'], catalog = {}) =>
   recommend([logged(name, sets)], { expectsCluster: true, structure: 'myoreps', config: resolveEngineConfig({ name, ...catalog }) });
 
-// The 10/6 Leg Day as logged, read the way the finish sheet reads it.
+// The 10/6 Leg Day as logged, read the way the finish sheet reads it — under
+// the 10/07 spec's compound range for the leg extension (the default has been
+// isolation since 2026-10-13, so it is pinned here).
 const LEG = new Map<string, Recommendation>([
-  ['Leg Extensions', rec('Leg Extensions', cluster(80, 14), { availableLoads: [70, 80, 90] })],
+  ['Leg Extensions', rec('Leg Extensions', cluster(80, 14), { availableLoads: [70, 80, 90], category: 'compound' })],
   ['Single-leg DB calf raise', rec('Single-leg DB calf raise', cluster(25, 14, 0, 5, 4))],
   ['Weighted Floor Crunch', rec('Weighted Floor Crunch', cluster(25, 15, 0, 6, 4))], // invalid: first mini 6
   ['Smith squat', rec('Smith squat', [...cluster(25, 13, 1, 5, 4), ...cluster(25, 13, 1, 4, 3).map((s) => ({ ...s, group: 2 }))], { effortStandard: 'rir1' })],

@@ -141,11 +141,17 @@ describe('Layer 1 — validity gate on the logged sessions', () => {
     expect(readExercise(ex(cluster(1, 50, 10, 0, FIRST_MINI_MAX + 1, 2)), clustered).issue).toBe('first-mini-too-many');
   });
 
-  it('a missing RIR blocks on a clustered lift and only there', () => {
+  it('a missing RIR never blocks: the read is valid, assumes RIR 0, and says so (2026-10-13)', () => {
     const rows: Row[] = [[1, 'activation', 11, undefined, 50], [1, 'mini', 4, 0, 50]];
-    expect(readExercise(ex(rows), clustered).issue).toBe('rir-missing');
-    expect(readExercise(ex(rows), { expectsCluster: false }).valid).toBe(true);
-    expect(readExercise(ex(rows), { expectsCluster: true, strictRir: false }).valid).toBe(true);
+    for (const opts of [clustered, { expectsCluster: false }, { expectsCluster: true, strictRir: true }]) {
+      const r = readExercise(ex(rows), opts);
+      expect(r).toMatchObject({ valid: true, issue: null });
+      expect(r.clusters[0].rirAssumed).toBe(true);
+    }
+    expect(readExercise(ex(cluster(1, 50, 11, 0, 4, 3)), clustered).clusters[0].rirAssumed).toBe(false);
+    // The mini rule still judges a set with no RIR.
+    expect(readExercise(ex([[1, 'activation', 11, undefined, 50], [1, 'mini', 7, 0, 50]]), clustered).issue)
+      .toBe('first-mini-too-many');
   });
 
   it('2026-09-02 pull-up logged as straight sets where a cluster was prescribed → not-clustered', () => {
@@ -176,25 +182,28 @@ describe('per-lift configuration — category, rep range, steps', () => {
   it('infers the spec\'s categories from the owner\'s lift names', () => {
     const cat = (n: string) => inferCategory(n);
     expect(['Smith squat', 'DB Romanian deadlift', 'Seated DB Shoulder Press', 'DB Flat Press', 'Seated Machine Row',
-      'Wide-grip lat pulldown', 'Chest-supported DB row', 'Leg Extensions', 'Leg Curls'].map(cat))
-      .toEqual(Array(9).fill('compound'));
+      'Wide-grip lat pulldown', 'Chest-supported DB row'].map(cat))
+      .toEqual(Array(7).fill('compound'));
+    // The machine leg extension and leg curl are single-joint: isolation since
+    // 2026-10-13 (the 10/07 spec had them as compounds).
     expect(['DB Lateral Raise', 'Rear delt DB flye', 'Incline DB Curl 45°', 'DB hammer curl', 'Overhead DB Extension',
-      'Skull Crusher', 'Single-leg DB calf raise'].map(cat))
-      .toEqual(Array(7).fill('isolation'));
+      'Skull Crusher', 'Single-leg DB calf raise', 'Leg Extensions', 'Leg Curls'].map(cat))
+      .toEqual(Array(9).fill('isolation'));
     expect(cat('Weighted Floor Crunch')).toBe('core');
     expect(['Neutral-grip pull-up', 'Deficit Push-up', 'Hanging Knee Raise', 'Chest Dip (forward lean)'].map(cat))
       .toEqual(Array(4).fill('bodyweight'));
   });
 
   it('category defaults: compound 6-12, isolation and core 8-15, bodyweight 6-15; an override wins', () => {
-    expect(resolveEngineConfig({ name: 'Leg Extensions' }).repRange).toEqual({ min: 6, max: 12 });
+    expect(resolveEngineConfig({ name: 'Seated Machine Row' }).repRange).toEqual({ min: 6, max: 12 });
+    expect(resolveEngineConfig({ name: 'Leg Extensions' }).repRange).toEqual({ min: 8, max: 15 });
     expect(resolveEngineConfig({ name: 'DB Lateral Raise' }).repRange).toEqual({ min: 8, max: 15 });
     expect(resolveEngineConfig({ name: 'Weighted Floor Crunch' }).repRange).toEqual({ min: 8, max: 15 });
     expect(resolveEngineConfig({ name: 'Neutral-grip pull-up' }).repRange).toEqual({ min: 6, max: 15 });
     expect(resolveEngineConfig({ name: 'Leg Extensions', repRange: { min: 8, max: 10 } }))
       .toMatchObject({ repRange: { min: 8, max: 10 }, repRangeSource: 'set' });
     // A nonsense override is ignored rather than trusted.
-    expect(resolveEngineConfig({ name: 'Leg Extensions', repRange: { min: 12, max: 6 } }).repRange).toEqual({ min: 6, max: 12 });
+    expect(resolveEngineConfig({ name: 'Seated Machine Row', repRange: { min: 12, max: 6 } }).repRange).toEqual({ min: 6, max: 12 });
   });
 
   it('steps: dumbbells and Smith in 5 lb; a stack uses the entered steps, else guesses from the template', () => {
@@ -239,8 +248,8 @@ describe('rule 2 — effective reps, and the Epley prediction', () => {
 // ─── The spec's real cases (2.6) ────────────────────────────────
 
 describe('the 2026-10-07 cases, one per rule', () => {
-  it('Leg extension 80 × 14 → increase to 90, predicting 9', () => {
-    const rec = recommend([ex(cluster(1, 80, 14, 0, 4, 3))], lift('Leg Extensions', { availableLoads: [70, 80, 90] }));
+  it('Leg extension 80 × 14 → increase to 90, predicting 9 (as a compound, which the 10/07 spec filed it as)', () => {
+    const rec = recommend([ex(cluster(1, 80, 14, 0, 4, 3))], lift('Leg Extensions', { availableLoads: [70, 80, 90], category: 'compound' }));
     expect(rec).toMatchObject({ action: 'add-load', load: 90, predictedReps: 9, targetReps: 9 });
     expect(rec.reason).toMatchObject({ kind: 'increase', reps: 14, max: 12, nextLoad: 90, predictedReps: 9 });
     expect(progressionCall(rec)).toBe('increase');
@@ -312,6 +321,50 @@ describe('the 2026-10-07 cases, one per rule', () => {
   });
 });
 
+// ─── The 2026-10-13 Leg Day (bug A) ─────────────────────────────
+// The sets as logged (`workoutSessions/OqkfxBFB56LyvB6exlnl`). Before the fix
+// the RDL repeated 35 (blank RIR read as invalid) and the leg curl held 90
+// (90 was its last entered pin); the Smith squat was already right.
+
+describe('the 2026-10-13 Leg Day', () => {
+  const pins = { availableLoads: [70, 80, 90] };
+
+  it('Smith squat 30 × 14 @ RIR 1 / 13 @ RIR 0 → 35', () => {
+    const sets = [...cluster(1, 30, 14, 1, 4, 4), ...cluster(2, 30, 13, 0, 4, 4)];
+    expect(recommend([ex(sets)], lift('Smith squat', { effortStandard: 'rir1' })))
+      .toMatchObject({ action: 'add-load', load: 35 });
+  });
+
+  it('DB RDL 35 × 13 at the top of 6–12 → 40, with or without the RIR (e1RM ≈ 50.2, about 7 at 40)', () => {
+    const at0 = recommend([ex(cluster(1, 35, 13, 0, 4, 4))], lift('DB Romanian deadlift'));
+    expect(at0).toMatchObject({ action: 'add-load', load: 40, predictedReps: 7, warnings: [] });
+    expect((at0.reason as { e1rm: number }).e1rm).toBeCloseTo(50.17, 2);
+    // As logged — RIR blank on every row: progress anyway, and say it was assumed.
+    const blank = recommend([ex([[1, 'activation', 13, undefined, 35], [1, 'mini', 4, undefined, 35], [1, 'mini', 4, undefined, 35]])], lift('DB Romanian deadlift'));
+    expect(blank).toMatchObject({ action: 'add-load', load: 40, predictedReps: 7, warnings: ['rir-missing-assumed-0'] });
+  });
+
+  it('Leg Extensions 90 × 14 — inside 8–15 → hold 90, one more rep', () => {
+    expect(recommend([ex(cluster(1, 90, 14, 0, 4, 3))], lift('Leg Extensions', pins)))
+      .toMatchObject({ action: 'hold', load: 90, targetReps: 15, reason: { kind: 'below-max', reps: 14, max: 15 } });
+  });
+
+  it('Leg Curls 90 × 15 — the top of 8–15, and >= is enough → 100 (e1RM 135, about 10 at 100)', () => {
+    const rec = recommend([ex(cluster(1, 90, 15, 0, 5, 5))], lift('Leg Curls', pins));
+    expect(rec).toMatchObject({ action: 'add-load', load: 100, predictedReps: 10, assumedStepLb: 10 });
+    expect((rec.reason as { e1rm: number }).e1rm).toBeCloseTo(135, 6);
+    // One rep under the top holds: the boundary is inclusive, and only there.
+    expect(recommend([ex(cluster(1, 90, 14, 0, 5, 5))], lift('Leg Curls', pins)).action).toBe('hold');
+  });
+
+  it('Hanging Knee Raise at bodyweight, first read since its 10/11 baseline → stays at bodyweight', () => {
+    const rec = recommend([ex(cluster(1, 0, 9, 0, 4, 3))], {
+      ...lift('Hanging Knee Raise'), baseline: { since: '2026-10-11', reason: 'context changed: position' },
+    });
+    expect(rec).toMatchObject({ action: 'hold', load: 0 });
+  });
+});
+
 // ─── Rule 3 — the cap and what comes after it ───────────────────
 
 describe('rule 3 — build to max + 5, then a technique, never a guess', () => {
@@ -334,12 +387,31 @@ describe('rule 3 — build to max + 5, then a technique, never a guess', () => {
       .toMatchObject({ techniques: ['tempo', 'microplates', 'add-cluster'] });
   });
 
-  it('the entered steps run out: build to the cap, then a technique', () => {
-    const top = lift('Leg Extensions', { availableLoads: [70, 80, 90] });
-    expect(recommend([ex(cluster(1, 90, 14, 0, 4, 3))], top))
-      .toMatchObject({ action: 'build-reps', load: 90, targetReps: 15, reason: { kind: 'no-next-step', cap: 17 } });
-    expect(recommend([ex(cluster(1, 90, 17, 0, 4, 3))], top).reason)
-      .toMatchObject({ kind: 'at-rep-cap', techniques: ['tempo'] });
+  it('past the last entered step the next is assumed at the list\'s spacing, and the call says so (2026-10-13)', () => {
+    // 10/13 Leg Curls: 90 × 15 @ RIR 0, 90 the last pin entered. e1RM 135 →
+    // 100 predicts 10 (10.5), inside 8–15: take it. Used to be "no-next-step".
+    const curls = lift('Leg Curls', { availableLoads: [70, 80, 90] });
+    const rec = recommend([ex(cluster(1, 90, 15, 0, 5, 5))], curls);
+    expect(rec).toMatchObject({ action: 'add-load', load: 100, predictedReps: 10, assumedStepLb: 10 });
+    expect(rec.reason).toMatchObject({ kind: 'increase', reps: 15, max: 15, nextLoad: 100 });
+    // An entered step is not a guess.
+    expect(recommend([ex(cluster(1, 80, 15, 0, 5, 5))], curls)).toMatchObject({ action: 'add-load', load: 90 });
+    expect(recommend([ex(cluster(1, 80, 15, 0, 5, 5))], curls).assumedStepLb).toBeUndefined();
+    // A one-entry list has no spacing: the increment.
+    expect(nextLoad(90, { availableLoads: [90], incrementLb: 5 })).toEqual({ load: 95, jumpPct: 5 / 90, beyondSteps: true });
+    expect(nextLoad(90, { availableLoads: [70, 80, 90] })).toEqual({ load: 100, jumpPct: 10 / 90, beyondSteps: true });
+    // Assisted, below the lightest entered step: down at the list's spacing, floored at 0.
+    expect(nextLoad(20, { assisted: true, availableLoads: [20, 30, 40] })).toEqual({ load: 10, jumpPct: 0.5, beyondSteps: true });
+    // An assisted lift at no assistance has nothing lighter: build reps.
+    expect(recommend([ex(cluster(1, 0, 15, 0, 4, 2))], lift('Chest Dip (forward lean)', { assisted: true })).reason)
+      .toMatchObject({ kind: 'no-next-step' });
+  });
+
+  it('at the rep cap past the entered steps, still a technique when the assumed step is too big', () => {
+    const top = lift('Leg Extensions', { availableLoads: [10, 20], category: 'compound' });
+    // 20 × 17: 30 (+50%) predicts 4, under 6 — capped, so a technique, and the step is flagged as assumed.
+    expect(recommend([ex(cluster(1, 20, 17, 0, 4, 3))], top))
+      .toMatchObject({ action: 'build-reps', load: 20, assumedStepLb: 10, reason: { kind: 'at-rep-cap', techniques: ['tempo'] } });
   });
 
   it('every cluster must reach the top; the lowest one binds and is named', () => {
@@ -349,7 +421,7 @@ describe('rule 3 — build to max + 5, then a technique, never a guess', () => {
 
   it('the e1RM comes from the LOWEST cluster', () => {
     // 20/14 at 80: binding 14 → 90 predicts 9, not the 16 a 20 would claim.
-    const rec = recommend([ex([...cluster(1, 80, 20, 0, 4, 3), ...cluster(2, 80, 14, 0, 3, 2)])], lift('Leg Curls', { availableLoads: [70, 80, 90] }));
+    const rec = recommend([ex([...cluster(1, 80, 20, 0, 4, 3), ...cluster(2, 80, 14, 0, 3, 2)])], lift('Leg Curls', { availableLoads: [70, 80, 90], category: 'compound' }));
     expect(rec.predictedReps).toBe(9);
   });
 
@@ -422,7 +494,7 @@ describe('rule 6 — stall detection with a checklist', () => {
   });
 
   it('no stall rides on a call that moves the load', () => {
-    const rec = recommend([s(12, 80), s(12, 80), s(12, 80)], lift('Leg Curls', { availableLoads: [70, 80, 90] }));
+    const rec = recommend([s(12, 80), s(12, 80), s(12, 80)], lift('Leg Curls', { availableLoads: [70, 80, 90], category: 'compound' }));
     expect(rec.action).toBe('add-load');
     expect(rec.stall).toBeUndefined();
   });
@@ -522,7 +594,7 @@ describe('wiring helpers', () => {
   });
 
   it('freezes the storable subset — target and prediction included — and audits whether it was followed', () => {
-    const rec = recommend([ex(cluster(1, 80, 14, 0, 4, 3))], lift('Leg Extensions', { availableLoads: [70, 80, 90] }));
+    const rec = recommend([ex(cluster(1, 80, 14, 0, 4, 3))], lift('Leg Extensions', { availableLoads: [70, 80, 90], category: 'compound' }));
     const snap = toRecommendationSnapshot(rec, new Date('2026-10-06T12:00:00Z'));
     expect(snap).toEqual({ action: 'add-load', load: 90, basedOn: '2026-10-06T12:00:00.000Z', targetReps: 9, predictedReps: 9 });
     expect(followedRecommendation(ex(cluster(1, 90, 10, 0, 4, 3), { recommendation: snap }))).toBe(true);

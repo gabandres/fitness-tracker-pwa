@@ -1041,6 +1041,9 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   // Large text (fontScale ≥ 1.5): PREVIOUS moves to its own line above the
   // inputs instead of squeezing every cell into an unreadable column.
   setPrevLine: { fontSize: font.small, color: colors.muted, paddingLeft: space.xs },
+  /** "RIR missing — enter it?" under a ticked set with a blank RIR. A link,
+   *  not an alert: the engine reads the blank as 0 and nothing is blocked. */
+  setRirMissing: { fontSize: font.small, color: colors.warn, fontWeight: '600', paddingLeft: space.xs, paddingVertical: 2 },
 
   // ── Records (Train review item 35) ──
   prBadge: {

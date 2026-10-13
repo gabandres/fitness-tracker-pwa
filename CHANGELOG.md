@@ -4,6 +4,34 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-10-13 — Progression: blank RIR and the last entered pin no longer stall a lift; markers export as markers
+
+Owner report on the 10/13 Leg Day. OTA on all seven runtimes (ledger).
+
+- **Bug A — a blank RIR blocked progression.** On a clustered lift a missing
+  activation RIR was a hard `rir-missing` invalid, so the 10/13 DB RDL (35 × 13,
+  past the top of 6–12, RIR left blank) repeated 35 with no visible cause. A
+  blank is now read as RIR 0 — the fewest effective reps the set can stand for,
+  so it can never advance a lift a logged RIR would have held — and the call
+  carries "RIR missing, assumed 0". A ticked working set with no RIR shows
+  "RIR missing — enter it?" under the row (non-blocking; opens the picker).
+- **Bug A — the last entered pin was a ceiling.** Leg Curls (90 × 15 @ RIR 0)
+  sat at the end of its `availableLoads` [70, 80, 90], and the engine answered
+  "no heavier step entered". Past the last entered step the next is now assumed
+  at the list's own spacing (→ 100) and the note says so.
+- **Category:** the machine leg extension and leg curl default to isolation
+  (8–15), per the owner; the 10/07 spec had them as compounds (6–12).
+- The `>=` top-of-range boundary was already correct on every comparison
+  (audited); the two stalls above were the causes.
+- **Bug C — the CSV exported the workout marker as a meal.** Every `dailyLogs`
+  row was written as `type=meal`, including the 0-kcal `exerciseCompleted`
+  marker a finished session writes for the streak. It is now
+  `type=workout_marker`.
+- **Data** (`scripts/owner-data-2026-10-13.mts`, backed up): RDL 10/13 RIR → 0 ×3;
+  10/13 Zone 2 RPE cleared; all 33 workout markers deleted (owner's call,
+  having been told they carry the streak); Leg Day re-run → RDL 35 → 40,
+  Leg Curls 90 → 100, Smith 35, Leg Extensions 90, knee raise BW.
+
 ## 2026-10-12 — Train UX round 2: 81.6 → 83.9 (scored); owner calls S23-10…13; lock-screen sets (1.2.7)
 
 Six fix agents (`FIX-PLAN-3.md` on `ignia-mac`), two independent code reviews

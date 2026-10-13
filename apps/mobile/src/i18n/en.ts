@@ -1224,7 +1224,7 @@ export const en = {
   // an unfounded one: the rep count means something different at RIR 5 than
   // at RIR 1, so it cannot be compared against the sessions the rule counts.
   'train.invalidRirEasy': 'First set had 4+ reps in reserve (RIR) — no load call.',
-  'train.invalidRirMissing': 'First set has no reps in reserve (RIR) — can’t judge.',
+  'train.invalidRirMissing': 'First set has no reps in reserve (RIR) — read as 0.',
   'train.invalidNotClustered': 'Logged as straight sets, not as a cluster.',
   'train.invalidHeading': 'Unreadable this session',
   'train.invalidHint': "What you logged still counts. It just won't change your next weight.",
@@ -1327,6 +1327,7 @@ export const en = {
   'train.rec.reason.nothingToRead': 'Nothing logged yet to read.',
   'train.rec.reason.unsupportedStructure': 'Programmed as {structure} — the engine does not read that structure yet.',
   'train.rec.warn.failureOnRir1': 'Logged at failure. This lift is set to leave 1 rep in reserve.',
+  'train.rec.warn.rirMissingAssumed0': 'RIR missing, assumed 0.',
   'train.rec.settings': 'Lift settings',
   'train.rec.templateLoad': 'Template: {load}',
   'train.rec.templateLoadHint': "Uses the template's load on every set you have not ticked",
@@ -1362,6 +1363,7 @@ export const en = {
   'train.rec.expectRir1': 'Expected: about {n} to failure ({logged} at RIR 1) — an estimate, not a guarantee.',
   'train.rec.approximate': 'Approximate — the Smith bar weight is not entered, so this uses the plates alone.',
   'train.rec.stepsUnknown': 'Stack steps not entered — assuming +{step}.',
+  'train.rec.stepAssumed': 'Past the last step entered — assuming +{step}.',
   'train.rec.techniques': 'Try instead: {list}.',
   'train.rec.technique.tempo': 'a 3 s eccentric or a pause rep',
   'train.rec.technique.microplates': 'microplates',
@@ -1729,6 +1731,7 @@ export const en = {
   // column "RIR". The glossary and the set sheet's explainer teach the term.
   'train.rirShort': 'RIR',
   'train.rirPrompt': 'How many more reps could you have done?',
+  'train.rirMissingPrompt': 'RIR missing — enter it?',
   'train.rirScale.none': 'RIR —',
   'train.rirScale.0': '0 · to failure',
   'train.rirScale.1': '1 left',
