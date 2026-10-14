@@ -341,3 +341,26 @@ describe('session duration estimate, v1 vs v2', () => {
     expect(week(1) - week(0)).toBe(-6);
   });
 });
+
+// ─── Excluded read ──────────────────────────────────────────────
+describe('Pull Day 2026-10-14: the out-of-position session is not a read for the row or the pull-up', () => {
+  const rowOf = (name: string) => v2('Pull Day').body.exercises.find((r) => r.name === name)!;
+  const skip = { excludedReads: [{ date: '2026-10-14', reason: 'context changed: position 2026-10-14' }] };
+  const day = (d: string, row: number, pu: number) => session(d, 'pull', [
+    sx('Seated Machine Row', [...cluster(1, 100, row), ...cluster(2, 100, row)]),
+    sx('Neutral-grip pull-up', cluster(1, 0, pu)),
+  ]);
+  const before = [day('2026-10-07', 11, 12), day('2026-09-30', 11, 11)];
+  const all = [day('2026-10-14', 13, 7), ...before];
+
+  for (const name of ['Seated Machine Row', 'Neutral-grip pull-up']) {
+    it(`${name}: the call is the one 10/14 would get had it never been logged`, () => {
+      const row = { ...rowOf(name), ...skip };
+      const cat = catalog(row.exerciseId);
+      const withSkip = sessionCall(row, all, cat);
+      const without = sessionCall(row, before, cat);
+      expect(withSkip.rec).toEqual(without.rec);
+      expect(withSkip.basedOn?.toISOString().slice(0, 10)).toBe('2026-10-07');
+    });
+  }
+});

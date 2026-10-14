@@ -7,6 +7,7 @@ import type {
 } from '@macrolog/core';
 import {
   engineHistory,
+  engineSessions,
   formatLoad,
   honourLifterLoad,
   isWorkingSet,
@@ -19,7 +20,6 @@ import {
   zone2Check,
   isLoggedCardioBlock,
   readableHistory,
-  calendarDateKey,
   sessionCardioSec,
   sessionCounts,
   templateCounts,
@@ -385,11 +385,9 @@ function computeRecommendation(
   });
   // The same rule `startFromTemplate` seeds the sets with, so the card and
   // the boxes cannot name two loads.
-  // The session the newest read came from: the first one on or after the
-  // baseline marker whose sets survive the read rules (core `sessionCall`).
-  const since = templateRow?.baseline?.since;
-  const basedOn = completed.find((s) => {
-    if (since && calendarDateKey(s.date) < since) return false;
+  // The session the newest read came from: the first one the engine may read
+  // (`engineSessions`) whose sets survive the read rules (core `sessionCall`).
+  const basedOn = engineSessions(completed, templateRow).find((s) => {
     const e = s.exercises.find((x) => x.exerciseId === exerciseId);
     return e != null && readableHistory([e], templateRow, side).length > 0;
   })?.date;

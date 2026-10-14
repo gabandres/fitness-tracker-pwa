@@ -372,6 +372,7 @@ function templateRows(data: ExportData): string[] {
       const notes = [
         ...drops.map((d) => `+ drop set${d.weight != null ? ` at ${d.weight}` : ''}`),
         ...(ex.baseline ? [`baseline since ${ex.baseline.since}: ${ex.baseline.reason}`] : []),
+        ...(ex.excludedReads ?? []).map((x) => `${x.date} not read: ${x.reason}`),
         ...(ccc ? [`cluster count changed ${ccc.from}→${ccc.to}${ccc.since ? ` on ${ccc.since}` : ''}; baseline`] : []),
       ].join('; ');
       out.push(row({

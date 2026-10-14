@@ -4,6 +4,7 @@ import {
   bestE1RMByExercise,
   dropEmptyExercises,
   engineHistory,
+  engineSessions,
   exerciseHistory,
   exerciseIsFullyDone,
   exerciseSeries,
@@ -576,5 +577,26 @@ describe('engineHistory — reads stop at the baseline marker', () => {
   });
   it('with one, only sessions on or after its day', () => {
     expect(engineHistory(sessions, 'sp', { baseline: { since: '2026-10-09' } }).map((e) => e.sets[0].reps)).toEqual([9]);
+  });
+});
+
+describe('engineHistory — an excluded read is skipped, and nothing around it is cut', () => {
+  const mk = (iso: string, reps: number) => ({
+    status: 'completed' as const, date: new Date(iso), createdAt: new Date(iso), updatedAt: new Date(iso),
+    exercises: [{ exerciseId: 'pu', name: 'Neutral-grip pull-up', cues: [], sets: [{ kind: 'activation' as const, reps, weight: 0 }] }],
+  });
+  // The owner's Pull Day: 10/14 is the one session the row ran first.
+  const sessions = [mk('2026-10-14T07:22:00', 7), mk('2026-10-07T07:39:00', 12), mk('2026-09-30T08:09:00', 11)];
+  const skip14 = { excludedReads: [{ date: '2026-10-14', reason: 'context changed: position 2026-10-14' }] };
+
+  it('the newest read is the last same-position session', () => {
+    expect(engineHistory(sessions, 'pu', skip14).map((e) => e.sets[0].reps)).toEqual([12, 11]);
+  });
+  it('with a baseline too, both apply', () => {
+    expect(engineHistory(sessions, 'pu', { ...skip14, baseline: { since: '2026-10-01' } }).map((e) => e.sets[0].reps)).toEqual([12]);
+  });
+  it('engineSessions keeps order and drops only the excluded day', () => {
+    expect(engineSessions(sessions, skip14).map((s) => s.date.getDate())).toEqual([7, 30]);
+    expect(engineSessions(sessions, null)).toEqual(sessions);
   });
 });

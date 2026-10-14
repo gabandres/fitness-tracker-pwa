@@ -439,6 +439,21 @@ export interface ProgressionBaseline {
   dropBackBelowReps?: number;
 }
 
+/**
+ * One session whose read of a lift is NOT evidence for the engine: the lift
+ * was performed in a context its other reads were not. Unlike a
+ * {@link ProgressionBaseline}, nothing before or after it is cut — the engine
+ * reads the sessions around it as if it had not been logged, so it compares
+ * same-context sessions only (owner, 2026-10-14: Pull Day's row ran before
+ * the pull-up that one session; every other read has the pull-up first).
+ */
+export interface ExcludedRead {
+  /** `YYYY-MM-DD`: the session on this calendar day is skipped. */
+  date: string;
+  /** Why, as recorded ("context changed: position 2026-10-14"). A record, not a key. */
+  reason: string;
+}
+
 export interface Exercise {
   id?: string;
   name: string;
@@ -526,6 +541,8 @@ export interface TemplateExercise {
   restAfterMaxSec?: number;
   /** See {@link ProgressionBaseline}. */
   baseline?: ProgressionBaseline;
+  /** See {@link ExcludedRead}. */
+  excludedReads?: ExcludedRead[];
   /** When and by whom this row last changed — any field, not only the load. */
   lastModifiedAt?: string;
   lastModifiedBy?: TemplateChangeBy;

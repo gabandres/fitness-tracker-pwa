@@ -166,22 +166,44 @@ export function exerciseHistory(
   return out;
 }
 
+/** The row fields that decide which sessions the engine may read. */
+export type EngineReadRow = Pick<TemplateExercise, 'clusterCountChange'> & {
+  baseline?: { since: string };
+  excludedReads?: readonly { date: string }[];
+};
+
+/**
+ * The sessions whose reads are evidence for a row: none before its baseline
+ * marker (`TemplateExercise.baseline`), none on an excluded day
+ * (`TemplateExercise.excludedReads`). Compared by calendar day, the unit both
+ * are written in. Order is kept.
+ */
+export function engineSessions<S extends Pick<WorkoutSession, 'date'>>(
+  sessions: readonly S[],
+  row?: EngineReadRow | null,
+): S[] {
+  const since = row?.baseline?.since;
+  const excluded = new Set((row?.excludedReads ?? []).map((x) => x.date));
+  if (!since && excluded.size === 0) return [...sessions];
+  return sessions.filter((s) => {
+    const day = calendarDateKey(s.date);
+    return !(since && day < since) && !excluded.has(day);
+  });
+}
+
 /**
  * The history the progression ENGINE reads for a template row: {@link
- * exerciseHistory}, minus every session before the row's baseline marker
- * (`TemplateExercise.baseline`). Sessions are compared by calendar day, the
- * unit the marker is written in. Charts and PRs keep reading the full
- * history — a baseline says the old reads are not evidence for the NEXT
- * load, not that they did not happen.
+ * exerciseHistory} over {@link engineSessions}. Charts and PRs keep reading
+ * the full history — a baseline or an excluded read says those reads are not
+ * evidence for the NEXT load, not that they did not happen.
  */
 export function engineHistory(
   sessions: readonly WorkoutSession[],
   exerciseId: string,
-  row?: Pick<TemplateExercise, 'clusterCountChange'> & { baseline?: { since: string } } | null,
+  row?: EngineReadRow | null,
   side?: Side,
 ): SessionExercise[] {
-  const since = row?.baseline?.since;
-  const history = exerciseHistory(since ? sessions.filter((s) => calendarDateKey(s.date) >= since) : sessions, exerciseId);
+  const history = exerciseHistory(engineSessions(sessions, row), exerciseId);
   // Program v2: a cluster-count change reads cluster 1 only; an L/R lift
   // reads one side at a time (`side-tracks.ts`).
   return readableHistory(history, row, side);

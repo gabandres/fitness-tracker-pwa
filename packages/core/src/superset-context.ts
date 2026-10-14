@@ -43,7 +43,7 @@ import {
   type EngineCatalogFields,
   type Recommendation,
 } from './progression-engine';
-import { engineHistory, exerciseHistory } from './train-view';
+import { engineHistory, engineSessions, exerciseHistory } from './train-view';
 import { stampChangedRows } from './progression-apply';
 import { normalizeSupersets, pendingLoadTest, supersetGroups } from './superset';
 import { calendarDateKey } from './date';
@@ -679,12 +679,11 @@ export function sessionCall(
   sides?: Partial<Record<Side, { rec: Recommendation; basedOn?: Date }>>;
 } {
   const history = engineHistory(completed, row.exerciseId, row);
-  // The session the newest READ came from: the first (newest) session on or
-  // after the baseline marker whose sets survive the read rules.
+  // The session the newest READ came from: the first (newest) session the
+  // engine may read (`engineSessions`) whose sets survive the read rules.
+  const readable = engineSessions(completed, row);
   const readFrom = (side?: Side): Date | undefined => {
-    const since = row.baseline?.since;
-    for (const s of completed) {
-      if (since && calendarDateKey(s.date) < since) continue;
+    for (const s of readable) {
       const e = s.exercises.find((x) => x.exerciseId === row.exerciseId);
       if (e && readableHistory([e], row, side).length > 0) return s.date;
     }
