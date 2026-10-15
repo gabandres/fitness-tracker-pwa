@@ -40,6 +40,7 @@ import {
   type MealType,
   type Measurement,
   type OnboardingV2Submission,
+  type TargetMode,
   clampCutPace,
 } from './types';
 import type { CardioBlock, PlannedCardioBlock } from './cardio';
@@ -232,33 +233,49 @@ export function toOnboardingV2Patch<TS>(
           targetPaceLbsPerWeek: clampCutPace(submission.targetPaceLbsPerWeek),
         }
       : null;
-  const targetMode = submission.targetMode ?? 'auto';
-  // The manual pair is a SEED for a new account and an OVERWRITE for an
-  // established one — see OnboardingV2Submission.isRedo for the measured case
-  // that cost the owner 175 kcal/day. So it is written unless this is an
-  // 'auto' redo: a first run always writes it (the seed beats the hardcoded
-  // 2,450 fallback), and a redo that EDITED either number is 'custom', where
-  // the digits are the user's own and dropping them would send the target
-  // back to the estimator the user was overriding.
+  // ── The manual pair and the mode ──
   //
-  // OMITTED, not deleted. An 'auto' redo leaves any pre-existing manual value
-  // in place, which keeps this change byte-identical to "did nothing" for
-  // every profile that already carries one; removing it would move targets
-  // for users who never asked for anything.
-  const writeManualTargets = !submission.isRedo || targetMode === 'custom';
+  // A FIRST RUN writes both numbers: they are a SEED for an account with
+  // nothing to measure (it beats the hardcoded 2,450), or the user's own when
+  // they edited one, and the mode says which.
+  //
+  // A REDO is an established user, and the numbers on the plan step are an
+  // OVERWRITE of something real — see OnboardingV2Submission.isRedo for the
+  // measured case that cost the owner 175 kcal/day. So a redo writes only what
+  // the user changed, per field (2026-10-15):
+  //
+  // - nothing changed  -> the mode they already had, nothing written. An
+  //   'auto' redo stays byte-identical to "did nothing"; a 'custom' one keeps
+  //   their own targets instead of being reset to automatic.
+  // - a number changed -> 'custom', and that number written. The OTHER one is
+  //   left alone if they were already on custom targets (it is theirs), and
+  //   cleared otherwise, so it stays automatic — exactly what the plan step
+  //   showed for it — rather than the plan's suggestion becoming "theirs".
+  let targetMode: TargetMode;
+  const manual: Record<string, unknown> = {};
+  if (!submission.isRedo) {
+    targetMode = submission.targetMode ?? 'auto';
+    manual['manualCaloriesTarget'] = submission.manualCaloriesTarget;
+    manual['manualProteinTarget'] = submission.manualProteinTarget;
+  } else {
+    const custom = submission.targetMode === 'custom';
+    const edited = submission.edited ?? { kcal: custom, protein: custom };
+    const anyEdited = edited.kcal || edited.protein;
+    const wasCustom = submission.previousTargetMode === 'custom';
+    targetMode = anyEdited ? 'custom' : (submission.previousTargetMode ?? 'auto');
+    const field = (key: string, isEdited: boolean, value: number) => {
+      if (isEdited) manual[key] = value;
+      else if (anyEdited && !wasCustom) manual[key] = codec.remove();
+    };
+    field('manualCaloriesTarget', edited.kcal, submission.manualCaloriesTarget);
+    field('manualProteinTarget', edited.protein, submission.manualProteinTarget);
+  }
   return {
     ...(refined ?? {}),
     goalDirection: submission.goalDirection,
-    ...(writeManualTargets
-      ? {
-          manualCaloriesTarget: submission.manualCaloriesTarget,
-          manualProteinTarget: submission.manualProteinTarget,
-        }
-      : {}),
-    // Written on EVERY onboarding save, including the default 'auto', so a
-    // user who re-runs onboarding and accepts the computed numbers is put
-    // back on automatic rather than inheriting a stale 'custom' from a
-    // previous run. An omitted mode would leave the old value in place.
+    ...manual,
+    // Written on every save, so the stored mode is always the one decided
+    // above — never a value inherited by omission.
     targetMode,
     onboardingV2CompletedAt: stamp,
     // Mark the profile complete so the v1 gate doesn't re-trigger v1

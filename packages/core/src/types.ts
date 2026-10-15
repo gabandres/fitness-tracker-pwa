@@ -275,7 +275,7 @@ export interface OnboardingV2Submission {
   targetPaceLbsPerWeek?: CutPace;
   /**
    * True when an already-completed profile is re-running the wizard —
-   * Settings → "Edit goals" pushes `/onboarding`, so this is a target EDIT by
+   * Settings → "Redo setup" pushes `/onboarding`, so this is a target EDIT by
    * an established user, not a first run.
    *
    * It exists because the two cases need different writes. For a new account
@@ -293,6 +293,20 @@ export interface OnboardingV2Submission {
    * the user's own, so they are still written.
    */
   isRedo?: boolean;
+  /**
+   * Which of the two plan numbers the user actually CHANGED on a redo — a
+   * number tapped open and left as it was is not an edit. Absent ⇒ derived
+   * from `targetMode` (custom ⇒ both), which is how it read before.
+   *
+   * Per field because the old pair-write overwrote the number the user did
+   * not touch: editing calories alone stored the plan's 1.6 g/kg protein as
+   * their own (found 2026-10-15).
+   */
+  edited?: { kcal: boolean; protein: boolean };
+  /** The profile's `targetMode` before this run. A redo that edits nothing
+   *  KEEPS it: a user on their own targets who re-ran setup to change the
+   *  goal was silently put back on automatic (found 2026-10-15). */
+  previousTargetMode?: TargetMode;
 }
 
 /** Payload from the Day-3 "Refine targets" sheet. Promotes a 2-Q-onboarded
@@ -317,6 +331,15 @@ export interface RefineTargetsSubmission {
    * exactly as before.
    */
   activityMultiplier?: number | null;
+  /**
+   * The goal, set beside the pace since 2026-10-15. Refine used to own the
+   * pace and not the goal, so a user could dial a cut pace under "Maintain"
+   * and get a deficit Settings did not mention — and the only way to change
+   * the goal itself was to redo the whole setup. Omitted leaves it as is.
+   * `'maintain'` stores pace 0 and clears the goal weight, as the one-tap
+   * maintenance switch does.
+   */
+  goalDirection?: GoalDirection;
 }
 
 /**

@@ -103,6 +103,7 @@ export * from './profile-bounds';
 // collected sex/height/age/activity, `computeKcal` when it could not — the
 // heuristic alone was biased by sex by up to 27% (UX_AUDIT F1/F2).
 export * from './onboarding-seed';
+export * from './onboarding-preview';
 // Activity-informed activity-level correction (docs/activity-informed-tdee-spec.md).
 // Imported Health activeKcal CORRECTS the self-reported activityLevel bucket
 // via a suggestion the user confirms; it never enters calculateTdee's

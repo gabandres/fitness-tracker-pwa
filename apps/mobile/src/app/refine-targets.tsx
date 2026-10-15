@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import {
   type ActivityLevel,
+  type GoalDirection,
   type Sex,
   activityMultiplier as activityMultiplierFor,
   basalMifflinStJeor,
@@ -24,6 +25,8 @@ import {
   toDisplayMeasure,
   isPlausibleAge,
   isPlausibleHeightIn,
+  DEFAULT_LOSE_PACE_LBS_PER_WEEK,
+  GAIN_SURPLUS_LBS_PER_WEEK,
   paceReality,
 } from '@macrolog/core';
 import { heightBandFor, parseHeightInput } from '@/app/onboarding';
@@ -64,6 +67,15 @@ function intOrNull(s: string): number | null {
 // platforms: under <KeyboardProvider> Android does not resize the window for
 // the IME, so adjustResize alone left fields and footers behind the keyboard
 // (emulator, 2026-10-06).
+/** The stepper's pace for a goal. Not `onboardingPace`: that rounds to the
+ *  stored 0.1 precision, and this stepper moves in quarter-pounds — a stored
+ *  0.75 must open as 0.75. The save rounds, once. */
+function paceFor(goal: GoalDirection, stored: number | null | undefined): number {
+  if (goal === 'maintain') return 0;
+  if (stored != null && stored > 0) return stored;
+  return goal === 'gain' ? GAIN_SURPLUS_LBS_PER_WEEK : DEFAULT_LOSE_PACE_LBS_PER_WEEK;
+}
+
 export default function RefineTargets() {
   const t = useT();
   const locale = useLocale();
@@ -103,7 +115,20 @@ export default function RefineTargets() {
   const [activity, setActivity] = useState<ActivityLevel | null>(
     suggested ?? profile?.activityLevel ?? null,
   );
-  const [pace, setPace] = useState<number>(profile?.targetPaceLbsPerWeek ?? 1);
+  // The goal sits beside the pace (2026-10-15). The pace alone could not say
+  // which way: a cut pace dialled under "Maintain" was a silent deficit, and
+  // changing the goal meant redoing the whole setup. No stored direction is a
+  // cut, as everywhere else (`isMaintaining`).
+  const [goal, setGoal] = useState<GoalDirection>(profile?.goalDirection ?? 'lose');
+  const [pace, setPace] = useState<number>(() => paceFor(goal, profile?.targetPaceLbsPerWeek));
+
+  /** A new goal brings its own pace: Maintain holds at 0, and Lose/Gain keep
+   *  the pace already on screen (or the stored one, or their default). */
+  function chooseGoal(next: GoalDirection) {
+    haptics.tap();
+    setGoal(next);
+    setPace((p) => paceFor(next, p > 0 ? p : profile?.targetPaceLbsPerWeek));
+  }
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -187,8 +212,9 @@ export default function RefineTargets() {
   // already returns null for a seed TDEE, but that leaned on the seed being
   // the only empty-input result. Say it here instead of relying on it.
   const targetsView = useDailyTargets();
-  const reality = targetsView.loaded
-    ? paceReality(targetsView.targets.tdee, pace, profile)
+  // A cut only: a surplus moves away from the floor and Maintain has no pace.
+  const reality = targetsView.loaded && goal === 'lose'
+    ? paceReality(targetsView.targets.tdee, pace, { ...profile, goalDirection: goal })
     : null;
   const paceLimit = reality?.floorBinding ? reality : null;
 
@@ -224,6 +250,7 @@ export default function RefineTargets() {
       activityLevel: selected,
       activityMultiplier,
       targetPaceLbsPerWeek: pace,
+      goalDirection: goal,
     })
       .then(() => {
         // Drop any remembered "no" so a future window is free to suggest that
@@ -253,6 +280,12 @@ export default function RefineTargets() {
       <KeyboardAvoidingView behavior="padding" automaticOffset style={styles.fill}>
         <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
           <Text style={styles.subtitle}>{t('refine.subtitle')}</Text>
+          {/* Refine changes the INPUTS to the automatic number. Saying so
+              matters for a user on their own targets, who would otherwise read
+              a save here as changing what they eat. */}
+          {profile?.targetMode === 'custom' ? (
+            <Text style={styles.hint} testID="refine-custom-note">{t('refine.customNote')}</Text>
+          ) : null}
 
           <View style={styles.field}>
             <Text style={styles.label} accessibilityRole="header">{t('refine.sex')}</Text>
@@ -376,18 +409,45 @@ export default function RefineTargets() {
           </View>
 
           <View style={styles.field}>
+            <Text style={styles.label} accessibilityRole="header">{t('refine.goal')}</Text>
+            <View style={styles.segment} accessibilityRole="radiogroup" accessibilityLabel={t('refine.goal')}>
+              {(['lose', 'maintain', 'gain'] as GoalDirection[]).map((g) => {
+                const on = goal === g;
+                return (
+                  <TouchableOpacity
+                    key={g}
+                    style={[styles.segBtn, on && styles.segBtnOn]}
+                    onPress={() => chooseGoal(g)}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: on }}
+                    testID={`refine-goal-${g}`}
+                  >
+                    <Text style={[styles.segText, on && styles.segTextOn]}>{t(`goal.${g}` as I18nKey)}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
+          <View style={styles.field}>
             <Text style={styles.label} accessibilityRole="header">{t('refine.pace')}</Text>
+            {goal === 'maintain' ? (
+              <Text style={styles.hint} testID="refine-pace-maintain">{t('refine.paceMaintainHint')}</Text>
+            ) : (
             <View style={styles.paceRow}>
-              <TouchableOpacity style={styles.step} onPress={() => setPace((p) => Math.max(0, Math.round((p - 0.25) * 100) / 100))} accessibilityRole="button" accessibilityLabel={t('settings.stepLower', { what: t('refine.pace') })} testID="refine-pace-minus">
+              {/* 0.25 is the floor on a Lose or Gain goal: a zero pace there is
+                  Maintain under another name, and that is the button above. */}
+              <TouchableOpacity style={styles.step} onPress={() => setPace((p) => Math.max(0.25, Math.round((p - 0.25) * 100) / 100))} accessibilityRole="button" accessibilityLabel={t('settings.stepLower', { what: t('refine.pace') })} testID="refine-pace-minus">
                 <Text style={styles.stepText}>−</Text>
               </TouchableOpacity>
               <Text style={styles.paceValue} testID="refine-pace">
-                {pace === 0 ? t('refine.maintain') : paceText(pace)}
+                {`${goal === 'gain' ? '+' : '−'}${paceText(pace)}`}
               </Text>
               <TouchableOpacity style={styles.step} onPress={() => setPace((p) => Math.min(2, Math.round((p + 0.25) * 100) / 100))} accessibilityRole="button" accessibilityLabel={t('settings.stepRaise', { what: t('refine.pace') })} testID="refine-pace-plus">
                 <Text style={styles.stepText}>+</Text>
               </TouchableOpacity>
             </View>
+            )}
             {paceLimit ? (
               <Text style={styles.paceNote} testID="refine-pace-floor">
                 {paceLimit.effectivePace > 0

@@ -184,6 +184,14 @@ export const en = {
   'onboarding.planBasis': 'Based on your height, age, sex and activity — we estimate you burn about {n} kcal a day.',
   'onboarding.planBasisRough': 'This is a rough estimate from your weight alone. Add your height, age, sex and activity in Settings → Refine targets to sharpen it.',
   'onboarding.planFloor': 'Held at {n} — the lowest daily target we recommend.',
+  'onboarding.goalWeightOptional': "Optional — leave it blank if you don't have one.",
+  'onboarding.goalWeightSkip': "I don't have a goal weight",
+  'onboarding.goalWeightBelow': "For a loss goal, pick a weight below your current {w}.",
+  'onboarding.goalWeightAbove': "For a build goal, pick a weight above your current {w}.",
+  'onboarding.weightPrefilled': "Your latest weigh-in. Change it if today's is different — a new number is saved as today's weigh-in.",
+  'onboarding.weightNewWeighIn': "Saved as today's weigh-in when you finish.",
+  'onboarding.planBasisMeasured': "Based on your measured maintenance — about {n} kcal a day from your own logs and weigh-ins.",
+  'onboarding.planBasisOwn': "These are your own targets, and they stay as they are. Tap a number to change it.",
   'onboarding.planSub': "Here's your daily plan — you can refine it anytime.",
   'onboarding.continue': 'Continue',
   'onboarding.remindersQ': 'Want a nudge at meal times?',
@@ -2060,6 +2068,9 @@ export const en = {
   'refine.activityConnect': 'Not sure? Connect Health and we’ll answer this from your last 4 weeks.',
   'refine.activityConnectCta': 'Connect Health',
   'refine.pace': 'Weekly pace',
+  'refine.goal': "Goal",
+  'refine.paceMaintainHint': "Maintain eats at your maintenance — there is no pace to set.",
+  'refine.customNote': "You're on your own targets (Settings → Daily targets). Saving here updates the automatic suggestion, not the targets you set.",
   'refine.paceFloorCapped':
     'Your {floor} kcal floor holds this to {pace}. Lower the floor in Settings to actually go faster.',
   'refine.paceFloorNoDeficit':
@@ -2079,7 +2090,7 @@ export const en = {
   'activity.stepsOnlyAndroid': 'Your steps are syncing, but no active-energy data. Connect a watch or fitness app (Samsung Health, Fitbit, Google Fit) to Health Connect to use this.',
   'activity.stepsOnlyIos': 'Your steps are syncing, but no active-energy data. Wearing an Apple Watch — or enabling Motion & Fitness for Health — lets us estimate your activity level.',
   'settings.refine': 'Refine targets',
-  'settings.refineSub': 'Height, age, activity and pace · sharpens the automatic target, unlocks body fat',
+  'settings.refineSub': "Goal, pace, height, age and activity · sharpens the automatic target, unlocks body fat",
   'settings.weeklyDigest': 'Weekly recap email',
   'settings.weeklyDigestSub': 'A Sunday snapshot of your last 7 days',
 

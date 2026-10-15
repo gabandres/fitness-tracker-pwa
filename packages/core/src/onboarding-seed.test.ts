@@ -288,9 +288,14 @@ describe('the seed and the estimator agree about which way the pace points', () 
 describe('paceOffsetKcal', () => {
   it('is positive for a deficit and negative for a surplus', () => {
     expect(paceOffsetKcal(1, 'lose')).toBeCloseTo(500, 0);
-    expect(paceOffsetKcal(1, 'maintain')).toBeCloseTo(500, 0);
     expect(paceOffsetKcal(1, undefined)).toBeCloseTo(500, 0);
     expect(paceOffsetKcal(1, 'gain')).toBeCloseTo(-500, 0);
+  });
+
+  it("is zero for 'maintain' even with a stored pace — the goal says hold", () => {
+    // The owner's 2026-10-15 profile: Maintain, 0.8 lb/wk left over from
+    // Refine targets, and a target 400 kcal under maintenance.
+    expect(paceOffsetKcal(0.8, 'maintain')).toBe(0);
   });
 });
 

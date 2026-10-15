@@ -31,7 +31,15 @@ jest.mock('@/lib/auth', () => ({
     signOut: jest.fn(),
   }),
 }));
-jest.mock('@/lib/ledger', () => ({ saveOnboardingV2: (...args: unknown[]) => mockSave(...args) }));
+const mockGetLatestWeight = jest.fn().mockResolvedValue(null);
+const mockWriteMetric = jest.fn().mockResolvedValue(undefined);
+jest.mock('@/lib/ledger', () => ({ saveOnboardingV2: (...args: unknown[]) => mockSave(...args),
+  // The redo's one-shot reads for the weight prefill and the plan preview.
+  getLatestDailyWeight: (...a: unknown[]) => mockGetLatestWeight(...a),
+  getRecentLogs: async () => [],
+  getAllDailyWeights: async () => ({}),
+}));
+jest.mock('@/lib/ledger-ops', () => ({ writeDailyMetric: (...a: unknown[]) => mockWriteMetric(...a) }));
 jest.mock('@/lib/analytics', () => ({ track: jest.fn() }));
 
 // `onboarding.tsx` stamps `ageConfirmedAt` straight through the SDK after the

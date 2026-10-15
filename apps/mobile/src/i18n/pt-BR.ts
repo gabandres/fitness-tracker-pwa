@@ -166,6 +166,14 @@ export const ptBR = {
   'onboarding.planBasis': 'Com base na sua altura, idade, sexo e atividade — estimamos que você gaste cerca de {n} kcal por dia.',
   'onboarding.planBasisRough': 'Esta é uma estimativa aproximada, feita só a partir do seu peso. Adicione altura, idade, sexo e atividade em Ajustes → Refinar metas para deixá-la mais precisa.',
   'onboarding.planFloor': 'Mantido em {n} — a menor meta diária que recomendamos.',
+  'onboarding.goalWeightOptional': "Opcional — deixe em branco se você não tiver um.",
+  'onboarding.goalWeightSkip': "Não tenho um peso-alvo",
+  'onboarding.goalWeightBelow': "Para uma meta de perda, escolha um peso abaixo do seu peso atual de {w}.",
+  'onboarding.goalWeightAbove': "Para uma meta de ganho, escolha um peso acima do seu peso atual de {w}.",
+  'onboarding.weightPrefilled': "Sua pesagem mais recente. Mude se a de hoje for diferente — um número novo é salvo como a pesagem de hoje.",
+  'onboarding.weightNewWeighIn': "Salvo como a pesagem de hoje ao terminar.",
+  'onboarding.planBasisMeasured': "Com base na sua manutenção medida — cerca de {n} kcal por dia pelos seus próprios registros e pesagens.",
+  'onboarding.planBasisOwn': "Estas são as suas próprias metas e continuam como estão. Toque em um número para mudá-lo.",
   'onboarding.planSub': 'Este é o seu plano diário — você pode refiná-lo quando quiser.',
   'onboarding.continue': 'Continuar',
   'onboarding.remindersQ': 'Quer um lembrete na hora das refeições?',
@@ -1877,6 +1885,9 @@ export const ptBR = {
   'refine.activityConnect': 'Não tem certeza? Conecte o Health e respondemos isso pelas suas últimas 4 semanas.',
   'refine.activityConnectCta': 'Conectar o Health',
   'refine.pace': 'Ritmo semanal',
+  'refine.goal': "Meta",
+  'refine.paceMaintainHint': "Manter é comer na sua manutenção — não há ritmo para definir.",
+  'refine.customNote': "Você está usando suas próprias metas (Ajustes → Metas diárias). Salvar aqui atualiza a sugestão automática, não as metas que você definiu.",
   'refine.paceFloorCapped':
     'Seu piso de {floor} kcal segura isso em {pace}. Baixe o piso nos Ajustes para realmente ir mais rápido.',
   'refine.paceFloorNoDeficit':
@@ -1893,7 +1904,7 @@ export const ptBR = {
   'activity.stepsOnlyAndroid': 'Seus passos estão sincronizando, mas não há dados de energia ativa. Conecte um relógio ou app de atividade (Samsung Health, Fitbit, Google Fit) ao Health Connect para usar isso.',
   'activity.stepsOnlyIos': 'Seus passos estão sincronizando, mas não há dados de energia ativa. Usar um Apple Watch — ou ativar Movimento e Preparo Físico para o Saúde — nos permite estimar o seu nível de atividade.',
   'settings.refine': 'Refinar metas',
-  'settings.refineSub': 'Altura, idade, atividade e ritmo · refina a meta automática, libera a gordura corporal',
+  'settings.refineSub': "Meta, ritmo, altura, idade e atividade · refina a meta automática, libera a gordura corporal",
   'settings.weeklyDigest': 'E-mail de resumo semanal',
   'settings.weeklyDigestSub': 'Um retrato de domingo dos seus últimos 7 dias',
 

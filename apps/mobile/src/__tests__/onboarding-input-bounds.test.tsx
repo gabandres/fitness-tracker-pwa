@@ -34,7 +34,15 @@ jest.mock('@/lib/auth', () => ({
     signOut: mockSignOut,
   }),
 }));
-jest.mock('@/lib/ledger', () => ({ saveOnboardingV2: (...a: unknown[]) => mockSave(...a) }));
+const mockGetLatestWeight = jest.fn().mockResolvedValue(null);
+const mockWriteMetric = jest.fn().mockResolvedValue(undefined);
+jest.mock('@/lib/ledger', () => ({ saveOnboardingV2: (...a: unknown[]) => mockSave(...a),
+  // The redo's one-shot reads for the weight prefill and the plan preview.
+  getLatestDailyWeight: (...a: unknown[]) => mockGetLatestWeight(...a),
+  getRecentLogs: async () => [],
+  getAllDailyWeights: async () => ({}),
+}));
+jest.mock('@/lib/ledger-ops', () => ({ writeDailyMetric: (...a: unknown[]) => mockWriteMetric(...a) }));
 jest.mock('@/lib/analytics', () => ({ track: jest.fn() }));
 jest.mock('@/lib/firebase', () => ({ db: {} }));
 jest.mock('firebase/firestore', () => ({

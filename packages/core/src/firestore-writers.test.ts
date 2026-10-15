@@ -535,6 +535,45 @@ describe('toOnboardingV2Patch', () => {
       expect(patch['targetMode']).toBe('custom');
     });
 
+    /**
+     * Per field, since 2026-10-15. The pair-write overwrote the number the
+     * user did not touch, and an unedited redo reset a custom user to
+     * automatic — the owner's 1,850 / 140 would have become an automatic
+     * target and the plan's 1.6 g/kg protein.
+     */
+    it('keeps a custom user on their own targets when nothing was edited', () => {
+      const patch = toOnboardingV2Patch(
+        { ...redo, previousTargetMode: 'custom', edited: { kcal: false, protein: false } },
+        codec,
+        NOW,
+      );
+      expect(patch['targetMode']).toBe('custom');
+      expect('manualCaloriesTarget' in patch).toBe(false);
+      expect('manualProteinTarget' in patch).toBe(false);
+    });
+
+    it('writes ONLY the edited number; the other stays automatic for an auto user', () => {
+      const patch = toOnboardingV2Patch(
+        { ...redo, targetMode: 'custom', previousTargetMode: 'auto', edited: { kcal: true, protein: false } },
+        codec,
+        NOW,
+      );
+      expect(patch['targetMode']).toBe('custom');
+      expect(patch['manualCaloriesTarget']).toBe(1760);
+      // Cleared, so the plan's suggestion is not silently made "theirs".
+      expect(patch['manualProteinTarget']).toBe(REMOVE);
+    });
+
+    it("leaves a custom user's other number exactly where it was", () => {
+      const patch = toOnboardingV2Patch(
+        { ...redo, targetMode: 'custom', previousTargetMode: 'custom', edited: { kcal: true, protein: false } },
+        codec,
+        NOW,
+      );
+      expect(patch['manualCaloriesTarget']).toBe(1760);
+      expect('manualProteinTarget' in patch).toBe(false);
+    });
+
     it('leaves every other field of the patch alone', () => {
       const patch = toOnboardingV2Patch(redo, codec, NOW);
       expect(patch).toEqual({

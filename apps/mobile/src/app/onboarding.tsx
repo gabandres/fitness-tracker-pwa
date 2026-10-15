@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, { FadeInLeft, FadeInRight, ReduceMotion } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,7 +8,10 @@ import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import {
   type ActivityLevel,
+  type DailyLog,
   type GoalDirection,
+  LOG_WINDOW_ROWS,
+  type OnboardingV2Submission,
   HEIGHT_IN_MAX,
   HEIGHT_IN_MIN,
   type Sex,
@@ -17,11 +20,18 @@ import {
   WEIGHT_MIN_LB,
   bodyWeightUnit,
   computeProtein,
+  dailyTargets,
+  dayBoundaryOf,
+  dayKeyAt,
+  goalWeightIssue,
+  isStorableWeight,
+  profileAfterOnboarding,
   isPlausibleAge,
   isPlausibleHeightIn,
   measureUnit,
   onboardingPace,
   onboardingSeed,
+  paceOffsetKcal,
   parseMeasureToIn,
   parseWeightToLb,
   toDisplayMeasure,
@@ -33,7 +43,9 @@ import {
 import { ConfirmHost, confirm } from '@/components/ConfirmSheet';
 import { useAuth } from '@/lib/auth';
 import { db } from '@/lib/firebase';
-import { saveOnboardingV2, setUnitSystem } from '@/lib/ledger';
+import { getAllDailyWeights, getLatestDailyWeight, getRecentLogs, saveOnboardingV2, setUnitSystem } from '@/lib/ledger';
+import { writeDailyMetric } from '@/lib/ledger-ops';
+import { useCalendarToday } from '@/hooks/useDayKey';
 import { setRemindersEnabled } from '@/lib/reminders';
 import { holdTour } from '@/lib/tour';
 import { DEFAULT_MEAL_REMINDERS, STREAK_RISK_HOUR, STREAK_RISK_MINUTE } from '@macrolog/core';
@@ -161,7 +173,7 @@ export default function Onboarding() {
   const { user, profile, signOut } = useAuth();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  // A completed profile only reaches this screen via Settings → "Edit goals":
+  // A completed profile only reaches this screen via Settings → "Redo setup":
   // it returns to Settings when done.
   const isRedo = !!profile?.profileCompleted;
   // The unit the profile reads in today (`undefined` → 'us', see the hook).
@@ -185,7 +197,7 @@ export default function Onboarding() {
   // start (also counts federated arrivals, which `signup` deliberately does
   // not — see auth.tsx), reaching the body step (the sex/height/age asks),
   // and reaching the plan. First arrival per run only, so Back/forward
-  // passes cannot double-count; a redo via Settings → Edit goals is not a
+  // passes cannot double-count; a redo via Settings → Redo setup is not a
   // funnel entry and counts nothing.
   const trackedSteps = useRef<Set<StepId>>(new Set());
   useEffect(() => {
@@ -196,6 +208,41 @@ export default function Onboarding() {
     else if (step === 'plan') track('onboarding_step_plan');
   }, [step, isRedo]);
   const [weight, setWeight] = useState('');
+  // ── The weight a redo already knows (2026-10-15) ──
+  // A redo asked for the current weight with an empty box, then threw the
+  // answer away — it only fed the plan's numbers. Now the box starts at the
+  // latest weigh-in, and a number the user CHANGES is saved as today's
+  // weigh-in on Save. An untouched prefill is never written: it is an old
+  // reading, and filing it under today would put a fake point in the trend.
+  const [latestLb, setLatestLb] = useState<number | null>(null);
+  const [weightTouched, setWeightTouched] = useState(false);
+  // The same inputs Today's target is computed from, read ONCE for the plan
+  // preview below. A redo only: a first run has no history to preview.
+  const [history, setHistory] = useState<{ logs: DailyLog[]; weights: Record<string, number> } | null>(null);
+  const uid = user?.uid;
+  useEffect(() => {
+    if (!uid || !isRedo) return;
+    let alive = true;
+    getLatestDailyWeight(uid)
+      .then((lb) => {
+        if (!alive || lb == null) return;
+        setLatestLb(lb);
+        setWeight((typed) => (typed.trim() === '' ? String(toDisplayWeight(lb, unitSystem)) : typed));
+      })
+      .catch((e: unknown) => captureError(e, { where: 'onboarding.latestWeight' }));
+    Promise.all([getRecentLogs(uid, LOG_WINDOW_ROWS), getAllDailyWeights(uid)])
+      .then(([logs, weights]) => {
+        if (alive) setHistory({ logs, weights });
+      })
+      .catch((e: unknown) => captureError(e, { where: 'onboarding.history' }));
+    return () => {
+      alive = false;
+    };
+  }, [uid, isRedo, unitSystem]);
+  function typeWeight(v: string) {
+    setWeightTouched(true);
+    setWeight(v);
+  }
   const [goal, setGoal] = useState<GoalDirection | null>(profile?.goalDirection ?? null);
   const [targetWeight, setTargetWeight] = useState(() => {
     const g = profile?.targetWeightLbs ?? profile?.goalWeightLbs;
@@ -243,8 +290,16 @@ export default function Onboarding() {
   // profile used to build a plan for a 68 lb person (UX_AUDIT F3).
   const weightLbs = parseWeightToLb(weight, unitSystem) ?? undefined;
   const weightOk = weightInBand(weightLbs);
+  // Skip the goal-weight step for "maintain" (there's no target to hit).
+  const skipGoalWeight = goal === 'maintain';
   const targetWeightLbs = parseWeightToLb(targetWeight, unitSystem);
-  const targetWeightOk = weightInBand(targetWeightLbs);
+  // Goal weight is OPTIONAL (2026-10-15): nothing downstream needs it — the
+  // rules allow a cut with none and the target math never reads it — yet Lose
+  // and Gain could not continue without one. Blank means "no goal weight". A
+  // typed one must be plausible AND on the right side of the current weight.
+  const targetBlank = targetWeight.trim() === '';
+  const targetDirIssue = goalWeightIssue(goal, weightLbs, targetWeightLbs);
+  const targetWeightOk = targetBlank || (weightInBand(targetWeightLbs) && targetDirIssue == null);
   const weightBand = weightBoundsFor(unitSystem);
   // Onboarding has no pace control, so the pace is derived: 1 lb/wk for a cut
   // unless the user already dialled one in Refine, 0 otherwise. See
@@ -278,10 +333,77 @@ export default function Onboarding() {
   const [editing, setEditing] = useState<'kcal' | 'protein' | null>(null);
   const [kcalDraft, setKcalDraft] = useState<string | null>(null);
   const [proteinDraft, setProteinDraft] = useState<string | null>(null);
+  // What each number read when its editor opened. A number tapped open and
+  // left as it was is not an edit — it used to be, and it flipped the save to
+  // custom on a tap.
+  const [kcalBase, setKcalBase] = useState<number | null>(null);
+  const [proteinBase, setProteinBase] = useState<number | null>(null);
+  const kcalTyped = kcalDraft != null ? (numOrUndef(kcalDraft) ?? null) : null;
+  const proteinTyped = proteinDraft != null ? (numOrUndef(proteinDraft) ?? null) : null;
+  const kcalEdited = kcalDraft != null && kcalTyped !== kcalBase;
+  const proteinEdited = proteinDraft != null && proteinTyped !== proteinBase;
+  const edited = kcalEdited || proteinEdited;
 
-  const kcal = kcalDraft != null ? (numOrUndef(kcalDraft) ?? null) : suggestedKcal;
-  const protein = proteinDraft != null ? (numOrUndef(proteinDraft) ?? null) : suggestedProtein;
-  const edited = kcalDraft != null || proteinDraft != null;
+  // Today's weigh-in, when Save will write one: a first run's answer, or a
+  // redo whose prefilled weight the user changed.
+  const writesWeighIn =
+    weightLbs != null &&
+    isStorableWeight(weightLbs) &&
+    (latestLb == null || (weightTouched && Math.abs(weightLbs - latestLb) >= 0.05));
+
+  // ONE submission, for the preview and for the save, so the two cannot
+  // disagree. Values for a number the user did not change are the seed; a
+  // redo never writes those (`toOnboardingV2Patch`), a first run does.
+  const submission: OnboardingV2Submission | null =
+    weightLbs != null && goal
+      ? {
+          weightLbs,
+          goalDirection: goal,
+          targetWeightLbs: skipGoalWeight || targetBlank ? undefined : (targetWeightLbs ?? undefined),
+          manualCaloriesTarget: (kcalEdited ? kcalTyped : suggestedKcal) ?? 0,
+          manualProteinTarget: (proteinEdited ? proteinTyped : suggestedProtein) ?? 0,
+          // The Mifflin-St Jeor set. Passed unconditionally — `toOnboardingV2Patch`
+          // is the one place that decides whether a complete set was collected.
+          // Undefined means "skipped or half-answered", and none of the five is
+          // then written.
+          sex: sex ?? undefined,
+          heightIn: heightIn ?? undefined,
+          age: ageNum ?? undefined,
+          activityLevel: activity ?? undefined,
+          targetPaceLbsPerWeek: pace,
+          targetMode: edited ? 'custom' : 'auto',
+          isRedo,
+          edited: { kcal: kcalEdited, protein: proteinEdited },
+          previousTargetMode: profile?.targetMode,
+        }
+      : null;
+
+  // ── What Save will actually do (2026-10-15) ──
+  // A redo's plan step showed the onboarding seed — 2,110 kcal / 110 g on the
+  // owner's account — while the save kept a measured target of 1,850 and a
+  // custom 140 g. It now shows the target chain run over the profile AS IT
+  // WILL BE (`profileAfterOnboarding`, the same patch the save writes) and
+  // this user's own history, with the weigh-in Save is about to file.
+  const calendarToday = useCalendarToday();
+  const boundary = useMemo(() => dayBoundaryOf(profile), [profile]);
+  const weighInKey = dayKeyAt(calendarToday, boundary);
+  // Until the history read lands there is no preview, and the plan shows the
+  // seed as it always did — never a preview built on no data, which would
+  // read as a seed-mode 1,800.
+  const previewProfile =
+    isRedo && step === 'plan' && profile && submission && history ? profileAfterOnboarding(profile, submission) : null;
+  const preview =
+    previewProfile && history
+      ? dailyTargets(
+          previewProfile,
+          history.logs,
+          writesWeighIn && weightLbs != null ? { ...history.weights, [weighInKey]: weightLbs } : history.weights,
+          calendarToday,
+        )
+      : null;
+
+  const kcal = kcalDraft != null ? kcalTyped : (preview?.calorieTarget ?? suggestedKcal);
+  const protein = proteinDraft != null ? proteinTyped : (preview?.proteinTarget ?? suggestedProtein);
   // BOTH numbers are validated. Protein used to be unchecked here on the
   // reasoning that "the estimator's own clamp catches anything wild on the way
   // out" — it does not, because the clamp is server-side: `firestore.rules`
@@ -297,12 +419,37 @@ export default function Onboarding() {
   function openEditor(which: 'kcal' | 'protein') {
     haptics.tap();
     setEditing(which);
-    if (which === 'kcal' && kcalDraft == null) setKcalDraft(String(suggestedKcal ?? ''));
-    if (which === 'protein' && proteinDraft == null) setProteinDraft(String(suggestedProtein ?? ''));
+    // Start from the number on screen — on a redo that is the preview, not
+    // the seed.
+    if (which === 'kcal' && kcalDraft == null) {
+      setKcalBase(kcal);
+      setKcalDraft(String(kcal ?? ''));
+    }
+    if (which === 'protein' && proteinDraft == null) {
+      setProteinBase(protein);
+      setProteinDraft(String(protein ?? ''));
+    }
   }
 
-  // Skip the goal-weight step for "maintain" (there's no target to hit).
-  const skipGoalWeight = goal === 'maintain';
+  // The basis line for a redo, read off the preview: whose number it is, and
+  // what it was built from.
+  const redoBasis: string | null = !preview
+    ? null
+    : preview.calorieSource === 'user' && !kcalEdited
+      ? t('onboarding.planBasisOwn')
+      : preview.calorieSource === 'auto' && preview.tdee.source === 'measured'
+        ? t('onboarding.planBasisMeasured', { n: formatNumber(preview.tdee.trueTdee, locale) })
+        : preview.calorieSource === 'auto' && preview.tdee.source === 'formula'
+          ? t('onboarding.planBasis', { n: formatNumber(preview.tdee.trueTdee, locale) })
+          : null;
+  // An automatic target the floor is holding up: maintenance minus the pace
+  // lands under it.
+  const redoFloor =
+    preview != null &&
+    preview.calorieSource === 'auto' &&
+    preview.tdee.source !== 'seed' &&
+    Math.round(preview.tdee.trueTdee - paceOffsetKcal(pace, goal ?? undefined)) < preview.calorieTarget;
+
   /** Steps navigation and the dots both walk straight past. */
   function isSkipped(s: StepId): boolean {
     if (s === 'goalWeight') return skipGoalWeight;
@@ -327,7 +474,7 @@ export default function Onboarding() {
     // A typed calorie number has to clear the floor before it can be saved —
     // otherwise `dailyTargets` clamps it on the way out and hands the user a
     // number they did not choose, which is the exact defect being fixed.
-    (step === 'plan' && (!edited || (kcalCheck.ok && proteinCheck.ok))) ||
+    (step === 'plan' && (!kcalEdited || kcalCheck.ok) && (!proteinEdited || proteinCheck.ok)) ||
     step === 'reminders' ||
     step === 'firstLog';
 
@@ -409,12 +556,12 @@ export default function Onboarding() {
   }
 
   async function onFinish() {
-    if (busy || !user || !goal || weightLbs == null) return;
+    if (busy || !user || !goal || weightLbs == null || !submission) return;
     // Defence in depth: `canAdvance` already gates the CTA on both checks, so
     // this is unreachable from the button. It sets an error rather than
     // returning silently, because a bare `return` here is what made a live-
     // looking CTA do nothing at all.
-    if (kcal == null || protein == null || !kcalCheck.ok || !proteinCheck.ok) {
+    if (kcal == null || protein == null || (kcalEdited && !kcalCheck.ok) || (proteinEdited && !proteinCheck.ok)) {
       setError(t('targets.errNumber'));
       return;
     }
@@ -425,32 +572,15 @@ export default function Onboarding() {
     // this is the whole onboarding flow. The redo's early `return` still ends
     // the body, and any failure in it still lands in the same handler.
     await (async () => {
-      await saveOnboardingV2(user.uid, {
-        weightLbs,
-        goalDirection: goal,
-        targetWeightLbs: skipGoalWeight ? undefined : (targetWeightLbs ?? undefined),
-        manualCaloriesTarget: kcal,
-        manualProteinTarget: protein,
-        // The Mifflin-St Jeor set. Passed unconditionally — `toOnboardingV2Patch`
-        // is the one place that decides whether a complete set was collected,
-        // so the screen does not get a second, subtly different opinion about
-        // it. Undefined here means "skipped or half-answered", and none of the
-        // five is then written.
-        sex: sex ?? undefined,
-        heightIn: heightIn ?? undefined,
-        age: ageNum ?? undefined,
-        activityLevel: activity ?? undefined,
-        targetPaceLbsPerWeek: pace,
-        // Accepting the computed plan stays 'auto' — those numbers are a seed
-        // and the estimator should take over once it has data. Only a number
-        // the user actually typed becomes theirs to keep.
-        targetMode: edited ? 'custom' : 'auto',
-        // Settings → "Edit goals" pushes this screen, so a redo is an existing
-        // user editing targets. `toOnboardingV2Patch` uses it to stop an
-        // accepted (unedited) plan writing a heuristic seed over a measured
-        // estimate — see OnboardingV2Submission.isRedo.
-        isRedo,
-      });
+      await saveOnboardingV2(user.uid, submission);
+      // The weight answer as a real weigh-in — see `writesWeighIn`. After the
+      // profile write, and not fatal: the plan is saved either way, and Body
+      // is where a missed weigh-in gets entered.
+      if (writesWeighIn) {
+        await writeDailyMetric(user.uid, 'weight', weighInKey, Math.round(weightLbs * 10) / 10).catch((e) =>
+          captureError(e, { where: 'onboarding.weighIn' }),
+        );
+      }
       // First run only: the unit the plan was asked in becomes the profile's.
       // Only when it differs from what the profile already reads as — an
       // absent field already reads 'us'. Not fatal: the plan is saved in
@@ -592,7 +722,7 @@ export default function Onboarding() {
             </View>
           ) : null}
           {/* Escape hatch. First run: sign out (e.g. wrong account). Redo from
-              Settings → Edit goals: the user already has data, so offer a plain
+              Settings → Redo setup: the user already has data, so offer a plain
               Cancel back to Settings instead of a destructive sign-out. */}
           {isRedo ? (
             <PressScale
@@ -715,7 +845,12 @@ export default function Onboarding() {
                   testID="onboarding-unit-weight"
                 />
               ) : null}
-              <BigInput value={weight} onChangeText={setWeight} placeholder={String(toDisplayWeight(180, unitSystem))} unit={weightUnit} label={t('onboarding.weightQ')} styles={styles} colors={colors} testID="onboarding-weight" />
+              <BigInput value={weight} onChangeText={typeWeight} placeholder={String(toDisplayWeight(180, unitSystem))} unit={weightUnit} label={t('onboarding.weightQ')} styles={styles} colors={colors} testID="onboarding-weight" />
+              {isRedo && latestLb != null ? (
+                <Text style={styles.stepSub} testID="onboarding-weight-prefilled">
+                  {t(writesWeighIn ? 'onboarding.weightNewWeighIn' : 'onboarding.weightPrefilled')}
+                </Text>
+              ) : null}
               {weight.trim() !== '' && !weightOk ? (
                 <Text style={styles.error} accessibilityRole="alert" accessibilityLiveRegion="polite" testID="onboarding-weight-error">
                   {t('onboarding.weightRange', { min: weightBand.min, max: weightBand.max, unit: weightUnit })}
@@ -727,12 +862,26 @@ export default function Onboarding() {
           {step === 'goalWeight' ? (
             <View style={styles.step}>
               <Text style={styles.question} accessibilityRole="header">{t('onboarding.goalWeightQ')}</Text>
+              <Text style={styles.stepSub}>{t('onboarding.goalWeightOptional')}</Text>
               <BigInput value={targetWeight} onChangeText={setTargetWeight} placeholder={String(toDisplayWeight(165, unitSystem))} unit={weightUnit} label={t('onboarding.goalWeightQ')} styles={styles} colors={colors} testID="onboarding-target-weight" />
-              {targetWeight.trim() !== '' && !targetWeightOk ? (
+              {!targetBlank && !targetWeightOk ? (
                 <Text style={styles.error} accessibilityRole="alert" accessibilityLiveRegion="polite" testID="onboarding-target-weight-error">
-                  {t('onboarding.weightRange', { min: weightBand.min, max: weightBand.max, unit: weightUnit })}
+                  {!weightInBand(targetWeightLbs)
+                    ? t('onboarding.weightRange', { min: weightBand.min, max: weightBand.max, unit: weightUnit })
+                    : t(targetDirIssue === 'notAbove' ? 'onboarding.goalWeightAbove' : 'onboarding.goalWeightBelow', {
+                        w: `${weight.trim()} ${weightUnit}`,
+                      })}
                 </Text>
               ) : null}
+              <SkipLink
+                label={t('onboarding.goalWeightSkip')}
+                onPress={() => {
+                  setTargetWeight('');
+                  go(1);
+                }}
+                styles={styles}
+                testID="onboarding-skip-goal-weight"
+              />
             </View>
           ) : null}
 
@@ -931,11 +1080,13 @@ export default function Onboarding() {
                   has to say plainly that it is the rougher of the two, or the
                   skip becomes a silent downgrade. */}
               <Text style={styles.planSub} testID="onboarding-plan-basis">
-                {seed?.basis === 'formula' && seed.maintenance != null
-                  ? t('onboarding.planBasis', { n: formatNumber(seed.maintenance, locale) })
-                  : t('onboarding.planBasisRough')}
+                {isRedo && redoBasis != null
+                  ? redoBasis
+                  : seed?.basis === 'formula' && seed.maintenance != null
+                    ? t('onboarding.planBasis', { n: formatNumber(seed.maintenance, locale) })
+                    : t('onboarding.planBasisRough')}
               </Text>
-              {seed?.floorBinding && !edited ? (
+              {(isRedo ? redoFloor && !kcalEdited : seed?.floorBinding && !edited) ? (
                 <Text style={styles.planSub} testID="onboarding-plan-floor">
                   {t('onboarding.planFloor', { n: formatNumber((kcal ?? 0), locale) })}
                 </Text>
@@ -946,7 +1097,7 @@ export default function Onboarding() {
               {/* Every rejection says WHY. Only `belowFloor` was rendered before,
                   so an above-ceiling or cleared number greyed the CTA with
                   nothing on screen to explain it. */}
-              {edited && !kcalCheck.ok ? (
+              {kcalEdited && !kcalCheck.ok ? (
                 <Text style={styles.error} accessibilityRole="alert" accessibilityLiveRegion="polite" testID="onboarding-kcal-error">
                   {kcalCheck.issue?.kind === 'belowFloor'
                     ? t('targets.errBelowFloor', { n: formatNumber(kcalCheck.issue.floor, locale) })
@@ -955,7 +1106,7 @@ export default function Onboarding() {
                       : t('targets.errNumber')}
                 </Text>
               ) : null}
-              {edited && kcalCheck.ok && !proteinCheck.ok ? (
+              {proteinEdited && (!kcalEdited || kcalCheck.ok) && !proteinCheck.ok ? (
                 <Text style={styles.error} accessibilityRole="alert" accessibilityLiveRegion="polite" testID="onboarding-protein-error">
                   {proteinCheck.issue?.kind === 'belowFloor'
                     ? t('targets.errProteinMin', { n: formatNumber(proteinCheck.issue.floor, locale) })
@@ -1141,10 +1292,12 @@ function SkipLink({
   label,
   onPress,
   styles,
+  testID = 'onboarding-skip-body',
 }: {
   label: string;
   onPress: () => void;
   styles: ReturnType<typeof createStyles>;
+  testID?: string;
 }) {
   return (
     <PressScale
@@ -1152,7 +1305,7 @@ function SkipLink({
       scaleTo={0.96}
       onPress={onPress}
       accessibilityRole="button"
-      testID="onboarding-skip-body"
+      testID={testID}
     >
       <Text style={styles.skipText}>{label}</Text>
     </PressScale>

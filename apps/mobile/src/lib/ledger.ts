@@ -343,6 +343,14 @@ export function subscribeRecentLogs(
   );
 }
 
+/** One read of the newest `count` log rows, oldest first — the same window
+ *  {@link subscribeRecentLogs} holds open, for a screen that needs Today's
+ *  inputs once rather than live (the Redo-setup plan preview). */
+export async function getRecentLogs(uid: string, count: number): Promise<DailyLog[]> {
+  const snap = await getDocs(query(logsCol(uid), orderBy('timestamp', 'desc'), limit(count)));
+  return oldestFirst(snap.docs.map((d) => toDailyLog(d.id, d.data()))).sort(compareLogsOldestFirst);
+}
+
 /**
  * Every log row whose DAY (under `boundary`, ADR-0030) falls in
  * `[fromKey, toKey]`, OLDEST FIRST — one bounded `getDocs`, never a listener.
@@ -1579,15 +1587,18 @@ export async function saveRefinedTargets(uid: string, s: RefineTargetsSubmission
     ...(s.activityMultiplier === undefined
       ? {}
       : { activityMultiplier: s.activityMultiplier === null ? deleteField() : s.activityMultiplier }),
-    targetPaceLbsPerWeek: clampCutPace(s.targetPaceLbsPerWeek),
-    // Refining is a request to be AUTOMATIC, so it sets the mode — it no
-    // longer DELETES the manual numbers to get there. Deleting was the only
-    // way to hand control back when presence-of-a-value was the mode, and it
-    // threw away a number the user may have chosen on purpose: the one-way
-    // door out of custom targets, with no route back except re-running
-    // onboarding. The values now survive an automatic spell and return intact
-    // when the user switches back (`Profile.targetMode`, packages/core).
-    targetMode: 'auto',
+    targetPaceLbsPerWeek: s.goalDirection === 'maintain' ? 0 : clampCutPace(s.targetPaceLbsPerWeek),
+    ...(s.goalDirection ? { goalDirection: s.goalDirection } : {}),
+    // Maintain has no goal weight — cleared in both legacy fields, as the
+    // wizard and the maintenance switch do, or a stale one keeps Body's
+    // progress bar measuring toward a goal that no longer exists.
+    ...(s.goalDirection === 'maintain' ? { targetWeightLbs: deleteField(), goalWeightLbs: deleteField() } : {}),
+    // The mode is NOT touched (2026-10-15). This wrote `targetMode: 'auto'`
+    // on the theory that refining is a request to be automatic — but Daily
+    // targets owns the mode now, and a user on their own numbers who came
+    // here to fix their height was silently put back on the estimator. Refine
+    // changes the INPUTS to the automatic number; whether that number is the
+    // one in charge is Daily targets' question.
     targetsRefinedAt: now,
     lastSeenAt: now,
   });

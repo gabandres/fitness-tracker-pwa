@@ -1228,9 +1228,14 @@ function mifflinStJeor(profile: ProfileFields, weightLbs: number, bucketOnly = f
  * they chose, delivered silently the moment the formula or measured branch
  * took over from the onboarding seed (UX_AUDIT F7).
  *
- * Positive means "eat below maintenance". Absent or non-gain directions keep
- * subtracting, byte for byte, which is every account predating v2 onboarding
- * and every cut and maintain since.
+ * Positive means "eat below maintenance". An absent direction or `'lose'`
+ * keeps subtracting, byte for byte, which is every account predating v2
+ * onboarding and every cut since. `'maintain'` is ZERO whatever the stored
+ * pace (2026-10-15): Refine targets had a pace control that could not see the
+ * goal, so an account could read "Goal: Maintain" while the target sat 400
+ * kcal under its maintenance (the owner's, at 0.8 lb/wk). Measured that day:
+ * 2 of 6 maintain accounts carried a pace above 0; one is on a typed target
+ * the change cannot reach.
  */
 /**
  * The pace to plan against: the stored one when it is a finite number, else
@@ -1251,6 +1256,7 @@ export function paceOffsetKcal(
   paceLbsPerWeek: number,
   goalDirection?: GoalDirection,
 ): number {
+  if (goalDirection === 'maintain') return 0;
   const magnitude = (paceLbsPerWeek * KCAL_PER_POUND) / 7;
   return goalDirection === 'gain' ? -magnitude : magnitude;
 }
