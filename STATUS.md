@@ -123,34 +123,24 @@ host setup and traps are in `.maestro/regression/README.md`.
 **Only genuinely open work belongs here.** A row whose work has shipped gets
 deleted and its outcome goes to `CHANGELOG.md`.
 
-### 2026-10-15 audit — what is still open
+### 1.2.8 — submitted to both stores 2026-10-15; then raise the minimum
 
-- **1.2.8 binary** carries the native half: widget/watch rollover at
-  `dayEndsMs`; `QuickAdd.swift` queue cap 500, refuses at the cap
-  (`.notSaved`). Built and uploaded to TestFlight / Play alpha, NOT submitted
-  for review (owner's call). Until it ships these stay on old behaviour.
+- **iOS** build 72 `WAITING_FOR_REVIEW` (AFTER_APPROVAL). **Android** vc 52
+  production 100% sent for review — the tracks API cannot tell review from
+  live; read the store page.
+- **When BOTH are live:** `/admin` → Overview → System → Update required:
+  iOS `1.2.8`, Android `52`. Then OTAs go to the 1.2.8 runtimes only
+  (`50a47f62…`, `dfb995ea…`) plus any newer TestFlight/alpha build.
 - **Flip `ACCEPT_LEGACY_PROMPT_SHAPE` to `false`** (`functions/src/ai-prompt-input.ts`
-  + its spec) once `legacyPromptShape` stops appearing in the functions logs,
-  then deploy `consultationStream` + `generateWeeklyReport`. Until then the
-  old wrapped path still serves stale JS.
-- **Owner:** coach runs on `GEMINI_MODEL` (flash-lite) since 2026-10-15, was
-  `gemini-flash-latest` — confirm the quality. Weekly report stays on
-  `gemini-2.5-flash`.
-- **Check after deploy:** `emailRateLimits/pw_ip_*` docs differ per caller
-  (password-reset per-IP limit uses the last X-Forwarded-For hop).
-- Health nutrition samples exported before 2026-10-15 carry no Ignia id, so
-  undo/edit/delete of those older entries cannot reach Apple Health / Health
-  Connect. New exports are tagged.
+  + spec) once `legacyPromptShape` stops appearing in the functions logs.
+- **Owner:** coach on `GEMINI_MODEL` (flash-lite) since 2026-10-15 — confirm
+  quality. After this deploy, check `emailRateLimits/pw_ip_*` differ per caller.
+- Health nutrition samples exported before 2026-10-15 carry no Ignia id;
+  undo/edit of those older entries cannot reach Health.
 
-### 1.2.7 — lock-screen sets (S23-8); TestFlight + Play alpha 2026-10-12, NOT submitted for review
+### 1.2.8 — device QA and Android notes (carried from 1.2.7)
 
-- **1.2.6 is LIVE on both stores** (Apple lookup `1.2.6` since 2026-10-07;
-  `app-version.json` reads vc 50 / build 70, 2026-10-12).
-- **iOS**: build 71 / 1.2.7 `VALID` in TestFlight (runtime `705652e8…`).
-  **Not submitted for App Store review — the owner confirms first.**
-- **Android**: vc 51 / 1.2.7 on the Play ALPHA track (runtime `21d90a2c…`).
-  **Production not touched — the owner confirms first.**
-- **Before either goes further**: the device script in `FIX-N2.md` (on
+- **Device QA still owed (1.2.7 features ship in 1.2.8, submitted without it)**: the device script in `FIX-N2.md` (on
   `ignia-mac`, `apps/mobile/.maestro/capture/train-ux/reviews/`) — lock-screen
   Done set on an iPhone and on the OnePlus 8T (Android 14); the Android 16
   promoted chip on the `pixel_api36` emulator (the 8T has no official

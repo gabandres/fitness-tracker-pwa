@@ -238,8 +238,8 @@ artifact"; which version is *live* is `STATUS.md`'s question.
 
 | Platform | Binary | Runtime fingerprint | Read from |
 |---|---|---|---|
-| Android | vc 51 / 1.2.7 — Play ALPHA since 2026-10-12, not yet on production (live users are on vc 50 `a4b78806…`; vc 48/49 `c87935bf…`, vc 47 `ef607e85…` — each needs its own pinned publish) | `21d90a2cd9528d189ace1fcdf48edb0aaa86ddd0` | the `.aab` |
-| iOS | build 71 / 1.2.7 — TestFlight `VALID` 2026-10-12, not submitted for review (live users are on build 70 / 1.2.6 `60000098…`; build 68 `489bf3b5…` — pinned publishes) | `705652e88178f4cbd481fbab16dfc4b16ecd4946` | the `.ipa` |
+| Android | vc 52 / 1.2.8 — alpha + production 100% sent for review 2026-10-15 (until it is live, users are on vc 50 `a4b78806…`; vc 48/49 `c87935bf…`, vc 47 `ef607e85…`; vc 51 `21d90a2c…` alpha — pinned publishes) | `dfb995eae6902f95b5388c02c7914bde0eeb1967` | the `.aab` |
+| iOS | build 72 / 1.2.8 — submitted for review 2026-10-15, AFTER_APPROVAL (until it is live, users are on build 70 / 1.2.6 `60000098…`; build 68 `489bf3b5…`; build 71 `705652e8…` TestFlight — pinned publishes) | `50a47f6235c5a9529278f1e5ce9915883f0264ba` | the `.ipa` |
 
 The 1.2.5 runtimes share nothing with 1.2.4's — `app.json` moved both — so a
 1.2.4 user gets 1.2.5's JS only through the store update. Which OTA is newest

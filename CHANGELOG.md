@@ -4,6 +4,29 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-10-15 (later) — 1.2.8 submitted on both stores; "update required" gate; audit follow-ups closed
+
+- **1.2.8**: iOS build 72 (`50a47f62…`) submitted for review, goes live on
+  approval; Android vc 52 (`dfb995ea…`) on alpha and production 100%, sent
+  for review. Native half of the audit: widget/watch roll over at the user's
+  day start; the iOS widget/Siri offline queue holds 500 and refuses at the
+  cap (`.notSaved`). Supersedes the never-submitted 1.2.7.
+- **Update required**: `public/appVersion` carries `ios.minVersion` /
+  `android.minVersionCode`, set from `/admin` → System
+  (`adminSetMinAppVersion`, refuses anything above the live COMPLETED store
+  release). Below it the app shows a non-dismissible screen with the store
+  button. Shipped by OTA to all eight runtimes, so older binaries can be
+  retired instead of patched — policy in `apps/mobile/AGENTS.md`.
+- **Audit follow-ups**: Health undo/edit/delete reach Apple Health / Health
+  Connect (tagged samples); Oura link finished in-app via `completeOuraLink`
+  (link-CSRF closed); coach and weekly report send numbers only and the
+  server builds the prompt; `logWebhook` and `importRecipe` deleted; weekly
+  report window is DST-safe.
+- **Infra**: Angular 21.2.25; functions on firebase-admin 14.5 /
+  firebase-functions 7.4 (0 production advisories), lockfiles authored on the
+  Windows box; Cloudflare Browser Cache TTL → "Respect existing headers",
+  cache purged.
+
 ## 2026-10-15 — Whole-app audit: security holes closed, ~110 defects fixed, OTA on all seven runtimes
 
 Seven parallel audits (rules, functions, data layer, two UI passes, core,
