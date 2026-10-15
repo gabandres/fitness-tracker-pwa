@@ -6,6 +6,7 @@ import {
   dailyTargets,
   toProfileFields,
 } from '@macrolog/core';
+import { useCalendarToday } from '@/hooks/useDayKey';
 import { useCoreSnapshot } from '@/hooks/useCoreSnapshot';
 
 export interface CoachData {
@@ -34,7 +35,11 @@ export interface CoachData {
 export function useCoach(): CoachData {
   const { logs, weights, profile, loaded } = useCoreSnapshot('Coach');
 
-  const tdee = useMemo(() => dailyTargets(profile, logs, weights).tdee, [profile, logs, weights]);
+  const calendarToday = useCalendarToday();
+  const tdee = useMemo(
+    () => dailyTargets(profile, logs, weights, calendarToday).tdee,
+    [profile, logs, weights, calendarToday],
+  );
   // Core's `toProfileFields` (the same narrowing `dailyTargets` uses) rather
   // than a local copy: this hook used to declare its own, which returned a
   // hard-coded 6-key literal and so silently dropped `calorieFloor`,

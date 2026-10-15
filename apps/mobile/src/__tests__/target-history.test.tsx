@@ -77,7 +77,11 @@ it('the 10/8 drop: records 135 → 130 with the weight reason', async () => {
 });
 
 it('a user override is recorded once and survives later weigh-ins without another change', async () => {
-  const profile = owner({ targetMode: 'custom', manualProteinTarget: 140 });
+  // Calories held at a floor above the formula answer, so the only target in
+  // play is protein. Since 2026-10-15 a weigh-in with no food logged reaches
+  // the estimator, and these fixtures carry no logs — without the floor the
+  // second weigh-in would (correctly) recalculate the AUTOMATIC kcal and write.
+  const profile = owner({ targetMode: 'custom', manualProteinTarget: 140, calorieFloor: 2600 });
   const t1 = dailyTargets(profile, [], { '2026-10-09': 153.6 });
   mockStored.records = [{ ...rec7(), kcalTarget: t1.calorieTarget }];
   await renderHook(() => useTargetHistory({ todayKey: '2026-10-09', targets: t1, profile, authoritative: true }));

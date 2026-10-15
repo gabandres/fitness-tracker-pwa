@@ -181,7 +181,7 @@ export function dailyTargets(
   // cut their daily target. The category treats a break as a temporary goal
   // change rather than a mode — see docs/research/tdee-logging-gaps.md §2.
   const adjusted = fields?.travelMode ? { ...fields, targetPaceLbsPerWeek: 0 } : fields;
-  const tdee = calculateTdee(merged, adjusted, MIDNIGHT, now);
+  const tdee = calculateTdee(merged, adjusted, MIDNIGHT, now, dailyWeights);
 
   // `targetMode: 'custom'` means the user typed these numbers and they win —
   // including over a measured estimate. Omitted (every account predating the

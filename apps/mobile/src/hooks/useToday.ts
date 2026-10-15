@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useCachedState } from '@/hooks/useCachedState';
-import { useDayKey } from '@/hooks/useDayKey';
+import { useCalendarToday, useDayKey } from '@/hooks/useDayKey';
 import { feedChannel, useLedgerFeed } from '@/hooks/useLedgerFeed';
 import { onPendingLogsChanged, pendingLogsAsRows } from '@/lib/pending-logs';
 import { repeatYesterday as repeatYesterdayOp, writeDailyMetric } from '@/lib/ledger-ops';
@@ -352,7 +352,12 @@ export function useToday(): TodayState {
     () => summarizeDay(todayKey, logs, weights, boundary),
     [todayKey, logs, weights, boundary],
   );
-  const targets = useMemo(() => dailyTargets(profile, logs, weights), [profile, logs, weights]);
+  // `calendarToday`, not the default clock read: see `useCalendarToday`.
+  const calendarToday = useCalendarToday();
+  const targets = useMemo(
+    () => dailyTargets(profile, logs, weights, calendarToday),
+    [profile, logs, weights, calendarToday],
+  );
   // The hero footer before measured mode opens: how many of the 14 logged
   // days the estimator needs are there. Null once `targets.tdee` is measured,
   // so it hands the slot to `maintenanceView` on the same render. Counted

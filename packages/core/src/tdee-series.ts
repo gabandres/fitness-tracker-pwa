@@ -123,7 +123,21 @@ export function tdeeSeries(
   const windowRows = opts.windowRows != null && opts.windowRows > 0 ? Math.trunc(opts.windowRows) : null;
   const boundary: DayBoundary = MIDNIGHT;
   const rows = logs ?? [];
-  const merged = mergeDailyWeights(rows, dailyWeights ?? {}, boundary);
+  const weights = dailyWeights ?? {};
+  const merged = mergeDailyWeights(rows, weights, boundary);
+  // A past day's replay runs with `now` at the NEXT midnight, which
+  // `calculateTdee` treats as the day in progress — so its weigh-in would
+  // count. Cut the map at the replayed day instead: the end of day D has not
+  // seen D+1's scale.
+  const weightKeys = Object.keys(weights).sort();
+  const weightsThrough = (key: string): Record<string, number> => {
+    const out: Record<string, number> = {};
+    for (const k of weightKeys) {
+      if (k > key) break;
+      out[k] = weights[k];
+    }
+    return out;
+  };
   // `dailyTargets` zeroes the pace for legacy `travelMode` accounts. Pace never
   // moves `trueTdee`, but mirroring the call keeps "same inputs" literally true.
   const fields = toProfileFields(profile);
@@ -156,21 +170,21 @@ export function tdeeSeries(
     if (windowRows != null && rowKeys) {
       if (isToday) {
         // The hero's call over the hero's rows: the newest `windowRows`.
-        result = calculateTdee(merged.slice(-windowRows), adjusted, boundary, opts.now);
+        result = calculateTdee(merged.slice(-windowRows), adjusted, boundary, opts.now, weights);
       } else {
         while (rowEnd < rowKeys.length && rowKeys[rowEnd] <= key) rowEnd++;
         const window = merged.slice(Math.max(0, rowEnd - windowRows), rowEnd);
-        result = calculateTdee(window, adjusted, boundary, addDays(parseYmd(key), 1));
+        result = calculateTdee(window, adjusted, boundary, addDays(parseYmd(key), 1), weightsThrough(key));
       }
     } else if (isToday) {
       // EXACTLY the hero's call: every row (a future-dated row included —
       // `calculateTdee` keeps its weigh-in and zeroes its intake), real `now`.
-      result = calculateTdee(merged, adjusted, boundary, opts.now);
+      result = calculateTdee(merged, adjusted, boundary, opts.now, weights);
     } else {
       while (end < keyed.length && keyed[end].key <= key) end++;
       const prefix = keyed.slice(0, end).map((k) => k.log);
       // The next midnight: this day is over, so its intake counts in full.
-      result = calculateTdee(prefix, adjusted, boundary, addDays(parseYmd(key), 1));
+      result = calculateTdee(prefix, adjusted, boundary, addDays(parseYmd(key), 1), weightsThrough(key));
     }
     out.push(toPoint(key, result));
   }

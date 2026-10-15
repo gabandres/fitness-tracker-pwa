@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { type DailyTargets, dailyTargets } from '@macrolog/core';
+import { useCalendarToday } from '@/hooks/useDayKey';
 import { useCoreSnapshot } from '@/hooks/useCoreSnapshot';
 
 /**
@@ -25,7 +26,12 @@ export type DailyTargetsView =
  *  refines into formula mode — reading it directly shows a stale "—"). */
 export function useDailyTargets(): DailyTargetsView {
   const { logs, weights, profile, loaded, error } = useCoreSnapshot('DailyTargets');
-  const targets = useMemo(() => dailyTargets(profile, logs, weights), [profile, logs, weights]);
+  // `calendarToday`, not the default clock read: see `useCalendarToday`.
+  const calendarToday = useCalendarToday();
+  const targets = useMemo(
+    () => dailyTargets(profile, logs, weights, calendarToday),
+    [profile, logs, weights, calendarToday],
+  );
 
   return useMemo(
     () => (loaded ? { loaded: true, error: null, targets } : { loaded: false, error }),

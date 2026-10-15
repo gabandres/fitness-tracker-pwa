@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AppState } from 'react-native';
-import { type DateKey, type DayBoundary, dayKeyAt, dayRange } from '@macrolog/core';
+import { type DateKey, type DayBoundary, MIDNIGHT, dayKeyAt, dayRange, parseYmd } from '@macrolog/core';
 
 /** Retry interval for the one case where a timer fires and the day has NOT
  *  turned — the device clock moved backwards under us. Without a floor the
@@ -70,4 +70,28 @@ export function useDayKey(boundary: DayBoundary): DateKey {
   }, [key, boundary]);
 
   return key;
+}
+
+/**
+ * The start of today's CALENDAR day, as the `now` for `dailyTargets` — a new
+ * Date when the calendar day turns (at midnight, or on the first foreground
+ * after it), the same one otherwise.
+ *
+ * `dailyTargets` defaults `now` to `new Date()`, and the callers memoise it on
+ * `[profile, logs, weights]`. A phone backgrounded overnight resumes with none
+ * of those changed, so the memo kept LAST NIGHT's `now`: yesterday was still
+ * "the day in progress", its intake was still held out of the average, and
+ * that is the maintenance Today showed and the morning's target record stored
+ * (owner's records 10/10–10/14 each equal the previous evening's value, to the
+ * kcal). Passing the day's start makes the day part of the memo's inputs.
+ *
+ * Start of day rather than the current instant because the estimator only
+ * reads `now` through `dayKeyAt` (in-progress intake, weigh-ins after today),
+ * so any instant in the day is the same answer, and this one does not change
+ * on every render. MIDNIGHT, not the profile's boundary: `dailyTargets` runs
+ * the estimator under MIDNIGHT.
+ */
+export function useCalendarToday(): Date {
+  const key = useDayKey(MIDNIGHT);
+  return useMemo(() => parseYmd(key), [key]);
 }

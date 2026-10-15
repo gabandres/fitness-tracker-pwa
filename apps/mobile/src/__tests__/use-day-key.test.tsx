@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react-native';
 import { AppState, type AppStateStatus } from 'react-native';
 import { type DateKey, type DayBoundary, MIDNIGHT } from '@macrolog/core';
-import { useDayKey } from '@/hooks/useDayKey';
+import { useCalendarToday, useDayKey } from '@/hooks/useDayKey';
 
 /**
  * Today has to notice the day turning over — the bug this pins is a phone left
@@ -74,5 +74,37 @@ describe('useDayKey', () => {
       appStateListener?.('active');
     });
     expect(result.current).toBe('2026-10-04');
+  });
+});
+
+/**
+ * The `now` handed to `dailyTargets`. The bug it fixes: the target memo kept
+ * last night's clock through an overnight background, so the morning's
+ * maintenance (and its stored record) still treated yesterday as the day in
+ * progress — the owner's records 10/10–10/14 each equal the previous evening.
+ */
+describe('useCalendarToday', () => {
+  it('moves to the new day on the first foreground after midnight', async () => {
+    jest.setSystemTime(new Date(2026, 9, 13, 21, 0, 0));
+    const { result } = await renderHook(() => useCalendarToday());
+    expect(result.current).toEqual(new Date(2026, 9, 13));
+
+    jest.setSystemTime(new Date(2026, 9, 14, 7, 0, 0));
+    await act(async () => {
+      appStateListener?.('active');
+    });
+    expect(result.current).toEqual(new Date(2026, 9, 14));
+  });
+
+  it('is the same object all day, so a memo keyed on it does not churn', async () => {
+    jest.setSystemTime(new Date(2026, 9, 14, 7, 0, 0));
+    const { result, rerender } = await renderHook(() => useCalendarToday());
+    const first = result.current;
+    jest.setSystemTime(new Date(2026, 9, 14, 18, 0, 0));
+    await act(async () => {
+      appStateListener?.('active');
+    });
+    await rerender({});
+    expect(result.current).toBe(first);
   });
 });

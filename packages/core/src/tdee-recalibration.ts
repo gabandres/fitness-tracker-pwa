@@ -153,7 +153,7 @@ export function recalibrationDigest(
   // `opts.now` rather than the estimator's own default clock — this function's
   // doc comment promises "no I/O, no clock", and `calculateTdee` now reads one
   // to keep the in-progress day out of the intake mean.
-  const tdee = calculateTdee(merged, adjusted, boundary, new Date(opts.now));
+  const tdee = calculateTdee(merged, adjusted, boundary, new Date(opts.now), dailyWeights ?? {});
 
   // ── Deliberately NOT `|| !tdee.reliable`, since 2026-09-04 ──
   //

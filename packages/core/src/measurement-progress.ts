@@ -43,7 +43,8 @@
  * runs the estimator under MIDNIGHT, not the profile's day boundary, and the
  * readout must count what the estimator counts.
  */
-import { MIDNIGHT, type DayBoundary } from './day-boundary';
+import { MIDNIGHT, dayKeyAt, type DayBoundary } from './day-boundary';
+import { addDays, calendarDateKey, parseYmd } from './date';
 import type { DailyLog } from './types';
 import { mergeDailyWeights } from './targets';
 import { aggregateByDay, MEASURED_MIN_DAYS, TREND_MIN_WEIGH_INS, type TdeeResult } from './tdee';
@@ -81,7 +82,18 @@ export function measurementProgress(
   if (tdee.source === 'measured') return null;
   const daily = aggregateByDay(mergeDailyWeights(logs ?? [], dailyWeights ?? {}, boundary), boundary);
   const loggedDays = Math.min(daily.length, MEASURED_MIN_DAYS);
-  const weighed = daily.filter((d) => d.weight != null).length;
+  // Weigh-ins on days with no log row count too, inside the reach the
+  // estimator gives them (`withWeighIns` in tdee.ts): after the first logged
+  // day and at most MAX_INTRA_RUN_GAP_DAYS (3) past the last.
+  let weighed = daily.filter((d) => d.weight != null).length;
+  if (daily.length > 0) {
+    const keys = new Set<string>(daily.map((d) => dayKeyAt(d.date, boundary)));
+    const first = dayKeyAt(daily[0].date, boundary);
+    const reach = calendarDateKey(addDays(parseYmd(dayKeyAt(daily[daily.length - 1].date, boundary)), 3));
+    for (const k of Object.keys(dailyWeights ?? {})) {
+      if (k > first && k <= reach && !keys.has(k)) weighed++;
+    }
+  }
   const weighIns = Math.min(weighed, TREND_MIN_WEIGH_INS);
   return {
     loggedDays,

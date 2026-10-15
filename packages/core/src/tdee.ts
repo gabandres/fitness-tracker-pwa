@@ -1,6 +1,7 @@
 import type { GoalDirection } from './macro-heuristic';
 import type { ActivityLevel, DailyLog, ProfileFields } from './types';
 import { MIDNIGHT, dayKeyAt, type DayBoundary } from './day-boundary';
+import { parseYmd, type DateKey } from './date';
 
 /**
  * TDEE (Total Daily Energy Expenditure) estimator — pure port of the
@@ -961,6 +962,69 @@ function loggingRuns(window: DailyLog[]): DailyLog[][] {
   return runs;
 }
 
+/**
+ * Weigh-ins from `dailyWeights` on days that have NO log row, as weight-only
+ * rows (`calories: 0`), oldest first. Days after `now`'s day are left out, so
+ * a replay of an earlier day cannot see a later weigh-in.
+ *
+ * ## Why these exist (owner, 2026-10-15)
+ *
+ * `mergeDailyWeights` can only lay a weight onto a log row that already
+ * exists, so a weigh-in on a day with no food entry was invisible to the
+ * estimator: the morning reading did nothing until breakfast was logged, and a
+ * weigh-in on a day the user logged nothing at all never counted. The scale
+ * reading is a complete observation the moment it is taken. What is missing on
+ * such a day is INTAKE, and intake is already filtered `calories > 0`
+ * everywhere it is averaged, so a weight-only row reaches the trend and
+ * nothing else.
+ *
+ * They are kept OUT of the logged-day rows on purpose: they do not count
+ * toward {@link MEASURED_MIN_DAYS}, the window, completeness or confidence,
+ * which all describe how much intake has been recorded. See
+ * {@link withWeighIns} for which of them a fit is allowed to see.
+ */
+function weighInOnlyRows(
+  daily: DailyLog[],
+  dailyWeights: Record<string, number> | undefined,
+  boundary: DayBoundary,
+  now: Date,
+): DailyLog[] {
+  if (!dailyWeights) return [];
+  const logged = new Set<string>(daily.map((l) => dayKeyAt(l.date, boundary)));
+  const todayKey = dayKeyAt(now, boundary);
+  const rows: DailyLog[] = [];
+  for (const [key, weight] of Object.entries(dailyWeights)) {
+    if (key > todayKey || logged.has(key)) continue;
+    if (typeof weight !== 'number' || !Number.isFinite(weight) || weight <= 0) continue;
+    // Noon: inside the day under any boundary that starts before midday.
+    const date = parseYmd(key as DateKey); // a dailyWeights doc id IS the key
+    date.setHours(12);
+    rows.push({ date, calories: 0, weight });
+  }
+  return rows.sort((a, b) => a.date.getTime() - b.date.getTime());
+}
+
+/**
+ * `rows` plus the weight-only rows that fall inside their stretch: from the
+ * first row's day to {@link MAX_INTRA_RUN_GAP_DAYS} past the last. That is the
+ * same reach a logged day has in {@link loggingRuns}, so a weigh-in joins the
+ * run it would belong to as a logged day, including this morning's reading
+ * after yesterday's log. One in the middle of a longer break joins nothing —
+ * energy balance is not evaluated across a stretch of unknown intake, and a
+ * weigh-in does not make the intake known.
+ */
+function withWeighIns(rows: DailyLog[], weighIns: DailyLog[]): DailyLog[] {
+  if (rows.length === 0 || weighIns.length === 0) return rows;
+  const first = rows[0].date.getTime();
+  const last = rows[rows.length - 1].date.getTime();
+  const extra = weighIns.filter((w) => {
+    const t = w.date.getTime();
+    return t > first && Math.round((t - last) / 86_400_000) <= MAX_INTRA_RUN_GAP_DAYS;
+  });
+  if (extra.length === 0) return rows;
+  return [...rows, ...extra].sort((a, b) => a.date.getTime() - b.date.getTime());
+}
+
 export interface MeasuredEstimate {
   trueTdee: number;
   /** Standard error of `trueTdee`, in kcal. The honest width of the estimate. */
@@ -1014,7 +1078,11 @@ export interface MeasuredEstimate {
  * the whole window as one run, which is still strictly better than the old
  * "most recent fragment wins".
  */
-function measuredFromRuns(window: DailyLog[], requireSpan: boolean): MeasuredEstimate | null {
+function measuredFromRuns(
+  window: DailyLog[],
+  requireSpan: boolean,
+  weighIns: DailyLog[] = [],
+): MeasuredEstimate | null {
   const runs = loggingRuns(window);
   let num = 0;
   let den = 0;
@@ -1026,7 +1094,11 @@ function measuredFromRuns(window: DailyLog[], requireSpan: boolean): MeasuredEst
   let outliersDropped = 0;
 
   for (const run of runs) {
-    const weighed = run.filter((l): l is DailyLog & { weight: number } => l.weight != null);
+    // The run's own rows plus the weight-only days inside its stretch. Intake
+    // below still reads `run` alone, and weight-only rows carry 0 kcal anyway.
+    const weighed = withWeighIns(run, weighIns).filter(
+      (l): l is DailyLog & { weight: number } => l.weight != null,
+    );
     if (weighed.length < MIN_RUN_WEIGH_INS) continue;
     const t0 = weighed[0].date.getTime();
     const points = weighed.map((l) => ({
@@ -1130,11 +1202,18 @@ export function basalMifflinStJeor(
  * value the ladder could not express, floored at the FAO/WHO/UNU free-living
  * minimum. Guarded on `> 0` and finiteness rather than presence, because a
  * corrupt stored value must degrade to the bucket rather than to NaN.
+ *
+ * `bucketOnly` is for the measured branch's confidence anchor (2026-10-15,
+ * owner's call). The multiplier is derived from the device's active kcal, and
+ * ADR-0024 keeps that a SEED-ONLY prior: it may shape formula mode, never a
+ * measured estimate. The anchor is part of the measured estimate whenever
+ * confidence is below 1, so there it reads the activity level the user chose
+ * and nothing else.
  */
-function mifflinStJeor(profile: ProfileFields, weightLbs: number): number {
+function mifflinStJeor(profile: ProfileFields, weightLbs: number, bucketOnly = false): number {
   const m = profile.activityMultiplier;
   const multiplier =
-    typeof m === 'number' && Number.isFinite(m) && m > 0
+    !bucketOnly && typeof m === 'number' && Number.isFinite(m) && m > 0
       ? m
       : ACTIVITY_MULTIPLIERS[profile.activityLevel];
   return basalMifflinStJeor(profile, weightLbs) * multiplier;
@@ -1220,6 +1299,10 @@ export function calculateTdee(
   profile?: ProfileFields | null,
   boundary: DayBoundary = MIDNIGHT,
   now: Date = new Date(),
+  /** The daily-weights map, for weigh-ins on days with no log row (see
+   *  `weighInOnlyRows`). Days that have a row should already carry their
+   *  weight via `mergeDailyWeights`; those entries are ignored here. */
+  dailyWeights?: Record<string, number>,
 ): TdeeResult {
   // `now` is a parameter, not a `new Date()` call inside the estimator, for the
   // reason `trainHeroStats(sessions, now)` takes one: a clock read inside a
@@ -1227,6 +1310,7 @@ export function calculateTdee(
   // claims purity a liar. `recalibrationDigest` says "no I/O, no clock" in its
   // own doc comment and passes `opts.now` down for exactly that.
   const daily = withoutInProgressIntake(aggregateByDay(logs ?? [], boundary), boundary, now);
+  const weighIns = weighInOnlyRows(daily, dailyWeights, boundary, now);
 
   // ── Measured mode: ≥14 logged days ──
   if (daily.length >= MEASURED_MIN_DAYS) {
@@ -1242,7 +1326,7 @@ export function calculateTdee(
     // If none clear it, keep the tightest attempt: still the user's own data,
     // just flagged `holding` so the app stops presenting it as news.
     let window = daily.slice(-MEASURED_WINDOW_DAYS);
-    let est = measuredFromRuns(window, true);
+    let est = measuredFromRuns(window, true, weighIns);
     let estimateState: 'measuring' | 'holding' = 'holding';
 
     if (est != null && est.seTdee * 1.96 <= CI95_CEILING_KCAL) {
@@ -1252,7 +1336,7 @@ export function calculateTdee(
         if (size === MEASURED_WINDOW_DAYS) continue;
         if (daily.length < size) break;
         const wider = daily.slice(-size);
-        const attempt = measuredFromRuns(wider, true);
+        const attempt = measuredFromRuns(wider, true, weighIns);
         if (attempt == null) continue;
         if (est == null || attempt.seTdee < est.seTdee) {
           est = attempt;
@@ -1281,7 +1365,7 @@ export function calculateTdee(
       runsUsed = est.runsUsed;
       measuredTdee = est.trueTdee;
     } else {
-      const trend = weightTrendLbsPerDay(window);
+      const trend = weightTrendLbsPerDay(withWeighIns(window, weighIns));
       if (trend == null) return { ...SEED_RESULT };
       slope = trend.slope;
       outliersDropped = trend.dropped;
@@ -1307,8 +1391,9 @@ export function calculateTdee(
     // still beats the 2,450 seed built from nobody's.
     const confidence = measuredConfidence(loggingCompletenessPct, intakeCals.length, window.length);
     let anchorWeight: number | null = null;
-    for (let i = window.length - 1; i >= 0; i--) {
-      if (window[i].weight != null) { anchorWeight = window[i].weight!; break; }
+    const weighedWindow = withWeighIns(window, weighIns);
+    for (let i = weighedWindow.length - 1; i >= 0; i--) {
+      if (weighedWindow[i].weight != null) { anchorWeight = weighedWindow[i].weight!; break; }
     }
     // `ProfileFields` types height/age/sex/activity as required, but real
     // callers pass partials — mid-onboarding Firestore docs, and this repo's
@@ -1316,7 +1401,7 @@ export function calculateTdee(
     // a partial yields NaN, and NaN would propagate silently through the blend
     // into the target. Validate the anchor rather than trusting the type.
     const rawAnchor =
-      profile && anchorWeight != null ? mifflinStJeor(profile, anchorWeight) : Number.NaN;
+      profile && anchorWeight != null ? mifflinStJeor(profile, anchorWeight, true) : Number.NaN;
     const anchor = Number.isFinite(rawAnchor) && rawAnchor > 0 ? Math.round(rawAnchor) : null;
     const trueTdee =
       anchor != null && confidence < 1
@@ -1355,8 +1440,11 @@ export function calculateTdee(
   // ── Formula mode: profile present, <14 days ──
   if (profile) {
     let latestWeight = profile.goalWeightLbs ?? 180;
-    for (let i = daily.length - 1; i >= 0; i--) {
-      if (daily[i].weight != null) { latestWeight = daily[i].weight!; break; }
+    // Every weigh-in, weight-only days included: a formula estimate has no run
+    // to stay inside, it just wants the newest reading.
+    const all = weighIns.length ? [...daily, ...weighIns].sort((a, b) => a.date.getTime() - b.date.getTime()) : daily;
+    for (let i = all.length - 1; i >= 0; i--) {
+      if (all[i].weight != null) { latestWeight = all[i].weight!; break; }
     }
     const trueTdee = Math.round(mifflinStJeor(profile, latestWeight));
     const pace = paceOf(profile);
