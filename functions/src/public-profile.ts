@@ -1,7 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { onDocumentUpdated, onDocumentWritten } from "firebase-functions/v2/firestore";
 import { FieldPath, getFirestore, FieldValue, Timestamp } from "firebase-admin/firestore";
-import { getAuth } from "firebase-admin/auth";
 
 // ─── Public profile pages (`/u/<slug>`) ────────────────────────────
 //
@@ -39,6 +38,32 @@ function assertVerifiedAuth(request: { auth?: { uid?: string; token?: { email_ve
     throw new HttpsError("permission-denied", "Verify your email first.");
   }
   return uid;
+}
+
+/** True when the ledger entry exists and names `uid` as its owner. The
+ *  `publicSlugs` ledger — written only by `claimPublicSlug` — is the ONE
+ *  authority on who owns a slug; the profile's `publicSlug` field is not. */
+export function ownsSlug(
+  slugSnap: { exists: boolean; data(): FirebaseFirestore.DocumentData | undefined },
+  uid: string,
+): boolean {
+  return slugSnap.exists && slugSnap.data()?.["uid"] === uid;
+}
+
+/** May `uid`'s trigger touch the mirror of `slug`? Yes if the ledger names
+ *  them, or if nobody holds the slug at all (an orphan mirror is safe to
+ *  delete, never to write — see `writeMirrorIfOwned`). */
+export function mayDeleteMirror(
+  slugSnap: { exists: boolean; data(): FirebaseFirestore.DocumentData | undefined },
+  uid: string,
+): boolean {
+  return !slugSnap.exists || ownsSlug(slugSnap, uid);
+}
+
+/** The name shown on a public page. Never derived from the email. */
+export function publicDisplayNameOf(profile: FirebaseFirestore.DocumentData): string {
+  const name = profile["publicDisplayName"];
+  return typeof name === "string" && name.trim() ? name.trim().slice(0, 40) : "Ignia user";
 }
 
 /**
@@ -81,8 +106,15 @@ export const claimPublicSlug = onCall(async (request) => {
       throw new HttpsError("already-exists", "That slug is taken.");
     }
     const previousSlug = userSnap.data()?.["publicSlug"] as string | undefined;
-    if (previousSlug && previousSlug !== slug) {
-      tx.delete(db.doc(`publicSlugs/${previousSlug}`));
+    // The previous slug is released ONLY if the ledger says this caller owns
+    // it. `publicSlug` on the profile is just a field: until 2026-10-15 a
+    // client could write any value there at profile CREATE, and claiming a
+    // new slug then deleted the VICTIM's ledger entry and public page. All
+    // reads happen before any write, as transactions require.
+    const prevRef = previousSlug && previousSlug !== slug ? db.doc(`publicSlugs/${previousSlug}`) : null;
+    const prevSnap = prevRef ? await tx.get(prevRef) : null;
+    if (prevRef && prevSnap && ownsSlug(prevSnap, uid)) {
+      tx.delete(prevRef);
       tx.delete(db.doc(`publicProfiles/${previousSlug}`));
     }
     tx.set(slugRef, { uid, claimedAt: FieldValue.serverTimestamp() });
@@ -103,21 +135,27 @@ export const releasePublicSlug = onCall(async (request) => {
   const uid = assertVerifiedAuth(request);
   const db = getFirestore();
   const userRef = db.doc(`users/${uid}`);
-  const userSnap = await userRef.get();
-  if (!userSnap.exists) return { released: false };
-  const slug = userSnap.data()?.["publicSlug"] as string | undefined;
+  // A transaction, and the ledger is the authority: the slug's ledger entry
+  // and public page are deleted only when `publicSlugs/{slug}.uid` is the
+  // caller. Without that check a profile carrying someone else's slug
+  // (writable at create until 2026-10-15) released THEIR page.
+  return await db.runTransaction(async (tx) => {
+    const userSnap = await tx.get(userRef);
+    if (!userSnap.exists) return { released: false, slug: null };
+    const slug = userSnap.data()?.["publicSlug"] as string | undefined;
+    const slugRef = slug ? db.doc(`publicSlugs/${slug}`) : null;
+    const slugSnap = slugRef ? await tx.get(slugRef) : null;
 
-  const batch = db.batch();
-  batch.set(userRef, {
-    publicSlug: FieldValue.delete(),
-    publicProfileEnabled: false,
-  }, { merge: true });
-  if (slug) {
-    batch.delete(db.doc(`publicSlugs/${slug}`));
-    batch.delete(db.doc(`publicProfiles/${slug}`));
-  }
-  await batch.commit();
-  return { released: true, slug: slug ?? null };
+    tx.set(userRef, {
+      publicSlug: FieldValue.delete(),
+      publicProfileEnabled: false,
+    }, { merge: true });
+    if (slug && slugRef && slugSnap && ownsSlug(slugSnap, uid)) {
+      tx.delete(slugRef);
+      tx.delete(db.doc(`publicProfiles/${slug}`));
+    }
+    return { released: true, slug: slug ?? null };
+  });
 });
 
 // ─── Public mirror trigger ─────────────────────────────────────────
@@ -212,15 +250,11 @@ async function buildMirrorFromProfile(
   const totalChange = startWeight != null && currentWeight != null
     ? Math.round((currentWeight - startWeight) * 10) / 10 : null;
 
-  // Email is no longer stored on the profile doc (PII minimization). Keep
-  // the legacy email-localpart fallback for users who enabled a public
-  // profile without setting a display name, but source it from Auth (legacy
-  // docs may still carry `profile.email`; prefer it to save an Auth read).
-  const legacyEmail = (profile["email"] as string | undefined)
-    ?? (await getAuth().getUser(uid).then((u) => u.email).catch(() => undefined));
-  const displayName = (profile["publicDisplayName"] as string | undefined)
-    || legacyEmail?.split("@")[0]
-    || "Ignia user";
+  // A neutral default when the user set no display name. This used to fall
+  // back to the email's local part — on a WORLD-READABLE page, which for
+  // most people is their name or a handle that identifies them elsewhere.
+  // Opting into a public page is not opting into publishing your address.
+  const displayName = publicDisplayNameOf(profile);
 
   return {
     slug,
@@ -261,10 +295,16 @@ export const onUserUpdateMirrorPublicProfile = onDocumentUpdated(
 
     if (!enabledAfter) {
       // Disabled (or stayed disabled). Delete any stale mirror keyed by
-      // the new slug. The slug-change branch in `claimPublicSlug` already
-      // handles deletion of the previous slug's mirror in-transaction.
+      // the new slug — but only one this user owns, or an orphan nobody
+      // does. `publicSlug` is a profile field, not proof of ownership, and a
+      // delete keyed on it alone let a profile carrying someone else's slug
+      // take their page down. The slug-change branch in `claimPublicSlug`
+      // already handles deletion of the previous slug's mirror in-transaction.
       if (slugAfter) {
-        await db.doc(`publicProfiles/${slugAfter}`).delete().catch(() => {});
+        await db.runTransaction(async (tx) => {
+          const slugSnap = await tx.get(db.doc(`publicSlugs/${slugAfter}`));
+          if (mayDeleteMirror(slugSnap, uid)) tx.delete(db.doc(`publicProfiles/${slugAfter}`));
+        }).catch((err) => console.warn(`publicProfile: mirror delete failed uid=${uid}`, err));
       }
       return;
     }
@@ -272,7 +312,7 @@ export const onUserUpdateMirrorPublicProfile = onDocumentUpdated(
 
     const mirror = await buildMirrorFromProfile(uid, after);
     if (!mirror) return;
-    await db.doc(`publicProfiles/${slugAfter}`).set(mirror, { merge: true });
+    await writeMirrorIfOwned(uid, slugAfter, mirror);
 
     // Log the transition for observability.
     if (!enabledBefore) {
@@ -290,6 +330,13 @@ export const onDailyWeightWriteMirrorPublicProfile = onDocumentWritten(
   async (event) => {
     const uid = event.params.uid;
     const db = getFirestore();
+    // Bail unless the account still exists AND still has a public page.
+    // Account deletion removes `dailyWeights` one doc at a time, and each
+    // delete fires this trigger — so this read is the first of two guards
+    // that stop an erasure from re-creating the page it just removed
+    // (`writeMirrorIfOwned` re-checks inside its transaction; `gdpr.ts`
+    // disables the page before deleting anything, and sweeps the mirror
+    // again at the end).
     const userSnap = await db.doc(`users/${uid}`).get();
     if (!userSnap.exists) return;
     const data = userSnap.data() ?? {};
@@ -298,6 +345,37 @@ export const onDailyWeightWriteMirrorPublicProfile = onDocumentWritten(
     if (!slug) return;
     const mirror = await buildMirrorFromProfile(uid, data);
     if (!mirror) return;
-    await db.doc(`publicProfiles/${slug}`).set(mirror, { merge: true });
+    await writeMirrorIfOwned(uid, slug, mirror);
   },
 );
+
+/**
+ * Write `publicProfiles/{slug}` only if, at commit time, the `publicSlugs`
+ * ledger still names `uid` as the slug's owner AND the profile still exists
+ * with its public page enabled on that same slug.
+ *
+ * Both checks run inside the transaction rather than before it because both
+ * can change underneath a slow trigger: a slug can be released or re-claimed
+ * by someone else, and an account can be erased while `buildMirrorFromProfile`
+ * is still querying. A write keyed on the profile's own `publicSlug` field
+ * alone is what made a forged slug a takeover of someone else's page.
+ */
+async function writeMirrorIfOwned(uid: string, slug: string, mirror: PublicMirror): Promise<boolean> {
+  const db = getFirestore();
+  const slugRef = db.doc(`publicSlugs/${slug}`);
+  const userRef = db.doc(`users/${uid}`);
+  const mirrorRef = db.doc(`publicProfiles/${slug}`);
+  return db.runTransaction(async (tx) => {
+    const [slugSnap, userSnap] = await Promise.all([tx.get(slugRef), tx.get(userRef)]);
+    const user = userSnap.data();
+    const stillPublic = userSnap.exists
+      && user?.["publicProfileEnabled"] === true
+      && user?.["publicSlug"] === slug;
+    if (!ownsSlug(slugSnap, uid) || !stillPublic) {
+      console.warn(`publicProfile: mirror write skipped uid=${uid} slug=${slug} (not owned or not public)`);
+      return false;
+    }
+    tx.set(mirrorRef, mirror, { merge: true });
+    return true;
+  });
+}

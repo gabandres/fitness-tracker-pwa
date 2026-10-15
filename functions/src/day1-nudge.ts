@@ -50,44 +50,68 @@ export async function runDay1Nudge(): Promise<void> {
 
   let sent = 0;
   let skipped = 0;
+  let failed = 0;
   for (const doc of snap.docs) {
     const uid = doc.id;
-    const data = doc.data();
-    if (data["day1NudgeSentAt"] || data["syntheticAccount"] === true || data["weeklyDigestOptIn"] === false) { skipped++; continue; }
-
-    // Back already? Then this mail has nothing to say.
-    const recent = await db.collection(`users/${uid}/dailyLogs`)
-      .where("timestamp", ">=", Timestamp.fromMillis(nowMs - RECENT_LOG_MS)).limit(1).get();
-    if (!recent.empty) { skipped++; continue; }
-
-    const user = await getAuth().getUser(uid).catch(() => null);
-    const email = user?.email ?? (data["email"] as string | undefined);
-    if (!user || !email || !user.emailVerified || user.disabled) { skipped++; continue; }
-
-    // Latch first. A second worker in the same hour sees the stamp and stops.
-    const ref = db.doc(`users/${uid}`);
-    const claimed = await db.runTransaction(async (tx) => {
-      const fresh = await tx.get(ref);
-      if (fresh.data()?.["day1NudgeSentAt"]) return false;
-      tx.set(ref, { day1NudgeSentAt: Timestamp.fromMillis(nowMs) }, { merge: true });
-      return true;
-    });
-    if (!claimed) { skipped++; continue; }
-
-    const variant: Day1Variant = data["firstEntryAt"] ? "keepGoing" : "firstLog";
-    const locale = emailLocale(data["preferredLocale"] as string | undefined);
-    const unsub = unsubscribeUrl(uid, resendApiKey.value());
-    const mail = day1NudgeEmail({ locale, variant, displayName: user.displayName ?? null, unsubscribeUrl: unsub });
+    // Per-user isolation: one throw (a Firestore blip on the recent-log read,
+    // a failed latch transaction) used to abort the whole loop and starve
+    // every account after it until the next hour (2026-10-15 audit).
     try {
-      const { error } = await getResend().emails.send({ ...baseSendOptions(unsub), to: email, subject: mail.subject, html: mail.html, text: mail.text });
-      if (error) {
-        console.error(`day1Nudge: send failed for ${uid} (${variant}):`, error);
-      } else {
-        sent++;
-      }
+      const r = await nudgeOne(db, uid, doc.data(), nowMs);
+      if (r === "sent") sent++;
+      else skipped++;
     } catch (err) {
-      console.error(`day1Nudge: send threw for ${uid} (${variant}):`, err);
+      failed++;
+      console.error(`day1Nudge: failed uid=${uid}`, err instanceof Error ? err.message : err);
     }
   }
+  if (failed) console.warn(`day1Nudge: ${failed} user(s) failed`);
   console.log(`day1Nudge: ${snap.size} in window, ${sent} sent, ${skipped} skipped`);
+}
+
+async function nudgeOne(
+  db: FirebaseFirestore.Firestore,
+  uid: string,
+  data: FirebaseFirestore.DocumentData,
+  nowMs: number,
+): Promise<"sent" | "skipped"> {
+  if (data["day1NudgeSentAt"] || data["syntheticAccount"] === true || data["weeklyDigestOptIn"] === false) {
+    return "skipped";
+  }
+
+  // Back already? Then this mail has nothing to say.
+  const recent = await db.collection(`users/${uid}/dailyLogs`)
+    .where("timestamp", ">=", Timestamp.fromMillis(nowMs - RECENT_LOG_MS)).limit(1).get();
+  if (!recent.empty) return "skipped";
+
+  // Auth record only — never the client-writable profile `email` field.
+  const user = await getAuth().getUser(uid).catch(() => null);
+  const email = user?.email;
+  if (!user || !email || !user.emailVerified || user.disabled) return "skipped";
+
+  // Latch first. A second worker in the same hour sees the stamp and stops.
+  const ref = db.doc(`users/${uid}`);
+  const claimed = await db.runTransaction(async (tx) => {
+    const fresh = await tx.get(ref);
+    if (fresh.data()?.["day1NudgeSentAt"]) return false;
+    tx.set(ref, { day1NudgeSentAt: Timestamp.fromMillis(nowMs) }, { merge: true });
+    return true;
+  });
+  if (!claimed) return "skipped";
+
+  const variant: Day1Variant = data["firstEntryAt"] ? "keepGoing" : "firstLog";
+  const locale = emailLocale(data["preferredLocale"] as string | undefined);
+  const unsub = unsubscribeUrl(uid, resendApiKey.value());
+  const mail = day1NudgeEmail({ locale, variant, displayName: user.displayName ?? null, unsubscribeUrl: unsub });
+  try {
+    const { error } = await getResend().emails.send({ ...baseSendOptions(unsub), to: email, subject: mail.subject, html: mail.html, text: mail.text });
+    if (error) {
+      console.error(`day1Nudge: send failed for ${uid} (${variant}):`, error);
+      return "skipped";
+    }
+    return "sent";
+  } catch (err) {
+    console.error(`day1Nudge: send threw for ${uid} (${variant}):`, err);
+    return "skipped";
+  }
 }

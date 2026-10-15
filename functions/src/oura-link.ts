@@ -1,4 +1,4 @@
-import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { defineSecret } from "firebase-functions/params";
 import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
@@ -148,11 +148,12 @@ function signState(payload: string, clientSecret: string): string {
     .toString("base64url");
 }
 
-/** `<uid>.<issuedAtMs>.<sig>`. Firebase uids are `[A-Za-z0-9]{28}` and the
- *  timestamp is digits, so the dots are unambiguous and neither field needs
- *  escaping. */
-export function mintOuraState(uid: string, clientSecret: string, nowMs: number): string {
-  const payload = `${uid}.${nowMs}`;
+/** `<uid>.<issuedAtMs>[.<nonce>].<sig>`. Firebase uids are `[A-Za-z0-9]{28}`,
+ *  the timestamp is digits and the nonce base64url, so the dots are
+ *  unambiguous and no field needs escaping. The nonce, when present, is
+ *  inside the signature. */
+export function mintOuraState(uid: string, clientSecret: string, nowMs: number, nonce?: string): string {
+  const payload = nonce ? `${uid}.${nowMs}.${nonce}` : `${uid}.${nowMs}`;
   return `${payload}.${signState(payload, clientSecret)}`;
 }
 
@@ -163,18 +164,33 @@ export function verifyOuraState(
   clientSecret: string,
   nowMs: number,
 ): string | null {
+  return parseOuraState(state, clientSecret, nowMs)?.uid ?? null;
+}
+
+/** {@link verifyOuraState}, plus the signed one-time nonce (null on a
+ *  legacy nonce-less state, which `ouraCallback` refuses). */
+export function parseOuraState(
+  state: string,
+  clientSecret: string,
+  nowMs: number,
+): { uid: string; nonce: string | null } | null {
   const parts = state.split(".");
-  if (parts.length !== 3) return null;
-  const [uid, iatRaw, sig] = parts;
+  if (parts.length !== 3 && parts.length !== 4) return null;
+  const uid = parts[0];
+  const iatRaw = parts[1];
+  const nonce = parts.length === 4 ? parts[2] : null;
+  const sig = parts[parts.length - 1];
   if (!uid || !iatRaw || !sig) return null;
+  if (nonce !== null && !/^[A-Za-z0-9_-]{16,64}$/.test(nonce)) return null;
 
   // `Number('')` is 0 and `Number('12abc')` is NaN — check the shape before
   // coercing, not after, or a blank timestamp reads as the epoch.
   if (!/^\d+$/.test(iatRaw)) return null;
   const iat = Number(iatRaw);
 
+  const payload = nonce ? `${uid}.${iatRaw}.${nonce}` : `${uid}.${iatRaw}`;
   const got = Buffer.from(sig, "base64url");
-  const want = Buffer.from(signState(`${uid}.${iatRaw}`, clientSecret), "base64url");
+  const want = Buffer.from(signState(payload, clientSecret), "base64url");
   // Length check first: timingSafeEqual THROWS on a length mismatch rather
   // than returning false.
   if (got.length !== want.length) return null;
@@ -187,7 +203,66 @@ export function verifyOuraState(
   if (iat > nowMs + 60_000) return null;
   if (nowMs - iat > STATE_TTL_MS) return null;
 
-  return uid;
+  return { uid, nonce };
+}
+
+// ─── One-time nonce (2026-10-15 audit) ──────────────────────────────
+//
+// The HMAC proves WHICH uid a state was minted for; it does not make a state
+// single-use. A signed state was a 15-minute bearer capability: replayable,
+// and every URL minted in that window stayed valid. So minting now also
+// stores a random nonce server-side and the callback CONSUMES it in a
+// transaction — one state, one use, and only the most recently minted link
+// per user is live (a new mint overwrites the stored nonce).
+//
+// Stored as a SHA-256, under `users/{uid}/private/` — no rule matches
+// `private`, so clients can neither read nor forge it, and account deletion
+// already erases it with the rest of `private`. No new rules, no new
+// collection, no cleanup job: one doc per user, overwritten or deleted.
+//
+// What it does NOT stop, and cannot without an app change: an attacker who
+// mints a link on their OWN account and gets a victim to complete it in the
+// victim's browser. The browser leg carries no Ignia session, so nothing on it
+// can tell the two people apart. Closing that needs the APP to finish the
+// exchange — see the report for the mobile change (bounce the code to
+// `ignia://oura/callback` and redeem it through an authenticated callable that
+// checks the caller's uid against the state's).
+
+function nonceDoc(uid: string) {
+  return getFirestore().doc(`users/${uid}/private/ouraLinkNonce`);
+}
+
+function hashNonce(nonce: string): string {
+  return createHash("sha256").update(`ignia-oura-nonce-v1:${nonce}`).digest("hex");
+}
+
+/** Store a fresh nonce for `uid`, replacing any previous one. */
+export async function issueOuraNonce(uid: string, nowMs: number): Promise<string> {
+  const nonce = randomBytes(18).toString("base64url");
+  await nonceDoc(uid).set({
+    hash: hashNonce(nonce),
+    expiresAt: Timestamp.fromMillis(nowMs + STATE_TTL_MS),
+  });
+  return nonce;
+}
+
+/** Atomically check-and-delete. True only for the live, unexpired nonce. */
+export async function consumeOuraNonce(uid: string, nonce: string, nowMs: number): Promise<boolean> {
+  const db = getFirestore();
+  const ref = nonceDoc(uid);
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return false;
+    const data = snap.data() ?? {};
+    const want = typeof data["hash"] === "string" ? (data["hash"] as string) : "";
+    const exp = data["expiresAt"] instanceof Timestamp ? (data["expiresAt"] as Timestamp).toMillis() : 0;
+    const got = hashNonce(nonce);
+    const match = want.length === got.length && timingSafeEqual(Buffer.from(want), Buffer.from(got));
+    if (!match) return false;
+    // Single use: delete on the matching read, even when expired.
+    tx.delete(ref);
+    return exp > nowMs;
+  });
 }
 
 /** The full authorize URL a user is sent to. Exported for tests. */
@@ -334,11 +409,13 @@ export async function getOuraAccessToken(
  */
 export const beginOuraLink = onCall(
   { secrets: [ouraClientSecret], maxInstances: 3 },
-  (request) => {
+  async (request) => {
     const uid = request.auth?.uid;
     if (!uid) throw new HttpsError("unauthenticated", "Must be signed in.");
 
-    const state = mintOuraState(uid, ouraClientSecret.value(), Date.now());
+    const now = Date.now();
+    const nonce = await issueOuraNonce(uid, now);
+    const state = mintOuraState(uid, ouraClientSecret.value(), now, nonce);
     return { url: ouraAuthorizeUrl(state), scope: SCOPE, expiresInSec: STATE_TTL_MS / 1000 };
   },
 );
@@ -551,7 +628,18 @@ export const ouraCallback = onRequest(
     };
 
     const state = q("state");
-    const uid = state ? verifyOuraState(state, ouraClientSecret.value(), Date.now()) : null;
+    const parsed = state ? parseOuraState(state, ouraClientSecret.value(), Date.now()) : null;
+    // The nonce is consumed HERE, before the denial / code branches, so a
+    // state is spent whatever the outcome. A nonce-less (pre-2026-10-15)
+    // state is refused: its link is at most 15 minutes old at deploy time,
+    // and that user simply taps Connect again.
+    const fresh = parsed?.nonce
+      ? await consumeOuraNonce(parsed.uid, parsed.nonce, Date.now()).catch((err) => {
+          console.error("ouraCallback: nonce check failed", err);
+          return false;
+        })
+      : false;
+    const uid = parsed && fresh ? parsed.uid : null;
 
     if (!uid) {
       // Deliberately does not distinguish "expired", "forged" and "absent".

@@ -13,6 +13,22 @@
       "collectionGroup": "dailyWeights",
       "queryScope": "COLLECTION",
       "fields": [{ "fieldPath": "__name__", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "auditLogs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "action", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "weeklyDigestOptIn", "order": "ASCENDING" },
+        { "fieldPath": "timezoneOffsetMin", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": [

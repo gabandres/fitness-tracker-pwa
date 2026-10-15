@@ -184,6 +184,39 @@ describe("refund asymmetry", () => {
     expect(q.release[0]).toEqual(["u-free", "photo", "2026-09-14", 1]);
   });
 
+  it("does NOT refund a failure after the provider billed (markBilled) — the ceiling-drain fix", async () => {
+    // 2026-10-15 audit: a non-food photo is billed in full, then rejected as
+    // "no food found". Refunding it let a free user loop scans forever while
+    // the org ceiling kept every unit — one person could trip photo scan for
+    // everyone. Billed failures now keep the slot; the 3/day cap holds.
+    const trace: Trace = [];
+    const { quota, calls: q } = fakeQuota(trace);
+    const { ceiling, calls: c } = fakeCeiling(trace);
+
+    await expect(
+      makeCostGuards(quota, ceiling)({ kind: "photo", caller: FREE }, async ({ markBilled }) => {
+        markBilled();
+        throw new HttpsError("internal", "no food", { code: "PHOTO_ESTIMATE_FAILED" });
+      }),
+    ).rejects.toMatchObject({ details: { code: "PHOTO_ESTIMATE_FAILED" } });
+
+    expect(q.reserve).toHaveLength(1);
+    expect(c.record).toEqual([1]);
+    expect(q.release).toEqual([]);
+  });
+
+  it("still refunds a failure that happened before the provider answered", async () => {
+    const trace: Trace = [];
+    const { quota, calls } = fakeQuota(trace);
+    const { ceiling } = fakeCeiling(trace);
+    await expect(
+      makeCostGuards(quota, ceiling)({ kind: "photo", caller: FREE }, async () => {
+        throw new Error("ECONNRESET");
+      }),
+    ).rejects.toThrow("ECONNRESET");
+    expect(calls.release).toHaveLength(1);
+  });
+
   it("does not refund a successful call", async () => {
     const trace: Trace = [];
     const { quota, calls } = fakeQuota(trace);

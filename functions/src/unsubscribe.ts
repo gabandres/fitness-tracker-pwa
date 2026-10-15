@@ -174,6 +174,45 @@ const FAILED: Record<EmailLocale, { title: string; body: string }> = {
   },
 };
 
+const CONFIRM: Record<EmailLocale, { title: string; body: string; button: string }> = {
+  "en": {
+    title: "Stop the weekly recap?",
+    body: `<p>Press the button to stop receiving the weekly recap email.</p>
+       <p>Account mail — password resets, email confirmation — will still arrive.</p>`,
+    button: "Unsubscribe",
+  },
+  "es-PR": {
+    title: "¿Dejar de recibir el resumen semanal?",
+    body: `<p>Presiona el botón para dejar de recibir el resumen semanal por correo.</p>
+       <p>Los correos de tu cuenta — restablecer contraseña, confirmar tu correo — seguirán llegando.</p>`,
+    button: "Cancelar suscripción",
+  },
+  "pt-BR": {
+    title: "Parar o resumo semanal?",
+    body: `<p>Toque no botão para parar de receber o e-mail de resumo semanal.</p>
+       <p>Os e-mails da sua conta — redefinir senha, confirmar o e-mail — continuam chegando.</p>`,
+    button: "Cancelar inscrição",
+  },
+};
+
+/**
+ * What a GET renders: a confirmation page whose button POSTs back to the same
+ * URL. Exported for tests.
+ *
+ * The token goes into an attribute, so it is escaped even though a token that
+ * reached here has already verified (base64url + a 28-char uid cannot carry a
+ * quote) — the page must not depend on that staying true.
+ */
+export function confirmPage(token: string, locale: EmailLocale): string {
+  const t = CONFIRM[locale];
+  const action = `${SITE}/unsubscribe?u=${encodeURIComponent(token)}`.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
+  const form = `<form method="post" action="${action}">
+    <input type="hidden" name="List-Unsubscribe" value="One-Click">
+    <button type="submit" style="font:inherit;font-weight:600;padding:12px 22px;border-radius:999px;border:0;background:var(--accent);color:#fff;cursor:pointer">${t.button}</button>
+  </form>`;
+  return page(t.title, `${t.body}\n  ${form}`, locale);
+}
+
 function failedPage(locale: EmailLocale): string {
   const t = FAILED[locale];
   return page(t.title, t.body, locale);
@@ -203,21 +242,32 @@ function badTokenPage(): string {
 }
 
 /**
- * `GET  /unsubscribe?u=<token>` — a human clicked the link in the mail.
- * `POST /unsubscribe?u=<token>` — RFC 8058 one-click, fired by the mail
- * provider with body `List-Unsubscribe=One-Click`. No body parsing: the
- * token in the URL is the whole authorisation, and acting on any POST to
- * this URL is exactly what the RFC asks for.
+ * `GET  /unsubscribe?u=<token>` — a human clicked the link in the mail. Renders
+ *   a CONFIRMATION page; nothing is written. Its button POSTs to the same URL.
+ * `POST /unsubscribe?u=<token>` — the unsubscribe itself: RFC 8058 one-click,
+ *   fired by the mail provider with body `List-Unsubscribe=One-Click`, or the
+ *   confirmation page's button. No body parsing: the token in the URL is the
+ *   whole authorisation, and acting on any POST to this URL is exactly what
+ *   the RFC asks for.
+ *
+ * Why GET no longer unsubscribes (2026-10-15 audit): corporate mail gateways
+ * and link scanners (Defender Safe Links, Mimecast, Proofpoint…) pre-fetch
+ * every link in a message with a GET. A GET that writes means a recipient is
+ * unsubscribed the moment their mail is scanned, without ever clicking. RFC
+ * 8058 §1 makes the same point: the one-click action is the POST, precisely
+ * so that GET stays safe.
  *
  * Idempotent, and deliberately never reveals whether a uid exists — an
- * unknown-but-well-signed token gets the same "done" page as a real one, so
- * this endpoint cannot be used to probe for accounts.
+ * unknown-but-well-signed token gets the same pages as a real one, so this
+ * endpoint cannot be used to probe for accounts.
  */
 export const unsubscribeWeeklyDigest = onRequest(
   { cors: false, secrets: [resendApiKey], maxInstances: 3 },
   async (req, res) => {
     res.set("Cache-Control", "no-store");
     res.set("Content-Type", "text/html; charset=utf-8");
+    // The URL carries a capability token; keep it out of Referer headers.
+    res.set("Referrer-Policy", "no-referrer");
 
     const raw = req.query["u"];
     const token = typeof raw === "string" ? raw : "";
@@ -228,6 +278,19 @@ export const unsubscribeWeeklyDigest = onRequest(
       // there is nothing here a retry can fix.
       console.warn("unsubscribeWeeklyDigest: bad or missing token");
       res.status(200).send(badTokenPage());
+      return;
+    }
+
+    if (req.method !== "POST") {
+      // GET / HEAD: confirm only. A read for the language is the one access.
+      let locale: EmailLocale = "en";
+      try {
+        const snap = await getFirestore().doc(`users/${uid}`).get();
+        locale = emailLocale(snap.data()?.["preferredLocale"] as string | undefined);
+      } catch {
+        // English is the honest fallback; the page still works.
+      }
+      res.status(200).send(confirmPage(token, locale));
       return;
     }
 

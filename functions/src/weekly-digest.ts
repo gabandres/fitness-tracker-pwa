@@ -166,7 +166,7 @@ export function weightDocFromId(
   };
 }
 
-function isSundayLocalHour(timezoneOffsetMin: number | undefined, nowMs: number): boolean {
+export function isSundayLocalHour(timezoneOffsetMin: number | undefined, nowMs: number): boolean {
   // Profile's `timezoneOffsetMin` is `Date.prototype.getTimezoneOffset()`
   // (minutes WEST of UTC, so a +5 offset means UTC-5). Convert to local
   // ms by subtracting the offset.
@@ -177,6 +177,38 @@ function isSundayLocalHour(timezoneOffsetMin: number | undefined, nowMs: number)
   if (day !== 0) return false;
   const hour = local.getUTCHours();
   return hour === TARGET_LOCAL_HOUR;
+}
+
+/** `getTimezoneOffset()` spans UTC+14 (-840) to UTC-12 (+720). */
+const MIN_TZ_OFFSET = -840;
+const MAX_TZ_OFFSET = 720;
+const HOUR_MS = 60 * 60 * 1000;
+const MIN_MS = 60 * 1000;
+
+/**
+ * The `timezoneOffsetMin` values (inclusive integer ranges) for which `nowMs`
+ * is Sunday 10:xx local — i.e. exactly the offsets `isSundayLocalHour` accepts.
+ *
+ * WHY (2026-10-15 audit): `runWeeklyDigest` runs every hour and used to read
+ * EVERY opted-in profile on every run, 168 times a week, to then discard all
+ * but the ~1/168th whose local Sunday 10:00 it was. Querying the offset range
+ * reads only the users who are actually due. On 141 of the week's 168 hours no
+ * timezone on Earth is at Sunday 10:00, and this returns `[]` — zero reads.
+ */
+export function digestOffsetRanges(nowMs: number): Array<{ min: number; max: number }> {
+  const sundayOnOrBefore = (ms: number): number => {
+    const dayStart = Math.floor(ms / DAY_MS) * DAY_MS;
+    return dayStart - new Date(dayStart).getUTCDay() * DAY_MS;
+  };
+  const s0 = sundayOnOrBefore(nowMs);
+  const ranges: Array<{ min: number; max: number }> = [];
+  for (const s of [s0 - 7 * DAY_MS, s0, s0 + 7 * DAY_MS]) {
+    // local = now - off·60000 must land in [s + 10h, s + 11h).
+    const min = Math.max(MIN_TZ_OFFSET, Math.floor((nowMs - s - (TARGET_LOCAL_HOUR + 1) * HOUR_MS) / MIN_MS) + 1);
+    const max = Math.min(MAX_TZ_OFFSET, Math.floor((nowMs - s - TARGET_LOCAL_HOUR * HOUR_MS) / MIN_MS));
+    if (min <= max) ranges.push({ min, max });
+  }
+  return ranges;
 }
 
 interface DigestStats {
@@ -379,116 +411,145 @@ export async function runWeeklyDigest(): Promise<void> {
     const db = getFirestore();
     const nowMs = Date.now();
 
-    const optInSnap = await db.collection("users")
-      .where("weeklyDigestOptIn", "==", true)
-      .get();
+    // Only the profiles that are due THIS hour (see `digestOffsetRanges`).
+    // Needs the (weeklyDigestOptIn, timezoneOffsetMin) composite index in
+    // firestore.indexes.json.
+    const ranges = digestOffsetRanges(nowMs);
+    if (ranges.length === 0) return;
 
-    if (optInSnap.empty) {
-      console.log("sendWeeklyDigest: no opt-in users");
+    const byId = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
+    for (const r of ranges) {
+      const snap = await db.collection("users")
+        .where("weeklyDigestOptIn", "==", true)
+        .where("timezoneOffsetMin", ">=", r.min)
+        .where("timezoneOffsetMin", "<=", r.max)
+        .get();
+      for (const d of snap.docs) byId.set(d.id, d);
+    }
+    // A profile with NO offset is treated as UTC (`isSundayLocalHour`), and a
+    // range query cannot match a missing field — so in the one hour a week
+    // that offset 0 is due, sweep the opt-ins for offset-less legacy docs.
+    // `ensureProfile` writes the offset on every cold start of a completed
+    // profile, so this set only shrinks.
+    if (ranges.some((r) => r.min <= 0 && 0 <= r.max)) {
+      const legacy = await db.collection("users").where("weeklyDigestOptIn", "==", true).get();
+      for (const d of legacy.docs) {
+        if (d.get("timezoneOffsetMin") === undefined) byId.set(d.id, d);
+      }
+    }
+
+    if (byId.size === 0) {
+      console.log("sendWeeklyDigest: no opt-in users due this hour");
       return;
     }
 
     let attempted = 0;
     let sent = 0;
     let skipped = 0;
+    let failed = 0;
 
-    for (const doc of optInSnap.docs) {
+    for (const doc of byId.values()) {
       const uid = doc.id;
-      const data = doc.data();
-      const lastSent = data["lastWeeklyDigestSentAt"] as Timestamp | undefined;
-      if (lastSent && nowMs - lastSent.toMillis() < SEND_GUARD_MS) {
-        skipped++;
-        continue;
-      }
-      const tzOffset = data["timezoneOffsetMin"] as number | undefined;
-      if (!isSundayLocalHour(tzOffset, nowMs)) {
-        skipped++;
-        continue;
-      }
-      // Email is no longer on the profile doc (PII minimization) — fetch
-      // from Auth by uid. Legacy docs may still carry it (preferred, saves
-      // an Auth read). Skip if the account has no email at all.
-      const email =
-        (data["email"] as string | undefined) ??
-        (await getAuth().getUser(uid).then((u) => u.email).catch(() => undefined));
-      if (!email) {
-        skipped++;
-        continue;
-      }
-
-      attempted++;
-      const stats = await computeStatsForUser(uid, nowMs, tzOffset ?? 0);
-      // Skip users who haven't logged anything this week. Sending a
-      // "0 / 7 days · 0 kcal" email to a lapsed user reads as nagging.
-      if (stats.daysLogged === 0) {
-        skipped++;
-        continue;
-      }
-
-      // At-most-once: claim the send by transactionally stamping
-      // `lastWeeklyDigestSentAt` BEFORE calling Resend. If a second
-      // scheduler tick races us (overlapping invocations on a slow
-      // run), it'll see the stamp and skip the user. Trade-off: a
-      // Resend failure after the stamp means the user misses this
-      // week's digest. That's the right trade — duplicate weekly
-      // digests are spam-flag bait; a missed week is invisible.
-      const userRef = db.doc(`users/${uid}`);
-      const claimed = await db.runTransaction(async (tx) => {
-        const snap = await tx.get(userRef);
-        if (!snap.exists) return false;
-        const last = snap.data()?.["lastWeeklyDigestSentAt"] as Timestamp | undefined;
-        if (last && nowMs - last.toMillis() < SEND_GUARD_MS) return false;
-        tx.set(userRef, { lastWeeklyDigestSentAt: Timestamp.fromMillis(nowMs) }, { merge: true });
-        return true;
-      });
-      if (!claimed) {
-        skipped++;
-        continue;
-      }
-
-      const locale = emailLocale(data["preferredLocale"] as string | undefined);
-      // The mail used to print `lb` at everyone. UX_AUDIT F3 shipped
-      // kilograms on both frontends and this send path never learned —
-      // a metric user read `−1.4 lb` here and `−0.6 kg` in the app for
-      // the same week. The profile has carried the answer all along.
-      const unitSystem = data["unitSystem"] === "metric" ? "metric" as const : "us" as const;
-      const displayName = (data["displayName"] as string | undefined)
-        || (await getAuth().getUser(uid).then((u) => u.displayName).catch(() => null));
-
-      // Per-recipient one-click opt-out. Goes in both the RFC 8058 header
-      // and the visible footer — a recipient who wants out and cannot find
-      // the affordance reports spam instead, which is the one signal that
-      // costs the sending domain real reputation.
-      const unsubUrl = unsubscribeUrl(uid, resendApiKey.value());
-
-      const { subject, html, text } = weeklyDigestEmail({
-        locale,
-        displayName,
-        ...stats,
-        unitSystem,
-        unsubscribeUrl: unsubUrl,
-      });
-
+      // One user's failure must not abort everyone after them in the loop —
+      // which is what an un-caught throw from `computeStatsForUser` or the
+      // claim transaction used to do (2026-10-15 audit). Logged by uid only.
       try {
-        const resend = getResend();
-        const { error } = await resend.emails.send({
-          ...baseSendOptions(unsubUrl),
-          to: email,
-          subject,
-          html,
-          text,
-        });
-        if (error) {
-          // Stamp already claimed above; we deliberately do NOT roll it
-          // back. See comment on the transaction.
-          console.error(`sendWeeklyDigest: Resend error uid=${uid}`, error);
-          continue;
-        }
-        sent++;
+        const outcome = await sendDigestTo(db, uid, doc.data(), nowMs);
+        if (outcome === "sent") { attempted++; sent++; }
+        else if (outcome === "attempted") attempted++;
+        else skipped++;
       } catch (err) {
-        console.error(`sendWeeklyDigest: unexpected failure uid=${uid}`, err);
+        failed++;
+        console.error(`sendWeeklyDigest: failed uid=${uid}`, err instanceof Error ? err.message : err);
       }
     }
 
-    console.log(`sendWeeklyDigest: attempted=${attempted} sent=${sent} skipped=${skipped}`);
+    console.log(`sendWeeklyDigest: attempted=${attempted} sent=${sent} skipped=${skipped} failed=${failed}`);
+}
+
+async function sendDigestTo(
+  db: FirebaseFirestore.Firestore,
+  uid: string,
+  data: FirebaseFirestore.DocumentData,
+  nowMs: number,
+): Promise<"sent" | "attempted" | "skipped"> {
+  const lastSent = data["lastWeeklyDigestSentAt"] as Timestamp | undefined;
+  if (lastSent && nowMs - lastSent.toMillis() < SEND_GUARD_MS) return "skipped";
+  const tzOffset = data["timezoneOffsetMin"] as number | undefined;
+  if (!isSundayLocalHour(tzOffset, nowMs)) return "skipped";
+
+  // The address comes from the Firebase Auth RECORD, never from the
+  // profile doc. A legacy profile may still carry an `email` field, and
+  // the profile is client-writable — so reading it there let any user
+  // point their weekly digest (and its Resend quota) at an arbitrary
+  // inbox (2026-10-15 audit). Unverified or disabled accounts get no mail.
+  const user = await getAuth().getUser(uid).catch(() => null);
+  const email = user?.email;
+  if (!user || !email || !user.emailVerified || user.disabled) return "skipped";
+
+  const stats = await computeStatsForUser(uid, nowMs, tzOffset ?? 0);
+  // Skip users who haven't logged anything this week. Sending a
+  // "0 / 7 days · 0 kcal" email to a lapsed user reads as nagging.
+  if (stats.daysLogged === 0) return "skipped";
+
+  // At-most-once: claim the send by transactionally stamping
+  // `lastWeeklyDigestSentAt` BEFORE calling Resend. If a second
+  // scheduler tick races us (overlapping invocations on a slow
+  // run), it'll see the stamp and skip the user. Trade-off: a
+  // Resend failure after the stamp means the user misses this
+  // week's digest. That's the right trade — duplicate weekly
+  // digests are spam-flag bait; a missed week is invisible.
+  const userRef = db.doc(`users/${uid}`);
+  const claimed = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(userRef);
+    if (!snap.exists) return false;
+    const last = snap.data()?.["lastWeeklyDigestSentAt"] as Timestamp | undefined;
+    if (last && nowMs - last.toMillis() < SEND_GUARD_MS) return false;
+    tx.set(userRef, { lastWeeklyDigestSentAt: Timestamp.fromMillis(nowMs) }, { merge: true });
+    return true;
+  });
+  if (!claimed) return "skipped";
+
+  const locale = emailLocale(data["preferredLocale"] as string | undefined);
+  // The mail used to print `lb` at everyone. UX_AUDIT F3 shipped
+  // kilograms on both frontends and this send path never learned —
+  // a metric user read `−1.4 lb` here and `−0.6 kg` in the app for
+  // the same week. The profile has carried the answer all along.
+  const unitSystem = data["unitSystem"] === "metric" ? "metric" as const : "us" as const;
+  const displayName = user.displayName ?? null;
+
+  // Per-recipient one-click opt-out. Goes in both the RFC 8058 header
+  // and the visible footer — a recipient who wants out and cannot find
+  // the affordance reports spam instead, which is the one signal that
+  // costs the sending domain real reputation.
+  const unsubUrl = unsubscribeUrl(uid, resendApiKey.value());
+
+  const { subject, html, text } = weeklyDigestEmail({
+    locale,
+    displayName,
+    ...stats,
+    unitSystem,
+    unsubscribeUrl: unsubUrl,
+  });
+
+  try {
+    const resend = getResend();
+    const { error } = await resend.emails.send({
+      ...baseSendOptions(unsubUrl),
+      to: email,
+      subject,
+      html,
+      text,
+    });
+    if (error) {
+      // Stamp already claimed above; we deliberately do NOT roll it
+      // back. See comment on the transaction.
+      console.error(`sendWeeklyDigest: Resend error uid=${uid}`, error);
+      return "attempted";
+    }
+    return "sent";
+  } catch (err) {
+    console.error(`sendWeeklyDigest: unexpected failure uid=${uid}`, err);
+    return "attempted";
+  }
 }

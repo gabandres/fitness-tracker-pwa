@@ -101,6 +101,31 @@ function validateLogEntry(body: unknown): ValidatedEntry | string {
   return entry;
 }
 
+/**
+ * Pull the API key from `x-api-key` or `Authorization: Bearer …`, and accept
+ * it only if it has the shape a real key can have: the profile rules allow
+ * `webhookApiKey` as a string of exactly 36 chars (a UUID), so anything else
+ * cannot match a profile and is rejected here — BEFORE any Firestore I/O.
+ *
+ * Why this sits in front of the throttle (2026-10-15 audit): the throttle
+ * writes one Firestore doc per IP per minute, so leading with it let any
+ * unauthenticated request — no key at all — cost a write. No client in the
+ * repo generates `webhookApiKey` any more, so for practically every request
+ * this endpoint receives, this check is the whole answer, and it is free.
+ */
+const API_KEY_RE = /^[A-Za-z0-9-]{36}$/;
+
+export function extractWebhookApiKey(headers: {
+  "x-api-key"?: string | string[];
+  authorization?: string;
+}): string | null {
+  const raw = headers["x-api-key"];
+  const key =
+    (typeof raw === "string" ? raw : null) ??
+    (headers.authorization?.startsWith("Bearer ") ? headers.authorization.slice(7) : null);
+  return key && API_KEY_RE.test(key) ? key : null;
+}
+
 // ─── Apple Shortcuts Webhook ────────────────────────────────────────
 
 export const logWebhook = onRequest(
@@ -112,25 +137,20 @@ export const logWebhook = onRequest(
       return;
     }
 
+    // Shape-check the key FIRST — free, no Firestore I/O. A missing or
+    // malformed key can never match a profile, so it must not cost a write.
+    const apiKey = extractWebhookApiKey(req.headers);
+    if (!apiKey) {
+      res.status(401).json({ error: "Missing or malformed API key. Send x-api-key header." });
+      return;
+    }
+
     // Rate-limit by client IP before the key lookup (brute-force defense).
     // LAST forwarded-for entry: the one Cloud Run appended, not the one the
     // client chose (client-ip.ts).
     const ip = clientIp(req.headers["x-forwarded-for"], req.ip);
     if (await throttled(ip)) {
       res.status(429).json({ error: "Too many requests. Slow down." });
-      return;
-    }
-
-    // Extract API key from header
-    const raw = req.headers["x-api-key"];
-    const apiKey =
-      (typeof raw === "string" ? raw : null) ??
-      (req.headers.authorization?.startsWith("Bearer ")
-        ? req.headers.authorization.slice(7)
-        : null);
-
-    if (!apiKey) {
-      res.status(401).json({ error: "Missing API key. Send x-api-key header." });
       return;
     }
 

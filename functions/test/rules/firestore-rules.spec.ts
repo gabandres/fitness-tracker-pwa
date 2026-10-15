@@ -419,7 +419,10 @@ describe('firestore.rules', () => {
   // weight than the deny-write ones around it. Each case below is a way the
   // collection could stop being "counts, scoped to me, for the day named in the
   // id" — which is the entire claim the privacy copy makes about it.
-  const usageDoc = (day = '2026-08-12') => ({
+  // TODAY in UTC: since 2026-10-15 the rules bound `day` near request.time,
+  // so a hard-coded date would age out of the window.
+  const USAGE_DAY = new Date().toISOString().slice(0, 10);
+  const usageDoc = (day = USAGE_DAY) => ({
     uid: 'alice',
     day,
     platform: 'ios',
@@ -429,20 +432,20 @@ describe('firestore.rules', () => {
 
   it('allows a client to write its OWN usageEvents doc', async () => {
     await assertSucceeds(
-      setDoc(doc(authed('alice'), 'usageEvents', 'alice_2026-08-12'), usageDoc()),
+      setDoc(doc(authed('alice'), 'usageEvents', `alice_${USAGE_DAY}`), usageDoc()),
     );
   });
 
   it("blocks writing another user's usageEvents doc", async () => {
     await assertFails(
-      setDoc(doc(authed('alice'), 'usageEvents', 'bob_2026-08-12'), {
+      setDoc(doc(authed('alice'), 'usageEvents', `bob_${USAGE_DAY}`), {
         ...usageDoc(),
         uid: 'bob',
       }),
     );
     // A prefixing uid must not slip through, same as consultationQuota.
     await assertFails(
-      setDoc(doc(authed('ali'), 'usageEvents', 'alice_2026-08-12'), usageDoc()),
+      setDoc(doc(authed('ali'), 'usageEvents', `alice_${USAGE_DAY}`), usageDoc()),
     );
   });
 
@@ -450,7 +453,7 @@ describe('firestore.rules', () => {
     // Otherwise one day's activity could be spread across arbitrary documents,
     // or a streak backfilled after the fact.
     await assertFails(
-      setDoc(doc(authed('alice'), 'usageEvents', 'alice_2026-08-12'), usageDoc('2026-01-01')),
+      setDoc(doc(authed('alice'), 'usageEvents', `alice_${USAGE_DAY}`), usageDoc('2026-01-01')),
     );
   });
 
@@ -459,7 +462,7 @@ describe('firestore.rules', () => {
     // onboarding.tsx, and because validUsageDoc is hasOnly over the whole doc,
     // a missing field here rejects the entire day's flush, not just one count.
     await assertSucceeds(
-      setDoc(doc(authed('alice'), 'usageEvents', 'alice_2026-08-12'), {
+      setDoc(doc(authed('alice'), 'usageEvents', `alice_${USAGE_DAY}`), {
         ...usageDoc(),
         onboarding_start: 1,
         onboarding_step_body: 1,
@@ -472,7 +475,7 @@ describe('firestore.rules', () => {
     // Seconds, not taps: a heavy day passes the 2000 tally cap honestly, so
     // this field carries its own ceiling. Both directions pinned, because a
     // rejected doc drops the whole flush — every counter, not just this one.
-    const at = doc(authed('alice'), 'usageEvents', 'alice_2026-08-12');
+    const at = doc(authed('alice'), 'usageEvents', `alice_${USAGE_DAY}`);
     await assertSucceeds(setDoc(at, { ...usageDoc(), log_secs: 5_000 }));
     await assertSucceeds(setDoc(at, { ...usageDoc(), log_secs: 86_400 }));
     await assertFails(setDoc(at, { ...usageDoc(), log_secs: 86_401 }));
@@ -485,19 +488,19 @@ describe('firestore.rules', () => {
     // rule is what makes the flush land, and a rejected doc drops the whole
     // day's counters with it.
     await assertSucceeds(
-      setDoc(doc(authed('alice'), 'usageEvents', 'alice_2026-08-12'), { ...usageDoc(), reminders_on: 1 }),
+      setDoc(doc(authed('alice'), 'usageEvents', `alice_${USAGE_DAY}`), { ...usageDoc(), reminders_on: 1 }),
     );
   });
 
   it('accepts composition_view — Trends views of the composition line (ADR-0043, 2026-10-04)', async () => {
-    const at = doc(authed('alice'), 'usageEvents', 'alice_2026-08-12');
+    const at = doc(authed('alice'), 'usageEvents', `alice_${USAGE_DAY}`);
     await assertSucceeds(setDoc(at, { ...usageDoc(), composition_view: 3 }));
     await assertFails(setDoc(at, { ...usageDoc(), composition_view: 2001 }));
   });
 
   it('blocks an event name outside the catalogue', async () => {
     await assertFails(
-      setDoc(doc(authed('alice'), 'usageEvents', 'alice_2026-08-12'), {
+      setDoc(doc(authed('alice'), 'usageEvents', `alice_${USAGE_DAY}`), {
         ...usageDoc(),
         meal_label: 'Chicken and rice',
       }),
@@ -505,14 +508,14 @@ describe('firestore.rules', () => {
   });
 
   it('blocks counts that are negative, fractional, or past the cap', async () => {
-    const at = doc(authed('alice'), 'usageEvents', 'alice_2026-08-12');
+    const at = doc(authed('alice'), 'usageEvents', `alice_${USAGE_DAY}`);
     await assertFails(setDoc(at, { ...usageDoc(), log_added: -1 }));
     await assertFails(setDoc(at, { ...usageDoc(), log_added: 2.5 }));
     await assertFails(setDoc(at, { ...usageDoc(), log_added: 2001 }));
   });
 
   it('blocks re-pointing an existing doc at another uid or day', async () => {
-    const at = doc(authed('alice'), 'usageEvents', 'alice_2026-08-12');
+    const at = doc(authed('alice'), 'usageEvents', `alice_${USAGE_DAY}`);
     await assertSucceeds(setDoc(at, usageDoc()));
     // The id still matches `uid_day`, so only the immutability clause can
     // reject this one.
@@ -521,15 +524,15 @@ describe('firestore.rules', () => {
 
   it("blocks reading another user's usageEvents doc", async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
-      await setDoc(doc(ctx.firestore(), 'usageEvents', 'bob_2026-08-12'), {
+      await setDoc(doc(ctx.firestore(), 'usageEvents', `bob_${USAGE_DAY}`), {
         uid: 'bob',
-        day: '2026-08-12',
+        day: USAGE_DAY,
         platform: 'web',
         log_added: 1,
       });
     });
-    await assertFails(getDoc(doc(authed('alice'), 'usageEvents', 'bob_2026-08-12')));
-    await assertSucceeds(getDoc(doc(authed('alice'), 'usageEvents', 'alice_2026-08-12')));
+    await assertFails(getDoc(doc(authed('alice'), 'usageEvents', `bob_${USAGE_DAY}`)));
+    await assertSucceeds(getDoc(doc(authed('alice'), 'usageEvents', `alice_${USAGE_DAY}`)));
   });
 
   // opsBudget holds the org-wide spend ceiling and the per-feature
@@ -2329,6 +2332,195 @@ describe('firestore.rules', () => {
     // the explicit `allow delete` is what lets the owner remove a weigh-in.
     await assertSucceeds(deleteDoc(ref));
     await assertSucceeds(deleteDoc(ref)); // idempotent on a missing doc
+  });
+
+
+  // ─── 2026-10-15 security audit ──────────────────────────────────────────
+  describe('profile CREATE cannot carry server-only fields', () => {
+    // `caller-access.ts` trusts `compedUntil` for unlimited AI; `publicSlug`
+    // was a slug-takeover primitive; the latches suppress mail or forge
+    // metrics. The UPDATE rule pins all of them, but CREATE had no previous
+    // value to pin against.
+    const serverOnly: Record<string, unknown> = {
+      compedUntil: Timestamp.fromMillis(Date.now() + 365 * 86_400_000),
+      referralRewardGrantedAt: Timestamp.now(),
+      publicSlug: 'someone-else',
+      publicProfileEnabled: true,
+      lastWeeklyDigestSentAt: Timestamp.now(),
+      day1NudgeSentAt: Timestamp.now(),
+      welcomeEmailSentAt: Timestamp.now(),
+      dayThreeCoachPushSent: true,
+      firstEntryAt: Timestamp.now(),
+      syntheticAccount: true,
+    };
+
+    for (const [field, value] of Object.entries(serverOnly)) {
+      it(`rejects ${field} on an incomplete-profile create`, async () => {
+        const db = authed('alice');
+        await assertFails(setDoc(doc(db, 'users', 'alice'), { ...baseProfile(), [field]: value }));
+      });
+      it(`rejects ${field} on a completed-profile create`, async () => {
+        const db = authed('alice');
+        await assertFails(
+          setDoc(doc(db, 'users', 'alice'), {
+            ...baseProfile(),
+            profileCompleted: true,
+            manualCaloriesTarget: 2000,
+            [field]: value,
+          }),
+        );
+      });
+    }
+
+    it('still accepts exactly what the mobile ensureProfile writes', async () => {
+      const now = Timestamp.now();
+      await assertSucceeds(
+        setDoc(doc(authed('alice'), 'users', 'alice'), {
+          createdAt: now,
+          lastSeenAt: now,
+          profileCompleted: false,
+        }),
+      );
+    });
+
+    it('still accepts referredBy at create — client-set by design', async () => {
+      await assertSucceeds(
+        setDoc(doc(authed('alice'), 'users', 'alice'), {
+          ...baseProfile(),
+          referredBy: 'r'.repeat(28),
+        }),
+      );
+    });
+  });
+
+  describe('verified email is required for every user-subtree write', () => {
+    it('rejects feedback from an unverified token (it emails the owner)', async () => {
+      const db = authed('alice', { emailVerified: false });
+      await assertFails(
+        addDoc(collection(db, 'users', 'alice', 'feedback'), {
+          message: 'spam',
+          createdAt: Timestamp.now(),
+        }),
+      );
+    });
+
+    it('rejects a dailyLog, a weigh-in and a profile update from an unverified token', async () => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'users', 'alice'), baseProfile());
+      });
+      const db = authed('alice', { emailVerified: false });
+      await assertFails(addDoc(collection(db, 'users', 'alice', 'dailyLogs'), validLog()));
+      await assertFails(setDoc(doc(db, 'users', 'alice', 'dailyWeights', '2026-01-15'), { weight: 180 }));
+      await assertFails(updateDoc(doc(db, 'users', 'alice'), { lastSeenAt: Timestamp.now() }));
+    });
+
+    it('still lets an unverified owner DELETE their own data', async () => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'users', 'alice', 'dailyLogs', 'l1'), validLog());
+      });
+      const db = authed('alice', { emailVerified: false });
+      await assertSucceeds(deleteDoc(doc(db, 'users', 'alice', 'dailyLogs', 'l1')));
+    });
+  });
+
+  describe('a completed profile with no formula inputs and no manual calories', () => {
+    // toOnboardingV2Patch deletes manualCaloriesTarget on a redo that edits
+    // only protein from auto mode. Without heightIn the old loose branch
+    // demanded manualCaloriesTarget, so the save failed both validators.
+    it('accepts a protein-only redo from auto mode (manualCaloriesTarget deleted)', async () => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'users', 'alice'), {
+          ...baseProfile(),
+          profileCompleted: true,
+          goalDirection: 'lose',
+          manualCaloriesTarget: 1980,
+          manualProteinTarget: 130,
+          targetMode: 'auto',
+          onboardingV2CompletedAt: Timestamp.now(),
+        });
+      });
+      const db = authed('alice');
+      await assertSucceeds(
+        updateDoc(doc(db, 'users', 'alice'), {
+          goalDirection: 'lose',
+          manualProteinTarget: 150,
+          manualCaloriesTarget: deleteField(),
+          targetMode: 'custom',
+          onboardingV2CompletedAt: Timestamp.now(),
+          profileCompleted: true,
+          lastSeenAt: Timestamp.now(),
+          targetsRefinedAt: deleteField(),
+        }),
+      );
+    });
+
+    it('still range-checks manualCaloriesTarget when present', async () => {
+      const db = authed('alice');
+      await setDoc(doc(db, 'users', 'alice'), baseProfile());
+      await assertFails(
+        updateDoc(doc(db, 'users', 'alice'), { profileCompleted: true, manualCaloriesTarget: 0 }),
+      );
+    });
+  });
+
+  describe('usageEvents.day is a real, recent date', () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const dayDoc = (day: string) => ({
+      uid: 'alice', day, platform: 'ios', updatedAt: serverTimestamp(), log_added: 1,
+    });
+    const shift = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
+
+    it('accepts today and yesterday', async () => {
+      const db = authed('alice');
+      await assertSucceeds(setDoc(doc(db, 'usageEvents', `alice_${today}`), dayDoc(today)));
+      const y = shift(-1);
+      await assertSucceeds(setDoc(doc(db, 'usageEvents', `alice_${y}`), dayDoc(y)));
+    });
+
+    // Every day of the window must pass — including zero-padded ones
+    // ("2026-10-05"), which exercise `int('05')` in the rule. A rule that
+    // mis-parsed a padded month/day would reject a live client's flush on
+    // the 1st-9th of every month and in January-September, silently.
+    it('accepts every day from 13 days back to 2 days ahead, zero-padded ones included', async () => {
+      const db = authed('alice');
+      for (let k = -13; k <= 2; k++) {
+        const day = shift(k);
+        await assertSucceeds(setDoc(doc(db, 'usageEvents', `alice_${day}`), dayDoc(day)));
+      }
+    });
+
+    it('rejects a non-date, an impossible date, a far-future and a stale day', async () => {
+      const db = authed('alice');
+      for (const day of ['zzzz', '9999-99-99', '2026-13-45', shift(10), shift(-60), '2026-1-01']) {
+        await assertFails(setDoc(doc(db, 'usageEvents', `alice_${day}`), dayDoc(day)));
+      }
+    });
+  });
+
+  describe('Stripe extension rules are gone', () => {
+    it('denies client checkout_sessions writes and product reads', async () => {
+      const db = authed('alice');
+      await assertFails(
+        setDoc(doc(db, 'customers', 'alice', 'checkout_sessions', 's1'), { price: 'p' }),
+      );
+      await assertFails(getDoc(doc(db, 'products', 'p1')));
+      await assertFails(getDoc(doc(db, 'customers', 'alice')));
+    });
+  });
+
+  describe('expoPushToken must look like an Expo token', () => {
+    it('accepts both Expo token spellings and rejects arbitrary strings', async () => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'users', 'alice'), baseProfile());
+      });
+      const db = authed('alice');
+      const ref = doc(db, 'users', 'alice');
+      await assertSucceeds(updateDoc(ref, { expoPushToken: 'ExponentPushToken[abc-DEF_123]' }));
+      await assertSucceeds(updateDoc(ref, { expoPushToken: 'ExpoPushToken[abcDEF123]' }));
+      await assertFails(updateDoc(ref, { expoPushToken: 'https://evil.example/hook' }));
+      await assertFails(updateDoc(ref, { expoPushToken: 'ExponentPushToken[]' }));
+      await assertFails(updateDoc(ref, { expoPushToken: 'ExponentPushToken[a b]' }));
+    });
   });
 
 });

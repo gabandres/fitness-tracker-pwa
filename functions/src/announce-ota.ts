@@ -43,6 +43,23 @@ export interface PushRecipient {
 }
 
 /**
+ * An Expo push token as `getExpoPushTokenAsync` returns it —
+ * `ExponentPushToken[…]`, or the newer `ExpoPushToken[…]`. Mirrors
+ * `isExpoPushToken` in firestore.rules.
+ *
+ * Why check it here too (2026-10-15 audit): the field is CLIENT-writable, and
+ * until the rule was tightened any string up to 300 chars could sit in it.
+ * Expo rejects a malformed `to` per message, but one bad token in a chunk is
+ * still a wasted slot and noise in the error count — and a stored value that
+ * predates the rule never gets re-validated by it. Filter before chunking.
+ */
+const EXPO_TOKEN_RE = /^Expo(nent)?PushToken\[[A-Za-z0-9_-]{1,256}\]$/;
+
+export function isExpoPushToken(token: unknown): token is string {
+  return typeof token === "string" && token.length <= 300 && EXPO_TOKEN_RE.test(token);
+}
+
+/**
  * Build the request bodies for Expo's push API: one silent message per token,
  * chunked at the API's 100-message cap. Pure — the unit tests own proving the
  * payload stays silent (no title/body) and the chunk math holds.
@@ -128,9 +145,12 @@ export const adminAnnounceOta = onCall({ timeoutSeconds: 120 }, async (request) 
     .where("expoPushToken", ">", "")
     .select("expoPushToken")
     .get();
-  const recipients: PushRecipient[] = snap.docs
-    .map((d) => ({ uid: d.id, token: d.get("expoPushToken") as string }))
-    .filter((r) => typeof r.token === "string" && r.token.length > 0);
+  const all = snap.docs.map((d) => ({ uid: d.id, token: d.get("expoPushToken") as unknown }));
+  const recipients: PushRecipient[] = all.filter(
+    (r): r is PushRecipient => isExpoPushToken(r.token),
+  );
+  const malformed = all.length - recipients.length;
+  if (malformed > 0) console.warn(`adminAnnounceOta: dropped ${malformed} malformed expoPushToken value(s)`);
 
   const chunks = buildOtaPushChunks(recipients, platform, message);
   let sent = 0;
@@ -171,7 +191,7 @@ export const adminAnnounceOta = onCall({ timeoutSeconds: 120 }, async (request) 
   await writeAuditLog({
     action: "ota_announced",
     admin,
-    details: { platform, recipients: recipients.length, sent, errors, cleared: clearUids.length },
+    details: { platform, recipients: recipients.length, malformed, sent, errors, cleared: clearUids.length },
   });
 
   return { recipients: recipients.length, sent, errors, cleared: clearUids.length };

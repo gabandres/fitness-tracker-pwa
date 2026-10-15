@@ -5,9 +5,14 @@
  * hop appends what IT saw, so the first entry is whatever the original client
  * chose to send and the last entry is what the nearest trusted proxy observed.
  * Cloud Run's front end appends the real peer address as the LAST entry, and
- * `logWebhook` is called on its Cloud Run URL directly (no Firebase Hosting
- * rewrite in `firebase.json`), so the last entry is the only one that was
- * not client-supplied.
+ * `logWebhook` and the callables (`sendPasswordReset`) are called on their
+ * Cloud Run / cloudfunctions.net URLs directly (no Firebase Hosting rewrite in
+ * `firebase.json`), so the last entry is the only one that was not
+ * client-supplied. Do NOT use `req.ip` for this: the functions framework
+ * turns on Express's `trust proxy`, which makes `req.ip` the FIRST entry —
+ * the client's own claim. It is only the fallback when the header is absent.
+ * (A route that IS served through a Hosting rewrite gains one more trusted
+ * hop and would need the second-to-last entry; none exists today.)
  *
  * Keying on `[0]` — what this did until 2026-09-28 — let a caller rotate a
  * fake first entry per request and never share a bucket, which turned the

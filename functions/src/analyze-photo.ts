@@ -4,7 +4,7 @@ import { ErrorCode } from "./error-codes";
 // SDK itself moved to ./gemini-client, but the secret must stay declared here
 // or gen2 will not mount it into the instance.
 import { callerAccess, dailyQuota, db, geminiApiKey, withCostGuards } from "./init";
-import { getGeminiClient } from "./gemini-client";
+import { GEMINI_MODEL, getGeminiClient } from "./gemini-client";
 import { loadFoods } from "./usda-db";
 import { resolveItems, totalsOf, type DraftItem, type ResolvedItem } from "./photo-resolve";
 
@@ -136,7 +136,9 @@ const PHOTO_PROVIDER = "gemini" as PhotoProvider;
  * rather than assuming.
  */
 import { recordAiUsage, usageFromMetadata } from "./ai-usage";
-const GEMINI_MODEL = "gemini-3.5-flash-lite";
+// `GEMINI_MODEL` ("gemini-3.5-flash-lite") lives in gemini-client.ts since
+// 2026-10-15 so the coach pins the SAME version instead of the moving
+// `gemini-flash-latest` alias. Everything said above about it still applies.
 
 /**
  * Deliberately NOT prompt-cached on the Anthropic path: Haiku 4.5's minimum
@@ -348,7 +350,11 @@ export function isProviderExhausted(err: unknown): boolean {
 }
 
 /** Gemini path — the free-tier default. */
-async function estimateWithGemini(photos: string[], prompt: string): Promise<ScanDraft> {
+async function estimateWithGemini(
+  photos: string[],
+  prompt: string,
+  onBilled: () => void = () => {},
+): Promise<ScanDraft> {
   const client = getGeminiClient();
   const result = await client.models.generateContent({
     model: GEMINI_MODEL,
@@ -412,6 +418,10 @@ async function estimateWithGemini(photos: string[], prompt: string): Promise<Sca
    * to be re-checked whenever `GEMINI_MODEL` moves, and a silent 10x latency
    * regression is exactly what `gemini-3-flash-preview` did.
    */
+  // The provider answered, so this call is billed whatever happens next — a
+  // parse failure or an empty `items` from here on keeps the user's slot
+  // (cost-guards.ts, `markBilled`).
+  onBilled();
   const u = result.usageMetadata;
   if (u) {
     console.log(
@@ -445,7 +455,11 @@ async function estimateWithGemini(photos: string[], prompt: string): Promise<Sca
  * below), so anything on that path that the request cannot reach should not be
  * on it. The `await import` costs nothing until the day the provider flips.
  */
-async function estimateWithAnthropic(photos: string[], prompt: string): Promise<ScanDraft> {
+async function estimateWithAnthropic(
+  photos: string[],
+  prompt: string,
+  onBilled: () => void = () => {},
+): Promise<ScanDraft> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     throw new Error(
@@ -480,6 +494,9 @@ async function estimateWithAnthropic(photos: string[], prompt: string): Promise<
       },
     ],
   });
+
+  // Answered = billed, refusals and truncations included.
+  onBilled();
 
   // A safety classifier can decline with HTTP 200 and an EMPTY content array
   // — reading content[0] first would throw a TypeError that reads like a
@@ -701,7 +718,7 @@ export const analyzePhoto = onCall(
     // whole job.
     return await withCostGuards(
       { kind: "photo", caller, recordUnits: photos.length },
-      async ({ reservation }) => {
+      async ({ reservation, markBilled }) => {
         // Comped users report "unlimited" by returning the paid cap; the client
         // treats that as decorative since nothing blocks them. Admin holds a
         // real reservation — it is subject to the daily quota like anyone else.
@@ -788,8 +805,8 @@ export const analyzePhoto = onCall(
           // safe: resolution and the client response shape are shared, so the two
           // paths cannot drift into different numbers.
           const parsed = PHOTO_PROVIDER === "anthropic"
-            ? await estimateWithAnthropic(photos, prompt)
-            : await estimateWithGemini(photos, prompt);
+            ? await estimateWithAnthropic(photos, prompt, markBilled)
+            : await estimateWithGemini(photos, prompt, markBilled);
 
           // Log the chain-of-thought so we can audit estimation quality without
           // surfacing it in the client response (keeps the client contract stable).
@@ -851,12 +868,14 @@ export const analyzePhoto = onCall(
             photosRemaining,
           };
         } catch (err) {
-          // The slot comes back automatically — every path that reaches here
-          // left the user empty-handed (no food identified, a refusal, a
-          // truncated or unparseable answer, a network failure), and on a 3/day
-          // free tier charging for those means two bad photos leave someone one
-          // attempt, exactly when they most want to retake the plate. The SPEND
-          // is never refunded: see cost-guards.ts.
+          // The slot comes back ONLY when the provider never answered (a
+          // network failure, a 429, an outage) — nothing was billed and the
+          // user did nothing wrong. Once the model has answered, `markBilled`
+          // has run and a failure (no food identified, a refusal, a truncated
+          // or unparseable answer) KEEPS the slot: until 2026-10-15 those were
+          // refunded too, which let a free user scan non-food photos forever
+          // while every one of them drained the shared ceiling. The SPEND is
+          // never refunded: see cost-guards.ts.
           if (err instanceof HttpsError) throw err;
           console.error("analyzePhoto error:", err);
           // A refusal from the PROVIDER is not a bad photograph, and saying so is

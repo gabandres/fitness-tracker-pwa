@@ -40,14 +40,14 @@ export const sendWelcomeEmail = onDocumentUpdated(
     if (after.welcomeEmailSentAt) return; // already sent
 
     const uid = event.params.uid;
-    // Email is no longer stored on the profile doc (PII minimization) —
-    // read it from Firebase Auth. Legacy docs may still carry `after.email`;
-    // prefer it to save an Auth read, else fetch by uid.
-    const email =
-      (after.email as string | undefined) ??
-      (await getAuth().getUser(uid).then((u) => u.email).catch(() => undefined));
-    if (!email) {
-      console.warn(`sendWelcomeEmail: user ${uid} has no email — skipping.`);
+    // The address comes from the Firebase Auth RECORD only. Legacy profile
+    // docs may still carry an `email` field, but the profile is client-
+    // writable, and preferring it let a user aim this mail (and the shared
+    // Resend quota) at any inbox they liked (2026-10-15 audit).
+    const authUser = await getAuth().getUser(uid).catch(() => null);
+    const email = authUser?.email;
+    if (!authUser || !email || authUser.disabled) {
+      console.warn(`sendWelcomeEmail: user ${uid} has no usable Auth email — skipping.`);
       return;
     }
 
@@ -58,8 +58,7 @@ export const sendWelcomeEmail = onDocumentUpdated(
     const locale = emailLocale(preferredLocale);
 
     const displayName =
-      (after.displayName as string | undefined) ??
-      (await getAuth().getUser(uid).then((u) => u.displayName).catch(() => null));
+      (after.displayName as string | undefined) ?? authUser.displayName ?? null;
 
     // Lifecycle mail carries a working one-click opt-out. The only recurring
     // mail Ignia sends is the weekly digest, so that is what it turns off.

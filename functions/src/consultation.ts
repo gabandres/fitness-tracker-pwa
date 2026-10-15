@@ -4,7 +4,8 @@ import type { Response } from "express";
 import { ErrorCode } from "./error-codes";
 import { callerAccess, dailyQuota, db, geminiApiKey, withCostGuards } from "./init";
 import { recordAiUsage, usageFromMetadata } from "./ai-usage";
-import { getGeminiClient } from "./gemini-client";
+import { GEMINI_MODEL, getGeminiClient } from "./gemini-client";
+import { coachSystemInstruction } from "./server-prompts";
 
 // ─── AI coach (Gemini consultation) ─────────────────────────────────
 //
@@ -20,10 +21,11 @@ import { getGeminiClient } from "./gemini-client";
 // each chunk as it arrives from Gemini, preserving the typewriter UX.
 //
 // Refund policy: the slot is reserved BEFORE streaming. If Gemini fails
-// server-side (5xx / safety block), the server refunds the slot itself
-// (dailyQuota.release) and emits an `error` event. A mid-stream client
-// disconnect after the first token is the one case that consumes a slot
-// without a full answer — rare, and the user did receive partial value.
+// before its first chunk (5xx / outage), the server refunds the slot itself
+// (dailyQuota.release) and emits an `error` event. Once a chunk has arrived
+// the tokens are billed and a later failure keeps the slot (cost-guards.ts
+// `markBilled`, 2026-10-15) — the user did receive partial value, and a
+// refund there is what let failed calls drain the shared ceiling for free.
 
 // Per-uid min interval — covers stream spam that would otherwise burn
 // Gemini tokens past the daily cap one 1.5s-spaced call at a time.
@@ -44,15 +46,19 @@ const CONSULT_ALLOWED_ORIGINS = [
   "http://localhost:4200",
 ];
 
-// The client assembles the grounded system instruction (profile + 14-day
-// table) and the question; the server only relays them. These bound the
-// payload so a hostile caller can't push arbitrary-length prompts at the
-// project's Gemini quota. Mirrors the weekly-report caps.
+// The client assembles the grounded context (profile + 14-day table) and the
+// question. Since 2026-10-15 the server no longer relays that context as the
+// system instruction verbatim: it goes in fenced, under server-owned scope
+// rules (server-prompts.ts), so the endpoint is a nutrition coach rather than
+// a general Gemini proxy. These caps bound the payload so a hostile caller
+// can't push arbitrary-length prompts at the project's Gemini quota.
 const CONSULT_SYSTEM_MAX_CHARS = 20_000;
 const CONSULT_PROMPT_MAX_CHARS = 2_000;
-// Server pins the model so the client can't swap in a pricier one.
-// Matches environment.gemini.model (moving flash alias).
-const CONSULT_MODEL = "gemini-flash-latest";
+// Server pins the model so the client can't swap in a pricier one — and pins
+// a VERSION (gemini-client.ts), not the moving `gemini-flash-latest` alias it
+// used until 2026-10-15, which Google could re-point at a pricier model with
+// no deploy on our side.
+const CONSULT_MODEL = GEMINI_MODEL;
 
 interface ConsultInput {
   systemInstruction?: unknown;
@@ -136,7 +142,7 @@ export const consultationStream = onRequest(
     // Unlimited callers are metered but not blocked (spend-ceiling.ts).
     const limit = dailyQuota.limitFor("consultation", caller.paidClaim);
     try {
-      await withCostGuards({ kind: "consultation", caller }, async ({ reservation }) => {
+      await withCostGuards({ kind: "consultation", caller }, async ({ reservation, markBilled }) => {
         // Comped callers hold no reservation, so there is no real count to
         // show; `-1` is the client's "hide the N-left caption" signal.
         const remaining = reservation ? reservation.remaining : -1;
@@ -154,12 +160,15 @@ export const consultationStream = onRequest(
           const stream = await client.models.generateContentStream({
             model: CONSULT_MODEL,
             contents: prompt,
-            config: { systemInstruction, temperature: 0.4 },
+            config: { systemInstruction: coachSystemInstruction(systemInstruction), temperature: 0.4 },
           });
           let usage: { promptTokenCount?: number; candidatesTokenCount?: number; thoughtsTokenCount?: number } | undefined;
           for await (const chunk of stream) {
             // The final chunk carries the whole call's totals; keep the last seen.
             if (chunk.usageMetadata) usage = chunk.usageMetadata;
+            // First chunk back = tokens billed. A failure after this keeps the
+            // slot (cost-guards.ts `markBilled`); before it, it is refunded.
+            markBilled();
             const text = chunk.text;
             if (text) res.write(`data: ${JSON.stringify({ text })}\n\n`);
           }

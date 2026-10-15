@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { clientIp } from "./client-ip";
 import { getAuth } from "firebase-admin/auth";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { onCall, HttpsError, type CallableRequest } from "firebase-functions/v2/https";
@@ -147,7 +148,12 @@ export const sendPasswordReset = onCall<SendPasswordResetRequest, Promise<SendPa
 
     const locale = emailLocale(request.data?.locale);
     const emailTag = tag(email);
-    const ip = request.rawRequest?.ip || "unknown";
+    // NOT `rawRequest.ip`: the functions framework enables Express's
+    // `trust proxy`, so `req.ip` is the LEFTMOST X-Forwarded-For entry — the
+    // one the caller writes. Rotating it per request gave every request a
+    // fresh bucket and made the per-IP budget a formality (2026-10-15 audit).
+    // `clientIp` keys on the hop Cloud Run appended instead.
+    const ip = clientIp(request.rawRequest?.headers?.["x-forwarded-for"], request.rawRequest?.ip);
 
     const [emailOk, ipOk] = await Promise.all([
       withinBudget(`pw_email_${tag(email)}`, MAX_PER_EMAIL),

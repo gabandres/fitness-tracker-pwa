@@ -1,5 +1,7 @@
 import { getAuth } from "firebase-admin/auth";
+import { Timestamp, type Firestore } from "firebase-admin/firestore";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
+import { db } from "./init";
 import {
   baseSendOptions,
   getResend,
@@ -87,6 +89,87 @@ function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
+// ─── Send budget ────────────────────────────────────────────────────
+//
+// Every feedback doc used to become one email, and the Resend plan is 100
+// mails a day SHARED with password-reset and verification mail — the account-
+// recovery path. Feedback is the one collection any signed-in user can append
+// to at will, so a script filing feedback in a loop could exhaust the day's
+// allowance and lock real users out of resetting their passwords (2026-10-15
+// audit). The rules now require a verified email; this caps what is left.
+//
+// Over budget, the FEEDBACK IS STILL KEPT — the doc is already written and the
+// admin panel lists it. Only the ping is skipped, and logged.
+
+/** Pings per reporter per UTC day. A real person rarely files more than one. */
+export const FEEDBACK_NOTIFY_PER_USER_PER_DAY = 3;
+/** Pings per UTC day across everyone — a fifth of the shared Resend plan. */
+export const FEEDBACK_NOTIFY_GLOBAL_PER_DAY = 20;
+
+/** `{ day, count }` as stored; anything else reads as an empty counter. */
+interface DayCounter { day?: unknown; count?: unknown }
+
+function countFor(c: DayCounter | undefined, day: string): number {
+  return c && c.day === day && typeof c.count === "number" ? c.count : 0;
+}
+
+/**
+ * Pure budget decision. Counters roll over by storing the day they belong to,
+ * so no cleanup job is needed (Cloud Scheduler has no free slot left).
+ */
+export function decideFeedbackNotify(
+  global: DayCounter | undefined,
+  user: DayCounter | undefined,
+  day: string,
+  limits: { perUser: number; global: number } = {
+    perUser: FEEDBACK_NOTIFY_PER_USER_PER_DAY,
+    global: FEEDBACK_NOTIFY_GLOBAL_PER_DAY,
+  },
+): { allowed: boolean; reason?: "user" | "global"; globalCount: number; userCount: number } {
+  const g = countFor(global, day);
+  const u = countFor(user, day);
+  if (u >= limits.perUser) return { allowed: false, reason: "user", globalCount: g, userCount: u };
+  if (g >= limits.global) return { allowed: false, reason: "global", globalCount: g, userCount: u };
+  return { allowed: true, globalCount: g + 1, userCount: u + 1 };
+}
+
+/**
+ * Claim one ping from the budget, transactionally.
+ *
+ * The global counter sits in `opsBudget` (server-only, no personal data); the
+ * per-user one under `users/{uid}/private/`, which no rule matches — so it is
+ * client-invisible — and which account deletion already erases with the rest
+ * of `private`. A uid-keyed top-level collection would have needed its own
+ * erasure entry.
+ *
+ * Fails CLOSED: if the counter cannot be read the ping is skipped, because the
+ * failure mode being defended against is spending a shared allowance, and the
+ * feedback itself is safe in Firestore either way.
+ */
+export async function claimFeedbackNotify(
+  firestore: Firestore,
+  uid: string,
+  now: Date = new Date(),
+): Promise<{ allowed: boolean; reason?: "user" | "global" | "error" }> {
+  const day = now.toISOString().slice(0, 10);
+  const globalRef = firestore.doc("opsBudget/feedbackNotify");
+  const userRef = firestore.doc(`users/${uid}/private/feedbackNotify`);
+  try {
+    return await firestore.runTransaction(async (tx) => {
+      const [g, u] = await Promise.all([tx.get(globalRef), tx.get(userRef)]);
+      const d = decideFeedbackNotify(g.data() as DayCounter | undefined, u.data() as DayCounter | undefined, day);
+      if (!d.allowed) return { allowed: false, reason: d.reason };
+      const at = Timestamp.fromDate(now);
+      tx.set(globalRef, { day, count: d.globalCount, updatedAt: at });
+      tx.set(userRef, { day, count: d.userCount, updatedAt: at });
+      return { allowed: true };
+    });
+  } catch (err) {
+    console.error(`onFeedbackCreated: send budget unavailable uid=${uid} — ping skipped`, err);
+    return { allowed: false, reason: "error" };
+  }
+}
+
 export const onFeedbackCreated = onDocumentCreated(
   { document: "users/{uid}/feedback/{feedbackId}", secrets: [resendApiKey], maxInstances: 3 },
   async (event) => {
@@ -97,6 +180,14 @@ export const onFeedbackCreated = onDocumentCreated(
     const uid = event.params["uid"] as string;
     const message = String(data["message"] ?? "").slice(0, 4000);
     if (message.length === 0) return;
+
+    // Budget BEFORE any other work (the Auth read included): an over-budget
+    // report is kept, just not emailed.
+    const budget = await claimFeedbackNotify(db, uid);
+    if (!budget.allowed) {
+      console.warn(`onFeedbackCreated: ping skipped uid=${uid} reason=${budget.reason} (feedback kept)`);
+      return;
+    }
 
     const category = String(data["category"] ?? "none");
     const appVersion = String(data["appVersion"] ?? "unknown");

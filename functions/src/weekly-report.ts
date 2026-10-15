@@ -4,6 +4,7 @@ import { ErrorCode } from "./error-codes";
 import { callerAccess, db, geminiApiKey, withCostGuards } from "./init";
 import { recordAiUsage, usageFromMetadata } from "./ai-usage";
 import { getGeminiClient } from "./gemini-client";
+import { weeklyReportSystemInstruction } from "./server-prompts";
 
 // ─── Weekly AI report generation ────────────────────────────────────
 //
@@ -80,14 +81,19 @@ export const generateWeeklyReport = onCall(
     // Ceiling check → per-user reserve → record → work; the slot is refunded
     // if the work throws, the spend never is. Quota errors (REPORT_QUOTA_EXCEEDED,
     // SERVICE_CEILING_REACHED, FEATURE_DISABLED) propagate as HttpsErrors.
-    return await withCostGuards({ kind: "weeklyReport", caller }, async () => {
+    return await withCostGuards({ kind: "weeklyReport", caller }, async ({ markBilled }) => {
       try {
         const client = getGeminiClient();
         const result = await client.models.generateContent({
           model: "gemini-2.5-flash",
           contents: prompt,
-          config: { systemInstruction, temperature: 0.3 },
+          // Server-owned scope rules first, the app's context fenced under
+          // them (server-prompts.ts) — no longer the client's text verbatim.
+          // The model is already a pinned version, not a moving alias.
+          config: { systemInstruction: weeklyReportSystemInstruction(systemInstruction), temperature: 0.3 },
         });
+        // Answered = billed; an empty response from here keeps the slot.
+        markBilled();
         void recordAiUsage(db, { kind: "weeklyReport", model: "gemini-2.5-flash", ...usageFromMetadata(result.usageMetadata) });
         const markdown = (result.text ?? "").slice(0, REPORT_OUTPUT_MAX_CHARS);
         if (!markdown) {

@@ -166,7 +166,7 @@ export const TOP_LEVEL_NOT_ERASED: Readonly<Record<string, string>> = {
   customers:
     "Stripe extension, REMOVED 2026-08-31 (CLAUDE.md); zero documents as of 2026-09-16. If subscriptions ever ship they go through Apple/Google IAP and this decision is re-made then",
   emailRateLimits:
-    "not uid-keyed and not reachable from one: ids are a hash of the address (`pw_email_<hash>`, password-reset.ts), which is the point — the limiter never stores the email it throttles",
+    "mostly not uid-keyed: password-reset ids are a hash of the address or IP (`pw_email_<hash>`, `pw_ip_<hash>`), which is the point — the limiter never stores what it throttles. The ONE uid-keyed id, `verify_uid_<uid>` (verify-email.ts), IS erased — see UID_KEYED_RATE_LIMIT_DOCS",
   auditLogs:
     "record of ADMIN actions, retained deliberately. An accountability log that the subject of an action can erase is not an accountability log; retention here is the legitimate-interest basis, not an oversight",
   config: "server-side configuration and aggregates; no personal data",
@@ -176,6 +176,58 @@ export const TOP_LEVEL_NOT_ERASED: Readonly<Record<string, string>> = {
   public: "public aggregate stats and app-version; no personal data",
   publicProfiles: "erased as the mirror of publicSlugs — see UID_KEYED_TOP_LEVEL",
 };
+
+/**
+ * Rate-limit documents keyed by the uid itself — `<collection>/<uid>` — each
+ * holding `{ lastCallAt, uid }` (`CallerAccess.enforceRateLimit`,
+ * `food-search.ts`). None of these collections appears in `firestore.rules`
+ * (they are server-only and fall to the catch-all deny), which is exactly why
+ * the rules-derived parity spec could never see them and erasure missed them
+ * until 2026-10-15: a deleted account left a last-used timestamp per feature.
+ *
+ * `deleteRateLimit` is deliberately NOT here: it is the limiter of the very
+ * call doing the erasing, so it is removed last, after the Auth user — see
+ * {@link eraseUserData}.
+ */
+export const UID_KEYED_RATE_LIMITS = [
+  "photoRateLimit",
+  "consultationRateLimit",
+  "exportRateLimit",
+  "accessStatusRateLimit",
+  "foodSearchRateLimit",
+  "foodDetailRateLimit",
+] as const;
+
+/** Rate-limit docs whose id EMBEDS the uid rather than being it. */
+export function uidKeyedRateLimitDocs(uid: string): string[] {
+  return [`emailRateLimits/verify_uid_${uid}`];
+}
+
+/** Firestore's hard cap is 500 writes per batch; stay well under it. */
+export const DELETE_BATCH_SIZE = 400;
+
+/**
+ * Delete `refs` in batches of at most {@link DELETE_BATCH_SIZE}.
+ *
+ * Every erasure path used to build ONE batch for a whole query result. A user
+ * with 500+ `usageEvents` days (a year and a half of opening the app) or quota
+ * docs then made `batch.commit()` throw `INVALID_ARGUMENT` — and account
+ * deletion, a legal obligation, failed outright for the most engaged users.
+ */
+export async function deleteRefsInChunks(
+  firestore: FirebaseFirestore.Firestore,
+  refs: FirebaseFirestore.DocumentReference[],
+  chunkSize: number = DELETE_BATCH_SIZE,
+): Promise<number> {
+  let batches = 0;
+  for (let i = 0; i < refs.length; i += chunkSize) {
+    const batch = firestore.batch();
+    for (const ref of refs.slice(i, i + chunkSize)) batch.delete(ref);
+    await batch.commit();
+    batches++;
+  }
+  return batches;
+}
 
 /**
  * Recursively delete all documents in a subcollection in batches of 500
@@ -212,20 +264,36 @@ async function deleteSubcollection(
  * the delete walk `publicSlugs` wholesale and take other users' slug
  * reservations with it.
  */
-async function deleteUidKeyedTopLevel(uid: string): Promise<void> {
+async function deleteUidKeyedTopLevel(uid: string): Promise<string[]> {
+  const mirrored: string[] = [];
   for (const entry of UID_KEYED_TOP_LEVEL) {
     const snap = await db.collection(entry.collection).where("uid", "==", uid).get();
     if (snap.empty) continue;
-    const batch = db.batch();
+    const refs: FirebaseFirestore.DocumentReference[] = [];
     for (const d of snap.docs) {
-      batch.delete(d.ref);
+      refs.push(d.ref);
       // The mirror is keyed by THIS document's id (the slug), not by the uid,
       // so it can only be found from here.
       const mirror = (entry as { mirror?: string }).mirror;
-      if (mirror) batch.delete(db.doc(`${mirror}/${d.id}`));
+      if (mirror) {
+        refs.push(db.doc(`${mirror}/${d.id}`));
+        mirrored.push(`${mirror}/${d.id}`);
+      }
     }
-    await batch.commit();
+    // Chunked: one batch per collection overflowed Firestore's 500-write cap
+    // for any account with 500+ `usageEvents` days.
+    await deleteRefsInChunks(db, refs);
   }
+  return mirrored;
+}
+
+/** Erase the uid-keyed rate-limit docs ({@link UID_KEYED_RATE_LIMITS}). */
+async function deleteUidKeyedRateLimits(uid: string): Promise<void> {
+  const refs = [
+    ...UID_KEYED_RATE_LIMITS.map((c) => db.collection(c).doc(uid)),
+    ...uidKeyedRateLimitDocs(uid).map((path) => db.doc(path)),
+  ];
+  await deleteRefsInChunks(db, refs);
 }
 
 /**
@@ -382,6 +450,21 @@ export async function eraseUserData(uid: string): Promise<void> {
     console.warn(`Apple token revoke failed for uid=${uid} (non-fatal):`, e);
   }
 
+  // 0b. Take the public page down BEFORE deleting anything. Step 1 deletes
+  //     `dailyWeights` one doc at a time and every delete fires
+  //     `onDailyWeightWriteMirrorPublicProfile`, which rebuilds the mirror for
+  //     any profile still marked public — so a trigger landing between step
+  //     1c and step 3 could re-create the page this function just erased.
+  //     With the flag off the trigger bails; the final sweep below catches
+  //     anything already in flight. Best-effort: a missing profile is fine.
+  const userSnap = await db.doc(userPath).get().catch(() => null);
+  const profileSlug = userSnap?.exists ? (userSnap.data()?.["publicSlug"] as string | undefined) : undefined;
+  if (userSnap?.exists) {
+    await db.doc(userPath).update({ publicProfileEnabled: false }).catch((e: unknown) => {
+      console.warn(`eraseUserData: could not disable public page uid=${uid} (non-fatal):`, e);
+    });
+  }
+
   // 1. Delete every subcollection under users/{uid}. The list lives in
   //    USER_SUBCOLLECTIONS above — Firestore does NOT cascade, so a name
   //    missing from it orphans that data forever (GDPR Art. 17 gap), which
@@ -403,18 +486,44 @@ export async function eraseUserData(uid: string): Promise<void> {
   //     plus its world-readable mirror. `firestore.rules` has claimed since
   //     it was written that this path deletes the usage counters; until now
   //     it did not.
-  await deleteUidKeyedTopLevel(uid);
+  const mirrored = await deleteUidKeyedTopLevel(uid);
 
-  // 2. Delete quota docs (photo + consultation).
+  // 2. Delete quota docs (photo + consultation + weekly report), and the
+  //    uid-keyed rate-limit docs, which no list reached until 2026-10-15.
   await dailyQuota.deleteAll(uid);
+  await deleteUidKeyedRateLimits(uid);
 
   // 3. Delete the user profile doc itself.
   await db.doc(userPath).delete();
+
+  // 3b. Sweep the public mirror AGAIN, now that the profile is gone. A
+  //     dailyWeights trigger that read the profile before step 0b can still
+  //     have been mid-flight; from here on every trigger bails (no profile)
+  //     and `writeMirrorIfOwned` refuses inside its own transaction. Only a
+  //     slug nobody else holds is touched — a slug released in step 1c can in
+  //     principle have been claimed by someone new in the meantime.
+  const slugs = new Set<string>(mirrored.map((p) => p.split("/")[1]));
+  if (profileSlug) slugs.add(profileSlug);
+  for (const slug of slugs) {
+    await db.runTransaction(async (tx) => {
+      const slugSnap = await tx.get(db.doc(`publicSlugs/${slug}`));
+      if (!slugSnap.exists || slugSnap.data()?.["uid"] === uid) {
+        tx.delete(db.doc(`publicProfiles/${slug}`));
+      }
+    }).catch((e: unknown) => console.warn(`eraseUserData: final mirror sweep failed uid=${uid}:`, e));
+  }
 
   // 4. Delete the Firebase Auth user. This signs them out of all
   //    sessions and prevents future logins. After this point the
   //    client's ID token is invalid.
   await getAuth().deleteUser(uid);
+
+  // 5. Last of all, the limiter of the delete call itself. Removed after the
+  //    Auth user so a deletion that failed midway still rate-limits its own
+  //    retries; best-effort because the account is already gone.
+  await db.collection("deleteRateLimit").doc(uid).delete().catch((e: unknown) => {
+    console.warn(`eraseUserData: deleteRateLimit cleanup failed uid=${uid} (non-fatal):`, e);
+  });
 }
 
 export const deleteAccount = onCall({ secrets: APPLE_SECRETS }, async (request) => {

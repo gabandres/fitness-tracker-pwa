@@ -30,7 +30,7 @@ import type { QuotaKind } from "./daily-quota";
  *
  * | | unit | exemption | refunded on failure |
  * |---|---|---|---|
- * | **quota** (fairness) | what a person perceives doing — a scan | `quotaExempt` skips it | **yes** |
+ * | **quota** (fairness) | what a person perceives doing — a scan | `quotaExempt` skips it | **only if the provider never billed** (`markBilled`) |
  * | **ceiling** (solvency) | what actually costs money — images | `unlimited` skips the CHECK only | **never** |
  *
  * So `reserveUnits` and `recordUnits` are separate parameters on purpose. A
@@ -107,6 +107,19 @@ export interface CostGuardContext {
       the two existing ones disagree (paid cap vs. `-1`) and both are correct
       for their client. */
   reservation: Reservation | null;
+  /**
+   * Call the moment the provider has ANSWERED — i.e. the tokens are billed.
+   * From then on a failure keeps the user's slot instead of refunding it.
+   *
+   * Why (2026-10-15 audit): the refund used to be unconditional, so a scan of
+   * a non-food photo — billed in full, then rejected as "no food found" —
+   * cost the user nothing while the org ceiling kept the units. A free user
+   * could loop that until the shared ceiling tripped and photo scan died for
+   * everyone. A failure BEFORE the provider answers (network error, 429, a
+   * provider outage) still refunds: nothing billable reached the user and
+   * nothing they did caused it.
+   */
+  markBilled(): void;
 }
 
 export type GuardedWork<T> = (ctx: CostGuardContext) => Promise<T>;
@@ -140,15 +153,18 @@ export function makeCostGuards(quota: QuotaLedgerLike, ceiling: SpendCeilingLike
     // 3. Meter the spend. Every tier, unlimited included. Never throws.
     await ceiling.record(kind, recordUnits);
 
+    let billed = false;
     try {
-      return await work({ reservation });
+      return await work({ reservation, markBilled: () => { billed = true; } });
     } catch (err) {
-      // Refund the SLOT only. Same units and the same day as the reserve, so
-      // a scan that fails across UTC midnight cannot refund tomorrow's
-      // counter. A refund that does not land is a user overcharged by one
-      // action; an exception thrown from here is the actual fault vanishing —
-      // so this swallows and logs rather than propagating.
-      if (reservation) {
+      // Refund the SLOT only, and only when the provider never billed for
+      // the attempt (see `CostGuardContext.markBilled`). Same units and the
+      // same day as the reserve, so a scan that fails across UTC midnight
+      // cannot refund tomorrow's counter. A refund that does not land is a
+      // user overcharged by one action; an exception thrown from here is the
+      // actual fault vanishing — so this swallows and logs rather than
+      // propagating.
+      if (reservation && !billed) {
         try {
           await quota.release(caller.uid, kind, reservation.day, reserveUnits);
         } catch (refundErr) {

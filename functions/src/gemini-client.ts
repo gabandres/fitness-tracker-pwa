@@ -40,6 +40,18 @@ import { geminiApiKey } from "./init";
  * cold start. Reading it there would trade a real latency win for a boot-order
  * bug that only appears in production.
  */
+/**
+ * The ONE pinned Gemini model id for features without a reason to differ.
+ *
+ * A pinned version, never a moving alias like `gemini-flash-latest`: an alias
+ * can be re-pointed at a pricier or slower model by Google with no deploy on
+ * our side, which silently moves both the bill and the `spendCeiling` sizing.
+ * `analyze-photo.ts` documents why this particular version (thinking off by
+ * default, measured token counts); re-check `thoughtsTokenCount` on a real
+ * response before changing it.
+ */
+export const GEMINI_MODEL = "gemini-3.5-flash-lite";
+
 let client: GoogleGenAI | null = null;
 
 export function getGeminiClient(): GoogleGenAI {

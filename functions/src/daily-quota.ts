@@ -50,6 +50,9 @@ const KINDS: Record<QuotaKind, KindConfig> = {
 
 const ALL_KINDS = Object.keys(KINDS) as QuotaKind[];
 
+/** Writes per batch on the GDPR delete path — under Firestore's 500 cap. */
+const DELETE_CHUNK = 400;
+
 /** YYYY-MM-DD in UTC — quotas reset at UTC midnight. */
 export function utcDayKey(now: Date = new Date()): string {
   return now.toISOString().split("T")[0];
@@ -182,9 +185,13 @@ export class DailyQuota {
   async deleteAll(uid: string): Promise<void> {
     for (const kind of ALL_KINDS) {
       const snap = await this.db.collection(KINDS[kind].collection).where("uid", "==", uid).get();
-      if (!snap.empty) {
+      // Chunked, ≤ 400 per batch: one quota doc per active day, so a single
+      // batch overflowed Firestore's 500-write cap for a long-lived account
+      // and account deletion threw.
+      const refs = snap.docs.map((d) => d.ref);
+      for (let i = 0; i < refs.length; i += DELETE_CHUNK) {
         const batch = this.db.batch();
-        snap.docs.forEach((d) => batch.delete(d.ref));
+        refs.slice(i, i + DELETE_CHUNK).forEach((ref) => batch.delete(ref));
         await batch.commit();
       }
     }

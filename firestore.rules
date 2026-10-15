@@ -4,10 +4,21 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // ─── Actors ──────────────────────────────────────────────────
-    // Verified-email gate: any provider is allowed (Google, Microsoft,
-    // email+password) as long as the email has been verified. Google
-    // and Microsoft return verified emails by default; password users
-    // must click the verification link before they can write data.
+    // Verified-email gate: any provider is allowed (Google, Apple, the
+    // `oidc.microsoft` provider, email+password) as long as the ID token
+    // says the email is verified. Google and Apple assert verified emails
+    // (Apple's private-relay addresses included); password users must click
+    // the verification link before they can write data.
+    //
+    // WHERE it applies (2026-10-15): the profile create/update and every
+    // create/update/write under `users/{uid}/**`, through `isVerifiedOwner`
+    // below. Until then only the profile CREATE checked it and this comment
+    // claimed more than the rules did. Applying it everywhere locks nobody
+    // out who could write before: the mobile app routes every signed-in
+    // screen behind the same `emailVerified` wall (`app/_layout.tsx`), and a
+    // profile can only ever be created by a verified token, so every account
+    // that owns a subtree was verified when it got one. DELETES stay on
+    // `isOwner` alone — removing your own data is never something to gate.
     function isVerifiedUser() {
       return request.auth != null
           && request.auth.token.email_verified == true;
@@ -15,6 +26,39 @@ service cloud.firestore {
 
     function isOwner(uid) {
       return request.auth != null && request.auth.uid == uid;
+    }
+
+    function isVerifiedOwner(uid) {
+      return isOwner(uid) && isVerifiedUser();
+    }
+
+    // Profile fields only the Admin SDK may set. Listed in the profile
+    // validators' `hasOnly` allow-lists so a client can round-trip a doc that
+    // already carries them, and pinned immutable on UPDATE — but until
+    // 2026-10-15 nothing kept a client from simply WRITING them on CREATE,
+    // where there is no previous value to pin against. `compedUntil` there is
+    // an unlimited-AI self-grant (`caller-access.ts` trusts it), `publicSlug`
+    // a slug takeover, and the latches suppress lifecycle mail or forge
+    // activation metrics. The mobile create (`ensureProfile`) writes only
+    // createdAt / lastSeenAt / profileCompleted. `referredBy` is NOT here: it
+    // is client-set at create by design and pinned afterwards.
+    function serverOnlyProfileFields() {
+      return [
+        'compedUntil', 'referralRewardGrantedAt',
+        'publicSlug', 'publicProfileEnabled',
+        'lastWeeklyDigestSentAt', 'day1NudgeSentAt',
+        'welcomeEmailSentAt', 'dayThreeCoachPushSent', 'firstEntryAt',
+        'syntheticAccount'
+      ];
+    }
+
+    // An Expo push token as `getExpoPushTokenAsync` returns it:
+    // `ExponentPushToken[…]` (or the newer `ExpoPushToken[…]`). The server
+    // only ever hands this string to Expo's push API, so anything else is
+    // garbage that would be sent on every OTA announce.
+    function isExpoPushToken(t) {
+      return t is string && t.size() <= 300
+          && t.matches('^Expo(nent)?PushToken\\[[A-Za-z0-9_-]{1,256}\\]$');
     }
 
     // Admins (superuser panel). The `admin` custom claim is set by the
@@ -178,8 +222,7 @@ service cloud.firestore {
               data.fastStartedAt is timestamp || data.fastStartedAt == null)
           && (!('expoPushToken' in keys) ||
               data.expoPushToken == null ||
-              (data.expoPushToken is string && data.expoPushToken.size() > 0
-               && data.expoPushToken.size() <= 300))
+              isExpoPushToken(data.expoPushToken))
           && (!('syntheticAccount' in keys) || data.syntheticAccount is bool)
           && (!('referredBy' in keys) ||
               (data.referredBy is string && data.referredBy.size() >= 20 && data.referredBy.size() <= 40))
@@ -687,14 +730,17 @@ service cloud.firestore {
               && hasValidActivityLevel(data)
               && hasValidPace(data)
             )
-            // Loose branch: v2 2-Q onboarding only.
-            || (
-              !('heightIn' in keys)
-              && 'manualCaloriesTarget' in keys
-              && data.manualCaloriesTarget is number
-              && data.manualCaloriesTarget > 0
-              && data.manualCaloriesTarget < 20000
-            )
+            // Loose branch: no Mifflin-St Jeor set at all.
+            //
+            // It used to REQUIRE `manualCaloriesTarget`, which stopped being a
+            // valid invariant once `targetMode` arrived (2026-08-21): an
+            // 'auto' profile legitimately carries no manual calorie number,
+            // and `toOnboardingV2Patch` deletes it on a redo that edits only
+            // protein from auto mode (packages/core firestore-writers.ts). A
+            // profile without `heightIn` then failed BOTH validators and the
+            // save was rejected. The value is still range-checked below
+            // whenever it is present.
+            || !('heightIn' in keys)
           )
           && (!('goalDirection' in keys) || hasValidGoalDirection(data))
           && (!('targetWeightLbs' in keys) ||
@@ -744,8 +790,7 @@ service cloud.firestore {
               (data.fcmToken is string && data.fcmToken.size() <= 300))
           && (!('expoPushToken' in keys) ||
               data.expoPushToken == null ||
-              (data.expoPushToken is string && data.expoPushToken.size() > 0
-               && data.expoPushToken.size() <= 300))
+              isExpoPushToken(data.expoPushToken))
           && (!('reminderHour' in keys) ||
               (data.reminderHour is int && data.reminderHour >= 0 && data.reminderHour <= 23))
           && (!('timezoneOffsetMin' in keys) ||
@@ -812,16 +857,16 @@ service cloud.firestore {
     // ─── Per-user subtree ───────────────────────────────────────
     match /users/{uid} {
       allow read:   if isOwner(uid) || isAdmin();
-      allow create: if isOwner(uid) && isVerifiedUser() && isValidProfile(request.resource.data)
-                       // `syntheticAccount` is listed in both profile
-                       // validators so a seeded account stays editable, but
-                       // it is admin-SDK-only: a client that could set it at
-                       // CREATE time would self-exclude from every product
-                       // metric permanently, and the update rule below would
-                       // then freeze that choice in place. Pinning it on
-                       // update alone left exactly that hole.
-                       && !('syntheticAccount' in request.resource.data.keys());
-      allow update: if isOwner(uid) && isValidProfile(request.resource.data)
+      allow create: if isVerifiedOwner(uid) && isValidProfile(request.resource.data)
+                       // Every server-only field is listed in the profile
+                       // validators so an existing doc stays editable, but a
+                       // client that could set one at CREATE time would
+                       // bypass the update-rule pins below entirely (there is
+                       // no previous value to compare against) — then the
+                       // update rule would freeze the forged value in place.
+                       // See serverOnlyProfileFields().
+                       && !request.resource.data.keys().hasAny(serverOnlyProfileFields());
+      allow update: if isVerifiedOwner(uid) && isValidProfile(request.resource.data)
                        // Referral fields are immutable from the client:
                        //   - `referredBy` is set once on profile create
                        //     and represents an audit trail. Letting users
@@ -880,8 +925,8 @@ service cloud.firestore {
 
       match /dailyLogs/{logId} {
         allow read:   if isOwner(uid) || isAdmin();
-        allow create: if isOwner(uid) && isValidLog(request.resource.data);
-        allow update: if isOwner(uid) && isValidLog(request.resource.data);
+        allow create: if isVerifiedOwner(uid) && isValidLog(request.resource.data);
+        allow update: if isVerifiedOwner(uid) && isValidLog(request.resource.data);
         allow delete: if isOwner(uid);
       }
 
@@ -890,9 +935,16 @@ service cloud.firestore {
       // /{path=**}/feedback rule further down); the reporter cannot read
       // even their own, which is deliberate: there is no in-app inbox, and a
       // readable copy would imply one.
+      //
+      // Verified-only (2026-10-15): every created doc fires
+      // `onFeedbackCreated`, which emails the owner through the same Resend
+      // allowance password-reset and verification mail depend on. An
+      // unverified throwaway account is free to mint, so it must not be able
+      // to spend that allowance. The function also caps sends per user and
+      // per day (feedback-notify.ts); this is the cheap half of the defence.
       match /feedback/{feedbackId} {
         allow read:   if isAdmin();
-        allow create: if isOwner(uid) && isValidFeedback(request.resource.data);
+        allow create: if isVerifiedOwner(uid) && isValidFeedback(request.resource.data);
         allow update, delete: if false;
       }
 
@@ -921,8 +973,8 @@ service cloud.firestore {
       // Meal presets — quick-add templates.
       match /presets/{presetId} {
         allow read:   if isOwner(uid) || isAdmin();
-        allow create: if isOwner(uid) && isValidPreset(request.resource.data);
-        allow update: if isOwner(uid) && isValidPreset(request.resource.data);
+        allow create: if isVerifiedOwner(uid) && isValidPreset(request.resource.data);
+        allow update: if isVerifiedOwner(uid) && isValidPreset(request.resource.data);
         allow delete: if isOwner(uid);
       }
 
@@ -930,8 +982,8 @@ service cloud.firestore {
       // barcode-keyed foods saved from a scan / label OCR / text resolve.
       match /customFoods/{foodId} {
         allow read:   if isOwner(uid) || isAdmin();
-        allow create: if isOwner(uid) && isValidCustomFood(request.resource.data);
-        allow update: if isOwner(uid) && isValidCustomFood(request.resource.data);
+        allow create: if isVerifiedOwner(uid) && isValidCustomFood(request.resource.data);
+        allow update: if isVerifiedOwner(uid) && isValidCustomFood(request.resource.data);
         allow delete: if isOwner(uid);
       }
 
@@ -948,7 +1000,7 @@ service cloud.firestore {
         // `write` below reads request.resource, which a delete has none of, so
         // a delete needs its own rule or the owner can never remove a weigh-in.
         allow delete: if isOwner(uid);
-        allow write:  if isOwner(uid)
+        allow write:  if isVerifiedOwner(uid)
             && isPlausibleWeighInDateKey(dateKey)
             && request.resource.data.keys().hasAll(['weight'])
             && request.resource.data.keys().hasOnly(['weight'])
@@ -967,7 +1019,7 @@ service cloud.firestore {
       // working until they refresh. Drop the ml branch once they have.
       match /dailyWater/{dateKey} {
         allow read:   if isOwner(uid) || isAdmin();
-        allow write:  if isOwner(uid)
+        allow write:  if isVerifiedOwner(uid)
             && (
               (request.resource.data.keys().hasOnly(['flOz'])
                 && request.resource.data.flOz is number
@@ -996,7 +1048,7 @@ service cloud.firestore {
       // client write `source: 'manual'` from an importer and defeat the point.
       match /dailySleep/{dateKey} {
         allow read:   if isOwner(uid) || isAdmin();
-        allow write:  if isOwner(uid)
+        allow write:  if isVerifiedOwner(uid)
             && request.resource.data.keys().hasOnly(['hours', 'source', 'bedtime', 'wakeTime'])
             && request.resource.data.hours is number
             && request.resource.data.hours >= 0
@@ -1023,7 +1075,7 @@ service cloud.firestore {
       // packages/core/src/health-mapping.ts — keep the two in step.
       match /dailyActivity/{dateKey} {
         allow read:   if isOwner(uid) || isAdmin();
-        allow write:  if isOwner(uid)
+        allow write:  if isVerifiedOwner(uid)
             && request.resource.data.keys().hasOnly(['steps', 'activeKcal'])
             && (!('steps' in request.resource.data)
               || (request.resource.data.steps is number
@@ -1044,15 +1096,15 @@ service cloud.firestore {
       // script may record a day too (`recordedBy: 'prompt'`, admin SDK).
       match /dailyTargets/{dateKey} {
         allow read:   if isOwner(uid) || isAdmin();
-        allow create, update: if isOwner(uid) && isValidDailyTarget(request.resource.data, dateKey);
+        allow create, update: if isVerifiedOwner(uid) && isValidDailyTarget(request.resource.data, dateKey);
         allow delete: if isOwner(uid);
       }
 
       // Body measurements — weekly/biweekly body-comp tracking.
       match /measurements/{measurementId} {
         allow read:   if isOwner(uid) || isAdmin();
-        allow create: if isOwner(uid) && isValidMeasurement(request.resource.data);
-        allow update: if isOwner(uid) && isValidMeasurement(request.resource.data);
+        allow create: if isVerifiedOwner(uid) && isValidMeasurement(request.resource.data);
+        allow update: if isVerifiedOwner(uid) && isValidMeasurement(request.resource.data);
         allow delete: if isOwner(uid);
       }
 
@@ -1061,16 +1113,16 @@ service cloud.firestore {
       // charts aggregate over.
       match /exercises/{exerciseId} {
         allow read:   if isOwner(uid) || isAdmin();
-        allow create: if isOwner(uid) && isValidExercise(request.resource.data);
-        allow update: if isOwner(uid) && isValidExercise(request.resource.data);
+        allow create: if isVerifiedOwner(uid) && isValidExercise(request.resource.data);
+        allow update: if isVerifiedOwner(uid) && isValidExercise(request.resource.data);
         allow delete: if isOwner(uid);
       }
 
       // Editable workout templates (blueprints).
       match /workoutTemplates/{templateId} {
         allow read:   if isOwner(uid) || isAdmin();
-        allow create: if isOwner(uid) && isValidWorkoutTemplate(request.resource.data);
-        allow update: if isOwner(uid) && isValidWorkoutTemplate(request.resource.data);
+        allow create: if isVerifiedOwner(uid) && isValidWorkoutTemplate(request.resource.data);
+        allow update: if isVerifiedOwner(uid) && isValidWorkoutTemplate(request.resource.data);
         allow delete: if isOwner(uid);
       }
 
@@ -1079,8 +1131,8 @@ service cloud.firestore {
       // in one batch, so both must be writable by the same rules.
       match /templateDrafts/{draftId} {
         allow read:   if isOwner(uid) || isAdmin();
-        allow create: if isOwner(uid) && isValidTemplateDraft(request.resource.data);
-        allow update: if isOwner(uid) && isValidTemplateDraft(request.resource.data);
+        allow create: if isVerifiedOwner(uid) && isValidTemplateDraft(request.resource.data);
+        allow update: if isVerifiedOwner(uid) && isValidTemplateDraft(request.resource.data);
         allow delete: if isOwner(uid);
       }
 
@@ -1089,8 +1141,8 @@ service cloud.firestore {
       // 'completed' on finish.
       match /workoutSessions/{sessionId} {
         allow read:   if isOwner(uid) || isAdmin();
-        allow create: if isOwner(uid) && isValidWorkoutSession(request.resource.data);
-        allow update: if isOwner(uid) && isValidWorkoutSession(request.resource.data);
+        allow create: if isVerifiedOwner(uid) && isValidWorkoutSession(request.resource.data);
+        allow update: if isVerifiedOwner(uid) && isValidWorkoutSession(request.resource.data);
         allow delete: if isOwner(uid);
       }
 
@@ -1103,8 +1155,8 @@ service cloud.firestore {
       // phantom timer running.
       match /fasts/{fastId} {
         allow read:   if isOwner(uid) || isAdmin();
-        allow create: if isOwner(uid) && isValidFast(request.resource.data);
-        allow update: if isOwner(uid) && isValidFast(request.resource.data);
+        allow create: if isVerifiedOwner(uid) && isValidFast(request.resource.data);
+        allow update: if isVerifiedOwner(uid) && isValidFast(request.resource.data);
         allow delete: if isOwner(uid);
       }
 
@@ -1122,7 +1174,7 @@ service cloud.firestore {
       // See the module header in packages/core/src/milestones.ts.
       match /milestones/{milestoneKey} {
         allow read:   if isOwner(uid) || isAdmin();
-        allow create: if isOwner(uid)
+        allow create: if isVerifiedOwner(uid)
                       && isMilestoneKey(milestoneKey)
                       && isValidMilestone(request.resource.data);
         allow update: if false;
@@ -1204,35 +1256,13 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // ─── Stripe Firebase Extension ───────────────────────────────
-    // Managed by ext: firestore-stripe-payments.
-    // The extension writes customer/subscription/payment records
-    // under customers/{uid}. Products + prices are catalog data
-    // readable by any signed-in user so they can render the price.
-    match /customers/{uid} {
-      allow read: if isOwner(uid) || isAdmin();
-
-      match /checkout_sessions/{id} {
-        allow read, write: if isOwner(uid);
-      }
-      match /subscriptions/{id} {
-        allow read: if isOwner(uid) || isAdmin();
-      }
-      match /payments/{id} {
-        allow read: if isOwner(uid) || isAdmin();
-      }
-    }
-
-    match /products/{id} {
-      allow read: if request.auth != null;
-
-      match /prices/{priceId} {
-        allow read: if request.auth != null;
-      }
-      match /tax_rates/{taxId} {
-        allow read: if request.auth != null;
-      }
-    }
+    // ─── Stripe Firebase Extension — REMOVED ─────────────────────
+    // The `customers/**` (incl. a client-WRITABLE `checkout_sessions`) and
+    // `products/**` blocks were deleted 2026-10-15. The extension itself was
+    // removed 2026-08-31 (CLAUDE.md), no client reads either collection, and
+    // the only remaining readers (`admin-ops.ts`, `gdpr.ts`) use the Admin
+    // SDK, which bypasses rules. Both now fall to the catch-all deny below.
+    // If subscriptions ever ship they go through Apple/Google IAP.
 
     // ─── Public status heartbeat ────────────────────────────────
     // Written every few minutes by the `statusPulse` scheduled
@@ -1312,6 +1342,23 @@ service cloud.firestore {
       return !(field in d) || (d[field] is int && d[field] >= 0 && d[field] <= 86400);
     }
 
+    // `day` is the client's LOCAL calendar date, `YYYY-MM-DD`. Until
+    // 2026-10-15 it was only `is string`, so any text could become a doc id
+    // and sort into the admin panel's `day >= since` range reads (a "9999-…"
+    // or "z…" day sorts after every real one). Shape-checked, parsed (an
+    // impossible date such as 2026-13-45 makes `timestamp.date` error, which
+    // denies), and bounded near `request.time`: +2 days for the UTC+14 edge
+    // (same slack as isPlausibleWeighInDateKey), -14 days so a counter flush
+    // that sat in Firestore's offline queue still lands while a client still
+    // cannot backfill a month.
+    function isPlausibleUsageDay(day) {
+      return day.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          && timestamp.date(int(day[0:4]), int(day[5:7]), int(day[8:10]))
+             <= request.time + duration.value(2, 'd')
+          && timestamp.date(int(day[0:4]), int(day[5:7]), int(day[8:10]))
+             >= request.time - duration.value(14, 'd');
+    }
+
     function validUsageDoc(d, docId) {
       return d.keys().hasOnly(usageEventFields().concat(['uid', 'day', 'platform', 'updatedAt']))
         && d.uid is string
@@ -1319,6 +1366,7 @@ service cloud.firestore {
         // The day is in the doc id, so a client cannot spread one day's
         // activity across a month of documents or backfill a streak.
         && d.day is string
+        && isPlausibleUsageDay(d.day)
         && docId == d.uid + '_' + d.day
         && d.platform in ['web', 'ios', 'android']
         && d.updatedAt == request.time

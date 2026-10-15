@@ -96,7 +96,16 @@ export const listUsers = onCall({ timeoutSeconds: 60 }, async (request) => {
   // for months and never touches it.
   const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
   const sinceKey = `${since.getFullYear()}-${String(since.getMonth() + 1).padStart(2, "0")}-${String(since.getDate()).padStart(2, "0")}`;
-  const usageSnap = await db.collection("usageEvents").where("day", ">=", sinceKey).get();
+  // Upper bound too (2026-10-15): `day` was client-written with no date check
+  // until the rules learned one, and any string sorts somewhere — "9999-…" or
+  // "z…" landed inside an open-ended `>=` range and skewed "last seen". Two
+  // days ahead covers UTC+14.
+  const until = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
+  const untilKey = `${until.getFullYear()}-${String(until.getMonth() + 1).padStart(2, "0")}-${String(until.getDate()).padStart(2, "0")}`;
+  const usageSnap = await db.collection("usageEvents")
+    .where("day", ">=", sinceKey)
+    .where("day", "<=", untilKey)
+    .get();
   const byUid = new Map<string, { platforms: Record<string, number>; last: string; days: number }>();
   for (const d of usageSnap.docs) {
     const x = d.data();
