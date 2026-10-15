@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/c
 import { AdminConsole } from './admin-console';
 import { AdminShellState } from './admin-shell.state';
 import { AdmBars, AdmKpi, AdmMeter, AdmSpark } from './admin-ui';
+import { AdminMinVersionComponent } from './admin-min-version.component';
 import { LOG_METHOD_LABELS, deltaPct, fmtSecs, methodRows, pct, pooledRetention, sumEvent, type LogMethod } from './admin-insights';
 import { fmtDateTime, relTime } from './admin-format';
 
@@ -29,7 +30,7 @@ const EVENT_LABELS: Record<string, string> = {
 @Component({
   selector: 'adm-overview',
   standalone: true,
-  imports: [AdmKpi, AdmBars, AdmMeter, AdmSpark],
+  imports: [AdmKpi, AdmBars, AdmMeter, AdmSpark, AdminMinVersionComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="adm-page-head">
@@ -118,6 +119,7 @@ const EVENT_LABELS: Record<string, string> = {
             @for (n of data.storeSyncNotes(); track n) { <div class="adm-kpi-hint">{{ n }}</div> }
           </dd>
         </dl>
+        <adm-min-version />
         <div class="adm-section">
           <span class="adm-label">AI spend today</span>
           @if (data.ceilings().length === 0) { <p class="adm-muted" style="font-size: 13px;">no ceilings loaded</p> }

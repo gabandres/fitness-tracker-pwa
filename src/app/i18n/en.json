@@ -563,5 +563,31 @@
     "resetDoneBody": "Sign in with your new password wherever you use Ignia.",
     "errorTitle": "This link has expired or was already used.",
     "errorBody": "If you were verifying your email, open Ignia — if it's already verified, you'll go straight through; otherwise request a fresh email from the same screen. For a password reset, use \"Forgot password?\" on the sign-in screen."
+  },
+  "admin": {
+    "minVersion": {
+      "title": "Update required",
+      "hint": "Installs below the minimum get a full-screen update screen they cannot dismiss. Raise it only once the new binary is LIVE in the store; then older runtimes no longer need OTAs.",
+      "android": "Android",
+      "ios": "iOS",
+      "current": "minimum {{value}}",
+      "none": "no minimum",
+      "live": "live in store: {{value}}",
+      "newest": "newest distributed: {{value}}",
+      "inputLabel": "New {{platform}} minimum",
+      "placeholderAndroid": "versionCode, e.g. 50",
+      "placeholderIos": "version, e.g. 1.2.6",
+      "set": "Set minimum",
+      "clear": "Clear",
+      "warning": "Everyone below this version is blocked until they update from the store. Check the store listing shows this build first.",
+      "cacheNote": "The app reads this through app-version.json, which the CDN caches for up to an hour.",
+      "error": {
+        "empty": "Enter a version.",
+        "invalidAndroid": "Android takes a whole versionCode, like 50.",
+        "invalidIos": "iOS takes a marketing version, like 1.2.6.",
+        "liveUnknown": "The live store version is unknown, so this cannot be checked. Sync store versions first.",
+        "aboveLive": "{{value}} is above the live store version ({{live}}). Every user would be sent to a store page that cannot give them this build."
+      }
+    }
   }
 }

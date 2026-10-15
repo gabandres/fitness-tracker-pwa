@@ -60,4 +60,4 @@ export {
 } from "./admin-ops";
 // Silent OTA pre-download push (#112/#114) — invoked by scripts/announce-ota.mjs.
 export { adminAnnounceOta } from "./announce-ota";
-export { adminSyncAppVersion, appVersionJson } from "./app-version";
+export { adminSetMinAppVersion, adminSyncAppVersion, appVersionJson } from "./app-version";

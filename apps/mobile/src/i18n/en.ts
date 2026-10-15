@@ -345,6 +345,10 @@ export const en = {
   'update.ota.action': 'Restart',
   'update.store.title': 'New version available',
   'update.store.body': 'Tap to update Ignia in the store.',
+  'update.required.title': 'Update required',
+  'update.required.body': 'This version of Ignia is no longer supported. Update from {store} to keep going — everything you logged is saved to your account.',
+  'update.required.action': 'Update',
+  'update.required.a11y': 'Update Ignia in {store}',
 
   // ── adaptive-TDEE recalibration ──
   'recalibration.cardTitle': 'Your target just recalibrated',

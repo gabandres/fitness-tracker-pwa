@@ -19,6 +19,7 @@ import { DETAIL_ROUTES, reconcileRootRoutes } from '@/lib/root-stack';
 import { setSplashVisible } from '@/lib/splash-state';
 import { RELAYOUT_HOLD_ROUTES, RelayoutBoundary, RelayoutProvider, useRelayoutGeneration } from '@/lib/font-scale';
 import { BrandLoader } from '@/components/BrandLoader';
+import { UpdateRequiredGate } from '@/components/UpdateRequiredScreen';
 import { type I18nKey, I18nProvider, useT } from '@/i18n';
 import { Sentry } from '@/lib/sentry';
 import { ThemeProvider, useTheme } from '@/lib/theme-context';
@@ -400,7 +401,14 @@ function RootLayout() {
           <AuthProvider>
             <I18nProvider>
               <RelayoutProvider>
-                <AuthGate fontsReady={fontsLoaded || !!fontsError} />
+                {/* "Update required" covers EVERYTHING, sign-in included: a
+                    binary below the server's minimum is retired, whoever is
+                    or is not signed in (`lib/update-required.ts`). Inside
+                    I18n/Theme because the screen reads both; around AuthGate
+                    so the navigator stays mounted underneath it. */}
+                <UpdateRequiredGate>
+                  <AuthGate fontsReady={fontsLoaded || !!fontsError} />
+                </UpdateRequiredGate>
               </RelayoutProvider>
             </I18nProvider>
           </AuthProvider>

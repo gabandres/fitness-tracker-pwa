@@ -31,18 +31,17 @@ if (!versionString || !buildNumber) {
   process.exit(2);
 }
 
-// 1.2.6 — the wording lives in docs/app-store-metadata.md ("What's New — 1.2.6");
-// this copy must match it. Earlier versions' text is in git history (this
-// block said 1.2.3 while carrying 1.2.5's copy until 2026-10-07).
+// 1.2.8 — the wording lives in docs/app-store-metadata.md ("What's New — 1.2.8");
+// this copy must match it. Earlier versions' text is in git history.
 const WHATS_NEW = {
   'en-US':
-    '• Choices look and feel like the rest of your phone: the ranges on Trends and Body, and units, theme and language in Settings, now use the system\'s own segmented control.\n' +
-    '• Fix a weighed food later: a food you logged by weight remembers it, so changing it to 180 g instead of 150 redoes the numbers for you.\n' +
-    '• Fields stay above the keyboard, large text reads better, half-height sheets are solid to the bottom, and delete has its own red so it no longer looks like every other button.',
+    '• Log your next set from the Lock Screen: tap Done on the workout\'s Live Activity (iPhone) or live notification (Android) without opening the app.\n' +
+    '• Workouts finish cleaner: Zone 2 cardio asks for an effort rating, blank RIRs can be set in one tap, and weekly volume shows the dates of your current rotation.\n' +
+    '• Undo, edit or delete a meal and Apple Health updates too; your widget and watch now roll over at the time your day starts, not midnight.',
   'es-MX':
-    '• Las opciones se ven y se sienten como el resto de tu teléfono: los rangos en Tendencias y Cuerpo, y las unidades, el tema y el idioma en Ajustes, usan ahora el control segmentado del sistema.\n' +
-    '• Corrige después una comida pesada: lo que registraste por peso lo recuerda, así que cambiarlo a 180 g en vez de 150 recalcula los números por ti.\n' +
-    '• Los campos se quedan sobre el teclado, el texto grande se lee mejor, las hojas a media altura son sólidas hasta abajo y borrar tiene su propio rojo para no parecerse a los demás botones.',
+    '• Registra tu próxima serie desde la pantalla bloqueada: toca Listo en la Actividad en vivo del entrenamiento (iPhone) o en la notificación en vivo (Android) sin abrir la app.\n' +
+    '• Los entrenamientos terminan mejor: el cardio en Zona 2 pide tu nivel de esfuerzo, los RIR vacíos se completan con un toque y el volumen semanal muestra las fechas de tu rotación actual.\n' +
+    '• Deshaz, edita o borra una comida y Apple Salud también se actualiza; tu widget y tu reloj cambian de día a la hora en que empieza tu día, no a medianoche.',
 };
 
 const OPEN = ['READY_FOR_REVIEW', 'WAITING_FOR_REVIEW', 'IN_REVIEW', 'UNRESOLVED_ISSUES'];

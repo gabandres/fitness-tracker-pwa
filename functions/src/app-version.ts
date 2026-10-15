@@ -1,4 +1,4 @@
-import { onCall, onRequest } from "firebase-functions/v2/https";
+import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
 import { FieldValue, Timestamp, type Firestore } from "firebase-admin/firestore";
 import { GoogleAuth } from "google-auth-library";
 import { db } from "./init";
@@ -127,12 +127,31 @@ export interface SyncResult {
   notes: string[];
 }
 
+export interface StoreReaders {
+  play: () => Promise<PlayTrack[]>;
+  appStore: () => Promise<LookupResult>;
+}
+
+const LIVE_READERS: StoreReaders = { play: readPlayTracks, appStore: readAppStoreLookup };
+
 /**
  * Read both stores and merge into `public/appVersion`. Each side is
  * independent; a side that cannot be read is reported in `notes` and its
  * stored value is left as it was.
+ *
+ * **The minimums (`android.minVersionCode`, `ios.minVersion`) are never
+ * touched here.** They are set only by `adminSetMinAppVersion`, and the patch
+ * below is written with `{ merge: true }`, which merges nested maps field by
+ * field — so `patch.android` replaces `latestVersionCode`/`where`/`checkedAt`
+ * and leaves a sibling `minVersionCode` alone. An hourly pass that erased a
+ * minimum would silently re-open the gate; `app-version-min.spec.ts` pins it.
+ * `readers` exists for that spec — production always passes the live ones.
  */
-export async function runSyncAppVersion(firestore: Firestore = db, source = "hourly"): Promise<SyncResult> {
+export async function runSyncAppVersion(
+  firestore: Firestore = db,
+  source = "hourly",
+  readers: StoreReaders = LIVE_READERS,
+): Promise<SyncResult> {
   const ref = firestore.doc(DOC_PATH);
   const snap = await ref.get();
   const prev = (snap.data() ?? {}) as { iosBuilds?: Record<string, unknown>; ios?: { latestBuild?: number } };
@@ -141,10 +160,21 @@ export async function runSyncAppVersion(firestore: Firestore = db, source = "hou
   const out: SyncResult = { android: null, ios: null, notes };
 
   try {
-    const { versionCode, where } = pickLivePlayVersionCode(await readPlayTracks());
+    const tracks = await readers.play();
+    const { versionCode, where } = pickLivePlayVersionCode(tracks);
     if (versionCode > 0) {
       out.android = { latestVersionCode: versionCode, where };
-      patch.android = { latestVersionCode: versionCode, where, checkedAt: Timestamp.now() };
+      // `productionVersionCode` is what EVERY store user can install — the
+      // only number `adminSetMinAppVersion` may gate up to. Deleted (never 0)
+      // when production has no completed release, so a stale value cannot
+      // outlive the release it described.
+      const production = completedProductionVersionCode(tracks);
+      patch.android = {
+        latestVersionCode: versionCode,
+        where,
+        productionVersionCode: production ?? FieldValue.delete(),
+        checkedAt: Timestamp.now(),
+      };
     } else {
       notes.push("Play: no rolled-out release on a distributing track — android left alone");
     }
@@ -156,7 +186,7 @@ export async function runSyncAppVersion(firestore: Firestore = db, source = "hou
   }
 
   try {
-    const live = pickLiveAppStoreVersion(await readAppStoreLookup());
+    const live = pickLiveAppStoreVersion(await readers.appStore());
     if (live) {
       const build = buildForVersion(prev.iosBuilds, live.version);
       // Unknown mapping (the release script did not record it): keep the
@@ -205,23 +235,172 @@ export const adminSyncAppVersion = onCall({ timeoutSeconds: 60 }, async (request
 
 /** What `/app-version.json` serves. Shape is the one the app has always
  *  read (`android.latestVersionCode`, `ios.latestBuild`) plus
- *  `ios.latestVersion`, which the 2026-09-05 client prefers. */
+ *  `ios.latestVersion`, which the 2026-09-05 client prefers, plus the two
+ *  optional "update required" minimums (`android.minVersionCode`,
+ *  `ios.minVersion`). An absent minimum means no gate — never 0. */
 export function serialize(data: FirebaseFirestore.DocumentData | undefined): Record<string, unknown> {
   const d = data ?? {};
-  const android = d.android as { latestVersionCode?: number } | undefined;
-  const ios = d.ios as { latestVersion?: string; latestBuild?: number } | undefined;
+  const android = d.android as { latestVersionCode?: number; minVersionCode?: number } | undefined;
+  const ios = d.ios as { latestVersion?: string; latestBuild?: number; minVersion?: string } | undefined;
   const out: Record<string, unknown> = {};
-  if (typeof android?.latestVersionCode === "number") out.android = { latestVersionCode: android.latestVersionCode };
-  if (ios && (typeof ios.latestVersion === "string" || typeof ios.latestBuild === "number")) {
-    out.ios = {
-      ...(typeof ios.latestBuild === "number" ? { latestBuild: ios.latestBuild } : {}),
-      ...(typeof ios.latestVersion === "string" ? { latestVersion: ios.latestVersion } : {}),
-    };
-  }
+  const a: Record<string, unknown> = {};
+  if (typeof android?.latestVersionCode === "number") a.latestVersionCode = android.latestVersionCode;
+  if (isPositiveInt(android?.minVersionCode)) a.minVersionCode = android!.minVersionCode;
+  if (Object.keys(a).length) out.android = a;
+  const i: Record<string, unknown> = {};
+  if (typeof ios?.latestBuild === "number") i.latestBuild = ios.latestBuild;
+  if (typeof ios?.latestVersion === "string") i.latestVersion = ios.latestVersion;
+  if (typeof ios?.minVersion === "string" && versionKey(ios.minVersion) != null) i.minVersion = ios.minVersion;
+  if (Object.keys(i).length) out.ios = i;
   const updatedAt = d.updatedAt as Timestamp | undefined;
   if (updatedAt?.toDate) out.updatedAt = updatedAt.toDate().toISOString();
   return out;
 }
+
+// ─── "Update required": the per-platform minimum ────────────────────
+//
+// An installed binary below the minimum gets a full-screen, non-dismissible
+// "Update required" screen (`apps/mobile/src/lib/update-required.ts`). The
+// point is operational: once a new binary is LIVE in the store, raising the
+// minimum retires the older runtimes, so OTAs only have to be published to
+// current ones (`apps/mobile/AGENTS.md`, "Which runtimes get an OTA").
+//
+// The one rule this module enforces: **a minimum may never exceed the binary
+// that is LIVE in the public store**. A higher one would send every user to a
+// store page that cannot give them what the gate demands — a bricked fleet.
+// Android "live" is the newest COMPLETED release on the PRODUCTION track only
+// (`productionVersionCode`, written by the sync — the banner's
+// `latestVersionCode` also counts alpha/beta and staged rollouts, which most
+// store users cannot install). Play exposes no review status, so a completed
+// production release still IN REVIEW reads as live: wait for the listing to
+// show it before raising the Android minimum. iOS "live" is
+// the iTunes lookup's marketing version, which is the App Store by definition.
+
+export type MinPlatform = "android" | "ios";
+
+/** "1.2.3" → 1_002_003. Mirror of `versionKey` in
+ *  `apps/mobile/src/lib/app-update.ts` — the client compares with that one,
+ *  so the server must refuse anything it would not parse. */
+export function versionKey(v: unknown): number | null {
+  if (typeof v !== "string" || !v) return null;
+  const m = /^(\d{1,3})\.(\d{1,3})(?:\.(\d{1,3}))?$/.exec(v.trim());
+  if (!m) return null;
+  return Number(m[1]) * 1_000_000 + Number(m[2]) * 1_000 + Number(m[3] ?? 0);
+}
+
+function isPositiveInt(n: unknown): n is number {
+  return typeof n === "number" && Number.isInteger(n) && n > 0;
+}
+
+/**
+ * The newest versionCode in a **completed** release on the PRODUCTION track —
+ * what every store user can actually install. Null when there is none —
+ * unknown, never 0. Pure.
+ *
+ * `completed` only, and this is the false-lockout guard: a staged rollout
+ * (`inProgress` with a `userFraction`, which `play-production-release.mjs
+ * --fraction` creates) or a `halted` release is on the production track but
+ * NOT installable by most users, and the sync's `where` list does not record
+ * status. Gating at a staged build would strand everyone outside the fraction
+ * on a store page offering only the build they already have.
+ */
+export function completedProductionVersionCode(tracks: readonly PlayTrack[]): number | null {
+  let best: number | null = null;
+  for (const t of tracks) {
+    if (t.track !== "production") continue;
+    for (const r of t.releases ?? []) {
+      if (r.status !== "completed") continue;
+      for (const vc of r.versionCodes ?? []) {
+        const n = Number(vc);
+        if (Number.isInteger(n) && n > 0 && (best == null || n > best)) best = n;
+      }
+    }
+  }
+  return best;
+}
+
+/** What the store has LIVE for a platform, from the stored doc. Pure. */
+export function liveStoreVersion(data: FirebaseFirestore.DocumentData | undefined, platform: MinPlatform): string | number | null {
+  if (platform === "android") {
+    const vc = (data?.android as { productionVersionCode?: unknown } | undefined)?.productionVersionCode;
+    return isPositiveInt(vc) ? vc : null;
+  }
+  const v = (data?.ios as { latestVersion?: unknown } | undefined)?.latestVersion;
+  return versionKey(v) != null ? (v as string) : null;
+}
+
+export type MinCheck =
+  | { ok: true; value: number | string | null }
+  | { ok: false; code: "invalid-argument" | "failed-precondition"; message: string };
+
+/**
+ * Decide whether `value` may become `platform`'s minimum. Pure — the callable
+ * and its spec share it, and the admin page mirrors it for its warning.
+ *
+ *  - `null` clears the gate and is always allowed.
+ *  - Android takes a positive integer versionCode; iOS a marketing version
+ *    ("1.2.7") the client's `versionKey` can order.
+ *  - It must not exceed the LIVE store version, and when the live version is
+ *    unknown it is refused: "cannot verify" must not read as "fine".
+ */
+export function checkMinAppVersion(platform: unknown, value: unknown, data: FirebaseFirestore.DocumentData | undefined): MinCheck {
+  if (platform !== "android" && platform !== "ios") {
+    return { ok: false, code: "invalid-argument", message: "platform must be \"android\" or \"ios\"." };
+  }
+  if (value === null) return { ok: true, value: null };
+  const live = liveStoreVersion(data, platform);
+  if (platform === "android") {
+    if (!isPositiveInt(value)) return { ok: false, code: "invalid-argument", message: "Android minimum must be a positive integer versionCode." };
+    if (live == null) return { ok: false, code: "failed-precondition", message: "No COMPLETED (100%) release is on the Android production track, or the store sync has not run since this check was added — cannot verify the minimum. Sync store versions first." };
+    if (value > (live as number)) {
+      return { ok: false, code: "failed-precondition", message: `vc ${value} is above the live (completed) production build (vc ${live}). Every Android user would be told to install a build the store cannot give them.` };
+    }
+    return { ok: true, value };
+  }
+  const key = versionKey(value);
+  if (key == null) return { ok: false, code: "invalid-argument", message: "iOS minimum must be a marketing version like \"1.2.7\"." };
+  if (live == null) return { ok: false, code: "failed-precondition", message: "The live App Store version is unknown — cannot verify the minimum. Sync store versions first." };
+  if (key > versionKey(live)!) {
+    return { ok: false, code: "failed-precondition", message: `${value} is above the live App Store version (${live}). Every iOS user would be told to install a version the store cannot give them.` };
+  }
+  return { ok: true, value: (value as string).trim() };
+}
+
+const MIN_FIELD: Record<MinPlatform, "minVersionCode" | "minVersion"> = { android: "minVersionCode", ios: "minVersion" };
+
+/** Admin console → System → "Update required". Sets or clears one platform's
+ *  minimum, audited. The hourly sync never writes these fields. */
+export const adminSetMinAppVersion = onCall({ timeoutSeconds: 30 }, async (request) => {
+  const admin = requireAdmin(request);
+  const input = (request.data ?? {}) as { platform?: unknown; value?: unknown };
+  if (input.value === undefined) {
+    throw new HttpsError("invalid-argument", "value is required (null clears the minimum).");
+  }
+  const ref = db.doc(DOC_PATH);
+  const snap = await ref.get();
+  const data = snap.data();
+  const check = checkMinAppVersion(input.platform, input.value, data);
+  if (!check.ok) throw new HttpsError(check.code, check.message);
+  const platform = input.platform as MinPlatform;
+  const field = MIN_FIELD[platform];
+  const previous = (data?.[platform] as Record<string, unknown> | undefined)?.[field] ?? null;
+  await ref.set(
+    {
+      [platform]: {
+        [field]: check.value === null ? FieldValue.delete() : check.value,
+        minSetAt: Timestamp.now(),
+      },
+    },
+    { merge: true },
+  );
+  await writeAuditLog({
+    action: "app_min_version_set",
+    admin,
+    details: { platform, previous, value: check.value, liveStore: liveStoreVersion(data, platform) },
+  });
+  const after = await ref.get();
+  return { doc: serialize(after.data()) };
+});
 
 /** `GET /app-version.json` via the hosting rewrite. One Firestore read per
  *  CDN miss; `firebase.json` carries the matching Cache-Control header,

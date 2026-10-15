@@ -2,6 +2,7 @@ import { Injectable, Injector, computed, effect, inject, runInInjectionContext, 
 import { Auth, authState, signInWithCustomToken } from '@angular/fire/auth';
 import { Firestore, collectionGroup, doc, getDoc, getDocs, limit, onSnapshot, orderBy, query } from '@angular/fire/firestore';
 import type { RetentionSummary } from '../components/admin/admin-insights';
+import type { AppVersionDoc } from '../components/admin/admin-min-version';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { CallableGateway } from './callable.gateway';
 
@@ -356,6 +357,15 @@ export class AdminService {
     const res = await fetch('https://ignia.fit/app-version.json', { cache: 'no-store' });
     if (!res.ok) throw new Error(`app-version.json HTTP ${res.status}`);
     return (await res.json()) as StoreVersionDoc;
+  }
+
+  /** `public/appVersion` read straight from Firestore (public-read rule), not
+   *  through the CDN-cached JSON: the minimum control has to see a value it
+   *  just wrote, and needs the sync's `where` list to know which Android build
+   *  is on PRODUCTION rather than only on alpha. */
+  async getAppVersionDoc(): Promise<AppVersionDoc> {
+    const snap = await getDoc(doc(this.firestore, 'public', 'appVersion'));
+    return (snap.data() ?? {}) as AppVersionDoc;
   }
 
   /** Audit "the console was opened" once per browser session. Fire-and-forget. */

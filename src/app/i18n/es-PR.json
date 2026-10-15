@@ -563,5 +563,31 @@
     "resetDoneBody": "Inicia sesión con tu contraseña nueva donde uses Ignia.",
     "errorTitle": "Este enlace expiró o ya se usó.",
     "errorBody": "Si estabas verificando tu correo, abre Ignia — si ya está verificado, entrarás directo; si no, pide un correo nuevo desde la misma pantalla. Para restablecer la contraseña, usa \"¿Olvidaste tu contraseña?\" en la pantalla de inicio de sesión."
+  },
+  "admin": {
+    "minVersion": {
+      "title": "Actualización obligatoria",
+      "hint": "Las instalaciones por debajo del mínimo ven una pantalla de actualización completa que no pueden cerrar. Súbelo solo cuando el nuevo binario esté PUBLICADO en la tienda; así las versiones viejas ya no necesitan OTA.",
+      "android": "Android",
+      "ios": "iOS",
+      "current": "mínimo {{value}}",
+      "none": "sin mínimo",
+      "live": "publicado en la tienda: {{value}}",
+      "newest": "más reciente distribuido: {{value}}",
+      "inputLabel": "Nuevo mínimo de {{platform}}",
+      "placeholderAndroid": "versionCode, p. ej. 50",
+      "placeholderIos": "versión, p. ej. 1.2.6",
+      "set": "Fijar mínimo",
+      "clear": "Quitar",
+      "warning": "Todos por debajo de esta versión quedan bloqueados hasta que actualicen desde la tienda. Confirma primero que la ficha de la tienda muestra este build.",
+      "cacheNote": "La app lo lee de app-version.json, que el CDN guarda hasta una hora.",
+      "error": {
+        "empty": "Escribe una versión.",
+        "invalidAndroid": "Android usa un versionCode entero, como 50.",
+        "invalidIos": "iOS usa una versión comercial, como 1.2.6.",
+        "liveUnknown": "No se conoce la versión publicada en la tienda, así que no se puede verificar. Sincroniza las versiones primero.",
+        "aboveLive": "{{value}} está por encima de la versión publicada en la tienda ({{live}}). Todos los usuarios irían a una tienda que no puede darles ese build."
+      }
+    }
   }
 }

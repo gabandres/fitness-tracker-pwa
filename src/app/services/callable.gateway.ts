@@ -55,6 +55,7 @@ export type CallableName =
   | 'adminGetBilling'
   | 'adminSetCostLedger'
   | 'adminSyncAppVersion'
+  | 'adminSetMinAppVersion'
   | 'startImpersonation'
   | 'stopImpersonation';
 

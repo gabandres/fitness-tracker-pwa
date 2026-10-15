@@ -587,6 +587,21 @@ describe('firestore.rules', () => {
     );
   });
 
+  // `public/appVersion` carries the "update required" minimums. A client that
+  // could write it could brick the fleet (a minimum above the live store
+  // build) or silently lift the gate — so even the admin goes through
+  // `adminSetMinAppVersion`, which validates against the live store and
+  // writes the audit log. Public READ stays: the admin page reads it fresh.
+  it('allows public read of public/appVersion but no client write, admin included', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'public', 'appVersion'), { android: { latestVersionCode: 50 } });
+    });
+    await assertSucceeds(getDoc(doc(unauthed(), 'public', 'appVersion')));
+    const admin = env.authenticatedContext('owner', { email_verified: true, admin: true }).firestore();
+    await assertFails(setDoc(doc(admin, 'public', 'appVersion'), { android: { minVersionCode: 999 } }, { merge: true }));
+    await assertFails(setDoc(doc(authed('alice'), 'public', 'appVersion'), { android: { minVersionCode: 999 } }, { merge: true }));
+  });
+
   it('accepts ageConfirmedAt as a timestamp on a completed profile', async () => {
     const db = authed('alice');
     await setDoc(doc(db, 'users', 'alice'), baseProfile());

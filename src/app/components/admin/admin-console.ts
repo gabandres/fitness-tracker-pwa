@@ -17,6 +17,7 @@ import {
 } from '../../services/admin.service';
 import { AdminShellState } from './admin-shell.state';
 import { adminPreviewEnabled } from './admin-preview';
+import type { AppVersionDoc, MinPlatform } from './admin-min-version';
 import {
   buildInsights,
   type CeilingStatus,
@@ -62,6 +63,7 @@ export interface AdminSections {
   ceilings: CeilingStatus[];
   heartbeat: number | null;
   storeVersions: StoreVersionDoc | null;
+  appVersionDoc: AppVersionDoc | null;
   users: AdminUserRow[];
   activity: ActivityItem[];
   audit: AuditLog[];
@@ -73,7 +75,7 @@ export interface AdminSections {
 export type AdminSectionKey = keyof AdminSections;
 
 /** What the Overview page and the palette's "Refresh everything" pull. */
-const OVERVIEW_KEYS = ['stats', 'usage', 'ceilings', 'heartbeat', 'storeVersions', 'feedback', 'activity'] as const;
+const OVERVIEW_KEYS = ['stats', 'usage', 'ceilings', 'heartbeat', 'storeVersions', 'appVersionDoc', 'feedback', 'activity'] as const;
 
 /** Display name of a spend-ceiling kind. Shared by the Cost page and its toasts. */
 export function ceilingLabel(kind: string): string {
@@ -136,6 +138,10 @@ export class AdminConsole {
   /** What the mobile update banner is being told (the public JSON). */
   readonly storeVersions = this.res<StoreVersionDoc | null>('storeVersions', null, () => this.api.getStoreVersions());
 
+  /** The stored `public/appVersion` — the "update required" control reads the
+   *  minimums and the production track from it. */
+  readonly appVersionDoc = this.res<AppVersionDoc | null>('appVersionDoc', null, () => this.api.getAppVersionDoc());
+
   readonly users = this.res<AdminUserRow[]>('users', [], async () => {
     const { users } = await this.callables.call<unknown, { users: AdminUserRow[] }>('listUsers', {});
     return users.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
@@ -158,7 +164,7 @@ export class AdminConsole {
   /** Generic access by key: `section('users')` is the same object as `users`. */
   private readonly sections: { [K in AdminSectionKey]: AdminResource<AdminSections[K]> } = {
     stats: this.stats, usage: this.usage, retention: this.retention, retentionHistory: this.retentionHistory,
-    ceilings: this.ceilings, heartbeat: this.heartbeat, storeVersions: this.storeVersions, users: this.users,
+    ceilings: this.ceilings, heartbeat: this.heartbeat, storeVersions: this.storeVersions, appVersionDoc: this.appVersionDoc, users: this.users,
     activity: this.activity, audit: this.audit, feedback: this.feedback, costModel: this.costModel,
     billing: this.billing, costLedger: this.costLedger,
   };
@@ -229,6 +235,22 @@ export class AdminConsole {
       const r = await this.callables.call<unknown, StoreVersionSync>('adminSyncAppVersion', {});
       this.storeSyncNotes.set(r.notes);
       return r.doc;
+    }).then(() => this.appVersionDoc.refresh());
+  }
+
+  /**
+   * Set or clear one platform's "update required" minimum. The server refuses
+   * a value above the live store build; re-read both views afterwards so the
+   * page and the Store binaries line agree with what was stored.
+   */
+  setMinAppVersion(platform: MinPlatform, value: number | string | null): Promise<boolean> {
+    return this.run('minVersion', async () => {
+      const r = await this.callables.call<{ platform: MinPlatform; value: number | string | null }, { doc: StoreVersionDoc }>(
+        'adminSetMinAppVersion', { platform, value });
+      this.storeVersions.set(r.doc);
+      await this.appVersionDoc.refresh();
+      const label = platform === 'android' ? 'Android' : 'iOS';
+      this.shell.toast(value === null ? `${label}: update gate cleared` : `${label}: update required below ${value}`, 'ok');
     });
   }
 

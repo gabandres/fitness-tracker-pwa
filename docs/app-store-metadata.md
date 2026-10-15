@@ -236,6 +236,26 @@ Ignia is not a medical device and does not provide medical advice.
 > page written to convert a store visitor, and it carries the browser fallback
 > for anyone who bounces off the install.
 
+### What's New — 1.2.8 · submitted 2026-10-15 (supersedes the never-submitted 1.2.7)
+
+`scripts/asc-release-version.mjs` carries this copy; keep the two in step.
+
+**en-US**
+
+```
+• Log your next set from the Lock Screen: tap Done on the workout's Live Activity (iPhone) or live notification (Android) without opening the app.
+• Workouts finish cleaner: Zone 2 cardio asks for an effort rating, blank RIRs can be set in one tap, and weekly volume shows the dates of your current rotation.
+• Undo, edit or delete a meal and Apple Health updates too; your widget and watch now roll over at the time your day starts, not midnight.
+```
+
+**es-MX**
+
+```
+• Registra tu próxima serie desde la pantalla bloqueada: toca Listo en la Actividad en vivo del entrenamiento (iPhone) o en la notificación en vivo (Android) sin abrir la app.
+• Los entrenamientos terminan mejor: el cardio en Zona 2 pide tu nivel de esfuerzo, los RIR vacíos se completan con un toque y el volumen semanal muestra las fechas de tu rotación actual.
+• Deshaz, edita o borra una comida y Apple Salud también se actualiza; tu widget y tu reloj cambian de día a la hora en que empieza tu día, no a medianoche.
+```
+
 ### What's New — 1.2.6 · submitted with build 70 (native segmented controls, gram weight on logged rows)
 
 `scripts/asc-release-version.mjs` carries this copy; keep the two in step.

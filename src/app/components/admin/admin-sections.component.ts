@@ -103,6 +103,7 @@ const ACTION_TONE: Partial<Record<string, string>> = {
   impersonation_start: 'warn', impersonation_stop: 'muted', data_export: 'info',
   spend_kill_engaged: 'danger', spend_kill_cleared: 'good', spend_limit_set: 'warn',
   comped_grant: 'teal', comped_revoke: 'muted', cost_ledger_set: 'info', admin_session: 'muted',
+  app_min_version_set: 'warn', app_version_synced: 'muted',
 };
 
 const AUDITED: ReadonlyArray<[string, string]> = [
@@ -115,6 +116,7 @@ const AUDITED: ReadonlyArray<[string, string]> = [
   ['comped_grant · comped_revoke', 'comped list'],
   ['spend_limit_set · spend_kill_engaged · spend_kill_cleared', 'AI ceilings and kill-switch'],
   ['cost_ledger_set', 'fixed-cost ledger'],
+  ['app_min_version_set', '"update required" minimum app version'],
   ['data_export', 'CSV export'],
 ];
 

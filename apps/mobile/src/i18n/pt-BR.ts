@@ -308,6 +308,10 @@ export const ptBR: Record<I18nKey, string> = {
   'update.ota.action': 'Reiniciar',
   'update.store.title': 'Nova versão disponível',
   'update.store.body': 'Toque para atualizar o Ignia na loja.',
+  'update.required.title': 'Atualização necessária',
+  'update.required.body': 'Esta versão do Ignia não é mais suportada. Atualize pela {store} para continuar — tudo o que você registrou está salvo na sua conta.',
+  'update.required.action': 'Atualizar',
+  'update.required.a11y': 'Atualizar o Ignia na {store}',
 
   // ── adaptive-TDEE recalibration ──
   'recalibration.cardTitle': 'Sua meta acabou de ser recalibrada',

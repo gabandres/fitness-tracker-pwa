@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Linking, Platform, type AppStateStatus } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Application from 'expo-application';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import * as Updates from 'expo-updates';
 import { openExternal } from '@/lib/open-external';
 import { isOtaHeld } from '@/lib/ota-hold';
@@ -217,13 +218,15 @@ const STORE_URL_FALLBACK = Platform.select({
  *  still served for the binaries that predate this file's `latestVersion`
  *  branch, promoted from a version→build map the release script records. */
 export interface VersionManifest {
-  android?: { latestVersionCode?: number };
-  ios?: { latestBuild?: number; latestVersion?: string };
+  /** `minVersionCode` / `minVersion`: the "update required" floor, set from
+   *  the admin console (`update-required.ts`). Absent = no gate. */
+  android?: { latestVersionCode?: number; minVersionCode?: number };
+  ios?: { latestBuild?: number; latestVersion?: string; minVersion?: string };
 }
 
 /** The numbers the running binary reports. Android: versionCode; iOS:
  *  CFBundleVersion and CFBundleShortVersionString. Null in Expo Go / web. */
-interface InstalledIdentity {
+export interface InstalledIdentity {
   build: string | null | undefined;
   version: string | null | undefined;
 }
@@ -276,23 +279,31 @@ export function pickStoreTarget(
   return { current: num(installed.build), latest: num(manifest?.ios?.latestBuild) };
 }
 
-function installedIdentity(): InstalledIdentity {
+export function installedIdentity(): InstalledIdentity {
   return { build: Application.nativeBuildVersion, version: Application.nativeApplicationVersion };
 }
 
 /**
- * Fetch the published manifest and pick this install's target from it, or
- * null on any failure. Out of `useStoreUpdate` because the React Compiler
- * skips a hook holding a `try/finally`.
+ * Whether the running JS belongs to a real store/release binary whose version
+ * numbers mean something. False in Expo Go (whose `nativeApplicationVersion`
+ * is EXPO GO's version, not Ignia's), in `__DEV__`, and whenever the native
+ * build number is unreadable. The "update required" gate never fires outside
+ * this — blocking a developer's own dev client would be a self-inflicted lock.
  */
-async function fetchStoreTarget(): Promise<{ current: number | null; latest: number | null } | null> {
+export function isGateableRuntime(): boolean {
+  if (__DEV__) return false;
+  if (Constants.executionEnvironment === ExecutionEnvironment.StoreClient) return false;
+  return !!Application.nativeBuildVersion;
+}
+
+async function fetchManifestOnce(): Promise<VersionManifest | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
     const res = await fetch(VERSION_URL, { signal: controller.signal });
     if (!res.ok) return null;
-    const manifest = (await res.json()) as VersionManifest;
-    return pickStoreTarget(manifest, Platform.OS, installedIdentity());
+    const manifest = (await res.json()) as unknown;
+    return manifest && typeof manifest === 'object' ? (manifest as VersionManifest) : null;
   } catch {
     // Offline, timed out, or the file is missing/malformed. Staying silent
     // is the correct failure mode: a version check that cannot reach the
@@ -300,6 +311,54 @@ async function fetchStoreTarget(): Promise<{ current: number | null; latest: num
     return null;
   } finally {
     clearTimeout(timer);
+  }
+}
+
+let inFlight: Promise<VersionManifest | null> | null = null;
+
+/**
+ * `/app-version.json`, or null on ANY failure — "could not fetch" and "no
+ * minimum set" are different answers and callers must be able to tell them
+ * apart. Concurrent callers share one request: the store banner (mounted in
+ * two places) and the update-required gate all ask at launch and on every
+ * foreground, and that is one value, not three downloads.
+ */
+export function fetchVersionManifest(): Promise<VersionManifest | null> {
+  if (!inFlight) {
+    inFlight = fetchManifestOnce().finally(() => {
+      inFlight = null;
+    });
+  }
+  return inFlight;
+}
+
+/** Fetch the published manifest and pick this install's target from it, or
+ *  null on any failure. */
+async function fetchStoreTarget(): Promise<{ current: number | null; latest: number | null } | null> {
+  const manifest = await fetchVersionManifest();
+  return manifest ? pickStoreTarget(manifest, Platform.OS, installedIdentity()) : null;
+}
+
+/**
+ * Open this platform's store listing. Both legs go through `openExternal`, and
+ * the SECOND one is the point. The bare `.catch(() => Linking.openURL(FALLBACK))`
+ * left the fallback's own rejection unhandled, which Sentry reports exactly like
+ * a crash and which leaves the user with a button that does nothing — the
+ * defect `openExternal` was written for (IGNIA-MOBILE-8, ten silent taps over
+ * ten days).
+ *
+ * It matters MORE here than on a Settings link. The person tapping this is by
+ * definition on an old build; on Android that is often an ORPHAN RUNTIME no OTA
+ * can reach, making this button the only route they have — and behind the
+ * "update required" screen it is the ONLY control on screen. The
+ * IGNIA-MOBILE-8 event still arriving on 2026-08-25 came from release 1.2.0 /
+ * build 49 — exactly such a user, on exactly such a build.
+ */
+export async function openStoreListing(): Promise<void> {
+  try {
+    await Linking.openURL(STORE_URL);
+  } catch {
+    await openExternal(STORE_URL_FALLBACK);
   }
 }
 
@@ -374,26 +433,9 @@ export function useStoreUpdate(): StoreUpdateState {
     };
   }, []);
 
-  // Both legs go through `openExternal`, and the SECOND one is the point. The
-  // bare `.catch(() => Linking.openURL(FALLBACK))` left the fallback's own
-  // rejection unhandled, which Sentry reports exactly like a crash and which
-  // leaves the user with a button that does nothing — the defect `openExternal`
-  // was written for (IGNIA-MOBILE-8, ten silent taps over ten days).
-  //
-  // It matters MORE here than on a Settings link. This is the "update
-  // available" prompt, so the person seeing it is by definition on an old
-  // build; on Android that is often an ORPHAN RUNTIME no OTA can reach, making
-  // this button the only route they have. The IGNIA-MOBILE-8 event still
-  // arriving on 2026-08-25 came from release 1.2.0 / build 49 — exactly such a
-  // user, on exactly such a build.
+  // `openStoreListing` carries the fallback and why it matters.
   const open = useCallback(() => {
-    void (async () => {
-      try {
-        await Linking.openURL(STORE_URL);
-      } catch {
-        await openExternal(STORE_URL_FALLBACK);
-      }
-    })();
+    void openStoreListing();
   }, []);
 
   const dismiss = useCallback(() => {

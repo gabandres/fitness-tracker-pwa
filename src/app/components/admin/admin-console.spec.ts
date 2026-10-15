@@ -53,6 +53,7 @@ describe('AdminConsole', () => {
       adminSyncAppVersion: { doc: { android: { latestVersionCode: 41 } }, notes: ['ios unchanged'] },
       adminSetCompedEmail: {},
       adminSetSpendCeiling: { ceiling: { kind: 'photo' } },
+      adminSetMinAppVersion: { doc: { android: { latestVersionCode: 40, minVersionCode: 39 } } },
     };
     call = vi.fn(async (name: string) => replies[name]);
 
@@ -61,6 +62,7 @@ describe('AdminConsole', () => {
       getRetentionHistory: vi.fn(async () => [{ date: '2026-09-01' }]),
       getHeartbeatAgeMin: vi.fn(async () => 4),
       getStoreVersions: vi.fn(async () => ({ android: { latestVersionCode: 40 } })),
+      getAppVersionDoc: vi.fn(async () => ({ android: { latestVersionCode: 40, where: ['production vc 40'] } })),
       getFeedback: vi.fn(async () => [{ id: 'f1' }]),
       getCostLedger: vi.fn(async () => [{ id: 'apple-dev' }]),
       refreshAdminStatus: vi.fn(async () => true),
@@ -265,6 +267,25 @@ describe('AdminConsole', () => {
   it('reads comped status off the live config snapshot', () => {
     expect(console_.isComped(row('x', '2026-01-01'))).toBe(false);
     expect(console_.isComped({ ...row('x', '2026-01-01'), email: 'Comped@example.com' })).toBe(true);
+  });
+
+  it('sets the update-required minimum, then shows what the server stored', async () => {
+    api['getAppVersionDoc'].mockResolvedValueOnce({ android: { latestVersionCode: 40, where: ['production vc 40'], minVersionCode: 39 } });
+    const ok = await console_.setMinAppVersion('android', 39);
+    expect(ok).toBe(true);
+    expect(call.mock.calls.map((c) => c.slice(0, 2))).toEqual([['adminSetMinAppVersion', { platform: 'android', value: 39 }]]);
+    expect(console_.storeVersions()).toEqual({ android: { latestVersionCode: 40, minVersionCode: 39 } });
+    expect(console_.appVersionDoc()?.android?.minVersionCode).toBe(39);
+    expect(shell.toasts().map((t) => t.text)).toEqual(['Android: update required below 39']);
+  });
+
+  it('surfaces a server refusal of the minimum as one error toast', async () => {
+    call.mockImplementation(async (name: string) => {
+      if (name === 'adminSetMinAppVersion') throw new Error('vc 41 is above the live production build (vc 40).');
+      return replies[name];
+    });
+    expect(await console_.setMinAppVersion('android', 41)).toBe(false);
+    expect(shell.toasts().map((t) => [t.text, t.kind])).toEqual([['vc 41 is above the live production build (vc 40).', 'error']]);
   });
 
   it('refreshes the ceilings before it says the ceiling was saved', async () => {

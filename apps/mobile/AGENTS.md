@@ -356,6 +356,57 @@ builds run ahead of the App Store, so pointing a store user at a build they
 cannot install is worse than saying nothing. Set it to the **live App Store
 build** — never the TestFlight one — if the iOS prompt is ever wanted.
 
+# Which runtimes get an OTA
+
+Every runtime still in users' hands is one more publish per OTA, one more
+fingerprint gate and one more chance of shipping JS a binary cannot run. The
+"update required" minimum is how the list is kept short.
+
+**Publish a JS fix to exactly these runtimes, per platform:**
+
+1. **the runtime of the binary that is LIVE in the public store** (Play
+   production / App Store), and
+2. **the newest TestFlight / Play-alpha binary's runtime, if it is newer** than
+   (1).
+
+Nothing older. A runtime below the minimum is not owed an OTA: its users are
+already behind the full-screen update screen.
+
+**Retiring older runtimes = raising the minimum.** `/admin` → Overview →
+System → *Update required* sets `android.minVersionCode` (a versionCode) or
+`ios.minVersion` (a marketing version) in Firestore `public/appVersion`, served
+in `/app-version.json`. A binary below it shows `UpdateRequiredScreen`
+(`src/lib/update-required.ts`) over everything, sign-in included, with one
+action: the store listing. Unset = no gate.
+
+- **Before raising, the minimum's binary must be LIVE in the store** — not
+  uploaded, not in review, not alpha-only. A minimum above the live build sends
+  every user to a store page that cannot give them what the gate demands.
+  `adminSetMinAppVersion` refuses it (Android checks `productionVersionCode`,
+  the newest **completed** production release — a staged `--fraction` rollout
+  or a halted release does not count, and neither does the alpha
+  `latestVersionCode`; iOS checks the iTunes-lookup version), and refuses when
+  the live version is unknown. Run "Sync now" first after a release.
+  **What the server cannot see:** Play exposes no review status, so a
+  `--complete` release still in review reads as live — check the Play listing
+  shows the build before raising the Android minimum. And a user whose OS is
+  below the new binary's minimum OS / `minSdkVersion` cannot install it at all:
+  never raise the minimum past a release that raised the OS floor.
+- **To undo a wrong minimum fast:** Clear it. Devices see it within the CDN
+  window below (plus up to 5 min of device HTTP cache); a gated device
+  re-checks on every foreground, so the user only has to reopen the app.
+- Raise it once the new binary is live, so OTAs stop being owed to the runtimes
+  below it. Raising it does not move any fingerprint and needs no build.
+- The client never blocks on a guess: no manifest and no cached minimum →
+  no gate; Expo Go / `__DEV__` / an unreadable build number → no gate. A
+  previously fetched minimum is cached and holds offline. Clearing the minimum
+  reaches every device on its next online launch or foreground.
+- `/app-version.json` is CDN-cached (`s-maxage=3600`), so a change can take up
+  to an hour to reach devices.
+- The gate is pure JS, so it reaches a runtime only through a binary or an OTA
+  that carries it. A runtime that never ran that JS ignores the minimum and
+  cannot be retired this way — it still only gets the dismissible store banner.
+
 # This app is in production
 
 Treat every change here as a production change: this app is on the iOS App Store.

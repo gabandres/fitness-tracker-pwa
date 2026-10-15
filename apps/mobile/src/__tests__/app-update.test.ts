@@ -1,4 +1,5 @@
 import {
+  fetchVersionManifest,
   pickStoreTarget,
   reloadScreenOptions,
   shouldAutoApplyOta,
@@ -228,5 +229,37 @@ describe('reloadScreenOptions', () => {
     // native reload screens then read width/height as dp. Our splash icon is
     // 1024x1024, which is 3584px on the LG G6. See the note on the function.
     expect(reloadScreenOptions(palettes.dark.colors).image).toBeUndefined();
+  });
+});
+
+// One manifest, three readers (the banner in two places + the update-required
+// gate). Concurrent asks share one request; a failure is null, never `{}` —
+// "could not fetch" must stay distinguishable from "no minimum set".
+describe('fetchVersionManifest', () => {
+  const realFetch = global.fetch;
+  afterEach(() => {
+    global.fetch = realFetch;
+  });
+
+  it('collapses concurrent callers into one request', async () => {
+    const body = { android: { latestVersionCode: 51, minVersionCode: 50 } };
+    const f = jest.fn(async () => ({ ok: true, json: async () => body }));
+    global.fetch = f as never;
+    const [a, b] = await Promise.all([fetchVersionManifest(), fetchVersionManifest()]);
+    expect(f).toHaveBeenCalledTimes(1);
+    expect(a).toEqual(body);
+    expect(b).toBe(a);
+    // …and a later ask is a fresh request, not a stale cache.
+    await fetchVersionManifest();
+    expect(f).toHaveBeenCalledTimes(2);
+  });
+
+  it('is null on a non-2xx, a throw, or a non-object body', async () => {
+    global.fetch = jest.fn(async () => ({ ok: false, json: async () => ({}) })) as never;
+    expect(await fetchVersionManifest()).toBeNull();
+    global.fetch = jest.fn(async () => { throw new Error('offline'); }) as never;
+    expect(await fetchVersionManifest()).toBeNull();
+    global.fetch = jest.fn(async () => ({ ok: true, json: async () => null })) as never;
+    expect(await fetchVersionManifest()).toBeNull();
   });
 });

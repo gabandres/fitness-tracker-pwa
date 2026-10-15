@@ -309,6 +309,10 @@ export const esPR: Record<I18nKey, string> = {
   'update.ota.action': 'Reiniciar',
   'update.store.title': 'Nueva versión disponible',
   'update.store.body': 'Toca para actualizar Ignia en la tienda.',
+  'update.required.title': 'Actualización necesaria',
+  'update.required.body': 'Esta versión de Ignia ya no tiene soporte. Actualiza desde {store} para seguir — todo lo que registraste está guardado en tu cuenta.',
+  'update.required.action': 'Actualizar',
+  'update.required.a11y': 'Actualizar Ignia en {store}',
 
   // ── adaptive-TDEE recalibration ──
   'recalibration.cardTitle': 'Tu meta se recalibró',
