@@ -176,7 +176,17 @@
         },
         {
           "_comment": "Retired-PWA safety workers (ADR-0036): fixed names, must revalidate on every update check so an old install picks up the self-unregistering script.",
-          "source": "/@(ngsw-worker|firebase-messaging-sw).js",
+          "source": "/ngsw-worker.js",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-cache"
+            }
+          ]
+        },
+        {
+          "_comment": "Same as /ngsw-worker.js; an extglob alternation here did not match on Hosting (verified with curl 2026-10-15).",
+          "source": "/firebase-messaging-sw.js",
           "headers": [
             {
               "key": "Cache-Control",
