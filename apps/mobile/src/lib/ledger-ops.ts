@@ -12,7 +12,7 @@
  * ## Why this module exists rather than more verbs in `ledger.ts`
  *
  * `ledger.ts` already holds the operations that are pure-Firestore —
- * `switchToMaintenance`, `markExercised`, `startFast`/`breakFast` — and that is
+ * `switchToMaintenance`, `startFast`/`breakFast` — and that is
  * still where a new one belongs if it can go there. These three cannot:
  *
  * - `health-sync.ts` **imports** `ledger.ts` (it is the thing that writes what
@@ -52,7 +52,6 @@ import {
 import { track } from './analytics';
 import { exportDaily, exportWorkout } from './health-sync';
 import {
-  markExercised,
   setDailySleep,
   setDailyWater,
   setDailyWeight,
@@ -148,7 +147,7 @@ export async function writeDailyMetric(
  * Health.
  *
  * `boundary` is a PARAMETER rather than a profile this function re-reads, the
- * same way `markExercised` and `setDayStartHour` take theirs — the caller
+ * same way `setDayStartHour` takes its — the caller
  * already holds the profile, and a read here would race the snapshot about to
  * deliver the same document. ADR-0030: which day a session belongs to is a
  * property of the user's boundary, not of the calendar.
@@ -169,24 +168,22 @@ export async function writeDailyMetric(
  *    own range and applies here like on every other weight write; a rejected
  *    value still rides on the session document, it just does not become a
  *    weigh-in.
- * 4. **`markExercised` after the session write**, so the streak marker only
- *    exists for a session that is actually recorded. It writes a 0-kcal
- *    `DailyLog`, and the zero is ADR-0026 decision 5: this row is an input to
- *    energy balance, so it is the one place an imported cardio calorie could
- *    reach a measured target, and it must not.
+ * 4. **No streak marker.** Until 2026-10-15 this wrote a 0-kcal `DailyLog`
+ *    (`markExercised`) so the day counted toward the streak; it read as an
+ *    empty meal and the owner deleted them all (bug C). The trained day is now
+ *    derived from the completed session (core `trainedDayRows`).
  * 5. **`track` before the Health mirror**, and the mirror last and fire-and-
  *    forget — a workout is finished whether or not Health hears about it.
  *
- * Everything up to and including `markExercised` is awaited, so a failure at
- * any step rejects and the caller can say so. The mirror cannot reject.
+ * Every write is awaited, so a failure at any step rejects and the caller can
+ * say so. The mirror cannot reject.
  *
  * ## Since 2026-10-04 (Train review bugs 1, 2, 10)
  *
  * - **Nobody waits on this any more.** `useTrain` completes the workout on the
  *   device and runs this behind the screen, replaying it from
  *   `active-session-journal.ts`'s pending-finish list after a restart. So it
- *   must be safe to run twice: every write is a set/update of a known doc, and
- *   `markExercised` looks for its own marker first.
+ *   must be safe to run twice: every write is a set/update of a known doc.
  * - **A session whose create never landed is written whole.** A start no
  *   longer waits for its create; a restart before the ack loses it, and the
  *   completing UPDATE then fails `not-found`. That is not a reason to lose the
@@ -210,6 +207,7 @@ export async function finishWorkout(
     status: 'completed' as const,
     exercises,
     ...(cardio !== undefined ? { cardio } : {}),
+    ...(session.dismissedSourceIds !== undefined ? { dismissedSourceIds: session.dismissedSourceIds } : {}),
     bodyweight: extras.bodyweight,
     sleepHours: extras.sleepHours,
     // Start to finish, stamped by the caller at the tap (`useTrain`); the
@@ -236,7 +234,9 @@ export async function finishWorkout(
   // An empty session is still stored (it is what the user finished), but it is
   // not a day of exercise and must not keep a streak alive.
   if (!sessionHasLoggedWork({ exercises, cardio })) return;
-  await markExercised(uid, date, boundary);
+  // No `markExercised` since 2026-10-15 (owner bug C): the 0-kcal marker row it
+  // wrote into `dailyLogs` read as an empty meal. The streak and History now
+  // derive the trained day from this session (core `trainedDayRows`).
   track('workout_finished');
   // Mirror the finished session to Health (ends now; strength training).
   void exportWorkout({ start: date, end: new Date() });

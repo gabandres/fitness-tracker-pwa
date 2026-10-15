@@ -222,7 +222,14 @@ export function applySessionAction(
     case 'removeCardio': {
       const cardio = session.cardio ?? [];
       if (action.blockIndex < 0 || action.blockIndex >= cardio.length) return session;
-      return { ...session, cardio: cardio.filter((_, i) => i !== action.blockIndex) };
+      // An IMPORTED block remembers it was removed, or the next Health / Oura
+      // import (matched by `sourceId`) puts it straight back.
+      const sourceId = cardio[action.blockIndex].sourceId;
+      return {
+        ...session,
+        cardio: cardio.filter((_, i) => i !== action.blockIndex),
+        ...(sourceId ? { dismissedSourceIds: [...(session.dismissedSourceIds ?? []), sourceId] } : {}),
+      };
     }
   }
 }

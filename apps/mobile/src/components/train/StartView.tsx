@@ -469,7 +469,6 @@ export function StartView({
         sessions={train.recentSessions}
         catalog={train.catalog}
         templates={plannedTemplates}
-        now={now}
       />
 
       <View style={styles.sectionHead}>

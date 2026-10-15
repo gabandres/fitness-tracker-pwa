@@ -6,6 +6,8 @@ import {
   type MealKey,
   calendarDateKey,
   computeStreak,
+  trainedDayRows,
+  TRAINED_DAYS_SESSIONS,
   isMealRow,
   slotForTime,
   dayBoundaryOf,
@@ -17,7 +19,7 @@ import {
 import { useAuth } from '@/lib/auth';
 import { FEATURES, isFeatureOn } from '@/lib/features';
 import { useT } from '@/i18n';
-import { subscribeDailyWeights, subscribeRecentLogs } from '@/lib/ledger';
+import { subscribeDailyWeights, subscribeRecentLogs, subscribeRecentSessions } from '@/lib/ledger';
 import { trackSubs } from '@/lib/sub-debug';
 import { syncReminders } from '@/lib/reminders';
 
@@ -117,6 +119,10 @@ export function useReminderSync(): void {
   const t = useT();
   const logsRef = useRef<DailyLog[]>([]);
   const weightsRef = useRef<Record<string, number>>({});
+  /** Finished workouts as trained days (core `trainedDayRows`): a finish no
+   *  longer writes a marker row (2026-10-15), so a workout-only day reaches
+   *  the streak and "logged today" from here. */
+  const trainedRef = useRef<DailyLog[]>([]);
   const lastSig = useRef<string>('');
   // In a ref like every other input here: this hook deliberately keeps its
   // state out of render so a snapshot cannot re-render the screen it is
@@ -137,7 +143,7 @@ export function useReminderSync(): void {
     useCallback(() => {
       if (!uid) return;
       const recompute = () => {
-        const logs = logsRef.current;
+        const logs = trainedRef.current.length ? [...logsRef.current, ...trainedRef.current] : logsRef.current;
         const weights = weightsRef.current;
         const boundary = dayBoundaryOf(profileRef.current);
         const now = new Date();
@@ -173,6 +179,11 @@ export function useReminderSync(): void {
         }),
         subscribeDailyWeights(uid, (w) => {
           weightsRef.current = w;
+          recomputeRef.current = recompute;
+          recompute();
+        }),
+        subscribeRecentSessions(uid, TRAINED_DAYS_SESSIONS, (sessions) => {
+          trainedRef.current = trainedDayRows(sessions);
           recomputeRef.current = recompute;
           recompute();
         }),

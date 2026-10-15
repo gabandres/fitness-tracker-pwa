@@ -41,6 +41,7 @@ jest.mock('@/lib/reminders', () => ({
   syncReminders: (...a: unknown[]) => mockSync(...(a as [])),
 }));
 jest.mock('@/lib/ledger', () => ({
+  subscribeRecentSessions: () => () => {},
   subscribeRecentLogs: (_u: string, _n: number, cb: (l: DailyLog[]) => void) => {
     subs.logs = cb;
     return () => {};

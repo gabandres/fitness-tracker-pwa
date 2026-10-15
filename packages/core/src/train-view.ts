@@ -39,7 +39,7 @@ import type { UnitSystem } from './unit-system';
 import { DEFAULT_LOG_STYLE, isLoggedSet } from './workout';
 import type { ProgressionSuggestion } from './workout-progression';
 import { computeExercisePRs, isWorkingSet, metricForSet } from './workout-progression';
-import { isLoggedCardioBlock } from './cardio';
+import { isLoggedCardioBlock, workoutMarkerEntry } from './cardio';
 import { normalizeClusterGroups } from './cluster-groups';
 import { calendarDateKey } from './date';
 import { readableHistory } from './side-tracks';
@@ -395,6 +395,80 @@ export function sessionHasLoggedWork(
     if (ex.sets.some((s) => isLoggedSet(s, style))) return true;
   }
   return (session.cardio ?? []).some(isLoggedCardioBlock);
+}
+
+/**
+ * A finished workout as a day of training, for the streak and History's
+ * "trained" — in memory, never stored (owner, 2026-10-15, bug C).
+ *
+ * Finishing a workout used to WRITE this row into `dailyLogs`: a 0-kcal,
+ * unlabeled `exerciseCompleted` marker, so the day counted toward the streak
+ * (ADR-0007). It read as an empty meal in every export and the owner deleted
+ * all 33 of them on 10/13; new ones kept arriving with every finish. The
+ * session itself already says the day was trained, so the marker is now
+ * derived from it at read time and handed to the same consumers in the same
+ * shape — `computeStreak` and `summarizeDays` cannot tell the difference.
+ * Markers already stored keep counting; nothing removes them.
+ *
+ * Only completed sessions with logged work: an abandoned or empty session was
+ * never a day of training (`sessionHasLoggedWork`). The 0 kcal is the same
+ * `workoutMarkerEntry` zero, so energy balance is untouched (ADR-0026 d5).
+ */
+/** One lift's ticked effort sets with no RIR, by index into the session. */
+export interface MissingRir {
+  exerciseIndex: number;
+  exerciseId: string;
+  name: string;
+  /** Indices into that exercise's `sets`. */
+  setIndexes: number[];
+}
+
+/**
+ * Ticked effort sets (working, activation, mini, continuation — the kinds the
+ * RIR picker offers) saved with no RIR, per lift.
+ *
+ * ## Why Finish has to ask (owner, 2026-10-15)
+ *
+ * Nothing on the way to a saved set requires an RIR. A tick accepts reps and
+ * load but never an RIR — in the app, and on the Lock Screen's "Done set",
+ * which has no RIR control at all. The 10/13 fix made the engine read a blank
+ * as 0 and put a "RIR missing — enter it?" line under the row, but that line
+ * is per row, non-blocking and gone once the session is saved. So whole lifts
+ * saved blank on 10/14 (Incline DB Curl 45°, all three rows) and 10/15
+ * (Deficit Push-up, all three), with every other lift complete. Finish is the
+ * one point every path passes, with the whole session in view.
+ */
+export function setsMissingRir(
+  exercises: readonly Pick<SessionExercise, 'exerciseId' | 'name' | 'sets'>[],
+  /** Whether this lifter logged an RIR on the lift before (last session's
+   *  rows) — the third half of the app's `liftUsesRir`. */
+  loggedBefore: (exerciseId: string) => boolean = () => false,
+): MissingRir[] {
+  const effort = new Set(['working', 'activation', 'mini', 'continuation']);
+  const cluster = new Set(['activation', 'mini', 'continuation']);
+  const out: MissingRir[] = [];
+  exercises.forEach((ex, exerciseIndex) => {
+    // Only a lift that USES RIR — the rule the RIR column follows (S23-5): a
+    // clustered lift (the engine gates on its activation's RIR), one with an
+    // RIR entered on some row, or one that carried RIR last time. A plain
+    // straight-set lift never showed the column and is not asked about it.
+    const usesRir = ex.sets.some((s) => s.rir != null || cluster.has(s.kind ?? 'working')) || loggedBefore(ex.exerciseId);
+    if (!usesRir) return;
+    const setIndexes = ex.sets.flatMap((s, i) => (s.done && s.rir == null && effort.has(s.kind ?? 'working') ? [i] : []));
+    if (setIndexes.length) out.push({ exerciseIndex, exerciseId: ex.exerciseId, name: ex.name, setIndexes });
+  });
+  return out;
+}
+
+/** How many recent sessions the streak hooks read for trained days. */
+export const TRAINED_DAYS_SESSIONS = 60;
+
+export function trainedDayRows(
+  sessions: readonly Pick<WorkoutSession, 'status' | 'date' | 'exercises' | 'cardio'>[],
+): { date: Date; calories: number; exerciseCompleted: true }[] {
+  return sessions
+    .filter((s) => s.status === 'completed' && sessionHasLoggedWork(s))
+    .map((s) => ({ date: s.date, ...workoutMarkerEntry() }));
 }
 
 /**

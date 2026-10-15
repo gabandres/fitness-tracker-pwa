@@ -332,6 +332,50 @@ export function weeklyHardSets(sessions: readonly SessionLike[], catalog: Catalo
   return hardSetsBetween(sessions, catalog, now - WEEK_MS, now);
 }
 
+/**
+ * One full ROTATION: the latest completed session of each of `templateIds`,
+ * oldest first (owner, 2026-10-15).
+ *
+ * The weekly sheet used to count a rolling 7 days. A Push/Pull/Leg rotation
+ * runs shorter than a week, so the window held one template twice (Push on
+ * 10/9 and 10/15) while the "planned" column — each template performed once
+ * ({@link plannedVolume}) — counts it once: the two columns were not the same
+ * question. A rotation is exactly the unit the plan describes. A template not
+ * yet performed is simply absent; a session of no listed template (an
+ * imported walk, an empty workout) is not part of a rotation.
+ */
+export function latestRotation<S extends Pick<WorkoutSession, 'status' | 'date' | 'templateId'>>(
+  sessions: readonly S[],
+  templateIds: readonly string[],
+): S[] {
+  const want = new Set(templateIds);
+  const latest = new Map<string, S>();
+  for (const s of sessions) {
+    if (s.status !== 'completed' || !s.templateId || !want.has(s.templateId)) continue;
+    const prev = latest.get(s.templateId);
+    if (!prev || s.date.getTime() > prev.date.getTime()) latest.set(s.templateId, s);
+  }
+  return [...latest.values()].sort((a, b) => a.date.getTime() - b.date.getTime());
+}
+
+/** Clusters over {@link latestRotation}. */
+export function rotationVolume(
+  sessions: readonly (SessionLike & Pick<WorkoutSession, 'templateId'>)[],
+  catalog: CatalogMuscles,
+  templateIds: readonly string[],
+): WeeklyVolumeReport {
+  return volumeBetween(latestRotation(sessions, templateIds), catalog, -Infinity, Infinity);
+}
+
+/** Hard sets over {@link latestRotation}. */
+export function rotationHardSets(
+  sessions: readonly (SessionLike & Pick<WorkoutSession, 'templateId'>)[],
+  catalog: CatalogMuscles,
+  templateIds: readonly string[],
+): WeeklyVolumeReport {
+  return hardSetsBetween(latestRotation(sessions, templateIds), catalog, -Infinity, Infinity);
+}
+
 type TemplateLike = Pick<WorkoutTemplate, 'exercises'>;
 
 function plannedTally(

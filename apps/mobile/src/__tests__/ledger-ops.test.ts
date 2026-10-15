@@ -165,7 +165,6 @@ describe('finishWorkout', () => {
       'exportDaily:weight',
       'setDailySleep',
       'exportDaily:sleep',
-      'markExercised',
       'track:workout_finished',
       'exportWorkout',
     ]);
@@ -176,9 +175,9 @@ describe('finishWorkout', () => {
     const key = dayKeyAt(SESSION_AT, MIDNIGHT);
     expect(mockSetDailyWeight).toHaveBeenCalledWith(UID, key, 182);
     expect(mockSetDailySleep).toHaveBeenCalledWith(UID, key, 7.5);
-    // The streak marker is stamped from the session's own instant, not from
-    // "now", and carries the same boundary (ADR-0030).
-    expect(mockMarkExercised).toHaveBeenCalledWith(UID, SESSION_AT, MIDNIGHT);
+    // No streak marker since 2026-10-15 (owner bug C): the trained day is
+    // derived from the session itself (core `trainedDayRows`).
+    expect(mockMarkExercised).not.toHaveBeenCalled();
   });
 
   it('rejects an implausible bodyweight without touching dailyWeights', async () => {
@@ -189,7 +188,7 @@ describe('finishWorkout', () => {
     await finishWorkout(UID, session(), MIDNIGHT, { bodyweight: 11 });
     expect(mockSetDailyWeight).not.toHaveBeenCalled();
     expect(mockExportDaily).not.toHaveBeenCalled();
-    expect(calls).toEqual(['updateSession', 'markExercised', 'track:workout_finished', 'exportWorkout']);
+    expect(calls).toEqual(['updateSession', 'track:workout_finished', 'exportWorkout']);
   });
 
   it('stores a plausible bodyweight at the store floor', async () => {
@@ -209,7 +208,7 @@ describe('finishWorkout', () => {
     // must the daily metric — the rest of the sequence runs as normal.
     await finishWorkout(UID, session(), MIDNIGHT, { sleepHours: 75 });
     expect(mockSetDailySleep).not.toHaveBeenCalled();
-    expect(calls).toEqual(['updateSession', 'markExercised', 'track:workout_finished', 'exportWorkout']);
+    expect(calls).toEqual(['updateSession', 'track:workout_finished', 'exportWorkout']);
   });
 
   it('prunes unlogged sets and leaves `cardio` absent when the session had none', async () => {
@@ -267,7 +266,7 @@ describe('finishWorkout', () => {
     expect(id).toBe('s1');
     expect(draft.status).toBe('completed');
     expect('createdAt' in draft).toBe(false);
-    expect(mockMarkExercised).toHaveBeenCalled();
+    expect(mockTrack).toHaveBeenCalledWith('workout_finished');
   });
 
   it('drops exercises left with no logged set (Train review bug 10)', async () => {

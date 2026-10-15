@@ -90,7 +90,6 @@ import {
   // The energy seam: a finished workout's marker log is 0 kcal, always
   // (ADR-0026 decision 5). Named rather than inlined so the one crossing point
   // between cardio and a measured target is greppable.
-  workoutMarkerEntry,
   // Shared workout doc→domain mappers (arch review E). Mobile does NOT
   // normalize cluster groups (the web adapter does), so it uses these directly.
   toWorkoutExercise as toExercise,
@@ -2338,32 +2337,6 @@ export async function writeDailyTargetRecord(
 /** Dismiss a day's change notice. */
 export async function ackTargetNotice(uid: string, date: string): Promise<void> {
   await updateDoc(targetDoc(uid, date), { noticeAckAt: serverTimestamp(), updatedAt: serverTimestamp() });
-}
-
-/** Stamp `date` as an exercise day (a 0-kcal DailyLog with
- *  `exerciseCompleted`) so the workout counts toward the streak — but only
- *  if no exercise-marked log already exists that day. Mirrors
- *  FitnessStore.markExercised.
- *
- *  The zero comes from `workoutMarkerEntry` rather than a literal, because
- *  this log IS an input to energy balance and therefore the one place an
- *  imported cardio calorie could reach a measured target. ADR-0026 decision 5;
- *  pinned by `cardio-energy-independence.test.ts`. */
-export async function markExercised(
-  uid: string,
-  date: Date,
-  boundary: DayBoundary = MIDNIGHT,
-): Promise<void> {
-  const key = dayKeyAt(date, boundary);
-  const snap = await getDocs(query(logsCol(uid), orderBy('timestamp', 'desc'), limit(60)));
-  const already = snap.docs.some((d) => {
-    const data = d.data() as { timestamp?: Timestamp; exerciseCompleted?: boolean; liftCompleted?: boolean; cardioCompleted?: boolean };
-    if (!data.timestamp) return false;
-    const marked = data.exerciseCompleted || data.liftCompleted || data.cardioCompleted;
-    return marked && dayKeyAt(data.timestamp.toDate(), boundary) === key;
-  });
-  if (already) return;
-  await addLog(uid, { ...workoutMarkerEntry(), timestamp: date });
 }
 
 // ─── Consultation quota (read-only) ─────────────────────────────

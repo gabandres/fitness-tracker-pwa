@@ -25,6 +25,7 @@ import {
   loadUnit,
   previousSets,
   carryAndStampRows,
+  stampChangedRows,
   logUserLoadEdits,
   normalizeClusterGroups,
   parseLoadToLb,
@@ -265,6 +266,17 @@ interface DraftEx {
   incrementLb: string;
   /** Exercise-level mini-set rest override, seconds; '' = use the template's. */
   restMiniSec: string;
+  /** The two per-lift rests (2026-10-15, owner bug D): between this lift's
+   *  own clusters (`TemplateExercise.restClusterSec`, '' = the template's) and
+   *  before the NEXT exercise (`restAfterSec`, '' = the cluster rest). Both
+   *  lived only in data until now — set by scripts, invisible here. */
+  restClusterSec: string;
+  restAfterSec: string;
+  /** `restAfterSec` as opened, and the range top it carried (105–120 s). The
+   *  top is kept only while the field is untouched: a new number replaces the
+   *  range, it does not slide under an old ceiling. */
+  restAfterOpened: string;
+  restAfterMaxSec?: number;
   /** What this lift is PROGRAMMED as (ADR-0040). `undefined` keeps a template
    *  written before the field existed undeclared, so the engine keeps
    *  inferring for it and nothing is silently restated on an unrelated save. */
@@ -287,6 +299,30 @@ interface DraftEx {
    *  the text is untouched: a metric user's 100 lb shows as 45.4 kg and would
    *  otherwise come back as 100.09 lb — a "hand edit" nobody made, logged. */
   loadAsOpened?: { text: string; lb: number };
+}
+
+/**
+ * A saved row with the editor's two per-lift rests applied exactly as shown:
+ * a number is written, a blank removes the field. The range top
+ * (`restAfterMaxSec`, "105–120 s") survives only an untouched rest-to-next.
+ * Exported for `template-rest-fields.test.ts`.
+ */
+export function withShownRests(
+  row: TemplateExercise,
+  d: Pick<DraftEx, 'restClusterSec' | 'restAfterSec' | 'restAfterOpened' | 'restAfterMaxSec'>,
+): TemplateExercise {
+  const out: TemplateExercise = { ...row };
+  delete out.restClusterSec;
+  delete out.restAfterSec;
+  delete out.restAfterMaxSec;
+  const cluster = numOrUndef(d.restClusterSec);
+  const after = numOrUndef(d.restAfterSec);
+  if (cluster != null) out.restClusterSec = cluster;
+  if (after != null) {
+    out.restAfterSec = after;
+    if (d.restAfterSec === d.restAfterOpened && d.restAfterMaxSec != null) out.restAfterMaxSec = d.restAfterMaxSec;
+  }
+  return out;
 }
 
 /** One ticked row in the editor's adder (T18). */
@@ -646,6 +682,10 @@ export function TemplateEditorModal({
         holdSessions: ex.progression ? String(ex.progression.holdSessions) : '',
         incrementLb: ex.progression ? String(toDisplayLoad(ex.progression.incrementLb, unitSystem)) : '',
         restMiniSec: ex.restMiniSec != null ? String(ex.restMiniSec) : '',
+        restClusterSec: ex.restClusterSec != null ? String(ex.restClusterSec) : '',
+        restAfterSec: ex.restAfterSec != null ? String(ex.restAfterSec) : '',
+        restAfterOpened: ex.restAfterSec != null ? String(ex.restAfterSec) : '',
+        ...(ex.restAfterMaxSec != null ? { restAfterMaxSec: ex.restAfterMaxSec } : {}),
         setStructure: ex.setStructure,
         sets: ex.plannedSets.length
           ? ex.plannedSets.map((ps) => toDraftSet(ps, unitSystem))
@@ -747,6 +787,9 @@ export function TemplateEditorModal({
       holdSessions: '',
       incrementLb: '',
       restMiniSec: '',
+      restClusterSec: '',
+      restAfterSec: '',
+      restAfterOpened: '',
       sets: seededRows(exercise.exerciseId, exercise.logStyle, [kind, kind, kind]),
     };
   }
@@ -1264,6 +1307,19 @@ export function TemplateEditorModal({
       // baseline marker) and stamp the rows the lifter actually changed — a
       // save of an untouched row keeps its old stamp.
       draft.exercises = carryAndStampRows(template?.exercises ?? [], draft.exercises, { at, by: 'user' });
+      // The two per-lift rests ARE shown here now, so what the fields say is
+      // the answer — including a cleared field, which the carry above would
+      // otherwise put back. Re-stamped, so a row changed only in its rests is
+      // still marked as the lifter's edit.
+      const shown = new Map(exercises.map((d) => [d.exerciseId, d]));
+      draft.exercises = stampChangedRows(
+        template?.exercises ?? [],
+        draft.exercises.map((row) => {
+          const d = shown.get(row.exerciseId);
+          return d ? withShownRests(row, d) : row;
+        }),
+        { at, by: 'user' },
+      );
       // A lift added to or taken out of a superset, moved here from another
       // day, or moved in the order starts a new baseline: its next read is
       // not judged as a failed test (core `superset-context.ts`). Judged
@@ -2650,6 +2706,33 @@ export function TemplateEditorModal({
                         {...doneKey}
                         accessibilityLabel={`${t('train.exRestMini')}, ${d.name}`}
                         testID={`template-rest-mini-${i}`}
+                      />
+
+                      <Text style={styles.fieldLabel}>{t('train.exRestCluster')}</Text>
+                      <SheetTextInput
+                        style={styles.tplLoadInput}
+                        keyboardType="number-pad"
+                        placeholder={restCluster || String(DEFAULT_REST_CLUSTER_SEC)}
+                        placeholderTextColor={colors.faint}
+                        value={d.restClusterSec}
+                        onChangeText={(v) => patchEx(i, { restClusterSec: v })}
+                        {...doneKey}
+                        accessibilityLabel={`${t('train.exRestCluster')}, ${d.name}`}
+                        testID={`template-rest-cluster-${i}`}
+                      />
+                      <Text style={styles.fieldLabel}>{t('train.exRestNext')}</Text>
+                      <SheetTextInput
+                        style={styles.tplLoadInput}
+                        keyboardType="number-pad"
+                        // Blank falls back to this lift's cluster rest, as the
+                        // live timer does (`ActiveSession` restsFor).
+                        placeholder={d.restClusterSec || restCluster || String(DEFAULT_REST_CLUSTER_SEC)}
+                        placeholderTextColor={colors.faint}
+                        value={d.restAfterSec}
+                        onChangeText={(v) => patchEx(i, { restAfterSec: v })}
+                        {...doneKey}
+                        accessibilityLabel={`${t('train.exRestNext')}, ${d.name}`}
+                        testID={`template-rest-next-${i}`}
                       />
 
                       <Text style={styles.fieldLabel}>{t('train.cues')}</Text>

@@ -8,6 +8,7 @@ import {
   clampHr,
   clampRpe,
   hrBand,
+  isZone2,
   zone2Check,
   ZONE2_BAND,
   distanceUnit,
@@ -267,7 +268,10 @@ function CardioBlockCardInner({ block, index, onPatch, onCommit, onRemove, overl
             selectTextOnFocus
             {...doneKey}
             defaultValue={block.rpe != null ? String(block.rpe) : ''}
-            placeholder={t('cardio.rpeHint')}
+            // Blank on purpose, never a default: a prefilled number is one
+            // nobody chose. A Zone 2 block says what Zone 2 feels like so a
+            // 10 stands out (owner, 2026-10-15); the >= 7 flag stays.
+            placeholder={t(isZone2(block) ? 'cardio.rpeHintZone2' : 'cardio.rpeHint')}
             placeholderTextColor={colors.faint}
             accessibilityLabel={t('cardio.rpe')}
             testID={`cardio-rpe-${index}`}

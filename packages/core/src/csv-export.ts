@@ -73,6 +73,14 @@ const COLS = [
   'templateVersion', 'supersetBlock', 'supersetOrder', 'side', 'transitionSec',
   'avgHR', 'zone2InBand', 'bedtime', 'wakeTime',
   'weekStart', 'muscle', 'directClusters', 'fractionalClusters',
+  // ── 2026-10-15 (owner bug D), appended for the same reason ──
+  // 'template' rows: the two rests the live timer actually uses, split.
+  // `restBetweenClustersSec` is the gap between this lift's own clusters (the
+  // row's `restClusterSec`, else the template's); `restToNextSec` the gap
+  // before the next exercise (the row's `restAfterSec`, else the cluster
+  // rest). `restBetweenSec` stays as it was — it never read the row's own
+  // cluster rest, which is why these exist.
+  'restBetweenClustersSec', 'restToNextSec',
 ] as const;
 type Col = typeof COLS[number];
 
@@ -385,6 +393,8 @@ function templateRows(data: ExportData): string[] {
         clusterLabels: labels.join(','),
         miniRestSec: ex.restMiniSec ?? t.restMiniSec,
         restBetweenSec: secRange(ex.restAfterSec ?? t.restClusterSec, ex.restAfterSec != null ? ex.restAfterMaxSec : undefined),
+        restBetweenClustersSec: ex.restClusterSec ?? t.restClusterSec,
+        restToNextSec: secRange(ex.restAfterSec ?? ex.restClusterSec ?? t.restClusterSec, ex.restAfterSec != null ? ex.restAfterMaxSec : undefined),
         effortStandard: data.effortStandards?.[ex.exerciseId] ?? DEFAULT_EFFORT_STANDARD,
         notes,
         lastModifiedAt: ex.lastModifiedAt ?? lastLoad?.at,

@@ -50,6 +50,7 @@ const live: {
 const mockGetLogsForRange = jest.fn<Promise<DailyLog[]>, [string, string, string, unknown?]>();
 
 jest.mock('@/lib/ledger', () => ({
+  subscribeRecentSessions: () => () => {},
   subscribeRecentLogs: (_uid: string, _n: number, cb: Deliver<DailyLog[]>) => {
     live.logs = cb;
     return () => {};

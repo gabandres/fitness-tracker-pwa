@@ -21,7 +21,6 @@ import type { HealthWorkout } from '@macrolog/core/health-workouts';
 import {
   getHealthScalarsOnce,
   getRecentSessions,
-  markExercised,
   setDailyActiveEnergy,
   getDayBoundaryOnce,
   importDailySleep,
@@ -391,7 +390,7 @@ export async function writeImportedBlocks(uid: string, blocks: CardioBlock[]): P
   for (const [dayKey, incoming] of perDay) {
     const existing = byDay.get(dayKey);
     if (existing?.id) {
-      const { blocks: merged, changed } = mergeImportedBlocks(existing.cardio ?? [], incoming);
+      const { blocks: merged, changed } = mergeImportedBlocks(existing.cardio ?? [], incoming, existing.dismissedSourceIds);
       if (!changed) continue;
       try {
         await updateSession(uid, existing.id, { cardio: merged });
@@ -407,11 +406,9 @@ export async function writeImportedBlocks(uid: string, blocks: CardioBlock[]): P
       continue;
     }
     const date = incoming[0].startedAt ?? parseYmd(dayKey);
+    // The session alone makes the day a trained one for the streak and History
+    // (core `trainedDayRows`); no marker row is written since 2026-10-15.
     await startSession(uid, { status: 'completed', date, exercises: [], cardio: incoming });
-    // Same cross-cutting finish a hand-logged session gets: the day counts
-    // toward the streak and shows its History dot. The marker is 0 kcal —
-    // see `workoutMarkerEntry`.
-    await markExercised(uid, date);
     written++;
   }
   return written;

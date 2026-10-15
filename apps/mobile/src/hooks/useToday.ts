@@ -26,6 +26,8 @@ import {
   parseYmd,
   LOG_WINDOW_ROWS,
   summarizeDay,
+  trainedDayRows,
+  TRAINED_DAYS_SESSIONS,
   measurementProgress,
   type MeasurementProgress,
 } from '@macrolog/core';
@@ -34,6 +36,7 @@ import { useSubscription } from '@/lib/subscription';
 /** Diary order, as `groupByMealSlot` draws it. */
 const SLOT_ORDER: readonly MealSlot[] = ['breakfast', 'lunch', 'dinner', 'snack', 'other'];
 import { useAuth } from '@/lib/auth';
+import type { WorkoutSession } from '@/lib/workout';
 import { type LogWrites, useLogWrites } from '@/hooks/useLogWrites';
 import {
   type BreakFastReceipt,
@@ -48,6 +51,7 @@ import {
   updateSleepTimes,
   subscribeDailyWater,
   subscribeDailyWeights,
+  subscribeRecentSessions,
   subscribePresets,
   subscribeProfile,
   subscribeRecentLogs,
@@ -348,9 +352,29 @@ export function useToday(): TodayState {
         : [],
     deps: [uid, todayKey],
   });
+  // Finished workouts, as trained days (core `trainedDayRows`). A finish no
+  // longer writes a marker row into `dailyLogs` (2026-10-15, owner bug C), so
+  // the streak and the day's "trained" read the sessions themselves. Its own
+  // focus-gated feed, per ADR-0016; the newest 60 cover any streak a session
+  // alone could carry.
+  const [recentSessions, setRecentSessions] = useState<WorkoutSession[]>([]);
+  useLedgerFeed({
+    uid,
+    label: 'Today sessions',
+    gate: 'focus',
+    channels: () =>
+      uid
+        ? [feedChannel({ key: 'sessions', settles: 'none', open: (deliver) => subscribeRecentSessions(uid, TRAINED_DAYS_SESSIONS, deliver), apply: setRecentSessions })]
+        : [],
+    deps: [uid],
+  });
+  const logsWithTraining = useMemo(() => {
+    const trained = trainedDayRows(recentSessions);
+    return trained.length ? [...logs, ...trained] : logs;
+  }, [logs, recentSessions]);
   const summary = useMemo(
-    () => summarizeDay(todayKey, logs, weights, boundary),
-    [todayKey, logs, weights, boundary],
+    () => summarizeDay(todayKey, logsWithTraining, weights, boundary),
+    [todayKey, logsWithTraining, weights, boundary],
   );
   // `calendarToday`, not the default clock read: see `useCalendarToday`.
   const calendarToday = useCalendarToday();
@@ -401,9 +425,9 @@ export function useToday(): TodayState {
   const { isPro } = useSubscription();
   const streak = useMemo(
     () =>
-      computeStreak(logs, { freezeMaxGap: isPro ? STREAK_FREEZE_MAX_GAP_PRO : 0, boundary })
+      computeStreak(logsWithTraining, { freezeMaxGap: isPro ? STREAK_FREEZE_MAX_GAP_PRO : 0, boundary })
         .streak,
-    [logs, isPro, boundary],
+    [logsWithTraining, isPro, boundary],
   );
 
   const shareStats = useMemo<ShareStats>(() => {

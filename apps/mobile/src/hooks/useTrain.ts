@@ -501,6 +501,9 @@ export function useTrain(): TrainState {
         // renders, the summary updates, and Firestore never hears about it.
         // Measured on the LG G6 on 2026-08-24, by Maestro flow 21.
         ...(session.cardio !== undefined ? { cardio: session.cardio } : {}),
+        // A removed imported block's id (2026-10-15) — without it the next
+        // Health import re-adds the block the user just took out.
+        ...(session.dismissedSourceIds !== undefined ? { dismissedSourceIds: session.dismissedSourceIds } : {}),
       };
       const write = async () => {
         try {

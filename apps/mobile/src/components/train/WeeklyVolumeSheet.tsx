@@ -4,10 +4,11 @@ import { ScrollView, Text, View } from 'react-native';
 import {
   defaultVolumeView,
   PER_SESSION_PLATEAU,
+  latestRotation,
   plannedHardSets,
   plannedVolume,
-  weeklyHardSets,
-  weeklyVolume,
+  rotationHardSets,
+  rotationVolume,
   type VolumeMuscle,
   type VolumeView,
 } from '@macrolog/core';
@@ -42,8 +43,11 @@ const COPY: Record<VolumeView, { hint: I18nKey; empty: I18nKey; untrained: I18nK
  *   working sets; warm-ups and myo-rep clusters left out.
  * - **Clusters**: myo-rep clusters (`weeklyVolume`, Program v2 2026-10-11).
  *
- * Both credit the primary muscle 1.0 and each secondary 0.5 over the same 7
- * days, so a muscle reads comparably on either face. Lowest first, beside
+ * Both credit the primary muscle 1.0 and each secondary 0.5 over the same
+ * window — ONE ROTATION, the latest completed session of each planned
+ * template (`latestRotation`, owner 2026-10-15; it was a rolling 7 days, which
+ * a rotation shorter than a week overfilled) — so a muscle reads comparably on
+ * either face and against the plan, which counts each template once. Lowest first, beside
  * what the templates plan for a week; then each session's totals, with any
  * muscle over {@link PER_SESSION_PLATEAU} flagged. The cluster face never
  * says "sets": there is no validated conversion between a cluster and a set,
@@ -62,21 +66,21 @@ export function WeeklyVolumeSheet({
   sessions,
   catalog,
   templates,
-  now,
 }: {
   visible: boolean;
   onClose: () => void;
   sessions: readonly WorkoutSession[];
   catalog: readonly Exercise[];
   templates: readonly WorkoutTemplate[];
-  now: number;
 }) {
   const t = useT();
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
-  const clusters = useMemo(() => weeklyVolume(sessions, catalog, now), [sessions, catalog, now]);
-  const sets = useMemo(() => weeklyHardSets(sessions, catalog, now), [sessions, catalog, now]);
+  const templateIds = useMemo(() => templates.flatMap((tp) => (tp.id ? [tp.id] : [])), [templates]);
+  const rotation = useMemo(() => latestRotation(sessions, templateIds), [sessions, templateIds]);
+  const clusters = useMemo(() => rotationVolume(sessions, catalog, templateIds), [sessions, catalog, templateIds]);
+  const sets = useMemo(() => rotationHardSets(sessions, catalog, templateIds), [sessions, catalog, templateIds]);
   const plannedClusters = useMemo(
     () => new Map(plannedVolume(templates, catalog).map((m) => [m.muscle, m])),
     [templates, catalog],
@@ -130,6 +134,15 @@ export function WeeklyVolumeSheet({
             testID="weekly-volume-view"
           />
           <Text style={styles.sheetHint} testID="weekly-volume-hint">{t(copy.hint)}</Text>
+          {rotation.length ? (
+            <Text style={styles.sheetHint} testID="weekly-volume-rotation">
+              {t('train.volume.rotation', {
+                sessions: rotation
+                  .map((s) => `${s.templateName ?? t('train.volume.session')} ${formatDate(s.date, locale, { month: 'short', day: 'numeric' })}`)
+                  .join(' · '),
+              })}
+            </Text>
+          ) : null}
           {shown.length === 0 ? (
             <Text style={styles.reportNote} testID="weekly-volume-empty">{t(copy.empty)}</Text>
           ) : (

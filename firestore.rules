@@ -544,7 +544,11 @@ service cloud.firestore {
               'bodyweight', 'sleepHours', 'durationMin',
               'exercises', 'cardio', 'nextNotes', 'createdAt', 'updatedAt',
               // Program v2 (2026-10-11): the version the template ran as.
-              'templateVersion'
+              'templateVersion',
+              // Imported cardio blocks the user removed (2026-10-15): the
+              // Health / Oura import skips these sourceIds, or a removed block
+              // comes straight back on the next foreground.
+              'dismissedSourceIds'
           ])
           && data.keys().hasAll(['status', 'timestamp', 'exercises', 'createdAt', 'updatedAt'])
           && (data.status == 'active' || data.status == 'completed')
@@ -564,6 +568,8 @@ service cloud.firestore {
           && (!('durationMin' in data.keys()) ||
               (data.durationMin is number && data.durationMin >= 0 && data.durationMin <= 1440))
           && (!('templateVersion' in data.keys()) || data.templateVersion in ['v1', 'v2'])
+          && (!('dismissedSourceIds' in data.keys()) ||
+              (data.dismissedSourceIds is list && data.dismissedSourceIds.size() <= 50))
           && (!('nextNotes' in data.keys()) ||
               (data.nextNotes is string && data.nextNotes.size() <= 2000));
     }

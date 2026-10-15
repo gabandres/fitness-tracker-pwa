@@ -372,10 +372,15 @@ export function looksLikeSameEffort(a: EffortShape, b: EffortShape): boolean {
 export function mergeImportedBlocks(
   existing: readonly CardioBlock[],
   incoming: readonly CardioBlock[],
+  /** `sourceId`s the user removed from this session — never re-added
+   *  (`WorkoutSession.dismissedSourceIds`, 2026-10-15). */
+  dismissed: readonly string[] = [],
 ): { blocks: CardioBlock[]; changed: boolean } {
   const blocks = existing.slice();
+  const gone = new Set(dismissed);
   let changed = false;
   for (const block of incoming) {
+    if (block.sourceId && gone.has(block.sourceId)) continue;
     const at = block.sourceId
       ? blocks.findIndex((b) => b.sourceId != null && b.sourceId === block.sourceId)
       : -1;

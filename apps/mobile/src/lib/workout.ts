@@ -350,6 +350,9 @@ export interface WorkoutSession {
   /** Logged cardio (ADR-0025). A run on its own is a session with
    *  `exercises: []` and one block here. No strength derivation reads it. */
   cardio?: CardioBlock[];
+  /** Imported cardio blocks the user removed — core
+   *  `WorkoutSession.dismissedSourceIds` (2026-10-15). */
+  dismissedSourceIds?: string[];
   nextNotes?: string;
   createdAt: Date;
   updatedAt: Date;

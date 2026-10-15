@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { type CustomFood, type DailyLog, type DaySummary, type MealPreset, type DayBoundary, type DateKey, dayBoundaryOf, dayKeyAt, LOG_WINDOW_ROWS, summarizeDays } from '@macrolog/core';
+import { type CustomFood, type DailyLog, type DaySummary, type MealPreset, type DayBoundary, type DateKey, dayBoundaryOf, dayKeyAt, LOG_WINDOW_ROWS, summarizeDays, trainedDayRows } from '@macrolog/core';
 import { useAuth } from '@/lib/auth';
+import type { WorkoutSession } from '@/lib/workout';
 import { useCachedState } from '@/hooks/useCachedState';
 import { type LogWrites, useLogWrites } from '@/hooks/useLogWrites';
 import { asError, feedChannel, useLedgerFeed } from '@/hooks/useLedgerFeed';
@@ -11,6 +12,7 @@ import {
   subscribeDailyWeights,
   subscribePresets,
   subscribeRecentLogs,
+  subscribeRecentSessions,
 } from '@/lib/ledger';
 
 
@@ -56,6 +58,9 @@ export interface HistoryState extends LogWrites {
 
 const EMPTY_MONTHS: Record<string, DailyLog[]> = Object.freeze({}) as Record<string, DailyLog[]>;
 
+/** Sessions read for History's trained days. */
+const HISTORY_SESSIONS = 200;
+
 export function useHistory(): HistoryState {
   const { user, profile } = useAuth();
   const uid = user?.uid;
@@ -67,6 +72,11 @@ export function useHistory(): HistoryState {
   const [weights, setWeights] = useCachedState<Record<string, number>>(uid, 'weights', {});
   const [presets, setPresets] = useState<MealPreset[]>([]);
   const [customFoods, setCustomFoods] = useState<CustomFood[]>([]);
+  // Finished workouts, for each day's "trained" (core `trainedDayRows`): a
+  // finish no longer writes a marker row into `dailyLogs` (2026-10-15, owner
+  // bug C). The newest HISTORY_SESSIONS cover the calendar a user pages
+  // through; older trained days still show wherever an old marker exists.
+  const [sessions, setSessions] = useState<WorkoutSession[]>([]);
   // MOUNT-gated, not focus-gated, and left that way on purpose: nothing in the
   // code shows the choice to be a bug, so the migration to `useLedgerFeed`
   // states it (`gate: 'mount'`) rather than quietly upgrading it. What the feed
@@ -104,6 +114,12 @@ export function useHistory(): HistoryState {
               settles: 'none',
               open: (deliver, fail) => subscribeCustomFoods(uid, deliver, fail),
               apply: setCustomFoods,
+            }),
+            feedChannel({
+              key: 'sessions',
+              settles: 'none',
+              open: (deliver, fail) => subscribeRecentSessions(uid, HISTORY_SESSIONS, deliver, fail),
+              apply: setSessions,
             }),
           ]
         : [],
@@ -181,12 +197,14 @@ export function useHistory(): HistoryState {
   const logs = useMemo(() => mergeLogs(windowLogs, fetched), [windowLogs, fetched]);
 
   const days = useMemo(() => {
+    const trained = trainedDayRows(sessions);
+    const rows = trained.length ? [...logs, ...trained] : logs;
     const keys = new Set<string>();
-    for (const l of logs) keys.add(dayKeyAt(l.date, boundary));
+    for (const l of rows) keys.add(dayKeyAt(l.date, boundary));
     for (const k of Object.keys(weights)) keys.add(k);
     const sorted = [...keys].sort().reverse(); // newest first
-    return summarizeDays(sorted, logs, weights, boundary);
-  }, [logs, weights, boundary]);
+    return summarizeDays(sorted, rows, weights, boundary);
+  }, [logs, sessions, weights, boundary]);
 
   const writes = useLogWrites();
 

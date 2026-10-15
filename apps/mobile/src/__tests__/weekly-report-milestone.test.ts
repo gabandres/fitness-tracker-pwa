@@ -1,5 +1,5 @@
 jest.mock('@/lib/auth', () => ({ useAuth: () => ({ user: null }) }));
-jest.mock('@/lib/ledger', () => ({ getLogStats: jest.fn(), subscribeLatestReport: jest.fn() }));
+jest.mock('@/lib/ledger', () => ({ getLogStats: jest.fn(), getRecentSessions: jest.fn(async () => []), subscribeLatestReport: jest.fn() }));
 jest.mock('@/lib/weeklyReport', () => ({ requestWeeklyReport: jest.fn(), reportErrorCode: () => undefined }));
 jest.mock('@/i18n', () => ({ useLocale: () => 'en' }));
 jest.mock('@/hooks/useCoach', () => ({ useCoach: () => ({}) }));

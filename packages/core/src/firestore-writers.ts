@@ -617,6 +617,8 @@ export interface SessionDraftInput {
   /** Logged cardio (ADR-0025). Blocks carry a Date, so they are serialized
    *  through {@link cardioFields} rather than passed straight down. */
   cardio?: CardioBlock[];
+  /** Imported blocks the user removed (`WorkoutSession.dismissedSourceIds`). */
+  dismissedSourceIds?: string[];
   nextNotes?: string;
 }
 
@@ -673,6 +675,7 @@ export function toSessionDoc<TS>(
     // Absent stays absent — a strength-only session must not gain an empty
     // array it never had, which would rewrite every session doc on next save.
     ...(draft.cardio !== undefined ? { cardio: cardioFields(draft.cardio, codec) } : {}),
+    ...(draft.dismissedSourceIds?.length ? { dismissedSourceIds: dismissedIds(draft.dismissedSourceIds) } : {}),
     ...(draft.nextNotes !== undefined ? { nextNotes: draft.nextNotes } : {}),
   };
 }
@@ -701,6 +704,15 @@ export function toSessionPatch<TS>(
   // Firestore unions arrays on merge, so a sparse patch would append blocks
   // instead of replacing them and a deleted block would come back.
   if (patch.cardio !== undefined) data['cardio'] = cardioFields(patch.cardio, codec);
+  if (patch.dismissedSourceIds !== undefined) data['dismissedSourceIds'] = dismissedIds(patch.dismissedSourceIds);
   if (patch.nextNotes !== undefined) data['nextNotes'] = patch.nextNotes;
   return data;
 }
+
+/** Deduped, newest kept, capped at the rules' 50 — `isValidWorkoutSession`. */
+function dismissedIds(ids: readonly string[]): string[] {
+  return [...new Set(ids.filter((x) => typeof x === 'string' && x.length > 0 && x.length <= 200))].slice(-DISMISSED_SOURCE_IDS_MAX);
+}
+
+/** The most imported-block dismissals one session keeps (rules: `size() <= 50`). */
+export const DISMISSED_SOURCE_IDS_MAX = 50;

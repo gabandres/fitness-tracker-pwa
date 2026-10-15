@@ -309,6 +309,6 @@ export async function removePendingFinish(uid: string, sessionId: string): Promi
     if (next.length !== list.length) await writeFinishes(uid, next);
   } catch {
     // Replaying a finish that already landed is harmless: the writes are
-    // idempotent and `markExercised` checks for its own marker.
+    // idempotent.
   }
 }

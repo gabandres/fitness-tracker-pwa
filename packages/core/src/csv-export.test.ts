@@ -525,6 +525,8 @@ describe('buildCsv — Program v2 columns (test 10)', () => {
     'templateVersion', 'supersetBlock', 'supersetOrder', 'side', 'transitionSec',
     'avgHR', 'zone2InBand', 'bedtime', 'wakeTime',
     'weekStart', 'muscle', 'directClusters', 'fractionalClusters',
+    // 2026-10-15, owner bug D: the two rests, split.
+    'restBetweenClustersSec', 'restToNextSec',
   ];
   const csv = buildCsv(HISTORICAL);
   const lines = csv.split('\r\n');
@@ -586,5 +588,37 @@ describe('buildCsv — Program v2 columns (test 10)', () => {
     expect(byMuscle['2026-10-05 sideDelt']).toEqual(['1', '1']);
     expect(byMuscle['2026-10-05 abs']).toEqual(['1', '1']);
     expect(rows.every((r) => r.date === r.weekStart)).toBe(true);
+  });
+});
+
+/** Owner bug D (2026-10-15): the export carried one rest, `restBetweenSec`,
+ *  which never read a row's own cluster rest — Smith squat's 105 s between
+ *  its clusters was invisible in the file. */
+describe('buildCsv — the two rests, split', () => {
+  const csv = buildCsv({
+    logs: [], measurements: [], dailyWeights: {}, dailyWater: {}, dailySleep: {},
+    templates: [{
+      id: 't1', name: 'Leg Day', restClusterSec: 90, restMiniSec: 10,
+      exercises: [
+        { exerciseId: 'a', name: 'Smith squat', restClusterSec: 105, restAfterSec: 60, plannedSets: [] },
+        { exerciseId: 'b', name: 'Pull-up', restAfterSec: 105, restAfterMaxSec: 120, plannedSets: [] },
+        { exerciseId: 'c', name: 'Leg Curls', plannedSets: [] },
+      ],
+    }],
+  } as never);
+  const [head, ...lines] = csv.split('\r\n');
+  const cols = head.split(',');
+  const rows = lines.map((l) => Object.fromEntries(l.split(',').map((v, i) => [cols[i], v])));
+  const of = (name: string) => rows.find((r) => r.type === 'template' && r.exercise === name)!;
+
+  it("a row's own cluster rest, else the template's", () => {
+    expect(of('Smith squat').restBetweenClustersSec).toBe('105');
+    expect(of('Leg Curls').restBetweenClustersSec).toBe('90');
+  });
+
+  it('rest to the next exercise: the row value (with its range), else the cluster rest', () => {
+    expect(of('Smith squat').restToNextSec).toBe('60');
+    expect(of('Pull-up').restToNextSec).toBe('105-120');
+    expect(of('Leg Curls').restToNextSec).toBe('90');
   });
 });

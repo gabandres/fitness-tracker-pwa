@@ -6,9 +6,11 @@ import {
   buildMilestoneContext,
   buildWeeklyReportPayload,
   computeStreak,
+  trainedDayRows,
+  TRAINED_DAYS_SESSIONS,
 } from '@macrolog/core';
 import { useAuth } from '@/lib/auth';
-import { getLogStats, subscribeLatestReport } from '@/lib/ledger';
+import { getLogStats, getRecentSessions, subscribeLatestReport } from '@/lib/ledger';
 import { requestWeeklyReport, reportErrorCode } from '@/lib/weeklyReport';
 import { useLocale } from '@/i18n';
 import { useCoach } from './useCoach';
@@ -80,11 +82,17 @@ export function useWeeklyReport(): WeeklyReportState {
     // An async body with `.catch`/`.finally` chained on, not a try statement:
     // the React Compiler skips a hook holding `try/finally`.
     await (async () => {
-      const streak = computeStreak(logs).streak;
+      // Finished workouts are trained days (core `trainedDayRows`) now that a
+      // finish writes no marker row (2026-10-15). Read once, here, where the
+      // report is asked for; a failed read reports from food logs alone.
+      const sessions = await getRecentSessions(uid!, TRAINED_DAYS_SESSIONS).catch(() => []);
+      const trained = trainedDayRows(sessions);
+      const withTraining = trained.length ? [...logs, ...trained] : logs;
+      const streak = computeStreak(withTraining).streak;
       // One bounded all-time read; a failure falls back to the window.
       const stats = await getLogStats(uid!).catch(() => null);
       const milestone = milestoneFromStats(stats, logs, streak);
-      const payload = buildWeeklyReportPayload({ logs, tdee, profile, dailyWeights, milestone, locale });
+      const payload = buildWeeklyReportPayload({ logs: withTraining, tdee, profile, dailyWeights, milestone, locale });
       // The server writes the doc; subscribeLatestReport delivers the update.
       await requestWeeklyReport(payload);
     })()

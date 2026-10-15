@@ -740,6 +740,10 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   // `paper` because the sheet panel IS paper — a paper box on a paper sheet is
   // an invisible box. Dark mode is the other way round: the native sheet is
   // `card`, which `inputBg` matches there, so the box takes `paper` (F8).
+  // Finish sheet: a lift with blank RIRs and its "Set to 0" (2026-10-15).
+  rirMissingRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  rirMissingBtn: { minHeight: 44, minWidth: 44, paddingHorizontal: space.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.lineStrong, alignItems: 'center', justifyContent: 'center' },
+  rirMissingBtnText: { fontSize: font.small, fontWeight: '700', color: colors.ink },
   invalidBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',

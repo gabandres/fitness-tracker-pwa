@@ -1789,6 +1789,16 @@ describe('firestore.rules', () => {
     await assertFails(setDoc(ref, draftDoc({ program: 'v3' })));
     await assertFails(setDoc(ref, draftDoc({ autoActivate: { afterTemplateId: 't1', after: 'x', by: 'me' } })));
   });
+  it('accepts dismissedSourceIds as a list of at most 50 (2026-10-15)', async () => {
+    // Imported cardio blocks the user removed: the import skips these ids.
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    const col = collection(db, 'users', 'alice', 'workoutSessions');
+    await assertSucceeds(addDoc(col, validSession({ dismissedSourceIds: ['24D8F0AB-583D-46D3-8E78-C735547D0358'] })));
+    await assertFails(addDoc(col, validSession({ dismissedSourceIds: 'one' })));
+    await assertFails(addDoc(col, validSession({ dismissedSourceIds: Array.from({ length: 51 }, (_, i) => `id${i}`) })));
+  });
+
   it('accepts a session templateVersion of v1 or v2 and nothing else', async () => {
     const db = authed('alice');
     await setDoc(doc(db, 'users', 'alice'), baseProfile());

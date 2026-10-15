@@ -292,6 +292,14 @@ export interface WorkoutSession {
    * `cardio-strength-independence.test.ts` fails if that stops being true.
    */
   cardio?: CardioBlock[];
+  /**
+   * `sourceId`s of imported cardio blocks the user REMOVED from this session
+   * (2026-10-15). The Health / Oura import matches by `sourceId` only, so a
+   * removed block came straight back on the next foreground; the import skips
+   * these (`mergeImportedBlocks`). The 10/14 Apple Watch walk the owner asked
+   * to delete is the case that found it.
+   */
+  dismissedSourceIds?: string[];
   /** "Next session notes" carried forward to the next session of the template. */
   nextNotes?: string;
   createdAt: Date;

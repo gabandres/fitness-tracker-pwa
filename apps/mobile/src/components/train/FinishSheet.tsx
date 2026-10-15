@@ -7,6 +7,7 @@ import { SheetHeader } from '@/components/SheetHeader';
 import { SheetTextInput } from '@/components/SheetTextInput';
 import {
   type ActivationFinding,
+  type MissingRir,
   type Recommendation,
   type TemplateLoadChange,
   type TemplateStructureChange,
@@ -24,6 +25,7 @@ import {
   proposeTemplateChanges,
   sessionActivationIssues,
   sessionCounts,
+  setsMissingRir,
   weightBoundsFor,
 } from '@macrolog/core';
 import { BottomSheet } from '@/components/BottomSheet';
@@ -139,6 +141,8 @@ export function FinishSheet({
   structure = [],
   templateName = null,
   autoApply = false,
+  missingRir = [],
+  onFillRir,
 }: {
   visible: boolean;
   session: WorkoutSession;
@@ -157,6 +161,12 @@ export function FinishSheet({
   templateName?: string | null;
   /** The lifter's "Auto-apply progression": applied at Complete, no question. */
   autoApply?: boolean;
+  /** Ticked effort sets with no RIR (core `setsMissingRir`). Shown with a
+   *  "Set to 0" per lift, and asked about once more at Complete, so a blank
+   *  is a choice rather than something that slipped through (2026-10-15). */
+  missingRir?: MissingRir[];
+  /** Fill those sets with RIR 0. */
+  onFillRir?: (missing: MissingRir[]) => void;
   /** Resolves `false` when the save failed and the sheet should stay open.
    *  `changes` are the template moves the lifter chose to make and `shape` the
    *  structure changes — both empty unless they answered "Update {template}". */
@@ -314,6 +324,29 @@ export function FinishSheet({
       sleepHours: sh,
       durationMin: len != null ? Math.round(len) : undefined,
     };
+    // Blank RIRs are asked about before anything else: every way a set gets
+    // ticked can leave one (core `setsMissingRir`), and once saved it reads as
+    // 0 without anyone having said so.
+    if (missingRir.length > 0 && onFillRir) {
+      const n = missingRir.reduce((a, m) => a + m.setIndexes.length, 0);
+      confirmNative({
+        title: plural(t, locale, 'train.rirMissingFinishTitle', n),
+        body: `${missingRir.map((m) => `${m.name} · ${m.setIndexes.length}`).join('\n')}\n\n${t('train.rirMissingFinishBody')}`,
+        confirmText: t('train.rirMissingFinishZero'),
+        secondaryText: t('train.rirMissingFinishLeave'),
+        onConfirm: () => {
+          onFillRir(missingRir);
+          proceed(extras);
+        },
+        onSecondary: () => proceed(extras),
+      });
+      return;
+    }
+    proceed(extras);
+  }
+
+  /** The rest of `finish`, once the extras are valid and RIR is settled. */
+  function proceed(extras: FinishExtras) {
     const chosen = canOffer ? selected : [];
     // Structure is asked whenever there is a template to write, auto-apply or
     // not: auto-apply moves loads, never the template's shape (S23-10).
@@ -591,6 +624,36 @@ export function FinishSheet({
           </View>
         ) : null}
 
+        {missingRir.length > 0 && onFillRir ? (
+          <View style={styles.invalidBox} testID="finish-rir-missing">
+            <Ionicons name="alert-circle-outline" size={18} color={colors.warn} />
+            <View style={{ flex: 1, gap: space.xs }}>
+              <Text style={styles.invalidHeading}>{t('train.rirMissingFinishHeading')}</Text>
+              {missingRir.map((m) => (
+                <View key={m.exerciseIndex} style={styles.rirMissingRow}>
+                  <Text style={[styles.invalidRow, { flex: 1 }]}>
+                    <Text style={styles.invalidName}>{m.name}</Text>
+                    {` · ${plural(t, locale, 'train.rirMissingFinishSets', m.setIndexes.length)}`}
+                  </Text>
+                  <Touchable
+                    style={styles.rirMissingBtn}
+                    onPress={() => {
+                      haptics.tap();
+                      onFillRir([m]);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${t('train.rirMissingSetZero')}, ${m.name}`}
+                    testID={`finish-rir-zero-${m.exerciseIndex}`}
+                  >
+                    <Text style={styles.rirMissingBtnText}>{t('train.rirMissingSetZero')}</Text>
+                  </Touchable>
+                </View>
+              ))}
+              <Text style={styles.invalidHint}>{t('train.rirMissingFinishHint')}</Text>
+            </View>
+          </View>
+        ) : null}
+
         {invalidRest.length > 0 ? (
           <View style={styles.invalidBox} testID="finish-invalid-activations">
             <Ionicons name="information-circle-outline" size={18} color={colors.muted} />
@@ -790,7 +853,7 @@ export function TrainFinishSheet({
   onShare,
 }: {
   train: Pick<TrainState, 'active' | 'editingExisting' | 'templates' | 'recentSessions' | 'finishWorkout'>
-    & Partial<Pick<TrainState, 'catalog' | 'saveTemplate' | 'trainingPhase' | 'autoApplyProgression' | 'maybeAutoSwitchProgram' | 'discardWorkout' | 'programVersion'>>;
+    & Partial<Pick<TrainState, 'catalog' | 'saveTemplate' | 'trainingPhase' | 'autoApplyProgression' | 'maybeAutoSwitchProgram' | 'discardWorkout' | 'programVersion' | 'dispatch' | 'commitActive'>>;
   visible: boolean;
   onClose: () => void;
   /** Share the workout just finished — offered on the "Workout saved" receipt. */
@@ -883,6 +946,29 @@ export function TrainFinishSheet({
   );
   const autoApply = train.autoApplyProgression === true;
   const canWrite = template?.id != null && train.saveTemplate != null;
+  // Indices into the LIVE session, the one `dispatch` patches.
+  const missingRir = useMemo(() => {
+    if (!session) return [];
+    // "Logged RIR last time" — the newest earlier session with the lift.
+    const lastRir = new Map<string, boolean>();
+    for (const r of [...(recentSessions ?? [])].sort((a, b) => b.date.getTime() - a.date.getTime())) {
+      if (r.id === session.id) continue;
+      for (const e of r.exercises) {
+        if (!lastRir.has(e.exerciseId)) lastRir.set(e.exerciseId, e.sets.some((x) => x.rir != null));
+      }
+    }
+    return setsMissingRir(session.exercises, (id) => lastRir.get(id) === true);
+  }, [session, recentSessions]);
+  /** RIR 0 on every listed set. `dispatch` updates the live session
+   *  synchronously, so a Complete straight after this saves the zeros. */
+  const fillRir = (list: MissingRir[]) => {
+    for (const m of list) {
+      for (const setIndex of m.setIndexes) {
+        void train.dispatch?.({ type: 'patchSet', exerciseIndex: m.exerciseIndex, setIndex, patch: { rir: 0 } }, { defer: true });
+      }
+    }
+    void train.commitActive?.();
+  };
 
   /** Write a template's rows whole; false (and a toast) when it did not land. */
   async function writeRows(tpl: WorkoutTemplate, rows: TemplateExercise[]): Promise<boolean> {
@@ -935,6 +1021,8 @@ export function TrainFinishSheet({
       structure={canWrite ? structure : []}
       templateName={canWrite ? template?.name ?? null : null}
       autoApply={autoApply}
+      missingRir={missingRir}
+      onFillRir={train.dispatch ? fillRir : undefined}
       onFinish={async (extras, changes, shape) => {
         // `finishWorkout` answers `false` when it could not record the
         // finish at all (the hook's boolean contract); a legacy void resolve

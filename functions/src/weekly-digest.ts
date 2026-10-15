@@ -187,6 +187,25 @@ interface DigestStats {
   streak: number;
 }
 
+/** Day keys of the user's most recent completed workout sessions. */
+async function trainedDayKeys(uid: string, tzOffsetMin: number): Promise<string[]> {
+  const snap = await getFirestore().collection(`users/${uid}/workoutSessions`)
+    .orderBy("timestamp", "desc")
+    .limit(TRAINED_DAYS_SESSIONS)
+    .select("timestamp", "status")
+    .get();
+  const keys: string[] = [];
+  for (const d of snap.docs) {
+    const ts = d.get("timestamp");
+    if (d.get("status") !== "completed" || !(ts instanceof Timestamp)) continue;
+    keys.push(dayKeyOfShifted(toShifted(ts.toMillis(), tzOffsetMin)));
+  }
+  return keys;
+}
+
+/** Sessions read for trained days — core `TRAINED_DAYS_SESSIONS`. */
+const TRAINED_DAYS_SESSIONS = 60;
+
 /**
  * Streak, continued backwards past the digest window.
  *
@@ -316,7 +335,12 @@ async function computeStatsForUser(
     window.startMs,
   );
 
-  const streak = await computeStreak(uid, new Set(byDay.keys()), window);
+  // Finished workouts are trained days too. Finishing one used to write a
+  // 0-kcal marker into `dailyLogs`, which is how they reached this walk; since
+  // 2026-10-15 (owner bug C) it does not, so the days come from the sessions
+  // themselves — read once, newest first, the same 60 the app reads.
+  const trained = await trainedDayKeys(uid, tzOffsetMin);
+  const streak = await computeStreak(uid, new Set([...byDay.keys(), ...trained]), window);
 
   return { avgCalories, avgProtein, weightDeltaLbs, daysLogged, streak };
 }
