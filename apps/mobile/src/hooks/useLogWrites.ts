@@ -7,7 +7,7 @@ import {
   newLedgerId,
 } from '@macrolog/core';
 import { isOffline } from '@/lib/connectivity';
-import { exportNutrition } from '@/lib/health-sync';
+import { exportNutrition, forgetNutrition, replaceNutrition } from '@/lib/health-sync';
 import { recordScanMilestone } from '@/lib/first-scan';
 import { useAuth } from '@/lib/auth';
 import { addLogDurably, dropPendingLogs, editParkedLog, type WriteOutcome } from '@/lib/pending-logs';
@@ -70,10 +70,12 @@ export interface LogWrites {
  * and the live list shows it. Online, a failure still rejects, so the screen's
  * "couldn't save" toast keeps working.
  *
- * Health: undo/delete/edit are NOT mirrored to Apple Health / Health Connect
- * (audit #22). The nutrition samples `exportNutrition` writes carry no Ignia
- * id, so there is nothing to delete or replace them by; tagging them (HealthKit
- * metadata, Health Connect `clientRecordId`) is a `health.ts` change, deferred.
+ * Health (audit #22): the samples `exportNutrition` writes are tagged with the
+ * log id (HealthKit metadata, Health Connect `clientRecordId`), so a delete
+ * removes them and an edit replaces them — `forgetNutrition` /
+ * `replaceNutrition` in `health-sync.ts`. A receipt's Undo goes through
+ * `undoAdds` (`pending-logs.ts`), which does the same. Meals exported before
+ * tagging (2026-10-15) carry no id and are left in Health as they were.
  */
 async function settleUnlessOffline(write: Promise<void>): Promise<void> {
   if (isOffline()) {
@@ -116,6 +118,7 @@ export function useLogWrites(): LogWrites {
       // day it is for, in Health as well as in the ledger. Runs for a queued
       // write too: Health is a local store, so it is reachable when Firestore
       // is not, and the meal was genuinely eaten either way.
+      // Tagged with the log id so Undo / delete / edit can reach the samples.
       if (entry.calories > 0) {
         void exportNutrition({
           at: entry.timestamp ?? new Date(),
@@ -123,6 +126,7 @@ export function useLogWrites(): LogWrites {
           protein: entry.protein,
           carbs: entry.carbs,
           fat: entry.fat,
+          logId: id,
         });
       }
       // `first-scan` (#109), at the write that earned it. Here rather than in
@@ -148,6 +152,21 @@ export function useLogWrites(): LogWrites {
       // the merge with the parked overlay) until reconnect. The set carries the
       // same fields the flush will write (the queue holds the note too), so
       // landing twice is idempotent. Not awaited: offline it never acks.
+      // Health first and not awaited: it is a local store, reachable offline,
+      // and it never fails the edit. Without a time on the edit the tagged
+      // export's own instant is kept (see `replaceNutrition`).
+      void replaceNutrition(
+        id,
+        entry.calories > 0
+          ? {
+              at: entry.timestamp,
+              kcal: entry.calories,
+              protein: entry.protein,
+              carbs: entry.carbs,
+              fat: entry.fat,
+            }
+          : null,
+      );
       const landed = await editParkedLog(uid, id, entry);
       if (landed) {
         void addLogWithIdDoc(uid, id, landed).catch(() => {});
@@ -166,6 +185,9 @@ export function useLogWrites(): LogWrites {
       // "Deleted" toast — and the next flush wrote it back. Dropping it from
       // the queue first is what makes swipe-delete work on a parked row.
       await dropPendingLogs([id]);
+      // The meal's tagged samples leave Health with it. Not awaited: Health
+      // never fails the delete.
+      void forgetNutrition([id]);
       await settleUnlessOffline(deleteLogDoc(uid, id));
     },
     [uid],

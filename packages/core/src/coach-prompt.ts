@@ -1,10 +1,10 @@
 /**
- * The AI coach's grounded system instruction (ADR-0013 / ADR-0012 shared
- * brain). Both frontends assemble the SAME prompt from the user's rolling
- * 14-day log, profile, and computed TDEE, then POST it to the
- * `consultationStream` Cloud Function — so the coach reasons over identical
- * context on web and mobile. Pure and dependency-free; the network call and
- * SSE handling are per-frontend.
+ * The AI coach's grounding (ADR-0013 / ADR-0012 shared brain). The app turns
+ * the user's rolling 14-day log, profile, and computed TDEE into a
+ * numbers-only {@link CoachWireContext} and POSTs it with the question to the
+ * `consultationStream` Cloud Function, which validates it and renders the
+ * system instruction itself (./ai-prompt-wire, mirrored into functions/).
+ * Pure and dependency-free; the network call and SSE handling are per-frontend.
  *
  * The prompt does the grounding work: it pins the headline numbers in labeled
  * lines and lays the log out as a table so the model cites the user's real
@@ -16,18 +16,28 @@ import type { TdeeResult } from './tdee';
 import { finalCalorieTarget } from './targets';
 import { addDays } from './date';
 import { MIDNIGHT, dayKeyAt, type DayBoundary } from './day-boundary';
+import {
+  AI_PROMPT_WIRE_VERSION,
+  COACH_MAX_ROWS,
+  COACH_WINDOW_DAYS,
+  renderCoachSystemInstruction,
+  type CoachLocale,
+  type CoachRequest,
+  type CoachWireContext,
+  type WireProfile,
+} from './ai-prompt-wire';
 
-export type CoachLocale = 'en' | 'es-PR' | 'pt-BR';
+// `CoachLocale` and `COACH_WINDOW_DAYS` are defined in ./ai-prompt-wire (the
+// server's copy needs them too) and reach the barrel through it.
 
-/**
- * Calendar days of history the coach reasons over. The prompt has always
- * SAID "rolling 14-day log"; until 2026-08-12 nothing enforced it, and the two
- * frontends passed windows that were not even the same order of magnitude —
- * web sent `getRecentLogs(14)`, a 14-ROW cache that is ~2 days for a heavy
- * logger, while mobile sent 400 rows (~100 days). Trimming here rather than in
- * each caller is what makes the promise in the docstring above true.
+/*
+ * The coach reasons over COACH_WINDOW_DAYS calendar days of history. The
+ * prompt has always SAID "rolling 14-day log"; until 2026-08-12 nothing
+ * enforced it, and the two frontends passed windows that were not even the same
+ * order of magnitude — web sent `getRecentLogs(14)`, a 14-ROW cache that is ~2
+ * days for a heavy logger, while mobile sent 400 rows (~100 days). Trimming
+ * here rather than in each caller is what makes the promise true.
  */
-export const COACH_WINDOW_DAYS = 14;
 
 export interface CoachPromptInput {
   /** Per-meal rows, any length — trimmed here to the last
@@ -61,131 +71,85 @@ function logsInCoachWindow(logs: DailyLog[], boundary: DayBoundary): DailyLog[] 
   let newest = logs[0].date;
   for (const l of logs) if (l.date > newest) newest = l.date;
   const cutoff = dayKeyAt(addDays(newest, -(COACH_WINDOW_DAYS - 1)), boundary);
-  return logs.filter((l) => dayKeyAt(l.date, boundary) >= cutoff);
-}
-
-/** Distinct calendar days represented in the rows. `logs.length` is a count of
- *  MEALS; reporting it as days told the model a 14-row web window was two
- *  weeks of history when it was often two days. */
-function distinctDayCount(logs: DailyLog[], boundary: DayBoundary): number {
-  const days = new Set<string>();
-  for (const l of logs) days.add(dayKeyAt(l.date, boundary));
-  return days.size;
-}
-
-/** 68 → "5'8\"" */
-function formatHeight(totalInches: number): string {
-  const ft = Math.floor(totalInches / 12);
-  const inches = totalInches % 12;
-  return `${ft}'${inches}"`;
-}
-
-/** One-line language instruction so the coach answers in the UI's language.
- *  Kept in code (not translation JSON) so the prompt engineering stays where
- *  reviewers expect it. */
-const LANG_SUFFIX: Record<CoachLocale, string> = {
-  en: '\n\nRespond in English.',
-  'es-PR':
-    '\n\nRespond in Puerto Rican Spanish. Use informal "tú". Keep numeric formats (calories, grams, pounds) identical to the UI.',
-  'pt-BR':
-    '\n\nRespond in Brazilian Portuguese. Use informal "você". Keep numeric formats (calories, grams, pounds) identical to the UI.',
-};
-
-function langSuffix(locale: CoachLocale): string {
-  return LANG_SUFFIX[locale] ?? LANG_SUFFIX.en;
+  const inWindow = logs.filter((l) => dayKeyAt(l.date, boundary) >= cutoff);
+  return capToNewest(inWindow, COACH_MAX_ROWS);
 }
 
 /**
- * Build the coach's system instruction: grounding rules + profile + computed
- * values + the per-meal log table, followed by the language instruction.
- * Absent per-day weights fall back to any weight on the row; a missing macro
- * renders as "—" rather than a fabricated number.
+ * At most `max` rows — the newest — in their original order. The server
+ * rejects a request carrying more than {@link COACH_MAX_ROWS} rows, and
+ * nothing in the rules caps how many meals a day may hold, so without this a
+ * user who logs ~36+ rows a day would get every coach question refused.
  */
-export function buildCoachSystemInstruction(input: CoachPromptInput): string {
-  const { logs: allLogs, tdee, profile, dailyWeights = {}, locale = 'en', boundary = MIDNIGHT } = input;
+function capToNewest(logs: DailyLog[], max: number): DailyLog[] {
+  if (logs.length <= max) return logs;
+  const keep = new Set(
+    [...logs].sort((a, b) => b.date.getTime() - a.date.getTime()).slice(0, max),
+  );
+  return logs.filter((l) => keep.has(l));
+}
+
+/** The profile lines the prompt prints, in wire form (null = not onboarded). */
+export function toWireProfile(profile: ProfileFields | null): WireProfile | null {
+  if (!profile) return null;
+  return {
+    heightIn: profile.heightIn,
+    age: profile.age,
+    sex: profile.sex,
+    activityLevel: profile.activityLevel,
+    targetPaceLbsPerWeek: profile.targetPaceLbsPerWeek,
+    goalWeightLbs: profile.goalWeightLbs ?? null,
+  };
+}
+
+/**
+ * The structured, numbers-only context the coach is grounded on: profile
+ * lines, the computed TDEE values, and the per-meal table trimmed to the coach
+ * window. This — not prose — is what the app sends; the server renders it with
+ * `renderCoachSystemInstruction` (./ai-prompt-wire). Absent per-day weights
+ * fall back to any weight on the row.
+ */
+export function buildCoachPromptContext(input: CoachPromptInput): CoachWireContext {
+  const { logs: allLogs, tdee, profile, dailyWeights = {}, boundary = MIDNIGHT } = input;
   const logs = logsInCoachWindow(allLogs, boundary);
-  const dayCount = distinctDayCount(logs, boundary);
-  const lines: string[] = [];
-  lines.push('You are a precise, data-driven personal fitness consultant.');
-  lines.push('');
-  lines.push(
-    "The user shares their profile, rolling 14-day fitness log, and current " +
-    "computed TDEE values below. Ground every answer in this data — cite " +
-    "specific numbers, dates, and trends. Do not invent values, do not give " +
-    "generic advice that ignores the log, and keep responses concise (3–6 " +
-    "short paragraphs at most). Use markdown formatting. Tone: a knowledgeable " +
-    "coach who respects the user's time.",
-  );
-  lines.push('');
-  lines.push(
-    "If the TDEE source is 'formula' or 'seed', the estimate is PROVISIONAL — " +
-    "say so when making strong claims. Measured mode (14+ days of real data) " +
-    "is the only source that reflects the user's actual metabolism.",
-  );
-  lines.push('');
-  lines.push(
-    "Protein guideline: use 0.7–0.8 g per pound of bodyweight as the " +
-    "evidence-based target for muscle preservation during a caloric deficit " +
-    "(per ISSN position stand and recent meta-analyses). The old '1g/lb' rule " +
-    "is the upper safety margin, not the clinical threshold. Only recommend " +
-    "above 0.8g/lb for very lean or heavily resistance-trained individuals " +
-    "in a steep deficit. " +
-    "Never describe protein as 'critically low' if intake falls within 0.7–0.8 g/lb. " +
-    "Reserve alarm language only for intake genuinely below 0.65 g/lb.",
-  );
-  lines.push('');
-
-  // ── Profile ─────────────────────────────────────────────────
-  if (profile) {
-    lines.push('## User profile');
-    lines.push(`- Height: ${formatHeight(profile.heightIn)}`);
-    lines.push(`- Age: ${profile.age}`);
-    lines.push(`- Sex: ${profile.sex}`);
-    lines.push(`- Activity level: ${profile.activityLevel.replace('_', ' ')}`);
-    lines.push(`- Target cut pace: ${profile.targetPaceLbsPerWeek} lb/week`);
-    if (profile.goalWeightLbs != null) {
-      lines.push(`- Goal weight: ${profile.goalWeightLbs} lbs`);
-    }
-    lines.push('');
-  }
-
-  // ── Computed values ────────────────────────────────────────
-  lines.push('## Current computed values');
-  lines.push(`- True TDEE: ${tdee.trueTdee} kcal/day`);
-  lines.push(`- Daily target: ${finalCalorieTarget(tdee, profile)} kcal/day`);
-  lines.push(
-    `- Recent weight trend: ${tdee.weightChangeTrend} lbs ` +
-    "(positive = lost weight, negative = gained)",
-  );
-  lines.push(`- TDEE source: ${tdee.source}`);
-  // Days AND rows, both named. The single "N days" line here counted rows,
-  // so the model was told a 14-row web window was 14 days of history.
-  lines.push(
-    `- Logs available: ${dayCount} of the last ${COACH_WINDOW_DAYS} days ` +
-    `(${logs.length} logged entries)`,
-  );
-  lines.push('');
-
-  // ── Log table ──────────────────────────────────────────────
-  if (logs.length > 0) {
-    lines.push('## Daily log (oldest → newest)');
-    lines.push('| Date | Weight (lbs) | Calories | Protein (g) | Exercise |');
-    lines.push('| --- | --- | --- | --- | --- |');
-    for (const log of logs) {
-      const iso = dayKeyAt(log.date, boundary);
-      const pro = log.protein != null ? String(log.protein) : '—';
-      const exercised = (log.exerciseCompleted || log.liftCompleted || log.cardioCompleted) ? '✓' : '—';
+  return {
+    profile: toWireProfile(profile),
+    trueTdee: tdee.trueTdee,
+    dailyTarget: finalCalorieTarget(tdee, profile),
+    weightChangeTrend: tdee.weightChangeTrend,
+    tdeeSource: tdee.source,
+    rows: logs.map((log) => {
+      const date = dayKeyAt(log.date, boundary);
       // Weight is logged once per day in a separate collection, not per meal
       // entry, so look it up by date key. A meal row's `weight` is normally
       // undefined; the dailyWeights map is the source of truth.
-      const dayWeight = dailyWeights[iso] ?? log.weight;
-      const weightCell = dayWeight != null ? String(dayWeight) : '—';
-      lines.push(`| ${iso} | ${weightCell} | ${log.calories} | ${pro} | ${exercised} |`);
-    }
-  } else {
-    lines.push('## Daily log');
-    lines.push('_(no entries yet)_');
-  }
+      const weight = dailyWeights[date] ?? log.weight;
+      return {
+        date,
+        weight: weight ?? null,
+        calories: log.calories,
+        protein: log.protein ?? null,
+        exercised: !!(log.exerciseCompleted || log.liftCompleted || log.cardioCompleted),
+      };
+    }),
+  };
+}
 
-  return lines.join('\n') + langSuffix(locale);
+/**
+ * The coach's system instruction, rendered locally from the same context the
+ * server renders — kept for tests and previews. The app no longer sends this
+ * text; it sends {@link buildCoachRequest}.
+ */
+export function buildCoachSystemInstruction(input: CoachPromptInput): string {
+  return renderCoachSystemInstruction(buildCoachPromptContext(input), input.locale ?? 'en');
+}
+
+/** The v2 `consultationStream` body: the question plus numbers-only context. */
+export function buildCoachRequest(input: CoachPromptInput & { question: string }): CoachRequest {
+  return {
+    v: AI_PROMPT_WIRE_VERSION,
+    locale: input.locale ?? 'en',
+    question: input.question,
+    context: buildCoachPromptContext(input),
+  };
 }

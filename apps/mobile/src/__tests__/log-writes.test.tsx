@@ -20,6 +20,8 @@ const mockDeletePreset = jest.fn(async () => undefined);
 const mockAddCustomFood = jest.fn(async () => 'f1');
 const mockDeleteCustomFood = jest.fn(async () => undefined);
 const mockExportNutrition = jest.fn(async () => undefined);
+const mockForgetNutrition = jest.fn(async () => undefined);
+const mockReplaceNutrition = jest.fn(async () => undefined);
 const mockRecordMilestone = jest.fn(async () => true);
 const mockRecordPositiveMoment = jest.fn(async () => false);
 const mockUid = { current: undefined as string | undefined };
@@ -48,6 +50,8 @@ jest.mock('@/lib/ledger', () => ({
 
 jest.mock('@/lib/health-sync', () => ({
   exportNutrition: (...a: unknown[]) => mockExportNutrition(...(a as [])),
+  forgetNutrition: (...a: unknown[]) => mockForgetNutrition(...(a as [])),
+  replaceNutrition: (...a: unknown[]) => mockReplaceNutrition(...(a as [])),
   exportDaily: jest.fn(),
 }));
 
@@ -95,12 +99,15 @@ describe('useLogWrites', () => {
       expect.objectContaining({ calories: 700 }),
       expect.any(String),
     );
+    // Tagged with the same id the ledger write and the receipt's Undo use.
+    const id = (mockAddLogDurably.mock.calls[0] as unknown[])[2];
     expect(mockExportNutrition).toHaveBeenCalledWith({
       at,
       kcal: 700,
       protein: 40,
       carbs: 60,
       fat: 25,
+      logId: id,
     });
   });
 
@@ -154,6 +161,64 @@ describe('useLogWrites', () => {
       expect(fn).not.toHaveBeenCalled();
     }
     expect(mockExportNutrition).not.toHaveBeenCalled();
+    expect(mockForgetNutrition).not.toHaveBeenCalled();
+    expect(mockReplaceNutrition).not.toHaveBeenCalled();
+  });
+
+  it('removes a deleted entry\'s tagged samples from Health (audit #22)', async () => {
+    const { result } = await renderHook(() => useLogWrites());
+    await act(async () => {
+      await result.current.deleteEntry('r1');
+    });
+    expect(mockDeleteLog).toHaveBeenCalledWith('u1', 'r1');
+    expect(mockForgetNutrition).toHaveBeenCalledWith(['r1']);
+  });
+
+  it('replaces an edited entry\'s samples with the new values, at the edit\'s time', async () => {
+    const at = new Date(2026, 9, 14, 13, 0);
+    const { result } = await renderHook(() => useLogWrites());
+    await act(async () => {
+      await result.current.updateEntry('r1', { calories: 650, protein: 40, carbs: 70, fat: 20, timestamp: at });
+    });
+    expect(mockUpdateLog).toHaveBeenCalledTimes(1);
+    expect(mockReplaceNutrition).toHaveBeenCalledWith('r1', {
+      at,
+      kcal: 650,
+      protein: 40,
+      carbs: 70,
+      fat: 20,
+    });
+  });
+
+  it('passes no time for an edit that did not retime, so the export keeps its own', async () => {
+    const { result } = await renderHook(() => useLogWrites());
+    await act(async () => {
+      await result.current.updateEntry('r1', { calories: 300 });
+    });
+    expect(mockReplaceNutrition).toHaveBeenCalledWith('r1', expect.objectContaining({ at: undefined, kcal: 300 }));
+  });
+
+  it('takes the samples out (no rewrite) when an edit leaves no calories', async () => {
+    const { result } = await renderHook(() => useLogWrites());
+    await act(async () => {
+      await result.current.updateEntry('r1', { calories: 0, weight: 180 });
+    });
+    expect(mockReplaceNutrition).toHaveBeenCalledWith('r1', null);
+  });
+
+  it('does not wait on Health: an edit and a delete land while the Health half hangs', async () => {
+    // A HealthKit call can stall (locked store); it must never hold the ledger
+    // write or the screen's await hostage.
+    const never = new Promise<undefined>(() => {});
+    mockReplaceNutrition.mockReturnValueOnce(never);
+    mockForgetNutrition.mockReturnValueOnce(never);
+    const { result } = await renderHook(() => useLogWrites());
+    await act(async () => {
+      await result.current.updateEntry('r1', { calories: 300 });
+      await result.current.deleteEntry('r1');
+    });
+    expect(mockUpdateLog).toHaveBeenCalledTimes(1);
+    expect(mockDeleteLog).toHaveBeenCalledTimes(1);
   });
 
   it('de-dups a barcode-sourced food at its barcode doc id, and auto-ids the rest', async () => {

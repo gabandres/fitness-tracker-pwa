@@ -1180,6 +1180,7 @@ export const en = {
   'coach.errRate': 'Too many requests — give it a moment and try again.',
   'coach.errAuth': 'Please sign in again to use the coach.',
   'coach.errGeneric': 'Something went wrong. Please try again.',
+  'coach.errUpdate': 'This version of Ignia can no longer reach the coach. Update the app to keep asking.',
   'coach.upgradeHint': "You've reached today's coaching limit — it resets tomorrow.",
 
   // ── weekly report (Pro) ──
@@ -1192,6 +1193,7 @@ export const en = {
   'report.errTooSoon': 'Your latest report is still fresh — a new one can be generated about once a week.',
   'report.errNotEntitled': 'Weekly report is a Pro feature.',
   'report.errGeneric': "Couldn't generate the report. Please try again.",
+  'report.errUpdate': 'This version of Ignia can no longer generate reports. Update the app to get a new one.',
 
   // ── train ──
   'train.start': 'Start workout',
@@ -2410,6 +2412,13 @@ export const en = {
   'oura.syncedNone': 'Nothing new to import.',
   'oura.needsReconnect': 'Oura no longer accepts our connection. Reconnect to keep importing.',
   'oura.failed': 'Could not reach Oura. Try again in a moment.',
+  // Finishing the Oura link in the app (completeOuraLink, 2026-10-15).
+  'oura.linking': 'Finishing the Oura connection…',
+  'oura.linked': 'Oura connected.',
+  'oura.linkDenied': 'Not connected — you cancelled at Oura. Nothing changed.',
+  'oura.linkExpired': 'That connection link expired. Tap Connect to start again.',
+  'oura.linkWrongAccount': 'That Oura link was started from a different Ignia account, so nothing was connected. Tap Connect to start again here.',
+  'oura.linkFailed': 'Couldn’t finish connecting Oura. Nothing was saved — tap Connect to try again.',
   // Shown when Oura sent records our parser could not read. It names OUR bug
   // rather than blaming the ring, because that is what it is.
   'oura.skipped': '{n} workouts could not be read. Please report this.',

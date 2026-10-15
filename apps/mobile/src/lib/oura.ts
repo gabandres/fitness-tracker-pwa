@@ -5,6 +5,7 @@ import { httpsCallable } from 'firebase/functions';
 import { needsOuraScopeUpgrade, parseOuraDaily } from '@macrolog/core';
 import * as WebBrowser from 'expo-web-browser';
 import { parseOuraWorkouts } from '@macrolog/core';
+import type { I18nKey } from '@/i18n';
 import { db, functions } from './firebase';
 import { partitionImportable, writeImportedBlocks } from './health-sync';
 import {
@@ -61,12 +62,12 @@ const statusDoc = (uid: string) => doc(db, `users/${uid}/integrations/oura`);
 /**
  * Live "is Oura connected".
  *
- * A snapshot listener rather than a one-shot read, and that is load-bearing:
- * the link completes in a **system browser**, outside this app's process. The
- * app never sees a callback, an event, or a return value — the only thing that
- * changes is a Firestore document the server wrote. So the listener is what
- * turns "the user finished consenting in Safari" into a screen that says
- * Connected, with no polling and no "pull to refresh" the user has to guess at.
+ * A snapshot listener rather than a one-shot read. The app now finishes the
+ * link itself (`completeOuraLink`, 2026-10-15), but the completion can land
+ * on a different code path than the screen showing the card (the auth session
+ * on iOS, the `oura/callback` route on Android) — the server-written document
+ * is the one place every path agrees on, so the card renders from it, with no
+ * polling and no "pull to refresh" the user has to guess at.
  *
  * Focus-gated by the caller, per ADR-0016 — this hook is used from one screen
  * and must not hold a permanent listener.
@@ -129,23 +130,120 @@ export async function isOuraConnectedOnce(uid: string): Promise<boolean> {
   return snap.data()?.['connected'] === true;
 }
 
+/** The scheme redirect `ouraCallback` bounces to. Must match the `ignia`
+ *  scheme in app.json and the route at `app/oura/callback.tsx`. */
+export const OURA_RETURN_URL = 'ignia://oura/callback';
+
+/** How one Connect attempt ended, in terms the UI can say honestly. */
+export type OuraLinkOutcome = 'linked' | 'denied' | 'cancelled' | 'expired' | 'wrongAccount' | 'failed';
+
+/** What `ouraCallback` forwarded: Oura's code (or its error) plus the state. */
+export type OuraReturn = { code: string; state: string } | { error: string };
+
 /**
- * Start the OAuth flow.
- *
- * Returns `true` only when the browser session ended in a way that could have
- * completed the link. It deliberately does NOT return "connected" — this app
- * cannot know that. The authorization is granted in a browser and recorded by
- * a Cloud Function; the only honest source of truth is the status doc, which
- * {@link useOuraStatus} is already listening to. A caller that treats this
- * boolean as "linked" will show Connected for a user who tapped Cancel.
+ * Read `ignia://oura/callback?code=…&state=…` (or `?error=…`). Hand-parsed —
+ * RN's `URL` has historically lacked a working `searchParams`, and this needs
+ * three keys. `null` for anything that is not a usable return.
  */
-export async function connectOura(): Promise<boolean> {
+export function parseOuraReturn(url: string | null | undefined): OuraReturn | null {
+  if (!url) return null;
+  const qi = url.indexOf('?');
+  if (qi < 0) return null;
+  const q: Record<string, string> = {};
+  for (const part of url.slice(qi + 1).split('#')[0].split('&')) {
+    const eq = part.indexOf('=');
+    if (eq <= 0) continue;
+    const decode = (v: string) => {
+      try {
+        return decodeURIComponent(v.replace(/\+/g, ' '));
+      } catch {
+        return '';
+      }
+    };
+    q[decode(part.slice(0, eq))] = decode(part.slice(eq + 1));
+  }
+  if (q['error']) return { error: q['error'] };
+  if (q['code'] && q['state']) return { code: q['code'], state: q['state'] };
+  return null;
+}
+
+/**
+ * One redemption per state, shared by every caller.
+ *
+ * Two callers can see the same return on Android: `openAuthSessionAsync`
+ * resolves with the redirect URL AND expo-router routes the same deep link to
+ * `app/oura/callback.tsx`. The server nonce is single-use, so the second call
+ * would be refused and the screen would say "expired" for a link that just
+ * worked. Keyed by state, they share one promise instead.
+ */
+const redemptions = new Map<string, Promise<OuraLinkOutcome>>();
+
+function outcomeOfError(err: unknown): OuraLinkOutcome {
+  const code = (err as { details?: { code?: unknown } })?.details?.code;
+  if (code === 'OURA_LINK_EXPIRED') return 'expired';
+  if (code === 'OURA_LINK_WRONG_ACCOUNT') return 'wrongAccount';
+  return 'failed';
+}
+
+/**
+ * Finish a link from what came back to the app. The exchange happens in
+ * `completeOuraLink`, a SIGNED-IN callable that refuses a state minted for a
+ * different account — the browser leg has no Ignia session and cannot make
+ * that check, which is why the server no longer exchanges there (2026-10-15).
+ */
+export function redeemOuraReturn(ret: OuraReturn | null): Promise<OuraLinkOutcome> {
+  if (!ret) return Promise.resolve('failed');
+  if ('error' in ret) return Promise.resolve('denied');
+  const existing = redemptions.get(ret.state);
+  if (existing) return existing;
+  const complete = httpsCallable<{ code: string; state: string }, { ok: boolean }>(
+    functions,
+    'completeOuraLink',
+  );
+  const p = complete({ code: ret.code, state: ret.state }).then(
+    (r): OuraLinkOutcome => (r.data?.ok ? 'linked' : 'failed'),
+    outcomeOfError,
+  );
+  redemptions.set(ret.state, p);
+  return p;
+}
+
+/** The sentence for an outcome, or `null` when there is nothing to say
+ *  (`linked` is announced by the status listener; `cancelled` is the user's
+ *  own choice in the browser sheet). */
+export function ouraOutcomeKey(outcome: OuraLinkOutcome | null): I18nKey | null {
+  switch (outcome) {
+    case 'denied':
+      return 'oura.linkDenied';
+    case 'expired':
+      return 'oura.linkExpired';
+    case 'wrongAccount':
+      return 'oura.linkWrongAccount';
+    case 'failed':
+      return 'oura.linkFailed';
+    default:
+      return null;
+  }
+}
+
+/**
+ * Run the whole OAuth flow and finish it in the app.
+ *
+ * `beginOuraLink` mints the state; the user consents at Oura; Oura redirects
+ * to `https://ignia.fit/oura/callback` (the registered URI, unchanged), which
+ * bounces to {@link OURA_RETURN_URL} with the code and state; the auth session
+ * hands that URL back here and {@link redeemOuraReturn} completes the link.
+ *
+ * `'linked'` here means the callable said so. The status doc is still what
+ * the screen renders from — {@link useOuraStatus} flips on its own.
+ */
+export async function connectOura(): Promise<OuraLinkOutcome> {
   const begin = httpsCallable<Record<string, never>, { url: string; scope: string }>(
     functions,
     'beginOuraLink',
   );
   const { data } = await begin({});
-  if (!data?.url) return false;
+  if (!data?.url) return 'failed';
 
   // `openAuthSessionAsync`, not `openBrowserAsync`: it is the ephemeral,
   // app-associated session both platforms provide for exactly this flow.
@@ -153,13 +251,15 @@ export async function connectOura(): Promise<boolean> {
   // **The second argument must be the APP SCHEME, not the https redirect.** iOS
   // `ASWebAuthenticationSession` can only intercept a custom scheme — matching
   // an `https://` URL needs Universal Links, which this app does not configure.
-  // Passing the Oura-registered `https://ignia.fit/oura/callback` here meant the
-  // session could never match its own redirect, so the browser sat open on the
-  // success page and the user had to tap Done. `ouraCallback` now bounces to
-  // `ignia://oura/callback` once the token exchange is finished, and THAT is
-  // what this matches. Oura's registered redirect URI is unchanged.
-  const result = await WebBrowser.openAuthSessionAsync(data.url, 'ignia://oura/callback');
-  return result.type === 'success' || result.type === 'dismiss';
+  // `ouraCallback` bounces to `ignia://oura/callback`, and THAT is what this
+  // matches. Oura's registered redirect URI is unchanged.
+  const result = await WebBrowser.openAuthSessionAsync(data.url, OURA_RETURN_URL);
+  if (result.type !== 'success') {
+    // On Android a 'dismiss' can race the deep link, which the
+    // `oura/callback` route then redeems on its own — so this is not "failed".
+    return 'cancelled';
+  }
+  return redeemOuraReturn(parseOuraReturn(result.url));
 }
 
 /**
@@ -332,19 +432,22 @@ export function useOura(uid: string | undefined) {
   const [result, setResult] = useState<OuraImportResult | null>(null);
   const [daily, setDaily] = useState<OuraDailyImportResult | null>(null);
   const [failed, setFailed] = useState(false);
+  const [linkOutcome, setLinkOutcome] = useState<OuraLinkOutcome | null>(null);
 
   const connect = useCallback(async () => {
     if (busy) return;
     setBusy(true);
     setAction('connect');
     setFailed(false);
+    setLinkOutcome(null);
     // Async bodies with `.catch`/`.finally` chained on, here and in the two
     // actions below, not try statements: the React Compiler skips a hook
     // holding `try/finally`. Same order, and the lock clears on every path.
     await (async () => {
-      await connectOura();
-      // Deliberately no optimistic "connected". The status doc is the only
-      // thing that knows, and the listener above will say so within a moment.
+      // Deliberately no optimistic "connected" even on 'linked': the status
+      // doc is what the card renders, and the listener flips it on its own.
+      // The outcome is kept only to say WHY a link did not happen.
+      setLinkOutcome(await connectOura());
     })()
       .catch(() => {
         setFailed(true);
@@ -420,6 +523,10 @@ export function useOura(uid: string | undefined) {
     result,
     daily,
     failed,
+    linkOutcome,
+    /** Why the last Connect did not link, as a sentence key — null when there
+     *  is nothing to say. */
+    linkMessage: ouraOutcomeKey(linkOutcome),
     needsScopeUpgrade,
     connect,
     disconnect,

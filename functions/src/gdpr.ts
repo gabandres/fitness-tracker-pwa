@@ -381,7 +381,7 @@ export const exportUserData = onCall({ maxInstances: 5 }, async (request) => {
   const byName = Object.fromEntries(exported.map((name, i) => [name, collections[i]]));
 
   // Redact credentials — GDPR Art. 20 scope is personal data, not bearer
-  // tokens. `webhookApiKey` (Apple Shortcuts) and `fcmToken` (push channel)
+  // tokens. `fcmToken` (push channel) and a legacy `webhookApiKey`
   // are stripped by the shared redactor so a downloadable JSON can't widen
   // their blast radius. See redact.ts.
   const profile = redactProfileSecrets(

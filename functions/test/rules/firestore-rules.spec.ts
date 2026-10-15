@@ -725,6 +725,52 @@ describe('firestore.rules', () => {
     );
   });
 
+  // ─── Legacy `webhookApiKey` (logWebhook deleted 2026-10-15) ──────────────
+  // Nothing reads or writes it any more, but old profiles may carry one and
+  // `hasOnly` checks the whole doc — so it stays storable, frozen: keep or
+  // delete, never set or change, never on create.
+  describe('legacy webhookApiKey', () => {
+    const KEY = '123e4567-e89b-12d3-a456-426614174000';
+    const seed = (extra: Record<string, unknown> = {}) =>
+      env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'users', 'alice'), { ...completedProfile(), ...extra });
+      });
+
+    it('lets a profile that carries one keep updating', async () => {
+      await seed({ webhookApiKey: KEY });
+      await assertSucceeds(
+        updateDoc(doc(authed('alice'), 'users', 'alice'), { manualCaloriesTarget: 2100 }),
+      );
+    });
+
+    it('lets the client delete it', async () => {
+      await seed({ webhookApiKey: KEY });
+      await assertSucceeds(
+        updateDoc(doc(authed('alice'), 'users', 'alice'), { webhookApiKey: deleteField() }),
+      );
+    });
+
+    it('rejects changing it', async () => {
+      await seed({ webhookApiKey: KEY });
+      await assertFails(
+        updateDoc(doc(authed('alice'), 'users', 'alice'), { webhookApiKey: KEY.replace('1', '9') }),
+      );
+    });
+
+    it('rejects adding one to a profile without it', async () => {
+      await seed();
+      await assertFails(
+        updateDoc(doc(authed('alice'), 'users', 'alice'), { webhookApiKey: KEY }),
+      );
+    });
+
+    it('rejects creating a profile with one', async () => {
+      await assertFails(
+        setDoc(doc(authed('alice'), 'users', 'alice'), { ...completedProfile(), webhookApiKey: KEY }),
+      );
+    });
+  });
+
   // ─── A profile with no `createdAt` can never be updated ─────────────────
   // Raising the calorie floor from Settings against a local emulator failed
   // with:
@@ -765,6 +811,8 @@ describe('firestore.rules', () => {
     travelMode: false,
     weeklyDigestOptIn: true,
     hiddenRecentLabels: ['oatmeal', 'protein shake'],
+    // Legacy (logWebhook deleted 2026-10-15) — kept here so the expression
+    // budget is still measured against a profile that carries it.
     webhookApiKey: '0'.repeat(36),
     targetMode: 'auto',
   });

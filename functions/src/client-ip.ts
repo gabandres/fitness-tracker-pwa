@@ -5,7 +5,7 @@
  * hop appends what IT saw, so the first entry is whatever the original client
  * chose to send and the last entry is what the nearest trusted proxy observed.
  * Cloud Run's front end appends the real peer address as the LAST entry, and
- * `logWebhook` and the callables (`sendPasswordReset`) are called on their
+ * the callables (`sendPasswordReset`) are called on their
  * Cloud Run / cloudfunctions.net URLs directly (no Firebase Hosting rewrite in
  * `firebase.json`), so the last entry is the only one that was not
  * client-supplied. Do NOT use `req.ip` for this: the functions framework
@@ -16,7 +16,8 @@
  *
  * Keying on `[0]` — what this did until 2026-09-28 — let a caller rotate a
  * fake first entry per request and never share a bucket, which turned the
- * brute-force throttle on `webhookApiKey` into a formality.
+ * brute-force throttle on the (since deleted, 2026-10-15) Apple Shortcuts
+ * webhook's API key into a formality.
  *
  * Pure: takes the header value and the framework's `req.ip` fallback so it can
  * be unit-tested without an Express request.

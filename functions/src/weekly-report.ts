@@ -4,7 +4,7 @@ import { ErrorCode } from "./error-codes";
 import { callerAccess, db, geminiApiKey, withCostGuards } from "./init";
 import { recordAiUsage, usageFromMetadata } from "./ai-usage";
 import { getGeminiClient } from "./gemini-client";
-import { weeklyReportSystemInstruction } from "./server-prompts";
+import { resolveWeeklyReportPrompt } from "./ai-prompt-input";
 
 // ─── Weekly AI report generation ────────────────────────────────────
 //
@@ -30,14 +30,7 @@ import { weeklyReportSystemInstruction } from "./server-prompts";
 // rejecting there consumes nothing.
 
 const REPORT_MIN_INTERVAL_MS = 6 * 24 * 60 * 60 * 1000;
-const REPORT_SYSTEM_MAX_CHARS = 20_000;
-const REPORT_PROMPT_MAX_CHARS = 2_000;
 const REPORT_OUTPUT_MAX_CHARS = 10_000; // matches firestore.rules size cap
-
-interface GenerateReportInput {
-  systemInstruction?: unknown;
-  prompt?: unknown;
-}
 
 export const generateWeeklyReport = onCall(
   { secrets: [geminiApiKey], maxInstances: 5 },
@@ -53,15 +46,18 @@ export const generateWeeklyReport = onCall(
       );
     }
 
-    const { systemInstruction, prompt } = (request.data ?? {}) as GenerateReportInput;
-    if (typeof systemInstruction !== "string" || systemInstruction.length === 0 ||
-        systemInstruction.length > REPORT_SYSTEM_MAX_CHARS) {
-      throw new HttpsError("invalid-argument", "systemInstruction missing or too large.", { code: ErrorCode.REPORT_PAYLOAD_INVALID });
+    // v2: numbers-only context, validated field by field, every word of the
+    // prompt rendered here (ai-prompt-input.ts). The legacy free-text body is
+    // served fenced only while ACCEPT_LEGACY_PROMPT_SHAPE is true.
+    const resolved = resolveWeeklyReportPrompt(request.data ?? {});
+    if (!resolved.ok) {
+      throw new HttpsError(
+        resolved.code === ErrorCode.CLIENT_UPDATE_REQUIRED ? "failed-precondition" : "invalid-argument",
+        resolved.message,
+        { code: resolved.code },
+      );
     }
-    if (typeof prompt !== "string" || prompt.length === 0 ||
-        prompt.length > REPORT_PROMPT_MAX_CHARS) {
-      throw new HttpsError("invalid-argument", "prompt missing or too large.", { code: ErrorCode.REPORT_PAYLOAD_INVALID });
-    }
+    const { systemInstruction, contents } = resolved;
 
     // Rate limit: reject if the latest existing report is < 6 days old.
     // Read the newest report doc and compare generatedAt.
@@ -86,11 +82,11 @@ export const generateWeeklyReport = onCall(
         const client = getGeminiClient();
         const result = await client.models.generateContent({
           model: "gemini-2.5-flash",
-          contents: prompt,
-          // Server-owned scope rules first, the app's context fenced under
-          // them (server-prompts.ts) — no longer the client's text verbatim.
+          contents,
+          // Server-owned scope rules first, then the server-rendered context
+          // (v2) or the app's fenced text (legacy) — see ai-prompt-input.ts.
           // The model is already a pinned version, not a moving alias.
-          config: { systemInstruction: weeklyReportSystemInstruction(systemInstruction), temperature: 0.3 },
+          config: { systemInstruction, temperature: 0.3 },
         });
         // Answered = billed; an empty response from here keeps the slot.
         markBilled();

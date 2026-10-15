@@ -203,7 +203,10 @@ function AuthGate({ fontsReady }: { fontsReady: boolean }) {
     // The native sheet route (UX_AUDIT S20) is presented over the tabs too —
     // missing from this list, it was "not in the app" and replaced away the
     // moment it opened.
-    const inApp = route === '(app)' || DETAIL_ROUTES.has(route) || route === 'sheet';
+    // `oura` is `oura/callback`, the deep link the Oura connect flow returns
+    // through (2026-10-15) — signed-in, and it must not be replaced away
+    // before it has redeemed the code.
+    const inApp = route === '(app)' || DETAIL_ROUTES.has(route) || route === 'sheet' || (route as string) === 'oura';
     const onOnboarding = route === 'onboarding';
     const onVerify = route === 'verify-email';
     // The guided tour is a root route so it can take the whole screen — inside

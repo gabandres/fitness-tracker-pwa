@@ -92,7 +92,7 @@ export const REPLY_TO =
  * **This is a cold-start fix for functions that never send mail.** `init.ts`
  * imports this module, and every function imports `init.ts` — so a static
  * `import { Resend } from "resend"` was evaluated on the cold start of
- * `analyzePhoto`, `searchFoods`, `logWebhook` and everything else, none of
+ * `analyzePhoto`, `searchFoods` and everything else, none of
  * which send email. Measured in an isolated process on this workstation:
  * **79 ms**, and a cold Cloud Run vCPU is slower. Cold starts are the single
  * largest latency item in this codebase (~3.4 s of a 5.7 s photo scan, and at

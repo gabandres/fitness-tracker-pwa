@@ -118,6 +118,9 @@ jest.mock('@/lib/widget', () => ({
 // Health sync talks to HealthKit / Health Connect.
 jest.mock('@/lib/health-sync', () => ({
   exportDaily: jest.fn().mockResolvedValue(undefined),
+  exportNutrition: jest.fn().mockResolvedValue(undefined),
+  forgetNutrition: jest.fn().mockResolvedValue(undefined),
+  replaceNutrition: jest.fn().mockResolvedValue(undefined),
   useHealthSync: () => ({ connected: false, connect: jest.fn(), disconnect: jest.fn() }),
   useHealthAutoImport: jest.fn(),
 }));

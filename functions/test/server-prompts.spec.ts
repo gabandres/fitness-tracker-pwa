@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { coachSystemInstruction, weeklyReportSystemInstruction } from "../src/server-prompts";
+import {
+  coachSystemInstruction,
+  coachSystemInstructionV2,
+  weeklyReportSystemInstruction,
+  weeklyReportSystemInstructionV2,
+} from "../src/server-prompts";
 import { GEMINI_MODEL } from "../src/gemini-client";
 
 // Pure — no emulator. The property: the client's text never BECOMES the system
@@ -26,6 +31,18 @@ describe("server-owned system instructions", () => {
 
   it("the weekly report carries its own scope rules", () => {
     expect(weeklyReportSystemInstruction("x").startsWith("You write Ignia's weekly")).toBe(true);
+  });
+});
+
+describe("v2 (server-rendered) system instructions", () => {
+  it("put the same scope rules first, then the server-rendered text, unfenced", () => {
+    const coach = coachSystemInstructionV2("RENDERED");
+    expect(coach.startsWith("You are the in-app coach of Ignia")).toBe(true);
+    expect(coach.trimEnd().endsWith("RENDERED")).toBe(true);
+    expect(coach).not.toContain("APP_CONTEXT");
+    const report = weeklyReportSystemInstructionV2("RENDERED");
+    expect(report.startsWith("You write Ignia's weekly")).toBe(true);
+    expect(report.trimEnd().endsWith("RENDERED")).toBe(true);
   });
 });
 

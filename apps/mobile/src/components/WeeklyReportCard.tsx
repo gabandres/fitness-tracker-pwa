@@ -17,6 +17,8 @@ function errorKey(code: string | null): I18nKey | null {
       return 'report.errTooSoon';
     case ReportErrorCode.NOT_ENTITLED:
       return 'report.errNotEntitled';
+    case ReportErrorCode.CLIENT_UPDATE_REQUIRED:
+      return 'report.errUpdate';
     case null:
       return null;
     default:

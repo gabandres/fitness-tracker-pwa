@@ -2,8 +2,10 @@
  * Profile-secret redaction — the single place that strips bearer secrets from
  * any profile copy that leaves the server-side store.
  *
- * `webhookApiKey` is a long-lived shared secret for the Apple Shortcuts
- * webhook; `fcmToken` binds a device's push channel. Neither is "personal
+ * `webhookApiKey` was a long-lived shared secret for the Apple Shortcuts
+ * webhook (`logWebhook`, deleted 2026-10-15) — nothing writes or reads it any
+ * more, but legacy profiles may still carry one, so it stays redacted;
+ * `fcmToken` binds a device's push channel. Neither is "personal
  * data" in the GDPR Art. 20 sense, and shipping them in a downloadable export
  * or an admin inspector widens their blast radius. Both the GDPR export
  * (`gdpr.ts`) and the admin user-inspector (`admin-ops.ts`) route through

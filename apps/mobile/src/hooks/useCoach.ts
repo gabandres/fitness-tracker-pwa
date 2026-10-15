@@ -27,7 +27,7 @@ export interface CoachData {
  * The window it used to declare locally was 400, the same number
  * `LOG_WINDOW_ROWS` has always held; it is deliberately wider than the coach's
  * own window because the adaptive-TDEE math needs a long series, and
- * `buildCoachSystemInstruction` trims to COACH_WINDOW_DAYS itself. Until
+ * `buildCoachPromptContext` trims to COACH_WINDOW_DAYS itself. Until
  * 2026-08-12 it did NOT trim, so all 400 rows (~100 days) went into the prompt
  * and were announced to the model as "400 days" — the mirror image of the web
  * app shipping a 14-ROW cache as "14 days".

@@ -239,6 +239,8 @@ export async function logQuickAdd(
       protein: entry.protein,
       carbs: entry.carbs,
       fat: entry.fat,
+      // Tagged like an in-app add, so an Undo or delete can remove it.
+      logId: id,
     });
     return 'logged';
   } catch {

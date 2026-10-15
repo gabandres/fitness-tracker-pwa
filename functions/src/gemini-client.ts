@@ -11,7 +11,7 @@ import { geminiApiKey } from "./init";
  * `consultation`, `weekly-report` — and each used to carry its own static
  * `import { GoogleGenAI } from "@google/genai"`. `index.ts` re-exports every
  * function from one file, so Node evaluated all three on **every** cold start
- * of **every** function: `searchFoods`, `getFoodDetail`, `logWebhook`,
+ * of **every** function: `searchFoods`, `getFoodDetail`,
  * `deleteAccount` and the rest all paid to parse a generative-AI SDK they can
  * never call. Measured in an isolated process: **107 ms**, and a cold Cloud Run
  * vCPU is slower than this workstation.

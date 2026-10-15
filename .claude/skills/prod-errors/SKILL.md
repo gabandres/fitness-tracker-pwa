@@ -110,7 +110,6 @@ Known noise to filter out before reporting anything as a problem:
 - Callable functions throw typed errors from `functions/src/error-codes.ts`;
   a `HttpsError` with a known code is the *designed* rejection path
   (quota, auth, validation), not a crash. Only untyped throws are crashes.
-- `log-webhook` fails open on rate-limiter errors by design.
 
 ### iOS crashes
 

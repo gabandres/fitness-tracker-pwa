@@ -381,8 +381,12 @@ export * from './firestore-writers';
 export * from './daily-scalars';
 
 // ─────────────────────────── AI surfaces ───────────────────────────
-// Shared AI-coach system-instruction builder (ADR-0012/0013): both frontends
-// assemble the identical grounded prompt, then POST it to consultationStream.
+// Wire format + renderer of the two text-generation callables. The app sends
+// numbers-only context; the server (which carries a byte-identical copy of
+// this module) validates it and renders every word of the prompt.
+export * from './ai-prompt-wire';
+// AI-coach context builder (ADR-0012/0013): turns logs + TDEE into the wire
+// context the app POSTs to consultationStream.
 export * from './coach-prompt';
 // Shared SSE frame parser (coach stream) — used by both frontends' readers.
 export * from './sse';

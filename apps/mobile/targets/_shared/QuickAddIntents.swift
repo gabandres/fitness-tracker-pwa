@@ -163,6 +163,8 @@ struct LogPresetIntent: AppIntent {
       return .result(dialog: "Saved \(slot.name). It'll sync next time you open Ignia.")
     case .signedOut:
       return .result(dialog: "Open Ignia and sign in first.")
+    case .notSaved:
+      return .result(dialog: "Couldn't save \(slot.name). Open Ignia so your saved meals can sync, then try again.")
     }
   }
 }
@@ -222,6 +224,8 @@ struct LogMacrosIntent: AppIntent {
       return .result(dialog: "Saved it. It'll sync next time you open Ignia.")
     case .signedOut:
       return .result(dialog: "Open Ignia and sign in first.")
+    case .notSaved:
+      return .result(dialog: "Couldn't save that. Open Ignia so your saved meals can sync, then try again.")
     }
   }
 }

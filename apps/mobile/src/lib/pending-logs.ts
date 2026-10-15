@@ -9,6 +9,7 @@ import {
 import { isOffline } from './connectivity';
 import { addLogWithId, deleteLog } from './ledger';
 import { captureError } from './sentry';
+import { forgetNutrition } from './health-sync';
 import {
   dropPendingLogs,
   parkPendingLog,
@@ -162,6 +163,9 @@ export async function editParkedLog(uid: string, id: string, entry: LogEntry): P
  */
 export async function undoAdds(uid: string, ids: readonly string[]): Promise<void> {
   await dropPendingLogs(ids);
+  // The add mirrored each meal to Health tagged with its id; the Undo takes
+  // those samples back out (audit #22). Not awaited, never throws.
+  void forgetNutrition(ids);
   for (const id of ids) {
     void deleteLog(uid, id).catch(() => {
       /* Offline or already gone — the overlay drop above is what the user sees. */

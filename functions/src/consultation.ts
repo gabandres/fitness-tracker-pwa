@@ -5,7 +5,7 @@ import { ErrorCode } from "./error-codes";
 import { callerAccess, dailyQuota, db, geminiApiKey, withCostGuards } from "./init";
 import { recordAiUsage, usageFromMetadata } from "./ai-usage";
 import { GEMINI_MODEL, getGeminiClient } from "./gemini-client";
-import { coachSystemInstruction } from "./server-prompts";
+import { resolveCoachPrompt } from "./ai-prompt-input";
 
 // ─── AI coach (Gemini consultation) ─────────────────────────────────
 //
@@ -46,24 +46,17 @@ const CONSULT_ALLOWED_ORIGINS = [
   "http://localhost:4200",
 ];
 
-// The client assembles the grounded context (profile + 14-day table) and the
-// question. Since 2026-10-15 the server no longer relays that context as the
-// system instruction verbatim: it goes in fenced, under server-owned scope
-// rules (server-prompts.ts), so the endpoint is a nutrition coach rather than
-// a general Gemini proxy. These caps bound the payload so a hostile caller
-// can't push arbitrary-length prompts at the project's Gemini quota.
-const CONSULT_SYSTEM_MAX_CHARS = 20_000;
-const CONSULT_PROMPT_MAX_CHARS = 2_000;
+// The request body is resolved by `resolveCoachPrompt` (ai-prompt-input.ts).
+// A v2 client sends the question plus numbers-only context, validated field
+// by field, and the server renders the whole system instruction; the legacy
+// `{ systemInstruction, prompt }` body is served fenced under server-owned
+// scope rules only while `ACCEPT_LEGACY_PROMPT_SHAPE` is true, and rejected
+// with CLIENT_UPDATE_REQUIRED after the flip.
 // Server pins the model so the client can't swap in a pricier one — and pins
 // a VERSION (gemini-client.ts), not the moving `gemini-flash-latest` alias it
 // used until 2026-10-15, which Google could re-point at a pricier model with
 // no deploy on our side.
 const CONSULT_MODEL = GEMINI_MODEL;
-
-interface ConsultInput {
-  systemInstruction?: unknown;
-  prompt?: unknown;
-}
 
 /** Map an HttpsError thrown by the caller-access/quota preamble to an
     HTTP JSON error the client's fetch path understands. Sent BEFORE any
@@ -102,18 +95,14 @@ export const consultationStream = onRequest(
       return;
     }
 
-    // ── Validate payload ──
-    const { systemInstruction, prompt } = (req.body ?? {}) as ConsultInput;
-    if (typeof systemInstruction !== "string" || systemInstruction.length === 0 ||
-        systemInstruction.length > CONSULT_SYSTEM_MAX_CHARS) {
-      res.status(400).json({ code: ErrorCode.REPORT_PAYLOAD_INVALID });
+    // ── Validate payload + build the prompt server-side ──
+    // Before any quota or spend is touched, so a rejected shape costs nothing.
+    const resolved = resolveCoachPrompt(req.body ?? {});
+    if (!resolved.ok) {
+      res.status(400).json({ code: resolved.code });
       return;
     }
-    if (typeof prompt !== "string" || prompt.length === 0 ||
-        prompt.length > CONSULT_PROMPT_MAX_CHARS) {
-      res.status(400).json({ code: ErrorCode.REPORT_PAYLOAD_INVALID });
-      return;
-    }
+    const { systemInstruction, contents } = resolved;
 
     // ── Resolve caller (auth already checked → rate limit + tier) ──
     // The decoded ID token is structurally a CallerRequestLike token
@@ -159,8 +148,8 @@ export const consultationStream = onRequest(
           const client = getGeminiClient();
           const stream = await client.models.generateContentStream({
             model: CONSULT_MODEL,
-            contents: prompt,
-            config: { systemInstruction: coachSystemInstruction(systemInstruction), temperature: 0.4 },
+            contents,
+            config: { systemInstruction, temperature: 0.4 },
           });
           let usage: { promptTokenCount?: number; candidatesTokenCount?: number; thoughtsTokenCount?: number } | undefined;
           for await (const chunk of stream) {

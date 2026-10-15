@@ -4,7 +4,7 @@ import {
   type MilestoneContext,
   type WeeklyReport,
   buildMilestoneContext,
-  buildWeeklyReportPayload,
+  buildWeeklyReportRequest,
   computeStreak,
   trainedDayRows,
   TRAINED_DAYS_SESSIONS,
@@ -92,9 +92,10 @@ export function useWeeklyReport(): WeeklyReportState {
       // One bounded all-time read; a failure falls back to the window.
       const stats = await getLogStats(uid!).catch(() => null);
       const milestone = milestoneFromStats(stats, logs, streak);
-      const payload = buildWeeklyReportPayload({ logs: withTraining, tdee, profile, dailyWeights, milestone, locale });
+      // Numbers-only request; the server renders the prompt (core ai-prompt-wire).
+      const request = buildWeeklyReportRequest({ logs: withTraining, tdee, profile, dailyWeights, milestone, locale });
       // The server writes the doc; subscribeLatestReport delivers the update.
-      await requestWeeklyReport(payload);
+      await requestWeeklyReport(request);
     })()
       .catch((err: unknown) => {
         setErrorCode(reportErrorCode(err) ?? 'REPORT_GENERATE_FAILED');

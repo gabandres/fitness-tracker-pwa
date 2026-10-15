@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
-import { buildCoachSystemInstruction } from '@macrolog/core';
+import { buildCoachRequest } from '@macrolog/core';
 import { CoachMarkdown } from '@/components/CoachMarkdown';
 import { useCoach } from '@/hooks/useCoach';
 import { useAuth } from '@/lib/auth';
@@ -51,6 +51,8 @@ function errorKey(code: string | undefined): I18nKey {
       return 'coach.errRate';
     case CoachErrorCode.UNAUTHENTICATED:
       return 'coach.errAuth';
+    case CoachErrorCode.CLIENT_UPDATE_REQUIRED:
+      return 'coach.errUpdate';
     default:
       return 'coach.errGeneric';
   }
@@ -158,7 +160,8 @@ export default function Coach() {
     await (async () => {
       if (!user) throw Object.assign(new Error('auth'), { code: CoachErrorCode.UNAUTHENTICATED });
       const idToken = await user.getIdToken();
-      const systemInstruction = buildCoachSystemInstruction({ logs, tdee, profile, dailyWeights, locale });
+      // Numbers-only context + the question; the server renders the prompt.
+      const request = buildCoachRequest({ logs, tdee, profile, dailyWeights, locale, question: q });
 
       // Throttled flush — see ANSWER_FLUSH_MS. A trailing flush after the
       // stream ends makes sure the last chunk is never stranded in `buffer`.
@@ -169,8 +172,7 @@ export default function Coach() {
       };
       track('coach_ask');
       await streamCoach({
-        systemInstruction,
-        prompt: q,
+        request,
         idToken,
         onMeta: (m) => {
           setLimit(m.limit);
@@ -281,6 +283,7 @@ export default function Coach() {
             style={styles.input}
             value={question}
             onChangeText={setQuestion}
+            maxLength={2000}
             editable={!streaming}
             placeholder={t('coach.placeholder')}
             placeholderTextColor={colors.faint}

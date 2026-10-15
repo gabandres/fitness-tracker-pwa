@@ -867,7 +867,7 @@ export const adminGetUserDetails = onCall(async (request) => {
     };
   });
 
-  // Redact webhookApiKey + fcmToken — admin panel shouldn't be the easy leak
+  // Redact profile secrets (fcmToken, legacy webhookApiKey) — admin panel shouldn't be the easy leak
   // path for these. Shared redactor (see redact.ts) so it can't drift from the
   // GDPR-export copy.
   const safeProfile = redactProfileSecrets(profile as Record<string, unknown> | null);

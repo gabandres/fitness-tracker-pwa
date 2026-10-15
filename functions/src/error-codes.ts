@@ -29,6 +29,10 @@ export const enum ErrorCode {
       the newest report doc has been deleted. */
   REPORT_QUOTA_EXCEEDED = "REPORT_QUOTA_EXCEEDED",
   REPORT_PAYLOAD_INVALID = "REPORT_PAYLOAD_INVALID",
+  /** The request used a wire shape the server no longer serves (the pre-v2
+      `{ systemInstruction, prompt }` body of the coach and weekly report, once
+      `ACCEPT_LEGACY_PROMPT_SHAPE` is false). Updating the app is the fix. */
+  CLIENT_UPDATE_REQUIRED = "CLIENT_UPDATE_REQUIRED",
   REPORT_GENERATE_FAILED = "REPORT_GENERATE_FAILED",
   PHOTO_RATE_LIMITED = "PHOTO_RATE_LIMITED",
   CONSULTATION_RATE_LIMITED = "CONSULTATION_RATE_LIMITED",
@@ -41,10 +45,15 @@ export const enum ErrorCode {
   FOOD_DETAIL_FAILED = "FOOD_DETAIL_FAILED",
   FOOD_NOT_FOUND = "FOOD_NOT_FOUND",
   FOOD_NO_NUTRITION = "FOOD_NO_NUTRITION",
-  // Recipe-URL import (fetch proxy).
-  RECIPE_URL_INVALID = "RECIPE_URL_INVALID",
-  RECIPE_FETCH_FAILED = "RECIPE_FETCH_FAILED",
-  RECIPE_NOT_FOUND = "RECIPE_NOT_FOUND",
+  // Oura account linking (completeOuraLink, oura-link.ts).
+  /** The state is forged, older than 15 minutes, superseded by a newer
+      Connect tap, or already redeemed. The user taps Connect again. */
+  OURA_LINK_EXPIRED = "OURA_LINK_EXPIRED",
+  /** The state was minted for a different Ignia account than the caller's —
+      the cross-account CSRF the callable exists to refuse. */
+  OURA_LINK_WRONG_ACCOUNT = "OURA_LINK_WRONG_ACCOUNT",
+  /** Oura's token endpoint refused or was unreachable. Nothing was stored. */
+  OURA_LINK_FAILED = "OURA_LINK_FAILED",
   // Org-wide spend guard (spend-ceiling.ts). Distinct from the *_QUOTA_EXCEEDED
   // codes above: those mean "you have used your allowance", these mean "the
   // feature is off for everybody". Clients must not tell the user to come back

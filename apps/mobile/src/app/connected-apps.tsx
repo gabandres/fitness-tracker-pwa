@@ -232,6 +232,9 @@ export default function ConnectedAppsScreen() {
     if (oura.failed) announce(t('oura.failed'));
   }, [oura.failed, t]);
   useEffect(() => {
+    if (oura.linkMessage) announce(t(oura.linkMessage));
+  }, [oura.linkMessage, t]);
+  useEffect(() => {
     const r = oura.result;
     if (!r) return;
     announce(!r.linked ? t('oura.needsReconnect') : r.written > 0 ? t('oura.synced', { n: r.written }) : t('oura.syncedNone'));
@@ -497,6 +500,9 @@ export default function ConnectedAppsScreen() {
             being wrong about the wire shape as their ring being quiet.
           */}
           {oura.failed ? <Text style={styles.msg}>{t('oura.failed')}</Text> : null}
+          {oura.linkMessage ? (
+            <Text style={styles.msg} testID="oura-link-message">{t(oura.linkMessage)}</Text>
+          ) : null}
           {oura.result && !oura.result.linked ? (
             <Text style={styles.msg}>{t('oura.needsReconnect')}</Text>
           ) : null}

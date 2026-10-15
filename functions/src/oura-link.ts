@@ -2,6 +2,7 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypt
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { defineSecret } from "firebase-functions/params";
 import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
+import { ErrorCode } from "./error-codes";
 import { type EmailLocale, emailLocale, htmlLangFor } from "./locales";
 
 // ─── Oura Cloud API — account linking (OAuth2 authorization code) ───
@@ -220,13 +221,14 @@ export function parseOuraState(
 // already erases it with the rest of `private`. No new rules, no new
 // collection, no cleanup job: one doc per user, overwritten or deleted.
 //
-// What it does NOT stop, and cannot without an app change: an attacker who
-// mints a link on their OWN account and gets a victim to complete it in the
-// victim's browser. The browser leg carries no Ignia session, so nothing on it
-// can tell the two people apart. Closing that needs the APP to finish the
-// exchange — see the report for the mobile change (bounce the code to
-// `ignia://oura/callback` and redeem it through an authenticated callable that
-// checks the caller's uid against the state's).
+// The nonce alone did NOT stop an attacker who mints a link on their OWN
+// account and gets a victim to complete it in the victim's browser: the
+// browser leg carries no Ignia session, so nothing on it can tell the two
+// people apart, and the victim's ring would be bound to the attacker's
+// account. Closed 2026-10-15: `ouraCallback` no longer exchanges anything —
+// it bounces the code to `ignia://oura/callback`, and the app redeems it
+// through `completeOuraLink`, a SIGNED-IN callable that refuses a state whose
+// uid is not the caller's. The nonce is consumed there, not in the browser.
 
 function nonceDoc(uid: string) {
   return getFirestore().doc(`users/${uid}/private/ouraLinkNonce`);
@@ -439,6 +441,106 @@ export const unlinkOura = onCall({ maxInstances: 3 }, async (request) => {
   return { ok: true };
 });
 
+// ─── Completing the link (the app's half) ───────────────────────────
+
+/** A refusal the app maps to its own copy via `details.code`. */
+function linkError(
+  status: "invalid-argument" | "permission-denied" | "failed-precondition" | "unavailable",
+  message: string,
+  code: ErrorCode,
+): HttpsError {
+  return new HttpsError(status, message, { code });
+}
+
+/** Oura's codes are short opaque strings; a state is ~110 chars. Anything far
+ *  past these is not a real redirect and is refused before any I/O. */
+const MAX_CODE_LEN = 512;
+const MAX_STATE_LEN = 256;
+
+export interface CompleteOuraLinkDeps {
+  clientSecret: string;
+  nowMs: number;
+  /** Code → tokens. Real: Oura's token endpoint. Injected so the identity and
+   *  single-use checks are testable without a network. */
+  exchange: (code: string) => Promise<OuraTokenResponse>;
+}
+
+/**
+ * Redeem an authorization code for `callerUid`.
+ *
+ * Order is the point:
+ *  1. The state must verify (signature + 15-minute expiry) and carry a nonce.
+ *  2. **Its uid must be the caller's.** This is the check the browser leg
+ *     cannot make: a link minted on someone else's account dies here, and its
+ *     nonce is NOT consumed, so a third party holding a state cannot burn it.
+ *  3. The nonce is consumed (single use, newest-link-only).
+ *  4. Only then is the code exchanged and the credential stored.
+ */
+export async function completeOuraLinkFor(
+  callerUid: string,
+  input: { code?: unknown; state?: unknown },
+  deps: CompleteOuraLinkDeps,
+): Promise<{ ok: true }> {
+  const code = typeof input.code === "string" ? input.code : "";
+  const state = typeof input.state === "string" ? input.state : "";
+  if (!code || !state || code.length > MAX_CODE_LEN || state.length > MAX_STATE_LEN) {
+    throw linkError("invalid-argument", "code and state are required.", ErrorCode.BAD_REQUEST);
+  }
+
+  const parsed = parseOuraState(state, deps.clientSecret, deps.nowMs);
+  if (!parsed || !parsed.nonce) {
+    throw linkError("failed-precondition", "Link expired.", ErrorCode.OURA_LINK_EXPIRED);
+  }
+  if (parsed.uid !== callerUid) {
+    console.warn(`completeOuraLink: state uid does not match caller uid=${callerUid}`);
+    throw linkError("permission-denied", "Link belongs to another account.", ErrorCode.OURA_LINK_WRONG_ACCOUNT);
+  }
+  const fresh = await consumeOuraNonce(callerUid, parsed.nonce, deps.nowMs);
+  if (!fresh) {
+    throw linkError("failed-precondition", "Link expired or already used.", ErrorCode.OURA_LINK_EXPIRED);
+  }
+
+  let tok: OuraTokenResponse;
+  try {
+    tok = await deps.exchange(code);
+  } catch (err) {
+    console.error(`completeOuraLink: exchange failed uid=${callerUid}`, err);
+    throw linkError("unavailable", "Could not finish linking Oura.", ErrorCode.OURA_LINK_FAILED);
+  }
+  await persistTokens(callerUid, tok, deps.nowMs);
+  // The status doc is what the client reads to render "connected". Written
+  // AFTER the credential, so a crash between the two leaves the user looking
+  // unlinked with a usable token — recoverable by linking again — rather
+  // than looking linked with nothing behind it.
+  await integrationDoc(callerUid).set(
+    { connected: true, scope: SCOPE, connectedAt: Timestamp.fromMillis(deps.nowMs) },
+    { merge: true },
+  );
+  console.log(`completeOuraLink: linked uid=${callerUid}`);
+  return { ok: true };
+}
+
+/**
+ * `completeOuraLink({ code, state })` — the app hands over what `ouraCallback`
+ * bounced to `ignia://oura/callback`. Signed-in only; see
+ * {@link completeOuraLinkFor} for the checks.
+ */
+export const completeOuraLink = onCall(
+  { secrets: [ouraClientSecret], maxInstances: 3 },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) throw new HttpsError("unauthenticated", "Must be signed in.");
+    const data = (request.data ?? {}) as { code?: unknown; state?: unknown };
+    const clientSecret = ouraClientSecret.value();
+    return completeOuraLinkFor(uid, data, {
+      clientSecret,
+      nowMs: Date.now(),
+      exchange: (code) =>
+        postToken({ grant_type: "authorization_code", code, redirect_uri: REDIRECT_URI }, clientSecret),
+    });
+  },
+);
+
 // ─── The callback page ──────────────────────────────────────────────
 //
 // Self-contained on purpose: no external CSS, fonts or JS. This is reached
@@ -448,9 +550,10 @@ export const unlinkOura = onCall({ maxInstances: 3 }, async (request) => {
 // consistent.
 
 /**
- * Where the success page sends the browser once the exchange is done.
+ * Where the callback page sends the browser — the app, carrying Oura's
+ * `code` / `state` (or `error`) through unchanged for `completeOuraLink`.
  *
- * **This is what closes the modal.** `WebBrowser.openAuthSessionAsync` dismisses
+ * **This is also what closes the modal.** `WebBrowser.openAuthSessionAsync` dismisses
  * itself when the browser navigates to the redirect URL the app handed it — but
  * on iOS `ASWebAuthenticationSession` can only intercept a **custom scheme**,
  * not an `https://` one (that needs Universal Links). Our registered Oura
@@ -465,17 +568,33 @@ export const unlinkOura = onCall({ maxInstances: 3 }, async (request) => {
  */
 const APP_RETURN_URL = "ignia://oura/callback";
 
-function page(title: string, body: string, locale: EmailLocale, bounce = false): string {
+/** The app deep link for this callback's query. Only the three parameters the
+ *  app reads are forwarded; URLSearchParams percent-encodes them, so no `<`,
+ *  `>` or quote can reach the HTML below. Exported for tests. */
+export function appReturnUrl(params: { code?: string; state?: string; error?: string }): string {
+  const q = new URLSearchParams();
+  for (const k of ["code", "state", "error"] as const) {
+    const v = params[k];
+    if (v) q.set(k, v);
+  }
+  const qs = q.toString();
+  return qs ? `${APP_RETURN_URL}?${qs}` : APP_RETURN_URL;
+}
+
+function page(title: string, body: string, locale: EmailLocale, bounceTo?: string): string {
+  const bounce = !!bounceTo;
+  // `&` is the only character URLSearchParams leaves that HTML cares about.
+  const href = (bounceTo ?? "").replace(/&/g, "&amp;");
   // Belt and braces, because this runs in whatever browser Oura handed over:
   // a meta refresh for the ones that honour it, a script for the ones that
   // don't, and the visible link below as the manual fallback for both. The
   // 400ms delay lets the page paint first, so a user who sees it sees a
   // finished state rather than a flash.
   const bounceHead = bounce
-    ? `<meta http-equiv="refresh" content="0.4;url=${APP_RETURN_URL}">`
+    ? `<meta http-equiv="refresh" content="0.4;url=${href}">`
     : "";
   const bounceScript = bounce
-    ? `<script>setTimeout(function(){location.replace(${JSON.stringify(APP_RETURN_URL)})},400)</script>`
+    ? `<script>setTimeout(function(){location.replace(${JSON.stringify(bounceTo)})},400)</script>`
     : "";
   return `<!doctype html>
 <html lang="${htmlLangFor(locale)}">
@@ -507,7 +626,7 @@ ${bounceHead}
   <p class="eyebrow">Ignia</p>
   <h1>${title}</h1>
   ${body}
-  ${bounce ? `<p><a href="${APP_RETURN_URL}">Return to Ignia</a></p>` : ""}
+  ${bounce ? `<p><a href="${href}">Open Ignia</a></p>` : ""}
   <footer><a href="${SITE}">ignia.fit</a></footer>
 </main>
 ${bounceScript}
@@ -515,30 +634,30 @@ ${bounceScript}
 </html>`;
 }
 
-const DONE: Record<EmailLocale, { title: string; body: string }> = {
+/** The browser leg no longer links anything — the app does. So this page
+ *  says "finishing in the app", and tells a reader who is NOT on the phone
+ *  (a copied link, a desktop) where the connection actually completes. */
+const RETURNING: Record<EmailLocale, { title: string; body: string }> = {
   "en": {
-    title: "Oura connected.",
-    body: `<p>Taking you back to Ignia…</p>
-       <p>Ignia can now read your <strong>workouts</strong> and your <strong>daily
-          sleep and activity totals</strong> from Oura — nothing else. Not heart rate,
-          not blood oxygen, not tags or sessions.</p>
-       <p>You can disconnect any time in <strong>Settings → Connected apps</strong>.</p>`,
+    title: "Finishing in Ignia…",
+    body: `<p>Taking you back to the Ignia app to finish connecting Oura.</p>
+       <p>If Ignia didn't open, open this on the phone where Ignia is installed and
+          start again from <strong>Settings → Connected apps</strong> — the
+          connection can only finish in the app.</p>`,
   },
   "es-PR": {
-    title: "Oura conectado.",
-    body: `<p>Te llevamos de vuelta a Ignia…</p>
-       <p>Ignia ahora puede leer tus <strong>entrenamientos</strong> y tus <strong>totales
-          diarios de sueño y actividad</strong> de Oura — nada más. Ni frecuencia cardíaca,
-          ni oxígeno en sangre, ni etiquetas o sesiones.</p>
-       <p>Puedes desconectarlo cuando quieras en <strong>Ajustes → Apps conectadas</strong>.</p>`,
+    title: "Terminando en Ignia…",
+    body: `<p>Te llevamos de vuelta a la app de Ignia para terminar de conectar Oura.</p>
+       <p>Si Ignia no se abrió, ábrelo en el teléfono donde tienes Ignia y empieza
+          otra vez desde <strong>Ajustes → Apps conectadas</strong> — la conexión
+          solo se puede terminar en la app.</p>`,
   },
   "pt-BR": {
-    title: "Oura conectado.",
-    body: `<p>Levando você de volta ao Ignia…</p>
-       <p>O Ignia agora pode ler seus <strong>treinos</strong> e seus <strong>totais
-          diários de sono e atividade</strong> do Oura — nada além disso. Nem frequência
-          cardíaca, nem oxigênio no sangue, nem tags ou sessões.</p>
-       <p>Você pode desconectar quando quiser em <strong>Ajustes → Apps conectados</strong>.</p>`,
+    title: "Finalizando no Ignia…",
+    body: `<p>Levando você de volta ao app Ignia para terminar de conectar a Oura.</p>
+       <p>Se o Ignia não abriu, abra isto no celular onde o Ignia está instalado e
+          comece de novo em <strong>Ajustes → Apps conectados</strong> — a conexão
+          só pode ser finalizada no app.</p>`,
   },
 };
 
@@ -606,7 +725,14 @@ async function localeFor(uid: string): Promise<EmailLocale> {
  * here after the consent screen. On denial it sends `?error=access_denied`
  * with no code.
  *
- * Routed by the `/oura/callback` rewrite in `firebase.json`.
+ * Routed by the `/oura/callback` rewrite in `firebase.json`. The registered
+ * redirect URI stays this https URL; what changed (2026-10-15) is that this
+ * page EXCHANGES NOTHING. It checks the state's signature and expiry — so a
+ * stale or forged link gets an honest page instead of an app round-trip — and
+ * forwards `code` / `state` / `error` to `ignia://oura/callback`, where the
+ * signed-in app calls `completeOuraLink`. The nonce is NOT consumed here:
+ * consuming it in a browser that has no Ignia session is exactly what let a
+ * link minted on one account be completed by another person.
  *
  * Every terminal response is a 200 with an explanatory page: this URL is
  * rendered to a human, and a bare 4xx would show a browser error page with
@@ -629,19 +755,7 @@ export const ouraCallback = onRequest(
 
     const state = q("state");
     const parsed = state ? parseOuraState(state, ouraClientSecret.value(), Date.now()) : null;
-    // The nonce is consumed HERE, before the denial / code branches, so a
-    // state is spent whatever the outcome. A nonce-less (pre-2026-10-15)
-    // state is refused: its link is at most 15 minutes old at deploy time,
-    // and that user simply taps Connect again.
-    const fresh = parsed?.nonce
-      ? await consumeOuraNonce(parsed.uid, parsed.nonce, Date.now()).catch((err) => {
-          console.error("ouraCallback: nonce check failed", err);
-          return false;
-        })
-      : false;
-    const uid = parsed && fresh ? parsed.uid : null;
-
-    if (!uid) {
+    if (!parsed || !parsed.nonce) {
       // Deliberately does not distinguish "expired", "forged" and "absent".
       // Telling them apart is only useful to someone probing the endpoint.
       console.warn("ouraCallback: bad, missing or expired state");
@@ -649,47 +763,25 @@ export const ouraCallback = onRequest(
       return;
     }
 
-    // A denial is a normal outcome, not an error — the user pressed the
-    // cancel button we put in front of them. Check it before the code, so a
-    // denial never reads as a malformed request.
-    if (q("error")) {
-      console.log(`ouraCallback: user declined uid=${uid} error=${q("error")}`);
-      const loc = await localeFor(uid);
-      res.status(200).send(page(DENIED[loc].title, DENIED[loc].body, loc));
-      return;
-    }
-
+    // The uid here is only the one the state CLAIMS — good enough to pick a
+    // page language, never to link anything.
+    const loc = await localeFor(parsed.uid);
+    const error = q("error");
     const code = q("code");
+
+    if (error) {
+      // A denial is a normal outcome, not an error. Still bounce, so the
+      // app's auth session closes and the app can say "not connected".
+      console.log(`ouraCallback: user declined error=${error}`);
+      res.status(200).send(page(DENIED[loc].title, DENIED[loc].body, loc, appReturnUrl({ state, error })));
+      return;
+    }
     if (!code) {
-      console.warn(`ouraCallback: no code and no error uid=${uid}`);
-      const loc = await localeFor(uid);
+      console.warn("ouraCallback: no code and no error");
       res.status(200).send(page(FAILED[loc].title, FAILED[loc].body, loc));
       return;
     }
 
-    const loc = await localeFor(uid);
-    try {
-      const now = Date.now();
-      const tok = await postToken(
-        { grant_type: "authorization_code", code, redirect_uri: REDIRECT_URI },
-        ouraClientSecret.value(),
-      );
-      await persistTokens(uid, tok, now);
-      // The profile mirror is what the client reads to render "connected".
-      // Written AFTER the credential, so a crash between the two leaves the
-      // user looking unlinked with a usable token — recoverable by linking
-      // again — rather than looking linked with nothing behind it.
-      await integrationDoc(uid).set(
-        { connected: true, scope: SCOPE, connectedAt: Timestamp.fromMillis(now) },
-        { merge: true },
-      );
-      console.log(`ouraCallback: linked uid=${uid}`);
-    } catch (err) {
-      console.error(`ouraCallback: exchange failed uid=${uid}`, err);
-      res.status(200).send(page(FAILED[loc].title, FAILED[loc].body, loc));
-      return;
-    }
-
-    res.status(200).send(page(DONE[loc].title, DONE[loc].body, loc, true));
+    res.status(200).send(page(RETURNING[loc].title, RETURNING[loc].body, loc, appReturnUrl({ code, state })));
   },
 );

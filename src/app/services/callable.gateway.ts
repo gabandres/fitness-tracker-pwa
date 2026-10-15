@@ -20,7 +20,6 @@ export type CallableName =
   | 'analyzePhoto'
   | 'searchFoods'
   | 'getFoodDetail'
-  | 'importRecipe'
   | 'generateWeeklyReport'
   // onRequest SSE endpoint (the AI coach) — invoked via `stream()`, not `call()`
   | 'consultationStream'

@@ -1,7 +1,9 @@
 /**
  * Mobile transport for the AI coach. The Gemini key lives only on the server
- * (ADR-0013 security fix); the app POSTs the grounded prompt to the
- * `consultationStream` Cloud Function and reads its Server-Sent Events stream.
+ * (ADR-0013 security fix); the app POSTs a v2 {@link CoachRequest} — the
+ * question plus numbers-only context built by core's `buildCoachRequest` — to
+ * the `consultationStream` Cloud Function, which renders the prompt itself,
+ * and reads its Server-Sent Events stream. No prompt text leaves the app.
  *
  * React Native's `fetch` cannot expose a streaming response body, so we drive
  * an `XMLHttpRequest` and read `responseText` incrementally in `onprogress`
@@ -9,7 +11,7 @@
  * a platform doesn't deliver partial text. SSE frames are split by the shared
  * `parseSseFrames` (packages/core), the same parser the web reader uses.
  */
-import { parseSseFrames } from '@macrolog/core';
+import { type CoachRequest, parseSseFrames } from '@macrolog/core';
 
 // Same-region gen2 endpoint as the web client builds; the project is fixed
 // (single Firebase backend for web + mobile).
@@ -25,6 +27,8 @@ export const CoachErrorCode = {
   RATE_LIMITED: 'RATE_LIMITED',
   REPORT_PAYLOAD_INVALID: 'REPORT_PAYLOAD_INVALID',
   GENERATE_FAILED: 'REPORT_GENERATE_FAILED',
+  /** The server no longer serves this request shape — only an app update helps. */
+  CLIENT_UPDATE_REQUIRED: 'CLIENT_UPDATE_REQUIRED',
 } as const;
 
 export interface CoachError extends Error {
@@ -43,8 +47,8 @@ export interface CoachMeta {
 }
 
 export interface StreamCoachArgs {
-  systemInstruction: string;
-  prompt: string;
+  /** The v2 body (`buildCoachRequest`): question + numbers-only context. */
+  request: CoachRequest;
   idToken: string;
   /** Fired once with the quota counter (server's first `meta` frame). */
   onMeta?: (meta: CoachMeta) => void;
@@ -59,7 +63,7 @@ export interface StreamCoachArgs {
  * server-side, so the caller never has to release.
  */
 export function streamCoach(args: StreamCoachArgs): Promise<void> {
-  const { systemInstruction, prompt, idToken, onMeta, onChunk } = args;
+  const { request, idToken, onMeta, onChunk } = args;
   return new Promise<void>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', CONSULT_URL);
@@ -112,6 +116,6 @@ export function streamCoach(args: StreamCoachArgs): Promise<void> {
     };
 
     xhr.onerror = () => reject(coachError(undefined));
-    xhr.send(JSON.stringify({ systemInstruction, prompt }));
+    xhr.send(JSON.stringify(request));
   });
 }

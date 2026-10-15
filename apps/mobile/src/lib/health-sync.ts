@@ -43,6 +43,7 @@ import {
   useHealthStatus,
 } from './health-status';
 import { flushPendingBody } from './pending-body';
+import { forgetNutritionTags, getNutritionTag, markNutritionTagged } from './health-nutrition-tags';
 
 /**
  * Health sync orchestration — the glue between the pure `health-mapping` brain,
@@ -691,12 +692,112 @@ export async function openHealthPermissions(): Promise<void> {
   await Linking.openSettings().catch(() => {});
 }
 
+/** A Health op that could not run — permission refused, store locked, Health
+ *  Connect absent. Expected, so a log line and not Sentry; never a throw. */
+function noteHealthNoop(where: string, e: unknown): void {
+  console.warn(`[health] ${where} skipped`, (e as Error)?.message ?? e);
+}
+
+/**
+ * Mirror one logged meal to Health, tagged with its log id so an undo, delete
+ * or edit can reach it later ({@link forgetNutrition}, {@link replaceNutrition}).
+ *
+ * Serialized on the same chain as the daily exports: an add and an Undo tapped
+ * a second later must reach the store in that order, or the delete runs first,
+ * finds nothing, and the write lands behind it for good.
+ *
+ * The tag is recorded BEFORE the write, so a write that half-landed (energy
+ * saved, fat refused) is still known to be tagged and an edit replaces it.
+ */
 export async function exportNutrition(entry: NutritionExport): Promise<void> {
-  try {
-    if (await isHealthConnected()) await health.writeNutrition(entry);
-  } catch {
-    /* best-effort */
-  }
+  await serialExport(async () => {
+    try {
+      if (!(await isHealthConnected())) return;
+      if (entry.logId) await markNutritionTagged(entry.logId, entry.at);
+      await health.writeNutrition(entry);
+    } catch (e) {
+      noteHealthNoop('exportNutrition', e);
+    }
+  });
+}
+
+/**
+ * Remove what Ignia exported to Health for these logs — the Health half of an
+ * undo or a delete. Only Ignia's own samples can go (the platforms' rule), and
+ * only tagged ones are matched: a meal exported before tagging (2026-10-15)
+ * stays in Health. Best-effort and never throws; a refused permission is a
+ * logged no-op.
+ */
+export async function forgetNutrition(logIds: readonly string[]): Promise<void> {
+  if (logIds.length === 0) return;
+  await serialExport(async () => {
+    try {
+      if (!(await isHealthConnected())) return;
+      for (const id of logIds) {
+        try {
+          await health.deleteNutrition(id);
+        } catch (e) {
+          noteHealthNoop('deleteNutrition', e);
+        }
+      }
+      await forgetNutritionTags(logIds);
+    } catch (e) {
+      noteHealthNoop('forgetNutrition', e);
+    }
+  });
+}
+
+/** An edit's new values. `at` is optional: an edit that did not retime the
+ *  row carries no time, and the tagged export's own instant is reused. */
+export type NutritionReplacement = Omit<NutritionExport, 'at' | 'logId'> & { at?: Date };
+
+/**
+ * The Health half of an edit: delete the log's tagged samples, then export the
+ * new values (`entry`; `null` or 0 kcal = the row no longer carries a meal).
+ *
+ * Writes ONLY when the old export is known to have been tagged — this device
+ * recorded the tag (`health-nutrition-tags.ts`), or HealthKit's delete counted
+ * something. An untagged (pre-2026-10-15, or never-exported) log is left
+ * exactly as it was: its samples cannot be found, so writing the new values
+ * would put the meal in Health twice. A failed delete writes nothing for the
+ * same reason, and so does an edit whose time cannot be known (no time on the
+ * edit and no tag to take it from) — it would re-date the meal to now.
+ */
+export async function replaceNutrition(
+  logId: string,
+  entry: NutritionReplacement | null,
+): Promise<void> {
+  await serialExport(async () => {
+    try {
+      if (!(await isHealthConnected())) return;
+      const tag = await getNutritionTag(logId);
+      const writes = !!entry && entry.kcal > 0;
+      const at = entry?.at ?? (tag ? new Date(tag.at) : undefined);
+      if (writes && !at) return;
+      // No tag on file and a delete that cannot say whether it found anything
+      // (Health Connect): the export may still be in Health tagged — the tag
+      // was lost to a reinstall or the cap — and deleting it here would
+      // remove the meal outright, since nothing proves it may be rewritten.
+      // Leave it as it was, like any untagged export.
+      if (!tag && writes && !health.nutritionDeleteCounts) return;
+      let removed: number | undefined;
+      try {
+        removed = await health.deleteNutrition(logId);
+      } catch (e) {
+        noteHealthNoop('deleteNutrition', e);
+        return;
+      }
+      if (!tag && !((removed ?? 0) > 0)) return;
+      if (writes && entry && at) {
+        await markNutritionTagged(logId, at);
+        await health.writeNutrition({ ...entry, at, logId });
+      } else {
+        await forgetNutritionTags([logId]);
+      }
+    } catch (e) {
+      noteHealthNoop('replaceNutrition', e);
+    }
+  });
 }
 
 export async function exportWorkout(w: WorkoutExport): Promise<void> {

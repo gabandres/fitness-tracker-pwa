@@ -393,7 +393,6 @@ export interface ProfileFields {
    *  average weight — shown in the volume panel. Absent → no gate line. */
   volumeGateLb?: number;
   fastStartedAt?: Date | null; // when fasting — ISO timestamp of fast start
-  webhookApiKey?: string;      // static UUID for Apple Shortcuts webhook auth
   fcmToken?: string;           // FCM push token
   reminderHour?: number;       // 0–23, default 20 (8 PM)
   timezoneOffsetMin?: number;  // from new Date().getTimezoneOffset()

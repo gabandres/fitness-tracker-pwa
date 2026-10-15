@@ -8,7 +8,6 @@
 import "./init";
 
 // ─── Feature modules (formerly inline here) ────────────────────────
-export { logWebhook } from "./log-webhook";
 export { analyzePhoto } from "./analyze-photo";
 export { consultationStream, checkAccessStatus } from "./consultation";
 export { exportUserData, deleteAccount } from "./gdpr";
@@ -25,7 +24,7 @@ export { sendPasswordReset } from "./password-reset";
 export { onFeedbackCreated } from "./feedback-notify";
 export { sendVerificationEmail } from "./verify-email";
 export { unsubscribeWeeklyDigest } from "./unsubscribe";
-export { beginOuraLink, unlinkOura, ouraCallback } from "./oura-link";
+export { beginOuraLink, completeOuraLink, unlinkOura, ouraCallback } from "./oura-link";
 export { fetchOuraWorkouts } from "./oura-workouts";
 export { fetchOuraDaily } from "./oura-daily";
 
@@ -37,7 +36,6 @@ export {
   onDailyWeightWriteMirrorPublicProfile,
 } from "./public-profile";
 export { searchFoods, getFoodDetail } from "./food-search";
-export { importRecipe } from "./import-recipe";
 export { ogImagePublicProfile, servePublicProfilePage } from "./og-image";
 export { bootstrapAdmin, adminNoteSession } from "./admin-claims";
 export { adminGetCostModel, adminGetBilling, adminSetCostLedger } from "./cost-model";

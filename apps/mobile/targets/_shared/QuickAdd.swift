@@ -177,6 +177,10 @@ public enum QuickAdd {
     /// No credential. Nothing was written and nothing was parked — a row with no
     /// uid could land on whoever signs in next, which is worse than a lost tap.
     case signedOut
+    /// The write failed AND the offline queue was full (`pendingMax`), so the
+    /// row was neither landed nor parked. Saying `.queued` here would promise a
+    /// sync that can never happen.
+    case notSaved
   }
 
   /// One row to write. Mirrors `LogEntry`'s quick-add subset.
@@ -214,6 +218,9 @@ public enum QuickAdd {
     /// The bumped snapshot JSON, for the watch push. `nil` when there was no
     /// snapshot on disk to bump.
     let encoded: String?
+    /// Whether the write-ahead park took the row. `false` only when the queue
+    /// is at `pendingMax`: then a failed write has nowhere to wait.
+    let parked: Bool
   }
 
   /**
@@ -260,9 +267,12 @@ public enum QuickAdd {
       return nil
     }
     let id = newLedgerId()
-    let encoded = applyLocally(row)
-    park(row: row, id: id, uid: creds.uid)
-    return Staged(id: id, creds: creds, encoded: encoded)
+    // Park FIRST: a row the full queue refused is not durable, so the face
+    // must not show it yet — it moves only if `commit` actually lands it
+    // (the app's next snapshot write), never for a meal that may be lost.
+    let parked = park(row: row, id: id, uid: creds.uid)
+    let encoded = parked ? applyLocally(row) : nil
+    return Staged(id: id, creds: creds, encoded: encoded, parked: parked)
   }
 
   /**
@@ -283,10 +293,17 @@ public enum QuickAdd {
     } catch {
       // The row stays parked. `flushPendingLogs` replays it, as the same id, so
       // a request that landed and lost its ack becomes an overwrite of
-      // identical bytes rather than a second meal.
-      outcome = .queued
+      // identical bytes rather than a second meal. Unless the queue was full
+      // and refused it — then nothing will replay it, and the caller must not
+      // say it will.
+      outcome = staged.parked ? .queued : .notSaved
     }
-    record(outcome: outcome == .logged ? "logged" : "queued")
+    switch outcome {
+    case .logged: record(outcome: "logged")
+    case .queued: record(outcome: "queued")
+    case .notSaved: record(outcome: "notSaved")
+    case .signedOut: record(outcome: "signedOut")
+    }
 
     // Last, deliberately. The wrist is a seconds-to-minutes surface by
     // construction and this can wait up to 3s for session activation; putting
@@ -455,14 +472,19 @@ public enum QuickAdd {
   /// App Group is the only store both this process and the app can see; the JS
   /// side reads the same key from the same container.
   static let pendingKey = "ignia.pendingLogs.v1"
-  /// Mirrors `PENDING_LOGS_MAX`.
-  static let pendingMax = 25
+  /// Mirrors `PENDING_LOGS_MAX` (500 since 2026-10-15). At the cap a NEW row is
+  /// refused rather than evicting the oldest unsent one, matching
+  /// `pendingQueueFull` in core: dropping a parked meal loses data silently.
+  static let pendingMax = 500
 
   /// Park a row under the id the failed attempt used, so the app's flush is a
   /// replay rather than a second write. The wire shape mirrors `PendingLog`
   /// exactly — flat, primitive-only, no nested objects and no `Date`.
-  private static func park(row: Row, id: String, uid: String) {
-    guard let defaults = UserDefaults(suiteName: Glance.appGroup) else { return }
+  /// Returns whether the row is on disk; `false` when the queue is full or the
+  /// App Group is unreachable.
+  @discardableResult
+  private static func park(row: Row, id: String, uid: String) -> Bool {
+    guard let defaults = UserDefaults(suiteName: Glance.appGroup) else { return false }
     var list: [[String: Any]] = []
     if let json = defaults.string(forKey: pendingKey),
        let parsed = try? JSONSerialization.jsonObject(with: Data(json.utf8)) as? [[String: Any]] {
@@ -481,15 +503,16 @@ public enum QuickAdd {
     if let f = row.fat { entry["fat"] = f }
     if let label = row.mealLabel, !label.isEmpty { entry["mealLabel"] = label }
 
-    // Dedupe by id and cap, matching `mergePendingLog`.
+    // Dedupe by id; refuse a new row at the cap, matching `pendingQueueFull`.
     list.removeAll { ($0["id"] as? String) == id }
+    if list.count >= pendingMax { return false }
     list.append(entry)
-    if list.count > pendingMax { list.removeFirst(list.count - pendingMax) }
 
-    if let data = try? JSONSerialization.data(withJSONObject: list),
-       let json = String(data: data, encoding: .utf8) {
-      defaults.set(json, forKey: pendingKey)
-    }
+    guard let data = try? JSONSerialization.data(withJSONObject: list),
+          let json = String(data: data, encoding: .utf8)
+    else { return false }
+    defaults.set(json, forKey: pendingKey)
+    return true
   }
 
   /**

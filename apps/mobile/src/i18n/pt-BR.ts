@@ -1050,6 +1050,7 @@ export const ptBR: Record<I18nKey, string> = {
   'coach.errRate': 'Requisições demais — aguarde um instante e tente de novo.',
   'coach.errAuth': 'Entre de novo para usar o coach.',
   'coach.errGeneric': 'Algo deu errado. Tente de novo.',
+  'coach.errUpdate': 'Esta versão do Ignia não consegue mais usar o coach. Atualize o app para continuar perguntando.',
   'coach.upgradeHint': 'Você atingiu o limite de orientação de hoje — ele renova amanhã.',
 
   // ── weekly report (Pro) ──
@@ -1062,6 +1063,7 @@ export const ptBR: Record<I18nKey, string> = {
   'report.errTooSoon': 'Seu último relatório ainda está recente — um novo pode ser gerado cerca de uma vez por semana.',
   'report.errNotEntitled': 'O relatório semanal é um recurso Pro.',
   'report.errGeneric': 'Não foi possível gerar o relatório. Tente de novo.',
+  'report.errUpdate': 'Esta versão do Ignia não consegue mais gerar relatórios. Atualize o app para receber um novo.',
 
   // ── train ──
   'train.start': 'Iniciar treino',
@@ -2222,6 +2224,13 @@ export const ptBR: Record<I18nKey, string> = {
   'oura.syncedNone': 'Nada novo para importar.',
   'oura.needsReconnect': 'O Oura não aceita mais a nossa conexão. Reconecte para continuar importando.',
   'oura.failed': 'Não foi possível falar com o Oura. Tente novamente em instantes.',
+  // Finishing the Oura link in the app (completeOuraLink, 2026-10-15).
+  'oura.linking': 'Finalizando a conexão com o Oura…',
+  'oura.linked': 'Oura conectado.',
+  'oura.linkDenied': 'Não conectado — você cancelou no Oura. Nada mudou.',
+  'oura.linkExpired': 'Esse link de conexão expirou. Toque em Conectar para começar de novo.',
+  'oura.linkWrongAccount': 'Esse link do Oura foi iniciado em outra conta do Ignia, então nada foi conectado. Toque em Conectar para começar de novo aqui.',
+  'oura.linkFailed': 'Não conseguimos terminar de conectar o Oura. Nada foi salvo — toque em Conectar para tentar de novo.',
   'oura.skipped': 'Não conseguimos ler {n} treinos. Por favor, reporte isso.',
   'oura.declined': '{n} encontrados que não são cardio — o treino de força fica no Train.',
   'oura.truncated': 'Mostrando apenas os treinos mais recentes.',

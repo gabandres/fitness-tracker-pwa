@@ -48,7 +48,10 @@ service cloud.firestore {
         'publicSlug', 'publicProfileEnabled',
         'lastWeeklyDigestSentAt', 'day1NudgeSentAt',
         'welcomeEmailSentAt', 'dayThreeCoachPushSent', 'firstEntryAt',
-        'syntheticAccount'
+        'syntheticAccount',
+        // Legacy, not server-written — see the Completed allow-list. Listed
+        // so no new profile can be created carrying one.
+        'webhookApiKey'
       ];
     }
 
@@ -646,7 +649,15 @@ service cloud.firestore {
               'email', 'createdAt', 'lastSeenAt', 'profileCompleted',
               'heightIn', 'age', 'sex', 'activityLevel',
               'targetPaceLbsPerWeek', 'goalWeightLbs',
-              'travelMode', 'fastStartedAt', 'webhookApiKey',
+              'travelMode', 'fastStartedAt',
+              // LEGACY, write-dead: the Apple Shortcuts webhook's key. The
+              // webhook (`logWebhook`) was deleted 2026-10-15 and nothing
+              // reads or writes this field, but profiles minted while it
+              // existed may still carry one — and `hasOnly` checks the WHOLE
+              // doc, so dropping it here would reject every later write to
+              // those profiles. A client may keep or delete it, never set or
+              // change it (pinned on the update rule; absent from create).
+              'webhookApiKey',
               'fcmToken', 'reminderHour', 'timezoneOffsetMin',
               // Expo push token (#114) — client-writable, unlike the latches
               // below; cleared with null or a field delete. The server only
@@ -784,8 +795,6 @@ service cloud.firestore {
           && (!('travelMode' in keys) || data.travelMode is bool)
           && (!('fastStartedAt' in keys) ||
               data.fastStartedAt is timestamp || data.fastStartedAt == null)
-          && (!('webhookApiKey' in keys) ||
-              (data.webhookApiKey is string && data.webhookApiKey.size() == 36))
           && (!('fcmToken' in keys) ||
               (data.fcmToken is string && data.fcmToken.size() <= 300))
           && (!('expoPushToken' in keys) ||
@@ -921,7 +930,12 @@ service cloud.firestore {
                        // metric, and one that could clear it would put the
                        // seeded 83-log account back into the numbers.
                        && (resource.data.get('syntheticAccount', null) ==
-                           request.resource.data.get('syntheticAccount', null));
+                           request.resource.data.get('syntheticAccount', null))
+                       // Legacy `webhookApiKey`: keep it or delete it, never
+                       // set or change it (nothing has read it since
+                       // `logWebhook` was deleted 2026-10-15).
+                       && request.resource.data.get('webhookApiKey', null) in
+                           [null, resource.data.get('webhookApiKey', null)];
 
       match /dailyLogs/{logId} {
         allow read:   if isOwner(uid) || isAdmin();

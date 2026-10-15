@@ -53,6 +53,95 @@ export interface NutritionExport {
   protein?: number;
   carbs?: number;
   fat?: number;
+  /**
+   * The ledger id of the `DailyLog` these samples mirror. Stamped on every
+   * sample (HealthKit metadata {@link HK_LOG_ID_KEY}, Health Connect
+   * `metadata.clientRecordId`) so an undo, delete or edit can find exactly
+   * them again ({@link HealthPort.deleteNutrition}). Optional only so an
+   * untagged caller still exports; every in-app caller passes it.
+   */
+  logId?: string;
+}
+
+/**
+ * The HealthKit metadata key carrying {@link NutritionExport.logId}.
+ *
+ * A custom key rather than `HKMetadataKeyExternalUUID` / `SyncIdentifier`:
+ * Apple reserves the `HK` prefix, `SyncIdentifier` demands a version and makes
+ * the save a replace-by-key with rules of its own, and all we need is a value
+ * a predicate can match. `predicateForObjects(withMetadataKey:operatorType:
+ * value:)` matches custom keys like any other.
+ *
+ * Samples exported before 2026-10-15 carry no key, so nothing here can reach
+ * them — they stay in Health as they were (see `replaceNutrition`).
+ */
+export const HK_LOG_ID_KEY = 'ignia_log_id';
+
+/** The four dietary quantity types one logged meal exports to on iOS. */
+export const HK_NUTRITION_TYPES = [
+  'HKQuantityTypeIdentifierDietaryEnergyConsumed',
+  'HKQuantityTypeIdentifierDietaryProtein',
+  'HKQuantityTypeIdentifierDietaryCarbohydrates',
+  'HKQuantityTypeIdentifierDietaryFatTotal',
+] as const;
+
+/** Metadata for one exported dietary sample; `undefined` when untagged. */
+export function hkNutritionMetadata(logId?: string): Record<string, string> | undefined {
+  return logId ? { [HK_LOG_ID_KEY]: logId } : undefined;
+}
+
+/**
+ * The `deleteObjects` filter for one log's samples: metadata key equal to the
+ * id (the native side defaults the operator to `equalTo` when a value is
+ * given — `createMetadataPredicate` in kingstinct's `PredicateHelpers.swift`).
+ * No date clause: the id alone is unique, and the meal's time may have moved
+ * in the very edit that is replacing it.
+ */
+export function hkNutritionDeleteFilter(logId: string): {
+  metadata: { withMetadataKey: string; value: string };
+} {
+  return { metadata: { withMetadataKey: HK_LOG_ID_KEY, value: logId } };
+}
+
+/** Health Connect `clientRecordId` for one log's Nutrition record. Scoped to
+ *  our package by the platform; the prefix only says what it is. */
+export function hcNutritionClientRecordId(logId: string): string {
+  return `ignia-log-${logId}`;
+}
+
+/** Health Connect `RecordingMethod.RECORDING_METHOD_MANUAL_ENTRY`. */
+const HC_MANUAL_ENTRY = 3;
+
+/**
+ * The Health Connect Nutrition record for one meal. Pure, for the test.
+ *
+ * With a `logId` the record carries `clientRecordId` — what
+ * `deleteRecordsByUuids` deletes by — and a `clientRecordVersion` of `version`
+ * (a ms timestamp, so it only grows), which makes a re-insert of the same log
+ * an upsert rather than a second meal.
+ */
+export function hcNutritionRecord(
+  { at, kcal, protein, carbs, fat, logId }: NutritionExport,
+  version: number,
+): Record<string, unknown> {
+  const iso = at.toISOString();
+  const record: Record<string, unknown> = {
+    recordType: 'Nutrition',
+    startTime: iso,
+    endTime: iso,
+    energy: { unit: 'kilocalories', value: kcal },
+  };
+  if (protein != null) record.protein = { unit: 'grams', value: protein };
+  if (carbs != null) record.totalCarbohydrate = { unit: 'grams', value: carbs };
+  if (fat != null) record.totalFat = { unit: 'grams', value: fat };
+  if (logId) {
+    record.metadata = {
+      clientRecordId: hcNutritionClientRecordId(logId),
+      clientRecordVersion: version,
+      recordingMethod: HC_MANUAL_ENTRY,
+    };
+  }
+  return record;
 }
 
 export interface WorkoutExport {
@@ -127,8 +216,29 @@ export interface HealthPort {
    * window is "ends within the day" (see {@link sleepDeleteWindow}).
    */
   deleteDaily(kind: DeletableKind, dateKey: string): Promise<boolean>;
-  /** Export one logged meal's macros as dietary samples. */
+  /** Export one logged meal's macros as dietary samples, tagged with
+   *  `entry.logId` when given. */
   writeNutrition(entry: NutritionExport): Promise<void>;
+  /**
+   * Remove the dietary samples Ignia exported for one log (undo, delete, the
+   * first half of an edit). Matches by the tag {@link writeNutrition} stamps,
+   * so an untagged (pre-2026-10-15) export is never reached.
+   *
+   * Only ever touches Ignia's own samples — the platforms' rule, as for
+   * {@link deleteDaily}. Resolves with how many samples went when the platform
+   * says (HealthKit), `undefined` when it does not (Health Connect's delete
+   * returns nothing) or the native method is absent. Rejects when the platform
+   * refused outright (no write permission) — the caller treats that as a no-op.
+   */
+  deleteNutrition(logId: string): Promise<number | undefined>;
+  /**
+   * Whether {@link deleteNutrition} reports how many samples it removed
+   * (HealthKit: yes; Health Connect: its delete returns nothing). Absent =
+   * no. An edit with no tag on file deletes only where a count can prove the
+   * delete found the meal — otherwise a tagged export whose tag this device
+   * lost (reinstall, cap eviction) would be deleted and never rewritten.
+   */
+  readonly nutritionDeleteCounts?: boolean;
   /** Export a finished workout session. */
   writeWorkout(w: WorkoutExport): Promise<void>;
 }
@@ -627,16 +737,44 @@ const healthKit: HealthPort = {
     return true;
   },
 
-  async writeNutrition({ at, kcal, protein, carbs, fat }) {
+  async writeNutrition({ at, kcal, protein, carbs, fat, logId }) {
     const HK = await hkModule();
+    // `metadata` is `saveQuantitySample`'s sixth parameter in kingstinct
+    // 14.0.2 (`QuantityTypeModule.swift` hands it to `HKQuantitySample.init`
+    // via `anyMapToDictionaryOptional`), so the tag needs no new native code.
+    const metadata = hkNutritionMetadata(logId);
     const one = (id: string, unit: string, v?: number) =>
-      v == null ? Promise.resolve(undefined) : HK.saveQuantitySample(id as never, unit as never, v, at, at);
+      v == null
+        ? Promise.resolve(undefined)
+        : HK.saveQuantitySample(id as never, unit as never, v, at, at, metadata as never);
+    const [energy, proteinT, carbsT, fatT] = HK_NUTRITION_TYPES;
     await Promise.all([
-      one('HKQuantityTypeIdentifierDietaryEnergyConsumed', 'kcal', kcal),
-      one('HKQuantityTypeIdentifierDietaryProtein', 'g', protein),
-      one('HKQuantityTypeIdentifierDietaryCarbohydrates', 'g', carbs),
-      one('HKQuantityTypeIdentifierDietaryFatTotal', 'g', fat),
+      one(energy, 'kcal', kcal),
+      one(proteinT, 'g', protein),
+      one(carbsT, 'g', carbs),
+      one(fatT, 'g', fat),
     ]);
+  },
+
+  nutritionDeleteCounts: true,
+
+  async deleteNutrition(logId) {
+    const HK = await hkModule();
+    // Same guard as `deleteDaily`: `deleteObjects` is in every binary since
+    // the module shipped (CoreModule.swift), but absent must mean "not
+    // deleted", never a crash.
+    const del = (HK as unknown as { deleteObjects?: (id: never, filter: never) => Promise<number> }).deleteObjects;
+    if (typeof del !== 'function') return undefined;
+    const filter = hkNutritionDeleteFilter(logId);
+    // One call per type — `deleteObjects` takes one. Settled independently:
+    // a user can grant energy and refuse fat, and a refusal on one type must
+    // not keep the others in Health.
+    const results = await Promise.allSettled(
+      HK_NUTRITION_TYPES.map((id) => del(id as never, filter as never)),
+    );
+    const ok = results.filter((r): r is PromiseFulfilledResult<number> => r.status === 'fulfilled');
+    if (ok.length === 0) throw (results[0] as PromiseRejectedResult).reason;
+    return ok.reduce((n, r) => n + (Number(r.value) || 0), 0);
   },
 
   async readWorkouts(sinceDays) {
@@ -1111,20 +1249,28 @@ const healthConnect: HealthPort = {
     return true;
   },
 
-  async writeNutrition({ at, kcal, protein, carbs, fat }) {
+  async writeNutrition(entry) {
     const HC = await hcModule();
     await HC.initialize();
-    const iso = at.toISOString();
-    const record: Record<string, unknown> = {
-      recordType: 'Nutrition',
-      startTime: iso,
-      endTime: iso,
-      energy: { unit: 'kilocalories', value: kcal },
-    };
-    if (protein != null) record.protein = { unit: 'grams', value: protein };
-    if (carbs != null) record.totalCarbohydrate = { unit: 'grams', value: carbs };
-    if (fat != null) record.totalFat = { unit: 'grams', value: fat };
-    await HC.insertRecords([record] as never);
+    // `metadata` is read by `ReactNutritionRecord.parseWriteRecord` →
+    // `convertMetadataFromJSMap` (clientRecordId, clientRecordVersion,
+    // recordingMethod) on react-native-health-connect 3.5.3.
+    await HC.insertRecords([hcNutritionRecord(entry, Date.now())] as never);
+  },
+
+  async deleteNutrition(logId) {
+    const HC = await hcModule();
+    await HC.initialize();
+    // `deleteRecordsByUuids(recordType, recordIds, clientRecordIds)` →
+    // `HealthConnectClient.deleteRecords(..., clientRecordIdsList)` in 3.5.3's
+    // HealthConnectManager.kt. Only the calling app's records are deletable;
+    // without WRITE_NUTRITION it rejects (SecurityException).
+    const del = (HC as unknown as {
+      deleteRecordsByUuids?: (type: never, ids: string[], clientIds: string[]) => Promise<unknown>;
+    }).deleteRecordsByUuids;
+    if (typeof del !== 'function') return undefined;
+    await del('Nutrition' as never, [], [hcNutritionClientRecordId(logId)]);
+    return undefined;
   },
 
   async readWorkouts(sinceDays) {
@@ -1223,6 +1369,9 @@ const noopHealth: HealthPort = {
     return false;
   },
   async writeNutrition() {},
+  async deleteNutrition() {
+    return undefined;
+  },
   async writeWorkout() {},
 };
 
