@@ -289,6 +289,7 @@ export {
   hrBand,
   isZone2,
   zone2Check,
+  zone2MissingRpe,
 } from './cardio';
 // Health WORKOUTS — the event-stream sibling of ./health-mapping's daily
 // scalars (ADR-0026). Modality + provider normalization, import filtering and

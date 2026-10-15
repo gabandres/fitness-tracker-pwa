@@ -116,3 +116,40 @@ describe('Finish with blank RIRs', () => {
     expect(asked).toBeNull();
   });
 });
+
+/** Zone 2 RPE is REQUIRED to save (owner, 2026-10-15): no default to offer,
+ *  so Complete refuses until it is picked in the sheet. */
+describe('Finish with a Zone 2 block and no RPE', () => {
+  const withZone2 = (rpe?: number) => {
+    const train = makeTrain(0);
+    train.active = {
+      ...train.active,
+      cardio: [{ modality: 'run', label: 'Zone 2', durationSec: 1200, source: 'manual', ...(rpe != null ? { rpe } : {}) }],
+    } as unknown as WorkoutSession;
+    return train;
+  };
+
+  it('Complete does not save, and says why', async () => {
+    const train = withZone2();
+    const ui = await open(train);
+    expect(ui.getByTestId('finish-zone2-rpe')).toHaveTextContent('Zone 2 effort is required', { exact: false });
+    await fireEvent.press(ui.getByTestId('finish-confirm'));
+    expect(ui.getByTestId('finish-save-error')).toHaveTextContent('Pick the Zone 2 effort (RPE) above to save.');
+    expect(train.finishWorkout).not.toHaveBeenCalled();
+  });
+
+  it('a chip writes that RPE onto the block', async () => {
+    const train = withZone2();
+    const ui = await open(train);
+    await fireEvent.press(ui.getByTestId('finish-rpe-0-3'));
+    expect(train.dispatch).toHaveBeenCalledWith({ type: 'patchCardio', blockIndex: 0, patch: { rpe: 3 } }, { defer: true });
+  });
+
+  it('with an RPE in place it saves as usual', async () => {
+    const train = withZone2(4);
+    const ui = await open(train);
+    expect(ui.queryByTestId('finish-zone2-rpe')).toBeNull();
+    await fireEvent.press(ui.getByTestId('finish-confirm'));
+    await waitFor(() => expect(train.finishWorkout).toHaveBeenCalled());
+  });
+});

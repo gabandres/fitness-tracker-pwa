@@ -744,6 +744,9 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   rirMissingRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   rirMissingBtn: { minHeight: 44, minWidth: 44, paddingHorizontal: space.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.lineStrong, alignItems: 'center', justifyContent: 'center' },
   rirMissingBtnText: { fontSize: font.small, fontWeight: '700', color: colors.ink },
+  // Finish sheet: the required Zone 2 RPE, 1–10, wrapping at narrow widths.
+  rpeChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
+  rpeChip: { minHeight: 44, minWidth: 44, borderRadius: radius.md, borderWidth: 1, borderColor: colors.lineStrong, alignItems: 'center', justifyContent: 'center' },
   invalidBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',

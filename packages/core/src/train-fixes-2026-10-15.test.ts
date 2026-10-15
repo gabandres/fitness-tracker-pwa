@@ -125,3 +125,16 @@ describe('a removed imported cardio block stays removed', () => {
     expect(fresh.blocks).toHaveLength(2);
   });
 });
+
+describe('Zone 2 RPE is required', () => {
+  it('a logged Zone 2 block with no RPE is flagged; with one, or unlogged, or not Zone 2, it is not', async () => {
+    const { zone2MissingRpe } = await import('./cardio');
+    expect(zone2MissingRpe([
+      { label: 'Zone 2', durationSec: 1200 },
+      { label: 'Zone 2', durationSec: 1200, rpe: 3 },
+      { label: 'Zone 2', durationSec: 0 },
+      { durationSec: 1048 },
+    ] as never)).toEqual([0]);
+    expect(zone2MissingRpe(undefined)).toEqual([]);
+  });
+});

@@ -290,6 +290,19 @@ export function isLoggedCardioBlock(b: Pick<CardioBlock, 'durationSec'>): boolea
   return Number.isFinite(b.durationSec) && b.durationSec > 0;
 }
 
+/**
+ * Logged Zone 2 blocks with no RPE, by index into `cardio` (owner,
+ * 2026-10-15): a Zone 2 block cannot be saved without one. RPE is the half of
+ * the Zone 2 check a watch cannot supply (`zone2Check`), and four of the
+ * owner's walks went in at RPE 10 or blank. Unlike a blank RIR there is no
+ * honest default to fill, so Finish asks for the number rather than offering
+ * one. An unlogged block is dropped at Complete anyway, and a block not
+ * labelled Zone 2 (an imported walk) is not held to it.
+ */
+export function zone2MissingRpe(cardio: readonly Pick<CardioBlock, 'label' | 'durationSec' | 'rpe'>[] | undefined): number[] {
+  return (cardio ?? []).flatMap((b, i) => (isZone2(b) && isLoggedCardioBlock(b) && b.rpe == null ? [i] : []));
+}
+
 // ─── The energy seam ────────────────────────────────────────────
 
 /**

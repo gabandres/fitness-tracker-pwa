@@ -136,10 +136,12 @@ export function WeeklyVolumeSheet({
           <Text style={styles.sheetHint} testID="weekly-volume-hint">{t(copy.hint)}</Text>
           {rotation.length ? (
             <Text style={styles.sheetHint} testID="weekly-volume-rotation">
+              {/* The dates it spans, said, so "per rotation" is never read as
+                  a rolling 7 days (owner, 2026-10-15). */}
               {t('train.volume.rotation', {
-                sessions: rotation
-                  .map((s) => `${s.templateName ?? t('train.volume.session')} ${formatDate(s.date, locale, { month: 'short', day: 'numeric' })}`)
-                  .join(' · '),
+                from: formatDate(rotation[0].date, locale, { month: 'short', day: 'numeric' }),
+                to: formatDate(rotation[rotation.length - 1].date, locale, { month: 'short', day: 'numeric' }),
+                sessions: rotation.map((s) => s.templateName ?? t('train.volume.session')).join(' · '),
               })}
             </Text>
           ) : null}

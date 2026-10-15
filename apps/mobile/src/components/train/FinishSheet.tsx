@@ -27,6 +27,7 @@ import {
   sessionCounts,
   setsMissingRir,
   weightBoundsFor,
+  zone2MissingRpe,
 } from '@macrolog/core';
 import { BottomSheet } from '@/components/BottomSheet';
 import { useDoneKeyProps } from '@/components/KeyboardBar';
@@ -143,6 +144,8 @@ export function FinishSheet({
   autoApply = false,
   missingRir = [],
   onFillRir,
+  zone2NoRpe = [],
+  onSetRpe,
 }: {
   visible: boolean;
   session: WorkoutSession;
@@ -167,6 +170,11 @@ export function FinishSheet({
   missingRir?: MissingRir[];
   /** Fill those sets with RIR 0. */
   onFillRir?: (missing: MissingRir[]) => void;
+  /** Logged Zone 2 blocks with no RPE (core `zone2MissingRpe`). REQUIRED:
+   *  Complete refuses until each has one, picked right here (2026-10-15). */
+  zone2NoRpe?: { blockIndex: number; label: string }[];
+  /** Store an RPE on one of those blocks. */
+  onSetRpe?: (blockIndex: number, rpe: number) => void;
   /** Resolves `false` when the save failed and the sheet should stay open.
    *  `changes` are the template moves the lifter chose to make and `shape` the
    *  structure changes — both empty unless they answered "Update {template}". */
@@ -316,6 +324,14 @@ export function FinishSheet({
       // The extras row may have been folded away after typing.
       if (wErr || sErr) setExtrasOpen(true);
       announce(firstErr, { androidHasLiveRegion: true });
+      return;
+    }
+    // Zone 2 RPE is required, and there is no default to offer: the lifter
+    // picks it in the section above, then Complete again.
+    if (zone2NoRpe.length > 0 && onSetRpe) {
+      const msg = t('train.zone2RpeRequired');
+      setSaveErr(msg);
+      announce(msg, { androidHasLiveRegion: true });
       return;
     }
     setSaveErr('');
@@ -621,6 +637,42 @@ export function FinishSheet({
                 {t('train.rec.finish.auto', { template: templateName })}
               </Text>
             ) : null}
+          </View>
+        ) : null}
+
+        {zone2NoRpe.length > 0 && onSetRpe ? (
+          <View style={styles.invalidBox} testID="finish-zone2-rpe">
+            <Ionicons name="alert-circle-outline" size={18} color={colors.warn} />
+            <View style={{ flex: 1, gap: space.xs }}>
+              <Text style={styles.invalidHeading}>{t('train.zone2RpeHeading')}</Text>
+              {zone2NoRpe.map((b) => (
+                <View key={b.blockIndex} style={{ gap: space.xs }}>
+                  <Text style={styles.invalidRow}>
+                    <Text style={styles.invalidName}>{b.label}</Text>
+                    {` · ${t('cardio.rpeHintZone2')}`}
+                  </Text>
+                  <View style={styles.rpeChipRow} accessibilityRole="radiogroup" accessibilityLabel={`${t('cardio.rpe')}, ${b.label}`}>
+                    {Array.from({ length: 10 }, (_, k) => k + 1).map((n) => (
+                      <Touchable
+                        key={n}
+                        style={styles.rpeChip}
+                        onPress={() => {
+                          haptics.tap();
+                          setSaveErr('');
+                          onSetRpe(b.blockIndex, n);
+                        }}
+                        accessibilityRole="radio"
+                        accessibilityLabel={`${t('cardio.rpe')} ${n}`}
+                        testID={`finish-rpe-${b.blockIndex}-${n}`}
+                      >
+                        <Text style={styles.rirMissingBtnText}>{n}</Text>
+                      </Touchable>
+                    ))}
+                  </View>
+                </View>
+              ))}
+              <Text style={styles.invalidHint}>{t('train.zone2RpeHint')}</Text>
+            </View>
           </View>
         ) : null}
 
@@ -959,6 +1011,14 @@ export function TrainFinishSheet({
     }
     return setsMissingRir(session.exercises, (id) => lastRir.get(id) === true);
   }, [session, recentSessions]);
+  const zone2NoRpe = useMemo(
+    () => (session ? zone2MissingRpe(session.cardio).map((i) => ({ blockIndex: i, label: session.cardio?.[i]?.label?.trim() || t('cardio.modality.walk') })) : []),
+    [session, t],
+  );
+  const setRpe = (blockIndex: number, rpe: number) => {
+    void train.dispatch?.({ type: 'patchCardio', blockIndex, patch: { rpe } }, { defer: true });
+    void train.commitActive?.();
+  };
   /** RIR 0 on every listed set. `dispatch` updates the live session
    *  synchronously, so a Complete straight after this saves the zeros. */
   const fillRir = (list: MissingRir[]) => {
@@ -1023,6 +1083,8 @@ export function TrainFinishSheet({
       autoApply={autoApply}
       missingRir={missingRir}
       onFillRir={train.dispatch ? fillRir : undefined}
+      zone2NoRpe={zone2NoRpe}
+      onSetRpe={train.dispatch ? setRpe : undefined}
       onFinish={async (extras, changes, shape) => {
         // `finishWorkout` answers `false` when it could not record the
         // finish at all (the hook's boolean contract); a legacy void resolve

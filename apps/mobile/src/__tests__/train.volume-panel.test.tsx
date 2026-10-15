@@ -148,7 +148,7 @@ describe('the by-muscle link and the history rows (train-ux H1, H2, S23-13)', ()
 
   it('shows the link when the week has clusters', async () => {
     const ui = await render(<TrainScreen />);
-    expect(ui.getByTestId('weekly-volume-open')).toHaveTextContent('Your rotation by muscle', { exact: false });
+    expect(ui.getByTestId('weekly-volume-open')).toHaveTextContent('Volume per rotation', { exact: false });
   });
 
   it('shows it for a straight-set lifter too — the sheet counts hard sets since S23-13', async () => {

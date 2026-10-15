@@ -119,6 +119,8 @@ describe('this week by muscle — Sets | Clusters (S23-13, ADR-0046)', () => {
     // A week with performed clusters opens on Clusters.
     expect(ui.getByTestId('weekly-volume-view-clusters').props.accessibilityState).toMatchObject({ selected: true });
     expect(ui.getByTestId('weekly-volume-hint')).toHaveTextContent(/^Myo-rep clusters from your latest rotation/);
+    // The span is SAID, so "per rotation" is never read as a rolling 7 days.
+    expect(ui.getByTestId('weekly-volume-rotation')).toHaveTextContent(/^Rotation Oct 12 – Oct 12: Push Day/);
     // F5: the chip vocabulary — "Shoulders (side)", never "Side delt".
     expect(ui.getByTestId('weekly-volume-sideDelt')).toHaveTextContent(/^Shoulders \(side\)/);
     expect(ui.queryByText(/delt/i)).toBeNull();
