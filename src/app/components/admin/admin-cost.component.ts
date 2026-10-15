@@ -268,8 +268,8 @@ export class AdminCostComponent {
   readonly num = num;
   readonly relTime = relTime;
 
-  readonly limits = signal<Record<string, number>>({});
-  readonly reasons = signal<Record<string, string>>({});
+  readonly limits = signal<Partial<Record<string, number>>>({});
+  readonly reasons = signal<Partial<Record<string, string>>>({});
   readonly draft = signal<LedgerItem[]>([]);
 
   readonly model = computed(() => this.data.costModel());

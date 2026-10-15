@@ -97,7 +97,7 @@ export class AdminFeedbackComponent {
 
 // ─── Audit log ─────────────────────────────────────────────────────
 
-const ACTION_TONE: Record<string, string> = {
+const ACTION_TONE: Partial<Record<string, string>> = {
   user_delete: 'danger', user_suspend: 'danger', user_unsuspend: 'good',
   plan_override: 'good', quota_reset: 'teal', password_reset_link: 'warn',
   impersonation_start: 'warn', impersonation_stop: 'muted', data_export: 'info',

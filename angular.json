@@ -28,11 +28,6 @@
                 "glob": "**/*",
                 "input": "public/.well-known",
                 "output": "/.well-known"
-              },
-              {
-                "glob": "CHANGELOG.md",
-                "input": ".",
-                "output": "/"
               }
             ],
             "styles": ["src/styles.css", "src/styles-v2.css", "src/app/components/admin/admin.css"]

@@ -101,6 +101,7 @@
       ],
       "headers": [
         {
+          "_comment": "Every route. Security headers: framing is SAMEORIGIN (not DENY / 'none') so a same-origin frame keeps working if authDomain ever moves to ignia.fit (Firebase Auth's /__/auth/iframe); today authDomain is the firebaseapp.com host. No script-src CSP on purpose -- Firebase, Sentry and Google sign-in would each need allow-listing and a miss breaks sign-in silently.",
           "source": "**",
           "headers": [
             {
@@ -110,6 +111,26 @@
             {
               "key": "Cross-Origin-Opener-Policy",
               "value": "same-origin-allow-popups"
+            },
+            {
+              "key": "X-Content-Type-Options",
+              "value": "nosniff"
+            },
+            {
+              "key": "Strict-Transport-Security",
+              "value": "max-age=31536000; includeSubDomains"
+            },
+            {
+              "key": "Referrer-Policy",
+              "value": "strict-origin-when-cross-origin"
+            },
+            {
+              "key": "X-Frame-Options",
+              "value": "SAMEORIGIN"
+            },
+            {
+              "key": "Content-Security-Policy",
+              "value": "frame-ancestors 'self'"
             }
           ]
         },
@@ -124,11 +145,42 @@
           ]
         },
         {
-          "source": "**/*.@(js|mjs|css|woff2|woff|ttf|otf|png|svg|jpg|jpeg|webp|gif|ico)",
+          "_comment": "Content-hashed build output only (outputHashing: all): scripts, styles, fonts. Unhashed files under these extensions are re-relaxed by the worker rule below -- a later matching rule wins for the same header key.",
+          "source": "**/*.@(js|mjs|css|woff2|woff|ttf|otf)",
           "headers": [
             {
               "key": "Cache-Control",
               "value": "public, max-age=31536000, immutable"
+            }
+          ]
+        },
+        {
+          "_comment": "Images from public/ keep their names across deploys (og-image.png, favicon, icons/*, store badges, hero-mockup), so a year of immutable would pin a stale image in every cache. One day.",
+          "source": "**/*.@(png|svg|jpg|jpeg|webp|gif|ico)",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "public, max-age=86400"
+            }
+          ]
+        },
+        {
+          "_comment": "Assets Angular copies out of CSS url() references are content-hashed.",
+          "source": "/media/**",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "public, max-age=31536000, immutable"
+            }
+          ]
+        },
+        {
+          "_comment": "Retired-PWA safety workers (ADR-0036): fixed names, must revalidate on every update check so an old install picks up the self-unregistering script.",
+          "source": "/@(ngsw-worker|firebase-messaging-sw).js",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-cache"
             }
           ]
         },
@@ -147,15 +199,16 @@
           ]
         },
         {
-          "source": "/firebase-messaging-sw.js",
+          "_comment": "Same override problem as /oura/callback: the URL carries the signed unsubscribe token, so the function's own no-store and no-referrer must survive the ** rules above.",
+          "source": "/unsubscribe",
           "headers": [
             {
               "key": "Cache-Control",
-              "value": "no-cache"
+              "value": "no-store"
             },
             {
-              "key": "Service-Worker-Allowed",
-              "value": "/"
+              "key": "Referrer-Policy",
+              "value": "no-referrer"
             }
           ]
         }

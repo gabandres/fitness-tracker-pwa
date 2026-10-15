@@ -7,7 +7,9 @@
  * public).
  *
  * Config comes from CLAUDE.local.md's recorded locations, overridable by env:
- *   ASC_KEY_PATH   path to AuthKey_<KEYID>.p8
+ *   ASC_KEY_PATH   path to AuthKey_<KEYID>.p8 — REQUIRED, no default (the
+ *                  key lives in a different place on every machine; a
+ *                  hardcoded Windows path only produced ENOENT on the Mac).
  *   ASC_KEY_ID     the key id (also embedded in the filename)
  *   ASC_ISSUER_ID  the account's issuer UUID — REQUIRED, no default. It
  *                  identifies this Apple account, so it does not belong in a
@@ -29,8 +31,7 @@ try {
   /* absent or unreadable — env vars may still be exported by the shell */
 }
 
-const KEY_PATH =
-  process.env.ASC_KEY_PATH ?? 'C:/Users/gabri/Downloads/AuthKey_47Z9RY8MT5.p8';
+const KEY_PATH = process.env.ASC_KEY_PATH;
 const KEY_ID = process.env.ASC_KEY_ID ?? '47Z9RY8MT5';
 const ISSUER_ID = process.env.ASC_ISSUER_ID;
 
@@ -45,6 +46,14 @@ function token() {
         'Integrations → App Store Connect API (shown above the key table), then add ' +
         '`ASC_ISSUER_ID=<uuid>` to the git-ignored .env.local at the repo root. ' +
         'It is deliberately not hardcoded — this repo is public.',
+    );
+  }
+  if (!KEY_PATH) {
+    throw new Error(
+      'ASC_KEY_PATH is not set. Point it at the AuthKey_<KEYID>.p8 file (its location ' +
+        'on each machine is recorded in CLAUDE.local.md) by adding ' +
+        '`ASC_KEY_PATH=/absolute/path/AuthKey_<KEYID>.p8` to the git-ignored .env.local ' +
+        'at the repo root, or export it.',
     );
   }
   const now = Math.floor(Date.now() / 1000);

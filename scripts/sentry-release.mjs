@@ -149,10 +149,13 @@ console.log(`[sentry-release] Removed ${removed} .map file(s) from ${DIST_ROOT}.
 // ─── The safety worker ──────────────────────────────────────────────────
 // `public/ngsw-worker.js` is Angular's safety-worker recipe, shipped at the
 // retired PWA's worker URL so every existing install unregisters itself
-// (ADR-0036). It reaches dist as a plain asset; this only proves it did.
-if (!existsSync(join(DIST_ROOT, 'ngsw-worker.js'))) {
-  console.error('[sentry-release] public/ngsw-worker.js did not reach dist — old PWA installs would keep serving a cached app.');
-  process.exit(1);
+// (ADR-0036). `public/firebase-messaging-sw.js` does the same for the retired
+// web-push worker. Both reach dist as plain assets; this only proves they did.
+for (const worker of ['ngsw-worker.js', 'firebase-messaging-sw.js']) {
+  if (!existsSync(join(DIST_ROOT, worker))) {
+    console.error(`[sentry-release] public/${worker} did not reach dist — old PWA installs would keep their retired worker.`);
+    process.exit(1);
+  }
 }
 
 // ─── The prod-build stamp, written LAST ─────────────────────────────────

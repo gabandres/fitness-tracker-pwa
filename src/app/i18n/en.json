@@ -21,13 +21,13 @@
       "title": "Cutting Calculator · Calorie Deficit & Protein · Ignia",
       "eyebrow": "cut · deficit",
       "heading": "cutting calculator",
-      "body": "Calorie deficit + high protein for fat loss while preserving muscle. Targets ~11 kcal/lb and 1g/lb protein — the same defaults strength coaches recommend for sustainable cutting phases."
+      "body": "Calorie deficit + high protein for fat loss while preserving muscle. Targets ~11 kcal/lb and 1.6 g of protein per kg of bodyweight (≈0.73 g/lb) — the evidence-based floor for keeping muscle through a sustainable cut."
     },
     "bulking": {
       "title": "Bulking Calculator · Lean Surplus · Ignia",
       "eyebrow": "bulk · surplus",
       "heading": "bulking calculator",
-      "body": "Lean surplus targets for clean muscle growth: ~17 kcal/lb and 0.8g/lb protein. Aggressive enough to build, conservative enough to keep fat gain in check."
+      "body": "Lean surplus targets for clean muscle growth: ~17 kcal/lb and 1.6 g/kg protein (≈0.73 g/lb). Aggressive enough to build, conservative enough to keep fat gain in check."
     },
     "maintenance": {
       "title": "Maintenance Calorie Calculator · Ignia",
@@ -51,7 +51,7 @@
       "title": "Protein Calculator · Daily g per Pound · Ignia",
       "eyebrow": "protein",
       "heading": "protein calculator",
-      "body": "How much protein do you need? The research-backed range is 0.7–1g per pound of bodyweight, depending on whether you're cutting, maintaining, or bulking. Enter your weight to see your target."
+      "body": "How much protein do you need? Ignia uses the research-backed 1.6 g per kg of bodyweight (≈0.73 g per pound) — enough to keep muscle on a cut and build it on a bulk. Enter your weight to see your target."
     }
   },
   "transformations": {
@@ -214,7 +214,7 @@
     "section": "changelog",
     "titleLead": "Ship",
     "titleEm": "log.",
-    "subtitle": "significant ships, newest first. for the full record see git log.",
+    "subtitle": "highlights, newest first. each version's full notes are on its store listing.",
     "pageTitle": "Changelog — Ignia",
     "loading": "loading…",
     "error": "couldn't load the changelog. please try again later."
@@ -413,7 +413,7 @@
     "howTitle": "How this is calculated",
     "howBody": "Ignia uses a simple bodyweight-based heuristic so you can act on a number today, before 14 days of real data:",
     "howBullet1": "Calories: weight × 11 (lose), 14 (maintain), or 17 (gain).",
-    "howBullet2": "Protein: weight × 1.0 g (lose), 0.9 g (maintain), or 0.8 g (gain) per pound.",
+    "howBullet2": "Protein: 1.6 g per kg of bodyweight (≈0.73 g per pound), whatever the goal.",
     "howBullet3": "Once you log 14+ days, Ignia switches to a measured TDEE based on your actual weight trend.",
     "disclaimer": "Heuristic targets aren't medical advice. If you're treating a condition, talk to a registered dietitian.",
     "faqLink": "Got more questions? Read the FAQ →"
@@ -489,7 +489,7 @@
       },
       {
         "q": "How much protein do I really need?",
-        "a": "0.7 to 1.0 grams per pound of bodyweight. The lower end is fine for general health; the upper end matters when you're in a calorie deficit because protein protects lean mass while you lose fat. A 180 lb person targeting fat loss should aim for ~180 g/day."
+        "a": "About 1.6 grams per kilogram of bodyweight (≈0.73 g per pound) — the level research finds keeps lean mass while you lose fat, and enough to build it in a surplus. Going higher, up to ~2.2 g/kg, is fine but adds little. A 180 lb (82 kg) person should aim for ~130 g/day."
       },
       {
         "q": "Do I need to track carbs and fat?",

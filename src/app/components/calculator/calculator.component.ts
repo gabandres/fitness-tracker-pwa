@@ -20,7 +20,6 @@ import {
   computeProtein,
 } from '@macrolog/core';
 import { CALC_VARIANTS, type CalcVariantKey } from '../../seo/seo-routes';
-import { setCalcPrefill } from '../../utils/calc-prefill';
 import { share } from '../../utils/share';
 import { LucideAngularModule } from 'lucide-angular';
 import { APP_STORE_URL, PLAY_STORE_URL, playBadgeSrc } from '../../utils/app-store';
@@ -73,10 +72,11 @@ function detectGoalFromPath(): GoalDirection {
 
 /**
  * Public, unauthenticated macro calculator at /calculator. The same
- * heuristic that drives v2 onboarding (weight × {11/14/17} kcal,
- * weight × {1.0/0.9/0.8} g protein) — but rendered without sign-in so
- * organic search visitors get value before deciding to create an
- * account. CTA at the bottom links to /app for sign-up.
+ * heuristic the mobile app seeds onboarding with (weight × {11/14/17}
+ * kcal, 1.6 g protein per kg — `@macrolog/core` macro-heuristic.ts) —
+ * rendered without sign-in so organic search visitors get value before
+ * deciding to install. The CTA points at the app stores (the web logging
+ * app is retired, ADR-0036).
  *
  * SEO: this is the primary lead-magnet page, sat alongside the
  * programmatic /macros/:goal/:weight pages. The route is in
@@ -320,11 +320,6 @@ export class CalculatorComponent {
 
   protected trackCtaClick(): void {
     this.analytics.track('calculator_cta_signup', { goal: this.goal() });
-    // Hand off the inputs to onboarding so the user doesn't re-enter
-    // them after sign-up. consumeCalcPrefill in onboarding-v2 reads +
-    // clears this on mount.
-    const w = this.weight();
-    if (w != null) setCalcPrefill(w, this.goal());
   }
 
   /** Brief "Copied!" flash on the share button when the clipboard

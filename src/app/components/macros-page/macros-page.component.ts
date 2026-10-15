@@ -19,7 +19,6 @@ import {
   computeKcal,
   computeProtein,
 } from '@macrolog/core';
-import { setCalcPrefill } from '../../utils/calc-prefill';
 import { share } from '../../utils/share';
 import { APP_STORE_URL } from '../../utils/app-store';
 
@@ -213,7 +212,6 @@ export class MacrosPageComponent {
     const p = this.parsed();
     if (!p) return;
     this.analytics.track('macros_cta_signup', { goal: p.goal, weight: p.weight });
-    setCalcPrefill(p.weight, p.goal);
   }
 
   protected readonly justCopied = signal(false);

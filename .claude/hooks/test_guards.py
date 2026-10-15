@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Test matrix for the project PreToolUse guards.
 
-    python .claude/hooks/test_guards.py
+    python3 .claude/hooks/test_guards.py   (or `python` on Windows)
 
 Run from the repo root. Every case here is either a real failure the guard
 exists to catch, or a false positive the guard produced while being written --
@@ -10,8 +10,11 @@ own earlier revisions twice.
 """
 import json
 import os
+import shutil
+import stat
 import subprocess
 import sys
+import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 HOOKS = os.path.join(ROOT, ".claude", "hooks")
@@ -122,6 +125,64 @@ case(F, edit("Z:/macro-app/functions/src/x.ts", IMP), "functions (firebase-admin
 case(F, edit("Z:/macro-app/src/app/x/y.spec.ts", SPEC), "spec file", "allow")
 case(F, edit("Z:/macro-app/src/app/x/y.emulator.test.ts", SPEC), "emulator test", "allow")
 case(F, edit("Z:/macro-app/src/app/services/foo.service.ts", "const x = 1;"), "unrelated edit to same file", "allow")
+
+# -- the REAL hook path: the command strings in .claude/settings.json --
+# Every case above calls the guards with sys.executable, so it cannot see the
+# failure that switched all three guards off on the Mac until 2026-10-15:
+# settings.json said `python`, which does not exist there (only python3), the
+# hook exited 127, and Claude Code treats any exit other than 2 as "allow".
+# These rows run the exact settings.json command through a shell, the way the
+# harness does, on whatever interpreter the host has -- plus a host where
+# `python3` exists but fails (the Windows Store stub) and only `python` works.
+print("\n-- settings.json hook commands (the path Claude Code actually runs) --")
+SH = shutil.which("bash") or shutil.which("sh")
+SETTINGS = json.load(open(os.path.join(ROOT, ".claude", "settings.json"), encoding="utf-8"))
+HOOK_CMDS = {}
+for grp in SETTINGS["hooks"]["PreToolUse"]:
+    for h in grp["hooks"]:
+        for g in (D, E, F):
+            if g in h["command"]:
+                HOOK_CMDS[g] = h["command"]
+BLOCKING = {
+    D: (cmd("firebase deploy --only hosting"), MISSING_DIST),
+    E: (cmd("cd apps/mobile && npx eas update --platform all --branch production"), None),
+    F: (edit("Z:/macro-app/src/app/services/foo.service.ts", IMP), None),
+}
+
+
+def shell_case(hook, label, path_prefix=None):
+    if hook not in HOOK_CMDS:
+        failures.append(label)
+        print("FAIL %-46s %s" % (label, "not wired in settings.json"))
+        return
+    tool_input, env = BLOCKING[hook]
+    e = {**os.environ, **(env or {}), "CLAUDE_PROJECT_DIR": ROOT}
+    if path_prefix:
+        e["PATH"] = path_prefix + os.pathsep + e.get("PATH", "")
+    r = subprocess.run([SH, "-c", HOOK_CMDS[hook]], input=json.dumps({"tool_input": tool_input}),
+                       capture_output=True, text=True, encoding="utf-8", cwd=ROOT, env=e)
+    got = "BLOCK" if r.returncode == 2 else "allow (exit %d)" % r.returncode
+    ok = got == "BLOCK"
+    if not ok:
+        failures.append(label)
+    print("%s %-46s %s" % ("ok  " if ok else "FAIL", label, got))
+
+
+if SH is None:
+    print("skip: no bash/sh on PATH to run the settings.json commands")
+else:
+    for g in (D, E, F):
+        shell_case(g, "settings.json blocks: " + g)
+    if os.name != "nt":
+        # A host whose python3 is a broken stub and whose python is real.
+        stub = tempfile.mkdtemp()
+        with open(os.path.join(stub, "python3"), "w") as fh:
+            fh.write("#!/bin/sh\necho 'Python was not found' >&2\nexit 9009\n")
+        os.chmod(os.path.join(stub, "python3"), 0o755)
+        os.symlink(sys.executable, os.path.join(stub, "python"))
+        for g in (D, E, F):
+            shell_case(g, "stub python3, real python: " + g, stub)
+        shutil.rmtree(stub)
 
 print("")
 if failures:

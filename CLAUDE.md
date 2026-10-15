@@ -103,9 +103,15 @@ prose alone did not prevent them:
 
 They match **invocations, not mentions** — echoing, grepping or heredoc'ing one
 of these commands is allowed, and `npm run build && firebase deploy` (the
-documented one-liner) passes because the chain rebuilds first. `python
-.claude/hooks/test_guards.py` is the 25-case matrix; run it after touching a
-guard. A guard that fires on the happy path is a guard that gets deleted.
+documented one-liner) passes because the chain rebuilds first. `python3
+.claude/hooks/test_guards.py` (`python` on Windows) is the 44-case matrix; run
+it after touching a guard or `.claude/settings.json`. Its last block runs the
+exact `settings.json` command strings through a shell: until 2026-10-15 they
+called bare `python`, which does not exist on the Mac, so every hook exited 127
+— which Claude Code reads as "allow" — and all three guards were silently off
+there. The commands now try `python3` and fall back to `python` (the Windows
+Store `python3` stub fails the probe). A guard that fires on the happy path is a
+guard that gets deleted.
 
 ## Conventions
 - **Latest versions, not LTS pins** — this repo intentionally tracks bleeding-edge (Angular 21, Firebase 12). Don't silently downgrade to dodge peer conflicts. **Expo caught up on 2026-08-17**: `apps/mobile` moved SDK 54 → **57** (RN 0.86.2, React 19.2) in `b4e60194`, and it **IS merged to `main`** — this line said "deliberately not merged" until 2026-08-19, which stopped being true once 1.2.0 released and the branch landed. An SDK bump moves BOTH fingerprints, so it needs a new binary per platform before anything reaches a user; `STATUS.md` owns where that stands. Node is pinned in `.nvmrc`/root `engines` at 24.12.0, but **only the Windows workstation may rewrite `package-lock.json`** — `ignia-mac` only ever runs `npm ci`, never `npm install` (`docs/build-infrastructure.md`). It is on 24.12.0 too since the 2026-09-10 rebuild (fnm); this line said "Node 22" until 2026-09-14. The rule stands regardless of version: one lockfile author.

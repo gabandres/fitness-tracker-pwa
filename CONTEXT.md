@@ -169,10 +169,10 @@ add a term when a real ambiguity exists, not preemptively.
   screen used to assemble itself — the write-then-mirror order, the day-boundary
   derivation, the plausibility backstop. It lives one layer **above** the ledger
   because both things it needs (`health-sync.ts`, `pending-logs.ts`) already
-  import the ledger, so putting it inside would close a cycle. The four verbs
+  import the ledger, so putting it inside would close a cycle. The verbs
   that are already multi-step and stayed in `ledger.ts` (`switchToMaintenance`,
-  `markExercised`, `startFast`/`breakFast`) touch Firestore only — that is the
-  dividing line.
+  `startFast`/`breakFast`; `markExercised` was one until it was deleted
+  2026-10-15) touch Firestore only — that is the dividing line.
 - **LedgerFeed** — The read-side twin, `apps/mobile/src/hooks/useLedgerFeed.ts`:
   the subscription **policy** (focus-vs-mount gate, `trackSubs` teardown,
   snapshot provenance, readiness, error narrowing) every reading hook used to
@@ -254,8 +254,9 @@ These three windows look similar and are NOT interchangeable. See
   mealCount, exercised, weightLb }`. Used by the Today card, weekly-
   report prompt, CSV export, milestone math. See
   [ADR-0003](docs/adr/0003-day-summary-as-pure-module.md). `mealCount`
-  is also exposed as `count` via `FitnessStore.summaryFor()` for legacy
-  callers.
+  was also exposed as `count` via the web's `FitnessStore.summaryFor()`
+  until ADR-0036; mobile calls `summarizeDay` directly (`useToday`,
+  `app/history/[date].tsx`).
 - **WeeklyReport** — The Gemini-generated narrative readout, **Pro-only**,
   cached under `users/{uid}/reports`. State lives in `WeeklyReportStore`.
   Generation gates server-side in the `generateWeeklyReport` Cloud
@@ -298,10 +299,12 @@ These three windows look similar and are NOT interchangeable. See
   about priority among promotional prompts. The gate lives in `packages/core`
   as a pure function returning `null`, so no component holds a threshold.
   This is what Trends has instead of configuration.
-- **MonthlySummary** — `FitnessStore.monthlySummary()`. 30-day stats:
-  weight delta, adherence %, avg calories, weight count, etc.
-- **TodaySummary** — `{ totalCalories, totalProtein }` for the current
-  local date. Read off `FitnessStore.todaySummary()`.
+- **MonthlySummary** — RETIRED with the web's `FitnessStore.monthlySummary()`
+  (ADR-0036); mobile has no 30-day summary object. Do not reintroduce the
+  term for a Trends readout without a new entry here.
+- **TodaySummary** — today's **DaySummary**: mobile `useToday` computes it
+  with `summarizeDay(todayKey, …)` (the web `FitnessStore.todaySummary()`
+  until ADR-0036).
 
 ## Targets + derivations
 
@@ -309,18 +312,20 @@ These three windows look similar and are NOT interchangeable. See
   in `packages/core/src/targets.ts`: the one pure home for the
   TDEE → calorie-target → protein-target → current-weight chain, plus the
   `mergeDailyWeights` overlay, `currentWeight` resolution, `toProfileFields`
-  gate, and `computeGoalProgress`. **Both** frontends derive targets from it
-  (mobile `useDailyTargets`)
-  — the web store no longer re-implements the precedence inline, it only
-  assembles the snapshot (it alone picks the source-log window). Change the
-  target math here, not per-frontend.
-- **TDEE** — `FitnessStore.tdee()` (reads `DailyTargets projection`).
+  gate, and `computeGoalProgress`. Mobile derives targets from it
+  (`useDailyTargets`, which assembles the snapshot and picks the source-log
+  window); the web store did too until ADR-0036. Change the target math
+  here, never in a hook.
+- **TDEE** — `calculateTdee` in `packages/core/src/tdee.ts`, read through the
+  `DailyTargets projection` (mobile `useDailyTargets`; the web
+  `FitnessStore.tdee()` until ADR-0036).
   Switches between **formula mode** (Mifflin-St Jeor with the user's
   profile) and **measured mode** (weight trend + calorie history once
   there's enough signal). Result includes `source: 'formula' | 'measured'`
   and `newDailyTarget`.
-- **TargetCalories** — `FitnessStore.targetCalories()`, derived by
-  `dailyTargets` in `@macrolog/core`. The user-facing daily kcal goal.
+- **TargetCalories** — derived by `dailyTargets` in `@macrolog/core`, read on
+  mobile through `useDailyTargets` (the web `FitnessStore.targetCalories()`
+  until ADR-0036). The user-facing daily kcal goal.
   Resolution order:
   1. `tdee.newDailyTarget` when TDEE is **measured AND reliable**.
   2. Manual heuristic target from 2-question onboarding
@@ -334,7 +339,8 @@ These three windows look similar and are NOT interchangeable. See
   profile, the latch that hides the prompting card and drops the manual
   targets. Invariant: **`targetsRefinedAt` present ⟺ manual targets
   absent** — re-running onboarding clears the stamp.
-- **ProteinTarget** — `FitnessStore.proteinTarget()`, same projection.
+- **ProteinTarget** — same projection, `useDailyTargets` on mobile (the web
+  `FitnessStore.proteinTarget()` until ADR-0036).
   Resolution order: a `user` target (custom mode + `manualProteinTarget`) →
   `profile.proteinPerKg` live off current weight →
   frozen `manualProteinTarget` snapshot → the **1.6 g/kg** default. Clamped
@@ -360,7 +366,9 @@ These three windows look similar and are NOT interchangeable. See
   owes: old value, new value, reason. Not a **Nudge** (it is not queued); it
   sits under the hero it explains until dismissed (`noticeAckAt`). A change the
   user made is recorded, not announced back to them.
-- **Streak** — `FitnessStore.streak()`. Consecutive days with at least
+- **Streak** — `computeStreak` in `packages/core/src/streak.ts`, called by
+  mobile `useToday` (the web `FitnessStore.streak()` until ADR-0036).
+  Consecutive days with at least
   one log. Pro users get `STREAK_FREEZE_MAX_GAP_PRO = 7` consecutive
   missed days tolerated mid-streak; `streakFreezeUsed()` is true when
   the active streak only spans because a gap was forgiven.
@@ -647,10 +655,13 @@ collections + a `WorkoutStore` facet back the Train tab.
   exercise may override the short rest with its own
   `TemplateExercise.restMiniSec` — a bodyweight cluster cannot shed load
   between efforts, so its intra-cluster rest is longer than a loaded lift's.
-- **finishWorkout** — Hub orchestration on `FitnessStore`: flips the
-  session to `completed`, mirrors session bodyweight into `dailyWeights`,
-  and stamps the day's exercise marker via `markExercised`.
-  `WorkoutStore` owns no cross-cutting writes (no circular dep). Free
+- **finishWorkout** — a **ledger operation** in
+  `apps/mobile/src/lib/ledger-ops.ts` (on the web's `FitnessStore` until
+  ADR-0036): flips the session to `completed`, mirrors session bodyweight
+  into `dailyWeights`. It no longer stamps a 0-kcal exercise-marker
+  `DailyLog` (`markExercised`, dropped 2026-10-15, owner bug C) — the
+  trained day is derived from the completed session (core
+  `trainedDayRows`). Free
   exercise-history window `WORKOUT_HISTORY_DAYS_FREE = 30` (like
   `CHART_HISTORY_DAYS_FREE`).
 

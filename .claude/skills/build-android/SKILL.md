@@ -184,14 +184,17 @@ cd .. && npx expo prebuild -p android --clean --no-install   # only when the fin
 #
 # prebuild DELETES android/local.properties - restore it or Gradle reports
 # "SDK location not found", which reads like a missing SDK install.
-# The path is PER HOST:
-[ -f android/local.properties ] || echo "sdk.dir=Z:/packages/android-sdk" > android/local.properties        # Windows
-# [ -f android/local.properties ] || echo "sdk.dir=$HOME/Library/Android/sdk" > android/local.properties    # macOS
+# The path is PER HOST. ignia-mac (the Android build host since vc 46):
+[ -f android/local.properties ] || echo "sdk.dir=$HOME/Library/Android/sdk" > android/local.properties
+# Windows fallback only (pre-vc-46 host):
+# [ -f android/local.properties ] || echo "sdk.dir=Z:/packages/android-sdk" > android/local.properties
 
 node scripts/patch-android-release.mjs <versionCode> production   # safe to re-run
-# Run bundleRelease via the runner in REFERENCE.md. Two details are load-bearing:
-# an explicit .\gradlew.bat, and deleting NoDefaultCurrentDirectoryInExePath -
-# without both, cmd.exe reports "not recognized" and the wrapper still EXITS 0.
+cd android && ./gradlew bundleRelease                              # on the Mac
+# Windows fallback: run bundleRelease via the runner in REFERENCE.md. Two details
+# are load-bearing there: an explicit .\gradlew.bat, and deleting
+# NoDefaultCurrentDirectoryInExePath - without both, cmd.exe reports
+# "not recognized" and the wrapper still EXITS 0.
 ```
 
 ### When to skip `--clean` - it costs 8m 48s

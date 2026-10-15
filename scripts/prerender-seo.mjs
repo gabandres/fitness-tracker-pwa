@@ -74,7 +74,7 @@ const SITE = SITE_ORIGIN;
 
 const KCAL = { lose: 11, maintain: 14, gain: 17 };
 // Protein: g/kg standard, 1.6 g/kg default (muscle-retention floor on a cut).
-// Keep in sync with src/app/utils/macro-heuristic.ts.
+// Keep in sync with packages/core/src/macro-heuristic.ts.
 const PROTEIN_G_PER_KG = 1.6;
 const computeKcal = (w, g) => Math.round((w * KCAL[g]) / 10) * 10;
 const computeProtein = (w) => Math.round(((w / 2.20462) * PROTEIN_G_PER_KG) / 5) * 5;
@@ -114,7 +114,7 @@ const COPY = {
     privacy:
       'What Ignia stores, what it never collects, and how to delete your account and data. No ads, no data selling, no cross-site tracking.',
     terms: 'The terms you agree to when you use Ignia. Plain language, no dark patterns.',
-    changelog: 'Every significant change to Ignia, newest first — what shipped and when.',
+    changelog: 'Highlights of what shipped in Ignia, newest first.',
     status: "Live health of the services behind Ignia, refreshed automatically.",
     // Footer link graph.
     navCalculators: 'Calculators',
@@ -147,7 +147,7 @@ const COPY = {
     privacy:
       'Qué guarda Ignia, qué nunca recoge y cómo borrar tu cuenta y tus datos. Sin anuncios, sin venta de datos, sin rastreo entre sitios.',
     terms: 'Los términos que aceptas al usar Ignia. En lenguaje claro y sin trampas.',
-    changelog: 'Cada cambio importante en Ignia, del más reciente al más viejo.',
+    changelog: 'Lo más destacado de lo que salió en Ignia, lo más reciente primero.',
     status: 'Estado en vivo de los servicios detrás de Ignia, actualizado automáticamente.',
     // Footer link graph.
     navCalculators: 'Calculadoras',

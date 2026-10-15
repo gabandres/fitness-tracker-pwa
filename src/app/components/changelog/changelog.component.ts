@@ -5,14 +5,16 @@ import { marked } from 'marked';
 type FetchStatus = 'loading' | 'ready' | 'error';
 
 /**
- * Public /changelog route — renders CHANGELOG.md so visitors and search
- * engines see proof of active development. The file is served from the
- * hosting root (see `angular.json` assets config); this component just
- * fetches it and pipes through `marked`.
+ * Public /changelog route — renders `public/changelog-public.md`, a short
+ * curated, user-facing list of highlights, so visitors and search engines
+ * see proof of active development. Linked from the landing directory,
+ * /status, the 404 page and the sitemap.
  *
- * Only the repo CHANGELOG is rendered (no per-entry anchors, no RSS).
- * If we later want richer presentation we'll parse headings into cards,
- * but for now the plain rendered markdown already matches the audience.
+ * Until 2026-10-15 this fetched the repo's CHANGELOG.md (copied to the
+ * hosting root by angular.json), which is the internal engineering log —
+ * ~310 KB of build ledgers, owner-data repairs and infrastructure notes,
+ * published to anyone. Add a line to the public file when a release ships;
+ * never point this back at CHANGELOG.md.
  */
 @Component({
   selector: 'app-changelog',
@@ -58,7 +60,7 @@ export class ChangelogComponent {
 
   private async load(): Promise<void> {
     try {
-      const res = await fetch('/CHANGELOG.md', { cache: 'no-cache' });
+      const res = await fetch('/changelog-public.md', { cache: 'no-cache' });
       if (!res.ok) throw new Error(`Status ${res.status}`);
       const md = await res.text();
       const rendered = marked.parse(md, { gfm: true, breaks: false }) as string;

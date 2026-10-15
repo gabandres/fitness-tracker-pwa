@@ -7,14 +7,14 @@ breaks `doc()` / instance identity. That broke production sign-in once, and it i
 invisible to tsc, to the unit tests, and to a signed-out smoke test.
 
 Scope is `src/` only:
-  - `apps/mobile/` uses the Firebase JS SDK directly ON PURPOSE (it does not use
-    the LEDGER_PORT seam) and must never be blocked.
+  - `apps/mobile/` uses the Firebase JS SDK directly ON PURPOSE
+    (ADR-0016) and must never be blocked.
   - `functions/` is firebase-admin, a different SDK entirely.
   - `*.spec.ts` / `*.test.ts` under src/ are allowed — they run in Node against
     the emulator, where the alias applies and there is no Angular injector.
 
 Blocks the Edit/Write when the text being introduced adds the import. Use the
-injected Firestore, or the `LEDGER_PORT` token (ADR-0009).
+injected Firestore (`LEDGER_PORT` went with the web logging app, ADR-0036).
 """
 import json
 import re
@@ -52,8 +52,8 @@ print(
     f"({path}).\n"
     "@angular/fire injects its own SDK instance; a second copy breaks doc()/"
     "instance identity and has broken prod sign-in before.\n"
-    "Use the injected Firestore, or go through LEDGER_PORT "
-    "(src/app/ledger/ports/ledger.port.ts, ADR-0009). "
+    "Use the injected Firestore (the web shell has no data layer since "
+    "ADR-0036; LEDGER_PORT was deleted with the logging app). "
     "See CLAUDE.md 'Single Firebase SDK copy rule'.\n"
     "Legitimately exempt: apps/mobile/**, functions/**, and *.spec.ts/*.test.ts.",
     file=sys.stderr,

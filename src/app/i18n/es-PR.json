@@ -21,13 +21,13 @@
       "title": "Calculadora de Déficit · Ignia",
       "eyebrow": "déficit",
       "heading": "calculadora de déficit",
-      "body": "Déficit calórico con proteína alta para perder grasa sin perder músculo. Valores: ~11 kcal/lb y 1g/lb de proteína — los mismos que recomiendan los entrenadores de fuerza."
+      "body": "Déficit calórico con proteína alta para perder grasa sin perder músculo. Valores: ~11 kcal/lb y 1.6 g de proteína por kg de peso (≈0.73 g/lb) — el mínimo respaldado por la evidencia para conservar músculo en un déficit sostenible."
     },
     "bulking": {
       "title": "Calculadora de Volumen Limpio · Ignia",
       "eyebrow": "volumen",
       "heading": "calculadora de volumen",
-      "body": "Superávit limpio para crecimiento muscular: ~17 kcal/lb y 0.8g/lb de proteína. Suficiente para crecer, controlado para no acumular grasa innecesaria."
+      "body": "Superávit limpio para crecimiento muscular: ~17 kcal/lb y 1.6 g/kg de proteína (≈0.73 g/lb). Suficiente para crecer, controlado para no acumular grasa innecesaria."
     },
     "maintenance": {
       "title": "Calculadora de Mantenimiento · Ignia",
@@ -51,7 +51,7 @@
       "title": "Calculadora de Proteína · Ignia",
       "eyebrow": "proteína",
       "heading": "calculadora de proteína",
-      "body": "¿Cuánta proteína necesitas? El rango respaldado por la investigación es 0.7–1g por libra de peso, según si estás en déficit, mantenimiento o volumen. Ingresa tu peso para ver tu meta."
+      "body": "¿Cuánta proteína necesitas? Ignia usa 1.6 g por kg de peso (≈0.73 g por libra), respaldado por la investigación — suficiente para conservar músculo en déficit y construirlo en volumen. Ingresa tu peso para ver tu meta."
     }
   },
   "transformations": {
@@ -214,7 +214,7 @@
     "section": "cambios",
     "titleLead": "Historial",
     "titleEm": "de cambios.",
-    "subtitle": "lanzamientos importantes, más recientes primero. para el registro completo revisa git log.",
+    "subtitle": "lo más destacado, lo más reciente primero. las notas completas de cada versión están en su página de la tienda.",
     "pageTitle": "Historial — Ignia",
     "loading": "cargando…",
     "error": "no se pudo cargar el historial. intenta de nuevo más tarde."
@@ -413,7 +413,7 @@
     "howTitle": "Cómo se calcula",
     "howBody": "Ignia usa una heurística simple basada en peso para que tengas un número con qué actuar hoy, antes de tener 14 días de datos reales:",
     "howBullet1": "Calorías: peso × 11 (bajar), 14 (mantener), o 17 (subir).",
-    "howBullet2": "Proteína: peso × 1.0 g (bajar), 0.9 g (mantener), o 0.8 g (subir) por libra.",
+    "howBullet2": "Proteína: 1.6 g por kg de peso (≈0.73 g por libra), sea cual sea la meta.",
     "howBullet3": "Después de registrar 14+ días, Ignia cambia a un TDEE medido según la tendencia real de tu peso.",
     "disclaimer": "Las metas heurísticas no son consejo médico. Si tratas alguna condición, consulta con un nutricionista registrado.",
     "faqLink": "¿Más preguntas? Lee el FAQ →"
@@ -489,7 +489,7 @@
       },
       {
         "q": "¿Cuánta proteína realmente necesito?",
-        "a": "0.7 a 1.0 gramos por libra de peso. El extremo bajo está bien para salud general; el alto importa cuando estás en déficit calórico porque la proteína protege la masa magra mientras pierdes grasa. Una persona de 180 lb apuntando a bajar grasa debe apuntar a ~180 g/día."
+        "a": "Alrededor de 1.6 gramos por kilogramo de peso (≈0.73 g por libra) — el nivel que, según la investigación, conserva la masa magra mientras pierdes grasa y basta para construirla en superávit. Subir hasta ~2.2 g/kg está bien, pero aporta poco. Una persona de 180 lb (82 kg) debe apuntar a ~130 g/día."
       },
       {
         "q": "¿Necesito trackear carbohidratos y grasas?",
