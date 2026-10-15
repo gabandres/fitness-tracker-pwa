@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SheetTextInput } from '@/components/SheetTextInput';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useLocale, useT } from '@/i18n';
+import { type Locale, useLocale, useT } from '@/i18n';
+import { parseDecimal } from '@/lib/entry-input';
 import { formatNumber } from '@/lib/date-format';
 import * as haptics from '@/lib/haptics';
 import { useA11yFocus } from '@/lib/use-a11y-focus';
@@ -30,15 +31,17 @@ interface Ingredient {
   protein: string;
 }
 
-function num(s: string): number | null {
-  // A comma is a decimal point here, not a rejection: pt-BR keyboards (and
-  // iOS decimal pads under a Brazilian region) type `12,5`, and `Number()`
-  // reads that as NaN. Same normalisation core's unit parsers already do.
-  const t = s.trim().replace(',', '.');
-  if (t === '') return null;
-  const n = Number(t);
-  return Number.isFinite(n) && n >= 0 ? n : null;
+/**
+ * A typed field: a number, blank (`null`), or typed-but-not-a-number
+ * (`'invalid'`). Read through the locale's own decimal rules. Garbage and
+ * negatives used to read as blank and drop out of the sum in silence, so a
+ * typo made the recipe lighter with nothing on screen saying so (audit #19).
+ */
+function num(s: string, locale: Locale): number | null | 'invalid' {
+  if (s.trim() === '') return null;
+  return parseDecimal(s, locale) ?? 'invalid';
 }
+const val = (v: number | null | 'invalid') => (typeof v === 'number' ? v : null);
 
 /** Stateless recipe calculator (mirrors the PWA recipe-builder): list
  *  ingredients (kcal + optional protein) and a serving count, then emit one
@@ -67,18 +70,19 @@ export function RecipeBuilder({ onApply, onCancel, onDirtyChange }: Props) {
     let protein = 0;
     let hasProtein = false;
     for (const ing of ingredients) {
-      const c = num(ing.calories);
+      const c = val(num(ing.calories, locale));
       if (c != null) kcal += c;
-      const p = num(ing.protein);
+      const p = val(num(ing.protein, locale));
       if (p != null) {
         hasProtein = true;
         protein += p;
       }
     }
     return { kcal, protein: hasProtein ? protein : null };
-  }, [ingredients]);
+  }, [ingredients, locale]);
 
-  const servingCount = num(servings);
+  const servingParsed = num(servings, locale);
+  const servingCount = val(servingParsed);
   const perServing = useMemo(() => {
     if (servingCount == null || servingCount <= 0) return { kcal: 0, protein: null as number | null };
     return {
@@ -87,7 +91,15 @@ export function RecipeBuilder({ onApply, onCancel, onDirtyChange }: Props) {
     };
   }, [totals, servingCount]);
 
-  const canApply = totals.kcal > 0 && servingCount != null && servingCount > 0;
+  /** Fields typed but not a number — drawn invalid, and they hold "Use this". */
+  const badKcal = ingredients.map((ing) => num(ing.calories, locale) === 'invalid');
+  const badProtein = ingredients.map((ing) => num(ing.protein, locale) === 'invalid');
+  const badServings = servingParsed === 'invalid' || servingParsed === 0;
+  const anyInvalid = badKcal.some(Boolean) || badProtein.some(Boolean) || badServings;
+  // Judged on the ROUNDED serving the form will be prefilled with: a pinch of
+  // something over many servings rounded to 0 kcal and still enabled "Use
+  // this", which then opened the form on an empty entry (#19).
+  const canApply = !anyInvalid && perServing.kcal > 0;
 
   const dirty =
     name.trim() !== '' || ingredients.some((ing) => ing.name.trim() || ing.calories.trim() || ing.protein.trim());
@@ -157,7 +169,7 @@ export function RecipeBuilder({ onApply, onCancel, onDirtyChange }: Props) {
               testID={`recipe-ing-name-${i}`}
             />
             <SheetTextInput
-              style={[styles.input, styles.colNum]}
+              style={[styles.input, styles.colNum, badKcal[i] && styles.inputInvalid]}
               placeholder="0"
               placeholderTextColor={colors.faint}
               keyboardType="numeric"
@@ -168,7 +180,7 @@ export function RecipeBuilder({ onApply, onCancel, onDirtyChange }: Props) {
               testID={`recipe-ing-kcal-${i}`}
             />
             <SheetTextInput
-              style={[styles.input, styles.colNum]}
+              style={[styles.input, styles.colNum, badProtein[i] && styles.inputInvalid]}
               placeholder="0"
               placeholderTextColor={colors.faint}
               keyboardType="numeric"
@@ -199,7 +211,7 @@ export function RecipeBuilder({ onApply, onCancel, onDirtyChange }: Props) {
         <View style={styles.servingsBox}>
           <Text style={styles.fieldLabel}>{t('recipe.servings')}</Text>
           <SheetTextInput
-            style={[styles.input, styles.servingsInput]}
+            style={[styles.input, styles.servingsInput, badServings && styles.inputInvalid]}
             placeholder="1"
             placeholderTextColor={colors.faint}
             keyboardType="numeric"
@@ -214,16 +226,22 @@ export function RecipeBuilder({ onApply, onCancel, onDirtyChange }: Props) {
           <Text style={styles.fieldLabel}>{t('recipe.perServing')}</Text>
           <Text style={styles.perValue} testID="recipe-per-serving">
             {formatNumber(perServing.kcal, locale)} {t('today.kcal')}
-            {perServing.protein != null ? ` · ${t('entry.proteinAmount', { n: perServing.protein })}` : ''}
+            {perServing.protein != null ? ` · ${t('entry.proteinAmount', { n: formatNumber(perServing.protein, locale) })}` : ''}
           </Text>
         </View>
       </View>
 
+      {anyInvalid || (totals.kcal > 0 && perServing.kcal <= 0) ? (
+        <Text style={styles.invalidText} accessibilityLiveRegion="polite" testID="recipe-invalid">
+          {t(anyInvalid ? 'recipe.invalidNumbers' : 'recipe.roundsToZero')}
+        </Text>
+      ) : null}
       <TouchableOpacity
         style={[styles.apply, !canApply && styles.applyDisabled]}
         onPress={apply}
         disabled={!canApply}
         accessibilityRole="button"
+        accessibilityState={{ disabled: !canApply }}
         testID="recipe-apply"
       >
         <Text style={styles.applyText}>{t('recipe.useThis')}</Text>
@@ -265,6 +283,8 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
     color: colors.ink,
   },
   del: { color: colors.danger, fontSize: font.small, fontWeight: '700' },
+  inputInvalid: { borderColor: colors.danger, borderWidth: 2 },
+  invalidText: { fontSize: font.small, color: colors.danger },
   addIng: { paddingVertical: space.sm },
   addIngText: { fontSize: font.small, color: colors.teal, fontWeight: '700' },
   footer: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: space.md, marginTop: space.xs },

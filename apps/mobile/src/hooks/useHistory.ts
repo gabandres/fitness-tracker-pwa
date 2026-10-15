@@ -1,15 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { type CustomFood, type DailyLog, type DaySummary, type MealPreset, type DayBoundary, type DateKey, dayBoundaryOf, dayKeyAt, LOG_WINDOW_ROWS, summarizeDays, trainedDayRows } from '@macrolog/core';
 import { useAuth } from '@/lib/auth';
 import type { WorkoutSession } from '@/lib/workout';
 import { useCachedState } from '@/hooks/useCachedState';
 import { type LogWrites, useLogWrites } from '@/hooks/useLogWrites';
-import { asError, feedChannel, useLedgerFeed } from '@/hooks/useLedgerFeed';
-import { mergeLogs, monthRange, monthToFetch, oldestLogKey } from '@/lib/history-paging';
+import { feedChannel, useLedgerFeed } from '@/hooks/useLedgerFeed';
+import { mergeLogs, monthRange, monthToWatch, oldestLogKey } from '@/lib/history-paging';
 import {
-  getLogsForRange,
   subscribeCustomFoods,
   subscribeDailyWeights,
+  subscribeLogsForRange,
   subscribePresets,
   subscribeRecentLogs,
   subscribeRecentSessions,
@@ -46,11 +46,11 @@ export interface HistoryState extends LogWrites {
    *  day a 00:30 meal belongs to. Empty ⇒ calendar days. */
   boundary: DayBoundary;
   /**
-   * Make sure the month containing `view` is on screen. A no-op when the window
-   * already covers it, when the window is not full (everything is loaded), or
-   * when that month was already requested — so a screen may call it from an
-   * effect on every view change. ONE bounded `getDocs` per month, never a
-   * listener; the rows are held in this hook's state for its lifetime.
+   * Make sure the month containing `view` is on screen. Nothing is read when
+   * the window already covers it or is not full (everything is loaded); an
+   * older month gets ONE bounded range listener while it is the viewed month
+   * on a focused screen (2026-10-15 — a kept one-shot read went stale). Safe to
+   * call from an effect on every view change.
    */
   ensureMonthLoaded: (view: Date) => void;
   olderMonths: OlderMonths;
@@ -136,28 +136,21 @@ export function useHistory(): HistoryState {
   const boundary = useMemo(() => dayBoundaryOf(profile), [profile]);
 
   // ── Older months (S18-13) ───────────────────────────────────────
-  // Component state on purpose: it lives and dies with the screen, so paging
-  // back and forth re-queries nothing while the screen is up, and nothing
-  // accumulates past it. Not a shared cache and not a listener (ADR-0016).
-  // Keyed to the ACCOUNT the way `useLedgerFeed` keys readiness: a different
-  // uid reads as empty rather than being cleared in an effect a frame later.
+  // The month on screen, when it lies behind the window, is a focus-gated
+  // LISTENER (2026-10-15 audit). It was one `getDocs` kept for the screen's
+  // life, so an add or delete on an old day — made from the day-detail route,
+  // which mounts its own `useHistory` — never reached the calendar's copy.
+  // Months viewed before stay in `fetched` as the last copy seen, which paints
+  // a re-view at once while its listener re-opens; only the viewed month is
+  // live, so this is one bounded listener at most (ADR-0016). Keyed to the
+  // ACCOUNT the way `useLedgerFeed` keys readiness: a different uid reads as
+  // empty rather than being cleared in an effect a frame later.
   const [fetchedRaw, setFetched] = useState<{ uid: string | undefined; months: Record<string, DailyLog[]> }>(
     () => ({ uid, months: {} }),
   );
   const fetched = fetchedRaw.uid === uid ? fetchedRaw.months : EMPTY_MONTHS;
-  const [inFlight, setInFlight] = useState(0);
-  const [olderError, setOlderError] = useState<Error | null>(null);
-  /** Months requested this mount — in flight or done. Both count. Keyed to the
-   *  account like `fetched`, but re-keyed where it is used (`ensureMonthLoaded`)
-   *  rather than during render, which made the React Compiler skip this hook. */
-  const requested = useRef<{ uid: string | undefined; months: Set<string> }>({ uid, months: new Set() });
-  const alive = useRef(true);
-  useEffect(() => {
-    alive.current = true;
-    return () => {
-      alive.current = false;
-    };
-  }, []);
+  const [watchRaw, setWatch] = useState<{ uid: string | undefined; month: string | null }>(() => ({ uid, month: null }));
+  const watched = watchRaw.uid === uid ? watchRaw.month : null;
 
   const oldestWindowKey = useMemo(() => oldestLogKey(windowLogs, boundary), [windowLogs, boundary]);
   const windowRows = windowLogs.length;
@@ -165,34 +158,35 @@ export function useHistory(): HistoryState {
   const ensureMonthLoaded = useCallback(
     (view: Date) => {
       if (!uid) return;
-      if (requested.current.uid !== uid) requested.current = { uid, months: new Set() };
-      const months = requested.current.months;
-      const month = monthToFetch({ view, oldestWindowKey, windowRows, requested: months });
-      if (!month) return;
-      months.add(month);
-      const { fromKey, toKey } = monthRange(month);
-      setInFlight((n) => n + 1);
-      getLogsForRange(uid, fromKey as DateKey, toKey as DateKey, boundary)
-        .then((rows) => {
-          if (!alive.current) return;
-          setFetched((f) => ({
-            uid,
-            months: { ...(f.uid === uid ? f.months : {}), [month]: rows },
-          }));
-          setOlderError(null);
-        })
-        .catch((e: unknown) => {
-          if (!alive.current) return;
-          // Let a retry happen: the month is no longer "requested".
-          months.delete(month);
-          setOlderError(asError(e, 'History: older month fetch failed'));
-        })
-        .finally(() => {
-          if (alive.current) setInFlight((n) => n - 1);
-        });
+      const month = monthToWatch({ view, oldestWindowKey, windowRows });
+      setWatch((w) => (w.uid === uid && w.month === month ? w : { uid, month }));
     },
-    [uid, oldestWindowKey, windowRows, boundary],
+    [uid, oldestWindowKey, windowRows],
   );
+
+  const monthFeed = useLedgerFeed({
+    uid,
+    label: 'History month',
+    gate: 'focus',
+    // A refocus is a retry: a failed month must not stay failed for the
+    // screen's life.
+    retryOnOpen: true,
+    channels: () => {
+      if (!uid || !watched) return [];
+      const { fromKey, toKey } = monthRange(watched);
+      return [
+        feedChannel({
+          key: 'month',
+          open: (deliver, fail) =>
+            subscribeLogsForRange(uid, fromKey as DateKey, toKey as DateKey, boundary, deliver, fail),
+          apply: (rows: DailyLog[]) =>
+            setFetched((f) => ({ uid, months: { ...(f.uid === uid ? f.months : {}), [watched]: rows } })),
+        }),
+      ];
+    },
+    deps: [uid, watched, boundary],
+  });
+  const olderLoading = watched != null && !(watched in fetched) && !monthFeed.failed;
 
   const logs = useMemo(() => mergeLogs(windowLogs, fetched), [windowLogs, fetched]);
 
@@ -218,7 +212,7 @@ export function useHistory(): HistoryState {
     customFoods,
     boundary,
     ensureMonthLoaded,
-    olderMonths: { loading: inFlight > 0, error: olderError },
+    olderMonths: { loading: olderLoading, error: monthFeed.error },
     ...writes,
   };
 }

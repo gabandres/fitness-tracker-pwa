@@ -142,6 +142,9 @@ export function RecipeImport({ onApply, onCancel, onDirtyChange }: Props) {
           onPress={fetchRecipe}
           disabled={loading || !url.trim()}
           accessibilityRole="button"
+          // The fetch can take up to 8 s; "busy" is what tells a screen
+          // reader the tap landed (audit #19).
+          accessibilityState={{ disabled: loading || !url.trim(), busy: loading }}
           testID="recipe-import-fetch"
         >
           <Text style={styles.fetchText}>
@@ -162,7 +165,9 @@ export function RecipeImport({ onApply, onCancel, onDirtyChange }: Props) {
             <Text style={styles.resultName}>{result.name || t('recipeImport.untitled')}</Text>
             <Text style={styles.resultMeta}>
               {formatNumber(perServingKcal, locale)} {t('today.kcal')}
-              {perServingProtein != null ? ` · ${perServingProtein}${t('recipeImport.proteinUnit')}` : ''}
+              {perServingProtein != null
+                ? ` · ${formatNumber(perServingProtein, locale, { maximumFractionDigits: 1 })}${t('recipeImport.proteinUnit')}`
+                : ''}
               {' '}{t('recipeImport.perServing')}
               {result.servings ? ` · ${t('recipeImport.servings', { n: result.servings })}` : ''}
             </Text>
@@ -175,12 +180,20 @@ export function RecipeImport({ onApply, onCancel, onDirtyChange }: Props) {
         </ScrollView>
       ) : null}
 
+      {result && !canApply ? (
+        // A page whose nutrition says 0 kcal a serving (an empty or broken
+        // JSON-LD block) left "Use this" greyed out with no reason (#19).
+        <Text style={styles.error} testID="recipe-import-no-kcal">
+          {t('recipeImport.noKcal')}
+        </Text>
+      ) : null}
       {result ? (
         <TouchableOpacity
           style={[styles.apply, !canApply && styles.btnDisabled]}
           onPress={apply}
           disabled={!canApply}
           accessibilityRole="button"
+          accessibilityState={{ disabled: !canApply }}
           testID="recipe-import-apply"
         >
           <Text style={styles.applyText}>{t('recipeImport.useThis')}</Text>
@@ -213,6 +226,9 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   },
   urlInput: { flex: 1 },
   fetchBtn: {
+    // A full target (#19): it measured ~34 dp tall with only its padding.
+    minHeight: TARGET,
+    justifyContent: 'center',
     backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.ink,

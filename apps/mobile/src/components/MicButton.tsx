@@ -1,10 +1,11 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { AccessibilityInfo, AppState, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { routeTranscript, parseMealUtterance } from '@macrolog/core';
 import { useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import {
+  getSpeechPermission,
   isSpeechAvailable,
   requestSpeechPermission,
   speechConfigFor,
@@ -45,6 +46,15 @@ function announceBeforeListening(message: string): Promise<void> {
 
 type SpeechSub = { remove(): void } | undefined;
 type SpeechResultEvent = { results?: { transcript?: string }[]; isFinal?: boolean };
+type SpeechErrorEvent = { error?: string } | undefined;
+
+/**
+ * Recogniser "errors" that are not failures (audit #8): nothing was said
+ * (`no-speech`, `speech-timeout`) or the session was stopped (`aborted`). The
+ * old copy for all of them was "Couldn't start listening — type it instead",
+ * which blames the mic for silence.
+ */
+const QUIET_ERRORS = new Set(['no-speech', 'speech-timeout', 'aborted']);
 
 /**
  * Subscribes to the recognizer's `result`, `end` and `error` events, in that
@@ -56,7 +66,7 @@ type SpeechResultEvent = { results?: { transcript?: string }[]; isFinal?: boolea
 function addSpeechListeners(on: {
   result: (ev: SpeechResultEvent) => void;
   end: () => void;
-  error: () => void;
+  error: (ev: SpeechErrorEvent) => void;
 }): SpeechSub[] {
   const subs: SpeechSub[] = [];
   try {
@@ -174,8 +184,16 @@ export function MicButton({
         listeningRef.current = false;
         setListening(false);
       },
-      error: () => {
+      error: (ev) => {
+        const wasListening = listeningRef.current;
+        listeningRef.current = false;
         setListening(false);
+        // Silence is a stop, not a failure — said as one (once, if the mic was
+        // live), with the button left as it was.
+        if (ev?.error && QUIET_ERRORS.has(ev.error)) {
+          if (wasListening) announce(t('voice.stopped'));
+          return;
+        }
         setFailed(true);
         // The parent draws the message (see `onFailedChange`) with no live
         // region, so it is spoken from here, where the failure is known.
@@ -220,7 +238,10 @@ export function MicButton({
     }
     const perm = await requestSpeechPermission();
     if (perm !== 'granted') {
-      setDenied(perm === 'denied');
+      // Only a refusal the OS will not ask about again earns the Settings
+      // link; a plain "Deny" leaves the mic tappable, and the next tap asks
+      // again (audit #8).
+      setDenied(perm === 'blocked');
       return;
     }
     const { lang, onDevice } = await speechConfigFor(locale);
@@ -237,6 +258,19 @@ export function MicButton({
   useEffect(() => {
     onFailedChange?.(failed);
   }, [failed, onFailedChange]);
+
+  // Back from Settings is a foreground: re-read the permission then, or the
+  // "Enable in Settings" link outlived the user turning the mic on (#8).
+  useEffect(() => {
+    if (!denied) return;
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') return;
+      void getSpeechPermission().then((p) => {
+        if (p !== 'blocked') setDenied(false);
+      });
+    });
+    return () => sub.remove();
+  }, [denied]);
 
   if (!isSpeechAvailable()) return null;
 

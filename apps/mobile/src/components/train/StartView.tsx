@@ -47,7 +47,7 @@ import { useUnitSystem } from '@/lib/use-unit-system';
 import type { Exercise, TrainingPhase, WorkoutSession, WorkoutTemplate } from '@/lib/workout';
 import { space } from '@/theme';
 import { recommendationText } from './recommendation-text';
-import { WeeklyVolumeSheet } from './WeeklyVolumeSheet';
+import { WeeklyVolumeSheet, rotationTemplates } from './WeeklyVolumeSheet';
 import { DraftsSection, useDraftActions } from './DraftsSection';
 import { ExerciseDetailSheet } from './ExerciseDetailSheet';
 import { toMenuButtonActions } from './exercise-menu-native';
@@ -184,11 +184,11 @@ export function StartView({
   );
   const gateLb = profile?.volumeGateLb;
   // What the week PLANS: the program's templates when there is one (each
-  // done once a week), else every template.
+  // done once a week), else the templates in use (`rotationTemplates`).
   const plannedTemplates = useMemo(() => {
     const ids = new Set(train.drafts.filter((d) => d.program === 'v2').map((d) => d.draftOf));
-    return ids.size ? train.templates.filter((tp) => tp.id && ids.has(tp.id)) : train.templates;
-  }, [train.drafts, train.templates]);
+    return rotationTemplates(train.templates, ids, train.recentSessions, now);
+  }, [train.drafts, train.templates, train.recentSessions, now]);
   // Whether the week PLANS anything the by-muscle sheet counts — a myo-rep
   // cluster or a working set. The link shows only when there is something to
   // count, logged or planned: it was once a home-screen link to twelve rows

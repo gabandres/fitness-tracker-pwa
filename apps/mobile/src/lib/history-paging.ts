@@ -83,9 +83,10 @@ export function monthToFetch(input: {
 /**
  * The window's rows plus every fetched month, deduplicated by id, OLDEST FIRST
  * (the ledger seam's contract, which `summarizeDays` and the day detail rely
- * on). The window wins a collision: it is live, a fetched month is a snapshot
- * taken once — so an edit to a row that sits in both surfaces through the
- * listener, not the stale copy.
+ * on). The window wins a collision: it is always live, while a fetched month
+ * is live only while it is the viewed month (`monthToWatch`) and otherwise the
+ * copy last seen — so an edit to a row that sits in both surfaces through the
+ * window, not a stale copy.
  */
 export function mergeLogs(
   windowLogs: readonly DailyLog[],
@@ -98,4 +99,23 @@ export function mergeLogs(
   // carry one, so this is a type accommodation, not a real path).
   const out = [...byId.values(), ...windowLogs.filter((l) => !l.id)];
   return out.sort(compareLogsOldestFirst);
+}
+
+/**
+ * The month `view` needs WATCHED, or `null` when the 400-row window covers it.
+ *
+ * Unlike {@link monthToFetch} there is no "already requested" short-cut: since
+ * 2026-10-15 an older month is a focus-gated listener rather than a one-shot
+ * read kept forever, because the kept copy never heard a later add or delete
+ * on that day. Re-viewing a month re-opens its listener; the copy held from the
+ * last view paints it meanwhile.
+ */
+export function monthToWatch(input: {
+  view: Date;
+  oldestWindowKey: string | null;
+  windowRows: number;
+  windowCapacity?: number;
+}): string | null {
+  const { view, oldestWindowKey, windowRows, windowCapacity = LOG_WINDOW_ROWS } = input;
+  return olderThanLoaded(view, oldestWindowKey, windowRows, windowCapacity) ? monthKeyOf(view) : null;
 }

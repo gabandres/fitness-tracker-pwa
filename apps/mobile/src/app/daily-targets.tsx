@@ -140,9 +140,16 @@ export default function DailyTargetsScreen() {
   // Protein is OPTIONAL in custom mode — blank hands it back to the estimator,
   // so an empty box is not an error here.
   const proteinCheck = protein.trim() === '' ? null : validateProteinTarget(proteinNum);
+  // The user's own protein floor (Settings), when they set one. `dailyTargets`
+  // clamps protein UP to it, so a custom number under it would be stored and
+  // then silently displayed as the floor — the override the calorie floor
+  // check above already refuses (09-22 item f).
+  const proteinFloorG = typeof profile?.proteinFloor === 'number' && profile.proteinFloor > 0 ? profile.proteinFloor : null;
+  const belowProteinFloor =
+    proteinCheck?.ok === true && proteinNum != null && proteinFloorG != null && proteinNum < proteinFloorG;
 
   const custom = mode === 'custom';
-  const canSave = !custom || (kcalCheck.ok && (proteinCheck?.ok ?? true));
+  const canSave = !custom || (kcalCheck.ok && (proteinCheck?.ok ?? true) && !belowProteinFloor);
 
   function pickMode(next: TargetMode) {
     haptics.tap();
@@ -197,7 +204,7 @@ export default function DailyTargetsScreen() {
 
   const kcalMsg = custom ? issueText(kcalCheck.issue, t, locale) : null;
   const kcalBlocking = custom && !kcalCheck.ok;
-  const proteinBad = custom && proteinCheck != null && !proteinCheck.ok;
+  const proteinBad = custom && proteinCheck != null && (!proteinCheck.ok || belowProteinFloor);
 
   // The header — title, back button, swipe-back — is the shared native one
   // from the root layout (S21-9).
@@ -305,7 +312,9 @@ export default function DailyTargetsScreen() {
             )}
             {proteinBad ? (
               <Text style={[styles.note, styles.noteBad]} accessibilityRole="alert" accessibilityLiveRegion="polite" testID="targets-protein-note">
-                {t('targets.errProteinRange', { min: TARGET_PROTEIN_MIN, max: TARGET_PROTEIN_MAX })}
+                {belowProteinFloor && proteinFloorG != null
+                  ? t('targets.errBelowProteinFloor', { n: formatNumber(proteinFloorG, locale) })
+                  : t('targets.errProteinRange', { min: TARGET_PROTEIN_MIN, max: TARGET_PROTEIN_MAX })}
               </Text>
             ) : null}
             {custom ? (

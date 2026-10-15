@@ -392,13 +392,17 @@ describe('FastSheet — the fast running right now', () => {
   });
 
   it('refuses a start pushed into the future', async () => {
+    // Since audit #12 (2026-10-15) the typed path's day-forward stops at
+    // today, as the native picker's always did — so the step that used to
+    // produce this state is refused at the button, and nothing is saved.
     const { onSave, ui } = runningSheet(new Date(Date.now() - HOUR));
     const screen = await render(ui);
 
+    expect(screen.getByTestId('fast-start-day-next').props.accessibilityState).toMatchObject({ disabled: true });
     await tap(screen, 'fast-start-day-next');
-    expect(screen.getByTestId('fast-warning')).toBeTruthy();
     await tap(screen, 'fast-save');
-    expect(onSave).not.toHaveBeenCalled();
+    const saved = onSave.mock.calls[0]?.[0] as Date | undefined;
+    expect(saved == null || saved.getTime() <= Date.now()).toBe(true);
   });
 });
 

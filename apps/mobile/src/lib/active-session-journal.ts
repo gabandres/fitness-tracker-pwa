@@ -206,7 +206,8 @@ export async function clearActiveSessionJournal(uid: string): Promise<void> {
  *   never offered back as active — not from the journal, and not from a
  *   server that has not heard the finish yet.
  * - A different session id → the server's. The journal belongs to another
- *   workout.
+ *   workout — UNLESS the journal's never reached the server (`created:
+ *   false`): then it is the only copy anywhere, so it is kept and `recreate`d.
  * - Same id, journal strictly newer than the server's last write → the
  *   journal's, and `resync` so the lost edits are written back.
  * - Otherwise the server's: it already has everything this device wrote, or a
@@ -233,7 +234,15 @@ export function reconcileActiveSession(
     }
     return { session: null, resync: false, recreate: false };
   }
-  if (!usable || usable.session.id !== live.id) return { session: live, resync: false, recreate: false };
+  if (!usable || usable.session.id !== live.id) {
+    // A workout started on THIS device whose create never landed exists
+    // nowhere but the journal. Handing the screen the server's other session
+    // overwrote that journal on the next write and lost the workout
+    // (2026-10-15 audit). Keep the local one and write it; the server's
+    // session is untouched and is offered again once this one is finished.
+    if (usable?.created === false) return { session: usable.session, resync: true, recreate: true };
+    return { session: live, resync: false, recreate: false };
+  }
   const serverAt = live.updatedAt instanceof Date ? live.updatedAt.getTime() : 0;
   if (usable.savedAt > serverAt) {
     // The status stays the server's: the journal only ever holds an active
@@ -294,21 +303,40 @@ async function writeFinishes(uid: string, list: PendingFinish[]): Promise<void> 
   else await AsyncStorage.setItem(finishKeyFor(uid), JSON.stringify(list, replacer));
 }
 
+/**
+ * One read-modify-write of the pending list at a time. Both verbs below read
+ * the whole list and write it back, and they do run together — a finish
+ * landing (remove) while the next one is recorded, or two replays landing at
+ * once — and the later write dropped the earlier one's change: a recorded
+ * finish lost, or a landed one replayed forever. Same pattern as
+ * `health-overrides.ts`.
+ */
+let finishChain: Promise<unknown> = Promise.resolve();
+function serialFinish<T>(fn: () => Promise<T>): Promise<T> {
+  const run = finishChain.then(fn, fn);
+  finishChain = run.catch(() => undefined);
+  return run;
+}
+
 /** Add (or replace, by session id) a finish to replay. Throws on a storage
  *  failure — the caller then falls back to waiting on the network. */
-export async function recordPendingFinish(uid: string, entry: PendingFinish): Promise<void> {
-  const list = (await readPendingFinishes(uid)).filter((p) => p.session.id !== entry.session.id);
-  await writeFinishes(uid, [...list, entry]);
+export function recordPendingFinish(uid: string, entry: PendingFinish): Promise<void> {
+  return serialFinish(async () => {
+    const list = (await readPendingFinishes(uid)).filter((p) => p.session.id !== entry.session.id);
+    await writeFinishes(uid, [...list, entry]);
+  });
 }
 
 /** Drop a finish once its writes have landed (or been refused for good). */
-export async function removePendingFinish(uid: string, sessionId: string): Promise<void> {
-  try {
-    const list = await readPendingFinishes(uid);
-    const next = list.filter((p) => p.session.id !== sessionId);
-    if (next.length !== list.length) await writeFinishes(uid, next);
-  } catch {
-    // Replaying a finish that already landed is harmless: the writes are
-    // idempotent.
-  }
+export function removePendingFinish(uid: string, sessionId: string): Promise<void> {
+  return serialFinish(async () => {
+    try {
+      const list = await readPendingFinishes(uid);
+      const next = list.filter((p) => p.session.id !== sessionId);
+      if (next.length !== list.length) await writeFinishes(uid, next);
+    } catch {
+      // Replaying a finish that already landed is harmless: the writes are
+      // idempotent.
+    }
+  });
 }

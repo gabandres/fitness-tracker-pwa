@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useCachedState } from '@/hooks/useCachedState';
+import { useDayKey } from '@/hooks/useDayKey';
 import { feedChannel, useLedgerFeed } from '@/hooks/useLedgerFeed';
 import { exportDaily, exportManualWeight, forgetHealthWeight, importHealth } from '@/lib/health-sync';
 import { track } from '@/lib/analytics';
@@ -277,6 +278,11 @@ function overlayMeasurements(base: Measurement[], overlay: PendingBodyOverlay): 
   return rows.sort((a, b) => b.date.getTime() - a.date.getTime());
 }
 
+/** "Now", for a memo that must recompute when the user's day changes: the
+ *  key is taken as an argument so it is a real dependency of the memo — the
+ *  clock alone is invisible to dependency tracking. */
+const nowOn = (_dayKey: string): Date => new Date();
+
 export function useBody(): BodyState {
   const { user } = useAuth();
   const uid = user?.uid;
@@ -402,7 +408,12 @@ export function useBody(): BodyState {
   const error = feed.error ?? measurementFeed.error;
 
   const boundary = useMemo(() => dayBoundaryOf(profile), [profile]);
-  const todayKey = dayKeyAt(new Date(), boundary);
+  // A day TRIGGER, not a render-time read: computed from `new Date()` at
+  // render, the key (and every clock-anchored memo below) stayed on yesterday
+  // when the app was left open across the boundary — same fix Today got in
+  // ecad9482. The memos read the clock through `nowOn(todayKey)`, so the key
+  // is a real input to each (and the React Compiler keys them on it).
+  const todayKey = useDayKey(boundary);
 
   const weights = useMemo(
     () => overlayWeights(olderWeights ? mergeOlderWeights(olderWeights, snapWeights, sinceKey) : snapWeights, overlay),
@@ -418,12 +429,12 @@ export function useBody(): BodyState {
   const trendPoints = useMemo(() => trendWeightSeries(weightPoints), [weightPoints]);
   const trendWeight = trendPoints.length ? trendPoints[trendPoints.length - 1].weightLb : null;
   const consistency = useMemo(
-    () => weighInConsistency(weights, CONSISTENCY_DAYS, new Date(), boundary),
-    [weights, boundary],
+    () => weighInConsistency(weights, CONSISTENCY_DAYS, nowOn(todayKey), boundary),
+    [weights, boundary, todayKey],
   );
   const weekAverage = useMemo(
-    () => trailingAverageLb(weights, AVERAGE_DAYS, new Date(), boundary),
-    [weights, boundary],
+    () => trailingAverageLb(weights, AVERAGE_DAYS, nowOn(todayKey), boundary),
+    [weights, boundary, todayKey],
   );
   const sleepWeek = useMemo(
     () => sleepWeekAverage(sleepByDay, todayKey),
@@ -480,8 +491,8 @@ export function useBody(): BodyState {
   // The 28-day window both the projection and the goal-crossing read — built
   // ONCE (Pf2; it was rebuilt per consumer on every render).
   const projectionPoints = useMemo(
-    () => weightPointsForDays(weights, PROJECTION_WINDOW_DAYS, new Date(), boundary),
-    [weights, boundary],
+    () => weightPointsForDays(weights, PROJECTION_WINDOW_DAYS, nowOn(todayKey), boundary),
+    [weights, boundary, todayKey],
   );
 
   // Fit the trend over a 28-day window of daily weights (longer than the
@@ -518,8 +529,8 @@ export function useBody(): BodyState {
     // Boundary-aware like `todayKey` above and the Trends weight chart: between
     // midnight and a 3 AM day start, a midnight-keyed window includes a day
     // that has not begun and drops the oldest real one.
-    () => weightSeriesForDays(weights, SPARK_DAYS, new Date(), boundary),
-    [weights, boundary],
+    () => weightSeriesForDays(weights, SPARK_DAYS, nowOn(todayKey), boundary),
+    [weights, boundary, todayKey],
   );
 
   // Dashed forecast: step from the last plotted weight along the fitted slope.
@@ -549,12 +560,14 @@ export function useBody(): BodyState {
   );
   const goalProgress = useMemo(() => {
     // Directional `remaining` (0 once past the goal) lives in core since S20.
-    const scale = computeGoalProgress(logs, startBase, goalWeight);
+    // The goal direction picks a start on the right side of the goal: a cut
+    // set after a bulk past it no longer reads as a bulk already reached.
+    const scale = computeGoalProgress(logs, startBase, goalWeight, profile?.goalDirection);
     // Judged on the trend, not the morning's reading (re-score 3, bug 3): one
     // light day said "Goal reached" and celebrated, the next said 0.6 lb to
     // go. Needs two readings, like the trend headline it agrees with.
     return scale && weightPoints.length >= 2 ? goalProgressAt(scale, trendWeight) : scale;
-  }, [logs, startBase, goalWeight, weightPoints.length, trendWeight]);
+  }, [logs, startBase, goalWeight, profile?.goalDirection, weightPoints.length, trendWeight]);
   // One start for goal progress AND the trend milestones (bug 4): the toast
   // said "since you started" while measuring from the oldest reading in a
   // window that slides forward a day at a time.

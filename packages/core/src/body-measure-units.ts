@@ -18,6 +18,7 @@
 import type { MeasurementField } from './measurement-bounds';
 import { MEASUREMENT_BOUNDS_IN } from './measurement-bounds';
 import type { UnitSystem } from './unit-system';
+import { PLAIN_DECIMAL } from './body-weight-units';
 
 const CM_PER_IN = 2.54;
 /** One decimal: a tape is not more precise than that, in either unit. */
@@ -41,7 +42,9 @@ export function toDisplayMeasure(inches: number, unitSystem: UnitSystem | undefi
  *  does: an es-PR keyboard produces `84,5` and `Number('84,5')` is NaN. */
 export function parseMeasureToIn(input: string, unitSystem: UnitSystem | undefined): number | null {
   const text = input.trim().replace(',', '.');
-  if (text === '') return null;
+  // Plain decimals only. `Number()` also reads `0x50` (80), `1e3`, `0b101`
+  // and `Infinity`, none of which anyone types as a body measurement.
+  if (!PLAIN_DECIMAL.test(text)) return null;
   const n = Number(text);
   if (!Number.isFinite(n) || n <= 0) return null;
   return unitSystem === 'metric' ? n / CM_PER_IN : n;

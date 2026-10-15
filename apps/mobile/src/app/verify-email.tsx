@@ -23,7 +23,7 @@ export default function VerifyEmail() {
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
-  const { user, reloadUser, resendVerification, signOut } = useAuth();
+  const { user, reloadUser, resendVerification, verificationSendFailed, signOut } = useAuth();
   const [checking, setChecking] = useState(false);
   const [resending, setResending] = useState(false);
   // A COOLDOWN, not a latch. `resent` was a one-way boolean: the first
@@ -148,9 +148,13 @@ export default function VerifyEmail() {
           </Text>
           <Text style={styles.hint}>{t('verify.hint')}</Text>
 
-          {error ? (
+          {/* The sign-up send can fail; then "we sent a link" above is not
+              true, and the user is owed that before they wait on it. Shown
+              until a resend succeeds (the flag clears) or another message
+              takes the slot. */}
+          {error || (verificationSendFailed && resentAt == null) ? (
             <Text style={styles.error} accessibilityRole="alert" accessibilityLiveRegion="polite" testID="verify-error">
-              {error}
+              {error ?? t('verify.initialSendFailed')}
             </Text>
           ) : null}
 

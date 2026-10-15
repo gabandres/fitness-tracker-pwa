@@ -138,9 +138,12 @@ describe('slots', () => {
     expect(await toggleQuickAddSlot('a')).toEqual(['b']);
   });
 
-  it('drops the oldest pick at the cap instead of refusing the tap', async () => {
+  // Reversed 2026-10-15 (audit #16): dropping the oldest pick evicted slot 1,
+  // the one the Quick Settings tile fires blind, with no word. The tap is now
+  // refused and the card says why (quick-add-audit.test.ts).
+  it('refuses a fourth pick rather than silently evicting slot 1', async () => {
     await setQuickAddSlots(['a', 'b', 'c']);
-    expect(await toggleQuickAddSlot('d')).toEqual(['b', 'c', 'd']);
+    expect(await toggleQuickAddSlot('d')).toEqual(['a', 'b', 'c']);
   });
 
   it('notifies subscribers, which is how Settings reaches the home screen', async () => {

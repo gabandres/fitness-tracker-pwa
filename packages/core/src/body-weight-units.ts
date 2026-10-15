@@ -36,6 +36,10 @@ import { WEIGHT_MAX_LB, WEIGHT_MIN_LB } from './weight-bounds';
  *  rounding it away would lose real signal. */
 const DECIMALS = 1;
 
+/** Digits with at most one decimal point (`180`, `70.5`, `.5`, `5.`) — the
+ *  shape a number pad produces. Shared with `body-measure-units.ts`. */
+export const PLAIN_DECIMAL = /^(?:\d+\.?\d*|\.\d+)$/;
+
 export function bodyWeightUnit(unitSystem: UnitSystem | undefined): 'lb' | 'kg' {
   return unitSystem === 'metric' ? 'kg' : 'lb';
 }
@@ -55,7 +59,9 @@ export function toDisplayWeight(lb: number, unitSystem: UnitSystem | undefined):
  *  user who typed a perfectly ordinary number. */
 export function parseWeightToLb(input: string, unitSystem: UnitSystem | undefined): number | null {
   const text = input.trim().replace(',', '.');
-  if (text === '') return null;
+  // Plain decimals only. `Number()` also reads `0x50` (80), `1e3`, `0b101`
+  // and `Infinity`, none of which anyone types as a body measurement.
+  if (!PLAIN_DECIMAL.test(text)) return null;
   const n = Number(text);
   if (!Number.isFinite(n) || n <= 0) return null;
   return unitSystem === 'metric' ? kgToLb(n) : n;

@@ -6,6 +6,7 @@ import {
   customFoodDocId,
   newLedgerId,
 } from '@macrolog/core';
+import { isOffline } from '@/lib/connectivity';
 import { exportNutrition } from '@/lib/health-sync';
 import { recordScanMilestone } from '@/lib/first-scan';
 import { useAuth } from '@/lib/auth';
@@ -59,6 +60,27 @@ export interface LogWrites {
    *  doc id via `customFoodDocId`; others auto-id. */
   addCustomFood: (food: Omit<CustomFood, 'id'>) => Promise<void>;
   deleteCustomFood: (id: string) => Promise<void>;
+}
+
+/**
+ * Await an SDK edit or delete — unless the device is known offline, where the
+ * promise settles only on reconnect and an awaiting caller hung for the whole
+ * outage (audit 2026-10-15, final report). Offline the SDK still holds the
+ * write and lands it on reconnect; a later refusal rolls the local cache back
+ * and the live list shows it. Online, a failure still rejects, so the screen's
+ * "couldn't save" toast keeps working.
+ *
+ * Health: undo/delete/edit are NOT mirrored to Apple Health / Health Connect
+ * (audit #22). The nutrition samples `exportNutrition` writes carry no Ignia
+ * id, so there is nothing to delete or replace them by; tagging them (HealthKit
+ * metadata, Health Connect `clientRecordId`) is a `health.ts` change, deferred.
+ */
+async function settleUnlessOffline(write: Promise<void>): Promise<void> {
+  if (isOffline()) {
+    write.catch(() => {});
+    return;
+  }
+  await write;
 }
 
 export function useLogWrites(): LogWrites {
@@ -131,7 +153,7 @@ export function useLogWrites(): LogWrites {
         void addLogWithIdDoc(uid, id, landed).catch(() => {});
         return;
       }
-      await updateLogDoc(uid, id, entry);
+      await settleUnlessOffline(updateLogDoc(uid, id, entry));
     },
     [uid],
   );
@@ -144,7 +166,7 @@ export function useLogWrites(): LogWrites {
       // "Deleted" toast — and the next flush wrote it back. Dropping it from
       // the queue first is what makes swipe-delete work on a parked row.
       await dropPendingLogs([id]);
-      await deleteLogDoc(uid, id);
+      await settleUnlessOffline(deleteLogDoc(uid, id));
     },
     [uid],
   );

@@ -49,6 +49,9 @@ const ERROR_KEYS: Record<string, I18nKey> = {
 function errorKeyFor(e: unknown): I18nKey {
   if (e instanceof OffLookupError) return ERROR_KEYS[e.code] ?? 'barcode.failed';
   if (e instanceof TypeError || isOffline()) return 'barcode.offline';
+  // Out of time on a weak connection (audit #6) — a network miss, retried
+  // after the rest, never "not in the database".
+  if ((e as { name?: unknown } | null)?.name === 'TimeoutError') return 'barcode.timeout';
   return 'barcode.failed';
 }
 
@@ -110,6 +113,29 @@ export function BarcodeScanner({ visible, onClose, onPick, onDenied, onEnterFrom
   /** The same, for rendering: the retry panel answers a prompt, so it waits
    *  for one instead of flashing up before the OS dialog does. */
   const [asked, setAsked] = useState(false);
+  /**
+   * The lookup in flight and the open it belongs to (audit #6). Closing the
+   * scanner aborts the fetch and bumps the session, so an answer — or an
+   * error — that arrives after the close is dropped instead of prefilling
+   * (or haunting) whatever the user moved on to.
+   */
+  const session = useRef(0);
+  const inFlight = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    if (!visible) {
+      session.current++;
+      inFlight.current?.abort();
+      inFlight.current = null;
+    }
+  }, [visible]);
+  useEffect(
+    () => () => {
+      session.current++;
+      inFlight.current?.abort();
+    },
+    [],
+  );
 
   useEffect(() => {
     if (visible) {
@@ -169,11 +195,19 @@ export function BarcodeScanner({ visible, onClose, onPick, onDenied, onEnterFrom
     // answer — clearing it blinked the panel and its buttons away under a thumb.
     if (!retry) setError('');
     haptics.tap();
+    const mine = session.current;
+    const controller = new AbortController();
+    inFlight.current = controller;
     // An async body with `.catch` chained on, not a try statement: the React
     // Compiler skips a component holding a conditional inside `try/catch`.
     await (async () => {
       track('barcode_scan');
-      const { calories, protein, carbs, fat, productName, serving } = await lookupProduct(barcode);
+      const { calories, protein, carbs, fat, productName, serving } = await lookupProduct(barcode, {
+        signal: controller.signal,
+      });
+      // Closed while it looked: the answer belongs to an open that is over.
+      if (mine !== session.current) return;
+      inFlight.current = null;
       haptics.success();
       onPick({
         calories,
@@ -186,8 +220,12 @@ export function BarcodeScanner({ visible, onClose, onPick, onDenied, onEnterFrom
       });
     })()
       .catch((e: unknown) => {
+        // A stale lookup's error (including the abort the close itself
+        // caused) says nothing about the scanner on screen now.
+        if (mine !== session.current) return;
+        inFlight.current = null;
         const key = errorKeyFor(e);
-        const offline = key === 'barcode.offline';
+        const offline = key === 'barcode.offline' || key === 'barcode.timeout';
         const msg = t(key);
         const next = t(offline ? 'barcode.offlineNext' : onEnterFromLabel ? 'barcode.missRetry' : 'barcode.missNext');
         setError(msg);

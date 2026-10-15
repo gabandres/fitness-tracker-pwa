@@ -188,7 +188,10 @@ async function persist(snapshot: WidgetSnapshot): Promise<void> {
   const { renderTodayWidget } = require('../widgets/render');
   await requestWidgetUpdate({
     widgetName: WIDGET_NAME,
-    renderWidget: () => renderTodayWidget(snapshot),
+    // Each placed instance at ITS width (`WidgetInfo`): a bare
+    // `renderTodayWidget(snapshot)` drew the narrow face, so every live update
+    // shrank a wide widget back to the narrow column until the next resize.
+    renderWidget: (info?: { width?: number }) => renderTodayWidget(snapshot, info?.width),
     // Nobody has added the widget to their home screen — the common case.
     // Not an error; there is simply nothing to redraw.
     widgetNotFound: () => {},
@@ -294,7 +297,8 @@ export async function requestWidgetRedraw(snapshot: WidgetSnapshot): Promise<voi
     const { renderTodayWidget } = require('../widgets/render');
     await requestWidgetUpdate({
       widgetName: WIDGET_NAME,
-      renderWidget: () => renderTodayWidget(snapshot),
+      // At each instance's own width — see `persist`.
+      renderWidget: (info?: { width?: number }) => renderTodayWidget(snapshot, info?.width),
       widgetNotFound: () => {},
     });
   } catch {

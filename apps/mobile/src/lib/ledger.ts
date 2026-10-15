@@ -385,6 +385,44 @@ export async function getLogsForRange(
 }
 
 /**
+ * {@link getLogsForRange} as a LISTENER — the History calendar's view of one
+ * month behind the 400-row window, held open only while that month is on a
+ * focused screen (`useHistory`, ADR-0016 focus gate).
+ *
+ * The one-shot read was kept for the life of the screen, so a meal added or
+ * deleted on an old day — from the day-detail route, which mounts its own
+ * `useHistory` — never reached the calendar's copy of that month
+ * (2026-10-15 audit). Same query, same bound; it now stays current.
+ */
+export function subscribeLogsForRange(
+  uid: string,
+  fromKey: DateKey,
+  toKey: DateKey,
+  boundary: DayBoundary,
+  cb: (logs: DailyLog[], meta?: SnapshotMeta) => void,
+  onError?: (e: Error) => void,
+  maxRows = 1000,
+): Unsub {
+  const { start } = dayRange(fromKey, boundary);
+  const { end } = dayRange(toKey, boundary);
+  const q = query(
+    logsCol(uid),
+    where('timestamp', '>=', Timestamp.fromDate(start)),
+    where('timestamp', '<', Timestamp.fromDate(end)),
+    orderBy('timestamp', 'asc'),
+    limit(maxRows),
+  );
+  return onSnapshot(
+    q,
+    { includeMetadataChanges: true },
+    {
+      next: onChangedData((snap) => snap.docs.map((d) => toDailyLog(d.id, d.data())).sort(compareLogsOldestFirst), cb),
+      error: (e) => onError?.(e),
+    },
+  );
+}
+
+/**
  * All-time log facts for milestone copy ("N months of logging", "N entries"):
  * the total count and the earliest entry's date. Two cheap server calls — one
  * aggregate count (billed per 1,000 index entries, never per document) and a
@@ -1014,6 +1052,12 @@ export async function startFast(uid: string, startedAt?: Date): Promise<void> {
  * Resolves with a {@link BreakFastReceipt} so Today can offer Undo
  * (`undoBreakFast`) without re-reading anything.
  */
+/** The archive id of the timer fast that started at `start`: one start, one
+ *  document, however many times it is ended. */
+export function fastDocId(start: Date): string {
+  return `timer-${start.getTime()}`;
+}
+
 export async function breakFast(uid: string, endedAt?: Date, knownStart?: Date | null): Promise<BreakFastReceipt> {
   const end = endedAt ?? new Date();
   // The caller usually already holds the running fast's start (Today reads it
@@ -1032,9 +1076,13 @@ export async function breakFast(uid: string, endedAt?: Date, knownStart?: Date |
   const batch = writeBatch(db);
   let fastId: string | null = null;
   if (start && isStorableFast(start, end)) {
-    // The ref is minted before the commit so the receipt can name the document
-    // Undo has to remove — `doc(collection)` generates the id client-side.
-    const ref = doc(fastsCol(uid));
+    // The id is DERIVED from the fast's start, not minted (2026-10-15 audit):
+    // a double tap, or the Lock Screen's End racing the in-app button, is the
+    // same fast ending twice, and a fresh id per call archived it twice. Keyed
+    // on the start, a repeat overwrites the one document (`set`, which the
+    // `fasts` rule allows as create or update). The path already scopes it to
+    // the account. Still known before the commit, so Undo can name it.
+    const ref = doc(fastsCol(uid), fastDocId(start));
     fastId = ref.id;
     batch.set(ref, {
       startedAt: Timestamp.fromDate(start),

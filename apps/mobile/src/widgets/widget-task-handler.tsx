@@ -71,7 +71,7 @@ async function handleClick(props: WidgetTaskHandlerProps): Promise<void> {
 
   // An unknown action: redraw from disk and write nothing.
   if (slot == null) {
-    props.renderWidget(renderTodayWidget(await readWidgetSnapshot()));
+    props.renderWidget(renderTodayWidget(await readWidgetSnapshot(), props.widgetInfo?.width));
     return;
   }
 
@@ -79,5 +79,7 @@ async function handleClick(props: WidgetTaskHandlerProps): Promise<void> {
   // incremented otherwise — so this one call covers both the receipt and making
   // a stale button disappear.
   const { snapshot } = await performQuickAdd(slot);
-  props.renderWidget(renderTodayWidget(snapshot));
+  // At this instance's width: drawn bare, a tap on a WIDE widget's chip
+  // redrew it as the narrow face (2026-10-15 audit).
+  props.renderWidget(renderTodayWidget(snapshot, props.widgetInfo?.width));
 }

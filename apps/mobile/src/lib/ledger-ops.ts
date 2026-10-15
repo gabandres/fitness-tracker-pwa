@@ -50,6 +50,7 @@ import {
   sessionHasLoggedWork,
 } from '@macrolog/core';
 import { track } from './analytics';
+import { captureError } from './sentry';
 import { exportDaily, exportWorkout } from './health-sync';
 import {
   setDailySleep,
@@ -138,7 +139,12 @@ export async function writeDailyMetric(
 ): Promise<void> {
   await WRITER[kind](uid, dateKey, value);
   if (event) track(event);
-  void exportDaily(kind, dateKey, value);
+  // `{ uid }` marks the value as the user's: the export REPLACES Ignia's
+  // previous sample for the day instead of stacking beside it, and weight /
+  // water record the override the importer honours (2026-10-15 audit — the
+  // Finish-sheet and onboarding weigh-ins used to be overwritten by the next
+  // scale import, and every water tap added another day-total to Health).
+  void exportDaily(kind, dateKey, value, { uid });
 }
 
 /**
@@ -196,7 +202,7 @@ export async function finishWorkout(
   uid: string,
   session: WorkoutSession,
   boundary: DayBoundary,
-  extras: { bodyweight?: number; sleepHours?: number },
+  extras: { bodyweight?: number; sleepHours?: number; finishedAt?: Date },
 ): Promise<void> {
   const id = session.id;
   if (!id) return;
@@ -222,14 +228,33 @@ export async function finishWorkout(
     const { id: _id, createdAt: _c, updatedAt: _u, ...body } = session;
     await startSession(uid, { ...body, ...patch }, id);
   }
-  const dateKey = dayKeyAt(date, boundary);
+  // The day the user FINISHED, not the day the session started: the weigh-in
+  // and last night's sleep are typed on the Finish sheet, so a session begun
+  // before the day boundary and finished after it files them on the day they
+  // were typed, like every other weigh-in. `finishedAt` is stamped at the tap;
+  // a replay after a restart without it falls back to start + duration.
+  const finishedAt =
+    extras.finishedAt ??
+    (session.durationMin != null ? new Date(date.getTime() + session.durationMin * 60_000) : date);
+  const dateKey = dayKeyAt(finishedAt, boundary);
+  // The session is completed from here on. A failed extra must not reject:
+  // the caller would treat the whole finish as refused and put the (already
+  // completed) workout back on screen as active, where Discard deletes it.
+  // So each extra is reported and swallowed.
+  const extra = async (kind: 'weight' | 'sleep', value: number) => {
+    try {
+      await writeDailyMetric(uid, kind, dateKey, value);
+    } catch (e) {
+      captureError(e, { where: 'finishWorkout.extras', extra: { kind } });
+    }
+  };
   if (extras.bodyweight != null && isStorableWeight(extras.bodyweight)) {
-    await writeDailyMetric(uid, 'weight', dateKey, extras.bodyweight);
+    await extra('weight', extras.bodyweight);
   }
   // The session writer drops an out-of-range value (train-ux F3); the daily
   // metric must not take it either.
   if (extras.sleepHours != null && extras.sleepHours > 0 && isStorableSleepHours(extras.sleepHours)) {
-    await writeDailyMetric(uid, 'sleep', dateKey, extras.sleepHours);
+    await extra('sleep', extras.sleepHours);
   }
   // An empty session is still stored (it is what the user finished), but it is
   // not a day of exercise and must not keep a streak alive.
@@ -238,8 +263,8 @@ export async function finishWorkout(
   // wrote into `dailyLogs` read as an empty meal. The streak and History now
   // derive the trained day from this session (core `trainedDayRows`).
   track('workout_finished');
-  // Mirror the finished session to Health (ends now; strength training).
-  void exportWorkout({ start: date, end: new Date() });
+  // Mirror the finished session to Health (ends at the finish; strength training).
+  void exportWorkout({ start: date, end: extras.finishedAt ?? new Date() });
 }
 
 /**

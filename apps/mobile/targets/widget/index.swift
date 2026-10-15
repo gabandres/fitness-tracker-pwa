@@ -85,12 +85,15 @@ private struct Provider: TimelineProvider {
     // The locale is carried into the blank on purpose. Rebuilding it as "en"
     // would flip a Spanish widget to English at midnight and leave it there
     // until the app is next opened.
-    let cal = Calendar.current
-    if let midnight = cal.nextDate(
-      after: now, matching: DateComponents(hour: 0, minute: 0, second: 5),
-      matchingPolicy: .nextTime)
-    {
-      entries.append(Entry(date: midnight, face: .empty(locale: current.locale)))
+    //
+    // The rollover is the snapshot's OWN day end when it carries one
+    // (`dayEndsMs`, ADR-0030), not calendar midnight: under a 3am day start
+    // the midnight entry blanked a day that still had three hours to run, and
+    // the face stayed blank until the next push. Calendar midnight is the
+    // fallback for a blob written before the field existed — the same rule
+    // `Glance.face` applies to staleness. (2026-10-15 audit.)
+    if let rollover = Self.rollover(after: now, face: current) {
+      entries.append(Entry(date: rollover, face: .empty(locale: current.locale)))
     }
 
     // NOT `.atEnd`. That asks for a new timeline only once the LAST entry is
@@ -110,6 +113,19 @@ private struct Provider: TimelineProvider {
     // hourly would spend headroom that logging should get.
     let nextAsk = now.addingTimeInterval(4 * 60 * 60)
     completion(Timeline(entries: entries, policy: .after(nextAsk)))
+  }
+
+  /// When today's face must blank: five seconds past the snapshot's
+  /// `dayEndsMs` if it has one still ahead, else five seconds past the next
+  /// local midnight.
+  static func rollover(after now: Date, face: Glance.Face) -> Date? {
+    if case let .ready(_, _, snap) = face, let endsMs = snap.dayEndsMs {
+      let ends = Date(timeIntervalSince1970: endsMs / 1000 + 5)
+      if ends > now { return ends }
+    }
+    return Calendar.current.nextDate(
+      after: now, matching: DateComponents(hour: 0, minute: 0, second: 5),
+      matchingPolicy: .nextTime)
   }
 }
 

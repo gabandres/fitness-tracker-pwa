@@ -117,8 +117,17 @@ function reviver(_key: string, value: unknown): unknown {
 export async function readCache<T>(uid: string, slice: CacheSlice): Promise<T | null> {
   const key = cacheKey(uid, slice);
   if (memory.has(key)) return memory.get(key) as T;
+  // The disk read is async, and a live snapshot (`writeCache`) or a sign-out
+  // (`clearOfflineCache`) can land while it is in flight. Setting memory from
+  // the older disk payload after that overwrote the fresher value (audit #25),
+  // so the read only fills memory if nothing touched this key meanwhile — and
+  // hands back the newer value if something wrote one.
+  // Registered even before any write, so a clear during this read bumps it.
+  if (!versions.has(key)) versions.set(key, 0);
+  const seen = versions.get(key) ?? 0;
   try {
     const raw = await AsyncStorage.getItem(key);
+    if ((versions.get(key) ?? 0) !== seen) return memory.has(key) ? (memory.get(key) as T) : null;
     if (!raw) return null;
     const value = JSON.parse(raw, reviver) as T;
     memory.set(key, value);
@@ -126,6 +135,12 @@ export async function readCache<T>(uid: string, slice: CacheSlice): Promise<T | 
   } catch {
     return null;
   }
+}
+
+/** Bumped by every write and clear of a key — see {@link readCache}. */
+const versions = new Map<string, number>();
+function bump(key: string): void {
+  versions.set(key, (versions.get(key) ?? 0) + 1);
 }
 
 /**
@@ -170,6 +185,7 @@ const latest = new Map<string, unknown>();
  */
 export function writeCache<T>(uid: string, slice: CacheSlice, value: T): void {
   const key = cacheKey(uid, slice);
+  bump(key);
   memory.set(key, value);
   latest.set(key, value);
   const existing = timers.get(key);
@@ -210,6 +226,10 @@ export async function clearOfflineCache(uid?: string): Promise<void> {
     }
     for (const key of [...memory.keys()]) {
       if (uid == null || key.startsWith(`${CACHE_PREFIX}.${uid}.`)) memory.delete(key);
+    }
+    // A read still in flight must not repopulate what this just cleared.
+    for (const key of [...versions.keys()]) {
+      if (uid == null || key.startsWith(`${CACHE_PREFIX}.${uid}.`)) bump(key);
     }
     const keys = await AsyncStorage.getAllKeys();
     const mine = keys.filter((k) =>

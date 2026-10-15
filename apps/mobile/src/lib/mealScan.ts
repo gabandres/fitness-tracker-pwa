@@ -101,12 +101,30 @@ const UPLOAD_MAX_EDGE = 768;
  * picker returns and encode behind it. Nothing got faster; the dead air went
  * away, which is the part the user experiences.
  */
-export async function pickMealPhoto(source: ScanSource): Promise<string | null> {
+/**
+ * The picker was refused its permission — distinct from a cancel (audit #5).
+ * Both used to come back as `null`, so a user whose photo access was off
+ * tapped "Choose from library" and nothing at all happened. `canAskAgain`
+ * says whether the OS will still prompt; when it will not, only Settings can.
+ */
+export interface PickDenied {
+  denied: true;
+  canAskAgain: boolean;
+}
+
+/** A picked photo's URI, `null` for a cancel, or {@link PickDenied}. */
+export type PickResult = string | null | PickDenied;
+
+export function isPickDenied(r: PickResult): r is PickDenied {
+  return typeof r === 'object' && r !== null && r.denied === true;
+}
+
+export async function pickMealPhoto(source: ScanSource): Promise<PickResult> {
   const perm =
     source === 'camera'
       ? await ImagePicker.requestCameraPermissionsAsync()
       : await ImagePicker.requestMediaLibraryPermissionsAsync();
-  if (!perm.granted) return null;
+  if (!perm.granted) return { denied: true, canAskAgain: perm.canAskAgain !== false };
 
   const picker = source === 'camera' ? ImagePicker.launchCameraAsync : ImagePicker.launchImageLibraryAsync;
   const result = await picker({ mediaTypes: ['images'], quality: 1, allowsEditing: false });
@@ -139,6 +157,9 @@ export async function analyzeMealPhoto(
   photos: string | string[],
   locale: string,
   note?: string,
+  /** The name for a whole-meal fallback row with no description — the
+   *  caller's translated "Meal" (audit #10: it was English in every locale). */
+  fallbackName = 'Meal',
 ): Promise<MealScan> {
   const call = httpsCallable<
     { photoBase64: string; photosBase64?: string[]; locale: string; note?: string },
@@ -178,7 +199,7 @@ export async function analyzeMealPhoto(
     : [
         {
           // Older deployment: one whole-meal total, no per-item breakdown.
-          name: data.description || 'Meal',
+          name: data.description || fallbackName,
           grams: 0,
           calories: nonNeg(data.calories),
           protein: nonNeg(data.protein),
@@ -223,6 +244,10 @@ interface CallableError {
   details?: { code?: string; limit?: number };
 }
 
+/** Callable statuses that mean the request got no answer (see the default
+ *  branch of {@link scanErrorMessage}). */
+const NO_ANSWER = new Set(['deadline-exceeded', 'unavailable', 'internal']);
+
 export function scanErrorMessage(e: unknown): ScanErrorMessage {
   const err = e as CallableError | null;
   const details = err?.details;
@@ -265,6 +290,14 @@ export function scanErrorMessage(e: unknown): ScanErrorMessage {
       // more precise message.
       if (err?.code === 'functions/resource-exhausted' || err?.code === 'resource-exhausted') {
         return { key: 'scan.errProvider' };
+      }
+      // No answer came back at all (audit #7): the call timed out, found no
+      // route, or failed in the SDK's own transport — which the JS SDK reports
+      // as a bare `internal`. None of that is the photograph. An `internal`
+      // that carries one of OUR codes is the server speaking, and keeps the
+      // mapping above; only the code-less ones land here.
+      if (!details?.code && NO_ANSWER.has(String(err?.code ?? '').replace(/^functions\//, ''))) {
+        return { key: 'scan.errNetwork' };
       }
       // PHOTO_ESTIMATE_FAILED / PHOTO_ANALYZE_FAILED / a local encode failure
       // / no network. Here the photo genuinely may be the problem.

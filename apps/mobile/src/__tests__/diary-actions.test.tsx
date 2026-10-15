@@ -62,6 +62,25 @@ describe('useDiaryActions', () => {
     expect(mockAddLogDurably).toHaveBeenCalledWith('u1', expect.objectContaining({ calories: 300 }), 'r1');
   });
 
+  // Audit 2026-10-15 #15: a failed delete, or an Undo the server refused,
+  // only buzzed — the row came back (or stayed gone) with nothing said.
+  it('says so when a delete fails, not just a buzz', async () => {
+    const { ref, render: r } = setup({ deleteEntry: jest.fn().mockRejectedValue(new Error('offline')) });
+    await r();
+    await act(async () => ref.current!.deleteFromList(oats));
+    await act(async () => {});
+    expect(mockShow).toHaveBeenCalledWith("Couldn't delete that entry. Check your connection and try again.");
+  });
+
+  it('says so when the Undo of a delete is refused', async () => {
+    mockAddLogDurably.mockResolvedValueOnce('rejected');
+    const { ref, render: r } = setup();
+    await r();
+    await act(async () => ref.current!.deleteFromList(oats));
+    await act(async () => mockShow.mock.calls[0][1].action.onPress());
+    expect(mockShow).toHaveBeenLastCalledWith("Couldn't restore that entry. It's still deleted.");
+  });
+
   it('reopens the form holding a refused add — the sheet has already closed', async () => {
     // The add sheet closes at dispatch, so this is where a refusal is
     // recovered: what was typed comes back for the one wrong value to be fixed.

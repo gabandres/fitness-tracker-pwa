@@ -19,6 +19,7 @@ import { BrandMark } from '@/components/BrandMark';
 import { GoogleIcon, MicrosoftIcon } from '@/components/BrandIcons';
 import { WelcomeIntro } from '@/components/WelcomeIntro';
 import { useAuth } from '@/lib/auth';
+import { isLinkCaptured, type PendingLink } from '@/lib/link-error';
 import { type I18nKey, type TFn, useLocale, useT } from '@/i18n';
 import { enterUp } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
@@ -160,9 +161,9 @@ export default function SignIn() {
     setMode(next);
   }
 
-  function failFederated(e: unknown): void {
+  function failFederated(e: unknown, provider: FederatedProvider): void {
     setErrorFrom('federated');
-    setError(errorMessage(e, t, 'federated'));
+    setError(errorMessage(e, t, 'federated', provider));
   }
 
   async function onGoogle() {
@@ -174,7 +175,7 @@ export default function SignIn() {
       // AuthGate navigates once auth state flips.
     })()
       .catch((e: unknown) => {
-        if (!isPendingLinkCollision(e)) failFederated(e);
+        if (!isLinkCaptured(e)) failFederated(e, 'google');
       })
       .finally(() => {
         setGoogleBusy(false);
@@ -190,7 +191,7 @@ export default function SignIn() {
       // AuthGate navigates once auth state flips.
     })()
       .catch((e: unknown) => {
-        if (!isPendingLinkCollision(e)) failFederated(e);
+        if (!isLinkCaptured(e)) failFederated(e, 'microsoft');
       })
       .finally(() => {
         setMsBusy(false);
@@ -206,7 +207,7 @@ export default function SignIn() {
       // AuthGate navigates once auth state flips.
     })()
       .catch((e: unknown) => {
-        if (!isPendingLinkCollision(e)) failFederated(e);
+        if (!isLinkCaptured(e)) failFederated(e, 'apple');
       })
       .finally(() => {
         setAppleBusy(false);
@@ -284,13 +285,16 @@ export default function SignIn() {
               />
             ) : null}
 
+            {/* `disabled` follows what the button LOOKS like: it was drawn
+                dimmed when Google is unavailable (Expo Go, no client ID) but
+                stayed pressable and announced itself as enabled. */}
             <TouchableOpacity
               style={[styles.googleButton, (googleBusy || !googleAvailable) && styles.buttonBusy]}
               onPress={onGoogle}
-              disabled={googleBusy}
+              disabled={googleBusy || !googleAvailable}
               testID="signin-google"
               accessibilityRole="button"
-              accessibilityState={{ disabled: googleBusy, busy: googleBusy }}
+              accessibilityState={{ disabled: googleBusy || !googleAvailable, busy: googleBusy }}
               accessibilityLabel={t('signIn.google')}
             >
               {googleBusy ? (
@@ -343,7 +347,7 @@ export default function SignIn() {
                 ("sign in below") since the providers moved to the top. */}
             {pendingLink ? (
               <Text style={styles.notice} testID="signin-pending-link">
-                {t('signIn.linkPrompt', { email: pendingLink.email })}
+                {t(linkPromptKey(pendingLink), { email: pendingLink.email })}
               </Text>
             ) : null}
 
@@ -504,27 +508,49 @@ type ErrSource = 'password' | 'federated';
  * when we could not classify it. There is no crash reporter here, so that tail
  * is the only way an unclassified failure on a tester's device ever reaches us.
  */
-/**
- * The provider handed back an email that already belongs to another method.
- * `capturePendingLink` has parked the credential and the screen renders the
- * link prompt, which says what to do; the raw message only states that the
- * email uses a different sign-in method and leaves the user nowhere. So this
- * one code is suppressed — and ONLY this one. Every other federated failure
- * still reaches the error slot.
+/** Which federated button raised a failure — the cancel copy names it. */
+type FederatedProvider = 'google' | 'apple' | 'microsoft';
+
+/*
+ * A federated collision whose credential the auth layer PARKED is silenced in
+ * the handlers above (`isLinkCaptured`): the link prompt says what to do, and
+ * the raw "different sign-in method" line leaves the user nowhere. A collision
+ * it could NOT park (no email or no credential on the error) falls through to
+ * the error slot — it used to be silenced on its code alone, which rendered
+ * neither the prompt nor the error (audit 2026-10-15).
  */
-function isPendingLinkCollision(e: unknown): boolean {
-  return String((e as { code?: string })?.code ?? '').includes(
-    'account-exists-with-different-credential',
-  );
+
+/**
+ * The collision prompt, worded for the method that already owns the email.
+ * "Sign in with your password below" was the only wording, and a Google-only
+ * account has no password to type. Unknown (`null`, the common case under
+ * email-enumeration protection) gets the neutral form, never a guess.
+ */
+function linkPromptKey(link: PendingLink): I18nKey {
+  switch (link.existingProvider) {
+    case 'password':
+      return 'signIn.linkPrompt';
+    case 'google.com':
+      return 'signIn.linkPromptGoogle';
+    case 'apple.com':
+      return 'signIn.linkPromptApple';
+    default:
+      return 'signIn.linkPromptNeutral';
+  }
 }
 
-function errorMessage(e: unknown, t: TFn, source: ErrSource = 'password'): string {
-  const base = t(errorKey(e, source));
+function errorMessage(
+  e: unknown,
+  t: TFn,
+  source: ErrSource = 'password',
+  provider: FederatedProvider = 'google',
+): string {
+  const base = t(errorKey(e, source, provider));
   const detail = (e as { detail?: string })?.detail;
   return detail ? `${base} (${detail})` : base;
 }
 
-function errorKey(e: unknown, source: ErrSource = 'password'): I18nKey {
+function errorKey(e: unknown, source: ErrSource = 'password', provider: FederatedProvider = 'google'): I18nKey {
   const code = (e as { code?: string })?.code ?? '';
   if (code === 'use-google') return 'signIn.errUseGoogle';
   if (code === 'use-apple') return 'signIn.errUseApple';
@@ -545,7 +571,13 @@ function errorKey(e: unknown, source: ErrSource = 'password'): I18nKey {
   }
   if (code.includes('network')) return 'signIn.errNetwork';
   if (code === 'expo-go') return 'signIn.errExpoGo';
-  if (code === 'cancelled') return 'signIn.errCancelled';
+  if (code === 'cancelled') {
+    return provider === 'apple'
+      ? 'signIn.errCancelledApple'
+      : provider === 'microsoft'
+        ? 'signIn.errCancelledMicrosoft'
+        : 'signIn.errCancelled';
+  }
   if (code === 'play-services') return 'signIn.errPlayServices';
   if (code === 'browser') return 'signIn.errBrowser';
   return 'signIn.errGeneric';

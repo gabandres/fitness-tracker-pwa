@@ -6,6 +6,7 @@ import { QUICK_ADD_MAX, type MealPreset } from '@macrolog/core';
 import { type I18nKey, useT } from '@/i18n';
 import { useAuth } from '@/lib/auth';
 import * as haptics from '@/lib/haptics';
+import { announce } from '@/lib/a11y';
 import { subscribePresets } from '@/lib/ledger';
 import { getQuickAddSlots, readQuickAddOutcome, toggleQuickAddSlot } from '@/lib/quick-add';
 import { trackSubs } from '@/lib/sub-debug';
@@ -83,9 +84,31 @@ export function QuickAddCard() {
     }, []),
   );
 
+  /**
+   * The slots that still name a preset (audit #16). A slot whose preset was
+   * deleted resolves to nothing on the widget (`resolveQuickAddTargets`), so
+   * it must not hold a badge number or a place toward the cap here either.
+   * Only pruned once presets have arrived — an empty first render would read
+   * every slot as dead.
+   */
+  const liveIds = presets.map((p) => p.id).filter((id): id is string => !!id);
+  const liveSlots = presets.length ? slots.filter((id) => liveIds.includes(id)) : slots;
+  /** A fourth pick was refused — said under the list, where the tap was. */
+  const [refused, setRefused] = useState(false);
+
   async function toggle(presetId: string) {
+    const wasOn = liveSlots.includes(presetId);
+    const next = await toggleQuickAddSlot(presetId, liveIds);
+    setSlots(next);
+    // Full: the old code evicted slot 1 (the tile's preset) to make room.
+    if (!wasOn && !next.includes(presetId)) {
+      haptics.warning();
+      setRefused(true);
+      announce(t('settings.quickAddFull', { n: String(QUICK_ADD_MAX) }));
+      return;
+    }
     haptics.tap();
-    setSlots(await toggleQuickAddSlot(presetId));
+    setRefused(false);
   }
 
   return (
@@ -102,7 +125,7 @@ export function QuickAddCard() {
         </Text>
       ) : (
         presets.map((preset) => {
-          const slot = preset.id ? slots.indexOf(preset.id) : -1;
+          const slot = preset.id ? liveSlots.indexOf(preset.id) : -1;
           const on = slot >= 0;
           return (
             <TouchableOpacity
@@ -142,10 +165,16 @@ export function QuickAddCard() {
         })
       )}
 
-      {slots.length >= QUICK_ADD_MAX ? (
-        <Text style={styles.hint}>{t('settings.quickAddFull', { n: String(QUICK_ADD_MAX) })}</Text>
+      {liveSlots.length >= QUICK_ADD_MAX ? (
+        <Text
+          style={[styles.hint, refused && styles.problem]}
+          accessibilityLiveRegion="polite"
+          testID="quick-add-full"
+        >
+          {t('settings.quickAddFull', { n: String(QUICK_ADD_MAX) })}
+        </Text>
       ) : null}
-      {slots.length > 0 ? <Text style={styles.hint}>{t('settings.quickAddWidgetHint')}</Text> : null}
+      {liveSlots.length > 0 ? <Text style={styles.hint}>{t('settings.quickAddWidgetHint')}</Text> : null}
 
       {/* The only place a refused tap can ever surface. See `readQuickAddOutcome`. */}
       {problem ? <Text style={styles.problem}>{t(problem)}</Text> : null}

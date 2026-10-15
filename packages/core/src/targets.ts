@@ -2,6 +2,7 @@ import type { DailyLog, Profile, ProfileFields } from './types';
 import { MIDNIGHT, dayKeyAt, type DayBoundary } from './day-boundary';
 import { computeProtein } from './macro-heuristic';
 import { calculateTdee, calorieFloor, type TdeeResult } from './tdee';
+import { addDays, parseYmd } from './date';
 
 /**
  * Daily calorie + protein targets — pure port of the precedence chain in
@@ -47,31 +48,71 @@ export interface GoalProgress {
 }
 
 /**
- * Progress from the earliest recorded weight toward the goal weight — cut-
- * and bulk-aware. Start weight is the oldest dailyWeight entry, else the
- * oldest log-embedded weight, else the current reading. Returns null when
- * there's no goal, no current weight, or start === goal (progress undefined).
- * Pure port of the Angular FitnessStore.goalProgress derivation.
+ * Progress from the start weight toward the goal weight — cut- and bulk-
+ * aware. Readings are the dailyWeight entries (oldest first), else the log-
+ * embedded weights. Returns null when there's no goal, no current weight, or
+ * start === goal (progress undefined). Pure port of the Angular
+ * FitnessStore.goalProgress derivation.
+ *
+ * ## Which reading is the start
+ *
+ * Without `direction`, the oldest reading — unchanged for every caller that
+ * does not pass one.
+ *
+ * With `direction` (`'lose'` / `'gain'`, the profile's goal direction), the
+ * start is consistent with it (audit 2026-10-15). The oldest reading ever
+ * can sit on the far side of the goal: someone who bulked 150 → 200 and then
+ * set a cut to 180 read as a BULK that had overshot — 100%, "goal reached" —
+ * while still 20 lb from it. So when the OLDEST reading is already at or past
+ * the goal in the direction (for a cut, at or below it), the series is cut at
+ * its FIRST move across the goal against the direction (for a cut, the first
+ * step from at-or-below the goal to above it), and the start is the extreme
+ * reading since then — the highest for a cut, the lowest for a bulk.
+ *
+ * When the oldest reading is on the far side (a cut that began above its
+ * goal), the oldest reading stays the start, exactly as before. That is what
+ * keeps a cut that OVERSHOT its goal (200 → 179, goal 180) at 100%, and —
+ * the reason it is the FIRST crossing and only on a wrong-side start — what
+ * keeps a user HOVERING at goal (200 → 179 → 181) at 95% rather than resetting
+ * to "start 181, 0%" every time a morning reading lands a pound over the line
+ * (review 2026-10-15: cutting at the last crossing did exactly that).
+ * `'maintain'` has no direction to be consistent with and keeps the oldest.
  */
 export function computeGoalProgress(
   logs: DailyLog[],
   dailyWeights: Record<string, number>,
   goalWeight: number | null | undefined,
+  direction?: 'lose' | 'gain' | 'maintain' | null,
 ): GoalProgress | null {
   const current = currentWeight(logs, dailyWeights);
   if (!goalWeight || current == null) return null;
 
   const keys = Object.keys(dailyWeights ?? {}).sort();
-  let start: number | null = keys.length > 0 ? dailyWeights[keys[0]] : null;
-  if (start == null) {
-    for (const l of logs) {
-      if (l.weight != null) {
-        start = l.weight;
-        break;
-      }
+  const series: number[] =
+    keys.length > 0
+      ? keys.map((k) => dailyWeights[k])
+      : logs.filter((l) => l.weight != null).map((l) => l.weight!);
+  let start: number = series.length > 0 ? series[0] : current;
+
+  const cut = direction === 'lose';
+  const startsPastGoal =
+    series.length > 1 &&
+    (direction === 'lose' || direction === 'gain') &&
+    (cut ? series[0] <= goalWeight : series[0] >= goalWeight);
+  if (startsPastGoal) {
+    // Index of the first reading after the first move against the direction.
+    let from = -1;
+    for (let i = 1; i < series.length; i++) {
+      const against = cut
+        ? series[i - 1] <= goalWeight && series[i] > goalWeight
+        : series[i - 1] >= goalWeight && series[i] < goalWeight;
+      if (against) { from = i; break; }
+    }
+    if (from >= 0) {
+      const since = series.slice(from);
+      start = cut ? Math.max(...since) : Math.min(...since);
     }
   }
-  if (start == null) start = current;
 
   const totalDelta = Math.abs(goalWeight - start);
   if (totalDelta === 0) return null;
@@ -319,4 +360,36 @@ export function dailyTargets(
     currentWeight: w,
     tdee,
   };
+}
+
+/**
+ * {@link dailyTargets} as they stood on `dateKey` — for a past day with no
+ * stored target record (`target-history.ts`).
+ *
+ * The History day screen used to call `dailyTargets(profile, logs, weights)`
+ * with every row it had and the real clock, so every past day read TODAY's
+ * target (audit 2026-10-15). This replays the chain the way `tdeeSeries`
+ * replays a past day: only the rows and weigh-ins on or before `dateKey`, and
+ * `now` at the NEXT midnight, so that day's intake counts in full and no later
+ * scale reading leaks in. It is still a reconstruction — the profile is
+ * today's (pace, goal, floor) — which is why a stored record wins over it.
+ *
+ * `dateKey` on or after today's key is simply today's chain, byte for byte.
+ * An invalid key also falls back to today's chain rather than to NaN.
+ */
+export function dailyTargetsOn(
+  profile: Profile | null,
+  logs: DailyLog[],
+  dailyWeights: Record<string, number>,
+  dateKey: string,
+  now: Date = new Date(),
+): DailyTargets {
+  const day = parseYmd(dateKey);
+  if (Number.isNaN(day.getTime()) || dateKey >= dayKeyAt(now, MIDNIGHT)) {
+    return dailyTargets(profile, logs, dailyWeights, now);
+  }
+  const rows = (logs ?? []).filter((l) => dayKeyAt(l.date, MIDNIGHT) <= dateKey);
+  const weights: Record<string, number> = {};
+  for (const [k, v] of Object.entries(dailyWeights ?? {})) if (k <= dateKey) weights[k] = v;
+  return dailyTargets(profile, rows, weights, addDays(day, 1));
 }

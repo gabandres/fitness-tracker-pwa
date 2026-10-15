@@ -54,10 +54,11 @@ const RUN: CardioBlock = {
   startedAt: new Date(2026, 8, 6, 7, 0),
 };
 
-/** A session the user logged that day, with no cardio yet. */
+/** A session the user logged that day, with no cardio yet. COMPLETED: an
+ *  active session is never written into by the import (2026-10-15 audit). */
 const EXISTING = {
   id: 'sess-1',
-  status: 'active',
+  status: 'completed',
   date: DAY,
   exercises: [],
   createdAt: DAY,

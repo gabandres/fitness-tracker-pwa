@@ -1,7 +1,10 @@
-// Português (Brasil). Key parity with `en.ts` is enforced by
-// `src/__tests__/i18n-parity.test.ts` and by `npm run doctor`.
+import type { I18nKey } from './en';
+
+// Português (Brasil). Key parity with `en.ts` is enforced by the
+// `Record<I18nKey, string>` type (a missing key won't compile), as in es-PR,
+// and by `src/__tests__/i18n-parity.test.ts` and `npm run doctor`.
 // `{name}`-style placeholders are interpolated by t() — keep them verbatim.
-export const ptBR = {
+export const ptBR: Record<I18nKey, string> = {
   // ── common ──
   'common.cancel': 'Cancelar',
   'common.save': 'Salvar',
@@ -73,6 +76,13 @@ export const ptBR = {
   'scan.discard': 'Descartar',
   'scan.retakeConfirmBody': 'Ele já contou como um dos seus escaneamentos de hoje, e tirar de novo usa outro.',
   'scan.retakeConfirm': 'Descartar e tirar de novo',
+  'scan.keepWaiting': 'Continuar esperando',
+  'scan.stopConfirm': 'Parar escaneamento',
+  'scan.stopBody': 'Ainda está lendo sua foto. Suas fotos ficam para você tentar de novo.',
+  'scan.stopTitle': 'Parar este escaneamento?',
+  'scan.removeLastConfirm': 'Remover e descartar',
+  'scan.removeLastBody': 'Isso esvazia este escaneamento. Ele já contou nos escaneamentos de hoje.',
+  'scan.removeLastTitle': 'Remover o último item?',
   'scan.removePhoto': 'Remover foto {n}',
   'scan.mealNameLabel': 'Nome da refeição',
   'scan.addItem': 'Adicionar algo que faltou',
@@ -94,8 +104,10 @@ export const ptBR = {
   'scan.frameHint': 'Enquadre o prato inteiro',
   'scan.shotFailed': 'Não foi possível tirar a foto. Tente de novo.',
   'scan.cameraOff': 'O acesso à câmera está desligado. Ative em Ajustes para tirar uma foto da refeição, ou escolha uma da galeria.',
+  'scan.libraryOff': 'O acesso às fotos está desativado. Ative em Ajustes para escolher uma foto da refeição.',
   'scan.openSettings': 'Abrir Ajustes',
   'scan.errOffline': 'Você está sem conexão. O escaneamento de fotos precisa de internet.',
+  'scan.errNetwork': 'Não foi possível falar com o scanner. Verifique sua conexão e tente de novo.',
   'scan.offlineNotice': 'Você está sem conexão. O escaneamento de fotos precisa de internet; a busca funciona sem ela.',
   'scan.searchInstead': 'Usar a busca',
   'scan.addFailed': 'Não foi possível adicionar esta refeição. Seu escaneamento continua aqui; tente de novo.',
@@ -145,9 +157,17 @@ export const ptBR = {
   'signIn.errNetwork': 'Erro de rede — verifique a sua conexão.',
   'signIn.errExpoGo': 'Esse método de login precisa do app instalado (não do Expo Go).',
   'signIn.errCancelled': 'O login com o Google foi cancelado.',
+  'signIn.errCancelledApple': 'O login com a Apple foi cancelado.',
+  'signIn.errCancelledMicrosoft': 'O login com a Microsoft foi cancelado.',
   'signIn.errDiffMethod': 'Esse e-mail já usa outro método de login.',
   'signIn.linkPrompt':
     '{email} já tem uma conta aqui. Entre com a sua senha abaixo e nós conectamos as duas — mesma conta, os dois caminhos funcionam.',
+  'signIn.linkPromptGoogle':
+    '{email} já tem uma conta aqui, com o Google. Toque em "Continuar com o Google" acima e nós conectamos as duas — mesma conta, os dois caminhos funcionam.',
+  'signIn.linkPromptApple':
+    '{email} já tem uma conta aqui, com a Apple. Toque em "Iniciar sessão com a Apple" acima e nós conectamos as duas — mesma conta, os dois caminhos funcionam.',
+  'signIn.linkPromptNeutral':
+    '{email} já tem uma conta aqui. Entre do jeito que você entrou da primeira vez — senha, Google ou Apple — e nós conectamos as duas.',
   'signIn.errPlayServices': 'O Google Play Services está ausente ou desatualizado neste aparelho — atualize e tente de novo.',
   'signIn.errBrowser': 'Este aparelho não abriu um navegador para o Google. Verifique se o Safari está habilitado (o Tempo de Uso pode bloqueá-lo) ou entre com o seu e-mail.',
   'signIn.errGeneric': 'Não foi possível entrar. Tente de novo.',
@@ -328,6 +348,7 @@ export const ptBR = {
   'recipeImport.ingredientCount': '{n} ingredientes',
   'recipeImport.useThis': 'Usar esta porção',
   'recipeImport.noNutrition': 'Essa página não traz informação nutricional que a gente consiga ler. Tente o montador de receitas.',
+  'recipeImport.noKcal': 'Esta página informa 0 kcal por porção, então não há nada para usar. Tente outra página ou monte a receita você mesmo.',
   'recipeImport.errInvalidUrl': 'Isso não parece um link de receita válido.',
   'recipeImport.errFetch': 'Não foi possível acessar essa página. Confira o link e tente de novo.',
 
@@ -344,6 +365,7 @@ export const ptBR = {
   'metrics.fastEnded': 'Jejum encerrado',
   'metrics.saveFailed': 'Não foi possível salvar. Verifique sua conexão e tente de novo.',
   'metrics.fastEndFailed': "Não foi possível encerrar o jejum. Verifique sua conexão e tente de novo.",
+  'metrics.fastUndoFailed': 'Não foi possível desfazer — o jejum continua encerrado. Verifique sua conexão e tente de novo.',
   'metrics.waterNowA11y': '{n} {unit} de água hoje',
   'metrics.sleepLogA11y': 'Registrar sono',
   'metrics.sleepEditA11y': 'Editar sono',
@@ -431,6 +453,8 @@ export const ptBR = {
   // ── offline ──
   'offline.banner': 'Você está offline. As refeições que registrar ficam salvas e serão sincronizadas.',
   'offline.queued': 'Salvo offline — sincroniza quando você reconectar.',
+  'offline.rejectedOnSyncMany': '{n} registros salvos offline foram recusados ao sincronizar, então foram removidos.',
+  'offline.rejectedOnSync': 'Não foi possível salvar {label} ao sincronizar — foi recusado, então foi removido.',
   'offline.queuedCount.one': '{n} registro salvo offline, aguardando sincronização.',
   'offline.queuedCount.other': '{n} registros salvos offline, aguardando sincronização.',
 
@@ -597,6 +621,7 @@ export const ptBR = {
   'mealText.read': 'Lemos: {text}',
   'mealText.assumed': 'Essa porção não está no banco de dados — a quantidade acima é uma estimativa. Edite.',
   'mealText.noMatch': 'Sem resultado — informe os valores',
+  'mealText.needsValues': 'Informe as kcal de {names}, ou remova, antes de adicionar.',
   'mealText.addAll': 'Adicionar tudo ao diário',
   'mealText.startOver': 'Começar de novo',
   'mealText.noItems': 'Não conseguimos ler nenhum alimento. Tente escrever de forma mais simples.',
@@ -614,6 +639,8 @@ export const ptBR = {
   'recipe.addIngredient': '+ Adicionar ingrediente',
   'recipe.servings': 'Porções',
   'recipe.perServing': 'Por porção',
+  'recipe.roundsToZero': 'Uma porção arredonda para 0 kcal. Use menos porções.',
+  'recipe.invalidNumbers': 'Alguns números não são válidos. Corrija os campos destacados.',
   'recipe.useThis': 'Usar esta',
 
   // ── barcode ──
@@ -627,6 +654,7 @@ export const ptBR = {
   'barcode.missNext': 'Escaneie de novo, ou cancele e digite a partir do rótulo da embalagem.',
   'barcode.missRetry': 'Ou segure firme para escanear de novo.',
   'barcode.offline': 'Você está sem conexão e não deu para buscar esse código de barras.',
+  'barcode.timeout': 'A busca demorou demais. Verifique sua conexão e tente de novo.',
   'barcode.offlineNext': 'A busca pelo nome funciona sem conexão — ou tente de novo quando reconectar.',
   'barcode.searchByName': 'Buscar pelo nome',
   'barcode.torch': 'Lanterna',
@@ -820,6 +848,7 @@ export const ptBR = {
   'fast.delete': 'Excluir este jejum',
   'fast.errSaveTitle': 'Não deu para salvar esse jejum',
   'fast.errSaveBody': 'Sua alteração foi desfeita. Verifique a conexão e tente de novo.',
+  'fast.deleteFailed': 'Não foi possível remover esse jejum. Verifique sua conexão e tente de novo.',
   'fast.deleteTitle': 'Excluir este jejum?',
   'fast.deleteBody': 'Ele sai do seu histórico e das suas médias.',
   'fast.sectionTitle': 'Jejum',
@@ -902,6 +931,7 @@ export const ptBR = {
   'trends.budgetUsedValue': '{used} de {total} kcal',
   'trends.budgetUsedAssumedValue': '{used} + {assumed} estimadas de {total} kcal',
   'trends.budgetPerDayInclToday': 'Por dia, incluindo hoje',
+  'trends.budgetBelowFloor': 'Para fechar seriam {kcal} kcal por dia, abaixo do seu mínimo de {floor} kcal. Não coma menos de {floor}; a semana vai fechar um pouco acima.',
   'trends.budgetAssumed.one': '{n} dia sem registro contado na sua meta',
   'trends.budgetAssumed.other': '{n} dias sem registro contados na sua meta',
   'trends.budgetWeek': 'Esta semana · {from} – {to}',
@@ -1534,7 +1564,7 @@ export const ptBR = {
   'train.kind.activation': 'Série inicial',
   'train.kind.working': 'Trabalho',
   'train.kind.mini': 'Mini-série',
-  'train.kind.drop': 'Drop',
+  'train.kind.drop': 'Drop set',
   'train.kind.mobility': 'Mobilidade',
   'train.mobilityDoseNote': "Alongamentos mantidos por mais de cerca de 60 s antes de levantar reduzem de forma mensurável a força (−5,4%) e a potência (−1,9%). Abaixo de 45 s o efeito é mínimo, e a amplitude de movimento ainda melhora aos 60 s.",
   'train.platesWarmup': 'Anilhas e aquecimento',
@@ -1677,8 +1707,8 @@ export const ptBR = {
   'train.removeExercise': 'Remover exercício',
   'train.setCount': '{n} séries',
   'train.setCountOne': '1 série',
-  'train.clusterCount.one': '{n} cluster',
-  'train.clusterCount.other': '{n} clusters',
+  'train.clusterCount.one': '{n} série agrupada',
+  'train.clusterCount.other': '{n} séries agrupadas',
   'train.setShort': 'Série',
   'train.setTypeA11y': 'Série {n}, tipo: {kind}',
   'train.repsShort': 'reps',
@@ -1825,6 +1855,7 @@ export const ptBR = {
     'Este é o seu único método de login. Conecte outro antes de remover este.',
   'signInMethods.errUnavailable': 'Esse método de login não está disponível neste aparelho.',
   'signInMethods.errGeneric': 'Não funcionou. Tente de novo.',
+  'signInMethods.errWeakPassword': 'Use no mínimo 10 caracteres, com uma letra maiúscula, uma minúscula e um número.',
 
   'settings.deleteAccount': 'Excluir conta',
   'settings.deleteAccountSub': 'Apagar permanentemente a sua conta e os seus dados.',
@@ -1835,6 +1866,8 @@ export const ptBR = {
   'settings.deleteFinalBody': 'Esta é a sua última chance de cancelar. Seus dados não poderão ser recuperados depois.',
   'settings.deleteFinalCta': 'Excluir para sempre',
   'settings.deleteFailed': 'Não conseguimos excluir a sua conta. Verifique a sua conexão e tente de novo, ou escreva para o suporte.',
+  'settings.saveFailed': 'Não foi possível salvar. Verifique a sua conexão e tente de novo.',
+  'settings.signOutFailed': 'Não foi possível sair. Tente de novo.',
   'settings.legal': 'Jurídico',
   'settings.privacyPolicy': 'Política de privacidade',
   'settings.termsOfUse': 'Termos de uso',
@@ -1962,6 +1995,7 @@ export const ptBR = {
   'verify.notYet': 'Ainda não confirmado — toque no link do e-mail e atualize.',
   'verify.checkFailed': 'Não foi possível atualizar o status. Tente de novo.',
   'verify.resendFailed': 'Não foi possível reenviar o e-mail. Tente de novo.',
+  'verify.initialSendFailed': 'Não conseguimos enviar o seu e-mail de verificação. Toque em Reenviar para tentar de novo.',
   'verify.resendTooSoon': 'Você acabou de pedir um — confira a caixa de entrada e o spam. Você pode reenviar em um minuto.',
   'onboarding.saveErrVerify': 'Confirme o seu e-mail primeiro (veja a caixa de entrada ou o spam) e tente de novo.',
 
@@ -1993,6 +2027,7 @@ export const ptBR = {
   'targets.errProteinMax': 'A meta de proteína não pode passar de {n} g.',
   'targets.errNotANumber': 'Digite um número.',
   'targets.errProteinRange': 'Digite um número entre {min} e {max} g.',
+  'targets.errBelowProteinFloor': 'Abaixo do seu mínimo de {n} g de proteína. Diminua o mínimo em Ajustes primeiro se quiser mesmo ficar abaixo dele.',
   'targets.warnAggressive': 'Isso é {pct}% abaixo da sua manutenção medida de {n} kcal — um corte agressivo. Você ainda pode salvar.',
   'targets.summaryAuto': 'Automático',
   'targets.summaryCustom': 'Personalizado',
@@ -2372,6 +2407,8 @@ export const ptBR = {
   'train.reorderExercises': 'Reordenar exercícios',
   'train.reorderHint': 'Arraste a alça, ou use as setas, para mover um exercício.',
   'entry.deleted': 'Registro excluído',
+  'entry.undoDeleteFailed': 'Não foi possível restaurar esse registro. Ele continua excluído.',
+  'entry.deleteFailed': 'Não foi possível excluir esse registro. Verifique sua conexão e tente de novo.',
   'entry.logged': 'Registrado: {label} · {n} kcal',
   'common.edit': 'Editar',
   'entry.loggedMany': '{n} itens registrados · {kcal} kcal',
@@ -2417,6 +2454,7 @@ export const ptBR = {
   'onboarding.unitFtIn': 'Pés e polegadas',
   'onboarding.unitCm': 'Centímetros',
   'onboarding.heightRange': 'Digite uma altura entre {min} e {max}',
+  'onboarding.heightInchesRange': 'As polegadas vão de 0 a 11 — some um pé no lugar.',
   'onboarding.weightRange': 'Digite um peso entre {min} e {max} {unit}',
   'settings.signOutConfirm': 'Sair do Ignia?',
   'settings.earlier': 'Mais cedo',
@@ -2626,4 +2664,4 @@ export const ptBR = {
   'body.sleepAvg': 'Sono média 7 dias',
   'body.sleepAvgA11y': 'Sono, média de 7 dias: {n} horas em {nights} noites registradas',
   'body.sleepFlag': 'Sono < 7 h: maior risco de perder massa magra em déficit (Nedeltcheva 2010).',
-} as const;
+};

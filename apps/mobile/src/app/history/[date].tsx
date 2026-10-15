@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   addDays,
   calendarDateKey,
-  dailyTargets,
+  dailyTargetsOn,
   type Fast,
   fastHoursParts,
   fastLengthHours,
@@ -160,19 +160,19 @@ function DayDetailScreen({ onRetry }: { onRetry: () => void }) {
    *
    * The target IN EFFECT THAT DAY when a record was stored for it (since
    * 2026-10-08, `useDayTargetRecord`); before then there was no per-day
-   * record, so a day without one falls back to the CURRENT effective target,
-   * through the same `dailyTargets` chain and inputs Today's hero uses — the
-   * profile off the auth context and this screen's own rows and weights.
-   * Rows this screen fetched for older months only ever reach further back
-   * than the estimator's 42-day window, so they cannot move it. Null until
+   * record, so a day without one falls back to the `dailyTargets` chain
+   * REPLAYED as of that day (`dailyTargetsOn`, 2026-10-15 audit — it used to
+   * be today's target on every past day): only rows and weigh-ins up to the
+   * day, with the day itself complete. The profile is still today's, so it is
+   * a reconstruction, which is why a stored record wins. Null until
    * the profile is there: with no profile `dailyTargets` returns a plausible
    * SEED target, which is the number `useDailyTargets` exists to keep off
    * screen.
    */
   const dayRecord = useDayTargetRecord(validKey ? dateKey : null);
   const calorieTarget = useMemo(
-    () => dayRecord?.kcalTarget ?? (profile ? dailyTargets(profile, logs, weights).calorieTarget : null),
-    [dayRecord, profile, logs, weights],
+    () => dayRecord?.kcalTarget ?? (profile ? dailyTargetsOn(profile, logs, weights, dateKey).calorieTarget : null),
+    [dayRecord, profile, logs, weights, dateKey],
   );
 
   // A failed load is said, not drawn as an empty day (UX_AUDIT S21): the

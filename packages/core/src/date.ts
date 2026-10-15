@@ -43,10 +43,22 @@ export function addDays(d: Date, n: number): Date {
   return r;
 }
 
-/** Parse a YYYY-MM-DD key into a local-midnight Date. */
+/**
+ * Parse a YYYY-MM-DD key into a local-midnight Date. A missing month or day
+ * defaults to 1 (`'2026-02'` is Feb 1).
+ *
+ * A key naming a day that does not exist — `'2026-02-30'`, `'2026-13-01'` —
+ * is an **Invalid Date** (`getTime()` is NaN), the same contract garbage like
+ * `'foo'` always had. The `Date` constructor used to roll it over silently, so
+ * Feb 30 became March 2 and a bad key landed on a real, different day.
+ */
 export function parseYmd(key: string): Date {
   const [y, m, d] = key.split('-').map(Number);
-  return new Date(y, (m ?? 1) - 1, d ?? 1);
+  const month = (m ?? 1) - 1;
+  const dayOfMonth = d ?? 1;
+  const date = new Date(y, month, dayOfMonth);
+  // Rolled over (or NaN in): the fields read back differently from the input.
+  return date.getMonth() === month && date.getDate() === dayOfMonth ? date : new Date(Number.NaN);
 }
 
 /** First day of the calendar month for `d` (local midnight). */

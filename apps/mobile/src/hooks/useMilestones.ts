@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { feedChannel, useLedgerFeed } from '@/hooks/useLedgerFeed';
 import {
   dayKeyAt,
   newlyEarned,
@@ -103,35 +104,63 @@ export function useMilestoneRecord(uid: string | null | undefined): {
   earned: Record<string, Date>;
   ready: boolean;
 } {
-  const [earned, setEarned] = useState<Record<string, Date>>({});
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    if (!uid) {
-      setEarned({});
-      setReady(false);
-      return;
-    }
-    setReady(false);
-    const unsub = subscribeMilestones(
-      uid,
-      (rows) => {
-        setEarned(rows);
-        setReady(true);
-      },
-      () => setReady(false),
-    );
-    return unsub;
-  }, [uid]);
-
-  return { earned, ready };
+  return useMilestoneFeed(uid, 'Milestones');
 }
+
+/**
+ * The milestones listener, FOCUS-GATED through `useLedgerFeed` (ADR-0016).
+ *
+ * Both hooks used to open it in a mount effect with no `trackSubs` — so Today
+ * and Body each held one for as long as they stayed mounted, blurred or not,
+ * and the dev counter could not see either (09-22 review, still open on
+ * 2026-10-15). A blurred tab now drops it; the last answer stays in state.
+ *
+ * `ready` waits for a SERVER answer: an offline cache-only snapshot is the
+ * absence of an answer (memory-only Firestore), and reading it as "nothing on
+ * file" re-attempted every milestone the account ever earned. A listener error
+ * clears `ready` until a refocus retries — as before, a record that cannot be
+ * read is not worth an error surface.
+ *
+ * Earned rows are keyed to the account, so a switch reads empty at once
+ * rather than showing the previous account's record for a frame.
+ */
+function useMilestoneFeed(
+  uid: string | null | undefined,
+  label: string,
+): { earned: Record<string, Date>; ready: boolean } {
+  const id = uid ?? undefined;
+  const [held, setHeld] = useState<{ uid: string | undefined; rows: Record<string, Date> }>(() => ({
+    uid: id,
+    rows: NO_MILESTONES,
+  }));
+  const feed = useLedgerFeed({
+    uid: id,
+    label,
+    gate: 'focus',
+    retryOnOpen: true,
+    channels: () =>
+      id
+        ? [
+            feedChannel({
+              key: 'milestones',
+              settles: 'server',
+              open: (deliver, fail) => subscribeMilestones(id, deliver, fail),
+              apply: (rows: Record<string, Date>) => setHeld({ uid: id, rows }),
+            }),
+          ]
+        : [],
+    deps: [id],
+  });
+  const earned = held.uid === id ? held.rows : NO_MILESTONES;
+  return { earned, ready: !!id && feed.answered.milestones === true && !feed.failed };
+}
+
+const NO_MILESTONES: Record<string, Date> = Object.freeze({}) as Record<string, Date>;
 
 export function useMilestones(ev: MilestoneEvidence): MilestonesState {
   const { uid, streak, hasWeighIn, hasPhotoScan, boundary } = ev;
 
-  const [earned, setEarned] = useState<Record<string, Date>>({});
-  const [ready, setReady] = useState(false);
+  const { earned, ready } = useMilestoneFeed(uid, 'Today milestones');
   // One probe attempt per mount, per collection. A `useRef` rather than state:
   // flipping it must not schedule a render, and it must not re-run the effect.
   // The probe's ANSWER per mount, not merely whether it was asked. The effect
@@ -140,26 +169,6 @@ export function useMilestones(ev: MilestoneEvidence): MilestonesState {
   // drops its result at the `alive` check. With only an asked-flag, the new run
   // then skipped the probe, and a true answer was lost for the whole mount.
   const probed = useRef<{ fast?: boolean; workout?: boolean }>({});
-
-  useEffect(() => {
-    if (!uid) {
-      setEarned({});
-      setReady(false);
-      return;
-    }
-    setReady(false);
-    const unsub = subscribeMilestones(
-      uid,
-      (rows) => {
-        setEarned(rows);
-        setReady(true);
-      },
-      // A record that cannot be read is not worth an error surface: the app
-      // simply records nothing this session and tries again next launch.
-      () => setReady(false),
-    );
-    return unsub;
-  }, [uid]);
 
   // ── Evaluate and record ──────────────────────────────────────────────
   //

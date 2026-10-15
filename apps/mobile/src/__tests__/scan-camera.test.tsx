@@ -137,7 +137,7 @@ describe('scan viewfinder', () => {
     expect(mockTake).toHaveBeenCalledWith({ quality: 1 });
     await waitFor(() => expect(screen.getByTestId('scan-add')).toBeTruthy());
     expect(mockEncode).toHaveBeenCalledWith('file://shot-1.jpg');
-    expect(mockAnalyze).toHaveBeenCalledWith(['b64:file://shot-1.jpg'], expect.any(String), '');
+    expect(mockAnalyze).toHaveBeenCalledWith(['b64:file://shot-1.jpg'], expect.any(String), '', 'Meal');
     // No Analyze tap, and the describe step was never visited.
     expect(screen.queryByTestId('scan-note')).toBeNull();
   });
@@ -159,6 +159,7 @@ describe('scan viewfinder', () => {
       ['b64:file://library.jpg', 'b64:file://shot-1.jpg'],
       expect.any(String),
       '',
+      'Meal',
     );
   });
 
@@ -188,7 +189,7 @@ describe('scan viewfinder', () => {
     await fireEvent.press(screen.getByTestId('scan-shutter'));
 
     await waitFor(() => expect(screen.getByTestId('scan-add')).toBeTruthy());
-    expect(mockAnalyze).toHaveBeenCalledWith(expect.any(Array), expect.any(String), 'half a cup of rice');
+    expect(mockAnalyze).toHaveBeenCalledWith(expect.any(Array), expect.any(String), 'half a cup of rice', 'Meal');
   });
 
   it('cancels a slow reading and puts the photo back in the strip (U9)', async () => {
@@ -282,6 +283,6 @@ describe('scan without camera access', () => {
     await waitFor(() => expect(screen.getByTestId('scan-note')).toBeTruthy());
     await fireEvent.press(screen.getByTestId('scan-analyze'));
     await waitFor(() => expect(screen.getByTestId('scan-add')).toBeTruthy());
-    expect(mockAnalyze).toHaveBeenCalledWith(['b64:file://library.jpg'], expect.any(String), '');
+    expect(mockAnalyze).toHaveBeenCalledWith(['b64:file://library.jpg'], expect.any(String), '', 'Meal');
   });
 });

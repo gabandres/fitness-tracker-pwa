@@ -29,7 +29,7 @@ import {
   GAIN_SURPLUS_LBS_PER_WEEK,
   paceReality,
 } from '@macrolog/core';
-import { heightBandFor, parseHeightInput } from '@/app/onboarding';
+import { heightBandFor, inchesOutOfRange, parseHeightInput } from '@/app/onboarding';
 import { useUnitSystem } from '@/lib/use-unit-system';
 import { useActivitySuggestion } from '@/lib/activity-suggestion';
 import { useAuth } from '@/lib/auth';
@@ -191,6 +191,11 @@ export default function RefineTargets() {
   const showDisclosure = activity == null && prefill != null;
 
   function chooseActivity(value: ActivityLevel) {
+    // Tapping the row that is already selected changes nothing. It used to
+    // count as a manual change (`touched`), and a manual change clears the
+    // device-measured multiplier on save (ADR-0024) — so re-confirming your
+    // own answer silently threw the measurement away (09-22 item).
+    if (value === selected) return;
     haptics.tap();
     // Overriding a live pre-fill IS a decline — the Trends card must not come
     // back later suggesting the bucket they just rejected by hand.
@@ -239,7 +244,9 @@ export default function RefineTargets() {
       ? evidence?.meanActiveKcal
         ? activityMultiplierFor(evidence.meanActiveKcal, basalKcal)
         : undefined
-      : touched
+      : // Cleared only when the bucket really moved off what is stored —
+        // tapping away and back again is not an override of the measurement.
+        touched && selected !== profile?.activityLevel
         ? null
         : undefined;
 
@@ -331,7 +338,9 @@ export default function RefineTargets() {
             )}
             {heightTyped && !heightValid ? (
               <Text style={styles.error} accessibilityRole="alert" accessibilityLiveRegion="polite" testID="refine-height-error">
-                {t('onboarding.heightRange', heightBandFor(unitSystem, { ft: t('refine.feet'), in: t('refine.inches') }))}
+                {!metric && inchesOutOfRange(inches)
+                  ? t('onboarding.heightInchesRange')
+                  : t('onboarding.heightRange', heightBandFor(unitSystem, { ft: t('refine.feet'), in: t('refine.inches') }))}
               </Text>
             ) : null}
           </View>

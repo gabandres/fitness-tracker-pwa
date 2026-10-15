@@ -143,8 +143,16 @@ function OrphanBack({ testID }: { testID: string }) {
 /** Redirects between the authed tab group and the sign-in screen as auth
  *  state settles. The `(app)` group holds every signed-in surface. */
 function AuthGate({ fontsReady }: { fontsReady: boolean }) {
-  const { sessionUid, sessionPresumed, initializing, profile, profileLoading, profileConfirmed, emailVerified } =
-    useAuth();
+  const {
+    sessionUid,
+    sessionPresumed,
+    initializing,
+    profile,
+    profileLoading,
+    profileConfirmed,
+    emailVerified,
+    accountDeleting,
+  } = useAuth();
   const t = useT();
   const { colors } = useTheme();
   // The shared native header (S21-9). `minimal` drops the back title beside
@@ -181,7 +189,9 @@ function AuthGate({ fontsReady }: { fontsReady: boolean }) {
   // profile would pin the splash over the sign-in screen.
   const decision =
     sessionUid && emailVerified
-      ? assessRoute({ profile, profileConfirmed, offline, serverGaveUp })
+      ? // `accountDeleting`: the server erases the profile before sign-out
+        // lands, and that window must not read as "never onboarded".
+        assessRoute({ profile, profileConfirmed, offline, serverGaveUp, accountDeleting })
       : 'app';
 
   useEffect(() => {

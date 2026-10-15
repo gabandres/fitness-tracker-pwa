@@ -1,7 +1,7 @@
 import React from 'react';
 import { Alert } from 'react-native';
 import { fireEvent, renderWithProviders as render, waitFor } from '@/test-utils';
-import { LinkError, type LinkableProvider } from '@/lib/link-error';
+import { LinkError, type LinkableProvider, toLinkError } from '@/lib/link-error';
 
 /**
  * Sign-in methods card — the proactive half of account linking.
@@ -115,5 +115,32 @@ describe('SignInMethodsCard', () => {
     await waitFor(() => expect(mockLinkProvider).toHaveBeenCalled());
     // Backing out of a picker is a decision, not an error worth an alert.
     expect(Alert.alert).not.toHaveBeenCalled();
+  });
+
+  it('says why a password was refused instead of "try again" (weak-password)', async () => {
+    mockLinked = ['google.com'];
+    mockLinkPassword.mockRejectedValueOnce(toLinkError({ code: 'auth/password-does-not-meet-requirements' }));
+    const screen = await render(<SignInMethodsCard />);
+
+    await fireEvent.press(screen.getByTestId('signin-methods-add-password'));
+    await fireEvent.changeText(screen.getByTestId('signin-methods-password-input'), 'short');
+    await fireEvent.press(screen.getByTestId('signin-methods-password-submit'));
+
+    await waitFor(() => expect(Alert.alert).toHaveBeenCalled());
+    const [, body] = (Alert.alert as jest.Mock).mock.calls[0];
+    expect(body).toMatch(/10 characters/);
+  });
+});
+
+describe('toLinkError', () => {
+  it('maps both password-policy codes to weak-password', () => {
+    expect(toLinkError({ code: 'auth/weak-password' }).code).toBe('weak-password');
+    expect(toLinkError({ code: 'auth/password-does-not-meet-requirements' }).code).toBe('weak-password');
+  });
+
+  it('keeps unknown codes as failed, with the native code attached', () => {
+    const e = toLinkError({ code: 'auth/internal-error', message: 'boom' });
+    expect(e.code).toBe('failed');
+    expect(e.detail).toContain('auth/internal-error');
   });
 });

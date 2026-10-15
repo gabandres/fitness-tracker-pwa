@@ -19,14 +19,20 @@ import { GRAMS_MAX } from '@/lib/grams-rescale';
 export const LOG_KCAL_LIMIT = 20000;
 export const LOG_MACRO_LIMIT = 1000;
 
-/** Over the rules' calorie ceiling — the form refuses it inline. */
+/**
+ * Over the rules' calorie ceiling — the form refuses it inline. Judged on the
+ * value as WRITTEN, not as typed: the durable queue rounds calories to the
+ * integer before it parks (`buildPendingLog`), so 19999.6 passed here, parked
+ * as 20000 and was refused on every flush (audit 2026-10-15 #21).
+ */
 export function kcalOutOfRange(n: number | undefined): boolean {
-  return n != null && n >= LOG_KCAL_LIMIT;
+  return n != null && Math.round(n) >= LOG_KCAL_LIMIT;
 }
 
-/** Over the rules' macro ceiling (protein, carbs, fat alike). */
+/** Over the rules' macro ceiling (protein, carbs, fat alike) — after the
+ *  queue's one-decimal rounding, for the same reason as the calories. */
 export function macroOutOfRange(n: number | undefined): boolean {
-  return n != null && n >= LOG_MACRO_LIMIT;
+  return n != null && Math.round(n * 10) / 10 >= LOG_MACRO_LIMIT;
 }
 
 // `numberSeparators` builds an Intl formatter; a form re-parses its fields on

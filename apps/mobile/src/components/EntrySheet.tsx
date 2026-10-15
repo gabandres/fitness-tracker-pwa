@@ -284,6 +284,10 @@ function useLatestRef<T>(value: T) {
   return ref;
 }
 
+/** How close together two submits must be to count as one tap — a double tap
+ *  lands within ~300 ms; a deliberate second add with keep-open on does not. */
+const RESUBMIT_MS = 600;
+
 /**
  * Search-first add-food sheet, presented natively on iOS (a formSheet through
  * the root `sheet` route, `BottomSheet native`) and as the JS sheet elsewhere.
@@ -605,6 +609,32 @@ export function EntrySheet({
     else clearLogTimer();
   }, [visible, editing]);
 
+  /**
+   * One save per open (audit 2026-10-15, final report). A fast double tap on
+   * Add or on a one-tap row wrote the entry twice: the native sheet stays up
+   * through its dismiss animation, and nothing downstream dedupes an add.
+   * `submitClosed` latches once an add closes the sheet and re-arms when it
+   * opens again. With keep-open on, adding again — even quickly, row after
+   * row — is the point, so only the SAME entry submitted again inside
+   * {@link RESUBMIT_MS} counts as the same tap twice.
+   * Refs, set only from handlers and the open effect — never during render.
+   */
+  const submitClosed = useRef(false);
+  const lastSubmit = useRef<{ sig: string; at: number }>({ sig: '', at: 0 });
+  useEffect(() => {
+    if (!visible) return;
+    submitClosed.current = false;
+    lastSubmit.current = { sig: '', at: 0 };
+  }, [visible]);
+  function takeSubmit(entry: LogEntry): boolean {
+    if (submitClosed.current) return false;
+    const sig = [entry.mealLabel ?? '', entry.calories, entry.protein ?? '', entry.carbs ?? '', entry.fat ?? ''].join('|');
+    const now = Date.now();
+    if (sig === lastSubmit.current.sig && now - lastSubmit.current.at < RESUBMIT_MS) return false;
+    lastSubmit.current = { sig, at: now };
+    return true;
+  }
+
   /** Shift the editable entry date by whole days (move-to-date), keeping the
    *  time-of-day. Clamped so you can't push an entry into the future. */
   function shiftEntryDate(deltaDays: number) {
@@ -772,6 +802,7 @@ export function EntrySheet({
    */
   function afterAdd(entries: readonly LogEntry[]) {
     if (!keepOpen || editing) {
+      submitClosed.current = true;
       onClose();
       return;
     }
@@ -796,6 +827,7 @@ export function EntrySheet({
    *  a slot's row, file it in that slot. `deferClose` holds a close back by
    *  that many ms (see SCANNER_EXIT_MS). */
   function quickLog(entry: LogEntry, deferClose = 0) {
+    if (!takeSubmit(entry)) return;
     // Not a success of its own: the screen's `onSave` buzzes success when the
     // row lands, and two successes for one tap read as two logs. The press
     // plays only if that outcome is slow to come (`tapThenOutcome`).
@@ -808,6 +840,7 @@ export function EntrySheet({
     };
     logNow(out);
     if (deferClose > 0 && (!keepOpen || editing)) {
+      submitClosed.current = true;
       setTimeout(onClose, deferClose);
       return;
     }
@@ -885,6 +918,7 @@ export function EntrySheet({
       grams: gramCtx?.grams ?? undefined,
       timestamp: showDateRow || retimed ? at : forDate,
     };
+    if (!takeSubmit(entry)) return;
     setFormError(null);
     // Closes at dispatch, as a one-tap relog always has. This waited up to
     // SAVE_WAIT_MS for the server's ack first, so on any real network Add spun

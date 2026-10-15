@@ -24,6 +24,30 @@ import { type CacheSlice, peekCache, readCache, writeCache } from '@/lib/offline
  *   when a cached value was actually applied, which is what lets a caller drop
  *   its spinner without claiming a cache hit it did not get.
  */
+/**
+ * `uid:slice` pairs the SERVER has answered in this JS runtime.
+ *
+ * What makes a cache-only snapshot safe to show. Firestore here is
+ * memory-only (LRU, `firebase.ts`): before the server has answered a query in
+ * this runtime, a cache-only snapshot is the absence of an answer (empty, or
+ * just the docs this device wrote) and must not replace the disk paint. AFTER
+ * it has, the memory cache holds that answer plus every local write since, so
+ * a cache-only snapshot is NEWER than anything on disk — and dropping it is
+ * what kept an offline delete or edit off the screen until reconnect
+ * (2026-10-15 audit: once painted, every `fromCache` snapshot was dropped, and
+ * offline every snapshot is `fromCache`).
+ *
+ * Runtime-wide rather than per hook instance: the LRU cache outlives a
+ * listener, so a tab that re-opens its listener on focus, or a screen that
+ * mounts later, reads the same complete view.
+ */
+const serverAnswered = new Set<string>();
+
+/** Test seam: forget which slices the server answered. */
+export function __resetServerAnswered(): void {
+  serverAnswered.clear();
+}
+
 export function useCachedState<T>(
   uid: string | undefined,
   slice: CacheSlice,
@@ -86,8 +110,18 @@ export function useCachedState<T>(
       // by [] a frame after it appeared and Train read as empty anyway. It is
       // still allowed through when nothing better has been shown yet — an empty
       // list beats no render at all.
-      if (!authoritative && painted.current) return;
-      if (authoritative) live.current = true;
+      //
+      // Unless the server has already answered this slice in this runtime:
+      // then the cache-only value is the server's answer plus this device's
+      // own writes since, newer than the disk paint (see `serverAnswered`).
+      // It is shown but still not persisted — disk only ever holds a value the
+      // server confirmed.
+      const key = uid ? `${uid}:${slice}` : null;
+      if (!authoritative && painted.current && !(key && serverAnswered.has(key))) return;
+      if (authoritative) {
+        live.current = true;
+        if (key) serverAnswered.add(key);
+      }
       setValue(next);
       if (uid && authoritative) writeCache(uid, slice, next);
     },

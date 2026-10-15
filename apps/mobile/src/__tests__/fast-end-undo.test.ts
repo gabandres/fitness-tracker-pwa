@@ -93,10 +93,26 @@ describe('ending a fast can be undone', () => {
   it('breakFast returns the archived id and the start it cleared', async () => {
     mockGetDoc.mockResolvedValue({ data: () => ({ fastStartedAt: MockTimestamp.fromDate(START) }) });
     const receipt = await breakFast(UID, END);
-    expect(receipt.fastId).toBe('generated-id');
+    // Derived from the start since 2026-10-15 (see the idempotency test).
+    expect(receipt.fastId).toBe(`timer-${START.getTime()}`);
     expect(receipt.startedAt?.toISOString()).toBe(START.toISOString());
     // The id in the receipt is the document the batch wrote, not a second mint.
     expect(mockBatchSet.mock.calls[0][0].id).toBe(receipt.fastId);
+  });
+
+  it('ending the SAME fast twice writes ONE document — a double tap, or Lock Screen End racing the button', async () => {
+    const [a, b] = await Promise.all([
+      breakFast(UID, END, START),
+      breakFast(UID, new Date(END.getTime() + 2_000), START),
+    ]);
+    expect(a.fastId).toBe(b.fastId);
+    expect(new Set(mockBatchSet.mock.calls.map((c) => c[0].path)).size).toBe(1);
+  });
+
+  it('a different fast gets a different document', async () => {
+    const a = await breakFast(UID, END, START);
+    const b = await breakFast(UID, new Date(END.getTime() + 86_400_000), new Date(START.getTime() + 86_400_000));
+    expect(a.fastId).not.toBe(b.fastId);
   });
 
   it('names no document when the interval was not storable', async () => {

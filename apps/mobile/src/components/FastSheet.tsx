@@ -10,7 +10,7 @@ import {
   overlappingFasts,
 } from '@macrolog/core';
 import { BottomSheet, type SheetCloseVia } from '@/components/BottomSheet';
-import { confirm } from '@/components/ConfirmSheet';
+import { confirmNative } from '@/components/ConfirmSheet';
 import { type Locale, useLocale, useT } from '@/i18n';
 import { announce } from '@/lib/a11y';
 import { formatDate, formatNumber, formatTime, localeTag } from '@/lib/date-format';
@@ -251,7 +251,9 @@ export function FastSheet({
       onClose();
       return true;
     }
-    confirm({
+    // The system dialog: this sheet is native, and a branded confirm drawn
+    // over it was a sheet on a sheet (R30/R31, audit #18).
+    confirmNative({
       title: t('fast.discardTitle'),
       body: t('fast.discardBody'),
       confirmText: t('fast.discard'),
@@ -263,7 +265,14 @@ export function FastSheet({
   }
 
   const effectiveEnd = mode === 'running' ? new Date(now) : end;
-  const storable = isStorableFast(start, effectiveEnd);
+  // A fast cannot have ended — or begun — after now (audit #12). The native
+  // picker caps both at the present; the typed fields older binaries draw did
+  // not, so "ended at 11 PM" typed at 3 PM saved a fast that ends tonight.
+  // Refused with the sheet's own line rather than clamped: a clamp would make
+  // the typed hour and the stored value disagree, the failure the hour field's
+  // own comment exists to prevent. (A running fast's end IS now.)
+  const inFuture = mode !== 'running' && isFuture(effectiveEnd, start);
+  const storable = isStorableFast(start, effectiveEnd) && !inFuture;
   const conflicts = storable ? overlappingFasts(fasts, start, effectiveEnd, editing?.id) : [];
 
   /**
@@ -301,6 +310,7 @@ export function FastSheet({
    * are different claims and colouring both red taught the reader nothing.
    */
   function notice(): { text: string; tone: 'error' | 'note' } | null {
+    if (inFuture) return { text: t('fast.errFuture'), tone: 'error' };
     if (effectiveEnd.getTime() <= start.getTime()) {
       return {
         text: mode === 'running' ? t('fast.errFuture') : t('fast.errOrder'),
@@ -396,6 +406,7 @@ export function FastSheet({
       visible={visible}
       onClose={onClose}
       onRequestClose={requestClose}
+      backdropTestID="fast-backdrop"
       // P1: a real iOS sheet, two detents — the editor opens at 0.6 and the
       // AM/PM row and a long conflict note fit at full height.
       native
@@ -588,6 +599,18 @@ function withDay(base: Date, day: Date): Date {
   return d;
 }
 
+/** Either instant after the present. Out of the component so the React
+ *  Compiler does not read a clock call during render as impure. */
+function isFuture(...ds: Date[]): boolean {
+  const now = Date.now();
+  return ds.some((d) => d.getTime() > now);
+}
+
+/** The present, for a render-time bound (see {@link isFuture}). */
+function todayNow(): Date {
+  return new Date();
+}
+
 function clampToNow(d: Date): Date {
   const now = Date.now();
   return d.getTime() > now ? new Date(now) : d;
@@ -707,6 +730,13 @@ function TypedTimeField({ value, onChange, locale, testIDPrefix, focusOnMount = 
       setHourText('');
       return;
     }
+    // A lone 0 is the start of "07" (audit #13): kept on screen, committed to
+    // nothing until the next digit. It was refused at the 0, so "07" could not
+    // be typed at all on a 12-hour dial.
+    if (hour12 && digits === '0') {
+      setHourText('0');
+      return;
+    }
     const n = Number(digits);
     if (hour12 ? n < 1 || n > 12 : n > 23) return;
     setHourText(digits);
@@ -736,7 +766,9 @@ function TypedTimeField({ value, onChange, locale, testIDPrefix, focusOnMount = 
 
   return (
     <View style={styles.editor}>
-      <DayRow value={value} onChange={onChange} locale={locale} testIDPrefix={testIDPrefix} />
+      {/* `max`: the step forward stops at today, as the native path's does
+          (audit #12) — a fast never ends tomorrow. */}
+      <DayRow value={value} onChange={onChange} locale={locale} testIDPrefix={testIDPrefix} max={todayNow()} />
 
       <View style={styles.timeRow}>
         <SheetTextInput

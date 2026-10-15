@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { DailyLog } from './types';
 import { measurementProgress } from './measurement-progress';
-import { calculateTdee, MEASURED_MIN_DAYS, TREND_MIN_WEIGH_INS, type TdeeResult } from './tdee';
+import { calculateTdee, MEASURED_MIN_DAYS, TREND_MIN_WEIGH_INS, UNANCHORED_MIN_WEIGH_INS, type TdeeResult } from './tdee';
 import { measuredTdeeFixture } from './tdee.test-utils';
 
 const seed: TdeeResult = { source: 'seed', trueTdee: 2450, newDailyTarget: 1800, weightChangeTrend: 0 };
@@ -66,7 +66,24 @@ describe('measurementProgress', () => {
     const fourteen = logs(14, 2, weightAt);
     expect(calculateTdee(thirteen).source).not.toBe('measured');
     expect(measurementProgress(calculateTdee(thirteen), thirteen, {})).toMatchObject({ loggedDays: 13, daysToGo: 1 });
+    // Since 2026-10-15 a profile-less account needs a third weigh-in (see
+    // UNANCHORED_MIN_WEIGH_INS); the readout must say so, not "0 to go".
     const t14 = calculateTdee(fourteen);
+    expect(t14.source).toBe('seed');
+    expect(measurementProgress(t14, fourteen, {})).toMatchObject({
+      loggedDays: 14, weighIns: 2, neededWeighIns: UNANCHORED_MIN_WEIGH_INS, weighInsToGo: 1,
+    });
+    const third = logs(14, 2, (i) => (i === 0 || i === 6 || i === 13 ? 180 - i * 0.05 : undefined));
+    const t14b = calculateTdee(third);
+    expect(t14b.source).toBe('measured');
+    expect(measurementProgress(t14b, third, {})).toBeNull();
+  });
+
+  it('with a profile two weigh-ins still open measured mode (anchored)', () => {
+    const weightAt = (i: number) => (i === 0 || i === 13 ? 180 - i * 0.05 : undefined);
+    const fourteen = logs(14, 2, weightAt);
+    const profile = { heightIn: 70, age: 35, sex: 'male', activityLevel: 'moderate', targetPaceLbsPerWeek: 1 } as never;
+    const t14 = calculateTdee(fourteen, profile);
     expect(t14.source).toBe('measured');
     expect(measurementProgress(t14, fourteen, {})).toBeNull();
   });

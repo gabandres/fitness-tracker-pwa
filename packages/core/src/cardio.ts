@@ -159,9 +159,12 @@ export const ZONE2_BAND = { min: 120, max: 130 } as const;
 /** RPE at or above this is not Zone 2 work. */
 export const ZONE2_RPE_MAX = 7;
 
-/** A Zone 2 block: one whose label says so ("Zone 2", "Z2 walk"). */
+/** A Zone 2 block: one whose label says so — "Zone 2", "Z2 walk", and the
+ *  Spanish/Portuguese "Zona 2" (es-PR and pt-BR users name their own blocks;
+ *  English-only matching left their Zone 2 work with no HR band). Word
+ *  boundaries both sides, so "Zona 20" and "zone 25" are not Zone 2. */
 export function isZone2(block: Pick<CardioBlock, 'label'>): boolean {
-  return /\bzone\s*2\b|\bz2\b/i.test(block.label ?? '');
+  return /\bzon[ea]\s*2\b|\bz2\b/i.test(block.label ?? '');
 }
 
 /** The band a block is held to: its own prescription, else the Zone 2 default

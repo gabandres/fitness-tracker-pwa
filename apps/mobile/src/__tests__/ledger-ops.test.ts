@@ -126,7 +126,14 @@ describe('writeDailyMetric — write, then mirror', () => {
     await writeDailyMetric(UID, 'water', '2026-09-14', 64);
     expect(calls).toEqual(['setDailyWater', 'exportDaily:water']);
     expect(mockSetDailyWater).toHaveBeenCalledWith(UID, '2026-09-14', 64);
-    expect(mockExportDaily).toHaveBeenCalledWith('water', '2026-09-14', 64);
+    // `{ uid }` = the user's own value: the export replaces Ignia's previous
+    // sample for the day and records the override (2026-10-15 audit).
+    expect(mockExportDaily).toHaveBeenCalledWith('water', '2026-09-14', 64, { uid: UID });
+  });
+
+  it('routes a weigh-in through the manual path, so the next scale import cannot overwrite it', async () => {
+    await writeDailyMetric(UID, 'weight', '2026-09-14', 182);
+    expect(mockExportDaily).toHaveBeenCalledWith('weight', '2026-09-14', 182, { uid: UID });
   });
 
   it('does NOT mirror when the Firestore write throws', async () => {
@@ -178,6 +185,28 @@ describe('finishWorkout', () => {
     // No streak marker since 2026-10-15 (owner bug C): the trained day is
     // derived from the session itself (core `trainedDayRows`).
     expect(mockMarkExercised).not.toHaveBeenCalled();
+  });
+
+  it('files the extras under the FINISH day when the session crossed the boundary (audit item 11)', async () => {
+    const start = new Date(2026, 8, 14, 23, 30);
+    const finishedAt = new Date(2026, 8, 15, 0, 40);
+    await finishWorkout(UID, session({ date: start }), MIDNIGHT, { bodyweight: 182, sleepHours: 7, finishedAt });
+    expect(mockSetDailyWeight).toHaveBeenCalledWith(UID, '2026-09-15', 182);
+    expect(mockSetDailySleep).toHaveBeenCalledWith(UID, '2026-09-15', 7);
+  });
+
+  it('without `finishedAt`, a replay uses start + duration, not the start', async () => {
+    await finishWorkout(UID, session({ date: new Date(2026, 8, 14, 23, 30), durationMin: 70 }), MIDNIGHT, { bodyweight: 182 });
+    expect(mockSetDailyWeight).toHaveBeenCalledWith(UID, '2026-09-15', 182);
+  });
+
+  it('a failed extra does not reject once the session is completed (audit item 10)', async () => {
+    // A rejection here used to put the completed workout back on screen as
+    // active, where Discard would delete it.
+    mockSetDailyWeight.mockRejectedValueOnce(new Error('offline'));
+    await expect(finishWorkout(UID, session(), MIDNIGHT, { bodyweight: 182, sleepHours: 7 })).resolves.toBeUndefined();
+    expect(mockSetDailySleep).toHaveBeenCalled();
+    expect(mockTrack).toHaveBeenCalledWith('workout_finished');
   });
 
   it('rejects an implausible bodyweight without touching dailyWeights', async () => {

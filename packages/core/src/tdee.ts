@@ -198,6 +198,16 @@ export const MEASURED_MIN_DAYS = 14;
  */
 export const TREND_MIN_WEIGH_INS = 2;
 /**
+ * Weigh-ins the whole-window fallback trend needs before it may stand as a
+ * measurement on its own — i.e. with no profile to anchor it (audit
+ * 2026-10-15). The same three a logging run needs (`MIN_RUN_WEIGH_INS`), and
+ * they must cover {@link MEASURED_MIN_DAYS} calendar days. With a profile a
+ * thinner fallback still opens measured mode, but at confidence 0 — the
+ * formula anchor — so it cannot move the target either. Exported so
+ * `measurement-progress.ts` names the right count to a profile-less account.
+ */
+export const UNANCHORED_MIN_WEIGH_INS = 3;
+/**
  * Logged days the measured estimate is built from. **42, raised from 28 on
  * 2026-08-19.**
  *
@@ -910,10 +920,38 @@ const CI95_CEILING_KCAL = 250;
  */
 const WIDENING_WINDOWS = [42, 63, 84] as const;
 
+/**
+ * The smallest day-to-day scatter, in lb, a weigh-in series is allowed to
+ * claim when its slope's precision is computed (audit 2026-10-15).
+ *
+ * A run of identical readings has zero residual, so its OLS standard error is
+ * 0. That used to be floored at 1e-4 lb/day — 0.35 kcal — which handed the
+ * flat run ~10^4 times the inverse-variance weight of any real run beside it
+ * and printed "±1 kcal" as the interval. Neither is a measurement: body weight
+ * moves with water, glycogen and gut content by a pound or more from one
+ * morning to the next, so a series that shows none of that is a scale that
+ * rounds coarsely (or a user who typed the same number), not a precise one.
+ *
+ * Flooring the residual SD rather than the slope SE keeps the rest of the
+ * model intact: precision still grows with span and with point count through
+ * `Sxx`, so a long flat run is still believed more than a short one — it just
+ * cannot be believed more than a long run with ordinary scatter. 0.5 lb is
+ * deliberately BELOW the realistic noise this file simulates against (SD
+ * 1.5 lb, see {@link RAMP_TO_FULL_DAYS}) and below the ~1 lb day-to-day SD
+ * typical of real scale data, so it binds on near-flat series and leaves
+ * normal ones byte-identical. For 42 daily readings it bounds the 95%
+ * interval at about ±44 kcal; for three readings over 14 days, ±340.
+ */
+const MIN_RESIDUAL_SD_LB = 0.5;
+
 /** Standard error of an OLS slope. `null` when it is not estimable (n < 3, or
  *  every x identical). This is what makes precision, rather than a point
- *  count, the thing that decides how much a fit is believed. */
-function olsSlopeStandardError(points: { x: number; y: number }[]): number | null {
+ *  count, the thing that decides how much a fit is believed. `minResidualSd`
+ *  floors the residual SD (see {@link MIN_RESIDUAL_SD_LB}). */
+function olsSlopeStandardError(
+  points: { x: number; y: number }[],
+  minResidualSd = 0,
+): number | null {
   const n = points.length;
   if (n < 3) return null;
   const mx = average(points.map((p) => p.x));
@@ -932,7 +970,7 @@ function olsSlopeStandardError(points: { x: number; y: number }[]): number | nul
     const r = p.y - (a + b * p.x);
     ss += r * r;
   }
-  const s = Math.sqrt(ss / (n - 2));
+  const s = Math.max(minResidualSd, Math.sqrt(ss / (n - 2)));
   return s / Math.sqrt(sxx);
 }
 
@@ -998,6 +1036,7 @@ function weighInOnlyRows(
     if (typeof weight !== 'number' || !Number.isFinite(weight) || weight <= 0) continue;
     // Noon: inside the day under any boundary that starts before midday.
     const date = parseYmd(key as DateKey); // a dailyWeights doc id IS the key
+    if (Number.isNaN(date.getTime())) continue; // not a real day (e.g. Feb 30)
     date.setHours(12);
     rows.push({ date, calories: 0, weight });
   }
@@ -1117,12 +1156,12 @@ function measuredFromRuns(
     // apply WITHIN a run. Only the cross-run selection changed.
     const fit = corroboratedSlope(points);
     if (fit == null) continue;
-    const seRaw = olsSlopeStandardError(points);
-    if (seRaw == null || !Number.isFinite(seRaw)) continue;
-    // A perfectly flat run has zero residual and therefore SE 0. That is
-    // maximal precision, not invalid input — floor it so the reciprocal weight
-    // stays finite instead of discarding the tightest line in the window.
-    const se = Math.max(seRaw, 1e-4);
+    // A perfectly flat run has zero residual and therefore SE 0. It used to be
+    // floored at 1e-4 lb/day, which let it outweigh every other run ~10^4:1
+    // and report a ±1 kcal interval. The floor is now on the residual SD, at
+    // a realistic day-to-day scatter — see MIN_RESIDUAL_SD_LB.
+    const se = olsSlopeStandardError(points, MIN_RESIDUAL_SD_LB);
+    if (se == null || !Number.isFinite(se) || se <= 0) continue;
 
     const slope = Math.max(-MAX_TREND_LBS_PER_DAY, Math.min(MAX_TREND_LBS_PER_DAY, fit.slope));
     const intake = trimmedMean(cals);
@@ -1212,11 +1251,33 @@ export function basalMifflinStJeor(
  */
 function mifflinStJeor(profile: ProfileFields, weightLbs: number, bucketOnly = false): number {
   const m = profile.activityMultiplier;
+  // ADR-0024's [1.40, 1.90] clamp is enforced HERE, where the number is used,
+  // and not only in `activityMultiplier()` where it is derived (audit
+  // 2026-10-15): a stored value written by an older client, a script or a
+  // hand edit in the console reached the formula raw — 1.2 read as sedentary
+  // below the FAO floor the ADR exists for, 2.6 as ~1,000 kcal of fiction.
   const multiplier =
     !bucketOnly && typeof m === 'number' && Number.isFinite(m) && m > 0
-      ? m
-      : ACTIVITY_MULTIPLIERS[profile.activityLevel];
-  return basalMifflinStJeor(profile, weightLbs) * multiplier;
+      ? Math.min(MULTIPLIER_CEILING, Math.max(MULTIPLIER_FLOOR, m))
+      : bucketMultiplier(profile.activityLevel);
+  // NaN when there is no usable bucket either; every caller checks finiteness.
+  return basalMifflinStJeor(profile, weightLbs) * (multiplier ?? Number.NaN);
+}
+
+/** ADR-0024's clamp, restated here because `activity-level.ts` imports this
+ *  module (importing its `PAL_FLOOR_FREE_LIVING` / `PAL_CEILING` back would be
+ *  a cycle). `core-audit-2026-10-15.test.ts` pins that the two agree. */
+const MULTIPLIER_FLOOR = 1.4;
+const MULTIPLIER_CEILING = 1.9;
+
+/** The ladder value for a stored activity level, or null when the field is
+ *  missing or not one of the five rungs. An OWN-property check, not `in` or a
+ *  bare index: `'toString' in ACTIVITY_MULTIPLIERS` is true, and a missing
+ *  level indexed `undefined`, which is how the formula estimate became NaN. */
+export function bucketMultiplier(level: unknown): number | null {
+  return typeof level === 'string' && Object.prototype.hasOwnProperty.call(ACTIVITY_MULTIPLIERS, level)
+    ? ACTIVITY_MULTIPLIERS[level as ActivityLevel]
+    : null;
 }
 
 /**
@@ -1364,6 +1425,13 @@ export function calculateTdee(
     let seTdee: number | undefined;
     let runsUsed: number | undefined;
     let measuredTdee: number;
+    // True when the whole-window fallback below rests on fewer than
+    // UNANCHORED_MIN_WEIGH_INS weigh-ins, or on weigh-ins that do not cover
+    // MEASURED_MIN_DAYS calendar days. Audit 2026-10-15: two readings, 200 -> 195 across 14
+    // days at 2,000 kcal, became a "measured" 3,000 and then the target. Two
+    // points carry a pound or two of water each; a slope through them is not
+    // evidence about maintenance.
+    let thinFallback = false;
 
     if (est != null) {
       ({ slope, outliersDropped, avgDailyIntake } = est);
@@ -1371,8 +1439,13 @@ export function calculateTdee(
       runsUsed = est.runsUsed;
       measuredTdee = est.trueTdee;
     } else {
-      const trend = weightTrendLbsPerDay(withWeighIns(window, weighIns));
+      const fallbackRows = withWeighIns(window, weighIns).filter((l) => l.weight != null);
+      const trend = weightTrendLbsPerDay(fallbackRows);
       if (trend == null) return { ...SEED_RESULT };
+      const fallbackSpan =
+        (fallbackRows[fallbackRows.length - 1].date.getTime() - fallbackRows[0].date.getTime()) / 86_400_000;
+      thinFallback =
+        fallbackRows.length < UNANCHORED_MIN_WEIGH_INS || fallbackSpan < MEASURED_MIN_DAYS - 1;
       slope = trend.slope;
       outliersDropped = trend.dropped;
       avgDailyIntake = trimmedMean(intakeCals);
@@ -1395,7 +1468,11 @@ export function calculateTdee(
     // The anchor needs a profile. Without one there is nothing to anchor TO,
     // so the measured value stands: a biased estimate from the user's own data
     // still beats the 2,450 seed built from nobody's.
-    const confidence = measuredConfidence(loggingCompletenessPct, intakeCals.length, window.length);
+    // A thin fallback trend is no evidence at all: confidence 0, so the answer
+    // is the formula anchor (the same number formula mode would give).
+    const confidence = thinFallback
+      ? 0
+      : measuredConfidence(loggingCompletenessPct, intakeCals.length, window.length);
     let anchorWeight: number | null = null;
     const weighedWindow = withWeighIns(window, weighIns);
     for (let i = weighedWindow.length - 1; i >= 0; i--) {
@@ -1409,6 +1486,10 @@ export function calculateTdee(
     const rawAnchor =
       profile && anchorWeight != null ? mifflinStJeor(profile, anchorWeight, true) : Number.NaN;
     const anchor = Number.isFinite(rawAnchor) && rawAnchor > 0 ? Math.round(rawAnchor) : null;
+    // ...and with nothing to anchor to, a thin fallback is not a measurement.
+    // The seed hands the target back to the profile's own manual/onboarding
+    // number in `targets.ts` rather than to a two-point slope.
+    if (thinFallback && anchor == null) return { ...SEED_RESULT };
     const trueTdee =
       anchor != null && confidence < 1
         ? Math.round(confidence * measuredTdee + (1 - confidence) * anchor)
@@ -1452,7 +1533,11 @@ export function calculateTdee(
     for (let i = all.length - 1; i >= 0; i--) {
       if (all[i].weight != null) { latestWeight = all[i].weight!; break; }
     }
-    const trueTdee = Math.round(mifflinStJeor(profile, latestWeight));
+    const formulaTdee = mifflinStJeor(profile, latestWeight);
+    // A profile with no usable activity level (or height/age/sex) has no
+    // formula estimate — NaN would otherwise ride into the target.
+    if (!Number.isFinite(formulaTdee) || formulaTdee <= 0) return { ...SEED_RESULT };
+    const trueTdee = Math.round(formulaTdee);
     const pace = paceOf(profile);
     const targetDeficit = paceOffsetKcal(pace, profile.goalDirection);
     const floor = calorieFloor(profile);

@@ -47,7 +47,14 @@ const live: {
   profile?: Deliver<Profile | null>;
   measurements?: Deliver<Measurement[]>;
 } = {};
-const mockGetLogsForRange = jest.fn<Promise<DailyLog[]>, [string, string, string, unknown?]>();
+/** Each older-month listener opened: its range, and the callbacks to drive it.
+ *  A focus-gated listener since 2026-10-15 (it was a one-shot `getDocs`). */
+const mockRanges: {
+  args: unknown[];
+  deliver: (rows: DailyLog[], meta?: { fromCache: boolean }) => void;
+  fail: (e: unknown) => void;
+  unsub: jest.Mock;
+}[] = [];
 
 jest.mock('@/lib/ledger', () => ({
   subscribeRecentSessions: () => () => {},
@@ -77,7 +84,16 @@ jest.mock('@/lib/ledger', () => ({
   },
   subscribePresets: () => () => {},
   subscribeCustomFoods: () => () => {},
-  getLogsForRange: (...args: [string, string, string, unknown?]) => mockGetLogsForRange(...args),
+  subscribeLogsForRange: (...a: unknown[]) => {
+    const unsub = jest.fn();
+    mockRanges.push({
+      args: a.slice(0, 3),
+      deliver: a[4] as (typeof mockRanges)[number]['deliver'],
+      fail: a[5] as (typeof mockRanges)[number]['fail'],
+      unsub,
+    });
+    return unsub;
+  },
 }));
 
 import { useHistory } from '@/hooks/useHistory';
@@ -104,7 +120,7 @@ beforeEach(async () => {
   delete live.weights;
   delete live.profile;
   delete live.measurements;
-  mockGetLogsForRange.mockReset();
+  mockRanges.length = 0;
 });
 
 describe('useHistory paints from disk', () => {
@@ -157,74 +173,65 @@ describe('useHistory fetches an older month on demand', () => {
     }));
   }
 
-  /** A promise the test settles by hand, so "in flight" is a state it can
-   *  hold the hook in rather than race. */
-  function deferred<T>() {
-    let resolve!: (v: T) => void;
-    let reject!: (e: unknown) => void;
-    const promise = new Promise<T>((res, rej) => {
-      resolve = res;
-      reject = rej;
-    });
-    return { promise, resolve, reject };
-  }
-
-  it('runs ONE bounded query for a month behind the window, merges it, and never re-asks', async () => {
-    const fetch = deferred<DailyLog[]>();
-    mockGetLogsForRange.mockReturnValue(fetch.promise);
+  it('opens ONE bounded listener for a month behind the window, merges it, and keeps it current', async () => {
     const hook = await renderHook(() => useHistory());
     await act(async () => live.logs?.(fullWindow(new Date(2026, 8, 1)), { fromCache: false }));
     expect(hook.result.current.logs).toHaveLength(400);
 
     // The month the window covers needs nothing.
     await act(async () => hook.result.current.ensureMonthLoaded(new Date(2026, 8, 15)));
-    expect(mockGetLogsForRange).not.toHaveBeenCalled();
+    expect(mockRanges).toHaveLength(0);
 
     await act(async () => hook.result.current.ensureMonthLoaded(new Date(2026, 7, 15)));
     expect(hook.result.current.olderMonths.loading).toBe(true);
-    expect(mockGetLogsForRange).toHaveBeenCalledTimes(1);
-    expect(mockGetLogsForRange.mock.calls[0].slice(0, 3)).toEqual(['u1', '2026-08-01', '2026-08-31']);
+    expect(mockRanges).toHaveLength(1);
+    expect(mockRanges[0].args).toEqual(['u1', '2026-08-01', '2026-08-31']);
 
-    // A re-render mid-fetch (the effect re-asking) does not fire a second query.
+    // A re-render asking again (the screen's effect) opens nothing new.
     await act(async () => hook.result.current.ensureMonthLoaded(new Date(2026, 7, 15)));
-    expect(mockGetLogsForRange).toHaveBeenCalledTimes(1);
+    expect(mockRanges).toHaveLength(1);
 
-    await act(async () => {
-      fetch.resolve([row('aug1', '2026-08-03T09:00:00'), row('aug2', '2026-08-20T09:00:00')]);
-      await fetch.promise;
-    });
-    await waitFor(() => expect(hook.result.current.olderMonths.loading).toBe(false));
+    await act(async () => mockRanges[0].deliver([row('aug1', '2026-08-03T09:00:00'), row('aug2', '2026-08-20T09:00:00')]));
+    expect(hook.result.current.olderMonths.loading).toBe(false);
     const ids = hook.result.current.logs.map((l) => l.id);
     expect(ids.slice(0, 2)).toEqual(['aug1', 'aug2']); // oldest first, ahead of the window
     expect(ids).toHaveLength(402);
     expect(hook.result.current.days.some((d) => d.dateKey === '2026-08-20')).toBe(true);
 
-    // Paging away and back re-queries nothing.
+    // A delete on an old day (2026-10-15 audit): the listener hears it.
+    await act(async () => mockRanges[0].deliver([row('aug1', '2026-08-03T09:00:00')]));
+    expect(hook.result.current.days.some((d) => d.dateKey === '2026-08-20')).toBe(false);
+
+    // Paging away closes it; paging back paints the kept copy at once and
+    // re-opens the listener.
     await act(async () => hook.result.current.ensureMonthLoaded(new Date(2026, 8, 15)));
+    expect(mockRanges[0].unsub).toHaveBeenCalled();
     await act(async () => hook.result.current.ensureMonthLoaded(new Date(2026, 7, 15)));
-    expect(mockGetLogsForRange).toHaveBeenCalledTimes(1);
+    expect(hook.result.current.olderMonths.loading).toBe(false);
+    expect(mockRanges).toHaveLength(2);
   });
 
-  it('a failed fetch is reported and can be retried', async () => {
-    mockGetLogsForRange.mockRejectedValueOnce(new Error('offline'));
-    mockGetLogsForRange.mockResolvedValueOnce([]);
+  it('a failed listener is reported, and paging back to the month retries it', async () => {
     const hook = await renderHook(() => useHistory());
     await act(async () => live.logs?.(fullWindow(new Date(2026, 8, 1)), { fromCache: false }));
 
     await act(async () => hook.result.current.ensureMonthLoaded(new Date(2026, 7, 15)));
-    await waitFor(() => expect(hook.result.current.olderMonths.error).not.toBeNull());
+    await act(async () => mockRanges[0].fail(new Error('offline')));
+    expect(hook.result.current.olderMonths.error).not.toBeNull();
     expect(hook.result.current.olderMonths.loading).toBe(false);
 
+    await act(async () => hook.result.current.ensureMonthLoaded(new Date(2026, 8, 15)));
     await act(async () => hook.result.current.ensureMonthLoaded(new Date(2026, 7, 15)));
-    await waitFor(() => expect(hook.result.current.olderMonths.error).toBeNull());
-    expect(mockGetLogsForRange).toHaveBeenCalledTimes(2);
+    expect(mockRanges).toHaveLength(2);
+    await act(async () => mockRanges[1].deliver([]));
+    expect(hook.result.current.olderMonths.error).toBeNull();
   });
 
   it('never queries while the window is not full — everything is already loaded', async () => {
     const hook = await renderHook(() => useHistory());
     await act(async () => live.logs?.(fullWindow(new Date(2026, 8, 1), 5), { fromCache: false }));
     await act(async () => hook.result.current.ensureMonthLoaded(new Date(2020, 0, 15)));
-    expect(mockGetLogsForRange).not.toHaveBeenCalled();
+    expect(mockRanges).toHaveLength(0);
   });
 });
 

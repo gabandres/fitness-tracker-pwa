@@ -31,13 +31,22 @@ export interface ParsedRecipe {
 }
 
 /** First number embedded in a value: 240 from "240 kcal", 12.5 from "12.5 g",
- *  or a bare number. null when there's no parseable number. */
+ *  12.5 from "12,5 g", 1250 from "1,250 kcal", or a bare number. null when
+ *  there's no parseable number.
+ *
+ *  A comma followed by exactly three digits (and no further digit) is a
+ *  thousands separator; any other comma is a decimal one. Turning every first
+ *  comma into a point read "1,250 kcal" as 1 (audit 2026-10-15). "1,250" is
+ *  read as 1250 even where it could be a three-decimal European number,
+ *  because no nutrition panel states calories or grams to 0.001. */
 function firstNumber(value: unknown): number | null {
   if (typeof value === 'number') return Number.isFinite(value) ? value : null;
   if (typeof value !== 'string') return null;
-  const m = value.replace(',', '.').match(/-?\d+(\.\d+)?/);
+  const m = value.match(/-?\d{1,3}(?:,\d{3})+(?![\d,])(?:\.\d+)?|-?\d+(?:[.,]\d+)?/);
   if (!m) return null;
-  const n = Number(m[0]);
+  const raw = m[0];
+  const text = /^-?\d{1,3}(?:,\d{3})+(?:\.\d+)?$/.test(raw) ? raw.replace(/,/g, '') : raw.replace(',', '.');
+  const n = Number(text);
   return Number.isFinite(n) ? n : null;
 }
 

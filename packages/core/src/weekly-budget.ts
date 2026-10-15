@@ -75,6 +75,20 @@ export interface WeeklyBudget {
    * is left today, where it used to be null.
    */
   readonly perDayInclToday: number;
+  /**
+   * True when {@link perDayInclToday} is at or above zero but BELOW the
+   * calorie floor passed in — landing the week on budget would mean eating
+   * under the floor every remaining day. The floor is a medical constraint
+   * for at least one user, not a preference, so the card must not present
+   * the sub-floor figure as a plan (audit 2026-10-15). Always false when no
+   * floor was passed, and false once the week is over (negative): that state
+   * has its own copy.
+   */
+  readonly perDayBelowFloor: boolean;
+  /** {@link perDayInclToday} raised to the floor when
+   *  {@link perDayBelowFloor}; otherwise identical to it. The number to SHOW
+   *  as a per-day suggestion. */
+  readonly perDaySuggested: number;
   /** Full week, Monday→Sunday, for the bar strip. */
   readonly bars: readonly DayBudgetBar[];
 }
@@ -96,6 +110,9 @@ export function computeWeeklyBudget(
   weekDays: readonly DaySummary[],
   daysElapsed: number,
   dailyTarget: number,
+  /** The user's calorie floor (`calorieFloor(profile)`). Optional so a
+   *  caller without one keeps the old output; see `perDayBelowFloor`. */
+  calorieFloor?: number,
 ): WeeklyBudget | null {
   if (dailyTarget <= 0) return null;
   if (weekDays.length !== DAYS_IN_WEEK) return null;
@@ -115,6 +132,9 @@ export function computeWeeklyBudget(
   const daysRemaining = DAYS_IN_WEEK - elapsed;
   const daysLeftInclToday = daysRemaining + 1;
   const perDayInclToday = Math.round(remaining / daysLeftInclToday);
+  const floor = calorieFloor != null && Number.isFinite(calorieFloor) && calorieFloor > 0 ? calorieFloor : null;
+  const perDayBelowFloor = floor != null && perDayInclToday >= 0 && perDayInclToday < floor;
+  const perDaySuggested = floor != null && perDayBelowFloor ? floor : perDayInclToday;
 
   const bars: DayBudgetBar[] = weekDays.map((d, i) => ({
     dateKey: d.dateKey,
@@ -133,6 +153,8 @@ export function computeWeeklyBudget(
     daysRemaining,
     daysLeftInclToday,
     perDayInclToday,
+    perDayBelowFloor,
+    perDaySuggested,
     bars,
   };
 }

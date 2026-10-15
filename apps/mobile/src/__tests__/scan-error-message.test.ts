@@ -88,6 +88,17 @@ describe('scanErrorMessage', () => {
     );
   });
 
+  // Audit 2026-10-15 #7: a call that never got an answer — timed out, no
+  // route, the SDK's own transport failure — said "Couldn't read that photo".
+  it.each([
+    ['functions/deadline-exceeded'],
+    ['functions/unavailable'],
+    ['functions/internal'],
+    ['deadline-exceeded'],
+  ])('says a %s with no server code is the connection, not the photo', (code) => {
+    expect(scanErrorMessage({ code }).key).toBe('scan.errNetwork');
+  });
+
   it('falls back safely for an unknown code, a plain Error, and null', () => {
     // NOTE: `err()` builds a resource-exhausted rejection, so an unknown code
     // there is now `scan.errProvider` by design — covered above. These are the

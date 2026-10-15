@@ -13,9 +13,11 @@ import {
   type LogEntry, type ParsedFoodItem,
   parseMealDraft, parseMealUtterance,
 } from '@macrolog/core';
+import { announce } from '@/lib/a11y';
 import { getFoodDetail, searchFoods } from '@/lib/foodSearch';
 import { resolveOneItem } from '@/lib/mealResolution';
-import { useT } from '@/i18n';
+import { type Locale, useLocale, useT } from '@/i18n';
+import { kcalOutOfRange, macroOutOfRange, parseDecimal } from '@/lib/entry-input';
 import * as haptics from '@/lib/haptics';
 import { useA11yFocus } from '@/lib/use-a11y-focus';
 import { useDoneKeyProps } from '@/components/KeyboardBar';
@@ -57,14 +59,37 @@ interface Props {
 
 type Phase = 'input' | 'resolving' | 'review' | 'error';
 
-function numOrUndef(s: string): number | undefined {
-  // A comma is a decimal point here, not a rejection: pt-BR keyboards (and
-  // iOS decimal pads under a Brazilian region) type `12,5`, and `Number()`
-  // reads that as NaN. Same normalisation core's unit parsers already do.
-  const t = s.trim().replace(',', '.');
-  if (t === '') return undefined;
-  const n = Number(t);
-  return Number.isFinite(n) && n >= 0 ? n : undefined;
+/**
+ * A row's number fields as the write will see them, or why it cannot be
+ * written (audit #14). Read through `parseDecimal`, so a pt-BR `12,5` is 12.5
+ * — `parseMealDraft`'s own `Number()` read it as NaN and dropped the macro.
+ *
+ * Calories are REQUIRED on every row. "Add all" used to coerce a blank to 0,
+ * so a no-match row ("No match — enter values") the user never filled was
+ * logged as a 0-kcal entry, and a row the draft parser refused was dropped
+ * from the batch with nothing said. A typed `0` stays a real entry (black
+ * coffee, U7); a blank does not.
+ */
+function rowNumbers(r: DraftRow, locale: Locale):
+  | { ok: true; calories: number; protein?: number; carbs?: number; fat?: number }
+  | { ok: false } {
+  const read = (s: string): number | undefined | null => {
+    if (s.trim() === '') return undefined;
+    return parseDecimal(s, locale) ?? null; // null = typed but not a number
+  };
+  const calories = read(r.calories);
+  const protein = read(r.protein);
+  const carbs = read(r.carbs);
+  const fat = read(r.fat);
+  if (calories == null || kcalOutOfRange(calories)) return { ok: false };
+  for (const m of [protein, carbs, fat]) if (m === null || macroOutOfRange(m ?? undefined)) return { ok: false };
+  return {
+    ok: true,
+    calories,
+    ...(protein != null ? { protein } : {}),
+    ...(carbs != null ? { carbs } : {}),
+    ...(fat != null ? { fat } : {}),
+  };
 }
 
 /**
@@ -82,6 +107,7 @@ function numOrUndef(s: string): number | undefined {
  */
 export function MealText({ forDate, onAddMany, onCancel, seedText, onDirtyChange }: Props) {
   const t = useT();
+  const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const [query, setQuery] = useState(seedText ?? '');
@@ -174,28 +200,32 @@ export function MealText({ forDate, onAddMany, onCancel, seedText, onDirtyChange
     setRows((prev) => prev.filter((_, idx) => idx !== i));
   }
 
+  /** Rows that cannot be written as they stand — named under the list, and
+   *  "Add all" waits for them (audit #14). */
+  const needs = rows.filter((r) => !rowNumbers(r, locale).ok);
+  const needNames = needs.map((r) => r.food).join(', ');
+
   async function addAll() {
     if (busy || rows.length === 0) return;
+    if (needs.length) {
+      haptics.warning();
+      announce(t('mealText.needsValues', { names: needNames }));
+      return;
+    }
     setBusy(true);
     haptics.success();
     // An async body with `.finally`, not `try/finally`: the React Compiler
     // skips a component holding the statement form. `busy` still clears on
     // success and failure, and a rejection still reaches the caller.
     await (async () => {
-      // Build each entry through the shared core seam so macro coercion,
-      // label, and timestamp match the PWA byte-for-byte. Blank calories
-      // coerce to 0 so an unmatched-but-labelled row still logs (the user
-      // fills the number in later) rather than being rejected.
+      // Build each entry through the shared core seam so the label, the
+      // timestamp and the empty-row rule match the PWA. Every row here has
+      // already passed `rowNumbers`, so none is coerced or dropped.
       const entries: LogEntry[] = [];
       for (const r of rows) {
-        const res = parseMealDraft({
-          calories: numOrUndef(r.calories) ?? 0,
-          protein: r.protein,
-          carbs: r.carbs,
-          fat: r.fat,
-          mealLabel: r.food,
-          timestamp: forDate,
-        });
+        const n = rowNumbers(r, locale);
+        if (!n.ok) continue;
+        const res = parseMealDraft({ ...n, mealLabel: r.food, timestamp: forDate });
         if (res.ok) entries.push(res.draft.entry);
       }
       await onAddMany(entries);
@@ -246,11 +276,17 @@ export function MealText({ forDate, onAddMany, onCancel, seedText, onDirtyChange
             </View>
           ))}
         </ScrollView>
+        {needs.length ? (
+          <Text style={styles.warn} accessibilityLiveRegion="polite" testID="mealtext-needs">
+            {t('mealText.needsValues', { names: needNames })}
+          </Text>
+        ) : null}
         <TouchableOpacity
-          style={[styles.add, (rows.length === 0 || busy) && styles.addDisabled]}
+          style={[styles.add, (rows.length === 0 || busy || needs.length > 0) && styles.addDisabled]}
           onPress={addAll}
           disabled={rows.length === 0 || busy}
           accessibilityRole="button"
+          accessibilityState={{ disabled: rows.length === 0 || busy || needs.length > 0, busy }}
           testID="mealtext-add-all"
         >
           <Text style={styles.addText}>{t('mealText.addAll')}</Text>

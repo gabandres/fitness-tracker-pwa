@@ -74,6 +74,7 @@ import {
   type TrainingPhase,
   type WorkoutSession,
   type WorkoutTemplate,
+  dropEmptyCardio,
   dropEmptySets,
   templateToSessionCardio,
   seedCallLoad,
@@ -304,6 +305,29 @@ export interface TrainState {
  * copy of a finish the previous mount is still waiting on.
  */
 const finishesInFlight = new Set<string>();
+
+/**
+ * Everything an edit of a finished session can change, as it was at reopen.
+ *
+ * Cancel restored `exercises` alone until 2026-10-15, but the editor live-
+ * writes cardio blocks (and their RPE), dismissed imports and the duration
+ * too — so a cancelled edit kept all of those. Every editable field is put
+ * back. A field the edit ADDED to a session that never had it is reset to its
+ * empty value where one exists (`cardio: []`, `dismissedSourceIds: []`); a
+ * `durationMin` added by the edit stays — a patch cannot delete a field.
+ */
+export function editRestorePatch(original: WorkoutSession): Partial<SessionDraft> {
+  return {
+    date: original.date,
+    exercises: original.exercises,
+    cardio: original.cardio ?? [],
+    dismissedSourceIds: original.dismissedSourceIds ?? [],
+    ...(original.durationMin !== undefined ? { durationMin: original.durationMin } : {}),
+    ...(original.bodyweight !== undefined ? { bodyweight: original.bodyweight } : {}),
+    ...(original.sleepHours !== undefined ? { sleepHours: original.sleepHours } : {}),
+    ...(original.nextNotes !== undefined ? { nextNotes: original.nextNotes } : {}),
+  };
+}
 
 /** Test seam — a runtime restart forgets what was in flight. */
 export function __resetFinishesInFlight(): void {
@@ -810,6 +834,14 @@ export function useTrain(): TrainState {
    * rejection here is permanent: rules, a deleted account) does not lose the
    * workout: it is put back on screen as active, with the error, where Finish
    * can be tried again or the session discarded on purpose.
+   *
+   * **Only when the screen is free.** With another workout already open the
+   * refused one cannot be shown, and until 2026-10-15 it was dropped from the
+   * pending list anyway — the workout was simply gone. It now STAYS in the
+   * list, the error says so, and the next mount replays it (and, if refused
+   * again with the screen free, puts it back on screen). The pending entry is
+   * removed only once the active journal holds the session, so there is never
+   * a moment with no durable copy.
    */
   const runFinish = useCallback(
     (u: string, entry: PendingFinish) => {
@@ -817,17 +849,26 @@ export function useTrain(): TrainState {
       if (!id || finishesInFlight.has(id)) return;
       finishesInFlight.add(id);
       // ADR-0030: the boundary is derived here, from the profile the auth
-      // context already holds, and passed down rather than re-read.
-      finishWorkoutOp(u, entry.session, dayBoundaryOf(profileRef.current), entry.extras)
+      // context already holds, and passed down rather than re-read. The
+      // finish instant is the tap's (`savedAt`), so the extras land on the day
+      // they were typed even when this is a replay the next morning.
+      finishWorkoutOp(u, entry.session, dayBoundaryOf(profileRef.current), {
+        ...entry.extras,
+        finishedAt: new Date(entry.savedAt),
+      })
         .then(() => removePendingFinish(u, id))
         .catch((e) => {
-          void removePendingFinish(u, id);
           setError(asError(e, 'Finish failed'));
-          if (!activeRef.current && u === uid) setActive({ ...entry.session, status: 'active' });
+          if (activeRef.current || u !== uid) return; // kept; replayed on the next mount
+          setActive({ ...entry.session, status: 'active' });
+          // The journal holds it now — only then is the pending copy dropped
+          // (otherwise a Discard of the restored session would be undone by
+          // the next mount replaying its finish).
+          void journal.flush().then(() => removePendingFinish(u, id));
         })
         .finally(() => finishesInFlight.delete(id));
     },
-    [uid, setActive, setError],
+    [uid, setActive, setError, journal],
   );
 
   const saveTemplate = useCallback(
@@ -1356,7 +1397,7 @@ export function useTrain(): TrainState {
             // old contract and wait on the network, so a failure keeps the
             // sheet open with the typed values instead of losing the workout.
             try {
-              await finishWorkoutOp(uid, done, dayBoundaryOf(profileRef.current), extras);
+              await finishWorkoutOp(uid, done, dayBoundaryOf(profileRef.current), { ...extras, finishedAt });
             } catch (e) {
               // `false`, not a rethrow: the screen used to `await` this inside a
               // handler that then closed the Finish sheet and fired the review
@@ -1453,8 +1494,14 @@ export function useTrain(): TrainState {
     setActive(null);
     setEditingExisting(false);
     if (uid && active?.id) {
+      // `dropEmptyCardio` too, as `finishWorkout` does: a block added in the
+      // editor and never filled in must not enter history as a real one.
+      const cardio = dropEmptyCardio(active.cardio);
       try {
-        await updateSession(uid, active.id, { exercises: dropEmptySets(fillMissingClusterLoads(active.exercises)) });
+        await updateSession(uid, active.id, {
+          exercises: dropEmptySets(fillMissingClusterLoads(active.exercises)),
+          ...(cardio !== undefined ? { cardio } : {}),
+        });
       } catch (e) {
         setError(asError(e, 'Save failed'));
       }
@@ -1471,7 +1518,7 @@ export function useTrain(): TrainState {
     setEditingExisting(false);
     if (uid && original?.id) {
       try {
-        await updateSession(uid, original.id, { exercises: original.exercises });
+        await updateSession(uid, original.id, editRestorePatch(original));
       } catch (e) {
         setError(asError(e, 'Restore failed'));
       }

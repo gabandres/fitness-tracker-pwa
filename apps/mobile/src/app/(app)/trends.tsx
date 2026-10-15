@@ -1331,9 +1331,19 @@ function Budget({
       <View style={styles.kv}>
         <Text style={styles.kvLabel}>{t('trends.budgetPerDayInclToday')}</Text>
         <Text style={styles.kvValue} testID="budget-per-day">
-          {budget.perDayInclToday < 0 ? t('trends.budgetOver') : `${formatNumber(budget.perDayInclToday, locale)} ${t('trends.kcalUnit')}`}
+          {budget.perDayInclToday < 0 ? t('trends.budgetOver') : `${formatNumber(budget.perDaySuggested, locale)} ${t('trends.kcalUnit')}`}
         </Text>
       </View>
+      {/* Below the calorie floor the figure is the floor, and the arithmetic
+          is said rather than offered as a plan (audit 2026-10-15). */}
+      {budget.perDayBelowFloor ? (
+        <Text style={styles.weekHint} testID="budget-below-floor">
+          {t('trends.budgetBelowFloor', {
+            kcal: formatNumber(budget.perDayInclToday, locale),
+            floor: formatNumber(budget.perDaySuggested, locale),
+          })}
+        </Text>
+      ) : null}
     </View>
   );
 }

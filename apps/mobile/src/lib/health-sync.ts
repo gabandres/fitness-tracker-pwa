@@ -4,6 +4,7 @@ import { AppState, Linking, Platform } from 'react-native';
 import {
   type WritableKind,
   type DayBoundary,
+  type HealthSample,
   dropOverriddenSamples,
   importableWorkouts,
   isLoggedCardioBlock,
@@ -208,9 +209,12 @@ let importing = false;
  * import is already in flight (guard against overlapping app-open + Sync-now).
  */
 export async function importHealth(uid: string): Promise<number> {
-  if (importing || !uid || !(await isHealthConnected())) return 0;
+  // The flag is taken BEFORE the first await: checked after one, two calls in
+  // the same tick both read `false` and both ran.
+  if (importing || !uid) return 0;
   importing = true;
   try {
+    if (!(await isHealthConnected())) return 0;
     const n = await importScalars(uid);
     await recordHealthSync(n);
     return n;
@@ -223,6 +227,45 @@ export async function importHealth(uid: string): Promise<number> {
  *  honour (`health-overrides.ts`). Steps and active energy are import-only —
  *  there is no hand-typed value for a sample to overwrite. */
 const OVERRIDABLE = new Set<ReadableKind>(['weight', 'sleep', 'water']);
+
+/**
+ * Which water days the import writes, honouring in-app edits.
+ *
+ * Water was OVERRIDABLE in name only until 2026-10-15: nothing recorded a
+ * water override, so another app's total for a day silently replaced the
+ * water the user logged in Ignia on every foreground. Recording one is not
+ * enough on its own, because `dropOverriddenSamples` keeps the samples AFTER
+ * the act — right for weight (`latest`), wrong for a `sum`, where those later
+ * sips alone would replace the whole in-app total with a few ounces.
+ *
+ * So a day the user edited in-app (override at T) is owned by the app value,
+ * and only samples ending after T are ADDED to it; `consumedAt` is the newest
+ * of them, which the caller records as the new override so the next run does
+ * not add them twice. A day with no override folds exactly as before.
+ * Ignia's own exports are dropped either way (`fromUs`). Pure; exported for
+ * the test.
+ */
+export function waterToApply(
+  samples: readonly HealthSample[],
+  overrides: Readonly<Record<string, number>>,
+  current: Readonly<Record<string, number>>,
+): { apply: Record<string, number>; consumedAt: Record<string, number> } {
+  const plain = samples.filter((s) => overrides[s.dateKey] == null);
+  const apply = valuesToApply(reduceImportedSamples(plain), current, EPSILON.water);
+  const consumedAt: Record<string, number> = {};
+  const added: Record<string, number> = {};
+  for (const s of samples) {
+    const at = overrides[s.dateKey];
+    // `!(s.endMs > at)` rather than `s.endMs <= at`: a NaN end compares false
+    // both ways, and would be added again on every run (and poison the
+    // watermark with NaN).
+    if (at == null || s.fromUs || !Number.isFinite(s.value) || s.value <= 0 || !(s.endMs > at)) continue;
+    added[s.dateKey] = (added[s.dateKey] ?? 0) + s.value;
+    consumedAt[s.dateKey] = Math.max(consumedAt[s.dateKey] ?? 0, s.endMs);
+  }
+  for (const [dateKey, extra] of Object.entries(added)) apply[dateKey] = (current[dateKey] ?? 0) + extra;
+  return { apply, consumedAt };
+}
 
 /** The scalar import itself, WITHOUT the in-flight guard, so {@link importAll}
  *  can hold one guard across both halves instead of two that can interleave. */
@@ -238,6 +281,21 @@ async function importScalars(uid: string): Promise<number> {
     let applied = 0;
     for (const kind of IMPORT_KINDS) {
       const read = await health.readSamples(kind, IMPORT_DAYS, boundary);
+      if (kind === 'water') {
+        // Water is a SUM: an override cannot simply drop older samples the
+        // way it does for weight, or the later sips alone would overwrite the
+        // in-app total. See `waterToApply`.
+        const overrides = await readManualOverrides(uid, 'water');
+        const { apply, consumedAt } = waterToApply(read, overrides, current.water);
+        for (const [dateKey, value] of Object.entries(apply)) {
+          await setDailyWater(uid, dateKey, value);
+          // Move the day's watermark past what was just added, so the next
+          // run does not add the same samples again.
+          if (consumedAt[dateKey] != null) await recordManualOverride(uid, 'water', dateKey, consumedAt[dateKey]);
+          applied++;
+        }
+        continue;
+      }
       // A day the user deleted or retyped by hand is THEIRS: samples that
       // ended before that act are superseded by it (Body review, bug 1). Done
       // before the fold, because the fold throws the sample times away.
@@ -359,8 +417,72 @@ function isNotFound(err: unknown): boolean {
   return (err as { code?: unknown } | null)?.code === 'not-found';
 }
 
-export async function writeImportedBlocks(uid: string, blocks: CardioBlock[]): Promise<number> {
-  if (!blocks.length) return 0;
+/**
+ * One imported-block write at a time, across BOTH transports.
+ *
+ * `importAll`'s in-flight flag guards only the Health road. Oura's automatic
+ * import, Oura's *Sync now* and the Health import all end here, and two of them
+ * running together each read the same sessions, each find no `sourceId` match
+ * and each write the run — a duplicate session per overlap. The read has to sit
+ * inside the lock with the write, so the second run sees the first one's work.
+ */
+let blockChain: Promise<unknown> = Promise.resolve();
+
+export function writeImportedBlocks(uid: string, blocks: CardioBlock[]): Promise<number> {
+  if (!blocks.length) return Promise.resolve(0);
+  const run = blockChain.then(
+    () => writeImportedBlocksNow(uid, blocks),
+    () => writeImportedBlocksNow(uid, blocks),
+  );
+  blockChain = run.catch(() => undefined);
+  return run;
+}
+
+/**
+ * Route each incoming block to the session it belongs in on its day.
+ *
+ * Every same-day session is consulted, not just the newest (2026-10-15 audit):
+ * a block already stored in an OLDER session of the day — or dismissed from
+ * one — was re-added to the newest, resurrecting what the user removed. So:
+ *
+ * - a `sourceId` dismissed from ANY session of the day is dropped;
+ * - a `sourceId` already stored updates THAT session in place;
+ * - a new block joins the newest COMPLETED session of the day, never an
+ *   active one — that session is live on the device (its journal and the
+ *   screen hold their own copy, and `persist` would overwrite the import, or
+ *   the import the user's in-flight edits); with none, it gets a new session.
+ */
+export function routeImportedBlocks(
+  daySessions: readonly WorkoutSession[],
+  incoming: readonly CardioBlock[],
+): { updates: Map<WorkoutSession, CardioBlock[]>; fresh: CardioBlock[] } {
+  const dismissed = new Set(daySessions.flatMap((s) => s.dismissedSourceIds ?? []));
+  const target = daySessions.find((s) => s.id && s.status !== 'active');
+  const updates = new Map<WorkoutSession, CardioBlock[]>();
+  const fresh: CardioBlock[] = [];
+  const add = (s: WorkoutSession, b: CardioBlock) => {
+    const list = updates.get(s);
+    if (list) list.push(b);
+    else updates.set(s, [b]);
+  };
+  for (const b of incoming) {
+    if (b.sourceId && dismissed.has(b.sourceId)) continue;
+    const home = b.sourceId
+      ? daySessions.find((s) => (s.cardio ?? []).some((c) => c.sourceId === b.sourceId))
+      : undefined;
+    if (home) {
+      // Already stored. An active session is left alone; it is re-merged once
+      // it completes, on the next import.
+      if (home.id && home.status !== 'active') add(home, b);
+      continue;
+    }
+    if (target) add(target, b);
+    else fresh.push(b);
+  }
+  return { updates, fresh };
+}
+
+async function writeImportedBlocksNow(uid: string, blocks: CardioBlock[]): Promise<number> {
 
   // ADR-0030 Q5. These two keys are MATCHED AGAINST EACH OTHER to decide
   // whether an imported run folds into a session the user already logged, so
@@ -370,11 +492,13 @@ export async function writeImportedBlocks(uid: string, blocks: CardioBlock[]): P
   const boundary = await getDayBoundaryOnce(uid);
 
   const sessions = await getRecentSessions(uid, SESSION_SCAN_LIMIT);
-  const byDay = new Map<string, WorkoutSession>();
+  // Sessions come back newest-first, and each day's list keeps that order.
+  const byDay = new Map<string, WorkoutSession[]>();
   for (const s of sessions) {
     const key = dayKeyAt(s.date, boundary);
-    // Sessions come back newest-first; keep the newest per day.
-    if (!byDay.has(key)) byDay.set(key, s);
+    const list = byDay.get(key);
+    if (list) list.push(s);
+    else byDay.set(key, [s]);
   }
 
   // Group by day first so two runs on one day become one write, not two.
@@ -388,10 +512,10 @@ export async function writeImportedBlocks(uid: string, blocks: CardioBlock[]): P
 
   let written = 0;
   for (const [dayKey, incoming] of perDay) {
-    const existing = byDay.get(dayKey);
-    if (existing?.id) {
-      const { blocks: merged, changed } = mergeImportedBlocks(existing.cardio ?? [], incoming, existing.dismissedSourceIds);
-      if (!changed) continue;
+    const { updates, fresh } = routeImportedBlocks(byDay.get(dayKey) ?? [], incoming);
+    for (const [existing, mine] of updates) {
+      const { blocks: merged, changed } = mergeImportedBlocks(existing.cardio ?? [], mine, existing.dismissedSourceIds);
+      if (!changed || !existing.id) continue;
       try {
         await updateSession(uid, existing.id, { cardio: merged });
       } catch (err) {
@@ -403,12 +527,12 @@ export async function writeImportedBlocks(uid: string, blocks: CardioBlock[]): P
         throw err;
       }
       written++;
-      continue;
     }
-    const date = incoming[0].startedAt ?? parseYmd(dayKey);
+    if (!fresh.length) continue;
+    const date = fresh[0].startedAt ?? parseYmd(dayKey);
     // The session alone makes the day a trained one for the streak and History
     // (core `trainedDayRows`); no marker row is written since 2026-10-15.
-    await startSession(uid, { status: 'completed', date, exercises: [], cardio: incoming });
+    await startSession(uid, { status: 'completed', date, exercises: [], cardio: fresh });
     written++;
   }
   return written;
@@ -429,9 +553,11 @@ export async function writeImportedBlocks(uid: string, blocks: CardioBlock[]): P
  * aggregate on Android must not hold it up.
  */
 export async function importAll(uid: string): Promise<number> {
-  if (importing || !uid || !(await isHealthConnected())) return 0;
+  // Taken before the first await — see `importHealth`.
+  if (importing || !uid) return 0;
   importing = true;
   try {
+    if (!(await isHealthConnected())) return 0;
     const scalars = await importScalars(uid);
     const workouts = await importHealthWorkouts(uid);
     // Recorded only for a run that FINISHED: a locked-device failure halfway
@@ -445,12 +571,59 @@ export async function importAll(uid: string): Promise<number> {
 
 // ── Export wrappers — guarded + swallow (never fail the Firestore write) ──
 
-export async function exportDaily(kind: WritableKind, dateKey: string, value: number): Promise<void> {
-  try {
-    if (await isHealthConnected()) await health.writeDaily(kind, dateKey, value);
-  } catch {
-    /* Health write is best-effort; the Firestore write already succeeded. */
+/** Exports that delete-then-write run one at a time: two quick water taps
+ *  interleaved as delete, delete, write, write and left two samples. */
+let exportChain: Promise<unknown> = Promise.resolve();
+function serialExport(fn: () => Promise<void>): Promise<void> {
+  const run = exportChain.then(fn, fn);
+  exportChain = run.catch(() => undefined);
+  return run;
+}
+
+/**
+ * Mirror a day's value to Health.
+ *
+ * With `manual`, the value is one the USER entered in Ignia (Today's water and
+ * sleep, Finish-sheet and onboarding weigh-ins — 2026-10-15 audit), and two
+ * things follow:
+ *
+ * - **It REPLACES what Ignia exported for that day.** The value is the day's
+ *   total, so writing it beside the previous export stacked them — Health sums
+ *   water, and every tap added another whole-day total.
+ * - **The importer is told** (`health-overrides.ts`) for weight and water, so
+ *   a scale's or another app's sample stops overwriting it. Sleep needs no
+ *   record: a typed night is `source: 'manual'` and `importDailySleep` already
+ *   refuses to overwrite it.
+ */
+export async function exportDaily(
+  kind: WritableKind,
+  dateKey: string,
+  value: number,
+  manual?: { uid: string },
+): Promise<void> {
+  if (!manual || kind === 'bodyFat') {
+    try {
+      if (await isHealthConnected()) await health.writeDaily(kind, dateKey, value);
+    } catch {
+      /* Health write is best-effort; the Firestore write already succeeded. */
+    }
+    return;
   }
+  if (kind === 'weight' || kind === 'water') await recordManualOverride(manual.uid, kind, dateKey);
+  await serialExport(async () => {
+    try {
+      if (!(await isHealthConnected())) return;
+      try {
+        await health.deleteDaily(kind, dateKey);
+      } catch {
+        /* A failed tidy-up still exports the new value. */
+      }
+      // Zero is "nothing that day": the delete already said it.
+      if (value > 0) await health.writeDaily(kind, dateKey, value);
+    } catch {
+      /* best-effort */
+    }
+  });
 }
 
 /**
@@ -467,18 +640,7 @@ export async function exportDaily(kind: WritableKind, dateKey: string, value: nu
  * Best-effort like every export: nothing here can fail the Firestore write.
  */
 export async function exportManualWeight(uid: string, dateKey: string, lb: number): Promise<void> {
-  await recordManualOverride(uid, 'weight', dateKey);
-  try {
-    if (!(await isHealthConnected())) return;
-    try {
-      await health.deleteDaily('weight', dateKey);
-    } catch {
-      /* A failed tidy-up still exports the new value. */
-    }
-    await health.writeDaily('weight', dateKey, lb);
-  } catch {
-    /* best-effort */
-  }
+  await exportDaily('weight', dateKey, lb, { uid });
 }
 
 /**

@@ -13,6 +13,7 @@ import {
   dropPendingLogs,
   parkPendingLog,
   readPendingLogs,
+  isRefusedWrite,
   isUndoneId,
   replacePendingLog,
   reviveUndoneId,
@@ -69,17 +70,15 @@ export type WriteOutcome = 'logged' | 'queued' | 'rejected';
 /**
  * Firestore's answer for a write the rules refused. It is not a connectivity
  * problem: the same bytes are refused on every retry, so parking them only
- * delays the loss and lies about it in between.
+ * delays the loss and lies about it in between. Shared with the flush
+ * (`isRefusedWrite`), which drops a parked row that gets it (#21).
  */
-function isRefused(e: unknown): boolean {
-  const code = (e as { code?: unknown } | null)?.code;
-  return code === 'permission-denied' || code === 'firestore/permission-denied' || code === 'invalid-argument';
-}
+const isRefused = isRefusedWrite;
 
 /** Re-exported so consumers have one import for the queue. The emitter lives in
  *  its own module to keep `quick-add.ts` — which also fires it, from the flush —
  *  out of a require cycle with this file. */
-export { onPendingLogsChanged } from './pending-logs-events';
+export { onPendingLogsChanged, onPendingLogsRejected } from './pending-logs-events';
 /** Re-exported for the same reason: the one import for the queue. */
 export { dropPendingLogs } from './quick-add';
 
@@ -124,7 +123,12 @@ export async function addLogDurably(
       captureError(e, { where: 'pendingLogs.addRefused' });
       return 'rejected';
     }
-    await parkPendingLog(buildPendingLog(id, uid, withSlot, at.getTime()));
+    // The queue is at its cap (#20): parking would push an older unsent meal
+    // out, so this one is reported as not saved instead — never a silent loss.
+    if (!(await parkPendingLog(buildPendingLog(id, uid, withSlot, at.getTime())))) {
+      captureError(new Error('pending queue full'), { where: 'pendingLogs.queueFull' });
+      return 'rejected';
+    }
     return 'queued';
   }
 }
@@ -204,5 +208,8 @@ function toRow(p: PendingLog): DailyLog {
     ...(p.source ? { source: p.source } : {}),
     ...(p.note ? { note: p.note } : {}),
     ...(p.grams != null ? { grams: p.grams } : {}),
+    ...(p.weight != null ? { weight: p.weight } : {}),
+    ...(p.exerciseCompleted != null ? { exerciseCompleted: p.exerciseCompleted } : {}),
+    ...(p.createdAtMs != null ? { createdAt: new Date(p.createdAtMs) } : {}),
   };
 }

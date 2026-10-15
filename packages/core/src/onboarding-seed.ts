@@ -1,6 +1,6 @@
 import { type GoalDirection, computeKcal } from './macro-heuristic';
 import { isPlausibleAge, isPlausibleHeightIn } from './profile-bounds';
-import { ACTIVITY_MULTIPLIERS, basalMifflinStJeor, calorieFloor, paceOffsetKcal } from './tdee';
+import { basalMifflinStJeor, bucketMultiplier, calorieFloor, paceOffsetKcal } from './tdee';
 import { type ActivityLevel, type CutPace, type Sex, clampCutPace } from './types';
 
 /**
@@ -114,8 +114,9 @@ export function hasFormulaInputs(
     (i.sex === 'male' || i.sex === 'female') &&
     isPlausibleHeightIn(i.heightIn) &&
     isPlausibleAge(i.age) &&
-    i.activityLevel != null &&
-    i.activityLevel in ACTIVITY_MULTIPLIERS
+    // Own-property lookup, not `in`: `'toString' in ACTIVITY_MULTIPLIERS` is
+    // true, and the formula below then multiplied by a function (NaN).
+    bucketMultiplier(i.activityLevel) != null
   );
 }
 
@@ -149,7 +150,7 @@ export function onboardingSeed(input: OnboardingSeedInput): OnboardingSeed {
     basalMifflinStJeor(
       { heightIn: input.heightIn as number, age: input.age as number, sex: input.sex as Sex },
       weightLbs,
-    ) * ACTIVITY_MULTIPLIERS[input.activityLevel as ActivityLevel],
+    ) * (bucketMultiplier(input.activityLevel) as number), // checked by hasFormulaInputs
   );
 
   // One expression for all three directions now that the pace carries a sign:

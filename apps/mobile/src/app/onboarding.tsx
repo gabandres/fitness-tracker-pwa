@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, BackHandler, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, { FadeInLeft, FadeInRight, ReduceMotion } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
@@ -127,7 +127,19 @@ export function parseHeightInput(
   }
   const ft = intOrNull(input.feet);
   const inch = intOrNull(input.inches);
-  return ft != null && inch != null ? ft * 12 + inch : null;
+  // 0–11 only: "5 ft 14 in" is not a height anyone means, and folding it into
+  // 74 in silently saved a number the user never typed (audit 2026-10-15).
+  // `inchesOutOfRange` lets the screens say why it was refused.
+  return ft != null && inch != null && !inchesOutOfRange(input.inches) ? ft * 12 + inch : null;
+}
+
+/** The inches box holds a whole number above 11 — refused by
+ *  `parseHeightInput`, and worth its own message: the generic height band
+ *  ("between 3 ft 4 in and 8 ft 0 in") reads as wrong to someone who typed
+ *  5 ft 14 in, which is inside it. */
+export function inchesOutOfRange(inches: string): boolean {
+  const inch = intOrNull(inches);
+  return inch != null && inch > 11;
 }
 
 /** `HEIGHT_IN_MIN..MAX` said in the user's unit: `102–243 cm`, or
@@ -175,7 +187,16 @@ export default function Onboarding() {
   const router = useRouter();
   // A completed profile only reaches this screen via Settings → "Redo setup":
   // it returns to Settings when done.
-  const isRedo = !!profile?.profileCompleted;
+  //
+  // LATCHED at mount, not derived. The first run's own save flips
+  // `profileCompleted`, and a derived flag turned the rest of that run into a
+  // redo: a failed age stamp after a good save was never retried (the stamp is
+  // first-run only), `onboarding_complete` never fired, reminders and the
+  // first log were skipped, and the sign-out control became the redo's Cancel
+  // X (audit 2026-10-15). Whether this run is a redo is decided by how it
+  // STARTED; the gate only ever opens a first run on a confirmed profile, so
+  // the value at mount is the right one.
+  const [isRedo] = useState(() => !!profile?.profileCompleted);
   // The unit the profile reads in today (`undefined` → 'us', see the hook).
   const storedUnit = useUnitSystem();
   // The unit THIS run asks in. A redo, or a profile that already carries an
@@ -673,6 +694,29 @@ export default function Onboarding() {
   const entering = (dir === 1 ? FadeInRight : FadeInLeft).duration(motion.dur.base).reduceMotion(ReduceMotion.System);
   // Goal is the first step for everyone now, so nothing sits behind it.
   const showBack = step !== 'goal' && step !== 'reminders' && step !== 'firstLog';
+
+  // Android hardware back follows the on-screen controls (09-22 item): it
+  // quit the app from the middle of the wizard, losing every answer. Where
+  // the back chevron shows, it steps back; on a redo's first step it is the
+  // Cancel X; after the save (reminders, first log) there is nothing to go
+  // back to, so it is consumed. Only a first run's first step lets the OS
+  // have it — leaving the app there is what back means.
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (busy) return true;
+      if (showBack) {
+        go(-1);
+        return true;
+      }
+      if (step === 'reminders' || step === 'firstLog') return true;
+      if (isRedo) {
+        router.replace('/settings');
+        return true;
+      }
+      return false;
+    });
+    return () => sub.remove();
+  });
   // The unit toggle: a first-run choice. A redo keeps the profile's unit and
   // sees the screen exactly as before (Settings owns the unit for them).
   const unitToggle = !isRedo;
@@ -989,7 +1033,9 @@ export default function Onboarding() {
                 )}
                 {heightTyped && !heightValid ? (
                   <Text style={styles.fieldError} accessibilityRole="alert" accessibilityLiveRegion="polite" testID="onboarding-height-error">
-                    {t('onboarding.heightRange', heightBandFor(unitSystem, { ft: t('refine.feet'), in: t('refine.inches') }))}
+                    {!metric && inchesOutOfRange(inches)
+                      ? t('onboarding.heightInchesRange')
+                      : t('onboarding.heightRange', heightBandFor(unitSystem, { ft: t('refine.feet'), in: t('refine.inches') }))}
                   </Text>
                 ) : null}
               </View>
@@ -1052,6 +1098,7 @@ export default function Onboarding() {
                     onOpen={() => openEditor('kcal')}
                     onBlur={() => setEditing(null)}
                     label={t('onboarding.calories')}
+                    valueText={kcal != null ? formatNumber(kcal, locale) : null}
                     styles={styles}
                     colors={colors}
                     testID="onboarding-kcal"
@@ -1066,6 +1113,7 @@ export default function Onboarding() {
                     onOpen={() => openEditor('protein')}
                     onBlur={() => setEditing(null)}
                     label={t('onboarding.protein')}
+                    valueText={protein != null ? `${formatNumber(protein, locale)} g` : null}
                     styles={styles}
                     colors={colors}
                     testID="onboarding-protein"
@@ -1227,6 +1275,7 @@ function PlanStat({
   onOpen,
   onBlur,
   label,
+  valueText,
   styles,
   colors,
   testID,
@@ -1239,6 +1288,9 @@ function PlanStat({
   onOpen: () => void;
   onBlur: () => void;
   label: string;
+  /** The number as read aloud ("1,850", "140 g"). The button used to announce
+   *  only "Calories" — the one thing on it a sighted user reads is the number. */
+  valueText: string | null;
   styles: ReturnType<typeof createStyles>;
   colors: Theme['colors'];
   testID: string;
@@ -1265,7 +1317,7 @@ function PlanStat({
           scaleTo={0.96}
           onPress={onOpen}
           accessibilityRole="button"
-          accessibilityLabel={label}
+          accessibilityLabel={valueText ? `${label}, ${valueText}` : label}
           accessibilityHint={undefined}
           testID={testID}
         >

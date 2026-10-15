@@ -13,12 +13,25 @@ import type { CardioBlock } from '@macrolog/core/cardio';
  */
 export type TrainRemoval = SessionRemoval | { kind: 'cardio'; index: number; block: CardioBlock };
 
-/** Put a removed cardio block back at its old index (clamped), purely. */
-export function undoCardioRemoval<S extends { cardio?: CardioBlock[] }>(
+/**
+ * Put a removed cardio block back at its old index (clamped), purely.
+ *
+ * Removing an IMPORTED block also records its `sourceId` in
+ * `dismissedSourceIds`, so the next import does not bring it back. Undo has to
+ * take that back too — left behind, the restored block was the one the
+ * importer refused to refresh, and a later remove-and-reimport could never
+ * happen (2026-10-15 audit).
+ */
+export function undoCardioRemoval<S extends { cardio?: CardioBlock[]; dismissedSourceIds?: string[] }>(
   session: S,
   removal: { index: number; block: CardioBlock },
 ): S {
   const list = session.cardio ?? [];
   const at = Math.max(0, Math.min(removal.index, list.length));
-  return { ...session, cardio: [...list.slice(0, at), removal.block, ...list.slice(at)] };
+  const restored = { ...session, cardio: [...list.slice(0, at), removal.block, ...list.slice(at)] };
+  const sid = removal.block.sourceId;
+  if (sid && session.dismissedSourceIds?.includes(sid)) {
+    restored.dismissedSourceIds = session.dismissedSourceIds.filter((x) => x !== sid);
+  }
+  return restored;
 }

@@ -5,6 +5,7 @@ import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   AppState,
+  BackHandler,
   Image,
   Linking,
   Platform,
@@ -18,6 +19,8 @@ import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
+  LOG_LABEL_MAX,
+  cleanLogLabel,
   findRepeatCandidates,
   hasUngroundedItems,
   parseTimeOfDay,
@@ -38,7 +41,16 @@ import { useAddReceipt } from '@/hooks/useAddReceipt';
 import { useToday } from '@/hooks/useToday';
 import { announce } from '@/lib/a11y';
 import { isOffline, useIsOffline } from '@/lib/connectivity';
-import { parseDecimal, settleWithin } from '@/lib/entry-input';
+import {
+  LOG_KCAL_LIMIT,
+  LOG_MACRO_LIMIT,
+  formatDecimal,
+  kcalOutOfRange,
+  macroOutOfRange,
+  parseDecimal,
+  settleWithin,
+} from '@/lib/entry-input';
+import { repeatPrefill } from '@/lib/repeat-servings';
 import { captureError } from '@/lib/sentry';
 import { showToast } from '@/components/Toast';
 import { type I18nKey, type TFn, useLocale, useT } from '@/i18n';
@@ -115,9 +127,11 @@ type ReviewItem = ScannedFoodItem & {
    *  name is the thing being typed — keyed on either, every keystroke in a
    *  name field remounted the row and dropped the keyboard after one letter. */
   key?: string;
-  /** The typed text of an added row's kcal/protein, so "12." keeps its point
-   *  while the user is still typing (the number alone would drop it). */
-  draft?: { calories?: string; protein?: string };
+  /** The typed text of an added row's kcal/protein — and of any row's grams
+   *  — so "12." / "12," keeps its mark while the user is still typing. The
+   *  grams field rendered `Math.round(grams)`, which ate the separator: "12,5"
+   *  became 125 g (audit #1). Cleared on blur, when the number is the truth. */
+  draft?: { calories?: string; protein?: string; grams?: string };
 };
 
 /**
@@ -247,6 +261,9 @@ export default function Scan() {
   const analyzingUris = useRef<string[]>([]);
   /** Add failed (B3): inline above the footer, where the user is looking. */
   const [addError, setAddError] = useState<string | null>(null);
+  /** The library (or camera) permission was refused at the picker (audit
+   *  #5): the error line carries an Open Settings action while this is set. */
+  const [pickBlocked, setPickBlocked] = useState(false);
   /**
    * Which meal, and when (U6). The review had neither, so a plate scanned at
    * 9 PM was filed by the clock at the moment of Add — the only fix was an
@@ -489,8 +506,19 @@ export default function Scan() {
   async function onCapture(source: ScanSource) {
     haptics.tap();
     setError(null);
-    const uri = await pickMealPhoto(source);
-    if (!uri) return; // cancelled or permission denied (no error banner on cancel)
+    setPickBlocked(false);
+    const picked = await pickMealPhoto(source);
+    // Refused, not cancelled (audit #5): it used to come back as a cancel, so
+    // "Choose from library" with photo access off did nothing at all. Say so,
+    // and offer the one place it can be turned back on.
+    if (picked !== null && typeof picked === 'object') {
+      setError(t(source === 'camera' ? 'scan.cameraOff' : 'scan.libraryOff'));
+      setPickBlocked(true);
+      haptics.warning();
+      return;
+    }
+    const uri = picked;
+    if (!uri) return; // cancelled (no error banner on cancel)
 
     // Picked from the viewfinder's library button: it joins the strip there,
     // exactly as a shot would, and the user is still one tap from Analyze.
@@ -531,6 +559,11 @@ export default function Scan() {
     if (!p?.granted) return;
     setPendingUris([]);
     setNote('');
+    // A new photo is a new scan: whatever review is still parked on disk
+    // (the last item removed, then "Take photo") must not come back as a
+    // "restored" scan if this one is interrupted (audit #9).
+    draftAt.current = null;
+    void clearScanDraft();
     setPhase('camera');
   }
 
@@ -604,17 +637,20 @@ export default function Scan() {
       if (!encoded.length) throw new Error('encode');
 
       setStep('reading');
-      const scan = await analyzeMealPhoto(encoded, locale, note);
+      const scan = await analyzeMealPhoto(encoded, locale, note, t('scan.mealName'));
       if (run !== analyzeRun.current) return; // cancelled while the model read
       if (!scan.items.length) throw new Error('empty');
 
       setStep('resolving');
       setItems(withKeys(scan.items));
       setPortion(1);
-      setMealName(defaultMealName(scan.items, t('scan.mealName')));
+      // Capped to the rules' 100 characters at the source: two long food
+      // names joined used to pass the field and fail the write (audit #4).
+      setMealName(cleanLogLabel(defaultMealName(scan.items, t('scan.mealName'))) ?? '');
       setLowConf(scan.confidence === 'low');
       setRemaining(scan.photosRemaining ?? null);
       setAnalyzedUris(uris);
+      setPendingUris([]);
       setFromDraft(false);
       resetWhen();
       setPhase('review');
@@ -629,14 +665,15 @@ export default function Scan() {
         // said as that, not as a bad photo.
         const { key, params } = isOffline() ? { key: 'scan.errOffline' as const, params: {} } : scanErrorMessage(e);
         setError(t(key, { ...params, time: quotaResetLabel(locale) }));
-        setPhase('intro');
+        // The photos stay (audit #3): a failed call — a timeout, a dropped
+        // connection — is retried with ONE tap on Analyze, not a reshoot. The
+        // error rides the viewfinder / describe notice, so it is not hidden.
+        setPendingUris(uris);
+        setPhase(camGranted ? 'camera' : 'describe');
         haptics.warning();
       })
       .finally(() => {
-        if (run === analyzeRun.current) {
-          setPreview(null);
-          setPendingUris([]);
-        }
+        if (run === analyzeRun.current) setPreview(null);
       });
   }
 
@@ -666,6 +703,40 @@ export default function Scan() {
   }
 
   /**
+   * Android's back during the wait (audit #2) closed the whole modal while
+   * `analyzePhoto` ran on — the scan was charged and its result went nowhere.
+   * Back now asks, and "Stop scan" is the Cancel button's own path, which
+   * keeps the photos. An Effect Event so the listener registers once per wait.
+   */
+  const onHardwareBack = useEffectEvent(() => {
+    // The dialog can outlive the wait: the result (or a failure) may land
+    // while it is open. "Stop scan" then must not throw away a review that
+    // has already arrived — only the run that was waiting may be cancelled.
+    const run = analyzeRun.current;
+    confirm({
+      title: t('scan.stopTitle'),
+      body: t('scan.stopBody'),
+      confirmText: t('scan.stopConfirm'),
+      cancelText: t('scan.keepWaiting'),
+      onConfirm: () => {
+        if (run === analyzeRun.current && waiting.current) cancelAnalyze();
+      },
+    });
+  });
+  /** Whether a scan is in flight right now — read by the back dialog's
+   *  confirm, which can fire after the wait ended. Set from the effect only. */
+  const waiting = useRef(false);
+  useEffect(() => {
+    waiting.current = phase === 'analyzing';
+    if (phase !== 'analyzing') return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      onHardwareBack();
+      return true;
+    });
+    return () => sub.remove();
+  }, [phase]);
+
+  /**
    * Take a prior food from the describe step to an EDITABLE DRAFT on Today's
    * add sheet (ADR-0029 item 3; its open question settled by the owner on
    * 2026-09-08: review, never log silently — the trust rule every other path
@@ -687,17 +758,12 @@ export default function Scan() {
     if (saving) return;
     haptics.tap();
     void clearScanDraft();
-    const mult = c.quantity != null && c.quantity > 0 ? c.quantity : 1;
-    const f = c.food;
+    // The note's UNIT counts, not just its number ("2 tbsp" of a food saved
+    // by weight is not two servings), and a macro the food never had stays
+    // absent rather than a written 0 (audit #11; see `repeat-servings.ts`).
     leaveToToday({
       openAdd: repeatNonce(),
-      prefill: encodeEntryPrefill({
-        calories: Math.round(f.calories * mult),
-        protein: Math.round((f.protein ?? 0) * mult),
-        carbs: Math.round((f.carbs ?? 0) * mult),
-        fat: Math.round((f.fat ?? 0) * mult),
-        mealLabel: f.name,
-      }),
+      prefill: encodeEntryPrefill(repeatPrefill(c.food, c.quantity, c.unit)),
     });
   }
 
@@ -722,15 +788,34 @@ export default function Scan() {
     if (next === portion) return;
     haptics.selection();
     const relative = next / portion;
-    setItems((prev) => prev.map((it) => scalePortion(it, relative)));
+    // A half-typed grams draft would otherwise keep showing the old weight.
+    setItems((prev) =>
+      prev.map((it) => ({ ...scalePortion(it, relative), draft: it.draft ? { ...it.draft, grams: undefined } : undefined })),
+    );
     setPortion(next);
   }
 
   function editGrams(index: number, raw: string) {
     // Read the way the locale writes it (`parseDecimal`): a pt-BR `12,5` is
-    // 12.5, not 125 — and an English `1,250` is 1250, not 1.25.
-    const n = parseDecimal(raw, locale) ?? 0;
-    setItems((prev) => prev.map((it, i) => (i === index ? rescaleScannedItem(it, n) : it)));
+    // 12.5, not 125 — and an English `1,250` is 1250, not 1.25. The typed TEXT
+    // is kept as the field's value until blur (audit #1): re-rendering the
+    // number dropped the separator mid-typing, so "12," became "12" and the
+    // next "5" made it 125. Blank is 0 g, as before; garbage moves nothing.
+    const n = raw.trim() === '' ? 0 : parseDecimal(raw, locale);
+    setItems((prev) =>
+      prev.map((it, i) =>
+        i === index
+          ? { ...(n == null ? it : rescaleScannedItem(it, n)), draft: { ...it.draft, grams: raw } }
+          : it,
+      ),
+    );
+  }
+
+  /** The grams field lost focus: the number is the truth again. */
+  function commitGrams(index: number) {
+    setItems((prev) =>
+      prev.map((it, i) => (i === index && it.draft?.grams != null ? { ...it, draft: { ...it.draft, grams: undefined } } : it)),
+    );
   }
 
   function editName(index: number, value: string) {
@@ -739,6 +824,19 @@ export default function Scan() {
 
   function removeItem(index: number) {
     haptics.tap();
+    // The last item empties a scan that already spent a quota slot, and the
+    // review used to drop to the intro without a word (audit #9). Asked like
+    // Retake, and the answer is the same discard.
+    if (items.length <= 1) {
+      confirm({
+        title: t('scan.removeLastTitle'),
+        body: t('scan.removeLastBody'),
+        confirmText: t('scan.removeLastConfirm'),
+        destructive: true,
+        onConfirm: discardScan,
+      });
+      return;
+    }
     setItems((prev) => prev.filter((_, i) => i !== index));
   }
 
@@ -869,8 +967,38 @@ export default function Scan() {
     });
   }
 
+  /** The first rules ceiling the summed plate breaks, said in the add
+   *  sheet's words — or null. Judged on the rounded values the write sends. */
+  function boundsError(total: { calories: number; protein: number; carbs: number; fat: number }): string | null {
+    if (kcalOutOfRange(Math.round(total.calories))) {
+      return t('entry.kcalTooHigh', { max: formatNumber(LOG_KCAL_LIMIT - 1, locale) });
+    }
+    const macros = [
+      ['history.protein', total.protein],
+      ['today.carbs', total.carbs],
+      ['today.fat', total.fat],
+    ] as const;
+    for (const [label, v] of macros) {
+      if (macroOutOfRange(Math.round(v))) {
+        return t('entry.macroTooHigh', { macro: t(label), max: formatNumber(LOG_MACRO_LIMIT - 1, locale) });
+      }
+    }
+    return null;
+  }
+
   async function onAdd() {
     if (!items.length || saving) return;
+    // The rules' ceilings, said before the write (audit #4) — the same bounds
+    // and copy as the add sheet's. A typed 25000 kcal on an added row, or a
+    // plate scaled past 1000 g of a macro, used to reach the write and come
+    // back as the generic "Couldn't add this meal".
+    const bound = boundsError(sumScannedMacros(items));
+    if (bound) {
+      haptics.warning();
+      setAddError(bound);
+      announce(bound, { androidHasLiveRegion: true });
+      return;
+    }
     setSaving(true);
     setAddError(null);
     // A typed time still open counts — Add is outside the scroll area, so it
@@ -881,7 +1009,7 @@ export default function Scan() {
     // React Compiler — see `onAnalyze`.
     await (async () => {
       const total = sumScannedMacros(items);
-      const label = mealName.trim() || t('scan.mealName');
+      const label = cleanLogLabel(mealName) ?? t('scan.mealName');
       const calories = Math.round(total.calories);
       const write = addEntry({
         calories,
@@ -981,8 +1109,16 @@ export default function Scan() {
    * offer the search when the network is the problem.
    */
   const offlineError = error === t('scan.errOffline');
+  const openSettings = () => {
+    haptics.tap();
+    void Linking.openSettings();
+  };
   const notice = error
-    ? { text: error, onSearch: offlineError ? searchInstead : undefined }
+    ? {
+        text: error,
+        onSearch: offlineError ? searchInstead : undefined,
+        onSettings: pickBlocked ? openSettings : undefined,
+      }
     : offline
       ? { text: t('scan.offlineNotice'), onSearch: searchInstead }
       : null;
@@ -1278,6 +1414,9 @@ export default function Scan() {
                 keyboardAppearance={scheme}
                 value={mealName}
                 onChangeText={setMealName}
+                // The rules cap a label at 100 (audit #4); the field says so
+                // by stopping, as the add sheet's does.
+                maxLength={LOG_LABEL_MAX}
                 placeholder={t('scan.mealName')}
                 placeholderTextColor={colors.heroMuted}
                 accessibilityLabel={t('scan.mealNameLabel')}
@@ -1326,6 +1465,7 @@ export default function Scan() {
                   t={t}
                   onName={editName}
                   onGrams={editGrams}
+                  onGramsBlur={commitGrams}
                   onMacro={editMacro}
                   onRemove={removeItem}
                 />
@@ -1454,6 +1594,9 @@ export default function Scan() {
               {error}
             </Text>
           ) : null}
+          {pickBlocked ? (
+            <ScanNotice notice={{ text: '', onSettings: openSettings }} styles={styles} t={t} />
+          ) : null}
           {offlineError || (offline && !error) ? (
             <ScanNotice notice={{ text: offline && !error ? t('scan.offlineNotice') : '', onSearch: searchInstead }} styles={styles} t={t} />
           ) : null}
@@ -1535,6 +1678,7 @@ function ItemRow({
   t,
   onName,
   onGrams,
+  onGramsBlur,
   onMacro,
   onRemove,
 }: {
@@ -1548,6 +1692,7 @@ function ItemRow({
   t: TFn;
   onName: (i: number, v: string) => void;
   onGrams: (i: number, v: string) => void;
+  onGramsBlur: (i: number) => void;
   onMacro: (i: number, field: 'calories' | 'protein', v: string) => void;
   onRemove: (i: number) => void;
 }) {
@@ -1647,8 +1792,11 @@ function ItemRow({
       <View style={styles.itemGramsWrap}>
         <TextInput
           style={styles.itemGrams}
-          value={String(Math.round(item.grams))}
+          // The typed text while editing, else the weight in the locale's
+          // own decimal mark, to one decimal (audit #1).
+          value={item.draft?.grams ?? formatDecimal(Math.round(item.grams * 10) / 10, locale)}
           onChangeText={(v) => onGrams(index, v)}
+          onBlur={() => onGramsBlur(index)}
           {...numProps}
           selectTextOnFocus
           accessibilityLabel={t('scan.itemGramsLabel', { name: itemName })}
@@ -1708,7 +1856,7 @@ function ScanNotice({
   styles,
   t,
 }: {
-  notice: { text: string; onSearch?: () => void };
+  notice: { text: string; onSearch?: () => void; onSettings?: () => void };
   styles: ReturnType<typeof createStyles>;
   t: TFn;
 }) {
@@ -1726,6 +1874,18 @@ function ScanNotice({
         >
           <Ionicons name="search" size={16} color={colors.ink} />
           <Text style={styles.noticeActionText}>{t('scan.searchInstead')}</Text>
+        </PressScale>
+      ) : null}
+      {notice.onSettings ? (
+        <PressScale
+          style={styles.noticeAction}
+          scaleTo={0.97}
+          onPress={notice.onSettings}
+          accessibilityRole="button"
+          testID="scan-notice-settings"
+        >
+          <Ionicons name="settings-outline" size={16} color={colors.ink} />
+          <Text style={styles.noticeActionText}>{t('scan.openSettings')}</Text>
         </PressScale>
       ) : null}
     </View>

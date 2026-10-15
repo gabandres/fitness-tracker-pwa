@@ -47,7 +47,7 @@ import { MIDNIGHT, dayKeyAt, type DayBoundary } from './day-boundary';
 import { addDays, calendarDateKey, parseYmd } from './date';
 import type { DailyLog } from './types';
 import { mergeDailyWeights } from './targets';
-import { aggregateByDay, MEASURED_MIN_DAYS, TREND_MIN_WEIGH_INS, type TdeeResult } from './tdee';
+import { aggregateByDay, MEASURED_MIN_DAYS, TREND_MIN_WEIGH_INS, UNANCHORED_MIN_WEIGH_INS, type TdeeResult } from './tdee';
 
 export interface MeasurementProgress {
   /** Distinct logged days the estimator can see, capped at `neededDays`. */
@@ -94,14 +94,22 @@ export function measurementProgress(
       if (k > first && k <= reach && !keys.has(k)) weighed++;
     }
   }
-  const weighIns = Math.min(weighed, TREND_MIN_WEIGH_INS);
+  // Still the seed with the days AND the two weigh-ins in hand means the
+  // estimator refused a two-point trend it had no profile to anchor
+  // (`UNANCHORED_MIN_WEIGH_INS`, audit 2026-10-15). Name the third weigh-in
+  // rather than read "0 to go" forever.
+  const needed =
+    tdee.source === 'seed' && loggedDays >= MEASURED_MIN_DAYS && weighed >= TREND_MIN_WEIGH_INS
+      ? UNANCHORED_MIN_WEIGH_INS
+      : TREND_MIN_WEIGH_INS;
+  const weighIns = Math.min(weighed, needed);
   return {
     loggedDays,
     neededDays: MEASURED_MIN_DAYS,
     daysToGo: MEASURED_MIN_DAYS - loggedDays,
     weighIns,
-    neededWeighIns: TREND_MIN_WEIGH_INS,
-    weighInsToGo: TREND_MIN_WEIGH_INS - weighIns,
+    neededWeighIns: needed,
+    weighInsToGo: needed - weighIns,
     fraction: loggedDays / MEASURED_MIN_DAYS,
   };
 }

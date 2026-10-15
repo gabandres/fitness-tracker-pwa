@@ -58,7 +58,9 @@ export function SignInMethodsCard() {
               ? 'signInMethods.errLast'
               : code === 'unavailable'
                 ? 'signInMethods.errUnavailable'
-                : 'signInMethods.errGeneric';
+                : code === 'weak-password'
+                  ? 'signInMethods.errWeakPassword'
+                  : 'signInMethods.errGeneric';
     Alert.alert(t('signInMethods.errTitle'), t(key));
   }
 

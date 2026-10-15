@@ -13,7 +13,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { captureAndShare } from '@/lib/shareCapture';
 import type { DateKey, MealSlot } from '@macrolog/core';
 import { addDays, calendarDateKey, fastLengthHours, maintenanceView, parseYmd } from '@macrolog/core';
-import { confirm } from '@/components/ConfirmSheet';
+import { confirmNative } from '@/components/ConfirmSheet';
+import { onPendingLogsRejected } from '@/lib/pending-logs';
 import { CONTEXT_MENUS, ContextMenu } from '@/components/ContextMenu';
 import { Flame } from '@/components/Flame';
 import { useToast } from '@/components/Toast';
@@ -633,7 +634,10 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
                 label: t('common.undo'),
                 onPress: () => {
                   undoBreakFast(fastReceipt).catch((e) => {
+                    // Said, not only buzzed (audit #15): the fast stays ended,
+                    // and a lone haptic read as "undone".
                     haptics.warning();
+                    toast.show(t('metrics.fastUndoFailed'));
                     captureError(e, { where: 'today.undoBreakFast' });
                   });
                 },
@@ -662,20 +666,43 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
   function onDeleteFast() {
     const id = editableFast?.id;
     if (!id) return;
-    confirm({
+    // Asked from the fast sheet's own Delete, over a native sheet: the system
+    // dialog, not a branded sheet on a sheet (R30/R31, audit #18).
+    confirmNative({
       title: t('fast.deleteTitle'),
       body: t('fast.deleteBody'),
       confirmText: t('common.remove'),
       destructive: true,
       onConfirm: () => {
         deleteFast(id).catch((e) => {
+          // The fast comes back when the write rolls back; say why (#15).
           haptics.warning();
+          toast.show(t('fast.deleteFailed'));
           captureError(e, { where: 'today.deleteFast' });
         });
         setFastSheetOpen(false);
       },
     });
   }
+
+  // A meal parked offline that the rules REFUSED when it finally synced
+  // (audit #21): the flush drops it — it can never land — and this is where
+  // the user hears it was not saved, instead of watching it vanish at the
+  // queue's 7-day TTL. Today stays mounted under the tab bar, so one listener.
+  useEffect(
+    () =>
+      onPendingLogsRejected((rows) => {
+        haptics.warning();
+        const label = rows.length === 1 ? rows[0].mealLabel?.trim() : undefined;
+        toast.show(
+          label
+            ? t('offline.rejectedOnSync', { label })
+            : t('offline.rejectedOnSyncMany', { n: rows.length }),
+          { testID: 'toast-sync-rejected' },
+        );
+      }),
+    [t, toast],
+  );
 
   // What the Lock Screen and Siri left for Today: the fasting Live Activity's
   // End, and the spoken Start fast / End fast / Log weight. Each runs the same

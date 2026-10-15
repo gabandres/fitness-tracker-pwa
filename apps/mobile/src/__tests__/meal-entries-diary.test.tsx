@@ -48,6 +48,14 @@ describe('MealEntries diary', () => {
     expect(view.queryByLabelText('Breakfast, nothing logged')).toBeNull();
   });
 
+  it('writes macros in the app locale — 12,5 g in pt-BR, never 12.5 (audit #17)', async () => {
+    mockLocale = 'pt-BR';
+    const row = { ...lunch, protein: 12.5 } as DailyLog;
+    const view = await render(<MealEntries logs={[row]} onPress={() => {}} />);
+    expect(view.queryAllByText(/12,5/).length).toBeGreaterThan(0);
+    expect(view.queryAllByText(/12\.5/)).toHaveLength(0);
+  });
+
   it('sentence-cases pt-BR slot names: "Café da manhã", never "Café Da Manhã"', async () => {
     mockLocale = 'pt-BR';
     const view = await render(<MealEntries logs={[]} onPress={() => {}} onAddToSlot={() => {}} />);

@@ -143,13 +143,15 @@ describe('breakFast archives the fast instead of deleting it', () => {
     expect(mockCommit).toHaveBeenCalledTimes(1);
   });
 
-  it('files the fast under users/{uid}/fasts with a generated id', async () => {
+  it('files the fast under users/{uid}/fasts, keyed by its start instant', async () => {
     mockGetDoc.mockResolvedValue(runningSince(START));
     await breakFast(UID, END);
-    // Interval-shaped and id-keyed, NOT keyed by date. A fast crosses midnight
+    // Interval-shaped and NOT keyed by date. A fast crosses midnight
     // routinely, so a date key would bake an attribution decision into an
-    // identifier where it could never be revised without a migration.
-    expect(mockBatchSet.mock.calls[0][0].path).toBe('users/u1/fasts');
+    // identifier where it could never be revised without a migration. Keyed by
+    // the START INSTANT since 2026-10-15, so ending the same fast twice is one
+    // document (`fast-end-undo.test.ts`).
+    expect(mockBatchSet.mock.calls[0][0].id).toBe(`timer-${START.getTime()}`);
   });
 
   it('clears the timer without archiving when no fast was running', async () => {

@@ -124,11 +124,15 @@ function timeOf(d: Date, locale: Locale): string {
  *  are jargon a first-time user has to decode and a screen reader spells out
  *  as letters (S18-17). Localized, since "carbs" is not "carbos" is not
  *  "carbo". */
-function macroLine(log: DailyLog, t: TFn): string {
+function macroLine(log: DailyLog, t: TFn, locale: Locale): string {
+  // Through the app locale's own number format (audit #17): a raw `12.5`
+  // read as twelve-point-five in English and as twelve thousand five hundred
+  // under pt-BR's grouping mark. One decimal is what the write path keeps.
+  const n = (v: number) => formatNumber(v, locale, { maximumFractionDigits: 1 });
   const parts: string[] = [];
-  if (log.protein != null) parts.push(t('entry.proteinAmount', { n: log.protein }));
-  if (log.carbs != null) parts.push(t('entry.carbsAmount', { n: log.carbs }));
-  if (log.fat != null) parts.push(t('entry.fatAmount', { n: log.fat }));
+  if (log.protein != null) parts.push(t('entry.proteinAmount', { n: n(log.protein) }));
+  if (log.carbs != null) parts.push(t('entry.carbsAmount', { n: n(log.carbs) }));
+  if (log.fat != null) parts.push(t('entry.fatAmount', { n: n(log.fat) }));
   return parts.join(' · ');
 }
 
@@ -182,7 +186,7 @@ function EntryRow({
   const armed = useRef<'delete' | 'preset' | null>(null);
   const label = log.mealLabel || t('today.entry');
   const kcal = formatNumber(log.calories, locale);
-  const sub = [timeOf(log.date, locale), macroLine(log, t)].filter(Boolean).join('  ·  ');
+  const sub = [timeOf(log.date, locale), macroLine(log, t, locale)].filter(Boolean).join('  ·  ');
   const canSavePreset = !!onSavePreset && !!log.mealLabel?.trim();
   const remove = () => {
     swipeRef.current?.close();

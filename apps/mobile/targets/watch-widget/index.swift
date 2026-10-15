@@ -69,12 +69,15 @@ private struct Provider: TimelineProvider {
     // more than freshness: it is the privacy bound on a sign-out whose clear
     // never reached this device. "Cleared on next contact, or at the watch's
     // local midnight, whichever comes first" (#44 §3).
-    let cal = Calendar.current
-    if let midnight = cal.nextDate(
-      after: now, matching: DateComponents(hour: 0, minute: 0, second: 5),
-      matchingPolicy: .nextTime)
-    {
-      entries.append(Entry(date: midnight, face: .empty(locale: current.locale)))
+    //
+    // The rollover is the snapshot's OWN day end when it carries one
+    // (`dayEndsMs`, ADR-0030), not calendar midnight: under a 3am day start
+    // the midnight entry blanked a day that still had three hours to run, and
+    // the face stayed blank until the next push. Calendar midnight is the
+    // fallback for a blob written before the field existed — the same rule
+    // `Glance.face` applies to staleness. (2026-10-15 audit.)
+    if let rollover = Self.rollover(after: now, face: current) {
+      entries.append(Entry(date: rollover, face: .empty(locale: current.locale)))
     }
 
     // NOT `.atEnd`, and this is the fix for a real device failure.
@@ -96,6 +99,19 @@ private struct Provider: TimelineProvider {
     // (#44 §3), not a refresh mechanism, and it was never doing this job.
     let nextAsk = now.addingTimeInterval(60 * 60)
     completion(Timeline(entries: entries, policy: .after(nextAsk)))
+  }
+
+  /// When today's face must blank: five seconds past the snapshot's
+  /// `dayEndsMs` if it has one still ahead, else five seconds past the next
+  /// local midnight.
+  static func rollover(after now: Date, face: Glance.Face) -> Date? {
+    if case let .ready(_, _, snap) = face, let endsMs = snap.dayEndsMs {
+      let ends = Date(timeIntervalSince1970: endsMs / 1000 + 5)
+      if ends > now { return ends }
+    }
+    return Calendar.current.nextDate(
+      after: now, matching: DateComponents(hour: 0, minute: 0, second: 5),
+      matchingPolicy: .nextTime)
   }
 }
 

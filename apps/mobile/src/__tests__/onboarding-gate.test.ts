@@ -140,3 +140,22 @@ describe('shouldShowSplash', () => {
     expect(shouldShowSplash({ gateSettled: false, uid: B, settledUid: A })).toBe(true);
   });
 });
+
+describe('assessRoute during account deletion', () => {
+  it('never sends a deleting account to onboarding, even on a confirmed missing profile', () => {
+    // The server deletes users/{uid} first; the listener confirms "no profile"
+    // while the session is still alive.
+    expect(
+      assessRoute({ profile: null, profileConfirmed: true, offline: false, accountDeleting: true }),
+    ).toBe('app');
+    expect(
+      assessRoute({ profile: fresh, profileConfirmed: true, offline: false, accountDeleting: true }),
+    ).toBe('app');
+  });
+
+  it('still routes a confirmed new account to onboarding when nothing is being deleted', () => {
+    expect(
+      assessRoute({ profile: null, profileConfirmed: true, offline: false, accountDeleting: false }),
+    ).toBe('onboarding');
+  });
+});

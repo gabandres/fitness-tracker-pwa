@@ -140,10 +140,24 @@ export const PENDING_LOGS_VERSION = 1;
  *  queue written by an old binary is never half-read by a new one. */
 export const PENDING_LOGS_KEY = 'ignia.pendingLogs.v1';
 
-/** Hard cap on parked writes. A queue longer than this is not a flaky network,
- *  it is a user tapping a tile that has been broken for days; keeping the
- *  newest is the only reading of that with a sane flush. */
-export const PENDING_LOGS_MAX = 25;
+/**
+ * Hard cap on parked writes.
+ *
+ * 500, raised from 25 on 2026-10-15 (audit #20). The cap was sized for the
+ * glanceable surfaces — "a queue longer than this is a tile broken for days" —
+ * but the in-app add path parks into the SAME queue (`pending-logs.ts`), and
+ * a weekend offline with a few logged items per meal passes 25. The 26th add
+ * then silently evicted the oldest unsent meal. 500 is still a bounded blob
+ * (~100 KB) and far past any honest offline stretch inside the 7-day TTL.
+ *
+ * At the cap a NEW row is refused by the in-app park
+ * ({@link pendingQueueFull}) rather than evicting an unsent one; the slice in
+ * {@link mergePendingLog} stays only as the last-resort bound. NOTE: iOS's
+ * Swift park (`targets/_shared/QuickAdd.swift`, `pendingMax = 25`) still trims
+ * the shared App Group queue to 25 when a widget/Siri tap parks — a native
+ * change, not fixable from JS.
+ */
+export const PENDING_LOGS_MAX = 500;
 
 /** How long a parked write stays worth flushing. Past a week the user has
  *  certainly either re-logged the meal by hand or stopped caring, and silently
@@ -201,6 +215,17 @@ export interface PendingLog {
    *  note: a parked add or edit flushes as a whole-doc `setDoc`. Absent on
    *  every native tap. */
   grams?: number;
+  /**
+   * Body weight, the exercise flag and the creation instant — what an
+   * undo-restore (`entryFromLog`) carries. A delete's Undo that parked offline
+   * used to land without them (audit #23): a weigh-in row lost its weight and
+   * a restored row its place among same-minute rows. Absent on every native
+   * tap and on ordinary adds. `createdAtMs` is epoch ms: the wire is
+   * primitive-only (Swift's `JSONSerialization` round-trips it untouched).
+   */
+  weight?: number;
+  exerciseCompleted?: boolean;
+  createdAtMs?: number;
   /** Tap time, epoch ms. Becomes the log's timestamp on flush. */
   atMs: number;
 }
@@ -222,8 +247,18 @@ export function buildPendingLog(id: string, uid: string, entry: LogEntry, atMs: 
     ...(entry.source ? { source: entry.source } : {}),
     ...(entry.note?.trim() ? { note: entry.note.trim().slice(0, LOG_NOTE_MAX) } : {}),
     ...(cleanLogGrams(entry.grams) != null ? { grams: cleanLogGrams(entry.grams) } : {}),
+    ...(validWeight(entry.weight) ? { weight: entry.weight } : {}),
+    ...(typeof entry.exerciseCompleted === 'boolean' ? { exerciseCompleted: entry.exerciseCompleted } : {}),
+    ...(entry.createdAt instanceof Date && Number.isFinite(entry.createdAt.getTime())
+      ? { createdAtMs: entry.createdAt.getTime() }
+      : {}),
     atMs: Number.isFinite(at) ? Math.round(at) : atMs,
   };
+}
+
+/** `isValidLog`'s body-weight bound: (0, 1000). */
+function validWeight(w: unknown): w is number {
+  return typeof w === 'number' && Number.isFinite(w) && w > 0 && w < 1000;
 }
 
 /** Back to the domain shape the ledger writes. */
@@ -238,6 +273,9 @@ export function pendingLogEntry(p: PendingLog): LogEntry {
     ...(p.source ? { source: p.source } : {}),
     ...(p.note ? { note: p.note } : {}),
     ...(p.grams != null ? { grams: p.grams } : {}),
+    ...(p.weight != null ? { weight: p.weight } : {}),
+    ...(p.exerciseCompleted != null ? { exerciseCompleted: p.exerciseCompleted } : {}),
+    ...(p.createdAtMs != null ? { createdAt: new Date(p.createdAtMs) } : {}),
     timestamp: new Date(p.atMs),
   };
 }
@@ -270,6 +308,15 @@ function isPendingLog(x: unknown): x is PendingLog {
   }
   // And the weight: the rules take (0, LOG_GRAMS_MAX].
   if (o['grams'] !== undefined && cleanLogGrams(o['grams']) !== o['grams']) return false;
+  // And the three undo-restore fields (#23), each to its rule.
+  if (o['weight'] !== undefined && !validWeight(o['weight'])) return false;
+  if (o['exerciseCompleted'] !== undefined && typeof o['exerciseCompleted'] !== 'boolean') return false;
+  if (
+    o['createdAtMs'] !== undefined &&
+    (typeof o['createdAtMs'] !== 'number' || !Number.isFinite(o['createdAtMs']))
+  ) {
+    return false;
+  }
   return true;
 }
 
@@ -311,6 +358,16 @@ export function mergePendingLog(
   const out = list.filter((p) => p.id !== next.id);
   out.push(next);
   return out.slice(-PENDING_LOGS_MAX);
+}
+
+/**
+ * Whether parking `nextId` would push an unsent row out of the queue — the
+ * cap is reached and the id is not already parked (a replay replaces itself
+ * and never evicts). The in-app park refuses such a row and says so, rather
+ * than letting {@link mergePendingLog}'s bound drop the oldest meal (#20).
+ */
+export function pendingQueueFull(list: readonly PendingLog[], nextId: string): boolean {
+  return list.length >= PENDING_LOGS_MAX && !list.some((p) => p.id === nextId);
 }
 
 /**

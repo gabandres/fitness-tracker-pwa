@@ -84,3 +84,17 @@ describe('analyzeMealPhoto — measured grams (ADR-0029 item 2)', () => {
     expect('measured' in scan.items[1]).toBe(false);
   });
 });
+
+// Audit 2026-10-15 #10: the old-server fallback row was named 'Meal' in
+// English whatever the app language.
+describe('analyzeMealPhoto — the whole-meal fallback', () => {
+  it('names a description-less fallback row with the caller\'s word', async () => {
+    const saved = response.data.items;
+    (response.data as { items?: unknown }).items = undefined;
+    response.data.description = '';
+    const scan = await analyzeMealPhoto('b64', 'pt-BR', '', 'Refeição');
+    expect(scan.items[0].name).toBe('Refeição');
+    (response.data as { items?: unknown }).items = saved;
+    response.data.description = 'rice and beans';
+  });
+});

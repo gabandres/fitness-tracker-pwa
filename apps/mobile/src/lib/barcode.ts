@@ -121,20 +121,36 @@ export function setScanLibrary(lib: ScanLibrary): () => void {
  * {@link ScanLibrary}). Otherwise served from the on-device cache when one is
  * warm and unexpired.
  */
-export async function lookupProduct(barcode: string): Promise<ResolvedProduct> {
-  const own = scanLibrary?.resolveLocal(barcode);
-  if (own) return own;
-  return lookupRemote(barcode);
+export interface LookupOptions {
+  /** Aborted when the scanner closes — the lookup stops, rather than running
+   *  on and answering whatever opened next (audit #6). */
+  signal?: AbortSignal;
+  /** How long the network may take. Defaults to {@link LOOKUP_TIMEOUT_MS}. */
+  timeoutMs?: number;
 }
 
-async function lookupRemote(barcode: string): Promise<ResolvedProduct> {
+/**
+ * How long a lookup may wait on Open Food Facts. It had no deadline, so on one
+ * bar of signal the scanner's spinner never ended (#6). A timeout rejects with
+ * `name: 'TimeoutError'`, which the scanner reads as a connection problem —
+ * a rest and a retry, not "this product does not exist".
+ */
+export const LOOKUP_TIMEOUT_MS = 8000;
+
+export async function lookupProduct(barcode: string, opts: LookupOptions = {}): Promise<ResolvedProduct> {
+  const own = scanLibrary?.resolveLocal(barcode);
+  if (own) return own;
+  return lookupRemote(barcode, opts);
+}
+
+async function lookupRemote(barcode: string, opts: LookupOptions): Promise<ResolvedProduct> {
   const cache = await readCache();
   const hit = cache[barcode];
   if (hit && Date.now() - hit.at < CACHE_TTL_MS && hit.product) {
     return hit.product;
   }
 
-  const res = await fetch(offProductUrl(barcode));
+  const res = await fetchWithDeadline(offProductUrl(barcode), opts);
   // 404 is OFF v3's answer for "no such product", and it is the single most
   // common barcode outcome — plenty of US groceries are simply not in a
   // crowd-sourced European database. It carries a normal JSON body, so it must
@@ -158,6 +174,35 @@ async function lookupRemote(barcode: string): Promise<ResolvedProduct> {
   await writeCache(cache);
 
   return product;
+}
+
+/**
+ * `fetch`, aborted by the caller's signal or by the deadline — whichever comes
+ * first. A deadline abort is re-thrown as a `TimeoutError` so the caller can
+ * tell "too slow" from "you closed it".
+ */
+async function fetchWithDeadline(url: string, { signal, timeoutMs = LOOKUP_TIMEOUT_MS }: LookupOptions): Promise<Response> {
+  const controller = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+  const onAbort = () => controller.abort();
+  if (signal?.aborted) {
+    clearTimeout(timer);
+    throw Object.assign(new Error('Aborted'), { name: 'AbortError' });
+  }
+  signal?.addEventListener('abort', onAbort);
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } catch (e) {
+    if (timedOut) throw Object.assign(new Error('Open Food Facts lookup timed out'), { name: 'TimeoutError' });
+    throw e;
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener('abort', onAbort);
+  }
 }
 
 /**

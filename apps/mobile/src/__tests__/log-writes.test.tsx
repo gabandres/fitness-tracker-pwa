@@ -61,6 +61,9 @@ jest.mock('@/lib/reviewPrompt', () => ({
   recordPositiveMoment: (...a: unknown[]) => mockRecordPositiveMoment(...(a as [])),
 }));
 
+let mockOffline = false;
+jest.mock('@/lib/connectivity', () => ({ isOffline: () => mockOffline }));
+
 import { useLogWrites } from '@/hooks/useLogWrites';
 import { resetFirstScanLatch } from '@/lib/first-scan';
 
@@ -266,5 +269,37 @@ describe('useLogWrites — the first-scan award', () => {
     });
 
     expect(mockAddLogDurably).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Audit 2026-10-15 (final report): offline, the SDK's update/delete promise
+// settles only on reconnect, so a caller awaiting it hung for the whole
+// outage. Known offline, the write is handed to the SDK and the call returns;
+// online, a failure still rejects so the screen can say so.
+describe('edits and deletes do not wait on a connection they do not have', () => {
+  afterEach(() => {
+    mockOffline = false;
+  });
+
+  it('returns at once offline, for an edit and a delete', async () => {
+    mockOffline = true;
+    const never = new Promise<undefined>(() => {});
+    mockUpdateLog.mockReturnValueOnce(never);
+    mockDeleteLog.mockReturnValueOnce(never);
+    const { result } = await renderHook(() => useLogWrites());
+    await act(async () => {
+      await result.current.updateEntry('r1', { calories: 300 });
+      await result.current.deleteEntry('r1');
+    });
+    expect(mockUpdateLog).toHaveBeenCalledTimes(1);
+    expect(mockDeleteLog).toHaveBeenCalledTimes(1);
+  });
+
+  it('still surfaces an online failure', async () => {
+    mockUpdateLog.mockRejectedValueOnce(new Error('denied') as never);
+    mockDeleteLog.mockRejectedValueOnce(new Error('denied') as never);
+    const { result } = await renderHook(() => useLogWrites());
+    await expect(result.current.updateEntry('r1', { calories: 300 })).rejects.toThrow('denied');
+    await expect(result.current.deleteEntry('r1')).rejects.toThrow('denied');
   });
 });

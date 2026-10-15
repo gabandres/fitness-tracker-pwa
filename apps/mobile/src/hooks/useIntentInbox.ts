@@ -44,28 +44,51 @@ export function useIntentInbox(handlers: IntentInboxHandlers): void {
   useEffect(() => {
     latest.current = handlers;
   });
-  /** A drain in flight, and whether another trigger arrived during it — a
-   *  doorbell rung mid-drain may name an entry the in-flight `take` missed, so
-   *  it earns one more pass rather than being dropped. */
-  const draining = useRef(false);
-  const again = useRef(false);
+  /**
+   * What a drain TOOK after its effect was torn down (audit #24). The take is a
+   * destructive native read, so a result that arrives with no live effect to
+   * apply it is held here — never dropped — and the next ready effect applies
+   * it first. A ref because it must outlive the effect that took it.
+   */
+  const held = useRef<Awaited<ReturnType<typeof takeIntentInbox>>>([]);
+  /** The live effect's drain, so a late result can wake it. */
+  const wake = useRef<(() => void) | null>(null);
 
   const { ready } = handlers;
 
   useEffect(() => {
     if (!ready) return;
     let alive = true;
+    // Per effect, not refs: a drain abandoned by a teardown must not leave the
+    // NEXT effect's drain latched off. Whether another trigger arrived during
+    // a drain — a doorbell rung mid-drain may name an entry the in-flight
+    // `take` missed, so it earns one more pass rather than being dropped.
+    let draining = false;
+    let again = false;
 
     const drain = async () => {
-      again.current = true;
-      if (draining.current) return;
-      draining.current = true;
-      while (again.current && alive) {
-        again.current = false;
+      again = true;
+      if (draining || !alive) return;
+      draining = true;
+      while (again && alive) {
+        again = false;
+        // Whatever an earlier, torn-down drain took goes first — checked on
+        // every pass, not once: a late take can land (and ring `wake`) while
+        // THIS drain is mid-await, and that ring only sets `again`.
+        if (held.current.length) {
+          const stash = held.current;
+          held.current = [];
+          apply(stash);
+        }
         const actions = await takeIntentInbox(['fastEnd', 'fastStart', 'fastStop', 'weight']);
-        if (alive) apply(actions);
+        if (alive) {
+          apply(actions);
+        } else if (actions.length) {
+          held.current = [...held.current, ...actions];
+          wake.current?.();
+        }
       }
-      draining.current = false;
+      draining = false;
     };
 
     const apply = (actions: Awaited<ReturnType<typeof takeIntentInbox>>) => {
@@ -94,6 +117,8 @@ export function useIntentInbox(handlers: IntentInboxHandlers): void {
       }
     };
 
+    const wakeThis = () => void drain();
+    wake.current = wakeThis;
     void drain();
     const unsubscribe = subscribeIntentInbox(() => void drain());
     const appState = AppState.addEventListener('change', (state) => {
@@ -101,6 +126,7 @@ export function useIntentInbox(handlers: IntentInboxHandlers): void {
     });
     return () => {
       alive = false;
+      if (wake.current === wakeThis) wake.current = null;
       unsubscribe();
       appState.remove();
     };

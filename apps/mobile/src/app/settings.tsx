@@ -53,7 +53,6 @@ import { useDoneKeyProps } from '@/components/KeyboardBar';
  */
 const DAY_START_HOURS = [0, 3, MAX_DAY_START_HOUR] as const;
 import { exportDataCsv } from '@/lib/dataExport';
-import { deleteAccountForever } from '@/lib/deleteAccount';
 import { isTipIapAvailable } from '@/lib/purchases';
 import { FEATURES } from '@/lib/features';
 import { ACCESSIBILITY_FONT_SCALE } from '@/lib/font-scale';
@@ -221,7 +220,7 @@ export default function Settings() {
   const styles = useThemedStyles(createStyles);
   const { colors, preference, setPreference } = useTheme();
   const locale = useLocale();
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, signOut, deleteAccount } = useAuth();
   const { isPro, proPreview, setProPreview } = useSubscription();
   const targetsView = useDailyTargets();
   const targets = targetsView.loaded ? targetsView.targets : null;
@@ -275,22 +274,20 @@ export default function Settings() {
     ]);
   }
 
+  /** The sequence — "deleting" state up first so the gate cannot read the
+   *  erased profile as a new account, analytics discarded, sign-out after —
+   *  lives in the auth layer (`runAccountDeletion`). A failure that killed the
+   *  session signs out there too; only a failure that left the account intact
+   *  and the user signed in reaches this catch. */
   async function runDeleteAccount() {
     setDeleting(true);
-    try {
-      await deleteAccountForever();
-    } catch (e) {
-      setDeleting(false);
-      Alert.alert(t('settings.deleteAccount'), t('settings.deleteFailed'));
-      console.warn('deleteAccount failed', e);
-      return;
-    }
-    try {
-      await signOut();
-    } catch {
-      // The Auth user is already gone; a failed local sign-out is not fatal.
-    }
-    setDeleting(false);
+    await deleteAccount()
+      .then(() => setDeleting(false))
+      .catch((e: unknown) => {
+        setDeleting(false);
+        Alert.alert(t('settings.deleteAccount'), t('settings.deleteFailed'));
+        console.warn('deleteAccount failed', e);
+      });
   }
 
   async function onExport() {
@@ -412,12 +409,27 @@ export default function Settings() {
   // column of full-width options — side by side they broke words in half at
   // 200%, "Espa/ñol" and "Midnig/ht" (Android QA, UX_AUDIT S22).
   const stackFloors = useWindowDimensions().fontScale >= ACCESSIBILITY_FONT_SCALE;
+
+  /** The one failure path for this screen's profile writes. They used to
+   *  `await` with no catch: a rejected write (permission-denied, a dead
+   *  session) was an unhandled rejection and the control just sat there, so a
+   *  tap that did nothing looked like a tap that worked. The profile listener
+   *  is the source of truth for every value below, so a failed write needs no
+   *  local revert beyond the field-local state the caller resets — the row
+   *  keeps showing what is actually stored. */
+  function saveFailed(where: string) {
+    return (e: unknown) => {
+      console.warn(`settings: ${where} failed`, e);
+      haptics.warning();
+      showToast(t('settings.saveFailed'));
+    };
+  }
   async function bumpCalorieFloor(delta: number) {
     if (!user) return;
     const next = Math.max(CALORIE_FLOOR_MIN, Math.min(CALORIE_FLOOR_MAX, calorieFloor + delta));
     if (next === calorieFloor) return;
     haptics.tap();
-    await setCalorieFloor(user.uid, next);
+    await setCalorieFloor(user.uid, next).catch(saveFailed('calorie floor'));
   }
 
   // Protein floor (g). OPT-IN with no default: null is a real state, so an
@@ -438,7 +450,7 @@ export default function Settings() {
     }
     if (next === proteinFloor) return;
     haptics.tap();
-    await setProteinFloor(user.uid, next);
+    await setProteinFloor(user.uid, next).catch(saveFailed('protein floor'));
   }
 
   const unit: UnitSystem = profile?.unitSystem ?? 'us';
@@ -460,22 +472,25 @@ export default function Settings() {
     if (!user || savingDayStart) return;
     haptics.tap();
     setSavingDayStart(true);
-    // `.finally` with no catch: the flag resets on success and failure alike
-    // and a rejection still propagates, as the old `try/finally` did.
-    await setDayStartHour(user.uid, dayBoundary, next).finally(() => setSavingDayStart(false));
+    // The flag resets on success and failure alike; a failure says so.
+    await setDayStartHour(user.uid, dayBoundary, next)
+      .catch(saveFailed('day start'))
+      .finally(() => setSavingDayStart(false));
   }
 
   async function pickUnit(next: UnitSystem) {
     if (next === unit || !user || savingUnit) return;
     haptics.tap();
     setSavingUnit(true);
-    await setUnitSystem(user.uid, next).finally(() => setSavingUnit(false));
+    await setUnitSystem(user.uid, next)
+      .catch(saveFailed('unit'))
+      .finally(() => setSavingUnit(false));
   }
 
   async function pickLanguage(next: Locale) {
     if (next === locale || !user) return;
     haptics.tap();
-    await setPreferredLocale(user.uid, next);
+    await setPreferredLocale(user.uid, next).catch(saveFailed('language'));
   }
 
   /** Sign-out asks first (S18-6). Not the account-deletion double `Alert` —
@@ -488,7 +503,12 @@ export default function Settings() {
       confirmText: t('settings.signOut'),
       destructive: true,
       onConfirm: () => {
-        signOut().catch((e) => console.warn('signOut failed', e));
+        signOut().catch((e: unknown) => {
+          // Said, not just logged: a sign-out that silently did nothing
+          // leaves someone believing they are off a shared phone.
+          console.warn('signOut failed', e);
+          showToast(t('settings.signOutFailed'));
+        });
       },
     });
   }
@@ -496,7 +516,7 @@ export default function Settings() {
   async function toggleDigest(next: boolean) {
     if (!user) return;
     haptics.tap();
-    await setWeeklyDigestOptIn(user.uid, next);
+    await setWeeklyDigestOptIn(user.uid, next).catch(saveFailed('digest'));
   }
 
   // ── Training (progression engine, 2026-10-07) ──
@@ -521,13 +541,13 @@ export default function Settings() {
   async function pickPhase(next: TrainingPhase) {
     if (!user || next === trainingPhase) return;
     haptics.tap();
-    await setTrainingSettings(user.uid, { trainingPhase: next });
+    await setTrainingSettings(user.uid, { trainingPhase: next }).catch(saveFailed('training phase'));
   }
 
   async function toggleAutoApply(next: boolean) {
     if (!user) return;
     haptics.tap();
-    await setTrainingSettings(user.uid, { autoApplyProgression: next });
+    await setTrainingSettings(user.uid, { autoApplyProgression: next }).catch(saveFailed('auto-apply'));
   }
 
   /** Commit the typed gate: empty clears it, out of band says so and keeps
@@ -538,7 +558,14 @@ export default function Settings() {
     const text = gateText.trim();
     if (!text) {
       setGateErr(false);
-      if (gateLb != null) await setTrainingSettings(user.uid, { volumeGateLb: null });
+      if (gateLb != null) {
+        await setTrainingSettings(user.uid, { volumeGateLb: null }).catch((e: unknown) => {
+          // The field shows what is STORED again, so it cannot claim a
+          // cleared gate the profile still holds.
+          setGateText(gateShown);
+          saveFailed('volume gate')(e);
+        });
+      }
       return;
     }
     const lb = parseWeightToLb(text, unit);
@@ -549,7 +576,10 @@ export default function Settings() {
     }
     setGateErr(false);
     haptics.tap();
-    await setTrainingSettings(user.uid, { volumeGateLb: Math.round(lb * 10) / 10 });
+    await setTrainingSettings(user.uid, { volumeGateLb: Math.round(lb * 10) / 10 }).catch((e: unknown) => {
+      setGateText(gateShown);
+      saveFailed('volume gate')(e);
+    });
   }
 
 

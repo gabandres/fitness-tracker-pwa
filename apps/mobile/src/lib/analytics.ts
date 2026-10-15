@@ -217,6 +217,24 @@ function stop(): void {
   buffer = {};
 }
 
+/**
+ * Drop the buffer and unbind the session WITHOUT writing anything.
+ *
+ * The account-deletion path, and only that. `setAnalyticsUser(null)` flushes
+ * first because counts belong to whoever was signed in — but after the server
+ * has erased the account that flush recreates a `usageEvents` row for a user
+ * who no longer exists (audit 2026-10-15). With `uid` cleared, any `track()`
+ * fired while the deletion settles (the onboarding screen mounting as the
+ * profile disappears) is dropped by the signed-out guard, and an in-flight
+ * flush's restore sees a different account and does not put counts back.
+ */
+export function discardAnalytics(): void {
+  buffer = {};
+  uid = null;
+  bufferDay = calendarDateKey(new Date());
+  stop();
+}
+
 /** Test seam — drop all state without touching the network. */
 export function resetAnalytics(): void {
   uid = null;

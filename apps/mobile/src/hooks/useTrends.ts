@@ -21,6 +21,7 @@ import {
   compareLogsOldestFirst,
   dayBoundaryOf,
   dayKeyAt,
+  calorieFloor,
   computeWeeklyBudget,
   computeWeeklyInsights,
   dailyTargets,
@@ -273,8 +274,10 @@ export function useTrends(rangeDays: number = 30, opts: TrendsOptions = {}): Tre
     // the elapsed week.
     const week = isoWeek(focusDay, boundary);
     const days = summarizeDays(week.keys, logs, weights, boundary);
-    return computeWeeklyBudget(days, week.daysElapsed, targets.calorieTarget);
-  }, [logs, weights, targets, boundary, focusDay]);
+    // The floor rides along so a per-day figure below it is flagged rather
+    // than presented as a plan (audit 2026-10-15).
+    return computeWeeklyBudget(days, week.daysElapsed, targets.calorieTarget, calorieFloor(profile));
+  }, [logs, weights, targets, boundary, focusDay, profile]);
 
   // ── Chart series ──
   // Keyed at MIDNIGHT (the default) because the estimator is: `dailyTargets`

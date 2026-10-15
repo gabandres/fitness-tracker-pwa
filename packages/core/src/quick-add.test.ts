@@ -11,6 +11,7 @@ import {
   newLedgerId,
   parsePendingLogs,
   pendingLogEntry,
+  pendingQueueFull,
   prunePendingLogs,
   quickAddEntry,
   resolveQuickAddTargets,
@@ -281,6 +282,55 @@ describe('mergePendingLog', () => {
     for (let i = 0; i < PENDING_LOGS_MAX + 5; i++) list = mergePendingLog(list, at(`id${i}`, i));
     expect(list).toHaveLength(PENDING_LOGS_MAX);
     expect(list[0].id).toBe('id5');
+  });
+
+  // Audit 2026-10-15 #20: the cap was 25, and the in-app add path parks into
+  // the same queue — a day of offline meals silently lost its oldest rows.
+  it('holds far more than a day of offline in-app adds', () => {
+    expect(PENDING_LOGS_MAX).toBeGreaterThanOrEqual(500);
+  });
+
+  it('says when one more row would push an unsent row out', () => {
+    const full: PendingLog[] = [];
+    for (let i = 0; i < PENDING_LOGS_MAX; i++) full.push(at(`id${i}`, i));
+    expect(pendingQueueFull(full, 'new')).toBe(true);
+    // A replay of a row already parked replaces it, so it never evicts.
+    expect(pendingQueueFull(full, 'id3')).toBe(false);
+    expect(pendingQueueFull(full.slice(1), 'new')).toBe(false);
+  });
+});
+
+describe('a parked row keeps every field an undo-restore carries (#23)', () => {
+  const created = new Date(2026, 9, 14, 8, 0, 0);
+  const entry = {
+    calories: 0,
+    weight: 81.5,
+    exerciseCompleted: true,
+    mealLabel: 'Weigh-in',
+    createdAt: created,
+    timestamp: new Date(2026, 9, 14, 8, 0, 5),
+  };
+
+  it('round-trips weight, exerciseCompleted and createdAt', () => {
+    const row = buildPendingLog('a', 'u1', entry, 0);
+    const back = pendingLogEntry(parsePendingLogs(serializePendingLogs([row]))[0]);
+    expect(back.weight).toBe(81.5);
+    expect(back.exerciseCompleted).toBe(true);
+    expect(back.createdAt?.getTime()).toBe(created.getTime());
+  });
+
+  it('rejects a corrupted weight or flag rather than flushing it forever', () => {
+    const row = buildPendingLog('a', 'u1', entry, 0);
+    expect(parsePendingLogs(JSON.stringify([{ ...row, weight: 5000 }]))).toEqual([]);
+    expect(parsePendingLogs(JSON.stringify([{ ...row, exerciseCompleted: 'yes' }]))).toEqual([]);
+    expect(parsePendingLogs(JSON.stringify([{ ...row, createdAtMs: 'x' }]))).toEqual([]);
+  });
+
+  it('leaves them absent on a plain add', () => {
+    const row = buildPendingLog('a', 'u1', { calories: 100 }, 0);
+    expect(row).not.toHaveProperty('weight');
+    expect(row).not.toHaveProperty('exerciseCompleted');
+    expect(row).not.toHaveProperty('createdAtMs');
   });
 });
 

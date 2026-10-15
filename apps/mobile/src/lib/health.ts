@@ -62,6 +62,9 @@ export interface WorkoutExport {
   label?: string;
 }
 
+/** The exported daily kinds an edit REPLACES rather than adds to. */
+export type DeletableKind = 'weight' | 'water' | 'sleep';
+
 export interface HealthPort {
   /** Is a health store present on this device/platform at all. */
   isAvailable(): Promise<boolean>;
@@ -116,8 +119,14 @@ export interface HealthPort {
    * The window is the whole calendar day of `dateKey`: our export is anchored
    * at its noon (`anchorAt`), and an edit that exported twice left two.
    * Resolves true when the platform accepted the delete.
+   *
+   * Water and sleep joined weight on 2026-10-15: Today re-exports the day's
+   * RUNNING water total on every edit, and Health sums water, so each tap
+   * stacked another full-day sample on the last (a 64 oz day read 200+ oz in
+   * Apple Health). Sleep is a span ending at `dateKey`'s 07:00 anchor, so its
+   * window is "ends within the day" (see {@link sleepDeleteWindow}).
    */
-  deleteDaily(kind: 'weight', dateKey: string): Promise<boolean>;
+  deleteDaily(kind: DeletableKind, dateKey: string): Promise<boolean>;
   /** Export one logged meal's macros as dietary samples. */
   writeNutrition(entry: NutritionExport): Promise<void>;
   /** Export a finished workout session. */
@@ -293,6 +302,23 @@ export function hcBucketDateKey(startIso: string | undefined): DateKey {
   return calendarDateKey(new Date(new Date(startIso ?? 0).getTime() + HC_BUCKET_MIDPOINT_MS));
 }
 
+/**
+ * The window that holds Ignia's exported night for `dateKey` and no other
+ * night of ours: from just after the PREVIOUS day's 07:00 anchor to just after
+ * this day's. Our export is `[anchor - hours, anchor]`, so the window both
+ * contains it and overlaps it, whichever way Health Connect's `between` treats
+ * an interval record — and neither neighbouring export (ending at the previous
+ * anchor, starting after this one) falls inside. Exported for the test.
+ */
+export function sleepDeleteWindow(dateKey: string): { start: Date; end: Date } {
+  const anchor = anchorAt(dateKey, 'sleep');
+  const minute = 60_000;
+  return {
+    start: new Date(anchor.getTime() - 24 * 3_600_000 + minute),
+    end: new Date(anchor.getTime() + minute),
+  };
+}
+
 /** A concrete timestamp inside `dateKey`'s local day for a written sample:
  *  ~7am for sleep (a plausible wake time for a night's total), noon otherwise. */
 function anchorAt(dateKey: string, kind: WritableKind): Date {
@@ -340,6 +366,80 @@ const hkModule = () => import('@kingstinct/react-native-healthkit');
 /** HealthKit sleep-analysis category values that count as actually asleep
  *  (not inBed=0, not awake=2): asleepUnspecified/Core/Deep/REM. */
 const HK_ASLEEP = new Set([1, 3, 4, 5]);
+
+/** Two asleep segments from one source further apart than this are two
+ *  sleeps (a night and a nap), not one night with a long wake in it. */
+export const HK_SLEEP_SESSION_GAP_MS = 2 * 3_600_000;
+
+/**
+ * HealthKit sleep rows → `HealthSample`s, one per asleep SEGMENT but keyed by
+ * the SESSION the segment belongs to.
+ *
+ * HealthKit has no session record: a night arrives as a run of stage segments
+ * (core/deep/REM), and a night that crosses midnight has segments ending on
+ * BOTH calendar days. Keying each segment by its own end split one night in
+ * two — 23:00-00:00 filed under yesterday, the rest under today — where
+ * Health Connect hands us a whole `SleepSession` keyed by its end (see
+ * `hcRecordsToSamples`). So segments are grouped per source into sessions
+ * (contiguous within {@link HK_SLEEP_SESSION_GAP_MS}) and every segment takes
+ * the session's wake day and wake instant — the wake-day rule ADR-0033 owns,
+ * applied to the night rather than to a fragment of it. `endMs` is the
+ * session's end so `latestSampleEndByDay` reads the real wake time (#80).
+ *
+ * Pure and exported for the same reason `hcRecordsToSamples` is.
+ */
+export function hkSleepRowsToSamples(rows: readonly HKCat[]): HealthSample[] {
+  const asleep = rows
+    .filter((s) => HK_ASLEEP.has(s.value))
+    .map((s) => ({
+      start: ms(s.startDate),
+      end: ms(s.endDate),
+      source: s.sourceRevision?.source?.bundleIdentifier,
+    }))
+    .filter((s) => Number.isFinite(s.start) && Number.isFinite(s.end) && s.end > s.start);
+  const bySource = new Map<string, typeof asleep>();
+  for (const s of asleep) {
+    const k = s.source ?? '';
+    const list = bySource.get(k);
+    if (list) list.push(s);
+    else bySource.set(k, [s]);
+  }
+  const out: HealthSample[] = [];
+  for (const list of bySource.values()) {
+    list.sort((a, b) => a.start - b.start);
+    let session: typeof asleep = [];
+    let sessionEnd = -Infinity;
+    const flush = () => {
+      if (!session.length) return;
+      // Sleep keeps the WAKE-DAY rule, which ADR-0033 owns and #80's guard
+      // depends on — a night belongs to the morning you got up, not to the
+      // user-day the boundary would put its end in. ADR-0030 deliberately
+      // does not reach in here.
+      const dateKey = calendarDateKey(new Date(sessionEnd));
+      for (const s of session) {
+        out.push({
+          dateKey,
+          kind: 'sleep',
+          value: (s.end - s.start) / 3_600_000, // ms → hours
+          endMs: sessionEnd,
+          fromUs: s.source === APP_ID,
+          // Core folds sleep per SOURCE (largest wins): a Watch and an Oura
+          // ring both writing the same night must not add up to 16 h.
+          source: s.source,
+        });
+      }
+      session = [];
+      sessionEnd = -Infinity;
+    };
+    for (const s of list) {
+      if (session.length && s.start - sessionEnd > HK_SLEEP_SESSION_GAP_MS) flush();
+      session.push(s);
+      sessionEnd = Math.max(sessionEnd, s.end);
+    }
+    flush();
+  }
+  return out;
+}
 
 const HK_READ: Record<ReadableKind, string> = {
   weight: 'HKQuantityTypeIdentifierBodyMass',
@@ -417,22 +517,7 @@ const healthKit: HealthPort = {
         limit: 0,
         filter,
       } as never)) as unknown as HKCat[];
-      return rows
-        .filter((s) => HK_ASLEEP.has(s.value))
-        .map((s) => ({
-          // Sleep keeps the WAKE-DAY rule, which ADR-0033 owns and #80's guard
-          // depends on — a night belongs to the morning you got up, not to the
-          // user-day the boundary would put its end in. ADR-0030 deliberately
-          // does not reach in here.
-          dateKey: calendarDateKey(new Date(s.endDate)),
-          kind: 'sleep' as const,
-          value: (ms(s.endDate) - ms(s.startDate)) / 3_600_000, // ms → hours
-          endMs: ms(s.endDate),
-          fromUs: mine(s),
-          // Core folds sleep per SOURCE (largest wins): a Watch and an Oura
-          // ring both writing the same night must not add up to 16 h.
-          source: s.sourceRevision?.source?.bundleIdentifier,
-        }));
+      return hkSleepRowsToSamples(rows);
     }
 
     // Activity must come from the *statistics* API, not raw samples.
@@ -519,7 +604,7 @@ const healthKit: HealthPort = {
     await HK.saveQuantitySample(id as never, unit as never, v, at, at);
   },
 
-  async deleteDaily(_kind, dateKey) {
+  async deleteDaily(kind, dateKey) {
     const HK = await hkModule();
     // Loosely typed like the other kingstinct calls: `deleteObjects` exists in
     // every binary built since the module was added (CoreModule.swift), but
@@ -529,7 +614,16 @@ const healthKit: HealthPort = {
     const startDate = startOfLocalDay(parseYmd(dateKey));
     const endDate = new Date(startDate);
     endDate.setDate(endDate.getDate() + 1);
-    await del('HKQuantityTypeIdentifierBodyMass' as never, { date: { startDate, endDate } } as never);
+    const id = {
+      weight: 'HKQuantityTypeIdentifierBodyMass',
+      water: 'HKQuantityTypeIdentifierDietaryWater',
+      sleep: 'HKCategoryTypeIdentifierSleepAnalysis',
+    }[kind];
+    // Sleep: `strictEndDate` = samples ENDING within the day. Our export for
+    // `dateKey` ends at its 07:00 anchor and starts the evening before, so an
+    // overlap match would also reach the previous day's export.
+    const date = kind === 'sleep' ? { startDate, endDate, strictEndDate: true } : { startDate, endDate };
+    await del(id as never, { date } as never);
     return true;
   },
 
@@ -1001,13 +1095,15 @@ const healthConnect: HealthPort = {
     await HC.insertRecords([record!] as never);
   },
 
-  async deleteDaily(_kind, dateKey) {
+  async deleteDaily(kind, dateKey) {
     const HC = await hcModule();
     await HC.initialize();
-    const start = startOfLocalDay(parseYmd(dateKey));
-    const end = new Date(start);
+    let start = startOfLocalDay(parseYmd(dateKey));
+    let end = new Date(start);
     end.setDate(end.getDate() + 1);
-    await HC.deleteRecordsByTimeRange('Weight' as never, {
+    if (kind === 'sleep') ({ start, end } = sleepDeleteWindow(dateKey));
+    const recordType = { weight: 'Weight', water: 'Hydration', sleep: 'SleepSession' }[kind];
+    await HC.deleteRecordsByTimeRange(recordType as never, {
       operator: 'between',
       startTime: start.toISOString(),
       endTime: end.toISOString(),

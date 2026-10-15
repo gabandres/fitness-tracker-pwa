@@ -11,6 +11,7 @@ import {
   newLedgerId,
   parsePendingLogs,
   pendingLogEntry,
+  pendingQueueFull,
   prunePendingLogs,
   quickAddEntry,
   serializePendingLogs,
@@ -22,7 +23,7 @@ import {
   setQuickAddCredentials,
 } from '../../modules/quick-add-credentials';
 import { widgetStrings } from '../widgets/strings';
-import { notifyPendingLogsChanged } from './pending-logs-events';
+import { notifyPendingLogsChanged, notifyPendingLogsRejected } from './pending-logs-events';
 import { NATIVE_REST_CONFIG, auth, onSessionTokenChanged } from './firebase';
 import { exportNutrition } from './health-sync';
 import { addLogWithId, deleteLog } from './ledger';
@@ -94,16 +95,28 @@ export function subscribeQuickAddSlots(cb: (ids: string[]) => void): () => void 
  * Toggle a preset's membership in the slot list, preserving the order the user
  * picked in. Returns the new list so the caller can render without re-reading.
  *
- * At the cap the *oldest* selection is dropped rather than the tap being
- * refused: a picker that silently does nothing when you tap a fourth item is
- * indistinguishable from a broken one, and the list is small enough to see.
+ * `liveIds` — the presets that exist now — prunes slots whose preset was
+ * deleted before anything is counted. Without it a dead slot held a place
+ * toward the cap forever (audit #16).
+ *
+ * At the cap a NEW pick is refused and the list comes back unchanged; the
+ * caller sees its id missing and says why. This used to drop the *oldest*
+ * selection instead, which is slot 1 — the preset the Quick Settings tile
+ * fires blind — so a fourth tap in Settings silently changed what the tile
+ * logs (#16). Removing a slot first is one visible tap.
  */
-export async function toggleQuickAddSlot(presetId: string): Promise<string[]> {
-  const current = await getQuickAddSlots();
-  const next = current.includes(presetId)
-    ? current.filter((id) => id !== presetId)
-    : [...current, presetId].slice(-QUICK_ADD_MAX);
-  await setQuickAddSlots(next);
+export async function toggleQuickAddSlot(
+  presetId: string,
+  liveIds?: readonly string[],
+): Promise<string[]> {
+  const stored = await getQuickAddSlots();
+  const live = liveIds ? new Set(liveIds) : null;
+  const current = live ? stored.filter((id) => live.has(id)) : stored;
+  let next: string[];
+  if (current.includes(presetId)) next = current.filter((id) => id !== presetId);
+  else if (current.length >= QUICK_ADD_MAX) next = current;
+  else next = [...current, presetId];
+  if (next.length !== stored.length || next.some((id, i) => id !== stored[i])) await setQuickAddSlots(next);
   return next;
 }
 
@@ -274,17 +287,39 @@ export async function performQuickAdd(
   // disagreeing with the app, which is worse than the tap doing nothing.
   if (result === 'signed-out') return { result, snapshot, target };
 
-  const next = applyQuickAddToSnapshot(snapshot, target, at.getTime());
-  if (next) {
-    await saveWidgetSnapshot(next);
-    // ...and tell the WATCH, which `saveWidgetSnapshot` does not: it is
-    // Android-only, and this is the one write path that never passes through
-    // `syncWidget`. Without this a quick-added meal reached the phone's widget
-    // and left the complication showing stale numbers until the app was next
-    // opened on Today.
-    assertWatchSnapshot(next);
-  }
+  // The snapshot's read-modify-write is serialized and re-reads INSIDE the
+  // chain (audit #26): two taps in quick succession each read the same blob
+  // before either saved, and the second save erased the first tap's numbers.
+  // Only this step is chained — the ledger writes above still run in parallel.
+  const next = await snapshotChain(async () => {
+    const fresh = (await readWidgetSnapshot()) ?? snapshot;
+    const applied = applyQuickAddToSnapshot(fresh, target, at.getTime());
+    if (applied) {
+      await saveWidgetSnapshot(applied);
+      // ...and tell the WATCH, which `saveWidgetSnapshot` does not: it is
+      // Android-only, and this is the one write path that never passes through
+      // `syncWidget`. Without this a quick-added meal reached the phone's widget
+      // and left the complication showing stale numbers until the app was next
+      // opened on Today.
+      assertWatchSnapshot(applied);
+    }
+    return applied;
+  });
   return { result, snapshot: next ?? snapshot, target };
+}
+
+/**
+ * One snapshot read-modify-write at a time, in this JS context (#26). The
+ * iOS twin of this race — Swift's `applyLocally` (QuickAdd.swift) writing the
+ * App Group snapshot while the app's `syncWidget` writes it too — is across
+ * processes and cannot be closed from JS; the app's next `syncWidget`
+ * recomputes the real totals, which bounds it.
+ */
+let snapshotQueue: Promise<unknown> = Promise.resolve();
+function snapshotChain<T>(fn: () => Promise<T>): Promise<T> {
+  const run = snapshotQueue.then(fn, fn);
+  snapshotQueue = run.catch(() => undefined);
+  return run;
 }
 
 /**
@@ -414,19 +449,45 @@ function serial<T>(fn: () => Promise<T>): Promise<T> {
   return run;
 }
 
-export async function parkPendingLog(row: PendingLog): Promise<void> {
-  await serial(async () => {
+/**
+ * Resolves true when the row is on disk. False when the queue is at its cap
+ * and this row would push an unsent one out (#20) — the caller says it was not
+ * saved rather than dropping the oldest meal in silence — or when the store
+ * could not be written at all.
+ */
+export async function parkPendingLog(row: PendingLog): Promise<boolean> {
+  const parked = await serial(async () => {
     try {
       const list = parsePendingLogs(await pendingStore.read());
+      if (pendingQueueFull(list, row.id)) return false;
       await pendingStore.write(serializePendingLogs(mergePendingLog(list, row)));
+      return true;
     } catch {
       /* A queue we cannot write is a lost tap, not a crash. */
+      return false;
     }
   });
   // Inside the park rather than at each call site: a row nobody redraws for is
   // a row the user believes they lost. In a headless widget context there are
   // no listeners and this is a no-op.
   notifyPendingLogsChanged();
+  return parked;
+}
+
+/**
+ * Firestore's answer for a write the rules refused. Not a connectivity
+ * problem: the same bytes are refused on every retry, so a parked row that
+ * gets it will never land (S20; `pending-logs.ts` uses the same test on the
+ * first attempt).
+ */
+export function isRefusedWrite(e: unknown): boolean {
+  const code = (e as { code?: unknown } | null)?.code;
+  return (
+    code === 'permission-denied' ||
+    code === 'firestore/permission-denied' ||
+    code === 'invalid-argument' ||
+    code === 'firestore/invalid-argument'
+  );
 }
 
 /**
@@ -530,6 +591,8 @@ export async function flushPendingLogs(uid: string, nowMs: number = Date.now()):
   // next flush rather than be dropped as "landed" with the old values.
   const landed = new Map<string, string>();
   let landedCount = 0;
+  /** Rows the rules refused (#21): dropped below, and reported. */
+  const refused: PendingLog[] = [];
 
   for (const listed of mine) {
     // Undone while parked: never land it (and the rewrite below drops it).
@@ -545,10 +608,14 @@ export async function flushPendingLogs(uid: string, nowMs: number = Date.now()):
       // Undone while this write was in flight: the Undo's delete may already
       // have run, so delete again behind the write we just made.
       if (undoneIds.has(row.id)) void deleteLog(uid, row.id).catch(() => {});
-    } catch {
-      /* Stays parked; the re-read below keeps it. */
+    } catch (e) {
+      // Refused by the rules: it will be refused on every flush. Keeping it
+      // drew it on Today for the TTL and then dropped it with nothing said.
+      if (isRefusedWrite(e)) refused.push(row);
+      /* Otherwise it stays parked; the re-read below keeps it. */
     }
   }
+  const refusedIds = new Set(refused.map((r) => r.id));
 
   await serial(async () => {
   try {
@@ -560,7 +627,10 @@ export async function flushPendingLogs(uid: string, nowMs: number = Date.now()):
     // the exact loss this queue exists to prevent, on the path meant to drain
     // it. So the rewrite is "what is on disk now, minus what this run landed".
     const remaining = prunePendingLogs(await readPendingLogs(), nowMs, uid).filter(
-      (row) => !undoneIds.has(row.id) && landed.get(row.id) !== JSON.stringify(row),
+      (row) =>
+        !undoneIds.has(row.id) &&
+        landed.get(row.id) !== JSON.stringify(row) &&
+        !refusedIds.has(row.id),
     );
     if (remaining.length === 0) await pendingStore.clear();
     else await pendingStore.write(serializePendingLogs(remaining));
@@ -572,6 +642,7 @@ export async function flushPendingLogs(uid: string, nowMs: number = Date.now()):
   // `landed`, because pruning alone changes what is queued — a row belonging to
   // a signed-out account is dropped here and must stop being drawn.
   notifyPendingLogsChanged();
+  notifyPendingLogsRejected(refused);
   return landedCount;
 }
 

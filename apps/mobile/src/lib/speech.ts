@@ -16,6 +16,7 @@ import { resolveSpeechLocale } from '@macrolog/core';
 
 type SpeechModule = {
   requestPermissionsAsync(): Promise<{ granted: boolean; canAskAgain: boolean }>;
+  getPermissionsAsync?(): Promise<{ granted: boolean; canAskAgain: boolean }>;
   getSupportedLocales(): Promise<{ locales: string[]; installedLocales: string[] }>;
   supportsOnDeviceRecognition(): boolean;
   start(opts: Record<string, unknown>): void;
@@ -46,14 +47,38 @@ export function isSpeechAvailable(): boolean {
  * get denied permanently. A denial here must leave typing completely usable —
  * the caller degrades, it does not nag.
  */
-export async function requestSpeechPermission(): Promise<
-  'granted' | 'denied' | 'unavailable'
-> {
+/**
+ * `denied` — refused this time, but the OS will still ask again (Android after
+ * one "Deny"); the mic stays a mic. `blocked` — refused for good (iOS's first
+ * "Don't Allow", Android's "Don't ask again"); only Settings can undo it, so
+ * only then does the caller point there (audit #8: every refusal used to
+ * latch "Enable in Settings" for the session).
+ */
+export type SpeechPermission = 'granted' | 'denied' | 'blocked' | 'unavailable';
+
+function readPermission(res: { granted: boolean; canAskAgain: boolean }): SpeechPermission {
+  if (res.granted) return 'granted';
+  return res.canAskAgain ? 'denied' : 'blocked';
+}
+
+export async function requestSpeechPermission(): Promise<SpeechPermission> {
   const mod = native();
   if (!mod) return 'unavailable';
   try {
-    const res = await mod.requestPermissionsAsync();
-    return res.granted ? 'granted' : 'denied';
+    return readPermission(await mod.requestPermissionsAsync());
+  } catch {
+    return 'denied';
+  }
+}
+
+/** The current answer without prompting — for re-checking on the way back
+ *  from Settings. `denied` when the module cannot say. */
+export async function getSpeechPermission(): Promise<SpeechPermission> {
+  const mod = native();
+  if (!mod) return 'unavailable';
+  try {
+    if (typeof mod.getPermissionsAsync !== 'function') return 'denied';
+    return readPermission(await mod.getPermissionsAsync());
   } catch {
     return 'denied';
   }

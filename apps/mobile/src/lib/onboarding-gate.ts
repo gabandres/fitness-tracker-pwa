@@ -46,8 +46,18 @@ export function assessRoute(state: {
    * empty-looking day; the next sync fixes it.
    */
   serverGaveUp?: boolean;
+  /**
+   * The account is being deleted (audit 2026-10-15). The server erases
+   * `users/{uid}` BEFORE the client signs out, so for a moment the profile
+   * listener confirms "no profile" for a live session — exactly the shape of a
+   * brand-new account — and the gate jumped to onboarding (firing its funnel
+   * events against an erased account) before sign-out landed. While this is
+   * set the answer is never onboarding; sign-out then routes to /sign-in.
+   */
+  accountDeleting?: boolean;
 }): RouteDecision {
-  const { profile, profileConfirmed, offline, serverGaveUp = false } = state;
+  const { profile, profileConfirmed, offline, serverGaveUp = false, accountDeleting = false } = state;
+  if (accountDeleting) return 'app';
 
   if (!profileConfirmed && !profile) {
     // Nothing trustworthy. Online, the answer is seconds away and waiting beats

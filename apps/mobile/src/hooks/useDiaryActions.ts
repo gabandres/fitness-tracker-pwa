@@ -247,10 +247,20 @@ export function useDiaryActions({
           // reach the server, parked on disk when it cannot (a plain write
           // offline died with the process). Same id and timestamp, so the row
           // lands back on THIS day.
-          addLogDurably(uid, entryFromLog(log), id).catch((e) => {
-            haptics.warning();
-            captureError(e, { where: `${where}.undoDelete` });
-          });
+          // `addLogDurably` never throws — a refusal comes back as
+          // 'rejected'. Either way the row is NOT back, and that is said
+          // rather than buzzed (audit #15).
+          addLogDurably(uid, entryFromLog(log), id)
+            .then((outcome) => {
+              if (outcome !== 'rejected') return;
+              haptics.warning();
+              toast.show(t('entry.undoDeleteFailed'));
+            })
+            .catch((e) => {
+              haptics.warning();
+              toast.show(t('entry.undoDeleteFailed'));
+              captureError(e, { where: `${where}.undoDelete` });
+            });
         },
       },
     });
@@ -265,7 +275,10 @@ export function useDiaryActions({
   function deleteFromList(log: DailyLog) {
     if (!log.id) return;
     deleteEntry(log.id).catch((e) => {
+      // The SDK rolls the delete back, so the row reappears under a "Deleted"
+      // toast; say why (#15).
       haptics.warning();
+      toast.show(t('entry.deleteFailed'));
       captureError(e, { where: `${where}.deleteEntry` });
     });
     offerUndo(log);

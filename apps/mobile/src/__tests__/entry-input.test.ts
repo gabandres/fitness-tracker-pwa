@@ -130,3 +130,17 @@ describe('parseQuickAddQuery', () => {
     expect(parseQuickAddQuery('350 1000p', 'en')).toBeNull();
   });
 });
+
+// Audit 2026-10-15 #21: the queue rounds before it parks (`buildPendingLog`:
+// calories to the integer, macros to one decimal), so 19999.6 kcal passed the
+// sheet and parked as 20000 — which the rules refuse on every flush.
+describe('the rules ceilings, judged after the write path rounds', () => {
+  it('refuses kcal that round up to the ceiling', () => {
+    expect(kcalOutOfRange(19999.6)).toBe(true);
+    expect(kcalOutOfRange(19999.4)).toBe(false);
+  });
+  it('refuses macros that round up to the ceiling', () => {
+    expect(macroOutOfRange(999.96)).toBe(true);
+    expect(macroOutOfRange(999.94)).toBe(false);
+  });
+});
