@@ -1,6 +1,6 @@
 # STATUS — what is true right now
 
-**Updated:** 2026-10-12 · **Owns:** current state only. Not history
+**Updated:** 2026-10-15 · **Owns:** current state only. Not history
 (`CHANGELOG.md`), not rationale (`docs/adr/`), not vocabulary (`CONTEXT.md`),
 not commands (`docs/COMMANDS.md`), not build tooling
 (`docs/build-infrastructure.md`).
@@ -122,6 +122,26 @@ host setup and traps are in `.maestro/regression/README.md`.
 
 **Only genuinely open work belongs here.** A row whose work has shipped gets
 deleted and its outcome goes to `CHANGELOG.md`.
+
+### 2026-10-15 audit — what the OTA could not finish (CHANGELOG 2026-10-15)
+
+- **Next binary (1.2.8):** the widget/watch rollover at `dayEndsMs` (Swift,
+  committed); `QuickAdd.swift` still trims the shared offline queue to 25.
+- **Health nutrition undo/delete/edit** never reach Apple Health / Health
+  Connect: Ignia's nutrition samples carry no id to match. Needs metadata /
+  `clientRecordId` on write first.
+- **Oura link CSRF** is only half closed (single-use nonce). The rest needs
+  the app to finish the exchange through a signed-in callable.
+- **Coach/report prompts** are wrapped in server scope rules, not built
+  server-side; that needs a mobile release. Coach now runs on `GEMINI_MODEL`
+  (flash-lite) instead of `gemini-flash-latest` — owner: confirm the quality.
+- **Owner, Windows box:** Angular 21.2.9 → 21.2.25 (XSS advisories);
+  `functions/` `firebase-admin` 13.8 → 13.10. Lockfile author only.
+- **Owner, Cloudflare:** `ignia.fit` is proxied; Cloudflare rewrites
+  Cache-Control (4 h browser TTL) and holds `ngsw-worker.js` as immutable.
+  Set Browser Cache TTL to "Respect existing headers" and purge.
+- **Owner:** `logWebhook` and `importRecipe` have no caller; delete or keep.
+  Check `emailRateLimits/pw_ip_*` docs differ per caller after the deploy.
 
 
 ### 1.2.7 — lock-screen sets (S23-8); TestFlight + Play alpha 2026-10-12, NOT submitted for review

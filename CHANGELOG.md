@@ -4,6 +4,44 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-10-15 — Whole-app audit: security holes closed, ~110 defects fixed, OTA on all seven runtimes
+
+Seven parallel audits (rules, functions, data layer, two UI passes, core,
+web/tooling), fixes with tests, four independent review passes. Commits
+`5d0d66c2` (rules + functions), `968cc556` (core + mobile), `c1511ddf` /
+`8978b459` (web, hosting, tooling). Deployed indexes → rules → functions →
+hosting, then the OTA (ledger, 5th of the day).
+
+- **Security.** Profile CREATE accepted server-only fields: a client could
+  write `compedUntil` and skip both AI cost guards, or a victim's
+  `publicSlug` and then release/claim it. Both closed (rules + slug
+  ownership checks in the callables and the mirror trigger). A billed AI
+  failure no longer refunds the user's slot (one free user could drain the
+  photo ceiling). Feedback needs a verified email and its notification mail
+  is budgeted (3/user, 20/day) so it cannot exhaust Resend. All
+  `users/{uid}/**` writes need a verified owner (all 85 prod owners are).
+- **Functions.** GDPR deletes chunked under the 500-write batch cap and now
+  erase the uid-keyed rate-limit docs and the public mirror; lifecycle mail
+  uses the Auth email; unsubscribe GET only confirms (scanners); the digest
+  queries the due timezone bucket; Oura link nonce; recipe-import SSRF
+  (per-hop checks, pinned IP, hex-mapped IPv6); coach pinned to
+  `GEMINI_MODEL` (was the moving `gemini-flash-latest`).
+- **Core.** A flat run of identical weigh-ins no longer dominates the measured
+  TDEE with a ±1 kcal interval; a two-weigh-in unanchored slope no longer
+  sets the target; goal progress respects the goal direction; weekly budget
+  respects the floor; "Zona 2" counts as Zone 2; "1,250 kcal" parses.
+- **Mobile.** iOS sleep keyed per night (was split across two days); Health
+  water/sleep exports replace instead of stacking; in-app water and
+  Finish/onboarding weight survive imports; imports serialized, deduped
+  across same-day sessions, never written into an active session; Cancel on
+  a reopened workout restores everything; offline edits/deletes show; scan
+  grams keep decimals; double-tap double-logs; account deletion flow;
+  onboarding first-run latch; ~60 smaller fixes (see the commits).
+- **Tooling.** The three guard hooks had been OFF on the Mac since it took
+  over publishing (`python` does not exist there; exit 127 is non-blocking).
+- **Hosting.** Security headers, sane caching, a self-unregistering
+  `firebase-messaging-sw.js`; `/changelog` serves a curated public file.
+
 ## 2026-10-13 — Progression: blank RIR and the last entered pin no longer stall a lift; markers export as markers
 
 Owner report on the 10/13 Leg Day. OTA on all seven runtimes (ledger).
