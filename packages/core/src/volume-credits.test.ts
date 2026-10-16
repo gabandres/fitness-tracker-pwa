@@ -242,3 +242,38 @@ describe('defaultVolumeView — auto default for the Sets | Clusters switch', ()
     expect(defaultVolumeView({ clusters: 0, sets: 0, plannedClusters: 0, plannedSets: 0 })).toBe('sets');
   });
 });
+
+// Program v2.1 (2026-10-15): the owner's Leg and Pull changes, with the
+// account's own muscle tags. RDL and Leg Curls go 1 → 2 clusters, the rear
+// delt flye 1 → 2. Expected: hamstrings 2 → 4, rear delt 1 → 2, glutes up
+// (the RDL's 0.5), back +0.5 (the flye's second tag) — everything else held.
+describe('plannedVolume — Program v2.1 before → after', () => {
+  const clusters = (n: number) =>
+    Array.from({ length: n }, (_, i) => [{ kind: 'activation' as const, group: i + 1 }, { kind: 'mini' as const, group: i + 1 }]).flat();
+  const row = (exerciseId: string, name: string, n: number) => ({ exerciseId, name, plannedSets: clusters(n) });
+  const catalog: { id: string; muscles: MuscleGroup[] }[] = [
+    { id: 'smith', muscles: ['quads', 'glutes'] },
+    { id: 'rdl', muscles: ['hamstrings', 'glutes'] },
+    { id: 'ext', muscles: ['quads'] },
+    { id: 'curl', muscles: ['hamstrings'] },
+    { id: 'flye', muscles: ['shoulders', 'back'] },
+    { id: 'row', muscles: ['back', 'biceps'] },
+  ];
+  type Tpl = Parameters<typeof plannedVolume>[0][number];
+  const program = (rdl: number, legCurl: number, flye: number) => [
+    { exercises: [row('smith', 'Smith squat', 2), row('rdl', 'DB Romanian deadlift', rdl), row('ext', 'Leg Extensions', 1), row('curl', 'Leg Curls', legCurl)] },
+    { exercises: [row('row', 'Seated Machine Row', 2), row('flye', 'Rear delt DB flye', flye)] },
+  ] as unknown as Tpl[];
+  const tally = (tpls: Tpl[]) => Object.fromEntries(plannedVolume(tpls, catalog).map((m) => [m.muscle, m.fractional]));
+
+  it('hamstrings 2 → 4, rear delt 1 → 2, glutes 1.5 → 2, back +0.5, quads unchanged', () => {
+    const before = tally(program(1, 1, 1));
+    const after = tally(program(2, 2, 2));
+    expect([before.hamstrings, after.hamstrings]).toEqual([2, 4]);
+    expect([before.rearDelt, after.rearDelt]).toEqual([1, 2]);
+    expect([before.glutes, after.glutes]).toEqual([1.5, 2]);
+    expect(after.back - before.back).toBe(0.5);
+    expect(after.quads).toBe(before.quads);
+    expect(after.biceps).toBe(before.biceps);
+  });
+});

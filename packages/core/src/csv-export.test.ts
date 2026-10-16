@@ -622,3 +622,60 @@ describe('buildCsv — the two rests, split', () => {
     expect(of('Leg Curls').restToNextSec).toBe('90');
   });
 });
+
+// Push v2's Superset C as three members (2026-10-15): Skull Crusher joins as C3.
+describe('buildCsv — a three-member superset (Push v2 Superset C, 2026-10-15)', () => {
+  const at = new Date('2026-10-15T11:29:53Z');
+  const myo = (w: number, act: number, group = 1) => [
+    { kind: 'activation' as const, group, weight: w, reps: act, rir: 0 },
+    { kind: 'mini' as const, group, weight: w, reps: 4, rir: 0 },
+    { kind: 'mini' as const, group, weight: w, reps: 3, rir: 0 },
+  ];
+  const tag = (pos: 1 | 2 | 3) => ({ supersetGroup: 'C', pairPosition: pos, transitionRestSec: 30, roundRestSec: 30 });
+  const session: WorkoutSession = {
+    status: 'completed', templateName: 'Push Day', templateVersion: 'v2', date: at, createdAt: at, updatedAt: at,
+    exercises: [
+      { exerciseId: 'ohe', name: 'Overhead DB Extension', cues: [], logStyle: 'weight-reps', sets: myo(30, 15), ...tag(1) },
+      { exerciseId: 'lat', name: 'DB Lateral Raise', cues: [], logStyle: 'weight-reps', ...tag(2),
+        sets: [...myo(15, 14), ...myo(15, 10, 2), { kind: 'drop' as const, group: 2, weight: 10, reps: 7 }] },
+      { exerciseId: 'skull', name: 'Skull Crusher', cues: [], logStyle: 'weight-reps', sets: myo(15, 10), ...tag(3) },
+    ],
+  };
+  const planned = (n: number) => Array.from({ length: n }, () => [{ kind: 'activation' as const }, { kind: 'mini' as const }, { kind: 'mini' as const }]).flat();
+  const template: WorkoutTemplate = {
+    name: 'Push Day', restMiniSec: 10, restClusterSec: 90, createdAt: at, updatedAt: at,
+    exercises: [
+      { exerciseId: 'ohe', name: 'Overhead DB Extension', plannedSets: planned(1), supersetGroup: 'C', pairPosition: 1, transitionRestSec: 30, roundRestSec: 30 },
+      { exerciseId: 'lat', name: 'DB Lateral Raise', plannedSets: [...planned(2), { kind: 'drop' }], restClusterSec: 60, supersetGroup: 'C', pairPosition: 2 },
+      { exerciseId: 'skull', name: 'Skull Crusher', plannedSets: planned(1), supersetGroup: 'C', pairPosition: 3,
+        baseline: { since: '2026-10-15', reason: 'context changed: position 2026-10-15' } },
+    ],
+  };
+  const csv = buildCsv({ ...emptyData(), workoutSessions: [session], templates: [template] });
+  const [h, ...lines] = csv.split('\r\n');
+  const cols = h.split(',');
+  const rows = lines.map(splitLine).map((f) => Object.fromEntries(cols.map((c, i) => [c, f[i] ?? ''])));
+  const pick = (r: Record<string, string>) => [r.exercise, r.supersetGroup, r.pairPosition, r.supersetBlock, r.supersetOrder, r.transitionSec, r.roundRestSec];
+
+  it('every set of every member carries its block and order — Skull Crusher is C / 3', () => {
+    const sets = rows.filter((r) => r.type === 'workout_set');
+    expect(sets).toHaveLength(3 + 7 + 3);
+    const skull = sets.filter((r) => r.exercise === 'Skull Crusher');
+    // A set row carries the switch rest (`transitionSec`); the round rest is a
+    // template column only.
+    expect(skull.map(pick)).toEqual(Array(3).fill(['Skull Crusher', 'C', '3', 'C', '3', '30', '']));
+    expect(sets.filter((r) => r.exercise === 'DB Lateral Raise').every((r) => r.supersetBlock === 'C' && r.supersetOrder === '2')).toBe(true);
+    expect(sets.find((r) => r.exercise === 'Overhead DB Extension')).toMatchObject({ supersetBlock: 'C', supersetOrder: '1' });
+  });
+
+  it('the template rows give C1 / C2 / C3 with the group\'s rests, and the Skull Crusher baseline in notes', () => {
+    const tpl = rows.filter((r) => r.type === 'template');
+    expect(tpl.map(pick)).toEqual([
+      ['Overhead DB Extension', 'C', '1', 'C', '1', '30', '30'],
+      ['DB Lateral Raise', 'C', '2', 'C', '2', '30', '30'],
+      ['Skull Crusher', 'C', '3', 'C', '3', '30', '30'],
+    ]);
+    expect(tpl[2].notes).toBe('baseline since 2026-10-15: context changed: position 2026-10-15');
+    expect(tpl[1].notes).toBe('+ drop set');
+  });
+});

@@ -225,7 +225,8 @@ describe('activate and revert', () => {
     expect(p.body.name).toBe('Push Day');
     expect(p.body.notes).toBe(tpl('Push Day').notes);
     const flat = p.body.exercises.find((e) => e.name === 'DB Flat Press')!;
-    expect(flat.baseline).toEqual({ since: '2026-10-11', reason: 'context changed: superset', dropBackTo: 20, dropBackBelowReps: 5 });
+    // One step down on the dumbbell grid — 2.5 lb unless the lifter turned it off (v2.1).
+    expect(flat.baseline).toEqual({ since: '2026-10-11', reason: 'context changed: superset', dropBackTo: 22.5, dropBackBelowReps: 5 });
     expect(flat.lastModifiedBy).toBe('user');
     // Activating Push alone leaves the two moved lifts on Leg Day too.
     expect(p.overlap.doubled.map((x) => x.name)).toEqual(['Weighted Floor Crunch', 'Single-leg DB calf raise']);

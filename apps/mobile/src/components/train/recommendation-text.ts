@@ -255,11 +255,12 @@ function targetText(rec: Recommendation, t: TFn): string | null {
 }
 
 /** On an increase, the reps Epley expects at the new load. The prediction is
- *  to failure; a `rir1` lift also gets the number it should log. */
+ *  at the lift's TARGET RIR (core `predictedRepsAtTarget`, Program v2.1), so
+ *  a `rir1` lift's number is what it should log and to failure is one more. */
 function expectText(rec: Recommendation, t: TFn): string | null {
   if (rec.predictedReps == null) return null;
   if (rec.config?.effortStandard === 'rir1') {
-    return t('train.rec.expectRir1', { n: rec.predictedReps, logged: Math.max(1, rec.predictedReps - 1) });
+    return t('train.rec.expectRir1', { n: rec.predictedReps + 1, logged: rec.predictedReps });
   }
   return t('train.rec.expect', { n: rec.predictedReps });
 }

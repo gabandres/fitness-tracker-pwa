@@ -373,8 +373,9 @@ export type RestKind =
 export interface FlowRest {
   seconds: number;
   kind: RestKind;
-  /** The set that comes next in the flow, if any. */
-  next?: { exerciseIndex: number; setIndex: number; label?: string };
+  /** The set that comes next in the flow, if any. `unit` is its cluster,
+   *  0-based ("Next: DB Lateral Raise (cluster 2)"). */
+  next?: { exerciseIndex: number; setIndex: number; unit?: number; label?: string };
   /** On a `round` rest: which round comes next, of how many ("Round 2 of 3"). */
   round?: { n: number; total: number };
 }
@@ -387,12 +388,12 @@ export interface FlowRest {
  * constants. Between units of a superset:
  *
  * - to the next member in the same round → the group's transition rest;
- * - to the next round, when that round has two or more members → the round rest;
- * - to a LEFTOVER unit (the next round has one member) → that exercise's
- *   ordinary between-cluster rest, because it runs as a straight set, still
- *   carrying `round` — also when the leftover is this same exercise's;
- * - to this exercise's own next unit while its partner still has that round
- *   open → its between-cluster rest, without `round`;
+ * - to another member in the next round → the round rest, whether that round
+ *   has one member or several (a round is every member with a cluster left in
+ *   it, in member order);
+ * - to this exercise's OWN next unit → its between-cluster rest, carrying
+ *   `round` when nobody else has that round open (a leftover of this lift),
+ *   without it while its partner still has that round open;
  * - back to a partner unit of THIS round that was started and left open (the
  *   lifter jumped ahead mid-cluster) → the transition rest, into it;
  * - after the group's last unit → the rest after the exercise.
@@ -420,7 +421,7 @@ export function restAfterSetInFlow(
   const open = (s: FlowStep) => !isDone || s.setIndices.some((i) => !isDone(s.exerciseIndex, i));
   const nextStep = at >= 0 ? flow.slice(at + 1).find(open) : undefined;
   const nextOf = (s: FlowStep | undefined) =>
-    s ? { exerciseIndex: s.exerciseIndex, setIndex: firstOpen(s), ...(s.label ? { label: s.label } : {}) } : undefined;
+    s ? { exerciseIndex: s.exerciseIndex, setIndex: firstOpen(s), unit: s.unit, ...(s.label ? { label: s.label } : {}) } : undefined;
   const firstOpen = (s: FlowStep) => s.setIndices.find((i) => !isDone?.(s.exerciseIndex, i)) ?? s.setIndices[0];
 
   // Mid-unit, or a set the flow does not know: the per-exercise rule decides.
@@ -431,7 +432,7 @@ export function restAfterSetInFlow(
     return {
       seconds,
       kind: 'intra',
-      ...(nextIdx != null ? { next: { exerciseIndex, setIndex: nextIdx, ...(step?.label ? { label: step.label } : {}) } } : {}),
+      ...(nextIdx != null ? { next: { exerciseIndex, setIndex: nextIdx, ...(step ? { unit: step.unit } : {}), ...(step?.label ? { label: step.label } : {}) } } : {}),
     };
   }
 
@@ -475,7 +476,7 @@ export function restAfterSetInFlow(
     return {
       seconds: transitionRestSec,
       kind: 'transition',
-      next: { exerciseIndex: behind.exerciseIndex, setIndex: resumeAt(behind)!, ...(behind.label ? { label: behind.label } : {}) },
+      next: { exerciseIndex: behind.exerciseIndex, setIndex: resumeAt(behind)!, unit: behind.unit, ...(behind.label ? { label: behind.label } : {}) },
     };
   }
   if (nextStep?.group === step.group) {
@@ -493,14 +494,16 @@ export function restAfterSetInFlow(
       };
     }
     if (nextStep.unit === step.unit) return { seconds: transitionRestSec, kind: 'transition', ...(next ? { next } : {}) };
-    const inNextRound = groupSteps.filter((s) => s.unit === nextStep.unit && open(s)).length;
-    if (inNextRound >= 2) {
-      return { seconds: roundRestSec, kind: 'round', round: { n: nextStep.unit + 1, total }, ...(next ? { next } : {}) };
-    }
-    // A leftover unit of another member (this exercise has none left in that
-    // round): that exercise's ordinary between-cluster rest, as for a straight
-    // lift, but still a round of the superset — "A1 alone · round 3 of 3".
-    return { seconds: restFor(nextStep.exerciseIndex).cluster, kind: 'cluster', round: { n: nextStep.unit + 1, total }, ...(next ? { next } : {}) };
+    // Into the next round — every member with a cluster left in it, in member
+    // order — on the group's round rest, also when that round has ONE member
+    // (Push v2 Superset C, 2026-10-15: C3 Skull Crusher → C2 lateral raise
+    // cluster 2 is a round boundary, 30 s, owner's spec). Until then a
+    // one-member round ran on that lift's own between-cluster rest, as if
+    // straight; but it has rested since its last cluster — a switch, the other
+    // members' clusters, this round rest — and a member that needs a minimum
+    // between its own clusters says so (`minClusterRestSec`, applied to every
+    // `round` rest by `roundRestWithFloor`).
+    return { seconds: roundRestSec, kind: 'round', round: { n: nextStep.unit + 1, total }, ...(next ? { next } : {}) };
   }
   return { seconds: own.afterExercise ?? own.cluster, kind: 'after-exercise', ...(next ? { next } : {}) };
 }
@@ -619,21 +622,116 @@ export function pendingLoadTest(
 
 export interface GroupWarning {
   group: string;
-  /** Every pair in the group, in alternation order. */
-  pairs: { a: number; b: number; judgement: PairJudgement }[];
+  /** Every pair in the group, in alternation order, with where the two sit in
+   *  the performed sequence when it is known ({@link pairSpacing}). */
+  pairs: { a: number; b: number; judgement: PairJudgement; spacing?: PairSpacing }[];
+  /** A straight lift performed right before the group's first cluster or
+   *  right after its last, with the SAME primary muscle as the member next to
+   *  it — consecutive "into the next block" (Program v2.1). Needs the rows'
+   *  sets, like `spacing`. */
+  neighbours?: { member: number; neighbour: number; muscle: MuscleGroup }[];
   /** Members (row indices) with a pending load test. */
   pendingLoadTests: number[];
+}
+
+/** Rests when a caller has none: the app's defaults (`session-duration.ts`
+ *  `DURATION`). */
+export const DEFAULT_REST_SECONDS: RestSeconds = { mini: 10, cluster: 90, afterExercise: 90 };
+
+/** The least time between two same-muscle members for the pairing to be
+ *  OK — the minimum the program already keeps between a member's own
+ *  clusters (`minClusterRestSec`, 90 s on A1/B1). */
+export const SAME_MUSCLE_MIN_GAP_SEC = 90;
+
+/** How two members of a group sit in the performed sequence. */
+export type PairSpacing =
+  /** One's cluster runs straight into the other's somewhere — also across a
+   *  round boundary (C3 → C1 of the next round). */
+  | { adjacent: true }
+  /** Never back-to-back. `between` are the members whose clusters sit
+   *  between them where they come closest; `gapSec` is that closest gap,
+   *  estimated (see {@link pairSpacing}). */
+  | { adjacent: false; between: number[]; gapSec: number };
+
+/**
+ * Where two members of a group fall in the performed sequence
+ * ({@link supersetFlow} — the order the live session runs and the estimator
+ * counts): back-to-back somewhere, or always separated, and by how long.
+ *
+ * Exists for the tri-set whose first and third members share a muscle (Push
+ * v2's Superset C, 2026-10-15: Overhead DB Extension → lateral raise cluster
+ * 1 → Skull Crusher → lateral raise cluster 2). Zhang 2025's same-muscle cost
+ * is one lift's set done straight after the other's; with a lateral cluster
+ * and two switches between them the triceps are not worked consecutively.
+ *
+ * The gap is estimated the way `estimateTemplateDuration` estimates a
+ * session: {@link CLUSTER_ESTIMATE_SEC} per intervening cluster plus every
+ * rest the flow runs between them ({@link restAfterSetInFlow} with `restFor`,
+ * so switch, round and between-cluster rests as configured).
+ *
+ * `undefined` when the two are not in one group, when a member has no sets
+ * (the flow cannot be known), or when they never follow one another.
+ */
+export function pairSpacing(
+  rows: readonly (SupersetFields & { sets?: readonly { kind: SetKind }[] })[],
+  a: number,
+  b: number,
+  restFor: (exerciseIndex: number) => RestSeconds = () => DEFAULT_REST_SECONDS,
+): PairSpacing | undefined {
+  const group = rows[a]?.supersetGroup;
+  if (!group || rows[b]?.supersetGroup !== group) return undefined;
+  const members = supersetGroups(rows).get(group) ?? [];
+  if (members.length === 0 || members.some((m) => rows[m.index].sets == null)) return undefined;
+  const flowRows = rows as readonly FlowRow[];
+  const flow = supersetFlow(flowRows);
+  const restOut = (k: number) => restAfterSetInFlow(flowRows, flow[k].exerciseIndex, flow[k].setIndices[flow[k].setIndices.length - 1], restFor).seconds;
+  let closest: { between: number[]; gapSec: number } | undefined;
+  let last: number | undefined;
+  for (let i = 0; i < flow.length; i++) {
+    const ex = flow[i].exerciseIndex;
+    if (ex !== a && ex !== b) continue;
+    if (last != null && flow[last].exerciseIndex !== ex) {
+      if (i === last + 1) return { adjacent: true };
+      let gapSec = (i - last - 1) * CLUSTER_ESTIMATE_SEC;
+      for (let k = last; k < i; k++) gapSec += restOut(k);
+      if (!closest || gapSec < closest.gapSec) {
+        const mid = new Set(flow.slice(last + 1, i).map((s) => s.exerciseIndex));
+        closest = { between: members.map((m) => m.index).filter((x) => mid.has(x)), gapSec };
+      }
+    }
+    last = i;
+  }
+  return closest ? { adjacent: false, ...closest } : undefined;
+}
+
+/**
+ * How the editor treats a pair that shares a primary muscle, from its
+ * {@link PairSpacing}:
+ * - `consecutive` — back-to-back somewhere (or the order is unknown): the
+ *   Zhang 2025 warning, with the fix buttons;
+ * - `separated` — never back-to-back and at least
+ *   {@link SAME_MUSCLE_MIN_GAP_SEC} apart: an info line, no warning;
+ * - `too-close` — never back-to-back, but under that: a warning to add
+ *   switch rest or reorder.
+ */
+export type SameMuscleVerdict = 'consecutive' | 'separated' | 'too-close';
+
+export function sameMuscleVerdict(spacing: PairSpacing | undefined): SameMuscleVerdict {
+  if (!spacing || spacing.adjacent) return 'consecutive';
+  return spacing.gapSec >= SAME_MUSCLE_MIN_GAP_SEC ? 'separated' : 'too-close';
 }
 
 /**
  * What the template editor shows under each superset: the pair type of every
  * pairing, and which members have a load test pending. Advisory only — saving
- * is never blocked.
+ * is never blocked. Rows that carry their `sets` also get each pair's
+ * `spacing` — `restFor` gives the rests it is estimated with.
  */
 export function supersetWarnings(
-  rows: readonly (SupersetFields & { exerciseId: string })[],
+  rows: readonly (SupersetFields & { exerciseId: string; sets?: readonly { kind: SetKind }[] })[],
   musclesOf: (exerciseId: string) => readonly MuscleGroup[],
   hasPendingLoadTest: (exerciseId: string) => boolean = () => false,
+  restFor?: (exerciseIndex: number) => RestSeconds,
 ): GroupWarning[] {
   const out: GroupWarning[] = [];
   for (const [group, members] of supersetGroups(rows)) {
@@ -642,16 +740,41 @@ export function supersetWarnings(
       for (let j = i + 1; j < members.length; j++) {
         const a = members[i].index;
         const b = members[j].index;
-        pairs.push({ a, b, judgement: classifyPair(musclesOf(rows[a].exerciseId), musclesOf(rows[b].exerciseId)) });
+        const spacing = pairSpacing(rows, a, b, restFor);
+        pairs.push({ a, b, judgement: classifyPair(musclesOf(rows[a].exerciseId), musclesOf(rows[b].exerciseId)), ...(spacing ? { spacing } : {}) });
       }
     }
+    const neighbours = blockNeighbours(rows, group, musclesOf);
     out.push({
       group,
       pairs,
+      ...(neighbours.length ? { neighbours } : {}),
       pendingLoadTests: members.map((m) => m.index).filter((i) => hasPendingLoadTest(rows[i].exerciseId)),
     });
   }
   return out.sort((x, y) => x.group.localeCompare(y.group));
+}
+
+/** The straight lifts on either side of a group in the performed sequence
+ *  that share the adjacent member's primary muscle. */
+function blockNeighbours(
+  rows: readonly (SupersetFields & { exerciseId: string; sets?: readonly { kind: SetKind }[] })[],
+  group: string,
+  musclesOf: (exerciseId: string) => readonly MuscleGroup[],
+): NonNullable<GroupWarning['neighbours']> {
+  if (rows.some((r) => r.sets == null)) return [];
+  const flow = supersetFlow(rows as readonly FlowRow[]);
+  const first = flow.findIndex((s) => s.group === group);
+  let last = -1;
+  flow.forEach((s, i) => { if (s.group === group) last = i; });
+  if (first < 0) return [];
+  const out: NonNullable<GroupWarning['neighbours']> = [];
+  for (const [member, other] of [[flow[first], flow[first - 1]], [flow[last], flow[last + 1]]] as const) {
+    if (!other || other.group === group) continue;
+    const j = classifyPair(musclesOf(rows[member.exerciseIndex].exerciseId), musclesOf(rows[other.exerciseIndex].exerciseId));
+    if (j.kind === 'same-muscle' && j.muscle) out.push({ member: member.exerciseIndex, neighbour: other.exerciseIndex, muscle: j.muscle });
+  }
+  return out;
 }
 
 /**

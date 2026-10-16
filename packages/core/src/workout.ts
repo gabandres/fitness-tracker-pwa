@@ -300,6 +300,10 @@ export interface WorkoutSession {
    * to delete is the case that found it.
    */
   dismissedSourceIds?: string[];
+  /** A deload session (Program v2.1, `deload.ts`): half the clusters at the
+   *  same loads, RIR 3. The progression engine never reads one. Set at start,
+   *  never changed. */
+  deload?: boolean;
   /** "Next session notes" carried forward to the next session of the template. */
   nextNotes?: string;
   createdAt: Date;

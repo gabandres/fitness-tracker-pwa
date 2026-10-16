@@ -89,6 +89,20 @@ it('turns auto-apply on', async () => {
   await waitFor(() => expect(mockSetTrainingSettings).toHaveBeenCalledWith('u1', { autoApplyProgression: true }));
 });
 
+// Program v2.1: "Available dumbbell weights" — 2.5-lb steps unless turned off.
+it('reads an absent dumbbell setting as 2.5-lb steps ON, and turning it off writes only that key', async () => {
+  const ui = await renderSettings();
+  expect(ui.getByTestId('settings-dumbbell-half-steps')).toHaveProp('value', true);
+  await fireEvent(ui.getByTestId('settings-dumbbell-half-steps'), 'valueChange', false);
+  await waitFor(() => expect(mockSetTrainingSettings).toHaveBeenCalledWith('u1', { dumbbellHalfSteps: false }));
+});
+
+it('shows a stored false as off', async () => {
+  mockProfile = { profileCompleted: true, dumbbellHalfSteps: false };
+  const ui = await renderSettings();
+  expect(ui.getByTestId('settings-dumbbell-half-steps')).toHaveProp('value', false);
+});
+
 it('stores a metric gate in pounds', async () => {
   mockProfile = { profileCompleted: true, unitSystem: 'metric' };
   const ui = await renderSettings();

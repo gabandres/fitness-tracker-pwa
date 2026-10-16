@@ -86,6 +86,7 @@ export function toWorkoutSession(id: string, data: Record<string, unknown>): Wor
     sleepHours: data['sleepHours'] as number | undefined,
     durationMin: data['durationMin'] as number | undefined,
     ...(data['templateVersion'] === 'v1' || data['templateVersion'] === 'v2' ? { templateVersion: data['templateVersion'] } : {}),
+    ...(data['deload'] === true ? { deload: true } : {}),
     ...(Array.isArray(data['dismissedSourceIds'])
       ? { dismissedSourceIds: (data['dismissedSourceIds'] as unknown[]).filter((x): x is string => typeof x === 'string') }
       : {}),

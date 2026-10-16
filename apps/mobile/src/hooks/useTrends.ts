@@ -40,6 +40,9 @@ import { useFocusDay } from '@/hooks/useFocusDay';
 import { feedChannel, useLedgerFeed } from '@/hooks/useLedgerFeed';
 import { useAuth } from '@/lib/auth';
 import { getLogsForRange, subscribeMilestones } from '@/lib/ledger';
+import { readCache } from '@/lib/offline-cache';
+import { zone2Summary } from '@macrolog/core';
+import type { CardioBlock } from '@macrolog/core/cardio';
 import { type CompositionTrends, useCompositionTrends } from '@/hooks/useCompositionTrends';
 import { type SleepTrends, useSleepTrends } from '@/hooks/useSleepTrends';
 import { type FastingTrends, useFastingTrends } from '@/hooks/useFastingTrends';
@@ -70,7 +73,13 @@ const BACKFILL_TIMEOUT_MS = 15_000;
  *  tens of ms on a mid-range phone — one chunk never holds a frame long. */
 const REPLAY_CHUNK_DAYS = 30;
 
+/** "Zone 2 in band: n of last 6" (core `zone2Summary`, Program v2.1). */
+export type Zone2Trends = ReturnType<typeof zone2Summary>;
+
 export interface TrendsState {
+  /** Zone 2 from Train's on-disk sessions, read once per focus; null until
+   *  read or when Train has never cached any. */
+  zone2?: Zone2Trends | null;
   /** Composition-adjusted maintenance + recomp signal (ADR-0043). Behind
    *  `FEATURES.compositionMaintenance`; `enabled: false` renders nothing. */
   composition: CompositionTrends;
@@ -500,6 +509,41 @@ export function useTrends(rangeDays: number = 30, opts: TrendsOptions = {}): Tre
     deps: [uid],
   });
 
+  // Zone 2 (Program v2.1). Trends holds no workout listener and gets none for
+  // one card (ADR-0016): each focus reads Train's `workoutSessions` cache
+  // slice once — the bounded window Train's own subscription keeps — as Train
+  // reads Today's weights for its volume gate. A one-shot channel, so the read
+  // follows the screen's focus like every other Trends feed.
+  const [zone2, setZone2] = useState<Zone2Trends | null>(null);
+  useLedgerFeed({
+    uid,
+    label: 'Trends/zone2',
+    gate: 'focus',
+    channels: () =>
+      uid
+        ? [
+            feedChannel({
+              key: 'zone2',
+              settles: 'none',
+              open: (deliver) => {
+                let live = true;
+                void readCache<{ status?: string; date: Date; cardio?: CardioBlock[] }[]>(uid, 'workoutSessions')
+                  .then((sessions) => {
+                    if (live) deliver(sessions ? zone2Summary(sessions) : null);
+                  })
+                  .catch(() => undefined);
+                return () => {
+                  live = false;
+                };
+              },
+              apply: setZone2,
+            }),
+          ]
+        : [],
+    // Pull-to-refresh re-reads it too.
+    deps: [uid, refreshKey],
+  });
+
   const basalKcal = useMemo(() => {
     if (!profile || profile.heightIn == null || profile.age == null || profile.sex == null) return 0;
     // Latest weigh-in: dateKeys sort chronologically, so the max key is newest.
@@ -514,6 +558,7 @@ export function useTrends(rangeDays: number = 30, opts: TrendsOptions = {}): Tre
   }, [profile, weights]);
 
   return {
+    zone2,
     loading,
     error,
     insights,

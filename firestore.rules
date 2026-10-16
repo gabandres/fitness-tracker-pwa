@@ -594,7 +594,10 @@ service cloud.firestore {
               // Imported cardio blocks the user removed (2026-10-15): the
               // Health / Oura import skips these sourceIds, or a removed block
               // comes straight back on the next foreground.
-              'dismissedSourceIds'
+              'dismissedSourceIds',
+              // A deload session (Program v2.1, 2026-10-15; core deload.ts):
+              // the progression engine never reads one.
+              'deload'
           ])
           && data.keys().hasAll(['status', 'timestamp', 'exercises', 'createdAt', 'updatedAt'])
           && (data.status == 'active' || data.status == 'completed')
@@ -616,6 +619,7 @@ service cloud.firestore {
           && (!('templateVersion' in data.keys()) || data.templateVersion in ['v1', 'v2'])
           && (!('dismissedSourceIds' in data.keys()) ||
               (data.dismissedSourceIds is list && data.dismissedSourceIds.size() <= 50))
+          && (!('deload' in data.keys()) || data.deload is bool)
           && (!('nextNotes' in data.keys()) ||
               (data.nextNotes is string && data.nextNotes.size() <= 2000));
     }
@@ -721,7 +725,11 @@ service cloud.firestore {
               // from Settings → Training, which only a completed profile
               // reaches — so these are NOT listed on the Initial branch.
               // Absent means cut / auto-apply off / no volume gate.
-              'trainingPhase', 'autoApplyProgression', 'volumeGateLb'
+              'trainingPhase', 'autoApplyProgression', 'volumeGateLb',
+              // Program v2.1 (2026-10-15): dumbbells step 2.5 lb unless this
+              // is false; when an accepted deload week started (core
+              // deload.ts). Absent means 2.5-lb steps / no deload.
+              'dumbbellHalfSteps', 'deloadStartedAt'
           ])
           && hasProfileBase(data)
           && data.profileCompleted == true
@@ -851,6 +859,8 @@ service cloud.firestore {
               data.trainingPhase in ['cut', 'maintenance', 'bulk'])
           && (!('autoApplyProgression' in keys) ||
               data.autoApplyProgression is bool)
+          && (!('dumbbellHalfSteps' in keys) || data.dumbbellHalfSteps is bool)
+          && (!('deloadStartedAt' in keys) || data.deloadStartedAt is timestamp)
           // Body weight in lb, the weigh-in sanity band widened to a gate
           // somebody could actually set.
           && (!('volumeGateLb' in keys) ||

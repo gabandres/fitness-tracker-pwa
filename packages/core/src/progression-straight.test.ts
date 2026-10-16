@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { recommend } from './progression-engine';
+import { recommend, resolveEngineConfig } from './progression-engine';
 import { READABLE_STRUCTURES } from './set-structure';
 import type { SessionExercise, SetStructure, WorkoutSet } from './workout';
 
@@ -146,5 +146,27 @@ describe('straight sets — double progression', () => {
     });
     expect(rec.reason.kind).toBe('straight-sets');
     expect(rec.action).toBe('add-load');
+  });
+});
+
+// Review 2026-10-15 (Program v2.1): the dumbbell grid reaches every structure.
+// The straight reader took its step from `progression.incrementLb` only, so a
+// DB press at 20 was told to build reps toward a 25 (+25 %) forever.
+describe('straight sets — the dumbbell grid', () => {
+  const dbPress = (load: number, ...reps: number[]): SessionExercise => ({ ...straight(load, ...reps), name: 'DB Flat Press' });
+  const opts = (step: number) => ({
+    structure: 'straight' as const,
+    progression: { targetReps: 10, holdSessions: 2, incrementLb: 5 },
+    config: resolveEngineConfig({ name: 'DB Flat Press', dumbbellStepLb: step }, { progression: { incrementLb: 5 } }),
+  });
+
+  it('2.5-lb steps: 20 × 10, 10 (twice) → 22.5', () => {
+    const rec = recommend([dbPress(20, 10, 10), dbPress(20, 10, 10)], opts(2.5));
+    expect(rec).toMatchObject({ action: 'add-load', load: 22.5, currentLoad: 20 });
+  });
+
+  it('5-lb steps: an off-grid 17.5 lands on 20, never 22.5', () => {
+    const rec = recommend([dbPress(17.5, 10, 10), dbPress(17.5, 10, 10)], opts(5));
+    expect(rec).toMatchObject({ action: 'add-load', load: 20 });
   });
 });

@@ -304,6 +304,22 @@ export function effectiveReps(c: Pick<ClusterRead, 'reps' | 'rir'>): number | un
   return c.reps + (c.rir ?? 0);
 }
 
+/** The RIR a lift's activation is meant to stop at: 0 for `failure`, 1 for
+ *  `rir1` (Program v2.1, 2026-10-15). */
+export function targetRirOf(standard: EffortStandard | undefined): number {
+  return standard === 'rir1' ? 1 : 0;
+}
+
+/**
+ * Reps a lift would log at its TARGET RIR at `load`, from an e1RM (Program
+ * v2.1): 30 × (e1RM / w − 1) − target RIR, floored, never negative. The e1RM
+ * comes from the read's reps to failure (`effectiveReps`), so a 12 @ RIR 1
+ * read is a 13-rep effort, and a `rir1` lift is predicted one rep short of it.
+ */
+export function predictedRepsAtTarget(e1rm: number, load: number, targetRir: number): number {
+  return Math.max(0, predictedRepsAt(e1rm, load) - targetRir);
+}
+
 // ─── Per-lift configuration ─────────────────────────────────────
 
 /** What the lift is loaded with — it decides the default load step. */
@@ -322,6 +338,10 @@ export interface EngineConfig {
   loadSteps?: number[];
   /** The step used when {@link loadSteps} is absent. */
   stepLb: number;
+  /** Dumbbells move on a fixed grid of {@link stepLb} (17.5 → 20 on 2.5-lb
+   *  steps; 17.5 → 20, not 22.5, on 5-lb ones) — the lifter's "Available
+   *  dumbbell weights" setting. Absent for other equipment. */
+  loadGrid?: number;
   /** A stack with no entered steps: the next load is a guess. */
   stepsUnknown: boolean;
   smithBarEffectiveLb?: number;
@@ -376,6 +396,22 @@ export interface EngineCatalogFields {
   smithBarEffectiveLb?: number;
   loadable?: boolean;
   microplates?: boolean;
+  /** The lifter's dumbbell step, lb (`dumbbellStepLb` from the profile's
+   *  "2.5-lb steps" setting) — a user setting, merged into the catalog fields
+   *  by the caller because every engine entry point already takes them.
+   *  Absent → {@link DEFAULT_DUMBBELL_STEP_LB}. */
+  dumbbellStepLb?: number;
+}
+
+/** "2.5-lb steps (17.5, 22.5…)" is on unless the lifter turns it off
+ *  (Program v2.1): add-on plates or a gym's dumbbell rack. Off → 5-lb steps. */
+export const DEFAULT_DUMBBELL_STEP_LB = 2.5;
+export const DUMBBELL_STEPS_LB = { half: 2.5, whole: 5 } as const;
+
+/** The dumbbell step for the profile's setting (`dumbbellHalfSteps`, absent
+ *  = on). */
+export function dumbbellStepLb(halfSteps: boolean | undefined): number {
+  return halfSteps === false ? DUMBBELL_STEPS_LB.whole : DUMBBELL_STEPS_LB.half;
 }
 
 /** A rep range a lifter could actually mean: whole, positive, min ≤ max. */
@@ -401,7 +437,9 @@ export function resolveEngineConfig(
   const steps = (catalog?.availableLoads ?? []).filter((x) => Number.isFinite(x)).sort((a, b) => a - b);
   const loadSteps = steps.length > 0 ? steps : undefined;
   const stack = equipment === 'stack';
-  const stepLb = stack ? (template?.progression?.incrementLb ?? DEFAULT_INCREMENT_LB) : DEFAULT_INCREMENT_LB;
+  const dumbbell = equipment === 'dumbbell';
+  const dbStep = catalog?.dumbbellStepLb != null && catalog.dumbbellStepLb > 0 ? catalog.dumbbellStepLb : DEFAULT_DUMBBELL_STEP_LB;
+  const stepLb = stack ? (template?.progression?.incrementLb ?? DEFAULT_INCREMENT_LB) : dumbbell ? dbStep : DEFAULT_INCREMENT_LB;
   const bar = catalog?.smithBarEffectiveLb;
   return {
     category,
@@ -411,6 +449,7 @@ export function resolveEngineConfig(
     equipment,
     ...(loadSteps ? { loadSteps } : {}),
     stepLb,
+    ...(dumbbell && !loadSteps ? { loadGrid: stepLb } : {}),
     stepsUnknown: stack && !loadSteps,
     ...(bar != null && bar >= 0 ? { smithBarEffectiveLb: bar } : {}),
     approximate: equipment === 'smith' && (bar == null || bar < 0),
@@ -634,9 +673,19 @@ export interface RecommendOptions extends ReadOptions {
  */
 export function nextLoad(
   current: number,
-  opts: { availableLoads?: number[]; incrementLb?: number; assisted?: boolean },
+  opts: { availableLoads?: number[]; incrementLb?: number; assisted?: boolean; grid?: number },
 ): { load: number; jumpPct: number; beyondSteps?: true } {
   const step = opts.incrementLb ?? DEFAULT_INCREMENT_LB;
+  // A fixed grid (dumbbells): the next weight that exists, so an off-grid
+  // load (17.5 on 5-lb dumbbells) lands on the grid, never past it.
+  if (opts.grid != null && opts.grid > 0 && !(opts.availableLoads ?? []).some((x) => Number.isFinite(x))) {
+    const g = opts.grid;
+    const load = opts.assisted
+      ? Math.max(0, (Math.ceil(current / g - 1e-9) - 1) * g)
+      : (Math.floor(current / g + 1e-9) + 1) * g;
+    const rounded = +load.toFixed(2);
+    return { load: rounded, jumpPct: current > 0 ? Math.abs(rounded - current) / current : 0 };
+  }
   const steps = [...new Set((opts.availableLoads ?? []).filter((x) => Number.isFinite(x)))].sort((a, b) => a - b);
   let load: number;
   let beyond = false;
@@ -737,10 +786,15 @@ function loadCall(
   repsGoal: number,
 ): Recommendation {
   if (sessionsAtTarget >= holdSessions && currentLoad != null) {
+    // The dumbbell grid (Settings → "2.5-lb steps", Program v2.1) applies to
+    // every structure, not only myo-reps: a straight-set DB press moves
+    // 20 → 22.5, never "build reps" toward a 25 that is a 25 % jump.
+    const grid = opts.config?.loadGrid;
     const { load, jumpPct } = nextLoad(currentLoad, {
       availableLoads: opts.availableLoads,
       incrementLb: opts.progression?.incrementLb,
       assisted: base.assisted,
+      ...(grid ? { grid } : {}),
     });
     if (jumpPct > MAX_JUMP_PCT) {
       return {
@@ -1072,7 +1126,9 @@ export function recommend(history: readonly SessionExercise[], opts: RecommendOp
   // From the second read on, the ordinary rules run over post-marker reads.
   if (opts.baseline && reads.length === 1) {
     const low = bindingCluster(read);
-    const eff = effectiveReps(low) as number;
+    // At the lift's target RIR, like every range judgement (Program v2.1):
+    // 5 @ RIR 1 on a `rir1` lift is 5, under a floor of 6.
+    const eff = Math.max(0, (effectiveReps(low) as number) - targetRirOf(config.effortStandard));
     const b = opts.baseline;
     if (b.dropBackTo != null && b.dropBackBelowReps != null && eff < b.dropBackBelowReps) {
       return {
@@ -1110,12 +1166,6 @@ function loadKey(r: ExerciseRead): number | undefined {
   return r.load ?? 0;
 }
 
-/** The logged-rep form of an effective-rep count on this lift: a `rir1` lift
- *  is meant to stop one short, so its target is one under. */
-function asLogged(effective: number, config: EngineConfig): number {
-  return config.effortStandard === 'rir1' ? Math.max(1, effective - 1) : effective;
-}
-
 /**
  * Rules 2-5 and 7-8 on a VALID read. Returns the call without the shared
  * fields (`last`, `warnings`, …), which the caller owns.
@@ -1131,7 +1181,13 @@ function rangeCall(
   const cap = max + REP_CAP_EXTRA;
   const multi = read.clusters.length > 1;
   const low = bindingCluster(read);
-  const eff = effectiveReps(low) as number;
+  // Program v2.1: the range is judged at the lift's TARGET RIR. `eff` is the
+  // reps to failure the read stands for (logged + RIR); `at` is what it would
+  // log at the target — a `rir1` lift reaches the top of 6-12 at 12 @ RIR 1,
+  // not 11 @ RIR 1. For a `failure` lift the two are the same number.
+  const targetRir = targetRirOf(config.effortStandard);
+  const effToFailure = effectiveReps(low) as number;
+  const eff = Math.max(0, effToFailure - targetRir);
   const lowLogged = low.reps as number;
   const loadNow = read.load ?? 0;
 
@@ -1170,7 +1226,9 @@ function rangeCall(
     return {
       action: 'hold', load: loadNow,
       reason: { kind: 'below-max', reps: eff, max, clusters: read.clusters.length, ...(multi ? { group: low.group } : {}) },
-      targetReps: lowLogged + 1,
+      // One more rep AT THE TARGET RIR — the text says "@ RIR 1" for a
+      // `rir1` lift, so 12 @ RIR 0 asks for 12 there, not 13.
+      targetReps: (targetRir > 0 ? eff : lowLogged) + 1,
     };
   }
 
@@ -1187,7 +1245,7 @@ function rangeCall(
       : { action: 'build-reps', load: loadNow, reason: { kind: 'no-next-step', reps: eff, cap } };
   }
   const bar = config.smithBarEffectiveLb ?? 0;
-  const e1rm = epleyE1rm(loadNow + bar, eff);
+  const e1rm = epleyE1rm(loadNow + bar, effToFailure);
   const techniques = (): CapTechnique[] => [
     'tempo',
     ...(config.microplates ? ['microplates' as const] : []),
@@ -1198,13 +1256,13 @@ function rangeCall(
       ? { action: 'build-reps', load: loadNow, reason: { kind: 'at-rep-cap', reps: eff, cap, techniques: techniques() } }
       : { action: 'build-reps', load: loadNow, reason: { kind: 'no-next-step', reps: eff, cap }, targetReps: lowLogged + 1 };
   }
-  const predictedReps = predictedRepsAt(e1rm, next.load + bar);
+  const predictedReps = predictedRepsAtTarget(e1rm, next.load + bar, targetRir);
   if (predictedReps >= min) {
     return {
       action: 'add-load', load: next.load,
       reason: { kind: 'increase', reps: eff, max, nextLoad: next.load, jumpPct: next.jumpPct, predictedReps, e1rm },
       predictedReps,
-      targetReps: asLogged(predictedReps, config),
+      targetReps: Math.max(1, predictedReps),
       ...assumed,
     };
   }
@@ -1215,9 +1273,10 @@ function rangeCall(
       ...assumed,
     };
   }
-  // The effective reps at this load that would predict `min` at the next one:
-  // w(1 + r/30) ≥ w2(1 + min/30). Offered only when it is inside the cap.
-  const need = Math.ceil(EPLEY_DIVISOR * (((next.load + bar) * (1 + min / EPLEY_DIVISOR)) / (loadNow + bar) - 1) - 1e-9);
+  // The reps at this load (at the target RIR) that would predict `min` at the
+  // next one: w(1 + (r + t)/30) ≥ w2(1 + (min + t)/30). Offered only when it is
+  // inside the cap.
+  const need = Math.ceil(EPLEY_DIVISOR * (((next.load + bar) * (1 + (min + targetRir) / EPLEY_DIVISOR)) / (loadNow + bar) - 1) - 1e-9) - targetRir;
   return {
     action: 'build-reps', load: loadNow,
     reason: {
@@ -1238,7 +1297,7 @@ function nextStep(
   assisted: boolean,
 ): { load: number; jumpPct: number; beyondSteps?: true } | null {
   if (assisted && current <= 0) return null;
-  return nextLoad(current, { availableLoads: config.loadSteps, incrementLb: config.stepLb, assisted });
+  return nextLoad(current, { availableLoads: config.loadSteps, incrementLb: config.stepLb, assisted, ...(config.loadGrid ? { grid: config.loadGrid } : {}) });
 }
 
 /** Back-compat: the engine's view of a lift's configuration with no catalog

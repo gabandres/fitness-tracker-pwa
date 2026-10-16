@@ -550,6 +550,12 @@ export default function Settings() {
     await setTrainingSettings(user.uid, { autoApplyProgression: next }).catch(saveFailed('auto-apply'));
   }
 
+  async function toggleDumbbellHalfSteps(next: boolean) {
+    if (!user) return;
+    haptics.tap();
+    await setTrainingSettings(user.uid, { dumbbellHalfSteps: next }).catch(saveFailed('dumbbell steps'));
+  }
+
   /** Commit the typed gate: empty clears it, out of band says so and keeps
    *  the text for fixing, unchanged text writes nothing (a metric round trip
    *  must not nudge the stored pounds). */
@@ -975,6 +981,22 @@ export default function Settings() {
               trackColor={{ true: colors.tealSolid, false: colors.lineStrong }}
               accessibilityLabel={t('settings.autoApply')}
               testID="settings-auto-apply"
+            />
+          </View>
+          {/* Available dumbbell weights (Program v2.1): the step the engine
+              moves a dumbbell lift on. Absent is ON — 2.5-lb steps. */}
+          <View style={styles.digestRow}>
+            <View style={styles.rowText}>
+              <Text style={styles.rowLabel}>{t('settings.dumbbellHalfSteps')}</Text>
+              <Text style={styles.rowValue}>{t('settings.dumbbellHalfStepsSub')}</Text>
+            </View>
+            <Switch
+              value={profile?.dumbbellHalfSteps !== false}
+              onValueChange={toggleDumbbellHalfSteps}
+              disabled={offline}
+              trackColor={{ true: colors.tealSolid, false: colors.lineStrong }}
+              accessibilityLabel={t('settings.dumbbellHalfSteps')}
+              testID="settings-dumbbell-half-steps"
             />
           </View>
           <View style={[stackFloors ? styles.floorStacked : styles.rowBetween, styles.digestRow]}>

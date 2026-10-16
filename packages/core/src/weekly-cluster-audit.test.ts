@@ -166,3 +166,12 @@ describe('volumeGateMet — the lifter\'s own gate for the next phase', () => {
     expect(volumeGateMet(154, null, 'maintenance')).toBe(false);
   });
 });
+
+// Review 2026-10-15 (Program v2.1): a deload week's halved clusters are not
+// low volume — no "add a cluster" while one is in the window.
+describe('volumeCalls — a deload in the window', () => {
+  it('never adds a cluster', () => {
+    const calls = volumeCalls({ muscles: [{ muscle: 'chest', clusters: 1, status: 'below' }], deload: true } as never, 'bulk', { chest: { allProgressed: true } });
+    expect(calls).toEqual([{ muscle: 'chest', clusters: 1, add: 0, reason: 'deload' }]);
+  });
+});

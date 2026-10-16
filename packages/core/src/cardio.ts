@@ -190,6 +190,42 @@ export function zone2Check(block: Pick<CardioBlock, 'label' | 'targetHrMin' | 't
   return { ...(inBand !== undefined ? { inBand } : {}), rpeTooHigh };
 }
 
+/** A Zone 2 block whose average HR is over its band — "Above Zone 2 — slow
+ *  down next time" (Program v2.1). Under the band is not said: easier than
+ *  Zone 2 is not the mistake this catches. */
+export function isAboveZone2(block: Pick<CardioBlock, 'label' | 'targetHrMin' | 'targetHrMax' | 'avgHr'>): boolean {
+  const band = hrBand(block);
+  return isZone2(block) && band != null && block.avgHr != null && block.avgHr > band.max;
+}
+
+export interface Zone2Session {
+  date: Date;
+  avgHr: number;
+  inBand: boolean;
+}
+
+/**
+ * The Trends line "Zone 2 in band (HR 120–130): n of last 6" (Program v2.1):
+ * the last `count` sessions with a Zone 2 block that has an average HR,
+ * newest first — one entry per session, its first such block — and how many
+ * were inside the band. A block without HR is not a session out of band; it
+ * is not counted at all.
+ */
+export function zone2Summary(
+  sessions: readonly { status?: string; date: Date; cardio?: readonly CardioBlock[] }[],
+  count = 6,
+): { band: { min: number; max: number }; sessions: Zone2Session[]; inBand: number } {
+  const out: Zone2Session[] = [];
+  const sorted = [...sessions].filter((s) => s.status == null || s.status === 'completed').sort((a, b) => b.date.getTime() - a.date.getTime());
+  for (const s of sorted) {
+    const b = (s.cardio ?? []).find((x) => isZone2(x) && x.avgHr != null);
+    if (!b) continue;
+    out.push({ date: s.date, avgHr: b.avgHr as number, inBand: zone2Check(b).inBand === true });
+    if (out.length === count) break;
+  }
+  return { band: { ...ZONE2_BAND }, sessions: out, inBand: out.filter((x) => x.inBand).length };
+}
+
 // ─── Bounds ─────────────────────────────────────────────────────
 //
 // All generous by design, in the same spirit as `health-mapping`'s

@@ -13,7 +13,7 @@ import type { Exercise } from '@/lib/workout';
  * - the equipment-specific fields appear only where they mean something.
  */
 
-let mockProfile: { unitSystem?: string } | null = null;
+let mockProfile: { unitSystem?: string; dumbbellHalfSteps?: boolean } | null = null;
 
 jest.mock('@/components/BottomSheet', () => {
   const actual = jest.requireActual('@/components/BottomSheet');
@@ -153,7 +153,14 @@ it('reads load steps comma or space separated, ascending, and says a stack has n
   await waitFor(() => expect(onSave).toHaveBeenCalledWith({ availableLoads: [15, 20, 25] }));
 });
 
-it('gives dumbbells their 5 lb default step', async () => {
+// Program v2.1: the step follows Settings → "2.5-lb steps" (on by default).
+it('gives dumbbells 2.5 lb steps by default', async () => {
+  const r = await renderSheet(lift({ name: 'DB Lateral Raise' })).ui;
+  expect(r.getByTestId('lift-steps-hint')).toHaveTextContent(/Dumbbells default to 2.5 lb steps/);
+});
+
+it('gives dumbbells 5 lb steps with the setting off', async () => {
+  mockProfile = { dumbbellHalfSteps: false };
   const r = await renderSheet(lift({ name: 'DB Lateral Raise' })).ui;
   expect(r.getByTestId('lift-steps-hint')).toHaveTextContent(/Dumbbells default to 5 lb steps/);
 });

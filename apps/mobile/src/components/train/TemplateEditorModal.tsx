@@ -52,9 +52,13 @@ import {
   supersetGroups,
   supersetTags,
   supersetWarnings,
+  sameMuscleVerdict,
+  templateRestFor,
   unpair,
   SUPERSET_REST_RANGE_SEC,
   type PairJudgement,
+  type PairSpacing,
+  type GroupWarning,
 } from '@macrolog/core';
 import { announce } from '@/lib/a11y';
 import type { CardioModality, PlannedCardioBlock } from '@macrolog/core/cardio';
@@ -349,6 +353,13 @@ function muscleWord(m: string | undefined, t: TFn): string {
   return m ? t(`train.muscle.${m}` as I18nKey).toLocaleLowerCase() : '';
 }
 
+/** An estimated gap, rounded the way it is said: "80 s" under two minutes,
+ *  else whole minutes ("2 min" for 130 s). The unit words are the same in
+ *  every locale the app ships. */
+function gapWords(sec: number): string {
+  return sec < 120 ? `${Math.round(sec / 5) * 5} s` : `${Math.round(sec / 60)} min`;
+}
+
 /** The pair-type line under a superset (core `classifyPair`). */
 function pairText(j: PairJudgement, t: TFn, names: { untagged: string }): string {
   switch (j.kind) {
@@ -448,20 +459,34 @@ export function TemplateEditorModal({
     };
     const byLast = new Map<number, {
       group: string;
-      judgements: { a: number; b: number; judgement: PairJudgement }[];
+      judgements: { a: number; b: number; judgement: PairJudgement; spacing?: PairSpacing }[];
+      /** A straight lift right before or after the block that shares the
+       *  adjacent member's primary muscle — back-to-back too (Program v2.1). */
+      neighbours: NonNullable<GroupWarning['neighbours']>;
       pending: { index: number; from: number; to: number }[];
       size: number;
     }>();
-    for (const w of supersetWarnings(exercises, muscles)) {
+    // The gap between two same-muscle members is estimated with the rests as
+    // typed here — the session estimator's own reading (`templateRestFor`).
+    const restFor = templateRestFor({
+      restMiniSec: numOrUndef(restMini),
+      restClusterSec: numOrUndef(restCluster),
+      exercises: exercises.map((d) => ({
+        restMiniSec: numOrUndef(d.restMiniSec),
+        restClusterSec: numOrUndef(d.restClusterSec),
+        restAfterSec: numOrUndef(d.restAfterSec),
+      })),
+    });
+    for (const w of supersetWarnings(exercises, muscles, undefined, restFor)) {
       const members = [...new Set(w.pairs.flatMap((p) => [p.a, p.b]))];
       const pending = members.flatMap((m) => {
         const p = pendingOf(m);
         return p ? [{ index: m, ...p }] : [];
       });
-      byLast.set(Math.max(...members), { group: w.group, judgements: w.pairs, pending, size: members.length });
+      byLast.set(Math.max(...members), { group: w.group, judgements: w.pairs, neighbours: w.neighbours ?? [], pending, size: members.length });
     }
     return byLast;
-  }, [exercises, trainCatalog, pendingLoadTestFor, template, unitSystem]);
+  }, [exercises, trainCatalog, pendingLoadTestFor, template, unitSystem, restMini, restCluster]);
   /** Tags from the REAL groups (a lone member is untagged). */
   const tags = useMemo(() => supersetTags(exercises), [exercises]);
   const groups = useMemo(() => supersetGroups(exercises), [exercises]);
@@ -2109,17 +2134,33 @@ export function TemplateEditorModal({
                       be focused on its own. */}
                   {pairWarnings.get(i) ? (
                     <View testID={`template-superset-warnings-${i}`} style={{ paddingHorizontal: space.lg, paddingBottom: space.sm }}>
-                      {pairWarnings.get(i)!.judgements.map(({ a, b, judgement }) => {
-                        const attention = judgement.kind === 'same-muscle' || judgement.kind === 'unknown';
+                      {pairWarnings.get(i)!.judgements.map(({ a, b, judgement, spacing }) => {
+                        // A same-muscle pair is judged on the order it is
+                        // performed in (core `pairSpacing`): back-to-back
+                        // anywhere → the Zhang 2025 warning; never
+                        // back-to-back and ≥ 90 s apart → an info line (Push
+                        // v2 Superset C: C1 and C3 with a lateral cluster
+                        // between); apart but closer → a rest warning.
+                        const verdict = judgement.kind === 'same-muscle' ? sameMuscleVerdict(spacing) : undefined;
+                        const apart = spacing && !spacing.adjacent ? spacing : undefined;
+                        const attention = verdict === 'consecutive' || verdict === 'too-close' || judgement.kind === 'unknown';
                         const muscles = (x?: DraftEx) => train.catalog.find((c) => c.id === x?.exerciseId)?.muscles ?? [];
                         const fixable = (judgement.kind === 'unknown'
                           ? [exercises[a], exercises[b]].filter((x) => muscles(x).length === 0)
-                          : judgement.kind === 'same-muscle' || judgement.kind === 'overlapping'
+                          : verdict === 'consecutive' || judgement.kind === 'overlapping'
                             ? [exercises[a], exercises[b]]
                             : []).filter((x): x is DraftEx => x != null && train.catalog.some((c) => c.id === x.exerciseId));
-                        const text = pairText(judgement, t, {
-                          untagged: judgement.kind === 'unknown' ? (fixable[0]?.name ?? '') : '',
-                        });
+                        const text = verdict === 'separated' && apart
+                          ? t('train.superset.sameMuscleSpaced', {
+                            muscle: muscleWord(judgement.muscle, t),
+                            between: apart.between.map((x) => exercises[x]?.name ?? '').join(', '),
+                            gap: gapWords(apart.gapSec),
+                          })
+                          : verdict === 'too-close' && apart
+                            ? t('train.superset.sameMuscleTooClose', { muscle: muscleWord(judgement.muscle, t), gap: gapWords(apart.gapSec) })
+                            : pairText(judgement, t, {
+                              untagged: judgement.kind === 'unknown' ? (fixable[0]?.name ?? '') : '',
+                            });
                         const line = pairWarnings.get(i)!.size > 2
                           ? t('train.superset.pairPrefix', { a: exercises[a]?.name ?? '', b: exercises[b]?.name ?? '', text })
                           : text;
@@ -2134,7 +2175,7 @@ export function TemplateEditorModal({
                                 const id = e.nativeEvent.actionName.replace(/^fix-/, '');
                                 if (fixable.some((x) => x.exerciseId === id)) setLiftFor(id);
                               }}
-                              testID={`template-pair-${judgement.kind}-${i}`}
+                              testID={`template-pair-${verdict === 'separated' ? 'same-muscle-separated' : verdict === 'too-close' ? 'same-muscle-too-close' : judgement.kind}-${i}`}
                             >
                               <Ionicons
                                 name={attention ? 'alert-circle-outline' : judgement.kind === 'agonist-antagonist' ? 'checkmark-circle-outline' : 'information-circle-outline'}
@@ -2158,6 +2199,49 @@ export function TemplateEditorModal({
                                 ))}
                               </View>
                             ) : null}
+                          </View>
+                        );
+                      })}
+                      {/* Into or out of the block: the member and the straight
+                          lift beside it are performed back-to-back, so it is
+                          the same Zhang 2025 warning as a pair. */}
+                      {pairWarnings.get(i)!.neighbours.map(({ member, neighbour, muscle }) => {
+                        const pair = [exercises[member], exercises[neighbour]]
+                          .filter((x): x is DraftEx => x != null && train.catalog.some((c) => c.id === x.exerciseId));
+                        const line = t('train.superset.pairPrefix', {
+                          a: exercises[member]?.name ?? '',
+                          b: exercises[neighbour]?.name ?? '',
+                          text: t('train.superset.sameMuscle', { muscle: muscleWord(muscle, t) }),
+                        });
+                        return (
+                          <View key={`nb-${member}-${neighbour}`} style={{ gap: 2 }}>
+                            <View
+                              style={styles.supersetWarnRow}
+                              accessible
+                              accessibilityLabel={line}
+                              accessibilityActions={pair.map((x) => ({ name: `fix-${x.exerciseId}`, label: t('train.superset.fixMusclesOf', { name: x.name }) }))}
+                              onAccessibilityAction={(e) => {
+                                const id = e.nativeEvent.actionName.replace(/^fix-/, '');
+                                if (pair.some((x) => x.exerciseId === id)) setLiftFor(id);
+                              }}
+                              testID={`template-neighbour-same-muscle-${i}`}
+                            >
+                              <Ionicons name="alert-circle-outline" size={16} color={colors.warn} />
+                              <Text style={styles.supersetWarn}>{line}</Text>
+                            </View>
+                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: space.md, paddingLeft: 22 }} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+                              {pair.map((x) => (
+                                <TouchableOpacity
+                                  key={x.exerciseId}
+                                  onPress={() => setLiftFor(x.exerciseId)}
+                                  style={{ minHeight: TARGET, justifyContent: 'center' }}
+                                  accessibilityRole="button"
+                                  testID={`template-fix-muscles-${x.exerciseId}`}
+                                >
+                                  <Text style={styles.sectionAction}>{t('train.superset.fixMusclesOf', { name: x.name })}</Text>
+                                </TouchableOpacity>
+                              ))}
+                            </View>
                           </View>
                         );
                       })}

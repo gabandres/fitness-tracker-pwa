@@ -306,7 +306,7 @@ const extrasKey = (x: RecommendationExtras | undefined): string =>
  * reason.
  */
 export function recommendationFor(
-  data: { recentSessions: readonly WorkoutSession[]; catalog: readonly Exercise[] },
+  data: { recentSessions: readonly WorkoutSession[]; catalog: readonly Exercise[]; engineCatalog?: readonly Exercise[] },
   exerciseId: string,
   templateRow: WorkoutTemplate['exercises'][number] | null | undefined,
   sessionEx?: SessionExercise,
@@ -325,7 +325,7 @@ export function recommendationFor(
     if (
       hit &&
       hit.recentSessions === data.recentSessions &&
-      hit.catalog === data.catalog &&
+      hit.catalog === (data.engineCatalog ?? data.catalog) &&
       hit.exerciseId === exerciseId &&
       hit.templateRow === templateRow &&
       hit.extras === key
@@ -334,7 +334,7 @@ export function recommendationFor(
     }
     const rec = computeRecommendation(data, exerciseId, templateRow, sessionEx, extras);
     recCache.set(sessionEx, {
-      recentSessions: data.recentSessions, catalog: data.catalog, exerciseId, templateRow, extras: key, rec,
+      recentSessions: data.recentSessions, catalog: data.engineCatalog ?? data.catalog, exerciseId, templateRow, extras: key, rec,
     });
     return rec;
   }
@@ -354,7 +354,7 @@ const recCache = new WeakMap<
 >();
 
 function computeRecommendation(
-  data: { recentSessions: readonly WorkoutSession[]; catalog: readonly Exercise[] },
+  data: { recentSessions: readonly WorkoutSession[]; catalog: readonly Exercise[]; engineCatalog?: readonly Exercise[] },
   exerciseId: string,
   templateRow: WorkoutTemplate['exercises'][number] | null | undefined,
   sessionEx?: SessionExercise,
@@ -367,7 +367,7 @@ function computeRecommendation(
   // rules: a cluster-count change, one side of an L/R lift); charts keep the
   // full log.
   const history = engineHistory(completed, exerciseId, templateRow, side);
-  const catalogEx = data.catalog.find((e) => e.id === exerciseId) ?? null;
+  const catalogEx = (data.engineCatalog ?? data.catalog).find((e) => e.id === exerciseId) ?? null;
   const opts = templateRow
     ? recommendOptionsFor(templateRow, catalogEx)
     : {
@@ -399,7 +399,7 @@ function computeRecommendation(
 
 /** Each side's call on an L/R lift, for the card (undefined otherwise). */
 export function sideRecommendationsFor(
-  data: { recentSessions: readonly WorkoutSession[]; catalog: readonly Exercise[] },
+  data: { recentSessions: readonly WorkoutSession[]; catalog: readonly Exercise[]; engineCatalog?: readonly Exercise[] },
   exerciseId: string,
   templateRow: WorkoutTemplate['exercises'][number] | null | undefined,
   sessionEx?: SessionExercise,

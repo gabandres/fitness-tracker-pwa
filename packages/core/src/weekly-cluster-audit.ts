@@ -59,6 +59,9 @@ export interface WeeklyClusterAudit {
   straightSets: number;
   /** Total clusters in the window. */
   clusters: number;
+  /** A deload session is in the window (Program v2.1): its halved clusters
+   *  are not a week's volume, so no "add a cluster" call reads them. */
+  deload?: boolean;
 }
 
 export function volumeStatus(clusters: number): VolumeStatus {
@@ -88,9 +91,11 @@ export function weeklyClusterAudit(
   const unattributed = new Set<string>();
   let straightSets = 0;
   let clusters = 0;
+  let deload = false;
 
   for (const s of sessions) {
     if (s.status !== 'completed' || s.date.getTime() < weekAgo) continue;
+    if (s.deload) deload = true;
     for (const ex of s.exercises) {
       const n = clustersInExercise(ex.sets);
       straightSets += ex.sets.filter((x) => x.kind === 'working' && x.reps != null).length;
@@ -108,7 +113,7 @@ export function weeklyClusterAudit(
   const muscles = [...byMuscle.entries()]
     .map(([muscle, count]) => ({ muscle, clusters: count, status: volumeStatus(count) }))
     .sort((a, b) => b.clusters - a.clusters || a.muscle.localeCompare(b.muscle));
-  return { muscles, unattributed: [...unattributed], straightSets, clusters };
+  return { muscles, unattributed: [...unattributed], straightSets, clusters, ...(deload ? { deload } : {}) };
 }
 
 // ─── Volume calls ───────────────────────────────────────────────
@@ -132,7 +137,9 @@ export type VolumeCallReason =
   | 'main-lift-stalled'
   | 'all-progressing'
   /** Under the threshold, but neither trigger holds. */
-  | 'no-trigger';
+  | 'no-trigger'
+  /** A deload session is in the window — not a week to read volume from. */
+  | 'deload';
 
 export interface VolumeCall {
   muscle: MuscleGroup;
@@ -150,7 +157,7 @@ export interface MuscleSignals {
 }
 
 export function volumeCalls(
-  audit: Pick<WeeklyClusterAudit, 'muscles'>,
+  audit: Pick<WeeklyClusterAudit, 'muscles' | 'deload'>,
   phase: TrainingPhase,
   signals: Partial<Record<MuscleGroup, MuscleSignals>> = {},
   addedThisWeek: ReadonlySet<MuscleGroup> = new Set(),
@@ -158,6 +165,7 @@ export function volumeCalls(
   return audit.muscles.map(({ muscle, clusters }) => {
     const call = (add: 0 | 1, reason: VolumeCallReason): VolumeCall => ({ muscle, clusters, add, reason });
     if (phase === 'cut') return call(0, 'cut');
+    if (audit.deload) return call(0, 'deload');
     if (clusters >= CLUSTER_ADD_BELOW) return call(0, 'enough-volume');
     if (clusters + 1 > CLUSTER_WEEK_MAX) return call(0, 'at-ceiling');
     if (addedThisWeek.has(muscle)) return call(0, 'added-this-week');

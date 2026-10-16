@@ -392,6 +392,12 @@ export interface ProfileFields {
   /** The lifter's own gate for the next volume phase, in pounds on the 7-day
    *  average weight — shown in the volume panel. Absent → no gate line. */
   volumeGateLb?: number;
+  /** "Available dumbbell weights" (Program v2.1): 2.5-lb steps (17.5,
+   *  22.5…) unless this is `false`, then 5-lb steps. Absent → 2.5. */
+  dumbbellHalfSteps?: boolean;
+  /** When an accepted deload week started (core `deload.ts`). Absent or
+   *  finished → no deload. */
+  deloadStartedAt?: Date | null;
   fastStartedAt?: Date | null; // when fasting — ISO timestamp of fast start
   fcmToken?: string;           // FCM push token
   reminderHour?: number;       // 0–23, default 20 (8 PM)
@@ -538,4 +544,5 @@ export type ProfileDateField =
   | 'targetsRefinedAt'
   | 'compedUntil'
   | 'referralRewardGrantedAt'
-  | 'lastWeeklyDigestSentAt';
+  | 'lastWeeklyDigestSentAt'
+  | 'deloadStartedAt';

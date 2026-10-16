@@ -26,6 +26,9 @@ import {
   sessionActivationIssues,
   sessionCounts,
   setsMissingRir,
+  targetRirOf,
+  isAboveZone2,
+  DELOAD_RIR,
   weightBoundsFor,
   zone2MissingRpe,
 } from '@macrolog/core';
@@ -145,6 +148,7 @@ export function FinishSheet({
   missingRir = [],
   onFillRir,
   zone2NoRpe = [],
+  aboveZone2 = false,
   onSetRpe,
 }: {
   visible: boolean;
@@ -168,13 +172,16 @@ export function FinishSheet({
    *  "Set to 0" per lift, and asked about once more at Complete, so a blank
    *  is a choice rather than something that slipped through (2026-10-15). */
   missingRir?: MissingRir[];
-  /** Fill those sets with RIR 0. */
+  /** Fill those sets with each lift's target RIR. */
   onFillRir?: (missing: MissingRir[]) => void;
   /** Logged Zone 2 blocks with no RPE (core `zone2MissingRpe`). REQUIRED:
    *  Complete refuses until each has one, picked right here (2026-10-15). */
   zone2NoRpe?: { blockIndex: number; label: string }[];
   /** Store an RPE on one of those blocks. */
   onSetRpe?: (blockIndex: number, rpe: number) => void;
+  /** A Zone 2 block's average HR is over the band (core `isAboveZone2`,
+   *  Program v2.1) — said once at save, never blocking. */
+  aboveZone2?: boolean;
   /** Resolves `false` when the save failed and the sheet should stay open.
    *  `changes` are the template moves the lifter chose to make and `shape` the
    *  structure changes — both empty unless they answered "Update {template}". */
@@ -345,10 +352,15 @@ export function FinishSheet({
     // 0 without anyone having said so.
     if (missingRir.length > 0 && onFillRir) {
       const n = missingRir.reduce((a, m) => a + m.setIndexes.length, 0);
+      // One target for every lift reads "Set to 1"; a mix names each lift's.
+      const targets = new Set(missingRir.map((m) => m.targetRir ?? 0));
+      const one = targets.size === 1 ? [...targets][0] : undefined;
       confirmNative({
         title: plural(t, locale, 'train.rirMissingFinishTitle', n),
-        body: `${missingRir.map((m) => `${m.name} · ${m.setIndexes.length}`).join('\n')}\n\n${t('train.rirMissingFinishBody')}`,
-        confirmText: t('train.rirMissingFinishZero'),
+        body: `${missingRir
+          .map((m) => `${m.name} · ${m.setIndexes.length}${one == null ? ` → ${t('train.rirMissingTargetShort', { n: m.targetRir ?? 0 })}` : ''}`)
+          .join('\n')}\n\n${t('train.rirMissingFinishBody')}`,
+        confirmText: one != null ? t('train.rirMissingFinishSetTo', { n: one }) : t('train.rirMissingFinishTargets'),
         secondaryText: t('train.rirMissingFinishLeave'),
         onConfirm: () => {
           onFillRir(missingRir);
@@ -640,6 +652,13 @@ export function FinishSheet({
           </View>
         ) : null}
 
+        {aboveZone2 ? (
+          <View style={styles.blockedRow} testID="finish-above-zone2">
+            <Ionicons name="information-circle-outline" size={16} color={colors.muted} />
+            <Text style={styles.blockedText}>{t('cardio.aboveZone2')}</Text>
+          </View>
+        ) : null}
+
         {zone2NoRpe.length > 0 && onSetRpe ? (
           <View style={styles.invalidBox} testID="finish-zone2-rpe">
             <Ionicons name="alert-circle-outline" size={18} color={colors.warn} />
@@ -694,10 +713,10 @@ export function FinishSheet({
                       onFillRir([m]);
                     }}
                     accessibilityRole="button"
-                    accessibilityLabel={`${t('train.rirMissingSetZero')}, ${m.name}`}
+                    accessibilityLabel={`${t('train.rirMissingSetTo', { n: m.targetRir ?? 0 })}, ${m.name}`}
                     testID={`finish-rir-zero-${m.exerciseIndex}`}
                   >
-                    <Text style={styles.rirMissingBtnText}>{t('train.rirMissingSetZero')}</Text>
+                    <Text style={styles.rirMissingBtnText}>{t('train.rirMissingSetTo', { n: m.targetRir ?? 0 })}</Text>
                   </Touchable>
                 </View>
               ))}
@@ -905,7 +924,7 @@ export function TrainFinishSheet({
   onShare,
 }: {
   train: Pick<TrainState, 'active' | 'editingExisting' | 'templates' | 'recentSessions' | 'finishWorkout'>
-    & Partial<Pick<TrainState, 'catalog' | 'saveTemplate' | 'trainingPhase' | 'autoApplyProgression' | 'maybeAutoSwitchProgram' | 'discardWorkout' | 'programVersion' | 'dispatch' | 'commitActive'>>;
+    & Partial<Pick<TrainState, 'catalog' | 'engineCatalog' | 'saveTemplate' | 'trainingPhase' | 'autoApplyProgression' | 'maybeAutoSwitchProgram' | 'discardWorkout' | 'programVersion' | 'dispatch' | 'commitActive'>>;
   visible: boolean;
   onClose: () => void;
   /** Share the workout just finished — offered on the "Workout saved" receipt. */
@@ -961,11 +980,15 @@ export function TrainFinishSheet({
     () => (performed ? sessionActivationIssues(performed.exercises, template) : []),
     [performed, template],
   );
-  const catalog = train.catalog;
+  // The engine's view: each lift with the lifter's dumbbell step (v2.1).
+  const catalog = train.engineCatalog ?? train.catalog;
   const phase = train.trainingPhase ?? 'cut';
+  // A deload session moves nothing (Program v2.1, core `deload.ts`): half the
+  // clusters at RIR 3 is not a read, so no call — and with no call, nothing
+  // to propose or auto-apply.
   const calls = useMemo(
     () =>
-      performed && recentSessions
+      performed && recentSessions && !performed.deload
         ? finishCalls({ session: performed, recentSessions, catalog: catalog ?? [], template, phase, now: performed.date.getTime() })
         : [],
     [performed, recentSessions, catalog, template, phase],
@@ -993,7 +1016,8 @@ export function TrainFinishSheet({
   const programVersion = train.programVersion;
   const versionMoved = session?.templateVersion != null && programVersion !== session.templateVersion;
   const structure = useMemo(
-    () => (template && session && !versionMoved ? proposeStructureChanges(template.exercises, session) : []),
+    // Nor its shape: a deload's halved clusters are not "removed" ones.
+    () => (template && session && !versionMoved && !session.deload ? proposeStructureChanges(template.exercises, session) : []),
     [template, session, versionMoved],
   );
   const autoApply = train.autoApplyProgression === true;
@@ -1009,8 +1033,14 @@ export function TrainFinishSheet({
         if (!lastRir.has(e.exerciseId)) lastRir.set(e.exerciseId, e.sets.some((x) => x.rir != null));
       }
     }
-    return setsMissingRir(session.exercises, (id) => lastRir.get(id) === true);
-  }, [session, recentSessions]);
+    // Each lift's own target, from its effort standard (Program v2.1): a
+    // RIR 1 lift is offered 1, not 0.
+    return setsMissingRir(session.exercises, (id) => lastRir.get(id) === true).map((m) => ({
+      ...m,
+      // A deload session stops 3 short on every lift (core `DELOAD_RIR`).
+      targetRir: session.deload ? DELOAD_RIR : targetRirOf(catalog?.find((e) => e.id === m.exerciseId)?.effortStandard),
+    }));
+  }, [session, recentSessions, catalog]);
   const zone2NoRpe = useMemo(
     () => (session ? zone2MissingRpe(session.cardio).map((i) => ({ blockIndex: i, label: session.cardio?.[i]?.label?.trim() || t('cardio.modality.walk') })) : []),
     [session, t],
@@ -1019,12 +1049,18 @@ export function TrainFinishSheet({
     void train.dispatch?.({ type: 'patchCardio', blockIndex, patch: { rpe } }, { defer: true });
     void train.commitActive?.();
   };
-  /** RIR 0 on every listed set. `dispatch` updates the live session
-   *  synchronously, so a Complete straight after this saves the zeros. */
+  /** Each listed set at its lift's target RIR — on the first set of each
+   *  cluster and on straight working sets; a mini-set is 0, the effort
+   *  standard being about the activation (Lift settings says so). `dispatch`
+   *  updates the live session synchronously, so a Complete straight after
+   *  this saves them. */
   const fillRir = (list: MissingRir[]) => {
     for (const m of list) {
+      const sets = session?.exercises[m.exerciseIndex]?.sets ?? [];
       for (const setIndex of m.setIndexes) {
-        void train.dispatch?.({ type: 'patchSet', exerciseIndex: m.exerciseIndex, setIndex, patch: { rir: 0 } }, { defer: true });
+        const kind = sets[setIndex]?.kind ?? 'working';
+        const rir = kind === 'activation' || kind === 'working' ? (m.targetRir ?? 0) : 0;
+        void train.dispatch?.({ type: 'patchSet', exerciseIndex: m.exerciseIndex, setIndex, patch: { rir } }, { defer: true });
       }
     }
     void train.commitActive?.();
@@ -1084,6 +1120,7 @@ export function TrainFinishSheet({
       missingRir={missingRir}
       onFillRir={train.dispatch ? fillRir : undefined}
       zone2NoRpe={zone2NoRpe}
+      aboveZone2={(session?.cardio ?? []).some((b) => isAboveZone2(b))}
       onSetRpe={train.dispatch ? setRpe : undefined}
       onFinish={async (extras, changes, shape) => {
         // `finishWorkout` answers `false` when it could not record the

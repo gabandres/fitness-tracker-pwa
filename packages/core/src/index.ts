@@ -201,6 +201,8 @@ export * from './template-structure';
 // Supersets (2026-10-11): grouping, the alternating flow, guardrails, the
 // context-change baseline, drafts, and the "is it working" report.
 export * from './superset';
+export * from './deload';
+export * from './load-flags';
 export * from './superset-context';
 export * from './superset-report';
 // Program v2 (2026-10-11): versioned program drafts, side tracks and the
@@ -290,6 +292,9 @@ export {
   isZone2,
   zone2Check,
   zone2MissingRpe,
+  // Program v2.1 (2026-10-15): "Above Zone 2" and the Trends in-band count.
+  isAboveZone2,
+  zone2Summary,
 } from './cardio';
 // Health WORKOUTS — the event-stream sibling of ./health-mapping's daily
 // scalars (ADR-0026). Modality + provider normalization, import filtering and

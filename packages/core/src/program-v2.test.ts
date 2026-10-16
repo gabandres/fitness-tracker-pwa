@@ -340,6 +340,21 @@ describe('session duration estimate, v1 vs v2', () => {
     const week = (i: 0 | 1) => [pair('Push Day'), pair('Pull Day'), pair('Leg Day')].reduce((t, p) => t + p[i], 0);
     expect(week(1) - week(0)).toBe(-6);
   });
+
+  // 2026-10-15: Skull Crusher joins Superset C as C3. Same four clusters;
+  // what changes is three rests (owner's spec: switch between members, round
+  // between rounds):
+  //   before  OHE →30→ LAT c1 →60 (own cluster)→ LAT c2 →60 (after)→ SKULL   150 s
+  //   after   OHE →30→ LAT c1 →30 (switch)→ SKULL →30 (round)→ LAT c2         90 s
+  it('Superset C as three members (Skull Crusher C3): one minute less rest, no cluster less', () => {
+    const body = v2('Push Day').body;
+    const i = body.exercises.findIndex((r) => r.name === 'Skull Crusher');
+    const tri = { ...body, exercises: body.exercises.map((r, k) => (k === i ? { ...r, supersetGroup: 'C', pairPosition: 3 as const } : r)) };
+    const a = estimateTemplateDuration(body, musclesOf);
+    const b = estimateTemplateDuration(tri, musclesOf);
+    expect(b.clustersSec).toBe(a.clustersSec);
+    expect(a.restSec - b.restSec).toBe(60);
+  });
 });
 
 // ─── Excluded read ──────────────────────────────────────────────

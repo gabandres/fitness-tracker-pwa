@@ -13,17 +13,19 @@
  */
 import type { MuscleGroup, WorkoutTemplate } from './workout';
 import type { RestSeconds } from './rest-after-set';
-import { plannedRestSec, supersetFlow } from './superset';
+import { CLUSTER_ESTIMATE_SEC, DEFAULT_REST_SECONDS, plannedRestSec, supersetFlow } from './superset';
 import { creditsFor } from './volume-credits';
 
 export const DURATION = {
-  clusterSec: 70,
+  /** One number for a cluster's length — the superset guardrail's gap
+   *  estimate (`pairSpacing`) uses the same. */
+  clusterSec: CLUSTER_ESTIMATE_SEC,
   transitionSec: 30,
   warmupSec: 180,
   zone2Sec: 20 * 60,
   /** The app's defaults when a template states no rest. */
-  miniSec: 10,
-  clusterRestSec: 90,
+  miniSec: DEFAULT_REST_SECONDS.mini,
+  clusterRestSec: DEFAULT_REST_SECONDS.cluster,
 } as const;
 
 export interface DurationEstimate {
@@ -40,20 +42,30 @@ function isCompound(name: string, muscles?: readonly MuscleGroup[]): boolean {
   return creditsFor(name, muscles).length > 1;
 }
 
+type RestRow = Pick<WorkoutTemplate['exercises'][number], 'restMiniSec' | 'restClusterSec' | 'restAfterSec'>;
+
+/** A template row's rests as the estimator counts them — row override, else
+ *  the template's, else the app default. Also what the template editor's
+ *  superset guardrail estimates a gap with, so the two agree. */
+export function templateRestFor(
+  template: { restMiniSec?: number; restClusterSec?: number; exercises: readonly RestRow[] },
+): (exerciseIndex: number) => RestSeconds {
+  return (i) => {
+    const r = template.exercises[i] ?? {};
+    return {
+      mini: r.restMiniSec ?? template.restMiniSec ?? DURATION.miniSec,
+      cluster: r.restClusterSec ?? template.restClusterSec ?? DURATION.clusterRestSec,
+      afterExercise: r.restAfterSec ?? template.restClusterSec ?? DURATION.clusterRestSec,
+    };
+  };
+}
+
 export function estimateTemplateDuration(
   template: Pick<WorkoutTemplate, 'exercises' | 'restMiniSec' | 'restClusterSec' | 'cardioBlocks'>,
   musclesOf: (exerciseId: string) => readonly MuscleGroup[] | undefined = () => undefined,
 ): DurationEstimate {
   const rows = template.exercises.map((e) => ({ ...e, sets: e.plannedSets }));
-  const restFor = (i: number): RestSeconds => {
-    const r = template.exercises[i];
-    const cluster = r.restClusterSec ?? template.restClusterSec ?? DURATION.clusterRestSec;
-    return {
-      mini: r.restMiniSec ?? template.restMiniSec ?? DURATION.miniSec,
-      cluster,
-      afterExercise: r.restAfterSec ?? template.restClusterSec ?? DURATION.clusterRestSec,
-    };
-  };
+  const restFor = templateRestFor(template);
   const units = supersetFlow(rows).length;
   const clustersSec = units * DURATION.clusterSec;
   const restSec = plannedRestSec(rows, restFor);

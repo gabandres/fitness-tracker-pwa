@@ -46,8 +46,11 @@ const LEG_ROWS = [
 describe('proposeTemplateChanges', () => {
   it('increases move the load; a hold at the template load proposes nothing; an invalid read never moves it', () => {
     const changes = proposeTemplateChanges(LEG_ROWS, LEG, reasonFor);
+    // Smith 25 × 13 @ RIR 1 is judged at its target RIR (v2.1): 30 predicts 5,
+    // under 6, so it holds at the 25 it was lifted at — the template's drifted
+    // 15 is brought up to it, not past it.
     expect(changes.map((c) => [c.exerciseId, c.from, c.to, c.call])).toEqual([
-      ['Smith squat', 15, 30, 'increase'],
+      ['Smith squat', 15, 25, 'hold'],
       ['Leg Extensions', 80, 90, 'increase'],
     ]);
     // The crunch's invalid read (repeat 25) must not drag the template's 30 back.
@@ -90,8 +93,8 @@ describe('finishProgression — the auto-apply setting', () => {
 
   it('Auto-apply ON → every proposed change is applied and logged as the engine\'s', () => {
     const { applied } = finishProgression({ rows: LEG_ROWS, recs: LEG, autoApply: true, at: AT, reasonFor });
-    expect(applied?.map((r) => r.targetLoad)).toEqual([30, 90, 25, 30]);
-    expect(applied?.[0].loadLog?.[0]).toMatchObject({ from: 15, to: 30, by: 'engine' });
+    expect(applied?.map((r) => r.targetLoad)).toEqual([25, 90, 25, 30]);
+    expect(applied?.[0].loadLog?.[0]).toMatchObject({ from: 15, to: 25, by: 'engine' });
   });
 });
 

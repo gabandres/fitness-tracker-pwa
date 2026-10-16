@@ -38,6 +38,7 @@ import { NumbersGlossary } from '@/components/NumbersGlossary';
 import { SleepTrendsCard } from '@/components/SleepTrendsCard';
 import { FastingTrendsCard } from '@/components/FastingTrendsCard';
 import { WaterTrendsCard } from '@/components/WaterTrendsCard';
+import { Zone2TrendsCard } from '@/components/Zone2TrendsCard';
 import { WeeklyReportCard } from '@/components/WeeklyReportCard';
 import { ContextMenu, CONTEXT_MENUS } from '@/components/ContextMenu';
 import { Glyph } from '@/components/charts/Glyph';
@@ -171,7 +172,7 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
     loading, error, insights, loggedThisWeek, proteinTarget, tdee, targetCalories, budget, basalKcal,
     activityLevel, sleep, fasting, water, composition, chartKeys, weightSeries, intakeSeries,
     proteinSeries, carbsSeries, fatSeries, todayKey, historyClip, insightWindow, streak, settledKey,
-    expenditure, historyDays, milestones, progress,
+    expenditure, historyDays, milestones, progress, zone2,
   } = useTrends(requestedDays, { maxDays: cap, refreshKey });
   // A new account opened on "1M" and saw 27 blank days of a 30-day axis (sim
   // review 2026-10-06). Under a month of history every fixed range is mostly
@@ -764,6 +765,11 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
               </Animated.View>
             </>
           )}
+
+          {/* Zone 2 (Program v2.1): in band, n of the last 6. Self-gates. */}
+          <Animated.View entering={enterUp(6)}>
+            <Zone2TrendsCard summary={zone2} />
+          </Animated.View>
 
           {/* 6. Coach — the Pro AI action. */}
           <Animated.View entering={enterUp(6)}>

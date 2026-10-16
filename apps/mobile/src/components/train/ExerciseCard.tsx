@@ -71,6 +71,9 @@ export interface ExerciseCardProps {
    *  this lift is prescribed. Absent → "no data". */
   sleepHours?: number;
   restMiniSec?: number;
+  /** A deload session (Program v2.1): no engine call, no bump — the
+   *  template's loads at RIR 3 — and a line that says so. */
+  deload?: boolean;
   platesOpen: boolean;
   largeText: boolean;
   dispatch: TrainState['dispatch'];
@@ -112,6 +115,7 @@ export const ExerciseCard = memo(function ExerciseCard({
   volumeAllowsCluster,
   sleepHours,
   restMiniSec,
+  deload = false,
   platesOpen,
   largeText,
   dispatch,
@@ -337,7 +341,12 @@ export const ExerciseCard = memo(function ExerciseCard({
 
       {collapsed ? null : (
         <Animated.View entering={FadeIn.duration(160)} exiting={FadeOut.duration(120)}>
-          {sideRecs ? (
+          {deload ? (
+            <View style={styles.blockedRow} testID={`deload-note-${exerciseIndex}`}>
+              <Ionicons name="information-circle-outline" size={16} color={colors.muted} />
+              <Text style={styles.blockedText}>{t('train.deload.sessionNote')}</Text>
+            </View>
+          ) : sideRecs ? (
             <View style={{ gap: space.xs }} testID={`side-recommendations-${exerciseIndex}`}>
               {(['L', 'R'] as const).map((side) => (sideRecs[side] && sideRecs[side]!.action !== 'none' ? (
                 <View key={side}>

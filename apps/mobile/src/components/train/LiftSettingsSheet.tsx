@@ -12,6 +12,7 @@ import {
   loadUnit,
   parseLoadToLb,
   resolveEngineConfig,
+  dumbbellStepLb,
   structureOf,
   toDisplayLoad,
 } from '@macrolog/core';
@@ -26,6 +27,7 @@ import { MuscleChips, MuscleCreditLine } from '@/components/train/MuscleChips';
 import type { MuscleGroup } from '@macrolog/core/workout';
 import { type I18nKey, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
+import { useAuth } from '@/lib/auth';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { useUnitSystem } from '@/lib/use-unit-system';
 import type {
@@ -196,6 +198,7 @@ export function useLiftSettingsDraft({ active, exercise, templateRow, onClose, o
   const barLb = bar.trim() ? parseLoadToLb(bar, unitSystem) : null;
   const barOk = !bar.trim() || (barLb != null && barLb <= SMITH_BAR_MAX_LB);
 
+  const dbStep = dumbbellStepLb(useAuth().profile?.dumbbellHalfSteps);
   const config = resolveEngineConfig(
     {
       name,
@@ -208,6 +211,8 @@ export function useLiftSettingsDraft({ active, exercise, templateRow, onClose, o
       effortStandard: standard,
       loadable,
       microplates,
+      // The lifter's dumbbell step (Settings → "2.5-lb steps", Program v2.1).
+      dumbbellStepLb: dbStep,
     },
     templateRow,
   );

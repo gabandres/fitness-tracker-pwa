@@ -76,7 +76,10 @@ describe('recommendation text — the rep-range rules on real engine output', ()
   });
 
   it('a rir1 lift: the expectation is to failure, and the target is where to stop', () => {
-    const out = text(rec([ex(cluster(1, 100, 11, 1))], { ...PRESS, effortStandard: 'rir1' }));
+    // Program v2.1: judged AT its target — 11 @ RIR 1 is 11, under the top of
+    // the range, so it holds; 12 @ RIR 1 earns the step.
+    expect(text(rec([ex(cluster(1, 100, 11, 1))], { ...PRESS, effortStandard: 'rir1' })).headline).toBe('100 lb · HOLD');
+    const out = text(rec([ex(cluster(1, 100, 12, 1))], { ...PRESS, effortStandard: 'rir1' }));
     expect(out.headline).toBe('105 lb · INCREASE');
     expect(out.expect).toBe('Expected: about 10 to failure (9 at RIR 1) — an estimate, not a guarantee.');
     expect(out.target).toBe('Target: ≥ 9 reps @ RIR 1');
@@ -102,7 +105,8 @@ describe('recommendation text — the rep-range rules on real engine output', ()
   it('a blank RIR is read as 0 and says so, and the lift still moves (2026-10-13 DB RDL)', () => {
     const blank: Row[] = [[1, 'activation', 13, undefined, 35], [1, 'mini', 4, 0, 35], [1, 'mini', 4, 0, 35]];
     const out = text(rec([ex(blank)], { name: 'DB Romanian deadlift' }));
-    expect(out.headline).toBe('40 lb · INCREASE');
+    // 2.5-lb dumbbell steps are the default (Program v2.1): the smallest jump.
+    expect(out.headline).toBe('37.5 lb · INCREASE');
     expect(out.warnings).toEqual(['RIR missing, assumed 0.']);
   });
 

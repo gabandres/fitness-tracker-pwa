@@ -64,6 +64,7 @@ import {
   templateSummary,
 } from './train-summary';
 import { createStyles } from './train-styles';
+import { ProgramSignals } from './ProgramSignals';
 
 /** History rows shown inline before "Show all" (Train review item 32): the
  *  list rendered every one of the 50 loaded sessions, every visit. */
@@ -338,7 +339,10 @@ export function StartView({
       {nextUp ? (
         <NextUpCard
           next={nextUp}
-          tag={templateTag(nextUp.template, train.drafts, t, locale)?.text}
+          // A deload week names itself on the card that starts it.
+          tag={nextUp.template.id && train.deload?.active && train.deload.remaining.includes(nextUp.template.id)
+            ? t('train.deload.tag')
+            : templateTag(nextUp.template, train.drafts, t, locale)?.text}
           onStart={() => train.startFromTemplate(nextUp.template)}
           onEdit={() => setEditing(nextUp.template)}
         />
@@ -368,6 +372,9 @@ export function StartView({
           </Touchable>
         </View>
       )}
+
+      {/* Program v2.1: a deload on its trigger, and loads left behind. */}
+      <ProgramSignals train={train} plannedTemplates={plannedTemplates} now={now} />
 
       {/* Demoted, not removed. An empty session and a bare run are both real
           things to want; neither is what you came to the tab to do. "Log a
@@ -864,7 +871,7 @@ const TemplateCard = memo(function TemplateCard({
         </Touchable>
       ) : null}
       {open ? (
-        <TemplateNextSession recentSessions={train.recentSessions} catalog={train.catalog} train={train} template={tpl} />
+        <TemplateNextSession recentSessions={train.recentSessions} catalog={train.engineCatalog ?? train.catalog} train={train} template={tpl} />
       ) : null}
       {CONTEXT_MENUS ? null : (
         <ExerciseMenuSheet

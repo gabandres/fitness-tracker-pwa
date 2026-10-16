@@ -196,6 +196,37 @@ describe('the session snapshot', () => {
 });
 
 describe('the alternating flow', () => {
+  it('Push v2 Superset C (1/2/1) runs OHE → LAT c1 → SKULL → LAT c2, naming each next cluster', async () => {
+    const plan = (n: number) => myo(n).map(({ kind, group }) => ({ kind, group }));
+    const cTemplate = {
+      ...pushTemplate, id: 'push-c',
+      exercises: [
+        { exerciseId: 'ohe', name: 'Overhead DB Extension', logStyle: 'weight-reps', targetLoad: 30, supersetGroup: 'C', pairPosition: 1, transitionRestSec: 30, roundRestSec: 30, plannedSets: plan(1) },
+        { exerciseId: 'lat', name: 'DB Lateral Raise', logStyle: 'weight-reps', targetLoad: 15, supersetGroup: 'C', pairPosition: 2, restClusterSec: 60, plannedSets: [...plan(2), { kind: 'drop', group: 2 }] },
+        { exerciseId: 'skull', name: 'Skull Crusher', logStyle: 'weight-reps', targetLoad: 15, supersetGroup: 'C', pairPosition: 3, plannedSets: plan(1) },
+      ],
+    } as unknown as WorkoutTemplate;
+    mockTrain.templates = [cTemplate];
+    mockTrain.active = live({
+      id: 'live-c', templateId: 'push-c', templateName: 'Push Day',
+      exercises: templateToSessionExercises(cTemplate).map((e) => ({ ...e, sets: e.sets.map((x) => ({ ...x, targetReps: 10 })) })),
+    });
+    mockRestRemaining = 30;
+    const ui = await render(<TrainScreen />);
+    const tick = async (e: number, i: number) => {
+      if (!ui.queryByTestId(`set-done-${e}-${i}`)) await fireEvent.press(ui.getByTestId(`exercise-head-${e}`));
+      await fireEvent.press(ui.getByTestId(`set-done-${e}-${i}`));
+    };
+    await tick(0, 2);
+    expect(mockRestStart).toHaveBeenLastCalledWith(30, 'Next: C2 · DB Lateral Raise (cluster 1)');
+    await tick(1, 2);
+    expect(mockRestStart).toHaveBeenLastCalledWith(30, 'Next: C3 · Skull Crusher (cluster 1)');
+    await tick(2, 2);
+    // Round 2 is the lateral raise alone: the round rest, as configured.
+    expect(mockRestStart).toHaveBeenLastCalledWith(30, 'Next: C2 · DB Lateral Raise (cluster 2)');
+    expect(ui.getByTestId('rest-label')).toHaveTextContent('Round 2/2', { exact: false });
+  });
+
   it('labels the stations A1 / A2 under one group header, and names the partner to a screen reader', async () => {
     mockTrain.active = live();
     const ui = await render(<TrainScreen />);
@@ -225,16 +256,16 @@ describe('the alternating flow', () => {
       expect(mockRestStart).toHaveBeenLastCalledWith(10, undefined);
       // The cluster's last mini hands over to A2.
       await fireEvent.press(ui.getByTestId('set-done-0-2'));
-      expect(mockRestStart).toHaveBeenLastCalledWith(35, 'Next: A2 · Leg Curls');
+      expect(mockRestStart).toHaveBeenLastCalledWith(35, 'Next: A2 · Leg Curls (cluster 1)');
       expect(ui.getByTestId('rest-label')).toHaveTextContent('Switch · 0:35');
       // jest reports fontScale 2, so this is the COMPACT bar (S23-3 / F7): the
       // Next line is not drawn, and the countdown says it. Drawn at default
       // text size — the test after this one.
       expect(ui.queryByTestId('rest-next')).toBeNull();
-      expect(ui.getByTestId('rest-label').props.accessibilityLabel).toBe('Switch, 35 seconds, Next: A2 · Leg Curls');
+      expect(ui.getByTestId('rest-label').props.accessibilityLabel).toBe('Switch, 35 seconds, Next: A2 · Leg Curls (cluster 1)');
       // A duration, spoken as one — not "0:35", which VoiceOver reads as a time of day.
       // Led by what the tick logged, in the same announcement (L6).
-      expect(mockAnnounce.mock.calls.at(-1)?.[0]).toMatch(/^Set 1c logged, 90 lb, 10 reps\. Switch, 35 seconds of rest\. Next: A2 · Leg Curls$/);
+      expect(mockAnnounce.mock.calls.at(-1)?.[0]).toMatch(/^Set 1c logged, 90 lb, 10 reps\. Switch, 35 seconds of rest\. Next: A2 · Leg Curls \(cluster 1\)$/);
       expect(ui.getByTestId('up-next-1')).toBeTruthy();
       await act(async () => {
         jest.advanceTimersByTime(450);
@@ -254,7 +285,7 @@ describe('the alternating flow', () => {
       const ui = await render(<TrainScreen />);
       await fireEvent.press(ui.getByTestId('set-done-0-0'));
       await fireEvent.press(ui.getByTestId('set-done-0-2'));
-      expect(ui.getByTestId('rest-next')).toHaveTextContent('Next: A2 · Leg Curls');
+      expect(ui.getByTestId('rest-next')).toHaveTextContent('Next: A2 · Leg Curls (cluster 1)');
       expect(ui.getByTestId('rest-label').props.accessibilityLabel).toBe('Switch, 35 seconds');
     } finally {
       spy.mockRestore();
@@ -269,7 +300,7 @@ describe('the alternating flow', () => {
       const ui = await render(<TrainScreen />);
       await fireEvent.press(ui.getByTestId('exercise-head-1'));
       await fireEvent.press(ui.getByTestId('set-done-1-2'));
-      expect(mockRestStart).toHaveBeenLastCalledWith(40, 'Next: A1 · Leg Extensions');
+      expect(mockRestStart).toHaveBeenLastCalledWith(40, 'Next: A1 · Leg Extensions (cluster 2)');
       expect(ui.getByTestId('rest-label')).toHaveTextContent('Round 2/2 · 0:40');
       await act(async () => {
         jest.advanceTimersByTime(450);
@@ -295,7 +326,7 @@ describe('the alternating flow', () => {
       jest.setSystemTime(t0 + 10_000);
       await fireEvent.press(ui.getByTestId('exercise-head-1'));
       await fireEvent.press(ui.getByTestId('set-done-1-2'));
-      expect(mockRestStart).toHaveBeenLastCalledWith(80, 'Next: A1 · Leg Extensions');
+      expect(mockRestStart).toHaveBeenLastCalledWith(80, 'Next: A1 · Leg Extensions (cluster 2)');
     } finally {
       jest.useRealTimers();
     }
@@ -309,10 +340,10 @@ describe('the alternating flow', () => {
     await fireEvent.press(ui.getByTestId('exercise-head-1'));
     await fireEvent.press(ui.getByTestId('set-done-1-2'));
     // 35 s switch + 70 s cluster = 105 s ≥ 90: the 40 s round rest as set.
-    expect(mockRestStart).toHaveBeenLastCalledWith(40, 'Next: A1 · Leg Extensions');
+    expect(mockRestStart).toHaveBeenLastCalledWith(40, 'Next: A1 · Leg Extensions (cluster 2)');
   });
 
-  it('a leftover cluster runs alone on the exercise\'s normal rest (2 clusters ↔ 1)', async () => {
+  it('a one-member round is still a round (2 clusters ↔ 1): the 40 s round rest, and Next names the cluster', async () => {
     const session = live();
     session.exercises[1] = { ...session.exercises[1], sets: session.exercises[1].sets.slice(0, 3) };
     mockTrain.active = session;
@@ -320,30 +351,28 @@ describe('the alternating flow', () => {
     const ui = await render(<TrainScreen />);
     await fireEvent.press(ui.getByTestId('exercise-head-1'));
     await fireEvent.press(ui.getByTestId('set-done-1-2'));
-    // Not the 40 s round rest: the template's 90 s between clusters.
-    // …and the two-line Next row says the partner is finished (the one-line
-    // heading beside the timer would cut it off).
-    expect(mockRestStart).toHaveBeenLastCalledWith(90, 'Next: A1 · Leg Extensions — its partner is done');
+    // Owner's spec 2026-10-15: round rest between rounds, as configured — no
+    // longer A1's 90 s between-cluster rest as if it ran straight.
+    expect(mockRestStart).toHaveBeenLastCalledWith(40, 'Next: A1 · Leg Extensions (cluster 2)');
     expect(ui.getByTestId('rest-label')).toHaveTextContent('Round 2/2', { exact: false });
     // Compact at jest's fontScale 2 (S23-3 / F7): said by the countdown, not drawn.
     expect(ui.queryByTestId('rest-next')).toBeNull();
-    expect(ui.getByTestId('rest-label').props.accessibilityLabel).toContain('Next: A1 · Leg Extensions — its partner is done');
-    // Said once — on the Next part, not again in the heading.
+    expect(ui.getByTestId('rest-label').props.accessibilityLabel).toContain('Next: A1 · Leg Extensions (cluster 2)');
     expect(mockAnnounce).toHaveBeenLastCalledWith(expect.stringContaining('Round 2 of 2'));
-    expect(mockAnnounce.mock.calls.at(-1)?.[0]).toContain('its partner is done');
-    expect(mockAnnounce.mock.calls.at(-1)?.[0]).not.toContain('A1 only');
+    expect(mockAnnounce.mock.calls.at(-1)?.[0]).not.toContain('its partner is done');
   });
 
   it('a tap on a running leftover-round rest opens the picker ON that rest: its value selected, "running now", and a pick sets the next one (L16 follow-up)', async () => {
     // Its own session id: the per-session rest overrides outlive a remount.
+    // A2 already done (its station was free first): A1's next cluster is a
+    // leftover of A1 itself, on A1's own between-cluster rest.
     const session = live({ id: 'live-l16' });
-    session.exercises[1] = { ...session.exercises[1], sets: session.exercises[1].sets.slice(0, 3) };
+    session.exercises[1] = { ...session.exercises[1], sets: session.exercises[1].sets.map((x) => ({ ...x, reps: 10, done: true })) };
     mockTrain.active = session;
     mockRestRemaining = 90;
     const ui = await render(<TrainScreen />);
-    await fireEvent.press(ui.getByTestId('exercise-head-1'));
-    await fireEvent.press(ui.getByTestId('set-done-1-2'));
-    expect(mockRestStart).toHaveBeenLastCalledWith(90, 'Next: A1 · Leg Extensions — its partner is done');
+    await fireEvent.press(ui.getByTestId('set-done-0-2'));
+    expect(mockRestStart).toHaveBeenLastCalledWith(90, 'Next: A1 · Leg Extensions (cluster 2) — its partner is done');
     await fireEvent.press(ui.getByTestId('rest-label'));
     // The rest that runs is A1's own between-cluster rest — not the 35 s
     // switch or the 40 s round rest the picker used to show alone.
@@ -357,9 +386,9 @@ describe('the alternating flow', () => {
     expect(ui.getByTestId('rest-pick-own-120').props.accessibilityState).toEqual({ selected: true, checked: true });
     await fireEvent.press(ui.getByTestId('rest-picker-done'));
     // Untick + tick again: the same leftover rest now runs on the pick.
-    await fireEvent.press(ui.getByTestId('set-done-1-2'));
-    await fireEvent.press(ui.getByTestId('set-done-1-2'));
-    expect(mockRestStart).toHaveBeenLastCalledWith(120, 'Next: A1 · Leg Extensions — its partner is done');
+    await fireEvent.press(ui.getByTestId('set-done-0-2'));
+    await fireEvent.press(ui.getByTestId('set-done-0-2'));
+    expect(mockRestStart).toHaveBeenLastCalledWith(120, 'Next: A1 · Leg Extensions (cluster 2) — its partner is done');
     // The mini-set rest inside a cluster stays the template's 10 s.
     expect(mockTrain.saveTemplate).not.toHaveBeenCalled();
   });
@@ -369,13 +398,13 @@ describe('the alternating flow', () => {
       ...legTemplate,
       exercises: [{ ...legTemplate.exercises[0], setStructure: 'straight' }, ...legTemplate.exercises.slice(1)],
     } as WorkoutTemplate];
+    // A2 already done, so A1's next unit runs on A1's OWN rest row.
     const session = live({ id: 'live-straight-copy' });
-    session.exercises[1] = { ...session.exercises[1], sets: session.exercises[1].sets.slice(0, 3) };
+    session.exercises[1] = { ...session.exercises[1], sets: session.exercises[1].sets.map((x) => ({ ...x, reps: 10, done: true })) };
     mockTrain.active = session;
     mockRestRemaining = 90;
     const ui = await render(<TrainScreen />);
-    await fireEvent.press(ui.getByTestId('exercise-head-1'));
-    await fireEvent.press(ui.getByTestId('set-done-1-2'));
+    await fireEvent.press(ui.getByTestId('set-done-0-2'));
     await fireEvent.press(ui.getByTestId('rest-label'));
     expect(ui.getByText('Before Leg Extensions’s next set')).toBeTruthy();
     expect(ui.queryByText('Before Leg Extensions’s next cluster')).toBeNull();
@@ -386,7 +415,7 @@ describe('the alternating flow', () => {
     mockRestRemaining = 30;
     const ui = await render(<TrainScreen />);
     await fireEvent.press(ui.getByTestId('set-done-0-2'));
-    expect(mockRestStart).toHaveBeenLastCalledWith(35, 'Next: A2 · Leg Curls');
+    expect(mockRestStart).toHaveBeenLastCalledWith(35, 'Next: A2 · Leg Curls (cluster 1)');
     await fireEvent.press(ui.getByTestId('rest-label'));
     expect(ui.getByTestId('rest-pick-transition-running')).toBeTruthy();
     expect(ui.getByTestId('rest-pick-transition-default')).toHaveTextContent('Default · 0:35');
@@ -404,7 +433,7 @@ describe('the alternating flow', () => {
       // cluster is still a round of the superset, and the bar says so — the
       // partner is done (Train UX pass L1: it was a bare 1:30 with no heading).
       await fireEvent.press(ui.getByTestId('set-done-0-2'));
-      expect(mockRestStart).toHaveBeenLastCalledWith(90, 'Next: A1 · Leg Extensions — its partner is done');
+      expect(mockRestStart).toHaveBeenLastCalledWith(90, 'Next: A1 · Leg Extensions (cluster 2) — its partner is done');
       expect(mockAnnounce.mock.calls.at(-1)?.[0]).toContain('Round 2 of 2');
       await act(async () => {
         jest.advanceTimersByTime(450);
@@ -448,7 +477,7 @@ describe('the alternating flow', () => {
     expect(mockRestStart).toHaveBeenLastCalledWith(10, undefined);
     // …and the switch to A2 is the picked 45 s.
     await fireEvent.press(ui.getByTestId('set-done-0-2'));
-    expect(mockRestStart).toHaveBeenLastCalledWith(45, 'Next: A2 · Leg Curls');
+    expect(mockRestStart).toHaveBeenLastCalledWith(45, 'Next: A2 · Leg Curls (cluster 1)');
   });
 });
 
@@ -592,6 +621,71 @@ describe('the template editor', () => {
       .toEqual(['Fix DB Flat Press', 'Fix Incline DB Press']);
     await fireEvent.press(ui.getByTestId('save-template'));
     await waitFor(() => expect(mockTrain.saveTemplate).toHaveBeenCalledTimes(1));
+  });
+
+  describe('a tri-set whose C1 and C3 share a muscle (Push v2 Superset C, 2026-10-15)', () => {
+    const planned = (n: number) => myo(n).map(({ kind, group }) => ({ kind, group }));
+    const catalog = mockTrain.catalog;
+    beforeEach(() => {
+      mockTrain.catalog = [
+        ...catalog,
+        { id: 'ohe', name: 'Overhead DB Extension', muscles: ['triceps'], defaultCues: [], logStyle: 'weight-reps', createdAt: day(1) },
+        { id: 'lat', name: 'DB Lateral Raise', muscles: ['shoulders'], defaultCues: [], logStyle: 'weight-reps', createdAt: day(1) },
+        { id: 'skull', name: 'Skull Crusher', muscles: ['triceps'], defaultCues: [], logStyle: 'weight-reps', createdAt: day(1) },
+      ];
+    });
+    afterEach(() => {
+      mockTrain.catalog = catalog;
+    });
+    const ohe = { exerciseId: 'ohe', name: 'Overhead DB Extension', logStyle: 'weight-reps', targetLoad: 30, supersetGroup: 'C', pairPosition: 1, transitionRestSec: 30, roundRestSec: 30, plannedSets: planned(1) };
+    const oheQuick = { ...ohe, transitionRestSec: 5 };
+    const lat = (pos: 2 | 3) => ({ exerciseId: 'lat', name: 'DB Lateral Raise', logStyle: 'weight-reps', targetLoad: 15, supersetGroup: 'C', pairPosition: pos, plannedSets: [...planned(2), { kind: 'drop', group: 2 }] });
+    const skull = (pos: 2 | 3) => ({ exerciseId: 'skull', name: 'Skull Crusher', logStyle: 'weight-reps', targetLoad: 15, supersetGroup: 'C', pairPosition: pos, plannedSets: planned(1) });
+    const tri = (exercises: object[]) => ({ ...pushTemplate, exercises } as unknown as WorkoutTemplate);
+
+    it('with a lateral cluster between them (~130 s): a grey info line that says OK — no warning, no "Fix muscles"', async () => {
+      mockTrain.templates = [tri([ohe, lat(2), skull(3)])];
+      const ui = await render(<TrainScreen />);
+      await fireEvent.press(ui.getByTestId('edit-template-push'));
+      expect(ui.getByTestId('template-pair-same-muscle-separated-2'))
+        .toHaveTextContent('Overhead DB Extension + Skull Crusher: Same muscle (triceps), separated by DB Lateral Raise (~2 min) — OK', { exact: false });
+      expect(ui.queryByTestId('template-pair-same-muscle-2')).toBeNull();
+      expect(ui.queryByTestId('template-fix-muscles-skull', { includeHiddenElements: true })).toBeNull();
+      expect(ui.getByTestId('template-pair-same-muscle-separated-2').props.accessibilityActions).toEqual([]);
+    });
+
+    it('apart but under 90 s (5 s switches, ~80 s): an amber rest warning, no "Fix muscles"', async () => {
+      mockTrain.templates = [tri([oheQuick, lat(2), skull(3)])];
+      const ui = await render(<TrainScreen />);
+      await fireEvent.press(ui.getByTestId('edit-template-push'));
+      expect(ui.getByTestId('template-pair-same-muscle-too-close-2'))
+        .toHaveTextContent('Overhead DB Extension + Skull Crusher: Too little rest for triceps (~80 s); add switch rest or reorder', { exact: false });
+      expect(ui.queryByTestId('template-fix-muscles-skull', { includeHiddenElements: true })).toBeNull();
+    });
+
+    // Program v2.1: "consecutive … into the next block" — a straight lift
+    // right before C1 is performed back-to-back with it.
+    it('a straight triceps lift right before C1: amber Zhang warning naming both, with "Fix muscles"', async () => {
+      mockTrain.catalog = [...mockTrain.catalog, { id: 'pushdown', name: 'Triceps Pushdown', muscles: ['triceps'], defaultCues: [], logStyle: 'weight-reps', createdAt: day(1) }];
+      const pushdown = { exerciseId: 'pushdown', name: 'Triceps Pushdown', logStyle: 'weight-reps', targetLoad: 40, plannedSets: [{ kind: 'working' }, { kind: 'working' }] };
+      mockTrain.templates = [tri([pushdown, ohe, lat(2), skull(3)])];
+      const ui = await render(<TrainScreen />);
+      await fireEvent.press(ui.getByTestId('edit-template-push'));
+      expect(ui.getByTestId('template-neighbour-same-muscle-3'))
+        .toHaveTextContent('Overhead DB Extension + Triceps Pushdown: Same primary muscle: triceps', { exact: false });
+      expect(ui.getByTestId('template-fix-muscles-pushdown', { includeHiddenElements: true })).toBeTruthy();
+      // C1 and C3 are still apart inside the block.
+      expect(ui.getByTestId('template-pair-same-muscle-separated-3')).toBeTruthy();
+    });
+
+    it('back-to-back (C1 → C2) they are still warned about', async () => {
+      mockTrain.templates = [tri([ohe, skull(2), lat(3)])];
+      const ui = await render(<TrainScreen />);
+      await fireEvent.press(ui.getByTestId('edit-template-push'));
+      expect(ui.getByTestId('template-pair-same-muscle-2')).toHaveTextContent('Same primary muscle: triceps', { exact: false });
+      expect(ui.getByTestId('template-fix-muscles-skull', { includeHiddenElements: true })).toBeTruthy();
+      expect(ui.queryByTestId('template-pair-same-muscle-separated-2')).toBeNull();
+    });
   });
 
   it('says a pending load test with the numbers, and where the per-workout way out is', async () => {

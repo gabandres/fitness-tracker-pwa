@@ -1598,9 +1598,15 @@ export async function setTrainingSettings(
     autoApplyProgression?: boolean;
     /** Body weight in lb; `null` deletes it. */
     volumeGateLb?: number | null;
+    /** "2.5-lb steps" for dumbbells (Program v2.1). */
+    dumbbellHalfSteps?: boolean;
+    /** Accept a deload week (a `Date`), or end one (`null`). */
+    deloadStartedAt?: Date | null;
   },
 ): Promise<void> {
   const body: Record<string, unknown> = {};
+  if (patch.dumbbellHalfSteps !== undefined) body['dumbbellHalfSteps'] = patch.dumbbellHalfSteps;
+  if (patch.deloadStartedAt !== undefined) body['deloadStartedAt'] = patch.deloadStartedAt === null ? deleteField() : Timestamp.fromDate(patch.deloadStartedAt);
   if (patch.trainingPhase !== undefined) body['trainingPhase'] = patch.trainingPhase;
   if (patch.autoApplyProgression !== undefined) body['autoApplyProgression'] = patch.autoApplyProgression;
   if (patch.volumeGateLb !== undefined) body['volumeGateLb'] = patch.volumeGateLb === null ? deleteField() : patch.volumeGateLb;

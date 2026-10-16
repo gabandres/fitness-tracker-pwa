@@ -543,10 +543,19 @@ export function ActiveSession({
     // one line beside the timer and would cut it off.
     const alone = flow.kind === 'cluster' && flow.round != null && nextTag != null;
     const nextEx = flow.next ? exercises[flow.next.exerciseIndex] : undefined;
+    // Which of its clusters comes next, inside a superset — "C2 · DB Lateral
+    // Raise (cluster 2)": a lift that appears twice in the order (Push v2
+    // Superset C) is otherwise the same words both times.
+    // Only for a CLUSTERED lift: a straight-set member's units are its sets,
+    // and "(cluster 2)" would name set 2 wrongly.
+    const clusteredNext = nextEx?.sets.some((s) => s.kind === 'activation') === true;
+    const named = (name: string) => nextTag != null && flow.next?.unit != null && clusteredNext
+      ? t('train.superset.nextCluster', { name, n: flow.next.unit + 1 })
+      : name;
     const nextLabel = alone && nextEx
-      ? t('train.superset.nextAlone', { next: `${nextTag} · ${nextEx.name}` })
+      ? t('train.superset.nextAlone', { next: `${nextTag} · ${named(nextEx.name)}` })
       : into && (tagsNow[exerciseIndex] != null || nextTag != null)
-        ? (nextTag ? `${nextTag} · ${into.name}` : into.name)
+        ? (nextTag ? `${nextTag} · ${named(into.name)}` : into.name)
         : null;
     const heading = flow.kind === 'transition' && nextTag
       ? t('train.superset.switchTo')
@@ -1122,7 +1131,7 @@ export function ActiveSession({
       lift: catalogEx != null
         && (() => {
           const sides = sideRecommendationsFor(
-            { recentSessions: train.recentSessions, catalog: train.catalog },
+            { recentSessions: train.recentSessions, catalog: train.engineCatalog ?? train.catalog },
             ex.exerciseId,
             templateRow,
             ex,
@@ -1517,13 +1526,14 @@ export function ActiveSession({
             ) : null}
             <ExerciseCard
               exercise={ex}
+              deload={session.deload === true}
               supersetTag={sessionTags[exIdx]}
               supersetPartners={group ? (supersetGroups(session.exercises).get(group) ?? []).filter((m) => m.index !== exIdx).map((m) => session.exercises[m.index].name).join(', ') : undefined}
               upNext={rest.endsAt != null && restTarget === exIdx}
               exerciseIndex={exIdx}
               collapsed={expanded !== exIdx}
               recentSessions={train.recentSessions}
-              catalog={train.catalog}
+              catalog={train.engineCatalog ?? train.catalog}
               templateRow={templateRowFor(ex.exerciseId)}
               best={bestByEx[ex.exerciseId]}
               volumeAllowsCluster={liftAllowsCluster(clusterMuscles, train.catalog, ex.exerciseId)}

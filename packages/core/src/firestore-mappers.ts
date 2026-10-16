@@ -155,6 +155,7 @@ const PROFILE_DATE_FIELDS = [
   'compedUntil',
   'referralRewardGrantedAt',
   'lastWeeklyDigestSentAt',
+  'deloadStartedAt',
 ] as const satisfies readonly ProfileDateField[];
 
 // Exhaustiveness in BOTH directions. `satisfies` above proves every array entry

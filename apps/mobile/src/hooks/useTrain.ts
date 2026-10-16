@@ -25,6 +25,7 @@ import {
   editExercise as editExerciseDoc,
   mergeExercises as mergeExercisesDoc,
   readActiveSession,
+  setTrainingSettings,
   startSession,
   subscribeExercises,
   subscribeRecentSessions,
@@ -51,6 +52,10 @@ import {
   programAutoActivation,
   programVersion as programVersionOf,
   templateVersionFor,
+  dumbbellStepLb,
+  deloadProgress,
+  deloadSessionExercises,
+  type DeloadProgress,
   seedSideLoads,
   type ProgramVersion,
   sessionDurationMin,
@@ -97,6 +102,7 @@ import {
   seedTemplateNotes,
 } from '@macrolog/core';
 import { publishActiveWorkout } from '@/lib/active-workout-signal';
+import { rotationTemplates } from '@/components/train/WeeklyVolumeSheet';
 import { useLocale } from '@/i18n';
 
 /** Which half of the hook failed. `load` is the Firestore feed (the screen
@@ -118,6 +124,18 @@ export interface TrainState {
   errorKind: TrainErrorKind | null;
   /** Exercise catalog (alphabetical). */
   catalog: Exercise[];
+  /** {@link catalog} as the progression engine reads it: each lift with the
+   *  lifter's dumbbell step merged in (profile `dumbbellHalfSteps`, Program
+   *  v2.1). Engine calls only — never written back: the rules' exercise
+   *  allow-list has no such field. */
+  engineCatalog?: Exercise[];
+  /** An accepted deload week (Program v2.1, core `deload.ts`): active until
+   *  every template of the rotation has a deload session. While a template is
+   *  in `remaining`, starting it starts its deload session. */
+  deload?: DeloadProgress;
+  /** Accept a deload week (now), or end one (`null`) — profile
+   *  `deloadStartedAt`. Rejects when the write fails. */
+  setDeloadStartedAt?: (at: Date | null) => Promise<void>;
   /** Reusable workout templates, most-recently-updated first. */
   templates: WorkoutTemplate[];
   /** Superset drafts of the templates (2026-10-11), oldest first. */
@@ -366,6 +384,8 @@ export function useTrain(): TrainState {
   // Cached to disk on the way in, same as Today's slices. The setters are the
   // ones `onSnapshot` already calls, so the write-through is invisible here.
   const [catalog, setCatalog] = useCachedState<Exercise[]>(uid, 'exercises', []);
+  const dbStep = dumbbellStepLb(profile?.dumbbellHalfSteps);
+  const engineCatalog = useMemo(() => catalog.map((e) => ({ ...e, dumbbellStepLb: dbStep })), [catalog, dbStep]);
   const [templates, setTemplates] = useCachedState<WorkoutTemplate[]>(uid, 'templates', []);
   const [drafts, setDrafts] = useState<TemplateDraftDoc[]>([]);
   /** The drafts as the listener last delivered them — read at the moment a
@@ -774,9 +794,53 @@ export function useTrain(): TrainState {
     [begin],
   );
 
+  // The accepted deload week, over the rotation's templates — the same set
+  // the weekly volume reads (`rotationTemplates`).
+  const deloadStartedAt = profile?.deloadStartedAt ?? undefined;
+  // The rotation is read AS OF the day the week was accepted, so it cannot
+  // grow under a running deload (a template entering the 28-day window would
+  // re-open a finished week) or wait on a template nobody runs.
+  const deload = useMemo(() => {
+    const programIds = new Set(drafts.filter((d) => d.program === 'v2').map((d) => d.draftOf));
+    const asOf = deloadStartedAt?.getTime() ?? Date.now();
+    const templateIds = rotationTemplates(templates, programIds, recentSessions.filter((s) => s.date.getTime() <= asOf), asOf)
+      .flatMap((tp) => (tp.id ? [tp.id] : []));
+    return deloadProgress({ startedAt: deloadStartedAt, templateIds, sessions: recentSessions, now: new Date() });
+  }, [deloadStartedAt, drafts, templates, recentSessions]);
+
+  const setDeloadStartedAt = useCallback(
+    async (at: Date | null) => {
+      if (!uid) return;
+      await setTrainingSettings(uid, { deloadStartedAt: at });
+    },
+    [uid],
+  );
+
   const startFromTemplate = useCallback(
     async (template: WorkoutTemplate) => {
       if (!uid || activeRef.current) return;
+      // A deload week owes this template its deload session: the template's
+      // own loads, half the clusters, RIR 3 (core `deloadSessionExercises`).
+      // No engine call is frozen on it — the engine never reads a deload.
+      if (template.id && deload.active && deload.remaining.includes(template.id)) {
+        const templateVersion = templateVersionFor(template.id, draftsRef.current);
+        begin({
+          status: 'active',
+          date: new Date(),
+          templateId: template.id,
+          templateName: template.name,
+          // The template's loads per SIDE too: an L/R lift's sides are
+          // their own tracks (`seedSideLoads`, as a normal start does).
+          exercises: deloadSessionExercises(templateToSessionExercises(template).map((se) => {
+            const sideLoads = template.exercises.find((e) => e.exerciseId === se.exerciseId)?.sideLoads;
+            return sideLoads ? seedSideLoads(se, sideLoads) : se;
+          })),
+          cardio: templateToSessionCardio(template),
+          deload: true,
+          ...(templateVersion ? { templateVersion } : {}),
+        });
+        return;
+      }
       // The engine's call for each lift is FROZEN onto the session at start
       // (progression engine: "every override must be logged"). It is computed
       // from the same completed history the card reads, so what the session
@@ -789,7 +853,7 @@ export function useTrain(): TrainState {
         // The same history the card reads (a baseline marker cuts it off),
         // and a load the lifter set after that session is the plan (10/7: lat
         // pulldown 80 → 90, which the read alone would call "add load: 85").
-        const { rec, basedOn, sides } = sessionCall(row, completed, catalog.find((e) => e.id === se.exerciseId) ?? null);
+        const { rec, basedOn, sides } = sessionCall(row, completed, engineCatalog.find((e) => e.id === se.exerciseId) ?? null);
         // An L/R lift: each side is its own track — its own call, its own
         // load (Program v2, core `side-tracks.ts`).
         if (sides) {
@@ -822,7 +886,7 @@ export function useTrain(): TrainState {
         ...(templateVersion ? { templateVersion } : {}),
       });
     },
-    [uid, begin, recentSessions, catalog],
+    [uid, begin, recentSessions, engineCatalog, deload],
   );
 
   /**
@@ -999,9 +1063,9 @@ export function useTrain(): TrainState {
     (row: TemplateExercise) => rowPendingLoadTest(
       row,
       recentSessions.filter((s) => s.status === 'completed'),
-      catalog.find((e) => e.id === row.exerciseId) ?? null,
+      engineCatalog.find((e) => e.id === row.exerciseId) ?? null,
     ),
-    [recentSessions, catalog],
+    [recentSessions, engineCatalog],
   );
 
   /**
@@ -1544,6 +1608,9 @@ export function useTrain(): TrainState {
       errorKind,
       clearError,
       catalog,
+      engineCatalog,
+      deload,
+      setDeloadStartedAt,
       templates,
       drafts,
       planDraftSwaps,
@@ -1587,7 +1654,7 @@ export function useTrain(): TrainState {
       cancelEdit,
     }),
     [
-      loading, error, errorKind, clearError, catalog, templates, drafts, planDraftSwaps, switchDrafts,
+      loading, error, errorKind, clearError, catalog, engineCatalog, deload, setDeloadStartedAt, templates, drafts, planDraftSwaps, switchDrafts,
       deleteDraft, programVersion, switchProgram, maybeAutoSwitchProgram, pendingLoadTestFor, recentSessions, active, activePending, saving,
       trainingPhase, autoApplyProgression,
       startWorkout, startFromTemplate, startCardioWorkout, saveTemplate, deleteTemplate,

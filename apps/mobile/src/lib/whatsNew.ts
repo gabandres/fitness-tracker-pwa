@@ -170,7 +170,11 @@ import type { I18nKey } from '@/i18n';
 // sees supersets twice — the accepted cost. The lock-screen Done set is NOT
 // listed: this copy also reaches old binaries by OTA, where it does not exist;
 // the store release notes carry it.
-export const WHATS_NEW_VERSION = '2026-10-12-train-round2';
+// Bumped 2026-10-15 for Program v2.1: four things every lifter meets on the
+// next session or the next look at Settings/Trends — the effort target the
+// engine now judges at, the dumbbell step, the deload card, Zone 2 on Trends.
+// The supersets item goes: four days live, past its second-launch window.
+export const WHATS_NEW_VERSION = '2026-10-15-program-v2-1';
 
 const KEY = 'whatsNew.seen';
 
@@ -200,9 +204,10 @@ export interface WhatsNewItem {
 }
 
 export const WHATS_NEW_ITEMS: readonly WhatsNewItem[] = [
-  { icon: 'swap-vertical-outline', titleKey: 'whatsNew.supersets.title', bodyKey: 'whatsNew.supersets.body' },
-  { icon: 'trending-up-outline', titleKey: 'whatsNew.progression.title', bodyKey: 'whatsNew.progression.body' },
-  { icon: 'stats-chart-outline', titleKey: 'whatsNew.weeklySets.title', bodyKey: 'whatsNew.weeklySets.body' },
+  { icon: 'flag-outline', titleKey: 'whatsNew.effortTarget.title', bodyKey: 'whatsNew.effortTarget.body' },
+  { icon: 'barbell-outline', titleKey: 'whatsNew.dumbbellSteps.title', bodyKey: 'whatsNew.dumbbellSteps.body' },
+  { icon: 'battery-half-outline', titleKey: 'whatsNew.deload.title', bodyKey: 'whatsNew.deload.body' },
+  { icon: 'heart-outline', titleKey: 'whatsNew.zone2.title', bodyKey: 'whatsNew.zone2.body' },
 ];
 
 /**

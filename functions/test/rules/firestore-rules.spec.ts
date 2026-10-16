@@ -1302,6 +1302,8 @@ describe('firestore.rules', () => {
     await assertSucceeds(setDoc(doc(db, 'users', 'alice'), { ...completedProfile(), volumeGateLb: 50 }));
     await assertSucceeds(setDoc(doc(db, 'users', 'alice'), { ...completedProfile(), volumeGateLb: 1000 }));
     await assertSucceeds(setDoc(doc(db, 'users', 'alice'), { ...completedProfile(), autoApplyProgression: false }));
+    // Program v2.1 (2026-10-15): the dumbbell step and an accepted deload.
+    await assertSucceeds(setDoc(doc(db, 'users', 'alice'), { ...completedProfile(), dumbbellHalfSteps: false, deloadStartedAt: Timestamp.now() }));
   });
 
   it('rejects malformed training settings on a completed profile', async () => {
@@ -1311,6 +1313,8 @@ describe('firestore.rules', () => {
       { trainingPhase: 'recomp' },
       { trainingPhase: 1 },
       { autoApplyProgression: 'on' },
+      { dumbbellHalfSteps: 'yes' },
+      { deloadStartedAt: '2026-10-16' },
       { volumeGateLb: 49 },
       { volumeGateLb: 1001 },
       { volumeGateLb: '185' },
@@ -1863,6 +1867,14 @@ describe('firestore.rules', () => {
     await assertSucceeds(addDoc(col, validSession({ dismissedSourceIds: ['24D8F0AB-583D-46D3-8E78-C735547D0358'] })));
     await assertFails(addDoc(col, validSession({ dismissedSourceIds: 'one' })));
     await assertFails(addDoc(col, validSession({ dismissedSourceIds: Array.from({ length: 51 }, (_, i) => `id${i}`) })));
+  });
+
+  it('accepts a session deload flag as a bool only (Program v2.1)', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    const col = collection(db, 'users', 'alice', 'workoutSessions');
+    await assertSucceeds(addDoc(col, validSession({ deload: true })));
+    await assertFails(addDoc(col, validSession({ deload: 'yes' })));
   });
 
   it('accepts a session templateVersion of v1 or v2 and nothing else', async () => {

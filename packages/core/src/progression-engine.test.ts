@@ -28,6 +28,9 @@ import {
   inferEquipment,
   nextLoad,
   predictedRepsAt,
+  predictedRepsAtTarget,
+  dumbbellStepLb,
+  targetRirOf,
   progressionCall,
   readExercise,
   recommend,
@@ -206,11 +209,14 @@ describe('per-lift configuration — category, rep range, steps', () => {
     expect(resolveEngineConfig({ name: 'Seated Machine Row', repRange: { min: 12, max: 6 } }).repRange).toEqual({ min: 6, max: 12 });
   });
 
-  it('steps: dumbbells and Smith in 5 lb; a stack uses the entered steps, else guesses from the template', () => {
+  it('steps: dumbbells on the lifter\'s grid (2.5 lb unless turned off), Smith in 5 lb; a stack uses the entered steps, else guesses from the template', () => {
     expect(inferEquipment('Incline DB Curl 45°')).toBe('dumbbell');
     expect(inferEquipment('Smith squat')).toBe('smith');
     expect(inferEquipment('Leg Extensions')).toBe('stack');
-    expect(resolveEngineConfig({ name: 'DB hammer curl' })).toMatchObject({ stepLb: 5, stepsUnknown: false });
+    expect(resolveEngineConfig({ name: 'DB hammer curl' })).toMatchObject({ stepLb: 2.5, loadGrid: 2.5, stepsUnknown: false });
+    expect(resolveEngineConfig({ name: 'DB hammer curl', dumbbellStepLb: 5 })).toMatchObject({ stepLb: 5, loadGrid: 5 });
+    expect(resolveEngineConfig({ name: 'Smith squat' })).toMatchObject({ stepLb: 5 });
+    expect(resolveEngineConfig({ name: 'Smith squat' }).loadGrid).toBeUndefined();
     expect(resolveEngineConfig({ name: 'Wide-grip lat pulldown' }, { progression: { incrementLb: 5 } }))
       .toMatchObject({ equipment: 'stack', stepsUnknown: true, stepLb: 5 });
     expect(resolveEngineConfig({ name: 'Leg Extensions', availableLoads: [90, 70, 80] }))
@@ -256,8 +262,10 @@ describe('the 2026-10-07 cases, one per rule', () => {
   });
 
   it('Incline curl 15 × 15 → hold; 20 predicts 3 reps, below 8', () => {
-    const rec = recommend([ex(cluster(1, 15, 15, 0, 4, 2))], lift('Incline DB Curl 45°'));
+    // On 5-lb dumbbells (the 10/07 case). On 2.5-lb steps 17.5 predicts 8: take it.
+    const rec = recommend([ex(cluster(1, 15, 15, 0, 4, 2))], lift('Incline DB Curl 45°', { dumbbellStepLb: 5 }));
     expect(rec).toMatchObject({ action: 'build-reps', load: 15, targetReps: 16 });
+    expect(recommend([ex(cluster(1, 15, 15, 0, 4, 2))], lift('Incline DB Curl 45°'))).toMatchObject({ action: 'add-load', load: 17.5, predictedReps: 8 });
     expect(rec.reason).toMatchObject({ kind: 'step-too-big', nextLoad: 20, predictedReps: 3, min: 8, cap: 15 + REP_CAP_EXTRA });
     expect(progressionCall(rec)).toBe('hold');
   });
@@ -277,28 +285,30 @@ describe('the 2026-10-07 cases, one per rule', () => {
     expect(guess.config?.stepsUnknown).toBe(true);
   });
 
-  it('Machine row 100 × 11/11 → hold, target 12', () => {
+  it('Machine row 100 × 11/11 @ RIR 0 → hold, target 11 @ RIR 1', () => {
     const rec = recommend(
       [ex([...cluster(1, 100, 11, 0, 4, 2), ...cluster(2, 100, 11, 0, 3, 2)])],
       lift('Seated Machine Row', { effortStandard: 'rir1' }),
     );
-    expect(rec).toMatchObject({ action: 'hold', load: 100, targetReps: 12 });
-    expect(rec.reason).toMatchObject({ kind: 'below-max', reps: 11, max: 12, clusters: 2 });
+    // Judged at its target RIR 1 (v2.1): 11 @ RIR 0 is 10 @ RIR 1, so one
+    // more is 11 @ RIR 1 — the number the "@ RIR 1" target text names.
+    expect(rec).toMatchObject({ action: 'hold', load: 100, targetReps: 11 });
+    expect(rec.reason).toMatchObject({ kind: 'below-max', reps: 10, max: 12, clusters: 2 });
     // The row is a 1-in-reserve lift logged at RIR 0: warned, not invalidated.
     expect(rec.warnings).toEqual(['failure-on-rir1']);
   });
 
-  it('Smith squat 25 × 13/13 @ RIR 1 → effective 14 → increase (approximate until the bar is entered)', () => {
+  it('Smith squat 25 × 13/13 @ RIR 1 → 14 to failure; at RIR 1, 30 predicts 5, under 6 → build (approximate until the bar is entered)', () => {
     const sets = [...cluster(1, 25, 13, 1, 5, 4), ...cluster(2, 25, 13, 1, 4, 3)];
     const rec = recommend([ex(sets)], lift('Smith squat', { effortStandard: 'rir1' }));
-    expect(rec).toMatchObject({ action: 'add-load', load: 30, predictedReps: 6, approximate: true });
-    expect(rec.reason).toMatchObject({ kind: 'increase', reps: 14 });
-    // A rir1 lift's target is stated in LOGGED reps: one under the prediction.
-    expect(rec.targetReps).toBe(5);
+    // v2.1: predicted reps are stated at the target RIR — 30 × (36.7/30 − 1) − 1
+    // = 5. Until then the 10/07 spec took the step on 6 to failure.
+    expect(rec).toMatchObject({ action: 'build-reps', load: 25, approximate: true });
+    expect(rec.reason).toMatchObject({ kind: 'step-too-big', reps: 13, nextLoad: 30, predictedReps: 5, min: 6 });
     expect(rec.warnings).toEqual([]);
     // With a 15 lb bar the total load moves the prediction, and it is no longer approximate.
     const withBar = recommend([ex(sets)], lift('Smith squat', { effortStandard: 'rir1', smithBarEffectiveLb: 15 }));
-    expect(withBar).toMatchObject({ action: 'add-load', load: 30, predictedReps: 9, approximate: false });
+    expect(withBar).toMatchObject({ action: 'add-load', load: 30, predictedReps: 8, targetReps: 8, approximate: false });
   });
 
   it('an invalid first mini-set of 6 → repeat', () => {
@@ -329,18 +339,20 @@ describe('the 2026-10-07 cases, one per rule', () => {
 describe('the 2026-10-13 Leg Day', () => {
   const pins = { availableLoads: [70, 80, 90] };
 
-  it('Smith squat 30 × 14 @ RIR 1 / 13 @ RIR 0 → 35', () => {
+  it('Smith squat 30 × 14 @ RIR 1 / 13 @ RIR 0: at the top, but 35 predicts 5 at RIR 1 → build (it went to 35 on 10/13, before v2.1)', () => {
     const sets = [...cluster(1, 30, 14, 1, 4, 4), ...cluster(2, 30, 13, 0, 4, 4)];
     expect(recommend([ex(sets)], lift('Smith squat', { effortStandard: 'rir1' })))
-      .toMatchObject({ action: 'add-load', load: 35 });
+      .toMatchObject({ action: 'build-reps', load: 30, reason: { kind: 'step-too-big', reps: 12, nextLoad: 35, predictedReps: 5, repsForStep: 13 } });
   });
 
   it('DB RDL 35 × 13 at the top of 6–12 → 40, with or without the RIR (e1RM ≈ 50.2, about 7 at 40)', () => {
-    const at0 = recommend([ex(cluster(1, 35, 13, 0, 4, 4))], lift('DB Romanian deadlift'));
+    const at0 = recommend([ex(cluster(1, 35, 13, 0, 4, 4))], lift('DB Romanian deadlift', { dumbbellStepLb: 5 }));
     expect(at0).toMatchObject({ action: 'add-load', load: 40, predictedReps: 7, warnings: [] });
+    // On 2.5-lb steps the smallest jump is taken: 37.5, predicting 10.
+    expect(recommend([ex(cluster(1, 35, 13, 0, 4, 4))], lift('DB Romanian deadlift'))).toMatchObject({ action: 'add-load', load: 37.5, predictedReps: 10 });
     expect((at0.reason as { e1rm: number }).e1rm).toBeCloseTo(50.17, 2);
     // As logged — RIR blank on every row: progress anyway, and say it was assumed.
-    const blank = recommend([ex([[1, 'activation', 13, undefined, 35], [1, 'mini', 4, undefined, 35], [1, 'mini', 4, undefined, 35]])], lift('DB Romanian deadlift'));
+    const blank = recommend([ex([[1, 'activation', 13, undefined, 35], [1, 'mini', 4, undefined, 35], [1, 'mini', 4, undefined, 35]])], lift('DB Romanian deadlift', { dumbbellStepLb: 5 }));
     expect(blank).toMatchObject({ action: 'add-load', load: 40, predictedReps: 7, warnings: ['rir-missing-assumed-0'] });
   });
 
@@ -371,7 +383,7 @@ describe('rule 3 — build to max + 5, then a technique, never a guess', () => {
   it('2026-10-02 DB flat press 20 × 15/13: 25 predicts 4, under 6 → hold at 20, build to 15', () => {
     const rec = recommend(
       [ex([...cluster(1, 20, 15, 0, 5, 4), ...cluster(2, 20, 13, 0, 4, 4)])],
-      lift('DB Flat Press'),
+      lift('DB Flat Press', { dumbbellStepLb: 5 }),
     );
     expect(rec).toMatchObject({ action: 'build-reps', load: 20, targetReps: 14 });
     expect(rec.reason).toMatchObject({ kind: 'step-too-big', reps: 13, nextLoad: 25, predictedReps: 4, min: 6, cap: 17, repsForStep: 15 });
@@ -379,11 +391,12 @@ describe('rule 3 — build to max + 5, then a technique, never a guess', () => {
 
   it('at the cap the step is still too big: tempo first, microplates if owned, a cluster only if volume allows', () => {
     const capped = [ex(cluster(1, 15, 20, 0, 5, 3))];
-    expect(recommend(capped, lift('Incline DB Curl 45°')).reason)
+    const five = { dumbbellStepLb: 5 };
+    expect(recommend(capped, lift('Incline DB Curl 45°', five)).reason)
       .toMatchObject({ kind: 'at-rep-cap', cap: 20, nextLoad: 20, techniques: ['tempo'] });
-    expect(recommend(capped, lift('Incline DB Curl 45°', { microplates: true })).reason)
+    expect(recommend(capped, lift('Incline DB Curl 45°', { ...five, microplates: true })).reason)
       .toMatchObject({ techniques: ['tempo', 'microplates'] });
-    expect(recommend(capped, { ...lift('Incline DB Curl 45°', { microplates: true }), volumeAllowsCluster: true }).reason)
+    expect(recommend(capped, { ...lift('Incline DB Curl 45°', { ...five, microplates: true }), volumeAllowsCluster: true }).reason)
       .toMatchObject({ techniques: ['tempo', 'microplates', 'add-cluster'] });
   });
 
@@ -529,15 +542,15 @@ describe('rule 7 — bodyweight lifts', () => {
 // ─── Rule 8 + effort standard ───────────────────────────────────
 
 describe('rule 8 — a rir1 lift runs the same rules on effective reps', () => {
-  it('Smith 25 × 11/11 @ RIR 1 is 12/12 effective: a candidate — but 30 predicts 5, under 6, so build', () => {
+  it('Smith 25 × 11/11 @ RIR 1: judged at its target RIR 1 that is 11, under the top of 12 → hold (v2.1; the 10/07 spec read 12 effective)', () => {
     const rec = recommend([ex([...cluster(1, 25, 11, 1, 4, 3), ...cluster(2, 25, 11, 1, 4, 3)])], lift('Smith squat', { effortStandard: 'rir1' }));
-    expect(rec.reason).toMatchObject({ kind: 'step-too-big', reps: 12, nextLoad: 30, predictedReps: 5, repsForStep: 14 });
-    expect(rec).toMatchObject({ action: 'build-reps', load: 25 });
+    expect(rec.reason).toMatchObject({ kind: 'below-max', reps: 11, max: 12 });
+    expect(rec).toMatchObject({ action: 'hold', load: 25, targetReps: 12 });
   });
 
-  it('the same log at RIR 0 is 11 effective: hold, and the RIR 0 is warned on', () => {
+  it('the same log at RIR 0 is 10 at the target: hold, target 11 @ RIR 1, and the RIR 0 is warned on', () => {
     const rec = recommend([ex([...cluster(1, 25, 11, 0, 4, 3), ...cluster(2, 25, 11, 0, 4, 3)])], lift('Smith squat', { effortStandard: 'rir1' }));
-    expect(rec).toMatchObject({ action: 'hold', warnings: ['failure-on-rir1'], targetReps: 12 });
+    expect(rec).toMatchObject({ action: 'hold', warnings: ['failure-on-rir1'], targetReps: 11 });
   });
 });
 
@@ -718,5 +731,95 @@ describe('an unstarted myo-reps scaffold (round-2 Finish crash)', () => {
     const rec = recommend([scaffold], { structure: 'myoreps' });
     expect(rec.reason.kind).toBe('nothing-to-read');
     expect(rec.action).toBe('none');
+  });
+});
+
+// ─── Program v2.1 (2026-10-15): the range at the target RIR; dumbbell steps ──
+
+describe('v2.1 — a lift is judged at its target RIR', () => {
+  it('the target RIR is 1 for a rir1 lift, 0 for failure (and by default)', () => {
+    expect(targetRirOf('rir1')).toBe(1);
+    expect(targetRirOf('failure')).toBe(0);
+    expect(targetRirOf(undefined)).toBe(0);
+  });
+
+  it('predicted reps = 30 × (e1RM / w − 1) − target RIR, from reps to failure', () => {
+    // 100 × 12 @ RIR 1 is 13 to failure: e1RM 143.3. At 110: 30 × 0.303 = 9.09 → 9, minus 1 = 8.
+    const e1rm = 100 * (1 + 13 / 30);
+    expect(predictedRepsAt(e1rm, 110)).toBe(9);
+    expect(predictedRepsAtTarget(e1rm, 110, 1)).toBe(8);
+    expect(predictedRepsAtTarget(e1rm, 110, 0)).toBe(9);
+    expect(predictedRepsAtTarget(e1rm, 400, 1)).toBe(0);
+  });
+
+  it('a rir1 lift reaches the top of 6-12 at 12 @ RIR 1, not 11 @ RIR 1', () => {
+    const row = lift('Seated Machine Row', { effortStandard: 'rir1', availableLoads: [100, 110, 120] });
+    expect(recommend([ex([...cluster(1, 100, 11, 1, 4, 3), ...cluster(2, 100, 11, 1, 4, 3)])], row))
+      .toMatchObject({ action: 'hold', load: 100, reason: { kind: 'below-max', reps: 11, max: 12 } });
+    const top = recommend([ex([...cluster(1, 100, 12, 1, 4, 3), ...cluster(2, 100, 12, 1, 4, 3)])], row);
+    // 13 to failure, e1RM 143.3: 110 predicts 8 at RIR 1, inside 6-12 — take it, target 8 logged @ RIR 1.
+    expect(top).toMatchObject({ action: 'add-load', load: 110, predictedReps: 8, targetReps: 8 });
+    expect(top.warnings).toEqual([]);
+  });
+
+  it('the same reps on a failure lift are one rep further along', () => {
+    // 100 × 12 @ RIR 0 on a failure lift: at the top; 110 predicts 8 (12 to failure: e1RM 140 → 8.18).
+    const row = lift('Seated Machine Row', { effortStandard: 'failure', availableLoads: [100, 110, 120] });
+    expect(recommend([ex([...cluster(1, 100, 12, 0, 4, 3), ...cluster(2, 100, 12, 0, 4, 3)])], row))
+      .toMatchObject({ action: 'add-load', load: 110, predictedReps: 8 });
+  });
+
+  it('a rir1 lift whose first session after an increase falls under the bottom AT RIR 1 drops back', () => {
+    const row = lift('Seated Machine Row', { effortStandard: 'rir1', availableLoads: [100, 110, 120] });
+    // 110 × 6 @ RIR 0 is 6 to failure → 5 at RIR 1, under 6, the session after 100.
+    const rec = recommend([ex(cluster(1, 110, 6, 0, 2, 2)), ex(cluster(1, 100, 12, 1, 4, 3))], row);
+    expect(rec).toMatchObject({ action: 'drop-back', load: 100, reason: { kind: 'drop-back', reps: 5, min: 6 } });
+  });
+});
+
+describe('v2.1 — the increment picker: the smallest jump the equipment offers', () => {
+  it('the profile setting picks the dumbbell step: on (absent) = 2.5, off = 5', () => {
+    expect(dumbbellStepLb(undefined)).toBe(2.5);
+    expect(dumbbellStepLb(true)).toBe(2.5);
+    expect(dumbbellStepLb(false)).toBe(5);
+  });
+
+  it('2.5-lb steps: 15 → 17.5 → 20; a grid snaps an off-grid load up to the next real weight', () => {
+    expect(nextLoad(15, { grid: 2.5 }).load).toBe(17.5);
+    expect(nextLoad(17.5, { grid: 2.5 }).load).toBe(20);
+    expect(nextLoad(17.5, { grid: 5 }).load).toBe(20); // not 22.5
+    expect(nextLoad(16, { grid: 2.5 }).load).toBe(17.5);
+    // Assisted: the next LOWER weight on the grid, floored at 0.
+    expect(nextLoad(17.5, { grid: 5, assisted: true }).load).toBe(15);
+    expect(nextLoad(2.5, { grid: 5, assisted: true }).load).toBe(0);
+    // Entered steps always win over the grid.
+    expect(nextLoad(15, { grid: 2.5, availableLoads: [15, 25] }).load).toBe(25);
+  });
+
+  it('the engine takes the 2.5-lb jump when it keeps predicted reps inside the range, where 5 lb would not', () => {
+    // Incline curl 15 × 17 (Program v2.1 offender): e1RM 23.5. 17.5 predicts 10 ≥ 8 → take it.
+    const read = [ex(cluster(1, 15, 17, 0, 4, 3))];
+    expect(recommend(read, lift('Incline DB Curl 45°'))).toMatchObject({ action: 'add-load', load: 17.5, predictedReps: 10 });
+    // On 5-lb dumbbells 20 predicts 5, under 8: build reps instead.
+    expect(recommend(read, lift('Incline DB Curl 45°', { dumbbellStepLb: 5 }))).toMatchObject({ action: 'build-reps', load: 15, reason: { kind: 'step-too-big', nextLoad: 20, predictedReps: 5 } });
+  });
+
+  it('a non-dumbbell lift keeps its own step whatever the dumbbell setting', () => {
+    expect(resolveEngineConfig({ name: 'Smith squat', dumbbellStepLb: 2.5 })).toMatchObject({ stepLb: 5 });
+    expect(resolveEngineConfig({ name: 'Leg Curls', dumbbellStepLb: 2.5, availableLoads: [70, 80, 90] })).toMatchObject({ loadSteps: [70, 80, 90] });
+  });
+});
+
+// Review 2026-10-15 (Program v2.1): a baseline's drop-back floor is judged at
+// the lift's target RIR, like every other range call.
+describe('baseline floor at the target RIR', () => {
+  const baseline = { since: '2026-10-16', reason: 'context changed: v2.1', dropBackTo: 90, dropBackBelowReps: 6 };
+  it('5 @ RIR 1 on a rir1 lift is 5 — under a floor of 6: drop back', () => {
+    const rec = recommend([ex(cluster(1, 100, 5, 1, 2, 1))], { ...lift('Seated Machine Row', { effortStandard: 'rir1' }), baseline });
+    expect(rec).toMatchObject({ action: 'drop-back', load: 90 });
+  });
+  it('6 @ RIR 1 holds as the new baseline', () => {
+    const rec = recommend([ex(cluster(1, 100, 6, 1, 2, 1))], { ...lift('Seated Machine Row', { effortStandard: 'rir1' }), baseline });
+    expect(rec).toMatchObject({ action: 'hold', load: 100 });
   });
 });

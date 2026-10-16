@@ -343,6 +343,8 @@ export interface WorkoutSession {
   sleepHours?: number;
   /** The program version the template ran as (core `templateVersionFor`). */
   templateVersion?: 'v1' | 'v2';
+  /** A deload session (Program v2.1, core `deload.ts`). Set at start. */
+  deload?: boolean;
   /** How long the whole SESSION took, in minutes. Not `CardioBlock.durationSec`,
    *  which is how long one run was — different unit, different question. */
   durationMin?: number;

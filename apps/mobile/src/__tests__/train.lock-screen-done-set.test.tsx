@@ -172,7 +172,7 @@ describe('a Lock Screen "Done set" in the live workout', () => {
     expect(secs).toBeGreaterThanOrEqual(33);
     expect(secs).toBeLessThanOrEqual(35);
     // The rest-over text names the next station, as an in-app tick's does.
-    expect(body).toBe('Next: A2 · Leg Curls');
+    expect(body).toBe('Next: A2 · Leg Curls (cluster 1)');
     expect(ui.getByTestId('rest-label')).toHaveTextContent('Switch · 0:35');
     expect(ui.getByTestId('up-next-1')).toBeTruthy();
     // The lifter is on the Lock Screen: nothing is spoken here.

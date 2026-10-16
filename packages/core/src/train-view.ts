@@ -175,17 +175,19 @@ export type EngineReadRow = Pick<TemplateExercise, 'clusterCountChange'> & {
 /**
  * The sessions whose reads are evidence for a row: none before its baseline
  * marker (`TemplateExercise.baseline`), none on an excluded day
- * (`TemplateExercise.excludedReads`). Compared by calendar day, the unit both
- * are written in. Order is kept.
+ * (`TemplateExercise.excludedReads`), and never a deload session. Compared by
+ * calendar day, the unit both are written in. Order is kept.
  */
-export function engineSessions<S extends Pick<WorkoutSession, 'date'>>(
+export function engineSessions<S extends Pick<WorkoutSession, 'date'> & { deload?: boolean }>(
   sessions: readonly S[],
   row?: EngineReadRow | null,
 ): S[] {
   const since = row?.baseline?.since;
   const excluded = new Set((row?.excludedReads ?? []).map((x) => x.date));
-  if (!since && excluded.size === 0) return [...sessions];
-  return sessions.filter((s) => {
+  // A deload session is never evidence for the next load (`deload.ts`).
+  const live = sessions.some((s) => s.deload) ? sessions.filter((s) => !s.deload) : sessions;
+  if (!since && excluded.size === 0) return [...live];
+  return live.filter((s) => {
     const day = calendarDateKey(s.date);
     return !(since && day < since) && !excluded.has(day);
   });
@@ -421,6 +423,10 @@ export interface MissingRir {
   name: string;
   /** Indices into that exercise's `sets`. */
   setIndexes: number[];
+  /** The lift's target RIR (`targetRirOf` its effort standard) — what Finish
+   *  offers to fill an activation or working set with (Program v2.1). Set by
+   *  the caller, which has the catalog; absent reads as 0. */
+  targetRir?: number;
 }
 
 /**
