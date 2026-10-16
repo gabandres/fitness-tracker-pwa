@@ -73,6 +73,8 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 
 ## 2. Merged, on `main`, and not delivered anywhere
 
+**2026-10-15: Program v2.1 (`fab27f19`) is in an OTA on all nine runtimes** (ledger; rules deployed first). **Owner calls left open:** Seated DB Shoulder Press set 70 → 80 per the v2.1 spec (engine had called 72.5); Leg Curls at 100 while the saved stack is 70/80/90 (not snapped; next step assumed 110); the three v2 drafts still hold pre-v2.1 copies, so "back to v1" and forward would undo v2.1.
+
 **2026-10-12: Train UX round 2 (`da898de7`) is in an OTA on all five live runtimes** (ledger). Its native half — the lock-screen Done set and the Android Live Update (S23-8) — reaches users only with **1.2.7** (§3); on older binaries the same JS feature-detects and behaves as before.
 
 **Everything on `main` is in an OTA or a 1.2.6 binary** (newest OTAs `a3f164e7`, ADR-0044 below). Live binaries got

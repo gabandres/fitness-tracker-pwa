@@ -4,6 +4,28 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-10-15 (night) — Program v2.1: order-aware supersets, effort targets, dumbbell steps, deload, Zone 2 (`fab27f19`)
+
+- **Supersets**: one execution order (round r = members with clusters ≥ r) for
+  the editor, the live session and the estimator; the guardrail judges
+  same-muscle pairs on it — back-to-back (incl. a straight lift next to the
+  block) → Zhang 2025 warning, apart ≥ 90 s → grey OK line, apart < 90 s →
+  "Too little rest". Rest card names the next cluster.
+- **Engine**: the effort standard sets the target RIR and reps are judged at it
+  (range top, baseline floor, hold target); Finish fills a blank RIR with the
+  lift's target. Dumbbells move on a 2.5-lb grid on every structure (Settings
+  → Training, default on).
+- **Deload on a trigger** (≥ 2 lifts down ≥ 2 reps at the same load, two
+  consecutive reads): one rotation, half the clusters, same loads, RIR 3;
+  deload sessions are never read by the engine and move no template.
+  "Load overdue" card. **Zone 2**: Trends "n of last 6 in band" with avg HR;
+  "Above Zone 2" at Finish.
+- **Owner data**: Push/Pull/Leg moved to v2.1 (backups in `~/ignia-backups`);
+  effort standards on 20 exercises; Machine Row a pure hold.
+- `firestore.rules` deployed first; OTA on all nine runtimes (iOS 72/71/70/68,
+  Android 52/51/50/48-49/47 — ledger). Four Fable 5.1 review passes, findings
+  fixed with tests (core 2,464 · mobile 3,078 · rules 934).
+
 ## 2026-10-15 (later) — 1.2.8 submitted on both stores; "update required" gate; audit follow-ups closed
 
 - **1.2.8**: iOS build 72 (`50a47f62…`) submitted for review, goes live on
