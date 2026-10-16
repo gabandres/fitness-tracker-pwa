@@ -262,6 +262,9 @@ old Windows-computed number is not.
   OTAs. (history: "`eas.json` is hashed too")
 - `modules/*/ios` — an Expo Module is a `dir:` source; one Swift line there
   moves the runtime. (history: "`modules/*/ios` IS hashed")
+- **`plugins/withGradleJvmArgs.js` is FROZEN** — it is a config plugin, so any
+  byte of it, *including a comment*, moves both platforms. Its docstring is
+  stale on purpose. (Moved here from `STATUS.md` 2026-10-16.)
 - **Android-only permissions never go in `app.json`.** They go in step 4b of
   `patch-android-release.mjs` (writes the gitignored manifest; `dir:` sources
   hash only tracked files). `scripts/native-expectations.json`
