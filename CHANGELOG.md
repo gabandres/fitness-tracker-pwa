@@ -4,6 +4,27 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-10-20 (night) — fixes from the 10/20 export (`b5439706`)
+
+- **Watch copies of Zone 2 merge** into the hand-logged block when inside the
+  session window (start → end + 15 min) and within ±25 % of its duration —
+  Watch duration; HR / distance / kcal only where missing; the user's label,
+  band, RPE, notes kept (ADR-0026 Amendment 4). 10/14 and 10/20 merged.
+- **Health deletions are held server-side**: `healthTombstones` +
+  `enforceHealthTombstones` strip a deleted workout from any session write,
+  from any build (the 10/14 walk came back six minutes after its deletion).
+- **Imports route by session window**; outside every session a workout is its
+  own entry, no template, "Outdoor Walk" (the 10/15 20:33 walk had joined Push
+  Day). iOS reads workout avg / peak HR (reconnect Health once).
+- Blank protein on a food row is stored as 0; a mixed-load cluster is read
+  from its activation ("load changed mid-cluster"); the export gains
+  `rotationVolume` rows matching the in-app sheet, and `weeklyVolume` rows say
+  'calendar week'.
+- Owner data (`owner-data-2026-10-20-export-fixes.mts`): 10/18 weight 152.8,
+  Grapes protein 0, Pull/Leg superset "D", Pull loads Row 110 / Pulldown 80 /
+  Rear delt flye 20.
+- Shipped: rules + functions first, then OTA on all nine runtimes (ledger).
+
 ## 2026-10-20 — Evening hunger (0–10); blank-RIR check covers unticked sets (`5b794f6c`)
 
 - **Evening hunger**: one whole-number rating a day (0 = full, 10 = starving)
