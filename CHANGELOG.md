@@ -18,6 +18,8 @@ ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
   (three rows typed, none ticked) were saved blank without a prompt.
 - Shipped: rules + `exportUserData` / `deleteAccount` / `adminDeleteUser`
   deployed first, then OTA on all nine runtimes (ledger).
+- What's new `2026-10-20-evening-hunger` (both items, all three locales) went
+  out as a second OTA on the same nine runtimes (`9fb5985a`).
 
 ## 2026-10-15 (night) — Program v2.1: order-aware supersets, effort targets, dumbbell steps, deload, Zone 2 (`fab27f19`)
 
