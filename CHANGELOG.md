@@ -4,6 +4,21 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-10-20 — Evening hunger (0–10); blank-RIR check covers unticked sets (`5b794f6c`)
+
+- **Evening hunger**: one whole-number rating a day (0 = full, 10 = starving)
+  on Today under Sleep, editable; Trends shows the trailing 7-day average of
+  rated days with "avg ≥7 → consider raising target to ~<target + 100>".
+  Display only — nothing reads it into a target. Stored as
+  `dailyHunger/{dateKey} = { level }` (rules: int 0–10), exported as `hunger`
+  rows (`eveningHunger` column), erased/exported by the GDPR callables.
+  Owner request for the 10/25 checkpoint.
+- **Finish's blank-RIR check** now also asks about sets with reps that were
+  never ticked — the save keeps them (`isLoggedSet`), and the 10/19 Leg Curls
+  (three rows typed, none ticked) were saved blank without a prompt.
+- Shipped: rules + `exportUserData` / `deleteAccount` / `adminDeleteUser`
+  deployed first, then OTA on all nine runtimes (ledger).
+
 ## 2026-10-15 (night) — Program v2.1: order-aware supersets, effort targets, dumbbell steps, deload, Zone 2 (`fab27f19`)
 
 - **Supersets**: one execution order (round r = members with clusters ≥ r) for

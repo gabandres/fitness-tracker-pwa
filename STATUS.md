@@ -33,7 +33,7 @@ same way before trusting them — `docs/COMMANDS.md` has every command;
 | **Cloud Functions / rules** | Deployed, project `fitness-tracker-gb-1775407101`. Rules last deployed 2026-10-15 (session `deload`, profile `dumbbellHalfSteps` / `deloadStartedAt`) |
 | **Photo-scan** | **ON and free, both platforms** (ADR-0017), macros from the bundled USDA DB (ADR-0019). Tiering server-side only: `dailyQuota` 3/day free · 30/day paid, plus the `photo` `spendCeiling` |
 | **Food search** | Bundled USDA DB (13,272 foods) + restaurant corpus (25,126 items / 91 chains, ADR-0027). **Text search makes NO network call**; Open Food Facts serves barcode only. `docs/research/off-branded-ingest.md` scopes branded text results |
-| **OTA (EAS Update)** | **Every runtime in use has the 2026-10-15 Program v2.1 OTA (`fab27f19`)**: iOS builds 72 / 71 / 70 / 68, Android vc 52 / 51 / 50 / 48-49 / 47 — groups and rollbacks in the ledger, which is the record and wins. "Published" ≠ "delivered": a device applies it on the launch AFTER the download |
+| **OTA (EAS Update)** | **Every runtime in use has the 2026-10-20 evening-hunger OTA (`468428e5`)**: iOS builds 72 / 71 / 70 / 68, Android vc 52 / 51 / 50 / 48-49 / 47 — groups and rollbacks in the ledger, which is the record and wins. "Published" ≠ "delivered": a device applies it on the launch AFTER the download |
 | **`app-version.json`** | **Self-driving** — served from Firestore `public/appVersion`, refreshed hourly by `hourlyTasks` (Play tracks API; Apple's public lookup) and by `/admin` → System → **Sync now**. `npm run doctor` compares the live URL with both stores |
 
 **Fingerprints and publishing:** current artifact values are the two-row table
@@ -50,7 +50,7 @@ cache, and the emulator suites through `scripts/require-java21.mjs`.
 
 ## 2. Merged, on `main`, and not delivered anywhere
 
-**Nothing.** Everything on `main` is in an OTA as of `a95cff1e` (2026-10-15).
+**Nothing.** Everything on `main` is in an OTA as of `468428e5` (2026-10-20).
 The native halves of 1.2.7/1.2.8 (lock-screen Done set, Android Live Update,
 widget/watch day rollover, QuickAdd queue cap) reach users only with 1.2.8.
 Re-derive rather than trust this: `git log --oneline` against the newest ledger
