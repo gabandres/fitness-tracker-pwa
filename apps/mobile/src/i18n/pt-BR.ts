@@ -1233,6 +1233,7 @@ export const ptBR: Record<I18nKey, string> = {
   'train.rec.reason.unsupportedStructure': 'Programado como {structure} — o motor ainda não lê essa estrutura.',
   'train.rec.warn.failureOnRir1': 'Registrada até a falha. Este exercício está configurado para deixar 1 rep em reserva.',
   'train.rec.warn.rirMissingAssumed0': 'RIR ausente, assumido 0.',
+  'train.rec.warn.loadChangedMidCluster': 'A carga mudou no meio do cluster — lida pela série de ativação.',
   'train.rec.settings': 'Ajustes do exercício',
   'train.rec.templateLoad': 'Modelo: {load}',
   'train.rec.templateLoadHint': 'Usa a carga do modelo em cada série que você ainda não marcou',

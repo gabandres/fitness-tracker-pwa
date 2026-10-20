@@ -51,7 +51,9 @@ const RUN: CardioBlock = {
   source: 'health',
   provider: 'other',
   sourceId: 'hc-run-1',
-  startedAt: new Date(2026, 8, 6, 7, 0),
+  // Inside the session's window (2026-10-20 routing: a block outside every
+  // session's window gets its own session, and this test is about the update).
+  startedAt: new Date(2026, 8, 6, 18, 10),
 };
 
 /** A session the user logged that day, with no cardio yet. COMPLETED: an

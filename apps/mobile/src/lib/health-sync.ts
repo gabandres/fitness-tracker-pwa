@@ -11,17 +11,21 @@ import {
   calendarDateKey,
   dayKeyAt,
   latestSampleEndByDay,
+  inSessionWindow,
   mergeImportedBlocks,
+  mergeIntoZone2,
   parseYmd,
   reduceImportedSamples,
   toCardioBlockFromHealth,
   valuesToApply,
+  zone2MergeIndex,
 } from '@macrolog/core';
 import type { CardioBlock } from '@macrolog/core/cardio';
 import type { HealthWorkout } from '@macrolog/core/health-workouts';
 import {
   getHealthScalarsOnce,
   getRecentSessions,
+  getHealthTombstones,
   setDailyActiveEnergy,
   getDayBoundaryOnce,
   importDailySleep,
@@ -78,9 +82,12 @@ const CONNECTED_KEY = HEALTH_CONNECTED_KEY;
  * "no workouts" and "no permission" would be indistinguishable in the UI as
  * well as in the code.
  *
- * Version 2 adds the workout read (ADR-0026).
+ * Version 2 adds the workout read (ADR-0026). Version 3 adds heart rate on
+ * iOS (2026-10-20), so an imported workout carries its avg / peak HR —
+ * iOS only: Health Connect's heart-rate permission is a manifest entry, so
+ * Android's scope did not move and must not ask its users to reconnect.
  */
-const HEALTH_SCOPE_VERSION = 2;
+const HEALTH_SCOPE_VERSION = Platform.OS === 'ios' ? 3 : 2;
 const SCOPE_VERSION_KEY = 'ignia.health.scopeVersion';
 
 /**
@@ -446,41 +453,71 @@ export function writeImportedBlocks(uid: string, blocks: CardioBlock[]): Promise
  * a block already stored in an OLDER session of the day — or dismissed from
  * one — was re-added to the newest, resurrecting what the user removed. So:
  *
- * - a `sourceId` dismissed from ANY session of the day is dropped;
+ * - a `sourceId` dismissed from ANY session of the day, or tombstoned on the
+ *   account (`healthTombstones`, 2026-10-20 — a deletion that outlives the
+ *   session it was removed from, a reinstall, and an older build), is dropped;
  * - a `sourceId` already stored updates THAT session in place;
- * - a new block joins the newest COMPLETED session of the day, never an
- *   active one — that session is live on the device (its journal and the
- *   screen hold their own copy, and `persist` would overwrite the import, or
- *   the import the user's in-flight edits); with none, it gets a new session.
+ * - a new block joins a COMPLETED session only when it starts or ends inside
+ *   that session's window — its start to its end + 15 min (core
+ *   `inSessionWindow`, owner 2026-10-20). Until then it joined the newest
+ *   completed session of the day whatever the hour, so a 20:33 walk sat on the
+ *   morning's Push Day;
+ * - inside the window, a block within ±25 % of the session's hand-logged
+ *   Zone 2 IS that walk recorded by the Watch, and is MERGED into it
+ *   (`zone2MergeIndex` / `mergeIntoZone2`) rather than stored beside it. Its
+ *   `sourceId` is recorded as dismissed so the import never adds it as a row.
+ *   This is the one automatic merge, and the owner asked for it: the
+ *   suggest-never-merge rule (ADR-0026 decision 4) still holds everywhere
+ *   else;
+ * - anything else gets its own completed session, with no template — never an
+ *   active one, which is live on the device.
  */
 export function routeImportedBlocks(
   daySessions: readonly WorkoutSession[],
   incoming: readonly CardioBlock[],
-): { updates: Map<WorkoutSession, CardioBlock[]>; fresh: CardioBlock[] } {
+  tombstones: ReadonlySet<string> = new Set(),
+): {
+  updates: Map<WorkoutSession, CardioBlock[]>;
+  merges: Map<WorkoutSession, { index: number; block: CardioBlock }[]>;
+  fresh: CardioBlock[];
+} {
   const dismissed = new Set(daySessions.flatMap((s) => s.dismissedSourceIds ?? []));
-  const target = daySessions.find((s) => s.id && s.status !== 'active');
   const updates = new Map<WorkoutSession, CardioBlock[]>();
+  const merges = new Map<WorkoutSession, { index: number; block: CardioBlock }[]>();
   const fresh: CardioBlock[] = [];
-  const add = (s: WorkoutSession, b: CardioBlock) => {
-    const list = updates.get(s);
-    if (list) list.push(b);
-    else updates.set(s, [b]);
+  const push = <V>(m: Map<WorkoutSession, V[]>, s: WorkoutSession, v: V) => {
+    const list = m.get(s);
+    if (list) list.push(v);
+    else m.set(s, [v]);
   };
+  // Lifting sessions first: a walk inside both a lift's window and a
+  // cardio-only session's belongs with the lift.
+  const candidates = daySessions
+    .filter((s) => s.id && s.status !== 'active')
+    .slice()
+    .sort((a, b) => (b.exercises?.length ? 1 : 0) - (a.exercises?.length ? 1 : 0));
   for (const b of incoming) {
-    if (b.sourceId && dismissed.has(b.sourceId)) continue;
+    if (b.sourceId && (dismissed.has(b.sourceId) || tombstones.has(b.sourceId))) continue;
     const home = b.sourceId
       ? daySessions.find((s) => (s.cardio ?? []).some((c) => c.sourceId === b.sourceId))
       : undefined;
     if (home) {
       // Already stored. An active session is left alone; it is re-merged once
       // it completes, on the next import.
-      if (home.id && home.status !== 'active') add(home, b);
+      if (home.id && home.status !== 'active') push(updates, home, b);
       continue;
     }
-    if (target) add(target, b);
-    else fresh.push(b);
+    const target = candidates.find((s) => inSessionWindow(s, b));
+    if (!target) {
+      fresh.push(b);
+      continue;
+    }
+    const taken = new Set((merges.get(target) ?? []).map((m) => m.index));
+    const index = zone2MergeIndex(target, b);
+    if (index >= 0 && !taken.has(index)) push(merges, target, { index, block: b });
+    else push(updates, target, b);
   }
-  return { updates, fresh };
+  return { updates, merges, fresh };
 }
 
 async function writeImportedBlocksNow(uid: string, blocks: CardioBlock[]): Promise<number> {
@@ -511,14 +548,32 @@ async function writeImportedBlocksNow(uid: string, blocks: CardioBlock[]): Promi
     else perDay.set(key, [b]);
   }
 
+  // Account-level deletions (written server-side, `healthTombstones`). A read
+  // that fails imports as before rather than not at all: the per-session
+  // `dismissedSourceIds` still hold, and the server strips a tombstoned block.
+  const tombstones = await Promise.resolve()
+    .then(() => getHealthTombstones(uid))
+    .catch(() => new Set<string>());
+
   let written = 0;
   for (const [dayKey, incoming] of perDay) {
-    const { updates, fresh } = routeImportedBlocks(byDay.get(dayKey) ?? [], incoming);
-    for (const [existing, mine] of updates) {
-      const { blocks: merged, changed } = mergeImportedBlocks(existing.cardio ?? [], mine, existing.dismissedSourceIds);
-      if (!changed || !existing.id) continue;
+    const { updates, merges, fresh } = routeImportedBlocks(byDay.get(dayKey) ?? [], incoming, tombstones);
+    for (const existing of new Set([...updates.keys(), ...merges.keys()])) {
+      let cardio = (existing.cardio ?? []).slice();
+      let dismissedIds = existing.dismissedSourceIds ?? [];
+      const folded = merges.get(existing) ?? [];
+      for (const { index, block } of folded) {
+        cardio[index] = mergeIntoZone2(cardio[index], block);
+        if (block.sourceId && !dismissedIds.includes(block.sourceId)) dismissedIds = [...dismissedIds, block.sourceId];
+      }
+      const { blocks: merged, changed } = mergeImportedBlocks(cardio, updates.get(existing) ?? [], dismissedIds);
+      cardio = merged;
+      if ((!changed && !folded.length) || !existing.id) continue;
       try {
-        await updateSession(uid, existing.id, { cardio: merged });
+        await updateSession(uid, existing.id, {
+          cardio,
+          ...(folded.length ? { dismissedSourceIds: dismissedIds } : {}),
+        });
       } catch (err) {
         // The session was read a moment ago and is gone now — the user
         // discarded or deleted it while the (slow, on Android) health read
@@ -529,12 +584,14 @@ async function writeImportedBlocksNow(uid: string, blocks: CardioBlock[]): Promi
       }
       written++;
     }
-    if (!fresh.length) continue;
-    const date = fresh[0].startedAt ?? parseYmd(dayKey);
-    // The session alone makes the day a trained one for the streak and History
+    // One standalone session per workout, at its own start: a morning run and
+    // an evening walk are two entries, not one session holding both. The
+    // session alone makes the day a trained one for the streak and History
     // (core `trainedDayRows`); no marker row is written since 2026-10-15.
-    await startSession(uid, { status: 'completed', date, exercises: [], cardio: fresh });
-    written++;
+    for (const b of fresh) {
+      await startSession(uid, { status: 'completed', date: b.startedAt ?? parseYmd(dayKey), exercises: [], cardio: [b] });
+      written++;
+    }
   }
   return written;
 }

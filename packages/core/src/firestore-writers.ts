@@ -121,6 +121,17 @@ export function cleanLogGrams(grams: unknown): number | undefined {
   return g > 0 && g <= LOG_GRAMS_MAX ? g : undefined;
 }
 
+/**
+ * The protein a row is STORED with: what was typed, else 0 on a food row — one
+ * with calories or a label — whose protein was left blank (owner, 2026-10-20:
+ * a blank read as "not logged" in the export, the 10/20 "Grapes" row). A
+ * workout marker (no calories, no label) carries none.
+ */
+export function storedProtein(entry: Pick<LogEntry, 'protein' | 'calories' | 'mealLabel'>): number | undefined {
+  if (entry.protein != null) return entry.protein;
+  return entry.calories > 0 || cleanLogLabel(entry.mealLabel) ? 0 : undefined;
+}
+
 /** Serialize a log for creation (`addLog`, and each row of `importLogs`).
  *  An entry with no timestamp is stamped `now` — the undo-restore path passes
  *  the original instant instead. */
@@ -132,12 +143,13 @@ export function toLogDoc<TS>(
   const note = cleanLogNote(entry.note);
   const grams = cleanLogGrams(entry.grams);
   const mealLabel = cleanLogLabel(entry.mealLabel);
+  const protein = storedProtein(entry);
   return {
     calories: entry.calories,
     timestamp: codec.timestamp(entry.timestamp ?? now),
     createdAt: codec.timestamp(entry.createdAt ?? now),
     ...(entry.weight != null ? { weight: entry.weight } : {}),
-    ...(entry.protein != null ? { protein: entry.protein } : {}),
+    ...(protein != null ? { protein } : {}),
     ...(entry.carbs != null ? { carbs: entry.carbs } : {}),
     ...(entry.fat != null ? { fat: entry.fat } : {}),
     ...(entry.exerciseCompleted ? { exerciseCompleted: true as const } : {}),
@@ -167,7 +179,8 @@ export function toLogDoc<TS>(
 export function toLogPatch<TS>(entry: LogEntry, codec: DocCodec<TS>): Record<string, unknown> {
   const patch: Record<string, unknown> = {
     calories: entry.calories,
-    protein: entry.protein != null ? entry.protein : codec.remove(),
+    // Blank on a food row stores 0, as on create (`storedProtein`).
+    protein: storedProtein(entry) ?? codec.remove(),
     carbs: entry.carbs != null ? entry.carbs : codec.remove(),
     fat: entry.fat != null ? entry.fat : codec.remove(),
     exerciseCompleted: entry.exerciseCompleted ? true : codec.remove(),

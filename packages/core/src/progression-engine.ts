@@ -14,9 +14,13 @@
  *     first mini < 2 reps  → the activation was too hard   → read INVALID
  *     first mini 2-5 reps  → read VALID
  *
- * A read is also invalid when a mini out-reps its activation, or when the
- * load moved anywhere inside the lift (activation or mini — a planned drop set
- * is the one sanctioned load change and is not read). The activation's RIR
+ * A read is also invalid when a mini out-reps its activation. A load that
+ * moved inside the lift no longer invalidates it (owner, 2026-10-20): the
+ * read is taken at the load of the LAST performed cluster's activation, the
+ * load the lifter ended on — clusters at another activation load drop out of
+ * the read, a mini at another load is still judged by the mini rule — and the
+ * call carries `load-changed-mid-cluster`. Volume never cared: every set
+ * still counts there. A planned drop set is not read at all. The activation's RIR
  * only invalidates at the top (RIR 4+); RIR 0 is the standard since ADR-0039.
  *
  * A MISSING RIR is read as 0 and flagged (`rir-missing-assumed-0`), never
@@ -162,7 +166,9 @@ export type InvalidReason =
   /** A mini out-repped its activation. */
   | 'mini-exceeds-activation'
   /** The load moved inside the lift — between clusters, or between an
-   *  activation and its minis. */
+   *  activation and its minis. Retained for stored/rendered compatibility;
+   *  never produced since 2026-10-20 — the read is taken at the last
+   *  cluster's activation load and flagged `mixedLoad` instead. */
   | 'load-changed'
   /** The template prescribes a cluster; the session logged straight sets. */
   | 'not-clustered';
@@ -180,6 +186,9 @@ export interface ClusterRead {
   legacy: boolean;
   /** Reps were logged but RIR was not: the read assumes RIR 0. */
   rirAssumed: boolean;
+  /** A performed mini in this cluster used a different load from its
+   *  activation (10/20 Lat Pulldown: 90 × 8, minis at 80). */
+  loadChanged: boolean;
 }
 
 export interface ExerciseRead {
@@ -199,6 +208,10 @@ export interface ExerciseRead {
   /** Any performed activation was logged under the legacy effort standard.
    *  Such a read is history, not evidence. */
   legacy: boolean;
+  /** The load moved inside the lift — a mini off its activation's load, or
+   *  clusters at different activation loads. The read stands, taken at
+   *  {@link load} from the activation sets alone; the call says so. */
+  mixedLoad?: boolean;
 }
 
 export interface ReadOptions {
@@ -246,10 +259,14 @@ export function readExercise(
       .map((s) => s.reps as number);
     // Nothing performed in this cluster: skip it rather than judge it.
     if (!hasReps(a) && minis.length === 0) continue;
+    const loadChanged = exercise.sets.some(
+      (s) => s.kind === 'mini' && (s.group ?? 1) === group && hasReps(s) && s.weight != null && a.weight != null && s.weight !== a.weight,
+    );
     const read: ClusterRead = {
       group, load: a.weight, reps: a.reps, rir: a.rir, minis, issue: null,
       legacy: a.legacyEffortStandard === true,
       rirAssumed: a.reps != null && a.rir == null,
+      loadChanged,
     };
     read.issue = clusterIssue(read);
     clusters.push(read);
@@ -257,30 +274,31 @@ export function readExercise(
   if (clusters.length === 0) return none(null, true);
   const legacy = clusters.some((c) => c.legacy);
 
-  // The load must be one number across every PERFORMED activation and mini.
-  // A mini at a different weight (20 → 15 → 20) is a different lift's reps;
-  // the activation-only check this replaced let it through. Drop sets are the
-  // one sanctioned load change, and the engine never reads them.
-  const performedGroups = new Set(clusters.map((c) => c.group));
-  const loads = new Set(
-    exercise.sets
-      .filter((s) => (s.kind === 'activation' || s.kind === 'mini') && hasReps(s) && performedGroups.has(s.group ?? 1))
-      .map((s) => s.weight)
-      .filter((w): w is number => w != null),
-  );
-  const load = loads.size === 1 ? [...loads][0] : undefined;
-  if (loads.size > 1) {
-    return { clusters, issue: 'load-changed', valid: false, clustered: true, legacy };
-  }
-  const bad = clusters.find((c) => c.issue);
+  // One load per read, from the ACTIVATIONS (owner, 2026-10-20). Until then
+  // any load that moved — a mini at another weight (9/30 hammer curl
+  // 20 → 15 → 20), or a second cluster at another load (9/15 calf raise
+  // 40 / 35) — made the whole lift `load-changed` and the engine skipped it,
+  // which is how the 10/20 Lat Pulldown (90 × 8, minis at 80) and the 10/15
+  // Floor Crunch (25, then 30) produced no call. Now the read is taken at the
+  // load of the LAST performed cluster's activation, the load the lifter ended
+  // on: clusters at another activation load drop out of the read (they still
+  // count as volume — volume reads sets, not this), and a cluster whose minis
+  // moved is read from its activation, which is what e1RM is computed from
+  // anyway. Drop sets are not read at all, as before.
+  const loaded = clusters.filter((c) => c.load != null);
+  const load = loaded.length ? loaded[loaded.length - 1].load : undefined;
+  const read = load == null ? clusters : clusters.filter((c) => c.load == null || c.load === load);
+  const mixedLoad = read.length < clusters.length || clusters.some((c) => c.loadChanged);
+  const bad = read.find((c) => c.issue);
   return {
-    clusters,
+    clusters: read,
     issue: bad?.issue ?? null,
     ...(bad ? { issueGroup: bad.group } : {}),
     valid: !bad,
     load,
     clustered: true,
     legacy,
+    ...(mixedLoad ? { mixedLoad: true } : {}),
   };
 }
 
@@ -576,7 +594,10 @@ export type RecommendWarning =
   | 'failure-on-rir1'
   /** An activation was logged with reps and no RIR: the call read it as RIR 0
    *  (the fewest effective reps it can stand for). Soft: the read stands. */
-  | 'rir-missing-assumed-0';
+  | 'rir-missing-assumed-0'
+  /** The load moved inside the lift: the call was read from the activation
+   *  set(s) at the last cluster's load (`ExerciseRead.mixedLoad`). Soft. */
+  | 'load-changed-mid-cluster';
 
 export interface ActivationSummary {
   group: number;
@@ -1101,6 +1122,7 @@ export function recommend(history: readonly SessionExercise[], opts: RecommendOp
     ...(config.effortStandard === 'rir1' && read.clusters.some((c) => c.rir === 0) ? ['failure-on-rir1' as const] : []),
     // A blank RIR is read as 0, never as a reason to stop (2026-10-13).
     ...(read.clusters.some((c) => c.rirAssumed) ? ['rir-missing-assumed-0' as const] : []),
+    ...(read.mixedLoad ? ['load-changed-mid-cluster' as const] : []),
   ];
   const judged = { ...base, warnings, last: summaries, currentLoad };
 

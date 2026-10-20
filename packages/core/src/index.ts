@@ -315,6 +315,14 @@ export {
   toCardioBlockFromHealth,
   toCardioModality,
   workoutDurationSec,
+  // 2026-10-20: which session an import belongs to, and the Zone 2 merge.
+  SESSION_WINDOW_SLACK_MS,
+  ZONE2_MERGE_TOLERANCE,
+  inSessionWindow,
+  mergeIntoZone2,
+  sessionWindow,
+  watchWorkoutName,
+  zone2MergeIndex,
 } from './health-workouts';
 // Oura Cloud API — the SECOND cardio import transport (issue #72, ADR-0026
 // Amendment 2). Parse-only: it turns Oura's wire shape into the same
@@ -427,6 +435,8 @@ export * from './usage-events';
 // Shared CSV export serializer (both apps). buildCsv + ExportData are unique
 // names; the ./workout types it consumes stay un-barreled (see note above).
 export { buildCsv, type ExportData } from './csv-export';
+// Which templates make up the rotation (Train's volume sheet + the export).
+export * from './rotation-templates';
 // Switcher CSV import parser (MFP / Lose It! / Cronometer), pure + shared.
 export * from './import-csv';
 

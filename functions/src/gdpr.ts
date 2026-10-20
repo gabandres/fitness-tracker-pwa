@@ -38,6 +38,11 @@ export const USER_SUBCOLLECTIONS = [
   "dailySleep",
   // Evening hunger ratings (2026-10-20) — added with the collection.
   "dailyHunger",
+  // Deleted Health / Oura workouts, by sourceId (2026-10-20,
+  // `health-tombstones.ts`) — written by the server, about the user's own
+  // health records, so erasable and portable. Swept AGAIN after the profile
+  // is deleted (step 3c), because erasing sessions fires the trigger.
+  "healthTombstones",
   "measurements",
   "photos",
   "workoutSessions",
@@ -103,6 +108,11 @@ export const USER_SUBCOLLECTIONS = [
  * `private`. It is exported, because excluding it would have rested on an
  * argument that turned out not to apply to it.
  */
+/** Subcollections erased a SECOND time, after the profile is gone, because a
+ *  trigger fired by step 1's deletes can write to them (step 3c). Each is
+ *  also in {@link USER_SUBCOLLECTIONS}. */
+export const SWEPT_AFTER_PROFILE = ["healthTombstones"] as const;
+
 export const EXPORT_EXCLUDED: ReadonlySet<string> = new Set(["private"]);
 
 /**
@@ -514,6 +524,13 @@ export async function eraseUserData(uid: string): Promise<void> {
       }
     }).catch((e: unknown) => console.warn(`eraseUserData: final mirror sweep failed uid=${uid}:`, e));
   }
+
+  // 3c. Sweep `healthTombstones` again. Step 1 deletes `workoutSessions`, and
+  //     each delete fires `enforceHealthTombstones`, which records the
+  //     session's imported workouts. It writes only inside a transaction that
+  //     sees the profile, so anything it wrote landed BEFORE step 3 — and is
+  //     caught here; from here on it writes nothing.
+  for (const name of SWEPT_AFTER_PROFILE) await deleteSubcollection(userPath, name);
 
   // 4. Delete the Firebase Auth user. This signs them out of all
   //    sessions and prevents future logins. After this point the

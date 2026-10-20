@@ -13,6 +13,7 @@ import {
   deleteDoc,
   doc,
   getDoc,
+  getDocs,
   serverTimestamp,
   setDoc,
   Timestamp,
@@ -1786,6 +1787,17 @@ describe('firestore.rules', () => {
     await assertFails(
       setDoc(doc(db, 'users', 'alice', 'dailySleep', '2026-08-24'), { hours: 7.5, note: 'x' }),
     );
+  });
+
+  // ── healthTombstones (2026-10-20): server-written, owner-readable ──
+
+  it('lets the owner read their health tombstones and nobody write one', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertSucceeds(getDocs(collection(db, 'users', 'alice', 'healthTombstones')));
+    await assertFails(setDoc(doc(db, 'users', 'alice', 'healthTombstones', 'X'), { sourceId: 'X' }));
+    await assertFails(deleteDoc(doc(db, 'users', 'alice', 'healthTombstones', 'X')));
+    await assertFails(getDocs(collection(authed('bob'), 'users', 'alice', 'healthTombstones')));
   });
 
   // ── dailyHunger (2026-10-20): one whole number 0–10 per day ──

@@ -1088,6 +1088,15 @@ service cloud.firestore {
                     && request.resource.data.wakeTime.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$')));
       }
 
+      // Deleted Health / Oura workouts, by sourceId (2026-10-20). Written ONLY
+      // by the server (`enforceHealthTombstones`, from `dismissedSourceIds`
+      // and deleted sessions) — a client that could write here could also
+      // delete one and resurrect what the user removed. The import reads it.
+      match /healthTombstones/{tombstoneId} {
+        allow read:  if isOwner(uid) || isAdmin();
+        allow write: if false;
+      }
+
       // Evening hunger — one rating per calendar day keyed by date, shape
       // { level }, a whole number 0 (full) – 10 (starving). Typed on Today;
       // read back on Trends as a 7-day average. Display only: nothing reads

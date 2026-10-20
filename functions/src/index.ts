@@ -11,6 +11,7 @@ import "./init";
 export { analyzePhoto } from "./analyze-photo";
 export { consultationStream, checkAccessStatus } from "./consultation";
 export { exportUserData, deleteAccount } from "./gdpr";
+export { enforceHealthTombstones } from "./health-tombstones";
 export { registerAppleRefreshToken } from "./apple-signin";
 export { generateWeeklyReport } from "./weekly-report";
 export { statusPulse, weeklyFirestoreBackup } from "./ops";

@@ -93,6 +93,7 @@ const INVALID_KEYS: Record<InvalidReason, I18nKey> = {
 const WARNING_KEYS: Record<RecommendWarning, I18nKey> = {
   'failure-on-rir1': 'train.rec.warn.failureOnRir1',
   'rir-missing-assumed-0': 'train.rec.warn.rirMissingAssumed0',
+  'load-changed-mid-cluster': 'train.rec.warn.loadChangedMidCluster',
 };
 
 /** One label per call — the same five words on the card and the finish sheet. */

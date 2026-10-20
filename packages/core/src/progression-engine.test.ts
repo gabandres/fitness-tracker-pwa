@@ -121,19 +121,22 @@ describe('Layer 1 — validity gate on the logged sessions', () => {
     expect(readExercise(ex(cluster(1, 10, 14, 3, 4, 3)), clustered).valid).toBe(true);
   });
 
-  it('2026-09-15 Standing calf raise: C1 at 40, C2 at 35 → INVALID (load changed mid-exercise)', () => {
+  it('2026-09-15 Standing calf raise: C1 at 40, C2 at 35 → read at the LAST cluster\'s load (2026-10-20)', () => {
+    // Was INVALID (`load-changed`) until 2026-10-20. C1 at 40 drops out of the
+    // read; C2 at 35 is judged on its own (first mini 9 → too easy).
     const r = readExercise(ex([...cluster(1, 40, 15, 2, 9, 4), ...cluster(2, 35, 12, 2, 9, 8)]), clustered);
-    expect(r.valid).toBe(false);
-    expect(r.issue).toBe('load-changed');
-    expect(r.load).toBeUndefined();
+    expect(r).toMatchObject({ load: 35, mixedLoad: true, issue: 'first-mini-too-many', issueGroup: 2 });
+    expect(r.clusters.map((c) => c.group)).toEqual([2]);
   });
 
-  it('a load change INSIDE a cluster is a load change too (9/30 hammer curl 20 → 15 → 20); a drop set is not', () => {
+  it('a load change INSIDE a cluster is read from the activation (9/30 hammer curl 20 → 15 → 20); a drop set is not a load change', () => {
     const hammer = ex([[1, 'activation', 8, 0, 20], [1, 'mini', 3, 0, 15], [1, 'mini', 2, 0, 20]]);
-    expect(readExercise(hammer, clustered)).toMatchObject({ valid: false, issue: 'load-changed' });
+    expect(readExercise(hammer, clustered)).toMatchObject({ valid: true, load: 20, mixedLoad: true });
     const withDrop = ex(cluster(1, 15, 11, 0, 4, 3));
     withDrop.sets.push({ kind: 'drop', weight: 10, reps: 8 });
-    expect(readExercise(withDrop, clustered)).toMatchObject({ valid: true, load: 15 });
+    const read = readExercise(withDrop, clustered);
+    expect(read).toMatchObject({ valid: true, load: 15 });
+    expect(read.mixedLoad).toBeUndefined();
   });
 
   it('the first-mini rule is unchanged: under 2 is too hard, over 5 too easy, 2-5 inclusive is valid', () => {
@@ -319,9 +322,11 @@ describe('the 2026-10-07 cases, one per rule', () => {
     expect(progressionCall(rec)).toBe('repeat-invalid');
   });
 
-  it('a load change mid-exercise → repeat', () => {
+  it('a load change mid-exercise → read from the activations, flagged (2026-10-20; was repeat-invalid)', () => {
     const rec = recommend([ex([...cluster(1, 25, 9, 0, 4, 3), [2, 'activation', 9, 0, 25], [2, 'mini', 4, 0, 25], [2, 'mini', 3, 0, 28]])], lift('Smith squat'));
-    expect(rec).toMatchObject({ action: 'repeat-invalid', reason: { kind: 'invalid', reason: 'load-changed' } });
+    expect(rec.action).not.toBe('repeat-invalid');
+    expect(rec).toMatchObject({ currentLoad: 25 });
+    expect(rec.warnings).toContain('load-changed-mid-cluster');
   });
 
   it('bodyweight pull-up at 12 → build reps', () => {

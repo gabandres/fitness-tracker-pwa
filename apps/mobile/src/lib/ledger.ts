@@ -2297,6 +2297,24 @@ export async function updateSession(
   await updateDoc(sessionDoc(uid, id), data);
 }
 
+/**
+ * Health / Oura workouts the user deleted, by `sourceId` — account-wide, so a
+ * deletion outlives the session it was removed from (a deleted session, a
+ * reinstall, another device). Written ONLY by the server
+ * (`enforceHealthTombstones`, from `dismissedSourceIds` and from deleted
+ * sessions); the client reads it so the import never writes a block back.
+ * The doc id is `encodeURIComponent(sourceId)`; the id itself is the field.
+ */
+export async function getHealthTombstones(uid: string): Promise<Set<string>> {
+  const snap = await getDocs(collection(db, 'users', uid, 'healthTombstones'));
+  const out = new Set<string>();
+  for (const d of snap.docs) {
+    const id = d.get('sourceId');
+    out.add(typeof id === 'string' ? id : decodeURIComponent(d.id));
+  }
+  return out;
+}
+
 export async function deleteSession(uid: string, id: string): Promise<void> {
   await deleteDoc(sessionDoc(uid, id));
 }

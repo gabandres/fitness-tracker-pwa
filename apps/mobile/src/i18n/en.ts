@@ -1387,6 +1387,7 @@ export const en = {
   'train.rec.reason.unsupportedStructure': 'Programmed as {structure} — the engine does not read that structure yet.',
   'train.rec.warn.failureOnRir1': 'Logged at failure. This lift is set to leave 1 rep in reserve.',
   'train.rec.warn.rirMissingAssumed0': 'RIR missing, assumed 0.',
+  'train.rec.warn.loadChangedMidCluster': 'Load changed mid-cluster — read from the activation set.',
   'train.rec.settings': 'Lift settings',
   'train.rec.templateLoad': 'Template: {load}',
   'train.rec.templateLoadHint': "Uses the template's load on every set you have not ticked",

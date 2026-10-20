@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { buildCsv } from './csv-export';
+import { rotationVolume } from './volume-credits';
+import { rotationTemplates } from './rotation-templates';
 import type { DailyLog, Measurement } from './types';
-import type { WorkoutSession } from './workout';
+import type { MuscleGroup, WorkoutSession } from './workout';
 
 function emptyData() {
   return {
@@ -529,6 +531,9 @@ describe('buildCsv — Program v2 columns (test 10)', () => {
     'restBetweenClustersSec', 'restToNextSec',
     // 2026-10-20: the evening hunger rating ('hunger' rows).
     'eveningHunger',
+    // 2026-10-20 (item 8): which window a volume row covers, and the
+    // sessions a 'rotationVolume' row counts.
+    'volumeWindow', 'rotationSessions',
   ];
   const csv = buildCsv(HISTORICAL);
   const lines = csv.split('\r\n');
@@ -547,7 +552,7 @@ describe('buildCsv — Program v2 columns (test 10)', () => {
   });
 
   it('historical rows are byte-for-byte unchanged in every existing column (the pre-v2 exporter\'s own output)', () => {
-    const old = lines.filter((l) => !l.startsWith('weeklyVolume,'));
+    const old = lines.filter((l) => !l.startsWith('weeklyVolume,') && !l.startsWith('rotationVolume,'));
     expect(old).toHaveLength(golden.length);
     old.slice(1).forEach((line, i) => {
       expect(line.startsWith(`${golden[i + 1]},`)).toBe(true);
@@ -590,6 +595,87 @@ describe('buildCsv — Program v2 columns (test 10)', () => {
     expect(byMuscle['2026-10-05 sideDelt']).toEqual(['1', '1']);
     expect(byMuscle['2026-10-05 abs']).toEqual(['1', '1']);
     expect(rows.every((r) => r.date === r.weekStart)).toBe(true);
+    // Self-describing since 2026-10-20: these are calendar weeks, not the
+    // in-app rotation.
+    expect(rows.every((r) => r.volumeWindow === 'calendar week' && r.rotationSessions === '')).toBe(true);
+  });
+});
+
+/** Item 8 (owner, 2026-10-20): the export's `weeklyVolume` rows group by
+ *  calendar week, so the week of 10/19 held only Leg + Pull while Train's
+ *  sheet shows the latest rotation. `rotationVolume` rows are the sheet's
+ *  number: the same `rotationVolume` call, over the same templates. */
+describe('buildCsv — rotationVolume rows (the in-app rotation)', () => {
+  const at = (d: string) => new Date(`${d}T12:00:00Z`);
+  const myo = (w: number, act: number) => [
+    { kind: 'activation' as const, group: 1, weight: w, reps: act, rir: 0, done: true },
+    { kind: 'mini' as const, group: 1, weight: w, reps: 4, rir: 0, done: true },
+  ];
+  const ex = (exerciseId: string, name: string, clusters = 1) => ({
+    exerciseId, name, cues: [], logStyle: 'weight-reps' as const,
+    sets: Array.from({ length: clusters }, (_, i) => myo(20, 12).map((x) => ({ ...x, group: i + 1 }))).flat(),
+  });
+  const sess = (id: string, templateId: string, templateName: string, day: string, exercises: ReturnType<typeof ex>[]) => ({
+    id, status: 'completed' as const, templateId, templateName, date: at(day), createdAt: at(day), updatedAt: at(day), exercises,
+  });
+  const sessions = [
+    sess('push1', 't-push', 'Push Day', '2026-10-09', [ex('flat', 'DB Flat Press', 1)]),
+    sess('push2', 't-push', 'Push Day', '2026-10-15', [ex('flat', 'DB Flat Press', 2)]),
+    sess('pull', 't-pull', 'Pull Day', '2026-10-20', [ex('row', 'Seated Machine Row', 2)]),
+    sess('leg', 't-leg', 'Leg Day', '2026-10-19', [ex('smith', 'Smith squat', 2)]),
+    // Not a rotation template (an imported walk): never counted.
+    { ...sess('walk', '', '', '2026-10-16', []), templateId: undefined, templateName: undefined },
+  ] as WorkoutSession[];
+  const catalogMuscles = [
+    { id: 'flat', muscles: ['chest', 'triceps'] },
+    { id: 'row', muscles: ['back', 'biceps'] },
+    { id: 'smith', muscles: ['quads', 'glutes'] },
+  ] as { id: string; muscles: MuscleGroup[] }[];
+  const ids = ['t-push', 't-pull', 't-leg'];
+  const csv = buildCsv({ ...emptyData(), workoutSessions: sessions, catalogMuscles, rotationTemplateIds: ids });
+  const [h, ...rest] = csv.split('\r\n');
+  const cols = h.split(',');
+  const rows = rest.map((l) => l.split(',')).map((f) => Object.fromEntries(cols.map((c, i) => [c, f[i] ?? ''])));
+  const rot = rows.filter((r) => r.type === 'rotationVolume');
+
+  it('matches the in-app sheet\'s rotationVolume, muscle by muscle', () => {
+    const app = rotationVolume(sessions, catalogMuscles, ids).week.filter((m) => m.fractional > 0);
+    expect(rot.map((r) => [r.muscle, Number(r.directClusters), Number(r.fractionalClusters)]))
+      .toEqual(app.map((m) => [m.muscle, m.direct, m.fractional]));
+    expect(rot.length).toBeGreaterThan(0);
+  });
+
+  it('is keyed by the latest session of each template — Push 10/15, not 10/09', () => {
+    expect(new Set(rot.map((r) => r.rotationSessions))).toEqual(new Set(['Push Day 2026-10-15; Leg Day 2026-10-19; Pull Day 2026-10-20']));
+    expect(rot.every((r) => r.date === '2026-10-20' && r.volumeWindow === 'latest rotation' && r.weekStart === '')).toBe(true);
+    // Push 10/15 carried two chest clusters; the 10/09 single cluster is not in it.
+    expect(rot.find((r) => r.muscle === 'chest')?.directClusters).toBe('2');
+  });
+
+  it('the calendar-week rows stay, labelled: the week of 10/19 holds only Leg + Pull', () => {
+    const week = rows.filter((r) => r.type === 'weeklyVolume' && r.weekStart === '2026-10-19');
+    expect(week.map((r) => r.muscle).sort()).toEqual(['back', 'biceps', 'glutes', 'quads']);
+    expect(week.every((r) => r.volumeWindow === 'calendar week')).toBe(true);
+  });
+
+  it('without rotationTemplateIds, the rotation is every exported template; none → no rows', () => {
+    const tpl = (id: string) => ({ id, name: id, exercises: [], restMiniSec: 10, restClusterSec: 90, createdAt: at('2026-10-01'), updatedAt: at('2026-10-01') });
+    const viaTemplates = buildCsv({ ...emptyData(), workoutSessions: sessions, catalogMuscles, templates: ids.map(tpl) });
+    expect(viaTemplates.split('\r\n').filter((l) => l.startsWith('rotationVolume,'))).toHaveLength(rot.length);
+    const none = buildCsv({ ...emptyData(), workoutSessions: sessions, catalogMuscles });
+    expect(none.split('\r\n').some((l) => l.startsWith('rotationVolume,'))).toBe(false);
+  });
+});
+
+describe('rotationTemplates (moved to core, 2026-10-20)', () => {
+  const at = (d: string) => new Date(`${d}T12:00:00Z`);
+  const tpls = [{ id: 'push' }, { id: 'pull' }, { id: 'upper' }];
+  const done = (templateId: string, d: string) => ({ status: 'completed' as const, templateId, date: at(d) });
+  it('a Program v2 names its templates; else only those used in the last 28 days; else all', () => {
+    const now = at('2026-10-20').getTime();
+    expect(rotationTemplates(tpls, new Set(['pull']), [], now).map((t) => t.id)).toEqual(['pull']);
+    expect(rotationTemplates(tpls, new Set(), [done('push', '2026-10-15'), done('upper', '2026-05-01')], now).map((t) => t.id)).toEqual(['push']);
+    expect(rotationTemplates(tpls, new Set(), [done('upper', '2026-05-01')], now).map((t) => t.id)).toEqual(['push', 'pull', 'upper']);
   });
 });
 

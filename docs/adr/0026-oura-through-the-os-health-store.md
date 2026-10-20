@@ -396,6 +396,31 @@ redirect, so the user landed on the success page and had to tap Done. The
 callback now bounces to `ignia://oura/callback` after the exchange. Oura's
 registered redirect URI is unchanged.
 
+## Amendment 4 — 2026-10-20: one automatic merge, a session window, and server-held deletions
+
+Owner's call, from the 10/20 export: the Watch kept adding its copy of the
+Zone 2 walk beside the block he logged by hand (10/14, 10/19, 10/20).
+
+- **Decision 4 gains ONE exception.** A Health workout that starts or ends
+  inside a session's window (its start → its end + 15 min) and is within
+  ±25 % of that session's hand-logged Zone 2 duration is merged into it
+  (core `zone2MergeIndex` / `mergeIntoZone2`): the Watch's duration, its HR /
+  distance / kcal where the logged block has none, the user's label, band,
+  RPE and notes kept. Its `sourceId` goes to `dismissedSourceIds`. Every
+  other overlap is still a suggestion.
+- **Routing is by window, not by day.** A new import joins a completed
+  session only inside that window; otherwise it is its own session with no
+  template (the 10/15 20:33 walk had joined the morning's Push Day). Named
+  as the Watch names it ("Outdoor Walk") when HealthKit says indoor/outdoor.
+- **A deletion is the server's to keep.** `users/{uid}/healthTombstones`
+  (server-written, owner-readable) records every dismissed id and every
+  imported block of a deleted session; `enforceHealthTombstones` strips a
+  tombstoned block from any session write, from any build — the 10/14 walk
+  was re-added six minutes after its deletion by a phone still on older JS.
+- **iOS reads workout heart rate** (`HKQuantityTypeIdentifierHeartRate`,
+  scope v3 on iOS only; recent workouts only, one statistic per workout).
+  Android's needs a manifest permission, so a binary.
+
 ## Alternatives rejected
 
 - **Oura Cloud API now.** Two Cloud Functions, refresh-token storage, ~$0.12/mo

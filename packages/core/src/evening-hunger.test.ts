@@ -79,7 +79,8 @@ describe('evening hunger — CSV', () => {
     });
     const [header, ...rows] = csv.split('\r\n');
     const cols = header.split(',');
-    expect(cols[cols.length - 1]).toBe('eveningHunger'); // appended: no column moved
+    // Appended right after the 2026-10-15 rests: no column moved.
+    expect(cols.indexOf('eveningHunger')).toBe(cols.indexOf('restToNextSec') + 1);
     const hunger = rows.filter((r) => r.startsWith('hunger,')).map((r) => r.split(','));
     expect(hunger.map((r) => [r[cols.indexOf('date')], r[cols.indexOf('eveningHunger')]])).toEqual([
       ['2026-10-19', '0'],

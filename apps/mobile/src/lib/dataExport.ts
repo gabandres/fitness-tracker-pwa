@@ -6,7 +6,7 @@
 import { Platform } from 'react-native';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
-import { buildCsv, programDrafts } from '@macrolog/core';
+import { buildCsv, programDrafts, rotationTemplates } from '@macrolog/core';
 import {
   getAllDailySleep,
   getAllDailyWater,
@@ -86,6 +86,14 @@ export async function exportDataCsv(uid: string): Promise<ExportResult> {
     dailyHunger,
     templateVersions: Object.fromEntries(programDrafts(drafts).map((d) => [d.draftOf, d.status === 'active' ? 'v2' : 'v1'] as const)),
     catalogMuscles: exercises.map((e) => ({ id: e.id, muscles: e.muscles })),
+    // The rotation Train's volume sheet reads (`rotationTemplates`, same
+    // inputs as StartView): `rotationVolume` rows match the in-app numbers.
+    rotationTemplateIds: rotationTemplates(
+      templates,
+      new Set(programDrafts(drafts).map((d) => d.draftOf)),
+      workoutSessions,
+      Date.now(),
+    ).flatMap((tp) => (tp.id ? [tp.id] : [])),
   });
   const rows = logs.length + measurements.length + workoutSessions.length + fasts.length;
   const filename = `ignia-export-${stamp()}.csv`;

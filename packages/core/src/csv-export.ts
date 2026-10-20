@@ -14,7 +14,7 @@ import { normalizeClusterGroups } from './cluster-groups';
 import { snapshotSupersets } from './superset';
 import { MIDNIGHT, dayKeyAt, type DayBoundary } from './day-boundary';
 import { zone2Check } from './cardio';
-import { volumeBetween } from './volume-credits';
+import { latestRotation, volumeBetween } from './volume-credits';
 import type { MuscleGroup } from './workout';
 import { compareLogsOldestFirst } from './firestore-mappers';
 
@@ -85,6 +85,13 @@ const COLS = [
   // 'hunger' rows: the day's evening hunger rating, 0 (full) – 10 (starving)
   // (`evening-hunger.ts`).
   'eveningHunger',
+  // ── 2026-10-20 (owner, item 8), appended for the same reason ──
+  // Which window a volume row covers: 'calendar week' on `weeklyVolume` rows
+  // (Monday start), 'latest rotation' on `rotationVolume` rows — the latest
+  // completed session of each rotation template, the window Train's volume
+  // sheet shows. `rotationSessions` names those sessions ("Push Day
+  // 2026-10-15; …") on `rotationVolume` rows.
+  'volumeWindow', 'rotationSessions',
 ] as const;
 type Col = typeof COLS[number];
 
@@ -124,6 +131,10 @@ export interface ExportData {
   dailyHunger?: Record<string, number>;
   /** The program version each template runs as (`programVersion`), by id. */
   templateVersions?: Record<string, 'v1' | 'v2'>;
+  /** The templates that make up the rotation (`rotationTemplates`, the set
+   *  Train's volume sheet reads), for `rotationVolume` rows. Absent → every
+   *  template in {@link templates}. */
+  rotationTemplateIds?: readonly string[];
   /** Catalog muscles by exercise id, for `weeklyVolume` rows. Absent → the
    *  credit table alone decides (exercises it does not know are left out). */
   catalogMuscles?: readonly { id?: string; muscles: readonly MuscleGroup[] }[];
@@ -132,7 +143,8 @@ export interface ExportData {
 /**
  * Long-format CSV: every row carries a `type` discriminator
  * (meal | workout_marker | weight | water | sleep | hunger | measurement |
- * workout | workout_set | cardio) and only fills the columns relevant to that type.
+ * workout | workout_set | cardio | template | target | weeklyVolume |
+ * rotationVolume) and only fills the columns relevant to that type.
  *
  * `workout_marker` is the 0-kcal `dailyLogs` row a finished session writes so
  * the day counts toward the streak (`workoutMarkerEntry`). Until 2026-10-13 it
@@ -325,6 +337,7 @@ export function buildCsv(data: ExportData, boundary: DayBoundary = MIDNIGHT): st
   rows.push(...templateRows(data));
   rows.push(...targetRows(data, boundary));
   rows.push(...weeklyVolumeRows(data, boundary));
+  rows.push(...rotationVolumeRows(data, boundary));
 
   return rows.join('\r\n');
 }
@@ -356,10 +369,35 @@ function weeklyVolumeRows(data: ExportData, boundary: DayBoundary): string[] {
   for (const w of [...weeks.keys()].sort()) {
     const v = volumeBetween(weeks.get(w) ?? [], data.catalogMuscles ?? [], -Infinity, Infinity);
     for (const m of v.week.filter((x) => x.fractional > 0)) {
-      out.push(row({ type: 'weeklyVolume', date: w, weekStart: w, muscle: m.muscle, directClusters: m.direct, fractionalClusters: m.fractional }));
+      out.push(row({ type: 'weeklyVolume', date: w, weekStart: w, muscle: m.muscle, directClusters: m.direct, fractionalClusters: m.fractional, volumeWindow: 'calendar week' }));
     }
   }
   return out;
+}
+
+/**
+ * One `rotationVolume` row per credited muscle over the LATEST ROTATION — the
+ * latest completed session of each rotation template — computed with
+ * `latestRotation` + `volumeBetween`, i.e. exactly core `rotationVolume`, the
+ * function Train's "Volume per rotation" sheet calls. `weeklyVolume` rows group
+ * by calendar week instead, so a week can hold only part of a rotation (the
+ * week of 10/19 held Leg + Pull, with Push on 10/15); these rows are the
+ * in-app number. `date` is the day of the rotation's newest session;
+ * `rotationSessions` lists every session it counts.
+ */
+function rotationVolumeRows(data: ExportData, boundary: DayBoundary): string[] {
+  const ids = data.rotationTemplateIds ?? (data.templates ?? []).flatMap((t) => (t.id ? [t.id] : []));
+  const rotation = latestRotation(data.workoutSessions ?? [], ids);
+  if (!rotation.length) return [];
+  const v = volumeBetween(rotation, data.catalogMuscles ?? [], -Infinity, Infinity);
+  const date = dayKeyAt(rotation[rotation.length - 1].date, boundary);
+  const sessions = rotation.map((s) => `${s.templateName ?? s.templateId ?? ''} ${dayKeyAt(s.date, boundary)}`).join('; ');
+  return v.week
+    .filter((m) => m.fractional > 0)
+    .map((m) => row({
+      type: 'rotationVolume', date, muscle: m.muscle, directClusters: m.direct, fractionalClusters: m.fractional,
+      volumeWindow: 'latest rotation', rotationSessions: sessions,
+    }));
 }
 
 /** `90-120` for a range, `60` for a single value. */

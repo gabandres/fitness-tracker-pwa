@@ -33,12 +33,26 @@ const NOW = new Date('2026-07-30T12:00:00Z');
 const stamp = { ts: NOW.getTime() };
 
 describe('toLogDoc', () => {
-  it('emits calories + timestamp and omits every unset optional', () => {
+  it('emits calories + timestamp, protein 0 for a blank food row, and omits every other unset optional', () => {
     expect(toLogDoc({ calories: 500 }, codec, NOW)).toEqual({
       calories: 500,
+      protein: 0,
       timestamp: stamp,
       createdAt: stamp,
     });
+  });
+
+  it('blank protein on a food row is stored as 0 (owner, 2026-10-20 — the 10/20 "Grapes" row)', () => {
+    expect(toLogDoc({ calories: 40, mealLabel: 'Grapes' }, codec, NOW).protein).toBe(0);
+    // A named zero-calorie row (black coffee) is food too.
+    expect(toLogDoc({ calories: 0, mealLabel: 'Black coffee' }, codec, NOW).protein).toBe(0);
+    // A typed value always wins, including a typed 0.
+    expect(toLogDoc({ calories: 40, protein: 1.5 }, codec, NOW).protein).toBe(1.5);
+    expect(toLogDoc({ calories: 40, protein: 0 }, codec, NOW).protein).toBe(0);
+  });
+
+  it('a workout marker (no calories, no label) carries no protein', () => {
+    expect('protein' in toLogDoc({ calories: 0, exerciseCompleted: true }, codec, NOW)).toBe(false);
   });
 
   it('carries every provided field', () => {
@@ -174,11 +188,16 @@ describe('meal label cap (S20)', () => {
 });
 
 describe('toLogPatch', () => {
+  it('blank protein on an edited food row is stored as 0, not removed', () => {
+    expect(toLogPatch({ calories: 40, mealLabel: 'Grapes' }, codec).protein).toBe(0);
+    expect(toLogPatch({ calories: 0, exerciseCompleted: true }, codec).protein).toBe(REMOVE);
+  });
+
   it('removes each cleared macro instead of leaving the stored value', () => {
     const patch = toLogPatch({ calories: 300 }, codec);
     expect(patch).toMatchObject({
       calories: 300,
-      protein: REMOVE,
+      protein: 0,
       carbs: REMOVE,
       fat: REMOVE,
       exerciseCompleted: REMOVE,

@@ -19,7 +19,7 @@
  * this project.
  */
 import type { CardioBlock, CardioModality, CardioProvider, CardioSource } from './cardio';
-import { clampCardioKcal, clampDistanceM, clampHr } from './cardio';
+import { clampCardioKcal, clampDistanceM, clampHr, isZone2 } from './cardio';
 
 /**
  * One workout as the adapter reads it, normalized to neutral units but NOT
@@ -40,6 +40,12 @@ export interface HealthWorkout {
   distanceM?: number;
   kcal?: number;
   avgHr?: number;
+  /** Peak heart rate over the workout, bpm (iOS `getStatistic`, 2026-10-20). */
+  maxHr?: number;
+  /** HealthKit's `HKIndoorWorkout` metadata: true indoor, false outdoor,
+   *  absent when the recorder did not say. Names the block the way the Watch
+   *  does ("Outdoor Walk"). */
+  indoor?: boolean;
   /** HealthKit `sourceRevision.source.bundleIdentifier` / Health Connect
    *  `metadata.dataOrigin.packageName`. */
   sourceBundleId?: string;
@@ -207,6 +213,23 @@ export function humanizeActivityType(activityType: string): string {
     .replace(/\b[a-z]/g, (c) => c.toUpperCase());
 }
 
+/** The Watch's short names for its common workout types. */
+const WATCH_NAMES: readonly (readonly [string, string])[] = [
+  ['walk', 'Walk'],
+  ['run', 'Run'],
+  ['cycl', 'Cycle'],
+  ['hik', 'Hike'],
+  ['swim', 'Swim'],
+  ['row', 'Row'],
+];
+
+/** "Outdoor Walk" / "Indoor Run" — the name the Watch shows for a workout. */
+export function watchWorkoutName(activityType: string, indoor: boolean): string {
+  const key = typeKey(activityType);
+  const name = WATCH_NAMES.find(([f]) => key.includes(f))?.[1] ?? humanizeActivityType(activityType);
+  return `${indoor ? 'Indoor' : 'Outdoor'} ${name}`;
+}
+
 // ─── Mapping ────────────────────────────────────────────────────
 
 /** Duration in whole seconds, floored at zero. A record whose end precedes its
@@ -238,10 +261,16 @@ export function toCardioBlockFromHealth(w: HealthWorkout): CardioBlock {
     // because the user wrote it.
     ...(modality === 'other'
       ? { label: w.label?.trim() || humanizeActivityType(w.activityType) }
-      : {}),
+      : w.indoor != null
+        // The Watch's own name for it — "Outdoor Walk", "Indoor Run" — when
+        // the recorder said which (owner, 2026-10-20). Platform data, never
+        // translated (ADR-0007), like the `other` label above.
+        ? { label: watchWorkoutName(w.activityType, w.indoor) }
+        : {}),
     durationSec: workoutDurationSec(w),
     distanceM: clampDistanceM(w.distanceM),
     avgHr: clampHr(w.avgHr),
+    maxHr: clampHr(w.maxHr),
     kcal: clampCardioKcal(w.kcal),
     // Two transports, one mapper (issue #72). An Oura-cloud record states its
     // own provenance; a health-store record leaves it to be inferred.
@@ -392,6 +421,12 @@ export function mergeImportedBlocks(
         ...block,
         ...(blocks[at].notes !== undefined ? { notes: blocks[at].notes } : {}),
         ...(blocks[at].rpe !== undefined ? { rpe: blocks[at].rpe } : {}),
+        // Heart rate is read only for recent workouts (iOS `getStatistic` per
+        // workout is a native round trip), so an older re-read arrives without
+        // it — and must not erase what an earlier read stored.
+        ...(block.avgHr === undefined && blocks[at].avgHr !== undefined ? { avgHr: blocks[at].avgHr } : {}),
+        ...(block.maxHr === undefined && blocks[at].maxHr !== undefined ? { maxHr: blocks[at].maxHr } : {}),
+        ...(block.label === undefined && blocks[at].label !== undefined ? { label: blocks[at].label } : {}),
       };
       if (JSON.stringify(merged) !== JSON.stringify(blocks[at])) {
         blocks[at] = merged;
@@ -403,4 +438,88 @@ export function mergeImportedBlocks(
     }
   }
   return { blocks, changed };
+}
+
+// ─── Routing: which session an imported workout belongs to (2026-10-20) ──
+
+/** Slack after a session's end in which a Health workout still belongs to it —
+ *  the Zone 2 walk that closes a lift runs past the logged duration. */
+export const SESSION_WINDOW_SLACK_MS = 15 * 60_000;
+
+/** How close an imported workout's length must be to the logged Zone 2 for the
+ *  two to be one effort: ±25 % of the logged duration. */
+export const ZONE2_MERGE_TOLERANCE = 0.25;
+
+/** A cardio-only session with no `durationMin` is as long as its cardio; with
+ *  neither, this. */
+const DEFAULT_SESSION_MS = 90 * 60_000;
+
+/** What routing reads from a stored session. */
+export interface RoutableSession {
+  date: Date;
+  durationMin?: number;
+  status?: string;
+  exercises?: readonly unknown[];
+  cardio?: readonly CardioBlock[];
+}
+
+/**
+ * The span an imported workout must touch to belong to `session`: from the
+ * session's start to its end plus {@link SESSION_WINDOW_SLACK_MS}. The end is
+ * the logged duration, else the session's cardio, else 90 min.
+ */
+export function sessionWindow(session: RoutableSession): Span {
+  const startMs = session.date.getTime();
+  const cardioMs = (session.cardio ?? []).reduce((a, b) => a + (b.durationSec > 0 ? b.durationSec * 1000 : 0), 0);
+  const lengthMs = session.durationMin != null && session.durationMin > 0
+    ? session.durationMin * 60_000
+    : cardioMs || DEFAULT_SESSION_MS;
+  return { startMs, endMs: startMs + lengthMs + SESSION_WINDOW_SLACK_MS };
+}
+
+/** True when the block starts or ends inside the session's window (owner's
+ *  rule, 2026-10-20), or spans it. A block with no start belongs nowhere. */
+export function inSessionWindow(session: RoutableSession, block: Pick<CardioBlock, 'startedAt' | 'durationSec'>): boolean {
+  const span = blockSpan(block);
+  if (!span) return false;
+  const w = sessionWindow(session);
+  const inside = (t: number) => t >= w.startMs && t <= w.endMs;
+  return inside(span.startMs) || inside(span.endMs) || (span.startMs <= w.startMs && span.endMs >= w.endMs);
+}
+
+/** The manually logged Zone 2 block an imported workout would duplicate, as an
+ *  index into `session.cardio`, or -1. Typed by hand (no `sourceId`), Zone 2
+ *  by label or prescribed band, and within {@link ZONE2_MERGE_TOLERANCE} of
+ *  the import's length. Only for an import already inside the window. */
+export function zone2MergeIndex(session: RoutableSession, block: CardioBlock): number {
+  if (!inSessionWindow(session, block)) return -1;
+  return (session.cardio ?? []).findIndex((b) =>
+    !b.sourceId
+    && (b.source ?? 'manual') === 'manual'
+    && (isZone2(b) || b.targetHrMin != null)
+    && b.durationSec > 0
+    && Math.abs(block.durationSec - b.durationSec) <= ZONE2_MERGE_TOLERANCE * b.durationSec,
+  );
+}
+
+/**
+ * Fold a Watch recording of the Zone 2 walk into the block the user logged.
+ *
+ * The user's block stays the record — its label, band, RPE and notes are
+ * theirs. The Watch contributes what it measured: its duration always, and
+ * heart rate, distance, energy and start time where the user's block has
+ * none. Zone 2 "in band" is read from `avgHr` (`zone2Check`), so it follows.
+ */
+export function mergeIntoZone2(manual: CardioBlock, watch: CardioBlock): CardioBlock {
+  const fill = <K extends 'avgHr' | 'maxHr' | 'distanceM' | 'kcal' | 'startedAt'>(k: K) =>
+    manual[k] === undefined && watch[k] !== undefined ? { [k]: watch[k] } : {};
+  return {
+    ...manual,
+    durationSec: watch.durationSec,
+    ...fill('avgHr'),
+    ...fill('maxHr'),
+    ...fill('distanceM'),
+    ...fill('kcal'),
+    ...fill('startedAt'),
+  };
 }

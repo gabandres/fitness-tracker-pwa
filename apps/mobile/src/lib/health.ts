@@ -461,6 +461,45 @@ interface HKWorkoutRow {
   totalDistance?: { quantity?: number };
   totalEnergyBurned?: { quantity?: number };
   sourceRevision?: { source?: { bundleIdentifier?: string; name?: string } };
+  /** `HKIndoorWorkout` (the raw value of `HKMetadataKeyIndoorWorkout`). */
+  metadata?: Record<string, unknown>;
+  /** WorkoutProxy's per-workout statistic (heart rate, 2026-10-20). */
+  getStatistic?: (type: string, unit?: string) => Promise<{
+    averageQuantity?: { quantity?: number };
+    maximumQuantity?: { quantity?: number };
+  } | undefined>;
+}
+
+/** Heart rate is read only for workouts that ended this recently: it is one
+ *  native statistics query per workout, and the import runs on every
+ *  foreground over a 90-day window. An older re-read keeps the HR an earlier
+ *  read stored (`mergeImportedBlocks`). */
+export const HR_READ_WINDOW_MS = 7 * 86_400_000;
+
+/** `HKIndoorWorkout` as true / false, or undefined when the recorder did not
+ *  say. HealthKit hands booleans over the bridge as `true`/`false` or `1`/`0`. */
+export function hkIndoor(metadata: Record<string, unknown> | undefined): boolean | undefined {
+  const v = metadata?.['HKIndoorWorkout'] ?? metadata?.['HKMetadataKeyIndoorWorkout'];
+  if (v === true || v === 1 || v === '1') return true;
+  if (v === false || v === 0 || v === '0') return false;
+  return undefined;
+}
+
+/** Average / peak bpm over one workout, or {} when unreadable. */
+export async function hkWorkoutHr(w: HKWorkoutRow, now = Date.now()): Promise<{ avgHr?: number; maxHr?: number }> {
+  if (typeof w.getStatistic !== 'function' || now - ms(w.endDate) > HR_READ_WINDOW_MS) return {};
+  try {
+    const st = await w.getStatistic('HKQuantityTypeIdentifierHeartRate', 'count/min');
+    const avg = st?.averageQuantity?.quantity;
+    const max = st?.maximumQuantity?.quantity;
+    return {
+      ...(typeof avg === 'number' && avg > 0 ? { avgHr: Math.round(avg) } : {}),
+      ...(typeof max === 'number' && max > 0 ? { maxHr: Math.round(max) } : {}),
+    };
+  } catch {
+    // Not granted (the scope arrived in v3), or no samples: no HR, not a failure.
+    return {};
+  }
 }
 
 /** One interval of a statistics-collection response. `sumQuantity` is absent
@@ -601,6 +640,10 @@ const healthKit: HealthPort = {
         // covers them — which is why iOS gets cardio import by OTA while
         // Android waits for a binary. See the ADR-0026 amendment.
         'HKWorkoutTypeIdentifier',
+        // Workout heart rate (2026-10-20): average / peak per imported
+        // workout, so a Watch walk merged into Zone 2 carries its HR. Read
+        // only, runtime-requested like the rest — no native change.
+        'HKQuantityTypeIdentifierHeartRate',
       ] as never,
       toShare: [
         'HKQuantityTypeIdentifierBodyMass',
@@ -787,7 +830,8 @@ const healthKit: HealthPort = {
     if (typeof query !== 'function') return [];
     const rows = (await query(hkWorkoutQueryOptions(sinceDays))) as unknown as HKWorkoutRow[];
     const typeNames = (HK as unknown as Record<string, unknown>)['WorkoutActivityType'];
-    return (rows ?? []).map((w) => ({
+    const hr = await Promise.all((rows ?? []).map((w) => hkWorkoutHr(w)));
+    return (rows ?? []).map((w, i) => ({
       // `uuid` is HealthKit's stable per-sample identity and is what makes a
       // re-import update rather than duplicate. Falling back to the time range
       // keeps that property for any build where the field is absent.
@@ -797,6 +841,8 @@ const healthKit: HealthPort = {
       endMs: ms(w.endDate),
       distanceM: w.totalDistance?.quantity,
       kcal: w.totalEnergyBurned?.quantity,
+      ...hr[i],
+      indoor: hkIndoor(w.metadata),
       sourceBundleId: w.sourceRevision?.source?.bundleIdentifier,
       sourceName: w.sourceRevision?.source?.name,
       fromUs: w.sourceRevision?.source?.bundleIdentifier === APP_ID,

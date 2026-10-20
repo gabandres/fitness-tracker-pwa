@@ -110,6 +110,14 @@ describe('recommendation text — the rep-range rules on real engine output', ()
     expect(out.warnings).toEqual(['RIR missing, assumed 0.']);
   });
 
+  it('a load changed mid-cluster is read from the activation and says so (2026-10-20 Lat Pulldown)', () => {
+    // 90 × 8, minis at 80: a call at 90 (it used to be a skipped "invalid").
+    const pulldown: Row[] = [[1, 'activation', 8, 0, 90], [1, 'mini', 4, 0, 80], [1, 'mini', 3, 0, 80]];
+    const out = text(rec([ex(pulldown)], { name: 'Wide-grip lat pulldown' }));
+    expect(out.headline).toBe('90 lb · HOLD');
+    expect(out.warnings).toEqual(['Load changed mid-cluster — read from the activation set.']);
+  });
+
   it('at the rep cap with the step still too big: the techniques, in order', () => {
     const r = rec([ex(cluster(1, 100, 17))], { ...PRESS, availableLoads: [100, 150], microplates: true }, { volumeAllowsCluster: true });
     const out = text(r);

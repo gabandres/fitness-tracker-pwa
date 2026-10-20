@@ -262,9 +262,11 @@ describe('item 7 — every same-day session is consulted', () => {
     expect(mockStartSession).not.toHaveBeenCalled();
   });
 
-  it('never writes into a session that is active; a completed one of the day takes the block', async () => {
+  it('never writes into a session that is active; a completed one whose window holds the block takes it', async () => {
+    // Inside 'done''s window (12:00 + 90 min + 15 min) — since 2026-10-20 a
+    // block outside every session's window gets its own session instead.
     mockSessions = [sess('live', { status: 'active', date: new Date(2026, 9, 15, 18) }), sess('done')];
-    await writeImportedBlocks('u1', [block('r2')]);
+    await writeImportedBlocks('u1', [block('r2', new Date(2026, 9, 15, 12, 30))]);
     expect(mockUpdateSession).toHaveBeenCalledTimes(1);
     expect(mockUpdateSession.mock.calls[0][1]).toBe('done');
   });

@@ -1240,6 +1240,7 @@ export const esPR: Record<I18nKey, string> = {
   'train.rec.reason.unsupportedStructure': 'Programado como {structure} — el motor todavía no lee esa estructura.',
   'train.rec.warn.failureOnRir1': 'Anotada al fallo. Este ejercicio está configurado para dejar 1 rep en reserva.',
   'train.rec.warn.rirMissingAssumed0': 'Falta el RIR, se asumió 0.',
+  'train.rec.warn.loadChangedMidCluster': 'La carga cambió a mitad del clúster — se leyó la serie de activación.',
   'train.rec.settings': 'Ajustes del ejercicio',
   'train.rec.templateLoad': 'Plantilla: {load}',
   'train.rec.templateLoadHint': 'Usa la carga de la plantilla en cada serie que no has marcado',
