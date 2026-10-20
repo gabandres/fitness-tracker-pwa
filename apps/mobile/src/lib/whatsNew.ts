@@ -174,7 +174,11 @@ import type { I18nKey } from '@/i18n';
 // next session or the next look at Settings/Trends — the effort target the
 // engine now judges at, the dumbbell step, the deload card, Zone 2 on Trends.
 // The supersets item goes: four days live, past its second-launch window.
-export const WHATS_NEW_VERSION = '2026-10-15-program-v2-1';
+// Bumped 2026-10-20, on the owner's explicit instruction, for evening hunger
+// (a new row on Today every user meets) and the Finish RIR check now covering
+// unticked sets with reps. The Program v2.1 items go: five days live, past
+// their second-launch window.
+export const WHATS_NEW_VERSION = '2026-10-20-evening-hunger';
 
 const KEY = 'whatsNew.seen';
 
@@ -204,10 +208,8 @@ export interface WhatsNewItem {
 }
 
 export const WHATS_NEW_ITEMS: readonly WhatsNewItem[] = [
-  { icon: 'flag-outline', titleKey: 'whatsNew.effortTarget.title', bodyKey: 'whatsNew.effortTarget.body' },
-  { icon: 'barbell-outline', titleKey: 'whatsNew.dumbbellSteps.title', bodyKey: 'whatsNew.dumbbellSteps.body' },
-  { icon: 'battery-half-outline', titleKey: 'whatsNew.deload.title', bodyKey: 'whatsNew.deload.body' },
-  { icon: 'heart-outline', titleKey: 'whatsNew.zone2.title', bodyKey: 'whatsNew.zone2.body' },
+  { icon: 'restaurant-outline', titleKey: 'whatsNew.hunger.title', bodyKey: 'whatsNew.hunger.body' },
+  { icon: 'checkmark-done-outline', titleKey: 'whatsNew.rirCheck.title', bodyKey: 'whatsNew.rirCheck.body' },
 ];
 
 /**
