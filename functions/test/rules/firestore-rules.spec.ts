@@ -1788,6 +1788,34 @@ describe('firestore.rules', () => {
     );
   });
 
+  // ── dailyHunger (2026-10-20): one whole number 0–10 per day ──
+
+  it.each([0, 7, 10])('accepts an evening hunger rating of %s', async (level) => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertSucceeds(setDoc(doc(db, 'users', 'alice', 'dailyHunger', '2026-10-20'), { level }));
+  });
+
+  it('lets the owner edit the day\'s rating (same doc, new value)', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertSucceeds(setDoc(doc(db, 'users', 'alice', 'dailyHunger', '2026-10-20'), { level: 8 }));
+    await assertSucceeds(setDoc(doc(db, 'users', 'alice', 'dailyHunger', '2026-10-20'), { level: 5 }));
+  });
+
+  it.each([[-1], [11], [6.5], ['7']])('rejects an evening hunger rating of %p', async (level) => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertFails(setDoc(doc(db, 'users', 'alice', 'dailyHunger', '2026-10-20'), { level }));
+  });
+
+  it('rejects an unknown field beside the hunger level, and another user\'s write', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertFails(setDoc(doc(db, 'users', 'alice', 'dailyHunger', '2026-10-20'), { level: 5, note: 'x' }));
+    await assertFails(setDoc(doc(authed('bob'), 'users', 'alice', 'dailyHunger', '2026-10-20'), { level: 5 }));
+  });
+
   // ── workoutTemplates notes cap (2026-10-08) ──
   // The owner's templates carry 2.8–4.1k chars of dated history; at a 2,000
   // cap every client save of them was refused.

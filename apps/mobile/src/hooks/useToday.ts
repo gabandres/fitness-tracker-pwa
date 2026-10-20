@@ -49,6 +49,8 @@ import {
   subscribeDailySleep,
   subscribeSleepTimes,
   updateSleepTimes,
+  subscribeDailyHunger,
+  setDailyHunger,
   subscribeDailyWater,
   subscribeDailyWeights,
   subscribeRecentSessions,
@@ -109,6 +111,11 @@ export interface TodayState extends LogWrites {
   setSleep: (hours: number, times?: { bedtime?: string | null; wakeTime?: string | null }) => Promise<void>;
   /** Tonight's — today's — bedtime / wake time, for the sleep sheet. */
   sleepTimes: { bedtime?: string; wakeTime?: string };
+  /** Today's evening hunger, 0 (full) – 10 (starving), or null when unrated.
+   *  Display only — nothing reads it into a target. */
+  hunger: number | null;
+  /** Save or edit today's rating (one per day). */
+  setHunger: (level: number) => Promise<void>;
   /** Fast start time (Date) or null when not fasting. */
   fastStartedAt: Date | null;
   /** Omit `startedAt` to begin now; pass one to correct a running fast. */
@@ -171,6 +178,9 @@ export function useToday(): TodayState {
   const [water, setWaterMap] = useCachedState<Record<string, number>>(uid, 'water', {});
   const [sleep, setSleepMap] = useCachedState<Record<string, number>>(uid, 'sleep', {});
   const [sleepTimes, setSleepTimes] = useState<{ bedtime?: string; wakeTime?: string }>({});
+  // Tagged with the day it was read for, so a rollover never shows
+  // yesterday's rating as today's in the frame before the new doc answers.
+  const [hungerRead, setHungerRead] = useState<{ dateKey: string; level: number | null } | null>(null);
   const [activity, setActivityMap] = useCachedState<Record<string, DailyActivity>>(
     uid,
     'activity',
@@ -352,6 +362,23 @@ export function useToday(): TodayState {
         : [],
     deps: [uid, todayKey],
   });
+  // Today's evening hunger: one doc, following the day key like the sleep
+  // times above.
+  useLedgerFeed({
+    uid,
+    label: 'Today hunger',
+    gate: 'focus',
+    channels: () =>
+      uid
+        ? [feedChannel({
+            key: 'hunger',
+            settles: 'none',
+            open: (deliver) => subscribeDailyHunger(uid, todayKey, deliver),
+            apply: (level: number | null) => setHungerRead({ dateKey: todayKey, level }),
+          })]
+        : [],
+    deps: [uid, todayKey],
+  });
   // Finished workouts, as trained days (core `trainedDayRows`). A finish no
   // longer writes a marker row into `dailyLogs` (2026-10-15, owner bug C), so
   // the streak and the day's "trained" read the sessions themselves. Its own
@@ -516,6 +543,13 @@ export function useToday(): TodayState {
     },
     [uid, todayKey],
   );
+  const setHunger = useCallback(
+    async (level: number) => {
+      if (!uid) return;
+      await setDailyHunger(uid, todayKey, level);
+    },
+    [uid, todayKey],
+  );
   /**
    * Start a fast, or CORRECT the start of the one already running.
    *
@@ -566,6 +600,8 @@ export function useToday(): TodayState {
     water: water[todayKey] ?? 0,
     sleep: sleep[todayKey] ?? null,
     sleepTimes,
+    hunger: hungerRead?.dateKey === todayKey ? hungerRead.level : null,
+    setHunger,
     activity: activity[todayKey],
     setWater,
     setSleep,

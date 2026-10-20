@@ -430,8 +430,9 @@ export interface MissingRir {
 }
 
 /**
- * Ticked effort sets (working, activation, mini, continuation — the kinds the
- * RIR picker offers) saved with no RIR, per lift.
+ * Saved effort sets (working, activation, mini, continuation — the kinds the
+ * RIR picker offers; ticked, or unticked with reps, which the save keeps too)
+ * with no RIR, per lift.
  *
  * ## Why Finish has to ask (owner, 2026-10-15)
  *
@@ -460,7 +461,11 @@ export function setsMissingRir(
     // straight-set lift never showed the column and is not asked about it.
     const usesRir = ex.sets.some((s) => s.rir != null || cluster.has(s.kind ?? 'working')) || loggedBefore(ex.exerciseId);
     if (!usesRir) return;
-    const setIndexes = ex.sets.flatMap((s, i) => (s.done && s.rir == null && effort.has(s.kind ?? 'working') ? [i] : []));
+    // Ticked OR carrying reps: the save keeps any set with a count
+    // (`isLoggedSet`, via `dropEmptySets`), ticked or not. Gating on `done`
+    // alone let the 10/19 Leg Curls through — three rows typed, never ticked,
+    // saved with no RIR and never asked about.
+    const setIndexes = ex.sets.flatMap((s, i) => ((s.done || isLoggedSet(s)) && s.rir == null && effort.has(s.kind ?? 'working') ? [i] : []));
     if (setIndexes.length) out.push({ exerciseIndex, exerciseId: ex.exerciseId, name: ex.name, setIndexes });
   });
   return out;

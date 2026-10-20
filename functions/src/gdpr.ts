@@ -36,6 +36,8 @@ export const USER_SUBCOLLECTIONS = [
   "dailyWeights",
   "dailyWater",
   "dailySleep",
+  // Evening hunger ratings (2026-10-20) — added with the collection.
+  "dailyHunger",
   "measurements",
   "photos",
   "workoutSessions",

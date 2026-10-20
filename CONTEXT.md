@@ -457,6 +457,14 @@ These three windows look similar and are NOT interchangeable. See
   Firestore adapters, the in-memory adapter, and `BodyMetricStore`. Sleep is
   the same pattern: `{ hours }` per date, `clampSleepHours` → `[0, 24]` snapped
   to the half hour.
+- **Evening hunger** — One whole-number rating per day, 0 (full) – 10
+  (starving), under `users/{uid}/dailyHunger/{YYYY-MM-DD}` as `{ level }`
+  (range enforced in `firestore.rules`). Typed on Today beside Sleep; Trends
+  shows the trailing 7-day average of the rated days (unrated ≠ 0) with the
+  rule "avg ≥7 → consider raising target to ~target + 100"
+  (`packages/core/src/evening-hunger.ts`). **Display only** — nothing reads it
+  into a target, the maintenance estimate or a nudge. Exported as `hunger`
+  rows (`eveningHunger` column). Added 2026-10-20.
 - **FastWindow** — The fast that is running RIGHT NOW, and nothing else.
   Owned by `FastingStore`; profile carries `fastStartedAt`. `isFasting()` is
   computed from the start time being non-null. **There is no target and there

@@ -41,10 +41,11 @@ import { feedChannel, useLedgerFeed } from '@/hooks/useLedgerFeed';
 import { useAuth } from '@/lib/auth';
 import { getLogsForRange, subscribeMilestones } from '@/lib/ledger';
 import { readCache } from '@/lib/offline-cache';
-import { zone2Summary } from '@macrolog/core';
+import { type HungerWeek, zone2Summary } from '@macrolog/core';
 import type { CardioBlock } from '@macrolog/core/cardio';
 import { type CompositionTrends, useCompositionTrends } from '@/hooks/useCompositionTrends';
 import { type SleepTrends, useSleepTrends } from '@/hooks/useSleepTrends';
+import { useHungerTrends } from '@/hooks/useHungerTrends';
 import { type FastingTrends, useFastingTrends } from '@/hooks/useFastingTrends';
 import { type WaterTrends, useWaterTrends } from '@/hooks/useWaterTrends';
 
@@ -80,6 +81,9 @@ export interface TrendsState {
   /** Zone 2 from Train's on-disk sessions, read once per focus; null until
    *  read or when Train has never cached any. */
   zone2?: Zone2Trends | null;
+  /** Evening hunger over the trailing 7 days; null until the listener answers.
+   *  Display only (core `evening-hunger.ts`). Optional like `zone2`. */
+  hunger?: HungerWeek | null;
   /** Composition-adjusted maintenance + recomp signal (ADR-0043). Behind
    *  `FEATURES.compositionMaintenance`; `enabled: false` renders nothing. */
   composition: CompositionTrends;
@@ -218,6 +222,7 @@ export function useTrends(rangeDays: number = 30, opts: TrendsOptions = {}): Tre
   // The intake half of the sleep pairing is the stream above; the sleep half is
   // this hook's own listener.
   const sleep = useSleepTrends(logs, weights, profile);
+  const hunger = useHungerTrends(profile);
   // Takes the profile for two things: the day boundary every window on this
   // screen shares, and `fastStartedAt` — which is what lets the stub row tell
   // someone mid-fast that theirs is running rather than that they have none.
@@ -559,6 +564,7 @@ export function useTrends(rangeDays: number = 30, opts: TrendsOptions = {}): Tre
 
   return {
     zone2,
+    hunger,
     loading,
     error,
     insights,

@@ -527,6 +527,8 @@ describe('buildCsv — Program v2 columns (test 10)', () => {
     'weekStart', 'muscle', 'directClusters', 'fractionalClusters',
     // 2026-10-15, owner bug D: the two rests, split.
     'restBetweenClustersSec', 'restToNextSec',
+    // 2026-10-20: the evening hunger rating ('hunger' rows).
+    'eveningHunger',
   ];
   const csv = buildCsv(HISTORICAL);
   const lines = csv.split('\r\n');

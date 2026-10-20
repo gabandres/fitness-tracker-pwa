@@ -61,17 +61,29 @@ describe('item 4 — ticked sets saved with no RIR are found, per lift', () => {
     expect(setsMissingRir(bench, (id) => id === 'b')).toHaveLength(1);
   });
 
-  it('unticked rows, warm-ups and drops are not effort sets the picker asks about', () => {
+  it('warm-ups, drops and empty unticked rows are not effort sets the picker asks about', () => {
     const missing = setsMissingRir([{
       exerciseId: 'lat', name: 'DB Lateral Raise', sets: [
         { kind: 'warmup', weight: 5, reps: 10, done: true },
         { kind: 'activation', group: 1, weight: 15, reps: 14, rir: 0, done: true },
-        { kind: 'mini', group: 1, weight: 15, reps: 4 },
+        { kind: 'mini', group: 1, weight: 15 },
         { kind: 'drop', weight: 10, reps: 7, done: true },
         { kind: 'working', weight: 15, reps: 8, done: true },
       ],
     }] as never);
     expect(missing).toEqual([{ exerciseIndex: 0, exerciseId: 'lat', name: 'DB Lateral Raise', setIndexes: [4] }]);
+  });
+
+  it('the 10/19 Leg Curls: reps typed, never ticked, no RIR — saved, so asked about', () => {
+    // As stored before the 10/19 owner fix (backup 2026-10-19T21-47-40).
+    const missing = setsMissingRir([{
+      exerciseId: 'curl', name: 'Leg Curls', sets: [
+        { kind: 'activation', group: 1, weight: 100, done: false, reps: 13 },
+        { kind: 'mini', group: 1, weight: 100, done: false, reps: 4 },
+        { kind: 'mini', group: 1, weight: 100, done: false, reps: 3 },
+      ],
+    }] as never);
+    expect(missing).toEqual([{ exerciseIndex: 0, exerciseId: 'curl', name: 'Leg Curls', setIndexes: [0, 1, 2] }]);
   });
 });
 

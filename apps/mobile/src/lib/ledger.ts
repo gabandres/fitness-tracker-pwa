@@ -64,6 +64,8 @@ import {
   pruneUndefined as pruneUndefinedCore,
   readActivity,
   readSleepHours,
+  readEveningHunger,
+  isStorableHunger,
   readSleepSource,
   type SleepEntry,
   readWaterFlOz,
@@ -816,6 +818,57 @@ export function subscribeSleepTimes(
     },
     onError,
   );
+}
+
+// ─── Evening hunger ─────────────────────────────────────────────
+// users/{uid}/dailyHunger/{dateKey} = { level }, a whole number 0 (full) –
+// 10 (starving). Display only (core `evening-hunger.ts`): typed on Today,
+// averaged on Trends, never read into a target. Not mirrored to Health —
+// there is no Health type for it.
+const hungerCol = (uid: string) => collection(db, 'users', uid, 'dailyHunger');
+const hungerDoc = (uid: string, dateKey: string) => doc(db, 'users', uid, 'dailyHunger', dateKey);
+
+/** One day's rating, live (Today's row). `null` when the day has none. */
+export function subscribeDailyHunger(
+  uid: string,
+  dateKey: string,
+  cb: (level: number | null) => void,
+  onError?: (e: Error) => void,
+): Unsub {
+  return onSnapshot(hungerDoc(uid, dateKey), (snap) => cb(readEveningHunger(snap.data())), onError);
+}
+
+/** A bounded window of days — the Trends hunger card's reader. `dateKey` IS
+ *  the doc id, so the range is a `documentId()` query (no index), inclusive
+ *  at `since`, the same shape as {@link subscribeDailyWaterSince}. An unrated
+ *  day is absent, never 0: a 0 means "full". */
+export function subscribeDailyHungerSince(
+  uid: string,
+  since: string,
+  cb: (hunger: Record<string, number>, meta?: SnapshotMeta) => void,
+  onError?: (e: Error) => void,
+): Unsub {
+  return onSnapshot(
+    query(hungerCol(uid), where(documentId(), '>=', since)),
+    { includeMetadataChanges: true },
+    onChangedData((snap) => {
+      const hunger: Record<string, number> = {};
+      for (const d of snap.docs) {
+        const level = readEveningHunger(d.data());
+        if (level != null) hunger[d.id] = level;
+      }
+      return hunger;
+    }, cb),
+    onError,
+  );
+}
+
+/** Save — or edit — the day's rating. One doc per day, so an edit replaces
+ *  the value rather than adding a second one. Refuses anything the rules
+ *  would (a non-integer, or outside 0–10) before it reaches the network. */
+export async function setDailyHunger(uid: string, dateKey: string, level: number): Promise<void> {
+  if (!isStorableHunger(level)) throw new Error(`evening hunger must be a whole number 0–10, got ${level}`);
+  await setDoc(hungerDoc(uid, dateKey), { level });
 }
 
 /**
@@ -2285,6 +2338,17 @@ export async function getAllDailySleep(uid: string): Promise<Record<string, numb
   for (const d of snap.docs) {
     const h = readSleepHours(d.data());
     if (h != null) out[d.id] = h;
+  }
+  return out;
+}
+
+/** Every rated day's evening hunger, for the export (`hunger` rows). */
+export async function getAllDailyHunger(uid: string): Promise<Record<string, number>> {
+  const snap = await getDocs(hungerCol(uid));
+  const out: Record<string, number> = {};
+  for (const d of snap.docs) {
+    const level = readEveningHunger(d.data());
+    if (level != null) out[d.id] = level;
   }
   return out;
 }

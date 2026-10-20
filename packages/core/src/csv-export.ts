@@ -81,6 +81,10 @@ const COLS = [
   // rest). `restBetweenSec` stays as it was — it never read the row's own
   // cluster rest, which is why these exist.
   'restBetweenClustersSec', 'restToNextSec',
+  // ── 2026-10-20, appended for the same reason ──
+  // 'hunger' rows: the day's evening hunger rating, 0 (full) – 10 (starving)
+  // (`evening-hunger.ts`).
+  'eveningHunger',
 ] as const;
 type Col = typeof COLS[number];
 
@@ -116,6 +120,8 @@ export interface ExportData {
   targetRecords?: DailyTargetRecord[];
   /** Bedtime / wake time per date ("HH:MM"), for `sleep` rows. */
   dailySleepTimes?: Record<string, { bedtime?: string; wakeTime?: string }>;
+  /** Evening hunger per date, 0–10 (`evening-hunger.ts`), for `hunger` rows. */
+  dailyHunger?: Record<string, number>;
   /** The program version each template runs as (`programVersion`), by id. */
   templateVersions?: Record<string, 'v1' | 'v2'>;
   /** Catalog muscles by exercise id, for `weeklyVolume` rows. Absent → the
@@ -125,8 +131,8 @@ export interface ExportData {
 
 /**
  * Long-format CSV: every row carries a `type` discriminator
- * (meal | workout_marker | weight | water | sleep | measurement | workout |
- * workout_set | cardio) and only fills the columns relevant to that type.
+ * (meal | workout_marker | weight | water | sleep | hunger | measurement |
+ * workout | workout_set | cardio) and only fills the columns relevant to that type.
  *
  * `workout_marker` is the 0-kcal `dailyLogs` row a finished session writes so
  * the day counts toward the streak (`workoutMarkerEntry`). Until 2026-10-13 it
@@ -181,6 +187,10 @@ export function buildCsv(data: ExportData, boundary: DayBoundary = MIDNIGHT): st
   for (const date of sleepKeys) {
     const times = data.dailySleepTimes?.[date];
     rows.push(row({ type: 'sleep', date, sleepHours: data.dailySleep[date], bedtime: times?.bedtime, wakeTime: times?.wakeTime }));
+  }
+
+  for (const date of Object.keys(data.dailyHunger ?? {}).sort()) {
+    rows.push(row({ type: 'hunger', date, eveningHunger: data.dailyHunger![date] }));
   }
 
   const sortedMeasurements = [...data.measurements].sort((a, b) => a.date.getTime() - b.date.getTime());

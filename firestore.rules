@@ -1088,6 +1088,19 @@ service cloud.firestore {
                     && request.resource.data.wakeTime.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$')));
       }
 
+      // Evening hunger — one rating per calendar day keyed by date, shape
+      // { level }, a whole number 0 (full) – 10 (starving). Typed on Today;
+      // read back on Trends as a 7-day average. Display only: nothing reads
+      // it into a target (packages/core/src/evening-hunger.ts, 2026-10-20).
+      match /dailyHunger/{dateKey} {
+        allow read:   if isOwner(uid) || isAdmin();
+        allow write:  if isVerifiedOwner(uid)
+            && request.resource.data.keys().hasOnly(['level'])
+            && request.resource.data.level is int
+            && request.resource.data.level >= 0
+            && request.resource.data.level <= 10;
+      }
+
       // Daily activity — steps + active energy imported FROM the OS health
       // store (Apple Health / Health Connect). One doc per calendar day,
       // shape { steps?, activeKcal? }; both fields optional because the two

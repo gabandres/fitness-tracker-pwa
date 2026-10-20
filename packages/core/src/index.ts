@@ -63,6 +63,9 @@ export * from './day-summary';
 // read by `dailyTargets`, `tdee` or `weekly-insights`, and
 // `sleep-target-independence.test.ts` fails the build if that changes.
 export * from './sleep-intake';
+// Evening hunger (0–10 per day): the reader, the 7-day average and the rule
+// threshold Trends prints. Display only — nothing reads it into a target.
+export * from './evening-hunger';
 export * from './meal-slots';
 export * from './meal-draft';
 export * from './meal-preset';

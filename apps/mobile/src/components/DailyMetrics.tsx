@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 import { SheetTextInput } from '@/components/SheetTextInput';
-import { clampWaterFlOz, fastHoursParts, normalizeClockTime, type UnitSystem } from '@macrolog/core';
+import { HUNGER_MAX, HUNGER_MIN, clampWaterFlOz, fastHoursParts, normalizeClockTime, type UnitSystem } from '@macrolog/core';
 import { BottomSheet } from '@/components/BottomSheet';
 import { useDoneKeyProps } from '@/components/KeyboardBar';
 import { type I18nKey, type Locale, type TFn, useLocale, useT } from '@/i18n';
@@ -45,6 +45,10 @@ interface Props {
   /** Hours slept; with the bedtime / wake time when the sheet shows them
    *  (`null` clears one the user emptied). */
   onSetSleep: (hours: number, times?: { bedtime: string | null; wakeTime: string | null }) => void;
+  /** Today's evening hunger, 0 (full) – 10 (starving), or null when unrated. */
+  hunger?: number | null;
+  /** Save or edit today's rating. The row renders only when this is given. */
+  onSetHunger?: (level: number) => void;
   onStartFast: () => void;
   onBreakFast: () => void;
   /** Open the fasting editor: correct a running fast's start, edit the one
@@ -274,7 +278,7 @@ export function nextPendingWater(
 /** Today's daily-metric strip: fasting timer, water quick-add, sleep. The
  *  fasting row re-renders every 30s while a fast is running so the elapsed
  *  clock stays live without a global timer. */
-export function DailyMetrics({ water, sleep, sleepTimes, activity, fastStartedAt, onAddWater, onSetSleep, onStartFast, onBreakFast, onEditFast, fastedTodayHours }: Props) {
+export function DailyMetrics({ water, sleep, sleepTimes, hunger = null, onSetHunger, activity, fastStartedAt, onAddWater, onSetSleep, onStartFast, onBreakFast, onEditFast, fastedTodayHours }: Props) {
   const t = useT();
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
@@ -324,6 +328,8 @@ export function DailyMetrics({ water, sleep, sleepTimes, activity, fastStartedAt
         .join(' · ')
     : '';
   const [sleepOpen, setSleepOpen] = useState(false);
+  const [hungerOpen, setHungerOpen] = useState(false);
+  const hungerValue = hunger != null ? t('metrics.hungerValue', { n: hunger }) : null;
   const [waterOpen, setWaterOpen] = useState(false);
   const [, setTick] = useState(0);
 
@@ -514,6 +520,50 @@ export function DailyMetrics({ water, sleep, sleepTimes, activity, fastStartedAt
         </View>
       </View>
 
+      {/* Evening hunger, beside Sleep: one 0–10 rating per day (0 = full,
+          10 = starving), editable. Display only — Trends averages it over 7
+          days and nothing reads it into a target. */}
+      {onSetHunger ? (
+        <>
+          <View style={styles.divider} />
+          <View style={[styles.row, styles.rowWrap]}>
+            <View style={styles.leadGroup}>
+              <View style={styles.habitIcon} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+                <Ionicons name="restaurant-outline" size={16} color={colors.muted} />
+              </View>
+              <PressScale
+                scaleTo={0.96}
+                style={styles.left}
+                onPress={() => { haptics.tap(); setHungerOpen(true); }}
+                accessibilityRole="button"
+                accessibilityLabel={`${t('metrics.hunger')}, ${hungerValue ?? t('metrics.notLogged')}`}
+                accessibilityHint={t('metrics.hungerScale')}
+                testID="hunger-value"
+              >
+                <Text style={styles.label}>{t('metrics.hunger')}</Text>
+                <View style={styles.waterValueRow}>
+                  <Text style={styles.value}>{hungerValue ?? '—'}</Text>
+                  <Ionicons name="pencil" size={12} color={colors.faint} />
+                </View>
+              </PressScale>
+            </View>
+            <View style={styles.trailGroup}>
+              <PressScale
+                scaleTo={0.92}
+                style={styles.action}
+                hitSlop={PILL_SLOP}
+                accessibilityRole="button"
+                accessibilityLabel={hunger != null ? t('metrics.hungerEditA11y') : t('metrics.hungerLogA11y')}
+                onPress={() => { haptics.tap(); setHungerOpen(true); }}
+                testID="hunger-open"
+              >
+                <Text style={styles.actionText}>{hunger != null ? t('metrics.edit') : t('metrics.log')}</Text>
+              </PressScale>
+            </View>
+          </View>
+        </>
+      ) : null}
+
       {/* Activity — imported from Apple Health / Health Connect, so there's no
           action button: the app can't produce these and never writes them back.
           The whole row is hidden unless a value actually arrived, so anyone
@@ -548,6 +598,19 @@ export function DailyMetrics({ water, sleep, sleepTimes, activity, fastStartedAt
           setWaterOpen(false);
         }}
       />
+
+      {onSetHunger ? (
+        <HungerModal
+          visible={hungerOpen}
+          initial={hunger}
+          onClose={() => setHungerOpen(false)}
+          onSave={(level) => {
+            onSetHunger(level);
+            haptics.success();
+            setHungerOpen(false);
+          }}
+        />
+      ) : null}
 
       <SleepModal
         visible={sleepOpen}
@@ -805,6 +868,64 @@ function SleepModal({
   );
 }
 
+/** The evening hunger sheet: eleven chips, 0–10, the current one selected;
+ *  Save writes it. A chip grid rather than a field — the scale is eleven
+ *  whole numbers, and a keyboard for one digit is a detour. */
+function HungerModal({
+  visible,
+  initial,
+  onSave,
+  onClose,
+}: {
+  visible: boolean;
+  initial: number | null;
+  onSave: (level: number) => void;
+  onClose: () => void;
+}) {
+  const t = useT();
+  const styles = useThemedStyles(createStyles);
+  const [picked, setPicked] = useState<number | null>(initial);
+  useEffect(() => {
+    if (visible) setPicked(initial);
+  }, [visible, initial]);
+  const levels = Array.from({ length: HUNGER_MAX - HUNGER_MIN + 1 }, (_, i) => HUNGER_MIN + i);
+  const valid = picked != null;
+  return (
+    <BottomSheet native detents="fit" visible={visible} onClose={onClose}>
+      <Text style={styles.sheetTitle} accessibilityRole="header">{t('metrics.hungerTitle')}</Text>
+      <View style={styles.hungerGrid} accessibilityRole="radiogroup">
+        {levels.map((n) => {
+          const on = picked === n;
+          return (
+            <PressScale
+              key={n}
+              scaleTo={0.9}
+              style={[styles.hungerChip, on && styles.hungerChipOn]}
+              onPress={() => { haptics.selection(); setPicked(n); }}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: on }}
+              accessibilityLabel={String(n)}
+              testID={`hunger-chip-${n}`}
+            >
+              <Text style={[styles.hungerChipText, on && styles.hungerChipTextOn]}>{n}</Text>
+            </PressScale>
+          );
+        })}
+      </View>
+      <Text style={styles.sheetNote}>{t('metrics.hungerScale')}</Text>
+      <TouchableOpacity
+        style={[styles.save, !valid && styles.saveDisabled]}
+        onPress={() => valid && onSave(picked)}
+        disabled={!valid}
+        accessibilityRole="button"
+        testID="hunger-save"
+      >
+        <Text style={styles.saveText}>{t('common.save')}</Text>
+      </TouchableOpacity>
+    </BottomSheet>
+  );
+}
+
 const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   card: {
     backgroundColor: colors.card,
@@ -909,6 +1030,20 @@ const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
     color: colors.ink,
   },
   inputUnit: { fontSize: font.h3, color: colors.muted },
+  hungerGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, justifyContent: 'center' },
+  hungerChip: {
+    minWidth: TARGET,
+    minHeight: TARGET,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.lineStrong,
+    backgroundColor: colors.inputBg,
+  },
+  hungerChipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
+  hungerChipText: { fontSize: font.body, color: colors.ink, fontWeight: '700' },
+  hungerChipTextOn: { color: colors.onInk },
   save: { backgroundColor: colors.ink, borderRadius: radius.md, paddingVertical: space.lg, alignItems: 'center', marginTop: space.lg },
   saveDisabled: { opacity: 0.4 },
   saveText: { color: colors.onInk, fontWeight: '700', fontSize: font.h3 },
