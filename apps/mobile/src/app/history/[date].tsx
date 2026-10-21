@@ -3,6 +3,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useColumnGutter } from '@/lib/content-width';
 import {
   addDays,
   calendarDateKey,
@@ -32,7 +33,7 @@ import * as haptics from '@/lib/haptics';
 import { PressScale } from '@/lib/motion';
 import { captureError } from '@/lib/sentry';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space, TARGET } from '@/theme';
+import { contentColumn, font, radius, space, TARGET } from '@/theme';
 import { formatDate, formatNumber, formatTime } from '@/lib/date-format';
 import { Touchable } from '@/components/Touchable';
 
@@ -104,6 +105,8 @@ function DayDetailScreen({ onRetry }: { onRetry: () => void }) {
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  // At the content column's edge on a wide window, not the screen's.
+  const gutter = useColumnGutter();
   const toast = useToast();
   const { profile } = useAuth();
   const { date } = useLocalSearchParams<{ date: string }>();
@@ -470,7 +473,7 @@ function DayDetailScreen({ onRetry }: { onRetry: () => void }) {
           in the gesture area on every Face ID iPhone (Today re-score, bug 4). */}
       {!loading ? (
         <PressScale
-          style={[styles.fab, { bottom: insets.bottom + space.lg }]}
+          style={[styles.fab, { bottom: insets.bottom + space.lg, right: space.xl + gutter }]}
           onPress={openAdd}
           testID="add-food-day"
           accessibilityRole="button"
@@ -562,7 +565,7 @@ const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   retryBtn: { borderWidth: 1, borderColor: colors.ink, borderRadius: radius.pill, paddingHorizontal: space.md, minHeight: TARGET, justifyContent: 'center' },
   retryText: { fontSize: font.small, fontWeight: '700', color: colors.ink },
   dayArrowOff: { opacity: 0.35 },
-  body: { padding: space.xl, gap: space.lg },
+  body: { ...contentColumn, padding: space.xl, gap: space.lg },
   totals: {
     flexDirection: 'row',
     justifyContent: 'space-between',

@@ -10,7 +10,7 @@ import { useUnitSystem } from '@/lib/use-unit-system';
 import { type Locale, useLocale, useT } from '@/i18n';
 import { capitalizeFirst } from '@/i18n/grammar';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space, TARGET } from '@/theme';
+import { contentColumn, font, radius, space, TARGET } from '@/theme';
 import { formatDate, formatNumber } from '@/lib/date-format';
 
 // Narrow weekday letters (Jan 1 2023 was a Sunday). Built per locale, not
@@ -260,12 +260,12 @@ const CELL = `${100 / 7}%`;
 const createStyles = ({ colors }: Theme) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
   title: { flexShrink: 1, fontSize: font.h1, fontWeight: '800', color: colors.ink },
-  headerRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs, paddingHorizontal: space.lg, paddingTop: space.md },
+  headerRow: { ...contentColumn, flexDirection: 'row', alignItems: 'center', gap: space.xs, paddingHorizontal: space.lg, paddingTop: space.md },
   // A full target in its own right — the chevron's 26dp plus `hitSlop` was 44
   // tall at best, under Android's 48.
   backBtn: { minHeight: TARGET, minWidth: TARGET, justifyContent: 'center' },
   fill: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.xs },
-  body: { padding: space.xl, gap: space.md },
+  body: { ...contentColumn, padding: space.xl, gap: space.md },
   error: { color: colors.danger, fontSize: font.small, flex: 1 },
   errorRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   retryBtn: { borderWidth: 1, borderColor: colors.ink, borderRadius: radius.pill, paddingHorizontal: space.md, minHeight: TARGET, justifyContent: 'center' },

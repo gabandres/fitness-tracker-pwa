@@ -1,6 +1,6 @@
 import { StyleSheet } from 'react-native';
 import { type Theme } from '@/lib/theme-context';
-import { font, radius, space, TARGET, type } from '@/theme';
+import { contentColumn, font, radius, space, TARGET, type } from '@/theme';
 import { TAB_SCROLL_BAND } from '@/lib/glass';
 
 /**
@@ -31,12 +31,12 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   // The top padding is the ROW's, not the title's: on the title it pushed the
   // text's centre 6 pt below the icons' (`alignItems: 'center'`), where
   // Today's sit on the title line (S21 simulator QA).
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: space.xl, paddingTop: space.md },
+  headerRow: { ...contentColumn, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: space.xl, paddingTop: space.md },
   // Pushed right so the title keeps the left edge and the help sits beside the avatar.
   headerHelp: { marginLeft: 'auto', marginRight: space.xs, minWidth: TARGET, minHeight: TARGET, alignItems: 'center', justifyContent: 'center' },
   fill: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   // See FAB_BAND — the + button overhangs every tab's scroll area.
-  body: { padding: space.xl, paddingBottom: TAB_SCROLL_BAND, gap: space.md },
+  body: { ...contentColumn, padding: space.xl, paddingBottom: TAB_SCROLL_BAND, gap: space.md },
   error: { color: colors.danger, fontSize: font.small },
   empty: { fontSize: font.small, color: colors.muted },
   sectionTitle: { fontFamily: type.heading, fontSize: font.h3, color: colors.ink, marginTop: space.sm },
@@ -990,6 +990,7 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   // stay put while the sets scroll under them — Finish used to be the last
   // thing on the page, under every exercise and both add buttons.
   sessionHeader: {
+    ...contentColumn,
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.sm,

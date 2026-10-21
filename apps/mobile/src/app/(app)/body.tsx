@@ -50,7 +50,7 @@ import { useUnitSystem } from '@/lib/use-unit-system';
 import { useSetParamsWhenReady } from '@/lib/route-params';
 import { CountUpText, enterUp, usePulse } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space, TARGET, type } from '@/theme';
+import { contentColumn, font, radius, space, TARGET, type } from '@/theme';
 import { formatDate, formatNumber, localeTag } from '@/lib/date-format';
 import { TAB_SCROLL_BAND } from '@/lib/glass';
 import { useLargeTitle } from '@/lib/font-scale';
@@ -1015,13 +1015,13 @@ const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   // `paddingBottom` holds the descender of "Body" (and "Corpo") clear of the
   // list scrolling under the header — it reached the edge and the cards cut
   // its tail (Android QA, UX_AUDIT S22). Today's header carries the same.
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: space.xl, paddingTop: space.md, paddingBottom: space.sm },
+  headerRow: { ...contentColumn, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: space.xl, paddingTop: space.md, paddingBottom: space.sm },
   // Pushed against the avatar, as on Trends; a real 44/48 target rather than
   // a 24 pt glyph with slop.
   headerHelp: { marginLeft: 'auto', marginRight: space.xs, minWidth: TARGET, minHeight: TARGET, alignItems: 'center', justifyContent: 'center' },
   showMore: { minHeight: TARGET, alignItems: 'center', justifyContent: 'center' },
   // See FAB_BAND — the + button overhangs every tab's scroll area.
-  body: { padding: space.xl, paddingBottom: TAB_SCROLL_BAND, gap: space.md },
+  body: { ...contentColumn, padding: space.xl, paddingBottom: TAB_SCROLL_BAND, gap: space.md },
   error: { color: colors.danger, fontSize: font.small, flex: 1 },
   errorRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   retryBtn: { borderWidth: 1, borderColor: colors.ink, borderRadius: radius.pill, paddingHorizontal: space.md, minHeight: TARGET, justifyContent: 'center' },

@@ -3,7 +3,7 @@ import { Platform, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
 import { usePreventRemove } from 'expo-router/react-navigation';
 import Reanimated from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ConfirmHost } from '@/components/ConfirmSheet';
 import { ToastSheetHost } from '@/components/Toast';
 import { useKeyboardSheetPadding } from '@/lib/use-keyboard-sheet-style';
@@ -153,7 +153,16 @@ export default function SheetRoute() {
   const fit = params.detents === 'fit';
   if (!entry) return <View style={fit ? null : styles.root} />;
   return (
-    <View
+    // A native SafeAreaView, left and right only: iOS presents this sheet in
+    // its own controller, outside every route's `HorizontalSafeArea`, so on an
+    // iPhone Duo's CLOSED display — status bar and camera in a strip down the
+    // right edge, and the sheet as wide as the screen — its right side ran
+    // under them ("More ways" cut in half, the mic hidden; iOS 27.1
+    // simulator). The native view measures where IT sits, so it needs no
+    // context; open, the sheet is a centred card and both insets are 0, as
+    // they are on every other iPhone.
+    <SafeAreaView
+      edges={['left', 'right']}
       style={[styles.surface, !fit && styles.root]}
       testID={entry.testID}
       onLayout={tracksDetent ? (e) => setContentHeight(Math.round(e.nativeEvent.layout.height)) : undefined}
@@ -203,7 +212,7 @@ export default function SheetRoute() {
       {fit && Platform.OS === 'ios' ? <View style={styles.underlap} pointerEvents="none" /> : null}
       {entry.overlays ? <ToastSheetHost sheetId={id} at={entry.toastAt} /> : null}
       {entry.overlays ? <ConfirmHost /> : null}
-    </View>
+    </SafeAreaView>
   );
 }
 

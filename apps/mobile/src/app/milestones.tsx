@@ -8,7 +8,7 @@ import { useAuth } from '@/lib/auth';
 import { formatDate } from '@/lib/date-format';
 import { enterUp } from '@/lib/motion';
 import { useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space, type } from '@/theme';
+import { contentColumn, font, radius, space, type } from '@/theme';
 
 /**
  * The milestone archive — everything this account has on record.
@@ -125,7 +125,7 @@ const makeStyles = ({ colors }: Theme) =>
     // `space.xl` is enough here: nothing floats over this screen since it left
     // the tab group (S18-14). The `FAB_BAND` rule still applies to every tab —
     // `fab-band-clearance.test.ts` — this simply is not one any more.
-    body: { paddingHorizontal: space.xl, paddingTop: space.md, paddingBottom: space.xl, gap: space.md },
+    body: { ...contentColumn, paddingHorizontal: space.xl, paddingTop: space.md, paddingBottom: space.xl, gap: space.md },
     subtitle: { fontSize: font.body, color: colors.muted, marginBottom: space.sm },
     empty: { fontSize: font.body, color: colors.muted, lineHeight: 24 },
     row: {

@@ -3,6 +3,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ALL_ORIENTATIONS } from '@/lib/content-width';
 import { OffLookupError, type FoodSource } from '@macrolog/core';
 import { lookupProduct } from '@/lib/barcode';
 import { useT, type I18nKey } from '@/i18n';
@@ -248,8 +249,11 @@ export function BarcodeScanner({ visible, onClose, onPick, onDenied, onEnterFrom
   }
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
+    <Modal visible={visible} animationType="slide" supportedOrientations={ALL_ORIENTATIONS} onRequestClose={onClose}>
+      {/* All four edges: a `<Modal>` is its own window, outside the root's
+          left/right padding (`HorizontalSafeArea`), so the side an iPhone
+          Duo's camera sits on is this view's to clear. */}
+      <SafeAreaView style={styles.screen} edges={['top', 'bottom', 'left', 'right']}>
         {asked && !permission?.granted && permission?.status === 'denied' && permission.canAskAgain ? (
           // Android, denied once and asked again this open, still denied — the
           // OS will show its prompt again, but only when asked. Said plainly,

@@ -24,6 +24,7 @@ import { useWorkoutIntentRouter } from '@/hooks/useStartNextWorkoutIntent';
 import { sweepOrphans } from '@/lib/rest-timer-activity';
 import { GLASS_BAR_HEIGHT, GLASS_TAB_BAR, TAB_PILL_ALPHA, glassBarGap, withAlpha } from '@/lib/glass';
 import { ACCESSIBILITY_FONT_SCALE, RelayoutBoundary, useRelayoutGeneration } from '@/lib/font-scale';
+import { useColumnGutter } from '@/lib/content-width';
 
 /** The glass material, loaded only where it is drawn (iOS 26). */
 const GlassBackground = GLASS_TAB_BAR
@@ -94,6 +95,9 @@ function AppTabBar({
   const styles = useThemedStyles(createStyles);
   const { colors, scheme } = useTheme();
   const insets = useSafeAreaInsets();
+  // On a wide window (an iPhone Duo's inner display, a foldable) the bar sits
+  // under the content column rather than spreading four tabs across ~8".
+  const gutter = useColumnGutter();
   // (The History day detail's "no second + over my own" spacer, UX_AUDIT
   // S16-3, went with History's move to the root stack: no tab bar is drawn
   // over a pushed route at all.)
@@ -192,7 +196,8 @@ function AppTabBar({
   const pillShown = !onTrain && workout.active;
   return (
     <View
-      style={floating ? styles.floatWrap : undefined}
+      // The opaque bar's canvas still spans the window under the gutters.
+      style={[floating ? styles.floatWrap : undefined, gutter > 0 && { paddingHorizontal: gutter, backgroundColor: floating ? undefined : colors.paper }]}
       pointerEvents="box-none"
       // Measured only with the pill in it: on Train the stack is the capsule
       // alone, and the other tabs keep the inset they will need on return.

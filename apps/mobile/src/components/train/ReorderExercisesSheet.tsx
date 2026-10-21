@@ -1,4 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { useState } from 'react';
 import { Text, View, useWindowDimensions } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { useAnimatedRef } from 'react-native-reanimated';
@@ -62,10 +63,13 @@ export function ReorderExercisesSheet({
   const { colors } = useTheme();
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
   // Sortable's children are measured from themselves, so a row needs a pixel
-  // width to fill the sheet (the template editor's finding).
+  // width to fill the sheet (the template editor's finding) — the list's own,
+  // measured, since the sheet is narrower than the window on an iPhone Duo's
+  // inner display. The window figure stands in for the first frame.
   const { width: windowWidth, fontScale } = useWindowDimensions();
   const largeText = fontScale >= LARGE_TEXT_SCALE;
-  const rowWidth = windowWidth - space.xl * 2;
+  const [listWidth, setListWidth] = useState<number | null>(null);
+  const rowWidth = listWidth ?? windowWidth - space.xl * 2;
   const tags = supersetTags(exercises);
   // Keys that survive a reorder: the exercise id, plus its occurrence, for a
   // lift that appears twice.
@@ -92,7 +96,7 @@ export function ReorderExercisesSheet({
         />
         <Animated.ScrollView nestedScrollEnabled ref={scrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: space.xl }}>
           <Text style={styles.sheetHint}>{t('train.reorderHint')}</Text>
-          <View style={{ marginTop: space.md }}>
+          <View style={{ marginTop: space.md }} onLayout={(e) => setListWidth(Math.floor(e.nativeEvent.layout.width))}>
             <Sortable.Flex
               customHandle
               scrollableRef={scrollRef}

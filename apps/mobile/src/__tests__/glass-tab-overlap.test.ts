@@ -48,7 +48,8 @@ it('floats only on the four tabs — the other routes in the navigator never pad
   expect(src).not.toMatch(/Tabs\.Screen name="settings"/);
   expect(src).toMatch(/const TAB_ROUTES = \[\.\.\.LEFT_TABS, \.\.\.RIGHT_TABS\]/);
   expect(src).toMatch(/const floating = GLASS_TAB_BAR && current != null && TAB_ROUTES\.includes\(current\)/);
-  expect(src).toMatch(/style=\{floating \? styles\.floatWrap : undefined\}/);
+  // (In an array since the content-column gutter joined it — iPhone Duo.)
+  expect(src).toMatch(/style=\{\[floating \? styles\.floatWrap : undefined,/);
   expect(src).not.toMatch(/GLASS_TAB_BAR \? styles\.floatWrap/);
 });
 

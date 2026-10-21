@@ -352,7 +352,10 @@ function ToastHost({
       // Undo while you type, and the number pad covered it (v3 QA).
       ? { bottom: (keyboard > 0 ? keyboard : insets.bottom) + space.md, elevation: 8 }
       : { top: space.sm, elevation: 8 }
-    : { bottom: insets.bottom + FAB_BAND };
+    // The screen toast is drawn at the root, outside every route's
+    // `HorizontalSafeArea`, so it clears the side insets itself — an iPhone
+    // Duo's closed display has the status bar down its right edge.
+    : { bottom: insets.bottom + FAB_BAND, left: space.lg + insets.left, right: space.lg + insets.right };
   return (
     // Keyed by the toast, so a replacement starts from rest rather than
     // inheriting a half-finished swipe.
@@ -493,8 +496,12 @@ const createStyles = ({ colors, shadow }: Theme) =>
       flexDirection: 'row',
       alignItems: 'center',
       gap: space.md,
+      // `center` + full width, not `stretch`: a stretched child clamped by
+      // `maxWidth` sits at the start edge, so on a window wider than 480 (an
+      // iPhone Duo's inner display) the toast hugged the left side.
+      width: '100%',
       maxWidth: 480,
-      alignSelf: 'stretch',
+      alignSelf: 'center',
       minHeight: 48,
       paddingVertical: space.md,
       paddingHorizontal: space.lg,

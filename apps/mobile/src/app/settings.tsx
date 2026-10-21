@@ -78,7 +78,7 @@ import { LOCALES, LOCALE_DEFS, type I18nKey, type Locale, useLocale, useT } from
 import { formatNumber, formatTime } from '@/lib/date-format';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space, TARGET } from '@/theme';
+import { contentColumn, font, radius, space, TARGET } from '@/theme';
 import { NATIVE_SEGMENTED_CONTROL, SegmentedControl } from '@/components/charts/SegmentedControl';
 import { Touchable } from '@/components/Touchable';
 
@@ -1481,7 +1481,7 @@ const ROW_BLEED = Platform.select({
 
 const createStyles = ({ colors }: Theme) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
-  body: { paddingHorizontal: space.xl, paddingBottom: space.xxl, gap: space.sm },
+  body: { ...contentColumn, paddingHorizontal: space.xl, paddingBottom: space.xxl, gap: space.sm },
   section: {
     fontSize: font.small,
     color: colors.muted,

@@ -24,7 +24,7 @@ import { useOura } from '@/lib/oura';
 import * as haptics from '@/lib/haptics';
 import { captureError } from '@/lib/sentry';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space, TARGET } from '@/theme';
+import { contentColumn, font, radius, space, TARGET } from '@/theme';
 import { Touchable } from '@/components/Touchable';
 
 /**
@@ -627,7 +627,7 @@ const makeStyles = ({ colors }: Theme) =>
   StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.paper },
     backBtn: { width: TARGET, minHeight: TARGET, justifyContent: 'center' },
-    body: { paddingHorizontal: space.xl, paddingTop: space.md, paddingBottom: space.xl, gap: space.lg },
+    body: { ...contentColumn, paddingHorizontal: space.xl, paddingTop: space.md, paddingBottom: space.xl, gap: space.lg },
     subtitle: { fontSize: font.body, color: colors.muted },
 
     card: {

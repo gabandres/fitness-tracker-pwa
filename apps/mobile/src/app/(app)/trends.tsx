@@ -71,7 +71,7 @@ import * as haptics from '@/lib/haptics';
 import { announce } from '@/lib/a11y';
 import { CountUpText, enterUp, PressScale } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space, TARGET, type } from '@/theme';
+import { contentColumn, font, radius, space, TARGET, type } from '@/theme';
 import { formatDate, formatNumber } from '@/lib/date-format';
 import { CompositionLine, RecompCard } from '@/components/CompositionCards';
 import { useUnitSystem } from '@/lib/use-unit-system';
@@ -1367,7 +1367,7 @@ const createStyles = ({ colors, shadow }: Theme) =>
     // The top padding is the ROW's, not the title's: on the title it pushed the
     // text's centre 6 pt below the icons' (`alignItems: 'center'`), where
     // Today's sit on the title line (S21 simulator QA).
-    headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: space.xl, paddingTop: space.md, paddingBottom: space.xs },
+    headerRow: { ...contentColumn, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: space.xl, paddingTop: space.md, paddingBottom: space.xs },
     // Pinned to the header's foot; its opacity follows the scroll.
     headerEdge: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 1, backgroundColor: colors.line, pointerEvents: 'none' },
     // Pushes the "?" up against the avatar instead of leaving it stranded in
@@ -1378,7 +1378,7 @@ const createStyles = ({ colors, shadow }: Theme) =>
     // overhangs the scroll area, and 24 dp left the last element under it.
     // That is #96 — the Coach row was untappable — and it caught the fasting
     // card's footer too once #98 added a sixth element below Coach.
-    body: { padding: space.xl, paddingBottom: TAB_SCROLL_BAND, gap: space.sm },
+    body: { ...contentColumn, padding: space.xl, paddingBottom: TAB_SCROLL_BAND, gap: space.sm },
     error: { color: colors.danger, fontSize: font.small, flex: 1 },
     errorRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
     retryBtn: { borderWidth: 1, borderColor: colors.ink, borderRadius: radius.pill, paddingHorizontal: space.md, minHeight: TARGET, justifyContent: 'center' },

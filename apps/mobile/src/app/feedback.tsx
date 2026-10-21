@@ -16,7 +16,7 @@ import { type I18nKey, useT } from '@/i18n';
 import { useAuth } from '@/lib/auth';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space, TARGET } from '@/theme';
+import { contentColumn, font, radius, space, TARGET } from '@/theme';
 import { Touchable } from '@/components/Touchable';
 
 /**
@@ -210,7 +210,7 @@ const createStyles = ({ colors }: Theme) =>
   StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.paper },
     fill: { flex: 1 },
-    body: { paddingHorizontal: space.xl, paddingTop: space.md, paddingBottom: space.xl, gap: space.md },
+    body: { ...contentColumn, paddingHorizontal: space.xl, paddingTop: space.md, paddingBottom: space.xl, gap: space.md },
     intro: { fontSize: font.body, color: colors.muted },
     chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
     chip: {
@@ -244,6 +244,7 @@ const createStyles = ({ colors }: Theme) =>
     noteBad: { color: colors.danger },
     error: { color: colors.danger, fontSize: font.small },
     footer: {
+      ...contentColumn,
       paddingHorizontal: space.xl,
       paddingTop: space.md,
       paddingBottom: space.lg,

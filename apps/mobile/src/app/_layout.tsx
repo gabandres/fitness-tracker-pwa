@@ -23,6 +23,7 @@ import { UpdateRequiredGate } from '@/components/UpdateRequiredScreen';
 import { type I18nKey, I18nProvider, useT } from '@/i18n';
 import { Sentry } from '@/lib/sentry';
 import { ThemeProvider, useTheme } from '@/lib/theme-context';
+import { HorizontalSafeArea } from '@/lib/content-width';
 import { ToastProvider } from '@/components/Toast';
 import { sheetOptions } from '@/lib/sheet-options';
 import { font, space, type } from '@/theme';
@@ -329,7 +330,10 @@ function AuthGate({ fontsReady }: { fontsReady: boolean }) {
             hold={RELAYOUT_HOLD_ROUTES.has(route.name)}
             focused={navigation.isFocused()}
           >
-            {children}
+            {/* Left/right safe area for every route's content (iPhone Duo —
+                see the component), under the native header rather than
+                around it. The sheet route measures its own (`app/sheet.tsx`). */}
+            {route.name === 'sheet' ? children : <HorizontalSafeArea>{children}</HorizontalSafeArea>}
           </RelayoutBoundary>
         )}
       >

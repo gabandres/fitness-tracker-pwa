@@ -636,10 +636,14 @@ export function TemplateEditorModal({
    *  child — so there is no definite parent width for `100%` to resolve
    *  against, and neither `width: '100%'` nor `alignItems="stretch"` fills the
    *  row (both were tried on device; the cards stayed as wide as their exercise
-   *  names, and a template read as a ragged staircase). The sheet pads
-   *  `space.xl` each side. */
+   *  names, and a template read as a ragged staircase). The width is the
+   *  list wrapper's, MEASURED: the window less the sheet's `space.xl` padding
+   *  was right only while the sheet spanned the window. On an iPhone Duo's
+   *  inner display the sheet is a centred card narrower than the window, and
+   *  the cards overflowed it. The window figure stands in for the first frame. */
   const { width: windowWidth, fontScale } = useWindowDimensions();
-  const cardWidth = windowWidth - space.xl * 2;
+  const [listWidth, setListWidth] = useState<number | null>(null);
+  const cardWidth = listWidth ?? windowWidth - space.xl * 2;
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   /**
@@ -1860,7 +1864,7 @@ export function TemplateEditorModal({
                  It belongs on a wrapper, not on the input's marginBottom:
                  `styleRow` below the input already carries marginTop space.md,
                  so spacing the input would double to 24 once a name is typed. */
-              <View style={{ marginTop: space.md }}>
+              <View style={{ marginTop: space.md }} onLayout={(e) => setListWidth(Math.floor(e.nativeEvent.layout.width))}>
               <Sortable.Flex
                 customHandle
                 scrollableRef={scrollRef}

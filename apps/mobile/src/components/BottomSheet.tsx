@@ -1,7 +1,7 @@
 import { type ReactNode, useEffect, useEffectEvent, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
-  Animated, type DimensionValue, Dimensions, Modal, PanResponder, type PanResponderInstance, Platform, Pressable,
-  StyleSheet, type StyleProp, View, type ViewStyle,
+  Animated, type DimensionValue, Modal, PanResponder, type PanResponderInstance, Platform, Pressable,
+  StyleSheet, type StyleProp, useWindowDimensions, View, type ViewStyle,
 } from 'react-native';
 import { router } from 'expo-router';
 import {
@@ -19,9 +19,9 @@ import { ToastSheetHost } from '@/components/Toast';
 import { useT } from '@/i18n';
 import { useKeyboardSheetPadding } from '@/lib/use-keyboard-sheet-style';
 import { useThemedStyles, type Theme } from '@/lib/theme-context';
-import { radius, space } from '@/theme';
+import { contentColumn, radius, space } from '@/theme';
+import { ALL_ORIENTATIONS } from '@/lib/content-width';
 
-const OFFSCREEN = Dimensions.get('window').height;
 
 /**
  * The confirm host, nested in an open sheet. `ConfirmHost` is
@@ -261,6 +261,11 @@ function JsBottomSheet({
   const [mounted, setMounted] = useState(visible);
   const [anim] = useState(() => new Animated.Value(0));
   const [drag] = useState(() => new Animated.Value(0));
+  // Where the panel starts and ends its slide: just past the bottom edge. Read
+  // live, not once at import — an iPhone Duo or a foldable changes the window's
+  // height when it opens or closes, and a stale value slid the sheet from the
+  // wrong place.
+  const offscreen = useWindowDimensions().height;
 
   // The sheet GROWS for the keyboard rather than moving: `wrap` is flex-end,
   // so extra bottom padding keeps the background pinned to the screen edge
@@ -332,15 +337,21 @@ function JsBottomSheet({
       { maxHeight },
       {
         transform: [
-          { translateY: Animated.add(anim.interpolate({ inputRange: [0, 1], outputRange: [OFFSCREEN, 0] }), drag) },
+          { translateY: Animated.add(anim.interpolate({ inputRange: [0, 1], outputRange: [offscreen, 0] }), drag) },
         ],
       },
     ],
-    [anim, drag, maxHeight, styles.sheetMotion],
+    [anim, drag, maxHeight, offscreen, styles.sheetMotion],
   );
 
   return (
-    <Modal visible={mounted} transparent animationType="none" onRequestClose={() => request('back')}>
+    <Modal
+      visible={mounted}
+      transparent
+      animationType="none"
+      supportedOrientations={ALL_ORIENTATIONS}
+      onRequestClose={() => request('back')}
+    >
       {/* The backdrop is a real control — it closes the sheet — so it says so
           (S18-5). Without a role and a label VoiceOver reads it as an unnamed
           button the size of the screen. */}
@@ -392,8 +403,10 @@ function JsBottomSheet({
 const createStyles = ({ scheme, colors, shadow }: Theme) => StyleSheet.create({
   backdrop: { ...StyleSheet.absoluteFill, backgroundColor: scheme === 'dark' ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.35)' },
   wrap: { flex: 1, justifyContent: 'flex-end' },
-  // maxHeight arrives from the `maxHeight` prop; this holds nothing else.
-  sheetMotion: {},
+  // maxHeight arrives from the `maxHeight` prop. The width is capped and
+  // centred: on a wide window (an iPhone Duo's inner display) a bottom sheet
+  // spanning the whole width reads as a banner, not a sheet.
+  sheetMotion: { ...contentColumn },
   sheet: {
     // **`flexShrink: 1` is load-bearing and was the bug.** The ceiling lives on
     // the OUTER motion layer (RN-Animated and Reanimated styles cannot compose

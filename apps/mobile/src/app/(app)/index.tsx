@@ -62,7 +62,7 @@ import { useWidgetSync } from '@/hooks/useWidgetSync';
 import { enterUp, PressScale, usePulse } from '@/lib/motion';
 import { recordPositiveMoment } from '@/lib/reviewPrompt';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, headerTitle, radius, space, TARGET, type } from '@/theme';
+import { contentColumn, font, headerTitle, radius, space, TARGET, type } from '@/theme';
 import { formatDate } from '@/lib/date-format';
 import { TAB_SCROLL_BAND } from '@/lib/glass';
 import { useLargeTitle } from '@/lib/font-scale';
@@ -1160,11 +1160,12 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
 function createStyles({ colors }: Theme) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.paper },
-    skeletonBody: { paddingHorizontal: space.xl, gap: space.lg },
+    skeletonBody: { ...contentColumn, paddingHorizontal: space.xl, gap: space.lg },
     skeletonInline: { gap: space.lg },
     // The card and row placeholders themselves live in `DaySkeleton`, shared
     // with the History day (Today re-score 3, Visual 14).
     header: {
+      ...contentColumn,
       flexDirection: 'row',
       alignItems: 'flex-start',
       justifyContent: 'space-between',
@@ -1193,7 +1194,7 @@ function createStyles({ colors }: Theme) {
     // refresh works on an empty day too. (It also served the old centred
     // empty state, UX_AUDIT F5 — that state is the four slot rows now, which
     // sit in the flow and clear the + button with the tail spacer.)
-    body: { flexGrow: 1, paddingHorizontal: space.xl, paddingBottom: space.xl, gap: space.lg },
+    body: { ...contentColumn, flexGrow: 1, paddingHorizontal: space.xl, paddingBottom: space.xl, gap: space.lg },
     error: { color: colors.danger, fontSize: font.small, flex: 1 },
     errorRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
     // 44pt tall (iOS); `ICON_SLOP` takes the hit area to 48dp (Android).

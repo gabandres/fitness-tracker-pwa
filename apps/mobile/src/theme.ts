@@ -185,6 +185,24 @@ export const FAB_BAND = 96;
  */
 export const TARGET = Platform.OS === 'android' ? 48 : 44;
 
+/**
+ * The widest a screen's content grows. A phone never reaches it; the inner
+ * display of an iPhone Duo (regular width, and it ignores the portrait lock)
+ * and an Android foldable do, and without it every row, chart and card spans
+ * ~8 inches. 640 rather than the 480 the form screens (sign-in, onboarding,
+ * tour) cap at: those are one column of fields, these are cards and charts
+ * that still read at tablet-portrait width.
+ */
+export const CONTENT_MAX_WIDTH = 640;
+
+/**
+ * Centre a screen's content at {@link CONTENT_MAX_WIDTH}. Goes on the scroll
+ * view's `contentContainerStyle` (and on a fixed header above it), not on the
+ * screen: the scroll view itself stays full width so a swipe in the margin
+ * still scrolls, and the canvas still runs edge to edge.
+ */
+export const contentColumn: ViewStyle = { width: '100%', maxWidth: CONTENT_MAX_WIDTH, alignSelf: 'center' };
+
 export const radius = {
   sm: 8,
   md: 12,

@@ -1,7 +1,7 @@
 import { StyleSheet, View } from 'react-native';
 import { useT } from '@/i18n';
 import { useThemedStyles, type Theme } from '@/lib/theme-context';
-import { radius, space } from '@/theme';
+import { contentColumn, radius, space } from '@/theme';
 
 /**
  * The shape Trends loads into (sim review 2026-10-06: the first load was a
@@ -45,7 +45,7 @@ export function TrendsSkeleton() {
 
 const createStyles = ({ colors, scheme }: Theme) =>
   StyleSheet.create({
-    wrap: { padding: space.xl, gap: space.md },
+    wrap: { ...contentColumn, padding: space.xl, gap: space.md },
     hero: {
       backgroundColor: colors.heroPanel,
       borderRadius: radius.xl,

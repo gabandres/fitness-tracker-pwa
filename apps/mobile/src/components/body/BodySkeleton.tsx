@@ -1,7 +1,7 @@
 import { StyleSheet, View } from 'react-native';
 import { useT } from '@/i18n';
 import { useThemedStyles, type Theme } from '@/lib/theme-context';
-import { radius, space } from '@/theme';
+import { contentColumn, radius, space } from '@/theme';
 
 /**
  * The shape of Body before its numbers arrive (Body review, Pf4).
@@ -42,7 +42,7 @@ export function BodySkeleton() {
 
 const createStyles = ({ colors, scheme }: Theme) =>
   StyleSheet.create({
-    wrap: { padding: space.xl, gap: space.md },
+    wrap: { ...contentColumn, padding: space.xl, gap: space.md },
     hero: {
       backgroundColor: colors.heroPanel,
       borderRadius: radius.xl,

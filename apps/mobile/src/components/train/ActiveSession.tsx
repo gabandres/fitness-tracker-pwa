@@ -42,6 +42,7 @@ import { plural } from '@/i18n/grammar';
 import { announce, isScreenReaderOn } from '@/lib/a11y';
 import { noteFocusTrigger, useReturnFocusOnClose } from '@/lib/return-focus';
 import { tabBarOverlap } from '@/lib/glass';
+import { useColumnGutter } from '@/lib/content-width';
 import { nowMs } from '@/lib/clock';
 import { RevealAboveKeyboardContext, useRevealAboveKeyboard } from './reveal-above-keyboard';
 import { publishRestEndsAt } from '@/lib/active-workout-signal';
@@ -1861,6 +1862,8 @@ function RestBar({
   const styles = useThemedStyles(createStyles);
   // Above the floating glass tab bar on iOS 26, which covers the tab's foot.
   const lift = tabBarOverlap(useSafeAreaInsets().bottom);
+  // Under the content column on a wide window (iPhone Duo inner display).
+  const gutter = useColumnGutter();
   const locale = useLocale();
   const { remaining, label } = useRestCountdown(endsAt);
   const progress = total > 0 ? Math.min(1, Math.max(0, 1 - remaining / total)) : 0;
@@ -1881,7 +1884,7 @@ function RestBar({
   const buttonCap = compact ? REST_COMPACT_BUTTON_CAP : undefined;
   return (
     <View
-      style={[styles.restBarFloat, lift > 0 && { marginBottom: lift }]}
+      style={[styles.restBarFloat, lift > 0 && { marginBottom: lift }, gutter > 0 && { left: space.xl + gutter, right: space.xl + gutter }]}
       onLayout={(e) => onHeight?.(Math.ceil(e.nativeEvent.layout.height))}
       testID="rest-bar"
     >

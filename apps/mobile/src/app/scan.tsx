@@ -71,7 +71,7 @@ import { clearScanDraft, readScanDraft, saveScanDraft } from '@/lib/scan-draft';
 import { encodeEntryPrefill } from '@/lib/entry-prefill';
 import { CountUpText, enterUp, PressScale } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space, TARGET, type } from '@/theme';
+import { contentColumn, font, radius, space, TARGET, type } from '@/theme';
 
 /**
  * `camera` is the in-app viewfinder (`ScanCamera`). The first shot of a meal
@@ -1917,7 +1917,7 @@ function scalePortion(item: ScannedFoodItem, mult: number): ScannedFoodItem {
 function createStyles({ colors, shadow }: Theme) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.paper },
-    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.lg, paddingTop: space.md, paddingBottom: space.sm, gap: space.sm },
+    header: { ...contentColumn, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.lg, paddingTop: space.md, paddingBottom: space.sm, gap: space.sm },
     // A full target, pulled left by its own overhang so the chevron still sits
     // on the header's padding line where it always did.
     back: { width: TARGET, height: TARGET, alignItems: 'center', justifyContent: 'center', marginLeft: -(TARGET - 24) / 2 },
@@ -1942,7 +1942,7 @@ function createStyles({ colors, shadow }: Theme) {
     stepText: { fontSize: font.body, color: colors.faint },
     stepTextOn: { color: colors.ink, fontWeight: '600' },
     stepTextDone: { color: colors.muted },
-    body: { padding: space.xl, gap: space.md, flexGrow: 1 },
+    body: { ...contentColumn, padding: space.xl, gap: space.md, flexGrow: 1 },
     error: { color: colors.danger, fontSize: font.small, textAlign: 'center' },
     remaining: { color: colors.muted, fontSize: font.small, textAlign: 'center', marginTop: space.xs },
     // intro
@@ -2099,7 +2099,7 @@ function createStyles({ colors, shadow }: Theme) {
     // ── A weighed portion, marked (ADR-0029 items 2 + 4) ──────────
     measuredRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     measuredText: { fontSize: font.small - 1, color: colors.teal, fontWeight: '700' },
-    footer: { flexDirection: 'row', gap: space.md, paddingHorizontal: space.xl, paddingTop: space.md, paddingBottom: space.lg },
+    footer: { ...contentColumn, flexDirection: 'row', gap: space.md, paddingHorizontal: space.xl, paddingTop: space.md, paddingBottom: space.lg },
     retake: { paddingHorizontal: space.xl, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
     retakeText: { fontSize: font.body, fontWeight: '700', color: colors.ink },
     add: { flex: 1, backgroundColor: colors.ink, borderRadius: radius.md, paddingVertical: space.lg, alignItems: 'center' },

@@ -24,7 +24,7 @@ import { getConsultationQuota } from '@/lib/ledger';
 import { type I18nKey, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space, TARGET } from '@/theme';
+import { contentColumn, font, radius, space, TARGET } from '@/theme';
 import { Touchable } from '@/components/Touchable';
 
 type Status = 'idle' | 'streaming' | 'done' | 'error';
@@ -338,7 +338,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   // `space.xl`, not `FAB_BAND`: nothing floats over this screen any more —
   // it is a root stack route, not a tab (UX_AUDIT S18-14). Sides `space.xl`,
   // the gutter every other screen uses (it was 16 dp against 24, S22).
-  body: { paddingHorizontal: space.xl, paddingTop: space.md, paddingBottom: space.xl },
+  body: { ...contentColumn, paddingHorizontal: space.xl, paddingTop: space.md, paddingBottom: space.xl },
   intro: { fontSize: font.body, color: colors.ink, lineHeight: 21 },
   counter: { fontSize: font.small, color: colors.teal, marginTop: space.xs, fontVariant: ['tabular-nums'] },
   disclaimer: { fontSize: font.tiny, color: colors.faint, marginTop: space.xs },

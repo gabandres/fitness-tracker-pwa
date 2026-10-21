@@ -28,7 +28,7 @@ export function UpdateRequiredScreen() {
 
   return (
     <View
-      style={[styles.root, { paddingTop: insets.top + space.xl, paddingBottom: insets.bottom + space.xl }]}
+      style={[styles.root, { paddingTop: insets.top + space.xl, paddingBottom: insets.bottom + space.xl, paddingLeft: insets.left + space.xl, paddingRight: insets.right + space.xl }]}
       // Everything behind this is hidden from VoiceOver (`accessibilityViewIsModal`)
       // and TalkBack (the gate marks its siblings `no-hide-descendants`).
       accessibilityViewIsModal

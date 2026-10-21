@@ -27,7 +27,7 @@ import { useAuth } from '@/lib/auth';
 import { saveTargetMode } from '@/lib/ledger';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space } from '@/theme';
+import { contentColumn, font, radius, space } from '@/theme';
 import { Touchable } from '@/components/Touchable';
 
 /**
@@ -365,7 +365,7 @@ const createStyles = ({ colors }: Theme) =>
   StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.paper },
     fill: { flex: 1 },
-    body: { paddingHorizontal: space.xl, paddingTop: space.md, paddingBottom: space.xl, gap: space.lg },
+    body: { ...contentColumn, paddingHorizontal: space.xl, paddingTop: space.md, paddingBottom: space.xl, gap: space.lg },
     subtitle: { fontSize: font.body, color: colors.muted },
     segment: { flexDirection: 'row', gap: space.sm },
     segBtn: {
@@ -403,6 +403,7 @@ const createStyles = ({ colors }: Theme) =>
     noteBad: { color: colors.danger },
     error: { color: colors.danger, fontSize: font.small },
     footer: {
+      ...contentColumn,
       paddingHorizontal: space.xl,
       paddingTop: space.md,
       paddingBottom: space.lg,

@@ -39,7 +39,7 @@ import { type I18nKey, useLocale, useT } from '@/i18n';
 import { formatNumber } from '@/lib/date-format';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space, TARGET } from '@/theme';
+import { contentColumn, font, radius, space, TARGET } from '@/theme';
 import { Touchable } from '@/components/Touchable';
 
 const ACTIVITY: { value: ActivityLevel; labelKey: I18nKey }[] = [
@@ -501,7 +501,7 @@ export default function RefineTargets() {
 const createStyles = ({ colors }: Theme) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
   fill: { flex: 1 },
-  body: { paddingHorizontal: space.xl, paddingTop: space.md, paddingBottom: space.xl, gap: space.lg },
+  body: { ...contentColumn, paddingHorizontal: space.xl, paddingTop: space.md, paddingBottom: space.xl, gap: space.lg },
   subtitle: { fontSize: font.body, color: colors.muted, marginTop: space.xs },
   field: { gap: space.xs },
   label: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
@@ -554,7 +554,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   paceValue: { fontSize: font.h3, color: colors.ink, fontWeight: '700' },
   paceNote: { fontSize: font.small, color: colors.ink, marginTop: space.sm },
   error: { color: colors.danger, fontSize: font.small },
-  footer: { paddingHorizontal: space.xl, paddingTop: space.md, paddingBottom: space.lg, borderTopWidth: 1, borderTopColor: colors.line },
+  footer: { ...contentColumn, paddingHorizontal: space.xl, paddingTop: space.md, paddingBottom: space.lg, borderTopWidth: 1, borderTopColor: colors.line },
   save: { backgroundColor: colors.ink, borderRadius: radius.md, paddingVertical: space.lg, alignItems: 'center' },
   saveDisabled: { opacity: 0.4 },
   saveText: { color: colors.onInk, fontWeight: '700', fontSize: font.h3 },
