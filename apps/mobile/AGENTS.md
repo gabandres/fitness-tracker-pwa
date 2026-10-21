@@ -239,7 +239,7 @@ artifact"; which version is *live* is `STATUS.md`'s question.
 | Platform | Binary | Runtime fingerprint | Read from |
 |---|---|---|---|
 | Android | vc 52 / 1.2.8 — alpha + production 100% sent for review 2026-10-15 (until it is live, users are on vc 50 `a4b78806…`; vc 48/49 `c87935bf…`, vc 47 `ef607e85…`; vc 51 `21d90a2c…` alpha — pinned publishes) | `dfb995eae6902f95b5388c02c7914bde0eeb1967` | the `.aab` |
-| iOS | build 72 / 1.2.8 — submitted for review 2026-10-15, AFTER_APPROVAL (until it is live, users are on build 70 / 1.2.6 `60000098…`; build 68 `489bf3b5…`; build 71 `705652e8…` TestFlight — pinned publishes) | `50a47f6235c5a9529278f1e5ce9915883f0264ba` | the `.ipa` |
+| iOS | build 72 / 1.2.8 — submitted for review 2026-10-15, AFTER_APPROVAL (until it is live, users are on build 70 / 1.2.6 `60000098…`; build 68 `489bf3b5…`; build 71 `705652e8…` TestFlight — pinned publishes). **Build 73 / 1.2.9 (Xcode 27.1 SDK, iPhone Duo) uploaded 2026-10-21, runtime `d7aad40dcea59c51dc1d55b22de777a3e21da6b4`** — not yet submitted for review | `50a47f6235c5a9529278f1e5ce9915883f0264ba` | the `.ipa` |
 
 The 1.2.5 runtimes share nothing with 1.2.4's — `app.json` moved both — so a
 1.2.4 user gets 1.2.5's JS only through the store update. Which OTA is newest

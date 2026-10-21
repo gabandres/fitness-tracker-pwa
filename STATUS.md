@@ -33,7 +33,7 @@ same way before trusting them — `docs/COMMANDS.md` has every command;
 | **Cloud Functions / rules** | Deployed, project `fitness-tracker-gb-1775407101`. Rules last deployed 2026-10-15 (session `deload`, profile `dumbbellHalfSteps` / `deloadStartedAt`) |
 | **Photo-scan** | **ON and free, both platforms** (ADR-0017), macros from the bundled USDA DB (ADR-0019). Tiering server-side only: `dailyQuota` 3/day free · 30/day paid, plus the `photo` `spendCeiling` |
 | **Food search** | Bundled USDA DB (13,272 foods) + restaurant corpus (25,126 items / 91 chains, ADR-0027). **Text search makes NO network call**; Open Food Facts serves barcode only. `docs/research/off-branded-ingest.md` scopes branded text results |
-| **OTA (EAS Update)** | **Every runtime in use has the 2026-10-21 export-notes OTA (`7fdaec22`)**: iOS builds 72 / 71 / 70 / 68, Android vc 52 / 51 / 50 / 48-49 / 47 — groups and rollbacks in the ledger, which is the record and wins. "Published" ≠ "delivered": a device applies it on the launch AFTER the download |
+| **OTA (EAS Update)** | **Every runtime in use has the 2026-10-21 iPhone Duo layout OTA (`76d74257`)**: iOS builds 72 / 71 / 70 / 68, Android vc 52 / 51 / 50 / 48-49 / 47 — groups and rollbacks in the ledger, which is the record and wins. "Published" ≠ "delivered": a device applies it on the launch AFTER the download |
 | **`app-version.json`** | **Self-driving** — served from Firestore `public/appVersion`, refreshed hourly by `hourlyTasks` (Play tracks API; Apple's public lookup) and by `/admin` → System → **Sync now**. `npm run doctor` compares the live URL with both stores |
 
 **Fingerprints and publishing:** current artifact values are the two-row table
@@ -50,7 +50,7 @@ cache, and the emulator suites through `scripts/require-java21.mjs`.
 
 ## 2. Merged, on `main`, and not delivered anywhere
 
-**Nothing.** Everything on `main` is in an OTA as of `7fdaec22` (2026-10-21).
+**`9b861e4e` — the 1.2.9 version bump** (no code; §3 "1.2.9"). Everything else on `main` is in an OTA as of `76d74257` (2026-10-21).
 The native halves of 1.2.7/1.2.8 (lock-screen Done set, Android Live Update,
 widget/watch day rollover, QuickAdd queue cap) reach users only with 1.2.8.
 Re-derive rather than trust this: `git log --oneline` against the newest ledger
@@ -82,6 +82,22 @@ deleted and its outcome goes to `CHANGELOG.md`.
   quality. Check `emailRateLimits/pw_ip_*` differ per caller.
 - Health nutrition samples exported before 2026-10-15 carry no Ignia id;
   undo/edit of those older entries cannot reach Health.
+
+### 1.2.9 — the first iOS 27.1 SDK binary (iPhone Duo, ships 2026-10-23)
+
+- **iOS** build 73 / 1.2.9 (`9b861e4e`) built 2026-10-21 on `ignia-mac` with
+  **Xcode 27.1 `27A9275`** (`DTSDKName iphoneos27.1`), runtime `d7aad40d…`
+  (artifact), uploaded to ASC — `VALID` 2026-10-21 14:52. Same JS as the Duo OTA (`76d74257`); what it
+  adds is the SDK — on 27.0-built binaries the Duo's inner display stops the
+  app at the status bar. **Not submitted for review**: 1.2.8 (build 72) is
+  still `WAITING_FOR_REVIEW`; submit 1.2.9 once 1.2.8 releases (or the owner
+  chooses to replace it — cancel → re-point → resubmit, irreversible queue
+  loss). **Android** needs no 1.2.9 binary for the Duo work; the version bump
+  only means the next Android build is 1.2.9.
+- **Owed:** device QA on a real Duo (the simulator covered closed / open
+  landscape / open portrait, Release). Partly-folded "book" pose not tried.
+  Every future OTA adds runtime `d7aad40d…` (build 73) to the iOS list.
+- Expo SDK 58 is NOT required for the Duo — SDK 57 builds on Xcode 27.1.
 
 ### Train — owner calls and device checks owed
 

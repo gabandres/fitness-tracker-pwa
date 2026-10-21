@@ -4,6 +4,41 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-10-21 — iPhone Duo layout (`76d74257`) and 1.2.9, the first iOS 27.1 SDK binary
+
+The Duo ships 2026-10-23 on iOS 27.1. Measured on the iPhone Duo simulator
+(iOS 27.1 runtime, Release build, Xcode 27.1 `27A9275`): **closed**, the cover
+display is 466 × 678 pt with the status bar and camera in an 84 pt strip down
+the right edge; **open**, the inner display is 951 × 669 pt landscape /
+669 × 951 portrait, and it ignores the app's portrait lock (Apple's rule).
+
+- **Side safe areas, per route.** Every screen padded only top/bottom, so
+  closed, the Settings avatar, the hero card's share button and the tab bar's
+  Body sat under the strip. `HorizontalSafeArea` (`lib/content-width.tsx`, a
+  native `SafeAreaView` + nested provider) wraps each root-stack route in
+  `screenLayout` — per route, not around the navigator: wrapped around it, the
+  native header narrowed too and iOS put the back button at the wrong end
+  instead of down the status-bar strip. The native sheet route measures its own
+  (Add food's "More ways" and mic ran under the strip); the root toast and
+  Update-required clear the side insets themselves.
+- **A 640 pt content column** (`contentColumn`, `theme.ts`) on Today, Train,
+  Trends, Body, History, the day view, Settings, both targets screens,
+  Feedback, Coach, Milestones, Connected apps and Scan; the tab bar, rest bar
+  and History's + follow it (`useColumnGutter`). Engages only on the open
+  display in landscape (and Android foldables/tablets).
+- **Fixes that were wrong on any wide window:** the toast hugged the left edge
+  (`stretch` + `maxWidth`); BottomSheet captured the window height at import;
+  the template editor and reorder sheet sized rows from the window, not the
+  sheet; RN Modals allowed portrait only; the barcode modal now clears all
+  four edges.
+- **Shipped:** OTA on all nine runtimes (ledger). On today's 27.0-built
+  binaries iOS stops the app at the status bar on the inner display (Apple:
+  27.0 SDK), so the full edge-to-edge result needs **1.2.9** — the same native tree built with Xcode 27.1
+  (`9b861e4e`); see `STATUS.md`. **Not needed: Expo SDK 58.** SDK 57 builds
+  and runs on Xcode 27.1 unchanged.
+- QA side effect: the QA account's 684-hour test fast was ended by a press
+  meant to open a confirm (End has no confirm, only Undo).
+
 ## 2026-10-21 — leftovers from the 10/20 23:03 export (`7fdaec22`)
 
 - Export: a lift whose load moved carries the engine's note on its activation
