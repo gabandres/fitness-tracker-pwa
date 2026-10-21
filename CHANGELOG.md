@@ -24,6 +24,10 @@ ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
   Grapes protein 0, Pull/Leg superset "D", Pull loads Row 110 / Pulldown 80 /
   Rear delt flye 20.
 - Shipped: rules + functions first, then OTA on all nine runtimes (ledger).
+- Follow-up (`c2850e48`, second OTA): past walks — a one-time HR backfill
+  over the 90-day import window; a lifting session with no logged duration
+  routes as 90 min (the 8/18 treadmill walk stays with its Pull Day); the
+  10/09 19:16 walk moved off that morning's Push Day.
 
 ## 2026-10-20 — Evening hunger (0–10); blank-RIR check covers unticked sets (`5b794f6c`)
 
