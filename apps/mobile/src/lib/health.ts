@@ -189,7 +189,10 @@ export interface HealthPort {
    * "no workouts" are indistinguishable here, which is why the UI states the
    * permission separately instead of inferring it from an empty list.
    */
-  readWorkouts(sinceDays: number): Promise<HealthWorkout[]>;
+  /** `hrWindowMs`: read heart rate for workouts that ended this recently
+   *  (iOS; default {@link HR_READ_WINDOW_MS}). The one-time backfill passes
+   *  the whole import window. */
+  readWorkouts(sinceDays: number, opts?: { hrWindowMs?: number }): Promise<HealthWorkout[]>;
   /** Write one day's canonical-unit value (weight lb / sleep hours / water
    *  fl oz / body-fat percent). The sample is dated within `dateKey`'s day, so
    *  editing a past day exports to Health on that day, not today. */
@@ -486,8 +489,12 @@ export function hkIndoor(metadata: Record<string, unknown> | undefined): boolean
 }
 
 /** Average / peak bpm over one workout, or {} when unreadable. */
-export async function hkWorkoutHr(w: HKWorkoutRow, now = Date.now()): Promise<{ avgHr?: number; maxHr?: number }> {
-  if (typeof w.getStatistic !== 'function' || now - ms(w.endDate) > HR_READ_WINDOW_MS) return {};
+export async function hkWorkoutHr(
+  w: HKWorkoutRow,
+  now = Date.now(),
+  windowMs = HR_READ_WINDOW_MS,
+): Promise<{ avgHr?: number; maxHr?: number }> {
+  if (typeof w.getStatistic !== 'function' || now - ms(w.endDate) > windowMs) return {};
   try {
     const st = await w.getStatistic('HKQuantityTypeIdentifierHeartRate', 'count/min');
     const avg = st?.averageQuantity?.quantity;
@@ -820,7 +827,7 @@ const healthKit: HealthPort = {
     return ok.reduce((n, r) => n + (Number(r.value) || 0), 0);
   },
 
-  async readWorkouts(sinceDays) {
+  async readWorkouts(sinceDays, opts) {
     const HK = await hkModule();
     // Loosely typed for the same reason `writeWorkout` below is: the generated
     // overloads are stricter than anything verifiable without a native build.
@@ -830,7 +837,8 @@ const healthKit: HealthPort = {
     if (typeof query !== 'function') return [];
     const rows = (await query(hkWorkoutQueryOptions(sinceDays))) as unknown as HKWorkoutRow[];
     const typeNames = (HK as unknown as Record<string, unknown>)['WorkoutActivityType'];
-    const hr = await Promise.all((rows ?? []).map((w) => hkWorkoutHr(w)));
+    const hrWindow = opts?.hrWindowMs ?? HR_READ_WINDOW_MS;
+    const hr = await Promise.all((rows ?? []).map((w) => hkWorkoutHr(w, Date.now(), hrWindow)));
     return (rows ?? []).map((w, i) => ({
       // `uuid` is HealthKit's stable per-sample identity and is what makes a
       // re-import update rather than duplicate. Falling back to the time range

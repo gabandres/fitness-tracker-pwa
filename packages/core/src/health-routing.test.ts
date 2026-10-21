@@ -32,6 +32,13 @@ describe('session window — start to end + 15 min', () => {
     const push = { date: Z('2026-10-15T11:29:53Z'), durationMin: 51 };
     expect(inSessionWindow(push, watch(Z('2026-10-16T00:33:53Z'), 2036))).toBe(false);
   });
+  it('a lifting session with no logged duration is 90 min — the 8/18 Pull Day keeps its 08:18 walk', () => {
+    const pull818 = { date: new Date(2026, 7, 18, 7, 40), exercises: [{}], cardio: [] };
+    expect(inSessionWindow(pull818, watch(new Date(2026, 7, 18, 8, 18), 1261))).toBe(true);
+    // ...and the 10/09 19:16 walk is still not part of that morning's Push Day.
+    const push1009 = { date: new Date(2026, 9, 9, 6, 56), exercises: [{}] };
+    expect(inSessionWindow(push1009, watch(new Date(2026, 9, 9, 19, 16), 1474))).toBe(false);
+  });
   it('a cardio-only session with no duration is as long as its cardio', () => {
     const s = { date: Z('2026-10-15T10:00:00Z'), cardio: [zone2()] };
     expect(sessionWindow(s).endMs - sessionWindow(s).startMs).toBe((1200 + 15 * 60) * 1000);

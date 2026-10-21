@@ -466,14 +466,22 @@ export interface RoutableSession {
 /**
  * The span an imported workout must touch to belong to `session`: from the
  * session's start to its end plus {@link SESSION_WINDOW_SLACK_MS}. The end is
- * the logged duration, else the session's cardio, else 90 min.
+ * the logged duration; without one, a LIFTING session is 90 min (at least its
+ * cardio) and a cardio-only one is its cardio.
+ *
+ * The lifting case was "its cardio" too, and that cut an older Pull Day with
+ * no `durationMin` (8/18, lifts from 07:40) to 21 min — so its own 08:18
+ * treadmill walk read as outside it.
  */
 export function sessionWindow(session: RoutableSession): Span {
   const startMs = session.date.getTime();
   const cardioMs = (session.cardio ?? []).reduce((a, b) => a + (b.durationSec > 0 ? b.durationSec * 1000 : 0), 0);
+  const lifting = (session.exercises?.length ?? 0) > 0;
   const lengthMs = session.durationMin != null && session.durationMin > 0
     ? session.durationMin * 60_000
-    : cardioMs || DEFAULT_SESSION_MS;
+    : lifting
+      ? Math.max(cardioMs, DEFAULT_SESSION_MS)
+      : cardioMs || DEFAULT_SESSION_MS;
   return { startMs, endMs: startMs + lengthMs + SESSION_WINDOW_SLACK_MS };
 }
 

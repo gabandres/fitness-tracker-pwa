@@ -17,7 +17,12 @@ import { zone2Check } from '@macrolog/core';
 import type { WorkoutSession } from '@/lib/workout';
 
 jest.unmock('@/lib/health-sync');
-jest.mock('@/lib/health', () => ({ health: { readSamples: () => Promise.resolve([]), readWorkouts: () => Promise.resolve([]) } }));
+const mockReadWorkouts = jest.fn(async (_days: number, _opts?: { hrWindowMs?: number }) => [
+  { id: 'w1', activityType: 'walking', startMs: Date.UTC(2026, 9, 1, 22), endMs: Date.UTC(2026, 9, 1, 22, 30), fromUs: false, avgHr: 104 },
+]);
+jest.mock('@/lib/health', () => ({
+  health: { readSamples: () => Promise.resolve([]), readWorkouts: (d: number, o?: { hrWindowMs?: number }) => mockReadWorkouts(d, o) },
+}));
 
 let mockSessions: WorkoutSession[] = [];
 let mockTombstones = new Set<string>();
@@ -39,7 +44,8 @@ jest.mock('@/lib/ledger', () => ({
   startSession: (...a: [string, Omit<WorkoutSession, 'id'>]) => mockStartSession(...a),
 }));
 
-import { routeImportedBlocks, writeImportedBlocks } from '@/lib/health-sync';
+import { HR_BACKFILL_KEY, importHealthWorkouts, routeImportedBlocks, writeImportedBlocks } from '@/lib/health-sync';
+import { hkWorkoutHr } from '@/lib/health';
 
 const Z = (iso: string) => new Date(iso);
 const zone2 = (over: Partial<CardioBlock> = {}): CardioBlock => ({
@@ -164,5 +170,29 @@ describe('item 3 — a workout outside every session is its own entry', () => {
     const { updates, fresh } = routeImportedBlocks([push], [watch('cool', Z('2026-10-15T12:30:00Z'), 600)]);
     expect(updates.get(push)).toHaveLength(1);
     expect(fresh).toEqual([]);
+  });
+});
+
+describe('past walks get their heart rate — a one-time backfill', () => {
+  beforeEach(async () => {
+    await AsyncStorage.setItem('ignia.health.connected', '1');
+  });
+
+  it('the first import reads HR over the whole 90-day window; later ones over the last week', async () => {
+    await importHealthWorkouts('u1');
+    expect(mockReadWorkouts.mock.calls[0][1]).toEqual({ hrWindowMs: 90 * 86_400_000 });
+    expect(await AsyncStorage.getItem(HR_BACKFILL_KEY)).toBe('1');
+    await importHealthWorkouts('u1');
+    expect(mockReadWorkouts.mock.calls[1][1]).toBeUndefined();
+  });
+
+  it('a stored walk with no HR takes the backfilled HR', async () => {
+    mockSessions = [{ id: 'eve', status: 'completed', date: new Date(Date.UTC(2026, 9, 1, 22)), exercises: [],
+      cardio: [watch('w1', new Date(Date.UTC(2026, 9, 1, 22)), 1800, { label: 'Outdoor Walk' })],
+      createdAt: new Date(0), updatedAt: new Date(0) } as WorkoutSession];
+    await importHealthWorkouts('u1');
+    expect(mockUpdateSession).toHaveBeenCalledWith('u1', 'eve', expect.objectContaining({
+      cardio: [expect.objectContaining({ sourceId: 'w1', avgHr: 104, label: 'Outdoor Walk' })],
+    }));
   });
 });

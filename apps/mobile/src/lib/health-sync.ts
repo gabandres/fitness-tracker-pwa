@@ -350,9 +350,22 @@ async function importScalars(uid: string): Promise<number> {
 export async function importHealthWorkouts(uid: string): Promise<number> {
   if (!uid || !(await isHealthConnected())) return 0;
 
-  const raw = await health.readWorkouts(WORKOUT_IMPORT_DAYS);
-  return writeImportedBlocks(uid, toImportableBlocks(raw));
+  // Heart rate is read for the last week only — except once, on the first
+  // import after HR arrived (2026-10-20), when it is read for the whole import
+  // window so the walks already stored get theirs (owner: "past walks too").
+  // Marked done only after the write, so an interrupted run tries again.
+  const backfill = !(await AsyncStorage.getItem(HR_BACKFILL_KEY));
+  const raw = await health.readWorkouts(
+    WORKOUT_IMPORT_DAYS,
+    backfill ? { hrWindowMs: WORKOUT_IMPORT_DAYS * 86_400_000 } : undefined,
+  );
+  const written = await writeImportedBlocks(uid, toImportableBlocks(raw));
+  if (backfill && raw.length) await AsyncStorage.setItem(HR_BACKFILL_KEY, '1');
+  return written;
 }
+
+/** Set once the one-time workout heart-rate backfill has run. */
+export const HR_BACKFILL_KEY = 'ignia.health.hrBackfill.v1';
 
 /**
  * The shared tail of both import transports: raw workout records → the blocks
