@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { type ModalProps, StyleSheet, View } from 'react-native';
+import { type ModalProps, StyleSheet } from 'react-native';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaFrame } from 'react-native-safe-area-context';
 import { useTheme } from '@/lib/theme-context';
 import { CONTENT_MAX_WIDTH } from '@/theme';
