@@ -17,6 +17,7 @@ import { zone2Check } from './cardio';
 import { latestRotation, volumeBetween } from './volume-credits';
 import type { MuscleGroup } from './workout';
 import { compareLogsOldestFirst } from './firestore-mappers';
+import { epleyE1rm } from './progression-engine';
 
 const COLS = [
   'type', 'date', 'timestamp',
@@ -95,6 +96,34 @@ const COLS = [
 ] as const;
 type Col = typeof COLS[number];
 
+/**
+ * The engine's "load changed" note, per cluster group, for `workout_set` rows
+ * (owner, 2026-10-20). The engine warns `load-changed-mid-cluster` only on the
+ * NEXT session's call, on screen — nothing on the session said it, so the
+ * export carried no trace of why a lift read the way it did. Same rules as
+ * `readExercise`: e1RM from the activation; across clusters, the LAST
+ * cluster's load is the one read. Text is English, like every other cell.
+ */
+export function mixedLoadNotes(sets: readonly { kind?: string; group?: number; weight?: number; reps?: number }[]): Map<number, string> {
+  const notes = new Map<number, string>();
+  const acts = sets.filter((x) => x.kind === 'activation' && x.reps != null && x.weight != null);
+  const fmt = (n: number) => String(Math.round(n * 10) / 10);
+  const e1 = (a: { weight?: number; reps?: number }) => `e1RM ${fmt(epleyE1rm(a.weight!, a.reps!))} from the activation set (${fmt(a.weight!)} × ${a.reps})`;
+  for (const a of acts) {
+    const g = a.group ?? 1;
+    const minis = [...new Set(sets.filter((x) => x.kind === 'mini' && (x.group ?? 1) === g && x.reps != null && x.weight != null && x.weight !== a.weight).map((x) => x.weight!))];
+    if (minis.length) notes.set(g, `load changed mid-cluster: activation ${fmt(a.weight!)}, minis ${minis.map(fmt).join('/')} — ${e1(a)}`);
+  }
+  const loads = acts.map((a) => a.weight!);
+  if (new Set(loads).size > 1) {
+    const last = acts[acts.length - 1];
+    const g = last.group ?? 1;
+    const across = `load changed between clusters (${loads.map(fmt).join(' → ')}) — read from the ${fmt(last.weight!)} cluster: ${e1(last)}`;
+    notes.set(g, notes.has(g) ? `${notes.get(g)}; ${across}` : across);
+  }
+  return notes;
+}
+
 function escape(v: unknown): string {
   if (v === undefined || v === null || v === '') return '';
   const s = String(v);
@@ -153,9 +182,9 @@ export interface ExportData {
  * `workout` summary row, one `workout_set` row per logged set, and one `cardio`
  * row per logged cardio block (ADR-0025).
  *
- * A cardio-only session — a run with no lifting — still emits its `workout`
- * summary row, so the export mirrors what Train shows rather than making a run
- * look like a session that never happened.
+ * A cardio-only session — a run with no lifting — emits its `cardio` row and
+ * NO `workout` row (2026-10-20: that row had no template and no duration and
+ * read as an empty lifting workout). The cardio row carries the date and time.
  */
 export function buildCsv(data: ExportData, boundary: DayBoundary = MIDNIGHT): string {
   const rows: string[] = [COLS.join(',')];
@@ -227,7 +256,11 @@ export function buildCsv(data: ExportData, boundary: DayBoundary = MIDNIGHT): st
   for (const s of sortedSessions) {
     const date = dayKeyAt(s.date, boundary);
     const timestamp = s.date.toISOString();
-    rows.push(row({
+    // A cardio-only session — a standalone Watch walk — is a `cardio` row, not
+    // a lifting workout: until 2026-10-20 it also emitted an empty `workout`
+    // row (no template, no duration) that read as a workout nobody did.
+    const lifting = s.exercises.some((ex) => ex.sets.some((set) => isLoggedSet(set, ex.logStyle)));
+    if (lifting) rows.push(row({
       type: 'workout',
       date,
       timestamp,
@@ -248,6 +281,7 @@ export function buildCsv(data: ExportData, boundary: DayBoundary = MIDNIGHT): st
         const l = ex.sets.find((x) => x.kind === 'activation' && (x.group ?? 1) === (group ?? 1))?.label?.trim();
         return l === 'L' || l === 'R' ? l : undefined;
       };
+      const loadNotes = mixedLoadNotes(logged);
       for (const set of normalizeClusterGroups(logged)) {
         rows.push(row({
           type: 'workout_set',
@@ -268,6 +302,7 @@ export function buildCsv(data: ExportData, boundary: DayBoundary = MIDNIGHT): st
           supersetOrder: ex.pairPosition,
           side: set.kind === 'activation' || set.kind === 'mini' ? sideOf(set.group) : undefined,
           transitionSec: ex.supersetGroup ? ex.transitionRestSec : undefined,
+          notes: set.kind === 'activation' ? loadNotes.get(set.group ?? 1) : undefined,
         }));
       }
     }

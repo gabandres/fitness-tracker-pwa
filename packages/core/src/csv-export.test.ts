@@ -187,12 +187,12 @@ describe('cardio in the CSV export', () => {
     expect(csv.split('\r\n').some((l) => l.startsWith('cardio,'))).toBe(false);
   });
 
-  // A run with no lifting is still a session, and the export should say so
-  // rather than making it look like a day that never happened.
-  it('still emits the workout summary row for a cardio-only session', () => {
+  // A run with no lifting is its cardio row — not an empty lifting workout
+  // (owner, 2026-10-20: the standalone 10/15 Outdoor Walk exported both).
+  it('a cardio-only session emits its cardio row and no empty workout row', () => {
     const csv = buildCsv(session([{ modality: 'run', durationSec: 1200, source: 'manual' }]));
     const lines = csv.split('\r\n');
-    expect(lines.some((l) => l.startsWith('workout,'))).toBe(true);
+    expect(lines.some((l) => l.startsWith('workout,'))).toBe(false);
     expect(lines.some((l) => l.startsWith('cardio,'))).toBe(true);
     expect(lines.some((l) => l.startsWith('workout_set,'))).toBe(false);
   });
@@ -765,5 +765,45 @@ describe('buildCsv — a three-member superset (Push v2 Superset C, 2026-10-15)'
     ]);
     expect(tpl[2].notes).toBe('baseline since 2026-10-15: context changed: position 2026-10-15');
     expect(tpl[1].notes).toBe('+ drop set');
+  });
+});
+
+describe('buildCsv — the engine\'s load-changed note (2026-10-20)', () => {
+  const at = new Date('2026-10-20T12:21:53Z');
+  const lift = (name: string, sets: object[]) => ({
+    logs: [], measurements: [], dailyWeights: {}, dailyWater: {}, dailySleep: {},
+    workoutSessions: [{ id: 's', status: 'completed', date: at, exercises: [{ exerciseId: name, name, sets }], createdAt: at, updatedAt: at }] as never,
+  });
+  const notesOf = (csv: string) => {
+    const [h, ...rows] = csv.split('\r\n');
+    const cols = h.split(',');
+    return rows.filter((r) => r.startsWith('workout_set,')).map((r) => splitLine(r)[cols.indexOf('notes')]);
+  };
+
+  it('the 10/20 Lat Pulldown: note on the activation row, e1RM from the activation', () => {
+    const notes = notesOf(buildCsv(lift('Wide-grip lat pulldown', [
+      { kind: 'activation', group: 1, weight: 90, reps: 8, rir: 0, done: true },
+      { kind: 'mini', group: 1, weight: 80, reps: 4, rir: 0, done: true },
+      { kind: 'mini', group: 1, weight: 80, reps: 3, rir: 0, done: true },
+    ])));
+    expect(notes).toEqual(['load changed mid-cluster: activation 90, minis 80 — e1RM 114 from the activation set (90 × 8)', '', '']);
+  });
+
+  it('the 10/15 Floor Crunch: load changed BETWEEN clusters, read from the last one', () => {
+    const notes = notesOf(buildCsv(lift('Weighted Floor Crunch', [
+      { kind: 'activation', group: 1, weight: 25, reps: 20, rir: 0, done: true },
+      { kind: 'mini', group: 1, weight: 25, reps: 7, rir: 0, done: true },
+      { kind: 'activation', group: 2, weight: 30, reps: 13, rir: 0, done: true },
+      { kind: 'mini', group: 2, weight: 30, reps: 4, rir: 0, done: true },
+    ])));
+    expect(notes).toEqual(['', '', 'load changed between clusters (25 → 30) — read from the 30 cluster: e1RM 43 from the activation set (30 × 13)', '']);
+  });
+
+  it('a uniform lift carries no note', () => {
+    const notes = notesOf(buildCsv(lift('Row', [
+      { kind: 'activation', group: 1, weight: 100, reps: 14, rir: 0, done: true },
+      { kind: 'mini', group: 1, weight: 100, reps: 4, rir: 0, done: true },
+    ])));
+    expect(notes.every((n) => n === '')).toBe(true);
   });
 });
