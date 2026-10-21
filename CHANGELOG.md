@@ -28,6 +28,11 @@ ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
   over the 90-day import window; a lifting session with no logged duration
   routes as 90 min (the 8/18 treadmill walk stays with its Pull Day); the
   10/09 19:16 walk moved off that morning's Push Day.
+- Third OTA (`69a73347`): the HR backfill reads a year (stored walks only
+  past 90 days) and runs once the HR scope is granted; merged Zone 2 blocks
+  record their Watch workout (`mergedSourceIds`) and take its missing HR; a
+  Today Nudge asks iOS Apple Watch users on the pre-HR scope to reconnect
+  Apple Health (Later = 3-day snooze; it cannot be mandatory).
 
 ## 2026-10-20 — Evening hunger (0–10); blank-RIR check covers unticked sets (`5b794f6c`)
 
