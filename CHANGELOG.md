@@ -4,6 +4,19 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-10-21 — leftovers from the 10/20 23:03 export (`7fdaec22`)
+
+- Export: a lift whose load moved carries the engine's note on its activation
+  row (`notes`): "load changed mid-cluster: activation 90, minis 80 — e1RM
+  114 from the activation set (90 × 8)" (10/20 Lat Pulldown), or "load
+  changed between clusters (25 → 30) — read from the 30 cluster: …" (10/15
+  Floor Crunch). The warning had existed only on screen.
+- Export: a cardio-only session (standalone Watch walk) is its `cardio` row,
+  no longer also an empty `workout` row. In the app it was never a lifting
+  workout; it counts as an exercised day (streak, History), as walks do.
+- Owner data: Pull Day Incline DB Curl 45° 17.5 → 20.
+- OTA on all nine runtimes (ledger).
+
 ## 2026-10-20 (night) — fixes from the 10/20 export (`b5439706`)
 
 - **Watch copies of Zone 2 merge** into the hand-logged block when inside the
