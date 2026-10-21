@@ -128,6 +128,11 @@ export interface CardioBlock {
   /** Stable id from the source's own store, so a re-import updates this block
    *  instead of adding a second copy of the same run. */
   sourceId?: string;
+  /** The `sourceId`s of Health workouts MERGED into this hand-logged block
+   *  (`mergeIntoZone2`, 2026-10-20). Not a dedup key — the block stays the
+   *  user's — but how a later read finds which block a Watch workout's heart
+   *  rate belongs to (`fillMergedHr`). */
+  mergedSourceIds?: string[];
   /** When the effort began. Distinct from the session's own date: a run
    *  imported at 9pm may have happened at 6am. */
   startedAt?: Date;

@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useState } from 'react';
+import { SAW_APPLE_WATCH_KEY } from './health-reconnect-rule';
 import { AppState, Linking, Platform } from 'react-native';
 import {
   type WritableKind,
@@ -11,11 +12,13 @@ import {
   calendarDateKey,
   dayKeyAt,
   latestSampleEndByDay,
+  fillMergedHr,
   inSessionWindow,
   mergeImportedBlocks,
   mergeIntoZone2,
   parseYmd,
   reduceImportedSamples,
+  normalizeProvider,
   toCardioBlockFromHealth,
   valuesToApply,
   zone2MergeIndex,
@@ -201,6 +204,9 @@ export async function connectHealth(): Promise<boolean> {
     // Stamped only on success. A declined prompt must leave the stored version
     // behind so the next connect asks again rather than assuming.
     await AsyncStorage.setItem(SCOPE_VERSION_KEY, String(HEALTH_SCOPE_VERSION));
+    // A (re)connect may have just granted heart rate: read it again for the
+    // walks already stored.
+    await AsyncStorage.removeItem(HR_BACKFILL_KEY);
   }
   return ok;
 }
@@ -350,22 +356,44 @@ async function importScalars(uid: string): Promise<number> {
 export async function importHealthWorkouts(uid: string): Promise<number> {
   if (!uid || !(await isHealthConnected())) return 0;
 
-  // Heart rate is read for the last week only — except once, on the first
-  // import after HR arrived (2026-10-20), when it is read for the whole import
-  // window so the walks already stored get theirs (owner: "past walks too").
-  // Marked done only after the write, so an interrupted run tries again.
+  // Heart rate is read for the last week only — except once, after the HR
+  // scope is granted (2026-10-20), when it is read for a YEAR so the walks
+  // already stored get theirs, merged Zone 2 blocks included (owner: "past
+  // walks too"). Past the normal 90-day window the backfill only updates what
+  // is stored. It counts as done only with the scope current — a run before
+  // the reconnect reads no HR — and only after the write, so an interrupted
+  // run tries again; a reconnect clears it (`connectHealth`).
   const backfill = !(await AsyncStorage.getItem(HR_BACKFILL_KEY));
-  const raw = await health.readWorkouts(
-    WORKOUT_IMPORT_DAYS,
-    backfill ? { hrWindowMs: WORKOUT_IMPORT_DAYS * 86_400_000 } : undefined,
+  // Remembered for the Today reconnect prompt: only someone whose workouts
+  // come from a Watch gains anything from granting heart rate.
+  const readSawWatch = (list: readonly HealthWorkout[]) =>
+    list.some((w) => normalizeProvider(w.sourceBundleId, w.sourceName) === 'apple-watch');
+  const days = backfill ? HR_BACKFILL_DAYS : WORKOUT_IMPORT_DAYS;
+  const raw = await health.readWorkouts(days, backfill ? { hrWindowMs: HR_BACKFILL_DAYS * 86_400_000 } : undefined);
+  if (readSawWatch(raw)) await AsyncStorage.setItem(SAW_APPLE_WATCH_KEY, '1');
+  const written = await writeImportedBlocks(
+    uid,
+    toImportableBlocks(raw),
+    backfill ? { storedOnlyBefore: new Date(Date.now() - WORKOUT_IMPORT_DAYS * 86_400_000) } : {},
   );
-  const written = await writeImportedBlocks(uid, toImportableBlocks(raw));
-  if (backfill && raw.length) await AsyncStorage.setItem(HR_BACKFILL_KEY, '1');
+  if (backfill && raw.length && !(await needsHealthReauth())) await AsyncStorage.setItem(HR_BACKFILL_KEY, '1');
   return written;
 }
 
-/** Set once the one-time workout heart-rate backfill has run. */
-export const HR_BACKFILL_KEY = 'ignia.health.hrBackfill.v1';
+/** Set once the one-time workout heart-rate backfill has run with the HR
+ *  scope granted. v2: v1 (`c2850e48`) read 90 days and did not reach merged
+ *  blocks, so it runs again. */
+export const HR_BACKFILL_KEY = 'ignia.health.hrBackfill.v2';
+/** How far back the one-time backfill reads. */
+const HR_BACKFILL_DAYS = 365;
+// The Today reconnect prompt's rule and keys live in `./health-reconnect-rule`
+// (dependency-free, so screens and tests reach it without this module).
+export {
+  RECONNECT_SNOOZE_KEY,
+  RECONNECT_SNOOZE_MS,
+  SAW_APPLE_WATCH_KEY,
+  shouldPromptReconnect,
+} from './health-reconnect-rule';
 
 /**
  * The shared tail of both import transports: raw workout records → the blocks
@@ -449,11 +477,15 @@ function isNotFound(err: unknown): boolean {
  */
 let blockChain: Promise<unknown> = Promise.resolve();
 
-export function writeImportedBlocks(uid: string, blocks: CardioBlock[]): Promise<number> {
+export function writeImportedBlocks(
+  uid: string,
+  blocks: CardioBlock[],
+  opts: ImportWriteOptions = {},
+): Promise<number> {
   if (!blocks.length) return Promise.resolve(0);
   const run = blockChain.then(
-    () => writeImportedBlocksNow(uid, blocks),
-    () => writeImportedBlocksNow(uid, blocks),
+    () => writeImportedBlocksNow(uid, blocks, opts),
+    () => writeImportedBlocksNow(uid, blocks, opts),
   );
   blockChain = run.catch(() => undefined);
   return run;
@@ -492,11 +524,15 @@ export function routeImportedBlocks(
 ): {
   updates: Map<WorkoutSession, CardioBlock[]>;
   merges: Map<WorkoutSession, { index: number; block: CardioBlock }[]>;
+  /** A re-read of a workout already MERGED into a hand-logged block: its
+   *  heart rate, for that block (`fillMergedHr`). */
+  hrFills: Map<WorkoutSession, { index: number; block: CardioBlock }[]>;
   fresh: CardioBlock[];
 } {
   const dismissed = new Set(daySessions.flatMap((s) => s.dismissedSourceIds ?? []));
   const updates = new Map<WorkoutSession, CardioBlock[]>();
   const merges = new Map<WorkoutSession, { index: number; block: CardioBlock }[]>();
+  const hrFills = new Map<WorkoutSession, { index: number; block: CardioBlock }[]>();
   const fresh: CardioBlock[] = [];
   const push = <V>(m: Map<WorkoutSession, V[]>, s: WorkoutSession, v: V) => {
     const list = m.get(s);
@@ -510,6 +546,18 @@ export function routeImportedBlocks(
     .slice()
     .sort((a, b) => (b.exercises?.length ? 1 : 0) - (a.exercises?.length ? 1 : 0));
   for (const b of incoming) {
+    // Merged before: never a row again (it is dismissed and tombstoned), but
+    // its heart rate still belongs to the block it was merged into.
+    const mergedHome = b.sourceId
+      ? daySessions.find((s) => (s.cardio ?? []).some((c) => c.mergedSourceIds?.includes(b.sourceId!)))
+      : undefined;
+    if (mergedHome) {
+      if (mergedHome.id && mergedHome.status !== 'active' && (b.avgHr !== undefined || b.maxHr !== undefined)) {
+        const index = (mergedHome.cardio ?? []).findIndex((c) => c.mergedSourceIds?.includes(b.sourceId!));
+        push(hrFills, mergedHome, { index, block: b });
+      }
+      continue;
+    }
     if (b.sourceId && (dismissed.has(b.sourceId) || tombstones.has(b.sourceId))) continue;
     const home = b.sourceId
       ? daySessions.find((s) => (s.cardio ?? []).some((c) => c.sourceId === b.sourceId))
@@ -530,10 +578,17 @@ export function routeImportedBlocks(
     if (index >= 0 && !taken.has(index)) push(merges, target, { index, block: b });
     else push(updates, target, b);
   }
-  return { updates, merges, fresh };
+  return { updates, merges, hrFills, fresh };
 }
 
-async function writeImportedBlocksNow(uid: string, blocks: CardioBlock[]): Promise<number> {
+export interface ImportWriteOptions {
+  /** Workouts that started before this only UPDATE what is already stored
+   *  (by `sourceId` or `mergedSourceIds`) — the HR backfill reads a year,
+   *  and a year-old walk nobody imported must not appear as a new entry. */
+  storedOnlyBefore?: Date;
+}
+
+async function writeImportedBlocksNow(uid: string, blocks: CardioBlock[], opts: ImportWriteOptions = {}): Promise<number> {
 
   // ADR-0030 Q5. These two keys are MATCHED AGAINST EACH OTHER to decide
   // whether an imported run folds into a session the user already logged, so
@@ -552,9 +607,15 @@ async function writeImportedBlocksNow(uid: string, blocks: CardioBlock[]): Promi
     else byDay.set(key, [s]);
   }
 
+  const cutoff = opts.storedOnlyBefore?.getTime();
+  const stored = new Set(sessions.flatMap((s) => (s.cardio ?? []).flatMap((c) => [c.sourceId, ...(c.mergedSourceIds ?? [])])));
+  const wanted = cutoff == null
+    ? blocks
+    : blocks.filter((b) => !b.startedAt || b.startedAt.getTime() >= cutoff || (b.sourceId != null && stored.has(b.sourceId)));
+
   // Group by day first so two runs on one day become one write, not two.
   const perDay = new Map<string, CardioBlock[]>();
-  for (const b of blocks) {
+  for (const b of wanted) {
     const key = dayKeyAt(b.startedAt ?? new Date(), boundary);
     const list = perDay.get(key);
     if (list) list.push(b);
@@ -570,10 +631,18 @@ async function writeImportedBlocksNow(uid: string, blocks: CardioBlock[]): Promi
 
   let written = 0;
   for (const [dayKey, incoming] of perDay) {
-    const { updates, merges, fresh } = routeImportedBlocks(byDay.get(dayKey) ?? [], incoming, tombstones);
-    for (const existing of new Set([...updates.keys(), ...merges.keys()])) {
+    const { updates, merges, hrFills, fresh } = routeImportedBlocks(byDay.get(dayKey) ?? [], incoming, tombstones);
+    for (const existing of new Set([...updates.keys(), ...merges.keys(), ...hrFills.keys()])) {
       let cardio = (existing.cardio ?? []).slice();
       let dismissedIds = existing.dismissedSourceIds ?? [];
+      let filled = false;
+      for (const { index, block } of hrFills.get(existing) ?? []) {
+        const next = fillMergedHr(cardio[index], block);
+        if (next !== cardio[index]) {
+          cardio[index] = next;
+          filled = true;
+        }
+      }
       const folded = merges.get(existing) ?? [];
       for (const { index, block } of folded) {
         cardio[index] = mergeIntoZone2(cardio[index], block);
@@ -581,7 +650,7 @@ async function writeImportedBlocksNow(uid: string, blocks: CardioBlock[]): Promi
       }
       const { blocks: merged, changed } = mergeImportedBlocks(cardio, updates.get(existing) ?? [], dismissedIds);
       cardio = merged;
-      if ((!changed && !folded.length) || !existing.id) continue;
+      if ((!changed && !folded.length && !filled) || !existing.id) continue;
       try {
         await updateSession(uid, existing.id, {
           cardio,

@@ -33,6 +33,8 @@ import { OfflineBanner } from '@/components/OfflineBanner';
 import { track } from '@/lib/analytics';
 import { useAuth } from '@/lib/auth';
 import { RecalibrationCard } from '@/components/RecalibrationCard';
+import { HealthReconnectCard } from '@/components/HealthReconnectCard';
+import { useHealthReconnect } from '@/hooks/useHealthReconnect';
 import { TargetChangeNotice } from '@/components/TargetChangeNotice';
 import { ShareCard } from '@/components/ShareCard';
 import { UpdateBanner } from '@/components/UpdateBanner';
@@ -264,7 +266,8 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
   // The single Nudge slot this screen is allowed to fill. One digest feeds both
   // the slot and the card (`RecalibrationCard`).
   const recalibration = useRecalibration();
-  const nudge = useTodayNudge(recalibration.digest.shouldSurface);
+  const healthReconnect = useHealthReconnect(user?.uid);
+  const nudge = useTodayNudge(recalibration.digest.shouldSurface, healthReconnect.visible);
   // Milestones are evaluated here because this is where the streak already
   // exists. Deliberately NOT part of `useTodayNudge`'s union — the note asks
   // for nothing, so it is a state readout and does not compete for that slot.
@@ -990,6 +993,7 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
               the priority; each card still owns whether it has anything to say,
               so a suppressed one renders nothing rather than an empty frame. */}
           <UpdateBanner suppressed={nudge !== 'update'} />
+          <HealthReconnectCard reconnect={healthReconnect} suppressed={nudge !== 'healthReconnect'} />
 
           <Animated.View entering={enterUp(0)}>
             <HeroRings

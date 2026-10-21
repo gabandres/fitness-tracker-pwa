@@ -121,7 +121,7 @@ jest.mock('@/lib/health-sync', () => ({
   exportNutrition: jest.fn().mockResolvedValue(undefined),
   forgetNutrition: jest.fn().mockResolvedValue(undefined),
   replaceNutrition: jest.fn().mockResolvedValue(undefined),
-  useHealthSync: () => ({ connected: false, connect: jest.fn(), disconnect: jest.fn() }),
+  useHealthSync: () => ({ connected: false, needsReauth: false, lastSync: null, connect: jest.fn(), disconnect: jest.fn() }),
   useHealthAutoImport: jest.fn(),
 }));
 

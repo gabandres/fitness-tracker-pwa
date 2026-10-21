@@ -178,12 +178,39 @@ describe('past walks get their heart rate — a one-time backfill', () => {
     await AsyncStorage.setItem('ignia.health.connected', '1');
   });
 
-  it('the first import reads HR over the whole 90-day window; later ones over the last week', async () => {
+  it('the first import with the HR scope reads a YEAR of HR; later ones the last week', async () => {
+    await AsyncStorage.setItem('ignia.health.scopeVersion', '3');
     await importHealthWorkouts('u1');
-    expect(mockReadWorkouts.mock.calls[0][1]).toEqual({ hrWindowMs: 90 * 86_400_000 });
+    expect(mockReadWorkouts.mock.calls[0]).toEqual([365, { hrWindowMs: 365 * 86_400_000 }]);
     expect(await AsyncStorage.getItem(HR_BACKFILL_KEY)).toBe('1');
     await importHealthWorkouts('u1');
-    expect(mockReadWorkouts.mock.calls[1][1]).toBeUndefined();
+    expect(mockReadWorkouts.mock.calls[1]).toEqual([90, undefined]);
+  });
+
+  it('before the reconnect (old scope, no HR granted) the backfill does not count as done', async () => {
+    await AsyncStorage.setItem('ignia.health.scopeVersion', '2');
+    await importHealthWorkouts('u1');
+    expect(await AsyncStorage.getItem(HR_BACKFILL_KEY)).toBeNull();
+  });
+
+  it('past 90 days the backfill only updates stored walks — a year-old unstored walk is not imported', async () => {
+    await AsyncStorage.setItem('ignia.health.scopeVersion', '3');
+    mockReadWorkouts.mockResolvedValueOnce([
+      { id: 'ancient', activityType: 'walking', startMs: Date.now() - 200 * 86_400_000, endMs: Date.now() - 200 * 86_400_000 + 1_800_000, fromUs: false, avgHr: 99 },
+    ] as never);
+    await importHealthWorkouts('u1');
+    expect(mockStartSession).not.toHaveBeenCalled();
+  });
+
+  it('a Zone 2 block merged before HR was read gets the Watch max HR; its logged avg stays', async () => {
+    await AsyncStorage.setItem('ignia.health.scopeVersion', '3');
+    mockSessions = [session('pull14', Z('2026-10-14T11:22:51Z'), { durationMin: 58, dismissedSourceIds: ['24D8F0AB'],
+      cardio: [zone2({ avgHr: 137, durationSec: 1048, mergedSourceIds: ['24D8F0AB'] })] })];
+    mockTombstones = new Set(['24D8F0AB']);
+    await writeImportedBlocks('u1', [watch('24D8F0AB', Z('2026-10-14T12:03:58Z'), 1048, { avgHr: 131, maxHr: 149 })]);
+    const patch = mockUpdateSession.mock.calls[0][2];
+    expect(patch.cardio).toEqual([expect.objectContaining({ label: 'Zone 2', avgHr: 137, maxHr: 149, durationSec: 1048 })]);
+    expect(mockStartSession).not.toHaveBeenCalled();
   });
 
   it('a stored walk with no HR takes the backfilled HR', async () => {

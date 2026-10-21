@@ -529,5 +529,22 @@ export function mergeIntoZone2(manual: CardioBlock, watch: CardioBlock): CardioB
     ...fill('distanceM'),
     ...fill('kcal'),
     ...fill('startedAt'),
+    ...(watch.sourceId && !(manual.mergedSourceIds ?? []).includes(watch.sourceId)
+      ? { mergedSourceIds: [...(manual.mergedSourceIds ?? []), watch.sourceId] }
+      : {}),
   };
+}
+
+/**
+ * A later read of a Watch workout already merged into `stored`: add the heart
+ * rate it now carries where the block has none (the HR backfill reaches a walk
+ * merged before HR was read). Nothing else moves — the merge already took the
+ * duration, and the block is the user's. Returns `stored` itself when there is
+ * nothing to add.
+ */
+export function fillMergedHr(stored: CardioBlock, watch: Pick<CardioBlock, 'avgHr' | 'maxHr'>): CardioBlock {
+  const avg = stored.avgHr === undefined && watch.avgHr !== undefined;
+  const max = stored.maxHr === undefined && watch.maxHr !== undefined;
+  if (!avg && !max) return stored;
+  return { ...stored, ...(avg ? { avgHr: watch.avgHr } : {}), ...(max ? { maxHr: watch.maxHr } : {}) };
 }

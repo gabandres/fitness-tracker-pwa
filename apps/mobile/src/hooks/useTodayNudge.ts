@@ -40,16 +40,20 @@ import { useUpdateVisible } from '@/components/UpdateBanner';
  * reclassified it as. Neither competes for this slot, so the worst-case Today
  * is rings + repeat-yesterday + one Nudge — the shape the audit specified.
  */
-export type TodayNudge = 'update' | 'recalibration' | null;
+export type TodayNudge = 'update' | 'healthReconnect' | 'recalibration' | null;
 
 /** `recalibration` is `digest.shouldSurface` from the screen's own
- *  `useRecalibration()`, passed in so the digest is subscribed once. */
-export function useTodayNudge(recalibration: boolean): TodayNudge {
+ *  `useRecalibration()`, passed in so the digest is subscribed once.
+ *  `healthReconnect` (2026-10-20) ranks second: like `update` it is one tap
+ *  that does not come back, and until it is answered every Watch workout
+ *  arrives without its heart rate. */
+export function useTodayNudge(recalibration: boolean, healthReconnect = false): TodayNudge {
   // Called before any return — it is a hook, and skipping it behind an early
   // return would break the rules of hooks the moment the priority changed.
   const update = useUpdateVisible();
 
   if (update) return 'update';
+  if (healthReconnect) return 'healthReconnect';
   if (recalibration) return 'recalibration';
   return null;
 }

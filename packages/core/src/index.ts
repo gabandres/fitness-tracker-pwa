@@ -319,6 +319,7 @@ export {
   SESSION_WINDOW_SLACK_MS,
   ZONE2_MERGE_TOLERANCE,
   inSessionWindow,
+  fillMergedHr,
   mergeIntoZone2,
   sessionWindow,
   watchWorkoutName,

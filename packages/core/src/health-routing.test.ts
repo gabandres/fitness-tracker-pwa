@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { CardioBlock } from './cardio';
 import { zone2Check } from './cardio';
 import {
+  fillMergedHr,
   inSessionWindow,
   mergeImportedBlocks,
   mergeIntoZone2,
@@ -89,5 +90,18 @@ describe('an imported workout is named the way the Watch names it', () => {
     const { blocks, changed } = mergeImportedBlocks([stored], [reread]);
     expect(changed).toBe(false);
     expect(blocks[0]).toMatchObject({ avgHr: 120, maxHr: 135, label: 'Outdoor Walk' });
+  });
+});
+
+describe('a merged Watch workout keeps a way back to its block (HR backfill)', () => {
+  it('the merge records the Watch sourceId on the user’s block', () => {
+    const m = mergeIntoZone2(zone2({ avgHr: 137 }), watch(Z('2026-10-14T12:03:58Z'), 1048, { sourceId: '24D8F0AB' }));
+    expect(m.mergedSourceIds).toEqual(['24D8F0AB']);
+    expect(m.sourceId).toBeUndefined();
+  });
+  it('a later read adds only the heart rate the block lacks — the logged avg stays', () => {
+    const stored = zone2({ avgHr: 137, durationSec: 1048, mergedSourceIds: ['24D8F0AB'] });
+    expect(fillMergedHr(stored, { avgHr: 131, maxHr: 149 })).toEqual({ ...stored, maxHr: 149 });
+    expect(fillMergedHr(stored, {})).toBe(stored);
   });
 });
