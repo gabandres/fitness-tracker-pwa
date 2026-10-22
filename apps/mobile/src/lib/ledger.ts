@@ -19,7 +19,13 @@ import {
   where,
   writeBatch as fsWriteBatch,
 } from 'firebase/firestore';
-import type { DocumentReference, QuerySnapshot, SetOptions, WriteBatch } from 'firebase/firestore';
+import type {
+  DocumentReference,
+  QueryDocumentSnapshot,
+  QuerySnapshot,
+  SetOptions,
+  WriteBatch,
+} from 'firebase/firestore';
 import { addBreadcrumb } from './sentry';
 import { isOffline, reportSnapshotMeta } from './connectivity';
 import {
@@ -54,6 +60,8 @@ import {
   compareLogsOldestFirst,
   MIDNIGHT,
   type DateKey,
+  addDays,
+  calendarDateKey,
   type DayBoundary,
   dayKeyAt,
   manualNightKeys,
@@ -180,23 +188,90 @@ export interface SnapshotMeta {
  * last (a `useState` setter then bails out) — and is skipped outright unless the
  * provenance flipped, because the cache → server flip is the one metadata-only
  * event `useCachedState` exists to hear.
+ *
+ * ## And an event WITH changes re-converts only what changed (2026-10-21)
+ *
+ * The de-dupe above stopped the no-op events; a real one still re-mapped every
+ * document in the result. One meal added to Today re-ran `toDailyLog` (and the
+ * SDK's proto → JS `data()` decode under it, the expensive half) over all 400
+ * rows — once per listener on that query, and Today holds three on the logs
+ * window alone (`useToday`, `useReminderSync`, `useRecalibration`). The SDK
+ * shares one server target between identical queries, so the network cost of
+ * that duplication is ~0; the JS conversion is the whole cost, and this is it.
+ *
+ * So each listener keeps what it already converted, keyed by document id, and
+ * `convert`s only the ids `docChanges()` names as added or modified. Output
+ * ORDER is read off `snap.docs` — the query's own order — rather than replayed
+ * from `newIndex`/`oldIndex`, so a reorder, a doc leaving a `limit` window and
+ * one entering it cannot drift. A doc no longer in `snap.docs` is simply not
+ * carried into the next map, which is what "removed" means. Unchanged rows keep
+ * their object identity, so a structural compare downstream
+ * (`useCachedState`'s `sameCacheValue`) short-circuits on `===` per row.
+ *
+ * Keyed by id, not path: every caller here is a single-collection query, where
+ * the id is unique. A collection-group query must not use this as is.
+ *
+ * What this cannot save is a RE-OPENED listener's first snapshot — a new
+ * listener starts with an empty map, so a refocus still converts its window
+ * once. The SDK hands out fresh document objects per snapshot and exposes no
+ * public version stamp to key a cross-listener memo on; the equality skip in
+ * `useCachedState` is what keeps that refocus from re-rendering and
+ * re-serializing the screen.
  */
-function onChangedData<T>(
-  map: (snap: QuerySnapshot) => T,
+function onChangedData<D, T>(
+  convert: (d: QueryDocumentSnapshot) => D,
+  assemble: (rows: D[], ids: string[]) => T,
   cb: (value: T, meta: SnapshotMeta) => void,
 ): (snap: QuerySnapshot) => void {
   let last: { value: T; fromCache: boolean } | undefined;
+  let converted = new Map<string, D>();
   return (snap) => {
     const fromCache = snap.metadata.fromCache;
-    // `docChanges()` without options excludes metadata-only changes.
-    if (last && snap.docChanges().length === 0) {
-      if (last.fromCache === fromCache) return;
-      last = { value: last.value, fromCache };
-    } else {
-      last = { value: map(snap), fromCache };
+    // Null on the first snapshot: everything is new, and there is nothing to
+    // ask `docChanges()` about.
+    let changed: Set<string> | null = null;
+    if (last) {
+      // `docChanges()` without options excludes metadata-only changes.
+      const changes = snap.docChanges();
+      if (changes.length === 0) {
+        if (last.fromCache === fromCache) return;
+        last = { value: last.value, fromCache };
+        cb(last.value, { fromCache });
+        return;
+      }
+      changed = new Set();
+      for (const c of changes) if (c.type !== 'removed') changed.add(c.doc.id);
     }
+    const next = new Map<string, D>();
+    const rows: D[] = [];
+    const ids: string[] = [];
+    for (const d of snap.docs) {
+      const reuse = changed != null && !changed.has(d.id) && converted.has(d.id);
+      const v = reuse ? (converted.get(d.id) as D) : convert(d);
+      next.set(d.id, v);
+      rows.push(v);
+      ids.push(d.id);
+    }
+    converted = next;
+    last = { value: assemble(rows, ids), fromCache };
     cb(last.value, { fromCache });
   };
+}
+
+/** {@link onChangedData}'s `assemble` for a list in query order. `rows` is a
+ *  fresh array per delivery, so handing it straight back is safe. */
+const asList = <D,>(rows: D[]): D[] => rows;
+
+/** {@link onChangedData}'s `assemble` for a `docId → value` map. A `null` /
+ *  `undefined` conversion is "this doc carries no usable value" and is left
+ *  out, exactly as each reader's hand-written loop used to skip it. */
+function asMap<V>(rows: (V | null | undefined)[], ids: string[]): Record<string, V> {
+  const out: Record<string, V> = {};
+  for (let i = 0; i < rows.length; i++) {
+    const v = rows[i];
+    if (v != null) out[ids[i]] = v;
+  }
+  return out;
 }
 
 // ─── Naming the write that failed ───────────────────────────────
@@ -327,7 +402,8 @@ export function subscribeRecentLogs(
   // Re-sorted, not just reversed: Firestore breaks a same-instant tie by doc
   // id, which is random (`compareLogsOldestFirst`).
   const deliver = onChangedData(
-    (snap) => oldestFirst(snap.docs.map((d) => toDailyLog(d.id, d.data()))).sort(compareLogsOldestFirst),
+    (d) => toDailyLog(d.id, d.data()),
+    (rows) => oldestFirst(rows).sort(compareLogsOldestFirst),
     cb,
   );
   return onSnapshot(
@@ -418,7 +494,7 @@ export function subscribeLogsForRange(
     q,
     { includeMetadataChanges: true },
     {
-      next: onChangedData((snap) => snap.docs.map((d) => toDailyLog(d.id, d.data())).sort(compareLogsOldestFirst), cb),
+      next: onChangedData((d) => toDailyLog(d.id, d.data()), (rows) => rows.sort(compareLogsOldestFirst), cb),
       error: (e) => onError?.(e),
     },
   );
@@ -529,14 +605,7 @@ export function subscribeDailyWeights(
   return onSnapshot(
     weightsCol(uid),
     { includeMetadataChanges: true },
-    onChangedData((snap) => {
-      const weights: Record<string, number> = {};
-      for (const d of snap.docs) {
-        const w = readWeightLb(d.data());
-        if (w != null) weights[d.id] = w;
-      }
-      return weights;
-    }, cb),
+    onChangedData((d) => readWeightLb(d.data()), asMap, cb),
     onError,
   );
 }
@@ -564,14 +633,7 @@ export function subscribeDailyWeightsSince(
   return onSnapshot(
     query(weightsCol(uid), where(documentId(), '>=', sinceKey)),
     { includeMetadataChanges: true },
-    onChangedData((snap) => {
-      const weights: Record<string, number> = {};
-      for (const d of snap.docs) {
-        const w = readWeightLb(d.data());
-        if (w != null) weights[d.id] = w;
-      }
-      return weights;
-    }, cb),
+    onChangedData((d) => readWeightLb(d.data()), asMap, cb),
     onError,
   );
 }
@@ -608,12 +670,132 @@ export async function getLatestDailyWeight(uid: string): Promise<number | null> 
   return readWeightLb(d.data());
 }
 
+/**
+ * The newest weigh-in strictly BEFORE `beforeKey`, with its day, or null. One
+ * document — the descending `__name__` index above, with a range on the same
+ * field, which that index covers.
+ *
+ * The other half of {@link getEarliestDailyWeight} for a window that starts at
+ * `beforeKey` ({@link subscribeDailyWeightsSince}): when nothing has been
+ * weighed inside the window, the formula TDEE still wants the newest reading
+ * ever, and `currentWeight` falls back to it. See `useTargetWeights`.
+ */
+export async function getLatestDailyWeightBefore(
+  uid: string,
+  beforeKey: string,
+): Promise<{ dateKey: string; weight: number } | null> {
+  const snap = await getDocs(
+    query(weightsCol(uid), where(documentId(), '<', beforeKey), orderBy(documentId(), 'desc'), limit(1)),
+  );
+  const d = snap.docs[0];
+  if (!d) return null;
+  const weight = readWeightLb(d.data());
+  return weight != null ? { dateKey: d.id, weight } : null;
+}
+
+/** The two readings before a weights window that a TDEE consumer can want. */
+export interface WeightEdges {
+  first: { dateKey: string; weight: number } | null;
+  newest: { dateKey: string; weight: number } | null;
+}
+
+/**
+ * {@link getEarliestDailyWeight} + {@link getLatestDailyWeightBefore}, held for
+ * a few minutes per `uid:sinceKey`.
+ *
+ * Two consumers on Today ask for exactly this pair on every focus
+ * (`useTargetWeights` in `useToday` and in `useRecalibration`). The listener
+ * they replaced re-attached on its resume token — billed for changed documents
+ * only — so four uncached reads per focus would have been a cost the old code
+ * did not have. Held, a burst of focuses is two reads. A promise, so the two
+ * hooks opening in the same commit share one round trip; a rejection is not
+ * held. This is a one-shot read memo, not a subscription: nothing here listens.
+ *
+ * Both values move only when a weigh-in BEFORE the window is written or
+ * deleted, so the two writers below drop it; anything else that writes one (an
+ * import back-filling old days) is picked up within the TTL.
+ */
+const WEIGHT_EDGES_TTL_MS = 10 * 60 * 1000;
+const weightEdges = new Map<string, { at: number; value: Promise<WeightEdges> }>();
+
+export function getWeightEdges(uid: string, sinceKey: string): Promise<WeightEdges> {
+  const key = `${uid}:${sinceKey}`;
+  const hit = weightEdges.get(key);
+  if (hit && Date.now() - hit.at < WEIGHT_EDGES_TTL_MS) return hit.value;
+  const value = Promise.all([getEarliestDailyWeight(uid), getLatestDailyWeightBefore(uid, sinceKey)]).then(
+    ([first, newest]) => ({ first, newest }),
+  );
+  weightEdges.set(key, { at: Date.now(), value });
+  value.catch(() => {
+    if (weightEdges.get(key)?.value === value) weightEdges.delete(key);
+  });
+  return value;
+}
+
+/** Test seam, and what a weight write calls: forget every held edge pair. */
+export function __resetWeightEdges(): void {
+  weightEdges.clear();
+}
+
+/**
+ * The newest weigh-in, LIVE — `{ [dateKey]: lb }` with one entry, or `{}`.
+ *
+ * What `useReminderSync` needs from weights and all it needs: whether today
+ * has a weigh-in and how many days since the last one. It held the WHOLE
+ * collection open for that (a four-year scale history is ~1,400 documents per
+ * focus of Today, converted on the JS thread); this is one document, on the
+ * same descending index {@link getLatestDailyWeight} reads.
+ */
+export function subscribeLatestDailyWeight(
+  uid: string,
+  cb: (latest: Record<string, number>, meta?: SnapshotMeta) => void,
+  onError?: (e: Error) => void,
+): Unsub {
+  return onSnapshot(
+    query(weightsCol(uid), orderBy(documentId(), 'desc'), limit(1)),
+    { includeMetadataChanges: true },
+    onChangedData((d) => readWeightLb(d.data()), asMap, cb),
+    onError,
+  );
+}
+
+/**
+ * Where a TDEE consumer's date-bounded weights window must start, given the
+ * log rows it computes from (oldest first) and today's key.
+ *
+ * Every weight `calculateTdee` and `measurementProgress` can use sits on or
+ * after the FIRST row of the logs they are handed: a weigh-in joins the
+ * estimate only inside a logged stretch (`withWeighIns`: after the first row,
+ * at most three days past the last), and `mergeDailyWeights` attaches one only
+ * to a logged day. So a window that starts at or before the oldest row's day
+ * gives the estimator exactly the inputs the whole collection did. The two
+ * readings outside it that a consumer can still want — the newest ever (the
+ * formula estimate, `currentWeight`) and the first ever (share stats, goal
+ * progress) — are one document each; `useTargetWeights` reads them.
+ *
+ * A day early, for the boundary: the rows are keyed by `dayKeyAt(date,
+ * boundary)` in some consumers and by calendar date in others, and a
+ * non-midnight start moves a key back by at most one day. Then floored to the
+ * 1st of the month, so the window — and the listener keyed on it — moves about
+ * once a month as the 400-row window slides, not on every meal. With no rows,
+ * today's month: the estimator has no stretch to place a weigh-in in.
+ */
+export function weightsWindowStart(logs: readonly { date: Date }[], todayKey: DateKey): string {
+  const oldest = logs.length > 0 ? calendarDateKey(addDays(logs[0].date, -1)) : todayKey;
+  const from = oldest < todayKey ? oldest : todayKey;
+  return `${from.slice(0, 8)}01`;
+}
+
 export async function setDailyWeight(uid: string, dateKey: string, weight: number): Promise<void> {
+  // Before the await: the write lands in the local cache at once, and an
+  // offline ack never comes (`getWeightEdges`).
+  __resetWeightEdges();
   await setDoc(weightDoc(uid, dateKey), { weight });
 }
 
 /** Remove a day's weigh-in outright. Idempotent — deleting a missing doc is a no-op. */
 export async function deleteDailyWeight(uid: string, dateKey: string): Promise<void> {
+  __resetWeightEdges();
   await deleteDoc(weightDoc(uid, dateKey));
 }
 
@@ -623,36 +805,80 @@ export async function deleteDailyWeight(uid: string, dateKey: string): Promise<v
 const waterCol = (uid: string) => collection(db, 'users', uid, 'dailyWater');
 const waterDoc = (uid: string, dateKey: string) => doc(db, 'users', uid, 'dailyWater', dateKey);
 
-export function subscribeDailyWater(
+/**
+ * ONE day's document as a one-entry `dateKey → value` map, live — how Today
+ * reads its daily scalars (water, sleep, activity) since 2026-10-21.
+ *
+ * Today used to subscribe each of those three WHOLE collections and then read
+ * exactly one key out of the map (`water[todayKey]`). Each collection gains a
+ * document per day the user logs anything, so a two-year account held ~700
+ * documents per listener open, converted every one on every focus, and wrote
+ * the lot through to AsyncStorage — for three numbers. Nothing else on Today
+ * reads the history (Trends owns the windowed `*Since` readers).
+ *
+ * The map shape is kept, not flattened to a scalar, so the `water` / `sleep` /
+ * `activity` cache slices stay keyed by DAY: a cold start on a new morning
+ * paints `{ [yesterday]: … }` and `water[todayKey]` reads nothing, rather than
+ * yesterday's glasses labelled as today's. An old slice written by the
+ * whole-collection reader is the same shape and paints the same way.
+ *
+ * De-duped like {@link subscribeProfile} (a document listener has no
+ * `docChanges()`): an event whose data and provenance both match the last one is
+ * dropped, and a provenance flip alone re-delivers the SAME map object.
+ * `includeMetadataChanges` for the reason stated at {@link onChangedData}.
+ */
+function subscribeDayDoc<V>(
+  ref: DocumentReference,
+  dateKey: string,
+  read: (data: Record<string, unknown>) => V | null | undefined,
+  cb: (day: Record<string, V>, meta: SnapshotMeta) => void,
+  onError?: (e: Error) => void,
+): Unsub {
+  let last: { raw: string; fromCache: boolean; value: Record<string, V> } | undefined;
+  return onSnapshot(
+    ref,
+    { includeMetadataChanges: true },
+    {
+      next: (snap) => {
+        const fromCache = snap.metadata.fromCache;
+        const data = snap.exists() ? (snap.data() as Record<string, unknown>) : undefined;
+        const raw = data ? JSON.stringify(data) : '';
+        if (last && last.raw === raw) {
+          if (last.fromCache === fromCache) return;
+          last = { ...last, fromCache };
+        } else {
+          const v = data ? read(data) : null;
+          last = { raw, fromCache, value: v != null ? { [dateKey]: v } : {} };
+        }
+        cb(last.value, { fromCache });
+      },
+      error: (e) => onError?.(e),
+    },
+  );
+}
+
+/** Today's water, live — `{ [dateKey]: flOz }`, or `{}` with no document.
+ *  A document with no readable value reads as 0, as the whole-collection
+ *  reader it replaced did. See {@link subscribeDayDoc}. */
+export function subscribeDailyWaterDay(
   uid: string,
+  dateKey: string,
   cb: (water: Record<string, number>, meta?: SnapshotMeta) => void,
   onError?: (e: Error) => void,
 ): Unsub {
-  return onSnapshot(
-    waterCol(uid),
-    { includeMetadataChanges: true },
-    onChangedData((snap) => {
-      const water: Record<string, number> = {};
-      for (const d of snap.docs) water[d.id] = readWaterFlOz(d.data()) ?? 0;
-      return water;
-    }, cb),
-    onError,
-  );
+  return subscribeDayDoc(waterDoc(uid, dateKey), dateKey, (data) => readWaterFlOz(data) ?? 0, cb, onError);
 }
 
 /**
  * A bounded window of days — the Trends water card's reader (#115 §3).
  *
- * Separate from {@link subscribeDailyWater} for the same two reasons
- * {@link subscribeDailySleepSince} is separate from its sibling, and they are
- * worth restating because the unbounded form is right where it is used and
- * wrong to copy:
+ * Separate from {@link subscribeDailyWaterDay} for the same two reasons
+ * {@link subscribeDailySleepSince} is separate from its sibling:
  *
- * - **It is range-bounded and the other one is not.** `subscribeDailyWater`
- *   subscribes the WHOLE collection, which is fine for `useToday`'s single
- *   listener and is not what a second consumer should inherit — this collection
- *   gains a document every day someone drinks anything, so a long-lived account
- *   has hundreds and the card reads fourteen of them.
+ * - **It is a range, not one day.** Today reads one document; the card reads
+ *   fourteen. (Until 2026-10-21 Today's reader subscribed the WHOLE
+ *   collection — hundreds of documents on a long-lived account, for one key —
+ *   which is why this one was written bounded from the start.)
  * - **ADR-0016 says the second consumer opens its own listener** rather than
  *   widening `useCoreSnapshot`; the duplication is the model and focus-gating is
  *   what bounds it.
@@ -660,7 +886,7 @@ export function subscribeDailyWater(
  * `dateKey` IS the doc id, so the range is a `documentId()` query and needs no
  * index. Inclusive at `since`.
  *
- * Unlike the unbounded reader this does **not** coerce a missing value to `0`.
+ * Unlike Today's day reader this does **not** coerce a missing value to `0`.
  * The card must be able to tell a day with no record from a day with none
  * drunk — a zero-filled gap would drag the median down and draw a bar claiming
  * the user drank nothing.
@@ -674,14 +900,7 @@ export function subscribeDailyWaterSince(
   return onSnapshot(
     query(waterCol(uid), where(documentId(), '>=', since)),
     { includeMetadataChanges: true },
-    onChangedData((snap) => {
-      const water: Record<string, number> = {};
-      for (const d of snap.docs) {
-        const flOz = readWaterFlOz(d.data());
-        if (flOz != null) water[d.id] = flOz;
-      }
-      return water;
-    }, cb),
+    onChangedData((d) => readWaterFlOz(d.data()), asMap, cb),
     onError,
   );
 }
@@ -695,22 +914,44 @@ export async function setDailyWater(uid: string, dateKey: string, flOz: number):
 const sleepCol = (uid: string) => collection(db, 'users', uid, 'dailySleep');
 const sleepDoc = (uid: string, dateKey: string) => doc(db, 'users', uid, 'dailySleep', dateKey);
 
-export function subscribeDailySleep(
+/** One night as Today reads it: the hours as a one-entry `dateKey → hours`
+ *  map (the shape of the `sleep` cache slice), and the optional bedtime / wake
+ *  time the sleep sheet prefills. */
+export interface SleepNight {
+  sleep: Record<string, number>;
+  times: { bedtime?: string; wakeTime?: string };
+}
+
+const NO_NIGHT: SleepNight = { sleep: {}, times: {} };
+
+/**
+ * Today's night, live — ONE document read for both halves of it (2026-10-21).
+ *
+ * Today held two listeners here: the WHOLE `dailySleep` collection for one
+ * key's hours, and `subscribeSleepTimes` on that same key's document for its
+ * bedtime / wake time. One document listener answers both. See
+ * {@link subscribeDayDoc} for the map shape and the de-dupe; `NO_NIGHT` (a
+ * stable object) when the night has no document.
+ */
+export function subscribeDailySleepDay(
   uid: string,
-  cb: (sleep: Record<string, number>, meta?: SnapshotMeta) => void,
+  dateKey: string,
+  cb: (night: SleepNight, meta?: SnapshotMeta) => void,
   onError?: (e: Error) => void,
 ): Unsub {
-  return onSnapshot(
-    sleepCol(uid),
-    { includeMetadataChanges: true },
-    onChangedData((snap) => {
-      const sleep: Record<string, number> = {};
-      for (const d of snap.docs) {
-        const h = readSleepHours(d.data());
-        if (h != null) sleep[d.id] = h;
-      }
-      return sleep;
-    }, cb),
+  return subscribeDayDoc<SleepNight>(
+    sleepDoc(uid, dateKey),
+    dateKey,
+    (data) => {
+      const hours = readSleepHours(data);
+      const bedtime = readSleepClock(data, 'bedtime');
+      const wakeTime = readSleepClock(data, 'wakeTime');
+      return {
+        sleep: hours != null ? { [dateKey]: hours } : {},
+        times: { ...(bedtime ? { bedtime } : {}), ...(wakeTime ? { wakeTime } : {}) },
+      };
+    },
+    (day, meta) => cb(day[dateKey] ?? NO_NIGHT, meta),
     onError,
   );
 }
@@ -720,15 +961,14 @@ export function subscribeDailySleep(
  * (ADR-0033 decision 9, issue #81).
  *
  * Three things make this a separate function rather than an option on
- * {@link subscribeDailySleep}, and all three are the same reason stated at
+ * {@link subscribeDailySleepDay}, and all three are the same reason stated at
  * different levels:
  *
- * - **It is range-bounded and the other one is not.** `subscribeDailySleep`
- *   subscribes the WHOLE collection, which is right for `useToday`'s single
- *   listener over a small account and is not what a second consumer should
- *   copy: a two-year account has ~700 documents there. Copying an unbounded
- *   listener into a second hook is how a read bill starts.
- * - **It carries `source`, which the other one drops** — it returns
+ * - **It is a range, not one night.** Today's reader is one document. (It was
+ *   the WHOLE collection until 2026-10-21 — a two-year account has ~700
+ *   documents there — which this comment used to call "right for a small
+ *   account"; it was right for none, since Today read one key of it.)
+ * - **It carries `source`, which the other one drops** — that one returns
  *   `dateKey → hours`. The card's footer names provenance at window level
  *   (`imported` / `typed` / `both`), which is the strongest honest claim the
  *   schema supports; there is no `provider`, so it can never say "via Oura".
@@ -748,14 +988,15 @@ export function subscribeDailySleepSince(
   return onSnapshot(
     query(sleepCol(uid), where(documentId(), '>=', since)),
     { includeMetadataChanges: true },
-    onChangedData((snap) => {
-      const sleep: Record<string, SleepEntry> = {};
-      for (const d of snap.docs) {
-        const hours = readSleepHours(d.data());
-        if (hours != null) sleep[d.id] = { hours, source: readSleepSource(d.data()) };
-      }
-      return sleep;
-    }, cb),
+    onChangedData(
+      (d): SleepEntry | null => {
+        const data = d.data();
+        const hours = readSleepHours(data);
+        return hours != null ? { hours, source: readSleepSource(data) } : null;
+      },
+      asMap,
+      cb,
+    ),
     onError,
   );
 }
@@ -801,25 +1042,6 @@ export async function updateSleepTimes(
   if (Object.keys(fields).length) await updateDoc(sleepDoc(uid, dateKey), fields);
 }
 
-/** One night's bedtime / wake time, live (Today's sleep sheet prefills them). */
-export function subscribeSleepTimes(
-  uid: string,
-  dateKey: string,
-  cb: (times: { bedtime?: string; wakeTime?: string }) => void,
-  onError?: (e: Error) => void,
-): Unsub {
-  return onSnapshot(
-    sleepDoc(uid, dateKey),
-    (snap) => {
-      const data = snap.data();
-      const bedtime = readSleepClock(data, 'bedtime');
-      const wakeTime = readSleepClock(data, 'wakeTime');
-      cb({ ...(bedtime ? { bedtime } : {}), ...(wakeTime ? { wakeTime } : {}) });
-    },
-    onError,
-  );
-}
-
 // ─── Evening hunger ─────────────────────────────────────────────
 // users/{uid}/dailyHunger/{dateKey} = { level }, a whole number 0 (full) –
 // 10 (starving). Display only (core `evening-hunger.ts`): typed on Today,
@@ -851,14 +1073,7 @@ export function subscribeDailyHungerSince(
   return onSnapshot(
     query(hungerCol(uid), where(documentId(), '>=', since)),
     { includeMetadataChanges: true },
-    onChangedData((snap) => {
-      const hunger: Record<string, number> = {};
-      for (const d of snap.docs) {
-        const level = readEveningHunger(d.data());
-        if (level != null) hunger[d.id] = level;
-      }
-      return hunger;
-    }, cb),
+    onChangedData((d) => readEveningHunger(d.data()), asMap, cb),
     onError,
   );
 }
@@ -937,21 +1152,16 @@ const activityDoc = (uid: string, dateKey: string) => doc(db, 'users', uid, 'dai
 // mobile consumer already imports the type from the ledger.
 export type { DailyActivity };
 
-export function subscribeDailyActivity(
+/** Today's steps / active energy, live — `{ [dateKey]: DailyActivity }`, or
+ *  `{}` with no document. Was the WHOLE collection for one key until
+ *  2026-10-21; see {@link subscribeDayDoc}. */
+export function subscribeDailyActivityDay(
   uid: string,
+  dateKey: string,
   cb: (activity: Record<string, DailyActivity>, meta?: SnapshotMeta) => void,
   onError?: (e: Error) => void,
 ): Unsub {
-  return onSnapshot(
-    activityCol(uid),
-    { includeMetadataChanges: true },
-    onChangedData((snap) => {
-      const activity: Record<string, DailyActivity> = {};
-      for (const d of snap.docs) activity[d.id] = readActivity(d.data());
-      return activity;
-    }, cb),
-    onError,
-  );
+  return subscribeDayDoc(activityDoc(uid, dateKey), dateKey, readActivity, cb, onError);
 }
 
 /**
@@ -960,8 +1170,8 @@ export function subscribeDailyActivity(
  * in core supplies the bounds).
  *
  * Deliberately a `getDocs`, not a listener, and deliberately NOT folded into
- * `subscribeDailyActivity`: per ADR-0016 each surface reads for itself, and
- * this one wants 28 docs once rather than the whole collection live.
+ * `subscribeDailyActivityDay`: per ADR-0016 each surface reads for itself, and
+ * this one wants 28 docs once rather than one live day.
  * `dateKey` IS the doc id, so the range is a documentId() query — no index.
  */
 export async function getActivityWindow(
@@ -1227,7 +1437,7 @@ export function subscribeFastsSince(
       orderBy('endedAt', 'desc'),
     ),
     { includeMetadataChanges: true },
-    onChangedData((snap) => snap.docs.map((d) => toFast(d.id, d.data())), cb),
+    onChangedData((d) => toFast(d.id, d.data()), asList, cb),
     onError,
   );
 }
@@ -1289,7 +1499,7 @@ export function subscribeFastsAround(
       orderBy('endedAt', 'desc'),
     ),
     { includeMetadataChanges: true },
-    onChangedData((snap) => snap.docs.map((d) => toFast(d.id, d.data())), cb),
+    onChangedData((d) => toFast(d.id, d.data()), asList, cb),
     onError,
   );
 }
@@ -1425,6 +1635,9 @@ export function subscribeProfile(
  *  without this their onboarding save (`saveOnboardingV2` = an `updateDoc`)
  *  writes to a non-existent doc and fails with "Could not save." Call on every
  *  sign-in. No email is stored (PII minimization — email lives only in Auth). */
+/** How stale `lastSeenAt` may get before {@link ensureProfile} rewrites it. */
+const LAST_SEEN_REFRESH_MS = 12 * 60 * 60 * 1000;
+
 export async function ensureProfile(uid: string): Promise<void> {
   const ref = userDoc(uid);
   const snap = await getDoc(ref);
@@ -1444,10 +1657,27 @@ export async function ensureProfile(uid: string): Promise<void> {
     // COMPLETED list only — adding it to a doc still in the initial shape
     // fails both validators and would reject this write, killing the
     // `lastSeenAt` touch for everyone mid-onboarding.
+    const data = snap.data();
+    const offset = new Date().getTimezoneOffset();
+    const completed = data?.['profileCompleted'] === true;
+    // …but only when something would actually change (2026-10-21). This write
+    // used to land on EVERY cold start, and the profile document is the one
+    // the whole app listens to: the local write and its server ack were two
+    // fresh profile objects through `AuthContext`, so every `useAuth()`
+    // consumer (~51) and the three profile listeners re-rendered twice, during
+    // the first second of the app, to record a timestamp nothing on screen
+    // reads. `lastSeenAt` has no reader that needs it finer than a day — no
+    // Cloud Function or admin view queries it (retention is measured off the
+    // last `dailyLog`, `functions/src/retention.ts`; `public-profile.ts` only
+    // ignores it), and the rules merely require it to be a timestamp — so 12 h
+    // keeps "seen today" true. A moved timezone still writes at once: that
+    // refresh is the self-healing above, and travel must not wait half a day.
+    const seenMs = (data?.['lastSeenAt'] as { toMillis?: () => number } | undefined)?.toMillis?.();
+    const stale = seenMs == null || Date.now() - seenMs >= LAST_SEEN_REFRESH_MS;
+    const tzMoved = completed && data?.['timezoneOffsetMin'] !== offset;
+    if (!stale && !tzMoved) return;
     const patch: Record<string, unknown> = { lastSeenAt: Timestamp.now() };
-    if (snap.data()?.['profileCompleted'] === true) {
-      patch['timezoneOffsetMin'] = new Date().getTimezoneOffset();
-    }
+    if (completed) patch['timezoneOffsetMin'] = offset;
     await updateDoc(ref, patch);
     return;
   }
@@ -1573,14 +1803,14 @@ export function subscribeMilestones(
   return onSnapshot(
     milestonesCol(uid),
     { includeMetadataChanges: true },
-    onChangedData((snap) => {
-      const earned: Record<string, Date> = {};
-      for (const d of snap.docs) {
+    onChangedData(
+      (d) => {
         const at = d.data()?.earnedAt;
-        if (at instanceof Timestamp) earned[d.id] = at.toDate();
-      }
-      return earned;
-    }, cb),
+        return at instanceof Timestamp ? at.toDate() : null;
+      },
+      asMap,
+      cb,
+    ),
     onError,
   );
 }
@@ -1760,7 +1990,7 @@ export function subscribePresets(
   return onSnapshot(
     presetsCol(uid),
     { includeMetadataChanges: true },
-    onChangedData((snap) => snap.docs.map((d) => toPreset(d.id, d.data())), cb),
+    onChangedData((d) => toPreset(d.id, d.data()), asList, cb),
     onError,
   );
 }
@@ -1803,7 +2033,7 @@ export function subscribeCustomFoods(
   return onSnapshot(
     customFoodsCol(uid),
     { includeMetadataChanges: true },
-    onChangedData((snap) => snap.docs.map((d) => toCustomFood(d.id, d.data())), cb),
+    onChangedData((d) => toCustomFood(d.id, d.data()), asList, cb),
     onError,
   );
 }
@@ -1961,7 +2191,7 @@ export function subscribeExercises(
   return onSnapshot(
     query(exercisesCol(uid), orderBy('name')),
     { includeMetadataChanges: true },
-    onChangedData((snap) => snap.docs.map((d) => toExercise(d.id, d.data())), cb),
+    onChangedData((d) => toExercise(d.id, d.data()), asList, cb),
     onError,
   );
 }
@@ -2053,7 +2283,7 @@ export function subscribeTemplates(
   return onSnapshot(
     query(templatesCol(uid), orderBy('updatedAt', 'desc')),
     { includeMetadataChanges: true },
-    onChangedData((snap) => snap.docs.map((d) => toTemplate(d.id, d.data())), cb),
+    onChangedData((d) => toTemplate(d.id, d.data()), asList, cb),
     onError,
   );
 }
@@ -2254,7 +2484,7 @@ export function subscribeRecentSessions(
   return onSnapshot(
     query(sessionsCol(uid), orderBy('timestamp', 'desc'), limit(count)),
     { includeMetadataChanges: true },
-    onChangedData((snap) => snap.docs.map((d) => toSession(d.id, d.data())), cb),
+    onChangedData((d) => toSession(d.id, d.data()), asList, cb),
     onError,
   );
 }
@@ -2422,7 +2652,8 @@ export function subscribeDailyTargets(
     query(targetsCol(uid), orderBy('date', 'desc'), limit(max)),
     { includeMetadataChanges: true },
     onChangedData(
-      (snap) => snap.docs.map((d) => toDailyTargetRecord(d.id, d.data())).filter((r): r is DailyTargetRecord => r != null),
+      (d) => toDailyTargetRecord(d.id, d.data()),
+      (rows) => rows.filter((r): r is DailyTargetRecord => r != null),
       cb,
     ),
     onError,

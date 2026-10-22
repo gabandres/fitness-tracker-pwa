@@ -14,6 +14,7 @@ import { useAuth } from '@/lib/auth';
 import { ackTargetNotice, subscribeDailyTargets, writeDailyTargetRecord } from '@/lib/ledger';
 import { captureError } from '@/lib/sentry';
 import { feedChannel, useLedgerFeed } from '@/hooks/useLedgerFeed';
+import { useStableState } from '@/hooks/useCachedState';
 
 /** Records read: enough to find the last stored day across a long gap. */
 const RECORDS_WINDOW = 60;
@@ -44,12 +45,14 @@ export function useTargetHistory(input: {
   const { todayKey, targets, profile, authoritative } = input;
   const { user } = useAuth();
   const uid = user?.uid;
-  const [records, setRecords] = useState<DailyTargetRecord[]>([]);
+  // Equality-skipping: a refocus re-opens this listener, and its first answer
+  // is a new array of the same records — one more full render of Today.
+  const [records, setRecords] = useStableState<DailyTargetRecord[]>([]);
   const [recordsServer, setRecordsServer] = useState(false);
   useEffect(() => {
     setRecords([]);
     setRecordsServer(false);
-  }, [uid]);
+  }, [uid, setRecords]);
 
   useLedgerFeed({
     uid,

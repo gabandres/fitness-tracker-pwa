@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 import {
   type DateKey,
   type Fast,
@@ -9,6 +9,7 @@ import {
 } from '@macrolog/core';
 import { useAuth } from '@/lib/auth';
 import { feedChannel, useLedgerFeed } from '@/hooks/useLedgerFeed';
+import { useStableState } from '@/hooks/useCachedState';
 import { addFast, deleteFast, subscribeFastsAround, updateFast } from '@/lib/ledger';
 
 /**
@@ -78,7 +79,9 @@ export function useDayFasts(
   const key = dateKey as DateKey;
   const { user } = useAuth();
   const uid = user?.uid;
-  const [fasts, setFasts] = useState<Fast[]>([]);
+  // Equality-skipping, so a refocus's re-delivery of the same fasts does not
+  // re-render Today (`useStableState`).
+  const [fasts, setFasts] = useStableState<Fast[]>([]);
 
   // `dayRange` rather than a naive midnight pair: on a 3 AM boundary the day
   // this screen shows runs 03:00 → 03:00, and the listener has to be bounded to

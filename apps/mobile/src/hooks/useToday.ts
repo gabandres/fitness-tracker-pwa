@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useCachedState } from '@/hooks/useCachedState';
+import { useCachedState, useStableState } from '@/hooks/useCachedState';
+import { useTargetWeights } from '@/hooks/useTargetWeights';
 import { useCalendarToday, useDayKey } from '@/hooks/useDayKey';
 import { feedChannel, useLedgerFeed } from '@/hooks/useLedgerFeed';
 import { onPendingLogsChanged, pendingLogsAsRows } from '@/lib/pending-logs';
@@ -45,14 +46,13 @@ import {
   startFast as startFastDoc,
   subscribeCustomFoods,
   undoBreakFast as undoBreakFastDoc,
-  subscribeDailyActivity,
-  subscribeDailySleep,
-  subscribeSleepTimes,
+  type SleepNight,
+  subscribeDailyActivityDay,
+  subscribeDailySleepDay,
   updateSleepTimes,
   subscribeDailyHunger,
   setDailyHunger,
-  subscribeDailyWater,
-  subscribeDailyWeights,
+  subscribeDailyWaterDay,
   subscribeRecentSessions,
   subscribePresets,
   subscribeProfile,
@@ -160,42 +160,49 @@ export interface TodayState extends LogWrites {
 }
 
 export function useToday(): TodayState {
-  const { user } = useAuth();
+  const { user, paintUid } = useAuth();
   const uid = user?.uid;
+  // Listeners and writes key on `uid` — a confirmed Firebase user, nothing
+  // else. The disk PAINT keys on `paintUid`, which before auth answers is the
+  // session Firebase persisted on this device (`auth.tsx` states the
+  // trade-off): Today renders its last-session frame under the splash instead
+  // of waiting ~771 ms for `onAuthStateChanged` to even start the disk read.
+  // `?? uid` for a context without the field (tests' `useAuth` mocks).
+  const cacheUid = paintUid ?? uid;
   // Every read slice is cached to disk on the way in, so a cold start with no
   // signal paints the last online session instead of an empty day
   // (`offline-cache.ts`). The setters are the same ones `onSnapshot` already
   // called — the write-through is invisible from here.
-  const [liveLogs, setLogs, logsFromCache] = useCachedState<DailyLog[]>(uid, 'logs', []);
-  const [weights, setWeights] = useCachedState<Record<string, number>>(uid, 'weights', {});
+  const [liveLogs, setLogs, logsFromCache] = useCachedState<DailyLog[]>(cacheUid, 'logs', []);
   const [profile, setProfile, profileFromCache] = useCachedState<Profile | null>(
-    uid,
+    cacheUid,
     'profile',
     null,
   );
-  const [presets, setPresets] = useCachedState<MealPreset[]>(uid, 'presets', []);
-  const [customFoods, setCustomFoods] = useCachedState<CustomFood[]>(uid, 'customFoods', []);
-  const [water, setWaterMap] = useCachedState<Record<string, number>>(uid, 'water', {});
-  const [sleep, setSleepMap] = useCachedState<Record<string, number>>(uid, 'sleep', {});
-  const [sleepTimes, setSleepTimes] = useState<{ bedtime?: string; wakeTime?: string }>({});
+  const [presets, setPresets] = useCachedState<MealPreset[]>(cacheUid, 'presets', []);
+  const [customFoods, setCustomFoods] = useCachedState<CustomFood[]>(cacheUid, 'customFoods', []);
+  // One-entry `dateKey → value` maps since 2026-10-21 (`subscribeDayDoc`): the
+  // slices stay keyed by day, so a cold start on a new morning cannot paint
+  // yesterday's glasses as today's.
+  const [water, setWaterMap] = useCachedState<Record<string, number>>(cacheUid, 'water', {});
+  const [sleep, setSleepMap] = useCachedState<Record<string, number>>(cacheUid, 'sleep', {});
+  const [sleepTimes, setSleepTimes] = useStableState<{ bedtime?: string; wakeTime?: string }>({});
   // Tagged with the day it was read for, so a rollover never shows
   // yesterday's rating as today's in the frame before the new doc answers.
-  const [hungerRead, setHungerRead] = useState<{ dateKey: string; level: number | null } | null>(null);
+  const [hungerRead, setHungerRead] = useStableState<{ dateKey: string; level: number | null } | null>(null);
   const [activity, setActivityMap] = useCachedState<Record<string, DailyActivity>>(
-    uid,
+    cacheUid,
     'activity',
     {},
   );
   /** Rows parked on disk by an offline add, not yet in Firestore. */
   const [pending, setPending] = useState<DailyLog[]>([]);
-  // Whether weights and the profile have answered from the SERVER this
-  // session. Neither gates the spinner (see below), but a per-day target
-  // record (`useTargetHistory`) must never be written from a cache-only
-  // answer: a stale weight would "change" the target and announce it.
-  const [weightsServer, setWeightsServer] = useState(false);
+  // Whether the profile has answered from the SERVER this session. It does not
+  // gate the spinner (see below), but a per-day target record
+  // (`useTargetHistory`) must never be written from a cache-only answer. The
+  // weights half of the same rule is `useTargetWeights`' `authoritative`.
   const [profileServer, setProfileServer] = useState(false);
   useEffect(() => {
-    setWeightsServer(false);
     setProfileServer(false);
   }, [uid]);
 
@@ -203,8 +210,10 @@ export function useToday(): TodayState {
   // when it blurs, so background tabs stop holding live onSnapshot channels
   // awake (battery/network). Re-subscribes from cache on refocus — no spinner
   // flash, because `useLedgerFeed` keys readiness to the ACCOUNT, not to the
-  // subscription cycle. The eight `subscribe*` calls stay this hook's own
-  // (ADR-0016); only the wiring around them is the feed's.
+  // subscription cycle — and no re-render either when the re-opened listeners
+  // answer with what is already shown (`useCachedState`'s equality skip). The
+  // `subscribe*` calls stay this hook's own (ADR-0016); only the wiring around
+  // them is the feed's.
   const feed = useLedgerFeed({
     uid,
     label: 'Today',
@@ -241,19 +250,11 @@ export function useToday(): TodayState {
                 if (p.authoritative) setProfileServer(true);
               },
             }),
-            // The six below feed the screen but nothing waits on them, and none
-            // wires `fail` — exactly as before, because a dropped weights
-            // listener must not put Today into the error state that belongs to
-            // the logs channel.
-            feedChannel<Record<string, number>, 'weights'>({
-              key: 'weights',
-              settles: 'none',
-              open: (deliver) => subscribeDailyWeights(uid, deliver),
-              apply: (v: Record<string, number>, p) => {
-                setWeights(v, p);
-                if (p.authoritative) setWeightsServer(true);
-              },
-            }),
+            // The two below feed the screen but nothing waits on them, and
+            // neither wires `fail` — exactly as before, because a dropped
+            // presets listener must not put Today into the error state that
+            // belongs to the logs channel. (Weights moved to
+            // `useTargetWeights`, the day's scalars to the day feed below.)
             feedChannel({
               key: 'presets',
               settles: 'none',
@@ -265,27 +266,6 @@ export function useToday(): TodayState {
               settles: 'none',
               open: (deliver) => subscribeCustomFoods(uid, deliver),
               apply: setCustomFoods,
-            }),
-            feedChannel({
-              key: 'water',
-              settles: 'none',
-              open: (deliver) => subscribeDailyWater(uid, deliver),
-              apply: setWaterMap,
-            }),
-            feedChannel({
-              key: 'sleep',
-              settles: 'none',
-              open: (deliver) => subscribeDailySleep(uid, deliver),
-              apply: setSleepMap,
-            }),
-
-            // Health-imported steps / active energy. Read-only here — the
-            // device measures these and the app never writes them back.
-            feedChannel({
-              key: 'activity',
-              settles: 'none',
-              open: (deliver) => subscribeDailyActivity(uid, deliver),
-              apply: setActivityMap,
             }),
           ]
         : [],
@@ -350,32 +330,61 @@ export function useToday(): TodayState {
   // re-rendered, so an app resumed the next morning kept showing yesterday as
   // "Today". `useDayKey` re-keys at the boundary instant and on foreground.
   const todayKey = useDayKey(boundary);
-  // Today's night only: the sleep sheet's optional bedtime / wake time
-  // (Program v2). Its own feed because it follows the day key.
+
+  // Daily weights, date-bounded to what the estimator can use: from the oldest
+  // row of `logs` on, plus the first and newest readings before it — the same
+  // answers `dailyTargets`, `measurementProgress`, `currentWeight` and the
+  // share stats got from the WHOLE collection (`weightsWindowStart` has the
+  // proof). Its own listener, its own feed (ADR-0016).
+  const targetWeights = useTargetWeights({ uid, cacheUid, logs, todayKey, label: 'Today' });
+  const weights = targetWeights.weights;
+
+  // TODAY's documents, one each, re-keyed when the day rolls over (2026-10-21).
+  // Water, sleep and activity used to be three WHOLE-collection listeners —
+  // ~700 documents each on a two-year account, converted on every focus and
+  // written through to disk — for the one key this screen reads; sleep held a
+  // second listener on the same night's document for its bedtime / wake time.
+  // Nothing on Today reads another day of any of them (Trends owns the
+  // windowed readers), so each is now a document listener on `todayKey`,
+  // keyed by `useDayKey` exactly as the hunger row always was.
   useLedgerFeed({
     uid,
-    label: 'Today sleep times',
+    label: 'Today day',
     gate: 'focus',
     channels: () =>
       uid
-        ? [feedChannel({ key: 'sleepTimes', settles: 'none', open: (deliver) => subscribeSleepTimes(uid, todayKey, deliver), apply: setSleepTimes })]
-        : [],
-    deps: [uid, todayKey],
-  });
-  // Today's evening hunger: one doc, following the day key like the sleep
-  // times above.
-  useLedgerFeed({
-    uid,
-    label: 'Today hunger',
-    gate: 'focus',
-    channels: () =>
-      uid
-        ? [feedChannel({
-            key: 'hunger',
-            settles: 'none',
-            open: (deliver) => subscribeDailyHunger(uid, todayKey, deliver),
-            apply: (level: number | null) => setHungerRead({ dateKey: todayKey, level }),
-          })]
+        ? [
+            feedChannel({
+              key: 'water',
+              settles: 'none',
+              open: (deliver) => subscribeDailyWaterDay(uid, todayKey, deliver),
+              apply: setWaterMap,
+            }),
+            feedChannel<SleepNight, 'sleep'>({
+              key: 'sleep',
+              settles: 'none',
+              open: (deliver) => subscribeDailySleepDay(uid, todayKey, deliver),
+              apply: (night, p) => {
+                setSleepMap(night.sleep, p);
+                setSleepTimes(night.times);
+              },
+            }),
+            // Health-imported steps / active energy. Read-only here — the
+            // device measures these and the app never writes them back.
+            feedChannel({
+              key: 'activity',
+              settles: 'none',
+              open: (deliver) => subscribeDailyActivityDay(uid, todayKey, deliver),
+              apply: setActivityMap,
+            }),
+            // Today's evening hunger: one doc.
+            feedChannel({
+              key: 'hunger',
+              settles: 'none',
+              open: (deliver) => subscribeDailyHunger(uid, todayKey, deliver),
+              apply: (level: number | null) => setHungerRead({ dateKey: todayKey, level }),
+            }),
+          ]
         : [],
     deps: [uid, todayKey],
   });
@@ -383,8 +392,14 @@ export function useToday(): TodayState {
   // longer writes a marker row into `dailyLogs` (2026-10-15, owner bug C), so
   // the streak and the day's "trained" read the sessions themselves. Its own
   // focus-gated feed, per ADR-0016; the newest 60 cover any streak a session
-  // alone could carry.
-  const [recentSessions, setRecentSessions] = useState<WorkoutSession[]>([]);
+  // alone could carry. NOT date-bounded to the log window (2026-10-21, weighed
+  // and declined): with streak-freeze on for everyone in v1, a lifter's
+  // sessions carry the streak PAST the 400-row window, and a bound there would
+  // cut the streak of exactly the most engaged users. The identical
+  // `useReminderSync` query shares this one's server target, so the second
+  // listener costs conversion only, which `onChangedData` now does per changed
+  // session rather than for all sixty.
+  const [recentSessions, setRecentSessions] = useStableState<WorkoutSession[]>([]);
   useLedgerFeed({
     uid,
     label: 'Today sessions',
@@ -583,7 +598,7 @@ export function useToday(): TodayState {
     targets,
     /** `targets` was computed from server answers for logs, weights and the
      *  profile — the only state a per-day target record may be written from. */
-    targetsAuthoritative: feed.answered.logs && weightsServer && profileServer && !!profile,
+    targetsAuthoritative: feed.answered.logs === true && targetWeights.authoritative && profileServer && !!profile,
     profile,
     // Exposed so Today can open a day-scoped fasting editor without deriving
     // the boundary a second time — two derivations of "which day is it" on one

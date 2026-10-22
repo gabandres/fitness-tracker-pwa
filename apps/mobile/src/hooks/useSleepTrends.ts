@@ -32,9 +32,9 @@ import { isOuraConnectedOnce } from '@/lib/oura';
  * the second consumer opens **its own** channel; the duplication is the model,
  * and what bounds it is focus-gating, which this hook does.
  *
- * The listener is `subscribeDailySleepSince`, not `subscribeDailySleep` — the
- * latter has no range bound and a two-year account has ~700 documents in that
- * collection.
+ * The listener is `subscribeDailySleepSince`, a range-bounded read — a
+ * two-year account has ~700 documents in that collection, and the unbounded
+ * `subscribeDailySleep` it replaced was deleted on 2026-10-21.
  *
  * ## The card has three states and the common one is the smallest
  *

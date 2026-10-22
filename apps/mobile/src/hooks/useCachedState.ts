@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { type CacheSlice, peekCache, readCache, writeCache } from '@/lib/offline-cache';
+import { type CacheSlice, peekCache, readCache, sameCacheValue, writeCache } from '@/lib/offline-cache';
 
 /**
  * `useState`, but the last value survives the process and paints the next cold
@@ -63,12 +63,34 @@ export function useCachedState<T>(
   const live = useRef(false);
   /** Mirror of `paintedFromCache` readable synchronously from `set`. */
   const painted = useRef(seed != null);
+  /**
+   * What is on screen, and what disk (and `offline-cache`'s memory copy) holds,
+   * readable synchronously from `set` — the two halves of the equality skip.
+   *
+   * Two refs, not one, because they diverge: a cache-only value is SHOWN but
+   * not persisted, so when the server then confirms that same value it is a
+   * no-op for the screen and still owed to disk. Comparing against the screen
+   * alone would have skipped that write and left the next cold start on the
+   * older value.
+   */
+  const shown = useRef<T>(seed ?? initial);
+  const stored = useRef<T | null>(seed);
+  /** The first render's `initial`, so a sign-out can put it back by identity. */
+  const [initialValue] = useState(initial);
 
   useEffect(() => {
     live.current = false;
     if (!uid) {
       painted.current = false;
       setPainted(false);
+      stored.current = null;
+      // Signed out (or the account is not known yet): drop what the last
+      // account's slice put on screen rather than keep it under no uid. A
+      // no-op on a mount that never had a uid — the value is still `initial`.
+      if (shown.current !== initialValue) {
+        shown.current = initialValue;
+        setValue(initialValue);
+      }
       return;
     }
     const hit = peekCache<T>(uid, slice);
@@ -76,15 +98,20 @@ export function useCachedState<T>(
       // On mount this is what the initializer already applied, and both
       // setters bail out; on an account switch it is the new account's value.
       painted.current = true;
+      shown.current = hit;
+      stored.current = hit;
       setValue(hit);
       setPainted(true);
       return;
     }
     painted.current = false;
+    stored.current = null;
     setPainted(false);
     let cancelled = false;
     void readCache<T>(uid, slice).then((cached) => {
       if (cancelled || live.current || cached == null) return;
+      shown.current = cached;
+      stored.current = cached;
       setValue(cached);
       painted.current = true;
       setPainted(true);
@@ -92,7 +119,7 @@ export function useCachedState<T>(
     return () => {
       cancelled = true;
     };
-  }, [uid, slice]);
+  }, [uid, slice, initialValue]);
 
   const set = useCallback(
     (next: T, opts?: { authoritative?: boolean }) => {
@@ -118,15 +145,64 @@ export function useCachedState<T>(
       // server confirmed.
       const key = uid ? `${uid}:${slice}` : null;
       if (!authoritative && painted.current && !(key && serverAnswered.has(key))) return;
+      // The provenance bookkeeping runs whether or not the value changed: a
+      // server answer identical to the disk paint is still the server's
+      // answer, and it is what lets a later cache-only snapshot through.
       if (authoritative) {
         live.current = true;
         if (key) serverAnswered.add(key);
       }
-      setValue(next);
-      if (uid && authoritative) writeCache(uid, slice, next);
+      // ── The equality skip (2026-10-21) ──
+      //
+      // Today re-attaches ~21 listeners on every focus, and each one's first
+      // snapshot was a NEW array or map holding exactly what was already on
+      // screen. Every one of them re-rendered Today (≈10 renders per refocus,
+      // each re-deriving targets, the streak and the diary over 400 rows) and
+      // re-serialized its slice to AsyncStorage. Same value → no `setValue`,
+      // and no write-through when disk already holds it. `sameCacheValue` is
+      // O(n) and short-circuits on the row objects `onChangedData` carried
+      // over, so the compare costs far less than the render it replaces.
+      if (!sameCacheValue(shown.current, next)) {
+        shown.current = next;
+        setValue(next);
+      }
+      if (uid && authoritative && !(stored.current != null && sameCacheValue(stored.current, next))) {
+        stored.current = next;
+        writeCache(uid, slice, next);
+      }
     },
     [uid, slice],
   );
 
   return [value, set, paintedFromCache];
+}
+
+/**
+ * `useState` for a listener's slice that is NOT cached to disk, with the same
+ * equality skip as {@link useCachedState}: a delivery structurally equal to
+ * what is held keeps the held value, so React bails out instead of
+ * re-rendering the screen.
+ *
+ * For the channels a refocus re-opens that never had a disk slice — Today's
+ * trained-day sessions and its night's times, the milestones, the target
+ * records, a day's fasts. Each one's first snapshot after a refocus is a new
+ * object holding what was already shown, and each was one more full render of
+ * Today. The setter ignores a second argument, so it drops straight into a
+ * `feedChannel`'s `apply`.
+ */
+export function useStableState<T>(initial: T | (() => T)): [T, (next: T) => void] {
+  const [value, setValue] = useState<T>(initial);
+  // Compared against a ref, NOT inside a functional update: returning `prev`
+  // from an updater still re-runs the component whenever React cannot bail out
+  // eagerly (any other update pending on the fiber — the norm on Today, where
+  // a refocus delivers several channels in one tick). Not calling the setter
+  // at all is the only skip that is free. Every write goes through `set`, so
+  // the ref cannot drift from the state.
+  const held = useRef(value);
+  const set = useCallback((next: T) => {
+    if (sameCacheValue(held.current, next)) return;
+    held.current = next;
+    setValue(next);
+  }, []);
+  return [value, set];
 }

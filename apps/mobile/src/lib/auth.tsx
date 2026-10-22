@@ -74,7 +74,7 @@ import { isGoogleInternalError } from './google-signin-errors';
 import { clearQuickAdd } from './quick-add';
 import { clearPendingBody } from './pending-body';
 import { clearTapeReminder } from './reminders';
-import { clearOfflineCache, readCache, writeCache } from './offline-cache';
+import { FIRST_PAINT_SLICES, clearOfflineCache, preloadCache, readCache, writeCache } from './offline-cache';
 import * as Updates from 'expo-updates';
 import {
   type PersistedSession,
@@ -590,6 +590,31 @@ interface AuthState {
    * moment the real event arrives, and that event wins whatever it says.
    */
   sessionPresumed: boolean;
+  /**
+   * The uid whose OFFLINE CACHE may paint — never one to read or write as.
+   *
+   * The confirmed user's uid once Firebase has answered (null if it said
+   * signed out). Before that, the uid of the session Firebase itself persisted
+   * on this device, read off disk at MOUNT — not after the
+   * `PRESUMED_SESSION_AFTER_MS` grace that {@link AuthState.sessionUid} waits
+   * for, because this one routes nothing (2026-10-21).
+   *
+   * Why it exists: every reading hook keyed its disk paint on `user?.uid`, so
+   * Today's cached frame could not even begin until `onAuthStateChanged`
+   * (~771 ms on the LG G6, a token refresh plus an account lookup), and on a
+   * dead network it was a skeleton for the whole ~8.7 s. Keyed on this, Today
+   * renders its last-session frame UNDER the splash while auth is in flight,
+   * so the splash lifts onto a finished screen.
+   *
+   * **The trade-off, stated:** a session revoked server-side would show its
+   * own cached Today for the moment before Firebase says so and the gate
+   * bounces to sign-in. That is the posture `persisted-session.ts` already
+   * accepts — the presumed uid "decides which cached screen to paint while the
+   * real answer is in flight" — and it exposes nothing that is not already on
+   * this device's disk under that uid. Listeners and writes still key on
+   * `user?.uid` only; `firestore.rules` sees the real session or none.
+   */
+  paintUid: string | null;
   /** True until the first onAuthStateChanged fires (avoids a sign-in flash). */
   initializing: boolean;
   /** True when the user's custom claims grant Pro (Stripe `stripeRole:paid`
@@ -702,6 +727,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [initializing, setInitializing] = useState(true);
   /** Set only if Firebase has not answered within {@link PRESUMED_SESSION_AFTER_MS}. */
   const [presumed, setPresumed] = useState<PersistedSession | null>(null);
+  /** The persisted session as read at MOUNT, for {@link AuthState.paintUid}
+   *  only. Cleared by the real auth event, exactly like `presumed`. */
+  const [diskSession, setDiskSession] = useState<PersistedSession | null>(null);
   /** Whether the real auth event has landed. A ref, not state: the timer below
    *  reads it at fire time and must not re-arm when it changes. */
   const authAnswered = useRef(false);
@@ -887,13 +915,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // timer is cleared before it fires and the presumed path never runs at all.
   useEffect(() => {
     let live = true;
+    // Read at MOUNT, not when the timer fires (2026-10-21): the same read
+    // serves both halves, and the first half cannot wait. While Firebase
+    // validates the token, warm the persisted user's cached slices into memory
+    // (`preloadCache`) and hand their uid to `paintUid`, so Today paints its
+    // last-session frame under the splash instead of starting a disk read
+    // after auth answers. Neither routes anything — the grace period below
+    // still alone decides when the presumed session may lift the splash.
+    const session = readPersistedSession();
+    void session.then((s) => {
+      if (!live || authAnswered.current || !s) return;
+      void preloadCache(s.uid, FIRST_PAINT_SLICES);
+      setDiskSession(s);
+    });
     const t = setTimeout(() => {
       if (!live || authAnswered.current) return;
-      void readPersistedSession().then((session) => {
+      void session.then((s) => {
         // Re-check: the disk read is async and Firebase may have answered
         // during it. The real event always wins.
-        if (!live || authAnswered.current || !session) return;
-        setPresumed(session);
+        if (!live || authAnswered.current || !s) return;
+        setPresumed(s);
         setInitializing(false);
       });
     }, PRESUMED_SESSION_AFTER_MS);
@@ -914,6 +955,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // whatever it said, including when `u` is null (a revoked or signed-out
       // session must not keep routing as signed in).
       setPresumed(null);
+      setDiskSession(null);
       setUser(u);
       setEmailVerified(u?.emailVerified ?? false);
       // uid only — never the email (PII minimization). A uid resolves to a
@@ -1152,6 +1194,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user,
     sessionUid,
     sessionPresumed,
+    paintUid: user?.uid ?? diskSession?.uid ?? null,
     initializing,
     isPro,
     isAdmin,

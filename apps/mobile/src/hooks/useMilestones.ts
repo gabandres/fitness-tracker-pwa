@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { feedChannel, useLedgerFeed } from '@/hooks/useLedgerFeed';
+import { useStableState } from '@/hooks/useCachedState';
 import {
   dayKeyAt,
   newlyEarned,
@@ -129,7 +130,10 @@ function useMilestoneFeed(
   label: string,
 ): { earned: Record<string, Date>; ready: boolean } {
   const id = uid ?? undefined;
-  const [held, setHeld] = useState<{ uid: string | undefined; rows: Record<string, Date> }>(() => ({
+  // Equality-skipping (`useStableState`): every refocus re-opens the listener,
+  // and its answer is the same earned rows as a new object — on Today, one
+  // more full render of the screen for nothing.
+  const [held, setHeld] = useStableState<{ uid: string | undefined; rows: Record<string, Date> }>(() => ({
     uid: id,
     rows: NO_MILESTONES,
   }));

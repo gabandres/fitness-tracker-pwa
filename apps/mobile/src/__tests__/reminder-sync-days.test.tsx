@@ -46,7 +46,9 @@ jest.mock('@/lib/ledger', () => ({
     subs.logs = cb;
     return () => {};
   },
-  subscribeDailyWeights: (_u: string, cb: (w: Record<string, number>) => void) => {
+  // The newest weigh-in only since 2026-10-21 — the two answers this hook
+  // reads from weights are both answered by it.
+  subscribeLatestDailyWeight: (_u: string, cb: (w: Record<string, number>) => void) => {
     subs.weights = cb;
     return () => {};
   },

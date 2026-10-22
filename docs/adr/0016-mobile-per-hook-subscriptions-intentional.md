@@ -120,3 +120,61 @@ decision:
   `useWeeklyReport`, `useWidgetSync`); each has a reason and each kept its
   gating through the refactor, but the Decision's "new hooks subscribe inside
   `useFocusEffect`" reads as universal and is not.
+
+## Amendment — 2026-10-21: the co-mount premise was wrong; the decision stands
+
+The Context above rests on two factual claims, and a 2026-10-21 performance
+audit of Today measured both as false:
+
+- **"No screen co-mounts two of these hooks."** Today mounts `useToday`,
+  `useReminderSync`, `useRecalibration` (which ran `useCoreSnapshot`),
+  `useTargetHistory`, `useMilestones` and `useDayFasts`, under the app-wide
+  profile listener in `AuthProvider`. The overlap is simultaneous, not only
+  sequential.
+- **"The concurrent total hovers ~3–7."** Focused, Today held **21 JS
+  listeners over 14 distinct queries**: the 400-row logs window three times,
+  the profile three times, the WHOLE `dailyWeights` collection three times, the
+  60-session window twice, and whole `dailyWater` / `dailySleep` /
+  `dailyActivity` collections for one key each.
+
+The *Consequences* section names this as the trigger to revisit — "if a future
+screen ever does co-mount two of these hooks … that specific case, not the
+whole model". It was revisited, and **the decision is unchanged**, because the
+cost turned out not to be the one a shared cache removes:
+
+- **Network and billing: ~0.** The Firestore SDK already shares ONE server
+  target between identical queries in a client, so three listeners on the logs
+  window are one watch stream and one read bill. A reference-counted cache
+  would dedupe what the SDK already dedupes.
+- **JS work: all of it.** Each listener converts its own snapshot. Every focus
+  re-opened all 21; each first answer was a new array identical to what was on
+  screen, re-rendering Today about ten times and re-serializing each slice to
+  AsyncStorage, and one added meal re-ran `toDailyLog` over 400 rows per logs
+  listener.
+
+So the fix went where the cost was, inside the per-hook model:
+
+- `onChangedData` (`lib/ledger.ts`) converts only the documents `docChanges()`
+  names and carries unchanged rows over by identity.
+- `useCachedState` skips both the re-render and the write-through when a
+  delivery is structurally equal to what is shown / stored; `useStableState`
+  gives the uncached channels the same skip.
+- The unbounded reads Today did not need were bounded: water, sleep and activity
+  are single-day document listeners (sleep's two listeners became one); weights
+  are a window starting at the oldest log row (`useTargetWeights` — exact, not
+  approximate, by the argument at `weightsWindowStart`) in `useToday` and
+  `useRecalibration`, and the newest weigh-in alone in `useReminderSync`;
+  `useRecalibration` reads the profile from the auth context instead of opening
+  a third profile listener.
+
+After it, focused Today holds **19 listeners over 14 queries**, none of them a
+whole collection, and a refocus whose data did not change renders nothing.
+The 60-session window was left unbounded on purpose: with streak-freeze on for
+everyone in v1, sessions carry a lifter's streak past the log window, and a
+date bound would cut it (see the comment in `useToday`).
+
+Read the Decision with the premise corrected: **the per-hook model is kept
+because duplicate listeners are cheap on the network and the JS cost is
+removable per listener — not because the duplication does not happen.** If a
+shared cache is argued again, it has to beat `onChangedData` plus the equality
+skip on JS cost, since there is no network cost left for it to win on.

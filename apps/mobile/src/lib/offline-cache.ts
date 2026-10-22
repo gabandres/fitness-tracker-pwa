@@ -144,6 +144,101 @@ function bump(key: string): void {
 }
 
 /**
+ * The slices Today's first frame reads — what {@link preloadCache} warms while
+ * Firebase Auth is still deciding who is signed in.
+ */
+export const FIRST_PAINT_SLICES: readonly CacheSlice[] = [
+  'logs',
+  'weights',
+  'profile',
+  'presets',
+  'customFoods',
+  'water',
+  'sleep',
+  'activity',
+];
+
+/**
+ * Read `slices` for `uid` into the in-memory copy, in ONE storage call, so the
+ * hooks that mount once auth answers find them with {@link peekCache} —
+ * synchronously, in their `useState` initializer — instead of starting a disk
+ * read then.
+ *
+ * Why (2026-10-21): every reading hook keys on `user?.uid`, and `user` is null
+ * until `onAuthStateChanged` fires — which on React Native waits on a token
+ * refresh and an account lookup (~771 ms on the LG G6, `auth.tsx`). So the
+ * disk read of Today's slices could not even START until then, and Today's
+ * first painted frame was auth + an AsyncStorage round trip + parsing the
+ * 400-row logs blob, in series. The uid is already on disk in Firebase's own
+ * persisted session (`persisted-session.ts`); reading the slices for it during
+ * the auth wait takes the disk half off the critical path.
+ *
+ * **Nothing is displayed by this.** It fills a cache keyed by uid; what paints
+ * is still decided by the hooks and the auth gate. A uid that Firebase then
+ * rejects simply never gets asked for — and its slices were already on this
+ * device's disk, so holding them in memory exposes nothing new.
+ *
+ * Same race rule as {@link readCache}: a key written or cleared while the read
+ * is in flight is left alone. Never throws.
+ */
+export async function preloadCache(uid: string, slices: readonly CacheSlice[]): Promise<void> {
+  const keys = slices.map((s) => cacheKey(uid, s)).filter((k) => !memory.has(k));
+  if (keys.length === 0) return;
+  const seen = new Map<string, number>();
+  for (const k of keys) {
+    if (!versions.has(k)) versions.set(k, 0);
+    seen.set(k, versions.get(k) ?? 0);
+  }
+  try {
+    const pairs = await AsyncStorage.multiGet(keys);
+    for (const [key, raw] of pairs) {
+      if (!raw || memory.has(key) || (versions.get(key) ?? 0) !== seen.get(key)) continue;
+      try {
+        memory.set(key, JSON.parse(raw, reviver));
+      } catch {
+        /* A corrupt slice is a miss, same as `readCache`. */
+      }
+    }
+  } catch {
+    /* Storage unavailable: the hooks read for themselves, as before. */
+  }
+}
+
+/**
+ * Whether two cache payloads say the same thing — what lets
+ * `useCachedState` skip both the re-render and the write-through when a
+ * listener re-delivers what is already on screen.
+ *
+ * A structural walk, not a fingerprint: the slices are plain JSON-ish data plus
+ * `Date`s, and a fingerprint (ids + `updatedAt`) would miss a server-side edit
+ * that does not bump a stamp — `enforceHealthTombstones` rewrites a session's
+ * `cardio` without touching `updatedAt` (pinned in
+ * `perf-keystroke-churn.test.ts`). O(n) and allocation-free; it stops at the first difference, and a
+ * row object `onChangedData` carried over unchanged is `===` and costs one
+ * compare. `undefined` and an absent key are equal (JSON drops both), `Date`s
+ * compare by time, NaN equals NaN.
+ */
+export function sameCacheValue(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a instanceof Date || b instanceof Date) {
+    return a instanceof Date && b instanceof Date && a.getTime() === b.getTime();
+  }
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) {
+    return typeof a === 'number' && typeof b === 'number' && Number.isNaN(a) && Number.isNaN(b);
+  }
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) if (!sameCacheValue(a[i], b[i])) return false;
+    return true;
+  }
+  const ao = a as Record<string, unknown>;
+  const bo = b as Record<string, unknown>;
+  for (const k in ao) if (!sameCacheValue(ao[k], bo[k])) return false;
+  for (const k in bo) if (!(k in ao) && bo[k] !== undefined) return false;
+  return true;
+}
+
+/**
  * This session's copy of every slice read or written so far.
  *
  * Disk is what survives the process; this is what lets a screen pushed in the

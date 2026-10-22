@@ -55,11 +55,12 @@ const READERS: Record<string, Call> = {
   subscribeRecentLogs: (cb) => ledger.subscribeRecentLogs('u1', 14, cb),
   subscribeDailyWeights: (cb) => ledger.subscribeDailyWeights('u1', cb),
   subscribeDailyWeightsSince: (cb) => ledger.subscribeDailyWeightsSince('u1', '2026-09-01', cb),
-  subscribeDailyWater: (cb) => ledger.subscribeDailyWater('u1', cb),
+  subscribeLatestDailyWeight: (cb) => ledger.subscribeLatestDailyWeight('u1', cb),
+  subscribeDailyWaterDay: (cb) => ledger.subscribeDailyWaterDay('u1', '2026-10-04', cb),
   subscribeDailyWaterSince: (cb) => ledger.subscribeDailyWaterSince('u1', '2026-09-01', cb),
-  subscribeDailySleep: (cb) => ledger.subscribeDailySleep('u1', cb),
+  subscribeDailySleepDay: (cb) => ledger.subscribeDailySleepDay('u1', '2026-10-04', cb),
   subscribeDailySleepSince: (cb) => ledger.subscribeDailySleepSince('u1', '2026-09-01', cb),
-  subscribeDailyActivity: (cb) => ledger.subscribeDailyActivity('u1', cb),
+  subscribeDailyActivityDay: (cb) => ledger.subscribeDailyActivityDay('u1', '2026-10-04', cb),
   subscribeFastsSince: (cb) => ledger.subscribeFastsSince('u1', D, cb),
   subscribeFastsAround: (cb) => ledger.subscribeFastsAround('u1', D, D, cb),
   subscribeProfile: (cb) => ledger.subscribeProfile('u1', cb),
@@ -104,7 +105,9 @@ describe('events with no document changes', () => {
   const snap = (fromCache: boolean, changes: number, docs: { id: string; data: () => object }[] = []) => ({
     metadata: { fromCache },
     docs,
-    docChanges: () => Array.from({ length: changes }),
+    // Shaped like the SDK's: each change names the doc it touched, which is
+    // what `onChangedData` re-converts.
+    docChanges: () => docs.slice(0, changes).map((doc) => ({ type: 'added', doc })),
   });
   const handlerOf = () => {
     const next = (mockOnSnapshot.mock.calls[0] as unknown[])[2];

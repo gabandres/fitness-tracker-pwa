@@ -19,7 +19,7 @@ import {
 import { useAuth } from '@/lib/auth';
 import { FEATURES, isFeatureOn } from '@/lib/features';
 import { useT } from '@/i18n';
-import { subscribeDailyWeights, subscribeRecentLogs, subscribeRecentSessions } from '@/lib/ledger';
+import { subscribeLatestDailyWeight, subscribeRecentLogs, subscribeRecentSessions } from '@/lib/ledger';
 import { trackSubs } from '@/lib/sub-debug';
 import { syncReminders } from '@/lib/reminders';
 
@@ -103,10 +103,18 @@ function daysSinceKey(key: string, boundary: DayBoundary): number {
  * like the other hooks (ADR-0016) — no permanent listener. A signature guard
  * skips redundant reschedules when the inputs haven't changed.
  *
- * Keeps its own two subscriptions rather than taking `useCoreSnapshot`'s three:
+ * Keeps its own subscriptions rather than taking `useCoreSnapshot`'s three:
  * it needs no profile, and it holds its inputs in refs precisely so a snapshot
  * does not re-render the screen it is mounted on. It does share the window
  * constant, which it used to restate as a local 400.
+ *
+ * Weights are ONE document since 2026-10-21 (`subscribeLatestDailyWeight`):
+ * the two things read from them — is there a weigh-in today, and how many
+ * days since the last — are both answered by the newest weigh-in alone, and
+ * this held the whole collection open for them (~1,400 documents on a
+ * four-year scale history, converted on every focus of Today). The one
+ * reading that differs is a weigh-in dated AFTER today, which would now hide
+ * today's from `loggedToday`; the weigh-in sheet cannot write one.
  */
 export function useReminderSync(): void {
   const { user, profile, isAdmin } = useAuth();
@@ -177,7 +185,7 @@ export function useReminderSync(): void {
           recomputeRef.current = recompute;
           recompute();
         }),
-        subscribeDailyWeights(uid, (w) => {
+        subscribeLatestDailyWeight(uid, (w) => {
           weightsRef.current = w;
           recomputeRef.current = recompute;
           recompute();
