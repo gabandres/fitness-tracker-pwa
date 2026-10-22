@@ -1,6 +1,6 @@
 # STATUS — what is true right now
 
-**Updated:** 2026-10-16 · **Owns:** current state only. Not history
+**Updated:** 2026-10-21 · **Owns:** current state only. Not history
 (`CHANGELOG.md`), not rationale (`docs/adr/`), not vocabulary (`CONTEXT.md`),
 not commands (`docs/COMMANDS.md`), not build tooling
 (`docs/build-infrastructure.md`), not fingerprints or publish rules
@@ -50,7 +50,12 @@ cache, and the emulator suites through `scripts/require-java21.mjs`.
 
 ## 2. Merged, on `main`, and not delivered anywhere
 
-**`9b861e4e` — the 1.2.9 version bump** (no code; §3 "1.2.9"). Everything else on `main` is in an OTA as of `76d74257` (2026-10-21).
+**`9b861e4e` — the 1.2.9 version bump** (no code; §3 "1.2.9"). Everything else up to `76d74257` is in an OTA (2026-10-21).
+**`0c30979d`..`65dc335c` — the 2026-10-21 performance pass (8 commits), in no binary and no OTA.**
+Sentry RN 7.11 → 8.31 plus Expo patch bumps move BOTH fingerprints, so it needs
+a new binary per platform; build 73 does not contain it. **Deploy `analyzePhoto`
+(`3f541acc`) before any build that contains `d952bd72`**: an older server counts
+the scan warm-up as a scan and rate-limits the real one.
 The native halves of 1.2.7/1.2.8 (lock-screen Done set, Android Live Update,
 widget/watch day rollover, QuickAdd queue cap) reach users only with 1.2.8.
 Re-derive rather than trust this: `git log --oneline` against the newest ledger
