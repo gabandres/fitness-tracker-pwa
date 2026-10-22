@@ -21,7 +21,7 @@ import { RELAYOUT_HOLD_ROUTES, RelayoutBoundary, RelayoutProvider, useRelayoutGe
 import { BrandLoader } from '@/components/BrandLoader';
 import { UpdateRequiredGate } from '@/components/UpdateRequiredScreen';
 import { type I18nKey, I18nProvider, useT } from '@/i18n';
-import { Sentry } from '@/lib/sentry';
+import { registerNavigationForTracing, Sentry } from '@/lib/sentry';
 import { ThemeProvider, useTheme } from '@/lib/theme-context';
 import { HorizontalSafeArea } from '@/lib/content-width';
 import { ToastProvider } from '@/components/Toast';
@@ -277,6 +277,12 @@ function AuthGate({ fontsReady }: { fontsReady: boolean }) {
     if (!keep || !navRef.isReady()) return;
     navRef.resetRoot({ ...rootState, routes: keep, index: keep.length - 1 });
   }, [rootState, navRef]);
+
+  // Screen-level performance spans (`lib/sentry.ts`). Once: the container ref
+  // is stable for the app's lifetime.
+  useEffect(() => {
+    registerNavigationForTracing(navRef);
+  }, [navRef]);
 
   /** Header options for one detail route: the shared header, its title, and
    *  a back button of our own only when the stack has nothing beneath it. */

@@ -15,8 +15,8 @@
  *    back to a person in the Firebase console when we actually need it, and
  *    doesn't sit in a third-party dashboard otherwise.
  *
- * Cost: errors only. Tracing and replay are off — this is a diagnostic
- * channel, not an APM install.
+ * Cost: errors, plus a SAMPLED slice of performance tracing (below). Replay
+ * and profiling stay off.
  */
 import * as Application from 'expo-application';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
@@ -56,6 +56,42 @@ const buildNumber = Application.nativeBuildVersion ?? '0';
 /** True once init ran with a real DSN — guards the capture helpers below. */
 let enabled = false;
 
+/**
+ * Production share of sessions that send performance data: app start (cold and
+ * warm), slow/frozen frames, JS stalls, and one `ui.load` span per screen with
+ * time-to-initial-display.
+ *
+ * Until 2026-10-21 this was `tracesSampleRate: 0`, and that was the worst of
+ * both worlds. The SDK treats ANY number as "tracing on" — it installed
+ * app-start, native-frames and stall tracking (a 50 ms JS-thread timer loop per
+ * open span), created every span, and then threw all of it away at the sampler.
+ * The overhead was paid; the data never arrived. The performance audit that
+ * day found exactly zero transactions in Sentry and had to reason about "it is
+ * slow at times" from source code. At this app's volume (~50 sessions a day)
+ * one in five is a few hundred transactions a month — well inside the free
+ * span quota — and Sentry's own measured overhead for tracing is under 3%.
+ *
+ * Off everywhere but `prod`: a simulator or debug session's timings describe
+ * the dev machine, not a user's phone, and would bill the same quota.
+ */
+const PROD_TRACES_SAMPLE_RATE = 0.2;
+
+/**
+ * Screen-level spans. Registered against expo-router's navigation container
+ * in the root layout ({@link registerNavigationForTracing}).
+ */
+const navigationIntegration = Sentry.reactNavigationIntegration({
+  enableTimeToInitialDisplay: true,
+  // A back-swipe to a screen that does no work is noise in the screen list.
+  ignoreEmptyBackNavigationTransactions: true,
+});
+
+/** Hand the navigation container to the tracer. Safe before or without init. */
+export function registerNavigationForTracing(ref: unknown): void {
+  if (!enabled || !ref) return;
+  navigationIntegration.registerNavigationContainer(ref);
+}
+
 export function initSentry(): void {
   if (!dsn) return;
   Sentry.init({
@@ -91,7 +127,11 @@ export function initSentry(): void {
     release: Application.nativeApplicationVersion ?? Constants.expoConfig?.version ?? 'unknown',
     dist: buildNumber,
     sendDefaultPii: false,
-    tracesSampleRate: 0,
+    // `undefined` — not 0 — is what actually turns the tracing machinery off
+    // (see PROD_TRACES_SAMPLE_RATE).
+    tracesSampleRate:
+      !__DEV__ && Device.isDevice ? PROD_TRACES_SAMPLE_RATE : undefined,
+    integrations: !__DEV__ && Device.isDevice ? [navigationIntegration] : [],
     // Native crashes (the Android widget process, HealthKit bridges) are the
     // other half of what we were blind to.
     enableNativeCrashHandling: true,
