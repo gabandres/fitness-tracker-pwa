@@ -1,7 +1,7 @@
-diff --git a/node_modules/@firebase/firestore/dist/common-768c0351.rn.js b/node_modules/@firebase/firestore/dist/common-768c0351.rn.js
-index 284a395..5c7a44e 100644
---- a/node_modules/@firebase/firestore/dist/common-768c0351.rn.js
-+++ b/node_modules/@firebase/firestore/dist/common-768c0351.rn.js
+diff --git a/node_modules/@firebase/firestore/dist/common-66d9ea0f.rn.js b/node_modules/@firebase/firestore/dist/common-66d9ea0f.rn.js
+index 625dc0d..5b256be 100644
+--- a/node_modules/@firebase/firestore/dist/common-66d9ea0f.rn.js
++++ b/node_modules/@firebase/firestore/dist/common-66d9ea0f.rn.js
 @@ -732,7 +732,20 @@ function __PRIVATE_primitiveComparator(e, t) {
      return e < t ? -1 : e > t ? 1 : 0;
  }
