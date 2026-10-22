@@ -26,7 +26,7 @@ same way before trusting them — `docs/COMMANDS.md` has every command;
 
 | Surface | State |
 |---|---|
-| **App Store (iOS)** | **1.2.6 / build 70 LIVE** (read 2026-10-16 via `app-version-sync --check`). 1.2.8 / build 72 is in review (§3). 175 of 175 territories since 2026-08-28. This Mac reads ASC (`ASC_ISSUER_ID` + `ASC_KEY_PATH` in `.env.local`) |
+| **App Store (iOS)** | **1.2.8 / build 72 LIVE** (read 2026-10-22 via `app-version-sync --check`). 1.2.10 / build 74 `VALID` in ASC, not submitted (§3). 175 of 175 territories since 2026-08-28. This Mac reads ASC (`ASC_ISSUER_ID` + `ASC_KEY_PATH` in `.env.local`) |
 | **TestFlight** | **Not re-read since 2026-09-08** (build 64 was the external build then). Read the group's builds AND each build's `externalBuildState` (`asc-testflight-external.mjs`) — `VALID` + in the group ≠ installable; a build of an already-released version never reaches an external tester |
 | **Play** | **Production: vc 52 / 1.2.8 is the newest COMPLETED release** (tracks API, 2026-10-16). **The tracks API cannot tell "in review" from "live"** — the store page or the Console row is the read. Upload path: `play-upload-bundle.mjs`, then `play-production-release.mjs --complete --commit --vc N`; `eas submit` has exited 0 on failure three times |
 | **Web `ignia.fit`** | **Shell + `/admin`** — the web logging app was retired 2026-08-30 (ADR-0036). 113 prerendered pages, EN + es-PR, both store badges. `/app` and the old tabs render "moved to the apps"; SEO pages and `/u/**` KEPT, owner-ratified. Grep `public/` as well as `src/` before claiming copy is gone |
@@ -50,11 +50,10 @@ cache, and the emulator suites through `scripts/require-java21.mjs`.
 
 ## 2. Merged, on `main`, and not delivered anywhere
 
-**`9b861e4e` — the 1.2.9 version bump** (no code; §3 "1.2.9"). Everything else on `main` except `0c30979d` (below) is in an OTA (2026-10-21).
-**`0c30979d` — Sentry RN 8.31, Expo patch bumps, sampled tracing, the metro trim — in no binary and no OTA.**
-It moves BOTH fingerprints, so it waits for the next binary per platform (build 73 does not contain it).
-The rest of the 2026-10-21 performance pass reached every runtime as an OTA (§1), and `analyzePhoto` with
-the warm-up branch is deployed.
+**`0c30979d` — Sentry RN 8.31, Expo patch bumps, sampled tracing, the metro trim** — in the 1.2.10 binaries only
+(iOS build 74, TestFlight; Android vc 53, alpha; §3), in no store release and never OTA-able to older runtimes.
+**`ae03c475` — Firestore `compareSegments` equal-segment fast path (ADR-0016 amendment 4)** — in vc 53 only; NOT in
+build 74 (built at `07cff821`, before it) and in no OTA. Everything else on `main` is in an OTA (2026-10-22, §1).
 The native halves of 1.2.7/1.2.8 (lock-screen Done set, Android Live Update,
 widget/watch day rollover, QuickAdd queue cap) reach users only with 1.2.8.
 Re-derive rather than trust this: `git log --oneline` against the newest ledger
@@ -73,9 +72,9 @@ deleted and its outcome goes to `CHANGELOG.md`.
 
 ### 1.2.8 — in review on iOS; then raise the minimum
 
-- **iOS** build 72 `WAITING_FOR_REVIEW` (AFTER_APPROVAL). **Android** vc 52 is
+- **iOS** build 72 is LIVE (2026-10-22, iTunes lookup). **Android** vc 52 is
   the completed production release — confirm on the store page that it is live,
-  not in review.
+  not in review; then the minimum can be raised.
 - **When BOTH are live:** `/admin` → Overview → System → Update required:
   iOS `1.2.8`, Android `52`. Then OTAs go to the 1.2.8 runtimes only
   (`50a47f62…`, `dfb995ea…`) plus any newer TestFlight/alpha build — nine
@@ -86,6 +85,21 @@ deleted and its outcome goes to `CHANGELOG.md`.
   quality. Check `emailRateLimits/pw_ip_*` differ per caller.
 - Health nutrition samples exported before 2026-10-15 carry no Ignia id;
   undo/edit of those older entries cannot reach Health.
+
+### 1.2.10 — Sentry RN 8.31 + the native library fixes (built 2026-10-22)
+
+- **iOS** build 74 / 1.2.10 at `07cff821`, Xcode 27.1 `27A9275`, runtime
+  `a55af49c…` (artifact) — `VALID` in ASC 2026-10-22, internal TestFlight only.
+  **Android** vc 53 / 1.2.10 at `ae03c475` (raw Gradle + patch script),
+  runtime `e989353d…` (artifact) — Play **alpha**, committed and sent for
+  review. Not submitted to the App Store / Play production (owner's call).
+- Contains `0c30979d` (Sentry RN 7.11 → 8.31 with sampled tracing,
+  reanimated 4.5.5, worklets 0.10.4, keyboard-controller 1.22.8, Expo 57
+  patches) and everything on `main`. Built on the 27.1 SDK, so it carries
+  1.2.9's iPhone Duo fix too: build 73 can be skipped in favour of build 74.
+- **Owed:** device QA on both (Sentry init and tracing, Reanimated sheets,
+  keyboard handling); the equal-segment fast path (`ae03c475`) still needs
+  an OTA to reach build 74 and the older runtimes.
 
 ### 1.2.9 — the first iOS 27.1 SDK binary (iPhone Duo, ships 2026-10-23)
 
