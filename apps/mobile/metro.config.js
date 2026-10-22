@@ -8,17 +8,7 @@ const { getSentryExpoConfig } = require('@sentry/react-native/metro');
 // getDefaultConfig already handles this npm-workspaces monorepo (workspace-root
 // watchFolders + both node_modules trees) — don't override watchFolders, or
 // expo-doctor flags dropped defaults.
-//
-// Replay and the feedback widget are off: neither is used (`lib/sentry.ts`
-// sends errors and sampled traces only), and with them on Metro bundled
-// `@sentry/replay`, `replay-canvas` and `feedback` into the NATIVE bundle —
-// ~370 KB of source loaded at every launch for nothing (measured 2026-10-21
-// against the Sentry 8.31 upgrade). Only effective because the custom
-// resolver below delegates to Sentry's; see `sentryResolveRequest`.
-const config = getSentryExpoConfig(__dirname, {
-  includeWebReplay: false,
-  includeWebFeedback: false,
-});
+const config = getSentryExpoConfig(__dirname);
 
 // @kingstinct/react-native-healthkit ships an `exports` map that trips Metro's
 // SDK 54 package-exports resolver on the package's OWN internal files (it routes
@@ -59,12 +49,6 @@ const WORKSPACE_ROOT = path.resolve(__dirname, '../..');
 const APP_ENTRY = path.resolve(__dirname, 'index.js');
 
 const HK = '@kingstinct/react-native-healthkit';
-// Sentry's resolver chain — the replay/feedback exclusions requested above and
-// its own server-only-module exclusion for `@sentry/core`. Assigning
-// `resolveRequest` below REPLACES it, and until 2026-10-21 that silently
-// bundled all three into the native app; the fallthrough now hands every
-// ordinary module to it instead of straight to Metro.
-const sentryResolveRequest = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   if (
     moduleName === './index.js' &&
@@ -90,9 +74,7 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
       platform,
     );
   }
-  return sentryResolveRequest
-    ? sentryResolveRequest(context, moduleName, platform)
-    : context.resolveRequest(context, moduleName, platform);
+  return context.resolveRequest(context, moduleName, platform);
 };
 
 module.exports = config;

@@ -115,13 +115,6 @@ supposed to. Harmless (nothing sets `engine-strict`), but a warning that fires o
 the happy path is one people learn to ignore. RN 0.86 accepts `^20.19.4 ||
 ^22.13.0 || ^24.3.0`, so both hosts satisfy Expo SDK 57 as they stand.
 
-**Since 2026-10-21 the lockfile author is `ignia-mac`.** The repo lives there
-(owner, 2026-10-21), and the Windows Surface laptop on the tailnet (`winbox`,
-Node 24.19 / npm 11.17) holds no checkout. The 2026-10-21 performance pass resolved
-its dependency bumps on the Mac with npm 11.6.2. The paragraph below is the
-rule as it stood until then; its principle — exactly one machine resolves — is
-unchanged, only the machine is.
-
 What the split *does* forbid is resolving dependencies twice. **Only the Windows
 workstation may run `npm install` / `expo install` / anything that rewrites
 `package-lock.json`.** The Mac runs `npm ci` and nothing else, so npm 10 never
