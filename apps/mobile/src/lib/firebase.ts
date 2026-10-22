@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { AppState } from 'react-native';
 import { firebaseConfig } from './firebase-config';
 import { getApps, initializeApp } from 'firebase/app';
 import {
@@ -12,6 +13,8 @@ import {
 import {
   type Firestore,
   connectFirestoreEmulator,
+  disableNetwork,
+  enableNetwork,
   getFirestore,
   initializeFirestore,
   memoryLocalCache,
@@ -60,6 +63,43 @@ try {
   // Fast Refresh re-runs this module against an already-initialised instance.
   db = getFirestore(app);
 }
+// Restart the Firestore stream when the app comes back from a real background.
+//
+// The SDK's only signal that the network came back is a `window` "online"
+// event (`BrowserConnectivityMonitor` in the RN build). React Native fires no
+// such event, so the SDK runs `NoopConnectivityMonitor` and recovers from a
+// dead socket the slow way: wait for the stream to error, then exponential
+// backoff (1 s × 1.5 per attempt, capped at 60 s, jittered up to 1.5×). iOS
+// freezes sockets in the background, so a phone unlocked after lunch could
+// spend tens of seconds serving stale Today rows from memory before the stream
+// came back — and after 10 s without an answer the SDK declares itself
+// Offline. That is the "sometimes it's very slow" the 2026-10-21 performance
+// audit traced here.
+//
+// `disableNetwork` → `enableNetwork` tears the stream down and reopens it at
+// once with each listener's resume token, so the server sends only what
+// changed. Pending writes stay queued across the gap and flush on enable. The
+// threshold keeps it off quick app switches, where the socket is still alive
+// and a restart would only cost a round trip.
+const RESUME_KICK_AFTER_MS = 20_000;
+let backgroundedAt: number | null = null;
+AppState.addEventListener('change', (state) => {
+  if (state === 'background') {
+    backgroundedAt = Date.now();
+    return;
+  }
+  if (state !== 'active' || backgroundedAt === null) return;
+  const away = Date.now() - backgroundedAt;
+  backgroundedAt = null;
+  if (away < RESUME_KICK_AFTER_MS) return;
+  disableNetwork(db)
+    .then(() => enableNetwork(db))
+    .catch(() => {
+      // A terminated instance (sign-out deletes nothing here, but a test or a
+      // Fast Refresh can). The SDK's own backoff is still running regardless.
+    });
+});
+
 // Callables default to us-central1 — same region the PWA uses (getFunctions()
 // with no arg in app.config.ts), so searchFoods/getFoodDetail resolve.
 const functions: Functions = getFunctions(app);

@@ -461,9 +461,16 @@ export function useStoreUpdate(): StoreUpdateState {
 //   1. COLD START. `isUpdatePending` on the FIRST render means the bundle was
 //      downloaded during a previous run. No in-session state exists yet, so
 //      the cost is a beat of splash instead of a stale app.
-//   2. THE NEXT FOREGROUND. A bundle that arrives mid-session is left alone —
-//      the user opened the app to do something. It is applied when they next
-//      come back, in the gap where they were not looking.
+//   2. THE NEXT FOREGROUND AFTER A LONG ABSENCE. A bundle that arrives
+//      mid-session is left alone — the user opened the app to do something.
+//      It is applied when they next come back from at least
+//      {@link FOREGROUND_APPLY_AFTER_MS} away. A reload is a full JS restart
+//      (bundle evaluation, the auth round trips, every listener re-opened), so
+//      applying on ANY foreground turned a two-second glance at the app into a
+//      cold start — near-daily, at this repo's OTA cadence. The 2026-10-21
+//      performance audit counted it among the "sometimes it's very slow"
+//      causes. Past half an hour the user has moved on, and iOS has usually
+//      evicted the process anyway, so the restart costs them nothing new.
 //
 // Deliberately NOT the moment the download finishes: reloading discards
 // unsaved local state (a half-typed entry sheet) and yanks whatever is on
@@ -479,6 +486,10 @@ export function useStoreUpdate(): StoreUpdateState {
 const FAILED_KEY = 'ota.failedUpdateId';
 /** Written immediately before a reload, cleared once a bundle renders. */
 const ATTEMPT_KEY = 'ota.attemptedUpdateId';
+
+/** How long the app must have been in the background before a foreground may
+ *  reload it into a downloaded bundle. See moment 2 above. */
+export const FOREGROUND_APPLY_AFTER_MS = 30 * 60_000;
 
 /**
  * Whether a downloaded bundle may be applied right now. Pure, so the two
@@ -502,8 +513,13 @@ export function shouldAutoApplyOta(args: {
   /** Whether a surface is mid-flow and would lose state to a restart
    *  (`ota-hold.ts`). Defers this reload; it does not cancel the update. */
   held?: boolean;
+  /** For `foreground`: how long the app was in the background. Unknown
+   *  (`undefined`) counts as long — the conservative reading is the old
+   *  behaviour, not a stranded update. */
+  awayMs?: number;
 }): boolean {
-  const { isUpdatePending, targetUpdateId, failedUpdateId, moment, pendingAtMount, held } = args;
+  const { isUpdatePending, targetUpdateId, failedUpdateId, moment, pendingAtMount, held, awayMs } =
+    args;
   if (!isUpdatePending) return false;
   // Never re-apply a bundle that bricked its own launch.
   if (targetUpdateId && failedUpdateId === targetUpdateId) return false;
@@ -513,8 +529,10 @@ export function shouldAutoApplyOta(args: {
   // this foreground; the next one applies.
   if (held) return false;
   // At mount, only a bundle downloaded by an EARLIER run is safe: one that
-  // arrives during this session waits for the user to leave.
-  return moment === 'foreground' ? true : pendingAtMount;
+  // arrives during this session waits for the user to leave — for long enough
+  // that a restart is not the thing they notice (moment 2 above).
+  if (moment === 'foreground') return awayMs === undefined || awayMs >= FOREGROUND_APPLY_AFTER_MS;
+  return pendingAtMount;
 }
 
 /**
@@ -557,7 +575,7 @@ export function useAutoApplyOta(): void {
     // is the downloaded one.
     const target = downloadedUpdate?.updateId;
 
-    const apply = async (moment: 'mount' | 'foreground') => {
+    const apply = async (moment: 'mount' | 'foreground', awayMs?: number) => {
       const failed = await AsyncStorage.getItem(FAILED_KEY);
       if (!alive) return;
       if (!shouldAutoApplyOta({
@@ -569,6 +587,7 @@ export function useAutoApplyOta(): void {
         // Read here, not captured: the hold must reflect the moment the event
         // arrived, not the moment this effect subscribed.
         held: isOtaHeld(),
+        awayMs,
       })) return;
       if (target) await AsyncStorage.setItem(ATTEMPT_KEY, target);
       try {
@@ -582,8 +601,18 @@ export function useAutoApplyOta(): void {
     if (AppState.currentState === 'active') void apply('mount');
 
     // 2. Downloaded during this session — wait for them to leave and return.
+    // `background` only: iOS passes through `inactive` for a notification
+    // shade or the app switcher, and that is not leaving.
+    let backgroundedAt: number | null = null;
     const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
-      if (next === 'active') void apply('foreground');
+      if (next === 'background') {
+        backgroundedAt = Date.now();
+        return;
+      }
+      if (next !== 'active' || backgroundedAt === null) return;
+      const awayMs = Date.now() - backgroundedAt;
+      backgroundedAt = null;
+      void apply('foreground', awayMs);
     });
 
     return () => {

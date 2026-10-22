@@ -3,6 +3,7 @@ import {
   pickStoreTarget,
   reloadScreenOptions,
   shouldAutoApplyOta,
+  FOREGROUND_APPLY_AFTER_MS,
   shouldPromptStoreUpdate,
   versionKey,
 } from '@/lib/app-update';
@@ -176,6 +177,26 @@ describe('shouldAutoApplyOta', () => {
 
   it('is unheld by default, so no caller has to opt in to being restarted', () => {
     expect(shouldAutoApplyOta({ ...base, moment: 'foreground' })).toBe(true);
+  });
+
+  // 2026-10-21 performance audit: a reload is a full JS restart, and applying
+  // on EVERY foreground turned a glance at the app into a cold start almost
+  // daily. A short absence keeps the running bundle; a long one applies.
+  it('does NOT reload on a foreground after a short absence', () => {
+    expect(shouldAutoApplyOta({ ...base, moment: 'foreground', awayMs: 60_000 })).toBe(false);
+    expect(
+      shouldAutoApplyOta({ ...base, moment: 'foreground', awayMs: FOREGROUND_APPLY_AFTER_MS - 1 }),
+    ).toBe(false);
+  });
+
+  it('reloads on a foreground after a long absence', () => {
+    expect(
+      shouldAutoApplyOta({ ...base, moment: 'foreground', awayMs: FOREGROUND_APPLY_AFTER_MS }),
+    ).toBe(true);
+  });
+
+  it('the absence rule does not touch the cold-start path', () => {
+    expect(shouldAutoApplyOta({ ...base, awayMs: 0 })).toBe(true);
   });
 
   it('applies when the target id is unknown but nothing has failed', () => {
