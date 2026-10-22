@@ -33,7 +33,7 @@ same way before trusting them — `docs/COMMANDS.md` has every command;
 | **Cloud Functions / rules** | Deployed, project `fitness-tracker-gb-1775407101`. Rules last deployed 2026-10-15 (session `deload`, profile `dumbbellHalfSteps` / `deloadStartedAt`) |
 | **Photo-scan** | **ON and free, both platforms** (ADR-0017), macros from the bundled USDA DB (ADR-0019). Tiering server-side only: `dailyQuota` 3/day free · 30/day paid, plus the `photo` `spendCeiling` |
 | **Food search** | Bundled USDA DB (13,272 foods) + restaurant corpus (25,126 items / 91 chains, ADR-0027). **Text search makes NO network call**; Open Food Facts serves barcode only. `docs/research/off-branded-ingest.md` scopes branded text results |
-| **OTA (EAS Update)** | **Every runtime in use has the 2026-10-21 iPhone Duo layout OTA (`76d74257`)**: iOS builds 72 / 71 / 70 / 68, Android vc 52 / 51 / 50 / 48-49 / 47 — groups and rollbacks in the ledger, which is the record and wins. "Published" ≠ "delivered": a device applies it on the launch AFTER the download |
+| **OTA (EAS Update)** | **Every runtime in use has the 2026-10-21 performance-pass OTA** (`ota/perf-2026-10-21` @ `29f10819` = `main` minus `0c30979d`): iOS builds 73 / 72 / 71 / 70 / 68, Android vc 52 / 51 / 50 / 48-49 / 47 — groups and rollbacks in the ledger, which is the record and wins. Build 73 (`d7aad40d…`) is now the unpinned iOS runtime. "Published" ≠ "delivered": a device applies it on the launch AFTER the download, and with this OTA only after 30+ min in the background |
 | **`app-version.json`** | **Self-driving** — served from Firestore `public/appVersion`, refreshed hourly by `hourlyTasks` (Play tracks API; Apple's public lookup) and by `/admin` → System → **Sync now**. `npm run doctor` compares the live URL with both stores |
 
 **Fingerprints and publishing:** current artifact values are the two-row table
@@ -50,12 +50,11 @@ cache, and the emulator suites through `scripts/require-java21.mjs`.
 
 ## 2. Merged, on `main`, and not delivered anywhere
 
-**`9b861e4e` — the 1.2.9 version bump** (no code; §3 "1.2.9"). Everything else up to `76d74257` is in an OTA (2026-10-21).
-**`0c30979d`..`65dc335c` — the 2026-10-21 performance pass (8 commits), in no binary and no OTA.**
-Sentry RN 7.11 → 8.31 plus Expo patch bumps move BOTH fingerprints, so it needs
-a new binary per platform; build 73 does not contain it. **Deploy `analyzePhoto`
-(`3f541acc`) before any build that contains `d952bd72`**: an older server counts
-the scan warm-up as a scan and rate-limits the real one.
+**`9b861e4e` — the 1.2.9 version bump** (no code; §3 "1.2.9"). Everything else on `main` except `0c30979d` (below) is in an OTA (2026-10-21).
+**`0c30979d` — Sentry RN 8.31, Expo patch bumps, sampled tracing, the metro trim — in no binary and no OTA.**
+It moves BOTH fingerprints, so it waits for the next binary per platform (build 73 does not contain it).
+The rest of the 2026-10-21 performance pass reached every runtime as an OTA (§1), and `analyzePhoto` with
+the warm-up branch is deployed.
 The native halves of 1.2.7/1.2.8 (lock-screen Done set, Android Live Update,
 widget/watch day rollover, QuickAdd queue cap) reach users only with 1.2.8.
 Re-derive rather than trust this: `git log --oneline` against the newest ledger
