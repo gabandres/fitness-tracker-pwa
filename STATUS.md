@@ -70,7 +70,7 @@ Train change since. **Never compose a suite number from individual flow runs**
 **Only genuinely open work belongs here.** A row whose work has shipped gets
 deleted and its outcome goes to `CHANGELOG.md`.
 
-### 1.2.8 — in review on iOS; then raise the minimum
+### 1.2.8 — live on iOS (2026-10-22); raise the minimum
 
 - **iOS** build 72 is LIVE (2026-10-22, iTunes lookup). **Android** vc 52 is
   the completed production release — confirm on the store page that it is live,
