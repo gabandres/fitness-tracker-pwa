@@ -329,3 +329,16 @@ permanently by `plugins/withGradleJvmArgs.js`, which writes the heap flags into
 `require.context` and bundled, which ERRORs the build in *Bundle JavaScript*.
 Tests live in `src/__tests__/`. This broke dormant for a day because no EAS build
 ran in between.
+
+## Patched dependencies (`patches/`, since 2026-10-22)
+
+`patch-package` runs as the root `postinstall`, so `npm ci` (here, and inside
+`eas build --local`'s copy) re-applies every file in `patches/`. One patch
+today: `@firebase+firestore+<version>.patch`, a fast path in the SDK's
+`__PRIVATE_compareUtf8Strings` (ADR-0016 amendment 3) that halved a tab's
+first-visit JS stall. The patch file is named for one exact version: **a
+firebase upgrade must regenerate it** (edit the new `dist/common-*.rn.js`, run
+`npx patch-package @firebase/firestore`, delete the old file), or `postinstall`
+fails the install. `firestore-utf8-compare-patch.test.ts` fails if the patch is
+missing from the build Metro bundles. It touches JS only, so it moves no
+fingerprint.
