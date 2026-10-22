@@ -98,7 +98,7 @@ deleted and its outcome goes to `CHANGELOG.md`.
 - Contains `0c30979d` (Sentry RN 7.11 → 8.31 with sampled tracing,
   reanimated 4.5.5, worklets 0.10.4, keyboard-controller 1.22.8, Expo 57
   patches) and everything on `main`. Built on the 27.1 SDK, so it carries
-  1.2.9's iPhone Duo fix too: build 73 can be skipped in favour of build 74.
+  1.2.9's iPhone Duo fix too: **1.2.9 / build 73 will not be submitted** — 1.2.10 supersedes it.
 - **Owed:** device QA on both (Sentry init and tracing, Reanimated sheets,
   keyboard handling); the equal-segment fast path (`ae03c475`) still needs
   an OTA to reach build 74 and the older runtimes.
