@@ -44,6 +44,12 @@ import { activationIssueKey, lastHint, liftUsesRir, loadTargetIndices, recommend
 import { createStyles } from './train-styles';
 import { MenuButton, type MenuButtonAction } from '@/components/MenuButton';
 
+/** The open card's body fading in and out. Module constants: an inline
+ *  `FadeIn.duration(160)` builds a new animation object on every render of
+ *  every card, and the session re-renders on each set edit. */
+const BODY_ENTER = FadeIn.duration(160);
+const BODY_EXIT = FadeOut.duration(120);
+
 export interface ExerciseCardProps {
   exercise: SessionExercise;
   exerciseIndex: number;
@@ -340,7 +346,7 @@ export const ExerciseCard = memo(function ExerciseCard({
       </View>
 
       {collapsed ? null : (
-        <Animated.View entering={FadeIn.duration(160)} exiting={FadeOut.duration(120)}>
+        <Animated.View entering={BODY_ENTER} exiting={BODY_EXIT}>
           {deload ? (
             <View style={styles.blockedRow} testID={`deload-note-${exerciseIndex}`}>
               <Ionicons name="information-circle-outline" size={16} color={colors.muted} />

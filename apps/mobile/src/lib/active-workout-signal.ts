@@ -60,6 +60,17 @@ let listeners: (() => void)[] = [];
 
 const keyFor = (uid: string) => `activeWorkout:${uid}`;
 
+/**
+ * What this runtime last asked AsyncStorage to hold, per key — the serialized
+ * hint, or `null` for a removal. `publishActiveWorkout` runs on EVERY set edit
+ * (it is called from `useTrain`'s `setActive`), and the cached hint is three
+ * fields that do not move while the user types: without this it was one
+ * AsyncStorage write per digit, on the same bridge the keystroke itself needs.
+ * A key absent from the map was never written in this runtime, so the first
+ * publish always reaches the disk.
+ */
+const lastWritten = new Map<string, string | null>();
+
 function emit(next: ActiveWorkoutSignal) {
   // Same object identity for an unchanged value, or `useSyncExternalStore`
   // re-renders every tab on every set that is logged.
@@ -95,10 +106,15 @@ export function publishActiveWorkout(
   if (!uid) return;
   const k = keyFor(uid);
   const { restEndsAt: _rest, ...cached } = next;
-  const write = live
-    ? AsyncStorage.setItem(k, JSON.stringify(cached))
-    : AsyncStorage.removeItem(k);
-  void write.catch(() => {});
+  const value = live ? JSON.stringify(cached) : null;
+  if (lastWritten.has(k) && lastWritten.get(k) === value) return;
+  lastWritten.set(k, value);
+  const write = value != null ? AsyncStorage.setItem(k, value) : AsyncStorage.removeItem(k);
+  // A failed write is forgotten, so the next publish tries again rather than
+  // believing the disk holds a value it never took.
+  void write.catch(() => {
+    if (lastWritten.get(k) === value) lastWritten.delete(k);
+  });
 }
 
 /**
@@ -163,4 +179,5 @@ export function useActiveWorkout(): ActiveWorkoutSignal {
 export function __resetActiveWorkoutSignal(): void {
   current = EMPTY;
   listeners = [];
+  lastWritten.clear();
 }

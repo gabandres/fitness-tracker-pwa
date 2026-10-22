@@ -30,6 +30,7 @@ jest.mock('@/lib/connectivity', () => ({ isOffline: () => false, useIsOffline: (
 const mockPick = jest.fn();
 const mockAnalyze = jest.fn();
 jest.mock('@/lib/mealScan', () => ({
+  warmUpPhotoScan: jest.fn(),
   pickMealPhoto: (s: string) => mockPick(s),
   encodeMealPhoto: async (u: string) => `b64:${u}`,
   analyzeMealPhoto: (...a: unknown[]) => mockAnalyze(...a),

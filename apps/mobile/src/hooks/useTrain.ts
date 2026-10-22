@@ -692,6 +692,13 @@ export function useTrain(): TrainState {
               open: (deliver, fail) => subscribeRecentSessions(uid, 50, deliver, fail),
               // Recent list shows completed sessions; the active one (if any)
               // is surfaced separately via `onOpen` above.
+              //
+              // The live workout's doc is in this window, so every set edit
+              // re-delivers all 50 with the completed ones unchanged. That is
+              // a no-op by the time it lands: `useCachedState`'s equality skip
+              // keeps the held array (and skips the disk write), so the memos
+              // keyed on `recentSessions` and the memoized ExerciseCards hold
+              // (`perf-keystroke-churn.test.ts`).
               apply: (sessions: WorkoutSession[], provenance) =>
                 setRecentSessions(
                   sessions.filter((x) => x.status === 'completed'),
@@ -1561,11 +1568,15 @@ export function useTrain(): TrainState {
       // `dropEmptyCardio` too, as `finishWorkout` does: a block added in the
       // editor and never filled in must not enter history as a real one.
       const cardio = dropEmptyCardio(active.cardio);
+      const exercises = dropEmptySets(fillMissingClusterLoads(active.exercises));
+      // The patch is built BEFORE the `try`: a conditional (this was a
+      // `...(cardio !== undefined ? { cardio } : {})` spread) inside a
+      // try/catch is a value block the React Compiler cannot lower yet, and it
+      // bailed on ALL of `useTrain` for it — every derivation below
+      // un-memoized (measured 2026-10-21).
+      const patch = cardio !== undefined ? { exercises, cardio } : { exercises };
       try {
-        await updateSession(uid, active.id, {
-          exercises: dropEmptySets(fillMissingClusterLoads(active.exercises)),
-          ...(cardio !== undefined ? { cardio } : {}),
-        });
+        await updateSession(uid, active.id, patch);
       } catch (e) {
         setError(asError(e, 'Save failed'));
       }

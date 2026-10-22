@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { SheetTextInput } from '@/components/SheetTextInput';
 import { MOBILITY_SEED_KEYS, type SeedExercise } from '@macrolog/core';
@@ -27,7 +27,10 @@ import { createStyles } from './train-styles';
  * closes, as it always did; the tick at the row's end starts a pick, and once
  * anything is ticked a tap on a row ticks it too. Replacing stays one-for-one.
  */
-export function AddExerciseSheet({
+// `memo`: mounted for a whole live session beside cards that re-render on
+// every set edit; `ActiveSession` hands it only stable fields, so a closed
+// sheet skips those renders.
+export const AddExerciseSheet = memo(function AddExerciseSheet({
   visible,
   train,
   replace,
@@ -200,4 +203,4 @@ export function AddExerciseSheet({
       </View>
     </BottomSheet>
   );
-}
+});

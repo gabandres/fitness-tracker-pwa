@@ -42,6 +42,7 @@ const mockPick = jest.fn();
 const mockEncode = jest.fn(async (uri: string) => `b64:${uri}`);
 const mockAnalyze = jest.fn();
 jest.mock('@/lib/mealScan', () => ({
+  warmUpPhotoScan: jest.fn(),
   pickMealPhoto: (s: string) => mockPick(s),
   encodeMealPhoto: (u: string) => mockEncode(u),
   analyzeMealPhoto: (...a: unknown[]) => mockAnalyze(...a),
@@ -108,6 +109,30 @@ async function openViewfinder() {
   await waitFor(() => expect(screen.getByTestId('scan-shutter')).toBeTruthy());
   return screen;
 }
+
+describe('scan warm-up', () => {
+  // The cold start is ~4 s of a ~7.4 s scan; the seconds spent framing the
+  // shot are where it can be paid instead (`warmUpPhotoScan`). Once per open,
+  // never per render, and never when the phone already knows it is offline.
+  it('boots an analyzePhoto instance once when the screen opens', async () => {
+    const { warmUpPhotoScan } = jest.requireMock('@/lib/mealScan') as { warmUpPhotoScan: jest.Mock };
+    warmUpPhotoScan.mockClear();
+    const screen = await openViewfinder();
+    expect(warmUpPhotoScan).toHaveBeenCalledTimes(1);
+    // A shot and its review re-render the screen many times: still one.
+    await fireEvent.press(screen.getByTestId('scan-shutter'));
+    await waitFor(() => expect(mockAnalyze).toHaveBeenCalledTimes(1));
+    expect(warmUpPhotoScan).toHaveBeenCalledTimes(1);
+  });
+
+  it('is not sent when known to be offline', async () => {
+    const { warmUpPhotoScan } = jest.requireMock('@/lib/mealScan') as { warmUpPhotoScan: jest.Mock };
+    warmUpPhotoScan.mockClear();
+    mockOffline = true;
+    await render(<Scan />);
+    expect(warmUpPhotoScan).not.toHaveBeenCalled();
+  });
+});
 
 describe('scan viewfinder', () => {
   // Presented as a root-stack fullScreenModal, a native `SafeAreaView` read a

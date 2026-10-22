@@ -1,12 +1,16 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useCameraPermissions } from 'expo-camera';
+// The photos on this screen are full-resolution captures (12 MP and up).
+// RN's `Image` decoded every pixel of them for a 200 pt preview; expo-image
+// downsamples to the view, so the describe step and the wait stop paying for
+// pixels nobody sees. `cachePolicy="memory"` throughout: transient files.
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   AppState,
   BackHandler,
-  Image,
   Linking,
   Platform,
   ScrollView,
@@ -60,6 +64,7 @@ import {
   encodeMealPhoto,
   pickMealPhoto,
   scanErrorMessage,
+  warmUpPhotoScan,
   type ScanSource,
 } from '@/lib/mealScan';
 import { formatNumber, quotaResetLabel } from '@/lib/date-format';
@@ -222,6 +227,14 @@ export default function Scan() {
     startLogTimer();
     return () => clearLogTimer();
   }, []);
+
+  // Boot an `analyzePhoto` instance now, while the viewfinder is up — the
+  // seconds spent framing the plate pay the ~4 s cold start instead of the
+  // wait after the shutter (`warmUpPhotoScan`). Once per open and per account;
+  // nothing is charged for it, and it is not sent when known to be offline.
+  useEffect(() => {
+    if (uid && !isOffline()) warmUpPhotoScan();
+  }, [uid]);
 
   const [phase, setPhase] = useState<Phase>('intro');
   const [error, setError] = useState<string | null>(null);
@@ -702,6 +715,12 @@ export default function Scan() {
     setPhase(restartPhase === 'camera' ? 'camera' : 'describe');
   }
 
+  /** Whether a scan is in flight right now — read by the back dialog's
+   *  confirm, which can fire after the wait ended. Set from the effect only.
+   *  Declared ABOVE `onHardwareBack`, which reads it: a ref read before its
+   *  declaration made the React Compiler bail on this whole screen (no
+   *  memoization at all, measured 2026-10-21). */
+  const waiting = useRef(false);
   /**
    * Android's back during the wait (audit #2) closed the whole modal while
    * `analyzePhoto` ran on — the scan was charged and its result went nowhere.
@@ -723,9 +742,6 @@ export default function Scan() {
       },
     });
   });
-  /** Whether a scan is in flight right now — read by the back dialog's
-   *  confirm, which can fire after the wait ended. Set from the effect only. */
-  const waiting = useRef(false);
   useEffect(() => {
     waiting.current = phase === 'analyzing';
     if (phase !== 'analyzing') return;
@@ -822,6 +838,26 @@ export default function Scan() {
     setItems((prev) => prev.map((it, i) => (i === index ? { ...it, name: value } : it)));
   }
 
+  /** Throw the reviewed scan away and start over. Declared above
+   *  `removeItem`, which hands it to `confirm` — a function read before its
+   *  declaration is one of the two things that made the React Compiler skip
+   *  this screen. */
+  function discardScan() {
+    draftAt.current = null;
+    setFromDraft(false);
+    setAnalyzedUris([]);
+    setAddError(null);
+    setPhase(restartPhase);
+    setItems([]);
+    setPortion(1);
+    // The old scan's note would otherwise ride along with the next photo.
+    setNote('');
+    // Retake is leaving on purpose too: with `items` empty the save
+    // effect stops writing but never removes what it wrote, so the
+    // thrown-away scan came back as a "restored" review next mount.
+    void clearScanDraft();
+  }
+
   function removeItem(index: number) {
     haptics.tap();
     // The last item empties a scan that already spent a quota slot, and the
@@ -874,23 +910,6 @@ export default function Scan() {
           : it,
       ),
     );
-  }
-
-  /** Throw the reviewed scan away and start over. */
-  function discardScan() {
-    draftAt.current = null;
-    setFromDraft(false);
-    setAnalyzedUris([]);
-    setAddError(null);
-    setPhase(restartPhase);
-    setItems([]);
-    setPortion(1);
-    // The old scan's note would otherwise ride along with the next photo.
-    setNote('');
-    // Retake is leaving on purpose too: with `items` empty the save
-    // effect stops writing but never removes what it wrote, so the
-    // thrown-away scan came back as a "restored" review next mount.
-    void clearScanDraft();
   }
 
   /** A restored review's way out that is not "retake": just let it go. */
@@ -1181,12 +1200,12 @@ export default function Scan() {
               None yet: the note was opened from the viewfinder before the
               shot, which is how a note reaches a shutter that analyzes. */}
           {pendingUris.length === 0 ? null : pendingUris.length === 1 ? (
-            <Image source={{ uri: pendingUris[0] }} style={styles.notePreview} resizeMode="cover" />
+            <Image source={{ uri: pendingUris[0] }} style={styles.notePreview} contentFit="cover" cachePolicy="memory" />
           ) : (
             <View style={styles.shotRow}>
               {pendingUris.map((uri, i) => (
                 <View key={uri} style={styles.shotWrap}>
-                  <Image source={{ uri }} style={styles.shot} resizeMode="cover" />
+                  <Image source={{ uri }} style={styles.shot} contentFit="cover" cachePolicy="memory" />
                   <PressScale
                     style={styles.shotRemove}
                     scaleTo={0.9}
@@ -1330,7 +1349,7 @@ export default function Scan() {
         <View style={styles.fill}>
           {/* The captured frame, so the wait has a subject and the user can see
               the app got the right photo without waiting to find out. */}
-          {preview ? <Image source={{ uri: preview }} style={styles.preview} /> : null}
+          {preview ? <Image source={{ uri: preview }} style={styles.preview} contentFit="cover" cachePolicy="memory" /> : null}
           <View style={styles.steps}>
             {SCAN_STEPS.map((s, i) => {
               const active = s === step;

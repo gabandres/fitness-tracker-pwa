@@ -237,6 +237,28 @@ function useLatest<T>(value: T) {
 }
 
 /**
+ * `value` while `open`; while closed, the value of the last open render.
+ *
+ * For the session's sheets, which stay mounted for the whole workout: fed the
+ * live session, every digit typed into a set row re-rendered each closed sheet
+ * (its body is still built by the owner, `BottomSheet` just does not present
+ * it). Held, a closed sheet's props stop moving and its `memo` holds; the
+ * content a closing sheet animates out with is what it showed open. Derived
+ * during render (React's "previous value" pattern, as `TrainFinishSheet` holds
+ * its session).
+ *
+ * DATA only — a value whose identity changes when its content does. A function
+ * built in render is new on every render, so holding one would set state on
+ * every open render, forever ("Too many re-renders"); a callback gets a stable
+ * identity through `useLatest` instead (`reorderMove`).
+ */
+function useHeldWhileClosed<T extends object>(value: T, open: boolean): T {
+  const [held, setHeld] = useState<T>(value);
+  if (open && held !== value) setHeld(value);
+  return open ? value : held;
+}
+
+/**
  * The live workout: a sticky header, the exercise cards, cardio, the rest bar
  * and every sheet the session opens — ONE of each (Train review item 31).
  */
@@ -1365,6 +1387,17 @@ export function ActiveSession({
     }
   }
 
+  // The reorder sheet's two moving props, kept still while it is closed: the
+  // list is held (`useHeldWhileClosed`), and `moveExercise` — which closes over
+  // the session, so it is new on every set edit — is called through a ref, so
+  // the sheet sees ONE function for the whole workout and always runs the
+  // current one. Down here, after everything `moveExercise` reads is declared:
+  // passing it as a value any earlier reads those bindings before their
+  // declaration, and the React Compiler skips the whole session screen for it.
+  const reorderExercises = useHeldWhileClosed(session.exercises, reorderOpen);
+  const moveRef = useLatest(moveExercise);
+  const reorderMove = useCallback((from: number, to: number) => moveRef.current(from, to), [moveRef]);
+
   return (
     <>
       {/* The session header — sticky, outside the scroll (Train review item
@@ -1771,26 +1804,41 @@ export function ActiveSession({
         }}
       />
 
+      {/* The three sheets below are `memo`'d and get only the fields they
+          read — never the whole `train`, which is a new object on every set
+          edit — so a closed sheet is not re-rendered per keystroke. */}
       {/* What this lift did before — the catalog sheet, read-only: editing,
           merging or deleting an exercise is not a mid-set job. */}
       <ExerciseDetailSheet
         visible={historyFor != null}
         exercise={historyFor}
-        train={train}
+        train={{
+          recentSessions: train.recentSessions,
+          catalog: train.catalog,
+          templates: train.templates,
+          editCatalogExercise: train.editCatalogExercise,
+          deleteCatalogExercise: train.deleteCatalogExercise,
+          mergeCatalogExercises: train.mergeCatalogExercises,
+        }}
         readOnly
         onClose={() => setHistoryFor(null)}
       />
 
       <ReorderExercisesSheet
         visible={reorderOpen}
-        exercises={session.exercises}
-        onMove={moveExercise}
+        exercises={reorderExercises}
+        onMove={reorderMove}
         onClose={() => setReorderOpen(false)}
       />
 
       <AddExerciseSheet
         visible={addFor != null}
-        train={train}
+        train={{
+          catalog: train.catalog,
+          addExerciseToActive: train.addExerciseToActive,
+          addLibraryExerciseToActive: train.addLibraryExerciseToActive,
+          addManyToActive: train.addManyToActive,
+        }}
         replace={addFor && addFor !== 'add' ? addFor : null}
         // The lift just added (the first, of several) opens, and scrolls into
         // view once it has laid out — as Strong and Hevy land you on it. It

@@ -1,7 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { CameraView } from 'expo-camera';
 import { useEffect, useRef, useState } from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { Image } from 'expo-image';
+import { StyleSheet, Text, View } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
 import { useT } from '@/i18n';
 import { announce } from '@/lib/a11y';
@@ -154,7 +155,18 @@ export function ScanCamera({ photos, max, hasNote, footnote, notice, onShot, onR
       <View style={styles.stripRow}>
         {photos.map((uri, i) => (
           <View key={uri} style={styles.thumbWrap}>
-            <Image source={{ uri }} style={styles.thumb} resizeMode="cover" accessibilityIgnoresInvertColors />
+            {/* `expo-image`, not RN's `Image`: the shot is a full-resolution
+                capture (`quality: 1`, 12 MP and up) and RN decoded every pixel
+                of it for a 56 pt thumbnail — per photo, on the main thread's
+                watch. expo-image downsamples to the view. Memory cache only:
+                the file is transient and a disk copy of it buys nothing. */}
+            <Image
+              source={{ uri }}
+              style={styles.thumb}
+              contentFit="cover"
+              cachePolicy="memory"
+              accessibilityIgnoresInvertColors
+            />
             <PressScale
               style={styles.thumbRemove}
               scaleTo={0.9}

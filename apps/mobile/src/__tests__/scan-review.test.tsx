@@ -44,6 +44,7 @@ jest.mock('@/components/HeaderAvatar', () => ({ HeaderAvatar: () => null }));
 // The model call: imports `firebase/functions`, which jest cannot parse, and is
 // never reached from a restored draft anyway.
 jest.mock('@/lib/mealScan', () => ({
+  warmUpPhotoScan: jest.fn(),
   analyzeMealPhoto: jest.fn(),
   encodeMealPhoto: jest.fn(),
   pickMealPhoto: jest.fn(),

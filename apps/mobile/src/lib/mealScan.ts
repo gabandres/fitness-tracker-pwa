@@ -213,6 +213,37 @@ export async function analyzeMealPhoto(
 }
 
 /**
+ * Start an `analyzePhoto` instance while the user is still framing the shot.
+ *
+ * Fire-and-forget, once per scan-screen open. A cold `analyzePhoto` is ~7.4 s
+ * median against ~3.4 s warm, and nearly every real scan is cold at this
+ * traffic (`functions/src/analyze-photo.ts`, the `minInstances` note). The
+ * viewfinder is open for seconds before the first photo is sent, so a request
+ * that only boots an instance moves most of that tax off the wait the user
+ * sees. `{ warmup: true }` returns on the server BEFORE the rate limit and
+ * every cost guard — no quota slot, no spend, no model call
+ * (`isWarmupRequest` there).
+ *
+ * Never awaited and never throws: a failed warm-up (offline, a server one
+ * deploy behind) costs the scan nothing it was not already paying. The
+ * server MUST carry the warm-up branch before a client sends this — an older
+ * one reads it as a scan and writes its 3 s rate-limit stamp, which a real
+ * scan that soon after would trip.
+ */
+export function warmUpPhotoScan(): void {
+  try {
+    const call = httpsCallable<{ warmup: true }, { warm?: boolean }>(functions, 'analyzePhoto', {
+      // The answer is worthless; holding a socket for the default 70 s is not.
+      timeout: 20_000,
+    });
+    void call({ warmup: true }).catch(() => {});
+  } catch {
+    // Building the callable cannot really fail, but this must never be the
+    // reason the scan screen does not open.
+  }
+}
+
+/**
  * Which message a failed scan deserves.
  *
  * `scan.tsx` used to catch every failure with a bare `catch {}` and render

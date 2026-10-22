@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { Text, View, useWindowDimensions } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { useAnimatedRef } from 'react-native-reanimated';
@@ -46,7 +46,10 @@ const ROW_STACKED = { flexDirection: 'column', alignItems: 'stretch' } as const;
 const ROW_LINE = { flexDirection: 'row', alignItems: 'center', gap: space.sm } as const;
 const ROW_TAIL = { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: space.sm } as const;
 
-export function ReorderExercisesSheet({
+// `memo`: mounted for a whole live session beside cards that re-render on
+// every set edit; `ActiveSession` hands it only stable fields, so a closed
+// sheet skips those renders.
+export const ReorderExercisesSheet = memo(function ReorderExercisesSheet({
   visible,
   exercises,
   onMove,
@@ -193,4 +196,4 @@ export function ReorderExercisesSheet({
       </GestureHandlerRootView>
     </BottomSheet>
   );
-}
+});

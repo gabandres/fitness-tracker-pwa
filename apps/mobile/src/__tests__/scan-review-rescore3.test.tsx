@@ -22,6 +22,7 @@ jest.mock('@/components/Toast', () => ({ showToast: jest.fn() }));
 jest.mock('@/components/ConfirmSheet', () => ({ confirm: jest.fn(), ConfirmHost: () => null }));
 jest.mock('@/components/HeaderAvatar', () => ({ HeaderAvatar: () => null }));
 jest.mock('@/lib/mealScan', () => ({
+  warmUpPhotoScan: jest.fn(),
   analyzeMealPhoto: jest.fn(),
   encodeMealPhoto: jest.fn(),
   pickMealPhoto: jest.fn(),

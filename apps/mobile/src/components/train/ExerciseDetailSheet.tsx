@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { Platform, ScrollView, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { SheetTextInput } from '@/components/SheetTextInput';
 import {
@@ -51,7 +51,10 @@ import { createStyles } from './train-styles';
  * what to rewrite, and an offline read sees only the few in memory, so it
  * would rewrite some and orphan the rest.
  */
-export function ExerciseDetailSheet({
+// `memo`: mounted for a whole live session beside cards that re-render on
+// every set edit; `ActiveSession` hands it only stable fields, so a closed
+// sheet skips those renders.
+export const ExerciseDetailSheet = memo(function ExerciseDetailSheet({
   visible,
   exercise,
   train,
@@ -479,7 +482,7 @@ export function ExerciseDetailSheet({
       </View>
     </BottomSheet>
   );
-}
+});
 
 function PrCard({ label, value, hint }: { label: string; value: string; hint?: string }) {
   const styles = useThemedStyles(createStyles);
