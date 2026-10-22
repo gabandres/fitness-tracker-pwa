@@ -27,17 +27,15 @@ import type { CardioBlock } from '@macrolog/core/cardio';
 import type { HealthWorkout } from '@macrolog/core/health-workouts';
 import {
   getHealthScalarsOnce,
-  getRecentSessions,
+  getRecentSessionsSince,
   getHealthTombstones,
-  setDailyActiveEnergy,
   getDayBoundaryOnce,
   importDailySleep,
-  setDailySteps,
-  setDailyWater,
-  setDailyWeight,
   startSession,
   updateSession,
+  writeHealthScalars,
 } from './ledger';
+import { mapBounded } from './map-bounded';
 import type { WorkoutSession } from './workout';
 import { isExpectedHealthState } from './health-errors';
 import { health, type NutritionExport, type ReadableKind, type WorkoutExport } from './health';
@@ -105,15 +103,174 @@ const SCOPE_VERSION_KEY = 'ignia.health.scopeVersion';
  */
 const WORKOUT_IMPORT_DAYS = 90;
 
-/** How many recent sessions the merge looks at. Comfortably more than
+/** How many recent sessions the merge looks at — a cap on the read, which is
+ *  also bounded below by the oldest incoming block's day
+ *  (`getRecentSessionsSince`). Comfortably more than
  *  {@link WORKOUT_IMPORT_DAYS} of daily training, so a same-day match is never
  *  missed for want of reading far enough back. */
 const SESSION_SCAN_LIMIT = 200;
-/** First-import history depth, in DAYS. Numerically equal to core's
+/** How far before the oldest incoming block the session read starts. A block
+ *  is routed only into a session of its own day (`dayKeyAt` under the
+ *  account's boundary), and that day can begin up to a day before the block
+ *  and a few hours either side of calendar midnight; two days covers both. */
+const SESSION_LOOKBEHIND_MS = 2 * 86_400_000;
+/** Full-scan history depth, in DAYS — the first import, and the weekly
+ *  re-scan ({@link FULL_RESCAN_MS}). Numerically equal to core's
  *  `LOG_WINDOW_ROWS` and deliberately not derived from it — that one counts
  *  ROWS, and conflating the two is the ADR-0004 footgun in miniature. Sized so
  *  measured-mode TDEE benefits from imported weight immediately. */
 const IMPORT_DAYS = 400;
+
+const DAY_MS = 86_400_000;
+
+/**
+ * The import's window, and why it is not 400 days every time (2026-10-21).
+ *
+ * Until this date every run — app open and EVERY foreground, unthrottled —
+ * re-read {@link IMPORT_DAYS} of all five kinds: sleep and water as raw
+ * samples, which from an Apple Watch is thousands of objects across the
+ * bridge, then diffed them against four whole Firestore collections. It is the
+ * single heaviest thing the app does, and it ran beside Today's first paint.
+ *
+ * **What the 400-day re-read was actually buying.** Not the removal of a day:
+ * the import never deletes a stored day — `valuesToApply` walks the IMPORTED
+ * days only, so a day emptied in Apple Health was never reconciled back, and
+ * nothing here changes that. Not overrides either: a manual act is a per-day
+ * record (`health-overrides.ts`) honoured whatever the window. What it did buy
+ * is that a CHANGED value for an OLD day reached the app on the next
+ * foreground —
+ *
+ * - a scale or watch that syncs days late (a watch away from its phone);
+ * - an app newly installed that backfills its history into Health;
+ * - an old sample edited or deleted in Health — a day that keeps other
+ *   samples reaches the app as its new sum / latest value;
+ * - a read type the user switched on in the OS settings after connecting
+ *   (an unauthorized read is an empty list on both platforms, never an
+ *   error, so there is no event to react to);
+ * - an old day lost from Firestore that Health still holds.
+ *
+ * None of those is urgent, and all of them are rare. So: the full window runs
+ * on the first import, after any (re)connect (`connectHealth` clears the
+ * marks), on a scope or account change, on Connected apps' *Sync now*, and
+ * at least weekly. Every other run reads from its last COMPLETED run minus
+ * {@link OVERLAP_DAYS} — the days a watch is still revising, a night still
+ * being finalised, a timezone hop re-keying a sample. The worst case for the
+ * rare cases above is a week's delay, against a cost paid on every foreground.
+ */
+const OVERLAP_DAYS = 3;
+/** Even an incremental run re-reads the full window this often. */
+const FULL_RESCAN_MS = 7 * DAY_MS;
+/**
+ * Days read from Health BEFORE the window, then dropped.
+ *
+ * A read from `now − N days` starts mid-day, so the window's first day comes
+ * back partial — and for a `sum` (water, sleep, steps) a partial day is a
+ * smaller number that `valuesToApply` would write over the whole one. At the
+ * 400-day edge nobody saw it; three days back it would corrupt this week. So
+ * the read starts two days early and only days from `sinceKey` on — each read
+ * whole, a night included (it is keyed by its wake day) — are applied.
+ */
+const EDGE_SLACK_DAYS = 2;
+/**
+ * The workout window never shrinks below the iOS heart-rate re-read window
+ * (`HR_READ_WINDOW_MS` in `./health`, 7 days — not imported, because the tests
+ * mock that module wholesale). Within it, every run re-reads a workout's HR,
+ * and that is how HR that syncs after the workout was imported reaches it.
+ */
+const WORKOUT_MIN_WINDOW_DAYS = 7;
+/** An automatic (foreground) run this soon after the last complete one is
+ *  skipped. The store moves on a scale of hours; a user flicking between apps
+ *  foregrounds Ignia dozens of times. Anyone ASKING — pull to refresh, Sync
+ *  now, a connect — is never throttled. Oura's is an hour (`lib/oura.ts`). */
+const AUTO_IMPORT_MIN_GAP_MS = 15 * 60_000;
+/** Nights written at once. Each is a guarded read-then-write
+ *  (`importDailySleep`), so it cannot join the batch the other kinds use. */
+const SLEEP_WRITE_CONCURRENCY = 4;
+
+/** The two halves of the import, each with its own window — `importHealth`
+ *  (Body's refresh) runs the scalar half alone, so one mark cannot serve both. */
+type ImportRoad = 'scalars' | 'workouts';
+const IMPORT_MARK_KEY: Record<ImportRoad, string> = {
+  scalars: 'ignia.health.importMark.scalars.v1',
+  workouts: 'ignia.health.importMark.workouts.v1',
+};
+
+/** When a half last ran to completion, and when it last read the full window.
+ *  Device-local like the connected flag, and keyed to the ACCOUNT and the
+ *  scope set: a second account signing in on this phone, or a grant that now
+ *  covers more types, starts over from a full read. */
+export interface ImportMark {
+  uid: string;
+  scope: number;
+  atMs: number;
+  fullAtMs: number;
+}
+
+async function readImportMark(road: ImportRoad, uid: string): Promise<ImportMark | null> {
+  try {
+    const raw = await AsyncStorage.getItem(IMPORT_MARK_KEY[road]);
+    const m = raw ? (JSON.parse(raw) as Partial<ImportMark>) : null;
+    if (!m || m.uid !== uid || m.scope !== HEALTH_SCOPE_VERSION) return null;
+    if (!Number.isFinite(m.atMs) || !Number.isFinite(m.fullAtMs)) return null;
+    return { uid, scope: HEALTH_SCOPE_VERSION, atMs: Number(m.atMs), fullAtMs: Number(m.fullAtMs) };
+  } catch {
+    return null;
+  }
+}
+
+/** Stamped with the run's START: a sample landing while it ran is then inside
+ *  the next run's window rather than just behind it. */
+async function writeImportMark(road: ImportRoad, uid: string, full: boolean, atMs: number): Promise<void> {
+  const prev = full ? null : await readImportMark(road, uid);
+  const mark: ImportMark = { uid, scope: HEALTH_SCOPE_VERSION, atMs, fullAtMs: full ? atMs : (prev?.fullAtMs ?? 0) };
+  await AsyncStorage.setItem(IMPORT_MARK_KEY[road], JSON.stringify(mark));
+}
+
+async function clearImportMarks(): Promise<void> {
+  await Promise.all(Object.values(IMPORT_MARK_KEY).map((k) => AsyncStorage.removeItem(k)));
+}
+
+/**
+ * How many days a run reads, and whether that is the full window. Pure;
+ * exported for the test.
+ *
+ * Full when asked, when there is no usable mark, when the clock reads earlier
+ * than a mark (a clock moved back cannot be trusted to bound anything), when
+ * the last full read is a week old, or when the incremental window would reach
+ * the full one anyway (a phone left untouched for a year). Otherwise: the days
+ * since the last completed run, rounded up, plus {@link OVERLAP_DAYS}, and
+ * never fewer than `minDays`.
+ */
+export function importWindow(
+  mark: Pick<ImportMark, 'atMs' | 'fullAtMs'> | null,
+  fullDays: number,
+  nowMs: number,
+  opts: { full?: boolean; minDays?: number } = {},
+): { days: number; full: boolean } {
+  if (opts.full || !mark || !(mark.atMs <= nowMs) || !(mark.fullAtMs <= nowMs)) return { days: fullDays, full: true };
+  if (!(nowMs - mark.fullAtMs < FULL_RESCAN_MS)) return { days: fullDays, full: true };
+  const days = Math.max(opts.minDays ?? 0, Math.ceil((nowMs - mark.atMs) / DAY_MS) + OVERLAP_DAYS);
+  return days >= fullDays ? { days: fullDays, full: true } : { days, full: false };
+}
+
+/** True unless BOTH halves completed for this account within
+ *  {@link AUTO_IMPORT_MIN_GAP_MS}. Both, because Body's refresh runs the scalar
+ *  half alone, and a fresh scalar mark must not hold back the workouts. */
+export async function autoImportDue(uid: string, nowMs: number = Date.now()): Promise<boolean> {
+  const [s, w] = await Promise.all([readImportMark('scalars', uid), readImportMark('workouts', uid)]);
+  if (!s || !w) return true;
+  const last = Math.min(s.atMs, w.atMs);
+  return !(last <= nowMs && nowMs - last < AUTO_IMPORT_MIN_GAP_MS);
+}
+
+/** How a run was started. Nothing set = someone asked: never throttled,
+ *  incremental window. */
+export interface ImportOptions {
+  /** The automatic foreground run — throttled ({@link AUTO_IMPORT_MIN_GAP_MS}). */
+  auto?: boolean;
+  /** Read the full window whatever the marks say — *Sync now*. */
+  full?: boolean;
+}
 
 /** Per-kind "already equal" tolerance for `valuesToApply` — unit round-trips
  *  and the ledger's own rounding (½-hour sleep, whole fl oz) aren't exact. */
@@ -140,31 +297,42 @@ const EPSILON: Record<ReadableKind, number> = {
 interface ImportRun {
   boundary: DayBoundary;
   /** `dateKey → epoch ms` of the day's latest sleep sample end. Empty for
-   *  every other kind, which is why the writer signature can stay uniform. */
+   *  every other kind, which is why `writeImportedDays` can take one shape. */
   wokeAt: Record<string, number>;
 }
 
-/** Firestore writer per readable kind (all share the
- *  `(uid, dateKey, value, run)` shape; each clamps/rounds to its own canonical
- *  unit). */
-const WRITER: Record<
-  ReadableKind,
-  (uid: string, dateKey: string, value: number, run: ImportRun) => Promise<void>
-> = {
-  weight: setDailyWeight,
-  // Guarded: an OS-store night must not overwrite one the user typed. Same
-  // rule the Oura importer follows — see `importDailySleep`. The boolean it
-  // returns is unused here because this map's contract returns void.
-  sleep: async (uid: string, dateKey: string, value: number, run: ImportRun) => {
-    await importDailySleep(uid, dateKey, value, {
-      wakeAt: run.wokeAt[dateKey],
-      boundary: run.boundary,
-    });
-  },
-  water: setDailyWater,
-  steps: setDailySteps,
-  activeEnergy: setDailyActiveEnergy,
-};
+/**
+ * Write one import run's changed days of one kind.
+ *
+ * Every kind but sleep is a plain overwrite, so its days go out as
+ * `writeBatch`es (`writeHealthScalars`, 2026-10-21) — one round trip and one
+ * snapshot for Today's listeners, where the import used to await the server
+ * once per day and re-render Today once per write. Each kind clamps/rounds to
+ * its own canonical unit there, exactly as the one-day writers do.
+ *
+ * Sleep is guarded: an OS-store night must not overwrite one the user typed.
+ * Same rule the Oura importer follows — see `importDailySleep`. That guard
+ * reads before it writes, so it cannot join a batch; the nights instead run
+ * {@link SLEEP_WRITE_CONCURRENCY} at a time. Each night is its own document
+ * and its own guard, so their order never mattered. The boolean it returns is
+ * unused, as it always was.
+ */
+async function writeImportedDays(
+  uid: string,
+  kind: ReadableKind,
+  days: Record<string, number>,
+  run: ImportRun,
+): Promise<void> {
+  const entries = Object.entries(days);
+  if (!entries.length) return;
+  if (kind !== 'sleep') {
+    await writeHealthScalars(uid, kind, days);
+    return;
+  }
+  await mapBounded(entries, SLEEP_WRITE_CONCURRENCY, async ([dateKey, value]) => {
+    await importDailySleep(uid, dateKey, value, { wakeAt: run.wokeAt[dateKey], boundary: run.boundary });
+  });
+}
 
 /** Every kind the importer pulls, in the order it pulls them. */
 const IMPORT_KINDS: ReadableKind[] = ['weight', 'sleep', 'water', 'steps', 'activeEnergy'];
@@ -207,6 +375,9 @@ export async function connectHealth(): Promise<boolean> {
     // A (re)connect may have just granted heart rate: read it again for the
     // walks already stored.
     await AsyncStorage.removeItem(HR_BACKFILL_KEY);
+    // …and may have granted any other type, which an incremental run would
+    // only read from today back: the next run reads the full window.
+    await clearImportMarks();
   }
   return ok;
 }
@@ -282,11 +453,19 @@ export function waterToApply(
 }
 
 /** The scalar import itself, WITHOUT the in-flight guard, so {@link importAll}
- *  can hold one guard across both halves instead of two that can interleave. */
-async function importScalars(uid: string): Promise<number> {
+ *  can hold one guard across both halves instead of two that can interleave.
+ *  Reads {@link importWindow}'s days, not always {@link IMPORT_DAYS}. */
+async function importScalars(uid: string, opts: ImportOptions = {}): Promise<number> {
   {
+    const startedAt = Date.now();
+    const window = importWindow(await readImportMark('scalars', uid), IMPORT_DAYS, startedAt, opts);
+    // The first day applied, and the Firestore bound with it. `undefined` on a
+    // full read, which keeps the exact pre-window behaviour: every stored day,
+    // and the whole Health window.
+    const sinceKey = window.full ? undefined : calendarDateKey(new Date(startedAt - window.days * DAY_MS));
+    const readDays = window.full ? IMPORT_DAYS : window.days + EDGE_SLACK_DAYS;
     const [current, boundary] = await Promise.all([
-      getHealthScalarsOnce(uid),
+      getHealthScalarsOnce(uid, sinceKey),
       // One profile read per run, for the sleep guard alone (#80). It falls
       // back to MIDNIGHT on failure, under which the guard is exactly what it
       // was before — so this cannot block an import.
@@ -294,17 +473,22 @@ async function importScalars(uid: string): Promise<number> {
     ]);
     let applied = 0;
     for (const kind of IMPORT_KINDS) {
-      const read = await health.readSamples(kind, IMPORT_DAYS, boundary);
+      const all = await health.readSamples(kind, readDays, boundary);
+      // The slack days are read only so the window's first day is read whole
+      // ({@link EDGE_SLACK_DAYS}); they are not applied, and Firestore was not
+      // read for them. Keys are `YYYY-MM-DD`, so string order is date order.
+      const read = sinceKey ? all.filter((s) => s.dateKey >= sinceKey) : all;
       if (kind === 'water') {
         // Water is a SUM: an override cannot simply drop older samples the
         // way it does for weight, or the later sips alone would overwrite the
         // in-app total. See `waterToApply`.
         const overrides = await readManualOverrides(uid, 'water');
         const { apply, consumedAt } = waterToApply(read, overrides, current.water);
-        for (const [dateKey, value] of Object.entries(apply)) {
-          await setDailyWater(uid, dateKey, value);
-          // Move the day's watermark past what was just added, so the next
-          // run does not add the same samples again.
+        await writeImportedDays(uid, 'water', apply, { boundary, wokeAt: {} });
+        // Move each day's watermark past what was just added, so the next run
+        // does not add the same samples again — only once the write landed,
+        // as before batching: a failed write leaves the samples to add again.
+        for (const dateKey of Object.keys(apply)) {
           if (consumedAt[dateKey] != null) await recordManualOverride(uid, 'water', dateKey, consumedAt[dateKey]);
           applied++;
         }
@@ -326,11 +510,12 @@ async function importScalars(uid: string): Promise<number> {
         wokeAt: kind === 'sleep' ? latestSampleEndByDay(samples) : {},
       };
       const toApply = valuesToApply(reduced, current[kind], EPSILON[kind]);
-      for (const [dateKey, value] of Object.entries(toApply)) {
-        await WRITER[kind](uid, dateKey, value, run);
-        applied++;
-      }
+      await writeImportedDays(uid, kind, toApply, run);
+      applied += Object.keys(toApply).length;
     }
+    // Only a run that got here moves the window: a failure anywhere above
+    // leaves the last good mark, so the next run re-reads from there.
+    await writeImportMark('scalars', uid, window.full, startedAt);
     return applied;
   }
 }
@@ -353,8 +538,20 @@ async function importScalars(uid: string): Promise<number> {
  *
  * Returns the number of sessions written.
  */
-export async function importHealthWorkouts(uid: string): Promise<number> {
+export async function importHealthWorkouts(uid: string, opts: ImportOptions = {}): Promise<number> {
   if (!uid || !(await isHealthConnected())) return 0;
+  // The same incremental window as the scalars (see {@link OVERLAP_DAYS}),
+  // over {@link WORKOUT_IMPORT_DAYS} and never under the HR re-read window.
+  // Re-reading 90 days bought nothing a week's re-scan does not: a workout
+  // deleted in Health was never removed here (the import only adds and
+  // updates by `sourceId`), and a deletion HERE is held by `dismissedSourceIds`
+  // and `healthTombstones` whatever the window. On Android it was 2 aggregate
+  // calls per workout, per foreground.
+  const startedAt = Date.now();
+  const window = importWindow(await readImportMark('workouts', uid), WORKOUT_IMPORT_DAYS, startedAt, {
+    ...opts,
+    minDays: WORKOUT_MIN_WINDOW_DAYS,
+  });
 
   // Heart rate is read for the last week only — except once, after the HR
   // scope is granted (2026-10-20), when it is read for a YEAR so the walks
@@ -368,7 +565,7 @@ export async function importHealthWorkouts(uid: string): Promise<number> {
   // come from a Watch gains anything from granting heart rate.
   const readSawWatch = (list: readonly HealthWorkout[]) =>
     list.some((w) => normalizeProvider(w.sourceBundleId, w.sourceName) === 'apple-watch');
-  const days = backfill ? HR_BACKFILL_DAYS : WORKOUT_IMPORT_DAYS;
+  const days = backfill ? HR_BACKFILL_DAYS : window.days;
   const raw = await health.readWorkouts(days, backfill ? { hrWindowMs: HR_BACKFILL_DAYS * 86_400_000 } : undefined);
   if (readSawWatch(raw)) await AsyncStorage.setItem(SAW_APPLE_WATCH_KEY, '1');
   const written = await writeImportedBlocks(
@@ -377,6 +574,8 @@ export async function importHealthWorkouts(uid: string): Promise<number> {
     backfill ? { storedOnlyBefore: new Date(Date.now() - WORKOUT_IMPORT_DAYS * 86_400_000) } : {},
   );
   if (backfill && raw.length && !(await needsHealthReauth())) await AsyncStorage.setItem(HR_BACKFILL_KEY, '1');
+  // The backfill read a year, which covers the full 90-day window too.
+  await writeImportMark('workouts', uid, backfill || window.full, startedAt);
   return written;
 }
 
@@ -588,6 +787,19 @@ export interface ImportWriteOptions {
   storedOnlyBefore?: Date;
 }
 
+/** Where the session read for `blocks` starts: {@link SESSION_LOOKBEHIND_MS}
+ *  before the oldest block. A block with no start is filed under today (see
+ *  the grouping below), and an unreadable start cannot bound anything, so
+ *  both count as now. Exported for the test. */
+export function sessionsSince(blocks: readonly CardioBlock[], nowMs: number = Date.now()): Date {
+  let oldest = nowMs;
+  for (const b of blocks) {
+    const t = b.startedAt?.getTime();
+    if (t != null && Number.isFinite(t) && t < oldest) oldest = t;
+  }
+  return new Date(oldest - SESSION_LOOKBEHIND_MS);
+}
+
 async function writeImportedBlocksNow(uid: string, blocks: CardioBlock[], opts: ImportWriteOptions = {}): Promise<number> {
 
   // ADR-0030 Q5. These two keys are MATCHED AGAINST EACH OTHER to decide
@@ -595,9 +807,23 @@ async function writeImportedBlocksNow(uid: string, blocks: CardioBlock[], opts: 
   // they move together or not at all — converting one and not the other would
   // stop a 00:30 run finding the session it belongs to and write a duplicate
   // day instead. That coupling is why this was left until the decision existed.
-  const boundary = await getDayBoundaryOnce(uid);
-
-  const sessions = await getRecentSessions(uid, SESSION_SCAN_LIMIT);
+  //
+  // The three reads are independent, so they go out together (2026-10-21).
+  // The session read starts at the oldest incoming block's day: a block is
+  // only ever routed into a session of its own day, so an older session can
+  // change nothing — unbounded, it read the newest 200 sessions, exercises and
+  // all, to place one walk from this morning.
+  //
+  // Account-level deletions (written server-side, `healthTombstones`). A read
+  // that fails imports as before rather than not at all: the per-session
+  // `dismissedSourceIds` still hold, and the server strips a tombstoned block.
+  const [boundary, sessions, tombstones] = await Promise.all([
+    getDayBoundaryOnce(uid),
+    getRecentSessionsSince(uid, sessionsSince(blocks), SESSION_SCAN_LIMIT),
+    Promise.resolve()
+      .then(() => getHealthTombstones(uid))
+      .catch(() => new Set<string>()),
+  ]);
   // Sessions come back newest-first, and each day's list keeps that order.
   const byDay = new Map<string, WorkoutSession[]>();
   for (const s of sessions) {
@@ -621,13 +847,6 @@ async function writeImportedBlocksNow(uid: string, blocks: CardioBlock[], opts: 
     if (list) list.push(b);
     else perDay.set(key, [b]);
   }
-
-  // Account-level deletions (written server-side, `healthTombstones`). A read
-  // that fails imports as before rather than not at all: the per-session
-  // `dismissedSourceIds` still hold, and the server strips a tombstoned block.
-  const tombstones = await Promise.resolve()
-    .then(() => getHealthTombstones(uid))
-    .catch(() => new Set<string>());
 
   let written = 0;
   for (const [dayKey, incoming] of perDay) {
@@ -691,15 +910,21 @@ async function writeImportedBlocksNow(uid: string, blocks: CardioBlock[], opts: 
  * Workouts run second on purpose. The scalar import is the one a user is
  * waiting on (a fresh scale reading on Today), and a slow per-session
  * aggregate on Android must not hold it up.
+ *
+ * `opts.auto` is the foreground hook alone: it is skipped inside
+ * {@link AUTO_IMPORT_MIN_GAP_MS} of the last complete run, and returns 0
+ * without stamping a sync. Every other caller — Today's pull to refresh, Body,
+ * Connected apps, a connect — is a person asking, and is never throttled.
  */
-export async function importAll(uid: string): Promise<number> {
+export async function importAll(uid: string, opts: ImportOptions = {}): Promise<number> {
   // Taken before the first await — see `importHealth`.
   if (importing || !uid) return 0;
   importing = true;
   try {
     if (!(await isHealthConnected())) return 0;
-    const scalars = await importScalars(uid);
-    const workouts = await importHealthWorkouts(uid);
+    if (opts.auto && !(await autoImportDue(uid))) return 0;
+    const scalars = await importScalars(uid, opts);
+    const workouts = await importHealthWorkouts(uid, opts);
     // Recorded only for a run that FINISHED: a locked-device failure halfway
     // through must not stamp "synced just now" on the Connected apps card.
     await recordHealthSync(scalars + workouts);
@@ -998,19 +1223,42 @@ export function useHealthSync(uid: string | undefined) {
     setNeedsReauth(false);
   }, []);
 
+  // `full`: Connected apps' *Sync now* is the one place a user can say
+  // "something old is missing" (a scale's backfill, a type switched on in the
+  // OS settings) — the cases the incremental window defers to the weekly
+  // re-scan. Rare and asked for, so it pays for the whole window, as every
+  // run did before 2026-10-21.
   const syncNow = useCallback(async () => {
     if (!uid) return 0;
     setSyncing(true);
-    return await importAll(uid).finally(() => setSyncing(false));
+    return await importAll(uid, { full: true }).finally(() => setSyncing(false));
   }, [uid]);
 
   return { available, connected, syncing, needsReauth, lastSync, connect, disconnect, syncNow };
 }
 
 /**
- * App-shell auto-import: pull from Health once on mount and whenever the app
- * returns to the foreground (guarded/no-op when disconnected). Mount once high
- * in the authed tree so a fresh scale reading shows up without opening Settings.
+ * App-shell auto-import: pull from Health once after launch and whenever the
+ * app returns to the foreground (guarded/no-op when disconnected). Mount once
+ * high in the authed tree so a fresh scale reading shows up without opening
+ * Settings.
+ *
+ * **It waits its turn (2026-10-21).** It used to start on mount — the same
+ * instant Today opened its listeners — and every foreground, unthrottled, ran
+ * the heaviest work the app does: a Health read of every kind, the Firestore
+ * reads to diff against, and a write per changed day, each of which re-fired
+ * Today's listeners mid-render. Now:
+ *
+ * - the launch run waits {@link LAUNCH_IMPORT_DELAY_MS} and then for an idle
+ *   frame, so Today paints from its own listeners first;
+ * - a foreground run also waits for an idle frame, and is skipped inside
+ *   {@link AUTO_IMPORT_MIN_GAP_MS} of the last complete one (`opts.auto`);
+ * - going to the background cancels a run that has not started yet, for the
+ *   same reason the trigger is "active" only (below).
+ *
+ * The flush of parked body writes is NOT deferred: it is the user's own data
+ * waiting on a socket, it is a no-op when nothing is parked, and it never
+ * touches the health store.
  */
 /**
  * HealthKit refuses every read while the device is locked, and says so with
@@ -1027,27 +1275,78 @@ export function useHealthSync(uid: string | undefined) {
  * through to Sentry, where a real HealthKit fault still belongs.
  */
 
+/** How long after launch the first automatic import waits before it even
+ *  asks for an idle frame: past Today's first paint and its first snapshots. */
+const LAUNCH_IMPORT_DELAY_MS = 3_000;
+
+/**
+ * Run `fn` on an idle frame; returns its cancel. `requestIdleCallback`, not
+ * `InteractionManager.runAfterInteractions` — RN 0.86 deprecates the latter
+ * and warns on first use, naming this as the replacement — with a timeout
+ * where the runtime has none, like `useTrends`'s `idle`.
+ */
+function whenIdle(fn: () => void): () => void {
+  const g = globalThis as {
+    requestIdleCallback?: (cb: () => void) => number;
+    cancelIdleCallback?: (h: number) => void;
+  };
+  if (g.requestIdleCallback && g.cancelIdleCallback) {
+    const h = g.requestIdleCallback(fn);
+    return () => g.cancelIdleCallback?.(h);
+  }
+  const h = setTimeout(fn, 0);
+  return () => clearTimeout(h);
+}
+
 export function useHealthAutoImport(uid: string | undefined): void {
   useEffect(() => {
     if (!uid) return;
-    const run = (): void => {
+    let launch: ReturnType<typeof setTimeout> | undefined;
+    let cancelIdle: (() => void) | undefined;
+    const flush = (): void => {
       // Weigh-ins and measurements parked offline land on the same foreground
       // the import runs on (`pending-body.ts`). Independent of the import —
       // offline the flush waits on the socket, and the import is local.
       flushPendingBody(uid).catch(() => {
         /* Stays parked; the next foreground retries. */
       });
-      importAll(uid).catch((err: unknown) => {
-        if (isExpectedHealthState(err)) return;
-        throw err;
+    };
+    const cancelPending = (): void => {
+      if (launch) clearTimeout(launch);
+      launch = undefined;
+      cancelIdle?.();
+      cancelIdle = undefined;
+    };
+    const importWhenIdle = (): void => {
+      cancelPending();
+      cancelIdle = whenIdle(() => {
+        cancelIdle = undefined;
+        importAll(uid, { auto: true }).catch((err: unknown) => {
+          if (isExpectedHealthState(err)) return;
+          throw err;
+        });
       });
     };
-    run();
+    flush();
+    launch = setTimeout(importWhenIdle, LAUNCH_IMPORT_DELAY_MS);
     const sub = AppState.addEventListener('change', (state) => {
       // Only on the way back IN. A read fired as the app backgrounds is the
-      // one guaranteed to hit a locked store.
-      if (state === 'active') run();
+      // one guaranteed to hit a locked store — which is also why leaving
+      // cancels a run still waiting for its idle frame. `inactive` (Control
+      // Centre, a system alert over the launch) is not leaving.
+      if (state === 'background') {
+        cancelPending();
+        return;
+      }
+      if (state !== 'active') return;
+      flush();
+      // A launch run still counting down covers this foreground; restarting
+      // it here would only pull it back into the first paint.
+      if (!launch) importWhenIdle();
     });
-    return () => sub.remove();
+    return () => {
+      cancelPending();
+      sub.remove();
+    };
   }, [uid]);
 }

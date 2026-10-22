@@ -331,7 +331,8 @@ export default function AppTabsLayout() {
   useTourOnce();
   useWhatsNewOnce();
   // Pull weight/sleep/water from Apple Health / Health Connect on app-open and
-  // every foreground (no-op unless the user connected Health in Settings).
+  // on foreground, throttled to one run per 15 min (no-op unless the user
+  // connected Health in Settings). See `useHealthAutoImport`.
   useHealthAutoImport(user?.uid);
   // Oura imports itself on foreground too — an import you have to ask for is
   // one most people ask for once. Throttled and silent; see the hook.

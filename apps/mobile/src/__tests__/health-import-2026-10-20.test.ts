@@ -38,7 +38,7 @@ const mockStartSession = jest.fn(async (_uid: string, draft: Omit<WorkoutSession
 jest.mock('@/lib/ledger', () => ({
   getDayBoundaryOnce: jest.fn().mockResolvedValue([]),
   getHealthScalarsOnce: jest.fn(async () => ({})),
-  getRecentSessions: jest.fn(async () => mockSessions),
+  getRecentSessionsSince: jest.fn(async () => mockSessions),
   getHealthTombstones: jest.fn(async () => mockTombstones),
   updateSession: (...a: [string, string, Partial<WorkoutSession>]) => mockUpdateSession(...a),
   startSession: (...a: [string, Omit<WorkoutSession, 'id'>]) => mockStartSession(...a),
@@ -184,7 +184,9 @@ describe('past walks get their heart rate — a one-time backfill', () => {
     expect(mockReadWorkouts.mock.calls[0]).toEqual([365, { hrWindowMs: 365 * 86_400_000 }]);
     expect(await AsyncStorage.getItem(HR_BACKFILL_KEY)).toBe('1');
     await importHealthWorkouts('u1');
-    expect(mockReadWorkouts.mock.calls[1]).toEqual([90, undefined]);
+    // Incremental since 2026-10-21: the backfill covered the full window, so
+    // the next run reads only since it — never under the 7-day HR window.
+    expect(mockReadWorkouts.mock.calls[1]).toEqual([7, undefined]);
   });
 
   it('before the reconnect (old scope, no HR granted) the backfill does not count as done', async () => {

@@ -17,7 +17,7 @@ import { font, radius, space, type } from '@/theme';
  * a hand-typed weigh-in and one auto-imported from Apple Health or Health
  * Connect are byte-identical. `goalReached()` in core demands manual
  * provenance, which today's schema simply cannot show — and the guard is not
- * negotiable, because `useHealthAutoImport` re-imports on every foreground and
+ * negotiable, because `useHealthAutoImport` re-imports on foreground (throttled, 15 min) and
  * one stray 158 lb reading has already moved this project's measured
  * maintenance from 2,741 to 1,619 kcal.
  *

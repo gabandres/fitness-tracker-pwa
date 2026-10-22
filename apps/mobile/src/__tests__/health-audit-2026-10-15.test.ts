@@ -64,7 +64,7 @@ const mockStartSession = jest.fn(async (_uid: string, draft: Omit<WorkoutSession
 jest.mock('@/lib/ledger', () => ({
   getDayBoundaryOnce: jest.fn().mockResolvedValue([]),
   getHealthScalarsOnce: () => mockGetScalars(),
-  getRecentSessions: jest.fn(async () => mockSessions),
+  getRecentSessionsSince: jest.fn(async () => mockSessions),
   updateSession: (...a: [string, string, Partial<WorkoutSession>]) => mockUpdateSession(...a),
   startSession: (...a: [string, Omit<WorkoutSession, 'id'>]) => mockStartSession(...a),
   setDailyActiveEnergy: jest.fn(),
@@ -72,6 +72,11 @@ jest.mock('@/lib/ledger', () => ({
   setDailySteps: jest.fn(),
   setDailyWater: (...a: unknown[]) => mockSetDailyWater(...a),
   setDailyWeight: jest.fn(),
+  // The import batches its days (2026-10-21); unrolled here so the water
+  // assertions still read one call per day.
+  writeHealthScalars: async (uid: string, kind: string, days: Record<string, number>) => {
+    if (kind === 'water') for (const [k, v] of Object.entries(days)) await mockSetDailyWater(uid, k, v);
+  },
 }));
 
 import { hkSleepRowsToSamples, sleepDeleteWindow } from '@/lib/health';
@@ -215,7 +220,9 @@ describe('item 3 — in-app water survives another app’s water', () => {
     expect(mockSetDailyWater).toHaveBeenCalledWith('u1', DAY, 72);
     mockCurrent.water = { [DAY]: 72 };
     mockSetDailyWater.mockClear();
-    await importAll('u1');
+    // `full`: an incremental run would skip DAY for being days old, and pass
+    // without ever testing the watermark.
+    await importAll('u1', { full: true });
     expect(mockSetDailyWater).not.toHaveBeenCalled();
   });
 });

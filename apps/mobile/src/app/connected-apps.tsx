@@ -36,6 +36,11 @@ import { Touchable } from '@/components/Touchable';
  */
 const ANDROID_CARDIO_IN_BINARY = Number(Application.nativeBuildVersion ?? 0) >= 38;
 
+/** "Oura connected" in and out — module constants, so a render of this screen
+ *  does not build two new Reanimated builders for an unchanged config. */
+const SUCCESS_ENTER = FadeInUp.duration(320).reduceMotion(ReduceMotion.System);
+const SUCCESS_EXIT = FadeOut.duration(220).reduceMotion(ReduceMotion.System);
+
 /**
  * Connected apps — third-party services that import into Ignia.
  *
@@ -390,8 +395,8 @@ export default function ConnectedAppsScreen() {
 
         {justConnected ? (
           <Animated.View
-            entering={FadeInUp.duration(320).reduceMotion(ReduceMotion.System)}
-            exiting={FadeOut.duration(220).reduceMotion(ReduceMotion.System)}
+            entering={SUCCESS_ENTER}
+            exiting={SUCCESS_EXIT}
             style={styles.success}
             accessibilityRole="alert"
             testID="oura-just-connected"

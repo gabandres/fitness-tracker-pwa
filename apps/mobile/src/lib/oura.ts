@@ -563,8 +563,11 @@ async function autoImportOnce(uid: string): Promise<void> {
     const last = d['lastSyncedAt']?.toDate?.()?.getTime?.() ?? 0;
     if (last && Date.now() - last < AUTO_IMPORT_MIN_GAP_MS) return;
 
-    await importOuraWorkouts(uid);
-    await importOuraDaily(uid);
+    // In parallel: the two callables touch disjoint collections (workout
+    // blocks; sleep/steps/energy), and each is usually a Cloud Functions
+    // cold start of 2–4 s — in sequence a refresh paid two of them back to
+    // back (13 s worst case measured 2026-10-21).
+    await Promise.all([importOuraWorkouts(uid), importOuraDaily(uid)]);
   } catch {
     // Silent by design — see the note on `useOuraAutoImport`.
   }

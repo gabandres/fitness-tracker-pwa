@@ -1228,18 +1228,30 @@ export async function getDayBoundaryOnce(uid: string): Promise<DayBoundary> {
 // so it reads once here. `dateKey → value` in each metric's canonical unit
 // (weight lb, sleep hours, water fl oz, steps count, activeEnergy kcal) — the
 // same units health-mapping uses.
-export async function getHealthScalarsOnce(uid: string): Promise<{
+//
+// `sinceKey` bounds every collection to `dateKey >= sinceKey` (2026-10-21).
+// Unbounded, this was four WHOLE collections on every foreground — a year of
+// weigh-ins, nights, water and activity days, hundreds of documents each, read
+// to diff against a Health read that now covers the last few days. The importer
+// only ever applies days inside its own window (`valuesToApply` walks the
+// IMPORTED keys, never the stored ones), so a stored day outside it can change
+// nothing and is pure cost. `dateKey` IS the doc id, so the bound is a
+// `documentId()` range like `subscribeDailyWaterSince` and needs no index.
+// Omitted = the whole collection, which only the full re-scan asks for.
+export async function getHealthScalarsOnce(uid: string, sinceKey?: string): Promise<{
   weight: Record<string, number>;
   sleep: Record<string, number>;
   water: Record<string, number>;
   steps: Record<string, number>;
   activeEnergy: Record<string, number>;
 }> {
+  const read = (col: ReturnType<typeof weightsCol>) =>
+    getDocs(sinceKey ? query(col, where(documentId(), '>=', sinceKey)) : col);
   const [wSnap, sSnap, waSnap, actSnap] = await Promise.all([
-    getDocs(weightsCol(uid)),
-    getDocs(sleepCol(uid)),
-    getDocs(waterCol(uid)),
-    getDocs(activityCol(uid)),
+    read(weightsCol(uid)),
+    read(sleepCol(uid)),
+    read(waterCol(uid)),
+    read(activityCol(uid)),
   ]);
   const weight: Record<string, number> = {};
   for (const d of wSnap.docs) {
@@ -1269,6 +1281,93 @@ export async function getHealthScalarsOnce(uid: string): Promise<{
     if (k != null) activeEnergy[d.id] = k;
   }
   return { weight, sleep, water, steps, activeEnergy };
+}
+
+/** The import's scalar kinds that are a plain overwrite. Sleep is not one: an
+ *  imported night is guarded per night against a hand-typed one
+ *  (`importDailySleep`), which a blind batch cannot express. */
+export type HealthScalarKind = 'weight' | 'water' | 'steps' | 'activeEnergy';
+
+/** Firestore's ceiling on writes in one batch. */
+const BATCH_MAX_OPS = 500;
+
+/** The ONE-day writer per kind — what a refused batch falls back to. */
+const HEALTH_SCALAR_WRITER: Record<HealthScalarKind, (uid: string, dateKey: string, value: number) => Promise<void>> = {
+  weight: setDailyWeight,
+  water: setDailyWater,
+  steps: setDailySteps,
+  activeEnergy: setDailyActiveEnergy,
+};
+
+/**
+ * Write many imported days of one kind as `writeBatch`es — one round trip and
+ * one snapshot per 500 days, instead of one awaited `setDoc` each (2026-10-21).
+ *
+ * The import wrote day by day, awaiting the server each time, and every write
+ * re-fired Today's listeners: a first import is up to ~400 days per kind, so
+ * the app's first minute was hundreds of serial round trips and as many
+ * re-renders of the screen the user was looking at.
+ *
+ * Each document is BYTE-IDENTICAL to what the one-day writer above writes for
+ * the same value (`setDailyWeight`, `setDailyWater`, `setDailySteps`,
+ * `setDailyActiveEnergy`) — same fields, same clamps, same merge — so the rules
+ * see nothing new. Change one, change the other.
+ *
+ * **A refused batch falls back to the one-day writers, in order, and throws at
+ * the first refusal.** A batch is atomic, so one document the rules reject
+ * (a weigh-in outside `0 < weight < 1000`, a key before 2000 — `setDailyWeight`
+ * does not clamp) would otherwise sink every other day in it, on every run,
+ * forever. Day by day, the days before the bad one land, exactly as they did
+ * before batching, and the run still fails loudly.
+ */
+export async function writeHealthScalars(
+  uid: string,
+  kind: HealthScalarKind,
+  days: Readonly<Record<string, number>>,
+): Promise<void> {
+  const entries = Object.entries(days);
+  for (let i = 0; i < entries.length; i += BATCH_MAX_OPS) {
+    const chunk = entries.slice(i, i + BATCH_MAX_OPS);
+    const batch = writeBatch(db);
+    for (const [dateKey, value] of chunk) {
+      if (kind === 'weight') batch.set(weightDoc(uid, dateKey), { weight: value });
+      else if (kind === 'water') batch.set(waterDoc(uid, dateKey), { flOz: clampWaterFlOz(value) });
+      else if (kind === 'steps') {
+        batch.set(activityDoc(uid, dateKey), { steps: Math.max(0, Math.min(STEPS_MAX, Math.round(value))) }, { merge: true });
+      } else {
+        batch.set(
+          activityDoc(uid, dateKey),
+          { activeKcal: Math.max(0, Math.min(ACTIVE_ENERGY_MAX_KCAL, Math.round(value))) },
+          { merge: true },
+        );
+      }
+    }
+    try {
+      await batch.commit();
+      // A batched weigh-in bypasses `setDailyWeight`, which is what normally
+      // drops the held first/previous weigh-in reads (`getWeightEdges`).
+      if (kind === 'weight') __resetWeightEdges();
+    } catch {
+      for (const [dateKey, value] of chunk) await HEALTH_SCALAR_WRITER[kind](uid, dateKey, value);
+    }
+  }
+}
+
+/**
+ * The most recent `count` sessions dated at or after `since`, newest first —
+ * {@link getRecentSessions} with a lower bound, for the workout import.
+ *
+ * The import only ever routes a block into a session on the block's own day,
+ * so sessions older than its oldest block are never consulted; unbounded it
+ * read the latest 200 sessions — exercises and all — to fold in a walk from
+ * this morning. Same `timestamp` field the unbounded read orders by (it is the
+ * session's `date`), so a range and an order on one field need no new index.
+ */
+export async function getRecentSessionsSince(uid: string, since: Date, count: number): Promise<WorkoutSession[]> {
+  const snap = await getDocs(
+    query(sessionsCol(uid), where('timestamp', '>=', Timestamp.fromDate(since)), orderBy('timestamp', 'desc'), limit(count)),
+  );
+  return snap.docs.map((d) => toSession(d.id, d.data()));
 }
 
 // ─── Fasting ────────────────────────────────────────────────────

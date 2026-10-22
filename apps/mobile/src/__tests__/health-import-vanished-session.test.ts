@@ -28,7 +28,7 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 jest.mock('@/lib/health', () => ({ health: {} }));
 jest.mock('@/lib/ledger', () => ({
   getDayBoundaryOnce: jest.fn().mockResolvedValue([]),
-  getRecentSessions: (...a: unknown[]) => mockGetRecentSessions(...a),
+  getRecentSessionsSince: (...a: unknown[]) => mockGetRecentSessions(...a),
   updateSession: (...a: unknown[]) => mockUpdateSession(...a),
   startSession: (...a: unknown[]) => mockStartSession(...a),
   markExercised: (...a: unknown[]) => mockMarkExercised(...a),

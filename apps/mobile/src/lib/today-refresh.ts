@@ -39,8 +39,11 @@ export async function refreshImports(uid: string | undefined): Promise<void> {
         const d = (await getDoc(doc(db, `users/${uid}/integrations/oura`))).data();
         if (d?.['connected'] !== true) return;
         if (needsOuraScopeUpgrade(typeof d['scope'] === 'string' ? d['scope'] : undefined)) return;
-        await importOuraWorkouts(uid);
-        await importOuraDaily(uid);
+        // In parallel: the two callables touch disjoint collections (workout
+        // blocks; sleep/steps/energy), and each is usually a Cloud Functions
+        // cold start of 2–4 s — in sequence a refresh paid two of them back to
+        // back (13 s worst case measured 2026-10-21).
+        await Promise.all([importOuraWorkouts(uid), importOuraDaily(uid)]);
       } catch {
         // Silent, like the auto-import: an unreachable Oura is reported on
         // the Connected apps screen, not in the middle of someone's day.

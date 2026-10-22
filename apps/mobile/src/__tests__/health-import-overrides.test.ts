@@ -30,7 +30,7 @@ const mockSetDailyWeight = jest.fn().mockResolvedValue(undefined);
 jest.mock('@/lib/ledger', () => ({
   getDayBoundaryOnce: jest.fn().mockResolvedValue([]),
   getHealthScalarsOnce: jest.fn().mockResolvedValue({ weight: {}, sleep: {}, water: {}, steps: {}, activeEnergy: {} }),
-  getRecentSessions: jest.fn().mockResolvedValue([]),
+  getRecentSessionsSince: jest.fn().mockResolvedValue([]),
   updateSession: jest.fn(),
   startSession: jest.fn(),
   markExercised: jest.fn(),
@@ -39,6 +39,10 @@ jest.mock('@/lib/ledger', () => ({
   setDailySteps: jest.fn(),
   setDailyWater: jest.fn(),
   setDailyWeight: (...a: unknown[]) => mockSetDailyWeight(...a),
+  // The import batches its days (2026-10-21); unrolled to one call per day.
+  writeHealthScalars: async (uid: string, kind: string, days: Record<string, number>) => {
+    if (kind === 'weight') for (const [k, v] of Object.entries(days)) await mockSetDailyWeight(uid, k, v);
+  },
 }));
 
 import { forgetHealthWeight, importAll } from '@/lib/health-sync';
@@ -65,7 +69,7 @@ beforeEach(async () => {
 it('without an override, a scale sample for an empty day is imported (the old behaviour)', async () => {
   mockWeightSamples = [scale(1_000)];
   await importAll('u1');
-  expect(mockSetDailyWeight).toHaveBeenCalledWith('u1', DAY, 180, expect.anything());
+  expect(mockSetDailyWeight).toHaveBeenCalledWith('u1', DAY, 180);
 });
 
 it('a weigh-in deleted AFTER the scale wrote it stays deleted', async () => {
@@ -79,7 +83,7 @@ it('a reading taken after the delete still imports — it is newer than the corr
   mockWeightSamples = [scale(1_000, 180), scale(3_000, 179.2)];
   await recordManualOverride('u1', 'weight', DAY, 2_000);
   await importAll('u1');
-  expect(mockSetDailyWeight).toHaveBeenCalledWith('u1', DAY, 179.2, expect.anything());
+  expect(mockSetDailyWeight).toHaveBeenCalledWith('u1', DAY, 179.2);
 });
 
 it('overrides are per account', async () => {

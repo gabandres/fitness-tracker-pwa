@@ -16,6 +16,7 @@ import {
   parseYmd,
   percentToFraction,
 } from '@macrolog/core';
+import { mapBounded } from './map-bounded';
 
 /**
  * Per-frontend native health adapter (Health Sync — shipped; see STATUS.md).
@@ -474,9 +475,11 @@ interface HKWorkoutRow {
 }
 
 /** Heart rate is read only for workouts that ended this recently: it is one
- *  native statistics query per workout, and the import runs on every
- *  foreground over a 90-day window. An older re-read keeps the HR an earlier
- *  read stored (`mergeImportedBlocks`). */
+ *  native statistics query per workout, and the weekly full re-scan reads a
+ *  90-day window. An older re-read keeps the HR an earlier read stored
+ *  (`mergeImportedBlocks`). The incremental import never reads FEWER days
+ *  than this window (`WORKOUT_MIN_WINDOW_DAYS` in `health-sync.ts`), so HR
+ *  that syncs late still reaches a workout imported before it arrived. */
 export const HR_READ_WINDOW_MS = 7 * 86_400_000;
 
 /** `HKIndoorWorkout` as true / false, or undefined when the recorder did not
@@ -948,6 +951,11 @@ function exerciseTypeNames(mod: Record<string, unknown>): Record<number, string>
  *  otherwise pay for one per session to learn that. */
 const HC_DISTANCE_MODALITIES = new Set(['run', 'walk', 'ride', 'hike', 'row', 'swim']);
 
+/** Sessions whose aggregates are read at once. Bounded rather than all at
+ *  once: a first import can hold a hundred sessions, and Health Connect
+ *  rate-limits per app — the call COUNT is unchanged, only how many wait. */
+const HC_TOTALS_CONCURRENCY = 4;
+
 /**
  * Aggregate one session's distance and active energy.
  *
@@ -1354,17 +1362,23 @@ const healthConnect: HealthPort = {
       // table, so invert it once per read.
       const names = exerciseTypeNames(HC as unknown as Record<string, unknown>);
 
-      const out: HealthWorkout[] = [];
-      for (const r of records) {
+      const valid = records.filter(
+        (r) => new Date(r.endTime ?? 0).getTime() > new Date(r.startTime ?? 0).getTime(),
+      );
+      // Up to HC_TOTALS_CONCURRENCY sessions' aggregates in flight at once
+      // (2026-10-21). One at a time, a first import over 90 days of walks was
+      // 2 × N sequential bridge round trips before a single block was
+      // written. Each session's totals are independent of every other's, and
+      // `mapBounded` keeps the records' order, so nothing downstream can tell.
+      return await mapBounded(valid, HC_TOTALS_CONCURRENCY, async (r): Promise<HealthWorkout> => {
         const startMs = new Date(r.startTime ?? 0).getTime();
         const endMs = new Date(r.endTime ?? 0).getTime();
-        if (!(endMs > startMs)) continue;
         const typeName =
           typeof r.exerciseType === 'number'
             ? (names[r.exerciseType] ?? String(r.exerciseType))
             : String(r.exerciseType ?? '');
         const origin = r.metadata?.dataOrigin;
-        out.push({
+        return {
           id: String(r.metadata?.id ?? `${startMs}-${endMs}`),
           activityType: typeName,
           startMs,
@@ -1378,9 +1392,8 @@ const healthConnect: HealthPort = {
           sourceBundleId: origin,
           sourceName: r.title,
           fromUs: origin === APP_ID,
-        });
-      }
-      return out;
+        };
+      });
     } catch {
       return [];
     }
