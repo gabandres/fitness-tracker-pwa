@@ -206,3 +206,12 @@ it('offers added load on a bodyweight lift', async () => {
   await fireEvent.press(r.getByTestId('lift-save'));
   await waitFor(() => expect(onSave).toHaveBeenCalledWith({ loadable: true, microplates: true, effortStandard: 'rir1' }));
 });
+
+it('offers 2 reps in reserve (Program v2.2) and saves rir2', async () => {
+  const { ui, onSave } = renderSheet(lift({ name: 'DB Romanian deadlift' }));
+  const r = await ui;
+  expect(r.getByTestId('lift-effort-rir2')).toHaveTextContent('2 reps in reserve');
+  await fireEvent.press(r.getByTestId('lift-effort-rir2'));
+  await fireEvent.press(r.getByTestId('lift-save'));
+  await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ effortStandard: 'rir2' })));
+});

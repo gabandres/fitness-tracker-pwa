@@ -243,7 +243,34 @@ export interface WeeklyVolumeReport {
 }
 
 type SessionLike = Pick<WorkoutSession, 'id' | 'status' | 'date' | 'exercises'>;
-type UnitCount = (ex: SessionLike['exercises'][number]) => number;
+type UnitCount = (ex: SessionLike['exercises'][number], session: SessionLike['exercises']) => number;
+
+/**
+ * Cluster-view units for one lift: its clusters — or, for a lift with NO
+ * activation sets inside a session or template that DOES have clusters, its
+ * working sets, one each (owner, Program v2.2, 2026-10-22: the DB Romanian
+ * deadlift returns as 2 straight sets on a cluster-based Leg Day, and "1 set =
+ * 1 set" in the volume count).
+ *
+ * The mixed condition is what keeps ADR-0046's two views apart for everyone
+ * else: a straight-sets-only session (or a program with no clusters at all)
+ * counts 0 clusters exactly as before, so a straight-set lifter's Clusters face
+ * stays empty and the Sets face stays theirs. Only a cluster program that
+ * carries a straight lift gets that lift into its cluster totals — without it,
+ * the RDL's hamstring and glute work was invisible on the face that program
+ * opens on.
+ */
+export function clusterViewUnits(
+  sets: Parameters<typeof clusterCount>[0],
+  siblings: readonly Parameters<typeof clusterCount>[0][],
+  performedOnly = true,
+  logStyle: LogStyle = DEFAULT_LOG_STYLE,
+): number {
+  const clusters = clusterCount(sets, performedOnly);
+  if (clusters > 0) return clusters;
+  const mixed = siblings.some((s) => clusterCount(s, performedOnly) > 0);
+  return mixed ? hardSetCount(sets as Parameters<typeof hardSetCount>[0], logStyle, performedOnly) : 0;
+}
 
 /**
  * The one tally both views run through, so they share the window (COMPLETED
@@ -267,7 +294,7 @@ function tallyBetween(
     if (s.status !== 'completed' || s.date.getTime() < fromMs || s.date.getTime() > toMs) continue;
     const one = new Map<VolumeMuscle, MuscleVolume>();
     for (const ex of s.exercises) {
-      const n = unitsOf(ex);
+      const n = unitsOf(ex, s.exercises);
       if (n === 0) continue;
       total += n;
       const credits = creditsFor(ex.name, muscles.get(ex.exerciseId));
@@ -304,7 +331,9 @@ export function volumeBetween(
   fromMs: number,
   toMs: number,
 ): WeeklyVolumeReport {
-  return tallyBetween(sessions, catalog, fromMs, toMs, (ex) => clusterCount(ex.sets));
+  return tallyBetween(sessions, catalog, fromMs, toMs, (ex, all) =>
+    clusterViewUnits(ex.sets, all.map((x) => x.sets), true, ex.logStyle),
+  );
 }
 
 /** {@link volumeBetween} over the 7 days up to `now`. */
@@ -381,13 +410,13 @@ type TemplateLike = Pick<WorkoutTemplate, 'exercises'>;
 function plannedTally(
   templates: readonly TemplateLike[],
   catalog: CatalogMuscles,
-  unitsOf: (row: TemplateLike['exercises'][number]) => number,
+  unitsOf: (row: TemplateLike['exercises'][number], rows: TemplateLike['exercises']) => number,
 ): MuscleVolume[] {
   const muscles = new Map(catalog.flatMap((e) => (e.id ? [[e.id, e.muscles] as const] : [])));
   const out = new Map<VolumeMuscle, MuscleVolume>(VOLUME_MUSCLES.map((m) => [m, { muscle: m, direct: 0, fractional: 0 }]));
   for (const t of templates) {
     for (const row of t.exercises) {
-      const n = unitsOf(row);
+      const n = unitsOf(row, t.exercises);
       if (n) add(out, creditsFor(row.name, muscles.get(row.exerciseId)), n);
     }
   }
@@ -397,7 +426,9 @@ function plannedTally(
 /** The same credits from a set of TEMPLATES, each performed once a week —
  *  what the program plans, to set beside what was logged. */
 export function plannedVolume(templates: readonly TemplateLike[], catalog: CatalogMuscles): MuscleVolume[] {
-  return plannedTally(templates, catalog, (row) => clusterCount(row.plannedSets, false));
+  return plannedTally(templates, catalog, (row, rows) =>
+    clusterViewUnits(row.plannedSets, rows.map((r) => r.plannedSets), false),
+  );
 }
 
 /** {@link plannedVolume} in hard sets: every planned working set. */
@@ -412,13 +443,18 @@ export type VolumeView = 'sets' | 'clusters';
  * owner 2026-10-12): Clusters for someone who performed a myo-rep cluster in
  * the window, Sets otherwise. When the window holds NO logged work at all,
  * the plan decides (a Program v2 lifter on a Monday has logged nothing yet
- * and would otherwise open on an empty Sets face): Clusters only when it
- * plans clusters and no working sets.
+ * and would otherwise open on an empty Sets face): Clusters when it plans at
+ * least as many REAL clusters as working sets. Since Program v2.2 a straight
+ * lift inside a cluster template counts in both planned figures
+ * ({@link clusterViewUnits}), so the real clusters are `plannedClusters −
+ * plannedSets` at most. Was "clusters and NO working sets" until 2026-10-22:
+ * one straight-set RDL on a cluster Leg Day would have flipped that lifter onto
+ * a Sets face holding only the RDL.
  */
 export function defaultVolumeView(week: { clusters: number; sets: number; plannedClusters: number; plannedSets: number }): VolumeView {
   if (week.clusters > 0) return 'clusters';
   if (week.sets > 0) return 'sets';
-  return week.plannedClusters > 0 && week.plannedSets === 0 ? 'clusters' : 'sets';
+  return week.plannedClusters > 0 && week.plannedClusters - week.plannedSets >= week.plannedSets ? 'clusters' : 'sets';
 }
 
 /** The muscle a cluster of `name` credits 1.0 — the "same muscle" the

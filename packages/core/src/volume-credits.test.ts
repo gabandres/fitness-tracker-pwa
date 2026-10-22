@@ -227,7 +227,10 @@ describe('plannedHardSets — the templates, once a week', () => {
     expect(rows.sideDelt).toBe(0);
     const clusters = Object.fromEntries(plannedVolume([tpl], []).map((m) => [m.muscle, m.fractional]));
     expect(clusters.sideDelt).toBe(1);
-    expect(clusters.chest).toBe(0);
+    // A straight lift INSIDE a cluster template counts 1 : 1 in the cluster
+    // view since Program v2.2 (`clusterViewUnits`); it was 0 until 2026-10-22.
+    // A straight-only template still counts none (program-v2-2.test.ts).
+    expect(clusters.chest).toBe(3);
   });
 });
 

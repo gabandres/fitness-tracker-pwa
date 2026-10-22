@@ -99,6 +99,11 @@ export interface SetRowProps {
   /** The card shows an RIR column (`liftUsesRir`). Off: no RIR cell and no
    *  spacer — the number fields take the room; the set sheet still logs RIR. */
   rirColumn: boolean;
+  /** The RIR this lift's read sets are meant to stop at (1 for `rir1`, 2 for
+   *  `rir2`; core `targetRirOf`). Above 0, a ticked activation / working set
+   *  logged UNDER it shows "Logged RIR 0, target 1" — the RIR-compliance hint
+   *  (Program v2.2). 0 or absent: no hint (failure lifts, a deload week). */
+  targetRir?: number;
   /** Best estimated-1RM on record for this lift, for the "PR" badge. */
   best?: number;
   /** Large text (font scale ≥ 1.5): PREVIOUS moves to its own line. */
@@ -133,6 +138,7 @@ export const SetRow = memo(function SetRow({
   exerciseTargetReps,
   isLastSet,
   rirColumn,
+  targetRir = 0,
   best,
   largeText,
   dispatch,
@@ -227,6 +233,10 @@ export const SetRow = memo(function SetRow({
   // rather than refusing the lift (2026-10-13), so this only asks: it never
   // blocks the tick, the rest timer or Finish.
   const rirMissing = rirColumn && !!set.done && set.rir == null
+    && (set.kind === 'working' || set.kind === 'activation');
+  // Logged closer to failure than the lift's target (Program v2.2). A note,
+  // never a gate: the set stays ticked and the engine reads it as logged.
+  const rirBelow = !!set.done && set.rir != null && targetRir > 0 && set.rir < targetRir
     && (set.kind === 'working' || set.kind === 'activation');
   const hasWeight = logStyle === 'weight-reps';
   // A ticked set that beats every prior session — derived, not stored, so an
@@ -698,6 +708,16 @@ export const SetRow = memo(function SetRow({
         >
           <Text style={styles.setRirMissing}>{t('train.rirMissingPrompt')}</Text>
         </TouchableOpacity>
+      ) : null}
+
+      {rirBelow ? (
+        <Text
+          style={styles.setRirMissing}
+          accessibilityLiveRegion="polite"
+          testID={`set-rir-below-${exerciseIndex}-${setIndex}`}
+        >
+          {t('train.rirBelowTarget', { logged: set.rir as number, target: targetRir })}
+        </Text>
       ) : null}
 
       {/* ± steppers for the field that has the keyboard — 2.5 lb / 1.25 kg,

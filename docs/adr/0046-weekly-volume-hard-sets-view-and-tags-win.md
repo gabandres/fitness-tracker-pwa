@@ -81,3 +81,22 @@ chip that the count then ignored (S23-12). And the sheet named muscles
   lift with two covering tags is compound now. Estimates only.
 - The weekly cluster audit (`weekly-cluster-audit.ts`, `muscles[0]`) and its
   2–6 range are untouched; it already counted the user's primary.
+
+## Amendment — 2026-10-22 (Program v2.2): a straight lift inside a cluster program
+
+"The two views never mix" had a hole the owner's v2.2 found: a cluster
+programme that carries ONE straight-set lift (the DB RDL, 2 × 8-12) showed that
+lift on neither face it opens on — 0 clusters, and the Sets face holds only it.
+The owner's rule is "1 set = 1 set".
+
+`clusterViewUnits` (`volume-credits.ts`): a lift with NO activation sets, in a
+session or template that DOES have clusters, counts its working sets one each
+in the cluster view. Everywhere else the views stay apart exactly as decided
+above — a straight-only session or programme still counts 0 clusters, so a
+straight-set lifter's faces are unchanged. The Sets view is not touched.
+
+`defaultVolumeView`'s empty-window rule moved with it, from "clusters and no
+working sets" to "real clusters (`plannedClusters − plannedSets`, since the
+straight sets now sit in both) at least the working sets" — otherwise that one
+RDL flips the owner onto the Sets face. Pinned in `program-v2-2.test.ts` and
+`volume-credits.test.ts`.

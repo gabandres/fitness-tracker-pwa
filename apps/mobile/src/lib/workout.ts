@@ -76,7 +76,7 @@ export interface Exercise {
   availableLoads?: number[];
   /** The logged weight is ASSISTANCE; progress is less of it. */
   assisted?: boolean;
-  /** `failure` (default) or `rir1` — see `EffortStandard` in core (ADR-0039). */
+  /** `failure` (default), `rir1` or `rir2` — see `EffortStandard` in core (ADR-0039). */
   effortStandard?: EffortStandard;
   /** Default structure for this lift (ADR-0040); a template's own wins. */
   setStructure?: SetStructure;

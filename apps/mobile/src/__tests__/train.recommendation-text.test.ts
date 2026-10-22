@@ -118,12 +118,11 @@ describe('recommendation text — the rep-range rules on real engine output', ()
     expect(out.warnings).toEqual(['Load changed mid-cluster — read from the activation set.']);
   });
 
-  it('at the rep cap with the step still too big: the techniques, in order', () => {
+  it('at the rep cap with the step still too big, the ≥ 15 flag takes the step (Program v2.2; was tempo, microplates, a cluster)', () => {
     const r = rec([ex(cluster(1, 100, 17))], { ...PRESS, availableLoads: [100, 150], microplates: true }, { volumeAllowsCluster: true });
     const out = text(r);
-    expect(out.reason).toBe('17 reps — at the 17-rep cap, and 150 lb (+50%) still predicts only 1.');
-    expect(out.target).toBeNull();
-    expect(out.notes).toContain('Try instead: a 3 s eccentric or a pause rep · microplates · one more cluster.');
+    expect(out.headline).toBe('150 lb · INCREASE');
+    expect(out.reason).toBe('17 reps at the target effort — at 15+ the load goes up. Next step 150 lb, +50% (expect about 1).');
   });
 
   it('under the range after an increase: DROP BACK to the previous load and build', () => {
@@ -182,9 +181,9 @@ describe('recommendation text — the rep-range rules on real engine output', ()
     expect(out.notes).toContain('Stack steps not entered — assuming +5 lb.');
   });
 
-  it('a rir1 lift taken to failure carries the soft warning', () => {
+  it('a rir1 lift taken to failure carries the soft warning, with both numbers (Program v2.2)', () => {
     const out = text(rec([ex(cluster(1, 80, 10, 0))], { ...PRESS, effortStandard: 'rir1' }));
-    expect(out.warnings).toEqual(['Logged at failure. This lift is set to leave 1 rep in reserve.']);
+    expect(out.warnings).toEqual(['Logged RIR 0, target 1. The read stands.']);
   });
 
   it('a stall: STALLED, the three checks as flagged / ok / no data, and the swap at five', () => {
@@ -220,6 +219,26 @@ describe('recommendation text — the rep-range rules on real engine output', ()
   });
 });
 
+describe('Program v2.2 — rir2, the ≥ 15 flag and the RIR-compliance warning', () => {
+  const ROW: EngineCatalogFields = { name: 'Seated Machine Row', category: 'compound', effortStandard: 'rir1', availableLoads: [100, 110, 140] };
+
+  it('a rir1 lift logged at RIR 0 is warned with both numbers', () => {
+    const out = text(rec([ex(cluster(1, 110, 10, 0))], ROW));
+    expect(out.warnings).toContain('Logged RIR 0, target 1. The read stands.');
+  });
+
+  it('a rir2 lift states its target at RIR 2', () => {
+    const r = rec([ex(cluster(1, 100, 9, 2))], { ...ROW, effortStandard: 'rir2' });
+    expect(text(r).target).toMatch(/@ RIR 2$/);
+  });
+
+  it('15 @ RIR 1 on a big step: the flag\'s sentence names the reps and the step', () => {
+    const out = text(rec([ex(cluster(1, 110, 15, 1))], ROW));
+    expect(out.headline).toBe('140 lb · INCREASE');
+    expect(out.reason).toBe('15 reps at the target effort — at 15+ the load goes up. Next step 140 lb, +27% (expect about 5).');
+  });
+});
+
 describe('every reason kind has a sentence', () => {
   // A Record over the union: a new reason kind without an entry here is a
   // compile error, and its sentence is then asserted to exist in every locale.
@@ -235,6 +254,7 @@ describe('every reason kind has a sentence', () => {
     invalid: { kind: 'invalid', reason: 'first-mini-too-many', firstMini: 9 },
     'jump-too-big': { kind: 'jump-too-big', nextLoad: 20, jumpPct: 1, repsGoal: 8 },
     increase: { kind: 'increase', reps: 12, max: 12, nextLoad: 105, jumpPct: 0.05, predictedReps: 10 },
+    'rep-flag': { kind: 'rep-flag', reps: 15, at: 15, nextLoad: 20, jumpPct: 0.33, predictedReps: 3 },
     'below-max': { kind: 'below-max', reps: 10, max: 12, clusters: 1 },
     'step-too-big': { kind: 'step-too-big', reps: 12, nextLoad: 120, jumpPct: 0.2, predictedReps: 5, min: 6, cap: 17, repsForStep: 14 },
     'no-next-step': { kind: 'no-next-step', reps: 12, cap: 17 },

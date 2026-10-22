@@ -534,6 +534,8 @@ describe('buildCsv — Program v2 columns (test 10)', () => {
     // 2026-10-20 (item 8): which window a volume row covers, and the
     // sessions a 'rotationVolume' row counts.
     'volumeWindow', 'rotationSessions',
+    // 2026-10-22 (Program v2.2): the RIR a read set was meant to stop at.
+    'rirTarget',
   ];
   const csv = buildCsv(HISTORICAL);
   const lines = csv.split('\r\n');

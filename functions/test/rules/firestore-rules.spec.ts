@@ -1443,6 +1443,12 @@ describe('firestore.rules', () => {
         name: 'Seated Cable Row', effortStandard: 'failure', createdAt: Timestamp.now(),
       }),
     );
+    // Program v2.2 (2026-10-22): two reps in reserve.
+    await assertSucceeds(
+      addDoc(collection(db, 'users', 'alice', 'exercises'), {
+        name: 'DB Romanian deadlift', effortStandard: 'rir2', setStructure: 'straight', createdAt: Timestamp.now(),
+      }),
+    );
     // repBandFrom(1): every edge collapses to 1 and the order still holds.
     await assertSucceeds(
       addDoc(collection(db, 'users', 'alice', 'exercises'), {
@@ -1456,7 +1462,8 @@ describe('firestore.rules', () => {
     await setDoc(doc(db, 'users', 'alice'), baseProfile());
     const bad = (extra: Record<string, unknown>) =>
       assertFails(addDoc(collection(db, 'users', 'alice', 'exercises'), { name: 'X', createdAt: Timestamp.now(), ...extra }));
-    await bad({ effortStandard: 'rir2' });
+    await bad({ effortStandard: 'rir3' });
+    await bad({ effortStandard: 2 });
     await bad({ targetRepBand: 12 });
     await bad({ targetRepBand: { addLoadAt: 12 } });
     await bad({ targetRepBand: { addLoadAt: 12, holdLo: 10, holdHi: 11, extra: 1 } });
@@ -1844,6 +1851,24 @@ describe('firestore.rules', () => {
     const db = authed('alice');
     await setDoc(doc(db, 'users', 'alice'), baseProfile());
     await assertFails(setDoc(doc(db, 'users', 'alice', 'workoutTemplates', 't1'), tplDoc('x'.repeat(10001))));
+  });
+
+  // ── templateVersion (Program v2.2, 2026-10-22) ──
+  // Written by the admin SDK; it must not make the CLIENT's next save fail.
+  it('accepts a template carrying templateVersion, and a client merge-save over it', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    const ref = doc(db, 'users', 'alice', 'workoutTemplates', 't1');
+    await assertSucceeds(setDoc(ref, { ...tplDoc('n'), templateVersion: 'v2.2' }));
+    await assertSucceeds(setDoc(ref, { name: 'Leg Day', exercises: [], updatedAt: new Date() }, { merge: true }));
+  });
+  it('rejects a templateVersion that is not a short string', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    const ref = doc(db, 'users', 'alice', 'workoutTemplates', 't1');
+    await assertFails(setDoc(ref, { ...tplDoc('n'), templateVersion: 2.2 }));
+    await assertFails(setDoc(ref, { ...tplDoc('n'), templateVersion: '' }));
+    await assertFails(setDoc(ref, { ...tplDoc('n'), templateVersion: 'v'.repeat(17) }));
   });
 
   // ── templateDrafts (2026-10-11): superset drafts ──
