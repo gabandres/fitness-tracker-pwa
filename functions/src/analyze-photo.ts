@@ -551,6 +551,61 @@ function walkSchema(node: unknown): unknown {
   return out;
 }
 
+/**
+ * A warm-up call: `{ warmup: true }`, sent fire-and-forget by the scan screen
+ * the moment it opens, while the user is still framing the plate.
+ *
+ * **Why.** A cold request is ~7.4 s median against ~3.4 s warm (the
+ * `minInstances` note below), and `minInstances` is refused on cost. The scan
+ * screen is open for several seconds before any photo is sent — the viewfinder,
+ * the framing, the shutter, the encode — so a request that merely STARTS an
+ * instance then moves most of the cold-start tax off the user's wait for free:
+ * Cloud Run routes the real call to the idle instance the warm-up left behind.
+ *
+ * **What it does:** boots the instance (module load, i.e. `lib/index.js`) and
+ * pre-pays the two lazy loads the real call would otherwise pay inline — the
+ * USDA index (`loadFoods`) and the Gemini SDK (`getGeminiClient`). Both are
+ * memoized per instance, so the scan that follows finds them ready.
+ *
+ * **What it does NOT do, and that is the safety argument:** it returns BEFORE
+ * `resolveCaller`, so there is no rate-limit transaction, no tier read, no
+ * `spendCeiling.check`/`record`, no quota reserve, no model call and no
+ * `aiUsage` row. Nothing is recorded because nothing is spent: a warm-up costs
+ * one invocation of a few milliseconds, against Cloud Run's 2M/month free
+ * invocations. It still requires a signed-in caller, so it is not an open
+ * endpoint; spamming it can at most hold `maxInstances` (10) instances warm,
+ * which is bounded and free at gen2's request-time billing.
+ *
+ * Skipping the rate limit is deliberate, not an omission: the limit's doc is
+ * written per call, so a warm-up recorded there would make the user's REAL
+ * scan, seconds later, fail with `PHOTO_RATE_LIMITED`. **Deploy order follows
+ * from that:** a server WITHOUT this branch reads `{ warmup: true }` as a scan
+ * — it writes the rate-limit doc, then rejects for a missing photo — so this
+ * function must be deployed before any client that sends warm-ups. Old clients
+ * never send one; for them nothing changes.
+ */
+export function isWarmupRequest(data: unknown): boolean {
+  return !!data && typeof data === "object" && (data as { warmup?: unknown }).warmup === true;
+}
+
+/** The warm-up's work: the per-instance lazy loads, never anything billed.
+ *  Failures are swallowed — a warm-up that cannot prepare simply leaves the
+ *  real call to pay as before, and must never surface an error of its own. */
+function prepareInstance(): void {
+  try {
+    loadFoods();
+  } catch (err) {
+    console.warn("analyzePhoto warmup: loadFoods failed", err);
+  }
+  if (PHOTO_PROVIDER === "gemini") {
+    try {
+      getGeminiClient();
+    } catch (err) {
+      console.warn("analyzePhoto warmup: Gemini client init failed", err);
+    }
+  }
+}
+
 export const analyzePhoto = onCall(
   // Only the ACTIVE provider's secret is declared. This used to bind both, so
   // that flipping PHOTO_PROVIDER was a one-word change — a genuinely nice
@@ -595,6 +650,17 @@ export const analyzePhoto = onCall(
   // file. Do not re-derive these numbers by intuition; re-read the logs.
   { secrets: [geminiApiKey], maxInstances: 10, memory: "512MiB" },
   async (request) => {
+    // The warm-up (see `isWarmupRequest`): FIRST, before the rate limit and
+    // every cost guard, so it records nothing — but never for an anonymous
+    // caller.
+    if (isWarmupRequest(request.data)) {
+      if (!request.auth) {
+        throw new HttpsError("unauthenticated", "Must be signed in.", { code: ErrorCode.UNAUTHENTICATED });
+      }
+      prepareInstance();
+      return { warm: true as const };
+    }
+
     // Auth + rate limit (BEFORE the quota reserve, so a throttled call
     // doesn't consume a slot) + tier, all in one preamble.
     const caller = await callerAccess.resolveCaller(request, {

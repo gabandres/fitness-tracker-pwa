@@ -1,6 +1,26 @@
 import { onRequest } from "firebase-functions/v2/https";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
-import { Resvg } from "@resvg/resvg-js";
+// Type-only: tsc erases it, so the native addon is NOT loaded at module scope.
+import type * as ResvgModule from "@resvg/resvg-js";
+
+/**
+ * `@resvg/resvg-js`, required on first render rather than imported.
+ *
+ * It is a ~3.4 MB native addon, and `lib/index.js` evaluates every exported
+ * function's module on every cold start of EVERY function in this codebase —
+ * so a top-level import made `analyzePhoto`, `searchFoods` and the rest load
+ * and link a PNG renderer they never call, on the cold start a user is
+ * waiting through. Lazy, it is paid once per instance by this function alone,
+ * the same pattern as `gemini-client.ts` and `resend-client.ts`.
+ */
+let resvg: typeof ResvgModule | null = null;
+function loadResvg(): typeof ResvgModule {
+  if (!resvg) {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    resvg = require("@resvg/resvg-js") as typeof ResvgModule;
+  }
+  return resvg;
+}
 
 // ─── Open Graph image renderer for `/u/<slug>` ─────────────────
 //
@@ -204,6 +224,9 @@ export const ogImagePublicProfile = onRequest(
     });
 
     try {
+      // Inside the `try`: an addon that fails to load is a render error (500),
+      // as a failed render already was.
+      const { Resvg } = loadResvg();
       const png = new Resvg(svg, {
         fitTo: { mode: "width", value: 1200 },
         font: { loadSystemFonts: true },
