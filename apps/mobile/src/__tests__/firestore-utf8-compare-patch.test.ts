@@ -81,6 +81,18 @@ describe('the Firestore UTF-8 comparator patch', () => {
     expect(src).toContain('function __PRIVATE_compareUtf8StringsLoop(');
   });
 
+  it('short-circuits equal path segments before any other work (ADR-0016 amendment 4)', () => {
+    // Equal segments compare 0 on both of compareSegments' branches (numeric
+    // ids and strings), so returning early changes no order — it only skips
+    // the work for the 'users' / uid / collection prefix every key shares.
+    const start = src.indexOf('static compareSegments(');
+    expect(start).toBeGreaterThan(-1);
+    const body = src.slice(start, src.indexOf('}', src.indexOf('return', start)));
+    const early = body.indexOf('if (e === t) return 0;');
+    expect(early).toBeGreaterThan(-1);
+    expect(early).toBeLessThan(body.indexOf('isNumericId'));
+  });
+
   it('orders strings exactly as their UTF-8 bytes do', () => {
     const compare = loadComparator(src);
     const next = rng(42);
