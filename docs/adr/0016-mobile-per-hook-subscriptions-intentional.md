@@ -223,3 +223,36 @@ is shown. A save with every tab mounted was measured above at 96–109 ms,
 against 390–531 ms under the old gating, which re-opened Today on the sheet's
 close. The per-hook model itself is unchanged: each hook still opens and owns
 its own channels, and nothing is shared.
+
+## Amendment 3 — 2026-10-22: measured on the owner's data; the SDK's string comparator
+
+Amendment 2's numbers came from the QA account (79 days). The owner's account
+was then copied into a synthetic test account (`perf-test@ignia.fit`, 1,772
+documents, everything but `reports`, with no push token, webhook key or
+public-profile fields) and the same Release-build harness re-run. Before →
+after, still on a Mac simulator:
+
+| Owner's data | before (focus gate) | amendment 2 | + comparator patch |
+|---|---|---|---|
+| Revisit Today / Trends / Body / Train | ~590 / ~885 / ~605 / ~180 ms | 24 / ~117 / ~115 / 83 ms | ~12 / ~58 / ~105 / ~50 ms |
+| First visit after cold start, Trends / Body | ~1,150 / ~900 ms | same | ~630 / ~480 ms |
+| Saving an entry | ~1,100 ms | ~215 ms | ~130 ms |
+
+The first-visit stall was not React and not the `subscribe*` callbacks (each
+measured ≤ 30 ms). It was inside the Firestore SDK, processing the server's
+first answer for queries new to the session: a Time Profiler trace showed the
+JS thread pegged in interpreted code under async microtasks, with `Map.forEach`,
+`Array.sort` and per-character `charAt` work, and Hermes counted ~70 MB
+allocated in that 2.5 s window (GC itself was 20 ms). The SDK compares every
+document key through `__PRIVATE_compareUtf8Strings`, a `charAt` loop; keys here
+share a ~45-character prefix (`users/<uid>/<collection>/`). Patching in a fast
+path, the engine's native comparison for strings with no surrogate code units,
+where UTF-16 order provably equals UTF-8 byte order, halved first visits.
+firebase 12.19 / `@firebase/firestore` 4.17.2, the newest release, still has
+the loop, so it is carried as `patches/@firebase+firestore+<version>.patch`
+(`patch-package`, root `postinstall`), and
+`firestore-utf8-compare-patch.test.ts` fails if an upgrade drops it or if its
+order ever differs from UTF-8 bytes or from the original loop.
+
+What is left on a first visit (~0.5 s at Mac speed) is the rest of the SDK's
+processing of those first answers.

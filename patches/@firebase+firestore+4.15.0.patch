@@ -1,0 +1,26 @@
+diff --git a/node_modules/@firebase/firestore/dist/common-768c0351.rn.js b/node_modules/@firebase/firestore/dist/common-768c0351.rn.js
+index 284a395..5c7a44e 100644
+--- a/node_modules/@firebase/firestore/dist/common-768c0351.rn.js
++++ b/node_modules/@firebase/firestore/dist/common-768c0351.rn.js
+@@ -732,7 +732,20 @@ function __PRIVATE_primitiveComparator(e, t) {
+     return e < t ? -1 : e > t ? 1 : 0;
+ }
+ 
+-/** Compare strings in UTF-8 encoded byte order */ function __PRIVATE_compareUtf8Strings(e, t) {
++/** Compare strings in UTF-8 encoded byte order */ // Ignia patch (patches/@firebase+firestore+*.patch, ADR-0016 amendment 3):
++// a fast path for strings with no surrogate code units. For those, every UTF-16
++// code unit IS its code point, so the engine's native code-unit order equals
++// code-point order, which equals UTF-8 byte order -- exactly what the loop
++// below computes one charAt at a time. Every document-key comparison in the
++// SDK's sorted maps goes through here; measured on a Release build, the loop
++// was about half of a tab's first-visit JS stall. Strings that do contain a
++// surrogate take the original loop, so ordering is unchanged.
++const __IGNIA_SURROGATE = /[\uD800-\uDFFF]/;
++function __PRIVATE_compareUtf8Strings(e, t) {
++    if (!__IGNIA_SURROGATE.test(e) && !__IGNIA_SURROGATE.test(t)) return e < t ? -1 : e > t ? 1 : 0;
++    return __PRIVATE_compareUtf8StringsLoop(e, t);
++}
++function __PRIVATE_compareUtf8StringsLoop(e, t) {
+     // Find the first differing character (a.k.a. "UTF-16 code unit") in the two strings and,
+     // if found, use that character to determine the relative ordering of the two strings as a
+     // whole. Comparing UTF-16 strings in UTF-8 byte order can be done simply and efficiently by
