@@ -5,8 +5,9 @@ import { act, renderHook } from '@testing-library/react-native';
  * re-decide.
  *
  * Every case here is a decision that has already shipped wrong somewhere in
- * this app: a listener held awake behind a blurred tab, an unsub array nothing
- * tore down, an offline listener's EMPTY `fromCache: true` snapshot treated as
+ * this app: an unsub array nothing tore down (and, the other way round, a
+ * tab's whole listener set re-opened on every visit — the tab-switch lag,
+ * ADR-0016 amendment 2), an offline listener's EMPTY `fromCache: true` snapshot treated as
  * real data (three publishes, see `cached-state-provenance.test.ts`), and a
  * rejected listener whose error reached Sentry with no stack frames because
  * nobody narrowed it. The module exists so those are answered once; these tests
@@ -128,7 +129,10 @@ describe('useLedgerFeed gating', () => {
     expect(off.result.current.ready).toBe(false);
   });
 
-  it('tears every channel down on blur and on unmount', async () => {
+  // 2026-10-22 (ADR-0016 amendment 2): a blur used to tear every channel down,
+  // so each tab press re-opened the tab's whole set, and the SDK re-ran every
+  // query against its cache on the JS thread — 120–350 ms per switch, measured.
+  it('keeps every channel open across a blur and a refocus, and tears them down on unmount', async () => {
     const a = stubChannel();
     const b = stubChannel();
     const { rerender, unmount } = await renderHook(() =>
@@ -147,18 +151,61 @@ describe('useLedgerFeed gating', () => {
 
     mockFocus.focused = false;
     await act(async () => rerender({}));
-    expect(a.unsub).toHaveBeenCalledTimes(1);
-    expect(b.unsub).toHaveBeenCalledTimes(1);
-
     mockFocus.focused = true;
     await act(async () => rerender({}));
-    expect(a.calls).toHaveLength(2);
+    expect(a.unsub).not.toHaveBeenCalled();
+    expect(b.unsub).not.toHaveBeenCalled();
+    expect(a.calls).toHaveLength(1);
+
     await act(async () => unmount());
-    expect(a.unsub).toHaveBeenCalledTimes(2);
-    expect(b.unsub).toHaveBeenCalledTimes(2);
+    expect(a.unsub).toHaveBeenCalledTimes(1);
+    expect(b.unsub).toHaveBeenCalledTimes(1);
   });
 
-  it('runs onOpen once per cycle and drops a resolve that lands after teardown', async () => {
+  it('re-opens a FAILED channel on refocus — an errored listener is dead, and a visit was its retry', async () => {
+    const ch = stubChannel();
+    const { rerender } = await renderHook(() =>
+      useLedgerFeed({
+        uid: 'u1',
+        label: 'Body',
+        gate: 'focus',
+        channels: () => [feedChannel({ key: 'm', open: ch.open, apply: () => {} })],
+        deps: [],
+      }),
+    );
+    await act(async () => ch.live.fail(new Error('unavailable')));
+    mockFocus.focused = false;
+    await act(async () => rerender({}));
+    mockFocus.focused = true;
+    await act(async () => rerender({}));
+    expect(ch.calls).toHaveLength(2);
+    expect(ch.unsub).toHaveBeenCalledTimes(1);
+  });
+
+  it('runs onOpen on every visit, while the listeners stay as they are', async () => {
+    const ch = stubChannel();
+    const visits: string[] = [];
+    const { rerender } = await renderHook(() =>
+      useLedgerFeed({
+        uid: 'u1',
+        label: 'Body',
+        gate: 'focus',
+        onOpen: ({ uid }) => {
+          visits.push(uid);
+        },
+        channels: () => [feedChannel({ key: 'w', open: ch.open, apply: () => {} })],
+        deps: [],
+      }),
+    );
+    mockFocus.focused = false;
+    await act(async () => rerender({}));
+    mockFocus.focused = true;
+    await act(async () => rerender({}));
+    expect(visits).toEqual(['u1', 'u1']);
+    expect(ch.calls).toHaveLength(1);
+  });
+
+  it('drops an onOpen resolve that lands after the visit ended', async () => {
     const ch = stubChannel();
     const late: string[] = [];
     let release: (() => void) | null = null;

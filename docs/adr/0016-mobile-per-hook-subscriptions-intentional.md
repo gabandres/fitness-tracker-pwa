@@ -178,3 +178,48 @@ because duplicate listeners are cheap on the network and the JS cost is
 removable per listener — not because the duplication does not happen.** If a
 shared cache is argued again, it has to beat `onChangedData` plus the equality
 skip on JS cost, since there is no network cost left for it to win on.
+
+## Amendment 2 — 2026-10-22: a blur no longer closes a tab's listeners
+
+The owner reported lag on every tab press (Today, Train, Trends, Body). It was
+measured, not reasoned about this time: a Release build (Hermes, the shipped
+OTA's JS) on an iOS 26 simulator, QA account, with React's profiling renderer,
+a frame-gap sampler on the JS thread, and a timestamp on every listener open
+and snapshot. Each tab press committed the new screen in ~11 ms, then the tab
+re-opened its whole listener set and **the JS thread froze for 120–160 ms**
+while the SDK re-ran each query against its cache and the `subscribe*`
+helpers converted the result; the server's answers cost up to 173 ms more.
+React's own render time in that window was 1–10 ms. Train, the one tab
+without the 400-row logs query, stalled 27 ms. Closing the add sheet refocused
+Today, so every save re-opened Today's 16 listeners too.
+
+**Change:** `useLedgerFeed`'s `'focus'` gate now opens a screen's listeners on
+its FIRST focus and holds them until it unmounts. `onOpen` (one-shot reads,
+some of them retries) still runs on every focus, and a feed whose listener
+errored is re-opened on refocus, which is what a visit used to give it.
+`useReminderSync`'s three listeners moved to mount scope the same way; a focus
+re-plans from what they last delivered.
+
+Measured on the same setup, before → after:
+
+| | before | after |
+|---|---|---|
+| Revisit Train / Trends / Body / Today — JS stall total | 27 / 347 / 181 / 133 ms | 58 / 87 / 85 / 0 ms |
+| Longest single stall on a tab switch | 173 ms | 38 ms |
+| Saving an entry (two runs) | 531 / 390 ms, longest 284 | 109 / 96 ms, longest 46 |
+
+The Mac is faster than a phone and the QA account is lighter than a real
+history, so the phone numbers are larger in both columns; the ratio is the
+finding.
+
+**What this gives up**, from the Context above: "only the visible tab holds
+live channels". A visited tab now keeps its listeners while it stays mounted,
+so the concurrent count after visiting all four tabs is the sum of their
+sets. Identical queries still share one server target (the 2026-10-21
+amendment), a held listener receives only changes (a re-opened one re-read
+from cache every visit, and from the server after 30 minutes away), and a
+frozen tab (`freezeOnBlur`) does not render the snapshots it receives until it
+is shown. A save with every tab mounted was measured above at 96–109 ms,
+against 390–531 ms under the old gating, which re-opened Today on the sheet's
+close. The per-hook model itself is unchanged: each hook still opens and owns
+its own channels, and nothing is shared.
