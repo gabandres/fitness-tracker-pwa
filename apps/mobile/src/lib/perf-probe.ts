@@ -9,6 +9,9 @@ let tab = '';
 let events: Ev[] = [];
 let gaps: { at: number; ms: number }[] = [];
 let sampling = false;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const hstats = (): Record<string, number> => ((globalThis as any).HermesInternal?.getInstrumentedStats?.() ?? {});
+let stats0: Record<string, number> = {};
 
 const now = () => performance.now();
 const rel = () => Math.round(now() - t0);
@@ -21,6 +24,7 @@ export function probeTabPress(name: string): void {
   events = [];
   gaps = [];
   sampling = true;
+  stats0 = hstats();
   let last = now();
   const frame = () => {
     const n = now();
@@ -45,6 +49,10 @@ function report(): void {
       `jsStalls=${gaps.length} stallMs=${blocked} longest=${Math.max(0, ...gaps.map((g) => g.ms))} ` +
       `settledAt=${lastGap ? lastGap.at + lastGap.ms : 0}`,
   );
+  const s1 = hstats();
+  const d = Object.keys(s1).filter((k) => /gc|GC|alloc|Alloc|heap|Heap/.test(k) && typeof s1[k] === 'number')
+    .map((k) => `${k}=${Math.round((s1[k] - (stats0[k] ?? 0)) * 100) / 100}`).join(' ');
+  out(`HSTATS tab=${tab} ${d}`);
   out(`GAPS tab=${tab} ${gaps.map((g) => `${g.at}+${g.ms}`).join(' ')}`);
   out(`EVENTS tab=${tab} ${events.map((e) => `${e.at}:${e.what}${e.ms != null ? `=${e.ms}` : ''}`).join(' | ')}`);
 }
@@ -64,3 +72,15 @@ export function probeMark(what: string): void {
   if (!sampling) return;
   events.push({ at: rel(), what });
 }
+
+export function probeCallback(path: string, fromCache: boolean | undefined, size: number, ms: number): void {
+  if (!sampling) return;
+  events.push({ at: rel(), what: `cb:${path}:${fromCache ? 'cache' : 'server'}:n${size}`, ms: Math.round(ms * 10) / 10 });
+}
+
+// PROBE: what does HermesInternal expose in this build?
+setTimeout(() => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const h = (globalThis as any).HermesInternal;
+  console.error(`[PERF] HERMES keys=${h ? Object.getOwnPropertyNames(h).join(',') : 'none'}`);
+}, 1000);

@@ -1,0 +1,9 @@
+appId: fit.ignia.app
+---
+- extendedWaitUntil: { visible: 'zz-never-zz', timeout: 2000, optional: true }
+- tapOn: { id: 'tab-train' }
+- extendedWaitUntil: { visible: 'zz-never-zz', timeout: 3000, optional: true }
+- tapOn: { id: 'tab-trends' }
+- extendedWaitUntil: { visible: 'zz-never-zz', timeout: 3000, optional: true }
+- tapOn: { id: 'tab-body' }
+- extendedWaitUntil: { visible: 'zz-never-zz', timeout: 3000, optional: true }

@@ -11,7 +11,7 @@ import {
   increment as fsIncrement,
   limit,
   serverTimestamp,
-  onSnapshot,
+  onSnapshot as fsOnSnapshot,
   orderBy,
   query,
   setDoc as fsSetDoc,
@@ -27,6 +27,20 @@ import type {
   WriteBatch,
 } from 'firebase/firestore';
 import { addBreadcrumb } from './sentry';
+
+// PROBE: time every snapshot callback, labeled by collection.
+import { probeCallback } from './perf-probe';
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const onSnapshot: typeof fsOnSnapshot = ((ref: any, ...rest: any[]) => {
+  const path: string = ref?._query?.path?.segments?.slice(-1)?.[0] ?? ref?.path?.split('/').slice(-2, -1)[0] ?? ref?.path ?? '?';
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const args = rest.map((a: any) => (typeof a === 'function' ? (snap: any) => {
+    const t = performance.now();
+    try { return a(snap); } finally { probeCallback(path, snap?.metadata?.fromCache, snap?.size ?? (snap?.exists?.() ? 1 : 0), performance.now() - t); }
+  } : a));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (fsOnSnapshot as any)(ref, ...args);
+}) as typeof fsOnSnapshot;
 import { isOffline, reportSnapshotMeta } from './connectivity';
 import {
   type CustomFood,
