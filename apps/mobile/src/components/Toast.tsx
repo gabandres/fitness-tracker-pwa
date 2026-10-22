@@ -140,6 +140,12 @@ interface ActiveToast extends ToastOptions {
  *  half the gap between them, so their targets cannot overlap. */
 const ACTION_SLOP = { top: 12, bottom: 12, left: 5, right: 5 } as const;
 
+/** The card's entrance and exit, built once. Inline, every render of the card
+ *  (a new toast, the keyboard moving it) built two fresh Reanimated builders
+ *  for the same config. */
+const TOAST_ENTER = FadeInDown.duration(motion.dur.base).reduceMotion(ReduceMotion.System);
+const TOAST_EXIT = FadeOutDown.duration(motion.dur.fast).reduceMotion(ReduceMotion.System);
+
 const ToastContext = createContext<ToastApi | null>(null);
 const ToastStateContext = createContext<ToastStateApi | null>(null);
 let portalSeq = 0;
@@ -466,8 +472,8 @@ function ToastCard({
     <View style={[styles.layer, at]} pointerEvents="box-none">
       <GestureDetector gesture={swipe}>
         <Animated.View
-          entering={FadeInDown.duration(motion.dur.base).reduceMotion(ReduceMotion.System)}
-          exiting={FadeOutDown.duration(motion.dur.fast).reduceMotion(ReduceMotion.System)}
+          entering={TOAST_ENTER}
+          exiting={TOAST_EXIT}
           style={[styles.toast, stacked && styles.toastStacked, dragStyle]}
           accessibilityRole="alert"
           testID={toast.testID ?? 'toast'}

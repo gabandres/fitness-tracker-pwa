@@ -114,8 +114,9 @@ function fastingValue(
   todayHours: number | null | undefined,
   t: TFn,
   locale: Locale,
+  now: number,
 ): string {
-  if (since) return elapsedLabel(since, Date.now(), t, locale);
+  if (since) return elapsedLabel(since, now, t, locale);
   if (todayHours != null && todayHours > 0) {
     const parts = fastHoursParts(todayHours);
     return t('metrics.fastedToday', {
@@ -310,9 +311,17 @@ export function DailyMetrics({ water, sleep, sleepTimes, hunger = null, onSetHun
     // became, so a screen-reader user tapped +250 and heard silence.
     announce(t('metrics.waterNowA11y', { n: displayWater(next, unitSystem), unit: waterUnit }));
   };
-  const fastValue = fastingValue(fastStartedAt, fastedTodayHours, t, locale);
-  // Re-read on the row's own 30 s tick, like the elapsed label.
-  const longFast = fastNeedsCheck(fastStartedAt);
+  // `now` is STATE, advanced by the row's 30 s tick below, and passed in —
+  // never read inside the helpers. The React Compiler caches a call on its
+  // arguments, so `fastingValue(...)` reading `Date.now()` itself was computed
+  // once per fast and the running label sat at its first value while the
+  // timer re-rendered the row for nothing (found 2026-10-21, confirmed in the
+  // compiled output). The floor at the fast's start covers the render between
+  // starting a fast and the tick effect re-arming.
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  const now = Math.max(nowTick, fastStartedAt?.getTime() ?? 0);
+  const fastValue = fastingValue(fastStartedAt, fastedTodayHours, t, locale, now);
+  const longFast = fastNeedsCheck(fastStartedAt, now);
   // "7.5 h" / "7,5 h" — through the locale, not `${sleep}h`, which printed
   // "7.5h" to a Brazilian reader (review, Copy).
   const sleepValue =
@@ -331,11 +340,10 @@ export function DailyMetrics({ water, sleep, sleepTimes, hunger = null, onSetHun
   const [hungerOpen, setHungerOpen] = useState(false);
   const hungerValue = hunger != null ? t('metrics.hungerValue', { n: hunger }) : null;
   const [waterOpen, setWaterOpen] = useState(false);
-  const [, setTick] = useState(0);
-
   useEffect(() => {
     if (!fastStartedAt) return;
-    const id = setInterval(() => setTick((t) => t + 1), 30000);
+    setNowTick(Date.now());
+    const id = setInterval(() => setNowTick(Date.now()), 30000);
     return () => clearInterval(id);
   }, [fastStartedAt]);
 

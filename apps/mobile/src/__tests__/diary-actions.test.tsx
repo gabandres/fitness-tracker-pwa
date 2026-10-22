@@ -91,7 +91,40 @@ describe('useDiaryActions', () => {
     });
     expect(ref.current!.sheetOpen).toBe(true);
     expect(ref.current!.prefill).toEqual(expect.objectContaining({ calories: 300, mealLabel: 'Oatmeal', note: 'with milk' }));
-    expect(haptics.success).not.toHaveBeenCalled();
+    // Online, the receipt goes out at dispatch (2026-10-21) — so the refusal
+    // REPLACES it: the last word on screen is the honest one, with its warning.
+    expect(mockShow.mock.calls.at(-1)?.[1]?.testID).toBe('toast-rejected');
+    expect(haptics.warning).toHaveBeenCalled();
+  });
+
+  it('shows the add receipt before the write settles when online', async () => {
+    let settle!: (r: { outcome: 'logged'; id: string }) => void;
+    const addEntry = jest.fn(
+      (_e: unknown, id?: string) =>
+        new Promise<{ outcome: 'logged'; id: string }>((res) => {
+          settle = () => res({ outcome: 'logged', id: id! });
+        }),
+    );
+    const { ref, render: r } = setup({ addEntry });
+    await r();
+    let saved!: Promise<unknown>;
+    await act(async () => {
+      saved = ref.current!.onSave({ calories: 300, mealLabel: 'Oatmeal' });
+    });
+    // Receipt and buzz are out while the write is still in flight, and the
+    // write carries the id the receipt's Undo will delete.
+    expect(mockShow.mock.calls.at(-1)?.[1]?.testID).toBe('toast-added');
+    expect(haptics.success).toHaveBeenCalledTimes(1);
+    const mintedId = addEntry.mock.calls[0][1];
+    expect(typeof mintedId).toBe('string');
+    const shownBefore = mockShow.mock.calls.length;
+    await act(async () => {
+      settle({ outcome: 'logged', id: mintedId! });
+      await saved;
+    });
+    // A clean ack changes nothing on screen: no second receipt, no second buzz.
+    expect(mockShow.mock.calls.length).toBe(shownBefore);
+    expect(haptics.success).toHaveBeenCalledTimes(1);
   });
 
   it('says how much of the day is left in the add receipt', async () => {

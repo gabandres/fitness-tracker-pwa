@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useRef, useState } from 'react';
+import { memo, useRef, useState } from 'react';
 import {
   type AccessibilityActionEvent,
   ActionSheetIOS,
@@ -151,14 +151,14 @@ function macroLine(log: DailyLog, t: TFn, locale: Locale): string {
  * The label is set rather than left to the children because the children read
  * "Oatmeal, 8:00 AM · 30 g protein, 300" — a bare number with no unit, last.
  */
-function EntryRow({
+const EntryRow = memo(function EntryRow({
   log,
   onPress,
   onSavePreset,
   onDelete,
   onMenu,
   onPickSlot,
-  moveOptions,
+  onMove,
   onCopyToToday,
 }: {
   log: DailyLog;
@@ -168,9 +168,9 @@ function EntryRow({
   onMenu?: (log: DailyLog, remove: () => void) => void;
   /** Ask which meal to move the row to (absent: the row cannot move). */
   onPickSlot?: (log: DailyLog, remove: () => void) => void;
-  /** The meals this row can move to, as one-tap choices — iOS shows them as a
-   *  submenu inside the row's context menu (round-3 review). */
-  moveOptions?: { slot: MealType; title: string; run: () => void }[];
+  /** Move the row to another meal. iOS offers the targets as one-tap choices
+   *  in a submenu of the row's context menu (round-3 review). */
+  onMove?: (log: DailyLog, slot: MealType) => void;
   onCopyToToday?: (log: DailyLog) => void;
 }) {
   const t = useT();
@@ -188,6 +188,18 @@ function EntryRow({
   const kcal = formatNumber(log.calories, locale);
   const sub = [timeOf(log.date, locale), macroLine(log, t, locale)].filter(Boolean).join('  ·  ');
   const canSavePreset = !!onSavePreset && !!log.mealLabel?.trim();
+  // Built HERE, not by the parent. The parent mapped a fresh array of fresh
+  // closures into every row on every render, so no row could ever skip one:
+  // a water tap re-rendered every entry and its swipeable (2026-10-21
+  // performance audit). With the row `memo`ised and its props reduced to the
+  // log plus stable callbacks, an unchanged row now renders once.
+  const moveOptions = onMove
+    ? moveTargets(log).map((slot) => ({
+        slot,
+        title: capitalizeFirst(t(SLOT_KEY[slot]), locale),
+        run: () => onMove(log, slot),
+      }))
+    : undefined;
   const remove = () => {
     swipeRef.current?.close();
     onDelete?.(log);
@@ -374,7 +386,7 @@ function EntryRow({
       {body}
     </ReanimatedSwipeable>
   );
-}
+});
 
 /**
  * One side's swipe action. It widens with the drag so the colour always fills
@@ -684,15 +696,7 @@ export function MealEntries({
                 onDelete={onDelete}
                 onMenu={openMenu}
                 onPickSlot={onMove ? pickSlot : undefined}
-                moveOptions={
-                  onMove
-                    ? moveTargets(log).map((slot) => ({
-                        slot,
-                        title: capitalizeFirst(t(SLOT_KEY[slot]), locale),
-                        run: () => onMove(log, slot),
-                      }))
-                    : undefined
-                }
+                onMove={onMove}
                 onCopyToToday={onCopyToToday}
               />
             </Animated.View>

@@ -44,31 +44,46 @@ import { font, radius, space } from '@/theme';
  */
 export const watchDiagnosticsAvailable = Platform.OS === 'ios' && isWatchLinkAvailable;
 
+/** One reading of the native session — taken in the timer, never in render. */
+function readWatchStatus() {
+  return {
+    paired: isPaired(),
+    installed: isWatchAppInstalled(),
+    complication: isComplicationEnabled(),
+    remaining: remainingComplicationTransfers(),
+    // Read every tick, not once at mount: the whole point of this row is that
+    // someone taps a widget chip or speaks to Siri and then looks here.
+    lastPush: readWatchAssertOutcome(),
+  };
+}
+
 export function WatchDiagnosticsCard() {
   const t = useT();
   const styles = useThemedStyles(createStyles);
-  const [tick, setTick] = useState(0);
 
   // Re-read on an interval: `isComplicationEnabled` flips when the user edits
   // a watch face, with no notification to us, so a value read once at mount
   // goes quietly wrong while the card is on screen.
+  //
+  // The readings are STATE, written by the timer. They used to be called in
+  // render behind a bare `tick` counter, and the React Compiler hoisted the
+  // argument-less native calls into a block computed once — so every row was
+  // the mount-time value and the 3 s poll re-rendered for nothing (found
+  // 2026-10-21 in the compiled output).
+  const [status, setStatus] = useState(() =>
+    watchDiagnosticsAvailable ? readWatchStatus() : null,
+  );
   useEffect(() => {
-    const id = setInterval(() => setTick((n) => n + 1), 3000);
+    if (!watchDiagnosticsAvailable) return;
+    const id = setInterval(() => setStatus(readWatchStatus()), 3000);
     return () => clearInterval(id);
   }, []);
-  void tick;
 
   // iOS-only surface. Android has no counterpart and the native module is not
   // in that binary at all.
-  if (!watchDiagnosticsAvailable) return null;
+  if (!watchDiagnosticsAvailable || !status) return null;
 
-  const paired = isPaired();
-  const installed = isWatchAppInstalled();
-  const complication = isComplicationEnabled();
-  const remaining = remainingComplicationTransfers();
-  // Read every tick, not once at mount: the whole point of this row is that
-  // someone taps a widget chip or speaks to Siri and then looks here.
-  const lastPush = readWatchAssertOutcome();
+  const { paired, installed, complication, remaining, lastPush } = status;
 
   return (
     <View style={styles.card} testID="watch-diagnostics">

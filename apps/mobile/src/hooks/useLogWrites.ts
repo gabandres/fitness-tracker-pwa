@@ -51,7 +51,9 @@ export interface LogWrites {
   /** Resolves with the durable-write receipt (`outcome: 'queued'` when parked
    *  offline, `'rejected'` when the rules refused it) so the screen can show a
    *  receipt with Undo — or say it was not saved; `undefined` when signed out. */
-  addEntry: (entry: LogEntry) => Promise<AddReceipt | undefined>;
+  /** `id`, when given, is the row's id — minted by a caller that needs it
+   *  before the write settles (the optimistic receipt, `useDiaryActions`). */
+  addEntry: (entry: LogEntry, id?: string) => Promise<AddReceipt | undefined>;
   updateEntry: (id: string, entry: LogEntry) => Promise<void>;
   deleteEntry: (id: string) => Promise<void>;
   addPreset: (preset: Omit<MealPreset, 'id'>) => Promise<void>;
@@ -90,13 +92,13 @@ export function useLogWrites(): LogWrites {
   const uid = user?.uid;
 
   const addEntry = useCallback(
-    async (entry: LogEntry) => {
+    async (entry: LogEntry, mintedId?: string) => {
       if (!uid) return;
       // Durable: parked on disk if it cannot reach Firestore, because this app
       // has no SDK persistence and an in-memory write dies with the process.
       // See `pending-logs.ts` — edits and deletes below are deliberately not
       // covered, and that file says why.
-      const id = newLedgerId(Math.random);
+      const id = mintedId ?? newLedgerId(Math.random);
       const outcome = await addLogDurably(uid, entry, id);
       // Refused by the rules: nothing landed and nothing will. No usage count,
       // no Health mirror (the meal is not in the diary), no milestone — the

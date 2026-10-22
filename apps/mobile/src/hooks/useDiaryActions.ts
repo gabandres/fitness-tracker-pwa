@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { DailyLog, LogEntry, MealPreset, MealType } from '@macrolog/core';
+import { type DailyLog, type LogEntry, type MealPreset, type MealType, newLedgerId } from '@macrolog/core';
 import { useToast } from '@/components/Toast';
 import { useAddReceipt } from '@/hooks/useAddReceipt';
 import type { AddReceipt } from '@/hooks/useLogWrites';
@@ -11,6 +11,7 @@ import { entryFromLog, isNoopEdit } from '@/lib/entry-from-log';
 import type { EntryPrefill } from '@/lib/entry-prefill';
 import * as haptics from '@/lib/haptics';
 import { addPresetNow } from '@/lib/ledger';
+import { isOffline } from '@/lib/connectivity';
 import { addLogDurably } from '@/lib/pending-logs';
 import { captureError } from '@/lib/sentry';
 
@@ -194,14 +195,30 @@ export function useDiaryActions({
     // The receipt names what landed and carries Edit + Undo; a parked add
     // keeps the honest `offline.queued` copy (UX_AUDIT S18-12); a refused one
     // says so and plays its own warning.
-    const r = await addEntry(entry);
+    //
+    // Online, the receipt and the haptic go out at DISPATCH, not at the
+    // server's ack. The row is already in the list (the SDK applies a write
+    // locally first), so making "Logged · Undo" wait a round trip — up to the
+    // 8 s online deadline on a weak signal — was the app feeling slow for no
+    // information. The id is minted here so Undo and Edit can act before the
+    // write settles; `pending-logs` already honours an Undo that lands while
+    // the write is in flight (`isUndoneId`). If the write then parks or is
+    // refused, the receipt is REPLACED with the honest one — the toast host
+    // shows one at a time. Known-offline keeps the old order: its deadline is
+    // short and the first word should already be "saved offline".
+    const what = { label: entry.mealLabel, calories: entry.calories, remaining };
     // Edit only when it can act: with the sheet kept open for a multi-add,
     // `editAdded` would return early and the button would do nothing.
-    receipt.showAdded(
-      r,
-      { label: entry.mealLabel, calories: entry.calories, remaining },
-      sheetOpenRef.current ? undefined : (id) => editAdded(id, entry),
-    );
+    const onEdit = sheetOpenRef.current ? undefined : (id: string) => editAdded(id, entry);
+    const id = newLedgerId(Math.random);
+    const early = !!user?.uid && !isOffline();
+    if (early) {
+      receipt.showAdded({ outcome: 'logged', id }, what, onEdit);
+      if (party) haptics.celebrate();
+      else haptics.success();
+    }
+    const r = await addEntry(entry, id);
+    if (!early || (r && r.outcome !== 'logged')) receipt.showAdded(r, what, onEdit);
     if (r?.outcome === 'rejected') {
       // Refused by the server: what was typed is not lost — the form reopens
       // holding it, so the one wrong value can be fixed and saved again.
@@ -219,8 +236,10 @@ export function useDiaryActions({
       }
       return r;
     }
-    if (party) haptics.celebrate();
-    else haptics.success();
+    if (!early) {
+      if (party) haptics.celebrate();
+      else haptics.success();
+    }
     return r;
   }
 
