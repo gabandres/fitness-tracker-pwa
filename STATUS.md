@@ -103,21 +103,13 @@ deleted and its outcome goes to `CHANGELOG.md`.
   keyboard handling); the equal-segment fast path (`ae03c475`) still needs
   an OTA to reach build 74 and the older runtimes.
 
-### 1.2.9 — the first iOS 27.1 SDK binary (iPhone Duo, ships 2026-10-23)
+### 1.2.9 — superseded by 1.2.10 (never submitted)
 
-- **iOS** build 73 / 1.2.9 (`9b861e4e`) built 2026-10-21 on `ignia-mac` with
-  **Xcode 27.1 `27A9275`** (`DTSDKName iphoneos27.1`), runtime `d7aad40d…`
-  (artifact), uploaded to ASC — `VALID` 2026-10-21 14:52. Same JS as the Duo OTA (`76d74257`); what it
-  adds is the SDK — on 27.0-built binaries the Duo's inner display stops the
-  app at the status bar. **Not submitted for review**: 1.2.8 (build 72) is
-  still `WAITING_FOR_REVIEW`; submit 1.2.9 once 1.2.8 releases (or the owner
-  chooses to replace it — cancel → re-point → resubmit, irreversible queue
-  loss). **Android** needs no 1.2.9 binary for the Duo work; the version bump
-  only means the next Android build is 1.2.9.
-- **Owed:** device QA on a real Duo (the simulator covered closed / open
-  landscape / open portrait, Release). Partly-folded "book" pose not tried.
-  Every future OTA adds runtime `d7aad40d…` (build 73) to the iOS list.
-- Expo SDK 58 is NOT required for the Duo — SDK 57 builds on Xcode 27.1.
+- Build 73 (`d7aad40d…`, the iPhone Duo SDK fix) stays a TestFlight-only
+  runtime that OTAs still reach; 1.2.10 / build 74 carries the same fix.
+  **Still owed, now on 1.2.10:** device QA on a real Duo (the simulator covered
+  closed / open landscape / open portrait, Release; the partly-folded "book"
+  pose was not tried).
 
 ### Train — owner calls and device checks owed
 
