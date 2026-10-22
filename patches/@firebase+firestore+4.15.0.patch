@@ -1,5 +1,5 @@
 diff --git a/node_modules/@firebase/firestore/dist/common-768c0351.rn.js b/node_modules/@firebase/firestore/dist/common-768c0351.rn.js
-index 284a395..5c7a44e 100644
+index 284a395..bc836ba 100644
 --- a/node_modules/@firebase/firestore/dist/common-768c0351.rn.js
 +++ b/node_modules/@firebase/firestore/dist/common-768c0351.rn.js
 @@ -732,7 +732,20 @@ function __PRIVATE_primitiveComparator(e, t) {
@@ -24,3 +24,15 @@ index 284a395..5c7a44e 100644
      // Find the first differing character (a.k.a. "UTF-16 code unit") in the two strings and,
      // if found, use that character to determine the relative ordering of the two strings as a
      // whole. Comparing UTF-16 strings in UTF-8 byte order can be done simply and efficiently by
+@@ -888,6 +901,11 @@ function __PRIVATE_isSurrogate(e) {
+         return __PRIVATE_primitiveComparator(e.length, t.length);
+     }
+     static compareSegments(e, t) {
++        // Ignia patch (ADR-0016 amendment 4): equal segments compare equal on
++        // both branches below, and inside one collection every key shares its
++        // first three ('users' / uid / collection) — skip the numeric checks
++        // and the UTF-8 walk for them.
++        if (e === t) return 0;
+         const n = BasePath.isNumericId(e), r = BasePath.isNumericId(t);
+         return n && !r ? -1 : !n && r ? 1 : n && r ? BasePath.extractNumericId(e).compare(BasePath.extractNumericId(t)) : __PRIVATE_compareUtf8Strings(e, t);
+     }

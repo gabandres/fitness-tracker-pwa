@@ -256,3 +256,32 @@ order ever differs from UTF-8 bytes or from the original loop.
 
 What is left on a first visit (~0.5 s at Mac speed) is the rest of the SDK's
 processing of those first answers.
+
+## Amendment 4 — 2026-10-22: equal path segments skip the comparison
+
+The first-visit stall left after amendment 3 was profiled in Node (the
+Firestore SDK's JS is the same; V8 names every function, which Hermes in a
+Release build cannot): Trends' first-visit queries replayed against the
+`perf-test` copy of the owner's data, with Today's listeners already open. The
+time was still document-key comparison — not one hot caller but every sorted
+tree the SDK keeps (target mappings, reference sets, limbo checks), each
+`insert`/`remove` walking `users / <uid> / <collection> / <id>` segment by
+segment, with two `isNumericId` scans and a UTF-8 compare per segment even
+though the first three segments of every key in a collection are equal.
+
+The patch adds `if (e === t) return 0;` at the top of
+`BasePath.compareSegments` — equal segments compare 0 on both of its branches,
+so no order changes (`firestore-utf8-compare-patch.test.ts` pins it). Node:
+comparator self-time ~45 → ~15 ms. Release build on the simulator, owner's
+data, three cold launches each, before → after:
+
+| first visit | Train | Trends | Body |
+|---|---|---|---|
+| JS stall, mean | 207 → 172 ms | 602 → 463 ms | 473 → 365 ms |
+| longest single stall | ~80 → ~87 ms | ~380 → ~246 ms | ~200 → ~158 ms |
+
+What remains is the SDK applying the server's first answer for queries new to
+the session. Short of reading fewer documents, the next lever is prefetching
+those queries in idle time after launch — not taken: it moves the same work
+rather than removing it, and costs a full read of each tab's queries on every
+launch whether or not the tab is opened.
