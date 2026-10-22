@@ -236,6 +236,26 @@ Ignia is not a medical device and does not provide medical advice.
 > page written to convert a store visitor, and it carries the browser fallback
 > for anyone who bounces off the install.
 
+### What's New — 1.2.10 · submitted 2026-10-22 with build 74 (supersedes the never-submitted 1.2.9 / build 73)
+
+`scripts/asc-release-version.mjs` carries this copy; keep the two in step.
+
+**en-US**
+
+```
+• Faster: switching between Today, Train, Trends and Body no longer reloads each tab, saving a meal and searching foods are quicker, and the app catches up right away when you come back to it.
+• Smarter workouts: a lift moves up a step once you reach 15 reps at your target effort, a set logged closer to failure than its target RIR is flagged as you log it, and straight-set lifts now count toward your weekly volume.
+• Smoother and more stable: updated animation, keyboard and crash-reporting components, and full-screen support for iPhone Duo.
+```
+
+**es-MX**
+
+```
+• Más rápida: cambiar entre Hoy, Entrenar, Tendencias y Cuerpo ya no recarga cada pestaña, guardar una comida y buscar alimentos es más ágil, y la app se pone al día enseguida cuando regresas.
+• Entrenamientos más inteligentes: el peso sube un paso cuando llegas a 15 repeticiones con tu esfuerzo meta, una serie registrada más cerca del fallo que tu RIR meta se marca al registrarla, y los ejercicios de series rectas ahora cuentan en tu volumen semanal.
+• Más fluida y estable: componentes de animación, teclado y reporte de errores actualizados, y soporte de pantalla completa para el iPhone Duo.
+```
+
 ### What's New — 1.2.8 · submitted 2026-10-15 (supersedes the never-submitted 1.2.7)
 
 `scripts/asc-release-version.mjs` carries this copy; keep the two in step.

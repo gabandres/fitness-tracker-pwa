@@ -26,14 +26,14 @@ same way before trusting them — `docs/COMMANDS.md` has every command;
 
 | Surface | State |
 |---|---|
-| **App Store (iOS)** | **1.2.8 / build 72 LIVE** (read 2026-10-22 via `app-version-sync --check`). 1.2.10 / build 74 `VALID` in ASC, not submitted (§3). 175 of 175 territories since 2026-08-28. This Mac reads ASC (`ASC_ISSUER_ID` + `ASC_KEY_PATH` in `.env.local`) |
+| **App Store (iOS)** | **1.2.8 / build 72 LIVE** (read 2026-10-22 via `app-version-sync --check`). **1.2.10 / build 74 `WAITING_FOR_REVIEW`** since 2026-10-22 16:59 UTC (AFTER_APPROVAL, §3). 175 of 175 territories since 2026-08-28. This Mac reads ASC (`ASC_ISSUER_ID` + `ASC_KEY_PATH` in `.env.local`) |
 | **TestFlight** | **Not re-read since 2026-09-08** (build 64 was the external build then). Read the group's builds AND each build's `externalBuildState` (`asc-testflight-external.mjs`) — `VALID` + in the group ≠ installable; a build of an already-released version never reaches an external tester |
 | **Play** | **Production: vc 52 / 1.2.8 is the newest COMPLETED release** (tracks API, 2026-10-16). **The tracks API cannot tell "in review" from "live"** — the store page or the Console row is the read. Upload path: `play-upload-bundle.mjs`, then `play-production-release.mjs --complete --commit --vc N`; `eas submit` has exited 0 on failure three times |
 | **Web `ignia.fit`** | **Shell + `/admin`** — the web logging app was retired 2026-08-30 (ADR-0036). 113 prerendered pages, EN + es-PR, both store badges. `/app` and the old tabs render "moved to the apps"; SEO pages and `/u/**` KEPT, owner-ratified. Grep `public/` as well as `src/` before claiming copy is gone |
 | **Cloud Functions / rules** | Deployed, project `fitness-tracker-gb-1775407101`. Rules last deployed 2026-10-22 (Program v2.2: exercise `effortStandard` `rir2`, template `templateVersion`) |
 | **Photo-scan** | **ON and free, both platforms** (ADR-0017), macros from the bundled USDA DB (ADR-0019). Tiering server-side only: `dailyQuota` 3/day free · 30/day paid, plus the `photo` `spendCeiling` |
 | **Food search** | Bundled USDA DB (13,272 foods) + restaurant corpus (25,126 items / 91 chains, ADR-0027). **Text search makes NO network call**; Open Food Facts serves barcode only. `docs/research/off-branded-ingest.md` scopes branded text results |
-| **OTA (EAS Update)** | **Every runtime in use has the 2026-10-22 Program v2.2 OTA** (`ota/perf-2026-10-21` @ `e22e9f18` = `main` minus `0c30979d`: the 10-21 performance pass, the tab-listener fix, the Firestore comparator patch, and Program v2.2 `efe79675`): iOS builds 73 / 72 / 71 / 70 / 68, Android vc 52 / 51 / 50 / 48-49 / 47 — groups and rollbacks in the ledger, which is the record and wins. Build 73 (`d7aad40d…`) is the unpinned iOS runtime. "Published" ≠ "delivered": a device applies it on the launch AFTER the download, and on foreground only after 30+ min in the background |
+| **OTA (EAS Update)** | **Every runtime in use has the 2026-10-22 equal-segment OTA**: the ten Sentry-7.11 runtimes from `ota/perf-2026-10-21` @ `86e366a5` (iOS builds 73 / 72 / 71 / 70 / 68, Android vc 52 / 51 / 50 / 48-49 / 47 — = `main` minus `0c30979d`), and build 74 (1.2.10, `a55af49c…`) from `main` @ `72590c0b`. vc 53 (alpha, `e989353d…`) embeds it. Groups and rollbacks in the ledger, which is the record and wins. "Published" ≠ "delivered": a device applies it on the launch AFTER the download, and on foreground only after 30+ min in the background |
 | **`app-version.json`** | **Self-driving** — served from Firestore `public/appVersion`, refreshed hourly by `hourlyTasks` (Play tracks API; Apple's public lookup) and by `/admin` → System → **Sync now**. `npm run doctor` compares the live URL with both stores |
 
 **Fingerprints and publishing:** current artifact values are the two-row table
@@ -52,8 +52,8 @@ cache, and the emulator suites through `scripts/require-java21.mjs`.
 
 **`0c30979d` — Sentry RN 8.31, Expo patch bumps, sampled tracing, the metro trim** — in the 1.2.10 binaries only
 (iOS build 74, TestFlight; Android vc 53, alpha; §3), in no store release and never OTA-able to older runtimes.
-**`ae03c475` — Firestore `compareSegments` equal-segment fast path (ADR-0016 amendment 4)** — in vc 53 only; NOT in
-build 74 (built at `07cff821`, before it) and in no OTA. Everything else on `main` is in an OTA (2026-10-22, §1).
+Everything else on `main` is in an OTA on every runtime (2026-10-22, §1), including `ae03c475` (the equal-segment fast
+path), which build 74 lacks natively and receives by OTA.
 The native halves of 1.2.7/1.2.8 (lock-screen Done set, Android Live Update,
 widget/watch day rollover, QuickAdd queue cap) reach users only with 1.2.8.
 Re-derive rather than trust this: `git log --oneline` against the newest ledger
@@ -92,7 +92,9 @@ deleted and its outcome goes to `CHANGELOG.md`.
   `a55af49c…` (artifact) — `VALID` in ASC 2026-10-22, internal TestFlight only.
   **Android** vc 53 / 1.2.10 at `ae03c475` (raw Gradle + patch script),
   runtime `e989353d…` (artifact) — Play **alpha**, committed and sent for
-  review. Not submitted to the App Store / Play production (owner's call).
+  review. **iOS submitted 2026-10-22: 1.2.10 `WAITING_FOR_REVIEW`**
+  (AFTER_APPROVAL; What's New in `docs/app-store-metadata.md`). Play
+  production for vc 53 not yet promoted (owner's call).
 - Contains `0c30979d` (Sentry RN 7.11 → 8.31 with sampled tracing,
   reanimated 4.5.5, worklets 0.10.4, keyboard-controller 1.22.8, Expo 57
   patches) and everything on `main`. Built on the 27.1 SDK, so it carries

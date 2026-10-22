@@ -31,17 +31,17 @@ if (!versionString || !buildNumber) {
   process.exit(2);
 }
 
-// 1.2.8 — the wording lives in docs/app-store-metadata.md ("What's New — 1.2.8");
+// 1.2.10 — the wording lives in docs/app-store-metadata.md ("What's New — 1.2.10");
 // this copy must match it. Earlier versions' text is in git history.
 const WHATS_NEW = {
   'en-US':
-    '• Log your next set from the Lock Screen: tap Done on the workout\'s Live Activity (iPhone) or live notification (Android) without opening the app.\n' +
-    '• Workouts finish cleaner: Zone 2 cardio asks for an effort rating, blank RIRs can be set in one tap, and weekly volume shows the dates of your current rotation.\n' +
-    '• Undo, edit or delete a meal and Apple Health updates too; your widget and watch now roll over at the time your day starts, not midnight.',
+    '• Faster: switching between Today, Train, Trends and Body no longer reloads each tab, saving a meal and searching foods are quicker, and the app catches up right away when you come back to it.\n' +
+    '• Smarter workouts: a lift moves up a step once you reach 15 reps at your target effort, a set logged closer to failure than its target RIR is flagged as you log it, and straight-set lifts now count toward your weekly volume.\n' +
+    '• Smoother and more stable: updated animation, keyboard and crash-reporting components, and full-screen support for iPhone Duo.',
   'es-MX':
-    '• Registra tu próxima serie desde la pantalla bloqueada: toca Listo en la Actividad en vivo del entrenamiento (iPhone) o en la notificación en vivo (Android) sin abrir la app.\n' +
-    '• Los entrenamientos terminan mejor: el cardio en Zona 2 pide tu nivel de esfuerzo, los RIR vacíos se completan con un toque y el volumen semanal muestra las fechas de tu rotación actual.\n' +
-    '• Deshaz, edita o borra una comida y Apple Salud también se actualiza; tu widget y tu reloj cambian de día a la hora en que empieza tu día, no a medianoche.',
+    '• Más rápida: cambiar entre Hoy, Entrenar, Tendencias y Cuerpo ya no recarga cada pestaña, guardar una comida y buscar alimentos es más ágil, y la app se pone al día enseguida cuando regresas.\n' +
+    '• Entrenamientos más inteligentes: el peso sube un paso cuando llegas a 15 repeticiones con tu esfuerzo meta, una serie registrada más cerca del fallo que tu RIR meta se marca al registrarla, y los ejercicios de series rectas ahora cuentan en tu volumen semanal.\n' +
+    '• Más fluida y estable: componentes de animación, teclado y reporte de errores actualizados, y soporte de pantalla completa para el iPhone Duo.',
 };
 
 const OPEN = ['READY_FOR_REVIEW', 'WAITING_FOR_REVIEW', 'IN_REVIEW', 'UNRESOLVED_ISSUES'];
