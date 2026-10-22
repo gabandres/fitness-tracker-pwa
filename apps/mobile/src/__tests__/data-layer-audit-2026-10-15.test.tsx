@@ -171,29 +171,34 @@ describe('2 — an older History month stays live while it is viewed', () => {
     await hook.unmount();
   });
 
-  it('a blurred History screen holds no month listener', async () => {
+  // Since 2026-10-22 a blur closes nothing (ADR-0016 amendment 2); the month
+  // listener lives as long as the screen does.
+  it('a blurred History screen keeps its month listener, and drops it on unmount', async () => {
     const hook = await renderHook(() => useHistory());
     await act(async () => mockWindow!(fullWindow()));
     await act(async () => hook.result.current.ensureMonthLoaded(new Date(2026, 5, 10)));
     mockFocus.focused = false;
     await hook.rerender({});
-    expect(mockRange[0].unsub).toHaveBeenCalled();
+    expect(mockRange[0].unsub).not.toHaveBeenCalled();
     await hook.unmount();
+    expect(mockRange[0].unsub).toHaveBeenCalled();
   });
 });
 
 describe('4 — the milestones listener is focus-gated and counted', () => {
-  it('opens through trackSubs, and a blurred Today drops it', async () => {
+  // Opens on Today's first focus; since 2026-10-22 it outlives a blur and
+  // closes on unmount (ADR-0016 amendment 2).
+  it('opens through trackSubs, survives a blurred Today, and closes on unmount', async () => {
     const hook = await renderHook(() => useMilestones({ uid: 'u1', streak: 0, hasWeighIn: false, boundary: [] }));
     expect(mockTracked).toContain('Today milestones');
     await act(async () => mockMilestones!({}));
     expect(hook.result.current.ready).toBe(true);
     mockFocus.focused = false;
     await hook.rerender({});
-    expect(mockMilestoneUnsub).toHaveBeenCalled();
-    // The last answer is kept while blurred.
+    expect(mockMilestoneUnsub).not.toHaveBeenCalled();
     expect(hook.result.current.ready).toBe(true);
     await hook.unmount();
+    expect(mockMilestoneUnsub).toHaveBeenCalled();
   });
 
   it('an offline cache-only answer is not "nothing on file" — no evaluation runs on it', async () => {

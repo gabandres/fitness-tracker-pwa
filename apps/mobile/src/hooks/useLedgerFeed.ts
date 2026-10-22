@@ -18,7 +18,7 @@ type Unsub = () => void;
  * `trackSubs` or not; honour `meta.fromCache` or not; settle the spinner on the
  * first answer or only on a server one; pass an `onError`, swallow it, or pass
  * none at all. Four of those five decisions have already been a shipped bug —
- * a permanent listener behind a blurred tab, an untracked unsub array, an empty
+ * a listener that outlived its screen, an untracked unsub array, an empty
  * offline snapshot written through as real data (three publishes, see
  * `useCachedState`), and a seed calorie target rendered forever after a failed
  * listener. None of them is visible at the call site that gets it wrong.
@@ -117,10 +117,12 @@ export interface LedgerFeedOptions<K extends string> {
    *  the hook belongs to, so a leak names itself in the console. */
   label: string;
   /**
-   * `'focus'` is the ADR-0016 default and what bounds the per-hook duplication:
-   * a blurred tab tears its listeners down. `'mount'` is for the hooks that
-   * must keep answering while something else holds the screen — it is a real
-   * choice with a real cost, so it is stated, never defaulted.
+   * `'focus'` (the usual one): listeners open on the screen's first focus and
+   * stay open until it unmounts; `onOpen` runs on every focus. `'mount'`: both
+   * from mount, focused or not — for the hooks that must answer before the
+   * screen is ever shown. Since 2026-10-22 a blur closes nothing (ADR-0016,
+   * amendment 2): re-opening a tab's listeners on every visit was the tab-switch
+   * lag.
    */
   gate: 'focus' | 'mount';
   /** The caller's own `subscribe*` calls. Return `[]` when there is nothing to
@@ -235,50 +237,89 @@ export function useLedgerFeed<K extends string>(opts: LedgerFeedOptions<K>): Led
   const error = fresh ? null : raw.error;
   const failed = fresh ? false : raw.failed;
 
-  const open = useCallback(() => {
-    if (!uid || !enabled) return;
-    let alive = true;
-    /** Carry marks across a re-open of the SAME account; drop them otherwise. */
-    const rebase = (p: FeedState): FeedState =>
-      p.uid === uid ? p : { uid, marks: {}, error: null, failed: false };
+  /** Carry marks across a re-open of the SAME account; drop them otherwise. */
+  const rebase = useCallback(
+    (p: FeedState): FeedState => (p.uid === uid ? p : { uid, marks: {}, error: null, failed: false }),
+    [uid],
+  );
 
+  const fail = useCallback(
+    (e: unknown) => {
+      const err = asError(e, `${label}: subscription failed`);
+      onErrorRef.current?.(err);
+      setRaw((p) => ({ ...rebase(p), error: err, failed: true }));
+    },
+    [label, rebase],
+  );
+
+  /** The listeners. Held from open to teardown; see the gates below for when. */
+  const openListeners = useCallback(() => {
+    if (!uid || !enabled) return;
     if (retryOnOpen) {
       setRaw((p) => {
         const b = rebase(p);
         return b.error == null && !b.failed ? b : { ...b, error: null, failed: false };
       });
     }
-
     const rt: FeedRuntime = {
       mark: (key) =>
         setRaw((p) => {
           const b = rebase(p);
           return b.marks[key] ? b : { ...b, marks: { ...b.marks, [key]: true } };
         }),
-      fail: (e) => {
-        const err = asError(e, `${label}: subscription failed`);
-        onErrorRef.current?.(err);
-        setRaw((p) => ({ ...rebase(p), error: err, failed: true }));
-      },
+      fail,
     };
+    return trackSubs(label, channels.map((c) => c.attach(rt)));
+  }, [uid, enabled, label, retryOnOpen, channels, rebase, fail]);
 
-    const unsubs = channels.map((c) => c.attach(rt));
-    onOpenRef.current?.({ uid, alive: () => alive, fail: rt.fail });
-    const stop = trackSubs(label, unsubs);
+  /** The caller's one-shot reads, per visit (focus gate) or per open (mount). */
+  // `channels` is the caller's deps made concrete, so a dep change re-runs the
+  // reads exactly as it used to re-open the cycle that ran them.
+  const runOnOpen = useCallback(() => {
+    if (!uid || !enabled || channels.length === 0) return;
+    let alive = true;
+    onOpenRef.current?.({ uid, alive: () => alive, fail });
     return () => {
       alive = false;
-      stop();
     };
-  }, [uid, enabled, label, retryOnOpen, channels]);
+  }, [uid, enabled, fail, channels]);
 
-  // Both gates are wired unconditionally — hooks cannot be called by branch —
-  // and the one that does not match returns without opening anything.
+  // ## Gates
+  //
+  // `'mount'`: listeners and `onOpen` from mount to unmount.
+  //
+  // `'focus'`: the listeners open on the screen's FIRST focus and then stay
+  // open until it unmounts — a blur no longer closes them (2026-10-22). Closing
+  // on blur meant every tab press re-opened the tab's whole set, and the
+  // Firestore SDK re-ran each query against its cache synchronously: measured
+  // on a Release build, 120–350 ms of frozen JS thread per tab switch (ADR-0016,
+  // amendment 2). A visited tab stays mounted and frozen (`freezeOnBlur`), so
+  // its snapshots queue and render on return. What still happens per visit:
+  // `onOpen` (its reads are cheap and some are a retry or a refresh, so they
+  // keep their old cadence), and a re-open of a feed that FAILED, since a
+  // listener that errored is dead and refocusing used to be its second chance.
+  const [visited, setVisited] = useState(false);
+  const [epoch, setEpoch] = useState(0);
+  const failedRef = useRef(failed);
+  useEffect(() => {
+    failedRef.current = failed;
+  });
+
   // Through sheets: a native sheet over the screen is not a departure (S20).
-  useFocusEffectThroughSheets(useCallback(() => (gate === 'focus' ? open() : undefined), [gate, open]));
+  useFocusEffectThroughSheets(
+    useCallback(() => {
+      if (gate !== 'focus') return;
+      setVisited(true);
+      if (failedRef.current) setEpoch((e) => e + 1);
+      return runOnOpen();
+    }, [gate, runOnOpen]),
+  );
   // Opening a listener IS the "subscribe to an external system" case the rule
-  // below exempts; the only synchronous setState in `open` is `retryOnOpen`.
+  // below exempts; the only synchronous setState in `openListeners` is
+  // `retryOnOpen`'s.
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => (gate === 'mount' ? open() : undefined), [gate, open]);
+  useEffect(() => (gate === 'mount' || visited ? openListeners() : undefined), [gate, visited, openListeners, epoch]);
+  useEffect(() => (gate === 'mount' ? runOnOpen() : undefined), [gate, runOnOpen]);
 
   const ready = useMemo(
     () => channels.length > 0 && channels.every((c) => c.settles === 'none' || marks[c.key]),

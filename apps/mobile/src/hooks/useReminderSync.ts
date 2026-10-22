@@ -98,10 +98,12 @@ function daysSinceKey(key: string, boundary: DayBoundary): number {
 
 /**
  * Drives the on-device smart reminders (core `planReminders` → expo-notifications
- * via `syncReminders`). Mounted on Today, so it re-runs on app-open / tab focus
- * and after every log (the logs `onSnapshot` fires). Focus-gated + trackSubs'd
- * like the other hooks (ADR-0016) — no permanent listener. A signature guard
- * skips redundant reschedules when the inputs haven't changed.
+ * via `syncReminders`). Mounted on Today, so it re-runs on app-open, on every
+ * focus of Today, and after every log (the logs `onSnapshot` fires). Its
+ * listeners live while Today is mounted and are trackSubs'd; a focus only
+ * recomputes from what they last delivered (ADR-0016 amendment 2 — re-opening
+ * them per focus was part of the tab-switch lag). A signature guard skips
+ * redundant reschedules when the inputs haven't changed.
  *
  * Keeps its own subscriptions rather than taking `useCoreSnapshot`'s three:
  * it needs no profile, and it holds its inputs in refs precisely so a snapshot
@@ -147,61 +149,68 @@ export function useReminderSync(): void {
     profileRef.current = profile;
   });
 
+  useEffect(() => {
+    if (!uid) return;
+    const recompute = () => {
+      const logs = trainedRef.current.length ? [...logsRef.current, ...trainedRef.current] : logsRef.current;
+      const weights = weightsRef.current;
+      const boundary = dayBoundaryOf(profileRef.current);
+      const now = new Date();
+      const todayKey = dayKeyAt(now, boundary);
+      const loggedToday =
+        weights[todayKey] != null || logs.some((l) => dayKeyAt(l.date, boundary) === todayKey);
+      const streak = computeStreak(logs, { freezeMaxGap: 0, boundary }).streak;
+      const sinceWeigh = daysSinceWeighIn(logs, weights, boundary);
+      const sinceLog = daysSinceLastLog(logs, boundary);
+      // Read here, off the ref, like the boundary: a goal change re-plans on
+      // the next snapshot rather than re-rendering Today.
+      const maintaining = isMaintaining(profileRef.current);
+      const tape = { allowed: tapeAllowedRef.current, female: profileRef.current?.sex === 'female' };
+      const mealsLoggedToday = mealsLoggedOn(logs, boundary, now);
+
+      // The calendar date is in the signature because the meal windows are
+      // one-shots counted from today: the first open of a new day re-arms
+      // them even when nothing else moved.
+      const sig = `${calendarDateKey(now)}|${loggedToday}|${mealsLoggedToday.join(',')}|${streak}|${sinceWeigh}|${sinceLog}|${maintaining}|${tape.allowed}|${tape.female}`;
+      if (sig === lastSig.current) return;
+      lastSig.current = sig;
+      void syncReminders(
+        { loggedToday, mealsLoggedToday, streak, daysSinceWeighIn: sinceWeigh, daysSinceLastLog: sinceLog, maintaining, tape },
+        t,
+      );
+    };
+
+    const unsubs = [
+      subscribeRecentLogs(uid, LOG_WINDOW_ROWS, (l) => {
+        logsRef.current = l;
+        recomputeRef.current = recompute;
+        recompute();
+      }),
+      subscribeLatestDailyWeight(uid, (w) => {
+        weightsRef.current = w;
+        recomputeRef.current = recompute;
+        recompute();
+      }),
+      subscribeRecentSessions(uid, TRAINED_DAYS_SESSIONS, (sessions) => {
+        trainedRef.current = trainedDayRows(sessions);
+        recomputeRef.current = recompute;
+        recompute();
+      }),
+    ];
+    const release = trackSubs('ReminderSync', unsubs);
+    return () => {
+      recomputeRef.current = null;
+      release();
+    };
+  }, [uid, t]);
+
+  // A focus re-plans from the refs, with no query: the meal windows are
+  // one-shots counted from today, so the first open of a new day has to re-arm
+  // them even when no snapshot arrives (the date is in the signature).
   useFocusEffect(
     useCallback(() => {
-      if (!uid) return;
-      const recompute = () => {
-        const logs = trainedRef.current.length ? [...logsRef.current, ...trainedRef.current] : logsRef.current;
-        const weights = weightsRef.current;
-        const boundary = dayBoundaryOf(profileRef.current);
-        const now = new Date();
-        const todayKey = dayKeyAt(now, boundary);
-        const loggedToday =
-          weights[todayKey] != null || logs.some((l) => dayKeyAt(l.date, boundary) === todayKey);
-        const streak = computeStreak(logs, { freezeMaxGap: 0, boundary }).streak;
-        const sinceWeigh = daysSinceWeighIn(logs, weights, boundary);
-        const sinceLog = daysSinceLastLog(logs, boundary);
-        // Read here, off the ref, like the boundary: a goal change re-plans on
-        // the next snapshot rather than re-rendering Today.
-        const maintaining = isMaintaining(profileRef.current);
-        const tape = { allowed: tapeAllowedRef.current, female: profileRef.current?.sex === 'female' };
-        const mealsLoggedToday = mealsLoggedOn(logs, boundary, now);
-
-        // The calendar date is in the signature because the meal windows are
-        // one-shots counted from today: the first open of a new day re-arms
-        // them even when nothing else moved.
-        const sig = `${calendarDateKey(now)}|${loggedToday}|${mealsLoggedToday.join(',')}|${streak}|${sinceWeigh}|${sinceLog}|${maintaining}|${tape.allowed}|${tape.female}`;
-        if (sig === lastSig.current) return;
-        lastSig.current = sig;
-        void syncReminders(
-          { loggedToday, mealsLoggedToday, streak, daysSinceWeighIn: sinceWeigh, daysSinceLastLog: sinceLog, maintaining, tape },
-          t,
-        );
-      };
-
-      const unsubs = [
-        subscribeRecentLogs(uid, LOG_WINDOW_ROWS, (l) => {
-          logsRef.current = l;
-          recomputeRef.current = recompute;
-          recompute();
-        }),
-        subscribeLatestDailyWeight(uid, (w) => {
-          weightsRef.current = w;
-          recomputeRef.current = recompute;
-          recompute();
-        }),
-        subscribeRecentSessions(uid, TRAINED_DAYS_SESSIONS, (sessions) => {
-          trainedRef.current = trainedDayRows(sessions);
-          recomputeRef.current = recompute;
-          recompute();
-        }),
-      ];
-      const release = trackSubs('ReminderSync', unsubs);
-      return () => {
-        recomputeRef.current = null;
-        release();
-      };
-    }, [uid, t]),
+      recomputeRef.current?.();
+    }, []),
   );
 
   // The admin claim lands after the first snapshots (`getIdTokenResult` is not
