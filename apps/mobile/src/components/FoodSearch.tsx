@@ -176,10 +176,17 @@ interface PortionDetail {
  * Debounce in front of a CHAIN-restaurant query only: it pays a real round
  * trip (`lib/foodSearch.ts`), so it waits rather than firing a callable per
  * keystroke. A local query has no timer at all (F2): the bundled index answers
- * in ~30 ms, and it runs off `useDeferredValue(query)` instead — React renders
- * the keystroke first and the search when it is idle, skipping intermediate
- * values when typing outruns it, which is what the old 100 ms timer
- * approximated with a fixed guess.
+ * in ~1–3 ms in Hermes on a Mac (an inverted index since 2026-10-21; the linear
+ * scan before it was 20–60 ms), and it runs off `useDeferredValue(query)`
+ * instead — React renders the keystroke first and the search when it is idle,
+ * skipping intermediate values when typing outruns it, which is what the old
+ * 100 ms timer approximated with a fixed guess.
+ *
+ * Note what the deferral does NOT do: the search itself is synchronous, inside
+ * the deferred render's effect, so it is one uninterruptible chunk of the JS
+ * thread. Deferral keeps the keystroke's own render ahead of it; only the
+ * search being fast keeps the NEXT keystroke from waiting behind it. A
+ * debounce would add latency to every query to hide a cost that is now ~1 ms.
  */
 const CHAIN_DEBOUNCE_MS = 350;
 
@@ -266,10 +273,11 @@ export function FoodSearch({
     };
   }, []);
 
-  // Decode the bundled food index if Today's idle warm (`(app)/index.tsx`)
-  // has not already — a no-op when it has. Search is on-device (Tier D), and
-  // the one-time decode would otherwise land on the first keystroke, which is
-  // the one moment the user is watching.
+  // Start building the bundled food index if Today's idle warm
+  // (`(app)/index.tsx`) has not already — a no-op when it has or is under
+  // way. It runs in idle slices, so it does not compete with the sheet's
+  // entrance; and a keystroke that beats it finishes the build first rather
+  // than search a partial index (`localFoodSearch.ts`).
   useEffect(() => {
     warmFoodIndex();
   }, []);

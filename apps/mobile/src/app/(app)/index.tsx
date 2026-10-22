@@ -67,8 +67,8 @@ import { formatDate } from '@/lib/date-format';
 import { TAB_SCROLL_BAND } from '@/lib/glass';
 import { useLargeTitle } from '@/lib/font-scale';
 
-/** After Today mounts, before the food index is decoded in idle time — long
- *  enough for the first paint and the listeners' first answers to land. */
+/** After Today mounts, before the food index starts building in idle time —
+ *  long enough for the first paint and the listeners' first answers to land. */
 const FOOD_INDEX_WARM_DELAY_MS = 2500;
 
 /** Streak length below which a streak extension is too early to read as
@@ -516,27 +516,18 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
     return () => cancelAnimationFrame(id);
   }, [sharing, t]);
 
-  // Decode the bundled food index once Today has settled, in idle time. Left
-  // to `FoodSearch`'s mount it landed in the add sheet's opening frames — the
-  // first add of every session paid a 1.4 MB decode on the JS thread while the
-  // sheet presented and the keyboard waited. Logging food is what this screen
-  // is for, so the user who never searches is not the case to optimise.
+  // Build the bundled food index once Today has settled. Left to
+  // `FoodSearch`'s mount it landed in the add sheet's opening frames — the
+  // first add of every session paid it on the JS thread while the sheet
+  // presented and the keyboard waited. Logging food is what this screen is
+  // for, so the user who never searches is not the case to optimise.
+  // `warmFoodIndex` schedules its own idle callbacks, one slice each: an idle
+  // callback here only chose when ONE ~250 ms task started, so a tap in that
+  // window still stalled. Once a slice has started, unmounting does not stop
+  // the rest — the work is bounded, and the next search needs it anyway.
   useEffect(() => {
-    let cancelIdle: (() => void) | undefined;
-    const delay = setTimeout(() => {
-      const g = globalThis as {
-        requestIdleCallback?: (cb: () => void) => number;
-        cancelIdleCallback?: (h: number) => void;
-      };
-      if (g.requestIdleCallback && g.cancelIdleCallback) {
-        const h = g.requestIdleCallback(warmFoodIndex);
-        cancelIdle = () => g.cancelIdleCallback?.(h);
-      } else warmFoodIndex();
-    }, FOOD_INDEX_WARM_DELAY_MS);
-    return () => {
-      clearTimeout(delay);
-      cancelIdle?.();
-    };
+    const delay = setTimeout(warmFoodIndex, FOOD_INDEX_WARM_DELAY_MS);
+    return () => clearTimeout(delay);
   }, []);
 
   // Pull to refresh runs the Health / Oura imports — the only part of Today

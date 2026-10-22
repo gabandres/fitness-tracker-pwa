@@ -7,8 +7,10 @@ import {
   headAnchoredGeneralisations,
   loadFoodIndex,
   normalizeQuery,
+  prepareFoodIndex,
   scoreFood,
   searchFoodIndex,
+  searchFoodIndexReference,
   stem,
   words,
   type CompactFoodIndex,
@@ -387,5 +389,138 @@ describe('generalisesFood', () => {
   it('lets the user keep a subtractive word they typed themselves', () => {
     expect(generalisesFood('Milk, skim', 'Milk', 'skim milk')).toBe(false);
     expect(generalisesFood('Milk, skim, fluid', 'Milk, skim', 'skim milk')).toBe(true);
+  });
+});
+
+// The production search answers from an inverted index (`prepareFoodIndex`);
+// `searchFoodIndexReference` is the linear scan it replaced, kept as the
+// oracle. The full-corpus diff over hundreds of queries lives with the shipped
+// index in apps/mobile/src/__tests__/food-index-parity.test.ts; these are the
+// edge cases the USDA corpus happens not to contain, each aimed at one of the
+// equivalence arguments in usda-search.ts.
+
+describe('searchFoodIndex - the inverted index equals the reference scan', () => {
+  const ROWS = [
+    // `\b` treats "." and "_" differently from the tokenizer: the regex gate
+    // must say "maybe" for these, never "no".
+    { id: 'p1', desc: 'Chicken, raw.' },
+    { id: 'p2', desc: 'Chicken, raw_meat' },
+    { id: 'p3', desc: 'Fried_chicken, frozen.' },
+    { id: 'p4', desc: 'Chicken, raw, frozen, fried, breaded' },
+    // Multi-word VAGUE alternatives, and one split across a comma (which must
+    // NOT count — no alternative contains a comma).
+    { id: 'v1', desc: 'Potato, skin not eaten' },
+    { id: 'v2', desc: 'Potato, NS as to form' },
+    { id: 'v3', desc: 'Potato, skin, eaten' },
+    { id: 'v4', desc: 'Milk, NFS' },
+    // Empty and punctuation-only segments; repeated words; a comma-led desc.
+    { id: 'e1', desc: 'Egg,, whole, egg' },
+    { id: 'e2', desc: ', egg (raw)' },
+    { id: 'e3', desc: 'Eggs, whole, raw, fresh' },
+    // Non-ASCII is a separator for both tokenizers.
+    { id: 'u1', desc: 'Jalapeño peppers, raw' },
+    { id: 'u2', desc: 'Crème fraîche, plain' },
+    // Composite and processed terms, counted per segment and summed.
+    { id: 'c1', desc: 'Beans and rice, with cheese and sauce' },
+    { id: 'c2', desc: 'Rice, brown, cooked' },
+    { id: 'c3', desc: 'Rice and beans' },
+    // Plural folding at the word level, and a substring-only match.
+    { id: 's1', desc: 'Tomatoes, roma' },
+    { id: 's2', desc: 'Berries, mixed, frozen' },
+    { id: 's3', desc: 'Strawberry pie' },
+    // Exact ties that only the id breaks, and one only corpus order breaks.
+    { id: 't2', desc: 'Kale, raw' },
+    { id: 't1', desc: 'Kale, raw' },
+    { id: 'dup', desc: 'Kale, frozen' },
+    { id: 'dup', desc: 'Kale, frozen' },
+  ];
+  const corpus = idx(ROWS);
+  // A separate load for the oracle, so neither path can lean on state (the
+  // index, the memoised fields) that the other built.
+  const oracle = idx(ROWS);
+  const queries = [
+    'chicken', 'chicken raw', 'raw', 'raw.', 'raw_meat', 'frozen', 'fried chicken', 'potato',
+    'skin not eaten', 'ns as to', 'nfs', 'milk', 'egg', 'eggs', 'egg whole', 'whole egg', 'e',
+    'jalape', 'peppers', 'creme', 'fraiche', 'cr', 'beans', 'rice', 'rice and beans', 'beans rice',
+    'with', 'and', 'tomato', 'tomatoes', 'berry', 'berries', 'strawberries', 'kale', 'kale raw',
+    'k', 'zz', 'pure kale', 'natural rice brown', 'chicken.', '.', '1', 'egg egg', 'raw raw raw',
+  ];
+  const sizes = [20, 1, 3, 0, -1, 2.5, Infinity];
+
+  it('returns the same hits in the same order for every query and size', () => {
+    for (const q of queries) {
+      for (const size of sizes) {
+        expect({ q, size, hits: searchFoodIndex(corpus, q, size) }).toEqual({
+          q,
+          size,
+          hits: searchFoodIndexReference(oracle, q, size),
+        });
+      }
+    }
+  });
+
+  it('keeps exact ties in corpus order, as the stable sort did', () => {
+    const hits = searchFoodIndex(corpus, 'kale frozen', 5).map((h) => h.id);
+    expect(hits).toEqual(['dup', 'dup']);
+    expect(searchFoodIndex(corpus, 'kale', 2).map((h) => h.id)).toEqual(['t1', 't2']);
+  });
+});
+
+describe('prepareFoodIndex', () => {
+  const rows = Array.from({ length: 25 }, (_, i) => ({ id: String(i), desc: `Food ${i}, raw` }));
+
+  it('builds in slices and reports when it is done', () => {
+    const foods = idx(rows);
+    const slices: boolean[] = [];
+    let done = false;
+    while (!done) {
+      done = prepareFoodIndex(foods, 10);
+      slices.push(done);
+    }
+    expect(slices).toEqual([false, false, true]);
+    // Done stays done, and costs nothing.
+    expect(prepareFoodIndex(foods, 10)).toBe(true);
+  });
+
+  it('lets a search arrive mid-preparation and still answer from the WHOLE corpus', () => {
+    // Searching only the prepared prefix would be faster and silently wrong.
+    const foods = idx(rows);
+    expect(prepareFoodIndex(foods, 5)).toBe(false);
+    const hits = searchFoodIndex(foods, 'food', 50);
+    expect(hits).toHaveLength(25);
+    expect(hits).toEqual(searchFoodIndexReference(idx(rows), 'food', 50));
+  });
+
+  it('makes progress on a nonsense slice size rather than stalling', () => {
+    const foods = idx(rows);
+    let calls = 0;
+    while (!prepareFoodIndex(foods, 0)) calls++;
+    expect(calls).toBe(24);
+  });
+
+  it('handles an empty corpus', () => {
+    const foods = idx([]);
+    expect(prepareFoodIndex(foods)).toBe(true);
+    expect(searchFoodIndex(foods, 'egg', 5)).toEqual([]);
+  });
+});
+
+describe('loadFoodIndex - fields are derived on first read, not at load', () => {
+  it('derives each field exactly as the old eager decode did', () => {
+    const desc = 'Yogurt, Greek, plain, nonfat (2% or less)';
+    const [food] = idx([{ id: '1', desc, portions: [[2, 15], [0, 245]] }]);
+    const norm = desc.toLowerCase();
+    expect(food.norm).toBe(norm);
+    expect(food.words).toEqual(words(desc));
+    expect(food.wordStems).toEqual(words(desc).map(stem));
+    expect(food.segments).toEqual(norm.split(',').map((s) => s.trim()));
+    expect(food.segmentStems).toEqual(norm.split(',').map((s) => words(s).map(stem)));
+    expect(food.per100).toEqual({ kcal: 100, protein: 5, carb: 20, fat: 1 });
+    expect(food.portions).toEqual([
+      { label: '1 tbsp', grams: 15 },
+      { label: '1 cup', grams: 245 },
+    ]);
+    // Memoised: the same array every read, so a hot loop allocates nothing.
+    expect(food.words).toBe(food.words);
   });
 });

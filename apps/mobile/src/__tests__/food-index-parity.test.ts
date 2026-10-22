@@ -4,9 +4,11 @@ import {
   FOOD_INDEX_FORMAT_VERSION,
   loadFoodIndex,
   searchFoodIndex,
+  translateFoodTerm,
   type CompactFoodIndex,
   type IndexedFood,
 } from '@macrolog/core';
+import { searchFoodIndexReference, stem, words } from '@macrolog/core/usda-search';
 
 /**
  * Ranking parity between the on-device search and the server's.
@@ -118,5 +120,119 @@ describe('on-device search over the real corpus', () => {
     // WHICH staple broke.
     const empty = staples.filter((q) => searchFoodIndex(index(), q, 5).length === 0);
     expect(empty).toEqual([]);
+  });
+});
+
+/**
+ * The inverted index answers EXACTLY what the linear scan answered.
+ *
+ * `searchFoodIndex` stopped scanning on 2026-10-21: it now classifies each
+ * query token once per distinct corpus word and scores only the foods every
+ * token reaches (`usda-search.ts`, "Speed"). The golden fixture above pins 24
+ * curated queries; this pins the CLAIM — same foods, same order, same
+ * servings — against `searchFoodIndexReference`, the old scan kept verbatim as
+ * the oracle, over queries generated from the shipped index itself: what a
+ * user types while a food name forms under their thumbs.
+ *
+ * The oracle gets its own `loadFoodIndex`, so neither side can answer from
+ * state the other built. Equality is `toEqual` on the whole hit array, so a
+ * swapped pair of tied rows fails just as a missing food does.
+ */
+describe('the inverted index reproduces the linear scan, query for query', () => {
+  const oracle = loadFoodIndex(raw);
+
+  const queries = (() => {
+    const out = new Set<string>();
+    const add = (q: string) => {
+      if (q.trim()) out.add(q);
+    };
+    // Every 97th food: ~137 foods spread across the three datasets, in the
+    // index's own order, so the sample is deterministic.
+    raw.foods.forEach((row, i) => {
+      if (i % 97 !== 0) return;
+      const desc = row[1];
+      const w = words(desc);
+      if (w.length === 0) return;
+      const [a, b, c] = w;
+      // The name forming under the thumb.
+      add(a.slice(0, 2));
+      add(a.slice(0, 3));
+      add(a.slice(0, 5));
+      add(a);
+      if (b) {
+        add(`${a} ${b.slice(0, 1)}`);
+        add(`${a} ${b}`);
+        add(`${b} ${a}`); // word order the user chose, not USDA's
+      }
+      if (c) add(`${a} ${b} ${c}`);
+      add(desc.split(',')[0]); // the head segment, exact-ish
+      add(desc); // the whole description, punctuation and all
+      // What the matcher tolerates: plurals both ways, a mid-word substring.
+      add(stem(a) === a ? `${a}s` : stem(a));
+      if (a.length > 5) add(a.slice(1, -1));
+      // Words the corpus never wrote, to exercise the head-anchored fallback
+      // (unknown modifier) and its refusal to drop the head (unknown head).
+      add(`zqxj ${a}`);
+      if (b) add(`${a} zqxj ${b}`);
+      add(`${a} zqxj`);
+    });
+    // Restaurant chains are never relaxed; Spanish / Portuguese go through the
+    // same alias table `localSearch` applies, AND raw, as a user might paste.
+    for (const q of [
+      'starbucks latte', 'mcdonalds fries', 'chipotle burrito bowl',
+      'pollo', 'frango', 'pechuga de pollo', 'peito de frango', 'huevos', 'ovos',
+      'leche', 'leite', 'arroz', 'frijoles', 'feijao', 'carne molida', 'atun', 'salmao',
+      'c', 'e', '1', '2%', '.', 'egg egg', 'raw raw', 'nfs', 'with', 'and or',
+      'skin not eaten', 'ns as to form', '  Chicken   Breast  ', 'CHICKEN, ROASTED',
+    ]) {
+      add(q);
+      add(translateFoodTerm(q));
+    }
+    return [...out];
+  })();
+
+  it('generates a corpus worth trusting', () => {
+    // A regression to a handful of queries would turn this into a smoke test.
+    expect(queries.length).toBeGreaterThan(1000);
+  });
+
+  it('returns the same hits in the same order at the typeahead page size', () => {
+    const diffs: string[] = [];
+    for (const q of queries) {
+      const fast = searchFoodIndex(index(), q, 20);
+      const slow = searchFoodIndexReference(oracle, q, 20);
+      if (JSON.stringify(fast) !== JSON.stringify(slow)) diffs.push(q);
+    }
+    expect(diffs).toEqual([]);
+  });
+
+  it('agrees deep into the ranking, not just on the visible page', () => {
+    // A wrong tie order often hides below row 20; 400 rows reaches it. Every
+    // 4th query keeps the suite's wall time sane — the scan is the slow side.
+    const diffs: string[] = [];
+    queries.forEach((q, i) => {
+      if (i % 4 !== 0) return;
+      const fast = searchFoodIndex(index(), q, 400);
+      const slow = searchFoodIndexReference(oracle, q, 400);
+      if (JSON.stringify(fast) !== JSON.stringify(slow)) diffs.push(q);
+    });
+    expect(diffs).toEqual([]);
+  });
+
+  it('lazily derived food fields equal the old eager decode, for every food', () => {
+    // `loadFoodIndex` used to precompute these; it now derives them on first
+    // read. Pinned over the whole shipped corpus, not a sample.
+    const bad: string[] = [];
+    for (const food of oracle) {
+      const norm = food.desc.toLowerCase();
+      const ok =
+        food.norm === norm &&
+        JSON.stringify(food.words) === JSON.stringify(words(food.desc)) &&
+        JSON.stringify(food.wordStems) === JSON.stringify(words(food.desc).map(stem)) &&
+        JSON.stringify(food.segments) === JSON.stringify(norm.split(',').map((x) => x.trim())) &&
+        JSON.stringify(food.segmentStems) === JSON.stringify(norm.split(',').map((x) => words(x).map(stem)));
+      if (!ok) bad.push(food.id);
+    }
+    expect(bad).toEqual([]);
   });
 });
