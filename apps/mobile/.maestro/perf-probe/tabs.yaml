@@ -1,0 +1,22 @@
+appId: fit.ignia.app
+---
+- launchApp:
+    clearState: false
+- tapOn:
+    text: 'Cancel'
+    optional: true
+- extendedWaitUntil:
+    visible: 'Today'
+    timeout: 60000
+- extendedWaitUntil: { visible: 'zz-never-zz', timeout: 5000, optional: true }
+- repeat:
+    times: 2
+    commands:
+      - tapOn: { id: 'tab-train' }
+      - extendedWaitUntil: { visible: 'zz-never-zz', timeout: 3000, optional: true }
+      - tapOn: { id: 'tab-trends' }
+      - extendedWaitUntil: { visible: 'zz-never-zz', timeout: 3000, optional: true }
+      - tapOn: { id: 'tab-body' }
+      - extendedWaitUntil: { visible: 'zz-never-zz', timeout: 3000, optional: true }
+      - tapOn: { id: 'tab-index' }
+      - extendedWaitUntil: { visible: 'zz-never-zz', timeout: 3000, optional: true }

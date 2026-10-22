@@ -1,3 +1,4 @@
+import { probeTabPress } from '@/lib/perf-probe';
 import { useEffect, useRef, useState } from 'react';
 import { type DailyLog, type LogEntry, type MealPreset, type MealType, newLedgerId } from '@macrolog/core';
 import { useToast } from '@/components/Toast';
@@ -210,6 +211,7 @@ export function useDiaryActions({
     // Edit only when it can act: with the sheet kept open for a multi-add,
     // `editAdded` would return early and the button would do nothing.
     const onEdit = sheetOpenRef.current ? undefined : (id: string) => editAdded(id, entry);
+    probeTabPress('log-save');
     const id = newLedgerId(Math.random);
     const early = !!user?.uid && !isOffline();
     if (early) {

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFocusEffectThroughSheets } from '@/hooks/useFocusEffectThroughSheets';
 import { trackSubs } from '@/lib/sub-debug';
+import { probeDelivery, probeMark } from '@/lib/perf-probe';
 
 type Unsub = () => void;
 
@@ -93,7 +94,9 @@ export function feedChannel<T, const K extends string>(
     attach: ({ mark, fail }) =>
       spec.open((value, meta) => {
         const authoritative = !meta?.fromCache;
+        const s = performance.now();
         spec.apply(value, { authoritative });
+        probeDelivery(spec.key, meta?.fromCache, performance.now() - s);
         if (settles === 'any' || (settles === 'server' && authoritative)) mark(spec.key);
       }, fail),
   };
@@ -262,6 +265,7 @@ export function useLedgerFeed<K extends string>(opts: LedgerFeedOptions<K>): Led
       },
     };
 
+    probeMark(`open:${label}(${channels.length})`);
     const unsubs = channels.map((c) => c.attach(rt));
     onOpenRef.current?.({ uid, alive: () => alive, fail: rt.fail });
     const stop = trackSubs(label, unsubs);

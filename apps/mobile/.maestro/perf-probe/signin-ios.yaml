@@ -1,0 +1,28 @@
+appId: fit.ignia.app
+---
+- launchApp:
+    clearState: true
+- tapOn:
+    id: 'welcome-signin'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'email'
+    timeout: 30000
+- tapOn:
+    id: 'email'
+- inputText: ${EMAIL}
+- pressKey: Enter
+- waitForAnimationToEnd
+- inputText: ${PASSWORD}
+- pressKey: Enter
+- extendedWaitUntil:
+    visible: 'Today'
+    timeout: 60000
+- runFlow:
+    when:
+      visible:
+        id: 'tour-skip'
+    commands:
+      - tapOn:
+          id: 'tour-skip'

@@ -1,0 +1,42 @@
+appId: fit.ignia.app
+---
+- launchApp:
+    clearState: false
+- tapOn:
+    text: 'Cancel'
+    optional: true
+- extendedWaitUntil:
+    visible: 'Today'
+    timeout: 60000
+- openLink: 'ignia://?openAdd=perf-9207a'
+- tapOn:
+    text: 'Open'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'open-more'
+    timeout: 15000
+- tapOn: { id: 'open-manual' }
+- tapOn: { id: 'entry-label' }
+- inputText: 'Perf probe'
+- tapOn: { id: 'entry-calories' }
+- inputText: '50'
+- tapOn: 'Write it in'
+- tapOn: { id: 'entry-save' }
+- extendedWaitUntil: { visible: 'zz-never-zz', timeout: 4000, optional: true }
+- openLink: 'ignia://?openAdd=perf-9207b'
+- tapOn:
+    text: 'Open'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'open-more'
+    timeout: 15000
+- tapOn: { id: 'open-manual' }
+- tapOn: { id: 'entry-label' }
+- inputText: 'Perf probe'
+- tapOn: { id: 'entry-calories' }
+- inputText: '50'
+- tapOn: 'Write it in'
+- tapOn: { id: 'entry-save' }
+- extendedWaitUntil: { visible: 'zz-never-zz', timeout: 4000, optional: true }

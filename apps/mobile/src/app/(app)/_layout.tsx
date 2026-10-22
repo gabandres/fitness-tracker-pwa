@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type ComponentProps } from 'react';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Tabs, useRouter, useSegments } from 'expo-router';
+import { Profiler } from 'react';
+import { probeOnRender, probeTabPress } from '@/lib/perf-probe';
 import { Platform, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { announce } from '@/lib/a11y';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -143,6 +145,7 @@ function AppTabBar({
         // No haptic: switching tabs is navigation, and neither platform's own
         // tab bar buzzes for it (review P6).
         onPress={() => {
+          probeTabPress(name);
           const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
           if (!focused && !event.defaultPrevented) navigation.navigate(route.name, route.params);
           // Re-tapping the tab you are on scrolls it to the top (Today wires
@@ -373,6 +376,7 @@ export default function AppTabsLayout() {
   // sits on the root stack, above this navigator, and hosts toasts too.
   return (
     <>
+    <Profiler id="nav" onRender={probeOnRender}>
     <Tabs
       // `freezeOnBlur`: a tab you have visited stays mounted, and without this
       // every tab switch re-rendered all of them, not just the one shown — and
@@ -396,10 +400,10 @@ export default function AppTabsLayout() {
           hold={route.name === 'train' && workoutActive}
           focused={navigation.isFocused()}
         >
-          {children}
+          <Profiler id={`scr:${route.name}`} onRender={probeOnRender}>{children}</Profiler>
         </RelayoutBoundary>
       )}
-      tabBar={(props) => <AppTabBar key={relayout} {...props} onPillBand={setPillBand} />}
+      tabBar={(props) => <Profiler id="tabbar" onRender={probeOnRender}><AppTabBar key={relayout} {...props} onPillBand={setPillBand} /></Profiler>}
     >
       <Tabs.Screen name="index" options={{ title: t('nav.today') }} />
       <Tabs.Screen name="train" options={{ title: t('nav.train') }} />
@@ -412,6 +416,7 @@ export default function AppTabsLayout() {
           never cover them, swipe-back works, and back returns to the screen
           that opened them instead of the tab navigator's first route. */}
     </Tabs>
+    </Profiler>
     {/* Branded confirm dialogs (UX_AUDIT S16-10) — one host for every
         `confirm()` call in the authed shell. */}
     <ConfirmHost />
