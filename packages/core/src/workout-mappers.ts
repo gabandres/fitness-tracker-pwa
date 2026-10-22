@@ -61,6 +61,7 @@ export function toWorkoutTemplate(id: string, data: Record<string, unknown>): Wo
     id,
     name: (data['name'] as string) ?? '',
     notes: data['notes'] as string | undefined,
+    ...(typeof data['templateVersion'] === 'string' ? { templateVersion: data['templateVersion'] } : {}),
     restMiniSec: data['restMiniSec'] as number | undefined,
     restClusterSec: data['restClusterSec'] as number | undefined,
     exercises: ((data['exercises'] as TemplateExercise[] | undefined) ?? []).map((ex) => ({

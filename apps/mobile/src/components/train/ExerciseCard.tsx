@@ -18,6 +18,7 @@ import {
   setRowLabels,
   suggestProgression,
   toDisplayLoad,
+  targetRirOf,
 } from '@macrolog/core';
 import {
   DEFAULT_LOG_STYLE,
@@ -194,6 +195,9 @@ export const ExerciseCard = memo(function ExerciseCard({
   // The RIR column only where this lift uses RIR (S23-5 / F8) — never hiding
   // a value already logged (`liftUsesRir`).
   const rirColumn = liftUsesRir(ex.sets, prevSets, templateRow?.setStructure ?? catalogEx?.setStructure);
+  // The RIR-compliance hint's target (Program v2.2): none in a deload week,
+  // where every lift is taken to RIR 3 on purpose.
+  const targetRir = deload ? 0 : targetRirOf(catalogEx?.effortStandard);
   // When core withheld a recommendation because the last activation was
   // unreadable, SAY so. Silence and "no bump today" look identical otherwise,
   // and the second one is a claim about the training rather than about the data.
@@ -452,6 +456,7 @@ export const ExerciseCard = memo(function ExerciseCard({
               exerciseTargetReps={ex.progression?.targetReps}
               isLastSet={setIdx === ex.sets.length - 1}
               rirColumn={rirColumn}
+              targetRir={targetRir}
               best={best}
               largeText={largeText}
               dispatch={dispatch}

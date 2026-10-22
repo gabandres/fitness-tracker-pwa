@@ -26,6 +26,13 @@ import { createStyles } from '@/components/train/train-styles';
 import { MuscleChips, MuscleCreditLine } from '@/components/train/MuscleChips';
 import type { MuscleGroup } from '@macrolog/core/workout';
 import { type I18nKey, useT } from '@/i18n';
+
+/** The label for each effort standard — the chip and the summary line. */
+const EFFORT_KEYS: Record<EffortStandard, I18nKey> = {
+  failure: 'train.lift.effortFailure',
+  rir1: 'train.lift.effortRir1',
+  rir2: 'train.lift.effortRir2',
+};
 import * as haptics from '@/lib/haptics';
 import { useAuth } from '@/lib/auth';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
@@ -334,7 +341,7 @@ export function LiftSettingsForm({ draft, mode }: { draft: LiftSettingsDraft; mo
   } = draft;
   const showCredit = liftPlansClusters(exercise, templateRow);
   const fmt = (lb: number) => formatLoad(lb, unitSystem);
-  const effortLabel = t(config.effortStandard === 'failure' ? 'train.lift.effortFailure' : 'train.lift.effortRir1');
+  const effortLabel = t(EFFORT_KEYS[config.effortStandard ?? 'failure']);
 
   return (
     <View style={styles.sheetStack}>
@@ -484,7 +491,7 @@ export function LiftSettingsForm({ draft, mode }: { draft: LiftSettingsDraft; mo
     <View style={styles.liftSection}>
       <Text style={styles.liftLabel}>{t('train.lift.effort')}</Text>
       <View style={[styles.styleRow, stackChips && { flexDirection: 'column' }, { marginTop: 0 }]} accessibilityRole="radiogroup">
-        {(['failure', 'rir1'] as const).map((s) => {
+        {(['failure', 'rir1', 'rir2'] as const).map((s) => {
           const on = standard === s;
           return (
             <Touchable
@@ -496,7 +503,7 @@ export function LiftSettingsForm({ draft, mode }: { draft: LiftSettingsDraft; mo
               testID={`lift-effort-${s}`}
             >
               <Text style={[styles.styleChipText, on && styles.styleChipTextOn]}>
-                {t(s === 'failure' ? 'train.lift.effortFailure' : 'train.lift.effortRir1')}
+                {t(EFFORT_KEYS[s])}
               </Text>
             </Touchable>
           );

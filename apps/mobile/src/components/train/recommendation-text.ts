@@ -31,6 +31,7 @@ import {
   loadUnit,
   progressionCall,
   toDisplayLoad,
+  targetRirOf,
 } from '@macrolog/core';
 import type { SetStructure } from '@/lib/workout';
 import type { I18nKey, TFn } from '@/i18n';
@@ -91,7 +92,7 @@ const INVALID_KEYS: Record<InvalidReason, I18nKey> = {
 };
 
 const WARNING_KEYS: Record<RecommendWarning, I18nKey> = {
-  'failure-on-rir1': 'train.rec.warn.failureOnRir1',
+  'below-target-rir': 'train.rec.warn.belowTargetRir',
   'rir-missing-assumed-0': 'train.rec.warn.rirMissingAssumed0',
   'load-changed-mid-cluster': 'train.rec.warn.loadChangedMidCluster',
 };
@@ -196,6 +197,10 @@ export function reasonText(rec: Recommendation, unitSystem: UnitSystem, t: TFn):
         next: fmt(r.nextLoad), pct: pct(r.jumpPct), reps: r.repsGoal, load,
       });
     // ── myo-reps, the rep-range rules ──
+    case 'rep-flag':
+      return t('train.rec.reason.repFlag', {
+        reps: r.reps, at: r.at, next: fmt(r.nextLoad), pct: pct(r.jumpPct), predicted: r.predictedReps,
+      });
     case 'increase':
       return t('train.rec.reason.increase', {
         reps: r.reps, max: r.max, next: fmt(r.nextLoad), pct: pct(r.jumpPct),
@@ -247,11 +252,13 @@ export function reasonText(rec: Recommendation, unitSystem: UnitSystem, t: TFn):
   }
 }
 
-/** "Target: ≥ 11 reps" — LOGGED reps, so a `rir1` lift says where to stop. */
+/** "Target: ≥ 11 reps" — LOGGED reps, so a `rir1` / `rir2` lift says where
+ *  to stop. */
 function targetText(rec: Recommendation, t: TFn): string | null {
   if (rec.targetReps == null) return null;
-  return rec.config?.effortStandard === 'rir1'
-    ? t('train.rec.targetRir1', { n: rec.targetReps })
+  const rir = targetRirOf(rec.config?.effortStandard);
+  return rir > 0
+    ? t('train.rec.targetRir', { n: rec.targetReps, rir })
     : t('train.rec.target', { n: rec.targetReps });
 }
 
@@ -260,8 +267,9 @@ function targetText(rec: Recommendation, t: TFn): string | null {
  *  a `rir1` lift's number is what it should log and to failure is one more. */
 function expectText(rec: Recommendation, t: TFn): string | null {
   if (rec.predictedReps == null) return null;
-  if (rec.config?.effortStandard === 'rir1') {
-    return t('train.rec.expectRir1', { n: rec.predictedReps + 1, logged: rec.predictedReps });
+  const rir = targetRirOf(rec.config?.effortStandard);
+  if (rir > 0) {
+    return t('train.rec.expectRir', { n: rec.predictedReps + rir, logged: rec.predictedReps, rir });
   }
   return t('train.rec.expect', { n: rec.predictedReps });
 }
@@ -271,7 +279,7 @@ function expectText(rec: Recommendation, t: TFn): string | null {
  *  number is read, and saying "approximate" there would be noise. */
 function citesNextStep(rec: Recommendation): boolean {
   const k = rec.reason.kind;
-  if (k === 'increase' || k === 'step-too-big') return true;
+  if (k === 'increase' || k === 'rep-flag' || k === 'step-too-big') return true;
   return k === 'at-rep-cap' && rec.reason.nextLoad != null;
 }
 
@@ -356,7 +364,8 @@ export function recommendationText(
     expect: expectText(rec, t),
     notes: notesText(rec, unitSystem, t),
     last: lastText(rec, t),
-    warnings: rec.warnings.map((w) => t(WARNING_KEYS[w])),
+    // The RIR-compliance warning carries its numbers ("logged RIR 0, target 1").
+    warnings: rec.warnings.map((w) => t(WARNING_KEYS[w], w === 'below-target-rir' ? rec.rirBelowTarget : undefined)),
     stall: rec.stall ? stallLines(rec.stall, unitSystem, t) : [],
   };
 }

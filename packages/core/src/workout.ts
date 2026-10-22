@@ -347,10 +347,13 @@ export function findDuplicateExercise<T extends { id?: string; name: string }>(
  * How close to failure the ACTIVATION set of a cluster is taken on a lift.
  * `failure` (RIR 0) is the standard since ADR-0039; `rir1` leaves one rep in
  * reserve, for lifts where failure under load conflicts with a restriction
- * (the owner's Smith squat and seated cable row — lumbar). A property of the
- * lift, not of the programme, so it lives on the catalog exercise.
+ * (the owner's Smith squat and seated cable row — lumbar). `rir2` (Program
+ * v2.2, 2026-10-22) leaves two — the owner's DB Romanian deadlift, straight
+ * sets, low-back rule. On a straight-set lift it is the target of EVERY
+ * working set. A property of the lift, not of the programme, so it lives on
+ * the catalog exercise.
  */
-export type EffortStandard = 'failure' | 'rir1';
+export type EffortStandard = 'failure' | 'rir1' | 'rir2';
 export const DEFAULT_EFFORT_STANDARD: EffortStandard = 'failure';
 
 /**
@@ -597,6 +600,14 @@ export interface WorkoutTemplate {
   name: string;
   /** Protocol notes (e.g. "60-min cap. Cluster format…"). */
   notes?: string;
+  /**
+   * The programme version this template is written to — "v2.2" (owner,
+   * 2026-10-22). A label for the export and for audits: nothing branches on
+   * it. Written by the owner-data scripts only; the app's template saves merge,
+   * so they carry it through untouched. Not the SESSION's `templateVersion`,
+   * which records which draft (`v1` / `v2`) a session ran.
+   */
+  templateVersion?: string;
   /** Rest between mini-sets / straight sets, seconds. */
   restMiniSec?: number;
   /** Rest between clusters / exercises, seconds. */

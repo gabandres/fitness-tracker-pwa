@@ -323,9 +323,37 @@ export function effectiveReps(c: Pick<ClusterRead, 'reps' | 'rir'>): number | un
 }
 
 /** The RIR a lift's activation is meant to stop at: 0 for `failure`, 1 for
- *  `rir1` (Program v2.1, 2026-10-15). */
+ *  `rir1` (Program v2.1, 2026-10-15), 2 for `rir2` (Program v2.2, 2026-10-22).
+ *  An unknown value reads as `failure`, the standard (ADR-0039). */
 export function targetRirOf(standard: EffortStandard | undefined): number {
-  return standard === 'rir1' ? 1 : 0;
+  return standard === 'rir2' ? 2 : standard === 'rir1' ? 1 : 0;
+}
+
+/**
+ * Reps at the lift's target effort that put the load up next session, whatever
+ * the step (owner, Program v2.2, 2026-10-22): every activation at ≥ 15 reps AT
+ * THE TARGET RIR (`eff` in `rangeCall`) takes the smallest real step, even
+ * where the Epley gate would hold and build reps toward max + 5. A lift past
+ * 15 reps is a lift whose load is too light for the cut's purpose; the
+ * first-session drop-back rule (Rule 5) is what catches a step that was too
+ * big. Clustered (myo-reps) lifts only — a straight-set lift progresses on its
+ * own prescription (`progression.targetReps`).
+ */
+export const REP_FLAG_AT = 15;
+
+/**
+ * The lowest RIR logged below the lift's target on a read, or null when every
+ * logged RIR meets it (or the target is 0 — nothing is below failure). The
+ * RIR-compliance warning (Program v2.2): soft, the read stands.
+ */
+export function rirBelowTarget(
+  rirs: readonly (number | undefined)[],
+  standard: EffortStandard | undefined,
+): { logged: number; target: number } | null {
+  const target = targetRirOf(standard);
+  if (target === 0) return null;
+  const below = rirs.filter((r): r is number => r != null && r < target);
+  return below.length ? { logged: Math.min(...below), target } : null;
 }
 
 /**
@@ -553,6 +581,9 @@ export type RecommendReason =
   // ── myo-reps, rep-range rules ──
   /** Every cluster at or over the top of the range, and the next step is
    *  expected to land in range. `reps` is the binding effective count. */
+  /** {@link REP_FLAG_AT}: every activation at ≥ 15 reps at the target RIR, so
+   *  the load goes up a step even though Epley predicts under the range. */
+  | { kind: 'rep-flag'; reps: number; at: number; nextLoad: number; jumpPct: number; predictedReps: number }
   | { kind: 'increase'; reps: number; max: number; nextLoad: number; jumpPct: number;
       /** Absent where Epley cannot speak: assistance, or added load on a
        *  bodyweight lift (the body is most of the load and is not logged). */
@@ -590,8 +621,11 @@ export type RecommendReason =
   | { kind: 'lifter-load'; load: number; engineLoad: number };
 
 export type RecommendWarning =
-  /** A `rir1` lift logged its activation at RIR 0. Soft: the read stands. */
-  | 'failure-on-rir1'
+  /** An activation (or a straight working set) was logged closer to failure
+   *  than the lift's target — RIR 0 on a `rir1` lift, RIR 0-1 on a `rir2`
+   *  one. `Recommendation.rirBelowTarget` carries the numbers. Soft: the
+   *  read stands. Was `failure-on-rir1` until Program v2.2 added `rir2`. */
+  | 'below-target-rir'
   /** An activation was logged with reps and no RIR: the call read it as RIR 0
    *  (the fewest effective reps it can stand for). Soft: the read stands. */
   | 'rir-missing-assumed-0'
@@ -636,6 +670,9 @@ export interface Recommendation {
   config?: EngineConfig;
   /** Soft flags that do not change the action. */
   warnings: RecommendWarning[];
+  /** With the `below-target-rir` warning: the lowest RIR logged under the
+   *  target, and the target ("logged RIR 0, target 1"). */
+  rirBelowTarget?: { logged: number; target: number };
   /** Layer 4, when the lift has stalled. */
   stall?: StallReport;
 }
@@ -740,14 +777,25 @@ function workingReps(ex: SessionExercise): WorkoutSet[] {
  * or the best set instead is the same defect `keySets` was written to close
  * for multi-cluster lifts — the app recommended load off half the evidence.
  */
-function bindingStraight(ex: SessionExercise): { reps?: number; load?: number; rir?: number } {
+function bindingStraight(
+  ex: SessionExercise,
+  targetRir = 0,
+): { reps?: number; load?: number; rir?: number; atTarget?: number } {
   const sets = workingReps(ex);
   if (sets.length === 0) return {};
   const reps = Math.min(...sets.map((s) => s.reps as number));
   const loads = sets.map((s) => s.weight).filter((w): w is number => w != null);
   const rirs = sets.map((s) => s.rir).filter((r): r is number => r != null);
+  // Program v2.2: on a lift with a target RIR above 0, a set holds the
+  // prescription by its reps AT THE TARGET — 12 @ RIR 2 holds a 12-rep target
+  // on a `rir2` lift, 12 @ RIR 1 (taken closer to failure) does not. A blank
+  // RIR reads as 0, as on every other path. A `failure` lift keeps the plain
+  // rep count, exactly as before.
+  const atTarget =
+    targetRir > 0 ? Math.min(...sets.map((s) => (s.reps as number) + (s.rir ?? 0) - targetRir)) : reps;
   return {
     reps,
+    atTarget,
     ...(loads.length ? { load: Math.min(...loads) } : {}),
     ...(rirs.length ? { rir: Math.min(...rirs) } : {}),
   };
@@ -1032,16 +1080,21 @@ function recommendStraight(history: readonly SessionExercise[], opts: RecommendO
     return { ...base, action: 'none', load: currentLoad, currentLoad, reason: { kind: 'no-rule' } };
   }
 
+  const standard = opts.config?.effortStandard;
+  const targetRir = targetRirOf(standard);
   const sessionsAtTarget = heldRun(history, currentLoad, (h) => {
-    const r = bindingStraight(h);
-    return { load: r.load, held: r.reps != null && r.reps >= targetReps };
+    const r = bindingStraight(h, targetRir);
+    return { load: r.load, held: r.atTarget != null && r.atTarget >= targetReps };
   });
 
   const reason: RecommendReason = {
     kind: 'straight-sets', targetReps, sessionsAtTarget, holdSessions,
     ...(latest.reps != null ? { reps: latest.reps } : {}),
   };
-  return loadCall(base, opts, currentLoad, sessionsAtTarget, holdSessions, reason, targetReps);
+  // RIR compliance (Program v2.2): any working set logged under the target.
+  const below = rirBelowTarget(workingReps(history[0]).map((s) => s.rir), standard);
+  const judged = below ? { ...base, warnings: ['below-target-rir' as const], rirBelowTarget: below } : base;
+  return loadCall(judged, opts, currentLoad, sessionsAtTarget, holdSessions, reason, targetReps);
 }
 
 /**
@@ -1117,14 +1170,17 @@ export function recommend(history: readonly SessionExercise[], opts: RecommendOp
     return { ...base, action: 'none', ...(currentLoad != null ? { currentLoad } : {}), reason: { kind: 'nothing-to-read' } };
   }
 
-  // A `rir1` lift taken to failure: say so, but the mini rule decides validity.
+  // An activation logged closer to failure than the lift's target: say so,
+  // but the mini rule decides validity. A blank RIR is not "below": it has its
+  // own warning, and the call already reads it as 0.
+  const below = rirBelowTarget(read.clusters.map((c) => (c.rirAssumed ? undefined : c.rir)), config.effortStandard);
   const warnings: RecommendWarning[] = [
-    ...(config.effortStandard === 'rir1' && read.clusters.some((c) => c.rir === 0) ? ['failure-on-rir1' as const] : []),
+    ...(below ? ['below-target-rir' as const] : []),
     // A blank RIR is read as 0, never as a reason to stop (2026-10-13).
     ...(read.clusters.some((c) => c.rirAssumed) ? ['rir-missing-assumed-0' as const] : []),
     ...(read.mixedLoad ? ['load-changed-mid-cluster' as const] : []),
   ];
-  const judged = { ...base, warnings, last: summaries, currentLoad };
+  const judged = { ...base, warnings, last: summaries, currentLoad, ...(below ? { rirBelowTarget: below } : {}) };
 
   // Rule 1 — the validity gate. An invalid read repeats the load, always.
   if (!read.valid) {
@@ -1193,6 +1249,42 @@ function loadKey(r: ExerciseRead): number | undefined {
  * fields (`last`, `warnings`, …), which the caller owns.
  */
 function rangeCall(
+  reads: readonly ExerciseRead[],
+  read: ExerciseRead,
+  config: EngineConfig,
+  assisted: boolean,
+  opts: RecommendOptions,
+): Pick<Recommendation, 'action' | 'load' | 'reason' | 'targetReps' | 'predictedReps' | 'assumedStepLb'> {
+  const call = rangeRules(reads, read, config, assisted, opts);
+  // The ≥ 15 flag (owner, Program v2.2): every activation at ≥ 15 reps at the
+  // target RIR takes the smallest real step next session. It OVERRIDES a call
+  // that kept the load — Rule 4 on a range running past 15, the Epley gate's
+  // "step too big", the rep cap's techniques — and leaves every other call
+  // exactly as it was: a normal increase keeps its own reason and e1RM. Not
+  // for assisted or bodyweight lifts: they already step on the rep rule alone.
+  if (call.action === 'add-load' || assisted || config.category === 'bodyweight') return call;
+  const targetRir = targetRirOf(config.effortStandard);
+  const low = bindingCluster(read);
+  const effToFailure = effectiveReps(low) as number;
+  const eff = Math.max(0, effToFailure - targetRir);
+  const loadNow = read.load ?? 0;
+  if (eff < REP_FLAG_AT || loadNow <= 0) return call;
+  const step = nextStep(loadNow, config, assisted);
+  if (!step) return call;
+  const bar = config.smithBarEffectiveLb ?? 0;
+  const predicted = predictedRepsAtTarget(epleyE1rm(loadNow + bar, effToFailure), step.load + bar, targetRir);
+  return {
+    action: 'add-load', load: step.load,
+    reason: { kind: 'rep-flag', reps: eff, at: REP_FLAG_AT, nextLoad: step.load, jumpPct: step.jumpPct, predictedReps: predicted },
+    predictedReps: predicted,
+    targetReps: Math.max(1, predicted),
+    ...(step.beyondSteps ? { assumedStepLb: +Math.abs(step.load - loadNow).toFixed(2) } : {}),
+  };
+}
+
+/** Rules 2-5 and 7-8 as written on 2026-10-07 — {@link rangeCall} adds the
+ *  Program v2.2 flag on top. */
+function rangeRules(
   reads: readonly ExerciseRead[],
   read: ExerciseRead,
   config: EngineConfig,

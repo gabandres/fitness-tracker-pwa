@@ -264,13 +264,20 @@ describe('the 2026-10-07 cases, one per rule', () => {
     expect(progressionCall(rec)).toBe('increase');
   });
 
-  it('Incline curl 15 × 15 → hold; 20 predicts 3 reps, below 8', () => {
-    // On 5-lb dumbbells (the 10/07 case). On 2.5-lb steps 17.5 predicts 8: take it.
+  it('Incline curl 15 × 15 on 5-lb dumbbells → 20 under the ≥ 15 flag (Program v2.2; the 10/07 rule held at 15 and built reps)', () => {
+    // 20 predicts 3, under 8: Epley alone holds. 15 reps at the target RIR is
+    // the owner's flag (v2.2), so the step is taken anyway.
     const rec = recommend([ex(cluster(1, 15, 15, 0, 4, 2))], lift('Incline DB Curl 45°', { dumbbellStepLb: 5 }));
-    expect(rec).toMatchObject({ action: 'build-reps', load: 15, targetReps: 16 });
-    expect(recommend([ex(cluster(1, 15, 15, 0, 4, 2))], lift('Incline DB Curl 45°'))).toMatchObject({ action: 'add-load', load: 17.5, predictedReps: 8 });
-    expect(rec.reason).toMatchObject({ kind: 'step-too-big', nextLoad: 20, predictedReps: 3, min: 8, cap: 15 + REP_CAP_EXTRA });
-    expect(progressionCall(rec)).toBe('hold');
+    expect(rec).toMatchObject({ action: 'add-load', load: 20, predictedReps: 3 });
+    expect(rec.reason).toMatchObject({ kind: 'rep-flag', reps: 15, at: 15, nextLoad: 20, predictedReps: 3 });
+    expect(progressionCall(rec)).toBe('increase');
+    // On 2.5-lb steps 17.5 predicts 8: a normal increase, with its own reason.
+    expect(recommend([ex(cluster(1, 15, 15, 0, 4, 2))], lift('Incline DB Curl 45°'))).toMatchObject({ action: 'add-load', load: 17.5, predictedReps: 8, reason: { kind: 'increase' } });
+  });
+
+  it('15 × 14 on 5-lb dumbbells is under the flag and under the top of 8–15: hold, one more rep', () => {
+    const rec = recommend([ex(cluster(1, 15, 14, 0, 4, 2))], lift('Incline DB Curl 45°', { dumbbellStepLb: 5 }));
+    expect(rec).toMatchObject({ action: 'hold', load: 15, targetReps: 15, reason: { kind: 'below-max', reps: 14, max: 15 } });
   });
 
   it('Single-leg calf raise 25 × 14 → hold; below the max of 15', () => {
@@ -298,7 +305,8 @@ describe('the 2026-10-07 cases, one per rule', () => {
     expect(rec).toMatchObject({ action: 'hold', load: 100, targetReps: 11 });
     expect(rec.reason).toMatchObject({ kind: 'below-max', reps: 10, max: 12, clusters: 2 });
     // The row is a 1-in-reserve lift logged at RIR 0: warned, not invalidated.
-    expect(rec.warnings).toEqual(['failure-on-rir1']);
+    expect(rec.warnings).toEqual(['below-target-rir']);
+    expect(rec.rirBelowTarget).toEqual({ logged: 0, target: 1 });
   });
 
   it('Smith squat 25 × 13/13 @ RIR 1 → 14 to failure; at RIR 1, 30 predicts 5, under 6 → build (approximate until the bar is entered)', () => {
@@ -394,15 +402,14 @@ describe('rule 3 — build to max + 5, then a technique, never a guess', () => {
     expect(rec.reason).toMatchObject({ kind: 'step-too-big', reps: 13, nextLoad: 25, predictedReps: 4, min: 6, cap: 17, repsForStep: 15 });
   });
 
-  it('at the cap the step is still too big: tempo first, microplates if owned, a cluster only if volume allows', () => {
+  it('at the cap with a step too big, the ≥ 15 flag takes the step (Program v2.2; until then tempo, microplates or a cluster)', () => {
+    // The cap is max + 5 ≥ 17, so a loaded lift reaches the flag (15) first:
+    // the rep-cap techniques are no longer offered while a next step exists.
     const capped = [ex(cluster(1, 15, 20, 0, 5, 3))];
     const five = { dumbbellStepLb: 5 };
-    expect(recommend(capped, lift('Incline DB Curl 45°', five)).reason)
-      .toMatchObject({ kind: 'at-rep-cap', cap: 20, nextLoad: 20, techniques: ['tempo'] });
-    expect(recommend(capped, lift('Incline DB Curl 45°', { ...five, microplates: true })).reason)
-      .toMatchObject({ techniques: ['tempo', 'microplates'] });
-    expect(recommend(capped, { ...lift('Incline DB Curl 45°', { ...five, microplates: true }), volumeAllowsCluster: true }).reason)
-      .toMatchObject({ techniques: ['tempo', 'microplates', 'add-cluster'] });
+    for (const opts of [lift('Incline DB Curl 45°', five), { ...lift('Incline DB Curl 45°', { ...five, microplates: true }), volumeAllowsCluster: true }]) {
+      expect(recommend(capped, opts)).toMatchObject({ action: 'add-load', load: 20, reason: { kind: 'rep-flag', reps: 20, nextLoad: 20 } });
+    }
   });
 
   it('past the last entered step the next is assumed at the list\'s spacing, and the call says so (2026-10-13)', () => {
@@ -425,11 +432,11 @@ describe('rule 3 — build to max + 5, then a technique, never a guess', () => {
       .toMatchObject({ kind: 'no-next-step' });
   });
 
-  it('at the rep cap past the entered steps, still a technique when the assumed step is too big', () => {
+  it('at the rep cap past the entered steps, the ≥ 15 flag takes the assumed step and says it is assumed (Program v2.2)', () => {
     const top = lift('Leg Extensions', { availableLoads: [10, 20], category: 'compound' });
-    // 20 × 17: 30 (+50%) predicts 4, under 6 — capped, so a technique, and the step is flagged as assumed.
+    // 20 × 17: 30 (+50%) predicts 4, under 6 — was a technique; 17 ≥ 15 now steps, flagged as assumed.
     expect(recommend([ex(cluster(1, 20, 17, 0, 4, 3))], top))
-      .toMatchObject({ action: 'build-reps', load: 20, assumedStepLb: 10, reason: { kind: 'at-rep-cap', techniques: ['tempo'] } });
+      .toMatchObject({ action: 'add-load', load: 30, assumedStepLb: 10, reason: { kind: 'rep-flag', reps: 17, nextLoad: 30 } });
   });
 
   it('every cluster must reach the top; the lowest one binds and is named', () => {
@@ -555,7 +562,7 @@ describe('rule 8 — a rir1 lift runs the same rules on effective reps', () => {
 
   it('the same log at RIR 0 is 10 at the target: hold, target 11 @ RIR 1, and the RIR 0 is warned on', () => {
     const rec = recommend([ex([...cluster(1, 25, 11, 0, 4, 3), ...cluster(2, 25, 11, 0, 4, 3)])], lift('Smith squat', { effortStandard: 'rir1' }));
-    expect(rec).toMatchObject({ action: 'hold', warnings: ['failure-on-rir1'], targetReps: 11 });
+    expect(rec).toMatchObject({ action: 'hold', warnings: ['below-target-rir'], targetReps: 11 });
   });
 });
 
@@ -805,8 +812,9 @@ describe('v2.1 — the increment picker: the smallest jump the equipment offers'
     // Incline curl 15 × 17 (Program v2.1 offender): e1RM 23.5. 17.5 predicts 10 ≥ 8 → take it.
     const read = [ex(cluster(1, 15, 17, 0, 4, 3))];
     expect(recommend(read, lift('Incline DB Curl 45°'))).toMatchObject({ action: 'add-load', load: 17.5, predictedReps: 10 });
-    // On 5-lb dumbbells 20 predicts 5, under 8: build reps instead.
-    expect(recommend(read, lift('Incline DB Curl 45°', { dumbbellStepLb: 5 }))).toMatchObject({ action: 'build-reps', load: 15, reason: { kind: 'step-too-big', nextLoad: 20, predictedReps: 5 } });
+    // On 5-lb dumbbells 20 predicts 5, under 8 — Epley alone would build reps;
+    // 17 reps is over the ≥ 15 flag (Program v2.2), so the step is taken.
+    expect(recommend(read, lift('Incline DB Curl 45°', { dumbbellStepLb: 5 }))).toMatchObject({ action: 'add-load', load: 20, reason: { kind: 'rep-flag', nextLoad: 20, predictedReps: 5 } });
   });
 
   it('a non-dumbbell lift keeps its own step whatever the dumbbell setting', () => {

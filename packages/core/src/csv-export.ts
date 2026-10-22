@@ -17,7 +17,8 @@ import { zone2Check } from './cardio';
 import { latestRotation, volumeBetween } from './volume-credits';
 import type { MuscleGroup } from './workout';
 import { compareLogsOldestFirst } from './firestore-mappers';
-import { epleyE1rm } from './progression-engine';
+import { epleyE1rm, targetRirOf } from './progression-engine';
+import { DELOAD_RIR } from './deload';
 
 const COLS = [
   'type', 'date', 'timestamp',
@@ -93,6 +94,13 @@ const COLS = [
   // sheet shows. `rotationSessions` names those sessions ("Push Day
   // 2026-10-15; …") on `rotationVolume` rows.
   'volumeWindow', 'rotationSessions',
+  // ── Program v2.2 (2026-10-22), appended for the same reason ──
+  // The RIR the set was MEANT to stop at, so compliance can be audited against
+  // `setRir`: on 'workout_set' rows for the sets the engine reads (activation;
+  // a straight lift's working sets), from the lift's CURRENT effort standard
+  // (0 failure · 1 rir1 · 2 rir2; 3 in a deload session); on 'template' rows
+  // for the activation. Blank on minis, drops and warm-ups.
+  'rirTarget',
 ] as const;
 type Col = typeof COLS[number];
 
@@ -303,6 +311,9 @@ export function buildCsv(data: ExportData, boundary: DayBoundary = MIDNIGHT): st
           side: set.kind === 'activation' || set.kind === 'mini' ? sideOf(set.group) : undefined,
           transitionSec: ex.supersetGroup ? ex.transitionRestSec : undefined,
           notes: set.kind === 'activation' ? loadNotes.get(set.group ?? 1) : undefined,
+          rirTarget: set.kind === 'activation' || set.kind === 'working'
+            ? (s.deload ? DELOAD_RIR : targetRirOf(data.effortStandards?.[ex.exerciseId]))
+            : undefined,
         }));
       }
     }
@@ -460,7 +471,14 @@ function templateRows(data: ExportData): string[] {
       const drops = ex.plannedSets.filter((p) => p.kind === 'drop');
       const lastLoad = ex.loadLog?.[ex.loadLog.length - 1];
       const ccc = ex.clusterCountChange;
+      // A straight lift has no activation, so `clusters` is blank: say what it
+      // IS instead ("straight 2 × 8-12", Program v2.2).
+      const working = ex.plannedSets.filter((p) => p.kind === 'working');
+      const straight = acts.length === 0 && working.length > 0
+        ? `straight ${working.length} × ${working[0].reps ?? ''}${working[0].repsMax != null ? `-${working[0].repsMax}` : ''}`.trim()
+        : undefined;
       const notes = [
+        ...(straight ? [straight] : []),
         ...drops.map((d) => `+ drop set${d.weight != null ? ` at ${d.weight}` : ''}`),
         ...(ex.baseline ? [`baseline since ${ex.baseline.since}: ${ex.baseline.reason}`] : []),
         ...(ex.excludedReads ?? []).map((x) => `${x.date} not read: ${x.reason}`),
@@ -479,11 +497,12 @@ function templateRows(data: ExportData): string[] {
         restBetweenClustersSec: ex.restClusterSec ?? t.restClusterSec,
         restToNextSec: secRange(ex.restAfterSec ?? ex.restClusterSec ?? t.restClusterSec, ex.restAfterSec != null ? ex.restAfterMaxSec : undefined),
         effortStandard: data.effortStandards?.[ex.exerciseId] ?? DEFAULT_EFFORT_STANDARD,
+        rirTarget: targetRirOf(data.effortStandards?.[ex.exerciseId]),
         notes,
         lastModifiedAt: ex.lastModifiedAt ?? lastLoad?.at,
         lastModifiedBy: ex.lastModifiedBy ?? lastLoad?.by,
         ...supersets[i],
-        templateVersion: t.id ? data.templateVersions?.[t.id] : undefined,
+        templateVersion: t.templateVersion ?? (t.id ? data.templateVersions?.[t.id] : undefined),
         supersetBlock: supersets[i].supersetGroup,
         supersetOrder: supersets[i].pairPosition,
         transitionSec: supersets[i].transitionRestSec,
@@ -496,7 +515,7 @@ function templateRows(data: ExportData): string[] {
         position: t.exercises.length + j + 1,
         exercise: b.label ?? b.modality,
         durationMin: b.targetDurationSec != null ? Math.round(b.targetDurationSec / 60) : undefined,
-        templateVersion: t.id ? data.templateVersions?.[t.id] : undefined,
+        templateVersion: t.templateVersion ?? (t.id ? data.templateVersions?.[t.id] : undefined),
       }));
     });
   }

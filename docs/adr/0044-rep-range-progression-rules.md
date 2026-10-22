@@ -78,3 +78,33 @@ from what was performed: its logged sets with their reps (or hold), the load on
 sets keeping their own weight. It goes after the lift it followed in the
 session, never inside a superset block; removing a superset member goes through
 `unpair`. Structure rows are stamped `by: 'user'`; load moves stay `engine`.
+
+## Amendment — 2026-10-22 (Program v2.2): the ≥ 15 flag, `rir2`, RIR compliance
+
+The owner's v2.2 programme adds four rules to the engine, all in
+`progression-engine.ts` and pinned by `program-v2-2.test.ts`:
+
+- **The ≥ 15 flag (`REP_FLAG_AT`).** When every activation of a clustered lift
+  reaches 15 reps *at its target RIR* (reps + logged RIR − target, the `eff`
+  the range rules already use), the call is `add-load` to the smallest real
+  step, reason `rep-flag` — even where the Epley gate (Rule 3) would hold and
+  build reps toward max + 5. It **overrides** a call that kept the load and
+  leaves every other call alone: a normal increase keeps its own reason and
+  e1RM. Not for assisted or bodyweight lifts (they step on the rep rule
+  already) and not for straight sets (they run on their own prescription).
+  **Consequence, stated so it is not rediscovered as a bug:** the rep cap is
+  max + 5 ≥ 17, so a loaded lift reaches the flag first, and the cap's
+  techniques (tempo, microplates, one more cluster) are no longer offered
+  while a next step exists. A step that proves too big is caught by Rule 5
+  (drop back after an increase, under the range).
+- **`rir2`** (`EffortStandard`): target RIR 2. Its first user is the DB
+  Romanian deadlift, straight sets, low-back rule.
+- **Straight sets judged at the target RIR.** `recommendStraight` holds a set
+  by `reps + logged RIR − target` when the target is above 0, so "both sets 12
+  @ RIR 2" holds a 12-rep target and 12 @ RIR 1 does not. A `failure` straight
+  lift keeps the plain rep count, unchanged.
+- **RIR compliance.** `failure-on-rir1` became `below-target-rir`, with
+  `Recommendation.rirBelowTarget = { logged, target }` ("Logged RIR 0, target
+  1"), on the clustered and the straight paths. The session shows the same two
+  numbers under a ticked read set as it is logged (`SetRow`); the export
+  carries `rirTarget` beside `setRir`. Soft everywhere: the read stands.

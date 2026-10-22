@@ -380,8 +380,9 @@ service cloud.firestore {
           && (!('availableLoads' in data.keys()) ||
               (data.availableLoads is list && data.availableLoads.size() <= 60))
           && (!('assisted' in data.keys()) || data.assisted is bool)
+          // `rir2` since Program v2.2 (2026-10-22): the owner's DB RDL.
           && (!('effortStandard' in data.keys()) ||
-              (data.effortStandard in ['failure', 'rir1']))
+              (data.effortStandard in ['failure', 'rir1', 'rir2']))
           && (!('setStructure' in data.keys()) ||
               (data.setStructure in ['straight', 'myoreps', 'rest-pause',
                                      'cluster', 'drop', 'superset', 'hit']))
@@ -446,10 +447,18 @@ service cloud.firestore {
     }
 
     function isValidWorkoutTemplate(data) {
+      // `templateVersion` (Program v2.2, 2026-10-22): a programme label ("v2.2")
+      // written by the owner-data scripts. Allowed here BEFORE any document
+      // carries it: rules validate the whole doc, so an unlisted field written
+      // by the admin SDK would make every client save of that template fail
+      // (the 2026-10-08 notes incident below).
       return data.keys().hasOnly([
               'name', 'notes', 'restMiniSec', 'restClusterSec',
-              'exercises', 'cardioBlocks', 'seedKey', 'createdAt', 'updatedAt'
+              'exercises', 'cardioBlocks', 'seedKey', 'createdAt', 'updatedAt',
+              'templateVersion'
           ])
+          && (!('templateVersion' in data.keys()) ||
+              (data.templateVersion is string && data.templateVersion.size() > 0 && data.templateVersion.size() <= 16))
           && data.keys().hasAll(['name', 'exercises', 'createdAt', 'updatedAt'])
           && data.name is string && data.name.size() > 0 && data.name.size() <= 100
           && data.exercises is list && data.exercises.size() <= 40
