@@ -4,6 +4,19 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-10-23 — Train: one tick no longer finishes a lift (`775b2b63`, OTA on all twelve runtimes)
+
+Typing a cluster's reps (12, 4, 3) and then ticking the first set closed the
+card, played the "lift complete" haptic and opened the next exercise; before
+the tick the card already showed the check badge. The card read a typed count
+as a finished set (`isLoggedSet`), while the rest flow already counted ticks.
+A live session's "done" is now `isTickedSet` (core: ticked AND carrying its
+count) for the card's complete step, its badge and N/M count, the header's set
+total, the reorder sheet and `exerciseIsFullyDone` (which lift opens first and
+next). What a session SAVES is unchanged — typed-but-unticked work is kept.
+Pinned by `train.rescore.test.tsx` ("one tick does not finish a lift…") and
+`train-view.test.ts`. Published 2026-10-23 to every runtime in use (ledger).
+
 ## 2026-10-21 — iPhone Duo layout (`76d74257`) and 1.2.9, the first iOS 27.1 SDK binary
 
 The Duo ships 2026-10-23 on iOS 27.1. Measured on the iPhone Duo simulator
