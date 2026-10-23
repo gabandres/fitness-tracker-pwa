@@ -630,6 +630,16 @@ export function isLoggedSet(s: WorkoutSet, logStyle: LogStyle = DEFAULT_LOG_STYL
   return logStyle === 'time' ? s.durationSec != null : s.reps != null;
 }
 
+/** True when a set is TICKED done and carries its count — what a LIVE session
+ *  means by "finished": the check badge, the "N/M" counts, and the "this lift
+ *  is complete, open the next one" step. Not {@link isLoggedSet}: a count is
+ *  typed before the tick (a cluster's 12, 4, 3 between minis), and reading it
+ *  as done closed the card on the cluster's first tick (owner, 2026-10-23).
+ *  What a session SAVES is still {@link isLoggedSet} — typed work is kept. */
+export function isTickedSet(s: WorkoutSet, logStyle: LogStyle = DEFAULT_LOG_STYLE): boolean {
+  return s.done === true && isLoggedSet(s, logStyle);
+}
+
 /**
  * Auto-default missing loads at the finish boundary. For each `weight-reps`
  * exercise, any LOGGED set (reps entered) with no positive weight inherits the

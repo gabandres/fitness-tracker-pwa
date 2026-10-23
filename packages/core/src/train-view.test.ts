@@ -257,9 +257,14 @@ describe('lastPerformed', () => {
 });
 
 describe('exerciseIsFullyDone', () => {
-  it('is true only when every set carries its style’s count', () => {
-    expect(exerciseIsFullyDone(ex('bench', [set({ reps: 8 }), set({ reps: 5 })]))).toBe(true);
-    expect(exerciseIsFullyDone(ex('bench', [set({ reps: 8 }), set({})]))).toBe(false);
+  it('is true only when every set is ticked with its style’s count', () => {
+    expect(exerciseIsFullyDone(ex('bench', [set({ reps: 8, done: true }), set({ reps: 5, done: true })]))).toBe(true);
+    expect(exerciseIsFullyDone(ex('bench', [set({ reps: 8, done: true }), set({})]))).toBe(false);
+  });
+
+  it('a typed count is not done until it is ticked (owner, 2026-10-23)', () => {
+    // A cluster typed 12, 4, 3 and then ticked once closed the card.
+    expect(exerciseIsFullyDone(ex('bench', [set({ reps: 12, done: true }), set({ reps: 4 }), set({ reps: 3 })]))).toBe(false);
   });
 
   it('is false for an exercise with no sets', () => {
@@ -267,9 +272,9 @@ describe('exerciseIsFullyDone', () => {
   });
 
   it('uses duration for a time exercise', () => {
-    const plank = ex('plank', [set({ durationSec: 60 })], { logStyle: 'time' });
+    const plank = ex('plank', [set({ durationSec: 60, done: true })], { logStyle: 'time' });
     expect(exerciseIsFullyDone(plank)).toBe(true);
-    expect(exerciseIsFullyDone(ex('plank', [set({ reps: 5 })], { logStyle: 'time' }))).toBe(false);
+    expect(exerciseIsFullyDone(ex('plank', [set({ reps: 5, done: true })], { logStyle: 'time' }))).toBe(false);
   });
 });
 
