@@ -10,7 +10,7 @@ import { SheetHeader } from '@/components/SheetHeader';
 import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
-import { isLoggedSet, type SessionExercise } from '@/lib/workout';
+import { isTickedSet, type SessionExercise } from '@/lib/workout';
 import { TARGET, space } from '@/theme';
 import { Touchable } from './Touchable';
 import { createStyles } from './train-styles';
@@ -110,7 +110,7 @@ export const ReorderExercisesSheet = memo(function ReorderExercisesSheet({
               {exercises.map((ex, i) => {
                 const tag = tags[i];
                 const style = ex.logStyle ?? 'weight-reps';
-                const logged = ex.sets.filter((s) => isLoggedSet(s, style)).length;
+                const logged = ex.sets.filter((s) => isTickedSet(s, style)).length;
                 const done = exerciseIsFullyDone(ex);
                 const canUp = moveBlockAware(exercises, i, -1).newIndex !== i;
                 const canDown = moveBlockAware(exercises, i, 1).newIndex !== i;

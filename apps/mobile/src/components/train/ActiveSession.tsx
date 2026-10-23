@@ -61,7 +61,7 @@ import {
 } from '../../../modules/intent-inbox';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { useUnitSystem } from '@/lib/use-unit-system';
-import { DEFAULT_LOG_STYLE, isLoggedSet, type Exercise, type SessionExercise, type SetKind } from '@/lib/workout';
+import { DEFAULT_LOG_STYLE, isLoggedSet, isTickedSet, type Exercise, type SessionExercise, type SetKind } from '@/lib/workout';
 import { AddExerciseSheet } from './AddExerciseSheet';
 import { CardioPickerSheet } from './CardioPickerSheet';
 import { ExerciseCard } from './ExerciseCard';
@@ -410,7 +410,7 @@ export function ActiveSession({
    *  beside a card's "1/3" SETS). */
   const setTotals = session.exercises.reduce(
     (acc, ex) => ({
-      done: acc.done + ex.sets.filter((x) => isLoggedSet(x, ex.logStyle ?? DEFAULT_LOG_STYLE)).length,
+      done: acc.done + ex.sets.filter((x) => isTickedSet(x, ex.logStyle ?? DEFAULT_LOG_STYLE)).length,
       total: acc.total + ex.sets.length,
     }),
     { done: 0, total: 0 },

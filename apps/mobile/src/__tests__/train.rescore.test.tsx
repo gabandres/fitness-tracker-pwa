@@ -256,6 +256,42 @@ describe('the live session', () => {
     }
   });
 
+  it('one tick does not finish a lift whose other sets are typed but not ticked', async () => {
+    // A cluster typed as you go — 12, 4, 3 — and then ticked: the first tick
+    // closed the card and opened the next lift, because the card read "every
+    // set has reps" as "every set is done" (owner, 2026-10-23).
+    jest.useFakeTimers();
+    try {
+      mockTrain.active = session({
+        exercises: [
+          {
+            exerciseId: 'e1',
+            name: 'Bench',
+            logStyle: 'weight-reps',
+            cues: [],
+            sets: [
+              { kind: 'activation', group: 1, weight: 25, reps: 12 },
+              { kind: 'mini', group: 1, weight: 25, reps: 4 },
+              { kind: 'mini', group: 1, weight: 25, reps: 3 },
+            ],
+          },
+          { exerciseId: 'e2', name: 'Row', logStyle: 'weight-reps', cues: [], sets: [{ kind: 'working' }] },
+        ],
+      } as Partial<WorkoutSession>);
+      const ui = await render(<TrainScreen />);
+      // Typed is not done: no check badge, no "3/3", before or after one tick.
+      expect(ui.getByTestId('exercise-head-0')).toHaveTextContent(/0\/3/);
+      await fireEvent.press(ui.getByTestId('set-done-0-0'));
+      await act(async () => {
+        jest.advanceTimersByTime(450);
+      });
+      expect(ui.getByTestId('exercise-head-0').props.accessibilityState).toEqual({ expanded: true });
+      expect(ui.getByTestId('exercise-head-1').props.accessibilityState).toEqual({ expanded: false });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('the rest bar\'s buttons read through i18n and −30 s works from the clock', async () => {
     mockTrain.active = session();
     mockRestRemaining = 45;

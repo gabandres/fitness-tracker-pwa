@@ -383,6 +383,9 @@ export type SessionDraft = Omit<WorkoutSession, 'id' | 'createdAt' | 'updatedAt'
  *  a duration for `time`, otherwise reps. Weight alone is scaffold. */
 export { isLoggedSet } from '@macrolog/core/workout';
 
+/** Ticked done with its count — a live session's "finished" (see core). */
+export { isTickedSet } from '@macrolog/core/workout';
+
 /** Total working volume (Σ weight×reps) of a session — for history rows. */
 export { sessionVolume } from '@macrolog/core';
 

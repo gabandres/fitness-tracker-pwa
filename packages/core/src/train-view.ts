@@ -36,7 +36,7 @@ import type {
 } from './workout';
 import { toDisplayLoad } from './load-units';
 import type { UnitSystem } from './unit-system';
-import { DEFAULT_LOG_STYLE, isLoggedSet } from './workout';
+import { DEFAULT_LOG_STYLE, isLoggedSet, isTickedSet } from './workout';
 import type { ProgressionSuggestion } from './workout-progression';
 import { computeExercisePRs, isWorkingSet, metricForSet } from './workout-progression';
 import { isLoggedCardioBlock, workoutMarkerEntry } from './cardio';
@@ -343,12 +343,13 @@ export function lastPerformed(
 
 // ─── Done-ness and summary counts ───────────────────────────────
 
-/** Every set in the exercise carries the count its log style needs — drives
- *  the collapsed check badge and the "N of M done" progress. An exercise with
- *  no sets is not done. */
+/** Every set in the exercise is ticked done ({@link isTickedSet}) — drives
+ *  the collapsed check badge and which lift opens next. A typed count alone is
+ *  not done: it is entered before the tick. An exercise with no sets is not
+ *  done. */
 export function exerciseIsFullyDone(ex: Pick<SessionExercise, 'logStyle' | 'sets'>): boolean {
   const style = ex.logStyle ?? DEFAULT_LOG_STYLE;
-  return ex.sets.length > 0 && ex.sets.every((s: WorkoutSet) => isLoggedSet(s, style));
+  return ex.sets.length > 0 && ex.sets.every((s: WorkoutSet) => isTickedSet(s, style));
 }
 
 export interface WorkCounts {

@@ -22,7 +22,7 @@ import {
 } from '@macrolog/core';
 import {
   DEFAULT_LOG_STYLE,
-  isLoggedSet,
+  isTickedSet,
   type Exercise,
   type SessionExercise,
   type TemplateExercise,
@@ -145,9 +145,10 @@ export const ExerciseCard = memo(function ExerciseCard({
   const setLabels = useMemo(() => setRowLabels(ex.sets), [ex.sets]);
 
   // Set progress drives the collapsed-row badge (a check when every set is
-  // logged, else "done/total") so a long session stays scannable at a glance.
+  // ticked, else "done/total") so a long session stays scannable at a glance.
+  // Ticked, not typed: reps entered ahead of the tick are not a finished set.
   const totalSets = ex.sets.length;
-  const loggedCount = ex.sets.filter((s) => isLoggedSet(s, style)).length;
+  const loggedCount = ex.sets.filter((s) => isTickedSet(s, style)).length;
   const allDone = totalSets > 0 && loggedCount === totalSets;
 
   // "Last time" ghost + deterministic +load bump. The progression rule is
@@ -257,7 +258,10 @@ export const ExerciseCard = memo(function ExerciseCard({
       ].filter(Boolean).join(' ');
       onSetDone(exerciseIndex, setIndex, {
         pr,
-        complete: after.length > 0 && after.every((s) => isLoggedSet(s, style)),
+        // Every set TICKED — the same "done" the rest flow skips by. Typed
+        // reps count for nothing here: a cluster typed 12, 4, 3 and then
+        // ticked closed the card on its first tick (owner, 2026-10-23).
+        complete: after.length > 0 && after.every((s) => isTickedSet(s, style)),
         ...(logged ? { logged } : {}),
       });
     },
