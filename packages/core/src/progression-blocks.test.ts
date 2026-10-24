@@ -43,6 +43,19 @@ describe('rest-pause', () => {
     expect(rec.load).toBe(105);
   });
 
+  it('the smallest real step is always allowed (2026-10-24): 20 → 25 is +25 %, and it is taken', () => {
+    const rec = recommend([block(20, 12, 5, 3), block(20, 12, 5, 3)], { structure: 'rest-pause', progression: RULE });
+    expect(rec).toMatchObject({ action: 'add-load', load: 25, currentLoad: 20 });
+    expect(rec.reason.kind).toBe('rest-pause');
+  });
+
+  it('cluster sets take the smallest real step too, whatever its percentage', () => {
+    const done = prescribed(20, [[5, 5], [5, 5], [5, 5]]);
+    const rec = recommend([done, done], { structure: 'cluster', progression: { holdSessions: 2, incrementLb: 5 } });
+    expect(rec).toMatchObject({ action: 'add-load', load: 25, currentLoad: 20 });
+    expect(rec.reason.kind).toBe('cluster-sets');
+  });
+
   it('builds while the total is short of target', () => {
     const rec = recommend([block(100, 10, 4, 2)], { structure: 'rest-pause', progression: RULE });
     expect(rec.reason).toMatchObject({ total: 16, sessionsAtTarget: 0 });

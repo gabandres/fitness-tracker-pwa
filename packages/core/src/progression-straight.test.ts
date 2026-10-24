@@ -121,13 +121,42 @@ describe('straight sets — double progression', () => {
     expect(recommend([], { structure: 'straight', progression: RULE }).reason).toEqual({ kind: 'no-history' });
   });
 
-  it('refuses a load jump over the ceiling and builds reps instead', () => {
-    // 20 lb with a 5 lb step is a 25% jump — over MAX_JUMP_PCT.
+  // Owner decision 2026-10-24: "the smallest real step is always allowed".
+  // Until then 20 lb with a 5 lb step (+25 %) was refused as `jump-too-big`
+  // and the lift was told to build reps — forever, since there is no smaller
+  // real weight. The engine now proposes that one real step, whatever it is
+  // as a percentage.
+  it('takes the smallest real step even when it is over 15 % (20 → 25, +25 %)', () => {
     const rec = recommend([straight(20, 8, 8), straight(20, 8, 8)], {
       structure: 'straight', progression: { targetReps: 8, holdSessions: 2, incrementLb: 5 },
     });
-    expect(rec.action).toBe('build-reps');
-    expect(rec.reason.kind).toBe('jump-too-big');
+    expect(rec).toMatchObject({ action: 'add-load', load: 25, currentLoad: 20 });
+    expect(rec.reason.kind).toBe('straight-sets');
+  });
+
+  it('takes the next entered load on a coarse stack (70 → 90, +29 %), never a load between pins', () => {
+    const rec = recommend([straight(70, 8, 8), straight(70, 8, 8)], {
+      structure: 'straight', progression: RULE, availableLoads: [50, 70, 90, 110],
+    });
+    expect(rec).toMatchObject({ action: 'add-load', load: 90, currentLoad: 70 });
+  });
+
+  it('one step at a time: holdSessions 1 at the top of the range moves exactly one step', () => {
+    const rec = recommend([straight(15, 12, 12, 12)], {
+      structure: 'straight', progression: { targetReps: 12, holdSessions: 1, incrementLb: 5 },
+    });
+    expect(rec).toMatchObject({ action: 'add-load', load: 20, currentLoad: 15 });
+  });
+
+  it('never produces jump-too-big on any structure that shares the load call', () => {
+    for (const load of [5, 10, 15, 20, 25, 30, 45, 100]) {
+      const rec = recommend([straight(load, 8, 8), straight(load, 8, 8)], {
+        structure: 'straight', progression: { targetReps: 8, holdSessions: 2, incrementLb: 10 },
+      });
+      expect(rec.reason.kind).not.toBe('jump-too-big');
+      expect(rec.action).toBe('add-load');
+      expect(rec.load).toBe(load + 10);
+    }
   });
 
   it('steps through availableLoads when the equipment states them', () => {
