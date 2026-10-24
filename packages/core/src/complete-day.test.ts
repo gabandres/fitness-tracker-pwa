@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { COMPLETE_DAY_MIN_KCAL, isCompleteDay, readDayLogged } from './complete-day';
 import { PROFILE, incompleteLogger, keyAt, normalUser, row } from './complete-day.fixtures';
 import { compositionMaintenance } from './composition-maintenance';
+import { buildCsv } from './csv-export';
 import { MIDNIGHT } from './day-boundary';
 import { measurementProgress } from './measurement-progress';
 import { calculateTdee, MEASURED_MIN_DAYS, type TdeeResult } from './tdee';
@@ -228,6 +229,30 @@ describe('what a left-out day keeps', () => {
     expect(r.source).toBe('formula');
     expect(reason(r)).toBeUndefined();
     expect(measurementProgress(r, logs, {})).toMatchObject({ loggedDays: 2, notEnoughCompleteDays: false });
+  });
+});
+
+describe('CSV export', () => {
+  it('exports one dayLogged row per answered day, in its own appended column', () => {
+    const csv = buildCsv({
+      logs: [], measurements: [], dailyWeights: {}, dailyWater: {}, dailySleep: {},
+      dailyLogged: { '2026-10-24': true, '2026-10-23': false },
+    });
+    const [header, ...rows] = csv.split('\r\n');
+    const cols = header.split(',');
+    // Last, after the 2026-10-22 rirTarget: no column moved.
+    expect(cols[cols.length - 1]).toBe('dayFullyLogged');
+    expect(cols.indexOf('dayFullyLogged')).toBe(cols.indexOf('rirTarget') + 1);
+    const answered = rows.filter((r) => r.startsWith('dayLogged,')).map((r) => r.split(','));
+    expect(answered.map((r) => [r[cols.indexOf('date')], r[cols.indexOf('dayFullyLogged')]])).toEqual([
+      ['2026-10-23', 'false'],
+      ['2026-10-24', 'true'],
+    ]);
+  });
+
+  it('a caller without answers exports no dayLogged rows', () => {
+    const csv = buildCsv({ logs: [], measurements: [], dailyWeights: {}, dailyWater: {}, dailySleep: {} });
+    expect(csv.split('\r\n').some((r) => r.startsWith('dayLogged,'))).toBe(false);
   });
 });
 
