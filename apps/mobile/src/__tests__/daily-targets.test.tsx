@@ -152,4 +152,16 @@ describe('Daily targets editor', () => {
     const { getByTestId } = await render(<DailyTargetsScreen />);
     expect(getByTestId('targets-measured').props.children).toBe('Not enough data to measure your maintenance yet.');
   });
+
+  it('names the complete-day rule when that is why nothing is measured (2026-10-24)', async () => {
+    mockTdee = {
+      trueTdee: 2400,
+      newDailyTarget: 1900,
+      weightChangeTrend: 0,
+      source: 'formula',
+      notEnoughCompleteDays: { valid: 9, needed: 14 },
+    } as TdeeResult;
+    const { getByTestId } = await render(<DailyTargetsScreen />);
+    expect(getByTestId('targets-measured').props.children).toBe('Maintenance: not enough complete days (9 of 14)');
+  });
 });

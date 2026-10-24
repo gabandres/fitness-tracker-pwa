@@ -38,6 +38,10 @@ export const USER_SUBCOLLECTIONS = [
   "dailySleep",
   // Evening hunger ratings (2026-10-20) — added with the collection.
   "dailyHunger",
+  // "Day fully logged?" answers (2026-10-24, `complete-day.ts`) — the user's
+  // own statement about their diary, so erasable and portable. Added with the
+  // collection.
+  "dailyLogged",
   // Deleted Health / Oura workouts, by sourceId (2026-10-20,
   // `health-tombstones.ts`) — written by the server, about the user's own
   // health records, so erasable and portable. Swept AGAIN after the profile

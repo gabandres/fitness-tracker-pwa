@@ -52,6 +52,9 @@ import {
   updateSleepTimes,
   subscribeDailyHunger,
   setDailyHunger,
+  subscribeDailyLogged,
+  setDailyLogged,
+  clearDailyLogged,
   subscribeDailyWaterDay,
   subscribeRecentSessions,
   subscribePresets,
@@ -116,6 +119,12 @@ export interface TodayState extends LogWrites {
   hunger: number | null;
   /** Save or edit today's rating (one per day). */
   setHunger: (level: number) => Promise<void>;
+  /** Today's "Day fully logged?" answer — true / false, or null when unset
+   *  (`complete-day.ts`, 2026-10-24). Read off the same answers map the
+   *  targets above are computed with. */
+  dayLogged: boolean | null;
+  /** Answer it (true / false) or take the answer back (null). */
+  setDayLogged: (complete: boolean | null) => Promise<void>;
   /** Fast start time (Date) or null when not fasting. */
   fastStartedAt: Date | null;
   /** Omit `startedAt` to begin now; pass one to correct a running fast. */
@@ -181,6 +190,11 @@ export function useToday(): TodayState {
   );
   const [presets, setPresets] = useCachedState<MealPreset[]>(cacheUid, 'presets', []);
   const [customFoods, setCustomFoods] = useCachedState<CustomFood[]>(cacheUid, 'customFoods', []);
+  // "Day fully logged?" answers, every answered day (2026-10-24): an input to
+  // the maintenance estimate (`complete-day.ts`), and today's entry is the
+  // Today toggle's state. Cached like the logs it qualifies, so the first
+  // frame computes the estimate under the same rule as the next one.
+  const [dayComplete, setDayComplete] = useCachedState<Record<string, boolean>>(cacheUid, 'dayLogged', {});
   // One-entry `dateKey → value` maps since 2026-10-21 (`subscribeDayDoc`): the
   // slices stay keyed by day, so a cold start on a new morning cannot paint
   // yesterday's glasses as today's.
@@ -266,6 +280,14 @@ export function useToday(): TodayState {
               settles: 'none',
               open: (deliver) => subscribeCustomFoods(uid, deliver),
               apply: setCustomFoods,
+            }),
+            // Never waited on and no `fail`, like the two above: no answers is
+            // the 1,000 kcal rule alone, a correct estimate, not an error.
+            feedChannel({
+              key: 'dayComplete',
+              settles: 'none',
+              open: (deliver) => subscribeDailyLogged(uid, deliver),
+              apply: setDayComplete,
             }),
           ]
         : [],
@@ -421,8 +443,8 @@ export function useToday(): TodayState {
   // `calendarToday`, not the default clock read: see `useCalendarToday`.
   const calendarToday = useCalendarToday();
   const targets = useMemo(
-    () => dailyTargets(profile, logs, weights, calendarToday),
-    [profile, logs, weights, calendarToday],
+    () => dailyTargets(profile, logs, weights, calendarToday, dayComplete),
+    [profile, logs, weights, calendarToday, dayComplete],
   );
   // The hero footer before measured mode opens: how many of the 14 logged
   // days the estimator needs are there. Null once `targets.tdee` is measured,
@@ -565,6 +587,16 @@ export function useToday(): TodayState {
     },
     [uid, todayKey],
   );
+  // Keyed by `todayKey`, the user's day under their boundary — the day the
+  // diary on this screen is showing — like the hunger rating above.
+  const setDayLogged = useCallback(
+    async (complete: boolean | null) => {
+      if (!uid) return;
+      if (complete == null) await clearDailyLogged(uid, todayKey);
+      else await setDailyLogged(uid, todayKey, complete);
+    },
+    [uid, todayKey],
+  );
   /**
    * Start a fast, or CORRECT the start of the one already running.
    *
@@ -617,6 +649,8 @@ export function useToday(): TodayState {
     sleepTimes,
     hunger: hungerRead?.dateKey === todayKey ? hungerRead.level : null,
     setHunger,
+    dayLogged: typeof dayComplete[todayKey] === 'boolean' ? dayComplete[todayKey] : null,
+    setDayLogged,
     activity: activity[todayKey],
     setWater,
     setSleep,

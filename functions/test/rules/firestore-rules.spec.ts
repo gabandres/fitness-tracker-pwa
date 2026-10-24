@@ -1835,6 +1835,61 @@ describe('firestore.rules', () => {
     await assertFails(setDoc(doc(authed('bob'), 'users', 'alice', 'dailyHunger', '2026-10-20'), { level: 5 }));
   });
 
+  // ── dailyLogged (2026-10-24): "Day fully logged?", { complete, updatedAt } ──
+
+  it.each([true, false])('accepts a day marked complete: %s, and lets the owner read it back', async (complete) => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    const ref = doc(db, 'users', 'alice', 'dailyLogged', '2026-10-24');
+    await assertSucceeds(setDoc(ref, { complete, updatedAt: serverTimestamp() }));
+    await assertSucceeds(getDoc(ref));
+  });
+
+  it('lets the owner flip the answer and clear it (unset is a delete)', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    const ref = doc(db, 'users', 'alice', 'dailyLogged', '2026-10-24');
+    await assertSucceeds(setDoc(ref, { complete: true, updatedAt: serverTimestamp() }));
+    await assertSucceeds(setDoc(ref, { complete: false, updatedAt: serverTimestamp() }));
+    await assertSucceeds(deleteDoc(ref));
+  });
+
+  it.each([
+    [{ complete: 'yes', updatedAt: 'server' }],
+    [{ complete: 1, updatedAt: 'server' }],
+    [{ complete: true }],
+    [{ updatedAt: 'server' }],
+    [{ complete: true, updatedAt: 'server', kcal: 900 }],
+  ])('rejects a dailyLogged doc shaped %p', async (shape) => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    const data: Record<string, unknown> = { ...shape };
+    if (data.updatedAt === 'server') data.updatedAt = serverTimestamp();
+    await assertFails(setDoc(doc(db, 'users', 'alice', 'dailyLogged', '2026-10-24'), data));
+  });
+
+  it('rejects a client-chosen updatedAt and a doc id that is not a day', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertFails(
+      setDoc(doc(db, 'users', 'alice', 'dailyLogged', '2026-10-24'), { complete: true, updatedAt: Timestamp.fromMillis(0) }),
+    );
+    await assertFails(
+      setDoc(doc(db, 'users', 'alice', 'dailyLogged', 'yesterday'), { complete: true, updatedAt: serverTimestamp() }),
+    );
+  });
+
+  it('keeps dailyLogged owner-only: another user cannot read, write or clear it', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await setDoc(doc(db, 'users', 'alice', 'dailyLogged', '2026-10-24'), { complete: true, updatedAt: serverTimestamp() });
+    const bob = authed('bob');
+    await assertFails(getDoc(doc(bob, 'users', 'alice', 'dailyLogged', '2026-10-24')));
+    await assertFails(getDocs(collection(bob, 'users', 'alice', 'dailyLogged')));
+    await assertFails(setDoc(doc(bob, 'users', 'alice', 'dailyLogged', '2026-10-24'), { complete: false, updatedAt: serverTimestamp() }));
+    await assertFails(deleteDoc(doc(bob, 'users', 'alice', 'dailyLogged', '2026-10-24')));
+  });
+
   // ── workoutTemplates notes cap (2026-10-08) ──
   // The owner's templates carry 2.8–4.1k chars of dated history; at a 2,000
   // cap every client save of them was refused.

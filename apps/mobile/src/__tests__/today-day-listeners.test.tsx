@@ -58,6 +58,8 @@ const sub =
     return unsub;
   };
 const mockEdges = jest.fn();
+const mockSetDailyLogged = jest.fn();
+const mockClearDailyLogged = jest.fn();
 
 jest.mock('@/lib/ledger', () => {
   const actual = jest.requireActual('@/lib/ledger');
@@ -72,10 +74,13 @@ jest.mock('@/lib/ledger', () => {
     subscribeDailySleepDay: sub('sleepDay', 2),
     subscribeDailyActivityDay: sub('activityDay', 2),
     subscribeDailyHunger: sub('hunger', 2),
+    subscribeDailyLogged: sub('dayLogged', 1),
     subscribeDailyWeightsSince: sub('weightsSince', 2),
     getWeightEdges: (...a: unknown[]) => mockEdges(...a),
     updateSleepTimes: jest.fn(),
     setDailyHunger: jest.fn(),
+    setDailyLogged: (...a: unknown[]) => mockSetDailyLogged(...a),
+    clearDailyLogged: (...a: unknown[]) => mockClearDailyLogged(...a),
     setHiddenRecentLabels: jest.fn(),
     startFast: jest.fn(),
     breakFast: jest.fn(),
@@ -154,6 +159,53 @@ describe("Today's daily scalars", () => {
     await new Promise((r) => setTimeout(r, 600));
     const hook = await renderHook(() => useToday());
     expect(hook.result.current.water).toBe(0);
+  });
+});
+
+describe('Today: "Day fully logged?"', () => {
+  it("reads today's answer off the whole-collection answers listener, and nothing for an unanswered day", async () => {
+    const hook = await renderHook(() => useToday());
+    expect(live('dayLogged')?.args).toEqual(['u1']);
+    expect(hook.result.current.dayLogged).toBeNull();
+    await act(async () => live('dayLogged').deliver({ '2026-10-20': false, '2026-10-21': true }, { fromCache: false }));
+    expect(hook.result.current.dayLogged).toBe(true);
+    // A rollover re-reads the same map for the new key — no new listener.
+    const before = live('dayLogged');
+    mockDayKey = '2026-10-22';
+    await act(async () => hook.rerender({}));
+    expect(hook.result.current.dayLogged).toBeNull();
+    expect(live('dayLogged')).toBe(before);
+  });
+
+  it('writes Yes / No for the day on screen, and clears it on null', async () => {
+    mockSetDailyLogged.mockReset().mockResolvedValue(undefined);
+    mockClearDailyLogged.mockReset().mockResolvedValue(undefined);
+    const hook = await renderHook(() => useToday());
+    await act(async () => hook.result.current.setDayLogged(true));
+    expect(mockSetDailyLogged).toHaveBeenLastCalledWith('u1', '2026-10-21', true);
+    await act(async () => hook.result.current.setDayLogged(false));
+    expect(mockSetDailyLogged).toHaveBeenLastCalledWith('u1', '2026-10-21', false);
+    await act(async () => hook.result.current.setDayLogged(null));
+    expect(mockClearDailyLogged).toHaveBeenCalledWith('u1', '2026-10-21');
+    expect(mockSetDailyLogged).toHaveBeenCalledTimes(2);
+  });
+
+  it('feeds the answers to the targets: a "No" on a 2,000 kcal day takes it out of the estimate', async () => {
+    const hook = await renderHook(() => useToday());
+    // 14 finished days at 2,000 kcal, flat weight, before today (10-21).
+    const rows = Array.from({ length: 14 }, (_, i) => ({
+      ...row(`r${i}`, new Date(2026, 9, 7 + i, 12), 2000),
+      weight: 180,
+    }));
+    await act(async () => {
+      live('logs').deliver(rows, { fromCache: false });
+      live('profile').deliver({ ...PROFILE, targetPaceLbsPerWeek: 1 }, { fromCache: false });
+    });
+    expect(hook.result.current.targets.tdee.source).toBe('measured');
+    await act(async () => live('dayLogged').deliver({ '2026-10-20': false }, { fromCache: false }));
+    const tdee = hook.result.current.targets.tdee;
+    expect(tdee.source).toBe('formula');
+    expect(tdee.source !== 'measured' && tdee.notEnoughCompleteDays).toEqual({ valid: 13, needed: 14 });
   });
 });
 

@@ -13,6 +13,7 @@ import {
   subscribePresets,
   subscribeRecentLogs,
   subscribeRecentSessions,
+  subscribeDailyLogged,
 } from '@/lib/ledger';
 
 
@@ -37,6 +38,9 @@ export interface HistoryState extends LogWrites {
    *  first and deduplicated (`history-paging.ts`). */
   logs: DailyLog[];
   weights: Record<string, number>;
+  /** "Day fully logged?" answers, `dateKey → complete` — the day screen's
+   *  replayed target reads them as Today's does (2026-10-24). */
+  dayComplete: Record<string, boolean>;
   /** Saved quick-add presets (for the day-detail add sheet). */
   presets: MealPreset[];
   /** User's saved food library (My Foods, ADR-0013) for the day-detail sheet. */
@@ -70,6 +74,7 @@ export function useHistory(): HistoryState {
   // The other two feed the day-detail add sheet and were never waited on.
   const [windowLogs, setLogs, logsFromCache] = useCachedState<DailyLog[]>(uid, 'logs', []);
   const [weights, setWeights] = useCachedState<Record<string, number>>(uid, 'weights', {});
+  const [dayComplete, setDayComplete] = useCachedState<Record<string, boolean>>(uid, 'dayLogged', {});
   const [presets, setPresets] = useState<MealPreset[]>([]);
   const [customFoods, setCustomFoods] = useState<CustomFood[]>([]);
   // Finished workouts, for each day's "trained" (core `trainedDayRows`): a
@@ -120,6 +125,14 @@ export function useHistory(): HistoryState {
               settles: 'none',
               open: (deliver, fail) => subscribeRecentSessions(uid, HISTORY_SESSIONS, deliver, fail),
               apply: setSessions,
+            }),
+            feedChannel({
+              key: 'dayComplete',
+              settles: 'none',
+              // No `fail`: a missing answer map is the 1,000 kcal rule alone,
+              // which is a correct target — not an error for this screen.
+              open: (deliver) => subscribeDailyLogged(uid, deliver),
+              apply: setDayComplete,
             }),
           ]
         : [],
@@ -208,6 +221,7 @@ export function useHistory(): HistoryState {
     days,
     logs,
     weights,
+    dayComplete,
     presets,
     customFoods,
     boundary,

@@ -101,6 +101,10 @@ const COLS = [
   // (0 failure · 1 rir1 · 2 rir2; 3 in a deload session); on 'template' rows
   // for the activation. Blank on minis, drops and warm-ups.
   'rirTarget',
+  // ── 2026-10-24, appended for the same reason ──
+  // 'dayLogged' rows: the user's "Day fully logged?" answer for the date,
+  // 'true' / 'false' (`complete-day.ts`). An unanswered day has no row.
+  'dayFullyLogged',
 ] as const;
 type Col = typeof COLS[number];
 
@@ -166,6 +170,9 @@ export interface ExportData {
   dailySleepTimes?: Record<string, { bedtime?: string; wakeTime?: string }>;
   /** Evening hunger per date, 0–10 (`evening-hunger.ts`), for `hunger` rows. */
   dailyHunger?: Record<string, number>;
+  /** "Day fully logged?" answers per date (`complete-day.ts`), for
+   *  `dayLogged` rows. */
+  dailyLogged?: Record<string, boolean>;
   /** The program version each template runs as (`programVersion`), by id. */
   templateVersions?: Record<string, 'v1' | 'v2'>;
   /** The templates that make up the rotation (`rotationTemplates`, the set
@@ -179,7 +186,7 @@ export interface ExportData {
 
 /**
  * Long-format CSV: every row carries a `type` discriminator
- * (meal | workout_marker | weight | water | sleep | hunger | measurement |
+ * (meal | workout_marker | weight | water | sleep | hunger | dayLogged | measurement |
  * workout | workout_set | cardio | template | target | weeklyVolume |
  * rotationVolume) and only fills the columns relevant to that type.
  *
@@ -240,6 +247,12 @@ export function buildCsv(data: ExportData, boundary: DayBoundary = MIDNIGHT): st
 
   for (const date of Object.keys(data.dailyHunger ?? {}).sort()) {
     rows.push(row({ type: 'hunger', date, eveningHunger: data.dailyHunger![date] }));
+  }
+
+  for (const date of Object.keys(data.dailyLogged ?? {}).sort()) {
+    const complete = data.dailyLogged![date];
+    if (typeof complete !== 'boolean') continue;
+    rows.push(row({ type: 'dayLogged', date, dayFullyLogged: complete ? 'true' : 'false' }));
   }
 
   const sortedMeasurements = [...data.measurements].sort((a, b) => a.date.getTime() - b.date.getTime());

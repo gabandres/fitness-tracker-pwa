@@ -49,6 +49,12 @@ interface Props {
   hunger?: number | null;
   /** Save or edit today's rating. The row renders only when this is given. */
   onSetHunger?: (level: number) => void;
+  /** Today's "Day fully logged?" answer: true / false, or null when unset
+   *  (`complete-day.ts`, 2026-10-24). */
+  dayLogged?: boolean | null;
+  /** Answer it, change it, or — with `null` — take the answer back. The row
+   *  renders only when this is given. */
+  onSetDayLogged?: (complete: boolean | null) => void;
   onStartFast: () => void;
   onBreakFast: () => void;
   /** Open the fasting editor: correct a running fast's start, edit the one
@@ -279,7 +285,7 @@ export function nextPendingWater(
 /** Today's daily-metric strip: fasting timer, water quick-add, sleep. The
  *  fasting row re-renders every 30s while a fast is running so the elapsed
  *  clock stays live without a global timer. */
-export function DailyMetrics({ water, sleep, sleepTimes, hunger = null, onSetHunger, activity, fastStartedAt, onAddWater, onSetSleep, onStartFast, onBreakFast, onEditFast, fastedTodayHours }: Props) {
+export function DailyMetrics({ water, sleep, sleepTimes, hunger = null, onSetHunger, dayLogged = null, onSetDayLogged, activity, fastStartedAt, onAddWater, onSetSleep, onStartFast, onBreakFast, onEditFast, fastedTodayHours }: Props) {
   const t = useT();
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
@@ -567,6 +573,61 @@ export function DailyMetrics({ water, sleep, sleepTimes, hunger = null, onSetHun
               >
                 <Text style={styles.actionText}>{hunger != null ? t('metrics.edit') : t('metrics.log')}</Text>
               </PressScale>
+            </View>
+          </View>
+        </>
+      ) : null}
+
+      {/* "Day fully logged?" — tri-state (2026-10-24, `complete-day.ts`). The
+          maintenance estimate only counts a day under 1,000 kcal when it is
+          marked Yes, and never counts one marked No; unset leaves it to the
+          1,000 kcal rule. Two chips, the chosen one filled; tapping the chosen
+          one again takes the answer back. Lives with the other one-per-day
+          answers rather than in the diary, which is a list of entries. */}
+      {onSetDayLogged ? (
+        <>
+          <View style={styles.divider} />
+          <View style={[styles.row, styles.rowWrap]} testID="day-logged-row">
+            <View style={styles.leadGroup}>
+              <View style={styles.habitIcon} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+                <Ionicons name="checkmark-done-outline" size={16} color={colors.muted} />
+              </View>
+              <View style={styles.left}>
+                <Text style={styles.label} nativeID="day-logged-label">{t('metrics.dayLogged')}</Text>
+                <Text style={styles.dayLoggedNote} testID="day-logged-state">
+                  {dayLogged === true
+                    ? t('metrics.dayLoggedYesNote')
+                    : dayLogged === false
+                      ? t('metrics.dayLoggedNoNote')
+                      : t('metrics.dayLoggedUnsetNote')}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.trailGroup} accessibilityRole="radiogroup" accessibilityLabel={t('metrics.dayLogged')}>
+              {([true, false] as const).map((answer) => {
+                const on = dayLogged === answer;
+                return (
+                  <PressScale
+                    key={String(answer)}
+                    scaleTo={0.92}
+                    style={[styles.action, on && styles.dayLoggedChipOn]}
+                    hitSlop={PILL_SLOP}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: on }}
+                    accessibilityLabel={answer ? t('metrics.dayLoggedYes') : t('metrics.dayLoggedNo')}
+                    accessibilityHint={on ? t('metrics.dayLoggedClearHint') : undefined}
+                    onPress={() => {
+                      haptics.selection();
+                      onSetDayLogged(on ? null : answer);
+                    }}
+                    testID={answer ? 'day-logged-yes' : 'day-logged-no'}
+                  >
+                    <Text style={[styles.actionText, on && styles.dayLoggedChipTextOn]}>
+                      {answer ? t('metrics.dayLoggedYes') : t('metrics.dayLoggedNo')}
+                    </Text>
+                  </PressScale>
+                );
+              })}
             </View>
           </View>
         </>
@@ -1050,6 +1111,10 @@ const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
     backgroundColor: colors.inputBg,
   },
   hungerChipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
+  // The chosen "Day fully logged?" answer: the action pill, filled.
+  dayLoggedChipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
+  dayLoggedChipTextOn: { color: colors.onInk },
+  dayLoggedNote: { fontSize: font.small, color: colors.muted },
   hungerChipText: { fontSize: font.body, color: colors.ink, fontWeight: '700' },
   hungerChipTextOn: { color: colors.onInk },
   save: { backgroundColor: colors.ink, borderRadius: radius.md, paddingVertical: space.lg, alignItems: 'center', marginTop: space.lg },

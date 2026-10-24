@@ -286,6 +286,10 @@ export const en = {
   'today.maintenanceOutlier': '1 weigh-in ignored — a real jump in weight can look like a bad reading',
   'today.measureProgress': '{n} of {needed} logged days toward your measured burn',
   'today.measureNext': 'Log {n} more and Ignia measures what you actually burn — no formula',
+  // The complete-day rule (2026-10-24, `complete-day.ts`): said INSTEAD of a
+  // maintenance number when fewer than 14 complete days remain.
+  'today.maintenanceIncomplete': 'Maintenance: not enough complete days ({n} of {needed})',
+  'today.maintenanceIncompleteHint': 'Days under 1,000 kcal count only when marked fully logged.',
   'today.measureWeighIns.one': '{n} more weigh-in and it unlocks — the trend needs two',
   'today.measureWeighIns.other': '{n} more weigh-ins and it unlocks — the trend needs two',
   'today.maintenanceOutliers':
@@ -436,6 +440,14 @@ export const en = {
   'metrics.hungerScale': '0 = full · 10 = starving',
   'metrics.hungerLogA11y': 'Log evening hunger',
   'metrics.hungerEditA11y': 'Edit evening hunger',
+  // "Day fully logged?" (2026-10-24, `complete-day.ts`): tri-state on Today.
+  'metrics.dayLogged': 'Day fully logged?',
+  'metrics.dayLoggedYes': 'Yes',
+  'metrics.dayLoggedNo': 'No',
+  'metrics.dayLoggedUnsetNote': 'Counts toward maintenance at 1,000 kcal or more',
+  'metrics.dayLoggedYesNote': 'Counts toward maintenance',
+  'metrics.dayLoggedNoNote': 'Left out of maintenance',
+  'metrics.dayLoggedClearHint': 'Tap again to clear your answer',
   'metrics.water': 'Water',
   'metrics.sleep': 'Sleep',
   'metrics.activity': 'Activity',

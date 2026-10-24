@@ -2,7 +2,7 @@ import { type DailyLog, type Profile, LOG_WINDOW_ROWS } from '@macrolog/core';
 import { useAuth } from '@/lib/auth';
 import { useCachedState } from '@/hooks/useCachedState';
 import { feedChannel, useLedgerFeed } from '@/hooks/useLedgerFeed';
-import { subscribeDailyWeights, subscribeProfile, subscribeRecentLogs } from '@/lib/ledger';
+import { subscribeDailyLogged, subscribeDailyWeights, subscribeProfile, subscribeRecentLogs } from '@/lib/ledger';
 
 /**
  * The three collections every derivation in `@macrolog/core` reads — recent
@@ -31,6 +31,13 @@ export interface CoreSnapshot {
   weights: Record<string, number>;
   profile: Profile | null;
   /**
+   * The "Day fully logged?" answers, `dateKey → complete` — an input to the
+   * maintenance estimate since 2026-10-24 (`complete-day.ts`). Always `{}`
+   * unless the caller asked for it (`{ dayComplete: true }`): only the hooks
+   * that run the estimator pay for the listener.
+   */
+  dayComplete: Record<string, boolean>;
+  /**
    * True once all three channels have delivered at least one snapshot and none
    * has errored — OR once all three have painted from the disk cache, which is
    * the last online session's answer to the same three queries. A profile that
@@ -47,11 +54,20 @@ export interface CoreSnapshot {
   error: Error | null;
 }
 
+/** One frozen `{}` so a caller that did not opt in sees a stable identity. */
+const EMPTY_ANSWERS: Record<string, boolean> = Object.freeze({}) as Record<string, boolean>;
+
 /**
  * @param label Screen name for the dev listener counter (`trackSubs`). Use the
  *   surface the hook belongs to, so a leak names itself in the console.
  */
-export function useCoreSnapshot(label: string): CoreSnapshot {
+export function useCoreSnapshot(
+  label: string,
+  /** `dayComplete`: also open the `dailyLogged` channel — for a caller that
+   *  runs `dailyTargets` / `calculateTdee`, which read it. */
+  opts: { dayComplete?: boolean } = {},
+): CoreSnapshot {
+  const wantDayComplete = opts.dayComplete === true;
   const { user } = useAuth();
   const uid = user?.uid;
   // The same three slices Today hydrates (`offline-cache.ts`) — these are the
@@ -63,6 +79,7 @@ export function useCoreSnapshot(label: string): CoreSnapshot {
   const [logs, setLogs, logsFromCache] = useCachedState<DailyLog[]>(uid, 'logs', []);
   const [weights, setWeights, weightsFromCache] = useCachedState<Record<string, number>>(uid, 'weights', {});
   const [profile, setProfile, profileFromCache] = useCachedState<Profile | null>(uid, 'profile', null);
+  const [dayComplete, setDayComplete] = useCachedState<Record<string, boolean>>(uid, 'dayLogged', {});
 
   // The gate, the `trackSubs` wrapping, the readiness record and the error
   // policy are `useLedgerFeed`'s; the three `subscribe*` calls stay this hook's
@@ -97,9 +114,23 @@ export function useCoreSnapshot(label: string): CoreSnapshot {
               open: (deliver, fail) => subscribeProfile(uid, deliver, fail),
               apply: setProfile,
             }),
+            // Opt-in fourth channel. `settles: 'none'` and no `fail`: a
+            // missing answer map is "no answers" — the 1,000 kcal rule alone —
+            // which is a correct estimate, so it must neither hold the spinner
+            // nor put the screen into the error state the core three own.
+            ...(wantDayComplete
+              ? [
+                  feedChannel({
+                    key: 'dayComplete',
+                    settles: 'none',
+                    open: (deliver) => subscribeDailyLogged(uid, deliver),
+                    apply: setDayComplete,
+                  }),
+                ]
+              : []),
           ]
         : [],
-    deps: [uid],
+    deps: [uid, wantDayComplete],
   });
 
   // A cache paint of all three is a complete last-session answer, and it is
@@ -112,6 +143,7 @@ export function useCoreSnapshot(label: string): CoreSnapshot {
     logs,
     weights,
     profile,
+    dayComplete: wantDayComplete ? dayComplete : EMPTY_ANSWERS,
     loaded: !feed.error && (feed.ready || painted),
     error: feed.error,
   };

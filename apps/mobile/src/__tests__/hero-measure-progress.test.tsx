@@ -24,6 +24,7 @@ const progress = (over: Partial<MeasurementProgress> = {}): MeasurementProgress 
   neededWeighIns: 2,
   weighInsToGo: 1,
   fraction: 5 / 14,
+  notEnoughCompleteDays: false,
   ...over,
 });
 
@@ -73,6 +74,23 @@ describe('HeroRings measured-burn progress', () => {
       />,
     );
     expect(getByText('1 more weigh-in and it unlocks — the trend needs two')).toBeTruthy();
+  });
+
+  it('says "not enough complete days" instead of a number when the complete-day rule left days out', async () => {
+    // 2026-10-24: the account logged 42 days but only 9 were complete.
+    const { getByTestId, queryByTestId, queryByText } = await render(
+      <HeroRings
+        {...base}
+        maintenance={null}
+        progress={progress({ loggedDays: 9, daysToGo: 5, fraction: 9 / 14, notEnoughCompleteDays: true })}
+      />,
+    );
+    expect(getByTestId('maintenance-incomplete')).toHaveTextContent('Maintenance: not enough complete days (9 of 14)');
+    expect(getByTestId('measure-progress-next')).toHaveTextContent(
+      'Days under 1,000 kcal count only when marked fully logged.',
+    );
+    expect(queryByText(/logged days toward your measured burn/)).toBeNull();
+    expect(queryByTestId('maintenance-line')).toBeNull();
   });
 
   it('yields the slot to the maintenance line — never both', async () => {

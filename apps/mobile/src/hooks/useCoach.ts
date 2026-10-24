@@ -33,12 +33,12 @@ export interface CoachData {
  * app shipping a 14-ROW cache as "14 days".
  */
 export function useCoach(): CoachData {
-  const { logs, weights, profile, loaded } = useCoreSnapshot('Coach');
+  const { logs, weights, profile, dayComplete, loaded } = useCoreSnapshot('Coach', { dayComplete: true });
 
   const calendarToday = useCalendarToday();
   const tdee = useMemo(
-    () => dailyTargets(profile, logs, weights, calendarToday).tdee,
-    [profile, logs, weights, calendarToday],
+    () => dailyTargets(profile, logs, weights, calendarToday, dayComplete).tdee,
+    [profile, logs, weights, calendarToday, dayComplete],
   );
   // Core's `toProfileFields` (the same narrowing `dailyTargets` uses) rather
   // than a local copy: this hook used to declare its own, which returned a

@@ -119,7 +119,7 @@ function DayDetailScreen({ onRetry }: { onRetry: () => void }) {
   useEffect(() => {
     if (!validKey) router.replace('/history');
   }, [validKey, router]);
-  const { loading, error, logs, weights, presets, customFoods, boundary, addEntry, updateEntry, deleteEntry, addPreset, deletePreset, addCustomFood, deleteCustomFood, ensureMonthLoaded, olderMonths } = useHistory();
+  const { loading, error, logs, weights, dayComplete, presets, customFoods, boundary, addEntry, updateEntry, deleteEntry, addPreset, deletePreset, addCustomFood, deleteCustomFood, ensureMonthLoaded, olderMonths } = useHistory();
   // A day behind the 400-row window (a tap-through from a paged-back month, or
   // a deep link) fetches its month once, the same way the calendar does
   // (S18-13). This route mounts its own `useHistory`, so the calendar's fetched
@@ -174,8 +174,8 @@ function DayDetailScreen({ onRetry }: { onRetry: () => void }) {
    */
   const dayRecord = useDayTargetRecord(validKey ? dateKey : null);
   const calorieTarget = useMemo(
-    () => dayRecord?.kcalTarget ?? (profile ? dailyTargetsOn(profile, logs, weights, dateKey).calorieTarget : null),
-    [dayRecord, profile, logs, weights, dateKey],
+    () => dayRecord?.kcalTarget ?? (profile ? dailyTargetsOn(profile, logs, weights, dateKey, undefined, dayComplete).calorieTarget : null),
+    [dayRecord, profile, logs, weights, dateKey, dayComplete],
   );
 
   // A failed load is said, not drawn as an empty day (UX_AUDIT S21): the

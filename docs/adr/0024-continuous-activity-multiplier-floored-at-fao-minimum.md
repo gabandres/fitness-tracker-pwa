@@ -104,3 +104,13 @@ device's number there double-counts.
   vs −4.2%) on the only account with a benchmark to check against.
 - **A sixth ladder rung.** Cannot represent 1.279 at all, and the rung spacing is
   wider than the error being corrected.
+
+## Amendment 1 (2026-10-24): which days the measured estimate reads
+
+Decision 4 says what the measured estimate may read — energy balance, never
+the device's `activeKcal`. [ADR-0047](0047-only-complete-days-feed-the-maintenance-fit.md)
+adds which **days** it may read: only Complete days (≥ 1,000 kcal and not
+marked "not fully logged", or marked "fully logged"), and it opens at 14 of
+them. A left-out day keeps its weigh-in for the trend. Nothing here changes:
+the multiplier stays a seed-only prior, and `tdee-wearable-independence.test.ts`
+still passes unchanged — its 120 days are all complete days.

@@ -133,6 +133,10 @@ export default function DailyTargetsScreen() {
     () => (computed && measured == null ? maintenanceView(computed.tdee, 0) : null),
     [computed, measured],
   );
+  // No measured estimate because the complete-day rule left the account short
+  // of 14 complete days (2026-10-24) — said in the words Today and Trends use.
+  const incomplete =
+    computed && computed.tdee.source !== 'measured' ? (computed.tdee.notEnoughCompleteDays ?? null) : null;
 
   const kcalNum = numOrNull(kcal);
   const proteinNum = numOrNull(protein);
@@ -285,7 +289,9 @@ export default function DailyTargetsScreen() {
                         span: settling.spanDays,
                       })
                     : t('targets.measuredSettlingPlain', { n: formatNumber(Math.round(settling.maintenance), locale) })
-                  : t('targets.measuredNotYet')}
+                  : incomplete
+                    ? t('today.maintenanceIncomplete', { n: incomplete.valid, needed: incomplete.needed })
+                    : t('targets.measuredNotYet')}
             </Text>
           </View>
 
