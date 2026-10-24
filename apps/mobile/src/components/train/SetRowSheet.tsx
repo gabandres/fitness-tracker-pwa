@@ -51,8 +51,14 @@ export function SetRowSheet({
   onRir,
   onRemove,
   kinds,
+  rirOnly = false,
 }: {
   visible: boolean;
+  /** The quick RIR picker (S-v2, 2026-10-24): opened by the tick on the LAST
+   *  working set of a straight rir1/rir2 lift (core `lastSetRirRequired`).
+   *  Only the 0–5 scale — no set kinds, no "No RIR", no Remove: this set's
+   *  RIR is the one Finish will not complete without. */
+  rirOnly?: boolean;
   set: WorkoutSet | null;
   /** The set kinds this lift can use — a straight lift gets Warm-up, Working
    *  and Drop, not the cluster vocabulary that pushed RIR and Remove below
@@ -72,8 +78,8 @@ export function SetRowSheet({
   // RIR is meaningful on real working effort, not warmups/back-offs.
   // `continuation` carries it too: a rest-pause continuation is taken to
   // failure, so the reading is as meaningful there as on the activation.
-  const showRir =
-    set?.kind === 'working' || set?.kind === 'activation'
+  const showRir = rirOnly
+    || set?.kind === 'working' || set?.kind === 'activation'
     || set?.kind === 'mini' || set?.kind === 'continuation';
 
   // The sheet is ALWAYS rendered, and only its content depends on `set`: a
@@ -97,11 +103,13 @@ export function SetRowSheet({
       {/* A visible way out (v3 QA item 6). Every choice here applies on
           tap, so it is Done. Outside the scroll, so it never leaves. */}
       <SheetHeader
-        title={t('train.setSheetTitle', { n: label })}
+        title={rirOnly ? t('train.rirRequiredTitle', { n: label }) : t('train.setSheetTitle', { n: label })}
         trailing={{ label: t('common.done'), onPress: onClose, testID: 'set-sheet-done' }}
       />
       <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
+      {rirOnly ? null : (
+      <>
       <Text style={styles.fieldLabel}>{t('train.setType')}</Text>
       {/* Rows, not a chip wrap: "Activation" and "Mini" are cluster-training
           vocabulary, and a bare chip label teaches nobody what they are. */}
@@ -144,15 +152,19 @@ export function SetRowSheet({
         );
       })}
       </View>
+      </>
+      )}
 
       {showRir ? (
         <>
-          <Text style={[styles.fieldLabel, styles.setSheetGap]}>{t('train.rirPrompt')}</Text>
+          <Text style={[styles.fieldLabel, rirOnly ? null : styles.setSheetGap]}>{t('train.rirPrompt')}</Text>
           {/* The acronym expanded once, where it is being answered — the
               glossary button in the header should not be the only place the
               tab explains its own vocabulary. */}
           <Text style={styles.sheetHint}>{t('train.rirExplain')}</Text>
+          {rirOnly ? <Text style={styles.sheetHint}>{t('train.rirRequiredHint')}</Text> : null}
           <View style={styles.kindChips} accessibilityRole="radiogroup">
+            {rirOnly ? null : (
             <Touchable
               style={[styles.kindChip, set.rir == null && styles.kindChipOn]}
               onPress={() => {
@@ -167,6 +179,7 @@ export function SetRowSheet({
                 {t('train.rirClear')}
               </Text>
             </Touchable>
+            )}
             {RIR_CHOICES.map((v) => {
               const on = set.rir === v;
               return (
@@ -193,6 +206,7 @@ export function SetRowSheet({
         </>
       ) : null}
 
+      {rirOnly ? null : (
       <Touchable
         style={styles.moreRemove}
         onPress={() => {
@@ -204,6 +218,7 @@ export function SetRowSheet({
       >
         <Text style={styles.moreRemoveText}>{t('train.removeSet')}</Text>
       </Touchable>
+      )}
       <View style={styles.setSheetTail} />
       </ScrollView>
       </>

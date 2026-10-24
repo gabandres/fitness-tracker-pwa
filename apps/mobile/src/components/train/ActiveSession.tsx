@@ -307,7 +307,9 @@ export function ActiveSession({
     setAddFor('add');
   };
   const [cardioPickerOpen, setCardioPickerOpen] = useState(false);
-  const [setSheet, setSetSheet] = useState<{ exerciseIndex: number; setIndex: number } | null>(null);
+  // `rirOnly`: the quick RIR picker a required last set's tick opens (core
+  // `lastSetRirRequired`, S-v2 2026-10-24).
+  const [setSheet, setSetSheet] = useState<{ exerciseIndex: number; setIndex: number; rirOnly?: boolean } | null>(null);
   const [menu, setMenu] = useState<MenuFor>(null);
   const [liftFor, setLiftFor] = useState<number | null>(null);
   const [restPickerFor, setRestPickerFor] = useState<number | null>(null);
@@ -857,7 +859,8 @@ export function ActiveSession({
   }, []);
   const onOpenMenu = useCallback((index: number) => setMenu({ kind: 'exercise', index }), []);
   const onOpenSetSheet = useCallback(
-    (exerciseIndex: number, setIndex: number) => setSetSheet({ exerciseIndex, setIndex }),
+    (exerciseIndex: number, setIndex: number, opts?: { rirOnly?: boolean }) =>
+      setSetSheet({ exerciseIndex, setIndex, ...(opts?.rirOnly ? { rirOnly: true } : {}) }),
     [],
   );
   const onOpenLift = useCallback((index: number) => setLiftFor(index), []);
@@ -1684,6 +1687,7 @@ export function ActiveSession({
         set={sheetSet}
         label={sheetLabel}
         kinds={setSheet ? setKindsFor(setSheet.exerciseIndex) : undefined}
+        rirOnly={setSheet?.rirOnly === true}
         onClose={() => setSetSheet(null)}
         onKind={(kind) => {
           if (setSheet) void dispatch({ type: 'setSetKind', exerciseIndex: setSheet.exerciseIndex, setIndex: setSheet.setIndex, kind });

@@ -9,6 +9,7 @@ import {
   type ActivationFinding,
   type MissingRir,
   type Recommendation,
+  type RequiredRir,
   type TemplateLoadChange,
   type TemplateStructureChange,
   applyStructureChanges,
@@ -25,10 +26,15 @@ import {
   proposeTemplateChanges,
   sessionActivationIssues,
   sessionCounts,
+  setRowLabels,
   setsMissingRir,
+  setsRequiringRir,
+  structureOf,
   targetRirOf,
   isAboveZone2,
   DELOAD_RIR,
+  RIR_MAX,
+  RIR_MIN,
   weightBoundsFor,
   zone2MissingRpe,
 } from '@macrolog/core';
@@ -83,6 +89,10 @@ function BelowFoldSpacer() {
 
 /** A workout open this long is more likely forgotten than finished (F15). */
 const LONG_OPEN_MIN = 180;
+
+/** The 0–5 RIR scale for a required last set — core's bounds, as the set
+ *  sheet's picker uses, so the two cannot drift. */
+const RIR_PICKS: number[] = Array.from({ length: RIR_MAX - RIR_MIN + 1 }, (_, i) => RIR_MIN + i);
 /** From this text size (iOS AX1 and up) the footer ends the scroll instead
  *  of being pinned under it (QA v2: ~40% of the sheet at AX-large). */
 const FOOTER_INLINE_FONT_SCALE = 1.6;
@@ -147,6 +157,8 @@ export function FinishSheet({
   autoApply = false,
   missingRir = [],
   onFillRir,
+  requiredRir = [],
+  onSetRir,
   zone2NoRpe = [],
   aboveZone2 = false,
   onSetRpe,
@@ -174,6 +186,13 @@ export function FinishSheet({
   missingRir?: MissingRir[];
   /** Fill those sets with each lift's target RIR. */
   onFillRir?: (missing: MissingRir[]) => void;
+  /** The LAST working set of a straight rir1/rir2 lift with no RIR (core
+   *  `setsRequiringRir`, S-v2 2026-10-24). REQUIRED, like Zone 2's RPE:
+   *  Complete refuses until each has one, picked here from 0–5 — there is no
+   *  "Leave blank" for these. Never also listed in `missingRir`. */
+  requiredRir?: (RequiredRir & { setLabel?: string })[];
+  /** Store an RIR on one of those sets. */
+  onSetRir?: (exerciseIndex: number, setIndex: number, rir: number) => void;
   /** Logged Zone 2 blocks with no RPE (core `zone2MissingRpe`). REQUIRED:
    *  Complete refuses until each has one, picked right here (2026-10-15). */
   zone2NoRpe?: { blockIndex: number; label: string }[];
@@ -337,6 +356,14 @@ export function FinishSheet({
     // picks it in the section above, then Complete again.
     if (zone2NoRpe.length > 0 && onSetRpe) {
       const msg = t('train.zone2RpeRequired');
+      setSaveErr(msg);
+      announce(msg, { androidHasLiveRegion: true });
+      return;
+    }
+    // The last set's RIR on a straight rir1/rir2 lift is required the same
+    // way: picked in its section above, then Complete again.
+    if (requiredRir.length > 0 && onSetRir) {
+      const msg = t('train.rirRequiredFinishBlock');
       setSaveErr(msg);
       announce(msg, { androidHasLiveRegion: true });
       return;
@@ -695,6 +722,42 @@ export function FinishSheet({
           </View>
         ) : null}
 
+        {requiredRir.length > 0 && onSetRir ? (
+          <View style={styles.invalidBox} testID="finish-rir-required">
+            <Ionicons name="alert-circle-outline" size={18} color={colors.warn} />
+            <View style={{ flex: 1, gap: space.xs }}>
+              <Text style={styles.invalidHeading}>{t('train.rirRequiredFinishHeading')}</Text>
+              {requiredRir.map((r) => (
+                <View key={r.exerciseIndex} style={{ gap: space.xs }}>
+                  <Text style={styles.invalidRow}>
+                    <Text style={styles.invalidName}>{r.name}</Text>
+                    {` · ${t('train.rirRequiredFinishRow', { n: r.setLabel ?? String(r.setIndex + 1), target: r.targetRir })}`}
+                  </Text>
+                  <View style={styles.rpeChipRow} accessibilityRole="radiogroup" accessibilityLabel={`${t('train.rirPrompt')}, ${r.name}`}>
+                    {RIR_PICKS.map((n) => (
+                      <Touchable
+                        key={n}
+                        style={[styles.rpeChip, n === r.targetRir && styles.rirRequiredTarget]}
+                        onPress={() => {
+                          haptics.tap();
+                          setSaveErr('');
+                          onSetRir(r.exerciseIndex, r.setIndex, n);
+                        }}
+                        accessibilityRole="radio"
+                        accessibilityLabel={`RIR ${n}, ${r.name}`}
+                        testID={`finish-rir-required-${r.exerciseIndex}-${n}`}
+                      >
+                        <Text style={styles.rirMissingBtnText}>{n}</Text>
+                      </Touchable>
+                    ))}
+                  </View>
+                </View>
+              ))}
+              <Text style={styles.invalidHint}>{t('train.rirRequiredHint')}</Text>
+            </View>
+          </View>
+        ) : null}
+
         {missingRir.length > 0 && onFillRir ? (
           <View style={styles.invalidBox} testID="finish-rir-missing">
             <Ionicons name="alert-circle-outline" size={18} color={colors.warn} />
@@ -1022,6 +1085,22 @@ export function TrainFinishSheet({
   );
   const autoApply = train.autoApplyProgression === true;
   const canWrite = template?.id != null && train.saveTemplate != null;
+  // The LAST working set of a straight rir1/rir2 lift, saved with no RIR (core
+  // `setsRequiringRir`, S-v2 2026-10-24): required, never "Leave blank". Not
+  // in a deload, where nothing is read. Indices into the LIVE session.
+  const requiredRir = useMemo(() => {
+    if (!session || session.deload) return [];
+    return setsRequiringRir(session.exercises, (ex, i) => {
+      const row = template?.exercises.find((r) => r.exerciseId === ex.exerciseId);
+      const cat = catalog?.find((e) => e.id === ex.exerciseId);
+      // The same resolution the live card uses: the row, then the catalog,
+      // then (ad hoc) the sets themselves.
+      return {
+        structure: structureOf(row, cat, row ? undefined : session.exercises[i].sets),
+        effortStandard: cat?.effortStandard,
+      };
+    }).map((r) => ({ ...r, setLabel: setRowLabels(session.exercises[r.exerciseIndex].sets)[r.setIndex] }));
+  }, [session, template, catalog]);
   // Indices into the LIVE session, the one `dispatch` patches.
   const missingRir = useMemo(() => {
     if (!session) return [];
@@ -1035,12 +1114,22 @@ export function TrainFinishSheet({
     }
     // Each lift's own target, from its effort standard (Program v2.1): a
     // RIR 1 lift is offered 1, not 0.
-    return setsMissingRir(session.exercises, (id) => lastRir.get(id) === true).map((m) => ({
-      ...m,
-      // A deload session stops 3 short on every lift (core `DELOAD_RIR`).
-      targetRir: session.deload ? DELOAD_RIR : targetRirOf(catalog?.find((e) => e.id === m.exerciseId)?.effortStandard),
-    }));
-  }, [session, recentSessions, catalog]);
+    // A required last set is asked for in its own, blocking section — never
+    // here too, where "Leave blank" would offer the way round it.
+    const required = new Map(requiredRir.map((r) => [r.exerciseIndex, r.setIndex]));
+    return setsMissingRir(session.exercises, (id) => lastRir.get(id) === true)
+      .map((m) => ({
+        ...m,
+        setIndexes: m.setIndexes.filter((i) => required.get(m.exerciseIndex) !== i),
+        // A deload session stops 3 short on every lift (core `DELOAD_RIR`).
+        targetRir: session.deload ? DELOAD_RIR : targetRirOf(catalog?.find((e) => e.id === m.exerciseId)?.effortStandard),
+      }))
+      .filter((m) => m.setIndexes.length > 0);
+  }, [session, recentSessions, catalog, requiredRir]);
+  const setRir = (exerciseIndex: number, setIndex: number, rir: number) => {
+    void train.dispatch?.({ type: 'patchSet', exerciseIndex, setIndex, patch: { rir } }, { defer: true });
+    void train.commitActive?.();
+  };
   const zone2NoRpe = useMemo(
     () => (session ? zone2MissingRpe(session.cardio).map((i) => ({ blockIndex: i, label: session.cardio?.[i]?.label?.trim() || t('cardio.modality.walk') })) : []),
     [session, t],
@@ -1119,6 +1208,8 @@ export function TrainFinishSheet({
       autoApply={autoApply}
       missingRir={missingRir}
       onFillRir={train.dispatch ? fillRir : undefined}
+      requiredRir={requiredRir}
+      onSetRir={train.dispatch ? setRir : undefined}
       zone2NoRpe={zone2NoRpe}
       aboveZone2={(session?.cardio ?? []).some((b) => isAboveZone2(b))}
       onSetRpe={train.dispatch ? setRpe : undefined}
