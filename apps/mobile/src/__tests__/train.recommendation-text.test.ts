@@ -203,12 +203,25 @@ describe('recommendation text — the rep-range rules on real engine output', ()
     expect(five.stall).toContain('Sleep under 7 h: no data');
   });
 
-  it('straight sets: a too-big jump holds and says why (ADR-0040 path unchanged)', () => {
+  // Owner decision 2026-10-24: "the smallest real step is always allowed".
+  // This pinned 10 lb · HOLD with "Next available load is 20 lb (+100%).
+  // Build to 8 reps at 10 lb first." — the engine no longer refuses a real
+  // step for its size.
+  it('straight sets: the next real step is taken whatever its size (10 → 20, +100 %)', () => {
     const r = recommend(
       [{ exerciseId: 'x', name: 'X', cues: [], sets: [{ kind: 'working', reps: 8, weight: 10 }] }],
       { progression: { targetReps: 8, holdSessions: 1 }, availableLoads: [10, 20] },
     );
-    const out = text(r);
+    expect(r).toMatchObject({ action: 'add-load', load: 20, currentLoad: 10 });
+    expect(text(r).headline).toBe('20 lb · INCREASE');
+  });
+
+  it('a jump-too-big reason already stored still renders (legacy, no longer produced)', () => {
+    const legacy: Recommendation = {
+      action: 'build-reps', load: 10, currentLoad: 10, last: [], assisted: false, approximate: false, warnings: [],
+      reason: { kind: 'jump-too-big', nextLoad: 20, jumpPct: 1, repsGoal: 8 },
+    };
+    const out = text(legacy);
     expect(out.headline).toBe('10 lb · HOLD');
     expect(out.reason).toBe('Next available load is 20 lb (+100%). Build to 8 reps at 10 lb first.');
   });

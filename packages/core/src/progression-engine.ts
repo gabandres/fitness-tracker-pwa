@@ -126,9 +126,15 @@ export const FIRST_MINI_MAX = 5;
 export const LEGACY_EFFORT_CUTOFF = '2026-09-15';
 // The fallback load step is `DEFAULT_INCREMENT_LB` from ./load-units — the
 // same 5 lb the weight stepper assumes.
-/** Straight-set double progression only (ADR-0040): a load step larger than
- *  this fraction of the current load is not recommended. The myo-reps path
- *  decides the same question with a rep prediction instead. */
+/** RETIRED 2026-10-24 (owner: "the smallest real step is always allowed").
+ *  Until then a straight-set / rest-pause / cluster step larger than this
+ *  fraction of the current load was refused as `jump-too-big` and the lift was
+ *  told to build reps — which, on a light dumbbell or a coarse stack, was
+ *  forever: 20 → 25 is +25 % and there is no smaller real weight. `loadCall`
+ *  no longer applies it, because `nextLoad` only ever proposes the next REAL
+ *  step (grid dumbbell, `availableLoads` entry, or +increment). Kept exported
+ *  for the record and because `jump-too-big` reasons already stored or cached
+ *  still name it. The myo-reps path never used it (Epley `step-too-big`). */
 export const MAX_JUMP_PCT = 0.15;
 /** Reps past `repRange.max` a lift may build before the engine stops asking
  *  for more reps and offers a technique instead. */
@@ -575,8 +581,10 @@ export type RecommendReason =
    *  (ADR-0040). Never a fall-through to another structure's rule. */
   | { kind: 'unsupported-structure'; structure: SetStructure }
   | { kind: 'invalid'; reason: InvalidReason; group?: number; firstMini?: number; rir?: number; reps?: number }
-  /** Straight-set double progression only: the next step is over
-   *  {@link MAX_JUMP_PCT}. */
+  /** LEGACY — no longer produced (2026-10-24). Straight-set double
+   *  progression used to refuse a step over {@link MAX_JUMP_PCT}; the smallest
+   *  real step is now always allowed. Kept so a reason already stored or
+   *  cached still type-checks and still renders. */
   | { kind: 'jump-too-big'; nextLoad: number; jumpPct: number; repsGoal: number }
   // ── myo-reps, rep-range rules ──
   /** Every cluster at or over the top of the range, and the next step is
@@ -842,8 +850,15 @@ function heldRun(
 
 /**
  * The add-load / build-reps decision, once a reader has counted its run.
- * Shared so the jump ceiling and the assisted/steps handling cannot diverge
- * between structures.
+ * Shared so the assisted/steps/grid handling cannot diverge between
+ * structures.
+ *
+ * The smallest real step is always allowed (owner, 2026-10-24). `nextLoad`
+ * proposes exactly one step — the next grid dumbbell, the next entered load,
+ * or +increment — so whatever percentage that is, it is the smallest move the
+ * equipment can make. The 15 % ceiling (`MAX_JUMP_PCT`) used to turn it into
+ * `jump-too-big` → build reps, which on a 20-lb dumbbell or a 10-lb-pin stack
+ * meant building reps with no end. That reason is no longer produced here.
  */
 function loadCall(
   base: Pick<Recommendation, 'last' | 'assisted' | 'approximate' | 'warnings'>,
@@ -852,25 +867,18 @@ function loadCall(
   sessionsAtTarget: number,
   holdSessions: number,
   reason: RecommendReason,
-  repsGoal: number,
 ): Recommendation {
   if (sessionsAtTarget >= holdSessions && currentLoad != null) {
     // The dumbbell grid (Settings → "2.5-lb steps", Program v2.1) applies to
     // every structure, not only myo-reps: a straight-set DB press moves
     // 20 → 22.5, never "build reps" toward a 25 that is a 25 % jump.
     const grid = opts.config?.loadGrid;
-    const { load, jumpPct } = nextLoad(currentLoad, {
+    const { load } = nextLoad(currentLoad, {
       availableLoads: opts.availableLoads,
       incrementLb: opts.progression?.incrementLb,
       assisted: base.assisted,
       ...(grid ? { grid } : {}),
     });
-    if (jumpPct > MAX_JUMP_PCT) {
-      return {
-        ...base, action: 'build-reps', load: currentLoad, currentLoad,
-        reason: { kind: 'jump-too-big', nextLoad: load, jumpPct, repsGoal },
-      };
-    }
     return { ...base, action: 'add-load', load, currentLoad, reason };
   }
   return {
@@ -957,7 +965,7 @@ function recommendRestPause(history: readonly SessionExercise[], opts: Recommend
   const reason: RecommendReason = {
     kind: 'rest-pause', total: latest.total, targetReps, sessionsAtTarget, holdSessions,
   };
-  return loadCall(base, opts, currentLoad, sessionsAtTarget, holdSessions, reason, targetReps);
+  return loadCall(base, opts, currentLoad, sessionsAtTarget, holdSessions, reason);
 }
 
 function recommendCluster(history: readonly SessionExercise[], opts: RecommendOptions): Recommendation {
@@ -989,7 +997,7 @@ function recommendCluster(history: readonly SessionExercise[], opts: RecommendOp
     kind: 'cluster-sets', completed: latest.done as number, blocks: latest.blocks as number,
     sessionsAtTarget, holdSessions,
   };
-  return loadCall(base, opts, currentLoad, sessionsAtTarget, holdSessions, reason, latest.blocks as number);
+  return loadCall(base, opts, currentLoad, sessionsAtTarget, holdSessions, reason);
 }
 
 /**
@@ -1052,7 +1060,7 @@ function recommendHit(history: readonly SessionExercise[], opts: RecommendOption
   const reason: RecommendReason = {
     kind: 'hit', reps: latest.reps, targetReps, sessionsAtTarget, holdSessions,
   };
-  return loadCall(base, opts, currentLoad, sessionsAtTarget, holdSessions, reason, targetReps);
+  return loadCall(base, opts, currentLoad, sessionsAtTarget, holdSessions, reason);
 }
 
 function recommendStraight(history: readonly SessionExercise[], opts: RecommendOptions): Recommendation {
@@ -1094,7 +1102,7 @@ function recommendStraight(history: readonly SessionExercise[], opts: RecommendO
   // RIR compliance (Program v2.2): any working set logged under the target.
   const below = rirBelowTarget(workingReps(history[0]).map((s) => s.rir), standard);
   const judged = below ? { ...base, warnings: ['below-target-rir' as const], rirBelowTarget: below } : base;
-  return loadCall(judged, opts, currentLoad, sessionsAtTarget, holdSessions, reason, targetReps);
+  return loadCall(judged, opts, currentLoad, sessionsAtTarget, holdSessions, reason);
 }
 
 /**
