@@ -49,6 +49,9 @@ export function useCompositionTrends(
   logs: readonly DailyLog[],
   weights: Readonly<Record<string, number>>,
   profile: Profile | null,
+  /** "Day fully logged?" answers (2026-10-24) — the measured estimate's day
+   *  rule, which this intake follows. */
+  dayComplete?: Readonly<Record<string, boolean>>,
 ): CompositionTrends {
   const { user, isAdmin } = useAuth();
   const uid = user?.uid;
@@ -97,10 +100,11 @@ export function useCompositionTrends(
         // Trends' logs are the row-capped cache (ADR-0004): a 182-day DXA span
         // can start before it does.
         logsCompleteFromKey: logsCompleteFrom(logs, LOG_WINDOW_ROWS, boundary),
+        dayComplete,
       }),
       recomp: recompSignal({ dailyWeights: weights, measurements, boundary, now }),
       lastTapeAt: lastTape?.date ?? null,
       female: profile?.sex === 'female',
     };
-  }, [enabled, answered, logs, weights, profile, measurements]);
+  }, [enabled, answered, logs, weights, profile, measurements, dayComplete]);
 }

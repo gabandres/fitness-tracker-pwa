@@ -198,7 +198,7 @@ describe('the hero', () => {
       state({
         tdee: { trueTdee: 2500, newDailyTarget: 2000, weightChangeTrend: 0, source: 'formula' },
         insights: null,
-        progress: { loggedDays: 9, neededDays: 14, daysToGo: 5, weighIns: 2, neededWeighIns: 2, weighInsToGo: 0, fraction: 9 / 14 },
+        progress: { loggedDays: 9, neededDays: 14, daysToGo: 5, weighIns: 2, neededWeighIns: 2, weighInsToGo: 0, fraction: 9 / 14, notEnoughCompleteDays: false },
       }),
     );
     const view = await render(<Trends />);

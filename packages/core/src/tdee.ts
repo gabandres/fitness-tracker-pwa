@@ -2,14 +2,16 @@ import type { GoalDirection } from './macro-heuristic';
 import type { ActivityLevel, DailyLog, ProfileFields } from './types';
 import { MIDNIGHT, dayKeyAt, type DayBoundary } from './day-boundary';
 import { parseYmd, type DateKey } from './date';
+import { isCompleteDay, type DayCompleteMap } from './complete-day';
 
 /**
  * TDEE (Total Daily Energy Expenditure) estimator — pure port of the
  * Angular `TdeeCalculatorService` algorithm, shared with the Expo app.
  *
  * Modes:
- *   - MEASURED (≥14 logged days): data-driven. Backs TDEE out of the
- *     observed weight trend (OLS slope) + observed average intake.
+ *   - MEASURED (≥14 complete days — `complete-day.ts`; any logged day before
+ *     2026-10-24): data-driven. Backs TDEE out of the observed weight trend
+ *     (OLS slope) + observed average intake.
  *   - FORMULA (<14 days + profile): Mifflin-St Jeor BMR × activity factor.
  *   - SEED (<14 days + no profile): hardcoded fallback.
  *
@@ -65,7 +67,10 @@ export interface MeasuredTdee extends TdeeBase {
    *     that anchor, down for one below it. There is no direction to state.
    *  2. The numerator does NOT grow past the cap. Once past 42 logged days it
    *     is pinned there for good, so a thin record improves by `spanDays`
-   *     falling, never by `windowDays` rising. */
+   *     falling, never by `windowDays` rising.
+   *
+   *  Since 2026-10-24 these are COMPLETE days (`complete-day.ts`): a finished
+   *  day under 1,000 kcal, or marked "not fully logged", is not a row here. */
   windowDays: number;
   /**
    * Days in that window that actually carry FOOD (`calories > 0`) — always
@@ -158,12 +163,33 @@ export interface MeasuredTdee extends TdeeBase {
  *  it observed nothing. */
 export interface FormulaTdee extends TdeeBase {
   source: 'formula';
+  /** See {@link NotEnoughCompleteDays}. */
+  notEnoughCompleteDays?: NotEnoughCompleteDays;
 }
 
 /** The hardcoded stand-in used before there is a profile at all. Never present
  *  it to a user as their number. */
 export interface SeedTdee extends TdeeBase {
   source: 'seed';
+  /** See {@link NotEnoughCompleteDays}. */
+  notEnoughCompleteDays?: NotEnoughCompleteDays;
+}
+
+/**
+ * Why there is no measured estimate when the complete-day rule is the reason:
+ * fewer than {@link MEASURED_MIN_DAYS} complete days, and at least one finished
+ * day the rule left out (`complete-day.ts`, 2026-10-24). A UI says
+ * "Maintenance: not enough complete days (9 of 14)" instead of a number.
+ *
+ * Absent when no day was left out — then the account is simply new, and the
+ * progress readout (`measurementProgress`) already says how far it is.
+ */
+export interface NotEnoughCompleteDays {
+  /** Complete days the estimator could use. The day in progress counts, as it
+   *  always has — its intake is zeroed, its row and weigh-in kept. */
+  valid: number;
+  /** {@link MEASURED_MIN_DAYS}. */
+  needed: number;
 }
 
 /**
@@ -1361,6 +1387,64 @@ export function withoutInProgressIntake(
   return touched ? out : daily;
 }
 
+/**
+ * Split day rows into the COMPLETE days the fit may use and the finished days
+ * the complete-day rule leaves out (`isCompleteDay`, owner decision
+ * 2026-10-24).
+ *
+ * The day in progress (and anything dated after it) is always kept: its intake
+ * is already zeroed by {@link withoutInProgressIntake}, and its row has counted
+ * toward {@link MEASURED_MIN_DAYS} since long before this rule — keeping it is
+ * part of what leaves a fully-logged account byte-identical. A "fully logged"
+ * answer on today therefore takes effect tomorrow, once today is finished.
+ *
+ * Returns the input array itself when nothing is left out, so the common path
+ * allocates nothing.
+ */
+export function partitionCompleteDays(
+  daily: DailyLog[],
+  boundary: DayBoundary,
+  now: Date,
+  dayComplete?: DayCompleteMap,
+): { complete: DailyLog[]; excluded: DailyLog[] } {
+  const todayKey = dayKeyAt(now, boundary);
+  const complete: DailyLog[] = [];
+  const excluded: DailyLog[] = [];
+  for (const l of daily) {
+    const key = dayKeyAt(l.date, boundary);
+    if (key >= todayKey || isCompleteDay(l.calories, dayComplete?.[key])) complete.push(l);
+    else excluded.push(l);
+  }
+  return excluded.length === 0 ? { complete: daily, excluded } : { complete, excluded };
+}
+
+/**
+ * The weigh-ins of the days the complete-day rule left out, as weight-only
+ * rows. The SCALE reading on such a day is a complete observation — only its
+ * intake is in doubt — so it is treated exactly like a weigh-in on a day with
+ * no log row ({@link weighInOnlyRows}): it reaches the trend, inside the reach
+ * {@link withWeighIns} gives it, and nothing else. The row's own weight wins;
+ * else the day's `dailyWeights` entry.
+ */
+function excludedDayWeighIns(
+  excluded: DailyLog[],
+  dailyWeights: Record<string, number> | undefined,
+  boundary: DayBoundary,
+): DailyLog[] {
+  const rows: DailyLog[] = [];
+  for (const l of excluded) {
+    const fromMap = dailyWeights?.[dayKeyAt(l.date, boundary)];
+    const weight =
+      l.weight != null
+        ? l.weight
+        : typeof fromMap === 'number' && Number.isFinite(fromMap) && fromMap > 0
+          ? fromMap
+          : null;
+    if (weight != null) rows.push({ date: l.date, calories: 0, weight });
+  }
+  return rows;
+}
+
 export function calculateTdee(
   logs: DailyLog[],
   profile?: ProfileFields | null,
@@ -1370,16 +1454,40 @@ export function calculateTdee(
    *  `weighInOnlyRows`). Days that have a row should already carry their
    *  weight via `mergeDailyWeights`; those entries are ignored here. */
   dailyWeights?: Record<string, number>,
+  /** The user's "Day fully logged?" answers, `dateKey → complete`
+   *  (`complete-day.ts`). Omitted = no answers: every finished day is judged
+   *  by the 1,000 kcal rule alone. */
+  dayComplete?: DayCompleteMap,
 ): TdeeResult {
   // `now` is a parameter, not a `new Date()` call inside the estimator, for the
   // reason `trainHeroStats(sessions, now)` takes one: a clock read inside a
   // pure function makes its output untestable and makes every caller that
   // claims purity a liar. `recalibrationDigest` says "no I/O, no clock" in its
   // own doc comment and passes `opts.now` down for exactly that.
-  const daily = withoutInProgressIntake(aggregateByDay(logs ?? [], boundary), boundary, now);
-  const weighIns = weighInOnlyRows(daily, dailyWeights, boundary, now);
+  const allDays = withoutInProgressIntake(aggregateByDay(logs ?? [], boundary), boundary, now);
+  // ── The complete-day rule (owner decision, 2026-10-24) ──
+  // A finished day counts toward the fit only at ≥ COMPLETE_DAY_MIN_KCAL or
+  // when the user marked it fully logged — and never when they marked it not.
+  // A left-out day is treated as an UNLOGGED day, not as a zero-intake one: it
+  // leaves the logged-day rows, so the MEASURED_MIN_DAYS gate, the window,
+  // completeness and confidence all count complete days only, and its
+  // weigh-in joins the weight-only rows, where it still informs the trend.
+  const { complete: daily, excluded } = partitionCompleteDays(allDays, boundary, now, dayComplete);
+  const noRowWeighIns = weighInOnlyRows(allDays, dailyWeights, boundary, now);
+  const weighIns =
+    excluded.length === 0
+      ? noRowWeighIns
+      : [...noRowWeighIns, ...excludedDayWeighIns(excluded, dailyWeights, boundary)].sort(
+          (a, b) => a.date.getTime() - b.date.getTime(),
+        );
+  // Only when the rule is WHY there is no measured estimate (see
+  // `NotEnoughCompleteDays`); spread onto the formula and seed returns below.
+  const incomplete: { notEnoughCompleteDays?: NotEnoughCompleteDays } =
+    excluded.length > 0 && daily.length < MEASURED_MIN_DAYS
+      ? { notEnoughCompleteDays: { valid: daily.length, needed: MEASURED_MIN_DAYS } }
+      : {};
 
-  // ── Measured mode: ≥14 logged days ──
+  // ── Measured mode: ≥14 COMPLETE days (any logged day before 2026-10-24) ──
   if (daily.length >= MEASURED_MIN_DAYS) {
     // Per-run, precision-pooled — but only for windows rich enough to support
     // it (a run long enough to carry a rate, with intake to match). Anything
@@ -1536,15 +1644,15 @@ export function calculateTdee(
     const formulaTdee = mifflinStJeor(profile, latestWeight);
     // A profile with no usable activity level (or height/age/sex) has no
     // formula estimate — NaN would otherwise ride into the target.
-    if (!Number.isFinite(formulaTdee) || formulaTdee <= 0) return { ...SEED_RESULT };
+    if (!Number.isFinite(formulaTdee) || formulaTdee <= 0) return { ...SEED_RESULT, ...incomplete };
     const trueTdee = Math.round(formulaTdee);
     const pace = paceOf(profile);
     const targetDeficit = paceOffsetKcal(pace, profile.goalDirection);
     const floor = calorieFloor(profile);
     const newDailyTarget = Math.max(floor, Math.round(trueTdee - targetDeficit));
-    return { trueTdee, newDailyTarget, weightChangeTrend: 0, source: 'formula' };
+    return { trueTdee, newDailyTarget, weightChangeTrend: 0, source: 'formula', ...incomplete };
   }
 
   // ── Seed fallback ──
-  return { ...SEED_RESULT };
+  return { ...SEED_RESULT, ...incomplete };
 }

@@ -70,7 +70,13 @@ export type CacheSlice =
   // window, `weights`/`profile` the same docs), so they now hydrate those
   // slices; measurements are the one read nobody else made. Bounded by the
   // subscription's own `limit(20)`.
-  | 'measurements';
+  | 'measurements'
+  // "Day fully logged?" answers (2026-10-24, `complete-day.ts`). A first
+  // frame painted from the logs slice without them would compute the
+  // maintenance estimate under a different rule than the next frame — the
+  // half-logged days the answers exclude would briefly count again. Bounded
+  // by the user's own taps: one small entry per answered day.
+  | 'dayLogged';
 
 function cacheKey(uid: string, slice: CacheSlice): string {
   return `${CACHE_PREFIX}.${uid}.${slice}`;
@@ -156,6 +162,7 @@ export const FIRST_PAINT_SLICES: readonly CacheSlice[] = [
   'water',
   'sleep',
   'activity',
+  'dayLogged',
 ];
 
 /**

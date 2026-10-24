@@ -96,20 +96,37 @@ describe('calculateTdee', () => {
   });
 
   it('excludes logged-but-zero-kcal (weigh-in-only) days from the intake average', () => {
-    // 15 flat-weight days: 2 weigh-in-only (0 kcal) + 13 at 2000 kcal. If the
-    // zeros were averaged in, intake would crater toward ~1733; excluded, the
+    // 16 flat-weight days: 2 weigh-in-only (0 kcal) + 14 at 2000 kcal. If the
+    // zeros were averaged in, intake would crater toward ~1750; excluded, the
     // measured TDEE stays near 2000 (flat weight ⇒ ~0 deficit).
     const logs: DailyLog[] = [];
-    for (let i = 0; i < 15; i++) logs.push(log(15 - i, i < 2 ? 0 : 2000, 180));
+    for (let i = 0; i < 16; i++) logs.push(log(16 - i, i < 2 ? 0 : 2000, 180));
     const r = calculateTdee(logs, baseProfile);
     expect(r.source).toBe('measured');
     expect(r.trueTdee).toBeGreaterThan(1950);
   });
 
-  it('falls back to seed when every intake day is zero', () => {
+  it('since the complete-day rule, a 0-kcal day no longer counts toward the 14 either', () => {
+    // Until 2026-10-24 these 15 rows opened measured mode (every row counted
+    // toward MEASURED_MIN_DAYS); the two weigh-in-only days are not complete
+    // days, so 13 is not enough — and the result says why.
+    const logs: DailyLog[] = [];
+    for (let i = 0; i < 15; i++) logs.push(log(15 - i, i < 2 ? 0 : 2000, 180));
+    const r = calculateTdee(logs, baseProfile);
+    expect(r.source).toBe('formula');
+    expect(r.source !== 'measured' && r.notEnoughCompleteDays).toEqual({ valid: 13, needed: 14 });
+  });
+
+  it('every day zero kcal: no measured estimate — formula, with the reason (was the seed before 2026-10-24)', () => {
+    // These rows used to open measured mode, find no intake and return the
+    // seed. With no complete day they now never open it: the profile's own
+    // formula estimate stands, as it would for an account with no rows at all.
     const logs: DailyLog[] = [];
     for (let i = 0; i < 15; i++) logs.push(log(15 - i, 0, 180));
-    expect(calculateTdee(logs, baseProfile).source).toBe('seed');
+    const r = calculateTdee(logs, baseProfile);
+    expect(r.source).toBe('formula');
+    expect(r.source !== 'measured' && r.notEnoughCompleteDays).toEqual({ valid: 0, needed: 14 });
+    expect(calculateTdee(logs, null).source).toBe('seed');
   });
 
   it('flags low completeness (and not reliable) for a gappy window', () => {
@@ -452,15 +469,19 @@ describe('the in-progress day', () => {
     expect(sharplyDown.trueTdee).not.toBe(onTrend.trueTdee);
   });
 
-  it('still counts the partial day once the day is over', () => {
-    // Same data, read tomorrow: yesterday's 400 kcal is now a finished day and
-    // belongs in the mean. Nothing is discarded permanently.
+  it('still counts the partial day once the day is over — if it is a complete day', () => {
+    // Same data, read tomorrow: yesterday is now a finished day. Since the
+    // complete-day rule (2026-10-24) a finished 400 kcal day counts only when
+    // the user marked it fully logged; unmarked, it stays out of the mean.
     const logs = [...history(), log(0, 400, todayWeight)];
     const tomorrow = new Date(NOON_TODAY);
     tomorrow.setDate(tomorrow.getDate() + 1);
+    const todayKey = `${NOON_TODAY.getFullYear()}-${String(NOON_TODAY.getMonth() + 1).padStart(2, '0')}-${String(NOON_TODAY.getDate()).padStart(2, '0')}`;
     const today = asMeasured(calculateTdee(logs, profile, MIDNIGHT, NOON_TODAY));
-    const seenTomorrow = asMeasured(calculateTdee(logs, profile, MIDNIGHT, tomorrow));
-    expect(seenTomorrow.avgDailyIntake).toBeLessThan(today.avgDailyIntake);
+    const unmarked = asMeasured(calculateTdee(logs, profile, MIDNIGHT, tomorrow));
+    const marked = asMeasured(calculateTdee(logs, profile, MIDNIGHT, tomorrow, undefined, { [todayKey]: true }));
+    expect(unmarked.avgDailyIntake).toBe(today.avgDailyIntake);
+    expect(marked.avgDailyIntake).toBeLessThan(today.avgDailyIntake);
   });
 
   it('drops a row dated in the future too', () => {

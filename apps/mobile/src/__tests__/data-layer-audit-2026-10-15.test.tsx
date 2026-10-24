@@ -53,6 +53,7 @@ jest.mock('@/lib/ledger', () => ({
   subscribePresets: () => () => {},
   subscribeCustomFoods: () => () => {},
   subscribeRecentSessions: () => () => {},
+  subscribeDailyLogged: () => () => {},
   subscribeLogsForRange: (...a: unknown[]) => {
     const unsub = jest.fn();
     mockRange.push({ args: a.slice(0, 3), deliver: a[4] as Deliver<DailyLog[]>, unsub });

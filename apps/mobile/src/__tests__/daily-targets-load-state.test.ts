@@ -45,6 +45,9 @@ jest.mock('@/lib/ledger', () => ({
     mockChannels.profile = { next, error };
     return mockUnsub;
   },
+  // The "Day fully logged?" answers (2026-10-24): a fourth channel that never
+  // gates `loaded` — no answers is a correct estimate, not a missing one.
+  subscribeDailyLogged: () => mockUnsub,
 }));
 
 import { useDailyTargets } from '@/hooks/useDailyTargets';
