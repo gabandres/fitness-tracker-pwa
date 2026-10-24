@@ -19,6 +19,7 @@ import {
   getAllDailyTargets,
   getAllDailySleepTimes,
   getAllDailyHunger,
+  getAllDailyLogged,
   getAllTemplateDrafts,
   getFasts,
 } from './ledger';
@@ -44,7 +45,7 @@ export interface ExportResult {
  * is prepended so Excel renders accented meal labels correctly.
  */
 export async function exportDataCsv(uid: string): Promise<ExportResult> {
-  const [logs, measurements, dailyWeights, dailyWater, dailySleep, workoutSessions, fasts, templates, exercises, targetRecords, dailySleepTimes, drafts, dailyHunger] =
+  const [logs, measurements, dailyWeights, dailyWater, dailySleep, workoutSessions, fasts, templates, exercises, targetRecords, dailySleepTimes, drafts, dailyHunger, dailyLogged] =
     await Promise.all([
       getAllLogs(uid),
       getAllMeasurements(uid),
@@ -69,6 +70,8 @@ export async function exportDataCsv(uid: string): Promise<ExportResult> {
       getAllTemplateDrafts(uid).catch(() => []),
       // 2026-10-20: the evening hunger rating, one `hunger` row per rated day.
       getAllDailyHunger(uid),
+      // 2026-10-24: "Day fully logged?" answers, one `dayLogged` row each.
+      getAllDailyLogged(uid),
     ]);
 
   const csv = '﻿' + buildCsv({
@@ -84,6 +87,7 @@ export async function exportDataCsv(uid: string): Promise<ExportResult> {
     targetRecords,
     dailySleepTimes,
     dailyHunger,
+    dailyLogged,
     templateVersions: Object.fromEntries(programDrafts(drafts).map((d) => [d.draftOf, d.status === 'active' ? 'v2' : 'v1'] as const)),
     catalogMuscles: exercises.map((e) => ({ id: e.id, muscles: e.muscles })),
     // The rotation Train's volume sheet reads (`rotationTemplates`, same

@@ -199,9 +199,11 @@ describe('export: rirTarget, the straight note, templateVersion', () => {
   };
   const base = { logs: [], measurements: [], dailyWeights: {}, dailyWater: {}, dailySleep: {} };
 
-  it('appends rirTarget last, so no existing column moves', () => {
+  it('appends rirTarget after every earlier column, so no existing column moves', () => {
     const cols = header(buildCsv(base));
-    expect(cols[cols.length - 1]).toBe('rirTarget');
+    // Last when it shipped; 2026-10-24's `dayFullyLogged` was appended after it.
+    expect(cols.indexOf('rirTarget')).toBe(cols.indexOf('rotationSessions') + 1);
+    expect(cols.slice(cols.indexOf('rirTarget') + 1)).toEqual(['dayFullyLogged']);
   });
 
   it('fills rirTarget on read sets only: activation and working, not minis', () => {

@@ -536,6 +536,8 @@ describe('buildCsv — Program v2 columns (test 10)', () => {
     'volumeWindow', 'rotationSessions',
     // 2026-10-22 (Program v2.2): the RIR a read set was meant to stop at.
     'rirTarget',
+    // 2026-10-24: the "Day fully logged?" answer ('dayLogged' rows).
+    'dayFullyLogged',
   ];
   const csv = buildCsv(HISTORICAL);
   const lines = csv.split('\r\n');

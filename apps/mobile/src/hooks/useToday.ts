@@ -53,6 +53,8 @@ import {
   subscribeDailyHunger,
   setDailyHunger,
   subscribeDailyLogged,
+  setDailyLogged,
+  clearDailyLogged,
   subscribeDailyWaterDay,
   subscribeRecentSessions,
   subscribePresets,
@@ -117,6 +119,12 @@ export interface TodayState extends LogWrites {
   hunger: number | null;
   /** Save or edit today's rating (one per day). */
   setHunger: (level: number) => Promise<void>;
+  /** Today's "Day fully logged?" answer — true / false, or null when unset
+   *  (`complete-day.ts`, 2026-10-24). Read off the same answers map the
+   *  targets above are computed with. */
+  dayLogged: boolean | null;
+  /** Answer it (true / false) or take the answer back (null). */
+  setDayLogged: (complete: boolean | null) => Promise<void>;
   /** Fast start time (Date) or null when not fasting. */
   fastStartedAt: Date | null;
   /** Omit `startedAt` to begin now; pass one to correct a running fast. */
@@ -579,6 +587,16 @@ export function useToday(): TodayState {
     },
     [uid, todayKey],
   );
+  // Keyed by `todayKey`, the user's day under their boundary — the day the
+  // diary on this screen is showing — like the hunger rating above.
+  const setDayLogged = useCallback(
+    async (complete: boolean | null) => {
+      if (!uid) return;
+      if (complete == null) await clearDailyLogged(uid, todayKey);
+      else await setDailyLogged(uid, todayKey, complete);
+    },
+    [uid, todayKey],
+  );
   /**
    * Start a fast, or CORRECT the start of the one already running.
    *
@@ -631,6 +649,8 @@ export function useToday(): TodayState {
     sleepTimes,
     hunger: hungerRead?.dateKey === todayKey ? hungerRead.level : null,
     setHunger,
+    dayLogged: typeof dayComplete[todayKey] === 'boolean' ? dayComplete[todayKey] : null,
+    setDayLogged,
     activity: activity[todayKey],
     setWater,
     setSleep,
