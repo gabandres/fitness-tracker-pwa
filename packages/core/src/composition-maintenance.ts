@@ -96,6 +96,7 @@ import {
 } from './body-composition';
 import { MIDNIGHT, dayKeyAt, type DayBoundary } from './day-boundary';
 import { MEASURED_MIN_DAYS, aggregateByDay, trimmedMean } from './tdee';
+import { isCompleteDay, type DayCompleteMap } from './complete-day';
 import type { DailyLog, Measurement } from './types';
 
 /** Lookback for composition points, calendar days (ADR-0043 decision 1). */
@@ -191,6 +192,9 @@ export interface CompositionMaintenanceInput {
   /** First day the `logs` input is complete from ({@link logsCompleteFrom});
    *  absent when the input holds every log. */
   logsCompleteFromKey?: string;
+  /** "Day fully logged?" answers (`complete-day.ts`). Intake here follows the
+   *  measured estimate's day rules, so it follows its complete-day rule too. */
+  dayComplete?: DayCompleteMap;
   /** Test seams; production uses the defaults. */
   draws?: number;
   seed?: number;
@@ -368,10 +372,12 @@ function estimate(
   // window already leaves the day in progress out.
   const intakeFromKey =
     input.logsCompleteFromKey && input.logsCompleteFromKey > first.dateKey ? input.logsCompleteFromKey : first.dateKey;
+  // A finished day under 1,000 kcal, or marked "not fully logged", is an
+  // unlogged day here as it is in the measured estimate (2026-10-24).
   const intake = aggregateByDay([...input.logs], boundary)
     .filter((d) => {
       const k = dayKeyAt(d.date, boundary);
-      return k >= intakeFromKey && k < last.dateKey;
+      return k >= intakeFromKey && k < last.dateKey && isCompleteDay(d.calories, input.dayComplete?.[k]);
     })
     .map((d) => d.calories)
     .filter((c) => c > 0);

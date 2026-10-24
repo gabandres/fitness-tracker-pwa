@@ -24,6 +24,7 @@ const progress = (over: Partial<MeasurementProgress> = {}): MeasurementProgress 
   neededWeighIns: 2,
   weighInsToGo: 1,
   fraction: 5 / 14,
+  notEnoughCompleteDays: false,
   ...over,
 });
 

@@ -3,6 +3,7 @@ import { MIDNIGHT, dayKeyAt, type DayBoundary } from './day-boundary';
 import { computeProtein } from './macro-heuristic';
 import { calculateTdee, calorieFloor, type TdeeResult } from './tdee';
 import { addDays, parseYmd } from './date';
+import type { DayCompleteMap } from './complete-day';
 
 /**
  * Daily calorie + protein targets — pure port of the precedence chain in
@@ -209,6 +210,9 @@ export function dailyTargets(
   /** Passed to `calculateTdee`, which uses it to keep the day still in
    *  progress out of the intake mean. Defaulted so no caller had to change. */
   now: Date = new Date(),
+  /** "Day fully logged?" answers (`complete-day.ts`), passed to
+   *  `calculateTdee`. Omitted = none: the 1,000 kcal rule alone decides. */
+  dayComplete?: DayCompleteMap,
 ): DailyTargets {
   const merged = mergeDailyWeights(logs, dailyWeights);
   const fields = toProfileFields(profile);
@@ -222,7 +226,7 @@ export function dailyTargets(
   // cut their daily target. The category treats a break as a temporary goal
   // change rather than a mode — see docs/research/tdee-logging-gaps.md §2.
   const adjusted = fields?.travelMode ? { ...fields, targetPaceLbsPerWeek: 0 } : fields;
-  const tdee = calculateTdee(merged, adjusted, MIDNIGHT, now, dailyWeights);
+  const tdee = calculateTdee(merged, adjusted, MIDNIGHT, now, dailyWeights, dayComplete);
 
   // `targetMode: 'custom'` means the user typed these numbers and they win —
   // including over a measured estimate. Omitted (every account predating the
@@ -299,6 +303,11 @@ export function dailyTargets(
     // `SEED_RESULT.newDailyTarget`, a hardcoded 1800 — which is not "what
     // happens at 70%", and on a 22-account replay it moved 20 accounts by up to
     // 1,720 kcal. That is the artifact this branch exists to avoid.
+    //
+    // This is also where an account lands when the complete-day rule leaves
+    // it short of 14 complete days (`tdee.notEnoughCompleteDays`, 2026-10-24):
+    // the onboarding/manual number when there is one, else the formula — never
+    // a "measurement" fitted to half-logged days.
     autoKcal = hasManualKcal ? manualKcal : tdee.newDailyTarget;
   }
   const kcalIsUser = custom && hasManualKcal;
@@ -383,13 +392,16 @@ export function dailyTargetsOn(
   dailyWeights: Record<string, number>,
   dateKey: string,
   now: Date = new Date(),
+  /** As {@link dailyTargets}. Answers after `dateKey` are about days the
+   *  replay cannot see, so they change nothing. */
+  dayComplete?: DayCompleteMap,
 ): DailyTargets {
   const day = parseYmd(dateKey);
   if (Number.isNaN(day.getTime()) || dateKey >= dayKeyAt(now, MIDNIGHT)) {
-    return dailyTargets(profile, logs, dailyWeights, now);
+    return dailyTargets(profile, logs, dailyWeights, now, dayComplete);
   }
   const rows = (logs ?? []).filter((l) => dayKeyAt(l.date, MIDNIGHT) <= dateKey);
   const weights: Record<string, number> = {};
   for (const [k, v] of Object.entries(dailyWeights ?? {})) if (k <= dateKey) weights[k] = v;
-  return dailyTargets(profile, rows, weights, addDays(day, 1));
+  return dailyTargets(profile, rows, weights, addDays(day, 1), dayComplete);
 }

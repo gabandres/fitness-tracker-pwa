@@ -214,7 +214,7 @@ export function useTrends(rangeDays: number = 30, opts: TrendsOptions = {}): Tre
   // Focus-gated so the Trends tab drops its live listeners when it blurs
   // (battery/network); re-subscribes from cache on refocus. That discipline,
   // the 400-row window and the error policy all live in `useCoreSnapshot`.
-  const { logs, weights, profile, loaded, error } = useCoreSnapshot('Trends');
+  const { logs, weights, profile, dayComplete, loaded, error } = useCoreSnapshot('Trends', { dayComplete: true });
   const loading = !loaded;
   const { user } = useAuth();
   const uid = user?.uid;
@@ -231,7 +231,7 @@ export function useTrends(rangeDays: number = 30, opts: TrendsOptions = {}): Tre
   // has no running state and nothing else on the profile to read.
   const water = useWaterTrends(profile);
   // Display-only, flag-gated (ADR-0043): `targets` below never sees it.
-  const composition = useCompositionTrends(logs, weights, profile);
+  const composition = useCompositionTrends(logs, weights, profile, dayComplete);
 
   // The user's day start (ADR-0030). EVERY window below is keyed by it, not by
   // midnight: the sleep card was made boundary-aware when it shipped and the
@@ -252,8 +252,8 @@ export function useTrends(rangeDays: number = 30, opts: TrendsOptions = {}): Tre
   // as a fresh clock — and the SAME `now` the expenditure series replays with,
   // which is what makes that line end on this number.
   const targets: DailyTargets = useMemo(
-    () => dailyTargets(profile, logs, weights, focusDay),
-    [profile, logs, weights, focusDay],
+    () => dailyTargets(profile, logs, weights, focusDay, dayComplete),
+    [profile, logs, weights, focusDay, dayComplete],
   );
 
   // The seven COMPLETE days ending yesterday, summarised ONCE — insights and
@@ -451,7 +451,7 @@ export function useTrends(rangeDays: number = 30, opts: TrendsOptions = {}): Tre
   const computed = useRef<{ sig: string; days: number }>({ sig: '', days: 0 });
   useEffect(() => {
     if (!loaded || backfillPending) return;
-    const sig = replaySignature(profile, historyLogs, weights, focusDay, refreshKey);
+    const sig = replaySignature(profile, historyLogs, weights, focusDay, refreshKey, dayComplete);
     const have = computed.current.sig === sig ? computed.current.days : 0;
     if (have >= wantDays) {
       setSettledKey(refreshKey);
@@ -469,6 +469,7 @@ export function useTrends(rangeDays: number = 30, opts: TrendsOptions = {}): Tre
         endOffset: done,
         maxDays,
         windowRows: LOG_WINDOW_ROWS,
+        dayComplete,
       });
       // A fresh signature starts from 0, so a stale series stays on screen
       // and is replaced day by day rather than blanking the chart.
@@ -483,7 +484,7 @@ export function useTrends(rangeDays: number = 30, opts: TrendsOptions = {}): Tre
       cancelled = true;
       cancelNext();
     };
-  }, [loaded, backfillPending, profile, historyLogs, weights, focusDay, wantDays, maxDays, refreshKey]);
+  }, [loaded, backfillPending, profile, historyLogs, weights, focusDay, wantDays, maxDays, refreshKey, dayComplete]);
 
   const progress = useMemo(
     () => measurementProgress(targets.tdee, logs, weights, boundary),
@@ -699,13 +700,19 @@ export function replaySignature(
   weights: Readonly<Record<string, number>>,
   now: Date,
   refreshKey: number,
+  /** "Day fully logged?" answers — every replay reads them (2026-10-24). */
+  dayComplete: Readonly<Record<string, boolean>> = {},
 ): string {
   const rows = logs.map((l) => `${l.date.getTime()}:${l.calories}:${l.weight ?? ''}`).join(',');
   const w = Object.keys(weights)
     .sort()
     .map((k) => `${k}=${weights[k]}`)
     .join(',');
-  return `${refreshKey}|${calendarDateKey(now)}|${JSON.stringify(profile)}|${w}|${rows}`;
+  const dc = Object.keys(dayComplete)
+    .sort()
+    .map((k) => `${k}=${dayComplete[k] ? 1 : 0}`)
+    .join(',');
+  return `${refreshKey}|${calendarDateKey(now)}|${JSON.stringify(profile)}|${w}|${rows}|${dc}`;
 }
 
 /** One idle callback (a timeout where the runtime has none); returns its cancel. */

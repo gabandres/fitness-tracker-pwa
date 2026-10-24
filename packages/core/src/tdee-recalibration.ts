@@ -1,5 +1,6 @@
 import type { DailyLog, Profile } from './types';
 import { aggregateByDay, calculateTdee } from './tdee';
+import type { DayCompleteMap } from './complete-day';
 import { finalCalorieTarget, mergeDailyWeights, toProfileFields } from './targets';
 import { weightSlopeLbPerWeek, type WeightPoint } from './weight-projection';
 import { MIDNIGHT, dayKeyAt, type DayBoundary } from './day-boundary';
@@ -67,6 +68,9 @@ export interface RecalibrationOptions {
   /** Widest 95% interval on maintenance, in kcal, that may still produce a
    *  headline. Default 250. */
   ci95CeilingKcal?: number;
+  /** "Day fully logged?" answers (`complete-day.ts`) — the same map
+   *  `dailyTargets` reads, or the digest describes a different estimate. */
+  dayComplete?: DayCompleteMap;
 }
 
 export interface RecalibrationDigest {
@@ -153,7 +157,7 @@ export function recalibrationDigest(
   // `opts.now` rather than the estimator's own default clock — this function's
   // doc comment promises "no I/O, no clock", and `calculateTdee` now reads one
   // to keep the in-progress day out of the intake mean.
-  const tdee = calculateTdee(merged, adjusted, boundary, new Date(opts.now), dailyWeights ?? {});
+  const tdee = calculateTdee(merged, adjusted, boundary, new Date(opts.now), dailyWeights ?? {}, opts.dayComplete);
 
   // ── Deliberately NOT `|| !tdee.reliable`, since 2026-09-04 ──
   //

@@ -13,7 +13,7 @@ import { useDayKey } from '@/hooks/useDayKey';
 import { feedChannel, useLedgerFeed } from '@/hooks/useLedgerFeed';
 import { useTargetWeights } from '@/hooks/useTargetWeights';
 import { useAuth } from '@/lib/auth';
-import { subscribeRecentLogs } from '@/lib/ledger';
+import { subscribeDailyLogged, subscribeRecentLogs } from '@/lib/ledger';
 
 const ACK_KEY = 'ignia.tdee-recal-ack';
 
@@ -55,6 +55,9 @@ export function useRecalibration(): {
   const { user, profile } = useAuth();
   const uid = user?.uid;
   const [logs, setLogs] = useCachedState<DailyLog[]>(uid, 'logs', []);
+  // "Day fully logged?" answers: the digest must describe the estimate the
+  // target is built from, and that estimate reads them (2026-10-24).
+  const [dayComplete, setDayComplete] = useCachedState<Record<string, boolean>>(uid, 'dayLogged', {});
   useLedgerFeed({
     uid,
     label: 'Recalibration',
@@ -67,6 +70,12 @@ export function useRecalibration(): {
               settles: 'none',
               open: (deliver) => subscribeRecentLogs(uid, LOG_WINDOW_ROWS, deliver),
               apply: setLogs,
+            }),
+            feedChannel({
+              key: 'dayComplete',
+              settles: 'none',
+              open: (deliver) => subscribeDailyLogged(uid, deliver),
+              apply: setDayComplete,
             }),
           ]
         : [],
@@ -93,8 +102,8 @@ export function useRecalibration(): {
   }, []);
 
   const digest = useMemo(
-    () => recalibrationDigest(profile, logs, weights, { now: Date.now(), ack }),
-    [profile, logs, weights, ack],
+    () => recalibrationDigest(profile, logs, weights, { now: Date.now(), ack, dayComplete }),
+    [profile, logs, weights, ack, dayComplete],
   );
 
   const acknowledge = useCallback(() => {

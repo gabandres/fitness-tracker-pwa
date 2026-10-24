@@ -25,12 +25,12 @@ export type DailyTargetsView =
  *  raw `manualCaloriesTarget` profile field (which is deleted once the user
  *  refines into formula mode — reading it directly shows a stale "—"). */
 export function useDailyTargets(): DailyTargetsView {
-  const { logs, weights, profile, loaded, error } = useCoreSnapshot('DailyTargets');
+  const { logs, weights, profile, dayComplete, loaded, error } = useCoreSnapshot('DailyTargets', { dayComplete: true });
   // `calendarToday`, not the default clock read: see `useCalendarToday`.
   const calendarToday = useCalendarToday();
   const targets = useMemo(
-    () => dailyTargets(profile, logs, weights, calendarToday),
-    [profile, logs, weights, calendarToday],
+    () => dailyTargets(profile, logs, weights, calendarToday, dayComplete),
+    [profile, logs, weights, calendarToday, dayComplete],
   );
 
   return useMemo(

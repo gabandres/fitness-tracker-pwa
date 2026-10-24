@@ -72,6 +72,7 @@ jest.mock('@/lib/ledger', () => {
     subscribeDailySleepDay: sub('sleepDay', 2),
     subscribeDailyActivityDay: sub('activityDay', 2),
     subscribeDailyHunger: sub('hunger', 2),
+    subscribeDailyLogged: sub('dayLogged', 1),
     subscribeDailyWeightsSince: sub('weightsSince', 2),
     getWeightEdges: (...a: unknown[]) => mockEdges(...a),
     updateSleepTimes: jest.fn(),
