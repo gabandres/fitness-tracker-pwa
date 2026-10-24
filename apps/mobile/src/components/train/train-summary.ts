@@ -1,11 +1,13 @@
 import type {
   ActivationIssue,
+  CalibrationRaise,
   Recommendation,
   ProgressionSuggestion,
   StallContext,
   UnitSystem,
 } from '@macrolog/core';
 import {
+  calibrationRaise,
   engineHistory,
   engineSessions,
   formatLoad,
@@ -395,6 +397,32 @@ function computeRecommendation(
     ? { targetLoad: templateRow.sideLoads?.[side] ?? templateRow.targetLoad, loadLog: templateRow.loadLog?.filter((c) => !c.side || c.side === side) }
     : templateRow;
   return honourLifterLoad(rec, row, basedOn);
+}
+
+/**
+ * The mid-session calibration prompt for one live lift (S-v2 training,
+ * 2026-10-24; core `calibrationRaise`): set 1 of a straight row's first
+ * session since its baseline overshot the top of the range by 3+. Reads the
+ * engine's own history and options — the same `engineHistory` /
+ * `recommendOptionsFor` the card's call uses — so the step it offers is the
+ * one the engine would propose. Template rows only; an L/R lift (two tracks)
+ * is left alone.
+ */
+export function calibrationRaiseFor(
+  data: { recentSessions: readonly WorkoutSession[]; catalog: readonly Exercise[]; engineCatalog?: readonly Exercise[] },
+  exerciseId: string,
+  templateRow: WorkoutTemplate['exercises'][number] | null | undefined,
+  sessionEx: SessionExercise,
+): CalibrationRaise | null {
+  if (!templateRow || sidesOf(templateRow).length >= 2) return null;
+  const completed = data.recentSessions.filter((s) => s.status === 'completed');
+  const catalogEx = (data.engineCatalog ?? data.catalog).find((e) => e.id === exerciseId) ?? null;
+  return calibrationRaise({
+    row: templateRow,
+    history: engineHistory(completed, exerciseId, templateRow),
+    sessionExercise: sessionEx,
+    opts: recommendOptionsFor(templateRow, catalogEx),
+  });
 }
 
 /** Each side's call on an L/R lift, for the card (undefined otherwise). */

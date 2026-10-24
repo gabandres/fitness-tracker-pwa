@@ -1283,6 +1283,10 @@ export const en = {
   'train.last': 'Last',
   // The unit travels IN the value now — a metric lifter is told kg.
   'train.bumpTo': '↑ Try {weight}',
+  'train.calib.prompt': "Set 1 was {reps} — raise to {load} now?",
+  'train.calib.why': "First session on this program, and that is {over} past the top of {top}. The rest of today's sets go up one step.",
+  'train.calib.raise': "Raise to {load}",
+  'train.calib.dismiss': "Not now",
   // An activation set outside RIR 1-3 is not a weak progression read, it is
   // an unfounded one: the rep count means something different at RIR 5 than
   // at RIR 1, so it cannot be compared against the sessions the rule counts.

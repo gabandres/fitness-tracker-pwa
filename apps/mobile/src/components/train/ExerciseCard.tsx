@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { memo, useCallback, useEffect, useMemo, useRef } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 import { Touchable } from './Touchable';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
@@ -41,7 +41,7 @@ import { useUnitSystem } from '@/lib/use-unit-system';
 import { space } from '@/theme';
 import type { InputChain } from './input-chain';
 import { SetRow } from './SetRow';
-import { activationIssueKey, lastHint, liftUsesRir, loadTargetIndices, recommendationFor, sideRecommendationsFor, spokenDuration, untouchedLoad } from './train-summary';
+import { activationIssueKey, calibrationRaiseFor, lastHint, liftUsesRir, loadTargetIndices, recommendationFor, sideRecommendationsFor, spokenDuration, untouchedLoad } from './train-summary';
 import { createStyles } from './train-styles';
 import { MenuButton, type MenuButtonAction } from '@/components/MenuButton';
 
@@ -189,6 +189,16 @@ export const ExerciseCard = memo(function ExerciseCard({
   );
   const engineHasCall = rec.action !== 'none';
   const catalogEx = catalog.find((e) => e.id === ex.exerciseId) ?? null;
+  // The mid-session calibration prompt (S-v2, 2026-10-24; core
+  // `calibrationRaise`): the first session of a new straight row, set 1 three
+  // or more past the top of the range → offer the engine's next step for the
+  // rest of today's sets. Never in a deload week. "Not now" holds for this
+  // card; a later set 1 value does not bring it back.
+  const calib = useMemo(
+    () => (deload ? null : calibrationRaiseFor({ recentSessions, catalog }, ex.exerciseId, templateRow, ex)),
+    [deload, recentSessions, catalog, ex, templateRow],
+  );
+  const [calibDismissed, setCalibDismissed] = useState(false);
   // Last session's sets, positionally — row 3 compares against row 3. This is
   // the PREVIOUS column every competitor puts on every row and this app had
   // only as one aggregate line at the card head.
@@ -289,6 +299,16 @@ export const ExerciseCard = memo(function ExerciseCard({
       void dispatch({ type: 'patchSet', exerciseIndex, setIndex, patch: { weight: load } }, { defer: true });
     }
     if (targets.length > 0) void commitActive();
+  };
+
+  /** "Raise to 65": the remaining un-ticked working sets take the step, through
+   *  the same deferred `patchSet` + one commit an accepted call uses. */
+  const applyCalibration = (to: number, indices: readonly number[]) => {
+    haptics.tap();
+    for (const setIndex of indices) {
+      void dispatch({ type: 'patchSet', exerciseIndex, setIndex, patch: { weight: to } }, { defer: true });
+    }
+    if (indices.length > 0) void commitActive();
   };
 
 
@@ -406,6 +426,35 @@ export const ExerciseCard = memo(function ExerciseCard({
             <View style={styles.blockedRow} testID={`progression-blocked-${exerciseIndex}`}>
               <Ionicons name="information-circle-outline" size={16} color={colors.muted} />
               <Text style={styles.blockedText}>{blockedNote}</Text>
+            </View>
+          ) : null}
+
+          {calib && !calibDismissed ? (
+            <View style={styles.calibCard} testID={`calibration-raise-${exerciseIndex}`}>
+              <Text style={styles.calibText}>
+                {t('train.calib.prompt', { reps: calib.reps, load: formatLoad(calib.suggestedLoad, unitSystem) })}
+              </Text>
+              <Text style={styles.recReason}>
+                {t('train.calib.why', { over: calib.reps - calib.topReps, top: calib.topReps })}
+              </Text>
+              <View style={styles.calibActions}>
+                <Touchable
+                  style={styles.calibBtn}
+                  onPress={() => applyCalibration(calib.suggestedLoad, calib.setIndices)}
+                  accessibilityRole="button"
+                  testID={`calibration-raise-apply-${exerciseIndex}`}
+                >
+                  <Text style={styles.calibBtnText}>{t('train.calib.raise', { load: formatLoad(calib.suggestedLoad, unitSystem) })}</Text>
+                </Touchable>
+                <Touchable
+                  style={styles.calibDismiss}
+                  onPress={() => setCalibDismissed(true)}
+                  accessibilityRole="button"
+                  testID={`calibration-raise-dismiss-${exerciseIndex}`}
+                >
+                  <Text style={styles.calibDismissText}>{t('train.calib.dismiss')}</Text>
+                </Touchable>
+              </View>
             </View>
           ) : null}
 
