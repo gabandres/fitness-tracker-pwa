@@ -66,6 +66,9 @@ export * from './sleep-intake';
 // Evening hunger (0–10 per day): the reader, the 7-day average and the rule
 // threshold Trends prints. Display only — nothing reads it into a target.
 export * from './evening-hunger';
+// Complete day (2026-10-24): the "Day fully logged?" reader and the rule that
+// decides which days' intake the measured maintenance fit may use.
+export * from './complete-day';
 export * from './meal-slots';
 export * from './meal-draft';
 export * from './meal-preset';
