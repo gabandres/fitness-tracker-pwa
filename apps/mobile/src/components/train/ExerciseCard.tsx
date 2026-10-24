@@ -9,6 +9,7 @@ import {
   exerciseHistory,
   formatLoad,
   generateWarmup,
+  lastSetRirRequired,
   loadUnit,
   platesFor,
   previousCell,
@@ -16,6 +17,7 @@ import {
   previousToAccept,
   setBeatsBest,
   setRowLabels,
+  structureOf,
   suggestProgression,
   toDisplayLoad,
   targetRirOf,
@@ -91,7 +93,8 @@ export interface ExerciseCardProps {
   /** The ⋯ rows as a native pull-down (S20). Only the open card gets them, so
    *  the memoised closed cards are not re-rendered by a new array each pass. */
   menuActions?: MenuButtonAction[];
-  onOpenSetSheet: (exerciseIndex: number, setIndex: number) => void;
+  /** `rirOnly`: open the quick RIR picker (a required last set's tick). */
+  onOpenSetSheet: (exerciseIndex: number, setIndex: number, opts?: { rirOnly?: boolean }) => void;
   onOpenLift: (exerciseIndex: number) => void;
   /** `logged`: "Set 2 logged, 190 lb, 8 reps." — spoken with the rest. */
   onSetDone: (exerciseIndex: number, setIndex: number, info: { pr: boolean; complete: boolean; logged?: string }) => void;
@@ -205,7 +208,19 @@ export const ExerciseCard = memo(function ExerciseCard({
   const prevSets = useMemo(() => previousSets(history), [history]);
   // The RIR column only where this lift uses RIR (S23-5 / F8) — never hiding
   // a value already logged (`liftUsesRir`).
-  const rirColumn = liftUsesRir(ex.sets, prevSets, templateRow?.setStructure ?? catalogEx?.setStructure);
+  // RIR required on the last working set (S-v2, 2026-10-24; core
+  // `lastSetRirRequired`): a straight rir1/rir2 lift's last working set. Its
+  // tick opens the quick RIR picker when it has none, and Finish will not
+  // complete with it blank. Not in a deload week — nothing reads it there.
+  const rirRequiredAt = deload
+    ? null
+    : lastSetRirRequired(ex, {
+        structure: structureOf(templateRow ?? undefined, catalogEx ?? undefined, templateRow ? undefined : ex.sets),
+        effortStandard: catalogEx?.effortStandard,
+      });
+  // …and such a lift always shows the column, so the value it asks for is on
+  // the row it belongs to.
+  const rirColumn = rirRequiredAt != null || liftUsesRir(ex.sets, prevSets, templateRow?.setStructure ?? catalogEx?.setStructure);
   // The RIR-compliance hint's target (Program v2.2): none in a deload week,
   // where every lift is taken to RIR 3 on purpose.
   const targetRir = deload ? 0 : targetRirOf(catalogEx?.effortStandard);
@@ -274,8 +289,11 @@ export const ExerciseCard = memo(function ExerciseCard({
         complete: after.length > 0 && after.every((s) => isTickedSet(s, style)),
         ...(logged ? { logged } : {}),
       });
+      // The required last set, ticked with no RIR: ask for it now, while the
+      // lifter knows the answer — the quick 0–5 picker, nothing else in it.
+      if (setIndex === rirRequiredAt && done.rir == null) onOpenSetSheet(exerciseIndex, setIndex, { rirOnly: true });
     },
-    [exerciseIndex, onSetDone, style, best, unitSystem, t, locale],
+    [exerciseIndex, onSetDone, onOpenSetSheet, rirRequiredAt, style, best, unitSystem, t, locale],
   );
 
   const countA11y = t('train.setCountA11y', { done: loggedCount, total: totalSets });

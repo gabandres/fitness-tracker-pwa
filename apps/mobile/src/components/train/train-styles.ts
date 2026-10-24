@@ -770,6 +770,8 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   // Finish sheet: the required Zone 2 RPE, 1–10, wrapping at narrow widths.
   rpeChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
   rpeChip: { minHeight: 44, minWidth: 44, borderRadius: radius.md, borderWidth: 1, borderColor: colors.lineStrong, alignItems: 'center', justifyContent: 'center' },
+  // The lift's target RIR among the required last set's chips: outlined in teal, not filled — a hint, not a pre-selected answer.
+  rirRequiredTarget: { borderColor: colors.teal, borderWidth: 2 },
   invalidBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',

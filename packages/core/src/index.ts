@@ -440,6 +440,8 @@ export { buildCsv, type ExportData } from './csv-export';
 export * from './rotation-templates';
 // The mid-session calibration prompt: set 1 overshot a new straight row.
 export * from './calibration-raise';
+// RIR required on the last working set of a straight rir1/rir2 lift.
+export * from './rir-required';
 // Switcher CSV import parser (MFP / Lose It! / Cronometer), pure + shared.
 export * from './import-csv';
 
