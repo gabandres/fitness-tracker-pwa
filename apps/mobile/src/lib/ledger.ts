@@ -2405,6 +2405,19 @@ export async function deleteTemplate(uid: string, id: string): Promise<void> {
   await ackOrQueued(deleteDoc(templateDoc(uid, id)));
 }
 
+// Archive, never delete (2026-10-24): an archived template leaves Start's list
+// and the rotation (`isArchivedTemplate`), but its sessions keep pointing at it
+// by `templateId`, so history, PRs and the engine's reads are untouched. A
+// field write, not a merge of the body — nothing else on the doc moves.
+// Rules: `isValidWorkoutTemplate` allows `archivedAt` as a timestamp or absent.
+export async function archiveTemplate(uid: string, id: string): Promise<void> {
+  await ackOrQueued(updateDoc(templateDoc(uid, id), { archivedAt: serverTimestamp(), updatedAt: serverTimestamp() }));
+}
+
+export async function unarchiveTemplate(uid: string, id: string): Promise<void> {
+  await ackOrQueued(updateDoc(templateDoc(uid, id), { archivedAt: deleteField(), updatedAt: serverTimestamp() }));
+}
+
 // ── Template drafts (2026-10-11) ──
 // users/{uid}/templateDrafts/{id} — { draftOf, label, status, template,
 // previous?, activatedAt?, revertedAt?, createdAt, updatedAt } (rules

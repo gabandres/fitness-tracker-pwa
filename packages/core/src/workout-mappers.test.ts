@@ -45,6 +45,14 @@ describe('toWorkoutTemplate', () => {
     expect(t.updatedAt).toEqual(new Date('2026-06-03T00:00:00Z'));
     expect(t.exercises[0].plannedSets).toEqual([{ kind: 'working', group: 5 }]);
   });
+
+  it('maps archivedAt when present and leaves it absent when not (2026-10-24)', () => {
+    const base = { name: 'Push', exercises: [], createdAt: ts('2026-06-02T00:00:00Z'), updatedAt: ts('2026-06-03T00:00:00Z') };
+    expect('archivedAt' in toWorkoutTemplate('t1', base)).toBe(false);
+    expect(toWorkoutTemplate('t1', { ...base, archivedAt: ts('2026-10-24T09:00:00Z') }).archivedAt).toEqual(new Date('2026-10-24T09:00:00Z'));
+    // A pending serverTimestamp reads null in a local snapshot: still archived.
+    expect(toWorkoutTemplate('t1', { ...base, archivedAt: null }).archivedAt).toBeInstanceOf(Date);
+  });
 });
 
 describe('toWorkoutSession', () => {

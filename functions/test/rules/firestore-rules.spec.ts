@@ -1871,6 +1871,31 @@ describe('firestore.rules', () => {
     await assertFails(setDoc(ref, { ...tplDoc('n'), templateVersion: 'v'.repeat(17) }));
   });
 
+  // ── archivedAt (2026-10-24): archive, never delete ──
+  it('archives a template with a server timestamp and unarchives it by deleting the field', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    const ref = doc(db, 'users', 'alice', 'workoutTemplates', 't1');
+    await assertSucceeds(setDoc(ref, tplDoc('n')));
+    await assertSucceeds(updateDoc(ref, { archivedAt: serverTimestamp(), updatedAt: serverTimestamp() }));
+    // A client merge-save of an archived template still passes.
+    await assertSucceeds(setDoc(ref, { name: 'Leg Day', exercises: [], updatedAt: new Date() }, { merge: true }));
+    await assertSucceeds(updateDoc(ref, { archivedAt: deleteField(), updatedAt: serverTimestamp() }));
+  });
+  it('accepts a template created already archived', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertSucceeds(setDoc(doc(db, 'users', 'alice', 'workoutTemplates', 't1'), { ...tplDoc('n'), archivedAt: new Date() }));
+  });
+  it('rejects an archivedAt that is not a timestamp', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    const ref = doc(db, 'users', 'alice', 'workoutTemplates', 't1');
+    await assertFails(setDoc(ref, { ...tplDoc('n'), archivedAt: true }));
+    await assertFails(setDoc(ref, { ...tplDoc('n'), archivedAt: '2026-10-24' }));
+    await assertFails(setDoc(ref, { ...tplDoc('n'), archivedAt: null }));
+  });
+
   // ── templateDrafts (2026-10-11): superset drafts ──
   const body = (name: string) => ({ name, exercises: [{ exerciseId: 'e1', name: 'DB Flat Press', plannedSets: [], supersetGroup: 'A', pairPosition: 1 }] });
   const draftDoc = (over: Record<string, unknown> = {}) => ({

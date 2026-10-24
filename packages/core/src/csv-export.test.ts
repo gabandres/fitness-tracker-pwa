@@ -679,6 +679,16 @@ describe('rotationTemplates (moved to core, 2026-10-20)', () => {
     expect(rotationTemplates(tpls, new Set(), [done('push', '2026-10-15'), done('upper', '2026-05-01')], now).map((t) => t.id)).toEqual(['push']);
     expect(rotationTemplates(tpls, new Set(), [done('upper', '2026-05-01')], now).map((t) => t.id)).toEqual(['push', 'pull', 'upper']);
   });
+  it('never includes an archived template, on any branch (2026-10-24)', () => {
+    const now = at('2026-10-20').getTime();
+    const withArchived = [{ id: 'push' }, { id: 'pull', archivedAt: at('2026-10-18') }, { id: 'upper' }];
+    // Named by the program: still dropped.
+    expect(rotationTemplates(withArchived, new Set(['pull', 'push']), [], now).map((t) => t.id)).toEqual(['push']);
+    // Used in the last 28 days: still dropped.
+    expect(rotationTemplates(withArchived, new Set(), [done('pull', '2026-10-15'), done('push', '2026-10-16')], now).map((t) => t.id)).toEqual(['push']);
+    // The "nothing used → every template" fallback means every ACTIVE template.
+    expect(rotationTemplates(withArchived, new Set(), [], now).map((t) => t.id)).toEqual(['push', 'upper']);
+  });
 });
 
 /** Owner bug D (2026-10-15): the export carried one rest, `restBetweenSec`,

@@ -16,14 +16,19 @@ export const ROTATION_ACTIVE_DAYS = 28;
  * its sets in "planned"; 2026-10-15 audit). So only templates with a COMPLETED
  * session in the last {@link ROTATION_ACTIVE_DAYS} count; a user who has
  * performed none of them yet (new, or back from a long break) gets every
- * template, which is the only plan there is to show. Pure.
+ * template, which is the only plan there is to show.
+ *
+ * An ARCHIVED template (`archivedAt`, 2026-10-24) is never part of the
+ * rotation, whichever branch picks it: archiving is how a lifter says "I am
+ * not running this any more" without deleting the history behind it. Pure.
  */
-export function rotationTemplates<T extends { id?: string }>(
-  templates: readonly T[],
+export function rotationTemplates<T extends { id?: string; archivedAt?: Date | null }>(
+  all: readonly T[],
   programTemplateIds: ReadonlySet<string>,
   sessions: readonly Pick<WorkoutSession, 'status' | 'date' | 'templateId'>[],
   nowMs: number,
 ): T[] {
+  const templates = all.filter((tp) => !isArchivedTemplate(tp));
   if (programTemplateIds.size) return templates.filter((tp) => tp.id && programTemplateIds.has(tp.id));
   const since = nowMs - ROTATION_ACTIVE_DAYS * 86_400_000;
   const used = new Set(
@@ -33,4 +38,11 @@ export function rotationTemplates<T extends { id?: string }>(
   );
   const live = templates.filter((tp) => tp.id && used.has(tp.id));
   return live.length ? live : [...templates];
+}
+
+/** True when a template has been archived (`archivedAt` set). Archived
+ *  templates are hidden from Start's list and the rotation, never deleted:
+ *  sessions keep their `templateId`. Pure. */
+export function isArchivedTemplate(t: { archivedAt?: Date | null }): boolean {
+  return t.archivedAt != null;
 }

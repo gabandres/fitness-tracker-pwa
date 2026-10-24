@@ -620,6 +620,10 @@ export interface WorkoutTemplate {
   cardioBlocks?: PlannedCardioBlock[];
   /** Stable slug of the shipped starter this was cloned from, if any. */
   seedKey?: string;
+  /** When the lifter archived this template (2026-10-24). Absent = active.
+   *  Archived templates leave Start's list and the rotation but are never
+   *  deleted — sessions keep referencing them by `templateId`. */
+  archivedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
