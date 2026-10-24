@@ -1163,6 +1163,7 @@ export const esPR: Record<I18nKey, string> = {
   'train.calib.why': "Primera sesión con este programa, y eso es {over} por encima del tope de {top}. El resto de las series de hoy sube un paso.",
   'train.calib.raise': "Subir a {load}",
   'train.calib.dismiss': "Ahora no",
+  'train.flatRepsWarning': "Mismas reps en cada serie, sin RIR, {n} sesiones seguidas: ¿estas series están cerca de RIR {rir}?",
   'train.invalidRirEasy': 'Primera serie con 4+ reps en reserva (RIR) — sin cambio.',
   'train.invalidRirMissing': 'Primera serie sin reps en reserva (RIR) — se lee como 0.',
   'train.invalidNotClustered': 'Anotado como series rectas, no como clúster.',

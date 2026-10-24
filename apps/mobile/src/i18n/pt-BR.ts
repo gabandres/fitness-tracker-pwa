@@ -1156,6 +1156,7 @@ export const ptBR: Record<I18nKey, string> = {
   'train.calib.why': "Primeira sessão neste programa, e isso é {over} acima do topo de {top}. O resto das séries de hoje sobe um passo.",
   'train.calib.raise': "Subir para {load}",
   'train.calib.dismiss': "Agora não",
+  'train.flatRepsWarning': "Mesmas reps em todas as séries, sem RIR, {n} sessões seguidas — essas séries estão perto de RIR {rir}?",
   'train.invalidRirEasy': 'Primeira série: 4+ reps em reserva (RIR) — sem mudança.',
   'train.invalidRirMissing': 'Primeira série sem reps em reserva (RIR) — lida como 0.',
   'train.invalidNotClustered': 'Registrado como séries retas, não como cluster.',

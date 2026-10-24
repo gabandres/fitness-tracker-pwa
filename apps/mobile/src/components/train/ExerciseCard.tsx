@@ -7,6 +7,7 @@ import {
   barFor,
   computePlateLoad,
   exerciseHistory,
+  flatRepsWarning,
   formatLoad,
   generateWarmup,
   lastSetRirRequired,
@@ -212,18 +213,25 @@ export const ExerciseCard = memo(function ExerciseCard({
   // `lastSetRirRequired`): a straight rir1/rir2 lift's last working set. Its
   // tick opens the quick RIR picker when it has none, and Finish will not
   // complete with it blank. Not in a deload week — nothing reads it there.
-  const rirRequiredAt = deload
-    ? null
-    : lastSetRirRequired(ex, {
-        structure: structureOf(templateRow ?? undefined, catalogEx ?? undefined, templateRow ? undefined : ex.sets),
-        effortStandard: catalogEx?.effortStandard,
-      });
+  // The structure as the engine resolves it: the row, the catalog, then (ad
+  // hoc) the sets themselves.
+  const structure = structureOf(templateRow ?? undefined, catalogEx ?? undefined, templateRow ? undefined : ex.sets);
+  const rirRequiredAt = deload ? null : lastSetRirRequired(ex, { structure, effortStandard: catalogEx?.effortStandard });
   // …and such a lift always shows the column, so the value it asks for is on
   // the row it belongs to.
   const rirColumn = rirRequiredAt != null || liftUsesRir(ex.sets, prevSets, templateRow?.setStructure ?? catalogEx?.setStructure);
   // The RIR-compliance hint's target (Program v2.2): none in a deload week,
   // where every lift is taken to RIR 3 on purpose.
   const targetRir = deload ? 0 : targetRirOf(catalogEx?.effortStandard);
+  // Same reps on every set, no RIR, two sessions running (S-v2, 2026-10-24;
+  // core `flatRepsWarning`): asked at the top of the card, with the lift's own
+  // target. Gone once today's sets carry an RIR — the question was answered —
+  // and never in a deload week.
+  const flat = useMemo(
+    () => (deload ? null : flatRepsWarning(recentSessions, ex.exerciseId, structure)),
+    [deload, recentSessions, ex.exerciseId, structure],
+  );
+  const flatWarning = flat && !ex.sets.some((s) => s.kind === 'working' && s.rir != null) ? flat : null;
   // When core withheld a recommendation because the last activation was
   // unreadable, SAY so. Silence and "no bump today" look identical otherwise,
   // and the second one is a claim about the training rather than about the data.
@@ -393,6 +401,14 @@ export const ExerciseCard = memo(function ExerciseCard({
 
       {collapsed ? null : (
         <Animated.View entering={BODY_ENTER} exiting={BODY_EXIT}>
+          {flatWarning ? (
+            <View style={styles.recWarnRow} testID={`flat-reps-${exerciseIndex}`}>
+              <Ionicons name="alert-circle-outline" size={16} color={colors.warn} />
+              <Text style={styles.recWarnText}>
+                {t('train.flatRepsWarning', { n: flatWarning.sessions, rir: targetRirOf(catalogEx?.effortStandard) })}
+              </Text>
+            </View>
+          ) : null}
           {deload ? (
             <View style={styles.blockedRow} testID={`deload-note-${exerciseIndex}`}>
               <Ionicons name="information-circle-outline" size={16} color={colors.muted} />
