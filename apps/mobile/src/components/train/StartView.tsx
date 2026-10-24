@@ -7,6 +7,7 @@ import {
   dayBoundaryOf,
   formatBodyWeight,
   formatLoad,
+  isArchivedTemplate,
   muscleSignals,
   nextTemplateUp,
   sessionCounts,
@@ -233,6 +234,10 @@ export function StartView({
     () => templateLastPerformed(train.recentSessions),
     [train.recentSessions],
   );
+  // Archived templates (2026-10-24) leave the list for a collapsed section of
+  // their own; they are never deleted, so their sessions keep their names.
+  const activeTemplates = useMemo(() => train.templates.filter((tp) => !isArchivedTemplate(tp)), [train.templates]);
+  const archivedTemplates = useMemo(() => train.templates.filter(isArchivedTemplate), [train.templates]);
 
   function confirmDeleteSession(id: string, s: WorkoutSession) {
     // Long-press used to delete a logged workout outright — undiscoverable
@@ -501,9 +506,9 @@ export function StartView({
           </Touchable>
         </View>
       </View>
-      {train.templates.length > 0 ? (
+      {activeTemplates.length > 0 ? (
         <View style={styles.list}>
-          {train.templates.map((tpl) => (
+          {activeTemplates.map((tpl) => (
             <TemplateCard
               key={tpl.id}
               tpl={tpl}
@@ -515,6 +520,9 @@ export function StartView({
             />
           ))}
         </View>
+      ) : null}
+      {archivedTemplates.length > 0 ? (
+        <ArchivedTemplates templates={archivedTemplates} last={lastByTemplate} train={train} />
       ) : null}
 
       <DraftsSection train={train} />
@@ -721,7 +729,7 @@ const TemplateCard = memo(function TemplateCard({
   // system menu puts them, Start and Edit on the card itself (Train re-score,
   // platform). VoiceOver reaches Start and Edit as the card's own buttons.
   function duplicate() {
-    const { id: _id, createdAt: _c, updatedAt: _u, ...draft } = tpl;
+    const { id: _id, createdAt: _c, updatedAt: _u, archivedAt: _a, ...draft } = tpl;
     train
       .saveTemplate({ ...draft, name: t('train.copyName', { name: tpl.name }).slice(0, 100) })
       .then(() => showToast(t('train.templateDuplicated'), { testID: 'train-toast' }))
@@ -751,6 +759,19 @@ const TemplateCard = memo(function TemplateCard({
       },
     });
   }
+  // Archive (2026-10-24): out of the list and the rotation, never deleted —
+  // the reversible answer to "I'm not running this any more".
+  function archive() {
+    if (!tpl.id) return;
+    train
+      .archiveTemplate(tpl.id)
+      .then(() => showToast(t('train.templateArchived'), { testID: 'train-toast' }))
+      .catch((e) => {
+        haptics.warning();
+        showToast(t('train.templateArchiveErr'), { testID: 'train-toast' });
+        captureError(e, { where: 'train.archiveTemplate' });
+      });
+  }
   // Off iOS the context menu renders only its child, so Duplicate and Delete
   // were buried in the editor again on Android (Train re-score 3). There they
   // ride on a ⋯ beside Start — the system PopupMenu, or the menu sheet on a
@@ -758,6 +779,7 @@ const TemplateCard = memo(function TemplateCard({
   const menuActions: ExerciseMenuAction[] = [
     ...(activeDraft ? [{ key: 'revert-supersets', icon: 'arrow-undo-outline' as const, labelKey: 'train.drafts.revert' as const, onPress: () => draftActions.revert(activeDraft) }] : []),
     { key: 'duplicate', icon: 'copy-outline', labelKey: 'train.duplicate', onPress: duplicate },
+    { key: 'archive', icon: 'archive-outline', labelKey: 'train.archive', onPress: archive },
     { key: 'delete', icon: 'trash-outline', labelKey: 'train.delete', destructive: true, onPress: askDelete },
   ];
   const menuBtn = CONTEXT_MENUS ? null : (
@@ -796,6 +818,7 @@ const TemplateCard = memo(function TemplateCard({
         { key: 'edit', title: t('common.edit'), icon: 'pencil', onPress: () => onEdit(tpl) },
         ...(activeDraft ? [{ key: 'revert-supersets', title: t('train.drafts.revert'), icon: 'arrow.uturn.backward', onPress: () => draftActions.revert(activeDraft) }] : []),
         { key: 'duplicate', title: t('train.duplicate'), icon: 'plus.square.on.square', onPress: duplicate },
+        { key: 'archive', title: t('train.archive'), icon: 'archivebox', onPress: archive },
         { key: 'delete', title: t('train.delete'), icon: 'trash', destructive: true, onPress: askDelete },
       ]}
     >
@@ -886,6 +909,83 @@ const TemplateCard = memo(function TemplateCard({
     </ContextMenu>
   );
 });
+
+/**
+ * The archived templates (2026-10-24), collapsed under "Archived (n)". Each
+ * row names the template and when it last ran, with one action: Unarchive.
+ * No Start here on purpose — an archived template is one you said you are not
+ * running; bring it back first.
+ */
+function ArchivedTemplates({
+  templates,
+  last,
+  train,
+}: {
+  templates: readonly WorkoutTemplate[];
+  last: Record<string, Date>;
+  train: TrainState;
+}) {
+  const t = useT();
+  const locale = useLocale();
+  const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
+  const [open, setOpen] = useState(false);
+  function unarchive(id: string) {
+    train
+      .unarchiveTemplate(id)
+      .then(() => showToast(t('train.templateUnarchived'), { testID: 'train-toast' }))
+      .catch((e) => {
+        haptics.warning();
+        showToast(t('train.templateArchiveErr'), { testID: 'train-toast' });
+        captureError(e, { where: 'train.unarchiveTemplate' });
+      });
+  }
+  return (
+    <View testID="archived-templates">
+      <Touchable
+        style={styles.textAction}
+        onPress={() => setOpen((v) => !v)}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        testID="archived-templates-toggle"
+      >
+        <Ionicons name={open ? 'chevron-down' : 'chevron-forward'} size={16} color={colors.muted} />
+        <Text style={styles.histSub}>{t('train.archivedSection', { n: templates.length })}</Text>
+      </Touchable>
+      {open ? (
+        <View style={styles.list}>
+          <Text style={styles.histSub}>{t('train.archivedHint')}</Text>
+          {templates.map((tpl) => {
+            const at = tpl.id ? last[tpl.id] : undefined;
+            return (
+              <View key={tpl.id} style={styles.tplCard} testID={`archived-template-${tpl.id}`}>
+                <View style={styles.tplCardTop}>
+                  <View style={styles.tplMain}>
+                    <Text style={styles.histDate}>{tpl.name}</Text>
+                    <Text style={styles.histSub}>
+                      {at ? t('train.tplLast', { day: formatDate(at, locale, { month: 'short', day: 'numeric' }) }) : t('train.nextNever')}
+                    </Text>
+                  </View>
+                  {tpl.id ? (
+                    <Touchable
+                      style={styles.textAction}
+                      onPress={() => unarchive(tpl.id as string)}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('train.unarchiveA11y', { name: tpl.name })}
+                      testID={`unarchive-template-${tpl.id}`}
+                    >
+                      <Text style={styles.sectionAction}>{t('train.unarchive')}</Text>
+                    </Touchable>
+                  ) : null}
+                </View>
+              </View>
+            );
+          })}
+        </View>
+      ) : null}
+    </View>
+  );
+}
 
 /** The context-menu previews' width, as Today's entry preview. */
 const PREVIEW_WIDTH = 320;

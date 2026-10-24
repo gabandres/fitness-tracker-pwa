@@ -38,6 +38,7 @@ import type {
   WorkoutTemplate,
 } from './workout';
 import { toDisplayLoad } from './load-units';
+import { isArchivedTemplate } from './rotation-templates';
 import type { UnitSystem } from './unit-system';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -81,12 +82,17 @@ export interface NextUp {
  *
  * Returns `null` when there are no templates, which is the cold-start case the
  * caller renders as "create one" rather than as an empty card.
+ *
+ * An archived template (`archivedAt`, 2026-10-24) is never "next up" — not on
+ * the card, not from Siri's "start my next workout". With every template
+ * archived this is `null`, the same as having none.
  */
 export function nextTemplateUp(
-  templates: readonly WorkoutTemplate[],
+  all: readonly WorkoutTemplate[],
   sessions: readonly WorkoutSession[],
   now: number,
 ): NextUp | null {
+  const templates = all.filter((tp) => !isArchivedTemplate(tp));
   if (templates.length === 0) return null;
   const last = templateLastPerformed(sessions);
   let best: NextUp | null = null;

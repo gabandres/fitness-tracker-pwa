@@ -55,6 +55,14 @@ describe('nextTemplateUp', () => {
     expect(nextTemplateUp([], [], NOW)).toBeNull();
   });
 
+  it('never offers an archived template (2026-10-24)', () => {
+    const archived = { ...tpl('old'), archivedAt: day(15) };
+    // `old` is never-performed, which would otherwise win outright.
+    const next = nextTemplateUp([tpl('a'), archived], [session('a', day(14))], NOW);
+    expect(next?.template.id).toBe('a');
+    expect(nextTemplateUp([archived], [], NOW)).toBeNull();
+  });
+
   it('offers the least recently performed', () => {
     const next = nextTemplateUp(
       [tpl('a'), tpl('b'), tpl('c')],

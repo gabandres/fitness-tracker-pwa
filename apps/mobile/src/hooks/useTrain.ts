@@ -19,6 +19,8 @@ import { useOtaHold } from '@/lib/ota-hold';
 import {
   addExercise as addExerciseDoc,
   addTemplate as addTemplateDoc,
+  archiveTemplate as archiveTemplateDoc,
+  unarchiveTemplate as unarchiveTemplateDoc,
   deleteExercise as deleteExerciseDoc,
   deleteSession as deleteSessionDoc,
   deleteTemplate as deleteTemplateDoc,
@@ -205,6 +207,11 @@ export interface TrainState {
   /** Delete a template; with `draftId`, its active superset draft goes in the
    *  same batch. */
   deleteTemplate: (id: string, draftId?: string) => Promise<void>;
+  /** Archive a template (2026-10-24): it leaves Start's list and the rotation
+   *  but is never deleted — sessions keep referencing it. */
+  archiveTemplate: (id: string) => Promise<void>;
+  /** Bring an archived template back into Start's list. */
+  unarchiveTemplate: (id: string) => Promise<void>;
   /** Create a catalog exercise, returning its id (used by the template
    *  editor when adding a free-typed exercise).
    *
@@ -960,6 +967,22 @@ export function useTrain(): TrainState {
     [uid],
   );
 
+  const archiveTemplate = useCallback(
+    async (id: string) => {
+      if (!uid) return;
+      await archiveTemplateDoc(uid, id);
+    },
+    [uid],
+  );
+
+  const unarchiveTemplate = useCallback(
+    async (id: string) => {
+      if (!uid) return;
+      await unarchiveTemplateDoc(uid, id);
+    },
+    [uid],
+  );
+
   // ── Superset drafts (2026-10-11, core `superset-context.ts`) ──
   // The plan is pure and is what the confirm sheet shows; the write commits the
   // plan recomputed at the tap, so it reads the templates as they stand then.
@@ -1642,6 +1665,8 @@ export function useTrain(): TrainState {
       startCardioWorkout,
       saveTemplate,
       deleteTemplate,
+      archiveTemplate,
+      unarchiveTemplate,
       cloneStarterTemplate,
       addCatalogExercise,
       addLibraryExercise,
@@ -1668,7 +1693,7 @@ export function useTrain(): TrainState {
       loading, error, errorKind, clearError, catalog, engineCatalog, deload, setDeloadStartedAt, templates, drafts, planDraftSwaps, switchDrafts,
       deleteDraft, programVersion, switchProgram, maybeAutoSwitchProgram, pendingLoadTestFor, recentSessions, active, activePending, saving,
       trainingPhase, autoApplyProgression,
-      startWorkout, startFromTemplate, startCardioWorkout, saveTemplate, deleteTemplate,
+      startWorkout, startFromTemplate, startCardioWorkout, saveTemplate, deleteTemplate, archiveTemplate, unarchiveTemplate,
       cloneStarterTemplate, addCatalogExercise, addLibraryExercise, addLibraryExerciseToActive, addManyToActive,
       editCatalogExercise, deleteCatalogExercise, mergeCatalogExercises, addExerciseToActive,
       moveExerciseInActive, undoMove, undoRemoval, dispatch, commitActive, finishWorkout, discardWorkout, deleteSession,

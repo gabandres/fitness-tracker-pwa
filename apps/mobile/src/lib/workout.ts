@@ -243,6 +243,10 @@ export interface WorkoutTemplate {
   /** Stable slug of the shipped starter this was cloned from, if any. Lets
    *  the chooser hide an already-cloned starter across locales. */
   seedKey?: string;
+  /** When the lifter archived it (2026-10-24); absent = active. Written only
+   *  by `archiveTemplate` / `unarchiveTemplate` — the template writers never
+   *  carry it, so an editor save (a merge) leaves it untouched. */
+  archivedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }

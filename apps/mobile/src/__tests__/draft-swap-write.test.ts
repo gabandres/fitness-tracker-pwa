@@ -65,9 +65,14 @@ jest.mock('@/lib/firebase', () => ({ db: {}, auth: {} }));
 jest.mock('@/lib/connectivity', () => ({ reportSnapshotMeta: jest.fn(), isOffline: () => false }));
 jest.mock('@/lib/health-sync', () => ({ exportDaily: jest.fn(), exportNutrition: jest.fn() }));
 
-import { commitDraftSwaps, deleteTemplateWithDraft } from '@/lib/ledger';
+import { archiveTemplate, commitDraftSwaps, deleteTemplateWithDraft, unarchiveTemplate } from '@/lib/ledger';
 
-const { deleteField } = jest.requireMock('firebase/firestore') as { deleteField: () => unknown };
+const { deleteField, updateDoc, serverTimestamp, deleteDoc } = jest.requireMock('firebase/firestore') as {
+  deleteField: () => unknown;
+  updateDoc: jest.Mock;
+  serverTimestamp: jest.Mock;
+  deleteDoc: jest.Mock;
+};
 const body = (name: string) => ({ name, exercises: [{ exerciseId: 'e1', name: 'Bench', plannedSets: [], supersetGroup: undefined }] });
 const AT = new Date('2026-10-11T16:00:00.000Z');
 
@@ -144,5 +149,28 @@ describe('deleteTemplateWithDraft', () => {
       expect.stringMatching(/templateDrafts\/d-leg$/),
     ]);
     expect(mockCommit).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('archiveTemplate / unarchiveTemplate (2026-10-24)', () => {
+  beforeEach(() => {
+    updateDoc.mockReset().mockResolvedValue(undefined);
+    serverTimestamp.mockReset().mockReturnValue('SERVER_TS');
+    deleteDoc.mockReset();
+  });
+  it('archive stamps archivedAt with a server timestamp on the template doc — and deletes nothing', async () => {
+    await archiveTemplate('u1', 't1');
+    expect(updateDoc).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'users/u1/workoutTemplates/t1' }),
+      { archivedAt: 'SERVER_TS', updatedAt: 'SERVER_TS' },
+    );
+    expect(deleteDoc).not.toHaveBeenCalled();
+  });
+  it('unarchive removes the field with the real deleteField sentinel', async () => {
+    await unarchiveTemplate('u1', 't1');
+    const [ref, data] = updateDoc.mock.calls[0];
+    expect(ref.path).toBe('users/u1/workoutTemplates/t1');
+    expect(data.archivedAt).toBe(deleteField());
+    expect(data.updatedAt).toBe('SERVER_TS');
   });
 });

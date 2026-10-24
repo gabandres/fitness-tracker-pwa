@@ -452,11 +452,15 @@ service cloud.firestore {
       // carries it: rules validate the whole doc, so an unlisted field written
       // by the admin SDK would make every client save of that template fail
       // (the 2026-10-08 notes incident below).
+      // `archivedAt` (2026-10-24): an archived template leaves Start's list and
+      // the rotation but is never deleted — its sessions keep pointing at it.
+      // Set to a server timestamp to archive; the field is deleted to unarchive.
       return data.keys().hasOnly([
               'name', 'notes', 'restMiniSec', 'restClusterSec',
               'exercises', 'cardioBlocks', 'seedKey', 'createdAt', 'updatedAt',
-              'templateVersion'
+              'templateVersion', 'archivedAt'
           ])
+          && (!('archivedAt' in data.keys()) || data.archivedAt is timestamp)
           && (!('templateVersion' in data.keys()) ||
               (data.templateVersion is string && data.templateVersion.size() > 0 && data.templateVersion.size() <= 16))
           && data.keys().hasAll(['name', 'exercises', 'createdAt', 'updatedAt'])

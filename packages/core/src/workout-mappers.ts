@@ -70,6 +70,11 @@ export function toWorkoutTemplate(id: string, data: Record<string, unknown>): Wo
     })),
     cardioBlocks: data['cardioBlocks'] as PlannedCardioBlock[] | undefined,
     seedKey: data['seedKey'] as string | undefined,
+    // Absent stays absent: `toDate(undefined)` would invent "now" and archive
+    // every template. A pending serverTimestamp reads as null in a local
+    // snapshot — still archived, so it falls back to "now" until the server
+    // value lands.
+    ...(data['archivedAt'] !== undefined ? { archivedAt: toDate(data['archivedAt'], new Date()) } : {}),
     createdAt: toDate(data['createdAt']),
     updatedAt: toDate(data['updatedAt']),
   };
