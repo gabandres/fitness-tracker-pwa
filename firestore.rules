@@ -1119,6 +1119,23 @@ service cloud.firestore {
             && request.resource.data.level <= 10;
       }
 
+      // "Day fully logged?" — the user's own word on whether a day's diary is
+      // complete, keyed by date, shape { complete, updatedAt }. Tri-state on
+      // the client: absent = unset (the 1,000 kcal rule decides), true = count
+      // the day toward the maintenance fit even under 1,000 kcal, false = never
+      // count it (packages/core/src/complete-day.ts, 2026-10-24). Unset is a
+      // DELETE, so delete is allowed where dailyHunger's `write` cannot.
+      match /dailyLogged/{dateKey} {
+        allow read:   if isOwner(uid) || isAdmin();
+        allow create, update: if isVerifiedOwner(uid)
+            && dateKey.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+            && request.resource.data.keys().hasOnly(['complete', 'updatedAt'])
+            && request.resource.data.keys().hasAll(['complete', 'updatedAt'])
+            && request.resource.data.complete is bool
+            && request.resource.data.updatedAt == request.time;
+        allow delete: if isOwner(uid);
+      }
+
       // Daily activity — steps + active energy imported FROM the OS health
       // store (Apple Health / Health Connect). One doc per calendar day,
       // shape { steps?, activeKcal? }; both fields optional because the two

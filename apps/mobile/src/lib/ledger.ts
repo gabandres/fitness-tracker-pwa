@@ -74,6 +74,7 @@ import {
   readSleepHours,
   readEveningHunger,
   isStorableHunger,
+  readDayLogged,
   readSleepSource,
   type SleepEntry,
   readWaterFlOz,
@@ -1084,6 +1085,43 @@ export function subscribeDailyHungerSince(
 export async function setDailyHunger(uid: string, dateKey: string, level: number): Promise<void> {
   if (!isStorableHunger(level)) throw new Error(`evening hunger must be a whole number 0–10, got ${level}`);
   await setDoc(hungerDoc(uid, dateKey), { level });
+}
+
+// ─── Day fully logged? ──────────────────────────────────────────
+// users/{uid}/dailyLogged/{dateKey} = { complete, updatedAt }. The user's own
+// word on whether a day's diary is complete (core `complete-day.ts`): `true`
+// counts the day toward the maintenance fit even under 1,000 kcal, `false`
+// never counts it, and NO doc (unset) leaves it to the 1,000 kcal rule. Unset
+// is a delete, not a third value, so the map below only ever holds answers.
+const dayLoggedCol = (uid: string) => collection(db, 'users', uid, 'dailyLogged');
+const dayLoggedDoc = (uid: string, dateKey: string) => doc(db, 'users', uid, 'dailyLogged', dateKey);
+
+/** Every answered day, `dateKey → complete` — what the estimator reads beside
+ *  the logs. Whole collection on purpose: a doc exists only for a day the user
+ *  answered by hand, so it is a few dozen docs where the logs are hundreds of
+ *  rows, and the estimator can look back as far as its 400-row window does. */
+export function subscribeDailyLogged(
+  uid: string,
+  cb: (answers: Record<string, boolean>, meta?: SnapshotMeta) => void,
+  onError?: (e: Error) => void,
+): Unsub {
+  return onSnapshot(
+    dayLoggedCol(uid),
+    { includeMetadataChanges: true },
+    onChangedData((d) => readDayLogged(d.data()), asMap, cb),
+    onError,
+  );
+}
+
+/** Answer "Day fully logged?" for `dateKey` — or edit the answer. */
+export async function setDailyLogged(uid: string, dateKey: string, complete: boolean): Promise<void> {
+  if (typeof complete !== 'boolean') throw new Error(`dailyLogged.complete must be a boolean, got ${String(complete)}`);
+  await setDoc(dayLoggedDoc(uid, dateKey), { complete, updatedAt: serverTimestamp() });
+}
+
+/** Take the answer back: the day returns to the 1,000 kcal rule. */
+export async function clearDailyLogged(uid: string, dateKey: string): Promise<void> {
+  await deleteDoc(dayLoggedDoc(uid, dateKey));
 }
 
 /**
@@ -2696,6 +2734,17 @@ export async function getAllDailyHunger(uid: string): Promise<Record<string, num
   for (const d of snap.docs) {
     const level = readEveningHunger(d.data());
     if (level != null) out[d.id] = level;
+  }
+  return out;
+}
+
+/** Every answered "Day fully logged?", for the export (`dayLogged` rows). */
+export async function getAllDailyLogged(uid: string): Promise<Record<string, boolean>> {
+  const snap = await getDocs(dayLoggedCol(uid));
+  const out: Record<string, boolean> = {};
+  for (const d of snap.docs) {
+    const complete = readDayLogged(d.data());
+    if (complete != null) out[d.id] = complete;
   }
   return out;
 }
