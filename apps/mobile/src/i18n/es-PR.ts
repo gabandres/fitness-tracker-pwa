@@ -254,6 +254,8 @@ export const esPR: Record<I18nKey, string> = {
     '1 pesaje ignorado — un cambio real de peso puede parecer una lectura mala',
   'today.measureProgress': '{n} de {needed} días anotados para medir tu gasto real',
   'today.measureNext': 'Anota {n} más y Ignia mide lo que quemas de verdad — sin fórmula',
+  'today.maintenanceIncomplete': 'Mantenimiento: no hay suficientes días completos ({n} de {needed})',
+  'today.maintenanceIncompleteHint': 'Los días de menos de 1,000 kcal cuentan solo si los marcas como completos.',
   'today.measureWeighIns.one': '{n} pesada más y se activa — la tendencia necesita dos',
   'today.measureWeighIns.other': '{n} pesadas más y se activa — la tendencia necesita dos',
   'today.maintenanceOutliers':

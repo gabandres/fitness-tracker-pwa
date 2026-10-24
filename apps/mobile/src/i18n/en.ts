@@ -286,6 +286,10 @@ export const en = {
   'today.maintenanceOutlier': '1 weigh-in ignored — a real jump in weight can look like a bad reading',
   'today.measureProgress': '{n} of {needed} logged days toward your measured burn',
   'today.measureNext': 'Log {n} more and Ignia measures what you actually burn — no formula',
+  // The complete-day rule (2026-10-24, `complete-day.ts`): said INSTEAD of a
+  // maintenance number when fewer than 14 complete days remain.
+  'today.maintenanceIncomplete': 'Maintenance: not enough complete days ({n} of {needed})',
+  'today.maintenanceIncompleteHint': 'Days under 1,000 kcal count only when marked fully logged.',
   'today.measureWeighIns.one': '{n} more weigh-in and it unlocks — the trend needs two',
   'today.measureWeighIns.other': '{n} more weigh-ins and it unlocks — the trend needs two',
   'today.maintenanceOutliers':

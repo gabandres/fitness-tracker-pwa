@@ -253,6 +253,8 @@ export const ptBR: Record<I18nKey, string> = {
   'today.maintenanceOutlier': '1 pesagem ignorada — um salto real de peso pode parecer leitura errada',
   'today.measureProgress': '{n} de {needed} dias registrados rumo ao seu gasto medido',
   'today.measureNext': 'Registre mais {n} e o Ignia mede o que você realmente gasta — sem fórmula',
+  'today.maintenanceIncomplete': 'Manutenção: dias completos insuficientes ({n} de {needed})',
+  'today.maintenanceIncompleteHint': 'Dias com menos de 1.000 kcal só contam se você marcar como completos.',
   'today.measureWeighIns.one': 'Mais {n} pesagem e ele destrava — a tendência precisa de duas',
   'today.measureWeighIns.other': 'Mais {n} pesagens e ele destrava — a tendência precisa de duas',
   'today.maintenanceOutliers':
