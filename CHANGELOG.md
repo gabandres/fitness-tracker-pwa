@@ -4,6 +4,33 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-10-24 — S-v2: straight-set progression that moves, complete-day maintenance (`0a9c7ae0`, OTA on all twelve runtimes)
+
+Driven by Stephanie's account: loads frozen ~6 weeks, every set 10 reps with
+no RIR, measured maintenance 931 kcal at ~151 lb from half-logged days.
+
+- **The 15 % jump cap is retired** (owner: "the smallest real step is always
+  allowed"). `loadCall` — straight, rest-pause, cluster, HIT — no longer
+  answers build-reps / `jump-too-big`; `nextLoad` only proposes the next real
+  step, so 20 → 25 lb and a coarse pin now move. Myo-reps unchanged.
+- **Calibration raise**: the first session of a new straight row, set 1
+  ticked ≥ top + 3 → "raise to X now" rewrites the remaining sets.
+- **RIR required on the last set** of a straight rir1/rir2 lift: ticking it
+  opens the 0–5 picker; Finish blocks until it is set (other blanks unchanged).
+- **Flat-reps warning**: same reps on every set, no RIR, 2 sessions running.
+- **Archive a template** (`archivedAt`, rules deployed first): out of Start's
+  list, the rotation and Next up; never deleted; Unarchive.
+- **Complete days only feed the maintenance fit** (ADR-0047): ≥ 1,000 kcal and
+  not marked "not fully logged"; "fully logged" rescues a real low day. Under
+  14 → "Maintenance: not enough complete days (n of 14)". New per-day doc
+  `dailyLogged/{date}` behind a Today "Day fully logged?" toggle (rules +
+  GDPR export/erase deployed). A fully logged user's estimate is unchanged
+  (pinned field by field).
+
+Data (scripts committed in `71655283`): Stephanie's three S-v2 templates,
+targets custom 1,500 / 110, 5-lb dumbbells; her old templates archived. The
+owner's Program v2.3 (ab focus) was applied 2026-10-23.
+
 ## 2026-10-23 — Train: one tick no longer finishes a lift (`775b2b63`, OTA on all twelve runtimes)
 
 Typing a cluster's reps (12, 4, 3) and then ticking the first set closed the
