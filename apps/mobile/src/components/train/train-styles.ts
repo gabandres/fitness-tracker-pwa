@@ -698,6 +698,29 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   recWarnText: { flex: 1, fontSize: font.small, color: colors.ink, lineHeight: font.small * 1.4 },
   recCalib: { fontSize: font.small, color: colors.muted, lineHeight: font.small * 1.4 },
   recGear: { marginLeft: 'auto', minWidth: TARGET, minHeight: TARGET, alignItems: 'center', justifyContent: 'center' },
+  // The mid-session calibration prompt (S-v2, 2026-10-24): an outlined card,
+  // louder than the engine's note because it asks for a decision NOW, with
+  // the action as a teal fill (`onFill` on `tealSolid`, ADR-0014).
+  calibCard: {
+    marginTop: space.sm,
+    borderWidth: 1.5,
+    borderColor: colors.teal,
+    borderRadius: radius.sm,
+    padding: space.md,
+    gap: space.sm,
+  },
+  calibText: { fontSize: font.body, color: colors.ink, fontWeight: '700', lineHeight: font.body * 1.35 },
+  calibActions: { flexDirection: 'row', alignItems: 'center', gap: space.md, flexWrap: 'wrap' },
+  calibBtn: {
+    backgroundColor: colors.tealSolid,
+    borderRadius: radius.sm,
+    paddingHorizontal: space.md,
+    minHeight: TARGET,
+    justifyContent: 'center',
+  },
+  calibBtnText: { fontSize: font.small, color: colors.onFill, fontWeight: '800' },
+  calibDismiss: { minHeight: TARGET, justifyContent: 'center', paddingHorizontal: space.xs },
+  calibDismissText: { fontSize: font.small, color: colors.muted, fontWeight: '700' },
   // Lift settings sheet: effort standard chips + the band override field.
   liftSection: { marginTop: space.md, gap: space.xs },
   liftLabel: { fontSize: font.tiny, color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: '700' },

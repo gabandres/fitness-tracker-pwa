@@ -438,6 +438,8 @@ export * from './usage-events';
 export { buildCsv, type ExportData } from './csv-export';
 // Which templates make up the rotation (Train's volume sheet + the export).
 export * from './rotation-templates';
+// The mid-session calibration prompt: set 1 overshot a new straight row.
+export * from './calibration-raise';
 // Switcher CSV import parser (MFP / Lose It! / Cronometer), pure + shared.
 export * from './import-csv';
 
