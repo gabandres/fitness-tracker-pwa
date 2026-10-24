@@ -204,6 +204,29 @@ describe('the hero', () => {
     const view = await render(<Trends />);
     expect(view.getByTestId('tdee-progress')).toHaveTextContent(/Log 5 more/);
   });
+
+  it('prints no number when there are not enough complete days — it says so instead', async () => {
+    mockTrends.mockReturnValue(
+      state({
+        tdee: {
+          trueTdee: 2500,
+          newDailyTarget: 2000,
+          weightChangeTrend: 0,
+          source: 'formula',
+          notEnoughCompleteDays: { valid: 9, needed: 14 },
+        },
+        insights: null,
+        progress: { loggedDays: 9, neededDays: 14, daysToGo: 5, weighIns: 2, neededWeighIns: 2, weighInsToGo: 0, fraction: 9 / 14, notEnoughCompleteDays: true },
+      }),
+    );
+    const view = await render(<Trends />);
+    expect(view.getByTestId('tdee-value')).toHaveTextContent('—');
+    expect(view.getByTestId('tdee-incomplete')).toHaveTextContent(/Maintenance: not enough complete days \(9 of 14\)/);
+    expect(view.getByTestId('tdee-open-body').props.accessibilityLabel).toBe(
+      'Maintenance: not enough complete days (9 of 14)',
+    );
+    expect(view.queryByTestId('tdee-progress')).toBeNull();
+  });
 });
 
 describe('the charts', () => {

@@ -553,8 +553,17 @@ export function HeroRings({
           `maintenance` are mutually exclusive by construction in core. */}
       {progress && !maintenance ? (
         <View style={styles.maintenanceFooter} testID="measure-progress">
-          <Text style={styles.maintenanceLabel}>
-            {t('today.measureProgress', { n: progress.loggedDays, needed: progress.neededDays })}
+          {/* The complete-day rule (2026-10-24) left days out: the count is
+              COMPLETE days, and the line says so in place of a maintenance
+              number — "9 of 14 logged days" would read as if the rest were
+              never logged at all. */}
+          <Text
+            style={styles.maintenanceLabel}
+            testID={progress.notEnoughCompleteDays ? 'maintenance-incomplete' : undefined}
+          >
+            {progress.notEnoughCompleteDays
+              ? t('today.maintenanceIncomplete', { n: progress.loggedDays, needed: progress.neededDays })
+              : t('today.measureProgress', { n: progress.loggedDays, needed: progress.neededDays })}
           </Text>
           {/* Announced as a progress bar WITH its value; a bare role reads as
               an empty, unnamed control. The sentence above carries the count. */}
@@ -568,9 +577,11 @@ export function HeroRings({
             <View style={[styles.progressFill, { width: `${Math.round(progress.fraction * 100)}%` }]} />
           </View>
           <Text style={styles.maintenanceCaveat} testID="measure-progress-next">
-            {progress.daysToGo > 0
-              ? t('today.measureNext', { n: progress.daysToGo })
-              : plural(t, locale, 'today.measureWeighIns', progress.weighInsToGo)}
+            {progress.notEnoughCompleteDays && progress.daysToGo > 0
+              ? t('today.maintenanceIncompleteHint')
+              : progress.daysToGo > 0
+                ? t('today.measureNext', { n: progress.daysToGo })
+                : plural(t, locale, 'today.measureWeighIns', progress.weighInsToGo)}
           </Text>
         </View>
       ) : null}

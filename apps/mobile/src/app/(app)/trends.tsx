@@ -279,6 +279,11 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
     : habitFaces[0];
   const { user } = useAuth();
   const mode = TDEE_MODE[tdee.source];
+  // The complete-day rule left this account short of 14 complete days
+  // (2026-10-24): the hero says that INSTEAD of a number. The formula figure
+  // the target falls back to is not this user's maintenance, and printing it
+  // in the hero's 52 pt numeral would read as one.
+  const incomplete = tdee.source !== 'measured' ? (tdee.notEnoughCompleteDays ?? null) : null;
   const breakdown = useMemo(() => maintenanceBreakdown(tdee, compUnits, t, locale), [tdee, compUnits, t, locale]);
 
   // Activity-level correction.
@@ -341,8 +346,9 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
   const ci95 = tdee.source === 'measured' && tdee.ci95Tdee != null ? tdee.ci95Tdee : null;
   const holding = tdee.source === 'measured' && tdee.estimateState === 'holding';
   const outliers = tdee.source === 'measured' ? tdee.outliersDropped : 0;
-  const heroA11y =
-    tdee.trueTdee > 0
+  const heroA11y = incomplete
+    ? t('today.maintenanceIncomplete', { n: incomplete.valid, needed: incomplete.needed })
+    : tdee.trueTdee > 0
       ? ci95 != null
         ? t('trends.heroA11yCi', { mode: t(mode.badgeKey), kcal: formatNumber(tdee.trueTdee, locale), ci: formatNumber(ci95, locale) })
         : t('trends.heroA11y', { mode: t(mode.badgeKey), kcal: formatNumber(tdee.trueTdee, locale) })
@@ -422,7 +428,7 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
                     its own at 1.4×, on one line), and the row wraps the
                     UNIT under the number rather than splitting "2,450" at
                     the largest text sizes (re-score 3, A3). */}
-                {tdee.trueTdee > 0 ? (
+                {tdee.trueTdee > 0 && !incomplete ? (
                   <CountUpText value={tdee.trueTdee} style={styles.heroValue} maxFontSizeMultiplier={HERO_MAX_SCALE} testID="tdee-value" />
                 ) : (
                   <Text style={styles.heroValue} maxFontSizeMultiplier={HERO_MAX_SCALE} numberOfLines={1} testID="tdee-value">—</Text>
@@ -437,7 +443,14 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
                 estimator already produced (sim review 2026-10-06: the hint
                 named the inputs and showed neither). Formula/seed keep the
                 one-line hint. */}
-            {breakdown ? (
+            {incomplete ? (
+              <View testID="tdee-incomplete">
+                <Text style={styles.heroHint}>
+                  {t('today.maintenanceIncomplete', { n: incomplete.valid, needed: incomplete.needed })}
+                </Text>
+                <Text style={styles.heroSub}>{t('today.maintenanceIncompleteHint')}</Text>
+              </View>
+            ) : breakdown ? (
               <View style={styles.breakdown} accessible testID="tdee-breakdown">
                 <Text style={styles.heroHint}>{breakdown.line}</Text>
                 {breakdown.blended ? <Text style={styles.heroSub}>{breakdown.blended}</Text> : null}
@@ -461,7 +474,7 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
             ) : null}
             {/* Formula mode: how far the measured burn is — the same readout
                 as Today's hero footer, off the same thresholds. */}
-            {progress && tdee.source === 'formula' ? (
+            {progress && tdee.source === 'formula' && !incomplete ? (
               <Text style={styles.heroSub} testID="tdee-progress">
                 {progress.daysToGo > 0
                   ? t('today.measureNext', { n: progress.daysToGo })
