@@ -322,7 +322,30 @@ These three windows look similar and are NOT interchangeable. See
   Switches between **formula mode** (Mifflin-St Jeor with the user's
   profile) and **measured mode** (weight trend + calorie history once
   there's enough signal). Result includes `source: 'formula' | 'measured'`
-  and `newDailyTarget`.
+  and `newDailyTarget`. Measured mode opens at **14 Complete days** (below);
+  until 2026-10-24 it opened at 14 day rows of any kind. A formula/seed
+  result carries `notEnoughCompleteDays: { valid, needed }` when the
+  Complete-day rule is why it is not measured.
+- **Complete day** — A finished day whose intake may enter the measured
+  maintenance fit: **≥ `COMPLETE_DAY_MIN_KCAL` (1,000) logged and not marked
+  "not fully logged", or marked "fully logged" at any intake**
+  (`isCompleteDay`, `packages/core/src/complete-day.ts`; owner decision
+  2026-10-24, ADR-0047). The user's answer lives in
+  `users/{uid}/dailyLogged/{YYYY-MM-DD}` = `{ complete, updatedAt }` and is
+  tri-state: no doc = unset (the 1,000 kcal rule decides), `true`, `false`;
+  unset is a delete. Set on Today ("Day fully logged?"). A day that is not
+  complete is treated as an **unlogged** day, not a zero-intake one — it
+  leaves the logged-day rows (the 14-day gate, the 42-day window,
+  completeness, confidence) and keeps only its weigh-in, which still reaches
+  the trend. The day in progress is never judged (its intake is zeroed by
+  `withoutInProgressIntake` either way), so an answer on today counts from
+  tomorrow. Fewer than 14 → no measured estimate; screens say
+  "Maintenance: not enough complete days (n of 14)" instead of a number.
+  Composition-adjusted maintenance follows the same rule. **Synonyms to
+  avoid:** "valid day", "valid intake day", "fully logged day" (the UI
+  question, not the concept) — and do not call a left-out day "unlogged" in
+  copy: the user did log it, the estimator just cannot use its intake.
+  Exported as `dayLogged` rows (`dayFullyLogged` column).
 - **TargetCalories** — derived by `dailyTargets` in `@macrolog/core`, read on
   mobile through `useDailyTargets` (the web `FitnessStore.targetCalories()`
   until ADR-0036). The user-facing daily kcal goal.
@@ -465,6 +488,10 @@ These three windows look similar and are NOT interchangeable. See
   (`packages/core/src/evening-hunger.ts`). **Display only** — nothing reads it
   into a target, the maintenance estimate or a nudge. Exported as `hunger`
   rows (`eveningHunger` column). Added 2026-10-20.
+- **Day fully logged?** — The Today row that answers whether a day is a
+  **Complete day** (see Targets + derivations); stored per day in
+  `dailyLogged`. Unlike Evening hunger it is NOT display-only: it is an input
+  to the maintenance estimate. Added 2026-10-24.
 - **FastWindow** — The fast that is running RIGHT NOW, and nothing else.
   Owned by `FastingStore`; profile carries `fastStartedAt`. `isFasting()` is
   computed from the start time being non-null. **There is no target and there
