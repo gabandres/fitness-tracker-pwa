@@ -442,6 +442,8 @@ export * from './rotation-templates';
 export * from './calibration-raise';
 // RIR required on the last working set of a straight rir1/rir2 lift.
 export * from './rir-required';
+// Same reps on every set, no RIR, two sessions running (straight lifts).
+export * from './flat-reps';
 // Switcher CSV import parser (MFP / Lose It! / Cronometer), pure + shared.
 export * from './import-csv';
 
