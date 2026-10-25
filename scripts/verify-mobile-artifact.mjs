@@ -45,6 +45,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
+const NL = String.fromCharCode(10);
 const EXPECT = JSON.parse(readFileSync(join(HERE, 'native-expectations.json'), 'utf8'));
 
 const artifact = process.argv[2];
@@ -166,6 +167,19 @@ function verifyIpa(path) {
 }
 
 function verifyAab(path) {
+  // 0. The checks every Android build of every app passes (signer, not debuggable, Release bundle, Sentry, 16 KB page
+  //    alignment): aab-preflight.sh, the same file in Callbook, PoolFlow and Inkvolt. Copied beside this script.
+  const preflight = join(HERE, 'aab-preflight.sh');
+  if (process.platform !== 'darwin') bad('aab-preflight', 'needs the Mac (zsh, bundletool, keytool): run this verifier on ignia-mac');
+  else if (!existsSync(preflight)) bad('aab-preflight', `${preflight} missing: copy it with this script`);
+  else {
+    try {
+      ok('aab-preflight', sh('/bin/zsh', [preflight, path]).trim().split(NL).slice(1, -1).map((l) => l.trim()).join('; '));
+    } catch (e) {
+      bad('aab-preflight', String(e.stdout ?? e.message).trim().split(NL).filter((l) => l.includes('✗')).join('; '));
+    }
+  }
+
   // 1. Signer. `CN=Android Debug` is the wrong upload cert and Play rejects it.
   try {
     const rsa = sh('unzip', ['-Z1', path])
