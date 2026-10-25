@@ -164,7 +164,7 @@ prebuild + `assembleRelease` of the same commit is the honest sandbox:
 
 ```sh
 export SENTRY_DISABLE_AUTO_UPLOAD=true   # or the Sentry Gradle task 401s the build
-cd ~/fitness-tracker-pwa/apps/mobile
+cd ~/Repos/fitness-tracker-pwa/apps/mobile
 rm -rf android && npx expo prebuild -p android --no-install
 cd android && ./gradlew assembleRelease   # → app/build/outputs/apk/release/app-release.apk
 ```
@@ -367,7 +367,7 @@ to `eas.json` would move the fingerprint and strand the published OTA. Build
 through Xcode instead:
 
 ```sh
-cd ~/fitness-tracker-pwa/apps/mobile
+cd ~/Repos/fitness-tracker-pwa/apps/mobile
 npx expo prebuild -p ios --clean --no-install     # REQUIRED: generates targets/*/Info.plist
 npx expo run:ios --configuration Release --device <sim-udid> --no-bundler
 ```
@@ -388,7 +388,7 @@ Three traps, all paid for:
 
   ```sh
   rm -rf ~/Library/Developer/Xcode/DerivedData ~/.gradle
-  rm -rf ~/fitness-tracker-pwa/apps/mobile/ios      # prebuild output, regenerated
+  rm -rf ~/Repos/fitness-tracker-pwa/apps/mobile/ios      # prebuild output, regenerated
   ```
 
   `~/.gradle` (~6 GB) and `apps/mobile/ios` (~0.5 GB) are the other two worth

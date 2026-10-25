@@ -167,7 +167,7 @@ machine matches no binary.
 
 ```sh
 # iOS — on the Mac; must equal the live binary's value (STATUS.md / AGENTS.md)
-ssh ignia-mac "cd ~/fitness-tracker-pwa/apps/mobile && npx expo-updates fingerprint:generate --platform ios"
+ssh ignia-mac "cd ~/Repos/fitness-tracker-pwa/apps/mobile && npx expo-updates fingerprint:generate --platform ios"
 # Android — the TREE hash is not the gate (android/ is hashed whole and drifts):
 # read the artifact, pin `runtimeVersion` in app.json to it for the publish, revert after
 unzip -p ~/build-artifacts/<the shipped>.aab base/assets/fingerprint
@@ -201,8 +201,8 @@ on any other Mac they are not a baseline. Re-measure rather than assume, and
 paste the emitted line back into that file with the machine named.
 
 ```sh
-ssh ignia-mac "cd ~/fitness-tracker-pwa && git pull && node scripts/time-mobile-builds.mjs --dry-run"
-ssh ignia-mac "cd ~/fitness-tracker-pwa && node scripts/time-mobile-builds.mjs"   # ~40min on an M1
+ssh ignia-mac "cd ~/Repos/fitness-tracker-pwa && git pull && node scripts/time-mobile-builds.mjs --dry-run"
+ssh ignia-mac "cd ~/Repos/fitness-tracker-pwa && node scripts/time-mobile-builds.mjs"   # ~40min on an M1
 ```
 
 `--dry-run` first: it prints the chip/cores/RAM, checks the **Data** volume has

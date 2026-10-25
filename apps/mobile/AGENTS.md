@@ -198,8 +198,8 @@ binary** — iOS on the Mac; Android on Windows through vc 45 and on the Mac fro
 
 ```sh
 # iOS — on ignia-mac
-ssh ignia-mac "cd ~/fitness-tracker-pwa && git checkout main && git pull --ff-only"
-ssh ignia-mac "cd ~/fitness-tracker-pwa/apps/mobile && npx expo-updates fingerprint:generate --platform ios"
+ssh ignia-mac "cd ~/Repos/fitness-tracker-pwa && git checkout main && git pull --ff-only"
+ssh ignia-mac "cd ~/Repos/fitness-tracker-pwa/apps/mobile && npx expo-updates fingerprint:generate --platform ios"
 
 # Android — on the Windows workstation while vc 45 (Windows-built) is live;
 # on ignia-mac once the first Mac-built vc ships (STATUS.md)

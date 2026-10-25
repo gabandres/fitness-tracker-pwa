@@ -96,7 +96,7 @@ either a regression to find or a growth to accept on the record with
 cd apps/mobile && npx eas update --platform android --branch production \
   --environment production --message '<what changed>'
 # iOS — on the Mac
-ssh ignia-mac "cd ~/fitness-tracker-pwa/apps/mobile && npx eas update --platform ios \
+ssh ignia-mac "cd ~/Repos/fitness-tracker-pwa/apps/mobile && npx eas update --platform ios \
   --branch production --environment production --message '<what changed>'"
 # confirm WHICH RUNTIME each went out under
 cd apps/mobile && npx eas update:list --branch production --limit 3
@@ -117,7 +117,7 @@ omits. It refuses Windows, which is why Step 3 (Windows) below exists.
 
 ```sh
 ssh ignia-mac   # or run bare from a session on the Mac
-cd ~/fitness-tracker-pwa && git pull --ff-only && git rev-parse HEAD   # never pipe this
+cd ~/Repos/fitness-tracker-pwa && git pull --ff-only && git rev-parse HEAD   # never pipe this
 npm ci                                                                  # Mac never `npm install`s
 cd apps/mobile
 set -a && source ../../.env.local && set +a        # SENTRY_AUTH_TOKEN for the Gradle source-map task

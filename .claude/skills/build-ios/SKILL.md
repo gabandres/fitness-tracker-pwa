@@ -41,8 +41,8 @@ still running at 17 days and 3+ weeks (developer.apple.com threads 816092 and
 machine-dependent) and **after prebuild**:
 
 ```sh
-ssh ignia-mac "cd ~/fitness-tracker-pwa && git checkout main && git pull --ff-only"
-ssh ignia-mac "cd ~/fitness-tracker-pwa/apps/mobile && npx expo-updates fingerprint:generate --platform ios" \
+ssh ignia-mac "cd ~/Repos/fitness-tracker-pwa && git checkout main && git pull --ff-only"
+ssh ignia-mac "cd ~/Repos/fitness-tracker-pwa/apps/mobile && npx expo-updates fingerprint:generate --platform ios" \
   | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>console.log(JSON.parse(s).hash))"
 ```
 
@@ -65,11 +65,11 @@ Two that bite on iOS specifically:
 ## Step 1 — preflight (seconds, and it has caught real blockers)
 
 ```sh
-ssh ignia-mac "cd ~/fitness-tracker-pwa && git log --oneline -1 && git status --short | head -5
+ssh ignia-mac "cd ~/Repos/fitness-tracker-pwa && git log --oneline -1 && git status --short | head -5
 node -v; which fastlane
 xcrun simctl list runtimes | grep -ci ios
 df -h /System/Volumes/Data | awk 'NR==2{print \$4\" free\"}'"
-ssh ignia-mac "cd ~/fitness-tracker-pwa/apps/mobile && npx eas whoami"
+ssh ignia-mac "cd ~/Repos/fitness-tracker-pwa/apps/mobile && npx eas whoami"
 ```
 
 | Check | If it fails |
@@ -85,7 +85,7 @@ ssh ignia-mac "cd ~/fitness-tracker-pwa/apps/mobile && npx eas whoami"
 stale token fails the build at a late task:
 
 ```sh
-ssh ignia-mac "cd ~/fitness-tracker-pwa && set -a && . ./.env.local && set +a &&
+ssh ignia-mac "cd ~/Repos/fitness-tracker-pwa && set -a && . ./.env.local && set +a &&
   curl -sS -o /dev/null -w 'sentry HTTP %{http_code}\n' \
   -H \"Authorization: Bearer \$SENTRY_AUTH_TOKEN\" \
   https://sentry.io/api/0/organizations/gabriel-bermudez/projects/"
@@ -105,8 +105,8 @@ compiler bug that is not there (measured 2026-08-17, SDK 57).
 ```sh
 ssh ignia-mac "cat > ~/run-ios-build.sh <<'EOF'
 #!/bin/zsh
-cd ~/fitness-tracker-pwa/apps/mobile || exit 90
-set -a; . ~/fitness-tracker-pwa/.env.local; set +a
+cd ~/Repos/fitness-tracker-pwa/apps/mobile || exit 90
+set -a; . ~/Repos/fitness-tracker-pwa/.env.local; set +a
 echo \"IGNIA_BUILD_START \$(date -u +%FT%TZ)\"
 npx eas build -p ios --profile production --local --non-interactive
 echo \"IGNIA_BUILD_EXIT=\$?\"
@@ -134,8 +134,8 @@ ssh ignia-mac "grep -nE '❌|error:|Exit status|must be installed' ~/ios-build.l
 Exit 0 from the build is necessary, not sufficient.
 
 ```sh
-scp scripts/verify-mobile-artifact.mjs scripts/native-expectations.json ignia-mac:/tmp/
-ssh ignia-mac "node /tmp/verify-mobile-artifact.mjs ~/fitness-tracker-pwa/apps/mobile/build-<ts>.ipa"
+scp scripts/verify-mobile-artifact.mjs scripts/native-expectations.json scripts/ipa-preflight.sh ignia-mac:/tmp/
+ssh ignia-mac "node /tmp/verify-mobile-artifact.mjs ~/Repos/fitness-tracker-pwa/apps/mobile/build-<ts>.ipa"
 ```
 
 It asserts all four nested targets, every required Info.plist key (a missing usage
@@ -153,7 +153,7 @@ device QA — except Live Activities, which render in the Simulator.
 ## Step 4 — submit (only when asked; outward-facing)
 
 ```sh
-ssh ignia-mac "cd ~/fitness-tracker-pwa/apps/mobile &&
+ssh ignia-mac "cd ~/Repos/fitness-tracker-pwa/apps/mobile &&
   npx eas submit -p ios --profile production --path build-<ts>.ipa --non-interactive"
 ```
 

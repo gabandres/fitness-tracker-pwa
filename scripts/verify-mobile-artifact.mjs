@@ -145,6 +145,18 @@ function verifyIpa(path) {
         bad(key, 'MISSING');
       }
     }
+    // 6. The checks every iOS build of every app passes (scene life cycle, release Xcode, Sentry, Release bundle):
+    //    ipa-preflight.sh, the same file in Callbook, PoolFlow and Inkvolt. Copied beside this script by Step 3.
+    const preflight = join(HERE, 'ipa-preflight.sh');
+    if (!existsSync(preflight)) bad('ipa-preflight', `${preflight} missing: copy it with this script`);
+    else {
+      try {
+        ok('ipa-preflight', sh('/bin/zsh', [preflight, path]).trim().split('\n').slice(1, -1).map((l) => l.trim()).join('; '));
+      } catch (e) {
+        bad('ipa-preflight', String(e.stdout ?? e.message).trim().split('\n').filter((l) => l.includes('✗')).join('; '));
+      }
+    }
+
     const fp = join(app, 'EXUpdates.bundle', 'fingerprint');
     if (existsSync(fp)) ok('runtime fingerprint', readFileSync(fp, 'utf8').trim());
     else bad('runtime fingerprint', 'no EXUpdates.bundle/fingerprint — cannot receive OTAs');

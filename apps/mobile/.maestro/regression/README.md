@@ -142,7 +142,7 @@ UDID=$(xcrun simctl list devices | awk -F'[()]' '/^ *Ignia-QA-26 / {print $2; ex
   com.apple.CoreSimulator.SimDeviceType.iPhone-17 "$QA_RUNTIME")
 xcrun simctl boot "$UDID"
 
-cd ~/fitness-tracker-pwa/apps/mobile
+cd ~/Repos/fitness-tracker-pwa/apps/mobile
 # If a Release build already exists, just install it — no rebuild (~45 min saved):
 APP=$(ls -d ~/Library/Developer/Xcode/DerivedData/Ignia-*/Build/Products/Release-iphonesimulator/Ignia.app 2>/dev/null | head -1)
 [ -n "$APP" ] && xcrun simctl install "$UDID" "$APP" \

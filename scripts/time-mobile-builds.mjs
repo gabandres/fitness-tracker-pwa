@@ -45,7 +45,7 @@
  *   node scripts/time-mobile-builds.mjs --dry-run        # print machine + plan, build nothing
  *
  * From Windows:
- *   ssh ignia-mac "cd ~/fitness-tracker-pwa && git pull && node scripts/time-mobile-builds.mjs"
+ *   ssh ignia-mac "cd ~/Repos/fitness-tracker-pwa && git pull && node scripts/time-mobile-builds.mjs"
  *
  * `--dry-run` exists because a real run costs ~40 minutes on an M1: it is how
  * you confirm the machine is detected, the disk is sufficient and the paths
@@ -180,7 +180,7 @@ if (process.platform !== 'darwin') {
       '  wall, and WSL2 is no escape on an ARM64 box against an x86_64-only NDK.\n' +
       '  See DEV_ENVIRONMENT.md §3.11 — this is structural, not a setup gap.\n\n' +
       '  Run it on the Mac:\n' +
-      '    ssh ignia-mac "cd ~/fitness-tracker-pwa && git pull && node scripts/time-mobile-builds.mjs"\n',
+      '    ssh ignia-mac "cd ~/Repos/fitness-tracker-pwa && git pull && node scripts/time-mobile-builds.mjs"\n',
   );
   process.exit(1);
 }

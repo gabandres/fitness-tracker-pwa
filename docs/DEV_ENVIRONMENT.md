@@ -460,7 +460,7 @@ Ethernet and the session drops without them. Then everything is short:
 ```sh
 ssh ignia-mac "sw_vers && xcodebuild -version"
 
-ssh ignia-mac "cd ~/fitness-tracker-pwa && git pull && cd apps/mobile &&   caffeinate -dims npx eas build -p ios --profile production --local"
+ssh ignia-mac "cd ~/Repos/fitness-tracker-pwa && git pull && cd apps/mobile &&   caffeinate -dims npx eas build -p ios --profile production --local"
 ```
 
 **Three failure modes, in the order they will actually happen:**
@@ -557,7 +557,7 @@ an **archive** additionally needs fastlane and two Xcode platform components, an
 one only surfaces after the previous is fixed. See §3.10.
 
 **It is Stephanie's machine and her account.** Everything above lives under her home
-directory. A shippable build needs the **Sentry token** there (`~/fitness-tracker-pwa/
+directory. A shippable build needs the **Sentry token** there (`~/Repos/fitness-tracker-pwa/
 .env.local`, mode `600` — validate with a Sentry API call, not by eyeballing the file)
 and an **EAS session** (`~/.expo/state.json`). It does **not** need the ASC `.p8` —
 see §3.10. That is a deliberate decision to make, not a default to drift into; a
@@ -728,7 +728,7 @@ A second reclaim recovered **9.5 → 23 GB**, all reversible, no personal data:
 simulator *devices* (`simctl delete all`), Xcode `Archives` + `DerivedData`, the
 `CoreSimulator/Caches/dyld` cache (3 GB, needs `sudo`), the npm / Homebrew /
 CocoaPods / ReactNative / node-gyp caches, two stray `build-*.ipa` in
-`apps/mobile`, and **6.3 GB of regenerable `ios/` in `~/tracker-app`** — a
+`apps/mobile`, and **6.3 GB of regenerable `ios/` in `~/Repos/tracker-app`** — a
 *different* project (`gabandres/agenda-app`), gitignored there with zero tracked
 files, so `expo prebuild` restores it.
 
@@ -1279,8 +1279,8 @@ hashes verified). Step C may destroy the Mac copy freely.
 OTA channel until step D verifies the rebuilt host, so do B→C→D in one sitting:**
 
 ```sh
-ssh ignia-mac "cd ~/fitness-tracker-pwa/apps/mobile && npx eas logout"     # invalidates the session server-side
-ssh ignia-mac "rm -rf ~/fitness-tracker-pwa ~/.expo ~/.ssh/authorized_keys"
+ssh ignia-mac "cd ~/Repos/fitness-tracker-pwa/apps/mobile && npx eas logout"     # invalidates the session server-side
+ssh ignia-mac "rm -rf ~/Repos/fitness-tracker-pwa ~/.expo ~/.ssh/authorized_keys"
 ssh ignia-mac "sudo launchctl bootout system/fit.ignia.nosleep; sudo rm /Library/LaunchDaemons/fit.ignia.nosleep.plist"
 ```
 
@@ -1347,7 +1347,7 @@ reboot is a trip again.
 `52802bba…` = build 64, so the OTA channel carried over with no new binary.**
 "Ignia-only" turned out to mean "no personal data and no other people's
 accounts", not "no other project": **the same box builds Callbook
-(`Z:\tracker-app`, GitHub `gabandres/agenda-app`)** from `~/tracker-app` and
+(`Z:\tracker-app`, GitHub `gabandres/agenda-app`)** from `~/Repos/tracker-app` and
 `~/tracker-app-ota`, re-cloned the same night over a read-only deploy key
 (`~/.ssh/id_ed25519_github_tracker`), with the ASC key in
 `~/.appstoreconnect/private_keys/`. Its `CLAUDE.md` carries the before/after.

@@ -189,7 +189,7 @@ if platform not in OWNER:
         "Publish them separately, each from its own host:\n"
         "  npx eas update --platform android --branch production "
         "--environment production ...\n"
-        '  ssh ignia-mac "cd ~/fitness-tracker-pwa/apps/mobile && '
+        '  ssh ignia-mac "cd ~/Repos/fitness-tracker-pwa/apps/mobile && '
         "npx eas update --platform ios --branch production "
         '--environment production ..."',
     )
@@ -198,7 +198,7 @@ owner = OWNER[platform]
 if owner != here:
     if owner == "mac":
         fix = (
-            'ssh ignia-mac "cd ~/fitness-tracker-pwa/apps/mobile && '
+            'ssh ignia-mac "cd ~/Repos/fitness-tracker-pwa/apps/mobile && '
             f"npx eas update --platform {platform} --branch production "
             '--environment production ..."'
         )
