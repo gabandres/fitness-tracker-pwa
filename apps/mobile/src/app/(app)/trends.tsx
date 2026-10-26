@@ -447,7 +447,7 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
             {tdee.travelHold ? (
               <Text style={styles.heroSub} testID="tdee-travel-hold">
                 {tdee.travelHold.state === 'frozen'
-                  ? t('today.maintenanceTravelFrozen', { date: tdee.travelHold.frozenAsOf })
+                  ? t('today.maintenanceTravelFrozen', { date: formatDate(parseYmd(tdee.travelHold.frozenAsOf), locale, { month: 'short', day: 'numeric' }) })
                   : t('today.maintenanceTravelRebuilding', { valid: tdee.travelHold.valid, needed: tdee.travelHold.needed })}
               </Text>
             ) : null}
