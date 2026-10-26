@@ -93,6 +93,8 @@ export function toWorkoutSession(id: string, data: Record<string, unknown>): Wor
     durationMin: data['durationMin'] as number | undefined,
     ...(data['templateVersion'] === 'v1' || data['templateVersion'] === 'v2' ? { templateVersion: data['templateVersion'] } : {}),
     ...(data['deload'] === true ? { deload: true } : {}),
+    ...(data['reentry'] === 'travel' || data['reentry'] === 'post-travel' ? { reentry: data['reentry'] } : {}),
+    ...(data['notComparable'] === true ? { notComparable: true } : {}),
     ...(Array.isArray(data['dismissedSourceIds'])
       ? { dismissedSourceIds: (data['dismissedSourceIds'] as unknown[]).filter((x): x is string => typeof x === 'string') }
       : {}),

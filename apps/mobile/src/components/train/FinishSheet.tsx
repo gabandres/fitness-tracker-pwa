@@ -1051,7 +1051,7 @@ export function TrainFinishSheet({
   // to propose or auto-apply.
   const calls = useMemo(
     () =>
-      performed && recentSessions && !performed.deload
+      performed && recentSessions && !performed.deload && performed.reentry == null && !performed.notComparable
         ? finishCalls({ session: performed, recentSessions, catalog: catalog ?? [], template, phase, now: performed.date.getTime() })
         : [],
     [performed, recentSessions, catalog, template, phase],
@@ -1080,7 +1080,10 @@ export function TrainFinishSheet({
   const versionMoved = session?.templateVersion != null && programVersion !== session.templateVersion;
   const structure = useMemo(
     // Nor its shape: a deload's halved clusters are not "removed" ones.
-    () => (template && session && !versionMoved && !session.deload ? proposeStructureChanges(template.exercises, session) : []),
+    // Nor a re-entry or another gym's session: a lift skipped for want of the
+    // machine is not one to drop from the template.
+    () => (template && session && !versionMoved && !session.deload && session.reentry == null && !session.notComparable
+      ? proposeStructureChanges(template.exercises, session) : []),
     [template, session, versionMoved],
   );
   const autoApply = train.autoApplyProgression === true;
@@ -1089,7 +1092,7 @@ export function TrainFinishSheet({
   // `setsRequiringRir`, S-v2 2026-10-24): required, never "Leave blank". Not
   // in a deload, where nothing is read. Indices into the LIVE session.
   const requiredRir = useMemo(() => {
-    if (!session || session.deload) return [];
+    if (!session || session.deload || session.reentry != null) return [];
     return setsRequiringRir(session.exercises, (ex, i) => {
       const row = template?.exercises.find((r) => r.exerciseId === ex.exerciseId);
       const cat = catalog?.find((e) => e.id === ex.exerciseId);

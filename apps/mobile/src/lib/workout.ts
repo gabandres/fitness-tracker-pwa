@@ -243,6 +243,9 @@ export interface WorkoutTemplate {
   /** Stable slug of the shipped starter this was cloned from, if any. Lets
    *  the chooser hide an already-cloned starter across locales. */
   seedKey?: string;
+  /** The program version the template is ("v2.3", "S-v2", "travel-v1") — a
+   *  free label. "travel…" marks the travel templates (core `isTravelTemplate`). */
+  templateVersion?: string;
   /** When the lifter archived it (2026-10-24); absent = active. Written only
    *  by `archiveTemplate` / `unarchiveTemplate` — the template writers never
    *  carry it, so an editor save (a merge) leaves it untouched. */
@@ -349,6 +352,12 @@ export interface WorkoutSession {
   templateVersion?: 'v1' | 'v2';
   /** A deload session (Program v2.1, core `deload.ts`). Set at start. */
   deload?: boolean;
+  /** A re-entry session after time away (travel mode, core `reentry.ts`):
+   *  loads −10 %, RIR 2, never read by the engine. Set at start. */
+  reentry?: 'travel' | 'post-travel';
+  /** "Different equipment — not comparable" (travel mode): out of the
+   *  engine's reads and out of e1RM / PRs. The lifter can switch it. */
+  notComparable?: boolean;
   /** How long the whole SESSION took, in minutes. Not `CardioBlock.durationSec`,
    *  which is how long one run was — different unit, different question. */
   durationMin?: number;

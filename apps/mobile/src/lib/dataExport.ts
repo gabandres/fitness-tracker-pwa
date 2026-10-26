@@ -44,7 +44,12 @@ export interface ExportResult {
  * native share sheet (device) or trigger a browser download (web). A UTF-8 BOM
  * is prepended so Excel renders accented meal labels correctly.
  */
-export async function exportDataCsv(uid: string): Promise<ExportResult> {
+export async function exportDataCsv(
+  uid: string,
+  /** Profile facts the CSV reads (travel mode: the trips, for `travel` rows
+   *  and the travel-scale note on weigh-ins inside one). */
+  opts: { travelPeriods?: unknown } = {},
+): Promise<ExportResult> {
   const [logs, measurements, dailyWeights, dailyWater, dailySleep, workoutSessions, fasts, templates, exercises, targetRecords, dailySleepTimes, drafts, dailyHunger, dailyLogged] =
     await Promise.all([
       getAllLogs(uid),
@@ -88,6 +93,7 @@ export async function exportDataCsv(uid: string): Promise<ExportResult> {
     dailySleepTimes,
     dailyHunger,
     dailyLogged,
+    travelPeriods: opts.travelPeriods,
     templateVersions: Object.fromEntries(programDrafts(drafts).map((d) => [d.draftOf, d.status === 'active' ? 'v2' : 'v1'] as const)),
     catalogMuscles: exercises.map((e) => ({ id: e.id, muscles: e.muscles })),
     // The rotation Train's volume sheet reads (`rotationTemplates`, same

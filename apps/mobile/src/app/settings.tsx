@@ -54,7 +54,8 @@ import { useDoneKeyProps } from '@/components/KeyboardBar';
 const DAY_START_HOURS = [0, 3, MAX_DAY_START_HOUR] as const;
 import { exportDataCsv } from '@/lib/dataExport';
 import { isTipIapAvailable } from '@/lib/purchases';
-import { FEATURES } from '@/lib/features';
+import { FEATURES, isFeatureOn } from '@/lib/features';
+import { TravelSettingsCard } from '@/components/TravelSettingsCard';
 import { ACCESSIBILITY_FONT_SCALE } from '@/lib/font-scale';
 import { APP_STORE_REVIEW_URL } from '@/lib/reviewPrompt';
 import { openExternal } from '@/lib/open-external';
@@ -220,7 +221,7 @@ export default function Settings() {
   const styles = useThemedStyles(createStyles);
   const { colors, preference, setPreference } = useTheme();
   const locale = useLocale();
-  const { user, profile, signOut, deleteAccount } = useAuth();
+  const { user, profile, signOut, deleteAccount, isAdmin } = useAuth();
   const { isPro, proPreview, setProPreview } = useSubscription();
   const targetsView = useDailyTargets();
   const targets = targetsView.loaded ? targetsView.targets : null;
@@ -298,7 +299,7 @@ export default function Settings() {
     // Promise chains rather than `try/catch/finally` here and in the busy-flag
     // handlers below: the React Compiler skips the whole screen over the
     // statement form. `.then → .catch → .finally` is the same order.
-    await exportDataCsv(user.uid)
+    await exportDataCsv(user.uid, { travelPeriods: profile?.travelPeriods })
       .then(({ rows }) => setExportMsg(t('settings.exportDone', { n: rows })))
       .catch(() => setExportMsg(t('settings.exportError')))
       .finally(() => setExporting(false));
@@ -1037,6 +1038,15 @@ export default function Settings() {
         {/* ── Program version ── Program v2 (2026-10-11): all its templates
             switch together; shown only when the account has one. */}
         <ProgramVersionCard stacked={stackFloors} offline={offline} />
+
+        {/* ── Travel ── travel mode (2026-10-26): trips, during which the
+            maintenance estimate holds and weigh-ins stay out of the trend. */}
+        {user && isFeatureOn(FEATURES.travelMode, { isAdmin }) ? (
+          <>
+            <Text style={styles.section} accessibilityRole="header">{t('settings.travel.section')}</Text>
+            <TravelSettingsCard uid={user.uid} profile={profile} offline={offline} />
+          </>
+        ) : null}
 
         {/* ── Safety floors ── the clamps under the targets above. At large
             text the stepper drops under its description: side by side, the

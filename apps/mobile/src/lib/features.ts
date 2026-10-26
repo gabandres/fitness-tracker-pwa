@@ -67,6 +67,15 @@ export const FEATURES = {
    * core (`forbesMaintenance`), surfaced nowhere while this is false.
    */
   forbesPrior: false,
+  /**
+   * Travel mode (2026-10-26, core `travel.ts`): the Settings editor for trips.
+   * Everything else travel mode does — the Today card, the maintenance hold,
+   * weigh-ins out of the trend, re-entry sessions — keys off a trip being on
+   * the profile, which only this editor (or an owner script) writes. 'admin'
+   * until the owner has used it on a real trip; `firestore:rules` (the
+   * `travelPeriods` / eyeballed-meal / session fields) must be deployed first.
+   */
+  travelMode: 'admin',
 } as const;
 
 /** A flag's rollout: everyone, no one, or the admin account only. */

@@ -24,6 +24,9 @@ export function entryFromLog(log: DailyLog): LogEntry {
     grams: log.grams,
     // Undo puts the row back where it was among same-minute rows.
     createdAt: log.createdAt,
+    // An eyeballed travel meal stays eyeballed through an Undo.
+    ...(log.estimateQuality ? { estimateQuality: log.estimateQuality } : {}),
+    ...(log.proteinFirst ? { proteinFirst: true } : {}),
   };
 }
 

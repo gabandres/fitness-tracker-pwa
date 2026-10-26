@@ -46,7 +46,7 @@ import {
   useState,
 } from 'react';
 import { httpsCallable } from 'firebase/functions';
-import type { Profile } from '@macrolog/core';
+import { travelPeriodsOf, type Profile } from '@macrolog/core';
 import type { Locale } from '@/i18n/registry';
 import {
   LinkError,
@@ -67,7 +67,7 @@ import { auth, functions } from './firebase';
  * ~8,690 ms a dead network costs, both measured on the LG G6 (#83).
  */
 const PRESUMED_SESSION_AFTER_MS = 1200;
-import { ensureProfile, subscribeProfile } from './ledger';
+import { ensureProfile, setTravelPeriodsForWrites, subscribeProfile } from './ledger';
 import { registerAppleRefreshToken } from './appleSignin';
 import { addBreadcrumb, captureError, setSentryUser } from './sentry';
 import { isGoogleInternalError } from './google-signin-errors';
@@ -1085,6 +1085,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // network the app still knows who this user is and what their targets are.
     void readCache<Profile>(uid, 'profile').then((cached) => {
       if (live || !cached) return;
+      setTravelPeriodsForWrites(travelPeriodsOf(cached));
       setProfileEntry({ uid, profile: cached, confirmed: false });
     });
     return subscribeProfile(
@@ -1097,6 +1098,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!p && meta.fromCache) return;
         live = true;
         if (p) writeCache(uid, 'profile', p);
+        setTravelPeriodsForWrites(travelPeriodsOf(p));
         setProfileEntry({ uid, profile: p, confirmed: !meta.fromCache });
       },
       () => {

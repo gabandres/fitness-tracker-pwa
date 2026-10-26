@@ -30,6 +30,8 @@ import {
   projectWeight,
   sortedWeighIns,
   trailingAverageLb,
+  travelPeriodsOf,
+  withoutTravelWeights,
   sleepWeekAverage,
   trendShift,
   trendWeightSeries,
@@ -426,15 +428,18 @@ export function useBody(): BodyState {
     [weights],
   );
   const weightPoints = useMemo(() => sortedWeighIns(weights), [weights]);
-  const trendPoints = useMemo(() => trendWeightSeries(weightPoints), [weightPoints]);
+  // Travel mode (core `travel.ts`): a weigh-in on a travel day is shown, but a
+  // different scale is not part of the trend line or the 7-day average.
+  const homeWeights = useMemo(() => withoutTravelWeights(weights, travelPeriodsOf(profile)), [weights, profile]);
+  const trendPoints = useMemo(() => trendWeightSeries(sortedWeighIns(homeWeights)), [homeWeights]);
   const trendWeight = trendPoints.length ? trendPoints[trendPoints.length - 1].weightLb : null;
   const consistency = useMemo(
     () => weighInConsistency(weights, CONSISTENCY_DAYS, nowOn(todayKey), boundary),
     [weights, boundary, todayKey],
   );
   const weekAverage = useMemo(
-    () => trailingAverageLb(weights, AVERAGE_DAYS, nowOn(todayKey), boundary),
-    [weights, boundary, todayKey],
+    () => trailingAverageLb(homeWeights, AVERAGE_DAYS, nowOn(todayKey), boundary),
+    [homeWeights, boundary, todayKey],
   );
   const sleepWeek = useMemo(
     () => sleepWeekAverage(sleepByDay, todayKey),

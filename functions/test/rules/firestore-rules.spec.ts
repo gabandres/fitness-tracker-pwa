@@ -162,6 +162,18 @@ describe('firestore.rules', () => {
     );
   });
 
+  it('allows an eyeballed travel meal, and only the enumerated quality / a literal true flag', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    const logs = collection(db, 'users', 'alice', 'dailyLogs');
+    await assertSucceeds(addDoc(logs, { ...validLog(), estimateQuality: 'eyeballed', proteinFirst: true }));
+    await assertSucceeds(addDoc(logs, { ...validLog(), estimateQuality: 'eyeballed' }));
+    await assertFails(addDoc(logs, { ...validLog(), estimateQuality: 'guessed' }));
+    await assertFails(addDoc(logs, { ...validLog(), estimateQuality: true }));
+    await assertFails(addDoc(logs, { ...validLog(), proteinFirst: false }));
+    await assertFails(addDoc(logs, { ...validLog(), proteinFirst: 'yes' }));
+  });
+
   it('rejects a dailyLog carrying a key outside the allow-list', async () => {
     // Pins the `hasOnly` list itself: adding `source` must not have opened the
     // door to arbitrary keys.
@@ -1324,6 +1336,21 @@ describe('firestore.rules', () => {
     }
   });
 
+  it('accepts travel periods on a completed profile, as a capped list', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    const bolivia = {
+      start: '2026-10-31', end: '2026-11-18', label: 'Bolivia', usualSteps: 6200,
+      altitude: { place: 'Cochabamba', meters: 2577, arrival: '2026-11-01' },
+    };
+    await assertSucceeds(setDoc(doc(db, 'users', 'alice'), { ...completedProfile(), travelPeriods: [bolivia] }));
+    await assertSucceeds(setDoc(doc(db, 'users', 'alice'), { ...completedProfile(), travelPeriods: [] }));
+    await assertSucceeds(setDoc(doc(db, 'users', 'alice'), { ...completedProfile(), travelPeriods: Array(24).fill(bolivia) }));
+    await assertFails(setDoc(doc(db, 'users', 'alice'), { ...completedProfile(), travelPeriods: Array(25).fill(bolivia) }));
+    await assertFails(setDoc(doc(db, 'users', 'alice'), { ...completedProfile(), travelPeriods: bolivia }));
+    await assertFails(setDoc(doc(db, 'users', 'alice'), { ...baseProfile(), travelPeriods: [bolivia] }));
+  });
+
   it('rejects training settings on an incomplete profile (only Settings writes them)', async () => {
     const db = authed('alice');
     await assertFails(setDoc(doc(db, 'users', 'alice'), { ...baseProfile(), trainingPhase: 'cut' }));
@@ -1637,6 +1664,17 @@ describe('firestore.rules', () => {
     distanceM: 8046,
     avgHr: 148,
     source: 'manual',
+  });
+
+  it('accepts re-entry and not-comparable sessions (travel mode), enumerated', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    const col = collection(db, 'users', 'alice', 'workoutSessions');
+    await assertSucceeds(addDoc(col, validSession({ reentry: 'travel', notComparable: true })));
+    await assertSucceeds(addDoc(col, validSession({ reentry: 'post-travel' })));
+    await assertFails(addDoc(col, validSession({ reentry: 'holiday' })));
+    await assertFails(addDoc(col, validSession({ reentry: true })));
+    await assertFails(addDoc(col, validSession({ notComparable: 'yes' })));
   });
 
   it('accepts a workout session with no cardio field at all', async () => {
@@ -2540,7 +2578,13 @@ describe('firestore.rules', () => {
     const ref = doc(alice, 'users', 'alice', 'dailyWeights', '2026-01-15');
     await assertSucceeds(setDoc(ref, { weight: 180.4 }));
     await assertFails(setDoc(ref, { weight: 0 }));
-    await assertFails(setDoc(ref, { weight: 180, note: 'x' }));
+    // Travel mode (2026-10-26): a weigh-in may say it came off a travel scale;
+    // nothing else rides along, and the note is bounded.
+    await assertSucceeds(setDoc(ref, { weight: 180, note: 'travel scale — not comparable' }));
+    await assertFails(setDoc(ref, { weight: 180, note: '' }));
+    await assertFails(setDoc(ref, { weight: 180, note: 'x'.repeat(101) }));
+    await assertFails(setDoc(ref, { weight: 180, note: 1 }));
+    await assertFails(setDoc(ref, { weight: 180, source: 'gym' }));
 
     const mallory = authed('mallory');
     const foreign = doc(mallory, 'users', 'alice', 'dailyWeights', '2026-01-15');

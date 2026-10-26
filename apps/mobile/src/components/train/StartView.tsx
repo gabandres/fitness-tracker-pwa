@@ -14,6 +14,8 @@ import {
   sessionVolume,
   templateLastPerformed,
   trailingAverageLb,
+  travelPeriodsOf,
+  withoutTravelWeights,
   type TemplateDraftDoc,
   trainHeroStats,
   type VolumeCall,
@@ -212,17 +214,20 @@ export function StartView({
   // eslint-disable (the object is rebuilt every render; the hour is what
   // matters), and the disable alone made React Compiler skip the whole view.
   const dayBoundary = profile?.dayBoundary;
+  const travelPeriods = profile?.travelPeriods;
   useEffect(() => {
     if (!uid || gateLb == null) return;
     let cancelled = false;
     void readCache<Record<string, number>>(uid, 'weights').then((weights) => {
       if (cancelled || !weights) return;
-      setSevenDayAvgLb(trailingAverageLb(weights, 7, new Date(now), dayBoundaryOf({ dayBoundary }))?.avgLb ?? null);
+      // Travel-day weigh-ins (another scale) are not the average (travel mode).
+      const home = withoutTravelWeights(weights, travelPeriodsOf({ travelPeriods }));
+      setSevenDayAvgLb(trailingAverageLb(home, 7, new Date(now), dayBoundaryOf({ dayBoundary }))?.avgLb ?? null);
     });
     return () => {
       cancelled = true;
     };
-  }, [uid, gateLb, now, dayBoundary]);
+  }, [uid, gateLb, now, dayBoundary, travelPeriods]);
   const [nextOpen, setNextOpen] = useState<string | null>(null);
   // Which template to offer, and when each was last completed. Both are pure
   // and live in core (`train-plan.ts`); this screen only renders them.

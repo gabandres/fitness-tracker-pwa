@@ -69,6 +69,9 @@ export * from './evening-hunger';
 // Complete day (2026-10-24): the "Day fully logged?" reader and the rule that
 // decides which days' intake the measured maintenance fit may use.
 export * from './complete-day';
+export * from './travel';
+export * from './travel-volume';
+export * from './reentry';
 export * from './meal-slots';
 export * from './meal-draft';
 export * from './meal-preset';

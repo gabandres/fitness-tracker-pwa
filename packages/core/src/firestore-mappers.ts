@@ -78,6 +78,8 @@ export function toDailyLog(id: string, data: Record<string, unknown>): DailyLog 
     createdAt: isTimestampLike(data['createdAt']) || data['createdAt'] instanceof Date
       ? toDate(data['createdAt'])
       : undefined,
+    ...(data['estimateQuality'] === 'eyeballed' ? { estimateQuality: 'eyeballed' as const } : {}),
+    ...(data['proteinFirst'] === true ? { proteinFirst: true } : {}),
   };
 }
 

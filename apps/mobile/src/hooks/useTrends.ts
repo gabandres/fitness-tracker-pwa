@@ -42,6 +42,15 @@ import { useAuth } from '@/lib/auth';
 import { getLogsForRange, subscribeMilestones } from '@/lib/ledger';
 import { readCache } from '@/lib/offline-cache';
 import { type HungerWeek, zone2Summary } from '@macrolog/core';
+import {
+  activeTravel,
+  travelMaintenanceCheck,
+  travelPeriodsOf,
+  withoutTravelWeights,
+  type MaintenanceCheck,
+  type TravelPeriod,
+} from '@macrolog/core';
+import type { MuscleGroup } from '@macrolog/core/workout';
 import type { CardioBlock } from '@macrolog/core/cardio';
 import { type CompositionTrends, useCompositionTrends } from '@/hooks/useCompositionTrends';
 import { type SleepTrends, useSleepTrends } from '@/hooks/useSleepTrends';
@@ -78,6 +87,9 @@ const REPLAY_CHUNK_DAYS = 30;
 export type Zone2Trends = ReturnType<typeof zone2Summary>;
 
 export interface TrendsState {
+  /** Travel mode: the "maintenance check" — this week's hard sets per muscle
+   *  against a third of the pre-trip normal. Null outside a trip. */
+  travelCheck?: { period: TravelPeriod; check: MaintenanceCheck } | null;
   /** Zone 2 from Train's on-disk sessions, read once per focus; null until
    *  read or when Train has never cached any. */
   zone2?: Zone2Trends | null;
@@ -300,7 +312,11 @@ export function useTrends(rangeDays: number = 30, opts: TrendsOptions = {}): Tre
   // later day start. Intake is still attributed by the user's boundary, which
   // is what every other number on this screen does.
   const chartKeys = useMemo(() => trailingDateKeys(maxDays, focusDay), [maxDays, focusDay]);
-  const weightSeries = useMemo(() => weightTrendSeries(weights, chartKeys), [weights, chartKeys]);
+  // Travel-day weigh-ins (another scale) stay out of the trend line.
+  const weightSeries = useMemo(
+    () => weightTrendSeries(withoutTravelWeights(weights, travelPeriodsOf(profile)), chartKeys),
+    [weights, chartKeys, profile],
+  );
 
   // ── Older rows than the 400-row cache holds (review S20, bug 1) ──
   // `logs` is a ROW window: a 7-entry-a-day logger's 400 rows cover ~57 days,
@@ -550,6 +566,54 @@ export function useTrends(rangeDays: number = 30, opts: TrendsOptions = {}): Tre
     deps: [uid, refreshKey],
   });
 
+  // Travel mode's maintenance check: the same one-shot read of Train's cache
+  // (sessions + catalog muscles), and only while a trip is on.
+  const trip = useMemo(() => {
+    const periods = travelPeriodsOf(profile);
+    return periods.length ? activeTravel(dayKeyAt(new Date(), dayBoundaryOf(profile)), periods) : null;
+  }, [profile]);
+  const [travelCheck, setTravelCheck] = useState<{ period: TravelPeriod; check: MaintenanceCheck } | null>(null);
+  useLedgerFeed({
+    uid,
+    label: 'Trends/travelCheck',
+    gate: 'focus',
+    channels: () =>
+      uid && trip
+        ? [
+            feedChannel({
+              key: 'travelCheck',
+              settles: 'none',
+              open: (deliver) => {
+                let live = true;
+                void Promise.all([
+                  readCache<Parameters<typeof travelMaintenanceCheck>[0]['sessions']>(uid, 'workoutSessions'),
+                  readCache<{ id?: string; muscles: MuscleGroup[] }[]>(uid, 'exercises'),
+                ])
+                  .then(([sessions, catalog]) => {
+                    if (!live) return;
+                    deliver(
+                      sessions
+                        ? {
+                            period: trip,
+                            check: travelMaintenanceCheck({
+                              sessions, catalog: catalog ?? [], period: trip, now: new Date(), boundary: dayBoundaryOf(profile),
+                            }),
+                          }
+                        : null,
+                    );
+                  })
+                  .catch(() => undefined);
+                return () => {
+                  live = false;
+                };
+              },
+              apply: setTravelCheck,
+            }),
+          ]
+        : [],
+    deps: [uid, refreshKey, trip],
+  });
+
   const basalKcal = useMemo(() => {
     if (!profile || profile.heightIn == null || profile.age == null || profile.sex == null) return 0;
     // Latest weigh-in: dateKeys sort chronologically, so the max key is newest.
@@ -565,6 +629,7 @@ export function useTrends(rangeDays: number = 30, opts: TrendsOptions = {}): Tre
 
   return {
     zone2,
+    travelCheck: trip ? travelCheck : null,
     hunger,
     loading,
     error,

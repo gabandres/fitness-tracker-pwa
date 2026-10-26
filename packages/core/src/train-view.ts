@@ -124,6 +124,8 @@ export function trainHeroStats(sessions: readonly WorkoutSession[], now: number)
 export function bestE1RMByExercise(sessions: readonly WorkoutSession[]): Record<string, number> {
   const rows = new Map<string, SessionExercise[]>();
   for (const s of sessions) {
+    // A different gym's equipment is not this lift's PR (travel mode).
+    if (s.notComparable) continue;
     for (const ex of s.exercises) {
       const arr = rows.get(ex.exerciseId);
       if (arr) arr.push(ex);
@@ -153,13 +155,16 @@ export function improvedExercises(
 // ─── Per-exercise history ───────────────────────────────────────
 
 /** Rows for one exercise across the given sessions, in the order the sessions
- *  are given (both apps pass newest-first). */
+ *  are given (both apps pass newest-first). A session marked "different
+ *  equipment — not comparable" (travel mode) is left out: its numbers are not
+ *  this lift's, for the engine, the e1RM chart or the PRs alike. */
 export function exerciseHistory(
   sessions: readonly WorkoutSession[],
   exerciseId: string,
 ): SessionExercise[] {
   const out: SessionExercise[] = [];
   for (const s of sessions) {
+    if (s.notComparable) continue;
     const match = s.exercises.find((e) => e.exerciseId === exerciseId);
     if (match) out.push(match);
   }
@@ -178,14 +183,19 @@ export type EngineReadRow = Pick<TemplateExercise, 'clusterCountChange'> & {
  * (`TemplateExercise.excludedReads`), and never a deload session. Compared by
  * calendar day, the unit both are written in. Order is kept.
  */
-export function engineSessions<S extends Pick<WorkoutSession, 'date'> & { deload?: boolean }>(
+export function engineSessions<
+  S extends Pick<WorkoutSession, 'date'> & { deload?: boolean; reentry?: string; notComparable?: boolean },
+>(
   sessions: readonly S[],
   row?: EngineReadRow | null,
 ): S[] {
   const since = row?.baseline?.since;
   const excluded = new Set((row?.excludedReads ?? []).map((x) => x.date));
-  // A deload session is never evidence for the next load (`deload.ts`).
-  const live = sessions.some((s) => s.deload) ? sessions.filter((s) => !s.deload) : sessions;
+  // A deload session is never evidence for the next load (`deload.ts`), and
+  // neither is a re-entry session or another gym's equipment (`reentry.ts`):
+  // the session after a re-entry reads the pre-trip history again.
+  const skip = (s: S) => s.deload || s.reentry != null || s.notComparable;
+  const live = sessions.some(skip) ? sessions.filter((s) => !skip(s)) : sessions;
   if (!since && excluded.size === 0) return [...live];
   return live.filter((s) => {
     const day = calendarDateKey(s.date);

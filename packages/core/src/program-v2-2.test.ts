@@ -201,9 +201,10 @@ describe('export: rirTarget, the straight note, templateVersion', () => {
 
   it('appends rirTarget after every earlier column, so no existing column moves', () => {
     const cols = header(buildCsv(base));
-    // Last when it shipped; 2026-10-24's `dayFullyLogged` was appended after it.
+    // Last when it shipped; 2026-10-24's `dayFullyLogged` and 2026-10-26's
+    // travel columns were appended after it.
     expect(cols.indexOf('rirTarget')).toBe(cols.indexOf('rotationSessions') + 1);
-    expect(cols.slice(cols.indexOf('rirTarget') + 1)).toEqual(['dayFullyLogged']);
+    expect(cols.slice(cols.indexOf('rirTarget') + 1)).toEqual(['dayFullyLogged', 'estimateQuality', 'proteinFirst', 'sessionFlags']);
   });
 
   it('fills rirTarget on read sets only: activation and working, not minis', () => {

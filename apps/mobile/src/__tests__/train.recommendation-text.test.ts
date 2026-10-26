@@ -280,6 +280,7 @@ describe('every reason kind has a sentence', () => {
     'baseline-set': { kind: 'baseline-set', reps: 9, note: 'position changed 10/9' },
     'baseline-drop-back': { kind: 'baseline-drop-back', reps: 4, below: 5, to: 60, note: 'position changed 10/9' },
     'lifter-load': { kind: 'lifter-load', load: 90, engineLoad: 85 },
+    'harder-ladder': { kind: 'harder-ladder', reps: 20, cap: 20, next: 'load', harder: 'feet elevated' },
   };
   const base: Recommendation = {
     action: 'hold', load: 100, currentLoad: 100, last: [], assisted: false, approximate: false, warnings: [],

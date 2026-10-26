@@ -14,6 +14,8 @@ import {
   dayKeyAt,
   isMaintaining,
   parseYmd,
+  activeTravel,
+  travelPeriodsOf,
   type DayBoundary,
 } from '@macrolog/core';
 import { useAuth } from '@/lib/auth';
@@ -160,7 +162,11 @@ export function useReminderSync(): void {
       const loggedToday =
         weights[todayKey] != null || logs.some((l) => dayKeyAt(l.date, boundary) === todayKey);
       const streak = computeStreak(logs, { freezeMaxGap: 0, boundary }).streak;
-      const sinceWeigh = daysSinceWeighIn(logs, weights, boundary);
+      // Travel mode (core `travel.ts`): no weigh-in nudge while a trip is on —
+      // there is no scale to step on. It comes back on its own the morning
+      // after the trip, already overdue.
+      const travelling = activeTravel(todayKey, travelPeriodsOf(profileRef.current)) != null;
+      const sinceWeigh = travelling ? null : daysSinceWeighIn(logs, weights, boundary);
       const sinceLog = daysSinceLastLog(logs, boundary);
       // Read here, off the ref, like the boundary: a goal change re-plans on
       // the next snapshot rather than re-rendering Today.

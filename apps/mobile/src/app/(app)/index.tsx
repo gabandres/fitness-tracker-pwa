@@ -12,7 +12,7 @@ import Animated, {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { captureAndShare } from '@/lib/shareCapture';
 import type { DateKey, MealSlot } from '@macrolog/core';
-import { addDays, calendarDateKey, fastLengthHours, maintenanceView, parseYmd } from '@macrolog/core';
+import { activeTravel, addDays, calendarDateKey, fastLengthHours, maintenanceView, parseYmd, travelPeriodsOf } from '@macrolog/core';
 import { confirmNative } from '@/components/ConfirmSheet';
 import { onPendingLogsRejected } from '@/lib/pending-logs';
 import { CONTEXT_MENUS, ContextMenu } from '@/components/ContextMenu';
@@ -29,6 +29,8 @@ import { FastSheet } from '@/components/FastSheet';
 import { HeroRings, HeroRingsSkeleton } from '@/components/HeroRings';
 import { MealEntries } from '@/components/MealEntries';
 import { MilestoneNote } from '@/components/MilestoneNote';
+import { TravelCard } from '@/components/TravelCard';
+import { EyeballMealSheet } from '@/components/EyeballMealSheet';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { track } from '@/lib/analytics';
 import { useAuth } from '@/lib/auth';
@@ -319,6 +321,10 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
   });
 
   const [glossaryOpen, setGlossaryOpen] = useState(false);
+  // Travel mode (core `travel.ts`): the trip today is inside, if any. Ends on
+  // its own after the last day — nothing writes "travel over".
+  const trip = useMemo(() => activeTravel(todayKey, travelPeriodsOf(todayProfile)), [todayKey, todayProfile]);
+  const [eyeballOpen, setEyeballOpen] = useState(false);
   const [fastSheetOpen, setFastSheetOpen] = useState(false);
   /**
    * **Always subscribed, reversing the gating this shipped with.**
@@ -988,6 +994,19 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
           <UpdateBanner suppressed={nudge !== 'update'} />
           <HealthReconnectCard reconnect={healthReconnect} suppressed={nudge !== 'healthReconnect'} />
 
+          {trip ? (
+            <TravelCard
+              period={trip}
+              todayKey={todayKey}
+              protein={summary.totalProtein}
+              proteinTarget={targets.proteinTarget || 0}
+              kcal={summary.totalCalories}
+              kcalTarget={targets.calorieTarget || 0}
+              steps={activity?.steps}
+              onEyeballMeal={() => setEyeballOpen(true)}
+            />
+          ) : null}
+
           <Animated.View entering={enterUp(0)}>
             <HeroRings
               calConsumed={summary.totalCalories}
@@ -1128,6 +1147,9 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
         </Animated.ScrollView>
       )}
 
+      {trip ? (
+        <EyeballMealSheet visible={eyeballOpen} onClose={() => setEyeballOpen(false)} onSave={diary.onSave} />
+      ) : null}
       <EntrySheet
         visible={diary.sheetOpen}
         editing={diary.editing}
