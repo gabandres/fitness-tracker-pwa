@@ -25,6 +25,7 @@
  * having in one place rather than in two view layers.
  */
 import type { TdeeResult } from './tdee';
+import type { TravelHold } from './travel';
 
 export interface MaintenanceView {
   /** Measured maintenance (kcal/day). */
@@ -104,6 +105,9 @@ export interface MaintenanceView {
    * an interval of 1,775..3,242.
    */
   holding: boolean;
+  /** A trip holds the number (`travel.ts`): "held for travel", or "rebuilding
+   *  after travel (n of 14)". Absent when the number is the live fit. */
+  travelHold?: TravelHold;
 }
 
 /**
@@ -157,5 +161,6 @@ export function maintenanceView(tdee: TdeeResult, consumedKcal: number): Mainten
     // not compute it — and an absent state reads as NOT holding: a run that did
     // not measure the interval is not evidence that it was wide.
     holding: tdee.estimateState === 'holding',
+    ...(tdee.travelHold ? { travelHold: tdee.travelHold } : {}),
   };
 }

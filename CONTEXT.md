@@ -488,6 +488,17 @@ These three windows look similar and are NOT interchangeable. See
   (`packages/core/src/evening-hunger.ts`). **Display only** — nothing reads it
   into a target, the maintenance estimate or a nudge. Exported as `hunger`
   rows (`eveningHunger` column). Added 2026-10-20.
+- **Travel period** — A dated trip on the profile (`travelPeriods`, inclusive
+  `start`–`end`; ADR-0048). Its days never feed the maintenance fit; inside it
+  the estimate is held at its value as of the trip's first day, and after it
+  until 14 complete days home ("rebuilding"). Ends by date — nothing writes
+  "travel over". Not the legacy `travelMode` boolean (pace = 0, no writer).
+- **Eyeballed meal** — A log row sized by eye, `estimateQuality: 'eyeballed'`
+  (travel mode). A quality, not a `source`. Added 2026-10-26.
+- **Re-entry session** — A session after time away (`reentry: 'travel' |
+  'post-travel'`): loads −10 %, RIR 2, never read by the engine (ADR-0048).
+  Not a deload (that halves volume); "not comparable" is a separate switch
+  for another gym's equipment.
 - **Day fully logged?** — The Today row that answers whether a day is a
   **Complete day** (see Targets + derivations); stored per day in
   `dailyLogged`. Unlike Evening hunger it is NOT display-only: it is an input

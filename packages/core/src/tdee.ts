@@ -1,6 +1,16 @@
 import type { GoalDirection } from './macro-heuristic';
 import type { ActivityLevel, DailyLog, ProfileFields } from './types';
-import { MIDNIGHT, dayKeyAt, type DayBoundary } from './day-boundary';
+import { MIDNIGHT, dayKeyAt, dayRange, type DayBoundary } from './day-boundary';
+import {
+  TRAVEL_REBUILD_DAYS,
+  dayBefore,
+  governingTravel,
+  isTravelDay,
+  travelPeriodsOf,
+  withoutTravelLogs,
+  withoutTravelWeights,
+  type TravelHold,
+} from './travel';
 import { parseYmd, type DateKey } from './date';
 import { isCompleteDay, type DayCompleteMap } from './complete-day';
 
@@ -34,6 +44,9 @@ export interface TdeeBase {
   trueTdee: number;
   newDailyTarget: number;
   weightChangeTrend: number;
+  /** Present when a trip holds the estimate (`travel.ts`): the value is the
+   *  estimate as of the trip's start, not the live fit. */
+  travelHold?: TravelHold;
 }
 
 /**
@@ -1419,6 +1432,71 @@ export function partitionCompleteDays(
 }
 
 /**
+ * The maintenance estimate, travel-aware (2026-10-26, `travel.ts`).
+ *
+ * With no travel periods on the profile this IS {@link calculateTdeeLive} —
+ * byte-identical, the same call. With periods:
+ *
+ * - Travel days' intake, weigh-ins and "fully logged" answers never reach the
+ *   fit, before or after the trip.
+ * - Inside a trip the result is the estimate as of the trip's FIRST day (so the
+ *   last day home counts in full), computed over the trips before it, and
+ *   carries `travelHold: { state: 'frozen' }`.
+ * - After a trip, the same frozen value holds — `travelHold.state ===
+ *   'rebuilding'` — until {@link TRAVEL_REBUILD_DAYS} complete post-travel days
+ *   are finished; then the live fit over non-travel days returns, unflagged.
+ *
+ * Only the latest trip that has started governs; an older trip only removes
+ * its days. A trip that has not started changes nothing.
+ */
+export function calculateTdee(
+  logs: DailyLog[],
+  profile?: ProfileFields | null,
+  boundary: DayBoundary = MIDNIGHT,
+  now: Date = new Date(),
+  dailyWeights?: Record<string, number>,
+  dayComplete?: DayCompleteMap,
+): TdeeResult {
+  const periods = travelPeriodsOf(profile);
+  const today = dayKeyAt(now, boundary);
+  const trip = governingTravel(today, periods);
+  // No trip has started (none on file, or only future ones): nothing changes.
+  if (!trip) return calculateTdeeLive(logs, profile, boundary, now, dailyWeights, dayComplete);
+  const homeLogs = withoutTravelLogs(logs ?? [], periods, boundary);
+  const homeWeights = dailyWeights ? withoutTravelWeights(dailyWeights, periods) : dailyWeights;
+  const homeComplete = dayComplete
+    ? (Object.fromEntries(Object.entries(dayComplete).filter(([k]) => !isTravelDay(k, periods))) as DayCompleteMap)
+    : dayComplete;
+  const live = () => calculateTdeeLive(homeLogs, profile, boundary, now, homeWeights, homeComplete);
+  // The estimate as of the trip's first day, over the trips BEFORE it: the
+  // first instant of `trip.start` is "now", so `trip.start` is the day in
+  // progress (its intake zeroed, `withoutInProgressIntake`) and the last day
+  // home is finished and counts.
+  const frozen = (): TdeeResult => {
+    const before = periods.filter((p) => p.end < trip.start);
+    return calculateTdee(
+      logs,
+      { ...(profile ?? {}), travelPeriods: before } as ProfileFields,
+      boundary,
+      dayRange(trip.start as DateKey, boundary).start,
+      dailyWeights,
+      dayComplete,
+    );
+  };
+  const base = { start: trip.start, end: trip.end, frozenAsOf: dayBefore(trip.start), ...(trip.label ? { label: trip.label } : {}) };
+  if (today <= trip.end) return { ...frozen(), travelHold: { state: 'frozen', ...base } };
+  // Home: count FINISHED complete days after the trip. The day in progress is
+  // not judged (ADR-0047), so it does not count toward the rebuild either.
+  const finishedAfter = aggregateByDay(homeLogs, boundary).filter((l) => {
+    const k = dayKeyAt(l.date, boundary);
+    return k > trip.end && k < today;
+  });
+  const valid = finishedAfter.filter((l) => isCompleteDay(l.calories, homeComplete?.[dayKeyAt(l.date, boundary)])).length;
+  if (valid >= TRAVEL_REBUILD_DAYS) return live();
+  return { ...frozen(), travelHold: { state: 'rebuilding', ...base, valid, needed: TRAVEL_REBUILD_DAYS } };
+}
+
+/**
  * The weigh-ins of the days the complete-day rule left out, as weight-only
  * rows. The SCALE reading on such a day is a complete observation — only its
  * intake is in doubt — so it is treated exactly like a weigh-in on a day with
@@ -1445,7 +1523,8 @@ function excludedDayWeighIns(
   return rows;
 }
 
-export function calculateTdee(
+/** The live fit — {@link calculateTdee} without travel handling. */
+function calculateTdeeLive(
   logs: DailyLog[],
   profile?: ProfileFields | null,
   boundary: DayBoundary = MIDNIGHT,

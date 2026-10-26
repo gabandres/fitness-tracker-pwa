@@ -75,7 +75,8 @@ service cloud.firestore {
     // ─── Log schema ─────────────────────────────────────────────
     // Required: calories, timestamp
     // Optional: weight, protein, carbs, fat, exerciseCompleted, mealLabel,
-    //           mealType, source, note, grams, createdAt
+    //           mealType, source, note, grams, createdAt, estimateQuality,
+    //           proteinFirst
     // Legacy (read-only, may exist on historic docs): liftCompleted, cardioCompleted
     function isValidLog(data) {
       return data.keys().hasAll(['calories', 'timestamp'])
@@ -83,7 +84,9 @@ service cloud.firestore {
               'weight', 'calories', 'timestamp',
               'protein', 'carbs', 'fat', 'exerciseCompleted',
               'liftCompleted', 'cardioCompleted',
-              'mealLabel', 'mealType', 'source', 'note', 'grams', 'createdAt'
+              'mealLabel', 'mealType', 'source', 'note', 'grams', 'createdAt',
+              // Travel mode (2026-10-26): an eyeballed meal.
+              'estimateQuality', 'proteinFirst'
           ])
           && (!('weight' in data.keys()) ||
               (data.weight is number && data.weight > 0 && data.weight < 1000))
@@ -125,7 +128,12 @@ service cloud.firestore {
               (data.grams is number && data.grams > 0 && data.grams <= 5000))
           // Creation instant, the same-minute ordering tie-break
           // (`compareLogsOldestFirst`). Client clock, so only typed.
-          && (!('createdAt' in data.keys()) || data.createdAt is timestamp);
+          && (!('createdAt' in data.keys()) || data.createdAt is timestamp)
+          // How trustworthy the numbers are (`EstimateQuality`): a travel-mode
+          // meal sized by eye. Enumerated like `source`.
+          && (!('estimateQuality' in data.keys()) || data.estimateQuality in ['eyeballed'])
+          // Only ever literal true (the serializer drops false).
+          && (!('proteinFirst' in data.keys()) || data.proteinFirst == true);
     }
 
     // ─── Profile schema ─────────────────────────────────────────
@@ -610,7 +618,11 @@ service cloud.firestore {
               'dismissedSourceIds',
               // A deload session (Program v2.1, 2026-10-15; core deload.ts):
               // the progression engine never reads one.
-              'deload'
+              'deload',
+              // Travel mode (2026-10-26; core reentry.ts): a re-entry session
+              // (−10 %, RIR 2) and another gym's equipment. Neither is read
+              // by the engine; a not-comparable one is out of e1RM/PRs too.
+              'reentry', 'notComparable'
           ])
           && data.keys().hasAll(['status', 'timestamp', 'exercises', 'createdAt', 'updatedAt'])
           && (data.status == 'active' || data.status == 'completed')
@@ -633,6 +645,8 @@ service cloud.firestore {
           && (!('dismissedSourceIds' in data.keys()) ||
               (data.dismissedSourceIds is list && data.dismissedSourceIds.size() <= 50))
           && (!('deload' in data.keys()) || data.deload is bool)
+          && (!('reentry' in data.keys()) || data.reentry in ['travel', 'post-travel'])
+          && (!('notComparable' in data.keys()) || data.notComparable is bool)
           && (!('nextNotes' in data.keys()) ||
               (data.nextNotes is string && data.nextNotes.size() <= 2000));
     }
@@ -742,7 +756,11 @@ service cloud.firestore {
               // Program v2.1 (2026-10-15): dumbbells step 2.5 lb unless this
               // is false; when an accepted deload week started (core
               // deload.ts). Absent means 2.5-lb steps / no deload.
-              'dumbbellHalfSteps', 'deloadStartedAt'
+              'dumbbellHalfSteps', 'deloadStartedAt',
+              // Travel mode (2026-10-26; core travel.ts): every trip, kept so
+              // a past trip's days stay out of the maintenance fit. Settings
+              // writes it, a completed-profile screen only.
+              'travelPeriods'
           ])
           && hasProfileBase(data)
           && data.profileCompleted == true
@@ -874,6 +892,11 @@ service cloud.firestore {
               data.autoApplyProgression is bool)
           && (!('dumbbellHalfSteps' in keys) || data.dumbbellHalfSteps is bool)
           && (!('deloadStartedAt' in keys) || data.deloadStartedAt is timestamp)
+          // Rules cannot loop over a list, so — as with `dayBoundary` — this
+          // is a capped list of maps and `travelPeriodsOf` (packages/core)
+          // drops any entry that is not a well-formed {start, end} on read.
+          && (!('travelPeriods' in keys) ||
+              (data.travelPeriods is list && data.travelPeriods.size() <= 24))
           // Body weight in lb, the weigh-in sanity band widened to a gate
           // somebody could actually set.
           && (!('volumeGateLb' in keys) ||
@@ -1040,10 +1063,16 @@ service cloud.firestore {
         allow write:  if isVerifiedOwner(uid)
             && isPlausibleWeighInDateKey(dateKey)
             && request.resource.data.keys().hasAll(['weight'])
-            && request.resource.data.keys().hasOnly(['weight'])
+            // `note` (2026-10-26): a travel-day weigh-in says it came from a
+            // travel scale and is not comparable (core TRAVEL_SCALE_NOTE).
+            && request.resource.data.keys().hasOnly(['weight', 'note'])
             && request.resource.data.weight is number
             && request.resource.data.weight > 0
-            && request.resource.data.weight < 1000;
+            && request.resource.data.weight < 1000
+            && (!('note' in request.resource.data.keys()) ||
+                (request.resource.data.note is string
+                 && request.resource.data.note.size() > 0
+                 && request.resource.data.note.size() <= 100));
       }
 
       // Daily water intake — one doc per calendar day keyed by date.

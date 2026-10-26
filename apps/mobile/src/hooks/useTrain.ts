@@ -65,6 +65,13 @@ import {
   canUndoMove,
   undoMoveRows,
   sessionCall,
+  recommendOptionsFor,
+  activeTravel,
+  dayKeyAt,
+  reentryFor,
+  reentrySessionExercises,
+  travelPeriodsOf,
+  isTravelTemplate,
   type SwapPlan,
   type TemplateDraftDoc,
 } from '@macrolog/core';
@@ -555,6 +562,8 @@ export function useTrain(): TrainState {
         // A removed imported block's id (2026-10-15) — without it the next
         // Health import re-adds the block the user just took out.
         ...(session.dismissedSourceIds !== undefined ? { dismissedSourceIds: session.dismissedSourceIds } : {}),
+        // Travel mode: the lifter's "not comparable" switch (false clears it).
+        ...(session.notComparable !== undefined ? { notComparable: session.notComparable } : {}),
       };
       const write = async () => {
         try {
@@ -890,17 +899,39 @@ export function useTrain(): TrainState {
       });
       // Program v2: the version this template runs as, frozen on the session.
       const templateVersion = templateVersionFor(template.id, draftsRef.current);
+      // Travel mode (core `reentry.ts`): a gym session during a trip after a
+      // week without one, or a template's first session after the trip, is a
+      // re-entry — loads −10 % on a real step, RIR 2, never read by the engine.
+      // A gym session during a trip is another gym's equipment, "not
+      // comparable" by default (the lifter can switch it off in the session).
+      const periods = travelPeriodsOf(profile);
+      const boundary = dayBoundaryOf(profile);
+      const today = dayKeyAt(new Date(), boundary);
+      const travelIds = new Set(templates.flatMap((tp) => (tp.id && isTravelTemplate(tp) ? [tp.id] : [])));
+      const reentry = reentryFor({
+        templateId: template.id, today, sessions: completed, periods, travelTemplateIds: travelIds,
+        templateCreatedAt: template.createdAt, boundary,
+      });
+      const awayGym = !isTravelTemplate(template) && activeTravel(today, periods) != null;
+      const stepFor = (exerciseId: string) => {
+        const row = template.exercises.find((e) => e.exerciseId === exerciseId) ?? null;
+        const cat = engineCatalog.find((e) => e.id === exerciseId) ?? null;
+        const { config } = recommendOptionsFor(row, cat);
+        return { loadSteps: config?.loadSteps, stepLb: config?.stepLb ?? 5, loadGrid: config?.loadGrid, assisted: cat?.assisted === true };
+      };
       begin({
         status: 'active',
         date: new Date(),
         templateId: template.id,
         templateName: template.name,
-        exercises,
+        exercises: reentry ? reentrySessionExercises(exercises, stepFor) : exercises,
         cardio: templateToSessionCardio(template),
         ...(templateVersion ? { templateVersion } : {}),
+        ...(reentry ? { reentry } : {}),
+        ...(awayGym ? { notComparable: true } : {}),
       });
     },
-    [uid, begin, recentSessions, engineCatalog, deload],
+    [uid, begin, recentSessions, engineCatalog, deload, profile, templates],
   );
 
   /**

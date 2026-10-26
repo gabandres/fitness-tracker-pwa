@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, Platform, ScrollView, Text, View, useWindowDimensions } from 'react-native';
+import { AppState, Platform, ScrollView, Switch, Text, View, useWindowDimensions } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useReducedMotion } from 'react-native-reanimated';
 import { Touchable } from './Touchable';
@@ -24,6 +24,7 @@ import {
   sessionVolume,
   setRowLabels,
   structureOf,
+  REENTRY_RIR,
   type RestKind,
 } from '@macrolog/core';
 import type { TrainState } from '@/hooks/useTrain';
@@ -1534,6 +1535,33 @@ export function ActiveSession({
             </View>
           ) : null}
 
+          {/* Travel mode (core `reentry.ts`): a re-entry session says what it
+              asks for, and a gym away from home can be kept out of e1RM,
+              PRs and progression — ON by default during a trip. */}
+          {session.reentry ? (
+            <View style={styles.syncRow} testID="session-reentry">
+              <Ionicons name="airplane-outline" size={16} color={colors.muted} />
+              <Text style={[styles.sheetHint, { flex: 1 }]}>
+                {t(session.reentry === 'travel' ? 'train.reentry.travelNote' : 'train.reentry.postTravelNote', { rir: REENTRY_RIR })}
+              </Text>
+            </View>
+          ) : null}
+          {session.notComparable !== undefined ? (
+            <View style={styles.syncRow} testID="session-not-comparable">
+              <View style={{ flex: 1 }}>
+                <Text style={styles.sheetHint}>{t('train.notComparable.label')}</Text>
+                <Text style={[styles.sheetHint, { color: colors.faint }]}>{t('train.notComparable.hint')}</Text>
+              </View>
+              <Switch
+                value={session.notComparable === true}
+                onValueChange={(v) => void dispatch({ type: 'setNotComparable', value: v })}
+                trackColor={{ true: colors.tealSolid, false: colors.lineStrong }}
+                accessibilityLabel={t('train.notComparable.label')}
+                testID="session-not-comparable-switch"
+              />
+            </View>
+          ) : null}
+
           {session.exercises.length === 0 && (session.cardio ?? []).length === 0 ? (
             <Text style={styles.empty}>{t('train.addFirst')}</Text>
           ) : null}
@@ -1564,6 +1592,7 @@ export function ActiveSession({
             <ExerciseCard
               exercise={ex}
               deload={session.deload === true}
+              reentry={session.reentry}
               supersetTag={sessionTags[exIdx]}
               supersetPartners={group ? (supersetGroups(session.exercises).get(group) ?? []).filter((m) => m.index !== exIdx).map((m) => session.exercises[m.index].name).join(', ') : undefined}
               upNext={rest.endsAt != null && restTarget === exIdx}

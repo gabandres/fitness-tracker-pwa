@@ -40,6 +40,7 @@ jest.mock('@/lib/firebase', () => ({ auth: {}, functions: {} }));
 jest.mock('@/lib/ledger', () => ({
   ensureProfile: jest.fn(() => Promise.resolve()),
   subscribeProfile: jest.fn(() => () => {}),
+  setTravelPeriodsForWrites: jest.fn(),
 }));
 jest.mock('@/lib/appleSignin', () => ({ registerAppleRefreshToken: jest.fn() }));
 jest.mock('@/lib/sentry', () => ({ addBreadcrumb: jest.fn(), captureError: jest.fn(), setSentryUser: jest.fn() }));

@@ -36,6 +36,7 @@ import type {
 } from './workout';
 import {
   honourLifterLoad,
+  ladderCall,
   nextLoad,
   recommend,
   recommendOptionsFor,
@@ -691,7 +692,9 @@ export function sessionCall(
   };
   const basedOn = readFrom();
   const opts = recommendOptionsFor(row, catalogExercise ?? null);
-  const rec = honourLifterLoad(recommend(history, opts), row, basedOn);
+  const engineRec = honourLifterLoad(recommend(history, opts), row, basedOn);
+  // A no-equipment lift at its cap gets the ladder, not a load step.
+  const rec = (row.ladder && ladderCall(row.ladder, history, engineRec)) || engineRec;
   const sideList = sidesOf(row);
   if (sideList.length < 2) return { rec, ...(basedOn ? { basedOn } : {}), history };
   const sides: Partial<Record<Side, { rec: Recommendation; basedOn?: Date }>> = {};

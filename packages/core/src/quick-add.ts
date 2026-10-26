@@ -35,7 +35,7 @@
  */
 
 import { cleanLogGrams } from './firestore-writers';
-import { LOG_NOTE_MAX, MEAL_TYPES, cleanLogLabel, type LogEntry, type LogSource, type MealPreset, type MealType } from './types';
+import { LOG_NOTE_MAX, MEAL_TYPES, cleanLogLabel, type EstimateQuality, type LogEntry, type LogSource, type MealPreset, type MealType } from './types';
 
 /** How many quick-add slots a user can designate. Slot 1 is the one a blind
  *  single-tap surface (the Quick Settings tile) uses; the interactive widget
@@ -226,6 +226,11 @@ export interface PendingLog {
   weight?: number;
   exerciseCompleted?: boolean;
   createdAtMs?: number;
+  /** A travel-mode eyeballed meal (2026-10-26): it is most likely to be logged
+   *  with no signal, and the flush is a whole-doc `setDoc`, so a queue that
+   *  dropped these would land it as an ordinary measured row. */
+  estimateQuality?: EstimateQuality;
+  proteinFirst?: boolean;
   /** Tap time, epoch ms. Becomes the log's timestamp on flush. */
   atMs: number;
 }
@@ -252,6 +257,8 @@ export function buildPendingLog(id: string, uid: string, entry: LogEntry, atMs: 
     ...(entry.createdAt instanceof Date && Number.isFinite(entry.createdAt.getTime())
       ? { createdAtMs: entry.createdAt.getTime() }
       : {}),
+    ...(entry.estimateQuality === 'eyeballed' ? { estimateQuality: entry.estimateQuality } : {}),
+    ...(entry.proteinFirst ? { proteinFirst: true } : {}),
     atMs: Number.isFinite(at) ? Math.round(at) : atMs,
   };
 }
@@ -276,6 +283,8 @@ export function pendingLogEntry(p: PendingLog): LogEntry {
     ...(p.weight != null ? { weight: p.weight } : {}),
     ...(p.exerciseCompleted != null ? { exerciseCompleted: p.exerciseCompleted } : {}),
     ...(p.createdAtMs != null ? { createdAt: new Date(p.createdAtMs) } : {}),
+    ...(p.estimateQuality === 'eyeballed' ? { estimateQuality: 'eyeballed' as const } : {}),
+    ...(p.proteinFirst === true ? { proteinFirst: true } : {}),
     timestamp: new Date(p.atMs),
   };
 }

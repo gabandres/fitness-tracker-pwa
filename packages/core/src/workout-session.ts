@@ -58,7 +58,11 @@ export type SessionAction =
   | { type: 'addCardio'; modality: CardioModality }
   /** Patch one block's fields, by index into `session.cardio`. */
   | { type: 'patchCardio'; blockIndex: number; patch: Partial<CardioBlock> }
-  | { type: 'removeCardio'; blockIndex: number };
+  | { type: 'removeCardio'; blockIndex: number }
+  // ── Travel mode (2026-10-26) ──
+  /** "Different equipment — not comparable": out of the engine's reads and
+   *  out of e1RM / PRs (`WorkoutSession.notComparable`). */
+  | { type: 'setNotComparable'; value: boolean };
 
 /** One empty working set — the row every "add set" produces. */
 export function newWorkoutSet(kind: SetKind = 'working'): WorkoutSet {
@@ -132,6 +136,10 @@ export function applySessionAction(
   action: SessionAction,
 ): WorkoutSession {
   switch (action.type) {
+    case 'setNotComparable':
+      if ((session.notComparable === true) === action.value) return session;
+      return { ...session, notComparable: action.value };
+
     case 'addExercise':
       return { ...session, exercises: [...session.exercises, action.exercise] };
 

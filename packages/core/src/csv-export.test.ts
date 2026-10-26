@@ -538,6 +538,8 @@ describe('buildCsv — Program v2 columns (test 10)', () => {
     'rirTarget',
     // 2026-10-24: the "Day fully logged?" answer ('dayLogged' rows).
     'dayFullyLogged',
+    // 2026-10-26 (travel mode): eyeballed meals and re-entry / not-comparable sessions.
+    'estimateQuality', 'proteinFirst', 'sessionFlags',
   ];
   const csv = buildCsv(HISTORICAL);
   const lines = csv.split('\r\n');

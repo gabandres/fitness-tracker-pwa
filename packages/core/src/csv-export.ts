@@ -19,6 +19,8 @@ import type { MuscleGroup } from './workout';
 import { compareLogsOldestFirst } from './firestore-mappers';
 import { epleyE1rm, targetRirOf } from './progression-engine';
 import { DELOAD_RIR } from './deload';
+import { REENTRY_RIR } from './reentry';
+import { isTravelDay, travelPeriodsOf, TRAVEL_SCALE_NOTE } from './travel';
 
 const COLS = [
   'type', 'date', 'timestamp',
@@ -105,6 +107,13 @@ const COLS = [
   // 'dayLogged' rows: the user's "Day fully logged?" answer for the date,
   // 'true' / 'false' (`complete-day.ts`). An unanswered day has no row.
   'dayFullyLogged',
+  // ── Travel mode (2026-10-26), appended for the same reason ──
+  // 'meal' rows: 'eyeballed' on a meal sized by eye (`EstimateQuality`), and
+  // 'true' on one built protein-first. 'workout' rows: 'reentry:travel' /
+  // 'reentry:post-travel' and 'notComparable' (`reentry.ts`), ';'-joined.
+  // A 'travel' row per trip; a travel-day 'weight' row's notes say it is a
+  // travel scale and out of the trend.
+  'estimateQuality', 'proteinFirst', 'sessionFlags',
 ] as const;
 type Col = typeof COLS[number];
 
@@ -182,6 +191,9 @@ export interface ExportData {
   /** Catalog muscles by exercise id, for `weeklyVolume` rows. Absent → the
    *  credit table alone decides (exercises it does not know are left out). */
   catalogMuscles?: readonly { id?: string; muscles: readonly MuscleGroup[] }[];
+  /** The profile's `travelPeriods`, for `travel` rows and the travel-scale
+   *  note on weigh-ins inside a trip. */
+  travelPeriods?: unknown;
 }
 
 /**
@@ -225,12 +237,30 @@ export function buildCsv(data: ExportData, boundary: DayBoundary = MIDNIGHT): st
       mealType: l.mealType,
       // The cardio rows' column; a meal's note is the same kind of free text.
       notes: l.note,
+      estimateQuality: l.estimateQuality,
+      proteinFirst: l.proteinFirst ? 'true' : '',
+    }));
+  }
+
+  const trips = travelPeriodsOf({ travelPeriods: data.travelPeriods });
+  for (const p of trips) {
+    rows.push(row({
+      type: 'travel',
+      date: p.start,
+      notes: [
+        `${p.label ?? 'Travel'}: ${p.start} → ${p.end}`,
+        p.altitude ? `${p.altitude.place} ${p.altitude.meters} m from ${p.altitude.arrival}` : '',
+        p.usualSteps ? `usual steps ${p.usualSteps}` : '',
+      ].filter(Boolean).join('; '),
     }));
   }
 
   const weightKeys = Object.keys(data.dailyWeights).sort();
   for (const date of weightKeys) {
-    rows.push(row({ type: 'weight', date, weight: data.dailyWeights[date] }));
+    rows.push(row({
+      type: 'weight', date, weight: data.dailyWeights[date],
+      notes: isTravelDay(date, trips) ? TRAVEL_SCALE_NOTE : undefined,
+    }));
   }
 
   // dailyWater is already in US fluid ounces (the stored unit).
@@ -290,6 +320,7 @@ export function buildCsv(data: ExportData, boundary: DayBoundary = MIDNIGHT): st
       durationMin: s.durationMin,
       sleepHours: s.sleepHours,
       templateVersion: s.templateVersion,
+      sessionFlags: [s.reentry ? `reentry:${s.reentry}` : '', s.notComparable ? 'notComparable' : ''].filter(Boolean).join(';'),
     }));
     for (const ex of s.exercises) {
       // Drop unfilled scaffold rows (no rep/duration count — phantom clusters
@@ -325,7 +356,7 @@ export function buildCsv(data: ExportData, boundary: DayBoundary = MIDNIGHT): st
           transitionSec: ex.supersetGroup ? ex.transitionRestSec : undefined,
           notes: set.kind === 'activation' ? loadNotes.get(set.group ?? 1) : undefined,
           rirTarget: set.kind === 'activation' || set.kind === 'working'
-            ? (s.deload ? DELOAD_RIR : targetRirOf(data.effortStandards?.[ex.exerciseId]))
+            ? (s.deload ? DELOAD_RIR : s.reentry ? REENTRY_RIR : targetRirOf(data.effortStandards?.[ex.exerciseId]))
             : undefined,
         }));
       }

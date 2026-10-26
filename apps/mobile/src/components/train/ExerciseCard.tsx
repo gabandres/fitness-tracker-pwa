@@ -22,6 +22,7 @@ import {
   suggestProgression,
   toDisplayLoad,
   targetRirOf,
+  REENTRY_RIR,
 } from '@macrolog/core';
 import {
   DEFAULT_LOG_STYLE,
@@ -84,6 +85,9 @@ export interface ExerciseCardProps {
   /** A deload session (Program v2.1): no engine call, no bump — the
    *  template's loads at RIR 3 — and a line that says so. */
   deload?: boolean;
+  /** A re-entry session (travel mode, core `reentry.ts`): like a deload, no
+   *  engine call and no bump — loads −10 % at RIR 2 — and a line that says so. */
+  reentry?: 'travel' | 'post-travel';
   platesOpen: boolean;
   largeText: boolean;
   dispatch: TrainState['dispatch'];
@@ -127,6 +131,7 @@ export const ExerciseCard = memo(function ExerciseCard({
   sleepHours,
   restMiniSec,
   deload = false,
+  reentry,
   platesOpen,
   largeText,
   dispatch,
@@ -192,6 +197,8 @@ export const ExerciseCard = memo(function ExerciseCard({
     [recentSessions, catalog, ex, templateRow],
   );
   const engineHasCall = rec.action !== 'none';
+  // A deload or a re-entry session: nothing here is read, so nothing prompts.
+  const quiet = deload || reentry != null;
   const catalogEx = catalog.find((e) => e.id === ex.exerciseId) ?? null;
   // The mid-session calibration prompt (S-v2, 2026-10-24; core
   // `calibrationRaise`): the first session of a new straight row, set 1 three
@@ -199,8 +206,8 @@ export const ExerciseCard = memo(function ExerciseCard({
   // rest of today's sets. Never in a deload week. "Not now" holds for this
   // card; a later set 1 value does not bring it back.
   const calib = useMemo(
-    () => (deload ? null : calibrationRaiseFor({ recentSessions, catalog }, ex.exerciseId, templateRow, ex)),
-    [deload, recentSessions, catalog, ex, templateRow],
+    () => (quiet ? null : calibrationRaiseFor({ recentSessions, catalog }, ex.exerciseId, templateRow, ex)),
+    [quiet, recentSessions, catalog, ex, templateRow],
   );
   const [calibDismissed, setCalibDismissed] = useState(false);
   // Last session's sets, positionally — row 3 compares against row 3. This is
@@ -216,20 +223,20 @@ export const ExerciseCard = memo(function ExerciseCard({
   // The structure as the engine resolves it: the row, the catalog, then (ad
   // hoc) the sets themselves.
   const structure = structureOf(templateRow ?? undefined, catalogEx ?? undefined, templateRow ? undefined : ex.sets);
-  const rirRequiredAt = deload ? null : lastSetRirRequired(ex, { structure, effortStandard: catalogEx?.effortStandard });
+  const rirRequiredAt = quiet ? null : lastSetRirRequired(ex, { structure, effortStandard: catalogEx?.effortStandard });
   // …and such a lift always shows the column, so the value it asks for is on
   // the row it belongs to.
   const rirColumn = rirRequiredAt != null || liftUsesRir(ex.sets, prevSets, templateRow?.setStructure ?? catalogEx?.setStructure);
   // The RIR-compliance hint's target (Program v2.2): none in a deload week,
   // where every lift is taken to RIR 3 on purpose.
-  const targetRir = deload ? 0 : targetRirOf(catalogEx?.effortStandard);
+  const targetRir = deload ? 0 : reentry ? REENTRY_RIR : targetRirOf(catalogEx?.effortStandard);
   // Same reps on every set, no RIR, two sessions running (S-v2, 2026-10-24;
   // core `flatRepsWarning`): asked at the top of the card, with the lift's own
   // target. Gone once today's sets carry an RIR — the question was answered —
   // and never in a deload week.
   const flat = useMemo(
-    () => (deload ? null : flatRepsWarning(recentSessions, ex.exerciseId, structure)),
-    [deload, recentSessions, ex.exerciseId, structure],
+    () => (quiet ? null : flatRepsWarning(recentSessions, ex.exerciseId, structure)),
+    [quiet, recentSessions, ex.exerciseId, structure],
   );
   const flatWarning = flat && !ex.sets.some((s) => s.kind === 'working' && s.rir != null) ? flat : null;
   // When core withheld a recommendation because the last activation was
@@ -413,6 +420,13 @@ export const ExerciseCard = memo(function ExerciseCard({
             <View style={styles.blockedRow} testID={`deload-note-${exerciseIndex}`}>
               <Ionicons name="information-circle-outline" size={16} color={colors.muted} />
               <Text style={styles.blockedText}>{t('train.deload.sessionNote')}</Text>
+            </View>
+          ) : reentry ? (
+            <View style={styles.blockedRow} testID={`reentry-note-${exerciseIndex}`}>
+              <Ionicons name="information-circle-outline" size={16} color={colors.muted} />
+              <Text style={styles.blockedText}>
+                {t(reentry === 'travel' ? 'train.reentry.travelNote' : 'train.reentry.postTravelNote', { rir: REENTRY_RIR })}
+              </Text>
             </View>
           ) : sideRecs ? (
             <View style={{ gap: space.xs }} testID={`side-recommendations-${exerciseIndex}`}>

@@ -304,6 +304,15 @@ export interface WorkoutSession {
    *  same loads, RIR 3. The progression engine never reads one. Set at start,
    *  never changed. */
   deload?: boolean;
+  /** A re-entry session (travel mode, `reentry.ts`): loads −10 %, RIR 2, after
+   *  time away. Like a deload the engine never reads it, so the session after
+   *  it reads the pre-trip history and a lower day is never a regression. Set
+   *  at start, never changed. */
+  reentry?: 'travel' | 'post-travel';
+  /** "Different equipment — not comparable" (travel mode, 2026-10-26): a gym
+   *  away from home. Out of the engine's reads AND out of e1RM charts and PRs
+   *  (`exerciseHistory`, `bestE1RMByExercise`). The lifter can switch it. */
+  notComparable?: boolean;
   /** "Next session notes" carried forward to the next session of the template. */
   nextNotes?: string;
   createdAt: Date;
@@ -593,6 +602,15 @@ export interface TemplateExercise {
   /** Per-side loads on an L/R lift, pounds — each side is its own progression
    *  track (`side-tracks.ts`). A side absent here uses `targetLoad`. */
   sideLoads?: Partial<Record<Side, number>>;
+  /**
+   * A no-equipment lift's "make it harder" ladder (travel templates,
+   * 2026-10-26): once any working set reaches `capReps` (20, or 15 per leg),
+   * the next session gets harder in a fixed order — (1) a 3 s lowering and a
+   * 1 s pause, (2) backpack load, (3) `harder`, the next variation. The call
+   * replaces the engine's load step for this row (`ladderCall`). Absent on
+   * every other row.
+   */
+  ladder?: { capReps: number; harder?: string };
 }
 
 export interface WorkoutTemplate {

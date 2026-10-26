@@ -153,6 +153,21 @@ export interface MaintenanceNotes {
  */
 export function maintenanceNotes(m: MaintenanceView, t: TFn): MaintenanceNotes | null {
   const notes: { short: string; testID: string; full: string }[] = [];
+  // A trip holds the number (travel mode, core `travel.ts`): said first,
+  // because it is WHY the number is not moving.
+  if (m.travelHold?.state === 'frozen') {
+    notes.push({
+      testID: 'maintenance-travel',
+      short: t('today.maintenanceShortTravel'),
+      full: t('today.maintenanceTravelFrozen', { date: m.travelHold.frozenAsOf }),
+    });
+  } else if (m.travelHold?.state === 'rebuilding') {
+    notes.push({
+      testID: 'maintenance-travel',
+      short: t('today.maintenanceShortRebuilding', { valid: m.travelHold.valid, needed: m.travelHold.needed }),
+      full: t('today.maintenanceTravelRebuilding', { valid: m.travelHold.valid, needed: m.travelHold.needed }),
+    });
+  }
   if (m.holding) {
     notes.push({ testID: 'maintenance-holding', short: t('today.maintenanceShortHolding'), full: t('today.maintenanceHolding') });
   } else if (!m.reliable && m.loggedDays != null && m.spanDays != null) {

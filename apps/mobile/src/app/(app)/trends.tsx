@@ -40,6 +40,7 @@ import { FastingTrendsCard } from '@/components/FastingTrendsCard';
 import { WaterTrendsCard } from '@/components/WaterTrendsCard';
 import { HungerTrendsCard } from '@/components/HungerTrendsCard';
 import { Zone2TrendsCard } from '@/components/Zone2TrendsCard';
+import { TravelMaintenanceCard } from '@/components/TravelMaintenanceCard';
 import { WeeklyReportCard } from '@/components/WeeklyReportCard';
 import { ContextMenu, CONTEXT_MENUS } from '@/components/ContextMenu';
 import { Glyph } from '@/components/charts/Glyph';
@@ -173,7 +174,7 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
     loading, error, insights, loggedThisWeek, proteinTarget, tdee, targetCalories, budget, basalKcal,
     activityLevel, sleep, fasting, water, composition, chartKeys, weightSeries, intakeSeries,
     proteinSeries, carbsSeries, fatSeries, todayKey, historyClip, insightWindow, streak, settledKey,
-    expenditure, historyDays, milestones, progress, zone2, hunger,
+    expenditure, historyDays, milestones, progress, zone2, hunger, travelCheck,
   } = useTrends(requestedDays, { maxDays: cap, refreshKey });
   // A new account opened on "1M" and saw 27 blank days of a 30-day axis (sim
   // review 2026-10-06). Under a month of history every fixed range is mostly
@@ -443,6 +444,13 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
                 estimator already produced (sim review 2026-10-06: the hint
                 named the inputs and showed neither). Formula/seed keep the
                 one-line hint. */}
+            {tdee.travelHold ? (
+              <Text style={styles.heroSub} testID="tdee-travel-hold">
+                {tdee.travelHold.state === 'frozen'
+                  ? t('today.maintenanceTravelFrozen', { date: tdee.travelHold.frozenAsOf })
+                  : t('today.maintenanceTravelRebuilding', { valid: tdee.travelHold.valid, needed: tdee.travelHold.needed })}
+              </Text>
+            ) : null}
             {incomplete ? (
               <View testID="tdee-incomplete">
                 <Text style={styles.heroHint}>
@@ -784,6 +792,12 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
               against. Self-gates on a rated day; display only. */}
           <Animated.View entering={enterUp(6)}>
             <HungerTrendsCard week={hunger} targetKcal={targetCalories} />
+          </Animated.View>
+
+          {/* Travel mode: is the trip's training keeping what was built?
+              Self-gates to an active trip. */}
+          <Animated.View entering={enterUp(6)}>
+            <TravelMaintenanceCard data={travelCheck} />
           </Animated.View>
 
           {/* Zone 2 (Program v2.1): in band, n of the last 6. Self-gates. */}

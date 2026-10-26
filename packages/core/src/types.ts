@@ -9,6 +9,7 @@
  */
 import type { DayBoundary } from './day-boundary';
 import type { GoalDirection } from './macro-heuristic';
+import type { TravelPeriod } from './travel';
 
 /** Whether the daily targets come from the estimator or from numbers the user
  *  typed. See `Profile.targetMode` for why this is explicit rather than
@@ -52,6 +53,15 @@ export const MEAL_TYPES: readonly MealType[] = ['breakfast', 'lunch', 'dinner', 
  */
 export type LogSource = 'photo';
 
+/**
+ * How trustworthy a row's NUMBERS are, as opposed to where they came from
+ * ({@link LogSource}). `'eyeballed'` = sized by eye with no label, scale or
+ * database behind it — the travel-mode "Eyeballed meal" (2026-10-26). Absent
+ * on every other row, which means "as good as the source it came from", not
+ * "measured". Exported as the `estimateQuality` column.
+ */
+export type EstimateQuality = 'eyeballed';
+
 export interface DailyLog {
   id?: string;
   weight?: number;
@@ -82,6 +92,11 @@ export interface DailyLog {
    *  logged ({@link compareLogsOldestFirst}). Absent on rows older than
    *  2026-10-04 and on rows written by builds that predate it. */
   createdAt?: Date;
+  /** See {@link EstimateQuality}. Absent on every row not eyeballed. */
+  estimateQuality?: EstimateQuality;
+  /** An eyeballed meal the user built protein-first (the plate started from
+   *  its protein). A flag the user sets, kept for the export. */
+  proteinFirst?: boolean;
 }
 
 /** Longest note a log row may carry — `isValidLog` in firestore.rules says the same. */
@@ -131,6 +146,11 @@ export interface LogEntry {
    *  row returns to its old place among same-minute rows. New rows are
    *  stamped by the serializer. */
   createdAt?: Date;
+  /** See {@link DailyLog.estimateQuality}. Kept across an edit, like
+   *  `source`: the numbers were still sized by eye. */
+  estimateQuality?: EstimateQuality;
+  /** See {@link DailyLog.proteinFirst}. */
+  proteinFirst?: boolean;
 }
 
 // ─── Measurement types ──────────────────────────────────────────
@@ -372,6 +392,11 @@ export interface ProfileFields {
   targetPaceLbsPerWeek: CutPace;
   goalWeightLbs?: number;      // optional
   travelMode?: boolean;        // LEGACY, read-only: pace=0. No writer since 2026-08-11 — see ./targets.ts
+  /** Travel mode (2026-10-26): every trip, kept forever so a past trip's days
+   *  stay out of the maintenance fit. Read it with `travelPeriodsOf` — the
+   *  rules can only cap the list's length, so each entry is cleaned on read.
+   *  See ./travel. */
+  travelPeriods?: TravelPeriod[];
   /** Personal safety floor for the daily calorie target, in kcal. When set,
    *  overrides the hardcoded MIN_DAILY_TARGET (1500) in the TDEE clamp so a
    *  water-suppressed measured TDEE can never silently push the target below

@@ -34,6 +34,7 @@ import {
   cleanLogLabel,
   type BodyFatMethod,
   type CustomFood,
+  type EstimateQuality,
   type LogEntry,
   type LogSource,
   type MealPreset,
@@ -101,6 +102,12 @@ export interface LogDoc<TS> {
   note?: string;
   /** See {@link cleanLogGrams}. */
   grams?: number;
+  /** `'eyeballed'` on a travel-mode eyeballed meal (`EstimateQuality`). Like
+   *  `source`, a fact about how the row was made: {@link toLogPatch} names it
+   *  only when the edit passes it. */
+  estimateQuality?: EstimateQuality;
+  /** Only ever written as literal `true`. */
+  proteinFirst?: true;
   /** Creation instant — the same-minute tie-break. Every row this serializer
    *  creates carries it; {@link toLogPatch} never names it, so an edit keeps it. */
   createdAt: TS;
@@ -158,6 +165,8 @@ export function toLogDoc<TS>(
     ...(entry.source ? { source: entry.source } : {}),
     ...(note ? { note } : {}),
     ...(grams != null ? { grams } : {}),
+    ...(entry.estimateQuality ? { estimateQuality: entry.estimateQuality } : {}),
+    ...(entry.proteinFirst ? { proteinFirst: true as const } : {}),
   };
 }
 
@@ -192,6 +201,9 @@ export function toLogPatch<TS>(entry: LogEntry, codec: DocCodec<TS>): Record<str
     grams: cleanLogGrams(entry.grams) ?? codec.remove(),
   };
   if (entry.weight != null) patch['weight'] = entry.weight;
+  // Eyeballed-meal fields: kept unless the edit names them (see `source`).
+  if (entry.estimateQuality != null) patch['estimateQuality'] = entry.estimateQuality;
+  if (entry.proteinFirst != null) patch['proteinFirst'] = entry.proteinFirst ? true : codec.remove();
   if (entry.timestamp != null) patch['timestamp'] = codec.timestamp(entry.timestamp);
   return patch;
 }
@@ -628,6 +640,10 @@ export interface SessionDraftInput {
   templateVersion?: 'v1' | 'v2';
   /** A deload session (`deload.ts`) — set at start, `true` or absent. */
   deload?: boolean;
+  /** A re-entry session (`reentry.ts`) — set at start, never changed. */
+  reentry?: 'travel' | 'post-travel';
+  /** Another gym's equipment (travel mode) — the lifter can switch it. */
+  notComparable?: boolean;
   exercises?: SessionExercise[];
   /** Logged cardio (ADR-0025). Blocks carry a Date, so they are serialized
    *  through {@link cardioFields} rather than passed straight down. */
@@ -688,6 +704,8 @@ export function toSessionDoc<TS>(
       : {}),
     ...(draft.templateVersion !== undefined ? { templateVersion: draft.templateVersion } : {}),
     ...(draft.deload === true ? { deload: true } : {}),
+    ...(draft.reentry === 'travel' || draft.reentry === 'post-travel' ? { reentry: draft.reentry } : {}),
+    ...(draft.notComparable === true ? { notComparable: true } : {}),
     // Absent stays absent — a strength-only session must not gain an empty
     // array it never had, which would rewrite every session doc on next save.
     ...(draft.cardio !== undefined ? { cardio: cardioFields(draft.cardio, codec) } : {}),
@@ -716,6 +734,9 @@ export function toSessionPatch<TS>(
   if (patch.durationMin !== undefined && isStorableDurationMin(patch.durationMin)) data['durationMin'] = patch.durationMin;
   if (patch.templateVersion !== undefined) data['templateVersion'] = patch.templateVersion;
   if (patch.deload === true) data['deload'] = true;
+  if (patch.reentry === 'travel' || patch.reentry === 'post-travel') data['reentry'] = patch.reentry;
+  // A switch, so `false` must clear it.
+  if (patch.notComparable !== undefined) data['notComparable'] = patch.notComparable ? true : codec.remove();
   if (patch.exercises !== undefined) data['exercises'] = sanitizeSessionExercises(patch.exercises);
   // Like `exercises`, this is a whole-array overwrite rather than a merge:
   // Firestore unions arrays on merge, so a sparse patch would append blocks

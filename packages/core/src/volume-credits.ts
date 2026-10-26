@@ -59,6 +59,11 @@ const TABLE: readonly { test: RegExp; credits: readonly VolumeCredit[] }[] = [
   { test: /shoulder press|overhead press|military press|\bohp\b/, credits: [c('frontDelt'), c('sideDelt', 0.5), c('triceps', 0.5)] },
   { test: /overhead (db |dumbbell )?(triceps )?extension|oh extension|skull ?crusher|triceps? (pushdown|extension)/, credits: [c('triceps')] },
   { test: /\brdl\b|romanian/, credits: [c('hamstrings'), c('glutes', 0.5)] },
+  // Travel templates (2026-10-26): no-equipment moves the table had no word for.
+  { test: /glute bridge|hip thrust/, credits: [c('glutes')] },
+  { test: /\blunges?\b/, credits: [c('quads'), c('glutes', 0.5)] },
+  { test: /pull-?aparts?/, credits: [c('rearDelt')] },
+  { test: /\bpike\b/, credits: [c('frontDelt'), c('sideDelt', 0.5), c('triceps', 0.5)] },
   { test: /squat/, credits: [c('quads'), c('glutes', 0.5)] },
   { test: /pull-?ups?|chin-?ups?|pulldown/, credits: [c('back'), c('biceps', 0.5)] },
   { test: /\brows?\b/, credits: [c('back'), c('rearDelt', 0.5), c('biceps', 0.5)] },

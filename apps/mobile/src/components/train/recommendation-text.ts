@@ -238,6 +238,12 @@ export function reasonText(rec: Recommendation, unitSystem: UnitSystem, t: TFn):
     }
     case 'bodyweight-variation':
       return t('train.rec.reason.bodyweightVariation', { reps: r.reps, max: r.max });
+    // A no-equipment lift's ladder (travel templates, core `ladderCall`).
+    case 'harder-ladder':
+      if (r.next === 'tempo') return t('train.rec.reason.ladderTempo', { reps: r.reps, cap: r.cap });
+      return r.harder
+        ? t('train.rec.reason.ladderLoadThenVariation', { reps: r.reps, cap: r.cap, harder: r.harder })
+        : t('train.rec.reason.ladderLoad', { reps: r.reps, cap: r.cap });
     // A row's baseline marker (owner, 2026-10-09). `note` is the stored reason
     // ("position changed 10/9"), a record in the language it was written in.
     case 'baseline-pending':
@@ -350,7 +356,9 @@ export function recommendationText(
   // string AND the note never mounted. A refusal the user cannot see is
   // indistinguishable from a broken engine, so these reasons speak.
   if (rec.action === 'none' && !NON_MYOREPS_REASONS.has(rec.reason.kind)) return null;
-  const action = callLabel(rec, t);
+  // The ladder holds the load and changes the MOVE: "hold" would read as
+  // "do the same again", the opposite of the call.
+  const action = rec.reason.kind === 'harder-ladder' ? t('train.rec.action.harder') : callLabel(rec, t);
   // A bodyweight lift's "load" of 0 is no load, not "0 lb". Assisted 0 is
   // different — no assistance — and keeps its number.
   const load = rec.load != null && (rec.load !== 0 || rec.assisted) ? formatLoad(rec.load, unitSystem) : null;

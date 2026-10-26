@@ -626,7 +626,12 @@ export type RecommendReason =
   // ── a load the lifter set (`honourLifterLoad`) ──
   /** The lifter moved the template's load after the newest read: that load is
    *  the plan, and `engineLoad` is what the read alone would have said. */
-  | { kind: 'lifter-load'; load: number; engineLoad: number };
+  | { kind: 'lifter-load'; load: number; engineLoad: number }
+  // ── a no-equipment lift's ladder (`TemplateExercise.ladder`, travel) ──
+  /** A working set reached the row's rep cap: make it harder, in order —
+   *  `tempo` (3 s lowering + 1 s pause; then the backpack) on an unloaded
+   *  lift, `load` (more backpack; then `harder`) on a loaded one. */
+  | { kind: 'harder-ladder'; reps: number; cap: number; next: 'tempo' | 'load'; harder?: string };
 
 export type RecommendWarning =
   /** An activation (or a straight working set) was logged closer to failure
@@ -1625,4 +1630,43 @@ export function followedRecommendation(exercise: SessionExercise): boolean | nul
   const used = exercise.sets.find((s) => s.kind === 'activation' && s.weight != null)?.weight;
   if (used == null) return null;
   return Math.abs(used - rec.load) < 0.01;
+}
+
+// ─── The no-equipment ladder (travel templates, 2026-10-26) ─────
+
+/**
+ * A ladder row's call (`TemplateExercise.ladder`), or null when no working set
+ * of the newest session reached the cap — then the engine's own call stands.
+ *
+ * The order is fixed — (1) a 3 s lowering and a 1 s pause, (2) backpack load,
+ * (3) the harder variation — and only the load is visible in the log. So an
+ * unloaded lift at the cap is told the first rung and, should it already be
+ * done, the second; a loaded lift is told the second and, once the pack is
+ * full, the third. The load is held, never stepped: a backpack is estimated,
+ * and the lifter decides what goes in it (and logs it).
+ */
+export function ladderCall(
+  ladder: { capReps: number; harder?: string },
+  history: readonly SessionExercise[],
+  base: Recommendation,
+): Recommendation | null {
+  const latest = history[0];
+  if (!latest) return null;
+  const working = latest.sets.filter((s) => s.kind === 'working' && s.reps != null);
+  if (working.length === 0) return null;
+  const best = Math.max(...working.map((s) => s.reps as number));
+  if (best < ladder.capReps) return null;
+  const load = Math.max(0, ...working.map((s) => s.weight ?? 0));
+  const { targetReps: _t, predictedReps: _p, ...rest } = base;
+  return {
+    ...rest,
+    action: 'hold',
+    load,
+    currentLoad: load,
+    reason: {
+      kind: 'harder-ladder', reps: best, cap: ladder.capReps,
+      next: load > 0 ? 'load' : 'tempo',
+      ...(ladder.harder ? { harder: ladder.harder } : {}),
+    },
+  };
 }

@@ -29,6 +29,9 @@ import type {
 import { addBreadcrumb } from './sentry';
 import { isOffline, reportSnapshotMeta } from './connectivity';
 import {
+  TRAVEL_SCALE_NOTE,
+  isTravelDay,
+  type TravelPeriod,
   type CustomFood,
   type DailyLog,
   type LogEntry,
@@ -787,11 +790,24 @@ export function weightsWindowStart(logs: readonly { date: Date }[], todayKey: Da
   return `${from.slice(0, 8)}01`;
 }
 
+// Travel mode (2026-10-26, core `travel.ts`): the signed-in user's trips, kept
+// here by the auth provider so EVERY weigh-in writer — Body, the Finish sheet,
+// onboarding, the offline body queue's flush — tags a travel day the same way
+// without each one threading the profile through.
+let travelPeriodsForWrites: readonly TravelPeriod[] = [];
+export function setTravelPeriodsForWrites(periods: readonly TravelPeriod[]): void {
+  travelPeriodsForWrites = periods;
+}
+
 export async function setDailyWeight(uid: string, dateKey: string, weight: number): Promise<void> {
   // Before the await: the write lands in the local cache at once, and an
   // offline ack never comes (`getWeightEdges`).
   __resetWeightEdges();
-  await setDoc(weightDoc(uid, dateKey), { weight });
+  // A weigh-in on a travel day came off a scale that is not this one: kept and
+  // shown, but out of the trend and the 7-day average (decided by date in
+  // core), and it says so in the export.
+  const note = isTravelDay(dateKey, travelPeriodsForWrites) ? { note: TRAVEL_SCALE_NOTE } : {};
+  await setDoc(weightDoc(uid, dateKey), { weight, ...note });
 }
 
 /** Remove a day's weigh-in outright. Idempotent — deleting a missing doc is a no-op. */
@@ -2006,6 +2022,15 @@ export async function hasAnyCompletedWorkout(uid: string): Promise<boolean> {
     ),
   );
   return !snap.empty;
+}
+
+/** Travel mode (2026-10-26): replace the whole `travelPeriods` list — the
+ *  Settings editor owns it. An empty list deletes the field. Callers pass
+ *  cleaned periods (core `travelPeriodsOf`); the rules only cap the length. */
+export async function setTravelPeriods(uid: string, periods: readonly TravelPeriod[]): Promise<void> {
+  await updateDoc(userDoc(uid), {
+    travelPeriods: periods.length ? periods.map((p) => JSON.parse(JSON.stringify(p))) : deleteField(),
+  });
 }
 
 /** Settings → Training (progression engine, 2026-10-07). Only the keys

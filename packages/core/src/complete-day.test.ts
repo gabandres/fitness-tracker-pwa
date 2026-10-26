@@ -240,8 +240,8 @@ describe('CSV export', () => {
     });
     const [header, ...rows] = csv.split('\r\n');
     const cols = header.split(',');
-    // Last, after the 2026-10-22 rirTarget: no column moved.
-    expect(cols[cols.length - 1]).toBe('dayFullyLogged');
+    // Appended after the 2026-10-22 rirTarget: no column moved. (The travel
+    // columns, 2026-10-26, come after it.)
     expect(cols.indexOf('dayFullyLogged')).toBe(cols.indexOf('rirTarget') + 1);
     const answered = rows.filter((r) => r.startsWith('dayLogged,')).map((r) => r.split(','));
     expect(answered.map((r) => [r[cols.indexOf('date')], r[cols.indexOf('dayFullyLogged')]])).toEqual([
