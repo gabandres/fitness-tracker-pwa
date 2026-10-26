@@ -4,6 +4,43 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-10-26 — Travel mode (`25502095`, rules deployed, OTA on all twelve runtimes)
+
+For the owner's Bolivia trip (2026-10-31 → 2026-11-18; Cochabamba 2,577 m
+from 11/01). ADR-0048. The Settings editor is admin-only
+(`FEATURES.travelMode`); everything else keys off a trip on the profile.
+
+- **Maintenance held for a trip**: travel days never feed the fit; inside the
+  trip the estimate is frozen at its value as of the first day; after it the
+  value holds ("Rebuilding n/14") until 14 complete days home. Said on Today
+  and Trends.
+- **Eyeballed meal** (Today, during a trip): name + S/M/L (300/20 · 550/35 ·
+  850/45, editable) + protein-first; stored `estimateQuality: 'eyeballed'`,
+  carried through the offline queue and Undo, exported.
+- **Today travel card**: protein first against 140 g, kcal "≈", steps vs
+  usual (6,200), the altitude note for the first 3 days at the high stop.
+- **Weigh-ins on a travel day**: kept, noted "travel scale — not
+  comparable", out of the trend line and the 7-day average. No weigh-in
+  reminder during a trip.
+- **Train**: re-entry sessions (a gym session during a trip after ≥ 7 days
+  off; each template's first session after it) at −10 % / RIR 2, never read
+  by the engine; "Different equipment — not comparable" (out of the engine,
+  e1RM and PRs), ON by default for gym templates during a trip; the
+  no-equipment ladder (≥ 20 reps, ≥ 15 per leg → 3 s down + 1 s pause, then
+  backpack, then the harder variation). Trends "maintenance check": hard sets
+  per muscle vs ⅓ of the pre-trip normal.
+- **Owner data** (`scripts/owner-data-2026-10-26-travel.mts`): "Travel A —
+  Full Body" / "Travel B — Full Body" (`travel-v1`, 14 new catalog lifts, RIR 1,
+  60 s rest, optional band add-ons) and the Bolivia trip on the profile.
+- Export: `estimateQuality`, `proteinFirst`, `sessionFlags` columns, a
+  `travel` row per trip. Rules: `travelPeriods`, the two log fields, a weigh-in
+  `note`, session `reentry` / `notComparable` — deployed first.
+
+Gates: core 2,633 · mobile jest 321 / 3,287 (both trees) · rules 977 · lint
+unchanged · Metro export within budget (iOS +2.53 %, Android +2.81 %) · iOS
+gate `a55af49c` (= build 74) on `main`, `d7aad40d` (= build 73) on
+`ota/perf-2026-10-21` @ `b8bd6b1f`. Groups and rollbacks: the ledger.
+
 ## 2026-10-24 — S-v2: straight-set progression that moves, complete-day maintenance (`0a9c7ae0`, OTA on all twelve runtimes)
 
 Driven by Stephanie's account: loads frozen ~6 weeks, every set 10 reps with
