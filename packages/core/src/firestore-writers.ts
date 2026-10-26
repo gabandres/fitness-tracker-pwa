@@ -735,8 +735,12 @@ export function toSessionPatch<TS>(
   if (patch.templateVersion !== undefined) data['templateVersion'] = patch.templateVersion;
   if (patch.deload === true) data['deload'] = true;
   if (patch.reentry === 'travel' || patch.reentry === 'post-travel') data['reentry'] = patch.reentry;
-  // A switch, so `false` must clear it.
-  if (patch.notComparable !== undefined) data['notComparable'] = patch.notComparable ? true : codec.remove();
+  // A switch: written as a plain boolean either way. NOT `codec.remove()` for
+  // false — the mobile write path runs every patch through `pruneUndefined`,
+  // which copies a `deleteField()` sentinel into a plain object, and Firestore
+  // then refuses the write: every save after switching it off failed
+  // (sim walk, 2026-10-26). Readers treat only `true` as set.
+  if (patch.notComparable !== undefined) data['notComparable'] = patch.notComparable === true;
   if (patch.exercises !== undefined) data['exercises'] = sanitizeSessionExercises(patch.exercises);
   // Like `exercises`, this is a whole-array overwrite rather than a merge:
   // Firestore unions arrays on merge, so a sparse patch would append blocks

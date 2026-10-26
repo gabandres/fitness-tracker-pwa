@@ -418,6 +418,15 @@ describe('sessions', () => {
     });
   });
 
+  it('writes the "not comparable" switch as a plain boolean both ways — never a remove sentinel (travel mode)', () => {
+    // A `deleteField()` here is copied into a plain object by the mobile
+    // `pruneUndefined` and the whole session write is refused: every save after
+    // switching it off failed (sim walk, 2026-10-26).
+    expect(toSessionPatch({ notComparable: false }, codec, NOW)).toEqual({ notComparable: false, updatedAt: stamp });
+    expect(toSessionPatch({ notComparable: true }, codec, NOW)).toEqual({ notComparable: true, updatedAt: stamp });
+    expect(Object.values(toSessionPatch({ notComparable: false, reentry: 'travel' }, codec, NOW))).not.toContain(REMOVE);
+  });
+
   it('drops a bodyweight outside the storable range on both write paths', () => {
     // 11 lb and 1 lb were stored on real sessions; `weight-bounds.ts` promised
     // a backstop on every path and this one had none.

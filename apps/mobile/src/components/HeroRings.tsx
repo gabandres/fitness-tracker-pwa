@@ -19,11 +19,11 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
-import type { MaintenanceView, MeasurementProgress } from '@macrolog/core';
+import { parseYmd, type MaintenanceView, type MeasurementProgress } from '@macrolog/core';
 import { BottomSheet } from '@/components/BottomSheet';
 import { type TFn, useLocale, useT } from '@/i18n';
 import { plural } from '@/i18n/grammar';
-import { formatNumber } from '@/lib/date-format';
+import { formatDate, formatNumber } from '@/lib/date-format';
 import * as haptics from '@/lib/haptics';
 import { CountUpText, PressScale } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
@@ -151,7 +151,12 @@ export interface MaintenanceNotes {
  *
  * Null when there is nothing to hedge. Exported for test.
  */
-export function maintenanceNotes(m: MaintenanceView, t: TFn): MaintenanceNotes | null {
+export function maintenanceNotes(
+  m: MaintenanceView,
+  t: TFn,
+  /** How a YYYY-MM-DD day reads ("Oct 30"); the raw key when absent (tests). */
+  day: (key: string) => string = (k) => k,
+): MaintenanceNotes | null {
   const notes: { short: string; testID: string; full: string }[] = [];
   // A trip holds the number (travel mode, core `travel.ts`): said first,
   // because it is WHY the number is not moving.
@@ -159,7 +164,7 @@ export function maintenanceNotes(m: MaintenanceView, t: TFn): MaintenanceNotes |
     notes.push({
       testID: 'maintenance-travel',
       short: t('today.maintenanceShortTravel'),
-      full: t('today.maintenanceTravelFrozen', { date: m.travelHold.frozenAsOf }),
+      full: t('today.maintenanceTravelFrozen', { date: day(m.travelHold.frozenAsOf) }),
     });
   } else if (m.travelHold?.state === 'rebuilding') {
     notes.push({
@@ -379,7 +384,9 @@ export function HeroRings({
   }, [calConsumed, calTarget, reduce, calFlare]);
   const calFlareProps = useAnimatedProps(() => ({ opacity: calFlare.value * 0.25 }));
 
-  const notes = maintenance ? maintenanceNotes(maintenance, t) : null;
+  const notes = maintenance
+    ? maintenanceNotes(maintenance, t, (k) => formatDate(parseYmd(k), locale, { month: 'short', day: 'numeric' }))
+    : null;
   const [aboutOpen, setAboutOpen] = useState(false);
 
   const sentence = [
