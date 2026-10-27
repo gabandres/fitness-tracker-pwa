@@ -33,7 +33,7 @@ same way before trusting them — `docs/COMMANDS.md` has every command;
 | **Cloud Functions / rules** | Deployed, project `fitness-tracker-gb-1775407101`. Rules last deployed 2026-10-22 (Program v2.2: exercise `effortStandard` `rir2`, template `templateVersion`) |
 | **Photo-scan** | **ON and free, both platforms** (ADR-0017), macros from the bundled USDA DB (ADR-0019). Tiering server-side only: `dailyQuota` 3/day free · 30/day paid, plus the `photo` `spendCeiling` |
 | **Food search** | Bundled USDA DB (13,272 foods) + restaurant corpus (25,126 items / 91 chains, ADR-0027). **Text search makes NO network call**; Open Food Facts serves barcode only. `docs/research/off-branded-ingest.md` scopes branded text results |
-| **OTA (EAS Update)** | **Every runtime in use — twelve — has travel mode (2026-10-26, ADR-0048)** on top of S-v2: maintenance held for trips, eyeballed meals, travel weigh-ins out of the trend, re-entry / not-comparable sessions, the no-equipment ladder, the Trends maintenance check (Settings editor admin-only). The ten Sentry-7.11 runtimes from `ota/perf-2026-10-21` @ `b8bd6b1f` (iOS builds 73 / 72 / 71 / 70 / 68, Android vc 52 / 51 / 50 / 48-49 / 47 — = `main` minus `0c30979d`), and the 1.2.10 runtimes from `main` @ `25502095` (build 74 `a55af49c…`, vc 53 `e989353d…` pinned). Rules (`travelPeriods`, eyeballed-meal fields, weigh-in `note`, session `reentry`/`notComparable`) deployed first. Groups and rollbacks in the ledger, which is the record and wins. "Published" ≠ "delivered": a device applies it on the launch AFTER the download, and on foreground only after 30+ min in the background |
+| **OTA (EAS Update)** | **Every runtime in use — twelve — has travel mode (2026-10-26, ADR-0048)** on top of S-v2: maintenance held for trips, eyeballed meals, travel weigh-ins out of the trend, re-entry / not-comparable sessions, the no-equipment ladder, the Trends maintenance check (Settings editor admin-only), plus the same-day fix that switching "not comparable" off no longer breaks the workout's saves. The ten Sentry-7.11 runtimes from `ota/perf-2026-10-21` @ `f9a501b3` (iOS builds 73 / 72 / 71 / 70 / 68, Android vc 52 / 51 / 50 / 48-49 / 47 — = `main` minus `0c30979d`), and the 1.2.10 runtimes from `main` @ `0039d960` (build 74 `a55af49c…`, vc 53 `e989353d…` pinned). Rules (`travelPeriods`, eyeballed-meal fields, weigh-in `note`, session `reentry`/`notComparable`) deployed first. Groups and rollbacks in the ledger, which is the record and wins. "Published" ≠ "delivered": a device applies it on the launch AFTER the download, and on foreground only after 30+ min in the background |
 | **`app-version.json`** | **Self-driving** — served from Firestore `public/appVersion`, refreshed hourly by `hourlyTasks` (Play tracks API; Apple's public lookup) and by `/admin` → System → **Sync now**. `npm run doctor` compares the live URL with both stores |
 
 **Fingerprints and publishing:** current artifact values are the two-row table
@@ -91,8 +91,10 @@ deleted and its outcome goes to `CHANGELOG.md`.
 - **Live** (OTA, all runtimes, 2026-10-26); trip + Travel A/B templates on the
   owner's account. **Owed before 10/31:** open the app once on the phone (the
   OTA applies on the launch after the download) and check Settings → Travel
-  shows Bolivia; no device has run the Today travel card or the eyeball sheet
-  yet (jest only).
+  shows Bolivia. The iOS simulator (Release, QA account) has run the Today
+  travel card, the eyeball sheet, Trends "held" and a re-entry session; no
+  real phone has yet. The Settings editor is admin-only, so only the owner's
+  phone can show it.
 - **During the trip:** maintenance shows "Held for travel" (≈ 2,112 as of the
   10/26 projection; the real value is whatever it reads at 10/31 00:00).
 - **After 11/19:** first Push / Pull / Leg session each = re-entry (−10 %,

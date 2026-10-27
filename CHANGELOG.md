@@ -4,6 +4,24 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-10-26 — Travel mode fix: "not comparable" off (`0039d960`, OTA on all twelve runtimes)
+
+Found by the iOS-simulator travel walkthrough (Release build of `main`, QA
+account): switching "Different equipment — not comparable" OFF showed
+"Couldn't save your workout", and every later save of that session failed.
+`toSessionPatch` cleared the field with `deleteField()`, and the mobile write
+path's `pruneUndefined` copies that sentinel into a plain object, which
+Firestore rejects. It now writes a plain boolean either way (regression test
+in `firestore-writers.test.ts`). The "Held for travel" date on Today and
+Trends is formatted ("Oct 23") instead of the raw key. `scripts/qa-travel.mts`
+puts a trip on a QA account (and takes it off) for the walkthrough.
+
+Same walkthrough: regression suite 19/21 on iOS 26. Flows 16 and 22 fail only
+in teardown: the exercise they created is in Firestore, but the Train home's
+capped list doesn't show it. That is pre-existing and not travel mode.
+Gates: core 2,634 · mobile jest 54 affected suites / 633 · tsc clean (both
+trees). Groups and rollbacks in the ledger.
+
 ## 2026-10-26 — Travel mode (`25502095`, rules deployed, OTA on all twelve runtimes)
 
 For the owner's Bolivia trip (2026-10-31 → 2026-11-18; Cochabamba 2,577 m
