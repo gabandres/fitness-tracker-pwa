@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, type ViewInstance } from 'react-native';
 import Animated, {
   Easing,
   FadeOut,
@@ -79,8 +79,8 @@ export function WelcomeIntro({ onContinue }: { onContinue: (mode: 'signin' | 'si
   const [twinY, setTwinY] = useState<number | null>(null);
   const [ghostY, setGhostY] = useState<number | null>(null);
   const [twinH, setTwinH] = useState<number | null>(null);
-  const twinRef = useRef<View>(null);
-  const ghostRef = useRef<View>(null);
+  const twinRef = useRef<ViewInstance>(null);
+  const ghostRef = useRef<ViewInstance>(null);
   const delta = twinY !== null && ghostY !== null ? ghostY - twinY : null;
 
   const measureTwin = useCallback(() => {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { router, useLocalSearchParams, useScrollToTop } from 'expo-router';
-import { Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions, type ScrollViewInstance } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -239,7 +239,7 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
 
   // Re-tapping the focused Body tab scrolls back to the top, as Today and
   // Trends do (review 2026-10-06).
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   useScrollToTop(scrollRef);
   // Pull-to-refresh: the listeners are live, so this re-runs only what is not
   // — the parked queue, a Health import, the goal's start line — and the

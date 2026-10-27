@@ -8,7 +8,10 @@ import {
   useMemo,
   useState,
 } from 'react';
-import { Appearance, StyleSheet, useColorScheme } from 'react-native';
+import { Appearance, useColorScheme, type ImageStyle, type TextStyle, type ViewStyle } from 'react-native';
+
+/** RN 0.88's strict types dropped `StyleSheet.NamedStyles`; same shape. */
+type NamedStyles<T> = { [P in keyof T]: ViewStyle | TextStyle | ImageStyle };
 import { palettes, type ColorTokens, type ShadowTokens } from '@/theme';
 
 /**
@@ -85,7 +88,7 @@ export function useTheme(): ThemeContextValue {
  * with `createStyles(t: Theme)` defined at module scope (so the memo only
  * recomputes on scheme change, not per render).
  */
-export function useThemedStyles<T extends StyleSheet.NamedStyles<T>>(factory: (t: Theme) => T): T {
+export function useThemedStyles<T extends NamedStyles<T>>(factory: (t: Theme) => T): T {
   const { scheme, colors, shadow } = useTheme();
   return useMemo(() => factory({ scheme, colors, shadow }), [factory, scheme, colors, shadow]);
 }

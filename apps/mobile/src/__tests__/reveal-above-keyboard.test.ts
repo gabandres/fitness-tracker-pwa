@@ -1,5 +1,5 @@
 import { renderHook } from '@testing-library/react-native';
-import { Keyboard, type ScrollView, type View } from 'react-native';
+import { Keyboard, type ScrollViewInstance, type ViewInstance } from 'react-native';
 import { useRevealAboveKeyboard } from '@/components/train/reveal-above-keyboard';
 
 /**
@@ -14,12 +14,12 @@ async function setup(keyboardTop: number | null) {
     keyboardTop == null ? undefined : { screenX: 0, screenY: keyboardTop, width: 390, height: 844 - keyboardTop },
   );
   const scrollTo = jest.fn();
-  const scrollRef = { current: { scrollTo } as unknown as ScrollView };
+  const scrollRef = { current: { scrollTo } as unknown as ScrollViewInstance };
   const { result } = await renderHook(() => useRevealAboveKeyboard(scrollRef));
   // The list is already scrolled 120 down.
   result.current.onScroll({ nativeEvent: { contentOffset: { y: 120 } } });
   const node = (y: number, h: number) =>
-    ({ measureInWindow: (cb: (x: number, y: number, w: number, h: number) => void) => cb(0, y, 390, h) }) as unknown as View;
+    ({ measureInWindow: (cb: (x: number, y: number, w: number, h: number) => void) => cb(0, y, 390, h) }) as unknown as ViewInstance;
   return { reveal: result.current.reveal, scrollTo, node };
 }
 

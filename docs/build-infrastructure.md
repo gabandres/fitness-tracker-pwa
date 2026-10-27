@@ -112,8 +112,8 @@ Pinning `engines` to 24 alone was tried first and is wrong: `eas build --local`
 runs its own `INSTALL_DEPENDENCIES` step, so **every iOS build on the Mac printed
 `npm warn EBADENGINE`** against a machine that is doing exactly what it is
 supposed to. Harmless (nothing sets `engine-strict`), but a warning that fires on
-the happy path is one people learn to ignore. RN 0.86 accepts `^20.19.4 ||
-^22.13.0 || ^24.3.0`, so both hosts satisfy Expo SDK 57 as they stand.
+the happy path is one people learn to ignore. RN 0.88 accepts `^22.13.0 ||
+^24.3.0 || >= 26.0.0` (Node 20 dropped), so both hosts satisfy Expo SDK 58 as they stand.
 
 **Since 2026-10-21 the lockfile author is `ignia-mac`.** The repo lives there
 (owner, 2026-10-21), and the Windows Surface laptop on the tailnet (`winbox`,

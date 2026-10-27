@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, Platform, ScrollView, Text, View, useWindowDimensions } from 'react-native';
+import { AppState, Platform, ScrollView, Text, View, useWindowDimensions, type ScrollViewInstance } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useReducedMotion } from 'react-native-reanimated';
 import { Touchable } from './Touchable';
@@ -295,7 +295,7 @@ export function ActiveSession({
   const session = train.active!;
   const { dispatch, commitActive, undoRemoval } = train;
   // Set rows reveal their ± steppers above the keyboard through this.
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const keyboardReveal = useRevealAboveKeyboard(scrollRef);
 
   const [addFor, setAddFor] = useState<{ index: number; name: string } | 'add' | null>(null);

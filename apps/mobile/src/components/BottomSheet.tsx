@@ -350,7 +350,9 @@ function JsBottomSheet({
       transparent
       animationType="none"
       supportedOrientations={ALL_ORIENTATIONS}
-      onRequestClose={() => request('back')}
+      onRequestClose={() => {
+        request('back');
+      }}
     >
       {/* The backdrop is a real control — it closes the sheet — so it says so
           (S18-5). Without a role and a label VoiceOver reads it as an unnamed

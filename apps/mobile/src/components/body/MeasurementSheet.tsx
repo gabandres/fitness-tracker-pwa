@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View, type TextInputInstance } from 'react-native';
 import { SheetTextInput } from '@/components/SheetTextInput';
 import {
   BODY_FAT_PCT_BOUNDS,
@@ -112,7 +112,7 @@ export function MeasurementSheet({
   const [dateKey, setDateKey] = useState(todayKey);
   const [busy, setBusy] = useState(false);
   const [saveErr, setSaveErr] = useState(false);
-  const refs = useRef<Record<string, TextInput | null>>({});
+  const refs = useRef<Record<string, TextInputInstance | null>>({});
   const unitName = t(measureUnit(unitSystem) === 'cm' ? 'body.unitCmLong' : 'body.unitInLong');
   const initialKey = initial ? dayKeyAt(initial.date, MIDNIGHT) : todayKey;
 
@@ -375,7 +375,7 @@ function MeasureFields({
 }: {
   vals: Record<string, string>;
   setVals: (fn: (v: Record<string, string>) => Record<string, string>) => void;
-  refs: React.MutableRefObject<Record<string, TextInput | null>>;
+  refs: React.MutableRefObject<Record<string, TextInputInstance | null>>;
   lastFor: (key: MeasureKey) => string | null;
   unitName: string;
   styles: ReturnType<typeof createStyles>;
@@ -426,7 +426,7 @@ function MeasureField({
   field: { key: MeasureKey; labelKey: I18nKey };
   value: string;
   onChange: (text: string) => void;
-  inputRef: (r: TextInput | null) => void;
+  inputRef: (r: TextInputInstance | null) => void;
   onPrev?: () => void;
   onNext?: () => void;
   last: string | null;

@@ -11,7 +11,7 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { GestureDetector, useCompetingGestures, usePanGesture } from 'react-native-gesture-handler';
 import Animated, {
   FadeIn,
   ReduceMotion,
@@ -365,42 +365,44 @@ function WeightChartImpl({
   // that started on the chart flashed them. Now a sideways drag scrubs at
   // once, or a short hold starts it where the finger rests; moving vertically
   // first fails both and the screen scrolls.
-  const drag = Gesture.Pan()
-    .enabled(n > 0)
-    .activeOffsetX([-6, 6])
-    .failOffsetY([-14, 14])
-    .onStart((e) => {
+  const drag = usePanGesture({
+    enabled: n > 0,
+    activeOffsetX: [-6, 6],
+    failOffsetY: [-14, 14],
+    onActivate: (e) => {
       idx.value = nearestIndex(xs, e.x);
-    })
-    .onUpdate((e) => {
+    },
+    onUpdate: (e) => {
       const next = nearestIndex(xs, e.x);
       if (next !== idx.value) {
         idx.value = next;
         scheduleOnRN(tick);
       }
-    })
-    .onFinalize(() => {
+    },
+    onFinalize: () => {
       idx.value = -1;
-    });
-  const hold = Gesture.Pan()
-    .enabled(n > 0)
-    .activateAfterLongPress(HOLD_TO_SCRUB_MS)
-    .failOffsetY([-14, 14])
-    .onStart((e) => {
+    },
+  });
+  const hold = usePanGesture({
+    enabled: n > 0,
+    activateAfterLongPress: HOLD_TO_SCRUB_MS,
+    failOffsetY: [-14, 14],
+    onActivate: (e) => {
       idx.value = nearestIndex(xs, e.x);
       scheduleOnRN(tick);
-    })
-    .onUpdate((e) => {
+    },
+    onUpdate: (e) => {
       const next = nearestIndex(xs, e.x);
       if (next !== idx.value) {
         idx.value = next;
         scheduleOnRN(tick);
       }
-    })
-    .onFinalize(() => {
+    },
+    onFinalize: () => {
       idx.value = -1;
-    });
-  const pan = Gesture.Race(drag, hold);
+    },
+  });
+  const pan = useCompetingGestures(drag, hold);
 
   const cursorStyle = useAnimatedStyle(() => {
     const i = idx.value;

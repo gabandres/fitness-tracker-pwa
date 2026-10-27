@@ -16,6 +16,8 @@ import React from 'react';
 import { Text } from 'react-native';
 import { act, fireEvent, renderWithProviders as render, waitFor } from '@/test-utils';
 
+// The swipe action is tapped from an open row (Gesture Handler 3 blocks it while closed).
+jest.mock('react-native-gesture-handler/ReanimatedSwipeable', () => require('./open-swipeable').openSwipeableModule());
 jest.mock('@/lib/ledger', () => ({
   recordMilestone: jest.fn(),
   switchToMaintenance: jest.fn(),

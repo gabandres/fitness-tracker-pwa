@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, type RefObject } from 'react';
-import { Keyboard, Platform, type ScrollView, type View } from 'react-native';
+import { Keyboard, Platform, type ScrollView, type View, type ScrollViewInstance, type ViewInstance } from 'react-native';
 import { space } from '@/theme';
 
 /**
@@ -14,12 +14,12 @@ import { space } from '@/theme';
  * a header — it over-scrolls by the header's height. So: measure the node in
  * window coordinates, compare with the keyboard's top, scroll by the overlap.
  */
-export type RevealAboveKeyboard = (node: View | null) => void;
+export type RevealAboveKeyboard = (node: ViewInstance | null) => void;
 
 export const RevealAboveKeyboardContext = createContext<RevealAboveKeyboard | null>(null);
 
 /** For the screen that owns the ScrollView: its `onScroll` and the reveal. */
-export function useRevealAboveKeyboard(scrollRef: RefObject<ScrollView | null>) {
+export function useRevealAboveKeyboard(scrollRef: RefObject<ScrollViewInstance | null>) {
   const offsetY = useRef(0);
   const onScroll = useCallback((e: { nativeEvent: { contentOffset: { y: number } } }) => {
     offsetY.current = e.nativeEvent.contentOffset.y;
@@ -44,7 +44,7 @@ export function useRevealAboveKeyboard(scrollRef: RefObject<ScrollView | null>) 
  * between fields with the keyboard already up (no show event then). iOS only:
  * Android resizes the window for the keyboard instead.
  */
-export function useKeepAboveKeyboard(active: boolean, ref: RefObject<View | null>) {
+export function useKeepAboveKeyboard(active: boolean, ref: RefObject<ViewInstance | null>) {
   const reveal = useContext(RevealAboveKeyboardContext);
   useEffect(() => {
     if (!active || !reveal || Platform.OS !== 'ios') return;

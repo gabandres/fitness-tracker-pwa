@@ -1,5 +1,5 @@
 import { forwardRef, useCallback, useEffect, useLayoutEffect, useRef, useState, type ComponentProps } from 'react';
-import { TextInput } from 'react-native';
+import { TextInput, type TextInputInstance } from 'react-native';
 
 type Props = ComponentProps<typeof TextInput>;
 
@@ -31,7 +31,7 @@ type Props = ComponentProps<typeof TextInput>;
  * run — which is what a plain controlled input does too. Uncontrolled use
  * (`value` omitted) is passed straight through.
  */
-export const SheetTextInput = forwardRef<TextInput, Props>(function SheetTextInput(
+export const SheetTextInput = forwardRef<TextInputInstance, Props>(function SheetTextInput(
   { value, onChangeText, ...rest },
   ref,
 ) {

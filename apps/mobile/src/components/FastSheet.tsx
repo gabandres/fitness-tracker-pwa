@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
-import { Alert, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { Alert, StyleSheet, Text, TextInput, View, useWindowDimensions, type TextInputInstance } from 'react-native';
 import { SheetTextInput } from '@/components/SheetTextInput';
 import {
   MAX_FAST_MS,
@@ -685,8 +685,8 @@ function TypedTimeField({ value, onChange, locale, testIDPrefix, focusOnMount = 
   const { colors } = useTheme();
   const tag = localeTag(locale);
   const hour12 = localeUses12Hour(tag);
-  const minuteRef = useRef<TextInput>(null);
-  const hourRef = useRef<TextInput>(null);
+  const minuteRef = useRef<TextInputInstance>(null);
+  const hourRef = useRef<TextInputInstance>(null);
   // At the largest text sizes the two AM/PM chips no longer fit beside two
   // digit fields on a 360 dp phone, and the row clipped the second chip (A11).
   // Past 1.3× they stack instead.

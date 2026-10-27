@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   View,
   useWindowDimensions,
+  type ScrollViewInstance,
 } from 'react-native';
 import Svg, { Line as SvgLine } from 'react-native-svg';
 import Animated, {
@@ -205,7 +206,7 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
   // (UX_AUDIT S16-6). A nonce, not a flag: expo-router keeps a visited Trends
   // MOUNTED and `router.replace` re-focuses the live instance, so only a
   // changing value re-fires (the same contract as Today's `openAdd`).
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   // Re-tapping the focused Trends tab scrolls back to the top, and the fixed
   // header gets the scroll-edge hairline Today has — the cue a native large-
   // title bar gives when content passes under it (re-score 3, P2), on the UI

@@ -84,7 +84,8 @@ type AppTabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>['tabBar
 function AppTabBar({
   state,
   descriptors,
-  navigation,
+  emitter,
+  navigateToTab,
   onPillBand,
 }: AppTabBarProps & {
   /** The floating stack's height (pill + capsule) as laid out while the pill
@@ -143,8 +144,8 @@ function AppTabBar({
         // No haptic: switching tabs is navigation, and neither platform's own
         // tab bar buzzes for it (review P6).
         onPress={() => {
-          const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-          if (!focused && !event.defaultPrevented) navigation.navigate(route.name, route.params);
+          const event = emitter.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+          if (!focused && !event.defaultPrevented) navigateToTab(route.key);
           // Re-tapping the tab you are on scrolls it to the top (Today wires
           // `useScrollToTop` to this same event). A sighted user sees the jump;
           // a screen-reader user is told (review A9).
@@ -205,7 +206,12 @@ function AppTabBar({
     >
       {pillShown ? (
         <View style={styles.pillSlot}>
-          <ActiveWorkoutPill onResume={() => navigation.navigate('train')} />
+          <ActiveWorkoutPill
+            onResume={() => {
+              const train = state.routes.find((r) => r.name === 'train');
+              if (train) navigateToTab(train.key);
+            }}
+          />
         </View>
       ) : null}
       {/* `tablist` is what makes the four `tab` roles a group: VoiceOver says

@@ -156,8 +156,7 @@
             "minSdkVersion": 26
           },
           "ios": {
-            "deploymentTarget": "16.4",
-            "enableSceneSupport": true
+            "deploymentTarget": "16.4"
           }
         }
       ],

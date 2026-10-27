@@ -13,6 +13,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  type ViewInstance,
 } from 'react-native';
 import { SheetTextInput } from '@/components/SheetTextInput';
 import type { FoodSource } from '@macrolog/core';
@@ -265,7 +266,7 @@ export function FoodSearch({
   const lastRun = useRef(initial?.query.trim() ?? '');
   // The first row of whatever the list shows — Return moves a screen reader
   // there (A3), since Return has nothing else to do on a live search.
-  const firstRowRef = useRef<View>(null);
+  const firstRowRef = useRef<ViewInstance>(null);
 
   useEffect(() => {
     return () => {

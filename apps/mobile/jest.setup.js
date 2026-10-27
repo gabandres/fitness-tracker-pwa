@@ -70,13 +70,91 @@ jest.mock('react-native-keyboard-controller', () => ({
 // `resolver` to emulate Expo's Metro aliases, and a config may only have one.
 jest.mock('react-native-worklets', () => require('react-native-worklets/lib/module/mock'));
 
+// Gesture Handler 3's GestureDetector throws in __DEV__ unless it sits under a
+// GestureHandlerRootView. The app has one at its root (`app/_layout.tsx`) and
+// in each Android modal that needs its own; a test renders one screen or sheet
+// without that root. Default the root-view context to "present" for jest only.
+for (const dir of ['src', 'lib/module']) {
+  jest.mock(`react-native-gesture-handler/${dir}/GestureHandlerRootViewContext`, () => ({
+    __esModule: true,
+    default: require('react').createContext(true),
+  }));
+}
+
+// expo-notifications 58 subscribes a default foreground handler at import and
+// `setNotificationHandler` removes that subscription, but jest-expo's generated
+// native-module mock returns `undefined` from `addListener` — so importing
+// `lib/reminders` threw "handleSubscription.remove is not a function" and took
+// every screen suite that reaches it. Give the handler module a real
+// subscription shape.
+jest.mock('expo-notifications/build/NotificationsHandlerModule', () => ({
+  __esModule: true,
+  default: {
+    addListener: () => ({ remove: () => {} }),
+    handleNotificationAsync: jest.fn(async () => {}),
+  },
+}));
+
+// jest-expo 58.0.12 mocks `react-native/asset-registry`, but RN 0.88's
+// `AssetRegistry` export reads the private module that entry point wraps, so
+// the mock never reaches `expo-asset`. Every require'd asset is `1` under
+// jest-expo and nothing registers it, so any `@expo/vector-icons` glyph threw
+// "Module "1" is missing from the asset registry". Mock the module RN reads, by
+// absolute path because RN's `exports` map hides `src/private`. Drop this once
+// jest-expo mocks the same module.
+jest.mock(
+  require('path').join(
+    require('path').dirname(require.resolve('react-native/package.json')),
+    'src/private/assets/AssetRegistry.js',
+  ),
+  () => ({
+    AssetRegistry: {
+      registerAsset: () => 1,
+      getAssetByID: () => ({
+        __packager_asset: true,
+        fileSystemLocation: '/full/path/to/directory',
+        httpServerLocation: '/assets/full/path/to/directory',
+        scales: [1],
+        fileHashes: ['md5'],
+        name: 'name',
+        type: 'type',
+        hash: 'md5',
+        width: 1,
+        height: 1,
+      }),
+    },
+  }),
+);
+
 // Reanimated ships its own complete jest mock. Use it wholesale — a
 // hand-written partial silently drops hooks (useSharedValue, useReducedMotion)
 // that this app's motion helpers depend on.
 jest.mock('react-native-reanimated', () => {
+  // Reanimated 4.7's native initializer registers a CSS event handler on load,
+  // and the JS module it picks under jest throws for that call — so the mock
+  // itself failed to import and took every suite that renders a sheet with it.
+  // Neutralise that one method on the shared module instance before the mock
+  // pulls the initializer in. Re-check on the next Reanimated bump.
+  const { ReanimatedModule } = require('react-native-reanimated/src/ReanimatedModule');
+  ReanimatedModule.setCSSEventHandler = () => {};
   const mock = require('react-native-reanimated/mock');
+  // Gesture Handler 3 subscribes to the shared values in a gesture's config
+  // (ReanimatedSwipeable's, among others); the mock's shared value has no
+  // listener methods, so every swipeable row threw on mount.
+  const withListeners = (sv) =>
+    new Proxy(sv, {
+      get(target, prop) {
+        if (prop === 'addListener' || prop === 'removeListener') return () => {};
+        return target[prop];
+      },
+      set(target, prop, value) {
+        target[prop] = value;
+        return true;
+      },
+    });
   return {
     ...mock,
+    useSharedValue: (init) => withListeners(mock.useSharedValue(init)),
     // Not in the shipped mock; the app's motion.tsx calls it on every screen.
     useReducedMotion: () => false,
   };

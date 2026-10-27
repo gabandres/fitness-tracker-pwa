@@ -84,8 +84,7 @@ export function ContextMenu({
   if (!CONTEXT_MENUS) return <>{children}</>;
   return (
     <NativeLinkPreview
-      nextScreenId={undefined}
-      tabPath={undefined}
+      previewActivationPath={undefined}
       onWillPreviewOpen={() => setOpen(true)}
       onPreviewDidClose={() => setOpen(false)}
       onPreviewTappedAnimationCompleted={onPreviewPress}

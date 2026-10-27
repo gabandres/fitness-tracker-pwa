@@ -1,5 +1,5 @@
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, type ViewInstance } from 'react-native';
 import {
   calendarDateKey,
   dropEmptyExercises,
@@ -149,7 +149,7 @@ export function WorkoutShareCard({ stats }: { stats: WorkoutShareStats }) {
  */
 export function useWorkoutShare(): { share: (stats: WorkoutShareStats) => void; host: ReactNode } {
   const t = useT();
-  const ref = useRef<View>(null);
+  const ref = useRef<ViewInstance>(null);
   const [stats, setStats] = useState<WorkoutShareStats | null>(null);
   const share = useCallback((next: WorkoutShareStats) => {
     setStats((cur) => cur ?? next);

@@ -2,7 +2,7 @@ import { memo, useCallback, useMemo, useState } from 'react';
 import { Platform, StyleSheet, Text, TextInput, View, useWindowDimensions, type TextInputProps } from 'react-native';
 import Svg, { Line, Path, Rect } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { GestureDetector, useCompetingGestures, usePanGesture, useTapGesture } from 'react-native-gesture-handler';
 import Animated, { useAnimatedProps, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
@@ -344,62 +344,65 @@ function TrendChartImpl({
     [dateKeys, openDay],
   );
 
-  // Memoised: rebuilding the gestures on every render re-attached them to the
-  // detector each time the parent drew. `idx.get()` / `idx.set()` in here, not
-  // `idx.value`: an assignment to `.value` inside a hook's callback reads to
-  // React Compiler as mutating a frozen value, and it skipped the whole chart
-  // (Reanimated's documented accessors for compiled code; same effect).
-  const gesture = useMemo(() => {
-    // A sideways drag scrubs at once. Showing the cursor at touch-down instead
-    // flashed the bubble on every vertical scroll that began on the chart.
-    const drag = Gesture.Pan()
-      .activeOffsetX([-8, 8])
-      .failOffsetY([-14, 14])
-      .onStart((e) => {
-        idx.set(indexAtX(e.x, n, f));
-      })
-      .onUpdate((e) => {
-        const next = indexAtX(e.x, n, f);
-        if (next !== idx.get()) {
-          idx.set(next);
-          scheduleOnRN(tick);
-        }
-      })
-      .onFinalize(() => {
-        idx.set(-1);
-      });
-
-    // Touch and hold, then drag: the scrub starts where the finger rests,
-    // with a tick to say so. Moving first (a scroll) fails it.
-    const hold = Gesture.Pan()
-      .activateAfterLongPress(HOLD_TO_SCRUB_MS)
-      .failOffsetY([-14, 14])
-      .onStart((e) => {
-        idx.set(indexAtX(e.x, n, f));
+  // Gesture Handler 3's hooks keep the gestures attached across renders (the
+  // builder API needed a `useMemo` here, or every parent draw re-attached
+  // them). `idx.get()` / `idx.set()` in here, not `idx.value`: an assignment
+  // to `.value` inside a hook's callback reads to React Compiler as mutating a
+  // frozen value, and it skipped the whole chart (Reanimated's documented
+  // accessors for compiled code; same effect).
+  //
+  // A sideways drag scrubs at once. Showing the cursor at touch-down instead
+  // flashed the bubble on every vertical scroll that began on the chart.
+  const drag = usePanGesture({
+    activeOffsetX: [-8, 8],
+    failOffsetY: [-14, 14],
+    onActivate: (e) => {
+      idx.set(indexAtX(e.x, n, f));
+    },
+    onUpdate: (e) => {
+      const next = indexAtX(e.x, n, f);
+      if (next !== idx.get()) {
+        idx.set(next);
         scheduleOnRN(tick);
-      })
-      .onUpdate((e) => {
-        const next = indexAtX(e.x, n, f);
-        if (next !== idx.get()) {
-          idx.set(next);
-          scheduleOnRN(tick);
-        }
-      })
-      .onFinalize(() => {
-        idx.set(-1);
-      });
+      }
+    },
+    onFinalize: () => {
+      idx.set(-1);
+    },
+  });
 
-    // A tap opens the day under the finger in History.
-    const tap = Gesture.Tap()
-      .enabled(canOpen)
-      .maxDuration(HOLD_TO_SCRUB_MS + 60)
-      .maxDistance(10)
-      .onEnd((e, success) => {
-        if (success) scheduleOnRN(openIndex, indexAtX(e.x, n, f));
-      });
+  // Touch and hold, then drag: the scrub starts where the finger rests,
+  // with a tick to say so. Moving first (a scroll) fails it.
+  const hold = usePanGesture({
+    activateAfterLongPress: HOLD_TO_SCRUB_MS,
+    failOffsetY: [-14, 14],
+    onActivate: (e) => {
+      idx.set(indexAtX(e.x, n, f));
+      scheduleOnRN(tick);
+    },
+    onUpdate: (e) => {
+      const next = indexAtX(e.x, n, f);
+      if (next !== idx.get()) {
+        idx.set(next);
+        scheduleOnRN(tick);
+      }
+    },
+    onFinalize: () => {
+      idx.set(-1);
+    },
+  });
 
-    return Gesture.Race(drag, hold, tap);
-  }, [idx, n, f, canOpen, openIndex]);
+  // A tap opens the day under the finger in History.
+  const tap = useTapGesture({
+    enabled: canOpen,
+    maxDuration: HOLD_TO_SCRUB_MS + 60,
+    maxDistance: 10,
+    onDeactivate: (e) => {
+      if (!e.canceled) scheduleOnRN(openIndex, indexAtX(e.x, n, f));
+    },
+  });
+
+  const gesture = useCompetingGestures(drag, hold, tap);
 
   const cursorStyle = useAnimatedStyle(() => {
     const i = idx.value;

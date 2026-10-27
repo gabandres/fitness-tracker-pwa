@@ -27,7 +27,7 @@ describe('whenNavigationReady', () => {
     expect(fn).toHaveBeenCalledTimes(1);
   });
 
-  it('waits for `ready` on a cold deep-link start, then runs once and unsubscribes', () => {
+  it('waits for the container on a cold deep-link start, then runs once and unsubscribes', () => {
     const ref = fakeRef(false);
     const fn = jest.fn();
     whenNavigationReady(ref, fn);

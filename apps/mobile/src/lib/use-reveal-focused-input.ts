@@ -7,6 +7,7 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   type View,
+  type ViewInstance,
 } from 'react-native';
 import { space } from '@/theme';
 
@@ -125,7 +126,7 @@ export function revealTarget(m: RevealMeasure): number | null {
  */
 export function useRevealFocusedInput(scrollRef: RefObject<Scrollable | null>) {
   const offsetY = useRef(0);
-  const contentTopRef = useRef<View>(null);
+  const contentTopRef = useRef<ViewInstance>(null);
   const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
     offsetY.current = e.nativeEvent.contentOffset.y;
   }, []);

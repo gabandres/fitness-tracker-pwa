@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { memo, useEffect, useRef, useState } from 'react';
-import { Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Text, TextInput, TouchableOpacity, View, type TextInputInstance, type ViewInstance } from 'react-native';
 // Swipe-to-delete on a set row. No `GestureHandlerRootView` is added here —
 // the app root already mounts one (`src/app/_layout.tsx`), and the live
 // session is not inside a Modal, which is the case that needs its own (see
@@ -207,7 +207,7 @@ export const SetRow = memo(function SetRow({
   /** Which of this row's fields has the keyboard — it shows the ± steppers. */
   const [focused, setFocused] = useState<ChainField | null>(null);
   // The steppers open under the field; the keyboard must not cover them.
-  const stepRowRef = useRef<View>(null);
+  const stepRowRef = useRef<ViewInstance>(null);
   useKeepAboveKeyboard(focused != null, stepRowRef);
 
   // What the template prescribed for this set, if it came from one. Shown as
@@ -246,8 +246,8 @@ export const SetRow = memo(function SetRow({
   // Closed after a delete taken from the sheet, so the row that slides up into
   // this slot is not already swiped open.
   const swipeRef = useRef<SwipeableMethods>(null);
-  const countInputRef = useRef<TextInput | null>(null);
-  const weightInputRef = useRef<TextInput | null>(null);
+  const countInputRef = useRef<TextInputInstance | null>(null);
+  const weightInputRef = useRef<TextInputInstance | null>(null);
   const remove = () => {
     swipeRef.current?.close();
     onRemove(exerciseIndex, setIndex);

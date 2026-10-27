@@ -16,6 +16,10 @@ import {
   TouchableOpacity,
   View,
   useWindowDimensions,
+  type ScrollViewInstance,
+  type StyleProp,
+  type TextInputInstance,
+  type ViewStyle,
 } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { SheetTextInput } from '@/components/SheetTextInput';
@@ -257,7 +261,8 @@ function Tappable(props: React.ComponentProps<typeof TouchableOpacity>) {
   // A button unless the caller says otherwise — every use here passes its
   // own role, and the default keeps an omission from going silent.
   if (Platform.OS !== 'android') return <TouchableOpacity accessibilityRole="button" {...props} />;
-  const { activeOpacity: _activeOpacity, style, ...rest } = props;
+  const { activeOpacity: _activeOpacity, style: animatedStyle, ...rest } = props;
+  const style = animatedStyle as StyleProp<ViewStyle>;
   return <Pressable accessibilityRole="button" android_ripple={ROW_RIPPLE} style={[style, rippleClip(style)]} {...(rest as PressableProps)} />;
 }
 
@@ -401,10 +406,10 @@ export function EntrySheet({
   // documents; the launch-time keyboard hang of 3c06c8de is the same subsystem,
   // which is why nothing here focuses before the sheet is up).
   const calRef = useDeferredFocus(visible && mode === 'custom' && blankOpen && !editing);
-  const nameRef = useRef<TextInput>(null);
-  const proteinRef = useRef<TextInput>(null);
-  const carbsRef = useRef<TextInput>(null);
-  const fatRef = useRef<TextInput>(null);
+  const nameRef = useRef<TextInputInstance>(null);
+  const proteinRef = useRef<TextInputInstance>(null);
+  const carbsRef = useRef<TextInputInstance>(null);
+  const fatRef = useRef<TextInputInstance>(null);
   const macroRefs = { calories: calRef, protein: proteinRef, carbs: carbsRef, fat: fatRef };
   // Which form field holds the keyboard, so it stays in view while the
   // keyboard shrinks the form (`revealField`). Nothing renders from it.
@@ -416,7 +421,7 @@ export function EntrySheet({
     fat: useKeyboardBarProps(kbId('fat')),
   };
   const doneKeyProps = useDoneKeyProps();
-  const formScrollRef = useRef<ScrollView>(null);
+  const formScrollRef = useRef<ScrollViewInstance>(null);
   const formScroll = useRef({ y: 0, h: 0 });
   const fieldBoxes = useRef<Partial<Record<'name' | 'calories' | 'macros' | 'scale' | 'note', { y: number; height: number }>>>({});
   // Raised by MicButton; rendered full-width under the search row rather than
@@ -2700,7 +2705,7 @@ export function EntrySheet({
 /** Plain text input styled to the sheet — shared look for the custom form. */
 // `ref` is a plain prop under React 19 and rides through the spread — the
 // form's return-key focus chain needs it.
-function TextInputBase(props: React.ComponentProps<typeof TextInput> & { ref?: React.Ref<TextInput> }) {
+function TextInputBase(props: React.ComponentProps<typeof TextInput> & { ref?: React.Ref<TextInputInstance> }) {
   const styles = useThemedStyles(createStyles);
   const { colors, scheme } = useTheme();
   // Dynamic Type is honoured here, up to a cap.

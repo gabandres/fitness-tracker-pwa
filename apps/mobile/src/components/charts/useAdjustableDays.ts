@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { AccessibilityActionEvent, AccessibilityProps } from 'react-native';
+import type { AccessibilityActionEvent, AccessibilityProps, ViewProps } from 'react-native';
 
 /**
  * One chart = one accessible element that a screen-reader user can STEP
@@ -26,7 +26,7 @@ export interface AdjustableDays {
   index: number;
   setIndex: (i: number) => void;
   /** Spread onto the chart's container. */
-  a11y: AccessibilityProps & { accessible: true };
+  a11y: AccessibilityProps & Pick<ViewProps, 'onAccessibilityAction'> & { accessible: true };
 }
 
 export function useAdjustableDays(

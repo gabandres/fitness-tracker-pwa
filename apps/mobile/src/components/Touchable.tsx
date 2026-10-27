@@ -1,5 +1,5 @@
 import type { ComponentProps } from 'react';
-import { Platform, Pressable, TouchableOpacity } from 'react-native';
+import { Platform, Pressable, TouchableOpacity, type StyleProp, type ViewStyle } from 'react-native';
 import { rippleClip } from '@/lib/motion';
 
 /**
@@ -27,6 +27,8 @@ export const RIPPLE = { color: 'rgba(128, 128, 128, 0.22)', foreground: true } a
  */
 export function Touchable({ activeOpacity, ...rest }: ComponentProps<typeof TouchableOpacity>) {
   if (Platform.OS !== 'android') return <TouchableOpacity activeOpacity={activeOpacity} {...rest} />;
-  const { style, ...props } = rest;
+  // TouchableOpacity types its style as Animated; Pressable takes the plain one.
+  const style = rest.style as StyleProp<ViewStyle>;
+  const { style: _style, ...props } = rest;
   return <Pressable android_ripple={RIPPLE} style={[style, rippleClip(style)]} {...(props as ComponentProps<typeof Pressable>)} />;
 }

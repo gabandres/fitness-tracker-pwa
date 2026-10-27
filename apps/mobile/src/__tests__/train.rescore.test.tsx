@@ -69,6 +69,8 @@ const mockTrain = {
   cancelEdit: jest.fn(),
 };
 
+// The swipe action is tapped from an open row (Gesture Handler 3 blocks it while closed).
+jest.mock('react-native-gesture-handler/ReanimatedSwipeable', () => require('./open-swipeable').openSwipeableModule());
 jest.mock('@/components/ConfirmSheet', () => ({ confirm: (o: unknown) => mockConfirm(o) }));
 jest.mock('@/components/Toast', () => ({
   ...jest.requireActual('@/components/Toast'),

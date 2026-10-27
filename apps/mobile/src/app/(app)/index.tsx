@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { type Href, router, useLocalSearchParams, useScrollToTop } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View, type ScrollViewInstance, type ViewInstance } from 'react-native';
 import Animated, {
   Extrapolation,
   interpolate,
@@ -362,8 +362,8 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
     [targets.tdee, summary.totalCalories],
   );
   const [repeating, setRepeating] = useState(false);
-  const shareRef = useRef<View>(null);
-  const scrollRef = useRef<ScrollView>(null);
+  const shareRef = useRef<ViewInstance>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   // Re-tapping the focused Today tab scrolls back to the top — the platform
   // convention on both OSes (review A9). The tab bar announces it.
   useScrollToTop(scrollRef);

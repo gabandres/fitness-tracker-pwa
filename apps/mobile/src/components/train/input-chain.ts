@@ -1,5 +1,5 @@
 import { useLayoutEffect, useMemo, useRef } from 'react';
-import type { TextInput } from 'react-native';
+import type { TextInputInstance } from 'react-native';
 
 /**
  * Weight → reps → next row's weight: the order the live session's number
@@ -31,7 +31,7 @@ export interface ChainSlot {
 }
 
 export interface InputChain {
-  register: (slot: ChainSlot, input: TextInput | null) => void;
+  register: (slot: ChainSlot, input: TextInputInstance | null) => void;
   /** Focus the field after / before `slot`. Returns false at either end, so
    *  the caller can dismiss the keyboard instead. */
   next: (slot: ChainSlot) => boolean;
@@ -64,7 +64,7 @@ export function chainOrder(
 /** One chain per live session. `order` is read at call time through a ref, so
  *  the returned object keeps one identity for the whole workout. */
 export function useInputChain(order: () => ChainSlot[]): InputChain {
-  const inputs = useRef(new Map<string, TextInput>());
+  const inputs = useRef(new Map<string, TextInputInstance>());
   const orderRef = useRef(order);
   // After render, not during it: a ref written in render is a React Compiler
   // bail-out, and every caller reads it from an event handler anyway.

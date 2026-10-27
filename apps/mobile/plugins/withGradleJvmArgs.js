@@ -1,4 +1,4 @@
-const { withGradleProperties } = require('@expo/config-plugins');
+const { withGradleProperties } = require('expo/config-plugins');
 
 /**
  * Raises the Gradle daemon's heap and, more importantly, its **metaspace**.

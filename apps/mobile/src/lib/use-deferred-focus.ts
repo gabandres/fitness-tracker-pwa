@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { TextInput } from 'react-native';
+import { TextInput, type TextInputInstance } from 'react-native';
 
 /**
  * A TextInput ref that focuses shortly AFTER a sheet opens, instead of
@@ -13,7 +13,7 @@ import { TextInput } from 'react-native';
  * (drop `autoFocus`).
  */
 export function useDeferredFocus(visible: boolean, delayMs = 300) {
-  const ref = useRef<TextInput>(null);
+  const ref = useRef<TextInputInstance>(null);
   useEffect(() => {
     if (!visible) return;
     const timer = setTimeout(() => {

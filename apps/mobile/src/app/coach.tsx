@@ -8,6 +8,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  type ScrollViewInstance,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
@@ -128,7 +129,7 @@ export default function Coach() {
   // The answer streams BELOW the composer, which is below the fold on most
   // phones once the keyboard is up — it used to arrive out of sight. Follow it
   // while it streams, and move a screen reader to it when it lands.
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const replyRef = useA11yFocus(status === 'done' ? answer.length : 0, status === 'done');
   // Synchronous re-entry guard. `streaming` is state, so two taps in the same
   // frame both read it false and both spend a consultation (UX_AUDIT S18-14);

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { AccessibilityInfo, type Text } from 'react-native';
+import { AccessibilityInfo, type Text, type TextInstance } from 'react-native';
 
 /**
  * Move the screen reader to a heading when the view it names appears.
@@ -14,7 +14,7 @@ import { AccessibilityInfo, type Text } from 'react-native';
  * mode has mounted its node; a no-op when no screen reader is running.
  */
 export function useA11yFocus(key: unknown, enabled = true, delayMs = 150) {
-  const ref = useRef<Text>(null);
+  const ref = useRef<TextInstance>(null);
   useEffect(() => {
     if (!enabled) return;
     const timer = setTimeout(() => {

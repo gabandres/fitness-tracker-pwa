@@ -6,6 +6,7 @@ import { Manrope_800ExtraBold } from '@expo-google-fonts/manrope/800ExtraBold';
 import { useFonts } from '@expo-google-fonts/manrope/useFonts';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, useNavigationContainerRef, useRootNavigationState, useRouter, useSegments } from 'expo-router';
+import { CommonActions } from 'expo-router/react-navigation';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useState } from 'react';
 import { LogBox, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -275,7 +276,9 @@ function AuthGate({ fontsReady }: { fontsReady: boolean }) {
     if (!rootState?.routes || rootState.stale) return;
     const keep = reconcileRootRoutes(rootState.routes, rootState.index);
     if (!keep || !navRef.isReady()) return;
-    navRef.resetRoot({ ...rootState, routes: keep, index: keep.length - 1 });
+    // expo-router 58 removed `resetRoot`; a reset dispatched on the container
+    // ref reaches the root navigator, which is the same state here.
+    navRef.dispatch(CommonActions.reset({ ...rootState, routes: keep, index: keep.length - 1 }));
   }, [rootState, navRef]);
 
   // Screen-level performance spans (`lib/sentry.ts`). Once: the container ref

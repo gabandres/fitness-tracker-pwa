@@ -81,6 +81,16 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
     }
   }
 
+  // RevenueCat's "browser mode" (Expo Go, web, or a build missing its native
+  // module) runs on `purchases-js-hybrid-mappings`, which react-native-purchases
+  // requires statically — so every native bundle carried it unused: 831 KB of
+  // minified JS on 10.4, 1.10 MB on 10.15 (measured 2026-10-26, the SDK 58
+  // bump). A dev or store build always has the native module, and the tip jar
+  // that uses it is behind `FEATURES.tips`; web keeps the real package.
+  if (moduleName === '@revenuecat/purchases-js-hybrid-mappings' && (platform === 'ios' || platform === 'android')) {
+    return { type: 'empty' };
+  }
+
   const fromHealthkit =
     typeof context.originModulePath === 'string' && context.originModulePath.includes(HK);
   if (moduleName === HK || moduleName.startsWith(`${HK}/`) || fromHealthkit) {

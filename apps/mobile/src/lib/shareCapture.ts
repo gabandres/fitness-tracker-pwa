@@ -1,5 +1,5 @@
 import type { RefObject } from 'react';
-import type { View } from 'react-native';
+import type { View, ViewInstance } from 'react-native';
 import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 
@@ -7,7 +7,7 @@ import * as Sharing from 'expo-sharing';
  *  only — the `.web` sibling is a no-op (react-native-view-shot's web build
  *  pulls html2canvas, which isn't bundled for web export). */
 export async function captureAndShare(
-  ref: RefObject<View | null>,
+  ref: RefObject<ViewInstance | null>,
   dialogTitle: string,
   /** The file's name, no extension. Android only in view-shot 5.1 (it adds a
    *  random suffix); iOS keeps its UUID name. */

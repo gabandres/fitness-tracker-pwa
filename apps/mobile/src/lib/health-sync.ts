@@ -1281,8 +1281,8 @@ const LAUNCH_IMPORT_DELAY_MS = 3_000;
 
 /**
  * Run `fn` on an idle frame; returns its cancel. `requestIdleCallback`, not
- * `InteractionManager.runAfterInteractions` — RN 0.86 deprecates the latter
- * and warns on first use, naming this as the replacement — with a timeout
+ * `InteractionManager.runAfterInteractions` — RN 0.88 removed the latter,
+ * naming this as the replacement — with a timeout
  * where the runtime has none, like `useTrends`'s `idle`.
  */
 function whenIdle(fn: () => void): () => void {

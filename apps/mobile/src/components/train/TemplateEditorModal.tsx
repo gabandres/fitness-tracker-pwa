@@ -8,6 +8,8 @@ import {
   TouchableOpacity,
   View,
   useWindowDimensions,
+  type TextInputInstance,
+  type ViewInstance,
 } from 'react-native';
 import { SheetHeader } from '@/components/SheetHeader';
 import { MenuButton } from '@/components/MenuButton';
@@ -607,7 +609,7 @@ export function TemplateEditorModal({
   /** Save pressed with no name: said under the field, not by a grey button
    *  that gives no reason (T10). */
   const [nameErr, setNameErr] = useState(false);
-  const nameRef = useRef<TextInput>(null);
+  const nameRef = useRef<TextInputInstance>(null);
   /** The adder's multi-pick, in the order ticked (T18) — the order added. */
   const [picked, setPicked] = useState<ReadonlyMap<string, AdderPick>>(new Map());
   /** The adder is focused: an empty query then browses the catalog (T18). */
@@ -617,8 +619,8 @@ export function TemplateEditorModal({
   const adderY = useRef(0);
   /** The adder's box and each card's, for scrolling a just-added card into
    *  view (both measured in the window, the offset is the difference). */
-  const adderRef = useRef<View>(null);
-  const cardRefs = useRef(new Map<string, View>());
+  const adderRef = useRef<ViewInstance>(null);
+  const cardRefs = useRef(new Map<string, ViewInstance>());
   /** The card to bring into view once the adder has folded away. */
   const [revealUid, setRevealUid] = useState<string | null>(null);
   const reduceMotion = useReducedMotion();
@@ -627,7 +629,7 @@ export function TemplateEditorModal({
    *  accepted by the types and simply never auto-scrolls. */
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
   /** The leaders' switch-rest inputs by card key — "Edit rests" focuses one. */
-  const restInputs = useRef(new Map<string, TextInput>());
+  const restInputs = useRef(new Map<string, TextInputInstance>());
   /** The focused field, lifted above the keyboard once it is up — Android
    *  (UX_AUDIT S22) and, since T3, iOS. */
   const { onScroll: onEditorScroll, contentTopRef } = useRevealFocusedInput(scrollRef);
@@ -1972,7 +1974,7 @@ export function TemplateEditorModal({
                 return (
                 <Animated.View
                   key={d.uid}
-                  ref={(v: View | null) => {
+                  ref={(v: ViewInstance | null) => {
                     if (v) cardRefs.current.set(d.uid, v);
                     else cardRefs.current.delete(d.uid);
                   }}

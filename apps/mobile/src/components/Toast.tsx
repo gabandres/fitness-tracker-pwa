@@ -9,7 +9,7 @@ import {
   useState,
 } from 'react';
 import { Keyboard, Platform, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import Animated, {
   FadeInDown,
   FadeOutDown,
@@ -393,15 +393,15 @@ function ToastCard({
   // gesture would compete with the sheet's own drag-to-dismiss.
   const tx = useSharedValue(0);
   const ty = useSharedValue(0);
-  const swipe = Gesture.Pan()
-    .enabled(!inSheet)
-    .minDistance(8)
-    .onUpdate((e) => {
+  const swipe = usePanGesture({
+    enabled: !inSheet,
+    minDistance: 8,
+    onUpdate: (e) => {
       tx.set(e.translationX);
       // Down only: the toast sits above the tab bar and has nowhere to go up.
       ty.set(Math.max(0, e.translationY));
-    })
-    .onEnd((e) => {
+    },
+    onDeactivate: (e) => {
       const gone =
         Math.abs(e.translationX) > SWIPE_DISMISS_X ||
         e.translationY > SWIPE_DISMISS_Y ||
@@ -413,7 +413,8 @@ function ToastCard({
       }
       tx.set(withTiming(0, { duration: motion.dur.fast }));
       ty.set(withTiming(0, { duration: motion.dur.fast }));
-    });
+    },
+  });
   const dragStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: tx.value }, { translateY: ty.value }],
     opacity: 1 - Math.min(0.6, Math.abs(tx.value) / 300),

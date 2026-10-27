@@ -1,6 +1,6 @@
 # Expo HAS CHANGED
 
-Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before writing any code (installed SDK is `expo@^57`; keep this URL in sync with `apps/mobile/package.json`).
+Read the exact versioned docs at https://docs.expo.dev/versions/v58.0.0/ before writing any code (installed SDK is `expo@^58`; keep this URL in sync with `apps/mobile/package.json`).
 
 # Entry point is NOT `expo-router/entry`
 
@@ -247,6 +247,13 @@ on which runtime is the ledger's top rows, not this paragraph: it named an OTA
 two publishes stale on 2026-09-17 and four on 2026-10-05. **Only a value read
 from the artifact is evidence** — a build log, a locally generated hash, or an
 old Windows-computed number is not.
+
+**SDK 58 changed the fingerprinter's default to the `balanced` preset** (Expo:
+`version` in `app.json` and files inside `node_modules` no longer move it; native
+modules hash by package name + version). The tree went from 286+ sources to 97
+(iOS) / 95 (Android) on the SDK 58 branch, 2026-10-26. The list below was
+measured on SDK 57 — **re-measure each rule against the first SDK 58 artifact
+before trusting it**, the `version` one especially.
 
 **What MOVES the fingerprint (⇒ a build per platform):**
 
