@@ -713,6 +713,13 @@ export function writeImportedBlocks(
  *   This is the one automatic merge, and the owner asked for it: the
  *   suggest-never-merge rule (ADR-0026 decision 4) still holds everywhere
  *   else;
+ * - a new block that ends after an ACTIVE session of the day began waits: that
+ *   session is live on the device, its Zone 2 may not be typed yet, and it is
+ *   not a candidate until it completes. The next import routes the block. Until
+ *   2026-10-30 it became a standalone session on the spot, and a re-read then
+ *   finds it by `sourceId`, so it never reached the merge: the 10/27 Leg Day
+ *   walk, imported 13 s before the session was finished, is the case that
+ *   found it;
  * - anything else gets its own completed session, with no template — never an
  *   active one, which is live on the device.
  */
@@ -769,6 +776,7 @@ export function routeImportedBlocks(
     }
     const target = candidates.find((s) => inSessionWindow(s, b));
     if (!target) {
+      if (daySessions.some((s) => s.status === 'active' && endsAfterStart(s, b))) continue;
       fresh.push(b);
       continue;
     }
@@ -778,6 +786,12 @@ export function routeImportedBlocks(
     else push(updates, target, b);
   }
   return { updates, merges, hrFills, fresh };
+}
+
+/** The block ended after `session` began. A block with no start cannot say. */
+function endsAfterStart(session: WorkoutSession, block: CardioBlock): boolean {
+  const start = block.startedAt?.getTime();
+  return start != null && Number.isFinite(start) && start + block.durationSec * 1000 >= session.date.getTime();
 }
 
 export interface ImportWriteOptions {
