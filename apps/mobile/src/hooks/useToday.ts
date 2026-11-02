@@ -69,6 +69,8 @@ import { isTodayLoading } from '@/lib/today-gate';
 /** Reads are this hook's own (ADR-0016); the writes are the shared set every
  *  logging surface uses — see `useLogWrites`. */
 export interface TodayState extends LogWrites {
+  /** The recent sessions Today already holds for the trained-day rows. */
+  recentSessions: WorkoutSession[];
   loading: boolean;
   error: Error | null;
   /** `targets` came from server answers for logs, weights AND the profile —
@@ -623,6 +625,7 @@ export function useToday(): TodayState {
   );
 
   return {
+    recentSessions,
     loading,
     error,
     hasData: logsReady,

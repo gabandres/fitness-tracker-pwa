@@ -10,6 +10,7 @@ import {
   calibrationRaise,
   engineHistory,
   engineSessions,
+  readableRow,
   formatLoad,
   honourLifterLoad,
   isWorkingSet,
@@ -390,7 +391,7 @@ function computeRecommendation(
   // The session the newest read came from: the first one the engine may read
   // (`engineSessions`) whose sets survive the read rules (core `sessionCall`).
   const basedOn = engineSessions(completed, templateRow).find((s) => {
-    const e = s.exercises.find((x) => x.exerciseId === exerciseId);
+    const e = readableRow(s, exerciseId, templateRow?.awayGym);
     return e != null && readableHistory([e], templateRow, side).length > 0;
   })?.date;
   const row = side && templateRow

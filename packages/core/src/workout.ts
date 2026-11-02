@@ -229,7 +229,20 @@ export interface SessionExercise {
   /** Per-side calls on an L/R lift — each side is its own progression track
    *  (`side-tracks.ts`). `recommendation` is absent on such a row. */
   sideRecommendations?: Partial<Record<Side, RecommendationSnapshot>>;
+  /** Snapshotted from the template row — see {@link TemplateExercise.loadUnit}. */
+  loadUnit?: LoadUnit;
+  /** See {@link TemplateExercise.awayGym}. */
+  awayGym?: string;
+  /** See {@link TemplateExercise.linkedHome}. */
+  linkedHome?: boolean;
+  /** Set at start: the lift's first session at {@link awayGym}. Its activation
+   *  is RIR 2 and the engine does not judge its first mini (`readExercise`). */
+  calibration?: boolean;
 }
+
+/** The unit a row is trained in. Stored loads are ALWAYS pounds; this only says
+ *  which unit the lifter reads and types (`rowUnitSystem`). */
+export type LoadUnit = 'lb' | 'kg';
 
 /** The two sides of a single-leg / single-arm lift, as the planned sets label
  *  them (`PlannedSet.label`). */
@@ -611,6 +624,17 @@ export interface TemplateExercise {
    * every other row.
    */
   ladder?: { capReps: number; harder?: string };
+  /** The gym's rack is in kg (travel gym, 2026-11-02): this row shows and takes
+   *  kg, with the lb equivalent beside it. `targetLoad` and every logged weight
+   *  stay in pounds, so the engine, volume and export read one unit. */
+  loadUnit?: LoadUnit;
+  /** The gym this row is programmed at ("Haven Gym", `travel-plan.ts`). The
+   *  row reads only its own gym's sessions, and a first session is calibration. */
+  awayGym?: string;
+  /** The row shares its `exerciseId` with the lifter's home program: one lift
+   *  record, but a session row carrying this is not home evidence — out of the
+   *  home engine's reads, the e1RM chart and PRs (`exerciseHistory`). */
+  linkedHome?: boolean;
 }
 
 export interface WorkoutTemplate {

@@ -90,10 +90,41 @@ the last loads the wrong first ask.
 - A re-entry or not-comparable session leaves no trace in progression. If the
   user trains hard at a strange gym and wants it to count, they switch "not
   comparable" off.
-- Planned sessions and "missed" sessions do not exist in this app (the streak
-  counts logged days, food or training, and eyeballed meals are logged days);
-  Zone 2 has no frequency expectation — so "travel does not break streaks or
-  count as missed" needed no change.
+- "Missed" sessions do not exist in this app (the streak counts logged days,
+  food or training, and eyeballed meals are logged days); Zone 2 has no
+  frequency expectation — so "travel does not break streaks or count as missed"
+  needed no change. Planned sessions arrived with the amendment below and read
+  "skipped" at worst.
+
+## Amendment 2026-11-02: a gym on the trip, and a plan
+
+The owner's trip gained a gym (Haven Gym, Cochabamba: kg rack, different
+machines) and a week-by-week plan. All JS plus data; no rules change.
+
+- **An away gym's lifts are their own evidence.** Lifts with no home link get
+  their own catalog entries (`haven-*`). A lift the owner linked keeps its home
+  `exerciseId`, and its row carries `awayGym` + `linkedHome`, snapshotted onto
+  the session row. `exerciseHistory` / `engineHistory` then split the record: an
+  away row reads only that gym's rows, a home row, the e1RM chart and PRs never
+  read them. This is per ROW, not the session-wide `notComparable` of decision 6,
+  because the away rows must still progress on their own reads, and it is why
+  `travel-gym-*` templates stay `isTravelTemplate` (never −10 %, not "the gym").
+- **A row can be in kg** (`loadUnit`): the card shows and takes kg, the lb
+  equivalent beside it. Stored loads remain pounds, so the engine and volume read
+  one unit; the export adds `loadUnit` / `loadInUnit`. A kg row steps 2.5 kg and
+  ignores the catalog's lb `availableLoads`.
+- **The first session of a lift at the gym is calibration**
+  (`SessionExercise.calibration`, set at start): activation RIR 2, the long first
+  mini is not "too easy", and "raise load now" runs on clusters too (home
+  clusters still never prompt). Its read counts: at `progression.targetReps` (12
+  / 15, `EngineConfig.repFlagAt`) the next load is called, with no baseline hold.
+- **The plan is data on the trip** (`TravelPeriod.plan`, `travel-plan.ts`): Today
+  shows "This week", Train's Next up follows it, and travel templates stop being
+  Next up once home. Nothing penalises a skipped session.
+
+Limits: `MAX_SUPERSET_SIZE` stays 3, so Travel C's D4 and Travel D's E5 are the
+next row at the same 30 s, in the performed order the owner asked for. "Raise
+load now" skips L/R lifts (two tracks), as it does for straight L/R rows.
 
 ## Alternatives rejected
 

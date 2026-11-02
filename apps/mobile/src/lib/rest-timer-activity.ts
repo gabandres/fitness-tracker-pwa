@@ -3,7 +3,7 @@ import {
   CLUSTER_ESTIMATE_SEC,
   DEFAULT_TRANSITION_REST_SEC,
   countToAccept,
-  exerciseHistory,
+  previousHistory,
   formatLoad,
   previousSets,
   previousToAccept,
@@ -566,7 +566,7 @@ export function planUpcomingSets(input: PlanInput): PlannedSet[] {
   const previousFor = (e: number) => {
     let prev = previous.get(e);
     if (!prev) {
-      prev = previousSets(exerciseHistory(input.recentSessions as WorkoutSession[], exercises[e].exerciseId));
+      prev = previousSets(previousHistory(input.recentSessions as WorkoutSession[], exercises[e]));
       previous.set(e, prev);
     }
     return prev;

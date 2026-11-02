@@ -12,11 +12,12 @@ import {
   countToAccept,
   defaultIncrement,
   loadUnit,
+  rowUnitSystem,
   parseLoadToLb,
   setBeatsBest,
   toDisplayLoad,
 } from '@macrolog/core';
-import type { LogStyle, WorkoutSet } from '@/lib/workout';
+import type { LoadUnit, LogStyle, WorkoutSet } from '@/lib/workout';
 import type { TrainState } from '@/hooks/useTrain';
 import { KeyboardBar, useKeyboardBarProps } from '@/components/KeyboardBar';
 import { showToast } from '@/components/Toast';
@@ -78,6 +79,8 @@ const PR_IN_CELL = { alignSelf: 'flex-start', paddingHorizontal: 4, marginTop: 1
 const SWIPE_DELETE_BODY = { alignItems: 'center', gap: 2, minWidth: 56 } as const;
 
 export interface SetRowProps {
+  /** The row's own unit, when it is not the user's (`TemplateExercise.loadUnit`). */
+  loadUnit?: LoadUnit;
   exerciseIndex: number;
   setIndex: number;
   set: WorkoutSet;
@@ -147,8 +150,9 @@ export const SetRow = memo(function SetRow({
   onOpenSheet,
   onRemove,
   chain,
+  loadUnit: rowUnit,
 }: SetRowProps) {
-  const unitSystem = useUnitSystem();
+  const unitSystem = rowUnitSystem(rowUnit, useUnitSystem()) ?? 'us';
   const t = useT();
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);

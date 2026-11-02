@@ -33,6 +33,7 @@
 import type { DailyLog } from './types';
 import { addDays, calendarDateKey, parseYmd, type DateKey } from './date';
 import { dayKeyAt, type DayBoundary } from './day-boundary';
+import { sanitizeTravelPlan, type TravelPlanEntry } from './travel-plan';
 
 /** A high-altitude leg of a trip: shown on Today for its first few days. */
 export interface TravelAltitude {
@@ -54,6 +55,8 @@ export interface TravelPeriod {
   /** The user's usual daily steps, for "steps vs usual" while away. */
   usualSteps?: number;
   altitude?: TravelAltitude;
+  /** The planned sessions of the trip (`travel-plan.ts`). */
+  plan?: TravelPlanEntry[];
 }
 
 /** Post-travel complete days before the maintenance fit runs again — the
@@ -100,6 +103,8 @@ export function travelPeriodsOf(profile: { travelPeriods?: unknown } | null | un
     ) {
       period.altitude = { place: a.place.trim().slice(0, TRAVEL_LABEL_MAX), meters: Math.round(a.meters), arrival: a.arrival };
     }
+    const plan = sanitizeTravelPlan(r.plan);
+    if (plan.length) period.plan = plan;
     out.push(period);
   }
   return out.sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0)).slice(0, MAX_TRAVEL_PERIODS);

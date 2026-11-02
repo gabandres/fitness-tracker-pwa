@@ -43,7 +43,8 @@ export type { SetStructure } from '@macrolog/core/workout';
 // local copy predated core's and had already been duplicated verbatim; the
 // muscle picker needs the VALUE list (`MUSCLE_GROUPS`) beside it, and two
 // enumerations of one union is exactly how a chip goes missing.
-export type { MuscleGroup } from '@macrolog/core/workout';
+export type { LoadUnit, MuscleGroup } from '@macrolog/core/workout';
+import type { LoadUnit } from '@macrolog/core/workout';
 
 /** How a set counts. v1 only creates `working`; the others exist so docs
  *  written by the PWA round-trip cleanly. */
@@ -144,6 +145,12 @@ export interface SessionExercise {
   minClusterRestSec?: number;
   /** An L/R lift: each side's call, frozen at start (core `side-tracks.ts`). */
   sideRecommendations?: Partial<Record<Side, RecommendationSnapshot>>;
+  /** Snapshotted from the template row — core `TemplateExercise.loadUnit`. */
+  loadUnit?: LoadUnit;
+  awayGym?: string;
+  linkedHome?: boolean;
+  /** Core `SessionExercise.calibration`. */
+  calibration?: boolean;
 }
 
 // ─── Templates ──────────────────────────────────────────────────
@@ -227,6 +234,10 @@ export interface TemplateExercise {
   minClusterRestSec?: number;
   clusterCountChange?: { from: number; to: number; since: string };
   sideLoads?: Partial<Record<Side, number>>;
+  /** Core `TemplateExercise.loadUnit` / `awayGym` / `linkedHome`. */
+  loadUnit?: LoadUnit;
+  awayGym?: string;
+  linkedHome?: boolean;
 }
 
 export interface WorkoutTemplate {
@@ -306,6 +317,9 @@ export function templateToSessionExercises(template: WorkoutTemplate): SessionEx
       ...supersets[i],
       ...(ex.restClusterSec != null ? { restClusterSec: ex.restClusterSec } : {}),
       ...(ex.minClusterRestSec != null ? { minClusterRestSec: ex.minClusterRestSec } : {}),
+      ...(ex.loadUnit ? { loadUnit: ex.loadUnit } : {}),
+      ...(ex.awayGym ? { awayGym: ex.awayGym } : {}),
+      ...(ex.linkedHome ? { linkedHome: true } : {}),
     };
   });
 }

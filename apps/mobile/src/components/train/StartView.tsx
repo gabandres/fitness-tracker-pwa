@@ -5,6 +5,7 @@ import { TRAIN_RIPPLE, Touchable } from './Touchable';
 import Animated from 'react-native-reanimated';
 import {
   dayBoundaryOf,
+  dayKeyAt,
   formatBodyWeight,
   formatLoad,
   isArchivedTemplate,
@@ -232,8 +233,12 @@ export function StartView({
   // Which template to offer, and when each was last completed. Both are pure
   // and live in core (`train-plan.ts`); this screen only renders them.
   const nextUp = useMemo(
-    () => nextTemplateUp(train.templates, train.recentSessions, now),
-    [train.templates, train.recentSessions, now],
+    () => nextTemplateUp(train.templates, train.recentSessions, now, {
+      today: dayKeyAt(new Date(now), dayBoundaryOf({ dayBoundary })),
+      periods: travelPeriodsOf({ travelPeriods }),
+      boundary: dayBoundaryOf({ dayBoundary }),
+    }),
+    [train.templates, train.recentSessions, now, dayBoundary, travelPeriods],
   );
   const lastByTemplate = useMemo(
     () => templateLastPerformed(train.recentSessions),
