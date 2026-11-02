@@ -130,6 +130,7 @@ export * from './tdee-recalibration';
 // TDEE is genuinely measured, so a formula/seed guess never appears on Today
 // dressed as an observation.
 export * from './maintenance-view';
+export * from './maintenance-display';
 // How far a NOT-yet-measured account is from its first measured burn — the
 // Today hero's footer before `maintenanceView` has anything to show. Same
 // contract: presentation gate over the estimator's own thresholds, no math.

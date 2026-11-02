@@ -95,8 +95,8 @@ deleted and its outcome goes to `CHANGELOG.md`.
   travel card, the eyeball sheet, Trends "held" and a re-entry session; no
   real phone has yet. The Settings editor is admin-only, so only the owner's
   phone can show it.
-- **During the trip:** maintenance shows "Held for travel" (≈ 2,112 as of the
-  10/26 projection; the real value is whatever it reads at 10/31 00:00).
+- **During the trip:** maintenance shows "Held for travel": **2,262 ± 60**, frozen as of
+  10/30 (read 2026-11-02; 10/30 closed at 1,766 kcal).
 - **After 11/19:** first Push / Pull / Leg session each = re-entry (−10 %,
   RIR 2); maintenance "Rebuilding n/14" until 14 complete days home. Then
   decide whether `FEATURES.travelMode` goes to everyone and whether the travel
@@ -196,11 +196,15 @@ deliberately: bounding the OS-repeating meal-window dailies — a separate call.
 | **Website indexing** | **Wait and re-measure** (`node scripts/gsc.mjs inspect`): 6 of 7 sampled URLs indexed since 2026-09-03, the sitemap still never fetched. Router/SSR migration DEFERRED. Tables: `docs/seo-status.md` |
 | **MenuStat permission — sent 2026-08-24, no reply** | **Owner, awaiting NYC DOHMH.** Licence risk: menustat.org (through 2022) was all-rights-reserved and is gone; the CC0 Dataverse copy stops at 2018 and loses The Cheesecake Factory. Replies land in the `bermudezpr.com` M365 tenant. Follow-ups: Pollo Tropical; the mobile provenance chip |
 
-**The maintenance 95% interval is computed and never shown.** `seTdee` /
-`ci95Tdee` exist (`tdee.ts`); Today shows only the binary `holding`. One account
-read `confidence` 0.957 with an interval of **1,775..3,242**, and its caveat
-blames gaps, which is not where that width came from. A range on the hero is a
-product decision (alarming, and correctly so).
+**The maintenance display is built and NOT live (owner, 2026-10-30).** Core
+`maintenance-display.ts`: the hero shows the 7-day mean of the raw daily values
+with the 95% range and the valid-day count; `dailyTargets` gains
+`maintenanceRaw` / `maintenanceDisplayed`; a travel hold stays raw, unsmoothed.
+`FEATURES.maintenanceDisplay: 'admin'`; rollout to everyone is still the owner's
+call, because the range can read wide (one account: **1,775..3,242**). **Deploy
+`firestore:rules` first, then OTA**, with the Health import fix alongside it: a
+Watch walk imported during an active session now waits and merges into the
+hand-logged Zone 2 instead of becoming its own session.
 
 ## 4. Decided and deliberately not happening
 

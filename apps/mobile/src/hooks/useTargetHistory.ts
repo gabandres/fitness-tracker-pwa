@@ -2,15 +2,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   type DailyTargetRecord,
   type DailyTargets,
+  type MaintenanceDisplay,
   type Profile,
   addDays,
   owesNotice,
   parseYmd,
   calendarDateKey,
+  maintenanceDisplay,
   planTargetRecord,
   targetSnapshot,
 } from '@macrolog/core';
 import { useAuth } from '@/lib/auth';
+import { FEATURES, isFeatureOn } from '@/lib/features';
 import { ackTargetNotice, subscribeDailyTargets, writeDailyTargetRecord } from '@/lib/ledger';
 import { captureError } from '@/lib/sentry';
 import { feedChannel, useLedgerFeed } from '@/hooks/useLedgerFeed';
@@ -41,9 +44,9 @@ export function useTargetHistory(input: {
   targets: DailyTargets;
   profile: Profile | null;
   authoritative: boolean;
-}): { notice: DailyTargetRecord | null; ack: (date: string) => void } {
+}): { notice: DailyTargetRecord | null; ack: (date: string) => void; display: MaintenanceDisplay | null } {
   const { todayKey, targets, profile, authoritative } = input;
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const uid = user?.uid;
   // Equality-skipping: a refocus re-opens this listener, and its first answer
   // is a new array of the same records — one more full render of Today.
@@ -77,12 +80,19 @@ export function useTargetHistory(input: {
     deps: [uid],
   });
 
+  // Off the records already held here, so Today gains no listener for it.
+  const displayOn = isFeatureOn(FEATURES.maintenanceDisplay, { isAdmin });
+  const display = useMemo(
+    () => (displayOn ? maintenanceDisplay(targets.tdee, records, todayKey) : null),
+    [displayOn, targets.tdee, records, todayKey],
+  );
+
   const plan = useMemo(
     () =>
       authoritative && recordsServer
-        ? planTargetRecord(todayKey, targetSnapshot(targets, profile), records)
+        ? planTargetRecord(todayKey, targetSnapshot(targets, profile, undefined, display), records)
         : null,
-    [authoritative, recordsServer, todayKey, targets, profile, records],
+    [authoritative, recordsServer, todayKey, targets, profile, display, records],
   );
 
   // One write per distinct plan. The listener answers with the stored record,
@@ -116,5 +126,5 @@ export function useTargetHistory(input: {
     [uid],
   );
 
-  return { notice, ack };
+  return { notice, ack, display };
 }

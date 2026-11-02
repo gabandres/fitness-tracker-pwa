@@ -174,7 +174,7 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
     loading, error, insights, loggedThisWeek, proteinTarget, tdee, targetCalories, budget, basalKcal,
     activityLevel, sleep, fasting, water, composition, chartKeys, weightSeries, intakeSeries,
     proteinSeries, carbsSeries, fatSeries, todayKey, historyClip, insightWindow, streak, settledKey,
-    expenditure, historyDays, milestones, progress, zone2, hunger, travelCheck,
+    expenditure, historyDays, milestones, progress, zone2, hunger, travelCheck, display,
   } = useTrends(requestedDays, { maxDays: cap, refreshKey });
   // A new account opened on "1M" and saw 27 blank days of a 30-day axis (sim
   // review 2026-10-06). Under a month of history every fixed range is mostly
@@ -430,13 +430,19 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
                     UNIT under the number rather than splitting "2,450" at
                     the largest text sizes (re-score 3, A3). */}
                 {tdee.trueTdee > 0 && !incomplete ? (
-                  <CountUpText value={tdee.trueTdee} style={styles.heroValue} maxFontSizeMultiplier={HERO_MAX_SCALE} testID="tdee-value" />
+                  <CountUpText value={display?.displayed ?? tdee.trueTdee} style={styles.heroValue} maxFontSizeMultiplier={HERO_MAX_SCALE} testID="tdee-value" />
                 ) : (
                   <Text style={styles.heroValue} maxFontSizeMultiplier={HERO_MAX_SCALE} numberOfLines={1} testID="tdee-value">—</Text>
                 )}
                 <Text style={styles.heroUnit} maxFontSizeMultiplier={HERO_MAX_SCALE} numberOfLines={1}>{t('trends.kcalUnit')}</Text>
               </View>
-              {ci95 != null ? (
+              {display ? (
+                <Text style={styles.heroCi} testID="tdee-range">
+                  {display.range
+                    ? t('today.maintenanceRange', { low: formatNumber(display.range.low, locale), high: formatNumber(display.range.high, locale), n: display.validDays })
+                    : t('today.maintenanceValidDays', { n: display.validDays })}
+                </Text>
+              ) : ci95 != null ? (
                 <Text style={styles.heroCi} testID="tdee-ci">{t('trends.ci95', { n: formatNumber(ci95, locale) })}</Text>
               ) : null}
             </PressScale>
@@ -444,6 +450,11 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
                 estimator already produced (sim review 2026-10-06: the hint
                 named the inputs and showed neither). Formula/seed keep the
                 one-line hint. */}
+            {display && display.displayed !== display.raw ? (
+              <Text style={styles.heroSub} testID="tdee-smoothed">
+                {t('trends.maintenanceSmoothed', { raw: formatNumber(display.raw, locale) })}
+              </Text>
+            ) : null}
             {tdee.travelHold ? (
               <Text style={styles.heroSub} testID="tdee-travel-hold">
                 {tdee.travelHold.state === 'frozen'

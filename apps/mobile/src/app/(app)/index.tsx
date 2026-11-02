@@ -364,8 +364,8 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
   // Built once per change of its two inputs rather than inline in the hero's
   // props on every render (review, Performance).
   const maintenance = useMemo(
-    () => maintenanceView(targets.tdee, summary.totalCalories),
-    [targets.tdee, summary.totalCalories],
+    () => maintenanceView(targets.tdee, summary.totalCalories, targetHistory.display),
+    [targets.tdee, summary.totalCalories, targetHistory.display],
   );
   const [repeating, setRepeating] = useState(false);
   const shareRef = useRef<View>(null);
