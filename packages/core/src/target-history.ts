@@ -34,6 +34,7 @@
  */
 import type { DailyTargets, TargetSource } from './targets';
 import { isTimestampLike, toDate } from './firestore-mappers';
+import type { MaintenanceDisplay } from './maintenance-display';
 
 export type { TargetSource };
 
@@ -87,6 +88,11 @@ export interface DailyTargetRecord {
   /** The maintenance estimate (`TdeeResult.trueTdee`) the day was planned on. */
   maintenanceEstimate?: number;
   maintenanceSource?: 'measured' | 'formula' | 'seed';
+  /** The estimator's value and the smoothed one the hero showed
+   *  (`maintenance-display.ts`). Display record only; absent where the display
+   *  is off and on every record before 2026-10-30. */
+  maintenanceRaw?: number;
+  maintenanceDisplayed?: number;
   /** Composition-adjusted maintenance (ADR-0043), when the client had one. */
   compositionAdjustedMaintenance?: number;
   basis?: TargetBasis;
@@ -103,7 +109,8 @@ export interface DailyTargetRecord {
 export type TargetSnapshot = Pick<
   DailyTargetRecord,
   'kcalTarget' | 'kcalSource' | 'proteinTarget' | 'proteinSource'
-  | 'maintenanceEstimate' | 'maintenanceSource' | 'compositionAdjustedMaintenance' | 'basis'
+  | 'maintenanceEstimate' | 'maintenanceSource' | 'maintenanceRaw' | 'maintenanceDisplayed'
+  | 'compositionAdjustedMaintenance' | 'basis'
 >;
 
 /** Today's record values from the target chain and the profile it read. */
@@ -111,6 +118,7 @@ export function targetSnapshot(
   t: DailyTargets,
   profile: { targetPaceLbsPerWeek?: number | null; calorieFloor?: number | null; proteinPerKg?: number | null } | null,
   compositionAdjustedMaintenance?: number | null,
+  display?: Pick<MaintenanceDisplay, 'raw' | 'displayed'> | null,
 ): TargetSnapshot {
   const trueTdee = (t.tdee as { trueTdee?: number }).trueTdee;
   return {
@@ -120,6 +128,7 @@ export function targetSnapshot(
     proteinSource: t.proteinSource,
     ...(trueTdee != null && Number.isFinite(trueTdee) ? { maintenanceEstimate: Math.round(trueTdee) } : {}),
     ...(t.tdee.source ? { maintenanceSource: t.tdee.source } : {}),
+    ...(display ? { maintenanceRaw: display.raw, maintenanceDisplayed: display.displayed } : {}),
     ...(compositionAdjustedMaintenance != null ? { compositionAdjustedMaintenance: Math.round(compositionAdjustedMaintenance) } : {}),
     basis: {
       weightLb: t.proteinBasis?.weightLb ?? t.currentWeight ?? null,
@@ -244,6 +253,8 @@ export function toDailyTargetRecord(id: string, data: Record<string, unknown>): 
     kcalTarget: kcal, kcalSource, proteinTarget: protein, proteinSource,
     ...(n(data['maintenanceEstimate']) != null ? { maintenanceEstimate: n(data['maintenanceEstimate']) } : {}),
     ...(ms === 'measured' || ms === 'formula' || ms === 'seed' ? { maintenanceSource: ms } : {}),
+    ...(n(data['maintenanceRaw']) != null ? { maintenanceRaw: n(data['maintenanceRaw']) } : {}),
+    ...(n(data['maintenanceDisplayed']) != null ? { maintenanceDisplayed: n(data['maintenanceDisplayed']) } : {}),
     ...(n(data['compositionAdjustedMaintenance']) != null
       ? { compositionAdjustedMaintenance: n(data['compositionAdjustedMaintenance']) } : {}),
     ...(data['basis'] && typeof data['basis'] === 'object' ? { basis: data['basis'] as TargetBasis } : {}),
