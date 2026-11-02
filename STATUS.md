@@ -1,6 +1,6 @@
 # STATUS — what is true right now
 
-**Updated:** 2026-10-26 · **Owns:** current state only. Not history
+**Updated:** 2026-11-02 · **Owns:** current state only. Not history
 (`CHANGELOG.md`), not rationale (`docs/adr/`), not vocabulary (`CONTEXT.md`),
 not commands (`docs/COMMANDS.md`), not build tooling
 (`docs/build-infrastructure.md`), not fingerprints or publish rules
@@ -97,6 +97,15 @@ deleted and its outcome goes to `CHANGELOG.md`.
   phone can show it.
 - **During the trip:** maintenance shows "Held for travel" (≈ 2,112 as of the
   10/26 projection; the real value is whatever it reads at 10/31 00:00).
+- **Haven Gym plan (2026-11-02):** templates Travel C / D (`travel-gym-v3`), 14
+  `haven-*` lifts and the trip's plan are on the owner's account. The app code
+  that reads them (kg rows, Haven-only progression, "raise load now" on clusters,
+  Today "This week") is OTA'd to all twelve runtimes. **The 1.2.10 runtimes were
+  published from `feat/travel-gym-v3` @ `1fc2a550`, which is NOT in `main`: an OTA
+  from `main` before it merges takes all of this back off build 74 / vc 53.** The
+  older ten are on `ota/perf-2026-10-21` @ `88c880d0`. Not run on a simulator or
+  phone yet; a session logged on the older bundle has no gym tag, so it would feed
+  the home engine until tagged. ADR-0048 amendment.
 - **After 11/19:** first Push / Pull / Leg session each = re-entry (−10 %,
   RIR 2); maintenance "Rebuilding n/14" until 14 complete days home. Then
   decide whether `FEATURES.travelMode` goes to everyone and whether the travel

@@ -213,6 +213,10 @@ const CARRIED_ROW_FIELDS = [
   'restAfterSec', 'restAfterMaxSec', 'baseline', 'lastModifiedAt', 'lastModifiedBy',
   // Program v2 (2026-10-11): no editor screen shows these either.
   'restClusterSec', 'minClusterRestSec', 'clusterCountChange', 'sideLoads',
+  // Travel gym (2026-11-02): an edit must not turn a kg row into a home row.
+  'loadUnit',
+  'awayGym',
+  'linkedHome',
 ] as const;
 
 /** The fields that make a row's PRESCRIPTION — what a change stamp is about. */

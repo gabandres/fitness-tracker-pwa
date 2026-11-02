@@ -44,7 +44,7 @@ import {
   type EngineCatalogFields,
   type Recommendation,
 } from './progression-engine';
-import { engineHistory, engineSessions, exerciseHistory } from './train-view';
+import { engineHistory, engineSessions, exerciseHistory, readableRow } from './train-view';
 import { stampChangedRows } from './progression-apply';
 import { normalizeSupersets, pendingLoadTest, supersetGroups } from './superset';
 import { calendarDateKey } from './date';
@@ -685,7 +685,7 @@ export function sessionCall(
   const readable = engineSessions(completed, row);
   const readFrom = (side?: Side): Date | undefined => {
     for (const s of readable) {
-      const e = s.exercises.find((x) => x.exerciseId === row.exerciseId);
+      const e = readableRow(s, row.exerciseId, row.awayGym);
       if (e && readableHistory([e], row, side).length > 0) return s.date;
     }
     return undefined;
@@ -717,5 +717,5 @@ export function rowPendingLoadTest(
   const { rec } = sessionCall(row, completed, catalogExercise);
   const planned = rec.action !== 'none' && rec.load != null ? rec.load : row.targetLoad;
   // Every session, not only post-baseline ones: "the last time it was lifted".
-  return pendingLoadTest(planned, exerciseHistory(completed, row.exerciseId), catalogExercise?.assisted === true);
+  return pendingLoadTest(planned, exerciseHistory(completed, row.exerciseId, row.awayGym), catalogExercise?.assisted === true);
 }

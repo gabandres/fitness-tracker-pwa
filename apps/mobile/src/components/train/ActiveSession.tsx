@@ -15,6 +15,7 @@ import {
   isSupersetted,
   moveBlockAware,
   restAfterSetInFlow,
+  isBackToBackGymDay,
   roundRestWithFloor,
   CLUSTER_ESTIMATE_SEC,
   DEFAULT_TRANSITION_REST_SEC,
@@ -421,6 +422,12 @@ export function ActiveSession({
   /** "A1" per card from the REAL groups — a partner removed or replaced leaves
    *  no stale tag, and the rest bar and the cards always agree. */
   const sessionTags = useMemo(() => supersetTags(session.exercises), [session.exercises]);
+  // C then D on consecutive days: a reminder, nothing is held back (core
+  // `isBackToBackGymDay`).
+  const backToBack = useMemo(
+    () => isBackToBackGymDay(session, train.recentSessions, train.dayBoundary),
+    [session, train.recentSessions, train.dayBoundary],
+  );
   const volume = sessionVolume(session);
   /** The header's line after the clock: volume, then progress. */
   const metaParts = [
@@ -1538,6 +1545,11 @@ export function ActiveSession({
           {/* Travel mode (core `reentry.ts`): a re-entry session says what it
               asks for, and a gym away from home can be kept out of e1RM,
               PRs and progression — ON by default during a trip. */}
+          {backToBack ? (
+            <View style={styles.syncRow} testID="session-back-to-back">
+              <Text style={styles.sheetHint}>{t('train.gym.backToBack')}</Text>
+            </View>
+          ) : null}
           {session.reentry ? (
             <View style={styles.syncRow} testID="session-reentry">
               <Ionicons name="airplane-outline" size={16} color={colors.muted} />

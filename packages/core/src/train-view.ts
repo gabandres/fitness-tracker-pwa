@@ -127,6 +127,8 @@ export function bestE1RMByExercise(sessions: readonly WorkoutSession[]): Record<
     // A different gym's equipment is not this lift's PR (travel mode).
     if (s.notComparable) continue;
     for (const ex of s.exercises) {
+      // Nor is a linked lift at an away gym (`TemplateExercise.linkedHome`).
+      if (ex.linkedHome) continue;
       const arr = rows.get(ex.exerciseId);
       if (arr) arr.push(ex);
       else rows.set(ex.exerciseId, [ex]);
@@ -157,22 +159,52 @@ export function improvedExercises(
 /** Rows for one exercise across the given sessions, in the order the sessions
  *  are given (both apps pass newest-first). A session marked "different
  *  equipment — not comparable" (travel mode) is left out: its numbers are not
- *  this lift's, for the engine, the e1RM chart or the PRs alike. */
+ *  this lift's, for the engine, the e1RM chart or the PRs alike.
+ *
+ *  `gym` asks for one away gym's rows only (`TemplateExercise.awayGym`); without
+ *  it a linked row logged at an away gym is left out for the same reason. */
 export function exerciseHistory(
   sessions: readonly WorkoutSession[],
   exerciseId: string,
+  gym?: string,
 ): SessionExercise[] {
   const out: SessionExercise[] = [];
   for (const s of sessions) {
     if (s.notComparable) continue;
-    const match = s.exercises.find((e) => e.exerciseId === exerciseId);
+    const match = readableRow(s, exerciseId, gym);
     if (match) out.push(match);
   }
   return out;
 }
 
+/** A session's row for a lift, if it is evidence for that gym (see
+ *  {@link exerciseHistory}). */
+export function readableRow<E extends Pick<SessionExercise, 'exerciseId' | 'awayGym' | 'linkedHome'>>(
+  session: { exercises: readonly E[] },
+  exerciseId: string,
+  gym?: string,
+): E | undefined {
+  const match = session.exercises.find((e) => e.exerciseId === exerciseId);
+  if (!match) return undefined;
+  return (gym ? match.awayGym === gym : !match.linkedHome) ? match : undefined;
+}
+
+/**
+ * What a live lift's "last time" reads: its gym's own history. A linked lift's
+ * first session there has none, so it shows the home history — the reference
+ * the link is for. Its loads are in pounds like every other; the card converts.
+ */
+export function previousHistory(
+  sessions: readonly WorkoutSession[],
+  ex: Pick<SessionExercise, 'exerciseId' | 'awayGym' | 'linkedHome'>,
+): SessionExercise[] {
+  if (!ex.awayGym) return exerciseHistory(sessions, ex.exerciseId);
+  const own = exerciseHistory(sessions, ex.exerciseId, ex.awayGym);
+  return own.length > 0 || !ex.linkedHome ? own : exerciseHistory(sessions, ex.exerciseId);
+}
+
 /** The row fields that decide which sessions the engine may read. */
-export type EngineReadRow = Pick<TemplateExercise, 'clusterCountChange'> & {
+export type EngineReadRow = Pick<TemplateExercise, 'clusterCountChange' | 'awayGym'> & {
   baseline?: { since: string };
   excludedReads?: readonly { date: string }[];
 };
@@ -215,7 +247,7 @@ export function engineHistory(
   row?: EngineReadRow | null,
   side?: Side,
 ): SessionExercise[] {
-  const history = exerciseHistory(engineSessions(sessions, row), exerciseId);
+  const history = exerciseHistory(engineSessions(sessions, row), exerciseId, row?.awayGym);
   // Program v2: a cluster-count change reads cluster 1 only; an L/R lift
   // reads one side at a time (`side-tracks.ts`).
   return readableHistory(history, row, side);

@@ -540,6 +540,7 @@ describe('buildCsv — Program v2 columns (test 10)', () => {
     'dayFullyLogged',
     // 2026-10-26 (travel mode): eyeballed meals and re-entry / not-comparable sessions.
     'estimateQuality', 'proteinFirst', 'sessionFlags',
+  'loadUnit', 'loadInUnit',
   ];
   const csv = buildCsv(HISTORICAL);
   const lines = csv.split('\r\n');

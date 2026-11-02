@@ -8,7 +8,8 @@
 import type { DailyLog, Measurement } from './types';
 import { fastLengthHours, type Fast } from './fasting-history';
 import { isLoggedCardioBlock } from './cardio';
-import { type WorkoutSession, type WorkoutTemplate, DEFAULT_EFFORT_STANDARD, type EffortStandard, isLoggedSet } from './workout';
+import { type LoadUnit, type WorkoutSession, type WorkoutTemplate, DEFAULT_EFFORT_STANDARD, type EffortStandard, isLoggedSet } from './workout';
+import { rowUnitSystem, toDisplayLoad } from './load-units';
 import { type DailyTargetRecord, describeTargetChange } from './target-history';
 import { normalizeClusterGroups } from './cluster-groups';
 import { snapshotSupersets } from './superset';
@@ -114,8 +115,19 @@ const COLS = [
   // A 'travel' row per trip; a travel-day 'weight' row's notes say it is a
   // travel scale and out of the trend.
   'estimateQuality', 'proteinFirst', 'sessionFlags',
+  // ── Travel gym (2026-11-02), appended for the same reason ──
+  // A row trained in another unit: `loadUnit` says which, `loadInUnit` is its
+  // `load` ('template' rows) or `setWeight` ('workout_set' rows) in it. Those
+  // two stay in pounds. 'workout_set' `sessionFlags` carry 'calibration' on a
+  // lift's first session at an away gym and 'travel-re-entry' on a linked lift's;
+  // one 'travel_plan' row per planned session of a trip.
+  'loadUnit', 'loadInUnit',
 ] as const;
 type Col = typeof COLS[number];
+
+/** The `loadUnit` / `loadInUnit` columns of a row trained in another unit. */
+const unitCols = (unit: LoadUnit | undefined, lb: number | undefined) =>
+  unit ? { loadUnit: unit, ...(lb != null ? { loadInUnit: toDisplayLoad(lb, rowUnitSystem(unit, undefined)) } : {}) } : {};
 
 /**
  * The engine's "load changed" note, per cluster group, for `workout_set` rows
@@ -253,6 +265,14 @@ export function buildCsv(data: ExportData, boundary: DayBoundary = MIDNIGHT): st
         p.usualSteps ? `usual steps ${p.usualSteps}` : '',
       ].filter(Boolean).join('; '),
     }));
+    for (const e of p.plan ?? []) {
+      rows.push(row({
+        type: 'travel_plan',
+        date: e.from,
+        template: e.label,
+        notes: [e.from === e.to ? e.from : `${e.from} → ${e.to}`, e.kind, e.note ?? ''].filter(Boolean).join('; '),
+      }));
+    }
   }
 
   const weightKeys = Object.keys(data.dailyWeights).sort();
@@ -320,7 +340,11 @@ export function buildCsv(data: ExportData, boundary: DayBoundary = MIDNIGHT): st
       durationMin: s.durationMin,
       sleepHours: s.sleepHours,
       templateVersion: s.templateVersion,
-      sessionFlags: [s.reentry ? `reentry:${s.reentry}` : '', s.notComparable ? 'notComparable' : ''].filter(Boolean).join(';'),
+      sessionFlags: [
+        s.reentry ? `reentry:${s.reentry}` : '',
+        s.notComparable ? 'notComparable' : '',
+        s.exercises.some((ex) => ex.calibration && ex.linkedHome) ? 'travel-re-entry' : '',
+      ].filter(Boolean).join(';'),
     }));
     for (const ex of s.exercises) {
       // Drop unfilled scaffold rows (no rep/duration count — phantom clusters
@@ -356,8 +380,10 @@ export function buildCsv(data: ExportData, boundary: DayBoundary = MIDNIGHT): st
           transitionSec: ex.supersetGroup ? ex.transitionRestSec : undefined,
           notes: set.kind === 'activation' ? loadNotes.get(set.group ?? 1) : undefined,
           rirTarget: set.kind === 'activation' || set.kind === 'working'
-            ? (s.deload ? DELOAD_RIR : s.reentry ? REENTRY_RIR : targetRirOf(data.effortStandards?.[ex.exerciseId]))
+            ? (s.deload ? DELOAD_RIR : s.reentry || ex.calibration ? REENTRY_RIR : targetRirOf(data.effortStandards?.[ex.exerciseId]))
             : undefined,
+          sessionFlags: [ex.calibration ? 'calibration' : '', ex.calibration && ex.linkedHome ? 'travel-re-entry' : ''].filter(Boolean).join(';'),
+          ...unitCols(ex.loadUnit, set.weight),
         }));
       }
     }
@@ -550,6 +576,7 @@ function templateRows(data: ExportData): string[] {
         supersetBlock: supersets[i].supersetGroup,
         supersetOrder: supersets[i].pairPosition,
         transitionSec: supersets[i].transitionRestSec,
+        ...unitCols(ex.loadUnit, ex.targetLoad),
       }));
     });
     (t.cardioBlocks ?? []).forEach((b, j) => {
