@@ -4,6 +4,18 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-11-02 — Haven Gym plan: Travel C / D, kg rows, "This week" (`1fc2a550`, OTA on all twelve runtimes)
+
+The owner's Bolivia trip gained a gym with a kg rack and a week-by-week plan
+(ADR-0048 amendment). A lift linked to home keeps one record but its Haven rows
+are evidence only for Haven: out of the home engine's reads, the e1RM chart and
+PRs. A row can be trained in kg (stored loads stay pounds). A lift's first session
+at the gym is calibration, with "raise load now" on clusters, and its read can
+already call the next load (12 compounds, 15 isolations). Today shows "This week"
+from `TravelPeriod.plan`; Train's Next up follows the plan, and never-performed
+travel templates stop being Next up at home. Data: `scripts/owner-data-2026-11-02-travel-gym.mts`.
+No rules change. Groups and rollbacks in the ledger.
+
 ## 2026-10-26 — Travel mode fix: "not comparable" off (`0039d960`, OTA on all twelve runtimes)
 
 Found by the iOS-simulator travel walkthrough (Release build of `main`, QA
